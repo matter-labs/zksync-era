@@ -1,9 +1,9 @@
 use std::path::PathBuf;
 
 use anyhow::Context;
-use common::{cmd::Cmd, logger, server::Server, spinner::Spinner};
-use config::EcosystemConfig;
 use xshell::{cmd, Shell};
+use zkstack_cli_common::{cmd::Cmd, logger, server::Server, spinner::Spinner};
+use zkstack_cli_config::EcosystemConfig;
 
 use super::{
     args::recovery::RecoveryArgs,

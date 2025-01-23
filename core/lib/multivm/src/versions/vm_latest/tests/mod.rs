@@ -1,29 +1,40 @@
 use std::{
     collections::{HashMap, HashSet},
     rc::Rc,
+    sync::Arc,
 };
 
+use once_cell::sync::OnceCell;
 use zk_evm_1_5_0::{
     aux_structures::{MemoryPage, Timestamp},
     vm_state::VmLocalState,
     zkevm_opcode_defs::{ContractCodeSha256Format, VersionedHashLen32},
 };
-use zksync_types::{writes::StateDiffRecord, StorageKey, StorageValue, Transaction, H256, U256};
-use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256};
-use zksync_vm_interface::pubdata::PubdataBuilder;
+use zksync_types::{
+    bytecode::BytecodeHash, l2::L2Tx, vm::VmVersion, writes::StateDiffRecord, StorageKey,
+    StorageValue, Transaction, H256, U256,
+};
+use zksync_vm_interface::{Call, InspectExecutionMode, VmInterface};
 
-use super::{HistoryEnabled, Vm};
+use super::{HistoryEnabled, ToTracerPointer, Vm};
 use crate::{
     interface::{
+        pubdata::{PubdataBuilder, PubdataInput},
         storage::{InMemoryStorage, ReadStorage, StorageView, WriteStorage},
+        tracer::ViolatedValidationRule,
         CurrentExecutionState, L2BlockEnv, VmExecutionMode, VmExecutionResultAndLogs,
     },
-    versions::testonly::{filter_out_base_system_contracts, TestedVm},
+    tracers::{CallTracer, ValidationTracer},
+    utils::bytecode::bytes_to_be_words,
+    versions::testonly::{
+        filter_out_base_system_contracts, validation_params, TestedVm, TestedVmForValidation,
+        TestedVmWithCallTracer,
+    },
     vm_latest::{
         constants::BOOTLOADER_HEAP_PAGE,
         old_vm::{event_sink::InMemoryEventSink, history_recorder::HistoryRecorder},
         tracers::PubdataTracer,
-        types::internals::TransactionData,
+        types::TransactionData,
         utils::logs::StorageLogQuery,
         AppDataFrameManagerWithHistory, HistoryMode, SimpleMemory, TracerDispatcher,
     },
@@ -33,6 +44,7 @@ mod bootloader;
 mod default_aa;
 // TODO - fix this test
 // `mod invalid_bytecode;`
+mod account_validation_rules;
 mod block_tip;
 mod bytecode_publishing;
 mod call_tracer;
@@ -43,6 +55,7 @@ mod evm;
 mod gas_limit;
 mod get_used_contracts;
 mod is_write_initial;
+mod l1_messenger;
 mod l1_tx_execution;
 mod l2_blocks;
 mod mock_evm;
@@ -89,7 +102,7 @@ impl TestedVm for TestedLatestVm {
             self.batch_env.clone(),
             VmExecutionMode::Batch,
             diffs,
-            crate::vm_latest::MultiVMSubversion::latest(),
+            crate::vm_latest::MultiVmSubversion::latest(),
             Some(pubdata_builder),
         );
         self.inspect_inner(
@@ -111,9 +124,9 @@ impl TestedVm for TestedLatestVm {
         let bytecodes = bytecodes
             .iter()
             .map(|&bytecode| {
-                let hash = hash_bytecode(bytecode);
-                let words = bytes_to_be_words(bytecode.to_vec());
-                (h256_to_u256(hash), words)
+                let hash = BytecodeHash::for_bytecode(bytecode).value_u256();
+                let words = bytes_to_be_words(bytecode);
+                (hash, words)
             })
             .collect();
         self.state
@@ -185,6 +198,31 @@ impl TestedVm for TestedLatestVm {
         let tx = TransactionData::new(tx, false);
         let overhead = tx.overhead_gas();
         self.push_raw_transaction(tx, overhead, refund, true)
+    }
+
+    fn pubdata_input(&self) -> PubdataInput {
+        self.bootloader_state.get_pubdata_information().clone()
+    }
+}
+
+impl TestedVmForValidation for TestedLatestVm {
+    fn run_validation(&mut self, tx: L2Tx, timestamp: u64) -> Option<ViolatedValidationRule> {
+        let validation_params = validation_params(&tx, &self.system_env);
+        self.push_transaction(tx.into());
+
+        let tracer = ValidationTracer::<HistoryEnabled>::new(
+            validation_params,
+            VmVersion::Vm1_5_0IncreasedBootloaderMemory,
+            timestamp,
+        );
+        let mut failures = tracer.get_result();
+
+        self.inspect_inner(
+            &mut tracer.into_tracer_pointer().into(),
+            VmExecutionMode::OneTx,
+            None,
+        );
+        Arc::make_mut(&mut failures).take()
     }
 }
 
@@ -301,5 +339,15 @@ impl<S: ReadStorage, H: crate::glue::history_mode::HistoryMode> Vm<StorageView<S
             storage_oracle_state,
             local_state,
         }
+    }
+}
+
+impl TestedVmWithCallTracer for TestedLatestVm {
+    fn inspect_with_call_tracer(&mut self) -> (VmExecutionResultAndLogs, Vec<Call>) {
+        let result = Arc::new(OnceCell::new());
+        let call_tracer = CallTracer::new(result.clone()).into_tracer_pointer();
+        let res = self.inspect(&mut call_tracer.into(), InspectExecutionMode::OneTx);
+        let traces = result.get().unwrap().clone();
+        (res, traces)
     }
 }

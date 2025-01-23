@@ -4,14 +4,15 @@ use zksync_contracts::load_sys_contract;
 use zksync_system_constants::{
     CONTRACT_FORCE_DEPLOYER_ADDRESS, KNOWN_CODES_STORAGE_ADDRESS, L1_MESSENGER_ADDRESS,
 };
+use zksync_test_contracts::TestContract;
 use zksync_types::{
-    commitment::SerializeCommitment, fee_model::BatchFeeInput, get_code_key,
-    l2_to_l1_log::L2ToL1Log, writes::StateDiffRecord, Address, Execute, H256, U256,
+    bytecode::BytecodeHash, commitment::SerializeCommitment, fee_model::BatchFeeInput,
+    get_code_key, l2_to_l1_log::L2ToL1Log, u256_to_h256, writes::StateDiffRecord, Address, Execute,
+    H256, U256,
 };
-use zksync_utils::{bytecode::hash_bytecode, u256_to_h256};
 
 use super::{
-    default_pubdata_builder, get_complex_upgrade_abi, get_empty_storage, read_complex_upgrade,
+    default_pubdata_builder, get_empty_storage,
     tester::{TestedVm, VmTesterBuilder},
 };
 use crate::{
@@ -41,7 +42,7 @@ struct MimicCallInfo {
 const CALLS_PER_TX: usize = 1_000;
 
 fn populate_mimic_calls(data: L1MessengerTestData) -> Vec<Vec<u8>> {
-    let complex_upgrade = get_complex_upgrade_abi();
+    let complex_upgrade = TestContract::complex_upgrade();
     let l1_messenger = load_sys_contract("L1Messenger");
 
     let logs_mimic_calls = (0..data.l2_to_l1_logs).map(|i| MimicCallInfo {
@@ -72,7 +73,9 @@ fn populate_mimic_calls(data: L1MessengerTestData) -> Vec<Vec<u8>> {
         data: l1_messenger
             .function("requestBytecodeL1Publication")
             .unwrap()
-            .encode_input(&[Token::FixedBytes(hash_bytecode(bytecode).0.to_vec())])
+            .encode_input(&[Token::FixedBytes(
+                BytecodeHash::for_bytecode(bytecode).value().0.to_vec(),
+            )])
             .unwrap(),
     });
 
@@ -91,7 +94,6 @@ fn populate_mimic_calls(data: L1MessengerTestData) -> Vec<Vec<u8>> {
         .map(|chunk| {
             complex_upgrade
                 .function("mimicCalls")
-                .unwrap()
                 .encode_input(&[Token::Array(chunk.collect_vec())])
                 .unwrap()
         })
@@ -113,14 +115,17 @@ struct StatisticsTagged {
 
 fn execute_test<VM: TestedVm>(test_data: L1MessengerTestData) -> TestStatistics {
     let mut storage = get_empty_storage();
-    let complex_upgrade_code = read_complex_upgrade();
+    let complex_upgrade_code = TestContract::complex_upgrade().bytecode.to_vec();
 
     // For this test we'll just put the bytecode onto the force deployer address
     storage.set_value(
         get_code_key(&CONTRACT_FORCE_DEPLOYER_ADDRESS),
-        hash_bytecode(&complex_upgrade_code),
+        BytecodeHash::for_bytecode(&complex_upgrade_code).value(),
     );
-    storage.store_factory_dep(hash_bytecode(&complex_upgrade_code), complex_upgrade_code);
+    storage.store_factory_dep(
+        BytecodeHash::for_bytecode(&complex_upgrade_code).value(),
+        complex_upgrade_code,
+    );
 
     // We are measuring computational cost, so prices for pubdata don't matter, while they artificially dilute
     // the gas limit

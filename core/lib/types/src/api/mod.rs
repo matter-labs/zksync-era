@@ -4,9 +4,8 @@ use serde_json::Value;
 use serde_with::{hex::Hex, serde_as};
 use strum::Display;
 use zksync_basic_types::{
-    tee_types::TeeType,
     web3::{AccessList, Bytes, Index},
-    Bloom, L1BatchNumber, H160, H256, H64, U256, U64,
+    Bloom, L1BatchNumber, SLChainId, H160, H256, H64, U256, U64,
 };
 use zksync_contracts::BaseSystemContractsHashes;
 
@@ -16,6 +15,7 @@ pub use crate::transaction_request::{
 use crate::{
     debug_flat_call::{DebugCallFlat, ResultDebugCallFlat},
     protocol_version::L1VerifierConfig,
+    tee_types::TeeType,
     Address, L2BlockNumber, ProtocolVersionId,
 };
 
@@ -194,6 +194,13 @@ pub struct L2ToL1LogProof {
     pub id: u32,
     /// The root of the tree.
     pub root: H256,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ChainAggProof {
+    pub chain_id_leaf_proof: Vec<H256>,
+    pub chain_id_leaf_proof_mask: u64,
 }
 
 /// A struct with the two default bridge contracts.
@@ -466,6 +473,45 @@ impl Log {
     }
 }
 
+impl From<Log> for zksync_basic_types::web3::Log {
+    fn from(log: Log) -> Self {
+        zksync_basic_types::web3::Log {
+            address: log.address,
+            topics: log.topics,
+            data: log.data,
+            block_hash: log.block_hash,
+            block_number: log.block_number,
+            transaction_hash: log.transaction_hash,
+            transaction_index: log.transaction_index,
+            log_index: log.log_index,
+            transaction_log_index: log.transaction_log_index,
+            log_type: log.log_type,
+            removed: log.removed,
+            block_timestamp: log.block_timestamp,
+        }
+    }
+}
+
+impl From<zksync_basic_types::web3::Log> for Log {
+    fn from(log: zksync_basic_types::web3::Log) -> Self {
+        Log {
+            address: log.address,
+            topics: log.topics,
+            data: log.data,
+            block_hash: log.block_hash,
+            block_number: log.block_number,
+            transaction_hash: log.transaction_hash,
+            transaction_index: log.transaction_index,
+            log_index: log.log_index,
+            transaction_log_index: log.transaction_log_index,
+            log_type: log.log_type,
+            removed: log.removed,
+            block_timestamp: log.block_timestamp,
+            l1_batch_number: None,
+        }
+    }
+}
+
 /// A log produced by a transaction.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -515,6 +561,9 @@ pub struct Transaction {
     pub gas: U256,
     /// Input data
     pub input: Bytes,
+    /// The parity (0 for even, 1 for odd) of the y-value of the secp256k1 signature
+    #[serde(rename = "yParity", default, skip_serializing_if = "Option::is_none")]
+    pub y_parity: Option<U64>,
     /// ECDSA recovery id
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub v: Option<U64>,
@@ -816,10 +865,13 @@ pub struct BlockDetailsBase {
     pub status: BlockStatus,
     pub commit_tx_hash: Option<H256>,
     pub committed_at: Option<DateTime<Utc>>,
+    pub commit_chain_id: Option<SLChainId>,
     pub prove_tx_hash: Option<H256>,
     pub proven_at: Option<DateTime<Utc>>,
+    pub prove_chain_id: Option<SLChainId>,
     pub execute_tx_hash: Option<H256>,
     pub executed_at: Option<DateTime<Utc>>,
+    pub execute_chain_id: Option<SLChainId>,
     pub l1_gas_price: u64,
     pub l2_fair_gas_price: u64,
     // Cost of publishing one byte (in wei).
@@ -875,6 +927,7 @@ pub struct TeeProof {
     #[serde_as(as = "Option<Hex>")]
     pub proof: Option<Vec<u8>>,
     pub proved_at: DateTime<Utc>,
+    pub status: String,
     #[serde_as(as = "Option<Hex>")]
     pub attestation: Option<Vec<u8>>,
 }

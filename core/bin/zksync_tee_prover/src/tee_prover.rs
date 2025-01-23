@@ -80,7 +80,13 @@ impl TeeProver {
                 let msg_to_sign = Message::from_slice(root_hash_bytes)
                     .map_err(|e| TeeProverError::Verification(e.into()))?;
                 let signature = self.config.signing_key.sign_ecdsa(msg_to_sign);
-                observer.observe();
+                let duration = observer.observe();
+                tracing::info!(
+                    proof_generation_time = duration.as_secs_f64(),
+                    l1_batch_number = %batch_number,
+                    l1_root_hash = ?verification_result.value_hash,
+                    "L1 batch verified",
+                );
                 Ok((signature, batch_number, verification_result.value_hash))
             }
             _ => Err(TeeProverError::Verification(anyhow::anyhow!(

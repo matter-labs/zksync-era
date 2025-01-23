@@ -14,22 +14,21 @@ use zksync_multivm::{
     zk_evm_latest::ethereum_types::{Address, U256},
 };
 use zksync_types::{
-    block::L2BlockHasher, fee_model::BatchFeeInput, helpers::unix_timestamp_ms,
+    block::L2BlockHasher, fee_model::BatchFeeInput, helpers::unix_timestamp_ms, u256_to_h256,
     utils::storage_key_for_eth_balance, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId,
     Transaction,
 };
-use zksync_utils::bytecode::hash_bytecode;
 
 use crate::{instruction_counter::InstructionCounter, transaction::PRIVATE_KEY};
 
 static SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> = Lazy::new(BaseSystemContracts::load_from_disk);
 
 static STORAGE: Lazy<InMemoryStorage> = Lazy::new(|| {
-    let mut storage = InMemoryStorage::with_system_contracts(hash_bytecode);
+    let mut storage = InMemoryStorage::with_system_contracts();
     // Give `PRIVATE_KEY` some money
     let balance = U256::from(10u32).pow(U256::from(32)); //10^32 wei
     let key = storage_key_for_eth_balance(&PRIVATE_KEY.address());
-    storage.set_value(key, zksync_utils::u256_to_h256(balance));
+    storage.set_value(key, u256_to_h256(balance));
     storage
 });
 
@@ -114,12 +113,11 @@ impl CountInstructions for Fast {
         }
 
         let (system_env, l1_batch_env) = test_env();
-        let mut vm =
-            vm_fast::Vm::<_, InstructionCount>::custom(l1_batch_env, system_env, &*STORAGE);
+        let mut vm = vm_fast::Vm::custom(l1_batch_env, system_env, &*STORAGE);
         vm.push_transaction(tx.clone());
-        let mut tracer = InstructionCount(0);
+        let mut tracer = (InstructionCount(0), ());
         vm.inspect(&mut tracer, InspectExecutionMode::OneTx);
-        tracer.0
+        tracer.0 .0
     }
 }
 
@@ -235,22 +233,22 @@ impl BenchmarkingVm<Legacy> {
 #[cfg(test)]
 mod tests {
     use assert_matches::assert_matches;
-    use zksync_contracts::read_bytecode;
     use zksync_multivm::interface::ExecutionResult;
+    use zksync_test_contracts::TestContract;
 
     use super::*;
     use crate::{
         get_deploy_tx, get_heavy_load_test_tx, get_load_test_deploy_tx, get_load_test_tx,
-        get_realistic_load_test_tx, get_transfer_tx, LoadTestParams, BYTECODES,
+        get_realistic_load_test_tx, get_transfer_tx,
+        transaction::{get_erc20_deploy_tx, get_erc20_transfer_tx},
+        LoadTestParams, BYTECODES,
     };
 
     #[test]
     fn can_deploy_contract() {
-        let test_contract = read_bytecode(
-            "etc/contracts-test-data/artifacts-zk/contracts/counter/counter.sol/Counter.json",
-        );
+        let test_contract = &TestContract::counter().bytecode;
         let mut vm = BenchmarkingVm::new();
-        let res = vm.run_transaction(&get_deploy_tx(&test_contract));
+        let res = vm.run_transaction(&get_deploy_tx(test_contract));
 
         assert_matches!(res.result, ExecutionResult::Success { .. });
     }
@@ -260,6 +258,18 @@ mod tests {
         let mut vm = BenchmarkingVm::new();
         let res = vm.run_transaction(&get_transfer_tx(0));
         assert_matches!(res.result, ExecutionResult::Success { .. });
+    }
+
+    #[test]
+    fn can_erc20_transfer() {
+        let mut vm = BenchmarkingVm::new();
+        let res = vm.run_transaction(&get_erc20_deploy_tx());
+        assert_matches!(res.result, ExecutionResult::Success { .. });
+
+        for nonce in 1..=5 {
+            let res = vm.run_transaction(&get_erc20_transfer_tx(nonce));
+            assert_matches!(res.result, ExecutionResult::Success { .. });
+        }
     }
 
     #[test]

@@ -11,8 +11,10 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
+const-decoder.workspace = true
 ethabi.workspace = true
 hex.workspace = true
+sha2.workspace = true
 tiny-keccak.workspace = true
 thiserror.workspace = true
 serde = { workspace = true, features = ["derive"] }

@@ -1,5 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
+use anyhow::Context;
 use chrono::{DateTime, Utc};
 use futures::{stream, StreamExt, TryStreamExt};
 use k8s_openapi::api;
@@ -7,9 +8,16 @@ use kube::{
     api::{Api, ResourceExt},
     runtime::{watcher, WatchStreamExt},
 };
+use reqwest::{
+    header::{HeaderMap, HeaderValue},
+    Method,
+};
 use tokio::sync::Mutex;
 
-use crate::cluster_types::{Cluster, Deployment, Namespace, Pod, ScaleEvent};
+use crate::{
+    cluster_types::{Cluster, Deployment, Namespace, Pod, ScaleEvent},
+    http_client::HttpClient,
+};
 
 #[derive(Clone)]
 pub struct Watcher {
@@ -17,12 +25,39 @@ pub struct Watcher {
     pub cluster: Arc<Mutex<Cluster>>,
 }
 
+async fn get_cluster_name(http_client: HttpClient) -> anyhow::Result<String> {
+    let mut headers = HeaderMap::new();
+    headers.insert("Metadata-Flavor", HeaderValue::from_static("Google"));
+    let url = "http://metadata.google.internal/computeMetadata/v1/instance/attributes/cluster-name";
+    let response = http_client
+        .send_request_with_retries(url, Method::GET, Some(headers), None)
+        .await;
+    response
+        .map_err(|err| anyhow::anyhow!("Failed fetching response from url: {url}: {err:?}"))?
+        .text()
+        .await
+        .context("Failed to read response as text")
+}
+
 impl Watcher {
-    pub fn new(client: kube::Client, cluster_name: String, namespaces: Vec<String>) -> Self {
+    pub async fn new(
+        http_client: HttpClient,
+        client: kube::Client,
+        cluster_name: Option<String>,
+        namespaces: Vec<String>,
+    ) -> Self {
         let mut ns = HashMap::new();
         namespaces.into_iter().for_each(|n| {
             ns.insert(n, Namespace::default());
         });
+
+        let cluster_name = match cluster_name {
+            Some(c) => c,
+            None => get_cluster_name(http_client)
+                .await
+                .expect("Load cluster_name from GCP"),
+        };
+        tracing::info!("Agent cluster name is {cluster_name}");
 
         Self {
             client,

@@ -102,11 +102,16 @@ impl ConfigurationSource for Environment {
 /// This part of the external node config is fetched directly from the main node.
 #[derive(Debug, Deserialize)]
 pub(crate) struct RemoteENConfig {
-    pub bridgehub_proxy_addr: Option<Address>,
-    pub state_transition_proxy_addr: Option<Address>,
-    pub transparent_proxy_admin_addr: Option<Address>,
-    /// Should not be accessed directly. Use [`ExternalNodeConfig::diamond_proxy_address`] instead.
-    diamond_proxy_addr: Address,
+    pub l1_bytecodes_supplier_addr: Option<Address>,
+    #[serde(alias = "bridgehub_proxy_addr")]
+    pub l1_bridgehub_proxy_addr: Option<Address>,
+    #[serde(alias = "state_transition_proxy_addr")]
+    pub l1_state_transition_proxy_addr: Option<Address>,
+    #[serde(alias = "transparent_proxy_admin_addr")]
+    pub l1_transparent_proxy_admin_addr: Option<Address>,
+    /// Should not be accessed directly. Use [`ExternalNodeConfig::l1_diamond_proxy_address`] instead.
+    #[serde(alias = "diamond_proxy_addr")]
+    l1_diamond_proxy_addr: Address,
     // While on L1 shared bridge and legacy bridge are different contracts with different addresses,
     // the `l2_erc20_bridge_addr` and `l2_shared_bridge_addr` are basically the same contract, but with
     // a different name, with names adapted only for consistency.
@@ -123,6 +128,7 @@ pub(crate) struct RemoteENConfig {
     pub l2_weth_bridge_addr: Option<Address>,
     pub l2_testnet_paymaster_addr: Option<Address>,
     pub l2_timestamp_asserter_addr: Option<Address>,
+    pub l1_wrapped_base_token_store: Option<Address>,
     pub base_token_addr: Address,
     pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
     pub dummy_verifier: bool,
@@ -144,7 +150,7 @@ impl RemoteENConfig {
             .rpc_context("ecosystem_contracts")
             .await
             .ok();
-        let diamond_proxy_addr = client
+        let l1_diamond_proxy_addr = client
             .get_main_contract()
             .rpc_context("get_main_contract")
             .await?;
@@ -180,14 +186,20 @@ impl RemoteENConfig {
         }
 
         Ok(Self {
-            bridgehub_proxy_addr: ecosystem_contracts.as_ref().map(|a| a.bridgehub_proxy_addr),
-            state_transition_proxy_addr: ecosystem_contracts
+            l1_bridgehub_proxy_addr: ecosystem_contracts.as_ref().map(|a| a.bridgehub_proxy_addr),
+            l1_state_transition_proxy_addr: ecosystem_contracts
                 .as_ref()
                 .map(|a| a.state_transition_proxy_addr),
-            transparent_proxy_admin_addr: ecosystem_contracts
+            l1_transparent_proxy_admin_addr: ecosystem_contracts
                 .as_ref()
                 .map(|a| a.transparent_proxy_admin_addr),
-            diamond_proxy_addr,
+            l1_bytecodes_supplier_addr: ecosystem_contracts
+                .as_ref()
+                .and_then(|a| a.l1_bytecodes_supplier_addr),
+            l1_wrapped_base_token_store: ecosystem_contracts
+                .as_ref()
+                .and_then(|a| a.l1_wrapped_base_token_store),
+            l1_diamond_proxy_addr,
             l2_testnet_paymaster_addr,
             l1_erc20_bridge_proxy_addr: bridges.l1_erc20_default_bridge,
             l2_erc20_bridge_addr: l2_erc20_default_bridge,
@@ -212,10 +224,11 @@ impl RemoteENConfig {
     #[cfg(test)]
     fn mock() -> Self {
         Self {
-            bridgehub_proxy_addr: None,
-            state_transition_proxy_addr: None,
-            transparent_proxy_admin_addr: None,
-            diamond_proxy_addr: Address::repeat_byte(1),
+            l1_bytecodes_supplier_addr: None,
+            l1_bridgehub_proxy_addr: None,
+            l1_state_transition_proxy_addr: None,
+            l1_transparent_proxy_admin_addr: None,
+            l1_diamond_proxy_addr: Address::repeat_byte(1),
             l1_erc20_bridge_proxy_addr: Some(Address::repeat_byte(2)),
             l2_erc20_bridge_addr: Some(Address::repeat_byte(3)),
             l2_weth_bridge_addr: None,
@@ -226,6 +239,7 @@ impl RemoteENConfig {
             l2_shared_bridge_addr: Some(Address::repeat_byte(6)),
             l2_legacy_shared_bridge_addr: Some(Address::repeat_byte(7)),
             l1_batch_commit_data_generator_mode: L1BatchCommitmentMode::Rollup,
+            l1_wrapped_base_token_store: None,
             dummy_verifier: true,
             l2_timestamp_asserter_addr: None,
         }
@@ -408,6 +422,9 @@ pub(crate) struct OptionalENConfig {
     /// Timeout to wait for the Merkle tree database to run compaction on stalled writes.
     #[serde(default = "OptionalENConfig::default_merkle_tree_stalled_writes_timeout_sec")]
     merkle_tree_stalled_writes_timeout_sec: u64,
+    /// Enables the stale keys repair task for the Merkle tree.
+    #[serde(default)]
+    pub merkle_tree_repair_stale_keys: bool,
 
     // Postgres config (new parameters)
     /// Threshold in milliseconds for the DB connection lifetime to denote it as long-living and log its details.
@@ -476,7 +493,6 @@ pub(crate) struct OptionalENConfig {
     #[serde(default = "OptionalENConfig::default_pruning_data_retention_sec")]
     pruning_data_retention_sec: u64,
     /// Gateway RPC URL, needed for operating during migration.
-    #[allow(dead_code)]
     pub gateway_url: Option<SensitiveUrl>,
     /// Interval for bridge addresses refreshing in seconds.
     bridge_addresses_refresh_interval_sec: Option<NonZeroU64>,
@@ -486,7 +502,11 @@ pub(crate) struct OptionalENConfig {
 }
 
 impl OptionalENConfig {
-    fn from_configs(general_config: &GeneralConfig, enconfig: &ENConfig) -> anyhow::Result<Self> {
+    fn from_configs(
+        general_config: &GeneralConfig,
+        enconfig: &ENConfig,
+        secrets: &Secrets,
+    ) -> anyhow::Result<Self> {
         let api_namespaces = load_config!(general_config.api_config, web3_json_rpc.api_namespaces)
             .map(|a: Vec<String>| a.iter().map(|a| a.parse()).collect::<Result<_, _>>())
             .transpose()?;
@@ -639,6 +659,12 @@ impl OptionalENConfig {
                 merkle_tree.stalled_writes_timeout_sec,
                 default_merkle_tree_stalled_writes_timeout_sec
             ),
+            merkle_tree_repair_stale_keys: general_config
+                .db_config
+                .as_ref()
+                .map_or(false, |config| {
+                    config.experimental.merkle_tree_repair_stale_keys
+                }),
             database_long_connection_threshold_ms: load_config!(
                 general_config.postgres_config,
                 long_connection_threshold_ms
@@ -712,7 +738,10 @@ impl OptionalENConfig {
                 .unwrap_or_else(Self::default_main_node_rate_limit_rps),
             api_namespaces,
             contracts_diamond_proxy_addr: None,
-            gateway_url: enconfig.gateway_url.clone(),
+            gateway_url: secrets
+                .l1
+                .as_ref()
+                .and_then(|l1| l1.gateway_rpc_url.clone()),
             bridge_addresses_refresh_interval_sec: enconfig.bridge_addresses_refresh_interval_sec,
             timestamp_asserter_min_time_till_end_sec: general_config
                 .timestamp_asserter_config
@@ -964,11 +993,11 @@ impl OptionalENConfig {
 /// This part of the external node config is required for its operation.
 #[derive(Debug, Deserialize)]
 pub(crate) struct RequiredENConfig {
-    /// The chain ID of the L1 network (e.g., 1 for Ethereum mainnet). In the future, it may be different from the settlement layer.
+    /// The chain ID of the L1 network (e.g., 1 for Ethereum mainnet).
     pub l1_chain_id: L1ChainId,
-    /// The chain ID of the settlement layer (e.g., 1 for Ethereum mainnet). This ID will be checked against the `eth_client_url` RPC provider on initialization
-    /// to ensure that there's no mismatch between the expected and actual settlement layer network.
-    pub sl_chain_id: Option<SLChainId>,
+    /// The chain ID of the gateway. This ID will be checked against the `gateway_rpc_url` RPC provider on initialization
+    /// to ensure that there's no mismatch between the expected and actual gateway network.
+    pub gateway_chain_id: Option<SLChainId>,
     /// L2 chain ID (e.g., 270 for ZKsync Era mainnet). This ID will be checked against the `main_node_url` RPC provider on initialization
     /// to ensure that there's no mismatch between the expected and actual L2 network.
     pub l2_chain_id: L2ChainId,
@@ -990,10 +1019,6 @@ pub(crate) struct RequiredENConfig {
 }
 
 impl RequiredENConfig {
-    pub fn settlement_layer_id(&self) -> SLChainId {
-        self.sl_chain_id.unwrap_or(self.l1_chain_id.into())
-    }
-
     fn from_env() -> anyhow::Result<Self> {
         envy::prefixed("EN_")
             .from_env()
@@ -1015,7 +1040,7 @@ impl RequiredENConfig {
             .context("Database config is required")?;
         Ok(RequiredENConfig {
             l1_chain_id: en_config.l1_chain_id,
-            sl_chain_id: None,
+            gateway_chain_id: en_config.gateway_chain_id,
             l2_chain_id: en_config.l2_chain_id,
             http_port: api_config.web3_json_rpc.http_port,
             ws_port: api_config.web3_json_rpc.ws_port,
@@ -1036,7 +1061,7 @@ impl RequiredENConfig {
     fn mock(temp_dir: &tempfile::TempDir) -> Self {
         Self {
             l1_chain_id: L1ChainId(9),
-            sl_chain_id: None,
+            gateway_chain_id: None,
             l2_chain_id: L2ChainId::default(),
             http_port: 0,
             ws_port: 0,
@@ -1331,7 +1356,11 @@ impl ExternalNodeConfig<()> {
             &external_node_config,
             &secrets_config,
         )?;
-        let optional = OptionalENConfig::from_configs(&general_config, &external_node_config)?;
+        let optional = OptionalENConfig::from_configs(
+            &general_config,
+            &external_node_config,
+            &secrets_config,
+        )?;
         let postgres = PostgresConfig {
             database_url: secrets_config
                 .database
@@ -1374,16 +1403,16 @@ impl ExternalNodeConfig<()> {
         let remote = RemoteENConfig::fetch(main_node_client)
             .await
             .context("Unable to fetch required config values from the main node")?;
-        let remote_diamond_proxy_addr = remote.diamond_proxy_addr;
+        let remote_diamond_proxy_addr = remote.l1_diamond_proxy_addr;
         if let Some(local_diamond_proxy_addr) = self.optional.contracts_diamond_proxy_addr {
             anyhow::ensure!(
                 local_diamond_proxy_addr == remote_diamond_proxy_addr,
-                "Diamond proxy address {local_diamond_proxy_addr:?} specified in config doesn't match one returned \
+                "L1 diamond proxy address {local_diamond_proxy_addr:?} specified in config doesn't match one returned \
                 by main node ({remote_diamond_proxy_addr:?})"
             );
         } else {
             tracing::info!(
-                "Diamond proxy address is not specified in config; will use address \
+                "L1 diamond proxy address is not specified in config; will use address \
                 returned by main node: {remote_diamond_proxy_addr:?}"
             );
         }
@@ -1421,14 +1450,14 @@ impl ExternalNodeConfig {
         }
     }
 
-    /// Returns a verified diamond proxy address.
+    /// Returns verified L1 diamond proxy address.
     /// If local configuration contains the address, it will be checked against the one returned by the main node.
     /// Otherwise, the remote value will be used. However, using remote value has trust implications for the main
     /// node so relying on it solely is not recommended.
-    pub fn diamond_proxy_address(&self) -> Address {
+    pub fn l1_diamond_proxy_address(&self) -> Address {
         self.optional
             .contracts_diamond_proxy_addr
-            .unwrap_or(self.remote.diamond_proxy_addr)
+            .unwrap_or(self.remote.l1_diamond_proxy_addr)
     }
 }
 
@@ -1452,10 +1481,12 @@ impl From<&ExternalNodeConfig> for InternalApiConfig {
                 l1_weth_bridge: config.remote.l1_weth_bridge_addr,
                 l2_weth_bridge: config.remote.l2_weth_bridge_addr,
             },
-            bridgehub_proxy_addr: config.remote.bridgehub_proxy_addr,
-            state_transition_proxy_addr: config.remote.state_transition_proxy_addr,
-            transparent_proxy_admin_addr: config.remote.transparent_proxy_admin_addr,
-            diamond_proxy_addr: config.remote.diamond_proxy_addr,
+            l1_bytecodes_supplier_addr: config.remote.l1_bytecodes_supplier_addr,
+            l1_wrapped_base_token_store: config.remote.l1_wrapped_base_token_store,
+            l1_bridgehub_proxy_addr: config.remote.l1_bridgehub_proxy_addr,
+            l1_state_transition_proxy_addr: config.remote.l1_state_transition_proxy_addr,
+            l1_transparent_proxy_admin_addr: config.remote.l1_transparent_proxy_admin_addr,
+            l1_diamond_proxy_addr: config.l1_diamond_proxy_address(),
             l2_testnet_paymaster_addr: config.remote.l2_testnet_paymaster_addr,
             req_entities_limit: config.optional.req_entities_limit,
             fee_history_limit: config.optional.fee_history_limit,

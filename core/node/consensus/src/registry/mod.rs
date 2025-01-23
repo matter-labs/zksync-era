@@ -1,7 +1,7 @@
 use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _};
 use zksync_consensus_crypto::ByteFmt;
-use zksync_consensus_roles::{attester, validator};
+use zksync_consensus_roles::attester;
 
 use crate::{storage::ConnectionPool, vm::VM};
 
@@ -30,22 +30,20 @@ pub type Address = crate::abi::Address<abi::ConsensusRegistry>;
 #[derive(Debug)]
 pub(crate) struct Registry {
     contract: abi::ConsensusRegistry,
-    genesis: validator::Genesis,
     vm: VM,
 }
 
 impl Registry {
-    pub async fn new(genesis: validator::Genesis, pool: ConnectionPool) -> Self {
+    pub async fn new(pool: ConnectionPool) -> Self {
         Self {
             contract: abi::ConsensusRegistry::load(),
-            genesis,
             vm: VM::new(pool).await,
         }
     }
 
     /// Attester committee for the given batch.
     /// It reads committee from the contract.
-    /// Falls back to committee specified in the genesis.
+    /// Falls back to empty committee.
     pub async fn attester_committee_for(
         &self,
         ctx: &ctx::Ctx,
@@ -57,7 +55,7 @@ impl Registry {
             return Ok(None);
         };
         let Some(address) = address else {
-            return Ok(self.genesis.attesters.clone());
+            return Ok(None);
         };
         let raw = self
             .vm

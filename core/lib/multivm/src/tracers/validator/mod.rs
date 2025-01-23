@@ -5,18 +5,16 @@ use std::{
 };
 
 use once_cell::sync::OnceCell;
+pub use vm_latest::TIMESTAMP_ASSERTER_FUNCTION_SELECTOR;
 use zksync_system_constants::{
     ACCOUNT_CODE_STORAGE_ADDRESS, BOOTLOADER_ADDRESS, CONTRACT_DEPLOYER_ADDRESS,
     L2_BASE_TOKEN_ADDRESS, MSG_VALUE_SIMULATOR_ADDRESS, SYSTEM_CONTEXT_ADDRESS,
 };
 use zksync_types::{
-    vm::VmVersion, web3::keccak256, AccountTreeId, Address, StorageKey, H256, U256,
+    address_to_u256, u256_to_h256, vm::VmVersion, web3::keccak256, AccountTreeId, Address,
+    StorageKey, H256, U256,
 };
-use zksync_utils::{address_to_u256, be_bytes_to_safe_address, u256_to_h256};
-use zksync_vm_interface::{
-    tracer::{TimestampAsserterParams, ValidationTraces},
-    L1BatchEnv,
-};
+use zksync_vm_interface::tracer::{TimestampAsserterParams, ValidationTraces};
 
 use self::types::{NewTrustedValidationItems, ValidationTracerMode};
 use crate::{
@@ -25,6 +23,7 @@ use crate::{
         storage::{StoragePtr, WriteStorage},
         tracer::{ValidationParams, ViolatedValidationRule},
     },
+    utils::bytecode::be_bytes_to_safe_address,
 };
 
 mod types;
@@ -53,7 +52,7 @@ pub struct ValidationTracer<H> {
     computational_gas_limit: u32,
     timestamp_asserter_params: Option<TimestampAsserterParams>,
     vm_version: VmVersion,
-    l1_batch_env: L1BatchEnv,
+    l1_batch_timestamp: u64,
     pub result: Arc<OnceCell<ViolatedValidationRule>>,
     pub traces: Arc<Mutex<ValidationTraces>>,
     _marker: PhantomData<fn(H) -> H>,
@@ -64,7 +63,7 @@ type ValidationRoundResult = Result<NewTrustedValidationItems, ViolatedValidatio
 impl<H> ValidationTracer<H> {
     const MAX_ALLOWED_SLOT_OFFSET: u32 = 127;
 
-    pub fn new(params: ValidationParams, vm_version: VmVersion, l1_batch_env: L1BatchEnv) -> Self {
+    pub fn new(params: ValidationParams, vm_version: VmVersion, l1_batch_timestamp: u64) -> Self {
         Self {
             validation_mode: ValidationTracerMode::NoValidation,
             auxilary_allowed_slots: Default::default(),
@@ -82,7 +81,7 @@ impl<H> ValidationTracer<H> {
             result: Arc::new(OnceCell::new()),
             traces: Arc::new(Mutex::new(ValidationTraces::default())),
             _marker: Default::default(),
-            l1_batch_env,
+            l1_batch_timestamp,
         }
     }
 

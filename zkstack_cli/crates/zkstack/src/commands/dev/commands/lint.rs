@@ -6,9 +6,9 @@ use std::{
 
 use anyhow::{bail, Context};
 use clap::Parser;
-use common::{cmd::Cmd, logger, spinner::Spinner};
-use config::EcosystemConfig;
 use xshell::{cmd, Shell};
+use zkstack_cli_common::{cmd::Cmd, logger, spinner::Spinner};
+use zkstack_cli_config::EcosystemConfig;
 
 use crate::commands::{
     autocomplete::{autocomplete_file_name, generate_completions},
@@ -32,6 +32,7 @@ pub struct LintArgs {
 }
 
 pub fn run(shell: &Shell, args: LintArgs) -> anyhow::Result<()> {
+    shell.set_var("ZKSYNC_USE_CUDA_STUBS", "true");
     let targets = if args.targets.is_empty() {
         vec![
             Target::Rs,
@@ -41,6 +42,7 @@ pub fn run(shell: &Shell, args: LintArgs) -> anyhow::Result<()> {
             Target::Ts,
             Target::Contracts,
             Target::Autocompletion,
+            Target::RustToolchain,
         ]
     } else {
         args.targets.clone()
@@ -55,6 +57,7 @@ pub fn run(shell: &Shell, args: LintArgs) -> anyhow::Result<()> {
             Target::Rs => lint_rs(shell, &ecosystem, args.check)?,
             Target::Contracts => lint_contracts(shell, &ecosystem, args.check)?,
             Target::Autocompletion => lint_autocompletion_files(shell, args.check)?,
+            Target::RustToolchain => check_rust_toolchain(shell)?,
             ext => lint(shell, &ecosystem, &ext, args.check)?,
         }
     }
@@ -67,21 +70,54 @@ pub fn run(shell: &Shell, args: LintArgs) -> anyhow::Result<()> {
 fn lint_rs(shell: &Shell, ecosystem: &EcosystemConfig, check: bool) -> anyhow::Result<()> {
     let spinner = Spinner::new(&msg_running_linter_for_extension_spinner(&Target::Rs));
 
-    let link_to_code = &ecosystem.link_to_code;
+    let link_to_core = &ecosystem.link_to_code.join("core");
     let lint_to_prover = &ecosystem.link_to_code.join("prover");
     let link_to_zkstack = &ecosystem.link_to_code.join("zkstack_cli");
-    let paths = vec![link_to_code, lint_to_prover, link_to_zkstack];
 
     spinner.freeze();
-    for path in paths {
+    for path in [link_to_core, lint_to_prover, link_to_zkstack] {
         let _dir_guard = shell.push_dir(path);
         let mut cmd = cmd!(shell, "cargo clippy");
-        let common_args = &["--locked", "--", "-D", "warnings"];
+        let mut common_args = vec!["--locked", "--", "-D", "warnings"];
+
+        if !path.ends_with("prover") {
+            common_args.push("-D");
+            common_args.push("unstable-features");
+        }
+
         if !check {
             cmd = cmd.args(&["--fix", "--allow-dirty"]);
         }
         cmd = cmd.args(common_args);
         Cmd::new(cmd).with_force_run().run()?;
+    }
+
+    Ok(())
+}
+
+fn check_rust_toolchain(shell: &Shell) -> anyhow::Result<()> {
+    // deserialize /zkstack_cli/rust-toolchain as TOML
+    let path = Path::new("zkstack_cli/rust-toolchain");
+    if !path.exists() {
+        logger::info("WARNING: Please run this command from the project's root folder");
+        return Ok(());
+    }
+    let contents = shell.read_file(path)?;
+    let zkstack_cli_toolchain: toml::Value = toml::from_str(&contents)?;
+
+    // deserialize /rust-toolchain as TOML
+    let path = Path::new("rust-toolchain");
+    let contents = shell.read_file(path)?;
+    let zksync_era_toolchain: toml::Value = toml::from_str(&contents)?;
+
+    // check if the toolchains are the same
+    if zksync_era_toolchain["toolchain"]["channel"] != zkstack_cli_toolchain["toolchain"]["channel"]
+    {
+        bail!(
+            "The Rust toolchains are not the same: ZKsync Era: {} - ZK Stack CLI: {}",
+            zksync_era_toolchain["toolchain"]["channel"],
+            zkstack_cli_toolchain["toolchain"]["channel"]
+        );
     }
 
     Ok(())
@@ -96,6 +132,7 @@ fn get_linter(target: &Target) -> Vec<String> {
         Target::Ts => vec!["eslint".to_string(), "--ext".to_string(), "ts".to_string()],
         Target::Contracts => vec![],
         Target::Autocompletion => vec![],
+        Target::RustToolchain => vec![],
     }
 }
 
@@ -183,7 +220,7 @@ fn lint_autocompletion_files(_shell: &Shell, check: bool) -> anyhow::Result<()> 
                 let mut autocomplete_file = File::create(path).context("Failed to create file")?;
                 autocomplete_file.write_all(new.as_bytes())?;
             } else {
-                bail!("Autocompletion files need to be regenerated. Run `zkstack dev lint -t autocompletion` to fix this issue.")
+                bail!("Autocompletion files need to be regenerated. To fix this issue, follow these steps: 1) Build an updated ZK Stack CLI using `zkstackup --local`, 2) Run `zkstack dev lint -t autocompletion` to generate the updated files, and 3) Commit the newly generated files.")
             }
         }
     }

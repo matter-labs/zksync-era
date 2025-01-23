@@ -5,14 +5,14 @@ use zksync_multivm::{
         Call, CompressedBytecodeInfo, ExecutionResult, L2BlockEnv, TransactionExecutionResult,
         TxExecutionStatus, VmEvent, VmExecutionMetrics, VmExecutionResultAndLogs,
     },
-    vm_latest::{utils::extract_bytecodes_marked_as_known, TransactionVmExt},
+    vm_latest::TransactionVmExt,
 };
 use zksync_types::{
-    block::{BlockGasCount, L2BlockHasher},
+    block::L2BlockHasher,
+    bytecode::BytecodeHash,
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
     L2BlockNumber, ProtocolVersionId, StorageLogWithPreviousValue, Transaction, H256,
 };
-use zksync_utils::bytecode::hash_bytecode;
 
 use crate::metrics::KEEPER_METRICS;
 
@@ -24,11 +24,10 @@ pub struct L2BlockUpdates {
     pub user_l2_to_l1_logs: Vec<UserL2ToL1Log>,
     pub system_l2_to_l1_logs: Vec<SystemL2ToL1Log>,
     pub new_factory_deps: HashMap<H256, Vec<u8>>,
-    /// How much L1 gas will it take to submit this block?
-    pub l1_gas_count: BlockGasCount,
     pub block_execution_metrics: VmExecutionMetrics,
     pub txs_encoding_size: usize,
     pub payload_encoding_size: usize,
+    pub l1_tx_count: usize,
     pub timestamp: u64,
     pub number: L2BlockNumber,
     pub prev_block_hash: H256,
@@ -51,10 +50,10 @@ impl L2BlockUpdates {
             user_l2_to_l1_logs: vec![],
             system_l2_to_l1_logs: vec![],
             new_factory_deps: HashMap::new(),
-            l1_gas_count: BlockGasCount::default(),
             block_execution_metrics: VmExecutionMetrics::default(),
             txs_encoding_size: 0,
             payload_encoding_size: 0,
+            l1_tx_count: 0,
             timestamp,
             number,
             prev_block_hash,
@@ -66,7 +65,6 @@ impl L2BlockUpdates {
     pub(crate) fn extend_from_fictive_transaction(
         &mut self,
         result: VmExecutionResultAndLogs,
-        l1_gas_count: BlockGasCount,
         execution_metrics: VmExecutionMetrics,
     ) {
         self.events.extend(result.logs.events);
@@ -76,7 +74,6 @@ impl L2BlockUpdates {
         self.system_l2_to_l1_logs
             .extend(result.logs.system_l2_to_l1_logs);
 
-        self.l1_gas_count += l1_gas_count;
         self.block_execution_metrics += execution_metrics;
     }
 
@@ -85,19 +82,12 @@ impl L2BlockUpdates {
         &mut self,
         tx: Transaction,
         tx_execution_result: VmExecutionResultAndLogs,
-        tx_l1_gas_this_tx: BlockGasCount,
         execution_metrics: VmExecutionMetrics,
         compressed_bytecodes: Vec<CompressedBytecodeInfo>,
-        new_known_factory_deps: HashMap<H256, Vec<u8>>,
         call_traces: Vec<Call>,
     ) {
         let saved_factory_deps =
-            extract_bytecodes_marked_as_known(&tx_execution_result.logs.events);
-        self.events.extend(tx_execution_result.logs.events);
-        self.user_l2_to_l1_logs
-            .extend(tx_execution_result.logs.user_l2_to_l1_logs);
-        self.system_l2_to_l1_logs
-            .extend(tx_execution_result.logs.system_l2_to_l1_logs);
+            VmEvent::extract_bytecodes_marked_as_known(&tx_execution_result.logs.events);
 
         let gas_refunded = tx_execution_result.refunds.gas_refunded;
         let operator_suggested_refund = tx_execution_result.refunds.operator_suggested_refund;
@@ -125,14 +115,19 @@ impl L2BlockUpdates {
         let factory_deps = &tx.execute.factory_deps;
         let mut tx_factory_deps: HashMap<_, _> = factory_deps
             .iter()
-            .map(|bytecode| (hash_bytecode(bytecode), bytecode.clone()))
+            .map(|bytecode| {
+                (
+                    BytecodeHash::for_bytecode(bytecode).value(),
+                    bytecode.clone(),
+                )
+            })
             .collect();
         // Ensure that *dynamic* factory deps (ones that may be created when executing EVM contracts)
         // are added into the lookup map as well.
-        tx_factory_deps.extend(new_known_factory_deps);
+        tx_factory_deps.extend(tx_execution_result.dynamic_factory_deps);
 
         // Save all bytecodes that were marked as known in the bootloader
-        let known_bytecodes = saved_factory_deps.into_iter().map(|bytecode_hash| {
+        let known_bytecodes = saved_factory_deps.map(|bytecode_hash| {
             let bytecode = tx_factory_deps.get(&bytecode_hash).unwrap_or_else(|| {
                 panic!(
                     "Failed to get factory deps on tx: bytecode hash: {:?}, tx hash: {}",
@@ -140,17 +135,24 @@ impl L2BlockUpdates {
                     tx.hash()
                 )
             });
-            (bytecode_hash, bytecode.to_vec())
+            (bytecode_hash, bytecode.clone())
         });
         self.new_factory_deps.extend(known_bytecodes);
 
-        self.l1_gas_count += tx_l1_gas_this_tx;
         self.block_execution_metrics += execution_metrics;
         self.txs_encoding_size += tx.bootloader_encoding_size();
         self.payload_encoding_size +=
             zksync_protobuf::repr::encode::<zksync_dal::consensus::proto::Transaction>(&tx).len();
+        self.events.extend(tx_execution_result.logs.events);
+        self.user_l2_to_l1_logs
+            .extend(tx_execution_result.logs.user_l2_to_l1_logs);
+        self.system_l2_to_l1_logs
+            .extend(tx_execution_result.logs.system_l2_to_l1_logs);
         self.storage_logs
             .extend(tx_execution_result.logs.storage_logs);
+        if tx.is_l1() {
+            self.l1_tx_count += 1;
+        }
 
         self.executed_transactions.push(TransactionExecutionResult {
             hash: tx.hash(),
@@ -208,10 +210,8 @@ mod tests {
         accumulator.extend_from_executed_transaction(
             tx,
             create_execution_result([]),
-            BlockGasCount::default(),
             VmExecutionMetrics::default(),
             vec![],
-            HashMap::new(),
             vec![],
         );
 
@@ -220,10 +220,10 @@ mod tests {
         assert_eq!(accumulator.storage_logs.len(), 0);
         assert_eq!(accumulator.user_l2_to_l1_logs.len(), 0);
         assert_eq!(accumulator.system_l2_to_l1_logs.len(), 0);
-        assert_eq!(accumulator.l1_gas_count, Default::default());
         assert_eq!(accumulator.new_factory_deps.len(), 0);
         assert_eq!(accumulator.block_execution_metrics.l2_to_l1_logs, 0);
         assert_eq!(accumulator.txs_encoding_size, bootloader_encoding_size);
         assert_eq!(accumulator.payload_encoding_size, payload_encoding_size);
+        assert_eq!(accumulator.l1_tx_count, 0);
     }
 }

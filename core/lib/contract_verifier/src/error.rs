@@ -6,16 +6,18 @@ pub enum ContractVerifierError {
     Internal(#[from] anyhow::Error),
     #[error("Deployed bytecode is not equal to generated one from given source")]
     BytecodeMismatch,
+    #[error("Creation bytecode is not equal to generated one from given source")]
+    CreationBytecodeMismatch,
     #[error("Constructor arguments are not correct")]
     IncorrectConstructorArguments,
     #[error("Compilation takes too much time")]
     CompilationTimeout,
     #[error("{0} error: {1}")]
-    CompilerError(String, String),
+    CompilerError(&'static str, String),
     #[error("Compilation error")]
     CompilationError(serde_json::Value),
     #[error("Unknown {0} version: {1}")]
-    UnknownCompilerVersion(String, String),
+    UnknownCompilerVersion(&'static str, String),
     #[error("Contract with {0} name is missing in sources")]
     MissingContract(String),
     #[error("There is no {0} source file")]

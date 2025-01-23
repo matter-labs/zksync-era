@@ -2,11 +2,10 @@ use std::fmt;
 
 use chrono::{DateTime, TimeZone, Utc};
 use zksync_basic_types::{Address, H256};
-use zksync_utils::{address_to_h256, u256_to_h256};
 
 use crate::{
-    system_contracts::DEPLOYMENT_NONCE_INCREMENT, web3::keccak256, AccountTreeId, StorageKey,
-    L2_BASE_TOKEN_ADDRESS, U256,
+    address_to_h256, system_contracts::DEPLOYMENT_NONCE_INCREMENT, u256_to_h256, web3::keccak256,
+    AccountTreeId, StorageKey, L2_BASE_TOKEN_ADDRESS, U256,
 };
 
 /// Displays a Unix timestamp (seconds since epoch) in human-readable form. Useful for logging.

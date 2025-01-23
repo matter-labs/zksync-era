@@ -1,14 +1,14 @@
 use std::collections::HashMap;
 
 use anyhow::Context;
-use common::{cmd::Cmd, spinner::Spinner, wallets::Wallet};
-use config::{ChainConfig, EcosystemConfig};
 use ethers::{
     providers::{Http, Middleware, Provider},
     utils::hex::ToHex,
 };
 use serde::Deserialize;
 use xshell::{cmd, Shell};
+use zkstack_cli_common::{cmd::Cmd, spinner::Spinner, wallets::Wallet};
+use zkstack_cli_config::{ChainConfig, EcosystemConfig};
 
 use crate::commands::dev::messages::{
     MSG_INTEGRATION_TESTS_BUILDING_CONTRACTS, MSG_INTEGRATION_TESTS_BUILDING_DEPENDENCIES,
@@ -16,9 +16,7 @@ use crate::commands::dev::messages::{
 
 pub const TEST_WALLETS_PATH: &str = "etc/test_config/constant/eth.json";
 const AMOUNT_FOR_DISTRIBUTION_TO_WALLETS: u128 = 1000000000000000000000;
-
 pub const TS_INTEGRATION_PATH: &str = "core/tests/ts-integration";
-const CONTRACTS_TEST_DATA_PATH: &str = "etc/contracts-test-data";
 
 #[derive(Deserialize)]
 pub struct TestWallets {
@@ -69,7 +67,7 @@ impl TestWallets {
         let balance = provider.get_balance(wallet.address, None).await?;
 
         if balance.is_zero() {
-            common::ethereum::distribute_eth(
+            zkstack_cli_common::ethereum::distribute_eth(
                 self.get_main_wallet()?,
                 vec![wallet.address],
                 l1_rpc,
@@ -89,9 +87,6 @@ pub fn build_contracts(shell: &Shell, ecosystem_config: &EcosystemConfig) -> any
 
     Cmd::new(cmd!(shell, "yarn build")).run()?;
     Cmd::new(cmd!(shell, "yarn build-yul")).run()?;
-
-    let _dir_guard = shell.push_dir(ecosystem_config.link_to_code.join(CONTRACTS_TEST_DATA_PATH));
-    Cmd::new(cmd!(shell, "yarn build")).run()?;
 
     spinner.finish();
     Ok(())

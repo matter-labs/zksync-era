@@ -1,4 +1,7 @@
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::Arc,
+    time::{Duration, SystemTime},
+};
 
 use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
@@ -6,10 +9,10 @@ use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{
     encode_blob_tx_with_sidecar, BoundEthInterface, ExecutedTxStatus, RawTransactionBytes,
 };
+use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_node_fee_model::l1_gas_price::TxParamsProvider;
 use zksync_shared_metrics::BlockL1Stage;
 use zksync_types::{eth_sender::EthTx, Address, L1BlockNumber, H256, U256};
-use zksync_utils::time::seconds_since_epoch;
 
 use super::{metrics::METRICS, EthSenderError};
 use crate::{
@@ -17,6 +20,7 @@ use crate::{
         AbstractL1Interface, L1BlockNumbers, OperatorNonce, OperatorType, RealL1Interface,
     },
     eth_fees_oracle::{EthFees, EthFeesOracle, GasAdjusterFeesOracle},
+    health::{EthTxDetails, EthTxManagerHealthDetails},
     metrics::TransactionType,
 };
 
@@ -31,6 +35,7 @@ pub struct EthTxManager {
     config: SenderConfig,
     fees_oracle: Box<dyn EthFeesOracle>,
     pool: ConnectionPool<Core>,
+    health_updater: HealthUpdater,
 }
 
 impl EthTxManager {
@@ -65,6 +70,7 @@ impl EthTxManager {
             config,
             fees_oracle: Box::new(fees_oracle),
             pool,
+            health_updater: ReactiveHealthCheck::new("eth_tx_manager").1,
         }
     }
 
@@ -415,6 +421,14 @@ impl EthTxManager {
     ) {
         let receipt_block_number = tx_status.receipt.block_number.unwrap().as_u32();
         if receipt_block_number <= finalized_block.0 {
+            self.health_updater.update(
+                EthTxManagerHealthDetails {
+                    last_mined_tx: EthTxDetails::new(tx, Some((&tx_status).into())),
+                    finalized_block,
+                }
+                .into(),
+            );
+
             if tx_status.success {
                 self.confirm_tx(storage, tx, tx_status).await;
             } else {
@@ -486,13 +500,14 @@ impl EthTxManager {
             .track_eth_tx_metrics(storage, BlockL1Stage::Mined, tx)
             .await;
 
-        if gas_used > U256::from(tx.predicted_gas_cost) {
-            tracing::error!(
-                "Predicted gas {} lower than used gas {gas_used} for tx {:?} {}",
-                tx.predicted_gas_cost,
-                tx.tx_type,
-                tx.id
-            );
+        if let Some(predicted_gas_cost) = tx.predicted_gas_cost {
+            if gas_used > U256::from(predicted_gas_cost) {
+                tracing::error!(
+                    "Predicted gas {predicted_gas_cost} lower than used gas {gas_used} for tx {:?} {}",
+                    tx.tx_type,
+                    tx.id
+                );
+            }
         }
         tracing::info!(
             "eth_tx {} with hash {tx_hash:?} for {} is confirmed. Gas spent: {gas_used:?}",
@@ -501,9 +516,13 @@ impl EthTxManager {
         );
         let tx_type_label = tx.tx_type.into();
         METRICS.l1_gas_used[&tx_type_label].observe(gas_used.low_u128() as f64);
-        METRICS.l1_tx_mined_latency[&tx_type_label].observe(Duration::from_secs(
-            seconds_since_epoch() - tx.created_at_timestamp,
-        ));
+
+        let duration_since_epoch = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .expect("incorrect system time");
+        let tx_latency =
+            duration_since_epoch.saturating_sub(Duration::from_secs(tx.created_at_timestamp));
+        METRICS.l1_tx_mined_latency[&tx_type_label].observe(tx_latency);
 
         let sent_at_block = storage
             .eth_sender_dal()
@@ -516,6 +535,9 @@ impl EthTxManager {
     }
 
     pub async fn run(mut self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        self.health_updater
+            .update(Health::from(HealthStatus::Ready));
+
         let pool = self.pool.clone();
 
         loop {
@@ -675,5 +697,10 @@ impl EthTxManager {
                 }
             }
         }
+    }
+
+    /// Returns the health check for eth tx manager.
+    pub fn health_check(&self) -> ReactiveHealthCheck {
+        self.health_updater.subscribe()
     }
 }

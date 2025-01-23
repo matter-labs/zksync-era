@@ -82,6 +82,7 @@ async fn aggregating_health_checks() {
     let (first_check, first_updater) = ReactiveHealthCheck::new("first");
     let (second_check, second_updater) = ReactiveHealthCheck::new("second");
     let inner = AppHealthCheckInner {
+        app_details: None,
         components: vec![Arc::new(first_check), Arc::new(second_check)],
         slow_time_limit: AppHealthCheck::DEFAULT_SLOW_TIME_LIMIT,
         hard_time_limit: AppHealthCheck::DEFAULT_HARD_TIME_LIMIT,

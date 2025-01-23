@@ -16,6 +16,7 @@ links = "zksync_protobuf_config_proto"
 serde_json.workspace = true
 serde_yaml.workspace = true
 zksync_basic_types.workspace = true
+zksync_concurrency.workspace = true
 zksync_config.workspace = true
 zksync_protobuf.workspace = true
 zksync_types.workspace = true
@@ -26,7 +27,6 @@ rand.workspace = true
 hex.workspace = true
 secrecy.workspace = true
 tracing.workspace = true
-time.workspace = true
 
 [build-dependencies]
 zksync_protobuf_build.workspace = true

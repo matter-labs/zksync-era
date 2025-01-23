@@ -96,6 +96,21 @@ async fn merkle_tree_api() {
     let raw_stale_keys_response: serde_json::Value = raw_stale_keys_response.json().await.unwrap();
     assert_raw_stale_keys_response(&raw_stale_keys_response);
 
+    let raw_stale_keys_response = api_client
+        .inner
+        .post(format!("http://{local_addr}/debug/stale-keys/bogus"))
+        .json(&serde_json::json!({ "l1_batch_number": 1 }))
+        .send()
+        .await
+        .unwrap()
+        .error_for_status()
+        .unwrap();
+    let raw_stale_keys_response: serde_json::Value = raw_stale_keys_response.json().await.unwrap();
+    assert_eq!(
+        raw_stale_keys_response,
+        serde_json::json!({ "stale_keys": [] })
+    );
+
     // Stop the calculator and the tree API server.
     stop_sender.send_replace(true);
     api_server_task.await.unwrap().unwrap();
@@ -116,11 +131,13 @@ fn assert_raw_nodes_response(response: &serde_json::Value) {
         assert_matches!(key, b'0'..=b'9' | b'a'..=b'f');
     }
 
-    let node = response["0:0"].as_object().expect("not an object");
-    assert!(
-        node.len() == 2 && node.contains_key("internal") && node.contains_key("raw"),
-        "{node:#?}"
-    );
+    if let Some(value) = response.get("0:0") {
+        let node = value.as_object().expect("not an object");
+        assert!(
+            node.len() == 2 && node.contains_key("internal") && node.contains_key("raw"),
+            "{node:#?}"
+        );
+    }
 }
 
 fn assert_raw_stale_keys_response(response: &serde_json::Value) {

@@ -3,10 +3,13 @@ use std::sync::Arc;
 use tower_http::cors::CorsLayer;
 use zksync_dal::{ConnectionPool, Core};
 
+use crate::cache::SupportedCompilersCache;
+
 #[derive(Debug, Clone)]
-pub struct RestApi {
-    pub(super) master_connection_pool: ConnectionPool<Core>,
-    pub(super) replica_connection_pool: ConnectionPool<Core>,
+pub(crate) struct RestApi {
+    pub(crate) master_connection_pool: ConnectionPool<Core>,
+    pub(crate) replica_connection_pool: ConnectionPool<Core>,
+    pub(crate) supported_compilers: Arc<SupportedCompilersCache>,
 }
 
 impl RestApi {
@@ -14,7 +17,9 @@ impl RestApi {
         master_connection_pool: ConnectionPool<Core>,
         replica_connection_pool: ConnectionPool<Core>,
     ) -> Self {
+        let supported_compilers = SupportedCompilersCache::new(replica_connection_pool.clone());
         Self {
+            supported_compilers: Arc::new(supported_compilers),
             master_connection_pool,
             replica_connection_pool,
         }

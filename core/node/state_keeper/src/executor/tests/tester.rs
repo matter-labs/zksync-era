@@ -3,18 +3,16 @@
 
 use std::{collections::HashMap, fmt::Debug, sync::Arc};
 
+use assert_matches::assert_matches;
 use tempfile::TempDir;
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_config::configs::chain::StateKeeperConfig;
-use zksync_contracts::{
-    get_loadnext_contract, load_contract, read_bytecode,
-    test_contracts::LoadnextContractExecutionParams, TestContract,
-};
-use zksync_dal::{ConnectionPool, Core, CoreDal};
+use zksync_contracts::l2_rollup_da_validator_bytecode;
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_multivm::{
     interface::{
         executor::{BatchExecutor, BatchExecutorFactory},
-        L1BatchEnv, L2BlockEnv, SystemEnv,
+        ExecutionResult, L1BatchEnv, L2BlockEnv, SystemEnv,
     },
     utils::StorageWritesDeduplicator,
     vm_latest::constants::INITIAL_STORAGE_WRITE_PUBDATA_BYTES,
@@ -22,29 +20,34 @@ use zksync_multivm::{
 use zksync_node_genesis::create_genesis_l1_batch;
 use zksync_node_test_utils::{recover, Snapshot};
 use zksync_state::{OwnedStorage, ReadStorageFactory, RocksdbStorageOptions};
-use zksync_test_account::{Account, DeployContractsTx, TxType};
+use zksync_test_contracts::{
+    Account, DeployContractsTx, LoadnextContractExecutionParams, TestContract, TxType,
+};
 use zksync_types::{
     block::L2BlockHasher,
+    bytecode::BytecodeHash,
     commitment::PubdataParams,
     ethabi::Token,
+    get_code_key, get_known_code_key,
     protocol_version::ProtocolSemanticVersion,
     snapshots::{SnapshotRecoveryStatus, SnapshotStorageLog},
     system_contracts::get_system_smart_contracts,
+    u256_to_h256,
     utils::storage_key_for_standard_token_balance,
     vm::FastVmMode,
     AccountTreeId, Address, Execute, L1BatchNumber, L2BlockNumber, PriorityOpId, ProtocolVersionId,
     StorageLog, Transaction, H256, L2_BASE_TOKEN_ADDRESS, U256,
 };
-use zksync_utils::u256_to_h256;
 use zksync_vm_executor::batch::{MainBatchExecutorFactory, TraceCalls};
 
 use super::{read_storage_factory::RocksdbStorageFactory, StorageType};
 use crate::{
-    testonly,
-    testonly::BASE_SYSTEM_CONTRACTS,
+    testonly::{self, apply_genesis_logs, BASE_SYSTEM_CONTRACTS},
     tests::{default_l1_batch_env, default_system_env},
     AsyncRocksdbCache,
 };
+
+pub(super) const TRANSFER_VALUE: u64 = 123_456_789;
 
 /// Representation of configuration parameters used by the state keeper.
 /// Has sensible defaults for most tests, each of which can be overridden.
@@ -97,6 +100,22 @@ impl Tester {
 
     pub(super) fn set_config(&mut self, config: TestConfig) {
         self.config = config;
+    }
+
+    /// Extension of `create_batch_executor` that allows us to run some initial transactions to bootstrap the state.
+    pub(super) async fn create_batch_executor_with_init_transactions(
+        &mut self,
+        storage_type: StorageType,
+        transactions: &[Transaction],
+    ) -> Box<dyn BatchExecutor<OwnedStorage>> {
+        let mut executor = self.create_batch_executor(storage_type).await;
+
+        for txn in transactions {
+            let res = executor.execute_tx(txn.clone()).await.unwrap();
+            assert_matches!(res.tx_result.result, ExecutionResult::Success { .. });
+        }
+
+        executor
     }
 
     /// Creates a batch executor instance with the specified storage type.
@@ -272,6 +291,9 @@ impl Tester {
             )
             .await
             .unwrap();
+
+            // Also setting up the DA for tests
+            Self::setup_da(&mut storage).await;
         }
     }
 
@@ -310,6 +332,33 @@ impl Tester {
         }
     }
 
+    async fn setup_contract(conn: &mut Connection<'_, Core>, address: Address, code: Vec<u8>) {
+        let hash: H256 = BytecodeHash::for_bytecode(&code).value();
+        let known_code_key = get_known_code_key(&hash);
+        let code_key = get_code_key(&address);
+
+        let logs = [
+            StorageLog::new_write_log(known_code_key, H256::from_low_u64_be(1)),
+            StorageLog::new_write_log(code_key, hash),
+        ];
+        apply_genesis_logs(conn, &logs).await;
+
+        let factory_deps = HashMap::from([(hash, code)]);
+        conn.factory_deps_dal()
+            .insert_factory_deps(L2BlockNumber(0), &factory_deps)
+            .await
+            .unwrap();
+    }
+
+    async fn setup_da(conn: &mut Connection<'_, Core>) {
+        Self::setup_contract(
+            conn,
+            Address::repeat_byte(0x23),
+            l2_rollup_da_validator_bytecode(),
+        )
+        .await;
+    }
+
     pub(super) async fn wait_for_tasks(&mut self) {
         for task in self.tasks.drain(..) {
             task.await.expect("Failed to join a task");
@@ -325,7 +374,7 @@ impl Tester {
     }
 }
 
-pub trait AccountLoadNextExecutable {
+pub(super) trait AccountExt {
     fn deploy_loadnext_tx(&mut self) -> DeployContractsTx;
 
     fn l1_execute(&mut self, serial_id: PriorityOpId) -> Transaction;
@@ -335,7 +384,7 @@ pub trait AccountLoadNextExecutable {
     /// Returns an `execute` transaction with custom factory deps (which aren't used in a transaction,
     /// so they are mostly useful to test bytecode compression).
     fn execute_with_factory_deps(&mut self, factory_deps: Vec<Vec<u8>>) -> Transaction;
-    fn loadnext_custom_writes_call(
+    fn loadnext_custom_initial_writes_call(
         &mut self,
         address: Address,
         writes: u32,
@@ -352,39 +401,39 @@ pub trait AccountLoadNextExecutable {
         gas_to_burn: u32,
         gas_limit: u32,
     ) -> Transaction;
+
+    fn deploy_failed_call_tx(&mut self) -> DeployContractsTx;
+
+    fn deploy_storage_tester(&mut self) -> DeployContractsTx;
+
+    fn test_transient_store(&mut self, address: Address) -> Transaction;
+
+    fn assert_transient_value(&mut self, address: Address, expected: U256) -> Transaction;
+
+    fn deploy_precompiles_test(&mut self) -> DeployContractsTx;
+
+    fn test_decommit(
+        &mut self,
+        address: Address,
+        bytecode_hash: H256,
+        expected_keccak_hash: H256,
+    ) -> Transaction;
 }
 
-pub trait AccountFailedCall {
-    fn deploy_failedcall_tx(&mut self) -> DeployContractsTx;
-}
-
-impl AccountFailedCall for Account {
-    fn deploy_failedcall_tx(&mut self) -> DeployContractsTx {
-        let bytecode = read_bytecode(
-            "etc/contracts-test-data/artifacts-zk/contracts/failed-call/failed_call.sol/FailedCall.json");
-        let failedcall_contract = TestContract {
-            bytecode,
-            contract: load_contract("etc/contracts-test-data/artifacts-zk/contracts/failed-call/failed_call.sol/FailedCall.json"),
-            factory_deps: vec![],
-        };
-
-        self.get_deploy_tx(&failedcall_contract.bytecode, None, TxType::L2)
-    }
-}
-
-impl AccountLoadNextExecutable for Account {
+impl AccountExt for Account {
     fn deploy_loadnext_tx(&mut self) -> DeployContractsTx {
-        let loadnext_contract = get_loadnext_contract();
+        let loadnext_contract = TestContract::load_test();
         let loadnext_constructor_data = &[Token::Uint(U256::from(100))];
         self.get_deploy_tx_with_factory_deps(
-            &loadnext_contract.bytecode,
+            loadnext_contract.bytecode,
             Some(loadnext_constructor_data),
-            loadnext_contract.factory_deps.clone(),
+            loadnext_contract.factory_deps(),
             TxType::L2,
         )
     }
+
     fn l1_execute(&mut self, serial_id: PriorityOpId) -> Transaction {
-        testonly::l1_transaction(self, serial_id)
+        self.get_l1_tx(Execute::transfer(Address::random(), 0.into()), serial_id.0)
     }
 
     /// Returns a valid `execute` transaction.
@@ -407,17 +456,17 @@ impl AccountLoadNextExecutable for Account {
 
     /// Returns a transaction to the loadnext contract with custom amount of write requests.
     /// Increments the account nonce.
-    fn loadnext_custom_writes_call(
+    fn loadnext_custom_initial_writes_call(
         &mut self,
         address: Address,
-        writes: u32,
+        initial_writes: u32,
         gas_limit: u32,
     ) -> Transaction {
         // For each iteration of the expensive contract, there are two slots that are updated:
         // the length of the vector and the new slot with the element itself.
         let minimal_fee = 2
             * testonly::DEFAULT_GAS_PER_PUBDATA
-            * writes
+            * initial_writes
             * INITIAL_STORAGE_WRITE_PUBDATA_BYTES as u32;
 
         let fee = testonly::fee(minimal_fee + gas_limit);
@@ -427,7 +476,8 @@ impl AccountLoadNextExecutable for Account {
                 contract_address: Some(address),
                 calldata: LoadnextContractExecutionParams {
                     reads: 100,
-                    writes: writes as usize,
+                    initial_writes: initial_writes as usize,
+                    repeated_writes: 100,
                     events: 100,
                     hashes: 100,
                     recursive_calls: 0,
@@ -444,7 +494,10 @@ impl AccountLoadNextExecutable for Account {
     /// Returns a valid `execute` transaction.
     /// Automatically increments nonce of the account.
     fn execute_with_gas_limit(&mut self, gas_limit: u32) -> Transaction {
-        testonly::l2_transaction(self, gas_limit)
+        self.get_l2_tx_for_execute(
+            Execute::transfer(Address::random(), TRANSFER_VALUE.into()),
+            Some(testonly::fee(gas_limit)),
+        )
     }
 
     /// Returns a transaction to the loadnext contract with custom gas limit and expected burned gas amount.
@@ -462,17 +515,78 @@ impl AccountLoadNextExecutable for Account {
             Execute {
                 contract_address: Some(address),
                 calldata,
-                value: Default::default(),
+                value: 0.into(),
                 factory_deps: vec![],
             },
             Some(fee),
         )
     }
+
+    fn deploy_failed_call_tx(&mut self) -> DeployContractsTx {
+        self.get_deploy_tx(TestContract::failed_call().bytecode, None, TxType::L2)
+    }
+
+    fn deploy_storage_tester(&mut self) -> DeployContractsTx {
+        self.get_deploy_tx(TestContract::storage_test().bytecode, None, TxType::L2)
+    }
+
+    fn test_transient_store(&mut self, address: Address) -> Transaction {
+        let test_fn = TestContract::storage_test().function("testTransientStore");
+        let calldata = test_fn.encode_input(&[]).unwrap();
+        self.get_l2_tx_for_execute(
+            Execute {
+                contract_address: Some(address),
+                calldata,
+                value: 0.into(),
+                factory_deps: vec![],
+            },
+            None,
+        )
+    }
+
+    fn assert_transient_value(&mut self, address: Address, expected: U256) -> Transaction {
+        let assert_fn = TestContract::storage_test().function("assertTValue");
+        let calldata = assert_fn.encode_input(&[Token::Uint(expected)]).unwrap();
+        self.get_l2_tx_for_execute(
+            Execute {
+                contract_address: Some(address),
+                calldata,
+                value: 0.into(),
+                factory_deps: vec![],
+            },
+            None,
+        )
+    }
+
+    fn deploy_precompiles_test(&mut self) -> DeployContractsTx {
+        self.get_deploy_tx(TestContract::precompiles_test().bytecode, None, TxType::L2)
+    }
+
+    fn test_decommit(
+        &mut self,
+        address: Address,
+        bytecode_hash: H256,
+        expected_keccak_hash: H256,
+    ) -> Transaction {
+        let assert_fn = TestContract::precompiles_test().function("callCodeOracle");
+        let calldata = assert_fn.encode_input(&[
+            Token::FixedBytes(bytecode_hash.0.to_vec()),
+            Token::FixedBytes(expected_keccak_hash.0.to_vec()),
+        ]);
+        self.get_l2_tx_for_execute(
+            Execute {
+                contract_address: Some(address),
+                calldata: calldata.unwrap(),
+                value: 0.into(),
+                factory_deps: vec![],
+            },
+            None,
+        )
+    }
 }
 
 pub fn mock_loadnext_gas_burn_calldata(gas: u32) -> Vec<u8> {
-    let loadnext_contract = get_loadnext_contract();
-    let contract_function = loadnext_contract.contract.function("burnGas").unwrap();
+    let contract_function = TestContract::load_test().function("burnGas");
     let params = vec![Token::Uint(U256::from(gas))];
     contract_function
         .encode_input(&params)
@@ -495,6 +609,7 @@ impl StorageSnapshot {
         connection_pool: &ConnectionPool<Core>,
         alice: &mut Account,
         transaction_count: u32,
+        transactions: &[Transaction],
     ) -> Self {
         let mut tester = Tester::new(connection_pool.clone(), FastVmMode::Old);
         tester.genesis().await;
@@ -531,6 +646,30 @@ impl StorageSnapshot {
             max_virtual_blocks_to_create: 1,
         };
         let mut storage_writes_deduplicator = StorageWritesDeduplicator::new();
+
+        for transaction in transactions {
+            let tx_hash = transaction.hash(); // probably incorrect
+            let res = executor.execute_tx(transaction.clone()).await.unwrap();
+            if !res.tx_result.result.is_failed() {
+                let storage_logs = &res.tx_result.logs.storage_logs;
+                storage_writes_deduplicator
+                    .apply(storage_logs.iter().filter(|log| log.log.is_write()));
+            } else {
+                panic!("Unexpected tx execution result: {res:?}");
+            };
+
+            let mut hasher = L2BlockHasher::new(
+                L2BlockNumber(l2_block_env.number),
+                l2_block_env.timestamp,
+                l2_block_env.prev_block_hash,
+            );
+            hasher.push_tx_hash(tx_hash);
+
+            l2_block_env.number += 1;
+            l2_block_env.timestamp += 1;
+            l2_block_env.prev_block_hash = hasher.finalize(ProtocolVersionId::latest());
+            executor.start_next_l2_block(l2_block_env).await.unwrap();
+        }
 
         for _ in 0..transaction_count {
             let tx = alice.execute();

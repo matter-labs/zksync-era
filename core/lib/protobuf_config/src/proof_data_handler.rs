@@ -29,6 +29,12 @@ impl ProtoRepr for proto::ProofDataHandler {
                     .unwrap_or_else(
                         configs::TeeConfig::default_tee_proof_generation_timeout_in_secs,
                     ),
+                tee_batch_permanently_ignored_timeout_in_hours: self
+                    .tee_batch_permanently_ignored_timeout_in_hours
+                    .map(|x| x as u16)
+                    .unwrap_or_else(
+                        configs::TeeConfig::default_tee_batch_permanently_ignored_timeout_in_hours,
+                    ),
             },
         })
     }
@@ -41,6 +47,11 @@ impl ProtoRepr for proto::ProofDataHandler {
             first_tee_processed_batch: Some(this.tee_config.first_tee_processed_batch.0 as u64),
             tee_proof_generation_timeout_in_secs: Some(
                 this.tee_config.tee_proof_generation_timeout_in_secs.into(),
+            ),
+            tee_batch_permanently_ignored_timeout_in_hours: Some(
+                this.tee_config
+                    .tee_batch_permanently_ignored_timeout_in_hours
+                    .into(),
             ),
         }
     }

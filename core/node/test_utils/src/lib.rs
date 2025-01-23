@@ -226,7 +226,7 @@ impl Snapshot {
             factory_deps: [&contracts.bootloader, &contracts.default_aa]
                 .into_iter()
                 .chain(contracts.evm_emulator.as_ref())
-                .map(|c| (c.hash, zksync_utils::be_words_to_bytes(&c.code)))
+                .map(|c| (c.hash, c.code.clone()))
                 .collect(),
             storage_logs,
         }
@@ -382,16 +382,18 @@ pub async fn recover(
 
     storage
         .pruning_dal()
-        .soft_prune_batches_range(snapshot.l1_batch.number, snapshot.l2_block.number)
+        .insert_soft_pruning_log(snapshot.l1_batch.number, snapshot.l2_block.number)
         .await
         .unwrap();
-
     storage
         .pruning_dal()
-        .hard_prune_batches_range(snapshot.l1_batch.number, snapshot.l2_block.number)
+        .insert_hard_pruning_log(
+            snapshot.l1_batch.number,
+            snapshot.l2_block.number,
+            snapshot_recovery.l1_batch_root_hash,
+        )
         .await
         .unwrap();
-
     storage.commit().await.unwrap();
     snapshot_recovery
 }

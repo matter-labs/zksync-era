@@ -12,7 +12,7 @@ pub struct StorageVerificationRequest {
     pub contract_address: Vec<u8>,
     pub source_code: String,
     pub contract_name: String,
-    pub zk_compiler_version: String,
+    pub zk_compiler_version: Option<String>,
     pub compiler_version: String,
     pub optimization_used: bool,
     pub optimizer_mode: Option<String>,

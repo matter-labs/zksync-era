@@ -1,10 +1,13 @@
-use std::path::Path;
+use std::{fmt, path::Path, time::Duration};
 
 use ethers::{
-    types::{H160, U256},
+    types::{Address, H160, U256},
     utils::format_ether,
 };
+use url::Url;
 use zksync_consensus_roles::attester;
+
+use crate::utils::forge::WalletOwner;
 
 pub(super) const MSG_SETUP_KEYS_DOWNLOAD_SELECTION_PROMPT: &str =
     "Do you want to download the setup keys or generate them?";
@@ -69,6 +72,7 @@ pub(super) const MSG_DEPLOY_ECOSYSTEM_PROMPT: &str =
     "Do you want to deploy ecosystem contracts? (Not needed if you already have an existing one)";
 pub(super) const MSG_L1_RPC_URL_PROMPT: &str = "What is the RPC URL of the L1 network?";
 pub(super) const MSG_DEPLOY_PAYMASTER_PROMPT: &str = "Do you want to deploy Paymaster contract?";
+pub(super) const MSG_VALIDIUM_TYPE_PROMPT: &str = "Select the Validium type";
 pub(super) const MSG_DEPLOY_ERC20_PROMPT: &str = "Do you want to deploy some test ERC20s?";
 pub(super) const MSG_ECOSYSTEM_CONTRACTS_PATH_PROMPT: &str = "Provide the path to the ecosystem contracts or keep it empty and you will use ZKsync ecosystem config. \
 For using this config, you need to have governance wallet";
@@ -82,6 +86,7 @@ pub(super) const MSG_CHAIN_INITIALIZED: &str = "Chain initialized successfully";
 pub(super) const MSG_CHAIN_CONFIGS_INITIALIZED: &str = "Chain configs were initialized";
 pub(super) const MSG_CHAIN_OWNERSHIP_TRANSFERRED: &str =
     "Chain ownership was transferred successfully";
+pub(super) const MSG_EVM_EMULATOR_ENABLED: &str = "EVM emulator enabled successfully";
 pub(super) const MSG_CHAIN_REGISTERED: &str = "Chain registraion was successful";
 pub(super) const MSG_DISTRIBUTING_ETH_SPINNER: &str = "Distributing eth...";
 pub(super) const MSG_MINT_BASE_TOKEN_SPINNER: &str =
@@ -93,6 +98,7 @@ pub(super) const MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER: &str =
     "Deploying ecosystem contracts...";
 pub(super) const MSG_REGISTERING_CHAIN_SPINNER: &str = "Registering chain...";
 pub(super) const MSG_ACCEPTING_ADMIN_SPINNER: &str = "Accepting admin...";
+pub(super) const MSG_DA_PAIR_REGISTRATION_SPINNER: &str = "Registering DA pair...";
 pub(super) const MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER: &str =
     "Updating token multiplier setter...";
 pub(super) const MSG_TOKEN_MULTIPLIER_SETTER_UPDATED_TO: &str =
@@ -264,11 +270,13 @@ pub(super) const MSG_ENABLE_CONSENSUS_HELP: &str = "Enable consensus";
 pub(super) const MSG_SERVER_GENESIS_HELP: &str = "Run server in genesis mode";
 pub(super) const MSG_SERVER_ADDITIONAL_ARGS_HELP: &str =
     "Additional arguments that can be passed through the CLI";
-pub(super) const MSG_SERVER_BUILD_HELP: &str = "Build server but don't run it";
 pub(super) const MSG_SERVER_URING_HELP: &str = "Enables uring support for RocksDB";
 
 /// Accept ownership related messages
 pub(super) const MSG_ACCEPTING_GOVERNANCE_SPINNER: &str = "Accepting governance...";
+
+/// EVM emulator related messages
+pub(super) const MSG_ENABLING_EVM_EMULATOR: &str = "Enabling EVM emulator...";
 
 /// Containers related messages
 pub(super) const MSG_STARTING_CONTAINERS: &str = "Starting containers";
@@ -284,6 +292,13 @@ pub(super) const MSG_OBSERVABILITY_RUN_PROMPT: &str = "Do you want to run observ
 pub(super) const MSG_STARTING_SERVER: &str = "Starting server";
 pub(super) const MSG_FAILED_TO_RUN_SERVER_ERR: &str = "Failed to start server";
 pub(super) const MSG_PREPARING_EN_CONFIGS: &str = "Preparing External Node config";
+pub(super) const MSG_BUILDING_SERVER: &str = "Building server";
+pub(super) const MSG_FAILED_TO_BUILD_SERVER_ERR: &str = "Failed to build server";
+pub(super) const MSG_WAITING_FOR_SERVER: &str = "Waiting for server to start";
+
+pub(super) fn msg_waiting_for_server_success(health_check_port: u16) -> String {
+    format!("Server is alive with health check server on :{health_check_port}")
+}
 
 /// Portal related messages
 pub(super) const MSG_PORTAL_FAILED_TO_FIND_ANY_CHAIN_ERR: &str =
@@ -327,7 +342,15 @@ pub(super) fn msg_explorer_chain_not_initialized(chain: &str) -> String {
 }
 
 /// Forge utils related messages
-pub(super) const MSG_DEPLOYER_PK_NOT_SET_ERR: &str = "Deployer private key is not set";
+pub(super) fn msg_wallet_private_key_not_set(wallet_owner: WalletOwner) -> String {
+    format!(
+        "{} private key is not set",
+        match wallet_owner {
+            WalletOwner::Governor => "Governor",
+            WalletOwner::Deployer => "Deployer",
+        }
+    )
+}
 
 pub(super) fn msg_address_doesnt_have_enough_money_prompt(
     address: &H160,
@@ -351,7 +374,14 @@ pub(super) const MSG_CONSENSUS_CONFIG_MISSING_ERR: &str = "Consensus config is m
 pub(super) const MSG_CONSENSUS_SECRETS_MISSING_ERR: &str = "Consensus secrets config is missing";
 pub(super) const MSG_CONSENSUS_SECRETS_NODE_KEY_MISSING_ERR: &str = "Consensus node key is missing";
 
+pub(super) const MSG_BUILDING_EN: &str = "Building external node";
+pub(super) const MSG_FAILED_TO_BUILD_EN_ERR: &str = "Failed to build external node";
 pub(super) const MSG_STARTING_EN: &str = "Starting external node";
+pub(super) const MSG_WAITING_FOR_EN: &str = "Waiting for external node to start";
+
+pub(super) fn msg_waiting_for_en_success(health_check_port: u16) -> String {
+    format!("External node is alive with health check server on :{health_check_port}")
+}
 
 /// Prover related messages
 pub(super) const MSG_GENERATING_SK_SPINNER: &str = "Generating setup keys...";
@@ -429,7 +459,10 @@ pub(super) fn msg_bucket_created(bucket_name: &str) -> String {
 }
 
 /// Contract verifier related messages
+pub(super) const MSG_BUILDING_CONTRACT_VERIFIER: &str = "Building contract verifier";
 pub(super) const MSG_RUNNING_CONTRACT_VERIFIER: &str = "Running contract verifier";
+pub(super) const MSG_FAILED_TO_BUILD_CONTRACT_VERIFIER_ERR: &str =
+    "Failed to build contract verifier";
 pub(super) const MSG_FAILED_TO_RUN_CONTRACT_VERIFIER_ERR: &str = "Failed to run contract verifier";
 pub(super) const MSG_INVALID_ARCH_ERR: &str = "Invalid arch";
 pub(super) const MSG_GET_ZKSOLC_RELEASES_ERR: &str = "Failed to get zksolc releases";
@@ -478,6 +511,34 @@ pub(super) const MSG_DIFF_EN_GENERAL_CONFIG: &str =
     "Added the following fields to the external node generalconfig:";
 pub(super) const MSG_UPDATING_ERA_OBSERVABILITY_SPINNER: &str = "Updating era observability...";
 
+/// Wait-related messages
+pub(super) const MSG_WAIT_TIMEOUT_HELP: &str = "Wait timeout in seconds";
+pub(super) const MSG_WAIT_POLL_INTERVAL_HELP: &str = "Poll interval in milliseconds";
+
+pub(super) fn msg_wait_starting_polling(
+    component: &impl fmt::Display,
+    url: &str,
+    poll_interval: Duration,
+) -> String {
+    format!("Starting polling {component} at `{url}` each {poll_interval:?}")
+}
+
+pub(super) fn msg_wait_timeout(component: &impl fmt::Display) -> String {
+    format!("timed out polling {component}")
+}
+
+pub(super) fn msg_wait_connect_err(component: &impl fmt::Display, url: &str) -> String {
+    format!("failed to connect to {component} at `{url}`")
+}
+
+pub(super) fn msg_wait_non_successful_response(component: &impl fmt::Display) -> String {
+    format!("non-successful {component} response")
+}
+
+pub(super) fn msg_wait_not_healthy(url: &str) -> String {
+    format!("Node at `{url}` is not healthy")
+}
+
 pub(super) fn msg_diff_genesis_config(chain: &str) -> String {
     format!(
         "Found differences between chain {chain} and era genesis configs. Consider updating the chain {chain} genesis config and re-running genesis. Diff:"
@@ -516,9 +577,33 @@ pub(super) const MSG_CONSENSUS_REGISTRY_ADDRESS_NOT_CONFIGURED: &str =
     "consensus registry address not configured";
 pub(super) const MSG_CONSENSUS_GENESIS_SPEC_ATTESTERS_MISSING_IN_GENERAL_YAML: &str =
     "consensus.genesis_spec.attesters missing in general.yaml";
+pub(super) const MSG_CONSENSUS_REGISTRY_POLL_ERROR: &str = "failed querying L2 node";
+pub(super) const MSG_CONSENSUS_REGISTRY_WAIT_COMPONENT: &str = "main node HTTP RPC";
+
 pub(super) fn msg_setting_attester_committee_failed(
     got: &attester::Committee,
     want: &attester::Committee,
 ) -> String {
     format!("setting attester committee failed: got {got:?}, want {want:?}")
 }
+
+pub(super) fn msg_wait_consensus_registry_started_polling(addr: Address, url: &Url) -> String {
+    format!("Starting polling L2 HTTP RPC at {url} for code at {addr:?}")
+}
+
+pub(super) fn msg_consensus_registry_wait_success(addr: Address, code_len: usize) -> String {
+    format!("Consensus registry is deployed at {addr:?}: {code_len} bytes")
+}
+
+/// DA clients related messages
+pub(super) const MSG_AVAIL_CLIENT_TYPE_PROMPT: &str = "Avail client type";
+pub(super) const MSG_AVAIL_API_TIMEOUT_MS: &str = "Avail API timeout in milliseconds";
+pub(super) const MSG_AVAIL_API_NODE_URL_PROMPT: &str = "Avail API node URL";
+pub(super) const MSG_AVAIL_APP_ID_PROMPT: &str = "Avail app id";
+pub(super) const MSG_AVAIL_FINALITY_STATE_PROMPT: &str = "Avail finality state";
+pub(super) const MSG_AVAIL_GAS_RELAY_API_URL_PROMPT: &str = "Gas relay API URL";
+pub(super) const MSG_AVAIL_GAS_RELAY_MAX_RETRIES_PROMPT: &str = "Gas relay max retries";
+pub(super) const MSG_AVAIL_BRIDGE_API_URL_PROMPT: &str = "Attestation bridge API URL";
+pub(super) const MSG_AVAIL_SEED_PHRASE_PROMPT: &str = "Seed phrase";
+pub(super) const MSG_AVAIL_GAS_RELAY_API_KEY_PROMPT: &str = "Gas relay API key";
+pub(super) const MSG_INVALID_URL_ERR: &str = "Invalid URL format";

@@ -1,13 +1,10 @@
-// FIXME: separate crate together with node_fee_model interfaces?
-
 use std::num::NonZeroU64;
 
 use bigdecimal::{BigDecimal, ToPrimitive};
 use serde::{Deserialize, Serialize};
 use zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE;
-use zksync_utils::ceil_div_u256;
 
-use crate::{ProtocolVersionId, U256};
+use crate::{ceil_div_u256, ProtocolVersionId, U256};
 
 /// Fee input to be provided into the VM. It contains two options:
 /// - `L1Pegged`: L1 gas price is provided to the VM, and the pubdata price is derived from it. Using this option is required for the
@@ -47,6 +44,30 @@ impl BatchFeeInput {
             fair_l2_gas_price,
             fair_pubdata_price,
         })
+    }
+
+    pub fn from_protocol_version(
+        protocol_version: Option<ProtocolVersionId>,
+        l1_gas_price: u64,
+        fair_l2_gas_price: u64,
+        fair_pubdata_price: Option<u64>,
+    ) -> Self {
+        protocol_version
+            .filter(|version: &ProtocolVersionId| version.is_post_1_4_1())
+            .map(|_| {
+                Self::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
+                    fair_pubdata_price: fair_pubdata_price
+                        .expect("No fair pubdata price for 1.4.1"),
+                    fair_l2_gas_price,
+                    l1_gas_price,
+                })
+            })
+            .unwrap_or_else(|| {
+                Self::L1Pegged(L1PeggedBatchFeeModelInput {
+                    fair_l2_gas_price,
+                    l1_gas_price,
+                })
+            })
     }
 }
 

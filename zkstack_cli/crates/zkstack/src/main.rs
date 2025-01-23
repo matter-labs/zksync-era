@@ -4,18 +4,18 @@ use commands::{
     contract_verifier::ContractVerifierCommands,
     dev::DevCommands,
 };
-use common::{
+use xshell::Shell;
+use zkstack_cli_common::{
     check_general_prerequisites,
     config::{global_config, init_global_config, GlobalConfig},
     error::log_error,
     init_prompt_theme, logger,
     version::version_message,
 };
-use config::EcosystemConfig;
-use xshell::Shell;
+use zkstack_cli_config::EcosystemConfig;
 
 use crate::commands::{
-    args::RunServerArgs, chain::ChainCommands, consensus, ecosystem::EcosystemCommands,
+    args::ServerArgs, chain::ChainCommands, consensus, ecosystem::EcosystemCommands,
     explorer::ExplorerCommands, external_node::ExternalNodeCommands, prover::ProverCommands,
 };
 
@@ -23,6 +23,7 @@ pub mod accept_ownership;
 mod commands;
 mod consts;
 mod defaults;
+pub mod enable_evm_emulator;
 pub mod external_node;
 mod messages;
 mod utils;
@@ -57,7 +58,7 @@ pub enum ZkStackSubcommands {
     #[command(subcommand, alias = "p")]
     Prover(ProverCommands),
     /// Run server
-    Server(RunServerArgs),
+    Server(ServerArgs),
     /// External Node related commands
     #[command(subcommand, alias = "en")]
     ExternalNode(ExternalNodeCommands),
@@ -136,7 +137,7 @@ async fn run_subcommand(zkstack_args: ZkStack) -> anyhow::Result<()> {
         ZkStackSubcommands::Chain(args) => commands::chain::run(&shell, *args).await?,
         ZkStackSubcommands::Dev(args) => commands::dev::run(&shell, args).await?,
         ZkStackSubcommands::Prover(args) => commands::prover::run(&shell, args).await?,
-        ZkStackSubcommands::Server(args) => commands::server::run(&shell, args)?,
+        ZkStackSubcommands::Server(args) => commands::server::run(&shell, args).await?,
         ZkStackSubcommands::Containers(args) => commands::containers::run(&shell, args)?,
         ZkStackSubcommands::ExternalNode(args) => {
             commands::external_node::run(&shell, args).await?

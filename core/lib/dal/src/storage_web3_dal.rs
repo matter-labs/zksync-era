@@ -6,12 +6,11 @@ use zksync_db_connection::{
     instrument::{InstrumentExt, Instrumented},
 };
 use zksync_types::{
-    get_code_key, get_nonce_key,
+    get_code_key, get_nonce_key, h256_to_u256,
     utils::{decompose_full_nonce, storage_key_for_standard_token_balance},
     AccountTreeId, Address, L1BatchNumber, L2BlockNumber, Nonce, StorageKey,
     FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H256, U256,
 };
-use zksync_utils::h256_to_u256;
 
 use crate::{models::storage_block::ResolvedL1BatchForL2Block, Core, CoreDal};
 

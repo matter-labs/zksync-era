@@ -3,11 +3,10 @@
 use zksync_multivm::interface::storage::{ReadStorage, StorageWithOverrides};
 use zksync_types::{
     api::state_override::{OverrideState, StateOverride},
-    get_code_key, get_known_code_key, get_nonce_key,
+    get_code_key, get_known_code_key, get_nonce_key, h256_to_u256, u256_to_h256,
     utils::{decompose_full_nonce, nonces_to_full_nonce, storage_key_for_eth_balance},
     AccountTreeId, StorageKey, H256,
 };
-use zksync_utils::{h256_to_u256, u256_to_h256};
 
 /// This method is blocking.
 pub(super) fn apply_state_override<S: ReadStorage>(

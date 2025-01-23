@@ -1,7 +1,6 @@
 use vise::{Counter, Gauge, LabeledFamily, Metrics};
-use zksync_config::configs::prover_autoscaler::Gpu;
 
-pub const DEFAULT_ERROR_CODE: u16 = 500;
+use crate::config::Gpu;
 
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "autoscaler")]

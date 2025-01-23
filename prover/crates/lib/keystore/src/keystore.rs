@@ -7,23 +7,33 @@ use std::{
 };
 
 use anyhow::Context as _;
+#[cfg(any(feature = "gpu", feature = "gpu-light"))]
+use circuit_definitions::circuit_definitions::aux_layer::{
+    CompressionProofsTreeHasher, CompressionProofsTreeHasherForWrapper,
+};
 use circuit_definitions::{
     boojum::cs::implementations::setup::FinalizationHintsForProver,
     circuit_definitions::{
-        aux_layer::ZkSyncSnarkWrapperVK,
+        aux_layer::{
+            ZkSyncCompressionForWrapperVerificationKey, ZkSyncCompressionLayerVerificationKey,
+            ZkSyncSnarkWrapperVK,
+        },
         base_layer::ZkSyncBaseLayerVerificationKey,
         recursion_layer::{ZkSyncRecursionLayerStorageType, ZkSyncRecursionLayerVerificationKey},
     },
     zkevm_circuits::scheduler::aux::BaseLayerCircuitType,
 };
+#[cfg(feature = "gpu")]
+use fflonk_gpu::{FflonkSnarkVerifierCircuitDeviceSetup, FflonkSnarkVerifierCircuitVK};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
+#[cfg(any(feature = "gpu", feature = "gpu-light"))]
+use shivini::boojum::field::goldilocks::GoldilocksField;
 use zkevm_test_harness::data_source::{in_memory_data_source::InMemoryDataSource, SetupDataSource};
-use zksync_basic_types::basic_fri_types::AggregationRound;
-use zksync_prover_fri_types::ProverServiceDataKey;
+use zksync_prover_fri_types::{ProverServiceDataKey, ProvingStage, MAX_COMPRESSION_CIRCUITS};
 use zksync_utils::env::Workspace;
 
-#[cfg(feature = "gpu")]
-use crate::GoldilocksGpuProverSetupData;
+#[cfg(any(feature = "gpu", feature = "gpu-light"))]
+use crate::{GoldilocksGpuProverSetupData, GpuProverSetupData};
 use crate::{GoldilocksProverSetupData, VkCommitments};
 
 #[derive(Debug, Clone, Copy)]
@@ -32,6 +42,7 @@ pub enum ProverServiceDataType {
     SetupData,
     FinalizationHints,
     SnarkVerificationKey,
+    FflonkSnarkVerificationKey,
 }
 
 /// Key store manages all the prover keys.
@@ -67,7 +78,7 @@ impl Keystore {
         // - We're running from the core workspace.
         // - We're running the binary from the docker.
         let data_dir_path = match Workspace::locate() {
-            Workspace::None => {
+            Workspace::Root => {
                 // We're running a binary, likely in a docker.
                 // Keys can be in one of a few paths.
                 // We want to be very conservative here, and checking
@@ -119,9 +130,12 @@ impl Keystore {
             ProverServiceDataType::FinalizationHints => self
                 .basedir
                 .join(format!("finalization_hints_{}.bin", name)),
-            ProverServiceDataType::SnarkVerificationKey => self
+            ProverServiceDataType::SnarkVerificationKey => {
+                self.basedir.join(format!("verification_{}_key.json", name))
+            }
+            ProverServiceDataType::FflonkSnarkVerificationKey => self
                 .basedir
-                .join(format!("snark_verification_{}_key.json", name)),
+                .join(format!("fflonk_verification_{}_key.json", name)),
         }
     }
 
@@ -164,7 +178,7 @@ impl Keystore {
         circuit_type: u8,
     ) -> anyhow::Result<ZkSyncBaseLayerVerificationKey> {
         Self::load_json_from_file(self.get_file_path(
-            ProverServiceDataKey::new(circuit_type, AggregationRound::BasicCircuits),
+            ProverServiceDataKey::new(circuit_type, ProvingStage::BasicCircuits),
             ProverServiceDataType::VerificationKey,
         ))
     }
@@ -179,12 +193,32 @@ impl Keystore {
         ))
     }
 
+    pub fn load_compression_vk(
+        &self,
+        circuit_type: u8,
+    ) -> anyhow::Result<ZkSyncCompressionLayerVerificationKey> {
+        Self::load_json_from_file(self.get_file_path(
+            ProverServiceDataKey::new_compression(circuit_type),
+            ProverServiceDataType::VerificationKey,
+        ))
+    }
+
+    pub fn load_compression_for_wrapper_vk(
+        &self,
+        circuit_type: u8,
+    ) -> anyhow::Result<ZkSyncCompressionForWrapperVerificationKey> {
+        Self::load_json_from_file(self.get_file_path(
+            ProverServiceDataKey::new_compression_wrapper(circuit_type),
+            ProverServiceDataType::VerificationKey,
+        ))
+    }
+
     pub fn save_base_layer_verification_key(
         &self,
         vk: ZkSyncBaseLayerVerificationKey,
     ) -> anyhow::Result<()> {
         let filepath = self.get_file_path(
-            ProverServiceDataKey::new(vk.numeric_circuit_type(), AggregationRound::BasicCircuits),
+            ProverServiceDataKey::new(vk.numeric_circuit_type(), ProvingStage::BasicCircuits),
             ProverServiceDataType::VerificationKey,
         );
         tracing::info!("saving basic verification key to: {:?}", filepath);
@@ -200,6 +234,36 @@ impl Keystore {
             ProverServiceDataType::VerificationKey,
         );
         tracing::info!("saving recursive layer verification key to: {:?}", filepath);
+        Self::save_json_pretty(filepath, &vk)
+    }
+
+    pub fn save_compression_vk(
+        &self,
+        vk: ZkSyncCompressionLayerVerificationKey,
+    ) -> anyhow::Result<()> {
+        let filepath = self.get_file_path(
+            ProverServiceDataKey::new_compression(vk.numeric_circuit_type()),
+            ProverServiceDataType::VerificationKey,
+        );
+        tracing::info!(
+            "saving compression layer verification key to: {:?}",
+            filepath
+        );
+        Self::save_json_pretty(filepath, &vk)
+    }
+
+    pub fn save_compression_for_wrapper_vk(
+        &self,
+        vk: ZkSyncCompressionForWrapperVerificationKey,
+    ) -> anyhow::Result<()> {
+        let filepath = self.get_file_path(
+            ProverServiceDataKey::new_compression_wrapper(vk.numeric_circuit_type()),
+            ProverServiceDataType::VerificationKey,
+        );
+        tracing::info!(
+            "saving compression wrapper verification key to: {:?}",
+            filepath
+        );
         Self::save_json_pretty(filepath, &vk)
     }
 
@@ -227,7 +291,7 @@ impl Keystore {
         let mut key = key;
         // For `NodeAggregation` round we have only 1 finalization hints for all circuit type.
         // TODO: is this needed??
-        if key.round == AggregationRound::NodeAggregation {
+        if key.stage == ProvingStage::NodeAggregation {
             key.circuit_id = ZkSyncRecursionLayerStorageType::NodeLayerCircuit as u8;
         }
         Self::load_bincode_from_file(
@@ -253,6 +317,16 @@ impl Keystore {
         })
     }
 
+    pub fn load_fflonk_snark_verification_key(&self) -> anyhow::Result<String> {
+        let filepath = self.get_file_path(
+            ProverServiceDataKey::snark(),
+            ProverServiceDataType::FflonkSnarkVerificationKey,
+        );
+        std::fs::read_to_string(&filepath).with_context(|| {
+            format!("Failed reading FFLONK Snark verification key from path: {filepath:?}")
+        })
+    }
+
     pub fn save_snark_verification_key(&self, vk: ZkSyncSnarkWrapperVK) -> anyhow::Result<()> {
         let filepath = self.get_file_path(
             ProverServiceDataKey::snark(),
@@ -260,6 +334,19 @@ impl Keystore {
         );
         tracing::info!("saving snark verification key to: {:?}", filepath);
         Self::save_json_pretty(filepath, &vk.into_inner())
+    }
+
+    #[cfg(feature = "gpu")]
+    pub fn save_fflonk_snark_verification_key(
+        &self,
+        vk: FflonkSnarkVerifierCircuitVK,
+    ) -> anyhow::Result<()> {
+        let filepath = self.get_file_path(
+            ProverServiceDataKey::snark(),
+            ProverServiceDataType::FflonkSnarkVerificationKey,
+        );
+        tracing::info!("saving snark verification key to: {:?}", filepath);
+        Self::save_json_pretty(filepath, &vk)
     }
 
     ///
@@ -284,7 +371,7 @@ impl Keystore {
         })
     }
 
-    #[cfg(feature = "gpu")]
+    #[cfg(any(feature = "gpu", feature = "gpu-light"))]
     pub fn load_gpu_setup_data_for_circuit_type(
         &self,
         key: ProverServiceDataKey,
@@ -303,6 +390,78 @@ impl Keystore {
         })
     }
 
+    #[cfg(any(feature = "gpu", feature = "gpu-light"))]
+    pub fn load_compression_setup_data(
+        &self,
+        circuit: u8,
+    ) -> anyhow::Result<GpuProverSetupData<GoldilocksField, CompressionProofsTreeHasher>> {
+        let filepath = self.get_file_path(
+            ProverServiceDataKey::new_compression(circuit),
+            ProverServiceDataType::SetupData,
+        );
+
+        let mut file = File::open(filepath.clone())
+            .with_context(|| format!("Failed reading setup-data from path: {filepath:?}"))?;
+        let mut buffer = Vec::new();
+        file.read_to_end(&mut buffer).with_context(|| {
+            format!("Failed reading setup-data to buffer from path: {filepath:?}")
+        })?;
+        tracing::info!(
+            "loading compression wrapper setup data from path: {:?}",
+            filepath
+        );
+        bincode::deserialize::<GpuProverSetupData<GoldilocksField, CompressionProofsTreeHasher>>(
+            &buffer,
+        )
+        .with_context(|| {
+            format!("Failed deserializing compression wrapper setup data at path: {filepath:?}")
+        })
+    }
+
+    #[cfg(any(feature = "gpu", feature = "gpu-light"))]
+    pub fn load_compression_wrapper_setup_data(
+        &self,
+        circuit: u8,
+    ) -> anyhow::Result<GpuProverSetupData<GoldilocksField, CompressionProofsTreeHasherForWrapper>>
+    {
+        let filepath = self.get_file_path(
+            ProverServiceDataKey::new_compression_wrapper(circuit),
+            ProverServiceDataType::SetupData,
+        );
+
+        let mut file = File::open(filepath.clone())
+            .with_context(|| format!("Failed reading setup-data from path: {filepath:?}"))?;
+        let mut buffer = Vec::new();
+        file.read_to_end(&mut buffer).with_context(|| {
+            format!("Failed reading setup-data to buffer from path: {filepath:?}")
+        })?;
+        tracing::info!(
+            "loading compression wrapper setup data from path: {:?}",
+            filepath
+        );
+        bincode::deserialize::<
+            GpuProverSetupData<GoldilocksField, CompressionProofsTreeHasherForWrapper>,
+        >(&buffer)
+        .with_context(|| {
+            format!("Failed deserializing compression wrapper setup data at path: {filepath:?}")
+        })
+    }
+
+    #[cfg(feature = "gpu")]
+    pub fn load_fflonk_snark_verifier_setup_data(
+        &self,
+    ) -> anyhow::Result<FflonkSnarkVerifierCircuitDeviceSetup> {
+        let filepath = self.get_file_path(
+            ProverServiceDataKey::snark(),
+            ProverServiceDataType::SetupData,
+        );
+
+        let file = File::open(filepath.clone())
+            .with_context(|| format!("Failed reading setup-data from path: {filepath:?}"))?;
+        FflonkSnarkVerifierCircuitDeviceSetup::read(file)
+            .context("Failed reading FFLONK SNARK setup data from a file")
+    }
+
     pub fn is_setup_data_present(&self, key: &ProverServiceDataKey) -> bool {
         Path::new(&self.get_file_path(*key, ProverServiceDataType::SetupData)).exists()
     }
@@ -316,6 +475,24 @@ impl Keystore {
         tracing::info!("saving {:?} setup data to: {:?}", key, filepath);
         std::fs::write(filepath.clone(), serialized_setup_data)
             .with_context(|| format!("Failed saving setup-data at path: {filepath:?}"))
+    }
+
+    #[cfg(feature = "gpu")]
+    pub fn save_fflonk_snark_setup_data(
+        &self,
+        setup_data: FflonkSnarkVerifierCircuitDeviceSetup,
+    ) -> anyhow::Result<()> {
+        let filepath = self.get_file_path(
+            ProverServiceDataKey::snark(),
+            ProverServiceDataType::SetupData,
+        );
+
+        let file = File::create(filepath.clone())
+            .with_context(|| format!("Failed creating setup-data file at path: {filepath:?}"))?;
+
+        setup_data
+            .write(file)
+            .context("Failed writing FFLONK SNARK setup data to a file")
     }
 
     /// Loads all the verification keys into the Data Source.
@@ -345,6 +522,16 @@ impl Keystore {
             )?)
             .unwrap();
 
+        for circuit in 1..MAX_COMPRESSION_CIRCUITS {
+            data_source
+                .set_compression_vk(self.load_compression_vk(circuit)?)
+                .unwrap();
+        }
+
+        data_source
+            .set_compression_for_wrapper_vk(self.load_compression_for_wrapper_vk(5)?)
+            .unwrap();
+
         Ok(data_source)
     }
 
@@ -365,7 +552,7 @@ impl Keystore {
                     )
                 })?
                 .into_inner();
-            let key = ProverServiceDataKey::new(base_circuit_type, AggregationRound::BasicCircuits);
+            let key = ProverServiceDataKey::new(base_circuit_type, ProvingStage::BasicCircuits);
             self.save_finalization_hints(key, &hint)
                 .context("save_finalization_hints()")?;
         }
@@ -458,6 +645,45 @@ impl Keystore {
         )
         .context("save_finalization_hints()")?;
 
+        // Compression
+        // todo: don't use hardcoded values
+        for circuit in 1..5 {
+            let vk = source
+                .get_compression_vk(circuit as u8)
+                .map_err(|err| anyhow::anyhow!("No vk exist for circuit type: {circuit}: {err}"))?;
+
+            self.save_compression_vk(vk)
+                .context("save_compression_vk()")?;
+
+            let hint = source.get_compression_hint(circuit as u8).map_err(|err| {
+                anyhow::anyhow!("No finalization hint exist for circuit type: {circuit}: {err}")
+            })?;
+
+            self.save_finalization_hints(
+                ProverServiceDataKey::new_compression(circuit as u8),
+                &hint.into_inner(),
+            )
+            .context("save_finalization_hints()")?;
+        }
+
+        // Compression wrapper
+        let vk = source
+            .get_compression_for_wrapper_vk(5)
+            .map_err(|err| anyhow::anyhow!("No vk exist for circuit type: 5: {err}"))?;
+
+        self.save_compression_for_wrapper_vk(vk)
+            .context("save_compression_wrapper_vk()")?;
+
+        let hint = source.get_compression_for_wrapper_hint(5).map_err(|err| {
+            anyhow::anyhow!("No finalization hint exist for circuit type: 5: {err}")
+        })?;
+
+        self.save_finalization_hints(
+            ProverServiceDataKey::new_compression_wrapper(5),
+            &hint.into_inner(),
+        )
+        .context("save_finalization_hints()")?;
+
         Ok(())
     }
 
@@ -470,7 +696,7 @@ impl Keystore {
     }
 
     /// Async loads mapping of all circuits to setup key, if successful
-    #[cfg(feature = "gpu")]
+    #[cfg(any(feature = "gpu", feature = "gpu-light"))]
     pub async fn load_all_setup_key_mapping(
         &self,
     ) -> anyhow::Result<HashMap<ProverServiceDataKey, Arc<GoldilocksGpuProverSetupData>>> {
@@ -498,7 +724,7 @@ impl Keystore {
         // deserialization is. For larger files, it makes a big difference.
         // Note: `collect` is important, because iterators are lazy, and otherwise we won't actually
         // spawn threads.
-        let handles: Vec<_> = ProverServiceDataKey::all()
+        let handles: Vec<_> = ProverServiceDataKey::all_boojum()
             .into_iter()
             .map(|key| {
                 let filepath = self.get_file_path(key, data_type);

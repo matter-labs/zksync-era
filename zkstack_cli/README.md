@@ -1,11 +1,11 @@
 # ZK Stack CLI
 
-Toolkit for creating and managing ZK Stack chains. `ZK Stack CLI` facilitates the creation and management of ZK Stacks.
-Commands are interactive but can also accept arguments via the command line.
+Toolkit for creating and managing ZK Stack chains. `ZK Stack CLI` facilitates the creation and management of ZK Stack
+ecosystems. Commands are interactive but can also accept arguments via the command line.
 
 ### Dependencies
 
-Follow [these instructions](https://github.com/matter-labs/zksync-era/blob/main/docs/guides/setup-dev.md) to set up
+Follow [these instructions](https://github.com/matter-labs/zksync-era/blob/main/docs/src/guides/setup-dev.md) to set up
 dependencies on your machine. Ignore the Environment section for now.
 
 ### Installation
@@ -48,7 +48,7 @@ Foundry is used for deploying smart contracts. Pass flags for Foundry integratio
 ### Ecosystem
 
 ZK Stack allows you to create a new ecosystem or connect to an existing one. An ecosystem includes components like the
-BridgeHub, shared bridges, and state transition managers.
+BridgeHub, shared bridges, and state transition managers. Multiple ZK chains can be registered to an ecosystem.
 [Learn more](https://docs.zksync.io/zk-stack/components/shared-bridges).
 
 #### Global Config
@@ -140,7 +140,7 @@ zkstack containers --observability
 
 #### Create
 
-The first ZK chain is generated upon ecosystem creation. Create additional chains and switch between them:
+The first ZK chain is generated upon ecosystem creation. You can also create additional chains and switch between them:
 
 ```bash
 zkstack chain create
@@ -148,7 +148,7 @@ zkstack chain create
 
 #### Init
 
-Deploy contracts and initialize Zk Chain:
+Deploy contracts and initialize ZK chain:
 
 ```bash
 zkstack chain init
@@ -184,7 +184,7 @@ Ensure you have installed:
 - [cmake](https://apt.kitware.com/)
 - [nvcc (CUDA toolkit)](https://developer.nvidia.com/cuda-downloads)
 
-Refer to the [prover docs](https://github.com/matter-labs/zksync-era/blob/main/prover/docs/02_setup.md) for more
+Refer to the [prover docs](https://github.com/matter-labs/zksync-era/blob/main/prover/docs/src/02_setup.md) for more
 information.
 
 #### Running the Prover
@@ -313,7 +313,7 @@ needed.
 
 ## Dev
 
-The subcommand `zkstack dev` offers tools for developing ZKsync.
+The subcommand `zkstack dev` offers tools for developing.
 
 ### Database
 

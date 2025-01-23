@@ -1,12 +1,14 @@
 use std::{marker::PhantomData, rc::Rc};
 
-use circuit_sequencer_api_1_5_0::sort_storage_access::sort_storage_access_queries;
+use circuit_sequencer_api::sort_storage_access::sort_storage_access_queries;
 use zk_evm_1_5_0::{
     aux_structures::Timestamp,
     tracing::{BeforeExecutionData, VmLocalStateData},
 };
-use zksync_types::{writes::StateDiffRecord, AccountTreeId, StorageKey, L1_MESSENGER_ADDRESS};
-use zksync_utils::{h256_to_u256, u256_to_bytes_be, u256_to_h256};
+use zksync_types::{
+    h256_to_u256, u256_to_h256, writes::StateDiffRecord, AccountTreeId, StorageKey,
+    L1_MESSENGER_ADDRESS,
+};
 use zksync_vm_interface::pubdata::PubdataBuilder;
 
 use crate::{
@@ -17,19 +19,22 @@ use crate::{
         L1BatchEnv, VmEvent, VmExecutionMode,
     },
     tracers::dynamic::vm_1_5_0::DynTracer,
-    utils::events::{
-        extract_bytecode_publication_requests_from_l1_messenger,
-        extract_l2tol1logs_from_l1_messenger,
+    utils::{
+        bytecode::be_words_to_bytes,
+        events::{
+            extract_bytecode_publication_requests_from_l1_messenger,
+            extract_l2tol1logs_from_l1_messenger,
+        },
     },
     vm_latest::{
-        bootloader_state::{utils::apply_pubdata_to_memory, BootloaderState},
+        bootloader::{utils::apply_pubdata_to_memory, BootloaderState},
         constants::BOOTLOADER_HEAP_PAGE,
         old_vm::{history_recorder::HistoryMode, memory::SimpleMemory},
-        tracers::{traits::VmTracer, utils::VmHook},
-        types::internals::ZkSyncVmState,
+        tracers::traits::VmTracer,
+        types::ZkSyncVmState,
         utils::logs::collect_events_and_l1_system_logs_after_timestamp,
-        vm::MultiVMSubversion,
-        StorageOracle,
+        vm::MultiVmSubversion,
+        StorageOracle, VmHook,
     },
 };
 
@@ -42,7 +47,7 @@ pub(crate) struct PubdataTracer<S> {
     // For testing purposes it might be helpful to supply an exact set of state diffs to be provided
     // to the L1Messenger.
     enforced_state_diffs: Option<Vec<StateDiffRecord>>,
-    subversion: MultiVMSubversion,
+    subversion: MultiVmSubversion,
     pubdata_builder: Option<Rc<dyn PubdataBuilder>>,
     _phantom_data: PhantomData<S>,
 }
@@ -51,7 +56,7 @@ impl<S: WriteStorage> PubdataTracer<S> {
     pub(crate) fn new(
         l1_batch_env: L1BatchEnv,
         execution_mode: VmExecutionMode,
-        subversion: MultiVMSubversion,
+        subversion: MultiVmSubversion,
         pubdata_builder: Option<Rc<dyn PubdataBuilder>>,
     ) -> Self {
         Self {
@@ -72,7 +77,7 @@ impl<S: WriteStorage> PubdataTracer<S> {
         l1_batch_env: L1BatchEnv,
         execution_mode: VmExecutionMode,
         forced_state_diffs: Vec<StateDiffRecord>,
-        subversion: MultiVMSubversion,
+        subversion: MultiVmSubversion,
         pubdata_builder: Option<Rc<dyn PubdataBuilder>>,
     ) -> Self {
         Self {
@@ -132,15 +137,13 @@ impl<S: WriteStorage> PubdataTracer<S> {
         bytecode_publication_requests
             .iter()
             .map(|bytecode_publication_request| {
-                state
+                let bytecode_words = state
                     .decommittment_processor
                     .known_bytecodes
                     .inner()
                     .get(&h256_to_u256(bytecode_publication_request.bytecode_hash))
-                    .unwrap()
-                    .iter()
-                    .flat_map(u256_to_bytes_be)
-                    .collect()
+                    .unwrap();
+                be_words_to_bytes(bytecode_words)
             })
             .collect()
     }
@@ -159,7 +162,7 @@ impl<S: WriteStorage> PubdataTracer<S> {
             storage
                 .storage_log_queries_after_timestamp(Timestamp(0))
                 .iter()
-                .map(|log| &log.log_query),
+                .map(|log| log.log_query),
         )
         .1
         .into_iter()
@@ -204,7 +207,7 @@ impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for PubdataTracer<S> {
         _storage: StoragePtr<S>,
     ) {
         let hook = VmHook::from_opcode_memory(&state, &data, self.subversion);
-        if let VmHook::PubdataRequested = hook {
+        if matches!(hook, Some(VmHook::PubdataRequested)) {
             self.pubdata_info_requested = true;
         }
     }
@@ -239,6 +242,7 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for PubdataTracer<S> {
                     .as_ref(),
                 &pubdata_input,
                 bootloader_state.protocol_version(),
+                self.subversion,
             );
 
             // Save the pubdata for the future initial bootloader memory building

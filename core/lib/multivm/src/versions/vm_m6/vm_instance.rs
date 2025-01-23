@@ -82,7 +82,7 @@ pub(crate) fn get_vm_hook_params<H: HistoryMode>(memory: &SimpleMemory<H>) -> Ve
 ///
 /// This enum allows to execute blocks with the same VM but different support for refunds.
 #[derive(Debug, Copy, Clone)]
-pub enum MultiVMSubversion {
+pub enum MultiVmSubversion {
     /// Initial VM M6 version.
     V1,
     /// Bug with code compression was fixed.
@@ -98,7 +98,7 @@ pub struct VmInstance<S: Storage, H: HistoryMode> {
     pub(crate) bootloader_state: BootloaderState,
 
     pub snapshots: Vec<VmSnapshot>,
-    pub vm_subversion: MultiVMSubversion,
+    pub vm_subversion: MultiVmSubversion,
 }
 
 /// This structure stores data that accumulates during the VM run.

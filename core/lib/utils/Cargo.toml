@@ -11,25 +11,17 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-zksync_basic_types.workspace = true
-zk_evm.workspace = true
 zksync_vlog.workspace = true
 
-bigdecimal.workspace = true
-num = { workspace = true, features = ["serde"] }
-serde = { workspace = true, features = ["derive"] }
 tokio = { workspace = true, features = ["time"] }
 tracing.workspace = true
 anyhow.workspace = true
-thiserror.workspace = true
 futures.workspace = true
-hex.workspace = true
 reqwest = { workspace = true, features = ["blocking"] }
 serde_json.workspace = true
 once_cell.workspace = true
+sha2.workspace = true
 
 [dev-dependencies]
-rand.workspace = true
 tokio = { workspace = true, features = ["macros", "rt"] }
-bincode.workspace = true
 assert_matches.workspace = true

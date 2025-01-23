@@ -30,25 +30,20 @@ use zksync_state_keeper::{
     executor::MainBatchExecutorFactory,
     io::{IoCursor, L1BatchParams, L2BlockParams},
     seal_criteria::NoopSealer,
-    testonly::{
-        fund, l1_transaction, l2_transaction, test_batch_executor::MockReadStorageFactory,
-        MockBatchExecutor,
-    },
+    testonly::{fee, fund, test_batch_executor::MockReadStorageFactory, MockBatchExecutor},
     AsyncRocksdbCache, OutputHandler, StateKeeperPersistence, TreeWritesPersistence,
     ZkSyncStateKeeper,
 };
-use zksync_test_account::Account;
+use zksync_test_contracts::Account;
 use zksync_types::{
     ethabi,
     fee_model::{BatchFeeInput, L1PeggedBatchFeeModelInput},
-    L1BatchNumber, L2BlockNumber, L2ChainId, PriorityOpId, ProtocolVersionId, Transaction,
+    Address, Execute, L1BatchNumber, L2BlockNumber, L2ChainId, PriorityOpId, ProtocolVersionId,
+    Transaction,
 };
 use zksync_web3_decl::client::{Client, DynClient, L2};
 
-use crate::{
-    en,
-    storage::{ConnectionPool, Store},
-};
+use crate::{en, storage::ConnectionPool};
 
 /// Fake StateKeeper for tests.
 #[derive(Debug)]
@@ -154,6 +149,7 @@ fn make_config(
         public_addr: config::Host(cfg.public_addr.0.clone()),
         max_payload_size: usize::MAX,
         max_batch_size: usize::MAX,
+        view_timeout: None,
         gossip_dynamic_inbound_limit: cfg.gossip.dynamic_inbound_limit,
         gossip_static_inbound: cfg
             .gossip
@@ -318,12 +314,15 @@ impl StateKeeper {
     /// Pushes a new L2 block with `transactions` transactions to the `StateKeeper`.
     pub async fn push_random_block(&mut self, rng: &mut impl Rng, account: &mut Account) {
         let txs: Vec<_> = (0..rng.gen_range(3..8))
-            .map(|_| match rng.gen() {
-                true => l2_transaction(account, 1_000_000),
-                false => {
-                    let tx = l1_transaction(account, self.next_priority_op);
-                    self.next_priority_op += 1;
-                    tx
+            .map(|_| {
+                let execute = Execute::transfer(Address::random(), 0.into());
+                match rng.gen() {
+                    true => account.get_l2_tx_for_execute(execute, Some(fee(1_000_000))),
+                    false => {
+                        let tx = account.get_l1_tx(execute, self.next_priority_op.0);
+                        self.next_priority_op += 1;
+                        tx
+                    }
                 }
             })
             .collect();
@@ -410,40 +409,6 @@ impl StateKeeper {
             sync_state: self.sync_state.clone(),
         }
         .run_fetcher(ctx, self.actions_sender)
-        .await
-    }
-
-    pub async fn run_temporary_fetcher(
-        self,
-        ctx: &ctx::Ctx,
-        client: Box<DynClient<L2>>,
-    ) -> ctx::Result<()> {
-        scope::run!(ctx, |ctx, s| async {
-            let payload_queue = self
-                .pool
-                .connection(ctx)
-                .await
-                .wrap("connection()")?
-                .new_payload_queue(ctx, self.actions_sender, self.sync_state.clone())
-                .await
-                .wrap("new_payload_queue()")?;
-            let (store, runner) = Store::new(
-                ctx,
-                self.pool.clone(),
-                Some(payload_queue),
-                Some(client.clone()),
-            )
-            .await
-            .wrap("Store::new()")?;
-            s.spawn_bg(async { Ok(runner.run(ctx).await?) });
-            en::EN {
-                pool: self.pool.clone(),
-                client,
-                sync_state: self.sync_state.clone(),
-            }
-            .temporary_block_fetcher(ctx, &store)
-            .await
-        })
         .await
     }
 
@@ -620,7 +585,6 @@ impl StateKeeperRunner {
                 let stop_recv = stop_recv.clone();
                 async {
                     ZkSyncStateKeeper::new(
-                        stop_recv,
                         Box::new(io),
                         Box::new(executor_factory),
                         OutputHandler::new(Box::new(persistence.with_tx_insertion()))
@@ -628,7 +592,7 @@ impl StateKeeperRunner {
                         Arc::new(NoopSealer),
                         Arc::new(async_cache),
                     )
-                    .run()
+                    .run(stop_recv)
                     .await
                     .context("ZkSyncStateKeeper::run()")?;
                     Ok(())
@@ -701,7 +665,6 @@ impl StateKeeperRunner {
                 let stop_recv = stop_recv.clone();
                 async {
                     ZkSyncStateKeeper::new(
-                        stop_recv,
                         Box::new(io),
                         Box::new(MockBatchExecutor),
                         OutputHandler::new(Box::new(persistence.with_tx_insertion()))
@@ -710,7 +673,7 @@ impl StateKeeperRunner {
                         Arc::new(NoopSealer),
                         Arc::new(MockReadStorageFactory),
                     )
-                    .run()
+                    .run(stop_recv)
                     .await
                     .context("ZkSyncStateKeeper::run()")?;
                     Ok(())

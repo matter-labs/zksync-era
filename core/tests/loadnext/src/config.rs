@@ -1,10 +1,9 @@
-use std::{path::PathBuf, time::Duration};
+use std::time::Duration;
 
 use serde::Deserialize;
 use tokio::sync::Semaphore;
-use zksync_contracts::test_contracts::LoadnextContractExecutionParams;
+use zksync_test_contracts::LoadnextContractExecutionParams;
 use zksync_types::{network::Network, Address, L2ChainId, H160};
-use zksync_utils::env::Workspace;
 
 use crate::fs_utils::read_tokens;
 
@@ -49,28 +48,6 @@ pub struct LoadtestConfig {
     #[serde(default = "default_main_token")]
     pub main_token: Address,
 
-    /// Path to test contracts bytecode and ABI required for sending
-    /// deploy and execute L2 transactions. Each folder in the path is expected
-    /// to have the following structure:
-    ///```ignore
-    /// .
-    /// ├── bytecode
-    /// └── abi.json
-    ///```
-    /// Contract folder names names are not restricted.
-    ///
-    /// An example:
-    ///```ignore
-    /// .
-    /// ├── erc-20
-    /// │   ├── bytecode
-    /// │   └── abi.json
-    /// └── simple-contract
-    ///     ├── bytecode
-    ///     └── abi.json
-    ///```
-    #[serde(default = "default_test_contracts_path")]
-    pub test_contracts_path: PathBuf,
     /// Limits the number of simultaneous API requests being performed at any moment of time.
     ///
     /// Setting it to:
@@ -189,12 +166,6 @@ fn default_main_token() -> H160 {
     main_token.address
 }
 
-fn default_test_contracts_path() -> PathBuf {
-    let test_contracts_path = Workspace::locate().core().join("etc/contracts-test-data");
-    tracing::info!("Test contracts path: {}", test_contracts_path.display());
-    test_contracts_path
-}
-
 fn default_sync_api_requests_limit() -> usize {
     let result = 20;
     tracing::info!("Using default SYNC_API_REQUESTS_LIMIT: {result}");
@@ -281,8 +252,9 @@ impl ExecutionConfig {
     pub fn from_env() -> Self {
         let transaction_weights =
             TransactionWeights::from_env().unwrap_or_else(default_transaction_weights);
-        let contract_execution_params = LoadnextContractExecutionParams::from_env()
-            .unwrap_or_else(default_contract_execution_params);
+        let contract_execution_params = envy::prefixed("CONTRACT_EXECUTION_PARAMS_")
+            .from_env()
+            .unwrap_or_else(|_| default_contract_execution_params());
         Self {
             transaction_weights,
             contract_execution_params,
@@ -339,18 +311,5 @@ impl RequestLimiters {
             api_requests: Semaphore::new(config.sync_api_requests_limit),
             subscriptions: Semaphore::new(config.sync_pubsub_subscriptions_limit),
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-
-    use super::*;
-    use crate::fs_utils::loadnext_contract;
-
-    #[test]
-    fn check_read_test_contract() {
-        let test_contracts_path = default_test_contracts_path();
-        loadnext_contract(&test_contracts_path).unwrap();
     }
 }

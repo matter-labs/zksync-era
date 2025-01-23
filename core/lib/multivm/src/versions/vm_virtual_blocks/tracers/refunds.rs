@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use circuit_sequencer_api_1_3_3::sort_storage_access::sort_storage_access_queries;
+use circuit_sequencer_api::sort_storage_access::sort_storage_access_queries;
 use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics};
 use zk_evm_1_3_3::{
     aux_structures::Timestamp,
@@ -8,8 +8,9 @@ use zk_evm_1_3_3::{
     vm_state::VmLocalState,
 };
 use zksync_system_constants::{PUBLISH_BYTECODE_OVERHEAD, SYSTEM_CONTEXT_ADDRESS};
-use zksync_types::{l2_to_l1_log::L2ToL1Log, L1BatchNumber, StorageKey, U256};
-use zksync_utils::{bytecode::bytecode_len_in_bytes, ceil_div_u256, u256_to_h256};
+use zksync_types::{
+    ceil_div_u256, l2_to_l1_log::L2ToL1Log, u256_to_h256, L1BatchNumber, StorageKey, U256,
+};
 
 use crate::{
     interface::{
@@ -17,6 +18,7 @@ use crate::{
         L1BatchEnv, Refunds, VmEvent, VmExecutionResultAndLogs,
     },
     tracers::dynamic::vm_1_3_3::DynTracer,
+    utils::{bytecode::bytecode_len_in_bytes, glue_log_query},
     vm_virtual_blocks::{
         bootloader_state::BootloaderState,
         constants::{BOOTLOADER_HEAP_PAGE, OPERATOR_REFUNDS_OFFSET, TX_GAS_LIMIT_OFFSET},
@@ -327,7 +329,7 @@ pub(crate) fn pubdata_published<S: WriteStorage, H: HistoryMode>(
 
     let published_bytecode_bytes: u32 = VmEvent::extract_published_bytecodes(&events)
         .iter()
-        .map(|bytecodehash| bytecode_len_in_bytes(*bytecodehash) as u32 + PUBLISH_BYTECODE_OVERHEAD)
+        .map(|bytecode_hash| bytecode_len_in_bytes(bytecode_hash) + PUBLISH_BYTECODE_OVERHEAD)
         .sum();
 
     storage_writes_pubdata_published
@@ -370,15 +372,15 @@ fn pubdata_published_for_writes<S: WriteStorage, H: HistoryMode>(
         .storage
         .storage_log_queries_after_timestamp(from_timestamp);
     let (_, deduplicated_logs) =
-        sort_storage_access_queries(storage_logs.iter().map(|log| &log.log_query));
+        sort_storage_access_queries(storage_logs.iter().map(|log| glue_log_query(log.log_query)));
 
     deduplicated_logs
         .into_iter()
         .filter_map(|log| {
             if log.rw_flag {
-                let key = storage_key_of_log(&log);
+                let key = storage_key_of_log(&glue_log_query(log));
                 let pre_paid = pre_paid_before_tx(&key);
-                let to_pay_by_user = state.storage.base_price_for_write(&log);
+                let to_pay_by_user = state.storage.base_price_for_write(&glue_log_query(log));
 
                 if to_pay_by_user > pre_paid {
                     Some(to_pay_by_user - pre_paid)

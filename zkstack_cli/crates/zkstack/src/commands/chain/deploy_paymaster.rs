@@ -1,6 +1,7 @@
 use anyhow::Context;
-use common::forge::{Forge, ForgeScriptArgs};
-use config::{
+use xshell::Shell;
+use zkstack_cli_common::forge::{Forge, ForgeScriptArgs};
+use zkstack_cli_config::{
     forge_interface::{
         paymaster::{DeployPaymasterInput, DeployPaymasterOutput},
         script_params::DEPLOY_PAYMASTER_SCRIPT_PARAMS,
@@ -8,11 +9,10 @@ use config::{
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
     ChainConfig, ContractsConfig, EcosystemConfig,
 };
-use xshell::Shell;
 
 use crate::{
     messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_L1_SECRETS_MUST_BE_PRESENTED},
-    utils::forge::{check_the_balance, fill_forge_private_key},
+    utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
 
 pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
@@ -34,7 +34,7 @@ pub async fn deploy_paymaster(
     broadcast: bool,
 ) -> anyhow::Result<()> {
     let input = DeployPaymasterInput::new(chain_config)?;
-    let foundry_contracts_path = chain_config.path_to_foundry();
+    let foundry_contracts_path = chain_config.path_to_l1_foundry();
     input.save(
         shell,
         DEPLOY_PAYMASTER_SCRIPT_PARAMS.input(&chain_config.link_to_code),
@@ -56,7 +56,11 @@ pub async fn deploy_paymaster(
     if let Some(address) = sender {
         forge = forge.with_sender(address);
     } else {
-        forge = fill_forge_private_key(forge, Some(&chain_config.get_wallets_config()?.governor))?;
+        forge = fill_forge_private_key(
+            forge,
+            Some(&chain_config.get_wallets_config()?.governor),
+            WalletOwner::Governor,
+        )?;
     }
 
     if broadcast {

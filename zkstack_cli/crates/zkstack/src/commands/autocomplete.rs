@@ -6,7 +6,7 @@ use std::{
 use anyhow::Context;
 use clap::CommandFactory;
 use clap_complete::{generate, Generator};
-use common::logger;
+use zkstack_cli_common::logger;
 
 use super::args::AutocompleteArgs;
 use crate::{

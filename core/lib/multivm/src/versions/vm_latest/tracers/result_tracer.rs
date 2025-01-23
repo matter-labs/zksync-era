@@ -16,15 +16,16 @@ use crate::{
     },
     tracers::dynamic::vm_1_5_0::DynTracer,
     vm_latest::{
+        bootloader::BootloaderState,
         constants::{get_result_success_first_slot, BOOTLOADER_HEAP_PAGE},
         old_vm::utils::{vm_may_have_ended_inner, VmExecutionResult},
         tracers::{
             traits::VmTracer,
-            utils::{get_vm_hook_params, read_pointer, VmHook},
+            utils::{get_vm_hook_params, read_pointer},
         },
-        types::internals::ZkSyncVmState,
-        vm::MultiVMSubversion,
-        BootloaderState, HistoryMode, SimpleMemory,
+        types::ZkSyncVmState,
+        vm::MultiVmSubversion,
+        HistoryMode, SimpleMemory, VmHook,
     },
 };
 
@@ -102,7 +103,7 @@ pub(crate) struct ResultTracer<S> {
     execution_mode: VmExecutionMode,
 
     far_call_tracker: FarCallTracker,
-    subversion: MultiVMSubversion,
+    subversion: MultiVmSubversion,
 
     pub(crate) tx_finished_in_one_tx_mode: bool,
 
@@ -110,7 +111,7 @@ pub(crate) struct ResultTracer<S> {
 }
 
 impl<S> ResultTracer<S> {
-    pub(crate) fn new(execution_mode: VmExecutionMode, subversion: MultiVMSubversion) -> Self {
+    pub(crate) fn new(execution_mode: VmExecutionMode, subversion: MultiVmSubversion) -> Self {
         Self {
             result: None,
             bootloader_out_of_gas: false,
@@ -155,7 +156,7 @@ impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for ResultTracer<S> {
         _storage: StoragePtr<S>,
     ) {
         let hook = VmHook::from_opcode_memory(&state, &data, self.subversion);
-        if let VmHook::ExecutionResult = hook {
+        if matches!(hook, Some(VmHook::PostResult)) {
             let vm_hook_params = get_vm_hook_params(memory, self.subversion);
             let success = vm_hook_params[0];
             let returndata = self
@@ -336,7 +337,7 @@ impl<S: WriteStorage> ResultTracer<S> {
 pub(crate) fn tx_has_failed<S: WriteStorage, H: HistoryMode>(
     state: &ZkSyncVmState<S, H>,
     tx_id: u32,
-    subversion: MultiVMSubversion,
+    subversion: MultiVmSubversion,
 ) -> bool {
     let mem_slot = get_result_success_first_slot(subversion) + tx_id;
     let mem_value = state

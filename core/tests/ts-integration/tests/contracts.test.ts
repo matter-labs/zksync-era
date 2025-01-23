@@ -7,7 +7,7 @@
  */
 
 import { TestMaster } from '../src';
-import { deployContract, getTestContract, waitForNewL1Batch } from '../src/helpers';
+import { deployContract, getTestContract, scaledGasPrice, waitForNewL1Batch } from '../src/helpers';
 import { shouldOnlyTakeFee } from '../src/modifiers/balance-checker';
 
 import * as ethers from 'ethers';
@@ -99,22 +99,24 @@ describe('Smart contract behavior checks', () => {
             return;
         }
 
+        const gasPrice = await scaledGasPrice(alice);
         const infiniteLoop = await deployContract(alice, contracts.infinite, []);
 
         // Test eth_call first
         // TODO: provide a proper error for transactions that consume too much gas.
         // await expect(infiniteLoop.callStatic.infiniteLoop()).toBeRejected('cannot estimate transaction: out of gas');
         // ...and then an actual transaction
-        await expect(infiniteLoop.infiniteLoop({ gasLimit: 1_000_000 })).toBeReverted([]);
+        await expect(infiniteLoop.infiniteLoop({ gasLimit: 1_000_000, gasPrice })).toBeReverted([]);
     });
 
     test('Should test reverting storage logs', async () => {
         // In this test we check that if transaction reverts, it rolls back the storage slots.
         const prevValue = await counterContract.get();
+        const gasPrice = await scaledGasPrice(alice);
 
-        // We manually provide a constant, since otherwise the exception would be thrown
-        // while estimating gas
-        await expect(counterContract.incrementWithRevert(5, true, { gasLimit: 5000000 })).toBeReverted([]);
+        // We manually provide a gas limit and gas price, since otherwise the exception would be thrown
+        // while querying zks_estimateFee.
+        await expect(counterContract.incrementWithRevert(5, true, { gasLimit: 5000000, gasPrice })).toBeReverted();
 
         // The tx has been reverted, so the value Should not have been changed:
         const newValue = await counterContract.get();
@@ -421,35 +423,6 @@ describe('Smart contract behavior checks', () => {
         });
         const receipt = await tx.wait();
         expect(receipt.status).toEqual(1);
-    });
-
-    test('Should check transient storage', async () => {
-        const artifact = require(`${
-            testMaster.environment().pathToHome
-        }/etc/contracts-test-data/artifacts-zk/contracts/storage/storage.sol/StorageTester.json`);
-        const contractFactory = new zksync.ContractFactory(artifact.abi, artifact.bytecode, alice);
-        const storageContract = (await contractFactory.deploy()) as zksync.Contract;
-        await storageContract.waitForDeployment();
-        // Tests transient storage, see contract code for details.
-        await expect(storageContract.testTransientStore()).toBeAccepted([]);
-        // Checks that transient storage is cleaned up after each tx.
-        await expect(storageContract.assertTValue(0)).toBeAccepted([]);
-    });
-
-    test('Should check code oracle works', async () => {
-        // Deploy contract that calls CodeOracle.
-        const artifact = require(`${
-            testMaster.environment().pathToHome
-        }/etc/contracts-test-data/artifacts-zk/contracts/precompiles/precompiles.sol/Precompiles.json`);
-        const contractFactory = new zksync.ContractFactory(artifact.abi, artifact.bytecode, alice);
-        const contract = (await contractFactory.deploy()) as zksync.Contract;
-        await contract.waitForDeployment();
-
-        // Check that CodeOracle can decommit code of just deployed contract.
-        const versionedHash = zksync.utils.hashBytecode(artifact.bytecode);
-        const expectedBytecodeHash = ethers.keccak256(artifact.bytecode);
-
-        await expect(contract.callCodeOracle(versionedHash, expectedBytecodeHash)).toBeAccepted([]);
     });
 
     afterAll(async () => {

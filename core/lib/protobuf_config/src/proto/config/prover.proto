@@ -14,6 +14,8 @@ message ProofCompressor {
   optional string universal_setup_path = 7; // required; fs path
   optional string universal_setup_download_url = 8; // required
   optional bool verify_wrapper_proof = 9; // required
+  optional string universal_fflonk_setup_path = 10; // required
+  optional string universal_fflonk_setup_download_url = 11; // required
 }
 
 enum SetupLoadMode {
@@ -110,4 +112,5 @@ message ProofDataHandler {
   optional bool tee_support = 3; // optional
   optional uint64 first_tee_processed_batch = 4; // optional
   optional uint32 tee_proof_generation_timeout_in_secs = 5; // optional
+  optional uint32 tee_batch_permanently_ignored_timeout_in_hours = 6; // optional
 }

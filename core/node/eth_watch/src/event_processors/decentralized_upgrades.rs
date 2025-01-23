@@ -1,8 +1,10 @@
+use std::sync::Arc;
+
 use anyhow::Context as _;
 use zksync_dal::{eth_watcher_dal::EventType, Connection, Core, CoreDal, DalError};
 use zksync_types::{
-    ethabi::Contract, protocol_version::ProtocolSemanticVersion, web3::Log, ProtocolUpgrade, H256,
-    U256,
+    api::Log, ethabi::Contract, protocol_upgrade::ProtocolUpgradePreimageOracle,
+    protocol_version::ProtocolSemanticVersion, ProtocolUpgrade, H256, U256,
 };
 
 use crate::{
@@ -17,12 +19,16 @@ pub struct DecentralizedUpgradesEventProcessor {
     /// Last protocol version seen. Used to skip events for already known upgrade proposals.
     last_seen_protocol_version: ProtocolSemanticVersion,
     update_upgrade_timestamp_signature: H256,
+    sl_client: Arc<dyn EthClient>,
+    l1_client: Arc<dyn EthClient>,
 }
 
 impl DecentralizedUpgradesEventProcessor {
     pub fn new(
         last_seen_protocol_version: ProtocolSemanticVersion,
         chain_admin_contract: &Contract,
+        sl_client: Arc<dyn EthClient>,
+        l1_client: Arc<dyn EthClient>,
     ) -> Self {
         Self {
             last_seen_protocol_version,
@@ -31,7 +37,32 @@ impl DecentralizedUpgradesEventProcessor {
                 .context("UpdateUpgradeTimestamp event is missing in ABI")
                 .unwrap()
                 .signature(),
+            sl_client,
+            l1_client,
         }
+    }
+}
+
+#[async_trait::async_trait]
+impl ProtocolUpgradePreimageOracle for &dyn EthClient {
+    async fn get_protocol_upgrade_preimages(
+        &self,
+        hashes: Vec<H256>,
+    ) -> anyhow::Result<Vec<Vec<u8>>> {
+        let preimages = self.get_published_preimages(hashes.clone()).await?;
+
+        let mut result = vec![];
+        for (i, preimage) in preimages.into_iter().enumerate() {
+            let preimage = preimage.with_context(|| {
+                format!(
+                    "Protocol upgrade preimage under id {i} for {:#?} is missing",
+                    hashes[i]
+                )
+            })?;
+            result.push(preimage);
+        }
+
+        Ok(result)
     }
 }
 
@@ -40,7 +71,6 @@ impl EventProcessor for DecentralizedUpgradesEventProcessor {
     async fn process_events(
         &mut self,
         storage: &mut Connection<'_, Core>,
-        sl_client: &dyn EthClient,
         events: Vec<Log>,
     ) -> Result<usize, EventProcessorError> {
         let mut upgrades = Vec::new();
@@ -51,41 +81,56 @@ impl EventProcessor for DecentralizedUpgradesEventProcessor {
                 .ok()
                 .context("upgrade timestamp is too big")?;
 
-            let diamond_cut = sl_client
+            let diamond_cut = self
+                .sl_client
                 .diamond_cut_by_version(version)
                 .await?
                 .context("missing upgrade data on STM")?;
 
             let upgrade = ProtocolUpgrade {
                 timestamp,
-                ..ProtocolUpgrade::try_from_diamond_cut(&diamond_cut)?
+                ..ProtocolUpgrade::try_from_diamond_cut(
+                    &diamond_cut,
+                    self.l1_client.as_ref(),
+                    self.l1_client.get_chain_gateway_upgrade_info().await?,
+                )
+                .await?
             };
+
             // Scheduler VK is not present in proposal event. It is hard coded in verifier contract.
             let scheduler_vk_hash = if let Some(address) = upgrade.verifier_address {
-                Some(sl_client.scheduler_vk_hash(address).await?)
+                Some(self.sl_client.scheduler_vk_hash(address).await?)
             } else {
                 None
             };
-            upgrades.push((upgrade, scheduler_vk_hash));
+
+            // Scheduler VK is not present in proposal event. It is hard coded in verifier contract.
+            let fflonk_scheduler_vk_hash = if let Some(address) = upgrade.verifier_address {
+                self.sl_client.fflonk_scheduler_vk_hash(address).await?
+            } else {
+                None
+            };
+
+            upgrades.push((upgrade, scheduler_vk_hash, fflonk_scheduler_vk_hash));
         }
 
         let new_upgrades: Vec<_> = upgrades
             .into_iter()
-            .skip_while(|(v, _)| v.version <= self.last_seen_protocol_version)
+            .skip_while(|(v, _, _)| v.version <= self.last_seen_protocol_version)
             .collect();
 
-        let Some((last_upgrade, _)) = new_upgrades.last() else {
+        let Some((last_upgrade, _, _)) = new_upgrades.last() else {
             return Ok(events.len());
         };
         let versions: Vec<_> = new_upgrades
             .iter()
-            .map(|(u, _)| u.version.to_string())
+            .map(|(u, _, _)| u.version.to_string())
             .collect();
         tracing::debug!("Received upgrades with versions: {versions:?}");
 
         let last_version = last_upgrade.version;
         let stage_latency = METRICS.poll_eth_node[&PollStage::PersistUpgrades].start();
-        for (upgrade, scheduler_vk_hash) in new_upgrades {
+        for (upgrade, scheduler_vk_hash, fflonk_scheduler_vk_hash) in new_upgrades {
             let latest_semantic_version = storage
                 .protocol_versions_dal()
                 .latest_semantic_version()
@@ -106,7 +151,11 @@ impl EventProcessor for DecentralizedUpgradesEventProcessor {
                         )
                     })?;
 
-                let new_version = latest_version.apply_upgrade(upgrade, scheduler_vk_hash);
+                let new_version = latest_version.apply_upgrade(
+                    upgrade,
+                    scheduler_vk_hash,
+                    fflonk_scheduler_vk_hash,
+                );
                 if new_version.version.minor == latest_semantic_version.minor {
                     // Only verification parameters may change if only patch is bumped.
                     assert_eq!(
@@ -128,7 +177,7 @@ impl EventProcessor for DecentralizedUpgradesEventProcessor {
         Ok(events.len())
     }
 
-    fn relevant_topic(&self) -> H256 {
+    fn topic1(&self) -> H256 {
         self.update_upgrade_timestamp_signature
     }
 

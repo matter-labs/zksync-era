@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO\n            protocol_patches (\n                minor,\n                patch,\n                snark_wrapper_vk_hash,\n                fflonk_snark_wrapper_vk_hash,\n                created_at\n            )\n            VALUES\n            ($1, $2, $3, $4, NOW())\n            ON CONFLICT DO NOTHING\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4",
+        "Bytea",
+        "Bytea"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "e0be465bbfbf677a8eafb722fc302bf37011d37c9e3ad1cbc7c33a91db443a0f"
+}

@@ -204,14 +204,13 @@ impl TestScenario {
         let (stop_sender, stop_receiver) = watch::channel(false);
         let (io, output_handler) = TestIO::new(stop_sender, self);
         let state_keeper = ZkSyncStateKeeper::new(
-            stop_receiver,
             Box::new(io),
             Box::new(batch_executor),
             output_handler,
             Arc::new(sealer),
             Arc::new(MockReadStorageFactory),
         );
-        let sk_thread = tokio::spawn(state_keeper.run());
+        let sk_thread = tokio::spawn(state_keeper.run(stop_receiver));
 
         // We must assume that *theoretically* state keeper may ignore the stop signal from IO once scenario is
         // completed, so we spawn it in a separate thread to not get test stuck.
@@ -258,14 +257,11 @@ pub(crate) fn random_upgrade_tx(tx_number: u64) -> ProtocolUpgradeTx {
 pub(crate) fn successful_exec_with_log() -> BatchTransactionExecutionResult {
     BatchTransactionExecutionResult {
         tx_result: Box::new(VmExecutionResultAndLogs {
-            result: ExecutionResult::Success { output: vec![] },
             logs: VmExecutionLogs {
                 user_l2_to_l1_logs: vec![UserL2ToL1Log::default()],
                 ..VmExecutionLogs::default()
             },
-            statistics: Default::default(),
-            refunds: Default::default(),
-            new_known_factory_deps: None,
+            ..VmExecutionResultAndLogs::mock_success()
         }),
         compressed_bytecodes: vec![],
         call_traces: vec![],
@@ -275,13 +271,9 @@ pub(crate) fn successful_exec_with_log() -> BatchTransactionExecutionResult {
 /// Creates a `TxExecutionResult` object denoting a tx that was rejected.
 pub(crate) fn rejected_exec(reason: Halt) -> BatchTransactionExecutionResult {
     BatchTransactionExecutionResult {
-        tx_result: Box::new(VmExecutionResultAndLogs {
-            result: ExecutionResult::Halt { reason },
-            logs: Default::default(),
-            statistics: Default::default(),
-            refunds: Default::default(),
-            new_known_factory_deps: None,
-        }),
+        tx_result: Box::new(VmExecutionResultAndLogs::mock(ExecutionResult::Halt {
+            reason,
+        })),
         compressed_bytecodes: vec![],
         call_traces: vec![],
     }

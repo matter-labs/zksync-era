@@ -20,8 +20,8 @@ keys/setup
 !prover/
 !yarn.lock
 !package.json
-!Cargo.lock
-!Cargo.toml
+!core/Cargo.lock
+!core/Cargo.toml
 !contracts/
 !setup_2\^26.key
 !setup_2\^24.key
