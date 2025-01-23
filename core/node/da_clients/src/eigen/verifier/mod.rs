@@ -171,6 +171,7 @@ impl Verifier {
         let response = reqwest::get(url)
             .await
             .map_err(|e| VerificationError::PointDownloadError(e.to_string()))?;
+
         if !response.status().is_success() {
             return Err(VerificationError::PointDownloadError(format!(
                 "Failed to download point from source {}",
@@ -178,15 +179,28 @@ impl Verifier {
             )));
         }
 
-        let mut file = NamedTempFile::new()
-            .map_err(|e| VerificationError::PointDownloadError(e.to_string()))?;
         let content = response
             .bytes()
             .await
             .map_err(|e| VerificationError::PointDownloadError(e.to_string()))?;
-        file.write_all(&content)
-            .map_err(|e| VerificationError::PointDownloadError(e.to_string()))?;
-        Ok(file)
+
+        // Tempfile writting uses `std::fs`, so we need to spawn a blocking task
+        let temp_file = tokio::task::spawn_blocking(move || {
+            let mut file = NamedTempFile::new()
+                .map_err(|e| VerificationError::PointDownloadError(e.to_string()))?;
+
+            file.write_all(&content)
+                .map_err(|e| VerificationError::PointDownloadError(e.to_string()))?;
+
+            file.flush()
+                .map_err(|e| VerificationError::PointDownloadError(e.to_string()))?;
+
+            Ok::<NamedTempFile, VerificationError>(file)
+        })
+        .await
+        .map_err(|e| VerificationError::PointDownloadError(e.to_string()))??;
+
+        Ok::<NamedTempFile, VerificationError>(temp_file)
     }
 
     async fn get_points(cfg: &EigenConfig) -> Result<(PointFile, PointFile), VerificationError> {
