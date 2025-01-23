@@ -45,6 +45,15 @@ pub struct FflonkL1BatchProofForL1 {
     pub protocol_version: ProtocolSemanticVersion,
 }
 
+// Implementation created to allow conversion from FflonkL1BatchProofForL1(which is old L1BatchProofForL1)
+// to L1BatchProofForL1 to avoid compatibility problems with serialization/deserialization
+impl From<FflonkL1BatchProofForL1> for L1BatchProofForL1 {
+    fn from(proof: FflonkL1BatchProofForL1) -> Self {
+        L1BatchProofForL1::Fflonk(proof)
+    }
+}
+
+
 #[derive(Clone, Serialize, Deserialize)]
 pub struct PlonkL1BatchProofForL1 {
     pub aggregation_result_coords: [[u8; 32]; 4],
@@ -127,11 +136,13 @@ impl StoredObject for L1BatchProofForL1 {
     }
 
     fn deserialize(bytes: Vec<u8>) -> Result<Self, BoxedError> {
-        zksync_object_store::bincode::deserialize::<L1BatchProofForL1>(&bytes).or_else(|_| {
-            zksync_object_store::bincode::deserialize::<PlonkL1BatchProofForL1>(&bytes)
-                .map(Into::into)
-                .map_err(Into::into)
-        })
+        match zksync_object_store::bincode::deserialize::<PlonkL1BatchProofForL1>(&bytes) {
+            Ok(proof) => Ok(proof.into()),
+            Err(_) => {
+                zksync_object_store::bincode::deserialize::<FflonkL1BatchProofForL1>(&bytes)
+                    .map(Into::into).map_err(Into::into)
+            }
+        }
     }
 }
 
