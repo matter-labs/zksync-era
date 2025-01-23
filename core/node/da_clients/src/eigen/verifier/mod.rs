@@ -6,12 +6,13 @@ use rust_kzg_bn254::{blob::Blob, kzg::Kzg, polynomial::PolynomialFormat};
 use tempfile::NamedTempFile;
 use zksync_basic_types::web3::CallRequest;
 use zksync_config::EigenConfig;
-use zksync_eth_client::{EnrichedClientError, EthInterface};
+use zksync_eth_client::EthInterface;
 use zksync_types::{web3, Address, U256};
 use zksync_web3_decl::client::{DynClient, L1};
 
 use super::{
-    blob_info::{BatchHeader, BlobHeader, BlobInfo, BlobQuorumParam, G1Commitment},
+    blob_info::{BatchHeader, BlobHeader, BlobInfo, G1Commitment},
+    errors::{KzgError, ServiceManagerError, VerificationError},
     sdk::RawEigenClient,
 };
 
@@ -32,19 +33,25 @@ fn decode_bytes(encoded: Vec<u8>) -> Result<Vec<u8>, VerificationError> {
 
 #[async_trait::async_trait]
 pub trait VerifierClient: Sync + Send + std::fmt::Debug {
+    /// Request to the EigenDA service manager contract
+    /// the batch metadata hash for a given batch id
     async fn batch_id_to_batch_metadata_hash(
         &self,
-        blob_info: &BlobInfo,
+        batch_id: u32,
         svc_manager_addr: Address,
     ) -> Result<Vec<u8>, VerificationError>;
 
+    /// Request to the EigenDA service manager contract
+    /// the quorum adversary threshold percentages for a given quorum number
     async fn quorum_adversary_threshold_percentages(
         &self,
         quorum_number: u32,
         svc_manager_addr: Address,
     ) -> Result<u8, VerificationError>;
 
-    async fn quorum_numbers_required(
+    /// Request to the EigenDA service manager contract
+    /// the set of quorum numbers that are required
+    async fn required_quorum_numbers(
         &self,
         svc_manager_addr: Address,
     ) -> Result<Vec<u8>, VerificationError>;
@@ -54,16 +61,14 @@ pub trait VerifierClient: Sync + Send + std::fmt::Debug {
 impl VerifierClient for Box<DynClient<L1>> {
     async fn batch_id_to_batch_metadata_hash(
         &self,
-        blob_info: &BlobInfo,
+        batch_id: u32,
         svc_manager_addr: Address,
     ) -> Result<Vec<u8>, VerificationError> {
         let mut data = vec![];
         let func_selector =
             ethabi::short_signature("batchIdToBatchMetadataHash", &[ParamType::Uint(32)]);
         data.extend_from_slice(&func_selector);
-        let batch_id_data = encode(&[Token::Uint(U256::from(
-            blob_info.blob_verification_proof.batch_id,
-        ))]);
+        let batch_id_data = encode(&[Token::Uint(U256::from(batch_id))]);
         data.extend_from_slice(&batch_id_data);
 
         let call_request = CallRequest {
@@ -109,7 +114,7 @@ impl VerifierClient for Box<DynClient<L1>> {
         Ok(0)
     }
 
-    async fn quorum_numbers_required(
+    async fn required_quorum_numbers(
         &self,
         svc_manager_addr: Address,
     ) -> Result<Vec<u8>, VerificationError> {
@@ -120,7 +125,6 @@ impl VerifierClient for Box<DynClient<L1>> {
             data: Some(zksync_basic_types::web3::Bytes(data)),
             ..Default::default()
         };
-
         let res = self
             .as_ref()
             .call_contract_function(call_request, None)
@@ -129,53 +133,6 @@ impl VerifierClient for Box<DynClient<L1>> {
 
         decode_bytes(res.0.to_vec())
     }
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum KzgError {
-    #[error("Kzg setup error: {0}")]
-    Setup(String),
-    #[error(transparent)]
-    Internal(#[from] rust_kzg_bn254::errors::KzgError),
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum ServiceManagerError {
-    #[error(transparent)]
-    EnrichedClient(#[from] EnrichedClientError),
-    #[error("Decoding error: {0}")]
-    Decoding(String),
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum VerificationError {
-    #[error(transparent)]
-    ServiceManager(#[from] ServiceManagerError),
-    #[error(transparent)]
-    Kzg(#[from] KzgError),
-    #[error("Wrong proof")]
-    WrongProof,
-    #[error("Different commitments: expected {expected:?}, got {actual:?}")]
-    DifferentCommitments {
-        expected: Box<G1Affine>,
-        actual: Box<G1Affine>,
-    },
-    #[error("Different roots: expected {expected:?}, got {actual:?}")]
-    DifferentRoots { expected: String, actual: String },
-    #[error("Empty hash")]
-    EmptyHash,
-    #[error("Different hashes: expected {expected:?}, got {actual:?}")]
-    DifferentHashes { expected: String, actual: String },
-    #[error("Wrong quorum params: {blob_quorum_params:?}")]
-    WrongQuorumParams { blob_quorum_params: BlobQuorumParam },
-    #[error("Quorum not confirmed")]
-    QuorumNotConfirmed,
-    #[error("Commitment not on curve: {0}")]
-    CommitmentNotOnCurve(G1Affine),
-    #[error("Commitment not on correct subgroup: {0}")]
-    CommitmentNotOnCorrectSubgroup(G1Affine),
-    #[error("Link Error: {0}")]
-    LinkError(String),
 }
 
 #[derive(Debug)]
@@ -187,7 +144,7 @@ enum PointFile {
 impl PointFile {
     fn path(&self) -> &str {
         match self {
-            PointFile::Temp(file) => file.path().to_str().unwrap(),
+            PointFile::Temp(file) => file.path().to_str().unwrap_or_default(), // Safe unwrap because NamedTempFile guarantees a valid path
             PointFile::Path(path) => path,
         }
     }
@@ -213,23 +170,22 @@ impl Verifier {
     async fn download_temp_point(url: &String) -> Result<NamedTempFile, VerificationError> {
         let response = reqwest::get(url)
             .await
-            .map_err(|e| VerificationError::LinkError(e.to_string()))
-            .unwrap();
+            .map_err(|e| VerificationError::PointDownloadError(e.to_string()))?;
         if !response.status().is_success() {
-            return Err(VerificationError::LinkError(
-                "Failed to get point".to_string(),
-            ));
+            return Err(VerificationError::PointDownloadError(format!(
+                "Failed to download point from source {}",
+                url
+            )));
         }
 
-        let mut file = NamedTempFile::new().unwrap();
+        let mut file = NamedTempFile::new()
+            .map_err(|e| VerificationError::PointDownloadError(e.to_string()))?;
         let content = response
             .bytes()
             .await
-            .map_err(|e| VerificationError::LinkError(e.to_string()))
-            .unwrap();
+            .map_err(|e| VerificationError::PointDownloadError(e.to_string()))?;
         file.write_all(&content)
-            .map_err(|e| VerificationError::LinkError(e.to_string()))
-            .unwrap();
+            .map_err(|e| VerificationError::PointDownloadError(e.to_string()))?;
         Ok(file)
     }
 
@@ -240,7 +196,7 @@ impl Verifier {
                 PointFile::Path(format!("{}/{}", path, Self::G2POINT)),
             )),
             None => {
-                tracing::info!("Points for KZG setup not found, downloading temporary points");
+                tracing::info!("Points for KZG setup not found, downloading points to a temp file");
                 Ok((
                     PointFile::Temp(Self::download_temp_point(&cfg.g1_url).await?),
                     PointFile::Temp(Self::download_temp_point(&cfg.g2_url).await?),
@@ -421,7 +377,10 @@ impl Verifier {
     ) -> Result<Vec<u8>, VerificationError> {
         self.client
             .as_ref()
-            .batch_id_to_batch_metadata_hash(blob_info, self.cfg.eigenda_svc_manager_address)
+            .batch_id_to_batch_metadata_hash(
+                blob_info.blob_verification_proof.batch_id,
+                self.cfg.eigenda_svc_manager_address,
+            )
             .await
     }
 
@@ -473,7 +432,7 @@ impl Verifier {
     async fn call_quorum_numbers_required(&self) -> Result<Vec<u8>, VerificationError> {
         self.client
             .as_ref()
-            .quorum_numbers_required(self.cfg.eigenda_svc_manager_address)
+            .required_quorum_numbers(self.cfg.eigenda_svc_manager_address)
             .await
     }
 

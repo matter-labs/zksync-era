@@ -15,7 +15,7 @@ use crate::eigen::{
         BatchHeader, BatchMetadata, BlobHeader, BlobInfo, BlobQuorumParam, BlobVerificationProof,
         G1Commitment,
     },
-    verifier::{Verifier, VerifierClient},
+    verifier::{decode_bytes, Verifier, VerifierClient},
 };
 
 /// Mock struct for the Verifier
@@ -38,16 +38,14 @@ impl MockVerifierClient {
 impl VerifierClient for MockVerifierClient {
     async fn batch_id_to_batch_metadata_hash(
         &self,
-        blob_info: &BlobInfo,
+        batch_id: u32,
         svc_manager_addr: Address,
     ) -> Result<Vec<u8>, VerificationError> {
         let mut data = vec![];
         let func_selector =
             ethabi::short_signature("batchIdToBatchMetadataHash", &[ParamType::Uint(32)]);
         data.extend_from_slice(&func_selector);
-        let batch_id_data = ethabi::encode(&[Token::Uint(U256::from(
-            blob_info.blob_verification_proof.batch_id,
-        ))]);
+        let batch_id_data = ethabi::encode(&[Token::Uint(U256::from(batch_id))]);
         data.extend_from_slice(&batch_id_data);
 
         let call_request = CallRequest {
@@ -62,7 +60,7 @@ impl VerifierClient for MockVerifierClient {
 
     async fn quorum_adversary_threshold_percentages(
         &self,
-        _quorum_number: u32,
+        quorum_number: u32,
         svc_manager_addr: Address,
     ) -> Result<u8, VerificationError> {
         let func_selector = ethabi::short_signature("quorumAdversaryThresholdPercentages", &[]);
@@ -75,10 +73,16 @@ impl VerifierClient for MockVerifierClient {
         };
 
         let req = serde_json::to_string(&call_request).unwrap();
-        Ok(self.replies.get(&req).unwrap().clone().0[0])
+        let res = self.replies.get(&req).unwrap().clone();
+        let percentages = decode_bytes(res.0)?;
+
+        if percentages.len() > quorum_number as usize {
+            return Ok(percentages[quorum_number as usize]);
+        }
+        Ok(0)
     }
 
-    async fn quorum_numbers_required(
+    async fn required_quorum_numbers(
         &self,
         svc_manager_addr: Address,
     ) -> Result<Vec<u8>, VerificationError> {
@@ -91,7 +95,8 @@ impl VerifierClient for MockVerifierClient {
         };
 
         let req = serde_json::to_string(&call_request).unwrap();
-        Ok(self.replies.get(&req).unwrap().clone().0)
+        let res = self.replies.get(&req).unwrap().clone();
+        decode_bytes(res.0.to_vec())
     }
 }
 
@@ -509,19 +514,12 @@ async fn test_verify_batch() {
 async fn test_verify_batch_mocked() {
     let mut mock_replies = HashMap::new();
     let mock_req = CallRequest {
-        from: None,
         to: Some(H160::from_str("0xd4a7e1bd8015057293f0d0a557088c286942e84b").unwrap()),
-        gas: None,
-        gas_price: None,
-        value: None,
         data: Some(Bytes::from(
             hex::decode("eccbbfc900000000000000000000000000000000000000000000000000000000000103cb")
                 .unwrap(),
         )),
-        transaction_type: None,
-        access_list: None,
-        max_fee_per_gas: None,
-        max_priority_fee_per_gas: None,
+        ..Default::default()
     };
     let mock_req = serde_json::to_string(&mock_req).unwrap();
     let mock_res = Bytes::from(
@@ -683,59 +681,44 @@ async fn test_verify_security_params() {
         },
     };
     let result = verifier.verify_security_params(&cert).await;
-    println!("result {:?}", result);
     assert!(result.is_ok());
 }
 
 /// Test security params verification with a mocked verifier.
 /// To test actual behaviour of the verifier, run the test above
 #[tokio::test]
-async fn test_verify_securityyy_params_mocked() {
+async fn test_verify_securityt_params_mocked() {
     let mut mock_replies = HashMap::new();
 
     // First request
     let mock_req = CallRequest {
-        from: None,
         to: Some(H160::from_str("0xd4a7e1bd8015057293f0d0a557088c286942e84b").unwrap()),
-        gas: None,
-        gas_price: None,
-        value: None,
         data: Some(Bytes::from(hex::decode("8687feae").unwrap())),
-        transaction_type: None,
-        access_list: None,
-        max_fee_per_gas: None,
-        max_priority_fee_per_gas: None,
+        ..Default::default()
     };
     let mock_req = serde_json::to_string(&mock_req).unwrap();
     let mock_res = Bytes::from(
-            hex::decode("000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000020001000000000000000000000000000000000000000000000000000000000000")
-                .unwrap(),
-        );
+        hex::decode("000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000032121210000000000000000000000000000000000000000000000000000000000")
+            .unwrap(),
+    );
     mock_replies.insert(mock_req, mock_res);
 
     // Second request
     let mock_req = CallRequest {
-        from: None,
         to: Some(H160::from_str("0xd4a7e1bd8015057293f0d0a557088c286942e84b").unwrap()),
-        gas: None,
-        gas_price: None,
-        value: None,
         data: Some(Bytes::from(hex::decode("e15234ff").unwrap())),
-        transaction_type: None,
-        access_list: None,
-        max_fee_per_gas: None,
-        max_priority_fee_per_gas: None,
+        ..Default::default()
     };
     let mock_req = serde_json::to_string(&mock_req).unwrap();
     let mock_res = Bytes::from(
-            hex::decode("000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000020001000000000000000000000000000000000000000000000000000000000000")
-                .unwrap(),
-        );
+        hex::decode("000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000020001000000000000000000000000000000000000000000000000000000000000")
+            .unwrap(),
+    );
     mock_replies.insert(mock_req, mock_res);
 
     let cfg = EigenConfig::default();
-    let query_client = MockVerifierClient::new(mock_replies);
-    let verifier = Verifier::new(cfg, Arc::new(query_client)).await.unwrap();
+    let client = MockVerifierClient::new(mock_replies);
+    let verifier = Verifier::new(cfg, Arc::new(client)).await.unwrap();
     let cert = BlobInfo {
         blob_header: BlobHeader {
             commitment: G1Commitment {
