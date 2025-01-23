@@ -359,7 +359,7 @@ pruning:
   enabled: true
   chunk_size: 10
   removal_delay_sec: 60
-  data_retention_sec: 3600
+  data_retention_sec: 604800
 
 commitment_generator:
   max_parallelism: 10
