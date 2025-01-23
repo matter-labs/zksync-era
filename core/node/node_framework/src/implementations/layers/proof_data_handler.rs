@@ -74,7 +74,10 @@ impl WiringLayer for ProofDataHandlerLayer {
             self.l2_chain_id,
         );
 
-        let task = ProofDataHandlerApi::new(self.proof_data_handler_config.http_port, processor);
+        let mut task = ProofDataHandlerApi::new(self.proof_data_handler_config.http_port, processor);
+        if self.proof_data_handler_config.tee_config.tee_support {
+            task = task.with_tee_support();
+        }
 
         Ok(Output { task })
     }
