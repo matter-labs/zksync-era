@@ -405,7 +405,8 @@ jobs:
         run: |
           for i in {1..10}; do
             echo "Iteration $i"
-            ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --no-deps --ignore-prerequisites" ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}
+            mkdir -p ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/$i
+            ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --no-deps --ignore-prerequisites" ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/$i
           done
 
       - name: Init external nodes
@@ -455,13 +456,15 @@ jobs:
         run: |
           for i in {1..10}; do
             echo "Iteration $i"
-            ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --no-deps --ignore-prerequisites --external-node" ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}
+            mkdir -p ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/$i
+            ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --no-deps --ignore-prerequisites --external-node" ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/$i
           done
 
       - name: Fee projection tests
         run: |
           ci_run killall -INT zksync_server || true
-          ci_run ./bin/run_on_all_chains.sh "zkstack dev test fees --no-deps --no-kill" ${{ env.CHAINS }} ${{ env.FEES_LOGS_DIR }}
+          mkdir -p ${{ env.FEES_LOGS_DIR }}/$i
+          ci_run ./bin/run_on_all_chains.sh "zkstack dev test fees --no-deps --no-kill" ${{ env.CHAINS }} ${{ env.FEES_LOGS_DIR }}/$i
 
       - name: Repeat fee projection tests on push to main to check for flakiness
         if: ${{ (steps.condition.outputs.should_run == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main') }}
