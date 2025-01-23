@@ -14,3 +14,4 @@ pub mod snapshot;
 pub(crate) mod sql_fmt;
 pub mod status;
 pub mod test;
+pub mod gateway_finalize_preparation;

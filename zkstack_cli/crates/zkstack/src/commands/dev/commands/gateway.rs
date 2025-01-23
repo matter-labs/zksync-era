@@ -53,13 +53,13 @@ macro_rules! amend_config_pre_upgrade {
 pub(crate) struct GatewayUpgradeInfo {
     // Information about pre-upgrade contracts.
     l1_chain_id: u32,
-    bridgehub_addr: Address,
+    pub(crate) bridgehub_addr: Address,
     old_validator_timelock: Address,
-    l1_legacy_shared_bridge: Address,
+    pub(crate) l1_legacy_shared_bridge: Address,
 
     // Information about the post-upgrade contracts.
     ctm_deployment_tracker_proxy_addr: Address,
-    native_token_vault_addr: Address,
+    pub(crate) native_token_vault_addr: Address,
     l1_bytecodes_supplier_addr: Address,
     rollup_l1_da_validator_addr: Address,
     no_da_validium_l1_validator_addr: Address,
