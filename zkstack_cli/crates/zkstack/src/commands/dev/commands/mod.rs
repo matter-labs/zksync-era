@@ -5,6 +5,7 @@ pub mod database;
 pub mod fmt;
 #[cfg(feature = "gateway")]
 pub mod gateway;
+pub mod gateway_finalize_preparation;
 pub mod genesis;
 pub mod lint;
 pub(crate) mod lint_utils;
@@ -14,4 +15,3 @@ pub mod snapshot;
 pub(crate) mod sql_fmt;
 pub mod status;
 pub mod test;
-pub mod gateway_finalize_preparation;

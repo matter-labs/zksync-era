@@ -1,14 +1,25 @@
-use std::{num::NonZeroUsize, str::FromStr, sync::Arc, time::Duration};
+use std::{
+    collections::HashSet,
+    fs::File,
+    io::{BufReader, BufWriter},
+    num::NonZeroUsize,
+    path::Path,
+    str::FromStr,
+    sync::Arc,
+    time::Duration,
+};
 
-use lazy_static::lazy_static;
 use anyhow::Context;
 use clap::{Parser, ValueEnum};
+// get_list_of_tokens.rs
+use ethers::prelude::*;
 use ethers::{
     abi::{encode, parse_abi, Token},
     contract::{abigen, BaseContract},
     providers::{Http, Middleware, Provider},
     utils::hex,
 };
+use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use strum::EnumIter;
 use tokio::time::sleep;
@@ -20,7 +31,11 @@ use zkstack_cli_config::{
 };
 use zksync_contracts::{chain_admin_contract, hyperchain_contract, DIAMOND_CUT};
 use zksync_types::{
-    ethabi, h256_to_address, h256_to_u256, u256_to_h256, url::SensitiveUrl, web3::{keccak256, Bytes}, Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, H256, L2_NATIVE_TOKEN_VAULT_ADDRESS, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256
+    ethabi, h256_to_address, h256_to_u256, u256_to_h256,
+    url::SensitiveUrl,
+    web3::{keccak256, Bytes},
+    Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, H256,
+    L2_NATIVE_TOKEN_VAULT_ADDRESS, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256,
 };
 use zksync_web3_decl::{
     client::{Client, DynClient, L2},
@@ -28,11 +43,6 @@ use zksync_web3_decl::{
 };
 
 use super::gateway::GatewayUpgradeInfo;
-
-// get_list_of_tokens.rs
-
-use ethers::prelude::*;
-use std::{collections::HashSet, fs::File, io::{BufReader, BufWriter}, path::Path};
 
 /// Structure that we expect to read from / write to the existing cache file
 #[derive(Debug, Serialize, Deserialize)]
@@ -94,8 +104,8 @@ pub async fn get_list_of_tokens(
     // ---------------------------------------------------------
     // 2. Connect to a provider
     // ---------------------------------------------------------
-    let provider = Provider::<Http>::try_from(l1_rpc_url)
-        .expect("Could not instantiate HTTP Provider");
+    let provider =
+        Provider::<Http>::try_from(l1_rpc_url).expect("Could not instantiate HTTP Provider");
 
     // Get the latest block so we know how far we can go
     let latest_block = provider
@@ -172,7 +182,9 @@ pub async fn get_list_of_tokens(
         let logs_legacy_1 = provider
             .get_logs(&filter_legacy_deposit_initiated_1)
             .await
-            .expect("Failed to fetch logs for DepositInitiated - (bytes32,address,address,address,uint256)");
+            .expect(
+            "Failed to fetch logs for DepositInitiated - (bytes32,address,address,address,uint256)",
+        );
 
         for log in logs_legacy_1 {
             // The event layout is:
@@ -193,7 +205,7 @@ pub async fn get_list_of_tokens(
             }
             // l1Token is the first 32 bytes
             let l1_token_bytes = &raw_data[0..32];
-            let l1_token_addr = Address::from_slice(&l1_token_bytes[12..32]); 
+            let l1_token_addr = Address::from_slice(&l1_token_bytes[12..32]);
             discovered_tokens.insert(l1_token_addr);
         }
 
@@ -210,7 +222,9 @@ pub async fn get_list_of_tokens(
         let logs_legacy_2 = provider
             .get_logs(&filter_legacy_deposit_initiated_2)
             .await
-            .expect("Failed to fetch logs for DepositInitiated - (address,address,address,uint256)");
+            .expect(
+                "Failed to fetch logs for DepositInitiated - (address,address,address,uint256)",
+            );
 
         for log in logs_legacy_2 {
             // The event layout is:
@@ -238,8 +252,7 @@ pub async fn get_list_of_tokens(
         cache.last_seen_block = end_of_range;
         cache.added_tokens = discovered_tokens.iter().copied().collect();
 
-        write_cache_to_file(&existing_cache_path, &cache)
-            .expect("Failed to write cache to file");
+        write_cache_to_file(&existing_cache_path, &cache).expect("Failed to write cache to file");
 
         println!("Processed and saved the range!");
 
@@ -263,13 +276,15 @@ fn read_cache_from_file<P: AsRef<Path>>(path: P) -> Option<Cache> {
 }
 
 /// Writes the updated cache to disk, overwriting the old file.
-fn write_cache_to_file<P: AsRef<Path>>(path: P, cache: &Cache) -> Result<(), Box<dyn std::error::Error>> {
+fn write_cache_to_file<P: AsRef<Path>>(
+    path: P,
+    cache: &Cache,
+) -> Result<(), Box<dyn std::error::Error>> {
     let file = File::create(path)?;
     let writer = BufWriter::new(file);
     serde_json::to_writer_pretty(writer, &cache)?;
     Ok(())
 }
-
 
 abigen!(
     LegacyStateTransitionManagerAbi,
@@ -287,31 +302,30 @@ abigen!(
 ]"
 );
 
-async fn ask_storage(
-    provider: Arc<Provider<Http>>,
-    address: Address,
-    key: H256
-) -> H256 {
+async fn ask_storage(provider: Arc<Provider<Http>>, address: Address, key: H256) -> H256 {
     sleep(Duration::from_secs(1)).await;
     provider.get_storage_at(address, key, None).await.unwrap()
 }
 
 // The method has been deleted, so we'll have to replicate it in rust
 async fn get_all_hyperchains_ids(provider: Arc<Provider<Http>>, stm_address: Address) -> Vec<U256> {
-
     let num_chains_key = u256_to_h256(U256::from(151));
 
-    let number_of_chains = h256_to_u256(ask_storage(provider.clone(), stm_address, num_chains_key).await);
-    
+    let number_of_chains =
+        h256_to_u256(ask_storage(provider.clone(), stm_address, num_chains_key).await);
+
     // keccak(151)
-    let initial_slot = h256_to_u256(H256::from_str("354a83ed9988f79f6038d4c7a7dadbad8af32f4ad6df893e0e5807a1b1944ff9").unwrap());
+    let initial_slot = h256_to_u256(
+        H256::from_str("354a83ed9988f79f6038d4c7a7dadbad8af32f4ad6df893e0e5807a1b1944ff9").unwrap(),
+    );
 
     let mut result = vec![];
 
     for i in 0..number_of_chains.as_u32() {
         let current_key = initial_slot + U256::from(i);
 
-        let current_value = ask_storage(provider.clone(), stm_address, u256_to_h256(current_key)).await;
+        let current_value =
+            ask_storage(provider.clone(), stm_address, u256_to_h256(current_key)).await;
 
         result.push(h256_to_u256(current_value));
     }
@@ -319,18 +333,22 @@ async fn get_all_hyperchains_ids(provider: Arc<Provider<Http>>, stm_address: Add
     result
 }
 
-
 /// Returns an array of chains' ids and base tokens
 async fn get_chains_info(
     l1_rpc_url: &str,
     bridgehub_addr: Address,
-    era_chain_id: u64
+    era_chain_id: u64,
 ) -> (Vec<U256>, Vec<Address>) {
-    let provider = Arc::new(Provider::<Http>::try_from(l1_rpc_url)
-        .expect("Could not instantiate HTTP Provider"));
+    let provider = Arc::new(
+        Provider::<Http>::try_from(l1_rpc_url).expect("Could not instantiate HTTP Provider"),
+    );
 
     let bridgehub = LegacyBridgehubAbi::new(bridgehub_addr, provider.clone());
-    let stm_address = bridgehub.chain_type_manager(U256::from(era_chain_id)).call().await.unwrap();
+    let stm_address = bridgehub
+        .chain_type_manager(U256::from(era_chain_id))
+        .call()
+        .await
+        .unwrap();
 
     if stm_address == Address::zero() {
         panic!("Era has not STM!");
@@ -338,10 +356,7 @@ async fn get_chains_info(
 
     let stm = LegacyStateTransitionManagerAbi::new(stm_address, provider.clone());
 
-    let chain_ids = get_all_hyperchains_ids(
-        provider.clone(),
-        stm_address
-    ).await;
+    let chain_ids = get_all_hyperchains_ids(provider.clone(), stm_address).await;
 
     let mut addresses = vec![];
     for chain in chain_ids.iter() {
@@ -378,8 +393,8 @@ abigen!(
 );
 
 async fn get_legacy_bridge(bridge_addr: Address, l1_rpc_url: &str) -> Address {
-    let provider = Provider::<Http>::try_from(l1_rpc_url)
-        .expect("Could not instantiate HTTP Provider");
+    let provider =
+        Provider::<Http>::try_from(l1_rpc_url).expect("Could not instantiate HTTP Provider");
 
     let bridge = LegacySharedBridgeAbi::new(bridge_addr, Arc::new(provider));
 
@@ -399,28 +414,39 @@ pub(crate) async fn run(shell: &Shell, args: GatewayFinalizePreparationArgs) -> 
     let upgrade_info = GatewayUpgradeInfo::read(shell, &args.upgrade_description_path)?;
 
     println!("Obtaining chain and base token info...");
-    let (chain_ids, base_tokens) = get_chains_info(&args.l1_rpc_url, upgrade_info.bridgehub_addr, args.era_chain_id).await;
+    let (chain_ids, base_tokens) = get_chains_info(
+        &args.l1_rpc_url,
+        upgrade_info.bridgehub_addr,
+        args.era_chain_id,
+    )
+    .await;
 
     println!("Obtaining bridged tokens info...");
 
     let tokens = get_list_of_tokens(
         args.block_to_start_with,
-        CACHE_PATH, 
+        CACHE_PATH,
         &args.l1_rpc_url,
         upgrade_info.l1_legacy_shared_bridge,
         get_legacy_bridge(upgrade_info.l1_legacy_shared_bridge, &args.l1_rpc_url).await,
-        base_tokens
-    ).await; 
+        base_tokens,
+    )
+    .await;
 
     // Now, since we have the list of tokens and chains, we need to register those.
 
-    let calldata = FINALIZE_UPGRADE.encode("finalizeInit", (
-        args.multicall_with_gas_addr,
-        upgrade_info.bridgehub_addr,
-        upgrade_info.native_token_vault_addr,
-        tokens,
-        chain_ids
-    )).unwrap();
+    let calldata = FINALIZE_UPGRADE
+        .encode(
+            "finalizeInit",
+            (
+                args.multicall_with_gas_addr,
+                upgrade_info.bridgehub_addr,
+                upgrade_info.native_token_vault_addr,
+                tokens,
+                chain_ids,
+            ),
+        )
+        .unwrap();
 
     println!("data: {}", hex::encode(&calldata.0));
 
