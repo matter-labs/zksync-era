@@ -7,7 +7,7 @@ let
 in
 craneLib.buildPackage (commonArgs // {
   inherit pname;
-  version = (builtins.fromTOML (builtins.readFile ../../core/bin/zksync_tee_prover/Cargo.toml)).package.version;
+  version = (builtins.fromTOML (builtins.readFile ../../core/Cargo.toml)).workspace.package.version;
   inherit cargoExtraArgs;
 
   cargoArtifacts = craneLib.buildDepsOnly (commonArgs // {
