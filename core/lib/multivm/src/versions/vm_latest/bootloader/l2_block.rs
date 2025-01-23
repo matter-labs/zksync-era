@@ -2,10 +2,12 @@ use std::cmp::Ordering;
 
 use zksync_types::{web3::keccak256_concat, L2BlockNumber, H256};
 
-use super::{snapshot::L2BlockSnapshot, tx::BootloaderTx};
 use crate::{
     interface::{L2Block, L2BlockEnv},
-    vm_latest::utils::l2_blocks::l2_block_hash,
+    vm_latest::{
+        bootloader::{snapshot::L2BlockSnapshot, tx::BootloaderTx},
+        utils::l2_blocks::l2_block_hash,
+    },
 };
 
 const EMPTY_TXS_ROLLING_HASH: H256 = H256::zero();

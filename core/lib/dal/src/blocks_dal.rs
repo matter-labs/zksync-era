@@ -835,10 +835,21 @@ impl BlocksDal<'_, '_> {
                 l1_gas_price,
                 l2_fair_gas_price,
                 fair_pubdata_price
-            FROM
-                l1_batches
-            WHERE
-                NOT is_sealed
+            FROM (
+                SELECT
+                    number,
+                    timestamp,
+                    protocol_version,
+                    fee_address,
+                    l1_gas_price,
+                    l2_fair_gas_price,
+                    fair_pubdata_price,
+                    is_sealed
+                FROM l1_batches
+                ORDER BY number DESC
+                LIMIT 1
+            ) AS u
+            WHERE NOT is_sealed
             "#,
         )
         .instrument("get_unsealed_l1_batch")

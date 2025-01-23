@@ -58,13 +58,13 @@ jobs:
           tags: |
             us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/proof-fri-gpu-compressor-gar:2.0-${{ inputs.protocol_version }}-${{ inputs.image_tag_suffix }}
 
-      - name: Build and push prover-gpu-fri-gar to Asia GAR
+      - name: Build and push proof-fri-gpu-compressor-gar to Asia GAR
         run: |
           docker buildx imagetools create \
             --tag asia-docker.pkg.dev/matterlabs-infra/matterlabs-docker/proof-fri-gpu-compressor-gar:2.0-${{ inputs.protocol_version }}-${{ inputs.image_tag_suffix }} \
             us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/proof-fri-gpu-compressor-gar:2.0-${{ inputs.protocol_version }}-${{ inputs.image_tag_suffix }}
 
-      - name: Build and push prover-gpu-fri-gar to Europe GAR
+      - name: Build and push proof-fri-gpu-compressor-gar to Europe GAR
         run: |
           docker buildx imagetools create \
             --tag europe-docker.pkg.dev/matterlabs-infra/matterlabs-docker/proof-fri-gpu-compressor-gar:2.0-${{ inputs.protocol_version }}-${{ inputs.image_tag_suffix }} \
