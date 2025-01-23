@@ -28,6 +28,7 @@ impl ProtoRepr for proto::Secrets {
             database: read_optional_repr(&self.database),
             l1: read_optional_repr(&self.l1),
             data_availability: read_optional_repr(&self.da),
+            transitional_da: read_optional_repr(&self.transitional_da),
         })
     }
 
@@ -37,6 +38,7 @@ impl ProtoRepr for proto::Secrets {
             l1: this.l1.as_ref().map(ProtoRepr::build),
             consensus: this.consensus.as_ref().map(ProtoRepr::build),
             da: this.data_availability.as_ref().map(ProtoRepr::build),
+            transitional_da: this.transitional_da.as_ref().map(ProtoRepr::build),
         }
     }
 }

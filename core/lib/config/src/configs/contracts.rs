@@ -56,6 +56,7 @@ pub struct ContractsConfig {
     pub l1_base_token_asset_id: Option<H256>,
 
     pub chain_admin_addr: Option<Address>,
+    pub l1_da_validator_addr: Option<Address>,
     pub l2_da_validator_addr: Option<Address>,
 }
 
@@ -81,6 +82,7 @@ impl ContractsConfig {
             l1_base_token_asset_id: Some(H256::repeat_byte(0x15)),
             ecosystem_contracts: Some(EcosystemContracts::for_tests()),
             chain_admin_addr: Some(Address::repeat_byte(0x18)),
+            l1_da_validator_addr: Some(Address::repeat_byte(0x1b)),
             l2_da_validator_addr: Some(Address::repeat_byte(0x1a)),
         }
     }

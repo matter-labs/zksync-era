@@ -5,7 +5,10 @@ pub use self::{
     commitment_generator::CommitmentGeneratorConfig,
     contract_verifier::ContractVerifierConfig,
     contracts::{ContractsConfig, EcosystemContracts},
-    da_client::{avail::AvailConfig, celestia::CelestiaConfig, eigen::EigenConfig, DAClientConfig},
+    da_client::{
+        avail::AvailConfig, celestia::CelestiaConfig, eigen::EigenConfig,
+        transitional_client::TransitionalDAClientConfig, DAClientConfig,
+    },
     da_dispatcher::DADispatcherConfig,
     database::{DBConfig, PostgresConfig},
     eth_sender::{EthConfig, GasAdjusterConfig},

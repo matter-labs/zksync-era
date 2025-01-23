@@ -269,6 +269,7 @@ impl Distribution<configs::ContractsConfig> for EncodeDist {
             base_token_addr: self.sample_opt(|| rng.gen()),
             l1_base_token_asset_id: self.sample_opt(|| rng.gen()),
             chain_admin_addr: self.sample_opt(|| rng.gen()),
+            l1_da_validator_addr: self.sample_opt(|| rng.gen()),
             l2_da_validator_addr: self.sample_opt(|| rng.gen()),
         }
     }

@@ -32,6 +32,7 @@ pub struct Secrets {
     pub database: Option<DatabaseSecrets>,
     pub l1: Option<L1Secrets>,
     pub data_availability: Option<DataAvailabilitySecrets>,
+    pub transitional_da: Option<DataAvailabilitySecrets>,
 }
 
 impl DatabaseSecrets {

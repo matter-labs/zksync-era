@@ -122,20 +122,28 @@ impl MainNodeBuilder {
     }
 
     pub fn get_pubdata_type(&self) -> anyhow::Result<PubdataType> {
-        if self.genesis_config.l1_batch_commit_data_generator_mode == L1BatchCommitmentMode::Rollup
-        {
-            return Ok(PubdataType::Rollup);
-        }
-
-        match self.configs.da_client_config.clone() {
-            None => Err(anyhow::anyhow!("No config for DA client")),
-            Some(da_client_config) => Ok(match da_client_config {
+        fn match_pubdata_type(da_client_config: DAClientConfig) -> PubdataType {
+            match da_client_config {
                 DAClientConfig::Avail(_) => PubdataType::Avail,
                 DAClientConfig::Celestia(_) => PubdataType::Celestia,
                 DAClientConfig::Eigen(_) => PubdataType::Eigen,
                 DAClientConfig::ObjectStore(_) => PubdataType::ObjectStore,
                 DAClientConfig::NoDA => PubdataType::NoDA,
-            }),
+            }
+        }
+
+        if self.genesis_config.l1_batch_commit_data_generator_mode == L1BatchCommitmentMode::Rollup
+        {
+            return Ok(PubdataType::Rollup);
+        }
+
+        if let Some(transitional_da_client) = self.configs.transitional_da_client_config.clone() {
+            return Ok(match_pubdata_type(transitional_da_client.client_config));
+        }
+
+        match self.configs.da_client_config.clone() {
+            None => Err(anyhow::anyhow!("No config for DA client")),
+            Some(da_client_config) => Ok(match_pubdata_type(da_client_config)),
         }
     }
 
@@ -563,12 +571,29 @@ impl MainNodeBuilder {
             bail!("No config for DA client");
         };
 
-        if let DAClientConfig::NoDA = da_client_config {
-            self.node.add_layer(NoDAClientWiringLayer);
-            return Ok(self);
+        self = self
+            .add_da_client_layer_from_config(da_client_config, &self.secrets.data_availability)?;
+
+        if let Some(transitional_da_client) = self.configs.transitional_da_client_config.clone() {
+            self = self.add_da_client_layer_from_config(
+                transitional_da_client.client_config,
+                &self.secrets.transitional_da,
+            )?;
         }
 
-        let secrets = try_load_config!(self.secrets.data_availability);
+        Ok(self)
+    }
+
+    fn add_da_client_layer_from_config(
+        mut self,
+        da_client_config: DAClientConfig,
+        secrets: &Option<DataAvailabilitySecrets>,
+    ) -> anyhow::Result<Self> {
+        if let DAClientConfig::NoDA = da_client_config {
+            self.node.add_layer(NoDAClientWiringLayer);
+        }
+
+        let secrets = try_load_config!(secrets);
         match (da_client_config, secrets) {
             (DAClientConfig::Avail(config), DataAvailabilitySecrets::Avail(secret)) => {
                 self.node.add_layer(AvailWiringLayer::new(config, secret));

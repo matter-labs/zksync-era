@@ -3,6 +3,7 @@ use crate::{AvailConfig, CelestiaConfig, EigenConfig, ObjectStoreConfig};
 pub mod avail;
 pub mod celestia;
 pub mod eigen;
+pub mod transitional_client;
 
 pub const AVAIL_CLIENT_CONFIG_NAME: &str = "Avail";
 pub const CELESTIA_CLIENT_CONFIG_NAME: &str = "Celestia";

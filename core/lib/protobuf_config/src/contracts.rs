@@ -133,6 +133,12 @@ impl ProtoRepr for proto::Contracts {
                 .map(|x| parse_h160(x))
                 .transpose()
                 .context("chain_admin_addr")?,
+            l1_da_validator_addr: l1
+                .da_validator_addr
+                .as_ref()
+                .map(|x| parse_h160(x))
+                .transpose()
+                .context("l1_da_validator_addr")?,
             l2_da_validator_addr: l2
                 .da_validator_addr
                 .as_ref()
@@ -178,6 +184,7 @@ impl ProtoRepr for proto::Contracts {
                 base_token_addr: this.base_token_addr.map(|a| format!("{:?}", a)),
                 base_token_asset_id: this.l1_base_token_asset_id.map(|x| format!("{:?}", x)),
                 chain_admin_addr: this.chain_admin_addr.map(|a| format!("{:?}", a)),
+                da_validator_addr: this.l1_da_validator_addr.map(|a| format!("{:?}", a)),
             }),
             l2: Some(proto::L2 {
                 testnet_paymaster_addr: this.l2_testnet_paymaster_addr.map(|a| format!("{:?}", a)),
