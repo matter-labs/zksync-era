@@ -286,6 +286,75 @@ mod default_aa {
     }
 }
 
+mod evm {
+    use crate::versions::testonly::evm::*;
+
+    #[test]
+    fn evm_bytecode_decommit() {
+        test_evm_bytecode_decommit::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn real_emulator_basics() {
+        test_real_emulator_basics::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn real_emulator_code_hash() {
+        test_real_emulator_code_hash::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn real_emulator_block_info() {
+        test_real_emulator_block_info::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn real_emulator_msg_info() {
+        test_real_emulator_msg_info::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn real_emulator_gas_management() {
+        test_real_emulator_gas_management::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn real_emulator_recursion() {
+        test_real_emulator_recursion::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn real_emulator_deployment() {
+        test_real_emulator_deployment::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn deployment_with_partial_reverts() {
+        test_deployment_with_partial_reverts::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn era_vm_deployment_after_evm_execution() {
+        test_era_vm_deployment_after_evm_execution::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn era_vm_deployment_after_evm_deployment() {
+        test_era_vm_deployment_after_evm_deployment::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn calling_era_contract_from_evm() {
+        test_calling_era_contract_from_evm::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn far_calls_from_evm_contract() {
+        test_far_calls_from_evm_contract::<super::ShadowedFastVm>();
+    }
+}
+
 mod mock_evm {
     use test_casing::{test_casing, Product};
 

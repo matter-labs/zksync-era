@@ -29,6 +29,7 @@ mod call_tracer;
 mod circuits;
 mod code_oracle;
 mod default_aa;
+mod evm;
 mod gas_limit;
 mod get_used_contracts;
 mod is_write_initial;
