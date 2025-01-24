@@ -772,15 +772,15 @@ impl OptionalENConfig {
     }
 
     const fn default_estimate_gas_scale_factor() -> f64 {
-        1.2
+        1.3
     }
 
     const fn default_estimate_gas_acceptable_overestimation() -> u32 {
-        1_000
+        5_000
     }
 
     const fn default_gas_price_scale_factor() -> f64 {
-        1.2
+        1.5
     }
 
     const fn default_max_nonce_ahead() -> u32 {

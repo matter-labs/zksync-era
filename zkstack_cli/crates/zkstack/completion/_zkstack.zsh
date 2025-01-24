@@ -1906,9 +1906,7 @@ _arguments "${_arguments_options[@]}" : \
 '(--clone)--bellman-cuda-dir=[]:BELLMAN_CUDA_DIR:_default' \
 '--bellman-cuda=[]' \
 '--setup-compressor-key=[]' \
-'--plonk-path=[]:PLONK_PATH:_default' \
-'--fflonk-path=[]:FFLONK_PATH:_default' \
-'--compressor-type=[]:COMPRESSOR_TYPE:(fflonk plonk all)' \
+'--path=[]:PATH:_default' \
 '--region=[]:REGION:(us europe asia)' \
 '--mode=[]:MODE:(download generate)' \
 '--setup-keys=[]' \
@@ -1979,9 +1977,7 @@ _arguments "${_arguments_options[@]}" : \
 ;;
 (compressor-keys)
 _arguments "${_arguments_options[@]}" : \
-'--plonk-path=[]:PLONK_PATH:_default' \
-'--fflonk-path=[]:FFLONK_PATH:_default' \
-'--compressor-type=[]:COMPRESSOR_TYPE:(fflonk plonk all)' \
+'--path=[]:PATH:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \

@@ -1,6 +1,6 @@
 use rand::Rng as _;
 use zksync_concurrency::{ctx, scope, time};
-use zksync_consensus_roles::{attester, validator::testonly::Setup};
+use zksync_consensus_roles::attester;
 use zksync_test_contracts::Account;
 use zksync_types::ProtocolVersionId;
 
@@ -26,21 +26,20 @@ async fn test_attester_committee() {
     zksync_concurrency::testonly::abort_on_panic();
     let ctx = &ctx::test_root(&ctx::RealClock);
     let rng = &mut ctx.rng();
-    let setup = Setup::new(rng, 10);
     let account = &mut Account::random();
     let to_fund = &[account.address];
 
     scope::run!(ctx, |ctx, s| async {
         let pool = ConnectionPool::test(false, ProtocolVersionId::latest()).await;
-        let registry = Registry::new(setup.genesis.clone(), pool.clone()).await;
+        let registry = Registry::new(pool.clone()).await;
 
         // If the registry contract address is not specified,
-        // then the committee from genesis should be returned.
+        // then an empty committee should be returned.
         let got = registry
             .attester_committee_for(ctx, None, attester::BatchNumber(10))
             .await
             .unwrap();
-        assert_eq!(setup.genesis.attesters, got);
+        assert!(got.is_none());
 
         let (mut node, runner) = crate::testonly::StateKeeper::new(ctx, pool.clone()).await?;
         s.spawn_bg(runner.run_real(ctx, to_fund));

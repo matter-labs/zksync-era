@@ -104,6 +104,22 @@ export async function waitForNewL1Batch(wallet: zksync.Wallet): Promise<zksync.t
                             `Transaction's max fee per gas was lower than block base fee, likely gas price went up (attempt ${i + 1}/${MAX_ATTEMPTS})`
                         );
                         return null;
+                    } else if (<Error>e.message.match(/nonce too low/)) {
+                        if (!txResponse) {
+                            // Our transaction was never accepted to the mempool with this nonce so it must have been used by another transaction.
+                            return wallet.getNonce().then((newNonce) => {
+                                console.log(
+                                    `Transaction's nonce is too low, updating from ${nonce} to ${newNonce} (attempt ${i + 1}/${MAX_ATTEMPTS})`
+                                );
+                                nonce = newNonce;
+                                return null;
+                            });
+                        } else {
+                            console.log(
+                                `Transaction's nonce is too low, likely previous attempt succeeded, waiting longer (attempt ${i + 1}/${MAX_ATTEMPTS})`
+                            );
+                            return txResponse;
+                        }
                     } else {
                         return Promise.reject(e);
                     }

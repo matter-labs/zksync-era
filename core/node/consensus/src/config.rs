@@ -42,7 +42,6 @@ pub(super) struct GenesisSpec {
     pub(super) chain_id: validator::ChainId,
     pub(super) protocol_version: validator::ProtocolVersion,
     pub(super) validators: validator::Committee,
-    pub(super) attesters: Option<attester::Committee>,
     pub(super) leader_selection: validator::LeaderSelectionMode,
     pub(super) registry_address: Option<ethabi::Address>,
     pub(super) seed_peers: BTreeMap<node::PublicKey, net::Host>,
@@ -54,7 +53,6 @@ impl GenesisSpec {
             chain_id: cfg.genesis.chain_id,
             protocol_version: cfg.genesis.protocol_version,
             validators: cfg.genesis.validators.clone(),
-            attesters: cfg.genesis.attesters.clone(),
             leader_selection: cfg.genesis.leader_selection.clone(),
             registry_address: cfg.registry_address,
             seed_peers: cfg.seed_peers.clone(),
@@ -75,19 +73,6 @@ impl GenesisSpec {
             .collect::<anyhow::Result<_>>()
             .context("validators")?;
 
-        let attesters: Vec<_> = x
-            .attesters
-            .iter()
-            .enumerate()
-            .map(|(i, v)| {
-                Ok(attester::WeightedAttester {
-                    key: Text::new(&v.key.0).decode().context("key").context(i)?,
-                    weight: v.weight,
-                })
-            })
-            .collect::<anyhow::Result<_>>()
-            .context("attesters")?;
-
         Ok(Self {
             chain_id: validator::ChainId(x.chain_id.as_u64()),
             protocol_version: validator::ProtocolVersion(x.protocol_version.0),
@@ -95,11 +80,6 @@ impl GenesisSpec {
                 Text::new(&x.leader.0).decode().context("leader")?,
             ),
             validators: validator::Committee::new(validators).context("validators")?,
-            attesters: if attesters.is_empty() {
-                None
-            } else {
-                Some(attester::Committee::new(attesters).context("attesters")?)
-            },
             registry_address: x.registry_address,
             seed_peers: x
                 .seed_peers
