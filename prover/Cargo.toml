@@ -4,7 +4,7 @@ members = ["crates/bin/*", "crates/lib/*"]
 resolver = "2"
 
 [workspace.package]
-version = "0.1.0"
+version = "17.1.1" # x-release-please-version
 edition = "2021"
 authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
 homepage = "https://zksync.io/"
@@ -67,22 +67,21 @@ tracing-test = "0.2.5"
 url = "2.5.2"
 vise = "0.2.0"
 
-# Proving dependencies
-circuit_definitions = "=0.150.19"
-circuit_sequencer_api = "=0.150.19"
-zkevm_test_harness = "=0.150.19"
-proof-compression-gpu = { package = "proof-compression", version = "=0.152.10" }
-fflonk-gpu = { package = "fflonk-cuda", version = "=0.152.10" }
-fflonk = "=0.30.12"
-franklin-crypto = "=0.30.12"
+circuit_definitions = "=0.150.20"
+circuit_sequencer_api = "=0.150.20"
+zkevm_test_harness = "=0.150.20"
+fflonk = "=0.30.13"
+franklin-crypto = "=0.30.13"
 
 # GPU proving dependencies
-wrapper_prover = { package = "zksync-wrapper-prover", version = "=0.152.10" }
-shivini = "=0.152.10"
-boojum-cuda = "=0.152.10"
+proof-compression-gpu = { package = "proof-compression", version = "=0.152.11"}
+fflonk-gpu = { package = "fflonk-cuda", version = "=0.152.11"}
+wrapper_prover = { package = "zksync-wrapper-prover", version = "=0.152.11"}
+shivini = "=0.152.11"
+boojum-cuda = "=0.152.11"
 
 # Core workspace dependencies
-zksync_multivm = { path = "../core/lib/multivm", version = "0.1.0" }
+zksync_multivm = { path = "../core/lib/multivm" }
 zksync_vlog = { path = "../core/lib/vlog" }
 zksync_basic_types = { path = "../core/lib/basic_types" }
 zksync_config = { path = "../core/lib/config" }
@@ -98,18 +97,17 @@ zksync_utils = { path = "../core/lib/utils" }
 zksync_eth_client = { path = "../core/lib/eth_client" }
 zksync_contracts = { path = "../core/lib/contracts" }
 zksync_core_leftovers = { path = "../core/lib/zksync_core_leftovers" }
-zksync_periodic_job = { path = "../core/lib/periodic_job" }
 zksync_protobuf_config = { path = "../core/lib/protobuf_config" }
 
 # Prover workspace dependencies
-zksync_prover_dal = { path = "crates/lib/prover_dal" }
-zksync_prover_fri_types = { path = "crates/lib/prover_fri_types" }
-zksync_prover_fri_utils = { path = "crates/lib/prover_fri_utils" }
-zksync_prover_keystore = { path = "crates/lib/keystore" }
-zksync_vk_setup_data_generator_server_fri = { path = "crates/bin/vk_setup_data_generator_server_fri" }
-zksync_prover_job_processor = { path = "crates/lib/prover_job_processor" }
-zksync_circuit_prover_service = { path = "crates/lib/circuit_prover_service" }
-zksync_prover_job_monitor = { path = "crates/bin/prover_job_monitor" }
+zksync_prover_dal = { version = "17.1.1", path = "crates/lib/prover_dal" }
+zksync_prover_fri_types = { version = "17.1.1", path = "crates/lib/prover_fri_types" }
+zksync_prover_fri_utils = { version = "17.1.1", path = "crates/lib/prover_fri_utils" }
+zksync_prover_keystore = { version = "17.1.1", path = "crates/lib/keystore" }
+zksync_vk_setup_data_generator_server_fri = { version = "17.1.1", path = "crates/bin/vk_setup_data_generator_server_fri" }
+zksync_prover_job_processor = { version = "17.1.1", path = "crates/lib/prover_job_processor" }
+zksync_circuit_prover_service = { version = "17.1.1", path = "crates/lib/circuit_prover_service" }
+zksync_prover_job_monitor = { version = "17.1.1", path = "crates/bin/prover_job_monitor" }
 
 # for `perf` profiling
 [profile.perf]
