@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                SELECT\n                    address,\n                    verification_info\n                FROM\n                    contracts_verification_info\n                ORDER BY\n                    address\n                OFFSET $1\n                LIMIT $2\n                ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "address",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 1,
+        "name": "verification_info",
+        "type_info": "Jsonb"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      true
+    ]
+  },
+  "hash": "5dc32dc8aab39492d24b9638ef5535cb2b88fe85d7cff6514e331124be845ec0"
+}

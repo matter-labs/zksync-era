@@ -733,6 +733,135 @@ impl ContractVerificationDal<'_, '_> {
 
         Ok(count_v2 >= count_v1)
     }
+
+    pub async fn perform_verification_info_migration(
+        &mut self,
+        batch_size: usize,
+    ) -> anyhow::Result<()> {
+        // Offset is a number of already migrated contracts.
+        let mut offset = sqlx::query!(
+            r#"
+            SELECT
+                COUNT(*)
+            FROM
+                contract_verification_info_v2
+            "#,
+        )
+        .instrument("perform_verification_info_migration#count")
+        .fetch_one(self.storage)
+        .await?
+        .count
+        .unwrap() as usize;
+
+        loop {
+            let mut transaction = self.storage.start_transaction().await?;
+            let contracts: Vec<(Vec<u8>, serde_json::Value)> = sqlx::query!(
+                r#"
+                SELECT
+                    address,
+                    verification_info
+                FROM
+                    contracts_verification_info
+                ORDER BY
+                    address
+                OFFSET $1
+                LIMIT $2
+                "#,
+                offset as i64,
+                batch_size as i64,
+            )
+            .instrument("perform_verification_info_migration#select")
+            .with_arg("offset", &offset)
+            .with_arg("batch_size", &batch_size)
+            .fetch_all(&mut transaction)
+            .await?
+            .into_iter()
+            .filter_map(|row| row.verification_info.map(|info| (row.address, info)))
+            .collect();
+
+            if contracts.is_empty() {
+                tracing::info!("No more contracts to process");
+                break;
+            }
+
+            tracing::info!(
+                "Processing {} contracts; offset {}",
+                contracts.len(),
+                offset
+            );
+
+            let mut addresses = Vec::with_capacity(batch_size);
+            let mut verification_infos = Vec::with_capacity(batch_size);
+            let mut bytecode_keccak256s = Vec::with_capacity(batch_size);
+            let mut bytecode_without_metadata_keccak256s = Vec::with_capacity(batch_size);
+
+            for (address, info_json) in contracts {
+                let verification_info =
+                    serde_json::from_value::<VerificationInfo>(info_json.clone())
+                        .context("Failed to deserialize verification info")?;
+                let bytecode_marker = if verification_info.artifacts.deployed_bytecode.is_some() {
+                    BytecodeMarker::Evm
+                } else {
+                    BytecodeMarker::EraVm
+                };
+                let identifier = ContractIdentifier::from_bytecode(
+                    bytecode_marker,
+                    verification_info.artifacts.deployed_bytecode(),
+                );
+
+                addresses.push(address);
+                verification_infos.push(info_json);
+                bytecode_keccak256s.push(identifier.bytecode_sha3.as_bytes().to_vec());
+                bytecode_without_metadata_keccak256s.push(
+                    identifier
+                        .bytecode_without_metadata_sha3
+                        .as_ref()
+                        .map(|h| h.hash().as_bytes().to_vec())
+                        .unwrap_or_default(),
+                );
+            }
+
+            // Insert all the values
+            sqlx::query!(
+                r#"
+                INSERT INTO
+                contract_verification_info_v2 (
+                    initial_contract_addr,
+                    bytecode_keccak256,
+                    bytecode_without_metadata_keccak256,
+                    verification_info
+                )
+                SELECT
+                    u.address,
+                    u.bytecode_keccak256,
+                    u.bytecode_without_metadata_keccak256,
+                    u.verification_info
+                FROM
+                    UNNEST($1::BYTEA [], $2::BYTEA [], $3::BYTEA [], $4::JSON []) AS u (
+                        address,
+                        bytecode_keccak256,
+                        bytecode_without_metadata_keccak256,
+                        verification_info
+                    )
+                ON CONFLICT (initial_contract_addr) DO NOTHING
+                "#,
+                &addresses as _,
+                &bytecode_keccak256s as _,
+                &bytecode_without_metadata_keccak256s as _,
+                &verification_infos as _,
+            )
+            .instrument("perform_verification_info_migration#insert")
+            .with_arg("offset", &offset)
+            .with_arg("batch_size", &batch_size)
+            .execute(&mut transaction)
+            .await?;
+
+            offset += batch_size;
+            transaction.commit().await?;
+        }
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
