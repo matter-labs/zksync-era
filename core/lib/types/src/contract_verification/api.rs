@@ -232,12 +232,28 @@ impl CompilationArtifacts {
     }
 }
 
+/// Non-critical issues detected during verification.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum VerificationProblem {
+    /// The bytecode is correct, but metadata hash is different.
+    IncorrectMetadata,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct VerificationInfo {
     pub request: VerificationRequest,
     pub artifacts: CompilationArtifacts,
     pub verified_at: DateTime<Utc>,
+    #[serde(default)]
+    pub verification_problems: Vec<VerificationProblem>,
+}
+
+impl VerificationInfo {
+    pub fn is_perfect_match(&self) -> bool {
+        self.verification_problems.is_empty()
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

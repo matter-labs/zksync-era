@@ -5,15 +5,14 @@ use tokio::io::AsyncWriteExt;
 use zksync_queued_job_processor::async_trait;
 use zksync_types::{
     bytecode::BytecodeMarker,
-    contract_verification_api::{
-        CompilationArtifacts, SourceCodeData, VerificationIncomingRequest,
+    contract_verification::{
+        api::{CompilationArtifacts, SourceCodeData, VerificationIncomingRequest},
+        contract_identifier::ContractIdentifier,
     },
 };
 
 use super::{parse_standard_json_output, process_contract_name, Settings, Source, StandardJson};
-use crate::{
-    contract_identifier::ContractIdentifier, error::ContractVerifierError, resolver::Compiler,
-};
+use crate::{error::ContractVerifierError, resolver::Compiler};
 
 // Here and below, fields are public for testing purposes.
 #[derive(Debug)]

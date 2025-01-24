@@ -8,7 +8,6 @@ use std::{
 
 use anyhow::Context as _;
 use chrono::Utc;
-use contract_identifier::ContractIdentifier;
 use ethabi::{Contract, Token};
 use resolver::{GitHubCompilerResolver, ResolverMultiplexer};
 use tokio::time;
@@ -16,9 +15,12 @@ use zksync_dal::{contract_verification_dal::DeployedContractData, ConnectionPool
 use zksync_queued_job_processor::{async_trait, JobProcessor};
 use zksync_types::{
     bytecode::{trim_padded_evm_bytecode, BytecodeHash, BytecodeMarker},
-    contract_verification_api::{
-        self as api, CompilationArtifacts, VerificationIncomingRequest, VerificationInfo,
-        VerificationRequest,
+    contract_verification::{
+        api::{
+            self as api, CompilationArtifacts, VerificationIncomingRequest, VerificationInfo,
+            VerificationProblem, VerificationRequest,
+        },
+        contract_identifier::{ContractIdentifier, Match},
     },
     Address, CONTRACT_DEPLOYER_ADDRESS,
 };
@@ -31,7 +33,6 @@ use crate::{
 };
 
 mod compilers;
-mod contract_identifier;
 pub mod error;
 mod metrics;
 mod resolver;
@@ -226,7 +227,7 @@ impl ContractVerifier {
     async fn verify(
         &self,
         mut request: VerificationRequest,
-    ) -> Result<VerificationInfo, ContractVerifierError> {
+    ) -> Result<(VerificationInfo, ContractIdentifier), ContractVerifierError> {
         // Bytecode should be present because it is checked when accepting request.
         let mut storage = self
             .connection_pool
@@ -267,14 +268,28 @@ impl ContractVerifier {
             .context("invalid stored EVM bytecode")?,
         };
 
-        if artifacts.deployed_bytecode() != deployed_bytecode {
-            tracing::info!(
-                request_id = request.id,
-                deployed = hex::encode(deployed_bytecode),
-                compiled = hex::encode(artifacts.deployed_bytecode()),
-                "Deployed (runtime) bytecode mismatch",
-            );
-            return Err(ContractVerifierError::BytecodeMismatch);
+        let mut verification_problems = Vec::new();
+
+        match identifier.matches(deployed_bytecode) {
+            Match::Full => {}
+            Match::Partial => {
+                tracing::trace!(
+                    request_id = request.id,
+                    deployed = hex::encode(deployed_bytecode),
+                    compiled = hex::encode(artifacts.deployed_bytecode()),
+                    "Partial bytecode match",
+                );
+                verification_problems.push(VerificationProblem::IncorrectMetadata);
+            }
+            Match::None => {
+                tracing::trace!(
+                    request_id = request.id,
+                    deployed = hex::encode(deployed_bytecode),
+                    compiled = hex::encode(artifacts.deployed_bytecode()),
+                    "Deployed (runtime) bytecode mismatch",
+                );
+                return Err(ContractVerifierError::BytecodeMismatch);
+            }
         }
 
         match constructor_args {
@@ -286,6 +301,11 @@ impl ContractVerifier {
                         hex::encode(&args),
                         hex::encode(provided_constructor_args)
                     );
+                    // We could, in theory, accept this contract and mark it as partially verified,
+                    // but in during verification it is always possible to reconstruct the
+                    // constructor arguments, so there is no reason for that.
+                    // Mismatching constructor arguments are only needed for "similar bytecodes"
+                    // (e.g. displayed contract as verified without a direct verification request).
                     return Err(ContractVerifierError::IncorrectConstructorArguments);
                 }
             }
@@ -296,11 +316,13 @@ impl ContractVerifier {
 
         let verified_at = Utc::now();
         tracing::trace!(%verified_at, "verified request");
-        Ok(VerificationInfo {
+        let info = VerificationInfo {
             request,
             artifacts,
             verified_at,
-        })
+            verification_problems,
+        };
+        Ok((info, identifier))
     }
 
     async fn compile_zksolc(
@@ -546,17 +568,23 @@ impl ContractVerifier {
     async fn process_result(
         &self,
         request_id: usize,
-        verification_result: Result<VerificationInfo, ContractVerifierError>,
+        verification_result: Result<(VerificationInfo, ContractIdentifier), ContractVerifierError>,
     ) -> anyhow::Result<()> {
         let mut storage = self
             .connection_pool
             .connection_tagged("contract_verifier")
             .await?;
         match verification_result {
-            Ok(info) => {
+            Ok((info, identifier)) => {
                 storage
                     .contract_verification_dal()
-                    .save_verification_info(info)
+                    .save_verification_info(
+                        info,
+                        identifier.bytecode_sha3,
+                        identifier
+                            .bytecode_without_metadata_sha3
+                            .map(|hash| hash.hash()),
+                    )
                     .await?;
                 tracing::info!("Successfully processed request with id = {request_id}");
             }

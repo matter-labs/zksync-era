@@ -5,13 +5,18 @@ use std::{
     time::Duration,
 };
 
+use anyhow::Context as _;
 use sqlx::postgres::types::PgInterval;
 use zksync_db_connection::{error::SqlxContext, instrument::InstrumentExt};
 use zksync_types::{
     address_to_h256,
-    contract_verification_api::{
-        VerificationIncomingRequest, VerificationInfo, VerificationRequest,
-        VerificationRequestStatus,
+    bytecode::{trim_padded_evm_bytecode, BytecodeHash, BytecodeMarker},
+    contract_verification::{
+        api::{
+            VerificationIncomingRequest, VerificationInfo, VerificationProblem,
+            VerificationRequest, VerificationRequestStatus,
+        },
+        contract_identifier::ContractIdentifier,
     },
     web3, Address, CONTRACT_DEPLOYER_ADDRESS, H256,
 };
@@ -188,6 +193,8 @@ impl ContractVerificationDal<'_, '_> {
     pub async fn save_verification_info(
         &mut self,
         verification_info: VerificationInfo,
+        bytecode_keccak256: H256,
+        bytecode_without_metadata_keccak256: Option<H256>,
     ) -> DalResult<()> {
         let mut transaction = self.storage.start_transaction().await?;
         let id = verification_info.request.id;
@@ -213,18 +220,32 @@ impl ContractVerificationDal<'_, '_> {
         // Serialization should always succeed.
         let verification_info_json = serde_json::to_value(verification_info)
             .expect("Failed to serialize verification info into serde_json");
+        let bytecode_without_metadata_keccak256: Option<&[u8]> =
+            match &bytecode_without_metadata_keccak256 {
+                Some(h) => Some(h.as_bytes()),
+                None => None,
+            };
         sqlx::query!(
             r#"
             INSERT INTO
-            contracts_verification_info (address, verification_info)
+            contract_verification_info_v2 (
+                initial_contract_addr,
+                bytecode_keccak256,
+                bytecode_without_metadata_keccak256,
+                verification_info
+            )
             VALUES
-            ($1, $2)
-            ON CONFLICT (address) DO
+            ($1, $2, $3, $4)
+            ON CONFLICT (initial_contract_addr) DO
             UPDATE
             SET
-            verification_info = $2
+            bytecode_keccak256 = $2,
+            bytecode_without_metadata_keccak256 = $3,
+            verification_info = $4
             "#,
             address.as_bytes(),
+            bytecode_keccak256.as_bytes(),
+            bytecode_without_metadata_keccak256,
             &verification_info_json
         )
         .instrument("save_verification_info#insert")
@@ -376,27 +397,6 @@ impl ContractVerificationDal<'_, '_> {
         .await
     }
 
-    /// Returns true if the contract has a stored contracts_verification_info.
-    pub async fn is_contract_verified(&mut self, address: Address) -> DalResult<bool> {
-        let count = sqlx::query!(
-            r#"
-            SELECT
-                COUNT(*) AS "count!"
-            FROM
-                contracts_verification_info
-            WHERE
-                address = $1
-            "#,
-            address.as_bytes()
-        )
-        .instrument("is_contract_verified")
-        .with_arg("address", &address)
-        .fetch_one(self.storage)
-        .await?
-        .count;
-        Ok(count > 0)
-    }
-
     async fn get_compiler_versions(&mut self, compiler: Compiler) -> DalResult<Vec<String>> {
         let compiler = format!("{compiler}");
         let versions: Vec<_> = sqlx::query!(
@@ -537,6 +537,29 @@ impl ContractVerificationDal<'_, '_> {
     pub async fn get_contract_verification_info(
         &mut self,
         address: Address,
+    ) -> anyhow::Result<Option<VerificationInfo>> {
+        // Do everything in a read-only transaction for a consistent view.
+        let mut transaction = self
+            .storage
+            .transaction_builder()?
+            .set_readonly()
+            .build()
+            .await?;
+
+        let mut dal = ContractVerificationDal {
+            storage: &mut transaction,
+        };
+        let info = if dal.is_verification_info_migration_performed().await? {
+            dal.get_contract_verification_info_v2(address).await?
+        } else {
+            dal.get_contract_verification_info_v1(address).await?
+        };
+        Ok(info)
+    }
+
+    async fn get_contract_verification_info_v1(
+        &mut self,
+        address: Address,
     ) -> DalResult<Option<VerificationInfo>> {
         Ok(sqlx::query!(
             r#"
@@ -560,6 +583,156 @@ impl ContractVerificationDal<'_, '_> {
         .await?
         .flatten())
     }
+
+    async fn get_contract_verification_info_v2(
+        &mut self,
+        address: Address,
+    ) -> anyhow::Result<Option<VerificationInfo>> {
+        // Try perfect match
+        if let Some(info) = sqlx::query!(
+            r#"
+            SELECT
+                verification_info
+            FROM
+                contract_verification_info_v2
+            WHERE
+                initial_contract_addr = $1
+            "#,
+            address.as_bytes(),
+        )
+        .try_map(|row| {
+            serde_json::from_value(row.verification_info).decode_column("verification_info")
+        })
+        .instrument("get_contract_verification_info_v2#perfect_match")
+        .with_arg("address", &address)
+        .fetch_optional(self.storage)
+        .await?
+        .flatten()
+        {
+            return Ok(Some(info));
+        }
+
+        // Try partial match
+        let Some(deployed_contract) = self.get_contract_info_for_verification(address).await?
+        else {
+            return Ok(None);
+        };
+
+        let bytecode_marker = BytecodeMarker::new(deployed_contract.bytecode_hash)
+            .context("unknown bytecode kind")?;
+        let deployed_bytecode = match bytecode_marker {
+            BytecodeMarker::EraVm => deployed_contract.bytecode.as_slice(),
+            BytecodeMarker::Evm => trim_padded_evm_bytecode(
+                BytecodeHash::try_from(deployed_contract.bytecode_hash)
+                    .context("Invalid bytecode hash")?,
+                &deployed_contract.bytecode,
+            )
+            .context("invalid stored EVM bytecode")?,
+        };
+
+        let identifier = ContractIdentifier::from_bytecode(bytecode_marker, deployed_bytecode);
+        // `unwrap_or_default` is safe, since we're checking that `bytecode_without_metadata_keccak256` is not null.
+        let bytecode_without_metadata_sha3 = identifier
+            .bytecode_without_metadata_sha3
+            .as_ref()
+            .map(|h| h.hash())
+            .unwrap_or_default();
+
+        let Some((mut info, bytecode_keccak256, bytecode_without_metadata_keccak256)) =
+            sqlx::query!(
+                r#"
+            SELECT
+                verification_info,
+                bytecode_keccak256,
+                bytecode_without_metadata_keccak256
+            FROM
+                contract_verification_info_v2
+            WHERE
+                bytecode_keccak256 = $1
+                OR
+                (
+                    bytecode_without_metadata_keccak256 IS NOT null
+                    AND bytecode_without_metadata_keccak256 = $2
+                )
+            "#,
+                identifier.bytecode_sha3.as_bytes(),
+                bytecode_without_metadata_sha3.as_bytes()
+            )
+            .try_map(|row| {
+                let info = serde_json::from_value::<VerificationInfo>(row.verification_info)
+                    .decode_column("verification_info")?;
+                let bytecode_keccak256 = H256::from_slice(&row.bytecode_keccak256);
+                let bytecode_without_metadata_keccak256 = row
+                    .bytecode_without_metadata_keccak256
+                    .map(|h| H256::from_slice(&h));
+                Ok((
+                    info,
+                    bytecode_keccak256,
+                    bytecode_without_metadata_keccak256,
+                ))
+            })
+            .instrument("get_contract_verification_info_v2#perfect_match")
+            .with_arg("address", &address)
+            .fetch_optional(self.storage)
+            .await?
+        else {
+            return Ok(None);
+        };
+        if identifier.bytecode_sha3 != bytecode_keccak256 {
+            // Sanity check
+            if bytecode_without_metadata_keccak256.is_none()
+                || identifier.bytecode_without_metadata_sha3.map(|h| h.hash())
+                    != bytecode_without_metadata_keccak256
+            {
+                tracing::error!(
+                    contract_address = %address,
+                    identifier = ?identifier,
+                    bytecode_keccak256 = %bytecode_keccak256,
+                    info = ?info,
+                    "Bogus verification info fetched for contract",
+                );
+                anyhow::bail!("Internal error: bogus verification info detected");
+            }
+
+            // Mark the contract as partial match (regardless of other issues).
+            info.verification_problems = vec![VerificationProblem::IncorrectMetadata];
+        }
+        Ok(Some(info))
+    }
+
+    /// Checks if migration from `contracts_verification_info` to `contract_verification_info_v2` is performed
+    /// by checking if the latter has more or equal number of rows.
+    pub async fn is_verification_info_migration_performed(&mut self) -> DalResult<bool> {
+        let count_v1 = sqlx::query!(
+            r#"
+            SELECT
+                COUNT(*)
+            FROM
+                contracts_verification_info
+            "#,
+        )
+        .instrument("is_verification_info_migration_performed#count_v1")
+        .fetch_one(self.storage)
+        .await?
+        .count
+        .unwrap() as usize;
+
+        let count_v2 = sqlx::query!(
+            r#"
+            SELECT
+                COUNT(*)
+            FROM
+                contract_verification_info_v2
+            "#,
+        )
+        .instrument("is_verification_info_migration_performed#count_v2")
+        .fetch_one(self.storage)
+        .await?
+        .count
+        .unwrap() as usize;
+
+        Ok(count_v2 >= count_v1)
+    }
 }
 
 #[cfg(test)]
@@ -568,7 +741,7 @@ mod tests {
 
     use zksync_types::{
         bytecode::BytecodeHash,
-        contract_verification_api::{CompilerVersions, SourceCodeData},
+        contract_verification::api::{CompilerVersions, SourceCodeData},
         tx::IncludedTxLocation,
         Execute, L1BatchNumber, L2BlockNumber, ProtocolVersion,
     };

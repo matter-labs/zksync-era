@@ -8,12 +8,13 @@ use std::{
 use anyhow::Context as _;
 use tokio::fs;
 use zksync_queued_job_processor::async_trait;
-use zksync_types::contract_verification_api::CompilationArtifacts;
+use zksync_types::contract_verification::{
+    api::CompilationArtifacts, contract_identifier::ContractIdentifier,
+};
 
 pub(crate) use self::{env::EnvCompilerResolver, github::GitHubCompilerResolver};
 use crate::{
     compilers::{SolcInput, VyperInput, ZkSolcInput},
-    contract_identifier::ContractIdentifier,
     error::ContractVerifierError,
     ZkCompilerVersions,
 };

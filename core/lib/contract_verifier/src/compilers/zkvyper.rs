@@ -3,11 +3,13 @@ use std::{ffi::OsString, path, path::Path, process::Stdio};
 use anyhow::Context as _;
 use tokio::{fs, io::AsyncWriteExt};
 use zksync_queued_job_processor::async_trait;
-use zksync_types::{bytecode::BytecodeMarker, contract_verification_api::CompilationArtifacts};
+use zksync_types::{
+    bytecode::BytecodeMarker,
+    contract_verification::{api::CompilationArtifacts, contract_identifier::ContractIdentifier},
+};
 
 use super::VyperInput;
 use crate::{
-    contract_identifier::ContractIdentifier,
     error::ContractVerifierError,
     resolver::{Compiler, CompilerPaths},
 };

@@ -1,5 +1,5 @@
 use zksync_types::{
-    contract_verification_api::{
+    contract_verification::api::{
         CompilerType, CompilerVersions, SourceCodeData, VerificationIncomingRequest,
         VerificationRequest,
     },

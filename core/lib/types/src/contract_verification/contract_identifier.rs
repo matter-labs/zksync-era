@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
-use zksync_types::{bytecode::BytecodeMarker, web3::keccak256, H256};
+
+use crate::{bytecode::BytecodeMarker, web3::keccak256, H256};
 
 /// An identifier of the contract bytecode.
 /// This identifier can be used to detect different contracts that share the same sources,
@@ -15,28 +16,45 @@ use zksync_types::{bytecode::BytecodeMarker, web3::keccak256, H256};
 // less relevant for ZKsync, since there is no concept of creation bytecode there; although
 // this may become needed if we will extend the EVM support.
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct ContractIdentifier {
+pub struct ContractIdentifier {
+    /// Marker of the bytecode of the contract.
+    pub bytecode_marker: BytecodeMarker,
     /// SHA3 (keccak256) hash of the full contract bytecode.
     /// Can be used as an identifier of precise contract compilation.
     pub bytecode_sha3: H256,
     /// SHA3 (keccak256) hash of the contract bytecode without metadata (e.g. with either
     /// CBOR or keccak256 metadata hash being stripped).
     /// Can be absent if the contract bytecode doesn't have metadata.
-    pub bytecode_without_metadata_sha3: Option<H256>,
-    /// Detected metadata in the contract bytecode.
-    pub detected_metadata: DetectedMetadata,
+    pub bytecode_without_metadata_sha3: Option<DetectedMetadata>,
+    /// Size of metadata in the bytecode.
+    pub metadata_size: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Match {
+    /// Contracts are identical.
+    Full,
+    /// Metadata is different.
+    Partial,
+    /// No match.
+    None,
 }
 
 /// Metadata detected in the contract bytecode.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub(crate) enum DetectedMetadata {
-    /// No metadata detected.
-    #[default]
-    None,
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DetectedMetadata {
     /// Keccek256 hash of the metadata detected (only for EraVM).
-    Keccak256,
+    Keccak256(H256),
     /// CBOR metadata detected.
-    Cbor,
+    Cbor(H256),
+}
+
+impl DetectedMetadata {
+    pub fn hash(&self) -> H256 {
+        match self {
+            Self::Keccak256(hash) | Self::Cbor(hash) => *hash,
+        }
+    }
 }
 
 /// Possible values for the metadata hashes structure.
@@ -63,9 +81,10 @@ impl ContractIdentifier {
         // Calculate the hash for bytecode with metadata.
         let bytecode_sha3 = H256::from_slice(&keccak256(bytecode));
         let mut self_ = Self {
+            bytecode_marker,
             bytecode_sha3,
             bytecode_without_metadata_sha3: None,
-            detected_metadata: DetectedMetadata::None,
+            metadata_size: 0,
         };
 
         // For EraVM, the default metadata is keccak256 hash of the metadata.
@@ -78,15 +97,16 @@ impl ContractIdentifier {
                 let bytecode_without_metadata =
                     if bytecode[bytecode.len() - 64..bytecode.len() - 32] == [0u8; 32] {
                         // Padding is present, strip it.
+                        self_.metadata_size = 64;
                         &bytecode[..bytecode.len() - 64]
                     } else {
                         // No padding, strip metadata only.
+                        self_.metadata_size = 32;
                         &bytecode[..bytecode.len() - 32]
                     };
                 let hash = H256::from_slice(&keccak256(bytecode_without_metadata));
                 // This could be overridden if CBOR metadata is detected.
-                self_.bytecode_without_metadata_sha3 = Some(hash);
-                self_.detected_metadata = DetectedMetadata::Keccak256;
+                self_.bytecode_without_metadata_sha3 = Some(DetectedMetadata::Keccak256(hash));
             }
         }
 
@@ -117,6 +137,7 @@ impl ContractIdentifier {
         let bytecode_without_metadata = match bytecode_marker {
             BytecodeMarker::Evm => {
                 // On EVM, there is no padding.
+                self_.metadata_size = full_metadata_length;
                 &bytecode[..bytecode.len() - full_metadata_length]
             }
             BytecodeMarker::EraVm => {
@@ -129,6 +150,7 @@ impl ContractIdentifier {
                     // This shouldn't normally happen (metadata was deserialized correctly),
                     // so we just disable partial matching just in case.
                     self_.bytecode_without_metadata_sha3 = None;
+                    self_.metadata_size = 0;
                     return self_;
                 }
                 // Check if padding was added.
@@ -137,18 +159,41 @@ impl ContractIdentifier {
                     == [0u8; 32]
                 {
                     // Padding was added, strip it.
+                    self_.metadata_size = full_aligned_metadata_length;
                     &bytecode[..bytecode.len() - full_aligned_metadata_length]
                 } else {
                     // Padding wasn't added, strip metadata only.
+                    self_.metadata_size = aligned_metadata_length;
                     &bytecode[..bytecode.len() - aligned_metadata_length]
                 }
             }
         };
-        self_.bytecode_without_metadata_sha3 =
-            Some(H256::from_slice(&keccak256(bytecode_without_metadata)));
+        let hash = H256::from_slice(&keccak256(bytecode_without_metadata));
+        self_.bytecode_without_metadata_sha3 = Some(DetectedMetadata::Cbor(hash));
 
-        self_.detected_metadata = DetectedMetadata::Cbor;
         self_
+    }
+
+    pub fn matches(&self, other: &[u8]) -> Match {
+        let other_identifier = Self::from_bytecode(self.bytecode_marker, other);
+
+        if self.bytecode_sha3 == other_identifier.bytecode_sha3 {
+            return Match::Full;
+        }
+
+        // Check if metadata is different.
+        // Note that here we do not handle "complex" cases, e.g. lack of metadata in one contract
+        // and presence in another, or different kinds of metadata. This is OK: partial
+        // match is needed mostly when you cannot reproduce the original metadata, but one always
+        // can submit the contract with the same metadata kind.
+        if self.bytecode_without_metadata_sha3.is_some()
+            && self.bytecode_without_metadata_sha3
+                == other_identifier.bytecode_without_metadata_sha3
+        {
+            return Match::Partial;
+        }
+
+        Match::None
     }
 }
 
@@ -167,7 +212,7 @@ mod tests {
         let sha3_without_metadata = keccak256(&data[..data.len() - full_metadata_len]);
 
         let identifier = ContractIdentifier::from_bytecode(BytecodeMarker::EraVm, &data);
-        assert_eq!(identifier.detected_metadata, DetectedMetadata::Cbor);
+        assert_eq!(identifier.metadata_size, full_metadata_len);
         assert_eq!(
             identifier.bytecode_sha3,
             H256::from_slice(&sha3),
@@ -175,7 +220,9 @@ mod tests {
         );
         assert_eq!(
             identifier.bytecode_without_metadata_sha3,
-            Some(H256::from_slice(&sha3_without_metadata)),
+            Some(DetectedMetadata::Cbor(H256::from_slice(
+                &sha3_without_metadata
+            ))),
             "Incorrect bytecode without metadata hash"
         );
     }
@@ -189,7 +236,7 @@ mod tests {
         let sha3_without_metadata = keccak256(&data[..data.len() - full_metadata_len]);
 
         let identifier = ContractIdentifier::from_bytecode(BytecodeMarker::EraVm, &data);
-        assert_eq!(identifier.detected_metadata, DetectedMetadata::Cbor);
+        assert_eq!(identifier.metadata_size, full_metadata_len);
         assert_eq!(
             identifier.bytecode_sha3,
             H256::from_slice(&sha3),
@@ -197,7 +244,9 @@ mod tests {
         );
         assert_eq!(
             identifier.bytecode_without_metadata_sha3,
-            Some(H256::from_slice(&sha3_without_metadata)),
+            Some(DetectedMetadata::Cbor(H256::from_slice(
+                &sha3_without_metadata
+            ))),
             "Incorrect bytecode without metadata hash"
         );
     }
@@ -213,7 +262,7 @@ mod tests {
         let sha3_without_metadata = keccak256(&data[..data.len() - full_metadata_len]);
 
         let identifier = ContractIdentifier::from_bytecode(BytecodeMarker::EraVm, &data);
-        assert_eq!(identifier.detected_metadata, DetectedMetadata::Keccak256);
+        assert_eq!(identifier.metadata_size, full_metadata_len);
         assert_eq!(
             identifier.bytecode_sha3,
             H256::from_slice(&sha3),
@@ -221,7 +270,9 @@ mod tests {
         );
         assert_eq!(
             identifier.bytecode_without_metadata_sha3,
-            Some(H256::from_slice(&sha3_without_metadata)),
+            Some(DetectedMetadata::Keccak256(H256::from_slice(
+                &sha3_without_metadata
+            ))),
             "Incorrect bytecode without metadata hash"
         );
     }
@@ -235,7 +286,7 @@ mod tests {
         let sha3_without_metadata = keccak256(&data[..data.len() - full_metadata_len]);
 
         let identifier = ContractIdentifier::from_bytecode(BytecodeMarker::EraVm, &data);
-        assert_eq!(identifier.detected_metadata, DetectedMetadata::Keccak256);
+        assert_eq!(identifier.metadata_size, full_metadata_len);
         assert_eq!(
             identifier.bytecode_sha3,
             H256::from_slice(&sha3),
@@ -243,7 +294,9 @@ mod tests {
         );
         assert_eq!(
             identifier.bytecode_without_metadata_sha3,
-            Some(H256::from_slice(&sha3_without_metadata)),
+            Some(DetectedMetadata::Keccak256(H256::from_slice(
+                &sha3_without_metadata
+            ))),
             "Incorrect bytecode without metadata hash"
         );
     }
@@ -256,7 +309,7 @@ mod tests {
         let sha3 = keccak256(&data);
 
         let identifier = ContractIdentifier::from_bytecode(BytecodeMarker::EraVm, &data);
-        assert_eq!(identifier.detected_metadata, DetectedMetadata::None);
+        assert_eq!(identifier.metadata_size, 0);
         assert_eq!(
             identifier.bytecode_sha3,
             H256::from_slice(&sha3),
@@ -277,7 +330,7 @@ mod tests {
         let sha3 = keccak256(&data);
 
         let identifier = ContractIdentifier::from_bytecode(BytecodeMarker::Evm, &data);
-        assert_eq!(identifier.detected_metadata, DetectedMetadata::None);
+        assert_eq!(identifier.metadata_size, 0);
         assert_eq!(
             identifier.bytecode_sha3,
             H256::from_slice(&sha3),
@@ -315,9 +368,8 @@ mod tests {
 
             let identifier = ContractIdentifier::from_bytecode(BytecodeMarker::Evm, &data);
             assert_eq!(
-                identifier.detected_metadata,
-                DetectedMetadata::Cbor,
-                "{label}"
+                identifier.metadata_size, full_metadata_len,
+                "{label}: Wrong metadata length"
             );
             assert_eq!(
                 identifier.bytecode_sha3,
@@ -326,7 +378,9 @@ mod tests {
             );
             assert_eq!(
                 identifier.bytecode_without_metadata_sha3,
-                Some(H256::from_slice(&sha3_without_metadata)),
+                Some(DetectedMetadata::Cbor(H256::from_slice(
+                    &sha3_without_metadata
+                ))),
                 "{label}: Incorrect bytecode without metadata hash"
             );
         }

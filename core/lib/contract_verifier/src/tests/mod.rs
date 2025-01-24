@@ -9,7 +9,7 @@ use zksync_node_test_utils::{create_l1_batch, create_l2_block};
 use zksync_types::{
     address_to_h256,
     bytecode::{pad_evm_bytecode, BytecodeHash},
-    contract_verification_api::{CompilerVersions, SourceCodeData, VerificationIncomingRequest},
+    contract_verification::api::{CompilerVersions, SourceCodeData, VerificationIncomingRequest},
     get_code_key, get_known_code_key,
     l2::L2Tx,
     tx::IncludedTxLocation,

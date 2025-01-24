@@ -10,7 +10,7 @@ use axum::{
 use zksync_dal::{CoreDal, DalError};
 use zksync_types::{
     bytecode::BytecodeMarker,
-    contract_verification_api::{
+    contract_verification::api::{
         CompilerVersions, VerificationIncomingRequest, VerificationInfo, VerificationRequestStatus,
     },
     Address,
