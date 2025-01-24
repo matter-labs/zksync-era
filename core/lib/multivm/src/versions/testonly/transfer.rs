@@ -78,7 +78,10 @@ fn test_send_or_transfer<VM: TestedVm>(test_option: TestOptions) {
         .vm
         .finish_batch(default_pubdata_builder())
         .block_tip_execution_result;
-    assert!(!batch_result.result.is_failed(), "Batch wasn't successful");
+    assert!(
+        !batch_result.result.is_failed(),
+        "Batch wasn't successful: {batch_result:#?}"
+    );
 
     let new_recipient_balance = vm.get_eth_balance(recipient_address);
     assert_eq!(new_recipient_balance, value);

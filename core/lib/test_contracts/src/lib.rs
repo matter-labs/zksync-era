@@ -226,7 +226,11 @@ impl Account {
             contract_address: Some(address),
             calldata,
             value: U256::zero(),
-            factory_deps: vec![],
+            factory_deps: if params.deploys == 0 {
+                vec![]
+            } else {
+                TestContract::load_test().factory_deps()
+            },
         };
 
         match tx_type {

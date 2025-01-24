@@ -177,7 +177,7 @@ impl Harness {
         let (compression_result, exec_result) =
             vm.execute_transaction_with_bytecode_compression(deploy_tx.tx.clone(), true);
         compression_result.unwrap();
-        assert!(!exec_result.result.is_failed(), "{:#?}", exec_result);
+        assert!(!exec_result.result.is_failed(), "{exec_result:#?}");
 
         let load_test_tx = self.bob.get_loadnext_transaction(
             deploy_tx.address,
@@ -187,7 +187,7 @@ impl Harness {
         let (compression_result, exec_result) =
             vm.execute_transaction_with_bytecode_compression(load_test_tx.clone(), true);
         compression_result.unwrap();
-        assert!(!exec_result.result.is_failed(), "{:#?}", exec_result);
+        assert!(!exec_result.result.is_failed(), "{exec_result:#?}");
 
         self.new_block(vm, &[deploy_tx.tx.hash(), load_test_tx.hash()]);
     }

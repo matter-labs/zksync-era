@@ -225,7 +225,7 @@ impl TestContract {
         &CONTRACT
     }
 
-    /// Returns all factory deps for this contract deployment (including its own bytecode).
+    /// Returns all factory deps for this contract deployment (excluding its own bytecode).
     pub fn factory_deps(&self) -> Vec<Vec<u8>> {
         let mut deps = vec![];
         self.insert_factory_deps(&mut deps);

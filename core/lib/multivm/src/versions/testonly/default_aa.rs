@@ -36,7 +36,8 @@ pub(crate) fn test_default_aa_interaction<VM: TestedVm>() {
     let batch_result = vm.vm.finish_batch(default_pubdata_builder());
     assert!(
         !batch_result.block_tip_execution_result.result.is_failed(),
-        "Batch tip execution wasn't successful"
+        "Batch tip execution wasn't successful: {:#?}",
+        batch_result.block_tip_execution_result
     );
 
     vm.vm.get_current_execution_state();

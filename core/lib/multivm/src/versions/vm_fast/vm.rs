@@ -145,7 +145,7 @@ impl<S: ReadStorage, Tr: Tracer, Val: ValidationTracer> Vm<S, Tr, Val> {
             system_env.bootloader_gas_limit,
             Settings {
                 default_aa_code_hash: default_aa_code_hash.into(),
-                evm_interpreter_code_hash: evm_emulator_hash.into(),
+                evm_emulator_code_hash: evm_emulator_hash.into(),
                 hook_address: get_vm_hook_position(vm_version.into()) * 32,
             },
         );
