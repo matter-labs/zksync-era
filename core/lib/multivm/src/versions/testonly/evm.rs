@@ -3,9 +3,8 @@ use std::collections::HashMap;
 use assert_matches::assert_matches;
 use ethabi::{ParamType, Token};
 use rand::{rngs::StdRng, Rng, SeedableRng};
-use zksync_contracts::{load_contract, read_bytecode, read_deployed_bytecode_from_path};
 use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
-use zksync_test_contracts::{Account, TestContract, TxType};
+use zksync_test_contracts::{Account, TestContract, TestEvmContract, TxType};
 use zksync_types::{
     address_to_h256,
     block::L2BlockHasher,
@@ -28,18 +27,13 @@ use crate::{
     utils::get_batch_base_fee,
 };
 
-const EVM_TEST_CONTRACT_PATH: &str =
-    "core/lib/test_contracts/artifacts/evm.sol/EvmEmulationTest.json";
-const EVM_COUNTER_CONTRACT_PATH: &str = "core/lib/test_contracts/artifacts/evm.sol/Counter.json";
-
 const EVM_ADDRESS: Address = Address::repeat_byte(1);
 const ERAVM_ADDRESS: Address = Address::repeat_byte(2);
 
-fn prepare_tester_with_real_emulator() -> (VmTesterBuilder, Vec<u8>) {
-    let deployed_evm_bytecode =
-        read_deployed_bytecode_from_path(EVM_TEST_CONTRACT_PATH.as_ref()).unwrap();
-    let evm_bytecode_keccak_hash = H256(web3::keccak256(&deployed_evm_bytecode));
-    let padded_evm_bytecode = pad_evm_bytecode(&deployed_evm_bytecode);
+fn prepare_tester_with_real_emulator() -> (VmTesterBuilder, &'static [u8]) {
+    let deployed_evm_bytecode = TestEvmContract::evm_tester().deployed_bytecode;
+    let evm_bytecode_keccak_hash = H256(web3::keccak256(deployed_evm_bytecode));
+    let padded_evm_bytecode = pad_evm_bytecode(deployed_evm_bytecode);
     let evm_bytecode_hash =
         BytecodeHash::for_evm_bytecode(deployed_evm_bytecode.len(), &padded_evm_bytecode).value();
 
@@ -87,7 +81,7 @@ pub(crate) fn test_evm_bytecode_decommit<VM: TestedVm>() {
 
     let account = &mut vm.rich_accounts[0];
     let call_code_oracle_function = TestContract::precompiles_test().function("callCodeOracle");
-    let padded_bytecode = pad_evm_bytecode(&deployed_evm_bytecode);
+    let padded_bytecode = pad_evm_bytecode(deployed_evm_bytecode);
     let evm_bytecode_hash =
         BytecodeHash::for_evm_bytecode(deployed_evm_bytecode.len(), &padded_bytecode).value();
     let evm_bytecode_keccak_hash = H256(web3::keccak256(&padded_bytecode));
@@ -124,10 +118,10 @@ pub(crate) fn test_real_emulator_basics<VM: TestedVm>() {
             ERAVM_ADDRESS,
         )])
         .build::<VM>();
-    let evm_abi = load_contract(EVM_TEST_CONTRACT_PATH);
+    let evm_abi = &TestEvmContract::evm_tester().abi;
 
-    call_simple_evm_method(&mut vm, &evm_abi, false);
-    call_simple_evm_method(&mut vm, &evm_abi, true);
+    call_simple_evm_method(&mut vm, evm_abi, false);
+    call_simple_evm_method(&mut vm, evm_abi, true);
     // Test that EraVM contracts can be called fine.
     call_eravm_counter(&mut vm);
 }
@@ -185,10 +179,9 @@ pub(crate) fn test_real_emulator_code_hash<VM: TestedVm>() {
     let (vm, deployed_evm_bytecode) = prepare_tester_with_real_emulator();
     let mut vm = vm.build::<VM>();
     let account = &mut vm.rich_accounts[0];
-    let evm_abi = load_contract(EVM_TEST_CONTRACT_PATH);
-    let test_fn = evm_abi.function("testCodeHash").unwrap();
+    let test_fn = TestEvmContract::evm_tester().function("testCodeHash");
 
-    let evm_bytecode_keccak_hash = web3::keccak256(&deployed_evm_bytecode);
+    let evm_bytecode_keccak_hash = web3::keccak256(deployed_evm_bytecode);
     let test_execute = Execute {
         contract_address: Some(EVM_ADDRESS),
         calldata: test_fn
@@ -223,10 +216,10 @@ fn create_test_block_execute(abi: &ethabi::Contract, block: &L2BlockEnv) -> Exec
 pub(crate) fn test_real_emulator_block_info<VM: TestedVm>() {
     let mut vm = prepare_tester_with_real_emulator().0.build::<VM>();
     let account = &mut vm.rich_accounts[0];
-    let evm_abi = load_contract(EVM_TEST_CONTRACT_PATH);
+    let evm_abi = &TestEvmContract::evm_tester().abi;
 
     let first_block = vm.l1_batch_env.first_l2_block;
-    let tx = account.get_l2_tx_for_execute(create_test_block_execute(&evm_abi, &first_block), None);
+    let tx = account.get_l2_tx_for_execute(create_test_block_execute(evm_abi, &first_block), None);
     let tx_hash = tx.hash();
     let (_, vm_result) = vm
         .vm
@@ -247,8 +240,7 @@ pub(crate) fn test_real_emulator_block_info<VM: TestedVm>() {
     };
     vm.vm.start_new_l2_block(second_block);
 
-    let tx =
-        account.get_l2_tx_for_execute(create_test_block_execute(&evm_abi, &second_block), None);
+    let tx = account.get_l2_tx_for_execute(create_test_block_execute(evm_abi, &second_block), None);
     let (_, vm_result) = vm
         .vm
         .execute_transaction_with_bytecode_compression(tx, true);
@@ -258,9 +250,8 @@ pub(crate) fn test_real_emulator_block_info<VM: TestedVm>() {
 pub(crate) fn test_real_emulator_msg_info<VM: TestedVm>() {
     let mut vm = prepare_tester_with_real_emulator().0.build::<VM>();
     let account = &mut vm.rich_accounts[0];
-    let evm_abi = load_contract(EVM_TEST_CONTRACT_PATH);
 
-    let test_fn = evm_abi.function("testMsgInfo").unwrap();
+    let test_fn = TestEvmContract::evm_tester().function("testMsgInfo");
     let data = (0..42).collect();
     let execute = Execute {
         contract_address: Some(EVM_ADDRESS),
@@ -282,9 +273,8 @@ pub(crate) fn test_real_emulator_msg_info<VM: TestedVm>() {
 pub(crate) fn test_real_emulator_gas_management<VM: TestedVm>() {
     let mut vm = prepare_tester_with_real_emulator().0.build::<VM>();
     let account = &mut vm.rich_accounts[0];
-    let evm_abi = load_contract(EVM_TEST_CONTRACT_PATH);
 
-    let test_fn = evm_abi.function("testGasManagement").unwrap();
+    let test_fn = TestEvmContract::evm_tester().function("testGasManagement");
     let fee = Account::default_fee();
     let execute = Execute {
         contract_address: Some(EVM_ADDRESS),
@@ -303,8 +293,7 @@ pub(crate) fn test_real_emulator_gas_management<VM: TestedVm>() {
 pub(crate) fn test_real_emulator_recursion<VM: TestedVm>() {
     let mut vm = prepare_tester_with_real_emulator().0.build::<VM>();
     let account = &mut vm.rich_accounts[0];
-    let evm_abi = load_contract(EVM_TEST_CONTRACT_PATH);
-    let test_fn = evm_abi.function("testRecursion").unwrap();
+    let test_fn = TestEvmContract::evm_tester().function("testRecursion");
 
     for use_far_calls in [false, true] {
         println!("use_far_calls = {use_far_calls:?}");
@@ -324,8 +313,7 @@ pub(crate) fn test_real_emulator_recursion<VM: TestedVm>() {
 }
 
 pub(crate) fn test_real_emulator_deployment<VM: TestedVm>() {
-    let counter_bytecode =
-        read_deployed_bytecode_from_path(EVM_COUNTER_CONTRACT_PATH.as_ref()).unwrap();
+    let counter_bytecode = TestEvmContract::counter().deployed_bytecode;
 
     let mut vm = prepare_tester_with_real_emulator()
         .0
@@ -335,8 +323,8 @@ pub(crate) fn test_real_emulator_deployment<VM: TestedVm>() {
         )])
         .build::<VM>();
 
-    let evm_abi = load_contract(EVM_TEST_CONTRACT_PATH);
-    let counter_address = deploy_and_call_evm_counter(&mut vm, &evm_abi, &counter_bytecode);
+    let evm_abi = &TestEvmContract::evm_tester().abi;
+    let counter_address = deploy_and_call_evm_counter(&mut vm, evm_abi, counter_bytecode);
     // Manually set the `counter` address in `ProxyCounter` to the created contract.
     let counter_slot = StorageKey::new(AccountTreeId::new(ERAVM_ADDRESS), H256::zero());
     vm.storage
@@ -447,8 +435,8 @@ fn test_calling_evm_contract_from_era<VM: TestedVm>(
 pub(crate) fn test_era_vm_deployment_after_evm_execution<VM: TestedVm>() {
     let mut vm = prepare_tester_with_real_emulator().0.build::<VM>();
 
-    let evm_abi = load_contract(EVM_TEST_CONTRACT_PATH);
-    call_simple_evm_method(&mut vm, &evm_abi, false);
+    let evm_abi = &TestEvmContract::evm_tester().abi;
+    call_simple_evm_method(&mut vm, evm_abi, false);
 
     deploy_eravm_counter(
         &mut vm,
@@ -458,16 +446,15 @@ pub(crate) fn test_era_vm_deployment_after_evm_execution<VM: TestedVm>() {
 }
 
 pub(crate) fn test_era_vm_deployment_after_evm_deployment<VM: TestedVm>() {
-    let counter_bytecode =
-        read_deployed_bytecode_from_path(EVM_COUNTER_CONTRACT_PATH.as_ref()).unwrap();
+    let counter_bytecode = TestEvmContract::counter().deployed_bytecode;
     let proxy_counter_bytecode = TestContract::proxy_counter().bytecode;
     let mut vm = prepare_tester_with_real_emulator().0.build::<VM>();
 
     // Sanity check: deployment should succeed at the start of a batch.
     deploy_eravm_counter(&mut vm, proxy_counter_bytecode, Address::zero());
 
-    let evm_abi = load_contract(EVM_TEST_CONTRACT_PATH);
-    let counter_address = deploy_and_call_evm_counter(&mut vm, &evm_abi, &counter_bytecode);
+    let evm_abi = &TestEvmContract::evm_tester().abi;
+    let counter_address = deploy_and_call_evm_counter(&mut vm, evm_abi, counter_bytecode);
 
     deploy_eravm_counter(&mut vm, proxy_counter_bytecode, counter_address);
 }
@@ -501,8 +488,7 @@ fn evm_create2_address(
 fn test_deployment_with_partial_reverts_and_rng<VM: TestedVm>(rng: &mut impl Rng) {
     let mut vm: VmTester<VM> = prepare_tester_with_real_emulator().0.build::<VM>();
     let account = &mut vm.rich_accounts[0];
-    let evm_abi = load_contract(EVM_TEST_CONTRACT_PATH);
-    let test_fn = evm_abi.function("testDeploymentWithPartialRevert").unwrap();
+    let test_fn = TestEvmContract::evm_tester().function("testDeploymentWithPartialRevert");
     let should_revert: Vec<_> = (0..10).map(|_| rng.gen::<bool>()).collect();
     let should_revert_tokens = should_revert.iter().copied().map(Token::Bool).collect();
     let test_tx = account.get_l2_tx_for_execute(
@@ -523,9 +509,8 @@ fn test_deployment_with_partial_reverts_and_rng<VM: TestedVm>(rng: &mut impl Rng
 
     // All deployed contracts have the same bytecode.
     let new_factory_deps = vm_result.dynamic_factory_deps;
-    let counter_bytecode =
-        read_deployed_bytecode_from_path(EVM_COUNTER_CONTRACT_PATH.as_ref()).unwrap();
-    let padded_evm_bytecode = pad_evm_bytecode(&counter_bytecode);
+    let counter_bytecode = TestEvmContract::counter().deployed_bytecode;
+    let padded_evm_bytecode = pad_evm_bytecode(counter_bytecode);
     let evm_bytecode_hash =
         BytecodeHash::for_evm_bytecode(counter_bytecode.len(), &padded_evm_bytecode).value();
     assert_eq!(
@@ -534,7 +519,6 @@ fn test_deployment_with_partial_reverts_and_rng<VM: TestedVm>(rng: &mut impl Rng
     );
 
     // Check deployment events.
-    let counter_creation_bytecode = read_bytecode(EVM_COUNTER_CONTRACT_PATH);
     let expected_addresses: Vec<_> = should_revert
         .iter()
         .enumerate()
@@ -547,7 +531,7 @@ fn test_deployment_with_partial_reverts_and_rng<VM: TestedVm>(rng: &mut impl Rng
             Some(evm_create2_address(
                 EVM_ADDRESS,
                 salt,
-                &counter_creation_bytecode,
+                TestEvmContract::counter().init_bytecode,
                 &[Token::Uint(0.into())],
             ))
         })
@@ -608,8 +592,7 @@ pub(crate) fn test_calling_era_contract_from_evm<VM: TestedVm>() {
         .build::<VM>();
 
     let account = &mut vm.rich_accounts[0];
-    let evm_abi = load_contract(EVM_TEST_CONTRACT_PATH);
-    let test_fn = evm_abi.function("testCounterCall").unwrap();
+    let test_fn = TestEvmContract::evm_tester().function("testCounterCall");
     let test_execute = Execute {
         contract_address: Some(EVM_ADDRESS),
         calldata: test_fn.encode_input(&[Token::Uint(0.into())]).unwrap(),
@@ -629,16 +612,16 @@ pub(crate) fn test_far_calls_from_evm_contract<VM: TestedVm>() {
         .0
         .with_custom_contracts(vec![ContractToDeploy::new(era_tester, ERAVM_ADDRESS)])
         .build::<VM>();
-    let evm_abi = load_contract(EVM_TEST_CONTRACT_PATH);
+    let evm_abi = &TestEvmContract::evm_tester().abi;
 
     println!("Testing EVM -> EVM far calls");
-    call_far_call_test(&mut vm, &evm_abi, EVM_ADDRESS, EVM_ADDRESS);
+    call_far_call_test(&mut vm, evm_abi, EVM_ADDRESS, EVM_ADDRESS);
     println!("Testing EVM -> EraVM far calls");
-    call_far_call_test(&mut vm, &evm_abi, EVM_ADDRESS, ERAVM_ADDRESS);
+    call_far_call_test(&mut vm, evm_abi, EVM_ADDRESS, ERAVM_ADDRESS);
     println!("Testing EraVM -> EraVM far calls (sanity check)");
-    call_far_call_test(&mut vm, &evm_abi, ERAVM_ADDRESS, ERAVM_ADDRESS);
+    call_far_call_test(&mut vm, evm_abi, ERAVM_ADDRESS, ERAVM_ADDRESS);
     println!("Testing EraVM -> EVM far calls");
-    call_far_call_test(&mut vm, &evm_abi, ERAVM_ADDRESS, EVM_ADDRESS);
+    call_far_call_test(&mut vm, evm_abi, ERAVM_ADDRESS, EVM_ADDRESS);
 }
 
 fn call_far_call_test<VM: TestedVm>(
