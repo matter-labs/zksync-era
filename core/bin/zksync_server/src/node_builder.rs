@@ -137,8 +137,8 @@ impl MainNodeBuilder {
             return Ok(PubdataType::Rollup);
         }
 
-        if let Some(transitional_da_client) = self.configs.transitional_da_client_config.clone() {
-            return Ok(match_pubdata_type(transitional_da_client.client_config));
+        if let Some(backup_da_client) = self.configs.backup_da_client_config.clone() {
+            return Ok(match_pubdata_type(backup_da_client.client_config));
         }
 
         match self.configs.da_client_config.clone() {
@@ -268,6 +268,13 @@ impl MainNodeBuilder {
         // Bytecode compression is currently mandatory for the transactions processed by the sequencer.
         const OPTIONAL_BYTECODE_COMPRESSION: bool = false;
 
+        let l2_da_validator_address = if Some(self.configs.backup_da_client_config) {
+            let da_client_config = try_load_config!(self.configs.backup_da_client_config);
+            Some(da_client_config.new_l2_da_validator_addr)
+        } else {
+            self.contracts_config.l2_da_validator_addr
+        };
+
         let wallets = self.wallets.clone();
         let sk_config = try_load_config!(self.configs.state_keeper_config);
         let persistence_layer = OutputHandlerLayer::new(
@@ -280,7 +287,7 @@ impl MainNodeBuilder {
             sk_config.clone(),
             try_load_config!(self.configs.mempool_config),
             try_load_config!(wallets.state_keeper),
-            self.contracts_config.l2_da_validator_addr,
+            l2_da_validator_address,
             self.get_pubdata_type()?,
         );
         let db_config = try_load_config!(self.configs.db_config);
@@ -574,10 +581,10 @@ impl MainNodeBuilder {
         self = self
             .add_da_client_layer_from_config(da_client_config, &self.secrets.data_availability)?;
 
-        if let Some(transitional_da_client) = self.configs.transitional_da_client_config.clone() {
+        if let Some(transitional_da_client) = self.configs.backup_da_client_config.clone() {
             self = self.add_da_client_layer_from_config(
                 transitional_da_client.client_config,
-                &self.secrets.transitional_da,
+                &self.secrets.backup_data_availability,
             )?;
         }
 

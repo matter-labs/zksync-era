@@ -11,3 +11,11 @@ impl Resource for DAClientResource {
         "common/da_client".into()
     }
 }
+
+pub struct TransitionalDAClientResource(pub Box<dyn DataAvailabilityClient>);
+
+impl Resource for TransitionalDAClientResource {
+    fn name() -> String {
+        "common/transitional_da_client".into()
+    }
+}

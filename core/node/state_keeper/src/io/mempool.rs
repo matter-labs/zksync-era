@@ -516,6 +516,7 @@ impl MempoolIO {
     }
 
     fn pubdata_params(&self, protocol_version: ProtocolVersionId) -> anyhow::Result<PubdataParams> {
+        self.pool // TODO: fetch from the database whether we should use primary or secondary pubdata_type+l2_validator
         let pubdata_params = match (
             protocol_version.is_pre_gateway(),
             self.l2_da_validator_address,

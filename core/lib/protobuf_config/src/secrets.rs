@@ -38,7 +38,7 @@ impl ProtoRepr for proto::Secrets {
             l1: this.l1.as_ref().map(ProtoRepr::build),
             consensus: this.consensus.as_ref().map(ProtoRepr::build),
             da: this.data_availability.as_ref().map(ProtoRepr::build),
-            transitional_da: this.transitional_da.as_ref().map(ProtoRepr::build),
+            transitional_da: this.backup_data_availability.as_ref().map(ProtoRepr::build),
         }
     }
 }

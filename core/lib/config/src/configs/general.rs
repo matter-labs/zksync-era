@@ -17,7 +17,7 @@ use crate::{
         CommitmentGeneratorConfig, ExperimentalVmConfig, ExternalPriceApiClientConfig,
         FriProofCompressorConfig, FriProverConfig, FriProverGatewayConfig,
         FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig, ObservabilityConfig,
-        PrometheusConfig, ProofDataHandlerConfig, TransitionalDAClientConfig,
+        PrometheusConfig, ProofDataHandlerConfig, BackupDAClientConfig,
     },
     ApiConfig, ContractVerifierConfig, DBConfig, EthConfig, ExternalProofIntegrationApiConfig,
     ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
@@ -60,5 +60,5 @@ pub struct GeneralConfig {
     pub experimental_vm_config: Option<ExperimentalVmConfig>,
     pub prover_job_monitor_config: Option<ProverJobMonitorConfig>,
     pub timestamp_asserter_config: Option<TimestampAsserterConfig>,
-    pub transitional_da_client_config: Option<TransitionalDAClientConfig>,
+    pub backup_da_client_config: Option<BackupDAClientConfig>,
 }

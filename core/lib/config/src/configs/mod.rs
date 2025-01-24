@@ -7,7 +7,7 @@ pub use self::{
     contracts::{ContractsConfig, EcosystemContracts},
     da_client::{
         avail::AvailConfig, celestia::CelestiaConfig, eigen::EigenConfig,
-        transitional_client::TransitionalDAClientConfig, DAClientConfig,
+        backup_client::BackupDAClientConfig, DAClientConfig,
     },
     da_dispatcher::DADispatcherConfig,
     database::{DBConfig, PostgresConfig},
