@@ -446,7 +446,7 @@ async fn contract_verifier_basics(contract: TestContract) {
     let (_stop_sender, stop_receiver) = watch::channel(false);
     verifier.run(stop_receiver, Some(1)).await.unwrap();
 
-    assert_request_success(&mut storage, request_id, address, &expected_bytecode).await;
+    assert_request_success(&mut storage, request_id, address, &expected_bytecode, &[]).await;
 }
 
 async fn assert_request_success(
@@ -454,6 +454,7 @@ async fn assert_request_success(
     request_id: usize,
     address: Address,
     expected_bytecode: &[u8],
+    verification_problems: &[VerificationProblem],
 ) -> VerificationInfo {
     let status = storage
         .contract_verification_dal()
@@ -476,6 +477,11 @@ async fn assert_request_success(
         without_internal_types(verification_info.artifacts.abi.clone()),
         without_internal_types(counter_contract_abi())
     );
+    assert_eq!(
+        &verification_info.verification_problems,
+        verification_problems
+    );
+
     verification_info
 }
 
@@ -554,7 +560,7 @@ async fn verifying_evm_bytecode(contract: TestContract) {
     let (_stop_sender, stop_receiver) = watch::channel(false);
     verifier.run(stop_receiver, Some(1)).await.unwrap();
 
-    assert_request_success(&mut storage, request_id, address, &creation_bytecode).await;
+    assert_request_success(&mut storage, request_id, address, &creation_bytecode, &[]).await;
 }
 
 #[tokio::test]

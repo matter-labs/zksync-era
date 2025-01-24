@@ -4,13 +4,15 @@
 //!
 //! You can install the compilers to run these tests with the following command:
 //! ```
-//! zkstack contract-verifier init --zksolc-version=v1.5.3 --zkvyper-version=v1.5.4 --solc-version=0.8.26 --vyper-version=v0.3.10 --era-vm-solc-version=0.8.26-1.0.1 --only
+//! zkstack contract-verifier init --zksolc-version=v1.5.10 --zkvyper-version=v1.5.4 --solc-version=0.8.26 --vyper-version=v0.3.10 --era-vm-solc-version=0.8.26-1.0.1 --only
 //! ```
 
 use std::{env, sync::Arc, time::Duration};
 
 use assert_matches::assert_matches;
-use zksync_types::bytecode::validate_bytecode;
+use zksync_types::{
+    bytecode::validate_bytecode, contract_verification::contract_identifier::DetectedMetadata,
+};
 
 use super::*;
 
@@ -26,7 +28,7 @@ impl Toolchain {
 
 // The tests may expect specific compiler versions (e.g. contracts won't compile with Vyper 0.4.0),
 // so we hardcode versions.
-const ZKSOLC_VERSION: &str = "v1.5.3";
+const ZKSOLC_VERSION: &str = "v1.5.10";
 const ERA_VM_SOLC_VERSION: &str = "0.8.26-1.0.1";
 const SOLC_VERSION: &str = "0.8.26";
 const VYPER_VERSION: &str = "v0.3.10";
@@ -304,11 +306,15 @@ async fn compiling_yul_with_zksolc() {
     let compiler = compiler_resolver.resolve_zksolc(&version).await.unwrap();
     let req = test_yul_request(supported_compilers.solc_for_api(BytecodeMarker::EraVm));
     let input = ZkSolc::build_input(req).unwrap();
-    let (output, _) = compiler.compile(input).await.unwrap();
+    let (output, identifier) = compiler.compile(input).await.unwrap();
 
     assert!(!output.bytecode.is_empty());
     assert!(output.deployed_bytecode.is_none());
     assert_eq!(output.abi, serde_json::json!([]));
+    assert_matches!(
+        identifier.bytecode_without_metadata_sha3,
+        Some(DetectedMetadata::Keccak256(_))
+    );
 }
 
 #[tokio::test]
@@ -322,11 +328,16 @@ async fn compiling_standalone_yul() {
         compiler_zksolc_version: None,
     });
     let input = Solc::build_input(req).unwrap();
-    let (output, _) = compiler.compile(input).await.unwrap();
+    let (output, identifier) = compiler.compile(input).await.unwrap();
 
     assert!(!output.bytecode.is_empty());
     assert_ne!(output.deployed_bytecode.unwrap(), output.bytecode);
     assert_eq!(output.abi, serde_json::json!([]));
+    assert_matches!(
+        identifier.bytecode_without_metadata_sha3,
+        None,
+        "No metadata for compiler yul for EVM"
+    );
 }
 
 fn test_vyper_request(
@@ -372,10 +383,14 @@ async fn using_real_zkvyper(specify_contract_file: bool) {
         BytecodeMarker::EraVm,
     );
     let input = VyperInput::new(req).unwrap();
-    let (output, _) = compiler.compile(input).await.unwrap();
+    let (output, identifier) = compiler.compile(input).await.unwrap();
 
     validate_bytecode(&output.bytecode).unwrap();
     assert_eq!(output.abi, without_internal_types(counter_contract_abi()));
+    assert_matches!(
+        identifier.bytecode_without_metadata_sha3,
+        Some(DetectedMetadata::Keccak256(_))
+    );
 }
 
 #[test_casing(2, [false, true])]
@@ -397,10 +412,12 @@ async fn using_standalone_vyper(specify_contract_file: bool) {
         BytecodeMarker::Evm,
     );
     let input = VyperInput::new(req).unwrap();
-    let (output, _) = compiler.compile(input).await.unwrap();
+    let (output, identifier) = compiler.compile(input).await.unwrap();
 
     assert!(output.deployed_bytecode.is_some());
     assert_eq!(output.abi, without_internal_types(counter_contract_abi()));
+    // Vyper does not provide metadata for bytecode.
+    assert_matches!(identifier.bytecode_without_metadata_sha3, None);
 }
 
 #[tokio::test]
@@ -417,10 +434,12 @@ async fn using_standalone_vyper_without_optimization() {
     );
     req.optimization_used = false;
     let input = VyperInput::new(req).unwrap();
-    let (output, _) = compiler.compile(input).await.unwrap();
+    let (output, identifier) = compiler.compile(input).await.unwrap();
 
     assert!(output.deployed_bytecode.is_some());
     assert_eq!(output.abi, without_internal_types(counter_contract_abi()));
+    // Vyper does not provide metadata for bytecode.
+    assert_matches!(identifier.bytecode_without_metadata_sha3, None);
 }
 
 #[tokio::test]
@@ -490,7 +509,7 @@ async fn using_real_compiler_in_verifier(bytecode_kind: BytecodeMarker, toolchai
         },
     };
     let address = Address::repeat_byte(1);
-    let (output, _) = match (bytecode_kind, toolchain) {
+    let (output, identifier) = match (bytecode_kind, toolchain) {
         (BytecodeMarker::EraVm, Toolchain::Solidity) => {
             let compiler = compiler_resolver
                 .resolve_zksolc(&supported_compilers.zksolc())
@@ -520,6 +539,29 @@ async fn using_real_compiler_in_verifier(bytecode_kind: BytecodeMarker, toolchai
             compiler.compile(input).await.unwrap()
         }
     };
+
+    match (bytecode_kind, toolchain) {
+        (BytecodeMarker::Evm, Toolchain::Vyper) => {
+            assert!(
+                identifier.bytecode_without_metadata_sha3.is_none(),
+                "No metadata for EVM Vyper"
+            );
+        }
+        (BytecodeMarker::Evm, Toolchain::Solidity) => {
+            assert_matches!(
+                identifier.bytecode_without_metadata_sha3,
+                Some(DetectedMetadata::Cbor(_)),
+                "Cbor metadata for EVM Solidity by default"
+            );
+        }
+        (BytecodeMarker::EraVm, _) => {
+            assert_matches!(
+                identifier.bytecode_without_metadata_sha3,
+                Some(DetectedMetadata::Keccak256(_)),
+                "Keccak256 metadata for EraVM by default"
+            );
+        }
+    }
 
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
@@ -556,7 +598,162 @@ async fn using_real_compiler_in_verifier(bytecode_kind: BytecodeMarker, toolchai
     let (_stop_sender, stop_receiver) = watch::channel(false);
     verifier.run(stop_receiver, Some(1)).await.unwrap();
 
-    assert_request_success(&mut storage, request_id, address, &output.bytecode).await;
+    assert_request_success(&mut storage, request_id, address, &output.bytecode, &[]).await;
+}
+
+#[test_casing(2, [false, true])]
+#[tokio::test]
+async fn using_zksolc_partial_match(use_cbor: bool) {
+    let (compiler_resolver, supported_compilers) = real_resolver!();
+
+    let mut req: VerificationIncomingRequest = VerificationIncomingRequest {
+        compiler_versions: supported_compilers
+            .clone()
+            .solc_for_api(BytecodeMarker::EraVm),
+        ..test_request(Address::repeat_byte(1), COUNTER_CONTRACT)
+    };
+    let hash_type = if use_cbor { "ipfs" } else { "keccak256" };
+    // We need to manually construct the input, since `SolSingleFile` doesn't let us specify metadata hash type.
+    // Note: prior to 1.5.7 field was named `bytecodeHash`.
+    req.source_code_data = SourceCodeData::StandardJsonInput(
+        serde_json::json!({
+            "language": "Solidity",
+            "sources": {
+                "Counter.sol": {
+                    "content": COUNTER_CONTRACT,
+                },
+            },"settings": {
+                "outputSelection": {
+                "*": {
+                    "": [
+                    "abi"
+                    ],
+                    "*": [
+                    "abi"
+                    ]
+                }
+                },
+                "isSystem": false,
+                "forceEvmla": false,
+                "metadata": {
+                    "hashType": hash_type
+                },
+                "optimizer": {
+                "enabled": true
+                }
+            }
+        })
+        .as_object()
+        .unwrap()
+        .clone(),
+    );
+    let contract_name = req.contract_name.clone();
+    let address = Address::repeat_byte(1);
+    let compiler = compiler_resolver
+        .resolve_zksolc(&supported_compilers.clone().zksolc())
+        .await
+        .unwrap();
+    let input_for_request = ZkSolc::build_input(req.clone()).unwrap();
+
+    let (output_for_request, identifier_for_request) =
+        compiler.compile(input_for_request).await.unwrap();
+
+    // Now prepare data for contract verification storage (with different metadata).
+    let compiler = compiler_resolver
+        .resolve_zksolc(&supported_compilers.zksolc())
+        .await
+        .unwrap();
+    let mut input_for_storage = ZkSolc::build_input(req.clone()).unwrap();
+    // Change the source file name.
+    if let ZkSolcInput::StandardJson {
+        input, file_name, ..
+    } = &mut input_for_storage
+    {
+        let source = input
+            .sources
+            .remove(&format!("{contract_name}.sol"))
+            .unwrap();
+        let new_file_name = "random_name.sol".to_owned();
+        input.sources.insert(new_file_name.clone(), source);
+        *file_name = new_file_name;
+        if use_cbor {
+            input.settings.other.as_object_mut().unwrap().insert(
+                "metadata".to_string(),
+                serde_json::json!({ "hashType": "ipfs"}),
+            );
+        }
+    } else {
+        panic!("unexpected input: {input_for_storage:?}");
+    }
+
+    let (output_for_storage, identifier_for_storage) =
+        compiler.compile(input_for_storage).await.unwrap();
+
+    assert_eq!(
+        identifier_for_request.matches(output_for_storage.deployed_bytecode()),
+        Match::Partial,
+        "must be a partial match (1)"
+    );
+    assert_eq!(
+        identifier_for_storage.matches(output_for_request.deployed_bytecode()),
+        Match::Partial,
+        "must be a partial match (2)"
+    );
+    if use_cbor {
+        assert_matches!(
+            identifier_for_request.bytecode_without_metadata_sha3,
+            Some(DetectedMetadata::Cbor(_))
+        );
+        assert_matches!(
+            identifier_for_storage.bytecode_without_metadata_sha3,
+            Some(DetectedMetadata::Cbor(_))
+        );
+    } else {
+        assert_matches!(
+            identifier_for_request.bytecode_without_metadata_sha3,
+            Some(DetectedMetadata::Keccak256(_))
+        );
+        assert_matches!(
+            identifier_for_storage.bytecode_without_metadata_sha3,
+            Some(DetectedMetadata::Keccak256(_))
+        );
+    }
+
+    let pool = ConnectionPool::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
+    prepare_storage(&mut storage).await;
+    mock_deployment(
+        &mut storage,
+        address,
+        output_for_storage.bytecode.clone(),
+        &[],
+    )
+    .await;
+    let request_id = storage
+        .contract_verification_dal()
+        .add_contract_verification_request(&req)
+        .await
+        .unwrap();
+
+    let verifier = ContractVerifier::with_resolver(
+        Duration::from_secs(60),
+        pool.clone(),
+        Arc::new(compiler_resolver),
+    )
+    .await
+    .unwrap();
+
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    verifier.run(stop_receiver, Some(1)).await.unwrap();
+
+    assert_request_success(
+        &mut storage,
+        request_id,
+        address,
+        &output_for_request.bytecode,
+        &[VerificationProblem::IncorrectMetadata],
+    )
+    .await;
 }
 
 #[test_casing(2, BYTECODE_KINDS)]

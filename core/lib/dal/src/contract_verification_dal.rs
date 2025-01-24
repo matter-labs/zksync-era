@@ -641,20 +641,20 @@ impl ContractVerificationDal<'_, '_> {
         let Some((mut info, bytecode_keccak256, bytecode_without_metadata_keccak256)) =
             sqlx::query!(
                 r#"
-            SELECT
-                verification_info,
-                bytecode_keccak256,
-                bytecode_without_metadata_keccak256
-            FROM
-                contract_verification_info_v2
-            WHERE
-                bytecode_keccak256 = $1
-                OR
-                (
-                    bytecode_without_metadata_keccak256 IS NOT null
-                    AND bytecode_without_metadata_keccak256 = $2
-                )
-            "#,
+                SELECT
+                    verification_info,
+                    bytecode_keccak256,
+                    bytecode_without_metadata_keccak256
+                FROM
+                    contract_verification_info_v2
+                WHERE
+                    bytecode_keccak256 = $1
+                    OR
+                    (
+                        bytecode_without_metadata_keccak256 IS NOT null
+                        AND bytecode_without_metadata_keccak256 = $2
+                    )
+                "#,
                 identifier.bytecode_sha3.as_bytes(),
                 bytecode_without_metadata_sha3.as_bytes()
             )

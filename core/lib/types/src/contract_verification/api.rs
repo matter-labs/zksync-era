@@ -233,7 +233,7 @@ impl CompilationArtifacts {
 }
 
 /// Non-critical issues detected during verification.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub enum VerificationProblem {
     /// The bytecode is correct, but metadata hash is different.
@@ -246,7 +246,7 @@ pub struct VerificationInfo {
     pub request: VerificationRequest,
     pub artifacts: CompilationArtifacts,
     pub verified_at: DateTime<Utc>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub verification_problems: Vec<VerificationProblem>,
 }
 
