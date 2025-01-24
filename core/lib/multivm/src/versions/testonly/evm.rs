@@ -9,21 +9,16 @@ use zksync_types::{
     address_to_h256,
     block::L2BlockHasher,
     bytecode::{pad_evm_bytecode, BytecodeHash},
-    get_code_key, get_deployer_key, get_evm_code_hash_key, get_known_code_key, get_nonce_key,
-    h256_to_address, h256_to_u256,
-    system_contracts::get_system_smart_contracts,
+    get_code_key, get_nonce_key, h256_to_address, h256_to_u256,
     utils::decompose_full_nonce,
     web3, AccountTreeId, Address, Execute, L2BlockNumber, ProtocolVersionId, StorageKey, H256,
     U256,
 };
 use zksync_vm_interface::{InspectExecutionMode, VmEvent};
 
-use super::{default_system_env, ContractToDeploy, TestedVm, VmTester, VmTesterBuilder};
+use super::{ContractToDeploy, TestedVm, VmTester, VmTesterBuilder};
 use crate::{
-    interface::{
-        storage::InMemoryStorage, ExecutionResult, L2BlockEnv, TxExecutionMode, VmInterfaceExt,
-        VmRevertReason,
-    },
+    interface::{ExecutionResult, L2BlockEnv, TxExecutionMode, VmInterfaceExt, VmRevertReason},
     utils::get_batch_base_fee,
 };
 
@@ -32,41 +27,14 @@ const ERAVM_ADDRESS: Address = Address::repeat_byte(2);
 
 fn prepare_tester_with_real_emulator() -> (VmTesterBuilder, &'static [u8]) {
     let deployed_evm_bytecode = TestEvmContract::evm_tester().deployed_bytecode;
-    let evm_bytecode_keccak_hash = H256(web3::keccak256(deployed_evm_bytecode));
-    let padded_evm_bytecode = pad_evm_bytecode(deployed_evm_bytecode);
-    let evm_bytecode_hash =
-        BytecodeHash::for_evm_bytecode(deployed_evm_bytecode.len(), &padded_evm_bytecode).value();
-
-    let mut system_env = default_system_env();
-    system_env.base_system_smart_contracts = system_env
-        .base_system_smart_contracts
-        .with_latest_evm_emulator();
-    let mut storage = InMemoryStorage::with_custom_system_contracts_and_chain_id(
-        system_env.chain_id,
-        get_system_smart_contracts(true),
-    );
-    // Set `ALLOWED_BYTECODE_TYPES_MODE_SLOT` in `ContractDeployer`.
-    storage.set_value(
-        get_deployer_key(H256::from_low_u64_be(1)),
-        H256::from_low_u64_be(1),
-    );
-    // Mark the EVM contract as deployed.
-    storage.set_value(
-        get_known_code_key(&evm_bytecode_hash),
-        H256::from_low_u64_be(1),
-    );
-    storage.set_value(get_code_key(&EVM_ADDRESS), evm_bytecode_hash);
-    storage.set_value(
-        get_evm_code_hash_key(&EVM_ADDRESS),
-        evm_bytecode_keccak_hash,
-    );
-    storage.store_factory_dep(evm_bytecode_hash, padded_evm_bytecode);
 
     let tester_builder = VmTesterBuilder::new()
-        .with_system_env(system_env)
-        .with_storage(storage)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
-        .with_rich_accounts(1);
+        .with_rich_accounts(1)
+        .with_evm_contracts(vec![ContractToDeploy::new(
+            deployed_evm_bytecode.to_vec(),
+            EVM_ADDRESS,
+        )]);
     (tester_builder, deployed_evm_bytecode)
 }
 
