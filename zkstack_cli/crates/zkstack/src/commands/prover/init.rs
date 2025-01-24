@@ -24,10 +24,7 @@ use super::{
 };
 use crate::{
     commands::prover::{
-        args::{compressor_keys::CompressorType, init::ProofStorageFileBacked},
-        compressor_keys::{
-            get_default_fflonk_compressor_keys_path, get_default_plonk_compressor_keys_path,
-        },
+        args::init::ProofStorageFileBacked, compressor_keys::get_default_compressor_keys_path,
     },
     consts::{PROVER_MIGRATIONS, PROVER_STORE_MAX_RETRIES},
     messages::{
@@ -41,18 +38,12 @@ use crate::{
 pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
 
-    let default_plonk_key_path = get_default_plonk_compressor_keys_path(&ecosystem_config)?;
-    let default_fflonk_key_path = get_default_fflonk_compressor_keys_path(&ecosystem_config)?;
+    let default_compressor_key_path = get_default_compressor_keys_path(&ecosystem_config)?;
 
     let chain_config = ecosystem_config
         .load_current_chain()
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;
-    let args = args.fill_values_with_prompt(
-        shell,
-        &default_plonk_key_path,
-        &default_fflonk_key_path,
-        &chain_config,
-    )?;
+    let args = args.fill_values_with_prompt(shell, &default_compressor_key_path, &chain_config)?;
 
     if chain_config.get_general_config().is_err() || chain_config.get_secrets_config().is_err() {
         copy_configs(shell, &ecosystem_config.link_to_code, &chain_config.configs)?;
@@ -66,35 +57,9 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
     let public_object_store_config = get_object_store_config(shell, args.public_store)?;
 
     if let Some(args) = args.compressor_key_args {
-        match args.compressor_type {
-            CompressorType::Fflonk => {
-                let path = args.clone().fflonk_path.context(MSG_SETUP_KEY_PATH_ERROR)?;
+        let path = args.path.context(MSG_SETUP_KEY_PATH_ERROR)?;
 
-                download_compressor_key(shell, &mut general_config, CompressorType::Fflonk, &path)?;
-            }
-            CompressorType::Plonk => {
-                let path = args.plonk_path.context(MSG_SETUP_KEY_PATH_ERROR)?;
-
-                download_compressor_key(shell, &mut general_config, CompressorType::Plonk, &path)?;
-            }
-            CompressorType::All => {
-                let fflonk_path = args.clone().fflonk_path.context(MSG_SETUP_KEY_PATH_ERROR)?;
-                let plonk_path = args.clone().plonk_path.context(MSG_SETUP_KEY_PATH_ERROR)?;
-
-                download_compressor_key(
-                    shell,
-                    &mut general_config,
-                    CompressorType::Fflonk,
-                    &fflonk_path,
-                )?;
-                download_compressor_key(
-                    shell,
-                    &mut general_config,
-                    CompressorType::Plonk,
-                    &plonk_path,
-                )?;
-            }
-        }
+        download_compressor_key(shell, &mut general_config, &path)?;
     }
 
     if let Some(args) = args.setup_keys {
