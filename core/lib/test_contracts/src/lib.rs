@@ -9,7 +9,7 @@ use zksync_types::{
     Transaction, H256, PRIORITY_OPERATION_L2_TX_TYPE, U256,
 };
 
-pub use self::contracts::{LoadnextContractExecutionParams, TestContract};
+pub use self::contracts::{LoadnextContractExecutionParams, TestContract, TestEvmContract};
 
 mod contracts;
 
