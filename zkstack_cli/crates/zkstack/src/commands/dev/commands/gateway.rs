@@ -442,13 +442,6 @@ impl GatewayUpgradeInfo {
             assign
         );
         assign_or_print!(
-            contracts_config
-                .ecosystem_contracts
-                .stm_deployment_tracker_proxy_addr,
-            Some(self.ctm_deployment_tracker_proxy_addr),
-            assign
-        );
-        assign_or_print!(
             contracts_config.ecosystem_contracts.native_token_vault_addr,
             Some(self.native_token_vault_addr),
             assign
@@ -637,7 +630,7 @@ impl AdminCallBuilder {
                 Token::Address(l2_da_validator),
             ])
             .unwrap();
-        let description = "Executing upgrade:".to_string();
+        let description = "Setting DA validator pair".to_string();
 
         let call = AdminCall {
             description,
@@ -803,10 +796,14 @@ pub(crate) async fn run(shell: &Shell, args: GatewayUpgradeCalldataArgs) -> anyh
         args.server_upgrade_timestamp,
     );
 
-    println!(
-        "Calldata to schedule upgrade: {}",
-        hex::encode(&schedule_calldata)
-    );
+    let set_timestamp_call = AdminCall {
+        description: "Calldata to schedule upgrade".to_string(),
+        data: schedule_calldata,
+        target: chain_info.hyperchain_addr,
+        value: U256::zero(),
+    };
+    println!("{}", serde_json::to_string_pretty(&set_timestamp_call)?);
+    println!("---------------------------");
 
     if !args.force_display_finalization_params.unwrap_or_default() {
         let chain_readiness = check_chain_readiness(
