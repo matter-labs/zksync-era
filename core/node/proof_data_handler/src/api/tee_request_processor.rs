@@ -20,7 +20,9 @@ use zksync_prover_interface::{
 use zksync_types::{tee_types::TeeType, L1BatchNumber, L2ChainId};
 use zksync_vm_executor::storage::L1BatchParamsProvider;
 
-use crate::{errors::RequestProcessorError, metrics::METRICS, request_processor::RequestProcessor};
+use crate::{
+    api::request_processor::RequestProcessor, errors::RequestProcessorError, metrics::METRICS,
+};
 
 impl RequestProcessor {
     pub(crate) async fn get_tee_proof_generation_data(

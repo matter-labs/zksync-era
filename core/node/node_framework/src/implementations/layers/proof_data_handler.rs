@@ -3,8 +3,10 @@ use std::sync::Arc;
 use zksync_config::configs::ProofDataHandlerConfig;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStore;
-use zksync_proof_data_handler::{ProofDataHandlerApi, RequestProcessor};
-use zksync_types::{commitment::L1BatchCommitmentMode, L2ChainId};
+use zksync_proof_data_handler::{
+    ProofDataHandlerApi, ProofGenerationDataSubmitter, RequestProcessor,
+};
+use zksync_types::{api::Proof, commitment::L1BatchCommitmentMode, L2ChainId};
 
 use crate::{
     implementations::resources::{
@@ -36,7 +38,7 @@ pub struct Input {
 #[context(crate = crate)]
 pub struct Output {
     #[context(task)]
-    pub task: ProofDataHandlerApi,
+    pub task: ProofDataHandlerTask,
 }
 
 impl ProofDataHandlerLayer {
@@ -74,7 +76,8 @@ impl WiringLayer for ProofDataHandlerLayer {
             self.l2_chain_id,
         );
 
-        let mut task = ProofDataHandlerApi::new(self.proof_data_handler_config.http_port, processor);
+        let mut task =
+            ProofDataHandlerApi::new(self.proof_data_handler_config.http_port, processor);
         if self.proof_data_handler_config.tee_config.tee_support {
             task = task.with_tee_support();
         }
@@ -83,13 +86,44 @@ impl WiringLayer for ProofDataHandlerLayer {
     }
 }
 
+#[derive(Debug)]
+struct ProofDataHandlerTask {
+    api: ProofDataHandlerApi,
+    data_submitter: ProofGenerationDataSubmitter,
+}
+
+impl ProofDataHandlerTask {
+    pub fn new(api: ProofDataHandlerApi, data_submitter: ProofGenerationDataSubmitter) -> Self {
+        Self {
+            api,
+            data_submitter,
+        }
+    }
+
+    async fn run(self, stop_receiver: StopReceiver) -> anyhow::Result<()> {
+        let api = self.api;
+        let data_submitter = self.data_submitter;
+
+        tokio::select! {
+            _ = api.run(stop_receiver.0.clone()) => {
+                tracing::info!("Proof data handler API stopped");
+            }
+            _ = data_submitter.run(stop_receiver.0) => {
+                tracing::info!("Proof data submitter stopped");
+            }
+        }
+
+        Ok(())
+    }
+}
+
 #[async_trait::async_trait]
-impl Task for ProofDataHandlerApi {
+impl Task for ProofDataHandlerTask {
     fn id(&self) -> TaskId {
         "proof_data_handler".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        (*self).run(stop_receiver.0).await
+        (*self).run(stop_receiver).await
     }
 }

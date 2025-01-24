@@ -25,13 +25,12 @@ pub struct ProofGenerationData {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub enum ProofGenerationDataResponse {
-    Success(Option<Box<ProofGenerationData>>),
-    Error(String),
-}
+pub struct TeeProofGenerationDataResponse(pub Box<TeeVerifierInput>);
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct TeeProofGenerationDataResponse(pub Box<TeeVerifierInput>);
+pub enum SubmitProofGenerationDataResponse {
+    Success,
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum SubmitProofResponse {

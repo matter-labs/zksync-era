@@ -1,13 +1,10 @@
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
-use zksync_prover_interface::api::{
-    ProofGenerationData, ProofGenerationDataRequest, ProofGenerationDataResponse,
-};
+use zksync_prover_interface::api::ProofGenerationData;
 
-use crate::{client::ProverApiClient, traits::PeriodicApi};
+use crate::client::ProverApiClient;
 
 /// Poller structure that will periodically check the prover API for new proof generation data.
 /// Fetched data is stored to the database/object store for further processing.
