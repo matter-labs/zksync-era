@@ -2,8 +2,6 @@
 , tee_prover
 , coreCommonArgs
 , inputs
-, customInputsFrom ? [ tee_prover ]
-, customPackages ? [ ]
 , ...
 }:
 let
@@ -14,8 +12,8 @@ let
   });
 in
 pkgs.mkShell {
-  inputsFrom = customInputsFrom;
-  packages = customPackages;
+  inputsFrom = [ tee_prover ];
+  packages = [ ];
 
   inherit (coreCommonArgs) env hardeningEnable;
 
