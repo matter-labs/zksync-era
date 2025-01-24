@@ -132,12 +132,12 @@ impl Keystore {
             ProverServiceDataType::FinalizationHints => self
                 .basedir
                 .join(format!("finalization_hints_{}.bin", name)),
-            ProverServiceDataType::PlonkSetupData => {
-                self.setup_data_path.join(format!("plonk_setup_{}_data.bin", name))
-            }
-            ProverServiceDataType::FflonkSetupData => {
-                self.setup_data_path.join(format!("fflonk_setup_{}_data.bin", name))
-            }
+            ProverServiceDataType::PlonkSetupData => self
+                .setup_data_path
+                .join(format!("plonk_setup_{}_data.bin", name)),
+            ProverServiceDataType::FflonkSetupData => self
+                .setup_data_path
+                .join(format!("fflonk_setup_{}_data.bin", name)),
             ProverServiceDataType::SnarkVerificationKey => {
                 self.basedir.join(format!("verification_{}_key.json", name))
             }
