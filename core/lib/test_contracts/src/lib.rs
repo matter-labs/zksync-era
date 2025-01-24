@@ -34,6 +34,8 @@ pub struct Account {
     private_key: K256PrivateKey,
     pub address: Address,
     pub nonce: Nonce,
+    // Since transactions produced by the account are ordered by `nonce`, `deploy_nonce` is well-defined as well.
+    pub deploy_nonce: Nonce,
 }
 
 impl Account {
@@ -43,6 +45,7 @@ impl Account {
             private_key,
             address,
             nonce: Nonce(0),
+            deploy_nonce: Nonce(0),
         }
     }
 
@@ -128,9 +131,8 @@ impl Account {
             TxType::L1 { serial_id } => self.get_l1_tx(execute, serial_id),
         };
 
-        let address =
-            // For L1Tx we usually use nonce 0
-            deployed_address_create(self.address, (tx.nonce().unwrap_or(Nonce(0)).0).into());
+        let address = deployed_address_create(self.address, self.deploy_nonce.0.into());
+        self.deploy_nonce += 1;
         DeployContractsTx {
             tx,
             bytecode_hash: code_hash,

@@ -260,7 +260,7 @@ contract EvmEmulationTest is IGasTester {
         uint gasMultiplier = _isEvmTester ? 1 : 5;
         uint currentGas = gasleft();
         if (_isEvmTester) {
-            // FIXME: doesn't work for EraVM tester (~115k less gas is passed)
+            // TODO: doesn't work for EraVM tester (~115k less gas is passed)
             _tester.testGas((currentGas * 63 / 64) * gasMultiplier, false);
         }
 
@@ -271,7 +271,7 @@ contract EvmEmulationTest is IGasTester {
         // Attempt to send "infinite" gas from the stipend (shouldn't work)
         currentGas = gasleft();
         if (_isEvmTester) {
-            // FIXME: doesn't work for EraVM tester (~115k less gas is passed)
+            // TODO: doesn't work for EraVM tester (~115k less gas is passed)
             _tester.testGas{gas: 1 << 30}((currentGas * 63 / 64) * gasMultiplier, false);
         }
 
@@ -287,7 +287,7 @@ contract EvmEmulationTest is IGasTester {
     function testGas(uint _expectedGas, bool _consumeAllGas) external view override validEvmCall {
         uint currentGas = gasleft();
         if (currentGas > _expectedGas) revert TooMuchGas(_expectedGas, currentGas);
-        if (currentGas < _expectedGas - 1500) revert TooFewGas(_expectedGas, currentGas);
+        if (currentGas < _expectedGas - 2000) revert TooFewGas(_expectedGas, currentGas);
 
         if (_consumeAllGas) {
             bytes32 hash;

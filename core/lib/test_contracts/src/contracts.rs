@@ -219,6 +219,12 @@ impl TestContract {
         &CONTRACT
     }
 
+    pub fn eravm_tester() -> &'static Self {
+        static CONTRACT: Lazy<TestContract> =
+            Lazy::new(|| TestContract::new(raw::mock_evm::EraVmTester));
+        &CONTRACT
+    }
+
     /// Returns all factory deps for this contract deployment (including its own bytecode).
     pub fn factory_deps(&self) -> Vec<Vec<u8>> {
         let mut deps = vec![];

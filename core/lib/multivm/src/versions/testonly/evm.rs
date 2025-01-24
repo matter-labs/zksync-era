@@ -1,4 +1,4 @@
-use std::{collections::HashMap, iter};
+use std::collections::HashMap;
 
 use assert_matches::assert_matches;
 use ethabi::{ParamType, Token};
@@ -7,12 +7,17 @@ use zksync_contracts::{load_contract, read_bytecode, read_deployed_bytecode_from
 use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
 use zksync_test_contracts::{Account, TestContract, TxType};
 use zksync_types::{
-    address_to_h256, block::L2BlockHasher, bytecode::BytecodeHash, get_code_key, get_deployer_key,
-    get_evm_code_hash_key, get_known_code_key, h256_to_address, h256_to_u256,
-    system_contracts::get_system_smart_contracts, web3, AccountTreeId, Address, Execute,
-    L2BlockNumber, ProtocolVersionId, StorageKey, H256, U256,
+    address_to_h256,
+    block::L2BlockHasher,
+    bytecode::{pad_evm_bytecode, BytecodeHash},
+    get_code_key, get_deployer_key, get_evm_code_hash_key, get_known_code_key, get_nonce_key,
+    h256_to_address, h256_to_u256,
+    system_contracts::get_system_smart_contracts,
+    utils::decompose_full_nonce,
+    web3, AccountTreeId, Address, Execute, L2BlockNumber, ProtocolVersionId, StorageKey, H256,
+    U256,
 };
-use zksync_vm_interface::VmEvent;
+use zksync_vm_interface::{InspectExecutionMode, VmEvent};
 
 use super::{default_system_env, ContractToDeploy, TestedVm, VmTester, VmTesterBuilder};
 use crate::{
@@ -24,34 +29,11 @@ use crate::{
 };
 
 const EVM_TEST_CONTRACT_PATH: &str =
-    "etc/contracts-test-data/artifacts/evm.sol/EvmEmulationTest.json";
-const EVM_COUNTER_CONTRACT_PATH: &str = "etc/contracts-test-data/artifacts/evm.sol/Counter.json";
-const ERAVM_TESTER_CONTRACT_PATH: &str =
-    "etc/contracts-test-data/artifacts-zk/contracts/mock-evm/evm.sol/EraVmTester.json";
+    "core/lib/test_contracts/artifacts/evm.sol/EvmEmulationTest.json";
+const EVM_COUNTER_CONTRACT_PATH: &str = "core/lib/test_contracts/artifacts/evm.sol/Counter.json";
 
 const EVM_ADDRESS: Address = Address::repeat_byte(1);
 const ERAVM_ADDRESS: Address = Address::repeat_byte(2);
-
-fn pad_evm_bytecode(deployed_bytecode: &[u8]) -> Vec<u8> {
-    let mut padded = Vec::with_capacity(deployed_bytecode.len() + 32);
-    let len = U256::from(deployed_bytecode.len());
-    padded.extend_from_slice(&[0; 32]);
-    len.to_big_endian(&mut padded);
-    padded.extend_from_slice(deployed_bytecode);
-
-    // Pad to the 32-byte word boundary.
-    if padded.len() % 32 != 0 {
-        padded.extend(iter::repeat(0).take(32 - padded.len() % 32));
-    }
-    assert_eq!(padded.len() % 32, 0);
-
-    // Pad to contain the odd number of words.
-    if (padded.len() / 32) % 2 != 1 {
-        padded.extend_from_slice(&[0; 32]);
-    }
-    assert_eq!((padded.len() / 32) % 2, 1);
-    padded
-}
 
 fn prepare_tester_with_real_emulator() -> (VmTesterBuilder, Vec<u8>) {
     let deployed_evm_bytecode =
@@ -71,7 +53,7 @@ fn prepare_tester_with_real_emulator() -> (VmTesterBuilder, Vec<u8>) {
     );
     // Set `ALLOWED_BYTECODE_TYPES_MODE_SLOT` in `ContractDeployer`.
     storage.set_value(
-        get_deployer_key(H256::from_low_u64_be(2)),
+        get_deployer_key(H256::from_low_u64_be(1)),
         H256::from_low_u64_be(1),
     );
     // Mark the EVM contract as deployed.
@@ -92,6 +74,45 @@ fn prepare_tester_with_real_emulator() -> (VmTesterBuilder, Vec<u8>) {
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_rich_accounts(1);
     (tester_builder, deployed_evm_bytecode)
+}
+
+pub(crate) fn test_evm_bytecode_decommit<VM: TestedVm>() {
+    let (vm_builder, deployed_evm_bytecode) = prepare_tester_with_real_emulator();
+    let mut vm: VmTester<VM> = vm_builder
+        .with_custom_contracts(vec![ContractToDeploy::new(
+            TestContract::precompiles_test().bytecode.to_vec(),
+            ERAVM_ADDRESS,
+        )])
+        .build();
+
+    let account = &mut vm.rich_accounts[0];
+    let call_code_oracle_function = TestContract::precompiles_test().function("callCodeOracle");
+    let padded_bytecode = pad_evm_bytecode(&deployed_evm_bytecode);
+    let evm_bytecode_hash =
+        BytecodeHash::for_evm_bytecode(deployed_evm_bytecode.len(), &padded_bytecode).value();
+    let evm_bytecode_keccak_hash = H256(web3::keccak256(&padded_bytecode));
+
+    let tx = account.get_l2_tx_for_execute(
+        Execute {
+            contract_address: Some(ERAVM_ADDRESS),
+            calldata: call_code_oracle_function
+                .encode_input(&[
+                    Token::FixedBytes(evm_bytecode_hash.0.to_vec()),
+                    Token::FixedBytes(evm_bytecode_keccak_hash.0.to_vec()),
+                ])
+                .unwrap(),
+            value: U256::zero(),
+            factory_deps: vec![],
+        },
+        None,
+    );
+    vm.vm.push_transaction(tx);
+
+    let result = vm.vm.execute(InspectExecutionMode::OneTx);
+    assert!(
+        !result.result.is_failed(),
+        "Transaction wasn't successful: {result:#?}"
+    );
 }
 
 pub(crate) fn test_real_emulator_basics<VM: TestedVm>() {
@@ -137,8 +158,7 @@ fn call_simple_evm_method<VM: TestedVm>(
     } else {
         assert!(!vm_result.result.is_failed(), "{:?}", vm_result.result);
     }
-    let new_known_factory_deps = vm_result.dynamic_factory_deps;
-    assert!(new_known_factory_deps.is_empty());
+    assert!(vm_result.dynamic_factory_deps.is_empty());
 }
 
 fn call_eravm_counter<VM: TestedVm>(vm: &mut VmTester<VM>) {
@@ -367,7 +387,7 @@ fn deploy_and_call_evm_counter<VM: TestedVm>(
     let (_, vm_result) = vm
         .vm
         .execute_transaction_with_bytecode_compression(tx, true);
-    assert!(!vm_result.result.is_failed(), "{:?}", vm_result.result);
+    assert!(!vm_result.result.is_failed(), "{:#?}", vm_result);
 
     let new_known_factory_deps = vm_result.dynamic_factory_deps;
     let padded_bytecode = pad_evm_bytecode(counter_bytecode);
@@ -555,6 +575,12 @@ fn deploy_eravm_counter<VM: TestedVm>(
     counter_address: Address,
 ) {
     let account = &mut vm.rich_accounts[0];
+    // Sanity check: account nonces must match ones in the storage
+    let full_nonce = vm.vm.read_storage(get_nonce_key(&account.address));
+    let (min_nonce, deploy_nonce) = decompose_full_nonce(full_nonce);
+    assert_eq!(min_nonce.as_u32(), account.nonce.0);
+    assert_eq!(deploy_nonce.as_u32(), account.deploy_nonce.0);
+
     let deploy_tx = account.get_deploy_tx(
         bytecode,
         Some(&[Token::Address(counter_address)]),
@@ -564,6 +590,7 @@ fn deploy_eravm_counter<VM: TestedVm>(
         .vm
         .execute_transaction_with_bytecode_compression(deploy_tx.tx, true);
     assert!(!vm_result.result.is_failed(), "{:?}", vm_result.result);
+
     assert_ne!(
         vm.vm.read_storage(get_code_key(&deploy_tx.address)),
         0.into()
@@ -597,7 +624,7 @@ pub(crate) fn test_calling_era_contract_from_evm<VM: TestedVm>() {
 }
 
 pub(crate) fn test_far_calls_from_evm_contract<VM: TestedVm>() {
-    let era_tester = read_bytecode(ERAVM_TESTER_CONTRACT_PATH);
+    let era_tester = TestContract::eravm_tester().bytecode.to_vec();
     let mut vm = prepare_tester_with_real_emulator()
         .0
         .with_custom_contracts(vec![ContractToDeploy::new(era_tester, ERAVM_ADDRESS)])
@@ -610,10 +637,8 @@ pub(crate) fn test_far_calls_from_evm_contract<VM: TestedVm>() {
     call_far_call_test(&mut vm, &evm_abi, EVM_ADDRESS, ERAVM_ADDRESS);
     println!("Testing EraVM -> EraVM far calls (sanity check)");
     call_far_call_test(&mut vm, &evm_abi, ERAVM_ADDRESS, ERAVM_ADDRESS);
-    // FIXME: doesn't work; too much gas is passed to EVM (seems independent of the `{gas: _}` spec;
-    //   does the EVM emulator not respect the 80M gas limit per tx?)
-    // println!("Testing EraVM -> EVM far calls");
-    // call_far_call_test(&mut vm, &evm_abi, ERAVM_ADDRESS, EVM_ADDRESS);
+    println!("Testing EraVM -> EVM far calls");
+    call_far_call_test(&mut vm, &evm_abi, ERAVM_ADDRESS, EVM_ADDRESS);
 }
 
 fn call_far_call_test<VM: TestedVm>(

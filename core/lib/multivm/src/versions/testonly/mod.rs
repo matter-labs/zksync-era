@@ -95,7 +95,7 @@ pub(crate) fn filter_out_base_system_contracts(all_bytecode_hashes: &mut HashSet
 pub(super) fn default_system_env() -> SystemEnv {
     SystemEnv {
         zk_porter_available: false,
-        version: ProtocolVersionId::latest(),
+        version: ProtocolVersionId::Version25, // FIXME: ProtocolVersionId::latest(),
         base_system_smart_contracts: BaseSystemContracts::playground(),
         bootloader_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
         execution_mode: TxExecutionMode::VerifyExecute,
