@@ -124,21 +124,32 @@ abigen!(
 ]"
 );
 
-async fn verify_next_batch_new_version(
+// Checks that:
+// * there is a batch with new protocol version
+// * last batch with old protocol version is proven
+async fn check_batches_readiness(
     batch_number: u32,
     main_node_client: &DynClient<L2>,
 ) -> anyhow::Result<()> {
+    // 1. Check there is a batch with new protocol version
+    println!("Looking for the batch with new protocol version...");
     let (_, right_bound) = main_node_client
         .get_l2_block_range(L1BatchNumber(batch_number))
         .await?
-        .context("Range must be present for a batch")?;
+        .context(format!(
+            "Block range not present for batch {}",
+            batch_number
+        ))?;
 
     let next_l2_block = right_bound + 1;
 
     let block_details = main_node_client
         .get_block_details(L2BlockNumber(next_l2_block.as_u32()))
         .await?
-        .with_context(|| format!("No L2 block is present after the batch {}", batch_number))?;
+        .context(format!(
+            "No L2 block is present after the batch {}",
+            batch_number
+        ))?;
 
     let protocol_version = block_details.protocol_version.with_context(|| {
         format!(
@@ -148,9 +159,74 @@ async fn verify_next_batch_new_version(
     })?;
     anyhow::ensure!(
         protocol_version >= ProtocolVersionId::gateway_upgrade(),
-        "THe block does not yet contain the gateway upgrade"
+        "Batch {} does not yet have the gateway upgrade (found protocol version: {:?})",
+        batch_number,
+        protocol_version
+    );
+    println!(
+        "Batch {} has protocol version {}",
+        batch_number + 1,
+        protocol_version
     );
 
+    // 2. Find the last batch with old protocol version
+    println!("Looking for the latest batch with previous protocol version...");
+    let mut last_old_version_batch: Option<u32> = None;
+    for b in (1..=batch_number).rev() {
+        let (_, right_bound) = main_node_client
+            .get_l2_block_range(L1BatchNumber(b))
+            .await?
+            .with_context(|| format!("Block range not present for batch {}", b))?;
+
+        let block_details = main_node_client
+            .get_block_details(L2BlockNumber(right_bound.as_u32()))
+            .await?
+            .with_context(|| format!("No block details for block {}", right_bound))?;
+
+        let block_protocol_version = block_details
+            .protocol_version
+            .with_context(|| format!("Protocol version not present for block {}", right_bound))?;
+
+        println!(
+            "Batch {} has protocol version {}",
+            b, block_protocol_version
+        );
+        if block_protocol_version < ProtocolVersionId::gateway_upgrade() {
+            // We've found a batch that has old protocol version
+            last_old_version_batch = Some(b);
+            break;
+        }
+    }
+    if last_old_version_batch.is_none() {
+        anyhow::bail!("No batches with old protocol version found - no need to upgrade.");
+    }
+    let last_old_batch = last_old_version_batch.unwrap();
+
+    // 3. Check that the last old-version batch has both commitTx and proveTx
+    let batch_details = main_node_client
+        .get_l1_batch_details(L1BatchNumber(last_old_batch))
+        .await?
+        .with_context(|| format!("No batch details present for the batch {}", last_old_batch))?;
+
+    let commit_tx_hash = batch_details.base.commit_tx_hash.context(format!(
+        "commitTx is not finalized for batch {}",
+        last_old_batch
+    ))?;
+    println!(
+        "Batch {} has finalized commitTx {}",
+        last_old_batch, commit_tx_hash
+    );
+
+    let prove_tx_hash = batch_details.base.prove_tx_hash.context(format!(
+        "proveTx is not finalized for batch {}",
+        last_old_batch
+    ))?;
+    println!(
+        "Batch {} has finalized proveTx {}",
+        last_old_batch, prove_tx_hash
+    );
+
+    println!("Batches are ready for upgrade execution!");
     Ok(())
 }
 
@@ -189,10 +265,8 @@ pub async fn check_chain_readiness(
 
     let zkchain = ZKChainAbi::new(diamond_proxy_addr, l1_client.clone());
     let batches_committed = zkchain.get_total_batches_committed().await?.as_u32();
-    let batches_verified = zkchain.get_total_batches_verified().await?.as_u32();
 
-    verify_next_batch_new_version(batches_committed, l2_client.as_ref()).await?;
-    verify_next_batch_new_version(batches_verified, l2_client.as_ref()).await?;
+    check_batches_readiness(batches_committed, l2_client.as_ref()).await?;
 
     Ok(())
 }
@@ -201,7 +275,7 @@ async fn verify_correct_l2_wrapped_base_token(
     l2_rpc_url: String,
     addr: Address,
 ) -> anyhow::Result<()> {
-    // Connect to the L1 Ethereum network
+    // Connect to the L2 RPC
     let l2_provider = match Provider::<Http>::try_from(&l2_rpc_url) {
         Ok(provider) => provider,
         Err(err) => {
