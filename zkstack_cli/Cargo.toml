@@ -27,14 +27,14 @@ zkstack_cli_types = { version = "0.1.2", path = "crates/types" }
 zkstack_cli_git_version_macro = { version = "0.1.2", path = "crates/git_version_macro" }
 
 # ZkSync deps
-zksync_config = { version = "=26.1.0-non-semver-compat", path = "../core/lib/config" }
-zksync_protobuf_config = { version = "=26.1.0-non-semver-compat", path = "../core/lib/protobuf_config" }
-zksync_basic_types = { version = "=26.1.0-non-semver-compat", path = "../core/lib/basic_types" }
-zksync_system_constants = { version = "=26.1.0-non-semver-compat", path = "../core/lib/constants" }
-zksync_types = { version = "=26.1.0-non-semver-compat", path = "../core/lib/types" }
-zksync_web3_decl = { version = "=26.1.0-non-semver-compat", path = "../core/lib/web3_decl" }
-zksync_eth_client = { version = "=26.1.0-non-semver-compat", path = "../core/lib/eth_client" }
-zksync_contracts = { version = "=26.1.0-non-semver-compat", path = "../core/lib/contracts" }
+zksync_config = { path = "../core/lib/config" }
+zksync_protobuf_config = { path = "../core/lib/protobuf_config" }
+zksync_basic_types = { path = "../core/lib/basic_types" }
+zksync_system_constants = { path = "../core/lib/constants" }
+zksync_types = { path = "../core/lib/types" }
+zksync_web3_decl = { path = "../core/lib/web3_decl" }
+zksync_eth_client = { path = "../core/lib/eth_client" }
+zksync_contracts = { path = "../core/lib/contracts" }
 zksync_consensus_roles = "=0.8.0"
 zksync_consensus_crypto = "=0.8.0"
 zksync_consensus_utils = "=0.8.0"
