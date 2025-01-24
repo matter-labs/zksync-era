@@ -9,8 +9,8 @@ use zksync_types::{
     address_to_h256,
     block::L2BlockHasher,
     bytecode::{pad_evm_bytecode, BytecodeHash},
-    get_code_key, get_nonce_key, h256_to_address, h256_to_u256,
-    utils::decompose_full_nonce,
+    get_code_key, get_known_code_key, get_nonce_key, h256_to_address, h256_to_u256, u256_to_h256,
+    utils::{decompose_full_nonce, deployed_address_evm_create},
     web3, AccountTreeId, Address, Execute, L2BlockNumber, ProtocolVersionId, StorageKey, H256,
     U256,
 };
@@ -24,6 +24,54 @@ use crate::{
 
 const EVM_ADDRESS: Address = Address::repeat_byte(1);
 const ERAVM_ADDRESS: Address = Address::repeat_byte(2);
+
+pub(crate) fn test_evm_deployment_tx<VM: TestedVm>() {
+    let mut vm: VmTester<VM> = VmTesterBuilder::new()
+        .with_execution_mode(TxExecutionMode::VerifyExecute)
+        .with_rich_accounts(1)
+        .with_evm_emulator()
+        .build();
+
+    let account = &mut vm.rich_accounts[0];
+    let initial_counter = 3.into();
+    let tx = account.get_evm_deploy_tx(
+        TestEvmContract::counter().init_bytecode.to_vec(),
+        &TestEvmContract::counter().abi,
+        &[Token::Uint(initial_counter)],
+    );
+    vm.vm.push_transaction(tx);
+
+    let result = vm.vm.execute(InspectExecutionMode::OneTx);
+    assert!(!result.result.is_failed(), "{result:#?}");
+
+    let deployed_bytecode = TestEvmContract::counter().deployed_bytecode;
+    let padded_bytecode = pad_evm_bytecode(deployed_bytecode);
+    let expected_bytecode_hash =
+        BytecodeHash::for_evm_bytecode(deployed_bytecode.len(), &padded_bytecode).value();
+    let expected_address = deployed_address_evm_create(account.address, 0.into());
+
+    let stored_bytecode_hash = u256_to_h256(vm.vm.read_storage(get_code_key(&expected_address)));
+    assert_eq!(stored_bytecode_hash, expected_bytecode_hash);
+    assert_eq!(
+        vm.vm
+            .read_storage(get_known_code_key(&expected_bytecode_hash)),
+        1.into()
+    );
+    let stored_nonce = vm.vm.read_storage(get_nonce_key(&account.address));
+    assert_eq!(stored_nonce, 1.into()); // deployment nonce is not used for EVM deployments
+
+    // Test contract storage
+    let stored_counter = vm.vm.read_storage(StorageKey::new(
+        AccountTreeId::new(expected_address),
+        H256::zero(),
+    ));
+    assert_eq!(stored_counter, initial_counter);
+
+    assert_eq!(
+        result.dynamic_factory_deps,
+        HashMap::from([(expected_bytecode_hash, padded_bytecode)])
+    );
+}
 
 fn prepare_tester_with_real_emulator() -> (VmTesterBuilder, &'static [u8]) {
     let deployed_evm_bytecode = TestEvmContract::evm_tester().deployed_bytecode;

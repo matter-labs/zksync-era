@@ -79,6 +79,7 @@ pub(crate) struct VmTesterBuilder {
     rich_accounts: Vec<Account>,
     custom_contracts: Vec<ContractToDeploy>,
     custom_evm_contracts: Vec<ContractToDeploy>,
+    enable_evm_emulator: bool,
 }
 
 impl VmTesterBuilder {
@@ -91,6 +92,7 @@ impl VmTesterBuilder {
             rich_accounts: vec![],
             custom_contracts: vec![],
             custom_evm_contracts: vec![],
+            enable_evm_emulator: false,
         }
     }
 
@@ -157,11 +159,16 @@ impl VmTesterBuilder {
         self
     }
 
+    pub(crate) fn with_evm_emulator(mut self) -> Self {
+        self.enable_evm_emulator = true;
+        self
+    }
+
     pub(crate) fn build<VM>(self) -> VmTester<VM>
     where
         VM: VmFactory<StorageView<InMemoryStorage>>,
     {
-        let enable_evm_emulator = !self.custom_evm_contracts.is_empty();
+        let enable_evm_emulator = self.enable_evm_emulator || !self.custom_evm_contracts.is_empty();
         let mut system_env = self.system_env;
         if enable_evm_emulator
             && system_env

@@ -5,8 +5,9 @@ use zksync_system_constants::{
 };
 use zksync_types::{
     abi, address_to_u256, bytecode::BytecodeHash, fee::Fee, l2::L2Tx,
-    utils::deployed_address_create, Address, Execute, K256PrivateKey, L2ChainId, Nonce,
-    Transaction, H256, PRIORITY_OPERATION_L2_TX_TYPE, U256,
+    transaction_request::TransactionRequest, utils::deployed_address_create, Address, Execute,
+    K256PrivateKey, L2ChainId, Nonce, PackedEthSignature, Transaction, EIP_1559_TX_TYPE, H256,
+    PRIORITY_OPERATION_L2_TX_TYPE, U256,
 };
 
 pub use self::contracts::{LoadnextContractExecutionParams, TestContract, TestEvmContract};
@@ -94,6 +95,48 @@ impl Account {
         )
         .expect("should create a signed execute transaction")
         .into()
+    }
+
+    pub fn get_evm_deploy_tx(
+        &mut self,
+        init_bytecode: Vec<u8>,
+        contract: &ethabi::Contract,
+        args: &[Token],
+    ) -> Transaction {
+        let fee = Self::default_fee();
+        let input = if let Some(constructor) = contract.constructor() {
+            constructor
+                .encode_input(init_bytecode, args)
+                .expect("cannot encode constructor args")
+        } else {
+            assert!(args.is_empty(), "no constructor args expected");
+            init_bytecode
+        };
+
+        let tx_request = TransactionRequest {
+            nonce: self.nonce.0.into(),
+            from: Some(self.address),
+            to: None,
+            value: 0.into(),
+            gas_price: fee.max_fee_per_gas,
+            gas: fee.gas_limit,
+            max_priority_fee_per_gas: Some(fee.max_priority_fee_per_gas),
+            input: input.into(),
+            // EVM deployment txs must not have the default type (EIP-712).
+            transaction_type: Some(EIP_1559_TX_TYPE.into()),
+            chain_id: Some(L2ChainId::default().as_u64()),
+            ..TransactionRequest::default()
+        };
+
+        let data = tx_request
+            .get_default_signed_message()
+            .expect("no message to sign");
+        let sig = PackedEthSignature::sign_raw(&self.private_key, &data).unwrap();
+        let raw = tx_request.get_signed_bytes(&sig).unwrap();
+        let (req, hash) = TransactionRequest::from_bytes_unverified(&raw).unwrap();
+        let mut tx = L2Tx::from_request(req, usize::MAX, true).unwrap();
+        tx.set_input(raw, hash);
+        tx.into()
     }
 
     pub fn default_fee() -> Fee {

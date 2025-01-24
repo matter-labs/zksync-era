@@ -261,7 +261,12 @@ impl<S: ReadStorage, Tr: Tracer, Val: ValidationTracer> Vm<S, Tr, Val> {
         refund: u64,
         with_compression: bool,
     ) {
-        let tx = TransactionData::new(tx, false);
+        let use_evm_emulator = self
+            .system_env
+            .base_system_smart_contracts
+            .evm_emulator
+            .is_some();
+        let tx = TransactionData::new(tx, use_evm_emulator);
         let overhead = tx.overhead_gas();
 
         self.insert_bytecodes(tx.factory_deps.iter().map(|dep| &dep[..]));

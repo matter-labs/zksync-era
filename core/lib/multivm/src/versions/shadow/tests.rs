@@ -300,6 +300,11 @@ mod evm {
     use crate::versions::testonly::evm::*;
 
     #[test]
+    fn evm_deployment_tx() {
+        test_evm_deployment_tx::<super::ShadowedFastVm>();
+    }
+
+    #[test]
     fn evm_bytecode_decommit() {
         test_evm_bytecode_decommit::<super::ShadowedFastVm>();
     }
