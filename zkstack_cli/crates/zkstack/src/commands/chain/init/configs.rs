@@ -97,6 +97,7 @@ pub async fn init_configs(
                 general_config.da_client_config = Some(avail_config.into());
                 secrets.data_availability = Some(DataAvailabilitySecrets::Avail(avail_secrets));
             }
+            ValidiumType::EigenDA => {} // This is left blank to be able to define the config by file instead of giving it via CLI
         }
     }
 
