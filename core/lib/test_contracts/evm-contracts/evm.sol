@@ -224,6 +224,13 @@ contract EvmEmulationTest is IGasTester {
         }
     }
 
+    function testDeployment(address _expectedAddress) external validEvmCall {
+        Counter newCounter = new Counter(1);
+        require(address(newCounter) == _expectedAddress, "address");
+    }
+
+    // TODO: similarly test create2
+
     ICounter counter;
 
     function testDeploymentAndCall(bytes32 _expectedCodeHash) external validEvmCall {

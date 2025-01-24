@@ -103,6 +103,17 @@ pub fn deployed_address_create(sender: Address, deploy_nonce: U256) -> Address {
     Address::from_slice(&keccak256(&bytes)[12..])
 }
 
+/// Pre-calculates the address of the EVM contract created using a deployment transaction.
+pub fn deployed_address_evm_create(sender: Address, tx_nonce: U256) -> Address {
+    let mut stream = rlp::RlpStream::new();
+    stream
+        .begin_unbounded_list()
+        .append(&sender)
+        .append(&tx_nonce)
+        .finalize_unbounded_list();
+    Address::from_slice(&keccak256(&stream.out())[12..])
+}
+
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;

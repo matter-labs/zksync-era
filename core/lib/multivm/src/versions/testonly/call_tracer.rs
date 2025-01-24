@@ -4,9 +4,15 @@
 use assert_matches::assert_matches;
 use ethabi::Token;
 use zksync_system_constants::MSG_VALUE_SIMULATOR_ADDRESS;
-use zksync_test_contracts::{Account, LoadnextContractExecutionParams, TestContract, TxType};
+use zksync_test_contracts::{
+    Account, LoadnextContractExecutionParams, TestContract, TestEvmContract, TxType,
+};
 use zksync_types::{
-    fee::Fee, utils::deployed_address_create, zk_evm_types::FarCallOpcode, Address, Execute,
+    address_to_h256,
+    fee::Fee,
+    utils::{deployed_address_create, deployed_address_evm_create},
+    zk_evm_types::FarCallOpcode,
+    AccountTreeId, Address, Execute, StorageKey, H256,
 };
 
 use super::{ContractToDeploy, TestedVmWithCallTracer, VmTester, VmTesterBuilder};
@@ -47,6 +53,25 @@ fn extract_single_call(calls: &[Call], filter: impl Fn(&Call) -> bool) -> &Call 
     let mut matching_call = None;
     walk(&mut matching_call, calls, &filter);
     matching_call.expect("no calls match the filter")
+}
+
+fn extract_all_calls(calls: &[Call], filter: impl Fn(&Call) -> bool) -> Vec<&Call> {
+    fn walk<'a>(
+        matching_calls: &mut Vec<&'a Call>,
+        calls: &'a [Call],
+        filter: &impl Fn(&Call) -> bool,
+    ) {
+        for call in calls {
+            if filter(call) {
+                matching_calls.push(call);
+            }
+            walk(matching_calls, &call.calls, filter);
+        }
+    }
+
+    let mut matching_calls = vec![];
+    walk(&mut matching_calls, calls, &filter);
+    matching_calls
 }
 
 pub(crate) fn test_basic_behavior<VM: TestedVmWithCallTracer>() {
@@ -283,4 +308,92 @@ pub(crate) fn test_recursive_tx<VM: TestedVmWithCallTracer>() {
         call_to_contract = child_call;
     }
     assert_eq!(depth, 20);
+}
+
+pub(crate) fn test_evm_to_eravm_call<VM: TestedVmWithCallTracer>() {
+    let evm_address = Address::repeat_byte(1);
+    let eravm_address = Address::repeat_byte(2);
+    let counter_address_slot = StorageKey::new(AccountTreeId::new(evm_address), H256::zero());
+
+    let mut vm: VmTester<VM> = VmTesterBuilder::new()
+        .with_rich_accounts(1)
+        .with_custom_contracts(vec![ContractToDeploy::new(
+            TestContract::counter().bytecode.to_vec(),
+            eravm_address,
+        )])
+        .with_evm_contracts(vec![ContractToDeploy::new(
+            TestEvmContract::evm_tester().deployed_bytecode.to_vec(),
+            evm_address,
+        )])
+        .with_storage_slots([(counter_address_slot, address_to_h256(&eravm_address))])
+        .build();
+
+    let account = &mut vm.rich_accounts[0];
+    let test_fn = TestEvmContract::evm_tester().function("testCounterCall");
+    let test_execute = Execute {
+        contract_address: Some(evm_address),
+        calldata: test_fn.encode_input(&[Token::Uint(0.into())]).unwrap(),
+        value: 0.into(),
+        factory_deps: vec![],
+    };
+    let tx = account.get_l2_tx_for_execute(test_execute, None);
+    vm.vm.push_transaction(tx);
+
+    let (res, call_traces) = vm.vm.inspect_with_call_tracer();
+    assert!(!res.result.is_failed(), "{:#?}", res.result);
+
+    let calls_between_contracts = extract_all_calls(&call_traces, |call| {
+        call.from == evm_address && call.to == eravm_address
+    });
+    assert!(!calls_between_contracts.is_empty(), "{call_traces:#?}");
+
+    let increment_fn = TestContract::counter().function("incrementWithRevert");
+    let get_fn = TestContract::counter().function("get");
+    for call in calls_between_contracts {
+        assert!(call.gas_used > 0 && call.gas_used < 1_000_000, "{call:#?}"); // sanity check
+        assert!(call.error.is_none(), "{call:#?}");
+
+        let fn_signature = &call.input[..4];
+        if fn_signature == get_fn.short_signature() {
+            assert!(call.revert_reason.is_none());
+        } else if fn_signature == increment_fn.short_signature() {
+            assert_eq!(
+                call.revert_reason.as_ref().unwrap(),
+                "This method always reverts"
+            );
+        }
+    }
+}
+pub(crate) fn test_evm_deployment<VM: TestedVmWithCallTracer>() {
+    let evm_address = Address::repeat_byte(1);
+
+    let mut vm: VmTester<VM> = VmTesterBuilder::new()
+        .with_rich_accounts(1)
+        .with_evm_contracts(vec![ContractToDeploy::new(
+            TestEvmContract::evm_tester().deployed_bytecode.to_vec(),
+            evm_address,
+        )])
+        .build();
+
+    let account = &mut vm.rich_accounts[0];
+    let expected_address = deployed_address_evm_create(evm_address, 0.into());
+    let test_fn = TestEvmContract::evm_tester().function("testDeployment");
+    let test_execute = Execute {
+        contract_address: Some(evm_address),
+        calldata: test_fn
+            .encode_input(&[Token::Address(expected_address)])
+            .unwrap(),
+        value: 0.into(),
+        factory_deps: vec![],
+    };
+    let tx = account.get_l2_tx_for_execute(test_execute, None);
+    vm.vm.push_transaction(tx);
+
+    let (res, call_traces) = vm.vm.inspect_with_call_tracer();
+    assert!(!res.result.is_failed(), "{:#?}", res.result);
+
+    // Check that the create call is properly detected.
+    extract_single_call(&call_traces, |call| {
+        call.from == evm_address && call.to == expected_address && call.r#type == CallType::Create
+    });
 }

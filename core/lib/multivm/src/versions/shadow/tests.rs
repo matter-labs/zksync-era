@@ -247,6 +247,16 @@ mod call_tracer {
     fn recursive_tx() {
         test_recursive_tx::<super::ShadowedFastVm<_, _>>();
     }
+
+    #[test]
+    fn evm_to_eravm_call() {
+        test_evm_to_eravm_call::<super::ShadowedFastVm<_, _>>();
+    }
+
+    #[test]
+    fn evm_deployment() {
+        test_evm_deployment::<super::ShadowedFastVm<_, _>>();
+    }
 }
 
 mod circuits {
