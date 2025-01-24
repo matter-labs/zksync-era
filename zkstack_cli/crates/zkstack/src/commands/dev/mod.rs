@@ -77,6 +77,7 @@ pub async fn run(shell: &Shell, args: DevCommands) -> anyhow::Result<()> {
         DevCommands::GenerateGenesis => commands::genesis::run(shell).await?,
         #[cfg(feature = "gateway")]
         DevCommands::GatewayUpgradeCalldata(args) => commands::gateway::run(shell, args).await?,
+        #[cfg(feature = "gateway")]
         DevCommands::GatewayUpgradeFinalization(args) => {
             commands::gateway_finalize_preparation::run(shell, args).await?
         }
