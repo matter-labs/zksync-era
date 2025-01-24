@@ -254,8 +254,13 @@ mod call_tracer {
     }
 
     #[test]
-    fn evm_deployment() {
-        test_evm_deployment::<super::ShadowedFastVm<_, _>>();
+    fn evm_deployment_tx() {
+        test_evm_deployment_tx::<super::ShadowedFastVm<_, _>>();
+    }
+
+    #[test]
+    fn evm_deployment_from_contract() {
+        test_evm_deployment_from_contract::<super::ShadowedFastVm<_, _>>();
     }
 }
 

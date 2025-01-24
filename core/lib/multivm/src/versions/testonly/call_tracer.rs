@@ -364,7 +364,34 @@ pub(crate) fn test_evm_to_eravm_call<VM: TestedVmWithCallTracer>() {
         }
     }
 }
-pub(crate) fn test_evm_deployment<VM: TestedVmWithCallTracer>() {
+
+pub(crate) fn test_evm_deployment_tx<VM: TestedVmWithCallTracer>() {
+    let mut vm: VmTester<VM> = VmTesterBuilder::new()
+        .with_execution_mode(TxExecutionMode::VerifyExecute)
+        .with_rich_accounts(1)
+        .with_evm_emulator()
+        .build();
+
+    let account = &mut vm.rich_accounts[0];
+    let tx = account.get_evm_deploy_tx(
+        TestEvmContract::counter().init_bytecode.to_vec(),
+        &TestEvmContract::counter().abi,
+        &[Token::Uint(3.into())],
+    );
+    vm.vm.push_transaction(tx);
+
+    let (res, call_traces) = vm.vm.inspect_with_call_tracer();
+    assert!(!res.result.is_failed(), "{:#?}", res.result);
+
+    let expected_address = deployed_address_evm_create(account.address, 0.into());
+    extract_single_call(&call_traces, |call| {
+        call.from == account.address
+            && call.to == expected_address
+            && call.r#type == CallType::Create
+    });
+}
+
+pub(crate) fn test_evm_deployment_from_contract<VM: TestedVmWithCallTracer>() {
     let evm_address = Address::repeat_byte(1);
 
     let mut vm: VmTester<VM> = VmTesterBuilder::new()

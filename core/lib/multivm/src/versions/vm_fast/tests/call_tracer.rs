@@ -36,6 +36,11 @@ fn evm_to_eravm_call() {
 }
 
 #[test]
-fn evm_deployment() {
-    call_tracer::test_evm_deployment::<Vm<_, _, _>>();
+fn evm_deployment_tx() {
+    call_tracer::test_evm_deployment_tx::<Vm<_, _, _>>();
+}
+
+#[test]
+fn evm_deployment_from_contract() {
+    call_tracer::test_evm_deployment_from_contract::<Vm<_, _, _>>();
 }
