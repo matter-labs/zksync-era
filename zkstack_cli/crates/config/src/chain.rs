@@ -207,4 +207,3 @@ impl FileConfigWithDefaultName for ChainConfigInternal {
 }
 
 impl ZkStackConfig for ChainConfigInternal {}
-// us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/proof-fri-gpu-compressor-gar:2.0-0.26.0-62aea8b-1737712922953
