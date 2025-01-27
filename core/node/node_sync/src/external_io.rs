@@ -408,6 +408,7 @@ impl StateKeeperIO for ExternalIO {
         match action {
             SyncAction::Tx(tx) => {
                 self.actions.pop_action().unwrap();
+                //reset the flag because a l2 block is generated after receiving the tx
                 self.current_l2_block_params = None;
                 return Ok(Some(Transaction::from(*tx)));
             }
