@@ -1,12 +1,18 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
-use async_trait::async_trait;
+use tokio::sync::watch;
 use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
-use zksync_prover_interface::api::{SubmitProofRequest, SubmitProofResponse};
+use zksync_prover_interface::{
+    api::{
+        ProofGenerationData, SubmitProofGenerationDataResponse, SubmitProofRequest,
+        SubmitProofResponse,
+    },
+    outputs::L1BatchProofForL1,
+};
 use zksync_types::{prover_dal::ProofCompressionJobStatus, L1BatchNumber};
 
-use crate::{client::ProverApiClient, traits::PeriodicApi};
+use crate::metrics::METRICS;
 
 /// The path to the API endpoint that submits the proof.
 const SUBMIT_PROOF_PATH: &str = "/submit_proof";
@@ -14,24 +20,32 @@ const SUBMIT_PROOF_PATH: &str = "/submit_proof";
 /// Poller structure that will periodically check the database for new proofs to submit.
 /// Once a new proof is detected, it will be sent to the prover API.
 #[derive(Debug)]
-pub struct ProofSubmitter(ProverApiClient);
+pub struct PeriodicProofSubmitter {
+    client: reqwest::Client,
+    blob_store: Arc<dyn ObjectStore>,
+    pool: ConnectionPool<Prover>,
+    api_poll_duration: Duration,
+    api_url: String,
+}
 
-impl ProofSubmitter {
+impl PeriodicProofSubmitter {
     pub(crate) fn new(
         blob_store: Arc<dyn ObjectStore>,
         base_url: String,
+        api_poll_duration: Duration,
         pool: ConnectionPool<Prover>,
     ) -> Self {
-        let api_url = format!("{base_url}{SUBMIT_PROOF_PATH}");
-        let inner = ProverApiClient::new(blob_store, pool, api_url);
-        Self(inner)
+        Self {
+            client: reqwest::Client::new(),
+            blob_store,
+            pool,
+            api_poll_duration,
+            api_url: format!("{}/{}", base_url, SUBMIT_PROOF_PATH),
+        }
     }
-}
 
-impl ProofSubmitter {
     async fn next_submit_proof_request(&self) -> Option<(L1BatchNumber, SubmitProofRequest)> {
         let (l1_batch_number, protocol_version, status) = self
-            .0
             .pool
             .connection()
             .await
@@ -43,7 +57,6 @@ impl ProofSubmitter {
         let request = match status {
             ProofCompressionJobStatus::Successful => {
                 let proof = self
-                    .0
                     .blob_store
                     .get((l1_batch_number, protocol_version))
                     .await
@@ -61,8 +74,7 @@ impl ProofSubmitter {
     }
 
     async fn save_successful_sent_proof(&self, l1_batch_number: L1BatchNumber) {
-        self.0
-            .pool
+        self.pool
             .connection()
             .await
             .unwrap()
@@ -70,31 +82,65 @@ impl ProofSubmitter {
             .mark_proof_sent_to_server(l1_batch_number)
             .await;
     }
-}
 
-#[async_trait]
-impl PeriodicApi for ProofSubmitter {
-    type JobId = L1BatchNumber;
-    type Request = SubmitProofRequest;
-    type Response = SubmitProofResponse;
-    const SERVICE_NAME: &'static str = "ProofSubmitter";
-
-    async fn get_next_request(&self) -> Option<(Self::JobId, SubmitProofRequest)> {
+    async fn get_next_request(&self) -> Option<(L1BatchNumber, SubmitProofRequest)> {
         let (l1_batch_number, request) = self.next_submit_proof_request().await?;
         Some((l1_batch_number, request))
     }
 
     async fn send_request(
         &self,
-        job_id: Self::JobId,
+        l1_batch_number: L1BatchNumber,
         request: SubmitProofRequest,
-    ) -> reqwest::Result<Self::Response> {
-        let endpoint = format!("{}/{job_id}", self.0.api_url);
-        self.0.send_http_request(request, &endpoint).await
+    ) -> reqwest::Result<SubmitProofResponse> {
+        tracing::info!("Sending proof for batch {:?}", l1_batch_number);
+
+        self.client
+            .post(format!(
+                "{}/{}/{}",
+                self.api_url, SUBMIT_PROOF_PATH, l1_batch_number.0
+            ))
+            .json(&request)
+            .send()
+            .await?
+            .error_for_status()?
+            .json::<SubmitProofResponse>()
+            .await
     }
 
-    async fn handle_response(&self, job_id: L1BatchNumber, response: Self::Response) {
+    async fn handle_response(&self, l1_batch_number: L1BatchNumber, response: SubmitProofResponse) {
         tracing::info!("Received response: {:?}", response);
-        self.save_successful_sent_proof(job_id).await;
+        self.save_successful_sent_proof(l1_batch_number).await;
+    }
+
+    /// Runs `get_next_request` -> `send_request` -> `handle_response` in a loop.
+    pub async fn run(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        tracing::info!(
+            "Starting PeriodicProofSubmitter with frequency: {:?}",
+            self.api_poll_duration
+        );
+
+        loop {
+            if *stop_receiver.borrow() {
+                tracing::warn!("Stop signal received, shutting down PeriodicProofSubmitter");
+                return Ok(());
+            }
+
+            if let Some((l1_batch_number, request)) = self.get_next_request().await {
+                match self.send_request(l1_batch_number, request).await {
+                    Ok(response) => {
+                        self.handle_response(l1_batch_number, response).await;
+                    }
+                    Err(err) => {
+                        METRICS.http_error["ProofDataSubmitter"].inc();
+                        tracing::error!("HTTP request failed due to error: {}", err);
+                    }
+                }
+            }
+            // Exit condition will be checked on the next iteration.
+            tokio::time::timeout(self.api_poll_duration, stop_receiver.changed())
+                .await
+                .ok();
+        }
     }
 }

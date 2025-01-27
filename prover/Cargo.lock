@@ -8724,7 +8724,7 @@ name = "zksync_prover_fri_gateway"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "async-trait",
+ "axum",
  "clap 4.5.23",
  "ctrlc",
  "futures 0.3.31",

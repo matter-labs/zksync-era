@@ -59,6 +59,8 @@ impl TeeConfig {
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct ProofDataHandlerConfig {
     pub http_port: u16,
+    pub api_url: String,
+    pub api_poll_duration_in_secs: u16,
     pub proof_generation_timeout_in_secs: u16,
     #[serde(skip)]
     // ^ Filled in separately in `Self::from_env()`. We cannot use `serde(flatten)` because it
@@ -69,5 +71,9 @@ pub struct ProofDataHandlerConfig {
 impl ProofDataHandlerConfig {
     pub fn proof_generation_timeout(&self) -> Duration {
         Duration::from_secs(self.proof_generation_timeout_in_secs as u64)
+    }
+
+    pub fn api_poll_duration(&self) -> Duration {
+        Duration::from_secs(self.api_poll_duration_in_secs as u64)
     }
 }

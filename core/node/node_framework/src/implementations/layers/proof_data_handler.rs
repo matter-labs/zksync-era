@@ -4,7 +4,8 @@ use zksync_config::configs::ProofDataHandlerConfig;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStore;
 use zksync_proof_data_handler::{
-    ProofDataHandlerApi, ProofGenerationDataSubmitter, RequestProcessor,
+    ProofDataHandlerApi, ProofGenerationDataProcessor, ProofGenerationDataSubmitter,
+    RequestProcessor,
 };
 use zksync_types::{api::Proof, commitment::L1BatchCommitmentMode, L2ChainId};
 
@@ -69,18 +70,32 @@ impl WiringLayer for ProofDataHandlerLayer {
         let blob_store = input.object_store.0;
 
         let processor = RequestProcessor::new(
-            blob_store,
+            blob_store.clone(),
             main_pool,
             self.proof_data_handler_config.clone(),
             self.commitment_mode,
             self.l2_chain_id,
         );
 
-        let mut task =
-            ProofDataHandlerApi::new(self.proof_data_handler_config.http_port, processor);
+        let mut api = ProofDataHandlerApi::new(self.proof_data_handler_config.http_port, processor);
         if self.proof_data_handler_config.tee_config.tee_support {
-            task = task.with_tee_support();
+            api = api.with_tee_support();
         }
+
+        let proof_gen_data_processor = ProofGenerationDataProcessor::new(
+            main_pool.clone(),
+            blob_store.clone(),
+            self.proof_data_handler_config.clone(),
+            self.commitment_mode,
+        );
+
+        let data_submitter = ProofGenerationDataSubmitter::new(
+            proof_gen_data_processor,
+            self.proof_data_handler_config.api_poll_duration(),
+            self.proof_data_handler_config.api_url,
+        );
+
+        let task = ProofDataHandlerTask::new(api, data_submitter);
 
         Ok(Output { task })
     }

@@ -24,6 +24,8 @@ mod tests {
     fn expected_config() -> ProofDataHandlerConfig {
         ProofDataHandlerConfig {
             http_port: 3320,
+            api_url: "2342".to_string(),
+            api_poll_duration_in_secs: 123,
             proof_generation_timeout_in_secs: 18000,
             tee_config: TeeConfig {
                 tee_support: true,
@@ -38,6 +40,8 @@ mod tests {
     fn from_env() {
         let config = r#"
             PROOF_DATA_HANDLER_PROOF_GENERATION_TIMEOUT_IN_SECS="18000"
+            PROOF_DATA_HANDLER_API_POLL_DURATION_IN_SECS="123"
+            PROOF_DATA_HANDLER_API_URL="2342"
             PROOF_DATA_HANDLER_HTTP_PORT="3320"
             PROOF_DATA_HANDLER_TEE_SUPPORT="true"
             PROOF_DATA_HANDLER_FIRST_TEE_PROCESSED_BATCH="1337"

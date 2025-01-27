@@ -8,7 +8,7 @@ use crate::{
     metrics::METRICS, proof_data_submitter::proof_data_processor::ProofGenerationDataProcessor,
 };
 
-mod proof_data_processor;
+pub mod proof_data_processor;
 
 #[derive(Debug)]
 pub struct ProofGenerationDataSubmitter {
@@ -21,8 +21,13 @@ pub struct ProofGenerationDataSubmitter {
 const ENDPOINT: &str = "/proof_generation_data";
 
 impl ProofGenerationDataSubmitter {
-    pub fn new(processor: ProofGenerationDataProcessor, api_url: String) -> Self {
+    pub fn new(
+        processor: ProofGenerationDataProcessor,
+        poll_duration: Duration,
+        api_url: String,
+    ) -> Self {
         Self {
+            poll_duration,
             processor,
             api_url,
             client: reqwest::Client::new(),

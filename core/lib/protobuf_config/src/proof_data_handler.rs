@@ -15,6 +15,10 @@ impl ProtoRepr for proto::ProofDataHandler {
             proof_generation_timeout_in_secs: required(&self.proof_generation_timeout_in_secs)
                 .and_then(|x| Ok((*x).try_into()?))
                 .context("proof_generation_timeout_in_secs")?,
+            api_url: required(&self.api_url).context("api_url")?,
+            api_poll_duration: required(&self.api_poll_duration)
+                .and_then(|x| Ok((*x).try_into()?))
+                .context("api_poll_duration")?,
             tee_config: configs::TeeConfig {
                 tee_support: self
                     .tee_support
@@ -43,6 +47,8 @@ impl ProtoRepr for proto::ProofDataHandler {
         Self {
             http_port: Some(this.http_port.into()),
             proof_generation_timeout_in_secs: Some(this.proof_generation_timeout_in_secs.into()),
+            api_url: Some(this.api_url),
+            api_poll_duration: Some(this.api_poll_duration.into()),
             tee_support: Some(this.tee_config.tee_support),
             first_tee_processed_batch: Some(this.tee_config.first_tee_processed_batch.0 as u64),
             tee_proof_generation_timeout_in_secs: Some(
