@@ -725,15 +725,7 @@ impl StateKeeperIO for TestIO {
         cursor: &IoCursor,
         _max_wait: Duration,
     ) -> anyhow::Result<Option<L2BlockParams>> {
-        assert_eq!(cursor.next_l2_block, self.l2_block_number);
-        let params = L2BlockParams {
-            timestamp: self.timestamp,
-            // 1 is just a constant used for tests.
-            virtual_blocks: 1,
-        };
-        self.l2_block_number += 1;
-        self.timestamp += 1;
-        Ok(Some(params))
+        self.wait_for_new_l2_block_params(cursor, _max_wait).await
     }
 
     async fn wait_for_next_tx(

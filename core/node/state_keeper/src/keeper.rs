@@ -459,7 +459,7 @@ impl ZkSyncStateKeeper {
             l2_block = %updates.l2_block.number,
         )
     )]
-    async fn wait_for_closing_l2_block_params_when_closing_batch(
+    async fn wait_for_l2_block_params_when_closing_batch(
         &mut self,
         updates: &mut UpdatesManager,
         stop_receiver: &watch::Receiver<bool>,
@@ -471,7 +471,7 @@ impl ZkSyncStateKeeper {
                 .io
                 .wait_for_l2_block_params_when_closing_batch(&cursor, POLL_WAIT_DURATION)
                 .await
-                .context("error waiting for new L2 block params in wait_for_closing_l2_block_params_when_closing_batch")?
+                .context("error waiting for new L2 block params in wait_for_l2_block_params_when_closing_batch")?
             {
                 self.health_updater
                     .update(StateKeeperHealthDetails::from(&cursor).into());
@@ -655,12 +655,14 @@ impl ZkSyncStateKeeper {
                 // Push the current block if it has not been done yet
                 if is_last_block_sealed {
                     let new_l2_block_params = self
-                        .wait_for_closing_l2_block_params_when_closing_batch(
+                        .wait_for_l2_block_params_when_closing_batch(
                             updates_manager,
                             stop_receiver,
                         )
                         .await
-                        .map_err(|e| e.context("wait_for_new_l2_block_params"))?;
+                        .map_err(|e| {
+                            e.context("wait_for_l2_block_params_when_closing_batch")
+                        })?;
                     Self::start_next_l2_block(new_l2_block_params, updates_manager, batch_executor)
                         .await?;
                 }

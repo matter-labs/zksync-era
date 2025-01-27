@@ -295,22 +295,7 @@ impl StateKeeperIO for MempoolIO {
         cursor: &IoCursor,
         max_wait: Duration,
     ) -> anyhow::Result<Option<L2BlockParams>> {
-        // We must provide different timestamps for each L2 block.
-        // If L2 block sealing interval is greater than 1 second then `sleep_past` won't actually sleep.
-        let timeout_result = tokio::time::timeout(
-            max_wait,
-            sleep_past(cursor.prev_l2_block_timestamp, cursor.next_l2_block),
-        )
-        .await;
-        let Ok(timestamp) = timeout_result else {
-            return Ok(None);
-        };
-
-        Ok(Some(L2BlockParams {
-            timestamp,
-            // This value is effectively ignored by the protocol.
-            virtual_blocks: 1,
-        }))
+        self.wait_for_new_l2_block_params(cursor, max_wait).await
     }
 
     async fn wait_for_next_tx(

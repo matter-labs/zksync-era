@@ -40,7 +40,7 @@ pub struct ExternalIO {
     actions: ActionQueue,
     main_node_client: Box<dyn MainNodeClient>,
     chain_id: L2ChainId,
-    current_l2_block_params: Option<L2BlockParams>,
+    last_l2_block_params: Option<L2BlockParams>,
 }
 
 impl ExternalIO {
@@ -57,7 +57,7 @@ impl ExternalIO {
             actions,
             main_node_client,
             chain_id,
-            current_l2_block_params: None,
+            last_l2_block_params: None,
         })
     }
 
@@ -350,7 +350,7 @@ impl StateKeeperIO for ExternalIO {
                     "L2 block number mismatch: expected {}, got {number}",
                     cursor.next_l2_block
                 );
-                self.current_l2_block_params = Some(params);
+                self.last_l2_block_params = Some(params);
                 return Ok(Some(params));
             }
             other => {
@@ -367,8 +367,8 @@ impl StateKeeperIO for ExternalIO {
         max_wait: Duration,
     ) -> anyhow::Result<Option<L2BlockParams>> {
         // Check if there is already a l2 block params, then use it
-        if let Some(params) = self.current_l2_block_params {
-            self.current_l2_block_params = None;
+        if let Some(params) = self.last_l2_block_params {
+            self.last_l2_block_params = None;
             return Ok(Some(params));
         } else {
             // Alternatively, wait for the next L2 block to appear in the queue.
@@ -409,7 +409,7 @@ impl StateKeeperIO for ExternalIO {
             SyncAction::Tx(tx) => {
                 self.actions.pop_action().unwrap();
                 //reset the flag because a l2 block is generated after receiving the tx
-                self.current_l2_block_params = None;
+                self.last_l2_block_params = None;
                 return Ok(Some(Transaction::from(*tx)));
             }
             SyncAction::SealL2Block | SyncAction::SealBatch => {
