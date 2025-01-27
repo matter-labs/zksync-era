@@ -42,6 +42,11 @@ interface IGasTester {
 contract EvmEmulationTest is IGasTester {
     event SimpleEvent();
 
+    event ComplexEvent(
+        bytes32 indexed someHash,
+        string additionalData
+    );
+
     modifier validEvmCall() {
         require(address(this).code.length > 0, "contract code length");
         require(gasleft() < (1 << 30), "too much gas");
@@ -331,5 +336,30 @@ contract EvmEmulationTest is IGasTester {
         require(newAddress.codehash != bytes32(0), "code hash");
 
         require(!_shouldRevert, "requested revert");
+    }
+
+    function testEvents() external validEvmCall {
+        emit SimpleEvent();
+        string memory data = "Test";
+        emit ComplexEvent(keccak256(bytes(data)), data);
+    }
+
+    function testSha256(bytes calldata _input, bytes32 _expected) external validEvmCall {
+        require(sha256(_input) == _expected, "sha256");
+    }
+
+    function testEcrecover(
+        bytes32 _messageDigest,
+        uint8 _v,
+        bytes32 _r,
+        bytes32 _s,
+        address _expectedAddress
+    ) external validEvmCall {
+        address actualAddress = ecrecover(_messageDigest, _v, _r, _s);
+        if (_expectedAddress != address(0)) {
+            // Check success to simplify debugging
+            require(actualAddress != address(0), "ecrecover failed");
+        }
+        require(actualAddress == _expectedAddress, "ecrecover");
     }
 }

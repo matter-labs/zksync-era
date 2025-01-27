@@ -373,6 +373,16 @@ mod evm {
     fn far_calls_from_evm_contract() {
         test_far_calls_from_evm_contract::<super::ShadowedFastVm>();
     }
+
+    #[test]
+    fn calling_sha256_precompile() {
+        test_calling_sha256_precompile::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn calling_ecrecover_precompile() {
+        test_calling_ecrecover_precompile::<super::ShadowedFastVm>();
+    }
 }
 
 mod mock_evm {

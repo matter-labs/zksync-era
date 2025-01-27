@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use assert_matches::assert_matches;
+use circuit_sequencer_api::geometry_config::ProtocolGeometry;
 use ethabi::{ParamType, Token};
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
@@ -11,8 +12,8 @@ use zksync_types::{
     bytecode::{pad_evm_bytecode, BytecodeHash},
     get_code_key, get_known_code_key, get_nonce_key, h256_to_address, h256_to_u256, u256_to_h256,
     utils::{decompose_full_nonce, deployed_address_evm_create},
-    web3, AccountTreeId, Address, Execute, L2BlockNumber, ProtocolVersionId, StorageKey, H256,
-    U256,
+    web3, AccountTreeId, Address, Execute, K256PrivateKey, L2BlockNumber, ProtocolVersionId,
+    StorageKey, H256, U256,
 };
 use zksync_vm_interface::{InspectExecutionMode, VmEvent};
 
@@ -716,3 +717,123 @@ impl GasError {
         }
     }
 }
+
+pub(crate) fn test_emitted_events<VM: TestedVm>() {
+    let mut vm: VmTester<VM> = prepare_tester_with_real_emulator().0.build();
+    let tester = TestEvmContract::evm_tester();
+
+    let test_fn = tester.function("testEvents");
+    let test_tx = vm.rich_accounts[0].get_l2_tx_for_execute(
+        Execute {
+            contract_address: Some(EVM_ADDRESS),
+            calldata: test_fn.encode_input(&[]).unwrap(),
+            value: 0.into(),
+            factory_deps: vec![],
+        },
+        None,
+    );
+    let (_, vm_result) = vm
+        .vm
+        .execute_transaction_with_bytecode_compression(test_tx, true);
+    assert!(!vm_result.result.is_failed(), "{:?}", vm_result.result);
+
+    let events: Vec<_> = vm_result
+        .logs
+        .events
+        .iter()
+        .filter(|event| event.address == EVM_ADDRESS)
+        .collect();
+    assert_eq!(events.len(), 2, "{events:#?}");
+    assert_eq!(
+        events[0].indexed_topics,
+        [tester.abi.event("SimpleEvent").unwrap().signature()]
+    );
+    let complex_event = tester.abi.event("ComplexEvent").unwrap();
+    assert_eq!(
+        events[1].indexed_topics,
+        [
+            complex_event.signature(),
+            H256(web3::keccak256("Test".as_bytes()))
+        ]
+    );
+    let expected_value = ethabi::encode(&[Token::String("Test".into())]);
+    assert_eq!(events[1].value, expected_value);
+}
+
+pub(crate) fn test_calling_sha256_precompile<VM: TestedVm>() {
+    use zk_evm_1_5_0::sha2::{Digest, Sha256};
+
+    let mut vm: VmTester<VM> = prepare_tester_with_real_emulator().0.build();
+    let tester = TestEvmContract::evm_tester();
+
+    let test_fn = tester.function("testSha256");
+    let input = b"Test SHA-256 input";
+    let expected_output = Sha256::digest(input);
+    let test_tx = vm.rich_accounts[0].get_l2_tx_for_execute(
+        Execute {
+            contract_address: Some(EVM_ADDRESS),
+            calldata: test_fn
+                .encode_input(&[
+                    Token::Bytes(input.to_vec()),
+                    Token::FixedBytes(expected_output.to_vec()),
+                ])
+                .unwrap(),
+            value: 0.into(),
+            factory_deps: vec![],
+        },
+        None,
+    );
+    let (_, vm_result) = vm
+        .vm
+        .execute_transaction_with_bytecode_compression(test_tx, true);
+    assert!(!vm_result.result.is_failed(), "{:?}", vm_result.result);
+
+    let sha256_stats = vm_result.statistics.circuit_statistic.sha256;
+    let sha_count =
+        sha256_stats * ProtocolGeometry::V1_5_0.config().cycles_per_sha256_circuit as f32;
+    assert_eq!(sha_count.round(), 1.0);
+}
+
+pub(crate) fn test_calling_ecrecover_precompile<VM: TestedVm>() {
+    let mut vm: VmTester<VM> = prepare_tester_with_real_emulator().0.build();
+    let tester = TestEvmContract::evm_tester();
+
+    let sk = K256PrivateKey::from_bytes(H256::repeat_byte(1)).unwrap();
+    let message_digest = H256(web3::keccak256(b"Test message"));
+    let signature = sk.sign_web3_message(&message_digest);
+    assert!(signature.v <= 1, "{signature:?}");
+
+    let test_fn = tester.function("testEcrecover");
+    let calldata = test_fn
+        .encode_input(&[
+            Token::FixedBytes(message_digest.0.to_vec()),
+            Token::Uint((signature.v + 27).into()),
+            Token::FixedBytes(signature.r.0.to_vec()),
+            Token::FixedBytes(signature.s.0.to_vec()),
+            Token::Address(sk.address()),
+        ])
+        .unwrap();
+    let test_tx = vm.rich_accounts[0].get_l2_tx_for_execute(
+        Execute {
+            contract_address: Some(EVM_ADDRESS),
+            calldata,
+            value: 0.into(),
+            factory_deps: vec![],
+        },
+        None,
+    );
+    let (_, vm_result) = vm
+        .vm
+        .execute_transaction_with_bytecode_compression(test_tx, true);
+    assert!(!vm_result.result.is_failed(), "{:?}", vm_result.result);
+
+    let ecrecover_stats = vm_result.statistics.circuit_statistic.ecrecover;
+    let ecrecover_count = ecrecover_stats
+        * ProtocolGeometry::V1_5_0
+            .config()
+            .cycles_per_ecrecover_circuit as f32;
+    // There's another `ecrecover` call in the default AA tx validation logic
+    assert_eq!(ecrecover_count.round(), 2.0);
+}
+
+// FIXME: test create2 with the same salt
