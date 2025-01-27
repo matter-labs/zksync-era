@@ -55,9 +55,10 @@ impl RawEigenClient {
             .await
             .map_err(ConfigError::Tonic)?;
 
-        let rpc_url = cfg.eigenda_eth_rpc.clone().unwrap();
-        // TODO: remove unwrap
-        // .ok_or(anyhow::anyhow!("EigenDA ETH RPC not set"))?;
+        let rpc_url = cfg
+            .eigenda_eth_rpc
+            .clone()
+            .ok_or(EthClientError::Rpc("EigenDA ETH RPC not set".to_string()))?;
         let query_client: Client<L1> = Client::http(rpc_url)
             .map_err(|e| EthClientError::Rpc(e.to_string()))?
             .build();

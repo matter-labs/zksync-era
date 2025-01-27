@@ -5,7 +5,7 @@ use zksync_config::EigenConfig;
 use zksync_types::{
     url::SensitiveUrl,
     web3::{Bytes, CallRequest},
-    Address, H160, U256,
+    Address, H160, U256, U64,
 };
 use zksync_web3_decl::client::{Client, DynClient, L1};
 
@@ -40,6 +40,7 @@ impl VerifierClient for MockVerifierClient {
         &self,
         batch_id: u32,
         svc_manager_addr: Address,
+        _settlement_layer_confirmation_depth: Option<U64>,
     ) -> Result<Vec<u8>, VerificationError> {
         let mut data = vec![];
         let func_selector =

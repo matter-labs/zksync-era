@@ -7,7 +7,7 @@ use tempfile::NamedTempFile;
 use zksync_basic_types::web3::CallRequest;
 use zksync_config::EigenConfig;
 use zksync_eth_client::EthInterface;
-use zksync_types::{web3, Address, U256};
+use zksync_types::{web3, Address, U256, U64};
 use zksync_web3_decl::client::{DynClient, L1};
 
 use super::{
@@ -39,6 +39,7 @@ pub trait VerifierClient: Sync + Send + std::fmt::Debug {
         &self,
         batch_id: u32,
         svc_manager_addr: Address,
+        settlement_layer_confirmation_depth: Option<U64>,
     ) -> Result<Vec<u8>, VerificationError>;
 
     /// Request to the EigenDA service manager contract
@@ -63,6 +64,7 @@ impl VerifierClient for Box<DynClient<L1>> {
         &self,
         batch_id: u32,
         svc_manager_addr: Address,
+        settlement_layer_confirmation_depth: Option<U64>,
     ) -> Result<Vec<u8>, VerificationError> {
         let mut data = vec![];
         let func_selector =
@@ -77,9 +79,22 @@ impl VerifierClient for Box<DynClient<L1>> {
             ..Default::default()
         };
 
+        let block_id = match settlement_layer_confirmation_depth {
+            Some(depth) => {
+                let depth = depth.saturating_sub(U64::one());
+                let mut current_block = self
+                    .block_number()
+                    .await
+                    .map_err(ServiceManagerError::EnrichedClient)?;
+                current_block = current_block.saturating_sub(depth);
+                Some(current_block.into())
+            }
+            None => None,
+        };
+
         let res = self
             .as_ref()
-            .call_contract_function(call_request, None)
+            .call_contract_function(call_request, block_id)
             .await
             .map_err(ServiceManagerError::EnrichedClient)?;
 
@@ -223,15 +238,15 @@ impl Verifier {
         cfg: EigenConfig,
         client: Arc<dyn VerifierClient>,
     ) -> Result<Self, VerificationError> {
-        let srs_points_to_load = RawEigenClient::blob_size_limit() as u32 / Self::POINT_SIZE; // TODO: MAKE BLOB_SIZE_LIMIT part of Self?
+        let srs_points_to_load = RawEigenClient::blob_size_limit() as u32 / Self::POINT_SIZE;
         let (g1_point_file, g2_point_file) = Self::get_points(&cfg).await?;
         let g1_point_file_path = g1_point_file.path().to_string();
         let g2_point_file_path = g2_point_file.path().to_string();
         let kzg_handle = tokio::task::spawn_blocking(move || {
             Kzg::setup(
-                &g1_point_file_path, //&format!("{}/{}", path, Self::G1POINT),
+                &g1_point_file_path,
                 "",
-                &g2_point_file_path, //&format!("{}/{}", path, Self::G2POINT),
+                &g2_point_file_path,
                 Self::SRSORDER,
                 srs_points_to_load,
                 "".to_string(),
@@ -394,6 +409,7 @@ impl Verifier {
             .batch_id_to_batch_metadata_hash(
                 blob_info.blob_verification_proof.batch_id,
                 self.cfg.eigenda_svc_manager_address,
+                Some(U64::from(self.cfg.settlement_layer_confirmation_depth)),
             )
             .await
     }
