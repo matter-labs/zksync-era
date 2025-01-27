@@ -40,6 +40,7 @@ pub struct ExternalIO {
     actions: ActionQueue,
     main_node_client: Box<dyn MainNodeClient>,
     chain_id: L2ChainId,
+    current_l2_block_params: Option<L2BlockParams>,
 }
 
 impl ExternalIO {
@@ -56,6 +57,7 @@ impl ExternalIO {
             actions,
             main_node_client,
             chain_id,
+            current_l2_block_params: None,
         })
     }
 
@@ -348,12 +350,45 @@ impl StateKeeperIO for ExternalIO {
                     "L2 block number mismatch: expected {}, got {number}",
                     cursor.next_l2_block
                 );
+                self.current_l2_block_params = Some(params);
                 return Ok(Some(params));
             }
             other => {
                 anyhow::bail!(
                     "Unexpected action in the queue while waiting for the next L2 block: {other:?}"
                 );
+            }
+        }
+    }
+
+    async fn wait_for_l2_block_params_when_closing_batch(
+        &mut self,
+        cursor: &IoCursor,
+        max_wait: Duration,
+    ) -> anyhow::Result<Option<L2BlockParams>> {
+        // Check if there is already a l2 block params, then use it
+        if let Some(params) = self.current_l2_block_params {
+            self.current_l2_block_params = None;
+            return Ok(Some(params));
+        } else {
+            // Alternatively, wait for the next L2 block to appear in the queue.
+            let Some(action) = self.actions.recv_action(max_wait).await else {
+                return Ok(None);
+            };
+            match action {
+                SyncAction::L2Block { params, number } => {
+                    anyhow::ensure!(
+                        number == cursor.next_l2_block,
+                        "L2 block number mismatch: expected {}, got {number}",
+                        cursor.next_l2_block
+                    );
+                    return Ok(Some(params));
+                }
+                other => {
+                    anyhow::bail!(
+                    "Unexpected action in the queue while waiting for the next L2 block: {other:?}"
+                );
+                }
             }
         }
     }
@@ -373,6 +408,7 @@ impl StateKeeperIO for ExternalIO {
         match action {
             SyncAction::Tx(tx) => {
                 self.actions.pop_action().unwrap();
+                self.current_l2_block_params = None;
                 return Ok(Some(Transaction::from(*tx)));
             }
             SyncAction::SealL2Block | SyncAction::SealBatch => {

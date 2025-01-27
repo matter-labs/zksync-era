@@ -290,6 +290,29 @@ impl StateKeeperIO for MempoolIO {
         }))
     }
 
+    async fn wait_for_l2_block_params_when_closing_batch(
+        &mut self,
+        cursor: &IoCursor,
+        max_wait: Duration,
+    ) -> anyhow::Result<Option<L2BlockParams>> {
+        // We must provide different timestamps for each L2 block.
+        // If L2 block sealing interval is greater than 1 second then `sleep_past` won't actually sleep.
+        let timeout_result = tokio::time::timeout(
+            max_wait,
+            sleep_past(cursor.prev_l2_block_timestamp, cursor.next_l2_block),
+        )
+        .await;
+        let Ok(timestamp) = timeout_result else {
+            return Ok(None);
+        };
+
+        Ok(Some(L2BlockParams {
+            timestamp,
+            // This value is effectively ignored by the protocol.
+            virtual_blocks: 1,
+        }))
+    }
+
     async fn wait_for_next_tx(
         &mut self,
         max_wait: Duration,

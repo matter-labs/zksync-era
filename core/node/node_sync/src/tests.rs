@@ -222,7 +222,7 @@ async fn external_io_basics(snapshot_recovery: bool) {
     let tx = create_l2_transaction(10, 100);
     let tx_hash = tx.hash();
     let tx = FetchedTransaction::new(tx.into());
-    let actions = vec![open_l1_batch, tx.into(), SyncAction::SealL2Block];
+    let actions = vec![open_l1_batch, tx.into(), SyncAction::SealBatch];
 
     let (actions_sender, action_queue) = ActionQueue::new();
     let client = MockMainNodeClient::default();
@@ -299,7 +299,7 @@ async fn external_io_works_without_local_protocol_version(snapshot_recovery: boo
 
     let tx = create_l2_transaction(10, 100);
     let tx = FetchedTransaction::new(tx.into());
-    let actions = vec![open_l1_batch, tx.into(), SyncAction::SealL2Block];
+    let actions = vec![open_l1_batch, tx.into(), SyncAction::SealBatch];
 
     let (actions_sender, action_queue) = ActionQueue::new();
     let mut client = MockMainNodeClient::default();
@@ -407,7 +407,7 @@ pub(super) async fn run_state_keeper_with_multiple_l2_blocks(
     });
     let second_l2_block_actions: Vec<_> = iter::once(open_l2_block)
         .chain(more_txs)
-        .chain([SyncAction::SealL2Block])
+        .chain([SyncAction::SealBatch])
         .collect();
 
     let tx_hashes = extract_tx_hashes(
@@ -506,7 +506,7 @@ async fn test_external_io_recovery(
         },
         number: snapshot.l2_block_number + 3,
     };
-    let actions = vec![open_l2_block, new_tx.into(), SyncAction::SealL2Block];
+    let actions = vec![open_l2_block, new_tx.into(), SyncAction::SealBatch];
     actions_sender.push_actions(actions).await.unwrap();
     state_keeper
         .wait_for_local_block(snapshot.l2_block_number + 3)
@@ -587,7 +587,7 @@ pub(super) async fn run_state_keeper_with_multiple_l1_batches(
     let second_tx = create_l2_transaction(10, 100);
     let second_tx_hash = second_tx.hash();
     let second_tx = FetchedTransaction::new(second_tx.into());
-    let second_l1_batch_actions = vec![l1_batch, second_tx.into(), SyncAction::SealL2Block];
+    let second_l1_batch_actions = vec![l1_batch, second_tx.into(), SyncAction::SealBatch];
 
     let (actions_sender, action_queue) = ActionQueue::new();
     let state_keeper = StateKeeperHandles::new(
