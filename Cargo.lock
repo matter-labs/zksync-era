@@ -13226,6 +13226,7 @@ dependencies = [
  "zksync_storage",
  "zksync_types",
  "zksync_utils",
+ "zksync_vm_interface",
  "zksync_zkos_vm_runner",
 ]
 

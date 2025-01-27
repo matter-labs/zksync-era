@@ -7,8 +7,10 @@ use zksync_types::{
     block::{L1BatchHeader, L2BlockHeader},
     fee_model::{BatchFeeInput, L1PeggedBatchFeeModelInput, PubdataIndependentBatchFeeModelInput},
     snapshots::SnapshotStorageLog,
-    L1BatchNumber, L2BlockNumber, ProtocolVersionId, H256,
+    tx::IncludedTxLocation,
+    Address, L1BatchNumber, L2BlockNumber, ProtocolVersionId, H256,
 };
+use zksync_vm_interface::VmEvent;
 use zksync_zkos_vm_runner::zkos_conversions::bytes32_to_h256;
 
 pub async fn seal_in_db<'a>(
@@ -55,6 +57,40 @@ pub async fn seal_in_db<'a>(
         .await?;
 
     tracing::info!("inserted {} factory deps", factory_deps.len());
+
+    tracing::info!("inserting events");
+    let vm_events: Vec<VmEvent> = result
+        .tx_results
+        .clone()
+        .into_iter()
+        .map(|tx_result| tx_result.map(|a| a.logs).unwrap_or_default())
+        .flatten()
+        .map(|log| VmEvent {
+            location: (l1_batch_number, 0), // we have 1 tx per batch, it's index is 0
+            address: Address::from_slice(&log.address.to_be_bytes::<20>()),
+            indexed_topics: log
+                .topics
+                .into_iter()
+                .map(|topic| H256(topic.as_u8_array()))
+                .collect(),
+            value: log.data,
+        })
+        .collect();
+    let vm_events_ref: Vec<&VmEvent> = vm_events.iter().collect();
+    let events = [(
+        IncludedTxLocation {
+            tx_hash: executed_tx_hash.unwrap_or_default(),
+            tx_index_in_l2_block: 0, // we have 1 tx per block, it's index is 0
+            tx_initiator_address: Default::default(), // it seems it's never read from DB, probably makes sense to remove it
+        },
+        vm_events_ref,
+    )];
+    transaction
+        .events_dal()
+        .save_events(l2_block_number, &events)
+        .await?;
+
+    tracing::info!("inserted {} events", vm_events.len());
 
     transaction
         .blocks_dal()

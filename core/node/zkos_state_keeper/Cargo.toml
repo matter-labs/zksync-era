@@ -18,6 +18,7 @@ zksync_utils.workspace = true
 zksync_mempool.workspace = true
 zksync_types.workspace = true
 zksync_zkos_vm_runner.workspace = true
+zksync_vm_interface.workspace = true
 
 zk_os_forward_system.workspace = true
 zk_ee.workspace = true
