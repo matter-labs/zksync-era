@@ -287,7 +287,7 @@ impl RawEigenClient {
         let resp = self
             .client
             .clone()
-            .get_blob_status(polling_request.clone())
+            .get_blob_status(polling_request)
             .await?
             .into_inner();
 
