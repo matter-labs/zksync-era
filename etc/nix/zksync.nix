@@ -3,7 +3,7 @@
 }:
 craneLib.buildPackage (commonArgs // {
   pname = "zksync";
-  version = (builtins.fromTOML (builtins.readFile ../../core/bin/zksync_tee_prover/Cargo.toml)).package.version;
+  version = (builtins.fromTOML (builtins.readFile ../../core/Cargo.toml)).workspace.package.version;
   cargoExtraArgs = "--all";
 
   cargoArtifacts = craneLib.buildDepsOnly (commonArgs // {

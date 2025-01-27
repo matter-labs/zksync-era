@@ -18,6 +18,9 @@ pub trait InitializeStorage: fmt::Debug + Send + Sync + 'static {
 /// This trait assumes that for any invalid state there exists a batch number to which the storage can be rolled back.
 #[async_trait::async_trait]
 pub trait RevertStorage: fmt::Debug + Send + Sync + 'static {
+    /// Checks whether a reorg is needed for the storage.
+    async fn is_reorg_needed(&self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<bool>;
+
     /// Checks if the storage is invalid state and has to be rolled back.
     async fn last_correct_batch_for_reorg(
         &self,
