@@ -8,17 +8,14 @@ use tonic::{
     transport::{Channel, ClientTlsConfig, Endpoint},
     Streaming,
 };
-use url::Url;
 use zksync_config::EigenConfig;
-use zksync_da_client::types::DAError;
-use zksync_eth_client::clients::PKSigningClient;
-use zksync_types::{url::SensitiveUrl, K256PrivateKey, SLChainId};
 use zksync_web3_decl::client::{Client, DynClient, L1};
 
 use super::{
     blob_info::BlobInfo,
     disperser::BlobInfo as DisperserBlobInfo,
-    verifier::{Verifier, VerifierConfig},
+    errors::{ConfigError, EigenClientError, EthClientError, VerificationError},
+    verifier::Verifier,
     GetBlobData,
 };
 use crate::eigen::{
@@ -29,10 +26,9 @@ use crate::eigen::{
         disperser_client::DisperserClient,
         AuthenticatedReply, BlobAuthHeader,
     },
-    verifier::VerificationError,
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub(crate) struct RawEigenClient {
     client: DisperserClient<Channel>,
     private_key: SecretKey,
@@ -48,47 +44,31 @@ impl RawEigenClient {
 
     pub async fn new(
         private_key: SecretKey,
-        config: EigenConfig,
+        cfg: EigenConfig,
         get_blob_data: Arc<dyn GetBlobData>,
-    ) -> anyhow::Result<Self> {
-        let endpoint =
-            Endpoint::from_str(config.disperser_rpc.as_str())?.tls_config(ClientTlsConfig::new())?;
-        let client = DisperserClient::connect(endpoint).await?;
-
-        let verifier_config = VerifierConfig {
-            rpc_url: config
-                .eigenda_eth_rpc
-                .clone()
-                .ok_or(anyhow::anyhow!("EigenDA ETH RPC not set"))?,
-            svc_manager_addr: config.eigenda_svc_manager_address,
-            max_blob_size: Self::BLOB_SIZE_LIMIT as u32,
-            g1_url: Url::parse(&config.g1_url)?,
-            g2_url: Url::parse(&config.g2_url)?,
-            settlement_layer_confirmation_depth: config.settlement_layer_confirmation_depth,
-            private_key: hex::encode(private_key.secret_bytes()),
-            chain_id: config.chain_id,
-        };
-
-        let url = SensitiveUrl::from_str(&verifier_config.rpc_url)?;
-        let query_client: Client<L1> = Client::http(url)?.build();
-        let query_client = Box::new(query_client) as Box<DynClient<L1>>;
-        let signing_client = PKSigningClient::new_raw(
-            K256PrivateKey::from_bytes(zksync_types::H256::from_str(
-                &verifier_config.private_key,
-            )?)?,
-            verifier_config.svc_manager_addr,
-            Verifier::DEFAULT_PRIORITY_FEE_PER_GAS,
-            SLChainId(verifier_config.chain_id),
-            query_client,
-        );
-
-        let verifier = Verifier::new(verifier_config, Arc::new(signing_client))
+    ) -> Result<Self, EigenClientError> {
+        let endpoint = Endpoint::from_str(cfg.disperser_rpc.as_str())
+            .map_err(ConfigError::Tonic)?
+            .tls_config(ClientTlsConfig::new())
+            .map_err(ConfigError::Tonic)?;
+        let client = DisperserClient::connect(endpoint)
             .await
-            .context("Failed to create verifier")?;
+            .map_err(ConfigError::Tonic)?;
+
+        let rpc_url = cfg
+            .eigenda_eth_rpc
+            .clone()
+            .ok_or(EthClientError::Rpc("EigenDA ETH RPC not set".to_string()))?;
+        let query_client: Client<L1> = Client::http(rpc_url)
+            .map_err(|e| EthClientError::Rpc(e.to_string()))?
+            .build();
+        let query_client = Box::new(query_client) as Box<DynClient<L1>>;
+
+        let verifier = Verifier::new(cfg.clone(), Arc::new(query_client)).await?;
         Ok(RawEigenClient {
             client,
             private_key,
-            config,
+            config: cfg,
             verifier,
             get_blob_data,
         })
@@ -180,9 +160,7 @@ impl RawEigenClient {
         let blob_info = blob_info::BlobInfo::try_from(blob_info)
             .map_err(|e| anyhow::anyhow!("Failed to convert blob info: {}", e))?;
 
-        let Some(data) = self.get_blob_data(blob_info.clone()).await? else {
-            return Err(anyhow::anyhow!("Failed to get blob data"));
-        };
+        let data = self.get_blob_data(blob_info.clone()).await?;
         let data_db = self.get_blob_data.get_blob_data(request_id).await?;
         if let Some(data_db) = data_db {
             if data_db != data {
@@ -193,7 +171,7 @@ impl RawEigenClient {
         }
         self.verifier
             .verify_commitment(blob_info.blob_header.commitment.clone(), &data)
-            .map_err(|_| anyhow::anyhow!("Failed to verify commitment"))?;
+            .context("Failed to verify commitment")?;
 
         let result = self
             .verifier
@@ -310,15 +288,15 @@ impl RawEigenClient {
         let resp = self
             .client
             .clone()
-            .get_blob_status(polling_request.clone())
+            .get_blob_status(polling_request)
             .await?
             .into_inner();
 
         match disperser::BlobStatus::try_from(resp.status)? {
             disperser::BlobStatus::Processing | disperser::BlobStatus::Dispersing => Ok(None),
-            disperser::BlobStatus::Failed => Err(anyhow::anyhow!("Blob dispatch failed")),
+            disperser::BlobStatus::Failed => anyhow::bail!("Blob dispatch failed"),
             disperser::BlobStatus::InsufficientSignatures => {
-                Err(anyhow::anyhow!("Insufficient signatures"))
+                anyhow::bail!("Insufficient signatures")
             }
             disperser::BlobStatus::Confirmed => {
                 if !self.config.wait_for_finalization {
@@ -331,17 +309,12 @@ impl RawEigenClient {
                 let blob_info = resp.info.context("No blob header in response")?;
                 Ok(Some(blob_info))
             }
-
-            _ => Err(anyhow::anyhow!("Received unknown blob status")),
+            _ => anyhow::bail!("Received unknown blob status"),
         }
     }
 
-    pub async fn get_blob_data(
-        &self,
-        blob_info: BlobInfo,
-    ) -> anyhow::Result<Option<Vec<u8>>, DAError> {
+    pub async fn get_blob_data(&self, blob_info: BlobInfo) -> anyhow::Result<Vec<u8>> {
         use anyhow::anyhow;
-        use zksync_da_client::types::DAError;
 
         let blob_index = blob_info.blob_verification_proof.blob_index;
         let batch_header_hash = blob_info
@@ -355,22 +328,15 @@ impl RawEigenClient {
                 batch_header_hash,
                 blob_index,
             })
-            .await
-            .map_err(|e| DAError {
-                error: anyhow!(e),
-                is_retriable: true,
-            })?
+            .await?
             .into_inner();
 
         if get_response.data.is_empty() {
-            return Err(DAError {
-                error: anyhow!("Failed to get blob data"),
-                is_retriable: false,
-            });
+            return Err(anyhow!("Failed to get blob data"));
         }
 
         let data = remove_empty_byte_from_padded_bytes(&get_response.data);
-        Ok(Some(data))
+        Ok(data)
     }
 }
 
@@ -385,7 +351,7 @@ fn get_account_id(secret_key: &SecretKey) -> String {
 fn convert_by_padding_empty_byte(data: &[u8]) -> Vec<u8> {
     let parse_size = DATA_CHUNK_SIZE - 1;
 
-    let chunk_count = (data.len()).div_ceil(parse_size);
+    let chunk_count = data.len().div_ceil(parse_size);
     let mut valid_data = Vec::with_capacity(data.len() + chunk_count);
 
     for chunk in data.chunks(parse_size) {
@@ -399,8 +365,9 @@ fn convert_by_padding_empty_byte(data: &[u8]) -> Vec<u8> {
 fn remove_empty_byte_from_padded_bytes(data: &[u8]) -> Vec<u8> {
     let parse_size = DATA_CHUNK_SIZE;
 
-    let data_len = (data.len() + parse_size - 1) / parse_size;
-    let mut valid_data = Vec::with_capacity(data.len() - data_len);
+    let chunk_count = data.len().div_ceil(parse_size);
+    // Safe subtraction, as we know chunk_count is always less than the length of the data
+    let mut valid_data = Vec::with_capacity(data.len() - chunk_count);
 
     for chunk in data.chunks(parse_size) {
         valid_data.extend_from_slice(&chunk[1..]);

@@ -92,7 +92,7 @@ impl FromEnv for DataAvailabilitySecrets {
 mod tests {
     use std::str::FromStr;
 
-    use zksync_basic_types::H160;
+    use zksync_basic_types::url::SensitiveUrl;
     use zksync_config::{
         configs::{
             da_client::{
@@ -257,9 +257,9 @@ mod tests {
             DA_EIGENDA_SVC_MANAGER_ADDRESS="0x0000000000000000000000000000000000000123"
             DA_WAIT_FOR_FINALIZATION=true
             DA_AUTHENTICATED=false
+            DA_POINTS_DIR="resources/"
             DA_G1_URL="resources1"
             DA_G2_URL="resources2"
-            DA_CHAIN_ID=1
         "#;
         lock.set_env(config);
 
@@ -269,16 +269,15 @@ mod tests {
             DAClientConfig::Eigen(EigenConfig {
                 disperser_rpc: "http://localhost:8080".to_string(),
                 settlement_layer_confirmation_depth: 0,
-                eigenda_eth_rpc: Some("http://localhost:8545".to_string()),
-                eigenda_svc_manager_address: H160::from_str(
-                    "0x0000000000000000000000000000000000000123"
-                )
-                .unwrap(),
+                eigenda_eth_rpc: Some(SensitiveUrl::from_str("http://localhost:8545").unwrap()),
+                eigenda_svc_manager_address: "0x0000000000000000000000000000000000000123"
+                    .parse()
+                    .unwrap(),
                 wait_for_finalization: true,
                 authenticated: false,
+                points_dir: Some("resources/".to_string()),
                 g1_url: "resources1".to_string(),
                 g2_url: "resources2".to_string(),
-                chain_id: 1
             })
         );
     }

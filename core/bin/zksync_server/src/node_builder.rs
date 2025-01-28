@@ -550,7 +550,7 @@ impl MainNodeBuilder {
 
             (DAClientConfig::Eigen(mut config), DataAvailabilitySecrets::Eigen(secret)) => {
                 if config.eigenda_eth_rpc.is_none() {
-                    config.eigenda_eth_rpc = Some(l1_secrets.l1_rpc_url.expose_str().to_string());
+                    config.eigenda_eth_rpc = Some(l1_secrets.l1_rpc_url);
                 }
                 self.node.add_layer(EigenWiringLayer::new(config, secret));
             }

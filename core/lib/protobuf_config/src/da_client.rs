@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use anyhow::Context;
 use zksync_config::configs::{
     self,
@@ -9,6 +11,7 @@ use zksync_config::configs::{
     },
 };
 use zksync_protobuf::{required, ProtoRepr};
+use zksync_types::url::SensitiveUrl;
 
 use crate::{
     parse_h160,
@@ -66,16 +69,18 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                     &conf.settlement_layer_confirmation_depth,
                 )
                 .context("settlement_layer_confirmation_depth")?,
-                eigenda_eth_rpc: required(&conf.eigenda_eth_rpc).ok().cloned(),
+                eigenda_eth_rpc: Some(SensitiveUrl::from_str(
+                    required(&conf.eigenda_eth_rpc).context("eigenda_eth_rpc")?,
+                )?),
                 eigenda_svc_manager_address: required(&conf.eigenda_svc_manager_address)
                     .and_then(|x| parse_h160(x))
                     .context("eigenda_svc_manager_address")?,
                 wait_for_finalization: *required(&conf.wait_for_finalization)
                     .context("wait_for_finalization")?,
                 authenticated: *required(&conf.authenticated).context("authenticated")?,
+                points_dir: conf.points_dir.clone(),
                 g1_url: required(&conf.g1_url).context("g1_url")?.clone(),
                 g2_url: required(&conf.g2_url).context("g2_url")?.clone(),
-                chain_id: *required(&conf.chain_id).context("chain_id")?,
             }),
             proto::data_availability_client::Config::ObjectStore(conf) => {
                 ObjectStore(object_store_proto::ObjectStore::read(conf)?)
@@ -118,7 +123,10 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                 settlement_layer_confirmation_depth: Some(
                     config.settlement_layer_confirmation_depth,
                 ),
-                eigenda_eth_rpc: config.eigenda_eth_rpc.clone(),
+                eigenda_eth_rpc: config
+                    .eigenda_eth_rpc
+                    .as_ref()
+                    .map(|a| a.expose_str().to_string()),
                 eigenda_svc_manager_address: Some(format!(
                     "{:?}",
                     config.eigenda_svc_manager_address
@@ -127,7 +135,7 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                 authenticated: Some(config.authenticated),
                 g1_url: Some(config.g1_url.clone()),
                 g2_url: Some(config.g2_url.clone()),
-                chain_id: Some(config.chain_id),
+                points_dir: config.points_dir.as_ref().map(|a| a.to_string()),
             }),
             ObjectStore(config) => proto::data_availability_client::Config::ObjectStore(
                 object_store_proto::ObjectStore::build(config),

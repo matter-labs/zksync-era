@@ -90,19 +90,13 @@ mod tests {
     use backon::{ConstantBuilder, Retryable};
     use serial_test::file_serial;
     use zksync_config::{configs::da_client::eigen::EigenSecrets, EigenConfig};
-    use zksync_da_client::{
-        types::{DAError, DispatchResponse},
-        DataAvailabilityClient,
-    };
+    use zksync_da_client::{types::DispatchResponse, DataAvailabilityClient};
     use zksync_types::secrets::PrivateKey;
 
     use crate::eigen::{blob_info::BlobInfo, EigenClient, GetBlobData};
 
     impl EigenClient {
-        async fn get_blob_data(
-            &self,
-            blob_id: BlobInfo,
-        ) -> anyhow::Result<Option<Vec<u8>>, DAError> {
+        async fn get_blob_data(&self, blob_id: BlobInfo) -> anyhow::Result<Vec<u8>> {
             self.client.get_blob_data(blob_id).await
         }
 
@@ -111,8 +105,8 @@ mod tests {
         }
     }
 
-    const STATUS_QUERY_TIMEOUT: u64 = 1800000; // 30 minutes
-    const STATUS_QUERY_INTERVAL: u64 = 5; // 5 ms
+    const STATUS_QUERY_INTERVAL: Duration = Duration::from_millis(5);
+    const MAX_RETRY_ATTEMPTS: usize = 1800000; // With this value we retry for a duration of 30 minutes
 
     async fn get_blob_info(
         client: &EigenClient,
@@ -127,8 +121,8 @@ mod tests {
         })
         .retry(
             &ConstantBuilder::default()
-                .with_delay(Duration::from_millis(STATUS_QUERY_INTERVAL))
-                .with_max_times((STATUS_QUERY_TIMEOUT / STATUS_QUERY_INTERVAL) as usize),
+                .with_delay(STATUS_QUERY_INTERVAL)
+                .with_max_times(MAX_RETRY_ATTEMPTS),
         )
         .when(|e| e.to_string().contains("Blob not found"))
         .await?;
@@ -177,7 +171,7 @@ mod tests {
             .data;
         assert_eq!(expected_inclusion_data, actual_inclusion_data);
         let retrieved_data = client.get_blob_data(blob_info).await.unwrap();
-        assert_eq!(retrieved_data.unwrap(), data);
+        assert_eq!(retrieved_data, data);
     }
 
     #[ignore = "depends on external RPC"]
@@ -205,7 +199,7 @@ mod tests {
             .data;
         assert_eq!(expected_inclusion_data, actual_inclusion_data);
         let retrieved_data = client.get_blob_data(blob_info).await.unwrap();
-        assert_eq!(retrieved_data.unwrap(), data);
+        assert_eq!(retrieved_data, data);
     }
 
     #[ignore = "depends on external RPC"]
@@ -235,7 +229,7 @@ mod tests {
             .data;
         assert_eq!(expected_inclusion_data, actual_inclusion_data);
         let retrieved_data = client.get_blob_data(blob_info).await.unwrap();
-        assert_eq!(retrieved_data.unwrap(), data);
+        assert_eq!(retrieved_data, data);
     }
 
     #[ignore = "depends on external RPC"]
@@ -263,7 +257,7 @@ mod tests {
             .data;
         assert_eq!(expected_inclusion_data, actual_inclusion_data);
         let retrieved_data = client.get_blob_data(blob_info).await.unwrap();
-        assert_eq!(retrieved_data.unwrap(), data);
+        assert_eq!(retrieved_data, data);
     }
 
     #[ignore = "depends on external RPC"]
@@ -292,6 +286,6 @@ mod tests {
             .data;
         assert_eq!(expected_inclusion_data, actual_inclusion_data);
         let retrieved_data = client.get_blob_data(blob_info).await.unwrap();
-        assert_eq!(retrieved_data.unwrap(), data);
+        assert_eq!(retrieved_data, data);
     }
 }
