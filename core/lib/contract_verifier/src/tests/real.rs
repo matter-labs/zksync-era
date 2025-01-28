@@ -51,28 +51,23 @@ impl TestCompilerVersions {
         let vyper = VYPER_VERSION.strip_prefix("v").unwrap().to_owned();
         anyhow::ensure!(
             versions.solc.contains(SOLC_VERSION),
-            "Expected solc version {} to be installed, but it is not",
-            SOLC_VERSION
+            "Expected solc version {SOLC_VERSION} to be installed, but it is not"
         );
         anyhow::ensure!(
             versions.solc.contains(&eravm_solc),
-            "Expected era-vm solc version {} to be installed, but it is not",
-            ERA_VM_SOLC_VERSION
+            "Expected era-vm solc version {ERA_VM_SOLC_VERSION} to be installed, but it is not"
         );
         anyhow::ensure!(
             versions.zksolc.contains(ZKSOLC_VERSION),
-            "Expected zksolc version {} to be installed, but it is not",
-            ZKSOLC_VERSION
+            "Expected zksolc version {ZKSOLC_VERSION} to be installed, but it is not"
         );
         anyhow::ensure!(
             versions.vyper.contains(&vyper),
-            "Expected vyper version {} to be installed, but it is not",
-            VYPER_VERSION
+            "Expected vyper version {VYPER_VERSION} to be installed, but it is not"
         );
         anyhow::ensure!(
             versions.zkvyper.contains(ZKVYPER_VERSION),
-            "Expected zkvyper version {} to be installed, but it is not",
-            ZKVYPER_VERSION
+            "Expected zkvyper version {ZKVYPER_VERSION} to be installed, but it is not"
         );
 
         Ok(Self {
@@ -633,16 +628,13 @@ async fn using_zksolc_partial_match(use_cbor: bool) {
                 "Counter.sol": {
                     "content": COUNTER_CONTRACT,
                 },
-            },"settings": {
+            },
+            "settings": {
                 "outputSelection": {
-                "*": {
-                    "": [
-                    "abi"
-                    ],
-                    "*": [
-                    "abi"
-                    ]
-                }
+                    "*": {
+                        "": [ "abi" ],
+                        "*": [ "abi" ]
+                    }
                 },
                 "isSystem": false,
                 "forceEvmla": false,
@@ -650,7 +642,7 @@ async fn using_zksolc_partial_match(use_cbor: bool) {
                     "hashType": hash_type
                 },
                 "optimizer": {
-                "enabled": true
+                    "enabled": true
                 }
             }
         })

@@ -5,6 +5,7 @@ use serde::{
     de::{Deserializer, Error, MapAccess, Unexpected, Visitor},
     Deserialize, Serialize,
 };
+use zksync_basic_types::bytecode::BytecodeMarker;
 
 pub use crate::Execute as ExecuteData;
 use crate::{web3::Bytes, Address};
@@ -253,6 +254,15 @@ pub struct VerificationInfo {
 impl VerificationInfo {
     pub fn is_perfect_match(&self) -> bool {
         self.verification_problems.is_empty()
+    }
+
+    pub fn bytecode_marker(&self) -> BytecodeMarker {
+        // Deployed bytecode is only present for EVM contracts.
+        if self.artifacts.deployed_bytecode.is_some() {
+            BytecodeMarker::Evm
+        } else {
+            BytecodeMarker::EraVm
+        }
     }
 }
 

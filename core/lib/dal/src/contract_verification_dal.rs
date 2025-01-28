@@ -706,35 +706,18 @@ impl ContractVerificationDal<'_, '_> {
     /// Checks if migration from `contracts_verification_info` to `contract_verification_info_v2` is performed
     /// by checking if the latter has more or equal number of rows.
     pub async fn is_verification_info_migration_performed(&mut self) -> DalResult<bool> {
-        let count_v1 = sqlx::query!(
+        let row = sqlx::query!(
             r#"
             SELECT
-                COUNT(*)
-            FROM
-                contracts_verification_info
+                (SELECT COUNT(*) FROM contracts_verification_info) AS count_v1,
+                (SELECT COUNT(*) FROM contract_verification_info_v2) AS count_v2
             "#,
         )
-        .instrument("is_verification_info_migration_performed#count_v1")
+        .instrument("is_verification_info_migration_performed")
         .fetch_one(self.storage)
-        .await?
-        .count
-        .unwrap() as usize;
+        .await?;
 
-        let count_v2 = sqlx::query!(
-            r#"
-            SELECT
-                COUNT(*)
-            FROM
-                contract_verification_info_v2
-            "#,
-        )
-        .instrument("is_verification_info_migration_performed#count_v2")
-        .fetch_one(self.storage)
-        .await?
-        .count
-        .unwrap() as usize;
-
-        Ok(count_v2 >= count_v1)
+        Ok(row.count_v2 >= row.count_v1)
     }
 
     pub async fn perform_verification_info_migration(
@@ -799,14 +782,8 @@ impl ContractVerificationDal<'_, '_> {
                                 hex::encode(address)
                             );
                         });
-                    let bytecode_marker = if verification_info.artifacts.deployed_bytecode.is_some()
-                    {
-                        BytecodeMarker::Evm
-                    } else {
-                        BytecodeMarker::EraVm
-                    };
                     let identifier = ContractIdentifier::from_bytecode(
-                        bytecode_marker,
+                        verification_info.bytecode_marker(),
                         verification_info.artifacts.deployed_bytecode(),
                     );
 
