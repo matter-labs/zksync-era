@@ -63,7 +63,7 @@ pub async fn init_configs(
     let mut general_config = chain_config.get_general_config().await?.patched();
     let prover_data_handler_port = general_config
         .base()
-        .get_opt::<u16>("proof_data_handler.http_port")?;
+        .get_opt::<u16>("data_handler.http_port")?;
     if let Some(port) = prover_data_handler_port {
         general_config.insert("prover_gateway.api_url", format!("http://127.0.0.1:{port}"))?;
     }
