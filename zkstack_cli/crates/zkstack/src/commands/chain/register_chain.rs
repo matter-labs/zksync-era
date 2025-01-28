@@ -15,10 +15,7 @@ use zkstack_cli_config::{
 };
 
 use crate::{
-    messages::{
-        MSG_CHAIN_NOT_INITIALIZED, MSG_CHAIN_REGISTERED, MSG_L1_SECRETS_MUST_BE_PRESENTED,
-        MSG_REGISTERING_CHAIN_SPINNER,
-    },
+    messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_CHAIN_REGISTERED, MSG_REGISTERING_CHAIN_SPINNER},
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
 
@@ -28,13 +25,8 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         .load_current_chain()
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
     let mut contracts = chain_config.get_contracts_config()?;
-    let secrets = chain_config.get_secrets_config()?;
-    let l1_rpc_url = secrets
-        .l1
-        .context(MSG_L1_SECRETS_MUST_BE_PRESENTED)?
-        .l1_rpc_url
-        .expose_str()
-        .to_string();
+    let secrets = chain_config.get_secrets_config().await?;
+    let l1_rpc_url = secrets.get("l1.l1_rpc_url")?;
     let spinner = Spinner::new(MSG_REGISTERING_CHAIN_SPINNER);
     register_chain(
         shell,

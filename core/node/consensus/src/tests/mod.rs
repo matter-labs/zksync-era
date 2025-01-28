@@ -22,7 +22,10 @@ use crate::{
     testonly,
 };
 
-mod attestation;
+// NOTE: These tests are disabled since we are going to remove L1 batches. Most likely
+//       we will remove all the attester related code as well, but keeping this until
+//       we are sure.
+//mod attestation;
 
 const VERSIONS: [ProtocolVersionId; 2] = [ProtocolVersionId::latest(), ProtocolVersionId::next()];
 const FROM_SNAPSHOT: [bool; 2] = [true, false];

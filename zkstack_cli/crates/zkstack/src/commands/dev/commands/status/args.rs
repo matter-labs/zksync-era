@@ -4,9 +4,7 @@ use xshell::Shell;
 use zkstack_cli_config::EcosystemConfig;
 
 use crate::{
-    commands::dev::messages::{
-        MSG_API_CONFIG_NOT_FOUND_ERR, MSG_STATUS_PORTS_HELP, MSG_STATUS_URL_HELP,
-    },
+    commands::dev::messages::{MSG_STATUS_PORTS_HELP, MSG_STATUS_URL_HELP},
     messages::MSG_CHAIN_NOT_FOUND_ERR,
 };
 
@@ -25,7 +23,7 @@ pub struct StatusArgs {
 }
 
 impl StatusArgs {
-    pub fn get_url(&self, shell: &Shell) -> anyhow::Result<String> {
+    pub async fn get_url(&self, shell: &Shell) -> anyhow::Result<String> {
         if let Some(url) = &self.url {
             Ok(url.clone())
         } else {
@@ -33,13 +31,9 @@ impl StatusArgs {
             let chain = ecosystem
                 .load_current_chain()
                 .context(MSG_CHAIN_NOT_FOUND_ERR)?;
-            let general_config = chain.get_general_config()?;
-            let health_check_port = general_config
-                .api_config
-                .context(MSG_API_CONFIG_NOT_FOUND_ERR)?
-                .healthcheck
-                .port;
-            Ok(format!("http://localhost:{}/health", health_check_port))
+            let general_config = chain.get_general_config().await?;
+            let health_check_port = general_config.get::<u16>("api.healthcheck.port")?;
+            Ok(format!("http://localhost:{health_check_port}/health"))
         }
     }
 }

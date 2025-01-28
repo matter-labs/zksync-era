@@ -9,7 +9,8 @@ use crate::{
     },
     tracers::dynamic::vm_1_5_0::DynTracer,
     vm_latest::{
-        BootloaderState, HistoryMode, SimpleMemory, TracerPointer, VmTracer, ZkSyncVmState,
+        bootloader::BootloaderState, HistoryMode, SimpleMemory, TracerPointer, VmTracer,
+        ZkSyncVmState,
     },
 };
 

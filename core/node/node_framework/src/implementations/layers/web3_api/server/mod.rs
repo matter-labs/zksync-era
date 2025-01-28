@@ -5,7 +5,7 @@ use bridge_addresses::{L1UpdaterInner, MainNodeUpdaterInner};
 use tokio::{sync::oneshot, task::JoinHandle};
 use zksync_circuit_breaker::replication_lag::ReplicationLagChecker;
 use zksync_config::configs::api::MaxResponseSize;
-use zksync_contracts::bridgehub_contract;
+use zksync_contracts::{bridgehub_contract, l1_asset_router_contract};
 use zksync_node_api_server::web3::{
     state::{BridgeAddressesHandle, InternalApiConfig, SealedL2BlockNumber},
     ApiBuilder, ApiServer, Namespace,
@@ -209,25 +209,26 @@ impl WiringLayer for Web3ServerLayer {
 
         // In case it is an EN, the bridge addresses should be updated by fetching values from the main node.
         // It is the main node, the bridge addresses need to be updated by querying the L1.
-
-        let bridge_addresses_updater_task = if let Some(main_node_client) = input.main_node_client {
-            BridgeAddressesUpdaterTask::MainNodeUpdater(MainNodeUpdaterInner {
-                bridge_address_updater: bridge_addresses_handle.clone(),
-                main_node_client: main_node_client.0,
-                update_interval: self.optional_config.bridge_addresses_refresh_interval,
-            })
-        } else {
-            BridgeAddressesUpdaterTask::L1Updater(L1UpdaterInner {
-                bridge_address_updater: bridge_addresses_handle.clone(),
-                l1_eth_client: input.l1_eth_client.0,
-                bridgehub_addr: self
-                    .internal_api_config
-                    .l1_bridgehub_proxy_addr
-                    .context("Lacking l1 bridgehub proxy address")?,
-                update_interval: self.optional_config.bridge_addresses_refresh_interval,
-                bridgehub_abi: bridgehub_contract(),
-            })
-        };
+        let bridge_addresses_updater_task =
+            if let Some(main_node_client) = input.main_node_client.clone() {
+                BridgeAddressesUpdaterTask::MainNodeUpdater(MainNodeUpdaterInner {
+                    bridge_address_updater: bridge_addresses_handle.clone(),
+                    main_node_client: main_node_client.0,
+                    update_interval: self.optional_config.bridge_addresses_refresh_interval,
+                })
+            } else {
+                BridgeAddressesUpdaterTask::L1Updater(L1UpdaterInner {
+                    bridge_address_updater: bridge_addresses_handle.clone(),
+                    l1_eth_client: input.l1_eth_client.0,
+                    bridgehub_addr: self
+                        .internal_api_config
+                        .l1_bridgehub_proxy_addr
+                        .context("Lacking l1 bridgehub proxy address")?,
+                    update_interval: self.optional_config.bridge_addresses_refresh_interval,
+                    bridgehub_abi: bridgehub_contract(),
+                    l1_asset_router_abi: l1_asset_router_contract(),
+                })
+            };
 
         // Build server.
         let mut api_builder =
@@ -250,6 +251,9 @@ impl WiringLayer for Web3ServerLayer {
         }
         if let Some(sync_state) = sync_state {
             api_builder = api_builder.with_sync_state(sync_state);
+        }
+        if let Some(main_node_client) = input.main_node_client {
+            api_builder = api_builder.with_l2_l1_log_proof_handler(main_node_client.0)
         }
         let replication_lag_limit = self.optional_config.replication_lag_limit;
         api_builder = self.optional_config.apply(api_builder);
