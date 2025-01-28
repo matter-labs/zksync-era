@@ -182,10 +182,7 @@ impl NodeStorageInitializer {
     ) -> anyhow::Result<bool> {
         // May be `true` if stop signal is received, but the node will shut down without launching any tasks anyway.
         let initialized = if let Some(reverter) = &self.strategy.block_reverter {
-            reverter
-                .last_correct_batch_for_reorg(stop_receiver)
-                .await?
-                .is_none()
+            !reverter.is_reorg_needed(stop_receiver).await?
         } else {
             true
         };

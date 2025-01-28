@@ -7106,22 +7106,14 @@ _zkstack() {
             return 0
             ;;
         zkstack__prover__compressor__keys)
-            opts="-v -h --plonk-path --fflonk-path --compressor-type --verbose --chain --ignore-prerequisites --help"
+            opts="-v -h --path --verbose --chain --ignore-prerequisites --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
             fi
             case "${prev}" in
-                --plonk-path)
+                --path)
                     COMPREPLY=($(compgen -f "${cur}"))
-                    return 0
-                    ;;
-                --fflonk-path)
-                    COMPREPLY=($(compgen -f "${cur}"))
-                    return 0
-                    ;;
-                --compressor-type)
-                    COMPREPLY=($(compgen -W "fflonk plonk all" -- "${cur}"))
                     return 0
                     ;;
                 --chain)
@@ -7234,7 +7226,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__prover__init)
-            opts="-u -d -v -h --dev --proof-store-dir --bucket-base-url --credentials-file --bucket-name --location --project-id --shall-save-to-public-bucket --public-store-dir --public-bucket-base-url --public-credentials-file --public-bucket-name --public-location --public-project-id --clone --bellman-cuda-dir --bellman-cuda --setup-compressor-key --plonk-path --fflonk-path --compressor-type --region --mode --setup-keys --setup-database --prover-db-url --prover-db-name --use-default --dont-drop --cloud-type --verbose --chain --ignore-prerequisites --help"
+            opts="-u -d -v -h --dev --proof-store-dir --bucket-base-url --credentials-file --bucket-name --location --project-id --shall-save-to-public-bucket --public-store-dir --public-bucket-base-url --public-credentials-file --public-bucket-name --public-location --public-project-id --clone --bellman-cuda-dir --bellman-cuda --setup-compressor-key --path --region --mode --setup-keys --setup-database --prover-db-url --prover-db-name --use-default --dont-drop --cloud-type --verbose --chain --ignore-prerequisites --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -7304,16 +7296,8 @@ _zkstack() {
                     COMPREPLY=($(compgen -W "true false" -- "${cur}"))
                     return 0
                     ;;
-                --plonk-path)
+                --path)
                     COMPREPLY=($(compgen -f "${cur}"))
-                    return 0
-                    ;;
-                --fflonk-path)
-                    COMPREPLY=($(compgen -f "${cur}"))
-                    return 0
-                    ;;
-                --compressor-type)
-                    COMPREPLY=($(compgen -W "fflonk plonk all" -- "${cur}"))
                     return 0
                     ;;
                 --region)

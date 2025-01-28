@@ -13,7 +13,7 @@ use zksync_object_store::MockObjectStore;
 use zksync_types::{
     aggregated_operations::AggregatedActionType, block::L1BatchHeader,
     commitment::L1BatchCommitmentMode, eth_sender::EthTx, pubdata_da::PubdataSendingMode,
-    settlement::SettlementMode, Address, L1BatchNumber, ProtocolVersion, H256,
+    settlement::SettlementMode, Address, L1BatchNumber, ProtocolVersion, ProtocolVersionId, H256,
 };
 
 use crate::{
@@ -525,6 +525,7 @@ impl EthSenderTester {
                 &mut self.conn.connection().await.unwrap(),
                 &aggregated_operation,
                 Address::random(),
+                ProtocolVersionId::latest(),
                 self.is_l2,
             )
             .await

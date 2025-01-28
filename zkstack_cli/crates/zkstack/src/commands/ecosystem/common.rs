@@ -1,16 +1,16 @@
-use anyhow::Context;
 use xshell::Shell;
 use zkstack_cli_common::forge::{Forge, ForgeScriptArgs};
 use zkstack_cli_config::{
     forge_interface::{
         deploy_ecosystem::{
-            input::{DeployL1Config, InitialDeploymentConfig},
+            input::{DeployL1Config, GenesisInput, InitialDeploymentConfig},
             output::DeployL1Output,
         },
         script_params::DEPLOY_ECOSYSTEM_SCRIPT_PARAMS,
     },
-    traits::{ReadConfig, ReadConfigWithBasePath, SaveConfig},
-    ContractsConfig, EcosystemConfig, GenesisConfig,
+    raw::RawConfig,
+    traits::{ReadConfig, SaveConfig},
+    ContractsConfig, EcosystemConfig, GENESIS_FILE,
 };
 use zkstack_cli_types::{L1Network, ProverMode};
 
@@ -28,15 +28,14 @@ pub async fn deploy_l1(
     support_l2_legacy_shared_bridge_test: bool,
 ) -> anyhow::Result<ContractsConfig> {
     let deploy_config_path = DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.input(&config.link_to_code);
-    dbg!(config.get_default_configs_path());
-    let default_genesis_config =
-        GenesisConfig::read_with_base_path(shell, config.get_default_configs_path())
-            .context("failed reading genesis config")?;
+    let genesis_config_path = config.get_default_configs_path().join(GENESIS_FILE);
+    let default_genesis_config = RawConfig::read(shell, genesis_config_path).await?;
+    let default_genesis_input = GenesisInput::new(&default_genesis_config)?;
 
     let wallets_config = config.get_wallets()?;
     // For deploying ecosystem we only need genesis batch params
     let deploy_config = DeployL1Config::new(
-        &default_genesis_config,
+        &default_genesis_input,
         &wallets_config,
         initial_deployment_config,
         config.era_chain_id,
