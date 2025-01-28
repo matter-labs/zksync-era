@@ -708,6 +708,23 @@ impl StateKeeperIO for TestIO {
         &mut self,
         cursor: &IoCursor,
         _max_wait: Duration,
+    ) -> anyhow::Result<Option<(L2BlockParams, Option<Transaction>)>> {
+        if let Some(params) = self
+            .wait_for_empty_l2_block_params(cursor, _max_wait)
+            .await?
+        {
+            if let Ok(Some(tx)) = self.wait_for_next_tx(_max_wait, params.timestamp).await {
+                return Ok(Some((params, Some(tx))));
+            }
+            return Ok(Some((params, None)));
+        }
+        return Ok(None);
+    }
+
+    async fn wait_for_empty_l2_block_params(
+        &mut self,
+        cursor: &IoCursor,
+        _max_wait: Duration,
     ) -> anyhow::Result<Option<L2BlockParams>> {
         assert_eq!(cursor.next_l2_block, self.l2_block_number);
         let params = L2BlockParams {
@@ -718,14 +735,6 @@ impl StateKeeperIO for TestIO {
         self.l2_block_number += 1;
         self.timestamp += 1;
         Ok(Some(params))
-    }
-
-    async fn wait_for_l2_block_params_when_closing_batch(
-        &mut self,
-        cursor: &IoCursor,
-        _max_wait: Duration,
-    ) -> anyhow::Result<Option<L2BlockParams>> {
-        self.wait_for_new_l2_block_params(cursor, _max_wait).await
     }
 
     async fn wait_for_next_tx(

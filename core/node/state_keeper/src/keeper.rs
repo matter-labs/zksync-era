@@ -192,7 +192,7 @@ impl ZkSyncStateKeeper {
                 // We've sealed the L2 block that we had, but we still need to set up the timestamp
                 // for the fictive L2 block.
                 let new_l2_block_params = self
-                    .wait_for_new_l2_block_params(&updates_manager, &stop_receiver)
+                    .wait_for_empty_l2_block_params(&updates_manager, &stop_receiver)
                     .await?;
                 Self::start_next_l2_block(
                     new_l2_block_params,
@@ -379,23 +379,6 @@ impl ZkSyncStateKeeper {
         }
     }
 
-    #[tracing::instrument(skip_all)]
-    async fn wait_for_next_tx(
-        &mut self,
-        l2_block_timestamp: u64,
-    ) -> anyhow::Result<Option<Transaction>> {
-        let Some(tx) = self
-            .io
-            .wait_for_next_tx(POLL_WAIT_DURATION, l2_block_timestamp)
-            .instrument(info_span!("wait_for_next_tx"))
-            .await
-            .context("error waiting for next transaction")?
-        else {
-            return Ok(None);
-        };
-        Ok(Some(tx))
-    }
-
     #[tracing::instrument(
         skip_all,
         fields(
@@ -407,11 +390,11 @@ impl ZkSyncStateKeeper {
         &mut self,
         updates: &UpdatesManager,
         stop_receiver: &watch::Receiver<bool>,
-    ) -> Result<L2BlockParams, Error> {
+    ) -> Result<Option<(L2BlockParams, Transaction)>, Error> {
         let latency = KEEPER_METRICS.wait_for_l2_block_params.start();
         let cursor = updates.io_cursor();
         while !is_canceled(stop_receiver) {
-            if let Some(params) = self
+            if let Some((params, next_tx)) = self
                 .io
                 .wait_for_new_l2_block_params(&cursor, POLL_WAIT_DURATION)
                 .await
@@ -419,9 +402,12 @@ impl ZkSyncStateKeeper {
             {
                 self.health_updater
                     .update(StateKeeperHealthDetails::from(&cursor).into());
-
+                if let Some(tx) = next_tx {
+                    latency.observe();
+                    return Ok(Some((params, tx)));
+                }
                 latency.observe();
-                return Ok(params);
+                return Ok(None);
             }
         }
         Err(Error::Canceled)
@@ -434,34 +420,9 @@ impl ZkSyncStateKeeper {
             l2_block = %updates.l2_block.number,
         )
     )]
-    async fn wait_for_new_l2_block_params_and_first_tx(
+    async fn wait_for_empty_l2_block_params(
         &mut self,
-        updates: &mut UpdatesManager,
-        stop_receiver: &watch::Receiver<bool>,
-    ) -> Result<Option<(L2BlockParams, Transaction)>, Error> {
-        let new_l2_params = self
-            .wait_for_new_l2_block_params(updates, stop_receiver)
-            .await?;
-        if let Some(tx) = self
-            .wait_for_next_tx(new_l2_params.timestamp)
-            .await
-            .context("error waiting for the first transaction")?
-        {
-            return Ok(Some((new_l2_params, tx)));
-        }
-        return Ok(None);
-    }
-
-    #[tracing::instrument(
-        skip_all,
-        fields(
-            l1_batch = %updates.l1_batch.number,
-            l2_block = %updates.l2_block.number,
-        )
-    )]
-    async fn wait_for_l2_block_params_when_closing_batch(
-        &mut self,
-        updates: &mut UpdatesManager,
+        updates: &UpdatesManager,
         stop_receiver: &watch::Receiver<bool>,
     ) -> Result<L2BlockParams, Error> {
         let latency = KEEPER_METRICS.wait_for_l2_block_params.start();
@@ -469,9 +430,9 @@ impl ZkSyncStateKeeper {
         while !is_canceled(stop_receiver) {
             if let Some(params) = self
                 .io
-                .wait_for_l2_block_params_when_closing_batch(&cursor, POLL_WAIT_DURATION)
+                .wait_for_empty_l2_block_params(&cursor, POLL_WAIT_DURATION)
                 .await
-                .context("error waiting for new L2 block params in wait_for_l2_block_params_when_closing_batch")?
+                .context("error waiting for empty L2 block params")?
             {
                 self.health_updater
                     .update(StateKeeperHealthDetails::from(&cursor).into());
@@ -655,14 +616,9 @@ impl ZkSyncStateKeeper {
                 // Push the current block if it has not been done yet
                 if is_last_block_sealed {
                     let new_l2_block_params = self
-                        .wait_for_l2_block_params_when_closing_batch(
-                            updates_manager,
-                            stop_receiver,
-                        )
+                        .wait_for_empty_l2_block_params(updates_manager, stop_receiver)
                         .await
-                        .map_err(|e| {
-                            e.context("wait_for_l2_block_params_when_closing_batch")
-                        })?;
+                        .map_err(|e| e.context("wait_for_empty_l2_block_params"))?;
                     Self::start_next_l2_block(new_l2_block_params, updates_manager, batch_executor)
                         .await?;
                 }
@@ -683,9 +639,9 @@ impl ZkSyncStateKeeper {
             let next_tx;
             if is_last_block_sealed {
                 let Some((params, tx)) = self
-                    .wait_for_new_l2_block_params_and_first_tx(updates_manager, stop_receiver)
+                    .wait_for_new_l2_block_params(updates_manager, stop_receiver)
                     .await
-                    .context("error waiting for new l2 block params and next transaction")?
+                    .context("error waiting for new l2 block params")?
                 else {
                     waiting_latency.observe();
                     tracing::trace!("No new transactions. Waiting!");
@@ -703,7 +659,9 @@ impl ZkSyncStateKeeper {
                 next_tx = tx;
             } else {
                 let Some(tx) = self
-                    .wait_for_next_tx(updates_manager.l2_block.timestamp)
+                    .io
+                    .wait_for_next_tx(POLL_WAIT_DURATION, updates_manager.l2_block.timestamp)
+                    .instrument(info_span!("wait_for_next_tx"))
                     .await
                     .context("error waiting for next transaction")?
                 else {

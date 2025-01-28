@@ -1,4 +1,7 @@
-use std::{collections::HashMap, time::Duration};
+use std::{
+    collections::{HashMap, VecDeque},
+    time::Duration,
+};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
@@ -40,7 +43,7 @@ pub struct ExternalIO {
     actions: ActionQueue,
     main_node_client: Box<dyn MainNodeClient>,
     chain_id: L2ChainId,
-    last_l2_block_params: Option<L2BlockParams>,
+    pending_l2_block_actions: VecDeque<L2BlockParams>,
 }
 
 impl ExternalIO {
@@ -57,7 +60,7 @@ impl ExternalIO {
             actions,
             main_node_client,
             chain_id,
-            last_l2_block_params: None,
+            pending_l2_block_actions: VecDeque::new(),
         })
     }
 
@@ -338,37 +341,28 @@ impl StateKeeperIO for ExternalIO {
         &mut self,
         cursor: &IoCursor,
         max_wait: Duration,
-    ) -> anyhow::Result<Option<L2BlockParams>> {
-        // Wait for the next L2 block to appear in the queue.
-        let Some(action) = self.actions.recv_action(max_wait).await else {
-            return Ok(None);
-        };
-        match action {
-            SyncAction::L2Block { params, number } => {
-                anyhow::ensure!(
-                    number == cursor.next_l2_block,
-                    "L2 block number mismatch: expected {}, got {number}",
-                    cursor.next_l2_block
-                );
-                self.last_l2_block_params = Some(params);
-                return Ok(Some(params));
+    ) -> anyhow::Result<Option<(L2BlockParams, Option<Transaction>)>> {
+        if let Some(params) = self
+            .wait_for_empty_l2_block_params(cursor, max_wait)
+            .await?
+        {
+            if let Ok(Some(tx)) = self.wait_for_next_tx(max_wait, params.timestamp).await {
+                return Ok(Some((params, Some(tx))));
             }
-            other => {
-                anyhow::bail!(
-                    "Unexpected action in the queue while waiting for the next L2 block: {other:?}"
-                );
-            }
+            //if no tx, we save the block param for later
+            self.pending_l2_block_actions.push_back(params);
+            return Ok(Some((params, None)));
         }
+        return Ok(None);
     }
 
-    async fn wait_for_l2_block_params_when_closing_batch(
+    async fn wait_for_empty_l2_block_params(
         &mut self,
         cursor: &IoCursor,
         max_wait: Duration,
     ) -> anyhow::Result<Option<L2BlockParams>> {
-        // Check if there is already a l2 block params, then use it
-        if let Some(params) = self.last_l2_block_params {
-            self.last_l2_block_params = None;
+        // Check if there is a pending l2 block action while waiting for the next tx, if yes process it
+        if let Some(params) = self.pending_l2_block_actions.pop_front() {
             return Ok(Some(params));
         } else {
             // Alternatively, wait for the next L2 block to appear in the queue.
@@ -408,8 +402,6 @@ impl StateKeeperIO for ExternalIO {
         match action {
             SyncAction::Tx(tx) => {
                 self.actions.pop_action().unwrap();
-                //reset the flag because a l2 block is generated after receiving the tx
-                self.last_l2_block_params = None;
                 return Ok(Some(Transaction::from(*tx)));
             }
             SyncAction::SealL2Block | SyncAction::SealBatch => {
