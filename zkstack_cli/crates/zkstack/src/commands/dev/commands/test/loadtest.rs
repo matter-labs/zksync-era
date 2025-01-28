@@ -23,7 +23,8 @@ pub async fn run(shell: &Shell) -> anyhow::Result<()> {
         chain_config
             .get_genesis_config()
             .await?
-            .get::<u64>("l2_chain_id")?
+            .l2_chain_id()?
+            .as_u64()
             .to_string(),
     )
     .env(

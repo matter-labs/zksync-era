@@ -77,7 +77,7 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
     let genesis_config = chain_config.get_genesis_config().await?;
 
     let is_rollup = matches!(
-        genesis_config.get("l1_batch_commit_data_generator_mode")?,
+        genesis_config.l1_batch_commitment_mode()?,
         L1BatchCommitmentMode::Rollup
     );
 

@@ -1,5 +1,5 @@
 pub use crate::{
-    apps::*, chain::*, consts::*, contracts::*, ecosystem::*, file_config::*, gateway::*,
+    apps::*, chain::*, consts::*, contracts::*, ecosystem::*, en::*, file_config::*, gateway::*,
     general::*, genesis::*, manipulations::*, object_store::*, secrets::*, wallet_creation::*,
     wallets::*,
 };
@@ -11,6 +11,7 @@ mod contracts;
 pub mod da;
 pub mod docker_compose;
 mod ecosystem;
+mod en;
 pub mod explorer;
 pub mod explorer_compose;
 mod file_config;

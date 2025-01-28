@@ -4,10 +4,9 @@ use anyhow::Context;
 use xshell::Shell;
 use zkstack_cli_common::logger;
 use zkstack_cli_config::{
-    raw::PatchedConfig, ChainConfig, EcosystemConfig, GeneralConfig, SecretsConfigPatch,
+    ChainConfig, EcosystemConfig, ExternalNodeConfigPatch, GeneralConfig, SecretsConfigPatch,
     CONSENSUS_CONFIG_FILE, EN_CONFIG_FILE, GENERAL_FILE, SECRETS_FILE,
 };
-use zksync_basic_types::{L1ChainId, L2ChainId, SLChainId};
 use zksync_consensus_crypto::TextFmt;
 use zksync_consensus_roles as roles;
 
@@ -55,21 +54,17 @@ async fn prepare_configs(
     let gateway = config.get_gateway_chain_config().await.ok();
     let l2_rpc_url = general.l2_http_url()?;
 
-    let mut en_config = PatchedConfig::empty(shell, en_configs_path.join(EN_CONFIG_FILE));
-    en_config.insert(
-        "l2_chain_id",
-        genesis.get::<L2ChainId>("l2_chain_id")?.as_u64(),
+    let mut en_config = ExternalNodeConfigPatch::empty(shell, en_configs_path.join(EN_CONFIG_FILE));
+    en_config.set_chain_ids(
+        genesis.l1_chain_id()?,
+        genesis.l2_chain_id()?,
+        gateway
+            .as_ref()
+            .map(|gateway| gateway.get("gateway_chain_id"))
+            .transpose()?,
     )?;
-    en_config.insert("l1_chain_id", genesis.get::<L1ChainId>("l1_chain_id")?.0)?;
-    en_config.insert_yaml(
-        "l1_batch_commit_data_generator_mode",
-        genesis.get::<String>("l1_batch_commit_data_generator_mode")?,
-    )?;
-    en_config.insert("main_node_url", l2_rpc_url)?;
-    if let Some(gateway) = &gateway {
-        let gateway_chain_id: SLChainId = gateway.get("gateway_chain_id")?;
-        en_config.insert_yaml("gateway_chain_id", gateway_chain_id)?;
-    }
+    en_config.set_batch_commitment_mode(genesis.l1_batch_commitment_mode()?)?;
+    en_config.set_main_node_url(&l2_rpc_url)?;
     en_config.save().await?;
 
     // Copy and modify the general config

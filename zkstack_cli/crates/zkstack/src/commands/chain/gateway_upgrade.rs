@@ -139,8 +139,7 @@ async fn prepare_stage1(
         gateway_ecosystem_preparation_output,
     );
 
-    let commitment_mode =
-        genesis_config.get::<L1BatchCommitmentMode>("l1_batch_commit_data_generator_mode")?;
+    let commitment_mode = genesis_config.l1_batch_commitment_mode()?;
     let da_mode = match commitment_mode {
         L1BatchCommitmentMode::Rollup => DAMode::PermanentRollup,
         L1BatchCommitmentMode::Validium => DAMode::Validium,
@@ -270,8 +269,7 @@ async fn finalize_stage1(
     let gateway_ecosystem_preparation_output =
         GatewayEcosystemUpgradeOutput::read_with_base_path(shell, &ecosystem_config.config)?;
 
-    let commitment_mode =
-        genesis_config.get::<L1BatchCommitmentMode>("l1_batch_commit_data_generator_mode")?;
+    let commitment_mode = genesis_config.l1_batch_commitment_mode()?;
     let da_mode = match commitment_mode {
         L1BatchCommitmentMode::Rollup => DAMode::PermanentRollup,
         L1BatchCommitmentMode::Validium => DAMode::Validium,

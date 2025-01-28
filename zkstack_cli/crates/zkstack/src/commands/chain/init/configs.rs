@@ -2,8 +2,7 @@ use anyhow::Context;
 use xshell::Shell;
 use zkstack_cli_common::logger;
 use zkstack_cli_config::{
-    copy_configs, traits::SaveConfigWithBasePath, update_from_chain_config, ChainConfig,
-    ContractsConfig, EcosystemConfig,
+    copy_configs, traits::SaveConfigWithBasePath, ChainConfig, ContractsConfig, EcosystemConfig,
 };
 use zksync_basic_types::Address;
 
@@ -82,7 +81,7 @@ pub async fn init_configs(
 
     // Initialize genesis config
     let mut genesis_config = chain_config.get_genesis_config().await?.patched();
-    update_from_chain_config(&mut genesis_config, chain_config)?;
+    genesis_config.update_from_chain_config(chain_config)?;
     genesis_config.save().await?;
 
     // Initialize contracts config

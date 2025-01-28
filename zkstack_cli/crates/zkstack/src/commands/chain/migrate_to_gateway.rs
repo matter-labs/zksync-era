@@ -203,7 +203,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     let chain_contracts_config = chain_config.get_contracts_config().unwrap();
 
     let is_rollup = matches!(
-        genesis_config.get("l1_batch_commit_data_generator_mode")?,
+        genesis_config.l1_batch_commitment_mode()?,
         L1BatchCommitmentMode::Rollup
     );
 

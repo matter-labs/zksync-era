@@ -200,7 +200,7 @@ impl Setup {
             .get_genesis_config()
             .await
             .context("get_genesis_config()")?
-            .get("l2_chain_id")?;
+            .l2_chain_id()?;
 
         let general = chain
             .get_general_config()
