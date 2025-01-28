@@ -1,5 +1,3 @@
-#![allow(dead_code)] // FIXME
-
 use std::path::PathBuf;
 
 use ethers::utils::hex;

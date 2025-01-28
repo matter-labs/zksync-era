@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use xshell::Shell;
-use zksync_basic_types::{commitment::L1BatchCommitmentMode, L1ChainId, L2ChainId};
+use zksync_basic_types::{commitment::L1BatchCommitmentMode, L1ChainId, L2ChainId, H256};
 
 use crate::{
     raw::{PatchedConfig, RawConfig},
@@ -26,6 +26,10 @@ impl GenesisConfig {
 
     pub fn l1_batch_commitment_mode(&self) -> anyhow::Result<L1BatchCommitmentMode> {
         self.0.get("l1_batch_commit_data_generator_mode")
+    }
+
+    pub fn evm_emulator_hash(&self) -> anyhow::Result<Option<H256>> {
+        self.0.get_opt("evm_emulator_hash")
     }
 
     pub fn patched(self) -> GenesisConfigPatch {

@@ -1,5 +1,5 @@
 use anyhow::Context as _;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use zkstack_cli_config::{
     ChainConfig, ConsensusGenesisSpecs, GeneralConfigPatch, RawConsensusKeys, SecretsConfigPatch,
     Weighted,
@@ -32,13 +32,6 @@ fn get_consensus_public_keys(consensus_keys: &ConsensusSecretKeys) -> ConsensusP
         validator_key: consensus_keys.validator_key.public(),
         attester_key: consensus_keys.attester_key.public(),
     }
-}
-
-/// Mirrors key–address pair used in the consensus config.
-#[derive(Debug, Serialize)]
-pub(crate) struct KeyAndAddress {
-    pub key: String,
-    pub addr: String,
 }
 
 pub(crate) fn read_attester_committee_yaml(

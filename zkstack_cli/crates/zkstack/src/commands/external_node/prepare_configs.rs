@@ -5,7 +5,8 @@ use xshell::Shell;
 use zkstack_cli_common::logger;
 use zkstack_cli_config::{
     ChainConfig, EcosystemConfig, ExternalNodeConfigPatch, GatewayChainConfig, GeneralConfig,
-    SecretsConfigPatch, CONSENSUS_CONFIG_FILE, EN_CONFIG_FILE, GENERAL_FILE, SECRETS_FILE,
+    KeyAndAddress, SecretsConfigPatch, CONSENSUS_CONFIG_FILE, EN_CONFIG_FILE, GENERAL_FILE,
+    SECRETS_FILE,
 };
 use zksync_consensus_crypto::TextFmt;
 use zksync_consensus_roles as roles;
@@ -16,7 +17,7 @@ use crate::{
         msg_preparing_en_config_is_done, MSG_CHAIN_NOT_INITIALIZED, MSG_PREPARING_EN_CONFIGS,
     },
     utils::{
-        consensus::{node_public_key, KeyAndAddress},
+        consensus::node_public_key,
         ports::EcosystemPortsScanner,
         rocks_db::{recreate_rocksdb_dirs, RocksDBDirOption},
     },
@@ -83,11 +84,11 @@ async fn prepare_configs(
             .await?
             .raw_consensus_node_key()?,
     )?;
-    let gossip_static_outbound = [KeyAndAddress {
+    let gossip_static_outbound = vec![KeyAndAddress {
         key: main_node_public_key,
         addr: main_node_public_addr,
     }];
-    en_consensus_config.insert_yaml("gossip_static_outbound", gossip_static_outbound)?;
+    en_consensus_config.set_static_outbound_peers(gossip_static_outbound)?;
     en_consensus_config.save().await?;
 
     // Set secrets config

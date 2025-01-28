@@ -1,11 +1,12 @@
 use std::path::{Path, PathBuf};
 
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use xshell::Shell;
 use zkstack_cli_common::yaml::merge_yaml;
-use zksync_basic_types::{pubdata_da::PubdataSendingMode, settlement::SettlementMode, L2ChainId};
+use zksync_basic_types::{pubdata_da::PubdataSendingMode, settlement::SettlementMode};
 
 use crate::{
+    consensus::{ConsensusConfigPatch, ConsensusGenesisSpecs},
     da::AvailConfig,
     raw::{PatchedConfig, RawConfig},
     ChainConfig, ObjectStoreConfig, ObjectStoreMode,
@@ -41,27 +42,6 @@ impl FileArtifacts {
 pub struct EthSenderLimits {
     pub max_aggregated_tx_gas: u64,
     pub max_eth_tx_data_size: u64,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Weighted {
-    pub key: String,
-    pub weight: u64,
-}
-
-impl Weighted {
-    pub fn new(key: String, weight: u64) -> Self {
-        Self { key, weight }
-    }
-}
-
-/// Less strictly typed version of the consensus genesis specification config.
-#[derive(Debug)]
-pub struct ConsensusGenesisSpecs {
-    pub chain_id: L2ChainId,
-    pub validators: Vec<Weighted>,
-    pub attesters: Vec<Weighted>,
-    pub leader: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -187,17 +167,16 @@ impl GeneralConfigPatch {
         Ok(())
     }
 
-    // FIXME: make output more strongly typed
     pub fn extract_consensus(
         &mut self,
         shell: &Shell,
         path: PathBuf,
-    ) -> anyhow::Result<PatchedConfig> {
+    ) -> anyhow::Result<ConsensusConfigPatch> {
         let raw_consensus: serde_yaml::Mapping = self.0.base().get("consensus")?;
         self.0.remove("consensus");
         let mut new_config = PatchedConfig::empty(shell, path);
         new_config.extend(raw_consensus);
-        Ok(new_config)
+        Ok(ConsensusConfigPatch(new_config))
     }
 
     pub fn set_consensus_specs(&mut self, specs: ConsensusGenesisSpecs) -> anyhow::Result<()> {
