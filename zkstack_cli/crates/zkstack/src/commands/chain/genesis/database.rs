@@ -8,8 +8,7 @@ use zkstack_cli_common::{
     logger,
 };
 use zkstack_cli_config::{
-    override_config, set_file_artifacts, set_rocks_db_config, set_server_database, ChainConfig,
-    EcosystemConfig, FileArtifacts,
+    override_config, set_server_database, ChainConfig, EcosystemConfig, FileArtifacts,
 };
 use zkstack_cli_types::ProverMode;
 use zksync_basic_types::commitment::L1BatchCommitmentMode;
@@ -95,8 +94,8 @@ pub async fn update_configs(
     let rocks_db = recreate_rocksdb_dirs(shell, &config.rocks_db_path, RocksDBDirOption::Main)
         .context(MSG_RECREATE_ROCKS_DB_ERRROR)?;
     let file_artifacts = FileArtifacts::new(config.artifacts.clone());
-    set_rocks_db_config(&mut general, rocks_db)?;
-    set_file_artifacts(&mut general, file_artifacts)?;
+    general.set_rocks_db_config(rocks_db)?;
+    general.set_file_artifacts(file_artifacts)?;
     general.save().await?;
 
     let link_to_code = config.link_to_code.clone();

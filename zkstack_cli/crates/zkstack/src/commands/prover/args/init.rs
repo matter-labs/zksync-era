@@ -93,12 +93,20 @@ enum ProofStoreConfig {
     GCS,
 }
 
-#[derive(Debug, Clone, ValueEnum, EnumIter, strum::Display, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, ValueEnum, EnumIter, strum::Display, PartialEq, Eq)]
 #[allow(clippy::upper_case_acronyms)]
 pub(crate) enum InternalCloudConnectionMode {
     GCP,
-    #[serde(rename = "LOCAL")] // match name in file-based configs
     Local,
+}
+
+impl From<InternalCloudConnectionMode> for zkstack_cli_config::CloudConnectionMode {
+    fn from(mode: InternalCloudConnectionMode) -> Self {
+        match mode {
+            InternalCloudConnectionMode::GCP => Self::GCP,
+            InternalCloudConnectionMode::Local => Self::Local,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Parser, Default)]

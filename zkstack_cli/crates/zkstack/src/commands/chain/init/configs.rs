@@ -60,23 +60,22 @@ pub async fn init_configs(
         )?;
     }
 
-    let mut general_config = chain_config.get_general_config().await?.patched();
-    let prover_data_handler_port = general_config
-        .base()
-        .get_opt::<u16>("proof_data_handler.http_port")?;
-    if let Some(port) = prover_data_handler_port {
-        general_config.insert("prover_gateway.api_url", format!("http://127.0.0.1:{port}"))?;
-    }
+    let general_config = chain_config.get_general_config().await?;
+    let prover_data_handler_url = general_config.proof_data_handler_url()?;
 
     let consensus_keys = generate_consensus_keys();
+    let mut general_config = general_config.patched();
+    if let Some(url) = prover_data_handler_url {
+        general_config.set_prover_gateway_url(url)?;
+    }
     set_genesis_specs(&mut general_config, chain_config, &consensus_keys)?;
 
     match &init_args.validium_config {
         None | Some(ValidiumType::NoDA) => {
-            general_config.remove("da_client");
+            general_config.remove_da_client();
         }
         Some(ValidiumType::Avail((avail_config, _))) => {
-            general_config.insert_yaml("da_client.avail", avail_config)?;
+            general_config.set_avail_client(avail_config)?;
         }
     }
     general_config.save().await?;

@@ -5,8 +5,7 @@ use ethers::types::Address;
 use xshell::Shell;
 use zkstack_cli_common::{config::global_config, docker, ethereum, logger};
 use zkstack_cli_config::{
-    get_l2_http_url, portal::*, traits::SaveConfig, AppsEcosystemConfig, ChainConfig,
-    EcosystemConfig,
+    portal::*, traits::SaveConfig, AppsEcosystemConfig, ChainConfig, EcosystemConfig,
 };
 use zkstack_cli_types::{BaseToken, TokenInfo};
 
@@ -23,7 +22,7 @@ async fn build_portal_chain_config(
     chain_config: &ChainConfig,
 ) -> anyhow::Result<PortalChainConfig> {
     // Get L2 RPC URL from general config
-    let l2_rpc_url = get_l2_http_url(&chain_config.get_general_config().await?)?;
+    let l2_rpc_url = chain_config.get_general_config().await?.l2_http_url()?;
     // Get L1 RPC URL from secrets config
     let secrets_config = chain_config.get_secrets_config().await?;
     let l1_rpc_url = secrets_config.get::<String>("l1.l1_rpc_url")?;

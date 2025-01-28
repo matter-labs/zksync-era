@@ -154,7 +154,7 @@ async fn prepare_stage1(
         &GatewayUpgradeArgsInner {
             chain_id: chain_config.chain_id.as_u64(),
             l1_rpc_url: l1_url,
-            l2_rpc_url: general_config.get("api.web3_json_rpc.http_url")?,
+            l2_rpc_url: general_config.l2_http_url()?,
             validator_addr1: chain_config.get_wallets_config()?.operator.address,
             validator_addr2: chain_config.get_wallets_config()?.blob_operator.address,
             da_mode,
@@ -263,7 +263,7 @@ async fn finalize_stage1(
     println!("Checking chain readiness...");
     check_chain_readiness(
         l1_url.clone(),
-        general_config.get("api.web3_json_rpc.http_url")?,
+        general_config.l2_http_url()?,
         chain_config.chain_id.as_u64(),
     )
     .await?;
@@ -287,7 +287,7 @@ async fn finalize_stage1(
     let args = GatewayUpgradeArgsInner {
         chain_id: chain_config.chain_id.as_u64(),
         l1_rpc_url: l1_url.clone(),
-        l2_rpc_url: general_config.get("api.web3_json_rpc.http_url")?,
+        l2_rpc_url: general_config.l2_http_url()?,
         validator_addr1: chain_config.get_wallets_config()?.operator.address,
         validator_addr2: chain_config.get_wallets_config()?.blob_operator.address,
         da_mode,

@@ -1,6 +1,8 @@
 use anyhow::Context as _;
 use serde::{Deserialize, Serialize};
-use zkstack_cli_config::{raw::PatchedConfig, ChainConfig};
+use zkstack_cli_config::{
+    raw::PatchedConfig, ChainConfig, ConsensusGenesisSpecs, GeneralConfigPatch, Weighted,
+};
 use zksync_consensus_crypto::{Text, TextFmt};
 use zksync_consensus_roles::{attester, node, validator};
 
@@ -38,18 +40,6 @@ pub(crate) struct KeyAndAddress {
     pub addr: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-struct Weighted {
-    key: String,
-    weight: u64,
-}
-
-impl Weighted {
-    fn new(key: String, weight: u64) -> Self {
-        Self { key, weight }
-    }
-}
-
 pub(crate) fn read_attester_committee_yaml(
     raw_yaml: serde_yaml::Value,
 ) -> anyhow::Result<attester::Committee> {
@@ -76,30 +66,19 @@ pub(crate) fn read_attester_committee_yaml(
 }
 
 pub fn set_genesis_specs(
-    general: &mut PatchedConfig,
+    general: &mut GeneralConfigPatch,
     chain_config: &ChainConfig,
     consensus_keys: &ConsensusSecretKeys,
 ) -> anyhow::Result<()> {
     let public_keys = get_consensus_public_keys(consensus_keys);
     let validator_key = public_keys.validator_key.encode();
     let attester_key = public_keys.attester_key.encode();
-    let leader = validator_key.clone();
-
-    general.insert(
-        "consensus.genesis_spec.chain_id",
-        chain_config.chain_id.as_u64(),
-    )?;
-    general.insert("consensus.genesis_spec.protocol_version", 1_u64)?;
-    general.insert_yaml(
-        "consensus.genesis_spec.validators",
-        [Weighted::new(validator_key, 1)],
-    )?;
-    general.insert_yaml(
-        "consensus.genesis_spec.attesters",
-        [Weighted::new(attester_key, 1)],
-    )?;
-    general.insert("consensus.genesis_spec.leader", leader)?;
-    Ok(())
+    general.set_consensus_specs(ConsensusGenesisSpecs {
+        chain_id: chain_config.chain_id,
+        validators: vec![Weighted::new(validator_key.clone(), 1)],
+        attesters: vec![Weighted::new(attester_key, 1)],
+        leader: validator_key,
+    })
 }
 
 pub(crate) fn set_consensus_secrets(

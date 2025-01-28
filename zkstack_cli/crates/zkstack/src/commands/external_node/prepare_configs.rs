@@ -4,9 +4,8 @@ use anyhow::Context;
 use xshell::Shell;
 use zkstack_cli_common::logger;
 use zkstack_cli_config::{
-    raw::{PatchedConfig, RawConfig},
-    set_rocks_db_config, ChainConfig, EcosystemConfig, CONSENSUS_CONFIG_FILE, EN_CONFIG_FILE,
-    GENERAL_FILE, SECRETS_FILE,
+    raw::PatchedConfig, ChainConfig, EcosystemConfig, GeneralConfig, CONSENSUS_CONFIG_FILE,
+    EN_CONFIG_FILE, GENERAL_FILE, SECRETS_FILE,
 };
 use zksync_basic_types::{L1ChainId, L2ChainId, SLChainId};
 use zksync_consensus_crypto::TextFmt;
@@ -54,7 +53,7 @@ async fn prepare_configs(
     let genesis = config.get_genesis_config().await?;
     let general = config.get_general_config().await?;
     let gateway = config.get_gateway_chain_config().await.ok();
-    let l2_rpc_port = general.get::<u16>("api.web3_json_rpc.http_port")?;
+    let l2_rpc_url = general.l2_http_url()?;
 
     let mut en_config = PatchedConfig::empty(shell, en_configs_path.join(EN_CONFIG_FILE));
     en_config.insert(
@@ -66,7 +65,7 @@ async fn prepare_configs(
         "l1_batch_commit_data_generator_mode",
         genesis.get::<String>("l1_batch_commit_data_generator_mode")?,
     )?;
-    en_config.insert("main_node_url", format!("http://127.0.0.1:{l2_rpc_port}"))?;
+    en_config.insert("main_node_url", l2_rpc_url)?;
     if let Some(gateway) = &gateway {
         let gateway_chain_id: SLChainId = gateway.get("gateway_chain_id")?;
         en_config.insert_yaml("gateway_chain_id", gateway_chain_id)?;
@@ -76,17 +75,13 @@ async fn prepare_configs(
     // Copy and modify the general config
     let general_config_path = en_configs_path.join(GENERAL_FILE);
     shell.copy_file(config.path_to_general_config(), &general_config_path)?;
-    let mut general_en = RawConfig::read(shell, general_config_path.clone())
-        .await?
-        .patched();
-    let main_node_public_addr: String = general_en.base().get("consensus.public_addr")?;
-    let raw_consensus = general_en.base().get("consensus")?;
-    general_en.remove("consensus");
+    let general_en = GeneralConfig::read(shell, general_config_path.clone()).await?;
+    let main_node_public_addr = general_en.consensus_public_addr()?;
+    let mut general_en = general_en.patched();
 
-    // Copy and modify the consensus config
+    // Extract and modify the consensus config
     let mut en_consensus_config =
-        PatchedConfig::empty(shell, en_configs_path.join(CONSENSUS_CONFIG_FILE));
-    en_consensus_config.extend(raw_consensus);
+        general_en.extract_consensus(shell, en_configs_path.join(CONSENSUS_CONFIG_FILE))?;
     let main_node_public_key = node_public_key(
         &config
             .get_secrets_config()
@@ -112,7 +107,7 @@ async fn prepare_configs(
     secrets.save().await?;
 
     let dirs = recreate_rocksdb_dirs(shell, &config.rocks_db_path, RocksDBDirOption::ExternalNode)?;
-    set_rocks_db_config(&mut general_en, dirs)?;
+    general_en.set_rocks_db_config(dirs)?;
     general_en.save().await?;
 
     let offset = 0; // This is zero because general_en ports already have a chain offset

@@ -21,12 +21,13 @@ use zkstack_cli_config::{
         gateway_preparation::{input::GatewayPreparationConfig, output::GatewayPreparationOutput},
         script_params::GATEWAY_PREPARATION,
     },
-    get_l2_http_url,
     traits::{ReadConfig, SaveConfig},
-    EcosystemConfig,
+    EcosystemConfig, EthSenderLimits,
 };
 use zkstack_cli_types::L1BatchCommitmentMode;
-use zksync_basic_types::{settlement::SettlementMode, Address, L2ChainId, H256, U256, U64};
+use zksync_basic_types::{
+    pubdata_da::PubdataSendingMode, settlement::SettlementMode, Address, L2ChainId, H256, U256, U64,
+};
 use zksync_web3_decl::client::{Client, L2};
 
 use crate::{
@@ -122,7 +123,7 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
     .await?;
 
     let general_config = gateway_chain_config.get_general_config().await?;
-    let l2_rpc_url = get_l2_http_url(&general_config)?;
+    let l2_rpc_url = general_config.l2_http_url()?;
     let gateway_provider = Provider::<Http>::try_from(&l2_rpc_url)?;
 
     let client: Client<L2> = Client::http(l2_rpc_url.parse().context("invalid L2 RPC URL")?)?
@@ -168,21 +169,18 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
     gateway_chain_chain_config.save().await?;
 
     let mut general_config = chain_config.get_general_config().await?.patched();
-    general_config.insert_yaml(
-        "eth.gas_adjuster.settlement_mode",
-        SettlementMode::SettlesToL1,
-    )?;
+    general_config.set_settlement_mode(SettlementMode::SettlesToL1)?;
     if is_rollup {
-        // `PubdataSendingMode` has differing `serde` and file-based config serializations, hence
-        // we supply a raw string value.
-        general_config.insert("eth.sender.pubdata_sending_mode", "BLOBS")?;
+        general_config.set_pubdata_sending_mode(PubdataSendingMode::Blobs)?;
     }
-    general_config.insert("eth.sender.wait_confirmations", 0)?;
+    general_config.set_eth_sender_confirmations(0)?;
 
     // Undoing what was changed during migration to gateway.
     // TODO(EVM-925): maybe remove this logic.
-    general_config.insert("eth.sender.max_aggregated_tx_gas", 15000000)?;
-    general_config.insert("eth.sender.max_eth_tx_data_size", 120_000)?;
+    general_config.set_eth_sender_limits(EthSenderLimits {
+        max_aggregated_tx_gas: 15_000_000,
+        max_eth_tx_data_size: 120_000,
+    })?;
     general_config.save().await?;
     Ok(())
 }

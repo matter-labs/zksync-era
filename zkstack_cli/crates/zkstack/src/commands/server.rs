@@ -91,12 +91,9 @@ async fn run_server(
 async fn wait_for_server(args: WaitArgs, chain_config: &ChainConfig) -> anyhow::Result<()> {
     let verbose = global_config().verbose;
 
-    let health_check_port = chain_config
-        .get_general_config()
-        .await?
-        .get("api.healthcheck.port")?;
+    let health_check_url = chain_config.get_general_config().await?.healthcheck_url()?;
     logger::info(MSG_WAITING_FOR_SERVER);
-    args.poll_health_check(health_check_port, verbose).await?;
-    logger::info(msg_waiting_for_server_success(health_check_port));
+    args.poll_health_check(&health_check_url, verbose).await?;
+    logger::info(msg_waiting_for_server_success(&health_check_url));
     Ok(())
 }

@@ -10,8 +10,8 @@ use zkstack_cli_common::{
     spinner::Spinner,
 };
 use zkstack_cli_config::{
-    copy_configs, get_link_to_prover, raw::PatchedConfig, set_prover_database, EcosystemConfig,
-    ObjectStoreConfig, ObjectStoreMode,
+    copy_configs, get_link_to_prover, set_prover_database, EcosystemConfig, ObjectStoreConfig,
+    ObjectStoreMode,
 };
 
 use super::{
@@ -62,22 +62,14 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
         setup_keys::run(args, shell).await?;
     }
 
-    set_object_store(
-        &mut general_config,
-        "prover.prover_object_store",
-        &proof_object_store_config,
-    )?;
+    general_config.set_prover_object_store(&proof_object_store_config)?;
     if let Some(public_object_store_config) = public_object_store_config {
-        general_config.insert("prover.shall_save_to_public_bucket", true)?;
-        set_object_store(
-            &mut general_config,
-            "prover.public_object_store",
-            &public_object_store_config,
-        )?;
+        general_config.set_save_proofs_to_public_bucket(true)?;
+        general_config.set_public_prover_object_store(&public_object_store_config)?;
     } else {
-        general_config.insert("prover.shall_save_to_public_bucket", false)?;
+        general_config.set_save_proofs_to_public_bucket(false)?;
     }
-    general_config.insert_yaml("prover.cloud_type", args.cloud_type)?;
+    general_config.set_prover_cloud_type(args.cloud_type.into())?;
     general_config.save().await?;
 
     if let Some(args) = args.bellman_cuda_config {
@@ -129,38 +121,6 @@ fn get_object_store_config(
     };
 
     Ok(object_store)
-}
-
-fn set_object_store(
-    patch: &mut PatchedConfig,
-    prefix: &str,
-    config: &ObjectStoreConfig,
-) -> anyhow::Result<()> {
-    patch.insert(&format!("{prefix}.max_retries"), config.max_retries)?;
-    match &config.mode {
-        ObjectStoreMode::FileBacked {
-            file_backed_base_path,
-        } => {
-            patch.insert_yaml(
-                &format!("{prefix}.file_backed.file_backed_base_path"),
-                file_backed_base_path,
-            )?;
-        }
-        ObjectStoreMode::GCSWithCredentialFile {
-            bucket_base_url,
-            gcs_credential_file_path,
-        } => {
-            patch.insert(
-                &format!("{prefix}.gcs_with_credential_file.bucket_base_url"),
-                bucket_base_url.clone(),
-            )?;
-            patch.insert(
-                &format!("{prefix}.gcs_with_credential_file.gcs_credential_file_path"),
-                gcs_credential_file_path.clone(),
-            )?;
-        }
-    }
-    Ok(())
 }
 
 async fn initialize_prover_database(

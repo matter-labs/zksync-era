@@ -6,7 +6,6 @@ use zkstack_cli_common::{config::global_config, db, logger, Prompt};
 use zkstack_cli_config::{
     explorer::{ExplorerChainConfig, ExplorerConfig},
     explorer_compose::{ExplorerBackendComposeConfig, ExplorerBackendConfig, ExplorerBackendPorts},
-    get_l2_http_url,
     traits::SaveConfig,
     ChainConfig, EcosystemConfig,
 };
@@ -42,7 +41,7 @@ pub(crate) async fn run(shell: &Shell) -> anyhow::Result<()> {
         // Initialize explorer database
         initialize_explorer_database(&backend_config.database_url).await?;
         // Create explorer backend docker compose file
-        let l2_rpc_url = get_l2_http_url(&chain_config.get_general_config().await?)?;
+        let l2_rpc_url = chain_config.get_general_config().await?.l2_http_url()?;
         let l2_rpc_url = l2_rpc_url.parse().context("invalid L2 RPC URL")?;
         let backend_compose_config =
             ExplorerBackendComposeConfig::new(chain_name, l2_rpc_url, &backend_config)?;
@@ -108,12 +107,8 @@ async fn build_explorer_chain_config(
     backend_config: &ExplorerBackendConfig,
 ) -> anyhow::Result<ExplorerChainConfig> {
     let general_config = chain_config.get_general_config().await?;
-    // Get L2 RPC URL from general config
-    let l2_rpc_url = get_l2_http_url(&general_config)?;
-    // Get Verification API URL from general config
-    let verification_api_port = general_config.get::<u16>("contract_verifier.port")?;
-    let verification_api_url = format!("http://127.0.0.1:{verification_api_port}");
-    // Build API URL
+    let l2_rpc_url = general_config.l2_http_url()?;
+    let verification_api_url = general_config.contract_verifier_url()?;
     let api_port = backend_config.ports.api_http_port;
     let api_url = format!("http://127.0.0.1:{api_port}");
 

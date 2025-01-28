@@ -1,7 +1,7 @@
 use anyhow::Context;
 use xshell::{cmd, Shell};
 use zkstack_cli_common::{cmd::Cmd, config::global_config, logger};
-use zkstack_cli_config::{get_l2_http_url, get_l2_ws_url, EcosystemConfig};
+use zkstack_cli_config::EcosystemConfig;
 
 use crate::commands::dev::messages::MSG_CHAIN_NOT_FOUND_ERR;
 
@@ -37,8 +37,8 @@ pub async fn run(shell: &Shell) -> anyhow::Result<()> {
                 .address
         ),
     )
-    .env("L2_RPC_ADDRESS", get_l2_http_url(&general_config)?)
-    .env("L2_WS_RPC_ADDRESS", get_l2_ws_url(&general_config)?);
+    .env("L2_RPC_ADDRESS", general_config.l2_http_url()?)
+    .env("L2_WS_RPC_ADDRESS", general_config.l2_ws_url()?);
 
     if global_config().verbose {
         command = command.env("RUST_LOG", "loadnext=info")

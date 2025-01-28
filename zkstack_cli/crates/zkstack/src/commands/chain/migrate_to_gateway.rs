@@ -20,13 +20,15 @@ use zkstack_cli_config::{
         gateway_preparation::{input::GatewayPreparationConfig, output::GatewayPreparationOutput},
         script_params::GATEWAY_PREPARATION,
     },
-    get_l2_http_url, init_gateway_chain_config,
+    init_gateway_chain_config,
     raw::PatchedConfig,
     traits::{ReadConfig, SaveConfig},
-    EcosystemConfig,
+    EcosystemConfig, EthSenderLimits,
 };
 use zkstack_cli_types::L1BatchCommitmentMode;
-use zksync_basic_types::{settlement::SettlementMode, Address, H256, U256, U64};
+use zksync_basic_types::{
+    pubdata_da::PubdataSendingMode, settlement::SettlementMode, Address, H256, U256, U64,
+};
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 
 use crate::{
@@ -173,7 +175,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     .governance_l2_tx_hash;
 
     let general_config = gateway_chain_config.get_general_config().await?;
-    let l2_rpc_url = get_l2_http_url(&general_config)?;
+    let l2_rpc_url = general_config.l2_http_url()?;
     let gateway_provider = Provider::<Http>::try_from(l2_rpc_url.clone())?;
 
     if hash == H256::zero() {
@@ -363,19 +365,19 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     gateway_chain_config.save().await?;
 
     let mut general_config = chain_config.get_general_config().await?.patched();
-    general_config.insert_yaml("eth.gas_adjuster.settlement_mode", SettlementMode::Gateway)?;
+    general_config.set_settlement_mode(SettlementMode::Gateway)?;
 
     if is_rollup {
         // For rollups, new type of commitment should be used, but not for validium.
-        // `PubdataSendingMode` has differing `serde` and file-based config serializations, hence
-        // we supply a raw string value.
-        general_config.insert("eth.sender.pubdata_sending_mode", "RELAYED_L2_CALLDATA")?;
+        general_config.set_pubdata_sending_mode(PubdataSendingMode::RelayedL2Calldata)?;
     }
-    general_config.insert("eth.sender.wait_confirmations", 0)?;
+    general_config.set_eth_sender_confirmations(0)?;
     // TODO(EVM-925): the number below may not always work, especially for large prices on
     // top of Gateway. This field would have to be either not used on GW or transformed into u64.
-    general_config.insert("eth.sender.max_aggregated_tx_gas", 4294967295_u64)?;
-    general_config.insert("eth.sender.max_eth_tx_data_size", 550_000)?;
+    general_config.set_eth_sender_limits(EthSenderLimits {
+        max_aggregated_tx_gas: u32::MAX.into(),
+        max_eth_tx_data_size: 550_000,
+    })?;
     general_config.save().await?;
 
     Ok(())

@@ -14,7 +14,7 @@ use ethers::{
 use tokio::time::MissedTickBehavior;
 use xshell::Shell;
 use zkstack_cli_common::{config::global_config, logger, wallets::Wallet};
-use zkstack_cli_config::{get_l2_http_url, EcosystemConfig};
+use zkstack_cli_config::EcosystemConfig;
 use zksync_basic_types::L2ChainId;
 use zksync_consensus_crypto::ByteFmt;
 use zksync_consensus_roles::{attester, validator};
@@ -208,7 +208,7 @@ impl Setup {
             .context("get_general_config()")?;
         // We're getting a parent path here, since we need object input with the `attesters` array
         let genesis_attesters = general
-            .get_raw("consensus.genesis_spec")
+            .raw_consensus_genesis_spec()
             .context(messages::MSG_CONSENSUS_GENESIS_SPEC_ATTESTERS_MISSING_IN_GENERAL_YAML)?
             .clone();
         let genesis_attesters = read_attester_committee_yaml(genesis_attesters)?;
@@ -217,7 +217,7 @@ impl Setup {
             chain,
             contracts,
             l2_chain_id,
-            l2_http_url: get_l2_http_url(&general)?,
+            l2_http_url: general.l2_http_url()?,
             genesis_attesters,
         })
     }
