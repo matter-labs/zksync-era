@@ -1,9 +1,10 @@
-use std::{collections::HashMap, io::Write, sync::Arc};
+use std::{collections::HashMap, io::Write, path::Path, sync::Arc};
 
 use ark_bn254::{Fq, G1Affine};
 use ethabi::{encode, ParamType, Token};
 use rust_kzg_bn254::{blob::Blob, kzg::Kzg, polynomial::PolynomialFormat};
 use tempfile::NamedTempFile;
+use tokio::task::JoinHandle;
 use zksync_basic_types::web3::CallRequest;
 use zksync_config::EigenConfig;
 use zksync_eth_client::EthInterface;
@@ -157,10 +158,10 @@ enum PointFile {
 }
 
 impl PointFile {
-    fn path(&self) -> &str {
+    fn path(&self) -> &Path {
         match self {
-            PointFile::Temp(file) => file.path().to_str().unwrap_or_default(), // Safe unwrap because NamedTempFile guarantees a valid path
-            PointFile::Path(path) => path,
+            PointFile::Temp(file) => file.path(),
+            PointFile::Path(path) => Path::new(path),
         }
     }
 }
@@ -240,22 +241,35 @@ impl Verifier {
     ) -> Result<Self, VerificationError> {
         let srs_points_to_load = RawEigenClient::blob_size_limit() as u32 / Self::POINT_SIZE;
         let (g1_point_file, g2_point_file) = Self::get_points(&cfg).await?;
-        let g1_point_file_path = g1_point_file.path().to_string();
-        let g2_point_file_path = g2_point_file.path().to_string();
-        let kzg_handle = tokio::task::spawn_blocking(move || {
-            Kzg::setup(
-                &g1_point_file_path,
-                "",
-                &g2_point_file_path,
-                Self::SRSORDER,
-                srs_points_to_load,
-                "".to_string(),
-            )
-        });
+        let kzg_handle: JoinHandle<Result<Kzg, KzgError>> =
+            tokio::task::spawn_blocking(move || {
+                let g1_point_file_path =
+                    g1_point_file
+                        .path()
+                        .to_str()
+                        .ok_or(KzgError::Setup(format!(
+                            "Could not format point path into a valid string"
+                        )))?;
+                let g2_point_file_path =
+                    g2_point_file
+                        .path()
+                        .to_str()
+                        .ok_or(KzgError::Setup(format!(
+                            "Could not format point path into a valid string"
+                        )))?;
+                Kzg::setup(
+                    g1_point_file_path,
+                    "",
+                    g2_point_file_path,
+                    Self::SRSORDER,
+                    srs_points_to_load,
+                    "".to_string(),
+                )
+                .map_err(KzgError::Internal)
+            });
         let kzg = kzg_handle
             .await
-            .map_err(|e| VerificationError::Kzg(KzgError::Setup(e.to_string())))?
-            .map_err(KzgError::Internal)?;
+            .map_err(|e| VerificationError::Kzg(KzgError::Setup(e.to_string())))??;
 
         Ok(Self { kzg, cfg, client })
     }
