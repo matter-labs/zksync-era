@@ -122,7 +122,7 @@ async function loadTestEnvironmentFromFile(fileConfig: FileConfig): Promise<Test
     const l2Provider = new zksync.Provider(l2NodeUrl);
     const baseTokenAddress = await l2Provider.getBaseTokenContractAddress();
 
-    const wsL2NodeUrl = generalConfig.api.web3_json_rpc.ws_url;
+    const wsL2NodeUrl = `ws://127.0.0.1:${generalConfig.api.web3_json_rpc.ws_port}`;
 
     const contractVerificationUrl = `http://127.0.0.1:${generalConfig.contract_verifier.port}`;
 
