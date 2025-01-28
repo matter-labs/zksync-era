@@ -1,194 +1,206 @@
 #!/bin/bash
 set -ea
+# RUST VERSION + CLANG??
+# dockerd --host=tcp://0.0.0.0:2375 --host=unix:///var/run/docker.sock > /var/log/dockerd.log 2>&1 &
 
-# These 3 env variables must be provided.
-if [ -z "$DATABASE_URL" ]; then
-  echo "ERROR: DATABASE_URL is not set."
-  exit 1
-fi
+apt update && apt install -y clang llvm-dev libclang-dev
+# find /usr -name "libclang.so*"
+export LIBCLANG_PATH=/usr/lib/llvm-14/lib
+# apt install -y pkg-config libssl-dev
 
-if [ -z "$DATABASE_PROVER_URL" ]; then
-  echo "ERROR: DATABASE_PROVER_URL is not set."
-  exit 1
-fi
+./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup
 
-if [ -z "$ETH_CLIENT_WEB3_URL" ]; then
-  echo "ERROR: ETH_CLIENT_WEB3_URL is not set."
-  exit 1
-fi
+zkstackup -g --local --cargo-features gateway
 
-# Updates the value in the .toml config or .env file.
-update_config() {
-  # Assigning arguments to readable variable names
-  local file="$1"
-  local parameter="$2"
-  local new_value="$3"
-  local pattern_toml="^${parameter} =.*$"
-  local pattern_env="^${parameter}=.*$"
+# apt-get update && apt-get install -y docker.io
+# curl -L "https://github.com/docker/compose/releases/download/v2.21.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+# chmod +x /usr/local/bin/docker-compose
+apt-get update && apt-get install -y ca-certificates curl gnupg
+mkdir -m 0755 /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+echo \
+  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian \
+  $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+apt-get update
+apt-get install -y docker-compose-plugin
+curl -L https://raw.githubusercontent.com/matter-labs/foundry-zksync/main/install-foundry-zksync | bash
+export PATH=$HOME/.foundry/bin:$PATH
 
-  # Check if the parameter exists in the file
-  if grep -q "$pattern_toml" "$file"; then
-    # The parameter exists in the .toml file, so replace its value
-    sed -i "s!$pattern_toml!${parameter} = \"$new_value\"!" "$file"
-    echo "Update successful for $parameter in $file."
-  elif grep -q "$pattern_env" "$file"; then
-    # The parameter exists in the .env file, so replace its value
-    sed -i "s!$pattern_env!${parameter}=$new_value!" "$file"
-    echo "Update successful for $parameter in $file."
-  else
-    # The parameter does not exist in the file, output error message and return non-zero status
-    echo "Error: '$parameter' not found in $file."
-    return 1 # Return with an error status
-  fi
-}
+# nohup dockerd --host=tcp://0.0.0.0:2375 --host=unix:///var/run/docker.sock > /var/log/dockerd.log 2>&1 &
 
-# Reads the value of the parameter from the .toml config or .env file.
-read_value_from_config() {
-  local file="$1"
-  local parameter="$2"
-  local pattern_toml="^${parameter} =.*$"
-  local pattern_env="^${parameter}=.*$"
-  local res=""
+# zkstack dev contracts
 
-  # Check if the parameter exists in the file
-  if grep -q "$pattern_toml" "$file"; then
-    # The parameter exists in the .toml file, so extract its value
-    res=$(grep "$pattern_toml" "$file" | sed "s/${parameter} = //; s/\"//g")
-  elif grep -q "$pattern_env" "$file"; then
-    # The parameter exists in the .env file, so extract its value
-    res=$(grep "$pattern_env" "$file" | sed "s/${parameter}=//; s/\"//g")
-  else
-    # The parameter does not exist in the file, output error message and return non-zero status
-    echo "Error: '$parameter' not found in $file."
-    return 1 # Return with an error status
-  fi
+# export COMPOSE_PROJECT_NAME=my_project_name
+# export GITHUB_WORKSPACE=my_github_workspace
 
-  if [ -z "$res" ]; then
-    echo "ERROR: $parameter is not set in $file."
-    exit 1
-  fi
+# zkstack up -o false
 
-  echo $res
-}
+# docker cp /chaindata/reth_config my_project_name-reth-1:/chaindata/reth_config
 
-# wait till db service is ready
-until psql ${DATABASE_URL%/*} -c '\q'; do
-  echo >&2 "Postgres is unavailable - sleeping"
-  sleep 5
-done
+# socat TCP-LISTEN:5432,fork TCP:host.docker.internal:5432 &
+# socat TCP-LISTEN:8545,fork TCP:host.docker.internal:8545 &
 
-if [ -z "$MASTER_URL" ]; then
-  echo "Running as zksync master"
-else
-  # If running in slave mode - wait for the master to be up and running.
-  echo "Waiting for zksync master to init hyperchain"
-  until curl --fail ${MASTER_HEALTH_URL}; do
-    echo >&2 "Master zksync not ready yet, sleeping"
-    sleep 5
-  done
-fi
+# docker run --privileged -it docker:dind
 
-if [ -n "$LEGACY_BRIDGE_TESTING" ]; then
-  if [ -z "$MASTER_URL" ]; then
-    echo "Running in legacy bridge testing mode"
-  else
-    # LEGACY_BRIDGE_TESTING flag is for the master only
-    unset LEGACY_BRIDGE_TESTING
-  fi
-fi
+# DATABASE_PROVER_URL=postgres://postgres:notsecurepassword@localhost/prover_local
+# DATABASE_URL=postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_era 
+# DATABASE_URL=postgres://postgres:notsecurepassword@localhost/zksync_local
+# DATABASE_URL=postgres://postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_era
 
-# Normally, the /etc/env and /var/lib/zksync/data should be mapped to volumes
-# so that they are persisted between docker restarts - which would allow even faster starts.
+zkstack ecosystem init --deploy-paymaster --deploy-erc20 \
+    --deploy-ecosystem --l1-rpc-url=http://localhost:8545 \
+    --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
+    --server-db-name=zksync_server_localhost_era \
+    --ignore-prerequisites --verbose \
+    --observability=false \
+    --update-submodules=false
 
-# We use the existance of this init file to decide whether to restart or not.
-INIT_FILE="/var/lib/zksync/data/INIT_COMPLETED.remove_to_reset"
+# CUSTOM_TOKEN_ADDRESS=$(awk -F": " '/tokens:/ {found_tokens=1} found_tokens && /DAI:/ {found_dai=1} found_dai && /address:/ {print $2; exit}' ./configs/erc20.yaml)
+# echo "CUSTOM_TOKEN_ADDRESS=$CUSTOM_TOKEN_ADDRESS"
+# echo "CUSTOM_TOKEN_ADDRESS=$CUSTOM_TOKEN_ADDRESS" >> $GITHUB_ENV
 
-if [ -f "$INIT_FILE" ]; then
-  echo "Initialization was done in the past - simply starting server"
-else
-  echo "Initialing local environment"
+# zkstack chain create \
+#     --chain-name validium \
+#     --chain-id sequential \
+#     --prover-mode no-proofs \
+#     --wallet-creation localhost \
+#     --l1-batch-commit-data-generator-mode validium \
+#     --base-token-address 0x0000000000000000000000000000000000000001 \
+#     --base-token-price-nominator 1 \
+#     --base-token-price-denominator 1 \
+#     --set-as-default false \
+#     --ignore-prerequisites \
+#     --evm-emulator false
 
-  mkdir -p /var/lib/zksync/data
+# zkstack chain init \
+#     --deploy-paymaster \
+#     --l1-rpc-url=http://localhost:8545 \
+#     --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
+#     --server-db-name=zksync_server_localhost_validium \
+#     --chain validium \
+#     --validium-type no-da
 
-  update_config "/etc/env/base/private.toml" "database_url" "$DATABASE_URL"
-  update_config "/etc/env/base/private.toml" "database_prover_url" "$DATABASE_PROVER_URL"
-  update_config "/etc/env/base/eth_client.toml" "web3_url" "$ETH_CLIENT_WEB3_URL"
-  # Put database in a special /var/lib directory so that it is persisted between docker runs.
-  update_config "/etc/env/base/database.toml" "path" "/var/lib/zksync/data"
-  update_config "/etc/env/base/database.toml" "state_keeper_db_path" "/var/lib/zksync/data/state_keeper"
-  update_config "/etc/env/base/database.toml" "backup_path" "/var/lib/zksync/data/backups"
+# zkstack chain create \
+#     --chain-name custom_token \
+#     --chain-id sequential \
+#     --prover-mode no-proofs \
+#     --wallet-creation localhost \
+#     --l1-batch-commit-data-generator-mode rollup \
+#     --base-token-address ${{ env.CUSTOM_TOKEN_ADDRESS }} \
+#     --base-token-price-nominator 314 \
+#     --base-token-price-denominator 1000 \
+#     --set-as-default false \
+#     --ignore-prerequisites \
+#     --evm-emulator false
 
-  if [ -n "$LEGACY_BRIDGE_TESTING" ]; then
-    # making era chain id same as current chain id for legacy bridge testing
-    chain_eth_zksync_network_id=$(read_value_from_config "/etc/env/base/chain.toml" "zksync_network_id")
-    update_config "/etc/env/base/contracts.toml" "ERA_CHAIN_ID" "$chain_eth_zksync_network_id"
-  fi
+# zkstack chain init \
+#       --deploy-paymaster \
+#       --l1-rpc-url=http://localhost:8545 \
+#       --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
+#       --server-db-name=zksync_server_localhost_custom_token \
+#       --chain custom_token \
+#       --validium-type no-da
 
-  if [ -z "$MASTER_URL" ]; then
-    echo "Starting with hyperchain"
-  else
-    # Updates all the stuff (from the '/etc/master_env') - it assumes that it is mapped via docker compose.
-    zk f yarn --cwd /infrastructure/local-setup-preparation join
-  fi
+# zkstack chain create \
+#     --chain-name offline_chain \
+#     --chain-id sequential \
+#     --prover-mode no-proofs \
+#     --wallet-creation localhost \
+#     --l1-batch-commit-data-generator-mode rollup \
+#     --base-token-address 0x0000000000000000000000000000000000000001 \
+#     --base-token-price-nominator 1 \
+#     --base-token-price-denominator 1 \
+#     --set-as-default false \
+#     --ignore-prerequisites \
+#     --evm-emulator false
 
-  zk config compile
+# zkstack chain build-transactions --chain offline_chain --l1-rpc-url http://127.0.0.1:8545
 
-  zk db reset
+# governor_pk=$(awk '/governor:/ {flag=1} flag && /private_key:/ {print $2; exit}' ./configs/wallets.yaml)
 
-  # Perform initialization (things needed to be done only if you're running in the master mode)
-  if [ -z "$MASTER_URL" ]; then
-    zk contract deploy-verifier
-    zk run deploy-erc20 dev # (created etc/tokens/localhost)
+# zkstack dev send-transactions \
+#     --file ./transactions/chain/offline_chain/register-zk-chain-txns.json \
+#     --l1-rpc-url http://127.0.0.1:8545 \
+#     --private-key $governor_pk
 
-    ## init bridgehub state transition
-    zk contract deploy # (deploy L1)
-    zk contract initialize-governance
-    zk contract initialize-validator
-  fi
+# bridge_hub=$(awk '/bridgehub_proxy_addr/ {print $2}' ./configs/contracts.yaml)
+# chain_id=$(awk '/chain_id:/ {print $2}' ./chains/offline_chain/ZkStack.yaml)
 
+# hyperchain_output=$(ci_run cast call $bridge_hub "getHyperchain(uint256)" $chain_id)
 
-  if [ -z "$CUSTOM_BASE_TOKEN" ]; then
-    echo "Starting chain with ETH as gas token"
+# if [[ $hyperchain_output == 0x* && ${#hyperchain_output} -eq 66 ]]; then
+#     echo "Chain successfully registered: $hyperchain_output"
+# else
+#     echo "Failed to register chain: $hyperchain_output"
+#     exit 1
+# fi
 
-    if [ -z "$VALIDIUM_MODE" ]; then
-      ## init hyperchain in rollup mode
-      zk contract register-hyperchain
-    else
-      zk contract register-hyperchain --deployment-mode 1
-    fi
-  else
-    echo "Starting chain with custom gas token $CUSTOM_BASE_TOKEN"
-    zk contract register-hyperchain --base-token-name $CUSTOM_BASE_TOKEN
-  fi
-  
-  
-  zk f zksync_server --genesis
+# zkstack chain create \
+#     --chain-name consensus \
+#     --chain-id sequential \
+#     --prover-mode no-proofs \
+#     --wallet-creation localhost \
+#     --l1-batch-commit-data-generator-mode validium \
+#     --base-token-address ${{ env.CUSTOM_TOKEN_ADDRESS }} \
+#     --base-token-price-nominator 314 \
+#     --base-token-price-denominator 1000 \
+#     --set-as-default false \
+#     --ignore-prerequisites \
+#     --evm-emulator false
 
-  deploy_l2_args=""
-  if [ -n "$LEGACY_BRIDGE_TESTING" ]; then
-    # setting the flag for legacy bridge testing
-    deploy_l2_args="--local-legacy-bridge-testing"
-  fi
+# zkstack chain init \
+#     --deploy-paymaster \
+#     --l1-rpc-url=http://localhost:8545 \
+#     --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
+#     --server-db-name=zksync_server_localhost_consensus \
+#     --chain consensus \
+#     --validium-type no-da
 
-  zk contract deploy-l2-through-l1 $deploy_l2_args
+# CHAINS="era,validium,custom_token,consensus"
+# echo "CHAINS=$CHAINS"
 
-  if [ -z "$MASTER_URL" ]; then
-    zk f yarn --cwd /infrastructure/local-setup-preparation start
-  fi
+# zkstack chain create \
+#     --chain-name gateway \
+#     --chain-id 505 \
+#     --prover-mode no-proofs \
+#     --wallet-creation localhost \
+#     --l1-batch-commit-data-generator-mode rollup \
+#     --base-token-address 0x0000000000000000000000000000000000000001 \
+#     --base-token-price-nominator 1 \
+#     --base-token-price-denominator 1 \
+#     --set-as-default false \
+#     --ignore-prerequisites \
+#     --evm-emulator false
+          
+# zkstack chain init \
+#     --deploy-paymaster \
+#     --l1-rpc-url=http://localhost:8545 \
+#     --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
+#     --server-db-name=zksync_server_localhost_gateway \
+#     --chain gateway \
+#     --validium-type no-da
+          
+# zkstack chain convert-to-gateway --chain gateway --ignore-prerequisites
 
-  if [ -n "$LEGACY_BRIDGE_TESTING" ]; then
-    # making era address same as current address for legacy bridge testing
-    contracts_diamond_proxy_addr=$(read_value_from_config "/etc/env/target/dev.env" "CONTRACTS_DIAMOND_PROXY_ADDR")
-    update_config "/etc/env/target/dev.env" "CONTRACTS_ERA_DIAMOND_PROXY_ADDR" "$contracts_diamond_proxy_addr"
+# zkstack server --ignore-prerequisites --chain gateway &> ${{ env.SERVER_LOGS_DIR }}/gateway.log &
+# zkstack server wait --ignore-prerequisites --verbose --chain gateway
 
-    # setup-legacy-bridge-era waits for the server to be ready, so starting it in the background
-    zk contract setup-legacy-bridge-era &
-  fi
+# zkstack chain migrate-to-gateway --chain era --gateway-chain-name gateway
+# zkstack chain migrate-to-gateway --chain validium --gateway-chain-name gateway
+# zkstack chain migrate-to-gateway --chain custom_token --gateway-chain-name gateway
+# zkstack chain migrate-to-gateway --chain consensus --gateway-chain-name gateway
+          
+# zkstack server --ignore-prerequisites --chain era &> ${{ env.SERVER_LOGS_DIR }}/rollup.log &
+# zkstack server --ignore-prerequisites --chain validium &> ${{ env.SERVER_LOGS_DIR }}/validium.log &
+# zkstack server --ignore-prerequisites --chain custom_token &> ${{ env.SERVER_LOGS_DIR }}/custom_token.log &
+# zkstack server --ignore-prerequisites --chain consensus \
+#             --components=api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads,vm_runner_bwip,vm_playground,da_dispatcher,consensus \
+#             &> ${{ env.SERVER_LOGS_DIR }}/consensus.log &
 
-  # Create init file.
-  echo "System initialized. Please remove this file if you want to reset the system" >$INIT_FILE
-
-fi
+# zkstack server wait --ignore-prerequisites --verbose --chain era
+# zkstack server wait --ignore-prerequisites --verbose --chain validium
+# zkstack server wait --ignore-prerequisites --verbose --chain custom_token
+# zkstack server wait --ignore-prerequisites --verbose --chain consensus
 
 # start server
-zk f zksync_server
+zkstack server

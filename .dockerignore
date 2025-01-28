@@ -1,6 +1,7 @@
 *
 !docker/prover/prover-entry.sh
 !docker/local-node/entrypoint.sh
+!docker/local-node/zkstack
 !docker/external-node/entrypoint.sh
 !docker/contract-verifier/install-all-solc.sh
 !etc/test_config
@@ -25,7 +26,6 @@ keys/setup
 !contracts/
 !setup_2\^26.key
 !setup_2\^24.key
-!setup_compact.key
 # It's required to remove .git from contracts,
 # otherwise yarn tries to use .git parent directory that
 # doesn't exist.
@@ -42,9 +42,15 @@ contracts/.git
 !bellman-cuda
 !prover/data/
 !.github/release-please/manifest.json
+!zkstack_cli
+!chains
+!usr/local/bin
+!usr/local/bin/zkstack
 
 !etc/env/file_based
 !etc/env/dev.toml
 !etc/env/consensus_secrets.yaml
 !etc/env/consensus_config.yaml
 !rust-toolchain
+!ZkStack.yaml
+!docker-compose.yml

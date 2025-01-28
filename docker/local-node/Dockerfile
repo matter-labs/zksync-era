@@ -28,8 +28,7 @@ RUN cargo install sqlx-cli --version 0.8.0
 
 # Copy required packages while preserving the folders structure from the repo
 # It's required because these packages use relative paths to the SDK
-# Copy `zk` tool
-COPY infrastructure/zk /infrastructure/zk
+
 # Copy `local-setup-preparation` tool
 COPY infrastructure/local-setup-preparation /infrastructure/local-setup-preparation
 # Copy dev configs
@@ -38,29 +37,34 @@ COPY etc/env /etc/env
 COPY etc/test_config /etc/test_config
 # Copy all the L1 contracts so they can be deployed
 COPY contracts /contracts/
-
+COPY core/ /core
 # Set `ZKSYNC_HOME` to the root (required for `zk` tool)
 ENV ZKSYNC_HOME=/
 # Set `LOCAL_SETUP` variable to modify `zk` tool behavior
 ENV ZKSYNC_LOCAL_SETUP=true
 # Disable all checks
 ENV ZKSYNC_ACTION=dont_ask
-
+# Env in Docker
+ENV IN_DOCKER=1
 # Build all the required TS packages
 
-# Build `zk` tool
-RUN cd /infrastructure/zk && yarn && yarn build && cd /
 # Build `local-setup-preparation` tool
 RUN cd /infrastructure/local-setup-preparation && yarn && cd /
 # Build L1 contracts package (contracts themselves should be already built)
 RUN cd /contracts/l1-contracts && yarn && cd /
 # Same for L2 contracts
 RUN cd /contracts/l2-contracts && yarn && cd /
+# Same for L1-da contracts
+RUN cd /contracts/da-contracts && yarn && cd /
 
-# Copy the ZK tool binary
-COPY bin/zk /bin/zk
+# Copy the ZK stack tool Library
+COPY zkstack_cli /zkstack_cli
+# Copy the configs for chain
+COPY chains/era /chains/era
 # Copy package json (which gives us yarn workspace - and makes commands more similar to what we normally run)
 COPY package.json /
+# Copy rust toolchain (so the compilation can be done with correct nightly)
+COPY rust-toolchain /
 
 # Copy DAL - needed to setup database schemas.
 COPY core/lib/dal core/lib/dal
@@ -71,4 +75,34 @@ RUN mkdir /etc/env/l1-inits && mkdir /etc/env/l2-inits
 # setup entrypoint script
 COPY ./docker/local-node/entrypoint.sh /usr/bin/
 
+COPY ./docker-compose.yml /docker-compose.yml
+COPY ./ZkStack.yaml /ZkStack.yaml
+
+# Install Docker
+RUN apt-get update && apt-get install -y docker.io
+
+# Configure Docker repository
+# RUN apt-get update && \
+#     apt-get install -y ca-certificates curl gnupg && \
+#     mkdir -m 0755 /etc/apt/keyrings && \
+#     curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg && \
+#     echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null && \
+#     apt-get update && \
+#     apt-get install -y docker-compose-plugin && \
+#     \
+#     # Install Foundry for zkSync
+#     curl -L https://raw.githubusercontent.com/matter-labs/foundry-zksync/main/install-foundry-zksync | bash
+
+# Persist environment variables
+# ENV PATH=$HOME/.foundry/bin:$PATH
+# ENV LIBCLANG_PATH=/usr/lib/llvm-14/lib
+ENV COMPOSE_PROJECT_NAME=my_project_name
+ENV GITHUB_WORKSPACE=my_github_workspace
+
+# CMD ["/bin/bash"]
+
 ENTRYPOINT ["entrypoint.sh"]
+
+
+
+# Root hash mismatched: From config: 0xd8c9be7efb705e7dcf529c14fce7048ea99dea9eab6a6b4e5f8de1ebf4f2ebf2, Calculated 0xb6779307f23867c798513845edb67ce0eca31a433e3c86f46a6961d0567a067d
