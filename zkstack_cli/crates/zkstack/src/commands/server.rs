@@ -65,7 +65,7 @@ async fn run_server(
     let gateway_config = chain_config.get_gateway_chain_config().await.ok();
     let mut gateway_contracts = None;
     if let Some(gateway_config) = &gateway_config {
-        let gateway_chain_id: SLChainId = gateway_config.get("gateway_chain_id")?;
+        let gateway_chain_id: SLChainId = gateway_config.gateway_chain_id()?;
         gateway_contracts = if gateway_chain_id != SLChainId(0) {
             Some(chain_config.path_to_gateway_chain_config())
         } else {

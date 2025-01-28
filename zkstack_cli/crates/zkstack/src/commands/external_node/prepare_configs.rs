@@ -4,8 +4,8 @@ use anyhow::Context;
 use xshell::Shell;
 use zkstack_cli_common::logger;
 use zkstack_cli_config::{
-    ChainConfig, EcosystemConfig, ExternalNodeConfigPatch, GeneralConfig, SecretsConfigPatch,
-    CONSENSUS_CONFIG_FILE, EN_CONFIG_FILE, GENERAL_FILE, SECRETS_FILE,
+    ChainConfig, EcosystemConfig, ExternalNodeConfigPatch, GatewayChainConfig, GeneralConfig,
+    SecretsConfigPatch, CONSENSUS_CONFIG_FILE, EN_CONFIG_FILE, GENERAL_FILE, SECRETS_FILE,
 };
 use zksync_consensus_crypto::TextFmt;
 use zksync_consensus_roles as roles;
@@ -60,7 +60,7 @@ async fn prepare_configs(
         genesis.l2_chain_id()?,
         gateway
             .as_ref()
-            .map(|gateway| gateway.get("gateway_chain_id"))
+            .map(GatewayChainConfig::gateway_chain_id)
             .transpose()?,
     )?;
     en_config.set_batch_commitment_mode(genesis.l1_batch_commitment_mode()?)?;

@@ -20,10 +20,8 @@ use zkstack_cli_config::{
         gateway_preparation::{input::GatewayPreparationConfig, output::GatewayPreparationOutput},
         script_params::GATEWAY_PREPARATION,
     },
-    init_gateway_chain_config,
-    raw::PatchedConfig,
     traits::{ReadConfig, SaveConfig},
-    EcosystemConfig, EthSenderLimits,
+    EcosystemConfig, EthSenderLimits, GatewayChainConfigPatch,
 };
 use zkstack_cli_types::L1BatchCommitmentMode;
 use zksync_basic_types::{
@@ -351,9 +349,8 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     chain_secrets_config.save().await?;
 
     let mut gateway_chain_config =
-        PatchedConfig::empty(shell, chain_config.path_to_gateway_chain_config());
-    init_gateway_chain_config(
-        &mut gateway_chain_config,
+        GatewayChainConfigPatch::empty(shell, chain_config.path_to_gateway_chain_config());
+    gateway_chain_config.init(
         &gateway_gateway_config,
         new_diamond_proxy_address,
         l2_chain_admin,

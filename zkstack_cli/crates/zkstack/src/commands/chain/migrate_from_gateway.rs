@@ -26,7 +26,8 @@ use zkstack_cli_config::{
 };
 use zkstack_cli_types::L1BatchCommitmentMode;
 use zksync_basic_types::{
-    pubdata_da::PubdataSendingMode, settlement::SettlementMode, Address, L2ChainId, H256, U256, U64,
+    pubdata_da::PubdataSendingMode, settlement::SettlementMode, L2ChainId, SLChainId, H256, U256,
+    U64,
 };
 use zksync_web3_decl::client::{Client, L2};
 
@@ -91,7 +92,7 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
     preparation_config.save(shell, preparation_config_path)?;
 
     let chain_contracts_config = chain_config.get_contracts_config()?;
-    let mut gateway_chain_chain_config = chain_config.get_gateway_chain_config().await?.patched();
+    let gateway_chain_chain_config = chain_config.get_gateway_chain_config().await?;
     let chain_admin_addr = chain_contracts_config.l1.chain_admin_addr;
     let chain_access_control_restriction =
         chain_contracts_config.l1.access_control_restriction_addr;
@@ -106,9 +107,7 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
                 (
                     chain_admin_addr,
                     chain_access_control_restriction.context("chain_access_control_restriction")?,
-                    gateway_chain_chain_config
-                        .base()
-                        .get::<Address>("chain_admin_addr")?,
+                    gateway_chain_chain_config.chain_admin_addr()?,
                     U256::from(chain_config.chain_id.as_u64()),
                 ),
             )
@@ -162,7 +161,8 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
     )
     .await?;
 
-    gateway_chain_chain_config.insert("gateway_chain_id", 0_u64)?;
+    let mut gateway_chain_chain_config = gateway_chain_chain_config.patched();
+    gateway_chain_chain_config.set_gateway_chain_id(SLChainId(0))?;
     gateway_chain_chain_config.save().await?;
 
     let mut general_config = chain_config.get_general_config().await?.patched();

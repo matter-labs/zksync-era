@@ -1,10 +1,15 @@
+#![allow(dead_code)] // FIXME
+
+use std::path::PathBuf;
+
 use ethers::utils::hex;
 use serde::{Deserialize, Serialize};
+use xshell::Shell;
 use zksync_basic_types::{web3::Bytes, Address, SLChainId};
 
 use crate::{
     forge_interface::deploy_gateway_ctm::output::DeployGatewayCTMOutput,
-    raw::PatchedConfig,
+    raw::{PatchedConfig, RawConfig},
     traits::{FileConfigWithDefaultName, ZkStackConfig},
     GATEWAY_FILE,
 };
@@ -61,25 +66,65 @@ impl From<DeployGatewayCTMOutput> for GatewayConfig {
     }
 }
 
-pub fn init_gateway_chain_config(
-    config: &mut PatchedConfig,
-    gateway_config: &GatewayConfig,
-    diamond_proxy_addr: Address,
-    l2_chain_admin_addr: Address,
-    gateway_chain_id: SLChainId,
-) -> anyhow::Result<()> {
-    config.insert_yaml(
-        "state_transition_proxy_addr",
-        gateway_config.state_transition_proxy_addr,
-    )?;
-    config.insert_yaml(
-        "validator_timelock_addr",
-        gateway_config.validator_timelock_addr,
-    )?;
-    config.insert_yaml("multicall3_addr", gateway_config.multicall3_addr)?;
-    config.insert_yaml("diamond_proxy_addr", diamond_proxy_addr)?;
-    config.insert_yaml("chain_admin_addr", l2_chain_admin_addr)?;
-    config.insert_yaml("governance_addr", l2_chain_admin_addr)?;
-    config.insert_yaml("gateway_chain_id", gateway_chain_id)?;
-    Ok(())
+#[derive(Debug)]
+pub struct GatewayChainConfig(RawConfig);
+
+impl GatewayChainConfig {
+    pub async fn read(shell: &Shell, path: PathBuf) -> anyhow::Result<Self> {
+        RawConfig::read(shell, path).await.map(Self)
+    }
+
+    pub fn gateway_chain_id(&self) -> anyhow::Result<SLChainId> {
+        self.0.get("gateway_chain_id")
+    }
+
+    pub fn chain_admin_addr(&self) -> anyhow::Result<Address> {
+        self.0.get("chain_admin_addr")
+    }
+
+    pub fn patched(self) -> GatewayChainConfigPatch {
+        GatewayChainConfigPatch(self.0.patched())
+    }
+}
+
+pub struct GatewayChainConfigPatch(PatchedConfig);
+
+impl GatewayChainConfigPatch {
+    pub fn empty(shell: &Shell, path: PathBuf) -> Self {
+        Self(PatchedConfig::empty(shell, path))
+    }
+
+    pub fn init(
+        &mut self,
+        gateway_config: &GatewayConfig,
+        diamond_proxy_addr: Address,
+        l2_chain_admin_addr: Address,
+        gateway_chain_id: SLChainId,
+    ) -> anyhow::Result<()> {
+        self.0.insert_yaml(
+            "state_transition_proxy_addr",
+            gateway_config.state_transition_proxy_addr,
+        )?;
+        self.0.insert_yaml(
+            "validator_timelock_addr",
+            gateway_config.validator_timelock_addr,
+        )?;
+        self.0
+            .insert_yaml("multicall3_addr", gateway_config.multicall3_addr)?;
+        self.0
+            .insert_yaml("diamond_proxy_addr", diamond_proxy_addr)?;
+        self.0
+            .insert_yaml("chain_admin_addr", l2_chain_admin_addr)?;
+        self.0.insert_yaml("governance_addr", l2_chain_admin_addr)?;
+        self.0.insert_yaml("gateway_chain_id", gateway_chain_id)?;
+        Ok(())
+    }
+
+    pub fn set_gateway_chain_id(&mut self, chain_id: SLChainId) -> anyhow::Result<()> {
+        self.0.insert("gateway_chain_id", chain_id.0)
+    }
+
+    pub async fn save(self) -> anyhow::Result<()> {
+        self.0.save().await
+    }
 }

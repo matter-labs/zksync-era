@@ -15,13 +15,12 @@ use crate::{
     },
     create_localhost_wallets,
     gateway::GatewayConfig,
-    raw::RawConfig,
     traits::{
         FileConfigWithDefaultName, ReadConfig, ReadConfigWithBasePath, SaveConfig,
         SaveConfigWithBasePath, ZkStackConfig,
     },
-    ContractsConfig, GeneralConfig, GenesisConfig, SecretsConfig, WalletsConfig,
-    GATEWAY_CHAIN_FILE,
+    ContractsConfig, GatewayChainConfig, GeneralConfig, GenesisConfig, SecretsConfig,
+    WalletsConfig, GATEWAY_CHAIN_FILE,
 };
 
 /// Chain configuration file. This file is created in the chain
@@ -123,8 +122,8 @@ impl ChainConfig {
         GatewayConfig::read_with_base_path(self.get_shell(), &self.configs)
     }
 
-    pub async fn get_gateway_chain_config(&self) -> anyhow::Result<RawConfig> {
-        RawConfig::read(self.get_shell(), self.path_to_gateway_chain_config()).await
+    pub async fn get_gateway_chain_config(&self) -> anyhow::Result<GatewayChainConfig> {
+        GatewayChainConfig::read(self.get_shell(), self.path_to_gateway_chain_config()).await
     }
 
     pub fn path_to_general_config(&self) -> PathBuf {
