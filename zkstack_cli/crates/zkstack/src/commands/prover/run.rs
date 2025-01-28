@@ -1,9 +1,9 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, Context};
-use common::{check_prerequisites, cmd::Cmd, logger, GPU_PREREQUISITES};
-use config::{get_link_to_prover, ChainConfig, EcosystemConfig};
 use xshell::{cmd, Shell};
+use zkstack_cli_common::{check_prerequisites, cmd::Cmd, logger, GPU_PREREQUISITES};
+use zkstack_cli_config::{get_link_to_prover, ChainConfig, EcosystemConfig};
 
 use super::args::run::{ProverComponent, ProverRunArgs};
 use crate::messages::{
@@ -145,7 +145,7 @@ fn run_binary_component(
 
     let mut cmd = Cmd::new(cmd!(
         shell,
-        "cargo run {application_args...} --release --bin {binary_name} -- {args...}"
+        "cargo run {application_args...} --release --package {binary_name} -- {args...}"
     ));
     cmd = cmd.with_force_run();
     cmd.run().context(error)

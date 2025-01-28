@@ -1,13 +1,13 @@
 use std::cell::OnceCell;
 
 use anyhow::Context;
-use common::{logger, spinner::Spinner};
-use config::{
+use xshell::Shell;
+use zkstack_cli_common::{logger, spinner::Spinner};
+use zkstack_cli_config::{
     create_local_configs_dir, create_wallets,
     traits::{ReadConfigWithBasePath, SaveConfigWithBasePath},
     ChainConfig, EcosystemConfig, GenesisConfig,
 };
-use xshell::Shell;
 use zksync_basic_types::L2ChainId;
 
 use crate::{
@@ -25,7 +25,7 @@ pub fn run(args: ChainCreateArgs, shell: &Shell) -> anyhow::Result<()> {
     create(args, &mut ecosystem_config, shell)
 }
 
-fn create(
+pub fn create(
     args: ChainCreateArgs,
     ecosystem_config: &mut EcosystemConfig,
     shell: &Shell,
@@ -76,7 +76,12 @@ pub(crate) fn create_chain_inner(
         (L2ChainId::from(args.chain_id), None)
     };
     let internal_id = ecosystem_config.list_of_chains().len() as u32;
-    let link_to_code = resolve_link_to_code(shell, chain_path.clone(), args.link_to_code.clone())?;
+    let link_to_code = resolve_link_to_code(
+        shell,
+        chain_path.clone(),
+        args.link_to_code.clone(),
+        args.update_submodules,
+    )?;
     let default_genesis_config = GenesisConfig::read_with_base_path(
         shell,
         EcosystemConfig::default_configs_path(&link_to_code),

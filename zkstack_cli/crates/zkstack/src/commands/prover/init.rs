@@ -1,29 +1,31 @@
 use std::path::PathBuf;
 
 use anyhow::Context;
-use common::{
+use xshell::{cmd, Shell};
+use zkstack_cli_common::{
     cmd::Cmd,
     config::global_config,
     db::{drop_db_if_exists, init_db, migrate_db, DatabaseConfig},
     logger,
     spinner::Spinner,
 };
-use config::{
+use zkstack_cli_config::{
     copy_configs, get_link_to_prover, set_prover_database, traits::SaveConfigWithBasePath,
     EcosystemConfig,
 };
-use xshell::{cmd, Shell};
 use zksync_config::{configs::object_store::ObjectStoreMode, ObjectStoreConfig};
 
 use super::{
     args::init::{ProofStorageConfig, ProverInitArgs},
-    compressor_keys::{download_compressor_key, get_default_compressor_keys_path},
+    compressor_keys::download_compressor_key,
     gcs::create_gcs_bucket,
     init_bellman_cuda::run as init_bellman_cuda,
     setup_keys,
 };
 use crate::{
-    commands::prover::args::init::ProofStorageFileBacked,
+    commands::prover::{
+        args::init::ProofStorageFileBacked, compressor_keys::get_default_compressor_keys_path,
+    },
     consts::{PROVER_MIGRATIONS, PROVER_STORE_MAX_RETRIES},
     messages::{
         MSG_CHAIN_NOT_FOUND_ERR, MSG_FAILED_TO_DROP_PROVER_DATABASE_ERR,
@@ -56,6 +58,7 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
 
     if let Some(args) = args.compressor_key_args {
         let path = args.path.context(MSG_SETUP_KEY_PATH_ERROR)?;
+
         download_compressor_key(shell, &mut general_config, &path)?;
     }
 

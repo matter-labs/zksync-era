@@ -1,11 +1,11 @@
 use std::path::PathBuf;
 
 use anyhow::Context;
-use config::{
+use xshell::Shell;
+use zkstack_cli_config::{
     external_node::ENConfig, traits::FileConfigWithDefaultName, ChainConfig, GeneralConfig,
     SecretsConfig,
 };
-use xshell::Shell;
 use zksync_config::configs::consensus::ConsensusConfig;
 
 use crate::messages::MSG_FAILED_TO_RUN_SERVER_ERR;
@@ -63,7 +63,7 @@ impl RunExternalNode {
             consensus_args.push(format!("--consensus-path={}", consensus_config))
         }
 
-        common::external_node::run(
+        zkstack_cli_common::external_node::run(
             shell,
             code_path,
             config_general_config,

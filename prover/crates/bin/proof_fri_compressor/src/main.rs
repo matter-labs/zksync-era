@@ -1,15 +1,16 @@
 #![allow(incomplete_features)] // We have to use generic const exprs.
 #![feature(generic_const_exprs)]
 
-use std::{env, time::Duration};
+use std::time::Duration;
 
 use anyhow::Context as _;
 use clap::Parser;
 use tokio::sync::{oneshot, watch};
+use zksync_config::configs::FriProofCompressorConfig;
 use zksync_core_leftovers::temp_config_store::{load_database_secrets, load_general_config};
 use zksync_env_config::object_store::ProverObjectStoreConfig;
 use zksync_object_store::ObjectStoreFactory;
-use zksync_prover_dal::{ConnectionPool, Prover};
+use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
 use zksync_prover_keystore::keystore::Keystore;
 use zksync_queued_job_processor::JobProcessor;
@@ -32,6 +33,8 @@ struct Cli {
     #[arg(short)]
     number_of_iterations: Option<usize>,
     #[arg(long)]
+    pub(crate) fflonk: Option<bool>,
+    #[arg(long)]
     pub(crate) config_path: Option<std::path::PathBuf>,
     #[arg(long)]
     pub(crate) secrets_path: Option<std::path::PathBuf>,
@@ -40,6 +43,8 @@ struct Cli {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let opt = Cli::parse();
+
+    let is_fflonk = opt.fflonk.unwrap_or(false);
 
     let general_config = load_general_config(opt.config_path).context("general config")?;
     let database_secrets = load_database_secrets(opt.secrets_path).context("database secrets")?;
@@ -76,13 +81,25 @@ async fn main() -> anyhow::Result<()> {
         .expect("ProverConfig doesn't exist");
     let keystore =
         Keystore::locate().with_setup_path(Some(prover_config.setup_data_path.clone().into()));
+
+    let l1_verifier_config = pool
+        .connection()
+        .await?
+        .fri_protocol_versions_dal()
+        .get_l1_verifier_config()
+        .await
+        .map_err(|_| anyhow::anyhow!("Failed to get L1 verifier config from database"))?;
+    if l1_verifier_config.fflonk_snark_wrapper_vk_hash.is_none() && is_fflonk {
+        anyhow::bail!("There was no FFLONK verification hash found in the database while trying to run compressor in FFLONK mode, aborting");
+    }
+
     let proof_compressor = ProofCompressor::new(
         blob_store,
         pool,
-        config.compression_mode,
         config.max_attempts,
         protocol_version,
         keystore,
+        is_fflonk,
     );
 
     let (stop_sender, stop_receiver) = watch::channel(false);
@@ -96,11 +113,7 @@ async fn main() -> anyhow::Result<()> {
     })
     .expect("Error setting Ctrl+C handler"); // Setting handler should always succeed.
 
-    download_initial_setup_keys_if_not_present(
-        &config.universal_setup_path,
-        &config.universal_setup_download_url,
-    );
-    env::set_var("CRS_FILE", config.universal_setup_path.clone());
+    setup_crs_keys(&config);
 
     tracing::info!("Starting proof compressor");
 
@@ -123,4 +136,12 @@ async fn main() -> anyhow::Result<()> {
     stop_sender.send_replace(true);
     tasks.complete(Duration::from_secs(5)).await;
     Ok(())
+}
+
+fn setup_crs_keys(config: &FriProofCompressorConfig) {
+    download_initial_setup_keys_if_not_present(
+        &config.universal_setup_path,
+        &config.universal_setup_download_url,
+    );
+    std::env::set_var("COMPACT_CRS_FILE", &config.universal_setup_path);
 }

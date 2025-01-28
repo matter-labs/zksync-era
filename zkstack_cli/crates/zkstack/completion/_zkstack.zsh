@@ -82,7 +82,9 @@ in-file\:"Specify file with wallets"))' \
 '--base-token-price-denominator=[Base token denominator]:BASE_TOKEN_PRICE_DENOMINATOR:_default' \
 '--set-as-default=[Set as default chain]' \
 '--evm-emulator=[Enable EVM emulator]' \
+'--update-submodules=[Whether to update git submodules of repo]:UPDATE_SUBMODULES:(true false)' \
 '--start-containers=[Start reth and postgres containers after creation]' \
+'--update-submodules=[]:UPDATE_SUBMODULES:(true false)' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--legacy-bridge[]' \
 '-v[Verbose mode]' \
@@ -106,6 +108,7 @@ _arguments "${_arguments_options[@]}" : \
 '*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--resume[]' \
+'--zksync[]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
@@ -130,13 +133,18 @@ _arguments "${_arguments_options[@]}" : \
 '--server-db-name=[Server database name]:SERVER_DB_NAME:_default' \
 '-o+[Enable Grafana]' \
 '--observability=[Enable Grafana]' \
+'--update-submodules=[]:UPDATE_SUBMODULES:(true false)' \
+'--validium-type=[Type of the Validium network]:VALIDIUM_TYPE:(no-da avail)' \
+'--support-l2-legacy-shared-bridge-test=[]' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--resume[]' \
+'--zksync[]' \
 '-d[]' \
 '--dont-drop[]' \
 '--ecosystem-only[Initialize ecosystem only and skip chain initialization (chain can be initialized later with \`chain init\` subcommand)]' \
 '--dev[Use defaults for all options and flags. Suitable for local development]' \
 '--no-port-reallocation[Do not reallocate ports]' \
+'--skip-contract-compilation-override[]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
@@ -243,6 +251,7 @@ in-file\:"Specify file with wallets"))' \
 '--base-token-price-denominator=[Base token denominator]:BASE_TOKEN_PRICE_DENOMINATOR:_default' \
 '--set-as-default=[Set as default chain]' \
 '--evm-emulator=[Enable EVM emulator]' \
+'--update-submodules=[Whether to update git submodules of repo]:UPDATE_SUBMODULES:(true false)' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--legacy-bridge[]' \
 '-v[Verbose mode]' \
@@ -265,6 +274,7 @@ _arguments "${_arguments_options[@]}" : \
 '--l1-rpc-url=[L1 RPC URL]:L1_RPC_URL:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--resume[]' \
+'--zksync[]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
@@ -284,8 +294,11 @@ _arguments "${_arguments_options[@]}" : \
 '--server-db-name=[Server database name]:SERVER_DB_NAME:_default' \
 '--deploy-paymaster=[]' \
 '--l1-rpc-url=[L1 RPC URL]:L1_RPC_URL:_default' \
+'--update-submodules=[]:UPDATE_SUBMODULES:(true false)' \
+'--validium-type=[Type of the Validium network]:VALIDIUM_TYPE:(no-da avail)' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--resume[]' \
+'--zksync[]' \
 '-d[]' \
 '--dont-drop[]' \
 '--no-port-reallocation[Do not reallocate ports]' \
@@ -443,6 +456,7 @@ _arguments "${_arguments_options[@]}" : \
 '*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--resume[]' \
+'--zksync[]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
@@ -460,6 +474,7 @@ _arguments "${_arguments_options[@]}" : \
 '*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--resume[]' \
+'--zksync[]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
@@ -477,23 +492,7 @@ _arguments "${_arguments_options[@]}" : \
 '*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--resume[]' \
-'-v[Verbose mode]' \
-'--verbose[Verbose mode]' \
-'--ignore-prerequisites[Ignores prerequisites checks]' \
-'-h[Print help (see more with '\''--help'\'')]' \
-'--help[Print help (see more with '\''--help'\'')]' \
-&& ret=0
-;;
-(initialize-bridges)
-_arguments "${_arguments_options[@]}" : \
-'--verify=[Verify deployed contracts]' \
-'--verifier=[Verifier to use]:VERIFIER:(etherscan sourcify blockscout oklink)' \
-'--verifier-url=[Verifier URL, if using a custom provider]:VERIFIER_URL:_default' \
-'--verifier-api-key=[Verifier API key]:VERIFIER_API_KEY:_default' \
-'*-a+[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
-'*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
-'--chain=[Chain to use]:CHAIN:_default' \
-'--resume[]' \
+'--zksync[]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
@@ -511,6 +510,7 @@ _arguments "${_arguments_options[@]}" : \
 '*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--resume[]' \
+'--zksync[]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
@@ -528,6 +528,7 @@ _arguments "${_arguments_options[@]}" : \
 '*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--resume[]' \
+'--zksync[]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
@@ -545,6 +546,7 @@ _arguments "${_arguments_options[@]}" : \
 '*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--resume[]' \
+'--zksync[]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
@@ -562,6 +564,7 @@ _arguments "${_arguments_options[@]}" : \
 '*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--resume[]' \
+'--zksync[]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
@@ -579,6 +582,7 @@ _arguments "${_arguments_options[@]}" : \
 '*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--resume[]' \
+'--zksync[]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
@@ -596,6 +600,7 @@ _arguments "${_arguments_options[@]}" : \
 '*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--resume[]' \
+'--zksync[]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
@@ -613,6 +618,7 @@ _arguments "${_arguments_options[@]}" : \
 '*--additional-args=[List of additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--resume[]' \
+'--zksync[]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
@@ -693,10 +699,6 @@ _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
 (accept-chain-ownership)
-_arguments "${_arguments_options[@]}" : \
-&& ret=0
-;;
-(initialize-bridges)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -1442,6 +1444,7 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 '--version=[]:VERSION:_default' \
 '--snark-wrapper=[]:SNARK_WRAPPER:_default' \
+'--fflonk-snark-wrapper=[]:FFLONK_SNARK_WRAPPER:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--default[]' \
 '-v[Verbose mode]' \
@@ -1490,6 +1493,7 @@ esac
 (contracts)
 _arguments "${_arguments_options[@]}" : \
 '--l1-contracts=[Build L1 contracts]' \
+'--l1-da-contracts=[Build L1 DA contracts]' \
 '--l2-contracts=[Build L2 contracts]' \
 '--system-contracts=[Build system contracts]' \
 '--chain=[Chain to use]:CHAIN:_default' \
@@ -1948,6 +1952,7 @@ _arguments "${_arguments_options[@]}" : \
 '--heavy-wvg-count=[]:HEAVY_WVG_COUNT:_default' \
 '-m+[]:MAX_ALLOCATION:_default' \
 '--max-allocation=[]:MAX_ALLOCATION:_default' \
+'--mode=[]:MODE:(fflonk plonk)' \
 '--docker=[]:DOCKER:(true false)' \
 '--tag=[]:TAG:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
@@ -2145,6 +2150,7 @@ _arguments "${_arguments_options[@]}" : \
 '--db-url=[]:DB_URL:_default' \
 '--db-name=[]:DB_NAME:_default' \
 '--l1-rpc-url=[]:L1_RPC_URL:_default' \
+'--gateway-rpc-url=[]:GATEWAY_RPC_URL:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '-u[Use default database urls and names]' \
 '--use-default[Use default database urls and names]' \
@@ -2699,10 +2705,6 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
-(initialize-bridges)
-_arguments "${_arguments_options[@]}" : \
-&& ret=0
-;;
 (deploy-consensus-registry)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
@@ -3252,7 +3254,6 @@ _zkstack__chain_commands() {
 'register-chain:Register a new chain on L1 (executed by L1 governor). This command deploys and configures Governance, ChainAdmin, and DiamondProxy contracts, registers chain with BridgeHub and sets pending admin for DiamondProxy. Note\: After completion, L2 governor can accept ownership by running \`accept-chain-ownership\`' \
 'deploy-l2-contracts:Deploy all L2 contracts (executed by L1 governor)' \
 'accept-chain-ownership:Accept ownership of L2 chain (executed by L2 governor). This command should be run after \`register-chain\` to accept ownership of newly created DiamondProxy contract' \
-'initialize-bridges:Initialize bridges on L2' \
 'deploy-consensus-registry:Deploy L2 consensus registry' \
 'deploy-multicall3:Deploy L2 multicall3' \
 'deploy-timestamp-asserter:Deploy L2 TimestampAsserter' \
@@ -3367,7 +3368,6 @@ _zkstack__chain__help_commands() {
 'register-chain:Register a new chain on L1 (executed by L1 governor). This command deploys and configures Governance, ChainAdmin, and DiamondProxy contracts, registers chain with BridgeHub and sets pending admin for DiamondProxy. Note\: After completion, L2 governor can accept ownership by running \`accept-chain-ownership\`' \
 'deploy-l2-contracts:Deploy all L2 contracts (executed by L1 governor)' \
 'accept-chain-ownership:Accept ownership of L2 chain (executed by L2 governor). This command should be run after \`register-chain\` to accept ownership of newly created DiamondProxy contract' \
-'initialize-bridges:Initialize bridges on L2' \
 'deploy-consensus-registry:Deploy L2 consensus registry' \
 'deploy-multicall3:Deploy L2 multicall3' \
 'deploy-timestamp-asserter:Deploy L2 TimestampAsserter' \
@@ -3464,11 +3464,6 @@ _zkstack__chain__help__init__configs_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack chain help init configs commands' commands "$@"
 }
-(( $+functions[_zkstack__chain__help__initialize-bridges_commands] )) ||
-_zkstack__chain__help__initialize-bridges_commands() {
-    local commands; commands=()
-    _describe -t commands 'zkstack chain help initialize-bridges commands' commands "$@"
-}
 (( $+functions[_zkstack__chain__help__register-chain_commands] )) ||
 _zkstack__chain__help__register-chain_commands() {
     local commands; commands=()
@@ -3509,11 +3504,6 @@ _zkstack__chain__init__help__configs_commands() {
 _zkstack__chain__init__help__help_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack chain init help help commands' commands "$@"
-}
-(( $+functions[_zkstack__chain__initialize-bridges_commands] )) ||
-_zkstack__chain__initialize-bridges_commands() {
-    local commands; commands=()
-    _describe -t commands 'zkstack chain initialize-bridges commands' commands "$@"
 }
 (( $+functions[_zkstack__chain__register-chain_commands] )) ||
 _zkstack__chain__register-chain_commands() {
@@ -4691,7 +4681,6 @@ _zkstack__help__chain_commands() {
 'register-chain:Register a new chain on L1 (executed by L1 governor). This command deploys and configures Governance, ChainAdmin, and DiamondProxy contracts, registers chain with BridgeHub and sets pending admin for DiamondProxy. Note\: After completion, L2 governor can accept ownership by running \`accept-chain-ownership\`' \
 'deploy-l2-contracts:Deploy all L2 contracts (executed by L1 governor)' \
 'accept-chain-ownership:Accept ownership of L2 chain (executed by L2 governor). This command should be run after \`register-chain\` to accept ownership of newly created DiamondProxy contract' \
-'initialize-bridges:Initialize bridges on L2' \
 'deploy-consensus-registry:Deploy L2 consensus registry' \
 'deploy-multicall3:Deploy L2 multicall3' \
 'deploy-timestamp-asserter:Deploy L2 TimestampAsserter' \
@@ -4781,11 +4770,6 @@ _zkstack__help__chain__init_commands() {
 _zkstack__help__chain__init__configs_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack help chain init configs commands' commands "$@"
-}
-(( $+functions[_zkstack__help__chain__initialize-bridges_commands] )) ||
-_zkstack__help__chain__initialize-bridges_commands() {
-    local commands; commands=()
-    _describe -t commands 'zkstack help chain initialize-bridges commands' commands "$@"
 }
 (( $+functions[_zkstack__help__chain__register-chain_commands] )) ||
 _zkstack__help__chain__register-chain_commands() {

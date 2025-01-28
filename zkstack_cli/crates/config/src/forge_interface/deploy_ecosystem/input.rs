@@ -6,6 +6,7 @@ use ethers::{
 };
 use rand::Rng;
 use serde::{Deserialize, Serialize};
+use zkstack_cli_types::L1Network;
 use zksync_basic_types::L2ChainId;
 
 use crate::{
@@ -111,6 +112,7 @@ pub struct DeployL1Config {
     pub era_chain_id: L2ChainId,
     pub owner_address: Address,
     pub testnet_verifier: bool,
+    pub support_l2_legacy_shared_bridge_test: bool,
     pub contracts: ContractsDeployL1Config,
     pub tokens: TokensDeployL1Config,
 }
@@ -124,11 +126,14 @@ impl DeployL1Config {
         initial_deployment_config: &InitialDeploymentConfig,
         era_chain_id: L2ChainId,
         testnet_verifier: bool,
+        l1_network: L1Network,
+        support_l2_legacy_shared_bridge_test: bool,
     ) -> Self {
         Self {
             era_chain_id,
             testnet_verifier,
             owner_address: wallets_config.governor.address,
+            support_l2_legacy_shared_bridge_test,
             contracts: ContractsDeployL1Config {
                 create2_factory_addr: initial_deployment_config.create2_factory_addr,
                 create2_factory_salt: initial_deployment_config.create2_factory_salt,
@@ -162,6 +167,7 @@ impl DeployL1Config {
                 priority_tx_max_gas_limit: initial_deployment_config.priority_tx_max_gas_limit,
                 validator_timelock_execution_delay: initial_deployment_config
                     .validator_timelock_execution_delay,
+                avail_l1_da_validator_addr: l1_network.avail_l1_da_validator_addr(),
             },
             tokens: TokensDeployL1Config {
                 token_weth_address: initial_deployment_config.token_weth_address,
@@ -196,6 +202,8 @@ pub struct ContractsDeployL1Config {
     pub bootloader_hash: H256,
     pub default_aa_hash: H256,
     pub evm_emulator_hash: Option<H256>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub avail_l1_da_validator_addr: Option<Address>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]

@@ -19,6 +19,7 @@ zksync_mini_merkle_tree.workspace = true
 zksync_protobuf.workspace = true
 zksync_crypto_primitives.workspace = true
 
+async-trait.workspace = true
 anyhow.workspace = true
 chrono = { workspace = true, features = ["serde"] }
 derive_more = { workspace = true, features = ["debug"] }

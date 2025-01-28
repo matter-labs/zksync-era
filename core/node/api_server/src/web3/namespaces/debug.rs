@@ -31,13 +31,14 @@ impl DebugNamespace {
 
     pub(crate) fn map_call(
         call: Call,
-        meta: CallTraceMeta,
+        mut meta: CallTraceMeta,
         tracer_option: TracerConfig,
     ) -> CallTracerResult {
         match tracer_option.tracer {
             SupportedTracers::CallTracer => CallTracerResult::CallTrace(Self::map_default_call(
                 call,
                 tracer_option.tracer_config.only_top_call,
+                meta.internal_error,
             )),
             SupportedTracers::FlatCallTracer => {
                 let mut calls = vec![];
@@ -47,19 +48,25 @@ impl DebugNamespace {
                     &mut calls,
                     &mut traces,
                     tracer_option.tracer_config.only_top_call,
-                    &meta,
+                    &mut meta,
                 );
                 CallTracerResult::FlatCallTrace(calls)
             }
         }
     }
-    pub(crate) fn map_default_call(call: Call, only_top_call: bool) -> DebugCall {
+
+    pub(crate) fn map_default_call(
+        call: Call,
+        only_top_call: bool,
+        internal_error: Option<String>,
+    ) -> DebugCall {
         let calls = if only_top_call {
             vec![]
         } else {
+            // We don't need to propagate the internal error to the nested calls.
             call.calls
                 .into_iter()
-                .map(|call| Self::map_default_call(call, false))
+                .map(|call| Self::map_default_call(call, false, None))
                 .collect()
         };
         let debug_type = match call.r#type {
@@ -76,7 +83,7 @@ impl DebugNamespace {
             value: call.value,
             output: web3::Bytes::from(call.output),
             input: web3::Bytes::from(call.input),
-            error: call.error,
+            error: call.error.or(internal_error),
             revert_reason: call.revert_reason,
             calls,
         }
@@ -87,7 +94,7 @@ impl DebugNamespace {
         calls: &mut Vec<DebugCallFlat>,
         trace_address: &mut Vec<usize>,
         only_top_call: bool,
-        meta: &CallTraceMeta,
+        meta: &mut CallTraceMeta,
     ) {
         let subtraces = call.calls.len();
         let debug_type = match call.r#type {
@@ -96,16 +103,24 @@ impl DebugNamespace {
             CallType::NearCall => unreachable!("We have to filter our near calls before"),
         };
 
-        let (result, error) = match (call.revert_reason, call.error) {
-            (Some(revert_reason), _) => {
+        // We only want to set the internal error for topmost call, so we take it.
+        let internal_error = meta.internal_error.take();
+
+        let (result, error) = match (call.revert_reason, call.error, internal_error) {
+            (Some(revert_reason), _, _) => {
                 // If revert_reason exists, it takes priority over VM error
                 (None, Some(revert_reason))
             }
-            (None, Some(vm_error)) => {
+            (None, Some(vm_error), _) => {
                 // If no revert_reason but VM error exists
                 (None, Some(vm_error))
             }
-            (None, None) => (
+            (None, None, Some(internal_error)) => {
+                // No VM error, but there is an error in the sequencer DB.
+                // Only to be set as a topmost error.
+                (None, Some(internal_error))
+            }
+            (None, None, None) => (
                 Some(CallResult {
                     output: web3::Bytes::from(call.output),
                     gas_used: U256::from(call.gas_used),
@@ -175,15 +190,19 @@ impl DebugNamespace {
             SupportedTracers::CallTracer => CallTracerBlockResult::CallTrace(
                 call_traces
                     .into_iter()
-                    .map(|(call, _)| ResultDebugCall {
-                        result: Self::map_default_call(call, options.tracer_config.only_top_call),
+                    .map(|(call, meta)| ResultDebugCall {
+                        result: Self::map_default_call(
+                            call,
+                            options.tracer_config.only_top_call,
+                            meta.internal_error,
+                        ),
                     })
                     .collect(),
             ),
             SupportedTracers::FlatCallTracer => {
                 let res = call_traces
                     .into_iter()
-                    .map(|(call, meta)| {
+                    .map(|(call, mut meta)| {
                         let mut traces = vec![meta.index_in_block];
                         let mut flat_calls = vec![];
                         Self::flatten_call(
@@ -191,7 +210,7 @@ impl DebugNamespace {
                             &mut flat_calls,
                             &mut traces,
                             options.tracer_config.only_top_call,
-                            &meta,
+                            &mut meta,
                         );
                         ResultDebugCallFlat {
                             tx_hash: meta.tx_hash,

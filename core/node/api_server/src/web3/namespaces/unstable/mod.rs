@@ -139,4 +139,16 @@ impl UnstableNamespace {
             chain_id_leaf_proof_mask: chain_id_leaf_proof_mask as u64,
         }))
     }
+
+    pub async fn get_unconfirmed_txs_count_impl(&self) -> Result<usize, Web3Error> {
+        let mut connection = self.state.acquire_connection().await?;
+
+        let result = connection
+            .eth_sender_dal()
+            .get_unconfirmed_txs_count()
+            .await
+            .map_err(DalError::generalize)?;
+
+        Ok(result)
+    }
 }
