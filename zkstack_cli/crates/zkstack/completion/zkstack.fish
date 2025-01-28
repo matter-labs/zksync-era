@@ -141,7 +141,8 @@ false\t''"
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init" -l update-submodules -r -f -a "true\t''
 false\t''"
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init" -l validium-type -d 'Type of the Validium network' -r -f -a "no-da\t''
-avail\t''"
+avail\t''
+eigen-da\t''"
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init" -l support-l2-legacy-shared-bridge-test -r -f -a "true\t''
 false\t''"
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init" -l chain -d 'Chain to use' -r
@@ -247,7 +248,8 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_s
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from init" -l update-submodules -r -f -a "true\t''
 false\t''"
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from init" -l validium-type -d 'Type of the Validium network' -r -f -a "no-da\t''
-avail\t''"
+avail\t''
+eigen-da\t''"
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from init" -l chain -d 'Chain to use' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from init" -l resume
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from init" -l zksync
