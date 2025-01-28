@@ -106,6 +106,6 @@ pub enum VerificationError {
     CommitmentNotOnCurve(G1Affine),
     #[error("Commitment not on correct subgroup: {0}")]
     CommitmentNotOnCorrectSubgroup(G1Affine),
-    #[error("Link Error: {0}")]
+    #[error("Point download error: {0}")]
     PointDownloadError(String),
 }

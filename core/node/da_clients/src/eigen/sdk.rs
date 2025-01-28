@@ -366,6 +366,7 @@ fn remove_empty_byte_from_padded_bytes(data: &[u8]) -> Vec<u8> {
     let parse_size = DATA_CHUNK_SIZE;
 
     let chunk_count = data.len().div_ceil(parse_size);
+    // Safe subtraction, as we know chunk_count is always less than the length of the data
     let mut valid_data = Vec::with_capacity(data.len() - chunk_count);
 
     for chunk in data.chunks(parse_size) {
