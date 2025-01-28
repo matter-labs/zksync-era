@@ -1,13 +1,9 @@
-use std::sync::Arc;
-
-use axum::{extract::Path, Json};
-use chrono::{Duration as ChronoDuration, Duration, Utc};
-use zksync_config::configs::ProofDataHandlerConfig;
+use axum::{ Json};
+use chrono::{Duration, Utc};
 use zksync_dal::{
-    tee_proof_generation_dal::{LockedBatch, TeeProofGenerationJobStatus},
-    ConnectionPool, Core, CoreDal,
+    tee_proof_generation_dal::{LockedBatch, TeeProofGenerationJobStatus}, CoreDal,
 };
-use zksync_object_store::{ObjectStore, ObjectStoreError};
+use zksync_object_store::{ObjectStoreError};
 use zksync_prover_interface::{
     api::{
         RegisterTeeAttestationRequest, RegisterTeeAttestationResponse, SubmitProofResponse,
@@ -17,11 +13,11 @@ use zksync_prover_interface::{
         TeeVerifierInput, V1TeeVerifierInput, VMRunWitnessInputData, WitnessInputMerklePaths,
     },
 };
-use zksync_types::{tee_types::TeeType, L1BatchNumber, L2ChainId};
+use zksync_types::{tee_types::TeeType, L1BatchNumber};
 use zksync_vm_executor::storage::L1BatchParamsProvider;
 
 use crate::{
-    api::request_processor::RequestProcessor, errors::RequestProcessorError, metrics::METRICS,
+    api::RequestProcessor, errors::RequestProcessorError, metrics::METRICS,
 };
 
 impl RequestProcessor {

@@ -1,11 +1,11 @@
-use std::{fmt::format, time::Duration};
+use std::{time::Duration};
 
 use tokio::sync::watch;
 use zksync_prover_interface::api::{ProofGenerationData, SubmitProofGenerationDataResponse};
 use zksync_types::L1BatchNumber;
 
 use crate::{
-    metrics::METRICS, proof_data_submitter::proof_data_processor::ProofGenerationDataProcessor,
+    proof_data_submitter::proof_data_processor::ProofGenerationDataProcessor,
 };
 
 pub mod proof_data_processor;
@@ -34,8 +34,8 @@ impl ProofGenerationDataSubmitter {
         }
     }
 
-    async fn get_next_request(&self) -> Option<ProofGenerationData> {
-        self.processor.get_proof_generation_data()
+    async fn get_next_request(&self) -> anyhow::Result<Option<ProofGenerationData>> {
+        self.processor.get_proof_generation_data().await
     }
 
     /// Submits a request to the API.
@@ -66,10 +66,6 @@ impl ProofGenerationDataSubmitter {
                     l1_batch_number
                 );
             }
-            SubmitProofGenerationDataResponse::Error(err) => {
-                tracing::info!("Failed to send proof generation data for batch {:?}, error: {:?}, unlocking the batch", l1_batch_number, err);
-                self.processor.unlock_batch(l1_batch_number).await?;
-            }
         };
         Ok(())
     }
@@ -84,11 +80,11 @@ impl ProofGenerationDataSubmitter {
 
         loop {
             if *stop_receiver.borrow() {
-                tracing::warn!("Stop signal received, shutting down {}", Self::SERVICE_NAME);
+                tracing::warn!("Stop signal received, shutting down ProofDataSubmitter");
                 return Ok(());
             }
 
-            if let Some(data) = self.get_next_request().await {
+            if let Some(data) = self.get_next_request().await? {
                 let l1_batch_number = data.l1_batch_number;
                 match self.send_request(data).await {
                     Ok(_) => {
@@ -98,9 +94,9 @@ impl ProofGenerationDataSubmitter {
                         )
                     }
                     Err(err) => {
-                        METRICS.http_error[&Self::SERVICE_NAME].inc();
+                        //METRICS.http_error[&Self::SERVICE_NAME].inc();
                         tracing::error!(
-                            "HTTP request failed due to error: {}, failed to send batch",
+                            "HTTP request failed due to error: {}, failed to send batch {:?}",
                             err,
                             l1_batch_number
                         );

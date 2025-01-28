@@ -1,34 +1,16 @@
-use std::sync::Arc;
-
-use axum::{extract::Path, Json};
-use chrono::{Duration, Utc};
-use zksync_config::configs::ProofDataHandlerConfig;
-use zksync_dal::{
-    tee_proof_generation_dal::{LockedBatch, TeeProofGenerationJobStatus},
-    ConnectionPool, Core, CoreDal,
-};
-use zksync_object_store::{ObjectStore, ObjectStoreError};
+use axum::{Json};
+use zksync_dal::{ CoreDal, };
 use zksync_prover_interface::{
-    api::{
-        ProofGenerationData, ProofGenerationDataRequest, RegisterTeeAttestationRequest,
-        RegisterTeeAttestationResponse, SubmitProofRequest, SubmitProofResponse,
-        SubmitTeeProofRequest, TeeProofGenerationDataRequest, TeeProofGenerationDataResponse,
-    },
-    inputs::{
-        L1BatchMetadataHashes, TeeVerifierInput, V1TeeVerifierInput, VMRunWitnessInputData,
-        WitnessInputData, WitnessInputMerklePaths,
+    api::{SubmitProofRequest, SubmitProofResponse,
     },
 };
 use zksync_types::{
-    basic_fri_types::Eip4844Blobs,
-    commitment::{serialize_commitments, L1BatchCommitmentMode},
-    tee_types::TeeType,
+    commitment::{serialize_commitments},
     web3::keccak256,
-    L1BatchNumber, L2ChainId, ProtocolVersionId, H256, STATE_DIFF_HASH_KEY_PRE_GATEWAY,
+    L1BatchNumber, ProtocolVersionId, H256, STATE_DIFF_HASH_KEY_PRE_GATEWAY,
 };
-use zksync_vm_executor::storage::L1BatchParamsProvider;
 
-use crate::{api::RequestProcessor, errors::RequestProcessorError, metrics::METRICS};
+use crate::{api::RequestProcessor, errors::RequestProcessorError};
 
 impl RequestProcessor {
     pub(crate) async fn submit_proof(

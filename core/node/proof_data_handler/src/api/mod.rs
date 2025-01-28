@@ -1,23 +1,21 @@
-use std::{marker::PhantomData, net::SocketAddr, sync::Arc};
+use std::{net::SocketAddr, sync::Arc};
 
 use anyhow::Context as _;
 use axum::{
-    extract::{Path, Request, State},
+    extract::{Path, State},
     handler::Handler,
     http::StatusCode,
-    middleware::Next,
     response::IntoResponse,
     routing::{get, post},
     Json, Router,
 };
-use request_processor::RequestProcessor;
 use tokio::sync::watch;
 use tower::ServiceBuilder;
 use zksync_config::configs::ProofDataHandlerConfig;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStore;
 use zksync_prover_interface::api::{
-    ProofGenerationDataRequest, RegisterTeeAttestationRequest, RegisterTeeAttestationResponse,
+    RegisterTeeAttestationRequest, RegisterTeeAttestationResponse,
     SubmitProofRequest, SubmitProofResponse, SubmitTeeProofRequest, TeeProofGenerationDataRequest,
     TeeProofGenerationDataResponse,
 };
@@ -45,8 +43,7 @@ impl ProofDataHandlerApi {
     }
 
     pub fn with_tee_support(self) -> ProofDataHandlerApi {
-        let router = self
-            .router
+        let router = Router::new()
             .route(
                 "/tee/proof_inputs",
                 get(ProofDataHandlerApi::get_tee_proof_generation_data),
@@ -61,7 +58,7 @@ impl ProofDataHandlerApi {
             );
 
         ProofDataHandlerApi {
-            router,
+            router: Router::new().merge(self.router).merge(router),
             port: self.port,
         }
     }
@@ -111,12 +108,7 @@ impl ProofDataHandlerApi {
         State(processor): State<RequestProcessor>,
         Json(payload): Json<TeeProofGenerationDataRequest>,
     ) -> Result<Option<Json<TeeProofGenerationDataResponse>>, RequestProcessorError> {
-        let result = processor.get_tee_proof_generation_data(payload).await;
-        match result {
-            Ok(Some(data)) => (StatusCode::OK, data).into_response(),
-            Ok(None) => StatusCode::NO_CONTENT.into_response(),
-            Err(e) => e.into_response(),
-        }
+        processor.get_tee_proof_generation_data(payload).await
     }
 
     async fn submit_tee_proof(
