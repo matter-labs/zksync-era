@@ -633,8 +633,8 @@ impl ContractVerificationDal<'_, '_> {
 
         let identifier = ContractIdentifier::from_bytecode(bytecode_marker, deployed_bytecode);
         // `unwrap_or_default` is safe, since we're checking that `bytecode_without_metadata_keccak256` is not null.
-        let bytecode_without_metadata_sha3 = identifier
-            .bytecode_without_metadata_sha3
+        let bytecode_without_metadata_keccak256 = identifier
+            .bytecode_without_metadata_keccak256
             .as_ref()
             .map(|h| h.hash())
             .unwrap_or_default();
@@ -656,8 +656,8 @@ impl ContractVerificationDal<'_, '_> {
                         AND bytecode_without_metadata_keccak256 = $2
                     )
                 "#,
-                identifier.bytecode_sha3.as_bytes(),
-                bytecode_without_metadata_sha3.as_bytes()
+                identifier.bytecode_keccak256.as_bytes(),
+                bytecode_without_metadata_keccak256.as_bytes()
             )
             .try_map(|row| {
                 let info = serde_json::from_value::<VerificationInfo>(row.verification_info)
@@ -679,10 +679,12 @@ impl ContractVerificationDal<'_, '_> {
         else {
             return Ok(None);
         };
-        if identifier.bytecode_sha3 != bytecode_keccak256 {
+        if identifier.bytecode_keccak256 != bytecode_keccak256 {
             // Sanity check
             if bytecode_without_metadata_keccak256.is_none()
-                || identifier.bytecode_without_metadata_sha3.map(|h| h.hash())
+                || identifier
+                    .bytecode_without_metadata_keccak256
+                    .map(|h| h.hash())
                     != bytecode_without_metadata_keccak256
             {
                 tracing::error!(
@@ -809,9 +811,9 @@ impl ContractVerificationDal<'_, '_> {
                     );
 
                     (
-                        identifier.bytecode_sha3.as_bytes().to_vec(),
+                        identifier.bytecode_keccak256.as_bytes().to_vec(),
                         identifier
-                            .bytecode_without_metadata_sha3
+                            .bytecode_without_metadata_keccak256
                             .as_ref()
                             .map(|h| h.hash().as_bytes().to_vec())
                             .unwrap_or_default(),

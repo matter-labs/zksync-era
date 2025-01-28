@@ -582,9 +582,9 @@ impl ContractVerifier {
                     .contract_verification_dal()
                     .save_verification_info(
                         info,
-                        identifier.bytecode_sha3,
+                        identifier.bytecode_keccak256,
                         identifier
-                            .bytecode_without_metadata_sha3
+                            .bytecode_without_metadata_keccak256
                             .map(|hash| hash.hash()),
                     )
                     .await?;
