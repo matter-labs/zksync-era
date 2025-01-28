@@ -43,7 +43,7 @@ pub enum EcosystemCommands {
 
 pub(crate) async fn run(shell: &Shell, args: EcosystemCommands) -> anyhow::Result<()> {
     match args {
-        EcosystemCommands::Create(args) => create::run(args, shell),
+        EcosystemCommands::Create(args) => create::run(args, shell).await,
         EcosystemCommands::BuildTransactions(args) => build_transactions::run(args, shell).await,
         EcosystemCommands::Init(args) => init::run(args, shell).await,
         EcosystemCommands::ChangeDefaultChain(args) => change_default::run(args, shell),

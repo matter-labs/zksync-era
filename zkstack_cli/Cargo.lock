@@ -7084,8 +7084,6 @@ dependencies = [
  "zksync_contracts",
  "zksync_eth_client",
  "zksync_protobuf",
- "zksync_protobuf_build",
- "zksync_protobuf_config",
  "zksync_system_constants",
  "zksync_types",
  "zksync_web3_decl",
@@ -7133,6 +7131,7 @@ dependencies = [
  "serde_yaml",
  "strum",
  "thiserror",
+ "tokio",
  "url",
  "xshell",
  "zkstack_cli_common",
@@ -7140,7 +7139,6 @@ dependencies = [
  "zksync_basic_types",
  "zksync_config",
  "zksync_protobuf",
- "zksync_protobuf_config",
  "zksync_system_constants",
 ]
 
@@ -7374,26 +7372,6 @@ dependencies = [
  "protox",
  "quote",
  "syn 2.0.89",
-]
-
-[[package]]
-name = "zksync_protobuf_config"
-version = "26.2.0-non-semver-compat"
-dependencies = [
- "anyhow",
- "hex",
- "prost 0.12.6",
- "rand",
- "secrecy",
- "serde_json",
- "serde_yaml",
- "tracing",
- "zksync_basic_types",
- "zksync_concurrency",
- "zksync_config",
- "zksync_protobuf",
- "zksync_protobuf_build",
- "zksync_types",
 ]
 
 [[package]]

@@ -28,7 +28,6 @@ zkstack_cli_git_version_macro = { version = "0.1.2", path = "crates/git_version_
 
 # ZkSync deps
 zksync_config = { path = "../core/lib/config" }
-zksync_protobuf_config = { path = "../core/lib/protobuf_config" }
 zksync_basic_types = { path = "../core/lib/basic_types" }
 zksync_system_constants = { path = "../core/lib/constants" }
 zksync_types = { path = "../core/lib/types" }

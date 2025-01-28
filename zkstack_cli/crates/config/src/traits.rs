@@ -2,7 +2,6 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context};
 use serde::{de::DeserializeOwned, Serialize};
-use url::Url;
 use xshell::Shell;
 use zkstack_cli_common::files::{
     read_json_file, read_toml_file, read_yaml_file, save_json_file, save_toml_file, save_yaml_file,
@@ -156,8 +155,4 @@ fn save_with_comment(
         _ => bail!("Unsupported file extension for config file."),
     }
     Ok(())
-}
-
-pub trait ConfigWithL2RpcUrl {
-    fn get_l2_rpc_url(&self) -> anyhow::Result<Url>;
 }
