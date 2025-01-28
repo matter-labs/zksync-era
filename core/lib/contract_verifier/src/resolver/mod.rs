@@ -8,9 +8,7 @@ use std::{
 use anyhow::Context as _;
 use tokio::fs;
 use zksync_queued_job_processor::async_trait;
-use zksync_types::contract_verification::{
-    api::CompilationArtifacts, contract_identifier::ContractIdentifier,
-};
+use zksync_types::contract_verification::api::CompilationArtifacts;
 
 pub(crate) use self::{env::EnvCompilerResolver, github::GitHubCompilerResolver};
 use crate::{
@@ -163,7 +161,7 @@ pub(crate) trait Compiler<In>: Send + fmt::Debug {
     async fn compile(
         self: Box<Self>,
         input: In,
-    ) -> Result<(CompilationArtifacts, ContractIdentifier), ContractVerifierError>;
+    ) -> Result<CompilationArtifacts, ContractVerifierError>;
 }
 
 #[derive(Debug)]

@@ -6,12 +6,8 @@ use semver::Version;
 use serde::{Deserialize, Serialize};
 use tokio::io::AsyncWriteExt;
 use zksync_queued_job_processor::async_trait;
-use zksync_types::{
-    bytecode::BytecodeMarker,
-    contract_verification::{
-        api::{CompilationArtifacts, SourceCodeData, VerificationIncomingRequest},
-        contract_identifier::ContractIdentifier,
-    },
+use zksync_types::contract_verification::api::{
+    CompilationArtifacts, SourceCodeData, VerificationIncomingRequest,
 };
 
 use super::{parse_standard_json_output, process_contract_name, Source};
@@ -196,7 +192,7 @@ impl Compiler<ZkSolcInput> for ZkSolc {
     async fn compile(
         self: Box<Self>,
         input: ZkSolcInput,
-    ) -> Result<(CompilationArtifacts, ContractIdentifier), ContractVerifierError> {
+    ) -> Result<CompilationArtifacts, ContractVerifierError> {
         let mut command = tokio::process::Command::new(&self.paths.zk);
         command.stdout(Stdio::piped()).stderr(Stdio::piped());
 
@@ -257,11 +253,7 @@ impl Compiler<ZkSolcInput> for ZkSolc {
                         .context("zksolc output is not valid JSON")?;
                     let output =
                         parse_standard_json_output(&output, contract_name, file_name, false)?;
-                    let id = ContractIdentifier::from_bytecode(
-                        BytecodeMarker::EraVm,
-                        output.deployed_bytecode(),
-                    );
-                    Ok((output, id))
+                    Ok(output)
                 } else {
                     Err(ContractVerifierError::CompilerError(
                         "zksolc",
@@ -294,11 +286,7 @@ impl Compiler<ZkSolcInput> for ZkSolc {
                     let output =
                         String::from_utf8(output.stdout).context("zksolc output is not UTF-8")?;
                     let output = Self::parse_single_file_yul_output(&output)?;
-                    let id = ContractIdentifier::from_bytecode(
-                        BytecodeMarker::EraVm,
-                        output.deployed_bytecode(),
-                    );
-                    Ok((output, id))
+                    Ok(output)
                 } else {
                     Err(ContractVerifierError::CompilerError(
                         "zksolc",

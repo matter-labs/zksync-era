@@ -3,12 +3,8 @@ use std::{collections::HashMap, mem, path::PathBuf, process::Stdio};
 use anyhow::Context;
 use tokio::io::AsyncWriteExt;
 use zksync_queued_job_processor::async_trait;
-use zksync_types::{
-    bytecode::BytecodeMarker,
-    contract_verification::{
-        api::{CompilationArtifacts, SourceCodeData, VerificationIncomingRequest},
-        contract_identifier::ContractIdentifier,
-    },
+use zksync_types::contract_verification::api::{
+    CompilationArtifacts, SourceCodeData, VerificationIncomingRequest,
 };
 
 use super::{parse_standard_json_output, process_contract_name, Settings, Source, StandardJson};
@@ -80,7 +76,7 @@ impl Compiler<VyperInput> for Vyper {
     async fn compile(
         self: Box<Self>,
         mut input: VyperInput,
-    ) -> Result<(CompilationArtifacts, ContractIdentifier), ContractVerifierError> {
+    ) -> Result<CompilationArtifacts, ContractVerifierError> {
         let mut command = tokio::process::Command::new(&self.path);
         let mut child = command
             .arg("--standard-json")
@@ -109,9 +105,7 @@ impl Compiler<VyperInput> for Vyper {
                 serde_json::from_slice(&output.stdout).context("vyper output is not valid JSON")?;
             let output =
                 parse_standard_json_output(&output, input.contract_name, input.file_name, true)?;
-            let id =
-                ContractIdentifier::from_bytecode(BytecodeMarker::Evm, output.deployed_bytecode());
-            Ok((output, id))
+            Ok(output)
         } else {
             Err(ContractVerifierError::CompilerError(
                 "vyper",

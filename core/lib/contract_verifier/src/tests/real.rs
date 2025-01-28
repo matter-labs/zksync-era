@@ -179,7 +179,7 @@ async fn using_real_zksolc(specify_contract_file: bool) {
     }
 
     let input = ZkSolc::build_input(req).unwrap();
-    let (output, _) = compiler.compile(input).await.unwrap();
+    let output = compiler.compile(input).await.unwrap();
 
     validate_bytecode(&output.bytecode).unwrap();
     assert_eq!(output.abi, counter_contract_abi());
@@ -223,7 +223,7 @@ async fn using_standalone_solc(specify_contract_file: bool) {
     }
 
     let input = Solc::build_input(req).unwrap();
-    let (output, _) = compiler.compile(input).await.unwrap();
+    let output = compiler.compile(input).await.unwrap();
 
     assert!(output.deployed_bytecode.is_some());
     assert_eq!(output.abi, counter_contract_abi());
@@ -306,7 +306,9 @@ async fn compiling_yul_with_zksolc() {
     let compiler = compiler_resolver.resolve_zksolc(&version).await.unwrap();
     let req = test_yul_request(supported_compilers.solc_for_api(BytecodeMarker::EraVm));
     let input = ZkSolc::build_input(req).unwrap();
-    let (output, identifier) = compiler.compile(input).await.unwrap();
+    let output = compiler.compile(input).await.unwrap();
+    let identifier =
+        ContractIdentifier::from_bytecode(BytecodeMarker::EraVm, output.deployed_bytecode());
 
     assert!(!output.bytecode.is_empty());
     assert!(output.deployed_bytecode.is_none());
@@ -328,7 +330,9 @@ async fn compiling_standalone_yul() {
         compiler_zksolc_version: None,
     });
     let input = Solc::build_input(req).unwrap();
-    let (output, identifier) = compiler.compile(input).await.unwrap();
+    let output = compiler.compile(input).await.unwrap();
+    let identifier =
+        ContractIdentifier::from_bytecode(BytecodeMarker::Evm, output.deployed_bytecode());
 
     assert!(!output.bytecode.is_empty());
     assert_ne!(output.deployed_bytecode.unwrap(), output.bytecode);
@@ -383,7 +387,9 @@ async fn using_real_zkvyper(specify_contract_file: bool) {
         BytecodeMarker::EraVm,
     );
     let input = VyperInput::new(req).unwrap();
-    let (output, identifier) = compiler.compile(input).await.unwrap();
+    let output = compiler.compile(input).await.unwrap();
+    let identifier =
+        ContractIdentifier::from_bytecode(BytecodeMarker::EraVm, output.deployed_bytecode());
 
     validate_bytecode(&output.bytecode).unwrap();
     assert_eq!(output.abi, without_internal_types(counter_contract_abi()));
@@ -412,7 +418,9 @@ async fn using_standalone_vyper(specify_contract_file: bool) {
         BytecodeMarker::Evm,
     );
     let input = VyperInput::new(req).unwrap();
-    let (output, identifier) = compiler.compile(input).await.unwrap();
+    let output = compiler.compile(input).await.unwrap();
+    let identifier =
+        ContractIdentifier::from_bytecode(BytecodeMarker::Evm, output.deployed_bytecode());
 
     assert!(output.deployed_bytecode.is_some());
     assert_eq!(output.abi, without_internal_types(counter_contract_abi()));
@@ -434,7 +442,9 @@ async fn using_standalone_vyper_without_optimization() {
     );
     req.optimization_used = false;
     let input = VyperInput::new(req).unwrap();
-    let (output, identifier) = compiler.compile(input).await.unwrap();
+    let output = compiler.compile(input).await.unwrap();
+    let identifier =
+        ContractIdentifier::from_bytecode(BytecodeMarker::Evm, output.deployed_bytecode());
 
     assert!(output.deployed_bytecode.is_some());
     assert_eq!(output.abi, without_internal_types(counter_contract_abi()));
@@ -457,7 +467,7 @@ async fn using_standalone_vyper_with_code_size_optimization() {
     req.optimization_used = true;
     req.optimizer_mode = Some("codesize".to_owned());
     let input = VyperInput::new(req).unwrap();
-    let (output, _) = compiler.compile(input).await.unwrap();
+    let output = compiler.compile(input).await.unwrap();
 
     assert!(output.deployed_bytecode.is_some());
     assert_eq!(output.abi, without_internal_types(counter_contract_abi()));
@@ -509,7 +519,7 @@ async fn using_real_compiler_in_verifier(bytecode_kind: BytecodeMarker, toolchai
         },
     };
     let address = Address::repeat_byte(1);
-    let (output, identifier) = match (bytecode_kind, toolchain) {
+    let output = match (bytecode_kind, toolchain) {
         (BytecodeMarker::EraVm, Toolchain::Solidity) => {
             let compiler = compiler_resolver
                 .resolve_zksolc(&supported_compilers.zksolc())
@@ -539,6 +549,7 @@ async fn using_real_compiler_in_verifier(bytecode_kind: BytecodeMarker, toolchai
             compiler.compile(input).await.unwrap()
         }
     };
+    let identifier = ContractIdentifier::from_bytecode(bytecode_kind, output.deployed_bytecode());
 
     match (bytecode_kind, toolchain) {
         (BytecodeMarker::Evm, Toolchain::Vyper) => {
@@ -655,8 +666,11 @@ async fn using_zksolc_partial_match(use_cbor: bool) {
         .unwrap();
     let input_for_request = ZkSolc::build_input(req.clone()).unwrap();
 
-    let (output_for_request, identifier_for_request) =
-        compiler.compile(input_for_request).await.unwrap();
+    let output_for_request = compiler.compile(input_for_request).await.unwrap();
+    let identifier_for_request = ContractIdentifier::from_bytecode(
+        BytecodeMarker::EraVm,
+        output_for_request.deployed_bytecode(),
+    );
 
     // Now prepare data for contract verification storage (with different metadata).
     let compiler = compiler_resolver
@@ -686,8 +700,11 @@ async fn using_zksolc_partial_match(use_cbor: bool) {
         panic!("unexpected input: {input_for_storage:?}");
     }
 
-    let (output_for_storage, identifier_for_storage) =
-        compiler.compile(input_for_storage).await.unwrap();
+    let output_for_storage = compiler.compile(input_for_storage).await.unwrap();
+    let identifier_for_storage = ContractIdentifier::from_bytecode(
+        BytecodeMarker::EraVm,
+        output_for_storage.deployed_bytecode(),
+    );
 
     assert_eq!(
         identifier_for_request.matches(output_for_storage.deployed_bytecode()),

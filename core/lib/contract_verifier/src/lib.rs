@@ -247,7 +247,9 @@ impl ContractVerifier {
 
         let bytecode_marker = BytecodeMarker::new(deployed_contract.bytecode_hash)
             .context("unknown bytecode kind")?;
-        let (artifacts, identifier) = self.compile(request.req.clone(), bytecode_marker).await?;
+        let artifacts = self.compile(request.req.clone(), bytecode_marker).await?;
+        let identifier =
+            ContractIdentifier::from_bytecode(bytecode_marker, artifacts.deployed_bytecode());
         let constructor_args = match bytecode_marker {
             BytecodeMarker::EraVm => self
                 .decode_era_vm_constructor_args(&deployed_contract, request.req.contract_address)?,
@@ -329,7 +331,7 @@ impl ContractVerifier {
         &self,
         version: &ZkCompilerVersions,
         req: VerificationIncomingRequest,
-    ) -> Result<(CompilationArtifacts, ContractIdentifier), ContractVerifierError> {
+    ) -> Result<CompilationArtifacts, ContractVerifierError> {
         let zksolc = self.compiler_resolver.resolve_zksolc(version).await?;
         tracing::debug!(?zksolc, ?version, "resolved compiler");
         let input = ZkSolc::build_input(req)?;
@@ -343,7 +345,7 @@ impl ContractVerifier {
         &self,
         version: &ZkCompilerVersions,
         req: VerificationIncomingRequest,
-    ) -> Result<(CompilationArtifacts, ContractIdentifier), ContractVerifierError> {
+    ) -> Result<CompilationArtifacts, ContractVerifierError> {
         let zkvyper = self.compiler_resolver.resolve_zkvyper(version).await?;
         tracing::debug!(?zkvyper, ?version, "resolved compiler");
         let input = VyperInput::new(req)?;
@@ -356,7 +358,7 @@ impl ContractVerifier {
         &self,
         version: &str,
         req: VerificationIncomingRequest,
-    ) -> Result<(CompilationArtifacts, ContractIdentifier), ContractVerifierError> {
+    ) -> Result<CompilationArtifacts, ContractVerifierError> {
         let solc = self.compiler_resolver.resolve_solc(version).await?;
         tracing::debug!(?solc, ?req.compiler_versions, "resolved compiler");
         let input = Solc::build_input(req)?;
@@ -370,7 +372,7 @@ impl ContractVerifier {
         &self,
         version: &str,
         req: VerificationIncomingRequest,
-    ) -> Result<(CompilationArtifacts, ContractIdentifier), ContractVerifierError> {
+    ) -> Result<CompilationArtifacts, ContractVerifierError> {
         let vyper = self.compiler_resolver.resolve_vyper(version).await?;
         tracing::debug!(?vyper, ?req.compiler_versions, "resolved compiler");
         let input = VyperInput::new(req)?;
@@ -385,7 +387,7 @@ impl ContractVerifier {
         &self,
         req: VerificationIncomingRequest,
         bytecode_marker: BytecodeMarker,
-    ) -> Result<(CompilationArtifacts, ContractIdentifier), ContractVerifierError> {
+    ) -> Result<CompilationArtifacts, ContractVerifierError> {
         let compiler_type = req.source_code_data.compiler_type();
         let compiler_type_by_versions = req.compiler_versions.compiler_type();
         if compiler_type != compiler_type_by_versions {

@@ -3,12 +3,8 @@ use std::{collections::HashMap, path::PathBuf, process::Stdio};
 use anyhow::Context;
 use tokio::io::AsyncWriteExt;
 use zksync_queued_job_processor::async_trait;
-use zksync_types::{
-    bytecode::BytecodeMarker,
-    contract_verification::{
-        api::{CompilationArtifacts, SourceCodeData, VerificationIncomingRequest},
-        contract_identifier::ContractIdentifier,
-    },
+use zksync_types::contract_verification::api::{
+    CompilationArtifacts, SourceCodeData, VerificationIncomingRequest,
 };
 
 use super::{parse_standard_json_output, process_contract_name, Settings, Source, StandardJson};
@@ -107,7 +103,7 @@ impl Compiler<SolcInput> for Solc {
     async fn compile(
         self: Box<Self>,
         input: SolcInput,
-    ) -> Result<(CompilationArtifacts, ContractIdentifier), ContractVerifierError> {
+    ) -> Result<CompilationArtifacts, ContractVerifierError> {
         let mut command = tokio::process::Command::new(&self.path);
         let mut child = command
             .arg("--standard-json")
@@ -134,9 +130,7 @@ impl Compiler<SolcInput> for Solc {
                 .context("zksolc output is not valid JSON")?;
             let output =
                 parse_standard_json_output(&output, input.contract_name, input.file_name, true)?;
-            let id =
-                ContractIdentifier::from_bytecode(BytecodeMarker::Evm, output.deployed_bytecode());
-            Ok((output, id))
+            Ok(output)
         } else {
             Err(ContractVerifierError::CompilerError(
                 "solc",

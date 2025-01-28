@@ -208,11 +208,8 @@ async fn mock_deployment_inner(
         .unwrap();
 }
 
-type SharedMockFn<In> = Arc<
-    dyn Fn(In) -> Result<(CompilationArtifacts, ContractIdentifier), ContractVerifierError>
-        + Send
-        + Sync,
->;
+type SharedMockFn<In> =
+    Arc<dyn Fn(In) -> Result<CompilationArtifacts, ContractVerifierError> + Send + Sync>;
 
 #[derive(Clone)]
 struct MockCompilerResolver {
@@ -230,10 +227,7 @@ impl fmt::Debug for MockCompilerResolver {
 
 impl MockCompilerResolver {
     fn zksolc(
-        zksolc: impl Fn(ZkSolcInput) -> (CompilationArtifacts, ContractIdentifier)
-            + 'static
-            + Send
-            + Sync,
+        zksolc: impl Fn(ZkSolcInput) -> CompilationArtifacts + 'static + Send + Sync,
     ) -> Self {
         Self {
             zksolc: Arc::new(move |input| Ok(zksolc(input))),
@@ -241,9 +235,7 @@ impl MockCompilerResolver {
         }
     }
 
-    fn solc(
-        solc: impl Fn(SolcInput) -> (CompilationArtifacts, ContractIdentifier) + 'static + Send + Sync,
-    ) -> Self {
+    fn solc(solc: impl Fn(SolcInput) -> CompilationArtifacts + 'static + Send + Sync) -> Self {
         Self {
             solc: Arc::new(move |input| Ok(solc(input))),
             zksolc: Arc::new(|input| panic!("unexpected zksolc call: {input:?}")),
@@ -256,7 +248,7 @@ impl Compiler<ZkSolcInput> for MockCompilerResolver {
     async fn compile(
         self: Box<Self>,
         input: ZkSolcInput,
-    ) -> Result<(CompilationArtifacts, ContractIdentifier), ContractVerifierError> {
+    ) -> Result<CompilationArtifacts, ContractVerifierError> {
         (self.zksolc)(input)
     }
 }
@@ -266,7 +258,7 @@ impl Compiler<SolcInput> for MockCompilerResolver {
     async fn compile(
         self: Box<Self>,
         input: SolcInput,
-    ) -> Result<(CompilationArtifacts, ContractIdentifier), ContractVerifierError> {
+    ) -> Result<CompilationArtifacts, ContractVerifierError> {
         (self.solc)(input)
     }
 }
@@ -412,14 +404,11 @@ async fn contract_verifier_basics(contract: TestContract) {
         let source = input.sources.values().next().unwrap();
         assert!(source.content.contains("contract Counter"), "{source:?}");
 
-        let artifacts = CompilationArtifacts {
+        CompilationArtifacts {
             bytecode: vec![0; 32],
             deployed_bytecode: None,
             abi: counter_contract_abi(),
-        };
-        let contract_id =
-            ContractIdentifier::from_bytecode(BytecodeMarker::EraVm, artifacts.deployed_bytecode());
-        (artifacts, contract_id)
+        }
     });
     let verifier = ContractVerifier::with_resolver(
         Duration::from_secs(60),
@@ -539,15 +528,13 @@ async fn verifying_evm_bytecode(contract: TestContract) {
         deployed_bytecode: Some(deployed_bytecode),
         abi: counter_contract_abi(),
     };
-    let contract_id =
-        ContractIdentifier::from_bytecode(BytecodeMarker::EraVm, artifacts.deployed_bytecode());
     let mock_resolver = MockCompilerResolver::solc(move |input| {
         assert_eq!(input.standard_json.language, "Solidity");
         assert_eq!(input.standard_json.sources.len(), 1);
         let source = input.standard_json.sources.values().next().unwrap();
         assert!(source.content.contains("contract Counter"), "{source:?}");
 
-        (artifacts.clone(), contract_id)
+        artifacts.clone()
     });
     let verifier = ContractVerifier::with_resolver(
         Duration::from_secs(60),
@@ -578,15 +565,10 @@ async fn bytecode_mismatch_error() {
         .await
         .unwrap();
 
-    let mock_resolver = MockCompilerResolver::zksolc(|_| {
-        let artifacts = CompilationArtifacts {
-            bytecode: vec![0; 32],
-            deployed_bytecode: None,
-            abi: counter_contract_abi(),
-        };
-        let contract_id =
-            ContractIdentifier::from_bytecode(BytecodeMarker::EraVm, artifacts.deployed_bytecode());
-        (artifacts, contract_id)
+    let mock_resolver = MockCompilerResolver::zksolc(|_| CompilationArtifacts {
+        bytecode: vec![0; 32],
+        deployed_bytecode: None,
+        abi: counter_contract_abi(),
     });
     let verifier = ContractVerifier::with_resolver(
         Duration::from_secs(60),
@@ -663,29 +645,15 @@ async fn args_mismatch_error(contract: TestContract, bytecode_kind: BytecodeMark
         .unwrap();
 
     let mock_resolver = match bytecode_kind {
-        BytecodeMarker::EraVm => MockCompilerResolver::zksolc(move |_| {
-            let artifacts = CompilationArtifacts {
-                bytecode: bytecode.clone(),
-                deployed_bytecode: None,
-                abi: counter_contract_abi(),
-            };
-            let contract_id = ContractIdentifier::from_bytecode(
-                BytecodeMarker::EraVm,
-                artifacts.deployed_bytecode(),
-            );
-            (artifacts, contract_id)
+        BytecodeMarker::EraVm => MockCompilerResolver::zksolc(move |_| CompilationArtifacts {
+            bytecode: bytecode.clone(),
+            deployed_bytecode: None,
+            abi: counter_contract_abi(),
         }),
-        BytecodeMarker::Evm => MockCompilerResolver::solc(move |_| {
-            let artifacts = CompilationArtifacts {
-                bytecode: vec![3_u8; 48],
-                deployed_bytecode: Some(bytecode.clone()),
-                abi: counter_contract_abi(),
-            };
-            let contract_id = ContractIdentifier::from_bytecode(
-                BytecodeMarker::Evm,
-                artifacts.deployed_bytecode(),
-            );
-            (artifacts, contract_id)
+        BytecodeMarker::Evm => MockCompilerResolver::solc(move |_| CompilationArtifacts {
+            bytecode: vec![3_u8; 48],
+            deployed_bytecode: Some(bytecode.clone()),
+            abi: counter_contract_abi(),
         }),
     };
     let verifier = ContractVerifier::with_resolver(
@@ -747,14 +715,11 @@ async fn creation_bytecode_mismatch() {
         .unwrap();
 
     let mock_resolver = MockCompilerResolver::solc(move |_| {
-        let artifacts = CompilationArtifacts {
+        CompilationArtifacts {
             bytecode: vec![4; 20], // differs from `creation_bytecode`
             deployed_bytecode: Some(deployed_bytecode.clone()),
             abi: counter_contract_abi(),
-        };
-        let contract_id =
-            ContractIdentifier::from_bytecode(BytecodeMarker::Evm, artifacts.deployed_bytecode());
-        (artifacts, contract_id)
+        }
     });
     let verifier = ContractVerifier::with_resolver(
         Duration::from_secs(60),
