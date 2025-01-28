@@ -10,8 +10,7 @@ use zkstack_cli_common::{
     spinner::Spinner,
 };
 use zkstack_cli_config::{
-    copy_configs, get_link_to_prover, set_prover_database, EcosystemConfig, ObjectStoreConfig,
-    ObjectStoreMode,
+    copy_configs, get_link_to_prover, EcosystemConfig, ObjectStoreConfig, ObjectStoreMode,
 };
 
 use super::{
@@ -80,7 +79,7 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
         let spinner = Spinner::new(MSG_INITIALIZING_DATABASES_SPINNER);
 
         let mut secrets = chain_config.get_secrets_config().await?.patched();
-        set_prover_database(&mut secrets, &prover_db.database_config)?;
+        secrets.set_prover_database(&prover_db.database_config)?;
         secrets.save().await?;
         initialize_prover_database(
             shell,

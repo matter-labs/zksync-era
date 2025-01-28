@@ -84,10 +84,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         .get_gateway_config()
         .context("Gateway config not present")?;
 
-    let l1_url = chain_config
-        .get_secrets_config()
-        .await?
-        .get::<String>("l1.l1_rpc_url")?;
+    let l1_url = chain_config.get_secrets_config().await?.l1_rpc_url()?;
 
     let genesis_config = chain_config.get_genesis_config().await?;
 
@@ -350,7 +347,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
 
     let gateway_url = l2_rpc_url;
     let mut chain_secrets_config = chain_config.get_secrets_config().await?.patched();
-    chain_secrets_config.insert("l1.gateway_rpc_url", gateway_url)?;
+    chain_secrets_config.set_gateway_rpc_url(gateway_url)?;
     chain_secrets_config.save().await?;
 
     let mut gateway_chain_config =

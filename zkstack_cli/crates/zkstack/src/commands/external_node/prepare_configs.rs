@@ -86,7 +86,7 @@ async fn prepare_configs(
         &config
             .get_secrets_config()
             .await?
-            .get::<String>("consensus.node_key")?,
+            .raw_consensus_node_key()?,
     )?;
     let gossip_static_outbound = [KeyAndAddress {
         key: main_node_public_key,

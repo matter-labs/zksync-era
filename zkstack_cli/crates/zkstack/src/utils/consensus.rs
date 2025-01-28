@@ -1,7 +1,8 @@
 use anyhow::Context as _;
 use serde::{Deserialize, Serialize};
 use zkstack_cli_config::{
-    raw::PatchedConfig, ChainConfig, ConsensusGenesisSpecs, GeneralConfigPatch, Weighted,
+    ChainConfig, ConsensusGenesisSpecs, GeneralConfigPatch, RawConsensusKeys, SecretsConfigPatch,
+    Weighted,
 };
 use zksync_consensus_crypto::{Text, TextFmt};
 use zksync_consensus_roles::{attester, node, validator};
@@ -82,16 +83,14 @@ pub fn set_genesis_specs(
 }
 
 pub(crate) fn set_consensus_secrets(
-    secrets: &mut PatchedConfig,
+    secrets: &mut SecretsConfigPatch,
     consensus_keys: &ConsensusSecretKeys,
 ) -> anyhow::Result<()> {
-    let validator_key = consensus_keys.validator_key.encode();
-    let attester_key = consensus_keys.attester_key.encode();
-    let node_key = consensus_keys.node_key.encode();
-    secrets.insert("consensus.validator_key", validator_key)?;
-    secrets.insert("consensus.attester_key", attester_key)?;
-    secrets.insert("consensus.node_key", node_key)?;
-    Ok(())
+    secrets.set_consensus_keys(RawConsensusKeys {
+        validator: consensus_keys.validator_key.encode(),
+        attester: consensus_keys.attester_key.encode(),
+        node: consensus_keys.node_key.encode(),
+    })
 }
 
 pub fn node_public_key(secret_key: &str) -> anyhow::Result<String> {

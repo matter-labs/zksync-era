@@ -25,7 +25,7 @@ async fn build_portal_chain_config(
     let l2_rpc_url = chain_config.get_general_config().await?.l2_http_url()?;
     // Get L1 RPC URL from secrets config
     let secrets_config = chain_config.get_secrets_config().await?;
-    let l1_rpc_url = secrets_config.get::<String>("l1.l1_rpc_url")?;
+    let l1_rpc_url = secrets_config.l1_rpc_url()?;
     // Build L1 network config
     let l1_network = Some(L1NetworkConfig {
         id: chain_config.l1_network.chain_id(),

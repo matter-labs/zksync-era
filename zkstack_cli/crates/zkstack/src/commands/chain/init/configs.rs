@@ -2,8 +2,8 @@ use anyhow::Context;
 use xshell::Shell;
 use zkstack_cli_common::logger;
 use zkstack_cli_config::{
-    copy_configs, set_l1_rpc_url, traits::SaveConfigWithBasePath, update_from_chain_config,
-    ChainConfig, ContractsConfig, EcosystemConfig,
+    copy_configs, traits::SaveConfigWithBasePath, update_from_chain_config, ChainConfig,
+    ContractsConfig, EcosystemConfig,
 };
 use zksync_basic_types::Address;
 
@@ -99,12 +99,12 @@ pub async fn init_configs(
 
     // Initialize secrets config
     let mut secrets = chain_config.get_secrets_config().await?.patched();
-    set_l1_rpc_url(&mut secrets, init_args.l1_rpc_url.clone())?;
+    secrets.set_l1_rpc_url(init_args.l1_rpc_url.clone())?;
     set_consensus_secrets(&mut secrets, &consensus_keys)?;
     match &init_args.validium_config {
         None | Some(ValidiumType::NoDA) => { /* Do nothing */ }
         Some(ValidiumType::Avail((_, avail_secrets))) => {
-            secrets.insert_yaml("da.avail", avail_secrets)?;
+            secrets.set_avail_secrets(avail_secrets)?;
         }
     }
     secrets.save().await?;
