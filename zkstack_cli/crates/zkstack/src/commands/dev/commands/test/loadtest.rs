@@ -5,17 +5,14 @@ use zkstack_cli_config::EcosystemConfig;
 
 use crate::commands::dev::messages::MSG_CHAIN_NOT_FOUND_ERR;
 
-pub fn run(shell: &Shell) -> anyhow::Result<()> {
+pub async fn run(shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
 
     let chain_config = ecosystem_config
         .load_current_chain()
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;
 
-    let general_api = chain_config
-        .get_general_config()?
-        .api_config
-        .context("API config is not found")?;
+    let general_config = chain_config.get_general_config().await?;
 
     let mut command = cmd!(
         shell,
@@ -24,9 +21,9 @@ pub fn run(shell: &Shell) -> anyhow::Result<()> {
     .env(
         "L2_CHAIN_ID",
         chain_config
-            .get_genesis_config()?
-            .l2_chain_id
-            .as_u64()
+            .get_genesis_config()
+            .await?
+            .get::<u64>("l2_chain_id")?
             .to_string(),
     )
     .env(
@@ -40,8 +37,14 @@ pub fn run(shell: &Shell) -> anyhow::Result<()> {
                 .address
         ),
     )
-    .env("L2_RPC_ADDRESS", general_api.web3_json_rpc.http_url)
-    .env("L2_WS_RPC_ADDRESS", general_api.web3_json_rpc.ws_url);
+    .env(
+        "L2_RPC_ADDRESS",
+        general_config.get::<String>("api.web3_json_rpc.http_url")?,
+    )
+    .env(
+        "L2_WS_RPC_ADDRESS",
+        general_config.get::<String>("api.web3_json_rpc.ws_url")?,
+    );
 
     if global_config().verbose {
         command = command.env("RUST_LOG", "loadnext=info")

@@ -25,15 +25,6 @@ fn main() -> anyhow::Result<()> {
         println!("cargo:error={}", e);
     };
 
-    zksync_protobuf_build::Config {
-        input_root: "src/commands/consensus/proto".into(),
-        proto_root: "zksync/toolbox/consensus".into(),
-        dependencies: vec!["::zksync_protobuf_config::proto".parse().unwrap()],
-        protobuf_crate: "::zksync_protobuf".parse().unwrap(),
-        is_public: false,
-    }
-    .generate()
-    .unwrap();
     Ok(())
 }
 
