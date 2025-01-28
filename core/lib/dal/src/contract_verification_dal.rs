@@ -607,7 +607,7 @@ impl ContractVerificationDal<'_, '_> {
         .try_map(|row| {
             serde_json::from_value(row.verification_info).decode_column("verification_info")
         })
-        .instrument("get_contract_verification_info_v2#perfect_match")
+        .instrument("get_contract_verification_info_v2#direct")
         .with_arg("address", &address)
         .fetch_optional(self.storage)
         .await?
@@ -675,7 +675,7 @@ impl ContractVerificationDal<'_, '_> {
                     bytecode_without_metadata_keccak256,
                 ))
             })
-            .instrument("get_contract_verification_info_v2#perfect_match")
+            .instrument("get_contract_verification_info_v2#similar")
             .with_arg("address", &address)
             .fetch_optional(self.storage)
             .await?
