@@ -1,13 +1,19 @@
-use std::{collections::HashMap, io::Write, sync::Arc};
+use std::{
+    collections::HashMap,
+    io::Write,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 use ark_bn254::{Fq, G1Affine};
 use ethabi::{encode, ParamType, Token};
 use rust_kzg_bn254::{blob::Blob, kzg::Kzg, polynomial::PolynomialFormat};
 use tempfile::NamedTempFile;
+use tokio::task::JoinHandle;
 use zksync_basic_types::web3::CallRequest;
 use zksync_config::EigenConfig;
 use zksync_eth_client::EthInterface;
-use zksync_types::{web3, Address, U256};
+use zksync_types::{web3, Address, U256, U64};
 use zksync_web3_decl::client::{DynClient, L1};
 
 use super::{
@@ -39,6 +45,7 @@ pub trait VerifierClient: Sync + Send + std::fmt::Debug {
         &self,
         batch_id: u32,
         svc_manager_addr: Address,
+        settlement_layer_confirmation_depth: Option<U64>,
     ) -> Result<Vec<u8>, VerificationError>;
 
     /// Request to the EigenDA service manager contract
@@ -63,6 +70,7 @@ impl VerifierClient for Box<DynClient<L1>> {
         &self,
         batch_id: u32,
         svc_manager_addr: Address,
+        settlement_layer_confirmation_depth: Option<U64>,
     ) -> Result<Vec<u8>, VerificationError> {
         let mut data = vec![];
         let func_selector =
@@ -77,9 +85,22 @@ impl VerifierClient for Box<DynClient<L1>> {
             ..Default::default()
         };
 
+        let block_id = match settlement_layer_confirmation_depth {
+            Some(depth) => {
+                let depth = depth.saturating_sub(U64::one());
+                let mut current_block = self
+                    .block_number()
+                    .await
+                    .map_err(ServiceManagerError::EnrichedClient)?;
+                current_block = current_block.saturating_sub(depth);
+                Some(current_block.into())
+            }
+            None => None,
+        };
+
         let res = self
             .as_ref()
-            .call_contract_function(call_request, None)
+            .call_contract_function(call_request, block_id)
             .await
             .map_err(ServiceManagerError::EnrichedClient)?;
 
@@ -138,14 +159,14 @@ impl VerifierClient for Box<DynClient<L1>> {
 #[derive(Debug)]
 enum PointFile {
     Temp(NamedTempFile),
-    Path(String),
+    Path(PathBuf),
 }
 
 impl PointFile {
-    fn path(&self) -> &str {
+    fn path(&self) -> &Path {
         match self {
-            PointFile::Temp(file) => file.path().to_str().unwrap_or_default(), // Safe unwrap because NamedTempFile guarantees a valid path
-            PointFile::Path(path) => path,
+            PointFile::Temp(file) => file.path(),
+            PointFile::Path(path) => path.as_path(),
         }
     }
 }
@@ -206,8 +227,8 @@ impl Verifier {
     async fn get_points(cfg: &EigenConfig) -> Result<(PointFile, PointFile), VerificationError> {
         match &cfg.points_dir {
             Some(path) => Ok((
-                PointFile::Path(format!("{}/{}", path, Self::G1POINT)),
-                PointFile::Path(format!("{}/{}", path, Self::G2POINT)),
+                PointFile::Path(PathBuf::from(format!("{}/{}", path, Self::G1POINT))),
+                PointFile::Path(PathBuf::from(format!("{}/{}", path, Self::G2POINT))),
             )),
             None => {
                 tracing::info!("Points for KZG setup not found, downloading points to a temp file");
@@ -223,24 +244,29 @@ impl Verifier {
         cfg: EigenConfig,
         client: Arc<dyn VerifierClient>,
     ) -> Result<Self, VerificationError> {
-        let srs_points_to_load = RawEigenClient::blob_size_limit() as u32 / Self::POINT_SIZE; // TODO: MAKE BLOB_SIZE_LIMIT part of Self?
+        let srs_points_to_load = RawEigenClient::blob_size_limit() as u32 / Self::POINT_SIZE;
         let (g1_point_file, g2_point_file) = Self::get_points(&cfg).await?;
-        let g1_point_file_path = g1_point_file.path().to_string();
-        let g2_point_file_path = g2_point_file.path().to_string();
-        let kzg_handle = tokio::task::spawn_blocking(move || {
-            Kzg::setup(
-                &g1_point_file_path, //&format!("{}/{}", path, Self::G1POINT),
-                "",
-                &g2_point_file_path, //&format!("{}/{}", path, Self::G2POINT),
-                Self::SRSORDER,
-                srs_points_to_load,
-                "".to_string(),
-            )
-        });
+        let kzg_handle: JoinHandle<Result<Kzg, KzgError>> =
+            tokio::task::spawn_blocking(move || {
+                let g1_point_file_path = g1_point_file.path().to_str().ok_or(KzgError::Setup(
+                    "Could not format point path into a valid string".to_string(),
+                ))?;
+                let g2_point_file_path = g2_point_file.path().to_str().ok_or(KzgError::Setup(
+                    "Could not format point path into a valid string".to_string(),
+                ))?;
+                Kzg::setup(
+                    g1_point_file_path,
+                    "",
+                    g2_point_file_path,
+                    Self::SRSORDER,
+                    srs_points_to_load,
+                    "".to_string(),
+                )
+                .map_err(KzgError::Internal)
+            });
         let kzg = kzg_handle
             .await
-            .map_err(|e| VerificationError::Kzg(KzgError::Setup(e.to_string())))?
-            .map_err(KzgError::Internal)?;
+            .map_err(|e| VerificationError::Kzg(KzgError::Setup(e.to_string())))??;
 
         Ok(Self { kzg, cfg, client })
     }
@@ -394,6 +420,7 @@ impl Verifier {
             .batch_id_to_batch_metadata_hash(
                 blob_info.blob_verification_proof.batch_id,
                 self.cfg.eigenda_svc_manager_address,
+                Some(U64::from(self.cfg.settlement_layer_confirmation_depth)),
             )
             .await
     }

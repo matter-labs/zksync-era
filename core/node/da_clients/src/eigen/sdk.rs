@@ -55,9 +55,10 @@ impl RawEigenClient {
             .await
             .map_err(ConfigError::Tonic)?;
 
-        let rpc_url = cfg.eigenda_eth_rpc.clone().unwrap();
-        // TODO: remove unwrap
-        // .ok_or(anyhow::anyhow!("EigenDA ETH RPC not set"))?;
+        let rpc_url = cfg
+            .eigenda_eth_rpc
+            .clone()
+            .ok_or(EthClientError::Rpc("EigenDA ETH RPC not set".to_string()))?;
         let query_client: Client<L1> = Client::http(rpc_url)
             .map_err(|e| EthClientError::Rpc(e.to_string()))?
             .build();
@@ -287,7 +288,7 @@ impl RawEigenClient {
         let resp = self
             .client
             .clone()
-            .get_blob_status(polling_request.clone())
+            .get_blob_status(polling_request)
             .await?
             .into_inner();
 
@@ -365,6 +366,7 @@ fn remove_empty_byte_from_padded_bytes(data: &[u8]) -> Vec<u8> {
     let parse_size = DATA_CHUNK_SIZE;
 
     let chunk_count = data.len().div_ceil(parse_size);
+    // Safe subtraction, as we know chunk_count is always less than the length of the data
     let mut valid_data = Vec::with_capacity(data.len() - chunk_count);
 
     for chunk in data.chunks(parse_size) {
