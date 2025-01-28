@@ -8,7 +8,10 @@ use std::{
 use anyhow::Context as _;
 use rayon::prelude::*;
 use sqlx::postgres::types::PgInterval;
-use zksync_db_connection::{error::SqlxContext, instrument::InstrumentExt};
+use zksync_db_connection::{
+    error::SqlxContext,
+    instrument::{CopyStatement, InstrumentExt},
+};
 use zksync_types::{
     address_to_h256,
     bytecode::{trim_padded_evm_bytecode, BytecodeHash, BytecodeMarker},
@@ -730,25 +733,28 @@ impl ContractVerificationDal<'_, '_> {
 
         // Offset is a number of already migrated contracts.
         let mut offset = 0usize;
+        let mut cursor = vec![];
         loop {
+            let cursor_str = format!("0x{}", hex::encode(&cursor));
+
             // Fetch JSON as text to avoid roundtrip through `serde_json::Value`, as it's super slow.
             let (addresses, verification_infos): (Vec<Vec<u8>>, Vec<String>) = sqlx::query!(
                 r#"
                 SELECT
                     address,
-                    verification_info::text as verification_info
+                    verification_info::text AS verification_info
                 FROM
                     contracts_verification_info
+                WHERE address > $1
                 ORDER BY
                     address
-                OFFSET $1
                 LIMIT $2
                 "#,
-                offset as i64,
+                &cursor,
                 batch_size as i64,
             )
             .instrument("perform_verification_info_migration#select")
-            .with_arg("offset", &offset)
+            .with_arg("cursor", &cursor_str)
             .with_arg("batch_size", &batch_size)
             .fetch_all(&mut transaction)
             .await?
@@ -762,15 +768,11 @@ impl ContractVerificationDal<'_, '_> {
             }
 
             tracing::info!(
-                "Processing {} contracts; offset {}",
-                addresses.len(),
-                offset
+                "Processing {} contracts (processed: {offset}); cursor {cursor_str}",
+                addresses.len()
             );
 
-            let (bytecode_keccak256s, bytecode_without_metadata_keccak256s): (
-                Vec<Vec<u8>>,
-                Vec<Vec<u8>>,
-            ) = (0..addresses.len())
+            let ids: Vec<ContractIdentifier> = (0..addresses.len())
                 .into_par_iter()
                 .map(|idx| {
                     let address = &addresses[idx];
@@ -782,60 +784,85 @@ impl ContractVerificationDal<'_, '_> {
                                 hex::encode(address)
                             );
                         });
-                    let identifier = ContractIdentifier::from_bytecode(
+                    ContractIdentifier::from_bytecode(
                         verification_info.bytecode_marker(),
                         verification_info.artifacts.deployed_bytecode(),
-                    );
-
-                    (
-                        identifier.bytecode_keccak256.as_bytes().to_vec(),
-                        identifier
-                            .bytecode_without_metadata_keccak256
-                            .as_ref()
-                            .map(|h| h.hash().as_bytes().to_vec())
-                            .unwrap_or_default(),
                     )
                 })
-                .unzip();
+                .collect();
 
-            // Insert all the values
-            sqlx::query!(
-                r#"
-                INSERT INTO
-                contract_verification_info_v2 (
-                    initial_contract_addr,
-                    bytecode_keccak256,
-                    bytecode_without_metadata_keccak256,
-                    verification_info
-                )
-                SELECT
-                    u.address,
-                    u.bytecode_keccak256,
-                    u.bytecode_without_metadata_keccak256,
-                    u.verification_info
-                FROM
-                    UNNEST($1::BYTEA [], $2::BYTEA [], $3::BYTEA [], $4::JSONB []) AS u (
-                        address,
-                        bytecode_keccak256,
-                        bytecode_without_metadata_keccak256,
-                        verification_info
-                    )
-                ON CONFLICT (initial_contract_addr) DO NOTHING
-                "#,
-                &addresses as _,
-                &bytecode_keccak256s as _,
-                &bytecode_without_metadata_keccak256s as _,
-                &verification_infos as _,
+            let now = chrono::Utc::now().naive_utc().to_string();
+            let mut buffer = String::new();
+            for idx in 0..addresses.len() {
+                let address = hex::encode(&addresses[idx]);
+                let bytecode_keccak256 = hex::encode(ids[idx].bytecode_keccak256);
+                let bytecode_without_metadata_keccak256 = ids[idx]
+                    .bytecode_without_metadata_keccak256
+                    .map(|h| format!(r#"\\x{}"#, hex::encode(h.hash())))
+                    .unwrap_or_else(|| "null".to_owned());
+                let verification_info = verification_infos[idx].replace('"', r#""""#);
+
+                let row = format!(
+                    r#"\\x{initial_contract_addr},\\x{bytecode_keccak256},{bytecode_without_metadata_keccak256},"{verification_info}",{created_at},{updated_at}"#,
+                    initial_contract_addr = address,
+                    bytecode_keccak256 = bytecode_keccak256,
+                    bytecode_without_metadata_keccak256 = bytecode_without_metadata_keccak256,
+                    verification_info = verification_info,
+                    created_at = now,
+                    updated_at = now
+                );
+                buffer.push_str(&row);
+                buffer.push('\n');
+            }
+
+            let contracts_len = addresses.len();
+            let copy = CopyStatement::new(
+                "COPY contract_verification_info_v2(
+                initial_contract_addr,
+                bytecode_keccak256,
+                bytecode_without_metadata_keccak256,
+                verification_info,
+                created_at,
+                updated_at
+            ) FROM STDIN (FORMAT CSV, NULL 'null', DELIMITER ',')",
             )
-            .instrument("perform_verification_info_migration#insert")
-            .with_arg("offset", &offset)
-            .with_arg("batch_size", &batch_size)
-            .execute(&mut transaction)
+            .instrument("perform_verification_info_migration#copy")
+            .with_arg("cursor", &cursor_str)
+            .with_arg("contracts.len", &contracts_len)
+            .start(&mut transaction)
             .await?;
 
+            copy.send(buffer.as_bytes()).await?;
+
             offset += batch_size;
+            cursor = addresses.last().unwrap().clone();
         }
 
+        // Sanity check.
+        tracing::info!("All the rows are migrated, verifying the migration");
+        let count_inequal = sqlx::query!(
+            r#"
+            SELECT
+                COUNT(*)
+            FROM
+                contract_verification_info_v2 v2
+            JOIN contracts_verification_info v1 ON initial_contract_addr = address
+            WHERE v1.verification_info::text != v2.verification_info::text
+            "#,
+        )
+        .instrument("is_verification_info_migration_performed")
+        .fetch_one(&mut transaction)
+        .await?
+        .count
+        .unwrap();
+        if count_inequal > 0 {
+            anyhow::bail!(
+                "Migration failed: {} rows have different data in the new table",
+                count_inequal
+            );
+        }
+
+        tracing::info!("Migration is successful, committing the transaction");
         transaction.commit().await?;
         Ok(())
     }
