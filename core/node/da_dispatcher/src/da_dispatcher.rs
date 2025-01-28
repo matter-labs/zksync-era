@@ -119,14 +119,14 @@ impl DataAvailabilityDispatcher {
             })?;
             let dispatch_latency_duration = dispatch_latency.observe();
 
-            let sent_at = Utc::now().naive_utc();
+            let sent_at = Utc::now();
 
             let mut conn = self.pool.connection_tagged("da_dispatcher").await?;
             conn.data_availability_dal()
                 .insert_l1_batch_da(
                     batch.l1_batch_number,
                     dispatch_response.blob_id.as_str(),
-                    sent_at,
+                    sent_at.naive_utc(),
                 )
                 .await?;
             drop(conn);
@@ -136,10 +136,10 @@ impl DataAvailabilityDispatcher {
                 .set(batch.l1_batch_number.0 as usize);
             METRICS.blob_size.observe(batch.pubdata.len());
             METRICS.sealed_to_dispatched_lag.observe(
-                Utc::now()
+                sent_at
                     .signed_duration_since(batch.sealed_at)
                     .to_std()
-                    .context("Time gap between sealed_at and sent_at is out of range")?,
+                    .context("sent_at has to be higher than sealed_at")?,
             );
             tracing::info!(
                 "Dispatched a DA for batch_number: {}, pubdata_size: {}, dispatch_latency: {dispatch_latency_duration:?}",

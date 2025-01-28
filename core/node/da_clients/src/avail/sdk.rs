@@ -345,7 +345,7 @@ impl RawAvailClient {
         Ok(tx_id)
     }
 
-    /// Returns a balance of the address controlled by the `keypair`
+    /// Returns the balance of the address controlled by the `keypair`
     pub async fn balance(&self, client: &Client) -> anyhow::Result<u64> {
         let address = to_addr(self.keypair.clone());
         let resp: serde_json::Value = client
