@@ -1,4 +1,4 @@
-use std::fs::File;
+use std::{fs::File, io::BufReader};
 
 use anyhow::Context as _;
 use tokio::sync::watch;
@@ -42,7 +42,11 @@ impl InitializeStorage for MainNodeGenesis {
 
         let custom_genesis_state_reader = match &self.genesis.custom_genesis_state_path {
             Some(path) => match File::open(path) {
-                Ok(file) => Some(bincode::deserialize_from(file)?),
+                Ok(file) => {
+                    // reading through BufReader is required for large (multi 10GiB) files
+                    let mut reader = BufReader::new(file);
+                    Some(bincode::deserialize_from(&mut reader)?)
+                }
                 Err(e) => return Err(e.into()), // Propagate other errors
             },
             None => None,
