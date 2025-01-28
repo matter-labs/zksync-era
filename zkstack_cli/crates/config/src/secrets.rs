@@ -50,6 +50,10 @@ impl SecretsConfig {
 pub struct SecretsConfigPatch(PatchedConfig);
 
 impl SecretsConfigPatch {
+    pub fn empty(shell: &Shell, path: PathBuf) -> Self {
+        Self(PatchedConfig::empty(shell, path))
+    }
+
     pub fn set_server_database(&mut self, server_db_config: &DatabaseConfig) -> anyhow::Result<()> {
         self.0.insert(
             "database.server_url",
@@ -82,6 +86,10 @@ impl SecretsConfigPatch {
         self.0
             .insert("consensus.attester_key", consensus_keys.attester)?;
         self.0.insert("consensus.node_key", consensus_keys.node)
+    }
+
+    pub fn set_consensus_node_key(&mut self, raw_key: &str) -> anyhow::Result<()> {
+        self.0.insert("consensus.node_key", raw_key)
     }
 
     pub async fn save(self) -> anyhow::Result<()> {

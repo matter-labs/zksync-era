@@ -4,8 +4,8 @@ use anyhow::Context;
 use xshell::Shell;
 use zkstack_cli_common::logger;
 use zkstack_cli_config::{
-    raw::PatchedConfig, ChainConfig, EcosystemConfig, GeneralConfig, CONSENSUS_CONFIG_FILE,
-    EN_CONFIG_FILE, GENERAL_FILE, SECRETS_FILE,
+    raw::PatchedConfig, ChainConfig, EcosystemConfig, GeneralConfig, SecretsConfigPatch,
+    CONSENSUS_CONFIG_FILE, EN_CONFIG_FILE, GENERAL_FILE, SECRETS_FILE,
 };
 use zksync_basic_types::{L1ChainId, L2ChainId, SLChainId};
 use zksync_consensus_crypto::TextFmt;
@@ -96,13 +96,13 @@ async fn prepare_configs(
     en_consensus_config.save().await?;
 
     // Set secrets config
-    let mut secrets = PatchedConfig::empty(shell, en_configs_path.join(SECRETS_FILE));
+    let mut secrets = SecretsConfigPatch::empty(shell, en_configs_path.join(SECRETS_FILE));
     let node_key = roles::node::SecretKey::generate().encode();
-    secrets.insert("consensus.node_key", node_key)?;
-    secrets.insert("database.server_url", args.db.full_url().to_string())?;
-    secrets.insert("l1.l1_rpc_url", args.l1_rpc_url)?;
+    secrets.set_consensus_node_key(&node_key)?;
+    secrets.set_server_database(&args.db)?;
+    secrets.set_l1_rpc_url(args.l1_rpc_url)?;
     if let Some(url) = args.gateway_rpc_url {
-        secrets.insert("l1.gateway_rpc_url", url)?;
+        secrets.set_gateway_rpc_url(url)?;
     }
     secrets.save().await?;
 
