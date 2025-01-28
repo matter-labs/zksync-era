@@ -1,4 +1,9 @@
-use std::{collections::HashMap, io::Write, path::Path, sync::Arc};
+use std::{
+    collections::HashMap,
+    io::Write,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 use ark_bn254::{Fq, G1Affine};
 use ethabi::{encode, ParamType, Token};
@@ -154,14 +159,14 @@ impl VerifierClient for Box<DynClient<L1>> {
 #[derive(Debug)]
 enum PointFile {
     Temp(NamedTempFile),
-    Path(String),
+    Path(PathBuf),
 }
 
 impl PointFile {
     fn path(&self) -> &Path {
         match self {
             PointFile::Temp(file) => file.path(),
-            PointFile::Path(path) => Path::new(path),
+            PointFile::Path(path) => path.as_path(),
         }
     }
 }
@@ -222,8 +227,8 @@ impl Verifier {
     async fn get_points(cfg: &EigenConfig) -> Result<(PointFile, PointFile), VerificationError> {
         match &cfg.points_dir {
             Some(path) => Ok((
-                PointFile::Path(format!("{}/{}", path, Self::G1POINT)),
-                PointFile::Path(format!("{}/{}", path, Self::G2POINT)),
+                PointFile::Path(PathBuf::from(format!("{}/{}", path, Self::G1POINT))),
+                PointFile::Path(PathBuf::from(format!("{}/{}", path, Self::G2POINT))),
             )),
             None => {
                 tracing::info!("Points for KZG setup not found, downloading points to a temp file");
@@ -243,20 +248,12 @@ impl Verifier {
         let (g1_point_file, g2_point_file) = Self::get_points(&cfg).await?;
         let kzg_handle: JoinHandle<Result<Kzg, KzgError>> =
             tokio::task::spawn_blocking(move || {
-                let g1_point_file_path =
-                    g1_point_file
-                        .path()
-                        .to_str()
-                        .ok_or(KzgError::Setup(format!(
-                            "Could not format point path into a valid string"
-                        )))?;
-                let g2_point_file_path =
-                    g2_point_file
-                        .path()
-                        .to_str()
-                        .ok_or(KzgError::Setup(format!(
-                            "Could not format point path into a valid string"
-                        )))?;
+                let g1_point_file_path = g1_point_file.path().to_str().ok_or(KzgError::Setup(
+                    "Could not format point path into a valid string".to_string(),
+                ))?;
+                let g2_point_file_path = g2_point_file.path().to_str().ok_or(KzgError::Setup(
+                    "Could not format point path into a valid string".to_string(),
+                ))?;
                 Kzg::setup(
                     g1_point_file_path,
                     "",
