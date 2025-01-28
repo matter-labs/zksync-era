@@ -1,5 +1,5 @@
 #!/bin/bash
-set -ea
+# set -ea
 # RUST VERSION + CLANG??
 # dockerd --host=tcp://0.0.0.0:2375 --host=unix:///var/run/docker.sock > /var/log/dockerd.log 2>&1 &
 
@@ -16,7 +16,7 @@ zkstackup -g --local --cargo-features gateway
 # curl -L "https://github.com/docker/compose/releases/download/v2.21.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
 # chmod +x /usr/local/bin/docker-compose
 apt-get update && apt-get install -y ca-certificates curl gnupg
-mkdir -m 0755 /etc/apt/keyrings
+# mkdir -m 0755 /etc/apt/keyrings
 curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
 echo \
   "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian \
