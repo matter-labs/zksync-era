@@ -11848,6 +11848,7 @@ dependencies = [
  "itertools 0.10.5",
  "prost 0.12.6",
  "rand 0.8.5",
+ "rayon",
  "serde",
  "serde_json",
  "sqlx",

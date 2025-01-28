@@ -6,6 +6,7 @@ use std::{
 };
 
 use anyhow::Context as _;
+use rayon::prelude::*;
 use sqlx::postgres::types::PgInterval;
 use zksync_db_connection::{error::SqlxContext, instrument::InstrumentExt};
 use zksync_types::{
@@ -738,28 +739,19 @@ impl ContractVerificationDal<'_, '_> {
         &mut self,
         batch_size: usize,
     ) -> anyhow::Result<()> {
-        // Offset is a number of already migrated contracts.
-        let mut offset = sqlx::query!(
-            r#"
-            SELECT
-                COUNT(*)
-            FROM
-                contract_verification_info_v2
-            "#,
-        )
-        .instrument("perform_verification_info_migration#count")
-        .fetch_one(self.storage)
-        .await?
-        .count
-        .unwrap() as usize;
+        // We use a long-running transaction, since the migration is one-time and during it
+        // no writes are expected to the tables, so locked rows are not a problem.
+        let mut transaction = self.storage.start_transaction().await?;
 
+        // Offset is a number of already migrated contracts.
+        let mut offset = 0usize;
         loop {
-            let mut transaction = self.storage.start_transaction().await?;
-            let contracts: Vec<(Vec<u8>, serde_json::Value)> = sqlx::query!(
+            // Fetch JSON as text to avoid roundtrip through `serde_json::Value`, as it's super slow.
+            let (addresses, verification_infos): (Vec<Vec<u8>>, Vec<String>) = sqlx::query!(
                 r#"
                 SELECT
                     address,
-                    verification_info
+                    verification_info::text as verification_info
                 FROM
                     contracts_verification_info
                 ORDER BY
@@ -779,47 +771,53 @@ impl ContractVerificationDal<'_, '_> {
             .filter_map(|row| row.verification_info.map(|info| (row.address, info)))
             .collect();
 
-            if contracts.is_empty() {
+            if addresses.is_empty() {
                 tracing::info!("No more contracts to process");
                 break;
             }
 
             tracing::info!(
                 "Processing {} contracts; offset {}",
-                contracts.len(),
+                addresses.len(),
                 offset
             );
 
-            let mut addresses = Vec::with_capacity(batch_size);
-            let mut verification_infos = Vec::with_capacity(batch_size);
-            let mut bytecode_keccak256s = Vec::with_capacity(batch_size);
-            let mut bytecode_without_metadata_keccak256s = Vec::with_capacity(batch_size);
+            let (bytecode_keccak256s, bytecode_without_metadata_keccak256s): (
+                Vec<Vec<u8>>,
+                Vec<Vec<u8>>,
+            ) = (0..addresses.len())
+                .into_par_iter()
+                .map(|idx| {
+                    let address = &addresses[idx];
+                    let info_json = &verification_infos[idx];
+                    let verification_info = serde_json::from_str::<VerificationInfo>(info_json)
+                        .unwrap_or_else(|err| {
+                            panic!(
+                                "Malformed data in DB, address {}, data: {info_json}, error: {err}",
+                                hex::encode(address)
+                            );
+                        });
+                    let bytecode_marker = if verification_info.artifacts.deployed_bytecode.is_some()
+                    {
+                        BytecodeMarker::Evm
+                    } else {
+                        BytecodeMarker::EraVm
+                    };
+                    let identifier = ContractIdentifier::from_bytecode(
+                        bytecode_marker,
+                        verification_info.artifacts.deployed_bytecode(),
+                    );
 
-            for (address, info_json) in contracts {
-                let verification_info =
-                    serde_json::from_value::<VerificationInfo>(info_json.clone())
-                        .context("Failed to deserialize verification info")?;
-                let bytecode_marker = if verification_info.artifacts.deployed_bytecode.is_some() {
-                    BytecodeMarker::Evm
-                } else {
-                    BytecodeMarker::EraVm
-                };
-                let identifier = ContractIdentifier::from_bytecode(
-                    bytecode_marker,
-                    verification_info.artifacts.deployed_bytecode(),
-                );
-
-                addresses.push(address);
-                verification_infos.push(info_json);
-                bytecode_keccak256s.push(identifier.bytecode_sha3.as_bytes().to_vec());
-                bytecode_without_metadata_keccak256s.push(
-                    identifier
-                        .bytecode_without_metadata_sha3
-                        .as_ref()
-                        .map(|h| h.hash().as_bytes().to_vec())
-                        .unwrap_or_default(),
-                );
-            }
+                    (
+                        identifier.bytecode_sha3.as_bytes().to_vec(),
+                        identifier
+                            .bytecode_without_metadata_sha3
+                            .as_ref()
+                            .map(|h| h.hash().as_bytes().to_vec())
+                            .unwrap_or_default(),
+                    )
+                })
+                .unzip();
 
             // Insert all the values
             sqlx::query!(
@@ -837,7 +835,7 @@ impl ContractVerificationDal<'_, '_> {
                     u.bytecode_without_metadata_keccak256,
                     u.verification_info
                 FROM
-                    UNNEST($1::BYTEA [], $2::BYTEA [], $3::BYTEA [], $4::JSON []) AS u (
+                    UNNEST($1::BYTEA [], $2::BYTEA [], $3::BYTEA [], $4::JSONB []) AS u (
                         address,
                         bytecode_keccak256,
                         bytecode_without_metadata_keccak256,
@@ -857,9 +855,9 @@ impl ContractVerificationDal<'_, '_> {
             .await?;
 
             offset += batch_size;
-            transaction.commit().await?;
         }
 
+        transaction.commit().await?;
         Ok(())
     }
 }
