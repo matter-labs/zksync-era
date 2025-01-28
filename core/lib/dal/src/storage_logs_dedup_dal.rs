@@ -1,4 +1,4 @@
-use std::{cmp, collections::HashSet};
+use std::collections::HashSet;
 
 use sqlx::types::chrono::Utc;
 use zksync_db_connection::{
@@ -92,7 +92,7 @@ impl StorageLogsDedupDal<'_, '_> {
 
         // a custom genesis batch might have quite a few storage logs associated with it (10s of millions, depending on how big the initial state was).
         // For such cases we should process the query in chunks to avoid failures in the database or the driver.
-        let chunk_size = cmp::min(written_hashed_keys.len(), 100_000);
+        let chunk_size: usize = 100_000;
 
         for (chunk_hashed_keys, chunk_indices) in hashed_keys
             .chunks(chunk_size)
