@@ -1,12 +1,11 @@
 use anyhow::Context;
-use ethers::types::Address;
 use xshell::Shell;
 use zkstack_cli_common::logger;
 use zkstack_cli_config::{
     copy_configs, set_l1_rpc_url, traits::SaveConfigWithBasePath, update_from_chain_config,
     ChainConfig, ContractsConfig, EcosystemConfig,
 };
-use zksync_config::configs::DataAvailabilitySecrets;
+use zksync_types::Address;
 
 use crate::{
     commands::{
@@ -21,11 +20,11 @@ use crate::{
         portal::update_portal_config,
     },
     messages::{
-        MSG_CHAIN_CONFIGS_INITIALIZED, MSG_CHAIN_NOT_FOUND_ERR, MSG_CONSENSUS_CONFIG_MISSING_ERR,
+        MSG_CHAIN_CONFIGS_INITIALIZED, MSG_CHAIN_NOT_FOUND_ERR,
         MSG_PORTAL_FAILED_TO_CREATE_CONFIG_ERR,
     },
     utils::{
-        consensus::{generate_consensus_keys, get_consensus_secrets, get_genesis_specs},
+        consensus::{generate_consensus_keys, set_consensus_secrets, set_genesis_specs},
         ports::EcosystemPortsScanner,
     },
 };
@@ -61,52 +60,31 @@ pub async fn init_configs(
         )?;
     }
 
-    let consensus_keys = generate_consensus_keys();
-
-    // Initialize secrets config
-    let mut secrets = chain_config.get_secrets_config()?;
-    set_l1_rpc_url(&mut secrets, init_args.l1_rpc_url.clone())?;
-    secrets.consensus = Some(get_consensus_secrets(&consensus_keys));
-
-    let mut general_config = chain_config.get_general_config()?;
-
-    if general_config.proof_data_handler_config.is_some() && general_config.prover_gateway.is_some()
-    {
-        let proof_data_handler_config = general_config.proof_data_handler_config.clone().unwrap();
-        let mut prover_gateway = general_config.prover_gateway.clone().unwrap();
-
-        prover_gateway.api_url =
-            format!("http://127.0.0.1:{}", proof_data_handler_config.http_port);
-
-        general_config.prover_gateway = Some(prover_gateway);
+    let mut general_config = chain_config.get_general_config().await?.patched();
+    let prover_data_handler_port = general_config
+        .base()
+        .get_opt::<u16>("proof_data_handler.http_port")?;
+    if let Some(port) = prover_data_handler_port {
+        general_config.insert("prover_gateway.api_url", format!("http://127.0.0.1:{port}"))?;
     }
 
-    let mut consensus_config = general_config
-        .consensus_config
-        .context(MSG_CONSENSUS_CONFIG_MISSING_ERR)?;
+    let consensus_keys = generate_consensus_keys();
+    set_genesis_specs(&mut general_config, chain_config, &consensus_keys)?;
 
-    consensus_config.genesis_spec = Some(get_genesis_specs(chain_config, &consensus_keys));
-
-    general_config.consensus_config = Some(consensus_config);
-    if let Some(validium_config) = init_args.validium_config.clone() {
-        match validium_config {
-            ValidiumType::NoDA => {
-                general_config.da_client_config = None;
-            }
-            ValidiumType::Avail((avail_config, avail_secrets)) => {
-                general_config.da_client_config = Some(avail_config.into());
-                secrets.data_availability = Some(DataAvailabilitySecrets::Avail(avail_secrets));
-            }
+    match &init_args.validium_config {
+        None | Some(ValidiumType::NoDA) => {
+            general_config.remove("da_client");
+        }
+        Some(ValidiumType::Avail((avail_config, _))) => {
+            general_config.insert_yaml("da_client.avail", avail_config)?;
         }
     }
-
-    secrets.save_with_base_path(shell, &chain_config.configs)?;
-    general_config.save_with_base_path(shell, &chain_config.configs)?;
+    general_config.save().await?;
 
     // Initialize genesis config
-    let mut genesis_config = chain_config.get_genesis_config()?;
+    let mut genesis_config = chain_config.get_genesis_config().await?.patched();
     update_from_chain_config(&mut genesis_config, chain_config)?;
-    genesis_config.save_with_base_path(shell, &chain_config.configs)?;
+    genesis_config.save().await?;
 
     // Initialize contracts config
     let mut contracts_config = ecosystem_config.get_contracts_config()?;
@@ -115,12 +93,24 @@ pub async fn init_configs(
     contracts_config.l1.chain_admin_addr = Address::zero();
     contracts_config.l1.base_token_addr = chain_config.base_token.address;
     contracts_config.l1.base_token_asset_id = Some(encode_ntv_asset_id(
-        genesis_config.l1_chain_id.0.into(),
+        chain_config.l1_network.chain_id().into(),
         contracts_config.l1.base_token_addr,
     ));
     contracts_config.save_with_base_path(shell, &chain_config.configs)?;
 
-    genesis::database::update_configs(init_args.genesis_args.clone(), shell, chain_config)?;
+    // Initialize secrets config
+    let mut secrets = chain_config.get_secrets_config().await?.patched();
+    set_l1_rpc_url(&mut secrets, init_args.l1_rpc_url.clone())?;
+    set_consensus_secrets(&mut secrets, &consensus_keys)?;
+    match &init_args.validium_config {
+        None | Some(ValidiumType::NoDA) => { /* Do nothing */ }
+        Some(ValidiumType::Avail((_, avail_secrets))) => {
+            secrets.insert_yaml("da.avail", avail_secrets)?;
+        }
+    }
+    secrets.save().await?;
+
+    genesis::database::update_configs(init_args.genesis_args.clone(), shell, chain_config).await?;
 
     update_portal_config(shell, chain_config)
         .await

@@ -56,12 +56,9 @@ impl TestWallets {
         let wallet = self.get_test_wallet(chain_config)?;
 
         let l1_rpc = chain_config
-            .get_secrets_config()?
-            .l1
-            .context("No L1 secrets available")?
-            .l1_rpc_url
-            .expose_str()
-            .to_owned();
+            .get_secrets_config()
+            .await?
+            .get::<String>("l1.l1_rpc_url")?;
 
         let provider = Provider::<Http>::try_from(l1_rpc.clone())?;
         let balance = provider.get_balance(wallet.address, None).await?;

@@ -6,7 +6,7 @@ use zkstack_cli_common::{config::global_config, db, logger, Prompt};
 use zkstack_cli_config::{
     explorer::{ExplorerChainConfig, ExplorerConfig},
     explorer_compose::{ExplorerBackendComposeConfig, ExplorerBackendConfig, ExplorerBackendPorts},
-    traits::{ConfigWithL2RpcUrl, SaveConfig},
+    traits::SaveConfig,
     ChainConfig, EcosystemConfig,
 };
 
@@ -41,14 +41,18 @@ pub(crate) async fn run(shell: &Shell) -> anyhow::Result<()> {
         // Initialize explorer database
         initialize_explorer_database(&backend_config.database_url).await?;
         // Create explorer backend docker compose file
-        let l2_rpc_url = chain_config.get_general_config()?.get_l2_rpc_url()?;
+        let l2_rpc_url = chain_config
+            .get_general_config()
+            .await?
+            .get("api.web3_json_rpc.http_url")?;
         let backend_compose_config =
             ExplorerBackendComposeConfig::new(chain_name, l2_rpc_url, &backend_config)?;
         let backend_compose_config_path =
             ExplorerBackendComposeConfig::get_config_path(&shell.current_dir(), chain_name);
         backend_compose_config.save(shell, &backend_compose_config_path)?;
         // Add chain to explorer.json
-        let explorer_chain_config = build_explorer_chain_config(&chain_config, &backend_config)?;
+        let explorer_chain_config =
+            build_explorer_chain_config(&chain_config, &backend_config).await?;
         explorer_config.add_chain_config(&explorer_chain_config);
     }
     // Save explorer config
@@ -100,19 +104,15 @@ fn fill_database_values_with_prompt(config: &ChainConfig) -> db::DatabaseConfig 
     db::DatabaseConfig::new(explorer_db_url, explorer_db_name)
 }
 
-fn build_explorer_chain_config(
+async fn build_explorer_chain_config(
     chain_config: &ChainConfig,
     backend_config: &ExplorerBackendConfig,
 ) -> anyhow::Result<ExplorerChainConfig> {
-    let general_config = chain_config.get_general_config()?;
+    let general_config = chain_config.get_general_config().await?;
     // Get L2 RPC URL from general config
-    let l2_rpc_url = general_config.get_l2_rpc_url()?;
+    let l2_rpc_url = general_config.get("api.web3_json_rpc.http_url")?;
     // Get Verification API URL from general config
-    let verification_api_port = general_config
-        .contract_verifier
-        .as_ref()
-        .map(|verifier| verifier.port)
-        .context("verifier.port")?;
+    let verification_api_port = general_config.get::<u16>("contract_verifier.port")?;
     let verification_api_url = format!("http://127.0.0.1:{verification_api_port}");
     // Build API URL
     let api_port = backend_config.ports.api_http_port;
@@ -123,7 +123,7 @@ fn build_explorer_chain_config(
         name: chain_config.name.clone(),
         l2_network_name: chain_config.name.clone(),
         l2_chain_id: chain_config.chain_id.as_u64(),
-        rpc_url: l2_rpc_url.to_string(),
+        rpc_url: l2_rpc_url,
         api_url: api_url.to_string(),
         base_token_address: L2_BASE_TOKEN_ADDRESS.to_string(),
         hostnames: Vec::new(),

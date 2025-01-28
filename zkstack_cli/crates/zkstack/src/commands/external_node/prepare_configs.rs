@@ -1,37 +1,30 @@
-use std::{collections::BTreeMap, path::Path, str::FromStr};
+use std::path::Path;
 
 use anyhow::Context;
 use xshell::Shell;
 use zkstack_cli_common::logger;
 use zkstack_cli_config::{
-    external_node::ENConfig,
-    set_rocks_db_config,
-    traits::{FileConfigWithDefaultName, SaveConfigWithBasePath},
-    ChainConfig, EcosystemConfig, GeneralConfig, SecretsConfig,
+    raw::{PatchedConfig, RawConfig},
+    set_rocks_db_config, ChainConfig, EcosystemConfig, CONSENSUS_CONFIG_FILE, EN_CONFIG_FILE,
+    GENERAL_FILE, SECRETS_FILE,
 };
-use zksync_basic_types::url::SensitiveUrl;
-use zksync_config::configs::{
-    consensus::{ConsensusConfig, ConsensusSecrets, NodeSecretKey, Secret},
-    DatabaseSecrets, L1Secrets,
-};
+use zksync_basic_types::{L1ChainId, L2ChainId};
 use zksync_consensus_crypto::TextFmt;
 use zksync_consensus_roles as roles;
 
 use crate::{
     commands::external_node::args::prepare_configs::{PrepareConfigArgs, PrepareConfigFinal},
     messages::{
-        msg_preparing_en_config_is_done, MSG_CHAIN_NOT_INITIALIZED,
-        MSG_CONSENSUS_CONFIG_MISSING_ERR, MSG_CONSENSUS_SECRETS_MISSING_ERR,
-        MSG_CONSENSUS_SECRETS_NODE_KEY_MISSING_ERR, MSG_PREPARING_EN_CONFIGS,
+        msg_preparing_en_config_is_done, MSG_CHAIN_NOT_INITIALIZED, MSG_PREPARING_EN_CONFIGS,
     },
     utils::{
-        consensus::node_public_key,
+        consensus::{node_public_key, KeyAndAddress},
         ports::EcosystemPortsScanner,
         rocks_db::{recreate_rocksdb_dirs, RocksDBDirOption},
     },
 };
 
-pub fn run(shell: &Shell, args: PrepareConfigArgs) -> anyhow::Result<()> {
+pub async fn run(shell: &Shell, args: PrepareConfigArgs) -> anyhow::Result<()> {
     logger::info(MSG_PREPARING_EN_CONFIGS);
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
     let mut chain_config = ecosystem_config
@@ -44,104 +37,86 @@ pub fn run(shell: &Shell, args: PrepareConfigArgs) -> anyhow::Result<()> {
         .unwrap_or_else(|| chain_config.configs.join("external_node"));
     shell.create_dir(&external_node_config_path)?;
     chain_config.external_node_config_path = Some(external_node_config_path.clone());
-    prepare_configs(shell, &chain_config, &external_node_config_path, args)?;
+    prepare_configs(shell, &chain_config, &external_node_config_path, args).await?;
     let chain_path = ecosystem_config.chains.join(&chain_config.name);
     chain_config.save_with_base_path(shell, chain_path)?;
     logger::info(msg_preparing_en_config_is_done(&external_node_config_path));
     Ok(())
 }
 
-fn prepare_configs(
+async fn prepare_configs(
     shell: &Shell,
     config: &ChainConfig,
     en_configs_path: &Path,
     args: PrepareConfigFinal,
 ) -> anyhow::Result<()> {
     let mut ports = EcosystemPortsScanner::scan(shell)?;
-    let genesis = config.get_genesis_config()?;
-    let general = config.get_general_config()?;
+    let genesis = config.get_genesis_config().await?;
+    let general = config.get_general_config().await?;
     let gateway = config.get_gateway_chain_config().ok();
-    let en_config = ENConfig {
-        l2_chain_id: genesis.l2_chain_id,
-        l1_chain_id: genesis.l1_chain_id,
-        l1_batch_commit_data_generator_mode: genesis.l1_batch_commit_data_generator_mode,
-        main_node_url: SensitiveUrl::from_str(
-            &general
-                .api_config
-                .as_ref()
-                .context("api_config")?
-                .web3_json_rpc
-                .http_url,
-        )?,
-        main_node_rate_limit_rps: None,
-        bridge_addresses_refresh_interval_sec: None,
-        gateway_chain_id: gateway.map(|g| g.gateway_chain_id),
-    };
-    let mut general_en = general.clone();
-    general_en.consensus_config = None;
+    let l2_rpc_port = general.get::<u16>("api.web3_json_rpc.http_port")?;
 
-    let main_node_consensus_config = general
-        .consensus_config
-        .context(MSG_CONSENSUS_CONFIG_MISSING_ERR)?;
-    let mut en_consensus_config = main_node_consensus_config.clone();
+    let mut en_config = PatchedConfig::empty(shell, en_configs_path.join(EN_CONFIG_FILE));
+    en_config.insert(
+        "l2_chain_id",
+        genesis.get::<L2ChainId>("l2_chain_id")?.as_u64(),
+    )?;
+    en_config.insert("l1_chain_id", genesis.get::<L1ChainId>("l1_chain_id")?.0)?;
+    en_config.insert_yaml(
+        "l1_batch_commit_data_generator_mode",
+        genesis.get::<String>("l1_batch_commit_data_generator_mode")?,
+    )?;
+    en_config.insert("main_node_url", format!("http://127.0.0.1:{l2_rpc_port}"))?;
+    if let Some(gateway) = &gateway {
+        en_config.insert_yaml("gateway_chain_id", gateway.gateway_chain_id)?;
+    }
+    en_config.save().await?;
 
-    let mut gossip_static_outbound = BTreeMap::new();
+    // Copy and modify the general config
+    let general_config_path = en_configs_path.join(GENERAL_FILE);
+    shell.copy_file(config.path_to_general_config(), &general_config_path)?;
+    let mut general_en = RawConfig::read(shell, general_config_path.clone())
+        .await?
+        .patched();
+    let main_node_public_addr: String = general_en.base().get("consensus.public_addr")?;
+    let raw_consensus = general_en.base().get("consensus")?;
+    general_en.remove("consensus");
+
+    // Copy and modify the consensus config
+    let mut en_consensus_config =
+        PatchedConfig::empty(shell, en_configs_path.join(CONSENSUS_CONFIG_FILE));
+    en_consensus_config.extend(raw_consensus);
     let main_node_public_key = node_public_key(
         &config
-            .get_secrets_config()?
-            .consensus
-            .context(MSG_CONSENSUS_SECRETS_MISSING_ERR)?,
-    )?
-    .context(MSG_CONSENSUS_SECRETS_NODE_KEY_MISSING_ERR)?;
-    gossip_static_outbound.insert(main_node_public_key, main_node_consensus_config.public_addr);
-    en_consensus_config.gossip_static_outbound = gossip_static_outbound;
+            .get_secrets_config()
+            .await?
+            .get::<String>("consensus.node_key")?,
+    )?;
+    let gossip_static_outbound = [KeyAndAddress {
+        key: main_node_public_key,
+        addr: main_node_public_addr,
+    }];
+    en_consensus_config.insert_yaml("gossip_static_outbound", gossip_static_outbound)?;
+    en_consensus_config.save().await?;
 
     // Set secrets config
+    let mut secrets = PatchedConfig::empty(shell, en_configs_path.join(SECRETS_FILE));
     let node_key = roles::node::SecretKey::generate().encode();
-    let consensus_secrets = ConsensusSecrets {
-        validator_key: None,
-        attester_key: None,
-        node_key: Some(NodeSecretKey(Secret::new(node_key))),
-    };
-
-    let gateway_rpc_url = if let Some(url) = args.gateway_rpc_url {
-        Some(SensitiveUrl::from_str(&url).context("gateway_url")?)
-    } else {
-        None
-    };
-    let secrets = SecretsConfig {
-        consensus: Some(consensus_secrets),
-        database: Some(DatabaseSecrets {
-            server_url: Some(args.db.full_url().into()),
-            prover_url: None,
-            server_replica_url: None,
-        }),
-        l1: Some(L1Secrets {
-            l1_rpc_url: SensitiveUrl::from_str(&args.l1_rpc_url).context("l1_rpc_url")?,
-            gateway_rpc_url,
-        }),
-        data_availability: None,
-    };
+    secrets.insert("consensus.node_key", node_key)?;
+    secrets.insert("database.server_url", args.db.full_url().to_string())?;
+    secrets.insert("l1.l1_rpc_url", args.l1_rpc_url)?;
+    if let Some(url) = args.gateway_rpc_url {
+        secrets.insert("l1.gateway_rpc_url", url)?;
+    }
+    secrets.save().await?;
 
     let dirs = recreate_rocksdb_dirs(shell, &config.rocks_db_path, RocksDBDirOption::ExternalNode)?;
     set_rocks_db_config(&mut general_en, dirs)?;
-
-    general_en.save_with_base_path(shell, en_configs_path)?;
-    en_config.save_with_base_path(shell, en_configs_path)?;
-    en_consensus_config.save_with_base_path(shell, en_configs_path)?;
-    secrets.save_with_base_path(shell, en_configs_path)?;
+    general_en.save().await?;
 
     let offset = 0; // This is zero because general_en ports already have a chain offset
-    ports.allocate_ports_in_yaml(
-        shell,
-        &GeneralConfig::get_path_with_base_path(en_configs_path),
-        offset,
-    )?;
-    ports.allocate_ports_in_yaml(
-        shell,
-        &ConsensusConfig::get_path_with_base_path(en_configs_path),
-        offset,
-    )?;
+    ports.allocate_ports_in_yaml(shell, &general_config_path, offset)?;
+    ports.allocate_ports_in_yaml(shell, &en_configs_path.join(CONSENSUS_CONFIG_FILE), offset)?;
 
     Ok(())
 }
