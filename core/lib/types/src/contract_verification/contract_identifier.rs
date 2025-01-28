@@ -26,8 +26,6 @@ pub struct ContractIdentifier {
     /// CBOR or keccak256 metadata hash being stripped).
     /// Can be absent if the contract bytecode doesn't have metadata.
     pub bytecode_without_metadata_keccak256: Option<DetectedMetadata>,
-    /// Size of metadata in the bytecode.
-    pub metadata_size: usize,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -80,100 +78,106 @@ impl ContractIdentifier {
     pub fn from_bytecode(bytecode_marker: BytecodeMarker, bytecode: &[u8]) -> Self {
         // Calculate the hash for bytecode with metadata.
         let bytecode_keccak256 = H256(keccak256(bytecode));
-        let mut self_ = Self {
+
+        // Try to detect metadata.
+        // CBOR takes precedence (since keccak doesn't have direct markers, so it's partially a
+        // fallback).
+        let bytecode_without_metadata_keccak256 =
+            Self::detect_cbor_metadata(bytecode_marker, bytecode)
+                .or_else(|| Self::detect_keccak_metadata(bytecode_marker, bytecode));
+
+        Self {
             bytecode_marker,
             bytecode_keccak256,
-            bytecode_without_metadata_keccak256: None,
-            metadata_size: 0,
-        };
+            bytecode_without_metadata_keccak256,
+        }
+    }
 
-        // For EraVM, the default metadata is keccak256 hash of the metadata.
-        // Try to use it as a default value (to be overridden if CBOR metadata is detected).
+    /// Will try to detect keccak256 metadata hash (only for EraVM)
+    fn detect_keccak_metadata(
+        bytecode_marker: BytecodeMarker,
+        bytecode: &[u8],
+    ) -> Option<DetectedMetadata> {
+        // For EraVM, the one option for metadata hash is keccak256 hash of the metadata.
         if bytecode_marker == BytecodeMarker::EraVm {
             // For metadata, we might have padding: it takes either 32 or 64 bytes depending
             // on whether the amount of words in the contract is odd, so we need to check
             // if there is padding.
-            if bytecode.len() > 64 {
-                let bytecode_without_metadata =
-                    if bytecode[bytecode.len() - 64..bytecode.len() - 32] == [0u8; 32] {
-                        // Padding is present, strip it.
-                        self_.metadata_size = 64;
-                        &bytecode[..bytecode.len() - 64]
-                    } else {
-                        // No padding, strip metadata only.
-                        self_.metadata_size = 32;
-                        &bytecode[..bytecode.len() - 32]
-                    };
-                let hash = H256::from_slice(&keccak256(bytecode_without_metadata));
-                // This could be overridden if CBOR metadata is detected.
-                self_.bytecode_without_metadata_keccak256 = Some(DetectedMetadata::Keccak256(hash));
-            }
+            let bytecode_without_metadata = Self::strip_padding(bytecode, 32)?;
+            let hash = H256(keccak256(bytecode_without_metadata));
+            Some(DetectedMetadata::Keccak256(hash))
+        } else {
+            None
         }
+    }
 
-        // Try to detect CBOR metadata.
+    /// Will try to detect CBOR metadata.
+    fn detect_cbor_metadata(
+        bytecode_marker: BytecodeMarker,
+        bytecode: &[u8],
+    ) -> Option<DetectedMetadata> {
+        let length = bytecode.len();
 
         // Last two bytes is the length of the metadata in big endian.
-        if bytecode.len() < 2 {
-            return self_;
+        if length < 2 {
+            return None;
         }
         let metadata_length =
-            u16::from_be_bytes([bytecode[bytecode.len() - 2], bytecode[bytecode.len() - 1]])
-                as usize;
+            u16::from_be_bytes([bytecode[length - 2], bytecode[length - 1]]) as usize;
         // Including size
         let full_metadata_length = metadata_length + 2;
 
         // Get slice for the metadata.
-        if bytecode.len() < full_metadata_length {
-            return self_;
+        if length < full_metadata_length {
+            return None;
         }
-        let raw_metadata = &bytecode[bytecode.len() - full_metadata_length..bytecode.len() - 2];
+        let raw_metadata = &bytecode[length - full_metadata_length..length - 2];
         // Try decoding. We are not interested in the actual value.
         let _metadata: CborMetadata = match ciborium::from_reader(raw_metadata) {
             Ok(metadata) => metadata,
-            Err(_) => return self_,
+            Err(_) => return None,
         };
 
         // Strip metadata and calculate hash.
         let bytecode_without_metadata = match bytecode_marker {
             BytecodeMarker::Evm => {
                 // On EVM, there is no padding.
-                self_.metadata_size = full_metadata_length;
-                &bytecode[..bytecode.len() - full_metadata_length]
+                &bytecode[..length - full_metadata_length]
             }
             BytecodeMarker::EraVm => {
                 // On EraVM, there is padding:
                 // 1. We must align the metadata length to 32 bytes.
                 // 2. We may need to add 32 bytes of padding.
-                let aligned_metadata_length = (metadata_length + 31) / 32 * 32;
-                let full_aligned_metadata_length = aligned_metadata_length + 32;
-                if bytecode.len() < full_aligned_metadata_length {
-                    // This shouldn't normally happen (metadata was deserialized correctly),
-                    // so we just disable partial matching just in case.
-                    self_.bytecode_without_metadata_keccak256 = None;
-                    self_.metadata_size = 0;
-                    return self_;
-                }
-                // Check if padding was added.
-                if bytecode[bytecode.len() - full_aligned_metadata_length
-                    ..bytecode.len() - aligned_metadata_length]
-                    == [0u8; 32]
-                {
-                    // Padding was added, strip it.
-                    self_.metadata_size = full_aligned_metadata_length;
-                    &bytecode[..bytecode.len() - full_aligned_metadata_length]
-                } else {
-                    // Padding wasn't added, strip metadata only.
-                    self_.metadata_size = aligned_metadata_length;
-                    &bytecode[..bytecode.len() - aligned_metadata_length]
-                }
+                let aligned_metadata_length = metadata_length.div_ceil(32) * 32;
+                Self::strip_padding(bytecode, aligned_metadata_length)?
             }
         };
         let hash = H256(keccak256(bytecode_without_metadata));
-        self_.bytecode_without_metadata_keccak256 = Some(DetectedMetadata::Cbor(hash));
-
-        self_
+        Some(DetectedMetadata::Cbor(hash))
     }
 
+    /// Adds one word to the metadata length and check if it's a padding word.
+    /// If it is, strips the padding.
+    /// Returns `None` if `metadata_length` + padding won't fit into the bytecode.
+    fn strip_padding(bytecode: &[u8], metadata_length: usize) -> Option<&[u8]> {
+        const PADDING_WORD: [u8; 32] = [0u8; 32];
+
+        let length = bytecode.len();
+        let metadata_with_padding_length = metadata_length + 32;
+        if length < metadata_with_padding_length {
+            return None;
+        }
+        if bytecode[length - metadata_with_padding_length..length - metadata_length] == PADDING_WORD
+        {
+            // Padding was added, strip it.
+            Some(&bytecode[..length - metadata_with_padding_length])
+        } else {
+            // Padding wasn't added, strip metadata only.
+            Some(&bytecode[..length - metadata_length])
+        }
+    }
+
+    /// Checks the kind of match between identifier and other bytecode.
     pub fn matches(&self, other: &[u8]) -> Match {
         let other_identifier = Self::from_bytecode(self.bytecode_marker, other);
 
@@ -213,7 +217,6 @@ mod tests {
             H256(keccak256(&data[..data.len() - full_metadata_len]));
 
         let identifier = ContractIdentifier::from_bytecode(BytecodeMarker::EraVm, &data);
-        assert_eq!(identifier.metadata_size, full_metadata_len);
         assert_eq!(
             identifier.bytecode_keccak256, bytecode_keccak256,
             "Incorrect bytecode hash"
@@ -235,7 +238,6 @@ mod tests {
             H256(keccak256(&data[..data.len() - full_metadata_len]));
 
         let identifier = ContractIdentifier::from_bytecode(BytecodeMarker::EraVm, &data);
-        assert_eq!(identifier.metadata_size, full_metadata_len);
         assert_eq!(
             identifier.bytecode_keccak256, bytecode_keccak256,
             "Incorrect bytecode hash"
@@ -259,7 +261,6 @@ mod tests {
             H256(keccak256(&data[..data.len() - full_metadata_len]));
 
         let identifier = ContractIdentifier::from_bytecode(BytecodeMarker::EraVm, &data);
-        assert_eq!(identifier.metadata_size, full_metadata_len);
         assert_eq!(
             identifier.bytecode_keccak256, bytecode_keccak256,
             "Incorrect bytecode hash"
@@ -283,7 +284,6 @@ mod tests {
             H256(keccak256(&data[..data.len() - full_metadata_len]));
 
         let identifier = ContractIdentifier::from_bytecode(BytecodeMarker::EraVm, &data);
-        assert_eq!(identifier.metadata_size, full_metadata_len);
         assert_eq!(
             identifier.bytecode_keccak256, bytecode_keccak256,
             "Incorrect bytecode hash"
@@ -305,7 +305,6 @@ mod tests {
         let bytecode_keccak256 = H256(keccak256(&data));
 
         let identifier = ContractIdentifier::from_bytecode(BytecodeMarker::EraVm, &data);
-        assert_eq!(identifier.metadata_size, 0);
         assert_eq!(
             identifier.bytecode_keccak256, bytecode_keccak256,
             "Incorrect bytecode hash"
@@ -325,7 +324,6 @@ mod tests {
         let bytecode_keccak256 = H256(keccak256(&data));
 
         let identifier = ContractIdentifier::from_bytecode(BytecodeMarker::Evm, &data);
-        assert_eq!(identifier.metadata_size, 0);
         assert_eq!(
             identifier.bytecode_keccak256, bytecode_keccak256,
             "Incorrect bytecode hash"
@@ -362,10 +360,6 @@ mod tests {
                 H256(keccak256(&data[..data.len() - full_metadata_len]));
 
             let identifier = ContractIdentifier::from_bytecode(BytecodeMarker::Evm, &data);
-            assert_eq!(
-                identifier.metadata_size, full_metadata_len,
-                "{label}: Wrong metadata length"
-            );
             assert_eq!(
                 identifier.bytecode_keccak256, bytecode_keccak256,
                 "{label}: Incorrect bytecode hash"
