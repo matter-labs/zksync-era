@@ -90,7 +90,7 @@ impl GeneralConfig {
     }
 
     pub fn proof_data_handler_url(&self) -> anyhow::Result<Option<String>> {
-        let port = self.0.get_opt::<u16>("proof_data_handler.http_port")?;
+        let port = self.0.get_opt::<u16>("data_handler.http_port")?;
         Ok(port.map(|port| format!("http://127.0.0.1:{port}")))
     }
 
