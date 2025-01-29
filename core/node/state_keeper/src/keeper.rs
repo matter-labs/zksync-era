@@ -192,7 +192,7 @@ impl ZkSyncStateKeeper {
                 self.seal_l2_block(&updates_manager).await?;
                 // We've sealed the L2 block that we had, but we still need to set up the timestamp
                 // for the fictive L2 block.
-                self.set_new_l2_block_params(&mut updates_manager, &stop_receiver)
+                self.get_and_set_new_l2_block_params(&mut updates_manager, &stop_receiver)
                     .await?;
                 Self::start_next_l2_block(&mut updates_manager, &mut *batch_executor).await?;
             }
@@ -381,7 +381,7 @@ impl ZkSyncStateKeeper {
             l2_block = %updates.l2_block.number,
         )
     )]
-    async fn set_new_l2_block_params(
+    async fn get_and_set_new_l2_block_params(
         &mut self,
         updates: &mut UpdatesManager,
         stop_receiver: &watch::Receiver<bool>,
@@ -397,7 +397,7 @@ impl ZkSyncStateKeeper {
             {
                 self.health_updater
                     .update(StateKeeperHealthDetails::from(&cursor).into());
-                updates.update_next_l2_block_parameters(params);
+                updates.set_next_l2_block_parameters(params);
                 latency.observe();
                 return Ok(());
             }
@@ -412,7 +412,7 @@ impl ZkSyncStateKeeper {
             l2_block = %updates.l2_block.number,
         )
     )]
-    async fn update_new_l2_block_params(
+    async fn update_l2_block_params(
         &mut self,
         updates: &mut UpdatesManager,
         stop_receiver: &watch::Receiver<bool>,
@@ -424,7 +424,7 @@ impl ZkSyncStateKeeper {
                 .await
                 .context("error getting the updated L2 block params")?
             {
-                updates.update_next_l2_block_parameters(params);
+                updates.set_next_l2_block_parameters(params);
                 return Ok(());
             }
         }
@@ -438,11 +438,11 @@ impl ZkSyncStateKeeper {
             l2_block = %updates_manager.l2_block.number,
         )
     )]
-    async fn set_next_l2_block_parameters(
+    async fn set_l2_block_params(
         updates_manager: &mut UpdatesManager,
         l2_block_param: L2BlockParams,
     ) {
-        updates_manager.update_next_l2_block_parameters(l2_block_param);
+        updates_manager.set_next_l2_block_parameters(l2_block_param);
     }
 
     #[tracing::instrument(
@@ -508,7 +508,7 @@ impl ZkSyncStateKeeper {
         for (index, l2_block) in l2_blocks_to_reexecute.into_iter().enumerate() {
             // Push any non-first L2 block to updates manager. The first one was pushed when `updates_manager` was initialized.
             if index > 0 {
-                Self::set_next_l2_block_parameters(
+                Self::set_l2_block_params(
                     updates_manager,
                     L2BlockParams {
                         timestamp: l2_block.timestamp,
@@ -582,9 +582,9 @@ impl ZkSyncStateKeeper {
         );
 
         // We've processed all the L2 blocks, and right now we're preparing the next *actual* L2 block.
-        self.set_new_l2_block_params(updates_manager, stop_receiver)
+        self.get_and_set_new_l2_block_params(updates_manager, stop_receiver)
             .await
-            .map_err(|e| e.context("set_new_l2_block_params"))?;
+            .map_err(|e| e.context("get_and_set_new_l2_block_params"))?;
         Ok(true)
     }
 
@@ -620,9 +620,9 @@ impl ZkSyncStateKeeper {
 
                 // Push the current block if it has not been done yet
                 if is_last_block_sealed {
-                    self.update_new_l2_block_params(updates_manager, stop_receiver)
+                    self.update_l2_block_params(updates_manager, stop_receiver)
                         .await
-                        .map_err(|e| e.context("update_new_l2_block_params"))?;
+                        .map_err(|e| e.context("update_l2_block_params"))?;
                     tracing::debug!(
                         "Initialized new L2 block #{} (L1 batch #{}) with timestamp {}",
                         updates_manager.l2_block.number + 1,
@@ -643,8 +643,8 @@ impl ZkSyncStateKeeper {
                 self.seal_l2_block(updates_manager).await?;
                 is_last_block_sealed = true;
 
-                // Get a tentative new l2 block parameters
-                self.set_new_l2_block_params(updates_manager, stop_receiver)
+                // Set a tentative new l2 block parameters
+                self.get_and_set_new_l2_block_params(updates_manager, stop_receiver)
                     .await
                     .map_err(|e| e.context("set_new_l2_block_params"))?;
             }
@@ -652,9 +652,9 @@ impl ZkSyncStateKeeper {
 
             if is_last_block_sealed {
                 // The next block has not started yet, we keep updating the next l2 block parameters with correct timestamp
-                self.update_new_l2_block_params(updates_manager, stop_receiver)
+                self.update_l2_block_params(updates_manager, stop_receiver)
                     .await
-                    .map_err(|e| e.context("update_new_l2_block_params"))?;
+                    .map_err(|e| e.context("update_l2_block_params"))?;
             }
             let Some(tx) = self
                 .io

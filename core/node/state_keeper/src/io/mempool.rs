@@ -59,6 +59,7 @@ pub struct MempoolIO {
     chain_id: L2ChainId,
     l2_da_validator_address: Option<Address>,
     pubdata_type: PubdataType,
+    pub next_l2_block_param: L2BlockParams,
 }
 
 impl IoSealCriteria for MempoolIO {
@@ -283,22 +284,22 @@ impl StateKeeperIO for MempoolIO {
             return Ok(None);
         };
 
-        Ok(Some(L2BlockParams {
+        let params = L2BlockParams {
             timestamp,
             // This value is effectively ignored by the protocol.
             virtual_blocks: 1,
-        }))
+        };
+        self.next_l2_block_param = params;
+        Ok(Some(params))
     }
 
     async fn get_updated_l2_block_params(&mut self) -> anyhow::Result<Option<L2BlockParams>> {
         let current_timestamp_millis = millis_since_epoch();
         let current_timestamp = (current_timestamp_millis / 1_000) as u64;
 
-        Ok(Some(L2BlockParams {
-            timestamp: current_timestamp,
-            // This value is effectively ignored by the protocol.
-            virtual_blocks: 1,
-        }))
+        let mut updated_params = self.next_l2_block_param;
+        updated_params.timestamp = current_timestamp;
+        Ok(Some(updated_params))
     }
 
     async fn wait_for_next_tx(
@@ -523,6 +524,7 @@ impl MempoolIO {
             chain_id,
             l2_da_validator_address,
             pubdata_type,
+            next_l2_block_param: L2BlockParams::default(),
         })
     }
 

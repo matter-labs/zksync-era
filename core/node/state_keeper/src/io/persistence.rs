@@ -512,7 +512,7 @@ mod tests {
             vec![],
         );
         output_handler.handle_l2_block(&updates).await.unwrap();
-        updates.update_next_l2_block_parameters(L2BlockParams {
+        updates.set_next_l2_block_parameters(L2BlockParams {
             timestamp: 1,
             virtual_blocks: 1,
         });
@@ -624,7 +624,7 @@ mod tests {
         persistence.submit_l2_block(seal_command).await;
 
         // The second command should lead to blocking
-        updates_manager.update_next_l2_block_parameters(L2BlockParams {
+        updates_manager.set_next_l2_block_parameters(L2BlockParams {
             timestamp: 2,
             virtual_blocks: 1,
         });
@@ -653,7 +653,7 @@ mod tests {
         // Check that `wait_for_all_commands()` state is reset after use.
         persistence.wait_for_all_commands().await;
 
-        updates_manager.update_next_l2_block_parameters(L2BlockParams {
+        updates_manager.set_next_l2_block_parameters(L2BlockParams {
             timestamp: 3,
             virtual_blocks: 1,
         });
@@ -678,7 +678,7 @@ mod tests {
         for i in 1..=5 {
             let seal_command =
                 updates_manager.seal_l2_block_command(Some(Address::default()), false);
-            updates_manager.update_next_l2_block_parameters(L2BlockParams {
+            updates_manager.set_next_l2_block_parameters(L2BlockParams {
                 timestamp: i,
                 virtual_blocks: 1,
             });

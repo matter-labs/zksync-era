@@ -189,7 +189,7 @@ impl UpdatesManager {
             .extend_from_sealed_l2_block(old_l2_block_updates);
     }
 
-    pub fn update_next_l2_block_parameters(&mut self, l2_block_param: L2BlockParams) {
+    pub fn set_next_l2_block_parameters(&mut self, l2_block_param: L2BlockParams) {
         self.next_l2_block_param = l2_block_param
     }
 
@@ -256,7 +256,7 @@ mod tests {
         assert_eq!(updates_manager.l1_batch.executed_transactions.len(), 0);
 
         // Seal an L2 block.
-        updates_manager.update_next_l2_block_parameters(L2BlockParams {
+        updates_manager.set_next_l2_block_parameters(L2BlockParams {
             timestamp: 2,
             virtual_blocks: 1,
         });
