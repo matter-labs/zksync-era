@@ -369,11 +369,27 @@ impl TxParamsProvider for GasAdjuster {
     }
 
     fn get_gateway_tx_base_fee(&self) -> u64 {
-        todo!()
+        // For gateway transactions, we use the L2 pubdata price statistics
+        // since we're operating in L2 mode
+        if let Some(price) = self.config.internal_enforced_l1_gas_price {
+            return price;
+        }
+
+        let base_fee = self.l2_pubdata_price_statistics.median().as_u64();
+        let calculated_price = (self.config.internal_l1_pricing_multiplier * base_fee as f64) as u64;
+        
+        // Apply the same bounds as regular transactions
+        self.bound_gas_price(calculated_price)
     }
 
     fn get_gateway_tx_pubdata_price(&self) -> u64 {
-        todo!()
+        // For gateway transactions, pubdata price is determined by L2 statistics
+        if let Some(price) = self.config.internal_enforced_pubdata_price {
+            return price;
+        }
+
+        let pubdata_price = self.l2_pubdata_price_statistics.median().as_u64() as f64;
+        self.cap_pubdata_fee(pubdata_price)
     }
 }
 
