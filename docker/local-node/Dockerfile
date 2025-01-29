@@ -99,6 +99,26 @@ RUN apt-get update && apt-get install -y docker.io
 ENV COMPOSE_PROJECT_NAME=my_project_name
 ENV GITHUB_WORKSPACE=my_github_workspace
 
+# Install additional dependencies
+RUN apt-get update && apt-get install -y \
+    clang llvm-dev libclang-dev \
+    ca-certificates curl gnupg \
+    && curl -L https://raw.githubusercontent.com/matter-labs/foundry-zksync/main/install-foundry-zksync | bash
+
+# Install required dependencies including Docker
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates curl gnupg lsb-release \
+    && mkdir -p /etc/apt/keyrings \
+    && curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null \
+    && apt-get update \
+    && apt-get install -y docker-compose-plugin \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set persistent environment variables
+ENV LIBCLANG_PATH=/usr/lib/llvm-14/lib
+ENV PATH="/usr/local/cargo/bin:/root/.foundry/bin:$PATH"
+
 # CMD ["/bin/bash"]
 
 ENTRYPOINT ["entrypoint.sh"]
