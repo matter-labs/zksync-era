@@ -3,10 +3,8 @@ use std::path::PathBuf;
 use anyhow::Context;
 use xshell::Shell;
 use zkstack_cli_config::{
-    external_node::ENConfig, traits::FileConfigWithDefaultName, ChainConfig, GeneralConfig,
-    SecretsConfig,
+    ChainConfig, CONSENSUS_CONFIG_FILE, EN_CONFIG_FILE, GENERAL_FILE, SECRETS_FILE,
 };
-use zksync_config::configs::consensus::ConsensusConfig;
 
 use crate::messages::MSG_FAILED_TO_RUN_SERVER_ERR;
 
@@ -28,17 +26,17 @@ impl RunExternalNode {
             .external_node_config_path
             .clone()
             .context("External node is not initialized")?;
-        let general_config = GeneralConfig::get_path_with_base_path(&en_path);
-        let secrets = SecretsConfig::get_path_with_base_path(&en_path);
-        let enconfig = ENConfig::get_path_with_base_path(&en_path);
-        let consensus_config = ConsensusConfig::get_path_with_base_path(&en_path);
+        let general_config = en_path.join(GENERAL_FILE);
+        let secrets = en_path.join(SECRETS_FILE);
+        let en_config = en_path.join(EN_CONFIG_FILE);
+        let consensus_config = en_path.join(CONSENSUS_CONFIG_FILE);
 
         Ok(Self {
             components,
             code_path: chain_config.link_to_code.clone(),
             general_config,
             secrets,
-            en_config: enconfig,
+            en_config,
             consensus_config,
         })
     }

@@ -6,6 +6,7 @@ use xshell::Shell;
 use zkstack_cli_common::{db::DatabaseConfig, forge::Forge, git, spinner::Spinner};
 use zkstack_cli_config::{
     forge_interface::{
+        deploy_ecosystem::input::GenesisInput,
         gateway_ecosystem_upgrade::{
             input::GatewayEcosystemUpgradeInput, output::GatewayEcosystemUpgradeOutput,
         },
@@ -14,8 +15,9 @@ use zkstack_cli_config::{
             FINALIZE_UPGRADE_SCRIPT_PARAMS, GATEWAY_PREPARATION, GATEWAY_UPGRADE_ECOSYSTEM_PARAMS,
         },
     },
+    raw::RawConfig,
     traits::{ReadConfig, ReadConfigWithBasePath, SaveConfig, SaveConfigWithBasePath},
-    EcosystemConfig, GenesisConfig, CONFIGS_PATH,
+    EcosystemConfig, GENESIS_FILE,
 };
 use zkstack_cli_types::ProverMode;
 use zksync_basic_types::commitment::L1BatchCommitmentMode;
@@ -95,7 +97,11 @@ async fn no_governance_prepare(
     let forge_args = init_args.forge_args.clone();
     let l1_rpc_url = init_args.l1_rpc_url.clone();
 
-    let new_genesis_config = GenesisConfig::read_with_base_path(shell, CONFIGS_PATH)?;
+    let genesis_config_path = ecosystem_config
+        .get_default_configs_path()
+        .join(GENESIS_FILE);
+    let default_genesis_config = RawConfig::read(shell, genesis_config_path).await?;
+    let default_genesis_input = GenesisInput::new(&default_genesis_config)?;
     let current_contracts_config = ecosystem_config.get_contracts_config()?;
     let initial_deployment_config = ecosystem_config.get_initial_deployment_config()?;
 
@@ -110,7 +116,7 @@ async fn no_governance_prepare(
     // assert_eq!(era_config.chain_id, ecosystem_config.era_chain_id);
 
     let gateway_upgrade_input = GatewayEcosystemUpgradeInput::new(
-        &new_genesis_config,
+        &default_genesis_input,
         &current_contracts_config,
         &initial_deployment_config,
         ecosystem_config.era_chain_id,
@@ -492,7 +498,8 @@ async fn no_governance_stage_3(
         .load_chain(Some("gateway".to_string()))
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;
 
-    let chain_genesis_config = chain_config.get_genesis_config()?;
+    let chain_genesis_config = chain_config.get_genesis_config().await?;
+    let genesis_input = GenesisInput::new(&chain_genesis_config)?;
     let mut chain_contracts_config = chain_config.get_contracts_config()?;
 
     // Fund gateway's governor (chain_config.get_wallets_config()?.governor)
@@ -521,7 +528,7 @@ async fn no_governance_stage_3(
         init_args.forge_args.clone(),
         ecosystem_config,
         &chain_config,
-        &chain_genesis_config,
+        &genesis_input,
         &ecosystem_config.get_initial_deployment_config().unwrap(),
         init_args.l1_rpc_url.clone(),
     )
@@ -587,7 +594,7 @@ async fn no_governance_stage_3(
         init_args.forge_args.clone(),
         ecosystem_config,
         &chain_config,
-        &chain_genesis_config,
+        &genesis_input,
         &ecosystem_config.get_initial_deployment_config().unwrap(),
         init_args.l1_rpc_url.clone(),
     )
