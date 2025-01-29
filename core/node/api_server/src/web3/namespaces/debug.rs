@@ -174,6 +174,11 @@ impl DebugNamespace {
         }
 
         let mut connection = self.state.acquire_connection().await?;
+        self.state
+            .start_info
+            .ensure_not_pruned(block_id, &mut connection)
+            .await?;
+
         let block_number = self.state.resolve_block(&mut connection, block_id).await?;
         // let block_hash = block_hash self.state.
         self.current_method()
@@ -252,6 +257,11 @@ impl DebugNamespace {
         let options = options.unwrap_or_default();
 
         let mut connection = self.state.acquire_connection().await?;
+        self.state
+            .start_info
+            .ensure_not_pruned(block_id, &mut connection)
+            .await?;
+
         let block_args = self
             .state
             .resolve_block_args(&mut connection, block_id)
