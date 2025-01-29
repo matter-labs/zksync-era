@@ -2,8 +2,8 @@ use zksync_db_connection::connection::DbMarker;
 pub use zksync_db_connection::{
     connection::Connection,
     connection_pool::ConnectionPool,
-    utils::{duration_to_naive_time, pg_interval_from_duration},
     error::DalError,
+    utils::{duration_to_naive_time, pg_interval_from_duration},
 };
 
 use crate::{
@@ -12,7 +12,6 @@ use crate::{
     fri_protocol_versions_dal::FriProtocolVersionsDal, fri_prover_dal::FriProverDal,
     fri_witness_generator_dal::FriWitnessGeneratorDal,
 };
-
 
 pub mod cli_test_dal;
 pub mod fri_gpu_prover_queue_dal;

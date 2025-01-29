@@ -1,9 +1,13 @@
 use std::{net::SocketAddr, sync::Arc};
 
 use anyhow::Context;
-use axum::{extract::State, routing::post, Json, Router};
-use axum::http::StatusCode;
-use axum::response::{IntoResponse, Response};
+use axum::{
+    extract::State,
+    http::StatusCode,
+    response::{IntoResponse, Response},
+    routing::post,
+    Json, Router,
+};
 use tokio::sync::watch;
 use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_prover_dal::{ConnectionPool, DalError, Prover, ProverDal};
@@ -16,10 +20,12 @@ pub(crate) struct ProverGatewayApi {
 
 impl ProverGatewayApi {
     pub fn new(port: u16, state: Processor) -> ProverGatewayApi {
-        let router = Router::new().route(
-            "/proof_generation_data",
-            post(ProverGatewayApi::submit_proof_generation_data),
-        ).with_state(state);
+        let router = Router::new()
+            .route(
+                "/proof_generation_data",
+                post(ProverGatewayApi::submit_proof_generation_data),
+            )
+            .with_state(state);
 
         Self { router, port }
     }
@@ -93,7 +99,7 @@ impl Processor {
 #[derive(Debug)]
 pub(crate) enum ProcessorError {
     ObjectStore(ObjectStoreError),
-    Dal(DalError)
+    Dal(DalError),
 }
 
 impl From<DalError> for ProcessorError {
@@ -106,7 +112,6 @@ impl From<ObjectStoreError> for ProcessorError {
     fn from(err: ObjectStoreError) -> Self {
         ProcessorError::ObjectStore(err)
     }
-
 }
 
 impl IntoResponse for ProcessorError {

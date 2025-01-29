@@ -3,11 +3,7 @@ use std::{sync::Arc, time::Duration};
 use tokio::sync::watch;
 use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
-use zksync_prover_interface::{
-    api::{SubmitProofRequest,
-        SubmitProofResponse,
-    },
-};
+use zksync_prover_interface::api::{SubmitProofRequest, SubmitProofResponse};
 use zksync_types::{prover_dal::ProofCompressionJobStatus, L1BatchNumber};
 
 use crate::metrics::METRICS;
