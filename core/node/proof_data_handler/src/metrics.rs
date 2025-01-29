@@ -1,6 +1,6 @@
 use std::{fmt, time::Duration};
 
-use vise::{EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics, Unit};
+use vise::{EncodeLabelSet, EncodeLabelValue, Family, Histogram, LabeledFamily, Metrics, Unit};
 use zksync_object_store::bincode;
 use zksync_prover_interface::inputs::WitnessInputData;
 use zksync_types::tee_types::TeeType;
@@ -19,6 +19,17 @@ pub(super) struct ProofDataHandlerMetrics {
     pub total_blob_size_in_mb: Histogram<u64>,
     #[metrics(buckets = vise::Buckets::LATENCIES, unit = Unit::Seconds)]
     pub tee_proof_roundtrip_time: Family<MetricsTeeType, Histogram<Duration>>,
+    #[metrics(labels = ["method", "status"], buckets = vise::Buckets::LATENCIES)]
+    pub call_latency: LabeledFamily<(Method, u16), Histogram<Duration>, 2>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet, EncodeLabelValue)]
+#[metrics(label = "type", rename_all = "snake_case")]
+pub(crate) enum Method {
+    SubmitProof,
+    GetTeeProofInputs,
+    TeeSubmitProofs,
+    TeeRegisterAttestation,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, EncodeLabelSet, EncodeLabelValue)]

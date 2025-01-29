@@ -2,8 +2,9 @@ use std::{net::SocketAddr, sync::Arc};
 
 use anyhow::Context;
 use axum::{
-    extract::State,
+    extract::{Request, State},
     http::StatusCode,
+    middleware::Next,
     response::{IntoResponse, Response},
     routing::post,
     Json, Router,
@@ -13,6 +14,8 @@ use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_prover_dal::{ConnectionPool, DalError, Prover, ProverDal};
 use zksync_prover_interface::api::{ProofGenerationData, SubmitProofGenerationDataResponse};
 
+use crate::{metrics::Method, middleware::MetricsMiddleware};
+
 pub(crate) struct ProverGatewayApi {
     router: Router,
     port: u16,
@@ -20,10 +23,20 @@ pub(crate) struct ProverGatewayApi {
 
 impl ProverGatewayApi {
     pub fn new(port: u16, state: Processor) -> ProverGatewayApi {
+        let middleware_factory = |method: Method| {
+            axum::middleware::from_fn(move |req: Request, next: Next| async move {
+                let middleware = MetricsMiddleware::new(method);
+                let response = next.run(req).await;
+                middleware.observe(response.status());
+                response
+            })
+        };
+
         let router = Router::new()
             .route(
                 "/proof_generation_data",
-                post(ProverGatewayApi::submit_proof_generation_data),
+                post(ProverGatewayApi::submit_proof_generation_data)
+                    .layer(middleware_factory(Method::ProofGenerationData)),
             )
             .with_state(state);
 

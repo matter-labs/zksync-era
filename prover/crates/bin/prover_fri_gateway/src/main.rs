@@ -15,6 +15,7 @@ use crate::api::{Processor, ProverGatewayApi};
 
 mod api;
 mod metrics;
+mod middleware;
 mod proof_submitter;
 
 #[tokio::main]

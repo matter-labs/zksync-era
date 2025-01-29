@@ -2,7 +2,8 @@ use std::{net::SocketAddr, sync::Arc};
 
 use anyhow::Context as _;
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Request, State},
+    middleware::Next,
     routing::{get, post},
     Json, Router,
 };
@@ -17,7 +18,7 @@ use zksync_prover_interface::api::{
 };
 use zksync_types::{L1BatchNumber, L2ChainId};
 
-use crate::errors::RequestProcessorError;
+use crate::{errors::RequestProcessorError, metrics::Method, middleware::MetricsMiddleware};
 
 mod request_processor;
 mod tee_request_processor;
@@ -30,10 +31,20 @@ pub struct ProofDataHandlerApi {
 
 impl ProofDataHandlerApi {
     pub fn new(state: RequestProcessor, port: u16) -> ProofDataHandlerApi {
+        let middleware_factory = |method: Method| {
+            axum::middleware::from_fn(move |req: Request, next: Next| async move {
+                let middleware = MetricsMiddleware::new(method);
+                let response = next.run(req).await;
+                middleware.observe(response.status());
+                response
+            })
+        };
+
         let router = Router::new()
             .route(
                 "/submit_proof/:l1_batch_number",
-                post(ProofDataHandlerApi::submit_proof),
+                post(ProofDataHandlerApi::submit_proof)
+                    .layer(middleware_factory(Method::SubmitProof)),
             )
             .with_state(state)
             .layer(tower_http::compression::CompressionLayer::new())
@@ -43,22 +54,35 @@ impl ProofDataHandlerApi {
     }
 
     pub fn new_with_tee_support(state: RequestProcessor, port: u16) -> ProofDataHandlerApi {
+        let middleware_factory = |method: Method| {
+            axum::middleware::from_fn(move |req: Request, next: Next| async move {
+                let middleware = MetricsMiddleware::new(method);
+                let response = next.run(req).await;
+                middleware.observe(response.status());
+                response
+            })
+        };
+
         let router = Router::new()
             .route(
                 "/submit_proof/:l1_batch_number",
-                post(ProofDataHandlerApi::submit_proof),
+                post(ProofDataHandlerApi::submit_proof)
+                    .layer(middleware_factory(Method::SubmitProof)),
             )
             .route(
                 "/tee/proof_inputs",
-                get(ProofDataHandlerApi::get_tee_proof_generation_data),
+                get(ProofDataHandlerApi::get_tee_proof_generation_data)
+                    .layer(middleware_factory(Method::GetTeeProofInputs)),
             )
             .route(
                 "/tee/submit_proofs/:l1_batch_number",
-                post(ProofDataHandlerApi::submit_tee_proof),
+                post(ProofDataHandlerApi::submit_tee_proof)
+                    .layer(middleware_factory(Method::TeeSubmitProofs)),
             )
             .route(
                 "/tee/register_attestation",
-                post(ProofDataHandlerApi::register_tee_attestation),
+                post(ProofDataHandlerApi::register_tee_attestation)
+                    .layer(middleware_factory(Method::TeeRegisterAttestation)),
             )
             .with_state(state)
             .layer(tower_http::compression::CompressionLayer::new())

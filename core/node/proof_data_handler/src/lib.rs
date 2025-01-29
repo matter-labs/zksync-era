@@ -4,6 +4,7 @@ mod tests;
 mod api;
 mod errors;
 mod metrics;
+mod middleware;
 mod proof_data_submitter;
 
 pub use api::{ProofDataHandlerApi, RequestProcessor};

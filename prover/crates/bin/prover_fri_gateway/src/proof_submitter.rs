@@ -126,7 +126,11 @@ impl PeriodicProofSubmitter {
                         self.handle_response(l1_batch_number, response).await;
                     }
                     Err(err) => {
-                        METRICS.http_error[&"ProofDataSubmitter"].inc();
+                        if let Some(status) = err.status() {
+                            METRICS.submitter_http_error[status.as_u16()].inc();
+                        } else {
+                            tracing::warn!("Failed to decode status code from error");
+                        }
                         tracing::error!("HTTP request failed due to error: {}", err);
                     }
                 }
