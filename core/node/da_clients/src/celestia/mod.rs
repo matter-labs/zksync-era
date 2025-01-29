@@ -1,5 +1,6 @@
 mod client;
 mod sdk;
+mod integration_service;
 
 pub use self::client::CelestiaClient;
 
