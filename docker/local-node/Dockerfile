@@ -119,6 +119,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 ENV LIBCLANG_PATH=/usr/lib/llvm-14/lib
 ENV PATH="/usr/local/cargo/bin:/root/.foundry/bin:$PATH"
 
+RUN ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup \
+    && zkstackup -g --local --cargo-features gateway
+
+
 # CMD ["/bin/bash"]
 
 ENTRYPOINT ["entrypoint.sh"]

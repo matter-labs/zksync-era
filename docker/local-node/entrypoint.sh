@@ -8,9 +8,9 @@
 # export LIBCLANG_PATH=/usr/lib/llvm-14/lib
 # apt install -y pkg-config libssl-dev
 
-./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup
+# ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup
 
-zkstackup -g --local --cargo-features gateway
+# zkstackup -g --local --cargo-features gateway
 
 # apt-get update && apt-get install -y docker.io
 # curl -L "https://github.com/docker/compose/releases/download/v2.21.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
@@ -46,14 +46,6 @@ zkstackup -g --local --cargo-features gateway
 # DATABASE_URL=postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_era 
 # DATABASE_URL=postgres://postgres:notsecurepassword@localhost/zksync_local
 # DATABASE_URL=postgres://postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_era
-
-zkstack ecosystem init --deploy-paymaster --deploy-erc20 \
-    --deploy-ecosystem --l1-rpc-url=http://localhost:8545 \
-    --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-    --server-db-name=zksync_server_localhost_era \
-    --ignore-prerequisites --verbose \
-    --observability=false \
-    --update-submodules=false
 
 # CUSTOM_TOKEN_ADDRESS=$(awk -F": " '/tokens:/ {found_tokens=1} found_tokens && /DAI:/ {found_dai=1} found_dai && /address:/ {print $2; exit}' ./configs/erc20.yaml)
 # echo "CUSTOM_TOKEN_ADDRESS=$CUSTOM_TOKEN_ADDRESS"
@@ -201,6 +193,149 @@ zkstack ecosystem init --deploy-paymaster --deploy-erc20 \
 # zkstack server wait --ignore-prerequisites --verbose --chain validium
 # zkstack server wait --ignore-prerequisites --verbose --chain custom_token
 # zkstack server wait --ignore-prerequisites --verbose --chain consensus
+
+
+# These 3 env variables must be provided.
+if [ -z "$DATABASE_URL" ]; then
+  echo "ERROR: DATABASE_URL is not set."
+  exit 1
+fi
+
+if [ -z "$DATABASE_PROVER_URL" ]; then
+  echo "ERROR: DATABASE_PROVER_URL is not set."
+  exit 1
+fi
+
+if [ -z "$ETH_CLIENT_WEB3_URL" ]; then
+  echo "ERROR: ETH_CLIENT_WEB3_URL is not set."
+  exit 1
+fi
+
+# Function to update a key in a YAML file
+update_config() {
+  local file="$1"
+  local key="$2"
+  local new_value="$3"
+
+  # Escape special characters for sed
+  local escaped_key=$(echo "$key" | sed 's/\./\\./g')
+  local pattern="^\\s*${escaped_key}:.*$"
+
+  # Check if the key exists in the file
+  if grep -qE "$pattern" "$file"; then
+    # Update the existing key
+    sed -i "s|$pattern|${key}: $new_value|" "$file"
+    echo "Updated '$key' in $file."
+  else
+    # Append the key if it doesn't exist
+    echo "$key: $new_value" >> "$file"
+    echo "Added '$key' to $file."
+  fi
+}
+
+
+# wait till db service is ready
+until psql ${DATABASE_URL%/*} -c '\q'; do
+  echo >&2 "Postgres is unavailable - sleeping"
+  sleep 5
+done
+
+echo "Initialing local environment"
+
+update_config "/chains/era/configs/secrets.yaml" "server_url" "$DATABASE_URL"
+update_config "/chains/era/configs/secrets.yaml" "prover_url" "$DATABASE_PROVER_URL"
+update_config "/chains/era/configs/secrets.yaml" "l1_rpc_url" "$ETH_CLIENT_WEB3_URL"
+
+# Extract the database name (everything after the last '/')
+SERVER_DB_NAME="${DATABASE_URL##*/}"
+
+# Extract the database URL without the database name
+SERVER_DB_URL="${DATABASE_URL%/*}"
+
+zkstack ecosystem init --deploy-paymaster --deploy-erc20 \
+    --deploy-ecosystem --l1-rpc-url=$ETH_CLIENT_WEB3_URL \
+    --server-db-url="$SERVER_DB_URL" \
+    --server-db-name="$SERVER_DB_NAME" \
+    --ignore-prerequisites --verbose \
+    --observability=false \
+    --update-submodules=false
+
+# if [ -z "$MASTER_URL" ]; then
+#   echo "Running as zksync master"
+# else
+#   # If running in slave mode - wait for the master to be up and running.
+#   echo "Waiting for zksync master to init hyperchain"
+#   until curl --fail ${MASTER_HEALTH_URL}; do
+#     echo >&2 "Master zksync not ready yet, sleeping"
+#     sleep 5
+#   done
+# fi
+
+# if [ -n "$LEGACY_BRIDGE_TESTING" ]; then
+#   if [ -z "$MASTER_URL" ]; then
+#     echo "Running in legacy bridge testing mode"
+#   else
+#     # LEGACY_BRIDGE_TESTING flag is for the master only
+#     unset LEGACY_BRIDGE_TESTING
+#   fi
+# fi
+
+# Normally, the /etc/env and /var/lib/zksync/data should be mapped to volumes
+# so that they are persisted between docker restarts - which would allow even faster starts.
+
+# We use the existance of this init file to decide whether to restart or not.
+# INIT_FILE="/var/lib/zksync/data/INIT_COMPLETED.remove_to_reset"
+
+# if [ -f "$INIT_FILE" ]; then
+#   echo "Initialization was done in the past - simply starting server"
+# else
+#   echo "Initialing local environment"
+
+#   mkdir -p /var/lib/zksync/data
+
+#   update_config "/etc/env/base/private.toml" "database_url" "$DATABASE_URL"
+#   update_config "/etc/env/base/private.toml" "database_prover_url" "$DATABASE_PROVER_URL"
+#   update_config "/etc/env/base/eth_client.toml" "web3_url" "$ETH_CLIENT_WEB3_URL"
+#   # Put database in a special /var/lib directory so that it is persisted between docker runs.
+#   update_config "/etc/env/base/database.toml" "path" "/var/lib/zksync/data"
+#   update_config "/etc/env/base/database.toml" "state_keeper_db_path" "/var/lib/zksync/data/state_keeper"
+#   update_config "/etc/env/base/database.toml" "backup_path" "/var/lib/zksync/data/backups"
+
+  # if [ -z "$MASTER_URL" ]; then
+  #   echo "Starting with hyperchain"
+  # else
+  #   # Updates all the stuff (from the '/etc/master_env') - it assumes that it is mapped via docker compose.
+  #   zk f yarn --cwd /infrastructure/local-setup-preparation join
+  # fi
+
+  # Perform initialization (things needed to be done only if you're running in the master mode)
+  # if [ -z "$MASTER_URL" ]; then
+  #   zk contract deploy-verifier
+  #   zk run deploy-erc20 dev # (created etc/tokens/localhost)
+
+  #   ## init bridgehub state transition
+  #   zk contract deploy # (deploy L1)
+  #   zk contract initialize-governance
+  #   zk contract initialize-validator
+  # fi
+
+
+  # if [ -z "$CUSTOM_BASE_TOKEN" ]; then
+  #   echo "Starting chain with ETH as gas token"
+
+  #   if [ -z "$VALIDIUM_MODE" ]; then
+  #     ## init hyperchain in rollup mode
+  #     zk contract register-hyperchain
+  #   else
+  #     zk contract register-hyperchain --deployment-mode 1
+  #   fi
+  # else
+  #   echo "Starting chain with custom gas token $CUSTOM_BASE_TOKEN"
+  #   zk contract register-hyperchain --base-token-name $CUSTOM_BASE_TOKEN
+  # fi
+
+# fi
+
 
 # start server
 zkstack server
