@@ -1,22 +1,21 @@
 { pkgs
-, zksync
-, commonArgs
+, tee_prover
+, coreCommonArgs
+, inputs
+, ...
 }:
+let
+  toolchain = pkgs.rust-bin.fromRustupToolchainFile (inputs.src + "/rust-toolchain");
+
+  toolchain_with_src = (toolchain.override {
+    extensions = [ "rustfmt" "clippy" "rust-src" ];
+  });
+in
 pkgs.mkShell {
-  inputsFrom = [ zksync ];
+  inputsFrom = [ tee_prover ];
+  packages = [ ];
 
-  packages = with pkgs; [
-    docker-compose
-    nodejs
-    yarn
-    axel
-    postgresql
-    python3
-    solc
-    sqlx-cli
-  ];
-
-  inherit (commonArgs) env hardeningEnable;
+  inherit (coreCommonArgs) env hardeningEnable;
 
   shellHook = ''
     export ZKSYNC_HOME=$PWD
@@ -32,6 +31,7 @@ pkgs.mkShell {
     fi
   '';
 
+  RUST_SRC_PATH = "${toolchain_with_src}/lib/rustlib/src/rust/library";
   ZK_NIX_LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [ ];
 }
 
