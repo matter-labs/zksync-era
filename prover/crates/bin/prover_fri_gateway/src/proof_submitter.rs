@@ -127,7 +127,7 @@ impl PeriodicProofSubmitter {
                     }
                     Err(err) => {
                         if let Some(status) = err.status() {
-                            METRICS.submitter_http_error[status.as_u16()].inc();
+                            METRICS.submitter_http_error[&status.as_u16()].inc();
                         } else {
                             tracing::warn!("Failed to decode status code from error");
                         }
