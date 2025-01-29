@@ -361,8 +361,8 @@ impl StateKeeperIO for ExternalIO {
         }
     }
 
-    async fn get_updated_l2_block_params(&mut self) -> anyhow::Result<Option<L2BlockParams>> {
-        Ok(Some(self.next_l2_block_param))
+    fn get_updated_l2_block_params(&mut self) -> L2BlockParams {
+        self.next_l2_block_param
     }
 
     async fn wait_for_next_tx(

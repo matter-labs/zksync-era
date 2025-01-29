@@ -136,7 +136,7 @@ pub trait StateKeeperIO: 'static + Send + Sync + fmt::Debug + IoSealCriteria {
     ) -> anyhow::Result<Option<L2BlockParams>>;
 
     /// Get the updated parameters for the next L2 block.
-    async fn get_updated_l2_block_params(&mut self) -> anyhow::Result<Option<L2BlockParams>>;
+    fn get_updated_l2_block_params(&mut self) -> L2BlockParams;
 
     /// Blocks for up to `max_wait` until the next transaction is available for execution.
     /// Returns `None` if no transaction became available until the timeout.

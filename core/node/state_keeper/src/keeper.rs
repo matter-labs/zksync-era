@@ -412,23 +412,9 @@ impl ZkSyncStateKeeper {
             l2_block = %updates.l2_block.number,
         )
     )]
-    async fn update_l2_block_params(
-        &mut self,
-        updates: &mut UpdatesManager,
-        stop_receiver: &watch::Receiver<bool>,
-    ) -> Result<(), Error> {
-        while !is_canceled(stop_receiver) {
-            if let Some(params) = self
-                .io
-                .get_updated_l2_block_params()
-                .await
-                .context("error getting the updated L2 block params")?
-            {
-                updates.set_next_l2_block_parameters(params);
-                return Ok(());
-            }
-        }
-        Err(Error::Canceled)
+    fn update_l2_block_params(&mut self, updates: &mut UpdatesManager) -> () {
+        let updated_params = self.io.get_updated_l2_block_params();
+        updates.set_next_l2_block_parameters(updated_params);
     }
 
     #[tracing::instrument(
@@ -620,9 +606,7 @@ impl ZkSyncStateKeeper {
 
                 // Push the current block if it has not been done yet
                 if is_last_block_sealed {
-                    self.update_l2_block_params(updates_manager, stop_receiver)
-                        .await
-                        .map_err(|e| e.context("update_l2_block_params"))?;
+                    self.update_l2_block_params(updates_manager);
                     tracing::debug!(
                         "Initialized new L2 block #{} (L1 batch #{}) with timestamp {}",
                         updates_manager.l2_block.number + 1,
@@ -652,9 +636,7 @@ impl ZkSyncStateKeeper {
 
             if is_last_block_sealed {
                 // The next block has not started yet, we keep updating the next l2 block parameters with correct timestamp
-                self.update_l2_block_params(updates_manager, stop_receiver)
-                    .await
-                    .map_err(|e| e.context("update_l2_block_params"))?;
+                self.update_l2_block_params(updates_manager);
             }
             let Some(tx) = self
                 .io
