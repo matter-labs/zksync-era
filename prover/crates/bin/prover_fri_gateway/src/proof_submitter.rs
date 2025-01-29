@@ -4,11 +4,9 @@ use tokio::sync::watch;
 use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_interface::{
-    api::{
-        ProofGenerationData, SubmitProofGenerationDataResponse, SubmitProofRequest,
+    api::{SubmitProofRequest,
         SubmitProofResponse,
     },
-    outputs::L1BatchProofForL1,
 };
 use zksync_types::{prover_dal::ProofCompressionJobStatus, L1BatchNumber};
 
@@ -132,7 +130,7 @@ impl PeriodicProofSubmitter {
                         self.handle_response(l1_batch_number, response).await;
                     }
                     Err(err) => {
-                        METRICS.http_error["ProofDataSubmitter"].inc();
+                        METRICS.http_error[&"ProofDataSubmitter"].inc();
                         tracing::error!("HTTP request failed due to error: {}", err);
                     }
                 }

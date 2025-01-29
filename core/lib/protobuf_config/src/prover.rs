@@ -148,7 +148,9 @@ impl ProtoRepr for proto::ProverGateway {
             api_poll_duration_secs: required(&self.api_poll_duration_secs)
                 .and_then(|x| Ok((*x).try_into()?))
                 .context("api_poll_duration_secs")?,
-            http_port: required(&self.http_port).context("http_port")?.clone(),
+            http_port: required(&self.http_port)
+                .and_then(|x| Ok((*x).try_into()?))
+                .context("http_port")?,
             prometheus_listener_port: required(&self.prometheus_listener_port)
                 .and_then(|x| Ok((*x).try_into()?))
                 .context("prometheus_listener_port")?,
@@ -163,7 +165,7 @@ impl ProtoRepr for proto::ProverGateway {
         Self {
             api_url: Some(this.api_url.clone()),
             api_poll_duration_secs: Some(this.api_poll_duration_secs.into()),
-            http_port: this.http_port,
+            http_port: Some(this.http_port.into()),
             prometheus_listener_port: Some(this.prometheus_listener_port.into()),
             prometheus_pushgateway_url: Some(this.prometheus_pushgateway_url.clone()),
             prometheus_push_interval_ms: this.prometheus_push_interval_ms,

@@ -115,5 +115,5 @@ message ProofDataHandler {
   optional uint32 tee_proof_generation_timeout_in_secs = 5; // optional
   optional uint32 tee_batch_permanently_ignored_timeout_in_hours = 6; // optional
   optional string api_url = 7; // required; string
-  optional uint32 api_poll_duration = 8; // required; s
+  optional uint32 api_poll_duration_in_secs = 8; // required; s
 }

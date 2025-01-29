@@ -2,9 +2,11 @@ use std::{net::SocketAddr, sync::Arc};
 
 use anyhow::Context;
 use axum::{extract::State, routing::post, Json, Router};
+use axum::http::StatusCode;
+use axum::response::{IntoResponse, Response};
 use tokio::sync::watch;
-use zksync_object_store::ObjectStore;
-use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
+use zksync_object_store::{ObjectStore, ObjectStoreError};
+use zksync_prover_dal::{ConnectionPool, DalError, Prover, ProverDal};
 use zksync_prover_interface::api::ProofGenerationData;
 
 pub(crate) struct ProverGatewayApi {
@@ -14,10 +16,10 @@ pub(crate) struct ProverGatewayApi {
 
 impl ProverGatewayApi {
     pub fn new(port: u16, state: Processor) -> ProverGatewayApi {
-        let router = Router::new().with_state(state).route(
+        let router = Router::new().route(
             "/proof_generation_data",
             post(ProverGatewayApi::submit_proof_generation_data),
-        );
+        ).with_state(state);
 
         Self { router, port }
     }
@@ -41,15 +43,15 @@ impl ProverGatewayApi {
         Ok(())
     }
 
-    fn submit_proof_generation_data(
+    async fn submit_proof_generation_data(
         State(processor): State<Processor>,
         Json(payload): Json<ProofGenerationData>,
-    ) -> anyhow::Result<()> {
-        processor.save_proof_gen_data(payload)
+    ) -> Result<(), ProcessorError> {
+        processor.save_proof_gen_data(payload).await
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct Processor {
     blob_store: Arc<dyn ObjectStore>,
     pool: ConnectionPool<Prover>,
@@ -63,7 +65,7 @@ impl Processor {
     pub(crate) async fn save_proof_gen_data(
         &self,
         data: ProofGenerationData,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), ProcessorError> {
         tracing::info!(
             "Received proof generation data for batch: {:?}",
             data.l1_batch_number
@@ -72,8 +74,7 @@ impl Processor {
         let store = &*self.blob_store;
         let witness_inputs = store
             .put(data.l1_batch_number, &data.witness_input_data)
-            .await
-            .expect("Failed to save proof generation data to GCS");
+            .await?;
         let mut connection = self.pool.connection().await?;
 
         connection
@@ -86,5 +87,46 @@ impl Processor {
             .save_witness_inputs(data.l1_batch_number, &witness_inputs, data.protocol_version)
             .await;
         Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum ProcessorError {
+    ObjectStore(ObjectStoreError),
+    Dal(DalError)
+}
+
+impl From<DalError> for ProcessorError {
+    fn from(err: DalError) -> Self {
+        ProcessorError::Dal(err)
+    }
+}
+
+impl From<ObjectStoreError> for ProcessorError {
+    fn from(err: ObjectStoreError) -> Self {
+        ProcessorError::ObjectStore(err)
+    }
+
+}
+
+impl IntoResponse for ProcessorError {
+    fn into_response(self) -> Response {
+        let (status_code, message) = match self {
+            Self::ObjectStore(err) => {
+                tracing::error!("GCS error: {:?}", err);
+                (
+                    StatusCode::BAD_GATEWAY,
+                    "Failed fetching/saving from GCS".to_owned(),
+                )
+            }
+            Self::Dal(err) => {
+                tracing::error!("Sqlx error: {:?}", err);
+                (
+                    StatusCode::BAD_GATEWAY,
+                    "Failed fetching/saving from db".to_owned(),
+                )
+            }
+        };
+        (status_code, message).into_response()
     }
 }
