@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 
 use once_cell::sync::OnceCell;
-use zksync_types::{vm::VmVersion, L2ChainId, ProtocolVersionId, U256};
+use zksync_types::{vm::VmVersion, L2ChainId, ProtocolVersionId, U256, H256};
 use zksync_vm_interface::pubdata::PubdataBuilder;
 
 use super::{tx::BootloaderTx, utils::apply_pubdata_to_memory};
@@ -15,8 +15,8 @@ use crate::{
             l2_block::BootloaderL2Block,
             snapshot::BootloaderStateSnapshot,
             utils::{apply_l2_block, apply_message_root, apply_tx_to_memory},
+            message_root::MessageRoot,
         },
-        bootloader_state::message_root::MessageRoot,
         constants::get_tx_description_offset,
         types::TransactionData,
         utils::l2_blocks::assert_next_block,
