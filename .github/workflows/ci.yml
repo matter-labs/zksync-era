@@ -7,7 +7,6 @@ on:
     branches:
       - staging
       - trying
-      - sync-layer-stable # adding this branch here to run CI on it regardless of the conflicts
       - '!release-please--branches--**'
 
 concurrency:
@@ -96,11 +95,11 @@ jobs:
     name: CI for Prover Components
     uses: ./.github/workflows/ci-prover-reusable.yml
 
-#  e2e-for-prover:
-#    name: E2E Test for Prover Components
-#    needs: changed_files
-#    if: ${{(needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
-#    uses: ./.github/workflows/ci-prover-e2e.yml
+  e2e-for-prover:
+    name: E2E Test for Prover Components
+    needs: changed_files
+    if: ${{(needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
+    uses: ./.github/workflows/ci-prover-e2e.yml
 
   ci-for-docs:
     needs: changed_files
@@ -184,7 +183,7 @@ jobs:
     name: Github Status Check
     runs-on: ubuntu-latest
     if: always() && !cancelled()
-    needs: [ ci-for-core-lint, ci-for-common, ci-for-core, ci-for-prover, ci-for-docs, build-core-images, build-contract-verifier, build-prover-images ]
+    needs: [ ci-for-core-lint, ci-for-common, ci-for-core, ci-for-prover, ci-for-docs, build-core-images, build-contract-verifier, build-prover-images, e2e-for-prover ]
     steps:
       - name: Status
         run: |

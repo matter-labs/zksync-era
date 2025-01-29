@@ -19,7 +19,6 @@ pub struct DecentralizedUpgradesEventProcessor {
     /// Last protocol version seen. Used to skip events for already known upgrade proposals.
     last_seen_protocol_version: ProtocolSemanticVersion,
     update_upgrade_timestamp_signature: H256,
-    chain_specific_data: Option<ZkChainSpecificUpgradeData>,
     sl_client: Arc<dyn EthClient>,
     l1_client: Arc<dyn EthClient>,
 }
@@ -28,7 +27,6 @@ impl DecentralizedUpgradesEventProcessor {
     pub fn new(
         last_seen_protocol_version: ProtocolSemanticVersion,
         chain_admin_contract: &Contract,
-        chain_specific_data: Option<ZkChainSpecificUpgradeData>,
         sl_client: Arc<dyn EthClient>,
         l1_client: Arc<dyn EthClient>,
     ) -> Self {
@@ -39,7 +37,6 @@ impl DecentralizedUpgradesEventProcessor {
                 .context("UpdateUpgradeTimestamp event is missing in ABI")
                 .unwrap()
                 .signature(),
-            chain_specific_data,
             sl_client,
             l1_client,
         }

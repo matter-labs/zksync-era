@@ -131,13 +131,10 @@ where
     }
 
     fn push_transaction_with_refund(&mut self, tx: Transaction, refund: u64) {
-        self.get_mut(
-            "push_transaction_with_refund_and_compression",
-            |r| match r {
-                ShadowMut::Main(vm) => vm.push_transaction_with_refund(tx.clone(), refund),
-                ShadowMut::Shadow(vm) => vm.push_transaction_with_refund(tx.clone(), refund),
-            },
-        );
+        self.get_mut("push_transaction_with_refund", |r| match r {
+            ShadowMut::Main(vm) => vm.push_transaction_with_refund(tx.clone(), refund),
+            ShadowMut::Shadow(vm) => vm.push_transaction_with_refund(tx.clone(), refund),
+        });
     }
 
     fn pubdata_input(&self) -> PubdataInput {

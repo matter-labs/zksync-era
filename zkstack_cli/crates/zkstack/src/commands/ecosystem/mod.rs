@@ -1,4 +1,4 @@
-use args::{build_transactions::BuildTransactionsArgs, gateway_upgrade::GatewayUpgradeArgs};
+use args::build_transactions::BuildTransactionsArgs;
 use clap::Subcommand;
 use xshell::Shell;
 

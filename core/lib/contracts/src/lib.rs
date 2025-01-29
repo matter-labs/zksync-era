@@ -59,10 +59,6 @@ const GETTERS_FACET_CONTRACT_FILE: (&str, &str) = (
     "state-transition/chain-interfaces",
     "IGetters.sol/IGetters.json",
 );
-const ADMIN_FACET_CONTRACT_FILE: (&str, &str) = (
-    "state-transition/chain-interfaces",
-    "IAdmin.sol/IAdmin.json",
-);
 
 const MULTICALL3_CONTRACT_FILE: (&str, &str) = ("dev-contracts", "Multicall3.sol/Multicall3.json");
 const L1_ASSET_ROUTER_FILE: (&str, &str) = (
@@ -171,10 +167,6 @@ pub fn chain_admin_contract() -> Contract {
 
 pub fn getters_facet_contract() -> Contract {
     load_contract_for_both_compilers(GETTERS_FACET_CONTRACT_FILE)
-}
-
-pub fn admin_facet_contract() -> Contract {
-    load_contract_for_both_compilers(ADMIN_FACET_CONTRACT_FILE)
 }
 
 pub fn state_transition_manager_contract() -> Contract {

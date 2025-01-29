@@ -550,8 +550,6 @@ jobs:
         run: |
           ci_run killall -INT zksync_server || true
           ci_run killall -INT zksync_external_node || true
-          ci_run zkstack server --ignore-prerequisites --chain gateway &> ${{ env.SERVER_LOGS_DIR }}/gateway.log &
-          ci_run zkstack server wait --ignore-prerequisites --verbose --chain gateway
 
           # Only start & wait for the gateway server if use_gateway_chain == WITH_GATEWAY
           if [ "${{ matrix.use_gateway_chain }}" == "WITH_GATEWAY" ]; then

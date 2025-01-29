@@ -63,9 +63,6 @@ _zkstack() {
             zkstack__chain,build-transactions)
                 cmd="zkstack__chain__build__transactions"
                 ;;
-            zkstack__chain,convert-to-gateway)
-                cmd="zkstack__chain__convert__to__gateway"
-                ;;
             zkstack__chain,create)
                 cmd="zkstack__chain__create"
                 ;;
@@ -89,9 +86,6 @@ _zkstack() {
                 ;;
             zkstack__chain,enable-evm-emulator)
                 cmd="zkstack__chain__enable__evm__emulator"
-                ;;
-            zkstack__chain,gateway-upgrade)
-                cmd="zkstack__chain__gateway__upgrade"
                 ;;
             zkstack__chain,genesis)
                 cmd="zkstack__chain__genesis"
@@ -132,9 +126,6 @@ _zkstack() {
             zkstack__chain__help,build-transactions)
                 cmd="zkstack__chain__help__build__transactions"
                 ;;
-            zkstack__chain__help,convert-to-gateway)
-                cmd="zkstack__chain__help__convert__to__gateway"
-                ;;
             zkstack__chain__help,create)
                 cmd="zkstack__chain__help__create"
                 ;;
@@ -158,9 +149,6 @@ _zkstack() {
                 ;;
             zkstack__chain__help,enable-evm-emulator)
                 cmd="zkstack__chain__help__enable__evm__emulator"
-                ;;
-            zkstack__chain__help,gateway-upgrade)
-                cmd="zkstack__chain__help__gateway__upgrade"
                 ;;
             zkstack__chain__help,genesis)
                 cmd="zkstack__chain__help__genesis"
@@ -642,9 +630,6 @@ _zkstack() {
             zkstack__ecosystem,create)
                 cmd="zkstack__ecosystem__create"
                 ;;
-            zkstack__ecosystem,gateway-upgrade)
-                cmd="zkstack__ecosystem__gateway__upgrade"
-                ;;
             zkstack__ecosystem,help)
                 cmd="zkstack__ecosystem__help"
                 ;;
@@ -662,9 +647,6 @@ _zkstack() {
                 ;;
             zkstack__ecosystem__help,create)
                 cmd="zkstack__ecosystem__help__create"
-                ;;
-            zkstack__ecosystem__help,gateway-upgrade)
-                cmd="zkstack__ecosystem__help__gateway__upgrade"
                 ;;
             zkstack__ecosystem__help,help)
                 cmd="zkstack__ecosystem__help__help"
@@ -786,9 +768,6 @@ _zkstack() {
             zkstack__help__chain,build-transactions)
                 cmd="zkstack__help__chain__build__transactions"
                 ;;
-            zkstack__help__chain,convert-to-gateway)
-                cmd="zkstack__help__chain__convert__to__gateway"
-                ;;
             zkstack__help__chain,create)
                 cmd="zkstack__help__chain__create"
                 ;;
@@ -812,9 +791,6 @@ _zkstack() {
                 ;;
             zkstack__help__chain,enable-evm-emulator)
                 cmd="zkstack__help__chain__enable__evm__emulator"
-                ;;
-            zkstack__help__chain,gateway-upgrade)
-                cmd="zkstack__help__chain__gateway__upgrade"
                 ;;
             zkstack__help__chain,genesis)
                 cmd="zkstack__help__chain__genesis"
@@ -989,9 +965,6 @@ _zkstack() {
                 ;;
             zkstack__help__ecosystem,create)
                 cmd="zkstack__help__ecosystem__create"
-                ;;
-            zkstack__help__ecosystem,gateway-upgrade)
-                cmd="zkstack__help__ecosystem__gateway__upgrade"
                 ;;
             zkstack__help__ecosystem,init)
                 cmd="zkstack__help__ecosystem__init"
@@ -1261,48 +1234,6 @@ _zkstack() {
                     return 0
                     ;;
                 --l1-rpc-url)
-                    COMPREPLY=($(compgen -f "${cur}"))
-                    return 0
-                    ;;
-                --chain)
-                    COMPREPLY=($(compgen -f "${cur}"))
-                    return 0
-                    ;;
-                *)
-                    COMPREPLY=()
-                    ;;
-            esac
-            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-            return 0
-            ;;
-        zkstack__chain__convert__to__gateway)
-            opts="-a -v -h --verify --verifier --verifier-url --verifier-api-key --resume --zksync --additional-args --verbose --chain --ignore-prerequisites --help"
-            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
-                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-                return 0
-            fi
-            case "${prev}" in
-                --verify)
-                    COMPREPLY=($(compgen -W "true false" -- "${cur}"))
-                    return 0
-                    ;;
-                --verifier)
-                    COMPREPLY=($(compgen -W "etherscan sourcify blockscout oklink" -- "${cur}"))
-                    return 0
-                    ;;
-                --verifier-url)
-                    COMPREPLY=($(compgen -f "${cur}"))
-                    return 0
-                    ;;
-                --verifier-api-key)
-                    COMPREPLY=($(compgen -f "${cur}"))
-                    return 0
-                    ;;
-                --additional-args)
-                    COMPREPLY=($(compgen -f "${cur}"))
-                    return 0
-                    ;;
-                -a)
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
@@ -1856,20 +1787,6 @@ _zkstack() {
             COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
             return 0
             ;;
-        zkstack__chain__help__convert__to__gateway)
-            opts=""
-            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
-                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-                return 0
-            fi
-            case "${prev}" in
-                *)
-                    COMPREPLY=()
-                    ;;
-            esac
-            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-            return 0
-            ;;
         zkstack__chain__help__create)
             opts=""
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
@@ -1969,20 +1886,6 @@ _zkstack() {
             return 0
             ;;
         zkstack__chain__help__enable__evm__emulator)
-            opts=""
-            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
-                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-                return 0
-            fi
-            case "${prev}" in
-                *)
-                    COMPREPLY=()
-                    ;;
-            esac
-            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-            return 0
-            ;;
-        zkstack__chain__help__gateway__upgrade)
             opts=""
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
@@ -4929,7 +4832,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__ecosystem)
-            opts="-v -h --verbose --chain --ignore-prerequisites --help create build-transactions init change-default-chain setup-observability gateway-upgrade help"
+            opts="-v -h --verbose --chain --ignore-prerequisites --help create build-transactions init change-default-chain setup-observability help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -5122,62 +5025,8 @@ _zkstack() {
             COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
             return 0
             ;;
-        zkstack__ecosystem__gateway__upgrade)
-            opts="-a -v -h --verify --verifier --verifier-url --verifier-api-key --resume --zksync --additional-args --ecosystem-upgrade-stage --ecosystem-contracts-path --l1-rpc-url --verbose --chain --ignore-prerequisites --help"
-            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
-                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-                return 0
-            fi
-            case "${prev}" in
-                --verify)
-                    COMPREPLY=($(compgen -W "true false" -- "${cur}"))
-                    return 0
-                    ;;
-                --verifier)
-                    COMPREPLY=($(compgen -W "etherscan sourcify blockscout oklink" -- "${cur}"))
-                    return 0
-                    ;;
-                --verifier-url)
-                    COMPREPLY=($(compgen -f "${cur}"))
-                    return 0
-                    ;;
-                --verifier-api-key)
-                    COMPREPLY=($(compgen -f "${cur}"))
-                    return 0
-                    ;;
-                --additional-args)
-                    COMPREPLY=($(compgen -f "${cur}"))
-                    return 0
-                    ;;
-                -a)
-                    COMPREPLY=($(compgen -f "${cur}"))
-                    return 0
-                    ;;
-                --ecosystem-upgrade-stage)
-                    COMPREPLY=($(compgen -W "no-governance-prepare governance-stage1 governance-stage2 no-governance-stage2 governance-stage3 no-governance-stage3" -- "${cur}"))
-                    return 0
-                    ;;
-                --ecosystem-contracts-path)
-                    COMPREPLY=($(compgen -f "${cur}"))
-                    return 0
-                    ;;
-                --l1-rpc-url)
-                    COMPREPLY=($(compgen -f "${cur}"))
-                    return 0
-                    ;;
-                --chain)
-                    COMPREPLY=($(compgen -f "${cur}"))
-                    return 0
-                    ;;
-                *)
-                    COMPREPLY=()
-                    ;;
-            esac
-            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-            return 0
-            ;;
         zkstack__ecosystem__help)
-            opts="create build-transactions init change-default-chain setup-observability gateway-upgrade help"
+            opts="create build-transactions init change-default-chain setup-observability help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -5219,20 +5068,6 @@ _zkstack() {
             return 0
             ;;
         zkstack__ecosystem__help__create)
-            opts=""
-            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
-                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-                return 0
-            fi
-            case "${prev}" in
-                *)
-                    COMPREPLY=()
-                    ;;
-            esac
-            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-            return 0
-            ;;
-        zkstack__ecosystem__help__gateway__upgrade)
             opts=""
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
@@ -5858,20 +5693,6 @@ _zkstack() {
             COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
             return 0
             ;;
-        zkstack__help__chain__convert__to__gateway)
-            opts=""
-            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
-                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-                return 0
-            fi
-            case "${prev}" in
-                *)
-                    COMPREPLY=()
-                    ;;
-            esac
-            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-            return 0
-            ;;
         zkstack__help__chain__create)
             opts=""
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
@@ -5971,20 +5792,6 @@ _zkstack() {
             return 0
             ;;
         zkstack__help__chain__enable__evm__emulator)
-            opts=""
-            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
-                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-                return 0
-            fi
-            case "${prev}" in
-                *)
-                    COMPREPLY=()
-                    ;;
-            esac
-            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-            return 0
-            ;;
-        zkstack__help__chain__gateway__upgrade)
             opts=""
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
@@ -6825,7 +6632,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__help__ecosystem)
-            opts="create build-transactions init change-default-chain setup-observability gateway-upgrade"
+            opts="create build-transactions init change-default-chain setup-observability"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -6867,20 +6674,6 @@ _zkstack() {
             return 0
             ;;
         zkstack__help__ecosystem__create)
-            opts=""
-            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
-                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-                return 0
-            fi
-            case "${prev}" in
-                *)
-                    COMPREPLY=()
-                    ;;
-            esac
-            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-            return 0
-            ;;
-        zkstack__help__ecosystem__gateway__upgrade)
             opts=""
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )

@@ -25,7 +25,6 @@ pub struct UpdateOnL1Params {
     pub gas_adjuster: Arc<dyn TxParamsProvider>,
     pub token_multiplier_setter_account_address: Address,
     pub chain_admin_contract: Contract,
-    pub admin_facet_contract: Contract,
     pub getters_facet_contract: Contract,
     pub diamond_proxy_contract_address: Address,
     pub chain_admin_contract_address: Option<Address>,

@@ -54,17 +54,16 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand autocomplete" -l chain -
 complete -c zkstack -n "__fish_zkstack_using_subcommand autocomplete" -s v -l verbose -d 'Verbose mode'
 complete -c zkstack -n "__fish_zkstack_using_subcommand autocomplete" -l ignore-prerequisites -d 'Ignores prerequisites checks'
 complete -c zkstack -n "__fish_zkstack_using_subcommand autocomplete" -s h -l help -d 'Print help'
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and not __fish_seen_subcommand_from create build-transactions init change-default-chain setup-observability gateway-upgrade help" -l chain -d 'Chain to use' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and not __fish_seen_subcommand_from create build-transactions init change-default-chain setup-observability gateway-upgrade help" -s v -l verbose -d 'Verbose mode'
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and not __fish_seen_subcommand_from create build-transactions init change-default-chain setup-observability gateway-upgrade help" -l ignore-prerequisites -d 'Ignores prerequisites checks'
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and not __fish_seen_subcommand_from create build-transactions init change-default-chain setup-observability gateway-upgrade help" -s h -l help -d 'Print help'
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and not __fish_seen_subcommand_from create build-transactions init change-default-chain setup-observability gateway-upgrade help" -f -a "create" -d 'Create a new ecosystem and chain, setting necessary configurations for later initialization'
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and not __fish_seen_subcommand_from create build-transactions init change-default-chain setup-observability gateway-upgrade help" -f -a "build-transactions" -d 'Create transactions to build ecosystem contracts'
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and not __fish_seen_subcommand_from create build-transactions init change-default-chain setup-observability gateway-upgrade help" -f -a "init" -d 'Initialize ecosystem and chain, deploying necessary contracts and performing on-chain operations'
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and not __fish_seen_subcommand_from create build-transactions init change-default-chain setup-observability gateway-upgrade help" -f -a "change-default-chain" -d 'Change the default chain'
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and not __fish_seen_subcommand_from create build-transactions init change-default-chain setup-observability gateway-upgrade help" -f -a "setup-observability" -d 'Setup observability for the ecosystem, downloading Grafana dashboards from the era-observability repo'
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and not __fish_seen_subcommand_from create build-transactions init change-default-chain setup-observability gateway-upgrade help" -f -a "gateway-upgrade" -d 'Gateway version upgrade'
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and not __fish_seen_subcommand_from create build-transactions init change-default-chain setup-observability gateway-upgrade help" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
+complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and not __fish_seen_subcommand_from create build-transactions init change-default-chain setup-observability help" -l chain -d 'Chain to use' -r
+complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and not __fish_seen_subcommand_from create build-transactions init change-default-chain setup-observability help" -s v -l verbose -d 'Verbose mode'
+complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and not __fish_seen_subcommand_from create build-transactions init change-default-chain setup-observability help" -l ignore-prerequisites -d 'Ignores prerequisites checks'
+complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and not __fish_seen_subcommand_from create build-transactions init change-default-chain setup-observability help" -s h -l help -d 'Print help'
+complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and not __fish_seen_subcommand_from create build-transactions init change-default-chain setup-observability help" -f -a "create" -d 'Create a new ecosystem and chain, setting necessary configurations for later initialization'
+complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and not __fish_seen_subcommand_from create build-transactions init change-default-chain setup-observability help" -f -a "build-transactions" -d 'Create transactions to build ecosystem contracts'
+complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and not __fish_seen_subcommand_from create build-transactions init change-default-chain setup-observability help" -f -a "init" -d 'Initialize ecosystem and chain, deploying necessary contracts and performing on-chain operations'
+complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and not __fish_seen_subcommand_from create build-transactions init change-default-chain setup-observability help" -f -a "change-default-chain" -d 'Change the default chain'
+complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and not __fish_seen_subcommand_from create build-transactions init change-default-chain setup-observability help" -f -a "setup-observability" -d 'Setup observability for the ecosystem, downloading Grafana dashboards from the era-observability repo'
+complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and not __fish_seen_subcommand_from create build-transactions init change-default-chain setup-observability help" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from create" -l ecosystem-name -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from create" -l l1-network -d 'L1 Network' -r -f -a "localhost\t''
 sepolia\t''
@@ -164,26 +163,11 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_se
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from setup-observability" -s v -l verbose -d 'Verbose mode'
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from setup-observability" -l ignore-prerequisites -d 'Ignores prerequisites checks'
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from setup-observability" -s h -l help -d 'Print help'
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from gateway-upgrade" -l verify -d 'Verify deployed contracts' -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from gateway-upgrade" -l verifier -d 'Verifier to use' -r -f -a "{etherscan\t'',sourcify\t'',blockscout\t'',oklink\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from gateway-upgrade" -l verifier-url -d 'Verifier URL, if using a custom provider' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from gateway-upgrade" -l verifier-api-key -d 'Verifier API key' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from gateway-upgrade" -s a -l additional-args -d 'List of additional arguments that can be passed through the CLI' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from gateway-upgrade" -l ecosystem-upgrade-stage -r -f -a "{no-governance-prepare\t'',governance-stage1\t'',governance-stage2\t'',no-governance-stage2\t'',governance-stage3\t'',no-governance-stage3\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from gateway-upgrade" -l ecosystem-contracts-path -d 'Path to ecosystem contracts' -r -F
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from gateway-upgrade" -l l1-rpc-url -d 'L1 RPC URL' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from gateway-upgrade" -l chain -d 'Chain to use' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from gateway-upgrade" -l resume
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from gateway-upgrade" -l zksync
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from gateway-upgrade" -s v -l verbose -d 'Verbose mode'
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from gateway-upgrade" -l ignore-prerequisites -d 'Ignores prerequisites checks'
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from gateway-upgrade" -s h -l help -d 'Print help (see more with \'--help\')'
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from help" -f -a "create" -d 'Create a new ecosystem and chain, setting necessary configurations for later initialization'
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from help" -f -a "build-transactions" -d 'Create transactions to build ecosystem contracts'
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from help" -f -a "init" -d 'Initialize ecosystem and chain, deploying necessary contracts and performing on-chain operations'
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from help" -f -a "change-default-chain" -d 'Change the default chain'
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from help" -f -a "setup-observability" -d 'Setup observability for the ecosystem, downloading Grafana dashboards from the era-observability repo'
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from help" -f -a "gateway-upgrade" -d 'Gateway version upgrade'
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from help" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and not __fish_seen_subcommand_from create build-transactions init genesis register-chain deploy-l2-contracts accept-chain-ownership deploy-consensus-registry deploy-multicall3 deploy-timestamp-asserter deploy-upgrader deploy-paymaster update-token-multiplier-setter enable-evm-emulator help" -l chain -d 'Chain to use' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and not __fish_seen_subcommand_from create build-transactions init genesis register-chain deploy-l2-contracts accept-chain-ownership deploy-consensus-registry deploy-multicall3 deploy-timestamp-asserter deploy-upgrader deploy-paymaster update-token-multiplier-setter enable-evm-emulator help" -s v -l verbose -d 'Verbose mode'
@@ -449,10 +433,6 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_s
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from help" -f -a "deploy-upgrader" -d 'Deploy Default Upgrader'
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from help" -f -a "deploy-paymaster" -d 'Deploy paymaster smart contract'
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from help" -f -a "update-token-multiplier-setter" -d 'Update Token Multiplier Setter address on L1'
-complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from help" -f -a "convert-to-gateway" -d 'Prepare chain to be an eligible gateway'
-complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from help" -f -a "migrate-to-gateway" -d 'Migrate chain to gateway'
-complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from help" -f -a "migrate-from-gateway" -d 'Migrate chain from gateway'
-complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from help" -f -a "gateway-upgrade" -d 'Upgrade to the protocol version that supports Gateway'
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from help" -f -a "enable-evm-emulator" -d 'Enable EVM emulation on chain (Not supported yet)'
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from help" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
 complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis help" -l chain -d 'Chain to use' -r
@@ -910,7 +890,6 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_su
 complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from ecosystem" -f -a "init" -d 'Initialize ecosystem and chain, deploying necessary contracts and performing on-chain operations'
 complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from ecosystem" -f -a "change-default-chain" -d 'Change the default chain'
 complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from ecosystem" -f -a "setup-observability" -d 'Setup observability for the ecosystem, downloading Grafana dashboards from the era-observability repo'
-complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from ecosystem" -f -a "gateway-upgrade" -d 'Gateway version upgrade'
 complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from chain" -f -a "create" -d 'Create a new chain, setting the necessary configurations for later initialization'
 complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from chain" -f -a "build-transactions" -d 'Create unsigned transactions for chain deployment'
 complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from chain" -f -a "init" -d 'Initialize chain, deploying necessary contracts and performing on-chain operations'
@@ -924,10 +903,6 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_su
 complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from chain" -f -a "deploy-upgrader" -d 'Deploy Default Upgrader'
 complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from chain" -f -a "deploy-paymaster" -d 'Deploy paymaster smart contract'
 complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from chain" -f -a "update-token-multiplier-setter" -d 'Update Token Multiplier Setter address on L1'
-complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from chain" -f -a "convert-to-gateway" -d 'Prepare chain to be an eligible gateway'
-complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from chain" -f -a "migrate-to-gateway" -d 'Migrate chain to gateway'
-complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from chain" -f -a "migrate-from-gateway" -d 'Migrate chain from gateway'
-complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from chain" -f -a "gateway-upgrade" -d 'Upgrade to the protocol version that supports Gateway'
 complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from chain" -f -a "enable-evm-emulator" -d 'Enable EVM emulation on chain (Not supported yet)'
 complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from dev" -f -a "database" -d 'Database related commands'
 complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from dev" -f -a "test" -d 'Run tests'
