@@ -17,7 +17,7 @@ use once_cell::sync::OnceCell;
 use zksync_multivm::{
     interface::{
         executor::{OneshotExecutor, TransactionValidator},
-        storage::{ReadStorage, StorageView, StorageWithOverrides, WriteStorage},
+        storage::{ReadStorage, StoragePtr, StorageView, StorageWithOverrides, WriteStorage},
         tracer::{ValidationError, ValidationParams, ValidationTraces},
         utils::{DivergenceHandler, ShadowMut, ShadowVm},
         Call, ExecutionResult, InspectExecutionMode, OneshotEnv, OneshotTracingParams,
@@ -28,6 +28,7 @@ use zksync_multivm::{
     tracers::{CallTracer, StorageInvocations, TracerDispatcher, ValidationTracer},
     utils::adjust_pubdata_price_for_tx,
     vm_fast,
+    vm_fast::StorageInvocationsTracer,
     vm_latest::{HistoryDisabled, HistoryEnabled},
     zk_evm_latest::ethereum_types::U256,
     FastVmInstance, HistoryMode, LegacyVmInstance, MultiVmTracer, VmVersion,
@@ -203,12 +204,12 @@ where
                     validate_legacy(vm, version, validation_params, batch_timestamp)
                 }
 
-                Vm::Fast(FastVmInstance::Fast(vm)) => {
+                Vm::Fast(_, FastVmInstance::Fast(vm)) => {
                     vm.push_transaction(transaction);
                     validate_fast(vm, validation_params, batch_timestamp)
                 }
 
-                Vm::Fast(FastVmInstance::Shadowed(vm)) => {
+                Vm::Fast(_, FastVmInstance::Shadowed(vm)) => {
                     vm.push_transaction(transaction);
                     vm.get_custom_mut("validation result", |vm| match vm {
                         ShadowMut::Main(vm) => validate_legacy::<_, HistoryEnabled>(
@@ -232,10 +233,10 @@ where
 #[derive(Debug)]
 enum Vm<S: ReadStorage, Tr, Val> {
     Legacy(LegacyVmInstance<S, HistoryDisabled>),
-    Fast(FastVmInstance<S, Tr, Val>),
+    Fast(StoragePtr<StorageView<S>>, FastVmInstance<S, Tr, Val>),
 }
 
-impl<S: ReadStorage> Vm<S, (), ()> {
+impl<S: ReadStorage> Vm<S, StorageInvocationsTracer<StorageView<S>>, ()> {
     fn inspect_transaction_with_bytecode_compression(
         &mut self,
         missed_storage_invocation_limit: usize,
@@ -252,7 +253,7 @@ impl<S: ReadStorage> Vm<S, (), ()> {
                 );
                 vm.inspect_transaction_with_bytecode_compression(&mut tracers, tx, with_compression)
             }
-            Self::Fast(vm) => {
+            Self::Fast(storage, vm) => {
                 assert!(
                     !params.trace_calls,
                     "Call tracing is not supported by fast VM yet"
@@ -261,7 +262,9 @@ impl<S: ReadStorage> Vm<S, (), ()> {
                     missed_storage_invocation_limit,
                     None,
                 );
-                let mut full_tracer = (legacy_tracers.into(), ((), ()));
+                let tracer =
+                    StorageInvocationsTracer::new(storage.clone(), missed_storage_invocation_limit);
+                let mut full_tracer = (legacy_tracers.into(), (tracer, ()));
                 vm.inspect_transaction_with_bytecode_compression(
                     &mut full_tracer,
                     tx,
@@ -442,11 +445,10 @@ impl<S: ReadStorage> VmSandbox<S> {
                 storage_view.clone(),
                 protocol_version.into_api_vm_version(),
             )),
-            FastVmMode::New => Vm::Fast(FastVmInstance::fast(
-                self.env.l1_batch,
-                self.env.system,
+            FastVmMode::New => Vm::Fast(
                 storage_view.clone(),
-            )),
+                FastVmInstance::fast(self.env.l1_batch, self.env.system, storage_view.clone()),
+            ),
             FastVmMode::Shadow => {
                 let mut vm =
                     ShadowVm::new(self.env.l1_batch, self.env.system, storage_view.clone());
@@ -457,7 +459,7 @@ impl<S: ReadStorage> VmSandbox<S> {
                     });
                     vm.set_divergence_handler(handler);
                 }
-                Vm::Fast(FastVmInstance::Shadowed(vm))
+                Vm::Fast(storage_view.clone(), FastVmInstance::Shadowed(vm))
             }
         };
 
@@ -479,7 +481,7 @@ impl<S: ReadStorage> VmSandbox<S> {
                     &storage_view.borrow().stats(),
                 );
             }
-            Vm::Fast(_) => {
+            Vm::Fast(..) => {
                 // The new VM implementation doesn't have the same memory model as old ones, so it doesn't report memory metrics,
                 // only storage-related ones.
                 metrics::report_vm_storage_metrics(
