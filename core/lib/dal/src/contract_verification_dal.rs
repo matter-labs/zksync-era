@@ -5,7 +5,6 @@ use std::{
     time::Duration,
 };
 
-use anyhow::Context as _;
 use rayon::prelude::*;
 use sqlx::postgres::types::PgInterval;
 use zksync_db_connection::{
@@ -14,11 +13,10 @@ use zksync_db_connection::{
 };
 use zksync_types::{
     address_to_h256,
-    bytecode::{trim_padded_evm_bytecode, BytecodeHash, BytecodeMarker},
     contract_verification::{
         api::{
-            VerificationIncomingRequest, VerificationInfo, VerificationProblem,
-            VerificationRequest, VerificationRequestStatus,
+            VerificationIncomingRequest, VerificationInfo, VerificationRequest,
+            VerificationRequestStatus,
         },
         contract_identifier::ContractIdentifier,
     },
@@ -592,8 +590,7 @@ impl ContractVerificationDal<'_, '_> {
         &mut self,
         address: Address,
     ) -> anyhow::Result<Option<VerificationInfo>> {
-        // Try perfect match
-        if let Some(info) = sqlx::query!(
+        Ok(sqlx::query!(
             r#"
             SELECT
                 verification_info
@@ -607,108 +604,61 @@ impl ContractVerificationDal<'_, '_> {
         .try_map(|row| {
             serde_json::from_value(row.verification_info).decode_column("verification_info")
         })
-        .instrument("get_contract_verification_info_v2#direct")
+        .instrument("get_contract_verification_info_v2")
         .with_arg("address", &address)
         .fetch_optional(self.storage)
         .await?
-        .flatten()
-        {
-            return Ok(Some(info));
-        }
+        .flatten())
+    }
 
-        // Try partial match
-        let Some(deployed_contract) = self.get_contract_info_for_verification(address).await?
-        else {
-            return Ok(None);
-        };
-
-        let bytecode_marker = BytecodeMarker::new(deployed_contract.bytecode_hash)
-            .context("unknown bytecode kind")?;
-        let deployed_bytecode = match bytecode_marker {
-            BytecodeMarker::EraVm => deployed_contract.bytecode.as_slice(),
-            BytecodeMarker::Evm => trim_padded_evm_bytecode(
-                BytecodeHash::try_from(deployed_contract.bytecode_hash)
-                    .context("Invalid bytecode hash")?,
-                &deployed_contract.bytecode,
-            )
-            .context("invalid stored EVM bytecode")?,
-        };
-
-        let identifier = ContractIdentifier::from_bytecode(bytecode_marker, deployed_bytecode);
-        // `unwrap_or_default` is safe, since we're checking that `bytecode_without_metadata_keccak256` is not null.
-        let bytecode_without_metadata_keccak256 = identifier
-            .bytecode_without_metadata_keccak256
-            .as_ref()
-            .map(|h| h.hash())
-            .unwrap_or_default();
-
-        let Some((mut info, bytecode_keccak256, bytecode_without_metadata_keccak256)) =
-            sqlx::query!(
-                r#"
-                SELECT
-                    verification_info,
-                    bytecode_keccak256,
-                    bytecode_without_metadata_keccak256
-                FROM
-                    contract_verification_info_v2
-                WHERE
-                    bytecode_keccak256 = $1
-                    OR
-                    (
-                        bytecode_without_metadata_keccak256 IS NOT null
-                        AND bytecode_without_metadata_keccak256 = $2
-                    )
-                "#,
-                identifier.bytecode_keccak256.as_bytes(),
-                bytecode_without_metadata_keccak256.as_bytes()
-            )
-            .try_map(|row| {
-                let info = serde_json::from_value::<VerificationInfo>(row.verification_info)
-                    .decode_column("verification_info")?;
-                let bytecode_keccak256 = H256::from_slice(&row.bytecode_keccak256);
-                let bytecode_without_metadata_keccak256 = row
-                    .bytecode_without_metadata_keccak256
-                    .map(|h| H256::from_slice(&h));
-                Ok((
-                    info,
-                    bytecode_keccak256,
-                    bytecode_without_metadata_keccak256,
-                ))
-            })
-            .instrument("get_contract_verification_info_v2#similar")
-            .with_arg("address", &address) // Can be useful for debugging
-            .with_arg("bytecode_keccak256", &identifier.bytecode_keccak256)
-            .with_arg(
-                "bytecode_without_metadata_keccak256",
-                &bytecode_without_metadata_keccak256,
-            )
-            .fetch_optional(self.storage)
-            .await?
-        else {
-            return Ok(None);
-        };
-        if identifier.bytecode_keccak256 != bytecode_keccak256 {
-            // Sanity check
-            if bytecode_without_metadata_keccak256.is_none()
-                || identifier
-                    .bytecode_without_metadata_keccak256
-                    .map(|h| h.hash())
-                    != bytecode_without_metadata_keccak256
-            {
-                tracing::error!(
-                    contract_address = %address,
-                    identifier = ?identifier,
-                    bytecode_keccak256 = %bytecode_keccak256,
-                    info = ?info,
-                    "Bogus verification info fetched for contract",
-                );
-                anyhow::bail!("Internal error: bogus verification info detected");
-            }
-
-            // Mark the contract as partial match (regardless of other issues).
-            info.verification_problems = vec![VerificationProblem::IncorrectMetadata];
-        }
-        Ok(Some(info))
+    pub async fn get_partial_match_verification_info(
+        &mut self,
+        bytecode_keccak256: H256,
+        bytecode_without_metadata_keccak256: Option<H256>,
+    ) -> DalResult<Option<(VerificationInfo, H256, Option<H256>)>> {
+        // `unwrap_or_default` is OK here, since we're checking that `bytecode_without_metadata_keccak256` is not null.
+        let bytecode_without_metadata_keccak256 =
+            bytecode_without_metadata_keccak256.unwrap_or_default();
+        sqlx::query!(
+            r#"
+            SELECT
+                verification_info,
+                bytecode_keccak256,
+                bytecode_without_metadata_keccak256
+            FROM
+                contract_verification_info_v2
+            WHERE
+                bytecode_keccak256 = $1
+                OR
+                (
+                    bytecode_without_metadata_keccak256 IS NOT null
+                    AND bytecode_without_metadata_keccak256 = $2
+                )
+            "#,
+            bytecode_keccak256.as_bytes(),
+            bytecode_without_metadata_keccak256.as_bytes()
+        )
+        .try_map(|row| {
+            let info = serde_json::from_value::<VerificationInfo>(row.verification_info)
+                .decode_column("verification_info")?;
+            let bytecode_keccak256 = H256::from_slice(&row.bytecode_keccak256);
+            let bytecode_without_metadata_keccak256 = row
+                .bytecode_without_metadata_keccak256
+                .map(|h| H256::from_slice(&h));
+            Ok((
+                info,
+                bytecode_keccak256,
+                bytecode_without_metadata_keccak256,
+            ))
+        })
+        .instrument("get_partial_match_verification_info")
+        .with_arg("bytecode_keccak256", &bytecode_keccak256)
+        .with_arg(
+            "bytecode_without_metadata_keccak256",
+            &bytecode_without_metadata_keccak256,
+        )
+        .fetch_optional(self.storage)
+        .await
     }
 
     /// Checks if migration from `contracts_verification_info` to `contract_verification_info_v2` is performed
