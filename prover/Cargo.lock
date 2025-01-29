@@ -8107,7 +8107,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_basic_types"
-version = "26.2.0-non-semver-compat"
+version = "26.2.1-non-semver-compat"
 dependencies = [
  "anyhow",
  "chrono",
@@ -8220,7 +8220,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_config"
-version = "26.2.0-non-semver-compat"
+version = "26.2.1-non-semver-compat"
 dependencies = [
  "anyhow",
  "rand 0.8.5",
@@ -8311,7 +8311,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_contracts"
-version = "26.2.0-non-semver-compat"
+version = "26.2.1-non-semver-compat"
 dependencies = [
  "envy",
  "hex",
@@ -8324,7 +8324,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_core_leftovers"
-version = "26.2.0-non-semver-compat"
+version = "26.2.1-non-semver-compat"
 dependencies = [
  "anyhow",
  "ctrlc",
@@ -8338,7 +8338,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_crypto_primitives"
-version = "26.2.0-non-semver-compat"
+version = "26.2.1-non-semver-compat"
 dependencies = [
  "anyhow",
  "blake2 0.10.6",
@@ -8366,7 +8366,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_dal"
-version = "26.2.0-non-semver-compat"
+version = "26.2.1-non-semver-compat"
 dependencies = [
  "anyhow",
  "bigdecimal",
@@ -8402,7 +8402,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_db_connection"
-version = "26.2.0-non-semver-compat"
+version = "26.2.1-non-semver-compat"
 dependencies = [
  "anyhow",
  "rand 0.8.5",
@@ -8418,7 +8418,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_env_config"
-version = "26.2.0-non-semver-compat"
+version = "26.2.1-non-semver-compat"
 dependencies = [
  "anyhow",
  "envy",
@@ -8429,7 +8429,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_eth_client"
-version = "26.2.0-non-semver-compat"
+version = "26.2.1-non-semver-compat"
 dependencies = [
  "async-trait",
  "jsonrpsee",
@@ -8446,7 +8446,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_eth_signer"
-version = "26.2.0-non-semver-compat"
+version = "26.2.1-non-semver-compat"
 dependencies = [
  "async-trait",
  "rlp",
@@ -8502,7 +8502,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_l1_contract_interface"
-version = "26.2.0-non-semver-compat"
+version = "26.2.1-non-semver-compat"
 dependencies = [
  "anyhow",
  "circuit_definitions",
@@ -8519,7 +8519,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_mini_merkle_tree"
-version = "26.2.0-non-semver-compat"
+version = "26.2.1-non-semver-compat"
 dependencies = [
  "once_cell",
  "zksync_basic_types",
@@ -8528,7 +8528,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_multivm"
-version = "26.2.0-non-semver-compat"
+version = "26.2.1-non-semver-compat"
 dependencies = [
  "anyhow",
  "circuit_sequencer_api",
@@ -8554,7 +8554,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_object_store"
-version = "26.2.0-non-semver-compat"
+version = "26.2.1-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8665,7 +8665,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_protobuf_config"
-version = "26.2.0-non-semver-compat"
+version = "26.2.1-non-semver-compat"
 dependencies = [
  "anyhow",
  "hex",
@@ -8820,7 +8820,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_prover_interface"
-version = "26.2.0-non-semver-compat"
+version = "26.2.1-non-semver-compat"
 dependencies = [
  "chrono",
  "circuit_definitions",
@@ -8902,7 +8902,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_queued_job_processor"
-version = "26.2.0-non-semver-compat"
+version = "26.2.1-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8931,7 +8931,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_system_constants"
-version = "26.2.0-non-semver-compat"
+version = "26.2.1-non-semver-compat"
 dependencies = [
  "once_cell",
  "zksync_basic_types",
@@ -8939,7 +8939,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_types"
-version = "26.2.0-non-semver-compat"
+version = "26.2.1-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8972,7 +8972,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_utils"
-version = "26.2.0-non-semver-compat"
+version = "26.2.1-non-semver-compat"
 dependencies = [
  "anyhow",
  "futures 0.3.31",
@@ -9011,7 +9011,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_vlog"
-version = "26.2.0-non-semver-compat"
+version = "26.2.1-non-semver-compat"
 dependencies = [
  "anyhow",
  "chrono",
@@ -9056,7 +9056,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_vm_interface"
-version = "26.2.0-non-semver-compat"
+version = "26.2.1-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -9072,7 +9072,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_web3_decl"
-version = "26.2.0-non-semver-compat"
+version = "26.2.1-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
