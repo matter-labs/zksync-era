@@ -8,8 +8,8 @@ use crate::{
     },
     utils::bytecode,
     vm_latest::{
-        bootloader_state::message_root::MessageRoot,
         bootloader::l2_block::BootloaderL2Block,
+        bootloader_state::message_root::MessageRoot,
         constants::{
             get_bootloader_tx_description_offset, get_compressed_bytecodes_offset,
             get_message_root_offset, get_operator_provided_l1_messenger_pubdata_offset,

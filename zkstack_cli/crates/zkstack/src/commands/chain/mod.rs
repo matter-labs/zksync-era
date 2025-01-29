@@ -3,9 +3,6 @@ use args::build_transactions::BuildTransactionsArgs;
 pub(crate) use args::create::ChainCreateArgsFinal;
 use clap::{command, Subcommand};
 pub(crate) use create::create_chain_inner;
-use gateway_upgrade::GatewayUpgradeArgs;
-use migrate_from_gateway::MigrateFromGatewayArgs;
-use migrate_to_gateway::MigrateToGatewayArgs;
 use xshell::Shell;
 
 use crate::commands::chain::{

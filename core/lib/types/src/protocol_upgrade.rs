@@ -1,7 +1,6 @@
 use std::convert::{TryFrom, TryInto};
 
 use anyhow::Context as _;
-use ethabi::{decode, encode};
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::protocol_version::{
     L1VerifierConfig, ProtocolSemanticVersion, ProtocolVersionId, VerifierParams,

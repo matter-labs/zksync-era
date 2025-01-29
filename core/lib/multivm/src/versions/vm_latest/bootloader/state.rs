@@ -11,12 +11,12 @@ use crate::{
         TxExecutionMode,
     },
     vm_latest::{
-        bootloader_state::message_root::MessageRoot,
         bootloader::{
             l2_block::BootloaderL2Block,
             snapshot::BootloaderStateSnapshot,
             utils::{apply_l2_block, apply_message_root, apply_tx_to_memory},
         },
+        bootloader_state::message_root::MessageRoot,
         constants::get_tx_description_offset,
         types::TransactionData,
         utils::l2_blocks::assert_next_block,
