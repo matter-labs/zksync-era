@@ -13084,8 +13084,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_vm2"
-version = "0.2.1"
-source = "git+https://github.com/matter-labs/vm2.git?rev=457d8a7eea9093af9440662e33e598c13ba41633#457d8a7eea9093af9440662e33e598c13ba41633"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4a05288e092ece683b9d3de5654d3fc747792bc55201a9e9375ad12f440e0c0c"
 dependencies = [
  "enum_dispatch",
  "primitive-types",
@@ -13096,8 +13097,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_vm2_interface"
-version = "0.2.1"
-source = "git+https://github.com/matter-labs/vm2.git?rev=457d8a7eea9093af9440662e33e598c13ba41633#457d8a7eea9093af9440662e33e598c13ba41633"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "603c54ea4253fa03e9844e874e13c105fd09a79499b88d7a2bc762252c1b7ce6"
 dependencies = [
  "primitive-types",
 ]

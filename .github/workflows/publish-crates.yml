@@ -28,10 +28,10 @@ jobs:
 
   publish-crates:
     name: Publish to crates.io
-    runs-on: matterlabs-ci-runner-high-performance
+    runs-on: matterlabs-ci-runner-highdisk
     steps:
       - name: Publish crates
-        uses: matter-labs/zksync-ci-common/.github/actions/publish-crates@v1
+        uses: matter-labs/zksync-ci-common/.github/actions/publish-crates@aba-fix-crates-publishing
         with:
           slack_webhook: ${{ secrets.SLACK_WEBHOOK_RELEASES }} # Slack webhook for notifications
           cargo_registry_token: ${{ secrets.CRATES_IO_TOKEN }} # Crates.io token for publishing
@@ -40,3 +40,4 @@ jobs:
           run_build: ${{ inputs.run-build }}
           run_tests: ${{ inputs.run-tests }}
           gh_token: ${{ secrets.GITHUB_TOKEN }}
+          dependencies: 'clang libclang-dev'
