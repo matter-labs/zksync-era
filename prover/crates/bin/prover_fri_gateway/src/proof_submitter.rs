@@ -34,7 +34,7 @@ impl PeriodicProofSubmitter {
             blob_store,
             pool,
             api_poll_duration,
-            api_url: format!("{}{}", base_url, SUBMIT_PROOF_PATH),
+            api_url: base_url,
         }
     }
 
