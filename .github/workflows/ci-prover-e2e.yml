@@ -91,7 +91,7 @@ jobs:
         working-directory: ./chains/proving_chain/configs
         if: matrix.compressor-mode == 'fflonk'
         run: |
-          yq -e -i '.eth.sender.is_verifier_pre_fflonk = false' general.yaml
+          sudo yq -e -i '.eth.sender.is_verifier_pre_fflonk = false' general.yaml
           yq '.eth.sender.is_verifier_pre_fflonk' < general.yaml
 
       - name: Prepare prover subsystem
