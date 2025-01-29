@@ -71,6 +71,11 @@ pub(super) fn apply_tx_to_memory(
         (tx_description_offset..tx_description_offset + bootloader_tx.encoded_len())
             .zip(bootloader_tx.encoded.clone()),
     );
+    // println!("bootloader_description_offset: {}", bootloader_description_offset);
+    // println!("latest tx_description_offset: {}", tx_description_offset);
+    // println!("tx_index: {}", tx_index);
+    // println!("tx_offset: {}", tx_offset);
+    // println!("get_operator_provided_l1_messenger_pubdata_offset: {}", get_operator_provided_l1_messenger_pubdata_offset(subversion));
 
     apply_l2_block_inner(
         memory,
@@ -153,9 +158,9 @@ fn apply_message_root_inner(
     subversion: MultiVmSubversion,
 ) {
     let msg_root_slot = get_message_root_offset(subversion);
-    println!("msg_root_slot: {}", msg_root_slot);
-    println!("message_root_offset: {}", message_root_offset);
-    println!("message_root: {:?}", message_root);
+    // println!("msg_root_slot: {}", msg_root_slot);
+    // println!("message_root_offset: {}", message_root_offset);
+    // println!("message_root: {:?}", message_root);
     // Convert the byte array into U256 words
     let u256_words: Vec<U256> = [
         U256::from(message_root.chain_id),
