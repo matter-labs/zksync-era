@@ -40,7 +40,7 @@ async fn perform_storage_migration(pool: &ConnectionPool<Core>) -> anyhow::Resul
         .is_verification_info_migration_performed()
         .await?;
     if !migration_performed {
-        tracing::info!("Running the storage migration for the contract verifier table");
+        tracing::info!(batch_size = %batch_size, "Running the storage migration for the contract verifier table");
         storage
             .contract_verification_dal()
             .perform_verification_info_migration(batch_size)

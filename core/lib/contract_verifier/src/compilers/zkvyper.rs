@@ -123,8 +123,7 @@ impl Compiler<VyperInput> for ZkVyper {
         if output.status.success() {
             let output = serde_json::from_slice(&output.stdout)
                 .context("zkvyper output is not valid JSON")?;
-            let output = Self::parse_output(&output, input.contract_name)?;
-            Ok(output)
+            Self::parse_output(&output, input.contract_name)
         } else {
             Err(ContractVerifierError::CompilerError(
                 "zkvyper",

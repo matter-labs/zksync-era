@@ -103,9 +103,7 @@ impl Compiler<VyperInput> for Vyper {
         if output.status.success() {
             let output =
                 serde_json::from_slice(&output.stdout).context("vyper output is not valid JSON")?;
-            let output =
-                parse_standard_json_output(&output, input.contract_name, input.file_name, true)?;
-            Ok(output)
+            parse_standard_json_output(&output, input.contract_name, input.file_name, true)
         } else {
             Err(ContractVerifierError::CompilerError(
                 "vyper",

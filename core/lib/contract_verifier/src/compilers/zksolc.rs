@@ -251,9 +251,7 @@ impl Compiler<ZkSolcInput> for ZkSolc {
                 if output.status.success() {
                     let output = serde_json::from_slice(&output.stdout)
                         .context("zksolc output is not valid JSON")?;
-                    let output =
-                        parse_standard_json_output(&output, contract_name, file_name, false)?;
-                    Ok(output)
+                    parse_standard_json_output(&output, contract_name, file_name, false)
                 } else {
                     Err(ContractVerifierError::CompilerError(
                         "zksolc",
@@ -285,8 +283,7 @@ impl Compiler<ZkSolcInput> for ZkSolc {
                 if output.status.success() {
                     let output =
                         String::from_utf8(output.stdout).context("zksolc output is not UTF-8")?;
-                    let output = Self::parse_single_file_yul_output(&output)?;
-                    Ok(output)
+                    Self::parse_single_file_yul_output(&output)
                 } else {
                     Err(ContractVerifierError::CompilerError(
                         "zksolc",

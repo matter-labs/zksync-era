@@ -676,7 +676,12 @@ impl ContractVerificationDal<'_, '_> {
                 ))
             })
             .instrument("get_contract_verification_info_v2#similar")
-            .with_arg("address", &address)
+            .with_arg("address", &address) // Can be useful for debugging
+            .with_arg("bytecode_keccak256", &identifier.bytecode_keccak256)
+            .with_arg(
+                "bytecode_without_metadata_keccak256",
+                &bytecode_without_metadata_keccak256,
+            )
             .fetch_optional(self.storage)
             .await?
         else {
@@ -840,7 +845,7 @@ impl ContractVerificationDal<'_, '_> {
 
         // Sanity check.
         tracing::info!("All the rows are migrated, verifying the migration");
-        let count_inequal = sqlx::query!(
+        let count_unequal = sqlx::query!(
             r#"
             SELECT
                 COUNT(*)
@@ -855,10 +860,10 @@ impl ContractVerificationDal<'_, '_> {
         .await?
         .count
         .unwrap();
-        if count_inequal > 0 {
+        if count_unequal > 0 {
             anyhow::bail!(
                 "Migration failed: {} rows have different data in the new table",
-                count_inequal
+                count_unequal
             );
         }
 
