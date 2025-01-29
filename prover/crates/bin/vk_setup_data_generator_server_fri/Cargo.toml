@@ -40,4 +40,4 @@ proptest.workspace = true
 
 [features]
 default = []
-gpu = ["zksync_prover_keystore/gpu", "proof-compression-gpu", "shivini"]
+gpu = ["zksync_prover_keystore/gpu", "proof-compression-gpu/allocator", "shivini"]

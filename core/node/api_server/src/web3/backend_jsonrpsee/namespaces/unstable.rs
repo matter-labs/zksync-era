@@ -40,4 +40,10 @@ impl UnstableNamespaceServer for UnstableNamespace {
             .await
             .map_err(|err| self.current_method().map_err(err))
     }
+
+    async fn get_unconfirmed_txs_count(&self) -> RpcResult<usize> {
+        self.get_unconfirmed_txs_count_impl()
+            .await
+            .map_err(|err| self.current_method().map_err(err))
+    }
 }

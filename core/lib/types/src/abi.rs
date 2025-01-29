@@ -1,4 +1,5 @@
 use anyhow::Context as _;
+use zksync_basic_types::protocol_version::ProtocolSemanticVersion;
 
 use crate::{
     bytecode::BytecodeHash,
@@ -185,7 +186,7 @@ impl NewPriorityRequest {
 }
 
 /// `VerifierParams` from `l1-contracts/contracts/state-transition/chain-interfaces/IVerifier.sol`.
-#[derive(Default, PartialEq)]
+#[derive(Debug, Default, PartialEq)]
 pub struct VerifierParams {
     pub recursion_node_level_vk_hash: [u8; 32],
     pub recursion_leaf_level_vk_hash: [u8; 32],
@@ -193,8 +194,11 @@ pub struct VerifierParams {
 }
 
 /// `ProposedUpgrade` from, `l1-contracts/contracts/upgrades/BazeZkSyncUpgrade.sol`.
+#[derive(Debug)]
 pub struct ProposedUpgrade {
     pub l2_protocol_upgrade_tx: Box<L2CanonicalTransaction>,
+    // Factory deps are set only pre-gateway upgrades.
+    pub factory_deps: Option<Vec<Vec<u8>>>,
     pub bootloader_hash: [u8; 32],
     pub default_account_hash: [u8; 32],
     pub verifier: Address,
@@ -249,8 +253,23 @@ impl VerifierParams {
 }
 
 impl ProposedUpgrade {
-    /// RLP schema of the `ProposedUpgrade`.
-    pub fn schema() -> ParamType {
+    /// Pre-gateway RLP schema of the `ProposedUpgrade`.
+    pub fn schema_pre_gateway() -> ParamType {
+        ParamType::Tuple(vec![
+            L2CanonicalTransaction::schema(), // transaction data
+            ParamType::FixedBytes(32),        // bootloader code hash
+            ParamType::FixedBytes(32),        // default account code hash
+            ParamType::Address,               // verifier address
+            VerifierParams::schema(),         // verifier params
+            ParamType::Bytes,                 // l1 custom data
+            ParamType::Bytes,                 // l1 post-upgrade custom data
+            ParamType::Uint(256),             // timestamp
+            ParamType::Uint(256),             // version id
+        ])
+    }
+
+    /// Post-gateway RLP schema of the `ProposedUpgrade`.
+    pub fn schema_post_gateway() -> ParamType {
         ParamType::Tuple(vec![
             L2CanonicalTransaction::schema(), // transaction data
             ParamType::FixedBytes(32),        // bootloader code hash
@@ -266,8 +285,22 @@ impl ProposedUpgrade {
 
     /// Encodes `ProposedUpgrade` to a RLP token.
     pub fn encode(&self) -> Token {
-        Token::Tuple(vec![
-            self.l2_protocol_upgrade_tx.encode(),
+        let mut tokens = vec![self.l2_protocol_upgrade_tx.encode()];
+
+        let protocol_version = ProtocolSemanticVersion::try_from_packed(self.new_protocol_version)
+            .expect("Version is not supported")
+            .minor;
+        if protocol_version.is_pre_gateway() {
+            tokens.push(Token::Array(
+                self.factory_deps
+                    .clone()
+                    .expect("Factory deps should be present in pre-gateway upgrade data")
+                    .into_iter()
+                    .map(Token::Bytes)
+                    .collect(),
+            ));
+        }
+        tokens.extend([
             Token::FixedBytes(self.bootloader_hash.into()),
             Token::FixedBytes(self.default_account_hash.into()),
             Token::Address(self.verifier),
@@ -276,24 +309,52 @@ impl ProposedUpgrade {
             Token::Bytes(self.post_upgrade_calldata.clone()),
             Token::Uint(self.upgrade_timestamp),
             Token::Uint(self.new_protocol_version),
-        ])
+        ]);
+
+        Token::Tuple(tokens)
     }
 
     /// Decodes `ProposedUpgrade` from a RLP token.
     /// Returns an error if token doesn't match the `schema()`.
     pub fn decode(token: Token) -> anyhow::Result<Self> {
         let tokens = token.into_tuple().context("not a tuple")?;
-        anyhow::ensure!(tokens.len() == 9);
+        let tokens_len = tokens.len();
+        anyhow::ensure!(tokens_len >= 9);
         let mut t = tokens.into_iter();
         let mut next = || t.next().unwrap();
-        Ok(Self {
-            l2_protocol_upgrade_tx: L2CanonicalTransaction::decode(next())
-                .context("l2_protocol_upgrade_tx")?
-                .into(),
-            bootloader_hash: next()
-                .into_fixed_bytes()
-                .and_then(|b| b.try_into().ok())
-                .context("bootloader_hash")?,
+
+        let l2_protocol_upgrade_tx = L2CanonicalTransaction::decode(next())
+            .context("l2_protocol_upgrade_tx")?
+            .into();
+        let next_token = next();
+        let (factory_deps, bootloader_hash) = match next_token {
+            Token::Array(tokens) => {
+                anyhow::ensure!(tokens_len == 10);
+                (
+                    Some(
+                        tokens
+                            .into_iter()
+                            .enumerate()
+                            .map(|(i, b)| b.into_bytes().context(i))
+                            .collect::<Result<_, _>>()
+                            .context("factory_deps")?,
+                    ),
+                    next().into_fixed_bytes(),
+                )
+            }
+            Token::FixedBytes(bytes) => {
+                anyhow::ensure!(tokens_len == 9);
+                (None, Some(bytes))
+            }
+            _ => anyhow::bail!("Unexpected type of the second token"),
+        };
+        let bootloader_hash = bootloader_hash
+            .and_then(|b| b.try_into().ok())
+            .context("bootloader_hash")?;
+        let upgrade = Self {
+            l2_protocol_upgrade_tx,
+            factory_deps,
+            bootloader_hash,
             default_account_hash: next()
                 .into_fixed_bytes()
                 .and_then(|b| b.try_into().ok())
@@ -306,7 +367,16 @@ impl ProposedUpgrade {
             post_upgrade_calldata: next().into_bytes().context("post_upgrade_calldata")?,
             upgrade_timestamp: next().into_uint().context("upgrade_timestamp")?,
             new_protocol_version: next().into_uint().context("new_protocol_version")?,
-        })
+        };
+
+        let protocol_version =
+            ProtocolSemanticVersion::try_from_packed(upgrade.new_protocol_version)
+                .map_err(|err| anyhow::anyhow!(err))
+                .context("Version is not supported")?
+                .minor;
+        anyhow::ensure!(protocol_version.is_pre_gateway() == upgrade.factory_deps.is_some());
+
+        Ok(upgrade)
     }
 }
 
@@ -460,7 +530,7 @@ impl GatewayUpgradeEncodedInput {
 pub struct ZkChainSpecificUpgradeData {
     pub base_token_asset_id: H256,
     pub l2_legacy_shared_bridge: Address,
-    pub predeployed_l2_weth_address: Address,
+    pub l2_predeployed_wrapped_base_token: Address,
     pub base_token_l1_address: Address,
     pub base_token_name: String,
     pub base_token_symbol: String,
@@ -480,7 +550,7 @@ impl ZkChainSpecificUpgradeData {
             l2_legacy_shared_bridge: l2_legacy_shared_bridge?,
             // Note, that some chains may not contain previous deployment of L2 wrapped base
             // token. For those, zero address is used.
-            predeployed_l2_weth_address: predeployed_l2_weth_address.unwrap_or_default(),
+            l2_predeployed_wrapped_base_token: predeployed_l2_weth_address.unwrap_or_default(),
             base_token_l1_address: base_token_l1_address?,
             base_token_name: base_token_name?,
             base_token_symbol: base_token_symbol?,
@@ -501,7 +571,7 @@ impl ZkChainSpecificUpgradeData {
         Token::Tuple(vec![
             Token::FixedBytes(self.base_token_asset_id.0.to_vec()),
             Token::Address(self.l2_legacy_shared_bridge),
-            Token::Address(self.predeployed_l2_weth_address),
+            Token::Address(self.l2_predeployed_wrapped_base_token),
             Token::Address(self.base_token_l1_address),
             Token::String(self.base_token_name.clone()),
             Token::String(self.base_token_symbol.clone()),

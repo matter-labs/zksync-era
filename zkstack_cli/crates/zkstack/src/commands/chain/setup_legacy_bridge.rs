@@ -1,19 +1,19 @@
 use anyhow::Context;
-use common::{
+use xshell::Shell;
+use zkstack_cli_common::{
     forge::{Forge, ForgeScriptArgs},
     spinner::Spinner,
 };
-use config::{
+use zkstack_cli_config::{
     forge_interface::{
         script_params::SETUP_LEGACY_BRIDGE, setup_legacy_bridge::SetupLegacyBridgeInput,
     },
     traits::SaveConfig,
     ChainConfig, ContractsConfig, EcosystemConfig,
 };
-use xshell::Shell;
 
 use crate::{
-    messages::{MSG_DEPLOYING_PAYMASTER, MSG_L1_SECRETS_MUST_BE_PRESENTED},
+    messages::MSG_DEPLOYING_PAYMASTER,
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
 
@@ -52,19 +52,12 @@ pub async fn setup_legacy_bridge(
     };
     let foundry_contracts_path = chain_config.path_to_l1_foundry();
     input.save(shell, SETUP_LEGACY_BRIDGE.input(&chain_config.link_to_code))?;
-    let secrets = chain_config.get_secrets_config()?;
+    let secrets = chain_config.get_secrets_config().await?;
 
     let mut forge = Forge::new(&foundry_contracts_path)
         .script(&SETUP_LEGACY_BRIDGE.script(), forge_args.clone())
         .with_ffi()
-        .with_rpc_url(
-            secrets
-                .l1
-                .context(MSG_L1_SECRETS_MUST_BE_PRESENTED)?
-                .l1_rpc_url
-                .expose_str()
-                .to_string(),
-        )
+        .with_rpc_url(secrets.get("l1.l1_rpc_url")?)
         .with_broadcast();
 
     forge = fill_forge_private_key(

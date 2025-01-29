@@ -1,7 +1,7 @@
 //! Test utilities that can be used for testing sequencer that may
 //! be useful outside of this crate.
 
-use std::collections::HashMap;
+use std::collections::HashSet;
 
 use async_trait::async_trait;
 use once_cell::sync::Lazy;
@@ -76,25 +76,28 @@ impl BatchExecutor<OwnedStorage> for MockBatchExecutor {
     }
 }
 
-async fn apply_genesis_log<'a>(storage: &mut Connection<'a, Core>, log: StorageLog) {
+pub(crate) async fn apply_genesis_logs(storage: &mut Connection<'_, Core>, logs: &[StorageLog]) {
     storage
         .storage_logs_dal()
-        .append_storage_logs(L2BlockNumber(0), &[log])
+        .append_storage_logs(L2BlockNumber(0), logs)
         .await
         .unwrap();
-    if storage
+
+    let all_hashed_keys: Vec<_> = logs.iter().map(|log| log.key.hashed_key()).collect();
+    let repeated_writes = storage
         .storage_logs_dedup_dal()
-        .filter_written_slots(&[log.key.hashed_key()])
+        .filter_written_slots(&all_hashed_keys)
         .await
-        .unwrap()
-        .is_empty()
-    {
-        storage
-            .storage_logs_dedup_dal()
-            .insert_initial_writes(L1BatchNumber(0), &[log.key.hashed_key()])
-            .await
-            .unwrap();
-    }
+        .unwrap();
+    let initial_writes: Vec<_> = HashSet::from_iter(all_hashed_keys)
+        .difference(&repeated_writes)
+        .copied()
+        .collect();
+    storage
+        .storage_logs_dedup_dal()
+        .insert_initial_writes(L1BatchNumber(0), &initial_writes)
+        .await
+        .unwrap();
 }
 
 /// Adds funds for specified account list.
@@ -103,17 +106,18 @@ pub async fn fund(pool: &ConnectionPool<Core>, addresses: &[Address]) {
     let mut storage = pool.connection().await.unwrap();
 
     let eth_amount = U256::from(10u32).pow(U256::from(32)); //10^32 wei
+    let storage_logs: Vec<_> = addresses
+        .iter()
+        .map(|address| {
+            let key = storage_key_for_standard_token_balance(
+                AccountTreeId::new(L2_BASE_TOKEN_ADDRESS),
+                address,
+            );
+            StorageLog::new_write_log(key, u256_to_h256(eth_amount))
+        })
+        .collect();
 
-    for address in addresses {
-        let key = storage_key_for_standard_token_balance(
-            AccountTreeId::new(L2_BASE_TOKEN_ADDRESS),
-            address,
-        );
-        let value = u256_to_h256(eth_amount);
-        let storage_log = StorageLog::new_write_log(key, value);
-
-        apply_genesis_log(&mut storage, storage_log).await;
-    }
+    apply_genesis_logs(&mut storage, &storage_logs).await;
 }
 
 pub async fn setup_contract(pool: &ConnectionPool<Core>, address: Address, code: Vec<u8>) {

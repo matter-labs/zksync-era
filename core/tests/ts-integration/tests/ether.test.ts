@@ -10,7 +10,6 @@ import {
 } from '../src/modifiers/balance-checker';
 import { checkReceipt } from '../src/modifiers/receipt-check';
 
-// import * as zksync from 'zksync-ethers';
 import * as zksync from 'zksync-ethers-interop-support';
 import { scaledGasPrice, waitForL2ToL1LogProof } from '../src/helpers';
 import { ethers } from 'ethers';
@@ -62,7 +61,7 @@ describe('ETH token checks', () => {
 
         const l2GasLimit = await alice.provider.estimateDefaultBridgeDepositL2Gas(
             alice.providerL1!,
-            zksync.utils.ETH_ADDRESS,
+            zksync.utils.ETH_ADDRESS_IN_CONTRACTS,
             amount,
             alice.address,
             alice.address,

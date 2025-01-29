@@ -1,7 +1,7 @@
 use anyhow::Context;
-use common::{git, logger, spinner::Spinner};
-use config::{traits::SaveConfigWithBasePath, EcosystemConfig};
 use xshell::Shell;
+use zkstack_cli_common::{git, logger, spinner::Spinner};
+use zkstack_cli_config::{traits::SaveConfigWithBasePath, EcosystemConfig};
 
 use super::{
     args::build_transactions::BuildTransactionsArgs,

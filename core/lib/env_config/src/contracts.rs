@@ -13,6 +13,11 @@ impl FromEnv for EcosystemContracts {
             l1_bytecodes_supplier_addr: std::env::var("CONTRACTS_L1_BYTECODE_SUPPLIER_ADDR")?
                 .parse()
                 .ok(),
+            l1_wrapped_base_token_store: std::env::var(
+                "CONTRACTS_L1_WRAPPED_BASE_TOKEN_STORE_ADDR",
+            )?
+            .parse()
+            .ok(),
         })
     }
 }
@@ -79,6 +84,9 @@ mod tests {
                 l1_bytecodes_supplier_addr: Some(addr(
                     "0x36ea7f92f4c5f433efe15284e99c040110cf6297",
                 )),
+                l1_wrapped_base_token_store: Some(addr(
+                    "0x36ea7f92f4c5f433efe15284e99c040110cf6298",
+                )),
             }),
             base_token_addr: Some(SHARED_BRIDGE_ETHER_TOKEN_ADDRESS),
             l1_base_token_asset_id: Some(
@@ -87,9 +95,6 @@ mod tests {
                 )
                 .unwrap(),
             ),
-            l2_predeployed_wrapped_base_token_address: Some(addr(
-                "0x35ea7f92f4c5f433efe15284e99c040110cf6299",
-            )),
             chain_admin_addr: Some(addr("0xdd6fa5c14e7550b4caf2aa2818d24c69cbc347ff")),
             l2_da_validator_addr: Some(addr("0xed6fa5c14e7550b4caf2aa2818d24c69cbc347ff")),
             l2_timestamp_asserter_addr: Some(addr("0x0000000000000000000000000000000000000002")),
@@ -121,7 +126,7 @@ CONTRACTS_STATE_TRANSITION_PROXY_ADDR="0xd90f1c081c6117241624e97cb6147257c3cb209
 CONTRACTS_TRANSPARENT_PROXY_ADMIN_ADDR="0xdd6fa5c14e7550b4caf2aa2818d24c69cbc347e5"
 CONTRACTS_BASE_TOKEN_ADDR="0x0000000000000000000000000000000000000001"
 CONTRACTS_L1_BASE_TOKEN_ASSET_ID="0x0000000000000000000000000000000000000001000000000000000000000000"
-CONTRACTS_L2_PREDEPLOYED_WRAPPED_BASE_TOKEN_ADDRESS="0x35ea7f92f4c5f433efe15284e99c040110cf6299"
+CONTRACTS_L1_WRAPPED_BASE_TOKEN_STORE_ADDR="0x36ea7f92f4c5f433efe15284e99c040110cf6298"
 CONTRACTS_L2_NATIVE_TOKEN_VAULT_PROXY_ADDR="0xfc073319977e314f251eae6ae6be76b0b3baeecf"
 CONTRACTS_PREDEPLOYED_L2_WRAPPED_BASE_TOKEN_ADDRESS="0x35ea7f92f4c5f433efe15284e99c040110cf6299"
 CONTRACTS_CHAIN_ADMIN_ADDR="0xdd6fa5c14e7550b4caf2aa2818d24c69cbc347ff"

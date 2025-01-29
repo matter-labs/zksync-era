@@ -1,13 +1,10 @@
 use clap::{Parser, ValueEnum};
-use common::{Prompt, PromptSelect};
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumIter, IntoEnumIterator};
 use url::Url;
-use zksync_config::{
-    configs::da_client::avail::{
-        AvailClientConfig, AvailDefaultConfig, AvailGasRelayConfig, AvailSecrets,
-    },
-    AvailConfig,
+use zkstack_cli_common::{Prompt, PromptSelect};
+use zkstack_cli_config::da::{
+    AvailClientConfig, AvailConfig, AvailDefaultConfig, AvailGasRelayConfig, AvailSecrets,
 };
 
 use crate::{
@@ -15,9 +12,9 @@ use crate::{
     messages::{
         MSG_AVAIL_API_NODE_URL_PROMPT, MSG_AVAIL_API_TIMEOUT_MS, MSG_AVAIL_APP_ID_PROMPT,
         MSG_AVAIL_BRIDGE_API_URL_PROMPT, MSG_AVAIL_CLIENT_TYPE_PROMPT,
-        MSG_AVAIL_GAS_RELAY_API_KEY_PROMPT, MSG_AVAIL_GAS_RELAY_API_URL_PROMPT,
-        MSG_AVAIL_GAS_RELAY_MAX_RETRIES_PROMPT, MSG_AVAIL_SEED_PHRASE_PROMPT, MSG_INVALID_URL_ERR,
-        MSG_VALIDIUM_TYPE_PROMPT,
+        MSG_AVAIL_FINALITY_STATE_PROMPT, MSG_AVAIL_GAS_RELAY_API_KEY_PROMPT,
+        MSG_AVAIL_GAS_RELAY_API_URL_PROMPT, MSG_AVAIL_GAS_RELAY_MAX_RETRIES_PROMPT,
+        MSG_AVAIL_SEED_PHRASE_PROMPT, MSG_INVALID_URL_ERR, MSG_VALIDIUM_TYPE_PROMPT,
     },
 };
 
@@ -43,6 +40,12 @@ pub enum AvailClientTypeInternal {
 pub enum ValidiumType {
     NoDA,
     Avail((AvailConfig, AvailSecrets)),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, EnumIter, Display, ValueEnum)]
+pub enum AvailFinalityState {
+    InBlock,
+    Finalized,
 }
 
 impl ValidiumType {
@@ -71,6 +74,14 @@ impl ValidiumType {
                                         })
                                     })
                                     .ask(),
+                                finality_state: Some(
+                                    PromptSelect::new(
+                                        MSG_AVAIL_FINALITY_STATE_PROMPT,
+                                        AvailFinalityState::iter(),
+                                    )
+                                    .ask()
+                                    .to_string(),
+                                ),
                             })
                         }
                         AvailClientTypeInternal::GasRelay => {

@@ -61,7 +61,7 @@ jobs:
   build-push-core-images:
     name: Build and push images
     needs: [setup, changed_files]
-    uses: ./.github/workflows/new-build-core-template.yml
+    uses: ./.github/workflows/build-core-template.yml
     if: needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true'
     with:
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
@@ -85,7 +85,7 @@ jobs:
   build-push-contract-verifier:
     name: Build and push images
     needs: [setup, changed_files]
-    uses: ./.github/workflows/new-build-contract-verifier-template.yml
+    uses: ./.github/workflows/build-contract-verifier-template.yml
     if: needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true'
     with:
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
@@ -97,7 +97,7 @@ jobs:
   build-push-prover-images:
     name: Build and push images
     needs: [setup, changed_files]
-    uses: ./.github/workflows/new-build-prover-template.yml
+    uses: ./.github/workflows/build-prover-template.yml
     if: needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true'
     with:
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
@@ -110,7 +110,7 @@ jobs:
   build-push-witness-generator-image-avx512:
     name: Build and push prover images with avx512 instructions
     needs: [setup, changed_files]
-    uses: ./.github/workflows/new-build-witness-generator-template.yml
+    uses: ./.github/workflows/build-witness-generator-template.yml
     if: needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true'
     with:
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}-avx512
@@ -121,10 +121,20 @@ jobs:
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
-  build-gar-prover-fri-gpu-and-circuit-prover-gpu-gar:
+  build-circuit-prover-gpu-gar:
     name: Build GAR prover FRI GPU
     needs: [setup, build-push-prover-images]
-    uses: ./.github/workflows/build-prover-fri-gpu-gar-and-circuit-prover-gpu-gar.yml
+    uses: ./.github/workflows/build-circuit-prover-gpu-gar.yml
+    if: needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true'
+    with:
+      setup_keys_id: ${{ needs.setup.outputs.prover_fri_gpu_key_id }}
+      image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
+      protocol_version: ${{ needs.build-push-prover-images.outputs.protocol_version }}
+
+  build-gar-proof-fri-gpu-compressor-gar:
+    name: Build GAR proof FRI GPU compressor
+    needs: [setup, build-push-prover-images]
+    uses: ./.github/workflows/build-proof-fri-gpu-compressor-gar.yml
     if: needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true'
     with:
       setup_keys_id: ${{ needs.setup.outputs.prover_fri_gpu_key_id }}

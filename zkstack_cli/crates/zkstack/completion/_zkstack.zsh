@@ -2022,9 +2022,7 @@ _arguments "${_arguments_options[@]}" : \
 '(--clone)--bellman-cuda-dir=[]:BELLMAN_CUDA_DIR:_default' \
 '--bellman-cuda=[]' \
 '--setup-compressor-key=[]' \
-'--plonk-path=[]:PLONK_PATH:_default' \
-'--fflonk-path=[]:FFLONK_PATH:_default' \
-'--compressor-type=[]:COMPRESSOR_TYPE:(fflonk plonk all)' \
+'--path=[]:PATH:_files' \
 '--region=[]:REGION:(us europe asia)' \
 '--mode=[]:MODE:(download generate)' \
 '--setup-keys=[]' \
@@ -2095,9 +2093,7 @@ _arguments "${_arguments_options[@]}" : \
 ;;
 (compressor-keys)
 _arguments "${_arguments_options[@]}" : \
-'--plonk-path=[]:PLONK_PATH:_default' \
-'--fflonk-path=[]:FFLONK_PATH:_default' \
-'--compressor-type=[]:COMPRESSOR_TYPE:(fflonk plonk all)' \
+'--path=[]:PATH:_files' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
@@ -3632,16 +3628,6 @@ _zkstack__chain__help__init__configs_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack chain help init configs commands' commands "$@"
 }
-(( $+functions[_zkstack__chain__help__migrate-from-gateway_commands] )) ||
-_zkstack__chain__help__migrate-from-gateway_commands() {
-    local commands; commands=()
-    _describe -t commands 'zkstack chain help migrate-from-gateway commands' commands "$@"
-}
-(( $+functions[_zkstack__chain__help__migrate-to-gateway_commands] )) ||
-_zkstack__chain__help__migrate-to-gateway_commands() {
-    local commands; commands=()
-    _describe -t commands 'zkstack chain help migrate-to-gateway commands' commands "$@"
-}
 (( $+functions[_zkstack__chain__help__register-chain_commands] )) ||
 _zkstack__chain__help__register-chain_commands() {
     local commands; commands=()
@@ -3682,16 +3668,6 @@ _zkstack__chain__init__help__configs_commands() {
 _zkstack__chain__init__help__help_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack chain init help help commands' commands "$@"
-}
-(( $+functions[_zkstack__chain__migrate-from-gateway_commands] )) ||
-_zkstack__chain__migrate-from-gateway_commands() {
-    local commands; commands=()
-    _describe -t commands 'zkstack chain migrate-from-gateway commands' commands "$@"
-}
-(( $+functions[_zkstack__chain__migrate-to-gateway_commands] )) ||
-_zkstack__chain__migrate-to-gateway_commands() {
-    local commands; commands=()
-    _describe -t commands 'zkstack chain migrate-to-gateway commands' commands "$@"
 }
 (( $+functions[_zkstack__chain__register-chain_commands] )) ||
 _zkstack__chain__register-chain_commands() {
@@ -4984,16 +4960,6 @@ _zkstack__help__chain__init_commands() {
 _zkstack__help__chain__init__configs_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack help chain init configs commands' commands "$@"
-}
-(( $+functions[_zkstack__help__chain__migrate-from-gateway_commands] )) ||
-_zkstack__help__chain__migrate-from-gateway_commands() {
-    local commands; commands=()
-    _describe -t commands 'zkstack help chain migrate-from-gateway commands' commands "$@"
-}
-(( $+functions[_zkstack__help__chain__migrate-to-gateway_commands] )) ||
-_zkstack__help__chain__migrate-to-gateway_commands() {
-    local commands; commands=()
-    _describe -t commands 'zkstack help chain migrate-to-gateway commands' commands "$@"
 }
 (( $+functions[_zkstack__help__chain__register-chain_commands] )) ||
 _zkstack__help__chain__register-chain_commands() {

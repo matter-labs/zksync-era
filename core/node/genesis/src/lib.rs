@@ -529,7 +529,7 @@ pub(crate) async fn create_genesis_l1_batch_from_storage_logs_and_factory_deps(
         .await?;
     transaction
         .blocks_dal()
-        .insert_l1_batch(genesis_l1_batch_header.to_unsealed_header(batch_fee_input))
+        .insert_l1_batch(genesis_l1_batch_header.to_unsealed_header())
         .await?;
     transaction
         .blocks_dal()

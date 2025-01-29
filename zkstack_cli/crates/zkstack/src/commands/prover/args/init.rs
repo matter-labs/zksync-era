@@ -1,12 +1,13 @@
+use std::path::Path;
+
 use clap::{Parser, ValueEnum};
-use common::{db::DatabaseConfig, logger, Prompt, PromptConfirm, PromptSelect};
-use config::ChainConfig;
 use serde::{Deserialize, Serialize};
 use slugify_rs::slugify;
 use strum::{EnumIter, IntoEnumIterator};
 use url::Url;
 use xshell::Shell;
-use zksync_config::configs::fri_prover::CloudConnectionMode;
+use zkstack_cli_common::{db::DatabaseConfig, logger, Prompt, PromptConfirm, PromptSelect};
+use zkstack_cli_config::ChainConfig;
 
 use super::{
     compressor_keys::CompressorKeysArgs, init_bellman_cuda::InitBellmanCudaArgs,
@@ -92,22 +93,12 @@ enum ProofStoreConfig {
     GCS,
 }
 
-#[derive(
-    Debug, Clone, ValueEnum, EnumIter, strum::Display, PartialEq, Eq, Deserialize, Serialize,
-)]
+#[derive(Debug, Clone, ValueEnum, EnumIter, strum::Display, PartialEq, Eq, Serialize)]
 #[allow(clippy::upper_case_acronyms)]
-enum InternalCloudConnectionMode {
+pub enum InternalCloudConnectionMode {
     GCP,
+    #[serde(rename = "LOCAL")] // match name in file-based configs
     Local,
-}
-
-impl From<InternalCloudConnectionMode> for CloudConnectionMode {
-    fn from(cloud_type: InternalCloudConnectionMode) -> Self {
-        match cloud_type {
-            InternalCloudConnectionMode::GCP => CloudConnectionMode::GCP,
-            InternalCloudConnectionMode::Local => CloudConnectionMode::Local,
-        }
-    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Parser, Default)]
@@ -194,7 +185,7 @@ pub struct ProverInitArgsFinal {
     pub compressor_key_args: Option<CompressorKeysArgs>,
     pub setup_keys: Option<SetupKeysArgs>,
     pub bellman_cuda_config: Option<InitBellmanCudaArgs>,
-    pub cloud_type: CloudConnectionMode,
+    pub cloud_type: InternalCloudConnectionMode,
     pub database_config: Option<ProverDatabaseConfig>,
 }
 
@@ -202,16 +193,13 @@ impl ProverInitArgs {
     pub(crate) fn fill_values_with_prompt(
         &self,
         shell: &Shell,
-        default_plonk_key_path: &str,
-        default_fflonk_key_path: &str,
+        default_compressor_key_path: &Path,
         chain_config: &ChainConfig,
     ) -> anyhow::Result<ProverInitArgsFinal> {
         let proof_store = self.fill_proof_storage_values_with_prompt(shell)?;
         let public_store = self.fill_public_storage_values_with_prompt(shell)?;
-        let compressor_key_args = self.fill_setup_compressor_key_values_with_prompt(
-            default_plonk_key_path,
-            default_fflonk_key_path,
-        );
+        let compressor_key_args =
+            self.fill_setup_compressor_key_values_with_prompt(default_compressor_key_path);
         let bellman_cuda_config = self.fill_bellman_cuda_values_with_prompt();
         let cloud_type = self.get_cloud_type_with_prompt();
         let database_config = self.fill_database_values_with_prompt(chain_config);
@@ -358,14 +346,11 @@ impl ProverInitArgs {
 
     fn fill_setup_compressor_key_values_with_prompt(
         &self,
-        default_plonk_path: &str,
-        default_fflonk_path: &str,
+        default_path: &Path,
     ) -> Option<CompressorKeysArgs> {
         if self.dev {
             return Some(CompressorKeysArgs {
-                plonk_path: Some(default_plonk_path.to_string()),
-                fflonk_path: Some(default_fflonk_path.to_string()),
-                ..self.compressor_keys_args.clone()
+                path: Some(default_path.to_owned()),
             });
         }
 
@@ -379,7 +364,7 @@ impl ProverInitArgs {
             Some(
                 self.compressor_keys_args
                     .clone()
-                    .fill_values_with_prompt(default_plonk_path, default_fflonk_path),
+                    .fill_values_with_prompt(default_path),
             )
         } else {
             None
@@ -518,20 +503,18 @@ impl ProverInitArgs {
         }
     }
 
-    fn get_cloud_type_with_prompt(&self) -> CloudConnectionMode {
+    fn get_cloud_type_with_prompt(&self) -> InternalCloudConnectionMode {
         if self.dev {
-            return CloudConnectionMode::Local;
+            return InternalCloudConnectionMode::Local;
         }
 
-        let cloud_type = self.cloud_type.clone().unwrap_or_else(|| {
+        self.cloud_type.clone().unwrap_or_else(|| {
             PromptSelect::new(
                 MSG_CLOUD_TYPE_PROMPT,
                 InternalCloudConnectionMode::iter().rev(),
             )
             .ask()
-        });
-
-        cloud_type.into()
+        })
     }
 
     fn fill_database_values_with_prompt(

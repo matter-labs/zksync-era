@@ -4,9 +4,9 @@ use std::{
 };
 
 use anyhow::Context as _;
-use common::logger;
-use config::{ChainConfig, EcosystemConfig};
 use xshell::{cmd, Shell};
+use zkstack_cli_common::logger;
+use zkstack_cli_config::{ChainConfig, EcosystemConfig};
 
 use crate::commands::dev::messages::MSG_CHAIN_NOT_FOUND_ERR;
 
@@ -84,14 +84,7 @@ pub(crate) async fn get_fflonk_snark_wrapper(link_to_prover: &Path) -> anyhow::R
 }
 
 pub(crate) async fn get_database_url(chain: &ChainConfig) -> anyhow::Result<String> {
-    let prover_url = chain
-        .get_secrets_config()?
-        .database
-        .context("Database secrets not found")?
-        .prover_url()?
-        .expose_url()
-        .to_string();
-    Ok(prover_url)
+    chain.get_secrets_config().await?.get("database.prover_url")
 }
 
 pub fn parse_version(version: &str) -> anyhow::Result<(&str, &str)> {

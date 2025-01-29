@@ -268,9 +268,10 @@ describe('Upgrade test', function () {
         bootloaderHash = ethers.hexlify(zksync.utils.hashBytecode(bootloaderCode));
         defaultAccountHash = ethers.hexlify(zksync.utils.hashBytecode(defaultAACode));
 
-        await publishBytecode(tester.ethWallet, bytecodeSupplier, bootloaderCode);
-        await publishBytecode(tester.ethWallet, bytecodeSupplier, defaultAACode);
-        await publishBytecode(tester.ethWallet, bytecodeSupplier, forceDeployBytecode);
+        let nonce = await tester.ethWallet.getNonce();
+        nonce += await publishBytecode(tester.ethWallet, bytecodeSupplier, bootloaderCode, nonce);
+        nonce += await publishBytecode(tester.ethWallet, bytecodeSupplier, defaultAACode, nonce);
+        await publishBytecode(tester.ethWallet, bytecodeSupplier, forceDeployBytecode, nonce);
     });
 
     step('Schedule governance call', async () => {
@@ -349,11 +350,18 @@ describe('Upgrade test', function () {
         );
 
         console.log('Sending chain admin operation');
-        await sendChainAdminOperation({
-            target: await slChainAdminContract.getAddress(),
-            data: setTimestampCalldata,
-            value: 0
-        });
+        // Different chain admin impls are used depending on whether gateway is used.
+        if (gatewayInfo) {
+            // ChainAdmin.sol: `setUpgradeTimestamp` has onlySelf so we do multicall.
+            await sendChainAdminOperation({
+                target: await slChainAdminContract.getAddress(),
+                data: setTimestampCalldata,
+                value: 0
+            });
+        } else {
+            // ChainAdminOwnable.sol: `setUpgradeTimestamp` has onlyOwner so we call it directly.
+            await chainAdminSetTimestamp(setTimestampCalldata);
+        }
 
         // Wait for server to process L1 event.
         await utils.sleep(2);
@@ -458,6 +466,17 @@ describe('Upgrade test', function () {
         console.log('Transaction complete!');
     }
 
+    async function chainAdminSetTimestamp(data: string) {
+        const transaction = await slAdminGovWallet.sendTransaction({
+            to: await slChainAdminContract.getAddress(),
+            data,
+            type: 0
+        });
+        console.log(`Sent chain admin operation, tx_hash=${transaction.hash}, nonce=${transaction.nonce}`);
+        await transaction.wait();
+        console.log(`Chain admin operation succeeded, tx_hash=${transaction.hash}`);
+    }
+
     async function sendChainAdminOperation(call: Call) {
         const executeMulticallData = slChainAdminContract.interface.encodeFunctionData('multicall', [[call], true]);
 
@@ -505,7 +524,12 @@ function readCode(newPath: string, legacyPath: string): string {
     }
 }
 
-async function publishBytecode(wallet: ethers.Wallet, bytecodeSupplierAddr: string, bytecode: string) {
+async function publishBytecode(
+    wallet: ethers.Wallet,
+    bytecodeSupplierAddr: string,
+    bytecode: string,
+    nonce: number
+): Promise<number> {
     const hash = zksync.utils.hashBytecode(bytecode);
     const abi = [
         'function publishBytecode(bytes calldata _bytecode) public',
@@ -515,8 +539,11 @@ async function publishBytecode(wallet: ethers.Wallet, bytecodeSupplierAddr: stri
     const contract = new ethers.Contract(bytecodeSupplierAddr, abi, wallet);
     const block = await contract.publishingBlock(hash);
     if (block == BigInt(0)) {
-        await (await contract.publishBytecode(bytecode)).wait();
+        const tx = await contract.publishBytecode(bytecode, { nonce });
+        await tx.wait();
+        return 1;
     }
+    return 0;
 }
 
 async function checkedRandomTransfer(sender: zksync.Wallet, amount: bigint): Promise<zksync.types.TransactionResponse> {
