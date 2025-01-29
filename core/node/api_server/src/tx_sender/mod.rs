@@ -3,10 +3,14 @@
 use std::{default::Default, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
+use ruint::aliases::B160;
 use tokio::sync::RwLock;
+use zk_ee::common_structs::derive_flat_storage_key;
+use zk_os_basic_system::basic_io_implementer::address_into_special_storage_key;
+use zk_os_system_hooks::addresses_constants::NOMINAL_TOKEN_BALANCE_STORAGE_ADDRESS;
 use zksync_config::configs::{api::Web3JsonRpcConfig, chain::StateKeeperConfig};
 use zksync_dal::{
-    transactions_dal::L2TxSubmissionResult, Connection, ConnectionPool, Core, CoreDal,
+    transactions_dal::L2TxSubmissionResult, Connection, ConnectionPool, Core, CoreDal, DalError,
 };
 use zksync_multivm::{
     interface::{
@@ -501,13 +505,28 @@ impl TxSender {
     }
 
     async fn get_balance(&self, initiator_address: &H160) -> anyhow::Result<U256> {
-        let eth_balance_key = storage_key_for_eth_balance(initiator_address);
-        let balance = self
+        let address = B160::from_be_bytes(initiator_address.to_fixed_bytes());
+        let key = address_into_special_storage_key(&address);
+        let flat_key = derive_flat_storage_key(&NOMINAL_TOKEN_BALANCE_STORAGE_ADDRESS, &key);
+        let storage_hashed_key = H256::from_slice(&flat_key.as_u8_array());
+
+        let mut balances = self
             .acquire_replica_connection()
             .await?
             .storage_web3_dal()
-            .get_value(&eth_balance_key)
-            .await?;
+            .get_values(&[storage_hashed_key])
+            .await
+            .map_err(DalError::generalize)?;
+
+        let balance = balances.remove(&storage_hashed_key).unwrap_or_default();
+
+        // let eth_balance_key = storage_key_for_eth_balance(initiator_address);
+        // let balance = self
+        //     .acquire_replica_connection()
+        //     .await?
+        //     .storage_web3_dal()
+        //     .get_value(&eth_balance_key)
+        //     .await?;
         Ok(h256_to_u256(balance))
     }
 
@@ -556,8 +575,9 @@ impl TxSender {
         self.0
             .executor
             .execute_in_sandbox_zkos(vm_permit, connection, action, &block_args, state_override)
-            .await
-            .map_err(Into::into)
+            .await?
+            .1
+            .map_err(SubmitTxError::from)
     }
 
     pub async fn gas_price(&self) -> anyhow::Result<u64> {

@@ -513,7 +513,9 @@ impl TransactionsDal<'_, '_> {
         tx_hash: H256,
         block_number: L2BlockNumber,
         revert_reason: Option<String>,
+        refunded_gas: u64,
     ) -> DalResult<()> {
+        let refunded_gas = i64::try_from(refunded_gas).expect("refunded_gas > i64::MAX");
         sqlx::query!(
             r#"
             UPDATE transactions
@@ -522,13 +524,15 @@ impl TransactionsDal<'_, '_> {
                 l1_batch_tx_index = 0,
                 miniblock_number = $2,
                 error = $3,
+                refunded_gas = $4,
                 updated_at = NOW()
             WHERE
                 transactions.hash = $1
             "#,
             &tx_hash.as_bytes(),
             i64::from(block_number.0),
-            revert_reason
+            revert_reason,
+            refunded_gas,
         )
         .instrument("zkos_mark_tx_as_executed")
         .with_arg("miniblock_number", &block_number)

@@ -110,7 +110,60 @@ impl EthNamespace {
         _block: Option<BlockNumber>,
         state_override: Option<StateOverride>,
     ) -> Result<U256, Web3Error> {
-        return Ok(U256::from(u32::MAX));
+        let mut request_with_gas_per_pubdata_overridden = request;
+        self.state
+            .set_nonce_for_call_request(&mut request_with_gas_per_pubdata_overridden)
+            .await?;
+
+        if let Some(eip712_meta) = &mut request_with_gas_per_pubdata_overridden.eip712_meta {
+            if eip712_meta.gas_per_pubdata == U256::zero() {
+                eip712_meta.gas_per_pubdata = DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE.into();
+            }
+        }
+
+        let is_eip712 = request_with_gas_per_pubdata_overridden
+            .eip712_meta
+            .is_some();
+        let mut connection = self.state.acquire_connection().await?;
+        let block_args = BlockArgs::pending(&mut connection).await?;
+        drop(connection);
+        let mut tx: L2Tx = L2Tx::from_request(
+            request_with_gas_per_pubdata_overridden.into(),
+            self.state.api_config.max_tx_size,
+            block_args.use_evm_emulator(),
+        )?;
+
+        // The user may not include the proper transaction type during the estimation of
+        // the gas fee. However, it is needed for the bootloader checks to pass properly.
+        if is_eip712 {
+            tx.common_data.transaction_type = TransactionType::EIP712Transaction;
+        }
+
+        // When we're estimating fee, we are trying to deduce values related to fee, so we should
+        // not consider provided ones.
+        let gas_price = self.state.tx_sender.gas_price().await?;
+        tx.common_data.fee.max_fee_per_gas = gas_price.into();
+        tx.common_data.fee.max_priority_fee_per_gas = tx.common_data.fee.max_fee_per_gas;
+
+        // Modify the l1 gas price with the scale factor
+        let scale_factor = self.state.api_config.estimate_gas_scale_factor;
+        let acceptable_overestimation =
+            self.state.api_config.estimate_gas_acceptable_overestimation;
+        let search_kind = BinarySearchKind::new(self.state.api_config.estimate_gas_optimize_search);
+
+        let fee = self
+            .state
+            .tx_sender
+            .get_txs_fee_in_wei(
+                tx.into(),
+                block_args,
+                scale_factor,
+                acceptable_overestimation as u64,
+                state_override,
+                search_kind,
+            )
+            .await?;
+        Ok(fee.gas_limit)
     }
 
     pub async fn gas_price_impl(&self) -> Result<U256, Web3Error> {

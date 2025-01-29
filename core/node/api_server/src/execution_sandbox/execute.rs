@@ -8,7 +8,7 @@ use ruint::aliases::U256;
 use tokio::{runtime::Handle, task::spawn_blocking};
 use zk_ee::system::system_trait::errors::InternalError;
 use zk_os_forward_system::run::{
-    BatchContext, ExecutionOutput, ExecutionResult, StorageCommitment, TxOutput,
+    output::TxResult, BatchContext, ExecutionOutput, ExecutionResult, StorageCommitment, TxOutput,
 };
 use zksync_dal::{Connection, Core};
 use zksync_multivm::interface::{
@@ -152,7 +152,7 @@ impl SandboxExecutor {
         action: SandboxAction,
         block_args: &BlockArgs,
         state_override: Option<StateOverride>,
-    ) -> anyhow::Result<Vec<u8>> {
+    ) -> anyhow::Result<(TxOutput, anyhow::Result<Vec<u8>>)> {
         let (env, storage) = self
             .prepare_env_and_storage(connection, block_args, &action)
             .await?;
@@ -200,10 +200,14 @@ impl SandboxExecutor {
 
         //todo: eth_call error format - should be compatible with era/ethereum
         match result {
-            Ok(Ok(tx_output)) => match tx_output.execution_result {
-                ExecutionResult::Success(ExecutionOutput::Call(data)) => Ok(data),
-                ExecutionResult::Success(ExecutionOutput::Create(data, _)) => Ok(data),
-                ExecutionResult::Revert(res) => anyhow::bail!("revert: {:?}", res),
+            Ok(Ok(tx_output)) => match tx_output.execution_result.clone() {
+                ExecutionResult::Success(ExecutionOutput::Call(data)) => Ok((tx_output, Ok(data))),
+                ExecutionResult::Success(ExecutionOutput::Create(data, _)) => {
+                    Ok((tx_output, Ok(data)))
+                }
+                ExecutionResult::Revert(res) => {
+                    Ok((tx_output, Err(anyhow::anyhow!("revert: {:?}", res))))
+                }
             },
             Ok(Err(invalid)) => {
                 anyhow::bail!("invalid transaction: {:?}", invalid)

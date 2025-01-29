@@ -1,9 +1,13 @@
 use std::{ops, time::Instant};
 
 use anyhow::Context;
+use zk_os_forward_system::run::ExecutionResult as ZkOsExecutionResult;
 use zksync_dal::CoreDal;
 use zksync_multivm::{
-    interface::{TransactionExecutionMetrics, VmExecutionResultAndLogs},
+    interface::{
+        ExecutionResult, Refunds, TransactionExecutionMetrics, VmExecutionResultAndLogs,
+        VmExecutionStatistics, VmRevertReason,
+    },
     utils::{
         adjust_pubdata_price_for_tx, derive_base_fee_and_gas_per_pubdata, derive_overhead,
         get_max_batch_gas_limit,
@@ -467,8 +471,8 @@ impl<'a> GasEstimator<'a> {
         };
         let connection = self.sender.acquire_replica_connection().await?;
         let executor = &self.sender.0.executor;
-        let execution_output = executor
-            .execute_in_sandbox(
+        let (output, _) = executor
+            .execute_in_sandbox_zkos(
                 self.vm_permit.clone(),
                 connection,
                 action,
@@ -476,7 +480,45 @@ impl<'a> GasEstimator<'a> {
                 self.state_override.clone(),
             )
             .await?;
-        Ok((execution_output.vm, execution_output.metrics))
+        let result = match &output.execution_result {
+            ZkOsExecutionResult::Success(_) => ExecutionResult::Success {
+                output: output.as_returned_bytes().to_vec(),
+            },
+            ZkOsExecutionResult::Revert(_) => ExecutionResult::Revert {
+                output: VmRevertReason::Unknown {
+                    function_selector: Vec::new(),
+                    data: output.as_returned_bytes().to_vec(),
+                },
+            },
+        };
+        let gas_refunded = output.gas_refunded;
+        let result_and_logs = VmExecutionResultAndLogs {
+            result,
+            logs: Default::default(),
+            statistics: VmExecutionStatistics {
+                pubdata_published: 0,
+                computational_gas_used: output.gas_used as u32,
+                gas_used: output.gas_used,
+                ..Default::default()
+            },
+            refunds: Refunds {
+                gas_refunded,
+                operator_suggested_refund: gas_refunded,
+            },
+            dynamic_factory_deps: Default::default(),
+        };
+        Ok((result_and_logs, TransactionExecutionMetrics::default()))
+
+        // let execution_output = executor
+        //     .execute_in_sandbox(
+        //         self.vm_permit.clone(),
+        //         connection,
+        //         action,
+        //         &self.block_args,
+        //         self.state_override.clone(),
+        //     )
+        //     .await?;
+        // Ok((execution_output.vm, execution_output.metrics))
     }
 
     async fn finalize(
