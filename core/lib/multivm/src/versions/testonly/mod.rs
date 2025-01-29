@@ -22,8 +22,8 @@ use zksync_types::{
 };
 
 pub(super) use self::tester::{
-    validation_params, TestedVm, TestedVmForValidation, TestedVmWithCallTracer, VmTester,
-    VmTesterBuilder,
+    validation_params, TestedVm, TestedVmForValidation, TestedVmWithCallTracer,
+    TestedVmWithStorageLimit, VmTester, VmTesterBuilder,
 };
 use crate::{
     interface::{
