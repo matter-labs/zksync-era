@@ -2,6 +2,8 @@ use zksync_vm2::interface::{GlobalStateInterface, Opcode, OpcodeType, ShouldStop
 
 use crate::interface::storage::{StoragePtr, WriteStorage};
 
+/// Tracer that stops VM execution once too many storage slots were read from the underlying storage.
+/// Useful as an anti-DoS measure.
 #[derive(Debug)]
 pub struct StorageInvocationsTracer<ST> {
     // FIXME: this is very awkward; logically, storage should be obtainable from `GlobalStateInterface` (but how?)
@@ -35,7 +37,7 @@ impl<ST: WriteStorage> Tracer for StorageInvocationsTracer<ST> {
     ) -> ShouldStop {
         if matches!(OP::VALUE, Opcode::StorageRead | Opcode::StorageWrite) {
             let storage = self.storage.as_ref().unwrap();
-            if storage.borrow().missed_storage_invocations() > self.limit {
+            if storage.borrow().missed_storage_invocations() >= self.limit {
                 return ShouldStop::Stop;
             }
         }
