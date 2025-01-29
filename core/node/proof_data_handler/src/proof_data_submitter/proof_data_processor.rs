@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use zksync_config::configs::ProofDataHandlerConfig;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_object_store::ObjectStore;
 use zksync_prover_interface::{
@@ -19,7 +18,6 @@ use crate::metrics::METRICS;
 pub struct ProofGenerationDataProcessor {
     pool: ConnectionPool<Core>,
     blob_store: Arc<dyn ObjectStore>,
-    config: ProofDataHandlerConfig,
     commitment_mode: L1BatchCommitmentMode,
 }
 
@@ -27,13 +25,11 @@ impl ProofGenerationDataProcessor {
     pub fn new(
         pool: ConnectionPool<Core>,
         blob_store: Arc<dyn ObjectStore>,
-        config: ProofDataHandlerConfig,
         commitment_mode: L1BatchCommitmentMode,
     ) -> Self {
         Self {
             pool,
             blob_store,
-            config,
             commitment_mode,
         }
     }
@@ -42,7 +38,7 @@ impl ProofGenerationDataProcessor {
     pub(crate) async fn get_proof_generation_data(
         &self,
     ) -> anyhow::Result<Option<ProofGenerationData>> {
-        let l1_batch_number = match self.lock_batch_for_proving().await? {
+        let l1_batch_number = match self.get_next_batch_for_proving().await? {
             Some(number) => number,
             None => return Ok(None), // no batches pending to be proven
         };
@@ -54,12 +50,25 @@ impl ProofGenerationDataProcessor {
     }
 
     /// Will choose a batch that has all the required data and isn't picked up by any prover yet.
-    pub(crate) async fn lock_batch_for_proving(&self) -> anyhow::Result<Option<L1BatchNumber>> {
+    pub(crate) async fn get_next_batch_for_proving(&self) -> anyhow::Result<Option<L1BatchNumber>> {
         self.pool
             .connection()
             .await?
             .proof_generation_dal()
-            .lock_batch_for_proving(self.config.proof_generation_timeout())
+            .get_next_batch_for_proving()
+            .await
+            .map_err(|e| anyhow::anyhow!(e))
+    }
+
+    pub(crate) async fn lock_picked_batch(
+        &self,
+        l1_batch_number: L1BatchNumber,
+    ) -> anyhow::Result<()> {
+        self.pool
+            .connection()
+            .await?
+            .proof_generation_dal()
+            .lock_picked_batch(l1_batch_number)
             .await
             .map_err(|e| anyhow::anyhow!(e))
     }

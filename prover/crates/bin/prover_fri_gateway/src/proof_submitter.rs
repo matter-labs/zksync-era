@@ -34,7 +34,7 @@ impl PeriodicProofSubmitter {
             blob_store,
             pool,
             api_poll_duration,
-            api_url: format!("{}/{}", base_url, SUBMIT_PROOF_PATH),
+            api_url: format!("{}{}", base_url, SUBMIT_PROOF_PATH),
         }
     }
 
@@ -91,7 +91,7 @@ impl PeriodicProofSubmitter {
 
         self.client
             .post(format!(
-                "{}/{}/{}",
+                "{}{}/{}",
                 self.api_url, SUBMIT_PROOF_PATH, l1_batch_number.0
             ))
             .json(&request)
@@ -130,6 +130,8 @@ impl PeriodicProofSubmitter {
                         tracing::error!("HTTP request failed due to error: {}", err);
                     }
                 }
+            } else {
+                tracing::info!("There is currently no proof to submit");
             }
             // Exit condition will be checked on the next iteration.
             tokio::time::timeout(self.api_poll_duration, stop_receiver.changed())

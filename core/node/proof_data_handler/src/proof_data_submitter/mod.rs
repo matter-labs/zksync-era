@@ -41,7 +41,7 @@ impl ProofGenerationDataSubmitter {
         request: ProofGenerationData,
     ) -> reqwest::Result<SubmitProofGenerationDataResponse> {
         self.client
-            .post(format!("{}/{}", self.api_url, ENDPOINT))
+            .post(format!("{}{}", self.api_url, ENDPOINT))
             .json(&request)
             .send()
             .await?
@@ -70,7 +70,8 @@ impl ProofGenerationDataSubmitter {
                         tracing::info!(
                             "Successfully sent to the gateway batch {:?}",
                             l1_batch_number
-                        )
+                        );
+                        self.processor.lock_picked_batch(l1_batch_number).await?;
                     }
                     Err(err) => {
                         //METRICS.http_error[&Self::SERVICE_NAME].inc();
@@ -81,6 +82,8 @@ impl ProofGenerationDataSubmitter {
                         );
                     }
                 }
+            } else {
+                tracing::info!("There is currently no ready batch to submit for proving");
             }
             // Exit condition will be checked on the next iteration.
             tokio::time::timeout(self.poll_duration, stop_receiver.changed())

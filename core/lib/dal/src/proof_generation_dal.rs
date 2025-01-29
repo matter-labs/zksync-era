@@ -88,6 +88,59 @@ impl ProofGenerationDal<'_, '_> {
         Ok(result)
     }
 
+    pub async fn get_next_batch_for_proving(&mut self) -> DalResult<Option<L1BatchNumber>> {
+        let result: Option<L1BatchNumber> = sqlx::query!(
+            r#"
+            SELECT
+                l1_batch_number
+            FROM
+                proof_generation_details
+            LEFT JOIN l1_batches ON l1_batch_number = l1_batches.number
+            WHERE
+                (
+                    vm_run_data_blob_url IS NOT NULL
+                    AND proof_gen_data_blob_url IS NOT NULL
+                    AND l1_batches.hash IS NOT NULL
+                    AND l1_batches.aux_data_hash IS NOT NULL
+                    AND l1_batches.meta_parameters_hash IS NOT NULL
+                    AND status = 'unpicked'
+                )
+            ORDER BY
+                l1_batch_number ASC
+            LIMIT
+                1
+            "#,
+        )
+        .instrument("get_next_batch_for_proving")
+        .fetch_optional(self.storage)
+        .await?
+        .map(|row| L1BatchNumber(row.l1_batch_number as u32));
+
+        Ok(result)
+    }
+
+    pub async fn lock_picked_batch(&mut self, l1_batch_number: L1BatchNumber) -> DalResult<()> {
+        let batch_number = i64::from(l1_batch_number.0);
+        sqlx::query!(
+            r#"
+            UPDATE proof_generation_details
+            SET
+                status = 'picked_by_prover',
+                updated_at = NOW(),
+                prover_taken_at = NOW()
+            WHERE
+                l1_batch_number = $1
+            "#,
+            batch_number,
+        )
+        .instrument("lock_picked_batch")
+        .with_arg("l1_batch_number", &l1_batch_number)
+        .execute(self.storage)
+        .await?;
+
+        Ok(())
+    }
+
     pub async fn get_latest_proven_batch(&mut self) -> DalResult<L1BatchNumber> {
         let result = sqlx::query!(
             r#"

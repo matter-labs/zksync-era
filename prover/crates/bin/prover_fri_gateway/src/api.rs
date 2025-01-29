@@ -11,7 +11,7 @@ use axum::{
 use tokio::sync::watch;
 use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_prover_dal::{ConnectionPool, DalError, Prover, ProverDal};
-use zksync_prover_interface::api::ProofGenerationData;
+use zksync_prover_interface::api::{ProofGenerationData, SubmitProofGenerationDataResponse};
 
 pub(crate) struct ProverGatewayApi {
     router: Router,
@@ -52,8 +52,11 @@ impl ProverGatewayApi {
     async fn submit_proof_generation_data(
         State(processor): State<Processor>,
         Json(payload): Json<ProofGenerationData>,
-    ) -> Result<(), ProcessorError> {
-        processor.save_proof_gen_data(payload).await
+    ) -> Result<Json<SubmitProofGenerationDataResponse>, ProcessorError> {
+        match processor.save_proof_gen_data(payload).await {
+            Ok(_) => Ok(Json(SubmitProofGenerationDataResponse::Success)),
+            Err(err) => Err(err),
+        }
     }
 }
 

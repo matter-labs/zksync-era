@@ -35,7 +35,7 @@ pub struct Input {
 #[context(crate = crate)]
 pub struct Output {
     #[context(task)]
-    pub task: ProofDataHandlerTask,
+    task: ProofDataHandlerTask,
 }
 
 impl ProofDataHandlerLayer {
@@ -81,12 +81,8 @@ impl WiringLayer for ProofDataHandlerLayer {
             ProofDataHandlerApi::new(processor, self.proof_data_handler_config.http_port)
         };
 
-        let proof_gen_data_processor = ProofGenerationDataProcessor::new(
-            main_pool,
-            blob_store.clone(),
-            self.proof_data_handler_config.clone(),
-            self.commitment_mode,
-        );
+        let proof_gen_data_processor =
+            ProofGenerationDataProcessor::new(main_pool, blob_store.clone(), self.commitment_mode);
 
         let data_submitter = ProofGenerationDataSubmitter::new(
             proof_gen_data_processor,
