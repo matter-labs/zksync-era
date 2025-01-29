@@ -277,7 +277,6 @@ zksync_health_check = { version = "26.2.1-non-semver-compat", path = "lib/health
 zksync_l1_contract_interface = { version = "26.2.1-non-semver-compat", path = "lib/l1_contract_interface" }
 zksync_mempool = { version = "26.2.1-non-semver-compat", path = "lib/mempool" }
 zksync_merkle_tree = { version = "26.2.1-non-semver-compat", path = "lib/merkle_tree" }
-zksync_bin_metadata = { version = "=26.1.0-non-semver-compat", path = "lib/bin_metadata" }
 zksync_mini_merkle_tree = { version = "26.2.1-non-semver-compat", path = "lib/mini_merkle_tree" }
 zksync_object_store = { version = "26.2.1-non-semver-compat", path = "lib/object_store" }
 zksync_protobuf_config = { version = "26.2.1-non-semver-compat", path = "lib/protobuf_config" }

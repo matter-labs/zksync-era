@@ -27,13 +27,13 @@ zkstack_cli_types = { version = "0.1.2", path = "crates/types" }
 zkstack_cli_git_version_macro = { version = "0.1.2", path = "crates/git_version_macro" }
 
 # ZkSync deps
-zksync_config = { path = "../core/lib/config" }
-zksync_basic_types = { path = "../core/lib/basic_types" }
-zksync_system_constants = { path = "../core/lib/constants" }
-zksync_types = { path = "../core/lib/types" }
-zksync_web3_decl = { path = "../core/lib/web3_decl" }
-zksync_eth_client = { path = "../core/lib/eth_client" }
-zksync_contracts = { path = "../core/lib/contracts" }
+zksync_config = "=26.2.1-non-semver-compat"
+zksync_basic_types = "=26.2.1-non-semver-compat"
+zksync_system_constants = "=26.2.1-non-semver-compat"
+zksync_types = "=26.2.1-non-semver-compat"
+zksync_web3_decl = "=26.2.1-non-semver-compat"
+zksync_eth_client = "=26.2.1-non-semver-compat"
+zksync_contracts = "=26.2.1-non-semver-compat"
 zksync_consensus_roles = "=0.8.0"
 zksync_consensus_crypto = "=0.8.0"
 zksync_consensus_utils = "=0.8.0"

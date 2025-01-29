@@ -7164,6 +7164,8 @@ dependencies = [
 [[package]]
 name = "zksync_basic_types"
 version = "26.2.1-non-semver-compat"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "486f1e60afd7b96f73db078778732c58d1e3168ff9c1bd203bde22f9e6e0a01a"
 dependencies = [
  "anyhow",
  "chrono",
@@ -7204,6 +7206,8 @@ dependencies = [
 [[package]]
 name = "zksync_config"
 version = "26.2.1-non-semver-compat"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ecc4a1b7516a868b50dff0c2f069497a860bed6921cd3a13da4d0967cc426601"
 dependencies = [
  "anyhow",
  "rand",
@@ -7273,6 +7277,8 @@ dependencies = [
 [[package]]
 name = "zksync_contracts"
 version = "26.2.1-non-semver-compat"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "72d75046f551675a43e3667be90fb93cc1ea8e0fba9884ba54c201e28104c5c3"
 dependencies = [
  "envy",
  "hex",
@@ -7286,6 +7292,8 @@ dependencies = [
 [[package]]
 name = "zksync_crypto_primitives"
 version = "26.2.1-non-semver-compat"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "54c231266aa391c6515f0872fd6fbc2774cc1f1aa1079054a618e3bf6651ba85"
 dependencies = [
  "anyhow",
  "blake2",
@@ -7302,6 +7310,8 @@ dependencies = [
 [[package]]
 name = "zksync_eth_client"
 version = "26.2.1-non-semver-compat"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "44f5c7ffaec90810624ade8f53a85dd63ba5a9754c5f981452beb2a4bc30e6af"
 dependencies = [
  "async-trait",
  "jsonrpsee",
@@ -7319,6 +7329,8 @@ dependencies = [
 [[package]]
 name = "zksync_eth_signer"
 version = "26.2.1-non-semver-compat"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "564f5da6f3dc12707c90eaead6cbae72ec8efd7bdae5be746b4fbfe0ba24379e"
 dependencies = [
  "async-trait",
  "rlp",
@@ -7330,6 +7342,8 @@ dependencies = [
 [[package]]
 name = "zksync_mini_merkle_tree"
 version = "26.2.1-non-semver-compat"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4645715cf2fb4b5277c6f0a02285ed77db8f02a10458c9adbf33217aa05e85c4"
 dependencies = [
  "once_cell",
  "zksync_basic_types",
@@ -7377,6 +7391,8 @@ dependencies = [
 [[package]]
 name = "zksync_system_constants"
 version = "26.2.1-non-semver-compat"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "efd58e4edccbeaac0c1be9bdf00bb5b5853eac7f78b161e9125cb544464568dd"
 dependencies = [
  "once_cell",
  "zksync_basic_types",
@@ -7385,6 +7401,8 @@ dependencies = [
 [[package]]
 name = "zksync_types"
 version = "26.2.1-non-semver-compat"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aff0632e2dbabf4292aefcc46b7435fba48c70d218a984f45b7e25e1c995b894"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -7417,6 +7435,8 @@ dependencies = [
 [[package]]
 name = "zksync_utils"
 version = "26.2.1-non-semver-compat"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "69ee8af199653d8c2088b3525c5770a26af092033eb2da4a13e1b43411a6b38e"
 dependencies = [
  "anyhow",
  "futures",
@@ -7432,6 +7452,8 @@ dependencies = [
 [[package]]
 name = "zksync_vlog"
 version = "26.2.1-non-semver-compat"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4949cfa7c5f2ca3d29e3f80f07a5dc159094da4711612386b5f73a4d8481e678"
 dependencies = [
  "anyhow",
  "chrono",
@@ -7457,6 +7479,8 @@ dependencies = [
 [[package]]
 name = "zksync_web3_decl"
 version = "26.2.1-non-semver-compat"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "77ad070964e06c80fc8c8809a456daa14beab37bccd4d865a8725b9fc8041f51"
 dependencies = [
  "anyhow",
  "async-trait",
