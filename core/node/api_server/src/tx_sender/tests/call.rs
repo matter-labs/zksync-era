@@ -3,6 +3,7 @@
 use std::collections::HashMap;
 
 use assert_matches::assert_matches;
+use test_casing::test_casing;
 use zksync_multivm::interface::ExecutionResult;
 use zksync_node_test_utils::create_l2_transaction;
 use zksync_types::{
@@ -251,4 +252,20 @@ async fn eth_call_with_load_test_transactions() {
             .await
             .unwrap();
     }
+}
+
+#[test_casing(3, ALL_VM_MODES)]
+#[tokio::test]
+async fn limiting_storage_access_during_call(vm_mode: FastVmMode) {
+    let alice = K256PrivateKey::random();
+    let state_override = StateBuilder::default().with_expensive_contract().build();
+
+    let tx = alice.create_expensive_tx(1_000);
+    let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
+    let tx_sender = create_real_tx_sender_with_options(pool, vm_mode, 100).await;
+
+    let err = test_call(&tx_sender, state_override, tx.into())
+        .await
+        .unwrap_err();
+    assert_matches!(err, SubmitTxError::ExecutionReverted(msg, _) if msg.contains("limit reached"));
 }

@@ -20,7 +20,7 @@ use zksync_multivm::{
         storage::{ReadStorage, StoragePtr, StorageView, StorageWithOverrides, WriteStorage},
         tracer::{ValidationError, ValidationParams, ValidationTraces},
         utils::{DivergenceHandler, ShadowMut, ShadowVm},
-        Call, ExecutionResult, InspectExecutionMode, OneshotEnv, OneshotTracingParams,
+        Call, ExecutionResult, Halt, InspectExecutionMode, OneshotEnv, OneshotTracingParams,
         OneshotTransactionExecutionResult, StoredL2BlockEnv, TxExecutionArgs, TxExecutionMode,
         VmFactory, VmInterface,
     },
@@ -265,11 +265,22 @@ impl<S: ReadStorage> Vm<S, StorageInvocationsTracer<StorageView<S>>, ()> {
                 let tracer =
                     StorageInvocationsTracer::new(storage.clone(), missed_storage_invocation_limit);
                 let mut full_tracer = (legacy_tracers.into(), (tracer, ()));
-                vm.inspect_transaction_with_bytecode_compression(
+                let mut result = vm.inspect_transaction_with_bytecode_compression(
                     &mut full_tracer,
                     tx,
                     with_compression,
-                )
+                );
+
+                if let ExecutionResult::Halt {
+                    reason: Halt::TracerCustom(msg),
+                } = &mut result.1.result
+                {
+                    // Patch the halt message to be more specific; the fast VM provides a generic one since it doesn't know
+                    // which tracer(s) are run. Here, we do know that the only tracer capable of stopping VM execution is the storage limiter.
+                    *msg = "Storage invocations limit reached".to_owned();
+                }
+
+                result
             }
         };
 

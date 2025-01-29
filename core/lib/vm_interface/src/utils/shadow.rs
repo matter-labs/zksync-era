@@ -16,9 +16,9 @@ use crate::{
     pubdata::PubdataBuilder,
     storage::{ReadStorage, StoragePtr, StorageView},
     tracer::{ValidationError, ValidationTraces},
-    BytecodeCompressionResult, Call, CallType, CurrentExecutionState, FinishedL1Batch,
-    InspectExecutionMode, L1BatchEnv, L2BlockEnv, PushTransactionResult, SystemEnv,
-    VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
+    BytecodeCompressionResult, Call, CallType, CurrentExecutionState, ExecutionResult,
+    FinishedL1Batch, Halt, InspectExecutionMode, L1BatchEnv, L2BlockEnv, PushTransactionResult,
+    SystemEnv, VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
     VmTrackingContracts,
 };
 
@@ -152,6 +152,23 @@ impl CheckDivergence for CurrentExecutionState {
 impl CheckDivergence for VmExecutionResultAndLogs {
     fn check_divergence(&self, other: &Self) -> DivergenceErrors {
         let mut errors = DivergenceErrors::new();
+
+        // Special case: the execution is stopped by a tracer. Because of significant differences between how tracers
+        // work in legacy and fast VMs, we only require the general stop reason to be the same, and ignore anything else.
+        if matches!(
+            (&self.result, &other.result),
+            (
+                ExecutionResult::Halt {
+                    reason: Halt::TracerCustom(_)
+                },
+                ExecutionResult::Halt {
+                    reason: Halt::TracerCustom(_)
+                }
+            )
+        ) {
+            return errors;
+        }
+
         errors.check_match("result", &self.result, &other.result);
         errors.check_match("logs.events", &self.logs.events, &other.logs.events);
         errors.check_match(

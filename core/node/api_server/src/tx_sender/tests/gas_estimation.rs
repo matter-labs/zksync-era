@@ -513,3 +513,30 @@ async fn estimating_gas_for_infinite_loop_tx() {
         assert_matches!(err, SubmitTxError::ExecutionReverted(msg, _) if msg.is_empty());
     }
 }
+
+#[test_casing(3, ALL_VM_MODES)]
+#[tokio::test]
+async fn limiting_storage_access_during_gas_estimation(vm_mode: FastVmMode) {
+    let alice = K256PrivateKey::random();
+    let state_override = StateBuilder::default().with_expensive_contract().build();
+
+    let tx = alice.create_expensive_tx(1_000);
+    let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
+    let tx_sender = create_real_tx_sender_with_options(pool, vm_mode, 100).await;
+    let block_args = pending_block_args(&tx_sender).await;
+
+    let fee_scale_factor = 1.0;
+    let acceptable_overestimation = 0;
+    let err = tx_sender
+        .get_txs_fee_in_wei(
+            tx.into(),
+            block_args,
+            fee_scale_factor,
+            acceptable_overestimation,
+            Some(state_override),
+            BinarySearchKind::Full,
+        )
+        .await
+        .unwrap_err();
+    assert_matches!(err, SubmitTxError::ExecutionReverted(msg, _) if msg.contains("limit reached"));
+}
