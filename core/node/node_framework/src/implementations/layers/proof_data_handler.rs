@@ -1,13 +1,9 @@
-use std::sync::Arc;
-
 use zksync_config::configs::ProofDataHandlerConfig;
-use zksync_dal::{ConnectionPool, Core};
-use zksync_object_store::ObjectStore;
 use zksync_proof_data_handler::{
     ProofDataHandlerApi, ProofGenerationDataProcessor, ProofGenerationDataSubmitter,
     RequestProcessor,
 };
-use zksync_types::{api::Proof, commitment::L1BatchCommitmentMode, L2ChainId};
+use zksync_types::{commitment::L1BatchCommitmentMode, L2ChainId};
 
 use crate::{
     implementations::resources::{
@@ -71,7 +67,7 @@ impl WiringLayer for ProofDataHandlerLayer {
 
         let processor = RequestProcessor::new(
             blob_store.clone(),
-            main_pool,
+            main_pool.clone(),
             self.proof_data_handler_config.clone(),
             self.l2_chain_id,
         );
@@ -86,7 +82,7 @@ impl WiringLayer for ProofDataHandlerLayer {
         };
 
         let proof_gen_data_processor = ProofGenerationDataProcessor::new(
-            main_pool.clone(),
+            main_pool,
             blob_store.clone(),
             self.proof_data_handler_config.clone(),
             self.commitment_mode,

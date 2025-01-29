@@ -24,7 +24,7 @@ mod tee_request_processor;
 
 #[derive(Debug)]
 pub struct ProofDataHandlerApi {
-    router: Router,
+    pub(crate) router: Router,
     port: u16,
 }
 
