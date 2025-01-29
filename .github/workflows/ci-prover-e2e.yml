@@ -47,17 +47,23 @@ jobs:
           git submodule update --init --recursive
           git rev-parse HEAD
 
+      - name: Install yq
+        run: sudo wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/local/bin/yq && sudo chmod a+x /usr/local/bin/yq
+
       - name: Set new genesis for fflonk 
-        # Note, that while `Verifier` is not explicitly a part of the genensis state,
+        # Note, that while `Verifier` is not explicitly a part of the genesis state,
         # it affects it indirectly as it is a part of the repo.
         working-directory: ./etc/env/file_based
         if: matrix.compressor-mode == 'fflonk'
         run: |
-          sudo sed -i 's/^genesis_root: .*/genesis_root: 0xc3fa60b6769a0c2f222053d7cbd1d6f63be7777e3c8d029cbd61cc075526ab81/' genesis.yaml
-          sudo sed -i "s/^genesis_batch_commitment: .*/genesis_batch_commitment: 0x17689e705b5749ed0bbd53c845988d17c419697c2cb29eabab8785f1cb775b4a/" genesis.yaml
+          yq -e -i '.genesis_root = "0xc3fa60b6769a0c2f222053d7cbd1d6f63be7777e3c8d029cbd61cc075526ab81"' genesis.yaml
+          yq -e -i '.genesis_batch_commitment = "0x17689e705b5749ed0bbd53c845988d17c419697c2cb29eabab8785f1cb775b4a"' genesis.yaml
 
       - name: Init
         run: |
+          WEB3_HTTP_PORT=$(yq -e '.api.web3_json_rpc.http_port' < ./chains/proving_chain/configs/general.yaml)
+          echo "Using Web3 HTTP port: $WEB3_HTTP_PORT"
+          
           ci_run chmod -R +x ./bin
           
           ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup || true
@@ -80,14 +86,14 @@ jobs:
           ci_run zkstack ecosystem init --dev --update-submodules=${{matrix.compressor-mode == 'plonk'}} --verbose
 
           ci_run zkstack prover init --dev --verbose
-          echo "URL=http://127.0.0.1:$(grep "http_port" ./chains/proving_chain/configs/general.yaml | awk '{ print $2 }')" >> $GITHUB_ENV
+          echo "URL=http://127.0.0.1:$WEB3_HTTP_PORT" >> $GITHUB_ENV
 
       - name: Switch verifier to FFLONK interface
         working-directory: ./chains/proving_chain/configs
         if: matrix.compressor-mode == 'fflonk'
         run: |
-          sudo sed -i 's/is_verifier_pre_fflonk: true/is_verifier_pre_fflonk: false/' general.yaml
-          grep "is_verifier_pre_fflonk" general.yaml | awk '{ print $2 }'
+          yq -e -i '.eth.sender.is_verifier_pre_fflonk = false' general.yaml
+          yq '.eth.sender.is_verifier_pre_fflonk' < general.yaml
 
       - name: Prepare prover subsystem
         run: |
