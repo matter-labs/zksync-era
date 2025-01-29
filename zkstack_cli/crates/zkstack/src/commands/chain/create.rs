@@ -1,13 +1,13 @@
 use std::cell::OnceCell;
 
 use anyhow::Context;
-use common::{logger, spinner::Spinner};
-use config::{
+use xshell::Shell;
+use zkstack_cli_common::{logger, spinner::Spinner};
+use zkstack_cli_config::{
     create_local_configs_dir, create_wallets,
     traits::{ReadConfigWithBasePath, SaveConfigWithBasePath},
     ChainConfig, EcosystemConfig, GenesisConfig,
 };
-use xshell::Shell;
 use zksync_basic_types::L2ChainId;
 
 use crate::{
@@ -25,7 +25,7 @@ pub fn run(args: ChainCreateArgs, shell: &Shell) -> anyhow::Result<()> {
     create(args, &mut ecosystem_config, shell)
 }
 
-fn create(
+pub fn create(
     args: ChainCreateArgs,
     ecosystem_config: &mut EcosystemConfig,
     shell: &Shell,

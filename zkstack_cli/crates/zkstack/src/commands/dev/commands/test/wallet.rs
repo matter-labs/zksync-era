@@ -1,9 +1,9 @@
 use std::path::PathBuf;
 
 use anyhow::Context;
-use common::logger;
-use config::EcosystemConfig;
 use xshell::Shell;
+use zkstack_cli_common::logger;
+use zkstack_cli_config::EcosystemConfig;
 
 use super::utils::{TestWallets, TEST_WALLETS_PATH};
 use crate::commands::dev::messages::{

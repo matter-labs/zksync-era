@@ -26,12 +26,6 @@ zksync_pk.key
 dist
 todo
 
-Cargo.lock
-!/Cargo.lock
-!/infrastructure/zksync-crypto/Cargo.lock
-!/prover/Cargo.lock
-!/zkstack_cli/Cargo.lock
-
 /etc/env/target/*
 /etc/env/.current
 /etc/env/configs/*
@@ -111,6 +105,8 @@ hyperchain-*.yml
 # Prover keys that should not be commited
 prover/crates/bin/vk_setup_data_generator_server_fri/data/setup_*
 prover/data/keys/setup_*
+prover/data/keys/fflonk_setup_snark_data.bin
+prover/data/keys/plonk_setup_snark_data.bin
 
 # ZK Stack CLI
 chains/era/configs/*

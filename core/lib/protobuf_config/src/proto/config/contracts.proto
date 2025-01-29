@@ -7,6 +7,7 @@ message EcosystemContracts {
   optional string state_transition_proxy_addr = 2; // optional; h160
   optional string transparent_proxy_admin_addr = 3; // optional; h160
   optional string l1_bytecodes_supplier_addr = 4; // optional; h160
+  optional string l1_wrapped_base_token_store = 5; // optional; h160 
 }
 
 message L1 {
@@ -26,7 +27,7 @@ message L2 {
   optional string da_validator_addr = 2; // optional; H160
   optional string legacy_shared_bridge_addr = 3; // optional; H160
   optional string timestamp_asserter_addr = 4; // optional; H160
-  optional string predeployed_wrapped_base_token_address = 5; // optional; H160
+  reserved 5; reserved "predeployed_wrapped_base_token_address";
 }
 
 message Bridge {

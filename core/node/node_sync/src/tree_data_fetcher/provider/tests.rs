@@ -256,13 +256,8 @@ fn mock_l1_client(block_number: U64, logs: Vec<web3::Log>, chain_id: SLChainId) 
         .method("eth_chainId", move || Ok(U64::from(chain_id.0)))
         .method("eth_call", move |req: CallRequest, _block_id: BlockId| {
             let contract = bridgehub_contract();
-            let function_name = if contract.function("getZKChain").is_ok() {
-                "getZKChain"
-            } else {
-                "getHyperchain"
-            };
             let expected_input = contract
-                .function(function_name)
+                .function("getZKChain")
                 .unwrap()
                 .encode_input(&[ethabi::Token::Uint(ERA_CHAIN_ID.into())])
                 .unwrap();

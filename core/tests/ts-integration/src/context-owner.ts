@@ -604,7 +604,7 @@ export class TestContextOwner {
         // Reset the reporter context.
         this.reporter = new Reporter();
         try {
-            if (this.env.nodeMode == NodeMode.Main && isLocalHost(this.env.network.toLowerCase())) {
+            if (this.env.nodeMode == NodeMode.Main && isLocalHost(this.env.network)) {
                 // Check that the VM execution hasn't diverged using the VM playground. The component and thus the main node
                 // will crash on divergence, so we just need to make sure that the test doesn't exit before the VM playground
                 // processes all batches on the node.
@@ -612,8 +612,24 @@ export class TestContextOwner {
                 await this.waitForVmPlayground();
                 this.reporter.finishAction();
             }
-            this.reporter.startAction(`Tearing down the context`);
+            this.reporter.startAction(`Collecting funds`);
             await this.collectFunds();
+            this.reporter.finishAction();
+            this.reporter.startAction(`Destroying providers`);
+            // Destroy providers so that they drop potentially active connections to the node. Not doing so might cause
+            // unexpected network errors to propagate during node termination.
+            try {
+                this.l1Provider.destroy();
+            } catch (err: any) {
+                // Catch any request cancellation errors that propagate here after destroying L1 provider
+                console.log(`Caught error while destroying L1 provider: ${err}`);
+            }
+            try {
+                this.l2Provider.destroy();
+            } catch (err: any) {
+                // Catch any request cancellation errors that propagate here after destroying L2 provider
+                console.log(`Caught error while destroying L2 provider: ${err}`);
+            }
             this.reporter.finishAction();
         } catch (error: any) {
             // Report the issue to the console and mark the last action as failed.

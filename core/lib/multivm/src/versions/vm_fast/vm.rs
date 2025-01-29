@@ -25,12 +25,8 @@ use zksync_vm2::{
 };
 
 use super::{
-    bootloader_state::{BootloaderState, BootloaderStateSnapshot},
     bytecode::compress_bytecodes,
-    hook::Hook,
-    initial_bootloader_memory::bootloader_initial_memory,
     tracers::{DynamicBytecodes, ValidationTracer, WithBuiltinTracers},
-    transaction_data::TransactionData,
 };
 use crate::{
     glue::GlueInto,
@@ -44,16 +40,19 @@ use crate::{
         VmInterfaceHistoryEnabled, VmRevertReason, VmTrackingContracts,
     },
     utils::events::extract_l2tol1logs_from_l1_messenger,
-    vm_fast::{
-        bootloader_state::utils::{apply_l2_block, apply_pubdata_to_memory},
-        events::merge_events,
-        refund::compute_refund,
-        version::FastVmVersion,
-    },
-    vm_latest::constants::{
-        get_operator_refunds_offset, get_result_success_first_slot,
-        get_vm_hook_params_start_position, get_vm_hook_position, TX_GAS_LIMIT_OFFSET,
-        VM_HOOK_PARAMS_COUNT,
+    vm_fast::{events::merge_events, version::FastVmVersion},
+    vm_latest::{
+        bootloader::{
+            utils::{apply_l2_block, apply_pubdata_to_memory},
+            BootloaderState, BootloaderStateSnapshot,
+        },
+        constants::{
+            get_operator_refunds_offset, get_result_success_first_slot,
+            get_vm_hook_params_start_position, get_vm_hook_position, TX_GAS_LIMIT_OFFSET,
+            VM_HOOK_PARAMS_COUNT,
+        },
+        utils::refund::compute_refund,
+        TransactionData, VmHook,
     },
     VmVersion,
 };
@@ -136,7 +135,7 @@ impl<S: ReadStorage, Tr: Tracer, Val: ValidationTracer> Vm<S, Tr, Val> {
             &system_env.base_system_smart_contracts.bootloader,
             true,
         );
-        let bootloader_memory = bootloader_initial_memory(&batch_env);
+        let bootloader_memory = BootloaderState::initial_memory(&batch_env);
 
         let mut inner = VirtualMachine::new(
             BOOTLOADER_ADDRESS,
@@ -258,11 +257,11 @@ impl<S: ReadStorage, Tr: Tracer, Val: ValidationTracer> Vm<S, Tr, Val> {
 
     pub(crate) fn push_transaction_inner(
         &mut self,
-        tx: zksync_types::Transaction,
+        tx: Transaction,
         refund: u64,
         with_compression: bool,
     ) {
-        let tx: TransactionData = tx.into();
+        let tx = TransactionData::new(tx, false);
         let overhead = tx.overhead_gas();
 
         self.insert_bytecodes(tx.factory_deps.iter().map(|dep| &dep[..]));
@@ -432,9 +431,9 @@ where
                 }
             };
 
-            let hook = Hook::from_u32(hook);
+            let hook = VmHook::new(hook);
             match hook {
-                Hook::AccountValidationEntered => {
+                VmHook::AccountValidationEntered => {
                     assert!(
                         account_validation_gas_split.is_none(),
                         "Account validation can't be nested"
@@ -453,7 +452,7 @@ where
                     self.inner.current_frame().set_gas(gas_given);
                 }
 
-                Hook::ValidationExited => {
+                VmHook::ValidationExited => {
                     tracer.validation.validation_exited();
 
                     if let Some(AccountValidationGasSplit {
@@ -467,13 +466,13 @@ where
                     }
                 }
 
-                Hook::ValidationStepEnded => {
+                VmHook::ValidationStepEnded => {
                     if Val::STOP_AFTER_VALIDATION {
                         break (ExecutionResult::Success { output: vec![] }, true);
                     }
                 }
 
-                Hook::TxHasEnded => {
+                VmHook::TxHasEnded => {
                     if let VmExecutionMode::OneTx = execution_mode {
                         // The bootloader may invoke `TxHasEnded` hook without posting a tx result previously. One case when this can happen
                         // is estimating gas for L1 transactions, if a transaction runs out of gas during execution.
@@ -493,7 +492,7 @@ where
                         break (tx_result, false);
                     }
                 }
-                Hook::AskOperatorForRefund => {
+                VmHook::AskOperatorForRefund => {
                     if track_refunds {
                         let [bootloader_refund, gas_spent_on_pubdata, gas_per_pubdata_byte] =
                             self.get_hook_params();
@@ -535,12 +534,12 @@ where
                             .set_refund_for_current_tx(refund_value);
                     }
                 }
-                Hook::NotifyAboutRefund => {
+                VmHook::NotifyAboutRefund => {
                     if track_refunds {
                         refunds.gas_refunded = self.get_hook_params()[0].low_u64()
                     }
                 }
-                Hook::PostResult => {
+                VmHook::PostResult => {
                     let result = self.get_hook_params()[0];
                     let value = self.get_hook_params()[1];
                     let fp = FatPointer::from(value);
@@ -556,7 +555,7 @@ where
                         }
                     });
                 }
-                Hook::FinalBatchInfo => {
+                VmHook::FinalBatchInfo => {
                     // set fictive l2 block
                     let txs_index = self.bootloader_state.free_tx_index();
                     let l2_block = self.bootloader_state.insert_fictive_l2_block();
@@ -564,7 +563,7 @@ where
                     apply_l2_block(&mut memory, l2_block, txs_index, self.vm_version.into());
                     self.write_to_bootloader_heap(memory);
                 }
-                Hook::PubdataRequested => {
+                VmHook::PubdataRequested => {
                     if !matches!(execution_mode, VmExecutionMode::Batch) {
                         unreachable!("We do not provide the pubdata when executing the block tip or a single transaction");
                     }
@@ -614,14 +613,14 @@ where
                     self.write_to_bootloader_heap(memory_to_apply);
                 }
 
-                Hook::PaymasterValidationEntered => { /* unused */ }
-                Hook::DebugLog => {
+                VmHook::PaymasterValidationEntered => { /* unused */ }
+                VmHook::DebugLog => {
                     let (log, log_arg) = self.get_debug_log();
                     let last_tx = self.bootloader_state.last_l2_block().txs.last();
                     let tx_hash = last_tx.map(|tx| tx.hash);
                     tracing::trace!(tx = ?tx_hash, "{log}: {log_arg}");
                 }
-                Hook::DebugReturnData | Hook::NearCallCatch => {
+                VmHook::DebugReturnData | VmHook::NearCallCatch => {
                     // These hooks are for debug purposes only
                 }
             }

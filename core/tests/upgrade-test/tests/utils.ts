@@ -40,7 +40,7 @@ export interface Contracts {
     l2ForceDeployUpgraderAbi: any;
     complexUpgraderAbi: any;
     counterBytecode: any;
-    stateTransitionManager: any;
+    chainTypeManager: any;
 }
 
 export function initContracts(pathToHome: string, zkStack: boolean): Contracts {
@@ -68,10 +68,8 @@ export function initContracts(pathToHome: string, zkStack: boolean): Contracts {
             counterBytecode: require(
                 `${pathToHome}/core/tests/ts-integration/artifacts-zk/contracts/counter/counter.sol/Counter.json`
             ).deployedBytecode,
-            stateTransitionManager: new ethers.Interface(
-                require(
-                    `${CONTRACTS_FOLDER}/l1-contracts/out/StateTransitionManager.sol/StateTransitionManager.json`
-                ).abi
+            chainTypeManager: new ethers.Interface(
+                require(`${CONTRACTS_FOLDER}/l1-contracts/out/ChainTypeManager.sol/ChainTypeManager.json`).abi
             )
         };
     } else {
@@ -99,10 +97,8 @@ export function initContracts(pathToHome: string, zkStack: boolean): Contracts {
             ),
             counterBytecode: require(`${pathToHome}/core/tests/ts-integration/zkout/counter.sol/Counter.json`)
                 .deployedBytecode,
-            stateTransitionManager: new ethers.Interface(
-                require(
-                    `${L1_CONTRACTS_FOLDER}/state-transition/StateTransitionManager.sol/StateTransitionManager.json`
-                ).abi
+            chainTypeManager: new ethers.Interface(
+                require(`${L1_CONTRACTS_FOLDER}/state-transition/ChainTypeManager.sol/ChainTypeManager.json`).abi
             )
         };
     }

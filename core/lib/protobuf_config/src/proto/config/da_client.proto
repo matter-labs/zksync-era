@@ -22,6 +22,7 @@ message AvailConfig {
 message AvailClientConfig {
   optional string api_node_url = 1;
   optional uint32 app_id = 2;
+  optional string finality_state = 3;
 }
 
 message AvailGasRelayConfig {
@@ -50,6 +51,8 @@ message EigenConfig {
   reserved "rpc_node_url","inclusion_polling_interval_ms";
 }
 
+message NoDAConfig {}
+
 message DataAvailabilityClient {
   // oneof in protobuf allows for None
   oneof config {
@@ -57,5 +60,6 @@ message DataAvailabilityClient {
     object_store.ObjectStore object_store = 2;
     CelestiaConfig celestia = 3;
     EigenConfig eigen = 4;
+    NoDAConfig no_da = 5;
   }
 }

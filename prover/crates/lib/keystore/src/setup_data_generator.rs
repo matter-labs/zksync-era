@@ -7,21 +7,9 @@ use anyhow::Context as _;
 #[cfg(any(feature = "gpu", feature = "gpu-light"))]
 use boojum_cuda::poseidon2::GLHasher;
 #[cfg(any(feature = "gpu", feature = "gpu-light"))]
-use circuit_definitions::circuit_definitions::aux_layer::{
-    wrapper::ZkSyncCompressionWrapper, CompressionProofsTreeHasherForWrapper,
-};
-#[cfg(feature = "gpu")]
-use fflonk_gpu::{
-    FflonkDeviceSetup, FflonkSnarkVerifierCircuit, FflonkSnarkVerifierCircuitDeviceSetup,
-    FflonkSnarkVerifierCircuitVK,
-};
-#[cfg(any(feature = "gpu", feature = "gpu-light"))]
 use shivini::cs::gpu_setup_and_vk_from_base_setup_vk_params_and_hints;
 #[cfg(any(feature = "gpu", feature = "gpu-light"))]
-use zkevm_test_harness::{
-    compute_setups::light::generate_light_circuit_setup_data,
-    data_source::in_memory_data_source::InMemoryDataSource,
-};
+use zkevm_test_harness::compute_setups::light::generate_light_circuit_setup_data;
 use zkevm_test_harness::{
     compute_setups::{generate_circuit_setup_data, CircuitSetupData},
     data_source::SetupDataSource,
@@ -55,10 +43,10 @@ pub fn generate_setup_data_common(
                 .into_inner(),
         ),
         ProvingStage::Compression => {
-            unreachable!("Compression stage should not be generated with CPU.")
+            unreachable!("Compression stage setup data should be generated with a generate-compressor-data command")
         }
         ProvingStage::CompressionWrapper => {
-            unreachable!("CompressionWrapper stage should not be generated with CPU.")
+            unreachable!("CompressionWrapper stage setup data should be generated with a generate-compressor-data command")
         }
         _ => (
             Some(keystore.load_finalization_hints(circuit)?),
@@ -108,23 +96,9 @@ pub trait SetupDataGenerator {
         }
 
         if circuit == ProverServiceDataKey::snark() {
-            #[cfg(not(feature = "gpu"))]
-            {
-                anyhow::bail!("Must compile with --gpu feature to use this option.");
-            }
-            #[cfg(feature = "gpu")]
-            {
-                let mut data_source = self.keystore().load_keys_to_data_source()?;
-                let (setup, _) = get_fflonk_snark_verifier_setup_and_vk(&mut data_source);
-                if !dry_run {
-                    self.keystore()
-                        .save_fflonk_snark_setup_data(setup)
-                        .context("save_setup_data()")?;
-                }
-                return Ok(String::from(
-                    "FFLONK is serialized differently, skipping hashing.",
-                ));
-            }
+            unreachable!(
+                "Snark setup data should be generated with generate-compressor-data command"
+            )
         }
 
         let serialized = self.generate_setup_data(circuit)?;
@@ -146,7 +120,7 @@ pub trait SetupDataGenerator {
         dry_run: bool,
         recompute_if_missing: bool,
     ) -> anyhow::Result<HashMap<String, String>> {
-        Ok(ProverServiceDataKey::all()
+        Ok(ProverServiceDataKey::all_boojum()
             .iter()
             .map(|circuit| {
                 tracing::info!("Generating setup data for {:?}", circuit.name());
@@ -206,44 +180,10 @@ impl SetupDataGenerator for GPUSetupDataGenerator {
             let worker = Worker::new();
 
             match circuit.stage {
-                ProvingStage::CompressionWrapper => {
-                    let (gpu_setup_data, verification_key) =
-                        gpu_setup_and_vk_from_base_setup_vk_params_and_hints::<
-                            CompressionProofsTreeHasherForWrapper,
-                            _,
-                        >(
-                            circuit_setup_data.setup_base,
-                            circuit_setup_data.vk_geometry,
-                            circuit_setup_data.vars_hint.clone(),
-                            circuit_setup_data.wits_hint,
-                            &worker,
-                        )
-                        .context("failed creating GPU base layer setup data")?;
-
-                    let gpu_prover_setup_data = GpuProverSetupData {
-                        setup: gpu_setup_data,
-                        vk: verification_key.clone(),
-                        finalization_hint: circuit_setup_data.finalization_hint,
-                    };
-
-                    let serialized_vk = get_vk_by_circuit(self.keystore.clone(), circuit)?;
-
-                    assert_eq!(
-                        bincode::serialize(&verification_key)
-                            .expect("Failed serializing setup data"),
-                        serialized_vk,
-                        "Verification key mismatch for circuit: {:?}",
-                        circuit.name()
-                    );
-
-                    // Serialization should always succeed.
-                    Ok(bincode::serialize(&gpu_prover_setup_data)
-                        .expect("Failed serializing setup data"))
-                }
-                ProvingStage::Snark => {
-                    unreachable!(
-                        "We cannot serialize Fflonk data with bincode, it is done separately"
-                    )
+                ProvingStage::CompressionWrapper
+                | ProvingStage::Snark
+                | ProvingStage::Compression => {
+                    unreachable!("Setup data for compression, compression-wrapper and snark stages should be generated with generate-compressor-data command")
                 }
                 _ => {
                     let (gpu_setup_data, verification_key) =
@@ -319,32 +259,4 @@ fn get_vk_by_circuit(keystore: Keystore, circuit: ProverServiceDataKey) -> anyho
             Ok(bincode::serialize(&vk).expect("Failed serializing setup data"))
         }
     }
-}
-
-#[cfg(feature = "gpu")]
-pub fn get_fflonk_snark_verifier_setup_and_vk(
-    data_source: &mut InMemoryDataSource,
-) -> (
-    FflonkSnarkVerifierCircuitDeviceSetup,
-    FflonkSnarkVerifierCircuitVK,
-) {
-    let vk = data_source
-        .get_compression_for_wrapper_vk(5)
-        .unwrap()
-        .into_inner();
-    let fixed_parameters = vk.fixed_parameters.clone();
-    // todo: do not hardcode this value
-    let wrapper_function = ZkSyncCompressionWrapper::from_numeric_circuit_type(5);
-
-    let circuit = FflonkSnarkVerifierCircuit {
-        witness: None,
-        vk,
-        fixed_parameters,
-        transcript_params: (),
-        wrapper_function,
-    };
-    let setup = FflonkDeviceSetup::<_, _, _>::create_setup_on_device(&circuit).unwrap();
-    let snark_vk = setup.get_verification_key();
-
-    (setup, snark_vk)
 }

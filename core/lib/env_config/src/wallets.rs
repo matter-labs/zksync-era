@@ -33,6 +33,7 @@ impl FromEnv for Wallets {
             } else {
                 None
             };
+
             Some(EthSender {
                 operator,
                 blob_operator,

@@ -7,7 +7,7 @@ use zksync_config::configs::{
         avail::{AvailClientConfig, AvailConfig, AvailDefaultConfig, AvailGasRelayConfig},
         celestia::CelestiaConfig,
         eigen::EigenConfig,
-        DAClientConfig::{Avail, Celestia, Eigen, ObjectStore},
+        DAClientConfig::{Avail, Celestia, Eigen, NoDA, ObjectStore},
     },
 };
 use zksync_protobuf::{required, ProtoRepr};
@@ -25,8 +25,7 @@ impl ProtoRepr for proto::DataAvailabilityClient {
     type Type = configs::DAClientConfig;
 
     fn read(&self) -> anyhow::Result<Self::Type> {
-        let config = required(&self.config).context("config")?;
-
+        let config = required(&self.config).context("da_client config")?;
         let client = match config {
             proto::data_availability_client::Config::Avail(conf) => Avail(AvailConfig {
                 bridge_api_url: required(&conf.bridge_api_url)
@@ -40,6 +39,7 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                                 .context("api_node_url")?
                                 .clone(),
                             app_id: *required(&full_client_conf.app_id).context("app_id")?,
+                            finality_state: full_client_conf.finality_state.clone(),
                         })
                     }
                     Some(proto::avail_config::Config::GasRelay(gas_relay_conf)) => {
@@ -85,6 +85,7 @@ impl ProtoRepr for proto::DataAvailabilityClient {
             proto::data_availability_client::Config::ObjectStore(conf) => {
                 ObjectStore(object_store_proto::ObjectStore::read(conf)?)
             }
+            proto::data_availability_client::Config::NoDa(_) => NoDA,
         };
 
         Ok(client)
@@ -100,6 +101,7 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                         proto::avail_config::Config::FullClient(proto::AvailClientConfig {
                             api_node_url: Some(conf.api_node_url.clone()),
                             app_id: Some(conf.app_id),
+                            finality_state: conf.finality_state.clone(),
                         }),
                     ),
                     AvailClientConfig::GasRelay(conf) => Some(
@@ -140,6 +142,7 @@ impl ProtoRepr for proto::DataAvailabilityClient {
             ObjectStore(config) => proto::data_availability_client::Config::ObjectStore(
                 object_store_proto::ObjectStore::build(config),
             ),
+            NoDA => proto::data_availability_client::Config::NoDa(proto::NoDaConfig {}),
         };
 
         Self {

@@ -1,7 +1,9 @@
 use anyhow::Context;
-use common::{check_prerequisites, cmd::Cmd, git, logger, spinner::Spinner, GPU_PREREQUISITES};
-use config::{traits::SaveConfigWithBasePath, EcosystemConfig};
 use xshell::{cmd, Shell};
+use zkstack_cli_common::{
+    check_prerequisites, cmd::Cmd, git, logger, spinner::Spinner, GPU_PREREQUISITES,
+};
+use zkstack_cli_config::{traits::SaveConfigWithBasePath, EcosystemConfig};
 
 use super::args::init_bellman_cuda::InitBellmanCudaArgs;
 use crate::{

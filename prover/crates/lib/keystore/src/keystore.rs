@@ -41,6 +41,8 @@ pub enum ProverServiceDataType {
     VerificationKey,
     SetupData,
     FinalizationHints,
+    PlonkSetupData,
+    FflonkSetupData,
     SnarkVerificationKey,
     FflonkSnarkVerificationKey,
 }
@@ -78,7 +80,7 @@ impl Keystore {
         // - We're running from the core workspace.
         // - We're running the binary from the docker.
         let data_dir_path = match Workspace::locate() {
-            Workspace::None => {
+            Workspace::Root => {
                 // We're running a binary, likely in a docker.
                 // Keys can be in one of a few paths.
                 // We want to be very conservative here, and checking
@@ -114,7 +116,7 @@ impl Keystore {
         &self.basedir
     }
 
-    fn get_file_path(
+    pub(crate) fn get_file_path(
         &self,
         key: ProverServiceDataKey,
         service_data_type: ProverServiceDataType,
@@ -130,6 +132,12 @@ impl Keystore {
             ProverServiceDataType::FinalizationHints => self
                 .basedir
                 .join(format!("finalization_hints_{}.bin", name)),
+            ProverServiceDataType::PlonkSetupData => {
+                self.basedir.join(format!("plonk_setup_{}_data.bin", name))
+            }
+            ProverServiceDataType::FflonkSetupData => {
+                self.basedir.join(format!("fflonk_setup_{}_data.bin", name))
+            }
             ProverServiceDataType::SnarkVerificationKey => {
                 self.basedir.join(format!("verification_{}_key.json", name))
             }
@@ -187,6 +195,14 @@ impl Keystore {
         &self,
         circuit_type: u8,
     ) -> anyhow::Result<ZkSyncRecursionLayerVerificationKey> {
+        if circuit_type == ZkSyncRecursionLayerStorageType::SchedulerCircuit as u8 {
+            let vk = Self::load_json_from_file(self.get_file_path(
+                ProverServiceDataKey::new_recursive(circuit_type),
+                ProverServiceDataType::VerificationKey,
+            ))?;
+            return Ok(ZkSyncRecursionLayerVerificationKey::SchedulerCircuit(vk));
+        }
+
         Self::load_json_from_file(self.get_file_path(
             ProverServiceDataKey::new_recursive(circuit_type),
             ProverServiceDataType::VerificationKey,
@@ -197,20 +213,43 @@ impl Keystore {
         &self,
         circuit_type: u8,
     ) -> anyhow::Result<ZkSyncCompressionLayerVerificationKey> {
-        Self::load_json_from_file(self.get_file_path(
+        let key = Self::load_json_from_file(self.get_file_path(
             ProverServiceDataKey::new_compression(circuit_type),
             ProverServiceDataType::VerificationKey,
-        ))
+        ))?;
+
+        match circuit_type {
+            1 => Ok(ZkSyncCompressionLayerVerificationKey::CompressionMode1Circuit(key)),
+            2 => Ok(ZkSyncCompressionLayerVerificationKey::CompressionMode2Circuit(key)),
+            3 => Ok(ZkSyncCompressionLayerVerificationKey::CompressionMode3Circuit(key)),
+            4 => Ok(ZkSyncCompressionLayerVerificationKey::CompressionMode4Circuit(key)),
+            _ => Err(anyhow::anyhow!(
+                "Invalid compression circuit type: {}",
+                circuit_type
+            )),
+        }
     }
 
     pub fn load_compression_for_wrapper_vk(
         &self,
         circuit_type: u8,
     ) -> anyhow::Result<ZkSyncCompressionForWrapperVerificationKey> {
-        Self::load_json_from_file(self.get_file_path(
+        let key = Self::load_json_from_file(self.get_file_path(
             ProverServiceDataKey::new_compression_wrapper(circuit_type),
             ProverServiceDataType::VerificationKey,
-        ))
+        ))?;
+
+        match circuit_type {
+            1 => Ok(ZkSyncCompressionForWrapperVerificationKey::CompressionMode1Circuit(key)),
+            2 => Ok(ZkSyncCompressionForWrapperVerificationKey::CompressionMode2Circuit(key)),
+            3 => Ok(ZkSyncCompressionForWrapperVerificationKey::CompressionMode3Circuit(key)),
+            4 => Ok(ZkSyncCompressionForWrapperVerificationKey::CompressionMode4Circuit(key)),
+            5 => Ok(ZkSyncCompressionForWrapperVerificationKey::CompressionMode5Circuit(key)),
+            _ => Err(anyhow::anyhow!(
+                "Invalid compression circuit type: {}",
+                circuit_type
+            )),
+        }
     }
 
     pub fn save_base_layer_verification_key(
@@ -233,6 +272,12 @@ impl Keystore {
             ProverServiceDataKey::new_recursive(vk.numeric_circuit_type()),
             ProverServiceDataType::VerificationKey,
         );
+
+        if let ZkSyncRecursionLayerVerificationKey::SchedulerCircuit(key) = vk {
+            tracing::info!("saving recursive layer verification key to: {:?}", filepath);
+            return Self::save_json_pretty(filepath, &key);
+        }
+
         tracing::info!("saving recursive layer verification key to: {:?}", filepath);
         Self::save_json_pretty(filepath, &vk)
     }
@@ -249,7 +294,7 @@ impl Keystore {
             "saving compression layer verification key to: {:?}",
             filepath
         );
-        Self::save_json_pretty(filepath, &vk)
+        Self::save_json_pretty(filepath, &vk.into_inner())
     }
 
     pub fn save_compression_for_wrapper_vk(
@@ -264,7 +309,7 @@ impl Keystore {
             "saving compression wrapper verification key to: {:?}",
             filepath
         );
-        Self::save_json_pretty(filepath, &vk)
+        Self::save_json_pretty(filepath, &vk.into_inner())
     }
 
     ///
@@ -642,45 +687,6 @@ impl Keystore {
                 ZkSyncRecursionLayerStorageType::SchedulerCircuit as u8,
             ),
             &scheduler_hint,
-        )
-        .context("save_finalization_hints()")?;
-
-        // Compression
-        // todo: don't use hardcoded values
-        for circuit in 1..5 {
-            let vk = source
-                .get_compression_vk(circuit as u8)
-                .map_err(|err| anyhow::anyhow!("No vk exist for circuit type: {circuit}: {err}"))?;
-
-            self.save_compression_vk(vk)
-                .context("save_compression_vk()")?;
-
-            let hint = source.get_compression_hint(circuit as u8).map_err(|err| {
-                anyhow::anyhow!("No finalization hint exist for circuit type: {circuit}: {err}")
-            })?;
-
-            self.save_finalization_hints(
-                ProverServiceDataKey::new_compression(circuit as u8),
-                &hint.into_inner(),
-            )
-            .context("save_finalization_hints()")?;
-        }
-
-        // Compression wrapper
-        let vk = source
-            .get_compression_for_wrapper_vk(5)
-            .map_err(|err| anyhow::anyhow!("No vk exist for circuit type: 5: {err}"))?;
-
-        self.save_compression_for_wrapper_vk(vk)
-            .context("save_compression_wrapper_vk()")?;
-
-        let hint = source.get_compression_for_wrapper_hint(5).map_err(|err| {
-            anyhow::anyhow!("No finalization hint exist for circuit type: 5: {err}")
-        })?;
-
-        self.save_finalization_hints(
-            ProverServiceDataKey::new_compression_wrapper(5),
-            &hint.into_inner(),
         )
         .context("save_finalization_hints()")?;
 

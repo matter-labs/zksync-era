@@ -35,21 +35,23 @@ impl InsertVersionArgs {
         }
 
         let version = self.version.unwrap_or_else(|| {
-            common::Prompt::new("Enter the version of the protocol to insert")
+            zkstack_cli_common::Prompt::new("Enter the version of the protocol to insert")
                 .default(&era_version)
                 .ask()
         });
 
         let snark_wrapper = self.snark_wrapper.unwrap_or_else(|| {
-            common::Prompt::new("Enter the snark wrapper of the protocol to insert")
+            zkstack_cli_common::Prompt::new("Enter the snark wrapper of the protocol to insert")
                 .default(&snark_wrapper)
                 .ask()
         });
 
         let fflonk_snark_wrapper = self.fflonk_snark_wrapper.unwrap_or_else(|| {
-            common::Prompt::new("Enter the fflonk snark wrapper of the protocol to insert")
-                .default(&fflonk_snark_wrapper)
-                .ask()
+            zkstack_cli_common::Prompt::new(
+                "Enter the fflonk snark wrapper of the protocol to insert",
+            )
+            .default(&fflonk_snark_wrapper)
+            .ask()
         });
 
         InsertVersionArgsFinal {
