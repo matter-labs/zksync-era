@@ -1,12 +1,9 @@
-use std::{time::Duration};
+use std::time::Duration;
 
 use tokio::sync::watch;
 use zksync_prover_interface::api::{ProofGenerationData, SubmitProofGenerationDataResponse};
-use zksync_types::L1BatchNumber;
 
-use crate::{
-    proof_data_submitter::proof_data_processor::ProofGenerationDataProcessor,
-};
+use crate::proof_data_submitter::proof_data_processor::ProofGenerationDataProcessor;
 
 pub mod proof_data_processor;
 
@@ -53,28 +50,10 @@ impl ProofGenerationDataSubmitter {
             .await
     }
 
-    /// Handles the response from the API.
-    async fn handle_response(
-        &self,
-        l1_batch_number: L1BatchNumber,
-        response: SubmitProofGenerationDataResponse,
-    ) -> anyhow::Result<()> {
-        match response {
-            SubmitProofGenerationDataResponse::Success => {
-                tracing::info!(
-                    "Successfully sent proof generation data for batch {:?}",
-                    l1_batch_number
-                );
-            }
-        };
-        Ok(())
-    }
-
     /// Runs `get_next_request` -> `send_request` -> `handle_response` in a loop.
     pub async fn run(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         tracing::info!(
-            "Starting periodic job: {} with frequency: {:?}",
-            Self::SERVICE_NAME,
+            "Starting ProofDataSubmitter with frequency: {:?}",
             self.poll_duration
         );
 

@@ -3,23 +3,19 @@ use std::{net::SocketAddr, sync::Arc};
 use anyhow::Context as _;
 use axum::{
     extract::{Path, State},
-    handler::Handler,
-    http::StatusCode,
-    response::IntoResponse,
     routing::{get, post},
     Json, Router,
 };
 use tokio::sync::watch;
-use tower::ServiceBuilder;
 use zksync_config::configs::ProofDataHandlerConfig;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStore;
 use zksync_prover_interface::api::{
-    RegisterTeeAttestationRequest, RegisterTeeAttestationResponse,
-    SubmitProofRequest, SubmitProofResponse, SubmitTeeProofRequest, TeeProofGenerationDataRequest,
+    RegisterTeeAttestationRequest, RegisterTeeAttestationResponse, SubmitProofRequest,
+    SubmitProofResponse, SubmitTeeProofRequest, TeeProofGenerationDataRequest,
     TeeProofGenerationDataResponse,
 };
-use zksync_types::{commitment::L1BatchCommitmentMode, L1BatchNumber, L2ChainId};
+use zksync_types::{L1BatchNumber, L2ChainId};
 
 use crate::errors::RequestProcessorError;
 
@@ -33,17 +29,25 @@ pub struct ProofDataHandlerApi {
 }
 
 impl ProofDataHandlerApi {
-    pub fn new(port: u16, state: RequestProcessor) -> ProofDataHandlerApi {
-        let router = Router::new().with_state(state).route(
-            "/submit_proof/:l1_batch_number",
-            post(ProofDataHandlerApi::submit_proof),
-        );
+    pub fn new(state: RequestProcessor, port: u16) -> ProofDataHandlerApi {
+        let router = Router::new()
+            .route(
+                "/submit_proof/:l1_batch_number",
+                post(ProofDataHandlerApi::submit_proof),
+            )
+            .with_state(state)
+            .layer(tower_http::compression::CompressionLayer::new())
+            .layer(tower_http::decompression::RequestDecompressionLayer::new().zstd(true));
 
         Self { router, port }
     }
 
-    pub fn with_tee_support(self) -> ProofDataHandlerApi {
+    pub fn new_with_tee_support(state: RequestProcessor, port: u16) -> ProofDataHandlerApi {
         let router = Router::new()
+            .route(
+                "/submit_proof/:l1_batch_number",
+                post(ProofDataHandlerApi::submit_proof),
+            )
             .route(
                 "/tee/proof_inputs",
                 get(ProofDataHandlerApi::get_tee_proof_generation_data),
@@ -55,24 +59,12 @@ impl ProofDataHandlerApi {
             .route(
                 "/tee/register_attestation",
                 post(ProofDataHandlerApi::register_tee_attestation),
-            );
-
-        ProofDataHandlerApi {
-            router: Router::new().merge(self.router).merge(router),
-            port: self.port,
-        }
-    }
-
-    pub fn with_middleware(self) -> ProofDataHandlerApi {
-        // todo: this thing is not working, need to understand why
-        let _middleware = ServiceBuilder::new()
+            )
+            .with_state(state)
             .layer(tower_http::compression::CompressionLayer::new())
             .layer(tower_http::decompression::RequestDecompressionLayer::new().zstd(true));
 
-        ProofDataHandlerApi {
-            router: self.router,
-            port: self.port,
-        }
+        Self { router, port }
     }
 
     pub async fn run(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
@@ -107,7 +99,7 @@ impl ProofDataHandlerApi {
     async fn get_tee_proof_generation_data(
         State(processor): State<RequestProcessor>,
         Json(payload): Json<TeeProofGenerationDataRequest>,
-    ) -> Result<Option<Json<TeeProofGenerationDataResponse>>, RequestProcessorError> {
+    ) -> Result<Json<Option<TeeProofGenerationDataResponse>>, RequestProcessorError> {
         processor.get_tee_proof_generation_data(payload).await
     }
 
@@ -132,7 +124,6 @@ pub struct RequestProcessor {
     blob_store: Arc<dyn ObjectStore>,
     pool: ConnectionPool<Core>,
     config: ProofDataHandlerConfig,
-    commitment_mode: L1BatchCommitmentMode,
     l2_chain_id: L2ChainId,
 }
 
@@ -141,14 +132,12 @@ impl RequestProcessor {
         blob_store: Arc<dyn ObjectStore>,
         pool: ConnectionPool<Core>,
         config: ProofDataHandlerConfig,
-        commitment_mode: L1BatchCommitmentMode,
         l2_chain_id: L2ChainId,
     ) -> Self {
         Self {
             blob_store,
             pool,
             config,
-            commitment_mode,
             l2_chain_id,
         }
     }

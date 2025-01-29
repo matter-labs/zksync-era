@@ -1,9 +1,10 @@
-use axum::{ Json};
+use axum::Json;
 use chrono::{Duration, Utc};
 use zksync_dal::{
-    tee_proof_generation_dal::{LockedBatch, TeeProofGenerationJobStatus}, CoreDal,
+    tee_proof_generation_dal::{LockedBatch, TeeProofGenerationJobStatus},
+    CoreDal,
 };
-use zksync_object_store::{ObjectStoreError};
+use zksync_object_store::ObjectStoreError;
 use zksync_prover_interface::{
     api::{
         RegisterTeeAttestationRequest, RegisterTeeAttestationResponse, SubmitProofResponse,
@@ -16,15 +17,13 @@ use zksync_prover_interface::{
 use zksync_types::{tee_types::TeeType, L1BatchNumber};
 use zksync_vm_executor::storage::L1BatchParamsProvider;
 
-use crate::{
-    api::RequestProcessor, errors::RequestProcessorError, metrics::METRICS,
-};
+use crate::{api::RequestProcessor, errors::RequestProcessorError, metrics::METRICS};
 
 impl RequestProcessor {
     pub(crate) async fn get_tee_proof_generation_data(
         &self,
         request: TeeProofGenerationDataRequest,
-    ) -> Result<Option<Json<TeeProofGenerationDataResponse>>, RequestProcessorError> {
+    ) -> Result<Json<Option<TeeProofGenerationDataResponse>>, RequestProcessorError> {
         tracing::info!("Received request for proof generation data: {:?}", request);
 
         let batch_ignored_timeout = Duration::from_std(
@@ -45,7 +44,7 @@ impl RequestProcessor {
                 .lock_batch_for_tee_proving(request.tee_type, min_batch_number)
                 .await?
             else {
-                break Ok(None); // no job available
+                break Ok(Json(None)); // no job available
             };
             let batch_number = locked_batch.l1_batch_number;
 
@@ -54,7 +53,7 @@ impl RequestProcessor {
                 .await
             {
                 Ok(input) => {
-                    break Ok(Some(Json(TeeProofGenerationDataResponse(Box::new(input)))));
+                    break Ok(Json(Some(TeeProofGenerationDataResponse(Box::new(input)))));
                 }
                 Err(RequestProcessorError::ObjectStore(ObjectStoreError::KeyNotFound(_))) => {
                     let duration = Utc::now().signed_duration_since(locked_batch.created_at);

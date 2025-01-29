@@ -73,14 +73,17 @@ impl WiringLayer for ProofDataHandlerLayer {
             blob_store.clone(),
             main_pool,
             self.proof_data_handler_config.clone(),
-            self.commitment_mode,
             self.l2_chain_id,
         );
 
-        let mut api = ProofDataHandlerApi::new(self.proof_data_handler_config.http_port, processor);
-        if self.proof_data_handler_config.tee_config.tee_support {
-            api = api.with_tee_support();
-        }
+        let api = if self.proof_data_handler_config.tee_config.tee_support {
+            ProofDataHandlerApi::new_with_tee_support(
+                processor,
+                self.proof_data_handler_config.http_port,
+            )
+        } else {
+            ProofDataHandlerApi::new(processor, self.proof_data_handler_config.http_port)
+        };
 
         let proof_gen_data_processor = ProofGenerationDataProcessor::new(
             main_pool.clone(),

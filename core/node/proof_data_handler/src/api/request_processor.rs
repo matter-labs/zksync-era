@@ -1,13 +1,9 @@
-use axum::{Json};
-use zksync_dal::{ CoreDal, };
-use zksync_prover_interface::{
-    api::{SubmitProofRequest, SubmitProofResponse,
-    },
-};
+use axum::Json;
+use zksync_dal::CoreDal;
+use zksync_prover_interface::api::{SubmitProofRequest, SubmitProofResponse};
 use zksync_types::{
-    commitment::{serialize_commitments},
-    web3::keccak256,
-    L1BatchNumber, ProtocolVersionId, H256, STATE_DIFF_HASH_KEY_PRE_GATEWAY,
+    commitment::serialize_commitments, web3::keccak256, L1BatchNumber, ProtocolVersionId, H256,
+    STATE_DIFF_HASH_KEY_PRE_GATEWAY,
 };
 
 use crate::{api::RequestProcessor, errors::RequestProcessorError};
