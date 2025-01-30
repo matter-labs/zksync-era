@@ -77,6 +77,10 @@ impl DataAvailabilityClient for EigenClient {
     fn blob_size_limit(&self) -> Option<usize> {
         Some(RawEigenClient::blob_size_limit())
     }
+
+    async fn balance(&self) -> Result<u64, DAError> {
+        Ok(0) // TODO fetch from API when payments are enabled in Eigen (PE-305)
+    }
 }
 
 /// EigenDA Client tests are ignored by default, because they require a remote dependency,

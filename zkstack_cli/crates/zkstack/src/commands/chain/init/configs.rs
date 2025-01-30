@@ -103,7 +103,7 @@ pub async fn init_configs(
     set_l1_rpc_url(&mut secrets, init_args.l1_rpc_url.clone())?;
     set_consensus_secrets(&mut secrets, &consensus_keys)?;
     match &init_args.validium_config {
-        None | Some(ValidiumType::NoDA) => { /* Do nothing */ }
+        None | Some(ValidiumType::NoDA) | Some(ValidiumType::EigenDA) => { /* Do nothing */ }
         Some(ValidiumType::Avail((_, avail_secrets))) => {
             secrets.insert_yaml("da.avail", avail_secrets)?;
         }
