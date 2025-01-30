@@ -132,18 +132,25 @@ async fn main() -> anyhow::Result<()> {
             .listener_port
     };
 
-    let prometheus_config =
-        if prometheus_config.is_some() && prometheus_config.unwrap().pushgateway_url.is_some() {
-            let url = prometheus_config.unwrap().gateway_endpoint().unwrap();
-            tracing::info!("Using Prometheus push gateway: {}", url);
-            PrometheusExporterConfig::push(url, prometheus_config.unwrap().push_interval())
-        } else {
-            tracing::info!(
-                "Exporting Prometheus metrics on port: {}",
-                prometheus_listener_port
-            );
-            PrometheusExporterConfig::pull(prometheus_listener_port)
-        };
+    let prometheus_config = if prometheus_config
+        .clone()
+        .map(|c| c.pushgateway_url)
+        .is_some()
+    {
+        let prometheus_config = prometheus_config.unwrap();
+        let (url, push_interval) = (
+            prometheus_config.gateway_endpoint().unwrap(),
+            prometheus_config.push_interval(),
+        );
+        tracing::info!("Using Prometheus push gateway: {}", url);
+        PrometheusExporterConfig::push(url, push_interval)
+    } else {
+        tracing::info!(
+            "Exporting Prometheus metrics on port: {}",
+            prometheus_listener_port
+        );
+        PrometheusExporterConfig::pull(prometheus_listener_port)
+    };
 
     let connection_pool = ConnectionPool::<Prover>::singleton(database_secrets.prover_url()?)
         .build()
