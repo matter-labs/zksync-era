@@ -4,7 +4,7 @@ use anyhow::Context as _;
 use axum::{
     extract::{Path, Request, State},
     middleware::Next,
-    routing::{get, post},
+    routing::post,
     Json, Router,
 };
 use tokio::sync::watch;
@@ -71,7 +71,7 @@ impl ProofDataHandlerApi {
             )
             .route(
                 "/tee/proof_inputs",
-                get(ProofDataHandlerApi::get_tee_proof_generation_data)
+                post(ProofDataHandlerApi::get_tee_proof_generation_data)
                     .layer(middleware_factory(Method::GetTeeProofInputs)),
             )
             .route(
@@ -124,7 +124,13 @@ impl ProofDataHandlerApi {
         State(processor): State<RequestProcessor>,
         Json(payload): Json<TeeProofGenerationDataRequest>,
     ) -> Result<Json<Option<TeeProofGenerationDataResponse>>, RequestProcessorError> {
-        processor.get_tee_proof_generation_data(payload).await
+        match processor.get_tee_proof_generation_data(payload).await {
+            Ok(Json(Some(data))) => Ok(Json(Some(data))),
+            Ok(Json(None)) => Err(RequestProcessorError::NoContent(
+                "get_tee_proof_generation_data".to_string(),
+            )),
+            Err(e) => Err(e),
+        }
     }
 
     async fn submit_tee_proof(
