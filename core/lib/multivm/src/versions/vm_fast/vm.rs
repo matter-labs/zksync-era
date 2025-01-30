@@ -4,10 +4,10 @@ use zk_evm_1_5_0::{
     aux_structures::LogQuery, zkevm_opcode_defs::system_params::INITIAL_FRAME_FORMAL_EH_LOCATION,
 };
 use zksync_types::{
-    bytecode::BytecodeHash, get_code_key, h256_to_u256, l1::is_l1_tx_type,
-    l2_to_l1_log::UserL2ToL1Log, u256_to_h256, writes::StateDiffRecord, AccountTreeId, StorageKey,
-    StorageLog, StorageLogKind, StorageLogWithPreviousValue, Transaction, BOOTLOADER_ADDRESS, H160,
-    H256, KNOWN_CODES_STORAGE_ADDRESS, L1_MESSENGER_ADDRESS, U256,
+    bytecode::BytecodeHash, h256_to_u256, l1::is_l1_tx_type, l2_to_l1_log::UserL2ToL1Log,
+    u256_to_h256, writes::StateDiffRecord, AccountTreeId, StorageKey, StorageLog, StorageLogKind,
+    StorageLogWithPreviousValue, Transaction, BOOTLOADER_ADDRESS, H160, H256,
+    KNOWN_CODES_STORAGE_ADDRESS, L1_MESSENGER_ADDRESS, U256,
 };
 use zksync_vm2::{
     interface::{CallframeInterface, HeapId, StateInterface, Tracer},
@@ -293,17 +293,13 @@ impl<S: ReadStorage, Tr: Tracer, Val: ValidationTracer> Vm<S, Tr, Val> {
         // We only set call params for transactions using the default AA. Other AAs may expect another
         // address returned from `ecrecover`, or may not invoke `ecrecover` at all during validation
         // (both of which would make caching a security hazard).
-        self.world.precompiles.expected_ecrecover_call = if self.skip_signature_verification {
-            ecrecover_call.filter(|_| {
-                // This storage slot is always read during tx validation / execution anyway.
-                self.world
-                    .storage
-                    .read_value(&get_code_key(&tx_origin))
-                    .is_zero()
-            })
-        } else {
-            None
-        };
+        let needs_default_aa_check = self.skip_signature_verification && ecrecover_call.is_some();
+        self.world.precompiles.expected_ecrecover_call =
+            if needs_default_aa_check && self.world.has_default_aa(&tx_origin) {
+                ecrecover_call
+            } else {
+                None
+            };
     }
 
     #[cfg(test)]

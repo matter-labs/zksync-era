@@ -4,13 +4,13 @@ use zk_evm_1_5_0::zkevm_opcode_defs::ECRECOVER_INNER_FUNCTION_PRECOMPILE_ADDRESS
 use zksync_contracts::SystemContractCode;
 use zksync_system_constants::{BOOTLOADER_ADDRESS, L2_BASE_TOKEN_ADDRESS};
 use zksync_types::{
-    address_to_u256, h256_to_u256, u256_to_h256,
+    address_to_u256, get_code_key, h256_to_u256, u256_to_h256,
     utils::key_for_eth_balance,
     writes::{
         compression::compress_with_best_strategy, BYTES_PER_DERIVED_KEY,
         BYTES_PER_ENUMERATION_INDEX,
     },
-    AccountTreeId, StorageKey, H160, H256, U256,
+    AccountTreeId, Address, StorageKey, H160, H256, U256,
 };
 use zksync_vm2::{
     interface::{CycleStats, Tracer},
@@ -62,6 +62,12 @@ impl<S: ReadStorage, T: Tracer> World<S, T> {
             Some((hash, bytecode))
         });
         bytecodes.collect()
+    }
+
+    /// Checks whether the specified `address` uses the default AA.
+    pub(super) fn has_default_aa(&mut self, address: &Address) -> bool {
+        // The code storage slot is always read during tx validation / execution anyway.
+        self.storage.read_value(&get_code_key(address)).is_zero()
     }
 }
 
