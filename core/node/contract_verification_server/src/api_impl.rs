@@ -260,16 +260,10 @@ async fn get_partial_match_verification_info(
         .context("Invalid deployed bytecode")?;
 
     let identifier = ContractIdentifier::from_bytecode(bytecode_hash.marker(), deployed_bytecode);
-    // `unwrap_or_default` is safe, since we're checking that `bytecode_without_metadata_keccak256` is not null.
-    let bytecode_without_metadata_keccak256 = identifier
-        .bytecode_without_metadata_keccak256
-        .as_ref()
-        .map(|h| h.hash());
-
     let Some((mut info, fetched_keccak256, fetched_keccak256_without_metadata)) = dal
         .get_partial_match_verification_info(
             identifier.bytecode_keccak256,
-            bytecode_without_metadata_keccak256,
+            identifier.bytecode_without_metadata_keccak256,
         )
         .await?
     else {
@@ -278,17 +272,16 @@ async fn get_partial_match_verification_info(
 
     if identifier.bytecode_keccak256 != fetched_keccak256 {
         // Sanity check
-        let has_hash_without_metadata = fetched_keccak256_without_metadata.is_some();
-        let hashes_without_metadata_match = identifier
-            .bytecode_without_metadata_keccak256
-            .map(|h| h.hash())
-            == bytecode_without_metadata_keccak256;
+        let has_metadata = identifier.detected_metadata.is_some();
+        let hashes_without_metadata_match =
+            identifier.bytecode_without_metadata_keccak256 == fetched_keccak256_without_metadata;
 
-        if !has_hash_without_metadata || !hashes_without_metadata_match {
+        if !has_metadata || !hashes_without_metadata_match {
             tracing::error!(
-                contract_address = %address,
+                contract_address = ?address,
                 identifier = ?identifier,
-                fetched_keccak256 = %fetched_keccak256,
+                fetched_keccak256 = ?fetched_keccak256,
+                fetched_keccak256_without_metadata = ?fetched_keccak256_without_metadata,
                 info = ?info,
                 "Bogus verification info fetched for contract",
             );

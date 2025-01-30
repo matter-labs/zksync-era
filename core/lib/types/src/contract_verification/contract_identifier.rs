@@ -24,8 +24,10 @@ pub struct ContractIdentifier {
     pub bytecode_keccak256: H256,
     /// keccak256 hash of the contract bytecode without metadata (e.g. with either
     /// CBOR or keccak256 metadata hash being stripped).
-    /// Can be absent if the contract bytecode doesn't have metadata.
-    pub bytecode_without_metadata_keccak256: Option<DetectedMetadata>,
+    /// If no metadata is detected, equal to `bytecode_keccak256`.
+    pub bytecode_without_metadata_keccak256: H256,
+    /// Kind of detected metadata.
+    pub detected_metadata: Option<DetectedMetadata>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -41,18 +43,10 @@ pub enum Match {
 /// Metadata detected in the contract bytecode.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DetectedMetadata {
-    /// keccak256 hash of the metadata detected (only for EraVM).
-    Keccak256(H256),
-    /// CBOR metadata detected.
-    Cbor(H256),
-}
-
-impl DetectedMetadata {
-    pub fn hash(&self) -> H256 {
-        match self {
-            Self::Keccak256(hash) | Self::Cbor(hash) => *hash,
-        }
-    }
+    /// keccak256 metadata (only for EraVM)
+    Keccak256,
+    /// CBOR metadata
+    Cbor,
 }
 
 /// Possible values for the metadata hashes structure.
@@ -82,22 +76,26 @@ impl ContractIdentifier {
         // Try to detect metadata.
         // CBOR takes precedence (since keccak doesn't have direct markers, so it's partially a
         // fallback).
-        let bytecode_without_metadata_keccak256 =
-            Self::detect_cbor_metadata(bytecode_marker, bytecode)
-                .or_else(|| Self::detect_keccak_metadata(bytecode_marker, bytecode));
+        let (detected_metadata, bytecode_without_metadata_keccak256) =
+            if let Some(hash) = Self::detect_cbor_metadata(bytecode_marker, bytecode) {
+                (Some(DetectedMetadata::Cbor), hash)
+            } else if let Some(hash) = Self::detect_keccak_metadata(bytecode_marker, bytecode) {
+                (Some(DetectedMetadata::Keccak256), hash)
+            } else {
+                // Fallback
+                (None, bytecode_keccak256)
+            };
 
         Self {
             bytecode_marker,
             bytecode_keccak256,
             bytecode_without_metadata_keccak256,
+            detected_metadata,
         }
     }
 
     /// Will try to detect keccak256 metadata hash (only for EraVM)
-    fn detect_keccak_metadata(
-        bytecode_marker: BytecodeMarker,
-        bytecode: &[u8],
-    ) -> Option<DetectedMetadata> {
+    fn detect_keccak_metadata(bytecode_marker: BytecodeMarker, bytecode: &[u8]) -> Option<H256> {
         // For EraVM, the one option for metadata hash is keccak256 hash of the metadata.
         if bytecode_marker == BytecodeMarker::EraVm {
             // For metadata, we might have padding: it takes either 32 or 64 bytes depending
@@ -105,17 +103,14 @@ impl ContractIdentifier {
             // if there is padding.
             let bytecode_without_metadata = Self::strip_padding(bytecode, 32)?;
             let hash = H256(keccak256(bytecode_without_metadata));
-            Some(DetectedMetadata::Keccak256(hash))
+            Some(hash)
         } else {
             None
         }
     }
 
     /// Will try to detect CBOR metadata.
-    fn detect_cbor_metadata(
-        bytecode_marker: BytecodeMarker,
-        bytecode: &[u8],
-    ) -> Option<DetectedMetadata> {
+    fn detect_cbor_metadata(bytecode_marker: BytecodeMarker, bytecode: &[u8]) -> Option<H256> {
         let length = bytecode.len();
 
         // Last two bytes is the length of the metadata in big endian.
@@ -153,7 +148,7 @@ impl ContractIdentifier {
             }
         };
         let hash = H256(keccak256(bytecode_without_metadata));
-        Some(DetectedMetadata::Cbor(hash))
+        Some(hash)
     }
 
     /// Adds one word to the metadata length and check if it's a padding word.
@@ -190,9 +185,8 @@ impl ContractIdentifier {
         // and presence in another, or different kinds of metadata. This is OK: partial
         // match is needed mostly when you cannot reproduce the original metadata, but one always
         // can submit the contract with the same metadata kind.
-        if self.bytecode_without_metadata_keccak256.is_some()
-            && self.bytecode_without_metadata_keccak256
-                == other_identifier.bytecode_without_metadata_keccak256
+        if self.bytecode_without_metadata_keccak256
+            == other_identifier.bytecode_without_metadata_keccak256
         {
             return Match::Partial;
         }
@@ -222,8 +216,12 @@ mod tests {
             "Incorrect bytecode hash"
         );
         assert_eq!(
-            identifier.bytecode_without_metadata_keccak256,
-            Some(DetectedMetadata::Cbor(bytecode_without_metadata_keccak256)),
+            identifier.detected_metadata,
+            Some(DetectedMetadata::Cbor),
+            "Incorrect detected metadata"
+        );
+        assert_eq!(
+            identifier.bytecode_without_metadata_keccak256, bytecode_without_metadata_keccak256,
             "Incorrect bytecode without metadata hash"
         );
     }
@@ -243,8 +241,12 @@ mod tests {
             "Incorrect bytecode hash"
         );
         assert_eq!(
-            identifier.bytecode_without_metadata_keccak256,
-            Some(DetectedMetadata::Cbor(bytecode_without_metadata_keccak256)),
+            identifier.detected_metadata,
+            Some(DetectedMetadata::Cbor),
+            "Incorrect detected metadata"
+        );
+        assert_eq!(
+            identifier.bytecode_without_metadata_keccak256, bytecode_without_metadata_keccak256,
             "Incorrect bytecode without metadata hash"
         );
     }
@@ -266,10 +268,12 @@ mod tests {
             "Incorrect bytecode hash"
         );
         assert_eq!(
-            identifier.bytecode_without_metadata_keccak256,
-            Some(DetectedMetadata::Keccak256(
-                bytecode_without_metadata_keccak256
-            )),
+            identifier.detected_metadata,
+            Some(DetectedMetadata::Keccak256),
+            "Incorrect detected metadata"
+        );
+        assert_eq!(
+            identifier.bytecode_without_metadata_keccak256, bytecode_without_metadata_keccak256,
             "Incorrect bytecode without metadata hash"
         );
     }
@@ -289,10 +293,12 @@ mod tests {
             "Incorrect bytecode hash"
         );
         assert_eq!(
-            identifier.bytecode_without_metadata_keccak256,
-            Some(DetectedMetadata::Keccak256(
-                bytecode_without_metadata_keccak256
-            )),
+            identifier.detected_metadata,
+            Some(DetectedMetadata::Keccak256),
+            "Incorrect detected metadata"
+        );
+        assert_eq!(
+            identifier.bytecode_without_metadata_keccak256, bytecode_without_metadata_keccak256,
             "Incorrect bytecode without metadata hash"
         );
     }
@@ -310,7 +316,13 @@ mod tests {
             "Incorrect bytecode hash"
         );
         assert_eq!(
-            identifier.bytecode_without_metadata_keccak256, None,
+            identifier.detected_metadata, None,
+            "Incorrect detected metadata"
+        );
+        // When no metadata is detected, `bytecode_without_metadata_keccak256` is equal to
+        // `bytecode_keccak256`.
+        assert_eq!(
+            identifier.bytecode_without_metadata_keccak256, bytecode_keccak256,
             "Incorrect bytecode without metadata hash"
         );
     }
@@ -329,7 +341,13 @@ mod tests {
             "Incorrect bytecode hash"
         );
         assert_eq!(
-            identifier.bytecode_without_metadata_keccak256, None,
+            identifier.detected_metadata, None,
+            "Incorrect detected metadata"
+        );
+        // When no metadata is detected, `bytecode_without_metadata_keccak256` is equal to
+        // `bytecode_keccak256`.
+        assert_eq!(
+            identifier.bytecode_without_metadata_keccak256, bytecode_keccak256,
             "Incorrect bytecode without metadata hash"
         );
     }
@@ -365,8 +383,12 @@ mod tests {
                 "{label}: Incorrect bytecode hash"
             );
             assert_eq!(
-                identifier.bytecode_without_metadata_keccak256,
-                Some(DetectedMetadata::Cbor(bytecode_without_metadata_keccak256)),
+                identifier.detected_metadata,
+                Some(DetectedMetadata::Cbor),
+                "{label}: Incorrect detected metadata"
+            );
+            assert_eq!(
+                identifier.bytecode_without_metadata_keccak256, bytecode_without_metadata_keccak256,
                 "{label}: Incorrect bytecode without metadata hash"
             );
         }

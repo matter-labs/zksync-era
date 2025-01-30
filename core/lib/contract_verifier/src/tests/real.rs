@@ -309,8 +309,8 @@ async fn compiling_yul_with_zksolc() {
     assert!(output.deployed_bytecode.is_none());
     assert_eq!(output.abi, serde_json::json!([]));
     assert_matches!(
-        identifier.bytecode_without_metadata_keccak256,
-        Some(DetectedMetadata::Keccak256(_))
+        identifier.detected_metadata,
+        Some(DetectedMetadata::Keccak256)
     );
 }
 
@@ -333,7 +333,7 @@ async fn compiling_standalone_yul() {
     assert_ne!(output.deployed_bytecode.unwrap(), output.bytecode);
     assert_eq!(output.abi, serde_json::json!([]));
     assert_matches!(
-        identifier.bytecode_without_metadata_keccak256,
+        identifier.detected_metadata,
         None,
         "No metadata for compiler yul for EVM"
     );
@@ -389,8 +389,8 @@ async fn using_real_zkvyper(specify_contract_file: bool) {
     validate_bytecode(&output.bytecode).unwrap();
     assert_eq!(output.abi, without_internal_types(counter_contract_abi()));
     assert_matches!(
-        identifier.bytecode_without_metadata_keccak256,
-        Some(DetectedMetadata::Keccak256(_))
+        identifier.detected_metadata,
+        Some(DetectedMetadata::Keccak256)
     );
 }
 
@@ -420,7 +420,7 @@ async fn using_standalone_vyper(specify_contract_file: bool) {
     assert!(output.deployed_bytecode.is_some());
     assert_eq!(output.abi, without_internal_types(counter_contract_abi()));
     // Vyper does not provide metadata for bytecode.
-    assert_matches!(identifier.bytecode_without_metadata_keccak256, None);
+    assert_matches!(identifier.detected_metadata, None);
 }
 
 #[tokio::test]
@@ -444,7 +444,7 @@ async fn using_standalone_vyper_without_optimization() {
     assert!(output.deployed_bytecode.is_some());
     assert_eq!(output.abi, without_internal_types(counter_contract_abi()));
     // Vyper does not provide metadata for bytecode.
-    assert_matches!(identifier.bytecode_without_metadata_keccak256, None);
+    assert_matches!(identifier.detected_metadata, None);
 }
 
 #[tokio::test]
@@ -549,21 +549,21 @@ async fn using_real_compiler_in_verifier(bytecode_kind: BytecodeMarker, toolchai
     match (bytecode_kind, toolchain) {
         (BytecodeMarker::Evm, Toolchain::Vyper) => {
             assert!(
-                identifier.bytecode_without_metadata_keccak256.is_none(),
+                identifier.detected_metadata.is_none(),
                 "No metadata for EVM Vyper"
             );
         }
         (BytecodeMarker::Evm, Toolchain::Solidity) => {
             assert_matches!(
-                identifier.bytecode_without_metadata_keccak256,
-                Some(DetectedMetadata::Cbor(_)),
+                identifier.detected_metadata,
+                Some(DetectedMetadata::Cbor),
                 "Cbor metadata for EVM Solidity by default"
             );
         }
         (BytecodeMarker::EraVm, _) => {
             assert_matches!(
-                identifier.bytecode_without_metadata_keccak256,
-                Some(DetectedMetadata::Keccak256(_)),
+                identifier.detected_metadata,
+                Some(DetectedMetadata::Keccak256),
                 "Keccak256 metadata for EraVM by default"
             );
         }
@@ -710,21 +710,21 @@ async fn using_zksolc_partial_match(use_cbor: bool) {
     );
     if use_cbor {
         assert_matches!(
-            identifier_for_request.bytecode_without_metadata_keccak256,
-            Some(DetectedMetadata::Cbor(_))
+            identifier_for_request.detected_metadata,
+            Some(DetectedMetadata::Cbor)
         );
         assert_matches!(
-            identifier_for_storage.bytecode_without_metadata_keccak256,
-            Some(DetectedMetadata::Cbor(_))
+            identifier_for_storage.detected_metadata,
+            Some(DetectedMetadata::Cbor)
         );
     } else {
         assert_matches!(
-            identifier_for_request.bytecode_without_metadata_keccak256,
-            Some(DetectedMetadata::Keccak256(_))
+            identifier_for_request.detected_metadata,
+            Some(DetectedMetadata::Keccak256)
         );
         assert_matches!(
-            identifier_for_storage.bytecode_without_metadata_keccak256,
-            Some(DetectedMetadata::Keccak256(_))
+            identifier_for_storage.detected_metadata,
+            Some(DetectedMetadata::Keccak256)
         );
     }
 

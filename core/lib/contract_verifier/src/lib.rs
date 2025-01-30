@@ -583,9 +583,7 @@ impl ContractVerifier {
                     .save_verification_info(
                         info,
                         identifier.bytecode_keccak256,
-                        identifier
-                            .bytecode_without_metadata_keccak256
-                            .map(|hash| hash.hash()),
+                        identifier.bytecode_without_metadata_keccak256,
                     )
                     .await?;
                 tracing::info!("Successfully processed request with id = {request_id}");

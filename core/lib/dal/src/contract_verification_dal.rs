@@ -196,7 +196,7 @@ impl ContractVerificationDal<'_, '_> {
         &mut self,
         verification_info: VerificationInfo,
         bytecode_keccak256: H256,
-        bytecode_without_metadata_keccak256: Option<H256>,
+        bytecode_without_metadata_keccak256: H256,
     ) -> DalResult<()> {
         let mut transaction = self.storage.start_transaction().await?;
         let id = verification_info.request.id;
@@ -222,11 +222,6 @@ impl ContractVerificationDal<'_, '_> {
         // Serialization should always succeed.
         let verification_info_json = serde_json::to_value(verification_info)
             .expect("Failed to serialize verification info into serde_json");
-        let bytecode_without_metadata_keccak256: Option<&[u8]> =
-            match &bytecode_without_metadata_keccak256 {
-                Some(h) => Some(h.as_bytes()),
-                None => None,
-            };
         sqlx::query!(
             r#"
             INSERT INTO
@@ -247,7 +242,7 @@ impl ContractVerificationDal<'_, '_> {
             "#,
             address.as_bytes(),
             bytecode_keccak256.as_bytes(),
-            bytecode_without_metadata_keccak256,
+            bytecode_without_metadata_keccak256.as_bytes(),
             &verification_info_json
         )
         .instrument("save_verification_info#insert")
@@ -614,11 +609,8 @@ impl ContractVerificationDal<'_, '_> {
     pub async fn get_partial_match_verification_info(
         &mut self,
         bytecode_keccak256: H256,
-        bytecode_without_metadata_keccak256: Option<H256>,
-    ) -> DalResult<Option<(VerificationInfo, H256, Option<H256>)>> {
-        // `unwrap_or_default` is OK here, since we're checking that `bytecode_without_metadata_keccak256` is not null.
-        let bytecode_without_metadata_keccak256 =
-            bytecode_without_metadata_keccak256.unwrap_or_default();
+        bytecode_without_metadata_keccak256: H256,
+    ) -> DalResult<Option<(VerificationInfo, H256, H256)>> {
         sqlx::query!(
             r#"
             SELECT
@@ -642,9 +634,8 @@ impl ContractVerificationDal<'_, '_> {
             let info = serde_json::from_value::<VerificationInfo>(row.verification_info)
                 .decode_column("verification_info")?;
             let bytecode_keccak256 = H256::from_slice(&row.bytecode_keccak256);
-            let bytecode_without_metadata_keccak256 = row
-                .bytecode_without_metadata_keccak256
-                .map(|h| H256::from_slice(&h));
+            let bytecode_without_metadata_keccak256 =
+                H256::from_slice(&row.bytecode_without_metadata_keccak256);
             Ok((
                 info,
                 bytecode_keccak256,
@@ -751,14 +742,12 @@ impl ContractVerificationDal<'_, '_> {
             for idx in 0..addresses.len() {
                 let address = hex::encode(&addresses[idx]);
                 let bytecode_keccak256 = hex::encode(ids[idx].bytecode_keccak256);
-                let bytecode_without_metadata_keccak256 = ids[idx]
-                    .bytecode_without_metadata_keccak256
-                    .map(|h| format!(r#"\\x{}"#, hex::encode(h.hash())))
-                    .unwrap_or_else(|| "null".to_owned());
+                let bytecode_without_metadata_keccak256 =
+                    hex::encode(ids[idx].bytecode_without_metadata_keccak256);
                 let verification_info = verification_infos[idx].replace('"', r#""""#);
 
                 let row = format!(
-                    r#"\\x{initial_contract_addr},\\x{bytecode_keccak256},{bytecode_without_metadata_keccak256},"{verification_info}",{created_at},{updated_at}"#,
+                    r#"\\x{initial_contract_addr},\\x{bytecode_keccak256},\\x{bytecode_without_metadata_keccak256},"{verification_info}",{created_at},{updated_at}"#,
                     initial_contract_addr = address,
                     bytecode_keccak256 = bytecode_keccak256,
                     bytecode_without_metadata_keccak256 = bytecode_without_metadata_keccak256,
