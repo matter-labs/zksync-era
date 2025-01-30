@@ -89,9 +89,9 @@ impl DataAvailabilityDispatcherLayer {
         validators[0]
             .clone()
             .into_address()
-            .ok_or(WiringError::Configuration(
-                "Failed to decode the DA validator address".to_string(),
-            ))
+            .ok_or(WiringError::Internal(anyhow!(
+                "Failed to decode the DA validator address".to_string()
+            )))
     }
 }
 
