@@ -134,7 +134,7 @@ async fn main() -> anyhow::Result<()> {
 
     let prometheus_config =
         if prometheus_config.is_some() && prometheus_config.unwrap().pushgateway_url.is_some() {
-            let url = prometheus_config.unwrap().gateway_endpoint();
+            let url = prometheus_config.unwrap().gateway_endpoint().unwrap();
             tracing::info!("Using Prometheus push gateway: {}", url);
             PrometheusExporterConfig::push(url, prometheus_config.unwrap().push_interval())
         } else {
