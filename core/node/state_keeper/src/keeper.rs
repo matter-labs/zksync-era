@@ -569,7 +569,10 @@ impl ZkSyncStateKeeper {
         stop_receiver: &watch::Receiver<bool>,
     ) -> Result<(), Error> {
         let mut is_last_block_sealed = state_restored;
-        let mut next_l2_block_params = L2BlockParams::default();
+        let mut next_l2_block_params = L2BlockParams {
+            timestamp: updates_manager.l2_block.timestamp,
+            virtual_blocks: updates_manager.l2_block.virtual_blocks,
+        };
 
         if let Some(protocol_upgrade_tx) = protocol_upgrade_tx {
             self.process_upgrade_tx(batch_executor, updates_manager, protocol_upgrade_tx)
