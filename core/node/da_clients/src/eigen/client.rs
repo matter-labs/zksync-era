@@ -292,8 +292,4 @@ mod tests {
         let retrieved_data = client.get_blob_data(blob_info).await.unwrap();
         assert_eq!(retrieved_data, data);
     }
-
-    async fn balance(&self) -> Result<u64, DAError> {
-        Ok(0) // TODO fetch from API when payments are enabled in Eigen (PE-305)
-    }
 }
