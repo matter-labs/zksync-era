@@ -110,6 +110,7 @@ pub struct InternalApiConfig {
     pub l1_bytecodes_supplier_addr: Option<Address>,
     pub l1_wrapped_base_token_store: Option<Address>,
     pub l1_bridgehub_proxy_addr: Option<Address>,
+    pub message_root_proxy_addr: Option<Address>,
     pub l1_state_transition_proxy_addr: Option<Address>,
     pub l1_transparent_proxy_admin_addr: Option<Address>,
     pub l1_diamond_proxy_addr: Address,
@@ -158,6 +159,10 @@ impl InternalApiConfig {
                 .ecosystem_contracts
                 .as_ref()
                 .map(|a| a.bridgehub_proxy_addr),
+            message_root_proxy_addr: contracts_config
+                .ecosystem_contracts
+                .as_ref()
+                .and_then(|a| a.message_root_proxy_addr),
             l1_state_transition_proxy_addr: contracts_config
                 .ecosystem_contracts
                 .as_ref()

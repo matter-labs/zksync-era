@@ -18,6 +18,9 @@ impl FromEnv for EcosystemContracts {
             )?
             .parse()
             .ok(),
+            message_root_proxy_addr: std::env::var("CONTRACTS_L1_MESSAGE_ROOT_ADDRESS")?
+                .parse()
+                .ok(),
         })
     }
 }

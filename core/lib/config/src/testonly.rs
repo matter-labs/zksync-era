@@ -763,6 +763,7 @@ impl Distribution<configs::EcosystemContracts> for EncodeDist {
             transparent_proxy_admin_addr: rng.gen(),
             l1_bytecodes_supplier_addr: rng.gen(),
             l1_wrapped_base_token_store: rng.gen(),
+            message_root_proxy_addr: rng.gen(),
         }
     }
 }

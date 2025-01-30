@@ -20,7 +20,7 @@ pub(crate) use self::{
     vm::MultiVmSubversion,
 };
 
-pub(crate) mod bootloader;
+pub mod bootloader;
 pub mod constants;
 mod implementation;
 mod old_vm;

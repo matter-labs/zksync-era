@@ -166,6 +166,7 @@ impl EnNamespace {
                     .unwrap(),
                 l1_bytecodes_supplier_addr: self.state.api_config.l1_bytecodes_supplier_addr,
                 l1_wrapped_base_token_store: self.state.api_config.l1_wrapped_base_token_store,
+                message_root_proxy_addr: self.state.api_config.message_root_proxy_addr,
             })
             .context("Shared bridge doesn't supported")?)
     }

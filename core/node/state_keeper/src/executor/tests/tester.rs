@@ -757,24 +757,3 @@ impl StorageSnapshot {
     }
 }
 
-async fn apply_genesis_log<'a>(storage: &mut Connection<'a, Core>, log: StorageLog) {
-    storage
-        .storage_logs_dal()
-        .append_storage_logs(L2BlockNumber(0), &[log])
-        .await
-        .unwrap();
-
-    if storage
-        .storage_logs_dedup_dal()
-        .filter_written_slots(&[log.key.hashed_key()])
-        .await
-        .unwrap()
-        .is_empty()
-    {
-        storage
-            .storage_logs_dedup_dal()
-            .insert_initial_writes(L1BatchNumber(0), &[log.key.hashed_key()])
-            .await
-            .unwrap();
-    }
-}

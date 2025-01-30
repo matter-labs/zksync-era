@@ -8,6 +8,7 @@ pub(crate) use self::{
     appended_chain_batch_root::BatchRootProcessor,
     decentralized_upgrades::DecentralizedUpgradesEventProcessor,
     priority_ops::PriorityOpsEventProcessor,
+    global_message_root::GlobalMessageRootProcessor,
 };
 
 mod appended_chain_batch_root;

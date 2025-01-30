@@ -42,6 +42,8 @@ pub(crate) const MAX_GAS_PER_PUBDATA_BYTE: u64 = 50_000;
 // In this version of the VM the limit has been increased from `1024` to to `10000`.
 pub(crate) const MAX_TXS_IN_BATCH: usize = 10000;
 
+pub(crate) const MAX_MSG_ROOTS_IN_BATCH :usize = 100;
+
 /// Max cycles for a single transaction.
 pub const MAX_CYCLES_FOR_TX: u32 = u32::MAX;
 
@@ -112,8 +114,9 @@ pub(crate) const fn get_message_root_offset(subversion: MultiVmSubversion) -> us
     get_tx_operator_l2_block_info_offset(subversion) + TX_OPERATOR_L2_BLOCK_INFO_SLOTS
 }
 
-pub(crate) const MESSAGE_ROOT_SLOTS_SIZE: usize = 3;
-pub(crate) const MESSAGE_ROOT_SLOTS: usize = (MAX_TXS_IN_BATCH + 1) * MESSAGE_ROOT_SLOTS_SIZE;
+pub(crate) const MESSAGE_ROOT_SLOTS_SIZE: usize = 100;
+
+pub(crate) const MESSAGE_ROOT_SLOTS: usize = (MAX_MSG_ROOTS_IN_BATCH + 1) * MESSAGE_ROOT_SLOTS_SIZE;
 
 pub(crate) const fn get_compressed_bytecodes_offset(subversion: MultiVmSubversion) -> usize {
     get_message_root_offset(subversion) + MESSAGE_ROOT_SLOTS

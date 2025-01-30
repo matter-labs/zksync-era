@@ -49,12 +49,13 @@ impl EventProcessor for GlobalMessageRootProcessor {
             .map_err(DalError::generalize)?;
 
         for event in events {
-            let root = event.topics[1];
+            println!("event {:?}", event);
+            let root = event.topics[0];
             assert_eq!(event.topics[0], self.appended_message_root_signature); // guaranteed by the watcher
             tracing::info!(%root, "Saving global message root");
-            let block_number = event.topics[2]; // kl todo
-            let block_number = block_number.0[15] as u64;
-            let chain_id = event.topics[3]; // kl todo
+            let block_number = event.block_number; // kl todo
+            let block_number = block_number.unwrap().0[0] as u64;
+            let chain_id = event.topics[0]; // kl todo
             let chain_id = chain_id.0[15] as u64;
             transaction
                 .blocks_dal()
@@ -73,6 +74,8 @@ impl EventProcessor for GlobalMessageRootProcessor {
     }
 
     fn topic1(&self) -> H256 {
+        // println!("appended_message_root_signature: {:?}", self.appended_message_root_signature);
+
         self.appended_message_root_signature
     }
 

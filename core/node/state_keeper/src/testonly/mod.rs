@@ -15,10 +15,10 @@ use zksync_multivm::interface::{
 };
 use zksync_state::OwnedStorage;
 use zksync_types::{
-    bytecode::BytecodeHash, commitment::PubdataParams, fee::Fee, get_code_key, get_known_code_key,
-    u256_to_h256, utils::storage_key_for_standard_token_balance, AccountTreeId, Address,
-    L1BatchNumber, L2BlockNumber, StorageLog, Transaction, H256, L2_BASE_TOKEN_ADDRESS,
-    SYSTEM_CONTEXT_MINIMAL_BASE_FEE, U256,
+    commitment::PubdataParams, fee::Fee, u256_to_h256,
+    utils::storage_key_for_standard_token_balance, AccountTreeId, Address, L1BatchNumber,
+    L2BlockNumber, StorageLog, Transaction, L2_BASE_TOKEN_ADDRESS, SYSTEM_CONTEXT_MINIMAL_BASE_FEE,
+    U256,
 };
 
 pub mod test_batch_executor;
@@ -118,32 +118,6 @@ pub async fn fund(pool: &ConnectionPool<Core>, addresses: &[Address]) {
         .collect();
 
     apply_genesis_logs(&mut storage, &storage_logs).await;
-}
-
-pub async fn setup_contract(pool: &ConnectionPool<Core>, address: Address, code: Vec<u8>) {
-    let mut storage = pool.connection().await.unwrap();
-
-    let hash: H256 = BytecodeHash::for_bytecode(&code).value();
-    let known_code_key = get_known_code_key(&hash);
-    let code_key = get_code_key(&address);
-
-    let logs = vec![
-        StorageLog::new_write_log(known_code_key, H256::from_low_u64_be(1u64)),
-        StorageLog::new_write_log(code_key, hash),
-    ];
-
-    for log in logs {
-        apply_genesis_log(&mut storage, log).await;
-    }
-
-    let mut factory_deps = HashMap::new();
-    factory_deps.insert(hash, code);
-
-    storage
-        .factory_deps_dal()
-        .insert_factory_deps(L2BlockNumber(0), &factory_deps)
-        .await
-        .unwrap();
 }
 
 pub(crate) const DEFAULT_GAS_PER_PUBDATA: u32 = 10000;

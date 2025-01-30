@@ -2225,7 +2225,7 @@ impl BlocksDal<'_, '_> {
             r#"
             INSERT INTO message_roots (chain_id, block_number, message_root_hash)
             VALUES ($1, $2, $3)
-            ON CONFLICT (chain_id, block_number) DO UPDATE SET message_root_hash = $3
+            ON CONFLICT DO NOTHING
             "#,
             chain_id.0 as i64,
             number.0 as i64,
