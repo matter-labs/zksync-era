@@ -1,3 +1,13 @@
+use anyhow::anyhow;
+use zksync_config::{
+    configs::{chain::StateKeeperConfig, da_dispatcher::DADispatcherConfig},
+    ContractsConfig,
+};
+use zksync_da_dispatcher::DataAvailabilityDispatcher;
+use zksync_eth_client::EthInterface;
+use zksync_types::{ethabi, web3::CallRequest, Address};
+use zksync_web3_decl::client::{DynClient, L1};
+
 use crate::{
     implementations::resources::{
         da_client::DAClientResource,
@@ -9,14 +19,6 @@ use crate::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
-use anyhow::anyhow;
-use zksync_config::configs::{chain::StateKeeperConfig, da_dispatcher::DADispatcherConfig};
-use zksync_config::ContractsConfig;
-use zksync_da_dispatcher::DataAvailabilityDispatcher;
-use zksync_eth_client::EthInterface;
-use zksync_types::web3::CallRequest;
-use zksync_types::{ethabi, Address};
-use zksync_web3_decl::client::{DynClient, L1};
 
 /// A layer that wires the data availability dispatcher task.
 #[derive(Debug)]
