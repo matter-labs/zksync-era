@@ -120,30 +120,24 @@ async fn main() -> anyhow::Result<()> {
     let keystore =
         Keystore::locate().with_setup_path(Some(prover_config.setup_data_path.clone().into()));
 
-    let prometheus_config = general_config.prometheus_config.clone();
+    let prometheus_config = general_config
+        .prometheus_config
+        .context("missing prometheus config")?;
 
-    // If the prometheus listener port is not set in the witness generator config, use the one from the prometheus config.
-    let prometheus_listener_port = if let Some(port) = config.prometheus_listener_port {
-        port
-    } else {
-        prometheus_config
-            .clone()
-            .context("prometheus config")?
-            .listener_port
-    };
-
-    let prometheus_config = if prometheus_config
-        .clone()
-        .map(|c| c.pushgateway_url)
-        .is_some()
-    {
-        let prometheus_config = prometheus_config.unwrap();
-        let url = prometheus_config.gateway_endpoint().unwrap();
+    let prometheus_exporter_config = if prometheus_config.pushgateway_url.is_some() {
+        let url = prometheus_config
+            .gateway_endpoint()
+            .context("missing prometheus gateway endpoint")?;
         tracing::info!("Using Prometheus push gateway: {}", url);
         PrometheusExporterConfig::push(url, prometheus_config.push_interval())
     } else {
+        let prometheus_listener_port = if let Some(port) = config.prometheus_listener_port {
+            port
+        } else {
+            prometheus_config.listener_port
+        };
         tracing::info!(
-            "Exporting Prometheus metrics on port: {}",
+            "Using Prometheus pull on port: {}",
             prometheus_listener_port
         );
         PrometheusExporterConfig::pull(prometheus_listener_port)
@@ -182,7 +176,7 @@ async fn main() -> anyhow::Result<()> {
         }
     };
 
-    let prometheus_task = prometheus_config.run(stop_receiver.clone());
+    let prometheus_task = prometheus_exporter_config.run(stop_receiver.clone());
 
     let mut tasks = Vec::new();
     tasks.push(tokio::spawn(prometheus_task));
