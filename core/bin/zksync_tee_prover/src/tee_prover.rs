@@ -1,8 +1,8 @@
 use std::fmt;
 
 use secp256k1::{PublicKey, Secp256k1};
-use zksync_basic_types::{web3, L1BatchNumber, H256};
-use zksync_crypto_primitives::K256PrivateKey;
+use zksync_basic_types::{L1BatchNumber, H256};
+use zksync_crypto_primitives::{sign, K256PrivateKey, Signature};
 use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId},
@@ -15,8 +15,6 @@ use zksync_tee_verifier::Verify;
 use crate::{
     api_client::TeeApiClient, config::TeeProverConfig, error::TeeProverError, metrics::METRICS,
 };
-
-type Signature = [u8; 65];
 
 /// Wiring layer for `TeeProver`
 #[derive(Debug)]
@@ -67,19 +65,6 @@ impl fmt::Debug for TeeProver {
             .finish()
     }
 }
-pub trait SignatureSerialization {
-    fn to_bytes(&self) -> Signature;
-}
-
-impl SignatureSerialization for web3::Signature {
-    fn to_bytes(&self) -> Signature {
-        let mut bytes = [0u8; 65];
-        bytes[..32].copy_from_slice(self.r.as_bytes());
-        bytes[32..64].copy_from_slice(self.s.as_bytes());
-        bytes[64] = self.v as u8;
-        bytes
-    }
-}
 
 impl TeeProver {
     /// Signs the message in Ethereum-compatible format for on-chain verification.
@@ -87,7 +72,8 @@ impl TeeProver {
         let secret_bytes = self.config.signing_key.secret_bytes();
         let private_key = K256PrivateKey::from_bytes(secret_bytes.into())
             .map_err(|e| TeeProverError::Verification(e.into()))?;
-        let signature = private_key.sign_web3(message, None).to_bytes();
+        let signature =
+            sign(&private_key, message).map_err(|e| TeeProverError::Verification(e.into()))?;
         Ok(signature)
     }
 
@@ -123,7 +109,7 @@ impl TeeProver {
                 self.api_client
                     .submit_proof(
                         batch_number,
-                        signature,
+                        signature.into_electrum(),
                         public_key,
                         root_hash,
                         self.config.tee_type,
@@ -208,38 +194,12 @@ impl Task for TeeProver {
 mod tests {
     use std::path::PathBuf;
 
-    use anyhow::Result;
-    use secp256k1::{
-        ecdsa::{RecoverableSignature, RecoveryId},
-        Message, SecretKey, SECP256K1,
-    };
+    use secp256k1::SecretKey;
     use url::Url;
-    use zksync_basic_types::{self, tee_types::TeeType, web3::keccak256, Address, H512};
+    use zksync_basic_types::{self, tee_types::TeeType, Address};
+    use zksync_crypto_primitives::{public_to_address, recover};
 
     use super::*;
-
-    type Public = H512;
-
-    /// Recovers the public key from the signature for the message
-    fn recover(signature: &Signature, message: &Message) -> Result<Public> {
-        let rsig = RecoverableSignature::from_compact(
-            &signature[0..64],
-            RecoveryId::from_i32(signature[64] as i32 - 27)?,
-        )?;
-        let pubkey = &SECP256K1.recover_ecdsa(&Message::from_slice(&message[..])?, &rsig)?;
-        let serialized = pubkey.serialize_uncompressed();
-        let mut public = Public::default();
-        public.as_bytes_mut().copy_from_slice(&serialized[1..65]);
-        Ok(public)
-    }
-
-    /// Convert public key into the address
-    fn public_to_address(public: &Public) -> Address {
-        let hash = keccak256(public.as_bytes());
-        let mut result = Address::zero();
-        result.as_bytes_mut().copy_from_slice(&hash[12..]);
-        result
-    }
 
     #[test]
     fn test_recover() {
@@ -274,8 +234,7 @@ mod tests {
 
         // Recover the signer's Ethereum address from the signature and the message, and verify it
         // matches the expected address
-        let message = Message::from_slice(random_root_hash.as_bytes()).unwrap();
-        let recovered_pubkey = recover(&signature, &message).unwrap();
+        let recovered_pubkey = recover(&signature, &random_root_hash).unwrap();
         let proof_address = public_to_address(&recovered_pubkey);
 
         assert_eq!(proof_address, expected_address);
