@@ -55,6 +55,7 @@ ripemd.workspace = true
 tonic = { workspace = true, features = ["tls-roots", "prost", "codegen"] }
 pbjson-types.workspace = true
 sp1-sdk = {version="4.0"}
-
+zksync_web3_decl.workspace = true
+zksync_eth_client.workspace = true
 # Eigen dependencies
 tokio-stream.workspace = true

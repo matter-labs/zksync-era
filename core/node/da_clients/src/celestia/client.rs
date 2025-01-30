@@ -16,6 +16,9 @@ use zksync_da_client::{
     types::{DAError, DispatchResponse, InclusionData},
     DataAvailabilityClient,
 };
+use zksync_eth_client::{
+    clients::{DynClient, L1},
+};
 
 use crate::{
     celestia::sdk::{BlobTxHash, RawCelestiaClient},
@@ -29,10 +32,11 @@ pub struct CelestiaClient {
     config: CelestiaConfig,
     integration_client: Arc<IntegrationClient>,
     celestia_client: Arc<RawCelestiaClient>,
+    eth_client: Box<DynClient<L1>>,
 }
 
 impl CelestiaClient {
-    pub async fn new(config: CelestiaConfig, secrets: CelestiaSecrets) -> anyhow::Result<Self> {
+    pub async fn new(config: CelestiaConfig, secrets: CelestiaSecrets, eth_client: Box<DynClient<L1>>) -> anyhow::Result<Self> {
         let celestia_grpc_channel = Endpoint::from_str(config.api_node_url.clone().as_str())?
             .timeout(time::Duration::from_millis(config.timeout_ms))
             .connect()
@@ -47,11 +51,11 @@ impl CelestiaClient {
             .connect()
             .await?;
         let integration_client = IntegrationClient::new(integration_grpc_channel);
-
         Ok(Self {
             config,
             celestia_client: Arc::new(client),
             integration_client: Arc::new(integration_client),
+            eth_client,
         })
     }
 }
@@ -113,11 +117,11 @@ impl DataAvailabilityClient for CelestiaClient {
         let response_data: Option<InclusionResponseValue> = response.response_value.try_into().map_err(to_non_retriable_da_error)?;
         let response_status: InclusionResponseStatus = response.status.try_into().map_err(to_non_retriable_da_error)?;
 
-        match response_status {
+        let proof_data = match response_status {
             InclusionResponseStatus::Complete => {
                 match response_data {
                     Some(InclusionResponseValue::Proof(proof)) => {
-                        Ok(Some(InclusionData { data: proof }))
+                        proof
                     },
                     _ => {
                         return Err(DAError { error: anyhow::anyhow!("Complete status should be accompanied by a Proof, eq-service is broken"), is_retriable: false });
@@ -125,10 +129,14 @@ impl DataAvailabilityClient for CelestiaClient {
                 }
             }
             _ => {
-                Ok(None)
+                return Ok(None);
             }
-        }
+        };
+        let request = self.eth_client.call_contract_function(request, block);
+        // Here we want to poll blobstream until the included block is in blobstream
+        //self.eth_client.call_contract_function(request, block)
 
+        Ok(Some(InclusionData { data: vec![] }))
     }
 
     fn clone_boxed(&self) -> Box<dyn DataAvailabilityClient> {
