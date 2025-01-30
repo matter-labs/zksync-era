@@ -118,7 +118,11 @@ impl NodeStorageInitializer {
                     recovery.initialize_storage(stop_receiver.clone()).await?;
                 } else {
                     anyhow::bail!(
-                        "Snapshot recovery should be performed, but the strategy is not provided"
+                        "Snapshot recovery should be performed, but the strategy is not provided. \
+                        In most of the cases this error means that the node was first started \
+                        with snapshots recovery enabled, but then it was disabled. \
+                        To get rid of this error and have the node sync from genesis \
+                        please clear the Node's database"
                     );
                 }
             }

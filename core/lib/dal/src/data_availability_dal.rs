@@ -184,7 +184,8 @@ impl DataAvailabilityDal<'_, '_> {
             r#"
             SELECT
                 number,
-                pubdata_input
+                pubdata_input,
+                sealed_at
             FROM
                 l1_batches
             LEFT JOIN
@@ -195,6 +196,7 @@ impl DataAvailabilityDal<'_, '_> {
                 AND number != 0
                 AND data_availability.blob_id IS NULL
                 AND pubdata_input IS NOT NULL
+                AND sealed_at IS NOT NULL
             ORDER BY
                 number
             LIMIT
@@ -213,6 +215,7 @@ impl DataAvailabilityDal<'_, '_> {
                 // `unwrap` is safe here because we have a `WHERE` clause that filters out `NULL` values
                 pubdata: row.pubdata_input.unwrap(),
                 l1_batch_number: L1BatchNumber(row.number as u32),
+                sealed_at: row.sealed_at.unwrap().and_utc(),
             })
             .collect())
     }
@@ -226,7 +229,8 @@ impl DataAvailabilityDal<'_, '_> {
             r#"
             SELECT
                 number,
-                pubdata_input
+                pubdata_input,
+                sealed_at
             FROM
                 l1_batches
             LEFT JOIN
@@ -236,6 +240,7 @@ impl DataAvailabilityDal<'_, '_> {
                 number != 0
                 AND data_availability.blob_id = $1
                 AND pubdata_input IS NOT NULL
+                AND sealed_at IS NOT NULL
             ORDER BY
                 number
             LIMIT
@@ -251,6 +256,7 @@ impl DataAvailabilityDal<'_, '_> {
             // `unwrap` is safe here because we have a `WHERE` clause that filters out `NULL` values
             pubdata: row.pubdata_input.unwrap(),
             l1_batch_number: L1BatchNumber(row.number as u32),
+            sealed_at: row.sealed_at.unwrap().and_utc(),
         });
 
         Ok(row)

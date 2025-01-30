@@ -129,7 +129,7 @@ pub async fn run(shell: &Shell, args: StatusArgs) -> anyhow::Result<()> {
         return print_ports(shell);
     }
 
-    let health_check_url = args.get_url(shell)?;
+    let health_check_url = args.get_url(shell).await?;
 
     print_status(health_check_url)
 }

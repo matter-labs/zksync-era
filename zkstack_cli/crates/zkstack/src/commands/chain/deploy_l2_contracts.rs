@@ -23,10 +23,7 @@ use zkstack_cli_config::{
 };
 
 use crate::{
-    messages::{
-        MSG_CHAIN_NOT_INITIALIZED, MSG_DEPLOYING_L2_CONTRACT_SPINNER,
-        MSG_L1_SECRETS_MUST_BE_PRESENTED,
-    },
+    messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_DEPLOYING_L2_CONTRACT_SPINNER},
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
 
@@ -263,9 +260,11 @@ async fn call_forge(
         chain_config,
         &ecosystem_config.get_contracts_config()?,
         ecosystem_config.era_chain_id,
-    )?;
+    )
+    .await?;
+
     let foundry_contracts_path = chain_config.path_to_l1_foundry();
-    let secrets = chain_config.get_secrets_config()?;
+    let secrets = chain_config.get_secrets_config().await?;
     input.save(
         shell,
         DEPLOY_L2_CONTRACTS_SCRIPT_PARAMS.input(&chain_config.link_to_code),
@@ -277,14 +276,7 @@ async fn call_forge(
             forge_args.clone(),
         )
         .with_ffi()
-        .with_rpc_url(
-            secrets
-                .l1
-                .context(MSG_L1_SECRETS_MUST_BE_PRESENTED)?
-                .l1_rpc_url
-                .expose_str()
-                .to_string(),
-        );
+        .with_rpc_url(secrets.get("l1.l1_rpc_url")?);
     if with_broadcast {
         forge = forge.with_broadcast();
     }
