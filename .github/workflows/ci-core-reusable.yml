@@ -456,11 +456,20 @@ jobs:
       - name: Set up attester committee for the consensus chain
         run: |
           ci_run zkstack consensus wait-for-registry --ignore-prerequisites --verbose --chain consensus
-          ci_run zkstack consensus set-attester-committee --chain consensus --from-genesis &> ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/consensus.log 
+          ci_run zkstack consensus set-attester-committee --chain consensus --ignore-prerequisites --verbose --from-genesis &> ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/consensus.log 
 
       - name: Run integration tests
         run: |
           ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --no-deps --ignore-prerequisites" ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}
+
+      - name: Repeat integration tests on push to main to check for flakiness
+        if: ${{ (steps.condition.outputs.should_run == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+        run: |
+          for i in {1..10}; do
+            echo "Iteration $i"
+            mkdir -p ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/$i
+            ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --no-deps --ignore-prerequisites" ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/$i
+          done
 
       - name: Init external nodes
         run: |
@@ -506,6 +515,15 @@ jobs:
         run: |
           ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --no-deps --ignore-prerequisites --external-node" ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}
 
+      - name: Repeat integration tests en on push to main to check for flakiness
+        if: ${{ (steps.condition.outputs.should_run == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+        run: |
+          for i in {1..10}; do
+            echo "Iteration $i"
+            mkdir -p ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/$i
+            ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --no-deps --ignore-prerequisites --external-node" ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/$i
+          done
+
       - name: Fee projection tests
         run: |
           ci_run killall -INT zksync_server || true
@@ -518,6 +536,15 @@ jobs:
 
           # Always run the chain-specific fee tests
           ci_run ./bin/run_on_all_chains.sh "zkstack dev test fees --no-deps --no-kill" ${{ env.CHAINS }} ${{ env.FEES_LOGS_DIR }}
+
+      - name: Repeat fee projection tests on push to main to check for flakiness
+        if: ${{ (steps.condition.outputs.should_run == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+        run: |
+          for i in {1..10}; do
+            echo "Iteration $i"
+            mkdir -p ${{ env.FEES_LOGS_DIR }}/$i
+            ci_run ./bin/run_on_all_chains.sh "zkstack dev test fees --no-deps --no-kill" ${{ env.CHAINS }} ${{ env.FEES_LOGS_DIR }}/$i
+          done
 
       - name: Run revert tests
         run: |

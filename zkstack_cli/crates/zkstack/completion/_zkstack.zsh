@@ -1906,7 +1906,7 @@ _arguments "${_arguments_options[@]}" : \
 '(--clone)--bellman-cuda-dir=[]:BELLMAN_CUDA_DIR:_default' \
 '--bellman-cuda=[]' \
 '--setup-compressor-key=[]' \
-'--path=[]:PATH:_default' \
+'--path=[]:PATH:_files' \
 '--region=[]:REGION:(us europe asia)' \
 '--mode=[]:MODE:(download generate)' \
 '--setup-keys=[]' \
@@ -1977,7 +1977,7 @@ _arguments "${_arguments_options[@]}" : \
 ;;
 (compressor-keys)
 _arguments "${_arguments_options[@]}" : \
-'--path=[]:PATH:_default' \
+'--path=[]:PATH:_files' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \

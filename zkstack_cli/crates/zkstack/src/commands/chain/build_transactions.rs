@@ -40,8 +40,9 @@ pub(crate) async fn run(args: BuildTransactionsArgs, shell: &Shell) -> anyhow::R
 
     logger::note(MSG_SELECTED_CONFIG, logger::object_to_string(&chain_config));
 
-    let mut genesis_config = chain_config.get_genesis_config()?;
+    let mut genesis_config = chain_config.get_genesis_config().await?.patched();
     update_from_chain_config(&mut genesis_config, &chain_config)?;
+    // FIXME: config isn't saved; why?
 
     // Copy ecosystem contracts
     let mut contracts_config = config
