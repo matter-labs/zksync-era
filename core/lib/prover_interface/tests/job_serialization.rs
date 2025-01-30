@@ -102,8 +102,7 @@ fn test_proof_request_serialization() {
     let encoded_obj = serde_json::to_string(&proof).unwrap();
     let encoded_json = r#"{
         "Proof": {
-            "Plonk": {
-                "aggregation_result_coords": [
+            "aggregation_result_coords": [
                     [
                         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
                     ],
@@ -159,7 +158,6 @@ fn test_proof_request_serialization() {
                 },
                 "protocol_version": "0.25.10"
             }
-        }
     }"#;
     let decoded_obj: SubmitProofRequest = serde_json::from_str(&encoded_obj).unwrap();
     let decoded_json: SubmitProofRequest = serde_json::from_str(encoded_json).unwrap();

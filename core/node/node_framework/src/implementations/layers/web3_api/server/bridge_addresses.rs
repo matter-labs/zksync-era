@@ -80,7 +80,7 @@ impl L1UpdaterInner {
                 // - To not undo the previous change in case of a network error
                 if info.should_use_l2_asset_router {
                     self.bridge_address_updater
-                        .update_l2_shared_bridge(L2_ASSET_ROUTER_ADDRESS)
+                        .update_l2_bridges(L2_ASSET_ROUTER_ADDRESS)
                         .await;
                 }
             }

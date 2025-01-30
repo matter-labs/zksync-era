@@ -4,11 +4,11 @@ use anyhow::Context;
 use xshell::Shell;
 use zkstack_cli_common::{logger, spinner::Spinner};
 use zkstack_cli_config::{
-    create_local_configs_dir, create_wallets,
-    traits::{ReadConfigWithBasePath, SaveConfigWithBasePath},
-    ChainConfig, EcosystemConfig, GenesisConfig,
+    create_local_configs_dir, create_wallets, raw::RawConfig, traits::SaveConfigWithBasePath,
+    ChainConfig, EcosystemConfig, GENESIS_FILE,
 };
 use zksync_basic_types::L2ChainId;
+use zksync_types::H256;
 
 use crate::{
     commands::chain::args::create::{ChainCreateArgs, ChainCreateArgsFinal},
@@ -20,12 +20,12 @@ use crate::{
     utils::link_to_code::resolve_link_to_code,
 };
 
-pub fn run(args: ChainCreateArgs, shell: &Shell) -> anyhow::Result<()> {
+pub async fn run(args: ChainCreateArgs, shell: &Shell) -> anyhow::Result<()> {
     let mut ecosystem_config = EcosystemConfig::from_file(shell)?;
-    create(args, &mut ecosystem_config, shell)
+    create(args, &mut ecosystem_config, shell).await
 }
 
-pub fn create(
+pub async fn create(
     args: ChainCreateArgs,
     ecosystem_config: &mut EcosystemConfig,
     shell: &Shell,
@@ -46,7 +46,7 @@ pub fn create(
     let spinner = Spinner::new(MSG_CREATING_CHAIN_CONFIGURATIONS_SPINNER);
     let name = args.chain_name.clone();
     let set_as_default = args.set_as_default;
-    create_chain_inner(args, ecosystem_config, shell)?;
+    create_chain_inner(args, ecosystem_config, shell).await?;
     if set_as_default {
         ecosystem_config.default_chain = name;
         ecosystem_config.save_with_base_path(shell, ".")?;
@@ -58,7 +58,7 @@ pub fn create(
     Ok(())
 }
 
-pub(crate) fn create_chain_inner(
+pub(crate) async fn create_chain_inner(
     args: ChainCreateArgsFinal,
     ecosystem_config: &EcosystemConfig,
     shell: &Shell,
@@ -82,11 +82,12 @@ pub(crate) fn create_chain_inner(
         args.link_to_code.clone(),
         args.update_submodules,
     )?;
-    let default_genesis_config = GenesisConfig::read_with_base_path(
-        shell,
-        EcosystemConfig::default_configs_path(&link_to_code),
-    )?;
-    let has_evm_emulation_support = default_genesis_config.evm_emulator_hash.is_some();
+    let genesis_config_path =
+        EcosystemConfig::default_configs_path(&link_to_code).join(GENESIS_FILE);
+    let default_genesis_config = RawConfig::read(shell, genesis_config_path).await?;
+    let has_evm_emulation_support = default_genesis_config
+        .get_opt::<H256>("evm_emulator_hash")?
+        .is_some();
     if args.evm_emulator && !has_evm_emulation_support {
         anyhow::bail!(MSG_EVM_EMULATOR_HASH_MISSING_ERR);
     }
