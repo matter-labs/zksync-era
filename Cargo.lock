@@ -1102,7 +1102,7 @@ dependencies = [
 [[package]]
 name = "basic_bootloader"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee?branch=main#89db4ad77d665ab57aa75691bca738888c14b8f7"
+source = "git+https://github.com/matter-labs/zk_ee?branch=forward-system-tx-result-callback#a2fb97a578103b17c29cf3fa64573e205c981054"
 dependencies = [
  "arrayvec 0.7.6",
  "crypto",
@@ -1120,7 +1120,7 @@ dependencies = [
 [[package]]
 name = "basic_system"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee?branch=main#89db4ad77d665ab57aa75691bca738888c14b8f7"
+source = "git+https://github.com/matter-labs/zk_ee?branch=forward-system-tx-result-callback#a2fb97a578103b17c29cf3fa64573e205c981054"
 dependencies = [
  "ark-bn254",
  "ark-ec",
@@ -2275,7 +2275,7 @@ checksum = "7a81dae078cea95a014a339291cec439d2f232ebe854a9d672b796c6afafa9b7"
 [[package]]
 name = "crypto"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee?branch=main#89db4ad77d665ab57aa75691bca738888c14b8f7"
+source = "git+https://github.com/matter-labs/zk_ee?branch=forward-system-tx-result-callback#a2fb97a578103b17c29cf3fa64573e205c981054"
 dependencies = [
  "blake2 0.10.6",
  "k256 0.13.4",
@@ -3120,7 +3120,7 @@ dependencies = [
 [[package]]
 name = "evm_interpreter"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee?branch=main#89db4ad77d665ab57aa75691bca738888c14b8f7"
+source = "git+https://github.com/matter-labs/zk_ee?branch=forward-system-tx-result-callback#a2fb97a578103b17c29cf3fa64573e205c981054"
 dependencies = [
  "arrayvec 0.7.6",
  "crypto",
@@ -3288,7 +3288,7 @@ dependencies = [
 [[package]]
 name = "forward_system"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee?branch=main#89db4ad77d665ab57aa75691bca738888c14b8f7"
+source = "git+https://github.com/matter-labs/zk_ee?branch=forward-system-tx-result-callback#a2fb97a578103b17c29cf3fa64573e205c981054"
 dependencies = [
  "arrayvec 0.7.6",
  "basic_bootloader",
@@ -4633,7 +4633,7 @@ checksum = "49f1f14873335454500d59611f1cf4a4b0f786f9ac11f4312a78e4cf2566695b"
 [[package]]
 name = "iwasm_ee"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee?branch=main#89db4ad77d665ab57aa75691bca738888c14b8f7"
+source = "git+https://github.com/matter-labs/zk_ee?branch=forward-system-tx-result-callback#a2fb97a578103b17c29cf3fa64573e205c981054"
 dependencies = [
  "arrayvec 0.7.6",
  "crypto",
@@ -4646,7 +4646,7 @@ dependencies = [
 [[package]]
 name = "iwasm_interpreter"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee?branch=main#89db4ad77d665ab57aa75691bca738888c14b8f7"
+source = "git+https://github.com/matter-labs/zk_ee?branch=forward-system-tx-result-callback#a2fb97a578103b17c29cf3fa64573e205c981054"
 dependencies = [
  "arrayvec 0.7.6",
 ]
@@ -4654,7 +4654,7 @@ dependencies = [
 [[package]]
 name = "iwasm_specification"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee?branch=main#89db4ad77d665ab57aa75691bca738888c14b8f7"
+source = "git+https://github.com/matter-labs/zk_ee?branch=forward-system-tx-result-callback#a2fb97a578103b17c29cf3fa64573e205c981054"
 dependencies = [
  "num-derive 0.4.2",
  "num-traits",
@@ -5546,7 +5546,7 @@ checksum = "68354c5c6bd36d73ff3feceb05efa59b6acb7626617f4962be322a825e61f79a"
 [[package]]
 name = "miniz_nostd_compression"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee?branch=main#89db4ad77d665ab57aa75691bca738888c14b8f7"
+source = "git+https://github.com/matter-labs/zk_ee?branch=forward-system-tx-result-callback#a2fb97a578103b17c29cf3fa64573e205c981054"
 dependencies = [
  "adler",
 ]
@@ -5581,7 +5581,7 @@ checksum = "c9be0862c1b3f26a88803c4a49de6889c10e608b3ee9344e6ef5b45fb37ad3d1"
 [[package]]
 name = "modexp"
 version = "1.0.0"
-source = "git+https://github.com/matter-labs/zk_ee?branch=main#89db4ad77d665ab57aa75691bca738888c14b8f7"
+source = "git+https://github.com/matter-labs/zk_ee?branch=forward-system-tx-result-callback#a2fb97a578103b17c29cf3fa64573e205c981054"
 
 [[package]]
 name = "multer"
@@ -8028,7 +8028,7 @@ dependencies = [
 [[package]]
 name = "secp256k1"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee?branch=main#89db4ad77d665ab57aa75691bca738888c14b8f7"
+source = "git+https://github.com/matter-labs/zk_ee?branch=forward-system-tx-result-callback#a2fb97a578103b17c29cf3fa64573e205c981054"
 dependencies = [
  "cfg-if",
  "const_for",
@@ -9130,7 +9130,7 @@ checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 [[package]]
 name = "storage_models"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee?branch=main#89db4ad77d665ab57aa75691bca738888c14b8f7"
+source = "git+https://github.com/matter-labs/zk_ee?branch=forward-system-tx-result-callback#a2fb97a578103b17c29cf3fa64573e205c981054"
 dependencies = [
  "arrayvec 0.7.6",
  "either",
@@ -9522,7 +9522,7 @@ dependencies = [
 [[package]]
 name = "system_hooks"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee?branch=main#89db4ad77d665ab57aa75691bca738888c14b8f7"
+source = "git+https://github.com/matter-labs/zk_ee?branch=forward-system-tx-result-callback#a2fb97a578103b17c29cf3fa64573e205c981054"
 dependencies = [
  "crypto",
  "evm_interpreter",
@@ -11100,7 +11100,7 @@ dependencies = [
 [[package]]
 name = "zk_ee"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee?branch=main#89db4ad77d665ab57aa75691bca738888c14b8f7"
+source = "git+https://github.com/matter-labs/zk_ee?branch=forward-system-tx-result-callback#a2fb97a578103b17c29cf3fa64573e205c981054"
 dependencies = [
  "arrayvec 0.7.6",
  "bitflags 2.6.0",

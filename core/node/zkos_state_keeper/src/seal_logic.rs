@@ -1,14 +1,15 @@
 use std::collections::HashMap;
 
 use zk_os_basic_system::basic_system::BasicBlockMetadataFromOracle;
-use zk_os_forward_system::run::{BatchContext, BatchOutput};
+use zk_os_forward_system::run::{BatchContext, BatchOutput, ExecutionResult};
 use zksync_dal::{Connection, Core, CoreDal};
+use zksync_state_keeper::MempoolGuard;
 use zksync_types::{
     block::{L1BatchHeader, L2BlockHeader},
     fee_model::{BatchFeeInput, L1PeggedBatchFeeModelInput, PubdataIndependentBatchFeeModelInput},
     snapshots::SnapshotStorageLog,
     tx::IncludedTxLocation,
-    Address, L1BatchNumber, L2BlockNumber, ProtocolVersionId, H256,
+    Address, L1BatchNumber, L2BlockNumber, ProtocolVersionId, Transaction, H256,
 };
 use zksync_vm_interface::VmEvent;
 use zksync_zkos_vm_runner::zkos_conversions::bytes32_to_h256;
@@ -17,10 +18,8 @@ pub async fn seal_in_db<'a>(
     mut connection: Connection<'a, Core>,
     context: BatchContext,
     result: &BatchOutput,
-    executed_tx_hash: Option<H256>,
-    revert_reason: Option<String>,
+    executed_transactions: Vec<Transaction>,
     block_hash: H256,
-    gas_limit: u64,
 ) -> anyhow::Result<()> {
     let l2_block_number = L2BlockNumber(context.block_number as u32);
     let l1_batch_number = L1BatchNumber(context.block_number as u32);
@@ -30,22 +29,44 @@ pub async fn seal_in_db<'a>(
 
     let mut transaction = connection.start_transaction().await?;
 
-    if let Some(executed_tx_hash) = executed_tx_hash {
-        tracing::info!("marking transaction as included");
-
-        // We do not save `gas_used` to DB. Instead we save `gas_refunded = gas_limit - gas_used`
-        // and calculate `gas_used = gas_limit - gas_refunded` later if needed.
-        // TODO: is `gas_refunded = gas_limit - gas_used` in zkos terms?
-        let gas_refunded = result.tx_results[0].as_ref().unwrap().gas_refunded;
-        transaction
-            .transactions_dal()
-            .zkos_mark_tx_as_executed(
-                executed_tx_hash,
-                l2_block_number,
-                revert_reason,
-                gas_refunded,
-            )
-            .await?;
+    for (tx_index_in_batch, tx) in executed_transactions.into_iter().enumerate() {
+        let tx_hash = tx.hash();
+        let internal_tx_result = extract_tx_internal_result(tx_hash, tx_index_in_batch, &result);
+        let revert_reason = match internal_tx_result {
+            InternalTxResult::Success => {
+                tracing::info!("marking transaction {tx_hash:#?} as included");
+                transaction
+                    .transactions_dal()
+                    .zkos_mark_tx_as_executed(
+                        tx_hash,
+                        l2_block_number,
+                        None,
+                        result.tx_results[tx_index_in_batch]
+                            .as_ref()
+                            .unwrap()
+                            .gas_refunded,
+                    )
+                    .await?;
+            }
+            InternalTxResult::Reverted(reason) => {
+                tracing::info!("marking transaction {tx_hash:#?} as included");
+                transaction
+                    .transactions_dal()
+                    .zkos_mark_tx_as_executed(
+                        tx_hash,
+                        l2_block_number,
+                        Some(reason),
+                        result.tx_results[tx_index_in_batch]
+                            .as_ref()
+                            .unwrap()
+                            .gas_refunded,
+                    )
+                    .await?;
+            }
+            InternalTxResult::Rejected(_reason) => {
+                // it was already handled.
+            }
+        };
     }
 
     tracing::info!("inserting storage logs");
@@ -69,39 +90,39 @@ pub async fn seal_in_db<'a>(
 
     tracing::info!("inserted {} factory deps", factory_deps.len());
 
-    tracing::info!("inserting events");
-    let vm_events: Vec<VmEvent> = result
-        .tx_results
-        .clone()
-        .into_iter()
-        .map(|tx_result| tx_result.map(|a| a.logs).unwrap_or_default())
-        .flatten()
-        .map(|log| VmEvent {
-            location: (l1_batch_number, 0), // we have 1 tx per batch, it's index is 0
-            address: Address::from_slice(&log.address.to_be_bytes::<20>()),
-            indexed_topics: log
-                .topics
-                .into_iter()
-                .map(|topic| H256(topic.as_u8_array()))
-                .collect(),
-            value: log.data,
-        })
-        .collect();
-    let vm_events_ref: Vec<&VmEvent> = vm_events.iter().collect();
-    let events = [(
-        IncludedTxLocation {
-            tx_hash: executed_tx_hash.unwrap_or_default(),
-            tx_index_in_l2_block: 0, // we have 1 tx per block, it's index is 0
-            tx_initiator_address: Default::default(), // it seems it's never read from DB, probably makes sense to remove it
-        },
-        vm_events_ref,
-    )];
-    transaction
-        .events_dal()
-        .save_events(l2_block_number, &events)
-        .await?;
-
-    tracing::info!("inserted {} events", vm_events.len());
+    // tracing::info!("inserting events");
+    // let vm_events: Vec<VmEvent> = result
+    //     .tx_results
+    //     .clone()
+    //     .into_iter()
+    //     .map(|tx_result| tx_result.map(|a| a.logs).unwrap_or_default())
+    //     .flatten()
+    //     .map(|log| VmEvent {
+    //         location: (l1_batch_number, 0), // we have 1 tx per batch, it's index is 0
+    //         address: Address::from_slice(&log.address.to_be_bytes::<20>()),
+    //         indexed_topics: log
+    //             .topics
+    //             .into_iter()
+    //             .map(|topic| H256(topic.as_u8_array()))
+    //             .collect(),
+    //         value: log.data,
+    //     })
+    //     .collect();
+    // let vm_events_ref: Vec<&VmEvent> = vm_events.iter().collect();
+    // let events = [(
+    //     IncludedTxLocation {
+    //         tx_hash: executed_tx_hash.unwrap_or_default(),
+    //         tx_index_in_l2_block: 0, // we have 1 tx per block, it's index is 0
+    //         tx_initiator_address: Default::default(), // it seems it's never read from DB, probably makes sense to remove it
+    //     },
+    //     vm_events_ref,
+    // )];
+    // transaction
+    //     .events_dal()
+    //     .save_events(l2_block_number, &events)
+    //     .await?;
+    //
+    // tracing::info!("inserted {} events", vm_events.len());
 
     transaction
         .blocks_dal()
@@ -179,5 +200,42 @@ fn generate_l2_block_header(
         gas_limit: u64::MAX,
         logs_bloom: Default::default(),
         pubdata_params: Default::default(),
+    }
+}
+
+#[derive(Debug, Clone)]
+enum InternalTxResult {
+    Success,
+    Rejected(String),
+    Reverted(String),
+}
+
+fn extract_tx_internal_result(
+    tx_hash: H256,
+    tx_index_in_batch: usize,
+    result: &BatchOutput,
+) -> InternalTxResult {
+    let tx_result = if let Some(tx_result) = result.tx_results.get(tx_index_in_batch).cloned() {
+        tx_result
+    } else {
+        panic!("No tx result for {tx_hash} #{tx_index_in_batch}");
+    };
+
+    match tx_result {
+        Ok(tx_output) => {
+            if let ExecutionResult::Revert(revert_reason) = tx_output.execution_result {
+                let mut str = "0x".to_string();
+                str += &hex::encode(&revert_reason);
+                InternalTxResult::Reverted(str)
+            } else {
+                InternalTxResult::Success
+            }
+        }
+        Err(reason) => {
+            tracing::error!("Invalid transaction, hash: {tx_hash:#?}, reason: {reason:?}");
+            InternalTxResult::Rejected(format!(
+                "Invalid transaction, hash: {tx_hash:#?}, reason: {reason:?}"
+            ))
+        }
     }
 }

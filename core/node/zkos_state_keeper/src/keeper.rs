@@ -1,8 +1,10 @@
-use std::{alloc::Global, collections::HashMap, str::FromStr, sync::Arc, time::Duration};
-
 use anyhow::Context;
 use ruint::aliases::{B160, U256};
-use tokio::{sync::watch, task::spawn_blocking, time::Instant};
+use serde::Serialize;
+use std::{alloc::Global, collections::HashMap, str::FromStr, sync::Arc, time::Duration};
+use tokio::sync::mpsc::error::TryRecvError;
+use tokio::sync::mpsc::{Receiver, Sender};
+use tokio::{sync::watch, task::spawn_blocking, task::JoinHandle, time::Instant};
 use tracing::info_span;
 use zk_ee::{
     common_structs::derive_flat_storage_key,
@@ -13,10 +15,12 @@ use zk_os_basic_system::{
     basic_io_implementer::address_into_special_storage_key,
     basic_system::simple_growable_storage::TestingTree,
 };
+use zk_os_forward_system::run::result_keeper::TxProcessingOutputOwned;
 use zk_os_forward_system::run::{
     run_batch,
     test_impl::{InMemoryPreimageSource, InMemoryTree, TxListSource},
-    BatchContext, BatchOutput, ExecutionResult, PreimageSource, StorageCommitment,
+    BatchContext, BatchOutput, ExecutionResult, InvalidTransaction, NextTxResponse, PreimageSource,
+    StorageCommitment, TxResultCallback, TxSource,
 };
 use zk_os_system_hooks::addresses_constants::NOMINAL_TOKEN_BALANCE_STORAGE_ADDRESS;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
@@ -96,24 +100,42 @@ impl ZkosStateKeeper {
         while !self.is_canceled() {
             tracing::info!("Waiting for the next transaction");
 
-            let Some(tx) = self.wait_for_next_tx().await else {
-                return Ok(());
+            if wait_for_next_tx(&mut self.mempool, &mut self.stop_receiver)
+                .await
+                .is_err()
+            {
+                // Canceled.
+                break;
             };
-            tracing::info!("Transaction found: {:?}", tx);
-            let tx_hash = tx.hash();
-            let encoded = tx_abi_encode(tx.clone());
-            let tx_source = TxListSource {
-                transactions: vec![encoded].into(),
-            };
+
+            let (sender, receiver) = tokio::sync::mpsc::channel(1);
+            let (result_sender, result_receiver) = tokio::sync::mpsc::channel(1);
+            let tx_source = OnlineTxSource::new(receiver);
+            let tx_callback = ChannelTxResultCallback::new(result_sender);
+
+            let timestamp = (millis_since_epoch() / 1000) as u64;
+            let gas_limit = 32000000; // TODO: what value should be used?;
+            let tx_processor = TxProcessor::new(
+                self.mempool.clone(),
+                self.pool.clone(),
+                sender,
+                result_receiver,
+                2,
+                timestamp,
+                gas_limit,
+            );
+            let tx_sourcing_task: JoinHandle<anyhow::Result<Vec<Transaction>>> =
+                tokio::task::spawn(async move { tx_processor.run().await });
 
             let context = BatchContext {
                 //todo: gas
                 eip1559_basefee: U256::from(1),
-                ergs_price: U256::from(1),
+                gas_price: U256::from(1),
                 gas_per_pubdata: Default::default(),
                 block_number: pending_block_number.0 as u64,
-                timestamp: (millis_since_epoch() / 1000) as u64,
+                timestamp,
                 chain_id: 37,
+                gas_limit,
             };
 
             let storage_commitment = StorageCommitment {
@@ -138,30 +160,21 @@ impl ZkosStateKeeper {
                     tree,
                     preimage_source,
                     tx_source,
+                    tx_callback,
                 )
             })
             .await
-            .expect("Task panicked");
+            .expect("Task run_batch panicked");
+
+            // We need to stop tx_sourcing_task if block closed by timeout.
+            let executed_transactions = tx_sourcing_task
+                .await
+                .context("Joining tx_sourcing_task failed")?
+                .context("tx_sourcing_task failed")?;
 
             match result {
                 Ok(result) => {
                     tracing::info!("Batch executed successfully: {:?}", result);
-                    let internal_tx_result = extract_tx_internal_result(tx_hash, &result);
-                    let (seal_tx_hash, revert_reason) = match internal_tx_result {
-                        InternalTxResult::Success => (Some(tx_hash), None),
-                        InternalTxResult::Reverted(reason) => (Some(tx_hash), Some(reason)),
-                        InternalTxResult::Rejected(reason) => {
-                            self.mempool.rollback(&tx);
-                            let mut conn = self
-                                .pool
-                                .connection_tagged("zkos_state_keeper_mark_reject")
-                                .await?;
-                            conn.transactions_dal()
-                                .mark_tx_as_rejected(tx_hash, &format!("rejected: {reason}"))
-                                .await?;
-                            (None, None)
-                        }
-                    };
 
                     for storage_write in result.storage_writes.iter() {
                         self.tree
@@ -184,16 +197,7 @@ impl ZkosStateKeeper {
                         .connection_tagged("zkos_state_keeper_seal_block")
                         .await?;
 
-                    seal_in_db(
-                        conn,
-                        context,
-                        &result,
-                        seal_tx_hash,
-                        revert_reason,
-                        H256::zero(),
-                        tx.gas_limit().as_u64(),
-                    )
-                    .await?;
+                    seal_in_db(conn, context, &result, executed_transactions, H256::zero()).await?;
                     pending_block_number.0 += 1;
                 }
                 Err(err) => {
@@ -301,61 +305,227 @@ impl ZkosStateKeeper {
         Ok(())
     }
 
-    async fn wait_for_next_tx(&mut self) -> Option<Transaction> {
-        // todo: gas - use proper filter
-        let filter = L2TxFilter {
-            fee_input: Default::default(),
-            fee_per_gas: 0,
-            gas_per_pubdata: 0,
-        };
-
-        let started_at = Instant::now();
-        while !self.is_canceled() {
-            let maybe_tx = self.mempool.next_transaction(&filter);
-            if let Some((tx, _)) = maybe_tx {
-                //todo: reject transactions with too big gas limit. They are also rejected on the API level, but
-                // we need to secure ourselves in case some tx will somehow get into mempool.
-                return Some(tx);
-            }
-            tokio::time::sleep(POLL_WAIT_DURATION).await;
-        }
-        None
-    }
-
     fn is_canceled(&self) -> bool {
         *self.stop_receiver.borrow()
     }
 }
 
-#[derive(Debug, Clone)]
-enum InternalTxResult {
-    Success,
-    Rejected(String),
-    Reverted(String),
+#[derive(Debug)]
+pub struct OnlineTxSource {
+    receiver: Receiver<NextTxResponse>,
 }
 
-fn extract_tx_internal_result(tx_hash: H256, result: &BatchOutput) -> InternalTxResult {
-    let tx_result = if let Some(tx_result) = result.tx_results.get(0).cloned() {
-        tx_result
-    } else {
-        panic!("No tx result");
-    };
+impl OnlineTxSource {
+    pub fn new(receiver: Receiver<NextTxResponse>) -> Self {
+        Self { receiver }
+    }
+}
 
-    match tx_result {
-        Ok(tx_output) => {
-            if let ExecutionResult::Revert(revert_reason) = tx_output.execution_result {
-                let mut str = "0x".to_string();
-                str += &hex::encode(&revert_reason);
-                InternalTxResult::Reverted(str)
-            } else {
-                InternalTxResult::Success
+impl TxSource for OnlineTxSource {
+    fn get_next_tx(&mut self) -> NextTxResponse {
+        loop {
+            match self.receiver.try_recv() {
+                Ok(resp) => {
+                    return resp;
+                }
+                Err(TryRecvError::Empty) => {
+                    // Do nothing
+                }
+                Err(TryRecvError::Disconnected) => {
+                    // Sender shouldn't be dropped i.e. we always try to finish block execution properly
+                    // on shutdown request. This looks reasonable given block will take short period of time
+                    // (most likely 1 second), and if there are no transactions we can still close an empty block
+                    // without persisting it.
+                    panic!("next tx sender was dropped without yielding `SealBatch`")
+                }
             }
         }
-        Err(reason) => {
-            tracing::error!("Invalid transaction, hash: {tx_hash:#?}, reason: {reason:?}");
-            InternalTxResult::Rejected(format!(
-                "Invalid transaction, hash: {tx_hash:#?}, reason: {reason:?}"
-            ))
+    }
+}
+
+#[derive(Debug)]
+pub struct ChannelTxResultCallback {
+    sender: Sender<Result<TxProcessingOutputOwned, InvalidTransaction>>,
+}
+
+impl ChannelTxResultCallback {
+    pub fn new(sender: Sender<Result<TxProcessingOutputOwned, InvalidTransaction>>) -> Self {
+        Self { sender }
+    }
+}
+
+impl TxResultCallback for ChannelTxResultCallback {
+    fn tx_executed(
+        &mut self,
+        tx_execution_result: Result<TxProcessingOutputOwned, InvalidTransaction>,
+    ) {
+        self.sender
+            .blocking_send(tx_execution_result)
+            .expect("Tx execution result receiver was dropped");
+    }
+}
+
+/// Struct that
+/// - Polls the mempool
+/// - Sends transaction over channel to the execution thread
+/// - Keeps track of seal criteria: currently there are 3 of them: timestamp, gas, and number of txs.
+#[derive(Debug)]
+pub struct TxProcessor {
+    mempool: MempoolGuard,
+    pool: ConnectionPool<Core>,
+    sender: Sender<NextTxResponse>,
+    result_receiver: Receiver<Result<TxProcessingOutputOwned, InvalidTransaction>>,
+    max_tx_count: usize,
+    block_timestamp: u64,
+    block_gas_limit: u64,
+}
+
+impl TxProcessor {
+    pub fn new(
+        mempool: MempoolGuard,
+        pool: ConnectionPool<Core>,
+        sender: Sender<NextTxResponse>,
+        result_receiver: Receiver<Result<TxProcessingOutputOwned, InvalidTransaction>>,
+        max_tx_count: usize,
+        block_timestamp: u64,
+        block_gas_limit: u64,
+    ) -> Self {
+        Self {
+            mempool,
+            pool,
+            sender,
+            result_receiver,
+            max_tx_count,
+            block_timestamp,
+            block_gas_limit,
         }
+    }
+
+    pub async fn run(mut self) -> anyhow::Result<Vec<Transaction>> {
+        let mut executed_txs = Vec::new();
+        let mut gas_used = 0;
+
+        let mut connection = self.pool.connection_tagged("tx_processor").await?;
+        loop {
+            // TODO: proper timeout, should it be at `block_started_ms + 1000ms` or `block_timestamp_s + 1s`?
+            let wait =
+                tokio::time::timeout(Duration::from_secs(1), pop_next_tx(&mut self.mempool)).await;
+            let Ok(Some(tx)) = wait else {
+                self.sender
+                    .send(NextTxResponse::SealBatch)
+                    .await
+                    .context("NextTxResponse receiver was dropped")?;
+                break;
+            };
+
+            if !self.block_has_capacity_for_tx(
+                executed_txs.len(),
+                gas_used,
+                tx.gas_limit().as_u64(),
+            ) {
+                // Exclude and seal
+                self.sender
+                    .send(NextTxResponse::SealBatch)
+                    .await
+                    .context("NextTxResponse receiver was dropped")?;
+
+                let constraint = self.mempool.rollback(&tx);
+                self.mempool.insert(vec![(tx, constraint)], HashMap::new());
+
+                break;
+            }
+
+            tracing::info!("Transaction found: {:?}", tx);
+            let encoded = tx_abi_encode(tx.clone());
+
+            self.sender
+                .send(NextTxResponse::Tx(encoded))
+                .await
+                .context("NextTxResponse receiver was dropped")?;
+
+            let tx_result = self
+                .result_receiver
+                .recv()
+                .await
+                .context("Result sender was dropped")?;
+            match tx_result {
+                Ok(tx_output) => {
+                    executed_txs.push(tx);
+                    gas_used += tx_output.gas_used;
+                }
+                Err(reason) => {
+                    let tx_hash = tx.hash();
+                    connection
+                        .transactions_dal()
+                        .mark_tx_as_rejected(
+                            tx_hash,
+                            &format!("Invalid transaction, hash: {tx_hash:#?}, reason: {reason:?}"),
+                        )
+                        .await?;
+                    self.mempool.rollback(&tx);
+                }
+            }
+        }
+
+        Ok(executed_txs)
+    }
+
+    fn block_has_capacity_for_tx(
+        &self,
+        tx_count: usize,
+        block_gas_used: u64,
+        tx_gas_limit: u64,
+    ) -> bool {
+        if tx_count >= self.max_tx_count {
+            tracing::info!("Block sealed by max_tx_count");
+            return false;
+        }
+
+        if block_gas_used + tx_gas_limit > self.block_gas_limit {
+            tracing::info!("Block sealed by gas");
+            return false;
+        }
+
+        true
+    }
+}
+
+// ok - for tx, err - for stop signal
+async fn wait_for_next_tx(
+    mempool: &mut MempoolGuard,
+    stop_receiver: &mut watch::Receiver<bool>,
+) -> Result<(), ()> {
+    // todo: gas - use proper filter
+    let filter = L2TxFilter {
+        fee_input: Default::default(),
+        fee_per_gas: 0,
+        gas_per_pubdata: 0,
+    };
+
+    while !*stop_receiver.borrow() {
+        if mempool.has_next(&filter) {
+            return Ok(());
+        }
+        tokio::time::sleep(POLL_WAIT_DURATION).await;
+    }
+    Err(())
+}
+
+async fn pop_next_tx(mempool: &mut MempoolGuard) -> Option<Transaction> {
+    // todo: gas - use proper filter
+    let filter = L2TxFilter {
+        fee_input: Default::default(),
+        fee_per_gas: 0,
+        gas_per_pubdata: 0,
+    };
+
+    loop {
+        let maybe_tx = mempool.next_transaction(&filter);
+        if let Some((tx, _)) = maybe_tx {
+            //todo: reject transactions with too big gas limit. They are also rejected on the API level, but
+            // we need to secure ourselves in case some tx will somehow get into mempool.
+            return Some(tx);
+        }
+        tokio::time::sleep(POLL_WAIT_DURATION).await;
     }
 }

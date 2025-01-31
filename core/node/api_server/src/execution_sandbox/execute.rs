@@ -162,7 +162,7 @@ impl SandboxExecutor {
         // todo: gas
         let context = BatchContext {
             eip1559_basefee: U256::from(0),
-            ergs_price: U256::from(1),
+            gas_price: U256::from(1),
             gas_per_pubdata: Default::default(),
             block_number: (env.l1_batch.number.0 + 1) as u64,
             timestamp: SystemTime::now()
@@ -170,6 +170,7 @@ impl SandboxExecutor {
                 .expect("Incorrect system time")
                 .as_secs(),
             chain_id: env.system.chain_id.as_u64(),
+            gas_limit: 32000000, // TODO: what value should be used?
         };
 
         // todo: storage commitment shouldn't be needed here
