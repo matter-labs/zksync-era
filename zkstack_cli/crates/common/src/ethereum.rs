@@ -8,6 +8,7 @@ use ethers::{
     providers::Middleware,
     types::{Address, TransactionRequest},
 };
+use tokio::time::sleep;
 use zkstack_cli_types::TokenInfo;
 
 use crate::{logger, wallets::Wallet};
@@ -102,6 +103,8 @@ pub async fn mint_token(
 
     let mut pending_txs = vec![];
     for call in &pending_calls {
+        sleep(Duration::from_secs(2)).await; // ✅ Wait for 2 seconds
+
         let call = call.send().await;
         match call {
             // It's safe to set such low number of confirmations and low interval for localhost

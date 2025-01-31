@@ -81,10 +81,13 @@ if [ -z "$MASTER_URL" ]; then
     --ignore-prerequisites --verbose \
     --observability=false \
     --update-submodules=false
+
+  # start server
+  zkstack server
 else
   zkstack chain create \
     --chain-name custom_token \
-    --chain-id sequential \
+    --chain-id 275 \
     --prover-mode no-proofs \
     --wallet-creation localhost \
     --l1-batch-commit-data-generator-mode rollup \
@@ -116,7 +119,6 @@ else
   #   echo >&2 "Master zksync not ready yet, sleeping"
   #   sleep 5
   # done
+  # start server
+  zkstack server --chain custom_token 
 fi
-
-# start server
-zkstack server
