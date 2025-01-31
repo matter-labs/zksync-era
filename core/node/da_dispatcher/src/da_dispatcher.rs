@@ -4,7 +4,7 @@ use anyhow::Context;
 use chrono::Utc;
 use rand::Rng;
 use tokio::sync::watch::Receiver;
-use zksync_config::DADispatcherConfig;
+use zksync_config::{ContractsConfig, DADispatcherConfig};
 use zksync_da_client::{
     types::{DAError, InclusionData},
     DataAvailabilityClient,
@@ -19,6 +19,7 @@ pub struct DataAvailabilityDispatcher {
     client: Box<dyn DataAvailabilityClient>,
     pool: ConnectionPool<Core>,
     config: DADispatcherConfig,
+    contracts_config: ContractsConfig,
 }
 
 impl DataAvailabilityDispatcher {
@@ -26,11 +27,13 @@ impl DataAvailabilityDispatcher {
         pool: ConnectionPool<Core>,
         config: DADispatcherConfig,
         client: Box<dyn DataAvailabilityClient>,
+        contracts_config: ContractsConfig,
     ) -> Self {
         Self {
             pool,
             config,
             client,
+            contracts_config,
         }
     }
 
@@ -127,6 +130,7 @@ impl DataAvailabilityDispatcher {
                     batch.l1_batch_number,
                     dispatch_response.blob_id.as_str(),
                     sent_at.naive_utc(),
+                    batch.l2_da_validator_address(),
                 )
                 .await?;
             drop(conn);
@@ -174,6 +178,23 @@ impl DataAvailabilityDispatcher {
 
     /// Polls the data availability layer for inclusion data, and saves it in the database.
     async fn poll_for_inclusion(&self) -> anyhow::Result<()> {
+        if self.config.inclusion_verification_transition_enabled() {
+            // Setting dummy inclusion data to the batches with the old L2 DA validator is necessary
+            // for the transition process. We want to avoid the situation when the batch was sealed
+            // but not dispatched to DA layer before transition, and then it will have an inclusion
+            // data that is meant to be used with the new L2 DA validator. This will cause the
+            // mismatch during the CommitBatches transaction. To avoid that we need to commit that
+            // batch with dummy inclusion data during transition.
+            let mut conn = self.pool.connection_tagged("da_dispatcher").await?;
+            conn.data_availability_dal()
+                .set_dummy_inclusion_data_for_old_batches(
+                    self.contracts_config.l2_da_validator_addr.unwrap(), // during the transition having the L2 DA validator address is mandatory
+                )
+                .await?;
+
+            return Ok(());
+        }
+
         let mut conn = self.pool.connection_tagged("da_dispatcher").await?;
         let blob_info = conn
             .data_availability_dal()

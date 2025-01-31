@@ -1,0 +1,1 @@
+ALTER TABLE data_availability DROP COLUMN l2_da_validator_address IF EXISTS ;

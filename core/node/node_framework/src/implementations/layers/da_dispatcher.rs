@@ -133,8 +133,12 @@ impl WiringLayer for DataAvailabilityDispatcherLayer {
         // A pool with size 2 is used here because there are 2 functions within a task that execute in parallel
         let master_pool = input.master_pool.get_custom(2).await?;
 
-        let da_dispatcher_task =
-            DataAvailabilityDispatcher::new(master_pool, self.da_config, da_client);
+        let da_dispatcher_task = DataAvailabilityDispatcher::new(
+            master_pool,
+            self.da_config,
+            da_client,
+            self.contracts_config,
+        );
 
         Ok(Output { da_dispatcher_task })
     }

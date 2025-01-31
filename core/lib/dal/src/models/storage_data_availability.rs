@@ -1,5 +1,6 @@
 use chrono::{DateTime, NaiveDateTime, Utc};
-use zksync_types::{pubdata_da::DataAvailabilityBlob, L1BatchNumber};
+use zksync_types::l2_to_l1_log::L2ToL1Log;
+use zksync_types::{pubdata_da::DataAvailabilityBlob, Address, L1BatchNumber, H256};
 
 /// Represents a blob in the data availability layer.
 #[derive(Debug, Clone)]
@@ -26,5 +27,24 @@ impl From<StorageDABlob> for DataAvailabilityBlob {
 pub struct L1BatchDA {
     pub pubdata: Vec<u8>,
     pub l1_batch_number: L1BatchNumber,
+    pub system_logs: Vec<L2ToL1Log>,
     pub sealed_at: DateTime<Utc>,
+}
+
+impl L1BatchDA {
+    pub fn l2_da_validator_address(&self) -> Address {
+        let value = self
+            .system_logs
+            .iter()
+            .find(|log| {
+                log.key
+                    == H256::from_low_u64_be(
+                        zksync_system_constants::L2_DA_VALIDATOR_OUTPUT_HASH_KEY as u64,
+                    )
+            })
+            .unwrap() // The log is guaranteed to be present
+            .value;
+
+        value.into()
+    }
 }
