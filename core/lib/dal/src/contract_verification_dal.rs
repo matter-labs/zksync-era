@@ -868,7 +868,6 @@ mod tests {
         let location = IncludedTxLocation {
             tx_hash: tx.hash(),
             tx_index_in_l2_block: 0,
-            tx_initiator_address: tx.initiator_account(),
         };
         let deploy_event = VmEvent {
             location: (L1BatchNumber(0), 0),
