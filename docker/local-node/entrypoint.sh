@@ -1,4 +1,5 @@
 #!/bin/bash
+set -ea
 
 # These 3 env variables must be provided.
 if [ -z "$DATABASE_URL" ]; then
