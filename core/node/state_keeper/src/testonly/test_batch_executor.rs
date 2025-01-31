@@ -562,7 +562,6 @@ pub(crate) struct TestIO {
     protocol_version: ProtocolVersionId,
     previous_batch_protocol_version: ProtocolVersionId,
     protocol_upgrade_txs: HashMap<ProtocolVersionId, ProtocolUpgradeTx>,
-    pub next_l2_block_param: L2BlockParams,
 }
 
 impl fmt::Debug for TestIO {
@@ -610,7 +609,6 @@ impl TestIO {
             protocol_version: ProtocolVersionId::latest(),
             previous_batch_protocol_version: ProtocolVersionId::latest(),
             protocol_upgrade_txs: HashMap::default(),
-            next_l2_block_param: L2BlockParams::default(),
         };
         (this, OutputHandler::new(Box::new(persistence)))
     }
@@ -719,13 +717,10 @@ impl StateKeeperIO for TestIO {
         };
         self.l2_block_number += 1;
         self.timestamp += 1;
-        self.next_l2_block_param = params;
         Ok(Some(params))
     }
 
-    fn get_updated_l2_block_params(&mut self) -> L2BlockParams {
-        self.next_l2_block_param
-    }
+    fn update_next_l2_block_timestamp(&mut self, _block_timestamp: &mut u64) {}
 
     async fn wait_for_next_tx(
         &mut self,

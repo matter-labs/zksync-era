@@ -195,12 +195,8 @@ impl ZkSyncStateKeeper {
                 let new_l2_block_params = self
                     .wait_for_new_l2_block_params(&updates_manager, &stop_receiver)
                     .await?;
-                Self::start_next_l2_block(
-                    new_l2_block_params,
-                    &mut updates_manager,
-                    &mut *batch_executor,
-                )
-                .await?;
+                Self::set_l2_block_params(&mut updates_manager, new_l2_block_params);
+                Self::start_next_l2_block(&mut updates_manager, &mut *batch_executor).await?;
             }
 
             let (finished_batch, _) = batch_executor.finish_batch().await?;
@@ -418,12 +414,22 @@ impl ZkSyncStateKeeper {
             l2_block = %updates_manager.l2_block.number,
         )
     )]
+    fn set_l2_block_params(updates_manager: &mut UpdatesManager, l2_block_param: L2BlockParams) {
+        updates_manager.set_next_l2_block_parameters(l2_block_param);
+    }
+
+    #[tracing::instrument(
+        skip_all,
+        fields(
+            l1_batch = %updates_manager.l1_batch.number,
+            l2_block = %updates_manager.l2_block.number,
+        )
+    )]
     async fn start_next_l2_block(
-        params: L2BlockParams,
         updates_manager: &mut UpdatesManager,
         batch_executor: &mut dyn BatchExecutor<OwnedStorage>,
     ) -> anyhow::Result<()> {
-        updates_manager.push_l2_block(params);
+        updates_manager.push_l2_block();
         let block_env = updates_manager.l2_block.get_env();
         batch_executor
             .start_next_l2_block(block_env)
@@ -475,15 +481,14 @@ impl ZkSyncStateKeeper {
         for (index, l2_block) in l2_blocks_to_reexecute.into_iter().enumerate() {
             // Push any non-first L2 block to updates manager. The first one was pushed when `updates_manager` was initialized.
             if index > 0 {
-                Self::start_next_l2_block(
+                Self::set_l2_block_params(
+                    updates_manager,
                     L2BlockParams {
                         timestamp: l2_block.timestamp,
                         virtual_blocks: l2_block.virtual_blocks,
                     },
-                    updates_manager,
-                    batch_executor,
-                )
-                .await?;
+                );
+                Self::start_next_l2_block(updates_manager, batch_executor).await?;
             }
 
             let l2_block_number = l2_block.number;
@@ -550,9 +555,11 @@ impl ZkSyncStateKeeper {
 
         // We've processed all the L2 blocks, and right now we're preparing the next *actual* L2 block.
         // The `wait_for_new_l2_block_params` call is used to initialize the StateKeeperIO with a correct new l2 block params
-        self.wait_for_new_l2_block_params(updates_manager, stop_receiver)
+        let new_l2_block_params = self
+            .wait_for_new_l2_block_params(updates_manager, stop_receiver)
             .await
             .map_err(|e| e.context("wait_for_new_l2_block_params"))?;
+        Self::set_l2_block_params(updates_manager, new_l2_block_params);
         Ok(true)
     }
 
@@ -569,10 +576,6 @@ impl ZkSyncStateKeeper {
         stop_receiver: &watch::Receiver<bool>,
     ) -> Result<(), Error> {
         let mut is_last_block_sealed = state_restored;
-        let mut next_l2_block_params = L2BlockParams {
-            timestamp: updates_manager.l2_block.timestamp,
-            virtual_blocks: updates_manager.l2_block.virtual_blocks,
-        };
 
         if let Some(protocol_upgrade_tx) = protocol_upgrade_tx {
             self.process_upgrade_tx(batch_executor, updates_manager, protocol_upgrade_tx)
@@ -593,19 +596,15 @@ impl ZkSyncStateKeeper {
 
                 // Push the current block if it has not been done yet
                 if is_last_block_sealed {
-                    next_l2_block_params = self.io.get_updated_l2_block_params();
+                    self.io
+                        .update_next_l2_block_timestamp(updates_manager.next_l2_block_timestamp());
                     tracing::debug!(
                         "Initialized new L2 block #{} (L1 batch #{}) with timestamp {}",
                         updates_manager.l2_block.number + 1,
                         updates_manager.l1_batch.number,
-                        display_timestamp(next_l2_block_params.timestamp)
+                        display_timestamp(updates_manager.next_l2_block_param.timestamp)
                     );
-                    Self::start_next_l2_block(
-                        next_l2_block_params,
-                        updates_manager,
-                        batch_executor,
-                    )
-                    .await?;
+                    Self::start_next_l2_block(updates_manager, batch_executor).await?;
                 }
                 return Ok(());
             }
@@ -620,20 +619,25 @@ impl ZkSyncStateKeeper {
                 is_last_block_sealed = true;
 
                 // Get a tentative new l2 block parameters
-                next_l2_block_params = self
+                let next_l2_block_params = self
                     .wait_for_new_l2_block_params(updates_manager, stop_receiver)
                     .await
                     .map_err(|e| e.context("wait_for_new_l2_block_params"))?;
+                Self::set_l2_block_params(updates_manager, next_l2_block_params);
             }
             let waiting_latency = KEEPER_METRICS.waiting_for_tx.start();
 
             if is_last_block_sealed {
                 // The next block has not started yet, we keep updating the next l2 block parameters with correct timestamp
-                next_l2_block_params = self.io.get_updated_l2_block_params();
+                self.io
+                    .update_next_l2_block_timestamp(updates_manager.next_l2_block_timestamp());
             }
             let Some(tx) = self
                 .io
-                .wait_for_next_tx(POLL_WAIT_DURATION, next_l2_block_params.timestamp)
+                .wait_for_next_tx(
+                    POLL_WAIT_DURATION,
+                    updates_manager.next_l2_block_param.timestamp,
+                )
                 .instrument(info_span!("wait_for_next_tx"))
                 .await
                 .context("error waiting for next transaction")?
@@ -652,10 +656,9 @@ impl ZkSyncStateKeeper {
                     "Initialized new L2 block #{} (L1 batch #{}) with timestamp {}",
                     updates_manager.l2_block.number + 1,
                     updates_manager.l1_batch.number,
-                    display_timestamp(next_l2_block_params.timestamp)
+                    display_timestamp(updates_manager.next_l2_block_param.timestamp)
                 );
-                Self::start_next_l2_block(next_l2_block_params, updates_manager, batch_executor)
-                    .await?;
+                Self::start_next_l2_block(updates_manager, batch_executor).await?;
                 is_last_block_sealed = false;
             }
 

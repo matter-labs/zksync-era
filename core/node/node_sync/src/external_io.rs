@@ -40,7 +40,6 @@ pub struct ExternalIO {
     actions: ActionQueue,
     main_node_client: Box<dyn MainNodeClient>,
     chain_id: L2ChainId,
-    pub next_l2_block_param: L2BlockParams,
 }
 
 impl ExternalIO {
@@ -57,7 +56,6 @@ impl ExternalIO {
             actions,
             main_node_client,
             chain_id,
-            next_l2_block_param: L2BlockParams::default(),
         })
     }
 
@@ -350,7 +348,6 @@ impl StateKeeperIO for ExternalIO {
                     "L2 block number mismatch: expected {}, got {number}",
                     cursor.next_l2_block
                 );
-                self.next_l2_block_param = params;
                 return Ok(Some(params));
             }
             other => {
@@ -361,9 +358,7 @@ impl StateKeeperIO for ExternalIO {
         }
     }
 
-    fn get_updated_l2_block_params(&mut self) -> L2BlockParams {
-        self.next_l2_block_param
-    }
+    fn update_next_l2_block_timestamp(&mut self, _block_timestamp: &mut u64) {}
 
     async fn wait_for_next_tx(
         &mut self,
