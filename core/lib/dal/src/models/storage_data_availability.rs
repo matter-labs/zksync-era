@@ -1,6 +1,7 @@
 use chrono::{DateTime, NaiveDateTime, Utc};
-use zksync_types::l2_to_l1_log::L2ToL1Log;
-use zksync_types::{pubdata_da::DataAvailabilityBlob, Address, L1BatchNumber, H256};
+use zksync_types::{
+    l2_to_l1_log::L2ToL1Log, pubdata_da::DataAvailabilityBlob, Address, L1BatchNumber, H256,
+};
 
 /// Represents a blob in the data availability layer.
 #[derive(Debug, Clone)]

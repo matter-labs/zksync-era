@@ -1,14 +1,16 @@
-use crate::{
-    models::storage_data_availability::{L1BatchDA, StorageDABlob},
-    Core,
-};
 use zksync_db_connection::{
     connection::Connection,
     error::DalResult,
     instrument::{InstrumentExt, Instrumented},
 };
-use zksync_types::l2_to_l1_log::L2ToL1Log;
-use zksync_types::{pubdata_da::DataAvailabilityBlob, Address, L1BatchNumber};
+use zksync_types::{
+    l2_to_l1_log::L2ToL1Log, pubdata_da::DataAvailabilityBlob, Address, L1BatchNumber,
+};
+
+use crate::{
+    models::storage_data_availability::{L1BatchDA, StorageDABlob},
+    Core,
+};
 
 #[derive(Debug)]
 pub struct DataAvailabilityDal<'a, 'c> {
@@ -29,7 +31,14 @@ impl DataAvailabilityDal<'_, '_> {
         let update_result = sqlx::query!(
             r#"
             INSERT INTO
-            data_availability (l1_batch_number, blob_id, l2_da_validator_address, sent_at, created_at, updated_at)
+            data_availability (
+                l1_batch_number,
+                blob_id,
+                l2_da_validator_address,
+                sent_at,
+                created_at,
+                updated_at
+            )
             VALUES
             ($1, $2, $3, $4, NOW(), NOW())
             ON CONFLICT DO NOTHING

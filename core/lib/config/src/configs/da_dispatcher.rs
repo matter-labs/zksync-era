@@ -37,7 +37,9 @@ impl DADispatcherConfig {
             max_rows_to_dispatch: Some(DEFAULT_MAX_ROWS_TO_DISPATCH),
             max_retries: Some(DEFAULT_MAX_RETRIES),
             use_dummy_inclusion_data: Some(DEFAULT_USE_DUMMY_INCLUSION_DATA),
-            inclusion_verification_transition_enabled: Some(DEFAULT_INCLUSION_VERIFICATION_TRANSITION_ENABLED),
+            inclusion_verification_transition_enabled: Some(
+                DEFAULT_INCLUSION_VERIFICATION_TRANSITION_ENABLED,
+            ),
         }
     }
 
