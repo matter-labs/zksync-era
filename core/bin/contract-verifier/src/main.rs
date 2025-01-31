@@ -6,7 +6,7 @@ use tokio::sync::watch;
 use zksync_config::configs::PrometheusConfig;
 use zksync_contract_verifier_lib::ContractVerifier;
 use zksync_core_leftovers::temp_config_store::{load_database_secrets, load_general_config};
-use zksync_dal::{ConnectionPool, Core};
+use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_utils::wait_for_tasks::ManagedTasks;
 use zksync_vlog::prometheus::PrometheusExporterConfig;
@@ -23,6 +23,32 @@ struct Opt {
     /// Path to the secrets file.
     #[arg(long)]
     secrets_path: Option<PathBuf>,
+}
+
+async fn perform_storage_migration(pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
+    const BATCH_SIZE: usize = 1000;
+
+    // Make it possible to override just in case.
+    let batch_size = std::env::var("CONTRACT_VERIFIER_MIGRATION_BATCH_SIZE")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(BATCH_SIZE);
+
+    let mut storage = pool.connection().await?;
+    let migration_performed = storage
+        .contract_verification_dal()
+        .is_verification_info_migration_performed()
+        .await?;
+    if !migration_performed {
+        tracing::info!(batch_size = %batch_size, "Running the storage migration for the contract verifier table");
+        storage
+            .contract_verification_dal()
+            .perform_verification_info_migration(batch_size)
+            .await?;
+    } else {
+        tracing::info!("Storage migration is not needed");
+    }
+    Ok(())
 }
 
 #[tokio::main]
@@ -50,6 +76,8 @@ async fn main() -> anyhow::Result<()> {
     )
     .build()
     .await?;
+
+    perform_storage_migration(&pool).await?;
 
     let (stop_sender, stop_receiver) = watch::channel(false);
     let contract_verifier = ContractVerifier::new(verifier_config.compilation_timeout(), pool)

@@ -3,7 +3,7 @@ use std::{collections::HashMap, mem, path::PathBuf, process::Stdio};
 use anyhow::Context;
 use tokio::io::AsyncWriteExt;
 use zksync_queued_job_processor::async_trait;
-use zksync_types::contract_verification_api::{
+use zksync_types::contract_verification::api::{
     CompilationArtifacts, SourceCodeData, VerificationIncomingRequest,
 };
 

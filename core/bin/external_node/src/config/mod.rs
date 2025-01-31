@@ -760,7 +760,7 @@ impl OptionalENConfig {
     }
 
     const fn default_req_entities_limit() -> usize {
-        1_024
+        10_000
     }
 
     const fn default_max_tx_size_bytes() -> usize {
