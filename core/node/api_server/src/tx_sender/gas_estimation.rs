@@ -477,7 +477,7 @@ impl<'a> GasEstimator<'a> {
                 self.state_override.clone(),
             )
             .await?;
-        Ok((execution_output.vm, execution_output.metrics))
+        Ok((execution_output.result, execution_output.metrics))
     }
 
     async fn finalize(

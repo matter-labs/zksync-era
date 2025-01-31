@@ -202,7 +202,7 @@ async fn sending_transfer() {
 
     let transfer = alice.create_transfer(1_000_000_000.into());
     let vm_result = tx_sender.submit_tx(transfer, block_args).await.unwrap();
-    assert!(!vm_result.is_failed(), "{vm_result:?}");
+    assert!(!vm_result.result.is_failed(), "{vm_result:?}");
 }
 
 #[tokio::test]
@@ -261,7 +261,7 @@ async fn sending_load_test_transaction(tx_params: LoadnextContractExecutionParam
 
     let tx = alice.create_load_test_tx(tx_params);
     let vm_result = tx_sender.submit_tx(tx, block_args).await.unwrap();
-    assert!(!vm_result.is_failed(), "{vm_result:?}");
+    assert!(!vm_result.result.is_failed(), "{vm_result:?}");
 }
 
 #[tokio::test]
@@ -282,7 +282,7 @@ async fn sending_reverting_transaction() {
     let tx = alice.create_counter_tx(1.into(), true);
     let vm_result = tx_sender.submit_tx(tx, block_args).await.unwrap();
     assert_matches!(
-        vm_result,
+        vm_result.result,
         ExecutionResult::Revert { output } if output.to_string().contains("This method always reverts")
     );
 }
@@ -304,7 +304,7 @@ async fn sending_transaction_out_of_gas() {
 
     let tx = alice.create_infinite_loop_tx();
     let vm_result = tx_sender.submit_tx(tx, block_args).await.unwrap();
-    assert_matches!(vm_result, ExecutionResult::Revert { .. });
+    assert_matches!(vm_result.result, ExecutionResult::Revert { .. });
 }
 
 async fn submit_tx_with_validation_traces(actual_range: Range<u64>, expected_range: Range<i64>) {

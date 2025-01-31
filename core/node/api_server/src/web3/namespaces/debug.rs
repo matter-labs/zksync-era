@@ -323,7 +323,7 @@ impl DebugNamespace {
             )
             .await?;
 
-        let (output, revert_reason) = match result.vm {
+        let (output, revert_reason) = match result.result {
             ExecutionResult::Success { output, .. } => (output, None),
             ExecutionResult::Revert { output } => (vec![], Some(output.to_string())),
             ExecutionResult::Halt { reason } => {
