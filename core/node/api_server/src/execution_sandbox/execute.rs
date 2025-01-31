@@ -1,6 +1,10 @@
 //! Implementation of "executing" methods, e.g. `eth_call`.
 
-use std::time::{Duration, Instant};
+use std::{
+    fmt,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
@@ -8,10 +12,10 @@ use tokio::runtime::Handle;
 use zksync_dal::{Connection, Core};
 use zksync_multivm::interface::{
     executor::{OneshotExecutor, TransactionValidator},
-    storage::{ReadStorage, StorageWithOverrides},
-    tracer::{TimestampAsserterParams, ValidationError, ValidationParams, ValidationTraces},
-    Call, OneshotEnv, OneshotTracingParams, OneshotTransactionExecutionResult,
-    TransactionExecutionMetrics, TxExecutionArgs, VmExecutionResultAndLogs,
+    storage::StorageWithOverrides,
+    tracer::TimestampAsserterParams,
+    Call, ExecutionResult, OneshotEnv, OneshotTracingParams, TransactionExecutionMetrics,
+    TxExecutionArgs, VmExecutionResultAndLogs,
 };
 use zksync_state::{PostgresStorage, PostgresStorageCaches};
 use zksync_types::{
@@ -46,15 +50,6 @@ pub(crate) enum SandboxAction {
 }
 
 impl SandboxAction {
-    fn factory_deps_count(&self) -> usize {
-        match self {
-            Self::Execution { tx, .. } | Self::Call { call: tx, .. } => {
-                tx.execute.factory_deps.len()
-            }
-            Self::GasEstimation { tx, .. } => tx.execute.factory_deps.len(),
-        }
-    }
-
     fn into_parts(self) -> (TxExecutionArgs, OneshotTracingParams) {
         match self {
             Self::Execution { tx, .. } => (
@@ -76,9 +71,9 @@ impl SandboxAction {
 
 /// Output of [`SandboxExecutor::execute_in_sandbox()`].
 #[derive(Debug, Clone)]
-pub(crate) struct SandboxExecutionOutput {
+pub(crate) struct SandboxExecutionOutput<R = ExecutionResult> {
     /// Output of the VM.
-    pub vm: VmExecutionResultAndLogs,
+    pub vm: R,
     /// Traced calls if requested.
     pub call_traces: Vec<Call>,
     /// Execution metrics.
@@ -87,16 +82,83 @@ pub(crate) struct SandboxExecutionOutput {
     pub are_published_bytecodes_ok: bool,
 }
 
-#[derive(Debug)]
-enum SandboxExecutorEngine {
-    Real(MainOneshotExecutor),
-    Mock(MockOneshotExecutor),
+type SandboxStorage = StorageWithOverrides<PostgresStorage<'static>>;
+
+/// Higher-level wrapper around a oneshot VM executor used in the API server.
+#[async_trait]
+pub(crate) trait SandboxExecutorEngine<R>:
+    Send + Sync + fmt::Debug + TransactionValidator<SandboxStorage>
+{
+    async fn execute_in_sandbox(
+        &self,
+        storage: SandboxStorage,
+        env: OneshotEnv,
+        args: TxExecutionArgs,
+        tracing_params: OneshotTracingParams,
+    ) -> anyhow::Result<SandboxExecutionOutput<R>>;
+}
+
+#[async_trait]
+impl<T, R> SandboxExecutorEngine<R> for T
+where
+    T: OneshotExecutor<SandboxStorage>
+        + TransactionValidator<SandboxStorage>
+        + Send
+        + Sync
+        + fmt::Debug,
+    R: From<VmExecutionResultAndLogs>,
+{
+    async fn execute_in_sandbox(
+        &self,
+        storage: SandboxStorage,
+        env: OneshotEnv,
+        args: TxExecutionArgs,
+        tracing_params: OneshotTracingParams,
+    ) -> anyhow::Result<SandboxExecutionOutput<R>> {
+        let total_factory_deps = args.transaction.execute.factory_deps.len() as u16;
+        let result = self
+            .inspect_transaction_with_bytecode_compression(storage, env, args, tracing_params)
+            .await?;
+        let metrics =
+            vm_metrics::collect_tx_execution_metrics(total_factory_deps, &result.tx_result);
+
+        Ok(SandboxExecutionOutput {
+            vm: R::from(*result.tx_result),
+            call_traces: result.call_traces,
+            metrics,
+            are_published_bytecodes_ok: result.compression_result.is_ok(),
+        })
+    }
+}
+
+pub(crate) trait SandboxVmResult {
+    fn engine(executor: &SandboxExecutor) -> Option<&dyn SandboxExecutorEngine<Self>>;
+
+    fn is_supported(executor: &SandboxExecutor) -> bool {
+        Self::engine(executor).is_some()
+    }
+}
+
+impl SandboxVmResult for ExecutionResult {
+    fn engine(executor: &SandboxExecutor) -> Option<&dyn SandboxExecutorEngine<Self>> {
+        Some(executor.engine.as_ref())
+    }
+}
+
+impl SandboxVmResult for VmExecutionResultAndLogs {
+    fn engine(executor: &SandboxExecutor) -> Option<&dyn SandboxExecutorEngine<Self>> {
+        executor.debug_engine.as_deref()
+    }
 }
 
 /// Executor of transactions / calls used in the API server.
 #[derive(Debug)]
 pub(crate) struct SandboxExecutor {
-    engine: SandboxExecutorEngine,
+    // VM execution engine. All RPC methods other than `zks_sendRawTransactionWithDetailedOutput` currently
+    // do not use anything logs etc.
+    pub(super) engine: Arc<dyn SandboxExecutorEngine<ExecutionResult>>,
+    debug_engine: Option<Arc<dyn SandboxExecutorEngine<VmExecutionResultAndLogs>>>,
+
     pub(super) options: SandboxExecutorOptions,
     storage_caches: Option<PostgresStorageCaches>,
     pub(super) timestamp_asserter_params: Option<TimestampAsserterParams>,
@@ -115,8 +177,11 @@ impl SandboxExecutor {
         executor.panic_on_divergence();
         executor
             .set_execution_latency_histogram(&SANDBOX_METRICS.sandbox[&SandboxStage::Execution]);
+
+        let engine = Arc::new(executor);
         Self {
-            engine: SandboxExecutorEngine::Real(executor),
+            engine: engine.clone(),
+            debug_engine: Some(engine),
             options,
             storage_caches: Some(caches),
             timestamp_asserter_params,
@@ -131,8 +196,10 @@ impl SandboxExecutor {
         executor: MockOneshotExecutor,
         options: SandboxExecutorOptions,
     ) -> Self {
+        let engine = Arc::new(executor);
         Self {
-            engine: SandboxExecutorEngine::Mock(executor),
+            engine: engine.clone(),
+            debug_engine: Some(engine),
             options,
             storage_caches: None,
             timestamp_asserter_params: None,
@@ -141,8 +208,6 @@ impl SandboxExecutor {
 
     /// This method assumes that (block with number `resolved_block_number` is present in DB)
     /// or (`block_id` is `pending` and block with number `resolved_block_number - 1` is present in DB)
-    #[allow(clippy::too_many_arguments)]
-    #[tracing::instrument(level = "debug", skip_all)]
     pub async fn execute_in_sandbox(
         &self,
         vm_permit: VmPermit,
@@ -151,7 +216,20 @@ impl SandboxExecutor {
         block_args: &BlockArgs,
         state_override: Option<StateOverride>,
     ) -> anyhow::Result<SandboxExecutionOutput> {
-        let total_factory_deps = action.factory_deps_count() as u16;
+        self.execute_with_custom_result(vm_permit, connection, action, block_args, state_override)
+            .await
+    }
+
+    #[tracing::instrument(level = "debug", name = "execute", skip_all)]
+    pub async fn execute_with_custom_result<R: SandboxVmResult>(
+        &self,
+        _vm_permit: VmPermit,
+        connection: Connection<'static, Core>,
+        action: SandboxAction,
+        block_args: &BlockArgs,
+        state_override: Option<StateOverride>,
+    ) -> anyhow::Result<SandboxExecutionOutput<R>> {
+        let engine = R::engine(self).context("not supported")?;
         let (env, storage) = self
             .prepare_env_and_storage(connection, block_args, &action)
             .await?;
@@ -159,24 +237,9 @@ impl SandboxExecutor {
         let state_override = state_override.unwrap_or_default();
         let storage = apply_state_override(storage, &state_override);
         let (execution_args, tracing_params) = action.into_parts();
-        let result = self
-            .inspect_transaction_with_bytecode_compression(
-                storage,
-                env,
-                execution_args,
-                tracing_params,
-            )
-            .await?;
-        drop(vm_permit);
-
-        let metrics =
-            vm_metrics::collect_tx_execution_metrics(total_factory_deps, &result.tx_result);
-        Ok(SandboxExecutionOutput {
-            vm: *result.tx_result,
-            call_traces: result.call_traces,
-            metrics,
-            are_published_bytecodes_ok: result.compression_result.is_ok(),
-        })
+        engine
+            .execute_in_sandbox(storage, env, execution_args, tracing_params)
+            .await
     }
 
     pub(super) async fn prepare_env_and_storage(
@@ -248,69 +311,5 @@ impl SandboxExecutor {
         }
         initialization_stage.observe();
         Ok((env, storage))
-    }
-}
-
-#[async_trait]
-impl<S> OneshotExecutor<StorageWithOverrides<S>> for SandboxExecutor
-where
-    S: ReadStorage + Send + 'static,
-{
-    async fn inspect_transaction_with_bytecode_compression(
-        &self,
-        storage: StorageWithOverrides<S>,
-        env: OneshotEnv,
-        args: TxExecutionArgs,
-        tracing_params: OneshotTracingParams,
-    ) -> anyhow::Result<OneshotTransactionExecutionResult> {
-        match &self.engine {
-            SandboxExecutorEngine::Real(executor) => {
-                executor
-                    .inspect_transaction_with_bytecode_compression(
-                        storage,
-                        env,
-                        args,
-                        tracing_params,
-                    )
-                    .await
-            }
-            SandboxExecutorEngine::Mock(executor) => {
-                executor
-                    .inspect_transaction_with_bytecode_compression(
-                        storage,
-                        env,
-                        args,
-                        tracing_params,
-                    )
-                    .await
-            }
-        }
-    }
-}
-
-#[async_trait]
-impl<S> TransactionValidator<StorageWithOverrides<S>> for SandboxExecutor
-where
-    S: ReadStorage + Send + 'static,
-{
-    async fn validate_transaction(
-        &self,
-        storage: StorageWithOverrides<S>,
-        env: OneshotEnv,
-        tx: L2Tx,
-        validation_params: ValidationParams,
-    ) -> anyhow::Result<Result<ValidationTraces, ValidationError>> {
-        match &self.engine {
-            SandboxExecutorEngine::Real(executor) => {
-                executor
-                    .validate_transaction(storage, env, tx, validation_params)
-                    .await
-            }
-            SandboxExecutorEngine::Mock(executor) => {
-                executor
-                    .validate_transaction(storage, env, tx, validation_params)
-                    .await
-            }
-        }
     }
 }

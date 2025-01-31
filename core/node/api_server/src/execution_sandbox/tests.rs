@@ -248,7 +248,7 @@ async fn test_instantiating_vm(connection: Connection<'static, Core>, block_args
 
     assert!(output.are_published_bytecodes_ok);
     let tx_result = output.vm;
-    assert!(!tx_result.result.is_failed(), "{tx_result:#?}");
+    assert!(!tx_result.is_failed(), "{tx_result:#?}");
 }
 
 #[test_casing(2, [false, true])]
@@ -305,7 +305,7 @@ async fn validating_transaction(set_balance: bool) {
         .await
         .unwrap();
 
-    let result = result.vm.result;
+    let result = result.vm;
     if set_balance {
         assert_matches!(result, ExecutionResult::Success { .. });
     } else {

@@ -695,8 +695,12 @@ impl ZksNamespace {
             .parse_transaction_bytes(&tx_bytes.0, &block_args)?;
         tx.set_input(tx_bytes.0, hash);
 
-        let submit_result = self.state.tx_sender.submit_tx(tx, block_args).await;
-        submit_result.map(|result| (hash, result.1)).map_err(|err| {
+        let submit_result = self
+            .state
+            .tx_sender
+            .submit_tx_with_custom_result(tx, block_args)
+            .await;
+        submit_result.map(|result| (hash, result)).map_err(|err| {
             tracing::debug!("Send raw transaction error: {err}");
             API_METRICS.submit_tx_error[&err.prom_error_code()].inc();
             err.into()

@@ -157,6 +157,12 @@ impl ExecutionResult {
     }
 }
 
+impl From<VmExecutionResultAndLogs> for ExecutionResult {
+    fn from(full_result: VmExecutionResultAndLogs) -> Self {
+        full_result.result
+    }
+}
+
 impl VmExecutionResultAndLogs {
     /// Creates a mock full result based on the provided base result.
     pub fn mock(result: ExecutionResult) -> Self {

@@ -3,7 +3,7 @@ use std::{ops, time::Instant};
 use anyhow::Context;
 use zksync_dal::CoreDal;
 use zksync_multivm::{
-    interface::{TransactionExecutionMetrics, VmExecutionResultAndLogs},
+    interface::{ExecutionResult, TransactionExecutionMetrics},
     utils::{
         adjust_pubdata_price_for_tx, derive_base_fee_and_gas_per_pubdata, derive_overhead,
         get_max_batch_gas_limit,
@@ -214,10 +214,10 @@ impl TxSender {
         lower_bound: &mut u64,
         upper_bound: &mut u64,
         pivot: u64,
-        result: &VmExecutionResultAndLogs,
+        result: &ExecutionResult,
     ) {
         // For now, we don't discern between "out of gas" and other failure reasons since it's difficult in the general case.
-        if result.result.is_failed() {
+        if result.is_failed() {
             *lower_bound = pivot + 1;
         } else {
             *upper_bound = pivot;
@@ -391,19 +391,20 @@ impl<'a> GasEstimator<'a> {
             // For L2 transactions, we estimate the amount of gas needed to cover for the pubdata by creating a transaction with infinite gas limit,
             // and getting how much pubdata it used.
 
-            let (result, _) = self.unadjusted_step(self.max_gas_limit).await?;
+            let (result, metrics) = self.unadjusted_step(self.max_gas_limit).await?;
             // If the transaction has failed with such a large gas limit, we return an API error here right away,
             // since the inferred gas bounds would be unreliable in this case.
             result.check_api_call_result()?;
 
             // It is assumed that there is no overflow here
             let gas_charged_for_pubdata =
-                u64::from(result.statistics.pubdata_published) * self.gas_per_pubdata_byte;
+                u64::from(metrics.pubdata_published) * self.gas_per_pubdata_byte;
 
-            let total_gas_charged = self.max_gas_limit.checked_sub(result.refunds.gas_refunded);
+            let gas_refunded = 0; // FIXME: result.refunds.gas_refunded
+            let total_gas_charged = self.max_gas_limit.checked_sub(gas_refunded);
             Ok(InitialGasEstimate {
                 total_gas_charged,
-                computational_gas_used: Some(result.statistics.computational_gas_used.into()),
+                computational_gas_used: Some(metrics.computational_gas_used.into()),
                 operator_overhead,
                 gas_charged_for_pubdata,
             })
@@ -425,7 +426,7 @@ impl<'a> GasEstimator<'a> {
     async fn step(
         &self,
         tx_gas_limit: u64,
-    ) -> Result<(VmExecutionResultAndLogs, TransactionExecutionMetrics), SubmitTxError> {
+    ) -> Result<(ExecutionResult, TransactionExecutionMetrics), SubmitTxError> {
         let gas_limit_with_overhead = tx_gas_limit + self.tx_overhead(tx_gas_limit);
         // We need to ensure that we never use a gas limit that is higher than the maximum allowed
         let forced_gas_limit =
@@ -436,7 +437,7 @@ impl<'a> GasEstimator<'a> {
     pub(super) async fn unadjusted_step(
         &self,
         forced_gas_limit: u64,
-    ) -> Result<(VmExecutionResultAndLogs, TransactionExecutionMetrics), SubmitTxError> {
+    ) -> Result<(ExecutionResult, TransactionExecutionMetrics), SubmitTxError> {
         let mut tx = self.transaction.clone();
         match &mut tx.common_data {
             ExecuteTransactionCommon::L1(l1_common_data) => {

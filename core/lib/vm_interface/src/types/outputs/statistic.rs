@@ -173,13 +173,13 @@ pub struct TransactionExecutionMetrics {
     pub repeated_storage_writes: usize,
     pub gas_used: usize,
     pub gas_remaining: u32,
-    pub event_topics: u16,
+    pub event_topics: u16, // FIXME: never read
     pub published_bytecode_bytes: usize,
     pub l2_l1_long_messages: usize,
     pub l2_l1_logs: usize,
     pub user_l2_l1_logs: usize,
     pub contracts_used: usize,
-    pub contracts_deployed: u16,
+    pub contracts_deployed: u16, // FIXME: incorrectly defined?
     pub vm_events: usize,
     pub storage_logs: usize,
     /// Sum of storage logs, vm events, l2->l1 logs, and the number of precompile calls.
