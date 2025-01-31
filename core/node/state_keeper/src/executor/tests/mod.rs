@@ -4,11 +4,12 @@ use test_casing::{test_casing, Product};
 use zksync_contracts::l2_message_root;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_multivm::interface::{
-    BatchTransactionExecutionResult, Call, CallType, ExecutionResult, Halt,
+    BatchTransactionExecutionResult, Call, CallType, ExecutionResult, Halt, VmEvent,
 };
+use zksync_system_constants::{COMPRESSOR_ADDRESS, L1_MESSENGER_ADDRESS};
 use zksync_test_contracts::{Account, TestContract};
 use zksync_types::{
-    get_nonce_key,
+    address_to_h256, get_nonce_key,
     utils::{deployed_address_create, storage_key_for_eth_balance},
     vm::FastVmMode,
     web3, Execute, PriorityOpId, H256, L2_MESSAGE_ROOT_ADDRESS, U256,
@@ -849,9 +850,22 @@ async fn execute_tx_with_large_packable_bytecode(vm_mode: FastVmMode) {
 
     let res = executor.execute_tx(tx).await.unwrap();
     assert_matches!(res.tx_result.result, ExecutionResult::Success { .. });
-    assert_eq!(res.compressed_bytecodes.len(), 1);
-    assert_eq!(res.compressed_bytecodes[0].original, packable_bytecode);
-    assert!(res.compressed_bytecodes[0].compressed.len() < BYTECODE_LEN / 2);
+    res.compression_result.unwrap();
+
+    let events = &res.tx_result.logs.events;
+    // Extract compressed bytecodes from the long L2-to-L1 messages by the compressor contract.
+    let compressed_bytecodes: Vec<_> = events
+        .iter()
+        .filter(|event| {
+            event.address == L1_MESSENGER_ADDRESS
+                && event.indexed_topics[0] == VmEvent::L1_MESSAGE_EVENT_SIGNATURE
+                && event.indexed_topics[1] == address_to_h256(&COMPRESSOR_ADDRESS)
+        })
+        .map(|event| &event.value)
+        .collect();
+
+    assert_eq!(compressed_bytecodes.len(), 1);
+    assert!(compressed_bytecodes[0].len() < BYTECODE_LEN / 2);
 
     executor.finish_batch().await.unwrap();
 }

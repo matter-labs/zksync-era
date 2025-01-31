@@ -13,14 +13,8 @@ use zksync_types::{
 };
 
 use crate::{
-    BytecodeCompressionError, CompressedBytecodeInfo, Halt, VmExecutionMetrics,
-    VmExecutionStatistics, VmRevertReason,
+    BytecodeCompressionError, Halt, VmExecutionMetrics, VmExecutionStatistics, VmRevertReason,
 };
-
-const L1_MESSAGE_EVENT_SIGNATURE: H256 = H256([
-    58, 54, 228, 114, 145, 244, 32, 31, 175, 19, 127, 171, 8, 29, 146, 41, 91, 206, 45, 83, 190,
-    44, 108, 166, 139, 168, 44, 127, 170, 156, 226, 65,
-]);
 
 pub fn bytecode_len_in_bytes(bytecodehash: H256) -> usize {
     usize::from(u16::from_be_bytes([bytecodehash[2], bytecodehash[3]])) * 32
@@ -51,6 +45,11 @@ impl VmEvent {
         201, 71, 34, 255, 19, 234, 207, 83, 84, 124, 71, 65, 218, 181, 34, 131, 83, 160, 89, 56,
         255, 205, 213, 212, 162, 213, 51, 174, 14, 97, 130, 135,
     ]);
+    /// Long signature of the L1 messenger publication event (`L1MessageSent`).
+    pub const L1_MESSAGE_EVENT_SIGNATURE: H256 = H256([
+        58, 54, 228, 114, 145, 244, 32, 31, 175, 19, 127, 171, 8, 29, 146, 41, 91, 206, 45, 83,
+        190, 44, 108, 166, 139, 168, 44, 127, 170, 156, 226, 65,
+    ]);
 
     /// Extracts all the "long" L2->L1 messages that were submitted by the L1Messenger contract.
     pub fn extract_long_l2_to_l1_messages(events: &[Self]) -> Vec<Vec<u8>> {
@@ -60,7 +59,7 @@ impl VmEvent {
                 // Filter events from the l1 messenger contract that match the expected signature.
                 event.address == L1_MESSENGER_ADDRESS
                     && event.indexed_topics.len() == 3
-                    && event.indexed_topics[0] == L1_MESSAGE_EVENT_SIGNATURE
+                    && event.indexed_topics[0] == Self::L1_MESSAGE_EVENT_SIGNATURE
             })
             .map(|event| {
                 let decoded_tokens = ethabi::decode(&[ethabi::ParamType::Bytes], &event.value)
@@ -342,32 +341,24 @@ impl Call {
 }
 
 /// Mid-level transaction execution output returned by a [batch executor](crate::executor::BatchExecutor).
-#[derive(Debug, Clone)]
-pub struct BatchTransactionExecutionResult<C = Vec<CompressedBytecodeInfo>> {
+#[derive(Debug)]
+pub struct BatchTransactionExecutionResult {
     /// VM result.
     pub tx_result: Box<VmExecutionResultAndLogs>,
     /// Compressed bytecodes used by the transaction.
-    pub compressed_bytecodes: C,
+    pub compression_result: Result<(), BytecodeCompressionError>,
     /// Call traces (if requested; otherwise, empty).
     pub call_traces: Vec<Call>,
 }
 
-impl<C> BatchTransactionExecutionResult<C> {
+impl BatchTransactionExecutionResult {
     pub fn was_halted(&self) -> bool {
         matches!(self.tx_result.result, ExecutionResult::Halt { .. })
     }
 }
 
 /// Mid-level transaction execution output returned by a [oneshot executor](crate::executor::OneshotExecutor).
-#[derive(Debug)]
-pub struct OneshotTransactionExecutionResult {
-    /// VM result.
-    pub tx_result: Box<VmExecutionResultAndLogs>,
-    /// Result of compressing bytecodes used by the transaction.
-    pub compression_result: Result<(), BytecodeCompressionError>,
-    /// Call traces (if requested; otherwise, empty).
-    pub call_traces: Vec<Call>,
-}
+pub type OneshotTransactionExecutionResult = BatchTransactionExecutionResult;
 
 /// High-level transaction execution result used by the state keeper etc.
 #[derive(Debug, Clone, PartialEq)]
@@ -440,7 +431,7 @@ mod tests {
                 ethabi::ParamType::Bytes,
             ],
         );
-        assert_eq!(L1_MESSAGE_EVENT_SIGNATURE, expected_signature);
+        assert_eq!(VmEvent::L1_MESSAGE_EVENT_SIGNATURE, expected_signature);
     }
 
     #[test]
