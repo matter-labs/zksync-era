@@ -1,26 +1,27 @@
-// #![deny(unreachable_pub)]
 #![deny(unused_crate_dependencies)]
 #![warn(unused_extern_crates)]
 #![warn(unused_imports)]
 
-pub use zk_evm_1_3_1;
-pub use zk_evm_1_3_3;
-pub use zk_evm_1_4_0;
-pub use zksync_types::vm_version::VmVersion;
+pub use circuit_sequencer_api as circuit_sequencer_api_latest;
+pub use zk_evm_1_5_0 as zk_evm_latest;
+pub use zksync_types::vm::VmVersion;
+pub use zksync_vm_interface as interface;
 
-pub use self::versions::{
-    vm_1_3_2, vm_latest, vm_m5, vm_m6, vm_refunds_enhancement, vm_virtual_blocks,
-};
 pub use crate::{
     glue::{
         history_mode::HistoryMode,
-        tracers::{MultiVMTracer, MultiVmTracerPointer},
+        tracers::{MultiVmTracer, MultiVmTracerPointer},
     },
-    vm_instance::VmInstance,
+    versions::{
+        vm_1_3_2, vm_1_4_1, vm_1_4_2, vm_boojum_integration, vm_fast, vm_latest, vm_m5, vm_m6,
+        vm_refunds_enhancement, vm_virtual_blocks,
+    },
+    vm_instance::{is_supported_by_fast_vm, FastVmInstance, LegacyVmInstance},
 };
 
 mod glue;
-pub mod interface;
+pub mod pubdata_builders;
 pub mod tracers;
-pub mod versions;
+pub mod utils;
+mod versions;
 mod vm_instance;

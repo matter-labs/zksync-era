@@ -1,8 +1,10 @@
-use zksync_types::tx::tx_execution_info::TxExecutionStatus;
+use std::collections::HashMap;
 
 use crate::{
     glue::{GlueFrom, GlueInto},
-    interface::{ExecutionResult, Refunds, TxRevertReason, VmExecutionResultAndLogs},
+    interface::{
+        ExecutionResult, Refunds, TxExecutionStatus, TxRevertReason, VmExecutionResultAndLogs,
+    },
 };
 
 impl GlueFrom<crate::vm_m5::vm_instance::VmTxExecutionResult> for VmExecutionResultAndLogs {
@@ -13,8 +15,8 @@ impl GlueFrom<crate::vm_m5::vm_instance::VmTxExecutionResult> for VmExecutionRes
         }
 
         result.refunds = Refunds {
-            gas_refunded: value.gas_refunded,
-            operator_suggested_refund: value.operator_suggested_refund,
+            gas_refunded: value.gas_refunded as u64,
+            operator_suggested_refund: value.operator_suggested_refund as u64,
         };
         result
     }
@@ -28,8 +30,8 @@ impl GlueFrom<crate::vm_m6::vm_instance::VmTxExecutionResult> for VmExecutionRes
         }
 
         result.refunds = Refunds {
-            gas_refunded: value.gas_refunded,
-            operator_suggested_refund: value.operator_suggested_refund,
+            gas_refunded: value.gas_refunded as u64,
+            operator_suggested_refund: value.operator_suggested_refund as u64,
         };
         result
     }
@@ -43,8 +45,8 @@ impl GlueFrom<crate::vm_1_3_2::vm_instance::VmTxExecutionResult> for VmExecution
         }
 
         result.refunds = Refunds {
-            gas_refunded: value.gas_refunded,
-            operator_suggested_refund: value.operator_suggested_refund,
+            gas_refunded: value.gas_refunded as u64,
+            operator_suggested_refund: value.operator_suggested_refund as u64,
         };
         result
     }
@@ -66,12 +68,14 @@ impl GlueFrom<Result<crate::vm_m6::vm_instance::VmTxExecutionResult, crate::vm_m
                         logs: Default::default(),
                         statistics: Default::default(),
                         refunds: Default::default(),
+                        dynamic_factory_deps: HashMap::new(),
                     },
                     TxRevertReason::Halt(halt) => VmExecutionResultAndLogs {
                         result: ExecutionResult::Halt { reason: halt },
                         logs: Default::default(),
                         statistics: Default::default(),
                         refunds: Default::default(),
+                        dynamic_factory_deps: HashMap::new(),
                     },
                 }
             }
@@ -100,12 +104,14 @@ impl
                         logs: Default::default(),
                         statistics: Default::default(),
                         refunds: Default::default(),
+                        dynamic_factory_deps: HashMap::new(),
                     },
                     TxRevertReason::Halt(halt) => VmExecutionResultAndLogs {
                         result: ExecutionResult::Halt { reason: halt },
                         logs: Default::default(),
                         statistics: Default::default(),
                         refunds: Default::default(),
+                        dynamic_factory_deps: HashMap::new(),
                     },
                 }
             }
@@ -129,6 +135,7 @@ impl GlueFrom<Result<crate::vm_m5::vm_instance::VmTxExecutionResult, crate::vm_m
                         logs: Default::default(),
                         statistics: Default::default(),
                         refunds: Default::default(),
+                        dynamic_factory_deps: HashMap::new(),
                     },
                     _ => {
                         unreachable!("Halt is the only revert reason for VM 5")

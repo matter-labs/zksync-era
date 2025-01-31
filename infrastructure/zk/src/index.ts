@@ -7,9 +7,10 @@ import { command as contractVerifier } from './contract_verifier';
 import { command as up } from './up';
 import { command as down } from './down';
 import { command as contract } from './contract';
-import { initCommand as init, reinitCommand as reinit, lightweightInitCommand as lightweightInit } from './init';
-import { initHyperchainCommand as initHyperchain } from './hyperchain_wizard';
-import { command as run } from './run/run';
+import { initCommand } from './init';
+import { reinitCommand } from './reinit';
+import { initHyperchainCommand } from './hyperchain_wizard';
+import { command as run } from './run';
 import { command as test } from './test/test';
 import { command as docker } from './docker';
 import { command as fmt } from './fmt';
@@ -22,6 +23,7 @@ import { command as db } from './database';
 import { command as verifyUpgrade } from './verify-upgrade';
 import { proverCommand } from './prover_setup';
 import { command as status } from './status';
+import { command as setupEn } from './setup_en';
 import * as env from './env';
 
 const COMMANDS = [
@@ -32,10 +34,9 @@ const COMMANDS = [
     down,
     db,
     contract,
-    init,
-    reinit,
-    lightweightInit,
-    initHyperchain,
+    initCommand,
+    reinitCommand,
+    initHyperchainCommand,
     run,
     test,
     fmt,
@@ -48,6 +49,7 @@ const COMMANDS = [
     proverCommand,
     env.command,
     status,
+    setupEn,
     completion(program as Command)
 ];
 
@@ -56,7 +58,7 @@ async function main() {
     const ZKSYNC_HOME = process.env.ZKSYNC_HOME;
 
     if (!ZKSYNC_HOME) {
-        throw new Error('Please set $ZKSYNC_HOME to the root of zkSync repo!');
+        throw new Error('Please set $ZKSYNC_HOME to the root of ZKsync repo!');
     } else {
         process.chdir(ZKSYNC_HOME);
     }

@@ -2,11 +2,6 @@ use std::time::Instant;
 
 use rand::seq::IteratorRandom;
 use regex::Regex;
-use zksync::{
-    error::{ClientError, RpcError},
-    types::FilterBuilder,
-    EthNamespaceClient,
-};
 use zksync_types::{api, ethabi::Contract, H256, U64};
 
 use super::{Aborted, AccountLifespan};
@@ -16,6 +11,11 @@ use crate::{
     constants::API_REQUEST_TIMEOUT,
     report::{ApiActionType, ReportBuilder, ReportLabel},
     rng::LoadtestRng,
+    sdk::{
+        error::{ClientError, RpcError},
+        types::FilterBuilder,
+        EthNamespaceClient,
+    },
 };
 
 impl AccountLifespan {
@@ -52,8 +52,7 @@ impl AccountLifespan {
                     err => RpcError::Custom(err.to_string()),
                 }),
             ApiRequestType::GetLogs => {
-                let topics =
-                    random_topics(&self.wallet.test_contract.contract, &mut self.wallet.rng);
+                let topics = random_topics(&self.wallet.test_contract.abi, &mut self.wallet.rng);
                 // `run_api_requests_task` checks whether the cell is initialized
                 // at every loop iteration and skips logs action if it's not. Thus,
                 // it's safe to unwrap it.

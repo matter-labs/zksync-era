@@ -1,29 +1,38 @@
 //! Utility functions for vm
-use zksync_system_constants::MAX_GAS_PER_PUBDATA_BYTE;
-use zksync_utils::ceil_div;
+use zksync_types::fee_model::PubdataIndependentBatchFeeModelInput;
 
-use crate::vm_latest::old_vm::utils::eth_price_per_pubdata_byte;
-
-/// Calculates the amount of gas required to publish one byte of pubdata
-pub fn base_fee_to_gas_per_pubdata(l1_gas_price: u64, base_fee: u64) -> u64 {
-    let eth_price_per_pubdata_byte = eth_price_per_pubdata_byte(l1_gas_price);
-
-    ceil_div(eth_price_per_pubdata_byte, base_fee)
-}
+use crate::{interface::L1BatchEnv, vm_latest::constants::MAX_GAS_PER_PUBDATA_BYTE};
 
 /// Calculates the base fee and gas per pubdata for the given L1 gas price.
-pub fn derive_base_fee_and_gas_per_pubdata(l1_gas_price: u64, fair_gas_price: u64) -> (u64, u64) {
-    let eth_price_per_pubdata_byte = eth_price_per_pubdata_byte(l1_gas_price);
+pub(crate) fn derive_base_fee_and_gas_per_pubdata(
+    fee_input: PubdataIndependentBatchFeeModelInput,
+) -> (u64, u64) {
+    let PubdataIndependentBatchFeeModelInput {
+        fair_l2_gas_price,
+        fair_pubdata_price,
+        ..
+    } = fee_input;
 
-    // The baseFee is set in such a way that it is always possible for a transaction to
+    // The `baseFee` is set in such a way that it is always possible for a transaction to
     // publish enough public data while compensating us for it.
     let base_fee = std::cmp::max(
-        fair_gas_price,
-        ceil_div(eth_price_per_pubdata_byte, MAX_GAS_PER_PUBDATA_BYTE),
+        fair_l2_gas_price,
+        fair_pubdata_price.div_ceil(MAX_GAS_PER_PUBDATA_BYTE),
     );
 
-    (
-        base_fee,
-        base_fee_to_gas_per_pubdata(l1_gas_price, base_fee),
-    )
+    let gas_per_pubdata = if fair_pubdata_price == 0 {
+        0
+    } else {
+        fair_pubdata_price.div_ceil(base_fee)
+    };
+    (base_fee, gas_per_pubdata)
+}
+
+pub(crate) fn get_batch_base_fee(l1_batch_env: &L1BatchEnv) -> u64 {
+    if let Some(base_fee) = l1_batch_env.enforced_base_fee {
+        return base_fee;
+    }
+    let (base_fee, _) =
+        derive_base_fee_and_gas_per_pubdata(l1_batch_env.fee_input.into_pubdata_independent());
+    base_fee
 }

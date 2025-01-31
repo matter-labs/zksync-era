@@ -1,10 +1,12 @@
 use std::time::{Duration, Instant};
 
 use futures::{stream, TryStreamExt};
-use zksync::{error::ClientError, types::PubSubFilterBuilder};
 use zksync_web3_decl::{
     jsonrpsee::{
-        core::client::{Subscription, SubscriptionClientT},
+        core::{
+            client::{Subscription, SubscriptionClientT},
+            ClientError as RpcError,
+        },
         rpc_params,
         ws_client::WsClientBuilder,
     },
@@ -17,6 +19,7 @@ use crate::{
     config::RequestLimiters,
     report::{ReportBuilder, ReportLabel},
     rng::WeightedRandom,
+    sdk::{error::ClientError, types::PubSubFilterBuilder},
 };
 
 impl AccountLifespan {
@@ -64,7 +67,7 @@ impl AccountLifespan {
         let params = match subscription_type {
             SubscriptionType::Logs => {
                 let topics = super::api_request_executor::random_topics(
-                    &self.wallet.test_contract.contract,
+                    &self.wallet.test_contract.abi,
                     &mut self.wallet.rng,
                 );
                 let contract_address = self.wallet.deployed_contract_address.get().unwrap();
@@ -86,7 +89,7 @@ impl AccountLifespan {
             {
                 match resp {
                     None => return Err(ClientError::OperationTimeout),
-                    Some(Err(err)) => return Err(err.into()),
+                    Some(Err(err)) => return Err(RpcError::ParseError(err).into()),
                     _ => {}
                 }
             }

@@ -1,40 +1,140 @@
+###################################################################################################
+#
+# see `README.md` in `etc/nix`
+#
+###################################################################################################
 {
-    description = "zkSync development shell";
-    inputs = {
-        stable.url = "github:NixOS/nixpkgs/nixos-22.11";
-    };
-    outputs = {self, stable}: {
-        packages.x86_64-linux.default =
-        with import stable { system = "x86_64-linux"; };
-        pkgs.mkShell {
-            name = "zkSync";
-            src = ./.;
-            buildInputs = [
-                docker-compose
-                nodejs
-                yarn
-                axel
-                libclang
-                openssl
-                pkg-config
-                postgresql
-                python3
-                solc
+  description = "ZKsync-era";
+
+  nixConfig = {
+    extra-substituters = [ "https://attic.teepot.org/tee-pot" ];
+    extra-trusted-public-keys = [ "tee-pot:SS6HcrpG87S1M6HZGPsfo7d1xJccCGev7/tXc5+I4jg=" ];
+  };
+
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
+    teepot-flake.url = "github:matter-labs/teepot";
+    nixsgx-flake.url = "github:matter-labs/nixsgx";
+    flake-utils.url = "github:numtide/flake-utils";
+    rust-overlay.url = "github:oxalica/rust-overlay";
+    crane.url = "github:ipetkov/crane?tag=v0.20.0";
+  };
+
+  outputs = { self, nixpkgs, teepot-flake, nixsgx-flake, flake-utils, rust-overlay, crane } @ inputs:
+    let
+      hardeningEnable = [ "fortify3" "pie" "relro" ];
+
+      out = system:
+        let
+          pkgs = import nixpkgs {
+            inherit system;
+            overlays = [
+              rust-overlay.overlays.default
+              nixsgx-flake.overlays.default
+              teepot-flake.overlays.default
+            ];
+          };
+
+          appliedOverlay = self.overlays.default pkgs pkgs;
+        in
+        {
+          formatter = pkgs.nixpkgs-fmt;
+
+          packages = {
+            # to ease potential cross-compilation, the overlay is used
+            inherit (appliedOverlay.zksync-era) zksync tee_prover zkstack foundry-zksync;
+            default = appliedOverlay.zksync-era.tee_prover;
+          } // (pkgs.lib.optionalAttrs (pkgs.stdenv.hostPlatform.isx86_64 && pkgs.stdenv.hostPlatform.isLinux) {
+            inherit (appliedOverlay.zksync-era) container-tee-prover-azure container-tee-prover-dcap;
+          });
+
+          devShells = {
+            inherit (appliedOverlay.zksync-era) devShell devShellAll;
+            default = appliedOverlay.zksync-era.devShell;
+          };
+        };
+    in
+    flake-utils.lib.eachDefaultSystem out // {
+      overlays.default = final: prev:
+        # to ease potential cross-compilation, the overlay is used
+        let
+          pkgs = final;
+
+          toolchain = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain;
+
+          rustPlatform = pkgs.makeRustPlatform {
+            cargo = toolchain;
+            rustc = toolchain;
+          };
+
+          craneLib = (crane.mkLib pkgs).overrideToolchain toolchain;
+
+          coreCommonArgs = {
+            nativeBuildInputs = with pkgs;[
+              pkg-config
+              rustPlatform.bindgenHook
             ];
 
-            # for RocksDB and other Rust bindgen libraries
-            LIBCLANG_PATH = lib.makeLibraryPath [ libclang.lib ];
-            BINDGEN_EXTRA_CLANG_ARGS = ''-I"${libclang.lib}/lib/clang/${libclang.version}/include"'';
+            buildInputs = with pkgs;[
+              libclang.dev
+              openssl.dev
+              snappy.dev
+              lz4.dev
+              bzip2.dev
+              rocksdb_8_3
+              snappy.dev
+            ];
 
-            shellHook = ''
-                export ZKSYNC_HOME=$PWD
-                export PATH=$ZKSYNC_HOME/bin:$PATH
-            '';
+            src = with pkgs.lib.fileset; let root = ./core/.; in toSource {
+              inherit root;
+              fileset = unions [
+                # Default files from crane (Rust and cargo files)
+                (craneLib.fileset.commonCargoSources root)
+                # proto files and friends
+                (fileFilter (file: file.hasExt "proto" || file.hasExt "js" || file.hasExt "ts" || file.hasExt "map" || file.hasExt "json") root)
+                (maybeMissing ./core/lib/dal/.)
+              ];
+            };
 
-            # hardhat solc requires ld-linux
-            # Nixos has to fake it with nix-ld
-            NIX_LD_LIBRARY_PATH = lib.makeLibraryPath [];
-            NIX_LD = builtins.readFile "${stdenv.cc}/nix-support/dynamic-linker";
+            env = {
+              OPENSSL_NO_VENDOR = "1";
+              ROCKSDB_LIB_DIR = "${pkgs.rocksdb_8_3.out}/lib";
+              ROCKSDB_INCLUDE_DIR = "${pkgs.rocksdb_8_3.out}/include";
+              SNAPPY_LIB_DIR = "${pkgs.snappy.out}/lib";
+              NIX_OUTPATH_USED_AS_RANDOM_SEED = "aaaaaaaaaa";
+            };
+
+            doCheck = false;
+            strictDeps = true;
+            inherit hardeningEnable;
+          };
+
+          zkstackArgs = coreCommonArgs // {
+            src = with pkgs.lib.fileset; let root = ./.; in toSource {
+              inherit root;
+              fileset = unions [
+                # Default files from crane (Rust and cargo files)
+                (craneLib.fileset.commonCargoSources root)
+                # proto files and friends
+                (fileFilter (file: file.hasExt "proto" || file.hasExt "js" || file.hasExt "ts" || file.hasExt "map" || file.hasExt "json") ./.)
+                (maybeMissing ./core/lib/dal/.)
+              ];
+            };
+          };
+        in
+        {
+          zksync-era = pkgs.lib.makeScope pkgs.newScope (
+            self: pkgs.lib.filesystem.packagesFromDirectoryRecursive {
+              callPackage = package: params: self.callPackage package (params // {
+                inherit craneLib;
+                inherit coreCommonArgs;
+                inherit zkstackArgs;
+                inputs = inputs // { src = ./.; };
+              });
+              directory = ./etc/nix;
+            }
+          );
         };
     };
 }
+

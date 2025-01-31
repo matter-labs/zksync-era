@@ -29,7 +29,7 @@ pub trait GlueInto<T>: Sized {
     fn glue_into(self) -> T;
 }
 
-// Blaknet `GlueInto` impl for any type that implements `GlueFrom`.
+// Blanket `GlueInto` impl for any type that implements `GlueFrom`.
 impl<T, U> GlueInto<U> for T
 where
     U: GlueFrom<T>,

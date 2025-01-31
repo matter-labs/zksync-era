@@ -1,26 +1,30 @@
-use jsonrpsee::{core::RpcResult, proc_macros::rpc};
+#[cfg_attr(not(feature = "server"), allow(unused_imports))]
+use jsonrpsee::core::RpcResult;
+use jsonrpsee::proc_macros::rpc;
 use zksync_types::{
-    api::{BlockIdVariant, BlockNumber, Transaction, TransactionVariant},
+    api::{
+        state_override::StateOverride, BlockId, BlockIdVariant, BlockNumber, FeeHistory,
+        Transaction, TransactionVariant,
+    },
     transaction_request::CallRequest,
     Address, H256,
 };
 
-use crate::types::{
-    Block, Bytes, FeeHistory, Filter, FilterChanges, Index, Log, SyncState, TransactionReceipt,
-    U256, U64,
+use crate::{
+    client::{ForWeb3Network, L2},
+    types::{
+        Block, Bytes, Filter, FilterChanges, Index, Log, SyncState, TransactionReceipt, U64Number,
+        U256, U64,
+    },
 };
 
 #[cfg_attr(
-    all(feature = "client", feature = "server"),
-    rpc(server, client, namespace = "eth")
+    feature = "server",
+    rpc(server, client, namespace = "eth", client_bounds(Self: ForWeb3Network<Net = L2>))
 )]
 #[cfg_attr(
-    all(feature = "client", not(feature = "server")),
-    rpc(client, namespace = "eth")
-)]
-#[cfg_attr(
-    all(not(feature = "client"), feature = "server"),
-    rpc(server, namespace = "eth")
+    not(feature = "server"),
+    rpc(client, namespace = "eth", client_bounds(Self: ForWeb3Network<Net = L2>))
 )]
 pub trait EthNamespace {
     #[method(name = "blockNumber")]
@@ -30,10 +34,20 @@ pub trait EthNamespace {
     async fn chain_id(&self) -> RpcResult<U64>;
 
     #[method(name = "call")]
-    async fn call(&self, req: CallRequest, block: Option<BlockIdVariant>) -> RpcResult<Bytes>;
+    async fn call(
+        &self,
+        req: CallRequest,
+        block: Option<BlockIdVariant>,
+        state_override: Option<StateOverride>,
+    ) -> RpcResult<Bytes>;
 
     #[method(name = "estimateGas")]
-    async fn estimate_gas(&self, req: CallRequest, _block: Option<BlockNumber>) -> RpcResult<U256>;
+    async fn estimate_gas(
+        &self,
+        req: CallRequest,
+        _block: Option<BlockNumber>,
+        state_override: Option<StateOverride>,
+    ) -> RpcResult<U256>;
 
     #[method(name = "gasPrice")]
     async fn gas_price(&self) -> RpcResult<U256>;
@@ -82,6 +96,12 @@ pub trait EthNamespace {
         &self,
         block_number: BlockNumber,
     ) -> RpcResult<Option<U256>>;
+
+    #[method(name = "getBlockReceipts")]
+    async fn get_block_receipts(
+        &self,
+        block_id: BlockId,
+    ) -> RpcResult<Option<Vec<TransactionReceipt>>>;
 
     #[method(name = "getBlockTransactionCountByHash")]
     async fn get_block_transaction_count_by_hash(
@@ -161,8 +181,31 @@ pub trait EthNamespace {
     #[method(name = "feeHistory")]
     async fn fee_history(
         &self,
-        block_count: U64,
+        block_count: U64Number,
         newest_block: BlockNumber,
-        reward_percentiles: Vec<f32>,
+        reward_percentiles: Option<Vec<f32>>,
     ) -> RpcResult<FeeHistory>;
+
+    #[method(name = "maxPriorityFeePerGas")]
+    async fn max_priority_fee_per_gas(&self) -> RpcResult<U256>;
 }
+
+#[cfg(feature = "server")]
+mod pub_sub {
+    use jsonrpsee::{core::SubscriptionResult, proc_macros::rpc};
+
+    use crate::types::PubSubFilter;
+
+    #[rpc(server, namespace = "eth")]
+    pub trait EthPubSub {
+        #[subscription(name = "subscribe" => "subscription", unsubscribe = "unsubscribe", item = PubSubResult)]
+        async fn subscribe(
+            &self,
+            sub_type: String,
+            filter: Option<PubSubFilter>,
+        ) -> SubscriptionResult;
+    }
+}
+
+#[cfg(feature = "server")]
+pub use self::pub_sub::EthPubSubServer;

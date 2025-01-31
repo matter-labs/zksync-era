@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            DELETE FROM eth_txs\n            WHERE\n                id >= (\n                    SELECT\n                        MIN(id)\n                    FROM\n                        eth_txs\n                    WHERE\n                        has_failed = TRUE\n                )\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "6b327df84d2b3b31d02db35fd5d91a8d67abcdb743a619ed0d1b9c16206a3c20"
+}

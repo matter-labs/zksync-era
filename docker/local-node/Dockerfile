@@ -1,11 +1,12 @@
 # Image is always built from the server image to reuse the common parts
 # This image is expected to be built locally beforehand (implemented in the `zk` tool)
-FROM matterlabs/server-v2:latest2.0
+ARG BASE_VERSION=latest2.0
+FROM matterlabs/server-v2:${BASE_VERSION}
 
 WORKDIR /
 
 # Install required dependencies
-RUN apt-get update; apt-get install -y make bash git openssl libssl-dev gcc g++ curl pkg-config software-properties-common jq wget
+RUN apt-get update; apt-get install -y make bash git openssl libssl-dev gcc g++ curl pkg-config software-properties-common jq wget vim-tiny
 RUN apt-get install -y curl gnupg libpq5 ca-certificates postgresql-client && rm -rf /var/lib/apt/lists/*
 
 # Install node and yarn
@@ -16,11 +17,14 @@ RUN mkdir -p /etc/apt/keyrings && \
     apt-get update && apt-get install nodejs -y && \
     npm install -g yarn
 
-# Copy compiler (both solc and zksolc) binaries
-# Obtain `solc` 0.8.12.
-RUN wget https://github.com/ethereum/solc-bin/raw/gh-pages/linux-amd64/solc-linux-amd64-v0.8.12%2Bcommit.f00d7308 \
-    && mv solc-linux-amd64-v0.8.12+commit.f00d7308 /usr/bin/solc \
-    && chmod +x /usr/bin/solc
+ENV RUSTUP_HOME=/usr/local/rustup \
+    CARGO_HOME=/usr/local/cargo \
+    PATH=/usr/local/cargo/bin:$PATH
+
+RUN curl https://sh.rustup.rs -sSf | bash -s -- -y && \
+    rustup install stable
+
+RUN cargo install sqlx-cli --version 0.8.0
 
 # Copy required packages while preserving the folders structure from the repo
 # It's required because these packages use relative paths to the SDK
@@ -28,8 +32,6 @@ RUN wget https://github.com/ethereum/solc-bin/raw/gh-pages/linux-amd64/solc-linu
 COPY infrastructure/zk /infrastructure/zk
 # Copy `local-setup-preparation` tool
 COPY infrastructure/local-setup-preparation /infrastructure/local-setup-preparation
-# Copy migrations
-COPY core/lib/dal/migrations /migrations
 # Copy dev configs
 COPY etc/env /etc/env
 # Copy test configs (required to list rich accounts)
@@ -51,10 +53,22 @@ RUN cd /infrastructure/zk && yarn && yarn build && cd /
 # Build `local-setup-preparation` tool
 RUN cd /infrastructure/local-setup-preparation && yarn && cd /
 # Build L1 contracts package (contracts themselves should be already built)
-RUN cd /contracts/ethereum && yarn && cd /
+RUN cd /contracts/l1-contracts && yarn && cd /
 # Same for L2 contracts
-RUN cd /contracts/zksync && yarn && cd /
+RUN cd /contracts/l2-contracts && yarn && cd /
+
+# Copy the ZK tool binary
+COPY bin/zk /bin/zk
+# Copy package json (which gives us yarn workspace - and makes commands more similar to what we normally run)
+COPY package.json /
+
+# Copy DAL - needed to setup database schemas.
+COPY core/lib/dal core/lib/dal
+COPY prover/crates/lib/prover_dal prover/crates/lib/prover_dal
+
+RUN mkdir /etc/env/l1-inits && mkdir /etc/env/l2-inits
 
 # setup entrypoint script
 COPY ./docker/local-node/entrypoint.sh /usr/bin/
+
 ENTRYPOINT ["entrypoint.sh"]

@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO\n            transactions (\n                hash,\n                is_priority,\n                initiator_address,\n                nonce,\n                signature,\n                gas_limit,\n                max_fee_per_gas,\n                max_priority_fee_per_gas,\n                gas_per_pubdata_limit,\n                input,\n                data,\n                tx_format,\n                contract_address,\n                value,\n                paymaster,\n                paymaster_input,\n                execution_info,\n                miniblock_number,\n                index_in_block,\n                error,\n                effective_gas_price,\n                refunded_gas,\n                received_at,\n                created_at,\n                updated_at\n            )\n            SELECT\n                data_table.hash,\n                FALSE,\n                data_table.initiator_address,\n                data_table.nonce,\n                data_table.signature,\n                data_table.gas_limit,\n                data_table.max_fee_per_gas,\n                data_table.max_priority_fee_per_gas,\n                data_table.gas_per_pubdata_limit,\n                data_table.input,\n                data_table.data,\n                data_table.tx_format,\n                data_table.contract_address,\n                data_table.value,\n                data_table.paymaster,\n                data_table.paymaster_input,\n                data_table.new_execution_info,\n                $21,\n                data_table.index_in_block,\n                NULLIF(data_table.error, ''),\n                data_table.effective_gas_price,\n                data_table.refunded_gas,\n                NOW(),\n                NOW(),\n                NOW()\n            FROM\n                (\n                    SELECT\n                        UNNEST($1::bytea []) AS hash,\n                        UNNEST($2::bytea []) AS initiator_address,\n                        UNNEST($3::int []) AS nonce,\n                        UNNEST($4::bytea []) AS signature,\n                        UNNEST($5::numeric []) AS gas_limit,\n                        UNNEST($6::numeric []) AS max_fee_per_gas,\n                        UNNEST($7::numeric []) AS max_priority_fee_per_gas,\n                        UNNEST($8::numeric []) AS gas_per_pubdata_limit,\n                        UNNEST($9::bytea []) AS input,\n                        UNNEST($10::jsonb []) AS data,\n                        UNNEST($11::int []) AS tx_format,\n                        UNNEST($12::bytea []) AS contract_address,\n                        UNNEST($13::numeric []) AS value,\n                        UNNEST($14::bytea []) AS paymaster,\n                        UNNEST($15::bytea []) AS paymaster_input,\n                        UNNEST($16::jsonb []) AS new_execution_info,\n                        UNNEST($17::integer []) AS index_in_block,\n                        UNNEST($18::varchar []) AS error,\n                        UNNEST($19::numeric []) AS effective_gas_price,\n                        UNNEST($20::bigint []) AS refunded_gas\n                ) AS data_table\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "ByteaArray",
+        "ByteaArray",
+        "Int4Array",
+        "ByteaArray",
+        "NumericArray",
+        "NumericArray",
+        "NumericArray",
+        "NumericArray",
+        "ByteaArray",
+        "JsonbArray",
+        "Int4Array",
+        "ByteaArray",
+        "NumericArray",
+        "ByteaArray",
+        "ByteaArray",
+        "JsonbArray",
+        "Int4Array",
+        "VarcharArray",
+        "NumericArray",
+        "Int8Array",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "a65364d10a20420211022dc8234d0a586ce73d09ee28887cb1ad1c0392250629"
+}

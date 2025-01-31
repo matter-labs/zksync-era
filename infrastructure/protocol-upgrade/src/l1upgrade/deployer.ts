@@ -1,4 +1,4 @@
-import { spawn } from 'zk/build/utils';
+import { spawn } from 'utils';
 
 export async function callFacetDeployer(
     l1RpcProvider: string,
@@ -13,7 +13,7 @@ export async function callFacetDeployer(
     file: string
 ) {
     const cwd = process.cwd();
-    process.chdir(`${process.env.ZKSYNC_HOME}/contracts/ethereum/`);
+    process.chdir(`${process.env.ZKSYNC_HOME}/contracts/l1-contracts/`);
     let argsString = '';
     if (executor) {
         argsString += ' --executor';

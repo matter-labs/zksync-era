@@ -62,21 +62,6 @@ impl CompressionMode for CompressionByteAdd {
             Some((diff, size))
         }
     }
-
-    fn output_size(&self) -> Option<usize> {
-        self.get_diff_and_size().map(|(_, size)| size)
-    }
-
-    fn compress_value_only(&self) -> Option<Vec<u8>> {
-        let (diff, size) = self.get_diff_and_size()?;
-
-        let mut buffer = [0u8; 32];
-        diff.to_big_endian(&mut buffer);
-
-        let diff = buffer[(32 - size)..].to_vec();
-
-        Some(diff)
-    }
 }
 
 struct CompressionByteSub {
@@ -100,10 +85,6 @@ impl CompressionMode for CompressionByteSub {
             Some((diff, size))
         }
     }
-
-    fn output_size(&self) -> Option<usize> {
-        self.get_diff_and_size().map(|(_, size)| size)
-    }
 }
 
 struct CompressionByteTransform {
@@ -124,10 +105,6 @@ impl CompressionMode for CompressionByteTransform {
         } else {
             Some((self.new_value, size))
         }
-    }
-
-    fn output_size(&self) -> Option<usize> {
-        self.get_diff_and_size().map(|(_, size)| size)
     }
 }
 

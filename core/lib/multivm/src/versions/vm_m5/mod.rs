@@ -1,7 +1,6 @@
 #![allow(clippy::derive_partial_eq_without_eq)]
 
 pub use zk_evm_1_3_1;
-pub use zksync_types::vm_trace::VmExecutionTrace;
 
 pub use self::{
     errors::TxRevertReason,
@@ -23,8 +22,6 @@ mod pubdata_utils;
 mod refunds;
 pub mod storage;
 pub mod test_utils;
-#[cfg(test)]
-mod tests;
 pub mod transaction_data;
 pub mod utils;
 mod vm;

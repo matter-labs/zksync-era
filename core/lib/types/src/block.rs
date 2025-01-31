@@ -1,16 +1,14 @@
-use std::{fmt, ops};
-
 use serde::{Deserialize, Serialize};
-use zksync_basic_types::{H2048, H256, U256};
+use zksync_basic_types::{commitment::PubdataParams, Address, Bloom, BloomInput, H256, U256};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_system_constants::SYSTEM_BLOCK_INFO_BLOCK_NUMBER_MULTIPLIER;
-use zksync_utils::concat_and_hash;
 
 use crate::{
+    fee_model::BatchFeeInput,
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
     priority_op_onchain_data::PriorityOpOnchainData,
-    web3::signing::keccak256,
-    AccountTreeId, Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, Transaction,
+    web3::{keccak256, keccak256_concat},
+    AccountTreeId, L1BatchNumber, L2BlockNumber, ProtocolVersionId, Transaction,
 };
 
 /// Represents a successfully deployed smart contract.
@@ -29,17 +27,21 @@ impl DeployedContract {
     }
 }
 
+/// Holder for l1 batches data, used in eth sender metrics
+pub struct L1BatchStatistics {
+    pub number: L1BatchNumber,
+    pub timestamp: u64,
+    pub l2_tx_count: u32,
+    pub l1_tx_count: u32,
+}
+
 /// Holder for the block metadata that is not available from transactions themselves.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct L1BatchHeader {
     /// Numeric ID of the block. Starts from 1, 0 block is considered genesis block and has no transactions.
     pub number: L1BatchNumber,
-    /// Whether block is sealed or not (doesn't correspond to committing/verifying it on the L1).
-    pub is_finished: bool,
     /// Timestamp when block was first created.
     pub timestamp: u64,
-    /// Address of the fee account that was used when block was created
-    pub fee_account_address: Address,
     /// Total number of processed priority operations in the block
     pub l1_tx_count: u16,
     /// Total number of processed txs that was requested offchain
@@ -51,44 +53,90 @@ pub struct L1BatchHeader {
     /// Preimages of the hashes that were sent as value of L2 logs by special system L2 contract.
     pub l2_to_l1_messages: Vec<Vec<u8>>,
     /// Bloom filter for the event logs in the block.
-    pub bloom: H2048,
+    pub bloom: Bloom,
     /// Hashes of contracts used this block
     pub used_contract_hashes: Vec<U256>,
-    /// The EIP1559 base_fee used in this block.
-    pub base_fee_per_gas: u64,
-    /// The assumed L1 gas price within the block.
-    pub l1_gas_price: u64,
-    /// The L2 gas price that the operator agrees on.
-    pub l2_fair_gas_price: u64,
     pub base_system_contracts_hashes: BaseSystemContractsHashes,
     /// System logs are those emitted as part of the Vm execution.
     pub system_logs: Vec<SystemL2ToL1Log>,
     /// Version of protocol used for the L1 batch.
     pub protocol_version: Option<ProtocolVersionId>,
+    pub pubdata_input: Option<Vec<u8>>,
+    pub fee_address: Address,
+    pub batch_fee_input: BatchFeeInput,
 }
 
-/// Holder for the miniblock metadata that is not available from transactions themselves.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct MiniblockHeader {
-    pub number: MiniblockNumber,
+impl L1BatchHeader {
+    pub fn to_unsealed_header(&self) -> UnsealedL1BatchHeader {
+        UnsealedL1BatchHeader {
+            number: self.number,
+            timestamp: self.timestamp,
+            protocol_version: self.protocol_version,
+            fee_address: self.fee_address,
+            fee_input: self.batch_fee_input,
+        }
+    }
+}
+
+/// Holder for the metadata that is relevant for unsealed batches.
+#[derive(Debug, Clone, PartialEq)]
+pub struct UnsealedL1BatchHeader {
+    pub number: L1BatchNumber,
+    pub timestamp: u64,
+    pub protocol_version: Option<ProtocolVersionId>,
+    pub fee_address: Address,
+    pub fee_input: BatchFeeInput,
+}
+
+/// Holder for the metadata that is relevant for both sealed and unsealed batches.
+pub struct CommonL1BatchHeader {
+    pub number: L1BatchNumber,
+    pub is_sealed: bool,
+    pub timestamp: u64,
+    pub protocol_version: Option<ProtocolVersionId>,
+    pub fee_address: Address,
+    pub fee_input: BatchFeeInput,
+}
+
+/// Holder for the L2 block metadata that is not available from transactions themselves.
+#[derive(Debug, Clone, PartialEq)]
+pub struct L2BlockHeader {
+    pub number: L2BlockNumber,
     pub timestamp: u64,
     pub hash: H256,
     pub l1_tx_count: u16,
     pub l2_tx_count: u16,
-    pub base_fee_per_gas: u64, // Min wei per gas that txs in this miniblock need to have.
+    pub fee_account_address: Address,
+    pub base_fee_per_gas: u64, // Min wei per gas that txs in this L2 block need to have.
 
-    pub l1_gas_price: u64, // L1 gas price assumed in the corresponding batch
-    pub l2_fair_gas_price: u64, // L2 gas price assumed in the corresponding batch
+    pub batch_fee_input: BatchFeeInput,
+    pub gas_per_pubdata_limit: u64,
     pub base_system_contracts_hashes: BaseSystemContractsHashes,
     pub protocol_version: Option<ProtocolVersionId>,
-    /// The maximal number of virtual blocks to be created in the miniblock.
+    /// The maximal number of virtual blocks to be created in the L2 block.
     pub virtual_blocks: u32,
+
+    /// The formal value of the gas limit for the L2 block.
+    /// This value should bound the maximal amount of gas that can be spent by transactions in the L2 block.
+    /// Note, that it is an `u64`, i.e. while the computational limit for the bootloader is an `u32` a much larger
+    /// amount of gas can be spent on pubdata.
+    pub gas_limit: u64,
+    pub logs_bloom: Bloom,
+    pub pubdata_params: PubdataParams,
 }
 
-/// Data needed to execute a miniblock in the VM.
-#[derive(Debug)]
-pub struct MiniblockExecutionData {
-    pub number: MiniblockNumber,
+/// Structure that represents the data is returned by the storage oracle during batch execution.
+pub struct StorageOracleInfo {
+    /// The refunds returned by the storage oracle.
+    pub storage_refunds: Vec<u32>,
+    // Pubdata costs are available only since v1.5.0, so we allow them to be optional.
+    pub pubdata_costs: Option<Vec<i32>>,
+}
+
+/// Data needed to execute an L2 block in the VM.
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
+pub struct L2BlockExecutionData {
+    pub number: L2BlockNumber,
     pub timestamp: u64,
     pub prev_block_hash: H256,
     pub virtual_blocks: u32,
@@ -99,28 +147,25 @@ impl L1BatchHeader {
     pub fn new(
         number: L1BatchNumber,
         timestamp: u64,
-        fee_account_address: Address,
         base_system_contracts_hashes: BaseSystemContractsHashes,
         protocol_version: ProtocolVersionId,
     ) -> L1BatchHeader {
         Self {
             number,
-            is_finished: false,
             timestamp,
-            fee_account_address,
             l1_tx_count: 0,
             l2_tx_count: 0,
             priority_ops_onchain_data: vec![],
             l2_to_l1_logs: vec![],
             l2_to_l1_messages: vec![],
-            bloom: H2048::default(),
+            bloom: Bloom::default(),
             used_contract_hashes: vec![],
-            base_fee_per_gas: 0,
-            l1_gas_price: 0,
-            l2_fair_gas_price: 0,
             base_system_contracts_hashes,
             system_logs: vec![],
             protocol_version: Some(protocol_version),
+            pubdata_input: Some(vec![]),
+            fee_address: Default::default(),
+            batch_fee_input: BatchFeeInput::pubdata_independent(0, 0, 0),
         }
     }
 
@@ -143,74 +188,29 @@ impl L1BatchHeader {
     }
 }
 
-#[derive(Clone, Copy, Eq, PartialEq, Default)]
-pub struct BlockGasCount {
-    pub commit: u32,
-    pub prove: u32,
-    pub execute: u32,
-}
-
-impl fmt::Debug for BlockGasCount {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            formatter,
-            "c:{}/p:{}/e:{}",
-            self.commit, self.prove, self.execute
-        )
-    }
-}
-
-impl BlockGasCount {
-    pub fn any_field_greater_than(&self, bound: u32) -> bool {
-        self.commit > bound || self.prove > bound || self.execute > bound
-    }
-}
-
-impl ops::Add for BlockGasCount {
-    type Output = Self;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        Self {
-            commit: self.commit + rhs.commit,
-            prove: self.prove + rhs.prove,
-            execute: self.execute + rhs.execute,
-        }
-    }
-}
-
-impl ops::AddAssign for BlockGasCount {
-    fn add_assign(&mut self, other: Self) {
-        *self = Self {
-            commit: self.commit + other.commit,
-            prove: self.prove + other.prove,
-            execute: self.execute + other.execute,
-        };
-    }
-}
-
-/// Hasher of miniblock contents used by the VM.
+/// Hasher of L2 block contents used by the VM.
 #[derive(Debug)]
-pub struct MiniblockHasher {
-    number: MiniblockNumber,
+pub struct L2BlockHasher {
+    number: L2BlockNumber,
     timestamp: u64,
-    prev_miniblock_hash: H256,
+    prev_l2_block_hash: H256,
     txs_rolling_hash: H256,
 }
 
-impl MiniblockHasher {
-    /// At the beginning of the zkSync, the hashes of the blocks could be calculated as the hash of their number.
-    /// This method returns the hash of such miniblocks.
-    pub fn legacy_hash(miniblock_number: MiniblockNumber) -> H256 {
-        H256(keccak256(&miniblock_number.0.to_be_bytes()))
+impl L2BlockHasher {
+    /// At the beginning of the ZKsync, the hashes of the blocks could be calculated as the hash of their number.
+    /// This method returns the hash of such L2 blocks.
+    pub fn legacy_hash(l2_block_number: L2BlockNumber) -> H256 {
+        H256(keccak256(&l2_block_number.0.to_be_bytes()))
     }
 
-    /// Creates a new hasher with the specified params. This assumes a miniblock without transactions;
+    /// Creates a new hasher with the specified params. This assumes a L2 block without transactions;
     /// transaction hashes can be supplied using [`Self::push_tx_hash()`].
-    pub fn new(number: MiniblockNumber, timestamp: u64, prev_miniblock_hash: H256) -> Self {
+    pub fn new(number: L2BlockNumber, timestamp: u64, prev_l2_block_hash: H256) -> Self {
         Self {
             number,
             timestamp,
-            prev_miniblock_hash,
+            prev_l2_block_hash,
             txs_rolling_hash: H256::zero(),
         }
     }
@@ -218,34 +218,50 @@ impl MiniblockHasher {
     /// Updates this hasher with a transaction hash. This should be called for all transactions in the block
     /// in the order of their execution.
     pub fn push_tx_hash(&mut self, tx_hash: H256) {
-        self.txs_rolling_hash = concat_and_hash(self.txs_rolling_hash, tx_hash);
+        self.txs_rolling_hash = keccak256_concat(self.txs_rolling_hash, tx_hash);
     }
 
-    /// Returns the hash of the miniblock.
+    /// Returns the hash of the L2 block.
     ///
     /// For newer protocol versions, the hash is computed as
     ///
     /// ```text
-    /// keccak256(u256_be(number) ++ u256_be(timestamp) ++ prev_miniblock_hash ++ txs_rolling_hash)
+    /// keccak256(u256_be(number) ++ u256_be(timestamp) ++ prev_l2_block_hash ++ txs_rolling_hash)
     /// ```
     ///
     /// Here, `u256_be` is the big-endian 256-bit serialization of a number, and `txs_rolling_hash`
-    /// is *the rolling hash* of miniblock transactions. `txs_rolling_hash` is calculated the following way:
+    /// is *the rolling hash* of L2 block transactions. `txs_rolling_hash` is calculated the following way:
     ///
-    /// - If the miniblock has 0 transactions, then `txs_rolling_hash` is equal to `H256::zero()`.
-    /// - If the miniblock has i transactions, then `txs_rolling_hash` is equal to `H(H_{i-1}, H(tx_i))`, where
-    ///   `H_{i-1}` is the `txs_rolling_hash` of the first i-1 transactions.
+    /// - If the L2 block has 0 transactions, then `txs_rolling_hash` is equal to `H256::zero()`.
+    /// - If the L2 block has i transactions, then `txs_rolling_hash` is equal to `H(H_{i-1}, H(tx_i))`, where
+    ///   `H_{i-1}` is the `txs_rolling_hash` of the first `i - 1` transactions.
     pub fn finalize(self, protocol_version: ProtocolVersionId) -> H256 {
         if protocol_version >= ProtocolVersionId::Version13 {
             let mut digest = [0_u8; 128];
             U256::from(self.number.0).to_big_endian(&mut digest[0..32]);
             U256::from(self.timestamp).to_big_endian(&mut digest[32..64]);
-            digest[64..96].copy_from_slice(self.prev_miniblock_hash.as_bytes());
+            digest[64..96].copy_from_slice(self.prev_l2_block_hash.as_bytes());
             digest[96..128].copy_from_slice(self.txs_rolling_hash.as_bytes());
             H256(keccak256(&digest))
         } else {
             Self::legacy_hash(self.number)
         }
+    }
+
+    pub fn hash(
+        number: L2BlockNumber,
+        timestamp: u64,
+        prev_l2_block_hash: H256,
+        txs_rolling_hash: H256,
+        protocol_version: ProtocolVersionId,
+    ) -> H256 {
+        Self {
+            number,
+            timestamp,
+            prev_l2_block_hash,
+            txs_rolling_hash,
+        }
+        .finalize(protocol_version)
     }
 }
 
@@ -262,42 +278,58 @@ pub fn pack_block_info(block_number: u64, block_timestamp: u64) -> U256 {
         + U256::from(block_timestamp)
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct L1BatchTreeData {
+    pub hash: H256,
+    pub rollup_last_leaf_index: u64,
+}
+
+pub fn build_bloom<'a, I: IntoIterator<Item = BloomInput<'a>>>(items: I) -> Bloom {
+    let mut bloom = Bloom::zero();
+    for item in items {
+        bloom.accrue(item);
+    }
+
+    bloom
+}
+
 #[cfg(test)]
 mod tests {
+    use std::{iter, str::FromStr};
+
     use super::*;
 
     #[test]
-    fn test_legacy_miniblock_hashes() {
+    fn test_legacy_l2_block_hashes() {
         // The comparing with the hash taken from explorer
         let expected_hash = "6a13b75b5982035ebb28999fbf6f54e7d7fad9e290d5c5f99e7c7d75d42b6099"
             .parse()
             .unwrap();
         assert_eq!(
-            MiniblockHasher::legacy_hash(MiniblockNumber(11470850)),
+            L2BlockHasher::legacy_hash(L2BlockNumber(11470850)),
             expected_hash
         )
     }
 
     #[test]
-    fn test_miniblock_hash() {
+    fn test_l2_block_hash() {
         // Comparing with a constant hash generated from a contract:
         let expected_hash: H256 =
             "c4e184fa9dde8d81aa085f3d1831b00be0a2f4e40218ff1b3456684e7eeccdfe"
                 .parse()
                 .unwrap();
-        let prev_miniblock_hash =
-            "9b14f83c434b860168ed4081f7b2a65f432f68bfea86ddf3351c02bc855dd721"
-                .parse()
-                .unwrap();
+        let prev_l2_block_hash = "9b14f83c434b860168ed4081f7b2a65f432f68bfea86ddf3351c02bc855dd721"
+            .parse()
+            .unwrap();
         let txs_rolling_hash = "67506e289f13aee79b8de3bfd99f460f46135028b85eee9da760a17a4453fb64"
             .parse()
             .unwrap();
         assert_eq!(
             expected_hash,
-            MiniblockHasher {
-                number: MiniblockNumber(1),
+            L2BlockHasher {
+                number: L2BlockNumber(1),
                 timestamp: 12,
-                prev_miniblock_hash,
+                prev_l2_block_hash,
                 txs_rolling_hash,
             }
             .finalize(ProtocolVersionId::latest())
@@ -313,5 +345,77 @@ mod tests {
         let (unpacked_block_number, unpacked_block_timestamp) = unpack_block_info(block_info);
         assert_eq!(block_number, unpacked_block_number);
         assert_eq!(block_timestamp, unpacked_block_timestamp);
+    }
+
+    #[test]
+    fn test_build_bloom() {
+        let logs = [
+            (
+                Address::from_str("0x86Fa049857E0209aa7D9e616F7eb3b3B78ECfdb0").unwrap(),
+                vec![
+                    H256::from_str(
+                        "0x3452f51d00000000000000000000000000000000000000000000000000000000",
+                    )
+                    .unwrap(),
+                    H256::from_str(
+                        "0x000000000000000000000000d0a6e6c54dbc68db5db3a091b171a77407ff7ccf",
+                    )
+                    .unwrap(),
+                    H256::from_str(
+                        "0x0000000000000000000000000f5e378a82a55f24e88317a8fb7cd2ed8bd3873f",
+                    )
+                    .unwrap(),
+                    H256::from_str(
+                        "0x000000000000000000000000000000000000000000000004f0e6ade1e67bb719",
+                    )
+                    .unwrap(),
+                ],
+            ),
+            (
+                Address::from_str("0x86Fa049857E0209aa7D9e616F7eb3b3B78ECfdb0").unwrap(),
+                vec![
+                    H256::from_str(
+                        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+                    )
+                    .unwrap(),
+                    H256::from_str(
+                        "0x000000000000000000000000d0a6e6c54dbc68db5db3a091b171a77407ff7ccf",
+                    )
+                    .unwrap(),
+                    H256::from_str(
+                        "0x0000000000000000000000000f5e378a82a55f24e88317a8fb7cd2ed8bd3873f",
+                    )
+                    .unwrap(),
+                ],
+            ),
+            (
+                Address::from_str("0xd0a6E6C54DbC68Db5db3A091B171A77407Ff7ccf").unwrap(),
+                vec![H256::from_str(
+                    "0x51223fdc0a25891366fb358b4af9fe3c381b1566e287c61a29d01c8a173fe4f4",
+                )
+                .unwrap()],
+            ),
+        ];
+        let iter = logs.iter().flat_map(|log| {
+            log.1
+                .iter()
+                .map(|topic| BloomInput::Raw(topic.as_bytes()))
+                .chain(iter::once(BloomInput::Raw(log.0.as_bytes())))
+        });
+
+        let bloom = build_bloom(iter);
+        let expected = Bloom::from_str(
+            "0000000004000000000000000100000000000000000000000000000000000000\
+            0000000000000000000040000000000000000000000000000000000000000200\
+            0000000000020000400000180000000000000000000000000000000000000000\
+            0000000000000000000000000000000000000000080000000000201000000000\
+            2000000000000000400000000000080000008000000000000000000000000000\
+            0000000000000000000000000004000000000001000000000000804000000000\
+            0000000200000000000000000000000400000000000000000000000800200000\
+            0000000000000010000000000000000000000000000000000000000000000000",
+        )
+        .unwrap();
+
+        assert_eq!(bloom, expected);
     }
 }

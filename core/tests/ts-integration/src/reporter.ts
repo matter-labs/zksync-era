@@ -88,17 +88,21 @@ export class Reporter {
     /**
      * Prints an error message to the console.
      */
-    error(message: string) {
-        console.log(this.indent(`${errorPrefix('Error:')}: ${fail(message)}`));
+    error(message: string, ...args: any[]) {
+        console.log(this.indent(`${errorPrefix('Error:')}: ${fail(message)}`), ...args);
     }
 
     /**
      * Prints a debug message.
      * Debug messages are only shown if `ZKSYNC_DEBUG_LOGS` env variable is set.
      */
-    debug(message: string) {
+    debug(message: string, ...args: any[]) {
         if (process.env.ZKSYNC_DEBUG_LOGS) {
-            console.log(this.indent(`DEBUG: ${message}`));
+            const testName = 'expect' in globalThis ? expect.getState().currentTestName : undefined;
+            // Timestamps only make sense to include in tests.
+            const timestampString = testName === undefined ? '' : timestamp(`${new Date().toISOString()} `);
+            const testString = testName ? info(` [${testName}]`) : '';
+            rawWriteToConsole(this.indent(`${timestampString}DEBUG${testString}: ${message}`), ...args);
         }
     }
 

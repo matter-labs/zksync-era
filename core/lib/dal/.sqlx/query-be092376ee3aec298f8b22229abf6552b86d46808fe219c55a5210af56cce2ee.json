@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                hashed_key,\n                value\n            FROM\n                storage_logs\n            WHERE\n                miniblock_number BETWEEN (\n                    SELECT\n                        MIN(number)\n                    FROM\n                        miniblocks\n                    WHERE\n                        l1_batch_number = $1\n                ) AND (\n                    SELECT\n                        MAX(number)\n                    FROM\n                        miniblocks\n                    WHERE\n                        l1_batch_number = $1\n                )\n            ORDER BY\n                miniblock_number,\n                operation_number\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "hashed_key",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 1,
+        "name": "value",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "be092376ee3aec298f8b22229abf6552b86d46808fe219c55a5210af56cce2ee"
+}

@@ -1,31 +1,29 @@
-FROM debian:bookworm-slim as builder
+FROM ghcr.io/matter-labs/zksync-build-base:latest AS builder
 
 ARG DEBIAN_FRONTEND=noninteractive
+ENV ZKSYNC_USE_CUDA_STUBS=true
 
-RUN apt-get update && apt-get install -y curl clang openssl libssl-dev gcc g++ \
-    pkg-config build-essential libclang-dev && \
-    rm -rf /var/lib/apt/lists/*
+# set of args for use of sccache
+ARG SCCACHE_GCS_BUCKET=""
+ARG SCCACHE_GCS_SERVICE_ACCOUNT=""
+ARG SCCACHE_GCS_RW_MODE=""
+ARG RUSTC_WRAPPER=""
 
-ENV RUSTUP_HOME=/usr/local/rustup \
-    CARGO_HOME=/usr/local/cargo \
-    PATH=/usr/local/cargo/bin:$PATH
-
-RUN curl https://sh.rustup.rs -sSf | bash -s -- -y && \
-    rustup install nightly-2023-08-21 && \
-    rustup default nightly-2023-08-21
+ENV SCCACHE_GCS_BUCKET=${SCCACHE_GCS_BUCKET}
+ENV SCCACHE_GCS_SERVICE_ACCOUNT=${SCCACHE_GCS_SERVICE_ACCOUNT}
+ENV SCCACHE_GCS_RW_MODE=${SCCACHE_GCS_RW_MODE}
+ENV RUSTC_WRAPPER=${RUSTC_WRAPPER}
 
 WORKDIR /usr/src/zksync
 COPY . .
 
-RUN cargo build --release --bin zksync_witness_vector_generator
+RUN cd prover && cargo build --release --bin zksync_witness_vector_generator
 
-FROM debian:bookworm-slim
-
-RUN apt-get update && apt-get install -y curl libpq5 ca-certificates && rm -rf /var/lib/apt/lists/*
+FROM ghcr.io/matter-labs/zksync-runtime-base:latest
 
 # copy finalization hints required for witness vector generation
-COPY prover/vk_setup_data_generator_server_fri/data/ /prover/vk_setup_data_generator_server_fri/data/
+COPY prover/data/keys/ /prover/data/keys/
 
-COPY --from=builder /usr/src/zksync/target/release/zksync_witness_vector_generator /usr/bin/
+COPY --from=builder /usr/src/zksync/prover/target/release/zksync_witness_vector_generator /usr/bin/
 
 ENTRYPOINT ["zksync_witness_vector_generator"]

@@ -33,7 +33,7 @@ impl OracleWithHistory for InMemoryEventSink {
 // otherwise we carry rollbacks to the parent's frames
 
 impl InMemoryEventSink {
-    pub fn flatten(&self) -> (Vec<LogQuery>, Vec<EventMessage>, Vec<EventMessage>) {
+    pub fn flatten(&self) -> (Vec<EventMessage>, Vec<EventMessage>) {
         assert_eq!(
             self.frames_stack.inner().len(),
             1,
@@ -45,9 +45,7 @@ impl InMemoryEventSink {
             forward,
             rollbacks: _,
         } = full_history;
-        let history = forward.clone();
-        let (events, l1_messages) = Self::events_and_l1_messages_from_history(forward);
-        (history, events, l1_messages)
+        Self::events_and_l1_messages_from_history(forward)
     }
 
     pub fn get_log_queries(&self) -> usize {
@@ -75,7 +73,8 @@ impl InMemoryEventSink {
         // since if rollbacks of parents were not appended anywhere we just still keep them
         for el in history.into_iter() {
             // we are time ordered here in terms of rollbacks
-            if tmp.get(&el.timestamp.0).is_some() {
+            #[allow(clippy::map_entry)]
+            if tmp.contains_key(&el.timestamp.0) {
                 assert!(el.rollback);
                 tmp.remove(&el.timestamp.0);
             } else {

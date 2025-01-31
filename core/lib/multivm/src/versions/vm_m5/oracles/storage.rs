@@ -7,21 +7,18 @@ use zk_evm_1_3_1::{
     zkevm_opcode_defs::system_params::INITIAL_STORAGE_WRITE_PUBDATA_BYTES,
 };
 use zksync_types::{
-    utils::storage_key_for_eth_balance, AccountTreeId, Address, StorageKey, StorageLogQuery,
-    StorageLogQueryType, BOOTLOADER_ADDRESS, U256,
+    u256_to_h256, utils::storage_key_for_eth_balance, AccountTreeId, Address, StorageKey,
+    StorageLogKind, BOOTLOADER_ADDRESS, U256,
 };
-use zksync_utils::u256_to_h256;
 
 use super::OracleWithHistory;
-use crate::{
-    glue::GlueInto,
-    vm_m5::{
-        history_recorder::{
-            AppDataFrameManagerWithHistory, HashMapHistoryEvent, HistoryRecorder, StorageWrapper,
-        },
-        storage::{Storage, StoragePtr},
-        vm_instance::MultiVMSubversion,
+use crate::vm_m5::{
+    history_recorder::{
+        AppDataFrameManagerWithHistory, HashMapHistoryEvent, HistoryRecorder, StorageWrapper,
     },
+    storage::{Storage, StoragePtr},
+    utils::StorageLogQuery,
+    vm_instance::MultiVmSubversion,
 };
 
 // While the storage does not support different shards, it was decided to write the
@@ -48,7 +45,7 @@ pub struct StorageOracle<S: Storage> {
     // to cover this slot.
     pub paid_changes: HistoryRecorder<HashMap<StorageKey, u32>>,
 
-    pub refund_state: MultiVMSubversion,
+    pub refund_state: MultiVmSubversion,
 }
 
 impl<S: Storage> OracleWithHistory for StorageOracle<S> {
@@ -66,7 +63,7 @@ impl<S: Storage> OracleWithHistory for StorageOracle<S> {
 }
 
 impl<S: Storage> StorageOracle<S> {
-    pub fn new(storage: StoragePtr<S>, refund_state: MultiVMSubversion) -> Self {
+    pub fn new(storage: StoragePtr<S>, refund_state: MultiVmSubversion) -> Self {
         Self {
             storage: HistoryRecorder::from_inner(StorageWrapper::new(storage)),
             frames_stack: Default::default(),
@@ -77,10 +74,10 @@ impl<S: Storage> StorageOracle<S> {
 
     fn is_storage_key_free(&self, key: &StorageKey) -> bool {
         match self.refund_state {
-            MultiVMSubversion::V1 => {
+            MultiVmSubversion::V1 => {
                 key.address() == &zksync_system_constants::SYSTEM_CONTEXT_ADDRESS
             }
-            MultiVMSubversion::V2 => {
+            MultiVmSubversion::V2 => {
                 key.address() == &zksync_system_constants::SYSTEM_CONTEXT_ADDRESS
                     || *key == storage_key_for_eth_balance(&BOOTLOADER_ADDRESS)
             }
@@ -95,8 +92,8 @@ impl<S: Storage> StorageOracle<S> {
 
         self.frames_stack.push_forward(
             StorageLogQuery {
-                log_query: query.glue_into(),
-                log_type: StorageLogQueryType::Read,
+                log_query: query,
+                log_type: StorageLogKind::Read,
             },
             query.timestamp,
         );
@@ -111,15 +108,15 @@ impl<S: Storage> StorageOracle<S> {
                 .write_to_storage(key, query.written_value, query.timestamp);
 
         let log_query_type = if self.storage.get_ptr().borrow_mut().is_write_initial(&key) {
-            StorageLogQueryType::InitialWrite
+            StorageLogKind::InitialWrite
         } else {
-            StorageLogQueryType::RepeatedWrite
+            StorageLogKind::RepeatedWrite
         };
 
         query.read_value = current_value;
 
         let mut storage_log_query = StorageLogQuery {
-            log_query: query.glue_into(),
+            log_query: query,
             log_type: log_query_type,
         };
         self.frames_stack
@@ -183,6 +180,7 @@ impl<S: Storage> VmStorageOracle for StorageOracle<S> {
         _monotonic_cycle_counter: u32,
         query: LogQuery,
     ) -> LogQuery {
+        // ```
         // tracing::trace!(
         //     "execute partial query cyc {:?} addr {:?} key {:?}, rw {:?}, wr {:?}, tx {:?}",
         //     _monotonic_cycle_counter,
@@ -192,6 +190,7 @@ impl<S: Storage> VmStorageOracle for StorageOracle<S> {
         //     query.written_value,
         //     query.tx_number_in_block
         // );
+        // ```
         assert!(!query.rollback);
         if query.rw_flag {
             // The number of bytes that have been compensated by the user to perform this write
@@ -250,17 +249,17 @@ impl<S: Storage> VmStorageOracle for StorageOracle<S> {
             // perform actual rollback
             for query in rollbacks.iter().rev() {
                 let read_value = match query.log_type {
-                    StorageLogQueryType::Read => {
+                    StorageLogKind::Read => {
                         // Having Read logs in rollback is not possible
                         tracing::warn!("Read log in rollback queue {:?}", query);
                         continue;
                     }
-                    StorageLogQueryType::InitialWrite | StorageLogQueryType::RepeatedWrite => {
+                    StorageLogKind::InitialWrite | StorageLogKind::RepeatedWrite => {
                         query.log_query.read_value
                     }
                 };
 
-                let LogQuery { written_value, .. } = query.log_query.glue_into();
+                let LogQuery { written_value, .. } = query.log_query;
                 let key = triplet_to_storage_key(
                     query.log_query.shard_id,
                     query.log_query.address,
@@ -274,7 +273,7 @@ impl<S: Storage> VmStorageOracle for StorageOracle<S> {
                 );
 
                 // Additional validation that the current value was correct
-                // Unwrap is safe because the return value from write_inner is the previous value in this leaf.
+                // Unwrap is safe because the return value from `write_inner` is the previous value in this leaf.
                 // It is impossible to set leaf value to `None`
                 assert_eq!(current_value, written_value);
             }

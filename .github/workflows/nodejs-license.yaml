@@ -19,8 +19,9 @@ env:
     Public Domain;
     WTFPL;
     Unlicense;
+    BlueOak-1.0.0;
   # It has to be one line, there must be no space between packages.
-  EXCLUDE_PACKAGES: testrpc@0.0.1;uuid@2.0.1;
+  EXCLUDE_PACKAGES: testrpc@0.0.1;uuid@2.0.1;@cspell/dict-en-common-misspellings@2.0.0;
 
 jobs:
   generate-matrix:
@@ -29,7 +30,7 @@ jobs:
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
       - run: |
           DIRS=$(find -not \( -path \*node_modules -prune \) -type f -name yarn.lock  | xargs dirname | awk -v RS='' -v OFS='","' 'NF { $1 = $1; print "\"" $0 "\"" }')
           echo "matrix=[${DIRS}]" >> $GITHUB_OUTPUT
@@ -43,10 +44,10 @@ jobs:
         dir: ${{ fromJson(needs.generate-matrix.outputs.matrix) }}
     steps:
       - name: Checkout latest code
-        uses: actions/checkout@v3
+        uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
 
       - name: Use Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b # v4.0.3
         with:
           node-version: 18
 

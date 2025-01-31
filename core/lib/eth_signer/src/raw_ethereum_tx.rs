@@ -10,18 +10,16 @@
 //! Link to @Deniallugo's PR to web3: https://github.com/tomusdrw/rust-web3/pull/630
 
 use rlp::RlpStream;
-use zksync_types::{
-    ethabi::Address,
-    web3::{
-        signing::{self, Signature},
-        types::{AccessList, SignedTransaction},
-    },
-    U256, U64,
+use zksync_basic_types::{
+    web3::{keccak256, AccessList, Signature, SignedTransaction},
+    Address, H256, U256, U64,
 };
+use zksync_crypto_primitives::K256PrivateKey;
 
 const LEGACY_TX_ID: u64 = 0;
 const ACCESSLISTS_TX_ID: u64 = 1;
 const EIP1559_TX_ID: u64 = 2;
+const EIP4844_TX_ID: u64 = 3;
 
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct TransactionParameters {
@@ -47,6 +45,12 @@ pub struct TransactionParameters {
     pub max_fee_per_gas: U256,
     /// miner bribe
     pub max_priority_fee_per_gas: U256,
+    /// Max fee per blob gas. Should be set for `EIP4844` blob transactions.
+    pub max_fee_per_blob_gas: Option<U256>,
+    /// Blob versioned hashes. Should be set for `EIP4844` transactions
+    /// and their count should match the number of blobs this
+    /// transactions attempts to send.
+    pub blob_versioned_hashes: Option<Vec<H256>>,
 }
 
 /// A transaction used for RLP encoding, hashing and signing.
@@ -61,6 +65,9 @@ pub struct Transaction {
     pub transaction_type: Option<U64>,
     pub access_list: AccessList,
     pub max_priority_fee_per_gas: U256,
+    /// EIP-4844 optional specific fields
+    pub max_fee_per_blob_gas: Option<U256>,
+    pub blob_versioned_hashes: Option<Vec<H256>>,
 }
 
 impl Transaction {
@@ -104,7 +111,7 @@ impl Transaction {
         let list_size = if signature.is_some() { 11 } else { 8 };
         stream.begin_list(list_size);
 
-        // append chain_id. from EIP-2930: chainId is defined to be an integer of arbitrary size.
+        // append `chain_id`. from EIP-2930: `chainId` is defined to be an integer of arbitrary size.
         stream.append(&chain_id);
 
         self.rlp_append_legacy(&mut stream);
@@ -123,7 +130,7 @@ impl Transaction {
         let list_size = if signature.is_some() { 12 } else { 9 };
         stream.begin_list(list_size);
 
-        // append chain_id. from EIP-2930: chainId is defined to be an integer of arbitrary size.
+        // append `chain_id`. from EIP-2930: `chainId` is defined to be an integer of arbitrary size.
         stream.append(&chain_id);
 
         stream.append(&self.nonce);
@@ -139,6 +146,43 @@ impl Transaction {
         stream.append(&self.data);
 
         self.rlp_append_access_list(&mut stream);
+
+        if let Some(signature) = signature {
+            self.rlp_append_signature(&mut stream, signature);
+        }
+
+        stream
+    }
+
+    /// Encodes a [`eip4844`] transaction: <https://eips.ethereum.org/EIPS/eip-4844>
+    fn encode_eip4844_payload(&self, chain_id: u64, signature: Option<&Signature>) -> RlpStream {
+        let mut stream = RlpStream::new();
+
+        // `EIP4844` adds two new fields to the `EIP1559` transaction.
+        // `list_size` is set to the same values from `encode_eip1559_payload`
+        // increased by two.
+        let list_size = if signature.is_some() { 14 } else { 11 };
+        stream.begin_list(list_size);
+
+        stream.append(&chain_id);
+        stream.append(&self.nonce);
+        stream.append(&self.max_priority_fee_per_gas);
+        stream.append(&self.gas_price);
+        stream.append(&self.gas);
+
+        // The field to deviates slightly from the semantics with the
+        // exception that it MUST NOT be nil and therefore must always
+        // represent a 20-byte address. This means that blob transactions
+        // cannot have the form of a create transaction.
+        stream.append(self.to.as_ref().unwrap());
+
+        stream.append(&self.value);
+        stream.append(&self.data);
+
+        self.rlp_append_access_list(&mut stream);
+
+        stream.append(&self.max_fee_per_blob_gas.unwrap());
+        stream.append_list(self.blob_versioned_hashes.as_ref().unwrap());
 
         if let Some(signature) = signature {
             self.rlp_append_signature(&mut stream, signature);
@@ -184,6 +228,12 @@ impl Transaction {
                 [&[tx_id], stream.as_raw()].concat()
             }
 
+            Some(EIP4844_TX_ID) => {
+                let tx_id: u8 = EIP4844_TX_ID as u8;
+                let stream = self.encode_eip4844_payload(chain_id, signature);
+                [&[tx_id], stream.as_raw()].concat()
+            }
+
             _ => {
                 panic!("Unsupported transaction type");
             }
@@ -191,29 +241,26 @@ impl Transaction {
     }
 
     /// Sign and return a raw signed transaction.
-    pub fn sign(self, sign: impl signing::Key, chain_id: u64) -> SignedTransaction {
+    pub fn sign(self, private_key: &K256PrivateKey, chain_id: u64) -> SignedTransaction {
         let adjust_v_value = matches!(
             self.transaction_type.map(|t| t.as_u64()),
             Some(LEGACY_TX_ID) | None
         );
 
         let encoded = self.encode(chain_id, None);
-
-        let hash = signing::keccak256(encoded.as_ref());
+        let message_hash = H256(keccak256(encoded.as_ref()));
 
         let signature = if adjust_v_value {
-            sign.sign(&hash, Some(chain_id))
-                .expect("hash is non-zero 32-bytes; qed")
+            private_key.sign_web3(&message_hash, Some(chain_id))
         } else {
-            sign.sign_message(&hash)
-                .expect("hash is non-zero 32-bytes; qed")
+            private_key.sign_web3_message(&message_hash)
         };
 
         let signed = self.encode(chain_id, Some(&signature));
-        let transaction_hash = signing::keccak256(signed.as_ref()).into();
+        let transaction_hash = keccak256(signed.as_ref()).into();
 
         SignedTransaction {
-            message_hash: hash.into(),
+            message_hash,
             v: signature.v,
             r: signature.r,
             s: signature.s,

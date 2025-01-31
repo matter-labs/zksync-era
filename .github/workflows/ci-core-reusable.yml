@@ -3,31 +3,41 @@ on:
   workflow_call:
     inputs:
       compilers:
-        description: 'JSON of required compilers and their versions'
+        description: "JSON of required compilers and their versions"
         type: string
         required: false
-        default: '[{ "zksolc": ["1.3.14", "1.3.16", "1.3.17", "1.3.1", "1.3.7", "1.3.18"] } , { "zkvyper": ["1.3.13"] }]'
+        default: '[{ "zksolc": ["1.3.14", "1.3.16", "1.3.17", "1.3.1", "1.3.7", "1.3.18", "1.3.19", "1.3.21"] } , { "zkvyper": ["1.3.13"] }]'
+
+env:
+  RUST_BACKTRACE: 1
+  PASSED_ENV_VARS: RUST_BACKTRACE
 
 jobs:
   lint:
     name: lint
     uses: ./.github/workflows/ci-core-lint-reusable.yml
   unit-tests:
-    runs-on: [matterlabs-ci-runner]
+    runs-on: [ matterlabs-ci-runner-highmem-long ]
 
     steps:
-      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
+      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
         with:
           submodules: "recursive"
+          fetch-depth: 0
 
       - name: Setup environment
         run: |
           echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
           echo $(pwd)/bin >> $GITHUB_PATH
           echo IN_DOCKER=1 >> .env
+          echo "SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage" >> .env
+          echo "SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com" >> .env
+          echo "SCCACHE_GCS_RW_MODE=READ_WRITE" >> .env
+          echo "RUSTC_WRAPPER=sccache" >> .env
+          echo RUN_CONTRACT_VERIFICATION_TEST=true >> .env
 
       # TODO: Remove when we after upgrade of hardhat-plugins
-      - name: pre-download compiilers
+      - name: pre-download compilers
         run: |
           # Download needed versions of vyper compiler
           # Not sanitized due to unconventional path and tags
@@ -47,42 +57,61 @@ jobs:
       - name: Start services
         run: |
           ci_localnet_up
-          ci_run sccache --start-server
 
       - name: Init
         run: |
-          ci_run zk
-          ci_run zk run yarn
-          ci_run zk db setup
-          ci_run zk compiler all
-          ci_run zk contract build
+          ci_run run_retried rustup show
 
-      - name: Contracts unit tests
-        run: ci_run zk test l1-contracts
+      - name: Install zkstack
+        run: |
+          ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup
+          ci_run zkstackup -g --local --cargo-features gateway
+
+      - name: Build contracts
+        run: |
+          ci_run zkstack dev contracts
+
+      - name: Download compilers for contract verifier tests
+        run: ci_run zkstack contract-verifier init --zksolc-version=v1.5.10 --zkvyper-version=v1.5.4 --solc-version=0.8.26 --vyper-version=v0.3.10 --era-vm-solc-version=0.8.26-1.0.1 --only --chain era
 
       - name: Rust unit tests
-        run: ci_run zk test rust
+        run: |
+          ci_run zkstack dev test rust
+          # Benchmarks are not tested by `cargo nextest` unless specified explicitly, and even then `criterion` harness is incompatible
+          # with how `cargo nextest` runs tests. Thus, we run criterion-based benchmark tests manually.
+          ci_run cargo test --manifest-path ./core/Cargo.toml --release -p vm-benchmark --bench oneshot --bench batch
 
   loadtest:
-    runs-on: [matterlabs-ci-runner]
+    runs-on: [ matterlabs-ci-runner-high-performance ]
+    strategy:
+      fail-fast: false
+      matrix:
+        vm_mode: [ "OLD", "NEW" ]
 
     steps:
-      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
+      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
         with:
           submodules: "recursive"
+          fetch-depth: 0
 
       - name: Setup environment
         run: |
           echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
           echo $(pwd)/bin >> $GITHUB_PATH
           echo IN_DOCKER=1 >> .env
+          echo "SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage" >> .env
+          echo "SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com" >> .env
+          echo "SCCACHE_GCS_RW_MODE=READ_WRITE" >> .env
+          echo "RUSTC_WRAPPER=sccache" >> .env
 
       - name: Loadtest configuration
         run: |
-          echo EXPECTED_TX_COUNT="16000" >> .env
+          echo EXPECTED_TX_COUNT=${{ matrix.vm_mode == 'NEW' && 30000 || 16000 }} >> .env
+          echo ACCOUNTS_AMOUNT="100" >> .env
+          echo MAX_INFLIGHT_TXS="10" >> .env
+          echo SYNC_API_REQUESTS_LIMIT="15" >> .env
           echo FAIL_FAST=true >> .env
           echo IN_DOCKER=1 >> .env
-          echo DATABASE_MERKLE_TREE_MODE=lightweight >> .env
 
       - name: Start services
         run: |
@@ -93,226 +122,463 @@ jobs:
         run: |
           ci_run git config --global --add safe.directory /usr/src/zksync
           ci_run git config --global --add safe.directory /usr/src/zksync/sdk/binaryen
-          ci_run git config --global --add safe.directory /usr/src/zksync/etc/system-contracts
+          ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
 
-          ci_run zk
-          ci_run zk init
+      - name: Install zkstack
+        run: |
+          ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup || true
+          ci_run zkstackup -g --local --cargo-features gateway
+  
 
-      # `sleep 30` because we need to wait until server added all the tokens
+      - name: Create and initialize legacy chain
+        run: |
+          ci_run zkstack chain create \
+            --chain-name legacy \
+            --chain-id sequential \
+            --prover-mode no-proofs \
+            --wallet-creation localhost \
+            --l1-batch-commit-data-generator-mode rollup \
+            --base-token-address 0x0000000000000000000000000000000000000001 \
+            --base-token-price-nominator 1 \
+            --base-token-price-denominator 1 \
+            --set-as-default false \
+            --ignore-prerequisites \
+            --legacy-bridge \
+            --evm-emulator false
+
+          ci_run zkstack ecosystem init --dev --support-l2-legacy-shared-bridge-test true --verbose
+
+      # `sleep 60` because we need to wait until server added all the tokens
       - name: Run server
         run: |
-          ci_run zk server --uring --components api,tree,eth,data_fetcher,state_keeper,housekeeper &>server.log &
-          ci_run sleep 30
+          ci_run zkstack dev config-writer --path ${{ matrix.vm_mode == 'NEW' && 'etc/env/file_based/overrides/tests/loadtest-new.yaml' || 'etc/env/file_based/overrides/tests/loadtest-old.yaml' }} --chain legacy
+          ci_run zkstack server --uring --chain=legacy --components api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads &>server.log &
+          ci_run sleep 60
 
       - name: Perform loadtest
-        run: ci_run zk run loadtest
+        run: ci_run zkstack dev t loadtest -v --chain=legacy
 
-      - name: Show logs
+      - name: Show server.log logs
+        if: always()
+        run: ci_run cat server.log || true
+
+      - name: Show sccache logs
         if: always()
         run: |
-          ci_run cat server.log
-          ci_run sccache --show-stats
-          ci_run cat /tmp/sccache_log.txt
-  integration:
-    runs-on: [matterlabs-ci-runner]
+          ci_run sccache --show-stats || true
+          ci_run cat /tmp/sccache_log.txt || true
 
+  integration-tests:
+    runs-on: [ matterlabs-ci-runner-ultra-performance ]
+    strategy:
+      # ----------------------------------------------
+      # Note, that while the contracts do support gateway chain
+      # in reality it won't exist for quite some time and so
+      # we will test both cases here
+      # ----------------------------------------------
+      matrix:
+        use_gateway_chain: [ "WITH_GATEWAY", "WITHOUT_GATEWAY" ]
+      # In some cases it's useful to continue one job even if another fails.
+      fail-fast: false
     steps:
-      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
+      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
         with:
           submodules: "recursive"
+          fetch-depth: 0
 
       - name: Setup environment
         run: |
           echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
           echo $(pwd)/bin >> $GITHUB_PATH
           echo IN_DOCKER=1 >> .env
-          echo RUN_CONTRACT_VERIFICATION_TEST=true >> .env
-          echo ZKSYNC_DEBUG_LOGS=true >> .env
-
-      - name: Download zksolc/solc and zkvyper/vyper
-        run: |
-          sudo apt update && sudo apt install wget -y
-
-          mkdir -p $(pwd)/etc/solc-bin/0.8.23
-          wget https://github.com/ethereum/solc-bin/raw/gh-pages/linux-amd64/solc-linux-amd64-v0.8.23%2Bcommit.f704f362
-          mv solc-linux-amd64-v0.8.23+commit.f704f362 $(pwd)/etc/solc-bin/0.8.23/solc
-          chmod +x $(pwd)/etc/solc-bin/0.8.23/solc
-
-          mkdir -p $(pwd)/etc/zksolc-bin/v1.3.18
-          wget https://github.com/matter-labs/zksolc-bin/raw/main/linux-amd64/zksolc-linux-amd64-musl-v1.3.18
-          mv zksolc-linux-amd64-musl-v1.3.18 $(pwd)/etc/zksolc-bin/v1.3.18/zksolc
-          chmod +x $(pwd)/etc/zksolc-bin/v1.3.18/zksolc
-
-          mkdir -p $(pwd)/etc/vyper-bin/0.3.10
-          wget -O vyper0.3.10 https://github.com/vyperlang/vyper/releases/download/v0.3.10/vyper.0.3.10%2Bcommit.91361694.linux
-          mv vyper0.3.10 $(pwd)/etc/vyper-bin/0.3.10/vyper
-          chmod +x $(pwd)/etc/vyper-bin/0.3.10/vyper
-
-          mkdir -p $(pwd)/etc/zkvyper-bin/v1.3.13
-          wget https://github.com/matter-labs/zkvyper-bin/raw/main/linux-amd64/zkvyper-linux-amd64-musl-v1.3.13
-          mv zkvyper-linux-amd64-musl-v1.3.13 $(pwd)/etc/zkvyper-bin/v1.3.13/zkvyper
-          chmod +x $(pwd)/etc/zkvyper-bin/v1.3.13/zkvyper
+          echo "SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage" >> .env
+          echo "SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com" >> .env
+          echo "SCCACHE_GCS_RW_MODE=READ_WRITE" >> .env
+          echo "RUSTC_WRAPPER=sccache" >> .env
+          echo "GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}" >> .env
+          echo RUN_CONTRACT_VERIFICATION_TEST=true >> $GITHUB_ENV
 
       - name: Start services
         run: |
           ci_localnet_up
-          ci_run sccache --start-server
 
-      - name: Init
+      - name: Install zkstack
+        run: |
+          ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup || true
+          ci_run zkstackup -g --local --cargo-features gateway
+
+      - name: Create log directories
+        run: |
+          SERVER_LOGS_DIR=logs/server
+          INTEGRATION_TESTS_LOGS_DIR=logs/integration_tests
+          INTEGRATION_TESTS_EN_LOGS_DIR=logs/integration_tests/en
+          SNAPSHOT_RECOVERY_LOGS_DIR=logs/snapshot_recovery/
+          GENESIS_RECOVERY_LOGS_DIR=logs/genesis_recovery/
+          EXTERNAL_NODE_LOGS_DIR=logs/external_node
+          FEES_LOGS_DIR=logs/fees
+          REVERT_LOGS_DIR=logs/revert
+
+          mkdir -p $SERVER_LOGS_DIR
+          mkdir -p $INTEGRATION_TESTS_LOGS_DIR
+          mkdir -p $INTEGRATION_TESTS_EN_LOGS_DIR
+          mkdir -p $SNAPSHOT_RECOVERY_LOGS_DIR
+          mkdir -p $GENESIS_RECOVERY_LOGS_DIR
+          mkdir -p $EXTERNAL_NODE_LOGS_DIR
+          mkdir -p $FEES_LOGS_DIR
+          mkdir -p $REVERT_LOGS_DIR
+
+          echo "SERVER_LOGS_DIR=$SERVER_LOGS_DIR" >> $GITHUB_ENV
+          echo "INTEGRATION_TESTS_LOGS_DIR=$INTEGRATION_TESTS_LOGS_DIR" >> $GITHUB_ENV
+          echo "INTEGRATION_TESTS_EN_LOGS_DIR=$INTEGRATION_TESTS_EN_LOGS_DIR" >> $GITHUB_ENV
+          echo "SNAPSHOT_RECOVERY_LOGS_DIR=$SNAPSHOT_RECOVERY_LOGS_DIR" >> $GITHUB_ENV
+          echo "GENESIS_RECOVERY_LOGS_DIR=$GENESIS_RECOVERY_LOGS_DIR" >> $GITHUB_ENV
+          echo "EXTERNAL_NODE_LOGS_DIR=$EXTERNAL_NODE_LOGS_DIR" >> $GITHUB_ENV
+          echo "FEES_LOGS_DIR=$FEES_LOGS_DIR" >> $GITHUB_ENV
+          echo "REVERT_LOGS_DIR=$REVERT_LOGS_DIR" >> $GITHUB_ENV
+
+      - name: Initialize ecosystem
         run: |
           ci_run git config --global --add safe.directory /usr/src/zksync
-          ci_run git config --global --add safe.directory /usr/src/zksync/sdk/binaryen
-          ci_run git config --global --add safe.directory /usr/src/zksync/etc/system-contracts
+          ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
-          ci_run zk
-          ci_run zk init
 
+          ci_run zkstack ecosystem init --deploy-paymaster --deploy-erc20 \
+          --deploy-ecosystem --l1-rpc-url=http://localhost:8545 \
+          --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
+          --server-db-name=zksync_server_localhost_era \
+          --ignore-prerequisites --verbose \
+          --observability=false
 
-      # `sleep 5` because we need to wait until server started properly
-      - name: Run server
+      - name: Read Custom Token address and set as environment variable
         run: |
-          ci_run zk server &>server.log &
-          ci_run sleep 5
+          CUSTOM_TOKEN_ADDRESS=$(awk -F": " '/tokens:/ {found_tokens=1} found_tokens && /DAI:/ {found_dai=1} found_dai && /address:/ {print $2; exit}' ./configs/erc20.yaml)
+          echo "CUSTOM_TOKEN_ADDRESS=$CUSTOM_TOKEN_ADDRESS"
+          echo "CUSTOM_TOKEN_ADDRESS=$CUSTOM_TOKEN_ADDRESS" >> $GITHUB_ENV
 
-      - name: Run contract verifier
+      - name: Create and initialize Validium chain
         run: |
-          ci_run zk contract_verifier &>contract_verifier.log &
-          ci_run sleep 2
+          ci_run zkstack chain create \
+          --chain-name validium \
+          --chain-id sequential \
+          --prover-mode no-proofs \
+          --wallet-creation localhost \
+          --l1-batch-commit-data-generator-mode validium \
+          --base-token-address 0x0000000000000000000000000000000000000001 \
+          --base-token-price-nominator 1 \
+          --base-token-price-denominator 1 \
+          --set-as-default false \
+          --ignore-prerequisites \
+          --evm-emulator false
 
-      - name: Server integration tests
-        run: ci_run zk test i server
+          ci_run zkstack chain init \
+          --deploy-paymaster \
+          --l1-rpc-url=http://localhost:8545 \
+          --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
+          --server-db-name=zksync_server_localhost_validium \
+          --chain validium \
+          --validium-type no-da
+
+      - name: Create and initialize chain with Custom Token
+        run: |
+          ci_run zkstack chain create \
+          --chain-name custom_token \
+          --chain-id sequential \
+          --prover-mode no-proofs \
+          --wallet-creation localhost \
+          --l1-batch-commit-data-generator-mode rollup \
+          --base-token-address ${{ env.CUSTOM_TOKEN_ADDRESS }} \
+          --base-token-price-nominator 314 \
+          --base-token-price-denominator 1000 \
+          --set-as-default false \
+          --ignore-prerequisites \
+          --evm-emulator false
+
+          ci_run zkstack chain init \
+          --deploy-paymaster \
+          --l1-rpc-url=http://localhost:8545 \
+          --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
+          --server-db-name=zksync_server_localhost_custom_token \
+          --chain custom_token \
+          --validium-type no-da
+
+      - name: Create and register chain with transactions signed "offline"
+        run: |
+          ci_run zkstack chain create \
+          --chain-name offline_chain \
+          --chain-id sequential \
+          --prover-mode no-proofs \
+          --wallet-creation localhost \
+          --l1-batch-commit-data-generator-mode rollup \
+          --base-token-address 0x0000000000000000000000000000000000000001 \
+          --base-token-price-nominator 1 \
+          --base-token-price-denominator 1 \
+          --set-as-default false \
+          --ignore-prerequisites \
+          --evm-emulator false
+
+          ci_run zkstack chain build-transactions --chain offline_chain --l1-rpc-url http://127.0.0.1:8545
+
+          governor_pk=$(awk '/governor:/ {flag=1} flag && /private_key:/ {print $2; exit}' ./configs/wallets.yaml)
+
+          ci_run zkstack dev send-transactions \
+          --file ./transactions/chain/offline_chain/register-zk-chain-txns.json \
+          --l1-rpc-url http://127.0.0.1:8545 \
+          --private-key $governor_pk
+
+          bridge_hub=$(awk '/bridgehub_proxy_addr/ {print $2}' ./configs/contracts.yaml)
+          chain_id=$(awk '/chain_id:/ {print $2}' ./chains/offline_chain/ZkStack.yaml)
+
+          hyperchain_output=$(ci_run cast call $bridge_hub "getHyperchain(uint256)" $chain_id)
+
+          if [[ $hyperchain_output == 0x* && ${#hyperchain_output} -eq 66 ]]; then
+              echo "Chain successfully registered: $hyperchain_output"
+          else
+              echo "Failed to register chain: $hyperchain_output"
+              exit 1
+          fi
+
+      - name: Create and initialize Consensus chain
+        run: |
+          ci_run zkstack chain create \
+          --chain-name consensus \
+          --chain-id sequential \
+          --prover-mode no-proofs \
+          --wallet-creation localhost \
+          --l1-batch-commit-data-generator-mode validium \
+          --base-token-address ${{ env.CUSTOM_TOKEN_ADDRESS }} \
+          --base-token-price-nominator 314 \
+          --base-token-price-denominator 1000 \
+          --set-as-default false \
+          --ignore-prerequisites \
+          --evm-emulator false
+
+          ci_run zkstack chain init \
+          --deploy-paymaster \
+          --l1-rpc-url=http://localhost:8545 \
+          --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
+          --server-db-name=zksync_server_localhost_consensus \
+          --chain consensus \
+          --validium-type no-da
+
+      - name: Export chain list to environment variable
+        run: |
+          CHAINS="era,validium,custom_token,consensus"
+          echo "CHAINS=$CHAINS" >> $GITHUB_ENV
+
+      # ----------------------------------------------------------------
+      #  Only create/initialize the gateway chain *if* use_gateway_chain=WITH_GATEWAY
+      # ----------------------------------------------------------------
+      - name: Initialize gateway chain
+        if: matrix.use_gateway_chain == 'WITH_GATEWAY'
+        run: |
+          ci_run zkstack chain create \
+          --chain-name gateway \
+          --chain-id 505 \
+          --prover-mode no-proofs \
+          --wallet-creation localhost \
+          --l1-batch-commit-data-generator-mode rollup \
+          --base-token-address 0x0000000000000000000000000000000000000001 \
+          --base-token-price-nominator 1 \
+          --base-token-price-denominator 1 \
+          --set-as-default false \
+          --ignore-prerequisites \
+          --evm-emulator false
+          
+          ci_run zkstack chain init \
+          --deploy-paymaster \
+          --l1-rpc-url=http://localhost:8545 \
+          --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
+          --server-db-name=zksync_server_localhost_gateway \
+          --chain gateway \
+          --validium-type no-da
+          
+          ci_run zkstack chain convert-to-gateway --chain gateway --ignore-prerequisites
+
+      - name: Run gateway
+        if: matrix.use_gateway_chain == 'WITH_GATEWAY'
+        run: |
+          ci_run zkstack server --ignore-prerequisites --chain gateway &> ${{ env.SERVER_LOGS_DIR }}/gateway.log &
+          ci_run zkstack server wait --ignore-prerequisites --verbose --chain gateway
+
+      - name: Migrate chains to gateway
+        if: matrix.use_gateway_chain == 'WITH_GATEWAY'
+        run: |
+          ci_run zkstack chain migrate-to-gateway --chain era --gateway-chain-name gateway
+          ci_run zkstack chain migrate-to-gateway --chain validium --gateway-chain-name gateway
+          ci_run zkstack chain migrate-to-gateway --chain custom_token --gateway-chain-name gateway
+          ci_run zkstack chain migrate-to-gateway --chain consensus --gateway-chain-name gateway
+
+      - name: Migrate back era
+        if: matrix.use_gateway_chain == 'WITH_GATEWAY'
+        run: |
+          ci_run zkstack chain migrate-from-gateway --chain era --gateway-chain-name gateway
+
+      - name: Migrate to gateway again
+        if: matrix.use_gateway_chain == 'WITH_GATEWAY'
+        run: |
+          ci_run zkstack chain migrate-to-gateway --chain era --gateway-chain-name gateway
+
+      - name: Build test dependencies
+        run: |
+          ci_run zkstack dev test build
+
+      - name: Build tested binaries
+        run: |
+          ci_run zkstack server build
+          ci_run zkstack external-node build
+          ci_run zkstack contract-verifier build
+
+      - name: Initialize Contract verifier
+        run: |
+          ci_run zkstack contract-verifier init --zksolc-version=v1.5.10 --zkvyper-version=v1.5.4 --solc-version=0.8.26 --vyper-version=v0.3.10 --era-vm-solc-version=0.8.26-1.0.1 --only --chain era
+          ci_run zkstack contract-verifier run --chain era &> ${{ env.SERVER_LOGS_DIR }}/contract-verifier-rollup.log &
+          ci_run zkstack contract-verifier wait --chain era --verbose
+
+      - name: Run servers
+        run: |
+          # Override config for part of chains to test the default config as well
+          ci_run zkstack dev config-writer --path etc/env/file_based/overrides/tests/integration.yaml --chain era
+          ci_run zkstack dev config-writer --path etc/env/file_based/overrides/tests/integration.yaml --chain validium
+          
+          ci_run zkstack server --ignore-prerequisites --chain era &> ${{ env.SERVER_LOGS_DIR }}/rollup.log &
+          ci_run zkstack server --ignore-prerequisites --chain validium &> ${{ env.SERVER_LOGS_DIR }}/validium.log &
+          ci_run zkstack server --ignore-prerequisites --chain custom_token &> ${{ env.SERVER_LOGS_DIR }}/custom_token.log &
+          ci_run zkstack server --ignore-prerequisites --chain consensus \
+            --components=api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads,vm_runner_bwip,vm_playground,da_dispatcher,consensus \
+            &> ${{ env.SERVER_LOGS_DIR }}/consensus.log &
+
+          ci_run zkstack server wait --ignore-prerequisites --verbose --chain era
+          ci_run zkstack server wait --ignore-prerequisites --verbose --chain validium
+          ci_run zkstack server wait --ignore-prerequisites --verbose --chain custom_token
+          ci_run zkstack server wait --ignore-prerequisites --verbose --chain consensus
+
+      - name: Set up attester committee for the consensus chain
+        run: |
+          ci_run zkstack consensus wait-for-registry --ignore-prerequisites --verbose --chain consensus
+          ci_run zkstack consensus set-attester-committee --chain consensus --ignore-prerequisites --verbose --from-genesis &> ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/consensus.log 
+
+      - name: Run integration tests
+        run: |
+          ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --no-deps --ignore-prerequisites" ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}
+
+      - name: Repeat integration tests on push to main to check for flakiness
+        if: ${{ (steps.condition.outputs.should_run == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+        run: |
+          for i in {1..10}; do
+            echo "Iteration $i"
+            mkdir -p ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/$i
+            ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --no-deps --ignore-prerequisites" ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/$i
+          done
+
+      - name: Init external nodes
+        run: |
+          GATEWAY_RPC_URL="${{ matrix.use_gateway_chain == 'WITH_GATEWAY' && '--gateway-rpc-url=http://localhost:3550' || '' }}"
+          
+          ci_run zkstack external-node configs --db-url=postgres://postgres:notsecurepassword@localhost:5432 \
+          --db-name=zksync_en_localhost_era_rollup --l1-rpc-url=http://localhost:8545 $GATEWAY_RPC_URL --chain era
+          ci_run zkstack external-node init --ignore-prerequisites --chain era
+
+          ci_run zkstack external-node configs --db-url=postgres://postgres:notsecurepassword@localhost:5432 \
+          --db-name=zksync_en_localhost_era_validium1 --l1-rpc-url=http://localhost:8545 $GATEWAY_RPC_URL --chain validium
+          ci_run zkstack external-node init --ignore-prerequisites --chain validium
+
+          ci_run zkstack external-node configs --db-url=postgres://postgres:notsecurepassword@localhost:5432 \
+          --db-name=zksync_en_localhost_era_custom_token --l1-rpc-url=http://localhost:8545 $GATEWAY_RPC_URL --chain custom_token
+          ci_run zkstack external-node init --ignore-prerequisites --chain custom_token
+
+          ci_run zkstack external-node configs --db-url=postgres://postgres:notsecurepassword@localhost:5432 \
+          --db-name=zksync_en_localhost_era_consensus --l1-rpc-url=http://localhost:8545 $GATEWAY_RPC_URL --chain consensus
+          ci_run zkstack external-node init --ignore-prerequisites --chain consensus
+
+      - name: Run recovery tests (from snapshot)
+        run: |
+          ci_run ./bin/run_on_all_chains.sh "zkstack dev test recovery --snapshot --no-deps --ignore-prerequisites --verbose" ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}
+
+      - name: Run recovery tests (from genesis)
+        run: |
+          ci_run ./bin/run_on_all_chains.sh "zkstack dev test recovery --no-deps --no-kill --ignore-prerequisites --verbose" ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}
+
+      - name: Run external nodes
+        run: |
+          ci_run zkstack external-node run --ignore-prerequisites --chain era &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/rollup.log &
+          ci_run zkstack external-node run --ignore-prerequisites --chain validium &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/validium.log &
+          ci_run zkstack external-node run --ignore-prerequisites --chain custom_token &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/custom_token.log &
+          ci_run zkstack external-node run --ignore-prerequisites --chain consensus --enable-consensus &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/consensus.log &
+
+          ci_run zkstack external-node wait --ignore-prerequisites --verbose --chain era
+          ci_run zkstack external-node wait --ignore-prerequisites --verbose --chain validium
+          ci_run zkstack external-node wait --ignore-prerequisites --verbose --chain custom_token
+          ci_run zkstack external-node wait --ignore-prerequisites --verbose --chain consensus
+
+      - name: Run integration tests en
+        run: |
+          ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --no-deps --ignore-prerequisites --external-node" ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}
+
+      - name: Repeat integration tests en on push to main to check for flakiness
+        if: ${{ (steps.condition.outputs.should_run == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+        run: |
+          for i in {1..10}; do
+            echo "Iteration $i"
+            mkdir -p ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/$i
+            ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --no-deps --ignore-prerequisites --external-node" ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/$i
+          done
 
       - name: Fee projection tests
-        run: ci_run zk test i fees
-
-      - name: Run revert test
         run: |
-          ci_run pkill zksync_server || true
-          ci_run sleep 2
-          ci_run zk test i revert
+          ci_run killall -INT zksync_server || true
 
-        # This test should be the last one as soon as it
-        # finished bootloader will be different
+          # Only start & wait for the gateway server if use_gateway_chain == WITH_GATEWAY
+          if [ "${{ matrix.use_gateway_chain }}" == "WITH_GATEWAY" ]; then
+            ci_run zkstack server --ignore-prerequisites --chain gateway &> ${{ env.SERVER_LOGS_DIR }}/gateway.log &
+            ci_run zkstack server wait --ignore-prerequisites --verbose --chain gateway
+          fi
+
+          # Always run the chain-specific fee tests
+          ci_run ./bin/run_on_all_chains.sh "zkstack dev test fees --no-deps --no-kill" ${{ env.CHAINS }} ${{ env.FEES_LOGS_DIR }}
+
+      - name: Repeat fee projection tests on push to main to check for flakiness
+        if: ${{ (steps.condition.outputs.should_run == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+        run: |
+          for i in {1..10}; do
+            echo "Iteration $i"
+            mkdir -p ${{ env.FEES_LOGS_DIR }}/$i
+            ci_run ./bin/run_on_all_chains.sh "zkstack dev test fees --no-deps --no-kill" ${{ env.CHAINS }} ${{ env.FEES_LOGS_DIR }}/$i
+          done
+
+      - name: Run revert tests
+        run: |
+          ci_run killall -INT zksync_server || true
+          ci_run killall -INT zksync_external_node || true
+
+          # Only start & wait for the gateway server if use_gateway_chain == WITH_GATEWAY
+          if [ "${{ matrix.use_gateway_chain }}" == "WITH_GATEWAY" ]; then
+            ci_run zkstack server --ignore-prerequisites --chain gateway &> ${{ env.SERVER_LOGS_DIR }}/gateway.log &
+            ci_run zkstack server wait --ignore-prerequisites --verbose --chain gateway
+          fi
+
+          # Always run the chain-specific revert tests
+          ci_run ./bin/run_on_all_chains.sh "zkstack dev test revert --no-deps --external-node --no-kill --ignore-prerequisites" ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}
+
+      # Upgrade tests should run last, because as soon as they
+      # finish the bootloader will be different
+      # TODO make upgrade tests safe to run multiple times
       - name: Run upgrade test
         run: |
-          ci_run pkill zksync_server || true
-          ci_run sleep 10
-          ci_run zk test i upgrade
+          ci_run killall -INT zksync_server || true
 
-      - name: Show logs
+          # Only start & wait for the gateway server if use_gateway_chain == WITH_GATEWAY
+          if [ "${{ matrix.use_gateway_chain }}" == "WITH_GATEWAY" ]; then
+            ci_run zkstack server --ignore-prerequisites --chain gateway &> ${{ env.SERVER_LOGS_DIR }}/gateway.log &
+            ci_run zkstack server wait --ignore-prerequisites --verbose --chain gateway
+          fi
+
+          # Always run the upgrade test against era
+          ci_run zkstack dev test upgrade --no-deps --chain era
+
+      - name: Upload logs
+        uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874 # v4.4.0
         if: always()
-        run: |
-          ci_run cat server.log
-          ci_run cat contract_verifier.log
-          ci_run cat core/tests/revert-test/revert.log
-          ci_run cat core/tests/upgrade-test/upgrade.log
-          ci_run sccache --show-stats
-          ci_run cat /tmp/sccache_log.txt
-
-  external-node:
-    runs-on: [matterlabs-ci-runner]
-
-    steps:
-      - name: Checkout code # Checks out the repository under $GITHUB_WORKSPACE, so the job can access it.
-        uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
         with:
-          submodules: "recursive"
-
-      - name: Setup environment
-        run: |
-          echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
-          echo $(pwd)/bin >> $GITHUB_PATH
-          echo IN_DOCKER=1 >> .env
-          echo RUN_CONTRACT_VERIFICATION_TEST=true >> .env
-          echo ZKSYNC_DEBUG_LOGS=true >> .env
-
-      - name: Download zksolc/solc and zkvyper/vyper
-        run: |
-          sudo apt update && sudo apt install wget -y
-
-          mkdir -p $(pwd)/etc/solc-bin/0.8.23
-          wget https://github.com/ethereum/solc-bin/raw/gh-pages/linux-amd64/solc-linux-amd64-v0.8.23%2Bcommit.f704f362
-          mv solc-linux-amd64-v0.8.23+commit.f704f362 $(pwd)/etc/solc-bin/0.8.23/solc
-          chmod +x $(pwd)/etc/solc-bin/0.8.23/solc
-
-          mkdir -p $(pwd)/etc/zksolc-bin/v1.3.18
-          wget https://github.com/matter-labs/zksolc-bin/raw/main/linux-amd64/zksolc-linux-amd64-musl-v1.3.18
-          mv zksolc-linux-amd64-musl-v1.3.18 $(pwd)/etc/zksolc-bin/v1.3.18/zksolc
-          chmod +x $(pwd)/etc/zksolc-bin/v1.3.18/zksolc
-
-          mkdir -p $(pwd)/etc/vyper-bin/0.3.10
-          wget -O vyper0.3.10 https://github.com/vyperlang/vyper/releases/download/v0.3.10/vyper.0.3.10%2Bcommit.91361694.linux
-          mv vyper0.3.10 $(pwd)/etc/vyper-bin/0.3.10/vyper
-          chmod +x $(pwd)/etc/vyper-bin/0.3.10/vyper
-
-          mkdir -p $(pwd)/etc/zkvyper-bin/v1.3.11
-          wget https://github.com/matter-labs/zkvyper-bin/raw/main/linux-amd64/zkvyper-linux-amd64-musl-v1.3.11
-          mv zkvyper-linux-amd64-musl-v1.3.11 $(pwd)/etc/zkvyper-bin/v1.3.11/zkvyper
-          chmod +x $(pwd)/etc/zkvyper-bin/v1.3.11/zkvyper
-
-      - name: Start services
-        run: |
-          ci_localnet_up
-          ci_run sccache --start-server
-
-      - name: Init
-        run: |
-          ci_run git config --global --add safe.directory /usr/src/zksync
-          ci_run git config --global --add safe.directory /usr/src/zksync/sdk/binaryen
-          ci_run git config --global --add safe.directory /usr/src/zksync/etc/system-contracts
-          ci_run git config --global --add safe.directory /usr/src/zksync/contracts
-          ci_run zk
-          ci_run zk init
-
-      # `sleep 30` because we need to wait until server started properly
-      - name: Run server
-        run: |
-          ci_run zk server &>server.log &
-          ci_run sleep 30
-
-      - name: Run external node
-        run: |
-          ci_run zk env ext-node-docker
-          ci_run zk db setup
-          ci_run zk external-node &>ext-node.log &
-          ci_run sleep 30
-
-      # TODO(PLA-653): Restore bridge tests for EN.
-      - name: Integration tests
-        run: ci_run zk test i server --testPathIgnorePatterns 'contract-verification|custom-erc20-bridge|snapshots-creator'
-
-      - name: Run Cross EN Checker
-        run: ci_run zk run cross-en-checker
-
-      - name: Run revert test
-        run: |
-          ci_run zk env
-          ci_run zk env docker
-          ci_run pkill zksync_server || true
-          ci_run sleep 2
-          ci_run zk env
-          ci_run zk test i revert
-          # Check that the rollback was performed on the EN
-          ci_run sleep 20
-          ci_run grep -q 'Rollback successfully completed' ext-node.log
-          # Restart the EN
-          ci_run zk server &>>server.log &
-          ci_run sleep 30
-          ZKSYNC_ENV=ext-node-docker ci_run zk external-node &>>ext-node.log &
-          ci_run sleep 30
-
-      - name: Run upgrade test
-        run: |
-          ci_run zk env docker
-          CHECK_EN_URL="http://0.0.0.0:3060" ci_run zk test i upgrade
-
-      - name: Show logs
-        if: always()
-        run: |
-          ci_run cat server.log
-          ci_run cat ext-node.log
-          ci_run cat core/tests/revert-test/revert.log
-          ci_run cat core/tests/upgrade-test/upgrade.log
-          ci_run sccache --show-stats
-          ci_run cat /tmp/sccache_log.txt
+          name: logs_${{matrix.use_gateway_chain}}
+          path: logs

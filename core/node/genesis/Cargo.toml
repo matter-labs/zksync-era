@@ -1,0 +1,29 @@
+[package]
+name = "zksync_node_genesis"
+description = "ZKsync node genesis tools"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+zksync_multivm.workspace = true
+vise.workspace = true
+zksync_types.workspace = true
+zksync_dal.workspace = true
+zksync_config.workspace = true
+zksync_contracts.workspace = true
+zksync_eth_client.workspace = true
+zksync_merkle_tree.workspace = true
+zksync_system_constants.workspace = true
+
+tokio = { workspace = true, features = ["time"] }
+anyhow.workspace = true
+itertools.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+bincode.workspace = true

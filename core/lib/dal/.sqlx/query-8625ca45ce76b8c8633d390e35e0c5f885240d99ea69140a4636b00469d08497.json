@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                tx_hash\n            FROM\n                eth_txs_history\n            WHERE\n                eth_tx_id = $1\n                AND confirmed_at IS NOT NULL\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "tx_hash",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "8625ca45ce76b8c8633d390e35e0c5f885240d99ea69140a4636b00469d08497"
+}

@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::glue::{GlueFrom, GlueInto};
 
 impl GlueFrom<crate::vm_m5::vm_instance::VmPartialExecutionResult>
@@ -11,16 +13,18 @@ impl GlueFrom<crate::vm_m5::vm_instance::VmPartialExecutionResult>
                 contracts_used: value.contracts_used,
                 cycles_used: value.cycles_used,
                 total_log_queries: value.logs.total_log_queries_count,
-                // There are no such fields in m5
+                gas_remaining: value.gas_remaining,
+                // There are no such fields in `m5`.
                 gas_used: 0,
-                // There are no such fields in m5
                 computational_gas_used: 0,
                 pubdata_published: 0,
+                circuit_statistic: Default::default(),
             },
             refunds: crate::interface::Refunds {
                 gas_refunded: 0,
                 operator_suggested_refund: 0,
             },
+            dynamic_factory_deps: HashMap::new(),
         }
     }
 }
@@ -35,15 +39,19 @@ impl GlueFrom<crate::vm_m6::vm_instance::VmPartialExecutionResult>
             statistics: crate::interface::VmExecutionStatistics {
                 contracts_used: value.contracts_used,
                 cycles_used: value.cycles_used,
-                gas_used: value.computational_gas_used,
                 computational_gas_used: value.computational_gas_used,
+                gas_remaining: value.gas_remaining,
                 total_log_queries: value.logs.total_log_queries_count,
+                // There are no such fields in `m6`.
+                gas_used: 0,
                 pubdata_published: 0,
+                circuit_statistic: Default::default(),
             },
             refunds: crate::interface::Refunds {
                 gas_refunded: 0,
                 operator_suggested_refund: 0,
             },
+            dynamic_factory_deps: HashMap::new(),
         }
     }
 }
@@ -58,15 +66,19 @@ impl GlueFrom<crate::vm_1_3_2::vm_instance::VmPartialExecutionResult>
             statistics: crate::interface::VmExecutionStatistics {
                 contracts_used: value.contracts_used,
                 cycles_used: value.cycles_used,
-                gas_used: value.computational_gas_used,
                 computational_gas_used: value.computational_gas_used,
+                gas_remaining: value.gas_remaining,
                 total_log_queries: value.logs.total_log_queries_count,
+                // There are no such fields in `1_3_2`.
+                gas_used: 0,
                 pubdata_published: 0,
+                circuit_statistic: Default::default(),
             },
             refunds: crate::interface::Refunds {
                 gas_refunded: 0,
                 operator_suggested_refund: 0,
             },
+            dynamic_factory_deps: HashMap::new(),
         }
     }
 }

@@ -1,0 +1,36 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            WITH\n            sl AS (\n                SELECT\n                    (\n                        SELECT\n                            ARRAY[hashed_key, value] AS kv\n                        FROM\n                            storage_logs\n                        WHERE\n                            storage_logs.miniblock_number <= $1\n                            AND storage_logs.hashed_key >= u.start_key\n                            AND storage_logs.hashed_key <= u.end_key\n                        ORDER BY\n                            storage_logs.hashed_key\n                        LIMIT\n                            1\n                    )\n                FROM\n                    UNNEST($2::bytea [], $3::bytea []) AS u (start_key, end_key)\n            )\n            \n            SELECT\n                sl.kv[1] AS \"hashed_key?\",\n                sl.kv[2] AS \"value?\",\n                initial_writes.index\n            FROM\n                sl\n            LEFT OUTER JOIN initial_writes ON initial_writes.hashed_key = sl.kv[1]\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "hashed_key?",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 1,
+        "name": "value?",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 2,
+        "name": "index",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "ByteaArray",
+        "ByteaArray"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      true
+    ]
+  },
+  "hash": "12c062c6a5078ebcbde378126a3773e86be9876cd198610e0792322e2a0797af"
+}

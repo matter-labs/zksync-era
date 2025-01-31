@@ -9,17 +9,15 @@ use zk_evm_1_3_1::{
         definitions::RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER,
     },
 };
-use zksync_system_constants::MAX_TXS_IN_BLOCK;
 use zksync_types::{
     l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
-    tx::tx_execution_info::TxExecutionStatus,
-    vm_trace::VmExecutionTrace,
-    L1BatchNumber, StorageLogQuery, VmEvent, U256,
+    L1BatchNumber, U256,
 };
 
 use crate::{
     glue::GlueInto,
-    interface::types::outputs::VmExecutionLogs,
+    interface::{TxExecutionStatus, VmEvent, VmExecutionLogs},
+    versions::shared::VmExecutionTrace,
     vm_m5::{
         bootloader_state::BootloaderState,
         errors::{TxRevertReason, VmRevertReason, VmRevertReasonParsingResult},
@@ -41,6 +39,7 @@ use crate::{
         utils::{
             collect_log_queries_after_timestamp, collect_storage_log_queries_after_timestamp,
             dump_memory_page_using_primitive_value, precompile_calls_count_after_timestamp,
+            StorageLogQuery,
         },
         vm_with_bootloader::{
             BootloaderJobType, DerivedBlockContext, TxExecutionMode, BOOTLOADER_HEAP_PAGE,
@@ -82,7 +81,7 @@ pub(crate) fn get_vm_hook_params(memory: &SimpleMemory) -> Vec<U256> {
 ///
 /// This enum allows to execute blocks with the same VM but different support for refunds.
 #[derive(Debug, Copy, Clone)]
-pub enum MultiVMSubversion {
+pub enum MultiVmSubversion {
     /// Initial VM M5 version, refunds are fully disabled.
     V1,
     /// Refunds were enabled. ETH balance for bootloader address was marked as a free slot.
@@ -100,7 +99,7 @@ pub struct VmInstance<S: Storage> {
     pub snapshots: Vec<VmSnapshot>,
 
     /// MultiVM-specific addition. See enum doc-comment for details.
-    pub(crate) refund_state: MultiVMSubversion,
+    pub(crate) refund_state: MultiVmSubversion,
 }
 
 /// This structure stores data that accumulates during the VM run.
@@ -128,6 +127,7 @@ pub struct VmExecutionResult {
     /// is executed, but it's not enforced. So best we can do is to calculate the amount of gas before and
     /// after the invocation, leaving the interpretation of this value to the user.
     pub gas_used: u32,
+    pub gas_remaining: u32,
     pub contracts_used: usize,
     pub revert_reason: Option<VmRevertReasonParsingResult>,
     pub trace: VmExecutionTrace,
@@ -157,6 +157,7 @@ pub struct VmPartialExecutionResult {
     pub revert_reason: Option<TxRevertReason>,
     pub contracts_used: usize,
     pub cycles_used: u32,
+    pub gas_remaining: u32,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -176,6 +177,7 @@ pub enum VmExecutionStopReason {
     TracerRequestedStop,
 }
 
+use super::vm_with_bootloader::MAX_TXS_IN_BLOCK;
 use crate::vm_m5::utils::VmExecutionResult as NewVmExecutionResult;
 
 fn vm_may_have_ended_inner<const B: bool, S: Storage>(
@@ -205,7 +207,7 @@ fn vm_may_have_ended_inner<const B: bool, S: Storage>(
         }
         (false, _) => None,
         (true, l) if l == outer_eh_location => {
-            // check r1,r2,r3
+            // check `r1,r2,r3`
             if vm.local_state.flags.overflow_or_less_than_flag {
                 Some(NewVmExecutionResult::Panic)
             } else {
@@ -227,19 +229,21 @@ fn vm_may_have_ended_inner<const B: bool, S: Storage>(
 fn vm_may_have_ended<S: Storage>(vm: &VmInstance<S>, gas_before: u32) -> Option<VmExecutionResult> {
     let basic_execution_result = vm_may_have_ended_inner(&vm.state)?;
 
-    let gas_used = gas_before - vm.gas_remaining();
+    let gas_remaining = vm.gas_remaining();
+    let gas_used = gas_before - gas_remaining;
 
     match basic_execution_result {
         NewVmExecutionResult::Ok(data) => {
             Some(VmExecutionResult {
                 // The correct `events` value for this field should be set separately
-                // later on based on the information inside the event_sink oracle.
+                // later on based on the information inside the `event_sink` oracle.
                 events: vec![],
                 storage_log_queries: vm.get_final_log_queries(),
                 used_contract_hashes: vm.get_used_contracts(),
                 l2_to_l1_logs: vec![],
                 return_data: data,
                 gas_used,
+                gas_remaining,
                 contracts_used: vm
                     .state
                     .decommittment_processor
@@ -278,6 +282,7 @@ fn vm_may_have_ended<S: Storage>(vm: &VmInstance<S>, gas_before: u32) -> Option<
                 l2_to_l1_logs: vec![],
                 return_data: vec![],
                 gas_used,
+                gas_remaining,
                 contracts_used: vm
                     .state
                     .decommittment_processor
@@ -299,6 +304,7 @@ fn vm_may_have_ended<S: Storage>(vm: &VmInstance<S>, gas_before: u32) -> Option<
             l2_to_l1_logs: vec![],
             return_data: vec![],
             gas_used,
+            gas_remaining,
             contracts_used: vm
                 .state
                 .decommittment_processor
@@ -380,8 +386,8 @@ impl<S: Storage> VmInstance<S> {
     pub fn save_current_vm_as_snapshot(&mut self) {
         self.snapshots.push(VmSnapshot {
             // Vm local state contains O(1) various parameters (registers/etc).
-            // The only "expensive" copying here is copying of the callstack.
-            // It will take O(callstack_depth) to copy it.
+            // The only "expensive" copying here is copying of the call stack.
+            // It will take `O(callstack_depth)` to copy it.
             // So it is generally recommended to get snapshots of the bootloader frame,
             // where the depth is 1.
             local_state: self.state.local_state.clone(),
@@ -468,10 +474,7 @@ impl<S: Storage> VmInstance<S> {
             .collect();
         (
             events,
-            l1_messages
-                .into_iter()
-                .map(|log| L2ToL1Log::from(GlueInto::<zksync_types::EventMessage>::glue_into(log)))
-                .collect(),
+            l1_messages.into_iter().map(GlueInto::glue_into).collect(),
         )
     }
 
@@ -507,7 +510,7 @@ impl<S: Storage> VmInstance<S> {
             from_timestamp,
         );
         VmExecutionLogs {
-            storage_logs,
+            storage_logs: storage_logs.into_iter().map(GlueInto::glue_into).collect(),
             events,
             user_l2_to_l1_logs: l2_to_l1_logs.into_iter().map(UserL2ToL1Log).collect(),
             system_l2_to_l1_logs: vec![],
@@ -557,12 +560,12 @@ impl<S: Storage> VmInstance<S> {
                 let refund_to_propose;
                 let refund_slot;
                 match self.refund_state {
-                    MultiVMSubversion::V1 => {
+                    MultiVmSubversion::V1 => {
                         refund_to_propose = bootloader_refund;
                         refund_slot =
                             OPERATOR_REFUNDS_OFFSET + self.bootloader_state.tx_to_execute() - 1;
                     }
-                    MultiVMSubversion::V2 => {
+                    MultiVmSubversion::V2 => {
                         let gas_spent_on_pubdata = tracer
                             .gas_spent_on_pubdata(&self.state.local_state)
                             - spent_pubdata_counter_before;
@@ -626,8 +629,8 @@ impl<S: Storage> VmInstance<S> {
     }
 
     // Err when transaction is rejected.
-    // Ok(status: TxExecutionStatus::Success) when the transaction succeeded
-    // Ok(status: TxExecutionStatus::Failure) when the transaction failed.
+    // `Ok(status: TxExecutionStatus::Success)` when the transaction succeeded
+    // `Ok(status: TxExecutionStatus::Failure)` when the transaction failed.
     // Note that failed transactions are considered properly processed and are included in blocks
     pub fn execute_next_tx(&mut self) -> Result<VmTxExecutionResult, TxRevertReason> {
         let tx_index = self.bootloader_state.next_unexecuted_tx() as u32;
@@ -672,7 +675,7 @@ impl<S: Storage> VmInstance<S> {
                             revert_reason: None,
                             // getting contracts used during this transaction
                             // at least for now the number returned here is always <= to the number
-                            // of the code hashes actually used by the transaction, since it might've
+                            // of the code hashes actually used by the transaction, since it might have
                             // reused bytecode hashes from some of the previous ones.
                             contracts_used: self
                                 .state
@@ -680,6 +683,7 @@ impl<S: Storage> VmInstance<S> {
                                 .get_decommitted_bytes_after_timestamp(timestamp_initial),
                             cycles_used: self.state.local_state.monotonic_cycle_counter
                                 - cycles_initial,
+                            gas_remaining: self.gas_remaining(),
                         },
                     })
                 } else {
@@ -741,23 +745,20 @@ impl<S: Storage> VmInstance<S> {
                         .decommittment_processor
                         .get_decommitted_bytes_after_timestamp(timestamp_initial),
                     cycles_used: self.state.local_state.monotonic_cycle_counter - cycles_initial,
+                    gas_remaining: self.gas_remaining(),
                 };
 
                 // Collecting `block_tip_result` needs logs with timestamp, so we drain events for the `full_result`
                 // after because draining will drop timestamps.
-                let (_full_history, raw_events, l1_messages) = self.state.event_sink.flatten();
+                let (raw_events, l1_messages) = self.state.event_sink.flatten();
                 full_result.events = merge_events(raw_events)
                     .into_iter()
                     .map(|e| {
                         e.into_vm_event(L1BatchNumber(self.block_context.context.block_number))
                     })
                     .collect();
-                full_result.l2_to_l1_logs = l1_messages
-                    .into_iter()
-                    .map(|log| {
-                        L2ToL1Log::from(GlueInto::<zksync_types::EventMessage>::glue_into(log))
-                    })
-                    .collect();
+                full_result.l2_to_l1_logs =
+                    l1_messages.into_iter().map(GlueInto::glue_into).collect();
                 VmBlockResult {
                     full_result,
                     block_tip_result,
@@ -801,6 +802,7 @@ impl<S: Storage> VmInstance<S> {
                 .decommittment_processor
                 .get_decommitted_bytes_after_timestamp(timestamp_initial),
             cycles_used: self.state.local_state.monotonic_cycle_counter - cycles_initial,
+            gas_remaining: self.gas_remaining(),
         }
     }
 

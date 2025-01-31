@@ -18,8 +18,8 @@ mod tests {
     fn expected_config() -> ContractVerifierConfig {
         ContractVerifierConfig {
             compilation_timeout: 30,
-            polling_interval: Some(1000),
             prometheus_port: 3314,
+            port: 3070,
         }
     }
 
@@ -28,8 +28,8 @@ mod tests {
         let mut lock = MUTEX.lock();
         let config = r#"
             CONTRACT_VERIFIER_COMPILATION_TIMEOUT=30
-            CONTRACT_VERIFIER_POLLING_INTERVAL=1000
             CONTRACT_VERIFIER_PROMETHEUS_PORT=3314
+            CONTRACT_VERIFIER_PORT=3070
         "#;
         lock.set_env(config);
 

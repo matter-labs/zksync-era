@@ -1,12 +1,12 @@
 use num::Integer;
 use rand::RngCore;
-use zksync::EthNamespaceClient;
 use zksync_types::api;
 
 use crate::{
     account_pool::SyncWallet,
     all::AllWeighted,
     rng::{LoadtestRng, WeightedRandom},
+    sdk::EthNamespaceClient,
 };
 
 /// Helper enum for generating random block number.
@@ -53,7 +53,7 @@ impl AllWeighted for ApiRequestType {
 pub struct ApiRequest {
     /// Type of the request to be performed.
     pub request_type: ApiRequestType,
-    /// zkSync block number, generated randomly.
+    /// ZKsync block number, generated randomly.
     pub block_number: api::BlockNumber,
 }
 
@@ -73,7 +73,7 @@ async fn random_block_number(wallet: &SyncWallet, rng: &mut LoadtestRng) -> api:
     match block_number {
         BlockNumber::Committed => api::BlockNumber::Committed,
         BlockNumber::Number => {
-            // Choose a random block in the range [0, latest_committed_block_number).
+            // Choose a random block in the range `[0, latest_committed_block_number)`.
             match wallet
                 .provider
                 .get_block_by_number(api::BlockNumber::Committed, false)

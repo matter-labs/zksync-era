@@ -1,11 +1,15 @@
 use std::sync::Arc;
 
 use once_cell::sync::OnceCell;
-use zksync_types::vm_trace::Call;
 
-use crate::tracers::call_tracer::metrics::CALL_METRICS;
+use crate::{
+    glue::tracers::IntoOldVmTracer, interface::Call, tracers::call_tracer::metrics::CALL_METRICS,
+};
 
 mod metrics;
+pub mod vm_1_4_1;
+pub mod vm_1_4_2;
+pub mod vm_boojum_integration;
 pub mod vm_latest;
 pub mod vm_refunds_enhancement;
 pub mod vm_virtual_blocks;
@@ -13,6 +17,8 @@ pub mod vm_virtual_blocks;
 #[derive(Debug, Clone)]
 pub struct CallTracer {
     stack: Vec<FarcallAndNearCallCount>,
+    finished_calls: Vec<Call>,
+
     result: Arc<OnceCell<Vec<Call>>>,
 
     max_stack_depth: usize,
@@ -37,6 +43,7 @@ impl CallTracer {
     pub fn new(result: Arc<OnceCell<Vec<Call>>>) -> Self {
         Self {
             stack: vec![],
+            finished_calls: vec![],
             result,
             max_stack_depth: 0,
             max_near_calls: 0,
@@ -85,5 +92,11 @@ impl CallTracer {
             self.max_near_calls = self.max_near_calls.max(last.near_calls_after);
             self.max_stack_depth = self.max_stack_depth.max(last.stack_depth_on_prefix);
         }
+    }
+}
+
+impl IntoOldVmTracer for CallTracer {
+    fn old_tracer(&self) -> crate::tracers::old::OldTracers {
+        crate::tracers::old::OldTracers::CallTracer(self.result.clone())
     }
 }

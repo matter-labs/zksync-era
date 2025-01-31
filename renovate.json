@@ -1,11 +1,13 @@
 {
-  "enabled": false,
-  "extends": [
-    "config:base",
-    "helpers:pinGitHubActionDigests"
-  ],
-  "enabledManagers": [
-    "github-actions"
-  ],
-  "prCreation": "immediate"
+  "extends": ["config:base", "helpers:pinGitHubActionDigests"],
+  "enabledManagers": ["github-actions"],
+  "prCreation": "not-pending",
+  "groupName": "github actions monthly updates",
+  "schedule": ["monthly"],
+  "packageRules": [
+    {
+      "managers": ["github-actions"],
+      "groupName": "all-github-actions-updates"
+    }
+  ]
 }

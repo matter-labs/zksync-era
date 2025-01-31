@@ -2,20 +2,21 @@
  * This suite contains tests checking default ERC-20 contract behavior.
  */
 
-import { TestMaster } from '../src/index';
+import { TestMaster } from '../src';
 import { Token } from '../src/types';
 import { shouldChangeTokenBalances, shouldOnlyTakeFee } from '../src/modifiers/balance-checker';
 
-import * as zksync from 'zksync-web3';
-import { BigNumber, utils as etherUtils } from 'ethers';
+import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
-import { scaledGasPrice, waitUntilBlockFinalized } from '../src/helpers';
-import { L2_ETH_PER_ACCOUNT } from '../src/context-owner';
+import { scaledGasPrice, waitForL2ToL1LogProof } from '../src/helpers';
+import { L2_DEFAULT_ETH_PER_ACCOUNT } from '../src/context-owner';
 
-describe('ERC20 contract checks', () => {
+describe('L1 ERC20 contract checks', () => {
     let testMaster: TestMaster;
     let alice: zksync.Wallet;
     let bob: zksync.Wallet;
+    let isETHBasedChain: boolean;
+    let baseTokenAddress: string;
     let tokenDetails: Token;
     let aliceErc20: zksync.Contract;
 
@@ -24,20 +25,24 @@ describe('ERC20 contract checks', () => {
         alice = testMaster.mainAccount();
         bob = testMaster.newEmptyAccount();
 
+        // Get the information about base token address directly from the L2.
+        baseTokenAddress = await alice._providerL2().getBaseTokenContractAddress();
+        isETHBasedChain = baseTokenAddress == zksync.utils.ETH_ADDRESS_IN_CONTRACTS;
+
         tokenDetails = testMaster.environment().erc20Token;
         aliceErc20 = new zksync.Contract(tokenDetails.l2Address, zksync.utils.IERC20, alice);
     });
 
     test('Token properties are correct', async () => {
-        expect(aliceErc20.name()).resolves.toBe(tokenDetails.name);
-        expect(aliceErc20.decimals()).resolves.toBe(tokenDetails.decimals);
-        expect(aliceErc20.symbol()).resolves.toBe(tokenDetails.symbol);
-        expect(aliceErc20.balanceOf(alice.address)).resolves.bnToBeGt(0, 'Alice should have non-zero balance');
+        await expect(aliceErc20.name()).resolves.toBe(tokenDetails.name);
+        await expect(aliceErc20.decimals()).resolves.toBe(tokenDetails.decimals);
+        await expect(aliceErc20.symbol()).resolves.toBe(tokenDetails.symbol);
+        await expect(aliceErc20.balanceOf(alice.address)).resolves.toBeGreaterThan(0n); // 'Alice should have non-zero balance'
     });
 
     test('Can perform a deposit', async () => {
-        const amount = 1; // 1 wei is enough.
-        const gasPrice = scaledGasPrice(alice);
+        const amount = 1n; // 1 wei is enough.
+        const gasPrice = await scaledGasPrice(alice);
 
         // Note: for L1 we should use L1 token address.
         const l1BalanceChange = await shouldChangeTokenBalances(
@@ -56,6 +61,7 @@ describe('ERC20 contract checks', () => {
                 token: tokenDetails.l1Address,
                 amount,
                 approveERC20: true,
+                approveBaseERC20: true,
                 approveOverrides: {
                     gasPrice
                 },
@@ -67,7 +73,7 @@ describe('ERC20 contract checks', () => {
     });
 
     test('Can perform a transfer', async () => {
-        const value = BigNumber.from(200);
+        const value = 200n;
 
         const balanceChange = await shouldChangeTokenBalances(tokenDetails.l2Address, [
             { wallet: alice, change: -value },
@@ -80,78 +86,96 @@ describe('ERC20 contract checks', () => {
     });
 
     test('Can perform a transfer to self', async () => {
-        const value = BigNumber.from(200);
+        const value = 200n;
 
         // When transferring to self, balance should not change.
-        const balanceChange = await shouldChangeTokenBalances(tokenDetails.l2Address, [{ wallet: alice, change: 0 }]);
+        const balanceChange = await shouldChangeTokenBalances(tokenDetails.l2Address, [{ wallet: alice, change: 0n }]);
         const feeCheck = await shouldOnlyTakeFee(alice);
         await expect(aliceErc20.transfer(alice.address, value)).toBeAccepted([balanceChange, feeCheck]);
     });
 
     test('Incorrect transfer should revert', async () => {
-        const value = etherUtils.parseEther('1000000.0');
+        const value = ethers.parseEther('1000000.0');
+        const gasPrice = await scaledGasPrice(alice);
 
         // Since gas estimation is expected to fail, we request gas limit for similar non-failing tx.
-        const gasLimit = await aliceErc20.estimateGas.transfer(bob.address, 1);
+        const gasLimit = await aliceErc20.transfer.estimateGas(bob.address, 1);
 
         // Balances should not change for this token.
         const noBalanceChange = await shouldChangeTokenBalances(tokenDetails.l2Address, [
-            { wallet: alice, change: 0 },
-            { wallet: bob, change: 0 }
+            { wallet: alice, change: 0n },
+            { wallet: bob, change: 0n }
         ]);
         // Fee in ETH should be taken though.
         const feeTaken = await shouldOnlyTakeFee(alice);
 
         // Send transfer, it should revert due to lack of balance.
-        await expect(aliceErc20.transfer(bob.address, value, { gasLimit })).toBeReverted([noBalanceChange, feeTaken]);
+        await expect(aliceErc20.transfer(bob.address, value, { gasLimit, gasPrice })).toBeReverted([
+            noBalanceChange,
+            feeTaken
+        ]);
     });
 
     test('Transfer to zero address should revert', async () => {
-        const zeroAddress = ethers.constants.AddressZero;
-        const value = BigNumber.from(200);
+        const zeroAddress = ethers.ZeroAddress;
+        const value = 200n;
+        const gasPrice = await scaledGasPrice(alice);
 
         // Since gas estimation is expected to fail, we request gas limit for similar non-failing tx.
-        const gasLimit = await aliceErc20.estimateGas.transfer(bob.address, 1);
+        const gasLimit = await aliceErc20.transfer.estimateGas(bob.address, 1);
 
         // Balances should not change for this token.
-        const noBalanceChange = await shouldChangeTokenBalances(tokenDetails.l2Address, [{ wallet: alice, change: 0 }]);
+        const noBalanceChange = await shouldChangeTokenBalances(tokenDetails.l2Address, [
+            { wallet: alice, change: 0n }
+        ]);
         // Fee in ETH should be taken though.
         const feeTaken = await shouldOnlyTakeFee(alice);
 
         // Send transfer, it should revert because transfers to zero address are not allowed.
-        await expect(aliceErc20.transfer(zeroAddress, value, { gasLimit })).toBeReverted([noBalanceChange, feeTaken]);
+        await expect(aliceErc20.transfer(zeroAddress, value, { gasLimit, gasPrice })).toBeReverted([
+            noBalanceChange,
+            feeTaken
+        ]);
     });
 
     test('Approve and transferFrom should work', async () => {
-        const approveAmount = 42;
+        const approveAmount = 42n;
         const bobErc20 = new zksync.Contract(tokenDetails.l2Address, zksync.utils.IERC20, bob);
 
         // Fund bob's account to perform a transaction from it.
         await alice
-            .transfer({ to: bob.address, amount: L2_ETH_PER_ACCOUNT.div(8), token: zksync.utils.ETH_ADDRESS })
+            .transfer({
+                to: bob.address,
+                amount: L2_DEFAULT_ETH_PER_ACCOUNT / 8n,
+                token: zksync.utils.L2_BASE_TOKEN_ADDRESS
+            })
             .then((tx) => tx.wait());
 
-        await expect(aliceErc20.allowance(alice.address, bob.address)).resolves.bnToBeEq(0);
+        await expect(aliceErc20.allowance(alice.address, bob.address)).resolves.toEqual(0n);
         await expect(aliceErc20.approve(bob.address, approveAmount)).toBeAccepted();
-        await expect(aliceErc20.allowance(alice.address, bob.address)).resolves.bnToBeEq(approveAmount);
+        await expect(aliceErc20.allowance(alice.address, bob.address)).resolves.toEqual(approveAmount);
         await expect(bobErc20.transferFrom(alice.address, bob.address, approveAmount)).toBeAccepted();
-        await expect(aliceErc20.allowance(alice.address, bob.address)).resolves.bnToBeEq(0);
+        await expect(aliceErc20.allowance(alice.address, bob.address)).resolves.toEqual(0n);
     });
 
     test('Can perform a withdrawal', async () => {
         if (testMaster.isFastMode()) {
             return;
         }
-        const amount = 1;
+        const amount = 1n;
 
         const l2BalanceChange = await shouldChangeTokenBalances(tokenDetails.l2Address, [
             { wallet: alice, change: -amount }
         ]);
         const feeCheck = await shouldOnlyTakeFee(alice);
-        const withdrawalPromise = alice.withdraw({ token: tokenDetails.l2Address, amount });
+        const withdrawalPromise = alice.withdraw({
+            token: tokenDetails.l2Address,
+            amount
+        });
         await expect(withdrawalPromise).toBeAccepted([l2BalanceChange, feeCheck]);
         const withdrawalTx = await withdrawalPromise;
-        await withdrawalTx.waitFinalize();
+        const l2TxReceipt = await alice.provider.getTransactionReceipt(withdrawalTx.hash);
+        await waitForL2ToL1LogProof(alice, l2TxReceipt!.blockNumber, withdrawalTx.hash);
 
         // Note: For L1 we should use L1 token address.
         const l1BalanceChange = await shouldChangeTokenBalances(
@@ -161,6 +185,7 @@ describe('ERC20 contract checks', () => {
                 l1: true
             }
         );
+
         await expect(alice.finalizeWithdrawal(withdrawalTx.hash)).toBeAccepted([l1BalanceChange]);
     });
 
@@ -169,20 +194,21 @@ describe('ERC20 contract checks', () => {
             return;
         }
 
-        const amount = 1;
+        const amount = 1n;
         const initialBalance = await alice.getBalanceL1(tokenDetails.l1Address);
         // Deposit to the zero address is forbidden and should fail with the current implementation.
         const depositHandle = await alice.deposit({
-            to: ethers.constants.AddressZero,
             token: tokenDetails.l1Address,
+            to: ethers.ZeroAddress,
             amount,
-            l2GasLimit: 5_000_000, // Setting the limit manually to avoid estimation for L1->L2 transaction
-            approveERC20: true
+            approveERC20: true,
+            approveBaseERC20: true,
+            l2GasLimit: 5_000_000 // Setting the limit manually to avoid estimation for L1->L2 transaction
         });
         const l1Receipt = await depositHandle.waitL1Commit();
 
         // L1 balance should change, but tx should fail in L2.
-        await expect(alice.getBalanceL1(tokenDetails.l1Address)).resolves.bnToBeEq(initialBalance.sub(amount));
+        await expect(alice.getBalanceL1(tokenDetails.l1Address)).resolves.toEqual(initialBalance - amount);
         await expect(depositHandle).toBeReverted();
 
         // Wait for tx to be finalized.
@@ -190,49 +216,54 @@ describe('ERC20 contract checks', () => {
         // It throws once it gets status == 0 in the receipt and doesn't wait for the finalization.
         const l2Hash = zksync.utils.getL2HashFromPriorityOp(l1Receipt, await alice.provider.getMainContractAddress());
         const l2TxReceipt = await alice.provider.getTransactionReceipt(l2Hash);
-        await waitUntilBlockFinalized(alice, l2TxReceipt.blockNumber);
-
+        await waitForL2ToL1LogProof(alice, l2TxReceipt!.blockNumber, l2Hash);
         // Claim failed deposit.
         await expect(alice.claimFailedDeposit(l2Hash)).toBeAccepted();
-        await expect(alice.getBalanceL1(tokenDetails.l1Address)).resolves.bnToBeEq(initialBalance);
+        await expect(alice.getBalanceL1(tokenDetails.l1Address)).resolves.toEqual(initialBalance);
     });
 
     test('Can perform a deposit with precalculated max value', async () => {
-        const maxAmount = await alice.getBalanceL1(tokenDetails.l1Address);
+        if (!isETHBasedChain) {
+            // approving whole base token balance
+            const baseTokenDetails = testMaster.environment().baseToken;
+            const baseTokenMaxAmount = await alice.getBalanceL1(baseTokenDetails.l1Address);
+            await (await alice.approveERC20(baseTokenDetails.l1Address, baseTokenMaxAmount)).wait();
+        }
 
-        // Approving the needed allowance to ensure that the user has enough funds.
-        await (await alice.approveERC20(tokenDetails.l1Address, maxAmount)).wait();
+        // depositing the max amount: the whole balance of the token
+        const tokenDepositAmount = await alice.getBalanceL1(tokenDetails.l1Address);
 
+        // approving the needed allowance for the deposit
+        await (await alice.approveERC20(tokenDetails.l1Address, tokenDepositAmount)).wait();
+
+        // fee of the deposit in ether
         const depositFee = await alice.getFullRequiredDepositFee({
             token: tokenDetails.l1Address
         });
-        const l1Fee = depositFee.l1GasLimit.mul(depositFee.maxFeePerGas! || depositFee.gasPrice!);
-        const l2Fee = depositFee.baseCost;
 
-        const aliceETHBalance = await alice.getBalanceL1();
-        if (aliceETHBalance.lt(l1Fee.add(l2Fee))) {
-            throw new Error('Not enough ETH to perform a deposit');
+        // checking if alice has enough funds to pay the fee
+        const l1Fee = depositFee.l1GasLimit * (depositFee.maxFeePerGas! || depositFee.gasPrice!);
+        const l2Fee = depositFee.baseCost;
+        const aliceBalance = await alice.getBalanceL1();
+        if (aliceBalance < l1Fee + l2Fee) {
+            throw new Error('Not enough balance to pay the fee');
         }
 
-        const l2ERC20BalanceChange = await shouldChangeTokenBalances(tokenDetails.l2Address, [
-            { wallet: alice, change: maxAmount }
-        ]);
-
-        const overrides: ethers.Overrides = depositFee.gasPrice
-            ? { gasPrice: depositFee.gasPrice }
-            : {
-                  maxFeePerGas: depositFee.maxFeePerGas,
-                  maxPriorityFeePerGas: depositFee.maxPriorityFeePerGas
-              };
-        overrides.gasLimit = depositFee.l1GasLimit;
-        const depositOp = await alice.deposit({
+        // deposit handle with the precalculated max amount
+        const depositHandle = await alice.deposit({
             token: tokenDetails.l1Address,
-            amount: maxAmount,
+            amount: tokenDepositAmount,
             l2GasLimit: depositFee.l2GasLimit,
-            overrides
+            approveBaseERC20: true,
+            approveERC20: true,
+            overrides: depositFee
         });
 
-        await expect(depositOp).toBeAccepted([l2ERC20BalanceChange]);
+        // checking the l2 balance change
+        const l2TokenBalanceChange = await shouldChangeTokenBalances(tokenDetails.l2Address, [
+            { wallet: alice, change: tokenDepositAmount }
+        ]);
+        await expect(depositHandle).toBeAccepted([l2TokenBalanceChange]);
     });
 
     afterAll(async () => {

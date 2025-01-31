@@ -1,6 +1,7 @@
 use zk_evm_1_3_3::{ethereum_types::Address, reference_impls::event_sink::EventMessage};
-use zksync_types::{L1BatchNumber, VmEvent, EVENT_WRITER_ADDRESS, H256};
-use zksync_utils::{be_chunks_to_h256_words, h256_to_account_address};
+use zksync_types::{h256_to_address, L1BatchNumber, EVENT_WRITER_ADDRESS, H256};
+
+use crate::{interface::VmEvent, utils::bytecode::be_chunks_to_h256_words};
 
 #[derive(Clone)]
 pub(crate) struct SolidityLikeEvent {
@@ -133,7 +134,7 @@ pub(crate) fn merge_events(events: Vec<EventMessage>) -> Vec<SolidityLikeEvent> 
         .filter(|e| e.address == EVENT_WRITER_ADDRESS)
         .map(|event| {
             // The events writer events where the first topic is the actual address of the event and the rest of the topics are real topics
-            let address = h256_to_account_address(&H256(event.topics[0]));
+            let address = h256_to_address(&H256(event.topics[0]));
             let topics = event.topics.into_iter().skip(1).collect();
 
             SolidityLikeEvent {

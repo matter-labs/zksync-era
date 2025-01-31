@@ -1,0 +1,17 @@
+[package]
+name = "zksync_prover_fri_types"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+
+[dependencies]
+zksync_object_store.workspace = true
+zksync_types.workspace = true
+circuit_definitions = { workspace = true, features = [ "log_tracing" ] }
+serde = { workspace = true, features = ["derive"] }

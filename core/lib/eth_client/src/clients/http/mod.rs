@@ -4,17 +4,16 @@ use vise::{
     Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Histogram, LabeledFamily, Metrics,
 };
 
-pub use self::{
-    query::QueryClient,
-    signing::{PKSigningClient, SigningClient},
-};
+pub use self::signing::{PKSigningClient, SigningClient};
 
+mod decl;
 mod query;
 mod signing;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "method", rename_all = "snake_case")]
 enum Method {
+    ChainId,
     NonceAtForAccount,
     BlockNumber,
     GetGasPrice,
@@ -33,6 +32,7 @@ enum Method {
     #[metrics(name = "sign_prepared_tx_for_addr")]
     SignPreparedTx,
     Allowance,
+    L2FeeHistory,
 }
 
 #[derive(Debug, Metrics)]

@@ -1,3 +1,4 @@
+use circuit_sequencer_api::INITIAL_MONOTONIC_CYCLE_COUNTER;
 use zk_evm_1_3_3::{
     aux_structures::{MemoryPage, Timestamp},
     block_properties::BlockProperties,
@@ -9,16 +10,15 @@ use zk_evm_1_3_3::{
         STARTING_BASE_PAGE, STARTING_TIMESTAMP,
     },
 };
-use zksync_state::{StoragePtr, WriteStorage};
 use zksync_system_constants::BOOTLOADER_ADDRESS;
-use zksync_types::{
-    block::MiniblockHasher, zkevm_test_harness::INITIAL_MONOTONIC_CYCLE_COUNTER, Address,
-    MiniblockNumber,
-};
-use zksync_utils::h256_to_u256;
+use zksync_types::{block::L2BlockHasher, h256_to_u256, Address, L2BlockNumber};
 
 use crate::{
-    interface::{L1BatchEnv, L2Block, SystemEnv},
+    interface::{
+        storage::{StoragePtr, WriteStorage},
+        L1BatchEnv, L2Block, SystemEnv,
+    },
+    utils::bytecode::bytes_to_be_words,
     vm_virtual_blocks::{
         bootloader_state::BootloaderState,
         constants::BOOTLOADER_HEAP_PAGE,
@@ -73,9 +73,7 @@ pub(crate) fn new_vm_state<S: WriteStorage, H: HistoryMode>(
         L2Block {
             number: l1_batch_env.first_l2_block.number.saturating_sub(1),
             timestamp: 0,
-            hash: MiniblockHasher::legacy_hash(
-                MiniblockNumber(l1_batch_env.first_l2_block.number) - 1,
-            ),
+            hash: L2BlockHasher::legacy_hash(L2BlockNumber(l1_batch_env.first_l2_block.number) - 1),
         }
     };
 
@@ -91,11 +89,7 @@ pub(crate) fn new_vm_state<S: WriteStorage, H: HistoryMode>(
     decommittment_processor.populate(
         vec![(
             h256_to_u256(system_env.base_system_smart_contracts.default_aa.hash),
-            system_env
-                .base_system_smart_contracts
-                .default_aa
-                .code
-                .clone(),
+            bytes_to_be_words(&system_env.base_system_smart_contracts.default_aa.code),
         )],
         Timestamp(0),
     );
@@ -103,11 +97,7 @@ pub(crate) fn new_vm_state<S: WriteStorage, H: HistoryMode>(
     memory.populate(
         vec![(
             BOOTLOADER_CODE_PAGE,
-            system_env
-                .base_system_smart_contracts
-                .bootloader
-                .code
-                .clone(),
+            bytes_to_be_words(&system_env.base_system_smart_contracts.bootloader.code),
         )],
         Timestamp(0),
     );
@@ -134,7 +124,7 @@ pub(crate) fn new_vm_state<S: WriteStorage, H: HistoryMode>(
         },
     );
 
-    vm.local_state.callstack.current.ergs_remaining = system_env.gas_limit;
+    vm.local_state.callstack.current.ergs_remaining = system_env.bootloader_gas_limit;
 
     let initial_context = CallStackEntry {
         this_address: BOOTLOADER_ADDRESS,
@@ -149,7 +139,7 @@ pub(crate) fn new_vm_state<S: WriteStorage, H: HistoryMode>(
         heap_bound: BOOTLOADER_MAX_MEMORY,
         aux_heap_bound: BOOTLOADER_MAX_MEMORY,
         exception_handler_location: INITIAL_FRAME_FORMAL_EH_LOCATION,
-        ergs_remaining: system_env.gas_limit,
+        ergs_remaining: system_env.bootloader_gas_limit,
         this_shard_id: 0,
         caller_shard_id: 0,
         code_shard_id: 0,

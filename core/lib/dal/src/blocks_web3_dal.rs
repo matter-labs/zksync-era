@@ -1,186 +1,168 @@
-use bigdecimal::BigDecimal;
-use sqlx::Row;
+use zksync_db_connection::{
+    connection::Connection, error::DalResult, instrument::InstrumentExt, interpolate_query,
+    match_query_as,
+};
 use zksync_system_constants::EMPTY_UNCLES_HASH;
 use zksync_types::{
     api,
-    ethabi::Address,
+    debug_flat_call::CallTraceMeta,
+    fee_model::BatchFeeInput,
     l2_to_l1_log::L2ToL1Log,
-    vm_trace::Call,
-    web3::types::{BlockHeader, U64},
-    zkevm_test_harness::zk_evm::zkevm_opcode_defs::system_params,
-    Bytes, L1BatchNumber, L2ChainId, MiniblockNumber, H160, H2048, H256, U256,
+    web3::{BlockHeader, Bytes},
+    Bloom, L1BatchNumber, L2BlockNumber, ProtocolVersionId, H160, H256, U256, U64,
 };
-use zksync_utils::bigdecimal_to_u256;
+use zksync_vm_interface::Call;
 
 use crate::{
-    instrument::InstrumentExt,
     models::{
+        bigdecimal_to_u256, parse_protocol_version,
         storage_block::{
-            bind_block_where_sql_params, web3_block_number_to_sql, web3_block_where_sql,
-            StorageBlockDetails, StorageL1BatchDetails,
+            ResolvedL1BatchForL2Block, StorageBlockDetails, StorageL1BatchDetails,
+            LEGACY_BLOCK_GAS_LIMIT,
         },
-        storage_transaction::{extract_web3_transaction, web3_transaction_select_sql, CallTrace},
+        storage_transaction::CallTrace,
     },
-    StorageProcessor,
+    Core, CoreDal,
 };
-
-const BLOCK_GAS_LIMIT: u32 = system_params::VM_INITIAL_FRAME_ERGS;
 
 #[derive(Debug)]
 pub struct BlocksWeb3Dal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut Connection<'c, Core>,
 }
 
 impl BlocksWeb3Dal<'_, '_> {
-    pub async fn get_sealed_miniblock_number(&mut self) -> sqlx::Result<MiniblockNumber> {
-        let number = sqlx::query!("SELECT MAX(number) as \"number\" FROM miniblocks")
-            .instrument("get_sealed_block_number")
-            .report_latency()
-            .fetch_one(self.storage.conn())
-            .await?
-            .number
-            .expect("DAL invocation before genesis");
-        Ok(MiniblockNumber(number as u32))
-    }
-
-    pub async fn get_sealed_l1_batch_number(&mut self) -> sqlx::Result<L1BatchNumber> {
-        let number = sqlx::query!("SELECT MAX(number) as \"number\" FROM l1_batches")
-            .instrument("get_sealed_block_number")
-            .report_latency()
-            .fetch_one(self.storage.conn())
-            .await?
-            .number
-            .expect("DAL invocation before genesis");
-        Ok(L1BatchNumber(number as u32))
-    }
-
-    pub async fn get_block_by_web3_block_id(
+    pub async fn get_api_block(
         &mut self,
-        block_id: api::BlockId,
-        include_full_transactions: bool,
-        chain_id: L2ChainId,
-    ) -> sqlx::Result<Option<api::Block<api::TransactionVariant>>> {
-        let transactions_sql = if include_full_transactions {
-            web3_transaction_select_sql()
-        } else {
-            "transactions.hash as tx_hash"
-        };
-
-        let query = format!(
-            "SELECT
-                miniblocks.hash as block_hash,
+        block_number: L2BlockNumber,
+    ) -> DalResult<Option<api::Block<H256>>> {
+        let rows = sqlx::query!(
+            r#"
+            SELECT
+                miniblocks.hash AS block_hash,
                 miniblocks.number,
                 miniblocks.l1_batch_number,
                 miniblocks.timestamp,
                 miniblocks.base_fee_per_gas,
-                prev_miniblock.hash as parent_hash,
-                l1_batches.timestamp as l1_batch_timestamp,
-                transactions.gas_limit as gas_limit,
-                transactions.refunded_gas as refunded_gas,
-                {}
-            FROM miniblocks
-            LEFT JOIN miniblocks prev_miniblock
+                miniblocks.gas_limit AS "block_gas_limit?",
+                miniblocks.logs_bloom,
+                prev_miniblock.hash AS "parent_hash?",
+                l1_batches.timestamp AS "l1_batch_timestamp?",
+                transactions.gas_limit AS "transaction_gas_limit?",
+                transactions.refunded_gas AS "refunded_gas?",
+                transactions.hash AS "tx_hash?"
+            FROM
+                miniblocks
+            LEFT JOIN
+                miniblocks prev_miniblock
                 ON prev_miniblock.number = miniblocks.number - 1
-            LEFT JOIN l1_batches
-                ON l1_batches.number = miniblocks.l1_batch_number
-            LEFT JOIN transactions
-                ON transactions.miniblock_number = miniblocks.number
-            WHERE {}",
-            transactions_sql,
-            web3_block_where_sql(block_id, 1)
-        );
+            LEFT JOIN l1_batches ON l1_batches.number = miniblocks.l1_batch_number
+            LEFT JOIN transactions ON transactions.miniblock_number = miniblocks.number
+            WHERE
+                miniblocks.number = $1
+            ORDER BY
+                transactions.index_in_block ASC
+            "#,
+            i64::from(block_number.0)
+        )
+        .instrument("get_api_block")
+        .with_arg("block_number", &block_number)
+        .fetch_all(self.storage)
+        .await?;
 
-        let query = bind_block_where_sql_params(&block_id, sqlx::query(&query));
-        let rows = query.fetch_all(self.storage.conn()).await?.into_iter();
-
-        let block = rows.fold(None, |prev_block, db_row| {
+        let block = rows.into_iter().fold(None, |prev_block, row| {
             let mut block = prev_block.unwrap_or_else(|| {
                 // This code will be only executed for the first row in the DB response.
                 // All other rows will only be used to extract relevant transactions.
-                let hash = db_row
-                    .try_get("block_hash")
-                    .map_or_else(|_| H256::zero(), H256::from_slice);
-                let number = U64::from(db_row.get::<i64, &str>("number"));
-                let l1_batch_number = db_row
-                    .try_get::<i64, &str>("l1_batch_number")
-                    .map(U64::from)
-                    .ok();
-                let l1_batch_timestamp = db_row
-                    .try_get::<i64, &str>("l1_batch_timestamp")
-                    .map(U256::from)
-                    .ok();
-                let parent_hash = db_row
-                    .try_get("parent_hash")
-                    .map_or_else(|_| H256::zero(), H256::from_slice);
-                let base_fee_per_gas = db_row.get::<BigDecimal, &str>("base_fee_per_gas");
-
                 api::Block {
-                    hash,
-                    parent_hash,
+                    hash: H256::from_slice(&row.block_hash),
+                    parent_hash: row
+                        .parent_hash
+                        .as_deref()
+                        .map_or_else(H256::zero, H256::from_slice),
                     uncles_hash: EMPTY_UNCLES_HASH,
-                    number,
-                    l1_batch_number,
-                    gas_limit: BLOCK_GAS_LIMIT.into(),
-                    base_fee_per_gas: bigdecimal_to_u256(base_fee_per_gas),
-                    timestamp: db_row.get::<i64, &str>("timestamp").into(),
-                    l1_batch_timestamp,
-                    // TODO: include logs
+                    number: (row.number as u64).into(),
+                    l1_batch_number: row.l1_batch_number.map(|number| (number as u64).into()),
+                    base_fee_per_gas: bigdecimal_to_u256(row.base_fee_per_gas),
+                    timestamp: (row.timestamp as u64).into(),
+                    l1_batch_timestamp: row.l1_batch_timestamp.map(U256::from),
+                    gas_limit: (row
+                        .block_gas_limit
+                        .unwrap_or(i64::from(LEGACY_BLOCK_GAS_LIMIT))
+                        as u64)
+                        .into(),
+                    logs_bloom: row
+                        .logs_bloom
+                        .map(|b| Bloom::from_slice(&b))
+                        .unwrap_or_default(),
                     ..api::Block::default()
                 }
             });
-            if db_row.try_get::<&[u8], &str>("tx_hash").is_ok() {
-                let tx_gas_limit = bigdecimal_to_u256(db_row.get::<BigDecimal, &str>("gas_limit"));
-                let tx_refunded_gas = U256::from((db_row.get::<i64, &str>("refunded_gas")) as u32);
 
-                block.gas_used += tx_gas_limit - tx_refunded_gas;
-                let tx = if include_full_transactions {
-                    let tx = extract_web3_transaction(db_row, chain_id);
-                    api::TransactionVariant::Full(tx)
-                } else {
-                    api::TransactionVariant::Hash(H256::from_slice(db_row.get("tx_hash")))
-                };
-                block.transactions.push(tx);
+            if let (Some(gas_limit), Some(refunded_gas)) =
+                (row.transaction_gas_limit, row.refunded_gas)
+            {
+                block.gas_used += bigdecimal_to_u256(gas_limit) - U256::from(refunded_gas as u64);
             }
+            if let Some(tx_hash) = &row.tx_hash {
+                block.transactions.push(H256::from_slice(tx_hash));
+            }
+
             Some(block)
         });
+
         Ok(block)
     }
 
     pub async fn get_block_tx_count(
         &mut self,
-        block_id: api::BlockId,
-    ) -> sqlx::Result<Option<(MiniblockNumber, U256)>> {
-        let query = format!(
-            "SELECT number, l1_tx_count + l2_tx_count AS tx_count FROM miniblocks WHERE {}",
-            web3_block_where_sql(block_id, 1)
-        );
-        let query = bind_block_where_sql_params(&block_id, sqlx::query(&query));
+        block_number: L2BlockNumber,
+    ) -> DalResult<Option<u64>> {
+        let tx_count = sqlx::query_scalar!(
+            r#"
+            SELECT l1_tx_count + l2_tx_count AS tx_count FROM miniblocks
+            WHERE number = $1
+            "#,
+            i64::from(block_number.0)
+        )
+        .instrument("get_block_tx_count")
+        .with_arg("block_number", &block_number)
+        .fetch_optional(self.storage)
+        .await?
+        .flatten();
 
-        Ok(query.fetch_optional(self.storage.conn()).await?.map(|row| {
-            let miniblock_number = row.get::<i64, _>("number") as u32;
-            let tx_count = row.get::<i32, _>("tx_count") as u32;
-            (MiniblockNumber(miniblock_number), tx_count.into())
-        }))
+        Ok(tx_count.map(|count| count as u64))
     }
 
     /// Returns hashes of blocks with numbers starting from `from_block` and the number of the last block.
     pub async fn get_block_hashes_since(
         &mut self,
-        from_block: MiniblockNumber,
+        from_block: L2BlockNumber,
         limit: usize,
-    ) -> sqlx::Result<(Vec<H256>, Option<MiniblockNumber>)> {
+    ) -> DalResult<(Vec<H256>, Option<L2BlockNumber>)> {
         let rows = sqlx::query!(
-            "SELECT number, hash FROM miniblocks \
-            WHERE number >= $1 \
-            ORDER BY number ASC \
-            LIMIT $2",
-            from_block.0 as i64,
+            r#"
+            SELECT
+                number,
+                hash
+            FROM
+                miniblocks
+            WHERE
+                number >= $1
+            ORDER BY
+                number ASC
+            LIMIT
+                $2
+            "#,
+            i64::from(from_block.0),
             limit as i32
         )
-        .fetch_all(self.storage.conn())
+        .instrument("get_block_hashes_since")
+        .with_arg("from_block", &from_block)
+        .with_arg("limit", &limit)
+        .fetch_all(self.storage)
         .await?;
 
-        let last_block_number = rows.last().map(|row| MiniblockNumber(row.number as u32));
+        let last_block_number = rows.last().map(|row| L2BlockNumber(row.number as u32));
         let hashes = rows.iter().map(|row| H256::from_slice(&row.hash)).collect();
         Ok((hashes, last_block_number))
     }
@@ -188,105 +170,265 @@ impl BlocksWeb3Dal<'_, '_> {
     /// Returns hashes of blocks with numbers greater than `from_block` and the number of the last block.
     pub async fn get_block_headers_after(
         &mut self,
-        from_block: MiniblockNumber,
-    ) -> sqlx::Result<Vec<BlockHeader>> {
-        let rows = sqlx::query!(
-            "SELECT hash, number, timestamp \
-            FROM miniblocks \
-            WHERE number > $1 \
-            ORDER BY number ASC",
-            from_block.0 as i64,
+        from_block: L2BlockNumber,
+    ) -> DalResult<Vec<BlockHeader>> {
+        let blocks_rows: Vec<_> = sqlx::query!(
+            r#"
+            SELECT
+                miniblocks.hash AS "block_hash",
+                miniblocks.number AS "block_number",
+                prev_miniblock.hash AS "parent_hash?",
+                miniblocks.timestamp AS "block_timestamp",
+                miniblocks.base_fee_per_gas AS "base_fee_per_gas",
+                miniblocks.gas_limit AS "block_gas_limit?",
+                miniblocks.logs_bloom AS "block_logs_bloom?",
+                transactions.gas_limit AS "transaction_gas_limit?",
+                transactions.refunded_gas AS "transaction_refunded_gas?"
+            FROM
+                miniblocks
+            LEFT JOIN
+                miniblocks prev_miniblock
+                ON prev_miniblock.number = miniblocks.number - 1
+            LEFT JOIN transactions ON transactions.miniblock_number = miniblocks.number
+            WHERE
+                miniblocks.number > $1
+            ORDER BY
+                miniblocks.number ASC,
+                transactions.index_in_block ASC
+            "#,
+            i64::from(from_block.0),
         )
-        .fetch_all(self.storage.conn())
+        .instrument("get_block_headers_after")
+        .with_arg("from_block", &from_block)
+        .fetch_all(self.storage)
         .await?;
 
-        let blocks = rows.into_iter().map(|row| BlockHeader {
-            hash: Some(H256::from_slice(&row.hash)),
-            parent_hash: H256::zero(),
-            uncles_hash: EMPTY_UNCLES_HASH,
-            author: H160::zero(),
-            state_root: H256::zero(),
-            transactions_root: H256::zero(),
-            receipts_root: H256::zero(),
-            number: Some(U64::from(row.number)),
-            gas_used: U256::zero(),
-            gas_limit: U256::zero(),
-            base_fee_per_gas: None,
-            extra_data: Bytes::default(),
-            // TODO: include logs
-            logs_bloom: H2048::default(),
-            timestamp: U256::from(row.timestamp),
-            difficulty: U256::zero(),
-            mix_hash: None,
-            nonce: None,
-        });
-        Ok(blocks.collect())
+        let mut headers_map = std::collections::HashMap::new();
+
+        for row in blocks_rows.iter() {
+            let entry = headers_map
+                .entry(row.block_number)
+                .or_insert_with(|| BlockHeader {
+                    hash: Some(H256::from_slice(&row.block_hash)),
+                    parent_hash: row
+                        .parent_hash
+                        .as_deref()
+                        .map_or_else(H256::zero, H256::from_slice),
+                    uncles_hash: EMPTY_UNCLES_HASH,
+                    author: H160::zero(),
+                    state_root: H256::zero(),
+                    transactions_root: H256::zero(),
+                    receipts_root: H256::zero(),
+                    number: Some(U64::from(row.block_number)),
+                    gas_used: U256::zero(),
+                    gas_limit: (row
+                        .block_gas_limit
+                        .unwrap_or(i64::from(LEGACY_BLOCK_GAS_LIMIT))
+                        as u64)
+                        .into(),
+                    base_fee_per_gas: Some(bigdecimal_to_u256(row.base_fee_per_gas.clone())),
+                    extra_data: Bytes::default(),
+                    logs_bloom: row
+                        .block_logs_bloom
+                        .as_ref()
+                        .map(|b| Bloom::from_slice(b))
+                        .unwrap_or_default(),
+                    timestamp: U256::from(row.block_timestamp),
+                    difficulty: U256::zero(),
+                    mix_hash: None,
+                    nonce: None,
+                });
+
+            if let (Some(gas_limit), Some(refunded_gas)) = (
+                row.transaction_gas_limit.clone(),
+                row.transaction_refunded_gas,
+            ) {
+                entry.gas_used += bigdecimal_to_u256(gas_limit) - U256::from(refunded_gas as u64);
+            }
+        }
+
+        let mut headers: Vec<BlockHeader> = headers_map.into_values().collect();
+        headers.sort_by_key(|header| header.number);
+
+        Ok(headers)
     }
 
     pub async fn resolve_block_id(
         &mut self,
         block_id: api::BlockId,
-    ) -> sqlx::Result<Option<MiniblockNumber>> {
-        let query_string = match block_id {
-            api::BlockId::Hash(_) => "SELECT number FROM miniblocks WHERE hash = $1".to_owned(),
-            api::BlockId::Number(api::BlockNumber::Number(_)) => {
-                // The reason why instead of returning the `block_number` directly we use query is
-                // to handle numbers of blocks that are not created yet.
-                // the `SELECT number FROM miniblocks WHERE number=block_number` for
-                // non-existing block number will returns zero.
-                "SELECT number FROM miniblocks WHERE number = $1".to_owned()
-            }
-            api::BlockId::Number(api::BlockNumber::Earliest) => {
-                return Ok(Some(MiniblockNumber(0)));
-            }
-            api::BlockId::Number(block_number) => web3_block_number_to_sql(block_number),
-        };
-        let row = bind_block_where_sql_params(&block_id, sqlx::query(&query_string))
-            .fetch_optional(self.storage.conn())
-            .await?;
+    ) -> DalResult<Option<L2BlockNumber>> {
+        struct BlockNumberRow {
+            number: Option<i64>,
+        }
 
+        let query = match_query_as!(
+            BlockNumberRow,
+            [_],
+            match (block_id) {
+                api::BlockId::Hash(hash) => ("SELECT number FROM miniblocks WHERE hash = $1"; hash.as_bytes()),
+                api::BlockId::Number(api::BlockNumber::Number(number)) => (
+                    "SELECT number FROM miniblocks WHERE number = $1";
+                    number.as_u64() as i64
+                ),
+                api::BlockId::Number(api::BlockNumber::Earliest) => (
+                    "SELECT number FROM miniblocks WHERE number = 0";
+                ),
+                api::BlockId::Number(api::BlockNumber::Pending) => (
+                    "
+                    SELECT COALESCE(
+                        (SELECT (MAX(number) + 1) AS number FROM miniblocks),
+                        (SELECT (MAX(miniblock_number) + 1) AS number FROM snapshot_recovery),
+                        0
+                    ) AS number
+                    ";
+                ),
+                api::BlockId::Number(api::BlockNumber::Latest | api::BlockNumber::Committed) => (
+                    "SELECT MAX(number) AS number FROM miniblocks";
+                ),
+                api::BlockId::Number(api::BlockNumber::L1Committed) => (
+                    "
+                    SELECT COALESCE(
+                        (
+                            SELECT MAX(number) FROM miniblocks
+                            WHERE l1_batch_number = (
+                                SELECT number FROM l1_batches
+                                JOIN eth_txs ON
+                                    l1_batches.eth_commit_tx_id = eth_txs.id
+                                WHERE
+                                    eth_txs.confirmed_eth_tx_history_id IS NOT NULL
+                                ORDER BY number DESC LIMIT 1
+                            )
+                        ),
+                        0
+                    ) AS number
+                    ";
+                ),
+                api::BlockId::Number(api::BlockNumber::Finalized) => (
+                    "
+                    SELECT COALESCE(
+                        (
+                            SELECT MAX(number) FROM miniblocks
+                            WHERE l1_batch_number = (
+                                SELECT number FROM l1_batches
+                                JOIN eth_txs ON
+                                    l1_batches.eth_execute_tx_id = eth_txs.id
+                                WHERE
+                                    eth_txs.confirmed_eth_tx_history_id IS NOT NULL
+                                ORDER BY number DESC LIMIT 1
+                            )
+                        ),
+                        0
+                    ) AS number
+                    ";
+                ),
+            }
+        );
+
+        let row = query
+            .instrument("resolve_block_id")
+            .with_arg("block_id", &block_id)
+            .fetch_optional(self.storage)
+            .await?;
         let block_number = row
-            .and_then(|row| row.get::<Option<i64>, &str>("number"))
-            .map(|n| MiniblockNumber(n as u32));
+            .and_then(|row| row.number)
+            .map(|number| L2BlockNumber(number as u32));
         Ok(block_number)
     }
 
     /// Returns L1 batch timestamp for either sealed or pending L1 batch.
+    ///
+    /// The correctness of the current implementation depends on the timestamp of an L1 batch always
+    /// being equal to the timestamp of the first L2 block in the batch.
     pub async fn get_expected_l1_batch_timestamp(
         &mut self,
-        l1_batch_number: L1BatchNumber,
-    ) -> sqlx::Result<Option<u64>> {
-        let first_miniblock_of_batch = if l1_batch_number.0 == 0 {
-            MiniblockNumber(0)
+        l1_batch_number: &ResolvedL1BatchForL2Block,
+    ) -> DalResult<Option<u64>> {
+        if let Some(l1_batch) = l1_batch_number.block_l1_batch {
+            Ok(sqlx::query!(
+                r#"
+                SELECT
+                    timestamp
+                FROM
+                    miniblocks
+                WHERE
+                    l1_batch_number = $1
+                ORDER BY
+                    number
+                LIMIT
+                    1
+                "#,
+                i64::from(l1_batch.0)
+            )
+            .instrument("get_expected_l1_batch_timestamp#sealed_l2_block")
+            .with_arg("l1_batch_number", &l1_batch_number)
+            .fetch_optional(self.storage)
+            .await?
+            .map(|row| row.timestamp as u64))
         } else {
-            match self
-                .get_miniblock_range_of_l1_batch(l1_batch_number - 1)
-                .await?
-            {
-                Some((_, miniblock_number)) => miniblock_number + 1,
-                None => return Ok(None),
-            }
-        };
-        let timestamp = sqlx::query!(
-            "SELECT timestamp FROM miniblocks \
-            WHERE number = $1",
-            first_miniblock_of_batch.0 as i64
-        )
-        .fetch_optional(self.storage.conn())
-        .await?
-        .map(|row| row.timestamp as u64);
-        Ok(timestamp)
+            // Got a pending L2 block. Searching the timestamp of the first pending L2 block using
+            // `WHERE l1_batch_number IS NULL` is slow since it potentially locks the `miniblocks` table.
+            // Instead, we determine its number using the previous L1 batch, taking into the account that
+            // it may be stored in the `snapshot_recovery` table.
+            let prev_l1_batch_number = if l1_batch_number.pending_l1_batch == L1BatchNumber(0) {
+                return Ok(None); // We haven't created the genesis L2 block yet
+            } else {
+                l1_batch_number.pending_l1_batch - 1
+            };
+
+            Ok(sqlx::query!(
+                r#"
+                SELECT
+                    timestamp
+                FROM
+                    miniblocks
+                WHERE
+                    number = COALESCE(
+                        (
+                            SELECT
+                                MAX(number) + 1
+                            FROM
+                                miniblocks
+                            WHERE
+                                l1_batch_number = $1
+                        ),
+                        (
+                            SELECT
+                                MAX(miniblock_number) + 1
+                            FROM
+                                snapshot_recovery
+                            WHERE
+                                l1_batch_number = $1
+                        )
+                    )
+                "#,
+                i64::from(prev_l1_batch_number.0)
+            )
+            .instrument("get_expected_l1_batch_timestamp#pending_l2_block")
+            .with_arg("l1_batch_number", &l1_batch_number)
+            .fetch_optional(self.storage)
+            .await?
+            .map(|row| row.timestamp as u64))
+        }
     }
 
-    pub async fn get_miniblock_hash(
+    pub async fn get_l2_block_hash(
         &mut self,
-        block_number: MiniblockNumber,
-    ) -> sqlx::Result<Option<H256>> {
+        block_number: L2BlockNumber,
+    ) -> DalResult<Option<H256>> {
         let hash = sqlx::query!(
-            "SELECT hash FROM miniblocks WHERE number = $1",
-            block_number.0 as i64
+            r#"
+            SELECT
+                hash
+            FROM
+                miniblocks
+            WHERE
+                number = $1
+            "#,
+            i64::from(block_number.0)
         )
-        .fetch_optional(self.storage.conn())
+        .instrument("get_l2_block_hash")
+        .with_arg("block_number", &block_number)
+        .fetch_optional(self.storage)
         .await?
         .map(|row| H256::from_slice(&row.hash));
         Ok(hash)
@@ -294,55 +436,61 @@ impl BlocksWeb3Dal<'_, '_> {
 
     pub async fn get_l2_to_l1_logs(
         &mut self,
-        block_number: L1BatchNumber,
-    ) -> sqlx::Result<Vec<L2ToL1Log>> {
-        let raw_logs = sqlx::query!(
-            "SELECT l2_to_l1_logs FROM l1_batches WHERE number = $1",
-            block_number.0 as i64
-        )
-        .fetch_optional(self.storage.conn())
-        .await?
-        .map(|row| row.l2_to_l1_logs)
-        .unwrap_or_default();
-
-        Ok(raw_logs
-            .into_iter()
-            .map(|bytes| L2ToL1Log::from_slice(&bytes))
-            .collect())
+        l1_batch_number: L1BatchNumber,
+    ) -> DalResult<Vec<L2ToL1Log>> {
+        self.storage
+            .blocks_dal()
+            .get_l2_to_l1_logs_for_batch::<L2ToL1Log>(l1_batch_number)
+            .await
     }
 
-    pub async fn get_l1_batch_number_of_miniblock(
+    pub async fn get_l1_batch_number_of_l2_block(
         &mut self,
-        miniblock_number: MiniblockNumber,
-    ) -> sqlx::Result<Option<L1BatchNumber>> {
+        l2_block_number: L2BlockNumber,
+    ) -> DalResult<Option<L1BatchNumber>> {
         let number: Option<i64> = sqlx::query!(
-            "SELECT l1_batch_number FROM miniblocks WHERE number = $1",
-            miniblock_number.0 as i64
+            r#"
+            SELECT
+                l1_batch_number
+            FROM
+                miniblocks
+            WHERE
+                number = $1
+            "#,
+            i64::from(l2_block_number.0)
         )
-        .fetch_optional(self.storage.conn())
+        .instrument("get_l1_batch_number_of_l2_block")
+        .with_arg("l2_block_number", &l2_block_number)
+        .fetch_optional(self.storage)
         .await?
         .and_then(|row| row.l1_batch_number);
 
         Ok(number.map(|number| L1BatchNumber(number as u32)))
     }
 
-    pub async fn get_miniblock_range_of_l1_batch(
+    pub async fn get_l2_block_range_of_l1_batch(
         &mut self,
         l1_batch_number: L1BatchNumber,
-    ) -> sqlx::Result<Option<(MiniblockNumber, MiniblockNumber)>> {
+    ) -> DalResult<Option<(L2BlockNumber, L2BlockNumber)>> {
         let row = sqlx::query!(
-            "SELECT MIN(miniblocks.number) as \"min?\", MAX(miniblocks.number) as \"max?\" \
-            FROM miniblocks \
-            WHERE l1_batch_number = $1",
-            l1_batch_number.0 as i64
+            r#"
+            SELECT
+                MIN(miniblocks.number) AS "min?",
+                MAX(miniblocks.number) AS "max?"
+            FROM
+                miniblocks
+            WHERE
+                l1_batch_number = $1
+            "#,
+            i64::from(l1_batch_number.0)
         )
-        .fetch_one(self.storage.conn())
+        .instrument("get_l2_block_range_of_l1_batch")
+        .with_arg("l1_batch_number", &l1_batch_number)
+        .fetch_one(self.storage)
         .await?;
 
         Ok(match (row.min, row.max) {
-            (Some(min), Some(max)) => {
-                Some((MiniblockNumber(min as u32), MiniblockNumber(max as u32)))
-            }
+            (Some(min), Some(max)) => Some((L2BlockNumber(min as u32), L2BlockNumber(max as u32))),
             (None, None) => None,
             _ => unreachable!(),
         })
@@ -351,14 +499,22 @@ impl BlocksWeb3Dal<'_, '_> {
     pub async fn get_l1_batch_info_for_tx(
         &mut self,
         tx_hash: H256,
-    ) -> sqlx::Result<Option<(L1BatchNumber, u16)>> {
+    ) -> DalResult<Option<(L1BatchNumber, u16)>> {
         let row = sqlx::query!(
-            "SELECT l1_batch_number, l1_batch_tx_index \
-            FROM transactions \
-            WHERE hash = $1",
+            r#"
+            SELECT
+                l1_batch_number,
+                l1_batch_tx_index
+            FROM
+                transactions
+            WHERE
+                hash = $1
+            "#,
             tx_hash.as_bytes()
         )
-        .fetch_optional(self.storage.conn())
+        .instrument("get_l1_batch_info_for_tx")
+        .with_arg("tx_hash", &tx_hash)
+        .fetch_optional(self.storage)
         .await?;
 
         let result = row.and_then(|row| match (row.l1_batch_number, row.l1_batch_tx_index) {
@@ -371,307 +527,643 @@ impl BlocksWeb3Dal<'_, '_> {
         Ok(result)
     }
 
-    pub async fn get_trace_for_miniblock(
+    /// Returns call traces for all transactions in the specified L2 block in the order of their execution.
+    pub async fn get_traces_for_l2_block(
         &mut self,
-        block_number: MiniblockNumber,
-    ) -> sqlx::Result<Vec<Call>> {
+        block_number: L2BlockNumber,
+    ) -> DalResult<Vec<(Call, CallTraceMeta)>> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                protocol_version,
+                hash
+            FROM
+                miniblocks
+            WHERE
+                number = $1
+            "#,
+            i64::from(block_number.0)
+        )
+        .try_map(|row| {
+            row.protocol_version
+                .map(parse_protocol_version)
+                .transpose()
+                .map(|val| (val, H256::from_slice(&row.hash)))
+        })
+        .instrument("get_traces_for_l2_block#get_l2_block_protocol_version_id")
+        .with_arg("l2_block_number", &block_number)
+        .fetch_optional(self.storage)
+        .await?;
+        let Some((protocol_version, block_hash)) = row else {
+            return Ok(Vec::new());
+        };
+
+        let protocol_version =
+            protocol_version.unwrap_or_else(ProtocolVersionId::last_potentially_undefined);
+
         Ok(sqlx::query_as!(
             CallTrace,
-            "SELECT * FROM call_traces WHERE tx_hash IN \
-                (SELECT hash FROM transactions WHERE miniblock_number = $1)",
-            block_number.0 as i64
+            r#"
+            SELECT
+                transactions.hash AS tx_hash,
+                transactions.index_in_block AS tx_index_in_block,
+                call_trace,
+                transactions.error AS tx_error
+            FROM
+                call_traces
+            INNER JOIN transactions ON tx_hash = transactions.hash
+            WHERE
+                transactions.miniblock_number = $1
+            ORDER BY
+                transactions.index_in_block
+            "#,
+            i64::from(block_number.0)
         )
-        .fetch_all(self.storage.conn())
+        .instrument("get_traces_for_l2_block")
+        .with_arg("block_number", &block_number)
+        .fetch_all(self.storage)
         .await?
         .into_iter()
-        .map(Call::from)
+        .map(|mut call_trace| {
+            let tx_hash = H256::from_slice(&call_trace.tx_hash);
+            let index = call_trace.tx_index_in_block.unwrap_or_default() as usize;
+            let meta = CallTraceMeta {
+                index_in_block: index,
+                tx_hash,
+                block_number: block_number.0,
+                block_hash,
+                internal_error: call_trace.tx_error.take(),
+            };
+            (call_trace.into_call(protocol_version), meta)
+        })
         .collect())
     }
 
-    /// Returns `base_fee_per_gas` for miniblock range [min(newest_block - block_count + 1, 0), newest_block]
-    /// in descending order of miniblock numbers.
+    /// Returns `base_fee_per_gas` and `fair_pubdata_price` for L2 block range [min(newest_block - block_count + 1, 0), newest_block]
+    /// in descending order of L2 block numbers.
     pub async fn get_fee_history(
         &mut self,
-        newest_block: MiniblockNumber,
+        newest_block: L2BlockNumber,
         block_count: u64,
-    ) -> sqlx::Result<Vec<U256>> {
+    ) -> DalResult<(Vec<U256>, Vec<U256>)> {
         let result: Vec<_> = sqlx::query!(
-            "SELECT base_fee_per_gas FROM miniblocks \
-            WHERE number <= $1 \
-            ORDER BY number DESC LIMIT $2",
-            newest_block.0 as i64,
+            r#"
+            SELECT
+                base_fee_per_gas,
+                l2_fair_gas_price,
+                fair_pubdata_price,
+                protocol_version,
+                l1_gas_price
+            FROM
+                miniblocks
+            WHERE
+                number <= $1
+            ORDER BY
+                number DESC
+            LIMIT
+                $2
+            "#,
+            i64::from(newest_block.0),
             block_count as i64
         )
-        .fetch_all(self.storage.conn())
+        .instrument("get_fee_history")
+        .with_arg("newest_block", &newest_block)
+        .with_arg("block_count", &block_count)
+        .fetch_all(self.storage)
         .await?
         .into_iter()
-        .map(|row| bigdecimal_to_u256(row.base_fee_per_gas))
+        .map(|row| {
+            let fee_input = BatchFeeInput::for_protocol_version(
+                row.protocol_version
+                    .map(|x| (x as u16).try_into().unwrap())
+                    .unwrap_or_else(ProtocolVersionId::last_potentially_undefined),
+                row.l2_fair_gas_price as u64,
+                row.fair_pubdata_price.map(|x| x as u64),
+                row.l1_gas_price as u64,
+            );
+
+            (
+                bigdecimal_to_u256(row.base_fee_per_gas),
+                U256::from(fee_input.fair_pubdata_price()),
+            )
+        })
         .collect();
 
-        Ok(result)
+        let (base_fee_per_gas, effective_pubdata_price): (Vec<U256>, Vec<U256>) =
+            result.into_iter().unzip();
+
+        Ok((base_fee_per_gas, effective_pubdata_price))
     }
 
     pub async fn get_block_details(
         &mut self,
-        block_number: MiniblockNumber,
-        current_operator_address: Address,
-    ) -> sqlx::Result<Option<api::BlockDetails>> {
-        {
-            let storage_block_details = sqlx::query_as!(
-                StorageBlockDetails,
-                r#"
-                    SELECT miniblocks.number,
-                        COALESCE(miniblocks.l1_batch_number, (SELECT (max(number) + 1) FROM l1_batches)) as "l1_batch_number!",
-                        miniblocks.timestamp,
-                        miniblocks.l1_tx_count,
-                        miniblocks.l2_tx_count,
-                        miniblocks.hash as "root_hash?",
-                        commit_tx.tx_hash as "commit_tx_hash?",
-                        commit_tx.confirmed_at as "committed_at?",
-                        prove_tx.tx_hash as "prove_tx_hash?",
-                        prove_tx.confirmed_at as "proven_at?",
-                        execute_tx.tx_hash as "execute_tx_hash?",
-                        execute_tx.confirmed_at as "executed_at?",
-                        miniblocks.l1_gas_price,
-                        miniblocks.l2_fair_gas_price,
-                        miniblocks.bootloader_code_hash,
-                        miniblocks.default_aa_code_hash,
-                        miniblocks.protocol_version,
-                        l1_batches.fee_account_address as "fee_account_address?"
-                    FROM miniblocks
-                    LEFT JOIN l1_batches ON miniblocks.l1_batch_number = l1_batches.number
-                    LEFT JOIN eth_txs_history as commit_tx ON (l1_batches.eth_commit_tx_id = commit_tx.eth_tx_id AND commit_tx.confirmed_at IS NOT NULL)
-                    LEFT JOIN eth_txs_history as prove_tx ON (l1_batches.eth_prove_tx_id = prove_tx.eth_tx_id AND prove_tx.confirmed_at IS NOT NULL)
-                    LEFT JOIN eth_txs_history as execute_tx ON (l1_batches.eth_execute_tx_id = execute_tx.eth_tx_id AND execute_tx.confirmed_at IS NOT NULL)
-                    WHERE miniblocks.number = $1
-                "#,
-                block_number.0 as i64
-            )
-            .instrument("get_block_details")
-            .with_arg("block_number", &block_number)
-            .report_latency()
-            .fetch_optional(self.storage.conn())
-            .await?;
+        block_number: L2BlockNumber,
+    ) -> DalResult<Option<api::BlockDetails>> {
+        let storage_block_details = sqlx::query_as!(
+            StorageBlockDetails,
+            r#"
+            SELECT
+                miniblocks.number,
+                COALESCE(
+                    miniblocks.l1_batch_number,
+                    (
+                        SELECT
+                            (MAX(number) + 1)
+                        FROM
+                            l1_batches
+                        WHERE
+                            is_sealed
+                    )
+                ) AS "l1_batch_number!",
+                miniblocks.timestamp,
+                miniblocks.l1_tx_count,
+                miniblocks.l2_tx_count,
+                miniblocks.hash AS "root_hash?",
+                commit_tx.tx_hash AS "commit_tx_hash?",
+                commit_tx.confirmed_at AS "committed_at?",
+                commit_tx_data.chain_id AS "commit_chain_id?",
+                prove_tx.tx_hash AS "prove_tx_hash?",
+                prove_tx.confirmed_at AS "proven_at?",
+                prove_tx_data.chain_id AS "prove_chain_id?",
+                execute_tx.tx_hash AS "execute_tx_hash?",
+                execute_tx.confirmed_at AS "executed_at?",
+                execute_tx_data.chain_id AS "execute_chain_id?",
+                miniblocks.l1_gas_price,
+                miniblocks.l2_fair_gas_price,
+                miniblocks.fair_pubdata_price,
+                miniblocks.bootloader_code_hash,
+                miniblocks.default_aa_code_hash,
+                l1_batches.evm_emulator_code_hash,
+                miniblocks.protocol_version,
+                miniblocks.fee_account_address
+            FROM
+                miniblocks
+            LEFT JOIN l1_batches ON miniblocks.l1_batch_number = l1_batches.number
+            LEFT JOIN eth_txs_history AS commit_tx
+                ON (
+                    l1_batches.eth_commit_tx_id = commit_tx.eth_tx_id
+                    AND commit_tx.confirmed_at IS NOT NULL
+                )
+            LEFT JOIN eth_txs_history AS prove_tx
+                ON (
+                    l1_batches.eth_prove_tx_id = prove_tx.eth_tx_id
+                    AND prove_tx.confirmed_at IS NOT NULL
+                )
+            LEFT JOIN eth_txs_history AS execute_tx
+                ON (
+                    l1_batches.eth_execute_tx_id = execute_tx.eth_tx_id
+                    AND execute_tx.confirmed_at IS NOT NULL
+                )
+            LEFT JOIN eth_txs AS commit_tx_data
+                ON (
+                    l1_batches.eth_commit_tx_id = commit_tx_data.id
+                    AND commit_tx_data.confirmed_eth_tx_history_id IS NOT NULL
+                )
+            LEFT JOIN eth_txs AS prove_tx_data
+                ON (
+                    l1_batches.eth_prove_tx_id = prove_tx_data.id
+                    AND prove_tx_data.confirmed_eth_tx_history_id IS NOT NULL
+                )
+            LEFT JOIN eth_txs AS execute_tx_data
+                ON (
+                    l1_batches.eth_execute_tx_id = execute_tx_data.id
+                    AND execute_tx_data.confirmed_eth_tx_history_id IS NOT NULL
+                )
+            WHERE
+                miniblocks.number = $1
+            "#,
+            i64::from(block_number.0)
+        )
+        .instrument("get_block_details")
+        .with_arg("block_number", &block_number)
+        .report_latency()
+        .fetch_optional(self.storage)
+        .await?;
 
-            Ok(storage_block_details.map(|storage_block_details| {
-                storage_block_details.into_block_details(current_operator_address)
-            }))
-        }
+        Ok(storage_block_details.map(Into::into))
     }
 
     pub async fn get_l1_batch_details(
         &mut self,
         l1_batch_number: L1BatchNumber,
-    ) -> sqlx::Result<Option<api::L1BatchDetails>> {
-        {
-            let l1_batch_details: Option<StorageL1BatchDetails> = sqlx::query_as!(
-                StorageL1BatchDetails,
-                r#"
-                    SELECT l1_batches.number,
-                        l1_batches.timestamp,
-                        l1_batches.l1_tx_count,
-                        l1_batches.l2_tx_count,
-                        l1_batches.hash as "root_hash?",
-                        commit_tx.tx_hash as "commit_tx_hash?",
-                        commit_tx.confirmed_at as "committed_at?",
-                        prove_tx.tx_hash as "prove_tx_hash?",
-                        prove_tx.confirmed_at as "proven_at?",
-                        execute_tx.tx_hash as "execute_tx_hash?",
-                        execute_tx.confirmed_at as "executed_at?",
-                        l1_batches.l1_gas_price,
-                        l1_batches.l2_fair_gas_price,
-                        l1_batches.bootloader_code_hash,
-                        l1_batches.default_aa_code_hash
-                    FROM l1_batches
-                    LEFT JOIN eth_txs_history as commit_tx ON (l1_batches.eth_commit_tx_id = commit_tx.eth_tx_id AND commit_tx.confirmed_at IS NOT NULL)
-                    LEFT JOIN eth_txs_history as prove_tx ON (l1_batches.eth_prove_tx_id = prove_tx.eth_tx_id AND prove_tx.confirmed_at IS NOT NULL)
-                    LEFT JOIN eth_txs_history as execute_tx ON (l1_batches.eth_execute_tx_id = execute_tx.eth_tx_id AND execute_tx.confirmed_at IS NOT NULL)
-                    WHERE l1_batches.number = $1
-                "#,
-                l1_batch_number.0 as i64
+    ) -> DalResult<Option<api::L1BatchDetails>> {
+        let l1_batch_details: Option<StorageL1BatchDetails> = sqlx::query_as!(
+            StorageL1BatchDetails,
+            r#"
+            WITH
+            mb AS (
+                SELECT
+                    l1_gas_price,
+                    l2_fair_gas_price,
+                    fair_pubdata_price
+                FROM
+                    miniblocks
+                WHERE
+                    l1_batch_number = $1
+                LIMIT
+                    1
             )
-            .instrument("get_l1_batch_details")
-            .with_arg("l1_batch_number", &l1_batch_number)
-            .report_latency()
-            .fetch_optional(self.storage.conn())
-            .await?;
+            
+            SELECT
+                l1_batches.number,
+                l1_batches.timestamp,
+                l1_batches.l1_tx_count,
+                l1_batches.l2_tx_count,
+                l1_batches.hash AS "root_hash?",
+                commit_tx.tx_hash AS "commit_tx_hash?",
+                commit_tx.confirmed_at AS "committed_at?",
+                commit_tx_data.chain_id AS "commit_chain_id?",
+                prove_tx.tx_hash AS "prove_tx_hash?",
+                prove_tx.confirmed_at AS "proven_at?",
+                prove_tx_data.chain_id AS "prove_chain_id?",
+                execute_tx.tx_hash AS "execute_tx_hash?",
+                execute_tx.confirmed_at AS "executed_at?",
+                execute_tx_data.chain_id AS "execute_chain_id?",
+                mb.l1_gas_price,
+                mb.l2_fair_gas_price,
+                mb.fair_pubdata_price,
+                l1_batches.bootloader_code_hash,
+                l1_batches.default_aa_code_hash,
+                l1_batches.evm_emulator_code_hash
+            FROM
+                l1_batches
+            INNER JOIN mb ON TRUE
+            LEFT JOIN eth_txs_history AS commit_tx
+                ON (
+                    l1_batches.eth_commit_tx_id = commit_tx.eth_tx_id
+                    AND commit_tx.confirmed_at IS NOT NULL
+                )
+            LEFT JOIN eth_txs_history AS prove_tx
+                ON (
+                    l1_batches.eth_prove_tx_id = prove_tx.eth_tx_id
+                    AND prove_tx.confirmed_at IS NOT NULL
+                )
+            LEFT JOIN eth_txs_history AS execute_tx
+                ON (
+                    l1_batches.eth_execute_tx_id = execute_tx.eth_tx_id
+                    AND execute_tx.confirmed_at IS NOT NULL
+                )
+            LEFT JOIN eth_txs AS commit_tx_data
+                ON (
+                    l1_batches.eth_commit_tx_id = commit_tx_data.id
+                    AND commit_tx_data.confirmed_eth_tx_history_id IS NOT NULL
+                )
+            LEFT JOIN eth_txs AS prove_tx_data
+                ON (
+                    l1_batches.eth_prove_tx_id = prove_tx_data.id
+                    AND prove_tx_data.confirmed_eth_tx_history_id IS NOT NULL
+                )
+            LEFT JOIN eth_txs AS execute_tx_data
+                ON (
+                    l1_batches.eth_execute_tx_id = execute_tx_data.id
+                    AND execute_tx_data.confirmed_eth_tx_history_id IS NOT NULL
+                )
+            WHERE
+                l1_batches.number = $1
+            "#,
+            i64::from(l1_batch_number.0)
+        )
+        .instrument("get_l1_batch_details")
+        .with_arg("l1_batch_number", &l1_batch_number)
+        .report_latency()
+        .fetch_optional(self.storage)
+        .await?;
 
-            Ok(l1_batch_details.map(api::L1BatchDetails::from))
-        }
+        Ok(l1_batch_details.map(Into::into))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use zksync_types::{
-        block::{MiniblockHasher, MiniblockHeader},
-        MiniblockNumber, ProtocolVersion, ProtocolVersionId,
+        aggregated_operations::AggregatedActionType,
+        block::{L2BlockHasher, L2BlockHeader},
+        Address, L2BlockNumber, ProtocolVersion, ProtocolVersionId,
     };
+    use zksync_vm_interface::{tracer::ValidationTraces, TransactionExecutionMetrics};
 
     use super::*;
-    use crate::{tests::create_miniblock_header, ConnectionPool};
+    use crate::{
+        tests::{
+            create_l1_batch_header, create_l2_block_header, create_snapshot_recovery,
+            mock_execution_result, mock_l2_transaction,
+        },
+        ConnectionPool, Core, CoreDal,
+    };
 
     #[tokio::test]
     async fn getting_web3_block_and_tx_count() {
-        let connection_pool = ConnectionPool::test_pool().await;
-        let mut conn = connection_pool.access_storage().await.unwrap();
+        let connection_pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = connection_pool.connection().await.unwrap();
         conn.blocks_dal()
-            .delete_miniblocks(MiniblockNumber(0))
+            .delete_l2_blocks(L2BlockNumber(0))
             .await
             .unwrap();
         conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
-        let header = MiniblockHeader {
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
+        let header = L2BlockHeader {
             l1_tx_count: 3,
             l2_tx_count: 5,
-            ..create_miniblock_header(0)
+            ..create_l2_block_header(0)
         };
-        conn.blocks_dal().insert_miniblock(&header).await.unwrap();
+        conn.blocks_dal().insert_l2_block(&header).await.unwrap();
 
-        let block_hash = MiniblockHasher::new(MiniblockNumber(0), 0, H256::zero())
+        let block_hash = L2BlockHasher::new(L2BlockNumber(0), 0, H256::zero())
             .finalize(ProtocolVersionId::latest());
-        let block_ids = [
-            api::BlockId::Number(api::BlockNumber::Earliest),
-            api::BlockId::Number(api::BlockNumber::Latest),
-            api::BlockId::Number(api::BlockNumber::Number(0.into())),
-            api::BlockId::Hash(block_hash),
-        ];
-        for block_id in block_ids {
-            let block = conn
-                .blocks_web3_dal()
-                .get_block_by_web3_block_id(block_id, false, L2ChainId::from(270))
-                .await;
-            let block = block.unwrap().unwrap();
-            assert!(block.transactions.is_empty());
-            assert_eq!(block.number, U64::zero());
-            assert_eq!(block.hash, block_hash);
+        let block = conn.blocks_web3_dal().get_api_block(L2BlockNumber(0)).await;
+        let block = block.unwrap().unwrap();
+        assert!(block.transactions.is_empty());
+        assert_eq!(block.number, U64::zero());
+        assert_eq!(block.hash, block_hash);
 
-            let tx_count = conn.blocks_web3_dal().get_block_tx_count(block_id).await;
-            assert_eq!(tx_count.unwrap(), Some((MiniblockNumber(0), 8.into())));
-        }
+        let tx_count = conn
+            .blocks_web3_dal()
+            .get_block_tx_count(L2BlockNumber(0))
+            .await;
+        assert_eq!(tx_count.unwrap(), Some(8));
 
-        let non_existing_block_hash = MiniblockHasher::new(MiniblockNumber(1), 1, H256::zero())
-            .finalize(ProtocolVersionId::latest());
-        let non_existing_block_ids = [
-            api::BlockId::Number(api::BlockNumber::Pending),
-            api::BlockId::Number(api::BlockNumber::Number(1.into())),
-            api::BlockId::Hash(non_existing_block_hash),
-        ];
-        for block_id in non_existing_block_ids {
-            let block = conn
-                .blocks_web3_dal()
-                .get_block_by_web3_block_id(block_id, false, L2ChainId::from(270))
-                .await;
-            assert!(block.unwrap().is_none());
+        let block = conn.blocks_web3_dal().get_api_block(L2BlockNumber(1)).await;
+        assert!(block.unwrap().is_none());
 
-            let tx_count = conn.blocks_web3_dal().get_block_tx_count(block_id).await;
-            assert_eq!(tx_count.unwrap(), None);
-        }
+        let tx_count = conn
+            .blocks_web3_dal()
+            .get_block_tx_count(L2BlockNumber(1))
+            .await;
+        assert_eq!(tx_count.unwrap(), None);
     }
 
     #[tokio::test]
     async fn resolving_earliest_block_id() {
-        let connection_pool = ConnectionPool::test_pool().await;
-        let mut conn = connection_pool.access_storage().await.unwrap();
-        conn.blocks_dal()
-            .delete_miniblocks(MiniblockNumber(0))
-            .await
-            .unwrap();
+        let connection_pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = connection_pool.connection().await.unwrap();
 
-        let miniblock_number = conn
+        let l2_block_number = conn
             .blocks_web3_dal()
             .resolve_block_id(api::BlockId::Number(api::BlockNumber::Earliest))
             .await;
-        assert_eq!(miniblock_number.unwrap(), Some(MiniblockNumber(0)));
+        assert_eq!(l2_block_number.unwrap(), None);
+
+        conn.protocol_versions_dal()
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
+        conn.blocks_dal()
+            .insert_l2_block(&create_l2_block_header(0))
+            .await
+            .unwrap();
+
+        let l2_block_number = conn
+            .blocks_web3_dal()
+            .resolve_block_id(api::BlockId::Number(api::BlockNumber::Earliest))
+            .await;
+        assert_eq!(l2_block_number.unwrap(), Some(L2BlockNumber(0)));
     }
 
     #[tokio::test]
     async fn resolving_latest_block_id() {
-        let connection_pool = ConnectionPool::test_pool().await;
-        let mut conn = connection_pool.access_storage().await.unwrap();
-        conn.blocks_dal()
-            .delete_miniblocks(MiniblockNumber(0))
-            .await
-            .unwrap();
+        let connection_pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = connection_pool.connection().await.unwrap();
         conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
-        conn.blocks_dal()
-            .insert_miniblock(&create_miniblock_header(0))
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
             .await
             .unwrap();
 
-        let miniblock_number = conn
+        let l2_block_number = conn
+            .blocks_web3_dal()
+            .resolve_block_id(api::BlockId::Number(api::BlockNumber::Latest))
+            .await
+            .unwrap();
+        assert_eq!(l2_block_number, None);
+        let l2_block_number = conn
+            .blocks_web3_dal()
+            .resolve_block_id(api::BlockId::Number(api::BlockNumber::Pending))
+            .await
+            .unwrap();
+        assert_eq!(l2_block_number, Some(L2BlockNumber(0)));
+
+        conn.blocks_dal()
+            .insert_l2_block(&create_l2_block_header(0))
+            .await
+            .unwrap();
+
+        let l2_block_number = conn
             .blocks_web3_dal()
             .resolve_block_id(api::BlockId::Number(api::BlockNumber::Latest))
             .await;
-        assert_eq!(miniblock_number.unwrap(), Some(MiniblockNumber(0)));
+        assert_eq!(l2_block_number.unwrap(), Some(L2BlockNumber(0)));
 
-        let miniblock_number = conn
+        let l2_block_number = conn
             .blocks_web3_dal()
             .resolve_block_id(api::BlockId::Number(api::BlockNumber::Number(0.into())))
             .await;
-        assert_eq!(miniblock_number.unwrap(), Some(MiniblockNumber(0)));
-        let miniblock_number = conn
+        assert_eq!(l2_block_number.unwrap(), Some(L2BlockNumber(0)));
+        let l2_block_number = conn
             .blocks_web3_dal()
             .resolve_block_id(api::BlockId::Number(api::BlockNumber::Number(1.into())))
             .await;
-        assert_eq!(miniblock_number.unwrap(), None);
+        assert_eq!(l2_block_number.unwrap(), None);
 
         conn.blocks_dal()
-            .insert_miniblock(&create_miniblock_header(1))
+            .insert_l2_block(&create_l2_block_header(1))
             .await
             .unwrap();
-        let miniblock_number = conn
+        let l2_block_number = conn
             .blocks_web3_dal()
             .resolve_block_id(api::BlockId::Number(api::BlockNumber::Latest))
             .await;
-        assert_eq!(miniblock_number.unwrap(), Some(MiniblockNumber(1)));
+        assert_eq!(l2_block_number.unwrap(), Some(L2BlockNumber(1)));
 
-        let miniblock_number = conn
+        let l2_block_number = conn
             .blocks_web3_dal()
             .resolve_block_id(api::BlockId::Number(api::BlockNumber::Pending))
             .await;
-        assert_eq!(miniblock_number.unwrap(), Some(MiniblockNumber(2)));
+        assert_eq!(l2_block_number.unwrap(), Some(L2BlockNumber(2)));
 
-        let miniblock_number = conn
+        let l2_block_number = conn
             .blocks_web3_dal()
             .resolve_block_id(api::BlockId::Number(api::BlockNumber::Number(1.into())))
             .await;
-        assert_eq!(miniblock_number.unwrap(), Some(MiniblockNumber(1)));
+        assert_eq!(l2_block_number.unwrap(), Some(L2BlockNumber(1)));
+    }
+
+    #[tokio::test]
+    async fn resolving_pending_block_id_for_snapshot_recovery() {
+        let connection_pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = connection_pool.connection().await.unwrap();
+        let snapshot_recovery = create_snapshot_recovery();
+        conn.snapshot_recovery_dal()
+            .insert_initial_recovery_status(&snapshot_recovery)
+            .await
+            .unwrap();
+
+        let l2_block_number = conn
+            .blocks_web3_dal()
+            .resolve_block_id(api::BlockId::Number(api::BlockNumber::Pending))
+            .await
+            .unwrap();
+        assert_eq!(l2_block_number, Some(L2BlockNumber(43)));
+    }
+
+    #[tokio::test]
+    async fn resolving_l1_committed_block_id() {
+        let connection_pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = connection_pool.connection().await.unwrap();
+        conn.protocol_versions_dal()
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
+
+        let l2_block_header = create_l2_block_header(1);
+        conn.blocks_dal()
+            .insert_l2_block(&l2_block_header)
+            .await
+            .unwrap();
+
+        let l1_batch_header = create_l1_batch_header(0);
+
+        conn.blocks_dal()
+            .insert_mock_l1_batch(&l1_batch_header)
+            .await
+            .unwrap();
+        conn.blocks_dal()
+            .mark_l2_blocks_as_executed_in_l1_batch(l1_batch_header.number)
+            .await
+            .unwrap();
+
+        let resolved_l2_block_number = conn
+            .blocks_web3_dal()
+            .resolve_block_id(api::BlockId::Number(api::BlockNumber::L1Committed))
+            .await
+            .unwrap();
+        assert_eq!(resolved_l2_block_number, Some(L2BlockNumber(0)));
+
+        let mocked_commit_eth_tx = conn
+            .eth_sender_dal()
+            .save_eth_tx(
+                0,
+                vec![],
+                AggregatedActionType::Commit,
+                Address::default(),
+                None,
+                None,
+                None,
+                false,
+            )
+            .await
+            .unwrap();
+        let tx_hash = H256::random();
+        conn.eth_sender_dal()
+            .insert_tx_history(mocked_commit_eth_tx.id, 0, 0, None, tx_hash, &[], 0)
+            .await
+            .unwrap();
+        conn.eth_sender_dal()
+            .confirm_tx(tx_hash, U256::zero())
+            .await
+            .unwrap();
+        conn.blocks_dal()
+            .set_eth_tx_id(
+                l1_batch_header.number..=l1_batch_header.number,
+                mocked_commit_eth_tx.id,
+                AggregatedActionType::Commit,
+            )
+            .await
+            .unwrap();
+
+        let resolved_l2_block_number = conn
+            .blocks_web3_dal()
+            .resolve_block_id(api::BlockId::Number(api::BlockNumber::L1Committed))
+            .await
+            .unwrap();
+
+        assert_eq!(resolved_l2_block_number, Some(l2_block_header.number));
     }
 
     #[tokio::test]
     async fn resolving_block_by_hash() {
-        let connection_pool = ConnectionPool::test_pool().await;
-        let mut conn = connection_pool.access_storage().await.unwrap();
-        conn.blocks_dal()
-            .delete_miniblocks(MiniblockNumber(0))
-            .await
-            .unwrap();
+        let connection_pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = connection_pool.connection().await.unwrap();
         conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
         conn.blocks_dal()
-            .insert_miniblock(&create_miniblock_header(0))
+            .insert_l2_block(&create_l2_block_header(0))
             .await
             .unwrap();
 
-        let hash = MiniblockHasher::new(MiniblockNumber(0), 0, H256::zero())
+        let hash = L2BlockHasher::new(L2BlockNumber(0), 0, H256::zero())
             .finalize(ProtocolVersionId::latest());
-        let miniblock_number = conn
+        let l2_block_number = conn
             .blocks_web3_dal()
             .resolve_block_id(api::BlockId::Hash(hash))
             .await;
-        assert_eq!(miniblock_number.unwrap(), Some(MiniblockNumber(0)));
+        assert_eq!(l2_block_number.unwrap(), Some(L2BlockNumber(0)));
 
-        let hash = MiniblockHasher::new(MiniblockNumber(1), 1, H256::zero())
+        let hash = L2BlockHasher::new(L2BlockNumber(1), 1, H256::zero())
             .finalize(ProtocolVersionId::latest());
-        let miniblock_number = conn
+        let l2_block_number = conn
             .blocks_web3_dal()
             .resolve_block_id(api::BlockId::Hash(hash))
             .await;
-        assert_eq!(miniblock_number.unwrap(), None);
+        assert_eq!(l2_block_number.unwrap(), None);
+    }
+
+    #[tokio::test]
+    async fn getting_traces_for_block() {
+        let connection_pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = connection_pool.connection().await.unwrap();
+        conn.protocol_versions_dal()
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
+        conn.blocks_dal()
+            .insert_l2_block(&create_l2_block_header(1))
+            .await
+            .unwrap();
+
+        let transactions = [mock_l2_transaction(), mock_l2_transaction()];
+        let mut tx_results = vec![];
+        for (i, tx) in transactions.into_iter().enumerate() {
+            conn.transactions_dal()
+                .insert_transaction_l2(
+                    &tx,
+                    TransactionExecutionMetrics::default(),
+                    ValidationTraces::default(),
+                )
+                .await
+                .unwrap();
+            let mut tx_result = mock_execution_result(tx);
+            tx_result.call_traces.push(Call {
+                from: Address::from_low_u64_be(i as u64),
+                to: Address::from_low_u64_be(i as u64 + 1),
+                value: i.into(),
+                ..Call::default()
+            });
+            tx_results.push(tx_result);
+        }
+        conn.transactions_dal()
+            .mark_txs_as_executed_in_l2_block(
+                L2BlockNumber(1),
+                &tx_results,
+                1.into(),
+                ProtocolVersionId::latest(),
+                false,
+            )
+            .await
+            .unwrap();
+
+        let traces = conn
+            .blocks_web3_dal()
+            .get_traces_for_l2_block(L2BlockNumber(1))
+            .await
+            .unwrap();
+        assert_eq!(traces.len(), 2);
+        for ((trace, meta), tx_result) in traces.iter().zip(&tx_results) {
+            let expected_trace = tx_result.call_trace().unwrap();
+            assert_eq!(tx_result.hash, meta.tx_hash);
+            assert_eq!(*trace, expected_trace);
+        }
     }
 }

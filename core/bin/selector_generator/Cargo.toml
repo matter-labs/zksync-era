@@ -1,0 +1,21 @@
+[package]
+name = "selector_generator"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+publish = false
+
+[dependencies]
+anyhow.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+glob.workspace = true
+clap = { workspace = true, features = ["derive"] }
+ethabi.workspace = true
+hex.workspace = true
+tokio = { workspace = true, features = ["full"] }

@@ -282,7 +282,7 @@ impl<H: HistoryMode> Memory for SimpleMemory<H> {
         let returndata_page = returndata_fat_pointer.memory_page;
 
         for &page in current_observable_pages {
-            // If the page's number is greater than or equal to the base_page,
+            // If the page's number is greater than or equal to the `base_page`,
             // it means that it was created by the internal calls of this contract.
             // We need to add this check as the calldata pointer is also part of the
             // observable pages.
@@ -299,7 +299,7 @@ impl<H: HistoryMode> Memory for SimpleMemory<H> {
     }
 }
 
-// It is expected that there is some intersection between [word_number*32..word_number*32+31] and [start, end]
+// It is expected that there is some intersection between `[word_number*32..word_number*32+31]` and `[start, end]`
 fn extract_needed_bytes_from_word(
     word_value: Vec<u8>,
     word_number: usize,
@@ -307,7 +307,7 @@ fn extract_needed_bytes_from_word(
     end: usize,
 ) -> Vec<u8> {
     let word_start = word_number * 32;
-    let word_end = word_start + 31; // Note, that at word_start + 32 a new word already starts
+    let word_end = word_start + 31; // Note, that at `word_start + 32` a new word already starts
 
     let intersection_left = std::cmp::max(word_start, start);
     let intersection_right = std::cmp::min(word_end, end);

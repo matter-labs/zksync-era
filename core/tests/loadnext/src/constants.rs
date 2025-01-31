@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{ops, time::Duration};
 
 /// Normally, block is committed on Ethereum every 15 seconds; however there are no guarantees that our transaction
 /// will be included in the next block right after sending.
@@ -14,7 +14,7 @@ pub const ETH_POLLING_INTERVAL: Duration = Duration::from_secs(10);
 pub const COMMIT_TIMEOUT: Duration = Duration::from_secs(600);
 /// We don't want to overload the server with too many requests; given the fact that blocks are expected to be created
 /// every couple of seconds, chosen value seems to be adequate to provide the result in one or two calls at average.
-pub const POLLING_INTERVAL: Duration = Duration::from_secs(3);
+pub const POLLING_INTERVAL: ops::Range<Duration> = Duration::from_secs(2)..Duration::from_secs(3);
 
 pub const MAX_OUTSTANDING_NONCE: usize = 20;
 
@@ -36,3 +36,8 @@ pub const MIN_PAYMASTER_BALANCE: u128 = 10u128.pow(18) * 50;
 /// If the paymaster balance is lower than MIN_PAYMASTER_BALANCE,
 /// loadtest will deposit funds to the paymaster account so that its balance reaches this value
 pub const TARGET_PAYMASTER_BALANCE: u128 = 10u128.pow(18) * 60;
+
+/// Min allowance for estimating the price for the paymaster transaction.
+/// It should be roughly equal (or maybe a bit higher) than the actual used tokens in the transaction for the most precise
+/// estimations. Note, however that is must not be higher than the ERC20 balance of the account.
+pub const MIN_ALLOWANCE_FOR_PAYMASTER_ESTIMATE: u128 = 10u128.pow(18);

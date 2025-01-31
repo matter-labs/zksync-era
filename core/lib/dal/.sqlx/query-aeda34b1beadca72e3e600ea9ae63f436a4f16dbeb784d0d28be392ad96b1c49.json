@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE eth_txs\n            SET\n                has_failed = TRUE\n            WHERE\n                id = $1\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "aeda34b1beadca72e3e600ea9ae63f436a4f16dbeb784d0d28be392ad96b1c49"
+}

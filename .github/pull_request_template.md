@@ -17,5 +17,4 @@
 - [ ] PR title corresponds to the body of PR (we generate changelog entries from PRs).
 - [ ] Tests for the changes have been added / updated.
 - [ ] Documentation comments have been added / updated.
-- [ ] Code has been formatted via `zk fmt` and `zk lint`.
-- [ ] Spellcheck has been run via `cargo spellcheck --cfg=./spellcheck/era.cfg --code 1`.
+- [ ] Code has been formatted via `zkstack dev fmt` and `zkstack dev lint`.

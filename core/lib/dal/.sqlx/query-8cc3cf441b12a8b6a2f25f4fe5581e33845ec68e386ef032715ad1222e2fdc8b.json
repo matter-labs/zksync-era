@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                    DELETE FROM transactions\n                    WHERE\n                        initiator_address = $1\n                        AND nonce = $2\n                    ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Bytea",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "8cc3cf441b12a8b6a2f25f4fe5581e33845ec68e386ef032715ad1222e2fdc8b"
+}

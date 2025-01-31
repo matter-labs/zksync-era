@@ -1,22 +1,23 @@
-use jsonrpsee::{core::RpcResult, proc_macros::rpc};
+#[cfg_attr(not(feature = "server"), allow(unused_imports))]
+use jsonrpsee::core::RpcResult;
+use jsonrpsee::proc_macros::rpc;
 use zksync_types::{
-    api::{BlockId, BlockNumber, DebugCall, ResultDebugCall, TracerConfig},
+    api::{BlockId, BlockNumber, CallTracerBlockResult, CallTracerResult, TracerConfig},
     transaction_request::CallRequest,
 };
 
-use crate::types::H256;
+use crate::{
+    client::{ForWeb3Network, L2},
+    types::H256,
+};
 
 #[cfg_attr(
-    all(feature = "client", feature = "server"),
-    rpc(server, client, namespace = "debug")
+    feature = "server",
+    rpc(server, client, namespace = "debug", client_bounds(Self: ForWeb3Network<Net = L2>))
 )]
 #[cfg_attr(
-    all(feature = "client", not(feature = "server")),
-    rpc(client, namespace = "debug")
-)]
-#[cfg_attr(
-    all(not(feature = "client"), feature = "server"),
-    rpc(server, namespace = "debug")
+    not(feature = "server"),
+    rpc(client, namespace = "debug", client_bounds(Self: ForWeb3Network<Net = L2>))
 )]
 pub trait DebugNamespace {
     #[method(name = "traceBlockByNumber")]
@@ -24,24 +25,27 @@ pub trait DebugNamespace {
         &self,
         block: BlockNumber,
         options: Option<TracerConfig>,
-    ) -> RpcResult<Vec<ResultDebugCall>>;
+    ) -> RpcResult<CallTracerBlockResult>;
+
     #[method(name = "traceBlockByHash")]
     async fn trace_block_by_hash(
         &self,
         hash: H256,
         options: Option<TracerConfig>,
-    ) -> RpcResult<Vec<ResultDebugCall>>;
+    ) -> RpcResult<CallTracerBlockResult>;
+
     #[method(name = "traceCall")]
     async fn trace_call(
         &self,
         request: CallRequest,
         block: Option<BlockId>,
         options: Option<TracerConfig>,
-    ) -> RpcResult<DebugCall>;
+    ) -> RpcResult<CallTracerResult>;
+
     #[method(name = "traceTransaction")]
     async fn trace_transaction(
         &self,
         tx_hash: H256,
         options: Option<TracerConfig>,
-    ) -> RpcResult<Option<DebugCall>>;
+    ) -> RpcResult<Option<CallTracerResult>>;
 }

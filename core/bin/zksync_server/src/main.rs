@@ -1,4 +1,4 @@
-use std::{str::FromStr, time::Duration};
+use std::str::FromStr;
 
 use anyhow::Context as _;
 use clap::Parser;
@@ -7,43 +7,69 @@ use zksync_config::{
         api::{HealthCheckConfig, MerkleTreeApiConfig, Web3JsonRpcConfig},
         chain::{
             CircuitBreakerConfig, MempoolConfig, NetworkConfig, OperationsManagerConfig,
-            StateKeeperConfig,
+            StateKeeperConfig, TimestampAsserterConfig,
         },
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
-        FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig, PrometheusConfig,
-        ProofDataHandlerConfig, ProverGroupConfig, WitnessGeneratorConfig,
+        BasicWitnessInputProducerConfig, ContractsConfig, DataAvailabilitySecrets, DatabaseSecrets,
+        ExperimentalVmConfig, ExternalPriceApiClientConfig, FriProofCompressorConfig,
+        FriProverConfig, FriProverGatewayConfig, FriWitnessGeneratorConfig,
+        FriWitnessVectorGeneratorConfig, L1Secrets, ObservabilityConfig, PrometheusConfig,
+        ProofDataHandlerConfig, ProtectiveReadsWriterConfig, Secrets,
     },
-    ApiConfig, ContractsConfig, DBConfig, ETHClientConfig, ETHSenderConfig, ETHWatchConfig,
-    FetcherConfig, GasAdjusterConfig, ObjectStoreConfig, PostgresConfig, ProverConfigs,
+    ApiConfig, BaseTokenAdjusterConfig, ContractVerifierConfig, DAClientConfig, DADispatcherConfig,
+    DBConfig, EthConfig, EthWatchConfig, ExternalProofIntegrationApiConfig, GasAdjusterConfig,
+    GenesisConfig, ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
 };
-use zksync_core::{
-    genesis_init, initialize_components, is_genesis_needed, setup_sigint_handler,
-    temp_config_store::TempConfigStore, Component, Components,
+use zksync_core_leftovers::{
+    temp_config_store::{read_yaml_repr, TempConfigStore},
+    Component, Components,
 };
 use zksync_env_config::FromEnv;
-use zksync_storage::RocksDB;
-use zksync_utils::wait_for_tasks::wait_for_tasks;
+
+use crate::node_builder::MainNodeBuilder;
+
+mod config;
+mod node_builder;
 
 #[cfg(not(target_env = "msvc"))]
 #[global_allocator]
 static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
-
 #[derive(Debug, Parser)]
-#[command(author = "Matter Labs", version, about = "zkSync operator node", long_about = None)]
+#[command(author = "Matter Labs", version, about = "ZKsync operator node", long_about = None)]
 struct Cli {
     /// Generate genesis block for the first contract deployment using temporary DB.
     #[arg(long)]
     genesis: bool,
-    /// Rebuild tree.
-    #[arg(long)]
-    rebuild_tree: bool,
     /// Comma-separated list of components to launch.
     #[arg(
         long,
-        default_value = "api,tree,eth,data_fetcher,state_keeper,housekeeper,basic_witness_input_producer"
+        default_value = "api,tree,eth,state_keeper,housekeeper,commitment_generator,da_dispatcher,vm_runner_protective_reads"
     )]
     components: ComponentsToRun,
+    /// Path to the yaml config. If set, it will be used instead of env vars.
+    #[arg(long)]
+    config_path: Option<std::path::PathBuf>,
+    /// Path to the yaml with secrets. If set, it will be used instead of env vars.
+    #[arg(long)]
+    secrets_path: Option<std::path::PathBuf>,
+    /// Path to the yaml with contracts. If set, it will be used instead of env vars.
+    #[arg(long)]
+    contracts_config_path: Option<std::path::PathBuf>,
+    /// Path to the yaml with gateway contracts. Note, that at this moment,
+    /// env-based config is not supported for gateway-related functionality.
+    #[arg(long)]
+    gateway_contracts_config_path: Option<std::path::PathBuf>,
+    /// Path to the wallets config. If set, it will be used instead of env vars.
+    #[arg(long)]
+    wallets_path: Option<std::path::PathBuf>,
+    /// Path to the yaml with genesis. If set, it will be used instead of env vars.
+    #[arg(long)]
+    genesis_path: Option<std::path::PathBuf>,
+    /// Used to enable node framework.
+    /// Now the node framework is used by default and this argument is left for backward compatibility.
+    #[arg(long)]
+    use_node_framework: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -62,38 +88,99 @@ impl FromStr for ComponentsToRun {
     }
 }
 
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
+fn main() -> anyhow::Result<()> {
     let opt = Cli::parse();
 
-    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
-    let log_format = vlog::log_format_from_env();
-    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
-    let sentry_url = vlog::sentry_url_from_env();
-    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
-    let environment = vlog::environment_from_env();
+    // Load env config and use it if file config is not provided
+    let tmp_config = load_env_config()?;
 
-    let mut builder = vlog::ObservabilityBuilder::new().with_log_format(log_format);
-    if let Some(sentry_url) = &sentry_url {
-        builder = builder
-            .with_sentry_url(sentry_url)
-            .expect("Invalid Sentry URL")
-            .with_sentry_environment(environment);
-    }
-    let _guard = builder.build();
+    let configs = match opt.config_path {
+        None => {
+            let mut configs = tmp_config.general();
+            configs.consensus_config =
+                config::read_consensus_config().context("read_consensus_config()")?;
+            configs
+        }
+        Some(path) => {
+            read_yaml_repr::<zksync_protobuf_config::proto::general::GeneralConfig>(&path)
+                .context("failed decoding general YAML config")?
+        }
+    };
 
-    // Report whether sentry is running after the logging subsystem was initialized.
-    if let Some(sentry_url) = sentry_url {
-        tracing::info!("Sentry configured with URL: {sentry_url}");
+    let wallets = match opt.wallets_path {
+        None => tmp_config.wallets(),
+        Some(path) => read_yaml_repr::<zksync_protobuf_config::proto::wallets::Wallets>(&path)
+            .context("failed decoding wallets YAML config")?,
+    };
+
+    let secrets: Secrets = match opt.secrets_path {
+        Some(path) => read_yaml_repr::<zksync_protobuf_config::proto::secrets::Secrets>(&path)
+            .context("failed decoding secrets YAML config")?,
+        None => Secrets {
+            consensus: config::read_consensus_secrets().context("read_consensus_secrets()")?,
+            database: DatabaseSecrets::from_env().ok(),
+            l1: L1Secrets::from_env().ok(),
+            data_availability: DataAvailabilitySecrets::from_env().ok(),
+        },
+    };
+
+    let contracts_config = match opt.contracts_config_path {
+        None => ContractsConfig::from_env().context("contracts_config")?,
+        Some(path) => read_yaml_repr::<zksync_protobuf_config::proto::contracts::Contracts>(&path)
+            .context("failed decoding contracts YAML config")?,
+    };
+
+    // We support only file based config for gateway
+    let gateway_contracts_config = if let Some(gateway_config_path) =
+        opt.gateway_contracts_config_path
+    {
+        let result = read_yaml_repr::<zksync_protobuf_config::proto::gateway::GatewayChainConfig>(
+            &gateway_config_path,
+        )
+        .context("failed decoding contracts YAML config")?;
+
+        Some(result)
     } else {
-        tracing::info!("No sentry URL was provided");
+        None
+    };
+
+    let genesis = match opt.genesis_path {
+        None => GenesisConfig::from_env().context("Genesis config")?,
+        Some(path) => read_yaml_repr::<zksync_protobuf_config::proto::genesis::Genesis>(&path)
+            .context("failed decoding genesis YAML config")?,
+    };
+    let observability_config = configs
+        .observability
+        .clone()
+        .context("observability config")?;
+
+    let node = MainNodeBuilder::new(
+        configs,
+        wallets,
+        genesis,
+        contracts_config,
+        gateway_contracts_config,
+        secrets,
+    )?;
+
+    let observability_guard = {
+        // Observability initialization should be performed within tokio context.
+        let _context_guard = node.runtime_handle().enter();
+        observability_config.install()?
+    };
+
+    if opt.genesis {
+        // If genesis is requested, we don't need to run the node.
+        node.only_genesis()?.run(observability_guard)?;
+        return Ok(());
     }
 
-    // TODO (QIT-22): Only deserialize configs on demand.
-    // Right now, we are trying to deserialize all the configs that may be needed by `zksync_core`.
-    // "May" is the key word here, since some configs are only used by certain component configuration,
-    // hence we are using `Option`s.
-    let configs: TempConfigStore = TempConfigStore {
+    node.build(opt.components.0)?.run(observability_guard)?;
+    Ok(())
+}
+
+fn load_env_config() -> anyhow::Result<TempConfigStore> {
+    Ok(TempConfigStore {
         postgres_config: PostgresConfig::from_env().ok(),
         health_check_config: HealthCheckConfig::from_env().ok(),
         merkle_tree_api_config: MerkleTreeApiConfig::from_env().ok(),
@@ -101,89 +188,38 @@ async fn main() -> anyhow::Result<()> {
         circuit_breaker_config: CircuitBreakerConfig::from_env().ok(),
         mempool_config: MempoolConfig::from_env().ok(),
         network_config: NetworkConfig::from_env().ok(),
+        contract_verifier: ContractVerifierConfig::from_env().ok(),
         operations_manager_config: OperationsManagerConfig::from_env().ok(),
         state_keeper_config: StateKeeperConfig::from_env().ok(),
         house_keeper_config: HouseKeeperConfig::from_env().ok(),
         fri_proof_compressor_config: FriProofCompressorConfig::from_env().ok(),
         fri_prover_config: FriProverConfig::from_env().ok(),
         fri_prover_group_config: FriProverGroupConfig::from_env().ok(),
+        fri_prover_gateway_config: FriProverGatewayConfig::from_env().ok(),
+        fri_witness_vector_generator: FriWitnessVectorGeneratorConfig::from_env().ok(),
         fri_witness_generator_config: FriWitnessGeneratorConfig::from_env().ok(),
         prometheus_config: PrometheusConfig::from_env().ok(),
         proof_data_handler_config: ProofDataHandlerConfig::from_env().ok(),
-        prover_group_config: ProverGroupConfig::from_env().ok(),
-        witness_generator_config: WitnessGeneratorConfig::from_env().ok(),
         api_config: ApiConfig::from_env().ok(),
-        contracts_config: ContractsConfig::from_env().ok(),
         db_config: DBConfig::from_env().ok(),
-        eth_client_config: ETHClientConfig::from_env().ok(),
-        eth_sender_config: ETHSenderConfig::from_env().ok(),
-        eth_watch_config: ETHWatchConfig::from_env().ok(),
-        fetcher_config: FetcherConfig::from_env().ok(),
+        eth_sender_config: EthConfig::from_env().ok(),
+        eth_watch_config: EthWatchConfig::from_env().ok(),
         gas_adjuster_config: GasAdjusterConfig::from_env().ok(),
-        prover_configs: ProverConfigs::from_env().ok(),
-        object_store_config: ObjectStoreConfig::from_env().ok(),
-    };
-
-    let postgres_config = configs.postgres_config.clone().context("PostgresConfig")?;
-
-    if opt.genesis || is_genesis_needed(&postgres_config).await {
-        let network = NetworkConfig::from_env().context("NetworkConfig")?;
-        let eth_sender = ETHSenderConfig::from_env().context("ETHSenderConfig")?;
-        let contracts = ContractsConfig::from_env().context("ContractsConfig")?;
-        let eth_client = ETHClientConfig::from_env().context("EthClientConfig")?;
-        genesis_init(
-            &postgres_config,
-            &eth_sender,
-            &network,
-            &contracts,
-            &eth_client.web3_url,
-        )
-        .await
-        .context("genesis_init")?;
-        if opt.genesis {
-            return Ok(());
-        }
-    }
-
-    let components = if opt.rebuild_tree {
-        vec![Component::Tree]
-    } else {
-        opt.components.0
-    };
-
-    // Run core actors.
-    let (core_task_handles, stop_sender, cb_receiver, health_check_handle) =
-        initialize_components(&configs, components)
-            .await
-            .context("Unable to start Core actors")?;
-
-    tracing::info!("Running {} core task handlers", core_task_handles.len());
-    let sigint_receiver = setup_sigint_handler();
-
-    let particular_crypto_alerts = None::<Vec<String>>;
-    let graceful_shutdown = None::<futures::future::Ready<()>>;
-    let tasks_allowed_to_finish = false;
-    tokio::select! {
-        _ = wait_for_tasks(core_task_handles, particular_crypto_alerts, graceful_shutdown, tasks_allowed_to_finish) => {},
-        _ = sigint_receiver => {
-            tracing::info!("Stop signal received, shutting down");
-        },
-        error = cb_receiver => {
-            if let Ok(error_msg) = error {
-                let err = format!("Circuit breaker received, shutting down. Reason: {}", error_msg);
-                tracing::warn!("{err}");
-                vlog::capture_message(&err, vlog::AlertLevel::Warning);
-            }
-        },
-    }
-
-    stop_sender.send(true).ok();
-    tokio::task::spawn_blocking(RocksDB::await_rocksdb_termination)
-        .await
-        .unwrap();
-    // Sleep for some time to let some components gracefully stop.
-    tokio::time::sleep(Duration::from_secs(5)).await;
-    health_check_handle.stop().await;
-    tracing::info!("Stopped");
-    Ok(())
+        observability: ObservabilityConfig::from_env().ok(),
+        snapshot_creator: SnapshotsCreatorConfig::from_env().ok(),
+        da_client_config: DAClientConfig::from_env().ok(),
+        da_dispatcher_config: DADispatcherConfig::from_env().ok(),
+        protective_reads_writer_config: ProtectiveReadsWriterConfig::from_env().ok(),
+        basic_witness_input_producer_config: BasicWitnessInputProducerConfig::from_env().ok(),
+        core_object_store: ObjectStoreConfig::from_env().ok(),
+        base_token_adjuster_config: BaseTokenAdjusterConfig::from_env().ok(),
+        commitment_generator: None,
+        pruning: None,
+        snapshot_recovery: None,
+        external_price_api_client_config: ExternalPriceApiClientConfig::from_env().ok(),
+        external_proof_integration_api_config: ExternalProofIntegrationApiConfig::from_env().ok(),
+        experimental_vm_config: ExperimentalVmConfig::from_env().ok(),
+        prover_job_monitor_config: None,
+        timestamp_asserter_config: TimestampAsserterConfig::from_env().ok(),
+    })
 }

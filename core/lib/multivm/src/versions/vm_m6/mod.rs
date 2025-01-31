@@ -17,8 +17,6 @@ pub mod utils;
 pub mod vm_instance;
 pub mod vm_with_bootloader;
 
-#[cfg(test)]
-mod tests;
 mod vm;
 
 pub use errors::TxRevertReason;
@@ -28,7 +26,6 @@ pub use oracles::storage::StorageOracle;
 pub use vm::Vm;
 pub use vm_instance::{VmBlockResult, VmExecutionResult, VmInstance};
 pub use zk_evm_1_3_1;
-pub use zksync_types::vm_trace::VmExecutionTrace;
 
 pub type Word = zksync_types::U256;
 

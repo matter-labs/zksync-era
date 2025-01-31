@@ -161,8 +161,8 @@ impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
                                 is_leaf: child_ref.is_leaf,
                             })?;
 
-                        // Recursion here is OK; the tree isn't that deep (~8 nibbles for a tree with
-                        // ~1B entries).
+                        // Recursion here is OK; the tree isn't that deep (approximately 8 nibbles for a tree with
+                        // approximately 1B entries).
                         let child_hash = self.validate_node(&child, child_key, leaf_data)?;
                         if child_hash == child_ref.hash {
                             Ok(())
@@ -283,11 +283,12 @@ mod tests {
     const SECOND_KEY: Key = U256([0, 0, 0, 0x_dead_beef_0100_0000]);
 
     fn prepare_database() -> PatchSet {
-        let mut tree = MerkleTree::new(PatchSet::default());
+        let mut tree = MerkleTree::new(PatchSet::default()).unwrap();
         tree.extend(vec![
             TreeEntry::new(FIRST_KEY, 1, H256([1; 32])),
             TreeEntry::new(SECOND_KEY, 2, H256([2; 32])),
-        ]);
+        ])
+        .unwrap();
         tree.db
     }
 
@@ -315,7 +316,7 @@ mod tests {
             .num_threads(1)
             .build()
             .expect("failed initializing `rayon` thread pool");
-        thread_pool.install(|| MerkleTree::new(db).verify_consistency(0, true))
+        thread_pool.install(|| MerkleTree::new(db).unwrap().verify_consistency(0, true))
     }
 
     #[test]

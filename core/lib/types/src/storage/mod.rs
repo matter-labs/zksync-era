@@ -1,21 +1,20 @@
 use core::fmt::Debug;
 
 use blake2::{Blake2s256, Digest};
+pub use log::*;
 use serde::{Deserialize, Serialize};
-use zksync_basic_types::{web3::signing::keccak256, L2ChainId};
+use zksync_basic_types::{web3::keccak256, L2ChainId};
+pub use zksync_system_constants::*;
 
-use crate::{AccountTreeId, Address, H160, H256, U256};
+use crate::{address_to_h256, u256_to_h256, AccountTreeId, Address, H160, H256, U256};
 
 pub mod log;
 pub mod witness_block_state;
 pub mod writes;
 
-pub use log::*;
-pub use zksync_system_constants::*;
-use zksync_utils::address_to_h256;
-
 /// Typed fully qualified key of the storage slot in global state tree.
-#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Serialize, Deserialize)]
 pub struct StorageKey {
     account: AccountTreeId,
     key: H256,
@@ -67,7 +66,7 @@ fn get_address_mapping_key(address: &Address, position: H256) -> H256 {
 pub fn get_nonce_key(account: &Address) -> StorageKey {
     let nonce_manager = AccountTreeId::new(NONCE_HOLDER_ADDRESS);
 
-    // The `minNonce` (used as nonce for EOAs) is stored in a mapping inside the NONCE_HOLDER system contract
+    // The `minNonce` (used as nonce for EOAs) is stored in a mapping inside the `NONCE_HOLDER` system contract
     let key = get_address_mapping_key(account, H256::zero());
 
     StorageKey::new(nonce_manager, key)
@@ -78,6 +77,10 @@ pub fn get_code_key(account: &Address) -> StorageKey {
     StorageKey::new(account_code_storage, address_to_h256(account))
 }
 
+pub fn get_evm_code_hash_key(account: &Address) -> StorageKey {
+    get_deployer_key(get_address_mapping_key(account, u256_to_h256(1.into())))
+}
+
 pub fn get_known_code_key(hash: &H256) -> StorageKey {
     let known_codes_storage = AccountTreeId::new(KNOWN_CODES_STORAGE_ADDRESS);
     StorageKey::new(known_codes_storage, *hash)
@@ -86,6 +89,16 @@ pub fn get_known_code_key(hash: &H256) -> StorageKey {
 pub fn get_system_context_key(key: H256) -> StorageKey {
     let system_context = AccountTreeId::new(SYSTEM_CONTEXT_ADDRESS);
     StorageKey::new(system_context, key)
+}
+
+pub fn get_message_root_log_key(key: H256) -> StorageKey {
+    let message_root = AccountTreeId::new(L2_MESSAGE_ROOT_ADDRESS);
+    StorageKey::new(message_root, key)
+}
+
+pub fn get_deployer_key(key: H256) -> StorageKey {
+    let deployer_contract = AccountTreeId::new(CONTRACT_DEPLOYER_ADDRESS);
+    StorageKey::new(deployer_contract, key)
 }
 
 pub fn get_is_account_key(account: &Address) -> StorageKey {

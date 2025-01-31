@@ -1,0 +1,41 @@
+[package]
+name = "zksync_commitment_generator"
+description = "ZKsync commitment generator"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+vise.workspace = true
+zksync_types.workspace = true
+zksync_dal.workspace = true
+zksync_health_check.workspace = true
+zksync_l1_contract_interface.workspace = true
+zksync_eth_client.workspace = true
+zksync_contracts.workspace = true
+zksync_multivm.workspace = true
+zksync_system_constants.workspace = true
+
+circuit_encodings.workspace = true
+zk_evm_1_5_0.workspace = true
+
+tokio = { workspace = true, features = ["time"] }
+futures.workspace = true
+num_cpus.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+itertools.workspace = true
+serde_json.workspace = true
+serde = { version = "1.0.189", features = ["derive"] }
+
+[dev-dependencies]
+zksync_web3_decl.workspace = true
+zksync_node_genesis.workspace = true
+zksync_node_test_utils.workspace = true
+
+rand.workspace = true

@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                MIN(number) AS \"number\"\n            FROM\n                l1_batches\n            WHERE\n                is_sealed\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "number",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "a47eee902a0109b072365178e073ac6f0b00c05229a0bd40902d5fcb1c1bf026"
+}

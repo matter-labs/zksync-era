@@ -4,19 +4,17 @@ use zk_evm_1_3_3::{
     tracing::{BeforeExecutionData, VmLocalStateData},
     vm_state::VmLocalState,
 };
-use zksync_state::{StoragePtr, WriteStorage};
 use zksync_system_constants::{PUBLISH_BYTECODE_OVERHEAD, SYSTEM_CONTEXT_ADDRESS};
-use zksync_types::{
-    event::{extract_long_l2_to_l1_messages, extract_published_bytecodes},
-    l2_to_l1_log::L2ToL1Log,
-    L1BatchNumber, U256,
-};
-use zksync_utils::{bytecode::bytecode_len_in_bytes, ceil_div_u256, u256_to_h256};
+use zksync_types::{ceil_div_u256, l2_to_l1_log::L2ToL1Log, u256_to_h256, L1BatchNumber, U256};
 
 use crate::{
     interface::{
-        dyn_tracers::vm_1_3_3::DynTracer, tracer::TracerExecutionStatus, L1BatchEnv, Refunds,
+        storage::{StoragePtr, WriteStorage},
+        tracer::TracerExecutionStatus,
+        L1BatchEnv, Refunds, VmEvent,
     },
+    tracers::dynamic::vm_1_3_3::DynTracer,
+    utils::bytecode::bytecode_len_in_bytes,
     vm_refunds_enhancement::{
         bootloader_state::BootloaderState,
         constants::{BOOTLOADER_HEAP_PAGE, OPERATOR_REFUNDS_OFFSET, TX_GAS_LIMIT_OFFSET},
@@ -31,6 +29,7 @@ use crate::{
             },
         },
         types::internals::ZkSyncVmState,
+        utils::fee::get_batch_base_fee,
     },
 };
 
@@ -84,8 +83,8 @@ impl RefundsTracer {
 
     pub(crate) fn get_refunds(&self) -> Refunds {
         Refunds {
-            gas_refunded: self.refund_gas,
-            operator_suggested_refund: self.operator_refund.unwrap_or_default(),
+            gas_refunded: self.refund_gas as u64,
+            operator_suggested_refund: self.operator_refund.unwrap_or_default() as u64,
         }
     }
 
@@ -111,13 +110,14 @@ impl RefundsTracer {
             });
 
         // For now, bootloader charges only for base fee.
-        let effective_gas_price = self.l1_batch.base_fee();
+        let effective_gas_price = get_batch_base_fee(&self.l1_batch);
 
         let bootloader_eth_price_per_pubdata_byte =
             U256::from(effective_gas_price) * U256::from(current_ergs_per_pubdata_byte);
 
-        let fair_eth_price_per_pubdata_byte =
-            U256::from(eth_price_per_pubdata_byte(self.l1_batch.l1_gas_price));
+        let fair_eth_price_per_pubdata_byte = U256::from(eth_price_per_pubdata_byte(
+            self.l1_batch.fee_input.l1_gas_price(),
+        ));
 
         // For now, L1 originated transactions are allowed to pay less than fair fee per pubdata,
         // so we should take it into account.
@@ -127,7 +127,7 @@ impl RefundsTracer {
         );
 
         let fair_fee_eth = U256::from(gas_spent_on_computation)
-            * U256::from(self.l1_batch.fair_l2_gas_price)
+            * U256::from(self.l1_batch.fee_input.fair_l2_gas_price())
             + U256::from(pubdata_published) * eth_price_per_pubdata_byte_for_calculation;
         let pre_paid_eth = U256::from(tx_gas_limit) * U256::from(effective_gas_price);
         let refund_eth = pre_paid_eth.checked_sub(fair_fee_eth).unwrap_or_else(|| {
@@ -209,8 +209,8 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for RefundsTracer {
         #[vise::register]
         static METRICS: vise::Global<RefundMetrics> = vise::Global::new();
 
-        // This means that the bootloader has informed the system (usually via VMHooks) - that some gas
-        // should be refunded back (see askOperatorForRefund in bootloader.yul for details).
+        // This means that the bootloader has informed the system (usually via `VMHooks`) - that some gas
+        // should be refunded back (see `askOperatorForRefund` in `bootloader.yul` for details).
         if let Some(bootloader_refund) = self.requested_refund() {
             assert!(
                 self.operator_refund.is_none(),
@@ -328,14 +328,14 @@ pub(crate) fn pubdata_published<S: WriteStorage, H: HistoryMode>(
         .filter(|log| log.sender != SYSTEM_CONTEXT_ADDRESS)
         .count() as u32)
         * zk_evm_1_3_3::zkevm_opcode_defs::system_params::L1_MESSAGE_PUBDATA_BYTES;
-    let l2_l1_long_messages_bytes: u32 = extract_long_l2_to_l1_messages(&events)
+    let l2_l1_long_messages_bytes: u32 = VmEvent::extract_long_l2_to_l1_messages(&events)
         .iter()
         .map(|event| event.len() as u32)
         .sum();
 
-    let published_bytecode_bytes: u32 = extract_published_bytecodes(&events)
+    let published_bytecode_bytes: u32 = VmEvent::extract_published_bytecodes(&events)
         .iter()
-        .map(|bytecodehash| bytecode_len_in_bytes(*bytecodehash) as u32 + PUBLISH_BYTECODE_OVERHEAD)
+        .map(|bytecode_hash| bytecode_len_in_bytes(bytecode_hash) + PUBLISH_BYTECODE_OVERHEAD)
         .sum();
 
     storage_writes_pubdata_published

@@ -1,15 +1,19 @@
-use zk_evm_1_4_0::aux_structures::Timestamp;
-use zksync_state::WriteStorage;
+use std::mem;
+
+use zk_evm_1_5_0::aux_structures::Timestamp;
+use zksync_vm_interface::VmEvent;
 
 use crate::{
     interface::{
-        types::tracer::{TracerExecutionStatus, VmExecutionStopReason},
+        storage::WriteStorage,
+        tracer::{TracerExecutionStatus, VmExecutionStopReason},
         VmExecutionMode, VmExecutionResultAndLogs,
     },
     vm_latest::{
         old_vm::utils::{vm_may_have_ended_inner, VmExecutionResult},
         tracers::{
-            dispatcher::TracerDispatcher, DefaultExecutionTracer, PubdataTracer, RefundsTracer,
+            circuits_capacity::circuit_statistic_from_cycles, dispatcher::TracerDispatcher,
+            DefaultExecutionTracer, PubdataTracer, RefundsTracer,
         },
         vm::Vm,
     },
@@ -19,8 +23,9 @@ use crate::{
 impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
     pub(crate) fn inspect_inner(
         &mut self,
-        dispatcher: TracerDispatcher<S, H::VmBoojumIntegration>,
+        dispatcher: &mut TracerDispatcher<S, H::Vm1_5_0>,
         execution_mode: VmExecutionMode,
+        custom_pubdata_tracer: Option<PubdataTracer<S>>,
     ) -> VmExecutionResultAndLogs {
         let mut enable_refund_tracer = false;
         if let VmExecutionMode::OneTx = execution_mode {
@@ -29,8 +34,12 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             enable_refund_tracer = true;
         }
 
-        let (_, result) =
-            self.inspect_and_collect_results(dispatcher, execution_mode, enable_refund_tracer);
+        let (_, result) = self.inspect_and_collect_results(
+            dispatcher,
+            execution_mode,
+            enable_refund_tracer,
+            custom_pubdata_tracer,
+        );
         result
     }
 
@@ -38,26 +47,37 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
     /// Collect the result from the default tracers.
     fn inspect_and_collect_results(
         &mut self,
-        dispatcher: TracerDispatcher<S, H::VmBoojumIntegration>,
+        dispatcher: &mut TracerDispatcher<S, H::Vm1_5_0>,
         execution_mode: VmExecutionMode,
         with_refund_tracer: bool,
+        custom_pubdata_tracer: Option<PubdataTracer<S>>,
     ) -> (VmExecutionStopReason, VmExecutionResultAndLogs) {
-        let refund_tracers =
-            with_refund_tracer.then_some(RefundsTracer::new(self.batch_env.clone()));
-        let mut tx_tracer: DefaultExecutionTracer<S, H::VmBoojumIntegration> =
-            DefaultExecutionTracer::new(
-                self.system_env.default_validation_computational_gas_limit,
-                execution_mode,
-                dispatcher,
-                self.storage.clone(),
-                refund_tracers,
-                Some(PubdataTracer::new(self.batch_env.clone(), execution_mode)),
-            );
+        let refund_tracers = with_refund_tracer
+            .then_some(RefundsTracer::new(self.batch_env.clone(), self.subversion));
+        let mut tx_tracer: DefaultExecutionTracer<S, H::Vm1_5_0> = DefaultExecutionTracer::new(
+            self.system_env.default_validation_computational_gas_limit,
+            self.system_env
+                .base_system_smart_contracts
+                .evm_emulator
+                .is_some(),
+            execution_mode,
+            mem::take(dispatcher),
+            self.storage.clone(),
+            refund_tracers,
+            custom_pubdata_tracer.or_else(|| {
+                Some(PubdataTracer::new(
+                    self.batch_env.clone(),
+                    execution_mode,
+                    self.subversion,
+                    None,
+                ))
+            }),
+            self.subversion,
+        );
 
         let timestamp_initial = Timestamp(self.state.local_state.timestamp);
         let cycles_initial = self.state.local_state.monotonic_cycle_counter;
         let gas_remaining_before = self.gas_remaining();
-        let spent_pubdata_counter_before = self.state.local_state.spent_pubdata_counter;
 
         let stop_reason = self.execute_with_default_tracer(&mut tx_tracer);
 
@@ -74,20 +94,23 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
         let statistics = self.get_statistics(
             timestamp_initial,
             cycles_initial,
-            &tx_tracer,
             gas_remaining_before,
             gas_remaining_after,
-            spent_pubdata_counter_before,
             pubdata_published,
             logs.total_log_queries_count,
+            circuit_statistic_from_cycles(tx_tracer.circuits_tracer.statistics),
         );
         let result = tx_tracer.result_tracer.into_result();
+        let factory_deps_marked_as_known = VmEvent::extract_bytecodes_marked_as_known(&logs.events);
+        let dynamic_factory_deps = self.decommit_dynamic_bytecodes(factory_deps_marked_as_known);
+        *dispatcher = tx_tracer.dispatcher;
 
         let result = VmExecutionResultAndLogs {
             result,
             logs,
             statistics,
             refunds,
+            dynamic_factory_deps,
         };
 
         (stop_reason, result)
@@ -96,7 +119,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
     /// Execute vm with given tracers until the stop reason is reached.
     fn execute_with_default_tracer(
         &mut self,
-        tracer: &mut DefaultExecutionTracer<S, H::VmBoojumIntegration>,
+        tracer: &mut DefaultExecutionTracer<S, H::Vm1_5_0>,
     ) -> VmExecutionStopReason {
         tracer.initialize_tracer(&mut self.state);
         let result = loop {

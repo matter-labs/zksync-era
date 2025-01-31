@@ -1,4 +1,3 @@
-use parity_crypto::publickey::Error as ParityCryptoError;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use zksync_basic_types::H256;
@@ -13,6 +12,6 @@ pub enum TxCheckError {
 
 #[derive(Debug, Error)]
 pub enum SignError {
-    #[error("Failed to sign transaction")]
-    SignError(#[from] ParityCryptoError),
+    #[error("Failed to sign transaction: {0}")]
+    SignError(#[from] anyhow::Error),
 }

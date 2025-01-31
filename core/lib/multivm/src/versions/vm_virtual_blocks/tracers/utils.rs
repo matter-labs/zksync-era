@@ -9,8 +9,7 @@ use zksync_system_constants::{
     ECRECOVER_PRECOMPILE_ADDRESS, KECCAK256_PRECOMPILE_ADDRESS, KNOWN_CODES_STORAGE_ADDRESS,
     L1_MESSENGER_ADDRESS, SHA256_PRECOMPILE_ADDRESS,
 };
-use zksync_types::U256;
-use zksync_utils::u256_to_h256;
+use zksync_types::{u256_to_h256, U256};
 
 use crate::vm_virtual_blocks::{
     constants::{
@@ -55,7 +54,7 @@ impl VmHook {
 
         let value = data.src1_value.value;
 
-        // Only UMA opcodes in the bootloader serve for vm hooks
+        // Only `UMA` opcodes in the bootloader serve for vm hooks
         if !matches!(opcode_variant.opcode, Opcode::UMA(UMAOpcode::HeapWrite))
             || heap_page != BOOTLOADER_HEAP_PAGE
             || fat_ptr.offset != VM_HOOK_POSITION * 32
@@ -96,7 +95,7 @@ pub(crate) fn get_debug_log<H: HistoryMode>(
     let data = U256::from_big_endian(&data);
 
     // For long data, it is better to use hex-encoding for greater readability
-    let data_str = if data > U256::from(u64::max_value()) {
+    let data_str = if data > U256::from(u64::MAX) {
         let mut bytes = [0u8; 32];
         data.to_big_endian(&mut bytes);
         format!("0x{}", hex::encode(bytes))

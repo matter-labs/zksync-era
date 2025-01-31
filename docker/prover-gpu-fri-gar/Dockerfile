@@ -9,7 +9,7 @@ COPY *.bin /
 RUN apt-get update && apt-get install -y libpq5 ca-certificates openssl && rm -rf /var/lib/apt/lists/*
 
 # copy finalization hints required for assembly generation
-COPY --from=prover prover/vk_setup_data_generator_server_fri/data/ /prover/vk_setup_data_generator_server_fri/data/
+COPY --from=prover prover/data/keys/ /prover/data/keys/
 COPY --from=prover /usr/bin/zksync_prover_fri /usr/bin/
 
 ENTRYPOINT ["zksync_prover_fri"]

@@ -1,35 +1,103 @@
-//! This module contains the observability subsystem.
+//! This crate contains the observability subsystem.
 //! It is responsible for providing a centralized interface for consistent observability configuration.
 
-use std::{backtrace::Backtrace, borrow::Cow, panic::PanicInfo};
+use std::time::Duration;
 
-// Temporary re-export of `sentry::capture_message` aiming to simplify the transition from `vlog` to using
-// crates directly.
-pub use sentry::{capture_message, Level as AlertLevel};
-use sentry::{types::Dsn, ClientInitGuard};
-use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt};
+use ::sentry::ClientInitGuard;
+use anyhow::Context as _;
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-/// Specifies the format of the logs in stdout.
-#[derive(Debug, Clone, Copy, Default)]
-pub enum LogFormat {
-    #[default]
-    Plain,
-    Json,
-}
+pub use crate::{logs::Logs, opentelemetry::OpenTelemetry, sentry::Sentry};
+
+pub mod logs;
+pub mod opentelemetry;
+pub mod prometheus;
+pub mod sentry;
 
 /// Builder for the observability subsystem.
 /// Currently capable of configuring logging output and sentry integration.
 #[derive(Debug, Default)]
 pub struct ObservabilityBuilder {
-    log_format: LogFormat,
-    sentry_url: Option<Dsn>,
-    sentry_environment: Option<String>,
+    logs: Option<Logs>,
+    opentelemetry_layer: Option<OpenTelemetry>,
+    sentry: Option<Sentry>,
 }
 
 /// Guard for the observability subsystem.
 /// Releases configured integrations upon being dropped.
 pub struct ObservabilityGuard {
-    _sentry_guard: Option<ClientInitGuard>,
+    /// Opentelemetry traces provider
+    otlp_tracing_provider: Option<opentelemetry_sdk::trace::TracerProvider>,
+    /// Opentelemetry logs provider
+    otlp_logging_provider: Option<opentelemetry_sdk::logs::LoggerProvider>,
+    /// Sentry client guard
+    sentry_guard: Option<ClientInitGuard>,
+}
+
+impl ObservabilityGuard {
+    /// Forces flushing of pending events.
+    /// This method is blocking.
+    pub fn force_flush(&self) {
+        // We don't want to wait for too long.
+        const FLUSH_TIMEOUT: Duration = Duration::from_secs(1);
+
+        if let Some(sentry_guard) = &self.sentry_guard {
+            sentry_guard.flush(Some(FLUSH_TIMEOUT));
+            tracing::info!("Sentry events are flushed");
+        }
+
+        if let Some(provider) = &self.otlp_tracing_provider {
+            for result in provider.force_flush() {
+                if let Err(err) = result {
+                    tracing::warn!("Flushing the spans failed: {err:?}");
+                }
+            }
+            tracing::info!("Spans are flushed");
+        }
+
+        if let Some(provider) = &self.otlp_logging_provider {
+            for result in provider.force_flush() {
+                if let Err(err) = result {
+                    tracing::warn!("Flushing the logs failed: {err:?}");
+                }
+            }
+            tracing::info!("Logs are flushed");
+        }
+    }
+
+    /// Shutdown the observability subsystem.
+    /// It will stop any background tasks and release resources.
+    pub fn shutdown(&mut self) {
+        // We don't want to wait for too long.
+        const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(1);
+
+        // `take` here and below ensures that we don't have any access to the deinitialized resources.
+        if let Some(sentry_guard) = self.sentry_guard.take() {
+            sentry_guard.close(Some(SHUTDOWN_TIMEOUT));
+            tracing::info!("Sentry client is shut down");
+        }
+        if let Some(provider) = self.otlp_tracing_provider.take() {
+            if let Err(err) = provider.shutdown() {
+                tracing::warn!("Shutting down the OTLP tracing provider failed: {err:?}");
+            } else {
+                tracing::info!("OTLP tracing provider is shut down");
+            }
+        }
+        if let Some(provider) = self.otlp_logging_provider.take() {
+            if let Err(err) = provider.shutdown() {
+                tracing::warn!("Shutting down the OTLP logs provider failed: {err:?}");
+            } else {
+                tracing::info!("OTLP logs provider is shut down");
+            }
+        }
+    }
+}
+
+impl Drop for ObservabilityGuard {
+    fn drop(&mut self) {
+        self.force_flush();
+        self.shutdown();
+    }
 }
 
 impl std::fmt::Debug for ObservabilityGuard {
@@ -44,180 +112,61 @@ impl ObservabilityBuilder {
         Self::default()
     }
 
-    /// Sets the log format.
-    /// Default is `LogFormat::Plain`.
-    pub fn with_log_format(mut self, log_format: LogFormat) -> Self {
-        self.log_format = log_format;
+    pub fn with_logs(mut self, logs: Option<Logs>) -> Self {
+        self.logs = logs;
         self
     }
 
-    /// Enables Sentry integration.
-    /// Returns an error if the provided Sentry URL is invalid.
-    pub fn with_sentry_url(
-        mut self,
-        sentry_url: &str,
-    ) -> Result<Self, sentry::types::ParseDsnError> {
-        let sentry_url = sentry_url.parse()?;
-        self.sentry_url = Some(sentry_url);
-        Ok(self)
+    pub fn with_opentelemetry(mut self, opentelemetry: Option<OpenTelemetry>) -> Self {
+        self.opentelemetry_layer = opentelemetry;
+        self
     }
 
-    /// Sets the Sentry environment ID.
-    /// If not set, no environment will be provided in Sentry events.
-    pub fn with_sentry_environment(mut self, environment: Option<String>) -> Self {
-        self.sentry_environment = environment;
+    pub fn with_sentry(mut self, sentry: Option<Sentry>) -> Self {
+        self.sentry = sentry;
         self
+    }
+
+    /// Tries to initialize the observability subsystem. Returns an error if it's already initialized.
+    /// This is mostly useful in tests.
+    pub fn try_build(self) -> anyhow::Result<ObservabilityGuard> {
+        let logs = self.logs.unwrap_or_default();
+        logs.install_panic_hook();
+
+        // For now we use logs filter as a global filter for subscriber.
+        // Later we may want to enforce each layer to have its own filter.
+        let global_filter = logs.build_filter();
+
+        let logs_layer = logs.into_layer();
+        let (otlp_tracing_provider, otlp_tracing_layer) = self
+            .opentelemetry_layer
+            .as_ref()
+            .and_then(|layer| layer.tracing_layer())
+            .unzip();
+        let (otlp_logging_provider, otlp_logging_layer) = self
+            .opentelemetry_layer
+            .and_then(|layer| layer.logs_layer())
+            .unzip();
+
+        tracing_subscriber::registry()
+            .with(global_filter)
+            .with(logs_layer)
+            .with(otlp_tracing_layer)
+            .with(otlp_logging_layer)
+            .try_init()
+            .context("failed installing global tracer / logger")?;
+
+        let sentry_guard = self.sentry.map(|sentry| sentry.install());
+
+        Ok(ObservabilityGuard {
+            otlp_tracing_provider,
+            otlp_logging_provider,
+            sentry_guard,
+        })
     }
 
     /// Initializes the observability subsystem.
     pub fn build(self) -> ObservabilityGuard {
-        // Initialize logs.
-        match self.log_format {
-            LogFormat::Plain => {
-                tracing_subscriber::registry()
-                    .with(tracing_subscriber::EnvFilter::from_default_env())
-                    .with(fmt::Layer::default())
-                    .init();
-            }
-            LogFormat::Json => {
-                let timer = tracing_subscriber::fmt::time::UtcTime::rfc_3339();
-                tracing_subscriber::registry()
-                    .with(tracing_subscriber::EnvFilter::from_default_env())
-                    .with(
-                        fmt::Layer::default()
-                            .with_file(true)
-                            .with_line_number(true)
-                            .with_timer(timer)
-                            .json(),
-                    )
-                    .init();
-            }
-        };
-
-        // Check whether we need to change the default panic handler.
-        // Note that this must happen before we initialize Sentry, since otherwise
-        // Sentry's panic handler will also invoke the default one, resulting in unformatted
-        // panic info being output to stderr.
-        if matches!(self.log_format, LogFormat::Json) {
-            // Remove any existing hook. We expect that no hook is set by default.
-            let _ = std::panic::take_hook();
-            // Override the default panic handler to print the panic in JSON format.
-            std::panic::set_hook(Box::new(json_panic_handler));
-        };
-
-        // Initialize the Sentry.
-        let sentry_guard = if let Some(sentry_url) = self.sentry_url {
-            let options = sentry::ClientOptions {
-                release: sentry::release_name!(),
-                environment: self.sentry_environment.map(Cow::from),
-                attach_stacktrace: true,
-                ..Default::default()
-            };
-
-            Some(sentry::init((sentry_url, options)))
-        } else {
-            None
-        };
-
-        ObservabilityGuard {
-            _sentry_guard: sentry_guard,
-        }
+        self.try_build().unwrap()
     }
-}
-
-/// Loads the log format from the environment variable according to the existing zkSync configuration scheme.
-/// If the variable is not set, the default value is used.
-///
-/// This is a deprecated function existing for compatibility with the old configuration scheme.
-/// Not recommended for use in new applications.
-///
-/// # Panics
-///
-/// Panics if the value of the variable is set, but is not `plain` or `json`.
-#[deprecated(
-    note = "This function will be removed in the future. Applications are expected to handle their configuration themselves."
-)]
-pub fn log_format_from_env() -> LogFormat {
-    match std::env::var("MISC_LOG_FORMAT") {
-        Ok(log_format) => match log_format.as_str() {
-            "plain" => LogFormat::Plain,
-            "json" => LogFormat::Json,
-            _ => panic!("MISC_LOG_FORMAT has an unexpected value {}", log_format),
-        },
-        Err(_) => LogFormat::Plain,
-    }
-}
-
-/// Loads the Sentry URL from the environment variable according to the existing zkSync configuration scheme.
-/// If the environment value is present but the value is `unset`, `None` will be returned for compatibility with the
-/// existing configuration setup.
-///
-/// This is a deprecated function existing for compatibility with the old configuration scheme.
-/// Not recommended for use in new applications.
-#[deprecated(
-    note = "This function will be removed in the future. Applications are expected to handle their configuration themselves."
-)]
-pub fn sentry_url_from_env() -> Option<String> {
-    match std::env::var("MISC_SENTRY_URL") {
-        Ok(str) if str == "unset" => {
-            // This bogus value may be provided an sentry is expected to just not be initialized in this case.
-            None
-        }
-        Ok(str) => Some(str),
-        Err(_) => None,
-    }
-}
-
-/// Prepared the Sentry environment ID from the environment variable according to the existing zkSync configuration
-/// scheme.
-/// This function mimics like `vlog` configuration worked historically, e.g. it would also try to load environment
-/// for the external node, and the EN variable is preferred if it is set.
-///
-/// This is a deprecated function existing for compatibility with the old configuration scheme.
-/// Not recommended for use in new applications.
-#[deprecated(
-    note = "This function will be removed in the future. Applications are expected to handle their configuration themselves."
-)]
-pub fn environment_from_env() -> Option<String> {
-    if let Ok(en_env) = std::env::var("EN_SENTRY_ENVIRONMENT") {
-        return Some(en_env);
-    }
-
-    let l1_network = std::env::var("CHAIN_ETH_NETWORK").ok()?;
-    let l2_network = std::env::var("CHAIN_ETH_ZKSYNC_NETWORK").ok()?;
-
-    Some(format!("{} - {}", l1_network, l2_network))
-}
-
-fn json_panic_handler(panic_info: &PanicInfo) {
-    let backtrace = Backtrace::capture();
-    let timestamp = chrono::Utc::now();
-    let panic_message = if let Some(s) = panic_info.payload().downcast_ref::<String>() {
-        s.as_str()
-    } else if let Some(s) = panic_info.payload().downcast_ref::<&str>() {
-        s
-    } else {
-        "Panic occurred without additional info"
-    };
-
-    let panic_location = panic_info
-        .location()
-        .map(|val| val.to_string())
-        .unwrap_or_else(|| "Unknown location".to_owned());
-
-    let backtrace_str = backtrace.to_string();
-    let timestamp_str = timestamp.format("%Y-%m-%dT%H:%M:%S%.fZ").to_string();
-
-    println!(
-        "{}",
-        serde_json::json!({
-            "timestamp": timestamp_str,
-            "level": "CRITICAL",
-            "fields": {
-                "message": panic_message,
-                "location": panic_location,
-                "backtrace": backtrace_str,
-            }
-        })
-    );
 }

@@ -22,6 +22,8 @@ pub enum DeserializeErrorKind {
     /// Bit mask specifying a child kind in an internal tree node is invalid.
     #[error("invalid bit mask specifying a child kind in an internal tree node")]
     InvalidChildKind,
+    #[error("data left after deserialization")]
+    Leftovers,
 
     /// Missing required tag in the tree manifest.
     #[error("missing required tag `{0}` in tree manifest")]
@@ -138,8 +140,10 @@ impl error::Error for DeserializeError {}
 /// Error accessing a specific tree version.
 #[derive(Debug)]
 pub struct NoVersionError {
-    pub(crate) missing_version: u64,
-    pub(crate) version_count: u64,
+    /// Missing requested version of the tree.
+    pub missing_version: u64,
+    /// Current number of versions in the tree.
+    pub version_count: u64,
 }
 
 impl fmt::Display for NoVersionError {
@@ -151,12 +155,12 @@ impl fmt::Display for NoVersionError {
         if missing_version >= version_count {
             write!(
                 formatter,
-                "Version {missing_version} does not exist in Merkle tree; it has {version_count} versions"
+                "version {missing_version} does not exist in Merkle tree; it has {version_count} versions"
             )
         } else {
             write!(
                 formatter,
-                "Version {missing_version} was pruned from Merkle tree"
+                "version {missing_version} was pruned from Merkle tree"
             )
         }
     }

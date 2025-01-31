@@ -1,17 +1,10 @@
 //! API types related to the External Node specific methods.
 
 use serde::{Deserialize, Serialize};
-use zk_evm::ethereum_types::Address;
-use zksync_basic_types::{L1BatchNumber, MiniblockNumber, H256};
+use zksync_basic_types::{commitment::PubdataParams, Address, L1BatchNumber, L2BlockNumber, H256};
 use zksync_contracts::BaseSystemContractsHashes;
 
 use crate::ProtocolVersionId;
-
-/// Protobuf-encoded consensus-related L2 block (= miniblock) fields.
-/// See `zksync_dal::models::storage_sync::ConsensusBlockFields`.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(transparent)]
-pub struct ConsensusBlockFields(pub zksync_basic_types::Bytes);
 
 /// Representation of the L2 block, as needed for the EN synchronization.
 /// This structure has several fields that describe *L1 batch* rather than
@@ -22,11 +15,10 @@ pub struct ConsensusBlockFields(pub zksync_basic_types::Bytes);
 #[serde(rename_all = "camelCase")]
 pub struct SyncBlock {
     /// Number of the L2 block.
-    pub number: MiniblockNumber,
+    pub number: L2BlockNumber,
     /// Number of L1 batch this L2 block belongs to.
     pub l1_batch_number: L1BatchNumber,
-    /// Whether this L2 block is the last in the L1 batch.
-    /// Currently, should always indicate the fictive miniblock.
+    /// Whether this L2 block is the last in the L1 batch. Currently, should always indicate the fictive L2 block.
     pub last_in_batch: bool,
     /// L2 block timestamp.
     pub timestamp: u64,
@@ -34,6 +26,8 @@ pub struct SyncBlock {
     pub l1_gas_price: u64,
     /// L2 gas price used as VM parameter for the L1 batch corresponding to this L2 block.
     pub l2_fair_gas_price: u64,
+    /// The pubdata price used as VM parameter for the L1 batch corresponding to this L2 block.
+    pub fair_pubdata_price: Option<u64>,
     /// Hashes of the base system contracts used in for the L1 batch corresponding to this L2 block.
     pub base_system_contracts_hashes: BaseSystemContractsHashes,
     /// Address of the operator account who produced for the L1 batch corresponding to this L2 block.
@@ -48,7 +42,33 @@ pub struct SyncBlock {
     pub hash: Option<H256>,
     /// Version of the protocol used for this block.
     pub protocol_version: ProtocolVersionId,
-    /// Consensus-related information about the block. Not present if consensus is not enabled
-    /// for the environment.
-    pub consensus: Option<ConsensusBlockFields>,
+    /// Pubdata params used for this batch
+    pub pubdata_params: Option<PubdataParams>,
 }
+
+/// Global configuration of the consensus served by the main node to the external nodes.
+/// In particular, it contains consensus genesis.
+///
+/// The wrapped JSON value corresponds to `zksync_dal::consensus::GlobalConfig`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConsensusGlobalConfig(pub serde_json::Value);
+
+/// [DEPRECATED] Genesis served by the main node to the external nodes.
+/// This type is deprecated since ConsensusGlobalConfig also contains genesis and is extensible.
+///
+/// The wrapped JSON value corresponds to `zksync_consensus_roles::validator::Genesis`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConsensusGenesis(pub serde_json::Value);
+
+/// AttestationStatus maintained by the main node.
+/// Used for testing L1 batch signing by consensus attesters.
+///
+/// The wrapped JSON value corresponds to `zksync_dal::consensus::AttestationStatus`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AttestationStatus(pub serde_json::Value);
+
+/// Block metadata that should have been committed to on L1, but it is not.
+///
+/// The wrapped JSON value corresponds to `zksync_dal::consensus::BlockMetadata`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BlockMetadata(pub serde_json::Value);

@@ -1,9 +1,6 @@
-use zksync_state::WriteStorage;
-
 use crate::{
-    interface::{
-        dyn_tracers::vm_1_3_3::DynTracer, tracer::VmExecutionStopReason, VmExecutionResultAndLogs,
-    },
+    interface::{storage::WriteStorage, tracer::VmExecutionStopReason, VmExecutionResultAndLogs},
+    tracers::dynamic::vm_1_3_3::DynTracer,
     vm_virtual_blocks::{
         bootloader_state::BootloaderState,
         old_vm::{history_recorder::HistoryMode, memory::SimpleMemory},
@@ -49,6 +46,7 @@ pub trait VmTracer<S: WriteStorage, H: HistoryMode>:
 }
 
 pub trait ToTracerPointer<S, H> {
+    #[allow(dead_code)]
     fn into_tracer_pointer(self) -> TracerPointer<S, H>;
 }
 

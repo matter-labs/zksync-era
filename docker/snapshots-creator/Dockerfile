@@ -1,28 +1,27 @@
 # syntax=docker/dockerfile:experimental
-FROM debian:bookworm-slim as builder
+FROM ghcr.io/matter-labs/zksync-build-base:latest AS builder
+
+# set of args for use of sccache
+ARG SCCACHE_GCS_BUCKET=""
+ARG SCCACHE_GCS_SERVICE_ACCOUNT=""
+ARG SCCACHE_GCS_RW_MODE=""
+ARG RUSTC_WRAPPER=""
+
+ENV SCCACHE_GCS_BUCKET=${SCCACHE_GCS_BUCKET}
+ENV SCCACHE_GCS_SERVICE_ACCOUNT=${SCCACHE_GCS_SERVICE_ACCOUNT}
+ENV SCCACHE_GCS_RW_MODE=${SCCACHE_GCS_RW_MODE}
+ENV RUSTC_WRAPPER=${RUSTC_WRAPPER}
 
 WORKDIR /usr/src/zksync
 COPY . .
 
-RUN apt-get update && apt-get install -y curl clang openssl libssl-dev gcc g++ \
-    pkg-config build-essential libclang-dev linux-libc-dev liburing-dev && \
+RUN cargo build --manifest-path ./core/Cargo.toml --release --bin snapshots_creator
+
+FROM ghcr.io/matter-labs/zksync-runtime-base:latest
+
+RUN apt-get update && apt-get install -y liburing-dev && \
     rm -rf /var/lib/apt/lists/*
 
-ENV RUSTUP_HOME=/usr/local/rustup \
-    CARGO_HOME=/usr/local/cargo \
-    PATH=/usr/local/cargo/bin:$PATH
-
-RUN curl https://sh.rustup.rs -sSf | bash -s -- -y && \
-    rustup install nightly-2023-08-21 && \
-    rustup default nightly-2023-08-21
-
-RUN cargo build --release --bin snapshots_creator
-
-FROM debian:bookworm-slim
-
-RUN apt-get update && apt-get install -y curl libpq5 liburing-dev ca-certificates && \
-    rm -rf /var/lib/apt/lists/*
-
-COPY --from=builder /usr/src/zksync/target/release/snapshots_creator /usr/bin
+COPY --from=builder /usr/src/zksync/core/target/release/snapshots_creator /usr/bin
 
 ENTRYPOINT ["snapshots_creator"]

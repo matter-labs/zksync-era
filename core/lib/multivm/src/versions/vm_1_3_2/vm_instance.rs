@@ -1,5 +1,6 @@
 use std::{convert::TryFrom, fmt::Debug};
 
+use itertools::Itertools;
 use zk_evm_1_3_3::{
     aux_structures::Timestamp,
     vm_state::{PrimitiveValue, VmLocalState, VmState},
@@ -9,17 +10,15 @@ use zk_evm_1_3_3::{
         definitions::RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER,
     },
 };
-use zksync_state::WriteStorage;
-use zksync_system_constants::MAX_TXS_IN_BLOCK;
 use zksync_types::{
     l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
-    tx::tx_execution_info::TxExecutionStatus,
-    vm_trace::{Call, VmExecutionTrace, VmTrace},
-    L1BatchNumber, StorageLogQuery, VmEvent, H256, U256,
+    L1BatchNumber, H256, U256,
 };
 
 use crate::{
-    interface::types::outputs::VmExecutionLogs,
+    glue::GlueInto,
+    interface::{storage::WriteStorage, Call, TxExecutionStatus, VmEvent, VmExecutionLogs},
+    versions::shared::{VmExecutionTrace, VmTrace},
     vm_1_3_2::{
         bootloader_state::BootloaderState,
         errors::{TxRevertReason, VmRevertReason, VmRevertReasonParsingResult},
@@ -40,7 +39,7 @@ use crate::{
         },
         utils::{
             calculate_computational_gas_used, dump_memory_page_using_primitive_value,
-            precompile_calls_count_after_timestamp,
+            precompile_calls_count_after_timestamp, StorageLogQuery,
         },
         vm_with_bootloader::{
             BootloaderJobType, DerivedBlockContext, TxExecutionMode, BOOTLOADER_HEAP_PAGE,
@@ -110,6 +109,7 @@ pub struct VmExecutionResult {
     /// is executed, but it's not enforced. So best we can do is to calculate the amount of gas before and
     /// after the invocation, leaving the interpretation of this value to the user.
     pub gas_used: u32,
+    pub gas_remaining: u32,
     /// This value also depends on the context, the same as `gas_used`.
     pub computational_gas_used: u32,
     pub contracts_used: usize,
@@ -142,6 +142,7 @@ pub struct VmPartialExecutionResult {
     pub contracts_used: usize,
     pub cycles_used: u32,
     pub computational_gas_used: u32,
+    pub gas_remaining: u32,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -162,6 +163,7 @@ pub enum VmExecutionStopReason {
     TracerRequestedStop,
 }
 
+use super::vm_with_bootloader::MAX_TXS_IN_BLOCK;
 use crate::vm_1_3_2::utils::VmExecutionResult as NewVmExecutionResult;
 
 fn vm_may_have_ended_inner<S: WriteStorage, H: HistoryMode>(
@@ -184,7 +186,7 @@ fn vm_may_have_ended_inner<S: WriteStorage, H: HistoryMode>(
         }
         (false, _) => None,
         (true, l) if l == outer_eh_location => {
-            // check r1,r2,r3
+            // check `r1,r2,r3`
             if vm.local_state.flags.overflow_or_less_than_flag {
                 Some(NewVmExecutionResult::Panic)
             } else {
@@ -209,21 +211,21 @@ fn vm_may_have_ended<H: HistoryMode, S: WriteStorage>(
 ) -> Option<VmExecutionResult> {
     let basic_execution_result = vm_may_have_ended_inner(&vm.state)?;
 
-    let gas_used = gas_before
-        .checked_sub(vm.gas_remaining())
-        .expect("underflow");
+    let gas_remaining = vm.gas_remaining();
+    let gas_used = gas_before.checked_sub(gas_remaining).expect("underflow");
 
     match basic_execution_result {
         NewVmExecutionResult::Ok(data) => {
             Some(VmExecutionResult {
                 // The correct `events` value for this field should be set separately
-                // later on based on the information inside the event_sink oracle.
+                // later on based on the information inside the `event_sink` oracle.
                 events: vec![],
                 storage_log_queries: vm.state.storage.get_final_log_queries(),
                 used_contract_hashes: vm.get_used_contracts(),
                 l2_to_l1_logs: vec![],
                 return_data: data,
                 gas_used,
+                gas_remaining,
                 // The correct `computational_gas_used` value for this field should be set separately later.
                 computational_gas_used: 0,
                 contracts_used: vm
@@ -264,6 +266,7 @@ fn vm_may_have_ended<H: HistoryMode, S: WriteStorage>(
                 l2_to_l1_logs: vec![],
                 return_data: vec![],
                 gas_used,
+                gas_remaining,
                 // The correct `computational_gas_used` value for this field should be set separately later.
                 computational_gas_used: 0,
                 contracts_used: vm
@@ -287,6 +290,7 @@ fn vm_may_have_ended<H: HistoryMode, S: WriteStorage>(
             l2_to_l1_logs: vec![],
             return_data: vec![],
             gas_used,
+            gas_remaining,
             // The correct `computational_gas_used` value for this field should be set separately later.
             computational_gas_used: 0,
             contracts_used: vm
@@ -376,7 +380,7 @@ impl<H: HistoryMode, S: WriteStorage> VmInstance<S, H> {
     /// Removes the latest snapshot without rolling it back.
     /// This function expects that there is at least one snapshot present.
     pub fn pop_snapshot_no_rollback(&mut self) {
-        self.snapshots.pop().unwrap();
+        self.snapshots.pop();
     }
 
     /// Returns the amount of gas remaining to the VM.
@@ -417,7 +421,7 @@ impl<H: HistoryMode, S: WriteStorage> VmInstance<S, H> {
             .collect();
         (
             events,
-            l1_messages.into_iter().map(L2ToL1Log::from).collect(),
+            l1_messages.into_iter().map(GlueInto::glue_into).collect(),
         )
     }
 
@@ -428,7 +432,7 @@ impl<H: HistoryMode, S: WriteStorage> VmInstance<S, H> {
             .storage_log_queries_after_timestamp(from_timestamp)
             .to_vec();
         let storage_logs_count = storage_logs.len();
-        let storage_logs = storage_logs.iter().map(|x| **x).collect();
+        let storage_logs = storage_logs.iter().map(|x| **x).collect_vec();
 
         let (events, l2_to_l1_logs) =
             self.collect_events_and_l1_logs_after_timestamp(from_timestamp);
@@ -443,7 +447,7 @@ impl<H: HistoryMode, S: WriteStorage> VmInstance<S, H> {
             from_timestamp,
         );
         VmExecutionLogs {
-            storage_logs,
+            storage_logs: storage_logs.into_iter().map(GlueInto::glue_into).collect(),
             events,
             user_l2_to_l1_logs: l2_to_l1_logs.into_iter().map(UserL2ToL1Log).collect(),
             total_log_queries_count: storage_logs_count
@@ -490,8 +494,8 @@ impl<H: HistoryMode, S: WriteStorage> VmInstance<S, H> {
                 );
             }
 
-            // This means that the bootloader has informed the system (usually via VMHooks) - that some gas
-            // should be refunded back (see askOperatorForRefund in bootloader.yul for details).
+            // This means that the bootloader has informed the system (usually via `VMHooks`) - that some gas
+            // should be refunded back (see `askOperatorForRefund` in `bootloader.yul` for details).
             if let Some(bootloader_refund) = tracer.requested_refund() {
                 assert!(
                     operator_refund.is_none(),
@@ -587,8 +591,8 @@ impl<H: HistoryMode, S: WriteStorage> VmInstance<S, H> {
     /// Panics if there are no new transactions in bootloader.
     /// Internally uses the OneTxTracer to stop the VM when the last opcode from the transaction is reached.
     // Err when transaction is rejected.
-    // Ok(status: TxExecutionStatus::Success) when the transaction succeeded
-    // Ok(status: TxExecutionStatus::Failure) when the transaction failed.
+    // `Ok(status: TxExecutionStatus::Success)` when the transaction succeeded
+    // `Ok(status: TxExecutionStatus::Failure)` when the transaction failed.
     // Note that failed transactions are considered properly processed and are included in blocks
     pub fn execute_next_tx(
         &mut self,
@@ -648,7 +652,7 @@ impl<H: HistoryMode, S: WriteStorage> VmInstance<S, H> {
                             revert_reason: None,
                             // getting contracts used during this transaction
                             // at least for now the number returned here is always <= to the number
-                            // of the code hashes actually used by the transaction, since it might've
+                            // of the code hashes actually used by the transaction, since it might have
                             // reused bytecode hashes from some of the previous ones.
                             contracts_used: self
                                 .state
@@ -657,6 +661,7 @@ impl<H: HistoryMode, S: WriteStorage> VmInstance<S, H> {
                             cycles_used: self.state.local_state.monotonic_cycle_counter
                                 - cycles_initial,
                             computational_gas_used,
+                            gas_remaining: self.gas_remaining(),
                         },
                         call_traces: tx_tracer.call_traces(),
                     })
@@ -759,18 +764,20 @@ impl<H: HistoryMode, S: WriteStorage> VmInstance<S, H> {
                         .get_decommitted_bytecodes_after_timestamp(timestamp_initial),
                     cycles_used: self.state.local_state.monotonic_cycle_counter - cycles_initial,
                     computational_gas_used,
+                    gas_remaining: self.gas_remaining(),
                 };
 
                 // Collecting `block_tip_result` needs logs with timestamp, so we drain events for the `full_result`
                 // after because draining will drop timestamps.
-                let (_full_history, raw_events, l1_messages) = self.state.event_sink.flatten();
+                let (raw_events, l1_messages) = self.state.event_sink.flatten();
                 full_result.events = merge_events(raw_events)
                     .into_iter()
                     .map(|e| {
                         e.into_vm_event(L1BatchNumber(self.block_context.context.block_number))
                     })
                     .collect();
-                full_result.l2_to_l1_logs = l1_messages.into_iter().map(L2ToL1Log::from).collect();
+                full_result.l2_to_l1_logs =
+                    l1_messages.into_iter().map(GlueInto::glue_into).collect();
                 full_result.computational_gas_used = block_tip_result.computational_gas_used;
                 VmBlockResult {
                     full_result,
@@ -789,6 +796,7 @@ impl<H: HistoryMode, S: WriteStorage> VmInstance<S, H> {
                             l2_to_l1_logs: vec![],
                             return_data: vec![],
                             gas_used: 0,
+                            gas_remaining: 0,
                             computational_gas_used: 0,
                             contracts_used: 0,
                             revert_reason: Some(VmRevertReasonParsingResult {
@@ -805,6 +813,7 @@ impl<H: HistoryMode, S: WriteStorage> VmInstance<S, H> {
                             contracts_used: 0,
                             cycles_used: 0,
                             computational_gas_used: 0,
+                            gas_remaining: 0,
                         },
                     }
                 } else {
@@ -858,6 +867,7 @@ impl<H: HistoryMode, S: WriteStorage> VmInstance<S, H> {
                 .get_decommitted_bytecodes_after_timestamp(timestamp_initial),
             cycles_used: self.state.local_state.monotonic_cycle_counter - cycles_initial,
             computational_gas_used,
+            gas_remaining: self.gas_remaining(),
         }
     }
 
@@ -913,8 +923,8 @@ impl<S: WriteStorage> VmInstance<S, HistoryEnabled> {
     pub fn save_current_vm_as_snapshot(&mut self) {
         self.snapshots.push(VmSnapshot {
             // Vm local state contains O(1) various parameters (registers/etc).
-            // The only "expensive" copying here is copying of the callstack.
-            // It will take O(callstack_depth) to copy it.
+            // The only "expensive" copying here is copying of the call stack.
+            // It will take `O(callstack_depth)` to copy it.
             // So it is generally recommended to get snapshots of the bootloader frame,
             // where the depth is 1.
             local_state: self.state.local_state.clone(),

@@ -1,8 +1,8 @@
-use zksync_config::ETHWatchConfig;
+use zksync_config::EthWatchConfig;
 
 use crate::{envy_load, FromEnv};
 
-impl FromEnv for ETHWatchConfig {
+impl FromEnv for EthWatchConfig {
     fn from_env() -> anyhow::Result<Self> {
         envy_load("eth_watch", "ETH_WATCH_")
     }
@@ -15,8 +15,8 @@ mod tests {
 
     static MUTEX: EnvMutex = EnvMutex::new();
 
-    fn expected_config() -> ETHWatchConfig {
-        ETHWatchConfig {
+    fn expected_config() -> EthWatchConfig {
+        EthWatchConfig {
             confirmations_for_eth_event: Some(0),
             eth_node_poll_interval: 300,
         }
@@ -31,7 +31,7 @@ mod tests {
         "#;
         lock.set_env(config);
 
-        let actual = ETHWatchConfig::from_env().unwrap();
+        let actual = EthWatchConfig::from_env().unwrap();
         assert_eq!(actual, expected_config());
     }
 }

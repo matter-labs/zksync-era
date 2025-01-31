@@ -1,8 +1,8 @@
 # Merkle Tree
 
-Binary Merkle tree implementation based on amortized radix-16 Merkle tree (AR16MT) described in the [Jellyfish Merkle
-tree] white paper. Unlike Jellyfish Merkle tree, our construction uses vanilla binary tree hashing algorithm to make it
-easier for the circuit creation. The depth of the tree is 256, and Blake2 is used as the hashing function.
+Binary Merkle tree implementation based on amortized radix-16 Merkle tree (AR16MT) described in the [Jellyfish
+Merkle tree] white paper. Unlike Jellyfish Merkle tree, our construction uses vanilla binary tree hashing algorithm to
+make it easier for the circuit creation. The depth of the tree is 256, and Blake2 is used as the hashing function.
 
 ## Snapshot tests
 
@@ -111,7 +111,7 @@ following order of RocksDB storage consumption at the end of the test:
 [gauge] rocksdb.total_mem_table_size{db=merkle_tree, cf=stale_keys} = 19924992 bytes
 ```
 
-I.e., pruning reduces RocksDB size ~8.7 times in this case.
+I.e., pruning reduces RocksDB size approximately 8.7 times in this case.
 
 [jellyfish merkle tree]: https://developers.diem.com/papers/jellyfish-merkle-tree/2021-01-14.pdf
 [`insta`]: https://docs.rs/insta/

@@ -16,6 +16,7 @@ on:
     tags:
       - core-v**
       - prover-v**
+      - contract_verifier-v**
 
 concurrency: docker-build
 
@@ -25,13 +26,9 @@ jobs:
     runs-on: [ubuntu-latest]
     outputs:
       image_tag_suffix: ${{ steps.set.outputs.image_tag_suffix }}
-      prover_fri_cpu_key_id: ${{ steps.extract-prover-fri-setup-key-ids.outputs.cpu_short_commit_sha }}
       prover_fri_gpu_key_id: ${{ steps.extract-prover-fri-setup-key-ids.outputs.gpu_short_commit_sha }}
     steps:
-      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
-        with:
-          submodules: "recursive"
-
+      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
       - name: Generate output with git tag
         id: set
         run: |
@@ -58,8 +55,33 @@ jobs:
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
     with:
-      image_tag: ${{ needs.setup.outputs.image_tag }}
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
+      en_alpha_release: true
+      action: "push"
+
+  build-push-tee-prover-images:
+    name: Build and push images
+    needs: [setup]
+    uses: ./.github/workflows/build-tee-prover-template.yml
+    if: contains(github.ref_name, 'core')
+    secrets:
+      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+      ATTIC_TOKEN: ${{ secrets.ATTIC_TOKEN }}
+    with:
+      image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
+
+  build-push-contract-verifier:
+    name: Build and push image
+    needs: [setup]
+    uses: ./.github/workflows/build-contract-verifier-template.yml
+    if: contains(github.ref_name, 'contract_verifier')
+    secrets:
+      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+    with:
+      image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
+      action: "push"
 
   build-push-prover-images:
     name: Build and push image
@@ -67,19 +89,43 @@ jobs:
     uses: ./.github/workflows/build-prover-template.yml
     if: contains(github.ref_name, 'prover')
     with:
-      image_tag: ${{ needs.setup.outputs.image_tag }}
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
       ERA_BELLMAN_CUDA_RELEASE: ${{ vars.ERA_BELLMAN_CUDA_RELEASE }}
+      action: "push"
     secrets:
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
+  build-push-witness-generator-image-avx512:
+    name: Build and push image
+    needs: [setup]
+    uses: ./.github/workflows/build-witness-generator-template.yml
+    if: contains(github.ref_name, 'prover')
+    with:
+      image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}-avx512
+      ERA_BELLMAN_CUDA_RELEASE: ${{ vars.ERA_BELLMAN_CUDA_RELEASE }}
+      WITNESS_GENERATOR_RUST_FLAGS: "-Ctarget_feature=+avx512bw,+avx512cd,+avx512dq,+avx512f,+avx512vl"
+      action: "push"
+    secrets:
+      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
-  build-gar-prover-fri-gpu:
+  build-circuit-prover-gpu-gar:
     name: Build GAR prover FRI GPU
     needs: [setup, build-push-prover-images]
-    uses: ./.github/workflows/build-prover-fri-gpu-gar.yml
+    uses: ./.github/workflows/build-circuit-prover-gpu-gar.yml
     if: contains(github.ref_name, 'prover')
     with:
       setup_keys_id: ${{ needs.setup.outputs.prover_fri_gpu_key_id }}
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
+      protocol_version: ${{ needs.build-push-prover-images.outputs.protocol_version }}
+
+  build-gar-proof-fri-gpu-compressor-gar:
+    name: Build GAR prover FRI GPU
+    needs: [setup, build-push-prover-images]
+    uses: ./.github/workflows/build-proof-fri-gpu-compressor-gar.yml
+    if: contains(github.ref_name, 'prover')
+    with:
+      setup_keys_id: ${{ needs.setup.outputs.prover_fri_gpu_key_id }}
+      image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
+      protocol_version: ${{ needs.build-push-prover-images.outputs.protocol_version }}

@@ -5,10 +5,9 @@ use zk_evm_1_3_1::{
     vm_state::PrimitiveValue,
     zkevm_opcode_defs::FatPointer,
 };
-use zksync_contracts::{read_zbin_bytecode, BaseSystemContracts};
+use zksync_contracts::BaseSystemContracts;
 use zksync_system_constants::ZKPORTER_IS_AVAILABLE;
-use zksync_types::{Address, StorageLogQuery, H160, MAX_L2_TX_GAS_LIMIT, U256};
-use zksync_utils::h256_to_u256;
+use zksync_types::{h256_to_u256, Address, StorageLogKind, H160, MAX_L2_TX_GAS_LIMIT, U256};
 
 use crate::{
     glue::GlueInto,
@@ -24,7 +23,7 @@ pub const ENTRY_POINT_PAGE: u32 = code_page_candidate_from_base(MemoryPage(INITI
 /// How many gas bootloader is allowed to spend within one block.
 /// Note that this value doesn't correspond to the gas limit of any particular transaction
 /// (except for the fact that, of course, gas limit for each transaction should be <= `BLOCK_GAS_LIMIT`).
-pub const BLOCK_GAS_LIMIT: u32 =
+pub(crate) const BLOCK_GAS_LIMIT: u32 =
     zk_evm_1_3_1::zkevm_opcode_defs::system_params::VM_INITIAL_FRAME_ERGS;
 pub const ETH_CALL_GAS_LIMIT: u32 = MAX_L2_TX_GAS_LIMIT as u32;
 
@@ -224,7 +223,7 @@ pub fn collect_log_queries_after_timestamp(
 
 /// Receives sorted slice of timestamps.
 /// Returns count of timestamps that are greater than or equal to `from_timestamp`.
-/// Works in O(log(sorted_timestamps.len())).
+/// Works in `O(log(sorted_timestamps.len()))`.
 pub fn precompile_calls_count_after_timestamp(
     sorted_timestamps: &[Timestamp],
     from_timestamp: Timestamp,
@@ -253,9 +252,9 @@ pub fn create_test_block_params() -> (BlockContext, BlockProperties) {
     )
 }
 
-pub fn read_bootloader_test_code(test: &str) -> Vec<u8> {
-    read_zbin_bytecode(format!(
-        "etc/system-contracts/bootloader/tests/artifacts/{}.yul/{}.yul.zbin",
-        test, test
-    ))
+/// Log query, which handle initial and repeated writes to the storage
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StorageLogQuery {
+    pub log_query: LogQuery,
+    pub log_type: StorageLogKind,
 }

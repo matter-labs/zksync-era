@@ -1,12 +1,15 @@
 use std::{cmp::Ordering, collections::HashMap};
 
-use zksync_types::{fee::Fee, l2::L2Tx, Address, Nonce, Transaction, U256};
+use zksync_types::{
+    fee::Fee, fee_model::BatchFeeInput, l2::L2Tx, Address, Nonce, Transaction,
+    TransactionTimeRangeConstraint, U256,
+};
 
 /// Pending mempool transactions of account
 #[derive(Debug)]
 pub(crate) struct AccountTransactions {
     /// transactions that belong to given account keyed by transaction nonce
-    transactions: HashMap<Nonce, L2Tx>,
+    transactions: HashMap<Nonce, (L2Tx, TransactionTimeRangeConstraint)>,
     /// account nonce in mempool
     /// equals to committed nonce in db + number of transactions sent to state keeper
     nonce: Nonce,
@@ -21,7 +24,11 @@ impl AccountTransactions {
     }
 
     /// Inserts new transaction for given account. Returns insertion metadata
-    pub fn insert(&mut self, transaction: L2Tx) -> InsertionMetadata {
+    pub fn insert(
+        &mut self,
+        transaction: L2Tx,
+        constraint: TransactionTimeRangeConstraint,
+    ) -> InsertionMetadata {
         let mut metadata = InsertionMetadata::default();
         let nonce = transaction.common_data.nonce;
         // skip insertion if transaction is old
@@ -31,8 +38,8 @@ impl AccountTransactions {
         let new_score = Self::score_for_transaction(&transaction);
         let previous_score = self
             .transactions
-            .insert(nonce, transaction)
-            .map(|tx| Self::score_for_transaction(&tx));
+            .insert(nonce, (transaction, constraint))
+            .map(|x| Self::score_for_transaction(&x.0));
         metadata.is_new = previous_score.is_none();
         if nonce == self.nonce {
             metadata.new_score = Some(new_score);
@@ -41,9 +48,9 @@ impl AccountTransactions {
         metadata
     }
 
-    /// Returns next transaction to be included in block and optional score of its successor
-    /// Panics if no such transaction exists
-    pub fn next(&mut self) -> (L2Tx, Option<MempoolScore>) {
+    /// Returns next transaction to be included in block, its time range constraint and optional
+    /// score of its successor. Panics if no such transaction exists
+    pub fn next(&mut self) -> (L2Tx, TransactionTimeRangeConstraint, Option<MempoolScore>) {
         let transaction = self
             .transactions
             .remove(&self.nonce)
@@ -52,12 +59,16 @@ impl AccountTransactions {
         let score = self
             .transactions
             .get(&self.nonce)
-            .map(Self::score_for_transaction);
-        (transaction, score)
+            .map(|(tx, _c)| Self::score_for_transaction(tx));
+        (transaction.0, transaction.1, score)
     }
 
-    /// Handles transaction rejection. Returns optional score of its successor
-    pub fn reset(&mut self, transaction: &Transaction) -> Option<MempoolScore> {
+    /// Handles transaction rejection. Returns optional score of its successor and time range
+    /// constraint that the transaction has been added to the mempool with
+    pub fn reset(
+        &mut self,
+        transaction: &Transaction,
+    ) -> Option<(MempoolScore, TransactionTimeRangeConstraint)> {
         // current nonce for the group needs to be reset
         let tx_nonce = transaction
             .nonce()
@@ -65,7 +76,7 @@ impl AccountTransactions {
         self.nonce = self.nonce.min(tx_nonce);
         self.transactions
             .get(&(tx_nonce + 1))
-            .map(Self::score_for_transaction)
+            .map(|(tx, c)| (Self::score_for_transaction(tx), c.clone()))
     }
 
     pub fn len(&self) -> usize {
@@ -128,8 +139,8 @@ pub(crate) struct InsertionMetadata {
 /// criteria for transaction it wants to fetch.
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct L2TxFilter {
-    /// L1 gas price.
-    pub l1_gas_price: u64,
+    /// Batch fee model input. It typically includes things like L1 gas price, L2 fair fee, etc.
+    pub fee_input: BatchFeeInput,
     /// Effective fee price for the transaction. The price of 1 gas in wei.
     pub fee_per_gas: u64,
     /// Effective pubdata price in gas for transaction. The number of gas per 1 pubdata byte.
@@ -143,9 +154,9 @@ mod tests {
     /// Checks the filter logic.
     #[test]
     fn filter() {
-        fn filter(l1_gas_price: u64, fee_per_gas: u64, gas_per_pubdata: u32) -> L2TxFilter {
+        fn filter(fee_per_gas: u64, gas_per_pubdata: u32) -> L2TxFilter {
             L2TxFilter {
-                l1_gas_price,
+                fee_input: BatchFeeInput::sensible_l1_pegged_default(),
                 fee_per_gas,
                 gas_per_pubdata,
             }
@@ -166,31 +177,31 @@ mod tests {
             },
         };
 
-        let noop_filter = filter(0, 0, 0);
+        let noop_filter = filter(0, 0);
         assert!(
             score.matches_filter(&noop_filter),
             "Noop filter should always match"
         );
 
-        let max_gas_filter = filter(0, MAX_FEE_PER_GAS, 0);
+        let max_gas_filter = filter(MAX_FEE_PER_GAS, 0);
         assert!(
             score.matches_filter(&max_gas_filter),
             "Correct max gas should be accepted"
         );
 
-        let pubdata_filter = filter(0, 0, GAS_PER_PUBDATA_LIMIT);
+        let pubdata_filter = filter(0, GAS_PER_PUBDATA_LIMIT);
         assert!(
             score.matches_filter(&pubdata_filter),
             "Correct pubdata price should be accepted"
         );
 
-        let decline_gas_filter = filter(0, MAX_FEE_PER_GAS + 1, 0);
+        let decline_gas_filter = filter(MAX_FEE_PER_GAS + 1, 0);
         assert!(
             !score.matches_filter(&decline_gas_filter),
             "Incorrect max gas should be rejected"
         );
 
-        let decline_pubdata_filter = filter(0, 0, GAS_PER_PUBDATA_LIMIT + 1);
+        let decline_pubdata_filter = filter(0, GAS_PER_PUBDATA_LIMIT + 1);
         assert!(
             !score.matches_filter(&decline_pubdata_filter),
             "Incorrect pubdata price should be rejected"

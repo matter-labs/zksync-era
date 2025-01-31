@@ -1,0 +1,30 @@
+[package]
+name = "zksync_tee_verifier"
+description = "ZKsync library for TEE verification"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+zksync_config.workspace = true
+zksync_crypto_primitives.workspace = true
+zksync_merkle_tree.workspace = true
+zksync_multivm.workspace = true
+zksync_prover_interface.workspace = true
+zksync_types.workspace = true
+
+anyhow.workspace = true
+once_cell.workspace = true
+serde.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+zksync_contracts.workspace = true
+zksync_prover_interface.workspace = true
+
+bincode.workspace = true

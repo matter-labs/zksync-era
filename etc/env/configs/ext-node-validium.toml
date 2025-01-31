@@ -1,0 +1,7 @@
+__imports__ = [ "configs/ext-node.toml" ]
+
+[en]
+l1_batch_commit_data_generator_mode="Validium"
+
+[_metadata]
+base=["ext-node.toml"]

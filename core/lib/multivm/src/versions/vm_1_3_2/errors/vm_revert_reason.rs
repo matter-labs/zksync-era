@@ -73,7 +73,7 @@ impl VmRevertReason {
 
     pub fn to_user_friendly_string(&self) -> String {
         match self {
-            // In case of `Unknown` reason we suppress it to prevent verbose Error function_selector = 0x{}
+            // In case of `Unknown` reason we suppress it to prevent verbose `Error function_selector = 0x{}`
             // message shown to user.
             VmRevertReason::Unknown { .. } => "".to_owned(),
             _ => self.to_string(),
@@ -167,6 +167,8 @@ impl VmRevertReasonParsingResult {
 mod tests {
     use std::convert::TryFrom;
 
+    use assert_matches::assert_matches;
+
     use super::VmRevertReason;
 
     #[test]
@@ -202,7 +204,7 @@ mod tests {
             0, 0, 0, 0, 0, 0, 0, 0, 0,
         ];
         let reason = VmRevertReason::try_from(msg.as_slice()).expect("Shouldn't be error");
-        assert!(matches!(reason, VmRevertReason::Unknown { .. }));
+        assert_matches!(reason, VmRevertReason::Unknown { .. });
     }
 
     #[test]

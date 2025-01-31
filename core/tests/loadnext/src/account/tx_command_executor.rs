@@ -1,15 +1,5 @@
 use std::time::Instant;
 
-use zksync::{
-    error::ClientError,
-    ethereum::PriorityOpHolder,
-    utils::{
-        get_approval_based_paymaster_input, get_approval_based_paymaster_input_for_estimation,
-    },
-    web3::ethabi,
-    EthNamespaceClient,
-};
-use zksync_eth_client::EthInterface;
 use zksync_system_constants::MAX_L1_TRANSACTION_GAS_LIMIT;
 use zksync_types::{
     api::{BlockNumber, TransactionReceipt},
@@ -20,9 +10,20 @@ use zksync_types::{
 use crate::{
     account::{AccountLifespan, ExecutionType},
     command::{IncorrectnessModifier, TxCommand, TxType},
-    constants::{ETH_CONFIRMATION_TIMEOUT, ETH_POLLING_INTERVAL},
+    constants::{
+        ETH_CONFIRMATION_TIMEOUT, ETH_POLLING_INTERVAL, MIN_ALLOWANCE_FOR_PAYMASTER_ESTIMATE,
+    },
     corrupted_tx::Corrupted,
     report::ReportLabel,
+    sdk::{
+        error::ClientError,
+        ethabi,
+        ethereum::PriorityOpHolder,
+        utils::{
+            get_approval_based_paymaster_input, get_approval_based_paymaster_input_for_estimation,
+        },
+        EthNamespaceClient,
+    },
     utils::format_gwei,
 };
 
@@ -101,7 +102,8 @@ impl AccountLifespan {
         ethereum.set_polling_interval(ETH_POLLING_INTERVAL);
         let gas_price = ethereum
             .client()
-            .get_gas_price("executor")
+            .as_ref()
+            .get_gas_price()
             .await
             .map_err(|_| ClientError::Other)?;
 
@@ -201,7 +203,7 @@ impl AccountLifespan {
         }?;
 
         // Update current nonce for future txs
-        // If the transaction has a tx_hash and is small enough to be included in a block, this tx will change the nonce.
+        // If the transaction has a `tx_hash` and is small enough to be included in a block, this tx will change the nonce.
         // We can be sure that the nonce will be changed based on this assumption.
         if let SubmitResult::TxHash(_) = &result {
             self.current_nonce = Some(nonce + 1)
@@ -228,6 +230,7 @@ impl AccountLifespan {
             .estimate_fee(Some(get_approval_based_paymaster_input_for_estimation(
                 self.paymaster_address,
                 self.main_l2_token,
+                MIN_ALLOWANCE_FOR_PAYMASTER_ESTIMATE.into(),
             )))
             .await?;
         builder = builder.fee(fee.clone());
@@ -269,13 +272,14 @@ impl AccountLifespan {
 
         let mut builder = wallet
             .start_deploy_contract()
-            .bytecode(self.wallet.test_contract.bytecode.clone())
+            .bytecode(self.wallet.test_contract.bytecode.to_vec())
             .constructor_calldata(constructor_calldata);
 
         let fee = builder
             .estimate_fee(Some(get_approval_based_paymaster_input_for_estimation(
                 self.paymaster_address,
                 self.main_l2_token,
+                MIN_ALLOWANCE_FOR_PAYMASTER_ESTIMATE.into(),
             )))
             .await?;
         builder = builder.fee(fee.clone());
@@ -325,7 +329,7 @@ impl AccountLifespan {
                         U256::zero(),
                         calldata,
                         L1_TRANSACTION_GAS_LIMIT.into(),
-                        Some(self.wallet.test_contract.factory_deps.clone()),
+                        Some(self.wallet.test_contract.factory_deps()),
                         None,
                         None,
                         Default::default(),
@@ -371,12 +375,13 @@ impl AccountLifespan {
     }
 
     fn prepare_calldata_for_loadnext_contract(&self) -> Vec<u8> {
-        let contract = &self.wallet.test_contract.contract;
+        let contract = &self.wallet.test_contract.abi;
         let function = contract.function("execute").unwrap();
         function
             .encode_input(&vec![
                 ethabi::Token::Uint(U256::from(self.contract_execution_params.reads)),
-                ethabi::Token::Uint(U256::from(self.contract_execution_params.writes)),
+                ethabi::Token::Uint(U256::from(self.contract_execution_params.initial_writes)),
+                ethabi::Token::Uint(U256::from(self.contract_execution_params.repeated_writes)),
                 ethabi::Token::Uint(U256::from(self.contract_execution_params.hashes)),
                 ethabi::Token::Uint(U256::from(self.contract_execution_params.events)),
                 ethabi::Token::Uint(U256::from(self.contract_execution_params.recursive_calls)),
@@ -397,12 +402,13 @@ impl AccountLifespan {
             .start_execute_contract()
             .calldata(calldata)
             .contract_address(contract_address)
-            .factory_deps(self.wallet.test_contract.factory_deps.clone());
+            .factory_deps(self.wallet.test_contract.factory_deps());
 
         let fee = builder
             .estimate_fee(Some(get_approval_based_paymaster_input_for_estimation(
                 self.paymaster_address,
                 self.main_l2_token,
+                MIN_ALLOWANCE_FOR_PAYMASTER_ESTIMATE.into(),
             )))
             .await?;
         tracing::trace!(
@@ -445,13 +451,11 @@ impl AccountLifespan {
             .get_transaction_receipt(tx_hash)
             .await?;
 
-        let receipt = if response.as_ref().and_then(|r| r.block_number).is_some() {
-            response.unwrap()
-        } else {
+        let Some(receipt) = response else {
             return Ok(None);
         };
 
-        let block_number = receipt.block_number.unwrap();
+        let block_number = receipt.block_number;
 
         let response = self
             .wallet

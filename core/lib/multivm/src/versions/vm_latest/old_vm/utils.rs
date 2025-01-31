@@ -1,4 +1,4 @@
-use zk_evm_1_4_0::{
+use zk_evm_1_5_0::{
     aux_structures::{MemoryPage, Timestamp},
     vm_state::PrimitiveValue,
     zkevm_opcode_defs::{
@@ -6,12 +6,11 @@ use zk_evm_1_4_0::{
         FatPointer, RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER,
     },
 };
-use zksync_state::WriteStorage;
-use zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{Address, U256};
 
-use crate::vm_latest::{
-    old_vm::memory::SimpleMemory, types::internals::ZkSyncVmState, HistoryMode,
+use crate::{
+    interface::storage::WriteStorage,
+    vm_latest::{old_vm::memory::SimpleMemory, types::ZkSyncVmState, HistoryMode},
 };
 
 #[derive(Debug, Clone)]
@@ -19,6 +18,7 @@ pub(crate) enum VmExecutionResult {
     Ok(Vec<u8>),
     Revert(Vec<u8>),
     Panic,
+    #[allow(dead_code)]
     MostLikelyDidNotFinish(Address, u16),
 }
 
@@ -34,6 +34,7 @@ pub(crate) const fn aux_heap_page_from_base(base: MemoryPage) -> MemoryPage {
     MemoryPage(base.0 + 3)
 }
 
+#[allow(dead_code)]
 pub(crate) trait FixedLengthIterator<'a, I: 'a, const N: usize>: Iterator<Item = I>
 where
     Self: 'a,
@@ -45,6 +46,7 @@ where
 
 pub(crate) trait IntoFixedLengthByteIterator<const N: usize> {
     type IntoIter: FixedLengthIterator<'static, u8, N>;
+    #[allow(dead_code)]
     fn into_le_iter(self) -> Self::IntoIter;
     fn into_be_iter(self) -> Self::IntoIter;
 }
@@ -96,12 +98,6 @@ pub(crate) fn precompile_calls_count_after_timestamp(
     sorted_timestamps.len() - sorted_timestamps.partition_point(|t| *t < from_timestamp)
 }
 
-pub(crate) fn eth_price_per_pubdata_byte(l1_gas_price: u64) -> u64 {
-    // This value will typically be a lot less than u64
-    // unless the gas price on L1 goes beyond tens of millions of gwei
-    l1_gas_price * (L1_GAS_PER_PUBDATA_BYTE as u64)
-}
-
 pub(crate) fn vm_may_have_ended_inner<S: WriteStorage, H: HistoryMode>(
     vm: &ZkSyncVmState<S, H>,
 ) -> Option<VmExecutionResult> {
@@ -122,7 +118,7 @@ pub(crate) fn vm_may_have_ended_inner<S: WriteStorage, H: HistoryMode>(
         }
         (false, _) => None,
         (true, l) if l == outer_eh_location => {
-            // check r1,r2,r3
+            // check `r1,r2,r3`
             if vm.local_state.flags.overflow_or_less_than_flag {
                 Some(VmExecutionResult::Panic)
             } else {

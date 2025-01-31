@@ -1,10 +1,10 @@
-use zk_evm_1_4_0::{
+use zk_evm_1_5_0::{
     abstractions::{Memory, MemoryType},
     aux_structures::{MemoryPage, MemoryQuery, Timestamp},
     vm_state::PrimitiveValue,
     zkevm_opcode_defs::FatPointer,
 };
-use zksync_types::U256;
+use zksync_types::{Address, CODE_ORACLE_ADDRESS, U256};
 
 use crate::vm_latest::old_vm::{
     history_recorder::{
@@ -170,6 +170,11 @@ impl<H: HistoryMode> Memory for SimpleMemory<H> {
             MemoryType::Code => {
                 unreachable!("code should be through specialized query");
             }
+            MemoryType::StaticMemory => {
+                // While `MemoryType::StaticMemory` is formally supported by `vm@1.5.0`, it is never
+                // used in the system contracts.
+                unreachable!()
+            }
         }
 
         let page = query.location.page.0 as usize;
@@ -274,6 +279,7 @@ impl<H: HistoryMode> Memory for SimpleMemory<H> {
     fn finish_global_frame(
         &mut self,
         base_page: MemoryPage,
+        last_callstack_this: Address,
         returndata_fat_pointer: FatPointer,
         timestamp: Timestamp,
     ) {
@@ -281,8 +287,13 @@ impl<H: HistoryMode> Memory for SimpleMemory<H> {
         let current_observable_pages = self.observable_pages.inner().current_frame();
         let returndata_page = returndata_fat_pointer.memory_page;
 
+        // This is code oracle and some preimage has been decommitted into its memory.
+        // We must keep this memory page forever for future decommits.
+        let is_returndata_page_static =
+            last_callstack_this == CODE_ORACLE_ADDRESS && returndata_fat_pointer.length > 0;
+
         for &page in current_observable_pages {
-            // If the page's number is greater than or equal to the base_page,
+            // If the page's number is greater than or equal to the `base_page`,
             // it means that it was created by the internal calls of this contract.
             // We need to add this check as the calldata pointer is also part of the
             // observable pages.
@@ -294,12 +305,16 @@ impl<H: HistoryMode> Memory for SimpleMemory<H> {
         self.observable_pages.clear_frame(timestamp);
         self.observable_pages.merge_frame(timestamp);
 
-        self.observable_pages
-            .push_to_frame(returndata_page, timestamp);
+        // If returndata page is static, we do not add it to the list of observable pages,
+        // effectively preventing it from being cleared in the future.
+        if !is_returndata_page_static {
+            self.observable_pages
+                .push_to_frame(returndata_page, timestamp);
+        }
     }
 }
 
-// It is expected that there is some intersection between [word_number*32..word_number*32+31] and [start, end]
+// It is expected that there is some intersection between `[word_number*32..word_number*32+31]` and `[start, end]`
 fn extract_needed_bytes_from_word(
     word_value: Vec<u8>,
     word_number: usize,
@@ -307,7 +322,7 @@ fn extract_needed_bytes_from_word(
     end: usize,
 ) -> Vec<u8> {
     let word_start = word_number * 32;
-    let word_end = word_start + 31; // Note, that at word_start + 32 a new word already starts
+    let word_end = word_start + 31; // Note, that at `word_start + 32` a new word already starts
 
     let intersection_left = std::cmp::max(word_start, start);
     let intersection_right = std::cmp::min(word_end, end);

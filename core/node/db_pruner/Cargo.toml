@@ -1,0 +1,33 @@
+[package]
+name = "zksync_node_db_pruner"
+description = "ZKsync database pruner"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+vise.workspace = true
+zksync_types.workspace = true
+zksync_dal.workspace = true
+zksync_health_check.workspace = true
+
+tokio = { workspace = true, features = ["time"] }
+anyhow.workspace = true
+async-trait.workspace = true
+tracing.workspace = true
+chrono.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+assert_matches.workspace = true
+test-log.workspace = true
+
+zksync_node_genesis.workspace = true
+zksync_node_test_utils.workspace = true
+zksync_db_connection.workspace = true

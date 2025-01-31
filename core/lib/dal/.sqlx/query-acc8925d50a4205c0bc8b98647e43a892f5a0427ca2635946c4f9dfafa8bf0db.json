@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT l1_tx_count + l2_tx_count AS tx_count FROM miniblocks\n            WHERE number = $1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "tx_count",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "acc8925d50a4205c0bc8b98647e43a892f5a0427ca2635946c4f9dfafa8bf0db"
+}

@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+
+set -o errexit
+set -o pipefail
+
+# Needs following configuration
+# URL - URL of the API endpoint
+# INTERVAL - Time interval for polling in seconds
+# TIMEOUT - Timeout of script in seconds
+
+# Start timer
+START_TIME=$(date +%s)
+
+echo "URL: $URL"
+
+# Loop to query periodically
+while true; do
+    # Calculate the elapsed time
+    CURRENT_TIME=$(date +%s)
+    ELAPSED_TIME=$((CURRENT_TIME - START_TIME))
+
+    # Check if the timeout has been reached
+    if [ $ELAPSED_TIME -ge $TIMEOUT ]; then
+        echo "Timeout reached. Failing CI..."
+        exit 1  # Exit with non-zero status to fail CI
+    fi
+
+    # Run the curl request and capture the response
+    RESPONSE=$(curl --silent --request POST \
+        --url $URL \
+        --header 'Content-Type: application/json' \
+        --data '{
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "zks_getBlockDetails",
+            "params": [1]
+        }')
+
+    # Parse the executedAt field using jq
+    EXECUTED_AT=$(echo $RESPONSE | jq -r '.result.executedAt')
+
+    # Check if executedAt is not null
+    if [ "$EXECUTED_AT" != "null" ] && [ -n "$EXECUTED_AT" ]; then
+        echo "executedAt is not null: $EXECUTED_AT"
+        echo "true"
+        exit 0  # Exit with zero status to succeed CI
+    else
+        DATABASE_STATUS=$(psql $DATABASE_URL -c "SELECT status FROM proof_compression_jobs_fri WHERE l1_batch_number = $BATCH_NUMBER;" -t -A)
+        echo "executedAt is null, database status is $DATABASE_STATUS, retrying in $INTERVAL seconds..."
+    fi
+
+    # Wait for the next interval
+    sleep $INTERVAL
+done

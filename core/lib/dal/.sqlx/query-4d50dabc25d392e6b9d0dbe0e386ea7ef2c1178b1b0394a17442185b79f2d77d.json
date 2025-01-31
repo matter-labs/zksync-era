@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT eth_txs.id FROM eth_txs_history JOIN eth_txs ON eth_txs.confirmed_eth_tx_history_id = eth_txs_history.id WHERE eth_txs_history.tx_hash = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "4d50dabc25d392e6b9d0dbe0e386ea7ef2c1178b1b0394a17442185b79f2d77d"
+}

@@ -2,7 +2,10 @@
 
 use std::time::Duration;
 
-use vise::{Buckets, Counter, EncodeLabelValue, Gauge, Histogram, LabeledFamily, Metrics};
+use vise::{
+    Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Gauge, Histogram, Info, LabeledFamily,
+    Metrics, Unit,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue)]
 #[metrics(rename_all = "snake_case")]
@@ -18,14 +21,44 @@ pub(super) enum RequestOutcome {
     Miss,
 }
 
+impl RequestOutcome {
+    pub fn from_hit(hit: bool) -> Self {
+        if hit {
+            Self::Hit
+        } else {
+            Self::Miss
+        }
+    }
+}
+
 /// Buckets for small latencies: from 10 ns to 1 ms.
 const SMALL_LATENCIES: Buckets = Buckets::values(&[
     1e-8, 2.5e-8, 5e-8, 1e-7, 2.5e-7, 5e-7, 1e-6, 2.5e-6, 5e-6, 1e-5, 2.5e-5, 5e-5, 1e-4, 1e-3,
 ]);
 
+#[derive(Debug, EncodeLabelSet)]
+pub(super) struct LruCacheConfig {
+    /// Cache capacity in bytes.
+    #[metrics(unit = Unit::Bytes)]
+    pub capacity: u64,
+}
+
+#[derive(Debug, EncodeLabelSet)]
+pub(super) struct SequentialCacheConfig {
+    /// Cache capacity in number of items.
+    pub capacity: u64,
+}
+
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "server_state_cache")]
 pub(super) struct CacheMetrics {
+    /// Configuration of LRU caches.
+    #[metrics(labels = ["name"])]
+    pub lru_info: LabeledFamily<&'static str, Info<LruCacheConfig>>,
+    /// Configuration of sequential caches.
+    #[metrics(labels = ["name"])]
+    pub sequential_info: LabeledFamily<&'static str, Info<SequentialCacheConfig>>,
+
     /// Latency of calling a cache method.
     #[metrics(buckets = SMALL_LATENCIES, labels = ["name", "method"])]
     pub latency: LabeledFamily<(&'static str, Method), Histogram<Duration>, 2>,

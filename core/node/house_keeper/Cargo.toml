@@ -1,0 +1,23 @@
+[package]
+name = "zksync_house_keeper"
+description = "ZKsync house keeper"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+vise.workspace = true
+zksync_dal.workspace = true
+zksync_shared_metrics.workspace = true
+zksync_types.workspace = true
+zksync_config.workspace = true
+
+async-trait.workspace = true
+tokio = { workspace = true, features = ["time"] }
+anyhow.workspace = true
+tracing.workspace = true

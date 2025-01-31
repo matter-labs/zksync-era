@@ -1,7 +1,0 @@
-[witness]
-generation_timeout_in_secs=900
-initial_setup_key_path="./keys/setup/setup_2^22.key"
-key_download_url="https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2^22.key"
-max_attempts=1
-dump_arguments_for_blocks="2,3"
-data_source="FromPostgres"

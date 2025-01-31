@@ -1,37 +1,49 @@
 use std::collections::HashMap;
 
-use bigdecimal::BigDecimal;
-use jsonrpsee::{core::RpcResult, proc_macros::rpc};
+#[cfg_attr(not(feature = "server"), allow(unused_imports))]
+use jsonrpsee::core::RpcResult;
+use jsonrpsee::proc_macros::rpc;
 use zksync_types::{
     api::{
-        BlockDetails, BridgeAddresses, L1BatchDetails, L2ToL1LogProof, Proof, ProtocolVersion,
-        TransactionDetails,
+        state_override::StateOverride, BlockDetails, BridgeAddresses, L1BatchDetails,
+        L2ToL1LogProof, Proof, ProtocolVersion, TransactionDetailedResult, TransactionDetails,
     },
     fee::Fee,
+    fee_model::{FeeParams, PubdataIndependentBatchFeeModelInput},
     transaction_request::CallRequest,
-    Address, L1BatchNumber, MiniblockNumber, H256, U256, U64,
+    Address, L1BatchNumber, L2BlockNumber, H256, U256, U64,
 };
 
-use crate::types::Token;
+use crate::{
+    client::{ForWeb3Network, L2},
+    types::{Bytes, Token},
+};
 
 #[cfg_attr(
-    all(feature = "client", feature = "server"),
-    rpc(server, client, namespace = "zks")
+    feature = "server",
+    rpc(server, client, namespace = "zks", client_bounds(Self: ForWeb3Network<Net = L2>))
 )]
 #[cfg_attr(
-    all(feature = "client", not(feature = "server")),
-    rpc(client, namespace = "zks")
-)]
-#[cfg_attr(
-    all(not(feature = "client"), feature = "server"),
-    rpc(server, namespace = "zks")
+    not(feature = "server"),
+    rpc(client, namespace = "zks", client_bounds(Self: ForWeb3Network<Net = L2>))
 )]
 pub trait ZksNamespace {
     #[method(name = "estimateFee")]
-    async fn estimate_fee(&self, req: CallRequest) -> RpcResult<Fee>;
+    async fn estimate_fee(
+        &self,
+        req: CallRequest,
+        state_override: Option<StateOverride>,
+    ) -> RpcResult<Fee>;
 
     #[method(name = "estimateGasL1ToL2")]
-    async fn estimate_gas_l1_to_l2(&self, req: CallRequest) -> RpcResult<U256>;
+    async fn estimate_gas_l1_to_l2(
+        &self,
+        req: CallRequest,
+        state_override: Option<StateOverride>,
+    ) -> RpcResult<U256>;
+
+    #[method(name = "getBridgehubContract")]
+    async fn get_bridgehub_contract(&self) -> RpcResult<Option<Address>>;
 
     #[method(name = "getMainContract")]
     async fn get_main_contract(&self) -> RpcResult<Address>;
@@ -39,16 +51,20 @@ pub trait ZksNamespace {
     #[method(name = "getTestnetPaymaster")]
     async fn get_testnet_paymaster(&self) -> RpcResult<Option<Address>>;
 
+    #[method(name = "getTimestampAsserter")]
+    async fn get_timestamp_asserter(&self) -> RpcResult<Option<Address>>;
+
     #[method(name = "getBridgeContracts")]
     async fn get_bridge_contracts(&self) -> RpcResult<BridgeAddresses>;
+
+    #[method(name = "getBaseTokenL1Address")]
+    async fn get_base_token_l1_address(&self) -> RpcResult<Address>;
 
     #[method(name = "L1ChainId")]
     async fn l1_chain_id(&self) -> RpcResult<U64>;
 
     #[method(name = "getConfirmedTokens")]
     async fn get_confirmed_tokens(&self, from: u32, limit: u8) -> RpcResult<Vec<Token>>;
-    #[method(name = "getTokenPrice")]
-    async fn get_token_price(&self, token_address: Address) -> RpcResult<BigDecimal>;
 
     #[method(name = "getAllAccountBalances")]
     async fn get_all_account_balances(&self, address: Address)
@@ -57,7 +73,7 @@ pub trait ZksNamespace {
     #[method(name = "getL2ToL1MsgProof")]
     async fn get_l2_to_l1_msg_proof(
         &self,
-        block: MiniblockNumber,
+        block: L2BlockNumber,
         sender: Address,
         msg: H256,
         l2_log_position: Option<usize>,
@@ -74,12 +90,12 @@ pub trait ZksNamespace {
     async fn get_l1_batch_number(&self) -> RpcResult<U64>;
 
     #[method(name = "getL1BatchBlockRange")]
-    async fn get_miniblock_range(&self, batch: L1BatchNumber) -> RpcResult<Option<(U64, U64)>>;
+    async fn get_l2_block_range(&self, batch: L1BatchNumber) -> RpcResult<Option<(U64, U64)>>;
 
     #[method(name = "getBlockDetails")]
     async fn get_block_details(
         &self,
-        block_number: MiniblockNumber,
+        block_number: L2BlockNumber,
     ) -> RpcResult<Option<BlockDetails>>;
 
     #[method(name = "getTransactionDetails")]
@@ -88,7 +104,7 @@ pub trait ZksNamespace {
     #[method(name = "getRawBlockTransactions")]
     async fn get_raw_block_transactions(
         &self,
-        block_number: MiniblockNumber,
+        block_number: L2BlockNumber,
     ) -> RpcResult<Vec<zksync_types::Transaction>>;
 
     #[method(name = "getL1BatchDetails")]
@@ -100,6 +116,9 @@ pub trait ZksNamespace {
 
     #[method(name = "getL1GasPrice")]
     async fn get_l1_gas_price(&self) -> RpcResult<U64>;
+
+    #[method(name = "getFeeParams")]
+    async fn get_fee_params(&self) -> RpcResult<FeeParams>;
 
     #[method(name = "getProtocolVersion")]
     async fn get_protocol_version(
@@ -113,5 +132,14 @@ pub trait ZksNamespace {
         address: Address,
         keys: Vec<H256>,
         l1_batch_number: L1BatchNumber,
-    ) -> RpcResult<Proof>;
+    ) -> RpcResult<Option<Proof>>;
+
+    #[method(name = "getBatchFeeInput")]
+    async fn get_batch_fee_input(&self) -> RpcResult<PubdataIndependentBatchFeeModelInput>;
+
+    #[method(name = "sendRawTransactionWithDetailedOutput")]
+    async fn send_raw_transaction_with_detailed_output(
+        &self,
+        tx_bytes: Bytes,
+    ) -> RpcResult<TransactionDetailedResult>;
 }

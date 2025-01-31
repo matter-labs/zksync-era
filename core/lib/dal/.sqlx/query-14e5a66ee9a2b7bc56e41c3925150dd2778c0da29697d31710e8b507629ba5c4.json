@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                    SELECT COALESCE(\n                        (SELECT (MAX(number) + 1) AS number FROM miniblocks),\n                        (SELECT (MAX(miniblock_number) + 1) AS number FROM snapshot_recovery),\n                        0\n                    ) AS number\n                    ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "number",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "14e5a66ee9a2b7bc56e41c3925150dd2778c0da29697d31710e8b507629ba5c4"
+}

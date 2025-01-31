@@ -2,15 +2,7 @@ use std::sync::Arc;
 
 use anyhow::anyhow;
 use futures::{channel::mpsc, future, SinkExt};
-use zksync::{
-    ethereum::{PriorityOpHolder, DEFAULT_PRIORITY_FEE},
-    utils::{
-        get_approval_based_paymaster_input, get_approval_based_paymaster_input_for_estimation,
-    },
-    web3::{contract::Options, types::TransactionReceipt},
-    EthNamespaceClient, EthereumProvider, ZksNamespaceClient,
-};
-use zksync_eth_client::{BoundEthInterface, EthInterface};
+use zksync_eth_client::Options;
 use zksync_eth_signer::PrivateKeySigner;
 use zksync_system_constants::MAX_L1_TRANSACTION_GAS_LIMIT;
 use zksync_types::{
@@ -23,8 +15,17 @@ use crate::{
     account_pool::AccountPool,
     config::{ExecutionConfig, LoadtestConfig, RequestLimiters},
     constants::*,
+    metrics::LOADTEST_METRICS,
     report::ReportBuilder,
     report_collector::{LoadtestResult, ReportCollector},
+    sdk::{
+        ethereum::{PriorityOpHolder, DEFAULT_PRIORITY_FEE},
+        utils::{
+            get_approval_based_paymaster_input, get_approval_based_paymaster_input_for_estimation,
+        },
+        web3::TransactionReceipt,
+        EthNamespaceClient, EthereumProvider, ZksNamespaceClient,
+    },
     utils::format_eth,
 };
 
@@ -54,7 +55,7 @@ impl Executor {
     ) -> anyhow::Result<Self> {
         let pool = AccountPool::new(&config).await?;
 
-        // derive l2 main token address
+        // derive L2 main token address
         let l2_main_token = pool
             .master_wallet
             .ethereum(&config.l1_rpc_address)
@@ -114,10 +115,9 @@ impl Executor {
             self.pool.master_wallet.address(),
             format_eth(eth_balance)
         );
-        metrics::gauge!(
-            "loadtest.master_account_balance",
-            eth_balance.as_u128() as f64
-        );
+        LOADTEST_METRICS
+            .master_account_balance
+            .set(eth_balance.as_u128() as f64);
 
         Ok(())
     }
@@ -151,7 +151,7 @@ impl Executor {
         let mint_tx_hash = match mint_tx_hash {
             Err(error) => {
                 let balance = ethereum.balance().await;
-                let gas_price = ethereum.client().get_gas_price("executor").await;
+                let gas_price = ethereum.query_client().get_gas_price().await;
 
                 anyhow::bail!(
                     "{:?}, Balance: {:?}, Gas Price: {:?}",
@@ -244,7 +244,7 @@ impl Executor {
             });
 
         priority_op_handle
-            .polling_interval(POLLING_INTERVAL)
+            .polling_interval(POLLING_INTERVAL.end)
             .unwrap();
         priority_op_handle
             .commit_timeout(COMMIT_TIMEOUT)
@@ -313,7 +313,7 @@ impl Executor {
             });
 
         priority_op_handle
-            .polling_interval(POLLING_INTERVAL)
+            .polling_interval(POLLING_INTERVAL.end)
             .unwrap();
         priority_op_handle
             .commit_timeout(COMMIT_TIMEOUT)
@@ -369,7 +369,7 @@ impl Executor {
 
         // 2 txs per account (1 ERC-20 & 1 ETH transfer).
         let mut eth_txs = Vec::with_capacity(txs_amount * 2);
-        let mut eth_nonce = ethereum.client().pending_nonce("loadnext").await?;
+        let mut eth_nonce = ethereum.client().pending_nonce().await?;
 
         for account in self.pool.accounts.iter().take(accounts_to_process) {
             let target_address = account.wallet.address();
@@ -381,11 +381,8 @@ impl Executor {
 
             // If we don't need to send l1 txs we don't need to distribute the funds
             if weight_of_l1_txs != 0.0 {
-                let balance = ethereum
-                    .client()
-                    .eth_balance(target_address, "loadnext")
-                    .await?;
-                let gas_price = ethereum.client().get_gas_price("loadnext").await?;
+                let balance = ethereum.query_client().eth_balance(target_address).await?;
+                let gas_price = ethereum.query_client().get_gas_price().await?;
 
                 if balance < eth_to_distribute {
                     let options = Options {
@@ -403,6 +400,7 @@ impl Executor {
                         )
                         .await
                         .unwrap();
+
                     eth_nonce += U256::one();
                     eth_txs.push(res);
                 }
@@ -431,6 +429,19 @@ impl Executor {
                 }
             }
 
+            let balance = self
+                .pool
+                .master_wallet
+                .get_balance(BlockNumber::Latest, self.l2_main_token)
+                .await?;
+            let necessary_balance =
+                U256::from(self.erc20_transfer_amount() * self.config.accounts_amount as u128);
+
+            tracing::info!(
+                "Master account token balance on l2: {balance:?}, necessary balance \
+                for initial transfers {necessary_balance:?}"
+            );
+
             // And then we will prepare an L2 transaction to send ERC20 token (for transfers and fees).
             let mut builder = master_wallet
                 .start_transfer()
@@ -442,11 +453,10 @@ impl Executor {
             let paymaster_params = get_approval_based_paymaster_input_for_estimation(
                 paymaster_address,
                 self.l2_main_token,
+                MIN_ALLOWANCE_FOR_PAYMASTER_ESTIMATE.into(),
             );
-
             let fee = builder.estimate_fee(Some(paymaster_params)).await?;
             builder = builder.fee(fee.clone());
-
             let paymaster_params = get_approval_based_paymaster_input(
                 paymaster_address,
                 self.l2_main_token,
@@ -465,13 +475,13 @@ impl Executor {
         // Wait for transactions to be committed, if at least one of them fails,
         // return error.
         for mut handle in handles {
-            handle.polling_interval(POLLING_INTERVAL).unwrap();
+            handle.polling_interval(POLLING_INTERVAL.end).unwrap();
 
             let result = handle
                 .commit_timeout(COMMIT_TIMEOUT)
                 .wait_for_commit()
                 .await?;
-            if result.status == Some(U64::zero()) {
+            if result.status == U64::zero() {
                 return Err(anyhow::format_err!("Transfer failed"));
             }
         }
@@ -613,7 +623,7 @@ impl Executor {
             .expect("Can't get Ethereum client");
 
         // Assuming that gas prices on testnets are somewhat stable, we will consider it a constant.
-        let average_gas_price = ethereum.client().get_gas_price("executor").await?;
+        let average_gas_price = ethereum.query_client().get_gas_price().await?;
 
         let gas_price_with_priority = average_gas_price + U256::from(DEFAULT_PRIORITY_FEE);
 
@@ -635,7 +645,7 @@ impl Executor {
 
     /// Returns the amount of funds to be deposited on the main account in L2.
     /// Amount is chosen to be big enough to not worry about precisely calculating the remaining balances on accounts,
-    /// but also to not be close to the supported limits in zkSync.
+    /// but also to not be close to the supported limits in ZKsync.
     fn amount_to_deposit(&self) -> u128 {
         u128::MAX >> 32
     }
@@ -654,7 +664,7 @@ impl Executor {
                 .await
                 .expect("Can't get Ethereum client");
             let failure_reason = ethereum
-                .client()
+                .query_client()
                 .failure_reason(receipt.transaction_hash)
                 .await
                 .expect("Can't connect to the Ethereum node");
@@ -673,11 +683,11 @@ async fn deposit_with_attempts(
     deposit_amount: U256,
     max_attempts: usize,
 ) -> anyhow::Result<TransactionReceipt> {
-    let nonce = ethereum.client().current_nonce("loadtest").await.unwrap();
+    let nonce = ethereum.client().current_nonce().await.unwrap();
     for attempt in 1..=max_attempts {
         let pending_block_base_fee_per_gas = ethereum
-            .client()
-            .get_pending_block_base_fee_per_gas("loadtest")
+            .query_client()
+            .get_pending_block_base_fee_per_gas()
             .await
             .unwrap();
 
@@ -698,7 +708,7 @@ async fn deposit_with_attempts(
 
         tracing::info!("Deposit with tx_hash {deposit_tx_hash:?}");
 
-        // Wait for the corresponding priority operation to be committed in zkSync.
+        // Wait for the corresponding priority operation to be committed in ZKsync.
         match ethereum.wait_for_tx(deposit_tx_hash).await {
             Ok(eth_receipt) => {
                 return Ok(eth_receipt);

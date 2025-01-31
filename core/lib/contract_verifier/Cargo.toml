@@ -1,0 +1,43 @@
+[package]
+name = "zksync_contract_verifier_lib"
+description = "ZKsync contract verification utilities"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+zksync_types.workspace = true
+zksync_dal.workspace = true
+zksync_contracts.workspace = true
+zksync_queued_job_processor.workspace = true
+zksync_utils.workspace = true
+
+anyhow.workspace = true
+tokio = { workspace = true, features = ["full"] }
+thiserror.workspace = true
+chrono.workspace = true
+serde_json.workspace = true
+ethabi.workspace = true
+vise.workspace = true
+hex.workspace = true
+serde = { workspace = true, features = ["derive"] }
+tempfile.workspace = true
+regex.workspace = true
+reqwest.workspace = true
+tracing.workspace = true
+semver.workspace = true
+octocrab = { workspace = true, features = ["stream"] }
+futures-util.workspace = true
+rustls.workspace = true
+
+[dev-dependencies]
+zksync_node_test_utils.workspace = true
+zksync_vm_interface.workspace = true
+
+assert_matches.workspace = true
+test-casing.workspace = true

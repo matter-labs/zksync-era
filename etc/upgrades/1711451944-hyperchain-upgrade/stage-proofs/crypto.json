@@ -1,0 +1,11 @@
+{
+  "verifier": {
+    "address": "0x88b96FCabF5b0db763ccf687748b00E9d0f14ec1",
+    "txHash": "0x1f39124e7dded035a620893118e70a3554a798ed3ca8f410b7e0c438f4e976f5"
+  },
+  "keys": {
+    "recursionNodeLevelVkHash": "0xf520cd5b37e74e19fdb369c8d676a04dce8a19457497ac6686d2bb95d94109c8",
+    "recursionLeafLevelVkHash": "0x435202d277dd06ef3c64ddd99fda043fc27c2bd8b7c66882966840202c27f4f6",
+    "recursionCircuitsSetVksHash": "0x0000000000000000000000000000000000000000000000000000000000000000"
+  }
+}

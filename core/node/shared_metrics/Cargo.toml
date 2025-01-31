@@ -1,0 +1,21 @@
+[package]
+name = "zksync_shared_metrics"
+description = "ZKsync shared metrics"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+serde.workspace = true
+vise.workspace = true
+tracing.workspace = true
+zksync_types.workspace = true
+zksync_dal.workspace = true
+
+[build-dependencies]
+rustc_version.workspace = true

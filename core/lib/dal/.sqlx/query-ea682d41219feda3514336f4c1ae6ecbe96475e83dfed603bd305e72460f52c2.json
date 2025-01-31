@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE consistency_checker_info\n            SET\n                last_processed_l1_batch = $1,\n                updated_at = NOW()\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ea682d41219feda3514336f4c1ae6ecbe96475e83dfed603bd305e72460f52c2"
+}

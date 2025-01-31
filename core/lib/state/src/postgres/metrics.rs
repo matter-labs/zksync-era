@@ -24,7 +24,7 @@ pub(super) struct ValuesCacheMetrics {
     /// Number of keys modified during a specific values cache update.
     #[metrics(buckets = &[10.0, 20.0, 50.0, 100.0, 200.0, 500.0, 1_000.0])]
     pub values_update_modified_keys: Histogram<usize>,
-    /// Current miniblock for the values cache.
+    /// Current L2 block for the values cache.
     pub values_valid_for_miniblock: Gauge<u64>,
     /// Number of times the negative initial writes cache was successfully used. This is distinct
     /// from cache hits (we can hit the cache, but the cached value may be outdated).

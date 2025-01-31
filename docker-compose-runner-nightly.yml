@@ -1,7 +1,6 @@
-version: '3.2'
 services:
   zk:
-    image: matterlabs/zk-environment:latest2.0-lightweight-nightly
+    image: ghcr.io/matter-labs/zk-environment:latest2.0-lightweight-nightly
     extends:
       file: docker-compose.yml
       service: zk
@@ -11,27 +10,11 @@ services:
       file: docker-compose.yml
       service: postgres
 
-  geth:
+  reth:
     extends:
       file: docker-compose.yml
-      service: geth
+      service: reth
 
-  create-beacon-chain-genesis:
-    extends:
-      file: docker-compose.yml
-      service: create-beacon-chain-genesis
-
-  validator:
-    extends:
-      file: docker-compose.yml
-      service: validator 
-
-  beacon:
-    extends:
-      file: docker-compose.yml
-      service: beacon
-
-  geth-genesis:
-    extends:
-      file: docker-compose.yml
-      service: geth-genesis
+volumes:
+  postgres-data:
+  reth-data:

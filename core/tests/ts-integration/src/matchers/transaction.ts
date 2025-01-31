@@ -1,18 +1,22 @@
 import { TestMessage } from './matcher-helpers';
 import { MatcherModifier } from '../modifiers';
-import * as zksync from 'zksync-web3';
+import * as zksync from 'zksync-ethers';
+import { AugmentedTransactionResponse } from '../transaction-response';
+import { ethers } from 'ethers';
 
-// This file contains implementation of matchers for zkSync/ethereum transaction.
+// This file contains implementation of matchers for ZKsync/ethereum transaction.
 // For actual doc-comments, see `typings/jest.d.ts` file.
 
 export async function toBeAccepted(
-    txPromise: Promise<any>,
+    txPromise: Promise<AugmentedTransactionResponse>,
     modifiers: MatcherModifier[] = [],
     additionalInfo?: string
 ) {
     try {
         const tx = await txPromise;
-        const receipt = await tx.wait();
+        const reporter = tx.reporter;
+        reporter?.debug(`Waiting for transaction ${tx.hash} (from=${tx.from}, nonce=${tx.nonce}) to get accepted`);
+        const receipt = <zksync.types.TransactionReceipt>await tx.wait();
 
         // Check receipt validity.
         const failReason = checkReceiptFields(tx, receipt);
@@ -28,6 +32,7 @@ export async function toBeAccepted(
             }
         }
 
+        reporter?.debug(`Transaction ${tx.hash} is accepted as expected`);
         return pass();
     } catch (error: any) {
         // Check if an error was raised by `jest` (e.g. by using `expect` inside of the modifier).
@@ -47,12 +52,14 @@ export async function toBeAccepted(
 }
 
 export async function toBeReverted(
-    txPromise: zksync.types.TransactionResponse | Promise<zksync.types.TransactionResponse>,
+    txPromise: AugmentedTransactionResponse | Promise<AugmentedTransactionResponse>,
     modifiers: MatcherModifier[] = [],
     additionalInfo?: string
 ) {
     try {
         const tx = await txPromise;
+        const reporter = tx.reporter;
+        reporter?.debug(`Waiting for transaction ${tx.hash} (from=${tx.from}, nonce=${tx.nonce}) to get reverted`);
         const receipt = await tx.wait();
 
         const message = new TestMessage()
@@ -201,7 +208,7 @@ function fail(message: string) {
  *
  * @returns If check has failed, returns a Jest error object. Otherwise, returns `undefined`.
  */
-function checkReceiptFields(request: zksync.types.TransactionRequest, receipt: zksync.types.TransactionReceipt) {
+function checkReceiptFields(request: ethers.TransactionResponseParams, receipt: zksync.types.TransactionReceipt) {
     const errorMessageBuilder = new TestMessage()
         .matcherHint('.checkReceiptFields')
         .line('Transaction receipt is not properly formatted. Transaction request:')
@@ -213,7 +220,8 @@ function checkReceiptFields(request: zksync.types.TransactionRequest, receipt: z
     if (receipt.status !== 0 && receipt.status !== 1) {
         return failWith(`Status field in the receipt has an unexpected value (expected 0 or 1): ${receipt.status}`);
     }
-    if (!receipt.effectiveGasPrice) {
+    const effectiveGasPrice = receipt.gasUsed * receipt.gasPrice;
+    if (effectiveGasPrice <= 0n) {
         return failWith(`Effective gas price expected to be greater than 0`);
     }
     if (!receipt.gasUsed) {

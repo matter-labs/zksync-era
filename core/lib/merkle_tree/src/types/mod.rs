@@ -5,7 +5,9 @@ use zksync_types::{H256, U256};
 pub(crate) use self::internal::{
     ChildRef, Nibbles, NibblesBytes, StaleNodeKey, TreeTags, HASH_SIZE, KEY_SIZE, TREE_DEPTH,
 };
-pub use self::internal::{InternalNode, LeafNode, Manifest, Node, NodeKey, Root};
+pub use self::internal::{
+    InternalNode, LeafNode, Manifest, Node, NodeKey, ProfiledTreeOperation, RawNode, Root,
+};
 
 mod internal;
 
@@ -15,7 +17,7 @@ pub type Key = U256;
 pub type ValueHash = H256;
 
 /// Instruction to read or write a tree value at a certain key.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TreeInstruction<K = Key> {
     /// Read the current tree value at the specified key.
     Read(K),
@@ -36,17 +38,10 @@ impl<K: Copy> TreeInstruction<K> {
             Self::Write(entry) => entry.key,
         }
     }
-
-    pub(crate) fn map_key<U>(&self, map_fn: impl FnOnce(&K) -> U) -> TreeInstruction<U> {
-        match self {
-            Self::Read(key) => TreeInstruction::Read(map_fn(key)),
-            Self::Write(entry) => TreeInstruction::Write(entry.map_key(map_fn)),
-        }
-    }
 }
 
 /// Entry in a Merkle tree associated with a key.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TreeEntry<K = Key> {
     /// Tree key.
     pub key: K,
@@ -74,10 +69,6 @@ impl<K> TreeEntry<K> {
             value,
             leaf_index,
         }
-    }
-
-    pub(crate) fn map_key<U>(&self, map_fn: impl FnOnce(&K) -> U) -> TreeEntry<U> {
-        TreeEntry::new(map_fn(&self.key), self.leaf_index, self.value)
     }
 }
 

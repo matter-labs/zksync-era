@@ -1,6 +1,7 @@
 use std::fmt::{Debug, Formatter};
 
 use zk_evm_1_3_3::{
+    aux_structures::Timestamp,
     tracing::{
         AfterDecodingData, AfterExecutionData, BeforeExecutionData, Tracer, VmLocalStateData,
     },
@@ -8,15 +9,14 @@ use zk_evm_1_3_3::{
     witness_trace::DummyTracer,
     zkevm_opcode_defs::{decoding::EncodingModeProduction, Opcode, RetOpcode},
 };
-use zksync_state::{StoragePtr, WriteStorage};
-use zksync_types::Timestamp;
 
 use crate::{
     interface::{
-        dyn_tracers::vm_1_3_3::DynTracer,
+        storage::{StoragePtr, WriteStorage},
         tracer::{TracerExecutionStatus, TracerExecutionStopReason, VmExecutionStopReason},
         Halt, VmExecutionMode,
     },
+    tracers::dynamic::vm_1_3_3::DynTracer,
     vm_refunds_enhancement::{
         bootloader_state::{utils::apply_l2_block, BootloaderState},
         constants::BOOTLOADER_HEAP_PAGE,
@@ -49,7 +49,7 @@ pub(crate) struct DefaultExecutionTracer<S: WriteStorage, H: HistoryMode> {
     pub(crate) result_tracer: ResultTracer,
     // This tracer is designed specifically for calculating refunds. Its separation from the custom tracer
     // ensures static dispatch, enhancing performance by avoiding dynamic dispatch overhead.
-    // Additionally, being an internal tracer, it saves the results directly to VmResultAndLogs.
+    // Additionally, being an internal tracer, it saves the results directly to `VmResultAndLogs`.
     pub(crate) refund_tracer: Option<RefundsTracer>,
     pub(crate) dispatcher: TracerDispatcher<S, H>,
     ret_from_the_bootloader: Option<RetOpcode>,
@@ -291,7 +291,7 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for DefaultExecutionTracer<
 }
 
 fn current_frame_is_bootloader(local_state: &VmLocalState) -> bool {
-    // The current frame is bootloader if the callstack depth is 1.
+    // The current frame is bootloader if the call stack depth is 1.
     // Some of the near calls inside the bootloader can be out of gas, which is totally normal behavior
     // and it shouldn't result in `is_bootloader_out_of_gas` becoming true.
     local_state.callstack.inner.len() == 1

@@ -4,7 +4,8 @@ use std::slice;
 
 use crate::{
     hasher::HasherWithStats,
-    types::{ChildRef, InternalNode, LeafNode, Node, ValueHash, TREE_DEPTH},
+    types::{ChildRef, InternalNode, LeafNode, Node, Root, ValueHash, TREE_DEPTH},
+    HashTree,
 };
 
 impl LeafNode {
@@ -256,9 +257,18 @@ impl Node {
     }
 }
 
+impl Root {
+    pub(crate) fn hash(&self, hasher: &dyn HashTree) -> ValueHash {
+        let Self::Filled { node, .. } = self else {
+            return hasher.empty_tree_hash();
+        };
+        node.hash(&mut HasherWithStats::new(&hasher), 0)
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use zksync_crypto::hasher::{blake2::Blake2Hasher, Hasher};
+    use zksync_crypto_primitives::hasher::{blake2::Blake2Hasher, Hasher};
     use zksync_types::H256;
 
     use super::*;

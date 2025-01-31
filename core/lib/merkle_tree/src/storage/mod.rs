@@ -1,21 +1,26 @@
 //! Storage-related logic.
 
-pub(crate) use self::patch::{LoadAncestorsResult, WorkingPatchSet};
 pub use self::{
     database::{Database, NodeKeys, Patched, PruneDatabase, PrunePatchSet},
+    parallel::PersistenceThreadHandle,
     patch::PatchSet,
     rocksdb::{MerkleTreeColumnFamily, RocksDBWrapper},
+};
+pub(crate) use self::{
+    parallel::MaybeParallel,
+    patch::{LoadAncestorsResult, WorkingPatchSet},
 };
 use crate::{
     hasher::HashTree,
     metrics::{TreeUpdaterStats, BLOCK_TIMINGS, GENERAL_METRICS},
     types::{
-        BlockOutput, ChildRef, InternalNode, Key, LeafNode, Manifest, Nibbles, Node, Root,
-        TreeEntry, TreeLogEntry, TreeTags, ValueHash,
+        BlockOutput, ChildRef, InternalNode, Key, LeafNode, Manifest, Nibbles, Node,
+        ProfiledTreeOperation, Root, TreeEntry, TreeLogEntry, TreeTags, ValueHash,
     },
 };
 
 mod database;
+mod parallel;
 mod patch;
 mod proofs;
 mod rocksdb;
@@ -89,6 +94,7 @@ impl TreeUpdater {
         sorted_keys: &SortedKeys,
         db: &DB,
     ) -> Vec<Nibbles> {
+        let _profiling_guard = db.start_profiling(ProfiledTreeOperation::LoadAncestors);
         let LoadAncestorsResult {
             longest_prefixes,
             db_reads,
@@ -112,13 +118,13 @@ impl TreeUpdater {
     ///
     /// 1. Walk from the root of the tree along the inserted `key` while we can.
     /// 2. If the node we've stopped at is an internal node, it means it doesn't have
-    ///   a child at the corresponding nibble from `key`. Create a new leaf node with `key` and
-    ///   `value_hash` and insert it as a new child of the found internal node.
+    ///    a child at the corresponding nibble from `key`. Create a new leaf node with `key` and
+    ///    `value_hash` and insert it as a new child of the found internal node.
     /// 3. Else the node we've stopped is a leaf. If the full key stored in this leaf is `key`,
-    ///   we just need to update `value_hash` stored in the leaf.
+    ///    we just need to update `value_hash` stored in the leaf.
     /// 4. Else (the node we've stopped is a leaf with `other_key != key`) we need to create
-    ///   one or more internal nodes that would contain the common prefix between `key`
-    ///   and `other_key` and a "fork" where these keys differ.
+    ///    one or more internal nodes that would contain the common prefix between `key`
+    ///    and `other_key` and a "fork" where these keys differ.
     ///
     /// We change step 1 by starting not from the root, but rather from the node ancestor
     /// we've found in [`Self::load_ancestors()`] for a (moderate) performance boost. Note that

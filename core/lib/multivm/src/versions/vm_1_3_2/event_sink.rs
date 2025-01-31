@@ -29,7 +29,7 @@ impl OracleWithHistory for InMemoryEventSink<HistoryEnabled> {
 // otherwise we carry rollbacks to the parent's frames
 
 impl<H: HistoryMode> InMemoryEventSink<H> {
-    pub fn flatten(&self) -> (Vec<LogQuery>, Vec<EventMessage>, Vec<EventMessage>) {
+    pub fn flatten(&self) -> (Vec<EventMessage>, Vec<EventMessage>) {
         assert_eq!(
             self.frames_stack.len(),
             1,
@@ -38,8 +38,7 @@ impl<H: HistoryMode> InMemoryEventSink<H> {
         // we forget rollbacks as we have finished the execution and can just apply them
         let history = self.frames_stack.forward().current_frame();
 
-        let (events, l1_messages) = Self::events_and_l1_messages_from_history(history);
-        (history.iter().map(|x| **x).collect(), events, l1_messages)
+        Self::events_and_l1_messages_from_history(history)
     }
 
     pub fn get_log_queries(&self) -> usize {
@@ -50,7 +49,7 @@ impl<H: HistoryMode> InMemoryEventSink<H> {
     pub fn log_queries_after_timestamp(&self, from_timestamp: Timestamp) -> &[Box<LogQuery>] {
         let events = self.frames_stack.forward().current_frame();
 
-        // Select all of the last elements where e.timestamp >= from_timestamp.
+        // Select all of the last elements where `e.timestamp >= from_timestamp`.
         // Note, that using binary search here is dangerous, because the logs are not sorted by timestamp.
         events
             .rsplit(|e| e.timestamp < from_timestamp)
@@ -74,7 +73,8 @@ impl<H: HistoryMode> InMemoryEventSink<H> {
         // since if rollbacks of parents were not appended anywhere we just still keep them
         for el in history {
             // we are time ordered here in terms of rollbacks
-            if tmp.get(&el.timestamp.0).is_some() {
+            #[allow(clippy::map_entry)]
+            if tmp.contains_key(&el.timestamp.0) {
                 assert!(el.rollback);
                 tmp.remove(&el.timestamp.0);
             } else {

@@ -1,5 +1,5 @@
 pub use self::{
-    bootloader_state::BootloaderState,
+    bootloader::BootloaderState,
     old_vm::{
         history_recorder::{
             AppDataFrameManagerWithHistory, HistoryDisabled, HistoryEnabled, HistoryMode,
@@ -11,19 +11,16 @@ pub use self::{
         dispatcher::TracerDispatcher,
         traits::{ToTracerPointer, TracerPointer, VmTracer},
     },
-    types::internals::ZkSyncVmState,
+    types::ZkSyncVmState,
     utils::transaction_encoding::TransactionVmExt,
     vm::Vm,
 };
-pub use crate::interface::types::{
-    inputs::{L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode},
-    outputs::{
-        BootloaderMemory, CurrentExecutionState, ExecutionResult, FinishedL1Batch, L2Block,
-        Refunds, VmExecutionLogs, VmExecutionResultAndLogs, VmExecutionStatistics, VmMemoryMetrics,
-    },
+pub(crate) use self::{
+    types::{TransactionData, VmHook},
+    vm::MultiVmSubversion,
 };
 
-mod bootloader_state;
+pub(crate) mod bootloader;
 pub mod constants;
 mod implementation;
 mod old_vm;

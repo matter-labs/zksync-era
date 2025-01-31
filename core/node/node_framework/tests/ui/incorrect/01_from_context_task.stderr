@@ -1,0 +1,5 @@
+error: `task` attribute is not allowed in `FromContext` macro
+  --> tests/ui/incorrect/01_from_context_task.rs:31:5
+   |
+31 |     _field_2: TaskA,
+   |     ^^^^^^^^

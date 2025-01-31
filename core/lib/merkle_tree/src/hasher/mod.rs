@@ -3,7 +3,7 @@
 use std::{fmt, iter};
 
 use once_cell::sync::Lazy;
-use zksync_crypto::hasher::{blake2::Blake2Hasher, Hasher};
+use zksync_crypto_primitives::hasher::{blake2::Blake2Hasher, Hasher};
 
 pub(crate) use self::nodes::{InternalNodeCache, MerklePath};
 pub use self::proofs::TreeRangeDigest;

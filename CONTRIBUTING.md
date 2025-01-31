@@ -1,7 +1,13 @@
 # Contribution Guidelines
 
 Hello! Thanks for your interest in joining the mission to accelerate the mass adoption of crypto for personal
-sovereignty! We welcome contributions from anyone on the internet, and are grateful for even the smallest of fixes!
+sovereignty! We welcome contributions from anyone on the internet.
+
+Note, however, that all the contributions are subject to review, and not every contribution is guaranteed to be merged.
+It is highly advised to reach out to developers (for example, by creating an issue) before preparing a significant
+change in the codebase, and explicitly confirm that this contribution will be considered for merge. Otherwise, it is
+possible to discover that a feature you have spent some time on does not align with the core team vision or capacity to
+maintain a high quality of given submission long term.
 
 ## Ways to contribute
 
@@ -34,11 +40,18 @@ We aim to make it as easy as possible to contribute to the mission. This is stil
 and suggestions here too. Some resources to help:
 
 1. [In-repo docs aimed at developers](docs)
-2. [zkSync Era docs!](https://era.zksync.io/docs/)
-3. Company links can be found in the [repo's readme](README.md)
+2. [ZKsync Era docs!](https://docs.zksync.io)
+3. Company links can be found in the [repositories' readme](README.md)
 
 ## Code of Conduct
 
 Be polite and respectful.
+
+## FAQ
+
+**Q**: I have a small contribution that's not getting traction/being merged?
+
+**A**: Due to capacity, contributions that are simple renames of variables or stylistic/minor text improvements, one-off
+typo fix will not be merged.
 
 ### Thank you

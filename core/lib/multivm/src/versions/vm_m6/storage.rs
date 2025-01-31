@@ -1,7 +1,8 @@
 use std::{cell::RefCell, collections::HashMap, fmt::Debug, rc::Rc};
 
-use zksync_state::{ReadStorage, WriteStorage};
 use zksync_types::{get_known_code_key, StorageKey, StorageValue, H256};
+
+use crate::interface::storage::{ReadStorage, WriteStorage};
 
 pub trait Storage: Debug {
     /// Returns a value from a given key. If value never existed, returns 0.

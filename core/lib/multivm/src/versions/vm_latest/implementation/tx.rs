@@ -1,12 +1,12 @@
-use zk_evm_1_4_0::aux_structures::Timestamp;
-use zksync_state::WriteStorage;
+use zk_evm_1_5_0::aux_structures::Timestamp;
 use zksync_types::{l1::is_l1_tx_type, Transaction};
 
 use crate::{
+    interface::storage::WriteStorage,
     vm_latest::{
         constants::BOOTLOADER_HEAP_PAGE,
         implementation::bytecode::{bytecode_to_factory_dep, compress_bytecodes},
-        types::internals::TransactionData,
+        types::TransactionData,
         vm::Vm,
     },
     HistoryMode,
@@ -17,7 +17,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
         &mut self,
         tx: TransactionData,
         predefined_overhead: u32,
-        predefined_refund: u32,
+        predefined_refund: u64,
         with_compression: bool,
     ) {
         let timestamp = Timestamp(self.state.local_state.timestamp);
@@ -38,8 +38,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             .decommittment_processor
             .populate(codes_for_decommiter, timestamp);
 
-        let trusted_ergs_limit =
-            tx.trusted_ergs_limit(self.batch_env.block_gas_price_per_pubdata());
+        let trusted_ergs_limit = tx.trusted_ergs_limit();
 
         let memory = self.bootloader_state.push_tx(
             tx,
@@ -60,9 +59,13 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
         tx: Transaction,
         with_compression: bool,
     ) {
-        let tx: TransactionData = tx.into();
-        let block_gas_per_pubdata_byte = self.batch_env.block_gas_price_per_pubdata();
-        let overhead = tx.overhead_gas(block_gas_per_pubdata_byte as u32);
+        let use_evm_emulator = self
+            .system_env
+            .base_system_smart_contracts
+            .evm_emulator
+            .is_some();
+        let tx = TransactionData::new(tx, use_evm_emulator);
+        let overhead = tx.overhead_gas();
         self.push_raw_transaction(tx, overhead, 0, with_compression);
     }
 }

@@ -7,14 +7,15 @@ import { command as l1Upgrade } from './l1upgrade/facets';
 import { command as l2Upgrade } from './l2upgrade/transactions';
 import { command as transactions } from './transaction';
 import { command as crypto } from './crypto/crypto';
+import { command as hyperchainUpgrade } from './hyperchain-upgrade';
 
-const COMMANDS = [publish, manager, customUpgrade, l1Upgrade, transactions, crypto, l2Upgrade];
+const COMMANDS = [publish, manager, customUpgrade, l1Upgrade, transactions, crypto, l2Upgrade, hyperchainUpgrade];
 
 async function main() {
     const ZKSYNC_HOME = process.env.ZKSYNC_HOME;
 
     if (!ZKSYNC_HOME) {
-        throw new Error('Please set $ZKSYNC_HOME to the root of zkSync repo!');
+        throw new Error('Please set $ZKSYNC_HOME to the root of ZKsync repo!');
     } else {
         process.chdir(ZKSYNC_HOME);
     }

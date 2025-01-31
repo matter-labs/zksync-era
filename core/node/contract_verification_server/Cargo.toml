@@ -1,0 +1,30 @@
+[package]
+name = "zksync_contract_verification_server"
+description = "ZKsync contract verification server"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+zksync_dal.workspace = true
+zksync_types.workspace = true
+vise.workspace = true
+
+anyhow.workspace = true
+axum.workspace = true
+tokio = { workspace = true, features = ["time"] }
+tower-http = { workspace = true, features = ["cors"] }
+tracing.workspace = true
+
+[dev-dependencies]
+zksync_node_test_utils.workspace = true
+
+http-body-util.workspace = true
+serde_json.workspace = true
+test-casing.workspace = true
+tower.workspace = true

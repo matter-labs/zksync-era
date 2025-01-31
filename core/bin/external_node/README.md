@@ -1,4 +1,4 @@
-# zkSync External Node
+# ZKsync External Node
 
 This application is a read replica that can sync from the main node and serve the state locally.
 
@@ -6,7 +6,7 @@ Note: this README is under construction.
 
 ## Local development
 
-This section describes how to run the external node locally
+This section describes how to run the external node locally.
 
 ### Configuration
 
@@ -19,9 +19,9 @@ The easiest way to see everything that is used is to compile the `ext-node` conf
 Note: not all the config values from the main node are actually used, so this is temporary, and in the future external
 node would require a much smaller set of config variables.
 
-To change the configuration, edit the `etc/env/ext-node.toml`, add the overrides from the `base` config if you need any.
-Remove `etc/env/ext-node.env`, if it exists. On the next launch of the external node, new config would be compiled and
-will be written to the `etc/env/ext-node.env` file.
+To change the configuration, edit the `etc/env/chains/ext-node.toml`, add the overrides from the `base` config if you
+need any. Remove `etc/env/chains/ext-node.env`, if it exists. On the next launch of the external node, new config would
+be compiled and will be written to the `etc/env/chains/ext-node.env` file.
 
 ### Running
 

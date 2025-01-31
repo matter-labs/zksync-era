@@ -20,11 +20,14 @@ pub struct FriProofCompressorConfig {
 
     /// Path to universal setup key file
     pub universal_setup_path: String,
-    /// https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^26.key
+    /// https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^24.key
     pub universal_setup_download_url: String,
 
     // Whether to verify wrapper proof or not.
     pub verify_wrapper_proof: bool,
+
+    pub universal_fflonk_setup_path: String,
+    pub universal_fflonk_setup_download_url: String,
 }
 
 impl FriProofCompressorConfig {

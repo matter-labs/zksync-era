@@ -1,31 +1,29 @@
 use std::{convert::TryInto, str::FromStr};
 
 use bigdecimal::Zero;
-use serde::{Deserialize, Serialize};
-use sqlx::{
-    postgres::PgRow,
-    types::chrono::{DateTime, NaiveDateTime, Utc},
-    Error, FromRow, Row,
-};
+use serde_json::Value;
+use sqlx::types::chrono::{DateTime, NaiveDateTime, Utc};
 use zksync_types::{
-    api,
-    api::{TransactionDetails, TransactionStatus},
+    api::{self, TransactionDetails, TransactionReceipt, TransactionStatus},
     fee::Fee,
+    h256_to_address,
     l1::{OpProcessingType, PriorityQueueType},
     l2::TransactionType,
-    protocol_version::ProtocolUpgradeTxCommonData,
+    protocol_upgrade::ProtocolUpgradeTxCommonData,
     transaction_request::PaymasterParams,
-    vm_trace::Call,
-    web3::types::U64,
-    Address, Bytes, Execute, ExecuteTransactionCommon, L1TxCommonData, L2ChainId, L2TxCommonData,
-    Nonce, PackedEthSignature, PriorityOpId, Transaction, EIP_1559_TX_TYPE, EIP_2930_TX_TYPE,
-    EIP_712_TX_TYPE, H160, H256, PRIORITY_OPERATION_L2_TX_TYPE, PROTOCOL_UPGRADE_TX_TYPE, U256,
+    web3::Bytes,
+    Address, Execute, ExecuteTransactionCommon, L1TxCommonData, L2ChainId, L2TxCommonData, Nonce,
+    PackedEthSignature, PriorityOpId, ProtocolVersionId, Transaction,
+    TransactionTimeRangeConstraint, EIP_1559_TX_TYPE, EIP_2930_TX_TYPE, EIP_712_TX_TYPE, H160,
+    H256, PRIORITY_OPERATION_L2_TX_TYPE, PROTOCOL_UPGRADE_TX_TYPE, U256, U64,
 };
-use zksync_utils::bigdecimal_to_u256;
+use zksync_vm_interface::Call;
 
-use crate::BigDecimal;
+use super::call::{LegacyCall, LegacyMixedCall};
+use crate::{models::bigdecimal_to_u256, BigDecimal};
 
 #[derive(Debug, Clone, sqlx::FromRow)]
+#[cfg_attr(test, derive(Default))]
 pub struct StorageTransaction {
     pub priority_op_id: Option<i64>,
     pub hash: Vec<u8>,
@@ -46,7 +44,6 @@ pub struct StorageTransaction {
     pub received_at: NaiveDateTime,
     pub in_mempool: bool,
 
-    pub l1_block_number: Option<i32>,
     pub l1_batch_number: Option<i64>,
     pub l1_batch_tx_index: Option<i32>,
     pub miniblock_number: Option<i64>,
@@ -70,6 +67,12 @@ pub struct StorageTransaction {
 
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
+
+    pub timestamp_asserter_range_start: Option<NaiveDateTime>,
+    pub timestamp_asserter_range_end: Option<NaiveDateTime>,
+
+    // DEPRECATED.
+    pub l1_block_number: Option<i32>,
 }
 
 impl From<StorageTransaction> for L1TxCommonData {
@@ -119,7 +122,7 @@ impl From<StorageTransaction> for L1TxCommonData {
 
         // `tx.hash` represents the transaction hash obtained from the execution results,
         // and it should be exactly the same as the canonical tx hash calculated from the
-        // transaction data, so we don't store it as a separate "canonical_tx_hash" field.
+        // transaction data, so we don't store it as a separate `canonical_tx_hash` field.
         let canonical_tx_hash = H256::from_slice(&tx.hash);
 
         L1TxCommonData {
@@ -141,10 +144,9 @@ impl From<StorageTransaction> for L1TxCommonData {
                 .gas_per_pubdata_limit
                 .map(bigdecimal_to_u256)
                 .unwrap_or_else(|| U256::from(1u32)),
-            deadline_block: 0,
-            eth_hash: Default::default(),
-            eth_block: tx.l1_block_number.unwrap_or_default() as u64,
             canonical_tx_hash,
+            // DEPRECATED.
+            eth_block: tx.l1_block_number.unwrap_or_default() as u64,
         }
     }
 }
@@ -286,7 +288,7 @@ impl From<StorageTransaction> for ProtocolUpgradeTxCommonData {
                 .gas_per_pubdata_limit
                 .map(bigdecimal_to_u256)
                 .expect("gas_per_pubdata_limit field is missing for protocol upgrade tx"),
-            eth_hash: Default::default(),
+            // DEPRECATED.
             eth_block: tx.l1_block_number.unwrap_or_default() as u64,
             canonical_tx_hash,
         }
@@ -298,15 +300,15 @@ impl From<StorageTransaction> for Transaction {
         let hash = H256::from_slice(&tx.hash);
         let execute = serde_json::from_value::<Execute>(tx.data.clone())
             .unwrap_or_else(|_| panic!("invalid json in database for tx {:?}", hash));
-        let received_timestamp_ms = tx.received_at.timestamp_millis() as u64;
+        let received_timestamp_ms = tx.received_at.and_utc().timestamp_millis() as u64;
         match tx.tx_format {
-            Some(t) if t == PRIORITY_OPERATION_L2_TX_TYPE as i32 => Transaction {
+            Some(t) if t == i32::from(PRIORITY_OPERATION_L2_TX_TYPE) => Transaction {
                 common_data: ExecuteTransactionCommon::L1(tx.into()),
                 execute,
                 received_timestamp_ms,
                 raw_bytes: None,
             },
-            Some(t) if t == PROTOCOL_UPGRADE_TX_TYPE as i32 => Transaction {
+            Some(t) if t == i32::from(PROTOCOL_UPGRADE_TX_TYPE) => Transaction {
                 common_data: ExecuteTransactionCommon::ProtocolUpgrade(tx.into()),
                 execute,
                 received_timestamp_ms,
@@ -322,90 +324,106 @@ impl From<StorageTransaction> for Transaction {
     }
 }
 
-#[derive(Serialize, Deserialize)]
-pub struct StorageApiTransaction {
-    #[serde(flatten)]
-    pub inner_api_transaction: api::Transaction,
-}
-
-impl From<StorageApiTransaction> for api::Transaction {
-    fn from(tx: StorageApiTransaction) -> Self {
-        tx.inner_api_transaction
+impl From<&StorageTransaction> for TransactionTimeRangeConstraint {
+    fn from(tx: &StorageTransaction) -> Self {
+        Self {
+            timestamp_asserter_range: tx.timestamp_asserter_range_start.and_then(|start| {
+                tx.timestamp_asserter_range_end.map(|end| {
+                    (start.and_utc().timestamp() as u64)..(end.and_utc().timestamp() as u64)
+                })
+            }),
+        }
     }
 }
 
-impl<'r> FromRow<'r, PgRow> for StorageApiTransaction {
-    fn from_row(db_row: &'r PgRow) -> Result<Self, Error> {
-        let row_signature: Option<Vec<u8>> = db_row.get("signature");
-        let signature = row_signature
-            .and_then(|signature| PackedEthSignature::deserialize_packed(&signature).ok());
+#[derive(sqlx::FromRow)]
+pub(crate) struct StorageTransactionReceipt {
+    pub error: Option<String>,
+    pub tx_format: Option<i32>,
+    pub index_in_block: Option<i32>,
+    pub block_hash: Vec<u8>,
+    pub tx_hash: Vec<u8>,
+    pub block_number: i64,
+    pub l1_batch_tx_index: Option<i32>,
+    pub l1_batch_number: Option<i64>,
+    pub transfer_to: Option<serde_json::Value>,
+    pub execute_contract_address: Option<serde_json::Value>,
+    pub refunded_gas: i64,
+    pub gas_limit: Option<BigDecimal>,
+    pub effective_gas_price: Option<BigDecimal>,
+    pub contract_address: Option<Vec<u8>>,
+    pub initiator_address: Vec<u8>,
+    pub block_timestamp: Option<i64>,
+}
 
-        Ok(StorageApiTransaction {
-            inner_api_transaction: api::Transaction {
-                hash: H256::from_slice(db_row.get("tx_hash")),
-                nonce: U256::from(db_row.try_get::<i64, &str>("nonce").ok().unwrap_or(0)),
-                block_hash: db_row.try_get("block_hash").ok().map(H256::from_slice),
-                block_number: db_row
-                    .try_get::<i64, &str>("block_number")
-                    .ok()
-                    .map(U64::from),
-                transaction_index: db_row
-                    .try_get::<i32, &str>("index_in_block")
-                    .ok()
-                    .map(U64::from),
-                from: Some(H160::from_slice(db_row.get("initiator_address"))),
-                to: Some(
-                    serde_json::from_value::<Address>(db_row.get("execute_contract_address"))
-                        .expect("incorrect address value in the database"),
-                ),
-                value: bigdecimal_to_u256(db_row.get::<BigDecimal, &str>("value")),
-                // `gas_price`, `max_fee_per_gas`, `max_priority_fee_per_gas` will be zero for the priority transactions.
-                // For common L2 transactions `gas_price` is equal to `effective_gas_price` if the transaction is included
-                // in some block, or `max_fee_per_gas` otherwise.
-                gas_price: Some(bigdecimal_to_u256(
-                    db_row
-                        .try_get::<BigDecimal, &str>("effective_gas_price")
-                        .or_else(|_| db_row.try_get::<BigDecimal, &str>("max_fee_per_gas"))
-                        .unwrap_or_else(|_| BigDecimal::zero()),
-                )),
-                max_fee_per_gas: Some(bigdecimal_to_u256(
-                    db_row
-                        .try_get::<BigDecimal, &str>("max_fee_per_gas")
-                        .unwrap_or_else(|_| BigDecimal::zero()),
-                )),
-                max_priority_fee_per_gas: Some(bigdecimal_to_u256(
-                    db_row
-                        .try_get::<BigDecimal, &str>("max_priority_fee_per_gas")
-                        .unwrap_or_else(|_| BigDecimal::zero()),
-                )),
-                gas: bigdecimal_to_u256(db_row.get::<BigDecimal, &str>("gas_limit")),
-                input: serde_json::from_value(db_row.get::<serde_json::Value, &str>("calldata"))
-                    .expect("Incorrect calldata value in the database"),
-                raw: None,
-                v: signature.as_ref().map(|s| U64::from(s.v())),
-                r: signature.as_ref().map(|s| U256::from(s.r())),
-                s: signature.as_ref().map(|s| U256::from(s.s())),
-                transaction_type: db_row
-                    .try_get::<Option<i32>, &str>("tx_format")
-                    .unwrap_or_default()
-                    .map(U64::from),
-                access_list: None,
-                chain_id: U256::zero(),
-                l1_batch_number: db_row
-                    .try_get::<i64, &str>("l1_batch_number_tx")
-                    .ok()
-                    .map(U64::from),
-                l1_batch_tx_index: db_row
-                    .try_get::<i32, &str>("l1_batch_tx_index")
-                    .ok()
-                    .map(U64::from),
+impl From<StorageTransactionReceipt> for TransactionReceipt {
+    fn from(storage_receipt: StorageTransactionReceipt) -> Self {
+        let status = storage_receipt.error.map_or_else(U64::one, |_| U64::zero());
+
+        let tx_type = storage_receipt
+            .tx_format
+            .map_or_else(Default::default, U64::from);
+        let transaction_index = storage_receipt
+            .index_in_block
+            .map_or_else(Default::default, U64::from);
+
+        // For better compatibility with various clients, we never return `None` recipient address.
+        let to = storage_receipt
+            .transfer_to
+            .or(storage_receipt.execute_contract_address)
+            .and_then(|addr| {
+                serde_json::from_value::<Option<Address>>(addr)
+                    .expect("invalid address value in the database")
+            })
+            .unwrap_or_else(Address::zero);
+
+        let block_hash = H256::from_slice(&storage_receipt.block_hash);
+        TransactionReceipt {
+            transaction_hash: H256::from_slice(&storage_receipt.tx_hash),
+            transaction_index,
+            block_hash,
+            block_number: storage_receipt.block_number.into(),
+            l1_batch_tx_index: storage_receipt.l1_batch_tx_index.map(U64::from),
+            l1_batch_number: storage_receipt.l1_batch_number.map(U64::from),
+            from: H160::from_slice(&storage_receipt.initiator_address),
+            to: Some(to),
+            cumulative_gas_used: Default::default(), // TODO: Should be actually calculated (SMA-1183).
+            gas_used: {
+                let refunded_gas: U256 = storage_receipt.refunded_gas.into();
+                storage_receipt.gas_limit.map(|val| {
+                    let gas_limit = bigdecimal_to_u256(val);
+                    gas_limit - refunded_gas
+                })
             },
-        })
+            effective_gas_price: Some(
+                storage_receipt
+                    .effective_gas_price
+                    .map(bigdecimal_to_u256)
+                    .unwrap_or_default(),
+            ),
+            contract_address: storage_receipt
+                .contract_address
+                .map(|addr| h256_to_address(&H256::from_slice(&addr))),
+            logs: vec![],
+            l2_to_l1_logs: vec![],
+            status,
+            logs_bloom: Default::default(),
+            // Even though the Rust SDK recommends us to supply "None" for legacy transactions
+            // we always supply some number anyway to have the same behavior as most popular RPCs
+            transaction_type: Some(tx_type),
+        }
     }
+}
+
+/// Details of the transaction execution.
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct StorageTransactionExecutionInfo {
+    /// This is an opaque JSON field, with VM version specific contents.
+    pub execution_info: Value,
 }
 
 #[derive(Debug, Clone, sqlx::FromRow)]
-pub struct StorageTransactionDetails {
+pub(crate) struct StorageTransactionDetails {
     pub is_priority: bool,
     pub initiator_address: Vec<u8>,
     pub gas_limit: Option<BigDecimal>,
@@ -446,7 +464,7 @@ impl From<StorageTransactionDetails> for TransactionDetails {
                 .gas_limit
                 .expect("gas limit is mandatory for transaction"),
         );
-        let gas_refunded = U256::from(tx_details.refunded_gas as u32);
+        let gas_refunded = U256::from(tx_details.refunded_gas as u64);
         let fee = (gas_limit - gas_refunded) * effective_gas_price;
 
         let gas_per_pubdata =
@@ -479,48 +497,131 @@ impl From<StorageTransactionDetails> for TransactionDetails {
     }
 }
 
-pub fn web3_transaction_select_sql() -> &'static str {
-    r#"
-         transactions.hash as tx_hash,
-         transactions.index_in_block as index_in_block,
-         transactions.miniblock_number as block_number,
-         transactions.nonce as nonce,
-         transactions.signature as signature,
-         transactions.initiator_address as initiator_address,
-         transactions.tx_format as tx_format,
-         transactions.value as value,
-         transactions.gas_limit as gas_limit,
-         transactions.max_fee_per_gas as max_fee_per_gas,
-         transactions.max_priority_fee_per_gas as max_priority_fee_per_gas,
-         transactions.effective_gas_price as effective_gas_price,
-         transactions.l1_batch_number as l1_batch_number_tx,
-         transactions.l1_batch_tx_index as l1_batch_tx_index,
-         transactions.data->'contractAddress' as "execute_contract_address",
-         transactions.data->'calldata' as "calldata",
-         miniblocks.hash as "block_hash"
-    "#
+#[derive(Debug)]
+pub(crate) struct StorageApiTransaction {
+    pub tx_hash: Vec<u8>,
+    pub index_in_block: Option<i32>,
+    pub block_number: Option<i64>,
+    pub nonce: Option<i64>,
+    pub signature: Option<Vec<u8>>,
+    pub initiator_address: Vec<u8>,
+    pub tx_format: Option<i32>,
+    pub value: BigDecimal,
+    pub gas_limit: Option<BigDecimal>,
+    pub max_fee_per_gas: Option<BigDecimal>,
+    pub max_priority_fee_per_gas: Option<BigDecimal>,
+    pub effective_gas_price: Option<BigDecimal>,
+    pub l1_batch_number: Option<i64>,
+    pub l1_batch_tx_index: Option<i32>,
+    pub execute_contract_address: serde_json::Value,
+    pub calldata: serde_json::Value,
+    pub block_hash: Option<Vec<u8>>,
 }
 
-pub fn extract_web3_transaction(db_row: PgRow, chain_id: L2ChainId) -> api::Transaction {
-    let mut storage_api_tx = StorageApiTransaction::from_row(&db_row).unwrap();
-    storage_api_tx.inner_api_transaction.chain_id = U256::from(chain_id.as_u64());
-    if storage_api_tx.inner_api_transaction.transaction_type == Some(U64::from(0)) {
-        storage_api_tx.inner_api_transaction.v = storage_api_tx
-            .inner_api_transaction
-            .v
-            .map(|v| v + 35 + chain_id.as_u64() * 2);
+impl StorageApiTransaction {
+    pub fn into_api(self, chain_id: L2ChainId) -> api::Transaction {
+        let signature = self
+            .signature
+            .and_then(|signature| PackedEthSignature::deserialize_packed(&signature).ok());
+
+        let to = serde_json::from_value(self.execute_contract_address)
+            .ok()
+            .unwrap_or_default();
+
+        // For legacy and EIP-2930 transactions it is gas price willing to be paid by the sender in wei.
+        // For other transactions it should be the effective gas price if transaction is included in block,
+        // otherwise this value should be set equal to the max fee per gas.
+        let gas_price = match self.tx_format {
+            None | Some(0) | Some(1) => self
+                .max_fee_per_gas
+                .clone()
+                .unwrap_or_else(BigDecimal::zero),
+            _ => self
+                .effective_gas_price
+                .or_else(|| self.max_fee_per_gas.clone())
+                .unwrap_or_else(BigDecimal::zero),
+        };
+        // Legacy transactions are not supposed to have `yParity` and are reliant on `v` instead.
+        // Other transactions are required to have `yParity` which replaces the deprecated `v` value
+        // (still included for backwards compatibility).
+        let y_parity = match self.tx_format {
+            None | Some(0) => None,
+            _ => signature.as_ref().map(|s| U64::from(s.v())),
+        };
+        let mut tx = api::Transaction {
+            hash: H256::from_slice(&self.tx_hash),
+            nonce: U256::from(self.nonce.unwrap_or(0) as u64),
+            block_hash: self.block_hash.map(|hash| H256::from_slice(&hash)),
+            block_number: self.block_number.map(|number| U64::from(number as u64)),
+            transaction_index: self.index_in_block.map(|idx| U64::from(idx as u64)),
+            from: Some(Address::from_slice(&self.initiator_address)),
+            to,
+            value: bigdecimal_to_u256(self.value),
+            gas_price: Some(bigdecimal_to_u256(gas_price)),
+            gas: bigdecimal_to_u256(self.gas_limit.unwrap_or_else(BigDecimal::zero)),
+            input: serde_json::from_value(self.calldata).expect("incorrect calldata in Postgres"),
+            y_parity,
+            v: signature.as_ref().map(|s| U64::from(s.v())),
+            r: signature.as_ref().map(|s| U256::from(s.r())),
+            s: signature.as_ref().map(|s| U256::from(s.s())),
+            raw: None,
+            transaction_type: self.tx_format.map(|format| U64::from(format as u32)),
+            access_list: None,
+            max_fee_per_gas: Some(bigdecimal_to_u256(
+                self.max_fee_per_gas.unwrap_or_else(BigDecimal::zero),
+            )),
+            max_priority_fee_per_gas: Some(bigdecimal_to_u256(
+                self.max_priority_fee_per_gas
+                    .unwrap_or_else(BigDecimal::zero),
+            )),
+            chain_id: U256::from(chain_id.as_u64()),
+            l1_batch_number: self.l1_batch_number.map(|number| U64::from(number as u64)),
+            l1_batch_tx_index: self.l1_batch_tx_index.map(|idx| U64::from(idx as u64)),
+        };
+
+        if tx.transaction_type == Some(U64::from(0)) {
+            tx.v = tx.v.map(|v| v + 35 + chain_id.as_u64() * 2);
+        }
+        tx
     }
-    storage_api_tx.into()
 }
 
 #[derive(Debug, Clone, sqlx::FromRow)]
-pub struct CallTrace {
-    pub tx_hash: Vec<u8>,
+pub(crate) struct CallTrace {
     pub call_trace: Vec<u8>,
+    pub tx_hash: Vec<u8>,
+    pub tx_index_in_block: Option<i32>,
+    pub tx_error: Option<String>,
 }
 
-impl From<CallTrace> for Call {
-    fn from(call_trace: CallTrace) -> Self {
-        bincode::deserialize(&call_trace.call_trace).unwrap()
+impl CallTrace {
+    pub(crate) fn into_call(self, protocol_version: ProtocolVersionId) -> Call {
+        parse_call_trace(&self.call_trace, protocol_version)
     }
+}
+
+pub(crate) fn parse_call_trace(call_trace: &[u8], protocol_version: ProtocolVersionId) -> Call {
+    if protocol_version.is_pre_1_5_0() {
+        if let Ok(legacy_call_trace) = bincode::deserialize::<LegacyCall>(call_trace) {
+            legacy_call_trace.into()
+        } else {
+            let legacy_mixed_call_trace = bincode::deserialize::<LegacyMixedCall>(call_trace)
+                .expect("Failed to deserialize call trace");
+            legacy_mixed_call_trace.into()
+        }
+    } else {
+        bincode::deserialize(call_trace).unwrap()
+    }
+}
+
+pub(crate) fn serialize_call_into_bytes(
+    call: Call,
+    protocol_version: ProtocolVersionId,
+) -> Vec<u8> {
+    if protocol_version.is_pre_1_5_0() {
+        bincode::serialize(&LegacyCall::try_from(call).unwrap())
+    } else {
+        bincode::serialize(&call)
+    }
+    .unwrap()
 }
