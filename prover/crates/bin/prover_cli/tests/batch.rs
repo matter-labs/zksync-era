@@ -226,7 +226,7 @@ async fn insert_bwg_job(
         .await;
     connection
         .fri_basic_witness_generator_dal()
-        .mark_witness_job(status, batch_number)
+        .set_status_for_basic_witness_job(status, batch_number)
         .await;
 }
 

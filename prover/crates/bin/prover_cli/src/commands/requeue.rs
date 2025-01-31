@@ -34,7 +34,7 @@ pub async fn run(args: Args, config: ProverCLIConfig) -> anyhow::Result<()> {
     display_requeued_stuck_jobs(stuck_witness_input_jobs, AggregationRound::BasicCircuits);
 
     let stuck_leaf_aggregations_stuck_jobs = conn
-        .fri_leaf_witness_generator_dal()
+        .fri_witness_generator_dal()
         .requeue_stuck_leaf_aggregation_jobs_for_batch(args.batch, args.max_attempts)
         .await;
     display_requeued_stuck_jobs(

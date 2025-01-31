@@ -96,7 +96,7 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
         .map(|row| L1BatchNumber(row.l1_batch_number as u32))
     }
 
-    pub async fn mark_witness_job(
+    pub async fn set_status_for_basic_witness_job(
         &mut self,
         status: FriWitnessJobStatus,
         block_number: L1BatchNumber,
