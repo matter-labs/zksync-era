@@ -30,3 +30,4 @@ jobs:
       publish-to-crates-io: true                            # Enable publishing to crates.io
       upgrade-dependencies: true                            # Upgrade cross-workspace dependencies
       version-suffix: 'non-semver-compat'                   # Version suffix for the crates.io release
+      dependencies: 'clang libclang-dev'                    # Additional Linux dependencies to install
