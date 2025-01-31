@@ -329,23 +329,13 @@ impl OnlineTxSource {
 
 impl TxSource for OnlineTxSource {
     fn get_next_tx(&mut self) -> NextTxResponse {
-        loop {
-            match self.receiver.try_recv() {
-                Ok(resp) => {
-                    return resp;
-                }
-                Err(TryRecvError::Empty) => {
-                    // Do nothing
-                }
-                Err(TryRecvError::Disconnected) => {
-                    // Sender shouldn't be dropped i.e. we always try to finish block execution properly
-                    // on shutdown request. This looks reasonable given block will take short period of time
-                    // (most likely 1 second), and if there are no transactions we can still close an empty block
-                    // without persisting it.
-                    panic!("next tx sender was dropped without yielding `SealBatch`")
-                }
-            }
-        }
+        self.receiver.blocking_recv().unwrap_or_else(|| {
+            // Sender shouldn't be dropped i.e. we always try to finish block execution properly
+            // on shutdown request. This looks reasonable given block will take short period of time
+            // (most likely 1 second), and if there are no transactions we can still close an empty block
+            // without persisting it.
+            panic!("next tx sender was dropped without yielding `SealBatch`")
+        })
     }
 }
 
