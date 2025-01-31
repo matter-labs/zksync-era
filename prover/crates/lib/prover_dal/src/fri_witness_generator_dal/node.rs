@@ -77,9 +77,8 @@ impl FriNodeWitnessGeneratorDal<'_, '_> {
                         AND protocol_version = $1
                         AND protocol_version_patch = $2
                     ORDER BY
-                        l1_batch_number ASC,
-                        depth ASC,
-                        id ASC
+                        priority DESC,
+                        created_at ASC
                     LIMIT
                         1
                     FOR UPDATE
@@ -285,7 +284,8 @@ impl FriNodeWitnessGeneratorDal<'_, '_> {
             SET
                 status = 'queued',
                 updated_at = NOW(),
-                processing_started_at = NOW()
+                processing_started_at = NOW(),
+                priority = priority + 1
             WHERE
                 (
                     status = 'in_progress'
