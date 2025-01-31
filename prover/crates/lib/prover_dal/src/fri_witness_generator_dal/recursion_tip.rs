@@ -259,7 +259,7 @@ impl FriRecursionTipWitnessGeneratorDal<'_, '_> {
     pub async fn insert_recursion_tip_aggregation_jobs(
         &mut self,
         block_number: L1BatchNumber,
-        closed_form_inputs_and_urls: &[Vec(u8, String, usize)],
+        closed_form_inputs_and_urls: &[(u8, String, usize)],
         protocol_version: ProtocolSemanticVersion,
     ) {
         sqlx::query!(
