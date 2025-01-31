@@ -507,7 +507,6 @@ mod tests {
         updates.extend_from_executed_transaction(
             tx,
             tx_result,
-            vec![],
             VmExecutionMetrics::default(),
             vec![],
         );

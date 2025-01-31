@@ -500,7 +500,6 @@ impl ZkSyncStateKeeper {
                 let TxExecutionResult::Success {
                     tx_result,
                     tx_metrics: tx_execution_metrics,
-                    compressed_bytecodes,
                     call_tracer_result,
                     ..
                 } = result
@@ -524,7 +523,6 @@ impl ZkSyncStateKeeper {
                 updates_manager.extend_from_executed_transaction(
                     tx,
                     *tx_result,
-                    compressed_bytecodes,
                     *tx_execution_metrics,
                     call_tracer_result,
                 );
@@ -632,7 +630,6 @@ impl ZkSyncStateKeeper {
                         tx_result,
                         tx_metrics: tx_execution_metrics,
                         call_tracer_result,
-                        compressed_bytecodes,
                         ..
                     } = exec_result
                     else {
@@ -643,7 +640,6 @@ impl ZkSyncStateKeeper {
                     updates_manager.extend_from_executed_transaction(
                         tx,
                         *tx_result,
-                        compressed_bytecodes,
                         *tx_execution_metrics,
                         call_tracer_result,
                     );
@@ -701,7 +697,6 @@ impl ZkSyncStateKeeper {
                 let TxExecutionResult::Success {
                     tx_result,
                     tx_metrics: tx_execution_metrics,
-                    compressed_bytecodes,
                     call_tracer_result,
                     ..
                 } = exec_result
@@ -718,7 +713,6 @@ impl ZkSyncStateKeeper {
                 updates_manager.extend_from_executed_transaction(
                     tx,
                     *tx_result,
-                    compressed_bytecodes,
                     *tx_execution_metrics,
                     call_tracer_result,
                 );

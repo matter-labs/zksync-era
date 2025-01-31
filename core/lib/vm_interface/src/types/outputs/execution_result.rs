@@ -369,7 +369,7 @@ pub struct OneshotTransactionExecutionResult {
     pub call_traces: Vec<Call>,
 }
 
-/// High-level transaction execution result used by the API server sandbox etc.
+/// High-level transaction execution result used by the state keeper etc.
 #[derive(Debug, Clone, PartialEq)]
 pub struct TransactionExecutionResult {
     pub transaction: Transaction,
@@ -377,8 +377,6 @@ pub struct TransactionExecutionResult {
     pub execution_info: VmExecutionMetrics,
     pub execution_status: TxExecutionStatus,
     pub refunded_gas: u64,
-    pub operator_suggested_refund: u64,
-    pub compressed_bytecodes: Vec<CompressedBytecodeInfo>,
     pub call_traces: Vec<Call>,
     pub revert_reason: Option<String>,
 }

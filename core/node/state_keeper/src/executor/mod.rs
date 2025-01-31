@@ -1,6 +1,6 @@
 use zksync_multivm::interface::{
-    BatchTransactionExecutionResult, Call, CompressedBytecodeInfo, ExecutionResult, Halt,
-    VmExecutionMetrics, VmExecutionResultAndLogs,
+    BatchTransactionExecutionResult, Call, ExecutionResult, Halt, VmExecutionMetrics,
+    VmExecutionResultAndLogs,
 };
 use zksync_types::Transaction;
 pub use zksync_vm_executor::batch::MainBatchExecutorFactory;
@@ -18,7 +18,6 @@ pub enum TxExecutionResult {
     Success {
         tx_result: Box<VmExecutionResultAndLogs>,
         tx_metrics: Box<VmExecutionMetrics>,
-        compressed_bytecodes: Vec<CompressedBytecodeInfo>,
         call_tracer_result: Vec<Call>,
         gas_remaining: u32,
     },
@@ -39,7 +38,6 @@ impl TxExecutionResult {
                 tx_metrics: Box::new(res.tx_result.get_execution_metrics(Some(tx))),
                 gas_remaining: res.tx_result.statistics.gas_remaining,
                 tx_result: res.tx_result.clone(),
-                compressed_bytecodes: res.compressed_bytecodes,
                 call_tracer_result: res.call_traces,
             },
         }

@@ -280,7 +280,6 @@ mod tests {
         manager.extend_from_executed_transaction(
             tx,
             create_execution_result([]),
-            vec![],
             VmExecutionMetrics::default(),
             vec![],
         );
