@@ -155,7 +155,7 @@ impl SandboxVmResult for VmExecutionResultAndLogs {
 #[derive(Debug)]
 pub(crate) struct SandboxExecutor {
     // VM execution engine. All RPC methods other than `zks_sendRawTransactionWithDetailedOutput` currently
-    // do not use anything logs etc.
+    // do not use logs etc.
     pub(super) engine: Arc<dyn SandboxExecutorEngine<ExecutionResult>>,
     debug_engine: Option<Arc<dyn SandboxExecutorEngine<VmExecutionResultAndLogs>>>,
 

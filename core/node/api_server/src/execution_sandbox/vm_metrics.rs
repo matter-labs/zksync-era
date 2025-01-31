@@ -136,12 +136,6 @@ pub(super) fn collect_tx_execution_metrics(
     result: &VmExecutionResultAndLogs,
 ) -> TransactionExecutionMetrics {
     let writes_metrics = StorageWritesDeduplicator::apply_on_empty_state(&result.logs.storage_logs);
-    let event_topics = result
-        .logs
-        .events
-        .iter()
-        .map(|event| event.indexed_topics.len() as u16)
-        .sum();
     let l2_l1_long_messages = VmEvent::extract_long_l2_to_l1_messages(&result.logs.events)
         .iter()
         .map(|event| event.len())
@@ -160,7 +154,6 @@ pub(super) fn collect_tx_execution_metrics(
         repeated_storage_writes: writes_metrics.repeated_storage_writes,
         gas_used: result.statistics.gas_used as usize,
         gas_remaining: result.statistics.gas_remaining,
-        event_topics,
         published_bytecode_bytes,
         l2_l1_long_messages,
         l2_l1_logs: result.logs.total_l2_to_l1_logs_count(),

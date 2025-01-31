@@ -173,7 +173,6 @@ pub struct TransactionExecutionMetrics {
     pub repeated_storage_writes: usize,
     pub gas_used: usize,
     pub gas_remaining: u32,
-    pub event_topics: u16, // FIXME: never read
     pub published_bytecode_bytes: usize,
     pub l2_l1_long_messages: usize,
     pub l2_l1_logs: usize,
@@ -198,7 +197,6 @@ impl Default for TransactionExecutionMetrics {
             repeated_storage_writes: 0,
             gas_used: 0,
             gas_remaining: u32::MAX,
-            event_topics: 0,
             published_bytecode_bytes: 0,
             l2_l1_long_messages: 0,
             l2_l1_logs: 0,
