@@ -39,9 +39,9 @@ impl L1BatchDA {
             .iter()
             .find(|log| {
                 log.key
-                    == H256::from_low_u64_be(
-                        zksync_system_constants::L2_DA_VALIDATOR_OUTPUT_HASH_KEY as u64,
-                    )
+                    == H256::from_low_u64_be(u64::from(
+                        zksync_system_constants::L2_DA_VALIDATOR_OUTPUT_HASH_KEY,
+                    ))
             })
             .unwrap() // The log is guaranteed to be present
             .value;
