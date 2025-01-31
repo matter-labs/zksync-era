@@ -98,7 +98,9 @@ mod tests {
             chain_admin_addr: Some(addr("0xdd6fa5c14e7550b4caf2aa2818d24c69cbc347ff")),
             l2_da_validator_addr: Some(addr("0xed6fa5c14e7550b4caf2aa2818d24c69cbc347ff")),
             l2_timestamp_asserter_addr: Some(addr("0x0000000000000000000000000000000000000002")),
-            no_da_validium_l1_validator_addr: Some(addr("0xbe8381498ED34E9c2EdB51Ecd778d71B225E26fb")),
+            no_da_validium_l1_validator_addr: Some(addr(
+                "0xbe8381498ED34E9c2EdB51Ecd778d71B225E26fb",
+            )),
         }
     }
 
