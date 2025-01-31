@@ -29,9 +29,18 @@ pub async fn seal_in_db<'a>(
 
     let mut transaction = connection.start_transaction().await?;
 
-    for (tx_index_in_batch, tx) in executed_transactions.into_iter().enumerate() {
+    let mut next_index_in_batch_output = 0;
+    for tx in executed_transactions {
         let tx_hash = tx.hash();
-        let internal_tx_result = extract_tx_internal_result(tx_hash, tx_index_in_batch, &result);
+        let internal_tx_result = loop {
+            let internal_tx_result =
+                extract_tx_internal_result(tx_hash, next_index_in_batch_output, &result);
+            if matches!(internal_tx_result, InternalTxResult::Rejected(_)) {
+                next_index_in_batch_output += 1;
+            } else {
+                break internal_tx_result;
+            }
+        };
         let revert_reason = match internal_tx_result {
             InternalTxResult::Success => {
                 tracing::info!("marking transaction {tx_hash:#?} as included");
@@ -41,7 +50,7 @@ pub async fn seal_in_db<'a>(
                         tx_hash,
                         l2_block_number,
                         None,
-                        result.tx_results[tx_index_in_batch]
+                        result.tx_results[next_index_in_batch_output]
                             .as_ref()
                             .unwrap()
                             .gas_refunded,
@@ -56,7 +65,7 @@ pub async fn seal_in_db<'a>(
                         tx_hash,
                         l2_block_number,
                         Some(reason),
-                        result.tx_results[tx_index_in_batch]
+                        result.tx_results[next_index_in_batch_output]
                             .as_ref()
                             .unwrap()
                             .gas_refunded,
@@ -67,6 +76,7 @@ pub async fn seal_in_db<'a>(
                 // it was already handled.
             }
         };
+        next_index_in_batch_output += 1;
     }
 
     tracing::info!("inserting storage logs");

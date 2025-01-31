@@ -1,10 +1,16 @@
+use std::{alloc::Global, collections::HashMap, str::FromStr, sync::Arc, time::Duration};
+
 use anyhow::Context;
 use ruint::aliases::{B160, U256};
 use serde::Serialize;
-use std::{alloc::Global, collections::HashMap, str::FromStr, sync::Arc, time::Duration};
-use tokio::sync::mpsc::error::TryRecvError;
-use tokio::sync::mpsc::{Receiver, Sender};
-use tokio::{sync::watch, task::spawn_blocking, task::JoinHandle, time::Instant};
+use tokio::{
+    sync::{
+        mpsc::{error::TryRecvError, Receiver, Sender},
+        watch,
+    },
+    task::{spawn_blocking, JoinHandle},
+    time::Instant,
+};
 use tracing::info_span;
 use zk_ee::{
     common_structs::derive_flat_storage_key,
@@ -15,8 +21,8 @@ use zk_os_basic_system::{
     basic_io_implementer::address_into_special_storage_key,
     basic_system::simple_growable_storage::TestingTree,
 };
-use zk_os_forward_system::run::result_keeper::TxProcessingOutputOwned;
 use zk_os_forward_system::run::{
+    result_keeper::TxProcessingOutputOwned,
     run_batch,
     test_impl::{InMemoryPreimageSource, InMemoryTree, TxListSource},
     BatchContext, BatchOutput, ExecutionResult, InvalidTransaction, NextTxResponse, PreimageSource,
@@ -114,13 +120,13 @@ impl ZkosStateKeeper {
             let tx_callback = ChannelTxResultCallback::new(result_sender);
 
             let timestamp = (millis_since_epoch() / 1000) as u64;
-            let gas_limit = 32000000; // TODO: what value should be used?;
+            let gas_limit = 100_000_000; // TODO: what value should be used?;
             let tx_processor = TxProcessor::new(
                 self.mempool.clone(),
                 self.pool.clone(),
                 sender,
                 result_receiver,
-                2,
+                10,
                 timestamp,
                 gas_limit,
             );
@@ -411,11 +417,15 @@ impl TxProcessor {
             let wait =
                 tokio::time::timeout(Duration::from_secs(1), pop_next_tx(&mut self.mempool)).await;
             let Ok(Some(tx)) = wait else {
-                self.sender
-                    .send(NextTxResponse::SealBatch)
-                    .await
-                    .context("NextTxResponse receiver was dropped")?;
-                break;
+                if !executed_txs.is_empty() {
+                    self.sender
+                        .send(NextTxResponse::SealBatch)
+                        .await
+                        .context("NextTxResponse receiver was dropped")?;
+                    break;
+                } else {
+                    continue;
+                }
             };
 
             if !self.block_has_capacity_for_tx(
