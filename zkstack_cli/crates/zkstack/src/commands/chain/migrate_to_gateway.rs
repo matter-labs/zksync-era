@@ -24,14 +24,12 @@ use zkstack_cli_config::{
     EcosystemConfig,
 };
 use zkstack_cli_types::L1BatchCommitmentMode;
-use zksync_basic_types::{
-    pubdata_da::PubdataSendingMode, settlement::SettlementMode, Address, H256, U256, U64,
-};
+use zksync_basic_types::{settlement::SettlementMode, Address, H256, U256, U64};
 use zksync_config::configs::gateway::GatewayChainConfig;
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 
 use crate::{
-    messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_L1_SECRETS_MUST_BE_PRESENTED},
+    messages::MSG_CHAIN_NOT_INITIALIZED,
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
 
@@ -84,14 +82,11 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         .context("Gateway config not present")?;
 
     let l1_url = chain_config
-        .get_secrets_config()?
-        .l1
-        .context(MSG_L1_SECRETS_MUST_BE_PRESENTED)?
-        .l1_rpc_url
-        .expose_str()
-        .to_string();
+        .get_secrets_config()
+        .await?
+        .get::<String>("l1.l1_rpc_url")?;
 
-    let genesis_config = chain_config.get_genesis_config()?;
+    let genesis_config = chain_config.get_genesis_config().await?;
 
     let preparation_config_path = GATEWAY_PREPARATION.input(&ecosystem_config.link_to_code);
     let preparation_config = GatewayPreparationConfig::new(
@@ -176,15 +171,9 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     .await?
     .governance_l2_tx_hash;
 
-    let gateway_provider = Provider::<Http>::try_from(
-        gateway_chain_config
-            .get_general_config()
-            .unwrap()
-            .api_config
-            .unwrap()
-            .web3_json_rpc
-            .http_url,
-    )?;
+    let general_config = gateway_chain_config.get_general_config().await?;
+    let l2_rpc_url = general_config.get::<String>("api.web3_json_rpc.http_url")?;
+    let gateway_provider = Provider::<Http>::try_from(l2_rpc_url.clone())?;
 
     if hash == H256::zero() {
         println!("Chain already migrated!");
@@ -214,7 +203,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     let chain_contracts_config = chain_config.get_contracts_config().unwrap();
 
     let is_rollup = matches!(
-        genesis_config.l1_batch_commit_data_generator_mode,
+        genesis_config.get("l1_batch_commit_data_generator_mode")?,
         L1BatchCommitmentMode::Rollup
     );
 
@@ -356,19 +345,10 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         hex::encode(hash.as_bytes())
     );
 
-    let gateway_url = gateway_chain_config
-        .get_general_config()
-        .unwrap()
-        .api_config
-        .unwrap()
-        .web3_json_rpc
-        .http_url
-        .clone();
-
-    let mut chain_secrets_config = chain_config.get_secrets_config().unwrap();
-    chain_secrets_config.l1.as_mut().unwrap().gateway_rpc_url =
-        Some(url::Url::parse(&gateway_url).unwrap().into());
-    chain_secrets_config.save_with_base_path(shell, chain_config.configs.clone())?;
+    let gateway_url = l2_rpc_url;
+    let mut chain_secrets_config = chain_config.get_secrets_config().await?.patched();
+    chain_secrets_config.insert("l1.gateway_rpc_url", gateway_url)?;
+    chain_secrets_config.save().await?;
 
     let gateway_chain_config = GatewayChainConfig::from_gateway_and_chain_data(
         &gateway_gateway_config,
@@ -378,43 +358,21 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     );
     gateway_chain_config.save_with_base_path(shell, chain_config.configs.clone())?;
 
-    let mut general_config = chain_config.get_general_config().unwrap();
+    let mut general_config = chain_config.get_general_config().await?.patched();
+    general_config.insert_yaml("eth.gas_adjuster.settlement_mode", SettlementMode::Gateway)?;
 
-    let eth_config = general_config.eth.as_mut().context("eth")?;
-
-    eth_config
-        .gas_adjuster
-        .as_mut()
-        .expect("gas_adjuster")
-        .settlement_mode = SettlementMode::Gateway;
     if is_rollup {
-        // For rollups, new type of commitment should be used, but
-        // not for validium.
-        eth_config
-            .sender
-            .as_mut()
-            .expect("sender")
-            .pubdata_sending_mode = PubdataSendingMode::RelayedL2Calldata;
+        // For rollups, new type of commitment should be used, but not for validium.
+        // `PubdataSendingMode` has differing `serde` and file-based config serializations, hence
+        // we supply a raw string value.
+        general_config.insert("eth.sender.pubdata_sending_mode", "RELAYED_L2_CALLDATA")?;
     }
-    eth_config
-        .sender
-        .as_mut()
-        .context("sender")?
-        .wait_confirmations = Some(0);
+    general_config.insert("eth.sender.wait_confirmations", 0)?;
     // TODO(EVM-925): the number below may not always work, especially for large prices on
     // top of Gateway. This field would have to be either not used on GW or transformed into u64.
-    eth_config
-        .sender
-        .as_mut()
-        .expect("sender")
-        .max_aggregated_tx_gas = 4294967295;
-    eth_config
-        .sender
-        .as_mut()
-        .expect("sender")
-        .max_eth_tx_data_size = 550_000;
-
-    general_config.save_with_base_path(shell, chain_config.configs.clone())?;
+    general_config.insert("eth.sender.max_aggregated_tx_gas", 4294967295_u64)?;
+    general_config.insert("eth.sender.max_eth_tx_data_size", 550_000)?;
+    general_config.save().await?;
 
     Ok(())
 }

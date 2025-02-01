@@ -1,12 +1,13 @@
+use std::path::{Path, PathBuf};
+
 use anyhow::Context;
 use xshell::Shell;
 use zkstack_cli_common::{logger, spinner::Spinner};
-use zkstack_cli_config::{get_link_to_prover, EcosystemConfig, GeneralConfig};
+use zkstack_cli_config::{get_link_to_prover, raw::PatchedConfig, EcosystemConfig};
 
 use super::args::compressor_keys::CompressorKeysArgs;
 use crate::messages::{
-    MSG_CHAIN_NOT_FOUND_ERR, MSG_DOWNLOADING_SETUP_COMPRESSOR_KEY_SPINNER,
-    MSG_PROOF_COMPRESSOR_CONFIG_NOT_FOUND_ERR, MSG_SETUP_KEY_PATH_ERROR,
+    MSG_CHAIN_NOT_FOUND_ERR, MSG_DOWNLOADING_SETUP_COMPRESSOR_KEY_SPINNER, MSG_SETUP_KEY_PATH_ERROR,
 };
 
 pub(crate) async fn run(shell: &Shell, args: CompressorKeysArgs) -> anyhow::Result<()> {
@@ -14,7 +15,7 @@ pub(crate) async fn run(shell: &Shell, args: CompressorKeysArgs) -> anyhow::Resu
     let chain_config = ecosystem_config
         .load_current_chain()
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;
-    let mut general_config = chain_config.get_general_config()?;
+    let mut general_config = chain_config.get_general_config().await?.patched();
 
     let default_path = get_default_compressor_keys_path(&ecosystem_config)?;
     let args = args.fill_values_with_prompt(&default_path);
@@ -23,41 +24,29 @@ pub(crate) async fn run(shell: &Shell, args: CompressorKeysArgs) -> anyhow::Resu
 
     download_compressor_key(shell, &mut general_config, &path)?;
 
-    chain_config.save_general_config(&general_config)?;
-
+    general_config.save().await?;
     Ok(())
 }
 
 pub(crate) fn download_compressor_key(
     shell: &Shell,
-    general_config: &mut GeneralConfig,
-    path: &str,
+    general_config: &mut PatchedConfig,
+    path: &Path,
 ) -> anyhow::Result<()> {
     let spinner = Spinner::new(MSG_DOWNLOADING_SETUP_COMPRESSOR_KEY_SPINNER);
-    let mut compressor_config: zksync_config::configs::FriProofCompressorConfig = general_config
-        .proof_compressor_config
-        .as_ref()
-        .expect(MSG_PROOF_COMPRESSOR_CONFIG_NOT_FOUND_ERR)
-        .clone();
 
-    compressor_config.universal_setup_path = path.to_string();
-    general_config.proof_compressor_config = Some(compressor_config.clone());
+    general_config.insert_path("proof_compressor.universal_setup_path", path)?;
 
-    let path = std::path::Path::new(path);
-
-    logger::info(format!(
-        "Downloading setup key by URL: {}",
-        compressor_config.universal_setup_download_url
-    ));
+    let url = general_config
+        .base()
+        .get::<String>("proof_compressor.universal_setup_download_url")?;
+    logger::info(format!("Downloading setup key by URL: {url}"));
 
     let client = reqwest::blocking::Client::builder()
         .timeout(std::time::Duration::from_secs(600))
         .build()?;
 
-    let response = client
-        .get(compressor_config.universal_setup_download_url)
-        .send()?
-        .bytes()?;
+    let response = client.get(url).send()?.bytes()?;
     shell.write_file(path, &response)?;
 
     spinner.finish();
@@ -66,10 +55,7 @@ pub(crate) fn download_compressor_key(
 
 pub fn get_default_compressor_keys_path(
     ecosystem_config: &EcosystemConfig,
-) -> anyhow::Result<String> {
+) -> anyhow::Result<PathBuf> {
     let link_to_prover = get_link_to_prover(ecosystem_config);
-    let path = link_to_prover.join("keys/setup/setup_compact.key");
-    let string = path.to_str().unwrap();
-
-    Ok(String::from(string))
+    Ok(link_to_prover.join("keys/setup/setup_compact.key"))
 }

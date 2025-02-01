@@ -10,28 +10,23 @@ use zkstack_cli_common::{
     spinner::Spinner,
 };
 use zkstack_cli_config::{
-    copy_configs, get_link_to_prover, set_prover_database, traits::SaveConfigWithBasePath,
-    EcosystemConfig,
+    copy_configs, get_link_to_prover, raw::PatchedConfig, set_prover_database, EcosystemConfig,
 };
 use zksync_config::{configs::object_store::ObjectStoreMode, ObjectStoreConfig};
 
 use super::{
-    args::init::{ProofStorageConfig, ProverInitArgs},
-    compressor_keys::download_compressor_key,
+    args::init::{ProofStorageConfig, ProofStorageFileBacked, ProverInitArgs},
+    compressor_keys::{download_compressor_key, get_default_compressor_keys_path},
     gcs::create_gcs_bucket,
     init_bellman_cuda::run as init_bellman_cuda,
     setup_keys,
 };
 use crate::{
-    commands::prover::{
-        args::init::ProofStorageFileBacked, compressor_keys::get_default_compressor_keys_path,
-    },
     consts::{PROVER_MIGRATIONS, PROVER_STORE_MAX_RETRIES},
     messages::{
         MSG_CHAIN_NOT_FOUND_ERR, MSG_FAILED_TO_DROP_PROVER_DATABASE_ERR,
-        MSG_GENERAL_CONFIG_NOT_FOUND_ERR, MSG_INITIALIZING_DATABASES_SPINNER,
-        MSG_INITIALIZING_PROVER_DATABASE, MSG_PROVER_CONFIG_NOT_FOUND_ERR, MSG_PROVER_INITIALIZED,
-        MSG_SETUP_KEY_PATH_ERROR,
+        MSG_INITIALIZING_DATABASES_SPINNER, MSG_INITIALIZING_PROVER_DATABASE,
+        MSG_PROVER_INITIALIZED, MSG_SETUP_KEY_PATH_ERROR,
     },
 };
 
@@ -45,15 +40,16 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;
     let args = args.fill_values_with_prompt(shell, &default_compressor_key_path, &chain_config)?;
 
-    if chain_config.get_general_config().is_err() || chain_config.get_secrets_config().is_err() {
+    if chain_config.get_general_config().await.is_err()
+        || chain_config.get_secrets_config().await.is_err()
+    {
         copy_configs(shell, &ecosystem_config.link_to_code, &chain_config.configs)?;
     }
 
-    let mut general_config = chain_config
-        .get_general_config()
-        .context(MSG_GENERAL_CONFIG_NOT_FOUND_ERR)?;
+    let mut general_config = chain_config.get_general_config().await?.patched();
 
-    let proof_object_store_config = get_object_store_config(shell, Some(args.proof_store))?;
+    let proof_object_store_config =
+        get_object_store_config(shell, Some(args.proof_store))?.unwrap();
     let public_object_store_config = get_object_store_config(shell, args.public_store)?;
 
     if let Some(args) = args.compressor_key_args {
@@ -66,22 +62,23 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
         setup_keys::run(args, shell).await?;
     }
 
-    let mut prover_config = general_config
-        .prover_config
-        .expect(MSG_PROVER_CONFIG_NOT_FOUND_ERR);
-    prover_config
-        .prover_object_store
-        .clone_from(&proof_object_store_config);
+    set_object_store(
+        &mut general_config,
+        "prover.prover_object_store",
+        &proof_object_store_config,
+    )?;
     if let Some(public_object_store_config) = public_object_store_config {
-        prover_config.shall_save_to_public_bucket = true;
-        prover_config.public_object_store = Some(public_object_store_config);
+        general_config.insert("prover.shall_save_to_public_bucket", true)?;
+        set_object_store(
+            &mut general_config,
+            "prover.public_object_store",
+            &public_object_store_config,
+        )?;
     } else {
-        prover_config.shall_save_to_public_bucket = false;
+        general_config.insert("prover.shall_save_to_public_bucket", false)?;
     }
-    prover_config.cloud_type = args.cloud_type;
-    general_config.prover_config = Some(prover_config);
-
-    chain_config.save_general_config(&general_config)?;
+    general_config.insert_yaml("prover.cloud_type", args.cloud_type)?;
+    general_config.save().await?;
 
     if let Some(args) = args.bellman_cuda_config {
         init_bellman_cuda(shell, args).await?;
@@ -90,9 +87,9 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
     if let Some(prover_db) = &args.database_config {
         let spinner = Spinner::new(MSG_INITIALIZING_DATABASES_SPINNER);
 
-        let mut secrets = chain_config.get_secrets_config()?;
+        let mut secrets = chain_config.get_secrets_config().await?.patched();
         set_prover_database(&mut secrets, &prover_db.database_config)?;
-        secrets.save_with_base_path(shell, &chain_config.configs)?;
+        secrets.save().await?;
         initialize_prover_database(
             shell,
             &prover_db.database_config,
@@ -133,6 +130,50 @@ fn get_object_store_config(
     };
 
     Ok(object_store)
+}
+
+fn set_object_store(
+    patch: &mut PatchedConfig,
+    prefix: &str,
+    config: &ObjectStoreConfig,
+) -> anyhow::Result<()> {
+    patch.insert(&format!("{prefix}.max_retries"), config.max_retries)?;
+    match &config.mode {
+        ObjectStoreMode::FileBacked {
+            file_backed_base_path,
+        } => {
+            patch.insert_yaml(
+                &format!("{prefix}.file_backed.file_backed_base_path"),
+                file_backed_base_path,
+            )?;
+        }
+        ObjectStoreMode::GCS { bucket_base_url } => {
+            patch.insert(
+                &format!("{prefix}.gcs.bucket_base_url"),
+                bucket_base_url.clone(),
+            )?;
+        }
+        ObjectStoreMode::GCSWithCredentialFile {
+            bucket_base_url,
+            gcs_credential_file_path,
+        } => {
+            patch.insert(
+                &format!("{prefix}.gcs_with_credential_file.bucket_base_url"),
+                bucket_base_url.clone(),
+            )?;
+            patch.insert(
+                &format!("{prefix}.gcs_with_credential_file.gcs_credential_file_path"),
+                gcs_credential_file_path.clone(),
+            )?;
+        }
+        ObjectStoreMode::GCSAnonymousReadOnly { bucket_base_url } => {
+            patch.insert(
+                &format!("{prefix}.gcs_anonymous_read_only.bucket_base_url"),
+                bucket_base_url.clone(),
+            )?;
+        }
+    }
+    Ok(())
 }
 
 async fn initialize_prover_database(

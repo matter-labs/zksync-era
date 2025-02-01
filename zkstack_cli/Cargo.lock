@@ -629,6 +629,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "ciborium"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "42e69ffd6f0917f5c029256a24d0161db17cea3997d185db0d35926308770f0e"
+dependencies = [
+ "ciborium-io",
+ "ciborium-ll",
+ "serde",
+]
+
+[[package]]
+name = "ciborium-io"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "05afea1e0a06c9be33d539b876f1ce3692f4afea2cb41f740e7743225ed1c757"
+
+[[package]]
+name = "ciborium-ll"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "57663b653d948a338bfb3eeba9bb2fd5fcfaecb9e199e87e1eda4d9e8b240fd9"
+dependencies = [
+ "ciborium-io",
+ "half",
+]
+
+[[package]]
 name = "cipher"
 version = "0.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2141,6 +2168,16 @@ dependencies = [
  "tokio",
  "tokio-util",
  "tracing",
+]
+
+[[package]]
+name = "half"
+version = "2.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6dd08c532ae367adf81c312a4580bc67f1d0fe8bc9c460520283f4c0ff277888"
+dependencies = [
+ "cfg-if",
+ "crunchy",
 ]
 
 [[package]]
@@ -7084,8 +7121,6 @@ dependencies = [
  "zksync_contracts",
  "zksync_eth_client",
  "zksync_protobuf",
- "zksync_protobuf_build",
- "zksync_protobuf_config",
  "zksync_system_constants",
  "zksync_types",
  "zksync_web3_decl",
@@ -7133,6 +7168,7 @@ dependencies = [
  "serde_yaml",
  "strum",
  "thiserror",
+ "tokio",
  "url",
  "xshell",
  "zkstack_cli_common",
@@ -7140,7 +7176,6 @@ dependencies = [
  "zksync_basic_types",
  "zksync_config",
  "zksync_protobuf",
- "zksync_protobuf_config",
  "zksync_system_constants",
 ]
 
@@ -7165,7 +7200,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_basic_types"
-version = "26.1.0-non-semver-compat"
+version = "26.2.1-non-semver-compat"
 dependencies = [
  "anyhow",
  "chrono",
@@ -7205,7 +7240,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_config"
-version = "26.1.0-non-semver-compat"
+version = "26.2.1-non-semver-compat"
 dependencies = [
  "anyhow",
  "rand",
@@ -7274,7 +7309,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_contracts"
-version = "26.1.0-non-semver-compat"
+version = "26.2.1-non-semver-compat"
 dependencies = [
  "envy",
  "hex",
@@ -7287,7 +7322,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_crypto_primitives"
-version = "26.1.0-non-semver-compat"
+version = "26.2.1-non-semver-compat"
 dependencies = [
  "anyhow",
  "blake2",
@@ -7303,7 +7338,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_eth_client"
-version = "26.1.0-non-semver-compat"
+version = "26.2.1-non-semver-compat"
 dependencies = [
  "async-trait",
  "jsonrpsee",
@@ -7320,7 +7355,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_eth_signer"
-version = "26.1.0-non-semver-compat"
+version = "26.2.1-non-semver-compat"
 dependencies = [
  "async-trait",
  "rlp",
@@ -7331,7 +7366,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_mini_merkle_tree"
-version = "26.1.0-non-semver-compat"
+version = "26.2.1-non-semver-compat"
 dependencies = [
  "once_cell",
  "zksync_basic_types",
@@ -7377,28 +7412,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "zksync_protobuf_config"
-version = "26.1.0-non-semver-compat"
-dependencies = [
- "anyhow",
- "hex",
- "prost 0.12.6",
- "rand",
- "secrecy",
- "serde_json",
- "serde_yaml",
- "tracing",
- "zksync_basic_types",
- "zksync_concurrency",
- "zksync_config",
- "zksync_protobuf",
- "zksync_protobuf_build",
- "zksync_types",
-]
-
-[[package]]
 name = "zksync_system_constants"
-version = "26.1.0-non-semver-compat"
+version = "26.2.1-non-semver-compat"
 dependencies = [
  "once_cell",
  "zksync_basic_types",
@@ -7406,13 +7421,14 @@ dependencies = [
 
 [[package]]
 name = "zksync_types"
-version = "26.1.0-non-semver-compat"
+version = "26.2.1-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
  "bigdecimal",
  "blake2",
  "chrono",
+ "ciborium",
  "derive_more",
  "hex",
  "itertools 0.10.5",
@@ -7438,7 +7454,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_utils"
-version = "26.1.0-non-semver-compat"
+version = "26.2.1-non-semver-compat"
 dependencies = [
  "anyhow",
  "futures",
@@ -7453,7 +7469,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_vlog"
-version = "26.1.0-non-semver-compat"
+version = "26.2.1-non-semver-compat"
 dependencies = [
  "anyhow",
  "chrono",
@@ -7478,7 +7494,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_web3_decl"
-version = "26.1.0-non-semver-compat"
+version = "26.2.1-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",

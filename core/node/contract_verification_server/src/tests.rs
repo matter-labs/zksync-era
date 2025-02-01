@@ -13,7 +13,7 @@ use zksync_dal::{Connection, Core, CoreDal};
 use zksync_node_test_utils::create_l2_block;
 use zksync_types::{
     bytecode::{BytecodeHash, BytecodeMarker},
-    contract_verification_api::CompilerVersions,
+    contract_verification::api::CompilerVersions,
     get_code_key, Address, L2BlockNumber, ProtocolVersion, StorageLog,
 };
 
