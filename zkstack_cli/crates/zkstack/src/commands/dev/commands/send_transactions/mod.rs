@@ -9,12 +9,12 @@ use std::{
 use anyhow::Context;
 use args::SendTransactionsArgs;
 use chrono::Local;
-use common::{ethereum::create_ethers_client, logger};
-use config::EcosystemConfig;
 use ethers::{abi::Bytes, providers::Middleware, types::TransactionRequest, utils::hex};
 use serde::Deserialize;
 use tokio::time::sleep;
 use xshell::Shell;
+use zkstack_cli_common::{ethereum::create_ethers_client, logger};
+use zkstack_cli_config::EcosystemConfig;
 use zksync_basic_types::{H160, U256};
 
 use crate::commands::dev::{

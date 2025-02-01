@@ -23,7 +23,11 @@ use zksync_types::{
     api, commitment::L1BatchCommitmentMode, l2::L2Tx, transaction_request::CallRequest, Address,
     L1BatchNumber, L1ChainId, L2BlockNumber, L2ChainId, H256, U256, U64,
 };
-use zksync_web3_decl::{error::Web3Error, types::Filter};
+use zksync_web3_decl::{
+    client::{DynClient, L2},
+    error::Web3Error,
+    types::Filter,
+};
 
 use super::{
     backend_jsonrpsee::MethodTracer,
@@ -103,6 +107,8 @@ pub struct InternalApiConfig {
     pub estimate_gas_acceptable_overestimation: u32,
     pub estimate_gas_optimize_search: bool,
     pub bridge_addresses: api::BridgeAddresses,
+    pub l1_bytecodes_supplier_addr: Option<Address>,
+    pub l1_wrapped_base_token_store: Option<Address>,
     pub l1_bridgehub_proxy_addr: Option<Address>,
     pub l1_state_transition_proxy_addr: Option<Address>,
     pub l1_transparent_proxy_admin_addr: Option<Address>,
@@ -160,6 +166,14 @@ impl InternalApiConfig {
                 .ecosystem_contracts
                 .as_ref()
                 .map(|a| a.transparent_proxy_admin_addr),
+            l1_bytecodes_supplier_addr: contracts_config
+                .ecosystem_contracts
+                .as_ref()
+                .and_then(|a| a.l1_bytecodes_supplier_addr),
+            l1_wrapped_base_token_store: contracts_config
+                .ecosystem_contracts
+                .as_ref()
+                .and_then(|a| a.l1_wrapped_base_token_store),
             l1_diamond_proxy_addr: contracts_config.diamond_proxy_addr,
             l2_testnet_paymaster_addr: contracts_config.l2_testnet_paymaster_addr,
             req_entities_limit: web3_config.req_entities_limit(),
@@ -223,6 +237,15 @@ impl BridgeAddressesHandle {
         *self.0.write().await = bridge_addresses;
     }
 
+    pub async fn update_l1_shared_bridge(&self, l1_shared_bridge: Address) {
+        self.0.write().await.l1_shared_default_bridge = Some(l1_shared_bridge);
+    }
+
+    pub async fn update_l2_bridges(&self, l2_shared_bridge: Address) {
+        self.0.write().await.l2_shared_default_bridge = Some(l2_shared_bridge);
+        self.0.write().await.l2_erc20_default_bridge = Some(l2_shared_bridge);
+    }
+
     pub async fn read(&self) -> api::BridgeAddresses {
         self.0.read().await.clone()
     }
@@ -244,6 +267,7 @@ pub(crate) struct RpcState {
     pub(super) mempool_cache: Option<MempoolCache>,
     pub(super) last_sealed_l2_block: SealedL2BlockNumber,
     pub(super) bridge_addresses_handle: BridgeAddressesHandle,
+    pub(super) l2_l1_log_proof_handler: Option<Box<DynClient<L2>>>,
 }
 
 impl RpcState {

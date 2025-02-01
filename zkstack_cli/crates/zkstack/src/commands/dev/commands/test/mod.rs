@@ -64,6 +64,6 @@ pub async fn run(shell: &Shell, args: TestCommands) -> anyhow::Result<()> {
         TestCommands::L1Contracts => l1_contracts::run(shell),
         TestCommands::Prover => prover::run(shell).await,
         TestCommands::Wallet => wallet::run(shell),
-        TestCommands::Loadtest => loadtest::run(shell),
+        TestCommands::Loadtest => loadtest::run(shell).await,
     }
 }

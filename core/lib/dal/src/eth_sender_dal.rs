@@ -41,9 +41,9 @@ impl EthSenderDal<'_, '_> {
                 from_addr IS NOT DISTINCT FROM $1 -- can't just use equality as NULL != NULL
                 AND confirmed_eth_tx_history_id IS NULL
                 AND is_gateway = $2
-                AND id <= (
-                    SELECT
-                        COALESCE(MAX(eth_tx_id), 0)
+                AND id <= COALESCE(
+                    (SELECT
+                        eth_tx_id
                     FROM
                         eth_txs_history
                     JOIN eth_txs ON eth_txs.id = eth_txs_history.eth_tx_id
@@ -51,6 +51,8 @@ impl EthSenderDal<'_, '_> {
                         eth_txs_history.sent_at_block IS NOT NULL
                         AND eth_txs.from_addr IS NOT DISTINCT FROM $1
                         AND is_gateway = $2
+                    ORDER BY eth_tx_id DESC LIMIT 1),
+                    0
                 )
             ORDER BY
                 id
@@ -78,6 +80,25 @@ impl EthSenderDal<'_, '_> {
             "#
         )
         .fetch_one(self.storage.conn())
+        .await?
+        .count
+        .unwrap();
+        Ok(count.try_into().unwrap())
+    }
+
+    pub async fn get_unconfirmed_txs_count(&mut self) -> DalResult<usize> {
+        let count = sqlx::query!(
+            r#"
+            SELECT
+                COUNT(*)
+            FROM
+                eth_txs
+            WHERE
+                confirmed_eth_tx_history_id IS NULL
+            "#
+        )
+        .instrument("get_unconfirmed_txs_count")
+        .fetch_one(self.storage)
         .await?
         .count
         .unwrap();
@@ -172,9 +193,9 @@ impl EthSenderDal<'_, '_> {
             WHERE
                 from_addr IS NOT DISTINCT FROM $2 -- can't just use equality as NULL != NULL
                 AND is_gateway = $3
-                AND id > (
-                    SELECT
-                        COALESCE(MAX(eth_tx_id), 0)
+                AND id > COALESCE(
+                    (SELECT
+                        eth_tx_id
                     FROM
                         eth_txs_history
                     JOIN eth_txs ON eth_txs.id = eth_txs_history.eth_tx_id
@@ -182,6 +203,8 @@ impl EthSenderDal<'_, '_> {
                         eth_txs_history.sent_at_block IS NOT NULL
                         AND eth_txs.from_addr IS NOT DISTINCT FROM $2
                         AND is_gateway = $3
+                    ORDER BY eth_tx_id DESC LIMIT 1),
+                    0
                 )
             ORDER BY
                 id
@@ -439,6 +462,27 @@ impl EthSenderDal<'_, '_> {
             i64::from(batch_number.0),
         )
         .instrument("get_batch_commit_chain_id")
+        .with_arg("batch_number", &batch_number)
+        .fetch_optional(self.storage)
+        .await?;
+        Ok(row.and_then(|r| r.chain_id).map(|id| SLChainId(id as u64)))
+    }
+
+    pub async fn get_batch_execute_chain_id(
+        &mut self,
+        batch_number: L1BatchNumber,
+    ) -> DalResult<Option<SLChainId>> {
+        let row = sqlx::query!(
+            r#"
+            SELECT eth_txs.chain_id
+            FROM l1_batches
+            JOIN eth_txs ON eth_txs.id = l1_batches.eth_execute_tx_id
+            WHERE
+                number = $1
+            "#,
+            i64::from(batch_number.0),
+        )
+        .instrument("get_batch_execute_chain_id")
         .with_arg("batch_number", &batch_number)
         .fetch_optional(self.storage)
         .await?;

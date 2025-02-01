@@ -40,6 +40,7 @@ impl Server {
         general_path: P,
         secrets_path: P,
         contracts_path: P,
+        gateway_contracts_config_path: Option<P>,
         mut additional_args: Vec<String>,
     ) -> anyhow::Result<()>
     where
@@ -56,15 +57,26 @@ impl Server {
 
         let uring = self.uring.then_some("--features=rocksdb/io-uring");
 
+        let (gateway_config_param, gateway_config_path) =
+            if let Some(gateway_contracts_config_path) = gateway_contracts_config_path {
+                (
+                    Some("--gateway-contracts-config-path"),
+                    Some(gateway_contracts_config_path),
+                )
+            } else {
+                (None, None)
+            };
+
         let mut cmd = Cmd::new(
             cmd!(
                 shell,
-                "cargo run --release --bin zksync_server {uring...} --
+                "cargo run --manifest-path ./core/Cargo.toml --release --bin zksync_server {uring...} --
                 --genesis-path {genesis_path}
                 --wallets-path {wallets_path}
                 --config-path {general_path}
                 --secrets-path {secrets_path}
                 --contracts-config-path {contracts_path}
+                {gateway_config_param...} {gateway_config_path...}
                 "
             )
             .args(additional_args)
@@ -84,7 +96,7 @@ impl Server {
 
     /// Builds the server.
     pub fn build(&self, shell: &Shell) -> anyhow::Result<()> {
-        let _dir_guard = shell.push_dir(&self.code_path);
+        let _dir_guard = shell.push_dir(self.code_path.join("core"));
         Cmd::new(cmd!(shell, "cargo build --release --bin zksync_server")).run()?;
         Ok(())
     }

@@ -172,6 +172,8 @@ impl MempoolStore {
             .rfind(|el| el.matches_filter(filter))?
             .clone();
 
+        let initial_length = self.stashed_accounts.len();
+
         // Stash all observed transactions that don't meet criteria
         for stashed_pointer in self
             .l2_priority_queue
@@ -187,6 +189,13 @@ impl MempoolStore {
 
             self.stashed_accounts.push(stashed_pointer.account);
         }
+
+        tracing::debug!(
+            "Stashed {} accounts by filter: {:?}",
+            self.stashed_accounts.len() - initial_length,
+            filter
+        );
+
         // insert pointer to the next transaction if it exists
         let (transaction, constraint, score) = self
             .l2_transactions_per_account

@@ -1,6 +1,6 @@
 use anyhow::Context as _;
-use common::{forge::ForgeScript, wallets::Wallet};
 use ethers::types::U256;
+use zkstack_cli_common::{forge::ForgeScript, wallets::Wallet};
 
 use crate::{
     consts::MINIMUM_BALANCE_FOR_WALLET,
@@ -37,7 +37,7 @@ pub async fn check_the_balance(forge: &ForgeScript) -> anyhow::Result<()> {
         if balance >= expected_balance {
             return Ok(());
         }
-        if !common::PromptConfirm::new(msg_address_doesnt_have_enough_money_prompt(
+        if !zkstack_cli_common::PromptConfirm::new(msg_address_doesnt_have_enough_money_prompt(
             &address,
             balance,
             expected_balance,

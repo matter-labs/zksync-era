@@ -126,6 +126,9 @@ pub struct ConsensusConfig {
     /// Maximal allowed size of the payload in bytes.
     pub max_payload_size: usize,
 
+    /// View timeout duration in milliseconds.
+    pub view_timeout: Option<time::Duration>,
+
     /// Maximal allowed size of the sync-batch payloads in bytes.
     ///
     /// The batch consists of block payloads and a Merkle proof of inclusion on L1 (~1kB),
@@ -155,6 +158,10 @@ pub struct ConsensusConfig {
 }
 
 impl ConsensusConfig {
+    pub fn view_timeout(&self) -> time::Duration {
+        self.view_timeout.unwrap_or(time::Duration::seconds(2))
+    }
+
     pub fn rpc(&self) -> RpcConfig {
         self.rpc.clone().unwrap_or_default()
     }

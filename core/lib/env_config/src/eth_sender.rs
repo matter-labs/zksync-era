@@ -61,7 +61,6 @@ mod tests {
                     aggregated_block_execute_deadline: 4_000,
                     max_aggregated_tx_gas: 4_000_000,
                     max_eth_tx_data_size: 120_000,
-
                     timestamp_criteria_max_allowed_lag: 30,
                     max_aggregated_blocks_to_commit: 3,
                     max_aggregated_blocks_to_execute: 4,
@@ -76,6 +75,7 @@ mod tests {
                     tx_aggregation_only_prove_and_execute: false,
                     tx_aggregation_paused: false,
                     time_in_mempool_in_l1_blocks_cap: 2000,
+                    is_verifier_pre_fflonk: true,
                 }),
                 gas_adjuster: Some(GasAdjusterConfig {
                     default_priority_fee_per_gas: 20000000000,
@@ -139,6 +139,7 @@ mod tests {
             ETH_SENDER_SENDER_L1_BATCH_MIN_AGE_BEFORE_EXECUTE_SECONDS="1000"
             ETH_SENDER_SENDER_MAX_ACCEPTABLE_PRIORITY_FEE_IN_GWEI="100000000000"
             ETH_SENDER_SENDER_PUBDATA_SENDING_MODE="Calldata"
+            ETH_SENDER_SENDER_is_verifier_pre_fflonk="true"
             ETH_WATCH_CONFIRMATIONS_FOR_ETH_EVENT="0"
             ETH_WATCH_ETH_NODE_POLL_INTERVAL="300"
             ETH_CLIENT_WEB3_URL="http://127.0.0.1:8545"

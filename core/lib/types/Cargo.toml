@@ -19,6 +19,7 @@ zksync_mini_merkle_tree.workspace = true
 zksync_protobuf.workspace = true
 zksync_crypto_primitives.workspace = true
 
+async-trait.workspace = true
 anyhow.workspace = true
 chrono = { workspace = true, features = ["serde"] }
 derive_more = { workspace = true, features = ["debug"] }
@@ -28,6 +29,7 @@ rlp.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 serde_with = { workspace = true, features = ["hex"] }
+ciborium.workspace = true
 bigdecimal.workspace = true
 strum = { workspace = true, features = ["derive"] }
 thiserror.workspace = true

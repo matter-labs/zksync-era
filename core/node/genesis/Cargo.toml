@@ -26,3 +26,4 @@ anyhow.workspace = true
 itertools.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
+bincode.workspace = true

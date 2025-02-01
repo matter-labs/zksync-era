@@ -1,21 +1,13 @@
 # Decentralization
 
-In the default setup, the ZKsync node will fetch data from the ZKsync API endpoint maintained by Matter Labs. To reduce
-the reliance on this centralized endpoint we have developed a decentralized p2p networking stack (aka gossipnet) which
-will eventually be used instead of ZKsync API for synchronizing data.
+In the default setup, the Node will fetch data from the ZKsync API endpoint maintained by Matter Labs. To reduce the
+reliance on this centralized endpoint we have developed a decentralized p2p networking stack (aka gossipnet) which will
+eventually be used instead of ZKsync API for synchronizing data.
 
 On the gossipnet, the data integrity will be protected by the BFT (byzantine fault-tolerant) consensus algorithm
 (currently data is signed just by the main node though).
 
 ## Enabling gossipnet on your node
-
-> [!NOTE]
->
-> Because the data transmitted over the gossipnet is signed by the main node (and eventually by the consensus quorum),
-> the signatures need to be backfilled to the node's local storage the first time you switch from centralized (ZKsync
-> API based) synchronization to the decentralized (gossipnet based) synchronization (this is a one-time thing). With the
-> current implementation it may take a couple of hours and gets faster the more nodes you add to the
-> `gossip_static_outbound` list (see below). We are working to remove this inconvenience.
 
 > [!NOTE]
 >
@@ -43,9 +35,9 @@ chmod 600 consensus_secrets.yaml
 ### Preparing configuration file
 
 Copy the template of the consensus configuration file (for
-[mainnet](https://github.com/matter-labs/zksync-era/blob/main/docs/guides/external-node/prepared_configs/mainnet_consensus_config.yaml)
+[mainnet](https://github.com/matter-labs/zksync-era/blob/main/docs/src/guides/external-node/prepared_configs/mainnet_consensus_config.yaml)
 or
-[testnet](https://github.com/matter-labs/zksync-era/blob/main/docs/guides/external-node/prepared_configs/testnet_consensus_config.yaml)
+[testnet](https://github.com/matter-labs/zksync-era/blob/main/docs/src/guides/external-node/prepared_configs/testnet_consensus_config.yaml)
 ).
 
 > [!NOTE]
@@ -65,9 +57,6 @@ for more details):
   your node from getting DoS`ed by too large network messages. Use the value from the template.
 - `gossip_dynamic_inbound_limit` - maximal number of unauthenticated concurrent inbound connections that can be
   established to your node. This is a DDoS protection measure.
-- `gossip_static_outbound` - list of trusted peers that your node should always try to connect to. The template contains
-  the nodes maintained by Matterlabs, but you can add more if you know any. Note that the list contains both the network
-  address AND the public key of the node - this prevents spoofing attacks.
 
 ### Setting environment variables
 

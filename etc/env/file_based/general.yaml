@@ -41,7 +41,7 @@ api:
     estimate_gas_scale_factor: 1.3
     estimate_gas_acceptable_overestimation: 5000
     max_tx_size: 1000000
-    api_namespaces: [ en,eth,net,web3,zks,pubsub,debug ]
+    api_namespaces: [ en,eth,net,web3,zks,pubsub,debug,unstable ]
 state_keeper:
   transaction_slots: 8192
   max_allowed_l2_tx_gas_limit: 15000000000
@@ -104,6 +104,7 @@ eth:
     max_aggregated_tx_gas: 15000000
     max_acceptable_priority_fee_in_gwei: 100000000000 # typo: value is in wei (100 gwei)
     pubdata_sending_mode: BLOBS
+    is_verifier_pre_fflonk: true
   gas_adjuster:
     default_priority_fee_per_gas: 1000000000
     max_base_fee_samples: 100
@@ -175,15 +176,17 @@ prover_gateway:
   prometheus_pushgateway_url: http://127.0.0.1:9091
   prometheus_push_interval_ms: 100
 proof_compressor:
-  compression_mode: 1
+  compression_mode: 5
   prometheus_listener_port: 3321
   prometheus_pushgateway_url: http://127.0.0.1:9091
   prometheus_push_interval_ms: 100
   generation_timeout_in_secs: 3600
   max_attempts: 5
-  universal_setup_path: keys/setup/setup_2^24.key
-  universal_setup_download_url: https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2^24.key
+  universal_setup_path: keys/setup/setup_compact.key
+  universal_setup_download_url: https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_compact.key
   verify_wrapper_proof: true
+  universal_fflonk_setup_path: keys/setup/setup_fflonk_compact.key
+  universal_fflonk_setup_download_url: https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_fflonk_compact.key
 prover_group:
   group_0:
     - circuit_id: 1
@@ -356,7 +359,7 @@ pruning:
   enabled: true
   chunk_size: 10
   removal_delay_sec: 60
-  data_retention_sec: 3600
+  data_retention_sec: 604800
 
 commitment_generator:
   max_parallelism: 10
