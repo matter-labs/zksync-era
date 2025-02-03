@@ -195,7 +195,10 @@ async fn initial_estimate_for_expensive_contract(write_count: usize) {
     let tx = alice.create_expensive_tx(write_count);
 
     let metrics = test_initial_estimate(state_override.clone(), tx, DEFAULT_MULTIPLIER).await;
-    assert!(metrics.initial_storage_writes >= write_count, "{metrics:?}");
+    assert!(
+        metrics.writes.initial_storage_writes >= write_count,
+        "{metrics:?}"
+    );
 
     let array_start = U256::from_big_endian(&keccak256(&[0_u8; 32]));
     let contract_logs = (0..write_count as u64)
@@ -253,7 +256,7 @@ async fn initial_estimate_for_code_oracle_tx() {
         println!("Testing bytecode: {hash:?}");
         let tx = alice.create_code_oracle_tx(hash, keccak_hash);
         let metrics = test_initial_estimate(state_override.clone(), tx, DEFAULT_MULTIPLIER).await;
-        let stats = &metrics.circuit_statistic;
+        let stats = &metrics.vm.circuit_statistic;
         decomitter_stats = stats.code_decommitter.max(decomitter_stats);
     }
     assert!(decomitter_stats > 0.0);
@@ -262,7 +265,7 @@ async fn initial_estimate_for_code_oracle_tx() {
     let tx = alice.create_code_oracle_tx(huge_contract_bytecode_hash, huge_contract_keccak_hash);
     let metrics = test_initial_estimate(state_override, tx, 1.05).await;
     // Sanity check: the transaction should spend significantly more on decommitment compared to previous ones
-    let new_decomitter_stats = metrics.circuit_statistic.code_decommitter;
+    let new_decomitter_stats = metrics.vm.circuit_statistic.code_decommitter;
     assert!(
         new_decomitter_stats > decomitter_stats * 1.5,
         "old={decomitter_stats}, new={new_decomitter_stats}"

@@ -4,7 +4,9 @@ use vise::{
     Buckets, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, LatencyObserver, Metrics,
 };
 use zksync_multivm::{
-    interface::{TransactionExecutionMetrics, VmEvent, VmExecutionResultAndLogs},
+    interface::{
+        TransactionExecutionMetrics, VmEvent, VmExecutionMetrics, VmExecutionResultAndLogs,
+    },
     utils::StorageWritesDeduplicator,
 };
 use zksync_types::{bytecode::BytecodeHash, H256};
@@ -135,7 +137,7 @@ pub(super) fn collect_tx_execution_metrics(
     contracts_deployed: u16,
     result: &VmExecutionResultAndLogs,
 ) -> TransactionExecutionMetrics {
-    let writes_metrics = StorageWritesDeduplicator::apply_on_empty_state(&result.logs.storage_logs);
+    let writes = StorageWritesDeduplicator::apply_on_empty_state(&result.logs.storage_logs);
     let l2_l1_long_messages = VmEvent::extract_long_l2_to_l1_messages(&result.logs.events)
         .iter()
         .map(|event| event.len())
@@ -150,23 +152,24 @@ pub(super) fn collect_tx_execution_metrics(
         .sum();
 
     TransactionExecutionMetrics {
-        initial_storage_writes: writes_metrics.initial_storage_writes,
-        repeated_storage_writes: writes_metrics.repeated_storage_writes,
-        gas_used: result.statistics.gas_used as usize,
+        writes,
+        vm: VmExecutionMetrics {
+            gas_used: result.statistics.gas_used as usize,
+            published_bytecode_bytes,
+            l2_l1_long_messages,
+            l2_to_l1_logs: result.logs.total_l2_to_l1_logs_count(),
+            user_l2_to_l1_logs: result.logs.user_l2_to_l1_logs.len(),
+            contracts_used: result.statistics.contracts_used,
+            contracts_deployed,
+            vm_events: result.logs.events.len(),
+            storage_logs: result.logs.storage_logs.len(),
+            total_log_queries: result.statistics.total_log_queries,
+            cycles_used: result.statistics.cycles_used,
+            computational_gas_used: result.statistics.computational_gas_used,
+            pubdata_published: result.statistics.pubdata_published,
+            circuit_statistic: result.statistics.circuit_statistic,
+        },
         gas_remaining: result.statistics.gas_remaining,
-        published_bytecode_bytes,
-        l2_l1_long_messages,
-        l2_l1_logs: result.logs.total_l2_to_l1_logs_count(),
-        user_l2_l1_logs: result.logs.user_l2_to_l1_logs.len(),
-        contracts_used: result.statistics.contracts_used,
-        contracts_deployed,
-        vm_events: result.logs.events.len(),
-        storage_logs: result.logs.storage_logs.len(),
-        total_log_queries: result.statistics.total_log_queries,
-        cycles_used: result.statistics.cycles_used,
-        computational_gas_used: result.statistics.computational_gas_used,
-        total_updated_values_size: writes_metrics.total_updated_values_size,
-        pubdata_published: result.statistics.pubdata_published,
-        circuit_statistic: result.statistics.circuit_statistic,
+        gas_refunded: result.refunds.gas_refunded,
     }
 }

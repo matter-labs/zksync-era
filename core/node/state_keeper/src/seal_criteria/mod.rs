@@ -166,14 +166,12 @@ impl SealData {
     /// performed by the transaction are initial.
     pub fn for_transaction(
         transaction: &Transaction,
-        tx_metrics: &TransactionExecutionMetrics,
+        tx_metrics: TransactionExecutionMetrics,
     ) -> Self {
-        let execution_metrics = VmExecutionMetrics::from_tx_metrics(tx_metrics);
-        let writes_metrics = DeduplicatedWritesMetrics::from_tx_metrics(tx_metrics);
         Self {
-            execution_metrics,
+            execution_metrics: tx_metrics.vm,
             cumulative_size: transaction.bootloader_encoding_size(),
-            writes_metrics,
+            writes_metrics: tx_metrics.writes,
             gas_remaining: tx_metrics.gas_remaining,
         }
     }

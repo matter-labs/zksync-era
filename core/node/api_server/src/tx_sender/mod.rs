@@ -381,7 +381,7 @@ impl TxSender {
         }
         let mut stage_latency =
             SANDBOX_METRICS.start_tx_submit_stage(tx_hash, SubmitTxStage::DbInsert);
-        self.ensure_tx_executable(&tx.clone().into(), &execution_output.metrics, true)?;
+        self.ensure_tx_executable(&tx.clone().into(), execution_output.metrics, true)?;
 
         let validation_traces = validation_result?;
         let submission_res_handle = self
@@ -658,7 +658,7 @@ impl TxSender {
     fn ensure_tx_executable(
         &self,
         transaction: &Transaction,
-        tx_metrics: &TransactionExecutionMetrics,
+        tx_metrics: TransactionExecutionMetrics,
         log_message: bool,
     ) -> Result<(), SubmitTxError> {
         // Hash is not computable for the provided `transaction` during gas estimation (it doesn't have

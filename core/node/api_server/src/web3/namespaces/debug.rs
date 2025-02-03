@@ -335,7 +335,7 @@ impl DebugNamespace {
         };
         let call = Call::new_high_level(
             call.common_data.fee.gas_limit.as_u64(),
-            result.metrics.gas_used as u64,
+            result.metrics.vm.gas_used as u64,
             call.execute.value,
             call.execute.calldata,
             output,

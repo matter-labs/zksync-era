@@ -398,13 +398,12 @@ impl<'a> GasEstimator<'a> {
 
             // It is assumed that there is no overflow here
             let gas_charged_for_pubdata =
-                u64::from(metrics.pubdata_published) * self.gas_per_pubdata_byte;
+                u64::from(metrics.vm.pubdata_published) * self.gas_per_pubdata_byte;
 
-            let gas_refunded = 0; // FIXME: result.refunds.gas_refunded
-            let total_gas_charged = self.max_gas_limit.checked_sub(gas_refunded);
+            let total_gas_charged = self.max_gas_limit.checked_sub(metrics.gas_refunded);
             Ok(InitialGasEstimate {
                 total_gas_charged,
-                computational_gas_used: Some(metrics.computational_gas_used.into()),
+                computational_gas_used: Some(metrics.vm.computational_gas_used.into()),
                 operator_overhead,
                 gas_charged_for_pubdata,
             })
@@ -488,7 +487,7 @@ impl<'a> GasEstimator<'a> {
         let (result, tx_metrics) = self.step(suggested_gas_limit).await?;
         result.into_api_call_result()?;
         self.sender
-            .ensure_tx_executable(&self.transaction, &tx_metrics, false)?;
+            .ensure_tx_executable(&self.transaction, tx_metrics, false)?;
 
         // Now, we need to calculate the final overhead for the transaction.
         let overhead = derive_overhead(
@@ -518,7 +517,8 @@ impl<'a> GasEstimator<'a> {
             }
         };
 
-        let gas_for_pubdata = u64::from(tx_metrics.pubdata_published) * self.gas_per_pubdata_byte;
+        let gas_for_pubdata =
+            u64::from(tx_metrics.vm.pubdata_published) * self.gas_per_pubdata_byte;
         let estimated_gas_for_pubdata =
             (gas_for_pubdata as f64 * estimated_fee_scale_factor) as u64;
 
