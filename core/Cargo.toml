@@ -222,7 +222,7 @@ tonic = { version = "0.11.0", default-features = false }
 pbjson-types = "0.6.0"
 
 # Eigen
-eigenda-client-rs = {git = "https://github.com/lambdaclass/eigenda-client-rs", branch = "m0-implementation", package = "eigen-client"} # TODO: Change for crate.io when published
+eigenda-client-rs = {git = "https://github.com/lambdaclass/eigenda-client-rs", branch = "change-inclusion-data-format", package = "eigen-client"} # TODO: Change for crate.io when published
 
 # Here and below:
 # We *always* pin the latest version of protocol to disallow accidental changes in the execution logic.
