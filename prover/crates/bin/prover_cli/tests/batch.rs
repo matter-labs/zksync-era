@@ -221,12 +221,12 @@ async fn insert_bwg_job(
     connection: &mut Connection<'_, Prover>,
 ) {
     connection
-        .fri_witness_generator_dal()
+        .fri_basic_witness_generator_dal()
         .save_witness_inputs(batch_number, "", ProtocolSemanticVersion::default())
         .await;
     connection
-        .fri_witness_generator_dal()
-        .mark_witness_job(status, batch_number)
+        .fri_basic_witness_generator_dal()
+        .set_status_for_basic_witness_job(status, batch_number)
         .await;
 }
 
