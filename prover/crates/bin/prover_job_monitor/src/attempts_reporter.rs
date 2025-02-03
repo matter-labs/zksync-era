@@ -32,10 +32,10 @@ impl ProverJobAttemptsReporter {
                     .await;
                 PROVER_JOB_MONITOR_METRICS.reached_max_attempts[&JobType::BasicWitnessGenerator]
                     .set(jobs.len() as i64);
-                if jobs.len() > 0 {
+                if !jobs.is_empty() {
                     tracing::warn!(
                         "Basic witness generator jobs reached max attempts: {:?}",
-                        jobs
+                        jobs.len()
                     );
                 }
             }
@@ -46,10 +46,10 @@ impl ProverJobAttemptsReporter {
                     .await;
                 PROVER_JOB_MONITOR_METRICS.reached_max_attempts[&JobType::LeafWitnessGenerator]
                     .set(jobs.len() as i64);
-                if jobs.len() > 0 {
+                if !jobs.is_empty() {
                     tracing::warn!(
                         "Leaf witness generator jobs reached max attempts: {:?}",
-                        jobs
+                        jobs.len()
                     );
                 }
             }
@@ -60,10 +60,10 @@ impl ProverJobAttemptsReporter {
                     .await;
                 PROVER_JOB_MONITOR_METRICS.reached_max_attempts[&JobType::NodeWitnessGenerator]
                     .set(jobs.len() as i64);
-                if jobs.len() > 0 {
+                if !jobs.is_empty() {
                     tracing::warn!(
                         "Node witness generator jobs reached max attempts: {:?}",
-                        jobs
+                        jobs.len()
                     );
                 }
             }
@@ -75,10 +75,10 @@ impl ProverJobAttemptsReporter {
                 PROVER_JOB_MONITOR_METRICS.reached_max_attempts
                     [&JobType::RecursionTipWitnessGenerator]
                     .set(jobs.len() as i64);
-                if jobs.len() > 0 {
+                if !jobs.is_empty() {
                     tracing::warn!(
                         "Recursion Tip witness generator jobs reached max attempts: {:?}",
-                        jobs
+                        jobs.len()
                     );
                 }
             }
@@ -90,10 +90,10 @@ impl ProverJobAttemptsReporter {
                 PROVER_JOB_MONITOR_METRICS.reached_max_attempts
                     [&JobType::SchedulerWitnessGenerator]
                     .set(jobs.len() as i64);
-                if jobs.len() > 0 {
+                if !jobs.is_empty() {
                     tracing::warn!(
                         "Scheduler witness generator jobs reached max attempts: {:?}",
-                        jobs
+                        jobs.len()
                     );
                 }
             }
@@ -112,8 +112,8 @@ impl ProverJobAttemptsReporter {
             .check_reached_max_attempts(max_attempts)
             .await;
         PROVER_JOB_MONITOR_METRICS.reached_max_attempts[&JobType::ProverFri].set(jobs.len() as i64);
-        if jobs.len() > 0 {
-            tracing::warn!("Prover jobs reached max attempts: {:?}", jobs);
+        if !jobs.is_empty() {
+            tracing::warn!("Prover jobs reached max attempts: {:?}", jobs.len());
         }
 
         Ok(())
@@ -130,8 +130,11 @@ impl ProverJobAttemptsReporter {
             .await;
         PROVER_JOB_MONITOR_METRICS.reached_max_attempts[&JobType::ProofCompressor]
             .set(jobs.len() as i64);
-        if jobs.len() > 0 {
-            tracing::warn!("Proof compressor jobs reached max attempts: {:?}", jobs);
+        if !jobs.is_empty() {
+            tracing::warn!(
+                "Proof compressor jobs reached max attempts: {:?}",
+                jobs.len()
+            );
         }
 
         Ok(())
