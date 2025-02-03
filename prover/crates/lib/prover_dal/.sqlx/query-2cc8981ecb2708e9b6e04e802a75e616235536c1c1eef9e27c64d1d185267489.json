@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT l1_batch_number\n            FROM proof_compression_jobs_fri\n            WHERE\n                attempts >= $1\n                AND status <> 'successful'\n                AND status <> 'sent_to_server'\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "l1_batch_number",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int2"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "2cc8981ecb2708e9b6e04e802a75e616235536c1c1eef9e27c64d1d185267489"
+}

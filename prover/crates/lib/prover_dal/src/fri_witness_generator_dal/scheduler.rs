@@ -299,4 +299,23 @@ impl FriSchedulerWitnessGeneratorDal<'_, '_> {
         .await
         .unwrap();
     }
+
+    pub async fn check_reached_max_attempts(&mut self, max_attempts: u32) -> Vec<L1BatchNumber> {
+        sqlx::query!(
+            r#"
+            SELECT l1_batch_number
+            FROM scheduler_witness_jobs_fri
+            WHERE
+                attempts >= $1
+                AND status <> 'successful'
+            "#,
+            max_attempts as i64
+        )
+        .fetch_all(self.storage.conn())
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|row| L1BatchNumber(row.l1_batch_number as u32))
+        .collect()
+    }
 }

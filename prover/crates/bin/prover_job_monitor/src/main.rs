@@ -1,4 +1,4 @@
-use std::{future::IntoFuture, net::SocketAddr};
+use std::{future::IntoFuture, net::SocketAddr, time::Duration};
 
 use anyhow::Context as _;
 use clap::Parser;
@@ -14,6 +14,7 @@ use zksync_core_leftovers::temp_config_store::{load_database_secrets, load_gener
 use zksync_prover_dal::{ConnectionPool, Prover};
 use zksync_prover_job_monitor::{
     archiver::{GpuProverArchiver, ProverJobsArchiver},
+    attempts_reporter::ProverJobAttemptsReporter,
     autoscaler_queue_reporter::get_queue_reporter_router,
     job_requeuer::{ProofCompressorJobRequeuer, ProverJobRequeuer, WitnessGeneratorJobRequeuer},
     queue_reporter::{
@@ -218,6 +219,17 @@ fn get_tasks(
         "WitnessJobQueuer",
         prover_job_monitor_config.witness_job_queuer_run_interval(),
         witness_job_queuer,
+    );
+
+    let attempts_reporter = ProverJobAttemptsReporter {
+        prover_config: prover_config.clone(),
+        witness_generator_config: witness_generator_config.clone(),
+        compressor_config: proof_compressor_config.clone(),
+    };
+    task_runner.add(
+        "ProverJobAttemptsReporter",
+        Duration::from_millis(ProverJobMonitorConfig::default_attempts_reporter_run_interval_ms()),
+        attempts_reporter,
     );
 
     Ok(task_runner.spawn(stop_receiver))

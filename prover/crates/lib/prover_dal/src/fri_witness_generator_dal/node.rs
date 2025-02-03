@@ -360,4 +360,23 @@ impl FriNodeWitnessGeneratorDal<'_, '_> {
         })
         .collect()
     }
+
+    pub async fn check_reached_max_attempts(&mut self, max_attempts: u32) -> Vec<u32> {
+        sqlx::query!(
+            r#"
+            SELECT id
+            FROM node_aggregation_witness_jobs_fri
+            WHERE
+                attempts >= $1
+                AND status <> 'successful'
+            "#,
+            max_attempts as i64
+        )
+        .fetch_all(self.storage.conn())
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|row| row.id as u32)
+        .collect()
+    }
 }
