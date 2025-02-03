@@ -1,4 +1,4 @@
-use chrono::NaiveDateTime;
+use chrono::{DateTime, NaiveDateTime, Utc};
 use zksync_types::{pubdata_da::DataAvailabilityBlob, L1BatchNumber};
 
 /// Represents a blob in the data availability layer.
@@ -26,4 +26,5 @@ impl From<StorageDABlob> for DataAvailabilityBlob {
 pub struct L1BatchDA {
     pub pubdata: Vec<u8>,
     pub l1_batch_number: L1BatchNumber,
+    pub sealed_at: DateTime<Utc>,
 }

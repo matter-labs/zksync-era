@@ -277,7 +277,6 @@ impl<'a> Connection<'a> {
                 first_block: txn.next_block(ctx).await.context("next_block()")?,
                 protocol_version: spec.protocol_version,
                 validators: spec.validators.clone(),
-                attesters: spec.attesters.clone(),
                 leader_selection: spec.leader_selection.clone(),
             }
             .with_hash(),

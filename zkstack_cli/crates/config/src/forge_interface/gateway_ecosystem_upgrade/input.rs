@@ -3,8 +3,9 @@ use serde::{Deserialize, Serialize};
 use zksync_basic_types::L2ChainId;
 
 use crate::{
-    forge_interface::deploy_ecosystem::input::InitialDeploymentConfig, traits::ZkStackConfig,
-    ContractsConfig, GenesisConfig,
+    forge_interface::deploy_ecosystem::input::{GenesisInput, InitialDeploymentConfig},
+    traits::ZkStackConfig,
+    ContractsConfig,
 };
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -21,7 +22,7 @@ impl ZkStackConfig for GatewayEcosystemUpgradeInput {}
 
 impl GatewayEcosystemUpgradeInput {
     pub fn new(
-        new_genesis_config: &GenesisConfig,
+        new_genesis_input: &GenesisInput,
         current_contracts_config: &ContractsConfig,
         // It is expected to not change between the versions
         initial_deployment_config: &InitialDeploymentConfig,
@@ -48,16 +49,16 @@ impl GatewayEcosystemUpgradeInput {
                     .diamond_init_max_pubdata_per_batch,
                 diamond_init_minimal_l2_gas_price: initial_deployment_config
                     .diamond_init_minimal_l2_gas_price,
-                bootloader_hash: new_genesis_config.bootloader_hash.unwrap(),
-                default_aa_hash: new_genesis_config.default_aa_hash.unwrap(),
+                bootloader_hash: new_genesis_input.bootloader_hash,
+                default_aa_hash: new_genesis_input.default_aa_hash,
                 diamond_init_priority_tx_max_pubdata: initial_deployment_config
                     .diamond_init_priority_tx_max_pubdata,
                 diamond_init_pubdata_pricing_mode: initial_deployment_config
                     .diamond_init_pubdata_pricing_mode,
                 // These values are not optional in genesis config with file based configuration
-                genesis_batch_commitment: new_genesis_config.genesis_commitment.unwrap(),
-                genesis_rollup_leaf_index: new_genesis_config.rollup_last_leaf_index.unwrap(),
-                genesis_root: new_genesis_config.genesis_root_hash.unwrap(),
+                genesis_batch_commitment: new_genesis_input.genesis_commitment,
+                genesis_rollup_leaf_index: new_genesis_input.rollup_last_leaf_index,
+                genesis_root: new_genesis_input.genesis_root_hash,
                 recursion_circuits_set_vks_hash: H256::zero(),
                 recursion_leaf_level_vk_hash: H256::zero(),
                 recursion_node_level_vk_hash: H256::zero(),

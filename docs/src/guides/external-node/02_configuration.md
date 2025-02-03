@@ -52,6 +52,15 @@ There are variables that allow you to fine-tune the limits of the RPC servers, s
 entries or the limit for the accepted transaction size. Provided files contain sane defaults that are recommended for
 use, but these can be edited, e.g. to make the Node more/less restrictive.
 
+**Some common api limits config:**\
+`EN_MAX_RESPONSE_BODY_SIZE_MB` (default 10 i.e. 10MB) controls max size of a single response. Hitting the limit will
+result in errors similar to:\
+`Response is too big (...)`
+
+`EN_REQ_ENTITIES_LIMIT` (default 10000) controls max possible limit of entities to be requested at once. Hitting the
+limit will result in errors similar to:\
+`Query returned more than 10000 results (...)`
+
 ## JSON-RPC API namespaces
 
 There are 7 total supported API namespaces: `eth`, `net`, `web3`, `debug` - standard ones; `zks` - rollup-specific one;

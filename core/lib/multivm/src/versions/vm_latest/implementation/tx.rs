@@ -6,7 +6,7 @@ use crate::{
     vm_latest::{
         constants::BOOTLOADER_HEAP_PAGE,
         implementation::bytecode::{bytecode_to_factory_dep, compress_bytecodes},
-        types::internals::TransactionData,
+        types::TransactionData,
         vm::Vm,
     },
     HistoryMode,
