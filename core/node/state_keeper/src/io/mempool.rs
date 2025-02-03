@@ -18,7 +18,7 @@ use zksync_types::{
     commitment::{PubdataParams, PubdataType},
     protocol_upgrade::ProtocolUpgradeTx,
     utils::display_timestamp,
-    Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256, U256,
+    Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256, U256, message_root::MessageRoot,
 };
 use zksync_vm_executor::storage::{get_base_system_contracts_by_version_id, L1BatchParamsProvider};
 
@@ -416,6 +416,14 @@ impl StateKeeperIO for MempoolIO {
             .await
             .map_err(Into::into)
     }
+
+    async fn load_latest_message_root(&self) -> anyhow::Result<Option<MessageRoot>> {
+        let mut storage = self.pool.connection_tagged("state_keeper").await?;
+        storage
+            .message_root_dal()
+            .get_latest_message_root()
+            .await
+            .map_err(Into::into)    }
 
     async fn load_batch_state_hash(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<H256> {
         tracing::trace!("Getting L1 batch hash for L1 batch #{l1_batch_number}");

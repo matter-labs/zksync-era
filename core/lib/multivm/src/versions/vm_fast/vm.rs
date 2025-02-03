@@ -17,7 +17,7 @@ use zksync_types::{
     },
     AccountTreeId, StorageKey, StorageLog, StorageLogKind, StorageLogWithPreviousValue,
     Transaction, BOOTLOADER_ADDRESS, H160, H256, KNOWN_CODES_STORAGE_ADDRESS, L1_MESSENGER_ADDRESS,
-    L2_BASE_TOKEN_ADDRESS, U256,
+    L2_BASE_TOKEN_ADDRESS, U256, message_root::MessageRoot,
 };
 use zksync_vm2::{
     interface::{CallframeInterface, HeapId, StateInterface, Tracer},
@@ -808,6 +808,10 @@ where
 
     fn start_new_l2_block(&mut self, l2_block_env: L2BlockEnv) {
         self.bootloader_state.start_new_l2_block(l2_block_env)
+    }
+
+    fn insert_message_root(&mut self, msg_root: MessageRoot) {
+        self.bootloader_state.insert_message_root(msg_root);
     }
 
     fn finish_batch(&mut self, pubdata_builder: Rc<dyn PubdataBuilder>) -> FinishedL1Batch {

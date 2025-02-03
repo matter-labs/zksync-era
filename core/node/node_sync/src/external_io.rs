@@ -18,7 +18,7 @@ use zksync_types::{
     block::UnsealedL1BatchHeader,
     protocol_upgrade::ProtocolUpgradeTx,
     protocol_version::{ProtocolSemanticVersion, VersionPatch},
-    L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256,
+    L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256, message_root::MessageRoot,
 };
 use zksync_vm_executor::storage::L1BatchParamsProvider;
 
@@ -460,6 +460,13 @@ impl StateKeeperIO for ExternalIO {
         _version_id: ProtocolVersionId,
     ) -> anyhow::Result<Option<ProtocolUpgradeTx>> {
         // External node will fetch upgrade tx from the main node
+        Ok(None)
+    }
+
+    async fn load_latest_message_root(&self) -> anyhow::Result<Option<MessageRoot>> {
+        // let mut storage = self.pool.connection_tagged("sync_layer").await?;
+        // let message_root = storage.message_roots_dal().get_latest_message_root().await?;
+        // Ok(message_root)
         Ok(None)
     }
 

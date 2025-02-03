@@ -29,7 +29,7 @@ use zksync_state::{interface::StorageView, OwnedStorage, ReadStorageFactory};
 use zksync_types::{
     commitment::PubdataParams, fee_model::BatchFeeInput, l2_to_l1_log::UserL2ToL1Log,
     protocol_upgrade::ProtocolUpgradeTx, Address, L1BatchNumber, L2BlockNumber, L2ChainId,
-    ProtocolVersionId, Transaction, H256,
+    ProtocolVersionId, Transaction, H256, message_root::MessageRoot,
 };
 
 use crate::{
@@ -489,6 +489,10 @@ impl BatchExecutor<OwnedStorage> for TestBatchExecutor {
         Ok(())
     }
 
+    async fn insert_message_root(&mut self, _msg_root: MessageRoot) -> anyhow::Result<()> {
+        Ok(())
+    }
+
     async fn finish_batch(
         self: Box<Self>,
     ) -> anyhow::Result<(FinishedL1Batch, StorageView<OwnedStorage>)> {
@@ -788,6 +792,10 @@ impl StateKeeperIO for TestIO {
         version_id: ProtocolVersionId,
     ) -> anyhow::Result<Option<ProtocolUpgradeTx>> {
         Ok(self.protocol_upgrade_txs.get(&version_id).cloned())
+    }
+
+    async fn load_latest_message_root(&self) -> anyhow::Result<Option<MessageRoot>> {
+        Ok(None)
     }
 
     async fn load_batch_state_hash(&self, _l1_batch_number: L1BatchNumber) -> anyhow::Result<H256> {

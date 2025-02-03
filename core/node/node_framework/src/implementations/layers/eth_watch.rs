@@ -91,7 +91,6 @@ impl WiringLayer for EthWatchLayer {
             "Diamond proxy address settlement_layer: {:#?}",
             sl_diamond_proxy_addr
         );
-        println!("message_root_proxy_addr 1: {:?}", self.contracts_config.ecosystem_contracts.clone().unwrap().message_root_proxy_addr);
         let l1_client = EthHttpQueryClient::new(
             client,
             self.contracts_config.diamond_proxy_addr,

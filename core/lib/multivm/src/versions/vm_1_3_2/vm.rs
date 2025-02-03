@@ -1,6 +1,6 @@
 use std::{collections::HashSet, rc::Rc};
 
-use zksync_types::{bytecode::BytecodeHash, h256_to_u256, Transaction};
+use zksync_types::{bytecode::BytecodeHash, h256_to_u256, Transaction, message_root::MessageRoot,};
 use zksync_vm_interface::{pubdata::PubdataBuilder, InspectExecutionMode};
 
 use crate::{
@@ -13,7 +13,7 @@ use crate::{
     },
     tracers::old::TracerDispatcher,
     utils::bytecode,
-    vm_1_3_2::VmInstance,
+    vm_1_3_2::VmInstance, 
 };
 
 #[derive(Debug)]
@@ -98,6 +98,10 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
 
     fn start_new_l2_block(&mut self, _l2_block_env: L2BlockEnv) {
         // Do nothing, because vm 1.3.2 doesn't support L2 blocks
+    }
+
+    fn insert_message_root(&mut self, _msg_root: MessageRoot) {
+        // Do nothing, because vm 1.3.2 doesn't support message roots
     }
 
     fn inspect_transaction_with_bytecode_compression(

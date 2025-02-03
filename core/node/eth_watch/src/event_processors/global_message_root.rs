@@ -58,7 +58,7 @@ impl EventProcessor for GlobalMessageRootProcessor {
             let chain_id = event.topics[0]; // kl todo
             let chain_id = chain_id.0[15] as u64;
             transaction
-                .blocks_dal()
+                .message_root_dal()
                 .set_message_root(
                     SLChainId(chain_id),
                     L1BatchNumber(block_number as u32),

@@ -20,7 +20,7 @@ use zksync_multivm::{
     vm_latest::HistoryEnabled,
     FastVmInstance, LegacyVmInstance, MultiVmTracer,
 };
-use zksync_types::{commitment::PubdataParams, vm::FastVmMode, Transaction};
+use zksync_types::{commitment::PubdataParams, vm::FastVmMode, Transaction, message_root::MessageRoot};
 
 use super::{
     executor::{Command, MainBatchExecutor},
@@ -209,6 +209,10 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
         dispatch_batch_vm!(self.start_new_l2_block(l2_block));
     }
 
+    fn insert_message_root(&mut self, msg_root: MessageRoot) {
+        dispatch_batch_vm!(self.insert_message_root(msg_root));
+    }
+
     fn finish_batch(&mut self, pubdata_builder: Rc<dyn PubdataBuilder>) -> FinishedL1Batch {
         dispatch_batch_vm!(self.finish_batch(pubdata_builder))
     }
@@ -352,6 +356,13 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
                 }
                 Command::StartNextL2Block(l2_block_env, resp) => {
                     vm.start_new_l2_block(l2_block_env);
+                    if resp.send(()).is_err() {
+                        break;
+                    }
+                }
+                Command::InsertMessageRoot(msg_root, resp) => {
+                    println!("inserting message root in command receiver {:?}", msg_root);
+                    vm.insert_message_root(msg_root);
                     if resp.send(()).is_err() {
                         break;
                     }

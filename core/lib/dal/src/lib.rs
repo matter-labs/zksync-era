@@ -24,7 +24,7 @@ use crate::{
     storage_logs_dedup_dal::StorageLogsDedupDal, storage_web3_dal::StorageWeb3Dal,
     sync_dal::SyncDal, system_dal::SystemDal, tee_proof_generation_dal::TeeProofGenerationDal,
     tokens_dal::TokensDal, tokens_web3_dal::TokensWeb3Dal, transactions_dal::TransactionsDal,
-    transactions_web3_dal::TransactionsWeb3Dal, vm_runner_dal::VmRunnerDal,
+    transactions_web3_dal::TransactionsWeb3Dal, vm_runner_dal::VmRunnerDal, message_roots_dal::MessageRootDal,
 };
 
 pub mod base_token_dal;
@@ -45,6 +45,7 @@ pub mod metrics;
 mod models;
 pub mod proof_generation_dal;
 pub mod protocol_versions_dal;
+pub mod message_roots_dal;
 pub mod protocol_versions_web3_dal;
 pub mod pruning_dal;
 pub mod snapshot_recovery_dal;
@@ -107,6 +108,8 @@ where
     fn contract_verification_dal(&mut self) -> ContractVerificationDal<'_, 'a>;
 
     fn protocol_versions_dal(&mut self) -> ProtocolVersionsDal<'_, 'a>;
+
+    fn message_root_dal(&mut self) -> MessageRootDal<'_, 'a>;
 
     fn protocol_versions_web3_dal(&mut self) -> ProtocolVersionsWeb3Dal<'_, 'a>;
 
@@ -208,6 +211,10 @@ impl<'a> CoreDal<'a> for Connection<'a, Core> {
 
     fn protocol_versions_dal(&mut self) -> ProtocolVersionsDal<'_, 'a> {
         ProtocolVersionsDal { storage: self }
+    }
+
+    fn message_root_dal(&mut self) -> MessageRootDal<'_, 'a> {
+        MessageRootDal { storage: self }
     }
 
     fn protocol_versions_web3_dal(&mut self) -> ProtocolVersionsWeb3Dal<'_, 'a> {

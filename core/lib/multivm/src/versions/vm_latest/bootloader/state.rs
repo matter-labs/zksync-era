@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 
 use once_cell::sync::OnceCell;
-use zksync_types::{vm::VmVersion, L2ChainId, ProtocolVersionId, U256, H256};
+use zksync_types::{vm::VmVersion, L2ChainId, ProtocolVersionId, U256, H256, message_root::MessageRoot};
 use zksync_vm_interface::pubdata::PubdataBuilder;
 
 use super::{tx::BootloaderTx, utils::apply_pubdata_to_memory};
@@ -15,7 +15,6 @@ use crate::{
             l2_block::BootloaderL2Block,
             snapshot::BootloaderStateSnapshot,
             utils::{apply_l2_block, apply_message_root, apply_tx_to_memory},
-            message_root::MessageRoot,
         },
         constants::get_tx_description_offset,
         types::TransactionData,
@@ -67,12 +66,12 @@ impl BootloaderState {
         protocol_version: ProtocolVersionId,
     ) -> Self {
         let l2_block = BootloaderL2Block::new(first_l2_block, 0);
-        let msg_root: MessageRoot = MessageRoot::new(1, 2, H256::from([1; 32]));
+        // let msg_root: MessageRoot = MessageRoot::new(1, 2, H256::from([1; 32]));
         Self {
             tx_to_execute: 0,
             compressed_bytecodes_encoding: 0,
             l2_blocks: vec![l2_block],
-            msg_roots: vec![msg_root],
+            msg_roots: vec![],
             initial_memory,
             execution_mode,
             free_tx_offset: 0,
@@ -104,6 +103,11 @@ impl BootloaderState {
         );
         assert_next_block(&last_block.l2_block(), &l2_block);
         self.push_l2_block(l2_block);
+    }
+
+    pub(crate) fn insert_message_root(&mut self, msg_root: MessageRoot) {
+        println!("inserting message root in bootloader {:?}", msg_root);
+        self.msg_roots.push(msg_root);
     }
 
     /// This method bypass sanity checks and should be used carefully.
