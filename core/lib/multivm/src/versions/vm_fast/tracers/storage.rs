@@ -6,7 +6,6 @@ use crate::interface::storage::{StoragePtr, WriteStorage};
 /// Useful as an anti-DoS measure.
 #[derive(Debug)]
 pub struct StorageInvocationsTracer<ST> {
-    // FIXME: this is very awkward; logically, storage should be obtainable from `GlobalStateInterface` (but how?)
     storage: Option<StoragePtr<ST>>,
     limit: usize,
 }
@@ -36,9 +35,10 @@ impl<ST: WriteStorage> Tracer for StorageInvocationsTracer<ST> {
         _state: &mut S,
     ) -> ShouldStop {
         if matches!(OP::VALUE, Opcode::StorageRead | Opcode::StorageWrite) {
-            let storage = self.storage.as_ref().unwrap();
-            if storage.borrow().missed_storage_invocations() >= self.limit {
-                return ShouldStop::Stop;
+            if let Some(storage) = self.storage.as_ref() {
+                if storage.borrow().missed_storage_invocations() >= self.limit {
+                    return ShouldStop::Stop;
+                }
             }
         }
         ShouldStop::Continue
