@@ -9,7 +9,7 @@ use zksync_types::{
 use crate::{api::RequestProcessor, errors::RequestProcessorError};
 
 impl RequestProcessor {
-    pub(crate) async fn submit_proof(
+    pub(crate) async fn handle_proof(
         &self,
         l1_batch_number: L1BatchNumber,
         payload: SubmitProofRequest,

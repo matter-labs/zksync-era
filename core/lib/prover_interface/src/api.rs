@@ -28,9 +28,7 @@ pub struct ProofGenerationData {
 pub struct TeeProofGenerationDataResponse(pub Box<TeeVerifierInput>);
 
 #[derive(Debug, Serialize, Deserialize)]
-pub enum SubmitProofGenerationDataResponse {
-    Success,
-}
+pub struct SubmitProofGenerationDataResponse {}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum SubmitProofResponse {

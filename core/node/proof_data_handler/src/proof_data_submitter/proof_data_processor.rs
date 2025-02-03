@@ -38,7 +38,7 @@ impl ProofGenerationDataProcessor {
     pub(crate) async fn get_proof_generation_data(
         &self,
     ) -> anyhow::Result<Option<ProofGenerationData>> {
-        let l1_batch_number = match self.get_next_batch_for_proving().await? {
+        let l1_batch_number = match self.lock_batch_for_proving().await? {
             Some(number) => number,
             None => return Ok(None), // no batches pending to be proven
         };
@@ -50,25 +50,22 @@ impl ProofGenerationDataProcessor {
     }
 
     /// Will choose a batch that has all the required data and isn't picked up by any prover yet.
-    pub(crate) async fn get_next_batch_for_proving(&self) -> anyhow::Result<Option<L1BatchNumber>> {
+    pub(crate) async fn lock_batch_for_proving(&self) -> anyhow::Result<Option<L1BatchNumber>> {
         self.pool
             .connection()
             .await?
             .proof_generation_dal()
-            .get_next_batch_for_proving()
+            .lock_batch_for_proving()
             .await
             .map_err(|e| anyhow::anyhow!(e))
     }
 
-    pub(crate) async fn lock_picked_batch(
-        &self,
-        l1_batch_number: L1BatchNumber,
-    ) -> anyhow::Result<()> {
+    pub(crate) async fn unlock_batch(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<()> {
         self.pool
             .connection()
             .await?
             .proof_generation_dal()
-            .lock_picked_batch(l1_batch_number)
+            .unlock_batch(l1_batch_number)
             .await
             .map_err(|e| anyhow::anyhow!(e))
     }

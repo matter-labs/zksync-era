@@ -117,7 +117,7 @@ impl ProofDataHandlerApi {
         Path(l1_batch_number): Path<L1BatchNumber>,
         Json(payload): Json<SubmitProofRequest>,
     ) -> Result<Json<SubmitProofResponse>, RequestProcessorError> {
-        processor.submit_proof(l1_batch_number, payload).await
+        processor.handle_proof(l1_batch_number, payload).await
     }
 
     async fn get_tee_proof_generation_data(

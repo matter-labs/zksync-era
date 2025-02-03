@@ -71,12 +71,11 @@ impl ProofGenerationDataSubmitter {
                             "Successfully sent to the gateway batch {:?}",
                             l1_batch_number
                         );
-                        self.processor.lock_picked_batch(l1_batch_number).await?;
                     }
                     Err(err) => {
-                        //METRICS.http_error[&Self::SERVICE_NAME].inc();
+                        self.processor.unlock_batch(l1_batch_number).await?;
                         tracing::error!(
-                            "HTTP request failed due to error: {}, failed to send batch {:?}",
+                            "HTTP request failed due to error: {}, failed to send batch {:?}, unlocking it",
                             err,
                             l1_batch_number
                         );

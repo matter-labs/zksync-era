@@ -35,7 +35,7 @@ impl ProverGatewayApi {
         let router = Router::new()
             .route(
                 "/proof_generation_data",
-                post(ProverGatewayApi::submit_proof_generation_data)
+                post(ProverGatewayApi::handle_proof_generation_data)
                     .layer(middleware_factory(Method::ProofGenerationData)),
             )
             .with_state(state);
@@ -62,12 +62,12 @@ impl ProverGatewayApi {
         Ok(())
     }
 
-    async fn submit_proof_generation_data(
+    async fn handle_proof_generation_data(
         State(processor): State<Processor>,
         Json(payload): Json<ProofGenerationData>,
     ) -> Result<Json<SubmitProofGenerationDataResponse>, ProcessorError> {
         match processor.save_proof_gen_data(payload).await {
-            Ok(_) => Ok(Json(SubmitProofGenerationDataResponse::Success)),
+            Ok(_) => Ok(Json(SubmitProofGenerationDataResponse {})),
             Err(err) => Err(err),
         }
     }
