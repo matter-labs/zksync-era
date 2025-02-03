@@ -36,6 +36,7 @@ static STORAGE: Lazy<InMemoryStorage> = Lazy::new(|| {
 #[derive(Debug, Clone, Copy)]
 pub enum VmLabel {
     Fast,
+    FastNoSignatures,
     Legacy,
 }
 
@@ -44,6 +45,7 @@ impl VmLabel {
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Fast => "fast",
+            Self::FastNoSignatures => "fast_no_sigs",
             Self::Legacy => "legacy",
         }
     }
@@ -52,6 +54,7 @@ impl VmLabel {
     pub const fn as_suffix(self) -> &'static str {
         match self {
             Self::Fast => "",
+            Self::FastNoSignatures => "/no_sigs",
             Self::Legacy => "/legacy",
         }
     }
@@ -118,6 +121,25 @@ impl CountInstructions for Fast {
         let mut tracer = (InstructionCount(0), ());
         vm.inspect(&mut tracer, InspectExecutionMode::OneTx);
         tracer.0 .0
+    }
+}
+
+#[derive(Debug)]
+pub struct FastNoSignatures;
+
+impl BenchmarkingVmFactory for FastNoSignatures {
+    const LABEL: VmLabel = VmLabel::FastNoSignatures;
+
+    type Instance = vm_fast::Vm<&'static InMemoryStorage>;
+
+    fn create(
+        batch_env: L1BatchEnv,
+        system_env: SystemEnv,
+        storage: &'static InMemoryStorage,
+    ) -> Self::Instance {
+        let mut vm = vm_fast::Vm::custom(batch_env, system_env, storage);
+        vm.skip_signature_verification();
+        vm
     }
 }
 
