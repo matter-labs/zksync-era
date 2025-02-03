@@ -1,6 +1,5 @@
 mod error;
 mod metrics;
-mod middleware;
 mod processor;
 mod types;
 
@@ -8,8 +7,7 @@ use std::net::SocketAddr;
 
 use anyhow::Context;
 use axum::{
-    extract::{Path, Request, State},
-    middleware::Next,
+    extract::{Path, State},
     routing::{get, post},
     Router,
 };
@@ -19,7 +17,6 @@ use types::{ExternalProof, ProofGenerationDataResponse};
 use zksync_basic_types::L1BatchNumber;
 
 pub use crate::processor::Processor;
-use crate::{metrics::Method, middleware::MetricsMiddleware};
 
 /// External API implementation.
 #[derive(Debug)]
@@ -28,16 +25,22 @@ pub struct Api {
     port: u16,
 }
 
+
+use vise::{EncodeLabelSet, EncodeLabelValue};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet, EncodeLabelValue)]
+#[metrics(rename_all = "snake_case")]
+pub(crate) enum Method {
+    GetLatestProofGenerationData,
+    GetSpecificProofGenerationData,
+    VerifyProof,
+}
+
+zksync_metrics_middleware::metrics_middleware!(Method, MetricsMiddleware, "external_proof_integration_api");
+
 impl Api {
     pub fn new(processor: Processor, port: u16) -> Self {
-        let middleware_factory = |method: Method| {
-            axum::middleware::from_fn(move |req: Request, next: Next| async move {
-                let middleware = MetricsMiddleware::new(method);
-                let response = next.run(req).await;
-                middleware.observe(response.status());
-                response
-            })
-        };
+        let middleware_factory = zksync_metrics_middleware::create_middleware_factory!(Method, MetricsMiddleware);
 
         let router = Router::new()
             .route(

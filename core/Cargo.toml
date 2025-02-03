@@ -77,9 +77,10 @@ members = [
   "lib/crypto_primitives",
   "lib/external_price_api",
   "lib/test_contracts",
+  "lib/metrics_middleware",
   # Test infrastructure
   "tests/loadnext",
-  "tests/vm-benchmark",
+  "tests/vm-benchmark", "lib/metrics_middleware",
 ]
 resolver = "2"
 
@@ -295,6 +296,7 @@ zksync_utils = { version = "26.2.1-non-semver-compat", path = "lib/utils" }
 zksync_web3_decl = { version = "26.2.1-non-semver-compat", path = "lib/web3_decl" }
 zksync_crypto_primitives = { version = "26.2.1-non-semver-compat", path = "lib/crypto_primitives" }
 zksync_external_price_api = { version = "26.2.1-non-semver-compat", path = "lib/external_price_api" }
+zksync_metrics_middleware = { path = "lib/metrics_middleware"}
 
 # Framework and components
 zksync_node_framework = { version = "26.2.1-non-semver-compat", path = "node/node_framework" }

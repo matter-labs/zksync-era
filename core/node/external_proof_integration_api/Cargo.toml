@@ -23,3 +23,4 @@ tokio.workspace = true
 bincode.workspace = true
 anyhow.workspace = true
 vise.workspace = true
+zksync_metrics_middleware.workspace = true

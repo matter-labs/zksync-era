@@ -1,0 +1,16 @@
+[package]
+name = "zksync_metrics_middleware"
+description = "ZKsync implementation of metrics pushing API middleware"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+axum.workspace = true
+vise.workspace = true
+tokio.workspace = true

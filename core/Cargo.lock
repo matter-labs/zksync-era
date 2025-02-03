@@ -12081,6 +12081,7 @@ dependencies = [
  "vise",
  "zksync_basic_types",
  "zksync_dal",
+ "zksync_metrics_middleware",
  "zksync_object_store",
  "zksync_prover_interface",
 ]
@@ -12262,6 +12263,15 @@ dependencies = [
  "zksync_shared_metrics",
  "zksync_storage",
  "zksync_types",
+]
+
+[[package]]
+name = "zksync_metrics_middleware"
+version = "26.2.1-non-semver-compat"
+dependencies = [
+ "axum 0.7.9",
+ "tokio",
+ "vise",
 ]
 
 [[package]]
