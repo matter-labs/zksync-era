@@ -2846,6 +2846,39 @@ dependencies = [
 ]
 
 [[package]]
+name = "eigen-client"
+version = "0.1.0"
+source = "git+https://github.com/lambdaclass/eigenda-client-rs?branch=m0-implementation#c89e93628564960d1e73b5f7ad307a2af31caea0"
+dependencies = [
+ "ark-bn254",
+ "async-trait",
+ "backon",
+ "byteorder",
+ "bytes",
+ "ethabi",
+ "ethereum-types",
+ "hex",
+ "num-bigint 0.4.6",
+ "prost 0.12.6",
+ "rand 0.8.5",
+ "reqwest 0.12.9",
+ "rust-kzg-bn254",
+ "secp256k1 0.27.0",
+ "secrecy 0.8.0",
+ "serde",
+ "serde_json",
+ "sha3 0.10.8",
+ "subxt-signer",
+ "tempfile",
+ "thiserror",
+ "tiny-keccak 2.0.2",
+ "tokio",
+ "tokio-stream",
+ "tonic 0.11.0",
+ "url",
+]
+
+[[package]]
 name = "either"
 version = "1.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3500,16 +3533,6 @@ name = "fs_extra"
 version = "1.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "42703706b716c37f96a77aea830392ad231f44c9e9a67872fa5548707e11b11c"
-
-[[package]]
-name = "fslock"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "04412b8935272e3a9bae6f48c7bfff74c2911f60525404edfdd28e49884c3bfb"
-dependencies = [
- "libc",
- "winapi",
-]
 
 [[package]]
 name = "fuchsia-cprng"
@@ -7904,15 +7927,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "scc"
-version = "2.2.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d8d25269dd3a12467afe2e510f69fb0b46b698e5afb296b59f2145259deaf8e8"
-dependencies = [
- "sdd",
-]
-
-[[package]]
 name = "schannel"
 version = "0.1.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7957,12 +7971,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sdd"
-version = "3.0.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "49c1eeaf4b6a87c7479688c6d52b9f1153cedd3c489300564f932b065c6eab95"
-
-[[package]]
 name = "seahash"
 version = "4.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8002,8 +8010,17 @@ version = "0.27.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "25996b82292a7a57ed3508f052cfff8640d38d32018784acd714758b43da9c8f"
 dependencies = [
- "secp256k1-sys",
+ "secp256k1-sys 0.8.1",
  "serde",
+]
+
+[[package]]
+name = "secp256k1"
+version = "0.28.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d24b59d129cdadea20aea4fb2352fa053712e5d713eee47d700cd4b2bc002f10"
+dependencies = [
+ "secp256k1-sys 0.9.2",
 ]
 
 [[package]]
@@ -8011,6 +8028,15 @@ name = "secp256k1-sys"
 version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "70a129b9e9efbfb223753b9163c4ab3b13cff7fd9c7f010fbac25ab4099fa07e"
+dependencies = [
+ "cc",
+]
+
+[[package]]
+name = "secp256k1-sys"
+version = "0.9.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e5d1746aae42c19d583c3c1a8c646bfad910498e2051c551a7f2e3c0c9fbb7eb"
 dependencies = [
  "cc",
 ]
@@ -8369,32 +8395,6 @@ dependencies = [
  "ryu",
  "serde",
  "unsafe-libyaml",
-]
-
-[[package]]
-name = "serial_test"
-version = "3.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4b4b487fe2acf240a021cf57c6b2b4903b1e78ca0ecd862a71b71d2a51fed77d"
-dependencies = [
- "fslock",
- "futures 0.3.31",
- "log",
- "once_cell",
- "parking_lot",
- "scc",
- "serial_test_derive",
-]
-
-[[package]]
-name = "serial_test_derive"
-version = "3.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "82fe9db325bcef1fbcde82e078a5cc4efdf787e96b3b9cf45b50b529f2083d67"
-dependencies = [
- "proc-macro2 1.0.89",
- "quote 1.0.37",
- "syn 2.0.85",
 ]
 
 [[package]]
@@ -9363,6 +9363,7 @@ dependencies = [
  "pbkdf2",
  "regex",
  "schnorrkel",
+ "secp256k1 0.28.2",
  "secrecy 0.8.0",
  "sha2 0.10.8",
  "sp-core-hashing",
@@ -11755,7 +11756,7 @@ dependencies = [
  "blake2 0.10.6",
  "hex",
  "rand 0.8.5",
- "secp256k1",
+ "secp256k1 0.27.0",
  "serde",
  "serde_json",
  "sha2 0.10.8",
@@ -11789,7 +11790,6 @@ name = "zksync_da_clients"
 version = "26.2.1-non-semver-compat"
 dependencies = [
  "anyhow",
- "ark-bn254",
  "async-trait",
  "backon",
  "base58",
@@ -11799,45 +11799,35 @@ dependencies = [
  "blake2b_simd",
  "bytes",
  "celestia-types",
- "ethabi",
+ "eigen-client",
  "flate2",
  "futures 0.3.31",
  "hex",
  "http 1.1.0",
  "jsonrpsee 0.23.2",
- "num-bigint 0.4.6",
  "parity-scale-codec",
  "pbjson-types",
  "prost 0.12.6",
- "rand 0.8.5",
  "reqwest 0.12.9",
  "ripemd",
- "rust-kzg-bn254",
  "scale-encode",
- "secp256k1",
+ "secp256k1 0.27.0",
  "serde",
  "serde_json",
- "serial_test",
  "sha2 0.10.8",
- "sha3 0.10.8",
  "subxt-metadata",
  "subxt-signer",
- "tempfile",
- "thiserror",
- "tiny-keccak 2.0.2",
  "tokio",
- "tokio-stream",
  "tonic 0.11.0",
  "tracing",
  "url",
  "zksync_basic_types",
  "zksync_config",
  "zksync_da_client",
+ "zksync_dal",
  "zksync_env_config",
- "zksync_eth_client",
  "zksync_object_store",
  "zksync_types",
- "zksync_web3_decl",
 ]
 
 [[package]]
@@ -12976,7 +12966,7 @@ dependencies = [
  "async-trait",
  "envy",
  "reqwest 0.12.9",
- "secp256k1",
+ "secp256k1 0.27.0",
  "serde",
  "thiserror",
  "tokio",

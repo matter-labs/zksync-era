@@ -105,6 +105,7 @@ impl DataAvailabilityDispatcher {
 
         for batch in &batches {
             let dispatch_latency = METRICS.blob_dispatch_latency.start();
+            METRICS.blobs_pending_dispatch.inc_by(1);
             let dispatch_response = retry(self.config.max_retries(), batch.l1_batch_number, || {
                 self.client
                     .dispatch_blob(batch.l1_batch_number.0, batch.pubdata.clone())
@@ -135,6 +136,8 @@ impl DataAvailabilityDispatcher {
                 .last_dispatched_l1_batch
                 .set(batch.l1_batch_number.0 as usize);
             METRICS.blob_size.observe(batch.pubdata.len());
+            METRICS.blobs_dispatched.inc_by(1);
+            METRICS.blobs_pending_dispatch.dec_by(1);
             METRICS.sealed_to_dispatched_lag.observe(
                 sent_at
                     .signed_duration_since(batch.sealed_at)
@@ -219,6 +222,7 @@ impl DataAvailabilityDispatcher {
         METRICS
             .last_included_l1_batch
             .set(blob_info.l1_batch_number.0 as usize);
+        METRICS.blobs_included.inc_by(1);
 
         tracing::info!(
             "Received an inclusion data for a batch_number: {}, inclusion_latency_seconds: {}",

@@ -1,16 +1,5 @@
-mod blob_info;
 mod client;
-mod errors;
-mod sdk;
-mod verifier;
 
-pub use self::client::{EigenClient, GetBlobData};
-#[allow(clippy::all)]
-pub(crate) mod disperser {
-    include!("generated/disperser.rs");
-}
+pub use eigenda_client_rs::client::GetBlobData;
 
-#[allow(clippy::all)]
-pub(crate) mod common {
-    include!("generated/common.rs");
-}
+pub use self::client::EigenDAClient;

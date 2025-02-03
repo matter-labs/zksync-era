@@ -32,6 +32,12 @@ pub(super) struct DataAvailabilityDispatcherMetrics {
     pub sealed_to_dispatched_lag: Histogram<Duration>,
     /// The balance of the operator wallet on DA network.
     pub operator_balance: Gauge<u64>,
+    /// Amount of pending blobs to be dispatched.
+    pub blobs_pending_dispatch: Gauge<usize>,
+    /// Total number of blobs dispatched.
+    pub blobs_dispatched: Gauge<usize>,
+    /// Total number of blobs included.
+    pub blobs_included: Gauge<usize>,
 }
 
 #[vise::register]

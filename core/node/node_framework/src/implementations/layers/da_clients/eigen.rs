@@ -2,8 +2,7 @@ use std::sync::Arc;
 
 use zksync_config::{configs::da_client::eigen::EigenSecrets, EigenConfig};
 use zksync_da_client::DataAvailabilityClient;
-use zksync_da_clients::eigen::{EigenClient, GetBlobData};
-use zksync_dal::{ConnectionPool, Core, CoreDal};
+use zksync_da_clients::eigen::EigenDAClient;
 use zksync_node_framework_derive::FromContext;
 
 use crate::{

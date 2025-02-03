@@ -1,29 +1,26 @@
-use std::{str::FromStr, sync::Arc};
+use std::{error::Error, str::FromStr};
 
-use async_trait::async_trait;
-use secp256k1::SecretKey;
+use eigenda_client_rs::{client::GetBlobData, EigenClient};
 use subxt_signer::ExposeSecret;
 use zksync_config::{configs::da_client::eigen::EigenSecrets, EigenConfig};
 use zksync_da_client::{
     types::{DAError, DispatchResponse, InclusionData},
     DataAvailabilityClient,
 };
+use zksync_dal::{ConnectionPool, Core, CoreDal};
 
 use super::sdk::RawEigenClient;
 use crate::utils::to_retriable_da_error;
 
-#[async_trait]
-pub trait GetBlobData: std::fmt::Debug + Send + Sync {
-    async fn get_blob_data(&self, input: &str) -> anyhow::Result<Option<Vec<u8>>>;
-}
 
-/// EigenClient is a client for the Eigen DA service.
+
+// We can't implement DataAvailabilityClient for an outside struct, so it is needed to defined this intermediate struct
 #[derive(Debug, Clone)]
-pub struct EigenClient {
-    pub(crate) client: Arc<RawEigenClient>,
+pub struct EigenDAClient {
+    client: EigenClient,
 }
 
-impl EigenClient {
+impl EigenDAClient {
     pub async fn new(
         config: EigenConfig,
         secrets: EigenSecrets,
