@@ -6,14 +6,12 @@ use tokio::{
     sync::{mpsc, oneshot},
     task::JoinHandle,
 };
-use zksync_multivm::{
-    interface::{
-        executor::BatchExecutor,
-        storage::{ReadStorage, StorageView},
-        BatchTransactionExecutionResult, FinishedL1Batch, L2BlockEnv,
-    },
+use zksync_multivm::interface::{
+    executor::BatchExecutor,
+    storage::{ReadStorage, StorageView},
+    BatchTransactionExecutionResult, FinishedL1Batch, L2BlockEnv,
 };
-use zksync_types::{Transaction, message_root::MessageRoot};
+use zksync_types::{message_root::MessageRoot, Transaction};
 
 use super::metrics::{ExecutorCommand, EXECUTOR_METRICS};
 
@@ -171,7 +169,11 @@ where
     #[tracing::instrument(skip_all)]
     async fn insert_message_root(&mut self, msg_root: MessageRoot) -> anyhow::Result<()> {
         let (response_sender, response_receiver) = oneshot::channel();
-        let send_failed = self.commands.send(Command::InsertMessageRoot(msg_root, response_sender)).await.is_err();
+        let send_failed = self
+            .commands
+            .send(Command::InsertMessageRoot(msg_root, response_sender))
+            .await
+            .is_err();
         if send_failed {
             return Err(self.handle.wait_for_error().await);
         }
@@ -223,4 +225,3 @@ pub(super) enum Command {
     RollbackLastTx(oneshot::Sender<()>),
     FinishBatch(oneshot::Sender<FinishedL1Batch>),
 }
-

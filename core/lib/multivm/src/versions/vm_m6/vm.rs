@@ -1,6 +1,8 @@
 use std::{collections::HashSet, rc::Rc};
 
-use zksync_types::{bytecode::BytecodeHash, h256_to_u256, vm::VmVersion, Transaction, message_root::MessageRoot};
+use zksync_types::{
+    bytecode::BytecodeHash, h256_to_u256, message_root::MessageRoot, vm::VmVersion, Transaction,
+};
 use zksync_vm_interface::{pubdata::PubdataBuilder, InspectExecutionMode};
 
 use crate::{

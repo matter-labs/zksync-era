@@ -17,14 +17,15 @@ use crate::{
     custom_genesis_export_dal::CustomGenesisExportDal, data_availability_dal::DataAvailabilityDal,
     eth_sender_dal::EthSenderDal, eth_watcher_dal::EthWatcherDal, events_dal::EventsDal,
     events_web3_dal::EventsWeb3Dal, factory_deps_dal::FactoryDepsDal,
-    proof_generation_dal::ProofGenerationDal, protocol_versions_dal::ProtocolVersionsDal,
+    message_roots_dal::MessageRootDal, proof_generation_dal::ProofGenerationDal,
+    protocol_versions_dal::ProtocolVersionsDal,
     protocol_versions_web3_dal::ProtocolVersionsWeb3Dal, pruning_dal::PruningDal,
     snapshot_recovery_dal::SnapshotRecoveryDal, snapshots_creator_dal::SnapshotsCreatorDal,
     snapshots_dal::SnapshotsDal, storage_logs_dal::StorageLogsDal,
     storage_logs_dedup_dal::StorageLogsDedupDal, storage_web3_dal::StorageWeb3Dal,
     sync_dal::SyncDal, system_dal::SystemDal, tee_proof_generation_dal::TeeProofGenerationDal,
     tokens_dal::TokensDal, tokens_web3_dal::TokensWeb3Dal, transactions_dal::TransactionsDal,
-    transactions_web3_dal::TransactionsWeb3Dal, vm_runner_dal::VmRunnerDal, message_roots_dal::MessageRootDal,
+    transactions_web3_dal::TransactionsWeb3Dal, vm_runner_dal::VmRunnerDal,
 };
 
 pub mod base_token_dal;
@@ -41,11 +42,11 @@ pub mod events_dal;
 pub mod events_web3_dal;
 pub mod factory_deps_dal;
 pub mod helpers;
+pub mod message_roots_dal;
 pub mod metrics;
 mod models;
 pub mod proof_generation_dal;
 pub mod protocol_versions_dal;
-pub mod message_roots_dal;
 pub mod protocol_versions_web3_dal;
 pub mod pruning_dal;
 pub mod snapshot_recovery_dal;

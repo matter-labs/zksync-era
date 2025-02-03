@@ -17,7 +17,9 @@ use zksync_types::{
 pub use self::client::{EthClient, EthHttpQueryClient, L2EthClient};
 use self::{
     client::{L2EthClientW, RETRY_LIMIT},
-    event_processors::{EventProcessor, EventProcessorError, PriorityOpsEventProcessor, GlobalMessageRootProcessor},
+    event_processors::{
+        EventProcessor, EventProcessorError, GlobalMessageRootProcessor, PriorityOpsEventProcessor,
+    },
     metrics::METRICS,
 };
 use crate::event_processors::{

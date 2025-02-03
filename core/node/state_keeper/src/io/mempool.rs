@@ -16,9 +16,10 @@ use zksync_node_fee_model::BatchFeeModelInputProvider;
 use zksync_types::{
     block::UnsealedL1BatchHeader,
     commitment::{PubdataParams, PubdataType},
+    message_root::MessageRoot,
     protocol_upgrade::ProtocolUpgradeTx,
     utils::display_timestamp,
-    Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256, U256, message_root::MessageRoot,
+    Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256, U256,
 };
 use zksync_vm_executor::storage::{get_base_system_contracts_by_version_id, L1BatchParamsProvider};
 
@@ -423,7 +424,8 @@ impl StateKeeperIO for MempoolIO {
             .message_root_dal()
             .get_latest_message_root()
             .await
-            .map_err(Into::into)    }
+            .map_err(Into::into)
+    }
 
     async fn load_batch_state_hash(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<H256> {
         tracing::trace!("Getting L1 batch hash for L1 batch #{l1_batch_number}");

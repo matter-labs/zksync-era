@@ -7,8 +7,7 @@ use zksync_types::{api::Log, H256};
 pub(crate) use self::{
     appended_chain_batch_root::BatchRootProcessor,
     decentralized_upgrades::DecentralizedUpgradesEventProcessor,
-    priority_ops::PriorityOpsEventProcessor,
-    global_message_root::GlobalMessageRootProcessor,
+    global_message_root::GlobalMessageRootProcessor, priority_ops::PriorityOpsEventProcessor,
 };
 
 mod appended_chain_batch_root;

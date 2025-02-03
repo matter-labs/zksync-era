@@ -1,6 +1,6 @@
 use std::{mem, rc::Rc};
 
-use zksync_types::{vm::VmVersion, ProtocolVersionId, Transaction, message_root::MessageRoot};
+use zksync_types::{message_root::MessageRoot, vm::VmVersion, ProtocolVersionId, Transaction};
 use zksync_vm_interface::{pubdata::PubdataBuilder, InspectExecutionMode};
 
 use crate::{

@@ -1,17 +1,9 @@
 use std::{convert::TryInto, result};
 
-use zksync_db_connection::instrument::InstrumentExt;
-use zksync_db_connection::{
-    connection::Connection,
-    error::DalResult,
-};
-use zksync_types::{
-     H256, message_root::MessageRoot, SLChainId, L1BatchNumber
-};
+use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
+use zksync_types::{message_root::MessageRoot, L1BatchNumber, SLChainId, H256};
 
-use crate::{
-    Core,
-};
+use crate::Core;
 
 #[derive(Debug)]
 pub struct MessageRootDal<'a, 'c> {
@@ -23,7 +15,6 @@ impl MessageRootDal<'_, '_> {
         Ok(())
     }
 
-
     pub async fn set_message_root(
         &mut self,
         chain_id: SLChainId,
@@ -31,7 +22,10 @@ impl MessageRootDal<'_, '_> {
         message_root: H256,
         // proof: BatchAndChainMerklePath,
     ) -> DalResult<()> {
-        println!("set_message_root {:?} {:?} {:?}", chain_id.0, number.0, message_root);
+        println!(
+            "set_message_root {:?} {:?} {:?}",
+            chain_id.0, number.0, message_root
+        );
         sqlx::query!(
             r#"
             INSERT INTO message_roots (chain_id, block_number, message_root_hash)
@@ -53,8 +47,12 @@ impl MessageRootDal<'_, '_> {
     }
 
     pub async fn get_latest_message_root(&mut self) -> DalResult<Option<MessageRoot>> {
-        let result : Vec<MessageRoot> = sqlx::query!(
-            r#"SELECT message_root_hash, chain_id, block_number FROM message_roots ORDER BY block_number DESC LIMIT 1"#
+        let result: Vec<MessageRoot> = sqlx::query!(
+            r#"
+            FROM message_roots
+            ORDER BY block_number DESC
+            LIMIT 1
+            "#
         )
         .instrument("get_latest_message_root")
         .fetch_optional(self.storage)

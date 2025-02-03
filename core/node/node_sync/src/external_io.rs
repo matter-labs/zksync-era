@@ -16,9 +16,10 @@ use zksync_state_keeper::{
 };
 use zksync_types::{
     block::UnsealedL1BatchHeader,
+    message_root::MessageRoot,
     protocol_upgrade::ProtocolUpgradeTx,
     protocol_version::{ProtocolSemanticVersion, VersionPatch},
-    L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256, message_root::MessageRoot,
+    L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256,
 };
 use zksync_vm_executor::storage::L1BatchParamsProvider;
 

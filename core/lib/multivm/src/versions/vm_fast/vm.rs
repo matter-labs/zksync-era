@@ -9,6 +9,7 @@ use zksync_types::{
     h256_to_u256,
     l1::is_l1_tx_type,
     l2_to_l1_log::UserL2ToL1Log,
+    message_root::MessageRoot,
     u256_to_h256,
     utils::key_for_eth_balance,
     writes::{
@@ -17,7 +18,7 @@ use zksync_types::{
     },
     AccountTreeId, StorageKey, StorageLog, StorageLogKind, StorageLogWithPreviousValue,
     Transaction, BOOTLOADER_ADDRESS, H160, H256, KNOWN_CODES_STORAGE_ADDRESS, L1_MESSENGER_ADDRESS,
-    L2_BASE_TOKEN_ADDRESS, U256, message_root::MessageRoot,
+    L2_BASE_TOKEN_ADDRESS, U256,
 };
 use zksync_vm2::{
     interface::{CallframeInterface, HeapId, StateInterface, Tracer},

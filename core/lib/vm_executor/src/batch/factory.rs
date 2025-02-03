@@ -20,7 +20,9 @@ use zksync_multivm::{
     vm_latest::HistoryEnabled,
     FastVmInstance, LegacyVmInstance, MultiVmTracer,
 };
-use zksync_types::{commitment::PubdataParams, vm::FastVmMode, Transaction, message_root::MessageRoot};
+use zksync_types::{
+    commitment::PubdataParams, message_root::MessageRoot, vm::FastVmMode, Transaction,
+};
 
 use super::{
     executor::{Command, MainBatchExecutor},

@@ -1,7 +1,10 @@
 use std::{collections::HashMap, rc::Rc};
 
 use serde::{Deserialize, Serialize};
-use zksync_types::{block::L2BlockExecutionData, L1BatchNumber, L2BlockNumber, Transaction, H256, message_root::MessageRoot};
+use zksync_types::{
+    block::L2BlockExecutionData, message_root::MessageRoot, L1BatchNumber, L2BlockNumber,
+    Transaction, H256,
+};
 
 use crate::{
     pubdata::PubdataBuilder,
@@ -178,7 +181,6 @@ impl<S: ReadStorage, Vm: VmTrackingContracts> VmInterface for DumpingVm<S, Vm> {
         });
         self.inner.start_new_l2_block(l2_block_env);
     }
-
 
     fn insert_message_root(&mut self, msg_root: MessageRoot) {
         self.inner.insert_message_root(msg_root);

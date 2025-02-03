@@ -42,7 +42,7 @@ pub(crate) const MAX_GAS_PER_PUBDATA_BYTE: u64 = 50_000;
 // In this version of the VM the limit has been increased from `1024` to to `10000`.
 pub(crate) const MAX_TXS_IN_BATCH: usize = 10000;
 
-pub(crate) const MAX_MSG_ROOTS_IN_BATCH :usize = 100;
+pub(crate) const MAX_MSG_ROOTS_IN_BATCH: usize = 100;
 
 /// Max cycles for a single transaction.
 pub const MAX_CYCLES_FOR_TX: u32 = u32::MAX;

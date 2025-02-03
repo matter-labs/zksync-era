@@ -756,4 +756,3 @@ impl StorageSnapshot {
         snapshot
     }
 }
-

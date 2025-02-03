@@ -1,6 +1,6 @@
 use std::{collections::HashSet, rc::Rc};
 
-use zksync_types::{bytecode::BytecodeHash, h256_to_u256, Transaction, message_root::MessageRoot,};
+use zksync_types::{bytecode::BytecodeHash, h256_to_u256, message_root::MessageRoot, Transaction};
 use zksync_vm_interface::{pubdata::PubdataBuilder, InspectExecutionMode};
 
 use crate::{
@@ -13,7 +13,7 @@ use crate::{
     },
     tracers::old::TracerDispatcher,
     utils::bytecode,
-    vm_1_3_2::VmInstance, 
+    vm_1_3_2::VmInstance,
 };
 
 #[derive(Debug)]

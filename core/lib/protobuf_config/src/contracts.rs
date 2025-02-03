@@ -169,7 +169,7 @@ impl ProtoRepr for proto::Contracts {
                 l1_wrapped_base_token_store: ecosystem_contracts
                     .l1_wrapped_base_token_store
                     .map(|x: zksync_types::H160| format!("{:?}", x)),
-                    message_root_proxy_addr: ecosystem_contracts
+                message_root_proxy_addr: ecosystem_contracts
                     .message_root_proxy_addr
                     .map(|x: zksync_types::H160| format!("{:?}", x)),
             });
