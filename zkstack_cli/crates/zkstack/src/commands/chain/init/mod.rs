@@ -2,9 +2,10 @@ use anyhow::Context;
 use clap::{command, Parser, Subcommand};
 use xshell::Shell;
 use zkstack_cli_common::{git, logger, spinner::Spinner};
-use zkstack_cli_config::{traits::SaveConfigWithBasePath, ChainConfig, EcosystemConfig};
+use zkstack_cli_config::{
+    get_da_client_type, traits::SaveConfigWithBasePath, ChainConfig, EcosystemConfig,
+};
 use zkstack_cli_types::{BaseToken, L1BatchCommitmentMode};
-use zksync_config::DAClientConfig;
 use zksync_types::Address;
 
 use crate::{
@@ -175,7 +176,9 @@ pub async fn init(
     .await?;
     contracts_config.save_with_base_path(shell, &chain_config.configs)?;
 
-    let l1_da_validator_addr = get_l1_da_validator(chain_config);
+    let l1_da_validator_addr = get_l1_da_validator(chain_config)
+        .await
+        .context("l1_da_validator_addr")?;
 
     let spinner = Spinner::new(MSG_DA_PAIR_REGISTRATION_SPINNER);
     set_da_validator_pair(
@@ -184,7 +187,7 @@ pub async fn init(
         contracts_config.l1.chain_admin_addr,
         &chain_config.get_wallets_config()?.governor,
         contracts_config.l1.diamond_proxy_addr,
-        l1_da_validator_addr.context("l1_da_validator_addr")?,
+        l1_da_validator_addr,
         contracts_config
             .l2
             .da_validator_addr
@@ -245,21 +248,19 @@ pub async fn init(
     Ok(())
 }
 
-pub(crate) fn get_l1_da_validator(chain_config: &ChainConfig) -> anyhow::Result<Address> {
+pub(crate) async fn get_l1_da_validator(chain_config: &ChainConfig) -> anyhow::Result<Address> {
     let contracts_config = chain_config.get_contracts_config()?;
 
     let l1_da_validator_contract = match chain_config.l1_batch_commit_data_generator_mode {
         L1BatchCommitmentMode::Rollup => contracts_config.l1.rollup_l1_da_validator_addr,
         L1BatchCommitmentMode::Validium => {
-            let general_config = chain_config.get_general_config()?;
-            if let Some(da_client_config) = general_config.da_client_config {
-                match da_client_config {
-                    DAClientConfig::Avail(_) => contracts_config.l1.avail_l1_da_validator_addr,
-                    DAClientConfig::NoDA => contracts_config.l1.no_da_validium_l1_validator_addr,
-                    _ => anyhow::bail!("DA client config is not supported"),
+            let general_config = chain_config.get_general_config().await?;
+            match get_da_client_type(&general_config) {
+                Some("avail") => contracts_config.l1.avail_l1_da_validator_addr,
+                Some("no_da") | None => contracts_config.l1.no_da_validium_l1_validator_addr,
+                Some(unsupported) => {
+                    anyhow::bail!("DA client config is not supported: {unsupported:?}");
                 }
-            } else {
-                contracts_config.l1.no_da_validium_l1_validator_addr
             }
         }
     }

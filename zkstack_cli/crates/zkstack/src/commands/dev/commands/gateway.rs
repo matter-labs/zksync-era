@@ -79,6 +79,7 @@ pub struct FetchedChainInfo {
     l2_legacy_shared_bridge_addr: Address,
     hyperchain_addr: Address,
     base_token_addr: Address,
+    chain_admin_addr: Address,
 }
 
 // Bridgehub ABI
@@ -111,6 +112,7 @@ abigen!(
     r"[
     function getPubdataPricingMode()(uint256)
     function getBaseToken()(address)
+    function getAdmin()(address)
     function getTotalBatchesCommitted() external view returns (uint256)
     function getTotalBatchesVerified() external view returns (uint256)
 ]"
@@ -266,6 +268,7 @@ pub async fn fetch_chain_info(
 
     let zkchain = ZKChainAbi::new(hyperchain_addr, client.clone());
 
+    let chain_admin_addr = zkchain.get_admin().await?;
     let base_token_addr = zkchain.get_base_token().await?;
 
     if !args.dangerous_no_cross_check {
@@ -319,6 +322,7 @@ pub async fn fetch_chain_info(
         l2_legacy_shared_bridge_addr,
         hyperchain_addr,
         base_token_addr,
+        chain_admin_addr,
     })
 }
 
@@ -799,7 +803,7 @@ pub(crate) async fn run(shell: &Shell, args: GatewayUpgradeCalldataArgs) -> anyh
     let set_timestamp_call = AdminCall {
         description: "Calldata to schedule upgrade".to_string(),
         data: schedule_calldata,
-        target: chain_info.hyperchain_addr,
+        target: chain_info.chain_admin_addr,
         value: U256::zero(),
     };
     println!("{}", serde_json::to_string_pretty(&set_timestamp_call)?);
