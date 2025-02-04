@@ -2,7 +2,7 @@
 
 use std::{
     cell::Cell,
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     thread,
     time::{Duration, Instant},
 };
@@ -13,10 +13,10 @@ use zksync_dal::{
 use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
 use zksync_types::{
     api::TransactionReceipt,
-    get_nonce_key, h256_to_u256,
+    get_code_key, get_nonce_key, h256_to_u256,
     tx::execute::DeploymentParams,
     utils::{decompose_full_nonce, deployed_address_create, deployed_address_evm_create},
-    L2BlockNumber,
+    Address, L2BlockNumber,
 };
 use zksync_web3_decl::error::Web3Error;
 
@@ -84,6 +84,9 @@ macro_rules! report_filter {
 /// Also, it must be set regardless of whether the deployment succeeded (thus e.g. we cannot rely on `ContractDeployed` events
 /// emitted by `ContractDeployer` for EraVM contracts).
 ///
+/// `contract_address` is not set if `from` is a custom account since custom accounts may customize nonce increment policies
+/// and/or other deployment aspects.
+///
 /// Requires all `receipts` to be from the same L2 block.
 pub(crate) async fn fill_transaction_receipts(
     storage: &mut Connection<'_, Core>,
@@ -91,35 +94,57 @@ pub(crate) async fn fill_transaction_receipts(
 ) -> Result<Vec<TransactionReceipt>, Web3Error> {
     receipts.sort_unstable_by_key(|receipt| receipt.inner.transaction_index);
 
-    let mut filled_receipts = Vec::with_capacity(receipts.len());
-    let mut receipt_indexes_with_unknown_nonce = HashSet::new();
-    for (i, mut receipt) in receipts.into_iter().enumerate() {
-        receipt.inner.contract_address = if receipt.inner.to.is_none() {
-            // This is an EVM deployment transaction.
-            Some(deployed_address_evm_create(
-                receipt.inner.from,
-                receipt.nonce,
-            ))
+    let mut deployments = Vec::with_capacity(receipts.len());
+    for receipt in &receipts {
+        deployments.push(if receipt.inner.to.is_none() {
+            Some(DeploymentTransactionType::Evm)
         } else if receipt.inner.to == Some(CONTRACT_DEPLOYER_ADDRESS) {
-            // Possibly an EraVM deployment transaction.
-            if let Some(deployment_params) = DeploymentParams::decode(&receipt.calldata.0)? {
-                match deployment_params {
-                    DeploymentParams::Create | DeploymentParams::CreateAccount => {
-                        // We need a deployment nonce which isn't available locally; we'll compute it in a single batch below.
-                        receipt_indexes_with_unknown_nonce.insert(i);
-                        None
-                    }
-                    DeploymentParams::Create2(data) | DeploymentParams::Create2Account(data) => {
-                        Some(data.derive_address(receipt.inner.from))
-                    }
-                }
-            } else {
-                None
-            }
+            DeploymentParams::decode(&receipt.calldata.0)?.map(DeploymentTransactionType::EraVm)
         } else {
             // Not a deployment transaction.
             None
-        };
+        });
+    }
+
+    // Get the AA type for deployment transactions to filter out custom AAs below.
+    let deployment_receipts = receipts
+        .iter()
+        .zip(&deployments)
+        .filter_map(|(receipt, deployment)| deployment.is_some().then_some(receipt));
+    let account_types = if let Some(first_receipt) = deployment_receipts.clone().next() {
+        let block_number = L2BlockNumber(first_receipt.inner.block_number.as_u32());
+        let from_addresses = deployment_receipts.map(|receipt| receipt.inner.from);
+        get_account_types(storage, from_addresses, block_number).await?
+    } else {
+        HashMap::new()
+    };
+
+    let mut filled_receipts = Vec::with_capacity(receipts.len());
+    let mut receipt_indexes_with_unknown_nonce = HashSet::new();
+    for (i, (mut receipt, mut deployment)) in receipts.into_iter().zip(deployments).enumerate() {
+        if deployment.is_some() && matches!(account_types[&receipt.inner.from], AccountType::Custom)
+        {
+            // Custom AAs may interpret transaction data in an arbitrary way (or, more realistically, use a custom
+            // nonce increment scheme). Hence, we don't even try to assign `contract_address` for a receipt from a custom AA.
+            deployment = None;
+        }
+
+        receipt.inner.contract_address = deployment.and_then(|deployment| match deployment {
+            DeploymentTransactionType::Evm => Some(deployed_address_evm_create(
+                receipt.inner.from,
+                receipt.nonce,
+            )),
+            DeploymentTransactionType::EraVm(
+                DeploymentParams::Create | DeploymentParams::CreateAccount,
+            ) => {
+                // We need a deployment nonce which isn't available locally; we'll compute it in a single batch below.
+                receipt_indexes_with_unknown_nonce.insert(i);
+                None
+            }
+            DeploymentTransactionType::EraVm(
+                DeploymentParams::Create2(data) | DeploymentParams::Create2Account(data),
+            ) => Some(data.derive_address(receipt.inner.from)),
+        });
         filled_receipts.push(receipt.inner);
     }
 
@@ -140,6 +165,54 @@ pub(crate) async fn fill_transaction_receipts(
     }
 
     Ok(filled_receipts)
+}
+
+#[derive(Debug)]
+enum DeploymentTransactionType {
+    Evm,
+    EraVm(DeploymentParams),
+}
+
+#[derive(Debug, Clone, Copy)]
+enum AccountType {
+    Default,
+    Custom,
+}
+
+async fn get_account_types(
+    storage: &mut Connection<'_, Core>,
+    addresses: impl Iterator<Item = Address>,
+    block_number: L2BlockNumber,
+) -> Result<HashMap<Address, AccountType>, Web3Error> {
+    let code_keys_to_addresses: HashMap<_, _> = addresses
+        .map(|from| (get_code_key(&from).hashed_key(), from))
+        .collect();
+
+    // It's fine to query values at the end of the block since the contract type never changes.
+    let code_keys: Vec<_> = code_keys_to_addresses.keys().copied().collect();
+    let storage_values = storage
+        .storage_logs_dal()
+        .get_storage_values(&code_keys, block_number)
+        .await
+        .map_err(DalError::generalize)?;
+
+    Ok(code_keys_to_addresses
+        .into_iter()
+        .map(|(code_key, address)| {
+            let value = storage_values
+                .get(&code_key)
+                .copied()
+                .flatten()
+                .unwrap_or_default();
+            // The code key slot is non-zero for custom AAs
+            let account_type = if value.is_zero() {
+                AccountType::Default
+            } else {
+                AccountType::Custom
+            };
+            (address, account_type)
+        })
+        .collect())
 }
 
 async fn fill_receipts_with_unknown_nonce(
@@ -190,6 +263,7 @@ async fn fill_receipts_with_unknown_nonce(
 
 #[cfg(test)]
 mod tests {
+    use assert_matches::assert_matches;
     use zksync_dal::{events_web3_dal::ContractDeploymentLog, ConnectionPool};
     use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
     use zksync_test_contracts::{Account, TestContract, TxType};
@@ -430,14 +504,20 @@ mod tests {
         txs.push(deploy_tx_from_account);
 
         let tx_hashes: Vec<_> = txs.iter().map(Transaction::hash).collect();
-        let expected_contract_addresses = [
-            Some(account_addr),
-            None,
-            None,
-            // deploy nonces 0..5 were used in the previous tx
-            Some(deployed_address_create(account_addr, 5.into())),
-        ];
+        let expected_contract_addresses = [Some(account_addr), None, None, None];
         persist_block_with_transactions(&pool, txs).await;
+
+        // Check the account type helper.
+        let account_types = get_account_types(
+            &mut storage,
+            [alice.address, account_addr].into_iter(),
+            L2BlockNumber(1),
+        )
+        .await
+        .unwrap();
+
+        assert_matches!(account_types[&alice.address], AccountType::Default);
+        assert_matches!(account_types[&account_addr], AccountType::Custom);
 
         let receipts = storage
             .transactions_web3_dal()
