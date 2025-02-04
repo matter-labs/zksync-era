@@ -84,14 +84,7 @@ pub(crate) async fn get_fflonk_snark_wrapper(link_to_prover: &Path) -> anyhow::R
 }
 
 pub(crate) async fn get_database_url(chain: &ChainConfig) -> anyhow::Result<String> {
-    let prover_url = chain
-        .get_secrets_config()?
-        .database
-        .context("Database secrets not found")?
-        .prover_url()?
-        .expose_url()
-        .to_string();
-    Ok(prover_url)
+    chain.get_secrets_config().await?.get("database.prover_url")
 }
 
 pub fn parse_version(version: &str) -> anyhow::Result<(&str, &str)> {

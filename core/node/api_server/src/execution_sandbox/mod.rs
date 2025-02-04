@@ -274,7 +274,7 @@ impl BlockStartInfo {
 
 #[derive(Debug, thiserror::Error)]
 pub enum BlockArgsError {
-    #[error("Block is pruned; first retained block is {0}")]
+    #[error("Block is not available, either it was pruned or the node was started from a snapshot created later than this block; first retained block is {0}")]
     Pruned(L2BlockNumber),
     #[error("Block is missing, but can appear in the future")]
     Missing,

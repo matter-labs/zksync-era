@@ -15,7 +15,7 @@ use zksync_types::{
     abi::ZkChainSpecificUpgradeData,
     api::{ChainAggProof, Log},
     ethabi::{self, decode, encode, Contract, ParamType},
-    web3::{keccak256, BlockId, BlockNumber, CallRequest, Filter, FilterBuilder},
+    web3::{keccak256, BlockId, BlockNumber, Filter, FilterBuilder},
     Address, L1BatchNumber, L2ChainId, SLChainId, H256, L2_NATIVE_TOKEN_VAULT_ADDRESS,
     SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256, U64,
 };
@@ -511,28 +511,9 @@ where
             if base_token_l1_address == SHARED_BRIDGE_ETHER_TOKEN_ADDRESS {
                 (String::from("Ether"), String::from("ETH"))
             } else {
-                // TODO(EVM-934): support non-standard tokens.
-                let selectors: [[u8; 4]; 2] = [
-                    ethabi::short_signature("name", &[]),
-                    ethabi::short_signature("symbol", &[]),
-                ];
-                let types: [ParamType; 2] = [ParamType::String, ParamType::String];
-
-                let mut decoded_result = vec![];
-                for (selector, param_type) in selectors.into_iter().zip(types.into_iter()) {
-                    let request = CallRequest {
-                        to: Some(base_token_l1_address),
-                        data: Some(selector.into()),
-                        ..Default::default()
-                    };
-                    let result = self.client.call_contract_function(request, None).await?;
-                    // Base tokens are expected to support erc20 metadata
-                    let mut token = ethabi::decode(&[param_type], &result.0)
-                        .expect("base token does not support erc20 metadata");
-                    decoded_result.push(token.pop().unwrap());
-                }
-
-                (decoded_result[0].to_string(), decoded_result[1].to_string())
+                // Due to an issue in the upgrade process, the automatically
+                // deployed wrapped base tokens will contain generic names
+                (String::from("Base Token"), String::from("BT"))
             };
 
         let base_token_asset_id = encode_ntv_asset_id(

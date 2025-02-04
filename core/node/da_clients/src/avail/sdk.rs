@@ -3,6 +3,7 @@
 
 use std::{fmt::Debug, sync::Arc, time};
 
+use anyhow::Context;
 use backon::{ConstantBuilder, Retryable};
 use bytes::Bytes;
 use jsonrpsee::{
@@ -22,7 +23,6 @@ use crate::utils::to_non_retriable_da_error;
 
 const PROTOCOL_VERSION: u8 = 4;
 
-/// An implementation of the `DataAvailabilityClient` trait that interacts with the Avail network.
 #[derive(Debug, Clone)]
 pub(crate) struct RawAvailClient {
     app_id: u32,
@@ -343,6 +343,23 @@ impl RawAvailClient {
             .ok_or_else(|| anyhow::anyhow!("Extrinsic not found in block"))?;
 
         Ok(tx_id)
+    }
+
+    /// Returns the balance of the address controlled by the `keypair`
+    pub async fn balance(&self, client: &Client) -> anyhow::Result<u64> {
+        let address = to_addr(self.keypair.clone());
+        let resp: serde_json::Value = client
+            .request("state_getStorage", rpc_params![address])
+            .await
+            .context("Error calling state_getStorage RPC")?;
+
+        let balance = resp
+            .as_str()
+            .ok_or_else(|| anyhow::anyhow!("Invalid balance"))?;
+
+        balance
+            .parse()
+            .context("Unable to parse the account balance")
     }
 }
 

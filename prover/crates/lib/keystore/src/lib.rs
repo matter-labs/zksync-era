@@ -28,6 +28,9 @@ pub mod keystore;
 pub mod setup_data_generator;
 pub mod utils;
 
+#[cfg(feature = "gpu")]
+pub mod compressor;
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(
     bound = "F: serde::Serialize + serde::de::DeserializeOwned, P: serde::Serialize + serde::de::DeserializeOwned"

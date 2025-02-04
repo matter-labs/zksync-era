@@ -2,10 +2,10 @@ use ethers::abi::Address;
 use serde::{Deserialize, Serialize};
 use zkstack_cli_types::ProverMode;
 use zksync_basic_types::{H256, U256};
-use zksync_config::GenesisConfig;
 
 use crate::{
-    forge_interface::deploy_ecosystem::input::InitialDeploymentConfig, traits::ZkStackConfig,
+    forge_interface::deploy_ecosystem::input::{GenesisInput, InitialDeploymentConfig},
+    traits::ZkStackConfig,
     ChainConfig, ContractsConfig, EcosystemConfig,
 };
 
@@ -59,7 +59,7 @@ impl DeployGatewayCTMInput {
     pub fn new(
         chain_config: &ChainConfig,
         ecosystem_config: &EcosystemConfig,
-        genesis_config: &GenesisConfig,
+        genesis_input: &GenesisInput,
         contracts_config: &ContractsConfig,
         initial_deployment_config: &InitialDeploymentConfig,
     ) -> Self {
@@ -107,16 +107,16 @@ impl DeployGatewayCTMInput {
             diamond_init_minimal_l2_gas_price: initial_deployment_config
                 .diamond_init_minimal_l2_gas_price,
 
-            bootloader_hash: genesis_config.bootloader_hash.unwrap(),
-            default_aa_hash: genesis_config.default_aa_hash.unwrap(),
+            bootloader_hash: genesis_input.bootloader_hash,
+            default_aa_hash: genesis_input.default_aa_hash,
 
             priority_tx_max_gas_limit: initial_deployment_config.priority_tx_max_gas_limit,
 
-            genesis_root: genesis_config.genesis_root_hash.unwrap(),
-            genesis_rollup_leaf_index: genesis_config.rollup_last_leaf_index.unwrap(),
-            genesis_batch_commitment: genesis_config.genesis_commitment.unwrap(),
+            genesis_root: genesis_input.genesis_root_hash,
+            genesis_rollup_leaf_index: genesis_input.rollup_last_leaf_index,
+            genesis_batch_commitment: genesis_input.genesis_commitment,
 
-            latest_protocol_version: genesis_config.protocol_version.unwrap().pack(),
+            latest_protocol_version: genesis_input.protocol_version.pack(),
 
             expected_rollup_l2_da_validator: contracts_config
                 .ecosystem_contracts

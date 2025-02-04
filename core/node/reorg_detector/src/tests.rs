@@ -312,12 +312,19 @@ async fn reorg_is_detected_on_batch_hash_mismatch() {
     store_l2_block(&mut storage, 2, l2_block_hash).await;
     detector.check_consistency().await.unwrap();
 
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    assert!(!detector
+        .check_reorg_presence(stop_receiver.clone())
+        .await
+        .unwrap());
+
     seal_l1_batch(&mut storage, 2, H256::repeat_byte(0xff)).await;
     // ^ Hash of L1 batch #2 differs from that on the main node.
     assert_matches!(
         detector.check_consistency().await,
         Err(Error::ReorgDetected(L1BatchNumber(1)))
     );
+    assert!(detector.check_reorg_presence(stop_receiver).await.unwrap());
 }
 
 #[tokio::test]
@@ -621,6 +628,9 @@ async fn reorg_is_detected_based_on_l2_block_hashes(last_correct_l1_batch: u32) 
         detector.check_consistency().await,
         Err(Error::ReorgDetected(L1BatchNumber(num))) if num == last_correct_l1_batch
     );
+
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    assert!(detector.check_reorg_presence(stop_receiver).await.unwrap());
 }
 
 #[derive(Debug)]

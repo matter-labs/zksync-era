@@ -53,13 +53,13 @@ macro_rules! amend_config_pre_upgrade {
 pub(crate) struct GatewayUpgradeInfo {
     // Information about pre-upgrade contracts.
     l1_chain_id: u32,
-    bridgehub_addr: Address,
+    pub(crate) bridgehub_addr: Address,
     old_validator_timelock: Address,
-    l1_legacy_shared_bridge: Address,
+    pub(crate) l1_legacy_shared_bridge: Address,
 
     // Information about the post-upgrade contracts.
     ctm_deployment_tracker_proxy_addr: Address,
-    native_token_vault_addr: Address,
+    pub(crate) native_token_vault_addr: Address,
     l1_bytecodes_supplier_addr: Address,
     rollup_l1_da_validator_addr: Address,
     no_da_validium_l1_validator_addr: Address,
@@ -79,6 +79,7 @@ pub struct FetchedChainInfo {
     l2_legacy_shared_bridge_addr: Address,
     hyperchain_addr: Address,
     base_token_addr: Address,
+    chain_admin_addr: Address,
 }
 
 // Bridgehub ABI
@@ -111,6 +112,7 @@ abigen!(
     r"[
     function getPubdataPricingMode()(uint256)
     function getBaseToken()(address)
+    function getAdmin()(address)
     function getTotalBatchesCommitted() external view returns (uint256)
     function getTotalBatchesVerified() external view returns (uint256)
 ]"
@@ -174,7 +176,13 @@ pub async fn check_chain_readiness(
         .build();
     let l2_client = Box::new(l2_client) as Box<DynClient<L2>>;
 
-    let inflight_txs_count: usize = l2_client.get_unconfirmed_txs_count().await?;
+    let inflight_txs_count = match l2_client.get_unconfirmed_txs_count().await {
+        Ok(x) => x,
+        Err(e) => {
+            anyhow::bail!("Failed to call `unstable_unconfirmedTxsCount`. Reason: `{}`.\nEnsure that `unstable` namespace is enabled on your server and it runs the latest version", e)
+        }
+    };
+
     let diamond_proxy_addr = l2_client.get_main_contract().await?;
 
     if inflight_txs_count != 0 {
@@ -260,6 +268,7 @@ pub async fn fetch_chain_info(
 
     let zkchain = ZKChainAbi::new(hyperchain_addr, client.clone());
 
+    let chain_admin_addr = zkchain.get_admin().await?;
     let base_token_addr = zkchain.get_base_token().await?;
 
     if !args.dangerous_no_cross_check {
@@ -313,6 +322,7 @@ pub async fn fetch_chain_info(
         l2_legacy_shared_bridge_addr,
         hyperchain_addr,
         base_token_addr,
+        chain_admin_addr,
     })
 }
 
@@ -428,13 +438,6 @@ impl GatewayUpgradeInfo {
             assign
         );
 
-        assign_or_print!(
-            contracts_config
-                .ecosystem_contracts
-                .stm_deployment_tracker_proxy_addr,
-            Some(self.ctm_deployment_tracker_proxy_addr),
-            assign
-        );
         assign_or_print!(
             contracts_config
                 .ecosystem_contracts
@@ -631,7 +634,7 @@ impl AdminCallBuilder {
                 Token::Address(l2_da_validator),
             ])
             .unwrap();
-        let description = "Executing upgrade:".to_string();
+        let description = "Setting DA validator pair".to_string();
 
         let call = AdminCall {
             description,
@@ -714,6 +717,8 @@ pub struct GatewayUpgradeCalldataArgs {
     da_mode: DAMode,
     #[clap(long, default_missing_value = "false")]
     dangerous_no_cross_check: Option<bool>,
+    #[clap(long, default_missing_value = "false")]
+    force_display_finalization_params: Option<bool>,
 }
 
 pub struct GatewayUpgradeArgsInner {
@@ -791,14 +796,37 @@ pub(crate) async fn run(shell: &Shell, args: GatewayUpgradeCalldataArgs) -> anyh
     // 2. Generate calldata
 
     let schedule_calldata = set_upgrade_timestamp_calldata(
-        args.server_upgrade_timestamp,
         upgrade_info.new_protocol_version,
+        args.server_upgrade_timestamp,
     );
 
-    println!(
-        "Calldata to schedule upgrade: {}",
-        hex::encode(&schedule_calldata)
-    );
+    let set_timestamp_call = AdminCall {
+        description: "Calldata to schedule upgrade".to_string(),
+        data: schedule_calldata,
+        target: chain_info.chain_admin_addr,
+        value: U256::zero(),
+    };
+    println!("{}", serde_json::to_string_pretty(&set_timestamp_call)?);
+    println!("---------------------------");
+
+    if !args.force_display_finalization_params.unwrap_or_default() {
+        let chain_readiness = check_chain_readiness(
+            args.l1_rpc_url.clone(),
+            args.l2_rpc_url.clone(),
+            args.chain_id,
+        )
+        .await;
+
+        if let Err(err) = chain_readiness {
+            println!(
+                "Chain is not ready to finalize the upgrade due to the reason:\n{:#?}",
+                err
+            );
+            println!("Once the chain is ready, you can re-run this command to obtain the calls to finalize the upgrade");
+            println!("If you want to display finalization params anyway, pass `--force-display-finalization-params=true`.");
+            return Ok(());
+        };
+    }
 
     let admin_calls_finalize = get_admin_call_builder(&upgrade_info, &chain_info, args.into());
 

@@ -3,11 +3,8 @@ use serde::{Deserialize, Serialize};
 use strum::{Display, EnumIter, IntoEnumIterator};
 use url::Url;
 use zkstack_cli_common::{Prompt, PromptSelect};
-use zksync_config::{
-    configs::da_client::avail::{
-        AvailClientConfig, AvailDefaultConfig, AvailGasRelayConfig, AvailSecrets,
-    },
-    AvailConfig,
+use zkstack_cli_config::da::{
+    AvailClientConfig, AvailConfig, AvailDefaultConfig, AvailGasRelayConfig, AvailSecrets,
 };
 
 use crate::{

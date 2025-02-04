@@ -1,5 +1,46 @@
 # Changelog
 
+## [26.2.1](https://github.com/matter-labs/zksync-era/compare/core-v26.2.0...core-v26.2.1) (2025-01-28)
+
+
+### Bug Fixes
+
+* add . to readme ([#3538](https://github.com/matter-labs/zksync-era/issues/3538)) ([512dd45](https://github.com/matter-labs/zksync-era/commit/512dd459307e57762dd4cc2c78ff4151634b6941))
+
+## [26.2.0](https://github.com/matter-labs/zksync-era/compare/core-v26.1.0...core-v26.2.0) (2025-01-24)
+
+
+### Features
+
+* Compressor optimizations ([#3476](https://github.com/matter-labs/zksync-era/issues/3476)) ([3e931be](https://github.com/matter-labs/zksync-era/commit/3e931be6bddaacbd7d029c537db03a3c191fdc21))
+
+
+### Bug Fixes
+
+* **en:** better defaults, i.e. the same as used by main node ([#3521](https://github.com/matter-labs/zksync-era/issues/3521)) ([2b5fe98](https://github.com/matter-labs/zksync-era/commit/2b5fe983acf78f73fb6e90a6a7d041e8aef1c595))
+* **en:** Fix race condition in EN storage initialization ([#3515](https://github.com/matter-labs/zksync-era/issues/3515)) ([c916797](https://github.com/matter-labs/zksync-era/commit/c916797d49d636c9e642264786d4124ebd338ec3))
+* JSON proof serialization ([#3514](https://github.com/matter-labs/zksync-era/issues/3514)) ([516e521](https://github.com/matter-labs/zksync-era/commit/516e5210ed70b25a15a68a58c8065331aab542e0))
+
+## [26.1.0](https://github.com/matter-labs/zksync-era/compare/core-v26.0.0...core-v26.1.0) (2025-01-21)
+
+
+### Features
+
+* update l2 erc20 bridge address in updater as well ([#3500](https://github.com/matter-labs/zksync-era/issues/3500)) ([fe3c7b2](https://github.com/matter-labs/zksync-era/commit/fe3c7b2583bc4f9277e186334e5822ddf95bdcd0))
+* **vm:** Implement call tracing for fast VM ([#2905](https://github.com/matter-labs/zksync-era/issues/2905)) ([731b824](https://github.com/matter-labs/zksync-era/commit/731b8240abd4c0cfa42f2ce89c23f8ebf67e1bf2))
+
+
+### Bug Fixes
+
+* copy special case to fast VM call tracer ([#3509](https://github.com/matter-labs/zksync-era/issues/3509)) ([995e583](https://github.com/matter-labs/zksync-era/commit/995e583aa9b4ef6e0d8697fbb040e4b991a4248d))
+* fix execute encoding for transactions ([#3501](https://github.com/matter-labs/zksync-era/issues/3501)) ([4c381a8](https://github.com/matter-labs/zksync-era/commit/4c381a84346f8ab88d3f01dc2848c7fb5f2b788d))
+* **gateway:** erc20 workaround for gateway upgrade ([#3511](https://github.com/matter-labs/zksync-era/issues/3511)) ([c140ba8](https://github.com/matter-labs/zksync-era/commit/c140ba8f57caabf9c9bdd4bd8c9743a9ccf668be))
+
+
+### Performance Improvements
+
+* optimize get_unsealed_l1_batch_inner ([#3491](https://github.com/matter-labs/zksync-era/issues/3491)) ([9b121c9](https://github.com/matter-labs/zksync-era/commit/9b121c96bbb2e53be74aa81e0ca250ce9251f8db))
+
 ## [26.0.0](https://github.com/matter-labs/zksync-era/compare/core-v25.4.0...core-v26.0.0) (2025-01-17)
 
 

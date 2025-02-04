@@ -7,22 +7,20 @@ use serde::{Deserialize, Serialize, Serializer};
 use xshell::Shell;
 use zkstack_cli_types::{BaseToken, L1BatchCommitmentMode, L1Network, ProverMode, WalletCreation};
 use zksync_basic_types::L2ChainId;
-use zksync_config::{
-    configs::{gateway::GatewayChainConfig, GatewayConfig},
-    DAClientConfig::{Avail, NoDA},
-};
+use zksync_config::configs::{gateway::GatewayChainConfig, GatewayConfig};
 
 use crate::{
     consts::{
-        CONFIG_NAME, CONTRACTS_FILE, EN_CONFIG_FILE, GENERAL_FILE, GENESIS_FILE,
+        CONFIG_NAME, CONTRACTS_FILE, EN_CONFIG_FILE, GATEWAY_FILE, GENERAL_FILE, GENESIS_FILE,
         L1_CONTRACTS_FOUNDRY, SECRETS_FILE, WALLETS_FILE,
     },
     create_localhost_wallets,
+    raw::RawConfig,
     traits::{
         FileConfigWithDefaultName, ReadConfig, ReadConfigWithBasePath, SaveConfig,
         SaveConfigWithBasePath, ZkStackConfig,
     },
-    ContractsConfig, GeneralConfig, GenesisConfig, SecretsConfig, WalletsConfig, GATEWAY_FILE,
+    ContractsConfig, WalletsConfig,
 };
 
 /// Chain configuration file. This file is created in the chain
@@ -91,12 +89,12 @@ impl ChainConfig {
         self.shell.get().expect("Not initialized")
     }
 
-    pub fn get_genesis_config(&self) -> anyhow::Result<GenesisConfig> {
-        GenesisConfig::read_with_base_path(self.get_shell(), &self.configs)
+    pub async fn get_genesis_config(&self) -> anyhow::Result<RawConfig> {
+        RawConfig::read(self.get_shell(), self.path_to_genesis_config()).await
     }
 
-    pub fn get_general_config(&self) -> anyhow::Result<GeneralConfig> {
-        GeneralConfig::read_with_base_path(self.get_shell(), &self.configs)
+    pub async fn get_general_config(&self) -> anyhow::Result<RawConfig> {
+        RawConfig::read(self.get_shell(), self.path_to_general_config()).await
     }
 
     pub fn get_wallets_config(&self) -> anyhow::Result<WalletsConfig> {
@@ -112,25 +110,12 @@ impl ChainConfig {
         anyhow::bail!("Wallets configs has not been found");
     }
 
-    pub fn get_da_validator_type(&self) -> anyhow::Result<DAValidatorType> {
-        let general = self.get_general_config().expect("General config not found");
-        match (
-            self.l1_batch_commit_data_generator_mode,
-            general.da_client_config,
-        ) {
-            (L1BatchCommitmentMode::Rollup, _) => Ok(DAValidatorType::Rollup),
-            (L1BatchCommitmentMode::Validium, None | Some(NoDA)) => Ok(DAValidatorType::NoDA),
-            (L1BatchCommitmentMode::Validium, Some(Avail(_))) => Ok(DAValidatorType::Avail),
-            _ => anyhow::bail!("DAValidatorType is not supported"),
-        }
-    }
-
     pub fn get_contracts_config(&self) -> anyhow::Result<ContractsConfig> {
         ContractsConfig::read_with_base_path(self.get_shell(), &self.configs)
     }
 
-    pub fn get_secrets_config(&self) -> anyhow::Result<SecretsConfig> {
-        SecretsConfig::read_with_base_path(self.get_shell(), &self.configs)
+    pub async fn get_secrets_config(&self) -> anyhow::Result<RawConfig> {
+        RawConfig::read(self.get_shell(), self.path_to_secrets_config()).await
     }
 
     pub fn get_gateway_config(&self) -> anyhow::Result<GatewayConfig> {
@@ -163,10 +148,6 @@ impl ChainConfig {
 
     pub fn path_to_gateway_config(&self) -> PathBuf {
         self.configs.join(GATEWAY_FILE)
-    }
-
-    pub fn save_general_config(&self, general_config: &GeneralConfig) -> anyhow::Result<()> {
-        general_config.save_with_base_path(self.get_shell(), &self.configs)
     }
 
     pub fn path_to_l1_foundry(&self) -> PathBuf {

@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                COUNT(*)\n            FROM\n                contract_verification_info_v2 v2\n            JOIN contracts_verification_info v1 ON initial_contract_addr = address\n            WHERE v1.verification_info::text != v2.verification_info::text\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "ca2c63a0e25406eec4e92a7cfda80a651e28abb3dd3582211ceb6b2bb8009258"
+}

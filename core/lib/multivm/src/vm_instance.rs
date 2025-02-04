@@ -345,6 +345,17 @@ where
     ) -> Self {
         Self::Shadowed(ShadowedFastVm::new(l1_batch_env, system_env, storage_view))
     }
+
+    pub fn skip_signature_verification(&mut self) {
+        match self {
+            Self::Fast(vm) => vm.skip_signature_verification(),
+            Self::Shadowed(vm) => {
+                if let Some(shadow_vm) = vm.shadow_mut() {
+                    shadow_vm.skip_signature_verification();
+                }
+            }
+        }
+    }
 }
 
 /// Checks whether the protocol version is supported by the fast VM.
