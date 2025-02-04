@@ -235,7 +235,7 @@ pub(crate) trait TestedVm:
     fn pubdata_input(&self) -> PubdataInput;
 }
 
-pub(crate) trait TestedVmForValidation {
+pub(crate) trait TestedVmForValidation: TestedVm {
     fn run_validation(
         &mut self,
         tx: L2Tx,
