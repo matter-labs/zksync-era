@@ -170,6 +170,7 @@ serde = "1"
 serde_json = "1"
 serde_with = "1"
 serde_yaml = "0.9"
+ciborium = "0.2"
 sha2 = "0.10.8"
 sha3 = "0.10.8"
 sqlx = "0.8.1"
@@ -235,7 +236,7 @@ serial_test = { version = "3.1.1", features = ["file_locks"] }
 circuit_encodings = "=0.150.20"
 circuit_sequencer_api = "=0.150.20"
 circuit_definitions = "=0.150.20"
-crypto_codegen = { package = "zksync_solidity_vk_codegen",version = "=0.30.13" }
+crypto_codegen = { package = "zksync_solidity_vk_codegen", version = "=0.30.13" }
 kzg = { package = "zksync_kzg", version = "=0.150.20" }
 zk_evm = { version = "=0.133.0" }
 zk_evm_1_3_1 = { package = "zk_evm", version = "0.131.0-rc.2" }
@@ -244,10 +245,10 @@ zk_evm_1_4_0 = { package = "zk_evm", version = "0.140" }
 zk_evm_1_4_1 = { package = "zk_evm", version = "0.141" }
 zk_evm_1_5_0 = { package = "zk_evm", version = "=0.150.20" }
 fflonk = "=0.30.13"
-bellman = {package = "zksync_bellman", version = "=0.30.13"}
+bellman = { package = "zksync_bellman", version = "=0.30.13" }
 
 # New VM; pinned to a specific commit because of instability
-zksync_vm2 = { git = "https://github.com/matter-labs/vm2.git", rev = "457d8a7eea9093af9440662e33e598c13ba41633" }
+zksync_vm2 = { git = "https://github.com/matter-labs/vm2.git", rev = "3841f5a430288a63c8207853eca11560bf7a5712" }
 
 # Consensus dependencies.
 zksync_concurrency = "=0.8.0"

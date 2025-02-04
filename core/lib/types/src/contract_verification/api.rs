@@ -5,6 +5,7 @@ use serde::{
     de::{Deserializer, Error, MapAccess, Unexpected, Visitor},
     Deserialize, Serialize,
 };
+use zksync_basic_types::bytecode::BytecodeMarker;
 
 pub use crate::Execute as ExecuteData;
 use crate::{web3::Bytes, Address};
@@ -232,12 +233,37 @@ impl CompilationArtifacts {
     }
 }
 
+/// Non-critical issues detected during verification.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub enum VerificationProblem {
+    /// The bytecode is correct, but metadata hash is different.
+    IncorrectMetadata,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct VerificationInfo {
     pub request: VerificationRequest,
     pub artifacts: CompilationArtifacts,
     pub verified_at: DateTime<Utc>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub verification_problems: Vec<VerificationProblem>,
+}
+
+impl VerificationInfo {
+    pub fn is_perfect_match(&self) -> bool {
+        self.verification_problems.is_empty()
+    }
+
+    pub fn bytecode_marker(&self) -> BytecodeMarker {
+        // Deployed bytecode is only present for EVM contracts.
+        if self.artifacts.deployed_bytecode.is_some() {
+            BytecodeMarker::Evm
+        } else {
+            BytecodeMarker::EraVm
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
