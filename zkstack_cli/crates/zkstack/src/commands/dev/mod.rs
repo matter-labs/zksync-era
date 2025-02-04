@@ -1,8 +1,8 @@
 use clap::Subcommand;
 use commands::status::args::StatusArgs;
-#[cfg(feature = "gateway")]
-use messages::MSG_GATEWAY_UPGRADE_CALLDATA;
 use messages::MSG_STATUS_ABOUT;
+#[cfg(feature = "gateway")]
+use messages::{MSG_GATEWAY_FINALIZE, MSG_GATEWAY_UPGRADE_CALLDATA};
 use xshell::Shell;
 
 use self::commands::{
@@ -52,6 +52,11 @@ pub enum DevCommands {
     #[cfg(feature = "gateway")]
     #[command(about = MSG_GATEWAY_UPGRADE_CALLDATA)]
     GatewayUpgradeCalldata(commands::gateway::GatewayUpgradeCalldataArgs),
+    #[cfg(feature = "gateway")]
+    #[command(about = MSG_GATEWAY_FINALIZE)]
+    GatewayUpgradeFinalization(
+        commands::gateway_finalize_preparation::GatewayFinalizePreparationArgs,
+    ),
 }
 
 pub async fn run(shell: &Shell, args: DevCommands) -> anyhow::Result<()> {
@@ -72,6 +77,10 @@ pub async fn run(shell: &Shell, args: DevCommands) -> anyhow::Result<()> {
         DevCommands::GenerateGenesis => commands::genesis::run(shell).await?,
         #[cfg(feature = "gateway")]
         DevCommands::GatewayUpgradeCalldata(args) => commands::gateway::run(shell, args).await?,
+        #[cfg(feature = "gateway")]
+        DevCommands::GatewayUpgradeFinalization(args) => {
+            commands::gateway_finalize_preparation::run(shell, args).await?
+        }
     }
     Ok(())
 }
