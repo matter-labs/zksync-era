@@ -184,12 +184,16 @@ where
 }
 
 impl TestedVmForValidation for TestedFastVm<(), FullValidationTracer> {
-    fn run_validation(&mut self, tx: L2Tx, timestamp: u64) -> Option<ViolatedValidationRule> {
+    fn run_validation(
+        &mut self,
+        tx: L2Tx,
+        timestamp: u64,
+    ) -> (VmExecutionResultAndLogs, Option<ViolatedValidationRule>) {
         let validation_params = validation_params(&tx, &self.system_env);
         self.push_transaction(tx.into());
         let mut tracer = ((), FullValidationTracer::new(validation_params, timestamp));
-        self.inspect(&mut tracer, InspectExecutionMode::OneTx);
-        tracer.1.validation_error()
+        let result = self.inspect(&mut tracer, InspectExecutionMode::OneTx);
+        (result, tracer.1.validation_error())
     }
 }
 

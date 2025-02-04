@@ -12,12 +12,8 @@ import "./interfaces/IAccount.sol";
 contract ValidationRuleBreaker is IAccount {
     using TransactionHelper for Transaction;
 
-    uint32 public typeOfRuleBreak;
-    address public trustedAddress = address(0x800a);
-
-    constructor() {
-        typeOfRuleBreak = 0;
-    }
+    uint public typeOfRuleBreak;
+    address public trustedAddress;
 
     function setTypeOfRuleBreak(uint32 _typeOfRuleBreak) external {
         typeOfRuleBreak = _typeOfRuleBreak;
@@ -41,7 +37,7 @@ contract ValidationRuleBreaker is IAccount {
         } else if (typeOfRuleBreak == 3) {
             // This should succeed because a trustedAddress is marked as a slot that grants access to the address it contains
             require(trustedAddress == address(0x800a));
-            require(BOOTLOADER_FORMAL_ADDRESS.balance != 0);
+            require(BOOTLOADER_FORMAL_ADDRESS.balance == 0);
         } else if (typeOfRuleBreak == 4) {
             // This should still fail; EIP-4337 defines out of gas as an immediate failure
             address(this).call(

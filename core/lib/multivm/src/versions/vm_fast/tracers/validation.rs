@@ -193,7 +193,6 @@ impl Tracer for FullValidationTracer {
         }
 
         if self.validation_error.is_some() {
-            dbg!(OP::VALUE);
             return ShouldStop::Stop;
         }
 
