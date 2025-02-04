@@ -105,7 +105,7 @@ impl Processor {
             .await;
 
         connection
-            .fri_witness_generator_dal()
+            .fri_basic_witness_generator_dal()
             .save_witness_inputs(data.l1_batch_number, &witness_inputs, data.protocol_version)
             .await;
         Ok(())
