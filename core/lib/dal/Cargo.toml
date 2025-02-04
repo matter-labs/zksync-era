@@ -53,6 +53,7 @@ hex.workspace = true
 strum = { workspace = true, features = ["derive"] }
 tracing.workspace = true
 chrono = { workspace = true, features = ["serde"] }
+rayon.workspace = true
 
 [dev-dependencies]
 zksync_test_contracts.workspace = true

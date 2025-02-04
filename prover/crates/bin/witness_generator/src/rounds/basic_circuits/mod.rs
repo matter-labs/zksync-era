@@ -124,7 +124,7 @@ impl JobManager for BasicCircuits {
             .connection()
             .await
             .unwrap()
-            .fri_witness_generator_dal()
+            .fri_basic_witness_generator_dal()
             .get_next_basic_circuit_witness_job(protocol_version, &pod_name)
             .await
         {
