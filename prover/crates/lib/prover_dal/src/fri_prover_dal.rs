@@ -945,4 +945,39 @@ impl FriProverDal<'_, '_> {
             .collect()
         }
     }
+
+    pub async fn prover_job_ids_for(
+        &mut self,
+        block_number: L1BatchNumber,
+        circuit_id: u8,
+        round: AggregationRound,
+        depth: u16,
+    ) -> Vec<u32> {
+        sqlx::query!(
+            r#"
+            SELECT
+                id
+            FROM
+                prover_jobs_fri
+            WHERE
+                l1_batch_number = $1
+                AND circuit_id = $2
+                AND aggregation_round = $3
+                AND depth = $4
+                AND status = 'successful'
+            ORDER BY
+                sequence_number ASC;
+            "#,
+            i64::from(block_number.0),
+            i16::from(circuit_id),
+            round as i16,
+            i32::from(depth)
+        )
+        .fetch_all(self.storage.conn())
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|row| row.id as u32)
+        .collect::<_>()
+    }
 }
