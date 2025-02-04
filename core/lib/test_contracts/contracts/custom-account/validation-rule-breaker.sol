@@ -43,6 +43,12 @@ contract ValidationRuleBreaker is IAccount {
             address(this).call(
                 abi.encodeWithSignature("_runOutOfGasButCatchThePanic()")
             );
+        } else if (typeOfRuleBreak == 5) {
+            // Runs out of gas w/o recursion.
+            bytes32 value = 0x0000000000000000000000000000000000000000000000000000000000000001;
+            while (value != bytes32(0)) {
+                value = keccak256(abi.encode(value));
+            }
         }
 
         _validateTransaction(_suggestedSignedTxHash, _transaction);

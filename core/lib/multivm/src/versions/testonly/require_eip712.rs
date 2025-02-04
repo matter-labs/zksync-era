@@ -97,9 +97,8 @@ pub(crate) fn test_require_eip712<VM: TestedVm>() {
     );
 
     // Now send the 'classic' EIP712 transaction
-    // FIXME: double-check nonce (1?)
     let transaction: Transaction =
-        make_aa_transaction(aa_address, beneficiary_address, &mut private_account).into();
+        make_aa_transaction(aa_address, beneficiary_address, &mut private_account, None).into();
     vm.vm.push_transaction(transaction);
     vm.vm.execute(InspectExecutionMode::OneTx);
 
@@ -117,6 +116,7 @@ pub(crate) fn make_aa_transaction(
     aa_address: Address,
     beneficiary_address: Address,
     private_account: &mut Account,
+    fee: Option<Fee>,
 ) -> L2Tx {
     let chain_id: u32 = 270;
 
@@ -126,12 +126,7 @@ pub(crate) fn make_aa_transaction(
         Some(beneficiary_address),
         vec![],
         nonce,
-        Fee {
-            gas_limit: U256::from(1000000000),
-            max_fee_per_gas: U256::from(1000000000),
-            max_priority_fee_per_gas: U256::from(1000000000),
-            gas_per_pubdata_limit: U256::from(1000000000),
-        },
+        fee.unwrap_or_else(Account::default_fee),
         aa_address,
         U256::from(28374938),
         vec![],
