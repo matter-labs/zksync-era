@@ -18,7 +18,7 @@ use crate::{
     versions::testonly::{
         validation_params, TestedVm, TestedVmForValidation, TestedVmWithCallTracer,
     },
-    vm_fast::{tracers::WithBuiltinTracers, CallTracer},
+    vm_fast::{tracers::WithBuiltinTracers, CallTracer, FastValidationTracer},
 };
 
 mod account_validation_rules;
@@ -193,9 +193,9 @@ impl TestedVmForValidation for TestedFastVm<(), FullValidationTracer> {
     }
 }
 
-impl TestedVmWithCallTracer for TestedFastVm<CallTracer, ()> {
+impl TestedVmWithCallTracer for TestedFastVm<CallTracer, FastValidationTracer> {
     fn inspect_with_call_tracer(&mut self) -> (VmExecutionResultAndLogs, Vec<Call>) {
-        let mut tracer = (CallTracer::default(), ());
+        let mut tracer = (CallTracer::default(), FastValidationTracer::default());
         let result = self.inspect(&mut tracer, InspectExecutionMode::OneTx);
         (result, tracer.0.into_result())
     }

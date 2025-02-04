@@ -10,11 +10,17 @@ use zksync_vm2::interface::{
     CallframeInterface, GlobalStateInterface, Opcode::*, OpcodeType, ReturnType::*, ShouldStop,
     Tracer,
 };
-use zksync_vm_interface::tracer::{
-    TimestampAsserterParams, ValidationParams, ValidationTraces, ViolatedValidationRule,
-};
 
-use crate::{tracers::TIMESTAMP_ASSERTER_FUNCTION_SELECTOR, vm_fast::utils::read_raw_fat_pointer};
+use crate::{
+    interface::{
+        tracer::{
+            TimestampAsserterParams, ValidationParams, ValidationTraces, ViolatedValidationRule,
+        },
+        Halt,
+    },
+    tracers::TIMESTAMP_ASSERTER_FUNCTION_SELECTOR,
+    vm_fast::utils::read_raw_fat_pointer,
+};
 
 /// [`Tracer`] used for account validation per [EIP-4337] and [EIP-7562].
 ///
@@ -24,15 +30,42 @@ pub trait ValidationTracer: Tracer + Default {
     /// Should the execution stop after validation is complete?
     const STOP_AFTER_VALIDATION: bool;
     /// Hook called when account validation is entered.
-    fn account_validation_entered(&mut self);
+    fn account_validation_entered(&mut self, validation_gas_limit: u32, gas_hidden: u32);
     /// Hook called when account validation is exited.
-    fn validation_exited(&mut self);
+    fn validation_exited(&mut self) -> Option<Halt>;
 }
 
-impl ValidationTracer for () {
+#[derive(Debug, Default)]
+pub struct FastValidationTracer {
+    track_out_of_gas: bool,
+    is_out_of_gas: bool,
+}
+
+impl Tracer for FastValidationTracer {
+    #[inline(always)]
+    fn before_instruction<OP: OpcodeType, S: GlobalStateInterface>(&mut self, state: &mut S) {
+        match OP::VALUE {
+            Ret(Panic) if self.track_out_of_gas && state.current_frame().gas() == 0 => {
+                self.is_out_of_gas = true;
+            }
+            _ => {}
+        }
+    }
+}
+
+impl ValidationTracer for FastValidationTracer {
     const STOP_AFTER_VALIDATION: bool = false;
-    fn account_validation_entered(&mut self) {}
-    fn validation_exited(&mut self) {}
+
+    fn account_validation_entered(&mut self, _validation_gas_limit: u32, gas_hidden: u32) {
+        // If all gas is passed to validation, running out of gas is not considered *validation* running out of gas,
+        // it's just a general out-of-gas error.
+        self.track_out_of_gas = gas_hidden > 0;
+    }
+
+    fn validation_exited(&mut self) -> Option<Halt> {
+        self.track_out_of_gas = false;
+        self.is_out_of_gas.then_some(Halt::ValidationOutOfGas)
+    }
 }
 
 /// Account abstraction exposes a chain to denial of service attacks because someone who fails to
@@ -64,6 +97,7 @@ impl ValidationTracer for () {
 #[derive(Debug, Default)]
 pub struct FullValidationTracer {
     in_validation: bool,
+    validation_gas_limit: u32,
     add_return_value_to_allowed_slots: bool,
 
     slots_obtained_via_keccak: HashSet<U256>,
@@ -83,12 +117,19 @@ pub struct FullValidationTracer {
 impl ValidationTracer for FullValidationTracer {
     const STOP_AFTER_VALIDATION: bool = true;
 
-    fn account_validation_entered(&mut self) {
+    fn account_validation_entered(&mut self, validation_gas_limit: u32, _gas_hidden: u32) {
         self.in_validation = true;
+        self.validation_gas_limit = validation_gas_limit;
     }
 
-    fn validation_exited(&mut self) {
+    fn validation_exited(&mut self) -> Option<Halt> {
         self.in_validation = false;
+        match self.validation_error {
+            Some(ViolatedValidationRule::TookTooManyComputationalGas(_)) => {
+                Some(Halt::ValidationOutOfGas)
+            }
+            _ => None,
+        }
     }
 }
 
@@ -99,9 +140,12 @@ impl Tracer for FullValidationTracer {
         }
 
         match OP::VALUE {
+            // FIXME: should this use the same filtering as the fast tracer?
             // Out of gas once means out of gas for the whole validation, as the EIP forbids handling out of gas errors
             Ret(Panic) if state.current_frame().gas() == 0 => {
-                self.set_error(ViolatedValidationRule::TookTooManyComputationalGas(0))
+                let err =
+                    ViolatedValidationRule::TookTooManyComputationalGas(self.validation_gas_limit);
+                self.set_error(err);
             }
 
             ContextMeta => self.set_error(ViolatedValidationRule::TouchedDisallowedContext),
@@ -132,7 +176,7 @@ impl Tracer for FullValidationTracer {
                 ) {
                     self.set_error(ViolatedValidationRule::TouchedDisallowedStorageSlots(
                         address, slot,
-                    ))
+                    ));
                 }
             }
 
@@ -149,6 +193,7 @@ impl Tracer for FullValidationTracer {
         }
 
         if self.validation_error.is_some() {
+            dbg!(OP::VALUE);
             return ShouldStop::Stop;
         }
 
