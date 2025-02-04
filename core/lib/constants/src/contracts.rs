@@ -140,6 +140,11 @@ pub const EVM_GAS_MANAGER_ADDRESS: Address = H160([
     0x00, 0x00, 0x80, 0x13,
 ]);
 
+pub const EVM_PREDEPLOYS_MANAGER_ADDRESS: Address = H160([
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x80, 0x14,
+]);
+
 /// Note, that the `Create2Factory` and higher are explicitly deployed on a non-system-contract address
 /// as they don't require any kernel space features.
 pub const CREATE2_FACTORY_ADDRESS: Address = H160([
