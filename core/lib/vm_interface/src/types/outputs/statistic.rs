@@ -188,7 +188,7 @@ pub struct VmExecutionMetrics {
     pub l2_l1_long_messages: usize,
     pub l2_to_l1_logs: usize,
     pub user_l2_to_l1_logs: usize,
-    pub contracts_used: usize, // FIXME: incorrectly defined?
+    pub contracts_used: usize,
     pub contracts_deployed: u16,
     pub vm_events: usize,
     pub storage_logs: usize,

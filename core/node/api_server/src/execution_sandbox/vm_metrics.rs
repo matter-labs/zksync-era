@@ -160,6 +160,7 @@ pub(super) fn collect_tx_execution_metrics(
             l2_to_l1_logs: result.logs.total_l2_to_l1_logs_count(),
             user_l2_to_l1_logs: result.logs.user_l2_to_l1_logs.len(),
             contracts_used: result.statistics.contracts_used,
+            // FIXME: incorrectly defined? (a number of factory deps, not number of contracts deployed)
             contracts_deployed,
             vm_events: result.logs.events.len(),
             storage_logs: result.logs.storage_logs.len(),
