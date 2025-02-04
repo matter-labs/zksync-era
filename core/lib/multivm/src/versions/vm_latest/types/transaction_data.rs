@@ -234,9 +234,9 @@ impl TransactionData {
         U256::from(TX_MAX_COMPUTE_GAS_LIMIT).min(self.gas_limit)
     }
 
-    pub(crate) fn tx_hash(&self, chain_id: L2ChainId) -> H256 {
+    pub(crate) fn signed_and_tx_hashes(&self, chain_id: L2ChainId) -> (Option<H256>, H256) {
         if is_l1_tx_type(self.tx_type) {
-            return self.canonical_l1_tx_hash().unwrap();
+            return (None, self.canonical_l1_tx_hash());
         }
 
         let l2_tx: L2Tx = self.clone().try_into().unwrap();
@@ -244,27 +244,34 @@ impl TransactionData {
         transaction_request.chain_id = Some(chain_id.as_u64());
 
         // It is assumed that the `TransactionData` always has all the necessary components to recover the hash.
-        transaction_request
-            .get_tx_hash()
-            .expect("Could not recover L2 transaction hash")
+        let (signed_hash, tx_hash) = transaction_request
+            .get_signed_and_tx_hashes()
+            .expect("Could not recover L2 transaction hash");
+        (Some(signed_hash), tx_hash)
     }
 
-    fn canonical_l1_tx_hash(&self) -> Result<H256, TxHashCalculationError> {
+    fn canonical_l1_tx_hash(&self) -> H256 {
         use zksync_types::web3::keccak256;
 
-        if !is_l1_tx_type(self.tx_type) {
-            return Err(TxHashCalculationError::CannotCalculateL1HashForL2Tx);
-        }
-
         let encoded_bytes = self.clone().abi_encode();
+        H256(keccak256(&encoded_bytes))
+    }
 
-        Ok(H256(keccak256(&encoded_bytes)))
+    pub(crate) fn parse_signature(&self) -> Option<(bool, &[u8])> {
+        if self.signature.len() != 65 {
+            return None;
+        }
+        let v = match self.signature[64] {
+            27 => false,
+            28 => true,
+            _ => return None,
+        };
+        Some((v, &self.signature[..64]))
     }
 }
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum TxHashCalculationError {
-    CannotCalculateL1HashForL2Tx,
     CannotCalculateL2HashForL1Tx,
 }
 
