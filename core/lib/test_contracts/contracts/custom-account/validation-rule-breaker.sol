@@ -40,24 +40,30 @@ contract ValidationRuleBreaker is IAccount {
             require(BOOTLOADER_FORMAL_ADDRESS.balance == 0);
         } else if (typeOfRuleBreak == 4) {
             // This should still fail; EIP-4337 defines out of gas as an immediate failure
-            address(this).call(
-                abi.encodeWithSignature("_runOutOfGasButCatchThePanic()")
-            );
+            address(this).call(abi.encodeWithSignature("_runOutOfGasRecursively()"));
         } else if (typeOfRuleBreak == 5) {
-            // Runs out of gas w/o recursion.
-            bytes32 value = 0x0000000000000000000000000000000000000000000000000000000000000001;
-            while (value != bytes32(0)) {
-                value = keccak256(abi.encode(value));
+            runOutOfGasPlain();
+        } else if (typeOfRuleBreak == 6) {
+            try this.runOutOfGasPlain() {
+                revert("Should've run out of gas");
+            } catch Panic(uint) {
+                // Swallow the error
             }
         }
 
         _validateTransaction(_suggestedSignedTxHash, _transaction);
     }
 
-    function _runOutOfGasButCatchThePanic() external {
-        address(this).call(
-            abi.encodeWithSignature("_runOutOfGasButCatchThePanic()")
-        );
+    function _runOutOfGasRecursively() external {
+        address(this).call(abi.encodeWithSignature("_runOutOfGasRecursively()"));
+    }
+
+    /// Runs out of gas w/o recursion.
+    function runOutOfGasPlain() public {
+        bytes32 value = 0x0000000000000000000000000000000000000000000000000000000000000001;
+        while (value != bytes32(0)) {
+            value = keccak256(abi.encode(value));
+        }
     }
 
     function _validateTransaction(

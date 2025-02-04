@@ -12,7 +12,7 @@ use crate::interface::{
 };
 
 /// Corresponds to test cases in the `ValidationRuleBreaker` contract.
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 #[repr(u32)]
 enum TestCase {
     Baseline = 0,
@@ -21,6 +21,7 @@ enum TestCase {
     ReadFromTrustedAddressSlot = 3,
     RecursiveOutOfGas = 4,
     PlainOutOfGas = 5,
+    PlainOutOfGasWithCatch = 6,
 }
 
 /// Checks that every limitation imposed on account validation results in an appropriate error.
@@ -111,8 +112,14 @@ fn test_rule<VM: TestedVmForValidation>(
     vm.vm.run_validation(tx, 55)
 }
 
+const OUT_OF_GAS_CASES: [TestCase; 3] = [
+    TestCase::PlainOutOfGas,
+    TestCase::PlainOutOfGasWithCatch,
+    TestCase::RecursiveOutOfGas,
+];
+
 pub(crate) fn test_validation_out_of_gas_with_full_tracer<VM: TestedVmForValidation>() {
-    for test_case in [TestCase::RecursiveOutOfGas, TestCase::PlainOutOfGas] {
+    for test_case in OUT_OF_GAS_CASES {
         println!("Testing case: {test_case:?}");
         let (result, violated_rule) = test_rule::<VM>(300_000, test_case);
         assert_matches!(
@@ -129,28 +136,43 @@ pub(crate) fn test_validation_out_of_gas_with_full_tracer<VM: TestedVmForValidat
 }
 
 pub(crate) fn test_validation_out_of_gas_with_fast_tracer<VM: TestedVm>() {
-    // Unlimited tx gas limit should lead to a validation-specific halt reason.
-    println!("Testing tx with large gas limit");
-    let result = run_validation_with_gas_limit::<VM>(1_000_000);
-    assert_matches!(
-        &result.result,
-        ExecutionResult::Halt {
-            reason: Halt::ValidationOutOfGas,
-        }
-    );
+    for test_case in OUT_OF_GAS_CASES {
+        println!("Testing case: {test_case:?}");
 
-    // If the tx gas limit is lower than the validation gas limit, the bootloader should exit super-early.
-    println!("Testing tx with low gas limit");
-    let result = run_validation_with_gas_limit::<VM>(250_000);
-    assert_matches!(
-        &result.result,
-        ExecutionResult::Halt {
-            reason: Halt::ValidationFailed(_)
+        // Large tx gas limit should lead to a validation-specific halt reason.
+        let tx_gas_limits: &[_] = if matches!(test_case, TestCase::RecursiveOutOfGas) {
+            &[100_000_000, 200_000_000, 500_000_000, 1_000_000_000]
+        } else {
+            &[1_000_000, 10_000_000, 100_000_000, 1_000_000_000]
+        };
+
+        for &tx_gas_limit in tx_gas_limits {
+            println!("Testing tx with gas limit: {tx_gas_limit}");
+            let result = run_validation_with_gas_limit::<VM>(test_case, tx_gas_limit);
+            assert_matches!(
+                &result.result,
+                ExecutionResult::Halt {
+                    reason: Halt::ValidationOutOfGas,
+                }
+            );
         }
-    );
+
+        // If the tx gas limit is lower than the validation gas limit, the bootloader should exit super-early.
+        println!("Testing tx with low gas limit");
+        let result = run_validation_with_gas_limit::<VM>(test_case, 250_000);
+        assert_matches!(
+            &result.result,
+            ExecutionResult::Halt {
+                reason: Halt::ValidationFailed(_)
+            }
+        );
+    }
 }
 
-fn run_validation_with_gas_limit<VM: TestedVm>(tx_gas_limit: u32) -> VmExecutionResultAndLogs {
+fn run_validation_with_gas_limit<VM: TestedVm>(
+    test_case: TestCase,
+    tx_gas_limit: u32,
+) -> VmExecutionResultAndLogs {
     let aa_address = Address::repeat_byte(0x10);
     let beneficiary_address = Address::repeat_byte(0x20);
     let bytecode = TestContract::validation_test().bytecode.to_vec();
@@ -159,7 +181,7 @@ fn run_validation_with_gas_limit<VM: TestedVm>(tx_gas_limit: u32) -> VmExecution
     let mut storage_with_rule_break_set = get_empty_storage();
     storage_with_rule_break_set.set_value(
         StorageKey::new(AccountTreeId::new(aa_address), H256::zero()),
-        H256::from_low_u64_be(TestCase::PlainOutOfGas as u64),
+        H256::from_low_u64_be(test_case as u64),
     );
 
     let mut vm = VmTesterBuilder::new()
