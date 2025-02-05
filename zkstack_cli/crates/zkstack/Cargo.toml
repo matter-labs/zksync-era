@@ -48,7 +48,7 @@ zksync_system_constants.workspace = true
 zksync_eth_client.workspace = true
 zksync_contracts.workspace = true
 prost.workspace = true
-reqwest = "0.12.8"
+reqwest = { version = "0.12.8", features = ["blocking"] }
 
 [dev-dependencies]
 rand.workspace = true
