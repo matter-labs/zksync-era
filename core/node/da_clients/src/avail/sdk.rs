@@ -464,8 +464,10 @@ impl GasRelayClient {
             match serde_json::from_slice::<GasRelayAPISubmissionResponse>(&response_bytes) {
                 Ok(response) => response,
                 Err(_) => {
-                    let response_body = String::from_utf8_lossy(&response_bytes).as_ref();
-                    bail!("Unexpected response from gas relay: {:?}", response_body)
+                    bail!(
+                        "Unexpected response from gas relay: {:?}",
+                        String::from_utf8_lossy(&response_bytes).as_ref()
+                    )
                 }
             };
 
@@ -498,10 +500,9 @@ impl GasRelayClient {
             match serde_json::from_slice::<GasRelayAPIStatusResponse>(&status_response_bytes) {
                 Ok(response) => response,
                 Err(_) => {
-                    let response_body = String::from_utf8_lossy(&status_response_bytes).to_string();
                     bail!(
                         "Unexpected status response from gas relay: {:?}",
-                        response_body
+                        String::from_utf8_lossy(&status_response_bytes).as_ref()
                     )
                 }
             };
