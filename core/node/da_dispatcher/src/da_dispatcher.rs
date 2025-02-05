@@ -1,6 +1,6 @@
 use std::{future::Future, sync::Arc, time::Duration};
 
-use anyhow::{anyhow, Context};
+use anyhow::Context;
 use chrono::Utc;
 use rand::Rng;
 use tokio::sync::watch::Receiver;
@@ -10,10 +10,13 @@ use zksync_da_client::{
     DataAvailabilityClient,
 };
 use zksync_dal::{ConnectionPool, Core, CoreDal};
+use zksync_eth_client::{
+    clients::{DynClient, L1},
+    EthInterface,
+};
 use zksync_types::{
     ethabi, l2_to_l1_log::L2ToL1Log, web3::CallRequest, Address, L1BatchNumber, H256,
 };
-use zksync_web3_decl::client::{DynClient, L1};
 
 use crate::metrics::METRICS;
 
@@ -263,26 +266,24 @@ impl DataAvailabilityDispatcher {
     async fn check_for_misconfiguration(&self) -> anyhow::Result<()> {
         if let Some(no_da_validator) = self.contracts_config.no_da_validium_l1_validator_addr {
             if self.config.use_dummy_inclusion_data() {
-                let l1_da_validator_address = self
-                    .fetch_l1_da_validator_address(&self.settlement_layer_client)
-                    .await?;
+                let l1_da_validator_address = self.fetch_l1_da_validator_address().await?;
 
                 if l1_da_validator_address != no_da_validator {
-                    anyhow!((
+                    anyhow::bail!(
                         "Dummy inclusion data is enabled, but not the NoDAValidator is used: {:?} != {:?}",
                         l1_da_validator_address, no_da_validator
-                    ))
+                    )
                 }
             }
         }
+
+        Ok(())
     }
 
-    async fn fetch_l1_da_validator_address(
-        &self,
-        eth_client: &DynClient<L1>,
-    ) -> anyhow::Result<Address> {
+    async fn fetch_l1_da_validator_address(&self) -> anyhow::Result<Address> {
         let signature = ethabi::short_signature("getDAValidatorPair", &[]);
-        let response = eth_client
+        let response = self
+            .settlement_layer_client
             .call_contract_function(
                 CallRequest {
                     data: Some(signature.into()),
@@ -303,7 +304,7 @@ impl DataAvailabilityDispatcher {
         validators[0]
             .clone()
             .into_address()
-            .context("Failed to convert DA validator address from Token")?
+            .context("Failed to convert DA validator address from Token")
     }
 }
 
@@ -342,7 +343,7 @@ where
 }
 
 pub fn find_l2_da_validator_address(system_logs: Vec<L2ToL1Log>) -> anyhow::Result<Address> {
-    system_logs
+    Ok(system_logs
         .iter()
         .find(|log| {
             log.key
@@ -352,5 +353,5 @@ pub fn find_l2_da_validator_address(system_logs: Vec<L2ToL1Log>) -> anyhow::Resu
         })
         .context("L2 DA validator address log is missing")?
         .value
-        .into()
+        .into())
 }

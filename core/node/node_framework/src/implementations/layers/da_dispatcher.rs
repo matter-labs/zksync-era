@@ -1,12 +1,8 @@
-use anyhow::anyhow;
 use zksync_config::{
     configs::{chain::StateKeeperConfig, da_dispatcher::DADispatcherConfig},
     ContractsConfig,
 };
 use zksync_da_dispatcher::DataAvailabilityDispatcher;
-use zksync_eth_client::EthInterface;
-use zksync_types::{ethabi, web3::CallRequest, Address};
-use zksync_web3_decl::client::{DynClient, L1};
 
 use crate::{
     implementations::resources::{

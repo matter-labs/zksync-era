@@ -11833,6 +11833,7 @@ dependencies = [
  "zksync_config",
  "zksync_da_client",
  "zksync_dal",
+ "zksync_eth_client",
  "zksync_system_constants",
  "zksync_types",
  "zksync_web3_decl",
