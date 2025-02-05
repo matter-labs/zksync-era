@@ -222,7 +222,7 @@ mod tests {
             config: tee_prover_config,
             api_client: TeeApiClient::new(Url::parse("http://mock").unwrap()),
         };
-        let private_key = K256PrivateKey::from_bytes(signing_key.secret_bytes().into()).unwrap();
+        let private_key: K256PrivateKey = signing_key.into();
         let expected_address =
             Address::from_slice(&hex::decode("627306090abaB3A6e1400e9345bC60c78a8BEf57").unwrap());
         assert!(private_key.address() == expected_address);

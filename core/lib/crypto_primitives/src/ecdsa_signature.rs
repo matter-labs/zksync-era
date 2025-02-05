@@ -55,6 +55,12 @@ impl fmt::Debug for K256PrivateKey {
     }
 }
 
+impl From<SecretKey> for K256PrivateKey {
+    fn from(secret_key: SecretKey) -> Self {
+        K256PrivateKey(secret_key)
+    }
+}
+
 impl K256PrivateKey {
     /// Converts a 32-byte array into a key.
     ///
