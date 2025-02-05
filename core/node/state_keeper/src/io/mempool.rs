@@ -294,7 +294,15 @@ impl StateKeeperIO for MempoolIO {
         let current_timestamp_millis = millis_since_epoch();
         let current_timestamp = (current_timestamp_millis / 1_000) as u64;
 
-        *block_timestamp = current_timestamp;
+        if current_timestamp < *block_timestamp {
+            tracing::warn!(
+                "Trying to update bloc timestamp  {} with lower value timestamp  {}",
+                *block_timestamp,
+                current_timestamp
+            );
+        } else {
+            *block_timestamp = current_timestamp;
+        }
     }
 
     async fn wait_for_next_tx(
