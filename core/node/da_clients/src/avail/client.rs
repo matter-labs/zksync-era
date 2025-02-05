@@ -68,13 +68,9 @@ where
 
     match Option::<U256Value>::deserialize(deserializer)? {
         Some(U256Value::Number(num)) => Ok(Some(U256::from(num))),
-        Some(U256Value::String(s)) => if let Some(stripped) = s.strip_prefix("0x") {
-            U256::from_str_radix(stripped, 16)
-        } else {
-            U256::from_str_radix(&s, 16)
-        }
-        .map(Some)
-        .map_err(|e| D::Error::custom(format!("failed to parse hex string: {}", e))),
+        Some(U256Value::String(s)) => U256::from_str_radix(s.strip_prefix("0x").unwrap_or(&s), 16)
+            .map(Some)
+            .map_err(|e| D::Error::custom(format!("failed to parse hex string: {}", e))),
         None => Ok(None),
     }
 }
@@ -261,42 +257,11 @@ impl DataAvailabilityClient for AvailClient {
             return Ok(None);
         }
 
-        // Check if all required fields are present
-        match (
-            bridge_api_data.data_root_proof,
-            bridge_api_data.leaf_proof,
-            bridge_api_data.range_hash,
-            bridge_api_data.data_root_index,
-            bridge_api_data.blob_root,
-            bridge_api_data.bridge_root,
-            bridge_api_data.leaf,
-            bridge_api_data.leaf_index,
-        ) {
-            (
-                Some(data_root_proof),
-                Some(leaf_proof),
-                Some(range_hash),
-                Some(data_root_index),
-                Some(blob_root),
-                Some(bridge_root),
-                Some(leaf),
-                Some(leaf_index),
-            ) => {
-                let attestation_data = MerkleProofInput {
-                    data_root_proof,
-                    leaf_proof,
-                    range_hash,
-                    data_root_index,
-                    blob_root,
-                    bridge_root,
-                    leaf,
-                    leaf_index,
-                };
-                Ok(Some(InclusionData {
-                    data: ethabi::encode(&attestation_data.into_tokens()),
-                }))
-            }
-            _ => {
+        match bridge_response_to_merkle_proof_input(bridge_api_data) {
+            Some(attestation_data) => Ok(Some(InclusionData {
+                data: ethabi::encode(&attestation_data.into_tokens()),
+            })),
+            None => {
                 tracing::info!(
                     "Bridge API response missing required fields. Data might not be available yet."
                 );
@@ -335,4 +300,19 @@ impl DataAvailabilityClient for AvailClient {
             }
         }
     }
+}
+
+fn bridge_response_to_merkle_proof_input(
+    bridge_api_response: BridgeAPIResponse,
+) -> Option<MerkleProofInput> {
+    Some(MerkleProofInput {
+        data_root_proof: bridge_api_response.data_root_proof?,
+        leaf_proof: bridge_api_response.leaf_proof?,
+        range_hash: bridge_api_response.range_hash?,
+        data_root_index: bridge_api_response.data_root_index?,
+        blob_root: bridge_api_response.blob_root?,
+        bridge_root: bridge_api_response.bridge_root?,
+        leaf: bridge_api_response.leaf?,
+        leaf_index: bridge_api_response.leaf_index?,
+    })
 }

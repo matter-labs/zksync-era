@@ -453,7 +453,7 @@ impl GasRelayClient {
             .header("Authorization", format!("Bearer {}", self.api_key))
             .send()
             .await
-            .map_err(|e| anyhow::anyhow!("Failed to submit data to the gas relay: {:?}", e))?;
+            .context("Failed to submit data to the gas relay")?;
 
         let response_bytes = submit_response
             .bytes()
@@ -464,7 +464,7 @@ impl GasRelayClient {
             match serde_json::from_slice::<GasRelayAPISubmissionResponse>(&response_bytes) {
                 Ok(response) => response,
                 Err(_) => {
-                    let response_body = String::from_utf8_lossy(&response_bytes).to_string();
+                    let response_body = String::from_utf8_lossy(&response_bytes).as_ref();
                     bail!("Unexpected response from gas relay: {:?}", response_body)
                 }
             };
