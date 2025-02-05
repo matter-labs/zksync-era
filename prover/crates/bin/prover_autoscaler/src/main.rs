@@ -14,7 +14,7 @@ use zksync_prover_autoscaler::{
     k8s::{Scaler, Watcher},
     task_wiring::TaskRunner,
 };
-use zksync_utils::wait_for_tasks::ManagedTasks;
+use zksync_task_management::ManagedTasks;
 use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 /// Represents the sequential number of the Prover Autoscaler type.
