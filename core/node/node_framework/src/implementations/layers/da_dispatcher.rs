@@ -55,44 +55,6 @@ impl DataAvailabilityDispatcherLayer {
             contracts_config,
         }
     }
-
-    async fn fetch_l1_da_validator_address(
-        &self,
-        eth_client: Box<DynClient<L1>>,
-    ) -> Result<Address, WiringError> {
-        let signature = ethabi::short_signature("getDAValidatorPair", &[]);
-        let response = eth_client
-            .call_contract_function(
-                CallRequest {
-                    data: Some(signature.into()),
-                    to: Some(self.contracts_config.diamond_proxy_addr),
-                    ..CallRequest::default()
-                },
-                None,
-            )
-            .await
-            .map_err(|err| {
-                WiringError::Internal(anyhow!("Failed to call the DA validator getter: {}", err))
-            })?;
-
-        let validators = ethabi::decode(
-            &[ethabi::ParamType::Address, ethabi::ParamType::Address],
-            response.0.as_slice(),
-        )
-        .map_err(|err| {
-            WiringError::Internal(anyhow!(
-                "Failed to decode the DA validator address: {}",
-                err
-            ))
-        })?;
-
-        validators[0]
-            .clone()
-            .into_address()
-            .ok_or(WiringError::Internal(anyhow!(
-                "Failed to decode the DA validator address".to_string()
-            )))
-    }
 }
 
 #[async_trait::async_trait]
@@ -115,21 +77,6 @@ impl WiringLayer for DataAvailabilityDispatcherLayer {
             }
         }
 
-        if let Some(no_da_validator) = self.contracts_config.no_da_validium_l1_validator_addr {
-            let l1_da_validator_address = self
-                .fetch_l1_da_validator_address(input.eth_client.0)
-                .await?;
-
-            if l1_da_validator_address != no_da_validator
-                && self.da_config.use_dummy_inclusion_data()
-            {
-                return Err(WiringError::Configuration(format!(
-                    "Dummy inclusion data is enabled, but not the NoDAValidator is used: {:?} != {:?}",
-                    l1_da_validator_address, no_da_validator
-                )));
-            }
-        }
-
         // A pool with size 2 is used here because there are 2 functions within a task that execute in parallel
         let master_pool = input.master_pool.get_custom(2).await?;
 
@@ -138,6 +85,7 @@ impl WiringLayer for DataAvailabilityDispatcherLayer {
             self.da_config,
             da_client,
             self.contracts_config,
+            input.eth_client.0,
         );
 
         Ok(Output { da_dispatcher_task })

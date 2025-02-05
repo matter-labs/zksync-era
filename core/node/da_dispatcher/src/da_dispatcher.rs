@@ -1,6 +1,6 @@
 use std::{future::Future, sync::Arc, time::Duration};
 
-use anyhow::Context;
+use anyhow::{anyhow, Context};
 use chrono::Utc;
 use rand::Rng;
 use tokio::sync::watch::Receiver;
@@ -10,7 +10,10 @@ use zksync_da_client::{
     DataAvailabilityClient,
 };
 use zksync_dal::{ConnectionPool, Core, CoreDal};
-use zksync_types::L1BatchNumber;
+use zksync_types::{
+    ethabi, l2_to_l1_log::L2ToL1Log, web3::CallRequest, Address, L1BatchNumber, H256,
+};
+use zksync_web3_decl::client::{DynClient, L1};
 
 use crate::metrics::METRICS;
 
@@ -20,6 +23,7 @@ pub struct DataAvailabilityDispatcher {
     pool: ConnectionPool<Core>,
     config: DADispatcherConfig,
     contracts_config: ContractsConfig,
+    settlement_layer_client: Box<DynClient<L1>>,
 }
 
 impl DataAvailabilityDispatcher {
@@ -28,16 +32,19 @@ impl DataAvailabilityDispatcher {
         config: DADispatcherConfig,
         client: Box<dyn DataAvailabilityClient>,
         contracts_config: ContractsConfig,
+        settlement_layer_client: Box<DynClient<L1>>,
     ) -> Self {
         Self {
             pool,
             config,
             client,
             contracts_config,
+            settlement_layer_client,
         }
     }
 
     pub async fn run(self, mut stop_receiver: Receiver<bool>) -> anyhow::Result<()> {
+        self.check_for_misconfiguration().await?;
         let self_arc = Arc::new(self.clone());
 
         let mut stop_receiver_dispatch = stop_receiver.clone();
@@ -130,7 +137,7 @@ impl DataAvailabilityDispatcher {
                     batch.l1_batch_number,
                     dispatch_response.blob_id.as_str(),
                     sent_at.naive_utc(),
-                    batch.l2_da_validator_address(),
+                    find_l2_da_validator_address(batch.system_logs.clone())?,
                 )
                 .await?;
             drop(conn);
@@ -188,7 +195,10 @@ impl DataAvailabilityDispatcher {
             let mut conn = self.pool.connection_tagged("da_dispatcher").await?;
             conn.data_availability_dal()
                 .set_dummy_inclusion_data_for_old_batches(
-                    self.contracts_config.l2_da_validator_addr.unwrap(), // during the transition having the L2 DA validator address is mandatory
+                    self.contracts_config
+                        .l2_da_validator_addr
+                        .context("L2 DA validator address is not set")
+                        .unwrap(), // during the transition having the L2 DA validator address is mandatory
                 )
                 .await?;
 
@@ -249,6 +259,52 @@ impl DataAvailabilityDispatcher {
 
         Ok(())
     }
+
+    async fn check_for_misconfiguration(&self) -> anyhow::Result<()> {
+        if let Some(no_da_validator) = self.contracts_config.no_da_validium_l1_validator_addr {
+            if self.config.use_dummy_inclusion_data() {
+                let l1_da_validator_address = self
+                    .fetch_l1_da_validator_address(&self.settlement_layer_client)
+                    .await?;
+
+                if l1_da_validator_address != no_da_validator {
+                    anyhow!((
+                        "Dummy inclusion data is enabled, but not the NoDAValidator is used: {:?} != {:?}",
+                        l1_da_validator_address, no_da_validator
+                    ))
+                }
+            }
+        }
+    }
+
+    async fn fetch_l1_da_validator_address(
+        &self,
+        eth_client: &DynClient<L1>,
+    ) -> anyhow::Result<Address> {
+        let signature = ethabi::short_signature("getDAValidatorPair", &[]);
+        let response = eth_client
+            .call_contract_function(
+                CallRequest {
+                    data: Some(signature.into()),
+                    to: Some(self.contracts_config.diamond_proxy_addr),
+                    ..CallRequest::default()
+                },
+                None,
+            )
+            .await
+            .context("Failed to call the DA validator getter")?;
+
+        let validators = ethabi::decode(
+            &[ethabi::ParamType::Address, ethabi::ParamType::Address],
+            response.0.as_slice(),
+        )
+        .context("Failed to decode the DA validator address")?;
+
+        validators[0]
+            .clone()
+            .into_address()
+            .context("Failed to convert DA validator address from Token")?
+    }
 }
 
 async fn retry<T, Fut, F>(
@@ -283,4 +339,18 @@ where
             }
         }
     }
+}
+
+pub fn find_l2_da_validator_address(system_logs: Vec<L2ToL1Log>) -> anyhow::Result<Address> {
+    system_logs
+        .iter()
+        .find(|log| {
+            log.key
+                == H256::from_low_u64_be(u64::from(
+                    zksync_system_constants::L2_DA_VALIDATOR_OUTPUT_HASH_KEY,
+                ))
+        })
+        .context("L2 DA validator address log is missing")?
+        .value
+        .into()
 }

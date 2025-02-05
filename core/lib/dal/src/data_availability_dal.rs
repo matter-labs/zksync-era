@@ -249,7 +249,7 @@ impl DataAvailabilityDal<'_, '_> {
                 updated_at = NOW()
             WHERE
                 inclusion_data IS NULL
-                AND l2_da_validator_address != $2
+                AND (l2_da_validator_address IS NULL OR l2_da_validator_address != $2)
             "#,
             vec![],
             current_l2_da_validator.as_bytes(),
