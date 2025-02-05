@@ -1,6 +1,6 @@
 use zksync_config::configs::ProofDataHandlerConfig;
 use zksync_proof_data_handler::{
-    ProofDataHandlerApi, ProofGenerationDataProcessor, ProofGenerationDataSubmitter,
+    TeeProofDataHandler, ProofGenerationDataProcessor, ProofGenerationDataSubmitter,
     RequestProcessor,
 };
 use zksync_types::{commitment::L1BatchCommitmentMode, L2ChainId};
@@ -73,16 +73,16 @@ impl WiringLayer for ProofDataHandlerLayer {
         );
 
         let api = if self.proof_data_handler_config.tee_config.tee_support {
-            ProofDataHandlerApi::new_with_tee_support(
+            TeeProofDataHandler::new_with_tee_support(
                 processor,
                 self.proof_data_handler_config.http_port,
             )
         } else {
-            ProofDataHandlerApi::new(processor, self.proof_data_handler_config.http_port)
+            TeeProofDataHandler::new(processor, self.proof_data_handler_config.http_port)
         };
 
         let proof_gen_data_processor =
-            ProofGenerationDataProcessor::new(main_pool, blob_store.clone(), self.commitment_mode);
+            ProofGenerationDataProcessor::new(self.l2_chain_id, main_pool, blob_store.clone(), self.commitment_mode);
 
         let data_submitter = ProofGenerationDataSubmitter::new(
             proof_gen_data_processor,
@@ -98,12 +98,12 @@ impl WiringLayer for ProofDataHandlerLayer {
 
 #[derive(Debug)]
 struct ProofDataHandlerTask {
-    api: ProofDataHandlerApi,
+    api: TeeProofDataHandler,
     data_submitter: ProofGenerationDataSubmitter,
 }
 
 impl ProofDataHandlerTask {
-    pub fn new(api: ProofDataHandlerApi, data_submitter: ProofGenerationDataSubmitter) -> Self {
+    pub fn new(api: TeeProofDataHandler, data_submitter: ProofGenerationDataSubmitter) -> Self {
         Self {
             api,
             data_submitter,

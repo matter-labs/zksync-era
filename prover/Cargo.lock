@@ -8773,6 +8773,7 @@ dependencies = [
  "clap 4.5.23",
  "ctrlc",
  "futures 0.3.31",
+ "jsonrpsee",
  "log",
  "reqwest 0.12.9",
  "serde",

@@ -8,14 +8,13 @@ use zksync_prover_interface::{
         L1BatchMetadataHashes, VMRunWitnessInputData, WitnessInputData, WitnessInputMerklePaths,
     },
 };
-use zksync_types::{
-    basic_fri_types::Eip4844Blobs, commitment::L1BatchCommitmentMode, L1BatchNumber,
-};
+use zksync_types::{basic_fri_types::Eip4844Blobs, commitment::L1BatchCommitmentMode, L1BatchNumber, L2ChainId};
 
 use crate::metrics::METRICS;
 
 #[derive(Debug)]
 pub struct ProofGenerationDataProcessor {
+    chain_id: L2ChainId,
     pool: ConnectionPool<Core>,
     blob_store: Arc<dyn ObjectStore>,
     commitment_mode: L1BatchCommitmentMode,
@@ -23,11 +22,13 @@ pub struct ProofGenerationDataProcessor {
 
 impl ProofGenerationDataProcessor {
     pub fn new(
+        chain_id: L2ChainId,
         pool: ConnectionPool<Core>,
         blob_store: Arc<dyn ObjectStore>,
         commitment_mode: L1BatchCommitmentMode,
     ) -> Self {
         Self {
+            chain_id,
             pool,
             blob_store,
             commitment_mode,
@@ -140,6 +141,7 @@ impl ProofGenerationDataProcessor {
         METRICS.observe_blob_sizes(&blob);
 
         Ok(ProofGenerationData {
+            chain_id: self.chain_id,
             l1_batch_number,
             witness_input_data: blob,
             protocol_version: protocol_version.version,

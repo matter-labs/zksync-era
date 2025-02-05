@@ -59,6 +59,7 @@ impl WiringLayer for ExternalProofIntegrationApiLayer {
         let replica_pool = input.replica_pool.get().await.unwrap();
         let blob_store = input.object_store.0;
 
+
         let processor = Processor::new(blob_store, replica_pool, self.commitment_mode);
         let task = Api::new(
             processor,

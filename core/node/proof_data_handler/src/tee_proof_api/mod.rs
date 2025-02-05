@@ -24,13 +24,13 @@ mod request_processor;
 mod tee_request_processor;
 
 #[derive(Debug)]
-pub struct ProofDataHandlerApi {
+pub struct TeeProofDataHandler {
     pub(crate) router: Router,
     port: u16,
 }
 
-impl ProofDataHandlerApi {
-    pub fn new(state: RequestProcessor, port: u16) -> ProofDataHandlerApi {
+impl TeeProofDataHandler {
+    pub fn new(state: RequestProcessor, port: u16) -> TeeProofDataHandler {
         let middleware_factory = |method: Method| {
             axum::middleware::from_fn(move |req: Request, next: Next| async move {
                 let middleware = MetricsMiddleware::new(method);
@@ -41,47 +41,19 @@ impl ProofDataHandlerApi {
         };
 
         let router = Router::new()
-            .route(
-                "/submit_proof/:l1_batch_number",
-                post(ProofDataHandlerApi::submit_proof)
-                    .layer(middleware_factory(Method::SubmitProof)),
-            )
-            .with_state(state)
-            .layer(tower_http::compression::CompressionLayer::new())
-            .layer(tower_http::decompression::RequestDecompressionLayer::new().zstd(true));
-
-        Self { router, port }
-    }
-
-    pub fn new_with_tee_support(state: RequestProcessor, port: u16) -> ProofDataHandlerApi {
-        let middleware_factory = |method: Method| {
-            axum::middleware::from_fn(move |req: Request, next: Next| async move {
-                let middleware = MetricsMiddleware::new(method);
-                let response = next.run(req).await;
-                middleware.observe(response.status());
-                response
-            })
-        };
-
-        let router = Router::new()
-            .route(
-                "/submit_proof/:l1_batch_number",
-                post(ProofDataHandlerApi::submit_proof)
-                    .layer(middleware_factory(Method::SubmitProof)),
-            )
             .route(
                 "/tee/proof_inputs",
-                post(ProofDataHandlerApi::get_tee_proof_generation_data)
+                post(TeeProofDataHandler::get_tee_proof_generation_data)
                     .layer(middleware_factory(Method::GetTeeProofInputs)),
             )
             .route(
                 "/tee/submit_proofs/:l1_batch_number",
-                post(ProofDataHandlerApi::submit_tee_proof)
+                post(TeeProofDataHandler::submit_tee_proof)
                     .layer(middleware_factory(Method::TeeSubmitProofs)),
             )
             .route(
                 "/tee/register_attestation",
-                post(ProofDataHandlerApi::register_tee_attestation)
+                post(TeeProofDataHandler::register_tee_attestation)
                     .layer(middleware_factory(Method::TeeRegisterAttestation)),
             )
             .with_state(state)
@@ -110,14 +82,6 @@ impl ProofDataHandlerApi {
             .context("Proof data handler server failed")?;
         tracing::info!("Proof data handler server shut down");
         Ok(())
-    }
-
-    async fn submit_proof(
-        State(processor): State<RequestProcessor>,
-        Path(l1_batch_number): Path<L1BatchNumber>,
-        Json(payload): Json<SubmitProofRequest>,
-    ) -> Result<Json<SubmitProofResponse>, RequestProcessorError> {
-        processor.handle_proof(l1_batch_number, payload).await
     }
 
     async fn get_tee_proof_generation_data(

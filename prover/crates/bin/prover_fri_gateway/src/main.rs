@@ -17,6 +17,7 @@ mod api;
 mod metrics;
 mod middleware;
 mod proof_submitter;
+mod rpc_server;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

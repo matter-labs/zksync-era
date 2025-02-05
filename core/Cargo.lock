@@ -12654,6 +12654,7 @@ dependencies = [
  "axum 0.7.9",
  "chrono",
  "hyper 1.5.1",
+ "jsonrpsee 0.23.2",
  "reqwest 0.12.9",
  "serde_json",
  "tokio",

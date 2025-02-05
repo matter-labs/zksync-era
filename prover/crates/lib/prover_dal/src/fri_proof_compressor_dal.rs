@@ -1,13 +1,9 @@
 #![doc = include_str!("../doc/FriProofCompressorDal.md")]
 use std::{collections::HashMap, str::FromStr, time::Duration};
 
-use zksync_basic_types::{
-    protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch},
-    prover_dal::{
-        JobCountStatistics, ProofCompressionJobInfo, ProofCompressionJobStatus, StuckJobs,
-    },
-    L1BatchNumber,
-};
+use zksync_basic_types::{protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch}, prover_dal::{
+    JobCountStatistics, ProofCompressionJobInfo, ProofCompressionJobStatus, StuckJobs,
+}, L1BatchNumber, L2ChainId};
 use zksync_db_connection::connection::Connection;
 
 use crate::{duration_to_naive_time, pg_interval_from_duration, Prover};
@@ -174,8 +170,9 @@ impl FriProofCompressorDal<'_, '_> {
         .unwrap();
     }
 
-    pub async fn get_least_proven_block_not_sent_to_server(
+    pub async fn get_least_proven_block_not_sent_to_server_by_chain_id(
         &mut self,
+        chain_id: L2ChainId
     ) -> Option<(
         L1BatchNumber,
         ProtocolSemanticVersion,
@@ -199,10 +196,12 @@ impl FriProofCompressorDal<'_, '_> {
                     WHERE
                         status = $1
                         OR status = $2
+                        AND chain_id = $3
                 )
             "#,
             ProofCompressionJobStatus::Successful.to_string(),
-            ProofCompressionJobStatus::Skipped.to_string()
+            ProofCompressionJobStatus::Skipped.to_string(),
+            i64::from(chain_id.as_u64())
         )
         .fetch_optional(self.storage.conn())
         .await
@@ -220,7 +219,7 @@ impl FriProofCompressorDal<'_, '_> {
         }
     }
 
-    pub async fn mark_proof_sent_to_server(&mut self, block_number: L1BatchNumber) {
+    pub async fn mark_proof_sent_to_server(&mut self, block_number: L1BatchNumber, chain_id: L2ChainId) {
         sqlx::query!(
             r#"
             UPDATE proof_compression_jobs_fri
@@ -229,9 +228,11 @@ impl FriProofCompressorDal<'_, '_> {
                 updated_at = NOW()
             WHERE
                 l1_batch_number = $2
+                AND chain_id = $3
             "#,
             ProofCompressionJobStatus::SentToServer.to_string(),
-            i64::from(block_number.0)
+            i64::from(block_number.0),
+            i64::from(chain_id.as_u64())
         )
         .execute(self.storage.conn())
         .await
