@@ -368,7 +368,6 @@ impl From<StorageTransactionReceipt> for ExtendedTransactionReceipt {
             .index_in_block
             .map_or_else(Default::default, U64::from);
 
-        // FIXME: previously, this was set to zero address; is returning `None` OK?
         let to = storage_receipt
             .transfer_to
             .or(storage_receipt.execute_contract_address)
