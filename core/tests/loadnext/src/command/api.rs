@@ -80,7 +80,7 @@ async fn random_block_number(wallet: &SyncWallet, rng: &mut LoadtestRng) -> api:
             {
                 Ok(Some(block_number)) => {
                     let block_number = block_number.number.as_u64();
-                    let number = rng.next_u64() % &block_number;
+                    let number = rng.next_u64() % block_number;
                     api::BlockNumber::Number(number.into())
                 }
                 _ => {
