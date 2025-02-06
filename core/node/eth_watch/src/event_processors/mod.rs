@@ -7,14 +7,14 @@ use zksync_types::{api::Log, H256};
 pub(crate) use self::{
     appended_chain_batch_root::BatchRootProcessor,
     decentralized_upgrades::DecentralizedUpgradesEventProcessor,
-    global_message_root::GlobalMessageRootProcessor, priority_ops::PriorityOpsEventProcessor,
-    l1_appended_chain_batch_root::L1BatchRootProcessor,
+    global_message_root::GlobalMessageRootProcessor,
+    l1_appended_chain_batch_root::L1BatchRootProcessor, priority_ops::PriorityOpsEventProcessor,
 };
 
 mod appended_chain_batch_root;
-mod l1_appended_chain_batch_root;
 mod decentralized_upgrades;
 mod global_message_root;
+mod l1_appended_chain_batch_root;
 mod priority_ops;
 
 /// Errors issued by an [`EventProcessor`].

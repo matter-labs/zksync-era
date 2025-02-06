@@ -20,7 +20,8 @@ use zksync_state::{OwnedStorage, ReadStorageFactory};
 use zksync_types::{
     block::L2BlockExecutionData, commitment::PubdataParams, l2::TransactionType,
     message_root::MessageRoot, protocol_upgrade::ProtocolUpgradeTx,
-    protocol_version::ProtocolVersionId, utils::display_timestamp, L1BatchNumber, Transaction,L2ChainId
+    protocol_version::ProtocolVersionId, utils::display_timestamp, L1BatchNumber, L2ChainId,
+    Transaction,
 };
 
 use crate::{
@@ -618,9 +619,7 @@ impl ZkSyncStateKeeper {
                     if L2ChainId::from(message_root.chain_id) == self.io.chain_id() {
                         continue;
                     }
-                    batch_executor
-                        .insert_message_root(message_root)
-                        .await?;
+                    batch_executor.insert_message_root(message_root).await?;
                 }
             }
             let waiting_latency = KEEPER_METRICS.waiting_for_tx.start();

@@ -59,8 +59,8 @@ impl EventProcessor for GlobalMessageRootProcessor {
             tracing::info!(%root, "Saving global message root");
             // let block_number = event.block_number; // kl todo
             // let block_number = block_number.unwrap().0[0] as u64;
-            let block_bytes : [u8; 8] = event.topics[2].as_bytes()[24..32].try_into().unwrap();
-            let chain_id_bytes : [u8; 8] = event.topics[1].as_bytes()[24..32].try_into().unwrap();
+            let block_bytes: [u8; 8] = event.topics[2].as_bytes()[24..32].try_into().unwrap();
+            let chain_id_bytes: [u8; 8] = event.topics[1].as_bytes()[24..32].try_into().unwrap();
             let block_number: u64 = u64::from_be_bytes(block_bytes);
             let chain_id = u64::from_be_bytes(chain_id_bytes);
             println!("block_number in global {:?}", block_number);

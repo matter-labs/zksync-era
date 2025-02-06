@@ -30,8 +30,8 @@ impl MessageRootDal<'_, '_> {
             r#"
             INSERT INTO message_roots (chain_id, block_number, message_root_hash)
             VALUES ($1, $2, $3)
-            ON CONFLICT (chain_id, block_number) 
-            DO UPDATE SET message_root_hash = EXCLUDED.message_root_hash;
+            ON CONFLICT (chain_id, block_number)
+            DO UPDATE SET message_root_hash = excluded.message_root_hash;
             "#,
             chain_id.0 as i64,
             number.0 as i64,
@@ -48,22 +48,25 @@ impl MessageRootDal<'_, '_> {
     }
 
     pub async fn get_latest_message_root(&mut self) -> DalResult<Option<Vec<MessageRoot>>> {
-        // kl todo currently this is very inefficient, we insert all the message roots multiple times. 
+        // kl todo currently this is very inefficient, we insert all the message roots multiple times.
         // At least record which ones we have inserted already.
         let result: Vec<MessageRoot> = sqlx::query!(
             r#"
             WITH Ranked AS (
-                SELECT 
-                    message_root_hash, 
-                    chain_id, 
-                    block_number,
-                    ROW_NUMBER() OVER (PARTITION BY chain_id ORDER BY block_number DESC) AS rn
-                FROM message_roots
+                SELECT
+                    Message_Root_Hash,
+                    Chain_Id,
+                    Block_Number,
+                    ROW_NUMBER()
+                        OVER (PARTITION BY Chain_Id ORDER BY Block_Number DESC)
+                    AS Rn
+                FROM Message_Roots
             )
-            SELECT message_root_hash, chain_id, block_number
+            
+            SELECT Message_Root_Hash, Chain_Id, Block_Number
             FROM Ranked
-            WHERE rn <= 5
-            ORDER BY chain_id, block_number DESC;
+            WHERE Rn <= 5
+            ORDER BY Chain_Id, Block_Number DESC;
             "#
         )
         .instrument("get_latest_message_root")
