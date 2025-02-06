@@ -69,9 +69,7 @@ impl fmt::Debug for TeeProver {
 impl TeeProver {
     /// Signs the message in Ethereum-compatible format for on-chain verification.
     pub fn sign_message(&self, message: &H256) -> Result<Signature, TeeProverError> {
-        let secret_bytes = self.config.signing_key.secret_bytes();
-        let private_key = K256PrivateKey::from_bytes(secret_bytes.into())
-            .map_err(|e| TeeProverError::Verification(e.into()))?;
+        let private_key: K256PrivateKey = self.config.signing_key.into();
         let signature =
             sign(&private_key, message).map_err(|e| TeeProverError::Verification(e.into()))?;
         Ok(signature)
@@ -196,7 +194,7 @@ mod tests {
 
     use secp256k1::SecretKey;
     use url::Url;
-    use zksync_basic_types::{self, tee_types::TeeType, Address};
+    use zksync_basic_types::{self, tee_types::TeeType};
     use zksync_crypto_primitives::{public_to_address, recover};
 
     use super::*;
@@ -223,9 +221,10 @@ mod tests {
             api_client: TeeApiClient::new(Url::parse("http://mock").unwrap()),
         };
         let private_key: K256PrivateKey = signing_key.into();
-        let expected_address =
-            Address::from_slice(&hex::decode("627306090abaB3A6e1400e9345bC60c78a8BEf57").unwrap());
-        assert!(private_key.address() == expected_address);
+        let expected_address = "0x627306090abaB3A6e1400e9345bC60c78a8BEf57"
+            .parse()
+            .unwrap();
+        assert_eq!(private_key.address(), expected_address);
 
         // Generate a random root hash, create a message from the hash, and sign the message using
         // the secret key
