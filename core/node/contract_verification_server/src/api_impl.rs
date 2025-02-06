@@ -7,11 +7,15 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
-use zksync_dal::{CoreDal, DalError};
+use zksync_dal::{contract_verification_dal::ContractVerificationDal, CoreDal, DalError};
 use zksync_types::{
-    bytecode::BytecodeMarker,
-    contract_verification_api::{
-        CompilerVersions, VerificationIncomingRequest, VerificationInfo, VerificationRequestStatus,
+    bytecode::{trim_bytecode, BytecodeHash, BytecodeMarker},
+    contract_verification::{
+        api::{
+            CompilerVersions, VerificationIncomingRequest, VerificationInfo, VerificationProblem,
+            VerificationRequestStatus,
+        },
+        contract_identifier::ContractIdentifier,
     },
     Address,
 };
@@ -220,15 +224,73 @@ impl RestApi {
         address: Path<Address>,
     ) -> ApiResult<VerificationInfo> {
         let method_latency = METRICS.call[&"contract_verification_info"].start();
-        let info = self_
+        let mut conn = self_
             .replica_connection_pool
             .connection_tagged("api")
-            .await?
-            .contract_verification_dal()
-            .get_contract_verification_info(*address)
-            .await?
-            .ok_or(ApiError::VerificationInfoNotFound)?;
+            .await?;
+        let mut dal = conn.contract_verification_dal();
+
+        let info = if let Some(info) = dal.get_contract_verification_info(*address).await? {
+            info
+        } else if let Some(partial_match) =
+            get_partial_match_verification_info(&mut dal, *address).await?
+        {
+            partial_match
+        } else {
+            return Err(ApiError::VerificationInfoNotFound);
+        };
         method_latency.observe();
         Ok(Json(info))
     }
+}
+
+/// Tries to do a lookup for partial match verification info.
+/// Should be called only if a perfect match is not found.
+async fn get_partial_match_verification_info(
+    dal: &mut ContractVerificationDal<'_, '_>,
+    address: Address,
+) -> anyhow::Result<Option<VerificationInfo>> {
+    let Some(deployed_contract) = dal.get_contract_info_for_verification(address).await? else {
+        return Ok(None);
+    };
+
+    let bytecode_hash =
+        BytecodeHash::try_from(deployed_contract.bytecode_hash).context("Invalid bytecode hash")?;
+    let deployed_bytecode = trim_bytecode(bytecode_hash, &deployed_contract.bytecode)
+        .context("Invalid deployed bytecode")?;
+
+    let identifier = ContractIdentifier::from_bytecode(bytecode_hash.marker(), deployed_bytecode);
+    let Some((mut info, fetched_keccak256, fetched_keccak256_without_metadata)) = dal
+        .get_partial_match_verification_info(
+            identifier.bytecode_keccak256,
+            identifier.bytecode_without_metadata_keccak256,
+        )
+        .await?
+    else {
+        return Ok(None);
+    };
+
+    if identifier.bytecode_keccak256 != fetched_keccak256 {
+        // Sanity check
+        let has_metadata = identifier.detected_metadata.is_some();
+        let hashes_without_metadata_match =
+            identifier.bytecode_without_metadata_keccak256 == fetched_keccak256_without_metadata;
+
+        if !has_metadata || !hashes_without_metadata_match {
+            tracing::error!(
+                contract_address = ?address,
+                identifier = ?identifier,
+                fetched_keccak256 = ?fetched_keccak256,
+                fetched_keccak256_without_metadata = ?fetched_keccak256_without_metadata,
+                info = ?info,
+                "Bogus verification info fetched for contract",
+            );
+            anyhow::bail!("Internal error: bogus verification info detected");
+        }
+
+        // Mark the contract as partial match (regardless of other issues).
+        info.verification_problems = vec![VerificationProblem::IncorrectMetadata];
+    }
+
+    Ok(Some(info))
 }
