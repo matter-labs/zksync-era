@@ -184,6 +184,7 @@ impl ZkSyncStateKeeper {
                 &stop_receiver,
             )
             .await?;
+            assert!(!updates_manager.has_next_block_params());
 
             // Finish current batch with an empty block.
             if !updates_manager.l2_block.executed_transactions.is_empty() {
@@ -431,6 +432,7 @@ impl ZkSyncStateKeeper {
             updates_manager.l1_batch.number,
             display_timestamp(timestamp)
         );
+        updates_manager.set_next_l2_block_params(None);
         batch_executor
             .start_next_l2_block(block_env)
             .await
@@ -654,7 +656,6 @@ impl ZkSyncStateKeeper {
             // We need to start a new block
             if updates_manager.has_next_block_params() {
                 Self::start_next_l2_block(updates_manager, batch_executor).await?;
-                updates_manager.set_next_l2_block_params(None);
             }
 
             let (seal_resolution, exec_result) = self
