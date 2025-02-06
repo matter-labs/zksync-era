@@ -1,7 +1,13 @@
 use assert_matches::assert_matches;
 use zksync_test_contracts::TxType;
+use zksync_vm_interface::{
+    storage::{StorageSnapshot, StorageView},
+    VmFactory, VmRevertReason,
+};
 
-use super::{default_pubdata_builder, tester::VmTesterBuilder, TestedVm};
+use super::{
+    default_pubdata_builder, execute_oneshot_dump, load_vm_dump, tester::VmTesterBuilder, TestedVm,
+};
 use crate::interface::{ExecutionResult, InspectExecutionMode, VmInterfaceExt};
 
 pub(crate) fn test_estimate_fee<VM: TestedVm>() {
@@ -74,4 +80,18 @@ pub(crate) fn test_simple_execute<VM: TestedVm>() {
         .finish_batch(default_pubdata_builder())
         .block_tip_execution_result;
     assert_matches!(block_tip.result, ExecutionResult::Success { .. });
+}
+
+pub(crate) fn test_transfer_to_self_with_low_gas_limit<VM>()
+where
+    VM: VmFactory<StorageView<StorageSnapshot>>,
+{
+    let dump = load_vm_dump("estimate_fee_for_transfer_to_self");
+    let result = execute_oneshot_dump::<VM>(dump);
+    assert_eq!(
+        result.result,
+        ExecutionResult::Revert {
+            output: VmRevertReason::from(&[] as &[u8]),
+        }
+    );
 }

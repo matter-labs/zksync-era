@@ -9,7 +9,7 @@
 //! - Tests use [`VmTester`] built using [`VmTesterBuilder`] to create a VM instance. This allows to set up storage for the VM,
 //!   custom [`SystemEnv`] / [`L1BatchEnv`], deployed contracts, pre-funded accounts etc.
 
-use std::{collections::HashSet, rc::Rc};
+use std::{collections::HashSet, fs, path::Path, rc::Rc};
 
 use once_cell::sync::Lazy;
 use zksync_contracts::{
@@ -20,6 +20,10 @@ use zksync_types::{
     get_is_account_key, h256_to_u256, u256_to_h256, utils::storage_key_for_eth_balance, Address,
     L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, U256,
 };
+use zksync_vm_interface::{
+    storage::{StorageSnapshot, StorageView},
+    InspectExecutionMode, VmFactory, VmInterfaceExt,
+};
 
 pub(super) use self::tester::{
     validation_params, TestedVm, TestedVmForValidation, TestedVmWithCallTracer, VmTester,
@@ -27,8 +31,8 @@ pub(super) use self::tester::{
 };
 use crate::{
     interface::{
-        pubdata::PubdataBuilder, storage::InMemoryStorage, L1BatchEnv, L2BlockEnv, SystemEnv,
-        TxExecutionMode,
+        pubdata::PubdataBuilder, storage::InMemoryStorage, utils::VmDump, L1BatchEnv, L2BlockEnv,
+        SystemEnv, TxExecutionMode, VmExecutionResultAndLogs,
     },
     pubdata_builders::FullPubdataBuilder,
     vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
@@ -73,6 +77,33 @@ pub(crate) fn read_max_depth_contract() -> Vec<u8> {
     read_zbin_bytecode(
         "core/tests/ts-integration/contracts/zkasm/artifacts/deep_stak.zkasm/deep_stak.zkasm.zbin",
     )
+}
+
+fn load_vm_dump(name: &str) -> VmDump {
+    // We rely on the fact that unit tests are executed from the crate directory.
+    let path = Path::new("tests/vm_dumps").join(format!("{name}.json"));
+    let raw = fs::read_to_string(path).unwrap_or_else(|err| {
+        panic!("Failed reading VM dump `{name}`: {err}");
+    });
+    serde_json::from_str(&raw).unwrap_or_else(|err| {
+        panic!("Failed deserializing VM dump `{name}`: {err}");
+    })
+}
+
+fn execute_oneshot_dump<VM>(dump: VmDump) -> VmExecutionResultAndLogs
+where
+    VM: VmFactory<StorageView<StorageSnapshot>>,
+{
+    let storage = StorageView::new(dump.storage).to_rc_ptr();
+
+    assert_eq!(dump.l2_blocks.len(), 1);
+    let transactions = dump.l2_blocks.into_iter().next().unwrap().txs;
+    assert_eq!(transactions.len(), 1);
+    let transaction = transactions.into_iter().next().unwrap();
+
+    let mut vm = VM::new(dump.l1_batch_env, dump.system_env, storage);
+    vm.push_transaction(transaction);
+    vm.execute(InspectExecutionMode::OneTx)
 }
 
 pub(crate) fn get_bootloader(test: &str) -> SystemContractCode {
