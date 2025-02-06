@@ -75,7 +75,7 @@ async fn prepare_wvg(
         metadata,
     )?;
 
-    /// Dump witness_vector into file.
+    // Dump witness_vector into file.
     //let mut file = File::create("witness_vector.bin").await?;
     //let buf = bincode::serialize(&wvg.witness_vector)?;
     //file.write_all(&buf[..]).await?;
