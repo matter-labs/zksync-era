@@ -1,6 +1,6 @@
 use std::{collections::HashMap, path::PathBuf, sync::Arc, time::Instant};
-//use tokio::fs::File;
 
+//use tokio::fs::File;
 use anyhow::Context;
 use clap::Parser;
 use shivini::ProverContext;
@@ -130,7 +130,7 @@ async fn main() -> anyhow::Result<()> {
         .await
         .context("failed to load finalization hints mapping")?;
 
-    // Expected file 10330_48_1_BasicCircuits_0.bin in prover_jobs_fri/.
+    // Expected file prover_jobs_fri/10330_48_1_BasicCircuits_0.bin.
     let metadata = FriProverJobMetadata {
         id: 1,
         block_number: L1BatchNumber(10330),
