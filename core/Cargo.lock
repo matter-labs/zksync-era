@@ -10506,6 +10506,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "zk_os_merkle_tree"
+version = "26.2.1-non-semver-compat"
+dependencies = [
+ "anyhow",
+ "thiserror 1.0.69",
+ "zksync_basic_types",
+ "zksync_crypto_primitives",
+ "zksync_storage",
+]
+
+[[package]]
 name = "zkevm_circuits"
 version = "0.150.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
