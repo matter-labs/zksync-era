@@ -1631,10 +1631,8 @@ checksum = "7e36cc9d416881d2e24f9a963be5fb1cd90966419ac844274161d10488b3e825"
 dependencies = [
  "android-tzdata",
  "iana-time-zone",
- "js-sys",
  "num-traits",
  "serde",
- "wasm-bindgen",
  "windows-targets 0.52.6",
 ]
 
@@ -12733,7 +12731,6 @@ name = "zksync_prover_interface"
 version = "26.2.1-non-semver-compat"
 dependencies = [
  "bincode",
- "chrono",
  "circuit_definitions",
  "circuit_sequencer_api",
  "fflonk",
@@ -12870,7 +12867,6 @@ dependencies = [
  "assert_matches",
  "async-trait",
  "backon",
- "chrono",
  "itertools 0.10.5",
  "mini-moka",
  "once_cell",

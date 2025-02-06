@@ -113,7 +113,7 @@ bigdecimal = "0.4.5"
 bincode = "1"
 blake2 = "0.10"
 bytes = "1"
-chrono = "0.4"
+chrono = { version = "0.4", default-features = false }
 clap = "4.2.2"
 codegen = "0.2.0"
 const-decoder = "0.4.0"
