@@ -296,9 +296,7 @@ impl StateKeeperIO for MempoolIO {
 
         if current_timestamp < *block_timestamp {
             tracing::warn!(
-                "Trying to update bloc timestamp  {} with lower value timestamp  {}",
-                *block_timestamp,
-                current_timestamp
+                "Trying to update block timestamp {block_timestamp} with lower value timestamp {current_timestamp}",
             );
         } else {
             *block_timestamp = current_timestamp;
