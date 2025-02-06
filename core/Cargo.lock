@@ -13033,7 +13033,6 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_with",
- "strum",
  "thiserror 1.0.69",
  "tracing",
  "zksync_basic_types",

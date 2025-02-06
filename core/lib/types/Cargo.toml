@@ -22,7 +22,7 @@ zksync_crypto_primitives.workspace = true
 async-trait.workspace = true
 anyhow.workspace = true
 chrono = { workspace = true, default-features = false, features = ["now", "serde"] }
-derive_more = { workspace = true, features = ["debug"] }
+derive_more = { workspace = true, features = ["debug", "display"] }
 once_cell.workspace = true
 rlp.workspace = true
 serde.workspace = true
@@ -30,7 +30,6 @@ serde_json.workspace = true
 serde_with = { workspace = true, features = ["hex"] }
 ciborium = { workspace = true, optional = true }
 bigdecimal.workspace = true
-strum = { workspace = true, features = ["derive"] }
 thiserror.workspace = true
 num_enum.workspace = true
 hex.workspace = true
