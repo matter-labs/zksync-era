@@ -16,7 +16,7 @@ zksync_system_constants.workspace = true
 zksync_basic_types.workspace = true
 zksync_contracts.workspace = true
 zksync_mini_merkle_tree.workspace = true
-zksync_protobuf.workspace = true
+zksync_protobuf = { workspace = true, optional = true }
 zksync_crypto_primitives.workspace = true
 
 async-trait.workspace = true
@@ -34,7 +34,7 @@ strum = { workspace = true, features = ["derive"] }
 thiserror.workspace = true
 num_enum.workspace = true
 hex.workspace = true
-prost.workspace = true
+prost = { workspace = true, optional = true }
 tracing.workspace = true
 
 # Crypto stuff
@@ -45,4 +45,7 @@ assert_matches.workspace = true
 bincode.workspace = true
 
 [build-dependencies]
-zksync_protobuf_build.workspace = true
+zksync_protobuf_build = { workspace = true, optional = true }
+
+[features]
+snapshots = ["dep:prost", "dep:zksync_protobuf", "dep:zksync_protobuf_build"]

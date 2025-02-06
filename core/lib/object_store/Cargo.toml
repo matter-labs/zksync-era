@@ -13,7 +13,7 @@ categories.workspace = true
 [dependencies]
 vise.workspace = true
 zksync_config.workspace = true
-zksync_types.workspace = true
+zksync_types = { workspace = true, features = ["snapshots"] }
 zksync_protobuf.workspace = true
 anyhow.workspace = true
 async-trait.workspace = true
