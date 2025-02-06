@@ -5161,7 +5161,6 @@ dependencies = [
  "envy",
  "futures 0.3.31",
  "hex",
- "num",
  "once_cell",
  "rand 0.8.5",
  "regex",
@@ -5683,7 +5682,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "73f88a1307638156682bada9d7604135552957b7818057dcef22705b4d509495"
 dependencies = [
  "num-traits",
- "serde",
 ]
 
 [[package]]
@@ -5753,7 +5751,6 @@ dependencies = [
  "num-bigint 0.4.6",
  "num-integer",
  "num-traits",
- "serde",
 ]
 
 [[package]]
@@ -13030,7 +13027,6 @@ dependencies = [
  "derive_more 1.0.0",
  "hex",
  "itertools 0.10.5",
- "num",
  "num_enum 0.7.3",
  "once_cell",
  "prost 0.12.6",

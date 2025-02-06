@@ -3873,7 +3873,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "73f88a1307638156682bada9d7604135552957b7818057dcef22705b4d509495"
 dependencies = [
  "num-traits",
- "serde",
 ]
 
 [[package]]
@@ -3932,7 +3931,6 @@ dependencies = [
  "num-bigint 0.4.6",
  "num-integer",
  "num-traits",
- "serde",
 ]
 
 [[package]]
@@ -8906,7 +8904,6 @@ dependencies = [
 name = "zksync_prover_interface"
 version = "26.2.1-non-semver-compat"
 dependencies = [
- "chrono",
  "circuit_definitions",
  "circuit_sequencer_api",
  "fflonk",
@@ -9046,7 +9043,6 @@ dependencies = [
  "derive_more",
  "hex",
  "itertools 0.10.5",
- "num",
  "num_enum 0.7.3",
  "once_cell",
  "prost 0.12.6",

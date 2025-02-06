@@ -23,7 +23,6 @@ async-trait.workspace = true
 anyhow.workspace = true
 chrono = { workspace = true, default-features = false, features = ["now", "serde"] }
 derive_more = { workspace = true, features = ["debug"] }
-num = { workspace = true, features = ["serde"] }
 once_cell.workspace = true
 rlp.workspace = true
 serde.workspace = true

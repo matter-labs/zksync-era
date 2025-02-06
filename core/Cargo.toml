@@ -142,7 +142,6 @@ jsonrpsee = { version = "0.23", default-features = false }
 leb128 = "0.2.5"
 lru = { version = "0.12.1", default-features = false }
 mini-moka = "0.10.0"
-num = "0.4.0"
 num_cpus = "1.13"
 num_enum = "0.7.2"
 octocrab = "0.41"
