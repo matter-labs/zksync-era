@@ -9042,7 +9042,6 @@ dependencies = [
  "ciborium",
  "derive_more",
  "hex",
- "itertools 0.10.5",
  "num_enum 0.7.3",
  "once_cell",
  "prost 0.12.6",

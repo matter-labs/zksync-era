@@ -35,14 +35,12 @@ thiserror.workspace = true
 num_enum.workspace = true
 hex.workspace = true
 prost.workspace = true
-itertools.workspace = true
 tracing.workspace = true
 
 # Crypto stuff
 blake2.workspace = true
 
 [dev-dependencies]
-tokio = { workspace = true, features = ["rt", "macros"] }
 assert_matches.workspace = true
 bincode.workspace = true
 
