@@ -309,6 +309,15 @@ impl ZksNamespace {
         Ok(log_proof)
     }
 
+    pub async fn get_l2_to_global_message_root_proof_impl(
+        &self,
+        block_number: L2BlockNumber,
+        sender: Address,
+        msg: H256,
+    ) -> Result<Option<L2ToL1LogProof>, Web3Error> {
+        todo!() // kl todo
+    }
+
     async fn get_l2_to_l1_log_proof_inner(
         &self,
         storage: &mut Connection<'_, Core>,

@@ -28,8 +28,12 @@ impl GlobalMessageRootProcessor {
     pub fn new() -> Self {
         Self {
             appended_message_root_signature: ethabi::long_signature(
-                "NewGlobalMessageRoot",
-                &[ethabi::ParamType::FixedBytes(32)],
+                "NewMessageRoot",
+                &[
+                    ethabi::ParamType::Uint(256),
+                    ethabi::ParamType::Uint(256),
+                    ethabi::ParamType::FixedBytes(32),
+                ],
             ),
         }
     }
@@ -49,14 +53,18 @@ impl EventProcessor for GlobalMessageRootProcessor {
             .map_err(DalError::generalize)?;
 
         for event in events {
-            println!("event {:?}", event);
-            let root = event.topics[0];
+            println!("event in global {:?}", event);
+            let root = event.topics[3];
             assert_eq!(event.topics[0], self.appended_message_root_signature); // guaranteed by the watcher
             tracing::info!(%root, "Saving global message root");
-            let block_number = event.block_number; // kl todo
-            let block_number = block_number.unwrap().0[0] as u64;
-            let chain_id = event.topics[0]; // kl todo
-            let chain_id = chain_id.0[15] as u64;
+            // let block_number = event.block_number; // kl todo
+            // let block_number = block_number.unwrap().0[0] as u64;
+            let block_bytes : [u8; 8] = event.topics[2].as_bytes()[24..32].try_into().unwrap();
+            let chain_id_bytes : [u8; 8] = event.topics[1].as_bytes()[24..32].try_into().unwrap();
+            let block_number: u64 = u64::from_be_bytes(block_bytes);
+            let chain_id = u64::from_be_bytes(chain_id_bytes);
+            println!("block_number in global {:?}", block_number);
+            println!("chain_id in global {:?}", chain_id);
             transaction
                 .message_root_dal()
                 .set_message_root(

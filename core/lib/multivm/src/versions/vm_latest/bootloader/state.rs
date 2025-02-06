@@ -108,7 +108,6 @@ impl BootloaderState {
     }
 
     pub(crate) fn insert_message_root(&mut self, msg_root: MessageRoot) {
-        println!("inserting message root in bootloader {:?}", msg_root);
         self.msg_roots.push(msg_root);
     }
 

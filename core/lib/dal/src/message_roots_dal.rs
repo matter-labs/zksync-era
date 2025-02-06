@@ -30,7 +30,8 @@ impl MessageRootDal<'_, '_> {
             r#"
             INSERT INTO message_roots (chain_id, block_number, message_root_hash)
             VALUES ($1, $2, $3)
-            ON CONFLICT DO NOTHING
+            ON CONFLICT (chain_id, block_number) 
+            DO UPDATE SET message_root_hash = EXCLUDED.message_root_hash;
             "#,
             chain_id.0 as i64,
             number.0 as i64,
@@ -46,16 +47,27 @@ impl MessageRootDal<'_, '_> {
         Ok(())
     }
 
-    pub async fn get_latest_message_root(&mut self) -> DalResult<Option<MessageRoot>> {
+    pub async fn get_latest_message_root(&mut self) -> DalResult<Option<Vec<MessageRoot>>> {
+        // kl todo currently this is very inefficient, we insert all the message roots multiple times. 
+        // At least record which ones we have inserted already.
         let result: Vec<MessageRoot> = sqlx::query!(
             r#"
-            FROM message_roots
-            ORDER BY block_number DESC
-            LIMIT 1
+            WITH Ranked AS (
+                SELECT 
+                    message_root_hash, 
+                    chain_id, 
+                    block_number,
+                    ROW_NUMBER() OVER (PARTITION BY chain_id ORDER BY block_number DESC) AS rn
+                FROM message_roots
+            )
+            SELECT message_root_hash, chain_id, block_number
+            FROM Ranked
+            WHERE rn <= 5
+            ORDER BY chain_id, block_number DESC;
             "#
         )
         .instrument("get_latest_message_root")
-        .fetch_optional(self.storage)
+        .fetch_all(self.storage)
         .await?
         .into_iter()
         .map(|record| {
@@ -65,12 +77,12 @@ impl MessageRootDal<'_, '_> {
             MessageRoot::new(chain_id, block_number, root)
         })
         .collect();
-        println!("get_latest_message_root {:?}", result);
 
         if result.is_empty() {
             return Ok(None);
         }
-        Ok(Some(result[0]))
+        println!("get_latest_message_root {:?}", result);
+        Ok(Some(result))
         // let result = result.unwrap();
         // Ok(Some(MessageRoot::new(result.unwrap().clone().chain_id as u32, result.unwrap().clone().block_number as u32, H256::from_slice(&result.unwrap().clone().message_root_hash))))
     }

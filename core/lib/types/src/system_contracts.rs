@@ -4,10 +4,11 @@ use zksync_basic_types::{AccountTreeId, Address, U256};
 use zksync_contracts::{read_sys_contract_bytecode, ContractLanguage, SystemContractsRepo};
 use zksync_system_constants::{
     BOOTLOADER_UTILITIES_ADDRESS, CODE_ORACLE_ADDRESS, COMPRESSOR_ADDRESS, CREATE2_FACTORY_ADDRESS,
-    EVENT_WRITER_ADDRESS, EVM_GAS_MANAGER_ADDRESS, L2_ASSET_ROUTER_ADDRESS, L2_BRIDGEHUB_ADDRESS,
-    L2_GENESIS_UPGRADE_ADDRESS, L2_MESSAGE_ROOT_ADDRESS, L2_MESSAGE_ROOT_STORAGE_ADDRESS,
-    L2_MESSAGE_VERIFICATION_ADDRESS, L2_NATIVE_TOKEN_VAULT_ADDRESS, L2_WRAPPED_BASE_TOKEN_IMPL,
-    P256VERIFY_PRECOMPILE_ADDRESS, PUBDATA_CHUNK_PUBLISHER_ADDRESS, SLOAD_CONTRACT_ADDRESS,
+    EVENT_WRITER_ADDRESS, EVM_GAS_MANAGER_ADDRESS, L2_ASSET_ROUTER_ADDRESS,
+    L2_ASSET_TRACKER_ADDRESS, L2_BRIDGEHUB_ADDRESS, L2_GENESIS_UPGRADE_ADDRESS,
+    L2_MESSAGE_ROOT_ADDRESS, L2_MESSAGE_ROOT_STORAGE_ADDRESS, L2_MESSAGE_VERIFICATION_ADDRESS,
+    L2_NATIVE_TOKEN_VAULT_ADDRESS, L2_WRAPPED_BASE_TOKEN_IMPL, P256VERIFY_PRECOMPILE_ADDRESS,
+    PUBDATA_CHUNK_PUBLISHER_ADDRESS, SLOAD_CONTRACT_ADDRESS,
 };
 
 use crate::{
@@ -28,7 +29,7 @@ use crate::{
 pub const TX_NONCE_INCREMENT: U256 = U256([1, 0, 0, 0]); // 1
 pub const DEPLOYMENT_NONCE_INCREMENT: U256 = U256([0, 0, 1, 0]); // 2^128
 
-static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 38] = [
+static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 39] = [
     (
         "",
         "AccountCodeStorage",
@@ -247,6 +248,12 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 38] = [
         "../../../l1-contracts/zkout/",
         "L2MessageVerification",
         L2_MESSAGE_VERIFICATION_ADDRESS,
+        ContractLanguage::Sol,
+    ),
+    (
+        "../../../l1-contracts/zkout/",
+        "L2AssetTracker",
+        L2_ASSET_TRACKER_ADDRESS,
         ContractLanguage::Sol,
     ),
 ];

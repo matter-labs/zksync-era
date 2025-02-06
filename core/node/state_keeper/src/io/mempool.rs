@@ -418,7 +418,7 @@ impl StateKeeperIO for MempoolIO {
             .map_err(Into::into)
     }
 
-    async fn load_latest_message_root(&self) -> anyhow::Result<Option<MessageRoot>> {
+    async fn load_latest_message_root(&self) -> anyhow::Result<Option<Vec<MessageRoot>>> {
         let mut storage = self.pool.connection_tagged("state_keeper").await?;
         storage
             .message_root_dal()

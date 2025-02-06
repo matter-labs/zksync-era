@@ -1,0 +1,32 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            WITH Ranked AS (\n                SELECT \n                    message_root_hash, \n                    chain_id, \n                    block_number,\n                    ROW_NUMBER() OVER (PARTITION BY chain_id ORDER BY block_number DESC) AS rn\n                FROM message_roots\n            )\n            SELECT message_root_hash, chain_id, block_number\n            FROM Ranked\n            WHERE rn <= 5\n            ORDER BY chain_id, block_number DESC;\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "message_root_hash",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 1,
+        "name": "chain_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "block_number",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "a5ace96b27a1aee6b4eefae1a7dae3ed99b5c29b8656fa732ba420e2d2c3ad4a"
+}

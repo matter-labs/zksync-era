@@ -794,7 +794,7 @@ impl StateKeeperIO for TestIO {
         Ok(self.protocol_upgrade_txs.get(&version_id).cloned())
     }
 
-    async fn load_latest_message_root(&self) -> anyhow::Result<Option<MessageRoot>> {
+    async fn load_latest_message_root(&self) -> anyhow::Result<Option<Vec<MessageRoot>>> {
         Ok(None)
     }
 

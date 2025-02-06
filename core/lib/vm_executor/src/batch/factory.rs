@@ -363,7 +363,6 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
                     }
                 }
                 Command::InsertMessageRoot(msg_root, resp) => {
-                    println!("inserting message root in command receiver {:?}", msg_root);
                     vm.insert_message_root(msg_root);
                     if resp.send(()).is_err() {
                         break;

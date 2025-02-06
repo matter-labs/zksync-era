@@ -464,7 +464,7 @@ impl StateKeeperIO for ExternalIO {
         Ok(None)
     }
 
-    async fn load_latest_message_root(&self) -> anyhow::Result<Option<MessageRoot>> {
+    async fn load_latest_message_root(&self) -> anyhow::Result<Option<Vec<MessageRoot>>> {
         // let mut storage = self.pool.connection_tagged("sync_layer").await?;
         // let message_root = storage.message_roots_dal().get_latest_message_root().await?;
         // Ok(message_root)
