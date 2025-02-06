@@ -529,6 +529,11 @@ mod simple_execution {
     fn simple_execute() {
         test_simple_execute::<super::ShadowedFastVm>();
     }
+
+    #[test]
+    fn transfer_to_self_with_low_gas_limit() {
+        test_transfer_to_self_with_low_gas_limit::<super::ShadowedFastVm<_>>();
+    }
 }
 
 mod storage {
