@@ -4,8 +4,8 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use zksync_basic_types::protocol_version::ProtocolSemanticVersion;
-use zksync_object_store::StoredObject;
 use zksync_prover_interface::{api::ProofGenerationData, outputs::L1BatchProofForL1};
+use zksync_prover_interface::outputs::{FflonkL1BatchProofForL1, PlonkL1BatchProofForL1};
 
 use crate::error::{FileError, ProcessorError};
 
@@ -101,7 +101,11 @@ impl<S: Send + Sync> FromRequest<S> for ExternalProof {
 
     async fn from_request(req: Request, state: &S) -> Result<Self, Self::Rejection> {
         let serialized_proof = Self::extract_from_multipart(req, state).await?;
-        let proof: L1BatchProofForL1 = StoredObject::deserialize(serialized_proof.clone())?;
+        let proof: L1BatchProofForL1 = match zksync_object_store::bincode::deserialize::<PlonkL1BatchProofForL1>(&serialized_proof) {
+            Ok(proof) => Ok(proof.into()),
+            Err(_) => zksync_object_store::bincode::deserialize::<FflonkL1BatchProofForL1>(&serialized_proof)
+                .map(Into::into)
+        }?;
 
         let protocol_version = match proof {
             L1BatchProofForL1::Fflonk(proof) => proof.protocol_version,
