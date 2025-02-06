@@ -32,6 +32,7 @@ pub mod aggregated_operations;
 pub mod blob;
 pub mod block;
 pub mod commitment;
+#[cfg(feature = "contract-verification")]
 pub mod contract_verification;
 pub mod debug_flat_call;
 pub mod fee;

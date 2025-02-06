@@ -11,7 +11,7 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-zksync_types.workspace = true
+zksync_types = { workspace = true, features = ["contract-verification"] }
 zksync_dal.workspace = true
 zksync_contracts.workspace = true
 zksync_queued_job_processor.workspace = true
