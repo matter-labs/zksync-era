@@ -11160,21 +11160,6 @@ dependencies = [
 
 [[package]]
 name = "zk_evm"
-version = "0.150.20"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f11d0310228af78e804e5e7deccd1ad6797fce1c44c3b8016722ab78dc183c4a"
-dependencies = [
- "anyhow",
- "lazy_static",
- "num",
- "serde",
- "serde_json",
- "static_assertions",
- "zk_evm_abstractions 0.150.20",
-]
-
-[[package]]
-name = "zk_evm"
 version = "0.151.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "11a05ccf7e90c4347a3425ad27d39ef6f96891d0534c04b253c148ac243342de"
@@ -11456,7 +11441,7 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
- "zk_evm 0.150.20",
+ "zk_evm 0.151.1",
  "zksync_contracts",
  "zksync_dal",
  "zksync_eth_client",
@@ -12341,7 +12326,7 @@ dependencies = [
  "zk_evm 0.133.0",
  "zk_evm 0.140.0",
  "zk_evm 0.141.0",
- "zk_evm 0.150.20",
+ "zk_evm 0.151.1",
  "zksync_contracts",
  "zksync_eth_signer",
  "zksync_mini_merkle_tree",
@@ -12381,7 +12366,7 @@ dependencies = [
  "tower-http 0.5.2",
  "tracing",
  "vise",
- "zk_evm 0.150.20",
+ "zk_evm 0.151.1",
  "zksync_config",
  "zksync_consensus_roles",
  "zksync_contracts",
