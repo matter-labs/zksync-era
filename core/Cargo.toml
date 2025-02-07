@@ -76,6 +76,7 @@ members = [
   "lib/snapshots_applier",
   "lib/crypto_primitives",
   "lib/external_price_api",
+  "lib/task_management",
   "lib/test_contracts",
   # Test infrastructure
   "tests/loadnext",
@@ -244,7 +245,7 @@ fflonk = "=0.30.13"
 bellman = { package = "zksync_bellman", version = "=0.30.13" }
 
 # New VM; pinned to a specific commit because of instability
-zksync_vm2 = { git = "https://github.com/matter-labs/vm2.git", rev = "457d8a7eea9093af9440662e33e598c13ba41633" }
+zksync_vm2 = { git = "https://github.com/matter-labs/vm2.git", rev = "3841f5a430288a63c8207853eca11560bf7a5712" }
 
 # Consensus dependencies.
 zksync_concurrency = "=0.8.0"
@@ -296,6 +297,7 @@ zksync_utils = { version = "26.2.1-non-semver-compat", path = "lib/utils" }
 zksync_web3_decl = { version = "26.2.1-non-semver-compat", path = "lib/web3_decl" }
 zksync_crypto_primitives = { version = "26.2.1-non-semver-compat", path = "lib/crypto_primitives" }
 zksync_external_price_api = { version = "26.2.1-non-semver-compat", path = "lib/external_price_api" }
+zksync_task_management = { version = "26.2.1-non-semver-compat", path = "lib/task_management" }
 
 # Framework and components
 zksync_node_framework = { version = "26.2.1-non-semver-compat", path = "node/node_framework" }

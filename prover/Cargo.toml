@@ -45,6 +45,8 @@ queues = "1.1.0"
 rand = "0.8"
 regex = "1.10.4"
 reqwest = "0.12"
+reqwest-middleware = "0.3.3"
+reqwest-retry = "0.7.0"
 ring = "0.17.8"
 rustls = { version = "0.23.12", features = ["ring"] }
 serde = "1.0"
@@ -74,9 +76,9 @@ fflonk = "=0.30.13"
 franklin-crypto = "=0.30.13"
 
 # GPU proving dependencies
-proof-compression-gpu = { package = "proof-compression", version = "=0.152.11"}
-fflonk-gpu = { package = "fflonk-cuda", version = "=0.152.11"}
-wrapper_prover = { package = "zksync-wrapper-prover", version = "=0.152.11"}
+proof-compression-gpu = { package = "proof-compression", version = "=0.152.11" }
+fflonk-gpu = { package = "fflonk-cuda", version = "=0.152.11" }
+wrapper_prover = { package = "zksync-wrapper-prover", version = "=0.152.11" }
 shivini = "=0.152.11"
 boojum-cuda = "=0.152.11"
 
@@ -94,6 +96,7 @@ zksync_queued_job_processor = { path = "../core/lib/queued_job_processor" }
 zksync_system_constants = { path = "../core/lib/constants" }
 zksync_types = { path = "../core/lib/types" }
 zksync_utils = { path = "../core/lib/utils" }
+zksync_task_management = { path = "../core/lib/task_management" }
 zksync_eth_client = { path = "../core/lib/eth_client" }
 zksync_contracts = { path = "../core/lib/contracts" }
 zksync_core_leftovers = { path = "../core/lib/zksync_core_leftovers" }

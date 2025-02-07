@@ -320,6 +320,11 @@ where
     pub fn dump_state(&self) -> VmDump {
         self.main.dump_state()
     }
+
+    /// Accesses the shadow VM if it's available (the instance is dropped after finding a divergence).
+    pub fn shadow_mut(&mut self) -> Option<&mut Shadow> {
+        Some(&mut self.shadow.get_mut().as_mut()?.vm)
+    }
 }
 
 impl<S, Main, Shadow> ShadowVm<S, Main, Shadow>
