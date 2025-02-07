@@ -443,14 +443,14 @@ impl GasRelayClient {
     }
 
     pub(crate) async fn post_data(&self, data: Vec<u8>) -> anyhow::Result<(H256, u64)> {
-        let submit_url = format!("{}/user/submit_raw_data?token=ethereum", &self.api_url);
+        let submit_url = format!("{}/v1/submit_raw_data", &self.api_url);
         // send the data to the gas relay
         let submit_response = self
             .api_client
             .post(&submit_url)
             .body(Bytes::from(data))
-            .header("Content-Type", "text/plain")
-            .header("Authorization", format!("Bearer {}", self.api_key))
+            .header("Content-Type", "application/octet-stream")
+            .header("x-api-key", &self.api_key)
             .send()
             .await
             .context("Failed to submit data to the gas relay")?;
@@ -472,7 +472,7 @@ impl GasRelayClient {
             };
 
         let status_url = format!(
-            "{}/user/get_submission_info?submission_id={}",
+            "{}/v1/get_submission_info?submission_id={}",
             self.api_url, submit_response.submission_id
         );
 
@@ -480,7 +480,7 @@ impl GasRelayClient {
         let status_response = (|| async {
             self.api_client
                 .get(&status_url)
-                .header("Authorization", format!("Bearer {}", self.api_key))
+                .header("x-api-key", &self.api_key)
                 .send()
                 .await
         })
