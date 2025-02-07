@@ -5,6 +5,7 @@ use std::{fmt::Debug, sync::Arc, time};
 
 use anyhow::Context;
 use backon::{ConstantBuilder, Retryable};
+use bip39::Mnemonic;
 use bytes::Bytes;
 use jsonrpsee::{
     core::client::{Client, ClientT, Subscription, SubscriptionClientT},
@@ -13,10 +14,7 @@ use jsonrpsee::{
 use parity_scale_codec::{Compact, Decode, Encode};
 use scale_encode::EncodeAsFields;
 use serde::{Deserialize, Serialize};
-use subxt_signer::{
-    bip39::Mnemonic,
-    sr25519::{Keypair, Signature},
-};
+use subxt_signer::sr25519::{Keypair, Signature};
 use zksync_types::H256;
 
 use crate::utils::to_non_retriable_da_error;
