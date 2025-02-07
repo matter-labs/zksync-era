@@ -29,4 +29,8 @@ impl DataAvailabilityClient for NoDAClient {
     fn client_type(&self) -> ClientType {
         ClientType::NoDA
     }
+
+    async fn balance(&self) -> Result<u64, DAError> {
+        Ok(0)
+    }
 }

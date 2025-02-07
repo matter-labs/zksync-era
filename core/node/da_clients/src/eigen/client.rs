@@ -66,4 +66,8 @@ impl DataAvailabilityClient for EigenClient {
     fn client_type(&self) -> ClientType {
         ClientType::Eigen
     }
+
+    async fn balance(&self) -> Result<u64, DAError> {
+        Ok(0) // TODO fetch from API when payments are enabled in Eigen (PE-305)
+    }
 }

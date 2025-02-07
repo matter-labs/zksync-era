@@ -24,6 +24,7 @@ pub(crate) mod testonly;
 impl MethodTracer {
     pub(crate) fn map_err(&self, err: Web3Error) -> ErrorObjectOwned {
         self.observe_error(&err);
+        println!("mapping error: {:?}", err);
 
         let data = match &err {
             Web3Error::SubmitTransactionError(_, data) => Some(format!("0x{}", hex::encode(data))),

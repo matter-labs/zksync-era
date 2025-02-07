@@ -293,32 +293,66 @@ impl SystemContractsRepo {
     ) -> Vec<u8> {
         match lang {
             ContractLanguage::Sol => {
-                if let Some(contracts) = read_bytecode_from_path(
+                let possible_paths = [
                     self.root
                         .join(format!("zkout/{0}{1}.sol/{1}.json", directory, name)),
-                ) {
-                    contracts
-                } else {
-                    read_bytecode_from_path(self.root.join(format!(
+                    self.root.join(format!(
                         "artifacts-zk/contracts-preprocessed/{0}{1}.sol/{1}.json",
                         directory, name
-                    )))
-                    .unwrap_or_else(|| {
-                        panic!("One of the outputs should exists for {directory}{name}");
-                    })
+                    )),
+                ];
+                for path in &possible_paths {
+                    if let Some(contracts) = read_bytecode_from_path(path) {
+                        return contracts;
+                    }
                 }
+                panic!("One of the outputs should exist for {directory}{name}. Checked paths: {possible_paths:?}");
             }
             ContractLanguage::Yul => {
-                if let Some(contract) = read_bytecode_from_path(self.root.join(format!(
-                    "zkout/{name}.yul/contracts-preprocessed/{directory}/{name}.yul.json",
-                ))) {
-                    contract
+                // TODO: Newer versions of foundry-zksync no longer use directory for yul contracts, but we cannot
+                // easily get rid of the old lookup, because old foundry-zksync is compiled into `zk_environment`
+                // image. Once `foundry-zksync` is updated to at least 0.0.4, we can remove folder names from the
+                // `SYSTEM_CONTRACT_LIST` for yul contracts and merge two lookups below.
+                let possible_paths = [
+                    self.root.join(format!("zkout/{0}.yul/{0}.json", name)),
+                    self.root
+                        .join(format!("zkout/{0}{1}.yul/{1}.json", directory, name)),
+                    self.root.join(format!(
+                        "zkout/{name}.yul/contracts-preprocessed/{directory}/{name}.yul.json",
+                    )),
+                ];
+
+                for path in &possible_paths {
+                    if let Some(contracts) = read_bytecode_from_path(path) {
+                        return contracts;
+                    }
+                }
+
+                // Fallback for very old versions.
+                let artifacts_path = self
+                    .root
+                    .join(format!("contracts-preprocessed/{directory}artifacts"));
+
+                let bytecode_path = artifacts_path.join(format!("{name}.yul/{name}.yul.zbin"));
+                // Legacy versions of zksolc use the following path for output data if a yul file is being compiled: <name>.yul.zbin
+                // New zksolc versions use <name>.yul/<name>.yul.zbin, for consistency with solidity files compilation.
+                // In addition, the output of the legacy zksolc in this case is a binary file, while in new versions it is hex encoded.
+                if fs::exists(&bytecode_path)
+                    .unwrap_or_else(|err| panic!("Invalid path: {bytecode_path:?}, {err}"))
+                {
+                    read_zbin_bytecode_from_hex_file(bytecode_path)
                 } else {
-                    read_yul_bytecode_by_path(
-                        self.root
-                            .join(format!("contracts-preprocessed/{directory}artifacts")),
-                        name,
-                    )
+                    let bytecode_path_legacy = artifacts_path.join(format!("{name}.yul.zbin"));
+
+                    if fs::exists(&bytecode_path_legacy).unwrap_or_else(|err| {
+                        panic!("Invalid path: {bytecode_path_legacy:?}, {err}")
+                    }) {
+                        read_zbin_bytecode_from_path(bytecode_path_legacy)
+                    } else {
+                        panic!(
+                            "Can't find bytecode for '{name}' yul contract at {artifacts_path:?} or {possible_paths:?}"
+                        )
+                    }
                 }
             }
         }
@@ -326,59 +360,13 @@ impl SystemContractsRepo {
 }
 
 pub fn read_bootloader_code(bootloader_type: &str) -> Vec<u8> {
-    if let Some(contract) =
-        read_bytecode_from_path(home_path().join("contracts/system-contracts").join(format!(
-            "zkout/{bootloader_type}.yul/contracts-preprocessed/bootloader/{bootloader_type}.yul.json",
-        )))
-    {
-        return contract;
-    };
-    read_yul_bytecode(
-        "contracts/system-contracts/bootloader/build/artifacts",
-        bootloader_type,
-    )
-}
-
-fn read_proved_batch_bootloader_bytecode() -> Vec<u8> {
-    read_bootloader_code("proved_batch")
-}
-
-fn read_playground_batch_bootloader_bytecode() -> Vec<u8> {
-    read_bootloader_code("playground_batch")
+    read_sys_contract_bytecode("bootloader", bootloader_type, ContractLanguage::Yul)
 }
 
 /// Reads zbin bytecode from a given path, relative to workspace location.
 pub fn read_zbin_bytecode(relative_zbin_path: impl AsRef<Path>) -> Vec<u8> {
     let bytecode_path = Path::new(&home_path()).join(relative_zbin_path);
     read_zbin_bytecode_from_path(bytecode_path)
-}
-
-pub fn read_yul_bytecode(relative_artifacts_path: &str, name: &str) -> Vec<u8> {
-    let artifacts_path = Path::new(&home_path()).join(relative_artifacts_path);
-    read_yul_bytecode_by_path(artifacts_path, name)
-}
-
-pub fn read_yul_bytecode_by_path(artifacts_path: PathBuf, name: &str) -> Vec<u8> {
-    let bytecode_path = artifacts_path.join(format!("{name}.yul/{name}.yul.zbin"));
-
-    // Legacy versions of zksolc use the following path for output data if a yul file is being compiled: <name>.yul.zbin
-    // New zksolc versions use <name>.yul/<name>.yul.zbin, for consistency with solidity files compilation.
-    // In addition, the output of the legacy zksolc in this case is a binary file, while in new versions it is hex encoded.
-    if fs::exists(&bytecode_path)
-        .unwrap_or_else(|err| panic!("Invalid path: {bytecode_path:?}, {err}"))
-    {
-        read_zbin_bytecode_from_hex_file(bytecode_path)
-    } else {
-        let bytecode_path_legacy = artifacts_path.join(format!("{name}.yul.zbin"));
-
-        if fs::exists(&bytecode_path_legacy)
-            .unwrap_or_else(|err| panic!("Invalid path: {bytecode_path_legacy:?}, {err}"))
-        {
-            read_zbin_bytecode_from_path(bytecode_path_legacy)
-        } else {
-            panic!("Can't find bytecode for '{name}' yul contract at {artifacts_path:?}")
-        }
-    }
 }
 
 /// Reads zbin bytecode from a given path.
@@ -451,7 +439,7 @@ impl BaseSystemContracts {
 
     /// BaseSystemContracts with proved bootloader - for handling transactions.
     pub fn load_from_disk() -> Self {
-        let bootloader_bytecode = read_proved_batch_bootloader_bytecode();
+        let bootloader_bytecode = read_bootloader_code("proved_batch");
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
     }
 
@@ -468,7 +456,7 @@ impl BaseSystemContracts {
 
     /// BaseSystemContracts with playground bootloader - used for handling eth_calls.
     pub fn playground() -> Self {
-        let bootloader_bytecode = read_playground_batch_bootloader_bytecode();
+        let bootloader_bytecode = read_bootloader_code("playground_batch");
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
     }
 

@@ -101,6 +101,13 @@ impl DataAvailabilityClient for CelestiaClient {
     fn client_type(&self) -> ClientType {
         ClientType::Celestia
     }
+
+    async fn balance(&self) -> Result<u64, DAError> {
+        self.client
+            .balance()
+            .await
+            .map_err(to_non_retriable_da_error)
+    }
 }
 
 impl Debug for CelestiaClient {

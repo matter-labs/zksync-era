@@ -25,14 +25,12 @@ use zkstack_cli_config::{
     EcosystemConfig,
 };
 use zkstack_cli_types::L1BatchCommitmentMode;
-use zksync_basic_types::{
-    pubdata_da::PubdataSendingMode, settlement::SettlementMode, H256, U256, U64,
-};
+use zksync_basic_types::{settlement::SettlementMode, H256, U256, U64};
 use zksync_types::L2ChainId;
 use zksync_web3_decl::client::{Client, L2};
 
 use crate::{
-    messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_L1_SECRETS_MUST_BE_PRESENTED},
+    messages::MSG_CHAIN_NOT_INITIALIZED,
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
 
@@ -74,17 +72,14 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
         .context("Gateway config not present")?;
 
     let l1_url = chain_config
-        .get_secrets_config()?
-        .l1
-        .context(MSG_L1_SECRETS_MUST_BE_PRESENTED)?
-        .l1_rpc_url
-        .expose_str()
-        .to_string();
+        .get_secrets_config()
+        .await?
+        .get::<String>("l1.l1_rpc_url")?;
 
-    let genesis_config = chain_config.get_genesis_config()?;
+    let genesis_config = chain_config.get_genesis_config().await?;
 
     let is_rollup = matches!(
-        genesis_config.l1_batch_commit_data_generator_mode,
+        genesis_config.get("l1_batch_commit_data_generator_mode")?,
         L1BatchCommitmentMode::Rollup
     );
 
@@ -126,29 +121,13 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
     )
     .await?;
 
-    let gateway_provider = Provider::<Http>::try_from(
-        gateway_chain_config
-            .get_general_config()
-            .unwrap()
-            .api_config
-            .unwrap()
-            .web3_json_rpc
-            .http_url,
-    )?;
+    let general_config = gateway_chain_config.get_general_config().await?;
+    let l2_rpc_url = general_config.get::<String>("api.web3_json_rpc.http_url")?;
+    let gateway_provider = Provider::<Http>::try_from(&l2_rpc_url)?;
 
-    let client: Client<L2> = Client::http(
-        gateway_chain_config
-            .get_general_config()
-            .unwrap()
-            .api_config
-            .unwrap()
-            .web3_json_rpc
-            .http_url
-            .parse()
-            .unwrap(),
-    )?
-    .for_network(L2::from(L2ChainId::new(gateway_chain_id).unwrap()))
-    .build();
+    let client: Client<L2> = Client::http(l2_rpc_url.parse().context("invalid L2 RPC URL")?)?
+        .for_network(L2::from(L2ChainId::new(gateway_chain_id).unwrap()))
+        .build();
 
     if hash == H256::zero() {
         println!("Chain already migrated!");
@@ -188,43 +167,23 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
     gateway_chain_chain_config.gateway_chain_id = 0u64.into();
     gateway_chain_chain_config.save_with_base_path(shell, chain_config.configs.clone())?;
 
-    let mut general_config = chain_config.get_general_config().unwrap();
-
-    let eth_config = general_config.eth.as_mut().context("eth")?;
-
-    eth_config
-        .gas_adjuster
-        .as_mut()
-        .expect("gas_adjuster")
-        .settlement_mode = SettlementMode::SettlesToL1;
+    let mut general_config = chain_config.get_general_config().await?.patched();
+    general_config.insert_yaml(
+        "eth.gas_adjuster.settlement_mode",
+        SettlementMode::SettlesToL1,
+    )?;
     if is_rollup {
-        // For rollups, new type of commitment should be used, but
-        // not for validium.
-        eth_config
-            .sender
-            .as_mut()
-            .expect("sender")
-            .pubdata_sending_mode = PubdataSendingMode::Blobs;
+        // `PubdataSendingMode` has differing `serde` and file-based config serializations, hence
+        // we supply a raw string value.
+        general_config.insert("eth.sender.pubdata_sending_mode", "BLOBS")?;
     }
-    eth_config
-        .sender
-        .as_mut()
-        .context("sender")?
-        .wait_confirmations = Some(0);
+    general_config.insert("eth.sender.wait_confirmations", 0)?;
+
     // Undoing what was changed during migration to gateway.
     // TODO(EVM-925): maybe remove this logic.
-    eth_config
-        .sender
-        .as_mut()
-        .expect("sender")
-        .max_aggregated_tx_gas = 15000000;
-    eth_config
-        .sender
-        .as_mut()
-        .expect("sender")
-        .max_eth_tx_data_size = 120_000;
-
-    general_config.save_with_base_path(shell, chain_config.configs.clone())?;
+    general_config.insert("eth.sender.max_aggregated_tx_gas", 15000000)?;
+    general_config.insert("eth.sender.max_eth_tx_data_size", 120_000)?;
+    general_config.save().await?;
     Ok(())
 }
 

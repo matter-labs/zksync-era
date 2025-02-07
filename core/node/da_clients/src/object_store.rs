@@ -91,6 +91,10 @@ impl DataAvailabilityClient for ObjectStoreDAClient {
     fn client_type(&self) -> ClientType {
         ClientType::ObjectStore
     }
+
+    async fn balance(&self) -> Result<u64, DAError> {
+        Ok(0)
+    }
 }
 
 /// Used as a wrapper for the pubdata to be stored in the GCS.
