@@ -334,6 +334,10 @@ describe('web3 API compatibility tests', () => {
                     for (const receivedHash of changes) {
                         remainingHashes.delete(receivedHash);
                     }
+                    iteration++;
+                    if (iteration > max_iterations) {
+                        throw new Error(`Transaction ${tx1.hash} wasn't seen in eth_getFilterChanges`);
+                    }
                 }
             } catch (e) {
                 failedAttempts++;
