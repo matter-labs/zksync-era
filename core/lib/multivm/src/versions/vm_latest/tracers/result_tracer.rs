@@ -165,27 +165,16 @@ impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for ResultTracer<S> {
                 .map(|ptr| read_pointer(memory, ptr))
                 .unwrap_or_default();
             if success == U256::zero() {
-                self.result = {
-                    println!(
-                        "VM has reverted with returndata in before_execution: {:?}",
-                        returndata
-                    );
-                    Some(Result::Error {
-                        // Tx has reverted, without bootloader error, we can simply parse the revert reason
-                        error_reason: (VmRevertReason::from(returndata.as_slice())),
-                    })
-                }
+                self.result = Some(Result::Error {
+                    // Tx has reverted, without bootloader error, we can simply parse the revert reason
+                    error_reason: (VmRevertReason::from(returndata.as_slice())),
+                });
             } else {
                 self.result = Some(Result::Success {
                     return_data: returndata,
                 });
             }
         }
-
-        // if !hook.is_none() {
-        //     let vm_hook_params = get_vm_hook_params(memory, self.subversion);
-        //     println!("hook: {:?} data: {:?}", hook, vm_hook_params);
-        // }
 
         if state.vm_local_state.callstack.current.this_address == BOOTLOADER_ADDRESS {
             let opcode_variant = data.opcode.variant;

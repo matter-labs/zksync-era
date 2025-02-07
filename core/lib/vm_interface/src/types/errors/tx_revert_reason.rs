@@ -21,10 +21,6 @@ impl TxRevertReason {
         }
 
         let (error_code, error_msg) = bytes.split_at(1);
-        println!(
-            "ERROR CODE: {:?}, ERROR MESSAGE: {:?}",
-            error_code, error_msg
-        );
         let revert_reason = VmRevertReason::from(error_msg);
 
         // `error_code` is a big-endian number, so we can safely take the first byte of it.
