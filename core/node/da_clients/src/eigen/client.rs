@@ -97,7 +97,7 @@ mod tests {
     use zksync_da_client::{types::DispatchResponse, DataAvailabilityClient};
     use zksync_types::secrets::PrivateKey;
 
-    use crate::eigen::{blob_info::BlobInfo, EigenClient, GetBlobData};
+    use crate::eigen::{blob_info::BlobInfo, test_eigenda_config, EigenClient, GetBlobData};
 
     impl EigenClient {
         async fn get_blob_data(&self, blob_id: BlobInfo) -> anyhow::Result<Vec<u8>> {
@@ -157,7 +157,7 @@ mod tests {
     #[tokio::test]
     #[file_serial]
     async fn test_non_auth_dispersal() {
-        let config = EigenConfig::default();
+        let config = test_eigenda_config();
         let secrets = test_secrets();
         let client = EigenClient::new(config.clone(), secrets, Arc::new(MockGetBlobData))
             .await
@@ -184,7 +184,7 @@ mod tests {
     async fn test_auth_dispersal() {
         let config = EigenConfig {
             authenticated: true,
-            ..EigenConfig::default()
+            ..test_eigenda_config()
         };
         let secrets = test_secrets();
         let client = EigenClient::new(config.clone(), secrets, Arc::new(MockGetBlobData))
@@ -213,7 +213,7 @@ mod tests {
         let config = EigenConfig {
             wait_for_finalization: true,
             authenticated: true,
-            ..EigenConfig::default()
+            ..test_eigenda_config()
         };
         let secrets = test_secrets();
 
@@ -242,7 +242,7 @@ mod tests {
     async fn test_settlement_layer_confirmation_depth() {
         let config = EigenConfig {
             settlement_layer_confirmation_depth: 5,
-            ..EigenConfig::default()
+            ..test_eigenda_config()
         };
         let secrets = test_secrets();
         let client = EigenClient::new(config.clone(), secrets, Arc::new(MockGetBlobData))
@@ -271,7 +271,7 @@ mod tests {
         let config = EigenConfig {
             settlement_layer_confirmation_depth: 5,
             authenticated: true,
-            ..EigenConfig::default()
+            ..test_eigenda_config()
         };
         let secrets = test_secrets();
         let client = EigenClient::new(config.clone(), secrets, Arc::new(MockGetBlobData))

@@ -34,7 +34,7 @@ pub(crate) struct RawEigenClient {
     private_key: SecretKey,
     pub config: EigenConfig,
     verifier: Verifier,
-    get_blob_data: Arc<dyn GetBlobData>,
+    blob_data_provider: Arc<dyn GetBlobData>,
 }
 
 pub(crate) const DATA_CHUNK_SIZE: usize = 32;
@@ -70,7 +70,7 @@ impl RawEigenClient {
             private_key,
             config: cfg,
             verifier,
-            get_blob_data,
+            blob_data_provider: get_blob_data,
         })
     }
 
@@ -161,7 +161,7 @@ impl RawEigenClient {
             .map_err(|e| anyhow::anyhow!("Failed to convert blob info: {}", e))?;
 
         let data = self.get_blob_data(blob_info.clone()).await?;
-        let data_db = self.get_blob_data.get_blob_data(request_id).await?;
+        let data_db = self.blob_data_provider.get_blob_data(request_id).await?;
         if let Some(data_db) = data_db {
             if data_db != data {
                 return Err(anyhow::anyhow!(
@@ -177,9 +177,9 @@ impl RawEigenClient {
             .verifier
             .verify_inclusion_data_against_settlement_layer(&blob_info)
             .await;
-        // in case of an error, the dispatcher will retry, so the need to return None
         if let Err(e) = result {
             match e {
+                // in case of an error, the dispatcher will retry, so the need to return None
                 VerificationError::EmptyHash => return Ok(None),
                 _ => return Err(anyhow::anyhow!("Failed to verify inclusion data: {:?}", e)),
             }

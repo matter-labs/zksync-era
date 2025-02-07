@@ -11,7 +11,7 @@ use rust_kzg_bn254::{blob::Blob, kzg::Kzg, polynomial::PolynomialFormat};
 use tempfile::NamedTempFile;
 use tokio::task::JoinHandle;
 use zksync_basic_types::web3::CallRequest;
-use zksync_config::EigenConfig;
+use zksync_config::{configs::da_client::eigen::PointsSource, EigenConfig};
 use zksync_eth_client::EthInterface;
 use zksync_types::{web3, Address, U256, U64};
 use zksync_web3_decl::client::{DynClient, L1};
@@ -225,16 +225,16 @@ impl Verifier {
     }
 
     async fn get_points(cfg: &EigenConfig) -> Result<(PointFile, PointFile), VerificationError> {
-        match &cfg.points_dir {
-            Some(path) => Ok((
+        match &cfg.points_source {
+            PointsSource::Path(path) => Ok((
                 PointFile::Path(PathBuf::from(format!("{}/{}", path, Self::G1POINT))),
                 PointFile::Path(PathBuf::from(format!("{}/{}", path, Self::G2POINT))),
             )),
-            None => {
-                tracing::info!("Points for KZG setup not found, downloading points to a temp file");
+            PointsSource::Url((g1_url, g2_url)) => {
+                tracing::info!("Downloading points for KZG setup to a temp file");
                 Ok((
-                    PointFile::Temp(Self::download_temp_point(&cfg.g1_url).await?),
-                    PointFile::Temp(Self::download_temp_point(&cfg.g2_url).await?),
+                    PointFile::Temp(Self::download_temp_point(g1_url).await?),
+                    PointFile::Temp(Self::download_temp_point(g2_url).await?),
                 ))
             }
         }

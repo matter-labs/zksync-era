@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                number,\n                pubdata_input,\n                sealed_at\n            FROM\n                l1_batches\n            LEFT JOIN\n                data_availability\n                ON data_availability.l1_batch_number = l1_batches.number\n            WHERE\n                number != 0\n                AND data_availability.blob_id = $1\n            ORDER BY\n                number\n            LIMIT\n                1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "number",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "pubdata_input",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 2,
+        "name": "sealed_at",
+        "type_info": "Timestamp"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "01aa65f0899ae807326f6e2382f485b830b304291ecd0538041ab72f71ee7dea"
+}

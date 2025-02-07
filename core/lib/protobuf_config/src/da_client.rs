@@ -78,9 +78,20 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                 wait_for_finalization: *required(&conf.wait_for_finalization)
                     .context("wait_for_finalization")?,
                 authenticated: *required(&conf.authenticated).context("authenticated")?,
-                points_dir: conf.points_dir.clone(),
-                g1_url: required(&conf.g1_url).context("g1_url")?.clone(),
-                g2_url: required(&conf.g2_url).context("g2_url")?.clone(),
+                points_source: match conf.points_source.clone() {
+                    Some(proto::eigen_config::PointsSource::Path(path)) => {
+                        zksync_config::configs::da_client::eigen::PointsSource::Path(path)
+                    }
+                    Some(proto::eigen_config::PointsSource::Url(url)) => {
+                        let g1_url = required(&url.g1_url).context("g1_url")?;
+                        let g2_url = required(&url.g2_url).context("g2_url")?;
+                        zksync_config::configs::da_client::eigen::PointsSource::Url((
+                            g1_url.to_owned(),
+                            g2_url.to_owned(),
+                        ))
+                    }
+                    None => return Err(anyhow::anyhow!("Invalid Eigen DA configuration")),
+                },
             }),
             proto::data_availability_client::Config::ObjectStore(conf) => {
                 ObjectStore(object_store_proto::ObjectStore::read(conf)?)
@@ -135,9 +146,18 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                 )),
                 wait_for_finalization: Some(config.wait_for_finalization),
                 authenticated: Some(config.authenticated),
-                g1_url: Some(config.g1_url.clone()),
-                g2_url: Some(config.g2_url.clone()),
-                points_dir: config.points_dir.as_ref().map(|a| a.to_string()),
+                points_source: Some(match &config.points_source {
+                    zksync_config::configs::da_client::eigen::PointsSource::Path(path) => {
+                        proto::eigen_config::PointsSource::Path(path.clone())
+                    }
+                    zksync_config::configs::da_client::eigen::PointsSource::Url((
+                        g1_url,
+                        g2_url,
+                    )) => proto::eigen_config::PointsSource::Url(proto::Url {
+                        g1_url: Some(g1_url.clone()),
+                        g2_url: Some(g2_url.clone()),
+                    }),
+                }),
             }),
             ObjectStore(config) => proto::data_availability_client::Config::ObjectStore(
                 object_store_proto::ObjectStore::build(config),
