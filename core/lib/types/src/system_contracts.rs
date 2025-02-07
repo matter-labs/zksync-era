@@ -4,10 +4,10 @@ use zksync_basic_types::{AccountTreeId, Address, U256};
 use zksync_contracts::{read_sys_contract_bytecode, ContractLanguage, SystemContractsRepo};
 use zksync_system_constants::{
     BOOTLOADER_UTILITIES_ADDRESS, CODE_ORACLE_ADDRESS, COMPRESSOR_ADDRESS, CREATE2_FACTORY_ADDRESS,
-    EVENT_WRITER_ADDRESS, EVM_GAS_MANAGER_ADDRESS, L2_ASSET_ROUTER_ADDRESS, L2_BRIDGEHUB_ADDRESS,
-    L2_GENESIS_UPGRADE_ADDRESS, L2_MESSAGE_ROOT_ADDRESS, L2_NATIVE_TOKEN_VAULT_ADDRESS,
-    L2_WRAPPED_BASE_TOKEN_IMPL, P256VERIFY_PRECOMPILE_ADDRESS, PUBDATA_CHUNK_PUBLISHER_ADDRESS,
-    SLOAD_CONTRACT_ADDRESS,
+    EVENT_WRITER_ADDRESS, EVM_GAS_MANAGER_ADDRESS, EVM_PREDEPLOYS_MANAGER_ADDRESS,
+    IDENTITY_ADDRESS, L2_ASSET_ROUTER_ADDRESS, L2_BRIDGEHUB_ADDRESS, L2_GENESIS_UPGRADE_ADDRESS,
+    L2_MESSAGE_ROOT_ADDRESS, L2_NATIVE_TOKEN_VAULT_ADDRESS, L2_WRAPPED_BASE_TOKEN_IMPL,
+    P256VERIFY_PRECOMPILE_ADDRESS, PUBDATA_CHUNK_PUBLISHER_ADDRESS, SLOAD_CONTRACT_ADDRESS,
 };
 
 use crate::{
@@ -27,7 +27,7 @@ use crate::{
 pub const TX_NONCE_INCREMENT: U256 = U256([1, 0, 0, 0]); // 1
 pub const DEPLOYMENT_NONCE_INCREMENT: U256 = U256([0, 0, 1, 0]); // 2^128
 
-static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 33] = [
+static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 35] = [
     (
         "",
         "AccountCodeStorage",
@@ -125,6 +125,12 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 33] = [
         ContractLanguage::Yul,
     ),
     (
+        "precompiles/",
+        "Identity",
+        IDENTITY_ADDRESS,
+        ContractLanguage::Yul,
+    ),
+    (
         "",
         "SystemContext",
         SYSTEM_CONTEXT_ADDRESS,
@@ -154,6 +160,12 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 33] = [
         "EvmGasManager",
         EVM_GAS_MANAGER_ADDRESS,
         ContractLanguage::Yul,
+    ),
+    (
+        "",
+        "EvmPredeploysManager",
+        EVM_PREDEPLOYS_MANAGER_ADDRESS,
+        ContractLanguage::Sol,
     ),
     // For now, only zero address and the bootloader address have empty bytecode at the init
     // In the future, we might want to set all of the system contracts this way.
