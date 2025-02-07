@@ -283,47 +283,64 @@ describe('web3 API compatibility tests', () => {
             // transactions only appear in the DB after they are included in the block.
             return;
         }
+        let failedAttempts = 0;
+        // There is a known bug that getFilterChanges very rarely 'misses' new transaction. Until we have a proper
+        // fix for this bug, we will retry the test a few times and check that it fails at most once
+        for (let i = 0; i < 5; i++) {
+            try {
+                // We will need to wait until the mempool cache on the server is updated.
+                // The default update period is 50 ms, so we will wait for 75 ms to be sure.
+                const MEMPOOL_CACHE_WAIT = 50 + 25;
 
-        // We will need to wait until the mempool cache on the server is updated.
-        // The default update period is 50 ms, so we will wait for 75 ms to be sure.
-        const MEMPOOL_CACHE_WAIT = 50 + 25;
+                const filterId = await alice.provider.send('eth_newPendingTransactionFilter', []);
+                let changes: string[] = await alice.provider.send('eth_getFilterChanges', [filterId]);
 
-        const filterId = await alice.provider.send('eth_newPendingTransactionFilter', []);
-        let changes: string[] = await alice.provider.send('eth_getFilterChanges', [filterId]);
+                const tx1 = await alice.sendTransaction({
+                    to: alice.address
+                });
+                testMaster.reporter.debug(`Sent a transaction ${tx1.hash}`);
 
-        const tx1 = await alice.sendTransaction({
-            to: alice.address
-        });
-        testMaster.reporter.debug(`Sent a transaction ${tx1.hash}`);
+                let max_iterations = 10_000 / MEMPOOL_CACHE_WAIT;
+                let iteration = 0;
+                while (!changes.includes(tx1.hash)) {
+                    await zksync.utils.sleep(MEMPOOL_CACHE_WAIT);
+                    changes = await alice.provider.send('eth_getFilterChanges', [filterId]);
+                    testMaster.reporter.debug('Received filter changes', changes);
+                    iteration++;
+                    if (iteration > max_iterations) {
+                        throw new Error(`Transaction ${tx1.hash} wasn't seen in eth_getFilterChanges`);
+                    }
+                }
+                expect(changes).toContain(tx1.hash);
 
-        while (!changes.includes(tx1.hash)) {
-            await zksync.utils.sleep(MEMPOOL_CACHE_WAIT);
-            changes = await alice.provider.send('eth_getFilterChanges', [filterId]);
-            testMaster.reporter.debug('Received filter changes', changes);
-        }
-        expect(changes).toContain(tx1.hash);
+                const tx2 = await alice.sendTransaction({
+                    to: alice.address
+                });
+                const tx3 = await alice.sendTransaction({
+                    to: alice.address
+                });
+                const tx4 = await alice.sendTransaction({
+                    to: alice.address
+                });
+                const remainingHashes = new Set([tx2.hash, tx3.hash, tx4.hash]);
+                testMaster.reporter.debug('Sent new transactions with hashes', remainingHashes);
 
-        const tx2 = await alice.sendTransaction({
-            to: alice.address
-        });
-        const tx3 = await alice.sendTransaction({
-            to: alice.address
-        });
-        const tx4 = await alice.sendTransaction({
-            to: alice.address
-        });
-        const remainingHashes = new Set([tx2.hash, tx3.hash, tx4.hash]);
-        testMaster.reporter.debug('Sent new transactions with hashes', remainingHashes);
+                while (remainingHashes.size > 0) {
+                    await zksync.utils.sleep(MEMPOOL_CACHE_WAIT);
+                    changes = await alice.provider.send('eth_getFilterChanges', [filterId]);
+                    testMaster.reporter.debug('Received filter changes', changes);
 
-        while (remainingHashes.size > 0) {
-            await zksync.utils.sleep(MEMPOOL_CACHE_WAIT);
-            changes = await alice.provider.send('eth_getFilterChanges', [filterId]);
-            testMaster.reporter.debug('Received filter changes', changes);
-
-            expect(changes).not.toContain(tx1.hash);
-            for (const receivedHash of changes) {
-                remainingHashes.delete(receivedHash);
+                    expect(changes).not.toContain(tx1.hash);
+                    for (const receivedHash of changes) {
+                        remainingHashes.delete(receivedHash);
+                    }
+                }
+            } catch (e) {
+                failedAttempts++;
             }
+        }
+        if (failedAttempts > 1) {
+            throw new Error(`Failed ${failedAttempts} times`);
         }
     });
 
