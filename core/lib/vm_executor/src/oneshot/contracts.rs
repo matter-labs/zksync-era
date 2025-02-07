@@ -71,6 +71,8 @@ pub struct MultiVmBaseSystemContracts<C> {
     vm_protocol_defense: BaseSystemContracts,
     /// Contracts to be used after the gateway upgrade
     gateway: BaseSystemContracts,
+    /// Contracts to be used after the evm emulator upgrade
+    vm_evm_emulator: BaseSystemContracts,
     // We use `fn() -> C` marker so that the `MultiVmBaseSystemContracts` unconditionally implements `Send + Sync`.
     _contracts_kind: PhantomData<fn() -> C>,
 }
@@ -107,7 +109,8 @@ impl<C: ContractsKind> MultiVmBaseSystemContracts<C> {
             ProtocolVersionId::Version23 => &self.vm_1_5_0_small_memory,
             ProtocolVersionId::Version24 => &self.vm_1_5_0_increased_memory,
             ProtocolVersionId::Version25 => &self.vm_protocol_defense,
-            ProtocolVersionId::Version26 | ProtocolVersionId::Version27 => &self.gateway,
+            ProtocolVersionId::Version26 => &self.gateway,
+            ProtocolVersionId::Version27 => &self.vm_evm_emulator,
             ProtocolVersionId::Version28 => unreachable!("Version 28 is not supported yet"),
         };
         let base = base.clone();
@@ -138,6 +141,7 @@ impl MultiVmBaseSystemContracts<EstimateGas> {
                 BaseSystemContracts::estimate_gas_post_1_5_0_increased_memory(),
             vm_protocol_defense: BaseSystemContracts::estimate_gas_post_protocol_defense(),
             gateway: BaseSystemContracts::estimate_gas_gateway(),
+            vm_evm_emulator: BaseSystemContracts::estimate_gas_evm_emulator(),
             _contracts_kind: PhantomData,
         }
     }
@@ -160,6 +164,7 @@ impl MultiVmBaseSystemContracts<CallOrExecute> {
             ),
             vm_protocol_defense: BaseSystemContracts::playground_post_protocol_defense(),
             gateway: BaseSystemContracts::playground_gateway(),
+            vm_evm_emulator: BaseSystemContracts::playground_evm_emulator(),
             _contracts_kind: PhantomData,
         }
     }
