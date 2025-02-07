@@ -11649,6 +11649,7 @@ dependencies = [
  "anyhow",
  "axum 0.7.9",
  "http-body-util",
+ "serde",
  "serde_json",
  "test-casing",
  "tokio",

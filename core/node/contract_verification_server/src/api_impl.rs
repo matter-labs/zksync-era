@@ -31,6 +31,8 @@ pub(crate) enum ApiError {
     NoDeployedContract,
     RequestNotFound,
     VerificationInfoNotFound,
+    AlreadyVerified,
+    ActiveRequestExists(usize),
     Internal(anyhow::Error),
 }
 
@@ -47,16 +49,22 @@ impl From<DalError> for ApiError {
 }
 
 impl ApiError {
-    pub fn message(&self) -> &'static str {
+    pub fn message(&self) -> String {
         match self {
-            Self::IncorrectCompilerVersions => "incorrect compiler versions",
-            Self::UnsupportedCompilerVersions => "unsupported compiler versions",
-            Self::MissingZkCompilerVersion => "missing zk compiler version for EraVM bytecode",
-            Self::BogusZkCompilerVersion => "zk compiler version specified for EVM bytecode",
-            Self::NoDeployedContract => "There is no deployed contract on this address",
-            Self::RequestNotFound => "request not found",
-            Self::VerificationInfoNotFound => "verification info not found for address",
-            Self::Internal(_) => "internal server error",
+            Self::IncorrectCompilerVersions => "incorrect compiler versions".into(),
+            Self::UnsupportedCompilerVersions => "unsupported compiler versions".into(),
+            Self::MissingZkCompilerVersion => {
+                "missing zk compiler version for EraVM bytecode".into()
+            }
+            Self::BogusZkCompilerVersion => "zk compiler version specified for EVM bytecode".into(),
+            Self::NoDeployedContract => "There is no deployed contract on this address".into(),
+            Self::RequestNotFound => "request not found".into(),
+            Self::VerificationInfoNotFound => "verification info not found for address".into(),
+            Self::AlreadyVerified => "contract is already verified".into(),
+            Self::ActiveRequestExists(id) => {
+                format!("active request for this contract already exists, ID: {id}")
+            }
+            Self::Internal(_) => "internal server error".into(),
         }
     }
 }
@@ -68,7 +76,9 @@ impl IntoResponse for ApiError {
             | Self::UnsupportedCompilerVersions
             | Self::MissingZkCompilerVersion
             | Self::BogusZkCompilerVersion
-            | Self::NoDeployedContract => StatusCode::BAD_REQUEST,
+            | Self::NoDeployedContract
+            | Self::AlreadyVerified
+            | Self::ActiveRequestExists(_) => StatusCode::BAD_REQUEST,
 
             Self::RequestNotFound | Self::VerificationInfoNotFound => StatusCode::NOT_FOUND,
 
@@ -111,7 +121,6 @@ impl RestApi {
     }
 
     /// Add a contract verification job to the queue if the requested contract wasn't previously verified.
-    // FIXME: this doesn't seem to check that the contract isn't verified; should it?
     #[tracing::instrument(skip(self_, request))]
     pub async fn verification(
         State(self_): State<Arc<Self>>,
@@ -132,6 +141,27 @@ impl RestApi {
             .master_connection_pool
             .connection_tagged("api")
             .await?;
+
+        // Verification is only allowed if the contract is either wasn't verified yet
+        // or the verification is partial.
+        let verification_info = storage
+            .contract_verification_dal()
+            .get_contract_verification_info(request.contract_address)
+            .await?;
+        if let Some(verification_info) = verification_info {
+            if verification_info.verification_problems.is_empty() {
+                return Err(ApiError::AlreadyVerified);
+            }
+        }
+        // Check if there is already a verification request for this contract.
+        if let Some(id) = storage
+            .contract_verification_dal()
+            .get_active_verification_request(request.contract_address)
+            .await?
+        {
+            return Err(ApiError::ActiveRequestExists(id));
+        }
+
         let deployment_info = storage
             .storage_logs_dal()
             .filter_deployed_contracts(iter::once(request.contract_address), None)
