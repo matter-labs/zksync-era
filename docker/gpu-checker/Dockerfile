@@ -43,18 +43,22 @@ RUN curl -Lo sccache-v0.8.1-x86_64-unknown-linux-musl.tar.gz https://github.com/
 WORKDIR /usr/src/zksync
 COPY . .
 
-RUN cd prover && cargo build --release --package zksync_circuit_prover
+RUN cd prover && cargo build --release --package zksync_gpu_checker
 
 # Output build in CUDA architectures for debugging purposes.
-RUN cuobjdump /usr/src/zksync/prover/target/release/zksync_circuit_prover
+RUN cuobjdump /usr/src/zksync/prover/target/release/zksync_gpu_checker
 
 FROM nvidia/cuda:12.4.0-runtime-ubuntu22.04
 
 RUN apt-get update && apt-get install -y curl libpq5 ca-certificates && rm -rf /var/lib/apt/lists/*
 
-# copy finalization hints required for assembly generation
-COPY prover/data/keys/ /prover/data/keys/
+# Copy only required finalization hints and verification key.
+COPY prover/data/keys/commitments.json prover/data/keys/finalization_hints_basic_1.bin prover/data/keys/verification_basic_1_key.json /prover/data/keys/
 
-COPY --from=builder /usr/src/zksync/prover/target/release/zksync_circuit_prover /usr/bin/
+# Copy required setup key and circuit.
+COPY setup_basic_1_data.bin /prover/data/keys/
+COPY prover_jobs_fri/10330_48_1_BasicCircuits_0.bin /prover/data/keys/prover_jobs_fri/
 
-ENTRYPOINT ["zksync_circuit_prover"]
+COPY --from=builder /usr/src/zksync/prover/target/release/zksync_gpu_checker /usr/bin/
+
+ENTRYPOINT ["zksync_gpu_checker", "--setup_data_path=/prover/data/keys/"]
