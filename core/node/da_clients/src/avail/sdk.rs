@@ -3,7 +3,7 @@
 
 use std::{fmt::Debug, sync::Arc, time};
 
-use anyhow::Context;
+use anyhow::{bail, Context};
 use backon::{ConstantBuilder, Retryable};
 use bytes::Bytes;
 use jsonrpsee::{
@@ -450,13 +450,26 @@ impl GasRelayClient {
             .post(&submit_url)
             .body(Bytes::from(data))
             .header("Content-Type", "text/plain")
-            .header("Authorization", &self.api_key)
+            .header("Authorization", format!("Bearer {}", self.api_key))
             .send()
-            .await?;
+            .await
+            .context("Failed to submit data to the gas relay")?;
 
-        let submit_response = submit_response
-            .json::<GasRelayAPISubmissionResponse>()
-            .await?;
+        let response_bytes = submit_response
+            .bytes()
+            .await
+            .context("Failed to read response body")?;
+
+        let submit_response =
+            match serde_json::from_slice::<GasRelayAPISubmissionResponse>(&response_bytes) {
+                Ok(response) => response,
+                Err(_) => {
+                    bail!(
+                        "Unexpected response from gas relay: {:?}",
+                        String::from_utf8_lossy(&response_bytes).as_ref()
+                    )
+                }
+            };
 
         let status_url = format!(
             "{}/user/get_submission_info?submission_id={}",
@@ -467,7 +480,7 @@ impl GasRelayClient {
         let status_response = (|| async {
             self.api_client
                 .get(&status_url)
-                .header("Authorization", &self.api_key)
+                .header("Authorization", format!("Bearer {}", self.api_key))
                 .send()
                 .await
         })
@@ -478,7 +491,22 @@ impl GasRelayClient {
         )
         .await?;
 
-        let status_response = status_response.json::<GasRelayAPIStatusResponse>().await?;
+        let status_response_bytes = status_response
+            .bytes()
+            .await
+            .context("Failed to read response body")?;
+
+        let status_response =
+            match serde_json::from_slice::<GasRelayAPIStatusResponse>(&status_response_bytes) {
+                Ok(response) => response,
+                Err(_) => {
+                    bail!(
+                        "Unexpected status response from gas relay: {:?}",
+                        String::from_utf8_lossy(&status_response_bytes).as_ref()
+                    )
+                }
+            };
+
         let (block_hash, extrinsic_index) = (
             status_response.submission.block_hash.ok_or_else(|| {
                 anyhow::anyhow!("Block hash not found in the response from the gas relay")
