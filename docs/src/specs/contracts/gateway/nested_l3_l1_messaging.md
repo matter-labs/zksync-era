@@ -4,53 +4,50 @@
 
 ## Introduction
 
-This document assumes that the reader is already aware of what SyncLayer (or how it is now called Gateway) is. To reduce the interactions with L1, on SyncLayer we will gather all the batch roots from all the chains into the tree with following structure:
+This document assumes that the reader is already aware of what Gateway is. To reduce the interactions with L1, on Gateway we will gather all the batch roots from all the chains into the tree with following structure:
 
 ![NestedL3L1Messaging.png](./img/nested_l3_l1_messaging.png)
-![NestedL3L1Messaging.png](./img/nested_l3_l1_messaging_2.png)
 
 > Note:
 
-“Multiple arrows” from `AggregatedRoot` to `chainIdRoot` and from each `chainIdRoot` to `batchRoot` are for illustrational purposes only.
-
-In fact, the tree above will be a binary merkle tree, where the `AggregatedRoot` will be the root of the tree of `chainIdRoot`, while `chainIdRoot` is the merkle root of a binary merkle tree of `batchRoot`.
+The lines between `MessageRoot` and `chainRoot` and between each `chainRoot` and `chainBatchRoot` show different  binary merkle trees. The `MessageRoot` will be the root of a FullMerkleTree of `chainRoot`, while `chainRoot` is the merkle root of a DynamicIncrementalMerkleTree of `chainBatchRoot`.
 
 >
 
 For each chain that settles on L1, the root will have the following format:
 
-`settledMessageRoot = keccak256(LocalRoot, AggregatedRoot)`
+`chainBatchRoot = keccak256(LocalRoot, MessageRoot)`
 
-where `localRoot` is the root of the tree of messages that come from the chain itself, while the `AggregatedRoot` is the root of aggregated messages from all of the chains that settle on top of the chain.
+where `localRoot` is the root of the tree of messages that come from the chain itself, while the `MessageRoot` is the root of aggregated messages from all of the chains that settle on top of the chain. The `chainBatchRoot` will be settled on the layer below, and be used to update the `ChainRoot` in the `MessageRoot` contract on that layer.
 
-In reality, `AggregatedRoot` will have a meaningful value only on SyncLayer and L1. On other chains it will be a root of an empty tree.
+In reality, `MessageRoot` will have a meaningful value only on Gateway and L1. On other chains it will be a root of an empty tree.
 
 The structure has the following recursive format:
 
-- `settledMessageRoot = keccak256(LocalRoot, AggregatedRoot)`
+- `chainBatchRoot = keccak256(LocalRoot, MessageRoot)`
 - `LocalRoot` — the root of the binary merkle tree over `UserLog[]`. (the same as the one we have now). It only contains messages from the current batch.
-- `AggregatedRoot` — the root of the binary merkle tree over `ChainIdLeaf[]`.
-- `ChainIdLeaf = keccak256(CHAIN_ID_LEAF_PADDING, chain_id, ChainIdRoot`)
+- `MessageRoot` — the root of the binary full merkle tree over `ChainIdLeaf[]`.
+- `ChainIdLeaf = keccak256(CHAIN_ID_LEAF_PADDING, chain_id, ChainRoot)`
 - `CHAIN_ID_LEAF_PADDING` — it is a constant padding, needed to ensure that the preimage of the ChainIdLeaf is larger than 64 bytes and so it can not be an internal node.
 - `chain_id` — the chain id of the chain the batches of which are aggregated.
-- `ChainIdRoot` = the root of the binary merkle tree `BatchRootLeaf[]`.
-- `BatchRootLeaf = keccak256(BATCH_LEAF_HASH_PADDING, batch_number, SettledRootOfBatch).`
+- `ChainRoot` = the root of the binary dynamic incremental merkle tree `BatchRootLeaf[]`.
+- `BatchRootLeaf = keccak256(BATCH_LEAF_HASH_PADDING, batch_number, ChainBatchRoot).`
 
-In other words, we get the recursive structure, where for leaves of it, i.e. chains that do not aggregate any other chains, have empty `AggregatedRoot`.
+In other words, we get the recursive structure, where for leaves of it, i.e. chains that do not aggregate any other chains, have empty `MessageRoot`.
 
 ## Appending new batch root leaves
 
-At the execution stage of every batch, the ZK Chain would call the `MessageRoot.addChainBatchRoot` function, while providing the `SettledRootOfBatch` for the chain. Then, the `BatchRootLeaf` will be calculated and appended to the incremental merkle tree with which the `ChainIdRoot` & `ChainIdLeaf` is calculated, which will be updated in the merkle tree of `ChainIdLeaf`s.
+At the execution stage of every batch, the ZK Chain would call the `MessageRoot.addChainBatchRoot` function, while providing the `ChainBatchRoot` for the chain. Then, the `BatchRootLeaf` will be calculated and appended to the incremental merkle tree with which the `ChainRoot` & `ChainIdLeaf` is calculated, which will be updated in the merkle tree of `ChainIdLeaf`s.
 
-At the end of the batch, the L1Messenger system contract would query the MessageRoot contract for the total aggregated root, i.e. the root of all `ChainIdLeaf`s . Calculate the settled root `settledMessageRoot = keccak256(LocalRoot, AggregatedRoot)` and propagate it to L1.
+At the end of the batch, the L1Messenger system contract would query the MessageRoot contract for the total aggregated root, i.e. the root of all `ChainIdLeaf`s . Calculate the settled chain batch root `chainBatchRoot = keccak256(LocalRoot, MessageRoot)` and propagate it to L1.
 
 Only the final aggregated root will be stored on L1.
 
-## Proving that a message belongs to a chain on top of SyncLayer
+## Proving that a message belongs to a chain on top of Gateway
 
 The process will consist of two steps:
 
-1. Construct the needed `SettledRootOfBatch` for the current chain’s batch.
+1. Construct the needed `ChainBatchRoot` for the current chain’s batch.
 2. Prove that it belonged to the gateway.
 
 If the depth of recursion is larger than 1, then step (1) could be repeated multiple times.
@@ -99,19 +96,19 @@ We want to avoid breaking changes to SDKs, so we will modify the `zks_getL2ToL1L
 
 First `bytes32` corresponds to the metadata of the proof. The zero-th byte should tell the version of the metadata and must be equal to the `SUPPORTED_PROOF_METADATA_VERSION` (a constant of `0x01`).
 
-Then, it should contain the number of 32-byte words that are needed to restore the current `BatchRootLeaf` , i.e. `logLeafProofLen` (it is called this way as it proves that a leaf belongs to the `SettledRootOfBatch`). The second byte contains the `batchLeafProofLen` . It is the length of the merkle path to prove that the `BatchRootLeaf` belonged to the `ChainIdRoot` .
+Then, it should contain the number of 32-byte words that are needed to restore the current `BatchRootLeaf` , i.e. `logLeafProofLen` (it is called this way as it proves that a leaf belongs to the `ChainBatchRoot`). The second byte contains the `batchLeafProofLen` . It is the length of the merkle path to prove that the `BatchRootLeaf` belonged to the `ChainRoot` .
 
 Then, the following happens:
 
-- We consume the `logLeafProofLen` items to produce the `SettledRootOfBatch`. The last word is typically the aggregated root for the chain.
+- We consume the `logLeafProofLen` items to produce the `ChainBatchRoot`. The last word is typically the aggregated root for the chain.
 
-If the settlement layer of the chain is the chain itself, we can just end here by verifying that the provided batch message root is correct.
+If the settlement layer of the chain is the L1 we can just end here by verifying that the provided batch message root is correct.
 
-If the chain is not a settlement layer of itself, we then need to calculate:
+If the chain is settled on the GW, we then need to calculate:
 
-- `BatchRootLeaf = keccak256(BATCH_LEAF_HASH_PADDING, SettledRootOfBatch, batch_number).`
+- `BatchRootLeaf = keccak256(BATCH_LEAF_HASH_PADDING, ChainBatchRoot, batch_number).`
 - Consume one element from the `_proofs` array to get the mask for the merkle path of the batch leaf in the chain id tree.
-- Consume `batchLeafProofLen` elements to construct the `ChainIdRoot`
+- Consume `batchLeafProofLen` elements to construct the `ChainRoot`
 - After that, we calculate the `chainIdLeaf = keccak256(CHAIN_ID_LEAF_PADDING, chainIdRoot, chainId`
 
 Now, we have the _supposed_ `chainIdRoot` for the chain inside its settlement layer. The only thing left to prove is that this root belonged to some batch of the settlement layer.
@@ -136,12 +133,12 @@ Now, we can call the function to verify that the batch belonged to the settlemen
 The other slice of the `_proof` array is expected to have the same structure as before:
 
 - Metadata
-- Merkle path to construct the `SettledRootOfBatch`
+- Merkle path to construct the `ChainBatchRoot`
 - In case there are any more aggregation layers, additional info to prove that the batch belonged to it.
 
 ## Trust assumptions
 
-Note, that the `_proof` field is provided by potentially malicious users. The only part that really checks anything with L1 state is the final step of the aggregated proof verification, i.e. that the settled root of batch of the final top layer was present on L1.
+Note, that the `_proof` field is provided by potentially malicious users. The only part that really checks anything with L1 state is the final step of the aggregated proof verification, i.e. that the settled `ChainBatchRoot` of batch of the final top layer was present on L1.
 
 It puts a lot of trust in the settlement layers as it can steal funds from chains and “verify” incorrect L3→L1 logs if it wants to. It is the job of the chain itself to ensure that it trusts the aggregation layer. It is also the job of the STM to ensure that the settlement layers that are used by its chains are secure.
 
@@ -158,7 +155,7 @@ Currently, we never clear the `MessageRoot` in other words, the aggregated root 
 
 It is the responsibility of the chain to ensure that each message has a unique id and can not be replayed. Currently a tuple of `chain_batch_number, chain_message_id` is used. While there are multiple message roots from which such a tuple could be proven from, it is still okay as it will be nullified only once.
 
-Another notable example of the redundancy of data, is that we also have total `MessageRoot` on L1, which contains the aggregated root of all chains, while for chains that settle on L1, we still store the `settledBatchRoot` for the efficiency.
+Another notable example of the redundancy of data, is that we also have total `MessageRoot` on L1, which contains the aggregated root of all chains, while for chains that settle on L1, we still store the `ChainBatchRoot` for the efficiency.
 
 ### Data availability guarantees
 
@@ -168,13 +165,13 @@ Firstly, unless the chain settles on L1, this requires a trusted settlement laye
 
 Secondly, we guarantee that all the stored `ChainIdLeaf`s are published on L1, even for Validiums. Publishing a single 32 byte value per relatively big Gateway batch has little price for Validiums, but it ensures that the settlement root of the gateway can always be constructed. And, assuming that the preimage for the chain root could be constructed, this gives an ability to ability to recover the proof for any L3→L1 coming from a rollup.
 
-But how can one reconstruct the total chain tree for a particular rollup chain? A rollup would relay all of its pubdata to L1, meaning that by observing L1, the observer would know all the L3→L1 logs that happened in a particular batch. It means that for each batch it can restore the `LocalRoot` (in case the `AggregatedRoot` is non-zero, it could be read from e.g. the storage which is available via the standard state diffs). This allows to calculate the `BatchRootLeaf` for the chain. The only thing missing is understanding which batches were finalized on gateway in order to construct the merkle path to the `ChainRootLeaf`.
+But how can one reconstruct the total chain tree for a particular rollup chain? A rollup would relay all of its pubdata to L1, meaning that by observing L1, the observer would know all the L3→L1 logs that happened in a particular batch. It means that for each batch it can restore the `LocalRoot` (in case the `MessageRoot` is non-zero, it could be read from e.g. the storage which is available via the standard state diffs). This allows to calculate the `BatchRootLeaf` for the chain. The only thing missing is understanding which batches were finalized on gateway in order to construct the merkle path to the `ChainRootLeaf`.
 
-To understand which SL was used by a batch for finalization, one could simply brute force over all settlement layers ever used to find out where the settledBatchRoot is stored.. This number is expected to be rather small.
+To understand which SL was used by a batch for finalization, one could simply brute force over all settlement layers ever used to find out where the chainBatchRoot is stored. This number is expected to be rather small.
 
 ## Legacy support
 
-In order to ease the server migration, we support legacy format of L2→L1 logs proving, i.e. just provide a proof that assumes that stored `settledMessageRoot` is identical to local root, i.e. the hash of logs in the batch.
+In order to ease the server migration, we support legacy format of L2→L1 logs proving, i.e. just provide a proof that assumes that stored `chainBatchRoot` is identical to local root, i.e. the hash of logs in the batch.
 
 To differentiate between legacy format and the one, the following approach is used;
 

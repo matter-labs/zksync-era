@@ -1,8 +1,8 @@
-# Precommit based interop
+# Interop settlement modes
 
 [back to readme](../../README.md)
 
-Types of interop and security assumptions.
+Interop requires the importing of the [MessageRoot](../gateway/nested_l3_l1_messaging.md) from the source chain. This can be done in different ways, depending on the security trust between the chains.
 
 1. Proof based
 2. Commit based
@@ -12,56 +12,43 @@ Types of interop and security assumptions.
 
 Slow (proof time ~10+ mins, Secure)
 
-- Batch is sealed, posted to GW
-- Proof is posted on GW, batch is fully finalized cannot be reverted.
-- We get GW’s global messageRoot from GW.
+- Batch is sealed, posted to the Settlement Layer (Gateway or L1).
+- Proof is posted on SL, batch is fully finalized cannot be reverted.
+- We get the SL’s global messageRoot.
 
-## Commit/Batch based interop (Tee)
+## Commit/Batch based interop
 
 Relatively fast (~1 min, secure), relatively secure.
 
 - Batch has to be sealed. (**Due to no precompiles** this will might also take ~1 min as we need to have large batches to keep expenses low). Even with smaller batches, it will be slower than pre-commit based.
 - TEE can be run for extra security. (+ ~1min).
-- Batch is committed to GW ( with TEE). Tx data is also committed, so we can regenerate the batch. Alternatively, EN-s are run for chain.
-- We get the chains MessageRoot
+- Batch is committed to SL. 
+- We get the chainBatchRoot of the source chain from the DiamondProxy of the SL.
+- For security reasons tx data is also committed to the SL, so we can regenerate the batch. Alternatively, EN-s are run for chain.
 
 ## Pre-commit/Miniblock based interop
 
 Very fast.
 
-- Batches are not sealed, but are builtx in parallel. MessageRoot is updated mid batch after each block. After the batch is sealed the imported MessageRoot has to be “extended”.
+- Batches are not sealed, but are built in parallel. `LocalRoot` is updated mid batch after each block. After the batch is sealed the imported `LocalRoot` has to be “extended” to the settled `ChainBatchRoot`.
 - This means interop can be very fast (~5s). 
 - For security EN’s will need to be run. Ok, for a small number of chains.
 - For many chains, we can use proof -based or commit based.
     - One directional interop, e.g from Era central hub.
 - Note: similar setup is needed for Shared Sequencing.
+- Note: w replace current L2ToL1 messages rolling hash + merkle tree with a single Dyn Inc MT, and on the destination chain, import all leaves. In the future we can imort only nodes. 
 
 # Implications on settlement process
 
-- Proof based: Global message root is updated, we can import a single root for all chains. When committing the batch the single root can be exported and checked against the MessageRoot contract.
-- commit based: Individual roots are imported from different dependent chains.  We need to export all of them when committing the batch and save them. When executing the batch, we need to check the dependencies have been already executed.
-- precommit based: Similar to commit based, with one additional step. When executing the batch the exported MessageRoot might not be the final MessageRoot that sending chain settled. An additional merkle proof will have to be provided here for each dependency.
-
-## Implication on MessageRoot linking for precommit based interop.
-
-For the current l2ToL1Logs root hash we currently we have both a rolling hash during the batch, and at the end we construct a Merkle-tree. 
-
-- This is not efficient.
-    
-    We would either have to calculate the MT before the batch is sealed, or import all the elements of the rolling hash. Instead we should replace this construction with Dyn Inc merkle tree.
-    
-
-Solution: replace current L2ToL1 messages rolling hash + merkle tree with a single Dyn Inc MT, and on the destination chain, import all leaves. In the future we can imort only nodes. 
-
-Using Dyn Inc MT also simplifies the L1Messenger contract. 
-    
+- Proof based: SL's `MessageRoot` is updated, we can import a single root for all chains. When committing the batch the single root can be exported and checked against the `MessageRoot` contract.
+- Commit based: Individual `ChainBatchRoot`s  are imported from different dependent chains.  We need to export all of them when committing the batch and save them. When executing the batch, we need to check the dependencies have been already executed.
+- precommit based: Similar to commit based, with one additional step. When executing the batch the exported `LocalRoot` might not be the final `ChainBatchRoot` that sending chain settled. An additional merkle proof will have to be provided here for each dependency.
 
 # Security considerations for Precommit based interop
 
 Without TEEs for miniblocks vs with difference:
 
 1. Without
-    - Chains need to run ENs for each other
     - There is no validity checking of blocks.
         - So we need to run ENs for all chains as well. Chains can query us for those MessageRoots.
         - We can create an onchain lock with miniblock states.
