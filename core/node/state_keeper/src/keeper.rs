@@ -407,6 +407,13 @@ impl ZkSyncStateKeeper {
 
     #[tracing::instrument(skip(updates_manager))]
     fn set_l2_block_params(updates_manager: &mut UpdatesManager, l2_block_params: L2BlockParams) {
+        tracing::debug!(
+            "Setting next L2 block #{} (L1 batch #{}) with initial params: timestamp {}, virtual block {}",
+            updates_manager.l2_block.number + 1,
+            updates_manager.l1_batch.number,
+            display_timestamp(l2_block_params.timestamp),
+            l2_block_params.virtual_blocks
+        );
         updates_manager.set_next_l2_block_params(Some(l2_block_params));
     }
 
@@ -423,16 +430,12 @@ impl ZkSyncStateKeeper {
     ) -> anyhow::Result<()> {
         updates_manager.push_l2_block();
         let block_env = updates_manager.l2_block.get_env();
-        let timestamp = updates_manager
-            .get_next_l2_block_params_or_batch_params()
-            .timestamp;
         tracing::debug!(
             "Initialized new L2 block #{} (L1 batch #{}) with timestamp {}",
-            updates_manager.l2_block.number + 1,
+            block_env.number,
             updates_manager.l1_batch.number,
-            display_timestamp(timestamp)
+            display_timestamp(block_env.timestamp)
         );
-        updates_manager.set_next_l2_block_params(None);
         batch_executor
             .start_next_l2_block(block_env)
             .await

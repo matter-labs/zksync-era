@@ -191,12 +191,15 @@ impl UpdatesManager {
     /// Pushes a new L2 block with the specified timestamp into this manager. The previously
     /// held L2 block is considered sealed and is used to extend the L1 batch data.
     pub fn push_l2_block(&mut self) {
+        let next_l2_block_params = self
+            .next_l2_block_params
+            .take()
+            .expect("next l2 block params cannot be empty");
         let new_l2_block_updates = L2BlockUpdates::new(
-            self.get_next_l2_block_params_or_batch_params().timestamp,
+            next_l2_block_params.timestamp,
             self.l2_block.number + 1,
             self.l2_block.get_l2_block_hash(),
-            self.get_next_l2_block_params_or_batch_params()
-                .virtual_blocks,
+            next_l2_block_params.virtual_blocks,
             self.protocol_version,
         );
         let old_l2_block_updates = std::mem::replace(&mut self.l2_block, new_l2_block_updates);
@@ -205,7 +208,15 @@ impl UpdatesManager {
     }
 
     pub fn set_next_l2_block_params(&mut self, l2_block_params: Option<L2BlockParams>) {
+        assert!(
+            self.next_l2_block_params.is_none(),
+            "next_l2_block_params cannot be set twice"
+        );
         self.next_l2_block_params = l2_block_params
+    }
+
+    pub fn get_next_l2_block_params(&mut self) -> Option<L2BlockParams> {
+        self.next_l2_block_params
     }
 
     pub(crate) fn pending_executed_transactions_len(&self) -> usize {
