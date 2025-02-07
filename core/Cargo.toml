@@ -244,8 +244,8 @@ zk_evm_1_5_0 = { package = "zk_evm", version = "=0.151.1" }
 fflonk = "=0.30.14"
 bellman = { package = "zksync_bellman", version = "=0.30.14" }
 
-# New VM; pinned to a specific commit because of instability
-zksync_vm2 = { git = "https://github.com/matter-labs/vm2.git", rev = "3841f5a430288a63c8207853eca11560bf7a5712" }
+# New VM; pinned to a specific version because of instability
+zksync_vm2 = "=0.3.0"
 
 # Consensus dependencies.
 zksync_concurrency = "=0.8.0"
