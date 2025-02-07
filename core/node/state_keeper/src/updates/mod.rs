@@ -207,12 +207,12 @@ impl UpdatesManager {
             .extend_from_sealed_l2_block(old_l2_block_updates);
     }
 
-    pub fn set_next_l2_block_params(&mut self, l2_block_params: Option<L2BlockParams>) {
+    pub fn set_next_l2_block_params(&mut self, l2_block_params: L2BlockParams) {
         assert!(
             self.next_l2_block_params.is_none(),
             "next_l2_block_params cannot be set twice"
         );
-        self.next_l2_block_params = l2_block_params
+        self.next_l2_block_params = Some(l2_block_params);
     }
 
     pub fn get_next_l2_block_params(&mut self) -> Option<L2BlockParams> {
@@ -282,10 +282,10 @@ mod tests {
         assert_eq!(updates_manager.l1_batch.executed_transactions.len(), 0);
 
         // Seal an L2 block.
-        updates_manager.set_next_l2_block_params(Some(L2BlockParams {
+        updates_manager.set_next_l2_block_params(L2BlockParams {
             timestamp: 2,
             virtual_blocks: 1,
-        }));
+        });
         updates_manager.push_l2_block();
 
         // Check that L1 batch updates are the same with the pending state

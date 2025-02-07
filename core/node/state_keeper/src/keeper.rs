@@ -414,7 +414,7 @@ impl ZkSyncStateKeeper {
             display_timestamp(l2_block_params.timestamp),
             l2_block_params.virtual_blocks
         );
-        updates_manager.set_next_l2_block_params(Some(l2_block_params));
+        updates_manager.set_next_l2_block_params(l2_block_params);
     }
 
     #[tracing::instrument(
