@@ -11918,7 +11918,6 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
- "zksync_config",
  "zksync_contracts",
  "zksync_eth_signer",
  "zksync_types",
@@ -13201,7 +13200,6 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
- "zksync_config",
  "zksync_types",
 ]
 

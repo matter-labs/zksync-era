@@ -57,7 +57,7 @@ pub async fn setup_legacy_bridge(
     let mut forge = Forge::new(&foundry_contracts_path)
         .script(&SETUP_LEGACY_BRIDGE.script(), forge_args.clone())
         .with_ffi()
-        .with_rpc_url(secrets.get("l1.l1_rpc_url")?)
+        .with_rpc_url(secrets.l1_rpc_url()?)
         .with_broadcast();
 
     forge = fill_forge_private_key(

@@ -73,9 +73,7 @@ impl Distribution<configs::api::Web3JsonRpcConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::api::Web3JsonRpcConfig {
         configs::api::Web3JsonRpcConfig {
             http_port: self.sample(rng),
-            http_url: self.sample(rng),
             ws_port: self.sample(rng),
-            ws_url: self.sample(rng),
             req_entities_limit: self.sample(rng),
             filters_disabled: self.sample(rng),
             filters_limit: self.sample(rng),
@@ -153,16 +151,6 @@ impl Distribution<configs::PrometheusConfig> for EncodeDist {
             listener_port: self.sample(rng),
             pushgateway_url: self.sample(rng),
             push_interval_ms: self.sample(rng),
-        }
-    }
-}
-
-impl Distribution<configs::chain::NetworkConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::chain::NetworkConfig {
-        configs::chain::NetworkConfig {
-            network: Sample::sample(rng),
-            zksync_network: self.sample(rng),
-            zksync_network_id: L2ChainId::max(),
         }
     }
 }
@@ -360,8 +348,6 @@ impl Distribution<configs::database::PostgresConfig> for EncodeDist {
             statement_timeout_sec: self.sample(rng),
             long_connection_threshold_ms: self.sample(rng),
             slow_query_threshold_ms: self.sample(rng),
-            test_server_url: self.sample(rng),
-            test_prover_url: self.sample(rng),
         }
     }
 }
