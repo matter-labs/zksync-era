@@ -27,14 +27,14 @@ pub async fn run(args: Args, config: ProverCLIConfig) -> anyhow::Result<()> {
         .await
         .context("failed to acquire a connection")?;
 
-    let mut fri_witness_generator_dal = conn.fri_witness_generator_dal();
-
-    let stuck_witness_input_jobs = fri_witness_generator_dal
+    let stuck_witness_input_jobs = conn
+        .fri_basic_witness_generator_dal()
         .requeue_stuck_witness_inputs_jobs_for_batch(args.batch, args.max_attempts)
         .await;
     display_requeued_stuck_jobs(stuck_witness_input_jobs, AggregationRound::BasicCircuits);
 
-    let stuck_leaf_aggregations_stuck_jobs = fri_witness_generator_dal
+    let stuck_leaf_aggregations_stuck_jobs = conn
+        .fri_witness_generator_dal()
         .requeue_stuck_leaf_aggregation_jobs_for_batch(args.batch, args.max_attempts)
         .await;
     display_requeued_stuck_jobs(
@@ -42,7 +42,8 @@ pub async fn run(args: Args, config: ProverCLIConfig) -> anyhow::Result<()> {
         AggregationRound::LeafAggregation,
     );
 
-    let stuck_node_aggregations_jobs = fri_witness_generator_dal
+    let stuck_node_aggregations_jobs = conn
+        .fri_witness_generator_dal()
         .requeue_stuck_node_aggregation_jobs_for_batch(args.batch, args.max_attempts)
         .await;
     display_requeued_stuck_jobs(
@@ -50,12 +51,14 @@ pub async fn run(args: Args, config: ProverCLIConfig) -> anyhow::Result<()> {
         AggregationRound::NodeAggregation,
     );
 
-    let stuck_recursion_tip_job = fri_witness_generator_dal
+    let stuck_recursion_tip_job = conn
+        .fri_recursion_tip_witness_generator_dal()
         .requeue_stuck_recursion_tip_jobs_for_batch(args.batch, args.max_attempts)
         .await;
     display_requeued_stuck_jobs(stuck_recursion_tip_job, AggregationRound::RecursionTip);
 
-    let stuck_scheduler_jobs = fri_witness_generator_dal
+    let stuck_scheduler_jobs = conn
+        .fri_scheduler_witness_generator_dal()
         .requeue_stuck_scheduler_jobs_for_batch(args.batch, args.max_attempts)
         .await;
     display_requeued_stuck_jobs(stuck_scheduler_jobs, AggregationRound::Scheduler);

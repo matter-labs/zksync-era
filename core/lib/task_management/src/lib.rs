@@ -1,9 +1,9 @@
+// TODO: Migrate contract-verifier and provers to node_framework and get rid of this crate
 use std::time::Duration;
 
 use futures::future;
 use tokio::task::JoinHandle;
-
-use crate::panic_extractor::try_extract_panic_message;
+use zksync_utils::panic_extractor::try_extract_panic_message;
 
 /// Container for fallible Tokio tasks with ability to track their shutdown.
 ///

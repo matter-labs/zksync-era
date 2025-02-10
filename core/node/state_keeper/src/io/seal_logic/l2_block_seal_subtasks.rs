@@ -592,14 +592,12 @@ mod tests {
 
         // Check DAL doesn't return tx receipt before block header is saved.
         let mut connection = pool.connection().await.unwrap();
-        let tx_receipt = connection
+        let tx_receipts = connection
             .transactions_web3_dal()
             .get_transaction_receipts(&[tx_hash])
             .await
-            .unwrap()
-            .first()
-            .cloned();
-        assert!(tx_receipt.is_none());
+            .unwrap();
+        assert!(tx_receipts.is_empty(), "{tx_receipts:?}");
 
         // Insert block header.
         let l2_block_header = L2BlockHeader {
@@ -636,7 +634,8 @@ mod tests {
             .get_transaction_receipts(&[tx_hash])
             .await
             .unwrap()
-            .remove(0);
+            .remove(0)
+            .inner;
         assert_eq!(tx_receipt.block_number.as_u32(), 1);
         assert_eq!(tx_receipt.logs.len(), 1);
         assert_eq!(tx_receipt.l2_to_l1_logs.len(), 1);

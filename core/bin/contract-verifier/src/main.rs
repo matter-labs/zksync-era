@@ -8,7 +8,7 @@ use zksync_contract_verifier_lib::ContractVerifier;
 use zksync_core_leftovers::temp_config_store::{load_database_secrets, load_general_config};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_queued_job_processor::JobProcessor;
-use zksync_utils::wait_for_tasks::ManagedTasks;
+use zksync_task_management::ManagedTasks;
 use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 #[derive(Debug, Parser)]
