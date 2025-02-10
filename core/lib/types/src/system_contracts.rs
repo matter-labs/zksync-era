@@ -233,39 +233,24 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 35] = [
 ];
 
 /// Gets default set of system contracts, based on Cargo workspace location.
-pub fn get_system_smart_contracts(use_evm_emulator: bool) -> Vec<DeployedContract> {
+pub fn get_system_smart_contracts() -> Vec<DeployedContract> {
     SYSTEM_CONTRACT_LIST
         .iter()
-        .filter_map(|(path, name, address, contract_lang)| {
-            if *name == "EvmGasManager" && !use_evm_emulator {
-                None
-            } else {
-                Some(DeployedContract {
-                    account_id: AccountTreeId::new(*address),
-                    bytecode: read_sys_contract_bytecode(path, name, contract_lang.clone()),
-                })
-            }
+        .map(|(path, name, address, contract_lang)| DeployedContract {
+            account_id: AccountTreeId::new(*address),
+            bytecode: read_sys_contract_bytecode(path, name, contract_lang.clone()),
         })
         .collect()
 }
 
 /// Loads system contracts from a given directory.
-pub fn get_system_smart_contracts_from_dir(
-    path: PathBuf,
-    use_evm_emulator: bool,
-) -> Vec<DeployedContract> {
+pub fn get_system_smart_contracts_from_dir(path: PathBuf) -> Vec<DeployedContract> {
     let repo = SystemContractsRepo { root: path };
     SYSTEM_CONTRACT_LIST
         .iter()
-        .filter_map(|(path, name, address, contract_lang)| {
-            if *name == "EvmGasManager" && !use_evm_emulator {
-                None
-            } else {
-                Some(DeployedContract {
-                    account_id: AccountTreeId::new(*address),
-                    bytecode: repo.read_sys_contract_bytecode(path, name, contract_lang.clone()),
-                })
-            }
+        .map(|(path, name, address, contract_lang)| DeployedContract {
+            account_id: AccountTreeId::new(*address),
+            bytecode: repo.read_sys_contract_bytecode(path, name, contract_lang.clone()),
         })
         .collect::<Vec<_>>()
 }

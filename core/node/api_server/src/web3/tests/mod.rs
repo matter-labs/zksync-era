@@ -223,9 +223,7 @@ impl StorageInitialization {
                 let params = GenesisParams::from_genesis_config(
                     config,
                     base_system_contracts,
-                    // We cannot load system contracts with EVM emulator yet because these contracts are missing.
-                    // This doesn't matter for tests because the EVM emulator won't be invoked.
-                    get_system_smart_contracts(false),
+                    get_system_smart_contracts(),
                 )
                 .unwrap();
 
@@ -1153,7 +1151,7 @@ impl HttpTest for GetBytecodeTest {
         let mut connection = pool.connection().await?;
         Self::insert_evm_bytecode(&mut connection, L2BlockNumber(0), genesis_evm_address).await?;
 
-        for contract in get_system_smart_contracts(false) {
+        for contract in get_system_smart_contracts() {
             let bytecode = client
                 .get_code(*contract.account_id.address(), None)
                 .await?;
