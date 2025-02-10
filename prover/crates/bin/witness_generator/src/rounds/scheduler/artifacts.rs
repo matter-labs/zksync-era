@@ -58,6 +58,7 @@ impl ArtifactsManager for Scheduler {
         started_at: Instant,
         blob_urls: String,
         _artifacts: Self::OutputArtifacts,
+        _db_insert_jobs_chunk_size: Option<u32>,
     ) -> anyhow::Result<()> {
         let mut prover_connection = connection_pool.connection().await?;
         let mut transaction = prover_connection.start_transaction().await?;

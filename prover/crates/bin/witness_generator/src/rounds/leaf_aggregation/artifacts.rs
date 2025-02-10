@@ -79,6 +79,7 @@ impl ArtifactsManager for LeafAggregation {
         started_at: Instant,
         blob_urls: AggregationBlobUrls,
         artifacts: Self::OutputArtifacts,
+        db_insert_jobs_chunk_size: Option<u32>,
     ) -> anyhow::Result<()> {
         tracing::info!(
             "Updating database for job_id {}, block {} with circuit id {}",
@@ -109,6 +110,7 @@ impl ArtifactsManager for LeafAggregation {
                 AggregationRound::LeafAggregation,
                 0,
                 protocol_version_id,
+                db_insert_jobs_chunk_size,
             )
             .await;
         tracing::info!(

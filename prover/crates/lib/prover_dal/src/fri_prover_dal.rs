@@ -6,6 +6,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use sqlx::QueryBuilder;
 use zksync_basic_types::{
     basic_fri_types::{
         AggregationRound, CircuitIdRoundTuple, CircuitProverStatsEntry,
@@ -36,8 +37,43 @@ impl FriProverDal<'_, '_> {
         aggregation_round: AggregationRound,
         depth: u16,
         protocol_version_id: ProtocolSemanticVersion,
+        chunk_insert_size: Option<u32>,
     ) {
         let latency = MethodLatency::new("save_fri_prover_jobs");
+        let chunk_size = chunk_insert_size.unwrap_or(1);
+
+        if chunk_size == 1 {
+            // Keeping the single insert for backwards compatibility
+            self.insert_prover_jobs_sequentially(
+                l1_batch_number,
+                circuit_ids_and_urls,
+                aggregation_round,
+                depth,
+                protocol_version_id,
+            )
+            .await;
+        } else {
+            self.insert_prover_jobs_in_chunks(
+                l1_batch_number,
+                circuit_ids_and_urls,
+                aggregation_round,
+                depth,
+                protocol_version_id,
+                chunk_size as usize,
+            )
+            .await;
+        }
+        drop(latency);
+    }
+
+    pub async fn insert_prover_jobs_sequentially(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+        circuit_ids_and_urls: Vec<(u8, String)>,
+        aggregation_round: AggregationRound,
+        depth: u16,
+        protocol_version_id: ProtocolSemanticVersion,
+    ) {
         for (sequence_number, (circuit_id, circuit_blob_url)) in
             circuit_ids_and_urls.iter().enumerate()
         {
@@ -53,7 +89,99 @@ impl FriProverDal<'_, '_> {
             )
             .await;
         }
-        drop(latency);
+    }
+
+    pub async fn insert_prover_jobs_in_chunks(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+        circuit_ids_and_urls: Vec<(u8, String)>,
+        aggregation_round: AggregationRound,
+        depth: u16,
+        protocol_version_id: ProtocolSemanticVersion,
+        chunk_size: usize,
+    ) {
+        for (chunk_index, chunk) in circuit_ids_and_urls.chunks(chunk_size).enumerate() {
+            // Build one multi-row INSERT for this chunk
+            let mut query_builder = QueryBuilder::new(
+                r#"
+                INSERT INTO prover_jobs_fri (
+                    l1_batch_number,
+                    circuit_id,
+                    circuit_blob_url,
+                    aggregation_round,
+                    sequence_number,
+                    depth,
+                    is_node_final_proof,
+                    protocol_version,
+                    status,
+                    created_at,
+                    updated_at,
+                    protocol_version_patch
+                )
+                "#,
+            );
+
+            query_builder.push(" VALUES ");
+
+            for (i, (circuit_id, circuit_blob_url)) in chunk.iter().enumerate() {
+                if i > 0 {
+                    query_builder.push(", ");
+                }
+
+                query_builder.push("(");
+                // l1_batch_number
+                query_builder.push_bind(l1_batch_number.0 as i64);
+                query_builder.push(", ");
+                // circuit_id
+                query_builder.push_bind(*circuit_id as i16);
+                query_builder.push(", ");
+                // circuit_blob_url
+                query_builder.push_bind(circuit_blob_url);
+                query_builder.push(", ");
+                // aggregation_round
+                query_builder.push_bind(aggregation_round as i64);
+                query_builder.push(", ");
+                // sequence_number
+                let sequence_number = chunk_index * chunk_size + i;
+                query_builder.push_bind(sequence_number as i64);
+                query_builder.push(", ");
+                // depth
+                query_builder.push_bind(depth as i32);
+                query_builder.push(", ");
+                // is_node_final_proof
+                query_builder.push_bind(false);
+                query_builder.push(", ");
+                // protocol_version (minor)
+                query_builder.push_bind(protocol_version_id.minor as i32);
+                query_builder.push(", ");
+                // status = 'queued'
+                query_builder.push("'queued'");
+                query_builder.push(", ");
+                // created_at = CLOCK_TIMESTAMP()
+                query_builder.push("CLOCK_TIMESTAMP()");
+                query_builder.push(", ");
+                // updated_at = CLOCK_TIMESTAMP()
+                query_builder.push("CLOCK_TIMESTAMP()");
+                query_builder.push(", ");
+                // protocol_version_patch
+                query_builder.push_bind(protocol_version_id.patch.0 as i32);
+
+                query_builder.push(")");
+            }
+
+            // Add the ON CONFLICT clause
+            query_builder.push(
+                r#"
+                ON CONFLICT (l1_batch_number, aggregation_round, circuit_id, depth, sequence_number)
+                DO UPDATE
+                SET updated_at = CLOCK_TIMESTAMP()
+                "#,
+            );
+
+            // Execute the built query for this chunk
+            let query = query_builder.build();
+            query.execute(self.storage.conn()).await.unwrap();
+        }
     }
 
     /// Retrieves the next prover job to be proven. Called by WVGs.

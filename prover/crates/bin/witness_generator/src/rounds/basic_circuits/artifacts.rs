@@ -70,6 +70,7 @@ impl ArtifactsManager for BasicCircuits {
         started_at: Instant,
         blob_urls: String,
         artifacts: Self::OutputArtifacts,
+        db_insert_jobs_chunk_size: Option<u32>,
     ) -> anyhow::Result<()> {
         let mut connection = connection_pool
             .connection()
@@ -91,6 +92,7 @@ impl ArtifactsManager for BasicCircuits {
                 AggregationRound::BasicCircuits,
                 0,
                 protocol_version_id,
+                db_insert_jobs_chunk_size,
             )
             .await;
 

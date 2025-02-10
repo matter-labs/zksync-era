@@ -28,6 +28,7 @@ mod tests {
             shall_save_to_public_bucket: true,
             prometheus_listener_port: Some(3333u16),
             max_circuits_in_flight: 500,
+            db_insert_jobs_chunk_size: Some(2048),
         }
     }
 
@@ -45,6 +46,7 @@ mod tests {
             FRI_WITNESS_SHALL_SAVE_TO_PUBLIC_BUCKET=true
             FRI_WITNESS_PROMETHEUS_LISTENER_PORT=3333
             FRI_WITNESS_MAX_CIRCUITS_IN_FLIGHT=500
+            FRI_WITNESS_DB_INSERT_JOBS_CHUNK_SIZE=2048
         "#;
         lock.set_env(config);
 

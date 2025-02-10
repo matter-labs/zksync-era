@@ -84,6 +84,7 @@ impl ArtifactsManager for NodeAggregation {
         started_at: Instant,
         blob_urls: AggregationBlobUrls,
         artifacts: Self::OutputArtifacts,
+        db_insert_jobs_chunk_size: Option<u32>,
     ) -> anyhow::Result<()> {
         let mut prover_connection = connection_pool.connection().await.unwrap();
         let mut transaction = prover_connection.start_transaction().await.unwrap();
@@ -102,6 +103,7 @@ impl ArtifactsManager for NodeAggregation {
                         AggregationRound::NodeAggregation,
                         artifacts.depth,
                         protocol_version_id,
+                        db_insert_jobs_chunk_size,
                     )
                     .await;
                 transaction

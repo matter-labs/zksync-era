@@ -171,6 +171,7 @@ where
             started_at,
             blob_urls,
             artifacts,
+            self.config.db_insert_jobs_chunk_size,
         )
         .await?;
 

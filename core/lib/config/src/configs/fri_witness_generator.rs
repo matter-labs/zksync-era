@@ -42,6 +42,10 @@ pub struct FriWitnessGeneratorConfig {
     /// It affects the performance and resource usage of WGs.
     #[serde(default = "FriWitnessGeneratorConfig::default_max_circuits_in_flight")]
     pub max_circuits_in_flight: usize,
+
+    /// The number of jobs to insert into the database at a time
+    /// If not set, the jobs will be inserted one by one
+    pub db_insert_jobs_chunk_size: Option<u32>,
 }
 
 #[derive(Debug)]

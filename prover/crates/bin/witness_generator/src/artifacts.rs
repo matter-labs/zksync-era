@@ -36,5 +36,6 @@ pub trait ArtifactsManager {
         started_at: Instant,
         blob_urls: Self::BlobUrls,
         artifacts: Self::OutputArtifacts,
+        db_insert_jobs_chunk_size: Option<u32>,
     ) -> anyhow::Result<()>;
 }
