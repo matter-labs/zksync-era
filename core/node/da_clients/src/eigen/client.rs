@@ -29,7 +29,7 @@ impl EigenClient {
         secrets: EigenSecrets,
         get_blob_data: Arc<dyn GetBlobData>,
     ) -> anyhow::Result<Self> {
-        let private_key = SecretKey::from_str(secrets.private_key.0.expose_secret().as_str())
+        let private_key = SecretKey::from_str(secrets.private_key.0.expose_secret())
             .map_err(|e| anyhow::anyhow!("Failed to parse private key: {}", e))?;
 
         let client = RawEigenClient::new(private_key, config, get_blob_data).await?;
@@ -89,7 +89,7 @@ impl DataAvailabilityClient for EigenClient {
 /// `cargo test -p zksync_da_clients -- --ignored`
 #[cfg(test)]
 mod tests {
-    use std::{str::FromStr, sync::Arc, time::Duration};
+    use std::{sync::Arc, time::Duration};
 
     use backon::{ConstantBuilder, Retryable};
     use serial_test::file_serial;
@@ -146,10 +146,9 @@ mod tests {
 
     fn test_secrets() -> EigenSecrets {
         EigenSecrets {
-            private_key: PrivateKey::from_str(
+            private_key: PrivateKey::from(
                 "d08aa7ae1bb5ddd46c3c2d8cdb5894ab9f54dec467233686ca42629e826ac4c6",
-            )
-            .unwrap(),
+            ),
         }
     }
 

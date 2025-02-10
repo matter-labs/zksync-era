@@ -1,6 +1,6 @@
 [package]
-name = "zksync_utils"
-description = "ZKsync utilities"
+name = "zksync_task_management"
+description = "ZKsync task management"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -11,10 +11,10 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-tokio = { workspace = true, features = ["rt"] }
-anyhow.workspace = true
-serde_json.workspace = true
-once_cell.workspace = true
+zksync_utils.workspace = true
+zksync_vlog.workspace = true
 
-[dev-dependencies]
-assert_matches.workspace = true
+anyhow.workspace = true
+futures.workspace = true
+tokio = { workspace = true }
+tracing.workspace = true
