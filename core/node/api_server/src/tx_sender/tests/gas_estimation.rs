@@ -5,11 +5,11 @@ use std::collections::HashMap;
 use assert_matches::assert_matches;
 use test_casing::{test_casing, Product};
 use zksync_system_constants::CODE_ORACLE_ADDRESS;
+use zksync_test_contracts::Account;
 use zksync_types::{
     api::state_override::{OverrideAccount, OverrideState},
     bytecode::BytecodeHash,
     web3::keccak256,
-    K256PrivateKey,
 };
 
 use super::*;
@@ -27,7 +27,7 @@ async fn initial_gas_estimation_is_somewhat_accurate() {
     let tx_sender = create_real_tx_sender(pool).await;
     let block_args = pending_block_args(&tx_sender).await;
 
-    let alice = K256PrivateKey::random();
+    let mut alice = Account::random();
     let transfer_value = U256::from(1_000_000_000);
     let account_overrides = OverrideAccount {
         balance: Some(transfer_value * 2),
@@ -66,7 +66,7 @@ async fn initial_gas_estimation_is_somewhat_accurate() {
 #[test_casing(5, LOAD_TEST_CASES)]
 #[tokio::test]
 async fn initial_estimate_for_load_test_transaction(tx_params: LoadnextContractExecutionParams) {
-    let alice = K256PrivateKey::random();
+    let mut alice = Account::random();
     // Set the array length in the load test contract to 100, so that reads don't fail.
     let state_override = StateBuilder::default().with_load_test_contract().build();
     let tx = alice.create_load_test_tx(tx_params);
@@ -76,7 +76,7 @@ async fn initial_estimate_for_load_test_transaction(tx_params: LoadnextContractE
 
 #[tokio::test]
 async fn initial_gas_estimate_for_l1_transaction() {
-    let alice = K256PrivateKey::random();
+    let alice = Account::random();
     let state_override = StateBuilder::default().with_counter_contract(0).build();
     let tx = alice.create_l1_counter_tx(1.into(), false);
 
@@ -99,7 +99,7 @@ async fn initial_gas_estimate_for_l1_transaction() {
 #[test_casing(2, [false, true])]
 #[tokio::test]
 async fn initial_estimate_for_deep_recursion(with_reads: bool) {
-    let alice = K256PrivateKey::random();
+    let mut alice = Account::random();
     let state_override = StateBuilder::default().with_load_test_contract().build();
 
     // Reads are chosen because they represent the worst case. Reads don't influence the amount of pubdata;
@@ -132,7 +132,7 @@ async fn initial_estimate_for_deep_recursion(with_reads: bool) {
 
 #[tokio::test]
 async fn initial_estimate_for_deep_recursion_with_large_bytecode() {
-    let alice = K256PrivateKey::random();
+    let mut alice = Account::random();
     let state_override = StateBuilder::default()
         .with_load_test_contract()
         .inflate_bytecode(StateBuilder::LOAD_TEST_ADDRESS, 50_000)
@@ -189,7 +189,7 @@ async fn test_initial_estimate_error(state_override: StateOverride, tx: L2Tx) ->
 #[test_casing(4, [10, 50, 200, 1_000])]
 #[tokio::test]
 async fn initial_estimate_for_expensive_contract(write_count: usize) {
-    let alice = K256PrivateKey::random();
+    let mut alice = Account::random();
     let mut state_override = StateBuilder::default().with_expensive_contract().build();
     let tx = alice.create_expensive_tx(write_count);
 
@@ -212,7 +212,7 @@ async fn initial_estimate_for_expensive_contract(write_count: usize) {
 
 #[tokio::test]
 async fn initial_estimate_for_code_oracle_tx() {
-    let alice = K256PrivateKey::random();
+    let mut alice = Account::random();
     // Add another contract that is never executed, but has a large bytecode.
     let huge_contact_address = Address::repeat_byte(23);
     let huge_contract_bytecode = vec![0_u8; 10_001 * 32];
@@ -270,7 +270,7 @@ async fn initial_estimate_for_code_oracle_tx() {
 
 #[tokio::test]
 async fn initial_estimate_with_large_free_bytecode() {
-    let alice = K256PrivateKey::random();
+    let mut alice = Account::random();
     let state_override = StateBuilder::default()
         .with_precompiles_contract()
         .inflate_bytecode(StateBuilder::PRECOMPILES_CONTRACT_ADDRESS, 50_000)
@@ -289,7 +289,7 @@ async fn initial_estimate_with_large_free_bytecode() {
 
 #[tokio::test]
 async fn revert_during_initial_estimate() {
-    let alice = K256PrivateKey::random();
+    let mut alice = Account::random();
     let state_override = StateBuilder::default().with_counter_contract(0).build();
 
     let tx = alice.create_counter_tx(1.into(), true);
@@ -302,7 +302,7 @@ async fn revert_during_initial_estimate() {
 
 #[tokio::test]
 async fn out_of_gas_during_initial_estimate() {
-    let alice = K256PrivateKey::random();
+    let mut alice = Account::random();
     let state_override = StateBuilder::default()
         .with_infinite_loop_contract()
         .build();
@@ -319,7 +319,7 @@ async fn insufficient_funds_error_for_transfer() {
     let tx_sender = create_real_tx_sender(pool).await;
     let block_args = pending_block_args(&tx_sender).await;
 
-    let alice = K256PrivateKey::random();
+    let mut alice = Account::random();
     let transferred_value = 1_000_000_000.into();
     let tx = alice.create_transfer(transferred_value);
     let fee_scale_factor = 1.0;
@@ -394,7 +394,7 @@ async fn test_estimating_gas(
 #[test_casing(3, [0, 100, 1_000])]
 #[tokio::test]
 async fn estimating_gas_for_transfer(acceptable_overestimation: u64) {
-    let alice = K256PrivateKey::random();
+    let mut alice = Account::random();
     let transfer_value = 1_000_000_000.into();
     let account_overrides = OverrideAccount {
         balance: Some(transfer_value * 2),
@@ -408,7 +408,7 @@ async fn estimating_gas_for_transfer(acceptable_overestimation: u64) {
 
 #[tokio::test]
 async fn estimating_gas_for_l1_transaction() {
-    let alice = K256PrivateKey::random();
+    let alice = Account::random();
     let state_override = StateBuilder::default().with_counter_contract(0).build();
     let tx = alice.create_l1_counter_tx(1.into(), false);
 
@@ -421,7 +421,7 @@ async fn estimating_gas_for_load_test_tx(
     tx_params: LoadnextContractExecutionParams,
     acceptable_overestimation: u64,
 ) {
-    let alice = K256PrivateKey::random();
+    let mut alice = Account::random();
     let state_override = StateBuilder::default().with_load_test_contract().build();
     let tx = alice.create_load_test_tx(tx_params);
 
@@ -431,7 +431,7 @@ async fn estimating_gas_for_load_test_tx(
 #[test_casing(4, [10, 50, 100, 200])]
 #[tokio::test]
 async fn estimating_gas_for_expensive_txs(write_count: usize) {
-    let alice = K256PrivateKey::random();
+    let mut alice = Account::random();
     let state_override = StateBuilder::default().with_expensive_contract().build();
     let tx = alice.create_expensive_tx(write_count);
 
@@ -440,7 +440,7 @@ async fn estimating_gas_for_expensive_txs(write_count: usize) {
 
 #[tokio::test]
 async fn estimating_gas_for_code_oracle_tx() {
-    let alice = K256PrivateKey::random();
+    let mut alice = Account::random();
     // Add another contract that is never executed, but has a large bytecode.
     let huge_contact_address = Address::repeat_byte(23);
     let huge_contract_bytecode = vec![0_u8; 10_001 * 32];
@@ -458,7 +458,7 @@ async fn estimating_gas_for_code_oracle_tx() {
 
 #[tokio::test]
 async fn estimating_gas_for_reverting_tx() {
-    let alice = K256PrivateKey::random();
+    let mut alice = Account::random();
     let state_override = StateBuilder::default().with_counter_contract(0).build();
 
     let tx = alice.create_counter_tx(1.into(), true);
@@ -486,7 +486,7 @@ async fn estimating_gas_for_reverting_tx() {
 
 #[tokio::test]
 async fn estimating_gas_for_infinite_loop_tx() {
-    let alice = K256PrivateKey::random();
+    let mut alice = Account::random();
     let state_override = StateBuilder::default()
         .with_infinite_loop_contract()
         .build();
@@ -517,7 +517,7 @@ async fn estimating_gas_for_infinite_loop_tx() {
 #[test_casing(3, ALL_VM_MODES)]
 #[tokio::test]
 async fn limiting_storage_access_during_gas_estimation(vm_mode: FastVmMode) {
-    let alice = K256PrivateKey::random();
+    let mut alice = Account::random();
     let state_override = StateBuilder::default().with_expensive_contract().build();
 
     let tx = alice.create_expensive_tx(1_000);

@@ -9,10 +9,9 @@ use zksync_db_connection::{
     interpolate_query, match_query_as,
 };
 use zksync_types::{
-    api, api::TransactionReceipt, block::build_bloom, Address, BloomInput, L2BlockNumber,
-    L2ChainId, Transaction, CONTRACT_DEPLOYER_ADDRESS, H256, U256,
+    api, api::TransactionReceipt, block::build_bloom, web3, Address, BloomInput, L2BlockNumber,
+    L2ChainId, Transaction, H256, U256,
 };
-use zksync_vm_interface::VmEvent;
 
 use crate::{
     models::storage_transaction::{
@@ -28,41 +27,34 @@ enum TransactionSelector<'a> {
     Position(L2BlockNumber, u32),
 }
 
+/// Transaction receipt together with additional data used by the API server logic.
+#[derive(Debug)]
+pub struct ExtendedTransactionReceipt {
+    pub inner: TransactionReceipt,
+    pub nonce: U256,
+    pub calldata: web3::Bytes,
+}
+
 #[derive(Debug)]
 pub struct TransactionsWeb3Dal<'a, 'c> {
     pub(crate) storage: &'a mut Connection<'c, Core>,
 }
 
 impl TransactionsWeb3Dal<'_, '_> {
-    /// Returns receipts by transactions hashes.
-    /// Hashes are expected to be unique.
+    /// Returns receipts by transactions hashes. Hashes are expected to be unique.
+    ///
+    /// # Important!
+    ///
+    /// The returned receipts do not have `contract_address` set; this field needs to be filled separately.
     pub async fn get_transaction_receipts(
         &mut self,
         hashes: &[H256],
-    ) -> DalResult<Vec<TransactionReceipt>> {
+    ) -> DalResult<Vec<ExtendedTransactionReceipt>> {
         let hash_bytes: Vec<_> = hashes.iter().map(H256::as_bytes).collect();
 
-        // Clarification for first part of the query(`WITH` clause):
-        // Looking for `ContractDeployed` event in the events table
-        // to find the address of deployed contract
         let st_receipts: Vec<StorageTransactionReceipt> = sqlx::query_as!(
             StorageTransactionReceipt,
             r#"
-            WITH
-            events AS (
-                SELECT DISTINCT
-                ON (events.tx_hash) *
-                FROM
-                    events
-                WHERE
-                    events.address = $1
-                    AND events.topic1 = $2
-                    AND events.tx_hash = ANY($3)
-                ORDER BY
-                    events.tx_hash,
-                    events.event_index_in_tx DESC
-            )
-            
             SELECT
                 transactions.hash AS tx_hash,
                 transactions.index_in_block,
@@ -73,25 +65,23 @@ impl TransactionsWeb3Dal<'_, '_> {
                 transactions.initiator_address,
                 transactions.data -> 'to' AS "transfer_to?",
                 transactions.data -> 'contractAddress' AS "execute_contract_address?",
+                transactions.data -> 'calldata' AS "calldata",
                 transactions.tx_format AS "tx_format?",
                 transactions.refunded_gas,
                 transactions.gas_limit,
+                transactions.nonce,
                 miniblocks.hash AS "block_hash",
                 miniblocks.l1_batch_number AS "l1_batch_number?",
-                events.topic4 AS "contract_address?",
                 miniblocks.timestamp AS "block_timestamp?"
             FROM
                 transactions
             JOIN miniblocks ON miniblocks.number = transactions.miniblock_number
-            LEFT JOIN events ON events.tx_hash = transactions.hash
             WHERE
-                transactions.hash = ANY($3)
+                transactions.hash = ANY($1)
                 AND transactions.data != '{}'::jsonb
             "#,
             // ^ Filter out transactions with pruned data, which would lead to potentially incomplete / bogus
             // transaction info.
-            CONTRACT_DEPLOYER_ADDRESS.as_bytes(),
-            VmEvent::DEPLOY_EVENT_SIGNATURE.as_bytes(),
             &hash_bytes as &[&[u8]],
         )
         .instrument("get_transaction_receipts")
@@ -102,7 +92,7 @@ impl TransactionsWeb3Dal<'_, '_> {
         let block_timestamps: Vec<Option<i64>> =
             st_receipts.iter().map(|x| x.block_timestamp).collect();
 
-        let mut receipts: Vec<TransactionReceipt> =
+        let mut receipts: Vec<ExtendedTransactionReceipt> =
             st_receipts.into_iter().map(Into::into).collect();
 
         let mut logs = self
@@ -118,6 +108,7 @@ impl TransactionsWeb3Dal<'_, '_> {
             .await?;
 
         for (receipt, block_timestamp) in receipts.iter_mut().zip(block_timestamps.into_iter()) {
+            let receipt = &mut receipt.inner;
             let logs_for_tx = logs.remove(&receipt.transaction_hash);
 
             if let Some(logs) = logs_for_tx {
@@ -666,11 +657,11 @@ mod tests {
             .await
             .unwrap();
 
-        receipts.sort_unstable_by_key(|receipt| receipt.transaction_index);
+        receipts.sort_unstable_by_key(|receipt| receipt.inner.transaction_index);
 
         assert_eq!(receipts.len(), 2);
-        assert_eq!(receipts[0].transaction_hash, tx1_hash);
-        assert_eq!(receipts[1].transaction_hash, tx2_hash);
+        assert_eq!(receipts[0].inner.transaction_hash, tx1_hash);
+        assert_eq!(receipts[1].inner.transaction_hash, tx2_hash);
     }
 
     #[tokio::test]
@@ -693,9 +684,9 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(receipts.len(), 1);
-        let receipt = receipts.into_iter().next().unwrap();
+        let receipt = receipts.into_iter().next().unwrap().inner;
         assert_eq!(receipt.transaction_hash, tx_hash);
-        assert_eq!(receipt.to, Some(Address::zero()));
+        assert_eq!(receipt.to, None);
     }
 
     #[tokio::test]

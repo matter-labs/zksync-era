@@ -6,9 +6,8 @@ use assert_matches::assert_matches;
 use test_casing::test_casing;
 use zksync_multivm::interface::ExecutionResult;
 use zksync_node_test_utils::create_l2_transaction;
-use zksync_types::{
-    api::state_override::OverrideAccount, transaction_request::CallRequest, K256PrivateKey,
-};
+use zksync_test_contracts::Account;
+use zksync_types::{api::state_override::OverrideAccount, transaction_request::CallRequest};
 
 use super::*;
 use crate::testonly::{decode_u256_output, Call3Result, Call3Value, StateBuilder, TestAccount};
@@ -78,7 +77,7 @@ async fn test_call(
 
 #[tokio::test]
 async fn eth_call_with_balance() {
-    let alice = K256PrivateKey::random();
+    let alice = Account::random();
     let initial_balance = 123_456_789.into();
     let account_overrides = OverrideAccount {
         balance: Some(initial_balance),
@@ -95,7 +94,7 @@ async fn eth_call_with_balance() {
 
 #[tokio::test]
 async fn eth_call_with_transfer() {
-    let alice = K256PrivateKey::random();
+    let mut alice = Account::random();
     let transfer_value = 1_000_000_000.into();
     let initial_balance = transfer_value * 5 / 3;
     let state_override = StateBuilder::default()
@@ -129,7 +128,7 @@ async fn eth_call_with_transfer() {
 
 #[tokio::test]
 async fn eth_call_with_counter() {
-    let alice = K256PrivateKey::random();
+    let mut alice = Account::random();
     let state_override = StateBuilder::default().with_counter_contract(42).build();
 
     let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
@@ -161,21 +160,19 @@ async fn eth_call_with_counter() {
 
 #[tokio::test]
 async fn eth_call_with_counter_transactions() {
-    let alice = K256PrivateKey::random();
+    let mut alice = Account::random();
     let state_override = StateBuilder::default()
         .with_multicall3_contract()
         .with_counter_contract(0)
         .build();
 
-    let multicall = alice.multicall_with_value(
-        0.into(),
-        &[
-            alice.create_counter_tx(1.into(), false).into(),
-            Call3Value::from(alice.create_counter_tx(2.into(), true)).allow_failure(),
-            alice.query_counter_value().into(),
-            alice.create_counter_tx(3.into(), false).into(),
-        ],
-    );
+    let calls = &[
+        alice.create_counter_tx(1.into(), false).into(),
+        Call3Value::from(alice.create_counter_tx(2.into(), true)).allow_failure(),
+        alice.query_counter_value().into(),
+        alice.create_counter_tx(3.into(), false).into(),
+    ];
+    let multicall = alice.multicall_with_value(0.into(), calls);
     let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let tx_sender = create_real_tx_sender(pool).await;
     let output = test_call(&tx_sender, state_override, multicall)
@@ -204,7 +201,7 @@ async fn eth_call_with_counter_transactions() {
 
 #[tokio::test]
 async fn eth_call_out_of_gas() {
-    let alice = K256PrivateKey::random();
+    let mut alice = Account::random();
     let state_override = StateBuilder::default()
         .with_infinite_loop_contract()
         .build();
@@ -220,7 +217,7 @@ async fn eth_call_out_of_gas() {
 
 #[tokio::test]
 async fn eth_call_with_load_test_transactions() {
-    let alice = K256PrivateKey::random();
+    let mut alice = Account::random();
     let state_override = StateBuilder::default().with_load_test_contract().build();
 
     let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
@@ -257,7 +254,7 @@ async fn eth_call_with_load_test_transactions() {
 #[test_casing(3, ALL_VM_MODES)]
 #[tokio::test]
 async fn limiting_storage_access_during_call(vm_mode: FastVmMode) {
-    let alice = K256PrivateKey::random();
+    let mut alice = Account::random();
     let state_override = StateBuilder::default().with_expensive_contract().build();
 
     let tx = alice.create_expensive_tx(1_000);

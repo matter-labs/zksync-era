@@ -62,7 +62,7 @@ impl ArtifactsManager for Scheduler {
         let mut prover_connection = connection_pool.connection().await?;
         let mut transaction = prover_connection.start_transaction().await?;
         let protocol_version_id = transaction
-            .fri_witness_generator_dal()
+            .fri_basic_witness_generator_dal()
             .protocol_version_for_l1_batch(L1BatchNumber(job_id))
             .await;
         transaction
@@ -80,7 +80,7 @@ impl ArtifactsManager for Scheduler {
             .await;
 
         transaction
-            .fri_witness_generator_dal()
+            .fri_scheduler_witness_generator_dal()
             .mark_scheduler_job_as_successful(L1BatchNumber(job_id), started_at.elapsed())
             .await;
 
