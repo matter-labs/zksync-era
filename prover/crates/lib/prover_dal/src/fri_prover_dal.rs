@@ -38,9 +38,8 @@ impl FriProverDal<'_, '_> {
         depth: u16,
         protocol_version_id: ProtocolSemanticVersion,
     ) {
-        let latency = MethodLatency::new("save_fri_prover_jobs");
+        let _latency = MethodLatency::new("save_fri_prover_jobs");
         if circuit_ids_and_urls.is_empty() {
-            drop(latency);
             return;
         }
 
@@ -125,8 +124,6 @@ impl FriProverDal<'_, '_> {
         // Execute the built query
         let query = query_builder.build();
         query.execute(self.storage.conn()).await.unwrap();
-
-        drop(latency);
     }
 
     /// Retrieves the next prover job to be proven. Called by WVGs.
