@@ -322,6 +322,9 @@ impl SystemContractsRepo {
                     self.root.join(format!(
                         "zkout/{name}.yul/contracts-preprocessed/{directory}/{name}.yul.json",
                     )),
+                    self.root.join(format!(
+                        "zkout/{name}.yul/contracts-preprocessed/{name}.yul.json",
+                    )),
                 ];
 
                 for path in &possible_paths {
