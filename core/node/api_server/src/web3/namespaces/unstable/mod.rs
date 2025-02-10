@@ -8,7 +8,6 @@ use zksync_dal::{CoreDal, DalError};
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_types::{
     api::{ChainAggProof, DataAvailabilityDetails, TeeProof, TransactionExecutionInfo},
-    commitment::L1BatchCommitmentMode,
     tee_types::TeeType,
     L1BatchNumber, L2ChainId,
 };
