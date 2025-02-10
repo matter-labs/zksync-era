@@ -2,7 +2,7 @@
 # to use this properly comment out the section that fails the node if the bootloader has is wrong in genesis/src/lib.rs
 
 
-sudo zkstack dev clean containers && zkstack up -o false
+zkstack dev clean containers && zkstack up -o false
 
 output=$( zkstack ecosystem init --deploy-paymaster --deploy-erc20 \
             --deploy-ecosystem --l1-rpc-url=http://localhost:8545 \
