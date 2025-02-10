@@ -126,7 +126,10 @@ mod tests {
 
     use zksync_eth_client::clients::MockSettlementLayer;
     use zksync_types::{ethabi, U256};
-    use zksync_web3_decl::{client::MockClient, jsonrpsee::types::ErrorObject};
+    use zksync_web3_decl::{
+        client::MockClient,
+        jsonrpsee::{core::BoxError, types::ErrorObject},
+    };
 
     use super::*;
 
@@ -151,7 +154,7 @@ mod tests {
     }
 
     fn mock_ethereum_with_transport_error() -> MockClient<L1> {
-        let err = ClientError::Transport(anyhow::anyhow!("unreachable"));
+        let err = ClientError::Transport(BoxError::from(anyhow::anyhow!("unreachable")));
         mock_ethereum(ethabi::Token::Uint(U256::zero()), Some(err))
     }
 
