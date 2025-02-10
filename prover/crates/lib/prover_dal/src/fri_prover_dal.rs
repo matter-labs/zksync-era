@@ -39,6 +39,12 @@ impl FriProverDal<'_, '_> {
         protocol_version_id: ProtocolSemanticVersion,
     ) {
         let latency = MethodLatency::new("save_fri_prover_jobs");
+        if circuit_ids_and_urls.is_empty() {
+            // nothing to insert
+            drop(latency);
+            return;
+        }
+
         // Build one multi-row INSERT for all jobs
         let mut query_builder = QueryBuilder::new(
             r#"
