@@ -11,3 +11,4 @@ DROP INDEX IF EXISTS idx_prover_jobs_fri_queued_order2;
 DROP INDEX IF EXISTS idx_prover_jobs_fri_status;
 
 DROP INDEX IF EXISTS ix_prover_jobs_fri_t1;
+
