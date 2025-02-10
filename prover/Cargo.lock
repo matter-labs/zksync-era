@@ -9075,13 +9075,10 @@ dependencies = [
 name = "zksync_prover_interface"
 version = "26.2.1-non-semver-compat"
 dependencies = [
- "chrono",
  "circuit_definitions 0.151.1",
- "circuit_sequencer_api 0.151.1",
  "fflonk",
  "serde",
  "serde_with",
- "strum",
  "zksync_bellman",
  "zksync_object_store",
  "zksync_types",
