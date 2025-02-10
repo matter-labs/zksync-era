@@ -89,7 +89,7 @@ pub fn storage_key_for_eth_balance(address: &Address) -> StorageKey {
     storage_key_for_standard_token_balance(AccountTreeId::new(L2_BASE_TOKEN_ADDRESS), address)
 }
 
-/// Pre-calculated the address of the to-be-deployed contract (via CREATE, not CREATE2).
+/// Pre-calculates the address of the to-be-deployed EraVM contract (via CREATE, not CREATE2).
 pub fn deployed_address_create(sender: Address, deploy_nonce: U256) -> Address {
     let prefix_bytes = keccak256("zksyncCreate".as_bytes());
     let address_bytes = address_to_h256(&sender);
@@ -103,13 +103,22 @@ pub fn deployed_address_create(sender: Address, deploy_nonce: U256) -> Address {
     Address::from_slice(&keccak256(&bytes)[12..])
 }
 
+/// Pre-calculates the address of the EVM contract created using a deployment transaction.
+pub fn deployed_address_evm_create(sender: Address, tx_nonce: U256) -> Address {
+    let mut stream = rlp::RlpStream::new();
+    stream
+        .begin_unbounded_list()
+        .append(&sender)
+        .append(&tx_nonce)
+        .finalize_unbounded_list();
+    Address::from_slice(&keccak256(&stream.out())[12..])
+}
+
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;
 
-    use crate::{
-        utils::storage_key_for_standard_token_balance, AccountTreeId, Address, StorageKey, H256,
-    };
+    use super::*;
 
     #[test]
     fn test_storage_key_for_eth_token() {
@@ -131,5 +140,34 @@ mod tests {
             let calculated_storage_key = storage_key_for_standard_token_balance(contract, &addr);
             assert_eq!(expected_storage_key, calculated_storage_key);
         }
+    }
+
+    // Test vectors are taken from geth: https://github.com/ethereum/go-ethereum/blob/033de2a05bdbea87b4efc5156511afe42c38fd55/crypto/crypto_test.go#L133
+    #[test]
+    fn deployment_address_is_correctly_evaluated() {
+        let sender: Address = "0x970e8128ab834e8eac17ab8e3812f010678cf791"
+            .parse()
+            .unwrap();
+        let address0 = deployed_address_evm_create(sender, 0.into());
+        assert_eq!(
+            address0,
+            "0x333c3310824b7c685133f2bedb2ca4b8b4df633d"
+                .parse()
+                .unwrap()
+        );
+        let address1 = deployed_address_evm_create(sender, 1.into());
+        assert_eq!(
+            address1,
+            "0x8bda78331c916a08481428e4b07c96d3e916d165"
+                .parse()
+                .unwrap()
+        );
+        let address2 = deployed_address_evm_create(sender, 2.into());
+        assert_eq!(
+            address2,
+            "0xc9ddedf451bc62ce88bf9292afb13df35b670699"
+                .parse()
+                .unwrap()
+        );
     }
 }

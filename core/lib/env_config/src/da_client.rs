@@ -78,13 +78,11 @@ impl FromEnv for DataAvailabilitySecrets {
         let secrets = match client_tag.as_str() {
             AVAIL_CLIENT_CONFIG_NAME => {
                 let seed_phrase: Option<zksync_basic_types::secrets::SeedPhrase> =
-                    env::var("DA_SECRETS_SEED_PHRASE")
-                        .ok()
-                        .map(|s| s.parse().unwrap());
+                    env::var("DA_SECRETS_SEED_PHRASE").ok().map(Into::into);
                 let gas_relay_api_key: Option<zksync_basic_types::secrets::APIKey> =
                     env::var("DA_SECRETS_GAS_RELAY_API_KEY")
                         .ok()
-                        .map(|s| s.parse().unwrap());
+                        .map(Into::into);
                 if seed_phrase.is_none() && gas_relay_api_key.is_none() {
                     anyhow::bail!("No secrets provided for Avail DA client");
                 }
@@ -96,15 +94,13 @@ impl FromEnv for DataAvailabilitySecrets {
             CELESTIA_CLIENT_CONFIG_NAME => {
                 let private_key = env::var("DA_SECRETS_PRIVATE_KEY")
                     .map_err(|e| anyhow::format_err!("Celestia private key not found: {}", e))?
-                    .parse()
-                    .map_err(|e| anyhow::format_err!("failed to parse the private key: {}", e))?;
+                    .into();
                 Self::Celestia(CelestiaSecrets { private_key })
             }
             EIGEN_CLIENT_CONFIG_NAME => {
                 let private_key = env::var("DA_SECRETS_PRIVATE_KEY")
                     .map_err(|e| anyhow::format_err!("Eigen private key not found: {}", e))?
-                    .parse()
-                    .map_err(|e| anyhow::format_err!("failed to parse the private key: {}", e))?;
+                    .into();
                 Self::Eigen(EigenSecrets { private_key })
             }
 
@@ -229,9 +225,7 @@ mod tests {
         assert_eq!(
             (actual_seed.unwrap(), actual_key),
             (
-                "bottom drive obey lake curtain smoke basket hold race lonely fit walk"
-                    .parse()
-                    .unwrap(),
+                "bottom drive obey lake curtain smoke basket hold race lonely fit walk".into(),
                 None
             )
         );
@@ -325,9 +319,7 @@ mod tests {
         };
         assert_eq!(
             actual.private_key,
-            "f55baf7c0e4e33b1d78fbf52f069c426bc36cff1aceb9bc8f45d14c07f034d73"
-                .parse()
-                .unwrap()
+            "f55baf7c0e4e33b1d78fbf52f069c426bc36cff1aceb9bc8f45d14c07f034d73".into()
         );
     }
 }

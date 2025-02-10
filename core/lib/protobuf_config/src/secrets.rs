@@ -114,20 +114,14 @@ impl ProtoRepr for proto::DataAvailabilitySecrets {
 
         let client = match secrets {
             DaSecrets::Avail(avail_secret) => {
-                let seed_phrase = match avail_secret.seed_phrase.as_ref() {
-                    Some(seed) => match SeedPhrase::from_str(seed) {
-                        Ok(seed) => Some(seed),
-                        Err(_) => None,
-                    },
-                    None => None,
-                };
-                let gas_relay_api_key = match avail_secret.gas_relay_api_key.as_ref() {
-                    Some(api_key) => match APIKey::from_str(api_key) {
-                        Ok(api_key) => Some(api_key),
-                        Err(_) => None,
-                    },
-                    None => None,
-                };
+                let seed_phrase = avail_secret
+                    .seed_phrase
+                    .as_ref()
+                    .map(|s| SeedPhrase::from(s.as_str()));
+                let gas_relay_api_key = avail_secret
+                    .gas_relay_api_key
+                    .as_ref()
+                    .map(|s| APIKey::from(s.as_str()));
                 if seed_phrase.is_none() && gas_relay_api_key.is_none() {
                     return Err(anyhow::anyhow!(
                         "At least one of seed_phrase or gas_relay_api_key must be provided"
@@ -139,14 +133,18 @@ impl ProtoRepr for proto::DataAvailabilitySecrets {
                 })
             }
             DaSecrets::Celestia(celestia) => DataAvailabilitySecrets::Celestia(CelestiaSecrets {
-                private_key: PrivateKey::from_str(
-                    required(&celestia.private_key).context("private_key")?,
-                )?,
+                private_key: PrivateKey::from(
+                    required(&celestia.private_key)
+                        .context("private_key")?
+                        .as_str(),
+                ),
             }),
             DaSecrets::Eigen(eigen) => DataAvailabilitySecrets::Eigen(EigenSecrets {
-                private_key: PrivateKey::from_str(
-                    required(&eigen.private_key).context("private_key")?,
-                )?,
+                private_key: PrivateKey::from(
+                    required(&eigen.private_key)
+                        .context("private_key")?
+                        .as_str(),
+                ),
             }),
         };
 
@@ -229,12 +227,15 @@ impl ProtoRepr for proto::ConsensusSecrets {
             validator_key: this
                 .validator_key
                 .as_ref()
-                .map(|x| x.0.expose_secret().clone()),
+                .map(|x| x.0.expose_secret().to_string()),
             attester_key: this
                 .attester_key
                 .as_ref()
-                .map(|x| x.0.expose_secret().clone()),
-            node_key: this.node_key.as_ref().map(|x| x.0.expose_secret().clone()),
+                .map(|x| x.0.expose_secret().to_string()),
+            node_key: this
+                .node_key
+                .as_ref()
+                .map(|x| x.0.expose_secret().to_string()),
         }
     }
 }
