@@ -37,7 +37,7 @@ use zksync_types::{
         BytecodeHash,
     },
     fee_model::{BatchFeeInput, FeeParams},
-    get_nonce_key,
+    get_deployer_key, get_nonce_key,
     storage::get_code_key,
     system_contracts::get_system_smart_contracts,
     tokens::{TokenInfo, TokenMetadata},
@@ -207,18 +207,12 @@ impl StorageInitialization {
     ) -> anyhow::Result<()> {
         match self {
             Self::Genesis { evm_emulator } => {
-                let mut config = GenesisConfig {
+                let config = GenesisConfig {
                     l2_chain_id: network_config.zksync_network_id,
                     ..mock_genesis_config()
                 };
-                let mut base_system_contracts = BaseSystemContracts::load_from_disk();
-                if evm_emulator {
-                    config.evm_emulator_hash = Some(config.default_aa_hash.unwrap());
-                    base_system_contracts.evm_emulator =
-                        Some(base_system_contracts.default_aa.clone());
-                } else {
-                    assert!(config.evm_emulator_hash.is_none());
-                }
+                let base_system_contracts = BaseSystemContracts::load_from_disk();
+                assert!(config.evm_emulator_hash.is_some());
 
                 let params = GenesisParams::from_genesis_config(
                     config,
@@ -229,6 +223,18 @@ impl StorageInitialization {
 
                 if storage.blocks_dal().is_genesis_needed().await? {
                     insert_genesis_batch(storage, &params).await?;
+                }
+                if evm_emulator {
+                    // Enable EVM contract deployment in `ContractDeployer` storage.
+                    let contract_types_storage_key = get_deployer_key(H256::from_low_u64_be(1));
+                    let contract_types_log = StorageLog::new_write_log(
+                        contract_types_storage_key,
+                        H256::from_low_u64_be(1),
+                    );
+                    storage
+                        .storage_logs_dal()
+                        .append_storage_logs(L2BlockNumber(0), &[contract_types_log])
+                        .await?;
                 }
             }
             Self::Recovery {
