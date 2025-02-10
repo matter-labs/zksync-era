@@ -618,7 +618,6 @@ impl Distribution<configs::FriWitnessGeneratorConfig> for EncodeDist {
             shall_save_to_public_bucket: self.sample(rng),
             prometheus_listener_port: self.sample(rng),
             max_circuits_in_flight: self.sample(rng),
-            db_insert_jobs_chunk_size: Some(self.sample(rng)),
         }
     }
 }

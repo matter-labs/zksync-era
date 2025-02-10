@@ -103,7 +103,6 @@ impl ArtifactsManager for NodeAggregation {
                         AggregationRound::NodeAggregation,
                         artifacts.depth,
                         protocol_version_id,
-                        db_insert_jobs_chunk_size,
                     )
                     .await;
                 transaction
