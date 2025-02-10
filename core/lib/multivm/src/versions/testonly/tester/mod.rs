@@ -257,3 +257,7 @@ pub(crate) fn validation_params(tx: &L2Tx, system: &SystemEnv) -> ValidationPara
 pub(crate) trait TestedVmWithCallTracer: TestedVm {
     fn inspect_with_call_tracer(&mut self) -> (VmExecutionResultAndLogs, Vec<Call>);
 }
+
+pub(crate) trait TestedVmWithStorageLimit: TestedVm {
+    fn execute_with_storage_limit(&mut self, limit: usize) -> VmExecutionResultAndLogs;
+}
