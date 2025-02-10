@@ -462,10 +462,10 @@ impl FriProofCompressorDal<'_, '_> {
         }
     }
 
-    pub async fn check_reached_max_attempts(&mut self, max_attempts: u32) -> Vec<L1BatchNumber> {
-        sqlx::query!(
+    pub async fn check_reached_max_attempts(&mut self, max_attempts: u32) -> usize {
+        sqlx::query_scalar!(
             r#"
-            SELECT l1_batch_number
+            SELECT COUNT(*)
             FROM proof_compression_jobs_fri
             WHERE
                 attempts >= $1
@@ -474,11 +474,9 @@ impl FriProofCompressorDal<'_, '_> {
             "#,
             max_attempts as i64
         )
-        .fetch_all(self.storage.conn())
+        .fetch_one(self.storage.conn())
         .await
         .unwrap()
-        .into_iter()
-        .map(|row| L1BatchNumber(row.l1_batch_number as u32))
-        .collect()
+        .unwrap_or(0) as usize
     }
 }

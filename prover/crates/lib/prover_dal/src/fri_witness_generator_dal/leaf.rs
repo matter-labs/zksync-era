@@ -272,10 +272,10 @@ impl FriLeafWitnessGeneratorDal<'_, '_> {
         .unwrap();
     }
 
-    pub async fn check_reached_max_attempts(&mut self, max_attempts: u32) -> Vec<u32> {
-        sqlx::query!(
+    pub async fn check_reached_max_attempts(&mut self, max_attempts: u32) -> usize {
+        sqlx::query_scalar!(
             r#"
-            SELECT id
+            SELECT COUNT(*)
             FROM leaf_aggregation_witness_jobs_fri
             WHERE
                 attempts >= $1
@@ -283,11 +283,9 @@ impl FriLeafWitnessGeneratorDal<'_, '_> {
             "#,
             max_attempts as i64
         )
-        .fetch_all(self.storage.conn())
+        .fetch_one(self.storage.conn())
         .await
         .unwrap()
-        .into_iter()
-        .map(|row| row.id as u32)
-        .collect()
+        .unwrap_or(0) as usize
     }
 }

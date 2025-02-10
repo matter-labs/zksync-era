@@ -22,6 +22,15 @@ pub(crate) enum JobType {
     ProofCompressor,
 }
 
+impl ProverJobMonitorMetrics {
+    pub fn report_reached_max_attempts(&self, job_type: JobType, amount: usize) {
+        PROVER_JOB_MONITOR_METRICS.reached_max_attempts[&job_type].set(amount as i64);
+        if amount > 0 {
+            tracing::warn!("{:?} jobs reached max attempts: {:?}", job_type, amount);
+        }
+    }
+}
+
 #[vise::register]
 pub(crate) static PROVER_JOB_MONITOR_METRICS: vise::Global<ProverJobMonitorMetrics> =
     vise::Global::new();

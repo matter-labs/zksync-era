@@ -26,76 +26,49 @@ impl ProverJobAttemptsReporter {
         let max_attempts = self.witness_generator_config.max_attempts;
         match round {
             AggregationRound::BasicCircuits => {
-                let jobs = connection
-                    .fri_basic_witness_generator_dal()
-                    .check_reached_max_attempts(max_attempts)
-                    .await;
-                PROVER_JOB_MONITOR_METRICS.reached_max_attempts[&JobType::BasicWitnessGenerator]
-                    .set(jobs.len() as i64);
-                if !jobs.is_empty() {
-                    tracing::warn!(
-                        "Basic witness generator jobs reached max attempts: {:?}",
-                        jobs.len()
-                    );
-                }
+                PROVER_JOB_MONITOR_METRICS.report_reached_max_attempts(
+                    JobType::BasicWitnessGenerator,
+                    connection
+                        .fri_basic_witness_generator_dal()
+                        .check_reached_max_attempts(max_attempts)
+                        .await,
+                );
             }
             AggregationRound::LeafAggregation => {
-                let jobs = connection
-                    .fri_leaf_witness_generator_dal()
-                    .check_reached_max_attempts(max_attempts)
-                    .await;
-                PROVER_JOB_MONITOR_METRICS.reached_max_attempts[&JobType::LeafWitnessGenerator]
-                    .set(jobs.len() as i64);
-                if !jobs.is_empty() {
-                    tracing::warn!(
-                        "Leaf witness generator jobs reached max attempts: {:?}",
-                        jobs.len()
-                    );
-                }
+                PROVER_JOB_MONITOR_METRICS.report_reached_max_attempts(
+                    JobType::LeafWitnessGenerator,
+                    connection
+                        .fri_leaf_witness_generator_dal()
+                        .check_reached_max_attempts(max_attempts)
+                        .await,
+                );
             }
             AggregationRound::NodeAggregation => {
-                let jobs = connection
-                    .fri_node_witness_generator_dal()
-                    .check_reached_max_attempts(max_attempts)
-                    .await;
-                PROVER_JOB_MONITOR_METRICS.reached_max_attempts[&JobType::NodeWitnessGenerator]
-                    .set(jobs.len() as i64);
-                if !jobs.is_empty() {
-                    tracing::warn!(
-                        "Node witness generator jobs reached max attempts: {:?}",
-                        jobs.len()
-                    );
-                }
+                PROVER_JOB_MONITOR_METRICS.report_reached_max_attempts(
+                    JobType::NodeWitnessGenerator,
+                    connection
+                        .fri_node_witness_generator_dal()
+                        .check_reached_max_attempts(max_attempts)
+                        .await,
+                );
             }
             AggregationRound::RecursionTip => {
-                let jobs = connection
-                    .fri_recursion_tip_witness_generator_dal()
-                    .check_reached_max_attempts(max_attempts)
-                    .await;
-                PROVER_JOB_MONITOR_METRICS.reached_max_attempts
-                    [&JobType::RecursionTipWitnessGenerator]
-                    .set(jobs.len() as i64);
-                if !jobs.is_empty() {
-                    tracing::warn!(
-                        "Recursion Tip witness generator jobs reached max attempts: {:?}",
-                        jobs.len()
-                    );
-                }
+                PROVER_JOB_MONITOR_METRICS.report_reached_max_attempts(
+                    JobType::RecursionTipWitnessGenerator,
+                    connection
+                        .fri_recursion_tip_witness_generator_dal()
+                        .check_reached_max_attempts(max_attempts)
+                        .await,
+                );
             }
             AggregationRound::Scheduler => {
-                let jobs = connection
-                    .fri_scheduler_witness_generator_dal()
-                    .check_reached_max_attempts(max_attempts)
-                    .await;
-                PROVER_JOB_MONITOR_METRICS.reached_max_attempts
-                    [&JobType::SchedulerWitnessGenerator]
-                    .set(jobs.len() as i64);
-                if !jobs.is_empty() {
-                    tracing::warn!(
-                        "Scheduler witness generator jobs reached max attempts: {:?}",
-                        jobs.len()
-                    );
-                }
+                PROVER_JOB_MONITOR_METRICS.report_reached_max_attempts(
+                    JobType::SchedulerWitnessGenerator,
+                    connection
+                        .fri_scheduler_witness_generator_dal()
+                        .check_reached_max_attempts(max_attempts)
+                        .await,
+                );
             }
         }
 
@@ -107,14 +80,14 @@ impl ProverJobAttemptsReporter {
         connection: &mut Connection<'_, Prover>,
     ) -> anyhow::Result<()> {
         let max_attempts = self.prover_config.max_attempts;
-        let jobs = connection
-            .fri_prover_jobs_dal()
-            .check_reached_max_attempts(max_attempts)
-            .await;
-        PROVER_JOB_MONITOR_METRICS.reached_max_attempts[&JobType::ProverFri].set(jobs.len() as i64);
-        if !jobs.is_empty() {
-            tracing::warn!("Prover jobs reached max attempts: {:?}", jobs.len());
-        }
+
+        PROVER_JOB_MONITOR_METRICS.report_reached_max_attempts(
+            JobType::ProverFri,
+            connection
+                .fri_prover_jobs_dal()
+                .check_reached_max_attempts(max_attempts)
+                .await,
+        );
 
         Ok(())
     }
@@ -124,18 +97,14 @@ impl ProverJobAttemptsReporter {
         connection: &mut Connection<'_, Prover>,
     ) -> anyhow::Result<()> {
         let max_attempts = self.compressor_config.max_attempts;
-        let jobs = connection
-            .fri_proof_compressor_dal()
-            .check_reached_max_attempts(max_attempts)
-            .await;
-        PROVER_JOB_MONITOR_METRICS.reached_max_attempts[&JobType::ProofCompressor]
-            .set(jobs.len() as i64);
-        if !jobs.is_empty() {
-            tracing::warn!(
-                "Proof compressor jobs reached max attempts: {:?}",
-                jobs.len()
-            );
-        }
+
+        PROVER_JOB_MONITOR_METRICS.report_reached_max_attempts(
+            JobType::ProofCompressor,
+            connection
+                .fri_proof_compressor_dal()
+                .check_reached_max_attempts(max_attempts)
+                .await,
+        );
 
         Ok(())
     }
