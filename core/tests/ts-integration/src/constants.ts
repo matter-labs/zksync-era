@@ -25,6 +25,7 @@ export const BRIDGEHUB_L2_TRANSACTION_REQUEST_ABI =
 export const L2_LOG_STRING =
     'tuple(uint8 l2ShardId,bool isService,uint16 txNumberInBatch,address sender,bytes32 key,bytes32 value)';
 export const ARTIFACTS_PATH = '../../../contracts/l1-contracts/out/';
+export const SYSTEM_ARTIFACTS_PATH = '../../../contracts/system-contracts/zkout/';
 
 export const INTEROP_TRIGGER_ABI =
     'tuple(uint256 destinationChainId, address from, bytes32 feeBundleHash, bytes32 executionBundleHash, tuple(uint256 gasLimit, uint256 gasPerPubdataByteLimit, address refundRecipient) gasFields)';
@@ -32,6 +33,9 @@ export const INTEROP_TRIGGER_ABI =
 export const INTEROP_CALL_ABI = 'tuple(address to, address from, uint256 value, bytes data)';
 export const INTEROP_BUNDLE_ABI =
     'tuple(uint256 destinationChainId, tuple(address to, address from, uint256 value, bytes data)[] calls, address[] executionAddresses, address cancellationAddress)';
+
+export const MESSAGE_INCLUSION_PROOF_ABI =
+    'tuple(uint256 chainId, uint256 l1BatchNumber, uint256 l2MessageIndex, tuple(uint16 txNumberInBatch, address sender, bytes data) message, bytes32[] proof)';
 
 // Read contract artifacts
 function readContract(path: string, fileName: string, contractName?: string) {
@@ -41,6 +45,7 @@ function readContract(path: string, fileName: string, contractName?: string) {
 export const ArtifactBridgeHub = readContract(`${ARTIFACTS_PATH}`, 'Bridgehub');
 export const ArtifactInteropCenter = readContract(`${ARTIFACTS_PATH}`, 'InteropCenter');
 export const ArtifactInteropHandler = readContract(`${ARTIFACTS_PATH}`, 'InteropHandler');
+export const ArtifactMessageRootStorage = readContract(`${SYSTEM_ARTIFACTS_PATH}`, 'L2MessageRootStorage');
 export const ArtifactL2MessageVerification = readContract(`${ARTIFACTS_PATH}`, 'L2MessageVerification');
 export const ArtifactNativeTokenVault = readContract(`${ARTIFACTS_PATH}`, 'L2NativeTokenVault');
 export const ArtifactMintableERC20 = readContract(

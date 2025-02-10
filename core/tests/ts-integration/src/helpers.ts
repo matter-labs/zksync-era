@@ -166,8 +166,21 @@ export async function waitForNewL1Batch(wallet: zksync.Wallet): Promise<zksync.t
  * @param blockNumber Number of block.
  */
 export async function waitUntilBlockFinalized(wallet: zksync.Wallet, blockNumber: number) {
+    // console.log('Waiting for block to be finalized...', blockNumber);
     while (true) {
         const block = await wallet.provider.getBlock('finalized');
+        if (blockNumber <= block.number) {
+            break;
+        } else {
+            await zksync.utils.sleep(wallet.provider.pollingInterval);
+        }
+    }
+}
+
+export async function waitUntilBlockCommitted(wallet: zksync.Wallet, blockNumber: number) {
+    console.log('Waiting for block to be committed...', blockNumber);
+    while (true) {
+        const block = await wallet.provider.getBlock('committed');
         if (blockNumber <= block.number) {
             break;
         } else {
@@ -214,6 +227,7 @@ export async function waitForL2ToL1LogProof(wallet: zksync.Wallet, blockNumber: 
 
     // Second, we wait for the log proof.
     while ((await wallet.provider.getLogProof(txHash)) == null) {
+        // console.log('Waiting for log proof...');
         await zksync.utils.sleep(wallet.provider.pollingInterval);
     }
 }
