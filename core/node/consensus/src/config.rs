@@ -2,7 +2,7 @@
 use std::collections::{BTreeMap, HashMap};
 
 use anyhow::Context as _;
-use secrecy::{ExposeSecret as _, Secret};
+use secrecy::{ExposeSecret as _, SecretString};
 use zksync_concurrency::net;
 use zksync_config::{
     configs,
@@ -15,7 +15,7 @@ use zksync_consensus_roles::{attester, node, validator};
 use zksync_dal::consensus_dal;
 use zksync_types::ethabi;
 
-fn read_secret_text<T: TextFmt>(text: Option<&Secret<String>>) -> anyhow::Result<Option<T>> {
+fn read_secret_text<T: TextFmt>(text: Option<&SecretString>) -> anyhow::Result<Option<T>> {
     text.map(|text| Text::new(text.expose_secret()).decode())
         .transpose()
         .map_err(|_| anyhow::format_err!("invalid format"))
