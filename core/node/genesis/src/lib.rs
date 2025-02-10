@@ -108,15 +108,15 @@ impl GenesisParams {
                 .ok_or(GenesisError::MalformedConfig("default_aa_hash"))?,
             evm_emulator: config.evm_emulator_hash,
         };
-        println!(
-            "default_aa_hash: {:?}",
-            base_system_contracts_hashes.default_aa
-        );
-        println!(
-            "bootloader_hash: {:?}",
-            base_system_contracts_hashes.bootloader
-        );
         if base_system_contracts_hashes != base_system_contracts.hashes() {
+            println!(
+                "bootloader_hash: {:?}",
+                base_system_contracts.hashes().bootloader
+            );
+            println!(
+                "default_aa_hash: {:?}",
+                base_system_contracts.hashes().default_aa
+            );
             return Err(GenesisError::BaseSystemContractsHashes(Box::new(
                 BaseContractsHashError {
                     from_config: base_system_contracts_hashes,
@@ -124,6 +124,7 @@ impl GenesisParams {
                 },
             )));
         }
+
         // kl todo
         if config.protocol_version.is_none() {
             return Err(GenesisError::MalformedConfig("protocol_version"));
@@ -466,6 +467,8 @@ pub async fn ensure_genesis_state(
     if expected_commitment != commitment {
         return Err(GenesisError::Commitment(expected_commitment, commitment));
     }
+
+    // kl todo
 
     if expected_rollup_last_leaf_index != rollup_last_leaf_index {
         return Err(GenesisError::LeafIndexes(
