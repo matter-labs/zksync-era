@@ -221,6 +221,7 @@ fn get_tasks(
         witness_job_queuer,
     );
 
+    // Reporter for reaching max attempts of jobs
     let attempts_reporter = ProverJobAttemptsReporter {
         prover_config: prover_config.clone(),
         witness_generator_config: witness_generator_config.clone(),
