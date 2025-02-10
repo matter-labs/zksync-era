@@ -6,10 +6,7 @@ use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover};
 use zksync_prover_fri_types::{
     circuit_definitions::{
-        boojum::{
-            cs::implementations::setup::FinalizationHintsForProver,
-            gadgets::queue::full_state_queue::FullStateCircuitQueueRawWitness,
-        },
+        boojum::cs::implementations::setup::FinalizationHintsForProver,
         circuit_definitions::base_layer::ZkSyncBaseLayerCircuit,
     },
     keys::RamPermutationQueueWitnessKey,
@@ -55,6 +52,7 @@ impl<ML: WitnessVectorMetadataLoader> WitnessVectorGeneratorJobPicker<ML> {
     /// Hydrates job data with witness information which is stored separately.
     /// This is done in order to save RAM & storage.
     // TODO: Once new BWG is done, this won't be necessary.
+    // TODO Should be removed
     async fn fill_witness(
         &self,
         circuit: ZkSyncBaseLayerCircuit,
@@ -85,12 +83,16 @@ impl<ML: WitnessVectorMetadataLoader> WitnessVectorGeneratorJobPicker<ML> {
                 .context("failed to load unsorted witness key")?;
 
             let mut witness = circuit_instance.witness.take().unwrap();
-            witness.unsorted_queue_witness = FullStateCircuitQueueRawWitness {
-                elements: unsorted_witness.witness.into(),
-            };
-            witness.sorted_queue_witness = FullStateCircuitQueueRawWitness {
-                elements: sorted_witness.witness.into(),
-            };
+            witness.unsorted_queue_witness = unsorted_witness
+                .witness
+                .into_iter()
+                .map(|(wit, _)| wit)
+                .collect();
+            witness.sorted_queue_witness = sorted_witness
+                .witness
+                .into_iter()
+                .map(|(wit, _)| wit)
+                .collect();
             circuit_instance.witness.store(Some(witness));
 
             return Ok(Circuit::Base(ZkSyncBaseLayerCircuit::RAMPermutation(
