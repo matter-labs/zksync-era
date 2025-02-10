@@ -35,7 +35,8 @@ serde_json.workspace = true
 hex.workspace = true
 blake2b_simd.workspace = true
 parity-scale-codec = { workspace = true, features = ["derive"] }
-subxt-signer = { workspace = true, features = ["sr25519", "native"] }
+subxt-signer = { workspace = true, features = ["sr25519"] }
+bip39.workspace = true
 jsonrpsee = { workspace = true, features = ["ws-client"] }
 reqwest = { workspace = true }
 bytes = { workspace = true }
