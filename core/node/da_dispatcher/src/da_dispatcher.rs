@@ -259,7 +259,12 @@ where
                 retries += 1;
                 let sleep_duration = Duration::from_secs(backoff_secs)
                     .mul_f32(rand::thread_rng().gen_range(0.8..1.2));
-                tracing::warn!(%err, "Failed DA dispatch request {retries}/{max_retries} for batch {batch_number}, retrying in {} milliseconds.", sleep_duration.as_millis());
+                tracing::warn!(
+                    %err,
+                    "Failed DA dispatch request {retries}/{} for batch {batch_number}, retrying in {} milliseconds.",
+                    max_retries+1,
+                    sleep_duration.as_millis()
+                );
                 tokio::time::sleep(sleep_duration).await;
 
                 backoff_secs = (backoff_secs * 2).min(128); // cap the back-off at 128 seconds

@@ -1,9 +1,16 @@
 use std::{str::FromStr, sync::Arc};
 
-use eigenda_client_rs::{client::GetBlobData, EigenClient};
+use eigenda_client_rs::{
+    client::GetBlobData,
+    config::{PrivateKey, SrsPointsSource},
+    EigenClient,
+};
 use subxt_signer::ExposeSecret;
 use url::Url;
-use zksync_config::{configs::da_client::eigen::EigenSecrets, EigenConfig};
+use zksync_config::{
+    configs::da_client::eigen::{EigenSecrets, PointsSource},
+    EigenConfig,
+};
 use zksync_da_client::{
     types::{DAError, DispatchResponse, InclusionData},
     DataAvailabilityClient,
@@ -23,7 +30,7 @@ impl EigenDAClient {
         secrets: EigenSecrets,
         get_blob_data: Arc<dyn GetBlobData>,
     ) -> anyhow::Result<Self> {
-        let eigenda_eth_rpc = match config.eigenda_eth_rpc {
+        let eth_rpc_url = match config.eigenda_eth_rpc {
             Some(url) => {
                 let url = Url::from_str(url.expose_str())
                     .map_err(|_| anyhow::anyhow!("Invalid eth rpc url"))?;
@@ -31,20 +38,23 @@ impl EigenDAClient {
             }
             None => None,
         };
+
+        let points_source = match config.points_source {
+            PointsSource::Path(path) => SrsPointsSource::Path(path),
+            PointsSource::Url(url) => SrsPointsSource::Url(url),
+        };
+
         let eigen_config = eigenda_client_rs::config::EigenConfig {
             disperser_rpc: config.disperser_rpc,
             settlement_layer_confirmation_depth: config.settlement_layer_confirmation_depth,
-            eigenda_eth_rpc,
+            eth_rpc_url,
             eigenda_svc_manager_address: config.eigenda_svc_manager_address,
             wait_for_finalization: config.wait_for_finalization,
             authenticated: config.authenticated,
-            points_dir: config.points_dir,
-            g1_url: config.g1_url,
-            g2_url: config.g2_url,
+            points_source,
         };
-        let private_key =
-            eigenda_client_rs::config::PrivateKey::from_str(secrets.private_key.0.expose_secret())
-                .map_err(|_| anyhow::anyhow!("Invalid private key"))?;
+        let private_key = PrivateKey::from_str(secrets.private_key.0.expose_secret())
+            .map_err(|e| anyhow::anyhow!("Failed to parse private key: {}", e))?;
         let eigen_secrets = eigenda_client_rs::config::EigenSecrets { private_key };
         let client = EigenClient::new(eigen_config, eigen_secrets, get_blob_data)
             .await

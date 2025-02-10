@@ -195,8 +195,6 @@ impl DataAvailabilityDal<'_, '_> {
                 eth_commit_tx_id IS NULL
                 AND number != 0
                 AND data_availability.blob_id IS NULL
-                AND pubdata_input IS NOT NULL
-                AND sealed_at IS NOT NULL
             ORDER BY
                 number
             LIMIT
@@ -239,8 +237,6 @@ impl DataAvailabilityDal<'_, '_> {
             WHERE
                 number != 0
                 AND data_availability.blob_id = $1
-                AND pubdata_input IS NOT NULL
-                AND sealed_at IS NOT NULL
             ORDER BY
                 number
             LIMIT
