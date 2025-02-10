@@ -20,6 +20,8 @@ use zksync_basic_types::{
 use zksync_utils::env::Workspace;
 
 mod serde_bytecode;
+#[cfg(test)]
+mod tests;
 
 #[derive(Debug, Clone)]
 pub enum ContractLanguage {

@@ -12763,14 +12763,11 @@ name = "zksync_prover_interface"
 version = "26.2.1-non-semver-compat"
 dependencies = [
  "bincode",
- "chrono",
  "circuit_definitions",
- "circuit_sequencer_api",
  "fflonk",
  "serde",
  "serde_json",
  "serde_with",
- "strum",
  "tokio",
  "zksync_bellman",
  "zksync_object_store",
