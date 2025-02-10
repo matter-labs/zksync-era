@@ -11674,7 +11674,7 @@ dependencies = [
  "zksync_core_leftovers",
  "zksync_dal",
  "zksync_queued_job_processor",
- "zksync_utils",
+ "zksync_task_management",
  "zksync_vlog",
 ]
 
@@ -12949,6 +12949,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_task_management"
+version = "26.2.1-non-semver-compat"
+dependencies = [
+ "anyhow",
+ "futures 0.3.31",
+ "tokio",
+ "tracing",
+ "zksync_utils",
+ "zksync_vlog",
+]
+
+[[package]]
 name = "zksync_tee_prover"
 version = "26.2.1-non-semver-compat"
 dependencies = [
@@ -13049,14 +13061,9 @@ version = "26.2.1-non-semver-compat"
 dependencies = [
  "anyhow",
  "assert_matches",
- "futures 0.3.31",
  "once_cell",
- "reqwest 0.12.9",
  "serde_json",
- "sha2 0.10.8",
  "tokio",
- "tracing",
- "zksync_vlog",
 ]
 
 [[package]]
