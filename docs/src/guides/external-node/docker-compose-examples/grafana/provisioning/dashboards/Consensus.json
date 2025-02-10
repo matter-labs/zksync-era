@@ -1168,7 +1168,7 @@
           },
           "editorMode": "builder",
           "expr": "consensus_replica_view_number",
-          "legendFormat": "__auto",
+          "legendFormat": "View number",
           "range": true,
           "refId": "A"
         }
@@ -1610,13 +1610,13 @@
     "list": []
   },
   "time": {
-    "from": "now-1h",
+    "from": "now-6h",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "",
   "title": "Consensus",
   "uid": "STAAEORNk",
-  "version": 3,
+  "version": 4,
   "weekStart": ""
 }
