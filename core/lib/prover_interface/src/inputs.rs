@@ -196,10 +196,12 @@ impl StoredObject for VMRunWitnessInputData {
     }
 
     fn deserialize(bytes: Vec<u8>) -> Result<Self, BoxedError> {
-        zksync_object_store::bincode::deserialize::<VMRunWitnessInputDataLegacy>(&bytes).map(Into::into).or_else(|_| {
-            zksync_object_store::bincode::deserialize::<VMRunWitnessInputData>(&bytes)
-                .map_err(Into::into)
-        })
+        zksync_object_store::bincode::deserialize::<VMRunWitnessInputDataLegacy>(&bytes)
+            .map(Into::into)
+            .or_else(|_| {
+                zksync_object_store::bincode::deserialize::<VMRunWitnessInputData>(&bytes)
+                    .map_err(Into::into)
+            })
     }
 }
 
@@ -244,10 +246,12 @@ impl StoredObject for WitnessInputData {
     }
 
     fn deserialize(bytes: Vec<u8>) -> Result<Self, BoxedError> {
-        zksync_object_store::bincode::deserialize::<WitnessInputDataLegacy>(&bytes).map(Into::into).or_else(|_| {
-            zksync_object_store::bincode::deserialize::<WitnessInputData>(&bytes)
-                .map_err(Into::into)
-        })
+        zksync_object_store::bincode::deserialize::<WitnessInputDataLegacy>(&bytes)
+            .map(Into::into)
+            .or_else(|_| {
+                zksync_object_store::bincode::deserialize::<WitnessInputData>(&bytes)
+                    .map_err(Into::into)
+            })
     }
 }
 
