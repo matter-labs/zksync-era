@@ -19,7 +19,7 @@ pub struct EigenClient {
 
 impl EigenClient {
     pub async fn new(config: EigenConfig, secrets: EigenSecrets) -> anyhow::Result<Self> {
-        let private_key = SecretKey::from_str(secrets.private_key.0.expose_secret().as_str())
+        let private_key = SecretKey::from_str(secrets.private_key.0.expose_secret())
             .map_err(|e| anyhow::anyhow!("Failed to parse private key: {}", e))?;
 
         Ok(EigenClient {
