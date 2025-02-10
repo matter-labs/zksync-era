@@ -9027,7 +9027,6 @@ version = "26.2.1-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
- "bigdecimal",
  "blake2 0.10.6",
  "chrono",
  "ciborium",

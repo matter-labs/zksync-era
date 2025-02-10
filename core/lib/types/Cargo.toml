@@ -29,7 +29,6 @@ serde.workspace = true
 serde_json.workspace = true
 serde_with = { workspace = true, features = ["hex"] }
 ciborium = { workspace = true, optional = true }
-bigdecimal.workspace = true
 thiserror.workspace = true
 num_enum.workspace = true
 hex.workspace = true
