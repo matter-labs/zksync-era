@@ -157,12 +157,6 @@ impl UnstableNamespace {
         &self,
         batch: L1BatchNumber,
     ) -> Result<Option<DataAvailabilityDetails>, Web3Error> {
-        if self.state.api_config.l1_batch_commit_data_generator_mode
-            == L1BatchCommitmentMode::Rollup
-        {
-            return Err(Web3Error::MethodNotImplemented);
-        }
-
         let mut connection = self.state.acquire_connection().await?;
         let Some(db_details) = connection
             .data_availability_dal()

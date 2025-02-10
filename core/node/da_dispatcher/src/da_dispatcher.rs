@@ -127,7 +127,6 @@ impl DataAvailabilityDispatcher {
                     batch.l1_batch_number,
                     dispatch_response.blob_id.as_str(),
                     sent_at.naive_utc(),
-                    // safe to unwrap because this is provided by the client
                     client_type_to_pubdata_type(self.client.client_type()),
                     None,
                 )
