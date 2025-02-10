@@ -40,7 +40,6 @@ impl FriProverDal<'_, '_> {
     ) {
         let latency = MethodLatency::new("save_fri_prover_jobs");
         if circuit_ids_and_urls.is_empty() {
-            // nothing to insert
             drop(latency);
             return;
         }
@@ -102,10 +101,10 @@ impl FriProverDal<'_, '_> {
             // status = 'queued'
             query_builder.push("'queued'");
             query_builder.push(", ");
-            // created_at = CLOCK_TIMESTAMP()
+            // created_at = NOW()
             query_builder.push("NOW()");
             query_builder.push(", ");
-            // updated_at = CLOCK_TIMESTAMP()
+            // updated_at = NOW()
             query_builder.push("NOW()");
             query_builder.push(", ");
             // protocol_version_patch
