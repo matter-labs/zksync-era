@@ -748,7 +748,7 @@ impl Keystore {
     }
 
     /// Async function that loads specified mapping from disk.
-    pub async fn load_a_key_mapping<T: DeserializeOwned + Send + Sync + 'static>(
+    pub async fn load_single_key_mapping<T: DeserializeOwned + Send + Sync + 'static>(
         &self,
         key: ProverServiceDataKey,
         data_type: ProverServiceDataType,
