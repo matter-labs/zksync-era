@@ -23,7 +23,7 @@ use zksync_prover_job_monitor::{
     task_wiring::TaskRunner,
     witness_job_queuer::WitnessJobQueuer,
 };
-use zksync_utils::wait_for_tasks::ManagedTasks;
+use zksync_task_management::ManagedTasks;
 use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 #[derive(Debug, Parser)]

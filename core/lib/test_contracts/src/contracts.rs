@@ -95,6 +95,17 @@ impl TestContract {
         &CONTRACT
     }
 
+    pub fn permissive_account() -> &'static Self {
+        static CONTRACT: Lazy<TestContract> = Lazy::new(|| {
+            let mut contract = TestContract::new(raw::custom_account::PermissiveAccount);
+            contract.dependencies = vec![TestContract::new(
+                raw::custom_account::PermissiveAccountDeployedContract,
+            )];
+            contract
+        });
+        &CONTRACT
+    }
+
     /// Returns a custom account with multiple owners.
     pub fn many_owners() -> &'static Self {
         static CONTRACT: Lazy<TestContract> =
