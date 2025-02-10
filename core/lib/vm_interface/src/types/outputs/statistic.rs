@@ -189,7 +189,6 @@ pub struct VmExecutionMetrics {
     pub l2_to_l1_logs: usize,
     pub user_l2_to_l1_logs: usize,
     pub contracts_used: usize,
-    pub contracts_deployed: u16,
     pub vm_events: usize,
     pub storage_logs: usize,
     /// Sum of storage logs, vm events, l2->l1 logs, and the number of precompile calls.
@@ -220,7 +219,6 @@ impl ops::Add for VmExecutionMetrics {
         Self {
             published_bytecode_bytes: self.published_bytecode_bytes
                 + other.published_bytecode_bytes,
-            contracts_deployed: self.contracts_deployed + other.contracts_deployed,
             contracts_used: self.contracts_used + other.contracts_used,
             l2_l1_long_messages: self.l2_l1_long_messages + other.l2_l1_long_messages,
             l2_to_l1_logs: self.l2_to_l1_logs + other.l2_to_l1_logs,

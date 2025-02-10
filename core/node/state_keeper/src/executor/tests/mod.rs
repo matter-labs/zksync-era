@@ -366,8 +366,8 @@ async fn rollback(vm_mode: FastVmMode) {
     let res_new = executor.execute_tx(tx.clone()).await.unwrap();
     assert_executed(&res_new);
 
-    let tx_metrics_old = res_old.tx_result.get_execution_metrics(Some(&tx));
-    let tx_metrics_new = res_new.tx_result.get_execution_metrics(Some(&tx));
+    let tx_metrics_old = res_old.tx_result.get_execution_metrics();
+    let tx_metrics_new = res_new.tx_result.get_execution_metrics();
     assert_eq!(
         tx_metrics_old, tx_metrics_new,
         "Execution results must be the same"

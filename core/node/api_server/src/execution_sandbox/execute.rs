@@ -117,12 +117,10 @@ where
         args: TxExecutionArgs,
         tracing_params: OneshotTracingParams,
     ) -> anyhow::Result<SandboxExecutionOutput> {
-        let total_factory_deps = args.transaction.execute.factory_deps.len() as u16;
         let result = self
             .inspect_transaction_with_bytecode_compression(storage, env, args, tracing_params)
             .await?;
-        let metrics =
-            vm_metrics::collect_tx_execution_metrics(total_factory_deps, &result.tx_result);
+        let metrics = vm_metrics::collect_tx_execution_metrics(&result.tx_result);
 
         let storage_logs = result.tx_result.logs.storage_logs;
         Ok(SandboxExecutionOutput {

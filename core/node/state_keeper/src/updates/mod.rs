@@ -140,7 +140,7 @@ impl UpdatesManager {
         );
 
         let result = &finished_batch.block_tip_execution_result;
-        let batch_tip_execution_metrics = result.get_execution_metrics(None);
+        let batch_tip_execution_metrics = result.get_execution_metrics();
 
         let before = self.storage_writes_deduplicator.metrics();
         self.storage_writes_deduplicator
