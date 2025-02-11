@@ -23,7 +23,7 @@ use self::{
     metrics::METRICS,
 };
 use crate::event_processors::{
-    BatchRootProcessor, DecentralizedUpgradesEventProcessor, EventsSource, L1BatchRootProcessor,
+    BatchRootProcessor, DecentralizedUpgradesEventProcessor, EventsSource,
 };
 
 mod client;

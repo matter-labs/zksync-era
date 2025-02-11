@@ -1,13 +1,7 @@
 use zksync_dal::{eth_watcher_dal::EventType, Connection, Core, CoreDal, DalError};
-use zksync_types::{
-    api::{Log},
-    ethabi,
-    L1BatchNumber, SLChainId, H256,
-};
+use zksync_types::{api::Log, ethabi, L1BatchNumber, SLChainId, H256};
 
-use crate::{
-    event_processors::{EventProcessor, EventProcessorError, EventsSource},
-};
+use crate::event_processors::{EventProcessor, EventProcessorError, EventsSource};
 
 /// Responsible for `AppendedChainBatchRoot` events and saving `BatchAndChainMerklePath` for batches.
 #[derive(Debug)]
@@ -95,5 +89,4 @@ impl EventProcessor for GlobalMessageRootProcessor {
     }
 }
 
-impl GlobalMessageRootProcessor {
-}
+impl GlobalMessageRootProcessor {}

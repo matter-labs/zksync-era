@@ -1,9 +1,7 @@
 use std::cmp::Ordering;
 
 use once_cell::sync::OnceCell;
-use zksync_types::{
-    message_root::MessageRoot, vm::VmVersion, L2ChainId, ProtocolVersionId, H256, U256,
-};
+use zksync_types::{message_root::MessageRoot, vm::VmVersion, L2ChainId, ProtocolVersionId, U256};
 use zksync_vm_interface::pubdata::PubdataBuilder;
 
 use super::{

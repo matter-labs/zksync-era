@@ -532,7 +532,7 @@ where
     fn insert_message_root(&mut self, _msg_root: MessageRoot) {
         // self.main.insert_message_root(msg_root);
         // if let Some(shadow) = self.shadow.get_mut() {
-            // shadow.vm.insert_message_root(msg_root);
+        // shadow.vm.insert_message_root(msg_root);
         // }
     }
 
