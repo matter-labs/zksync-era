@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                number, l2_l1_merkle_root\n            FROM\n                l1_batches\n            JOIN eth_txs ON eth_txs.id = l1_batches.eth_execute_tx_id\n            WHERE\n                batch_chain_merkle_path IS NOT NULL\n                AND chain_id = $1\n            ORDER BY number\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "number",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "l2_l1_merkle_root",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      true
+    ]
+  },
+  "hash": "f516657dd48332522a5580e26c509fb7e3baa5ae84bd5e010008f8972e1a7f98"
+}

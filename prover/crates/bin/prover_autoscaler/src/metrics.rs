@@ -2,8 +2,6 @@ use vise::{Counter, Gauge, LabeledFamily, Metrics};
 
 use crate::config::Gpu;
 
-pub const DEFAULT_ERROR_CODE: u16 = 500;
-
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "autoscaler")]
 pub(crate) struct AutoscalerMetrics {

@@ -148,7 +148,7 @@ async fn get_proof_basic_witness_generator_into_for_batch<'a>(
     batch_number: L1BatchNumber,
     conn: &mut Connection<'a, Prover>,
 ) -> Option<BasicWitnessGeneratorJobInfo> {
-    conn.fri_witness_generator_dal()
+    conn.fri_basic_witness_generator_dal()
         .get_basic_witness_generator_job_for_batch(batch_number)
         .await
 }
@@ -157,7 +157,7 @@ async fn get_proof_leaf_witness_generator_info_for_batch<'a>(
     batch_number: L1BatchNumber,
     conn: &mut Connection<'a, Prover>,
 ) -> Vec<LeafWitnessGeneratorJobInfo> {
-    conn.fri_witness_generator_dal()
+    conn.fri_leaf_witness_generator_dal()
         .get_leaf_witness_generator_jobs_for_batch(batch_number)
         .await
 }
@@ -166,7 +166,7 @@ async fn get_proof_node_witness_generator_info_for_batch<'a>(
     batch_number: L1BatchNumber,
     conn: &mut Connection<'a, Prover>,
 ) -> Vec<NodeWitnessGeneratorJobInfo> {
-    conn.fri_witness_generator_dal()
+    conn.fri_node_witness_generator_dal()
         .get_node_witness_generator_jobs_for_batch(batch_number)
         .await
 }
@@ -175,7 +175,7 @@ async fn get_proof_recursion_tip_witness_generator_info_for_batch<'a>(
     batch_number: L1BatchNumber,
     conn: &mut Connection<'a, Prover>,
 ) -> Option<RecursionTipWitnessGeneratorJobInfo> {
-    conn.fri_witness_generator_dal()
+    conn.fri_recursion_tip_witness_generator_dal()
         .get_recursion_tip_witness_generator_jobs_for_batch(batch_number)
         .await
 }
@@ -184,7 +184,7 @@ async fn get_proof_scheduler_witness_generator_info_for_batch<'a>(
     batch_number: L1BatchNumber,
     conn: &mut Connection<'a, Prover>,
 ) -> Option<SchedulerWitnessGeneratorJobInfo> {
-    conn.fri_witness_generator_dal()
+    conn.fri_scheduler_witness_generator_dal()
         .get_scheduler_witness_generator_jobs_for_batch(batch_number)
         .await
 }

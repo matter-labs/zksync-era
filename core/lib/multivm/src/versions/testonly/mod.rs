@@ -15,24 +15,32 @@ use once_cell::sync::Lazy;
 use zksync_contracts::{
     read_bootloader_code, read_zbin_bytecode, BaseSystemContracts, SystemContractCode,
 };
+use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
 use zksync_types::{
     block::L2BlockHasher, bytecode::BytecodeHash, fee_model::BatchFeeInput, get_code_key,
-    get_is_account_key, h256_to_u256, u256_to_h256, utils::storage_key_for_eth_balance, Address,
-    L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, U256,
-};
-use zksync_vm_interface::{
-    pubdata::PubdataBuilder, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode,
+    get_is_account_key, h256_to_address, h256_to_u256, u256_to_h256,
+    utils::storage_key_for_eth_balance, Address, L1BatchNumber, L2BlockNumber, L2ChainId,
+    ProtocolVersionId, U256,
 };
 
-pub(super) use self::tester::{TestedVm, VmTester, VmTesterBuilder};
+pub(super) use self::tester::{
+    validation_params, TestedVm, TestedVmForValidation, TestedVmWithCallTracer,
+    TestedVmWithStorageLimit, VmTester, VmTesterBuilder,
+};
 use crate::{
-    interface::storage::InMemoryStorage, pubdata_builders::RollupPubdataBuilder,
+    interface::{
+        pubdata::PubdataBuilder, storage::InMemoryStorage, L1BatchEnv, L2BlockEnv, SystemEnv,
+        TxExecutionMode, VmEvent,
+    },
+    pubdata_builders::FullPubdataBuilder,
     vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
 
+pub(super) mod account_validation_rules;
 pub(super) mod block_tip;
 pub(super) mod bootloader;
 pub(super) mod bytecode_publishing;
+pub(super) mod call_tracer;
 pub(super) mod circuits;
 pub(super) mod code_oracle;
 pub(super) mod default_aa;
@@ -40,6 +48,7 @@ pub(super) mod evm_emulator;
 pub(super) mod gas_limit;
 pub(super) mod get_used_contracts;
 pub(super) mod is_write_initial;
+pub(super) mod l1_messenger;
 pub(super) mod l1_tx_execution;
 pub(super) mod l2_blocks;
 pub(super) mod nonce_holder;
@@ -119,7 +128,7 @@ pub(super) fn default_l1_batch(number: L1BatchNumber) -> L1BatchEnv {
 }
 
 pub(super) fn default_pubdata_builder() -> Rc<dyn PubdataBuilder> {
-    Rc::new(RollupPubdataBuilder::new(Address::zero()))
+    Rc::new(FullPubdataBuilder::new(Address::zero()))
 }
 
 pub(super) fn make_address_rich(storage: &mut InMemoryStorage, address: Address) {
@@ -181,4 +190,21 @@ impl ContractToDeploy {
             contract.insert(storage);
         }
     }
+}
+
+fn extract_deploy_events(events: &[VmEvent]) -> Vec<(Address, Address)> {
+    events
+        .iter()
+        .filter_map(|event| {
+            if event.address == CONTRACT_DEPLOYER_ADDRESS
+                && event.indexed_topics[0] == VmEvent::DEPLOY_EVENT_SIGNATURE
+            {
+                let deployer = h256_to_address(&event.indexed_topics[1]);
+                let deployed_address = h256_to_address(&event.indexed_topics[3]);
+                Some((deployer, deployed_address))
+            } else {
+                None
+            }
+        })
+        .collect()
 }

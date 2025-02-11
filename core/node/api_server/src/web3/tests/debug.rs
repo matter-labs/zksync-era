@@ -32,7 +32,7 @@ fn execute_l2_transaction_with_traces(index_in_block: u8) -> TransactionExecutio
     };
     TransactionExecutionResult {
         call_traces: vec![first_call_trace, second_call_trace],
-        ..execute_l2_transaction(create_l2_transaction(1, 2))
+        ..mock_execute_transaction(create_l2_transaction(1, 2).into())
     }
 }
 
@@ -73,7 +73,7 @@ impl HttpTest for TraceBlockTest {
                 let expected_calls: Vec<_> = tx_result
                     .call_traces
                     .iter()
-                    .map(|call| DebugNamespace::map_default_call(call.clone(), false))
+                    .map(|call| DebugNamespace::map_default_call(call.clone(), false, None))
                     .collect();
                 assert_eq!(result.calls, expected_calls);
             }
@@ -216,7 +216,7 @@ impl HttpTest for TraceTransactionTest {
         let expected_calls: Vec<_> = tx_results[0]
             .call_traces
             .iter()
-            .map(|call| DebugNamespace::map_default_call(call.clone(), false))
+            .map(|call| DebugNamespace::map_default_call(call.clone(), false, None))
             .collect();
 
         let result = client

@@ -9,6 +9,7 @@ pub struct StorageTeeProof {
     pub signature: Option<Vec<u8>>,
     pub proof: Option<Vec<u8>>,
     pub updated_at: NaiveDateTime,
+    pub status: String,
     pub attestation: Option<Vec<u8>>,
 }
 

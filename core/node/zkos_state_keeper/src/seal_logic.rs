@@ -156,6 +156,7 @@ fn generate_l1_batch_header(
         system_logs: Default::default(),
         pubdata_input: Default::default(),
         fee_address: Default::default(),
+        batch_fee_input: Default::default(),
     }
 }
 

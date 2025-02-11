@@ -212,20 +212,44 @@ impl HttpTest for CallTest {
             panic!("Unexpected error: {error:?}");
         }
 
-        // Check that the method handler fetches fee inputs for recent blocks. To do that, we create a new block
-        // with a large fee input; it should be loaded by `ApiFeeInputProvider` and override the input provided by the wrapped mock provider.
-        let mut block_header = create_l2_block(2);
-        block_header.batch_fee_input = scaled_sensible_fee_input(2.5);
-        store_custom_l2_block(&mut connection, &block_header, &[]).await?;
+        // Check that the method handler fetches fee input from the open batch. To do that, we open a new batch
+        // with a large fee input; it should be loaded by `ApiFeeInputProvider` and used instead of the input
+        // provided by the wrapped mock provider.
+        let batch_header = open_l1_batch(
+            &mut connection,
+            L1BatchNumber(1),
+            scaled_sensible_fee_input(3.0),
+        )
+        .await?;
         // Fee input is not scaled further as per `ApiFeeInputProvider` implementation
-        self.fee_input.expect_custom(block_header.batch_fee_input);
-        let call_request = Self::call_request(b"block=3");
-        let call_result = client.call(call_request, None, None).await?;
+        self.fee_input.expect_custom(batch_header.fee_input);
+        let call_request = Self::call_request(b"block=2");
+        let call_result = client.call(call_request.clone(), None, None).await?;
+        assert_eq!(call_result.0, b"output");
+        let call_result = client
+            .call(
+                call_request,
+                Some(api::BlockIdVariant::BlockNumber(api::BlockNumber::Pending)),
+                None,
+            )
+            .await?;
+        assert_eq!(call_result.0, b"output");
+
+        // Logic here is arguable, but we consider "latest" requests to be interested in the newly
+        // open batch's fee input even if the latest block was sealed in the previous batch.
+        let call_request = Self::call_request(b"block=1");
+        let call_result = client
+            .call(
+                call_request.clone(),
+                Some(api::BlockIdVariant::BlockNumber(api::BlockNumber::Latest)),
+                None,
+            )
+            .await?;
         assert_eq!(call_result.0, b"output");
 
         let call_request_without_target = CallRequest {
             to: None,
-            ..Self::call_request(b"block=3")
+            ..Self::call_request(b"block=2")
         };
         let err = client
             .call(call_request_without_target, None, None)
@@ -728,8 +752,11 @@ impl HttpTest for TraceCallTest {
         pool: &ConnectionPool<Core>,
     ) -> anyhow::Result<()> {
         // Store an additional L2 block because L2 block #0 has some special processing making it work incorrectly.
+        // First half of the test asserts API server's behavior when there is no open batch. In other words,
+        // when `ApiFeeInputProvider` is forced to fetch fee params from the main fee provider.
         let mut connection = pool.connection().await?;
         store_l2_block(&mut connection, L2BlockNumber(1), &[]).await?;
+        seal_l1_batch(&mut connection, L1BatchNumber(1)).await?;
 
         self.fee_input.expect_default(Self::FEE_SCALE);
         let call_request = CallTest::call_request(b"pending");
@@ -775,20 +802,44 @@ impl HttpTest for TraceCallTest {
             panic!("Unexpected error: {error:?}");
         }
 
-        // Check that the method handler fetches fee inputs for recent blocks. To do that, we create a new block
-        // with a large fee input; it should be loaded by `ApiFeeInputProvider` and override the input provided by the wrapped mock provider.
-        let mut block_header = create_l2_block(2);
-        block_header.batch_fee_input = scaled_sensible_fee_input(3.0);
-        store_custom_l2_block(&mut connection, &block_header, &[]).await?;
+        // Check that the method handler fetches fee input from the open batch. To do that, we open a new batch
+        // with a large fee input; it should be loaded by `ApiFeeInputProvider` and used instead of the input
+        // provided by the wrapped mock provider.
+        let batch_header = open_l1_batch(
+            &mut connection,
+            L1BatchNumber(2),
+            scaled_sensible_fee_input(3.0),
+        )
+        .await?;
         // Fee input is not scaled further as per `ApiFeeInputProvider` implementation
-        self.fee_input.expect_custom(block_header.batch_fee_input);
-        let call_request = CallTest::call_request(b"block=3");
+        self.fee_input.expect_custom(batch_header.fee_input);
+        let call_request = CallTest::call_request(b"block=2");
         let call_result = client.trace_call(call_request.clone(), None, None).await?;
+        Self::assert_debug_call(&call_request, &call_result.unwrap_default());
+        let call_result = client
+            .trace_call(
+                call_request.clone(),
+                Some(api::BlockId::Number(api::BlockNumber::Pending)),
+                None,
+            )
+            .await?;
+        Self::assert_debug_call(&call_request, &call_result.unwrap_default());
+
+        // Logic here is arguable, but we consider "latest" requests to be interested in the newly
+        // open batch's fee input even if the latest block was sealed in the previous batch.
+        let call_request = CallTest::call_request(b"block=1");
+        let call_result = client
+            .trace_call(
+                call_request.clone(),
+                Some(api::BlockId::Number(api::BlockNumber::Latest)),
+                None,
+            )
+            .await?;
         Self::assert_debug_call(&call_request, &call_result.unwrap_default());
 
         let call_request_without_target = CallRequest {
             to: None,
-            ..CallTest::call_request(b"block=3")
+            ..CallTest::call_request(b"block=2")
         };
         let err = client
             .call(call_request_without_target, None, None)
@@ -897,12 +948,15 @@ impl HttpTest for TraceCallTestWithEvmEmulator {
         pool: &ConnectionPool<Core>,
     ) -> anyhow::Result<()> {
         // Store an additional L2 block because L2 block #0 has some special processing making it work incorrectly.
+        // And make sure there is no open batch so that `ApiFeeInputProvider` is forced to fetch fee params from
+        // the main fee provider.
         let mut connection = pool.connection().await?;
         let block_header = L2BlockHeader {
             base_system_contracts_hashes: genesis_contract_hashes(&mut connection).await?,
             ..create_l2_block(1)
         };
         store_custom_l2_block(&mut connection, &block_header, &[]).await?;
+        seal_l1_batch(&mut connection, L1BatchNumber(1)).await?;
 
         client
             .trace_call(CallTest::call_request(&[]), None, None)

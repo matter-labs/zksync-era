@@ -3,7 +3,9 @@ use std::fs;
 use codegen::{Block, Scope};
 use serde::{Deserialize, Serialize};
 use zksync_multivm::{
-    utils::{get_bootloader_encoding_space, get_bootloader_max_txs_in_batch},
+    utils::{
+        get_bootloader_encoding_space, get_bootloader_max_txs_in_batch, get_max_new_factory_deps,
+    },
     vm_latest::constants::MAX_VM_PUBDATA_PER_BATCH,
     zk_evm_latest::zkevm_opcode_defs::{
         circuit_prices::{
@@ -15,7 +17,7 @@ use zksync_multivm::{
 };
 use zksync_types::{
     IntrinsicSystemGasConstants, ProtocolVersionId, GUARANTEED_PUBDATA_IN_TX,
-    L1_GAS_PER_PUBDATA_BYTE, MAX_NEW_FACTORY_DEPS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
+    L1_GAS_PER_PUBDATA_BYTE, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
 };
 use zksync_utils::env::Workspace;
 
@@ -73,7 +75,7 @@ pub fn generate_l1_contracts_system_config(gas_constants: &IntrinsicSystemGasCon
         l1_tx_delta_544_encoding_bytes: gas_constants.l1_tx_delta_544_encoding_bytes,
         l1_tx_delta_factory_deps_l2_gas: gas_constants.l1_tx_delta_factory_dep_gas,
         l1_tx_delta_factory_deps_pubdata: gas_constants.l1_tx_delta_factory_dep_pubdata,
-        max_new_factory_deps: MAX_NEW_FACTORY_DEPS as u32,
+        max_new_factory_deps: get_max_new_factory_deps(ProtocolVersionId::latest().into()) as u32,
         required_l2_gas_price_per_pubdata: REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
     };
 
@@ -210,7 +212,7 @@ fn generate_rust_fee_constants(intrinsic_gas_constants: &IntrinsicSystemGasConst
 }
 
 fn save_file(path_in_repo: &str, content: String) {
-    let zksync_home = Workspace::locate().core();
+    let zksync_home = Workspace::locate().root();
     let fee_constants_path = zksync_home.join(path_in_repo);
 
     fs::write(fee_constants_path, content)

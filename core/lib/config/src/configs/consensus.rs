@@ -1,7 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use secrecy::ExposeSecret as _;
-pub use secrecy::Secret;
+use secrecy::{ExposeSecret as _, SecretString};
 use zksync_basic_types::{ethabi, L2ChainId};
 use zksync_concurrency::{limiter, time};
 
@@ -11,7 +10,7 @@ pub struct ValidatorPublicKey(pub String);
 
 /// `zksync_consensus_crypto::TextFmt` representation of `zksync_consensus_roles::validator::SecretKey`.
 #[derive(Debug, Clone)]
-pub struct ValidatorSecretKey(pub Secret<String>);
+pub struct ValidatorSecretKey(pub SecretString);
 
 /// `zksync_consensus_crypto::TextFmt` representation of `zksync_consensus_roles::attester::PublicKey`.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -19,7 +18,7 @@ pub struct AttesterPublicKey(pub String);
 
 /// `zksync_consensus_crypto::TextFmt` representation of `zksync_consensus_roles::attester::SecretKey`.
 #[derive(Debug, Clone)]
-pub struct AttesterSecretKey(pub Secret<String>);
+pub struct AttesterSecretKey(pub SecretString);
 
 /// `zksync_consensus_crypto::TextFmt` representation of `zksync_consensus_roles::node::PublicKey`.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -27,7 +26,7 @@ pub struct NodePublicKey(pub String);
 
 /// `zksync_consensus_crypto::TextFmt` representation of `zksync_consensus_roles::node::SecretKey`.
 #[derive(Debug, Clone)]
-pub struct NodeSecretKey(pub Secret<String>);
+pub struct NodeSecretKey(pub SecretString);
 
 impl PartialEq for ValidatorSecretKey {
     fn eq(&self, other: &Self) -> bool {
@@ -126,6 +125,9 @@ pub struct ConsensusConfig {
     /// Maximal allowed size of the payload in bytes.
     pub max_payload_size: usize,
 
+    /// View timeout duration in milliseconds.
+    pub view_timeout: Option<time::Duration>,
+
     /// Maximal allowed size of the sync-batch payloads in bytes.
     ///
     /// The batch consists of block payloads and a Merkle proof of inclusion on L1 (~1kB),
@@ -155,6 +157,10 @@ pub struct ConsensusConfig {
 }
 
 impl ConsensusConfig {
+    pub fn view_timeout(&self) -> time::Duration {
+        self.view_timeout.unwrap_or(time::Duration::seconds(2))
+    }
+
     pub fn rpc(&self) -> RpcConfig {
         self.rpc.clone().unwrap_or_default()
     }

@@ -572,11 +572,18 @@ impl<'a> GasEstimator<'a> {
             gas_per_pubdata_byte = self.gas_per_pubdata_byte
         );
 
+        // Given that we scale overall fee, we should also scale the limit for gas per pubdata price that user agrees to.
+        // However, we should not exceed the limit that was provided by the user in the initial request.
+        let gas_per_pubdata_limit = std::cmp::min(
+            ((self.gas_per_pubdata_byte as f64 * estimated_fee_scale_factor) as u64).into(),
+            self.transaction.gas_per_pubdata_byte_limit(),
+        );
+
         Ok(Fee {
             max_fee_per_gas: self.base_fee.into(),
             max_priority_fee_per_gas: 0u32.into(),
             gas_limit: full_gas_limit.into(),
-            gas_per_pubdata_limit: self.gas_per_pubdata_byte.into(),
+            gas_per_pubdata_limit,
         })
     }
 }

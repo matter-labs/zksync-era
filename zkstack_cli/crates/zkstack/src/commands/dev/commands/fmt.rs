@@ -1,9 +1,9 @@
 use std::path::PathBuf;
 
 use clap::Parser;
-use common::{cmd::Cmd, logger, spinner::Spinner};
-use config::EcosystemConfig;
 use xshell::{cmd, Shell};
+use zkstack_cli_common::{cmd::Cmd, logger, spinner::Spinner};
+use zkstack_cli_config::EcosystemConfig;
 
 use super::sql_fmt::format_sql;
 use crate::commands::dev::{
@@ -42,7 +42,7 @@ async fn prettier_contracts(shell: Shell, check: bool) -> anyhow::Result<()> {
 }
 
 async fn rustfmt(shell: Shell, check: bool, link_to_code: PathBuf) -> anyhow::Result<()> {
-    for dir in [".", "prover", "zkstack_cli"] {
+    for dir in ["core", "prover", "zkstack_cli"] {
         let spinner = Spinner::new(&msg_running_rustfmt_for_dir_spinner(dir));
         let _dir = shell.push_dir(link_to_code.join(dir));
         let mut cmd = cmd!(shell, "cargo fmt -- --config imports_granularity=Crate --config group_imports=StdExternalCrate");
@@ -85,6 +85,7 @@ pub struct FmtArgs {
 
 pub async fn run(shell: Shell, args: FmtArgs) -> anyhow::Result<()> {
     let ecosystem = EcosystemConfig::from_file(&shell)?;
+    shell.set_var("ZKSYNC_USE_CUDA_STUBS", "true");
     match args.formatter {
         None => {
             let mut tasks = vec![];
