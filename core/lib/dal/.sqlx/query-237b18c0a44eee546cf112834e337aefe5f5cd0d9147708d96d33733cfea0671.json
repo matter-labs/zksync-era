@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                id\n            FROM\n                contract_verification_requests\n            WHERE\n                contract_address = $1 AND (status = 'queued' OR status = 'in_progress')\n            LIMIT 1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bytea"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "237b18c0a44eee546cf112834e337aefe5f5cd0d9147708d96d33733cfea0671"
+}

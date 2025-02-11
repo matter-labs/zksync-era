@@ -1590,10 +1590,8 @@ checksum = "7e36cc9d416881d2e24f9a963be5fb1cd90966419ac844274161d10488b3e825"
 dependencies = [
  "android-tzdata",
  "iana-time-zone",
- "js-sys",
  "num-traits",
  "serde",
- "wasm-bindgen",
  "windows-targets 0.52.6",
 ]
 
@@ -4853,7 +4851,6 @@ dependencies = [
  "envy",
  "futures 0.3.31",
  "hex",
- "num",
  "once_cell",
  "rand 0.8.5",
  "regex",
@@ -5366,7 +5363,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "73f88a1307638156682bada9d7604135552957b7818057dcef22705b4d509495"
 dependencies = [
  "num-traits",
- "serde",
 ]
 
 [[package]]
@@ -5436,7 +5432,6 @@ dependencies = [
  "num-bigint 0.4.6",
  "num-integer",
  "num-traits",
- "serde",
 ]
 
 [[package]]
@@ -10947,6 +10942,7 @@ dependencies = [
  "anyhow",
  "axum 0.7.9",
  "http-body-util",
+ "serde",
  "serde_json",
  "test-casing",
  "tokio",
@@ -12032,7 +12028,6 @@ name = "zksync_prover_interface"
 version = "26.2.1-non-semver-compat"
 dependencies = [
  "bincode",
- "chrono",
  "circuit_definitions",
  "circuit_sequencer_api",
  "fflonk",
@@ -12169,7 +12164,6 @@ dependencies = [
  "assert_matches",
  "async-trait",
  "backon",
- "chrono",
  "itertools 0.10.5",
  "mini-moka",
  "once_cell",
@@ -12325,15 +12319,12 @@ dependencies = [
  "anyhow",
  "assert_matches",
  "async-trait",
- "bigdecimal",
  "bincode",
  "blake2 0.10.6",
  "chrono",
  "ciborium",
  "derive_more 1.0.0",
  "hex",
- "itertools 0.10.5",
- "num",
  "num_enum 0.7.3",
  "once_cell",
  "prost 0.12.6",
@@ -12341,9 +12332,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_with",
- "strum",
  "thiserror 1.0.69",
- "tokio",
  "tracing",
  "zksync_basic_types",
  "zksync_contracts",

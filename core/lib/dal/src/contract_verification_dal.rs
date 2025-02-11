@@ -81,6 +81,30 @@ impl ContractVerificationDal<'_, '_> {
         .map(|row| row.count as usize)
     }
 
+    /// Returns ID of verification request for the specified contract address
+    /// that wasn't processed yet.
+    pub async fn get_active_verification_request(
+        &mut self,
+        address: Address,
+    ) -> DalResult<Option<usize>> {
+        sqlx::query!(
+            r#"
+            SELECT
+                id
+            FROM
+                contract_verification_requests
+            WHERE
+                contract_address = $1 AND (status = 'queued' OR status = 'in_progress')
+            LIMIT 1
+            "#,
+            address.as_bytes(),
+        )
+        .instrument("verification_request_exists")
+        .fetch_optional(self.storage)
+        .await
+        .map(|row| row.map(|row| row.id as usize))
+    }
+
     pub async fn add_contract_verification_request(
         &mut self,
         query: &VerificationIncomingRequest,
@@ -868,7 +892,6 @@ mod tests {
         let location = IncludedTxLocation {
             tx_hash: tx.hash(),
             tx_index_in_l2_block: 0,
-            tx_initiator_address: tx.initiator_account(),
         };
         let deploy_event = VmEvent {
             location: (L1BatchNumber(0), 0),

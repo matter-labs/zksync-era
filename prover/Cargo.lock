@@ -3867,7 +3867,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "73f88a1307638156682bada9d7604135552957b7818057dcef22705b4d509495"
 dependencies = [
  "num-traits",
- "serde",
 ]
 
 [[package]]
@@ -3926,7 +3925,6 @@ dependencies = [
  "num-bigint 0.4.6",
  "num-integer",
  "num-traits",
- "serde",
 ]
 
 [[package]]
@@ -8833,6 +8831,7 @@ version = "18.0.0"
 dependencies = [
  "sqlx",
  "strum",
+ "tokio",
  "zksync_basic_types",
  "zksync_db_connection",
 ]
@@ -8930,7 +8929,6 @@ dependencies = [
 name = "zksync_prover_interface"
 version = "26.2.1-non-semver-compat"
 dependencies = [
- "chrono",
  "circuit_definitions",
  "circuit_sequencer_api",
  "fflonk",
@@ -9063,14 +9061,11 @@ version = "26.2.1-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
- "bigdecimal",
  "blake2 0.10.6",
  "chrono",
  "ciborium",
  "derive_more",
  "hex",
- "itertools 0.10.5",
- "num",
  "num_enum 0.7.3",
  "once_cell",
  "prost 0.12.6",
@@ -9078,7 +9073,6 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_with",
- "strum",
  "thiserror 1.0.69",
  "tracing",
  "zksync_basic_types",
