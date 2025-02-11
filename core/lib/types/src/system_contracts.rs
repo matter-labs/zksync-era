@@ -289,7 +289,12 @@ pub fn get_system_smart_contracts_from_dir(
             } else {
                 Some(DeployedContract {
                     account_id: AccountTreeId::new(*address),
-                    bytecode: repo.read_sys_contract_bytecode(path, name, contract_lang.clone()),
+                    bytecode: repo.read_sys_contract_bytecode(
+                        path,
+                        name,
+                        None,
+                        contract_lang.clone(),
+                    ),
                 })
             }
         })
