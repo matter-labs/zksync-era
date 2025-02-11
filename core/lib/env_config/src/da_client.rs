@@ -45,7 +45,7 @@ impl FromEnv for DAClientConfig {
                     "DA_SETTLEMENT_LAYER_CONFIRMATION_DEPTH",
                 )?
                 .parse()?,
-                eigenda_eth_rpc: Some(SensitiveUrl::from_str(&env::var("DA_EIGENDA_ETH_RPC")?)?),
+                eigenda_eth_rpc: SensitiveUrl::from_str(&env::var("DA_EIGENDA_ETH_RPC")?).ok(),
                 eigenda_svc_manager_address: H160::from_str(&env::var(
                     "DA_EIGENDA_SVC_MANAGER_ADDRESS",
                 )?)?,
