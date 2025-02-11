@@ -129,7 +129,7 @@ jobs:
         run: |
           ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup || true
           ci_run zkstackup -g --local --cargo-features gateway
-  
+
 
       - name: Create and initialize legacy chain
         run: |
@@ -243,10 +243,7 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
 
-          ci_run zkstack ecosystem init --deploy-paymaster --deploy-erc20 \
-          --deploy-ecosystem --l1-rpc-url=http://localhost:8545 \
-          --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-          --server-db-name=zksync_server_localhost_era \
+          ci_run zkstack ecosystem init --dev \
           --ignore-prerequisites --verbose \
           --observability=false
 
@@ -271,11 +268,7 @@ jobs:
           --ignore-prerequisites \
           --evm-emulator false
 
-          ci_run zkstack chain init \
-          --deploy-paymaster \
-          --l1-rpc-url=http://localhost:8545 \
-          --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-          --server-db-name=zksync_server_localhost_validium \
+          ci_run zkstack chain init --dev \
           --chain validium \
           --validium-type no-da
 
@@ -295,10 +288,7 @@ jobs:
           --evm-emulator false
 
           ci_run zkstack chain init \
-          --deploy-paymaster \
-          --l1-rpc-url=http://localhost:8545 \
-          --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-          --server-db-name=zksync_server_localhost_custom_token \
+          --dev \
           --chain custom_token \
           --validium-type no-da
 
@@ -354,10 +344,7 @@ jobs:
           --evm-emulator false
 
           ci_run zkstack chain init \
-          --deploy-paymaster \
-          --l1-rpc-url=http://localhost:8545 \
-          --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-          --server-db-name=zksync_server_localhost_consensus \
+          --dev \
           --chain consensus \
           --validium-type no-da
 
@@ -386,10 +373,7 @@ jobs:
           --evm-emulator false
           
           ci_run zkstack chain init \
-          --deploy-paymaster \
-          --l1-rpc-url=http://localhost:8545 \
-          --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-          --server-db-name=zksync_server_localhost_gateway \
+          --dev \
           --chain gateway \
           --validium-type no-da
           
