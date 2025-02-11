@@ -12,7 +12,7 @@ categories.workspace = true
 
 [dependencies]
 zksync_dal.workspace = true
-zksync_types.workspace = true
+zksync_types = { workspace = true, features = ["contract-verification"] }
 vise.workspace = true
 
 anyhow.workspace = true

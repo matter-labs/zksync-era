@@ -76,6 +76,7 @@ members = [
   "lib/snapshots_applier",
   "lib/crypto_primitives",
   "lib/external_price_api",
+  "lib/task_management",
   "lib/test_contracts",
   # Test infrastructure
   "tests/loadnext",
@@ -110,9 +111,10 @@ axum = "0.7.5"
 backon = "0.4.4"
 bigdecimal = "0.4.5"
 bincode = "1"
+bip39 = "2.1.0"
 blake2 = "0.10"
 bytes = "1"
-chrono = "0.4"
+chrono = { version = "0.4", default-features = false }
 clap = "4.2.2"
 codegen = "0.2.0"
 const-decoder = "0.4.0"
@@ -137,11 +139,10 @@ httpmock = "0.7.0"
 hyper = "1.3"
 insta = "1.29.0"
 itertools = "0.10"
-jsonrpsee = { version = "0.23", default-features = false }
+jsonrpsee = { version = "0.24", default-features = false }
 leb128 = "0.2.5"
 lru = { version = "0.12.1", default-features = false }
 mini-moka = "0.10.0"
-num = "0.4.0"
 num_cpus = "1.13"
 num_enum = "0.7.2"
 octocrab = "0.41"
@@ -163,7 +164,7 @@ rocksdb = "0.21"
 rustc_version = "0.4.0"
 rustls = "0.23"
 secp256k1 = { version = "0.27.0", features = ["recovery", "global-context"] }
-secrecy = "0.8.0"
+secrecy = "0.10.3"
 semver = "1"
 sentry = "0.31"
 serde = "1"
@@ -211,9 +212,9 @@ foundry-compilers = { version = "0.11.6", git = "https://github.com/Moonsong-Lab
 base58 = "0.2.0"
 scale-encode = "0.5.0"
 blake2b_simd = "1.0.2"
-subxt-metadata = "0.34.0"
+subxt-metadata = "0.39.0"
 parity-scale-codec = { version = "3.6.9", default-features = false }
-subxt-signer = { version = "0.34", default-features = false }
+subxt-signer = { version = "0.39.0", default-features = false }
 
 # Celestia
 celestia-types = "0.6.1"
@@ -223,7 +224,7 @@ tonic = { version = "0.11.0", default-features = false }
 pbjson-types = "0.6.0"
 
 # Eigen
-eigenda-client-rs = {git = "https://github.com/lambdaclass/eigenda-client-rs", branch = "change-inclusion-data-format", package = "eigen-client"} # TODO: Change for crate.io when published
+eigenda-client-rs = {git = "https://github.com/lambdaclass/eigenda-client-rs", branch = "address-external-comments-inclusion-data-format", package = "eigen-client"} # TODO: Change for crate.io when published
 
 # Here and below:
 # We *always* pin the latest version of protocol to disallow accidental changes in the execution logic.
@@ -296,6 +297,7 @@ zksync_utils = { version = "26.2.1-non-semver-compat", path = "lib/utils" }
 zksync_web3_decl = { version = "26.2.1-non-semver-compat", path = "lib/web3_decl" }
 zksync_crypto_primitives = { version = "26.2.1-non-semver-compat", path = "lib/crypto_primitives" }
 zksync_external_price_api = { version = "26.2.1-non-semver-compat", path = "lib/external_price_api" }
+zksync_task_management = { version = "26.2.1-non-semver-compat", path = "lib/task_management" }
 
 # Framework and components
 zksync_node_framework = { version = "26.2.1-non-semver-compat", path = "node/node_framework" }

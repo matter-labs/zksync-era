@@ -19,7 +19,7 @@ use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_prover_dal::{ConnectionPool, Prover};
 use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
 use zksync_prover_keystore::keystore::Keystore;
-use zksync_utils::wait_for_tasks::ManagedTasks;
+use zksync_task_management::ManagedTasks;
 use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 /// On most commodity hardware, WVG can take ~30 seconds to complete.
