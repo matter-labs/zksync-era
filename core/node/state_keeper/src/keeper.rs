@@ -405,7 +405,6 @@ impl ZkSyncStateKeeper {
         Err(Error::Canceled)
     }
 
-    #[tracing::instrument(skip(updates_manager))]
     fn set_l2_block_params(updates_manager: &mut UpdatesManager, l2_block_params: L2BlockParams) {
         tracing::debug!(
             "Setting next L2 block #{} (L1 batch #{}) with initial params: timestamp {}, virtual block {}",
