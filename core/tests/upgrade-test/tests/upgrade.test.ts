@@ -72,6 +72,7 @@ describe('Upgrade test', function () {
 
     let bootloaderHash: string;
     let defaultAccountHash: string;
+    let evmEmulatorHash: string;
     let bytecodeSupplier: string;
     let executeOperation: string;
     let forceDeployAddress: string;
@@ -265,12 +266,18 @@ describe('Upgrade test', function () {
             'contracts/system-contracts/artifacts-zk/contracts-preprocessed/DefaultAccount.sol/DefaultAccount.json'
         );
 
+        const evmEmulatorCode = readCode(
+          'contracts/system-contracts/zkout/EvmEmulator.yul/contracts-preprocessed/EvmEmulator.yul.json',
+        );
+
         bootloaderHash = ethers.hexlify(zksync.utils.hashBytecode(bootloaderCode));
         defaultAccountHash = ethers.hexlify(zksync.utils.hashBytecode(defaultAACode));
+        evmEmulatorHash = ethers.hexlify(zksync.utils.hashBytecode(evmEmulatorCode));
 
         let nonce = await tester.ethWallet.getNonce();
         nonce += await publishBytecode(tester.ethWallet, bytecodeSupplier, bootloaderCode, nonce);
         nonce += await publishBytecode(tester.ethWallet, bytecodeSupplier, defaultAACode, nonce);
+        nonce += await publishBytecode(tester.ethWallet, bytecodeSupplier, evmEmulatorCode, nonce);
         await publishBytecode(tester.ethWallet, bytecodeSupplier, forceDeployBytecode, nonce);
     });
 
@@ -312,6 +319,7 @@ describe('Upgrade test', function () {
                     factoryDeps: [
                         bootloaderHash,
                         defaultAccountHash,
+                        evmEmulatorHash,
                         ethers.hexlify(zksync.utils.hashBytecode(forceDeployBytecode))
                     ],
                     paymasterInput: '0x',
@@ -510,17 +518,19 @@ describe('Upgrade test', function () {
     }
 });
 
-function readCode(newPath: string, legacyPath: string): string {
+function readCode(newPath: string, legacyPath?: string): string {
     let path = `${pathToHome}/${newPath}`;
     if (existsSync(path)) {
         return '0x'.concat(require(path).bytecode.object);
-    } else {
+    } else if (legacyPath) {
         path = `${pathToHome}/${legacyPath}`;
         if (path.endsWith('.zbin')) {
             return ethers.hexlify(readFileSync(path));
         } else {
             return require(path).bytecode;
         }
+    } else {
+        throw new Error(`Cannot read contract at ${newPath}`);
     }
 }
 
@@ -629,6 +639,7 @@ async function prepareUpgradeCalldata(
         };
         bootloaderHash?: BytesLike;
         defaultAAHash?: BytesLike;
+        evmEmulatorHash?: BytesLike;
         verifier?: string;
         verifierParams?: {
             recursionNodeLevelVkHash: BytesLike;
@@ -663,6 +674,7 @@ async function prepareUpgradeCalldata(
             params.l2ProtocolUpgradeTx,
             params.bootloaderHash ?? ethers.ZeroHash,
             params.defaultAAHash ?? ethers.ZeroHash,
+            params.evmEmulatorHash ?? ethers.ZeroHash,
             params.verifier ?? ethers.ZeroAddress,
             params.verifierParams ?? [ethers.ZeroHash, ethers.ZeroHash, ethers.ZeroHash],
             params.l1ContractsUpgradeCalldata ?? '0x',
