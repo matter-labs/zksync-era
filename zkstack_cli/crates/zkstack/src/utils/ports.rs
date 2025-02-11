@@ -205,7 +205,9 @@ pub struct EcosystemPortsScanner;
 impl EcosystemPortsScanner {
     /// Scans the ecosystem directory for YAML files and extracts port information.
     /// Specifically, it looks for keys ending with "port" or "ports" and collects their values.
-    /// Skip current chain ports for predictable allocation
+    /// We could skip searching ports in the current chain if we initialize this chain.
+    /// It allows to reuse default ports even if the general file exist with previously allocated ports.
+    /// It makes allocation more predictable
     pub fn scan(shell: &Shell, current_chain: Option<&str>) -> Result<EcosystemPorts> {
         let ecosystem_config = EcosystemConfig::from_file(shell)?;
 
