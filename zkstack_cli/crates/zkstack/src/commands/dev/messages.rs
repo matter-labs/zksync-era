@@ -13,6 +13,11 @@ pub(super) const MSG_SUBCOMMAND_CLEAN: &str = "Clean artifacts";
 pub(super) const MSG_SUBCOMMAND_LINT_ABOUT: &str = "Lint code";
 pub(super) const MSG_CONTRACTS_ABOUT: &str = "Build contracts";
 pub(super) const MSG_CONFIG_WRITER_ABOUT: &str = "Overwrite general config";
+#[cfg(feature = "gateway")]
+pub(super) const MSG_GATEWAY_UPGRADE_CALLDATA: &str =
+    "Gateway upgrade checker and calldata generator";
+#[cfg(feature = "gateway")]
+pub(super) const MSG_GATEWAY_FINALIZE: &str = "Gateway upgrade post-stage2 finalization";
 
 pub(super) const MSG_SUBCOMMAND_FMT_ABOUT: &str = "Format code";
 
@@ -45,7 +50,6 @@ pub(super) const MSG_DATABASE_RESET_GERUND: &str = "Resetting";
 pub(super) const MSG_DATABASE_RESET_PAST: &str = "reset";
 pub(super) const MSG_DATABASE_SETUP_GERUND: &str = "Setting up";
 pub(super) const MSG_DATABASE_SETUP_PAST: &str = "set up";
-pub(super) const MSG_DATABASE_MUST_BE_PRESENTED: &str = "Database config must be presented";
 pub(super) const MSG_DATABASE_COMMON_PROVER_HELP: &str = "Prover database";
 pub(super) const MSG_DATABASE_COMMON_PROVER_URL_HELP: &str =
     "URL of the Prover database. If not specified, it is used from the current chain's secrets";
@@ -102,7 +106,6 @@ pub(super) const MSG_L1_CONTRACTS_ABOUT: &str = "Run L1 contracts tests";
 pub(super) const MSG_L1_CONTRACTS_TEST_SUCCESS: &str = "L1 contracts tests ran successfully";
 pub(super) const MSG_PROVER_TEST_ABOUT: &str = "Run prover tests";
 pub(super) const MSG_PROVER_TEST_SUCCESS: &str = "Prover tests ran successfully";
-pub(super) const MSG_POSTGRES_CONFIG_NOT_FOUND_ERR: &str = "Postgres config not found";
 pub(super) const MSG_RESETTING_TEST_DATABASES: &str = "Resetting test databases";
 
 // Contract building related messages
@@ -110,9 +113,11 @@ pub(super) const MSG_NOTHING_TO_BUILD_MSG: &str = "Nothing to build!";
 pub(super) const MSG_BUILDING_CONTRACTS: &str = "Building contracts";
 pub(super) const MSG_BUILDING_L2_CONTRACTS_SPINNER: &str = "Building L2 contracts..";
 pub(super) const MSG_BUILDING_L1_CONTRACTS_SPINNER: &str = "Building L1 contracts..";
+pub(super) const MSG_BUILDING_L1_DA_CONTRACTS_SPINNER: &str = "Building L1 DA contracts..";
 pub(super) const MSG_BUILDING_SYSTEM_CONTRACTS_SPINNER: &str = "Building system contracts..";
 pub(super) const MSG_BUILDING_CONTRACTS_SUCCESS: &str = "Contracts built successfully";
 pub(super) const MSG_BUILD_L1_CONTRACTS_HELP: &str = "Build L1 contracts";
+pub(super) const MSG_BUILD_L1_DA_CONTRACTS_HELP: &str = "Build L1 DA contracts";
 pub(super) const MSG_BUILD_L2_CONTRACTS_HELP: &str = "Build L2 contracts";
 pub(super) const MSG_BUILD_SYSTEM_CONTRACTS_HELP: &str = "Build system contracts";
 
@@ -230,7 +235,6 @@ pub(super) const MSG_INVALID_L1_RPC_URL_ERR: &str = "Invalid L1 RPC URL";
 
 // Status related messages
 pub(super) const MSG_STATUS_ABOUT: &str = "Get status of the server";
-pub(super) const MSG_API_CONFIG_NOT_FOUND_ERR: &str = "API config not found";
 pub(super) const MSG_STATUS_URL_HELP: &str = "URL of the health check endpoint";
 pub(super) const MSG_STATUS_PORTS_HELP: &str = "Show used ports";
 pub(super) const MSG_COMPONENTS: &str = "Components:\n";

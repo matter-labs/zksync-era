@@ -7,13 +7,13 @@ use zksync_dal::{Connection, Core, CoreDal};
 use zksync_merkle_tree::{domain::ZkSyncTree, TreeInstruction};
 use zksync_system_constants::{get_intrinsic_constants, ZKPORTER_IS_AVAILABLE};
 use zksync_types::{
-    block::{L1BatchHeader, L2BlockHeader},
+    block::{L1BatchHeader, L2BlockHasher, L2BlockHeader},
     commitment::{
         AuxCommitments, L1BatchCommitmentArtifacts, L1BatchCommitmentHash, L1BatchMetaParameters,
         L1BatchMetadata,
     },
     fee::Fee,
-    fee_model::BatchFeeInput,
+    fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput},
     l2::L2Tx,
     l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
     protocol_version::ProtocolSemanticVersion,
@@ -22,10 +22,48 @@ use zksync_types::{
     Address, K256PrivateKey, L1BatchNumber, L2BlockNumber, L2ChainId, Nonce, ProtocolVersion,
     ProtocolVersionId, StorageLog, H256, U256,
 };
-use zksync_vm_interface::{TransactionExecutionResult, TxExecutionStatus, VmExecutionMetrics};
+use zksync_vm_interface::{
+    L1BatchEnv, L2BlockEnv, SystemEnv, TransactionExecutionResult, TxExecutionMode,
+    TxExecutionStatus, VmExecutionMetrics,
+};
 
 /// Value for recent protocol versions.
 const MAX_GAS_PER_PUBDATA_BYTE: u64 = 50_000;
+
+/// Creates a mock system env with reasonable params.
+pub fn default_system_env() -> SystemEnv {
+    SystemEnv {
+        zk_porter_available: ZKPORTER_IS_AVAILABLE,
+        version: ProtocolVersionId::latest(),
+        base_system_smart_contracts: BaseSystemContracts::load_from_disk(),
+        bootloader_gas_limit: u32::MAX,
+        execution_mode: TxExecutionMode::VerifyExecute,
+        default_validation_computational_gas_limit: u32::MAX,
+        chain_id: L2ChainId::from(270),
+    }
+}
+
+/// Creates a mock L1 batch env with reasonable params.
+pub fn default_l1_batch_env(number: u32, timestamp: u64, fee_account: Address) -> L1BatchEnv {
+    L1BatchEnv {
+        previous_batch_hash: None,
+        number: L1BatchNumber(number),
+        timestamp,
+        fee_account,
+        enforced_base_fee: None,
+        first_l2_block: L2BlockEnv {
+            number,
+            timestamp,
+            prev_block_hash: L2BlockHasher::legacy_hash(L2BlockNumber(number - 1)),
+            max_virtual_blocks_to_create: 1,
+        },
+        fee_input: BatchFeeInput::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
+            fair_l2_gas_price: 1,
+            fair_pubdata_price: 1,
+            l1_gas_price: 1,
+        }),
+    }
+}
 
 /// Creates an L2 block header with the specified number and deterministic contents.
 pub fn create_l2_block(number: u32) -> L2BlockHeader {
@@ -382,16 +420,18 @@ pub async fn recover(
 
     storage
         .pruning_dal()
-        .soft_prune_batches_range(snapshot.l1_batch.number, snapshot.l2_block.number)
+        .insert_soft_pruning_log(snapshot.l1_batch.number, snapshot.l2_block.number)
         .await
         .unwrap();
-
     storage
         .pruning_dal()
-        .hard_prune_batches_range(snapshot.l1_batch.number, snapshot.l2_block.number)
+        .insert_hard_pruning_log(
+            snapshot.l1_batch.number,
+            snapshot.l2_block.number,
+            snapshot_recovery.l1_batch_root_hash,
+        )
         .await
         .unwrap();
-
     storage.commit().await.unwrap();
     snapshot_recovery
 }

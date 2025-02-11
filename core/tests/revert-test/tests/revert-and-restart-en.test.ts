@@ -20,16 +20,28 @@ import { assert, expect } from 'chai';
 import fs from 'node:fs/promises';
 import * as child_process from 'child_process';
 import * as dotenv from 'dotenv';
-import { loadConfig, replaceAggregatedBlockExecuteDeadline, shouldLoadConfigFromFile } from 'utils/build/file-configs';
+import {
+    loadConfig,
+    replaceL1BatchMinAgeBeforeExecuteSeconds,
+    shouldLoadConfigFromFile
+} from 'utils/build/file-configs';
 import path from 'path';
 import { logsTestPath } from 'utils/build/logs';
-import { IZkSyncHyperchain } from 'zksync-ethers/build/typechain';
+import { IZkSyncHyperchain, IZkSyncHyperchain__factory } from 'zksync-ethers/build/typechain';
 
 const pathToHome = path.join(__dirname, '../../../..');
 const fileConfig = shouldLoadConfigFromFile();
 
 async function logsPath(name: string): Promise<string> {
     return await logsTestPath(fileConfig.chain, 'logs/revert/en', name);
+}
+
+interface GatewayInfo {
+    gatewayChainId: string;
+    gatewayProvider: zksync.Provider;
+    gatewayCTM: string;
+    l2ChainAdmin: string;
+    l2DiamondProxyAddress: string;
 }
 
 function run(cmd: string, args: string[], options: child_process.SpawnOptions): child_process.SpawnSyncReturns<Buffer> {
@@ -42,7 +54,18 @@ function compileBinaries() {
     console.log('compiling binaries');
     run(
         'cargo',
-        ['build', '--release', '--bin', 'zksync_external_node', '--bin', 'zksync_server', '--bin', 'block_reverter'],
+        [
+            'build',
+            '--manifest-path',
+            './core/Cargo.toml',
+            '--release',
+            '--bin',
+            'zksync_external_node',
+            '--bin',
+            'zksync_server',
+            '--bin',
+            'block_reverter'
+        ],
         { cwd: process.env.ZKSYNC_HOME }
     );
 }
@@ -101,7 +124,8 @@ describe('Block reverting test', function () {
     let mainNode: Node<NodeType.MAIN>;
     let extNodeSpawner: NodeSpawner;
     let extNode: Node<NodeType.EXT>;
-    let mainContract: IZkSyncHyperchain;
+    let gatewayInfo: GatewayInfo | null;
+    let settlementLayerMainContract: IZkSyncHyperchain;
     let alice: zksync.Wallet;
     let depositL1BatchNumber: number;
     let batchesCommittedBeforeRevert: bigint;
@@ -117,31 +141,26 @@ describe('Block reverting test', function () {
         let extEnv;
         [mainEnv, extEnv] = loadEnvs();
 
-        if (fileConfig.loadFromFile) {
-            const secretsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'secrets.yaml' });
-            const generalConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'general.yaml' });
-            const contractsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'contracts.yaml' });
-            const externalNodeGeneralConfig = loadConfig({
-                pathToHome,
-                configsFolderSuffix: 'external_node',
-                chain: fileConfig.chain,
-                config: 'general.yaml'
-            });
-            const walletsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'wallets.yaml' });
-
-            ethClientWeb3Url = secretsConfig.l1.l1_rpc_url;
-            apiWeb3JsonRpcHttpUrl = generalConfig.api.web3_json_rpc.http_url;
-            baseTokenAddress = contractsConfig.l1.base_token_addr;
-            enEthClientUrl = externalNodeGeneralConfig.api.web3_json_rpc.http_url;
-            operatorAddress = walletsConfig.operator.address;
-        } else {
-            ethClientWeb3Url = mainEnv.ETH_CLIENT_WEB3_URL!;
-            apiWeb3JsonRpcHttpUrl = mainEnv.API_WEB3_JSON_RPC_HTTP_URL!;
-            baseTokenAddress = mainEnv.CONTRACTS_BASE_TOKEN_ADDR!;
-            enEthClientUrl = `http://127.0.0.1:${extEnv.EN_HTTP_PORT!}`;
-            // TODO use env variable for this?
-            operatorAddress = '0xde03a0B5963f75f1C8485B355fF6D30f3093BDE7';
+        if (!fileConfig.loadFromFile) {
+            throw new Error('Non file based not supportred');
         }
+
+        const secretsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'secrets.yaml' });
+        const generalConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'general.yaml' });
+        const contractsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'contracts.yaml' });
+        const externalNodeGeneralConfig = loadConfig({
+            pathToHome,
+            configsFolderSuffix: 'external_node',
+            chain: fileConfig.chain,
+            config: 'general.yaml'
+        });
+        const walletsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'wallets.yaml' });
+
+        ethClientWeb3Url = secretsConfig.l1.l1_rpc_url;
+        apiWeb3JsonRpcHttpUrl = generalConfig.api.web3_json_rpc.http_url;
+        baseTokenAddress = contractsConfig.l1.base_token_addr;
+        enEthClientUrl = externalNodeGeneralConfig.api.web3_json_rpc.http_url;
+        operatorAddress = walletsConfig.operator.address;
 
         const pathToMainLogs = await logsPath('server.log');
         const mainLogs = await fs.open(pathToMainLogs, 'a');
@@ -173,6 +192,14 @@ describe('Block reverting test', function () {
             baseTokenAddress
         };
         extNodeSpawner = new NodeSpawner(pathToHome, extLogs, fileConfig, extNodeSpawnOptions, extEnv);
+
+        gatewayInfo = getGatewayInfo(pathToHome, fileConfig.chain);
+
+        const l1Provider = new ethers.JsonRpcProvider(ethClientWeb3Url);
+
+        settlementLayerMainContract = gatewayInfo
+            ? IZkSyncHyperchain__factory.connect(gatewayInfo.l2DiamondProxyAddress, gatewayInfo.gatewayProvider)
+            : IZkSyncHyperchain__factory.connect(contractsConfig.l1.diamond_proxy_addr, l1Provider);
     });
 
     step('Make sure that nodes are not running', async () => {
@@ -192,7 +219,6 @@ describe('Block reverting test', function () {
 
     step('Fund wallets', async () => {
         await mainNode.tester.fundSyncWallet();
-        mainContract = await mainNode.tester.syncWallet.getMainContract();
         await extNode.tester.fundSyncWallet();
         alice = extNode.tester.emptyWallet();
     });
@@ -202,7 +228,7 @@ describe('Block reverting test', function () {
     });
 
     step('wait for L1 batch to get executed', async () => {
-        await waitToExecuteBatch(mainContract, depositL1BatchNumber);
+        await waitToExecuteBatch(settlementLayerMainContract, depositL1BatchNumber);
     });
 
     step('Restart main node with batch execution turned off', async () => {
@@ -222,7 +248,7 @@ describe('Block reverting test', function () {
     });
 
     step('wait for the new batch to be committed', async () => {
-        batchesCommittedBeforeRevert = await waitToCommitBatchesWithoutExecution(mainContract);
+        batchesCommittedBeforeRevert = await waitToCommitBatchesWithoutExecution(settlementLayerMainContract);
     });
 
     step('stop server', async () => {
@@ -235,7 +261,7 @@ describe('Block reverting test', function () {
             fileConfig.chain,
             operatorAddress,
             batchesCommittedBeforeRevert,
-            mainContract,
+            settlementLayerMainContract,
             mainEnv
         );
     });
@@ -279,7 +305,37 @@ describe('Block reverting test', function () {
         await extNode.terminate();
 
         if (fileConfig.loadFromFile) {
-            replaceAggregatedBlockExecuteDeadline(pathToHome, fileConfig, 10);
+            replaceL1BatchMinAgeBeforeExecuteSeconds(pathToHome, fileConfig, 0);
         }
     });
 });
+
+export function getGatewayInfo(pathToHome: string, chain: string): GatewayInfo | null {
+    const gatewayChainConfig = loadConfig({
+        pathToHome,
+        chain,
+        config: 'gateway_chain.yaml'
+    });
+
+    if (!gatewayChainConfig) {
+        return null;
+    }
+
+    if (gatewayChainConfig.gateway_chain_id) {
+        const secretsConfig = loadConfig({
+            pathToHome,
+            chain,
+            config: 'secrets.yaml'
+        });
+
+        return {
+            gatewayChainId: gatewayChainConfig.gateway_chain_id,
+            gatewayProvider: new zksync.Provider(secretsConfig.l1.gateway_rpc_url),
+            gatewayCTM: gatewayChainConfig.state_transition_proxy_addr,
+            l2ChainAdmin: gatewayChainConfig.chain_admin_addr,
+            l2DiamondProxyAddress: gatewayChainConfig.diamond_proxy_addr
+        };
+    }
+
+    return null;
+}

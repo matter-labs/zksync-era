@@ -17,7 +17,7 @@ vise.workspace = true
 zksync_vm_interface.workspace = true
 zksync_system_constants.workspace = true
 zksync_contracts.workspace = true
-zksync_types.workspace = true
+zksync_types = { workspace = true, features = ["contract-verification"] }
 zksync_concurrency.workspace = true
 zksync_consensus_roles.workspace = true
 zksync_consensus_storage.workspace = true
@@ -54,7 +54,8 @@ bincode.workspace = true
 hex.workspace = true
 strum = { workspace = true, features = ["derive"] }
 tracing.workspace = true
-chrono = { workspace = true, features = ["serde"] }
+chrono = { workspace = true, default-features = false, features = ["now"] }
+rayon.workspace = true
 
 [dev-dependencies]
 zksync_test_contracts.workspace = true

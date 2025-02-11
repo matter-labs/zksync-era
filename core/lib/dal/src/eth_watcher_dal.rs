@@ -12,6 +12,7 @@ pub struct EthWatcherDal<'a, 'c> {
 pub enum EventType {
     ProtocolUpgrades,
     PriorityTransactions,
+    ChainBatchRoot,
 }
 
 impl EthWatcherDal<'_, '_> {

@@ -1,9 +1,9 @@
 use std::mem::take;
 
 use anyhow::{bail, Result};
-use common::spinner::Spinner;
 use sqruff_lib::{api::simple::get_simple_config, core::linter::core::Linter};
 use xshell::Shell;
+use zkstack_cli_common::spinner::Spinner;
 
 use super::lint_utils::{get_unignored_files, IgnoredData, Target};
 use crate::commands::dev::messages::{msg_file_is_not_formatted, MSG_RUNNING_SQL_FMT_SPINNER};

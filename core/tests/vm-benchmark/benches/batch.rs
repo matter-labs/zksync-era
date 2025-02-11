@@ -18,9 +18,10 @@ use criterion::{black_box, criterion_group, criterion_main, Criterion, Throughpu
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use vm_benchmark::{
     criterion::{is_test_mode, BenchmarkGroup, BenchmarkId, CriterionExt, MeteredTime},
-    get_deploy_tx_with_gas_limit, get_heavy_load_test_tx, get_load_test_deploy_tx,
-    get_load_test_tx, get_realistic_load_test_tx, get_transfer_tx, BenchmarkingVm,
-    BenchmarkingVmFactory, Bytecode, Fast, Legacy, LoadTestParams,
+    get_deploy_tx_with_gas_limit, get_erc20_deploy_tx, get_erc20_transfer_tx,
+    get_heavy_load_test_tx, get_load_test_deploy_tx, get_load_test_tx, get_realistic_load_test_tx,
+    get_transfer_tx, BenchmarkingVm, BenchmarkingVmFactory, Bytecode, Fast, FastNoSignatures,
+    FastWithStorageLimit, Legacy, LoadTestParams,
 };
 use zksync_types::Transaction;
 
@@ -146,6 +147,12 @@ fn bench_fill_bootloader<VM: BenchmarkingVmFactory, const FULL: bool>(
     run_vm::<VM, FULL>(&mut group, "load_test_heavy", &txs);
     drop(txs);
 
+    // ERC-20 token transfers
+    let txs = (1..=max_txs).map(get_erc20_transfer_tx);
+    let txs: Vec<_> = iter::once(get_erc20_deploy_tx()).chain(txs).collect();
+    run_vm::<VM, FULL>(&mut group, "erc20_transfer", &txs);
+    drop(txs);
+
     // Base token transfers
     let txs: Vec<_> = (0..max_txs).map(get_transfer_tx).collect();
     run_vm::<VM, FULL>(&mut group, "transfer", &txs);
@@ -191,6 +198,8 @@ criterion_group!(
         .with_measurement(MeteredTime::new("fill_bootloader"));
     targets = bench_fill_bootloader::<Fast, false>,
         bench_fill_bootloader::<Fast, true>,
+        bench_fill_bootloader::<FastNoSignatures, false>,
+        bench_fill_bootloader::<FastWithStorageLimit, false>,
         bench_fill_bootloader::<Legacy, false>
 );
 criterion_main!(benches);

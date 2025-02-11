@@ -14,7 +14,9 @@ use zksync_multivm::{
         ExecutionResult, OneshotTracingParams, TransactionExecutionMetrics, VmExecutionLogs,
         VmExecutionResultAndLogs, VmExecutionStatistics,
     },
-    utils::{derive_base_fee_and_gas_per_pubdata, get_max_batch_gas_limit},
+    utils::{
+        derive_base_fee_and_gas_per_pubdata, get_max_batch_gas_limit, get_max_new_factory_deps,
+    },
 };
 use zksync_node_fee_model::{ApiFeeInputProvider, BatchFeeModelInputProvider};
 use zksync_state::PostgresStorageCaches;
@@ -30,8 +32,7 @@ use zksync_types::{
     transaction_request::CallOverrides,
     utils::storage_key_for_eth_balance,
     vm::FastVmMode,
-    AccountTreeId, Address, L2ChainId, Nonce, ProtocolVersionId, Transaction, H160, H256,
-    MAX_NEW_FACTORY_DEPS, U256,
+    AccountTreeId, Address, L2ChainId, Nonce, ProtocolVersionId, Transaction, H160, H256, U256,
 };
 use zksync_vm_executor::oneshot::{
     CallOrExecute, EstimateGas, MultiVmBaseSystemContracts, OneshotEnvParameters,
@@ -399,10 +400,11 @@ impl TxSender {
             );
             return Err(SubmitTxError::MaxPriorityFeeGreaterThanMaxFee);
         }
-        if tx.execute.factory_deps.len() > MAX_NEW_FACTORY_DEPS {
+        let max_new_factory_deps = get_max_new_factory_deps(protocol_version.into());
+        if tx.execute.factory_deps.len() > max_new_factory_deps {
             return Err(SubmitTxError::TooManyFactoryDependencies(
                 tx.execute.factory_deps.len(),
-                MAX_NEW_FACTORY_DEPS,
+                max_new_factory_deps,
             ));
         }
 
@@ -512,7 +514,7 @@ impl TxSender {
     }
 
     // For now, both L1 gas price and pubdata price are scaled with the same coefficient
-    async fn scaled_batch_fee_input(&self) -> anyhow::Result<BatchFeeInput> {
+    pub(crate) async fn scaled_batch_fee_input(&self) -> anyhow::Result<BatchFeeInput> {
         self.0
             .batch_fee_input_provider
             .get_batch_fee_input_scaled(
@@ -594,7 +596,7 @@ impl TxSender {
         // but the API assumes we are post boojum. In this situation we will determine a tx as being executable but the StateKeeper will
         // still reject them as it's not.
         let protocol_version = ProtocolVersionId::latest();
-        let seal_data = SealData::for_transaction(transaction, tx_metrics, protocol_version);
+        let seal_data = SealData::for_transaction(transaction, tx_metrics);
         if let Some(reason) = self
             .0
             .sealer

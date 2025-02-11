@@ -265,7 +265,7 @@ impl WsTest for BasicSubscriptionsTest {
         wait_for_subscription(&mut pub_sub_events, SubscriptionType::Txs).await;
 
         let mut storage = pool.connection().await?;
-        let tx_result = execute_l2_transaction(create_l2_transaction(1, 2));
+        let tx_result = mock_execute_transaction(create_l2_transaction(1, 2).into());
         let new_tx_hash = tx_result.hash;
         let l2_block_number = if self.snapshot_recovery {
             StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 2

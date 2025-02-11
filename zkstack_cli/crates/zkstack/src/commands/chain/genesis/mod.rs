@@ -1,13 +1,13 @@
 use anyhow::Context;
 use clap::{command, Parser, Subcommand};
-use common::{logger, spinner::Spinner};
-use config::{ChainConfig, EcosystemConfig};
 use xshell::Shell;
+use zkstack_cli_common::{logger, spinner::Spinner};
+use zkstack_cli_config::{ChainConfig, EcosystemConfig};
 
 use crate::{
     commands::chain::{
         args::genesis::{GenesisArgs, GenesisArgsFinal},
-        genesis::{self, database::initialize_server_database, server::run_server_genesis},
+        genesis::{database::initialize_server_database, server::run_server_genesis},
     },
     messages::{
         MSG_CHAIN_NOT_INITIALIZED, MSG_GENESIS_COMPLETED, MSG_INITIALIZING_DATABASES_SPINNER,
@@ -63,7 +63,7 @@ pub async fn genesis(
     shell: &Shell,
     config: &ChainConfig,
 ) -> anyhow::Result<()> {
-    genesis::database::update_configs(args.clone(), shell, config)?;
+    database::update_configs(args.clone(), shell, config).await?;
 
     logger::note(
         MSG_SELECTED_CONFIG,

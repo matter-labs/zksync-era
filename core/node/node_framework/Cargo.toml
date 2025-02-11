@@ -48,6 +48,7 @@ zksync_contract_verification_server.workspace = true
 zksync_queued_job_processor.workspace = true
 zksync_reorg_detector.workspace = true
 zksync_vm_runner.workspace = true
+zksync_mini_merkle_tree.workspace = true
 zksync_node_db_pruner.workspace = true
 zksync_base_token_adjuster.workspace = true
 zksync_node_storage_init.workspace = true
@@ -55,6 +56,7 @@ zksync_external_price_api.workspace = true
 zksync_external_proof_integration_api.workspace = true
 zksync_logs_bloom_backfill.workspace = true
 zksync_zkos_state_keeper.workspace = true
+zksync_shared_metrics.workspace = true
 
 pin-project-lite.workspace = true
 tracing.workspace = true
@@ -62,6 +64,7 @@ thiserror.workspace = true
 async-trait.workspace = true
 futures.workspace = true
 anyhow.workspace = true
+serde.workspace = true
 tokio = { workspace = true, features = ["rt"] }
 ctrlc.workspace = true
 semver.workspace = true

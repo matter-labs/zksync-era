@@ -15,6 +15,7 @@ pub trait ContractsKind: fmt::Debug + Sealed {}
 pub struct EstimateGas(());
 
 impl Sealed for EstimateGas {}
+
 impl ContractsKind for EstimateGas {}
 
 /// Marker for [`BaseSystemContracts`] used for calls and transaction execution.
@@ -22,6 +23,7 @@ impl ContractsKind for EstimateGas {}
 pub struct CallOrExecute(());
 
 impl Sealed for CallOrExecute {}
+
 impl ContractsKind for CallOrExecute {}
 
 /// Provider of [`BaseSystemContracts`] for oneshot execution.
@@ -104,10 +106,9 @@ impl<C: ContractsKind> MultiVmBaseSystemContracts<C> {
             ProtocolVersionId::Version21 | ProtocolVersionId::Version22 => &self.post_1_4_2,
             ProtocolVersionId::Version23 => &self.vm_1_5_0_small_memory,
             ProtocolVersionId::Version24 => &self.vm_1_5_0_increased_memory,
-            ProtocolVersionId::Version25 | ProtocolVersionId::Version26 => {
-                &self.vm_protocol_defense
-            }
-            ProtocolVersionId::Version27 => &self.gateway,
+            ProtocolVersionId::Version25 => &self.vm_protocol_defense,
+            ProtocolVersionId::Version26 | ProtocolVersionId::Version27 => &self.gateway,
+            ProtocolVersionId::Version28 => unreachable!("Version 28 is not supported yet"),
         };
         let base = base.clone();
 

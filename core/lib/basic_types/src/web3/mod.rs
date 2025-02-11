@@ -198,11 +198,17 @@ pub struct Filter {
 }
 
 #[derive(Default, Debug, PartialEq, Clone)]
-pub struct ValueOrArray<T>(Vec<T>);
+pub struct ValueOrArray<T>(pub Vec<T>);
 
 impl<T> ValueOrArray<T> {
     pub fn flatten(self) -> Vec<T> {
         self.0
+    }
+}
+
+impl<T> From<T> for ValueOrArray<T> {
+    fn from(value: T) -> Self {
+        Self(vec![value])
     }
 }
 

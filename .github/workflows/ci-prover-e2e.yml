@@ -5,6 +5,10 @@ on:
 jobs:
   e2e-test:
     runs-on: [ matterlabs-ci-gpu-l4-runner-prover-tests ]
+    strategy:
+        fail-fast: false
+        matrix:
+          compressor-mode: ["fflonk", "plonk"]
     env:
       RUNNER_COMPOSE_FILE: "docker-compose-gpu-runner-cuda-12-0.yml"
 
@@ -24,17 +28,36 @@ jobs:
           echo "SCCACHE_GCS_RW_MODE=READ_WRITE" >> .env
           echo "RUSTC_WRAPPER=sccache" >> .env
           
-          mkdir -p prover_logs
+          mkdir -p prover_logs_${{matrix.compressor-mode}}
 
       - name: Start services
         run: |
           run_retried docker-compose -f ${RUNNER_COMPOSE_FILE} pull
           docker-compose -f ${RUNNER_COMPOSE_FILE} --profile runner up -d --wait
           ci_run sccache --start-server
+          ci_run git config --global --add safe.directory "*"
+
+      - name: Checkout DualVerifier commit
+        working-directory: ./contracts
+        if: matrix.compressor-mode == 'fflonk'
+        run: |
+          git fetch
+          # Checkout the commit with the DualVerifier contract to test FFLONK interface
+          git checkout bcdd1cb05e8f4d9ec2dd41e2cc668cdfe30ee535
+          git submodule update --init --recursive
+          git rev-parse HEAD
+
+      - name: Set new genesis for fflonk 
+        # Note, that while `Verifier` is not explicitly a part of the genensis state,
+        # it affects it indirectly as it is a part of the repo.
+        working-directory: ./etc/env/file_based
+        if: matrix.compressor-mode == 'fflonk'
+        run: |
+          sudo sed -i 's/^genesis_root: .*/genesis_root: 0xc3fa60b6769a0c2f222053d7cbd1d6f63be7777e3c8d029cbd61cc075526ab81/' genesis.yaml
+          sudo sed -i "s/^genesis_batch_commitment: .*/genesis_batch_commitment: 0x17689e705b5749ed0bbd53c845988d17c419697c2cb29eabab8785f1cb775b4a/" genesis.yaml
 
       - name: Init
         run: |
-          ci_run git config --global --add safe.directory "*"
           ci_run chmod -R +x ./bin
           
           ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup || true
@@ -51,49 +74,56 @@ jobs:
             --base-token-price-denominator 1 \
             --set-as-default true \
             --ignore-prerequisites \
-            --evm-emulator false
+            --evm-emulator false \
+            --update-submodules=${{matrix.compressor-mode == 'plonk'}}
 
-          ci_run zkstack ecosystem init --dev --verbose
+          ci_run zkstack ecosystem init --dev --update-submodules=${{matrix.compressor-mode == 'plonk'}} --verbose
+
           ci_run zkstack prover init --dev --verbose
-          
           echo "URL=$(grep "http_url" ./chains/proving_chain/configs/general.yaml | awk '{ print $2 }')" >> $GITHUB_ENV
-      - name: Build prover binaries
+
+      - name: Switch verifier to FFLONK interface
+        working-directory: ./chains/proving_chain/configs
+        if: matrix.compressor-mode == 'fflonk'
         run: |
-          ci_run cargo build --release --workspace --manifest-path=prover/Cargo.toml
+          sudo sed -i 's/is_verifier_pre_fflonk: true/is_verifier_pre_fflonk: false/' general.yaml
+          grep "is_verifier_pre_fflonk" general.yaml | awk '{ print $2 }'
+
       - name: Prepare prover subsystem
         run: |
           ci_run zkstack prover init-bellman-cuda --clone --verbose
           ci_run zkstack prover setup-keys --mode=download --region=us --verbose
+
       - name: Run server
         run: |
-          ci_run zkstack server --uring --chain=proving_chain --components=api,tree,eth,state_keeper,commitment_generator,proof_data_handler,vm_runner_protective_reads,vm_runner_bwip &>prover_logs/server.log &
-      - name: Run Gateway
+          ci_run zkstack server --uring --chain=proving_chain --components=api,tree,eth,state_keeper,commitment_generator,proof_data_handler,vm_runner_protective_reads,vm_runner_bwip &>prover_logs_${{matrix.compressor-mode}}/server.log &
+      - name: Run prover gateway
         run: |
-          ci_run zkstack prover run --component=gateway --docker=false &>prover_logs/gateway.log &
+          ci_run zkstack prover run --component=gateway --docker=false &>prover_logs_${{matrix.compressor-mode}}/gateway.log &
       - name: Run Prover Job Monitor
         run: |
-          ci_run zkstack prover run --component=prover-job-monitor --docker=false &>prover_logs/prover-job-monitor.log &
-      - name: Wait for batch to be passed through gateway
+          ci_run zkstack prover run --component=prover-job-monitor --docker=false &>prover_logs_${{matrix.compressor-mode}}/prover-job-monitor.log &
+      - name: Wait for batch to be passed through prover gateway
         env:
           DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_prover_localhost_proving_chain
           BATCH_NUMBER: 1
           INTERVAL: 30
-          TIMEOUT: 300
+          TIMEOUT: 450
         run: |
           PASSED_ENV_VARS="DATABASE_URL,BATCH_NUMBER,INTERVAL,TIMEOUT" \
           ci_run ./bin/prover_checkers/batch_availability_checker
       - name: Run Witness Generator
         run: |
-          ci_run zkstack prover run --component=witness-generator --round=all-rounds --docker=false &>prover_logs/witness-generator.log &
+          ci_run zkstack prover run --component=witness-generator --round=all-rounds --docker=false &>prover_logs_${{matrix.compressor-mode}}/witness-generator.log &
       - name: Run Circuit Prover
         run: |
-          ci_run zkstack prover run --component=circuit-prover -l=23 -h=3 --docker=false &>prover_logs/circuit_prover.log &
+          ci_run zkstack prover run --component=circuit-prover -l=23 -h=3 --docker=false &>prover_logs_${{matrix.compressor-mode}}/circuit_prover.log &
       - name: Wait for prover jobs to finish
         env:
           DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_prover_localhost_proving_chain
           BATCH_NUMBER: 1
           INTERVAL: 30
-          TIMEOUT: 1200
+          TIMEOUT: 1800
         run: |
           PASSED_ENV_VARS="DATABASE_URL,BATCH_NUMBER,INTERVAL,TIMEOUT" \
           ci_run ./bin/prover_checkers/prover_jobs_status_checker
@@ -101,14 +131,14 @@ jobs:
       - name: Kill prover & start compressor
         run: |
           sudo ./bin/prover_checkers/kill_prover
+          ci_run zkstack prover run --component=compressor --docker=false --mode=${{matrix.compressor-mode}} &>prover_logs_${{matrix.compressor-mode}}/compressor.log &
 
-          ci_run zkstack prover run --component=compressor --docker=false &>prover_logs/compressor.log &
       - name: Wait for batch to be executed on L1
         env:
-            DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_prover_localhost_proving_chain
-            BATCH_NUMBER: 1
-            INTERVAL: 30
-            TIMEOUT: 600
+          DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_prover_localhost_proving_chain
+          BATCH_NUMBER: 1
+          INTERVAL: 30
+          TIMEOUT: 1200
         run: |
           PASSED_ENV_VARS="BATCH_NUMBER,DATABASE_URL,URL,INTERVAL,TIMEOUT" \
           ci_run ./bin/prover_checkers/batch_l1_status_checker
@@ -117,8 +147,8 @@ jobs:
         uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874 # v4.4.0
         if: always()
         with:
-          name: prover_logs
-          path: prover_logs
+          name: prover_logs_${{matrix.compressor-mode}}
+          path: prover_logs_${{matrix.compressor-mode}}
 
       - name: Show sccache logs
         if: always()

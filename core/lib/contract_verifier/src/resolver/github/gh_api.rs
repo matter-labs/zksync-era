@@ -86,6 +86,7 @@ impl CompilerGitHubRelease {
         match self {
             Self::Solc | Self::Vyper => {
                 // Solidity and Vyper releases are tagged with version numbers in form of `vX.Y.Z`.
+                // Our API does not require the `v` prefix for solc/vyper, so we strip it.
                 tag_name
                     .strip_prefix('v')
                     .filter(|v| semver::Version::parse(v).is_ok())
@@ -94,6 +95,7 @@ impl CompilerGitHubRelease {
             Self::ZkVmSolc => {
                 // ZkVmSolc releases are tagged with version numbers in form of `X.Y.Z-A.B.C`, where
                 // `X.Y.Z` is the version of the Solidity compiler, and `A.B.C` is the version of the ZkSync fork.
+                // `v` prefix is not required.
                 if let Some((main, fork)) = tag_name.split_once('-') {
                     if semver::Version::parse(main).is_ok() && semver::Version::parse(fork).is_ok()
                     {
@@ -105,8 +107,9 @@ impl CompilerGitHubRelease {
             }
             Self::ZkSolc | Self::ZkVyper => {
                 // zksolc and zkvyper releases are tagged with version numbers in form of `X.Y.Z` (without 'v').
+                // Our API expects versions to be prefixed with `v` for zksolc/zkvyper, so we add it.
                 if semver::Version::parse(tag_name).is_ok() {
-                    Some(tag_name.to_string())
+                    Some(format!("v{tag_name}"))
                 } else {
                     None
                 }

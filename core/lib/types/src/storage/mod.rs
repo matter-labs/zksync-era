@@ -3,7 +3,6 @@ use core::fmt::Debug;
 use blake2::{Blake2s256, Digest};
 pub use log::*;
 use serde::{Deserialize, Serialize};
-use zk_os_system_hooks::addresses_constants::ACCOUNT_PARTIAL_DATA_STORAGE_ADDRESS;
 use zksync_basic_types::{web3::keccak256, L2ChainId};
 pub use zksync_system_constants::*;
 
@@ -90,6 +89,11 @@ pub fn get_known_code_key(hash: &H256) -> StorageKey {
 pub fn get_system_context_key(key: H256) -> StorageKey {
     let system_context = AccountTreeId::new(SYSTEM_CONTEXT_ADDRESS);
     StorageKey::new(system_context, key)
+}
+
+pub fn get_message_root_log_key(key: H256) -> StorageKey {
+    let message_root = AccountTreeId::new(L2_MESSAGE_ROOT_ADDRESS);
+    StorageKey::new(message_root, key)
 }
 
 pub fn get_deployer_key(key: H256) -> StorageKey {

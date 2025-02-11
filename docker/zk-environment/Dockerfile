@@ -47,7 +47,7 @@ RUN cargo install cargo-spellcheck
 RUN cargo install sccache
 
 RUN git clone https://github.com/matter-labs/foundry-zksync
-RUN cd foundry-zksync && cargo build --release --bins
+RUN cd foundry-zksync && git reset --hard 27360d4c8d12beddbb730dae07ad33a206b38f4b && cargo build --release --bins
 RUN mv ./foundry-zksync/target/release/forge /usr/local/cargo/bin/
 RUN mv ./foundry-zksync/target/release/cast /usr/local/cargo/bin/
 

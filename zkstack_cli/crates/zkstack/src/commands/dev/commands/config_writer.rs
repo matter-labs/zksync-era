@@ -1,8 +1,8 @@
 use anyhow::Context;
 use clap::Parser;
-use common::{logger, Prompt};
-use config::{override_config, EcosystemConfig};
 use xshell::Shell;
+use zkstack_cli_common::{logger, Prompt};
+use zkstack_cli_config::{override_config, EcosystemConfig};
 
 use crate::commands::dev::messages::{
     msg_overriding_config, MSG_CHAIN_NOT_FOUND_ERR, MSG_OVERRIDE_CONFIG_PATH_HELP,

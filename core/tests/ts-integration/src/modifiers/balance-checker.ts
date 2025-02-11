@@ -53,7 +53,8 @@ export async function shouldChangeTokenBalances(
 ): Promise<ShouldChangeBalance> {
     return await ShouldChangeBalance.create(token, balanceChanges, {
         noAutoFeeCheck: true,
-        l1: params?.l1 ?? false
+        l1: params?.l1 ?? false,
+        ignoreUndeployedToken: params?.ignoreUndeployedToken ?? false
     });
 }
 
@@ -80,6 +81,7 @@ export interface Params {
     noAutoFeeCheck?: boolean;
     l1?: boolean;
     l1ToL2?: boolean;
+    ignoreUndeployedToken?: boolean;
 }
 
 /**
@@ -114,7 +116,7 @@ class ShouldChangeBalance extends MatcherModifier {
         for (const entry of balanceChanges) {
             const wallet = entry.wallet;
             const address = entry.addressToCheck ?? entry.wallet.address;
-            const initialBalance = await getBalance(l1, wallet, address, token);
+            const initialBalance = await getBalance(l1, wallet, address, token, params?.ignoreUndeployedToken);
             populatedBalanceChanges.push({
                 wallet: entry.wallet,
                 change: entry.change,
@@ -280,13 +282,25 @@ function extractRefundForL1ToL2(receipt: zksync.types.TransactionReceipt, refund
  * @param wallet Wallet to make requests from (may not represent the address to check)
  * @param address Address to check the balance
  * @param token Address of the token
+ * @param ignoreUndeployedToken Whether allow token to be not deployed.
+ *     If it's set to `true` and token is not deployed, then function returns 0.
  * @returns Token balance
  */
-async function getBalance(l1: boolean, wallet: zksync.Wallet, address: string, token: string): Promise<bigint> {
+async function getBalance(
+    l1: boolean,
+    wallet: zksync.Wallet,
+    address: string,
+    token: string,
+    ignoreUndeployedToken?: boolean
+): Promise<bigint> {
     const provider = l1 ? wallet.providerL1! : wallet.provider;
     if (zksync.utils.isETH(token)) {
         return await provider.getBalance(address);
     } else {
+        if (ignoreUndeployedToken && (await provider.getCode(token)) === '0x') {
+            return 0n;
+        }
+
         const erc20contract = IERC20Factory.connect(token, provider);
         return await erc20contract.balanceOf(address);
     }
