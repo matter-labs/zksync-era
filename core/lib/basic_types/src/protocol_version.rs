@@ -155,6 +155,10 @@ impl ProtocolVersionId {
         self < &Self::Version27
     }
 
+    pub fn is_post_fflonk(&self) -> bool {
+        self >= &Self::Version27
+    }
+
     pub fn is_1_4_0(&self) -> bool {
         self >= &ProtocolVersionId::Version18 && self < &ProtocolVersionId::Version20
     }

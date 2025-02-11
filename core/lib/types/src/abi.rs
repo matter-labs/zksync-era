@@ -1,5 +1,5 @@
 use anyhow::Context as _;
-use zksync_basic_types::protocol_version::ProtocolSemanticVersion;
+use zksync_basic_types::protocol_version::{ProtocolSemanticVersion, ProtocolVersionId};
 
 use crate::{
     bytecode::BytecodeHash,
@@ -193,6 +193,86 @@ pub struct VerifierParams {
     pub recursion_circuits_set_vks_hash: [u8; 32],
 }
 
+#[derive(Debug, Clone, Copy)]
+enum ProposedUpgradeSchema {
+    PreGateway,
+    PostGateway,
+    PostEvmEmulator,
+}
+
+impl ProposedUpgradeSchema {
+    fn tuple_type(self) -> ParamType {
+        match self {
+            Self::PreGateway => ParamType::Tuple(vec![
+                L2CanonicalTransaction::schema(),          // transaction data
+                ParamType::Array(ParamType::Bytes.into()), // factory deps
+                ParamType::FixedBytes(32),                 // bootloader code hash
+                ParamType::FixedBytes(32),                 // default account code hash
+                ParamType::Address,                        // verifier address
+                VerifierParams::schema(),                  // verifier params
+                ParamType::Bytes,                          // l1 custom data
+                ParamType::Bytes,                          // l1 post-upgrade custom data
+                ParamType::Uint(256),                      // timestamp
+                ParamType::Uint(256),                      // version id
+            ]),
+            Self::PostGateway => ParamType::Tuple(vec![
+                L2CanonicalTransaction::schema(), // transaction data
+                ParamType::FixedBytes(32),        // bootloader code hash
+                ParamType::FixedBytes(32),        // default account code hash
+                ParamType::Address,               // verifier address
+                VerifierParams::schema(),         // verifier params
+                ParamType::Bytes,                 // l1 custom data
+                ParamType::Bytes,                 // l1 post-upgrade custom data
+                ParamType::Uint(256),             // timestamp
+                ParamType::Uint(256),             // version id
+            ]),
+            Self::PostEvmEmulator => ParamType::Tuple(vec![
+                L2CanonicalTransaction::schema(), // transaction data
+                ParamType::FixedBytes(32),        // bootloader code hash
+                ParamType::FixedBytes(32),        // default account code hash
+                ParamType::FixedBytes(32),        // EVM emulator code hash
+                ParamType::Address,               // verifier address
+                VerifierParams::schema(),         // verifier params
+                ParamType::Bytes,                 // l1 custom data
+                ParamType::Bytes,                 // l1 post-upgrade custom data
+                ParamType::Uint(256),             // timestamp
+                ParamType::Uint(256),             // version id
+            ]),
+        }
+    }
+
+    fn expected_tuple_len(self) -> usize {
+        match self {
+            Self::PreGateway | Self::PostEvmEmulator => 10,
+            Self::PostGateway => 9,
+        }
+    }
+
+    fn decode_to_token(data: &[u8]) -> Vec<(Self, Token)> {
+        let mut output = vec![];
+        for schema in [Self::PreGateway, Self::PostGateway, Self::PostEvmEmulator] {
+            match ethabi::decode(&[schema.tuple_type()], data) {
+                Ok(tokens) => {
+                    output.push((schema, tokens.into_iter().next().unwrap()));
+                }
+                Err(err) => tracing::debug!(?schema, %err, "Error decoding proposed upgrade bytes"),
+            }
+        }
+        output
+    }
+
+    fn matches_protocol_version(self, protocol_version: ProtocolVersionId) -> bool {
+        match self {
+            Self::PreGateway => protocol_version.is_pre_gateway(),
+            // EVM emulator shares a protocol version upgrade with FFLONK
+            Self::PostGateway => {
+                protocol_version.is_post_gateway() && protocol_version.is_pre_fflonk()
+            }
+            Self::PostEvmEmulator => protocol_version.is_post_fflonk(),
+        }
+    }
+}
+
 /// `ProposedUpgrade` from, `l1-contracts/contracts/upgrades/BazeZkSyncUpgrade.sol`.
 #[derive(Debug)]
 pub struct ProposedUpgrade {
@@ -201,6 +281,7 @@ pub struct ProposedUpgrade {
     pub factory_deps: Option<Vec<Vec<u8>>>,
     pub bootloader_hash: [u8; 32],
     pub default_account_hash: [u8; 32],
+    pub evm_emulator_hash: [u8; 32],
     pub verifier: Address,
     pub verifier_params: VerifierParams,
     pub l1_contracts_upgrade_calldata: Vec<u8>,
@@ -253,38 +334,7 @@ impl VerifierParams {
 }
 
 impl ProposedUpgrade {
-    /// Pre-gateway RLP schema of the `ProposedUpgrade`.
-    pub fn schema_pre_gateway() -> ParamType {
-        ParamType::Tuple(vec![
-            L2CanonicalTransaction::schema(),          // transaction data
-            ParamType::Array(ParamType::Bytes.into()), // factory deps
-            ParamType::FixedBytes(32),                 // bootloader code hash
-            ParamType::FixedBytes(32),                 // default account code hash
-            ParamType::Address,                        // verifier address
-            VerifierParams::schema(),                  // verifier params
-            ParamType::Bytes,                          // l1 custom data
-            ParamType::Bytes,                          // l1 post-upgrade custom data
-            ParamType::Uint(256),                      // timestamp
-            ParamType::Uint(256),                      // version id
-        ])
-    }
-
-    /// Post-gateway RLP schema of the `ProposedUpgrade`.
-    pub fn schema_post_gateway() -> ParamType {
-        ParamType::Tuple(vec![
-            L2CanonicalTransaction::schema(), // transaction data
-            ParamType::FixedBytes(32),        // bootloader code hash
-            ParamType::FixedBytes(32),        // default account code hash
-            ParamType::Address,               // verifier address
-            VerifierParams::schema(),         // verifier params
-            ParamType::Bytes,                 // l1 custom data
-            ParamType::Bytes,                 // l1 post-upgrade custom data
-            ParamType::Uint(256),             // timestamp
-            ParamType::Uint(256),             // version id
-        ])
-    }
-
-    /// Encodes `ProposedUpgrade` to a RLP token.
+    /// Encodes `ProposedUpgrade` to a RLP token. Uses the latest schema.
     pub fn encode(&self) -> Token {
         let mut tokens = vec![self.l2_protocol_upgrade_tx.encode()];
 
@@ -304,6 +354,7 @@ impl ProposedUpgrade {
         tokens.extend([
             Token::FixedBytes(self.bootloader_hash.into()),
             Token::FixedBytes(self.default_account_hash.into()),
+            Token::FixedBytes(self.evm_emulator_hash.into()),
             Token::Address(self.verifier),
             self.verifier_params.encode(),
             Token::Bytes(self.l1_contracts_upgrade_calldata.clone()),
@@ -315,12 +366,29 @@ impl ProposedUpgrade {
         Token::Tuple(tokens)
     }
 
-    /// Decodes `ProposedUpgrade` from a RLP token.
-    /// Returns an error if token doesn't match the `schema()`.
-    pub fn decode(token: Token) -> anyhow::Result<Self> {
+    pub(crate) fn decode(data: &[u8]) -> anyhow::Result<Self> {
+        let mut upgrade = None;
+        for (schema, token) in ProposedUpgradeSchema::decode_to_token(data) {
+            match Self::decode_from_token(schema, token) {
+                Ok(decoded) => {
+                    if let Some(upgrade) = &upgrade {
+                        anyhow::bail!("Ambiguous upgrade: can be decoded as either {decoded:?} or {upgrade:?}");
+                    }
+                    upgrade = Some(decoded);
+                }
+                Err(err) => {
+                    tracing::debug!(?schema, %err, "Error decoding proposed upgrade");
+                }
+            }
+        }
+        upgrade.context("upgrade cannot be decoded")
+    }
+
+    /// Decodes `ProposedUpgrade` from a RLP token. Returns an error if token doesn't match the `schema`.
+    fn decode_from_token(schema: ProposedUpgradeSchema, token: Token) -> anyhow::Result<Self> {
         let tokens = token.into_tuple().context("not a tuple")?;
         let tokens_len = tokens.len();
-        anyhow::ensure!(tokens_len >= 9);
+        anyhow::ensure!(tokens_len == schema.expected_tuple_len());
         let mut t = tokens.into_iter();
         let mut next = || t.next().unwrap();
 
@@ -328,30 +396,29 @@ impl ProposedUpgrade {
             .context("l2_protocol_upgrade_tx")?
             .into();
         let next_token = next();
-        let (factory_deps, bootloader_hash) = match next_token {
-            Token::Array(tokens) => {
-                anyhow::ensure!(tokens_len == 10);
-                (
-                    Some(
-                        tokens
-                            .into_iter()
-                            .enumerate()
-                            .map(|(i, b)| b.into_bytes().context(i))
-                            .collect::<Result<_, _>>()
-                            .context("factory_deps")?,
-                    ),
-                    next().into_fixed_bytes(),
-                )
+        let (factory_deps, bootloader_hash) = match schema {
+            ProposedUpgradeSchema::PreGateway => {
+                let factory_deps = next_token
+                    .into_array()
+                    .context("expected factory deps array")?
+                    .into_iter();
+                let factory_deps = factory_deps
+                    .enumerate()
+                    .map(|(i, b)| b.into_bytes().context(i))
+                    .collect::<Result<_, _>>()
+                    .context("factory_deps")?;
+                (Some(factory_deps), next().into_fixed_bytes())
             }
-            Token::FixedBytes(bytes) => {
-                anyhow::ensure!(tokens_len == 9);
-                (None, Some(bytes))
+            ProposedUpgradeSchema::PostGateway | ProposedUpgradeSchema::PostEvmEmulator => {
+                let bootloader_hash = next_token.into_fixed_bytes().context("bootloader_hash")?;
+                (None, Some(bootloader_hash))
             }
-            _ => anyhow::bail!("Unexpected type of the second token"),
         };
+
         let bootloader_hash = bootloader_hash
             .and_then(|b| b.try_into().ok())
             .context("bootloader_hash")?;
+
         let upgrade = Self {
             l2_protocol_upgrade_tx,
             factory_deps,
@@ -360,6 +427,14 @@ impl ProposedUpgrade {
                 .into_fixed_bytes()
                 .and_then(|b| b.try_into().ok())
                 .context("default_account_hash")?,
+            evm_emulator_hash: if matches!(schema, ProposedUpgradeSchema::PostEvmEmulator) {
+                next()
+                    .into_fixed_bytes()
+                    .and_then(|b| b.try_into().ok())
+                    .context("evm_emulator_hash")?
+            } else {
+                [0_u8; 32]
+            },
             verifier: next().into_address().context("verifier")?,
             verifier_params: VerifierParams::decode(next()).context("verifier_params")?,
             l1_contracts_upgrade_calldata: next()
@@ -375,7 +450,10 @@ impl ProposedUpgrade {
                 .map_err(|err| anyhow::anyhow!(err))
                 .context("Version is not supported")?
                 .minor;
-        anyhow::ensure!(protocol_version.is_pre_gateway() == upgrade.factory_deps.is_some());
+        anyhow::ensure!(
+            schema.matches_protocol_version(protocol_version),
+            "Unexpected protocol version: {protocol_version:?} for upgrade schema: {schema:?}"
+        );
 
         Ok(upgrade)
     }
