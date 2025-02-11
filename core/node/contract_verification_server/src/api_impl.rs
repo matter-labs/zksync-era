@@ -12,8 +12,8 @@ use zksync_types::{
     bytecode::{trim_bytecode, BytecodeHash, BytecodeMarker},
     contract_verification::{
         api::{
-            CompilerVersions, VerificationIncomingRequest, VerificationInfo, VerificationProblem,
-            VerificationRequestStatus,
+            CompilerVersions, SourceCodeData, VerificationIncomingRequest, VerificationInfo,
+            VerificationProblem, VerificationRequestStatus,
         },
         contract_identifier::ContractIdentifier,
     },
@@ -149,7 +149,20 @@ impl RestApi {
             .get_contract_verification_info(request.contract_address)
             .await?;
         if let Some(verification_info) = verification_info {
-            if verification_info.verification_problems.is_empty() {
+            let fully_verified = verification_info.verification_problems.is_empty();
+            // System contracts can be force deployed during an upgrade, so it should be possible
+            // to re-verify them.
+            let is_system = match &verification_info.request.req.source_code_data {
+                SourceCodeData::SolSingleFile(_) => verification_info.request.req.is_system,
+                SourceCodeData::StandardJsonInput(input) => input
+                    .get("settings")
+                    .and_then(|s| s.get("isSystem").or_else(|| s.get("enableEraVMExtensions")))
+                    .and_then(|s| s.as_bool())
+                    .unwrap_or(false),
+                _ => false,
+            };
+
+            if fully_verified && !is_system {
                 return Err(ApiError::AlreadyVerified);
             }
         }
