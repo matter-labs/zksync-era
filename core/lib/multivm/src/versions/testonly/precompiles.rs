@@ -79,7 +79,9 @@ pub(crate) fn test_sha256<VM: TestedVm>() {
     assert!(!exec_result.result.is_failed(), "{exec_result:#?}");
 
     let sha_count = exec_result.statistics.circuit_statistic.sha256
-        * ProtocolGeometry::latest().config().cycles_per_sha256_circuit as f32;
+        * ProtocolGeometry::latest()
+            .config()
+            .cycles_per_sha256_circuit as f32;
     assert!(sha_count >= 1000.0, "{sha_count}");
 }
 
