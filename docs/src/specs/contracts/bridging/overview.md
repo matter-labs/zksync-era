@@ -2,26 +2,9 @@
 
 [back to readme](../../README.md)
 
-## Bridgehub as the main chain registry
-
-Bridgehub is the most important contract in the system, that stores:
-
-- A mapping from chainId to chains address
-- A mapping from chainId to the CTM it belongs to.
-- A mapping from chainId to its base token (i.e. the token that is used for paying fees)
-- etc
-
-> Note sure what CTM is? Check our the [overview](../../settlement_contracts/zkchain_basics.md) for contracts for settlement layer.
-
-Overall, it is the main registry for all the contracts. Note, that a clone of Bridgehub is also deployed on each L2 chain, but this clone is only used on settlement layers. All the in all, the architecture of the entire ecosystem can be seen below:
-
-![Contracts](./img/gateway_architecture.png)
-
-> This document will not cover how ZK Gateway works, you can check it out in [a separate doc](../../gateway/overview.md).
-
 ## Asset router as the main asset bridging entrypoint
 
-The main entry for passing value between chains is the AssetRouter, it is responsible for facilitating bridging between multiple asset types. To read more in detail on how it works, please refer to custom [asset bridging documentation](../asset_router/overview.md).
+The main entry for passing value between chains is the AssetRouter, it is responsible for facilitating bridging between multiple asset types. To read more in detail on how it works, please refer to custom [asset bridging documentation](./asset_router_and_ntv/overview.md).
 
 For the purpose of this document, it is enough to treat the Asset Router as a blackbox that is responsible for processing escrowing funds on the source chain and minting them on the destination chain.
 
@@ -55,13 +38,94 @@ struct L2TransactionRequestDirect {
 }
 ```
 
+///
+<!-- - `BridgehubMailbox` routes messages to the Diamond proxy’s Mailbox facet based on chainID
+
+  - Same as the current zkEVM
+    [Mailbox](https://github.com/matter-labs/era-contracts/blob/main/l1-contracts/contracts/zksync/facets/Mailbox.sol),
+    just with chainId,
+  - This is where L2 transactions can be requested.
+
+  ```
+    function requestL2TransactionTwoBridges(
+        L2TransactionRequestTwoBridgesOuter calldata _request
+    )
+  ```
+
+  ```
+  struct L2TransactionRequestTwoBridgesOuter {
+    uint256 chainId;
+    uint256 mintValue;
+    uint256 l2Value;
+    uint256 l2GasLimit;
+    uint256 l2GasPerPubdataByteLimit;
+    address refundRecipient;
+    address secondBridgeAddress;
+    uint256 secondBridgeValue;
+    bytes secondBridgeCalldata;
+  }
+  ```
+
+```
+  struct L2TransactionRequestTwoBridgesInner {
+    bytes32 magicValue;
+    address l2Contract;
+    bytes l2Calldata;
+    bytes[] factoryDeps;
+    bytes32 txDataHash;
+}
+```
+
+- The `requestL2TransactionTwoBridges` function should be used most of the time when bridging to a chain ( the exeption
+  is when the user bridges directly to a contract on the L2, without using a bridge contract on L1). The logic of it is
+  the following:
+
+  - The user wants to bridge to chain with the provided `L2TransactionRequestTwoBridgesOuter.chainId`.
+  - Two bridges are called, the baseTokenBridge (i.e. the L1SharedBridge or L1AssetRouter after the Gateway upgrade) and
+    an arbitrary second bridge. The Bridgehub will provide the original caller address to both bridges, which can
+    request that the appropriate amount of tokens are transferred from the caller to the bridge. The caller has to set
+    the appropriate allowance for both bridges. (Often the bridges coincide, but they don't have to).
+  - The `L2TransactionRequestTwoBridgesOuter.mintValue` is the amount of baseTokens that will be minted on L2. This is
+    the amount of tokens that the baseTokenBridge will request from the user. If the baseToken is Eth, it will be
+    forwarded to the baseTokenBridge.
+  - The `L2TransactionRequestTwoBridgesOuter.l2Value` is the amount of tokens that will be deposited on L2. The second
+    bridge and the Mailbox receives this as an input (although our second bridge does not use the value).
+  - The `L2TransactionRequestTwoBridgesOuter.l2GasLimit` is the maximum amount of gas that will be spent on L2 to
+    complete the transaction. The Mailbox receives this as an input.
+  - The `L2TransactionRequestTwoBridgesOuter.l2GasPerPubdataByteLimit` is the maximum amount of gas per pubdata byte
+    that will be spent on L2 to complete the transaction. The Mailbox receives this as an input.
+  - The `L2TransactionRequestTwoBridgesOuter.refundRecipient` is the address that will be refunded for the gas spent on
+    L2. The Mailbox receives this as an input.
+  - The `L2TransactionRequestTwoBridgesOuter.secondBridgeAddress` is the address of the second bridge that will be
+    called. This is the arbitrary address that is called from the Bridgehub.
+  - The `L2TransactionRequestTwoBridgesOuter.secondBridgeValue` is the amount of tokens that will be deposited on L2.
+    The second bridge receives this value as the baseToken (i.e. Eth on L1).
+  - The `L2TransactionRequestTwoBridgesOuter.secondBridgeCalldata` is the calldata that will be passed to the second
+    bridge. This is the arbitrary calldata that is passed from the Bridgehub to the second bridge.
+  - The secondBridge returns the `L2TransactionRequestTwoBridgesInner` struct to the Bridgehub. This is also passed to
+    the Mailbox as input. This is where the destination contract, calldata, factoryDeps are determined on the L2.
+
+  This setup allows the user to bridge the baseToken of the origin chain A to a chain B with some other baseToken, by
+  specifying the A's token in the secondBridgeValue, which will be minted on the destination chain as an ERC20 token,
+  and specifying the amount of B's token in the mintValue, which will be minted as the baseToken and used to cover the
+  gas costs.
+
+#### Main asset shared bridges L2TransactionRequestTwoBridgesInner
+
+- Some assets have to be natively supported (ETH, WETH) and it also makes sense to support some generally accepted token
+  standards (ERC20 tokens), as this makes it easy to bridge those tokens (and ensures a single version of them exists on
+  the ZK Chain ecosystem). These canonical asset contracts are deployed from L1 by a bridge shared by all ZK Chains.
+  This is where assets are locked on L1. These bridges use the BridgeHub to communicate with all ZK Chains. Currently,
+  these bridges are the `WETH` and `ERC20` bridges. -->
+////
+
 Most of the params are self-explanatory & replicate the logic of ZKsync Era. The only non-trivial fields are:
 
 - `mintValue` is the total amount of the base tokens that should be minted on L2 as the result of this transaction. The requirement is that `request.mintValue >= request.l2Value + request.l2GasLimit * derivedL2GasPrice(...)`, where `derivedL2GasPrice(...)` is the gas price to be used by this L1→L2 transaction. The exact price is defined by the ZKChain.
 
 Here is a quick guide on how this transaction is routed through the bridgehub.
 
-1. The bridgehub retrieves the `baseTokenAssetId` of the chain with the corresponding `chainId` and calls `L1AssetRouter.bridgehubDepositBaseToken` method. The `L1AssetRouter` will then use standard token depositing mechanism to burn/escrow the respective amount of the `baseTokenAssetId`. You can read more about it in [the asset router doc](../asset_router/overview.md). This step ensures that the baseToken will be backed 1-1 on L1.
+1. The bridgehub retrieves the `baseTokenAssetId` of the chain with the corresponding `chainId` and calls `L1AssetRouter.bridgehubDepositBaseToken` method. The `L1AssetRouter` will then use standard token depositing mechanism to burn/escrow the respective amount of the `baseTokenAssetId`. You can read more about it in [the asset router doc](../asset_router_and_ntv/overview.md). This step ensures that the baseToken will be backed 1-1 on L1.
 
 2. After that, it just routes the corresponding call to the ZKChain with the corresponding `chainId` . It is now the responsibility of the ZKChain to validate that the transaction is correct and can be accepted by it. This validation includes, but not limited to:
 
@@ -98,9 +162,9 @@ Once the chain is created, its L2AssetRouter will be automatically deployed upon
 
 ## `requestL2TransactionTwoBridges`
 
-`L1AssetRouter` is used as the main "glue" for value bridging across chains. Whenever a token that is not native needs to be bridged between two chains an L1<>L2 transaction out of the name of an AssetRouter needs to be performed. For more details, check out the [asset router documentation](../asset_router/overview.md). But for this section it is enough to understand that we need to somehow make a transaction out of the name of `L1AssetRouter` to its L2 counterpart to deliver the message about certain amount of asset being bridged.
+`L1AssetRouter` is used as the main "glue" for value bridging across chains. Whenever a token that is not native needs to be bridged between two chains an L1<>L2 transaction out of the name of an AssetRouter needs to be performed. For more details, check out the [asset router documentation](../asset_router_and_ntv/overview.md). But for this section it is enough to understand that we need to somehow make a transaction out of the name of `L1AssetRouter` to its L2 counterpart to deliver the message about certain amount of asset being bridged.
 
-> In the next paragraphs we will often refer to `L1AssetRouter` as performing something. It is good enough for understanding of how bridgehub functionality works. Under the hood though, it mainly serves as common entry that calls various asset handlers that are chosen based on asset id. You can read more about it in the [asset router documentation](../asset_router/asset_router.md).
+> In the next paragraphs we will often refer to `L1AssetRouter` as performing something. It is good enough for understanding of how bridgehub functionality works. Under the hood though, it mainly serves as common entry that calls various asset handlers that are chosen based on asset id. You can read more about it in the [asset router documentation](../asset_router_and_ntv/asset_router.md).
 
 Let’s say that a ZKChain has ETH as its base token. Let’s say that the depositor wants to bridge USDC to that chain. We can not use `BridgeHub.requestL2TransactionDirect`, because it only takes base token `mintValue` and then starts an L1→L2 transaction rightaway out of the name of the user and not the `L1AssetRouter`.
 
@@ -142,7 +206,7 @@ This call will return the parameters to call the l2 contract with (the address o
 #### L2
 
 1. After some time, the corresponding L1→L2 is created.
-2. The L2AssetRouter will receive the message and re-route it to the asset handler of the bridged token. To read more about how it works, check out the [asset router documentation](../asset_router/overview.md).
+2. The L2AssetRouter will receive the message and re-route it to the asset handler of the bridged token. To read more about how it works, check out the [asset router documentation](../asset_router_and_ntv/overview.md).
 
 **_Diagram of a depositing ETH onto a chain with USDC as the baseToken. Note that some contract calls (like `USDC.transferFrom` are omitted for the sake of consiceness):_**
 
@@ -236,7 +300,7 @@ In case a deposit fails, the `L1AssetRouter` allows users to recover the deposit
 
 Funds withdrawal is a similar way to how it is done currently on Era.
 
-The user needs to call the `L2AssetRouter.withdraw` function on L2, while providing the token they want to withdraw. This function would then calls the corresponding L2 asset handler and ask him to burn the funds. We expand a bit more about it in the [asset router documentation](../asset_router/overview.md).
+The user needs to call the `L2AssetRouter.withdraw` function on L2, while providing the token they want to withdraw. This function would then calls the corresponding L2 asset handler and ask him to burn the funds. We expand a bit more about it in the [asset router documentation](../asset_router_and_ntv/overview.md).
 
 Note, however, that it is not the way to withdraw base token. To withdraw base token, `L2BaseToken.withdraw` needs to be called.
 

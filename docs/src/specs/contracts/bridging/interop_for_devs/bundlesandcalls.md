@@ -5,7 +5,7 @@
 Interop Calls are the next level of interfaces, built on top of Interop Messages, enabling you to call contracts on
 other chains.
 
-![interopcall.png](../img/interopcall.png)
+![interopcall.png](./img/interopcall.png)
 
 At this level, the system handles replay protection—once a call is successfully executed, it cannot be executed again
 (eliminating the need for your own nullifiers or similar mechanisms).
@@ -74,7 +74,7 @@ destination chain, and for that contract, it will appear as if the call came loc
 `keccak(0x5bFF1 || A)`. This means you are effectively "controlling" such an account address on **every ZK Chain** by
 sending interop messages from the `0x5bFF1...` account on chain A.
 
-![msgdotsender.png](../img/msgdotsender.png)
+![msgdotsender.png](./img/msgdotsender.png)
 
 ## Simple Example
 
@@ -121,7 +121,7 @@ contract HQ {
 At this level, the **InteropCall** acts like a hitchhiker — it relies on someone (anyone) to pick it up, execute it, and
 pay for the gas!
 
-![callride.png](../img/callride.png)
+![callride.png](./img/callride.png)
 
 While any transaction on the destination chain can simply call `InteropCenter.executeInteropBundle`, if you don’t want
 to rely on hitchhiking, you can create one yourself. We’ll discuss this in the section about **Interop Transactions**.
@@ -130,7 +130,7 @@ to rely on hitchhiking, you can create one yourself. We’ll discuss this in the
 
 Before we proceed to discuss **InteropTransactions**, there is one more layer in between: **InteropBundles**.
 
-![interopcallbundle.png](../img/interopcallbundle.png)
+![interopcallbundle.png](./img/interopcallbundle.png)
 
 **Bundles Offer:**
 

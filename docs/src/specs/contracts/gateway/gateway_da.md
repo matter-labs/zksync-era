@@ -20,7 +20,7 @@ If anyone could call this contract, the observer from L1 could get wrong data fo
 
 ## Validium DA
 
-Validiums can reuse [the same DA validator](../../l1-contracts/contracts/state-transition/data-availability/ValidiumL1DAValidator.sol) that they used on L1. Note, that it has to be redeployed on the Gateway.
+Validiums can reuse [the same DA validator](../../../../../contracts/l1-contracts/contracts/state-transition/data-availability/ValidiumL1DAValidator.sol) that they used on L1. Note, that it has to be redeployed on the Gateway.
 
 ## Custom DA
 

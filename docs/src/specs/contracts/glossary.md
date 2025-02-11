@@ -9,3 +9,61 @@
 - **Facet** - implementation contract. The word comes from the EIP-2535.
 - **Gas** - a unit that measures the amount of computational effort required to execute specific operations on the
   ZKsync Era network.
+
+List of contracts and abbreviations:
+- Chain Manager Contracts
+  - Bridgehub
+
+    Main ecosystem contract. Tracks all the chains and their types (i.e. CTMs), based on their chain ID and addresses. This is where new chains register. In previous versions had some features of the InteropCenter, so it has some legacy functions (only available on L1). 
+
+  - ChainTypManager (CTM) Contract: 
+  
+    used to coordinate upgrades for a certain chain classes. Chains of different CTMs can still interoperate. We only support a single CTM currently. 
+  
+  - CTMDeploymentTracker: 
+
+    Tracks the deployment of a new CTM on different settlement layers, such as Gateway. Needed as the Bridgehub is registered in the AssetRouter as an AssetHandler for chains so that they can be migrated to the Gateway.
+
+- Chain contracts
+  - Diamond Proxy: A type of proxy contract (i.e. like Transparent Upgradable, Universal Upgradable). Currently only the ZK chains use this contract, so it is used sometimes as a synonym for the chain.
+    - MailboxFacet: functions on the chain used to send and receive messages to the L1
+    - GetterFacet: functions that are read-only and can be called by anyone
+    - AdminFacet: functions that are used to manage the chain
+    - ExecutorFacet: functions that are used to execute L2 batches
+    - Verifier
+    - Additional contracts:
+      - ValidatorTimelock
+      - DiamondInit
+      - PriorityQueue
+      - PriorityTree
+      - MessageVerification
+      - Any upgrade contract, i.e. GatewayUpgrade
+
+- Messaging related contracts:
+  - InteropCenter
+  - MessageRoot
+  - L1AssetTracker
+  - InteropHandler
+    -  L2MessageVerification  
+  - L1Nullifier
+
+- Asset related contracts:
+  - AssetRouter
+  - NativeTokenVault
+  - Additional contracts:
+    - BridgeStandardERC29
+  - Legacy: 
+    - L1Erc20Bridge
+    - L2SharedBridge (upgraded from L2Erc20Bridge)
+
+- DA contracts: 
+  - CalldataDA
+  - CaddlataDAGateway
+  - RelayedSLDAValidator
+  - RollupDAManager
+  - ValidiumL1DAValidator
+
+- Libraries and Primitives: 
+  - DynamicIncrementalMerkleTree
+  - FullMerkleTree
+  - MessageHashing

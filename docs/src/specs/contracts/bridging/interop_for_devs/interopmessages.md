@@ -11,7 +11,7 @@ still valuable to understand how the internals work.
 
 ## Basics
 
-![interopmsg.png](../img/interopmsg.png)
+![interopmsg.png](./img/interopmsg.png)
 
 Interop Messages are the lowest level of our stack.
 
@@ -51,14 +51,14 @@ chain ID, and messageNum (a nonce ensuring the hash of this structure is globall
 This `interopHash` serves as a globally unique identifier that can be used on any chain in the network to call
 `verifyInteropMessage`.
 
-![A message created on one chain can be verified on any other chain.](../img/verifyinteropmsg.png)
+![A message created on one chain can be verified on any other chain.](./img/verifyinteropmsg.png)
 
 #### How do I get the proof
 
 You’ll notice that **verifyInteropMessage** has a second argument — a proof that you need to provide. This proof is a
 Merkle tree proof (more details below). You can obtain it by querying the
 [chain](https://docs.zksync.io/build/api-reference/zks-rpc#zks_getl2tol1msgproof) , or generate it off-chain - by
-looking at the chain's state on L1
+looking at the chain's state on L1.
 
 #### How does the interop message differ from other layers (InteropTransactions, InteropCalls)
 
@@ -128,23 +128,23 @@ As you can see, it populates the necessary data and then calls the `sendToL1` me
 The `sendToL1` method is part of a system contract that gathers all messages during a batch, constructs a Merkle tree
 from them at the end of the batch, and sends this tree to the SettlementLayer (Gateway) when the batch is committed.
 
-![sendtol1.png](../img/sendtol1.png)
+![sendtol1.png](./img/sendtol1.png)
 
 The settlement layer receives the messages and once the proof for the batch is submitted (or more accurately, during the
 "execute" step), it will add the root of the Merkle tree to its `messageRoot` (sometimes called `globalRoot`).
 
-![globalroot.png](../img/globalroot.png)
+![globalroot.png](./img/globalroot.png)
 
 The `messageRoot` is the root of the Merkle tree that includes all messages from all chains. Each chain regularly reads
 the messageRoot value from the Gateway to stay synchronized.
 
-![gateway.png](../img/gateway.png)
+![gateway.png](./img/gateway.png)
 
 If a user wants to call `verifyInteropMessage` on a chain, they first need to query the Gateway for the Merkle path from
 the batch they are interested in up to the `messageRoot`. Once they have this path, they can provide it as an argument
 when calling a method on the destination chain (such as the `openSignup` method in our example).
 
-![proofmerklepath.png](../img/proofmerklepath.png)
+![proofmerklepath.png](./img/proofmerklepath.png)
 
 #### What if Chain doesn’t provide the proof
 

@@ -1,13 +1,18 @@
 # Interop
 
+ZK Stack roll chains will be launched on L1 into a [shared bridge](./shared_bridge.md). The shared bridge will create an
+ecosystem of chains, with shared standards, upgrades, and free flow of assets. This free flow of assets will be enabled
+by [hyperbridges](./hyperbridges.md). Hyperbridges are trustless and cheap bridges between ZK Chains, allowing
+cross-chain function calls.
+
 ## Introduction
 
 In the Shared bridge document we described how the L1 smart contracts work to support multiple chains, and we emphasized
 that the core feature is interop. Interop happens via the same L1->L2 interface as described in the L1SharedBridge doc.
-There is (with the interop upgrade) a Bridgehub, AssetRouter, NativeTokenVault and Nullifier deployed on every L2, and
+There is (with the interop upgrade) a InteropCenter, AssetRouter, NativeTokenVault and Nullifier deployed on every L2, and
 they serve the same feature as their L1 counterparts. Namely:
 
-- The Bridgehub is used to start the transaction.
+- The InteropCenter is used to start the transaction.
 - The AssetRouter and NativeTokenVault are the bridge contract that handle the tokens.
 - The Nullifier is used to prevent reexecution of xL2 txs.
 
@@ -19,13 +24,13 @@ The interop process has 7 main steps, each with its substeps:
 
 1. Starting the transaction on the sending chain
 
-   - The user/calls calls the Bridgehub contract. If they want to use a bridge they call
+   - The user/calls calls the InteropCenter contract. If they want to use a bridge they call
      `requestL2TransactionTwoBridges`, if they want to make a direct call they call `requestL2TransactionDirect`
      function.
-   - The Bridgehub collects the base token fees necessary for the interop tx to be processed on the destination chain,
+   - The InteropCenter collects the base token fees necessary for the interop tx to be processed on the destination chain,
      and if using the TwoBridges method the calldata and the destination contract ( for more data see Shared bridge
      doc).
-   - The Bridgehub emits a `NewPriorityRequest` event, this is the same as the one in our Mailbox contract. This event
+   - The InteropCenter emits a `NewPriorityRequest` event, this is the same as the one in our Mailbox contract. This event
      specifies the xL2 txs, which uses the same format as L1->L2 txs. This event can be picked up and used to receive
      the txs.
    - This new priority request is sent as an L2->L1 message, it is included in the chains merkle tree of emitted txs.

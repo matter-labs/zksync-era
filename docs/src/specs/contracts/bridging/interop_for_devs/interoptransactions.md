@@ -7,7 +7,7 @@ Bundles**.
 
 Think of it like a car that picks up our "hitchhiker" bundles and carries them to their destination.
 
-![interoptx.png](../img/interoptx.png)
+![interoptx.png](./img/interoptx.png)
 
 **Note:** Interop Transactions aren’t the only way to execute a bundle. Once an interop bundle is created on the source
 chain, users can simply send a regular transaction on the destination chain to execute it.
@@ -27,7 +27,7 @@ An **InteropTransaction** contains two pointers to bundles:
 - **feesBundle**: Holds interop calls to cover fees.
 - **bundleHash**: Contains the main execution.
 
-![ipointers.png](../img/ipointers.png)
+![ipointers.png](./img/ipointers.png)
 
 ## Interface
 
@@ -93,7 +93,7 @@ same execution bundle** as before.
 This time, the transaction succeeds — the swap completes on the destination chain, and the resulting tokens are
 successfully transferred back to the source chain.
 
-![retryexample.png](../img/retryexample.png)
+![retryexample.png](./img/retryexample.png)
 
 ## Fees & Restrictions
 
@@ -155,7 +155,7 @@ Once there, you’ll use it to pay the paymaster on the destination chain to cov
 
 Your **InteropTransaction** would look like this:
 
-![paymastertx.png](../img/paymastertx.png)
+![paymastertx.png](./img/paymastertx.png)
 
 ## **Automatic Execution**
 
@@ -173,17 +173,17 @@ don’t, the **Gateway** or other participants can step in to prepare and send t
 You can also use the available tools to create and send the destination transaction yourself. Since the transaction is
 self-contained, it doesn’t require additional funds or signatures to execute.
 
-![Usually destination chain operator will keep querying gateway to see if there are any messages for their chain.](../img/autoexecution.png)
+![Usually destination chain operator will keep querying gateway to see if there are any messages for their chain.](./img/autoexecution.png)
 
 Once they see the message, they can request the proof from the **Gateway** and also fetch the **InteropBundles**
 contained within the message (along with their respective proofs).
 
-![Operator getting necessary data from Gateway.](../img/chainop.png)
+![Operator getting necessary data from Gateway.](./img/chainop.png)
 
 As the final step, the operator can use the received data to create a regular transaction, which can then be sent to
 their chain.
 
-![Creating the final transaction to send to the destination chain](../img/finaltx.png)
+![Creating the final transaction to send to the destination chain](./img/finaltx.png)
 
 The steps above don’t require any special permissions and can be executed by anyone.
 

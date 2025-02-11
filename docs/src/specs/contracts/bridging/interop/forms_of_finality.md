@@ -1,42 +1,41 @@
-# Interop settlement modes
+# MessageRoot importing and forms of finality
 
 [back to readme](../../README.md)
 
-Interop requires the importing of the [MessageRoot](../gateway/nested_l3_l1_messaging.md) from the source chain. This can be done in different ways, depending on the security trust between the chains.
+## Introduction
 
-1. Proof based
-2. Commit based
+The message root is the contract on L1 that collects messages from different chains and aggregates them into a single merkle tree. This makes interop more efficient, since instead of having to import each individual message, chains can import the MessageRoot, which is an aggregate of messages in a single batch, then across batches of a single chain, and then across chains. 
+
+The MessageRoot contract is deployed both on L1 and ZK chains, but on ZK chains it is only used on GW. On GW it is used to aggregate messages for chains that are settling on GW, in the same way that it is done on L1. Read about it [here](../gateway/nested_l3_l1_messaging.md).
+
+![MessageRoot](../img/message_root.png)
+
+Interop requires the importing of a MessageRoot which contains the interop tx. This can be done in different ways, depending on the security trust between the chains.
+
+1. Proof based interop
+2. Commit based interop
 3. Pre-commit based interop. 
 
 ## Proof based interop
 
-Slow (proof time ~10+ mins, Secure)
+The batch where the interop tx is emitted is sealed and committed to the chain's settlement layer (Gateway or L1). Proof is posted on the SL, and the batch is fully finalized and cannot be reverted. When this happens the SL's `MessageRoot` is updated. The receiving chain imports this `MessageRoot`. When the receiving chain settles, it the imported `MessageRoot` is checked against the MessageRoot.sol contract.
 
-- Batch is sealed, posted to the Settlement Layer (Gateway or L1).
-- Proof is posted on SL, batch is fully finalized cannot be reverted.
-- We get the SL’s global messageRoot.
+This solution is the most trustless, but it is the slowest, since proofs have to be generated.
 
 ## Commit/Batch based interop
 
-Relatively fast (~1 min, secure), relatively secure.
+The batch has to be sealed, and the Batch is committed to SL. We do not wait for the `MessageRoot` to be updated. We get the `ChainBatchRoot` of the source chain from the DiamondProxy of the chain itself. When the receiving chain commits the batch, the imported MessageRoot is stored as a dependency. When the batch is executed, it is checked that all the dependencies have been executed.
 
-- Batch has to be sealed. (**Due to no precompiles** this will might also take ~1 min as we need to have large batches to keep expenses low). Even with smaller batches, it will be slower than pre-commit based.
-- TEE can be run for extra security. (+ ~1min).
-- Batch is committed to SL. 
-- We get the chainBatchRoot of the source chain from the DiamondProxy of the SL.
-- For security reasons tx data is also committed to the SL, so we can regenerate the batch. Alternatively, EN-s are run for chain.
+This is faster than proof based interop, but not as fast as pre-commit based interop. It is also the middle ground in security.
 
 ## Pre-commit/Miniblock based interop
 
-Very fast.
+The batch is not sealed, but are built in parallel. `L2ToL1LogsRoot` is updated mid batch after each block. The receiving chain can read the current `L2ToL1LogsRoot` from the L1Messenger contract of the source chain. This can be two way, i.e. both chains can read from each other. It can happen multiple times as well. When settling, the imported `L2ToL1LogsRoot` might not be the final one that is settled by the source chain. An additional merkle proof will have to complete the root. This final root can be checked against the pending root of the other chain. If the roots match, then the batches of the chains have to be executed in parallel.
 
-- Batches are not sealed, but are built in parallel. `LocalRoot` is updated mid batch after each block. After the batch is sealed the imported `LocalRoot` has to be “extended” to the settled `ChainBatchRoot`.
-- This means interop can be very fast (~5s). 
-- For security EN’s will need to be run. Ok, for a small number of chains.
-- For many chains, we can use proof -based or commit based.
-    - One directional interop, e.g from Era central hub.
-- Note: similar setup is needed for Shared Sequencing.
-- Note: w replace current L2ToL1 messages rolling hash + merkle tree with a single Dyn Inc MT, and on the destination chain, import all leaves. In the future we can imort only nodes. 
+- Note: this solution can also be used for Shared Sequencing.
+- Note: the L2ToL1 messages are aggregated in a Dynamic Incramental Merkle tree, see [here](../../../../../../contracts/l1-contracts/contracts/common/libraries/DynamicIncrementalMerkle.sol). 
+
+This solution is the fastest, and also the least secure. 
 
 # Implications on settlement process
 

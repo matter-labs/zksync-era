@@ -4,7 +4,7 @@
 
 ## Introduction
 
-This document assumes that the reader is already aware of what Gateway is. To reduce the interactions with L1, on Gateway we will gather all the batch roots from all the chains into the tree with following structure:
+This document assumes that the reader is already aware of what the [MessageRoot](../bridging/interop/message_root.md) and what the [Gateway](../gateway/overview.md) is. To reduce the interactions with L1, on Gateway we will gather all the batch roots from all the chains into the tree with following structure:
 
 ![NestedL3L1Messaging.png](./img/nested_l3_l1_messaging.png)
 

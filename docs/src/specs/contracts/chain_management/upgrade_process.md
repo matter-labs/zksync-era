@@ -11,9 +11,14 @@ Upgrading the ecosystem of ZKChains is a complicated process. ZKSync is a comple
 Where each upgrade consists of two parameters:
 
 - Facet cuts - change of the internal implementation of the diamond proxy
-- Diamond Initialization - delegate call to the specified address wit`h specified data
+- Diamond Initialization - delegate call to the specified address with specified data
 
 The second parameter is very powerful and flexible enough to move majority of upgrade logic there.
+
+## Preparation for the upgrade
+
+The ZKsync ecosystem has [governance smart contracts](https://github.com/zksync-association/zk-governance) that govern the protocol. Only these contracts have the permission to set upgrades in the CTM. This is done via the `setNewVersionUpgrade` function. This sets the upgrade data, the new protocol version, and the deadline by which chains have to upgrade. Chains can upgrade themselves with the same data. After the deadline is over, each non-upgraded chain is frozen, they cannot post new proofs. Frozen chains can
+unfreeze by updating.
 
 ## Upgrade structure
 

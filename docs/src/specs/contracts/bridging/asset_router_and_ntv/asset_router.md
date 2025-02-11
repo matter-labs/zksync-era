@@ -14,7 +14,7 @@ The specifics of the L2AssetRouter is the need to interact with the previously d
 
 The specifics of the L1AssetRouter come from the need to be backwards compatible with the old L1SharedBridge. Yes, it will not share the same storage, but it will inherit the need to be backwards compatible with the current SDK. Also, L1AssetRouter needs to facilitate L1-only operations, such as recovering from failed deposits.
 
-Also, L1AssetRouter is the only base token bridge contract that can participate in initiation of cross chain transactions via the bridgehub. This will change in the future with the support of interop.
+Also, L1AssetRouter is the only base token bridge contract that can participate in initiation of cross chain transactions via the bridgehub. This might change in the future.
 
 ### L1Nullifier
 
@@ -30,7 +30,7 @@ The L1 and L2 versions of the NTV are almost identical in functionality, the mai
 
 Also, the L1NTV has the following specifics:
 
-- It operates the `chainBalance` mapping, ensuring that the chains do not go beyond their balances.
+<!-- - It operates the `chainBalance` mapping, ensuring that the chains do not go beyond their balances.  -->
 - It allows recovering from failed L1→L2 transfers.
 - It needs to both be able to retrieve funds from the former L1SharedBridge (now this contract has L1Nullifier in its place), but also needs to support the old SDK that gives out allowance to the “l1 shared bridge” value returned from the API, i.e. in our case this is will the L1AssetRouter.
 

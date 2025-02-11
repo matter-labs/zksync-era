@@ -1,4 +1,4 @@
-# Shared Bridge
+# Overview
 
 ## Introduction
 
@@ -73,109 +73,6 @@ be able to leverage them when available).
   function newChainTypeManager(address _chainTypeManager) external;
   ```
 
-- `BridgehubMailbox` routes messages to the Diamond proxy’s Mailbox facet based on chainID
-
-  - Same as the current zkEVM
-    [Mailbox](https://github.com/matter-labs/era-contracts/blob/main/l1-contracts/contracts/zksync/facets/Mailbox.sol),
-    just with chainId,
-  - This is where L2 transactions can be requested.
-
-  ```
-    function requestL2TransactionTwoBridges(
-        L2TransactionRequestTwoBridgesOuter calldata _request
-    )
-  ```
-
-  ```
-  struct L2TransactionRequestTwoBridgesOuter {
-    uint256 chainId;
-    uint256 mintValue;
-    uint256 l2Value;
-    uint256 l2GasLimit;
-    uint256 l2GasPerPubdataByteLimit;
-    address refundRecipient;
-    address secondBridgeAddress;
-    uint256 secondBridgeValue;
-    bytes secondBridgeCalldata;
-  }
-  ```
-
-```
-  struct L2TransactionRequestTwoBridgesInner {
-    bytes32 magicValue;
-    address l2Contract;
-    bytes l2Calldata;
-    bytes[] factoryDeps;
-    bytes32 txDataHash;
-}
-```
-
-- The `requestL2TransactionTwoBridges` function should be used most of the time when bridging to a chain ( the exeption
-  is when the user bridges directly to a contract on the L2, without using a bridge contract on L1). The logic of it is
-  the following:
-
-  - The user wants to bridge to chain with the provided `L2TransactionRequestTwoBridgesOuter.chainId`.
-  - Two bridges are called, the baseTokenBridge (i.e. the L1SharedBridge or L1AssetRouter after the Gateway upgrade) and
-    an arbitrary second bridge. The Bridgehub will provide the original caller address to both bridges, which can
-    request that the appropriate amount of tokens are transferred from the caller to the bridge. The caller has to set
-    the appropriate allowance for both bridges. (Often the bridges coincide, but they don't have to).
-  - The `L2TransactionRequestTwoBridgesOuter.mintValue` is the amount of baseTokens that will be minted on L2. This is
-    the amount of tokens that the baseTokenBridge will request from the user. If the baseToken is Eth, it will be
-    forwarded to the baseTokenBridge.
-  - The `L2TransactionRequestTwoBridgesOuter.l2Value` is the amount of tokens that will be deposited on L2. The second
-    bridge and the Mailbox receives this as an input (although our second bridge does not use the value).
-  - The `L2TransactionRequestTwoBridgesOuter.l2GasLimit` is the maximum amount of gas that will be spent on L2 to
-    complete the transaction. The Mailbox receives this as an input.
-  - The `L2TransactionRequestTwoBridgesOuter.l2GasPerPubdataByteLimit` is the maximum amount of gas per pubdata byte
-    that will be spent on L2 to complete the transaction. The Mailbox receives this as an input.
-  - The `L2TransactionRequestTwoBridgesOuter.refundRecipient` is the address that will be refunded for the gas spent on
-    L2. The Mailbox receives this as an input.
-  - The `L2TransactionRequestTwoBridgesOuter.secondBridgeAddress` is the address of the second bridge that will be
-    called. This is the arbitrary address that is called from the Bridgehub.
-  - The `L2TransactionRequestTwoBridgesOuter.secondBridgeValue` is the amount of tokens that will be deposited on L2.
-    The second bridge receives this value as the baseToken (i.e. Eth on L1).
-  - The `L2TransactionRequestTwoBridgesOuter.secondBridgeCalldata` is the calldata that will be passed to the second
-    bridge. This is the arbitrary calldata that is passed from the Bridgehub to the second bridge.
-  - The secondBridge returns the `L2TransactionRequestTwoBridgesInner` struct to the Bridgehub. This is also passed to
-    the Mailbox as input. This is where the destination contract, calldata, factoryDeps are determined on the L2.
-
-  This setup allows the user to bridge the baseToken of the origin chain A to a chain B with some other baseToken, by
-  specifying the A's token in the secondBridgeValue, which will be minted on the destination chain as an ERC20 token,
-  and specifying the amount of B's token in the mintValue, which will be minted as the baseToken and used to cover the
-  gas costs.
-
-#### Main asset shared bridges L2TransactionRequestTwoBridgesInner
-
-- Some assets have to be natively supported (ETH, WETH) and it also makes sense to support some generally accepted token
-  standards (ERC20 tokens), as this makes it easy to bridge those tokens (and ensures a single version of them exists on
-  the ZK Chain ecosystem). These canonical asset contracts are deployed from L1 by a bridge shared by all ZK Chains.
-  This is where assets are locked on L1. These bridges use the BridgeHub to communicate with all ZK Chains. Currently,
-  these bridges are the `WETH` and `ERC20` bridges.
-
-  - The pair on L2 is deployed from L1. The hash of the factory dependencies is stored on L1, and when a ZK Chain wants
-    to register, it can passes it in for deployment, it is verified, and the contract is deployed on L2. The actual
-    token contracts on L2 are deployed by the L2 bridge.
-
-  ```
-  function initializeChain(
-          uint256 _chainId,
-          bytes[] calldata _factoryDeps,
-          uint256 _deployBridgeImplementationFee,
-          uint256 _deployBridgeProxyFee
-      ) external payable {
-      ....
-      // Deploy L2 bridge proxy contract
-          l2Bridge[_chainId] = BridgeInitializationHelper.requestDeployTransaction(
-              _chainId,
-              bridgehead,
-              _deployBridgeProxyFee,
-              l2SharedBridgeProxyBytecodeHash,
-              l2SharedBridgeProxyConstructorData,
-              // No factory deps are needed for L2 bridge proxy, because it is already passed in the previous step
-              new bytes[](0)
-          );
-  ```
-
 #### Chain Type Manager
 
 - `ChainTypeManager` A chain type manager manages proof verification and DA for multiple chains. It also implements the
@@ -211,7 +108,7 @@ In this section, we will present some diagrams showing the interaction of differ
 
 #### New Chain
 
-A chain registers in the Bridgehub, this is where the chain ID is determined. The chain’s governor specifies the State
+A chain registers in the Bridgehub, this is where the chain ID is determined. Read more about it [here](./chain_genesis.md). The chain’s governor specifies the State
 Transition that they plan to use. In the first version only a single State Transition contract will be available for
 use, our with Boojum proof verification.
 
@@ -226,7 +123,7 @@ features required to process proofs. The chain ID is set in the VM in a special 
 
 ### Common Standards and Upgrades
 
-In this initial phase, ZK Chains have to follow some common standards, so that they can trust each other. This means all
+In this initial phase, ZK Chains have to follow some common standards, so that they can trust each other. Read more about it [here](./upgrade_process.md). This means all
 chains start out with the same empty state, they have the same VM implementations and proof systems, asset contracts can
 trust each on different chains, and the chains are upgraded together. We elaborate on the shared upgrade mechanism here.
 
