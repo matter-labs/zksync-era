@@ -67,20 +67,20 @@ impl FriProverDal<'_, '_> {
             circuit_ids_and_urls.iter().enumerate(),
             |mut row, (sequence_number, (circuit_id, circuit_blob_url))| {
                 row.push_bind(l1_batch_number.0 as i64)
-                   .push_bind(*circuit_id as i16)
-                   .push_bind(circuit_blob_url)
-                   .push_bind(aggregation_round as i64)
-                   .push_bind(sequence_number as i64)
-                   .push_bind(depth as i32)
-                   .push_bind(false) // is_node_final_proof
-                   .push_bind(protocol_version_id.minor as i32)
-                   .push_bind("queued") // status
-                   .push("NOW()") // created_at
-                   .push("NOW()") // updated_at
-                   .push_bind(protocol_version_id.patch.0 as i32);
+                    .push_bind(*circuit_id as i16)
+                    .push_bind(circuit_blob_url)
+                    .push_bind(aggregation_round as i64)
+                    .push_bind(sequence_number as i64)
+                    .push_bind(depth as i32)
+                    .push_bind(false) // is_node_final_proof
+                    .push_bind(protocol_version_id.minor as i32)
+                    .push_bind("queued") // status
+                    .push("NOW()") // created_at
+                    .push("NOW()") // updated_at
+                    .push_bind(protocol_version_id.patch.0 as i32);
             },
         );
-    
+
         // Add the ON CONFLICT clause
         query_builder.push(
             r#"
