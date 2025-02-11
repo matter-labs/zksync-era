@@ -482,14 +482,16 @@ describe('Interop checks', () => {
 
         // await waitForL2ToL1LogProof(sender_chain_utilityWallet, txReceipt!.blockNumber, txHash);
         await waitUntilBlockCommitted(interop1_wallet, receipt!.blockNumber);
-        // kl todo wait here for the batch to be committd by checking L1. 
-        // this should be checked in the server, we should not need this. 
+        // kl todo wait here for the batch to be committd by checking L1.
+        // this should be checked in the server, we should not need this.
         // await delay(10000);
         // to add message roots
-        await (await interop2_wallet.transfer({
-            to: interop2_wallet.address,
-            amount: 1
-        })).wait();
+        await (
+            await interop2_wallet.transfer({
+                to: interop2_wallet.address,
+                amount: 1
+            })
+        ).wait();
         // Read and broadcast the interop transaction from Interop1 to Interop2
         await readAndBroadcastInteropTx(tx.hash, interop1_provider, interop2_provider);
         await delay(timeout);
