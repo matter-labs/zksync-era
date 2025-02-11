@@ -4,21 +4,21 @@ use zksync_types::{
     h256_to_u256, l2::L2Tx, writes::StateDiffRecord, StorageKey, Transaction, H160, H256, U256,
 };
 use zksync_vm2::interface::{Event, HeapId, StateInterface, Tracer};
-use zksync_vm_interface::{
-    pubdata::{PubdataBuilder, PubdataInput},
-    storage::ReadStorage,
-    tracer::ViolatedValidationRule,
-    Call, CurrentExecutionState, InspectExecutionMode, L2BlockEnv, VmExecutionMode,
-    VmExecutionResultAndLogs, VmInterface,
-};
 
 use super::{FullValidationTracer, ValidationTracer, Vm};
 use crate::{
-    interface::storage::{ImmutableStorageView, InMemoryStorage},
+    interface::{
+        pubdata::{PubdataBuilder, PubdataInput},
+        storage::{ImmutableStorageView, InMemoryStorage, ReadStorage, StorageView},
+        tracer::ViolatedValidationRule,
+        Call, CurrentExecutionState, InspectExecutionMode, L2BlockEnv, VmExecutionMode,
+        VmExecutionResultAndLogs, VmInterface,
+    },
     versions::testonly::{
         validation_params, TestedVm, TestedVmForValidation, TestedVmWithCallTracer,
+        TestedVmWithStorageLimit,
     },
-    vm_fast::{tracers::WithBuiltinTracers, CallTracer},
+    vm_fast::{tracers::WithBuiltinTracers, CallTracer, StorageInvocationsTracer},
 };
 
 mod account_validation_rules;
@@ -198,5 +198,15 @@ impl TestedVmWithCallTracer for TestedFastVm<CallTracer, ()> {
         let mut tracer = (CallTracer::default(), ());
         let result = self.inspect(&mut tracer, InspectExecutionMode::OneTx);
         (result, tracer.0.into_result())
+    }
+}
+
+type TestStorageLimiter = StorageInvocationsTracer<StorageView<InMemoryStorage>>;
+
+impl TestedVmWithStorageLimit for TestedFastVm<TestStorageLimiter, ()> {
+    fn execute_with_storage_limit(&mut self, limit: usize) -> VmExecutionResultAndLogs {
+        let storage = self.world.storage.to_rc_ptr();
+        let mut tracer = (StorageInvocationsTracer::new(storage, limit), ());
+        self.inspect(&mut tracer, InspectExecutionMode::OneTx)
     }
 }
