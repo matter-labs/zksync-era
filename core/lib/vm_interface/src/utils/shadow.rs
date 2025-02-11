@@ -529,11 +529,11 @@ where
         }
     }
 
-    fn insert_message_root(&mut self, msg_root: MessageRoot) {
-        self.main.insert_message_root(msg_root);
-        if let Some(shadow) = self.shadow.get_mut() {
+    fn insert_message_root(&mut self, _msg_root: MessageRoot) {
+        // self.main.insert_message_root(msg_root);
+        // if let Some(shadow) = self.shadow.get_mut() {
             // shadow.vm.insert_message_root(msg_root);
-        }
+        // }
     }
 
     fn inspect_transaction_with_bytecode_compression(

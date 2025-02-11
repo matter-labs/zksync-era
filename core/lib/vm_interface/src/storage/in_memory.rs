@@ -133,8 +133,8 @@ impl ReadStorage for &InMemoryStorage {
 
     fn get_message_root(
         &mut self,
-        chain_id: SLChainId,
-        block_number: L2BlockNumber,
+        _chain_id: SLChainId,
+        _block_number: L2BlockNumber,
     ) -> Option<H256> {
         None // kl todo
     }
@@ -159,8 +159,8 @@ impl ReadStorage for InMemoryStorage {
 
     fn get_message_root(
         &mut self,
-        chain_id: SLChainId,
-        block_number: L2BlockNumber,
+        _chain_id: SLChainId,
+        _block_number: L2BlockNumber,
     ) -> Option<H256> {
         None // kl todo
     }

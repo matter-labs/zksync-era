@@ -1,5 +1,3 @@
-use std::{convert::TryInto, result};
-
 use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
 use zksync_types::{h256_to_u256, message_root::MessageRoot, L1BatchNumber, SLChainId, H256};
 
@@ -11,7 +9,7 @@ pub struct MessageRootDal<'a, 'c> {
 }
 
 impl MessageRootDal<'_, '_> {
-    pub async fn save_message_root(&mut self, msg_root: MessageRoot) -> DalResult<()> {
+    pub async fn save_message_root(&mut self, _msg_root: MessageRoot) -> DalResult<()> {
         Ok(())
     }
 

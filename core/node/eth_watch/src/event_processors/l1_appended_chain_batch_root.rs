@@ -24,11 +24,11 @@ use crate::{
 /// and group them by SL's batch number they are executed in as this data is required to build `BatchAndChainMerklePath`.
 #[derive(Debug)]
 pub struct L1BatchRootProcessor {
-    next_batch_number_lower_bound: L1BatchNumber,
+    _next_batch_number_lower_bound: L1BatchNumber,
     appended_chain_batch_root_signature: H256,
-    merkle_tree: MiniMerkleTree<[u8; 96]>,
+    _merkle_tree: MiniMerkleTree<[u8; 96]>,
     l2_chain_id: L2ChainId,
-    l1_client: Arc<dyn EthClient>,
+    _l1_client: Arc<dyn EthClient>,
 }
 
 impl L1BatchRootProcessor {
@@ -39,7 +39,7 @@ impl L1BatchRootProcessor {
         l1_client: Arc<dyn EthClient>,
     ) -> Self {
         Self {
-            next_batch_number_lower_bound,
+            _next_batch_number_lower_bound: next_batch_number_lower_bound,
             appended_chain_batch_root_signature: ethabi::long_signature(
                 "AppendedChainBatchRoot",
                 &[
@@ -48,9 +48,9 @@ impl L1BatchRootProcessor {
                     ethabi::ParamType::FixedBytes(32),
                 ],
             ),
-            merkle_tree,
+            _merkle_tree: merkle_tree,
             l2_chain_id,
-            l1_client,
+            _l1_client: l1_client,
         }
     }
 }
@@ -59,60 +59,60 @@ impl L1BatchRootProcessor {
 impl EventProcessor for L1BatchRootProcessor {
     async fn process_events(
         &mut self,
-        storage: &mut Connection<'_, Core>,
-        events: Vec<Log>,
+        _storage: &mut Connection<'_, Core>,
+        _events: Vec<Log>,
     ) -> Result<usize, EventProcessorError> {
-        let events_count = events.len();
-        let mut transaction = storage
-            .start_transaction()
-            .await
-            .map_err(DalError::generalize)?;
+        // let events_count = events.len();
+        // let mut transaction = storage
+        //     .start_transaction()
+        //     .await
+        //     .map_err(DalError::generalize)?;
 
-        let grouped_events: Vec<_> = events
-            .into_iter()
-            .map(|log| {
-                let sl_l1_batch_number = L1BatchNumber(
-                    log.l1_batch_number
-                        .expect("Missing L1 batch number for finalized event")
-                        .as_u32(),
-                );
-                let chain_l1_batch_number = L1BatchNumber(h256_to_u256(log.topics[2]).as_u32());
-                let logs_root_hash = H256::from_slice(&log.data.0);
+        // let grouped_events: Vec<_> = events
+        //     .into_iter()
+        //     .map(|log| {
+        //         let sl_l1_batch_number = L1BatchNumber(
+        //             log.l1_batch_number
+        //                 .expect("Missing L1 batch number for finalized event")
+        //                 .as_u32(),
+        //         );
+        //         let chain_l1_batch_number = L1BatchNumber(h256_to_u256(log.topics[2]).as_u32());
+        //         let logs_root_hash = H256::from_slice(&log.data.0);
 
-                (sl_l1_batch_number, chain_l1_batch_number, logs_root_hash)
-            })
-            .group_by(|(sl_l1_batch_number, _, _)| *sl_l1_batch_number)
-            .into_iter()
-            .map(|(sl_l1_batch_number, group)| {
-                let group: Vec<_> = group
-                    .into_iter()
-                    .map(|(_, chain_l1_batch_number, logs_root_hash)| {
-                        (chain_l1_batch_number, logs_root_hash)
-                    })
-                    .collect();
+        //         (sl_l1_batch_number, chain_l1_batch_number, logs_root_hash)
+        //     })
+        //     .group_by(|(sl_l1_batch_number, _, _)| *sl_l1_batch_number)
+        //     .into_iter()
+        //     .map(|(sl_l1_batch_number, group)| {
+        //         let group: Vec<_> = group
+        //             .into_iter()
+        //             .map(|(_, chain_l1_batch_number, logs_root_hash)| {
+        //                 (chain_l1_batch_number, logs_root_hash)
+        //             })
+        //             .collect();
 
-                (sl_l1_batch_number, group)
-            })
-            .collect();
+        //         (sl_l1_batch_number, group)
+        //     })
+        //     .collect();
 
-        let next_batch_number_lower_bound = self.next_batch_number_lower_bound;
-        let new_events = grouped_events
-            .into_iter()
-            .skip_while(|(_sl_l1_batch_number, events)| {
-                let first_event = events.first().unwrap();
-                let last_event = events.last().unwrap();
+        // let next_batch_number_lower_bound = self.next_batch_number_lower_bound;
+        // let new_events = grouped_events
+        //     .into_iter()
+        //     .skip_while(|(_sl_l1_batch_number, events)| {
+        //         let first_event = events.first().unwrap();
+        //         let last_event = events.last().unwrap();
 
-                match (
-                    first_event.0 < next_batch_number_lower_bound,
-                    last_event.0 < next_batch_number_lower_bound,
-                ) {
-                    (true, true) => true,    // skip
-                    (false, false) => false, // do not skip
-                    _ => {
-                        panic!("batch range was partially processed");
-                    }
-                }
-            });
+        //         match (
+        //             first_event.0 < next_batch_number_lower_bound,
+        //             last_event.0 < next_batch_number_lower_bound,
+        //         ) {
+        //             (true, true) => true,    // skip
+        //             (false, false) => false, // do not skip
+        //             _ => {
+        //                 panic!("batch range was partially processed");
+        //             }
+        //         }
+        //     });
 
         // let sl_chain_id = self.l1_client.chain_id().await?;
         // for (sl_l1_batch_number, chain_batches) in new_events {
@@ -179,7 +179,8 @@ impl EventProcessor for L1BatchRootProcessor {
 
         // transaction.commit().await.map_err(DalError::generalize)?;
 
-        Ok(events_count)
+        // Ok(events_count)
+        Ok(0)
     }
 
     fn topic1(&self) -> H256 {
