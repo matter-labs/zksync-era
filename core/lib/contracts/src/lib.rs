@@ -531,9 +531,7 @@ impl BaseSystemContracts {
     }
 
     pub fn playground_interop() -> Self {
-        let bootloader_bytecode = read_zbin_bytecode(
-            "contracts/system-contracts/bootloader/build/artifacts/playground_batch.yul.zbin",
-        );
+        let bootloader_bytecode: Vec<u8> = read_bootloader_code("playground_batch");
         // kl todo once contracts are stabilized move to etc/multivm
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
     }
@@ -616,9 +614,7 @@ impl BaseSystemContracts {
     }
 
     pub fn estimate_gas_interop() -> Self {
-        let bootloader_bytecode = read_zbin_bytecode(
-            "contracts/system-contracts/bootloader/build/artifacts/fee_estimate.yul.zbin",
-        );
+        let bootloader_bytecode = read_bootloader_code("fee_estimate");
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
     }
 
