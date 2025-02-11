@@ -103,7 +103,7 @@ impl From<Transaction> for TransactionData {
                 let gas_per_pubdata_limit = if common_data.transaction_type.is_ethereum_type() {
                     MAX_GAS_PER_PUBDATA_BYTE.into()
                 } else {
-                    unreachable!()
+                    common_data.fee.gas_per_pubdata_limit
                 };
 
                 let is_deployment_transaction = match execute_tx.execute.contract_address {

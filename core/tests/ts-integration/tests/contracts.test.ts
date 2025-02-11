@@ -69,6 +69,7 @@ describe('Smart contract behavior checks: zkos', () => {
     test('Should deploy contract with create', async () => {
         const contractFactory = new ethers.ContractFactory(contracts.create.abi, contracts.create.bytecode, alice);
         const contract = (await contractFactory.deploy({
+            type: 2
             // customData: {
             //     factoryDeps: [contracts.create.factoryDep]
             // }
