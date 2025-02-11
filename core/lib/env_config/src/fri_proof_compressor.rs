@@ -28,10 +28,6 @@ mod tests {
             "https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2^24.key"
                 .to_string(),
             verify_wrapper_proof: false,
-            universal_fflonk_setup_path: "keys/setup/setup_fflonk_compact.key".to_string(),
-            universal_fflonk_setup_download_url:
-            "https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_fflonk_compact.key"
-                .to_string(),
         }
     }
 
