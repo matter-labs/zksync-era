@@ -9,12 +9,15 @@ use anyhow::Context as _;
 use async_trait::async_trait;
 use tokio::runtime::Handle;
 use zksync_dal::{Connection, Core};
-use zksync_multivm::interface::{
-    executor::{OneshotExecutor, TransactionValidator},
-    storage::StorageWithOverrides,
-    tracer::TimestampAsserterParams,
-    Call, ExecutionResult, OneshotEnv, OneshotTracingParams, TransactionExecutionMetrics,
-    TxExecutionArgs, VmEvent,
+use zksync_multivm::{
+    interface::{
+        executor::{OneshotExecutor, TransactionValidator},
+        storage::StorageWithOverrides,
+        tracer::TimestampAsserterParams,
+        Call, ExecutionResult, OneshotEnv, OneshotTracingParams, TransactionExecutionMetrics,
+        TxExecutionArgs, VmEvent,
+    },
+    utils::StorageWritesDeduplicator,
 };
 use zksync_state::{PostgresStorage, PostgresStorageCaches};
 use zksync_types::{
@@ -22,10 +25,7 @@ use zksync_types::{
 };
 use zksync_vm_executor::oneshot::{MainOneshotExecutor, MockOneshotExecutor};
 
-use super::{
-    vm_metrics::{self, SandboxStage},
-    BlockArgs, VmPermit, SANDBOX_METRICS,
-};
+use super::{vm_metrics::SandboxStage, BlockArgs, VmPermit, SANDBOX_METRICS};
 use crate::{execution_sandbox::storage::apply_state_override, tx_sender::SandboxExecutorOptions};
 
 /// Action that can be executed by [`SandboxExecutor`].
@@ -120,16 +120,22 @@ where
         let result = self
             .inspect_transaction_with_bytecode_compression(storage, env, args, tracing_params)
             .await?;
-        let metrics = vm_metrics::collect_tx_execution_metrics(&result.tx_result);
+        let tx_result = result.tx_result;
+        let metrics = TransactionExecutionMetrics {
+            writes: StorageWritesDeduplicator::apply_on_empty_state(&tx_result.logs.storage_logs),
+            vm: tx_result.get_execution_metrics(),
+            gas_remaining: tx_result.statistics.gas_remaining,
+            gas_refunded: tx_result.refunds.gas_refunded,
+        };
 
-        let storage_logs = result.tx_result.logs.storage_logs;
+        let storage_logs = tx_result.logs.storage_logs;
         Ok(SandboxExecutionOutput {
-            result: result.tx_result.result,
+            result: tx_result.result,
             write_logs: storage_logs
                 .into_iter()
                 .filter_map(|log| log.log.is_write().then_some(log.log))
                 .collect(),
-            events: result.tx_result.logs.events,
+            events: tx_result.logs.events,
             call_traces: result.call_traces,
             metrics,
             are_published_bytecodes_ok: result.compression_result.is_ok(),

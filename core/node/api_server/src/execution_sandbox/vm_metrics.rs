@@ -3,13 +3,7 @@ use std::time::Duration;
 use vise::{
     Buckets, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, LatencyObserver, Metrics,
 };
-use zksync_multivm::{
-    interface::{
-        TransactionExecutionMetrics, VmEvent, VmExecutionMetrics, VmExecutionResultAndLogs,
-    },
-    utils::StorageWritesDeduplicator,
-};
-use zksync_types::{bytecode::BytecodeHash, H256};
+use zksync_types::H256;
 
 use crate::utils::ReportFilter;
 
@@ -132,44 +126,3 @@ pub(super) struct ExecutionMetrics {
 
 #[vise::register]
 pub(super) static EXECUTION_METRICS: vise::Global<ExecutionMetrics> = vise::Global::new();
-
-pub(super) fn collect_tx_execution_metrics(
-    result: &VmExecutionResultAndLogs,
-) -> TransactionExecutionMetrics {
-    let writes = StorageWritesDeduplicator::apply_on_empty_state(&result.logs.storage_logs);
-
-    // FIXME: these computations differ from ones in `VmExecutionResultAndLogs::get_execution_metrics()`; why?
-    let l2_l1_long_messages = VmEvent::extract_long_l2_to_l1_messages(&result.logs.events)
-        .iter()
-        .map(|event| event.len())
-        .sum();
-    let published_bytecode_bytes = VmEvent::extract_published_bytecodes(&result.logs.events)
-        .iter()
-        .map(|&bytecode_hash| {
-            BytecodeHash::try_from(bytecode_hash)
-                .expect("published unparseable bytecode hash")
-                .len_in_bytes()
-        })
-        .sum();
-
-    TransactionExecutionMetrics {
-        writes,
-        vm: VmExecutionMetrics {
-            gas_used: result.statistics.gas_used as usize,
-            published_bytecode_bytes,
-            l2_l1_long_messages,
-            l2_to_l1_logs: result.logs.total_l2_to_l1_logs_count(),
-            user_l2_to_l1_logs: result.logs.user_l2_to_l1_logs.len(),
-            contracts_used: result.statistics.contracts_used,
-            vm_events: result.logs.events.len(),
-            storage_logs: result.logs.storage_logs.len(),
-            total_log_queries: result.statistics.total_log_queries,
-            cycles_used: result.statistics.cycles_used,
-            computational_gas_used: result.statistics.computational_gas_used,
-            pubdata_published: result.statistics.pubdata_published,
-            circuit_statistic: result.statistics.circuit_statistic,
-        },
-        gas_remaining: result.statistics.gas_remaining,
-        gas_refunded: result.refunds.gas_refunded,
-    }
-}
