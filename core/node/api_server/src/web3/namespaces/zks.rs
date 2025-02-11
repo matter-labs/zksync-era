@@ -309,14 +309,14 @@ impl ZksNamespace {
         Ok(log_proof)
     }
 
-    pub async fn get_l2_to_global_message_root_proof_impl(
-        &self,
-        block_number: L2BlockNumber,
-        sender: Address,
-        msg: H256,
-    ) -> Result<Option<L2ToL1LogProof>, Web3Error> {
-        todo!() // kl todo
-    }
+    // pub async fn get_l2_to_global_message_root_proof_impl(
+    //     &self,
+    //     block_number: L2BlockNumber,
+    //     sender: Address,
+    //     msg: H256,
+    // ) -> Result<Option<L2ToL1LogProof>, Web3Error> {
+    //     todo!() // kl todo
+    // }
 
     async fn get_l2_to_l1_log_proof_inner(
         &self,
@@ -356,8 +356,8 @@ impl ZksNamespace {
             .protocol_version
             .unwrap_or_else(ProtocolVersionId::last_potentially_undefined);
         let tree_size = l2_to_l1_logs_tree_size(protocol_version);
-
-        let (local_root, proof) = MiniMerkleTree::new(merkle_tree_leaves, Some(tree_size))
+        // println!("kl toodo merkle tree leaves: {:?}", merkle_tree_leaves);
+        let (local_root, proof) = MiniMerkleTree::new(merkle_tree_leaves, None) //, Some(tree_size))
             .merkle_root_and_path(l1_log_index);
 
         if protocol_version.is_pre_gateway() {
