@@ -132,7 +132,6 @@ impl StateKeeperHandles {
         }
 
         let state_keeper = ZkSyncStateKeeper::new(
-            stop_receiver,
             Box::new(io),
             Box::new(batch_executor),
             output_handler,
@@ -143,7 +142,7 @@ impl StateKeeperHandles {
         Self {
             stop_sender,
             sync_state,
-            task: tokio::spawn(state_keeper.run()),
+            task: tokio::spawn(state_keeper.run(stop_receiver)),
         }
     }
 
@@ -260,14 +259,15 @@ async fn external_io_basics(snapshot_recovery: bool) {
     assert_eq!(l2_block.l1_tx_count, 0);
     assert_eq!(l2_block.l2_tx_count, 1);
 
-    let tx_receipt = storage
+    let tx_receipts = storage
         .transactions_web3_dal()
         .get_transaction_receipts(&[tx_hash])
         .await
-        .unwrap()
+        .unwrap();
+    let tx_receipt = &tx_receipts
         .first()
-        .cloned()
-        .expect("Transaction not persisted");
+        .expect("Transaction not persisted")
+        .inner;
     assert_eq!(
         tx_receipt.block_number,
         (snapshot.l2_block_number.0 + 1).into()

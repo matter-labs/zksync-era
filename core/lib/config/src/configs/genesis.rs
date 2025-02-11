@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use zksync_basic_types::{
     commitment::L1BatchCommitmentMode,
     protocol_version::{ProtocolSemanticVersion, ProtocolVersionId},
-    Address, L1ChainId, L2ChainId, SLChainId, H256,
+    Address, L1ChainId, L2ChainId, H256,
 };
 
 /// This config represents the genesis state of the chain.
@@ -19,7 +19,6 @@ pub struct GenesisConfig {
     pub default_aa_hash: Option<H256>,
     pub evm_emulator_hash: Option<H256>,
     pub l1_chain_id: L1ChainId,
-    pub sl_chain_id: Option<SLChainId>,
     pub l2_chain_id: L2ChainId,
     // Note: `serde` isn't used with protobuf config. The same alias is implemented in
     // `zksync_protobuf_config` manually.
@@ -29,15 +28,11 @@ pub struct GenesisConfig {
         rename(serialize = "recursion_scheduler_level_vk_hash")
     )]
     pub snark_wrapper_vk_hash: H256,
+    pub fflonk_snark_wrapper_vk_hash: Option<H256>,
     pub fee_account: Address,
     pub dummy_verifier: bool,
     pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
-}
-
-impl GenesisConfig {
-    pub fn settlement_layer_id(&self) -> SLChainId {
-        self.sl_chain_id.unwrap_or(self.l1_chain_id.into())
-    }
+    pub custom_genesis_state_path: Option<String>,
 }
 
 impl GenesisConfig {
@@ -46,13 +41,13 @@ impl GenesisConfig {
             genesis_root_hash: Some(H256::repeat_byte(0x01)),
             rollup_last_leaf_index: Some(26),
             snark_wrapper_vk_hash: H256::repeat_byte(0x02),
+            fflonk_snark_wrapper_vk_hash: Default::default(),
             fee_account: Default::default(),
             genesis_commitment: Some(H256::repeat_byte(0x17)),
             bootloader_hash: Default::default(),
             default_aa_hash: Default::default(),
             evm_emulator_hash: Default::default(),
             l1_chain_id: L1ChainId(9),
-            sl_chain_id: None,
             protocol_version: Some(ProtocolSemanticVersion {
                 minor: ProtocolVersionId::latest(),
                 patch: 0.into(),
@@ -60,6 +55,7 @@ impl GenesisConfig {
             l2_chain_id: L2ChainId::default(),
             dummy_verifier: false,
             l1_batch_commit_data_generator_mode: L1BatchCommitmentMode::Rollup,
+            custom_genesis_state_path: None,
         }
     }
 }

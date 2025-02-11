@@ -1,18 +1,28 @@
 use std::sync::Arc;
+
 use anyhow::Context;
 use zksync_config::configs::chain::MempoolConfig;
 use zksync_node_framework_derive::{FromContext, IntoContext};
-use zksync_state::{AsyncCatchupTask, OwnedStorage, ReadStorageFactory, RocksdbStorageOptions};
-use zksync_state::CommonStorage::Postgres;
-use zksync_state_keeper::{AsyncRocksdbCache, MempoolFetcher, MempoolGuard, OutputHandler, StateKeeperIO, ZkSyncStateKeeper};
-use zksync_state_keeper::seal_criteria::ConditionalSealer;
+use zksync_state::{
+    AsyncCatchupTask, CommonStorage::Postgres, OwnedStorage, ReadStorageFactory,
+    RocksdbStorageOptions,
+};
+use zksync_state_keeper::{
+    seal_criteria::ConditionalSealer, AsyncRocksdbCache, MempoolFetcher, MempoolGuard,
+    OutputHandler, StateKeeperIO, ZkSyncStateKeeper,
+};
 use zksync_storage::RocksDB;
 use zksync_vm_executor::interface::BatchExecutorFactory;
 use zksync_zkos_state_keeper::ZkosStateKeeper;
-use crate::implementations::resources::pools::{MasterPool, PoolResource};
-use crate::service::ShutdownHook;
-use crate::{StopReceiver, Task, TaskId, WiringError, WiringLayer};
-use crate::implementations::resources::fee_input::SequencerFeeInputResource;
+
+use crate::{
+    implementations::resources::{
+        fee_input::SequencerFeeInputResource,
+        pools::{MasterPool, PoolResource},
+    },
+    service::ShutdownHook,
+    StopReceiver, Task, TaskId, WiringError, WiringLayer,
+};
 
 #[derive(Debug, FromContext)]
 #[context(crate = crate)]
@@ -20,7 +30,6 @@ pub struct Input {
     pub fee_input: SequencerFeeInputResource,
     pub master_pool: PoolResource<MasterPool>,
 }
-
 
 #[derive(Debug, IntoContext)]
 #[context(crate = crate)]
@@ -35,14 +44,14 @@ pub struct Output {
 #[derive(Debug)]
 pub struct ZkOsStateKeeperLayer {
     // rocksdb_options: RocksdbStorageOptions,
-    mempool_config: MempoolConfig
+    mempool_config: MempoolConfig,
 }
 
 impl ZkOsStateKeeperLayer {
     pub fn new(mempool_config: MempoolConfig) -> Self {
         Self {
             // rocksdb_options,
-            mempool_config
+            mempool_config,
         }
     }
 }
@@ -51,7 +60,7 @@ impl ZkOsStateKeeperLayer {
 pub struct ZkOsStateKeeperTask {
     pool: PoolResource<MasterPool>,
     // storage_factory: Arc<dyn ReadStorageFactory>,
-    mempool_guard: MempoolGuard
+    mempool_guard: MempoolGuard,
 }
 
 impl ZkOsStateKeeperLayer {
@@ -94,7 +103,6 @@ impl WiringLayer for ZkOsStateKeeperLayer {
         //     self.rocksdb_options,
         // );
 
-
         let rocksdb_termination_hook = ShutdownHook::new("rocksdb_terminaton", async {
             // Wait for all the instances of RocksDB to be destroyed.
             tokio::task::spawn_blocking(RocksDB::await_rocksdb_termination)
@@ -118,13 +126,13 @@ impl WiringLayer for ZkOsStateKeeperLayer {
         let state_keeper = ZkOsStateKeeperTask {
             // storage_factory: Arc::new(storage_factory),
             pool: master_pool.clone(),
-            mempool_guard
+            mempool_guard,
         };
 
         Ok(Output {
             state_keeper,
             // rocksdb_termination_hook,
-            mempool_fetcher
+            mempool_fetcher,
         })
     }
 }

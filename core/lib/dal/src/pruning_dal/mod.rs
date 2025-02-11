@@ -1,25 +1,43 @@
 use std::ops;
 
 use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
-use zksync_types::{L1BatchNumber, L2BlockNumber};
+use zksync_types::{L1BatchNumber, L2BlockNumber, H256};
 
 use crate::Core;
 
 #[cfg(test)]
 mod tests;
 
-#[derive(Debug)]
-pub struct PruningDal<'a, 'c> {
-    pub(crate) storage: &'a mut Connection<'c, Core>,
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SoftPruningInfo {
+    pub l1_batch: L1BatchNumber,
+    pub l2_block: L2BlockNumber,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct HardPruningInfo {
+    pub l1_batch: L1BatchNumber,
+    pub l2_block: L2BlockNumber,
+    /// May be set to `None` for old pruning logs.
+    pub l1_batch_root_hash: Option<H256>,
 }
 
 /// Information about Postgres pruning.
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct PruningInfo {
-    pub last_soft_pruned_l1_batch: Option<L1BatchNumber>,
-    pub last_soft_pruned_l2_block: Option<L2BlockNumber>,
-    pub last_hard_pruned_l1_batch: Option<L1BatchNumber>,
-    pub last_hard_pruned_l2_block: Option<L2BlockNumber>,
+    /// Information about last soft pruning. Soft pruning is expected to be ahead or equal to hard pruning.
+    pub last_soft_pruned: Option<SoftPruningInfo>,
+    /// Information about last hard pruning.
+    pub last_hard_pruned: Option<HardPruningInfo>,
+}
+
+impl PruningInfo {
+    /// Returns `true` iff pruning is caught up, i.e., all soft-pruned data is hard-pruned.
+    pub fn is_caught_up(&self) -> bool {
+        let soft_pruned_l1_batch = self.last_soft_pruned.map(|info| info.l1_batch);
+        let hard_pruned_l1_batch = self.last_hard_pruned.map(|info| info.l1_batch);
+        soft_pruned_l1_batch == hard_pruned_l1_batch
+    }
 }
 
 /// Statistics about a single hard pruning iteration.
@@ -33,6 +51,44 @@ pub struct HardPruningStats {
     pub deleted_l2_to_l1_logs: u64,
 }
 
+#[derive(Debug)]
+struct StoragePruningInfo {
+    last_soft_pruned_l1_batch: Option<i64>,
+    last_soft_pruned_l2_block: Option<i64>,
+    last_hard_pruned_l1_batch: Option<i64>,
+    last_hard_pruned_l2_block: Option<i64>,
+    last_hard_pruned_batch_root_hash: Option<Vec<u8>>,
+}
+
+impl StoragePruningInfo {
+    fn as_soft(&self) -> Option<SoftPruningInfo> {
+        Some(SoftPruningInfo {
+            l1_batch: L1BatchNumber(self.last_soft_pruned_l1_batch? as u32),
+            l2_block: L2BlockNumber(self.last_soft_pruned_l2_block? as u32),
+        })
+    }
+
+    fn as_hard(&self) -> Option<HardPruningInfo> {
+        Some(HardPruningInfo {
+            l1_batch: L1BatchNumber(self.last_hard_pruned_l1_batch? as u32),
+            l2_block: L2BlockNumber(self.last_hard_pruned_l2_block? as u32),
+            l1_batch_root_hash: self
+                .last_hard_pruned_batch_root_hash
+                .as_deref()
+                .map(H256::from_slice),
+        })
+    }
+}
+
+impl From<StoragePruningInfo> for PruningInfo {
+    fn from(row: StoragePruningInfo) -> Self {
+        Self {
+            last_soft_pruned: row.as_soft(),
+            last_hard_pruned: row.as_hard(),
+        }
+    }
+}
+
 #[derive(Debug, sqlx::Type)]
 #[sqlx(type_name = "prune_type")]
 enum PruneType {
@@ -40,9 +96,15 @@ enum PruneType {
     Hard,
 }
 
+#[derive(Debug)]
+pub struct PruningDal<'a, 'c> {
+    pub(crate) storage: &'a mut Connection<'c, Core>,
+}
+
 impl PruningDal<'_, '_> {
     pub async fn get_pruning_info(&mut self) -> DalResult<PruningInfo> {
-        let pruning_info = sqlx::query!(
+        let row = sqlx::query_as!(
+            StoragePruningInfo,
             r#"
             WITH
             soft AS (
@@ -62,7 +124,8 @@ impl PruningDal<'_, '_> {
             hard AS (
                 SELECT
                     pruned_l1_batch,
-                    pruned_miniblock
+                    pruned_miniblock,
+                    pruned_l1_batch_root_hash
                 FROM
                     pruning_log
                 WHERE
@@ -75,36 +138,24 @@ impl PruningDal<'_, '_> {
             
             SELECT
                 soft.pruned_l1_batch AS last_soft_pruned_l1_batch,
-                soft.pruned_miniblock AS last_soft_pruned_miniblock,
+                soft.pruned_miniblock AS last_soft_pruned_l2_block,
                 hard.pruned_l1_batch AS last_hard_pruned_l1_batch,
-                hard.pruned_miniblock AS last_hard_pruned_miniblock
+                hard.pruned_miniblock AS last_hard_pruned_l2_block,
+                hard.pruned_l1_batch_root_hash AS last_hard_pruned_batch_root_hash
             FROM
                 soft
             FULL JOIN hard ON TRUE
             "#
         )
-        .map(|row| PruningInfo {
-            last_soft_pruned_l1_batch: row
-                .last_soft_pruned_l1_batch
-                .map(|num| L1BatchNumber(num as u32)),
-            last_soft_pruned_l2_block: row
-                .last_soft_pruned_miniblock
-                .map(|num| L2BlockNumber(num as u32)),
-            last_hard_pruned_l1_batch: row
-                .last_hard_pruned_l1_batch
-                .map(|num| L1BatchNumber(num as u32)),
-            last_hard_pruned_l2_block: row
-                .last_hard_pruned_miniblock
-                .map(|num| L2BlockNumber(num as u32)),
-        })
         .instrument("get_last_soft_pruned_batch")
         .report_latency()
         .fetch_optional(self.storage)
         .await?;
-        Ok(pruning_info.unwrap_or_default())
+
+        Ok(row.map(PruningInfo::from).unwrap_or_default())
     }
 
-    pub async fn soft_prune_batches_range(
+    pub async fn insert_soft_pruning_log(
         &mut self,
         last_l1_batch_to_prune: L1BatchNumber,
         last_l2_block_to_prune: L2BlockNumber,
@@ -137,6 +188,7 @@ impl PruningDal<'_, '_> {
         Ok(())
     }
 
+    /// Does not insert pruning logs; the caller is responsible to do this!
     pub async fn hard_prune_batches_range(
         &mut self,
         last_l1_batch_to_prune: L1BatchNumber,
@@ -159,42 +211,38 @@ impl PruningDal<'_, '_> {
         .fetch_one(self.storage)
         .await?;
 
-        // We don't have any L2 blocks available when recovering from a snapshot
-        let stats = if let Some(first_l2_block_to_prune) = row.first_miniblock_to_prune {
-            let first_l2_block_to_prune = L2BlockNumber(first_l2_block_to_prune as u32);
-
-            let deleted_events = self
-                .delete_events(first_l2_block_to_prune..=last_l2_block_to_prune)
-                .await?;
-            let deleted_l2_to_l1_logs = self
-                .delete_l2_to_l1_logs(first_l2_block_to_prune..=last_l2_block_to_prune)
-                .await?;
-            let deleted_call_traces = self
-                .delete_call_traces(first_l2_block_to_prune..=last_l2_block_to_prune)
-                .await?;
-            self.clear_transaction_fields(first_l2_block_to_prune..=last_l2_block_to_prune)
-                .await?;
-
-            let deleted_storage_logs = self
-                .prune_storage_logs(first_l2_block_to_prune..=last_l2_block_to_prune)
-                .await?;
-            let deleted_l1_batches = self.delete_l1_batches(last_l1_batch_to_prune).await?;
-            let deleted_l2_blocks = self.delete_l2_blocks(last_l2_block_to_prune).await?;
-
-            HardPruningStats {
-                deleted_l1_batches,
-                deleted_l2_blocks,
-                deleted_events,
-                deleted_l2_to_l1_logs,
-                deleted_call_traces,
-                deleted_storage_logs,
-            }
-        } else {
-            HardPruningStats::default()
+        let Some(first_l2_block_to_prune) = row.first_miniblock_to_prune else {
+            return Ok(HardPruningStats::default());
         };
 
-        self.insert_hard_pruning_log(last_l1_batch_to_prune, last_l2_block_to_prune)
+        let first_l2_block_to_prune = L2BlockNumber(first_l2_block_to_prune as u32);
+
+        let deleted_events = self
+            .delete_events(first_l2_block_to_prune..=last_l2_block_to_prune)
             .await?;
+        let deleted_l2_to_l1_logs = self
+            .delete_l2_to_l1_logs(first_l2_block_to_prune..=last_l2_block_to_prune)
+            .await?;
+        let deleted_call_traces = self
+            .delete_call_traces(first_l2_block_to_prune..=last_l2_block_to_prune)
+            .await?;
+        self.clear_transaction_fields(first_l2_block_to_prune..=last_l2_block_to_prune)
+            .await?;
+
+        let deleted_storage_logs = self
+            .prune_storage_logs(first_l2_block_to_prune..=last_l2_block_to_prune)
+            .await?;
+        let deleted_l1_batches = self.delete_l1_batches(last_l1_batch_to_prune).await?;
+        let deleted_l2_blocks = self.delete_l2_blocks(last_l2_block_to_prune).await?;
+
+        let stats = HardPruningStats {
+            deleted_l1_batches,
+            deleted_l2_blocks,
+            deleted_events,
+            deleted_l2_to_l1_logs,
+            deleted_call_traces,
+            deleted_storage_logs,
+        };
         Ok(stats)
     }
 
@@ -389,10 +437,11 @@ impl PruningDal<'_, '_> {
         Ok(execution_result.rows_affected())
     }
 
-    async fn insert_hard_pruning_log(
+    pub async fn insert_hard_pruning_log(
         &mut self,
         last_l1_batch_to_prune: L1BatchNumber,
         last_l2_block_to_prune: L2BlockNumber,
+        last_pruned_l1_batch_root_hash: H256,
     ) -> DalResult<()> {
         sqlx::query!(
             r#"
@@ -400,15 +449,17 @@ impl PruningDal<'_, '_> {
             pruning_log (
                 pruned_l1_batch,
                 pruned_miniblock,
+                pruned_l1_batch_root_hash,
                 type,
                 created_at,
                 updated_at
             )
             VALUES
-            ($1, $2, $3, NOW(), NOW())
+            ($1, $2, $3, $4, NOW(), NOW())
             "#,
             i64::from(last_l1_batch_to_prune.0),
             i64::from(last_l2_block_to_prune.0),
+            last_pruned_l1_batch_root_hash.as_bytes(),
             PruneType::Hard as PruneType
         )
         .instrument("hard_prune_batches_range#insert_pruning_log")

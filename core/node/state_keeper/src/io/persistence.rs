@@ -385,18 +385,16 @@ mod tests {
     use zksync_dal::CoreDal;
     use zksync_multivm::interface::{FinishedL1Batch, VmExecutionMetrics};
     use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
+    use zksync_node_test_utils::{default_l1_batch_env, default_system_env};
     use zksync_types::{
-        api::TransactionStatus, block::BlockGasCount, h256_to_u256, writes::StateDiffRecord,
-        L1BatchNumber, L2BlockNumber, StorageLogKind, H256, U256,
+        api::TransactionStatus, h256_to_u256, writes::StateDiffRecord, L1BatchNumber,
+        L2BlockNumber, StorageLogKind, H256, U256,
     };
 
     use super::*;
     use crate::{
         io::L2BlockParams,
-        tests::{
-            create_execution_result, create_transaction, create_updates_manager,
-            default_l1_batch_env, default_system_env, Query,
-        },
+        tests::{create_execution_result, create_transaction, create_updates_manager, Query},
         OutputHandler,
     };
 
@@ -508,7 +506,6 @@ mod tests {
             tx,
             tx_result,
             vec![],
-            BlockGasCount::default(),
             VmExecutionMetrics::default(),
             vec![],
         );

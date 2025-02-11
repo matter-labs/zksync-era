@@ -6,7 +6,7 @@ Note: this README is under construction.
 
 ## Local development
 
-This section describes how to run the external node locally
+This section describes how to run the external node locally.
 
 ### Configuration
 

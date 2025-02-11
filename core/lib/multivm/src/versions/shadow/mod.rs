@@ -25,7 +25,7 @@ use crate::{
 mod tests;
 
 type ReferenceVm<S = InMemoryStorage> = vm_latest::Vm<StorageView<S>, HistoryEnabled>;
-type ShadowedFastVm<S = InMemoryStorage> = crate::vm_instance::ShadowedFastVm<S>;
+type ShadowedFastVm<S = InMemoryStorage, Tr = ()> = crate::vm_instance::ShadowedFastVm<S, Tr, ()>;
 
 fn hash_block(block_env: L2BlockEnv, tx_hashes: &[H256]) -> H256 {
     let mut hasher = L2BlockHasher::new(

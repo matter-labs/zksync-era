@@ -17,7 +17,7 @@ pub struct StorageEthTx {
     pub has_failed: bool,
     pub confirmed_eth_tx_history_id: Option<i32>,
     pub gas_used: Option<i64>,
-    pub predicted_gas_cost: i64,
+    pub predicted_gas_cost: Option<i64>,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
     // TODO (SMA-1614): remove the field
@@ -80,7 +80,7 @@ impl From<StorageEthTx> for EthTx {
             raw_tx: tx.raw_tx.clone(),
             tx_type: AggregatedActionType::from_str(&tx.tx_type).expect("Wrong agg type"),
             created_at_timestamp: tx.created_at.and_utc().timestamp() as u64,
-            predicted_gas_cost: tx.predicted_gas_cost as u64,
+            predicted_gas_cost: tx.predicted_gas_cost.map(|c| c as u64),
             from_addr: tx.from_addr.map(|f| Address::from_slice(&f)),
             blob_sidecar: tx.blob_sidecar.map(|b| {
                 bincode::deserialize(&b).expect("EthTxBlobSidecar is encoded correctly; qed")

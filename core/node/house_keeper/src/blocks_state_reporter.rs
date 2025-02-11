@@ -22,7 +22,10 @@ impl L1BatchMetricsReporter {
 
     async fn report_metrics(&self) -> anyhow::Result<()> {
         let mut block_metrics = vec![];
-        let mut conn = self.connection_pool.connection().await?;
+        let mut conn = self
+            .connection_pool
+            .connection_tagged("house_keeper")
+            .await?;
         let last_l1_batch = conn.blocks_dal().get_sealed_l1_batch_number().await?;
         if let Some(number) = last_l1_batch {
             block_metrics.push((number, BlockStage::Sealed));

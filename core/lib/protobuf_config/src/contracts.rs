@@ -2,7 +2,7 @@ use anyhow::Context as _;
 use zksync_config::configs::{ContractsConfig, EcosystemContracts};
 use zksync_protobuf::{repr::ProtoRepr, required};
 
-use crate::{parse_h160, proto::contracts as proto};
+use crate::{parse_h160, parse_h256, proto::contracts as proto};
 
 impl ProtoRepr for proto::Contracts {
     type Type = ContractsConfig;
@@ -30,6 +30,14 @@ impl ProtoRepr for proto::Contracts {
                 )
                 .and_then(|x| parse_h160(x))
                 .context("transparent_proxy_admin_addr")?,
+                l1_bytecodes_supplier_addr: ecosystem_contracts
+                    .l1_bytecodes_supplier_addr
+                    .as_ref()
+                    .map(|x| parse_h160(x).expect("Invalid address")),
+                l1_wrapped_base_token_store: ecosystem_contracts
+                    .l1_wrapped_base_token_store
+                    .as_ref()
+                    .map(|x| parse_h160(x).expect("Invalid address")),
             })
         } else {
             None
@@ -113,6 +121,12 @@ impl ProtoRepr for proto::Contracts {
                 .map(|x| parse_h160(x))
                 .transpose()
                 .context("base_token_addr")?,
+            l1_base_token_asset_id: l1
+                .base_token_asset_id
+                .as_ref()
+                .map(|x| parse_h256(x))
+                .transpose()
+                .context("base_token_asset_id")?,
             chain_admin_addr: l1
                 .chain_admin_addr
                 .as_ref()
@@ -145,6 +159,12 @@ impl ProtoRepr for proto::Contracts {
                     "{:?}",
                     ecosystem_contracts.transparent_proxy_admin_addr,
                 )),
+                l1_bytecodes_supplier_addr: ecosystem_contracts
+                    .l1_bytecodes_supplier_addr
+                    .map(|x| format!("{:?}", x)),
+                l1_wrapped_base_token_store: ecosystem_contracts
+                    .l1_wrapped_base_token_store
+                    .map(|x| format!("{:?}", x)),
             });
         Self {
             ecosystem_contracts,
@@ -156,6 +176,7 @@ impl ProtoRepr for proto::Contracts {
                 default_upgrade_addr: Some(format!("{:?}", this.default_upgrade_addr)),
                 multicall3_addr: Some(format!("{:?}", this.l1_multicall3_addr)),
                 base_token_addr: this.base_token_addr.map(|a| format!("{:?}", a)),
+                base_token_asset_id: this.l1_base_token_asset_id.map(|x| format!("{:?}", x)),
                 chain_admin_addr: this.chain_admin_addr.map(|a| format!("{:?}", a)),
             }),
             l2: Some(proto::L2 {

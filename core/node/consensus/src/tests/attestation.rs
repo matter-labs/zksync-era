@@ -151,7 +151,7 @@ async fn test_multiple_attesters(version: ProtocolVersionId) {
 
         tracing::info!("deploy registry with 1 attester");
         let attesters: Vec<_> = setup.genesis.attesters.as_ref().unwrap().iter().collect();
-        let registry = Registry::new(setup.genesis.clone(), validator_pool.clone()).await;
+        let registry = Registry::new(validator_pool.clone()).await;
         let (registry_addr, tx) = registry.deploy(account);
         cfgs[0]
             .config

@@ -184,16 +184,13 @@ impl StorageWeb3Dal<'_, '_> {
             hashed_key.as_bytes(),
             i64::from(block_number.0)
         )
-            .instrument("get_historical_value_unchecked")
-            .report_latency()
-            .with_arg("key", &hashed_key)
-            .with_arg("block_number", &block_number)
-            .fetch_optional(self.storage)
-            .await
-            .map(|option_row| {
-                option_row
-                    .map(|row| H256::from_slice(&row.value))
-            })
+        .instrument("get_historical_value_unchecked")
+        .report_latency()
+        .with_arg("key", &hashed_key)
+        .with_arg("block_number", &block_number)
+        .fetch_optional(self.storage)
+        .await
+        .map(|option_row| option_row.map(|row| H256::from_slice(&row.value)))
     }
 
     /// Provides information about the L1 batch that the specified L2 block is a part of.

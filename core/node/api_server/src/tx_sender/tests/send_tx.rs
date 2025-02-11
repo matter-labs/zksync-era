@@ -6,9 +6,9 @@ use assert_matches::assert_matches;
 use chrono::NaiveDateTime;
 use test_casing::test_casing;
 use zksync_multivm::interface::{tracer::ValidationTraces, ExecutionResult};
-use zksync_node_fee_model::MockBatchFeeParamsProvider;
+use zksync_node_fee_model::{BatchFeeModelInputProvider, MockBatchFeeParamsProvider};
 use zksync_node_test_utils::create_l2_transaction;
-use zksync_types::K256PrivateKey;
+use zksync_test_contracts::Account;
 
 use super::*;
 use crate::testonly::{StateBuilder, TestAccount};
@@ -22,10 +22,9 @@ async fn submitting_tx_requires_one_connection() {
         .unwrap();
 
     let l2_chain_id = L2ChainId::default();
-    let fee_input = MockBatchFeeParamsProvider::default()
-        .get_batch_fee_input_scaled(1.0, 1.0)
-        .await
-        .unwrap();
+    let fee_params_provider: &dyn BatchFeeModelInputProvider =
+        &MockBatchFeeParamsProvider::default();
+    let fee_input = fee_params_provider.get_batch_fee_input().await.unwrap();
     let (base_fee, gas_per_pubdata) =
         derive_base_fee_and_gas_per_pubdata(fee_input, ProtocolVersionId::latest().into());
     let tx = create_l2_transaction(base_fee, gas_per_pubdata);
@@ -130,10 +129,9 @@ async fn fee_validation_errors() {
     let l2_chain_id = L2ChainId::default();
     let tx_executor = SandboxExecutor::mock(MockOneshotExecutor::default()).await;
     let (tx_sender, _) = create_test_tx_sender(pool.clone(), l2_chain_id, tx_executor).await;
-    let fee_input = MockBatchFeeParamsProvider::default()
-        .get_batch_fee_input_scaled(1.0, 1.0)
-        .await
-        .unwrap();
+    let fee_params_provider: &dyn BatchFeeModelInputProvider =
+        &MockBatchFeeParamsProvider::default();
+    let fee_input = fee_params_provider.get_batch_fee_input().await.unwrap();
     let (base_fee, gas_per_pubdata) =
         derive_base_fee_and_gas_per_pubdata(fee_input, ProtocolVersionId::latest().into());
     let tx = create_l2_transaction(base_fee, gas_per_pubdata);
@@ -193,7 +191,7 @@ async fn sending_transfer() {
     let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let tx_sender = create_real_tx_sender(pool).await;
     let block_args = pending_block_args(&tx_sender).await;
-    let alice = K256PrivateKey::random();
+    let mut alice = Account::random();
 
     // Manually set sufficient balance for the tx initiator.
     let mut storage = tx_sender.acquire_replica_connection().await.unwrap();
@@ -214,7 +212,7 @@ async fn sending_transfer_with_insufficient_balance() {
     let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let tx_sender = create_real_tx_sender(pool).await;
     let block_args = pending_block_args(&tx_sender).await;
-    let alice = K256PrivateKey::random();
+    let mut alice = Account::random();
     let transfer_value = 1_000_000_000.into();
 
     let transfer = alice.create_transfer(transfer_value);
@@ -231,7 +229,7 @@ async fn sending_transfer_with_incorrect_signature() {
     let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let tx_sender = create_real_tx_sender(pool).await;
     let block_args = pending_block_args(&tx_sender).await;
-    let alice = K256PrivateKey::random();
+    let mut alice = Account::random();
     let transfer_value = 1_000_000_000.into();
 
     let mut storage = tx_sender.acquire_replica_connection().await.unwrap();
@@ -253,7 +251,7 @@ async fn sending_load_test_transaction(tx_params: LoadnextContractExecutionParam
     let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let tx_sender = create_real_tx_sender(pool).await;
     let block_args = pending_block_args(&tx_sender).await;
-    let alice = K256PrivateKey::random();
+    let mut alice = Account::random();
 
     let mut storage = tx_sender.acquire_replica_connection().await.unwrap();
     StateBuilder::default()
@@ -274,7 +272,7 @@ async fn sending_reverting_transaction() {
     let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let tx_sender = create_real_tx_sender(pool).await;
     let block_args = pending_block_args(&tx_sender).await;
-    let alice = K256PrivateKey::random();
+    let mut alice = Account::random();
 
     let mut storage = tx_sender.acquire_replica_connection().await.unwrap();
     StateBuilder::default()
@@ -297,7 +295,7 @@ async fn sending_transaction_out_of_gas() {
     let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let tx_sender = create_real_tx_sender(pool).await;
     let block_args = pending_block_args(&tx_sender).await;
-    let alice = K256PrivateKey::random();
+    let mut alice = Account::random();
 
     let mut storage = tx_sender.acquire_replica_connection().await.unwrap();
     StateBuilder::default()
@@ -322,10 +320,9 @@ async fn submit_tx_with_validation_traces(actual_range: Range<u64>, expected_ran
         .unwrap();
 
     let l2_chain_id = L2ChainId::default();
-    let fee_input = MockBatchFeeParamsProvider::default()
-        .get_batch_fee_input_scaled(1.0, 1.0)
-        .await
-        .unwrap();
+    let fee_params_provider: &dyn BatchFeeModelInputProvider =
+        &MockBatchFeeParamsProvider::default();
+    let fee_input = fee_params_provider.get_batch_fee_input().await.unwrap();
     let (base_fee, gas_per_pubdata) =
         derive_base_fee_and_gas_per_pubdata(fee_input, ProtocolVersionId::latest().into());
     let tx = create_l2_transaction(base_fee, gas_per_pubdata);

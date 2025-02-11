@@ -1,15 +1,21 @@
 use ruint::aliases::B160;
-use zk_ee::common_structs::derive_flat_storage_key;
-use zk_ee::system::{EVM_CODE_VERSION, ExecutionEnvironmentType};
-use zk_ee::system::reference_implementations::storage_format::account_code::PackedPartialAccountData;
-use zk_ee::system::system_io_oracle::PreimageType;
-use zk_ee::utils::Bytes32;
+use zk_ee::{
+    common_structs::derive_flat_storage_key,
+    system::{
+        reference_implementations::storage_format::account_code::PackedPartialAccountData,
+        system_io_oracle::PreimageType, ExecutionEnvironmentType, EVM_CODE_VERSION,
+    },
+    utils::Bytes32,
+};
 use zk_os_basic_system::basic_io_implementer::address_into_special_storage_key;
 use zk_os_forward_system::run::test_impl::{InMemoryPreimageSource, InMemoryTree};
-use zksync_types::ethabi::{Address, encode, Token};
-use zksync_types::{address_to_h256, ExecuteTransactionCommon, H256, h256_to_u256, Transaction, U256};
-use zksync_types::l2::TransactionType;
-
+use zksync_types::{
+    address_to_h256,
+    ethabi::{encode, Address, Token},
+    h256_to_u256,
+    l2::TransactionType,
+    ExecuteTransactionCommon, Transaction, H256, U256,
+};
 
 pub(crate) const MAX_GAS_PER_PUBDATA_BYTE: u64 = 50_000;
 
@@ -48,9 +54,7 @@ pub(crate) struct TransactionData {
 }
 
 impl TransactionData {
-    pub fn abi_encode(
-        self,
-    ) -> Vec<u8> {
+    pub fn abi_encode(self) -> Vec<u8> {
         let mut res = encode(&[Token::Tuple(vec![
             Token::Uint(U256::from_big_endian(&self.tx_type.to_be_bytes())),
             Token::Address(self.from),
@@ -105,7 +109,9 @@ impl From<Transaction> for TransactionData {
                 let is_deployment_transaction = match execute_tx.execute.contract_address {
                     None =>
                     // that means it's a deploy transaction
-                        U256([1, 0, 0, 0]),
+                    {
+                        U256([1, 0, 0, 0])
+                    }
                     // all other transactions
                     Some(_) => U256::zero(),
                 };
@@ -178,4 +184,3 @@ pub fn h256_to_bytes32(input: H256) -> Bytes32 {
 pub fn bytes32_to_h256(input: Bytes32) -> H256 {
     H256::from_slice(&input.as_u8_array())
 }
-

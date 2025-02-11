@@ -15,12 +15,12 @@ use zksync_multivm::{interface::Halt, utils::derive_base_fee_and_gas_per_pubdata
 use zksync_node_fee_model::BatchFeeModelInputProvider;
 use zksync_types::{
     block::UnsealedL1BatchHeader,
-    commitment::{L1BatchCommitmentMode, PubdataParams},
+    commitment::{PubdataParams, PubdataType},
     protocol_upgrade::ProtocolUpgradeTx,
     utils::display_timestamp,
     Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256, U256,
 };
-use zksync_vm_executor::storage::L1BatchParamsProvider;
+use zksync_vm_executor::storage::{get_base_system_contracts_by_version_id, L1BatchParamsProvider};
 
 use crate::{
     io::{
@@ -58,7 +58,7 @@ pub struct MempoolIO {
     batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
     chain_id: L2ChainId,
     l2_da_validator_address: Option<Address>,
-    pubdata_type: L1BatchCommitmentMode,
+    pubdata_type: PubdataType,
 }
 
 impl IoSealCriteria for MempoolIO {
@@ -206,6 +206,21 @@ impl StateKeeperIO for MempoolIO {
                 .protocol_version_id_by_timestamp(timestamp)
                 .await
                 .context("Failed loading protocol version")?;
+            let previous_protocol_version = storage
+                .blocks_dal()
+                .pending_protocol_version()
+                .await
+                .context("Failed loading previous protocol version")?;
+            let batch_with_upgrade_tx = if previous_protocol_version != protocol_version {
+                storage
+                    .protocol_versions_dal()
+                    .get_protocol_upgrade_tx(protocol_version)
+                    .await
+                    .context("Failed loading protocol upgrade tx")?
+                    .is_some()
+            } else {
+                false
+            };
             drop(storage);
 
             // We create a new filter each time, since parameters may change and a previously
@@ -217,7 +232,8 @@ impl StateKeeperIO for MempoolIO {
             .await
             .context("failed creating L2 transaction filter")?;
 
-            if !self.mempool.has_next(&self.filter) {
+            // We do not populate mempool with upgrade tx so it should be checked separately.
+            if !batch_with_upgrade_tx && !self.mempool.has_next(&self.filter) {
                 tokio::time::sleep(self.delay_interval).await;
                 continue;
             }
@@ -366,18 +382,15 @@ impl StateKeeperIO for MempoolIO {
         protocol_version: ProtocolVersionId,
         _cursor: &IoCursor,
     ) -> anyhow::Result<BaseSystemContracts> {
-        self.pool
-            .connection_tagged("state_keeper")
-            .await?
-            .protocol_versions_dal()
-            .load_base_system_contracts_by_version_id(protocol_version as u16)
-            .await
-            .context("failed loading base system contracts")?
-            .with_context(|| {
-                format!(
-                    "no base system contracts persisted for protocol version {protocol_version:?}"
-                )
-            })
+        get_base_system_contracts_by_version_id(
+            &mut self.pool.connection_tagged("state_keeper").await?,
+            protocol_version,
+        )
+        .await
+        .context("failed loading base system contracts")?
+        .with_context(|| {
+            format!("no base system contracts persisted for protocol version {protocol_version:?}")
+        })
     }
 
     async fn load_batch_version_id(
@@ -481,7 +494,7 @@ impl MempoolIO {
         delay_interval: Duration,
         chain_id: L2ChainId,
         l2_da_validator_address: Option<Address>,
-        pubdata_type: L1BatchCommitmentMode,
+        pubdata_type: PubdataType,
     ) -> anyhow::Result<Self> {
         Ok(Self {
             mempool,
