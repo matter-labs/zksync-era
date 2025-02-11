@@ -8428,6 +8428,7 @@ version = "0.1.0"
 dependencies = [
  "sqlx",
  "strum",
+ "tokio",
  "zksync_basic_types",
  "zksync_db_connection",
 ]
