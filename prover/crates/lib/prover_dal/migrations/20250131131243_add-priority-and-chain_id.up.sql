@@ -12,7 +12,7 @@ CREATE INDEX IF NOT EXISTS idx_witness_inputs_fri_priority
     WHERE (status = 'queued'::text);
 
 CREATE INDEX IF NOT EXISTS idx_leaf_aggregation_witness_jobs_fri_priority
-    ON leaf_aggregation_witness_jobs_fri USING btree (priority, created_at))
+    ON leaf_aggregation_witness_jobs_fri USING btree (priority, created_at)
     WHERE (status = 'queued'::text);
 
 CREATE INDEX IF NOT EXISTS idx_node_aggregation_witness_jobs_fri_priority
