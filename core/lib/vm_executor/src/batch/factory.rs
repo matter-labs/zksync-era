@@ -16,6 +16,7 @@ use zksync_multivm::{
     pubdata_builders::pubdata_params_to_builder,
     tracers::CallTracer,
     vm_fast,
+    vm_fast::FastValidationTracer,
     vm_latest::HistoryEnabled,
     FastVmInstance, LegacyVmInstance, MultiVmTracer,
 };
@@ -255,7 +256,10 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
                 with_compression,
             ),
             Self::Fast(vm) => {
-                let mut tracer = (legacy_tracer.into(), (Tr::Fast::default(), ()));
+                let mut tracer = (
+                    legacy_tracer.into(),
+                    (Tr::Fast::default(), FastValidationTracer::default()),
+                );
                 let res = vm.inspect_transaction_with_bytecode_compression(
                     &mut tracer,
                     tx,
