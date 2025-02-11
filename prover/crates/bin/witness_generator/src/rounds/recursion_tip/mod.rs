@@ -222,7 +222,7 @@ impl JobManager for RecursionTip {
         let Some((l1_batch_number, number_of_final_node_jobs)) = connection_pool
             .connection()
             .await?
-            .fri_witness_generator_dal()
+            .fri_recursion_tip_witness_generator_dal()
             .get_next_recursion_tip_witness_job(protocol_version, &pod_name)
             .await
         else {

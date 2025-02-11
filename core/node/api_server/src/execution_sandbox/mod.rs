@@ -228,9 +228,8 @@ impl BlockStartInfo {
         storage: &mut Connection<'_, Core>,
     ) -> anyhow::Result<L2BlockNumber> {
         let cached_pruning_info = self.get_pruning_info(storage).await?;
-        let last_block = cached_pruning_info.last_soft_pruned_l2_block;
-        if let Some(L2BlockNumber(last_block)) = last_block {
-            return Ok(L2BlockNumber(last_block + 1));
+        if let Some(pruned) = cached_pruning_info.last_soft_pruned {
+            return Ok(pruned.l2_block + 1);
         }
         Ok(L2BlockNumber(0))
     }
@@ -240,9 +239,8 @@ impl BlockStartInfo {
         storage: &mut Connection<'_, Core>,
     ) -> anyhow::Result<L1BatchNumber> {
         let cached_pruning_info = self.get_pruning_info(storage).await?;
-        let last_batch = cached_pruning_info.last_soft_pruned_l1_batch;
-        if let Some(L1BatchNumber(last_block)) = last_batch {
-            return Ok(L1BatchNumber(last_block + 1));
+        if let Some(pruned) = cached_pruning_info.last_soft_pruned {
+            return Ok(pruned.l1_batch + 1);
         }
         Ok(L1BatchNumber(0))
     }
@@ -276,7 +274,7 @@ impl BlockStartInfo {
 
 #[derive(Debug, thiserror::Error)]
 pub enum BlockArgsError {
-    #[error("Block is pruned; first retained block is {0}")]
+    #[error("Block is not available, either it was pruned or the node was started from a snapshot created later than this block; first retained block is {0}")]
     Pruned(L2BlockNumber),
     #[error("Block is missing, but can appear in the future")]
     Missing,

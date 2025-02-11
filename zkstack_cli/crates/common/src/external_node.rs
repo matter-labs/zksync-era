@@ -17,7 +17,7 @@ pub fn run(
     let cmd = Cmd::new(
         cmd!(
             shell,
-            "cargo run --release --bin zksync_external_node --
+            "cargo run --manifest-path ./core/Cargo.toml --release --bin zksync_external_node --
             --config-path {config_path}
             --secrets-path {secrets_path}
             --external-node-config-path {en_config_path}

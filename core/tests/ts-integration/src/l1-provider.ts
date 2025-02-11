@@ -28,7 +28,10 @@ class L1TransactionResponse extends ethers.TransactionResponse implements Augmen
     private isWaitingReported: boolean = false;
     private isReceiptReported: boolean = false;
 
-    constructor(base: ethers.TransactionResponse, public readonly reporter: Reporter) {
+    constructor(
+        base: ethers.TransactionResponse,
+        public readonly reporter: Reporter
+    ) {
         super(base, base.provider);
     }
 

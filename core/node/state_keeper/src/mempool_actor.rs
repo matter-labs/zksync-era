@@ -7,8 +7,10 @@ use tokio::sync::watch;
 use zksync_config::configs::chain::MempoolConfig;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_mempool::L2TxFilter;
-use zksync_multivm::utils::derive_base_fee_and_gas_per_pubdata;
-use zksync_multivm::zk_evm_latest::k256::elliptic_curve::weierstrass::add;
+use zksync_multivm::{
+    utils::derive_base_fee_and_gas_per_pubdata,
+    zk_evm_latest::k256::elliptic_curve::weierstrass::add,
+};
 use zksync_node_fee_model::BatchFeeModelInputProvider;
 #[cfg(test)]
 use zksync_types::H256;
@@ -85,6 +87,14 @@ impl MempoolFetcher {
             let latency = KEEPER_METRICS.mempool_sync.start();
             let mut storage = self.pool.connection_tagged("state_keeper").await?;
             let mempool_info = self.mempool.get_mempool_info();
+
+            KEEPER_METRICS
+                .mempool_stashed_accounts
+                .set(mempool_info.stashed_accounts.len());
+            KEEPER_METRICS
+                .mempool_purged_accounts
+                .set(mempool_info.purged_accounts.len());
+
             let protocol_version = storage
                 .blocks_dal()
                 .pending_protocol_version()
@@ -170,7 +180,7 @@ async fn get_transaction_nonces(
     let mut result: HashMap<Address, Nonce> = HashMap::new();
     for tx in transactions {
         let address = tx.initiator_account();
-        let maybe_nonce =  storage
+        let maybe_nonce = storage
             .transactions_web3_dal()
             .zkos_max_nonce_by_initiator_account(address)
             .await

@@ -23,6 +23,7 @@ jobs:
       docs: ${{ steps.changed-files.outputs.docs_any_changed }}
       all: ${{ steps.changed-files.outputs.all_any_changed }}
     steps:
+          
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
         with:
           fetch-depth: 2
@@ -41,9 +42,7 @@ jobs:
               - '!prover/extract-setup-data-keys.sh'
               - 'docker/prover*/**'
               - '.github/workflows/build-prover-template.yml'
-              - '.github/workflows/new-build-prover-template.yml'
               - '.github/workflows/build-witness-generator-template.yml'
-              - '.github/workflows/new-build-witness-generator-template.yml'
               - '.github/workflows/ci-prover-reusable.yml'
               - 'docker-compose-runner-nightly.yml'
               - '!**/*.md'
@@ -55,13 +54,11 @@ jobs:
               - 'docker/external-node/**'
               - 'docker/server/**'
               - '.github/workflows/build-core-template.yml'
-              - '.github/workflows/new-build-core-template.yml'
               - '.github/workflows/build-contract-verifier-template.yml'
-              - '.github/workflows/new-build-contract-verifier-template.yml'
               - '.github/workflows/ci-core-reusable.yml'
               - '.github/workflows/ci-core-lint-reusable.yml'
-              - 'Cargo.toml'
-              - 'Cargo.lock'
+              - './core/Cargo.toml'
+              - './core/Cargo.lock'
               - 'zkstack_cli/**'
               - '!**/*.md'
               - '!**/*.MD'
@@ -121,7 +118,7 @@ jobs:
     name: Build core images
     needs: changed_files
     if: ${{ (needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
-    uses: ./.github/workflows/new-build-core-template.yml
+    uses: ./.github/workflows/build-core-template.yml
     with:
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
       action: "build"
@@ -146,7 +143,7 @@ jobs:
     name: Build contract verifier
     needs: changed_files
     if: ${{ (needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
-    uses: ./.github/workflows/new-build-contract-verifier-template.yml
+    uses: ./.github/workflows/build-contract-verifier-template.yml
     with:
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
       action: "build"
@@ -158,7 +155,7 @@ jobs:
     name: Build prover images
     needs: changed_files
     if: ${{ (needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
-    uses: ./.github/workflows/new-build-prover-template.yml
+    uses: ./.github/workflows/build-prover-template.yml
     with:
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
       action: "build"
@@ -172,7 +169,7 @@ jobs:
     name: Build prover images with avx512 instructions
     needs: changed_files
     if: ${{ (needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
-    uses: ./.github/workflows/new-build-witness-generator-template.yml
+    uses: ./.github/workflows/build-witness-generator-template.yml
     with:
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}-avx512
       action: "build"

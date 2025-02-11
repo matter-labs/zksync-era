@@ -4,31 +4,27 @@ use zksync_prover_fri_types::{
         circuit_definitions::recursion_layer::base_circuit_type_into_recursive_leaf_circuit_type,
         zkevm_circuits::scheduler::aux::BaseLayerCircuitType,
     },
-    ProverServiceDataKey,
+    ProverServiceDataKey, ProvingStage,
 };
 use zksync_prover_keystore::keystore::Keystore;
-use zksync_types::basic_fri_types::AggregationRound;
 
 fn all_possible_prover_service_data_key() -> impl Strategy<Value = ProverServiceDataKey> {
     let mut keys = Vec::with_capacity(30);
     for circuit_type in 1..=13 {
         keys.push(ProverServiceDataKey::new(
             circuit_type,
-            AggregationRound::BasicCircuits,
+            ProvingStage::BasicCircuits,
         ));
         let recursive_circuit_type = base_circuit_type_into_recursive_leaf_circuit_type(
             BaseLayerCircuitType::from_numeric_value(circuit_type),
         ) as u8;
         keys.push(ProverServiceDataKey::new(
             recursive_circuit_type,
-            AggregationRound::LeafAggregation,
+            ProvingStage::LeafAggregation,
         ));
     }
-    keys.push(ProverServiceDataKey::new(1, AggregationRound::Scheduler));
-    keys.push(ProverServiceDataKey::new(
-        2,
-        AggregationRound::NodeAggregation,
-    ));
+    keys.push(ProverServiceDataKey::new(1, ProvingStage::Scheduler));
+    keys.push(ProverServiceDataKey::new(2, ProvingStage::NodeAggregation));
 
     prop::sample::select(keys)
 }
@@ -66,14 +62,14 @@ proptest! {
 // Test `ProverServiceDataKey::new` method
 #[test]
 fn test_proverservicedatakey_new() {
-    let key = ProverServiceDataKey::new(1, AggregationRound::BasicCircuits);
+    let key = ProverServiceDataKey::new(1, ProvingStage::BasicCircuits);
     assert_eq!(
         key.circuit_id, 1,
         "Circuit id should be equal to the given value"
     );
     assert_eq!(
-        key.round,
-        AggregationRound::BasicCircuits,
+        key.stage,
+        ProvingStage::BasicCircuits,
         "Round should be equal to the given value"
     );
 }

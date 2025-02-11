@@ -5,18 +5,26 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use anyhow::Context as _;
 use async_trait::async_trait;
 use ruint::aliases::U256;
-use tokio::runtime::Handle;
-use tokio::task::spawn_blocking;
+use tokio::{runtime::Handle, task::spawn_blocking};
 use zk_ee::system::system_trait::errors::InternalError;
-use zk_os_forward_system::run::{BatchContext, StorageCommitment, TxOutput, ExecutionOutput, ExecutionResult};
+use zk_os_forward_system::run::{
+    BatchContext, ExecutionOutput, ExecutionResult, StorageCommitment, TxOutput,
+};
 use zksync_dal::{Connection, Core};
-use zksync_multivm::interface::{executor::{OneshotExecutor, TransactionValidator}, storage::{ReadStorage, StorageWithOverrides}, tracer::{TimestampAsserterParams, ValidationError, ValidationParams, ValidationTraces}, Call, OneshotEnv, OneshotTracingParams, OneshotTransactionExecutionResult, TransactionExecutionMetrics, TxExecutionArgs, VmExecutionResultAndLogs};
+use zksync_multivm::interface::{
+    executor::{OneshotExecutor, TransactionValidator},
+    storage::{ReadStorage, StorageWithOverrides},
+    tracer::{TimestampAsserterParams, ValidationError, ValidationParams, ValidationTraces},
+    Call, OneshotEnv, OneshotTracingParams, OneshotTransactionExecutionResult,
+    TransactionExecutionMetrics, TxExecutionArgs, VmExecutionResultAndLogs,
+};
 use zksync_state::{PostgresStorage, PostgresStorageCaches, PostgresStorageForZkOs};
 use zksync_types::{
     api::state_override::StateOverride, fee_model::BatchFeeInput, l2::L2Tx, Transaction,
 };
 use zksync_vm_executor::oneshot::{MainOneshotExecutor, MockOneshotExecutor};
 use zksync_zkos_vm_runner::zkos_conversions::tx_abi_encode;
+
 use super::{
     vm_metrics::{self, SandboxStage},
     BlockArgs, VmPermit, SANDBOX_METRICS,
@@ -171,34 +179,31 @@ impl SandboxExecutor {
 
         let abi = tx_abi_encode(execution_args.transaction);
 
-        let result =
-            spawn_blocking(move || {
-                let zkos_storage = PostgresStorageForZkOs::new(storage);
-                zk_os_forward_system::run::simulate_tx(
-                    abi,
-                    storage_commitment,
-                    context,
-                    // we pass the storage source and preimage source separately,
-                    // but then need to backed by the same connection
-                    zkos_storage.clone(),
-                    zkos_storage,
-                )
-            }
-            ).await
-                .expect("");
+        let result = spawn_blocking(move || {
+            let zkos_storage = PostgresStorageForZkOs::new(storage);
+            zk_os_forward_system::run::simulate_tx(
+                abi,
+                storage_commitment,
+                context,
+                // we pass the storage source and preimage source separately,
+                // but then need to backed by the same connection
+                zkos_storage.clone(),
+                zkos_storage,
+            )
+        })
+        .await
+        .expect("");
 
         tracing::info!("execute_in_sandbox Result: {:?}", result);
         drop(vm_permit);
 
         //todo: eth_call error format - should be compatible with era/ethereum
         match result {
-            Ok(Ok(tx_output)) => {
-                match tx_output.execution_result {
-                    ExecutionResult::Success(ExecutionOutput::Call(data)) => Ok(data),
-                    ExecutionResult::Success(ExecutionOutput::Create(data, _)) => Ok(data),
-                    ExecutionResult::Revert(res) => anyhow::bail!("revert: {:?}", res)
-                }
-            }
+            Ok(Ok(tx_output)) => match tx_output.execution_result {
+                ExecutionResult::Success(ExecutionOutput::Call(data)) => Ok(data),
+                ExecutionResult::Success(ExecutionOutput::Create(data, _)) => Ok(data),
+                ExecutionResult::Revert(res) => anyhow::bail!("revert: {:?}", res),
+            },
             Ok(Err(invalid)) => {
                 anyhow::bail!("invalid transaction: {:?}", invalid)
             }
@@ -309,8 +314,8 @@ impl SandboxExecutor {
             resolved_block_info.state_l2_block_number(),
             false,
         )
-            .await
-            .context("cannot create `PostgresStorage`")?;
+        .await
+        .context("cannot create `PostgresStorage`")?;
 
         if let Some(caches) = &self.storage_caches {
             storage = storage.with_caches(caches.clone());

@@ -1,11 +1,9 @@
 use zksync_multivm::interface::{
     BatchTransactionExecutionResult, Call, CompressedBytecodeInfo, ExecutionResult, Halt,
-    VmExecutionResultAndLogs,
+    VmExecutionMetrics, VmExecutionResultAndLogs,
 };
 use zksync_types::Transaction;
 pub use zksync_vm_executor::batch::MainBatchExecutorFactory;
-
-use crate::ExecutionMetricsForCriteria;
 
 #[cfg(test)]
 mod tests;
@@ -13,13 +11,13 @@ mod tests;
 /// State keeper representation of a transaction executed in the virtual machine.
 ///
 /// A separate type allows to be more typesafe when dealing with halted transactions. It also simplifies testing seal criteria
-/// (i.e., without picking transactions that actually produce appropriate `ExecutionMetricsForCriteria`).
+/// (i.e., without picking transactions that actually produce appropriate `VmExecutionMetrics`).
 #[derive(Debug, Clone)]
 pub enum TxExecutionResult {
     /// Successful execution of the tx and the block tip dry run.
     Success {
         tx_result: Box<VmExecutionResultAndLogs>,
-        tx_metrics: Box<ExecutionMetricsForCriteria>,
+        tx_metrics: Box<VmExecutionMetrics>,
         compressed_bytecodes: Vec<CompressedBytecodeInfo>,
         call_tracer_result: Vec<Call>,
         gas_remaining: u32,
@@ -38,7 +36,7 @@ impl TxExecutionResult {
             } => Self::BootloaderOutOfGasForTx,
             ExecutionResult::Halt { reason } => Self::RejectedByVm { reason },
             _ => Self::Success {
-                tx_metrics: Box::new(ExecutionMetricsForCriteria::new(Some(tx), &res.tx_result)),
+                tx_metrics: Box::new(res.tx_result.get_execution_metrics(Some(tx))),
                 gas_remaining: res.tx_result.statistics.gas_remaining,
                 tx_result: res.tx_result.clone(),
                 compressed_bytecodes: res.compressed_bytecodes,

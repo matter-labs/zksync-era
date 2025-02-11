@@ -1,10 +1,9 @@
 use zksync_multivm::interface::{FinishedL1Batch, TransactionExecutionResult, VmExecutionMetrics};
 use zksync_types::{
-    block::BlockGasCount, priority_op_onchain_data::PriorityOpOnchainData,
-    ExecuteTransactionCommon, L1BatchNumber,
+    priority_op_onchain_data::PriorityOpOnchainData, ExecuteTransactionCommon, L1BatchNumber,
 };
 
-use crate::{updates::l2_block_updates::L2BlockUpdates, utils::new_block_gas_count};
+use crate::updates::l2_block_updates::L2BlockUpdates;
 
 #[derive(Debug)]
 pub struct L1BatchUpdates {
@@ -12,9 +11,8 @@ pub struct L1BatchUpdates {
     pub executed_transactions: Vec<TransactionExecutionResult>,
     pub priority_ops_onchain_data: Vec<PriorityOpOnchainData>,
     pub block_execution_metrics: VmExecutionMetrics,
-    // how much L1 gas will it take to submit this block?
-    pub l1_gas_count: BlockGasCount,
     pub txs_encoding_size: usize,
+    pub l1_tx_count: usize,
     pub finished: Option<FinishedL1Batch>,
 }
 
@@ -25,8 +23,8 @@ impl L1BatchUpdates {
             executed_transactions: Default::default(),
             priority_ops_onchain_data: Default::default(),
             block_execution_metrics: Default::default(),
-            l1_gas_count: new_block_gas_count(),
             txs_encoding_size: 0,
+            l1_tx_count: 0,
             finished: None,
         }
     }
@@ -41,9 +39,9 @@ impl L1BatchUpdates {
         self.executed_transactions
             .extend(l2_block_updates.executed_transactions);
 
-        self.l1_gas_count += l2_block_updates.l1_gas_count;
         self.block_execution_metrics += l2_block_updates.block_execution_metrics;
         self.txs_encoding_size += l2_block_updates.txs_encoding_size;
+        self.l1_tx_count += l2_block_updates.l1_tx_count;
     }
 }
 
@@ -53,10 +51,7 @@ mod tests {
     use zksync_types::{L2BlockNumber, ProtocolVersionId, H256};
 
     use super::*;
-    use crate::{
-        tests::{create_execution_result, create_transaction},
-        utils::new_block_gas_count,
-    };
+    use crate::tests::{create_execution_result, create_transaction};
 
     #[test]
     fn apply_l2_block_with_empty_tx() {
@@ -73,7 +68,6 @@ mod tests {
         l2_block_accumulator.extend_from_executed_transaction(
             tx,
             create_execution_result([]),
-            BlockGasCount::default(),
             VmExecutionMetrics::default(),
             vec![],
             vec![],
@@ -83,12 +77,12 @@ mod tests {
         l1_batch_accumulator.extend_from_sealed_l2_block(l2_block_accumulator);
 
         assert_eq!(l1_batch_accumulator.executed_transactions.len(), 1);
-        assert_eq!(l1_batch_accumulator.l1_gas_count, new_block_gas_count());
         assert_eq!(l1_batch_accumulator.priority_ops_onchain_data.len(), 0);
         assert_eq!(
             l1_batch_accumulator.block_execution_metrics.l2_to_l1_logs,
             0
         );
         assert_eq!(l1_batch_accumulator.txs_encoding_size, expected_tx_size);
+        assert_eq!(l1_batch_accumulator.l1_tx_count, 0);
     }
 }

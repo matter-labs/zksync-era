@@ -23,17 +23,17 @@ pub struct StoredBatchInfo {
 }
 
 impl StoredBatchInfo {
-    fn schema() -> Vec<ParamType> {
-        vec![ParamType::Tuple(vec![
-            ParamType::Uint(64),
-            ParamType::FixedBytes(32),
-            ParamType::Uint(64),
-            ParamType::Uint(256),
-            ParamType::FixedBytes(32),
-            ParamType::FixedBytes(32),
-            ParamType::Uint(256),
-            ParamType::FixedBytes(32),
-        ])]
+    pub fn schema() -> ParamType {
+        ParamType::Tuple(vec![
+            ParamType::Uint(64),       // `batch_number`
+            ParamType::FixedBytes(32), // `batch_hash`
+            ParamType::Uint(64),       // `index_repeated_storage_changes`
+            ParamType::Uint(256),      // `number_of_layer1_txs`
+            ParamType::FixedBytes(32), // `priority_operations_hash`
+            ParamType::FixedBytes(32), // `l2_logs_tree_root`
+            ParamType::Uint(256),      // `timestamp`
+            ParamType::FixedBytes(32), // `commitment`
+        ])
     }
 
     /// Encodes the struct into RLP.
@@ -43,7 +43,7 @@ impl StoredBatchInfo {
 
     /// Decodes the struct from RLP.
     pub fn decode(rlp: &[u8]) -> anyhow::Result<Self> {
-        let [token] = ethabi::decode_whole(&Self::schema(), rlp)?
+        let [token] = ethabi::decode_whole(&[Self::schema()], rlp)?
             .try_into()
             .unwrap();
         Ok(Self::from_token(token)?)

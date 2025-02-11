@@ -4,7 +4,8 @@ use std::{env, sync::mpsc};
 
 use vise::{Gauge, LabeledFamily, Metrics};
 use vm_benchmark::{
-    criterion::PrometheusRuntime, BenchmarkingVm, BenchmarkingVmFactory, Fast, Legacy, BYTECODES,
+    criterion::PrometheusRuntime, BenchmarkingVm, BenchmarkingVmFactory, Fast, FastNoSignatures,
+    Legacy, BYTECODES,
 };
 use yab::{
     reporter::{BenchmarkOutput, BenchmarkReporter, Reporter},
@@ -200,6 +201,7 @@ fn benchmarks(bencher: &mut Bencher) {
             .add_reporter(ComparisonReporter::default());
     }
     benchmarks_for_vm::<Fast>(bencher);
+    benchmarks_for_vm::<FastNoSignatures>(bencher);
     benchmarks_for_vm::<Legacy>(bencher);
 }
 

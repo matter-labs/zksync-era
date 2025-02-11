@@ -1,6 +1,7 @@
 use anyhow::Context;
-use common::forge::{Forge, ForgeScriptArgs};
-use config::{
+use xshell::Shell;
+use zkstack_cli_common::forge::{Forge, ForgeScriptArgs};
+use zkstack_cli_config::{
     forge_interface::{
         paymaster::{DeployPaymasterInput, DeployPaymasterOutput},
         script_params::DEPLOY_PAYMASTER_SCRIPT_PARAMS,
@@ -8,11 +9,10 @@ use config::{
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
     ChainConfig, ContractsConfig, EcosystemConfig,
 };
-use xshell::Shell;
 
 use crate::{
-    messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_L1_SECRETS_MUST_BE_PRESENTED},
-    utils::forge::{check_the_balance, fill_forge_private_key},
+    messages::MSG_CHAIN_NOT_INITIALIZED,
+    utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
 
 pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
@@ -34,29 +34,26 @@ pub async fn deploy_paymaster(
     broadcast: bool,
 ) -> anyhow::Result<()> {
     let input = DeployPaymasterInput::new(chain_config)?;
-    let foundry_contracts_path = chain_config.path_to_foundry();
+    let foundry_contracts_path = chain_config.path_to_l1_foundry();
     input.save(
         shell,
         DEPLOY_PAYMASTER_SCRIPT_PARAMS.input(&chain_config.link_to_code),
     )?;
-    let secrets = chain_config.get_secrets_config()?;
+    let secrets = chain_config.get_secrets_config().await?;
 
     let mut forge = Forge::new(&foundry_contracts_path)
         .script(&DEPLOY_PAYMASTER_SCRIPT_PARAMS.script(), forge_args.clone())
         .with_ffi()
-        .with_rpc_url(
-            secrets
-                .l1
-                .context(MSG_L1_SECRETS_MUST_BE_PRESENTED)?
-                .l1_rpc_url
-                .expose_str()
-                .to_string(),
-        );
+        .with_rpc_url(secrets.get("l1.l1_rpc_url")?);
 
     if let Some(address) = sender {
         forge = forge.with_sender(address);
     } else {
-        forge = fill_forge_private_key(forge, Some(&chain_config.get_wallets_config()?.governor))?;
+        forge = fill_forge_private_key(
+            forge,
+            Some(&chain_config.get_wallets_config()?.governor),
+            WalletOwner::Governor,
+        )?;
     }
 
     if broadcast {

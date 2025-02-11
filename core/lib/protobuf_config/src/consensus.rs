@@ -1,5 +1,6 @@
 use anyhow::Context as _;
 use zksync_basic_types::L2ChainId;
+use zksync_concurrency::time;
 use zksync_config::configs::consensus::{
     AttesterPublicKey, ConsensusConfig, GenesisSpec, Host, NodePublicKey, ProtocolVersion,
     RpcConfig, ValidatorPublicKey, WeightedAttester, WeightedValidator,
@@ -154,6 +155,11 @@ impl ProtoRepr for proto::Config {
                 .context("server_addr")?,
             public_addr: Host(required(&self.public_addr).context("public_addr")?.clone()),
             max_payload_size,
+            view_timeout: self
+                .view_timeout
+                .as_ref()
+                .map(|x| time::Duration::read(x).context("view_timeout"))
+                .transpose()?,
             max_batch_size,
             gossip_dynamic_inbound_limit: required(&self.gossip_dynamic_inbound_limit)
                 .and_then(|x| Ok((*x).try_into()?))
@@ -187,6 +193,7 @@ impl ProtoRepr for proto::Config {
             server_addr: Some(this.server_addr.to_string()),
             public_addr: Some(this.public_addr.0.clone()),
             max_payload_size: Some(this.max_payload_size.try_into().unwrap()),
+            view_timeout: this.view_timeout.as_ref().map(ProtoFmt::build),
             max_batch_size: Some(this.max_batch_size.try_into().unwrap()),
             gossip_dynamic_inbound_limit: Some(
                 this.gossip_dynamic_inbound_limit.try_into().unwrap(),

@@ -56,7 +56,7 @@ impl WiringLayer for HouseKeeperLayer {
         let l1_batch_metrics_reporter = L1BatchMetricsReporter::new(
             self.house_keeper_config
                 .l1_batch_metrics_reporting_interval_ms,
-            replica_pool.clone(),
+            replica_pool,
         );
 
         Ok(Output {

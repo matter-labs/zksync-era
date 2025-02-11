@@ -31,7 +31,8 @@ message Payload {
 
 message PubdataParams {
   optional bytes l2_da_validator_address = 1; // required; H160
-  optional L1BatchCommitDataGeneratorMode pubdata_type = 2; // required
+  optional PubdataType pubdata_info = 3; // required
+  reserved 2; reserved "pubdata_type";
 }
 
 message L1Transaction {
@@ -149,7 +150,11 @@ message AttestationStatus {
   optional uint64 next_batch_to_attest = 2; // required
 }
 
-enum L1BatchCommitDataGeneratorMode {
+enum PubdataType {
   Rollup = 0;
-  Validium = 1;
+  NoDA = 1;
+  Avail = 2;
+  Celestia = 3;
+  Eigen = 4;
+  ObjectStore = 5;
 }
