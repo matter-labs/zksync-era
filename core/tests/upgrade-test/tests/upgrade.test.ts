@@ -267,7 +267,7 @@ describe('Upgrade test', function () {
         );
 
         const evmEmulatorCode = readCode(
-          'contracts/system-contracts/zkout/EvmEmulator.yul/contracts-preprocessed/EvmEmulator.yul.json',
+            'contracts/system-contracts/zkout/EvmEmulator.yul/contracts-preprocessed/EvmEmulator.yul.json'
         );
 
         bootloaderHash = ethers.hexlify(zksync.utils.hashBytecode(bootloaderCode));
