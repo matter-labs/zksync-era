@@ -50,7 +50,8 @@ async fn prepare_configs(
     en_configs_path: &Path,
     args: PrepareConfigFinal,
 ) -> anyhow::Result<()> {
-    let mut ports = EcosystemPortsScanner::scan(shell)?;
+    // Do not skip current chain ports. We use these ports
+    let mut ports = EcosystemPortsScanner::scan(shell, None)?;
     let genesis = config.get_genesis_config().await?;
     let general = config.get_general_config().await?;
     let gateway = config.get_gateway_chain_config().ok();

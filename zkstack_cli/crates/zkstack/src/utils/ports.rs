@@ -205,7 +205,8 @@ pub struct EcosystemPortsScanner;
 impl EcosystemPortsScanner {
     /// Scans the ecosystem directory for YAML files and extracts port information.
     /// Specifically, it looks for keys ending with "port" or "ports" and collects their values.
-    pub fn scan(shell: &Shell) -> Result<EcosystemPorts> {
+    /// Skip current chain ports for predictable allocation
+    pub fn scan(shell: &Shell, current_chain: Option<&str>) -> Result<EcosystemPorts> {
         let ecosystem_config = EcosystemConfig::from_file(shell)?;
 
         // Create a list of directories to scan:
@@ -215,6 +216,12 @@ impl EcosystemPortsScanner {
         // - Ecosystem directory (docker-compose files)
         let mut dirs = vec![ecosystem_config.config.clone()];
         for chain in ecosystem_config.list_of_chains() {
+            // skip current chain for avoiding wrong reallocation
+            if let Some(name) = current_chain {
+                if name.eq(&chain) {
+                    continue;
+                }
+            }
             if let Ok(chain_config) = ecosystem_config.load_chain(Some(chain)) {
                 dirs.push(chain_config.configs.clone());
                 if let Some(external_node_config_path) = &chain_config.external_node_config_path {
