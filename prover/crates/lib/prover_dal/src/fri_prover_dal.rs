@@ -32,6 +32,8 @@ pub struct FriProverDal<'a, 'c> {
 impl FriProverDal<'_, '_> {
     // Postgres has a limit of 65535 push_bind parameters per query.
     // We need to split the insert into chunks to avoid hitting this limit.
+    // A single row in insert_prover_jobs push_binds 10 parameters, therefore
+    // the limit is 65k / 10 ~ 6500 jobs chunk.
     const INSERT_JOBS_CHUNK_SIZE: usize = 6500;
 
     pub async fn insert_prover_jobs(
@@ -1027,5 +1029,43 @@ impl FriProverDal<'_, '_> {
         .into_iter()
         .map(|row| row.id as u32)
         .collect::<_>()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use zksync_basic_types::protocol_version::L1VerifierConfig;
+    use zksync_db_connection::connection_pool::ConnectionPool;
+
+    use super::*;
+    use crate::ProverDal;
+
+    fn mock_circuit_ids_and_urls(num_circuits: usize) -> Vec<(u8, String)> {
+        (0..num_circuits)
+            .map(|i| (i as u8, format!("circuit{}", i)))
+            .collect()
+    }
+
+    #[tokio::test]
+    async fn test_insert_prover_jobs() {
+        let pool = ConnectionPool::<Prover>::prover_test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
+
+        conn.fri_protocol_versions_dal()
+            .save_prover_protocol_version(
+                ProtocolSemanticVersion::default(),
+                L1VerifierConfig::default(),
+            )
+            .await;
+
+        conn.fri_prover_jobs_dal()
+            .insert_prover_jobs(
+                L1BatchNumber(1),
+                mock_circuit_ids_and_urls(10000),
+                AggregationRound::Scheduler,
+                1,
+                ProtocolSemanticVersion::default(),
+            )
+            .await;
     }
 }
