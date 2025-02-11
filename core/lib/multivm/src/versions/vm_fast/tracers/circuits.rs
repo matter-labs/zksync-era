@@ -164,4 +164,4 @@ impl CircuitsTracer {
     }
 }
 
-const GEOMETRY_CONFIG: GeometryConfig = ProtocolGeometry::V1_5_0.config();
+const GEOMETRY_CONFIG: GeometryConfig = ProtocolGeometry::latest().config();
