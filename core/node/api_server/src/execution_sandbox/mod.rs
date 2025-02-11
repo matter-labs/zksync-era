@@ -15,7 +15,7 @@ use zksync_vm_executor::oneshot::{BlockInfo, ResolvedBlockInfo};
 use self::vm_metrics::SandboxStage;
 pub(super) use self::{
     error::SandboxExecutionError,
-    execute::{SandboxAction, SandboxExecutor},
+    execute::{SandboxAction, SandboxExecutionOutput, SandboxExecutor},
     validate::ValidationError,
     vm_metrics::{SubmitTxStage, SANDBOX_METRICS},
 };

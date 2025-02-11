@@ -30,7 +30,7 @@ pub(super) static BASE_SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> =
 pub(crate) fn successful_exec() -> BatchTransactionExecutionResult {
     BatchTransactionExecutionResult {
         tx_result: Box::new(VmExecutionResultAndLogs::mock_success()),
-        compressed_bytecodes: vec![],
+        compression_result: Ok(()),
         call_traces: vec![],
     }
 }
