@@ -52,7 +52,7 @@ export async function deployContract(
 ): Promise<zksync.Contract> {
     const contractFactory = new ethers.ContractFactory(artifact.abi, artifact.bytecode, initiator);
     // zksync-ethers uses 113 by default and it doesn't work for evm deployments with to=null.
-    overrides["type"] = 2;
+    overrides['type'] = 2;
     const contract = (await contractFactory.deploy(...args, overrides)) as zksync.Contract;
     await contract.waitForDeployment();
     return contract;
