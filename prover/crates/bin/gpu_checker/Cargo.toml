@@ -20,6 +20,8 @@ bincode.workspace = true
 vise.workspace = true
 clap = { workspace = true, features = ["derive", "string"] }
 serde.workspace = true
+once_cell.workspace = true
+regex.workspace = true
 
 shivini = { workspace = true, features = ["circuit_definitions", "zksync"] }
 zkevm_test_harness.workspace = true

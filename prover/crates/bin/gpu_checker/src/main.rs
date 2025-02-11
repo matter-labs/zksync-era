@@ -1,9 +1,14 @@
-use std::{collections::HashMap, path::PathBuf, sync::Arc, time::Instant};
+use std::{path::PathBuf, sync::Arc, time::Instant};
 
-// use tokio::fs::File;
 use anyhow::Context;
 use clap::Parser;
+use once_cell::sync::Lazy;
+use regex::Regex;
 use shivini::ProverContext;
+use tokio::{
+    fs::File,
+    io::{AsyncReadExt, AsyncWriteExt},
+};
 use zksync_circuit_prover_service::{
     gpu_circuit_prover::GpuCircuitProverExecutor,
     types::{
@@ -16,7 +21,9 @@ use zksync_circuit_prover_service::{
 use zksync_config::{configs::ObservabilityConfig, ObjectStoreConfig};
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_prover_fri_types::{
-    circuit_definitions::boojum::cs::implementations::setup::FinalizationHintsForProver,
+    circuit_definitions::boojum::{
+        cs::implementations::witness::WitnessVec, field::goldilocks::GoldilocksField,
+    },
     CircuitWrapper, ProverServiceDataKey,
 };
 use zksync_prover_job_processor::Executor;
@@ -24,18 +31,18 @@ use zksync_prover_keystore::{
     keystore::{Keystore, ProverServiceDataType},
     GoldilocksGpuProverSetupData,
 };
+
 use zksync_types::{
     basic_fri_types::AggregationRound, prover_dal::FriProverJobMetadata, L1BatchNumber,
 };
 
-pub type FinalizationHintsCache = HashMap<ProverServiceDataKey, Arc<FinalizationHintsForProver>>;
-
-async fn prepare_wvg(
-    object_store: Arc<dyn ObjectStore>,
-    finalization_hints_cache: FinalizationHintsCache,
+async fn create_witness_vector(
     metadata: FriProverJobMetadata,
+    object_store: Arc<dyn ObjectStore>,
+    keystore: Keystore,
 ) -> anyhow::Result<WitnessVectorGeneratorExecutionOutput> {
     let start_time = Instant::now();
+
     tracing::info!("Started picking witness vector generator job");
     let circuit_wrapper = object_store
         .get(metadata.into())
@@ -47,6 +54,11 @@ async fn prepare_wvg(
     };
     tracing::info!("Circuit loaded");
 
+    tracing::info!("Loading finalization hints from disk...");
+    let finalization_hints_cache = keystore
+        .load_all_finalization_hints_mapping()
+        .await
+        .context("failed to load finalization hints mapping")?;
     let key = ProverServiceDataKey {
         circuit_id: metadata.circuit_id,
         stage: metadata.aggregation_round.into(),
@@ -76,10 +88,101 @@ async fn prepare_wvg(
     )?;
 
     // Dump witness_vector into file.
-    //let mut file = File::create("witness_vector.bin").await?;
-    //let buf = bincode::serialize(&wvg.witness_vector)?;
-    //file.write_all(&buf[..]).await?;
+    let mut file = File::create(witness_vector_filename(metadata)).await?;
+    let buf = bincode::serialize(&wvg.witness_vector)?;
+    file.write_all(&buf[..]).await?;
     Ok(wvg)
+}
+
+async fn read_witness_vector(path: PathBuf) -> anyhow::Result<WitnessVec<GoldilocksField>> {
+    let mut file = File::open(path).await?;
+    let mut buf = Vec::<u8>::new();
+    file.read_to_end(&mut buf).await?;
+    Ok(bincode::deserialize(&buf[..])?)
+}
+
+async fn run_prover(
+    metadata: FriProverJobMetadata,
+    object_store: Arc<dyn ObjectStore>,
+    keystore: Keystore,
+    witness_vector: WitnessVec<GoldilocksField>,
+) -> anyhow::Result<()> {
+    // Run GPU prover
+    let start_time = Instant::now();
+    tracing::info!("Loading setup data from disk...");
+
+    tracing::info!("Loading citcuit");
+    let circuit_wrapper = object_store
+        .get(metadata.into())
+        .await
+        .context("failed to get circuit_wrapper from object store")?;
+    let circuit = match circuit_wrapper {
+        CircuitWrapper::Base(circuit) => Circuit::Base(circuit),
+        _ => panic!("Unsupported circuit"),
+    };
+    tracing::info!("Circuit loaded");
+
+    let setup_data = keystore
+        .load_single_key_mapping::<GoldilocksGpuProverSetupData>(
+            ProverServiceDataKey::new_basic(metadata.circuit_id), // Load only needed circuit.
+            ProverServiceDataType::SetupData,
+        )
+        .await
+        .context("failed to load setup key mapping")?;
+
+    let prover_context =
+        ProverContext::create().context("failed initializing gpu prover context")?;
+    let prover = GpuCircuitProverExecutor::new(prover_context);
+    let _ = prover.execute(
+        GpuCircuitProverPayload {
+            circuit,
+            witness_vector,
+            setup_data,
+        },
+        metadata,
+    )?;
+
+    tracing::info!("Finished generating proof in {:?}", start_time.elapsed());
+    Ok(())
+}
+
+// Re to extract metadata from the file name. Only BasicCircuits are supported.
+static CIRCUIT_FILE_RE: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r"^(?<block>\d+)_(?<sequence>\d+)_(?<circuit>\d+)_BasicCircuits_(?<depth>\d+)\.")
+        .unwrap()
+});
+
+fn get_metadata(path: &PathBuf) -> anyhow::Result<FriProverJobMetadata> {
+    let file = path.file_name().context("missing file name")?;
+    let caps = CIRCUIT_FILE_RE
+        .captures(file.to_str().context("invalid file name")?)
+        .context("wrong file, note only BasicCircuits are supported!")?;
+
+    // Expected file like prover_jobs_fri/10330_48_1_BasicCircuits_0.bin.
+    Ok(FriProverJobMetadata {
+        id: 1,
+        block_number: L1BatchNumber(caps["block"].parse()?),
+        circuit_id: caps["circuit"].parse()?,
+        aggregation_round: AggregationRound::BasicCircuits,
+        sequence_number: caps["sequence"].parse()?,
+        depth: caps["depth"].parse()?,
+        is_node_final_proof: false,
+        pick_time: Instant::now(),
+    })
+}
+
+fn witness_vector_filename(metadata: FriProverJobMetadata) -> String {
+    let FriProverJobMetadata {
+        id: _,
+        block_number,
+        sequence_number,
+        circuit_id,
+        aggregation_round,
+        depth,
+        is_node_final_proof: _,
+        pick_time: _,
+    } = metadata;
+    format!("{block_number}_{sequence_number}_{circuit_id}_{aggregation_round:?}_{depth}.witness_vector")
 }
 
 fn get_setup_data_path() -> PathBuf {
@@ -92,11 +195,18 @@ struct Cli {
     /// Path to file configuration
     #[arg(short = 'd', long, default_value = get_setup_data_path().into_os_string())]
     pub(crate) setup_data_path: PathBuf,
+
+    // Circuit file name, eg: prover_jobs_fri/10330_48_1_BasicCircuits_0.bin
+    #[arg(short = 'c', long)]
+    pub(crate) circuit_file: Option<PathBuf>,
+
+    // Witness Vector file name, eg: 10330_48_1_BasicCircuits_0.witness_vector
+    #[arg(short = 'w', long)]
+    pub(crate) witness_vector_file: Option<PathBuf>,
 }
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let start_time = Instant::now();
     let opt = Cli::parse();
 
     let observability_config = ObservabilityConfig {
@@ -124,49 +234,16 @@ async fn main() -> anyhow::Result<()> {
 
     let keystore = Keystore::locate().with_setup_path(Some(opt.setup_data_path));
 
-    tracing::info!("Loading finalization hints from disk...");
-    let finalization_hints = keystore
-        .load_all_finalization_hints_mapping()
-        .await
-        .context("failed to load finalization hints mapping")?;
+    if let Some(circuit_file) = opt.circuit_file {
+        let metadata = get_metadata(&circuit_file)?;
+        let _ = create_witness_vector(metadata, object_store.clone(), keystore.clone()).await?;
+    }
 
-    // Expected file prover_jobs_fri/10330_48_1_BasicCircuits_0.bin.
-    let metadata = FriProverJobMetadata {
-        id: 1,
-        block_number: L1BatchNumber(10330),
-        circuit_id: 1,
-        aggregation_round: AggregationRound::BasicCircuits,
-        sequence_number: 48,
-        depth: 0,
-        is_node_final_proof: false,
-        pick_time: Instant::now(),
-    };
-    let WitnessVectorGeneratorExecutionOutput {
-        circuit,
-        witness_vector,
-    } = prepare_wvg(object_store, finalization_hints, metadata).await?;
+    if let Some(witness_vector_file) = opt.witness_vector_file {
+        let metadata = get_metadata(&witness_vector_file)?;
+        let wvg = read_witness_vector(witness_vector_file).await?;
+        run_prover(metadata, object_store, keystore, wvg).await?;
+    }
 
-    tracing::info!("Loading setup data from disk...");
-    let setup_data = keystore
-        .load_a_key_mapping::<GoldilocksGpuProverSetupData>(
-            ProverServiceDataKey::new_basic(1), // Only BasicCircuits #1.
-            ProverServiceDataType::SetupData,
-        )
-        .await
-        .context("failed to load setup key mapping")?;
-
-    let prover_context =
-        ProverContext::create().context("failed initializing gpu prover context")?;
-    let prover = GpuCircuitProverExecutor::new(prover_context);
-    let _ = prover.execute(
-        GpuCircuitProverPayload {
-            circuit,
-            witness_vector,
-            setup_data,
-        },
-        metadata,
-    )?;
-
-    tracing::info!("Finished generating proof in {:?}", start_time.elapsed());
     Ok(())
 }

@@ -8565,6 +8565,8 @@ dependencies = [
  "async-trait",
  "bincode",
  "clap 4.5.23",
+ "once_cell",
+ "regex",
  "serde",
  "shivini",
  "tokio",
