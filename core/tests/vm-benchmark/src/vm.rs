@@ -8,8 +8,7 @@ use zksync_multivm::{
         ExecutionResult, InspectExecutionMode, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode,
         VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
     },
-    vm_fast,
-    vm_fast::StorageInvocationsTracer,
+    vm_fast::{self, FastValidationTracer, StorageInvocationsTracer},
     vm_latest::{self, constants::BATCH_COMPUTATIONAL_GAS_LIMIT, HistoryEnabled, ToTracerPointer},
     zk_evm_latest::ethereum_types::{Address, U256},
 };
@@ -125,7 +124,7 @@ impl CountInstructions for Fast {
         let (system_env, l1_batch_env) = test_env();
         let mut vm = vm_fast::Vm::custom(l1_batch_env, system_env, &*STORAGE);
         vm.push_transaction(tx.clone());
-        let mut tracer = (InstructionCount(0), ());
+        let mut tracer = (InstructionCount(0), FastValidationTracer::default());
         vm.inspect(&mut tracer, InspectExecutionMode::OneTx);
         tracer.0 .0
     }
@@ -180,7 +179,7 @@ impl BenchmarkingVmFactory for FastWithStorageLimit {
         let limit = u32::MAX as usize / 2;
         (
             StorageInvocationsTracer::new(self.storage.clone(), limit),
-            (),
+            FastValidationTracer::default(),
         )
     }
 }

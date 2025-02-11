@@ -465,18 +465,16 @@ impl L2BlockSealCommand {
     ) -> Vec<(IncludedTxLocation, Vec<&'a T>)> {
         let grouped_entries = entries.iter().group_by(|&entry| tx_location(entry));
         let grouped_entries = grouped_entries.into_iter().map(|(tx_index, entries)| {
-            let (tx_hash, tx_initiator_address) = if is_fictive {
+            let tx_hash = if is_fictive {
                 assert_eq!(tx_index as usize, self.first_tx_index);
-                (H256::zero(), Address::zero())
+                H256::zero()
             } else {
-                let tx = self.transaction(tx_index as usize);
-                (tx.hash(), tx.initiator_account())
+                self.transaction(tx_index as usize).hash()
             };
 
             let location = IncludedTxLocation {
                 tx_hash,
                 tx_index_in_l2_block: tx_index - self.first_tx_index as u32,
-                tx_initiator_address,
             };
             (location, entries.collect())
         });
