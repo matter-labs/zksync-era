@@ -1,7 +1,7 @@
 use std::{convert::TryInto, result};
 
 use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
-use zksync_types::{message_root::MessageRoot, L1BatchNumber, SLChainId, H256};
+use zksync_types::{h256_to_u256, message_root::MessageRoot, L1BatchNumber, SLChainId, H256};
 
 use crate::Core;
 
@@ -77,7 +77,7 @@ impl MessageRootDal<'_, '_> {
             let block_number = record.block_number as u32;
             let root = H256::from_slice(&record.message_root_hash);
             let chain_id = record.chain_id as u32;
-            MessageRoot::new(chain_id, block_number, root)
+            MessageRoot::new(chain_id, block_number, vec![h256_to_u256(root)])
         })
         .collect();
 

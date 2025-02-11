@@ -148,12 +148,13 @@ pub(crate) fn apply_message_root(
     // println!("message_root_offset: {}", message_root_offset);
     // println!("message_root: {:?}", message_root);
     // Convert the byte array into U256 words
-    let u256_words: Vec<U256> = [
+    let mut u256_words: Vec<U256> = vec![
         U256::from(message_root.chain_id),
         U256::from(message_root.block_number),
-        h256_to_u256(message_root.hash),
-    ]
-    .to_vec();
+        U256::from(message_root.sides.len()),
+    ];
+
+    u256_words.extend(message_root.sides.iter().cloned());
     // println!("u256_words: {:?}", u256_words);
     // println!(
     //     "zipped 0 {:?}",
