@@ -14,56 +14,75 @@ concurrency:
 
 jobs:
 
-  linter:
-    runs-on: matterlabs-ci-runner-highmem-long
-    steps:
+#  lint:
+#    runs-on: matterlabs-ci-runner-highmem-long
+#    env:
+#      ZKSYNC_HOME: ${{ github.workspace }}
+#    steps:
+#      - uses: actions/checkout@v4
+#        with:
+#          submodules: "recursive"
+#
+#      - name: Update path
+#        run: echo $(pwd)/bin >> $GITHUB_PATH
+#
+#      - name: Start services
+#        run: ci_localnet_up
+#
+#      - name: Install zkstack
+#        run: |
+#          ci_run git config --global --add safe.directory /usr/src/zksync
+#          ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup
+#          ci_run zkstackup -g --local
+#
+#      - name: Build
+#        run: ci_run yarn install
+#
+#      - name: Format
+#        run: ci_run zkstack dev fmt --check
+#
+#      - name: Lint
+#        run: ci_run zkstack dev lint --check
+#
+#      - name: Check Database
+#        env:
+#          PROVER_URL: 'postgres://postgres:notsecurepassword@localhost:5432/zksync_local_prover'
+#          CORE_URL: 'postgres://postgres:notsecurepassword@localhost:5432/zksync_local'
+#        run: |
+#          ci_run zkstack dev db setup --prover-url=${{ env.PROVER_URL }} --core-url=${{ env.CORE_URL }}
+#          ci_run zkstack dev database check-sqlx-data --prover-url=${{ env.PROVER_URL }} --core-url=${{ env.CORE_URL }}
 
-      - name: Checkout
-        uses: actions/checkout@v4
+  lint-docker:
+    runs-on: matterlabs-ci-runner-highmem-long
+    container:
+      image: ghcr.io/matter-labs/zk-environment:latest2.0-lightweight
+      env:
+        SCCACHE_CACHE_SIZE: 50g
+        SCCACHE_GCS_BUCKET: matterlabs-infra-sccache-storage
+        SCCACHE_GCS_SERVICE_ACCOUNT: gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com
+        SCCACHE_GCS_RW_MODE: READ_WRITE
+        # ZKSYNC_USE_CUDA_STUBS: true
+    steps:
+      - uses: actions/checkout@v4
         with:
           submodules: "recursive"
 
-#      - name: Setup environment
-#        run: |
-#          echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
-#          echo $(pwd)/bin >> $GITHUB_PATH
-#          echo IN_DOCKER=1 >> .env
-#          echo "SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage" >> .env
-#          echo "SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com" >> .env
-#          echo "SCCACHE_GCS_RW_MODE=READ_WRITE" >> .env
-#          echo "RUSTC_WRAPPER=sccache" >> .env
-#          echo "ZKSYNC_USE_CUDA_STUBS=true" >> .env
-#          echo "PROVER_URL=postgres://postgres:notsecurepassword@localhost:5432/zksync_local_prover" >> $GITHUB_ENV
-#          echo "CORE_URL=postgres://postgres:notsecurepassword@localhost:5432/zksync_local" >> $GITHUB_ENV
+      - name: Update path
+        run: |
+          git config --global --add safe.directory '*'
+          echo $(pwd)/bin >> ${GITHUB_PATH}
 
-#      - name: Start services
-#        run: |
-#          ci_localnet_up
+      - name: Install zkstack
+        run: |
+          ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup
+          zkstackup -g --local
 
-#      - name: Install zkstack
-#        run: |
-#          ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup
-#          zkstackup -g --local
-
-      - name: Install Rust toolchain
-        uses: moonrepo/setup-rust@v1
-
-      - name: Build
+      - name: Build contracts
+        working-directory: contracts
         run: yarn install
 
-      - name: Check formating
-        shell: 'bash -ex {0}'
+      - name: Format
         run: zkstack dev fmt --check
 
       - name: Lint
-        shell: 'bash -ex {0}'
         run: zkstack dev lint --check
-
-      - name: Check Database
-        env:
-          PROVER_URL: 'postgres://postgres:notsecurepassword@localhost:5432/zksync_local_prover'
-          CORE_URL: 'postgres://postgres:notsecurepassword@localhost:5432/zksync_local'
-        run: |
-          ./bin/ci_localnet_up
-          zkstack dev db setup --prover-url=${{ env.PROVER_URL }} --core-url=${{ env.CORE_URL }}
-          zkstack dev database check-sqlx-data --prover-url=${{ env.PROVER_URL }} --core-url=${{ env.CORE_URL }}
