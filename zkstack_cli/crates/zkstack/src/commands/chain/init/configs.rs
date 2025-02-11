@@ -49,7 +49,7 @@ pub async fn init_configs(
     chain_config: &ChainConfig,
 ) -> anyhow::Result<ContractsConfig> {
     // Port scanner should run before copying configs to avoid marking initial ports as assigned
-    let mut ecosystem_ports = EcosystemPortsScanner::scan(shell)?;
+    let mut ecosystem_ports = EcosystemPortsScanner::scan(shell, Some(&chain_config.name))?;
     copy_configs(shell, &ecosystem_config.link_to_code, &chain_config.configs)?;
 
     if !init_args.no_port_reallocation {

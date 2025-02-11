@@ -221,19 +221,19 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 39] = [
         ContractLanguage::Sol,
     ),
     (
-        "../../../l1-contracts/zkout/",
+        "../../l1-contracts/zkout/",
         "InteropHandler",
         L2_INTEROP_HANDLER_ADDRESS,
         ContractLanguage::Sol,
     ),
     (
-        "../../../l1-contracts/zkout/",
+        "../../l1-contracts/zkout/",
         "InteropCenter",
         L2_INTEROP_CENTER_ADDRESS,
         ContractLanguage::Sol,
     ),
     (
-        "../../../l1-contracts/zkout/",
+        "../../l1-contracts/zkout/",
         "InteropAccount",
         INTEROP_ACCOUNT_ADDRESS,
         ContractLanguage::Sol,
@@ -245,13 +245,13 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 39] = [
         ContractLanguage::Sol,
     ),
     (
-        "../../../l1-contracts/zkout/",
+        "../../l1-contracts/zkout/",
         "L2MessageVerification",
         L2_MESSAGE_VERIFICATION_ADDRESS,
         ContractLanguage::Sol,
     ),
     (
-        "../../../l1-contracts/zkout/",
+        "../../l1-contracts/zkout/",
         "L2AssetTracker",
         L2_ASSET_TRACKER_ADDRESS,
         ContractLanguage::Sol,
@@ -289,7 +289,12 @@ pub fn get_system_smart_contracts_from_dir(
             } else {
                 Some(DeployedContract {
                     account_id: AccountTreeId::new(*address),
-                    bytecode: repo.read_sys_contract_bytecode(path, name, contract_lang.clone()),
+                    bytecode: repo.read_sys_contract_bytecode(
+                        path,
+                        name,
+                        None,
+                        contract_lang.clone(),
+                    ),
                 })
             }
         })

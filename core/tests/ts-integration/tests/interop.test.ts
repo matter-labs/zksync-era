@@ -122,7 +122,7 @@ describe('Interop checks', () => {
 
         // Setup Interop2 Provider and Wallet
         interop2_provider = new RetryProvider(
-            { url: 'http://localhost:3050', timeout: 1200 * 1000 },
+            { url: 'http://localhost:3150', timeout: 1200 * 1000 },
             undefined,
             testMaster.reporter
         );

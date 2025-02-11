@@ -11784,6 +11784,7 @@ dependencies = [
  "zksync_state",
  "zksync_state_keeper",
  "zksync_storage",
+ "zksync_system_constants",
  "zksync_types",
  "zksync_utils",
  "zksync_vlog",
