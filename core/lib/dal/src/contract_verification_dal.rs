@@ -99,12 +99,13 @@ impl ContractVerificationDal<'_, '_> {
                 constructor_arguments,
                 is_system,
                 force_evmla,
+                evm_specific,
                 status,
                 created_at,
                 updated_at
             )
             VALUES
-            ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'queued', NOW(), NOW())
+            ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'queued', NOW(), NOW())
             RETURNING
             id
             "#,
@@ -119,6 +120,7 @@ impl ContractVerificationDal<'_, '_> {
             query.constructor_arguments.0.as_slice(),
             query.is_system,
             query.force_evmla,
+            serde_json::to_value(&query.evm_specific).unwrap(),
         )
         .instrument("add_contract_verification_request")
         .with_arg("address", &query.contract_address)
@@ -179,7 +181,8 @@ impl ContractVerificationDal<'_, '_> {
             optimizer_mode,
             constructor_arguments,
             is_system,
-            force_evmla
+            force_evmla,
+            evm_specific
             "#,
             &processing_timeout
         )
@@ -513,7 +516,8 @@ impl ContractVerificationDal<'_, '_> {
                 optimizer_mode,
                 constructor_arguments,
                 is_system,
-                force_evmla
+                force_evmla,
+                evm_specific
             FROM
                 contract_verification_requests
             WHERE
@@ -912,6 +916,7 @@ mod tests {
             constructor_arguments: web3::Bytes(b"test".to_vec()),
             is_system: false,
             force_evmla: true,
+            evm_specific: Default::default(),
         };
 
         let pool = ConnectionPool::<Core>::test_pool().await;

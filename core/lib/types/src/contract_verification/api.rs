@@ -147,6 +147,19 @@ pub struct VerificationIncomingRequest {
     pub is_system: bool,
     #[serde(default)]
     pub force_evmla: bool,
+    #[serde(flatten)]
+    pub evm_specific: VerificationEvmSettings,
+}
+
+/// Settings for EVM verification, used only if
+/// `SourceCodeData` is `SolSingleFile`.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VerificationEvmSettings {
+    #[serde(default)]
+    pub evm_version: Option<String>,
+    #[serde(default)]
+    pub optimizer_runs: Option<u16>,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]
