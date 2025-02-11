@@ -32,7 +32,7 @@ pub struct FriProverDal<'a, 'c> {
 impl FriProverDal<'_, '_> {
     // Postgres has a limit of 65535 push_bind parameters per query.
     // We need to split the insert into chunks to avoid hitting this limit.
-    const INSERT_JOBS_CHUNK_SIZE: usize = 5000;
+    const INSERT_JOBS_CHUNK_SIZE: usize = 6500;
 
     pub async fn insert_prover_jobs(
         &mut self,
