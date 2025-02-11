@@ -597,12 +597,13 @@ impl ZkSyncStateKeeper {
                 );
 
                 // Push the current block if it has not been done yet and this will effectively create a fictive l2 block
-                if updates_manager.has_next_block_params() {
-                    self.io.update_next_l2_block_timestamp(
-                        updates_manager.get_next_l2_block_timestamp_as_mut(),
-                    );
+                if let Some(next_l2_block_timestamp) = updates_manager.next_l2_block_timestamp_mut()
+                {
+                    self.io
+                        .update_next_l2_block_timestamp(next_l2_block_timestamp);
                     Self::start_next_l2_block(updates_manager, batch_executor).await?;
                 }
+
                 return Ok(());
             }
 
@@ -626,12 +627,12 @@ impl ZkSyncStateKeeper {
 
             let waiting_latency = KEEPER_METRICS.waiting_for_tx.start();
 
-            if updates_manager.has_next_block_params() {
+            if let Some(next_l2_block_timestamp) = updates_manager.next_l2_block_timestamp_mut() {
                 // The next block has not started yet, we keep updating the next l2 block parameters with correct timestamp
-                self.io.update_next_l2_block_timestamp(
-                    updates_manager.get_next_l2_block_timestamp_as_mut(),
-                );
+                self.io
+                    .update_next_l2_block_timestamp(next_l2_block_timestamp);
             }
+
             let Some(tx) = self
                 .io
                 .wait_for_next_tx(

@@ -79,11 +79,10 @@ impl UpdatesManager {
         self.base_system_contract_hashes
     }
 
-    pub(crate) fn get_next_l2_block_timestamp_as_mut(&mut self) -> &mut u64 {
-        if let Some(l2_block_params) = self.next_l2_block_params.as_mut() {
-            return &mut l2_block_params.timestamp;
-        }
-        &mut self.l2_block.timestamp
+    pub(crate) fn next_l2_block_timestamp_mut(&mut self) -> Option<&mut u64> {
+        self.next_l2_block_params
+            .as_mut()
+            .map(|params| &mut params.timestamp)
     }
 
     pub(crate) fn get_next_l2_block_params_or_batch_params(&mut self) -> L2BlockParams {
