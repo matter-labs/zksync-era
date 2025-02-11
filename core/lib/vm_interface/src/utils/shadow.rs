@@ -152,6 +152,23 @@ impl CheckDivergence for CurrentExecutionState {
 impl CheckDivergence for VmExecutionResultAndLogs {
     fn check_divergence(&self, other: &Self) -> DivergenceErrors {
         let mut errors = DivergenceErrors::new();
+
+        // Special case: the execution is stopped by a tracer. Because of significant differences between how tracers
+        // work in legacy and fast VMs, we only require the general stop reason to be the same, and ignore anything else.
+        if matches!(
+            (&self.result, &other.result),
+            (
+                ExecutionResult::Halt {
+                    reason: Halt::TracerCustom(_)
+                },
+                ExecutionResult::Halt {
+                    reason: Halt::TracerCustom(_)
+                }
+            )
+        ) {
+            return errors;
+        }
+
         errors.check_match("result", &self.result, &other.result);
 
         if matches!(

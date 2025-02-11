@@ -13,7 +13,7 @@ publish = false
 
 [dependencies]
 zksync_dal.workspace = true
-zksync_types.workspace = true
+zksync_types = { workspace = true, features = ["contract-verification"] }
 zksync_config.workspace = true
 zksync_env_config.workspace = true
 

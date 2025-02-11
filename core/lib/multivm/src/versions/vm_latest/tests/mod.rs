@@ -24,11 +24,11 @@ use crate::{
         tracer::ViolatedValidationRule,
         CurrentExecutionState, L2BlockEnv, VmExecutionMode, VmExecutionResultAndLogs,
     },
-    tracers::{CallTracer, ValidationTracer},
+    tracers::{CallTracer, StorageInvocations, ValidationTracer},
     utils::bytecode::bytes_to_be_words,
     versions::testonly::{
         filter_out_base_system_contracts, validation_params, TestedVm, TestedVmForValidation,
-        TestedVmWithCallTracer,
+        TestedVmWithCallTracer, TestedVmWithStorageLimit,
     },
     vm_latest::{
         constants::BOOTLOADER_HEAP_PAGE,
@@ -353,5 +353,12 @@ impl TestedVmWithCallTracer for TestedLatestVm {
         let res = self.inspect(&mut call_tracer.into(), InspectExecutionMode::OneTx);
         let traces = result.get().unwrap().clone();
         (res, traces)
+    }
+}
+
+impl TestedVmWithStorageLimit for TestedLatestVm {
+    fn execute_with_storage_limit(&mut self, limit: usize) -> VmExecutionResultAndLogs {
+        let tracer = StorageInvocations::new(limit).into_tracer_pointer();
+        self.inspect(&mut tracer.into(), InspectExecutionMode::OneTx)
     }
 }
