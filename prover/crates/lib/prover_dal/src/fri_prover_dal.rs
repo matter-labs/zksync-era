@@ -30,6 +30,10 @@ pub struct FriProverDal<'a, 'c> {
 }
 
 impl FriProverDal<'_, '_> {
+    // Postgres has a limit of 65535 push_bind parameters per query.
+    // We need to split the insert into chunks to avoid hitting this limit.
+    const INSERT_JOBS_CHUNK_SIZE: usize = 5000;
+
     pub async fn insert_prover_jobs(
         &mut self,
         l1_batch_number: L1BatchNumber,
@@ -43,56 +47,61 @@ impl FriProverDal<'_, '_> {
             return;
         }
 
-        // Build one multi-row INSERT for all jobs
-        let mut query_builder = QueryBuilder::new(
-            r#"
-            INSERT INTO prover_jobs_fri (
-                l1_batch_number,
-                circuit_id,
-                circuit_blob_url,
-                aggregation_round,
-                sequence_number,
-                depth,
-                is_node_final_proof,
-                protocol_version,
-                status,
-                created_at,
-                updated_at,
-                protocol_version_patch
-            )
-            "#,
-        );
+        for (chunk_index, chunk) in circuit_ids_and_urls
+            .chunks(Self::INSERT_JOBS_CHUNK_SIZE)
+            .enumerate()
+        {
+            // Build multi-row INSERT for the current chunk
+            let mut query_builder = QueryBuilder::new(
+                r#"
+                INSERT INTO prover_jobs_fri (
+                    l1_batch_number,
+                    circuit_id,
+                    circuit_blob_url,
+                    aggregation_round,
+                    sequence_number,
+                    depth,
+                    is_node_final_proof,
+                    protocol_version,
+                    status,
+                    created_at,
+                    updated_at,
+                    protocol_version_patch
+                )
+                "#,
+            );
 
-        query_builder.push_values(
-            circuit_ids_and_urls.iter().enumerate(),
-            |mut row, (sequence_number, (circuit_id, circuit_blob_url))| {
-                row.push_bind(l1_batch_number.0 as i64)
-                    .push_bind(*circuit_id as i16)
-                    .push_bind(circuit_blob_url)
-                    .push_bind(aggregation_round as i64)
-                    .push_bind(sequence_number as i64)
-                    .push_bind(depth as i32)
-                    .push_bind(false) // is_node_final_proof
-                    .push_bind(protocol_version_id.minor as i32)
-                    .push_bind("queued") // status
-                    .push("NOW()") // created_at
-                    .push("NOW()") // updated_at
-                    .push_bind(protocol_version_id.patch.0 as i32);
-            },
-        );
+            query_builder.push_values(
+                chunk.iter().enumerate(),
+                |mut row, (i, (circuit_id, circuit_blob_url))| {
+                    row.push_bind(l1_batch_number.0 as i64)
+                        .push_bind(*circuit_id as i16)
+                        .push_bind(circuit_blob_url)
+                        .push_bind(aggregation_round as i64)
+                        .push_bind((chunk_index * Self::INSERT_JOBS_CHUNK_SIZE + i) as i64) // sequence_number
+                        .push_bind(depth as i32)
+                        .push_bind(false) // is_node_final_proof
+                        .push_bind(protocol_version_id.minor as i32)
+                        .push_bind("queued") // status
+                        .push("NOW()") // created_at
+                        .push("NOW()") // updated_at
+                        .push_bind(protocol_version_id.patch.0 as i32);
+                },
+            );
 
-        // Add the ON CONFLICT clause
-        query_builder.push(
-            r#"
-            ON CONFLICT (l1_batch_number, aggregation_round, circuit_id, depth, sequence_number)
-            DO UPDATE
-            SET updated_at = NOW()
-            "#,
-        );
+            // Add the ON CONFLICT clause
+            query_builder.push(
+                r#"
+                ON CONFLICT (l1_batch_number, aggregation_round, circuit_id, depth, sequence_number)
+                DO UPDATE
+                SET updated_at = NOW()
+                "#,
+            );
 
-        // Execute the built query
-        let query = query_builder.build();
-        query.execute(self.storage.conn()).await.unwrap();
+            // Execute the built query
+            let query = query_builder.build();
+            query.execute(self.storage.conn()).await.unwrap();
+        }
     }
 
     /// Retrieves the next prover job to be proven. Called by WVGs.
