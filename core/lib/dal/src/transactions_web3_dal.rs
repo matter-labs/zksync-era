@@ -12,7 +12,6 @@ use zksync_types::{
     api, api::TransactionReceipt, block::build_bloom, web3, web3::keccak256, Address, BloomInput,
     L2BlockNumber, L2ChainId, Transaction, H256, U256,
 };
-use zksync_vm_interface::VmEvent;
 
 use crate::{
     models::storage_transaction::{
