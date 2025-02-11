@@ -75,7 +75,7 @@ pub enum ProtocolVersionId {
 
 impl ProtocolVersionId {
     pub const fn latest() -> Self {
-        Self::Version26
+        Self::Version26 // FIXME: change to `Version27`
     }
 
     pub const fn next() -> Self {
@@ -125,7 +125,10 @@ impl ProtocolVersionId {
             ProtocolVersionId::Version25 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
             ProtocolVersionId::Version26 => VmVersion::VmGateway,
             ProtocolVersionId::Version27 => VmVersion::VmGateway,
-            ProtocolVersionId::Version28 => unreachable!("Version 28 is not yet supported"),
+
+            // Speculative VM version for the next protocol version to be used in the upgrade integration test etc.
+            // TODO: Must be changed when the protocol version is actually implemented!
+            ProtocolVersionId::Version28 => VmVersion::VmGateway,
         }
     }
 
@@ -304,7 +307,10 @@ impl From<ProtocolVersionId> for VmVersion {
             ProtocolVersionId::Version25 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
             ProtocolVersionId::Version26 => VmVersion::VmGateway,
             ProtocolVersionId::Version27 => VmVersion::VmGateway,
-            ProtocolVersionId::Version28 => unreachable!("Version 28 is not yet supported"),
+
+            // Speculative VM version for the next protocol version to be used in the upgrade integration test etc.
+            // TODO: Must be changed when the protocol version is actually implemented!
+            ProtocolVersionId::Version28 => VmVersion::VmGateway,
         }
     }
 }
