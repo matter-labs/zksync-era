@@ -63,55 +63,24 @@ impl FriProverDal<'_, '_> {
             "#,
         );
 
-        query_builder.push(" VALUES ");
-
-        for (sequence_number, (circuit_id, circuit_blob_url)) in
-            circuit_ids_and_urls.iter().enumerate()
-        {
-            if sequence_number > 0 {
-                query_builder.push(", ");
-            }
-
-            query_builder.push("(");
-            // l1_batch_number
-            query_builder.push_bind(l1_batch_number.0 as i64);
-            query_builder.push(", ");
-            // circuit_id
-            query_builder.push_bind(*circuit_id as i16);
-            query_builder.push(", ");
-            // circuit_blob_url
-            query_builder.push_bind(circuit_blob_url);
-            query_builder.push(", ");
-            // aggregation_round
-            query_builder.push_bind(aggregation_round as i64);
-            query_builder.push(", ");
-            // sequence_number
-            query_builder.push_bind(sequence_number as i64);
-            query_builder.push(", ");
-            // depth
-            query_builder.push_bind(depth as i32);
-            query_builder.push(", ");
-            // is_node_final_proof
-            query_builder.push_bind(false);
-            query_builder.push(", ");
-            // protocol_version (minor)
-            query_builder.push_bind(protocol_version_id.minor as i32);
-            query_builder.push(", ");
-            // status = 'queued'
-            query_builder.push("'queued'");
-            query_builder.push(", ");
-            // created_at = NOW()
-            query_builder.push("NOW()");
-            query_builder.push(", ");
-            // updated_at = NOW()
-            query_builder.push("NOW()");
-            query_builder.push(", ");
-            // protocol_version_patch
-            query_builder.push_bind(protocol_version_id.patch.0 as i32);
-
-            query_builder.push(")");
-        }
-
+        query_builder.push_values(
+            circuit_ids_and_urls.iter().enumerate(),
+            |mut row, (sequence_number, (circuit_id, circuit_blob_url))| {
+                row.push_bind(l1_batch_number.0 as i64)
+                   .push_bind(*circuit_id as i16)
+                   .push_bind(circuit_blob_url)
+                   .push_bind(aggregation_round as i64)
+                   .push_bind(sequence_number as i64)
+                   .push_bind(depth as i32)
+                   .push_bind(false) // is_node_final_proof
+                   .push_bind(protocol_version_id.minor as i32)
+                   .push_bind("queued") // status
+                   .push("NOW()") // created_at
+                   .push("NOW()") // updated_at
+                   .push_bind(protocol_version_id.patch.0 as i32);
+            },
+        );
+    
         // Add the ON CONFLICT clause
         query_builder.push(
             r#"
