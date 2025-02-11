@@ -186,7 +186,7 @@ fn witness_vector_filename(metadata: FriProverJobMetadata) -> String {
 }
 
 fn get_setup_data_path() -> PathBuf {
-    "/".into() // TODO: Maybe change to /usr/src/setup-data
+    "/".into()
 }
 
 #[derive(Debug, Parser)]
