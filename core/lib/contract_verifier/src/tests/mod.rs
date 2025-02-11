@@ -188,7 +188,6 @@ async fn mock_deployment_inner(
     let location = IncludedTxLocation {
         tx_hash: deploy_tx.hash(),
         tx_index_in_l2_block: 0,
-        tx_initiator_address: deployer_address,
     };
     let deploy_event = VmEvent {
         location: (L1BatchNumber(0), 0),
