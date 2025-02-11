@@ -4,12 +4,12 @@ use once_cell::sync::Lazy;
 use zksync_contracts::BaseSystemContracts;
 use zksync_multivm::{
     interface::{
-        storage::{InMemoryStorage, StorageView},
+        storage::{ImmutableStorageView, InMemoryStorage, StoragePtr, StorageView},
         ExecutionResult, InspectExecutionMode, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode,
-        VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceExt,
-        VmInterfaceHistoryEnabled,
+        VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
     },
     vm_fast,
+    vm_fast::StorageInvocationsTracer,
     vm_latest::{self, constants::BATCH_COMPUTATIONAL_GAS_LIMIT, HistoryEnabled, ToTracerPointer},
     zk_evm_latest::ethereum_types::{Address, U256},
 };
@@ -36,6 +36,8 @@ static STORAGE: Lazy<InMemoryStorage> = Lazy::new(|| {
 #[derive(Debug, Clone, Copy)]
 pub enum VmLabel {
     Fast,
+    FastNoSignatures,
+    FastWithStorageLimit,
     Legacy,
 }
 
@@ -44,6 +46,8 @@ impl VmLabel {
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Fast => "fast",
+            Self::FastNoSignatures => "fast_no_sigs",
+            Self::FastWithStorageLimit => "fast/storage_limit",
             Self::Legacy => "legacy",
         }
     }
@@ -52,13 +56,15 @@ impl VmLabel {
     pub const fn as_suffix(self) -> &'static str {
         match self {
             Self::Fast => "",
+            Self::FastNoSignatures => "/no_sigs",
+            Self::FastWithStorageLimit => "/storage_limit",
             Self::Legacy => "/legacy",
         }
     }
 }
 
 /// Factory for VMs used in benchmarking.
-pub trait BenchmarkingVmFactory {
+pub trait BenchmarkingVmFactory: Sized {
     /// VM label used to name `criterion` benchmarks.
     const LABEL: VmLabel;
 
@@ -70,7 +76,11 @@ pub trait BenchmarkingVmFactory {
         batch_env: L1BatchEnv,
         system_env: SystemEnv,
         storage: &'static InMemoryStorage,
-    ) -> Self::Instance;
+    ) -> (Self, Self::Instance);
+
+    fn create_tracer(&self) -> <Self::Instance as VmInterface>::TracerDispatcher {
+        <Self::Instance as VmInterface>::TracerDispatcher::default()
+    }
 }
 
 pub trait CountInstructions {
@@ -91,8 +101,8 @@ impl BenchmarkingVmFactory for Fast {
         batch_env: L1BatchEnv,
         system_env: SystemEnv,
         storage: &'static InMemoryStorage,
-    ) -> Self::Instance {
-        vm_fast::Vm::custom(batch_env, system_env, storage)
+    ) -> (Self, Self::Instance) {
+        (Self, vm_fast::Vm::custom(batch_env, system_env, storage))
     }
 }
 
@@ -121,6 +131,60 @@ impl CountInstructions for Fast {
     }
 }
 
+#[derive(Debug)]
+pub struct FastNoSignatures;
+
+impl BenchmarkingVmFactory for FastNoSignatures {
+    const LABEL: VmLabel = VmLabel::FastNoSignatures;
+
+    type Instance = vm_fast::Vm<&'static InMemoryStorage>;
+
+    fn create(
+        batch_env: L1BatchEnv,
+        system_env: SystemEnv,
+        storage: &'static InMemoryStorage,
+    ) -> (Self, Self::Instance) {
+        let mut vm = vm_fast::Vm::custom(batch_env, system_env, storage);
+        vm.skip_signature_verification();
+        (Self, vm)
+    }
+}
+
+#[derive(Debug)]
+pub struct FastWithStorageLimit {
+    storage: StoragePtr<StorageView<&'static InMemoryStorage>>,
+}
+
+impl BenchmarkingVmFactory for FastWithStorageLimit {
+    const LABEL: VmLabel = VmLabel::FastWithStorageLimit;
+
+    type Instance = vm_fast::Vm<
+        ImmutableStorageView<&'static InMemoryStorage>,
+        StorageInvocationsTracer<StorageView<&'static InMemoryStorage>>,
+    >;
+
+    fn create(
+        batch_env: L1BatchEnv,
+        system_env: SystemEnv,
+        storage: &'static InMemoryStorage,
+    ) -> (Self, Self::Instance) {
+        let storage = StorageView::new(storage).to_rc_ptr();
+        let this = Self {
+            storage: storage.clone(),
+        };
+        (this, vm_fast::Vm::new(batch_env, system_env, storage))
+    }
+
+    fn create_tracer(&self) -> <Self::Instance as VmInterface>::TracerDispatcher {
+        // Set some large limit so that tx execution isn't affected by it.
+        let limit = u32::MAX as usize / 2;
+        (
+            StorageInvocationsTracer::new(self.storage.clone(), limit),
+            (),
+        )
+    }
+}
+
 /// Factory for the legacy VM (latest version).
 #[derive(Debug)]
 pub struct Legacy;
@@ -134,18 +198,18 @@ impl BenchmarkingVmFactory for Legacy {
         batch_env: L1BatchEnv,
         system_env: SystemEnv,
         storage: &'static InMemoryStorage,
-    ) -> Self::Instance {
+    ) -> (Self, Self::Instance) {
         let storage = StorageView::new(storage).to_rc_ptr();
-        vm_latest::Vm::new(batch_env, system_env, storage)
+        (Self, vm_latest::Vm::new(batch_env, system_env, storage))
     }
 }
 
 impl CountInstructions for Legacy {
     fn count_instructions(tx: &Transaction) -> usize {
         let mut vm = BenchmarkingVm::<Self>::default();
-        vm.0.push_transaction(tx.clone());
+        vm.vm.push_transaction(tx.clone());
         let count = Rc::new(RefCell::new(0));
-        vm.0.inspect(
+        vm.vm.inspect(
             &mut InstructionCounter::new(count.clone())
                 .into_tracer_pointer()
                 .into(),
@@ -187,32 +251,42 @@ fn test_env() -> (SystemEnv, L1BatchEnv) {
 }
 
 #[derive(Debug)]
-pub struct BenchmarkingVm<VM: BenchmarkingVmFactory>(VM::Instance);
+pub struct BenchmarkingVm<VM: BenchmarkingVmFactory> {
+    factory: VM,
+    vm: VM::Instance,
+}
 
 impl<VM: BenchmarkingVmFactory> Default for BenchmarkingVm<VM> {
     fn default() -> Self {
         let (system_env, l1_batch_env) = test_env();
-        Self(VM::create(l1_batch_env, system_env, &STORAGE))
+        let (factory, vm) = VM::create(l1_batch_env, system_env, &STORAGE);
+        Self { factory, vm }
     }
 }
 
 impl<VM: BenchmarkingVmFactory> BenchmarkingVm<VM> {
     pub fn run_transaction(&mut self, tx: &Transaction) -> VmExecutionResultAndLogs {
-        self.0.push_transaction(tx.clone());
-        self.0.execute(InspectExecutionMode::OneTx)
+        self.vm.push_transaction(tx.clone());
+        self.vm.inspect(
+            &mut self.factory.create_tracer(),
+            InspectExecutionMode::OneTx,
+        )
     }
 
     pub fn run_transaction_full(&mut self, tx: &Transaction) -> VmExecutionResultAndLogs {
-        self.0.make_snapshot();
-        let (compression_result, tx_result) = self
-            .0
-            .execute_transaction_with_bytecode_compression(tx.clone(), true);
+        self.vm.make_snapshot();
+        let (compression_result, tx_result) =
+            self.vm.inspect_transaction_with_bytecode_compression(
+                &mut self.factory.create_tracer(),
+                tx.clone(),
+                true,
+            );
         compression_result.expect("compressing bytecodes failed");
 
         if matches!(tx_result.result, ExecutionResult::Halt { .. }) {
-            self.0.rollback_to_the_latest_snapshot();
+            self.vm.rollback_to_the_latest_snapshot();
         } else {
-            self.0.pop_snapshot_no_rollback();
+            self.vm.pop_snapshot_no_rollback();
         }
         tx_result
     }

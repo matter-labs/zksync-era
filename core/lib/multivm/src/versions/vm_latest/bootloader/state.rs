@@ -6,7 +6,10 @@ use zksync_types::{
 };
 use zksync_vm_interface::pubdata::PubdataBuilder;
 
-use super::{tx::BootloaderTx, utils::apply_pubdata_to_memory};
+use super::{
+    tx::{BootloaderTx, EcRecoverCall},
+    utils::apply_pubdata_to_memory,
+};
 use crate::{
     interface::{
         pubdata::PubdataInput, BootloaderMemory, CompressedBytecodeInfo, L2BlockEnv,
@@ -129,9 +132,9 @@ impl BootloaderState {
         compressed_bytecodes: Vec<CompressedBytecodeInfo>,
         trusted_ergs_limit: U256,
         chain_id: L2ChainId,
-    ) -> BootloaderMemory {
+    ) -> (BootloaderMemory, Option<EcRecoverCall>) {
         let tx_offset = self.free_tx_offset();
-        let bootloader_tx = BootloaderTx::new(
+        let (bootloader_tx, ecrecover_call) = BootloaderTx::new(
             tx,
             predefined_refund,
             predefined_overhead,
@@ -159,7 +162,7 @@ impl BootloaderState {
         self.compressed_bytecodes_encoding += compressed_bytecode_size;
         self.free_tx_offset = tx_offset + bootloader_tx.encoded_len();
         self.last_mut_l2_block().push_tx(bootloader_tx);
-        memory
+        (memory, ecrecover_call)
     }
 
     pub(crate) fn last_l2_block(&self) -> &BootloaderL2Block {

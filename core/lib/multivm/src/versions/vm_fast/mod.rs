@@ -2,7 +2,7 @@ pub use zksync_vm2::interface;
 
 pub(crate) use self::version::FastVmVersion;
 pub use self::{
-    tracers::{CallTracer, FullValidationTracer, ValidationTracer},
+    tracers::{CallTracer, FullValidationTracer, StorageInvocationsTracer, ValidationTracer},
     vm::Vm,
 };
 
@@ -15,3 +15,4 @@ mod tracers;
 mod utils;
 mod version;
 mod vm;
+mod world;

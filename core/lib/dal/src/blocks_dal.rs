@@ -3260,7 +3260,6 @@ mod tests {
         let first_location = IncludedTxLocation {
             tx_hash: H256([1; 32]),
             tx_index_in_l2_block: 0,
-            tx_initiator_address: Address::repeat_byte(2),
         };
         let first_logs = [create_l2_to_l1_log(0, 0)];
 

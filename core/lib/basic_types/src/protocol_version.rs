@@ -154,7 +154,7 @@ impl ProtocolVersionId {
     }
 
     pub fn is_pre_fflonk(&self) -> bool {
-        self < &Self::Version28
+        self < &Self::Version27
     }
 
     pub fn is_1_4_0(&self) -> bool {
