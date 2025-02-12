@@ -247,6 +247,7 @@ impl RemoteENConfig {
             l1_wrapped_base_token_store: None,
             dummy_verifier: true,
             l2_timestamp_asserter_addr: None,
+            l1_message_root_proxy_addr: None,
         }
     }
 }
