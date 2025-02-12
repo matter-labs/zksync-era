@@ -21,16 +21,19 @@ use zksync_multivm::{
         storage::StorageWithOverrides,
         tracer::TimestampAsserterParams,
         Call, ExecutionResult, OneshotEnv, OneshotTracingParams, TransactionExecutionMetrics,
-        TxExecutionArgs, VmEvent,
+        TxExecutionArgs, VmEvent, VmExecutionMetrics, VmRevertReason,
     },
     utils::StorageWritesDeduplicator,
 };
 use zksync_state::{PostgresStorage, PostgresStorageCaches, PostgresStorageForZkOs};
 use zksync_types::{
-    api::state_override::StateOverride, fee_model::BatchFeeInput, l2::L2Tx, StorageLog, Transaction,
+    api::state_override::StateOverride, fee_model::BatchFeeInput, l2::L2Tx, AccountTreeId,
+    StorageKey, StorageLog, StorageLogKind, Transaction,
 };
 use zksync_vm_executor::oneshot::{MainOneshotExecutor, MockOneshotExecutor};
-use zksync_zkos_vm_runner::zkos_conversions::tx_abi_encode;
+use zksync_zkos_vm_runner::zkos_conversions::{
+    b160_to_address, bytes32_to_h256, tx_abi_encode, zkos_log_to_vm_event,
+};
 
 use super::{vm_metrics::SandboxStage, BlockArgs, VmPermit, SANDBOX_METRICS};
 use crate::{execution_sandbox::storage::apply_state_override, tx_sender::SandboxExecutorOptions};
@@ -204,7 +207,7 @@ impl SandboxExecutor {
         action: SandboxAction,
         block_args: &BlockArgs,
         state_override: Option<StateOverride>,
-    ) -> anyhow::Result<(TxOutput, anyhow::Result<Vec<u8>>)> {
+    ) -> anyhow::Result<SandboxExecutionOutput> {
         let (env, storage) = self
             .prepare_env_and_storage(connection, block_args, &action)
             .await?;
@@ -251,25 +254,68 @@ impl SandboxExecutor {
         drop(vm_permit);
 
         //todo: eth_call error format - should be compatible with era/ethereum
-        match result {
-            Ok(Ok(tx_output)) => match tx_output.execution_result.clone() {
-                ZkOSExecutionResult::Success(ExecutionOutput::Call(data)) => {
-                    Ok((tx_output, Ok(data)))
-                }
-                ZkOSExecutionResult::Success(ExecutionOutput::Create(data, _)) => {
-                    Ok((tx_output, Ok(data)))
-                }
-                ZkOSExecutionResult::Revert(res) => {
-                    Ok((tx_output, Err(anyhow::anyhow!("revert: {:?}", res))))
-                }
-            },
+        let tx_output = match result {
+            Ok(Ok(tx_output)) => tx_output,
+            // TODO: how to process InvalidTransaction?
             Ok(Err(invalid)) => {
                 anyhow::bail!("invalid transaction: {:?}", invalid)
             }
             Err(err) => {
-                anyhow::bail!("Execution failed: {:?}", err)
+                anyhow::bail!("ZK OS execution failed with internal error: {:?}", err)
             }
-        }
+        };
+
+        let result = match &tx_output.execution_result {
+            ZkOSExecutionResult::Success(_) => ExecutionResult::Success {
+                output: tx_output.as_returned_bytes().to_vec(),
+            },
+            ZkOSExecutionResult::Revert(_) => ExecutionResult::Revert {
+                output: VmRevertReason::from(tx_output.as_returned_bytes()),
+            },
+        };
+        let write_logs = tx_output
+            .storage_writes
+            .into_iter()
+            .map(|write| StorageLog {
+                kind: StorageLogKind::InitialWrite,
+                key: StorageKey::new(
+                    AccountTreeId::new(b160_to_address(write.account)),
+                    bytes32_to_h256(write.account_key),
+                ),
+                value: bytes32_to_h256(write.value),
+            })
+            .collect();
+        let events = tx_output
+            .logs
+            .into_iter()
+            .map(|log| {
+                // tx is simulated as if it's a single tx in block, its index is 0.
+                let location = (block_args.resolved.vm_l1_batch_number(), 0);
+                zkos_log_to_vm_event(log, location)
+            })
+            .collect();
+        // Only `pubdata_published`, `computational_gas_used`, `gas_used`, `gas_refunded` are set as they are used in gas estimator.
+        // Some other fields are only needed for `ensure_tx_executable`
+        // which is not needed for ZK OS: tx is either executable or runs out of gas.
+        let metrics = TransactionExecutionMetrics {
+            vm: VmExecutionMetrics {
+                pubdata_published: 0, // TODO: pubdata counter is not there for zk os yet
+                computational_gas_used: tx_output.gas_used as u32,
+                gas_used: tx_output.gas_used as usize,
+                ..Default::default()
+            },
+            gas_refunded: tx_output.gas_refunded,
+            ..Default::default()
+        };
+
+        Ok(SandboxExecutionOutput {
+            result,
+            write_logs,
+            events,
+            metrics,
+            call_traces: Vec::new(), // TODO: tracing is not yet implemented to zk os
+            are_published_bytecodes_ok: true, // TODO?: not returned by zk os
+        })
     }
 
     /// This method assumes that (block with number `resolved_block_number` is present in DB)

@@ -8,14 +8,18 @@ use zk_ee::{
     utils::Bytes32,
 };
 use zk_os_basic_system::basic_io_implementer::address_into_special_storage_key;
-use zk_os_forward_system::run::test_impl::{InMemoryPreimageSource, InMemoryTree};
+use zk_os_forward_system::run::{
+    test_impl::{InMemoryPreimageSource, InMemoryTree},
+    Log,
+};
 use zksync_types::{
     address_to_h256,
     ethabi::{encode, Address, Token},
     h256_to_u256,
     l2::TransactionType,
-    ExecuteTransactionCommon, Transaction, H256, U256,
+    ExecuteTransactionCommon, L1BatchNumber, Transaction, H256, U256,
 };
+use zksync_vm_interface::VmEvent;
 
 pub(crate) const MAX_GAS_PER_PUBDATA_BYTE: u64 = 50_000;
 
@@ -182,5 +186,18 @@ pub fn h256_to_bytes32(input: H256) -> Bytes32 {
 }
 
 pub fn bytes32_to_h256(input: Bytes32) -> H256 {
-    H256::from_slice(&input.as_u8_array())
+    H256(input.as_u8_array())
+}
+
+pub fn b160_to_address(input: B160) -> Address {
+    Address::from_slice(&input.to_be_bytes::<20>())
+}
+
+pub fn zkos_log_to_vm_event(log: Log, location: (L1BatchNumber, u32)) -> VmEvent {
+    VmEvent {
+        location,
+        address: b160_to_address(log.address),
+        indexed_topics: log.topics.into_iter().map(bytes32_to_h256).collect(),
+        value: log.data,
+    }
 }

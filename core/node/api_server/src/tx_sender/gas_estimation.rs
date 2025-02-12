@@ -471,7 +471,7 @@ impl<'a> GasEstimator<'a> {
         };
         let connection = self.sender.acquire_replica_connection().await?;
         let executor = &self.sender.0.executor;
-        let (output, _) = executor
+        let execution_output = executor
             .execute_in_sandbox_zkos(
                 self.vm_permit.clone(),
                 connection,
@@ -480,40 +480,7 @@ impl<'a> GasEstimator<'a> {
                 self.state_override.clone(),
             )
             .await?;
-        let result = match &output.execution_result {
-            ZkOsExecutionResult::Success(_) => ExecutionResult::Success {
-                output: output.as_returned_bytes().to_vec(),
-            },
-            ZkOsExecutionResult::Revert(_) => ExecutionResult::Revert {
-                output: VmRevertReason::Unknown {
-                    function_selector: Vec::new(),
-                    data: output.as_returned_bytes().to_vec(),
-                },
-            },
-        };
-        let gas_refunded = output.gas_refunded;
-        let metrics = TransactionExecutionMetrics {
-            vm: VmExecutionMetrics {
-                pubdata_published: 0,
-                computational_gas_used: output.gas_used as u32,
-                gas_used: output.gas_used as usize,
-                ..Default::default()
-            },
-            gas_refunded,
-            ..Default::default()
-        };
-        Ok((result, metrics))
-
-        // let execution_output = executor
-        //     .execute_in_sandbox(
-        //         self.vm_permit.clone(),
-        //         connection,
-        //         action,
-        //         &self.block_args,
-        //         self.state_override.clone(),
-        //     )
-        //     .await?;
-        // Ok((execution_output.result, execution_output.metrics))
+        Ok((execution_output.result, execution_output.metrics))
     }
 
     async fn finalize(

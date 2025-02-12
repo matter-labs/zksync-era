@@ -12895,6 +12895,7 @@ dependencies = [
  "zk_ee",
  "zksync_types",
  "zksync_utils",
+ "zksync_vm_interface",
 ]
 
 [[package]]

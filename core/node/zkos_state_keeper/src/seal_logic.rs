@@ -11,7 +11,7 @@ use zksync_types::{
     Address, L1BatchNumber, L2BlockNumber, ProtocolVersionId, H256,
 };
 use zksync_vm_interface::VmEvent;
-use zksync_zkos_vm_runner::zkos_conversions::bytes32_to_h256;
+use zksync_zkos_vm_runner::zkos_conversions::{bytes32_to_h256, zkos_log_to_vm_event};
 
 pub async fn seal_in_db<'a>(
     mut connection: Connection<'a, Core>,
@@ -76,15 +76,9 @@ pub async fn seal_in_db<'a>(
         .into_iter()
         .map(|tx_result| tx_result.map(|a| a.logs).unwrap_or_default())
         .flatten()
-        .map(|log| VmEvent {
-            location: (l1_batch_number, 0), // we have 1 tx per batch, it's index is 0
-            address: Address::from_slice(&log.address.to_be_bytes::<20>()),
-            indexed_topics: log
-                .topics
-                .into_iter()
-                .map(|topic| H256(topic.as_u8_array()))
-                .collect(),
-            value: log.data,
+        .map(|log| {
+            let location = (l1_batch_number, 0); // we have 1 tx per batch, it's index is 0
+            zkos_log_to_vm_event(log, location)
         })
         .collect();
     let vm_events_ref: Vec<&VmEvent> = vm_events.iter().collect();

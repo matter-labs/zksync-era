@@ -12,6 +12,7 @@ categories.workspace = true
 [dependencies]
 zksync_utils.workspace = true
 zksync_types.workspace = true
+zksync_vm_interface.workspace = true
 
 zk_os_forward_system.workspace = true
 zk_ee.workspace = true

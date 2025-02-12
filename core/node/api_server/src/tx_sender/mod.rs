@@ -575,12 +575,12 @@ impl TxSender {
             enforced_base_fee: call_overrides.enforced_base_fee,
             tracing_params: OneshotTracingParams::default(),
         };
-        self.0
+        let result = self
+            .0
             .executor
             .execute_in_sandbox_zkos(vm_permit, connection, action, &block_args, state_override)
-            .await?
-            .1
-            .map_err(SubmitTxError::from)
+            .await?;
+        result.result.into_api_call_result()
     }
 
     pub async fn gas_price(&self) -> anyhow::Result<u64> {
