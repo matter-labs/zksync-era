@@ -75,11 +75,11 @@ pub enum ProtocolVersionId {
 
 impl ProtocolVersionId {
     pub const fn latest() -> Self {
-        Self::Version26
+        Self::Version27
     }
 
     pub const fn next() -> Self {
-        Self::Version27
+        Self::Version28
     }
 
     pub fn try_from_packed_semver(packed_semver: U256) -> Result<Self, String> {
@@ -125,7 +125,10 @@ impl ProtocolVersionId {
             ProtocolVersionId::Version25 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
             ProtocolVersionId::Version26 => VmVersion::VmGateway,
             ProtocolVersionId::Version27 => VmVersion::VmGateway,
-            ProtocolVersionId::Version28 => unreachable!("Version 28 is not yet supported"),
+
+            // Speculative VM version for the next protocol version to be used in the upgrade integration test etc.
+            // TODO: Must be changed when the protocol version is actually implemented!
+            ProtocolVersionId::Version28 => VmVersion::VmGateway,
         }
     }
 
@@ -153,6 +156,10 @@ impl ProtocolVersionId {
 
     pub fn is_pre_fflonk(&self) -> bool {
         self < &Self::Version27
+    }
+
+    pub fn is_post_fflonk(&self) -> bool {
+        self >= &Self::Version27
     }
 
     pub fn is_1_4_0(&self) -> bool {
@@ -300,7 +307,10 @@ impl From<ProtocolVersionId> for VmVersion {
             ProtocolVersionId::Version25 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
             ProtocolVersionId::Version26 => VmVersion::VmGateway,
             ProtocolVersionId::Version27 => VmVersion::VmGateway,
-            ProtocolVersionId::Version28 => unreachable!("Version 28 is not yet supported"),
+
+            // Speculative VM version for the next protocol version to be used in the upgrade integration test etc.
+            // TODO: Must be changed when the protocol version is actually implemented!
+            ProtocolVersionId::Version28 => VmVersion::VmGateway,
         }
     }
 }
