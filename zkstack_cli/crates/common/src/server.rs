@@ -10,6 +10,7 @@ pub struct Server {
     components: Option<Vec<String>>,
     code_path: PathBuf,
     uring: bool,
+    zkos: bool,
 }
 
 /// Possible server modes.
@@ -21,11 +22,17 @@ pub enum ServerMode {
 
 impl Server {
     /// Creates a new instance of the server.
-    pub fn new(components: Option<Vec<String>>, code_path: PathBuf, uring: bool) -> Self {
+    pub fn new(
+        components: Option<Vec<String>>,
+        code_path: PathBuf,
+        uring: bool,
+        zkos: bool,
+    ) -> Self {
         Self {
             components,
             code_path,
             uring,
+            zkos,
         }
     }
 
@@ -55,7 +62,12 @@ impl Server {
             additional_args.push("--genesis".to_string());
         }
 
-        let uring = self.uring.then_some("--features=rocksdb/io-uring");
+        let features = match (self.uring, self.zkos) {
+            (true, true) => Some("--features=rocksdb/io-uring,zkos"),
+            (true, false) => Some("--features=rocksdb/io-uring"),
+            (false, true) => Some("--features=zkos"),
+            (false, false) => None,
+        };
 
         let (gateway_config_param, gateway_config_path) =
             if let Some(gateway_contracts_config_path) = gateway_contracts_config_path {
@@ -70,7 +82,7 @@ impl Server {
         let mut cmd = Cmd::new(
             cmd!(
                 shell,
-                "cargo run --manifest-path ./core/Cargo.toml --release --bin zksync_server {uring...} --
+                "cargo run --manifest-path ./core/Cargo.toml --release --bin zksync_server {features...} --
                 --genesis-path {genesis_path}
                 --wallets-path {wallets_path}
                 --config-path {general_path}

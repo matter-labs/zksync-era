@@ -30,7 +30,7 @@ pub async fn run(shell: &Shell) -> anyhow::Result<()> {
 }
 
 pub fn run_server_genesis(chain_config: &ChainConfig, shell: &Shell) -> anyhow::Result<()> {
-    let server = Server::new(None, chain_config.link_to_code.clone(), false);
+    let server = Server::new(None, chain_config.link_to_code.clone(), false, false);
     server
         .run(
             shell,

@@ -50,4 +50,6 @@ pub struct RunServerArgs {
     additional_args: Vec<String>,
     #[clap(help = MSG_SERVER_URING_HELP, long, default_missing_value = "true")]
     pub uring: bool,
+    #[clap(help = MSG_SERVER_URING_HELP, long, default_missing_value = "true")]
+    pub zkos: bool,
 }

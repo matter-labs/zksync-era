@@ -86,6 +86,7 @@ impl FromStr for ComponentsToRun {
 }
 
 fn main() -> anyhow::Result<()> {
+    dbg!(cfg!(feature = "zkos"));
     let opt = Cli::parse();
 
     // Load env config and use it if file config is not provided

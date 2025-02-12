@@ -41,6 +41,7 @@ impl SandboxExecutor {
         fee_input: BatchFeeInput,
         whitelisted_tokens_for_aa: &[Address],
     ) -> Result<ValidationTraces, ValidationError> {
+        #[cfg(feature = "zkos")]
         return Ok(ValidationTraces::default());
 
         let total_latency = SANDBOX_METRICS.sandbox[&SandboxStage::ValidateInSandbox].start();

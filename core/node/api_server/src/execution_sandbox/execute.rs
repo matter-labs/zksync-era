@@ -200,7 +200,8 @@ impl SandboxExecutor {
         }
     }
 
-    pub async fn execute_in_sandbox_zkos(
+    #[cfg(feature = "zkos")]
+    pub async fn execute_in_sandbox(
         &self,
         vm_permit: VmPermit,
         connection: Connection<'static, Core>,
@@ -320,6 +321,7 @@ impl SandboxExecutor {
 
     /// This method assumes that (block with number `resolved_block_number` is present in DB)
     /// or (`block_id` is `pending` and block with number `resolved_block_number - 1` is present in DB)
+    #[cfg(not(feature = "zkos"))]
     pub async fn execute_in_sandbox(
         &self,
         _vm_permit: VmPermit,

@@ -42,3 +42,6 @@ zksync_node_api_server.workspace = true
 
 [target.'cfg(not(target_env = "msvc"))'.dependencies]
 tikv-jemallocator.workspace = true
+
+[features]
+zkos = ["zksync_node_api_server/zkos"]

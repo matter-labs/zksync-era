@@ -472,7 +472,7 @@ impl<'a> GasEstimator<'a> {
         let connection = self.sender.acquire_replica_connection().await?;
         let executor = &self.sender.0.executor;
         let execution_output = executor
-            .execute_in_sandbox_zkos(
+            .execute_in_sandbox(
                 self.vm_permit.clone(),
                 connection,
                 action,

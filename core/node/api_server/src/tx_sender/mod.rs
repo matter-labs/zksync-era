@@ -330,7 +330,9 @@ impl TxSender {
     ) -> Result<SandboxExecutionOutput, SubmitTxError> {
         let tx_hash = tx.hash();
         let stage_latency = SANDBOX_METRICS.start_tx_submit_stage(tx_hash, SubmitTxStage::Validate);
-        // self.validate_tx(&tx, block_args.protocol_version()).await?;
+        // validation is disabled for zkos since fee params are off. TODO: enable unconditionally when proper fee params are saved to DB.
+        #[cfg(not(feature = "zkos"))]
+        self.validate_tx(&tx, block_args.protocol_version()).await?;
         stage_latency.observe();
 
         let stage_latency = SANDBOX_METRICS.start_tx_submit_stage(tx_hash, SubmitTxStage::DryRun);
@@ -353,7 +355,7 @@ impl TxSender {
         let execution_output = self
             .0
             .executor
-            .execute_in_sandbox_zkos(vm_permit.clone(), connection, action, &block_args, None)
+            .execute_in_sandbox(vm_permit.clone(), connection, action, &block_args, None)
             .await?;
         tracing::info!(
             "Submit tx {tx_hash:?} with execution metrics {:?}",
@@ -655,7 +657,7 @@ impl TxSender {
         let result = self
             .0
             .executor
-            .execute_in_sandbox_zkos(vm_permit, connection, action, &block_args, state_override)
+            .execute_in_sandbox(vm_permit, connection, action, &block_args, state_override)
             .await?;
         result.result.into_api_call_result()
     }
