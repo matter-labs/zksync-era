@@ -6,7 +6,7 @@ pub(super) use self::evm_deploy::DynamicBytecodes;
 pub use self::{
     calls::CallTracer,
     storage::StorageInvocationsTracer,
-    validation::{FullValidationTracer, ValidationTracer},
+    validation::{FastValidationTracer, FullValidationTracer, ValidationTracer},
 };
 use self::{circuits::CircuitsTracer, evm_deploy::EvmDeployTracer};
 use crate::interface::CircuitStatistic;

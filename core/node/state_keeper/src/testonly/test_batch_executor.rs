@@ -263,7 +263,7 @@ pub(crate) fn successful_exec_with_log() -> BatchTransactionExecutionResult {
             },
             ..VmExecutionResultAndLogs::mock_success()
         }),
-        compressed_bytecodes: vec![],
+        compression_result: Ok(()),
         call_traces: vec![],
     }
 }
@@ -274,7 +274,7 @@ pub(crate) fn rejected_exec(reason: Halt) -> BatchTransactionExecutionResult {
         tx_result: Box::new(VmExecutionResultAndLogs::mock(ExecutionResult::Halt {
             reason,
         })),
-        compressed_bytecodes: vec![],
+        compression_result: Ok(()),
         call_traces: vec![],
     }
 }
@@ -369,14 +369,18 @@ impl TestBatchExecutorBuilder {
         for item in &scenario.actions {
             match item {
                 ScenarioItem::Tx(_, tx, result) => {
-                    batch_txs
-                        .entry(tx.hash())
-                        .and_modify(|txs| txs.push_back(result.clone()))
-                        .or_insert_with(|| {
-                            let mut txs = VecDeque::with_capacity(1);
-                            txs.push_back(result.clone());
-                            txs
-                        });
+                    result.compression_result.as_ref().unwrap();
+                    let result = BatchTransactionExecutionResult {
+                        tx_result: result.tx_result.clone(),
+                        compression_result: Ok(()),
+                        call_traces: result.call_traces.clone(),
+                    };
+
+                    if let Some(txs) = batch_txs.get_mut(&tx.hash()) {
+                        txs.push_back(result);
+                    } else {
+                        batch_txs.insert(tx.hash(), VecDeque::from([result]));
+                    }
                 }
                 ScenarioItem::Rollback(_, tx) => {
                     rollback_set.insert(tx.hash());

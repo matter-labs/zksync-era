@@ -41,8 +41,8 @@ use zksync_vm_executor::oneshot::{
 pub(super) use self::{gas_estimation::BinarySearchKind, result::SubmitTxError};
 use self::{master_pool_sink::MasterPoolSink, result::ApiCallResult, tx_sink::TxSink};
 use crate::execution_sandbox::{
-    BlockArgs, SandboxAction, SandboxExecutor, SubmitTxStage, VmConcurrencyBarrier,
-    VmConcurrencyLimiter, SANDBOX_METRICS,
+    BlockArgs, SandboxAction, SandboxExecutionOutput, SandboxExecutor, SubmitTxStage,
+    VmConcurrencyBarrier, VmConcurrencyLimiter, SANDBOX_METRICS,
 };
 
 mod gas_estimation;
@@ -318,12 +318,12 @@ impl TxSender {
             .context("failed acquiring connection to replica DB")
     }
 
-    #[tracing::instrument(level = "debug", skip_all, fields(tx.hash = ? tx.hash()))]
-    pub async fn submit_tx(
+    #[tracing::instrument(level = "debug", name = "submit_tx", skip_all, fields(tx.hash = ?tx.hash()))]
+    pub(crate) async fn submit_tx(
         &self,
         tx: L2Tx,
         block_args: BlockArgs,
-    ) -> Result<(L2TxSubmissionResult, VmExecutionResultAndLogs), SubmitTxError> {
+    ) -> Result<SandboxExecutionOutput, SubmitTxError> {
         //todo: execute transaction before accepting it
         let submission_res_handle = self
             .0
@@ -335,14 +335,15 @@ impl TxSender {
             )
             .await?;
 
-        let fake_vm_execution_result = VmExecutionResultAndLogs {
+        let fake_output = SandboxExecutionOutput {
             result: ExecutionResult::Success { output: vec![] },
-            logs: VmExecutionLogs::default(),
-            statistics: VmExecutionStatistics::default(),
-            refunds: Default::default(),
-            dynamic_factory_deps: Default::default(),
+            write_logs: Default::default(),
+            events: Default::default(),
+            call_traces: Default::default(),
+            metrics: Default::default(),
+            are_published_bytecodes_ok: true,
         };
-        Ok((submission_res_handle, fake_vm_execution_result))
+        Ok(fake_output)
     }
 
     async fn validate_tx(
@@ -581,7 +582,7 @@ impl TxSender {
     fn ensure_tx_executable(
         &self,
         transaction: &Transaction,
-        tx_metrics: &TransactionExecutionMetrics,
+        tx_metrics: TransactionExecutionMetrics,
         log_message: bool,
     ) -> Result<(), SubmitTxError> {
         // Hash is not computable for the provided `transaction` during gas estimation (it doesn't have
