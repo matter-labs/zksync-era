@@ -37,7 +37,7 @@ impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
     /// Errors if the hasher or basic tree parameters (e.g., the tree depth)
     /// do not match those of the tree loaded from the database.
     pub fn with_hasher(db: DB, hasher: H) -> anyhow::Result<Self> {
-        todo!()
+        Ok(Self { db, hasher })
     }
 
     /// Returns the root hash of a tree at the specified `version`, or `None` if the version

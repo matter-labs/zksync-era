@@ -131,7 +131,7 @@ pub(crate) struct PartialPatchSet {
     root: Root,
     // FIXME: maybe, a wrapper around `Vec<(_, _)>` would be more efficient?
     /// Offset by 1 (i.e., `internal[0]` corresponds to 1 nibble).
-    internal: [HashMap<u64, InternalNode>; InternalNode::MAX_NIBBLES as usize - 1],
+    internal: [HashMap<u64, InternalNode>; InternalNode::MAX_NIBBLES as usize],
     /// Sorted by the index.
     leaves: HashMap<u64, Leaf>,
 }
@@ -246,33 +246,43 @@ impl PartialPatchSet {
             }
         }
 
-        let new_idx = self.root.leaf_count;
-        let mut new_indexes = new_idx..=(new_idx + update.inserts.len() as u64);
-        self.leaves.extend(new_indexes.clone().zip(update.inserts));
-        self.root.leaf_count = *new_indexes.end();
+        if !update.inserts.is_empty() {
+            let new_idx = self.root.leaf_count;
+            // Cannot underflow because `update.inserts.len() >= 1`
+            let mut new_indexes = new_idx..=(new_idx + update.inserts.len() as u64 - 1);
+            self.leaves.extend(new_indexes.clone().zip(update.inserts));
+            self.root.leaf_count = *new_indexes.end() + 1;
 
-        // Add / update internal nodes.
-        for internal_level in self.internal.iter_mut().rev() {
-            let mut len = new_indexes.end() - new_indexes.start() + 1;
-            let parent_indexes = (new_indexes.start() >> 4)..=(new_indexes.end() >> 4);
+            // Add / update internal nodes.
+            for internal_level in self.internal.iter_mut().rev() {
+                let mut len = new_indexes.end() - new_indexes.start() + 1;
+                let parent_indexes = (new_indexes.start() >> 4)..=(new_indexes.end() >> 4);
 
-            // Only the first of `parent_indexes` may exist already; all others are necessarily new.
-            if let Some(parent) = internal_level.get_mut(parent_indexes.start()) {
-                parent.extend(len.min(16) as usize, version);
-            } else {
-                internal_level.insert(
-                    *parent_indexes.start(),
-                    InternalNode::new(len.min(16) as usize, version),
-                );
-            }
-            len = len.saturating_sub(16);
-
-            for parent_idx in parent_indexes.clone().skip(1) {
-                internal_level.insert(parent_idx, InternalNode::new(len.min(16) as usize, version));
+                // Only the first of `parent_indexes` may exist already; all others are necessarily new.
+                if let Some(parent) = internal_level.get_mut(parent_indexes.start()) {
+                    let expected_len = (new_indexes.start() % 16 + len).min(16);
+                    parent.ensure_len(expected_len as usize, version);
+                } else {
+                    internal_level.insert(
+                        *parent_indexes.start(),
+                        InternalNode::new(len.min(16) as usize, version),
+                    );
+                }
                 len = len.saturating_sub(16);
+
+                for parent_idx in parent_indexes.clone().skip(1) {
+                    internal_level
+                        .insert(parent_idx, InternalNode::new(len.min(16) as usize, version));
+                    len = len.saturating_sub(16);
+                }
+
+                new_indexes = parent_indexes;
             }
 
-            new_indexes = parent_indexes;
+            assert!(*new_indexes.end() < 16);
+            self.root
+                .root_node
+                .ensure_len(*new_indexes.end() as usize + 1, version);
         }
 
         FinalTreeUpdate {
@@ -329,7 +339,7 @@ struct InsertedKeyEntry {
     inserted_at: u64,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct PatchSet {
     manifest: Manifest,
     patches_by_version: HashMap<u64, PartialPatchSet>,
@@ -515,6 +525,8 @@ impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
 
 #[cfg(test)]
 mod tests {
+    use zksync_crypto_primitives::hasher::blake2::Blake2Hasher;
+
     use super::*;
 
     #[test]
@@ -622,5 +634,50 @@ mod tests {
                 inserted_at: 0,
             }
         );
+    }
+
+    #[test]
+    fn creating_empty_tree() {
+        let mut patch = PartialPatchSet::empty();
+        let final_update = patch.update(TreeUpdate::for_empty_tree(&[]));
+        assert_eq!(final_update.version, 0);
+
+        assert_eq!(patch.leaves.len(), 2);
+        assert_eq!(patch.leaves[&0], Leaf::MIN_GUARD);
+        assert_eq!(patch.leaves[&1], Leaf::MAX_GUARD);
+        let last_level = patch.internal.last().unwrap();
+        assert_eq!(last_level.len(), 1);
+        assert_eq!(last_level[&0].child_refs().len(), 2);
+
+        for level in patch.internal.iter().rev().skip(1) {
+            assert_eq!(level.len(), 1);
+            assert_eq!(level[&0].child_refs().len(), 1);
+        }
+
+        assert_eq!(patch.root.leaf_count, 2);
+        assert_eq!(patch.root.root_node.child_refs().len(), 1);
+
+        let patch = patch.finalize(&Blake2Hasher, final_update);
+        assert_eq!(patch.manifest.version_count, 1);
+        assert_eq!(patch.patches_by_version.len(), 1);
+        let root = patch.try_root(0).unwrap();
+        assert_eq!(root.leaf_count, 2);
+
+        assert_eq!(root.root_node.child_refs().len(), 1);
+        let expected_root_child_hash: H256 =
+            "0xcf74f992c4947d5bffe106bbdee736d726784441d844c23a5d3b372aad0f4bdd"
+                .parse()
+                .unwrap();
+        assert_eq!(
+            root.root_node.child_refs()[0].hash,
+            expected_root_child_hash
+        );
+
+        // FIXME: doesn't work; the reference impl has depth 63, not 64
+        let expected_root_hash: H256 =
+            "0xa02abc0995f78e87f3c73cecee45a527c9026473bb1dc9e29a6bd7835eb92bde"
+                .parse()
+                .unwrap();
+        assert_eq!(root.root_node.hash(&Blake2Hasher, 60), expected_root_hash);
     }
 }

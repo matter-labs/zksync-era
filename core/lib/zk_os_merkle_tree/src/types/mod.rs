@@ -83,10 +83,9 @@ impl InternalNode {
         &mut self.children[index]
     }
 
-    pub(crate) fn extend(&mut self, new_children: usize, version: u64) {
-        let new_len = self.children.len() + new_children;
-        assert!(new_len <= 16);
-        self.children.resize_with(new_len, || ChildRef {
+    pub(crate) fn ensure_len(&mut self, expected_len: usize, version: u64) {
+        assert!(expected_len <= 16);
+        self.children.resize_with(expected_len, || ChildRef {
             version,
             hash: H256::zero(),
         });
