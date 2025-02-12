@@ -115,8 +115,6 @@ chains start out with the same state. A diamond proxy is deployed and initialise
 predefined facets which are made available by the ST contract. These facets contain the proof verification and other
 features required to process proofs. The chain ID is set in the VM in a special system transaction sent from L1.
 
-<!--![newChain.png](./img/newChain.png) Image outdated-->
-
 ---
 
 ### Common Standards and Upgrades
