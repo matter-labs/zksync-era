@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            UPDATE node_aggregation_witness_jobs_fri\n            SET\n                status = 'queued',\n                updated_at = NOW(),\n                processing_started_at = NOW()\n            WHERE\n                (\n                    status = 'in_progress'\n                    AND processing_started_at <= NOW() - $1::INTERVAL\n                    AND attempts < $2\n                )\n                OR (\n                    status = 'failed'\n                    AND attempts < $2\n                )\n            RETURNING\n            id,\n            status,\n            attempts,\n            circuit_id,\n            error,\n            picked_by\n            ",
+  "query": "\n            UPDATE leaf_aggregation_witness_jobs_fri\n            SET\n                status = 'queued',\n                updated_at = NOW(),\n                processing_started_at = NOW(),\n                attempts = attempts + 1\n            WHERE\n                (\n                    status = 'in_progress'\n                    AND processing_started_at <= NOW() - $1::INTERVAL\n                    AND attempts < $2\n                )\n                OR (\n                    status = 'failed'\n                    AND attempts < $2\n                )\n            RETURNING\n            id,\n            status,\n            attempts,\n            circuit_id,\n            error,\n            picked_by\n            ",
   "describe": {
     "columns": [
       {
@@ -49,5 +49,5 @@
       true
     ]
   },
-  "hash": "6b7cf7ae3c66c46f4ecec2b0710f9f8bea0033f6727c2582f7f141330a47f440"
+  "hash": "bf25e4d0f807f618a822c83f3ff42d00d76a304106cbda611864cc64cdcd339a"
 }
