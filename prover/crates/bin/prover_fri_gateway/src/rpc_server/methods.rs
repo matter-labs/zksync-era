@@ -1,6 +1,8 @@
 use jsonrpsee::core::{async_trait, RpcResult, SubscriptionResult};
+use jsonrpsee::PendingSubscriptionSink;
 use jsonrpsee::proc_macros::rpc;
 use zksync_prover_interface::api::ProofGenerationData;
+use zksync_prover_interface::outputs::L1BatchProofForL1;
 use zksync_types::L2ChainId;
 use crate::rpc_server::RpcServer;
 use crate::rpc_server::state::RpcState;
@@ -15,19 +17,20 @@ pub trait GatewayRpc {
 }
 
 #[async_trait]
-impl GatewayRpc for RpcServer {
+impl GatewayRpcServer for RpcServer {
     async fn submit_proof_generation_data(&self, data: ProofGenerationData) -> RpcResult<()> {
         self.state.save_proof_gen_data(data).await?;
         Ok(())
     }
 
-    async fn subscribe_for_proofs(&self, chain_id: L2ChainId) -> SubscriptionResult {
-        let mut subscription = self.subscribe_for_proofs(chain_id).await?;
-        loop {
-            if let Some((l1_batch_number, request)) = self.next_submit_proof_request(chain_id).await {
-                subscription.send(l1_batch_number, request).await?;
-                self.save_successful_sent_proof(l1_batch_number, chain_id).await;
-            }
-        }
+    async fn subscribe_for_proofs(&self, subscription_sink: PendingSubscriptionSink, chain_id: L2ChainId) -> SubscriptionResult {
+        self.sub(subscription_sink, chain_id).await;
+        Ok(())
     }
+}
+
+#[derive(Debug)]
+pub enum SubscriptionEvent{
+    Subscribed(L2ChainId),
+    ProofGenerated(L2ChainId, L1BatchProofForL1),
 }
