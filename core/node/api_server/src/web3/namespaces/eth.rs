@@ -182,22 +182,35 @@ impl EthNamespace {
         let mut connection = self.state.acquire_connection().await?;
         let block_number = self.state.resolve_block(&mut connection, block_id).await?;
 
-        let address = B160::from_be_bytes(address.to_fixed_bytes());
-        let key = address_into_special_storage_key(&address);
-        let flat_key = derive_flat_storage_key(&NOMINAL_TOKEN_BALANCE_STORAGE_ADDRESS, &key);
-        let storage_hashed_key = H256::from_slice(&flat_key.as_u8_array());
+        let balance = if cfg!(feature = "zkos") {
+            let address = B160::from_be_bytes(address.to_fixed_bytes());
+            let key = address_into_special_storage_key(&address);
+            let flat_key = derive_flat_storage_key(&NOMINAL_TOKEN_BALANCE_STORAGE_ADDRESS, &key);
+            let storage_hashed_key = H256::from_slice(&flat_key.as_u8_array());
 
-        let mut balances = connection
-            .storage_web3_dal()
-            .get_values(&[storage_hashed_key])
-            .await
-            .map_err(DalError::generalize)?;
+            let mut balances = connection
+                .storage_web3_dal()
+                .get_values(&[storage_hashed_key])
+                .await
+                .map_err(DalError::generalize)?;
 
-        let balance = balances.remove(&storage_hashed_key).unwrap_or_default();
+            let balance = balances.remove(&storage_hashed_key).unwrap_or_default();
+            h256_to_u256(balance)
+        } else {
+            connection
+                .storage_web3_dal()
+                .standard_token_historical_balance(
+                    AccountTreeId::new(L2_BASE_TOKEN_ADDRESS),
+                    AccountTreeId::new(address),
+                    block_number,
+                )
+                .await
+                .map_err(DalError::generalize)?
+        };
 
         self.set_block_diff(block_number);
 
-        Ok(h256_to_u256(balance))
+        Ok(balance)
     }
 
     fn set_block_diff(&self, block_number: L2BlockNumber) {

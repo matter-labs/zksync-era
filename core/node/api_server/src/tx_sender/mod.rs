@@ -587,29 +587,45 @@ impl TxSender {
     }
 
     async fn get_balance(&self, initiator_address: &H160) -> anyhow::Result<U256> {
-        let address = B160::from_be_bytes(initiator_address.to_fixed_bytes());
-        let key = address_into_special_storage_key(&address);
-        let flat_key = derive_flat_storage_key(&NOMINAL_TOKEN_BALANCE_STORAGE_ADDRESS, &key);
-        let storage_hashed_key = H256::from_slice(&flat_key.as_u8_array());
+        #[cfg(not(feature = "zkos"))]
+        {
+            let eth_balance_key = storage_key_for_eth_balance(initiator_address);
+            let balance = self
+                .acquire_replica_connection()
+                .await?
+                .storage_web3_dal()
+                .get_value(&eth_balance_key)
+                .await?;
 
-        let mut balances = self
-            .acquire_replica_connection()
-            .await?
-            .storage_web3_dal()
-            .get_values(&[storage_hashed_key])
-            .await
-            .map_err(DalError::generalize)?;
+            Ok(h256_to_u256(balance))
+        }
 
-        let balance = balances.remove(&storage_hashed_key).unwrap_or_default();
+        #[cfg(feature = "zkos")]
+        {
+            let address = B160::from_be_bytes(initiator_address.to_fixed_bytes());
+            let key = address_into_special_storage_key(&address);
+            let flat_key = derive_flat_storage_key(&NOMINAL_TOKEN_BALANCE_STORAGE_ADDRESS, &key);
+            let storage_hashed_key = H256::from_slice(&flat_key.as_u8_array());
 
-        // let eth_balance_key = storage_key_for_eth_balance(initiator_address);
-        // let balance = self
-        //     .acquire_replica_connection()
-        //     .await?
-        //     .storage_web3_dal()
-        //     .get_value(&eth_balance_key)
-        //     .await?;
-        Ok(h256_to_u256(balance))
+            let mut balances = self
+                .acquire_replica_connection()
+                .await?
+                .storage_web3_dal()
+                .get_values(&[storage_hashed_key])
+                .await
+                .map_err(DalError::generalize)?;
+
+            let balance = balances.remove(&storage_hashed_key).unwrap_or_default();
+
+            // let eth_balance_key = storage_key_for_eth_balance(initiator_address);
+            // let balance = self
+            //     .acquire_replica_connection()
+            //     .await?
+            //     .storage_web3_dal()
+            //     .get_value(&eth_balance_key)
+            //     .await?;
+            Ok(h256_to_u256(balance))
+        }
     }
 
     // For now, both L1 gas price and pubdata price are scaled with the same coefficient
