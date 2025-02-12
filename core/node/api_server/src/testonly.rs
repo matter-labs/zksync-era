@@ -554,8 +554,6 @@ pub(crate) fn mock_execute_transaction(transaction: Transaction) -> TransactionE
         execution_info: VmExecutionMetrics::default(),
         execution_status: TxExecutionStatus::Success,
         refunded_gas: 0,
-        operator_suggested_refund: 0,
-        compressed_bytecodes: vec![],
         call_traces: vec![],
         revert_reason: None,
     }
@@ -667,7 +665,6 @@ pub(crate) async fn persist_block_with_transactions(
         let tx_location = IncludedTxLocation {
             tx_hash: tx.hash(),
             tx_index_in_l2_block: i as u32,
-            tx_initiator_address: tx.initiator_account(),
         };
         events_by_transaction.push((tx_location, start_idx..all_events.len()));
         all_logs.extend(tx_result.logs.storage_logs);

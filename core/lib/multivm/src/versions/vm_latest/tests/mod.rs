@@ -205,7 +205,11 @@ impl TestedVm for TestedLatestVm {
 }
 
 impl TestedVmForValidation for TestedLatestVm {
-    fn run_validation(&mut self, tx: L2Tx, timestamp: u64) -> Option<ViolatedValidationRule> {
+    fn run_validation(
+        &mut self,
+        tx: L2Tx,
+        timestamp: u64,
+    ) -> (VmExecutionResultAndLogs, Option<ViolatedValidationRule>) {
         let validation_params = validation_params(&tx, &self.system_env);
         self.push_transaction(tx.into());
 
@@ -216,12 +220,13 @@ impl TestedVmForValidation for TestedLatestVm {
         );
         let mut failures = tracer.get_result();
 
-        self.inspect_inner(
+        let result = self.inspect_inner(
             &mut tracer.into_tracer_pointer().into(),
             VmExecutionMode::OneTx,
             None,
         );
-        Arc::make_mut(&mut failures).take()
+        let violated_rule = Arc::make_mut(&mut failures).take();
+        (result, violated_rule)
     }
 }
 

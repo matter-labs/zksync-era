@@ -340,7 +340,7 @@ pub(super) fn execute_user_txs_in_test_gas_vm(
     }
 
     let result = vm.execute(InspectExecutionMode::Bootloader);
-    let metrics = result.get_execution_metrics(None);
+    let metrics = result.get_execution_metrics();
 
     VmSpentResourcesResult {
         // It is assumed that the entire `gas_used` was spent on computation and so it safe to convert to u32
