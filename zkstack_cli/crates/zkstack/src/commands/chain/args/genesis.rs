@@ -3,7 +3,7 @@ use clap::Parser;
 use serde::{Deserialize, Serialize};
 use slugify_rs::slugify;
 use url::Url;
-use zkstack_cli_common::{db::DatabaseConfig, Prompt};
+use zkstack_cli_common::{db::DatabaseConfig, logger, Prompt};
 use zkstack_cli_config::ChainConfig;
 
 use crate::{
@@ -30,8 +30,8 @@ impl GenesisArgs {
     pub fn fill_values_with_prompt(self, config: &ChainConfig) -> GenesisArgsFinal {
         let DBNames { server_name, .. } = generate_db_names(config);
         let chain_name = config.name.clone();
-        println!("server_name: {:?}", self.server_db_name);
-        println!("server_db_url: {:?}", self.server_db_url);
+        logger::info(&format!("server_name: {:?}", self.server_db_name));
+        logger::info(&format!("server_db_url: {:?}", self.server_db_url));
         if self.dev {
             GenesisArgsFinal {
                 server_db: DatabaseConfig::new(DATABASE_SERVER_URL.clone(), server_name),
