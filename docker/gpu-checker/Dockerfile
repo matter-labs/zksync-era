@@ -50,10 +50,10 @@ RUN cd prover && cargo build --release --package zksync_gpu_checker
 RUN cuobjdump /usr/src/zksync/prover/target/release/zksync_gpu_checker
 
 # Generate Witness Vector
-RUN eval $(./prover/extract-setup-data-keys.sh) && curl -LO https://storage.googleapis.com/matterlabs-setup-data-us/${gpu_short_commit_sha}/setup_basic_1_data.bin && \
-  mv setup_basic_1_data.bin /prover/data/keys/
-COPY prover/data/keys/commitments.json prover/data/keys/finalization_hints_basic_1.bin prover/data/keys/verification_basic_1_key.json /prover/data/keys/
-COPY ${CIRCUIT_FILE}.bin /prover/data/keys/prover_jobs_fri/
+RUN mkdir -p /prover/data/keys/ && eval $(./prover/extract-setup-data-keys.sh) && \
+  curl -LO --output-dir /prover/data/keys/ https://storage.googleapis.com/matterlabs-setup-data-us/${gpu_short_commit_sha}/setup_basic_1_data.bin
+RUN mkdir -p /prover/data/keys/ && cp -v -r prover/data/keys/commitments.json prover/data/keys/finalization_hints_basic_1.bin prover/data/keys/verification_basic_1_key.json /prover/data/keys/
+RUN mkdir -p /prover/data/keys/prover_jobs_fri/ && cp -v ${CIRCUIT_FILE}.bin /prover/data/keys/prover_jobs_fri/
 
 RUN /usr/src/zksync/prover/target/release/zksync_gpu_checker --object_store_path=/prover/data/keys/ --keystore_path=/prover/data/keys/ --circuit_file=/prover/data/keys/${CIRCUIT_FILE}.bin
 
@@ -62,9 +62,6 @@ FROM nvidia/cuda:12.4.0-runtime-ubuntu22.04
 ARG CIRCUIT_FILE
 
 RUN apt-get update && apt-get install -y curl libpq5 ca-certificates && rm -rf /var/lib/apt/lists/*
-
-# Copy only required finalization hints and verification key.
-COPY prover/data/keys/commitments.json prover/data/keys/finalization_hints_basic_1.bin prover/data/keys/verification_basic_1_key.json /prover/data/keys/
 
 # Copy required setup key and circuit.
 COPY --from=builder /prover/data/keys/ /prover/data/keys/
