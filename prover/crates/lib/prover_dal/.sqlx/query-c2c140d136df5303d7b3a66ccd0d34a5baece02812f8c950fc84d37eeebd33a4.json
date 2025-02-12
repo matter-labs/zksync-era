@@ -97,6 +97,11 @@
         "ordinal": 18,
         "name": "protocol_version_patch",
         "type_info": "Int4"
+      },
+      {
+        "ordinal": 19,
+        "name": "priority",
+        "type_info": "Int4"
       }
     ],
     "parameters": {
@@ -124,6 +129,7 @@
       true,
       true,
       true,
+      false,
       false
     ]
   },

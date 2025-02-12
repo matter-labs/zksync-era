@@ -81,6 +81,30 @@ impl ContractVerificationDal<'_, '_> {
         .map(|row| row.count as usize)
     }
 
+    /// Returns ID of verification request for the specified contract address
+    /// that wasn't processed yet.
+    pub async fn get_active_verification_request(
+        &mut self,
+        address: Address,
+    ) -> DalResult<Option<usize>> {
+        sqlx::query!(
+            r#"
+            SELECT
+                id
+            FROM
+                contract_verification_requests
+            WHERE
+                contract_address = $1 AND (status = 'queued' OR status = 'in_progress')
+            LIMIT 1
+            "#,
+            address.as_bytes(),
+        )
+        .instrument("verification_request_exists")
+        .fetch_optional(self.storage)
+        .await
+        .map(|row| row.map(|row| row.id as usize))
+    }
+
     pub async fn add_contract_verification_request(
         &mut self,
         query: &VerificationIncomingRequest,
@@ -99,12 +123,13 @@ impl ContractVerificationDal<'_, '_> {
                 constructor_arguments,
                 is_system,
                 force_evmla,
+                evm_specific,
                 status,
                 created_at,
                 updated_at
             )
             VALUES
-            ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'queued', NOW(), NOW())
+            ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'queued', NOW(), NOW())
             RETURNING
             id
             "#,
@@ -119,6 +144,7 @@ impl ContractVerificationDal<'_, '_> {
             query.constructor_arguments.0.as_slice(),
             query.is_system,
             query.force_evmla,
+            serde_json::to_value(&query.evm_specific).unwrap(),
         )
         .instrument("add_contract_verification_request")
         .with_arg("address", &query.contract_address)
@@ -179,7 +205,8 @@ impl ContractVerificationDal<'_, '_> {
             optimizer_mode,
             constructor_arguments,
             is_system,
-            force_evmla
+            force_evmla,
+            evm_specific
             "#,
             &processing_timeout
         )
@@ -513,7 +540,8 @@ impl ContractVerificationDal<'_, '_> {
                 optimizer_mode,
                 constructor_arguments,
                 is_system,
-                force_evmla
+                force_evmla,
+                evm_specific
             FROM
                 contract_verification_requests
             WHERE
@@ -868,7 +896,6 @@ mod tests {
         let location = IncludedTxLocation {
             tx_hash: tx.hash(),
             tx_index_in_l2_block: 0,
-            tx_initiator_address: tx.initiator_account(),
         };
         let deploy_event = VmEvent {
             location: (L1BatchNumber(0), 0),
@@ -912,6 +939,7 @@ mod tests {
             constructor_arguments: web3::Bytes(b"test".to_vec()),
             is_system: false,
             force_evmla: true,
+            evm_specific: Default::default(),
         };
 
         let pool = ConnectionPool::<Core>::test_pool().await;

@@ -32,6 +32,7 @@ pub mod aggregated_operations;
 pub mod blob;
 pub mod block;
 pub mod commitment;
+#[cfg(feature = "contract-verification")]
 pub mod contract_verification;
 pub mod debug_flat_call;
 pub mod fee;
@@ -52,6 +53,7 @@ pub mod api;
 pub mod base_token_ratio;
 pub mod eth_sender;
 pub mod helpers;
+#[cfg(feature = "protobuf")]
 pub mod proto;
 pub mod transaction_request;
 pub mod utils;

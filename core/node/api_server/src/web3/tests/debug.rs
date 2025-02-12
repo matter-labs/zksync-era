@@ -32,7 +32,7 @@ fn execute_l2_transaction_with_traces(index_in_block: u8) -> TransactionExecutio
     };
     TransactionExecutionResult {
         call_traces: vec![first_call_trace, second_call_trace],
-        ..execute_l2_transaction(create_l2_transaction(1, 2))
+        ..mock_execute_transaction(create_l2_transaction(1, 2).into())
     }
 }
 

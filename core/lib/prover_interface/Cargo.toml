@@ -24,7 +24,6 @@ circuit_sequencer_api.workspace = true
 serde.workspace = true
 strum = { workspace = true, features = ["derive"] }
 serde_with = { workspace = true, features = ["base64", "hex"] }
-chrono = { workspace = true, features = ["serde"] }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["full"] }

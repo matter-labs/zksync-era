@@ -24,11 +24,11 @@ use crate::{
         tracer::ViolatedValidationRule,
         CurrentExecutionState, L2BlockEnv, VmExecutionMode, VmExecutionResultAndLogs,
     },
-    tracers::{CallTracer, ValidationTracer},
+    tracers::{CallTracer, StorageInvocations, ValidationTracer},
     utils::bytecode::bytes_to_be_words,
     versions::testonly::{
         filter_out_base_system_contracts, validation_params, TestedVm, TestedVmForValidation,
-        TestedVmWithCallTracer,
+        TestedVmWithCallTracer, TestedVmWithStorageLimit,
     },
     vm_latest::{
         constants::BOOTLOADER_HEAP_PAGE,
@@ -205,7 +205,11 @@ impl TestedVm for TestedLatestVm {
 }
 
 impl TestedVmForValidation for TestedLatestVm {
-    fn run_validation(&mut self, tx: L2Tx, timestamp: u64) -> Option<ViolatedValidationRule> {
+    fn run_validation(
+        &mut self,
+        tx: L2Tx,
+        timestamp: u64,
+    ) -> (VmExecutionResultAndLogs, Option<ViolatedValidationRule>) {
         let validation_params = validation_params(&tx, &self.system_env);
         self.push_transaction(tx.into());
 
@@ -216,12 +220,13 @@ impl TestedVmForValidation for TestedLatestVm {
         );
         let mut failures = tracer.get_result();
 
-        self.inspect_inner(
+        let result = self.inspect_inner(
             &mut tracer.into_tracer_pointer().into(),
             VmExecutionMode::OneTx,
             None,
         );
-        Arc::make_mut(&mut failures).take()
+        let violated_rule = Arc::make_mut(&mut failures).take();
+        (result, violated_rule)
     }
 }
 
@@ -348,5 +353,12 @@ impl TestedVmWithCallTracer for TestedLatestVm {
         let res = self.inspect(&mut call_tracer.into(), InspectExecutionMode::OneTx);
         let traces = result.get().unwrap().clone();
         (res, traces)
+    }
+}
+
+impl TestedVmWithStorageLimit for TestedLatestVm {
+    fn execute_with_storage_limit(&mut self, limit: usize) -> VmExecutionResultAndLogs {
+        let tracer = StorageInvocations::new(limit).into_tracer_pointer();
+        self.inspect(&mut tracer.into(), InspectExecutionMode::OneTx)
     }
 }
