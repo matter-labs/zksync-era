@@ -91,8 +91,6 @@ impl ZksNamespace {
         request: CallRequest,
         state_override: Option<StateOverride>,
     ) -> Result<U256, Web3Error> {
-        return Ok(u32::MAX.into());
-
         let mut request_with_gas_per_pubdata_overridden = request;
         // When we're estimating fee, we are trying to deduce values related to fee, so we should
         // not consider provided ones.
