@@ -492,7 +492,7 @@ impl ZkSyncStateKeeper {
                     .execute_tx(tx.clone())
                     .await
                     .with_context(|| format!("failed re-executing transaction {:?}", tx.hash()))?;
-                let result = TxExecutionResult::new(result, &tx);
+                let result = TxExecutionResult::new(result);
 
                 APP_METRICS.processed_txs[&TxStage::StateKeeper].inc();
                 APP_METRICS.processed_l1_txs[&TxStage::StateKeeper].inc_by(tx.is_l1().into());
@@ -500,7 +500,6 @@ impl ZkSyncStateKeeper {
                 let TxExecutionResult::Success {
                     tx_result,
                     tx_metrics: tx_execution_metrics,
-                    compressed_bytecodes,
                     call_tracer_result,
                     ..
                 } = result
@@ -524,7 +523,6 @@ impl ZkSyncStateKeeper {
                 updates_manager.extend_from_executed_transaction(
                     tx,
                     *tx_result,
-                    compressed_bytecodes,
                     *tx_execution_metrics,
                     call_tracer_result,
                 );
@@ -632,7 +630,6 @@ impl ZkSyncStateKeeper {
                         tx_result,
                         tx_metrics: tx_execution_metrics,
                         call_tracer_result,
-                        compressed_bytecodes,
                         ..
                     } = exec_result
                     else {
@@ -643,7 +640,6 @@ impl ZkSyncStateKeeper {
                     updates_manager.extend_from_executed_transaction(
                         tx,
                         *tx_result,
-                        compressed_bytecodes,
                         *tx_execution_metrics,
                         call_tracer_result,
                     );
@@ -701,7 +697,6 @@ impl ZkSyncStateKeeper {
                 let TxExecutionResult::Success {
                     tx_result,
                     tx_metrics: tx_execution_metrics,
-                    compressed_bytecodes,
                     call_tracer_result,
                     ..
                 } = exec_result
@@ -718,7 +713,6 @@ impl ZkSyncStateKeeper {
                 updates_manager.extend_from_executed_transaction(
                     tx,
                     *tx_result,
-                    compressed_bytecodes,
                     *tx_execution_metrics,
                     call_tracer_result,
                 );
@@ -755,7 +749,7 @@ impl ZkSyncStateKeeper {
             .execute_tx(tx.clone())
             .await
             .with_context(|| format!("failed executing transaction {:?}", tx.hash()))?;
-        let exec_result = TxExecutionResult::new(exec_result, &tx);
+        let exec_result = TxExecutionResult::new(exec_result);
         latency.observe();
 
         APP_METRICS.processed_txs[&TxStage::StateKeeper].inc();

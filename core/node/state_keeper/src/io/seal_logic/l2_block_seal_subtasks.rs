@@ -496,8 +496,6 @@ mod tests {
             execution_info: Default::default(),
             execution_status: TxExecutionStatus::Success,
             refunded_gas: 0,
-            operator_suggested_refund: 0,
-            compressed_bytecodes: Vec::new(),
             call_traces: Vec::new(),
             revert_reason: None,
         }];
