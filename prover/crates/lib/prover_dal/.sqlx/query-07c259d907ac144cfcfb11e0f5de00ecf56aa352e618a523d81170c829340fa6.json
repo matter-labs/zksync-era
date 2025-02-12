@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            UPDATE leaf_aggregation_witness_jobs_fri\n            SET\n                status = 'in_progress',\n                attempts = attempts + 1,\n                updated_at = NOW(),\n                processing_started_at = NOW(),\n                picked_by = $3\n            WHERE\n                id = (\n                    SELECT\n                        id\n                    FROM\n                        leaf_aggregation_witness_jobs_fri\n                    WHERE\n                        status = 'queued'\n                        AND protocol_version = $1\n                        AND protocol_version_patch = $2\n                    ORDER BY\n                        l1_batch_number ASC,\n                        id ASC\n                    LIMIT\n                        1\n                    FOR UPDATE\n                    SKIP LOCKED\n                )\n            RETURNING\n            leaf_aggregation_witness_jobs_fri.*\n            ",
+  "query": "\n            UPDATE leaf_aggregation_witness_jobs_fri\n            SET\n                status = 'in_progress',\n                attempts = attempts + 1,\n                updated_at = NOW(),\n                processing_started_at = NOW(),\n                picked_by = $3\n            WHERE\n                id = (\n                    SELECT\n                        id\n                    FROM\n                        leaf_aggregation_witness_jobs_fri\n                    WHERE\n                        status = 'queued'\n                        AND protocol_version = $1\n                        AND protocol_version_patch = $2\n                    ORDER BY\n                        priority DESC,\n                        created_at ASC\n                    LIMIT\n                        1\n                    FOR UPDATE\n                    SKIP LOCKED\n                )\n            RETURNING\n            leaf_aggregation_witness_jobs_fri.*\n            ",
   "describe": {
     "columns": [
       {
@@ -77,6 +77,11 @@
         "ordinal": 14,
         "name": "protocol_version_patch",
         "type_info": "Int4"
+      },
+      {
+        "ordinal": 15,
+        "name": "priority",
+        "type_info": "Int4"
       }
     ],
     "parameters": {
@@ -101,8 +106,9 @@
       true,
       true,
       true,
+      false,
       false
     ]
   },
-  "hash": "6c37c8a0a921408e3b812adf77d835d9a865ecbd87d38008a649e8943fdf8a43"
+  "hash": "07c259d907ac144cfcfb11e0f5de00ecf56aa352e618a523d81170c829340fa6"
 }
