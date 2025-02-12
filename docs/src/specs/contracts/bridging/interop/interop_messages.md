@@ -53,8 +53,8 @@ This `interopHash` serves as a globally unique identifier that can be used on an
 #### How do I get the proof
 
 You’ll notice that **verifyInteropMessage** has a second argument — a proof that you need to provide. This proof is a
-Merkle tree proof (more details below). You can obtain it by querying the
-[chain](https://docs.zksync.io/build/api-reference/zks-rpc#zks_getl2tol1msgproof) , or generate it off-chain - by
+Merkle tree proof (more details [here](./message_root.md)). You can obtain it by querying the chain using the 
+[api](https://docs.zksync.io/build/api-reference/zks-rpc#zks_getl2tol1msgproof), or generate it off-chain - by
 looking at the chain's state on L1.
 
 #### How does the interop message differ from other layers (InteropTransactions, InteropCalls)
@@ -65,48 +65,8 @@ destination chains, nullifiers/replay, cancellation, and more.
 If you need these capabilities, consider integrating with a higher layer of interop, such as Call or Bundle, which
 provide these additional functionalities.
 
-## Simple Use Case
 
-Before we dive into the details of how the system works, let’s look at a simple use case for a DApp that decides to use
-InteropMessage.
-
-For this example, imagine a basic cross-chain contract where the `signup()` method can be called on chains B, C, and D
-only if someone has first called `signup_open()` on chain A.
-
-```solidity
-// Contract deployed on chain A.
-contract SignupManager {
-  public bytes32 sigup_open_msg_hash;
-  function signup_open() onlyOwner {
-    // We are open for business
-    signup_open_msg_hash = InteropCenter(INTEROP_CENTER_ADDRESS).sendInteropMessage("We are open");
-  }
-}
-
-// Contract deployed on all other chains.
-contract SignupContract {
-  public bool signupIsOpen;
-  // Anyone can call it.
-  function openSignup(InteropMessage message, InteropProof proof) {
-    InteropCenter(INTEROP_CENTER_ADDRESS).verifyInteropMessage(keccak(message), proof);
-    require(message.sourceChainId == CHAIN_A_ID);
-    require(message.sender == SIGNUP_MANAGER_ON_CHAIN_A);
-    require(message.data == "We are open");
-   signupIsOpen = true;
-  }
-
-  function signup() {
-     require(signupIsOpen);
-     signedUpUser[msg.sender] = true;
-  }
-}
-```
-
-In the example above, the `signupManager` on chain A calls the `signup_open` method. After that, any user on other
-chains can retrieve the `signup_open_msg_hash`, obtain the necessary proof from the Gateway (or another source), and
-call the `openSignup` function on any destination chain.
-
-## Deeper Technical Dive
+<!-- ## Deeper Technical Dive
 
 Let’s break down what happens inside the InteropCenter when a new interop message is created:
 
@@ -127,4 +87,4 @@ As you can see, it populates the necessary data and then calls the `sendToL1` me
 
 - In ElasticChain, older messages become increasingly difficult to validate as it becomes harder to gather the data
   required to construct a Merkle proof. Expiration is also being considered for this reason, but the specifics are yet
-  to be determined.
+  to be determined. -->

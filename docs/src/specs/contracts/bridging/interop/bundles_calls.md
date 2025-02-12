@@ -41,7 +41,7 @@ your call).
 On the destination chain, you can execute the call using the execute method:
 
 ```solidity
-contract InteropCenter {
+contract InteropHandler {
   // Executes a given bundle.
   // interopMessage is the message that contains your bundle as payload.
   // If it fails, it can be called again.

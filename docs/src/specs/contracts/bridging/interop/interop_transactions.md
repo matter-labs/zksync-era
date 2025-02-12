@@ -193,4 +193,4 @@ information can still be constructed off-chain using data available on L1.
 ### How it Works Under the hood
 
 We’ll modify the default account to accept interop proofs as signatures, seamlessly integrating with the existing ZKSync
-native **Account Abstraction** model.
+native **Account Abstraction** model. See [Interop handler](./interop_handler.md) for more details.
