@@ -129,6 +129,7 @@ pub(crate) struct RemoteENConfig {
     pub l2_testnet_paymaster_addr: Option<Address>,
     pub l2_timestamp_asserter_addr: Option<Address>,
     pub l1_wrapped_base_token_store: Option<Address>,
+    pub l1_message_root_proxy_addr: Option<Address>,
     pub base_token_addr: Address,
     pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
     pub dummy_verifier: bool,
@@ -218,6 +219,10 @@ impl RemoteENConfig {
                 .map(|a| a.dummy_verifier)
                 .unwrap_or_default(),
             l2_timestamp_asserter_addr: timestamp_asserter_address,
+            l1_message_root_proxy_addr: ecosystem_contracts
+                .as_ref()
+                .map(|a| a.message_root_proxy_addr)
+                .flatten(),
         })
     }
 
@@ -1484,6 +1489,7 @@ impl From<&ExternalNodeConfig> for InternalApiConfig {
             l1_bytecodes_supplier_addr: config.remote.l1_bytecodes_supplier_addr,
             l1_wrapped_base_token_store: config.remote.l1_wrapped_base_token_store,
             l1_bridgehub_proxy_addr: config.remote.l1_bridgehub_proxy_addr,
+            message_root_proxy_addr: config.remote.l1_message_root_proxy_addr,
             l1_state_transition_proxy_addr: config.remote.l1_state_transition_proxy_addr,
             l1_transparent_proxy_admin_addr: config.remote.l1_transparent_proxy_admin_addr,
             l1_diamond_proxy_addr: config.l1_diamond_proxy_address(),
