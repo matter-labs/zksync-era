@@ -92,7 +92,6 @@ pub async fn seal_in_db<'a>(
         IncludedTxLocation {
             tx_hash: executed_tx_hash.unwrap_or_default(),
             tx_index_in_l2_block: 0, // we have 1 tx per block, it's index is 0
-            tx_initiator_address: Default::default(), // it seems it's never read from DB, probably makes sense to remove it
         },
         vm_events_ref,
     )];
