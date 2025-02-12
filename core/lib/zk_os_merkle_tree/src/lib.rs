@@ -1,5 +1,6 @@
 //! Persistent ZK OS Merkle tree.
 
+use anyhow::Context as _;
 use zksync_basic_types::H256;
 pub use zksync_crypto_primitives::hasher::blake2::Blake2Hasher;
 
@@ -60,6 +61,14 @@ impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
     ///
     /// Proxies database I/O errors.
     pub fn extend(&mut self, entries: Vec<TreeEntry>) -> anyhow::Result<()> {
-        todo!()
+        let (mut patch, update) = self
+            .create_patch(1, &entries)
+            .context("failed loading tree data")?;
+        let update = patch.update(update);
+        let patch = patch.finalize(&self.hasher, update);
+        self.db
+            .apply_patch(patch)
+            .context("failed persisting tree changes")?;
+        Ok(())
     }
 }

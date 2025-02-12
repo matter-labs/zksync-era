@@ -63,3 +63,5 @@ impl fmt::Display for DeserializeError {
         write!(formatter, "{}", self.kind)
     }
 }
+
+impl std::error::Error for DeserializeError {}

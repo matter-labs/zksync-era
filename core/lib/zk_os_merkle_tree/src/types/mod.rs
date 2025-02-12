@@ -43,12 +43,49 @@ pub(crate) struct ChildRef {
 #[derive(Debug, Clone)]
 pub struct InternalNode {
     children: Vec<ChildRef>,
-    // TODO: hashing cache
+    // TODO: hashing cache?
 }
 
 impl InternalNode {
     /// Maximum number of nibbles for internal nodes.
     pub(crate) const MAX_NIBBLES: u8 = Leaf::NIBBLES - 1;
+
+    pub(crate) fn new(len: usize, version: u64) -> Self {
+        assert!(len <= 16);
+        Self {
+            children: vec![
+                ChildRef {
+                    version,
+                    hash: H256::zero()
+                };
+                len
+            ],
+        }
+    }
+
+    pub(crate) fn child_refs(&self) -> &[ChildRef] {
+        &self.children
+    }
+
+    /// Panics if the index doesn't exist.
+    pub(crate) fn child_ref(&self, index: usize) -> &ChildRef {
+        assert!(index < 16);
+        &self.children[index]
+    }
+
+    pub(crate) fn child_mut(&mut self, index: usize) -> &mut ChildRef {
+        assert!(index < 16);
+        &mut self.children[index]
+    }
+
+    pub(crate) fn extend(&mut self, new_children: usize, version: u64) {
+        let new_len = self.children.len() + new_children;
+        assert!(new_len <= 16);
+        self.children.resize_with(new_len, || ChildRef {
+            version,
+            hash: H256::zero(),
+        });
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -86,6 +123,16 @@ pub struct NodeKey {
     pub(crate) index_on_level: u64,
 }
 
+impl NodeKey {
+    pub(crate) const fn root(version: u64) -> Self {
+        Self {
+            version,
+            nibble_count: 0,
+            index_on_level: 0,
+        }
+    }
+}
+
 impl fmt::Display for NodeKey {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         if self.nibble_count <= InternalNode::MAX_NIBBLES {
@@ -119,6 +166,4 @@ pub struct TreeEntry {
     pub key: H256,
     /// Value associated with the key.
     pub value: H256,
-    /// Enumeration index of the key. Indexes 0 and 1 are reserved for min / max guards.
-    pub leaf_index: u64,
 }

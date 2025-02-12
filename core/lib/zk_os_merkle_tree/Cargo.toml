@@ -16,4 +16,6 @@ zksync_crypto_primitives.workspace = true
 zksync_storage.workspace = true
 
 anyhow.workspace = true
+once_cell.workspace = true
+rayon.workspace = true
 thiserror.workspace = true
