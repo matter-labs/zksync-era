@@ -9,15 +9,11 @@ use clap::Parser;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use shivini::ProverContext;
-use tokio::{
-    fs::File,
-    io::{AsyncReadExt, AsyncWriteExt},
-};
+use tokio::fs;
 use zksync_circuit_prover_service::{
     gpu_circuit_prover::GpuCircuitProverExecutor,
     types::{
         circuit::Circuit, circuit_prover_payload::GpuCircuitProverPayload,
-        witness_vector_generator_execution_output::WitnessVectorGeneratorExecutionOutput,
         witness_vector_generator_payload::WitnessVectorGeneratorPayload,
     },
     witness_vector_generator::WitnessVectorGeneratorExecutor,
@@ -43,7 +39,7 @@ async fn create_witness_vector(
     metadata: FriProverJobMetadata,
     object_store: Arc<dyn ObjectStore>,
     keystore: Keystore,
-) -> anyhow::Result<WitnessVectorGeneratorExecutionOutput> {
+) -> anyhow::Result<()> {
     let start_time = Instant::now();
 
     tracing::info!("Started picking witness vector generator job");
@@ -91,16 +87,14 @@ async fn create_witness_vector(
     )?;
 
     // Dump witness_vector into file.
-    let mut file = File::create(witness_vector_filename(metadata)).await?;
     let buf = bincode::serialize(&wvg.witness_vector)?;
-    file.write_all(&buf[..]).await?;
-    Ok(wvg)
+    fs::write(witness_vector_filename(metadata), buf).await?;
+
+    Ok(())
 }
 
 async fn read_witness_vector(path: PathBuf) -> anyhow::Result<WitnessVec<GoldilocksField>> {
-    let mut file = File::open(path).await?;
-    let mut buf = Vec::<u8>::new();
-    file.read_to_end(&mut buf).await?;
+    let buf = fs::read(path).await?;
     Ok(bincode::deserialize(&buf[..])?)
 }
 
@@ -243,7 +237,7 @@ async fn main() -> anyhow::Result<()> {
 
     if let Some(circuit_file) = opt.circuit_file {
         let metadata = get_metadata(&circuit_file)?;
-        let _ = create_witness_vector(metadata, object_store.clone(), keystore.clone()).await?;
+        create_witness_vector(metadata, object_store.clone(), keystore.clone()).await?;
     }
 
     if let Some(witness_vector_file) = opt.witness_vector_file {
