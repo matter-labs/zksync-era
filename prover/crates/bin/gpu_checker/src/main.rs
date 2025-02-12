@@ -153,7 +153,9 @@ fn get_metadata(path: &Path) -> anyhow::Result<FriProverJobMetadata> {
     let file = path.file_name().context("missing file name")?;
     let caps = CIRCUIT_FILE_RE
         .captures(file.to_str().context("invalid file name")?)
-        .context("wrong file, note only BasicCircuits are supported!")?;
+        .context(format!(
+            "wrong file {file:?}, note only BasicCircuits are supported!"
+        ))?;
 
     // Expected file like prover_jobs_fri/10330_48_1_BasicCircuits_0.bin.
     Ok(FriProverJobMetadata {

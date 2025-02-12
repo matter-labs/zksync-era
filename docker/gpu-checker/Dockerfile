@@ -1,8 +1,10 @@
+ARG CIRCUIT_FILE="10330_48_1_BasicCircuits_0"
+
 FROM nvidia/cuda:12.4.0-devel-ubuntu22.04 AS builder
 
 ARG DEBIAN_FRONTEND=noninteractive
 
-ARG CIRCUIT_FILE="10330_48_1_BasicCircuits_0"
+ARG CIRCUIT_FILE
 ARG CUDA_ARCH="75;80;89"
 ENV CUDAARCHS=${CUDA_ARCH}
 
@@ -53,9 +55,10 @@ RUN cuobjdump /usr/src/zksync/prover/target/release/zksync_gpu_checker
 RUN mkdir -p /prover/data/keys/ && eval $(./prover/extract-setup-data-keys.sh) && \
   curl -LO --output-dir /prover/data/keys/ https://storage.googleapis.com/matterlabs-setup-data-us/${gpu_short_commit_sha}/setup_basic_1_data.bin
 RUN mkdir -p /prover/data/keys/ && cp -v -r prover/data/keys/commitments.json prover/data/keys/finalization_hints_basic_1.bin prover/data/keys/verification_basic_1_key.json /prover/data/keys/
-RUN mkdir -p /prover/data/keys/prover_jobs_fri/ && cp -v ${CIRCUIT_FILE}.bin /prover/data/keys/prover_jobs_fri/
+# Circut file has to go into a subdirectory because `*` is added into .dockerignore file.
+RUN mkdir -p /prover/data/keys/prover_jobs_fri/ && cp -v prover/${CIRCUIT_FILE}.bin /prover/data/keys/prover_jobs_fri/
 
-RUN /usr/src/zksync/prover/target/release/zksync_gpu_checker --object_store_path=/prover/data/keys/ --keystore_path=/prover/data/keys/ --circuit_file=/prover/data/keys/${CIRCUIT_FILE}.bin
+RUN /usr/src/zksync/prover/target/release/zksync_gpu_checker --object-store-path=/prover/data/keys/ --keystore-path=/prover/data/keys/ --circuit-file=/prover/data/keys/${CIRCUIT_FILE}.bin
 
 # Final image
 FROM nvidia/cuda:12.4.0-runtime-ubuntu22.04
@@ -69,5 +72,5 @@ COPY --from=builder /usr/src/zksync/${CIRCUIT_FILE}.witness_vector /
 
 COPY --from=builder /usr/src/zksync/prover/target/release/zksync_gpu_checker /usr/bin/
 
-ENTRYPOINT ["zksync_gpu_checker"]
-CMD ["--object_store_path=/prover/data/keys/", "--keystore_path=/prover/data/keys/", "--witness_vector_file=/${CIRCUIT_FILE}.witness_vector"]
+ENV CMD_LINE="/usr/bin/zksync_gpu_checker --object-store-path=/prover/data/keys/ --keystore-path=/prover/data/keys/ --witness-vector-file=/${CIRCUIT_FILE}.witness_vector"
+CMD $CMD_LINE
