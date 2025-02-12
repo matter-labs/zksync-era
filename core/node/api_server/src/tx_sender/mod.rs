@@ -328,26 +328,103 @@ impl TxSender {
         tx: L2Tx,
         block_args: BlockArgs,
     ) -> Result<SandboxExecutionOutput, SubmitTxError> {
-        //todo: execute transaction before accepting it
+        let tx_hash = tx.hash();
+        let stage_latency = SANDBOX_METRICS.start_tx_submit_stage(tx_hash, SubmitTxStage::Validate);
+        // self.validate_tx(&tx, block_args.protocol_version()).await?;
+        stage_latency.observe();
+
+        let stage_latency = SANDBOX_METRICS.start_tx_submit_stage(tx_hash, SubmitTxStage::DryRun);
+        // **Important.** For the main node, this method acquires a DB connection inside `get_batch_fee_input()`.
+        // Thus, it must not be called it if you're holding a DB connection already.
+        let fee_input = self
+            .0
+            .batch_fee_input_provider
+            .get_batch_fee_input()
+            .await
+            .context("cannot get batch fee input")?;
+
+        let vm_permit = self.0.vm_concurrency_limiter.acquire().await;
+        let action = SandboxAction::Execution {
+            fee_input,
+            tx: tx.clone(),
+        };
+        let vm_permit = vm_permit.ok_or(SubmitTxError::ServerShuttingDown)?;
+        let connection = self.acquire_replica_connection().await?;
+        let execution_output = self
+            .0
+            .executor
+            .execute_in_sandbox_zkos(vm_permit.clone(), connection, action, &block_args, None)
+            .await?;
+        tracing::info!(
+            "Submit tx {tx_hash:?} with execution metrics {:?}",
+            execution_output.metrics
+        );
+        stage_latency.observe();
+
+        let stage_latency =
+            SANDBOX_METRICS.start_tx_submit_stage(tx_hash, SubmitTxStage::VerifyExecute);
+        let connection = self.acquire_replica_connection().await?;
+        let validation_result = self
+            .0
+            .executor
+            .validate_tx_in_sandbox(
+                vm_permit,
+                connection,
+                tx.clone(),
+                block_args,
+                fee_input,
+                &self.read_whitelisted_tokens_for_aa_cache().await,
+            )
+            .await;
+        stage_latency.observe();
+
+        if let Err(err) = validation_result {
+            return Err(err.into());
+        }
+        if !execution_output.are_published_bytecodes_ok {
+            return Err(SubmitTxError::FailedToPublishCompressedBytecodes);
+        }
+        let mut stage_latency =
+            SANDBOX_METRICS.start_tx_submit_stage(tx_hash, SubmitTxStage::DbInsert);
+        self.ensure_tx_executable(&tx.clone().into(), execution_output.metrics, true)?;
+
+        let validation_traces = validation_result?;
+
         let submission_res_handle = self
             .0
             .tx_sink
-            .submit_tx(
-                &tx,
-                TransactionExecutionMetrics::default(),
-                ValidationTraces::default(),
-            )
+            .submit_tx(&tx, execution_output.metrics, validation_traces)
             .await?;
 
-        let fake_output = SandboxExecutionOutput {
-            result: ExecutionResult::Success { output: vec![] },
-            write_logs: Default::default(),
-            events: Default::default(),
-            call_traces: Default::default(),
-            metrics: Default::default(),
-            are_published_bytecodes_ok: true,
-        };
-        Ok(fake_output)
+        match submission_res_handle {
+            L2TxSubmissionResult::AlreadyExecuted => {
+                let initiator_account = tx.initiator_account();
+                let Nonce(expected_nonce) = self
+                    .get_expected_nonce(initiator_account)
+                    .await
+                    .with_context(|| {
+                        format!("failed getting expected nonce for {initiator_account:?}")
+                    })?;
+                Err(SubmitTxError::NonceIsTooLow(
+                    expected_nonce,
+                    expected_nonce + self.0.sender_config.max_nonce_ahead,
+                    tx.nonce().0,
+                ))
+            }
+            L2TxSubmissionResult::Duplicate => {
+                Err(SubmitTxError::IncorrectTx(TxDuplication(tx.hash())))
+            }
+            L2TxSubmissionResult::InsertionInProgress => Err(SubmitTxError::InsertionInProgress),
+            L2TxSubmissionResult::Proxied => {
+                stage_latency.set_stage(SubmitTxStage::TxProxy);
+                stage_latency.observe();
+                Ok(execution_output)
+            }
+            L2TxSubmissionResult::Added | L2TxSubmissionResult::Replaced => {
+                stage_latency.observe();
+                Ok(execution_output)
+            }
+        }
     }
 
     async fn validate_tx(
