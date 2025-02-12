@@ -17,6 +17,7 @@ If you want to know more about ZK Chains, check this
 We want to create a system where:
 
 - ZK Chains should be launched permissionlessly within the ecosystem.
+- Settlement should be made cheap by proof aggregation.
 - Interop should enable unified liquidity for assets across the ecosystem.
 - Multi-chain smart contracts need to be easy to develop, which means easy access to traditional bridges, and other
   supporting architecture.
@@ -33,15 +34,13 @@ counterparts will be asset contracts extended with bridging functionality.
 
 To enable the bridging functionality:
 
-- On the L1 we will add a Bridgehub contract which connects asset bridges to all the ZK Chains. This will also be the
-  contract that holds the ETH for the ecosystem.
+- On the L1 we will add a Bridgehub and InteropCenter contracts which connects asset bridges to all the ZK Chains.
 - On the ZK Chain side we will add special system contracts that enable these features.
 
 We want to make the ecosystem as modular as possible, giving developers the ability to modify the architecture as
 needed; consensus mechanism, staking, and DA requirements.
 
-We also want the system to be forward-compatible, with future updates like L3s, proof aggregation, alternative State
-Transition (ST) contracts, and ZK IP (which would allow unified liquidity between all STs). Those future features have
+We also want the system to be forward-compatible, alternative Chain Type Manager (CTM) contracts. Those future features have
 to be considered in this initial design, so it can evolve to support them (meaning, chains being launched now will still
 be able to leverage them when available).
 
@@ -51,15 +50,13 @@ be able to leverage them when available).
 
 ### General Architecture
 
-![Contracts](./img/contractsExternal.png)
+![Contracts](./img/ecosystem_architecture.png)
 
 ### Components
 
 #### Bridgehub
 
-- Acts as a hub for bridges, so that they have a single point of communication with all ZK Chain contracts. This allows
-  L1 assets to be locked in the same contract for all ZK Chains. The `Bridgehub` also implements the following features:
-- `Registry` This is where ZK Chains can register, starting in a permissioned manner, but with the goal to be
+- This is the main registry contract. This is where ZK Chains can register, starting in a permissioned manner, but with the goal to be
   permissionless in the future. This is where their `chainID` is determined. Chains on Gateway will also register here.
   This `Registry` is also where Chain Type Manager contracts should register. Each chain has to specify its desired CTM
   when registering (Initially, only one will be available).
@@ -72,15 +69,16 @@ be able to leverage them when available).
 
   function newChainTypeManager(address _chainTypeManager) external;
   ```
+  - In previous versions, it also had features that were migrated to the InteropCenter contract, but it still supports some legacy functions. This means it acts as a hub for bridges, so that they have a single point of communication with all ZK Chain contracts. This allows L1 assets to be locked in the same contract for all ZK Chains.
 
 #### Chain Type Manager
 
-- `ChainTypeManager` A chain type manager manages proof verification and DA for multiple chains. It also implements the
+- `ChainTypeManager` A chain type manager manages proof verification and standard rollup DA for multiple chains. It also implements the
   following functionalities:
-  - `ChainTypeRegistry` The ST is shared for multiple chains, so initialization and upgrades have to be the same for all
+  - `ChainTypeRegistry` The chain type is shared for multiple chains, so initialization and upgrades have to be the same for all
     chains. Registration is not permissionless but happens based on the registrations in the bridgehub’s `Registry`. At
     registration a `DiamondProxy` is deployed and initialized with the appropriate `Facets` for each ZK Chain.
-  - `Facets` and `Verifier` are shared across chains that relies on the same ST: `Base`, `Executor` , `Getters`, `Admin`
+  - `Facets` and `Verifier` are shared across chains that relies on the same chain type: `Base`, `Executor` , `Getters`, `Admin`
     , `Mailbox.`The `Verifier` is the contract that actually verifies the proof, and is called by the `Executor`.
   - Upgrade Mechanism The system requires all chains to be up-to-date with the latest implementation, so whenever an
     update is needed, we have to “force” each chain to update, but due to decentralization, we have to give each chain a

@@ -1,13 +1,12 @@
 # Interop
 
-ZK Stack roll chains will be launched on L1 into a [shared bridge](./shared_bridge.md). The shared bridge will create an
+ZK Stack roll chains will be launched on L1 into an ecosytem of contracts that are linked to the [asset router](../asset_router_and_ntv/asset_router.md). The asset router will create an
 ecosystem of chains, with shared standards, upgrades, and free flow of assets. This free flow of assets will be enabled
-by [hyperbridges](./hyperbridges.md). Hyperbridges are trustless and cheap bridges between ZK Chains, allowing
-cross-chain function calls.
+by interop, allowing cross-chain function calls between chains.
 
 ## Introduction
 
-In the Shared bridge document we described how the L1 smart contracts work to support multiple chains, and we emphasized
+In the [overview](../overview.md) document we described how the L1 smart contracts work to support multiple chains, and we emphasized
 that the core feature is interop. Interop happens via the same L1->L2 interface as described in the L1SharedBridge doc.
 There is (with the interop upgrade) a InteropCenter, AssetRouter, NativeTokenVault and Nullifier deployed on every L2, and
 they serve the same feature as their L1 counterparts. Namely:

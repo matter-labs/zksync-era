@@ -13,7 +13,7 @@ In this release, Gateway is basically a fork of Era, that will be deployed withi
 
 ## High level gateway architecture
 
-![image.png](./img/gateway_architecture.png)
+![image.png](./img/ecosystem_architecture.png)
 
 ## Read more
 
