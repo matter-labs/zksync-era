@@ -11,7 +11,7 @@ use zksync_config::{
             celestia::CelestiaSecrets,
             eigen::EigenSecrets,
             DAClientConfig, AVAIL_CLIENT_CONFIG_NAME, CELESTIA_CLIENT_CONFIG_NAME,
-            EIGEN_CLIENT_CONFIG_NAME, OBJECT_STORE_CLIENT_CONFIG_NAME,
+            EIGEN_CLIENT_CONFIG_NAME, NO_DA_CLIENT_CONFIG_NAME, OBJECT_STORE_CLIENT_CONFIG_NAME
         },
         secrets::DataAvailabilitySecrets,
         AvailConfig,
@@ -71,6 +71,7 @@ impl FromEnv for DAClientConfig {
             OBJECT_STORE_CLIENT_CONFIG_NAME => {
                 Self::ObjectStore(envy_load("da_object_store", "DA_")?)
             }
+            NO_DA_CLIENT_CONFIG_NAME => Self::NoDA,
             _ => anyhow::bail!("Unknown DA client name: {}", client_tag),
         };
 

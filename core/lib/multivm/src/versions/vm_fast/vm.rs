@@ -31,7 +31,7 @@ use crate::{
         VmInterfaceHistoryEnabled, VmRevertReason, VmTrackingContracts,
     },
     utils::events::extract_l2tol1logs_from_l1_messenger,
-    vm_fast::{events::merge_events, version::FastVmVersion},
+    vm_fast::{events::merge_events, version::FastVmVersion, FastValidationTracer},
     vm_latest::{
         bootloader::{
             utils::{apply_l2_block, apply_pubdata_to_memory},
@@ -82,7 +82,7 @@ type InnerVm<S, Tr, Val> =
 /// (the latter is necessary to complete batches). Validation is encapsulated in a separate type param. It should be set to `()`
 /// for "standard" validation (not stopping after validation; no validation-specific checks), or [`FullValidationTracer`](super::FullValidationTracer)
 /// for full validation (stopping after validation; validation-specific checks).
-pub struct Vm<S, Tr = (), Val = ()> {
+pub struct Vm<S, Tr = (), Val = FastValidationTracer> {
     pub(super) world: World<S, WithBuiltinTracers<Tr, Val>>,
     pub(super) inner: InnerVm<S, Tr, Val>,
     pub(super) bootloader_state: BootloaderState,
@@ -376,6 +376,7 @@ impl<S: ReadStorage, Tr: Tracer, Val: ValidationTracer> Vm<S, Tr, Val> {
     }
 }
 
+#[derive(Debug)]
 struct AccountValidationGasSplit {
     gas_given: u32,
     gas_hidden: u32,
@@ -446,13 +447,16 @@ where
                         account_validation_gas_split.is_none(),
                         "Account validation can't be nested"
                     );
-                    tracer.validation.account_validation_entered();
-
                     let gas = self.gas_remaining();
                     let gas_given = gas.min(gas_left_for_account_validation);
+                    let gas_hidden = gas - gas_given;
+                    tracer
+                        .validation
+                        .account_validation_entered(gas_given, gas_hidden);
+
                     account_validation_gas_split = Some(AccountValidationGasSplit {
                         gas_given,
-                        gas_hidden: gas - gas_given,
+                        gas_hidden,
                     });
                     // As long as gasleft is allowed during account validation,
                     // the VM must not be used in the sequencer because a malicious
@@ -461,8 +465,6 @@ where
                 }
 
                 VmHook::ValidationExited => {
-                    tracer.validation.validation_exited();
-
                     if let Some(AccountValidationGasSplit {
                         gas_given,
                         gas_hidden,
@@ -471,6 +473,10 @@ where
                         let gas_left = self.inner.current_frame().gas();
                         gas_left_for_account_validation -= gas_given - gas_left;
                         self.inner.current_frame().set_gas(gas_left + gas_hidden);
+                    }
+
+                    if let Some(reason) = tracer.validation.validation_exited() {
+                        break (ExecutionResult::Halt { reason }, true);
                     }
                 }
 
