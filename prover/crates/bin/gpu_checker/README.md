@@ -3,8 +3,9 @@
 GPU checker is designed to proof simple circuit to check if GPU has any issues.
 
 It combines 2 tools together:
-   * Witness Vector generator
-   * Prover runner
+
+- Witness Vector generator
+- Prover runner
 
 ## Witness Vector generator
 
