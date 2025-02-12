@@ -58,3 +58,53 @@ fn compute_empty_tree_hashes() -> Vec<H256> {
     .take(usize::from(Leaf::NIBBLES) * 4 + 1)
     .collect()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn hashing_leaves_is_correct() {
+        let expected_empty_leaf_hash: H256 =
+            "0xc4fde76a8d68422c5fbafde250f492109fb29ac66753292e1153aa11adae1a3a"
+                .parse()
+                .unwrap();
+        assert_eq!(Blake2Hasher.empty_subtree_hash(0), expected_empty_leaf_hash);
+
+        let expected_level1_empty_hash: H256 =
+            "0xd53cc61c1aba0c548d73b0131e635e3110434a9c13c65cae08ed7da60ad2858f"
+                .parse()
+                .unwrap();
+        assert_eq!(
+            Blake2Hasher.empty_subtree_hash(1),
+            expected_level1_empty_hash
+        );
+
+        let expected_level63_empty_hash: H256 =
+            "0x59841e10b053bb976a3a159af345e27cc4dbbb1f5424051b6d24f5c56b69e74d"
+                .parse()
+                .unwrap();
+        assert_eq!(
+            Blake2Hasher.empty_subtree_hash(63),
+            expected_level63_empty_hash
+        );
+
+        let expected_min_guard_hash: H256 =
+            "0x4034715b557ca4bc5aef36ae5f28223ab27da4ac291cc63d0835ef2e0eba0c42"
+                .parse()
+                .unwrap();
+        assert_eq!(
+            Blake2Hasher.hash_leaf(&Leaf::MIN_GUARD),
+            expected_min_guard_hash
+        );
+
+        let expected_max_guard_hash: H256 =
+            "0xb30053e4154d49d35b0005e3ee0d4e0fc9fd330aed004c86810b57cf40a28afa"
+                .parse()
+                .unwrap();
+        assert_eq!(
+            Blake2Hasher.hash_leaf(&Leaf::MAX_GUARD),
+            expected_max_guard_hash
+        );
+    }
+}
