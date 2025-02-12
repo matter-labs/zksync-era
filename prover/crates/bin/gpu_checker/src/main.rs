@@ -1,4 +1,8 @@
-use std::{path::PathBuf, sync::Arc, time::Instant};
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+    time::Instant,
+};
 
 use anyhow::Context;
 use clap::Parser;
@@ -31,7 +35,6 @@ use zksync_prover_keystore::{
     keystore::{Keystore, ProverServiceDataType},
     GoldilocksGpuProverSetupData,
 };
-
 use zksync_types::{
     basic_fri_types::AggregationRound, prover_dal::FriProverJobMetadata, L1BatchNumber,
 };
@@ -152,7 +155,7 @@ static CIRCUIT_FILE_RE: Lazy<Regex> = Lazy::new(|| {
         .unwrap()
 });
 
-fn get_metadata(path: &PathBuf) -> anyhow::Result<FriProverJobMetadata> {
+fn get_metadata(path: &Path) -> anyhow::Result<FriProverJobMetadata> {
     let file = path.file_name().context("missing file name")?;
     let caps = CIRCUIT_FILE_RE
         .captures(file.to_str().context("invalid file name")?)
