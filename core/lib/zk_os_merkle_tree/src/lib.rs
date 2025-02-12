@@ -5,6 +5,7 @@ use zksync_basic_types::H256;
 pub use zksync_crypto_primitives::hasher::blake2::Blake2Hasher;
 
 pub use self::{errors::DeserializeError, hasher::HashTree, storage::Database, types::TreeEntry};
+use crate::storage::{PartialPatchSet, TreeUpdate};
 
 mod errors;
 mod hasher;
@@ -47,8 +48,11 @@ impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
 
     /// Returns the latest version of the tree present in the database, or `None` if
     /// no versions are present yet.
-    pub fn latest_version(&self) -> Option<u64> {
-        todo!()
+    pub fn latest_version(&self) -> anyhow::Result<Option<u64>> {
+        let Some(manifest) = self.db.try_manifest()? else {
+            return Ok(None);
+        };
+        Ok(manifest.version_count.checked_sub(1))
     }
 
     /// Extends this tree by creating its new version.
@@ -61,9 +65,19 @@ impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
     ///
     /// Proxies database I/O errors.
     pub fn extend(&mut self, entries: Vec<TreeEntry>) -> anyhow::Result<()> {
-        let (mut patch, update) = self
-            .create_patch(1, &entries)
-            .context("failed loading tree data")?;
+        let latest_version = self
+            .latest_version()
+            .context("failed getting latest version")?;
+        let (mut patch, update) = if let Some(version) = latest_version {
+            self.create_patch(version, &entries)
+                .context("failed loading tree data")?
+        } else {
+            (
+                PartialPatchSet::empty(),
+                TreeUpdate::for_empty_tree(&entries),
+            )
+        };
+
         let update = patch.update(update);
         let patch = patch.finalize(&self.hasher, update);
         self.db

@@ -9,13 +9,15 @@ use zksync_basic_types::H256;
 
 use crate::{
     errors::{DeserializeContext, DeserializeError, DeserializeErrorKind},
-    types::{InternalNode, KeyLookup, Leaf, Node, NodeKey, Root},
+    types::{InternalNode, KeyLookup, Leaf, Manifest, Node, NodeKey, Root},
     HashTree, MerkleTree, TreeEntry,
 };
 
 /// Generic database functionality. Its main implementation is [`RocksDB`].
 pub trait Database: Send + Sync {
     fn indices(&self, version: u64, keys: &[H256]) -> Result<Vec<KeyLookup>, DeserializeError>;
+
+    fn try_manifest(&self) -> Result<Option<Manifest>, DeserializeError>;
 
     /// Tries to obtain a root from this storage.
     ///
@@ -50,6 +52,73 @@ pub(crate) struct TreeUpdate {
     inserts: Vec<Leaf>,
 }
 
+impl TreeUpdate {
+    pub(crate) fn for_empty_tree(entries: &[TreeEntry]) -> Self {
+        let mut sorted_new_leaves = BTreeMap::from([
+            (
+                H256::zero(),
+                InsertedKeyEntry {
+                    index: 0,
+                    inserted_at: 0,
+                },
+            ),
+            (
+                H256::repeat_byte(0xff),
+                InsertedKeyEntry {
+                    index: 1,
+                    inserted_at: 0,
+                },
+            ),
+        ]);
+        sorted_new_leaves.extend(entries.iter().enumerate().map(|(i, entry)| {
+            (
+                entry.key,
+                InsertedKeyEntry {
+                    index: i as u64 + 2,
+                    inserted_at: 0,
+                },
+            )
+        }));
+
+        let mut inserts = Vec::with_capacity(entries.len() + 2);
+        for entry in [&TreeEntry::MIN_GUARD, &TreeEntry::MAX_GUARD]
+            .into_iter()
+            .chain(entries)
+        {
+            let prev_index = match sorted_new_leaves.range(..entry.key).next_back() {
+                Some((_, prev_entry)) => prev_entry.index,
+                None => {
+                    assert_eq!(entry.key, H256::zero());
+                    0
+                }
+            };
+
+            let next_range = (ops::Bound::Excluded(entry.key), ops::Bound::Unbounded);
+            let next_index = match sorted_new_leaves.range(next_range).next() {
+                Some((_, next_entry)) => next_entry.index,
+                None => {
+                    assert_eq!(entry.key, H256::repeat_byte(0xff));
+                    1
+                }
+            };
+
+            inserts.push(Leaf {
+                key: entry.key,
+                value: entry.value,
+                prev_index,
+                next_index,
+            });
+        }
+
+        Self {
+            version: 0,
+            sorted_new_leaves,
+            updates: vec![],
+            inserts,
+        }
+    }
+}
+
 #[must_use = "Should be finalized with a `PartialPatchSet`"]
 #[derive(Debug)]
 pub(crate) struct FinalTreeUpdate {
@@ -68,6 +137,13 @@ pub(crate) struct PartialPatchSet {
 }
 
 impl PartialPatchSet {
+    pub(crate) fn empty() -> Self {
+        Self::new(Root {
+            leaf_count: 0,
+            root_node: InternalNode::empty(),
+        })
+    }
+
     fn new(root: Root) -> Self {
         Self {
             root,
@@ -237,6 +313,9 @@ impl PartialPatchSet {
         }
 
         PatchSet {
+            manifest: Manifest {
+                version_count: update.version + 1,
+            },
             patches_by_version: HashMap::from([(update.version, self)]),
             sorted_new_leaves: update.sorted_new_leaves,
         }
@@ -244,6 +323,7 @@ impl PartialPatchSet {
 }
 
 #[derive(Debug, Clone, Copy)]
+#[cfg_attr(test, derive(PartialEq))]
 struct InsertedKeyEntry {
     index: u64,
     inserted_at: u64,
@@ -251,6 +331,7 @@ struct InsertedKeyEntry {
 
 #[derive(Debug)]
 pub struct PatchSet {
+    manifest: Manifest,
     patches_by_version: HashMap<u64, PartialPatchSet>,
     // We maintain a joint index for all versions to make it easier to use `PatchSet` as a `Database` or in a `Patched` wrapper.
     sorted_new_leaves: BTreeMap<H256, InsertedKeyEntry>,
@@ -292,6 +373,10 @@ impl Database for PatchSet {
         Ok(lookup)
     }
 
+    fn try_manifest(&self) -> Result<Option<Manifest>, DeserializeError> {
+        Ok(Some(self.manifest.clone()))
+    }
+
     fn try_root(&self, version: u64) -> Result<Root, DeserializeError> {
         let patch = self.patches_by_version.get(&version).ok_or_else(|| {
             DeserializeError::from(DeserializeErrorKind::MissingNode)
@@ -318,6 +403,12 @@ impl Database for PatchSet {
     }
 
     fn apply_patch(&mut self, patch: PatchSet) -> anyhow::Result<()> {
+        anyhow::ensure!(
+            patch.manifest.version_count >= self.manifest.version_count,
+            "truncating versions is not supported"
+        );
+
+        self.manifest = patch.manifest;
         self.patches_by_version.extend(patch.patches_by_version);
         self.sorted_new_leaves.extend(patch.sorted_new_leaves);
         Ok(())
@@ -419,5 +510,117 @@ impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
                 inserts,
             },
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn creating_min_update_for_empty_tree() {
+        let update = TreeUpdate::for_empty_tree(&[]);
+        assert_eq!(update.version, 0);
+        assert!(update.updates.is_empty());
+
+        assert_eq!(update.inserts.len(), 2);
+        assert_eq!(update.inserts[0], Leaf::MIN_GUARD);
+        assert_eq!(update.inserts[1], Leaf::MAX_GUARD);
+
+        assert_eq!(update.sorted_new_leaves.len(), 2);
+        assert_eq!(
+            update.sorted_new_leaves[&H256::zero()],
+            InsertedKeyEntry {
+                index: 0,
+                inserted_at: 0,
+            }
+        );
+        assert_eq!(
+            update.sorted_new_leaves[&H256::repeat_byte(0xff)],
+            InsertedKeyEntry {
+                index: 1,
+                inserted_at: 0,
+            }
+        );
+    }
+
+    #[test]
+    fn creating_non_empty_update_for_empty_tree() {
+        let update = TreeUpdate::for_empty_tree(&[
+            TreeEntry {
+                key: H256::repeat_byte(2),
+                value: H256::from_low_u64_be(1),
+            },
+            TreeEntry {
+                key: H256::repeat_byte(1),
+                value: H256::from_low_u64_be(2),
+            },
+        ]);
+        assert_eq!(update.version, 0);
+        assert!(update.updates.is_empty());
+
+        assert_eq!(update.inserts.len(), 4);
+        assert_eq!(
+            update.inserts[0],
+            Leaf {
+                next_index: 3,
+                ..Leaf::MIN_GUARD
+            }
+        );
+        assert_eq!(
+            update.inserts[1],
+            Leaf {
+                prev_index: 2,
+                ..Leaf::MAX_GUARD
+            }
+        );
+        assert_eq!(
+            update.inserts[2],
+            Leaf {
+                key: H256::repeat_byte(2),
+                value: H256::from_low_u64_be(1),
+                prev_index: 3,
+                next_index: 1,
+            }
+        );
+        assert_eq!(
+            update.inserts[3],
+            Leaf {
+                key: H256::repeat_byte(1),
+                value: H256::from_low_u64_be(2),
+                prev_index: 0,
+                next_index: 2,
+            }
+        );
+
+        assert_eq!(update.sorted_new_leaves.len(), 4);
+        assert_eq!(
+            update.sorted_new_leaves[&H256::zero()],
+            InsertedKeyEntry {
+                index: 0,
+                inserted_at: 0,
+            }
+        );
+        assert_eq!(
+            update.sorted_new_leaves[&H256::repeat_byte(0xff)],
+            InsertedKeyEntry {
+                index: 1,
+                inserted_at: 0,
+            }
+        );
+        assert_eq!(
+            update.sorted_new_leaves[&H256::repeat_byte(2)],
+            InsertedKeyEntry {
+                index: 2,
+                inserted_at: 0,
+            }
+        );
+        assert_eq!(
+            update.sorted_new_leaves[&H256::repeat_byte(1)],
+            InsertedKeyEntry {
+                index: 3,
+                inserted_at: 0,
+            }
+        );
     }
 }

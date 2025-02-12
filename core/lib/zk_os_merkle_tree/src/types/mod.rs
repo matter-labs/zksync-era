@@ -4,6 +4,7 @@ use zksync_basic_types::H256;
 
 /// Tree leaf.
 #[derive(Debug, Clone, Copy)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct Leaf {
     pub key: H256,
     pub value: H256,
@@ -49,6 +50,10 @@ pub struct InternalNode {
 impl InternalNode {
     /// Maximum number of nibbles for internal nodes.
     pub(crate) const MAX_NIBBLES: u8 = Leaf::NIBBLES - 1;
+
+    pub(crate) fn empty() -> Self {
+        Self { children: vec![] }
+    }
 
     pub(crate) fn new(len: usize, version: u64) -> Self {
         assert!(len <= 16);
@@ -166,4 +171,23 @@ pub struct TreeEntry {
     pub key: H256,
     /// Value associated with the key.
     pub value: H256,
+}
+
+impl TreeEntry {
+    pub(crate) const MIN_GUARD: Self = Self {
+        key: H256::zero(),
+        value: H256::zero(),
+    };
+
+    pub(crate) const MAX_GUARD: Self = Self {
+        key: H256::repeat_byte(0xff),
+        value: H256::zero(),
+    };
+}
+
+/// Version-independent information about the tree.
+#[derive(Debug, Default, Clone)]
+pub struct Manifest {
+    // Number of tree versions stored in the database.
+    pub(crate) version_count: u64,
 }
