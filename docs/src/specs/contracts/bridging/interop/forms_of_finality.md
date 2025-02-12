@@ -1,16 +1,10 @@
-# MessageRoot importing and forms of finality
+# Forms of finality
 
 [back to readme](../../README.md)
 
-## Introduction
-
-The message root is the contract on L1 that collects messages from different chains and aggregates them into a single merkle tree. This makes interop more efficient, since instead of having to import each individual message, chains can import the MessageRoot, which is an aggregate of messages in a single batch, then across batches of a single chain, and then across chains. 
-
-The MessageRoot contract is deployed both on L1 and ZK chains, but on ZK chains it is only used on GW. On GW it is used to aggregate messages for chains that are settling on GW, in the same way that it is done on L1. Read about it [here](../gateway/nested_l3_l1_messaging.md).
+Interop requires the importing of a [MessageRoot](./message_root.md) from some other chain. The MessageRoot commits to the interop tx. This can be done in different ways, depending on the security trust between the chains.
 
 ![MessageRoot](../img/message_root.png)
-
-Interop requires the importing of a MessageRoot which contains the interop tx. This can be done in different ways, depending on the security trust between the chains.
 
 1. Proof based interop
 2. Commit based interop

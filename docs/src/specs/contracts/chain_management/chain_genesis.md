@@ -69,4 +69,11 @@ To reuse as much code as possible from L1 and also to allow easier initializatio
 
 In the current version creating new chains will not be permissionless. That is needed to ensure that no malicious input can be provided there.
 
-Also, since in the current release, there will be little benefits from shared liquidity, i.e. the there will be no direct ZKChain<>ZKChain transfers supported, as a measure of additional security we’ll also keep track of balances for each individual ZKChain and will not allow it to withdraw more than it has deposited into the system.
+### Limitations of custom base tokens in the current release
+
+ZKsync Era uses ETH as a base token. Upon creation of an ZKChain other chains may want to use their own custom base tokens. Note, that for the current release all the possible base tokens are whitelisted. The other limitation is that all the base tokens must be backed 1-1 on L1 as well as they are solely implemented with `L2BaseToken` contract. In other words:
+
+- No custom logic is allowed on L2 for base tokens
+- Base tokens can not be minted on L2 without being backed by the corresponding L1 amount.
+
+If someone wants to build a protocol that mints base tokens on L2, the option for now is to “mint” an infinite amount of those on L1, deposit on L2 and then give those out as a way to “mint”. We will update this in the future.

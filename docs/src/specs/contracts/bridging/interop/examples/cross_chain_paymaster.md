@@ -1,6 +1,7 @@
 # Cross Chain Paymaster
 
 [back to readme](../../README.md)
+
 We want to allow the automatic execution of cross-chain txs. I.e. the user should not have to interact with the destination chain. We use triggers for this. The cross chain txs can be triggered on the origin chain, if this is the case then there is a feePaymentBundle and an execution bundle this is a general solution, that allows multiple options for paying for gas.
 
 - Easiest. Pay a required baseTokenAmount on the sender chain (in the baseToken on the destination chain). The same amount will be minted on the destination chain. e.g. [here](../../../../../../core/tests/ts-integration/tests/interop.test.ts#L526)

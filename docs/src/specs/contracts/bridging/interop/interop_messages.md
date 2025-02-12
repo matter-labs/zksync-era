@@ -3,9 +3,6 @@
 In this section, we’re going to cover the lowest level of the interop stack: **Interop Messages** — the interface that
 forms the foundation for everything else.
 
-We’ll explore the details of the interface, its use cases, and how it compares to similar interfaces from
-Superchain/Optimism.
-
 This is an advanced document. While most users and app developers typically interact with higher levels of interop, it’s
 still valuable to understand how the internals work.
 
@@ -23,7 +20,7 @@ An **InteropMessage** contains data and offers two methods:
 Notice that the message itself doesn’t have any ‘destination chain’ or address—it is simply a payload that a user (or
 contract) is creating. Think of it as a broadcast.
 
-The `InteropCenter` is a contract that is pre-deployed on all chains at a fixed address `0x00..1234`.
+The `InteropCenter` is a contract that is pre-deployed on all chains at a fixed address `0x00..10008`.
 
 ```solidity
 contract InteropCenter {
@@ -125,49 +122,6 @@ function sendInteropMessage(bytes data) {
 
 As you can see, it populates the necessary data and then calls the `sendToL1` method.
 
-The `sendToL1` method is part of a system contract that gathers all messages during a batch, constructs a Merkle tree
-from them at the end of the batch, and sends this tree to the SettlementLayer (Gateway) when the batch is committed.
-
-![sendtol1.png](./img/sendtol1.png)
-
-The settlement layer receives the messages and once the proof for the batch is submitted (or more accurately, during the
-"execute" step), it will add the root of the Merkle tree to its `messageRoot` (sometimes called `globalRoot`).
-
-![globalroot.png](./img/globalroot.png)
-
-The `messageRoot` is the root of the Merkle tree that includes all messages from all chains. Each chain regularly reads
-the messageRoot value from the Gateway to stay synchronized.
-
-![gateway.png](./img/gateway.png)
-
-If a user wants to call `verifyInteropMessage` on a chain, they first need to query the Gateway for the Merkle path from
-the batch they are interested in up to the `messageRoot`. Once they have this path, they can provide it as an argument
-when calling a method on the destination chain (such as the `openSignup` method in our example).
-
-![proofmerklepath.png](./img/proofmerklepath.png)
-
-#### What if Chain doesn’t provide the proof
-
-If the chain doesn’t respond, users can manually re-create the Merkle proof using data available on L1. Every
-interopMessage is also sent to L1.
-
-#### Message roots change frequently
-
-Yes, message roots update continuously as new chains prove their blocks. However, chains retain historical message roots
-for a reasonable period (around 24 hours) to ensure that recently generated Merkle paths remain valid.
-
-#### Is this secure? Could a chain operator, like Chain D, use a different message root
-
-Yes, it’s secure. If a malicious operator on Chain D attempted to use a different message root, they wouldn’t be able to
-submit the proof for their new batch to the Gateway. This is because the proof’s public inputs must include the valid
-message root.
-
-### Other Features
-
-#### Dependency Set
-
-- In ElasticChain, this is implicitly handled by the Gateway. Any chain that is part of the message root can exchange
-  messages with any other chain, effectively forming an undirected graph.
 
 #### Timestamps and Expiration
 

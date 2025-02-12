@@ -2,7 +2,16 @@
 
 [back to readme](../../README.md)
 
-The main job of the asset router is to be the central point of coordination for bridging. All crosschain token bridging is done between asset routers only and once the message reaches asset router, it then routes it to the corresponding asset handler.
+<!-- ## Asset router as the main asset bridging entrypoint
+
+The main entry for passing value between chains is the AssetRouter, it is responsible for facilitating bridging between multiple asset types. To read more in detail on how it works, please refer to custom [asset bridging documentation](./asset_router_and_ntv/overview.md).
+
+For the purpose of this document, it is enough to treat the Asset Router as a blackbox that is responsible for processing escrowing funds on the source chain and minting them on the destination chain.
+
+> For those that are aware of the [previous ZKsync architecture](https://github.com/code-423n4/2024-03-zksync/blob/main/docs/Smart%20contract%20Section/L1%20ecosystem%20contracts.md), its role is similar to L1SharedBridge that we had before. Note, however, that it is a different contract with much enhanced functionality. Also, note that the L1SharedBridge will NOT be upgraded to the L1AssetRouter. For more details about migration, please check out [the migration doc](../../upgrade_history/gateway_upgrade/gateway_diff_review.md). -->
+
+
+The main job of the asset router is to be the central point of coordination for asset bridging. All crosschain token bridging is done between asset routers only and once the message reaches asset router, it then routes it to the corresponding asset handler.
 
 In order to make this easier, all L2 chains have the asset router located on the same address on every chain. It is `0x10003` and it is pre-deployed contract. More on how it is deployed can be seen in the [Chain Genesis](../../chain_management/chain_genesis.md) section.
 
@@ -21,27 +30,5 @@ Also, L1AssetRouter is the only base token bridge contract that can participate 
 While the endgoal is to unify L1 and L2 asset routers, in reality, it may not be that easy: while L2 asset routers get called by L1→L2 transactions, L1 ones don't and require manual finalization of transactions, which involves proof verification, etc. To move this logic outside of the L1AssetRouter, it was moved into a separate L1Nullifier contract.
 
 _This is the contract the previous L1SharedBridge will be upgraded to, so it should have the backwards compatible storage._
-
-### NativeTokenVault (L1/L2)
-
-NativeTokenVault is an asset handler that is available on all chains and is also predeployed. It is provides the functionality of the most basic bridging: locking funds on one chain and minting the bridged equivalent on the other one. On L2 chains NTV is predeployed at the `0x10004` address.
-
-The L1 and L2 versions of the NTV are almost identical in functionality, the main differences come from the differences of the deployment functionality in L1 and L2 envs, where the former uses standard CREATE2 and the latter uses low level calls to `CONTRACT_DEPLOYER`system contract.
-
-Also, the L1NTV has the following specifics:
-
-<!-- - It operates the `chainBalance` mapping, ensuring that the chains do not go beyond their balances.  -->
-- It allows recovering from failed L1→L2 transfers.
-- It needs to both be able to retrieve funds from the former L1SharedBridge (now this contract has L1Nullifier in its place), but also needs to support the old SDK that gives out allowance to the “l1 shared bridge” value returned from the API, i.e. in our case this is will the L1AssetRouter.
-
-### L2SharedBridgeLegacy
-
-L2AssetRouter has to be pre-deployed onto a specific address. The old L2SharedBridge will be upgraded to L2SharedBridgeLegacy contract. The main purpose of this contract is to ensure compatibility with the incoming deposits and re-route them to the shared bridge.
-
-This contract is never deployed for new chains.
-
-### Summary
-
-![image.png](./img/bridge_contracts.png)
 
 > New bridge contracts
