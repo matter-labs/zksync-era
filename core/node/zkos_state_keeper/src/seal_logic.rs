@@ -106,6 +106,11 @@ pub async fn seal_in_db<'a>(
         .insert_l2_block(&l2_block_header)
         .await?;
 
+    transaction
+        .blocks_dal()
+        .mark_l2_blocks_as_executed_in_l1_batch(l1_batch_number)
+        .await?;
+
     transaction.commit().await?;
     Ok(())
 }
