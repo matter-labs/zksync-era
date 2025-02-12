@@ -196,8 +196,12 @@ fn get_setup_data_path() -> PathBuf {
 #[command(author = "Matter Labs", version)]
 struct Cli {
     /// Path to file configuration
-    #[arg(short = 'd', long, default_value = get_setup_data_path().into_os_string())]
-    pub(crate) setup_data_path: PathBuf,
+    #[arg(short = 'o', long, default_value = get_setup_data_path().into_os_string())]
+    pub(crate) object_store_path: PathBuf,
+
+    /// Path to file configuration
+    #[arg(short = 'k', long, default_value = get_setup_data_path().into_os_string())]
+    pub(crate) keystore_path: PathBuf,
 
     // Circuit file name, eg: prover_jobs_fri/10330_48_1_BasicCircuits_0.bin
     #[arg(short = 'c', long)]
@@ -225,7 +229,7 @@ async fn main() -> anyhow::Result<()> {
 
     let object_store_config = ObjectStoreConfig {
         mode: zksync_config::configs::object_store::ObjectStoreMode::FileBacked {
-            file_backed_base_path: opt.setup_data_path.display().to_string(),
+            file_backed_base_path: opt.object_store_path.display().to_string(),
         },
         max_retries: 1,
         local_mirror_path: None,
@@ -235,7 +239,7 @@ async fn main() -> anyhow::Result<()> {
         .await
         .context("failed to create object store")?;
 
-    let keystore = Keystore::locate().with_setup_path(Some(opt.setup_data_path));
+    let keystore = Keystore::locate().with_setup_path(Some(opt.keystore_path));
 
     if let Some(circuit_file) = opt.circuit_file {
         let metadata = get_metadata(&circuit_file)?;
