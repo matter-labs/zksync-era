@@ -1,4 +1,4 @@
-use std::{borrow::Cow, fmt, marker::PhantomData, rc::Rc, sync::Arc, time::Duration};
+use std::{fmt, marker::PhantomData, rc::Rc, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use once_cell::sync::OnceCell;
@@ -9,14 +9,14 @@ use zksync_multivm::{
         pubdata::PubdataBuilder,
         storage::{ReadStorage, StoragePtr, StorageView, StorageViewStats},
         utils::{DivergenceHandler, ShadowMut},
-        BatchTransactionExecutionResult, BytecodeCompressionError, Call, CompressedBytecodeInfo,
-        ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv, SystemEnv, VmFactory,
-        VmInterface, VmInterfaceHistoryEnabled,
+        BatchTransactionExecutionResult, Call, ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv,
+        L2BlockEnv, SystemEnv, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
     },
     is_supported_by_fast_vm,
     pubdata_builders::pubdata_params_to_builder,
     tracers::CallTracer,
     vm_fast,
+    vm_fast::FastValidationTracer,
     vm_latest::HistoryEnabled,
     FastVmInstance, LegacyVmInstance, MultiVmTracer,
 };
@@ -174,8 +174,6 @@ impl<S: ReadStorage + Send + 'static, Tr: BatchTracer> BatchExecutorFactory<S>
     }
 }
 
-type BytecodeResult = Result<Vec<CompressedBytecodeInfo>, BytecodeCompressionError>;
-
 #[derive(Debug)]
 enum BatchVm<S: ReadStorage, Tr: BatchTracer> {
     Legacy(LegacyVmInstance<S, HistoryEnabled>),
@@ -241,7 +239,7 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
         &mut self,
         tx: Transaction,
         with_compression: bool,
-    ) -> BatchTransactionExecutionResult<BytecodeResult> {
+    ) -> BatchTransactionExecutionResult {
         let legacy_tracer_result = Arc::new(OnceCell::default());
         let legacy_tracer = if Tr::TRACE_CALLS {
             vec![CallTracer::new(legacy_tracer_result.clone()).into_tracer_pointer()]
@@ -258,7 +256,10 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
                 with_compression,
             ),
             Self::Fast(vm) => {
-                let mut tracer = (legacy_tracer.into(), (Tr::Fast::default(), ()));
+                let mut tracer = (
+                    legacy_tracer.into(),
+                    (Tr::Fast::default(), FastValidationTracer::default()),
+                );
                 let res = vm.inspect_transaction_with_bytecode_compression(
                     &mut tracer,
                     tx,
@@ -270,7 +271,7 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
             }
         };
 
-        let compressed_bytecodes = compression_result.map(Cow::into_owned);
+        let compressed_bytecodes = compression_result.map(drop);
         let legacy_traces = Arc::try_unwrap(legacy_tracer_result)
             .expect("failed extracting call traces")
             .take()
@@ -289,7 +290,7 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
 
         BatchTransactionExecutionResult {
             tx_result: Box::new(tx_result),
-            compressed_bytecodes,
+            compression_result: compressed_bytecodes,
             call_traces,
         }
     }
@@ -466,10 +467,10 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
         // and so we re-execute the transaction, but without compression.
 
         let res = vm.inspect_transaction(tx.clone(), true);
-        if let Ok(compressed_bytecodes) = res.compressed_bytecodes {
+        if res.compression_result.is_ok() {
             return Ok(BatchTransactionExecutionResult {
                 tx_result: res.tx_result,
-                compressed_bytecodes,
+                compression_result: Ok(()),
                 call_traces: res.call_traces,
             });
         }
@@ -480,12 +481,11 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
         vm.make_snapshot();
 
         let res = vm.inspect_transaction(tx.clone(), false);
-        let compressed_bytecodes = res
-            .compressed_bytecodes
+        res.compression_result
             .context("compression failed when it wasn't applied")?;
         Ok(BatchTransactionExecutionResult {
             tx_result: res.tx_result,
-            compressed_bytecodes,
+            compression_result: Ok(()),
             call_traces: res.call_traces,
         })
     }
@@ -498,10 +498,10 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
         vm: &mut BatchVm<S, Tr>,
     ) -> anyhow::Result<BatchTransactionExecutionResult> {
         let res = vm.inspect_transaction(tx.clone(), true);
-        if let Ok(compressed_bytecodes) = res.compressed_bytecodes {
+        if res.compression_result.is_ok() {
             Ok(BatchTransactionExecutionResult {
                 tx_result: res.tx_result,
-                compressed_bytecodes,
+                compression_result: Ok(()),
                 call_traces: res.call_traces,
             })
         } else {
@@ -512,7 +512,7 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
             };
             Ok(BatchTransactionExecutionResult {
                 tx_result,
-                compressed_bytecodes: vec![],
+                compression_result: Ok(()),
                 call_traces: vec![],
             })
         }

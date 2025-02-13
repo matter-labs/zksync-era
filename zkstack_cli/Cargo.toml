@@ -73,3 +73,5 @@ xshell = "0.2.6"
 clap-markdown = "0.1.4"
 secrecy = "0.8.0"
 async-trait = "0.1.68"
+sqruff-lib = "0.19.0"
+reqwest = { version = "0.12.8", features = ["blocking"] }
