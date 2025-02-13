@@ -7,7 +7,7 @@
         - [Interop Center](./interop/interop_center/interop_center.md)
         - [Interop Messages](./interop/interop_center/interop_messages.md)
         - [Bundles and Calls](./interop/interop_center/bundles_calls.md)
-        - [Interop Transactions](./interop/interop_center/interop_transactions.md)
+        - [Interop Trigger](./interop/interop_center/interop_trigger.md)
     - Examples 
         - [Cross-chain message](./interop/examples/cross_chain_message.md)
         - [Cross-chain swap](./interop/examples/cross_chain_swap.md)

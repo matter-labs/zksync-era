@@ -19,11 +19,36 @@ between system and user logs.
 ### Initiation
 
 A new priority operation can be appended by calling the
-[requestL2Transaction](https://github.com/code-423n4/2023-10-zksync/blob/ef99273a8fdb19f5912ca38ba46d6bd02071363d/code/contracts/ethereum/contracts/zksync/facets/Mailbox.sol#L236)
+[bridgehubRequestL2Transaction](../../../../../../../contracts/l1-contracts/contracts/state-transition/chain-deps/facets/Mailbox.sol#L69)
 method on L1. This method will perform several checks for the transaction, making sure that it is processable and
 provides enough fee to compensate the operator for this transaction. Then, this transaction will be
 [appended](https://github.com/code-423n4/2023-10-zksync/blob/ef99273a8fdb19f5912ca38ba46d6bd02071363d/code/contracts/ethereum/contracts/zksync/facets/Mailbox.sol#L369C1-L369C1)
 to the priority queue.
+
+The struct called in the `bridgehubRequestL2Transaction` method is the following: 
+```solidity
+struct BridgehubL2TransactionRequest {
+    address sender;
+    address contractL2;
+    uint256 mintValue;
+    uint256 l2Value;
+    bytes l2Calldata;
+    uint256 l2GasLimit;
+    uint256 l2GasPerPubdataByteLimit;
+    bytes[] factoryDeps;
+    address refundRecipient;
+}
+```
+- `sender` is the address of the user that initiated the transaction. Will be used as msg.sender for the L2 transaction.
+- `contractL2` is the address of the contract on L2 to call.
+- `mintValue` is the amount of base token that should be minted on L2 as the result of this transaction. This includes msg.value + value used for gas payment.
+- `l2Value` is the msg.value of the L2 transaction.
+- `l2Calldata` is the calldata for the L2 transaction.
+- `l2GasLimit` is the limit of the L2 gas for the L2 transaction
+- `l2GasPerPubdataByteLimit` is the price for a single pubdata byte in L2 gas.
+- `factoryDeps` is the array of L2 bytecodes that the tx depends on.
+- `refundRecipient` is the recipient of the refund for the transaction on L2. If the transaction fails, then
+this address will receive the `l2Value`.
 
 ### Bootloader
 
