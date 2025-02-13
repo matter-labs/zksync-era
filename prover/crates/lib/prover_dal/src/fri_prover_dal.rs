@@ -1078,7 +1078,6 @@ mod tests {
                 L1VerifierConfig::default(),
             )
             .await;
-
         tx.fri_prover_jobs_dal()
             .insert_prover_jobs(
                 L1BatchNumber(1),
@@ -1088,5 +1087,7 @@ mod tests {
                 ProtocolSemanticVersion::default(),
             )
             .await;
+
+        tx.commit().await.unwrap();
     }
 }
