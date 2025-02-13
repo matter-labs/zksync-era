@@ -482,9 +482,10 @@ impl TransactionsDal<'_, '_> {
             value,
             &paymaster,
             &paymaster_input,
-            exec_info.gas_used as i64,
-            (exec_info.initial_storage_writes + exec_info.repeated_storage_writes) as i32,
-            exec_info.contracts_used as i32,
+            exec_info.vm.gas_used as i64,
+            (exec_info.writes.initial_storage_writes + exec_info.writes.repeated_storage_writes)
+                as i32,
+            exec_info.vm.contracts_used as i32,
             received_at,
             timestamp_asserter_range_start,
             timestamp_asserter_range_end,

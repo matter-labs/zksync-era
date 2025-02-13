@@ -46,8 +46,7 @@ async fn submitting_tx_requires_one_connection() {
     let (tx_sender, _) = create_test_tx_sender(pool.clone(), l2_chain_id, tx_executor).await;
     let block_args = pending_block_args(&tx_sender).await;
 
-    let submission_result = tx_sender.submit_tx(tx, block_args).await.unwrap();
-    assert_matches!(submission_result.0, L2TxSubmissionResult::Added);
+    tx_sender.submit_tx(tx, block_args).await.unwrap();
 
     let mut storage = pool.connection().await.unwrap();
     storage
@@ -202,9 +201,8 @@ async fn sending_transfer() {
     drop(storage);
 
     let transfer = alice.create_transfer(1_000_000_000.into());
-    let (sub_result, vm_result) = tx_sender.submit_tx(transfer, block_args).await.unwrap();
-    assert_matches!(sub_result, L2TxSubmissionResult::Added);
-    assert!(!vm_result.result.is_failed(), "{:?}", vm_result.result);
+    let vm_result = tx_sender.submit_tx(transfer, block_args).await.unwrap();
+    assert!(!vm_result.result.is_failed(), "{vm_result:?}");
 }
 
 #[tokio::test]
@@ -262,9 +260,8 @@ async fn sending_load_test_transaction(tx_params: LoadnextContractExecutionParam
     drop(storage);
 
     let tx = alice.create_load_test_tx(tx_params);
-    let (sub_result, vm_result) = tx_sender.submit_tx(tx, block_args).await.unwrap();
-    assert_matches!(sub_result, L2TxSubmissionResult::Added);
-    assert!(!vm_result.result.is_failed(), "{:?}", vm_result.result);
+    let vm_result = tx_sender.submit_tx(tx, block_args).await.unwrap();
+    assert!(!vm_result.result.is_failed(), "{vm_result:?}");
 }
 
 #[tokio::test]
@@ -283,7 +280,7 @@ async fn sending_reverting_transaction() {
     drop(storage);
 
     let tx = alice.create_counter_tx(1.into(), true);
-    let (_, vm_result) = tx_sender.submit_tx(tx, block_args).await.unwrap();
+    let vm_result = tx_sender.submit_tx(tx, block_args).await.unwrap();
     assert_matches!(
         vm_result.result,
         ExecutionResult::Revert { output } if output.to_string().contains("This method always reverts")
@@ -306,7 +303,7 @@ async fn sending_transaction_out_of_gas() {
     drop(storage);
 
     let tx = alice.create_infinite_loop_tx();
-    let (_, vm_result) = tx_sender.submit_tx(tx, block_args).await.unwrap();
+    let vm_result = tx_sender.submit_tx(tx, block_args).await.unwrap();
     assert_matches!(vm_result.result, ExecutionResult::Revert { .. });
 }
 
@@ -351,8 +348,7 @@ async fn submit_tx_with_validation_traces(actual_range: Range<u64>, expected_ran
     let (tx_sender, _) = create_test_tx_sender(pool.clone(), l2_chain_id, tx_executor).await;
     let block_args = pending_block_args(&tx_sender).await;
 
-    let submission_result = tx_sender.submit_tx(tx, block_args).await.unwrap();
-    assert_matches!(submission_result.0, L2TxSubmissionResult::Added);
+    tx_sender.submit_tx(tx, block_args).await.unwrap();
 
     let mut storage = pool.connection().await.unwrap();
     let storage_tx = storage

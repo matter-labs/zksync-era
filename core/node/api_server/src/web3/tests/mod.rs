@@ -390,7 +390,6 @@ async fn store_events(
     let tx_location = IncludedTxLocation {
         tx_hash: H256::repeat_byte(1),
         tx_index_in_l2_block: 0,
-        tx_initiator_address: Address::repeat_byte(2),
     };
     let events = vec![
         // Matches address, doesn't match topics
