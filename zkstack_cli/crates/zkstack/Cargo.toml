@@ -64,4 +64,5 @@ xshell.workspace = true
 [features]
 # Features that allows gateway-chain related actions.
 # These should be available for outside users until stabilized.
+default = ["gateway"]
 gateway = []

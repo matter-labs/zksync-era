@@ -369,8 +369,8 @@ jobs:
           --base-token-price-nominator 1 \
           --base-token-price-denominator 1 \
           --set-as-default false \
-          --ignore-prerequisites \
-          --evm-emulator false
+          --evm-emulator false \
+          --ignore-prerequisites 
           
           ci_run zkstack chain init \
           --dev \
