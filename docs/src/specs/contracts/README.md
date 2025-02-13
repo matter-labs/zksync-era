@@ -22,7 +22,7 @@ The order of the files here only roughly represents the order of reading. A lot 
   - [Admin role](./chain_management/admin_role.md)
   - [Chain genesis](./chain_management/chain_genesis.md)
   - [Standard Upgrade process](./chain_management/upgrade_process.md)
-- Bridging
+- [Bridging](./bridging/README.md)
   - [Interop](./bridging/interop.md)
     - [Overview of the bridgehub functionality](./bridging/bridgehub/overview.md)
   - [Asset Router](./bridging/asset_router/overview.md)

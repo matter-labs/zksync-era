@@ -1,4 +1,5 @@
 # Interop Transactions
+[back to readme](../../README.md)
 
 ## Basics
 
@@ -7,7 +8,7 @@ Bundles**.
 
 Think of it like a car that picks up our "hitchhiker" bundles and carries them to their destination.
 
-![interoptx.png](./img/level_trigger.png)
+![interoptx.png](../img/level_trigger.png)
 
 **Note:** Interop Transactions aren’t the only way to execute a bundle. Once an interop bundle is created on the source
 chain, users can simply send a regular transaction on the destination chain to execute it.
@@ -19,7 +20,7 @@ and to configure the necessary network settings (like the RPC address).
 which **interopBundle** to execute, specify gas details (such as gas amount and gas price), and determine who will cover
 the gas costs. This can be achieved using tokens on the source chain or through a paymaster.
 
-Once configured, the transaction will automatically execute, either by the chain operator, the gateway, or off-chain
+Once configured, the transaction will automatically execute, either by the chain operator, or off-chain
 tools.
 
 An **InteropTransaction** contains two pointers to bundles:
@@ -27,7 +28,7 @@ An **InteropTransaction** contains two pointers to bundles:
 - **feesBundle**: Holds interop calls to cover fees.
 - **bundleHash**: Contains the main execution.
 
-![ipointers.png](./img/trigger.png)
+![ipointers.png](../img/trigger.png)
 
 ## Interface
 
@@ -93,7 +94,7 @@ same execution bundle** as before.
 This time, the transaction succeeds — the swap completes on the destination chain, and the resulting tokens are
 successfully transferred back to the source chain.
 
-![retryexample.png](./img/reexecute.png)
+![retryexample.png](../img/reexecute.png)
 
 ## Fees & Restrictions
 
@@ -155,7 +156,7 @@ Once there, you’ll use it to pay the paymaster on the destination chain to cov
 
 Your **InteropTransaction** would look like this:
 
-![paymastertx.png](./img/trigger_paymaster.png)
+![paymastertx.png](../img/trigger_paymaster.png)
 
 ## **Automatic Execution**
 
@@ -168,22 +169,22 @@ includes a signature (also known as an interop message proof), making it fully s
 requiring additional permissions.
 
 Typically, the destination chain’s operator will handle and include incoming **InteropTransactions**. However, if they
-don’t, the **Gateway** or other participants can step in to prepare and send them.
+don’t, the **ChainOperator** or other participants can step in to prepare and send them.
 
 You can also use the available tools to create and send the destination transaction yourself. Since the transaction is
 self-contained, it doesn’t require additional funds or signatures to execute.
 
-![Usually destination chain operator will keep querying gateway to see if there are any messages for their chain.](./img/automatic_exec.png)
+<!-- ![Usually destination chain operator will keep querying gateway to see if there are any messages for their chain.](../img/automatic_exec.png)
 
-Once they see the message, they can request the proof from the **Gateway** and also fetch the **InteropBundles**
-contained within the message (along with their respective proofs).
+Once they see the message, they can request the proof from the **ChainOperator** and also fetch the **InteropBundles**
+contained within the message (along with their respective proofs). -->
 
-![Operator getting necessary data from Gateway.](./img/automatic_exec_2.png)
+<!-- ![Operator getting necessary data from Gateway.](../img/automatic_exec_2.png)
 
 As the final step, the operator can use the received data to create a regular transaction, which can then be sent to
 their chain.
 
-![Creating the final transaction to send to the destination chain](./img/automatic_exec_3.png)
+![Creating the final transaction to send to the destination chain](../img/automatic_exec_3.png)
 
 The steps above don’t require any special permissions and can be executed by anyone.
 
@@ -193,4 +194,4 @@ information can still be constructed off-chain using data available on L1.
 ### How it Works Under the hood
 
 We’ll modify the default account to accept interop proofs as signatures, seamlessly integrating with the existing ZKSync
-native **Account Abstraction** model. See [Interop handler](./interop_handler.md) for more details.
+native **Account Abstraction** model. See [Interop handler](../interop_handler.md) for more details. -->
