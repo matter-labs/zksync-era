@@ -1070,15 +1070,16 @@ mod tests {
     async fn test_insert_prover_jobs() {
         let pool = ConnectionPool::<Prover>::prover_test_pool().await;
         let mut conn = pool.connection().await.unwrap();
+        let mut tx = conn.start_transaction().await.unwrap();
 
-        conn.fri_protocol_versions_dal()
+        tx.fri_protocol_versions_dal()
             .save_prover_protocol_version(
                 ProtocolSemanticVersion::default(),
                 L1VerifierConfig::default(),
             )
             .await;
 
-        conn.fri_prover_jobs_dal()
+        tx.fri_prover_jobs_dal()
             .insert_prover_jobs(
                 L1BatchNumber(1),
                 mock_circuit_ids_and_urls(10000),
