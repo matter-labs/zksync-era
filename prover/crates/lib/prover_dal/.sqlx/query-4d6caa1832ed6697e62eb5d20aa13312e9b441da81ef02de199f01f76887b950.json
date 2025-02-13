@@ -1,0 +1,42 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                l1_batch_number,\n                status,\n                protocol_version,\n                protocol_version_patch\n            FROM\n                proof_compression_jobs_fri\n            WHERE\n                l1_batch_number = (\n                    SELECT\n                        MIN(l1_batch_number)\n                    FROM\n                        proof_compression_jobs_fri\n                    WHERE\n                        status = $1\n                        OR status = $2\n                        AND chain_id = $3\n                )\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "l1_batch_number",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "status",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "protocol_version",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "protocol_version_patch",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "4d6caa1832ed6697e62eb5d20aa13312e9b441da81ef02de199f01f76887b950"
+}

@@ -3182,6 +3182,12 @@ dependencies = [
 
 [[package]]
 name = "jsonrpsee"
+version = "0.23.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "62b089779ad7f80768693755a031cc14a7766aba707cbe886674e3f79e9b7e47"
+
+[[package]]
+name = "jsonrpsee"
 version = "0.24.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "834af00800e962dee8f7bfc0f60601de215e73e78e5497d733a2919da837d3c8"
@@ -8504,7 +8510,7 @@ name = "zksync_eth_client"
 version = "26.3.0-non-semver-compat"
 dependencies = [
  "async-trait",
- "jsonrpsee",
+ "jsonrpsee 0.24.8",
  "rlp",
  "thiserror 1.0.69",
  "tracing",
@@ -8879,7 +8885,7 @@ dependencies = [
  "clap 4.5.23",
  "ctrlc",
  "futures 0.3.31",
- "jsonrpsee",
+ "jsonrpsee 0.23.2",
  "log",
  "reqwest 0.12.9",
  "serde",
@@ -8933,7 +8939,7 @@ dependencies = [
  "circuit_definitions",
  "circuit_sequencer_api",
  "fflonk",
- "jsonrpsee",
+ "jsonrpsee 0.24.8",
  "serde",
  "serde_with",
  "strum",
@@ -9188,7 +9194,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "futures 0.3.31",
- "jsonrpsee",
+ "jsonrpsee 0.24.8",
  "pin-project-lite",
  "rlp",
  "rustls",
