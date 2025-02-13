@@ -2,7 +2,6 @@ use std::time::Duration;
 
 use anyhow::Context as _;
 use clap::Parser;
-use proof_submitter::PeriodicProofSubmitter;
 use tokio::sync::{oneshot, watch};
 use zksync_core_leftovers::temp_config_store::{load_database_secrets, load_general_config};
 use zksync_env_config::object_store::ProverObjectStoreConfig;
@@ -11,12 +10,10 @@ use zksync_prover_dal::{ConnectionPool, Prover};
 use zksync_task_management::ManagedTasks;
 use zksync_vlog::prometheus::PrometheusExporterConfig;
 
-use crate::api::{Processor, ProverGatewayApi};
+use crate::rpc_server::RpcServer;
 
-mod api;
 mod metrics;
 mod middleware;
-mod proof_submitter;
 mod rpc_server;
 
 #[tokio::main]
@@ -52,16 +49,7 @@ async fn main() -> anyhow::Result<()> {
     );
     let store_factory = ObjectStoreFactory::new(object_store_config.0);
 
-    let proof_submitter = PeriodicProofSubmitter::new(
-        store_factory.create_store().await?,
-        config.api_url.clone(),
-        config.api_poll_duration(),
-        pool.clone(),
-    );
-
-    let processor = Processor::new(store_factory.create_store().await?, pool.clone());
-
-    let prover_gateway_api = ProverGatewayApi::new(config.http_port, processor);
+    let rpc_server = RpcServer::new(config.ws_port, store_factory.create_store().await?, pool.clone());
 
     let (stop_sender, stop_receiver) = watch::channel(false);
 
@@ -81,8 +69,7 @@ async fn main() -> anyhow::Result<()> {
             PrometheusExporterConfig::pull(config.prometheus_listener_port)
                 .run(stop_receiver.clone()),
         ),
-        tokio::spawn(prover_gateway_api.run(stop_receiver.clone())),
-        tokio::spawn(proof_submitter.run(stop_receiver)),
+        tokio::spawn(rpc_server.run(stop_receiver)),
     ];
 
     let mut tasks = ManagedTasks::new(tasks);

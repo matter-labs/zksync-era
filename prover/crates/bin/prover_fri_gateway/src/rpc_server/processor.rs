@@ -31,11 +31,12 @@ impl RpcDataProcessor {
         };
 
         loop {
+            tokio::time::sleep(Duration::from_secs(5)).await;
+
             let (l1_batch_number, request) = match self.next_submit_proof_request(chain_id).await {
                 Some(data) => data,
                 None => {
                     tracing::info!("No proofs to send, waiting for new ones");
-                    tokio::time::sleep(Duration::from_secs(5)).await;
                     continue;
                 },
             };
@@ -43,13 +44,11 @@ impl RpcDataProcessor {
             let msg = SubscriptionMessage::from_json(&request)?;
             match sink.try_send(msg) {
                 Ok(_) => {
-                    self.save_successful_sent_proof(l1_batch_number, chain_id).await;
+                    tracing::info!("Proof for {:?} was sent to client", l1_batch_number);
                 },
                 Err(TrySendError::Closed(_)) => break,
                 Err(TrySendError::Full(_)) => {
                     tracing::warn!("Channel is full, waiting until it's ready");
-                    tokio::time::sleep(Duration::from_secs(5)).await;
-                    continue
                 },
             }
         }
@@ -73,9 +72,9 @@ impl RpcDataProcessor {
                     .get((chain_id, l1_batch_number, protocol_version))
                     .await
                     .expect("Failed to get compressed snark proof from blob store");
-                SubmitProofRequest::Proof(Box::new(proof))
+                SubmitProofRequest::Proof(l1_batch_number, Box::new(proof))
             }
-            ProofCompressionJobStatus::Skipped => SubmitProofRequest::SkippedProofGeneration,
+            ProofCompressionJobStatus::Skipped => SubmitProofRequest::SkippedProofGeneration(l1_batch_number),
             _ => panic!(
                 "Trying to send proof that are not successful status: {:?}",
                 status
@@ -128,6 +127,11 @@ impl RpcDataProcessor {
 impl GatewayRpcServer for RpcDataProcessor {
     async fn submit_proof_generation_data(&self, data: ProofGenerationData) -> RpcResult<()> {
         self.save_proof_gen_data(data).await?;
+        Ok(())
+    }
+
+    async fn received_final_proof(&self, chain_id: L2ChainId, l1_batch_number: L1BatchNumber) -> RpcResult<()> {
+        self.save_successful_sent_proof(l1_batch_number, chain_id).await;
         Ok(())
     }
 

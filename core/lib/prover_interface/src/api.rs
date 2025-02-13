@@ -55,9 +55,9 @@ pub struct TeeProofGenerationDataRequest {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum SubmitProofRequest {
-    Proof(Box<L1BatchProofForL1>),
+    Proof(L1BatchNumber, Box<L1BatchProofForL1>),
     // The proof generation was skipped due to sampling
-    SkippedProofGeneration,
+    SkippedProofGeneration(L1BatchNumber),
 }
 
 #[derive(Debug, Serialize, Deserialize)]

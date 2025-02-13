@@ -21,7 +21,7 @@ zksync_prover_interface.workspace = true
 zksync_task_management.workspace = true
 zksync_vlog.workspace = true
 
-jsonrpsee.workspace = true
+jsonrpsee = { workspace = true, features = ["server", "macros", "client-ws-transport-tls"]}
 axum.workspace = true
 anyhow.workspace = true
 tracing.workspace = true
