@@ -20,7 +20,6 @@ pub async fn seal_in_db<'a>(
     executed_tx_hash: Option<H256>,
     revert_reason: Option<String>,
     block_hash: H256,
-    gas_limit: u64,
 ) -> anyhow::Result<()> {
     let l2_block_number = L2BlockNumber(context.block_number as u32);
     let l1_batch_number = L1BatchNumber(context.block_number as u32);
@@ -33,18 +32,10 @@ pub async fn seal_in_db<'a>(
     if let Some(executed_tx_hash) = executed_tx_hash {
         tracing::info!("marking transaction as included");
 
-        // We do not save `gas_used` to DB. Instead we save `gas_refunded = gas_limit - gas_used`
-        // and calculate `gas_used = gas_limit - gas_refunded` later if needed.
-        // TODO: is `gas_refunded = gas_limit - gas_used` in zkos terms?
-        let gas_refunded = result.tx_results[0].as_ref().unwrap().gas_refunded;
+        let gas_used = result.tx_results[0].as_ref().unwrap().gas_used;
         transaction
             .transactions_dal()
-            .zkos_mark_tx_as_executed(
-                executed_tx_hash,
-                l2_block_number,
-                revert_reason,
-                gas_refunded,
-            )
+            .zkos_mark_tx_as_executed(executed_tx_hash, l2_block_number, revert_reason, gas_used)
             .await?;
     }
 

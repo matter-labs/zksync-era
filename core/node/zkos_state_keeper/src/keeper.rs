@@ -191,7 +191,6 @@ impl ZkosStateKeeper {
                         seal_tx_hash,
                         revert_reason,
                         H256::zero(),
-                        tx.gas_limit().as_u64(),
                     )
                     .await?;
                     pending_block_number.0 += 1;
