@@ -1,6 +1,10 @@
 # Contract-based and Full AssetTracker, ZK IP, Firewall
 [back to readme](../README.md)
 
+## Introduction
+
+The AssetTracker is a component that provides additional security, by tracking the balance of chains on the chains settlement layer (Gateway and L1). This is done by parsing all interop txs on the SL and updating the balance of the chains.
+
 ### Name ideas
 
 Firewall, ZK IP, AssetTracker. TBD.
