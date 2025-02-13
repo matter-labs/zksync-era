@@ -110,6 +110,7 @@ prover/data/keys/plonk_setup_snark_data.bin
 
 # ZK Stack CLI
 chains/era/configs/*
+chains/second/configs/*
 chains/gateway/*
 chains/avail/*
 configs/*

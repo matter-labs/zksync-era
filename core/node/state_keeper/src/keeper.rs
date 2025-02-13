@@ -19,8 +19,9 @@ use zksync_shared_metrics::{TxStage, APP_METRICS};
 use zksync_state::{OwnedStorage, ReadStorageFactory};
 use zksync_types::{
     block::L2BlockExecutionData, commitment::PubdataParams, l2::TransactionType,
-    protocol_upgrade::ProtocolUpgradeTx, protocol_version::ProtocolVersionId,
-    utils::display_timestamp, L1BatchNumber, Transaction,
+    message_root::MessageRoot, protocol_upgrade::ProtocolUpgradeTx,
+    protocol_version::ProtocolVersionId, utils::display_timestamp, L1BatchNumber, L2ChainId,
+    Transaction,
 };
 
 use crate::{
@@ -317,6 +318,13 @@ impl ZkSyncStateKeeper {
             .with_context(|| format!("failed loading upgrade transaction for {protocol_version:?}"))
     }
 
+    async fn load_latest_message_root(&mut self) -> anyhow::Result<Option<Vec<MessageRoot>>> {
+        self.io
+            .load_latest_message_root()
+            .await
+            .with_context(|| format!("failed loading message root"))
+    }
+
     #[tracing::instrument(
         skip_all,
         fields(
@@ -582,7 +590,7 @@ impl ZkSyncStateKeeper {
                 );
                 return Ok(());
             }
-
+            let message_roots = self.load_latest_message_root().await?;
             if self.io.should_seal_l2_block(updates_manager) {
                 tracing::debug!(
                     "L2 block #{} (L1 batch #{}) should be sealed as per sealing rules",
@@ -603,6 +611,14 @@ impl ZkSyncStateKeeper {
                 );
                 Self::start_next_l2_block(new_l2_block_params, updates_manager, batch_executor)
                     .await?;
+            }
+            if message_roots.is_some() {
+                for message_root in message_roots.unwrap() {
+                    if L2ChainId::from(message_root.chain_id) == self.io.chain_id() {
+                        continue;
+                    }
+                    batch_executor.insert_message_root(message_root).await?;
+                }
             }
             let waiting_latency = KEEPER_METRICS.waiting_for_tx.start();
             let Some(tx) = self

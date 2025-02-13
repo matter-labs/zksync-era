@@ -71,15 +71,16 @@ pub enum ProtocolVersionId {
     Version26,
     Version27,
     Version28,
+    Version29,
 }
 
 impl ProtocolVersionId {
     pub const fn latest() -> Self {
-        Self::Version26
+        Self::Version27
     }
 
     pub const fn next() -> Self {
-        Self::Version27
+        Self::Version28
     }
 
     pub fn try_from_packed_semver(packed_semver: U256) -> Result<Self, String> {
@@ -124,8 +125,9 @@ impl ProtocolVersionId {
             ProtocolVersionId::Version24 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
             ProtocolVersionId::Version25 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
             ProtocolVersionId::Version26 => VmVersion::VmGateway,
-            ProtocolVersionId::Version27 => VmVersion::VmGateway,
-            ProtocolVersionId::Version28 => unreachable!("Version 28 is not yet supported"),
+            ProtocolVersionId::Version27 => VmVersion::VmInterop,
+            ProtocolVersionId::Version28 => VmVersion::VmInterop,
+            ProtocolVersionId::Version29 => unreachable!("Version 28 is not yet supported"),
         }
     }
 
@@ -299,8 +301,9 @@ impl From<ProtocolVersionId> for VmVersion {
             ProtocolVersionId::Version24 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
             ProtocolVersionId::Version25 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
             ProtocolVersionId::Version26 => VmVersion::VmGateway,
-            ProtocolVersionId::Version27 => VmVersion::VmGateway,
-            ProtocolVersionId::Version28 => unreachable!("Version 28 is not yet supported"),
+            ProtocolVersionId::Version27 => VmVersion::VmInterop,
+            ProtocolVersionId::Version28 => VmVersion::VmInterop,
+            ProtocolVersionId::Version29 => unreachable!("Version 29 is not yet supported"),
         }
     }
 }

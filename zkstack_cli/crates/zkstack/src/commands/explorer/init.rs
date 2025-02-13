@@ -28,7 +28,6 @@ pub(crate) async fn run(shell: &Shell) -> anyhow::Result<()> {
         Some(ref chain_name) => vec![chain_name.clone()],
         None => ecosystem_config.list_of_chains(),
     };
-    let mut ports = EcosystemPortsScanner::scan(shell)?;
     // Initialize chains one by one
     let mut explorer_config = ExplorerConfig::read_or_create_default(shell)?;
     for chain_name in chains_enabled.iter() {
@@ -36,6 +35,7 @@ pub(crate) async fn run(shell: &Shell) -> anyhow::Result<()> {
         let chain_config = ecosystem_config
             .load_chain(Some(chain_name.clone()))
             .context(msg_chain_load_err(chain_name))?;
+        let mut ports = EcosystemPortsScanner::scan(shell, Some(&chain_config.name))?;
         // Build backend config - parameters required to create explorer backend services
         let backend_config = build_backend_config(&mut ports, &chain_config)?;
         // Initialize explorer database

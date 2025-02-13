@@ -4,19 +4,21 @@ use zksync_basic_types::{AccountTreeId, Address, U256};
 use zksync_contracts::{read_sys_contract_bytecode, ContractLanguage, SystemContractsRepo};
 use zksync_system_constants::{
     BOOTLOADER_UTILITIES_ADDRESS, CODE_ORACLE_ADDRESS, COMPRESSOR_ADDRESS, CREATE2_FACTORY_ADDRESS,
-    EVENT_WRITER_ADDRESS, EVM_GAS_MANAGER_ADDRESS, L2_ASSET_ROUTER_ADDRESS, L2_BRIDGEHUB_ADDRESS,
-    L2_GENESIS_UPGRADE_ADDRESS, L2_MESSAGE_ROOT_ADDRESS, L2_NATIVE_TOKEN_VAULT_ADDRESS,
-    L2_WRAPPED_BASE_TOKEN_IMPL, P256VERIFY_PRECOMPILE_ADDRESS, PUBDATA_CHUNK_PUBLISHER_ADDRESS,
-    SLOAD_CONTRACT_ADDRESS,
+    EVENT_WRITER_ADDRESS, EVM_GAS_MANAGER_ADDRESS, L2_ASSET_ROUTER_ADDRESS,
+    L2_ASSET_TRACKER_ADDRESS, L2_BRIDGEHUB_ADDRESS, L2_GENESIS_UPGRADE_ADDRESS,
+    L2_MESSAGE_ROOT_ADDRESS, L2_MESSAGE_ROOT_STORAGE_ADDRESS, L2_MESSAGE_VERIFICATION_ADDRESS,
+    L2_NATIVE_TOKEN_VAULT_ADDRESS, L2_WRAPPED_BASE_TOKEN_IMPL, P256VERIFY_PRECOMPILE_ADDRESS,
+    PUBDATA_CHUNK_PUBLISHER_ADDRESS, SLOAD_CONTRACT_ADDRESS,
 };
 
 use crate::{
     block::DeployedContract, ACCOUNT_CODE_STORAGE_ADDRESS, BOOTLOADER_ADDRESS,
     COMPLEX_UPGRADER_ADDRESS, CONTRACT_DEPLOYER_ADDRESS, ECRECOVER_PRECOMPILE_ADDRESS,
     EC_ADD_PRECOMPILE_ADDRESS, EC_MUL_PRECOMPILE_ADDRESS, EC_PAIRING_PRECOMPILE_ADDRESS,
-    IMMUTABLE_SIMULATOR_STORAGE_ADDRESS, KECCAK256_PRECOMPILE_ADDRESS, KNOWN_CODES_STORAGE_ADDRESS,
-    L1_MESSENGER_ADDRESS, L2_BASE_TOKEN_ADDRESS, MSG_VALUE_SIMULATOR_ADDRESS, NONCE_HOLDER_ADDRESS,
-    SHA256_PRECOMPILE_ADDRESS, SYSTEM_CONTEXT_ADDRESS,
+    IMMUTABLE_SIMULATOR_STORAGE_ADDRESS, INTEROP_ACCOUNT_ADDRESS, KECCAK256_PRECOMPILE_ADDRESS,
+    KNOWN_CODES_STORAGE_ADDRESS, L1_MESSENGER_ADDRESS, L2_BASE_TOKEN_ADDRESS,
+    L2_INTEROP_CENTER_ADDRESS, L2_INTEROP_HANDLER_ADDRESS, MSG_VALUE_SIMULATOR_ADDRESS,
+    NONCE_HOLDER_ADDRESS, SHA256_PRECOMPILE_ADDRESS, SYSTEM_CONTEXT_ADDRESS,
 };
 
 // Note, that in the `NONCE_HOLDER_ADDRESS` storage the nonces of accounts
@@ -27,7 +29,7 @@ use crate::{
 pub const TX_NONCE_INCREMENT: U256 = U256([1, 0, 0, 0]); // 1
 pub const DEPLOYMENT_NONCE_INCREMENT: U256 = U256([0, 0, 1, 0]); // 2^128
 
-static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 33] = [
+static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 39] = [
     (
         "",
         "AccountCodeStorage",
@@ -218,6 +220,42 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 33] = [
         L2_WRAPPED_BASE_TOKEN_IMPL,
         ContractLanguage::Sol,
     ),
+    (
+        "../../l1-contracts/zkout/",
+        "InteropHandler",
+        L2_INTEROP_HANDLER_ADDRESS,
+        ContractLanguage::Sol,
+    ),
+    (
+        "../../l1-contracts/zkout/",
+        "InteropCenter",
+        L2_INTEROP_CENTER_ADDRESS,
+        ContractLanguage::Sol,
+    ),
+    (
+        "../../l1-contracts/zkout/",
+        "InteropAccount",
+        INTEROP_ACCOUNT_ADDRESS,
+        ContractLanguage::Sol,
+    ),
+    (
+        "",
+        "L2MessageRootStorage",
+        L2_MESSAGE_ROOT_STORAGE_ADDRESS,
+        ContractLanguage::Sol,
+    ),
+    (
+        "../../l1-contracts/zkout/",
+        "L2MessageVerification",
+        L2_MESSAGE_VERIFICATION_ADDRESS,
+        ContractLanguage::Sol,
+    ),
+    (
+        "../../l1-contracts/zkout/",
+        "L2AssetTracker",
+        L2_ASSET_TRACKER_ADDRESS,
+        ContractLanguage::Sol,
+    ),
 ];
 
 /// Gets default set of system contracts, based on Cargo workspace location.
@@ -251,7 +289,12 @@ pub fn get_system_smart_contracts_from_dir(
             } else {
                 Some(DeployedContract {
                     account_id: AccountTreeId::new(*address),
-                    bytecode: repo.read_sys_contract_bytecode(path, name, contract_lang.clone()),
+                    bytecode: repo.read_sys_contract_bytecode(
+                        path,
+                        name,
+                        None,
+                        contract_lang.clone(),
+                    ),
                 })
             }
         })

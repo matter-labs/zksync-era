@@ -17,7 +17,9 @@ use zksync_types::{
 pub use self::client::{EthClient, EthHttpQueryClient, L2EthClient};
 use self::{
     client::{L2EthClientW, RETRY_LIMIT},
-    event_processors::{EventProcessor, EventProcessorError, PriorityOpsEventProcessor},
+    event_processors::{
+        EventProcessor, EventProcessorError, GlobalMessageRootProcessor, PriorityOpsEventProcessor,
+    },
     metrics::METRICS,
 };
 use crate::event_processors::{
@@ -79,9 +81,18 @@ impl EthWatch {
             sl_client.clone(),
             l1_client.clone(),
         );
+        let global_message_root_processor = GlobalMessageRootProcessor::new();
+        // let batch_root_processor = L1BatchRootProcessor::new(
+        //     state.chain_batch_root_number_lower_bound,
+        //     state.batch_merkle_tree,
+        //     chain_id,
+        //     l1_client,
+        // );
         let mut event_processors: Vec<Box<dyn EventProcessor>> = vec![
             Box::new(priority_ops_processor),
             Box::new(decentralized_upgrades_processor),
+            Box::new(global_message_root_processor),
+            // Box::new(batch_root_processor), // kl todo
         ];
         if let Some(sl_l2_client) = sl_l2_client {
             let batch_root_processor = BatchRootProcessor::new(

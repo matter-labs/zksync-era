@@ -81,7 +81,7 @@
   - [System Contracts](specs/zk_evm/system_contracts.md)
 - [Interop](specs/interop/overview.md)
   - [Interop Messages](specs/interop/interopmessages.md)
-  - [Bundles and Calls](specs/interop/bundlesandcalls.md)
+  - [Bundles and Calls](specs/interop/bundles_calls.md)
   - [Interop Transactions](specs/interop/interoptransactions.md)
 
 # Announcements

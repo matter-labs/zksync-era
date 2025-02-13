@@ -49,6 +49,10 @@ impl ContractsConfig {
             .deployed_addresses
             .bridgehub
             .bridgehub_proxy_addr;
+        self.ecosystem_contracts.message_root_proxy_addr = deploy_l1_output
+            .deployed_addresses
+            .bridgehub
+            .message_root_proxy_addr;
         self.ecosystem_contracts.state_transition_proxy_addr = deploy_l1_output
             .deployed_addresses
             .state_transition
@@ -181,6 +185,7 @@ impl ZkStackConfig for ContractsConfig {}
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 pub struct EcosystemContracts {
     pub bridgehub_proxy_addr: Address,
+    pub message_root_proxy_addr: Address,
     pub state_transition_proxy_addr: Address,
     pub transparent_proxy_admin_addr: Address,
     // `Option` to be able to parse configs from pre-gateway protocol version.

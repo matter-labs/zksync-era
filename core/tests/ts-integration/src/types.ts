@@ -17,6 +17,8 @@ export interface Token {
     decimals: bigint;
     l1Address: string;
     l2Address: string;
+    l2AddressSecondChain?: string;
+    assetId?: string;
 }
 
 /**
