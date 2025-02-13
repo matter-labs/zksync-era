@@ -746,4 +746,15 @@ impl Keystore {
         }
         Ok(mapping)
     }
+
+    /// Async function that loads specified mapping from disk.
+    pub async fn load_single_key_mapping<T: DeserializeOwned + Send + Sync + 'static>(
+        &self,
+        key: ProverServiceDataKey,
+        data_type: ProverServiceDataType,
+    ) -> anyhow::Result<Arc<T>> {
+        let filepath = self.get_file_path(key, data_type);
+        let data = Self::load_bincode_from_file(filepath)?;
+        Ok(data)
+    }
 }
