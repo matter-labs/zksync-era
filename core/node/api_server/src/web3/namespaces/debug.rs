@@ -174,6 +174,11 @@ impl DebugNamespace {
         }
 
         let mut connection = self.state.acquire_connection().await?;
+        self.state
+            .start_info
+            .ensure_not_pruned(block_id, &mut connection)
+            .await?;
+
         let block_number = self.state.resolve_block(&mut connection, block_id).await?;
         // let block_hash = block_hash self.state.
         self.current_method()
@@ -252,6 +257,11 @@ impl DebugNamespace {
         let options = options.unwrap_or_default();
 
         let mut connection = self.state.acquire_connection().await?;
+        self.state
+            .start_info
+            .ensure_not_pruned(block_id, &mut connection)
+            .await?;
+
         let block_args = self
             .state
             .resolve_block_args(&mut connection, block_id)
@@ -313,7 +323,7 @@ impl DebugNamespace {
             )
             .await?;
 
-        let (output, revert_reason) = match result.vm.result {
+        let (output, revert_reason) = match result.result {
             ExecutionResult::Success { output, .. } => (output, None),
             ExecutionResult::Revert { output } => (vec![], Some(output.to_string())),
             ExecutionResult::Halt { reason } => {
@@ -325,7 +335,7 @@ impl DebugNamespace {
         };
         let call = Call::new_high_level(
             call.common_data.fee.gas_limit.as_u64(),
-            result.vm.statistics.gas_used,
+            result.metrics.vm.gas_used as u64,
             call.execute.value,
             call.execute.calldata,
             output,

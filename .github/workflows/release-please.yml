@@ -30,3 +30,4 @@ jobs:
       publish-to-crates-io: true                            # Enable publishing to crates.io
       upgrade-dependencies: true                            # Upgrade cross-workspace dependencies
       version-suffix: 'non-semver-compat'                   # Version suffix for the crates.io release
+      workspace-dirs: 'core prover zkstack_cli'             # List of additional workspace directories to update Cargo.lock

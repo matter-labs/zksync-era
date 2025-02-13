@@ -15,7 +15,7 @@ use zksync_vm_executor::oneshot::{BlockInfo, ResolvedBlockInfo};
 use self::vm_metrics::SandboxStage;
 pub(super) use self::{
     error::SandboxExecutionError,
-    execute::{SandboxAction, SandboxExecutor},
+    execute::{SandboxAction, SandboxExecutionOutput, SandboxExecutor},
     validate::ValidationError,
     vm_metrics::{SubmitTxStage, SANDBOX_METRICS},
 };
@@ -274,7 +274,7 @@ impl BlockStartInfo {
 
 #[derive(Debug, thiserror::Error)]
 pub enum BlockArgsError {
-    #[error("Block is pruned; first retained block is {0}")]
+    #[error("Block is not available, either it was pruned or the node was started from a snapshot created later than this block; first retained block is {0}")]
     Pruned(L2BlockNumber),
     #[error("Block is missing, but can appear in the future")]
     Missing,

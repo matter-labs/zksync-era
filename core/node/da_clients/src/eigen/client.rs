@@ -19,7 +19,7 @@ pub struct EigenClient {
 
 impl EigenClient {
     pub async fn new(config: EigenConfig, secrets: EigenSecrets) -> anyhow::Result<Self> {
-        let private_key = SecretKey::from_str(secrets.private_key.0.expose_secret().as_str())
+        let private_key = SecretKey::from_str(secrets.private_key.0.expose_secret())
             .map_err(|e| anyhow::anyhow!("Failed to parse private key: {}", e))?;
 
         Ok(EigenClient {
@@ -61,5 +61,9 @@ impl DataAvailabilityClient for EigenClient {
 
     fn blob_size_limit(&self) -> Option<usize> {
         Some(1920 * 1024) // 2mb - 128kb as a buffer
+    }
+
+    async fn balance(&self) -> Result<u64, DAError> {
+        Ok(0) // TODO fetch from API when payments are enabled in Eigen (PE-305)
     }
 }

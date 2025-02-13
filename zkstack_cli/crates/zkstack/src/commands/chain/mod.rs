@@ -92,7 +92,7 @@ pub enum ChainCommands {
 
 pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()> {
     match args {
-        ChainCommands::Create(args) => create::run(args, shell),
+        ChainCommands::Create(args) => create::run(args, shell).await,
         ChainCommands::Init(args) => init::run(*args, shell).await,
         ChainCommands::BuildTransactions(args) => build_transactions::run(args, shell).await,
         ChainCommands::Genesis(args) => genesis::run(args, shell).await,
