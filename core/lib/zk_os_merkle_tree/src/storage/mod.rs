@@ -24,7 +24,7 @@ pub trait Database: Send + Sync {
     /// # Errors
     ///
     /// Returns a deserialization error if any.
-    fn try_root(&self, version: u64) -> Result<Root, DeserializeError>;
+    fn try_root(&self, version: u64) -> Result<Option<Root>, DeserializeError>;
 
     /// Obtains nodes with the specified key from the storage. Root nodes must be obtained
     /// using [`Self::root()`], never this method.
@@ -235,21 +235,45 @@ impl PartialPatchSet {
         })
     }
 
+    fn update_ancestor_versions(&mut self, leaf_idx: u64, version: u64) {
+        let mut idx = leaf_idx;
+        for internal_level in self.internal.iter_mut().rev() {
+            let parent = internal_level.get_mut(&(idx >> 4)).unwrap();
+            parent.child_mut((idx % 16) as usize).version = version;
+            idx >>= 4;
+        }
+        self.root.root_node.child_mut(idx as usize).version = version;
+    }
+
     pub(crate) fn update(&mut self, update: TreeUpdate) -> FinalTreeUpdate {
         let version = update.version;
-        for (mut idx, value) in update.updates {
+        for (idx, value) in update.updates {
             self.leaves.get_mut(&idx).unwrap().value = value;
-            for internal_level in self.internal.iter_mut().rev() {
-                let parent = internal_level.get_mut(&(idx >> 4)).unwrap();
-                parent.child_mut((idx % 16) as usize).version = version;
-                idx >>= 4;
-            }
+            self.update_ancestor_versions(idx, version);
         }
 
         if !update.inserts.is_empty() {
             let new_idx = self.root.leaf_count;
             // Cannot underflow because `update.inserts.len() >= 1`
             let mut new_indexes = new_idx..=(new_idx + update.inserts.len() as u64 - 1);
+
+            // Update prev / next index pointers for neighbors.
+            for (idx, new_leaf) in new_indexes.clone().zip(&update.inserts) {
+                // Prev / next leaf may also be new, in which case, we'll insert it with the correct prev / next pointers,
+                // so we don't need to do anything here.
+                let prev_idx = new_leaf.prev_index;
+                if let Some(prev_leaf) = self.leaves.get_mut(&prev_idx) {
+                    prev_leaf.next_index = idx;
+                    self.update_ancestor_versions(prev_idx, version);
+                }
+
+                let next_idx = new_leaf.next_index;
+                if let Some(next_leaf) = self.leaves.get_mut(&next_idx) {
+                    next_leaf.prev_index = idx;
+                    self.update_ancestor_versions(next_idx, version);
+                }
+            }
+
             self.leaves.extend(new_indexes.clone().zip(update.inserts));
             self.root.leaf_count = *new_indexes.end() + 1;
 
@@ -387,12 +411,11 @@ impl Database for PatchSet {
         Ok(Some(self.manifest.clone()))
     }
 
-    fn try_root(&self, version: u64) -> Result<Root, DeserializeError> {
-        let patch = self.patches_by_version.get(&version).ok_or_else(|| {
-            DeserializeError::from(DeserializeErrorKind::MissingNode)
-                .with_context(DeserializeContext::Node(NodeKey::root(version)))
-        })?;
-        Ok(patch.root.clone())
+    fn try_root(&self, version: u64) -> Result<Option<Root>, DeserializeError> {
+        Ok(self
+            .patches_by_version
+            .get(&version)
+            .map(|patch| patch.root.clone()))
     }
 
     fn try_nodes(&self, keys: &[NodeKey]) -> Result<Vec<Node>, DeserializeError> {
@@ -432,7 +455,10 @@ impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
         latest_version: u64,
         entries: &[TreeEntry],
     ) -> anyhow::Result<(PartialPatchSet, TreeUpdate)> {
-        let root = self.db.try_root(latest_version)?;
+        let root = self.db.try_root(latest_version)?.ok_or_else(|| {
+            DeserializeError::from(DeserializeErrorKind::MissingNode)
+                .with_context(DeserializeContext::Node(NodeKey::root(latest_version)))
+        })?;
         let keys: Vec<_> = entries.iter().map(|entry| entry.key).collect();
         let lookup = self
             .db
@@ -525,6 +551,8 @@ impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
+
     use zksync_crypto_primitives::hasher::blake2::Blake2Hasher;
 
     use super::*;
@@ -660,7 +688,7 @@ mod tests {
         let patch = patch.finalize(&Blake2Hasher, final_update);
         assert_eq!(patch.manifest.version_count, 1);
         assert_eq!(patch.patches_by_version.len(), 1);
-        let root = patch.try_root(0).unwrap();
+        let root = patch.try_root(0).unwrap().expect("no root");
         assert_eq!(root.leaf_count, 2);
 
         assert_eq!(root.root_node.child_refs().len(), 1);
@@ -673,11 +701,206 @@ mod tests {
             expected_root_child_hash
         );
 
-        // FIXME: doesn't work; the reference impl has depth 63, not 64
         let expected_root_hash: H256 =
-            "0xa02abc0995f78e87f3c73cecee45a527c9026473bb1dc9e29a6bd7835eb92bde"
+            "0x8a41011d351813c31088367deecc9b70677ecf15ffc24ee450045cdeaf447f63"
                 .parse()
                 .unwrap();
         assert_eq!(root.root_node.hash(&Blake2Hasher, 60), expected_root_hash);
+    }
+
+    #[test]
+    fn creating_tree_with_leaves_in_single_batch() {
+        let mut patch = PartialPatchSet::empty();
+        let final_update = patch.update(TreeUpdate::for_empty_tree(&[TreeEntry {
+            key: H256::repeat_byte(0x01),
+            value: H256::repeat_byte(0x10),
+        }]));
+
+        assert_eq!(patch.leaves.len(), 3);
+
+        let patch = patch.finalize(&Blake2Hasher, final_update);
+        let root = patch.try_root(0).unwrap().expect("no root");
+        assert_eq!(root.leaf_count, 3);
+
+        let expected_root_hash: H256 =
+            "0x91a1688c802dc607125d0b5e5ab4d95d89a4a4fb8cca71a122db6076cb70f8f3"
+                .parse()
+                .unwrap();
+        assert_eq!(root.root_node.hash(&Blake2Hasher, 60), expected_root_hash);
+    }
+
+    #[test]
+    fn creating_tree_with_leaves_incrementally() {
+        let mut patch = PartialPatchSet::empty();
+        let final_update = patch.update(TreeUpdate::for_empty_tree(&[]));
+        let patch = patch.finalize(&Blake2Hasher, final_update);
+
+        let merkle_tree = MerkleTree::new(patch).unwrap();
+        let new_entry = TreeEntry {
+            key: H256::repeat_byte(0x01),
+            value: H256::repeat_byte(0x10),
+        };
+        let (mut patch, update) = merkle_tree.create_patch(0, &[new_entry]).unwrap();
+
+        assert_eq!(patch.root.leaf_count, 2);
+        assert_eq!(
+            patch.leaves,
+            HashMap::from([(0, Leaf::MIN_GUARD), (1, Leaf::MAX_GUARD)])
+        );
+
+        assert!(update.updates.is_empty());
+        assert_eq!(update.inserts.len(), 1);
+        assert_eq!(update.inserts[0].prev_index, 0);
+        assert_eq!(update.inserts[0].next_index, 1);
+        assert_eq!(update.sorted_new_leaves.len(), 1);
+        assert_eq!(
+            update.sorted_new_leaves[&new_entry.key],
+            InsertedKeyEntry {
+                index: 2,
+                inserted_at: 1
+            }
+        );
+
+        let final_update = patch.update(update);
+        assert_eq!(patch.root.leaf_count, 3);
+        assert_eq!(
+            patch.leaves[&0],
+            Leaf {
+                next_index: 2,
+                ..Leaf::MIN_GUARD
+            }
+        );
+        assert_eq!(
+            patch.leaves[&1],
+            Leaf {
+                prev_index: 2,
+                ..Leaf::MAX_GUARD
+            }
+        );
+        assert_eq!(
+            patch.leaves[&2],
+            Leaf {
+                key: new_entry.key,
+                value: new_entry.value,
+                prev_index: 0,
+                next_index: 1,
+            }
+        );
+
+        assert_eq!(final_update.version, 1);
+        let new_patch = patch.finalize(&Blake2Hasher, final_update);
+        assert_eq!(new_patch.manifest.version_count, 2);
+        assert_eq!(new_patch.patches_by_version.len(), 1);
+        let root = &new_patch.patches_by_version[&1].root;
+        let expected_root_hash: H256 =
+            "0x91a1688c802dc607125d0b5e5ab4d95d89a4a4fb8cca71a122db6076cb70f8f3"
+                .parse()
+                .unwrap();
+        assert_eq!(root.root_node.hash(&Blake2Hasher, 60), expected_root_hash);
+    }
+
+    #[test]
+    fn creating_tree_with_multiple_leaves_and_update() {
+        let mut patch = PartialPatchSet::empty();
+        let final_update = patch.update(TreeUpdate::for_empty_tree(&[]));
+        let patch = patch.finalize(&Blake2Hasher, final_update);
+
+        let mut merkle_tree = MerkleTree::new(patch).unwrap();
+        let first_entry = TreeEntry {
+            key: H256::repeat_byte(0x01),
+            value: H256::repeat_byte(0x10),
+        };
+        let second_entry = TreeEntry {
+            key: H256::repeat_byte(0x02),
+            value: H256::repeat_byte(0x20),
+        };
+        let (mut patch, update) = merkle_tree
+            .create_patch(0, &[first_entry, second_entry])
+            .unwrap();
+
+        let final_update = patch.update(update);
+        let new_patch = patch.finalize(&Blake2Hasher, final_update);
+
+        merkle_tree.db.apply_patch(new_patch).unwrap();
+
+        let expected_root_hash: H256 =
+            "0x20881c4aa37e3be665cc078db2727f0fc821bc5d9f09f053bb9a93ebd2799fcf"
+                .parse()
+                .unwrap();
+        assert_eq!(merkle_tree.root_hash(1).unwrap(), Some(expected_root_hash));
+
+        let updated_entry = TreeEntry {
+            key: first_entry.key,
+            value: H256::repeat_byte(0x33),
+        };
+        let (mut patch, update) = merkle_tree.create_patch(1, &[updated_entry]).unwrap();
+
+        assert!(update.inserts.is_empty());
+        assert_eq!(update.updates, [(2, updated_entry.value)]);
+
+        // `patch` should only load the updated leaf
+        assert_eq!(patch.leaves.len(), 1);
+        assert_eq!(patch.leaves[&2].key, updated_entry.key);
+        for level in &patch.internal {
+            assert_eq!(level.len(), 1, "{level:?}");
+        }
+
+        let final_update = patch.update(update);
+        let new_patch = patch.finalize(&Blake2Hasher, final_update);
+        merkle_tree.db.apply_patch(new_patch).unwrap();
+
+        let expected_root_hash: H256 =
+            "0x4b6bd61930a8dee1bc412d8a38780f098137be9edbf29c078546b7492748d251"
+                .parse()
+                .unwrap();
+        assert_eq!(merkle_tree.root_hash(2).unwrap(), Some(expected_root_hash));
+    }
+
+    #[test]
+    fn mixed_update_and_insert() {
+        let mut merkle_tree = MerkleTree::new(PatchSet::default()).unwrap();
+        let first_entry = TreeEntry {
+            key: H256::repeat_byte(0x01),
+            value: H256::repeat_byte(0x10),
+        };
+        merkle_tree.extend(vec![first_entry]).unwrap();
+
+        let updated_entry = TreeEntry {
+            key: first_entry.key,
+            value: H256::repeat_byte(0x33),
+        };
+        let second_entry = TreeEntry {
+            key: H256::repeat_byte(0x02),
+            value: H256::repeat_byte(0x20),
+        };
+        let (mut patch, update) = merkle_tree
+            .create_patch(0, &[updated_entry, second_entry])
+            .unwrap();
+
+        assert_eq!(
+            update.inserts,
+            [Leaf {
+                key: second_entry.key,
+                value: second_entry.value,
+                prev_index: 2,
+                next_index: 1,
+            }]
+        );
+        assert_eq!(update.updates, [(2, updated_entry.value)]);
+        // Leaf 1 is updated as a neighbor for the inserted leaf. Leaf 0 is not updated.
+        assert_eq!(
+            patch.leaves.keys().copied().collect::<HashSet<_>>(),
+            HashSet::from([1, 2])
+        );
+
+        let final_update = patch.update(update);
+        let new_patch = patch.finalize(&Blake2Hasher, final_update);
+        merkle_tree.db.apply_patch(new_patch).unwrap();
+
+        let expected_root_hash: H256 =
+            "0x4b6bd61930a8dee1bc412d8a38780f098137be9edbf29c078546b7492748d251"
+                .parse()
+                .unwrap();
+        assert_eq!(merkle_tree.root_hash(1).unwrap(), Some(expected_root_hash));
     }
 }

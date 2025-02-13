@@ -5,7 +5,10 @@ use zksync_basic_types::H256;
 pub use zksync_crypto_primitives::hasher::blake2::Blake2Hasher;
 
 pub use self::{errors::DeserializeError, hasher::HashTree, storage::Database, types::TreeEntry};
-use crate::storage::{PartialPatchSet, TreeUpdate};
+use crate::{
+    storage::{PartialPatchSet, TreeUpdate},
+    types::InternalNode,
+};
 
 mod errors;
 mod hasher;
@@ -42,8 +45,14 @@ impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
 
     /// Returns the root hash of a tree at the specified `version`, or `None` if the version
     /// was not written yet.
-    pub fn root_hash(&self, version: u64) -> Option<H256> {
-        todo!()
+    pub fn root_hash(&self, version: u64) -> anyhow::Result<Option<H256>> {
+        let Some(root) = self.db.try_root(version)? else {
+            return Ok(None);
+        };
+        Ok(Some(
+            root.root_node
+                .hash(&self.hasher, InternalNode::MAX_NIBBLES * 4),
+        ))
     }
 
     /// Returns the latest version of the tree present in the database, or `None` if
