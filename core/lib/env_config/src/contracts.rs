@@ -90,6 +90,7 @@ mod tests {
                 l1_wrapped_base_token_store: Some(addr(
                     "0x36ea7f92f4c5f433efe15284e99c040110cf6298",
                 )),
+                message_root_proxy_addr: Some(addr("0x9a2cd573e8142a5435539f0688f106affcc1a8a6")),
             }),
             base_token_addr: Some(SHARED_BRIDGE_ETHER_TOKEN_ADDRESS),
             l1_base_token_asset_id: Some(
