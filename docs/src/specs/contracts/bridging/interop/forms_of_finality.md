@@ -12,7 +12,7 @@ Interop requires the importing of a [MessageRoot](./message_root.md) from some o
 
 ## Proof based interop
 
-The batch where the interop tx is emitted is sealed and committed to the chain's settlement layer (Gateway or L1). Proof is posted on the SL, and the batch is fully finalized and cannot be reverted. When this happens the SL's `MessageRoot` is updated. The receiving chain imports this `MessageRoot`. When the receiving chain settles, it the imported `MessageRoot` is checked against the MessageRoot.sol contract.
+The batch where the interop tx is emitted is [sealed](../../../blocks_batches.md#L1-batches) and committed to the chain's settlement layer (Gateway or L1). Proof is posted on the SL, and the batch is fully finalized and cannot be reverted. When this happens the SL's `MessageRoot` is updated. The receiving chain imports this `MessageRoot`. When the receiving chain settles using the [Executor facet](../../../../../../contracts/l1-contracts/contracts/state-transition/chain-deps/facets/Executor.sol#L298), it the imported `MessageRoot` is checked against the MessageRoot.sol contract.
 
 This solution is the most trustless, but it is the slowest, since proofs have to be generated.
 
