@@ -1,5 +1,5 @@
 use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
-use zksync_types::{h256_to_u256, message_root::MessageRoot, L1BatchNumber, SLChainId, H256};
+use zksync_types::{h256_to_u256, message_root::MessageRoot, L1BatchNumber, SLChainId, H256, U256};
 
 use crate::Core;
 
@@ -24,16 +24,17 @@ impl MessageRootDal<'_, '_> {
             "set_message_root {:?} {:?} {:?}",
             chain_id.0, number.0, message_root
         );
+        let sides = message_root.as_bytes().to_vec();
         sqlx::query!(
             r#"
-            INSERT INTO message_roots (chain_id, block_number, message_root_hash)
+            INSERT INTO message_roots (chain_id, block_number, message_root_sides)
             VALUES ($1, $2, $3)
             ON CONFLICT (chain_id, block_number)
-            DO UPDATE SET message_root_hash = excluded.message_root_hash;
+            DO UPDATE SET message_root_sides = excluded.message_root_sides;
             "#,
             chain_id.0 as i64,
             number.0 as i64,
-            message_root.as_bytes()
+            &[sides]
         )
         .instrument("set_message_root")
         .with_arg("chain_id", &chain_id)
@@ -52,7 +53,7 @@ impl MessageRootDal<'_, '_> {
             r#"
             WITH Ranked AS (
                 SELECT
-                    Message_Root_Hash,
+                    Message_Root_Sides,
                     Chain_Id,
                     Block_Number,
                     ROW_NUMBER()
@@ -61,7 +62,7 @@ impl MessageRootDal<'_, '_> {
                 FROM Message_Roots
             )
             
-            SELECT Message_Root_Hash, Chain_Id, Block_Number
+            SELECT Message_Root_Sides, Chain_Id, Block_Number
             FROM Ranked
             WHERE Rn <= 5
             ORDER BY Chain_Id, Block_Number DESC;
@@ -73,9 +74,9 @@ impl MessageRootDal<'_, '_> {
         .into_iter()
         .map(|record| {
             let block_number = record.block_number as u32;
-            let root = H256::from_slice(&record.message_root_hash);
+            let root = record.message_root_sides.iter().map(|side| h256_to_u256(H256::from_slice(side))).collect::<Vec<_>>();
             let chain_id = record.chain_id as u32;
-            MessageRoot::new(chain_id, block_number, vec![h256_to_u256(root)])
+            MessageRoot::new(chain_id, block_number, root)
         })
         .collect();
 
@@ -85,6 +86,6 @@ impl MessageRootDal<'_, '_> {
         println!("get_latest_message_root {:?}", result);
         Ok(Some(result))
         // let result = result.unwrap();
-        // Ok(Some(MessageRoot::new(result.unwrap().clone().chain_id as u32, result.unwrap().clone().block_number as u32, H256::from_slice(&result.unwrap().clone().message_root_hash))))
+        // Ok(Some(MessageRoot::new(result.unwrap().clone().chain_id as u32, result.unwrap().clone().block_number as u32, H256::from_slice(&result.unwrap().clone().message_root_sides))))
     }
 }
