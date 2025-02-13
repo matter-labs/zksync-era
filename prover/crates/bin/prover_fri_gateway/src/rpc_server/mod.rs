@@ -1,47 +1,28 @@
-mod state;
-mod methods;
-
+mod processor;
+use std::time::Duration;
 use jsonrpsee::proc_macros::rpc;
 use jsonrpsee::{PendingSubscriptionSink, RpcModule, SubscriptionMessage, TrySendError};
+use jsonrpsee::core::{async_trait, RpcResult, SubscriptionResult};
 use jsonrpsee::server::Server;
 use tokio::sync::watch;
 use zksync_config::configs::GatewayConfig;
 use zksync_prover_dal::{ConnectionPool, Prover};
 use zksync_prover_interface::api::ProofGenerationData;
+use zksync_prover_interface::outputs::L1BatchProofForL1;
+use zksync_prover_interface::rpc::GatewayRpcServer;
 use zksync_types::L2ChainId;
+use crate::rpc_server::processor::RpcDataProcessor;
 
-pub struct RpcServer{
-    pub(crate) state: state::RpcState,
+pub struct RpcServer {
+    pub(crate) processor: RpcDataProcessor,
     pub(crate) ws_port: u16,
 }
 
 impl RpcServer {
-    pub async fn sub(&self, pending: PendingSubscriptionSink, chain_id: L2ChainId) {
-        let Ok(mut sink) = pending.accept().await else {
-            return;
-        };
-
-        loop {
-            let (l1_batch_number, request) = match self.state.next_submit_proof_request(chain_id).await {
-                Some(data) => data,
-                None => break,
-            };
-
-            let msg = SubscriptionMessage::from_json(&request)?;
-            match sink.try_send(msg) {
-                Ok(_) => (),
-                Err(TrySendError::Closed(_)) => break,
-                Err(TrySendError::Full(_)) => (),
-            }
-
-            self.state.save_successful_sent_proof(l1_batch_number, chain_id).await;
-        }
-    }
-
-    pub async fn run(mut self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()>{
+    pub async fn run(mut self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         let address = format!("127.0.0.1:{}", self.ws_port);
         let server = Server::builder().build(address).await?;
-        let handle = server.start(self.module);
+        let handle = server.start(self.processor.into_rpc());
 
         tokio::spawn(async move {
             if stop_receiver.changed().await.is_err() {
@@ -57,4 +38,3 @@ impl RpcServer {
         handle.stopped().await?
     }
 }
-

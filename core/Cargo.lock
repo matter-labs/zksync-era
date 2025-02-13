@@ -12739,6 +12739,7 @@ dependencies = [
  "circuit_definitions",
  "circuit_sequencer_api",
  "fflonk",
+ "jsonrpsee 0.23.2",
  "serde",
  "serde_json",
  "serde_with",

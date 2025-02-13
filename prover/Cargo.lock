@@ -8827,6 +8827,7 @@ dependencies = [
  "circuit_definitions",
  "circuit_sequencer_api",
  "fflonk",
+ "jsonrpsee",
  "serde",
  "serde_with",
  "strum",

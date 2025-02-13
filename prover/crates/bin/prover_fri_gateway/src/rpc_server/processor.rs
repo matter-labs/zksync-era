@@ -1,25 +1,60 @@
 use std::sync::Arc;
+use std::time::Duration;
+use axum::async_trait;
 use jsonrpsee::core::{RpcResult, SubscriptionResult};
+use jsonrpsee::{PendingSubscriptionSink, SubscriptionMessage, TrySendError};
 use jsonrpsee::proc_macros::rpc;
 use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_interface::api::{ProofGenerationData, SubmitProofRequest};
+use zksync_prover_interface::rpc::GatewayRpcServer;
 use zksync_types::{L1BatchNumber, L2ChainId};
 use zksync_types::prover_dal::ProofCompressionJobStatus;
 use crate::api::ProcessorError;
 
-pub struct RpcState {
+pub struct RpcDataProcessor {
     pool: ConnectionPool<Prover>,
     blob_store: Arc<dyn ObjectStore>,
 }
 
-impl RpcState {
+impl RpcDataProcessor {
     pub fn new(pool: ConnectionPool<Prover>, blob_store: Arc<dyn ObjectStore>) -> Self {
         Self {
             pool,
             blob_store,
         }
     }
+
+    pub async fn subscribe(&self, pending: PendingSubscriptionSink, chain_id: L2ChainId) {
+        let Ok(mut sink) = pending.accept().await else {
+            return;
+        };
+
+        loop {
+            let (l1_batch_number, request) = match self.next_submit_proof_request(chain_id).await {
+                Some(data) => data,
+                None => {
+                    tracing::info!("No proofs to send, waiting for new ones");
+                    tokio::time::sleep(Duration::from_secs(5)).await;
+                    continue;
+                },
+            };
+
+            let msg = SubscriptionMessage::from_json(&request)?;
+            match sink.try_send(msg) {
+                Ok(_) => {
+                    self.save_successful_sent_proof(l1_batch_number, chain_id).await;
+                },
+                Err(TrySendError::Closed(_)) => break,
+                Err(TrySendError::Full(_)) => {
+                    tracing::warn!("Channel is full, waiting until it's ready");
+                    tokio::time::sleep(Duration::from_secs(5)).await;
+                    continue
+                },
+            }
+        }
+    }
+
 
     pub async fn next_submit_proof_request(&self, chain_id: L2ChainId) -> Option<(L1BatchNumber, SubmitProofRequest)> {
         let (l1_batch_number, protocol_version, status) = self
@@ -84,6 +119,20 @@ impl RpcState {
             .fri_basic_witness_generator_dal()
             .save_witness_inputs(data.chain_id, data.l1_batch_number, &witness_inputs, data.protocol_version)
             .await;
+        Ok(())
+    }
+}
+
+
+#[async_trait]
+impl GatewayRpcServer for RpcDataProcessor {
+    async fn submit_proof_generation_data(&self, data: ProofGenerationData) -> RpcResult<()> {
+        self.save_proof_gen_data(data).await?;
+        Ok(())
+    }
+
+    async fn subscribe_for_proofs(&self, subscription_sink: PendingSubscriptionSink, chain_id: L2ChainId) -> SubscriptionResult {
+        self.subscribe(subscription_sink, chain_id).await;
         Ok(())
     }
 }

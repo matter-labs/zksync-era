@@ -6,6 +6,7 @@ mod errors;
 mod metrics;
 mod middleware;
 mod proof_data_submitter;
+mod rpc_client;
 
 pub use api::{TeeProofDataHandler, RequestProcessor};
 pub use proof_data_submitter::{
