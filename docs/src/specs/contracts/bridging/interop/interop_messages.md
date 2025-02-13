@@ -48,7 +48,7 @@ chain ID, and messageNum (a nonce ensuring the hash of this structure is globall
 This `interopHash` serves as a globally unique identifier that can be used on any chain in the network to call
 `verifyInteropMessage`.
 
-![A message created on one chain can be verified on any other chain.](./img/verifyinteropmsg.png)
+![A message created on one chain can be verified on any other chain.](./img/verify_interop_msg.png)
 
 #### How do I get the proof
 

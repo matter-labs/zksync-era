@@ -107,12 +107,12 @@ Another notable example of the redundancy of data, is that we also have total `M
 <!-- The `sendToL1` method is part of a system contract that gathers all messages during a batch, constructs a Merkle tree
 from them at the end of the batch, and sends this tree to the SettlementLayer (Gateway) when the batch is committed.
 
-![sendtol1.png](./img/sendtol1.png)
+![sendtol1.png](./img/merkle_chain_root.png)
 
 The settlement layer receives the messages and once the proof for the batch is submitted (or more accurately, during the
 "execute" step), it will add the root of the Merkle tree to its `messageRoot` (sometimes called `globalRoot`).
 
-![globalroot.png](./img/globalroot.png)
+![globalroot.png](./img/merkle_message_root.png)
 
 The `messageRoot` is the root of the Merkle tree that includes all messages from all chains. Each chain regularly reads
 the messageRoot value from the Gateway to stay synchronized.
@@ -123,7 +123,7 @@ If a user wants to call `verifyInteropMessage` on a chain, they first need to qu
 the batch they are interested in up to the `messageRoot`. Once they have this path, they can provide it as an argument
 when calling a method on the destination chain (such as the `openSignup` method in our example).
 
-![proofmerklepath.png](./img/proofmerklepath.png)
+![proofmerklepath.png](./img/gateway_chains.png)
 
 #### What if Chain doesn’t provide the proof
 
