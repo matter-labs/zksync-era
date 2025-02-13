@@ -25,7 +25,7 @@ pub(crate) struct TreeUpdate {
 }
 
 impl TreeUpdate {
-    pub(crate) fn for_empty_tree(entries: &[TreeEntry]) -> Self {
+    pub(crate) fn for_empty_tree(entries: &[TreeEntry]) -> anyhow::Result<Self> {
         let mut sorted_new_leaves = BTreeMap::from([
             (
                 H256::zero(),
@@ -51,6 +51,11 @@ impl TreeUpdate {
                 },
             )
         }));
+
+        anyhow::ensure!(
+            sorted_new_leaves.len() == entries.len() + 2,
+            "Attempting to insert duplicate keys into a tree; please deduplicate keys on the caller side"
+        );
 
         let mut inserts = Vec::with_capacity(entries.len() + 2);
         for entry in [&TreeEntry::MIN_GUARD, &TreeEntry::MAX_GUARD]
@@ -82,12 +87,12 @@ impl TreeUpdate {
             });
         }
 
-        Self {
+        Ok(Self {
             version: 0,
             sorted_new_leaves,
             updates: vec![],
             inserts,
-        }
+        })
     }
 }
 
@@ -427,6 +432,12 @@ impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
                 }
             }
         }
+
+        anyhow::ensure!(
+            sorted_new_leaves.len() == inserts.len(),
+            "Attempting to insert duplicate keys into a tree; please deduplicate keys on the caller side"
+        );
+        // We don't check for duplicate updates since they don't lead to logical errors, they're just inefficient
 
         Ok((
             patch,

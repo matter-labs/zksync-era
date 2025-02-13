@@ -67,7 +67,7 @@ fn comparing_tree_hash_against_naive_impl() {
         println!("Insert in {chunk_size}-sized chunks");
         let mut tree = MerkleTree::new(PatchSet::default()).unwrap();
         for chunk in inserts.chunks(chunk_size) {
-            tree.extend(chunk.to_vec()).unwrap();
+            tree.extend(chunk).unwrap();
         }
         let root_hash = tree.latest_root_hash().unwrap().expect("tree is empty");
         assert_eq!(root_hash, expected_root_hash);
@@ -87,7 +87,7 @@ fn comparing_tree_hash_with_updates() {
     let initial_root_hash = naive_hash_tree(&inserts);
 
     let mut tree = MerkleTree::new(PatchSet::default()).unwrap();
-    tree.extend(inserts.clone()).unwrap();
+    tree.extend(&inserts).unwrap();
     assert_eq!(
         tree.latest_root_hash().unwrap().expect("tree is empty"),
         initial_root_hash
@@ -105,7 +105,7 @@ fn comparing_tree_hash_with_updates() {
         println!("Update in {chunk_size}-sized chunks");
         let mut tree = MerkleTree::new(initial_patch.clone()).unwrap();
         for chunk in updates.chunks(chunk_size) {
-            tree.extend(chunk.to_vec()).unwrap();
+            tree.extend(chunk).unwrap();
         }
         let root_hash = tree.latest_root_hash().unwrap().expect("tree is empty");
         assert_eq!(root_hash, new_root_hash);

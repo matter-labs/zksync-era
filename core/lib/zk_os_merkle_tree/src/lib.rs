@@ -78,6 +78,8 @@ impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
 
     /// Extends this tree by creating its new version.
     ///
+    /// All keys in the provided entries must be distinct.
+    ///
     /// # Return value
     ///
     /// Returns information about the update such as the final tree hash.
@@ -85,18 +87,17 @@ impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
     /// # Errors
     ///
     /// Proxies database I/O errors.
-    // FIXME: ownership; check key uniqueness.
-    pub fn extend(&mut self, entries: Vec<TreeEntry>) -> anyhow::Result<()> {
+    pub fn extend(&mut self, entries: &[TreeEntry]) -> anyhow::Result<()> {
         let latest_version = self
             .latest_version()
             .context("failed getting latest version")?;
         let (mut patch, update) = if let Some(version) = latest_version {
-            self.create_patch(version, &entries)
+            self.create_patch(version, entries)
                 .context("failed loading tree data")?
         } else {
             (
                 PartialPatchSet::empty(),
-                TreeUpdate::for_empty_tree(&entries),
+                TreeUpdate::for_empty_tree(entries)?,
             )
         };
 

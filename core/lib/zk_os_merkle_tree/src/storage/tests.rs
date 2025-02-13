@@ -7,7 +7,7 @@ use crate::{MerkleTree, TreeEntry};
 
 #[test]
 fn creating_min_update_for_empty_tree() {
-    let update = TreeUpdate::for_empty_tree(&[]);
+    let update = TreeUpdate::for_empty_tree(&[]).unwrap();
     assert_eq!(update.version, 0);
     assert!(update.updates.is_empty());
 
@@ -43,7 +43,8 @@ fn creating_non_empty_update_for_empty_tree() {
             key: H256::repeat_byte(1),
             value: H256::from_low_u64_be(2),
         },
-    ]);
+    ])
+    .unwrap();
     assert_eq!(update.version, 0);
     assert!(update.updates.is_empty());
 
@@ -115,7 +116,7 @@ fn creating_non_empty_update_for_empty_tree() {
 #[test]
 fn creating_empty_tree() {
     let mut patch = PartialPatchSet::empty();
-    let final_update = patch.update(TreeUpdate::for_empty_tree(&[]));
+    let final_update = patch.update(TreeUpdate::for_empty_tree(&[]).unwrap());
     assert_eq!(final_update.version, 0);
 
     assert_eq!(patch.leaves.len(), 2);
@@ -159,10 +160,12 @@ fn creating_empty_tree() {
 #[test]
 fn creating_tree_with_leaves_in_single_batch() {
     let mut patch = PartialPatchSet::empty();
-    let final_update = patch.update(TreeUpdate::for_empty_tree(&[TreeEntry {
+    let update = TreeUpdate::for_empty_tree(&[TreeEntry {
         key: H256::repeat_byte(0x01),
         value: H256::repeat_byte(0x10),
-    }]));
+    }])
+    .unwrap();
+    let final_update = patch.update(update);
 
     assert_eq!(patch.leaves.len(), 3);
 
@@ -180,7 +183,7 @@ fn creating_tree_with_leaves_in_single_batch() {
 #[test]
 fn creating_tree_with_leaves_incrementally() {
     let mut patch = PartialPatchSet::empty();
-    let final_update = patch.update(TreeUpdate::for_empty_tree(&[]));
+    let final_update = patch.update(TreeUpdate::for_empty_tree(&[]).unwrap());
     let patch = patch.finalize(&Blake2Hasher, final_update);
 
     let merkle_tree = MerkleTree::new(patch).unwrap();
@@ -250,7 +253,7 @@ fn creating_tree_with_leaves_incrementally() {
 #[test]
 fn creating_tree_with_multiple_leaves_and_update() {
     let mut patch = PartialPatchSet::empty();
-    let final_update = patch.update(TreeUpdate::for_empty_tree(&[]));
+    let final_update = patch.update(TreeUpdate::for_empty_tree(&[]).unwrap());
     let patch = patch.finalize(&Blake2Hasher, final_update);
 
     let mut merkle_tree = MerkleTree::new(patch).unwrap();
@@ -311,7 +314,7 @@ fn mixed_update_and_insert() {
         key: H256::repeat_byte(0x01),
         value: H256::repeat_byte(0x10),
     };
-    merkle_tree.extend(vec![first_entry]).unwrap();
+    merkle_tree.extend(&[first_entry]).unwrap();
 
     let updated_entry = TreeEntry {
         key: first_entry.key,
