@@ -1,8 +1,8 @@
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_multivm::{
     interface::{
-        storage::StorageViewCache, Call, CompressedBytecodeInfo, FinishedL1Batch, L1BatchEnv,
-        SystemEnv, VmExecutionMetrics, VmExecutionResultAndLogs,
+        storage::StorageViewCache, Call, FinishedL1Batch, L1BatchEnv, SystemEnv,
+        VmExecutionMetrics, VmExecutionResultAndLogs,
     },
     utils::{get_batch_base_fee, StorageWritesDeduplicator},
 };
@@ -137,7 +137,6 @@ impl UpdatesManager {
         &mut self,
         tx: Transaction,
         tx_execution_result: VmExecutionResultAndLogs,
-        compressed_bytecodes: Vec<CompressedBytecodeInfo>,
         execution_metrics: VmExecutionMetrics,
         call_traces: Vec<Call>,
     ) {
@@ -150,7 +149,6 @@ impl UpdatesManager {
             tx,
             tx_execution_result,
             execution_metrics,
-            compressed_bytecodes,
             call_traces,
         );
         latency.observe();
@@ -164,7 +162,7 @@ impl UpdatesManager {
         );
 
         let result = &finished_batch.block_tip_execution_result;
-        let batch_tip_execution_metrics = result.get_execution_metrics(None);
+        let batch_tip_execution_metrics = result.get_execution_metrics();
 
         let before = self.storage_writes_deduplicator.metrics();
         self.storage_writes_deduplicator
@@ -270,7 +268,6 @@ mod tests {
         updates_manager.extend_from_executed_transaction(
             tx,
             create_execution_result([]),
-            vec![],
             VmExecutionMetrics::default(),
             vec![],
         );
