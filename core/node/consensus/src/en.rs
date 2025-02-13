@@ -170,6 +170,9 @@ impl EN {
     }
 
     /// Task fetching L2 blocks using JSON-RPC endpoint of the main node.
+    // TODO: remove this method once the JSON-RPC syncing is deprecated.
+    // Right now it's only needed for a single test of the fallback fetcher.
+    #[allow(dead_code)]
     pub async fn run_fetcher(
         self,
         ctx: &ctx::Ctx,
@@ -422,6 +425,9 @@ impl EN {
     }
 
     /// Fetches blocks starting with `queue.next()`.
+    // TODO: remove this method once the JSON-RPC syncing is deprecated.
+    // Right now it's only needed for a single test of the fallback fetcher.
+    #[allow(dead_code)]
     async fn fetch_blocks(
         &self,
         ctx: &ctx::Ctx,
