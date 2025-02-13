@@ -1,7 +1,7 @@
 use zksync_types::{
     contract_verification_api::{
-        CompilerType, CompilerVersions, SourceCodeData, VerificationIncomingRequest,
-        VerificationRequest,
+        CompilerType, CompilerVersions, EtherscanVerificationRequest, SourceCodeData,
+        VerificationIncomingRequest, VerificationRequest,
     },
     Address,
 };
@@ -47,6 +47,45 @@ impl From<StorageVerificationRequest> for VerificationRequest {
                 is_system: value.is_system,
                 force_evmla: value.force_evmla,
             },
+        }
+    }
+}
+
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct StorageEtherscanVerificationRequest {
+    pub id: i64,
+    pub contract_address: Vec<u8>,
+    pub source_code: String,
+    pub contract_name: String,
+    pub zk_compiler_version: Option<String>,
+    pub compiler_version: String,
+    pub optimization_used: bool,
+    pub optimizer_mode: Option<String>,
+    pub constructor_arguments: Vec<u8>,
+    pub is_system: bool,
+    pub force_evmla: bool,
+    pub etherscan_verification_id: Option<String>,
+}
+impl From<StorageEtherscanVerificationRequest> for EtherscanVerificationRequest {
+    fn from(value: StorageEtherscanVerificationRequest) -> Self {
+        let storage_verifier_request = StorageVerificationRequest {
+            id: value.id,
+            contract_address: value.contract_address,
+            source_code: value.source_code,
+            contract_name: value.contract_name,
+            zk_compiler_version: value.zk_compiler_version,
+            compiler_version: value.compiler_version,
+            optimization_used: value.optimization_used,
+            optimizer_mode: value.optimizer_mode,
+            constructor_arguments: value.constructor_arguments,
+            is_system: value.is_system,
+            force_evmla: value.force_evmla,
+        };
+        let verifier_request: VerificationRequest = storage_verifier_request.into();
+        EtherscanVerificationRequest {
+            id: verifier_request.id,
+            req: verifier_request.req,
+            etherscan_verification_id: value.etherscan_verification_id,
         }
     }
 }

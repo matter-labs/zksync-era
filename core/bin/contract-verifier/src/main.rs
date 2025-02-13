@@ -4,7 +4,7 @@ use anyhow::Context as _;
 use clap::Parser;
 use tokio::sync::watch;
 use zksync_config::configs::PrometheusConfig;
-use zksync_contract_verifier_lib::ContractVerifier;
+use zksync_contract_verifier_lib::{etherscan::EtherscanVerifier, ContractVerifier};
 use zksync_core_leftovers::temp_config_store::{load_database_secrets, load_general_config};
 use zksync_dal::{ConnectionPool, Core};
 use zksync_queued_job_processor::JobProcessor;
@@ -52,17 +52,35 @@ async fn main() -> anyhow::Result<()> {
     .await?;
 
     let (stop_sender, stop_receiver) = watch::channel(false);
-    let contract_verifier = ContractVerifier::new(verifier_config.compilation_timeout(), pool)
-        .await
-        .context("failed initializing contract verifier")?;
+    let contract_verifier =
+        ContractVerifier::new(verifier_config.compilation_timeout(), pool.clone())
+            .await
+            .context("failed initializing contract verifier")?;
     let update_task = contract_verifier.sync_compiler_versions_task();
-    let tasks = vec![
+
+    let mut tasks = vec![
         tokio::spawn(update_task),
         tokio::spawn(contract_verifier.run(stop_receiver.clone(), opt.jobs_number)),
         tokio::spawn(
-            PrometheusExporterConfig::pull(prometheus_config.listener_port).run(stop_receiver),
+            PrometheusExporterConfig::pull(prometheus_config.listener_port)
+                .run(stop_receiver.clone()),
         ),
     ];
+    match (
+        std::env::var("ETHERSCAN_API_URL"),
+        std::env::var("ETHERSCAN_API_KEY"),
+    ) {
+        (Ok(api_url), Ok(api_key)) => {
+            tracing::info!("Etherscan verifier is enabled");
+            let etherscan_verifier = EtherscanVerifier::new(api_url, api_key, pool);
+            tasks.push(tokio::spawn(
+                etherscan_verifier.run(stop_receiver, opt.jobs_number),
+            ));
+        }
+        _ => {
+            tracing::info!("Etherscan verifier is disabled");
+        }
+    }
 
     let mut tasks = ManagedTasks::new(tasks);
     tokio::select! {

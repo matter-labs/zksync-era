@@ -31,6 +31,7 @@ use crate::{
 
 mod compilers;
 pub mod error;
+pub mod etherscan;
 mod metrics;
 mod resolver;
 #[cfg(test)]
@@ -557,6 +558,8 @@ impl ContractVerifier {
                     .save_verification_info(info)
                     .await?;
                 tracing::info!("Successfully processed request with id = {request_id}");
+
+                API_CONTRACT_VERIFIER_METRICS.successful_verifications[&Self::SERVICE_NAME].inc();
             }
             Err(error) => {
                 let error_message = match &error {
@@ -578,6 +581,8 @@ impl ContractVerifier {
                     .save_verification_error(request_id, &error_message, &compilation_errors, None)
                     .await?;
                 tracing::info!("Request with id = {request_id} was failed");
+
+                API_CONTRACT_VERIFIER_METRICS.failed_verifications[&Self::SERVICE_NAME].inc();
             }
         }
         Ok(())

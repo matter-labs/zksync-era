@@ -10,15 +10,18 @@ use zksync_db_connection::{error::SqlxContext, instrument::InstrumentExt};
 use zksync_types::{
     address_to_h256,
     contract_verification_api::{
-        VerificationIncomingRequest, VerificationInfo, VerificationRequest,
-        VerificationRequestStatus,
+        EtherscanVerificationRequest, SourceCodeData, VerificationIncomingRequest,
+        VerificationInfo, VerificationRequest, VerificationRequestStatus,
     },
     web3, Address, CONTRACT_DEPLOYER_ADDRESS, H256,
 };
 use zksync_vm_interface::VmEvent;
 
 use crate::{
-    models::storage_verification_request::StorageVerificationRequest, Connection, Core, DalResult,
+    models::storage_verification_request::{
+        StorageEtherscanVerificationRequest, StorageVerificationRequest,
+    },
+    Connection, Core, DalResult,
 };
 
 #[derive(Debug)]
@@ -36,6 +39,21 @@ impl Display for Compiler {
             Self::Solc => f.write_str("solc"),
             Self::ZkVyper => f.write_str("zkvyper"),
             Self::Vyper => f.write_str("vyper"),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum EtherscanVerificationJobResultStatus {
+    Successful,
+    Failed,
+}
+
+impl EtherscanVerificationJobResultStatus {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            EtherscanVerificationJobResultStatus::Successful => "successful",
+            EtherscanVerificationJobResultStatus::Failed => "failed",
         }
     }
 }
@@ -184,7 +202,75 @@ impl ContractVerificationDal<'_, '_> {
         Ok(result)
     }
 
+    /// Returns the next verification request that is to be sent to Etherscan.
+    /// Selects the request id from etherscan_verification_requests
+    /// and then returns the actual request from joined contract_verification_requests.
+    /// Handles the situation where processing of some request
+    /// can be interrupted (panic, pod restart, etc..),
+    /// `processing_timeout` parameter is used to avoid stuck requests.
+    pub async fn get_next_queued_etherscan_verification_request(
+        &mut self,
+        processing_timeout: Duration,
+    ) -> DalResult<Option<EtherscanVerificationRequest>> {
+        let processing_timeout = PgInterval {
+            months: 0,
+            days: 0,
+            microseconds: processing_timeout.as_micros() as i64,
+        };
+        let result = sqlx::query_as!(
+            StorageEtherscanVerificationRequest,
+            r#"
+            UPDATE etherscan_verification_requests evr
+            SET
+                status = 'in_progress',
+                attempts = evr.attempts + 1,
+                updated_at = NOW(),
+                processing_started_at = NOW()
+            FROM contract_verification_requests cvr
+            WHERE
+                evr.contract_verification_request_id = (
+                    SELECT contract_verification_request_id
+                    FROM etherscan_verification_requests
+                    WHERE
+                        (
+                            status = 'queued'
+                            OR (
+                                status = 'in_progress'
+                                AND processing_started_at < NOW() - $1::INTERVAL
+                            )
+                        )
+                    ORDER BY created_at
+                    LIMIT 1
+                    FOR UPDATE SKIP LOCKED
+                )
+                AND evr.contract_verification_request_id = cvr.id
+            RETURNING
+            cvr.id,
+            cvr.contract_address,
+            cvr.source_code,
+            cvr.contract_name,
+            cvr.zk_compiler_version,
+            cvr.compiler_version,
+            cvr.optimization_used,
+            cvr.optimizer_mode,
+            cvr.constructor_arguments,
+            cvr.is_system,
+            cvr.force_evmla,
+            evr.etherscan_verification_id
+            "#,
+            &processing_timeout
+        )
+        .instrument("get_next_queued_etherscan_verification_request")
+        .with_arg("processing_timeout", &processing_timeout)
+        .fetch_optional(self.storage)
+        .await?
+        .map(Into::into);
+        Ok(result)
+    }
+
     /// Updates the verification request status and inserts the verification info upon successful verification.
+    /// Additionally inserts a new etherscan verification request
+    /// which is linked to the original contract verification request by its ID.
     pub async fn save_verification_info(
         &mut self,
         verification_info: VerificationInfo,
@@ -211,7 +297,7 @@ impl ContractVerificationDal<'_, '_> {
         .await?;
 
         // Serialization should always succeed.
-        let verification_info_json = serde_json::to_value(verification_info)
+        let verification_info_json = serde_json::to_value(verification_info.clone())
             .expect("Failed to serialize verification info into serde_json");
         sqlx::query!(
             r#"
@@ -232,6 +318,32 @@ impl ContractVerificationDal<'_, '_> {
         .with_arg("address", &address)
         .execute(&mut transaction)
         .await?;
+
+        // Add a new etherscan verification request only if the source code is
+        // a solc single file or a standard json input. Others are not supported by
+        // the Etherscan API.
+        if let SourceCodeData::SolSingleFile(_) | SourceCodeData::StandardJsonInput(_) =
+            verification_info.request.req.source_code_data
+        {
+            sqlx::query!(
+                r#"
+                INSERT INTO
+                etherscan_verification_requests (
+                    contract_verification_request_id,
+                    status,
+                    created_at,
+                    updated_at
+                )
+                VALUES
+                ($1, 'queued', NOW(), NOW())
+                "#,
+                id as i64,
+            )
+            .instrument("save_verification_info#add_etherscan_request")
+            .with_arg("id", &id)
+            .execute(&mut transaction)
+            .await?;
+        }
 
         transaction.commit().await
     }
@@ -263,6 +375,79 @@ impl ContractVerificationDal<'_, '_> {
         .instrument("save_verification_error")
         .with_arg("id", &id)
         .with_arg("error", &error)
+        .execute(self.storage)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn save_etherscan_verification_request_id(
+        &mut self,
+        request_id: usize,
+        etherscan_verification_id: &str,
+    ) -> DalResult<()> {
+        sqlx::query!(
+            r#"
+            UPDATE etherscan_verification_requests
+            SET
+                etherscan_verification_id = $2,
+                updated_at = NOW()
+            WHERE
+                contract_verification_request_id = $1
+            "#,
+            request_id as i64,
+            etherscan_verification_id,
+        )
+        .instrument("save_etherscan_verification_request_id")
+        .with_arg("request_id", &request_id)
+        .execute(self.storage)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn save_etherscan_verification_result(
+        &mut self,
+        request_id: usize,
+        status: EtherscanVerificationJobResultStatus,
+        error: Option<&str>,
+    ) -> DalResult<()> {
+        sqlx::query!(
+            r#"
+            UPDATE etherscan_verification_requests
+            SET
+                status = $2,
+                updated_at = NOW(),
+                error = $3
+            WHERE
+                contract_verification_request_id = $1
+            "#,
+            request_id as i64,
+            status.as_str(),
+            error,
+        )
+        .instrument("save_etherscan_verification_result")
+        .with_arg("request_id", &request_id)
+        .with_arg("error", &error)
+        .execute(self.storage)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn reset_etherscan_verification_processing_started_at(
+        &mut self,
+        request_id: usize,
+    ) -> DalResult<()> {
+        sqlx::query!(
+            r#"
+            UPDATE etherscan_verification_requests
+            SET
+                processing_started_at = NOW()
+            WHERE
+                contract_verification_request_id = $1
+            "#,
+            request_id as i64,
+        )
+        .instrument("reset_etherscan_verification_processing_started_at")
+        .with_arg("request_id", &request_id)
         .execute(self.storage)
         .await?;
         Ok(())
