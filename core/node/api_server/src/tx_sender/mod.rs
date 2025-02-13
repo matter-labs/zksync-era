@@ -3,11 +3,7 @@
 use std::{default::Default, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
-use ruint::aliases::B160;
 use tokio::sync::RwLock;
-use zk_ee::common_structs::derive_flat_storage_key;
-use zk_os_basic_system::basic_io_implementer::address_into_special_storage_key;
-use zk_os_system_hooks::addresses_constants::NOMINAL_TOKEN_BALANCE_STORAGE_ADDRESS;
 use zksync_config::configs::{api::Web3JsonRpcConfig, chain::StateKeeperConfig};
 use zksync_dal::{
     transactions_dal::L2TxSubmissionResult, Connection, ConnectionPool, Core, CoreDal, DalError,
@@ -40,6 +36,12 @@ use zksync_types::{
 };
 use zksync_vm_executor::oneshot::{
     CallOrExecute, EstimateGas, MultiVmBaseSystemContracts, OneshotEnvParameters,
+};
+#[cfg(feature = "zkos")]
+use {
+    ruint::aliases::B160, zk_ee::common_structs::derive_flat_storage_key,
+    zk_os_basic_system::basic_io_implementer::address_into_special_storage_key,
+    zk_os_system_hooks::addresses_constants::NOMINAL_TOKEN_BALANCE_STORAGE_ADDRESS,
 };
 
 pub(super) use self::{gas_estimation::BinarySearchKind, result::SubmitTxError};
@@ -617,13 +619,6 @@ impl TxSender {
 
             let balance = balances.remove(&storage_hashed_key).unwrap_or_default();
 
-            // let eth_balance_key = storage_key_for_eth_balance(initiator_address);
-            // let balance = self
-            //     .acquire_replica_connection()
-            //     .await?
-            //     .storage_web3_dal()
-            //     .get_value(&eth_balance_key)
-            //     .await?;
             Ok(h256_to_u256(balance))
         }
     }

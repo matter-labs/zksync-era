@@ -7,13 +7,7 @@ use std::{
 
 use anyhow::Context as _;
 use async_trait::async_trait;
-use ruint::aliases::U256;
 use tokio::{runtime::Handle, task::spawn_blocking};
-use zk_ee::system::system_trait::errors::InternalError;
-use zk_os_forward_system::run::{
-    output::TxResult, BatchContext, ExecutionOutput, ExecutionResult as ZkOSExecutionResult,
-    StorageCommitment, TxOutput,
-};
 use zksync_dal::{Connection, Core};
 use zksync_multivm::{
     interface::{
@@ -31,8 +25,17 @@ use zksync_types::{
     StorageKey, StorageLog, StorageLogKind, Transaction,
 };
 use zksync_vm_executor::oneshot::{MainOneshotExecutor, MockOneshotExecutor};
-use zksync_zkos_vm_runner::zkos_conversions::{
-    b160_to_address, bytes32_to_h256, tx_abi_encode, zkos_log_to_vm_event,
+#[cfg(feature = "zkos")]
+use {
+    ruint::aliases::U256,
+    zk_ee::system::system_trait::errors::InternalError,
+    zk_os_forward_system::run::{
+        output::TxResult, BatchContext, ExecutionOutput, ExecutionResult as ZkOSExecutionResult,
+        StorageCommitment, TxOutput,
+    },
+    zksync_zkos_vm_runner::zkos_conversions::{
+        b160_to_address, bytes32_to_h256, tx_abi_encode, zkos_log_to_vm_event,
+    },
 };
 
 use super::{vm_metrics::SandboxStage, BlockArgs, VmPermit, SANDBOX_METRICS};

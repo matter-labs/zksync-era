@@ -1,10 +1,6 @@
 use std::str::FromStr;
 
 use anyhow::Context as _;
-use ruint::aliases::B160;
-use zk_ee::common_structs::derive_flat_storage_key;
-use zk_os_basic_system::basic_io_implementer::address_into_special_storage_key;
-use zk_os_system_hooks::addresses_constants::NOMINAL_TOKEN_BALANCE_STORAGE_ADDRESS;
 use zksync_dal::{CoreDal, DalError};
 use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
@@ -24,6 +20,12 @@ use zksync_types::{
 use zksync_web3_decl::{
     error::Web3Error,
     types::{Address, Block, Filter, FilterChanges, Log, U64},
+};
+#[cfg(feature = "zkos")]
+use {
+    ruint::aliases::B160, zk_ee::common_structs::derive_flat_storage_key,
+    zk_os_basic_system::basic_io_implementer::address_into_special_storage_key,
+    zk_os_system_hooks::addresses_constants::NOMINAL_TOKEN_BALANCE_STORAGE_ADDRESS,
 };
 
 use crate::{
@@ -182,7 +184,8 @@ impl EthNamespace {
         let mut connection = self.state.acquire_connection().await?;
         let block_number = self.state.resolve_block(&mut connection, block_id).await?;
 
-        let balance = if cfg!(feature = "zkos") {
+        #[cfg(feature = "zkos")]
+        let balance = {
             let address = B160::from_be_bytes(address.to_fixed_bytes());
             let key = address_into_special_storage_key(&address);
             let flat_key = derive_flat_storage_key(&NOMINAL_TOKEN_BALANCE_STORAGE_ADDRESS, &key);
@@ -196,7 +199,10 @@ impl EthNamespace {
 
             let balance = balances.remove(&storage_hashed_key).unwrap_or_default();
             h256_to_u256(balance)
-        } else {
+        };
+
+        #[cfg(not(feature = "zkos"))]
+        let balance = {
             connection
                 .storage_web3_dal()
                 .standard_token_historical_balance(

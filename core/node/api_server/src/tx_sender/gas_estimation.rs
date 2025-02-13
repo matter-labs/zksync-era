@@ -1,7 +1,6 @@
 use std::{ops, time::Instant};
 
 use anyhow::Context;
-use zk_os_forward_system::run::ExecutionResult as ZkOsExecutionResult;
 use zksync_dal::CoreDal;
 use zksync_multivm::{
     interface::{
