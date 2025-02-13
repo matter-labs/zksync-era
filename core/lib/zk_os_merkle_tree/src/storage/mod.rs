@@ -48,7 +48,7 @@ struct InsertedKeyEntry {
     inserted_at: u64,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct PatchSet {
     manifest: Manifest,
     patches_by_version: HashMap<u64, PartialPatchSet>,

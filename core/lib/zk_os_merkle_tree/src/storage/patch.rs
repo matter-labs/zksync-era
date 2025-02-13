@@ -98,7 +98,7 @@ pub(crate) struct FinalTreeUpdate {
     pub(super) sorted_new_leaves: BTreeMap<H256, InsertedKeyEntry>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct PartialPatchSet {
     pub(super) root: Root,
     // FIXME: maybe, a wrapper around `Vec<(_, _)>` would be more efficient?
@@ -225,9 +225,9 @@ impl PartialPatchSet {
         }
 
         if !update.inserts.is_empty() {
-            let new_idx = self.root.leaf_count;
+            let first_new_idx = self.root.leaf_count;
             // Cannot underflow because `update.inserts.len() >= 1`
-            let mut new_indexes = new_idx..=(new_idx + update.inserts.len() as u64 - 1);
+            let mut new_indexes = first_new_idx..=(first_new_idx + update.inserts.len() as u64 - 1);
 
             // Update prev / next index pointers for neighbors.
             for (idx, new_leaf) in new_indexes.clone().zip(&update.inserts) {
@@ -255,16 +255,20 @@ impl PartialPatchSet {
                 let parent_indexes = (new_indexes.start() >> 4)..=(new_indexes.end() >> 4);
 
                 // Only the first of `parent_indexes` may exist already; all others are necessarily new.
-                if let Some(parent) = internal_level.get_mut(parent_indexes.start()) {
-                    let expected_len = (new_indexes.start() % 16 + len).min(16);
-                    parent.ensure_len(expected_len as usize, version);
-                } else {
-                    internal_level.insert(
-                        *parent_indexes.start(),
-                        InternalNode::new(len.min(16) as usize, version),
-                    );
-                }
-                len = len.saturating_sub(16);
+                len = len.saturating_sub(
+                    if let Some(parent) = internal_level.get_mut(parent_indexes.start()) {
+                        let current_len = parent.child_refs().len();
+                        let expected_len = (new_indexes.start() % 16 + len).min(16);
+                        parent.ensure_len(expected_len as usize, version);
+                        expected_len - current_len as u64
+                    } else {
+                        internal_level.insert(
+                            *parent_indexes.start(),
+                            InternalNode::new(len.min(16) as usize, version),
+                        );
+                        16
+                    },
+                );
 
                 for parent_idx in parent_indexes.clone().skip(1) {
                     internal_level
@@ -279,6 +283,8 @@ impl PartialPatchSet {
             self.root
                 .root_node
                 .ensure_len(*new_indexes.end() as usize + 1, version);
+
+            self.update_ancestor_versions(first_new_idx, version);
         }
 
         FinalTreeUpdate {
@@ -370,7 +376,12 @@ impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
                         [prev_key_and_index.1, next_key_and_index.1]
                     }
                 });
-        let distinct_indices: BTreeSet<_> = distinct_indices.collect();
+        let mut distinct_indices: BTreeSet<_> = distinct_indices.collect();
+        if !sorted_new_leaves.is_empty() {
+            // Need to load the latest existing leaf and its ancestors so that new ancestors can be correctly
+            // inserted for the new leaves.
+            distinct_indices.insert(root.leaf_count - 1);
+        }
 
         let mut patch = PartialPatchSet::new(root);
         patch.load_nodes(&self.db, distinct_indices.iter().copied())?;

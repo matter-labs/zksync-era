@@ -19,3 +19,6 @@ anyhow.workspace = true
 once_cell.workspace = true
 rayon.workspace = true
 thiserror.workspace = true
+
+[dev-dependencies]
+rand.workspace = true

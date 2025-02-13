@@ -10511,6 +10511,7 @@ version = "26.2.1-non-semver-compat"
 dependencies = [
  "anyhow",
  "once_cell",
+ "rand 0.8.5",
  "rayon",
  "thiserror 1.0.69",
  "zksync_basic_types",

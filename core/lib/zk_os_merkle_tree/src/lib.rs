@@ -13,6 +13,8 @@ use crate::{
 mod errors;
 mod hasher;
 mod storage;
+#[cfg(test)]
+mod tests;
 mod types;
 
 #[derive(Debug)]
@@ -64,6 +66,16 @@ impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
         Ok(manifest.version_count.checked_sub(1))
     }
 
+    pub fn latest_root_hash(&self) -> anyhow::Result<Option<H256>> {
+        let Some(version) = self
+            .latest_version()
+            .context("failed getting latest version")?
+        else {
+            return Ok(None);
+        };
+        self.root_hash(version)
+    }
+
     /// Extends this tree by creating its new version.
     ///
     /// # Return value
@@ -73,6 +85,7 @@ impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
     /// # Errors
     ///
     /// Proxies database I/O errors.
+    // FIXME: ownership; check key uniqueness.
     pub fn extend(&mut self, entries: Vec<TreeEntry>) -> anyhow::Result<()> {
         let latest_version = self
             .latest_version()
