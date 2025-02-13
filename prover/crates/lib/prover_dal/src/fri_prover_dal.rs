@@ -1072,13 +1072,15 @@ mod tests {
         let mut conn = pool.connection().await.unwrap();
         let mut transaction = conn.start_transaction().await.unwrap();
 
-        transaction.fri_protocol_versions_dal()
+        transaction
+            .fri_protocol_versions_dal()
             .save_prover_protocol_version(
                 ProtocolSemanticVersion::default(),
                 L1VerifierConfig::default(),
             )
             .await;
-        transaction.fri_prover_jobs_dal()
+        transaction
+            .fri_prover_jobs_dal()
             .insert_prover_jobs(
                 L1BatchNumber(1),
                 mock_circuit_ids_and_urls(10000),
