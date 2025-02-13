@@ -234,14 +234,17 @@ mod tests {
             constructor_arguments: Bytes::from(vec![0xde, 0xad, 0xbe, 0xef]),
             is_system: true,
             force_evmla: true,
-            evm_specific: VerificationEvmSettings::default(),
+            evm_specific: VerificationEvmSettings {
+                evm_version: Some("evm version".to_string()),
+                optimizer_runs: Some(200),
+            },
         }
     }
     #[test]
     fn test_verification_request_from_solc_single_file_compilation_request() {
         let request = get_default_verification_request();
 
-        let etherscan_request = EtherscanVerificationRequest::from(request);
+        let etherscan_request = EtherscanVerificationRequest::from(request.clone());
         assert_eq!(etherscan_request.contract_address, Address::default());
         assert_eq!(
             etherscan_request.code_format,
@@ -263,6 +266,7 @@ mod tests {
         );
         assert!(etherscan_request.is_system);
         assert!(etherscan_request.force_evmla);
+        assert_eq!(etherscan_request.evm_specific, request.evm_specific);
     }
 
     #[test]
@@ -279,7 +283,7 @@ mod tests {
             compiler_solc_version: "0.8.16".to_string(),
         };
 
-        let etherscan_request = EtherscanVerificationRequest::from(request);
+        let etherscan_request = EtherscanVerificationRequest::from(request.clone());
         assert_eq!(etherscan_request.contract_address, Address::default());
         assert_eq!(
             etherscan_request.code_format,
@@ -304,6 +308,7 @@ mod tests {
         );
         assert!(!etherscan_request.is_system);
         assert!(!etherscan_request.force_evmla);
+        assert_eq!(etherscan_request.evm_specific, request.evm_specific);
     }
 
     #[test]
@@ -326,9 +331,13 @@ mod tests {
             constructor_arguments: Bytes::from(vec![0xde, 0xad, 0xbe, 0xef]),
             is_system: false,
             force_evmla: false,
+            evm_specific: VerificationEvmSettings {
+                evm_version: Some("evm version".to_string()),
+                optimizer_runs: Some(200),
+            },
         };
 
-        let etherscan_request = EtherscanVerificationRequest::from(request);
+        let etherscan_request = EtherscanVerificationRequest::from(request.clone());
         assert_eq!(etherscan_request.contract_address, Address::default());
         assert_eq!(
             etherscan_request.code_format,
@@ -356,5 +365,6 @@ mod tests {
         );
         assert!(!etherscan_request.is_system);
         assert!(!etherscan_request.force_evmla);
+        assert_eq!(etherscan_request.evm_specific, request.evm_specific);
     }
 }
