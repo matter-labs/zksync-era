@@ -9,6 +9,8 @@
 - **Facet** - implementation contract. The word comes from the EIP-2535.
 - **Gas** - a unit that measures the amount of computational effort required to execute specific operations on the
   ZKsync Era network.
+- **MessageRoot**, **ChainRoot**, **ChainBatchRoot**, **LocalLogsRoot** - different nodes in the recursive Merkle tree used to aggregate messages. 
+- **InteropMessage, InteropCall, InteropBundle, InteropTrigger, InteropTransaction** different levels and types of interop methods.
 
 List of contracts and abbreviations:
 - Chain Manager Contracts
@@ -42,7 +44,7 @@ List of contracts and abbreviations:
 - Messaging related contracts:
   - InteropCenter
   - MessageRoot
-  - L1AssetTracker
+  - AssetTracker
   - InteropHandler
     -  L2MessageVerification  
   - L1Nullifier
