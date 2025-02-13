@@ -9,7 +9,7 @@ use zksync_dal::{
     contract_verification_dal::EtherscanVerificationJobResultStatus, ConnectionPool, Core, CoreDal,
 };
 use zksync_queued_job_processor::{async_trait, JobProcessor};
-use zksync_types::contract_verification_api::EtherscanVerificationRequest;
+use zksync_types::contract_verification::api::EtherscanVerificationRequest;
 
 use crate::metrics::API_CONTRACT_VERIFIER_METRICS;
 

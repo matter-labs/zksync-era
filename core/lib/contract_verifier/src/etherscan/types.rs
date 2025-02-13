@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
-use zksync_types::contract_verification_api::{
-    CompilerVersions, SourceCodeData, VerificationIncomingRequest,
+use zksync_types::contract_verification::api::{
+    CompilerVersions, SourceCodeData, VerificationEvmSettings, VerificationIncomingRequest,
 };
 
 use crate::Address;
@@ -53,6 +53,8 @@ pub(crate) struct EtherscanVerificationRequest {
     pub constructor_arguments: String,
     pub is_system: bool,
     pub force_evmla: bool,
+    #[serde(flatten)]
+    pub evm_specific: VerificationEvmSettings,
 }
 impl From<VerificationIncomingRequest> for EtherscanVerificationRequest {
     fn from(request: VerificationIncomingRequest) -> Self {
@@ -107,6 +109,7 @@ impl From<VerificationIncomingRequest> for EtherscanVerificationRequest {
             constructor_arguments: hex::encode(&request.constructor_arguments.0),
             is_system: request.is_system,
             force_evmla: request.force_evmla,
+            evm_specific: request.evm_specific,
         }
     }
 }
@@ -231,6 +234,7 @@ mod tests {
             constructor_arguments: Bytes::from(vec![0xde, 0xad, 0xbe, 0xef]),
             is_system: true,
             force_evmla: true,
+            evm_specific: VerificationEvmSettings::default(),
         }
     }
     #[test]

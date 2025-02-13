@@ -13,10 +13,12 @@ use zksync_db_connection::{
 };
 use zksync_types::{
     address_to_h256,
-    contract_verification::api::{
-        contract_identifier::ContractIdentifier, EtherscanVerificationRequest, SourceCodeData,
-        VerificationIncomingRequest, VerificationInfo, VerificationRequest,
-        VerificationRequestStatus,
+    contract_verification::{
+        api::{
+            EtherscanVerificationRequest, SourceCodeData, VerificationIncomingRequest,
+            VerificationInfo, VerificationRequest, VerificationRequestStatus,
+        },
+        contract_identifier::ContractIdentifier,
     },
     web3, Address, CONTRACT_DEPLOYER_ADDRESS, H256,
 };
@@ -288,6 +290,7 @@ impl ContractVerificationDal<'_, '_> {
             cvr.constructor_arguments,
             cvr.is_system,
             cvr.force_evmla,
+            cvr.evm_specific,
             evr.etherscan_verification_id
             "#,
             &processing_timeout

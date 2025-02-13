@@ -75,6 +75,7 @@ pub struct StorageEtherscanVerificationRequest {
     pub is_system: bool,
     pub force_evmla: bool,
     pub etherscan_verification_id: Option<String>,
+    pub evm_specific: Option<serde_json::Value>,
 }
 impl From<StorageEtherscanVerificationRequest> for EtherscanVerificationRequest {
     fn from(value: StorageEtherscanVerificationRequest) -> Self {
@@ -90,6 +91,7 @@ impl From<StorageEtherscanVerificationRequest> for EtherscanVerificationRequest 
             constructor_arguments: value.constructor_arguments,
             is_system: value.is_system,
             force_evmla: value.force_evmla,
+            evm_specific: value.evm_specific,
         };
         let verifier_request: VerificationRequest = storage_verifier_request.into();
         EtherscanVerificationRequest {
