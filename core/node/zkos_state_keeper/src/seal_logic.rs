@@ -41,30 +41,23 @@ pub async fn seal_in_db<'a>(
                 break internal_tx_result;
             }
         };
-        let gas_used = result.tx_results[next_index_in_batch_output].as_ref().unwrap().gas_used;
+        let gas_used = result.tx_results[next_index_in_batch_output]
+            .as_ref()
+            .unwrap()
+            .gas_used;
         match internal_tx_result {
             InternalTxResult::Success => {
                 tracing::info!("marking transaction {tx_hash:#?} as included");
                 transaction
                     .transactions_dal()
-                    .zkos_mark_tx_as_executed(
-                        tx_hash,
-                        l2_block_number,
-                        None,
-                        gas_used,
-                    )
+                    .zkos_mark_tx_as_executed(tx_hash, l2_block_number, None, gas_used)
                     .await?;
             }
             InternalTxResult::Reverted(reason) => {
                 tracing::info!("marking transaction {tx_hash:#?} as included");
                 transaction
                     .transactions_dal()
-                    .zkos_mark_tx_as_executed(
-                        tx_hash,
-                        l2_block_number,
-                        Some(reason),
-                        gas_used,
-                    )
+                    .zkos_mark_tx_as_executed(tx_hash, l2_block_number, Some(reason), gas_used)
                     .await?;
             }
             InternalTxResult::Rejected(_reason) => {
