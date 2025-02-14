@@ -1,5 +1,7 @@
 //! Persistent ZK OS Merkle tree.
 
+use std::time::Instant;
+
 use anyhow::Context as _;
 use zksync_basic_types::H256;
 pub use zksync_crypto_primitives::hasher::blake2::Blake2Hasher;
@@ -93,10 +95,14 @@ impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
     /// # Errors
     ///
     /// Proxies database I/O errors.
+    #[tracing::instrument(level = "debug", skip_all, fields(latest_version))]
     pub fn extend(&mut self, entries: &[TreeEntry]) -> anyhow::Result<BatchOutput> {
         let latest_version = self
             .latest_version()
             .context("failed getting latest version")?;
+        tracing::Span::current().record("latest_version", latest_version);
+
+        let started_at = Instant::now();
         let (mut patch, update) = if let Some(version) = latest_version {
             self.create_patch(version, entries)
                 .context("failed loading tree data")?
@@ -106,12 +112,27 @@ impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
                 TreeUpdate::for_empty_tree(entries)?,
             )
         };
+        tracing::debug!(
+            elapsed = ?started_at.elapsed(),
+            inserts = update.inserts.len(),
+            updates = update.updates.len(),
+            loaded_internal_nodes = patch.total_internal_nodes(),
+            "loaded tree data"
+        );
 
+        let started_at = Instant::now();
         let update = patch.update(update);
+        tracing::debug!(elapsed = ?started_at.elapsed(), "updated tree structure");
+
+        let started_at = Instant::now();
         let (patch, root_hash) = patch.finalize(&self.hasher, update);
+        tracing::debug!(elapsed = ?started_at.elapsed(), "hashed tree");
+
+        let started_at = Instant::now();
         self.db
             .apply_patch(patch)
             .context("failed persisting tree changes")?;
+        tracing::debug!(elapsed = ?started_at.elapsed(), "persisted tree");
         Ok(BatchOutput { root_hash })
     }
 

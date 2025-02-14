@@ -2,6 +2,7 @@ use std::{
     array,
     collections::{BTreeMap, BTreeSet, HashMap},
     ops,
+    time::Instant,
 };
 
 use anyhow::Context as _;
@@ -20,8 +21,8 @@ use crate::{
 pub(crate) struct TreeUpdate {
     pub(super) version: u64,
     pub(super) sorted_new_leaves: BTreeMap<H256, InsertedKeyEntry>,
-    pub(super) updates: Vec<(u64, H256)>,
-    pub(super) inserts: Vec<Leaf>,
+    pub(crate) updates: Vec<(u64, H256)>,
+    pub(crate) inserts: Vec<Leaf>,
 }
 
 impl TreeUpdate {
@@ -203,6 +204,10 @@ impl PartialPatchSet {
         Ok(())
     }
 
+    pub(crate) fn total_internal_nodes(&self) -> usize {
+        self.internal.iter().map(HashMap::len).sum()
+    }
+
     pub(super) fn node(&self, nibble_count: u8, index_on_level: u64) -> Option<Node> {
         Some(if nibble_count == Leaf::NIBBLES {
             (*self.leaves.get(&index_on_level)?).into()
@@ -354,6 +359,11 @@ impl PartialPatchSet {
 
 impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
     /// Loads data for processing the specified entries into a patch set.
+    #[tracing::instrument(
+        level = "debug",
+        skip(self, entries),
+        fields(entries.len = entries.len())
+    )]
     pub(crate) fn create_patch(
         &self,
         latest_version: u64,
@@ -364,10 +374,13 @@ impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
                 .with_context(DeserializeContext::Node(NodeKey::root(latest_version)))
         })?;
         let keys: Vec<_> = entries.iter().map(|entry| entry.key).collect();
+
+        let started_at = Instant::now();
         let lookup = self
             .db
             .indices(u64::MAX, &keys)
             .context("failed loading indices")?;
+        tracing::debug!(elapsed = ?started_at.elapsed(), "loaded lookup info");
 
         // Collect all distinct indices that need to be loaded.
         let mut sorted_new_leaves = BTreeMap::new();
@@ -401,8 +414,14 @@ impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
             distinct_indices.insert(root.leaf_count - 1);
         }
 
+        let started_at = Instant::now();
         let mut patch = PartialPatchSet::new(root);
         patch.load_nodes(&self.db, distinct_indices.iter().copied())?;
+        tracing::debug!(
+            elapsed = ?started_at.elapsed(),
+            distinct_indices.len = distinct_indices.len(),
+            "loaded nodes"
+        );
 
         let mut updates = Vec::with_capacity(entries.len() - sorted_new_leaves.len());
         let mut inserts = Vec::with_capacity(sorted_new_leaves.len());
