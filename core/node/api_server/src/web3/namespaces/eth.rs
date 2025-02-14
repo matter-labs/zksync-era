@@ -1,10 +1,6 @@
 use std::str::FromStr;
 
 use anyhow::Context as _;
-use ruint::aliases::B160;
-use zk_ee::common_structs::derive_flat_storage_key;
-use zk_os_basic_system::basic_io_implementer::address_into_special_storage_key;
-use zk_os_system_hooks::addresses_constants::NOMINAL_TOKEN_BALANCE_STORAGE_ADDRESS;
 use zksync_dal::{CoreDal, DalError};
 use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
@@ -12,24 +8,30 @@ use zksync_types::{
         state_override::StateOverride, BlockId, BlockNumber, FeeHistory, GetLogsFilter,
         Transaction, TransactionId, TransactionReceipt, TransactionVariant,
     },
-    bytecode::{trim_padded_evm_bytecode, BytecodeMarker},
+    bytecode::{trim_padded_evm_bytecode, BytecodeHash, BytecodeMarker},
     h256_to_u256,
     l2::{L2Tx, TransactionType},
     transaction_request::CallRequest,
     u256_to_h256,
     utils::decompose_full_nonce,
     web3::{self, Bytes, SyncInfo, SyncState},
-    AccountTreeId, L2BlockNumber, StorageKey, H160, H256, L2_BASE_TOKEN_ADDRESS, U256,
+    AccountTreeId, L2BlockNumber, StorageKey, H256, L2_BASE_TOKEN_ADDRESS, U256,
 };
 use zksync_web3_decl::{
     error::Web3Error,
     types::{Address, Block, Filter, FilterChanges, Log, U64},
 };
+#[cfg(feature = "zkos")]
+use {
+    ruint::aliases::B160, zk_ee::common_structs::derive_flat_storage_key,
+    zk_os_basic_system::basic_io_implementer::address_into_special_storage_key,
+    zk_os_system_hooks::addresses_constants::NOMINAL_TOKEN_BALANCE_STORAGE_ADDRESS,
+};
 
 use crate::{
     execution_sandbox::BlockArgs,
     tx_sender::BinarySearchKind,
-    utils::open_readonly_transaction,
+    utils::{fill_transaction_receipts, open_readonly_transaction},
     web3::{backend_jsonrpsee::MethodTracer, metrics::API_METRICS, state::RpcState, TypedFilter},
 };
 
@@ -182,22 +184,39 @@ impl EthNamespace {
         let mut connection = self.state.acquire_connection().await?;
         let block_number = self.state.resolve_block(&mut connection, block_id).await?;
 
-        let address = B160::from_be_bytes(address.to_fixed_bytes());
-        let key = address_into_special_storage_key(&address);
-        let flat_key = derive_flat_storage_key(&NOMINAL_TOKEN_BALANCE_STORAGE_ADDRESS, &key);
-        let storage_hashed_key = H256::from_slice(&flat_key.as_u8_array());
+        #[cfg(feature = "zkos")]
+        let balance = {
+            let address = B160::from_be_bytes(address.to_fixed_bytes());
+            let key = address_into_special_storage_key(&address);
+            let flat_key = derive_flat_storage_key(&NOMINAL_TOKEN_BALANCE_STORAGE_ADDRESS, &key);
+            let storage_hashed_key = H256::from_slice(&flat_key.as_u8_array());
 
-        let mut balances = connection
-            .storage_web3_dal()
-            .get_values(&[storage_hashed_key])
-            .await
-            .map_err(DalError::generalize)?;
+            let mut balances = connection
+                .storage_web3_dal()
+                .get_values(&[storage_hashed_key])
+                .await
+                .map_err(DalError::generalize)?;
 
-        let balance = balances.remove(&storage_hashed_key).unwrap_or_default();
+            let balance = balances.remove(&storage_hashed_key).unwrap_or_default();
+            h256_to_u256(balance)
+        };
+
+        #[cfg(not(feature = "zkos"))]
+        let balance = {
+            connection
+                .storage_web3_dal()
+                .standard_token_historical_balance(
+                    AccountTreeId::new(L2_BASE_TOKEN_ADDRESS),
+                    AccountTreeId::new(address),
+                    block_number,
+                )
+                .await
+                .map_err(DalError::generalize)?
+        };
 
         self.set_block_diff(block_number);
 
-        Ok(h256_to_u256(balance))
+        Ok(balance)
     }
 
     fn set_block_diff(&self, block_number: L2BlockNumber) {
@@ -386,12 +405,12 @@ impl EthNamespace {
         };
         self.set_block_diff(block_number); // only report block diff for existing L2 blocks
 
-        let mut receipts = storage
+        let receipts = storage
             .transactions_web3_dal()
             .get_transaction_receipts(&block.transactions)
             .await
             .with_context(|| format!("get_transaction_receipts({block_number})"))?;
-        receipts.sort_unstable_by_key(|receipt| receipt.transaction_index);
+        let receipts = fill_transaction_receipts(&mut storage, receipts).await?;
         Ok(Some(receipts))
     }
 
@@ -418,14 +437,22 @@ impl EthNamespace {
         // Check if the bytecode is an EVM bytecode, and if so, pre-process it correspondingly.
         let marker = BytecodeMarker::new(contract_code.bytecode_hash);
         let prepared_bytecode = if marker == Some(BytecodeMarker::Evm) {
-            trim_padded_evm_bytecode(&contract_code.bytecode)
-                .with_context(|| {
+            trim_padded_evm_bytecode(
+                BytecodeHash::try_from(contract_code.bytecode_hash).with_context(|| {
                     format!(
-                        "malformed EVM bytecode at address {address:?}, hash = {:?}",
+                        "Invalid bytecode hash at address {address:?}: {:?}",
                         contract_code.bytecode_hash
                     )
-                })?
-                .to_vec()
+                })?,
+                &contract_code.bytecode,
+            )
+            .with_context(|| {
+                format!(
+                    "malformed EVM bytecode at address {address:?}, hash = {:?}",
+                    contract_code.bytecode_hash
+                )
+            })?
+            .to_vec()
         } else {
             contract_code.bytecode
         };
@@ -561,6 +588,7 @@ impl EthNamespace {
             .get_transaction_receipts(&[hash])
             .await
             .context("get_transaction_receipts")?;
+        let receipts = fill_transaction_receipts(&mut storage, receipts).await?;
         Ok(receipts.into_iter().next())
     }
 

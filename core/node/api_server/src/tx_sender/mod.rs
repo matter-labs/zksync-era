@@ -3,11 +3,7 @@
 use std::{default::Default, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
-use ruint::aliases::B160;
 use tokio::sync::RwLock;
-use zk_ee::common_structs::derive_flat_storage_key;
-use zk_os_basic_system::basic_io_implementer::address_into_special_storage_key;
-use zk_os_system_hooks::addresses_constants::NOMINAL_TOKEN_BALANCE_STORAGE_ADDRESS;
 use zksync_config::configs::{api::Web3JsonRpcConfig, chain::StateKeeperConfig};
 use zksync_dal::{
     transactions_dal::L2TxSubmissionResult, Connection, ConnectionPool, Core, CoreDal, DalError,
@@ -18,7 +14,9 @@ use zksync_multivm::{
         ExecutionResult, OneshotTracingParams, TransactionExecutionMetrics, VmExecutionLogs,
         VmExecutionResultAndLogs, VmExecutionStatistics,
     },
-    utils::{derive_base_fee_and_gas_per_pubdata, get_max_batch_gas_limit},
+    utils::{
+        derive_base_fee_and_gas_per_pubdata, get_max_batch_gas_limit, get_max_new_factory_deps,
+    },
 };
 use zksync_node_fee_model::{ApiFeeInputProvider, BatchFeeModelInputProvider};
 use zksync_state::PostgresStorageCaches;
@@ -34,18 +32,23 @@ use zksync_types::{
     transaction_request::CallOverrides,
     utils::storage_key_for_eth_balance,
     vm::FastVmMode,
-    AccountTreeId, Address, L2ChainId, Nonce, ProtocolVersionId, Transaction, H160, H256,
-    MAX_NEW_FACTORY_DEPS, U256,
+    AccountTreeId, Address, L2ChainId, Nonce, ProtocolVersionId, Transaction, H160, H256, U256,
 };
 use zksync_vm_executor::oneshot::{
     CallOrExecute, EstimateGas, MultiVmBaseSystemContracts, OneshotEnvParameters,
+};
+#[cfg(feature = "zkos")]
+use {
+    ruint::aliases::B160, zk_ee::common_structs::derive_flat_storage_key,
+    zk_os_basic_system::basic_io_implementer::address_into_special_storage_key,
+    zk_os_system_hooks::addresses_constants::NOMINAL_TOKEN_BALANCE_STORAGE_ADDRESS,
 };
 
 pub(super) use self::{gas_estimation::BinarySearchKind, result::SubmitTxError};
 use self::{master_pool_sink::MasterPoolSink, result::ApiCallResult, tx_sink::TxSink};
 use crate::execution_sandbox::{
-    BlockArgs, SandboxAction, SandboxExecutor, SubmitTxStage, VmConcurrencyBarrier,
-    VmConcurrencyLimiter, SANDBOX_METRICS,
+    BlockArgs, SandboxAction, SandboxExecutionOutput, SandboxExecutor, SubmitTxStage,
+    VmConcurrencyBarrier, VmConcurrencyLimiter, SANDBOX_METRICS,
 };
 
 mod gas_estimation;
@@ -321,31 +324,111 @@ impl TxSender {
             .context("failed acquiring connection to replica DB")
     }
 
-    #[tracing::instrument(level = "debug", skip_all, fields(tx.hash = ? tx.hash()))]
-    pub async fn submit_tx(
+    #[tracing::instrument(level = "debug", name = "submit_tx", skip_all, fields(tx.hash = ?tx.hash()))]
+    pub(crate) async fn submit_tx(
         &self,
         tx: L2Tx,
         block_args: BlockArgs,
-    ) -> Result<(L2TxSubmissionResult, VmExecutionResultAndLogs), SubmitTxError> {
-        //todo: execute transaction before accepting it
+    ) -> Result<SandboxExecutionOutput, SubmitTxError> {
+        let tx_hash = tx.hash();
+        let stage_latency = SANDBOX_METRICS.start_tx_submit_stage(tx_hash, SubmitTxStage::Validate);
+        // validation is disabled for zkos since fee params are off. TODO: enable unconditionally when proper fee params are saved to DB.
+        #[cfg(not(feature = "zkos"))]
+        self.validate_tx(&tx, block_args.protocol_version()).await?;
+        stage_latency.observe();
+
+        let stage_latency = SANDBOX_METRICS.start_tx_submit_stage(tx_hash, SubmitTxStage::DryRun);
+        // **Important.** For the main node, this method acquires a DB connection inside `get_batch_fee_input()`.
+        // Thus, it must not be called it if you're holding a DB connection already.
+        let fee_input = self
+            .0
+            .batch_fee_input_provider
+            .get_batch_fee_input()
+            .await
+            .context("cannot get batch fee input")?;
+
+        let vm_permit = self.0.vm_concurrency_limiter.acquire().await;
+        let action = SandboxAction::Execution {
+            fee_input,
+            tx: tx.clone(),
+        };
+        let vm_permit = vm_permit.ok_or(SubmitTxError::ServerShuttingDown)?;
+        let connection = self.acquire_replica_connection().await?;
+        let execution_output = self
+            .0
+            .executor
+            .execute_in_sandbox(vm_permit.clone(), connection, action, &block_args, None)
+            .await?;
+        tracing::info!(
+            "Submit tx {tx_hash:?} with execution metrics {:?}",
+            execution_output.metrics
+        );
+        stage_latency.observe();
+
+        let stage_latency =
+            SANDBOX_METRICS.start_tx_submit_stage(tx_hash, SubmitTxStage::VerifyExecute);
+        let connection = self.acquire_replica_connection().await?;
+        let validation_result = self
+            .0
+            .executor
+            .validate_tx_in_sandbox(
+                vm_permit,
+                connection,
+                tx.clone(),
+                block_args,
+                fee_input,
+                &self.read_whitelisted_tokens_for_aa_cache().await,
+            )
+            .await;
+        stage_latency.observe();
+
+        if let Err(err) = validation_result {
+            return Err(err.into());
+        }
+        if !execution_output.are_published_bytecodes_ok {
+            return Err(SubmitTxError::FailedToPublishCompressedBytecodes);
+        }
+        let mut stage_latency =
+            SANDBOX_METRICS.start_tx_submit_stage(tx_hash, SubmitTxStage::DbInsert);
+        self.ensure_tx_executable(&tx.clone().into(), execution_output.metrics, true)?;
+
+        let validation_traces = validation_result?;
+
         let submission_res_handle = self
             .0
             .tx_sink
-            .submit_tx(
-                &tx,
-                TransactionExecutionMetrics::default(),
-                ValidationTraces::default(),
-            )
+            .submit_tx(&tx, execution_output.metrics, validation_traces)
             .await?;
 
-        let fake_vm_execution_result = VmExecutionResultAndLogs {
-            result: ExecutionResult::Success { output: vec![] },
-            logs: VmExecutionLogs::default(),
-            statistics: VmExecutionStatistics::default(),
-            refunds: Default::default(),
-            dynamic_factory_deps: Default::default(),
-        };
-        Ok((submission_res_handle, fake_vm_execution_result))
+        match submission_res_handle {
+            L2TxSubmissionResult::AlreadyExecuted => {
+                let initiator_account = tx.initiator_account();
+                let Nonce(expected_nonce) = self
+                    .get_expected_nonce(initiator_account)
+                    .await
+                    .with_context(|| {
+                        format!("failed getting expected nonce for {initiator_account:?}")
+                    })?;
+                Err(SubmitTxError::NonceIsTooLow(
+                    expected_nonce,
+                    expected_nonce + self.0.sender_config.max_nonce_ahead,
+                    tx.nonce().0,
+                ))
+            }
+            L2TxSubmissionResult::Duplicate => {
+                Err(SubmitTxError::IncorrectTx(TxDuplication(tx.hash())))
+            }
+            L2TxSubmissionResult::InsertionInProgress => Err(SubmitTxError::InsertionInProgress),
+            L2TxSubmissionResult::Proxied => {
+                stage_latency.set_stage(SubmitTxStage::TxProxy);
+                stage_latency.observe();
+                Ok(execution_output)
+            }
+            L2TxSubmissionResult::Added | L2TxSubmissionResult::Replaced => {
+                stage_latency.observe();
+                Ok(execution_output)
+            }
+        }
     }
 
     async fn validate_tx(
@@ -403,10 +486,11 @@ impl TxSender {
             );
             return Err(SubmitTxError::MaxPriorityFeeGreaterThanMaxFee);
         }
-        if tx.execute.factory_deps.len() > MAX_NEW_FACTORY_DEPS {
+        let max_new_factory_deps = get_max_new_factory_deps(protocol_version.into());
+        if tx.execute.factory_deps.len() > max_new_factory_deps {
             return Err(SubmitTxError::TooManyFactoryDependencies(
                 tx.execute.factory_deps.len(),
-                MAX_NEW_FACTORY_DEPS,
+                max_new_factory_deps,
             ));
         }
 
@@ -505,33 +589,42 @@ impl TxSender {
     }
 
     async fn get_balance(&self, initiator_address: &H160) -> anyhow::Result<U256> {
-        let address = B160::from_be_bytes(initiator_address.to_fixed_bytes());
-        let key = address_into_special_storage_key(&address);
-        let flat_key = derive_flat_storage_key(&NOMINAL_TOKEN_BALANCE_STORAGE_ADDRESS, &key);
-        let storage_hashed_key = H256::from_slice(&flat_key.as_u8_array());
+        #[cfg(not(feature = "zkos"))]
+        {
+            let eth_balance_key = storage_key_for_eth_balance(initiator_address);
+            let balance = self
+                .acquire_replica_connection()
+                .await?
+                .storage_web3_dal()
+                .get_value(&eth_balance_key)
+                .await?;
 
-        let mut balances = self
-            .acquire_replica_connection()
-            .await?
-            .storage_web3_dal()
-            .get_values(&[storage_hashed_key])
-            .await
-            .map_err(DalError::generalize)?;
+            Ok(h256_to_u256(balance))
+        }
 
-        let balance = balances.remove(&storage_hashed_key).unwrap_or_default();
+        #[cfg(feature = "zkos")]
+        {
+            let address = B160::from_be_bytes(initiator_address.to_fixed_bytes());
+            let key = address_into_special_storage_key(&address);
+            let flat_key = derive_flat_storage_key(&NOMINAL_TOKEN_BALANCE_STORAGE_ADDRESS, &key);
+            let storage_hashed_key = H256::from_slice(&flat_key.as_u8_array());
 
-        // let eth_balance_key = storage_key_for_eth_balance(initiator_address);
-        // let balance = self
-        //     .acquire_replica_connection()
-        //     .await?
-        //     .storage_web3_dal()
-        //     .get_value(&eth_balance_key)
-        //     .await?;
-        Ok(h256_to_u256(balance))
+            let mut balances = self
+                .acquire_replica_connection()
+                .await?
+                .storage_web3_dal()
+                .get_values(&[storage_hashed_key])
+                .await
+                .map_err(DalError::generalize)?;
+
+            let balance = balances.remove(&storage_hashed_key).unwrap_or_default();
+
+            Ok(h256_to_u256(balance))
+        }
     }
 
     // For now, both L1 gas price and pubdata price are scaled with the same coefficient
-    async fn scaled_batch_fee_input(&self) -> anyhow::Result<BatchFeeInput> {
+    pub(crate) async fn scaled_batch_fee_input(&self) -> anyhow::Result<BatchFeeInput> {
         self.0
             .batch_fee_input_provider
             .get_batch_fee_input_scaled(
@@ -572,12 +665,12 @@ impl TxSender {
             enforced_base_fee: call_overrides.enforced_base_fee,
             tracing_params: OneshotTracingParams::default(),
         };
-        self.0
+        let result = self
+            .0
             .executor
-            .execute_in_sandbox_zkos(vm_permit, connection, action, &block_args, state_override)
-            .await?
-            .1
-            .map_err(SubmitTxError::from)
+            .execute_in_sandbox(vm_permit, connection, action, &block_args, state_override)
+            .await?;
+        result.result.into_api_call_result()
     }
 
     pub async fn gas_price(&self) -> anyhow::Result<u64> {
@@ -599,7 +692,7 @@ impl TxSender {
     fn ensure_tx_executable(
         &self,
         transaction: &Transaction,
-        tx_metrics: &TransactionExecutionMetrics,
+        tx_metrics: TransactionExecutionMetrics,
         log_message: bool,
     ) -> Result<(), SubmitTxError> {
         // Hash is not computable for the provided `transaction` during gas estimation (it doesn't have
@@ -614,7 +707,7 @@ impl TxSender {
         // but the API assumes we are post boojum. In this situation we will determine a tx as being executable but the StateKeeper will
         // still reject them as it's not.
         let protocol_version = ProtocolVersionId::latest();
-        let seal_data = SealData::for_transaction(transaction, tx_metrics, protocol_version);
+        let seal_data = SealData::for_transaction(transaction, tx_metrics);
         if let Some(reason) = self
             .0
             .sealer

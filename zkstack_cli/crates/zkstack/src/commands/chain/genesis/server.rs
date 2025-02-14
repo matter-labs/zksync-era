@@ -1,14 +1,14 @@
 use anyhow::Context;
-use common::{
+use xshell::Shell;
+use zkstack_cli_common::{
     logger,
     server::{Server, ServerMode},
     spinner::Spinner,
 };
-use config::{
+use zkstack_cli_config::{
     traits::FileConfigWithDefaultName, ChainConfig, ContractsConfig, EcosystemConfig,
-    GeneralConfig, GenesisConfig, SecretsConfig, WalletsConfig,
+    WalletsConfig, GENERAL_FILE, GENESIS_FILE, SECRETS_FILE,
 };
-use xshell::Shell;
 
 use crate::messages::{
     MSG_CHAIN_NOT_INITIALIZED, MSG_FAILED_TO_RUN_SERVER_ERR, MSG_GENESIS_COMPLETED,
@@ -30,16 +30,17 @@ pub async fn run(shell: &Shell) -> anyhow::Result<()> {
 }
 
 pub fn run_server_genesis(chain_config: &ChainConfig, shell: &Shell) -> anyhow::Result<()> {
-    let server = Server::new(None, chain_config.link_to_code.clone(), false);
+    let server = Server::new(None, chain_config.link_to_code.clone(), false, false);
     server
         .run(
             shell,
             ServerMode::Genesis,
-            GenesisConfig::get_path_with_base_path(&chain_config.configs),
+            chain_config.configs.join(GENESIS_FILE),
             WalletsConfig::get_path_with_base_path(&chain_config.configs),
-            GeneralConfig::get_path_with_base_path(&chain_config.configs),
-            SecretsConfig::get_path_with_base_path(&chain_config.configs),
+            chain_config.configs.join(GENERAL_FILE),
+            chain_config.configs.join(SECRETS_FILE),
             ContractsConfig::get_path_with_base_path(&chain_config.configs),
+            None,
             vec![],
         )
         .context(MSG_FAILED_TO_RUN_SERVER_ERR)

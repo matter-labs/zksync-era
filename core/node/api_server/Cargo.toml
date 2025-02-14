@@ -11,6 +11,7 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
+zksync_crypto_primitives.workspace = true
 zksync_config.workspace = true
 zksync_consensus_roles.workspace = true
 zksync_contracts.workspace = true
@@ -29,13 +30,13 @@ zksync_protobuf.workspace = true
 zksync_mini_merkle_tree.workspace = true
 zksync_multivm.workspace = true
 zksync_vm_executor.workspace = true
-zksync_zkos_vm_runner.workspace = true
+zksync_zkos_vm_runner = { workspace = true, optional = true }
 vise.workspace = true
 
-zk_os_forward_system.workspace = true
-zk_ee.workspace = true
-zk_os_basic_system.workspace = true
-zk_os_system_hooks.workspace = true
+zk_os_forward_system = { workspace = true, optional = true }
+zk_ee = { workspace = true, optional = true }
+zk_os_basic_system = { workspace = true, optional = true }
+zk_os_system_hooks = { workspace = true, optional = true }
 
 anyhow.workspace = true
 async-trait.workspace = true
@@ -46,7 +47,7 @@ tokio = { workspace = true, features = ["rt", "time"] }
 tracing.workspace = true
 thiserror.workspace = true
 once_cell.workspace = true
-rand.workspace = true
+rand = { workspace = true, features = ["small_rng"] }
 serde.workspace = true
 serde_json.workspace = true
 itertools.workspace = true
@@ -59,7 +60,7 @@ tower.workspace = true
 strum = { workspace = true, features = ["derive"] }
 tower-http = { workspace = true, features = ["cors", "metrics"] }
 lru.workspace = true
-ruint.workspace = true
+ruint = { workspace = true, optional = true }
 
 [dev-dependencies]
 zk_evm_1_5_0.workspace = true
@@ -69,3 +70,6 @@ zksync_test_contracts.workspace = true
 
 assert_matches.workspace = true
 test-casing.workspace = true
+
+[features]
+zkos = ["dep:zk_os_forward_system", "dep:zk_ee", "dep:zk_os_basic_system", "dep:zk_os_system_hooks", "dep:ruint", "dep:zksync_zkos_vm_runner"]

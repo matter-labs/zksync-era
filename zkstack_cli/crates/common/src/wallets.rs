@@ -4,7 +4,7 @@ use ethers::{
     types::{Address, H256},
 };
 use serde::{Deserialize, Serialize};
-use types::parse_h256;
+use zkstack_cli_types::parse_h256;
 
 #[derive(Serialize, Deserialize)]
 struct WalletSerde {

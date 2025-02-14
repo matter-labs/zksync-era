@@ -175,7 +175,6 @@ where
                 let failure_info = match result {
                     Err(err) => {
                         if let ClientError::Call(call_err) = err.as_ref() {
-                            println!("{:?}", err);
                             let revert_code = call_err.code().into();
                             let message_len =
                                 "execution reverted: ".len().min(call_err.message().len());
@@ -426,7 +425,7 @@ where
         let chunk_size = chunk_end - chunk_start + 1;
 
         let fee_history = client
-            .fee_history(U64::from(chunk_size).into(), chunk_end.into(), vec![])
+            .fee_history(U64::from(chunk_size).into(), chunk_end.into(), None)
             .rpc_context("fee_history")
             .with_arg("chunk_size", &chunk_size)
             .with_arg("block", &chunk_end)

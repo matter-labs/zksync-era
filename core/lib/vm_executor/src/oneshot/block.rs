@@ -181,6 +181,10 @@ impl ResolvedBlockInfo {
     pub fn use_evm_emulator(&self) -> bool {
         self.use_evm_emulator
     }
+
+    pub fn vm_l1_batch_number(&self) -> L1BatchNumber {
+        self.vm_l1_batch_number
+    }
 }
 
 impl<C: ContractsKind> OneshotEnvParameters<C> {

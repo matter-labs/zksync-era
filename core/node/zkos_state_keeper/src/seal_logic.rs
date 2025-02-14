@@ -12,7 +12,7 @@ use zksync_types::{
     Address, L1BatchNumber, L2BlockNumber, ProtocolVersionId, Transaction, H256,
 };
 use zksync_vm_interface::VmEvent;
-use zksync_zkos_vm_runner::zkos_conversions::bytes32_to_h256;
+use zksync_zkos_vm_runner::zkos_conversions::{bytes32_to_h256, zkos_log_to_vm_event};
 
 pub async fn seal_in_db<'a>(
     mut connection: Connection<'a, Core>,
@@ -41,7 +41,8 @@ pub async fn seal_in_db<'a>(
                 break internal_tx_result;
             }
         };
-        let revert_reason = match internal_tx_result {
+        let gas_used = result.tx_results[next_index_in_batch_output].as_ref().unwrap().gas_used;
+        match internal_tx_result {
             InternalTxResult::Success => {
                 tracing::info!("marking transaction {tx_hash:#?} as included");
                 transaction
@@ -50,10 +51,7 @@ pub async fn seal_in_db<'a>(
                         tx_hash,
                         l2_block_number,
                         None,
-                        result.tx_results[next_index_in_batch_output]
-                            .as_ref()
-                            .unwrap()
-                            .gas_refunded,
+                        gas_used,
                     )
                     .await?;
             }
@@ -65,10 +63,7 @@ pub async fn seal_in_db<'a>(
                         tx_hash,
                         l2_block_number,
                         Some(reason),
-                        result.tx_results[next_index_in_batch_output]
-                            .as_ref()
-                            .unwrap()
-                            .gas_refunded,
+                        gas_used,
                     )
                     .await?;
             }
@@ -123,7 +118,6 @@ pub async fn seal_in_db<'a>(
     //     IncludedTxLocation {
     //         tx_hash: executed_tx_hash.unwrap_or_default(),
     //         tx_index_in_l2_block: 0, // we have 1 tx per block, it's index is 0
-    //         tx_initiator_address: Default::default(), // it seems it's never read from DB, probably makes sense to remove it
     //     },
     //     vm_events_ref,
     // )];
@@ -142,6 +136,11 @@ pub async fn seal_in_db<'a>(
     transaction
         .blocks_dal()
         .insert_l2_block(&l2_block_header)
+        .await?;
+
+    transaction
+        .blocks_dal()
+        .mark_l2_blocks_as_executed_in_l1_batch(l1_batch_number)
         .await?;
 
     transaction.commit().await?;
@@ -187,6 +186,7 @@ fn generate_l1_batch_header(
         system_logs: Default::default(),
         pubdata_input: Default::default(),
         fee_address: Default::default(),
+        batch_fee_input: Default::default(),
     }
 }
 

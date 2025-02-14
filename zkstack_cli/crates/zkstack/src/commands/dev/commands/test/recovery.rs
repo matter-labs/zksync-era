@@ -1,9 +1,9 @@
 use std::path::PathBuf;
 
 use anyhow::Context;
-use common::{cmd::Cmd, logger, server::Server, spinner::Spinner};
-use config::EcosystemConfig;
 use xshell::{cmd, Shell};
+use zkstack_cli_common::{cmd::Cmd, logger, server::Server, spinner::Spinner};
+use zkstack_cli_config::EcosystemConfig;
 
 use super::{
     args::recovery::RecoveryArgs,
@@ -21,7 +21,7 @@ pub async fn run(shell: &Shell, args: RecoveryArgs) -> anyhow::Result<()> {
     shell.change_dir(ecosystem_config.link_to_code.join(RECOVERY_TESTS_PATH));
 
     logger::info(MSG_RECOVERY_TEST_RUN_INFO);
-    Server::new(None, ecosystem_config.link_to_code.clone(), false).build(shell)?;
+    Server::new(None, ecosystem_config.link_to_code.clone(), false, false).build(shell)?;
 
     if !args.no_deps {
         install_and_build_dependencies(shell, &ecosystem_config)?;

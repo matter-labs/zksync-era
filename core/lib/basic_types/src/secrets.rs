@@ -1,9 +1,7 @@
-use std::str::FromStr;
-
-use secrecy::{ExposeSecret, Secret};
+use secrecy::{ExposeSecret, SecretString};
 
 #[derive(Debug, Clone)]
-pub struct SeedPhrase(pub Secret<String>);
+pub struct SeedPhrase(pub SecretString);
 
 impl PartialEq for SeedPhrase {
     fn eq(&self, other: &Self) -> bool {
@@ -11,16 +9,20 @@ impl PartialEq for SeedPhrase {
     }
 }
 
-impl FromStr for SeedPhrase {
-    type Err = anyhow::Error;
+impl From<String> for SeedPhrase {
+    fn from(s: String) -> Self {
+        Self(SecretString::from(s))
+    }
+}
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(SeedPhrase(s.parse()?))
+impl From<&str> for SeedPhrase {
+    fn from(s: &str) -> Self {
+        Self(SecretString::from(s))
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct PrivateKey(pub Secret<String>);
+pub struct PrivateKey(pub SecretString);
 
 impl PartialEq for PrivateKey {
     fn eq(&self, other: &Self) -> bool {
@@ -28,16 +30,20 @@ impl PartialEq for PrivateKey {
     }
 }
 
-impl FromStr for PrivateKey {
-    type Err = anyhow::Error;
+impl From<String> for PrivateKey {
+    fn from(s: String) -> Self {
+        Self(SecretString::from(s))
+    }
+}
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(PrivateKey(s.parse()?))
+impl From<&str> for PrivateKey {
+    fn from(s: &str) -> Self {
+        Self(SecretString::from(s))
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct APIKey(pub Secret<String>);
+pub struct APIKey(pub SecretString);
 
 impl PartialEq for APIKey {
     fn eq(&self, other: &Self) -> bool {
@@ -45,10 +51,14 @@ impl PartialEq for APIKey {
     }
 }
 
-impl FromStr for APIKey {
-    type Err = anyhow::Error;
+impl From<String> for APIKey {
+    fn from(s: String) -> Self {
+        Self(SecretString::from(s))
+    }
+}
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(APIKey(s.parse()?))
+impl From<&str> for APIKey {
+    fn from(s: &str) -> Self {
+        Self(SecretString::from(s))
     }
 }

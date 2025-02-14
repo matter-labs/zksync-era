@@ -5,9 +5,7 @@
 #![warn(clippy::all, clippy::pedantic)]
 #![allow(clippy::must_use_candidate, clippy::similar_names)]
 
-use std::{collections::VecDeque, iter, marker::PhantomData};
-
-use once_cell::sync::OnceCell;
+use std::{collections::VecDeque, iter, marker::PhantomData, ops::RangeTo};
 
 #[cfg(test)]
 mod tests;
@@ -95,6 +93,19 @@ where
         Self::from_hashes(hasher, hashes.into_iter(), min_tree_size)
     }
 
+    /// Adds a new leaf to the tree (replaces leftmost empty leaf).
+    /// If the tree is full, its size is doubled.
+    /// Note: empty leaves != zero leaves.
+    pub fn push(&mut self, leaf: L) {
+        let leaf_hash = self.hasher.hash_bytes(leaf.as_ref());
+        self.push_hash(leaf_hash);
+    }
+}
+
+impl<L, H> MiniMerkleTree<L, H>
+where
+    H: HashEmptySubtree<L>,
+{
     /// Creates a new Merkle tree from the supplied raw hashes. If `min_tree_size` is supplied and is larger than the
     /// number of the supplied leaves, the leaves are padded to `min_tree_size` with zero-hash entries,
     /// but are deemed empty.
@@ -159,7 +170,7 @@ where
     /// Returns the root hash and the Merkle proof for a leaf with the specified 0-based `index`.
     /// `index` is relative to the leftmost uncached leaf.
     /// # Panics
-    /// Panics if `index` is >= than the number of leaves in the tree.
+    /// Panics if `index` is >= than the number of uncached leaves in the tree.
     pub fn merkle_root_and_path(&self, index: usize) -> (H256, Vec<H256>) {
         assert!(index < self.hashes.len(), "leaf index out of bounds");
         let mut end_path = vec![];
@@ -170,19 +181,31 @@ where
         )
     }
 
+    /// Returns the root hash and the Merkle proof for a leaf with the specified 0-based `index`.
+    /// `index` is an absolute position of the leaf.
+    /// # Panics
+    /// Panics if leaf at `index` is cached or if `index` is >= than the number of leaves in the tree.
+    pub fn merkle_root_and_path_by_absolute_index(&self, index: usize) -> (H256, Vec<H256>) {
+        assert!(index >= self.start_index, "leaf is cached");
+        self.merkle_root_and_path(index - self.start_index)
+    }
+
     /// Returns the root hash and the Merkle proofs for a range of leafs.
     /// The range is 0..length, where `0` is the leftmost untrimmed leaf (i.e. leaf under `self.start_index`).
     /// # Panics
-    /// Panics if `length` is 0 or greater than the number of leaves in the tree.
+    /// Panics if `range.end` is 0 or greater than the number of leaves in the tree.
     pub fn merkle_root_and_paths_for_range(
         &self,
-        length: usize,
+        range: RangeTo<usize>,
     ) -> (H256, Vec<Option<H256>>, Vec<Option<H256>>) {
-        assert!(length > 0, "range must not be empty");
-        assert!(length <= self.hashes.len(), "not enough leaves in the tree");
+        assert!(range.end > 0, "empty range");
+        assert!(range.end <= self.hashes.len(), "range index out of bounds");
         let mut right_path = vec![];
-        let root_hash =
-            self.compute_merkle_root_and_path(length - 1, Some(&mut right_path), Some(Side::Right));
+        let root_hash = self.compute_merkle_root_and_path(
+            range.end - 1,
+            Some(&mut right_path),
+            Some(Side::Right),
+        );
         (root_hash, self.cache.clone(), right_path)
     }
 
@@ -199,12 +222,9 @@ where
         }
     }
 
-    /// Adds a new leaf to the tree (replaces leftmost empty leaf).
-    /// If the tree is full, its size is doubled.
-    /// Note: empty leaves != zero leaves.
-    pub fn push(&mut self, leaf: L) {
-        let leaf_hash = self.hasher.hash_bytes(leaf.as_ref());
-        self.push_hash(leaf_hash);
+    /// Returns the leftmost `length` untrimmed leaf hashes.
+    pub fn hashes_prefix(&self, length: usize) -> Vec<H256> {
+        self.hashes.iter().take(length).copied().collect()
     }
 
     /// Trims and caches the leftmost `count` leaves.
@@ -280,6 +300,16 @@ where
 
         hashes[0]
     }
+
+    /// Returns the number of non-empty merkle tree elements.
+    pub fn length(&self) -> usize {
+        self.start_index + self.hashes.len()
+    }
+
+    /// Returns index of the leftmost untrimmed leaf.
+    pub fn start_index(&self) -> usize {
+        self.start_index
+    }
 }
 
 fn tree_depth_by_size(tree_size: usize) -> usize {
@@ -300,8 +330,9 @@ pub trait HashEmptySubtree<L>: 'static + Send + Sync + Hasher<Hash = H256> {
     /// Returns the hash of an empty subtree with the given depth.
     /// Implementations are encouraged to cache the returned values.
     fn empty_subtree_hash(&self, depth: usize) -> H256 {
-        static EMPTY_TREE_HASHES: OnceCell<Vec<H256>> = OnceCell::new();
-        EMPTY_TREE_HASHES.get_or_init(|| compute_empty_tree_hashes(self.empty_leaf_hash()))[depth]
+        // We do not cache by default since then the cached values would be preserved
+        // for all implementations which is not correct for different leaves.
+        compute_empty_tree_hashes(self.empty_leaf_hash())[depth]
     }
 
     /// Returns an empty hash
@@ -311,6 +342,12 @@ pub trait HashEmptySubtree<L>: 'static + Send + Sync + Hasher<Hash = H256> {
 impl HashEmptySubtree<[u8; 88]> for KeccakHasher {
     fn empty_leaf_hash(&self) -> H256 {
         self.hash_bytes(&[0_u8; 88])
+    }
+}
+
+impl HashEmptySubtree<[u8; 96]> for KeccakHasher {
+    fn empty_leaf_hash(&self) -> H256 {
+        self.hash_bytes(&[0_u8; 96])
     }
 }
 

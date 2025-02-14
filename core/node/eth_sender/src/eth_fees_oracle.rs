@@ -109,10 +109,11 @@ impl GasAdjusterFeesOracle {
                 (previous_sent_tx.priority_fee_per_gas * 6) / 5 + 1,
             );
 
-            // same for base_fee_per_gas but 10%
+            // same for base_fee_per_gas, we theoretically only need to increase it by 10%, but
+            // we increase it by 20% to have priority_fee not growing faster than base fee
             base_fee_per_gas = max(
                 base_fee_per_gas,
-                previous_sent_tx.base_fee_per_gas + (previous_sent_tx.base_fee_per_gas / 10) + 1,
+                (previous_sent_tx.base_fee_per_gas * 6) / 5 + 1,
             );
         }
 

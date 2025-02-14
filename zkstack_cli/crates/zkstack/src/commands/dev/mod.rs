@@ -1,6 +1,8 @@
 use clap::Subcommand;
 use commands::status::args::StatusArgs;
 use messages::MSG_STATUS_ABOUT;
+#[cfg(feature = "gateway")]
+use messages::{MSG_GATEWAY_FINALIZE, MSG_GATEWAY_UPGRADE_CALLDATA};
 use xshell::Shell;
 
 use self::commands::{
@@ -15,7 +17,7 @@ use crate::commands::dev::messages::{
     MSG_SUBCOMMAND_SNAPSHOTS_CREATOR_ABOUT, MSG_SUBCOMMAND_TESTS_ABOUT,
 };
 
-mod commands;
+pub(crate) mod commands;
 mod consts;
 mod dals;
 mod defaults;
@@ -47,6 +49,14 @@ pub enum DevCommands {
     Status(StatusArgs),
     #[command(about = MSG_GENERATE_GENESIS_ABOUT, alias = "genesis")]
     GenerateGenesis,
+    #[cfg(feature = "gateway")]
+    #[command(about = MSG_GATEWAY_UPGRADE_CALLDATA)]
+    GatewayUpgradeCalldata(commands::gateway::GatewayUpgradeCalldataArgs),
+    #[cfg(feature = "gateway")]
+    #[command(about = MSG_GATEWAY_FINALIZE)]
+    GatewayUpgradeFinalization(
+        commands::gateway_finalize_preparation::GatewayFinalizePreparationArgs,
+    ),
 }
 
 pub async fn run(shell: &Shell, args: DevCommands) -> anyhow::Result<()> {
@@ -65,6 +75,12 @@ pub async fn run(shell: &Shell, args: DevCommands) -> anyhow::Result<()> {
         }
         DevCommands::Status(args) => commands::status::run(shell, args).await?,
         DevCommands::GenerateGenesis => commands::genesis::run(shell).await?,
+        #[cfg(feature = "gateway")]
+        DevCommands::GatewayUpgradeCalldata(args) => commands::gateway::run(shell, args).await?,
+        #[cfg(feature = "gateway")]
+        DevCommands::GatewayUpgradeFinalization(args) => {
+            commands::gateway_finalize_preparation::run(shell, args).await?
+        }
     }
     Ok(())
 }

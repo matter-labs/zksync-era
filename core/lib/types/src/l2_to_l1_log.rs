@@ -79,6 +79,26 @@ pub fn l2_to_l1_logs_tree_size(protocol_version: ProtocolVersionId) -> usize {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BatchAndChainMerklePath {
+    pub batch_proof_len: u32,
+    pub proof: Vec<H256>,
+}
+
+pub const LOG_PROOF_SUPPORTED_METADATA_VERSION: u8 = 1;
+
+// keccak256("zkSync:BatchLeaf")
+pub const BATCH_LEAF_PADDING: H256 = H256([
+    0xd8, 0x2f, 0xec, 0x4a, 0x37, 0xcb, 0xdc, 0x47, 0xf1, 0xe5, 0xcc, 0x4a, 0xd6, 0x4d, 0xea, 0xcf,
+    0x34, 0xa4, 0x8e, 0x6f, 0x7c, 0x61, 0xfa, 0x5b, 0x68, 0xfd, 0x58, 0xe5, 0x43, 0x25, 0x9c, 0xf4,
+]);
+
+// keccak256("zkSync:ChainIdLeaf")
+pub const CHAIN_ID_LEAF_PADDING: H256 = H256([
+    0x39, 0xbc, 0x69, 0x36, 0x3b, 0xb9, 0xe2, 0x6c, 0xf1, 0x42, 0x40, 0xde, 0x4e, 0x22, 0x56, 0x9e,
+    0x95, 0xcf, 0x17, 0x5c, 0xfb, 0xcf, 0x1a, 0xde, 0x1a, 0x47, 0xa2, 0x53, 0xb4, 0xbf, 0x7f, 0x61,
+]);
+
 /// Returns the blob hashes parsed out from the system logs
 pub fn parse_system_logs_for_blob_hashes_pre_gateway(
     protocol_version: &ProtocolVersionId,
@@ -117,6 +137,7 @@ pub fn parse_system_logs_for_blob_hashes_pre_gateway(
 
 #[cfg(test)]
 mod tests {
+    use zksync_basic_types::web3::keccak256;
     use zksync_system_constants::L1_MESSENGER_ADDRESS;
 
     use super::*;
@@ -141,5 +162,14 @@ mod tests {
         };
 
         assert_eq!(expected_log_bytes, log.to_bytes());
+    }
+
+    #[test]
+    fn check_padding_constants() {
+        let batch_leaf_padding_expected = keccak256("zkSync:BatchLeaf".as_bytes());
+        assert_eq!(batch_leaf_padding_expected, BATCH_LEAF_PADDING.0);
+
+        let chain_id_leaf_padding_expected = keccak256("zkSync:ChainIdLeaf".as_bytes());
+        assert_eq!(chain_id_leaf_padding_expected, CHAIN_ID_LEAF_PADDING.0);
     }
 }

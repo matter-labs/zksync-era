@@ -2,9 +2,9 @@
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use zksync_types::{
-    api::{TeeProof, TransactionExecutionInfo},
+    api::{ChainAggProof, TeeProof, TransactionExecutionInfo},
     tee_types::TeeType,
-    L1BatchNumber, H256,
+    L1BatchNumber, L2ChainId, H256,
 };
 
 use crate::client::{ForWeb3Network, L2};
@@ -31,4 +31,14 @@ pub trait UnstableNamespace {
         l1_batch_number: L1BatchNumber,
         tee_type: Option<TeeType>,
     ) -> RpcResult<Vec<TeeProof>>;
+
+    #[method(name = "getChainLogProof")]
+    async fn get_chain_log_proof(
+        &self,
+        l1_batch_number: L1BatchNumber,
+        chain_id: L2ChainId,
+    ) -> RpcResult<Option<ChainAggProof>>;
+
+    #[method(name = "unconfirmedTxsCount")]
+    async fn get_unconfirmed_txs_count(&self) -> RpcResult<usize>;
 }

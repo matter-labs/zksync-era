@@ -93,8 +93,22 @@ impl L1BatchCommitmentModeValidationTask {
         diamond_proxy_address: Address,
         eth_client: &dyn EthInterface,
     ) -> Result<L1BatchCommitmentMode, ContractCallError> {
-        //todo: pubdata pricing/gas
-        Ok(L1BatchCommitmentMode::Rollup)
+        #[cfg(not(feature = "zkos"))]
+        {
+            CallFunctionArgs::new("getPubdataPricingMode", ())
+                .for_contract(
+                    diamond_proxy_address,
+                    &zksync_contracts::hyperchain_contract(),
+                )
+                .call(eth_client)
+                .await
+        }
+
+        #[cfg(feature = "zkos")]
+        {
+            //todo: pubdata pricing/gas
+            Ok(L1BatchCommitmentMode::Rollup)
+        }
     }
 
     /// Runs this task. The task will exit on error (and on success if `exit_on_success` is set),
@@ -121,7 +135,10 @@ mod tests {
 
     use zksync_eth_client::clients::MockSettlementLayer;
     use zksync_types::{ethabi, U256};
-    use zksync_web3_decl::{client::MockClient, jsonrpsee::types::ErrorObject};
+    use zksync_web3_decl::{
+        client::MockClient,
+        jsonrpsee::{core::BoxError, types::ErrorObject},
+    };
 
     use super::*;
 
@@ -146,7 +163,7 @@ mod tests {
     }
 
     fn mock_ethereum_with_transport_error() -> MockClient<L1> {
-        let err = ClientError::Transport(anyhow::anyhow!("unreachable"));
+        let err = ClientError::Transport(BoxError::from(anyhow::anyhow!("unreachable")));
         mock_ethereum(ethabi::Token::Uint(U256::zero()), Some(err))
     }
 

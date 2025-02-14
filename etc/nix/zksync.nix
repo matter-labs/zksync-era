@@ -1,14 +1,32 @@
 { craneLib
-, commonArgs
+, coreCommonArgs
+, zkstack
+, foundry-zksync
+, ...
 }:
-craneLib.buildPackage (commonArgs // {
-  pname = "zksync";
-  version = (builtins.fromTOML (builtins.readFile ../../core/bin/zksync_tee_prover/Cargo.toml)).package.version;
-  cargoExtraArgs = "--all";
+let
+  cargoExtraArgs = "--locked --bin zksync_server --bin zksync_contract_verifier --bin zksync_external_node --bin snapshots_creator --bin block_reverter --bin merkle_tree_consistency_checker";
+in
+craneLib.buildPackage (coreCommonArgs // {
+  # Some crates download stuff from the network while compiling!!!!
+  # Allows derivation to access network
+  #
+  # Users of this package must set options to indicate that the sandbox conditions can be relaxed for this package.
+  # These are:
+  # - When used in a flake, set the flake's config with this line: nixConfig.sandbox = false;
+  # - From the command line with nix <command>, add one of these options:
+  #   - --option sandbox false
+  #   - --no-sandbox
+  __noChroot = true;
 
-  cargoArtifacts = craneLib.buildDepsOnly (commonArgs // {
-    pname = "zksync-era-workspace";
-  });
+  pname = "zksync";
+  version = (builtins.fromTOML (builtins.readFile (coreCommonArgs.src + "/Cargo.toml"))).workspace.package.version;
+  inherit cargoExtraArgs;
+
+  buildInputs = coreCommonArgs.buildInputs ++ [
+    zkstack
+    foundry-zksync
+  ];
 
   outputs = [
     "out"
@@ -39,4 +57,15 @@ craneLib.buildPackage (commonArgs // {
     mkdir -p $server/nix-support
     echo "block_reverter" >> $server/nix-support/propagated-user-env-packages
   '';
-})
+
+  # zksync-protobuf has store paths
+  postPatch = ''
+    mkdir -p "$TMPDIR/nix-vendor"
+    cp -Lr "$cargoVendorDir" -T "$TMPDIR/nix-vendor"
+    sed -i "s|$cargoVendorDir|$TMPDIR/nix-vendor/|g" "$TMPDIR/nix-vendor/config.toml"
+    chmod -R +w "$TMPDIR/nix-vendor"
+    cargoVendorDir="$TMPDIR/nix-vendor"
+  '';
+}
+)
+

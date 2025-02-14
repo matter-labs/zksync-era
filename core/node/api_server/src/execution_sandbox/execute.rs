@@ -1,34 +1,44 @@
 //! Implementation of "executing" methods, e.g. `eth_call`.
 
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::{
+    fmt,
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
+};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
-use ruint::aliases::U256;
 use tokio::{runtime::Handle, task::spawn_blocking};
-use zk_ee::system::system_trait::errors::InternalError;
-use zk_os_forward_system::run::{
-    output::TxResult, BatchContext, ExecutionOutput, ExecutionResult, StorageCommitment, TxOutput,
-};
 use zksync_dal::{Connection, Core};
-use zksync_multivm::interface::{
-    executor::{OneshotExecutor, TransactionValidator},
-    storage::{ReadStorage, StorageWithOverrides},
-    tracer::{TimestampAsserterParams, ValidationError, ValidationParams, ValidationTraces},
-    Call, OneshotEnv, OneshotTracingParams, OneshotTransactionExecutionResult,
-    TransactionExecutionMetrics, TxExecutionArgs, VmExecutionResultAndLogs,
+use zksync_multivm::{
+    interface::{
+        executor::{OneshotExecutor, TransactionValidator},
+        storage::StorageWithOverrides,
+        tracer::TimestampAsserterParams,
+        Call, ExecutionResult, OneshotEnv, OneshotTracingParams, TransactionExecutionMetrics,
+        TxExecutionArgs, VmEvent, VmExecutionMetrics, VmRevertReason,
+    },
+    utils::StorageWritesDeduplicator,
 };
 use zksync_state::{PostgresStorage, PostgresStorageCaches, PostgresStorageForZkOs};
 use zksync_types::{
-    api::state_override::StateOverride, fee_model::BatchFeeInput, l2::L2Tx, Transaction,
+    api::state_override::StateOverride, fee_model::BatchFeeInput, l2::L2Tx, AccountTreeId,
+    StorageKey, StorageLog, StorageLogKind, Transaction,
 };
 use zksync_vm_executor::oneshot::{MainOneshotExecutor, MockOneshotExecutor};
-use zksync_zkos_vm_runner::zkos_conversions::tx_abi_encode;
-
-use super::{
-    vm_metrics::{self, SandboxStage},
-    BlockArgs, VmPermit, SANDBOX_METRICS,
+#[cfg(feature = "zkos")]
+use {
+    ruint::aliases::U256,
+    zk_ee::system::system_trait::errors::InternalError,
+    zk_os_forward_system::run::{
+        output::TxResult, BatchContext, ExecutionOutput, ExecutionResult as ZkOSExecutionResult,
+        StorageCommitment, TxOutput,
+    },
+    zksync_zkos_vm_runner::zkos_conversions::{
+        b160_to_address, bytes32_to_h256, tx_abi_encode, zkos_log_to_vm_event,
+    },
 };
+
+use super::{vm_metrics::SandboxStage, BlockArgs, VmPermit, SANDBOX_METRICS};
 use crate::{execution_sandbox::storage::apply_state_override, tx_sender::SandboxExecutorOptions};
 
 /// Action that can be executed by [`SandboxExecutor`].
@@ -52,15 +62,6 @@ pub(crate) enum SandboxAction {
 }
 
 impl SandboxAction {
-    fn factory_deps_count(&self) -> usize {
-        match self {
-            Self::Execution { tx, .. } | Self::Call { call: tx, .. } => {
-                tx.execute.factory_deps.len()
-            }
-            Self::GasEstimation { tx, .. } => tx.execute.factory_deps.len(),
-        }
-    }
-
     fn into_parts(self) -> (TxExecutionArgs, OneshotTracingParams) {
         match self {
             Self::Execution { tx, .. } => (
@@ -84,7 +85,11 @@ impl SandboxAction {
 #[derive(Debug, Clone)]
 pub(crate) struct SandboxExecutionOutput {
     /// Output of the VM.
-    pub vm: VmExecutionResultAndLogs,
+    pub result: ExecutionResult,
+    /// Write logs produced by the VM.
+    pub write_logs: Vec<StorageLog>,
+    /// Events produced by the VM.
+    pub events: Vec<VmEvent>,
     /// Traced calls if requested.
     pub call_traces: Vec<Call>,
     /// Execution metrics.
@@ -93,16 +98,68 @@ pub(crate) struct SandboxExecutionOutput {
     pub are_published_bytecodes_ok: bool,
 }
 
-#[derive(Debug)]
-enum SandboxExecutorEngine {
-    Real(MainOneshotExecutor),
-    Mock(MockOneshotExecutor),
+type SandboxStorage = StorageWithOverrides<PostgresStorage<'static>>;
+
+/// Higher-level wrapper around a oneshot VM executor used in the API server.
+#[async_trait]
+pub(crate) trait SandboxExecutorEngine:
+    Send + Sync + fmt::Debug + TransactionValidator<SandboxStorage>
+{
+    async fn execute_in_sandbox(
+        &self,
+        storage: SandboxStorage,
+        env: OneshotEnv,
+        args: TxExecutionArgs,
+        tracing_params: OneshotTracingParams,
+    ) -> anyhow::Result<SandboxExecutionOutput>;
+}
+
+#[async_trait]
+impl<T> SandboxExecutorEngine for T
+where
+    T: OneshotExecutor<SandboxStorage>
+        + TransactionValidator<SandboxStorage>
+        + Send
+        + Sync
+        + fmt::Debug,
+{
+    async fn execute_in_sandbox(
+        &self,
+        storage: SandboxStorage,
+        env: OneshotEnv,
+        args: TxExecutionArgs,
+        tracing_params: OneshotTracingParams,
+    ) -> anyhow::Result<SandboxExecutionOutput> {
+        let result = self
+            .inspect_transaction_with_bytecode_compression(storage, env, args, tracing_params)
+            .await?;
+        let tx_result = result.tx_result;
+        let metrics = TransactionExecutionMetrics {
+            writes: StorageWritesDeduplicator::apply_on_empty_state(&tx_result.logs.storage_logs),
+            vm: tx_result.get_execution_metrics(),
+            gas_remaining: tx_result.statistics.gas_remaining,
+            gas_refunded: tx_result.refunds.gas_refunded,
+        };
+
+        let storage_logs = tx_result.logs.storage_logs;
+        Ok(SandboxExecutionOutput {
+            result: tx_result.result,
+            write_logs: storage_logs
+                .into_iter()
+                .filter_map(|log| log.log.is_write().then_some(log.log))
+                .collect(),
+            events: tx_result.logs.events,
+            call_traces: result.call_traces,
+            metrics,
+            are_published_bytecodes_ok: result.compression_result.is_ok(),
+        })
+    }
 }
 
 /// Executor of transactions / calls used in the API server.
 #[derive(Debug)]
 pub(crate) struct SandboxExecutor {
-    engine: SandboxExecutorEngine,
+    pub(super) engine: Box<dyn SandboxExecutorEngine>,
     pub(super) options: SandboxExecutorOptions,
     storage_caches: Option<PostgresStorageCaches>,
     pub(super) timestamp_asserter_params: Option<TimestampAsserterParams>,
@@ -121,8 +178,9 @@ impl SandboxExecutor {
         executor.panic_on_divergence();
         executor
             .set_execution_latency_histogram(&SANDBOX_METRICS.sandbox[&SandboxStage::Execution]);
+
         Self {
-            engine: SandboxExecutorEngine::Real(executor),
+            engine: Box::new(executor),
             options,
             storage_caches: Some(caches),
             timestamp_asserter_params,
@@ -138,21 +196,22 @@ impl SandboxExecutor {
         options: SandboxExecutorOptions,
     ) -> Self {
         Self {
-            engine: SandboxExecutorEngine::Mock(executor),
+            engine: Box::new(executor),
             options,
             storage_caches: None,
             timestamp_asserter_params: None,
         }
     }
 
-    pub async fn execute_in_sandbox_zkos(
+    #[cfg(feature = "zkos")]
+    pub async fn execute_in_sandbox(
         &self,
         vm_permit: VmPermit,
         connection: Connection<'static, Core>,
         action: SandboxAction,
         block_args: &BlockArgs,
         state_override: Option<StateOverride>,
-    ) -> anyhow::Result<(TxOutput, anyhow::Result<Vec<u8>>)> {
+    ) -> anyhow::Result<SandboxExecutionOutput> {
         let (env, storage) = self
             .prepare_env_and_storage(connection, block_args, &action)
             .await?;
@@ -200,38 +259,81 @@ impl SandboxExecutor {
         drop(vm_permit);
 
         //todo: eth_call error format - should be compatible with era/ethereum
-        match result {
-            Ok(Ok(tx_output)) => match tx_output.execution_result.clone() {
-                ExecutionResult::Success(ExecutionOutput::Call(data)) => Ok((tx_output, Ok(data))),
-                ExecutionResult::Success(ExecutionOutput::Create(data, _)) => {
-                    Ok((tx_output, Ok(data)))
-                }
-                ExecutionResult::Revert(res) => {
-                    Ok((tx_output, Err(anyhow::anyhow!("revert: {:?}", res))))
-                }
-            },
+        let tx_output = match result {
+            Ok(Ok(tx_output)) => tx_output,
+            // TODO: how to process InvalidTransaction?
             Ok(Err(invalid)) => {
                 anyhow::bail!("invalid transaction: {:?}", invalid)
             }
             Err(err) => {
-                anyhow::bail!("Execution failed: {:?}", err)
+                anyhow::bail!("ZK OS execution failed with internal error: {:?}", err)
             }
-        }
+        };
+
+        let result = match &tx_output.execution_result {
+            ZkOSExecutionResult::Success(_) => ExecutionResult::Success {
+                output: tx_output.as_returned_bytes().to_vec(),
+            },
+            ZkOSExecutionResult::Revert(_) => ExecutionResult::Revert {
+                output: VmRevertReason::from(tx_output.as_returned_bytes()),
+            },
+        };
+        let write_logs = tx_output
+            .storage_writes
+            .into_iter()
+            .map(|write| StorageLog {
+                kind: StorageLogKind::InitialWrite,
+                key: StorageKey::new(
+                    AccountTreeId::new(b160_to_address(write.account)),
+                    bytes32_to_h256(write.account_key),
+                ),
+                value: bytes32_to_h256(write.value),
+            })
+            .collect();
+        let events = tx_output
+            .logs
+            .into_iter()
+            .map(|log| {
+                // tx is simulated as if it's a single tx in block, its index is 0.
+                let location = (block_args.resolved.vm_l1_batch_number(), 0);
+                zkos_log_to_vm_event(log, location)
+            })
+            .collect();
+        // Only `pubdata_published`, `computational_gas_used`, `gas_used`, `gas_refunded` are set as they are used in gas estimator.
+        // Some other fields are only needed for `ensure_tx_executable`
+        // which is not needed for ZK OS: tx is either executable or runs out of gas.
+        let metrics = TransactionExecutionMetrics {
+            vm: VmExecutionMetrics {
+                pubdata_published: 0, // TODO: pubdata counter is not there for zk os yet
+                computational_gas_used: tx_output.gas_used as u32,
+                gas_used: tx_output.gas_used as usize,
+                ..Default::default()
+            },
+            gas_refunded: tx_output.gas_refunded,
+            ..Default::default()
+        };
+
+        Ok(SandboxExecutionOutput {
+            result,
+            write_logs,
+            events,
+            metrics,
+            call_traces: Vec::new(), // TODO: tracing is not yet implemented to zk os
+            are_published_bytecodes_ok: true, // TODO?: not returned by zk os
+        })
     }
 
     /// This method assumes that (block with number `resolved_block_number` is present in DB)
     /// or (`block_id` is `pending` and block with number `resolved_block_number - 1` is present in DB)
-    #[allow(clippy::too_many_arguments)]
-    #[tracing::instrument(level = "debug", skip_all)]
+    #[cfg(not(feature = "zkos"))]
     pub async fn execute_in_sandbox(
         &self,
-        vm_permit: VmPermit,
+        _vm_permit: VmPermit,
         connection: Connection<'static, Core>,
         action: SandboxAction,
         block_args: &BlockArgs,
         state_override: Option<StateOverride>,
     ) -> anyhow::Result<SandboxExecutionOutput> {
-        let total_factory_deps = action.factory_deps_count() as u16;
         let (env, storage) = self
             .prepare_env_and_storage(connection, block_args, &action)
             .await?;
@@ -239,24 +341,9 @@ impl SandboxExecutor {
         let state_override = state_override.unwrap_or_default();
         let storage = apply_state_override(storage, &state_override);
         let (execution_args, tracing_params) = action.into_parts();
-        let result = self
-            .inspect_transaction_with_bytecode_compression(
-                storage,
-                env,
-                execution_args,
-                tracing_params,
-            )
-            .await?;
-        drop(vm_permit);
-
-        let metrics =
-            vm_metrics::collect_tx_execution_metrics(total_factory_deps, &result.tx_result);
-        Ok(SandboxExecutionOutput {
-            vm: *result.tx_result,
-            call_traces: result.call_traces,
-            metrics,
-            are_published_bytecodes_ok: result.compression_result.is_ok(),
-        })
+        self.engine
+            .execute_in_sandbox(storage, env, execution_args, tracing_params)
+            .await
     }
 
     pub(super) async fn prepare_env_and_storage(
@@ -328,69 +415,5 @@ impl SandboxExecutor {
         }
         initialization_stage.observe();
         Ok((env, storage))
-    }
-}
-
-#[async_trait]
-impl<S> OneshotExecutor<StorageWithOverrides<S>> for SandboxExecutor
-where
-    S: ReadStorage + Send + 'static,
-{
-    async fn inspect_transaction_with_bytecode_compression(
-        &self,
-        storage: StorageWithOverrides<S>,
-        env: OneshotEnv,
-        args: TxExecutionArgs,
-        tracing_params: OneshotTracingParams,
-    ) -> anyhow::Result<OneshotTransactionExecutionResult> {
-        match &self.engine {
-            SandboxExecutorEngine::Real(executor) => {
-                executor
-                    .inspect_transaction_with_bytecode_compression(
-                        storage,
-                        env,
-                        args,
-                        tracing_params,
-                    )
-                    .await
-            }
-            SandboxExecutorEngine::Mock(executor) => {
-                executor
-                    .inspect_transaction_with_bytecode_compression(
-                        storage,
-                        env,
-                        args,
-                        tracing_params,
-                    )
-                    .await
-            }
-        }
-    }
-}
-
-#[async_trait]
-impl<S> TransactionValidator<StorageWithOverrides<S>> for SandboxExecutor
-where
-    S: ReadStorage + Send + 'static,
-{
-    async fn validate_transaction(
-        &self,
-        storage: StorageWithOverrides<S>,
-        env: OneshotEnv,
-        tx: L2Tx,
-        validation_params: ValidationParams,
-    ) -> anyhow::Result<Result<ValidationTraces, ValidationError>> {
-        match &self.engine {
-            SandboxExecutorEngine::Real(executor) => {
-                executor
-                    .validate_transaction(storage, env, tx, validation_params)
-                    .await
-            }
-            SandboxExecutorEngine::Mock(executor) => {
-                executor
-                    .validate_transaction(storage, env, tx, validation_params)
-                    .await
-            }
-        }
     }
 }

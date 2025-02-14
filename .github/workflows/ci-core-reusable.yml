@@ -77,24 +77,21 @@ jobs:
       - name: Install zkstack
         run: |
           ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup
-          ci_run zkstackup -g --local
+          ci_run zkstackup -g --local --cargo-features gateway
 
       - name: Build contracts
         run: |
           ci_run zkstack dev contracts
 
-      - name: Contracts unit tests
-        run: ci_run yarn l1-contracts test
-
       - name: Download compilers for contract verifier tests
-        run: ci_run zkstack contract-verifier init --zksolc-version=v1.5.3 --zkvyper-version=v1.5.4 --solc-version=0.8.26 --vyper-version=v0.3.10 --era-vm-solc-version=0.8.26-1.0.1 --only --chain era
+        run: ci_run zkstack contract-verifier init --zksolc-version=v1.5.10 --zkvyper-version=v1.5.4 --solc-version=0.8.26 --vyper-version=v0.3.10 --era-vm-solc-version=0.8.26-1.0.1 --only --chain era
 
       - name: Rust unit tests
         run: |
           ci_run zkstack dev test rust
           # Benchmarks are not tested by `cargo nextest` unless specified explicitly, and even then `criterion` harness is incompatible
           # with how `cargo nextest` runs tests. Thus, we run criterion-based benchmark tests manually.
-          ci_run cargo test --release -p vm-benchmark --bench oneshot --bench batch
+          ci_run cargo test --manifest-path ./core/Cargo.toml --release -p vm-benchmark --bench oneshot --bench batch
 
   loadtest:
     runs-on: [ matterlabs-ci-runner-high-performance ]
@@ -143,7 +140,7 @@ jobs:
       - name: Install zkstack
         run: |
           ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup || true
-          ci_run zkstackup -g --local
+          ci_run zkstackup -g --local --cargo-features gateway
   
 
       - name: Create and initialize legacy chain
@@ -162,7 +159,7 @@ jobs:
             --legacy-bridge \
             --evm-emulator false
 
-          ci_run zkstack ecosystem init --dev --verbose
+          ci_run zkstack ecosystem init --dev --support-l2-legacy-shared-bridge-test true --verbose
 
       # `sleep 60` because we need to wait until server added all the tokens
       - name: Run server
@@ -186,12 +183,21 @@ jobs:
 
   integration-tests:
     runs-on: [ matterlabs-ci-runner-ultra-performance ]
+    strategy:
+      # ----------------------------------------------
+      # Note, that while the contracts do support gateway chain
+      # in reality it won't exist for quite some time and so
+      # we will test both cases here
+      # ----------------------------------------------
+      matrix:
+        use_gateway_chain: [ "WITHOUT_GATEWAY" ]
+      # In some cases it's useful to continue one job even if another fails.
+      fail-fast: false
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
         with:
           submodules: "recursive"
           fetch-depth: 0
-
 
       - name: Setup environment
         run: |
@@ -217,7 +223,7 @@ jobs:
       - name: Install zkstack
         run: |
           ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup || true
-          ci_run zkstackup -g --local
+          ci_run zkstackup -g --local --cargo-features gateway
 
       - name: Create log directories
         run: |
@@ -272,6 +278,59 @@ jobs:
           CHAINS="era"
           echo "CHAINS=$CHAINS" >> $GITHUB_ENV
 
+      # ----------------------------------------------------------------
+      #  Only create/initialize the gateway chain *if* use_gateway_chain=WITH_GATEWAY
+      # ----------------------------------------------------------------
+      - name: Initialize gateway chain
+        if: matrix.use_gateway_chain == 'WITH_GATEWAY'
+        run: |
+          ci_run zkstack chain create \
+          --chain-name gateway \
+          --chain-id 505 \
+          --prover-mode no-proofs \
+          --wallet-creation localhost \
+          --l1-batch-commit-data-generator-mode rollup \
+          --base-token-address 0x0000000000000000000000000000000000000001 \
+          --base-token-price-nominator 1 \
+          --base-token-price-denominator 1 \
+          --set-as-default false \
+          --ignore-prerequisites \
+          --evm-emulator false
+          
+          ci_run zkstack chain init \
+          --deploy-paymaster \
+          --l1-rpc-url=http://localhost:8545 \
+          --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
+          --server-db-name=zksync_server_localhost_gateway \
+          --chain gateway \
+          --validium-type no-da
+          
+          ci_run zkstack chain convert-to-gateway --chain gateway --ignore-prerequisites
+
+      - name: Run gateway
+        if: matrix.use_gateway_chain == 'WITH_GATEWAY'
+        run: |
+          ci_run zkstack server --ignore-prerequisites --chain gateway &> ${{ env.SERVER_LOGS_DIR }}/gateway.log &
+          ci_run zkstack server wait --ignore-prerequisites --verbose --chain gateway
+
+      - name: Migrate chains to gateway
+        if: matrix.use_gateway_chain == 'WITH_GATEWAY'
+        run: |
+          ci_run zkstack chain migrate-to-gateway --chain era --gateway-chain-name gateway
+          ci_run zkstack chain migrate-to-gateway --chain validium --gateway-chain-name gateway
+          ci_run zkstack chain migrate-to-gateway --chain custom_token --gateway-chain-name gateway
+          ci_run zkstack chain migrate-to-gateway --chain consensus --gateway-chain-name gateway
+
+      - name: Migrate back era
+        if: matrix.use_gateway_chain == 'WITH_GATEWAY'
+        run: |
+          ci_run zkstack chain migrate-from-gateway --chain era --gateway-chain-name gateway
+
+      - name: Migrate to gateway again
+        if: matrix.use_gateway_chain == 'WITH_GATEWAY'
+        run: |
+          ci_run zkstack chain migrate-to-gateway --chain era --gateway-chain-name gateway
+
       - name: Build test dependencies
         run: |
           ci_run zkstack dev test build
@@ -284,7 +343,7 @@ jobs:
 
       - name: Run servers
         run: |
-          ci_run zkstack server --ignore-prerequisites --chain era &> ${{ env.SERVER_LOGS_DIR }}/rollup.log &
+          ci_run zkstack server --ignore-prerequisites --chain era --zkos &> ${{ env.SERVER_LOGS_DIR }}/rollup.log &
 
           ci_run zkstack server wait --ignore-prerequisites --verbose --chain era
 
@@ -296,5 +355,5 @@ jobs:
         uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874 # v4.4.0
         if: always()
         with:
-          name: logs
+          name: logs_${{matrix.use_gateway_chain}}
           path: logs
