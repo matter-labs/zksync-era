@@ -202,11 +202,11 @@ impl DataAvailabilityDispatcher {
                 // batch with dummy inclusion data during transition.
                 let mut conn = self.pool.connection_tagged("da_dispatcher").await?;
                 conn.data_availability_dal()
-                    .set_dummy_inclusion_data_for_old_batches(l2_da_validator) // during the transition having the L2 DA validator address is mandatory
+                    .set_dummy_inclusion_data_for_old_batches(l2_da_validator)
                     .await?;
-
-                return Ok(());
             }
+
+            return Ok(());
         }
 
         let mut conn = self.pool.connection_tagged("da_dispatcher").await?;
