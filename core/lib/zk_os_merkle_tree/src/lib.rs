@@ -15,6 +15,7 @@ use crate::{
     types::InternalNode,
 };
 
+mod consistency;
 mod errors;
 mod hasher;
 mod storage;

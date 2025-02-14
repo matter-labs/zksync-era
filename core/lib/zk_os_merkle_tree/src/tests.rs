@@ -70,6 +70,12 @@ fn test_comparing_tree_hash_against_naive_impl<DB: Database>(mut create_db: impl
         }
         let root_hash = tree.latest_root_hash().unwrap().expect("tree is empty");
         assert_eq!(root_hash, expected_root_hash);
+
+        let latest_version = tree.latest_version().unwrap().expect("no version");
+        for version in 0..=latest_version {
+            println!("Verifying version {version}");
+            tree.verify_consistency(version).unwrap();
+        }
     }
 }
 
@@ -110,6 +116,12 @@ fn test_comparing_tree_hash_with_updates(db: impl Database) {
         }
         let root_hash = tree.latest_root_hash().unwrap().expect("tree is empty");
         assert_eq!(root_hash, new_root_hash);
+
+        let latest_version = tree.latest_version().unwrap().expect("no version");
+        for version in 0..=latest_version {
+            println!("Verifying version {version}");
+            tree.verify_consistency(version).unwrap();
+        }
 
         tree.truncate_recent_versions(1).unwrap();
         assert_eq!(tree.latest_version().unwrap(), Some(0));
