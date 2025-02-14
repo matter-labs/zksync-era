@@ -38,7 +38,7 @@ $ docker push us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/gpu_checker:v
 
 ## Run gpu-checker
 
-Adjust namespace and node pool in [gpu_checker.yaml](gpu_checker.yaml) if needed and run:
+Adjust namespace, taints and node pool in [gpu_checker.yaml](gpu_checker.yaml) if needed and run:
 
 ```bash
 $ kubectl apply -f gpu_checker.yaml

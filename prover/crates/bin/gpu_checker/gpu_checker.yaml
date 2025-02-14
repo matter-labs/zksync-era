@@ -4,17 +4,6 @@ metadata:
   name: gpu-checker
   namespace: prover-red
 spec:
-  affinity:
-    podAntiAffinity:
-      requiredDuringSchedulingIgnoredDuringExecution:
-        - labelSelector:
-            matchExpressions:
-              - key: app.kubernetes.io/name
-                operator: In
-                values:
-                  - circuit-prover-gpu
-          topologyKey: kubernetes.io/hostname
-  automountServiceAccountToken: true
   containers:
     - name: gpu-checker
       image: us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/gpu_checker:v0.1.0
@@ -26,12 +15,8 @@ spec:
           cpu: "1"
           memory: 4Gi
   restartPolicy: Never
-  dnsPolicy: ClusterFirst
-  enableServiceLinks: true
   nodeSelector:
     node_pool: prover-fri-gpu-l4-32
-  serviceAccount: prover-v2-fri-prover-red
-  serviceAccountName: prover-v2-fri-prover-red
   terminationGracePeriodSeconds: 60
   tolerations:
     - effect: NoSchedule
