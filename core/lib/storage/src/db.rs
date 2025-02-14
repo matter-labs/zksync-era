@@ -487,10 +487,10 @@ impl<CF: NamedColumnFamily> RocksDB<CF> {
         self.inner.db.multi_get(keys)
     }
 
-    pub fn multi_get_cf(
+    pub fn multi_get_cf<K: AsRef<[u8]>>(
         &self,
         cf: CF,
-        keys: impl Iterator<Item = Vec<u8>>,
+        keys: impl Iterator<Item = K>,
     ) -> Vec<Result<Option<DBPinnableSlice<'_>>, rocksdb::Error>> {
         let cf = self.column_family(cf);
         self.inner.db.batched_multi_get_cf(cf, keys, false)
@@ -597,12 +597,28 @@ impl<CF: NamedColumnFamily> RocksDB<CF> {
     pub fn from_iterator_cf(
         &self,
         cf: CF,
-        key_from: &[u8],
+        keys: ops::RangeFrom<&[u8]>,
     ) -> impl Iterator<Item = (Box<[u8]>, Box<[u8]>)> + '_ {
         let cf = self.column_family(cf);
         self.inner
             .db
-            .iterator_cf(cf, IteratorMode::From(key_from, Direction::Forward))
+            .iterator_cf(cf, IteratorMode::From(keys.start, Direction::Forward))
+            .map(Result::unwrap)
+            .fuse()
+        // ^ unwrap() is safe for the same reasons as in `prefix_iterator_cf()`.
+    }
+
+    /// Iterates over key-value pairs in the specified column family `cf` in the reverse lexical
+    /// key order starting from the given `key_from`.
+    pub fn to_iterator_cf(
+        &self,
+        cf: CF,
+        keys: ops::RangeToInclusive<&[u8]>,
+    ) -> impl Iterator<Item = (Box<[u8]>, Box<[u8]>)> + '_ {
+        let cf = self.column_family(cf);
+        self.inner
+            .db
+            .iterator_cf(cf, IteratorMode::From(keys.end, Direction::Reverse))
             .map(Result::unwrap)
             .fuse()
         // ^ unwrap() is safe for the same reasons as in `prefix_iterator_cf()`.

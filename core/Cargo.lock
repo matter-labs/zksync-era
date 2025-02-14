@@ -10510,9 +10510,11 @@ name = "zk_os_merkle_tree"
 version = "26.2.1-non-semver-compat"
 dependencies = [
  "anyhow",
+ "leb128",
  "once_cell",
  "rand 0.8.5",
  "rayon",
+ "tempfile",
  "thiserror 1.0.69",
  "zksync_basic_types",
  "zksync_crypto_primitives",

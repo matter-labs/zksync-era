@@ -51,8 +51,7 @@ fn naive_hash_tree(entries: &[TreeEntry]) -> H256 {
     hashes[0]
 }
 
-#[test]
-fn comparing_tree_hash_against_naive_impl() {
+fn test_comparing_tree_hash_against_naive_impl<DB: Database>(mut create_db: impl FnMut() -> DB) {
     const RNG_SEED: u64 = 42;
 
     let mut rng = StdRng::seed_from_u64(RNG_SEED);
@@ -65,7 +64,7 @@ fn comparing_tree_hash_against_naive_impl() {
 
     for chunk_size in [1, 2, 3, 5, 8, 13, 21, 34, 55, 100] {
         println!("Insert in {chunk_size}-sized chunks");
-        let mut tree = MerkleTree::new(PatchSet::default()).unwrap();
+        let mut tree = MerkleTree::new(create_db()).unwrap();
         for chunk in inserts.chunks(chunk_size) {
             tree.extend(chunk).unwrap();
         }
@@ -75,7 +74,11 @@ fn comparing_tree_hash_against_naive_impl() {
 }
 
 #[test]
-fn comparing_tree_hash_with_updates() {
+fn comparing_tree_hash_against_naive_impl() {
+    test_comparing_tree_hash_against_naive_impl(PatchSet::default);
+}
+
+fn test_comparing_tree_hash_with_updates(db: impl Database) {
     const RNG_SEED: u64 = 42;
 
     let mut rng = StdRng::seed_from_u64(RNG_SEED);
@@ -86,13 +89,12 @@ fn comparing_tree_hash_with_updates() {
     let inserts: Vec<_> = nodes.collect();
     let initial_root_hash = naive_hash_tree(&inserts);
 
-    let mut tree = MerkleTree::new(PatchSet::default()).unwrap();
+    let mut tree = MerkleTree::new(db).unwrap();
     tree.extend(&inserts).unwrap();
     assert_eq!(
         tree.latest_root_hash().unwrap().expect("tree is empty"),
         initial_root_hash
     );
-    let initial_patch = tree.db;
 
     let mut updates = inserts;
     for update in &mut updates {
@@ -103,11 +105,42 @@ fn comparing_tree_hash_with_updates() {
 
     for chunk_size in [1, 2, 3, 5, 8, 13, 21, 34, 55, 100] {
         println!("Update in {chunk_size}-sized chunks");
-        let mut tree = MerkleTree::new(initial_patch.clone()).unwrap();
         for chunk in updates.chunks(chunk_size) {
             tree.extend(chunk).unwrap();
         }
         let root_hash = tree.latest_root_hash().unwrap().expect("tree is empty");
         assert_eq!(root_hash, new_root_hash);
+
+        tree.truncate_recent_versions(1).unwrap();
+        assert_eq!(tree.latest_version().unwrap(), Some(0));
+        assert_eq!(tree.latest_root_hash().unwrap(), Some(initial_root_hash));
+    }
+}
+
+#[test]
+fn comparing_tree_hash_with_updates() {
+    test_comparing_tree_hash_with_updates(PatchSet::default());
+}
+
+mod rocksdb {
+    use tempfile::TempDir;
+
+    use super::*;
+
+    #[test]
+    fn comparing_tree_hash_against_naive_impl() {
+        let temp_dir = TempDir::new().unwrap();
+        let mut i = 0;
+        test_comparing_tree_hash_against_naive_impl(|| {
+            i += 1;
+            RocksDBWrapper::new(&temp_dir.path().join(i.to_string())).unwrap()
+        });
+    }
+
+    #[test]
+    fn comparing_tree_hash_with_updates() {
+        let temp_dir = TempDir::new().unwrap();
+        let db = RocksDBWrapper::new(temp_dir.path()).unwrap();
+        test_comparing_tree_hash_with_updates(db);
     }
 }

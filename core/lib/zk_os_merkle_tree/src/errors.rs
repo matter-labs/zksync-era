@@ -8,17 +8,32 @@ use crate::types::NodeKey;
 pub(crate) enum DeserializeErrorKind {
     #[error("Node was expected, but is missing")]
     MissingNode,
+    #[error("Unexpected end of input")]
+    UnexpectedEof,
+    #[error("data left after deserialization")]
+    Leftovers,
+    /// Error reading a LEB128-encoded value.
+    #[error("failed reading LEB128-encoded value: {0}")]
+    Leb128(#[source] leb128::read::Error),
 }
 
 #[derive(Debug)]
 pub(crate) enum DeserializeContext {
+    Manifest,
     Node(NodeKey),
+    ChildRef(u8),
+    LeafCount,
+    KeyIndex(Box<[u8]>),
 }
 
 impl fmt::Display for DeserializeContext {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Node(key) => write!(formatter, "node at {key}"),
+            Self::ChildRef(idx) => write!(formatter, "child ref {idx}"),
+            Self::LeafCount => write!(formatter, "leaf count"),
+            Self::Manifest => write!(formatter, "manifest"),
+            Self::KeyIndex(key) => write!(formatter, "key index {key:?}"),
         }
     }
 }

@@ -262,7 +262,7 @@ impl PartialPatchSet {
                 // Only the first of `parent_indexes` may exist already; all others are necessarily new.
                 len = len.saturating_sub(
                     if let Some(parent) = internal_level.get_mut(parent_indexes.start()) {
-                        let current_len = parent.child_refs().len();
+                        let current_len = parent.children.len();
                         let expected_len = (new_indexes.start() % 16 + len).min(16);
                         parent.ensure_len(expected_len as usize, version);
                         expected_len - current_len as u64

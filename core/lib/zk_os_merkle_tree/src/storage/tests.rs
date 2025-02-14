@@ -124,15 +124,15 @@ fn creating_empty_tree() {
     assert_eq!(patch.leaves[&1], Leaf::MAX_GUARD);
     let last_level = patch.internal.last().unwrap();
     assert_eq!(last_level.len(), 1);
-    assert_eq!(last_level[&0].child_refs().len(), 2);
+    assert_eq!(last_level[&0].children.len(), 2);
 
     for level in patch.internal.iter().rev().skip(1) {
         assert_eq!(level.len(), 1);
-        assert_eq!(level[&0].child_refs().len(), 1);
+        assert_eq!(level[&0].children.len(), 1);
     }
 
     assert_eq!(patch.root.leaf_count, 2);
-    assert_eq!(patch.root.root_node.child_refs().len(), 1);
+    assert_eq!(patch.root.root_node.children.len(), 1);
 
     let patch = patch.finalize(&Blake2Hasher, final_update);
     assert_eq!(patch.manifest.version_count, 1);
@@ -140,15 +140,12 @@ fn creating_empty_tree() {
     let root = patch.try_root(0).unwrap().expect("no root");
     assert_eq!(root.leaf_count, 2);
 
-    assert_eq!(root.root_node.child_refs().len(), 1);
+    assert_eq!(root.root_node.children.len(), 1);
     let expected_root_child_hash: H256 =
         "0xcf74f992c4947d5bffe106bbdee736d726784441d844c23a5d3b372aad0f4bdd"
             .parse()
             .unwrap();
-    assert_eq!(
-        root.root_node.child_refs()[0].hash,
-        expected_root_child_hash
-    );
+    assert_eq!(root.root_node.children[0].hash, expected_root_child_hash);
 
     let expected_root_hash: H256 =
         "0x8a41011d351813c31088367deecc9b70677ecf15ffc24ee450045cdeaf447f63"

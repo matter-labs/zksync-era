@@ -4,9 +4,14 @@ use anyhow::Context as _;
 use zksync_basic_types::H256;
 pub use zksync_crypto_primitives::hasher::blake2::Blake2Hasher;
 
-pub use self::{errors::DeserializeError, hasher::HashTree, storage::Database, types::TreeEntry};
+pub use self::{
+    errors::DeserializeError,
+    hasher::HashTree,
+    storage::{Database, MerkleTreeColumnFamily, RocksDBWrapper},
+    types::TreeEntry,
+};
 use crate::{
-    storage::{PartialPatchSet, TreeUpdate},
+    storage::{PartialPatchSet, PatchSet, TreeUpdate},
     types::InternalNode,
 };
 
@@ -106,6 +111,18 @@ impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
         self.db
             .apply_patch(patch)
             .context("failed persisting tree changes")?;
+        Ok(())
+    }
+
+    pub fn truncate_recent_versions(&mut self, retained_version_count: u64) -> anyhow::Result<()> {
+        let mut manifest = self.db.try_manifest()?.unwrap_or_default();
+        let current_version_count = manifest.version_count;
+        if current_version_count > retained_version_count {
+            // TODO: It is necessary to remove "future" stale keys since otherwise they may be used in future pruning and lead
+            //   to non-obsolete tree nodes getting removed.
+            manifest.version_count = retained_version_count;
+            self.db.apply_patch(PatchSet::from_manifest(manifest))?;
+        }
         Ok(())
     }
 }

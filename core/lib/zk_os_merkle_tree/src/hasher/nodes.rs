@@ -8,7 +8,7 @@ impl InternalNode {
     pub(crate) fn hash(&self, hasher: &dyn HashTree, depth: u8) -> H256 {
         assert!(depth <= InternalNode::MAX_NIBBLES * 4);
 
-        let mut hashes: Vec<_> = self.child_refs().iter().map(|child| child.hash).collect();
+        let mut hashes: Vec<_> = self.children.iter().map(|child| child.hash).collect();
         for level_offset in 0..4 {
             let new_len = hashes.len().div_ceil(2);
             for i in 0..new_len {

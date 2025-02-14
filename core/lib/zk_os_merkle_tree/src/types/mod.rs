@@ -36,14 +36,16 @@ impl Leaf {
 }
 
 #[derive(Debug, Clone, Copy)]
+#[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct ChildRef {
     pub(crate) version: u64,
     pub(crate) hash: H256,
 }
 
 #[derive(Debug, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct InternalNode {
-    children: Vec<ChildRef>,
+    pub(crate) children: Vec<ChildRef>,
     // TODO: hashing cache?
 }
 
@@ -66,10 +68,6 @@ impl InternalNode {
                 len
             ],
         }
-    }
-
-    pub(crate) fn child_refs(&self) -> &[ChildRef] {
-        &self.children
     }
 
     /// Panics if the index doesn't exist.
@@ -111,6 +109,7 @@ impl From<Leaf> for Node {
 }
 
 #[derive(Debug)]
+#[cfg_attr(test, derive(PartialEq))]
 pub enum KeyLookup {
     Existing(u64),
     Missing {
@@ -134,6 +133,10 @@ impl NodeKey {
             nibble_count: 0,
             index_on_level: 0,
         }
+    }
+
+    pub(crate) fn is_leaf(&self) -> bool {
+        self.nibble_count == Leaf::NIBBLES
     }
 }
 

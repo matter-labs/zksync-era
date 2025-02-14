@@ -3,12 +3,15 @@ use std::collections::{BTreeMap, HashMap};
 use zksync_basic_types::H256;
 
 pub(crate) use self::patch::{PartialPatchSet, TreeUpdate};
+pub use self::rocksdb::{MerkleTreeColumnFamily, RocksDBWrapper};
 use crate::{
     errors::{DeserializeContext, DeserializeError, DeserializeErrorKind},
     types::{KeyLookup, Leaf, Manifest, Node, NodeKey, Root},
 };
 
 mod patch;
+mod rocksdb;
+mod serialization;
 #[cfg(test)]
 mod tests;
 
@@ -58,6 +61,13 @@ pub struct PatchSet {
 }
 
 impl PatchSet {
+    pub(crate) fn from_manifest(manifest: Manifest) -> Self {
+        Self {
+            manifest,
+            ..Self::default()
+        }
+    }
+
     fn index(&self, version: u64, key: &H256) -> KeyLookup {
         let (next_key, next_entry) = self
             .sorted_new_leaves
@@ -121,10 +131,14 @@ impl Database for PatchSet {
     }
 
     fn apply_patch(&mut self, patch: PatchSet) -> anyhow::Result<()> {
-        anyhow::ensure!(
-            patch.manifest.version_count >= self.manifest.version_count,
-            "truncating versions is not supported"
-        );
+        let new_version_count = patch.manifest.version_count;
+        if new_version_count < self.manifest.version_count {
+            self.patches_by_version
+                .retain(|&version, _| version < new_version_count);
+            // This requires a full scan, but we assume there aren't that many data in a patch (it's mostly used as a `Database` for testing).
+            self.sorted_new_leaves
+                .retain(|_, entry| entry.inserted_at < new_version_count);
+        }
 
         self.manifest = patch.manifest;
         self.patches_by_version.extend(patch.patches_by_version);
