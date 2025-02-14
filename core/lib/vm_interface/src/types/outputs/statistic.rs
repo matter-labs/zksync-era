@@ -29,6 +29,14 @@ pub struct CircuitStatistic {
     pub secp256k1_verify: f32,
     #[serde(default)]
     pub transient_storage_checker: f32,
+    #[serde(default)]
+    pub modexp: f32,
+    #[serde(default)]
+    pub ecadd: f32,
+    #[serde(default)]
+    pub ecmul: f32,
+    #[serde(default)]
+    pub ecpairing: f32,
 }
 
 impl CircuitStatistic {
@@ -47,6 +55,10 @@ impl CircuitStatistic {
             + self.sha256.ceil() as usize
             + self.secp256k1_verify.ceil() as usize
             + self.transient_storage_checker.ceil() as usize
+            + self.modexp as usize
+            + self.ecadd as usize
+            + self.ecmul as usize
+            + self.ecpairing as usize
     }
 
     /// Adds numbers.
@@ -64,6 +76,10 @@ impl CircuitStatistic {
             + self.sha256
             + self.secp256k1_verify
             + self.transient_storage_checker
+            + self.modexp
+            + self.ecadd
+            + self.ecmul
+            + self.ecpairing
     }
 }
 
@@ -86,6 +102,10 @@ impl ops::Add for CircuitStatistic {
             secp256k1_verify: self.secp256k1_verify + other.secp256k1_verify,
             transient_storage_checker: self.transient_storage_checker
                 + other.transient_storage_checker,
+            modexp: self.modexp + other.modexp,
+            ecadd: self.ecadd + other.ecadd,
+            ecmul: self.ecmul + other.ecmul,
+            ecpairing: self.ecpairing + other.ecpairing,
         }
     }
 }
