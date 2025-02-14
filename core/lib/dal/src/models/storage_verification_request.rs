@@ -19,6 +19,7 @@ pub struct StorageVerificationRequest {
     pub constructor_arguments: Vec<u8>,
     pub is_system: bool,
     pub force_evmla: bool,
+    pub evm_specific: Option<serde_json::Value>,
 }
 
 impl From<StorageVerificationRequest> for VerificationRequest {
@@ -34,6 +35,14 @@ impl From<StorageVerificationRequest> for VerificationRequest {
                 compiler_vyper_version: value.compiler_version,
             },
         };
+        let evm_specific = value
+            .evm_specific
+            .map(|v| {
+                serde_json::from_value(v.clone()).unwrap_or_else(|err| {
+                    panic!("Cannot deserialize evm specific fields. Error: {err}, value: {v:?}",);
+                })
+            })
+            .unwrap_or_default();
         VerificationRequest {
             id: value.id as usize,
             req: VerificationIncomingRequest {
@@ -46,6 +55,7 @@ impl From<StorageVerificationRequest> for VerificationRequest {
                 constructor_arguments: value.constructor_arguments.into(),
                 is_system: value.is_system,
                 force_evmla: value.force_evmla,
+                evm_specific,
             },
         }
     }

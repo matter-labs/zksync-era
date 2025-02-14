@@ -11,7 +11,7 @@ use zksync_config::{
             celestia::CelestiaSecrets,
             eigen::EigenSecrets,
             DAClientConfig, AVAIL_CLIENT_CONFIG_NAME, CELESTIA_CLIENT_CONFIG_NAME,
-            EIGEN_CLIENT_CONFIG_NAME, OBJECT_STORE_CLIENT_CONFIG_NAME,
+            EIGEN_CLIENT_CONFIG_NAME, NO_DA_CLIENT_CONFIG_NAME, OBJECT_STORE_CLIENT_CONFIG_NAME,
         },
         secrets::DataAvailabilitySecrets,
         AvailConfig,
@@ -45,7 +45,13 @@ impl FromEnv for DAClientConfig {
                     "DA_SETTLEMENT_LAYER_CONFIRMATION_DEPTH",
                 )?
                 .parse()?,
-                eigenda_eth_rpc: Some(SensitiveUrl::from_str(&env::var("DA_EIGENDA_ETH_RPC")?)?),
+                eigenda_eth_rpc: match env::var("DA_EIGENDA_ETH_RPC") {
+                    // Use a specific L1 RPC URL for the EigenDA client.
+                    Ok(url) => Some(SensitiveUrl::from_str(&url)?),
+                    // Err means that the environment variable is not set.
+                    // Use zkSync default L1 RPC for the EigenDA client.
+                    Err(_) => None,
+                },
                 eigenda_svc_manager_address: H160::from_str(&env::var(
                     "DA_EIGENDA_SVC_MANAGER_ADDRESS",
                 )?)?,
@@ -65,6 +71,7 @@ impl FromEnv for DAClientConfig {
             OBJECT_STORE_CLIENT_CONFIG_NAME => {
                 Self::ObjectStore(envy_load("da_object_store", "DA_")?)
             }
+            NO_DA_CLIENT_CONFIG_NAME => Self::NoDA,
             _ => anyhow::bail!("Unknown DA client name: {}", client_tag),
         };
 
