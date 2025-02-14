@@ -29,7 +29,8 @@ $ zksync_gpu_checker --object_store_path=/ --keystore_path=/ \
 
 ## Build image
 
-Find circuit file from a recent prover batch like `10330_48_1_BasicCircuits_0.bin`. It has to be Basic circuit 1. Copy it into `prover/`.
+Find circuit file from a recent prover batch like `10330_48_1_BasicCircuits_0.bin`. It has to be Basic circuit 1. Copy
+it into `prover/`.
 
 ```bash
 $ docker build -t us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/gpu_checker:v0.2.0 -f docker/gpu-checker/Dockerfile --progress=plain . 2>&1 | tee build.log
