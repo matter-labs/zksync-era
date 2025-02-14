@@ -26,3 +26,18 @@ Prover consumes witness_vector but it also need the circuit file to be present.
 $ zksync_gpu_checker --object_store_path=/ --keystore_path=/ \
     --witness_vector_file=/10330_48_1_BasicCircuits_0.witness_vector
 ```
+
+## Build image
+
+```bash
+$ docker build -t us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/gpu_checker:v0.2.0 -f docker/gpu-checker/Dockerfile --progress=plain . 2>&1 | tee build.log
+$ docker push us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/gpu_checker:v0.2.0
+```
+
+## Run gpu-checker
+
+Adjust namespace and node pool in [gpu_checker.yaml](gpu_checker.yaml) if needed and run:
+
+```bash
+$ kubectl apply -f gpu_checker.yaml
+```
