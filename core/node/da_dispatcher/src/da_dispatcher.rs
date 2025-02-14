@@ -27,6 +27,8 @@ pub struct DataAvailabilityDispatcher {
     config: DADispatcherConfig,
     contracts_config: ContractsConfig,
     settlement_layer_client: Box<DynClient<L1>>,
+
+    transitional_l2_da_validator_address: Option<Address>, // set only if inclusion_verification_transition_enabled is true
 }
 
 impl DataAvailabilityDispatcher {
@@ -43,10 +45,12 @@ impl DataAvailabilityDispatcher {
             client,
             contracts_config,
             settlement_layer_client,
+
+            transitional_l2_da_validator_address: None,
         }
     }
 
-    pub async fn run(self, mut stop_receiver: Receiver<bool>) -> anyhow::Result<()> {
+    pub async fn run(mut self, mut stop_receiver: Receiver<bool>) -> anyhow::Result<()> {
         self.check_for_misconfiguration().await?;
         let self_arc = Arc::new(self.clone());
 
@@ -189,22 +193,20 @@ impl DataAvailabilityDispatcher {
     /// Polls the data availability layer for inclusion data, and saves it in the database.
     async fn poll_for_inclusion(&self) -> anyhow::Result<()> {
         if self.config.inclusion_verification_transition_enabled() {
-            // Setting dummy inclusion data to the batches with the old L2 DA validator is necessary
-            // for the transition process. We want to avoid the situation when the batch was sealed
-            // but not dispatched to DA layer before transition, and then it will have an inclusion
-            // data that is meant to be used with the new L2 DA validator. This will cause the
-            // mismatch during the CommitBatches transaction. To avoid that we need to commit that
-            // batch with dummy inclusion data during transition.
-            let mut conn = self.pool.connection_tagged("da_dispatcher").await?;
-            conn.data_availability_dal()
-                .set_dummy_inclusion_data_for_old_batches(
-                    self.contracts_config
-                        .l2_da_validator_addr
-                        .context("L2 DA validator address is not set")?, // during the transition having the L2 DA validator address is mandatory
-                )
-                .await?;
+            if let Some(l2_da_validator) = self.transitional_l2_da_validator_address {
+                // Setting dummy inclusion data to the batches with the old L2 DA validator is necessary
+                // for the transition process. We want to avoid the situation when the batch was sealed
+                // but not dispatched to DA layer before transition, and then it will have an inclusion
+                // data that is meant to be used with the new L2 DA validator. This will cause the
+                // mismatch during the CommitBatches transaction. To avoid that we need to commit that
+                // batch with dummy inclusion data during transition.
+                let mut conn = self.pool.connection_tagged("da_dispatcher").await?;
+                conn.data_availability_dal()
+                    .set_dummy_inclusion_data_for_old_batches(l2_da_validator) // during the transition having the L2 DA validator address is mandatory
+                    .await?;
 
-            return Ok(());
+                return Ok(());
+            }
         }
 
         let mut conn = self.pool.connection_tagged("da_dispatcher").await?;
@@ -262,7 +264,7 @@ impl DataAvailabilityDispatcher {
         Ok(())
     }
 
-    async fn check_for_misconfiguration(&self) -> anyhow::Result<()> {
+    async fn check_for_misconfiguration(&mut self) -> anyhow::Result<()> {
         if let Some(no_da_validator) = self.contracts_config.no_da_validium_l1_validator_addr {
             if self.config.use_dummy_inclusion_data() {
                 let l1_da_validator_address = self.fetch_l1_da_validator_address().await?;
@@ -274,6 +276,14 @@ impl DataAvailabilityDispatcher {
                     )
                 }
             }
+        }
+
+        if self.config.inclusion_verification_transition_enabled() {
+            self.transitional_l2_da_validator_address = Some(
+                self.contracts_config
+                    .l2_da_validator_addr
+                    .context("L2 DA validator address is not set")?,
+            );
         }
 
         Ok(())
