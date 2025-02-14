@@ -26,6 +26,43 @@ pub trait HashTree: Send + Sync {
     fn empty_subtree_hash(&self, depth: u8) -> H256;
 }
 
+impl<H: HashTree + ?Sized> HashTree for &H {
+    fn name(&self) -> &'static str {
+        (**self).name()
+    }
+
+    fn hash_leaf(&self, leaf: &Leaf) -> H256 {
+        (**self).hash_leaf(leaf)
+    }
+
+    fn hash_branch(&self, lhs: &H256, rhs: &H256) -> H256 {
+        (**self).hash_branch(lhs, rhs)
+    }
+
+    fn empty_subtree_hash(&self, depth: u8) -> H256 {
+        (**self).empty_subtree_hash(depth)
+    }
+}
+
+/// No-op implementation.
+impl HashTree for () {
+    fn name(&self) -> &'static str {
+        "no-op"
+    }
+
+    fn hash_leaf(&self, _leaf: &Leaf) -> H256 {
+        H256::zero()
+    }
+
+    fn hash_branch(&self, _lhs: &H256, _rhs: &H256) -> H256 {
+        H256::zero()
+    }
+
+    fn empty_subtree_hash(&self, _depth: u8) -> H256 {
+        H256::zero()
+    }
+}
+
 impl HashTree for Blake2Hasher {
     fn name(&self) -> &'static str {
         "Blake2s256"

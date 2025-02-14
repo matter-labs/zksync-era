@@ -148,7 +148,6 @@ impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
         let child_depth = (InternalNode::MAX_NIBBLES - key.nibble_count) * 4; // 60 for the root etc.
         let last_child_index = (leaf_count - 1) >> child_depth;
         let last_index_on_level = last_child_index / 16;
-        dbg!(last_child_index, last_index_on_level);
 
         assert!(key.index_on_level <= last_index_on_level);
         let expected_child_count = if key.index_on_level < last_index_on_level {

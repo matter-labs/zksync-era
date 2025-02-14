@@ -44,6 +44,28 @@ pub trait Database: Send + Sync {
     fn apply_patch(&mut self, patch: PatchSet) -> anyhow::Result<()>;
 }
 
+impl<DB: Database + ?Sized> Database for &mut DB {
+    fn indices(&self, version: u64, keys: &[H256]) -> Result<Vec<KeyLookup>, DeserializeError> {
+        (**self).indices(version, keys)
+    }
+
+    fn try_manifest(&self) -> Result<Option<Manifest>, DeserializeError> {
+        (**self).try_manifest()
+    }
+
+    fn try_root(&self, version: u64) -> Result<Option<Root>, DeserializeError> {
+        (**self).try_root(version)
+    }
+
+    fn try_nodes(&self, keys: &[NodeKey]) -> Result<Vec<Node>, DeserializeError> {
+        (**self).try_nodes(keys)
+    }
+
+    fn apply_patch(&mut self, patch: PatchSet) -> anyhow::Result<()> {
+        (**self).apply_patch(patch)
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(test, derive(PartialEq))]
 struct InsertedKeyEntry {

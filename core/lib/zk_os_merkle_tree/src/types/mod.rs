@@ -193,3 +193,8 @@ pub struct Manifest {
     // Number of tree versions stored in the database.
     pub(crate) version_count: u64,
 }
+
+#[derive(Debug)]
+pub struct BatchOutput {
+    pub root_hash: H256,
+}

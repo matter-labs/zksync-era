@@ -232,7 +232,7 @@ impl PartialPatchSet {
         if !update.inserts.is_empty() {
             let first_new_idx = self.root.leaf_count;
             // Cannot underflow because `update.inserts.len() >= 1`
-            let mut new_indexes = first_new_idx..=(first_new_idx + update.inserts.len() as u64 - 1);
+            let new_indexes = first_new_idx..=(first_new_idx + update.inserts.len() as u64 - 1);
 
             // Update prev / next index pointers for neighbors.
             for (idx, new_leaf) in new_indexes.clone().zip(&update.inserts) {
@@ -255,39 +255,43 @@ impl PartialPatchSet {
             self.root.leaf_count = *new_indexes.end() + 1;
 
             // Add / update internal nodes.
-            for internal_level in self.internal.iter_mut().rev() {
-                let mut len = new_indexes.end() - new_indexes.start() + 1;
-                let parent_indexes = (new_indexes.start() >> 4)..=(new_indexes.end() >> 4);
+            for (i, internal_level) in self.internal.iter_mut().enumerate() {
+                let nibble_count = i as u8 + 1;
+                let child_depth = (InternalNode::MAX_NIBBLES - nibble_count) * 4; // 60 for the root etc.
+                let first_index_on_level = (new_indexes.start() >> child_depth) / 16;
+                let last_child_index = new_indexes.end() >> child_depth;
+                let last_index_on_level = last_child_index / 16;
 
-                // Only the first of `parent_indexes` may exist already; all others are necessarily new.
-                len = len.saturating_sub(
-                    if let Some(parent) = internal_level.get_mut(parent_indexes.start()) {
-                        let current_len = parent.children.len();
-                        let expected_len = (new_indexes.start() % 16 + len).min(16);
-                        parent.ensure_len(expected_len as usize, version);
-                        expected_len - current_len as u64
+                // Only `first_index_on_level` may exist already; all others are necessarily new.
+                let mut start_idx = first_index_on_level;
+                if let Some(parent) = internal_level.get_mut(&first_index_on_level) {
+                    let expected_len = if last_index_on_level == first_index_on_level {
+                        (last_child_index % 16) as usize + 1
                     } else {
-                        internal_level.insert(
-                            *parent_indexes.start(),
-                            InternalNode::new(len.min(16) as usize, version),
-                        );
                         16
-                    },
-                );
-
-                for parent_idx in parent_indexes.clone().skip(1) {
-                    internal_level
-                        .insert(parent_idx, InternalNode::new(len.min(16) as usize, version));
-                    len = len.saturating_sub(16);
+                    };
+                    parent.ensure_len(expected_len, version);
+                    start_idx += 1;
                 }
 
-                new_indexes = parent_indexes;
+                let new_nodes = (start_idx..=last_index_on_level).map(|idx| {
+                    let expected_len = if idx == last_index_on_level {
+                        (last_child_index % 16) as usize + 1
+                    } else {
+                        16
+                    };
+                    (idx, InternalNode::new(expected_len, version))
+                });
+                internal_level.extend(new_nodes);
             }
 
-            assert!(*new_indexes.end() < 16);
+            let child_depth = InternalNode::MAX_NIBBLES * 4;
+            let last_child_index = new_indexes.end() >> child_depth;
+            assert!(last_child_index < 16);
+
             self.root
                 .root_node
-                .ensure_len(*new_indexes.end() as usize + 1, version);
+                .ensure_len(last_child_index as usize + 1, version);
 
             self.update_ancestor_versions(first_new_idx, version);
         }
@@ -298,7 +302,11 @@ impl PartialPatchSet {
         }
     }
 
-    pub(crate) fn finalize(mut self, hasher: &dyn HashTree, update: FinalTreeUpdate) -> PatchSet {
+    pub(crate) fn finalize(
+        mut self,
+        hasher: &dyn HashTree,
+        update: FinalTreeUpdate,
+    ) -> (PatchSet, H256) {
         use rayon::prelude::*;
 
         let mut hashes: Vec<_> = self
@@ -328,14 +336,19 @@ impl PartialPatchSet {
             assert!(idx < 16);
             self.root.root_node.child_mut((idx % 16) as usize).hash = hash;
         }
+        let root_hash = self
+            .root
+            .root_node
+            .hash(hasher, InternalNode::MAX_NIBBLES * 4);
 
-        PatchSet {
+        let patch = PatchSet {
             manifest: Manifest {
                 version_count: update.version + 1,
             },
             patches_by_version: HashMap::from([(update.version, self)]),
             sorted_new_leaves: update.sorted_new_leaves,
-        }
+        };
+        (patch, root_hash)
     }
 }
 

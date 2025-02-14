@@ -205,7 +205,10 @@ impl Database for RocksDBWrapper {
         let raw_nodes = self.raw_nodes(keys).into_iter().zip(keys);
 
         let nodes = raw_nodes.map(|(maybe_node, key)| {
-            let raw_node = maybe_node.ok_or(DeserializeErrorKind::MissingNode)?;
+            let raw_node = maybe_node.ok_or_else(|| {
+                DeserializeError::from(DeserializeErrorKind::MissingNode)
+                    .with_context(DeserializeContext::Node(*key))
+            })?;
             Self::deserialize_node(&raw_node, key)
         });
         nodes.collect()

@@ -7,11 +7,11 @@ pub use zksync_crypto_primitives::hasher::blake2::Blake2Hasher;
 pub use self::{
     errors::DeserializeError,
     hasher::HashTree,
-    storage::{Database, MerkleTreeColumnFamily, RocksDBWrapper},
-    types::TreeEntry,
+    storage::{Database, MerkleTreeColumnFamily, PatchSet, RocksDBWrapper},
+    types::{BatchOutput, TreeEntry},
 };
 use crate::{
-    storage::{PartialPatchSet, PatchSet, TreeUpdate},
+    storage::{PartialPatchSet, TreeUpdate},
     types::InternalNode,
 };
 
@@ -93,7 +93,7 @@ impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
     /// # Errors
     ///
     /// Proxies database I/O errors.
-    pub fn extend(&mut self, entries: &[TreeEntry]) -> anyhow::Result<()> {
+    pub fn extend(&mut self, entries: &[TreeEntry]) -> anyhow::Result<BatchOutput> {
         let latest_version = self
             .latest_version()
             .context("failed getting latest version")?;
@@ -108,11 +108,11 @@ impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
         };
 
         let update = patch.update(update);
-        let patch = patch.finalize(&self.hasher, update);
+        let (patch, root_hash) = patch.finalize(&self.hasher, update);
         self.db
             .apply_patch(patch)
             .context("failed persisting tree changes")?;
-        Ok(())
+        Ok(BatchOutput { root_hash })
     }
 
     pub fn truncate_recent_versions(&mut self, retained_version_count: u64) -> anyhow::Result<()> {
