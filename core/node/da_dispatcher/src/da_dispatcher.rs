@@ -140,7 +140,7 @@ impl DataAvailabilityDispatcher {
                     batch.l1_batch_number,
                     dispatch_response.blob_id.as_str(),
                     sent_at.naive_utc(),
-                    find_l2_da_validator_address(batch.system_logs.clone())?,
+                    find_l2_da_validator_address(batch.system_logs.as_slice())?,
                 )
                 .await?;
             drop(conn);
@@ -200,8 +200,7 @@ impl DataAvailabilityDispatcher {
                 .set_dummy_inclusion_data_for_old_batches(
                     self.contracts_config
                         .l2_da_validator_addr
-                        .context("L2 DA validator address is not set")
-                        .unwrap(), // during the transition having the L2 DA validator address is mandatory
+                        .context("L2 DA validator address is not set")?, // during the transition having the L2 DA validator address is mandatory
                 )
                 .await?;
 
@@ -342,7 +341,7 @@ where
     }
 }
 
-pub fn find_l2_da_validator_address(system_logs: Vec<L2ToL1Log>) -> anyhow::Result<Address> {
+pub fn find_l2_da_validator_address(system_logs: &[L2ToL1Log]) -> anyhow::Result<Address> {
     Ok(system_logs
         .iter()
         .find(|log| {
