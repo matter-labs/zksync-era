@@ -1,6 +1,6 @@
 # AssetRouters (L1/L2) and NativeTokenVault
 
-[back to readme](../README.md)
+[back to readme](../../README.md)
 
 <!-- ## Asset router as the main asset bridging entrypoint
 

@@ -1,5 +1,5 @@
 # Native Token Vault
-[back to readme](../README.md)
+[back to readme](../../README.md)
 
 ### NativeTokenVault (L1/L2)
 

@@ -1,6 +1,6 @@
 # Forms of finality
 
-[back to readme](../README.md)
+[back to readme](../../README.md)
 
 Interop requires the importing of a [MessageRoot](./message_root.md) from some other chain. The MessageRoot commits to the interop tx. This can be done in different ways, depending on the security trust between the chains.
 

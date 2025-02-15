@@ -1,5 +1,5 @@
 # Interop Center example scenarios
-[back to readme](../../README.md)
+[back to readme](../../../README.md)
 
 ### Handling base tokens
 

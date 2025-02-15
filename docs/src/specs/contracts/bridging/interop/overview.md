@@ -1,5 +1,5 @@
 # Interop overview
-[back to readme](../README.md)
+[back to readme](../../README.md)
 
 ### Interop process
 

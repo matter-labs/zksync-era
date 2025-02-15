@@ -1,5 +1,5 @@
 # Intro Guide to Interop
-[back to readme](../../README.md)
+[back to readme](../../../README.md)
 
 ## What is Interop
 

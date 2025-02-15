@@ -1,5 +1,5 @@
 # Overview of bridging
-[back to readme](./README.md)
+[back to readme](../README.md)
 
 ## Introduction
 
