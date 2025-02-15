@@ -688,7 +688,7 @@ Usually an upgrade is performed by calling the `forceDeployOnAddresses` function
 
 For cases like this `ComplexUpgrader` contract has been created. The assumption is that the implementation of the upgrade is predeployed and the `ComplexUpgrader` would delegatecall to it.
 
-> Note, that while `ComplexUpgrader` existed even in the previous upgrade, it lacked `forceDeployAndUpgrade` function. This caused some serious limitations. More on how the gateway upgrade process will look like can be read [here](../upgrade_history/gateway_upgrade/upgrade_process.md).
+> Note, that while `ComplexUpgrader` existed even in the previous upgrade, it lacked `forceDeployAndUpgrade` function. This caused some serious limitations. More on how the gateway upgrade process will look like can be read [here](../../upgrade_history/gateway_upgrade/upgrade_process.md).
 
 ### Predeployed contracts
 
@@ -706,7 +706,7 @@ A contract that is responsible for facilitating initialization of a newly create
 
 `L2Bridgehub`, `L2AssetRouter`, `L2NativeTokenVault`, as well as `L2MessageRoot`.
 
-These contracts are used to facilitate cross-chain communication as well value bridging. You can read more about then in [the asset router spec](../bridging/asset_router/overview.md).
+These contracts are used to facilitate cross-chain communication as well value bridging. You can read more about then in [the asset router spec](../bridging/asset_router_and_ntv/asset_router.md).
 
 Note, that [L2AssetRouter](../../../../../contracts/l1-contracts/contracts/bridge/asset-router/L2AssetRouter.sol) and [L2NativeTokenVault](../../../../../contracts/l1-contracts/contracts/bridge/ntv/L2NativeTokenVault.sol) have unique code, the L2Bridgehub and L2MessageRoot share the same source code with their L1 precompiles, i.e. the L2Bridgehub has [this](../../../../../contracts/l1-contracts/contracts/bridgehub/Bridgehub.sol) code and L2MessageRoot has [this](../../../../../contracts/l1-contracts/contracts/bridgehub/MessageRoot.sol) code.
 

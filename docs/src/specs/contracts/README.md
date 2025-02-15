@@ -2,20 +2,8 @@
 
 The order of the files here only roughly represents the order of reading. A lot of topics are intertwined, so it is recommended to read everything first to have a complete picture and then refer to specific documents for more details.
 
-- [Glossary](./glossary.md)
 - [Overview](./overview.md)
-- Contracts of an individual chain
-  - [ZK Chain basics](./settlement_contracts/zkchain_basics.md)
-  - Data availability
-    - [Custom DA support](./settlement_contracts/data_availability/custom_da.md)
-    - [Rollup DA support](./settlement_contracts/data_availability/rollup_da.md)
-    - [Standard pubdata format](./settlement_contracts/data_availability/standard_pubdata_format.md)
-    - [State diff compression v1 spec](./settlement_contracts/data_availability/state_diff_compression_v1_spec.md)
-  - L1->L2 transaction handling
-    - [Processing of L1->L2 transactions](./settlement_contracts/priority_queue/processing_of_l1-l2_txs.md)
-    - [Priority queue](./settlement_contracts/priority_queue/priority-queue.md)
-  - Consensus
-    - [Consensus Registry](./consensus/consensus-registry.md)
+- [Glossary](./glossary.md)
 - [Chain Management](./chain_management/overview.md)
   - [Bridgehub](./chain_management/bridgehub.md)
   - [Chain type manager](./chain_management/chain_type_manager.md)
@@ -24,20 +12,43 @@ The order of the files here only roughly represents the order of reading. A lot 
   - [Standard Upgrade process](./chain_management/upgrade_process.md)
 - [Bridging](./bridging/README.md)
   - [Interop](./bridging/interop/overview.md)
-    - [Overview of the bridgehub functionality](./bridging/interop/interop_center/overview.md)
+    - [Overview of the  functionality](./bridging/interop/interop_center/overview.md)
+      - [Interop Center](./bridging/interop/interop_center/interop_center.md)
+      - [Interop Messages](./bridging/interop/interop_center/interop_messages.md)
+      - [Bundles and Calls](./bridging/interop/interop_center/bundles_calls.md)
+      - [Interop Trigger](./bridging/interop/interop_center/interop_trigger.md)
+    - [Interop handler](./bridging/interop/interop_handler.md)
+    - [Message root](./bridging/interop/message_root.md)
+    - [Forms of finality](./bridging/interop/forms_of_finality.md)
   - [Asset Router](./bridging/asset_router_and_ntv/asset_router.md)
-- L2 System Contracts
-  - [System contracts bootloader description](./l2_system_contracts/system_contracts_bootloader_description.md)
-  - [Batches and blocks on ZKsync](./l2_system_contracts/batches_and_blocks_on_zksync.md)
-  - [Elliptic curve precompiles](./l2_system_contracts/elliptic_curve_precompiles.md)
-  - [ZKsync fee model](./l2_system_contracts/zksync_fee_model.md)
-- Gateway
-  - [General overview](./gateway/overview.md)
+  - [Native token vault](./bridging/asset_router_and_ntv/native_token_vault.md)
+  - [Asset Tracker](./bridging/firewall/firewall.md)
+- [Settlment Contracts](./settlement_contracts/zkchain_basics.md)
+  - L1->L2 transaction handling
+    - [Processing of L1->L2 transactions](./settlement_contracts/priority_queue/processing_of_l1-l2_txs.md)
+    - [Priority queue](./settlement_contracts/priority_queue/priority-queue.md)
+  - Data availability
+    - [Pubdata](./settlement_contracts/data_availability/pubdata.md)
+    - [Compression](./settlement_contracts/data_availability/compression.md)
+    - [Reconstruction](./settlement_contracts/data_availability/reconstruction.md)
+    - [Validium and zkPorter](./settlement_contracts/data_availability/validium_zk_porter.md)
+    - [Custom DA support](./settlement_contracts/data_availability/custom_da.md)
+    - [Rollup DA support](./settlement_contracts/data_availability/rollup_da.md)
+    - [Standard pubdata format](./settlement_contracts/data_availability/standard_pubdata_format.md)
+    - [State diff compression v1 spec](./settlement_contracts/data_availability/state_diff_compression_v1_spec.md)
+- [Gateway](./gateway/overview.md)
   - [Chain migration](./gateway/chain_migration.md)
   - [L1->L3 messaging via gateway](./gateway/messaging_via_gateway.md)
   - [L3->L1 messaging via gateway](./gateway/nested_l3_l1_messaging.md)
   - [Gateway protocol versioning](./gateway/gateway_protocol_upgrades.md)
   - [DA handling on Gateway](./gateway/gateway_da.md)
+- Consensus
+  - [Consensus Registry](./consensus/consensus-registry.md)
+- L2 System Contracts
+  - [System contracts bootloader description](./l2_system_contracts/system_contracts_bootloader_description.md)
+  - [Batches and blocks on ZKsync](./l2_system_contracts/batches_and_blocks_on_zksync.md)
+  - [Elliptic curve precompiles](./l2_system_contracts/elliptic_curve_precompiles.md)
+  - [ZKsync fee model](./l2_system_contracts/zksync_fee_model.md)
 <!-- - Upgrade history
   - [Gateway upgrade diff](./upgrade_history/gateway_upgrade/gateway_diff_review.md)
   - [Gateway upgrade process](./upgrade_history/gateway_upgrade/upgrade_process.md) -->

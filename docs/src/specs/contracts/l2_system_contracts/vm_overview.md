@@ -5,7 +5,7 @@ similarly, but it plays a fundamentally different role in the zkStack than the E
 execute smart contracts in Ethereum's state transition function. This STF needs a client to implement and run it.
 
 Rollups have a different set of requirements, they need to produce a proof that some client executed the STF correctly.
-This client is the [zkEVM](./vm_specification/README.md), it is made to run the STF efficiently. The STF is the
+This client is the [zkEVM](../../era_vm_specification/README.md), it is made to run the STF efficiently. The STF is the
 [Bootloader](./bootloader.md).
 
 The smart contracts are native zkEVM bytecode, zkEVM can execute these easily. In the future the ZK Stack will also
