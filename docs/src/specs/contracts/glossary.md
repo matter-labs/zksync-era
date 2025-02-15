@@ -11,6 +11,8 @@
   ZKsync Era network.
 - **MessageRoot**, **ChainRoot**, **ChainBatchRoot**, **LocalLogsRoot** - different nodes in the recursive Merkle tree used to aggregate messages. 
 - **InteropMessage, InteropCall, InteropBundle, InteropTrigger, InteropTransaction** different levels and types of interop methods.
+- **assetId** - unique 32 bytes used to identify different assets in the AssetRouter.
+- **Settlement Layer** - the layer where a chains settles its batches. Can be L1 or Gateway.
 
 List of contracts and abbreviations:
 - Chain Manager Contracts
@@ -54,6 +56,8 @@ List of contracts and abbreviations:
   - NativeTokenVault
   - Additional contracts:
     - BridgeStandardERC29
+    - IAssetHandler
+    - DeploymentTracker
   - Legacy: 
     - L1Erc20Bridge
     - L2SharedBridge (upgraded from L2Erc20Bridge)

@@ -22,7 +22,7 @@ The batch has to be sealed, and the Batch is committed to SL. We do not wait for
 
 This is faster than proof based interop, but not as fast as pre-commit based interop. It is also the middle ground in security.
 
-## Pre-commit/Miniblock based interop
+## Pre-commit/parallel building interop
 
 The batch is not sealed, but are built in parallel. `L2ToL1LogsRoot` is updated mid batch after each block. The receiving chain can read the current `L2ToL1LogsRoot` from the L1Messenger contract of the source chain. This can be two way, i.e. both chains can read from each other. It can happen multiple times inside a batch as well. If multiple roots were imported from the same batch, when settling they are aggregated and only the last node is sent. When settling, the imported `L2ToL1LogsRoot` might not be the final one that is settled by the source chain. An additional merkle proof will have to complete the root. This final root can be checked against the pending root of the other chain. If the roots match, then the batches of the chains have to be executed in parallel.
 
