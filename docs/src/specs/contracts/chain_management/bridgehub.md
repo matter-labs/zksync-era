@@ -1,5 +1,5 @@
 # Bridgehub
-
+[back to readme](../README.md)
 ## Introduction
 
 Bridgehub is the main chain registry contract for the ecosystem, that stores:
@@ -11,7 +11,7 @@ Bridgehub is the main chain registry contract for the ecosystem, that stores:
 
 Note sure what CTM is? Check our the [overview](./chain_type_manager.md).
 
-> This document will not cover how ZK Gateway works, you can check it out in [a separate doc](../../gateway/overview.md). 
+> This document will not cover how ZK Gateway works, you can check it out in [a separate doc](../gateway/overview.md). 
 
 The Bridgehub is the contract where new chains can [register](./chain_genesis.md). The Bridgehub also serves as an AssetHandler for chains when migrating chains between settlement layers, read more about it [here](../gateway/chain_migration.md).
 

@@ -22,18 +22,18 @@ unfreeze by updating.
 
 ## Upgrade structure
 
-Upgrade information is composed in the form of a [DiamondCutData](../../l1-contracts/contracts/state-transition/libraries/Diamond.sol#L75) struct. During the upgrade, the chain's DiamondProxy will delegateCall the `initAddress` with the provided `initCalldata`, while the facets that the `DiamondProxy` will be changed according to the `facetCuts`. This scheme is very powerful and it allows to change anything in the contract. However, we typically have a very specific set of changes that we need to do. To facilitate these, two contracts have been created:
+Upgrade information is composed in the form of a [DiamondCutData](../../../../../contracts/l1-contracts/contracts/state-transition/libraries/Diamond.sol#L75) struct. During the upgrade, the chain's DiamondProxy will delegateCall the `initAddress` with the provided `initCalldata`, while the facets that the `DiamondProxy` will be changed according to the `facetCuts`. This scheme is very powerful and it allows to change anything in the contract. However, we typically have a very specific set of changes that we need to do. To facilitate these, two contracts have been created:
 
-1. [BaseZkSyncUpgrade](../../l1-contracts/contracts/upgrades/BaseZkSyncUpgrade.sol) - Generic template with function that can be useful for upgrades
-2. [DefaultUpgrade](../../l1-contracts/contracts/upgrades/DefaultUpgrade.sol) - Default implementation of the `BaseZkSyncUpgrade`, contract that is most often planned to be used as diamond initialization when doing upgrades.
+1. [BaseZkSyncUpgrade](../../../../../contracts/l1-contracts/contracts/upgrades/BaseZkSyncUpgrade.sol) - Generic template with function that can be useful for upgrades
+2. [DefaultUpgrade](../../../../../contracts/l1-contracts/contracts/upgrades/DefaultUpgrade.sol) - Default implementation of the `BaseZkSyncUpgrade`, contract that is most often planned to be used as diamond initialization when doing upgrades.
 
-> Note, that the Gateway upgrade will be more complex than the usual ones and so a similar, but separate [process](../upgrade_history/gateway_upgrade/upgrade_process.md) will be used for it. It will also use its own custom implementation of the `BaseZkSyncUpgrade`: [GatewayUpgrade](../../l1-contracts/contracts/upgrades/GatewayUpgrade.sol).
+> Note, that the Gateway upgrade will be more complex than the usual ones and so a similar, but separate [process](../upgrade_history/gateway_upgrade/upgrade_process.md) will be used for it. It will also use its own custom implementation of the `BaseZkSyncUpgrade`: [GatewayUpgrade](../../../../../contracts/l1-contracts/contracts/upgrades/GatewayUpgrade.sol).
 
 ### Protocol version
 
 For tracking upgrade versions on different networks (private testnet, public testnet, mainnet) we use protocol version, which is basically just a number denoting the deployed version. The protocol version is different from Diamond Cut `proposalId`, since `protocolId` only shows how much upgrade proposal was proposed/executed, but nothing about the content of upgrades, while the protocol version is needed to understand what version is deployed.
 
-In the [BaseZkSyncUpgrade](../../l1-contracts/contracts/upgrades/BaseZkSyncUpgrade.sol) & [DefaultUpgrade](../../l1-contracts/contracts/upgrades/DefaultUpgrade.sol) we allow to arbitrarily increase the proposal version while upgrading a system, but only increase it. We are doing that since we can skip some protocol versions if for example found a bug there (but it was deployed on another network already).
+In the [BaseZkSyncUpgrade](../../../../../contracts/l1-contracts/contracts/upgrades/BaseZkSyncUpgrade.sol) & [DefaultUpgrade](../../../../../contracts/l1-contracts/contracts/upgrades/DefaultUpgrade.sol) we allow to arbitrarily increase the proposal version while upgrading a system, but only increase it. We are doing that since we can skip some protocol versions if for example found a bug there (but it was deployed on another network already).
 
 ## Protocol upgrade transaction
 
@@ -41,6 +41,6 @@ During upgrade, we typically need not only update the L1 contracts, but also the
 
 ## Whitelisting and executing upgrade
 
-Note, that due to how powerful the upgrades are, if we allowed any [chain admin](../chain_management/admin_role.md) to inact any upgrade it wants, it could allow malicious chains to potentially break some of the ecosystem invariants. Because of that, any upgrade should be firstly whitelisted by the decentralized governance through calling the `setNewVersionUpgrade` function of the [ChainTypeManager](../../l1-contracts/contracts/state-transition/ChainTypeManager.sol).
+Note, that due to how powerful the upgrades are, if we allowed any [chain admin](../chain_management/admin_role.md) to inact any upgrade it wants, it could allow malicious chains to potentially break some of the ecosystem invariants. Because of that, any upgrade should be firstly whitelisted by the decentralized governance through calling the `setNewVersionUpgrade` function of the [ChainTypeManager](../../../../../contracts/l1-contracts/contracts/state-transition/ChainTypeManager.sol).
 
-In order to execute the upgrade, the chain admin would call the `upgradeChainFromVersion` function from the [Admin](../../l1-contracts/contracts/state-transition/chain-deps/facets/Admin.sol) facet.
+In order to execute the upgrade, the chain admin would call the `upgradeChainFromVersion` function from the [Admin](../../../../../contracts/l1-contracts/contracts/state-transition/chain-deps/facets/Admin.sol) facet.

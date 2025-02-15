@@ -191,7 +191,7 @@ It is preferable that all the steps above are executed in a multicall for greate
 mandatory.
 
 This upgrade adds a lot of new chain parameters and so these
-[should be managed carefully](../../chain_management/admin_role.md).
+[should be managed carefully](../../contracts/chain_management/admin_role.md).
 
 ### Upgrade flow in contracts
 
@@ -208,8 +208,8 @@ there are also other rather complex actions such as upgrading the L2SharedBridge
 implementation that require rather complex logic.
 
 Due to the complexity of the actions above, it was decided to put all those into the
-[L2GatewayUpgrade](../../../system-contracts/contracts/L2GatewayUpgrade.sol) contract. It is supposed to be
-force-deployed with the constructor parameters containing the `ZKChainSpecificForceDeploymentsData` as well as
+[L2GatewayUpgrade](../../../../../contracts/system-contracts/contracts/L2GatewayUpgrade.sol) contract. It is supposed to
+be force-deployed with the constructor parameters containing the `ZKChainSpecificForceDeploymentsData` as well as
 `FixedForceDeploymentsData`. It will be forcedeployed to the ComplexUpgrader’s address to get the kernel space rights.
 
 So most of the system contracts will be deployed the old way (via force deployment), but for more complex thing the
@@ -219,7 +219,7 @@ constructor. Then the correct will be put back there.
 So entire flow can be summarized by the following:
 
 1. On L1, when `AdminFacet.upgradeChainFromVersion` is called by the Chain Admin, the contract delegatecalls to the
-   [GatewayUpgrade](../../../l1-contracts/contracts/upgrades/GatewayUpgrade.sol) contract.
+   [GatewayUpgrade](../../../../../contracts/l1-contracts/contracts/upgrades/GatewayUpgrade.sol) contract.
 2. The `GatewayUpgrade` gathers all the needed data to compose the `ZKChainSpecificForceDeploymentsData`, while the
    `FixedForceDeploymentsData` is part is hardcoded inside the upgrade transaction.
 3. The combined upgrade transaction consists of many forced deployments (basically tuples of
@@ -279,8 +279,8 @@ API.
    well as to set the CTM inside Gateway as the asset handler for the chains.
 
 Note, that steps (2) and (3) can be executed before this CTM has been ever deployed. These are expected to be deployed
-via [c](../../../l1-contracts/contracts/state-transition/chain-deps/GatewayCTMDeployer.sol) that itself should be
-deployed deployed via Create2Factory. So the address of the CTM can be precomputed.
+via [c](../../../../../contracts/l1-contracts/contracts/state-transition/chain-deps/GatewayCTMDeployer.sol) that itself
+should be deployed deployed via Create2Factory. So the address of the CTM can be precomputed.
 
 In case anyone will try to migrate their chain on top of gateway while CTM is not yet deployed, the migration will fail
 due to the calls to this CTM failing (standard Solidity checks for non-empty code size when doing high level calls).

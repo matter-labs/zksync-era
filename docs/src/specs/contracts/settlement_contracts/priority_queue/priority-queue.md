@@ -23,7 +23,7 @@ of which we only care about the canonical hash.
 
 ### Inserting new operations
 
-The queue is implemented as a [library](../../../l1-contracts/contracts/state-transition/libraries/PriorityQueue.sol#L22).
+The queue is implemented as a [library](../../../../../../contracts/l1-contracts/contracts/state-transition/libraries/PriorityQueue.sol#L22).
 For each incoming priority operation, we simply `pushBack` its hash, expiration and layer2Tip.
 
 ### Checking validity

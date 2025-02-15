@@ -16,16 +16,16 @@ The order of the files here only roughly represents the order of reading. A lot 
     - [Priority queue](./settlement_contracts/priority_queue/priority-queue.md)
   - Consensus
     - [Consensus Registry](./consensus/consensus-registry.md)
-- Chain Management
+- [Chain Management](./chain_management/overview.md)
   - [Bridgehub](./chain_management/bridgehub.md)
   - [Chain type manager](./chain_management/chain_type_manager.md)
   - [Admin role](./chain_management/admin_role.md)
   - [Chain genesis](./chain_management/chain_genesis.md)
   - [Standard Upgrade process](./chain_management/upgrade_process.md)
 - [Bridging](./bridging/README.md)
-  - [Interop](./bridging/interop.md)
-    - [Overview of the bridgehub functionality](./bridging/bridgehub/overview.md)
-  - [Asset Router](./bridging/asset_router/overview.md)
+  - [Interop](./bridging/interop/overview.md)
+    - [Overview of the bridgehub functionality](./bridging/interop/interop_center/overview.md)
+  - [Asset Router](./bridging/asset_router_and_ntv/asset_router.md)
 - L2 System Contracts
   - [System contracts bootloader description](./l2_system_contracts/system_contracts_bootloader_description.md)
   - [Batches and blocks on ZKsync](./l2_system_contracts/batches_and_blocks_on_zksync.md)
@@ -38,9 +38,9 @@ The order of the files here only roughly represents the order of reading. A lot 
   - [L3->L1 messaging via gateway](./gateway/nested_l3_l1_messaging.md)
   - [Gateway protocol versioning](./gateway/gateway_protocol_upgrades.md)
   - [DA handling on Gateway](./gateway/gateway_da.md)
-- Upgrade history
+<!-- - Upgrade history
   - [Gateway upgrade diff](./upgrade_history/gateway_upgrade/gateway_diff_review.md)
-  - [Gateway upgrade process](./upgrade_history/gateway_upgrade/upgrade_process.md)
+  - [Gateway upgrade process](./upgrade_history/gateway_upgrade/upgrade_process.md) -->
 
 ![Reading order](./img/reading_order.png)
 

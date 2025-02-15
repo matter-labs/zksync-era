@@ -10,7 +10,7 @@ The interop process consists of seven main steps:
 1. Initiating the Transaction on the Sending Chain
 
    - The user/calls calls the InteropCenter contract. For example if they want to use a bridge an asset they might call
-     `requestL2TransactionSingleCall`. Read the [InteropCenter](./interop_center.md) for more information.
+     `requestL2TransactionSingleCall`. Read the [InteropCenter](./interop_center/overview.md) for more information.
    - The InteropCenter emits two `InteropBundleSent` and single `InteropTriggerSent` events. This events together specify the interop tx.
      This event data can be gathered to create the interop txs.
    - For each event an L2->L1 message, it is included in the chains merkle tree of emitted txs in the `L2toL1Logs` merkle tree, see [here](./forms_of_finality.md).

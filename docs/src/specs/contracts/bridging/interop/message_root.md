@@ -5,7 +5,7 @@
 
 The message root is the contract on L1 that collects messages from different chains and aggregates them into a single merkle tree. This makes interop more efficient, since instead of having to import each individual message, chains can import the MessageRoot, which is an aggregate of messages in a single batch, then across batches of a single chain, and then across chains. 
 
-The MessageRoot contract is deployed both on L1 and ZK chains, but on ZK chains it is only used on GW. On GW it is used to aggregate messages for chains that are settling on GW, in the same way that it is done on L1. Read about it [here](../gateway/nested_l3_l1_messaging.md).
+The MessageRoot contract is deployed both on L1 and ZK chains, but on ZK chains it is only used on GW. On GW it is used to aggregate messages for chains that are settling on GW, in the same way that it is done on L1. Read about it [here](../../gateway/nested_l3_l1_messaging.md).
 
 ![MessageRoot](../img/message_root.png)
 
@@ -43,7 +43,7 @@ At the execution stage of every batch, the ZK Chain would call the `MessageRoot.
 
 We need to construct merkle proofs and concatenate them to prove that a message belongs to a MessageRoot. The process will consist of two steps:
 
-1. Construct the proof to the chain's `ChainBatchRoot`. This is the same proof that is used to verify [L2->L1 logs](../../settlement_contracts/priority_queue/l1_l2_communication/l2_l1_logs.md).
+1. Construct the proof to the chain's `ChainBatchRoot`. This is the same proof that is used to verify [L2->L1 logs](../../settlement_contracts/priority_queue/l1_l2_communication/l2_to_l1.md).
 2. Prove that it belonged to the MessageRoot. We will explain this in the following.
 
 The concatenated proof is passed into the `proveL2LogInclusion` method. This will split the proof into the two parts listed above, and then verify the two merkle proofs. The first verification is done via the normal process of log inclusion, while the second uses `proveL2LeafInclusion`. The final root is checked to be stored in storage.

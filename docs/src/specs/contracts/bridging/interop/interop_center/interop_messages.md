@@ -54,7 +54,7 @@ This `interopHash` serves as a globally unique identifier that can be used on an
 #### How do I get the proof
 
 You’ll notice that **verifyInteropMessage** has a second argument — a proof that you need to provide. This proof is a
-Merkle tree proof (more details [here](../../message_root.md)). You can obtain it by querying the chain using the 
+Merkle tree proof (more details [here](../message_root.md)). You can obtain it by querying the chain using the 
 [api](https://docs.zksync.io/build/api-reference/zks-rpc#zks_getl2tol1msgproof), or generate it off-chain - by
 looking at the chain's state on L1.
 

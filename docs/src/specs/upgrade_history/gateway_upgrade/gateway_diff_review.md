@@ -84,7 +84,7 @@ bridging-related contracts are located inside the `l1-contracts` folder.
 
 ## Priority tree
 
-[Migrating Priority Queue to Merkle Tree](../../settlement_contracts/priority_queue/priority-queue.md)
+[Migrating Priority Queue to Merkle Tree](../../contracts/settlement_contracts/priority_queue/priority-queue.md)
 
 In the currently deployed system, L1→L2 transactions are added as a part of a priority queue, i.e. all of them are
 stored 1-by-1 on L1 in a queue-like structure.

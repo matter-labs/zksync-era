@@ -1,4 +1,5 @@
 # L2→L1 communication
+[back to readme](../../../README.md)
 
 The L2→L1 communication is more fundamental than the L1→L2 communication, as the second relies on the first. L2→L1
 communication happens by the L1 smart contract verifying messages alongside the proofs. The only “provable” part of the
