@@ -55,6 +55,12 @@ impl fmt::Debug for K256PrivateKey {
     }
 }
 
+impl From<SecretKey> for K256PrivateKey {
+    fn from(secret_key: SecretKey) -> Self {
+        K256PrivateKey(secret_key)
+    }
+}
+
 impl K256PrivateKey {
     /// Converts a 32-byte array into a key.
     ///
@@ -140,7 +146,7 @@ impl K256PrivateKey {
 }
 
 /// Convert public key into the address
-pub(super) fn public_to_address(public: &Public) -> Address {
+pub fn public_to_address(public: &Public) -> Address {
     let hash = keccak256(public.as_bytes());
     let mut result = Address::zero();
     result.as_bytes_mut().copy_from_slice(&hash[12..]);
@@ -161,7 +167,7 @@ pub enum Error {
 
 /// Signature encoded as RSV components
 #[repr(C)]
-pub(super) struct Signature([u8; 65]);
+pub struct Signature([u8; 65]);
 
 impl Signature {
     /// Get a slice into the 'r' portion of the data.
@@ -180,7 +186,7 @@ impl Signature {
     }
 
     /// Encode the signature into RSV array (V altered to be in "Electrum" notation).
-    pub(super) fn into_electrum(mut self) -> [u8; 65] {
+    pub fn into_electrum(mut self) -> [u8; 65] {
         self.0[64] += 27;
         self.0
     }
@@ -304,7 +310,7 @@ impl DerefMut for Signature {
 
 /// Signs message with the given secret key.
 /// Returns the corresponding signature.
-pub(super) fn sign(secret: &K256PrivateKey, message: &Message) -> Result<Signature, Error> {
+pub fn sign(secret: &K256PrivateKey, message: &Message) -> Result<Signature, Error> {
     let context = &SECP256K1;
     let s = context.sign_ecdsa_recoverable(&SecpMessage::from_slice(&message[..])?, &secret.0);
     let (rec_id, data) = s.serialize_compact();
@@ -317,7 +323,7 @@ pub(super) fn sign(secret: &K256PrivateKey, message: &Message) -> Result<Signatu
 }
 
 /// Recovers the public key from the signature for the message
-pub(super) fn recover(signature: &Signature, message: &Message) -> Result<Public, Error> {
+pub fn recover(signature: &Signature, message: &Message) -> Result<Public, Error> {
     let rsig = RecoverableSignature::from_compact(
         &signature[0..64],
         RecoveryId::from_i32(signature[64] as i32)?,
