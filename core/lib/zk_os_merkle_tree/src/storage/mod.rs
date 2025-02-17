@@ -139,6 +139,11 @@ impl PatchSet {
             next_key_and_index: (*next_key, next_entry.index),
         }
     }
+
+    #[cfg(test)]
+    pub(crate) fn manifest_mut(&mut self) -> &mut Manifest {
+        &mut self.manifest
+    }
 }
 
 impl Database for PatchSet {
@@ -153,7 +158,12 @@ impl Database for PatchSet {
     }
 
     fn try_manifest(&self) -> Result<Option<Manifest>, DeserializeError> {
-        Ok(Some(self.manifest.clone()))
+        // We consider manifest absent if there are no tree versions. This is important for tree tag checks on the empty tree.
+        Ok(if self.manifest.version_count == 0 {
+            None
+        } else {
+            Some(self.manifest.clone())
+        })
     }
 
     fn try_root(&self, version: u64) -> Result<Option<Root>, DeserializeError> {

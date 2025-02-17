@@ -90,6 +90,10 @@ impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
     /// Errors if the hasher or basic tree parameters (e.g., the tree depth)
     /// do not match those of the tree loaded from the database.
     pub fn with_hasher(db: DB, hasher: P::Hasher) -> anyhow::Result<Self> {
+        let maybe_manifest = db.try_manifest().context("failed reading tree manifest")?;
+        if let Some(manifest) = maybe_manifest {
+            manifest.tags.ensure_consistency::<P>(&hasher)?;
+        }
         Ok(Self { db, hasher })
     }
 

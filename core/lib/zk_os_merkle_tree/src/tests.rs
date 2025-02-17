@@ -5,7 +5,42 @@ use std::collections::{BTreeMap, HashMap};
 use rand::{rngs::StdRng, seq::SliceRandom, Rng, SeedableRng};
 
 use super::*;
-use crate::{storage::PatchSet, types::Leaf};
+use crate::{
+    storage::PatchSet,
+    types::{Leaf, TreeTags},
+};
+
+#[test]
+fn tree_depth_mismatch() {
+    let mut db = PatchSet::default();
+    db.manifest_mut().version_count = 1;
+    db.manifest_mut().tags = TreeTags {
+        depth: 48,
+        ..TreeTags::for_params::<DefaultTreeParams>(&Blake2Hasher)
+    };
+
+    let err = MerkleTree::new(db).unwrap_err().to_string();
+    assert!(
+        err.contains("Unexpected tree depth: expected 64, got 48"),
+        "{err}"
+    );
+}
+
+#[test]
+fn tree_internal_node_depth_mismatch() {
+    let mut db = PatchSet::default();
+    db.manifest_mut().version_count = 1;
+    db.manifest_mut().tags = TreeTags {
+        internal_node_depth: 3,
+        ..TreeTags::for_params::<DefaultTreeParams>(&Blake2Hasher)
+    };
+
+    let err = MerkleTree::new(db).unwrap_err().to_string();
+    assert!(
+        err.contains("Unexpected internal node depth: expected 4, got 3"),
+        "{err}"
+    );
+}
 
 fn naive_hash_tree(entries: &[TreeEntry]) -> H256 {
     let mut indices = BTreeMap::from([(H256::zero(), 0_u64), (H256::repeat_byte(0xff), 1)]);

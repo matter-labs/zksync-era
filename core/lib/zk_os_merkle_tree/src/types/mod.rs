@@ -193,13 +193,45 @@ impl Default for TreeTags {
 impl TreeTags {
     const ARCHITECTURE: &'static str = "AmortizedLinkedListMT";
 
-    pub fn for_params<P: TreeParams>(hasher: &P::Hasher) -> Self {
+    pub(crate) fn for_params<P: TreeParams>(hasher: &P::Hasher) -> Self {
         Self {
             architecture: Self::ARCHITECTURE.to_owned(),
             depth: P::TREE_DEPTH,
             internal_node_depth: P::INTERNAL_NODE_DEPTH,
             hasher: hasher.name().to_owned(),
         }
+    }
+
+    pub(crate) fn ensure_consistency<P: TreeParams>(
+        &self,
+        hasher: &P::Hasher,
+    ) -> anyhow::Result<()> {
+        anyhow::ensure!(
+            self.architecture == Self::ARCHITECTURE,
+            "Unsupported tree architecture `{}`, expected `{}`",
+            self.architecture,
+            Self::ARCHITECTURE
+        );
+        anyhow::ensure!(
+            self.depth == P::TREE_DEPTH,
+            "Unexpected tree depth: expected {expected}, got {got}",
+            expected = P::TREE_DEPTH,
+            got = self.depth
+        );
+        anyhow::ensure!(
+            self.internal_node_depth == P::INTERNAL_NODE_DEPTH,
+            "Unexpected internal node depth: expected {expected}, got {got}",
+            expected = P::INTERNAL_NODE_DEPTH,
+            got = self.internal_node_depth
+        );
+        anyhow::ensure!(
+            hasher.name() == self.hasher,
+            "Mismatch between the provided tree hasher `{}` and the hasher `{}` used \
+             in the database",
+            hasher.name(),
+            self.hasher
+        );
+        Ok(())
     }
 }
 
