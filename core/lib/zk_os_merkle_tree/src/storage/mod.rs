@@ -1,6 +1,7 @@
 use std::{
     cmp,
     collections::{BTreeMap, HashMap},
+    ops,
 };
 
 use zksync_basic_types::H256;
@@ -45,6 +46,13 @@ pub trait Database: Send + Sync {
     ///
     /// Returns I/O errors.
     fn apply_patch(&mut self, patch: PatchSet) -> anyhow::Result<()>;
+
+    /// Truncates the tree.
+    fn truncate(
+        &mut self,
+        manifest: Manifest,
+        truncated_versions: ops::RangeTo<u64>,
+    ) -> anyhow::Result<()>;
 }
 
 impl<DB: Database + ?Sized> Database for &mut DB {
@@ -66,6 +74,14 @@ impl<DB: Database + ?Sized> Database for &mut DB {
 
     fn apply_patch(&mut self, patch: PatchSet) -> anyhow::Result<()> {
         (**self).apply_patch(patch)
+    }
+
+    fn truncate(
+        &mut self,
+        manifest: Manifest,
+        truncated_versions: ops::RangeTo<u64>,
+    ) -> anyhow::Result<()> {
+        (**self).truncate(manifest, truncated_versions)
     }
 }
 
@@ -111,13 +127,6 @@ pub struct PatchSet {
 }
 
 impl PatchSet {
-    pub(crate) fn from_manifest(manifest: Manifest) -> Self {
-        Self {
-            manifest,
-            ..Self::default()
-        }
-    }
-
     fn index(&self, version: u64, key: &H256) -> KeyLookup {
         let (next_key, next_entry) = self
             .sorted_new_leaves
@@ -191,17 +200,30 @@ impl Database for PatchSet {
 
     fn apply_patch(&mut self, patch: PatchSet) -> anyhow::Result<()> {
         let new_version_count = patch.manifest.version_count;
-        if new_version_count < self.manifest.version_count {
-            self.patches_by_version
-                .retain(|&version, _| version < new_version_count);
-            // This requires a full scan, but we assume there aren't that many data in a patch (it's mostly used as a `Database` for testing).
-            self.sorted_new_leaves
-                .retain(|_, entry| entry.inserted_at < new_version_count);
-        }
+        anyhow::ensure!(
+            new_version_count >= self.manifest.version_count,
+            "Use `truncate()` for truncating tree"
+        );
 
         self.manifest = patch.manifest;
         self.patches_by_version.extend(patch.patches_by_version);
         self.sorted_new_leaves.extend(patch.sorted_new_leaves);
+        Ok(())
+    }
+
+    fn truncate(
+        &mut self,
+        manifest: Manifest,
+        _truncated_versions: ops::RangeTo<u64>,
+    ) -> anyhow::Result<()> {
+        let new_version_count = manifest.version_count;
+        self.patches_by_version
+            .retain(|&version, _| version < new_version_count);
+        // This requires a full scan, but we assume there aren't that many data in a patch (it's mostly used as a `Database` for testing).
+        self.sorted_new_leaves
+            .retain(|_, entry| entry.inserted_at < new_version_count);
+
+        self.manifest = manifest;
         Ok(())
     }
 }

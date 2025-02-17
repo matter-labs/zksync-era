@@ -184,7 +184,7 @@ impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
             // TODO: It is necessary to remove "future" stale keys since otherwise they may be used in future pruning and lead
             //   to non-obsolete tree nodes getting removed.
             manifest.version_count = retained_version_count;
-            self.db.apply_patch(PatchSet::from_manifest(manifest))?;
+            self.db.truncate(manifest, ..current_version_count)?;
         }
         Ok(())
     }

@@ -1,6 +1,6 @@
 //! RocksDB implementation of [`Database`].
 
-use std::path::Path;
+use std::{ops, path::Path};
 
 use anyhow::Context as _;
 use once_cell::sync::OnceCell;
@@ -90,6 +90,20 @@ impl RocksDBWrapper {
     /// [RocksDB docs]: https://github.com/facebook/rocksdb/wiki/MultiGet-Performance
     pub fn set_multi_get_chunk_size(&mut self, chunk_size: usize) {
         self.multi_get_chunk_size = chunk_size;
+    }
+
+    fn set_leaf_nibbles(&mut self, manifest: &Manifest) -> anyhow::Result<u8> {
+        let tags = &manifest.tags;
+        let leaf_nibbles_from_manifest = tags.depth.div_ceil(tags.internal_node_depth);
+        if let Some(&leaf_nibbles) = self.leaf_nibbles.get() {
+            anyhow::ensure!(
+                leaf_nibbles_from_manifest == leaf_nibbles,
+                "Invalid manifest update"
+            );
+        } else {
+            self.leaf_nibbles.set(leaf_nibbles_from_manifest).ok();
+        }
+        Ok(leaf_nibbles_from_manifest)
     }
 
     fn raw_node(&self, key: &[u8]) -> Option<Vec<u8>> {
@@ -224,8 +238,8 @@ impl Database for RocksDBWrapper {
         nodes.collect()
     }
 
-    // FIXME: need to remove future keys from lookup on truncation!
     fn apply_patch(&mut self, patch: PatchSet) -> anyhow::Result<()> {
+        let leaf_nibbles = self.set_leaf_nibbles(&patch.manifest)?;
         let tree_cf = MerkleTreeColumnFamily::Tree;
         let mut write_batch = self.db.new_write_batch();
         let mut node_bytes = Vec::with_capacity(128);
@@ -233,17 +247,6 @@ impl Database for RocksDBWrapper {
 
         patch.manifest.serialize(&mut node_bytes);
         write_batch.put_cf(tree_cf, Self::MANIFEST_KEY, &node_bytes);
-
-        let tags = &patch.manifest.tags;
-        let leaf_nibbles_from_manifest = tags.depth.div_ceil(tags.internal_node_depth);
-        if let Some(&leaf_nibbles) = self.leaf_nibbles.get() {
-            anyhow::ensure!(
-                leaf_nibbles_from_manifest == leaf_nibbles,
-                "Invalid manifest update"
-            );
-        } else {
-            self.leaf_nibbles.set(leaf_nibbles_from_manifest).ok();
-        }
 
         for (key, entry) in patch.sorted_new_leaves {
             node_bytes.clear();
@@ -284,13 +287,79 @@ impl Database for RocksDBWrapper {
             for (index_on_level, leaf) in sub_patch.leaves {
                 let node_key = NodeKey {
                     version,
-                    nibble_count: leaf_nibbles_from_manifest,
+                    nibble_count: leaf_nibbles,
                     index_on_level,
                 };
                 node_bytes.clear();
                 leaf.serialize(&mut node_bytes);
                 write_batch.put_cf(tree_cf, &node_key.as_db_key(), &node_bytes);
             }
+        }
+
+        self.db
+            .write(write_batch)
+            .context("Failed writing a batch to RocksDB")?;
+        Ok(())
+    }
+
+    fn truncate(
+        &mut self,
+        manifest: Manifest,
+        truncated_versions: ops::RangeTo<u64>,
+    ) -> anyhow::Result<()> {
+        let leaf_nibbles = self.set_leaf_nibbles(&manifest)?;
+        let mut write_batch = self.db.new_write_batch();
+        let mut node_bytes = Vec::with_capacity(128);
+        // ^ 128 looks somewhat reasonable as node capacity
+
+        manifest.serialize(&mut node_bytes);
+        write_batch.put_cf(
+            MerkleTreeColumnFamily::Tree,
+            Self::MANIFEST_KEY,
+            &node_bytes,
+        );
+
+        // Find out the retained number of leaves.
+        let last_retained_version = manifest
+            .version_count
+            .checked_sub(1)
+            .context("at least 1 tree version must be retained")?;
+        let last_retained_root = self.try_root(last_retained_version)?.ok_or_else(|| {
+            DeserializeError::from(DeserializeErrorKind::MissingNode).with_context(
+                DeserializeContext::Node(NodeKey::root(last_retained_version)),
+            )
+        })?;
+        let mut first_new_leaf_index = last_retained_root.leaf_count;
+
+        // For each truncated version, get keys for the new leaves and remove them from the `KeyIndices` CF.
+        for truncated_version in manifest.version_count..truncated_versions.end {
+            let truncated_root = self.try_root(truncated_version)?.ok_or_else(|| {
+                DeserializeError::from(DeserializeErrorKind::MissingNode)
+                    .with_context(DeserializeContext::Node(NodeKey::root(truncated_version)))
+            })?;
+            let new_leaf_count = truncated_root.leaf_count;
+
+            let start_leaf_key = NodeKey {
+                version: truncated_version,
+                nibble_count: leaf_nibbles,
+                index_on_level: first_new_leaf_index,
+            };
+            let start_leaf_key = start_leaf_key.as_db_key();
+
+            let new_leaves = self
+                .db
+                .from_iterator_cf(MerkleTreeColumnFamily::Tree, start_leaf_key.as_slice()..)
+                .take_while(|(raw_key, _)| {
+                    // Otherwise, we're no longer iterating over leaves for `truncated_version`
+                    raw_key[..9] == start_leaf_key[..9]
+                })
+                .map(|(_, raw_leaf)| Leaf::deserialize(&raw_leaf));
+            for new_leaf in new_leaves {
+                let new_key = new_leaf?.key;
+                write_batch.delete_cf(MerkleTreeColumnFamily::KeyIndices, new_key.as_bytes());
+            }
+
+            first_new_leaf_index = new_leaf_count;
         }
 
         self.db
@@ -310,7 +379,7 @@ mod tests {
     use super::*;
     use crate::{
         leaf_nibbles, max_nibbles_for_internal_node, max_node_children, storage::PartialPatchSet,
-        types::TreeTags, DefaultTreeParams, TreeParams,
+        types::TreeTags, DefaultTreeParams, MerkleTree, TreeEntry, TreeParams,
     };
 
     #[test]
@@ -478,5 +547,55 @@ mod tests {
         test_persisting_nodes::<DefaultTreeParams<64, 3>>();
         println!("Default tree params");
         test_persisting_nodes::<DefaultTreeParams<64, 2>>();
+    }
+
+    fn get_all_keys(db: &RocksDBWrapper) -> Vec<H256> {
+        db.db
+            .prefix_iterator_cf(MerkleTreeColumnFamily::KeyIndices, &[])
+            .map(|(raw_key, _)| H256::from_slice(&raw_key))
+            .collect()
+    }
+
+    #[test]
+    fn truncating_tree_removes_key_indices() {
+        let temp_dir = TempDir::new().unwrap();
+        let db = RocksDBWrapper::new(temp_dir.path()).unwrap();
+
+        let mut tree = MerkleTree::new(db).unwrap();
+        tree.extend(&[]).unwrap();
+        tree.extend(&[TreeEntry {
+            key: H256::repeat_byte(1),
+            value: H256::repeat_byte(2),
+        }])
+        .unwrap();
+        tree.extend(&[
+            TreeEntry {
+                key: H256::repeat_byte(2),
+                value: H256::repeat_byte(3),
+            },
+            TreeEntry {
+                key: H256::repeat_byte(3),
+                value: H256::repeat_byte(4),
+            },
+        ])
+        .unwrap();
+
+        let all_keys = get_all_keys(&tree.db);
+        assert_eq!(
+            all_keys,
+            [
+                H256::zero(),
+                H256::repeat_byte(1),
+                H256::repeat_byte(2),
+                H256::repeat_byte(3),
+                H256::repeat_byte(0xff)
+            ]
+        );
+
+        tree.truncate_recent_versions(1).unwrap();
+
+        // Only guards should be retained.
+        let all_keys = get_all_keys(&tree.db);
+        assert_eq!(all_keys, [H256::zero(), H256::repeat_byte(0xff)]);
     }
 }
