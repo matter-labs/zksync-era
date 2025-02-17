@@ -44,5 +44,6 @@ jobs:
               cd "${WORKSPACE}"
               cargo build --release
               cargo nextest run --no-run --release
+              cargo clippy
             )
           done
