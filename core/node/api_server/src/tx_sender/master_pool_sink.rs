@@ -22,7 +22,7 @@ impl MasterPoolSink {
     pub fn new(master_pool: ConnectionPool<Core>) -> Self {
         Self {
             master_pool,
-            inflight_requests: Mutex::new(HashMap::new()),
+            inflight_requests: Default::default(),
         }
     }
 }
@@ -67,6 +67,10 @@ impl TxSink for MasterPoolSink {
             Err(err) => Err(err.generalize().into()),
         };
 
+        self.inflight_requests
+            .lock()
+            .await
+            .remove(&address_and_nonce);
         API_METRICS.inflight_tx_submissions.dec_by(1);
 
         result
