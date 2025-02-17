@@ -2,6 +2,8 @@ use std::fmt;
 
 use zksync_basic_types::H256;
 
+pub(crate) const TREE_DEPTH: u8 = 64;
+
 /// Tree leaf.
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(test, derive(PartialEq))]
@@ -31,8 +33,8 @@ impl Leaf {
         next_index: 1,
     };
 
-    /// Number of nibbles for leaves, i.e. tree depth (64) divided by the levels per nibble (4).
-    pub(crate) const NIBBLES: u8 = 16;
+    /// Number of nibbles for leaves.
+    pub(crate) const NIBBLES: u8 = TREE_DEPTH.div_ceil(InternalNode::DEPTH);
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -52,13 +54,17 @@ pub struct InternalNode {
 impl InternalNode {
     /// Maximum number of nibbles for internal nodes.
     pub(crate) const MAX_NIBBLES: u8 = Leaf::NIBBLES - 1;
+    /// Number of levels encapsulated in an internal node.
+    pub(crate) const DEPTH: u8 = 3;
+    /// Maximum number of children for a node.
+    pub(crate) const MAX_CHILDREN: u8 = 1 << Self::DEPTH;
 
     pub(crate) fn empty() -> Self {
         Self { children: vec![] }
     }
 
     pub(crate) fn new(len: usize, version: u64) -> Self {
-        assert!(len <= 16);
+        assert!(len <= usize::from(Self::MAX_CHILDREN));
         Self {
             children: vec![
                 ChildRef {
@@ -72,17 +78,17 @@ impl InternalNode {
 
     /// Panics if the index doesn't exist.
     pub(crate) fn child_ref(&self, index: usize) -> &ChildRef {
-        assert!(index < 16);
+        assert!(index < usize::from(Self::MAX_CHILDREN));
         &self.children[index]
     }
 
     pub(crate) fn child_mut(&mut self, index: usize) -> &mut ChildRef {
-        assert!(index < 16);
+        assert!(index < usize::from(Self::MAX_CHILDREN));
         &mut self.children[index]
     }
 
     pub(crate) fn ensure_len(&mut self, expected_len: usize, version: u64) {
-        assert!(expected_len <= 16);
+        assert!(expected_len <= usize::from(Self::MAX_CHILDREN));
         self.children.resize_with(expected_len, || ChildRef {
             version,
             hash: H256::zero(),
@@ -121,7 +127,7 @@ pub enum KeyLookup {
 #[derive(Clone, Copy)]
 pub struct NodeKey {
     pub(crate) version: u64,
-    /// `0..=16` (64 / 4), where 0 is the root and 16 are leaves.
+    /// `0..=Leaf::NIBBLES`, where 0 is the root and `Leaf::NIBBLES` are leaves.
     pub(crate) nibble_count: u8,
     pub(crate) index_on_level: u64,
 }
@@ -145,8 +151,8 @@ impl fmt::Display for NodeKey {
         if self.nibble_count <= InternalNode::MAX_NIBBLES {
             write!(
                 formatter,
-                "{}:[{} @ {} nibs]",
-                self.version, self.index_on_level, self.nibble_count
+                "{}:{}nibs:{}",
+                self.version, self.nibble_count, self.index_on_level
             )
         } else {
             write!(formatter, "{}:{}", self.version, self.index_on_level)

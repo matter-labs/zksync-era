@@ -137,7 +137,7 @@ impl PartialPatchSet {
         leaf_indices: impl Iterator<Item = u64> + Clone,
     ) -> anyhow::Result<()> {
         for nibble_count in 1..=Leaf::NIBBLES {
-            let bit_shift = (Leaf::NIBBLES - nibble_count) * 4;
+            let bit_shift = (Leaf::NIBBLES - nibble_count) * InternalNode::DEPTH;
 
             let mut prev_index_on_level = None;
             let parent_level = usize::from(nibble_count)
@@ -152,13 +152,14 @@ impl PartialPatchSet {
                     prev_index_on_level = Some(index_on_level);
 
                     let parent = if let Some(parent_level) = parent_level {
-                        let parent_idx = index_on_level >> 4;
+                        let parent_idx = index_on_level >> InternalNode::DEPTH;
                         &parent_level[&parent_idx]
                     } else {
                         // nibble_count == 1, the parent is the root node
                         &self.root.root_node
                     };
-                    let this_ref = parent.child_ref((index_on_level % 16) as usize);
+                    let child_idx = index_on_level % u64::from(InternalNode::MAX_CHILDREN);
+                    let this_ref = parent.child_ref(child_idx as usize);
                     let requested_key = NodeKey {
                         version: this_ref.version,
                         nibble_count,
@@ -220,9 +221,13 @@ impl PartialPatchSet {
     fn update_ancestor_versions(&mut self, leaf_idx: u64, version: u64) {
         let mut idx = leaf_idx;
         for internal_level in self.internal.iter_mut().rev() {
-            let parent = internal_level.get_mut(&(idx >> 4)).unwrap();
-            parent.child_mut((idx % 16) as usize).version = version;
-            idx >>= 4;
+            let parent = internal_level
+                .get_mut(&(idx >> InternalNode::DEPTH))
+                .unwrap();
+            parent
+                .child_mut((idx % u64::from(InternalNode::MAX_CHILDREN)) as usize)
+                .version = version;
+            idx >>= InternalNode::DEPTH;
         }
         self.root.root_node.child_mut(idx as usize).version = version;
     }
@@ -262,18 +267,19 @@ impl PartialPatchSet {
             // Add / update internal nodes.
             for (i, internal_level) in self.internal.iter_mut().enumerate() {
                 let nibble_count = i as u8 + 1;
-                let child_depth = (InternalNode::MAX_NIBBLES - nibble_count) * 4; // 60 for the root etc.
-                let first_index_on_level = (new_indexes.start() >> child_depth) / 16;
+                let child_depth = (InternalNode::MAX_NIBBLES - nibble_count) * InternalNode::DEPTH;
+                let first_index_on_level =
+                    (new_indexes.start() >> child_depth) / u64::from(InternalNode::MAX_CHILDREN);
                 let last_child_index = new_indexes.end() >> child_depth;
-                let last_index_on_level = last_child_index / 16;
+                let last_index_on_level = last_child_index / u64::from(InternalNode::MAX_CHILDREN);
 
                 // Only `first_index_on_level` may exist already; all others are necessarily new.
                 let mut start_idx = first_index_on_level;
                 if let Some(parent) = internal_level.get_mut(&first_index_on_level) {
                     let expected_len = if last_index_on_level == first_index_on_level {
-                        (last_child_index % 16) as usize + 1
+                        (last_child_index % u64::from(InternalNode::MAX_CHILDREN)) as usize + 1
                     } else {
-                        16
+                        InternalNode::MAX_CHILDREN.into()
                     };
                     parent.ensure_len(expected_len, version);
                     start_idx += 1;
@@ -281,18 +287,18 @@ impl PartialPatchSet {
 
                 let new_nodes = (start_idx..=last_index_on_level).map(|idx| {
                     let expected_len = if idx == last_index_on_level {
-                        (last_child_index % 16) as usize + 1
+                        (last_child_index % u64::from(InternalNode::MAX_CHILDREN)) as usize + 1
                     } else {
-                        16
+                        InternalNode::MAX_CHILDREN.into()
                     };
                     (idx, InternalNode::new(expected_len, version))
                 });
                 internal_level.extend(new_nodes);
             }
 
-            let child_depth = InternalNode::MAX_NIBBLES * 4;
+            let child_depth = InternalNode::MAX_NIBBLES * InternalNode::DEPTH;
             let last_child_index = new_indexes.end() >> child_depth;
-            assert!(last_child_index < 16);
+            assert!(last_child_index < u64::from(InternalNode::MAX_CHILDREN));
 
             self.root
                 .root_node
@@ -324,13 +330,13 @@ impl PartialPatchSet {
             for (idx, hash) in hashes {
                 // The parent node must exist by construction.
                 internal_level
-                    .get_mut(&(idx >> 4))
+                    .get_mut(&(idx >> InternalNode::DEPTH))
                     .unwrap()
-                    .child_mut((idx % 16) as usize)
+                    .child_mut((idx % u64::from(InternalNode::MAX_CHILDREN)) as usize)
                     .hash = hash;
             }
 
-            let depth = nibble_depth as u8 * 4;
+            let depth = nibble_depth as u8 * InternalNode::DEPTH;
             hashes = internal_level
                 .par_iter()
                 .map(|(idx, node)| (*idx, node.hash(hasher, depth)))
@@ -338,13 +344,16 @@ impl PartialPatchSet {
         }
 
         for (idx, hash) in hashes {
-            assert!(idx < 16);
-            self.root.root_node.child_mut((idx % 16) as usize).hash = hash;
+            assert!(idx < u64::from(InternalNode::MAX_CHILDREN));
+            self.root
+                .root_node
+                .child_mut((idx % u64::from(InternalNode::MAX_CHILDREN)) as usize)
+                .hash = hash;
         }
         let root_hash = self
             .root
             .root_node
-            .hash(hasher, InternalNode::MAX_NIBBLES * 4);
+            .hash(hasher, InternalNode::MAX_NIBBLES * InternalNode::DEPTH);
 
         let patch = PatchSet {
             manifest: Manifest {

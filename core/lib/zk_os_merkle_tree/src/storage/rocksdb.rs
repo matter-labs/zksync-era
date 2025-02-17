@@ -214,6 +214,7 @@ impl Database for RocksDBWrapper {
         nodes.collect()
     }
 
+    // FIXME: need to remove future keys from lookup on truncation!
     fn apply_patch(&mut self, patch: PatchSet) -> anyhow::Result<()> {
         let tree_cf = MerkleTreeColumnFamily::Tree;
         let mut write_batch = self.db.new_write_batch();
@@ -381,7 +382,12 @@ mod tests {
                 leaf_count: 2,
                 root_node: InternalNode::new(1, 0),
             },
-            internal: array::from_fn(|i| HashMap::from([(0, InternalNode::new(i + 1, 0))])),
+            internal: array::from_fn(|i| {
+                HashMap::from([(
+                    0,
+                    InternalNode::new(i % usize::from(InternalNode::MAX_CHILDREN) + 1, 0),
+                )])
+            }),
             leaves: HashMap::from([(0, Leaf::MIN_GUARD), (1, Leaf::MAX_GUARD)]),
         };
         let patch = PatchSet {
@@ -409,7 +415,12 @@ mod tests {
             let Node::Internal(node) = &nodes[0] else {
                 panic!("unexpected node: {nodes:?}");
             };
-            assert_eq!(*node, InternalNode::new(nibble_count.into(), 0));
+
+            let mut expected_node_len = nibble_count % InternalNode::MAX_CHILDREN;
+            if expected_node_len == 0 {
+                expected_node_len = InternalNode::MAX_CHILDREN;
+            }
+            assert_eq!(*node, InternalNode::new(expected_node_len.into(), 0));
         }
 
         let leaf_keys = [

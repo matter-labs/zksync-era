@@ -145,15 +145,15 @@ impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
 
         let leaf_count = leaf_data.expected_leaf_count;
         assert!(leaf_count > 0); // checked during initialization
-        let child_depth = (InternalNode::MAX_NIBBLES - key.nibble_count) * 4; // 60 for the root etc.
+        let child_depth = (InternalNode::MAX_NIBBLES - key.nibble_count) * InternalNode::DEPTH;
         let last_child_index = (leaf_count - 1) >> child_depth;
-        let last_index_on_level = last_child_index / 16;
+        let last_index_on_level = last_child_index / u64::from(InternalNode::MAX_CHILDREN);
 
         assert!(key.index_on_level <= last_index_on_level);
         let expected_child_count = if key.index_on_level < last_index_on_level {
-            16
+            InternalNode::MAX_CHILDREN.into()
         } else {
-            (last_child_index % 16) as usize + 1
+            (last_child_index % u64::from(InternalNode::MAX_CHILDREN)) as usize + 1
         };
 
         if node.children.len() != expected_child_count {
@@ -190,7 +190,7 @@ impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
                 let child_key = NodeKey {
                     version: child_ref.version,
                     nibble_count: key.nibble_count + 1,
-                    index_on_level: i as u64 + (key.index_on_level << 4),
+                    index_on_level: i as u64 + (key.index_on_level << InternalNode::DEPTH),
                 };
                 let children = self.db.try_nodes(&[child_key])?;
 

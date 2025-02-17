@@ -4,7 +4,7 @@ use once_cell::sync::Lazy;
 use zksync_basic_types::H256;
 use zksync_crypto_primitives::hasher::{blake2::Blake2Hasher, Hasher};
 
-use crate::types::Leaf;
+use crate::types::{Leaf, TREE_DEPTH};
 
 mod nodes;
 
@@ -92,7 +92,7 @@ fn compute_empty_tree_hashes() -> Vec<H256> {
     iter::successors(Some(empty_leaf_hash), |hash| {
         Some(Blake2Hasher.hash_branch(hash, hash))
     })
-    .take(usize::from(Leaf::NIBBLES) * 4 + 1)
+    .take(usize::from(TREE_DEPTH) + 1)
     .collect()
 }
 

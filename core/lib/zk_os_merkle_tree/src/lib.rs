@@ -12,10 +12,7 @@ pub use self::{
     storage::{Database, MerkleTreeColumnFamily, PatchSet, RocksDBWrapper},
     types::{BatchOutput, TreeEntry},
 };
-use crate::{
-    storage::{PartialPatchSet, TreeUpdate},
-    types::InternalNode,
-};
+use crate::storage::{PartialPatchSet, TreeUpdate};
 
 mod consistency;
 mod errors;
@@ -59,10 +56,7 @@ impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
         let Some(root) = self.db.try_root(version)? else {
             return Ok(None);
         };
-        Ok(Some(
-            root.root_node
-                .hash(&self.hasher, InternalNode::MAX_NIBBLES * 4),
-        ))
+        Ok(Some(root.hash(&self.hasher)))
     }
 
     /// Returns the latest version of the tree present in the database, or `None` if

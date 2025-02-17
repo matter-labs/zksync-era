@@ -141,17 +141,11 @@ fn creating_empty_tree() {
     assert_eq!(root.leaf_count, 2);
 
     assert_eq!(root.root_node.children.len(), 1);
-    let expected_root_child_hash: H256 =
-        "0xcf74f992c4947d5bffe106bbdee736d726784441d844c23a5d3b372aad0f4bdd"
-            .parse()
-            .unwrap();
-    assert_eq!(root.root_node.children[0].hash, expected_root_child_hash);
-
     let expected_root_hash: H256 =
         "0x8a41011d351813c31088367deecc9b70677ecf15ffc24ee450045cdeaf447f63"
             .parse()
             .unwrap();
-    assert_eq!(root.root_node.hash(&Blake2Hasher, 60), expected_root_hash);
+    assert_eq!(root.hash(&Blake2Hasher), expected_root_hash);
 }
 
 #[test]
@@ -174,7 +168,7 @@ fn creating_tree_with_leaves_in_single_batch() {
         "0x91a1688c802dc607125d0b5e5ab4d95d89a4a4fb8cca71a122db6076cb70f8f3"
             .parse()
             .unwrap();
-    assert_eq!(root.root_node.hash(&Blake2Hasher, 60), expected_root_hash);
+    assert_eq!(root.hash(&Blake2Hasher), expected_root_hash);
 }
 
 #[test]
@@ -244,7 +238,7 @@ fn creating_tree_with_leaves_incrementally() {
         "0x91a1688c802dc607125d0b5e5ab4d95d89a4a4fb8cca71a122db6076cb70f8f3"
             .parse()
             .unwrap();
-    assert_eq!(root.root_node.hash(&Blake2Hasher, 60), expected_root_hash);
+    assert_eq!(root.hash(&Blake2Hasher), expected_root_hash);
 }
 
 #[test]
