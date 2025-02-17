@@ -57,6 +57,7 @@ pub struct ContractsConfig {
 
     pub chain_admin_addr: Option<Address>,
     pub l2_da_validator_addr: Option<Address>,
+    pub no_da_validium_l1_validator_addr: Option<Address>,
 }
 
 impl ContractsConfig {
@@ -82,6 +83,7 @@ impl ContractsConfig {
             ecosystem_contracts: Some(EcosystemContracts::for_tests()),
             chain_admin_addr: Some(Address::repeat_byte(0x18)),
             l2_da_validator_addr: Some(Address::repeat_byte(0x1a)),
+            no_da_validium_l1_validator_addr: Some(Address::repeat_byte(0x1b)),
         }
     }
 }
