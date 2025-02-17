@@ -1,7 +1,4 @@
-use std::{
-    collections::hash_map::HashMap,
-    sync::Arc,
-};
+use std::{collections::hash_map::HashMap, sync::Arc};
 
 use tokio::sync::Mutex;
 use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool, Core, CoreDal};
