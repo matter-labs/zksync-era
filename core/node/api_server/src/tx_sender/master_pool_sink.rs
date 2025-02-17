@@ -68,12 +68,11 @@ impl TxSink for MasterPoolSink {
         validation_traces: ValidationTraces,
     ) -> Result<L2TxSubmissionResult, SubmitTxError> {
         let address_and_nonce = (tx.initiator_account(), tx.nonce());
-        let tx_hash = tx.hash();
 
         let mut lock = self.inflight_requests.lock().await;
         let _guard = match lock.entry(address_and_nonce) {
             Entry::Occupied(entry) => {
-                let submission_res_handle = if entry.get() == &tx_hash {
+                let submission_res_handle = if entry.get() == &tx.hash() {
                     L2TxSubmissionResult::Duplicate
                 } else {
                     L2TxSubmissionResult::InsertionInProgress
