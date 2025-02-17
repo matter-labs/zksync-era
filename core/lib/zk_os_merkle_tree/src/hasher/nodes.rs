@@ -3,16 +3,17 @@
 use zksync_basic_types::H256;
 
 use crate::{
-    types::{InternalNode, Root, TREE_DEPTH},
-    HashTree,
+    max_nibbles_for_internal_node,
+    types::{InternalNode, Root},
+    HashTree, TreeParams,
 };
 
 impl InternalNode {
-    pub(crate) fn hash(&self, hasher: &dyn HashTree, depth: u8) -> H256 {
-        assert!(depth <= Self::MAX_NIBBLES * Self::DEPTH);
+    pub(crate) fn hash<P: TreeParams>(&self, hasher: &P::Hasher, depth: u8) -> H256 {
+        assert!(depth <= max_nibbles_for_internal_node::<P>() * P::INTERNAL_NODE_DEPTH);
 
         let mut hashes: Vec<_> = self.children.iter().map(|child| child.hash).collect();
-        for level_offset in 0..Self::DEPTH.min(TREE_DEPTH - depth) {
+        for level_offset in 0..P::INTERNAL_NODE_DEPTH.min(P::TREE_DEPTH - depth) {
             let new_len = hashes.len().div_ceil(2);
             for i in 0..new_len {
                 hashes[i] = if 2 * i + 1 < hashes.len() {
@@ -33,8 +34,10 @@ impl InternalNode {
 }
 
 impl Root {
-    pub(crate) fn hash(&self, hasher: &dyn HashTree) -> H256 {
-        self.root_node
-            .hash(hasher, InternalNode::MAX_NIBBLES * InternalNode::DEPTH)
+    pub(crate) fn hash<P: TreeParams>(&self, hasher: &P::Hasher) -> H256 {
+        self.root_node.hash::<P>(
+            hasher,
+            max_nibbles_for_internal_node::<P>() * P::INTERNAL_NODE_DEPTH,
+        )
     }
 }

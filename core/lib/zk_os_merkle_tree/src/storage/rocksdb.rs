@@ -3,6 +3,7 @@
 use std::path::Path;
 
 use anyhow::Context as _;
+use once_cell::sync::OnceCell;
 use zksync_basic_types::H256;
 use zksync_storage::{db::NamedColumnFamily, rocksdb, rocksdb::DBPinnableSlice, RocksDB};
 
@@ -57,6 +58,7 @@ impl NamedColumnFamily for MerkleTreeColumnFamily {
 pub struct RocksDBWrapper {
     db: RocksDB<MerkleTreeColumnFamily>,
     multi_get_chunk_size: usize,
+    leaf_nibbles: OnceCell<u8>,
 }
 
 impl RocksDBWrapper {
@@ -111,11 +113,18 @@ impl RocksDBWrapper {
             .collect()
     }
 
-    fn deserialize_node(raw_node: &[u8], key: &NodeKey) -> Result<Node, DeserializeError> {
-        let is_leaf = key.is_leaf();
+    fn deserialize_node(&self, raw_node: &[u8], key: &NodeKey) -> Result<Node, DeserializeError> {
+        let leaf_nibbles = *self.leaf_nibbles.get_or_try_init(|| {
+            let tags = self
+                .try_manifest()?
+                .ok_or(DeserializeErrorKind::MissingManifest)?
+                .tags;
+            Ok::<_, DeserializeError>(tags.depth.div_ceil(tags.internal_node_depth))
+        })?;
+
         // If we didn't succeed with the patch set, or the key version is old,
         // access the underlying storage.
-        let node = if is_leaf {
+        let node = if key.nibble_count == leaf_nibbles {
             Leaf::deserialize(raw_node).map(Node::Leaf)
         } else {
             InternalNode::deserialize(raw_node).map(Node::Internal)
@@ -167,6 +176,7 @@ impl From<RocksDB<MerkleTreeColumnFamily>> for RocksDBWrapper {
         Self {
             db,
             multi_get_chunk_size: usize::MAX,
+            leaf_nibbles: OnceCell::new(),
         }
     }
 }
@@ -209,7 +219,7 @@ impl Database for RocksDBWrapper {
                 DeserializeError::from(DeserializeErrorKind::MissingNode)
                     .with_context(DeserializeContext::Node(*key))
             })?;
-            Self::deserialize_node(&raw_node, key)
+            self.deserialize_node(&raw_node, key)
         });
         nodes.collect()
     }
@@ -223,6 +233,17 @@ impl Database for RocksDBWrapper {
 
         patch.manifest.serialize(&mut node_bytes);
         write_batch.put_cf(tree_cf, Self::MANIFEST_KEY, &node_bytes);
+
+        let tags = &patch.manifest.tags;
+        let leaf_nibbles_from_manifest = tags.depth.div_ceil(tags.internal_node_depth);
+        if let Some(&leaf_nibbles) = self.leaf_nibbles.get() {
+            anyhow::ensure!(
+                leaf_nibbles_from_manifest == leaf_nibbles,
+                "Invalid manifest update"
+            );
+        } else {
+            self.leaf_nibbles.set(leaf_nibbles_from_manifest).ok();
+        }
 
         for (key, entry) in patch.sorted_new_leaves {
             node_bytes.clear();
@@ -263,7 +284,7 @@ impl Database for RocksDBWrapper {
             for (index_on_level, leaf) in sub_patch.leaves {
                 let node_key = NodeKey {
                     version,
-                    nibble_count: Leaf::NIBBLES,
+                    nibble_count: leaf_nibbles_from_manifest,
                     index_on_level,
                 };
                 node_bytes.clear();
@@ -281,15 +302,16 @@ impl Database for RocksDBWrapper {
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        array,
-        collections::{BTreeMap, HashMap},
-    };
+    use std::collections::{BTreeMap, HashMap};
 
     use tempfile::TempDir;
+    use zksync_crypto_primitives::hasher::blake2::Blake2Hasher;
 
     use super::*;
-    use crate::storage::PartialPatchSet;
+    use crate::{
+        leaf_nibbles, max_nibbles_for_internal_node, max_node_children, storage::PartialPatchSet,
+        types::TreeTags, DefaultTreeParams, TreeParams,
+    };
 
     #[test]
     fn looking_up_keys() {
@@ -373,8 +395,7 @@ mod tests {
         }
     }
 
-    #[test]
-    fn persisting_nodes() {
+    fn test_persisting_nodes<P: TreeParams<Hasher = Blake2Hasher>>() {
         let temp_dir = TempDir::new().unwrap();
         let mut db = RocksDBWrapper::new(temp_dir.path()).unwrap();
         let patch = PartialPatchSet {
@@ -382,16 +403,21 @@ mod tests {
                 leaf_count: 2,
                 root_node: InternalNode::new(1, 0),
             },
-            internal: array::from_fn(|i| {
-                HashMap::from([(
-                    0,
-                    InternalNode::new(i % usize::from(InternalNode::MAX_CHILDREN) + 1, 0),
-                )])
-            }),
+            internal: (0..max_nibbles_for_internal_node::<P>())
+                .map(|i| {
+                    HashMap::from([(
+                        0,
+                        InternalNode::new(usize::from(i % max_node_children::<P>()) + 1, 0),
+                    )])
+                })
+                .collect(),
             leaves: HashMap::from([(0, Leaf::MIN_GUARD), (1, Leaf::MAX_GUARD)]),
         };
         let patch = PatchSet {
-            manifest: Manifest { version_count: 1 },
+            manifest: Manifest {
+                version_count: 1,
+                tags: TreeTags::for_params::<P>(&Blake2Hasher),
+            },
             patches_by_version: HashMap::from([(0, patch)]),
             ..PatchSet::default()
         };
@@ -404,7 +430,7 @@ mod tests {
         assert_eq!(root.leaf_count, 2);
         assert_eq!(root.root_node, InternalNode::new(1, 0));
 
-        for nibble_count in 1..=InternalNode::MAX_NIBBLES {
+        for nibble_count in 1..=max_nibbles_for_internal_node::<P>() {
             let node_key = NodeKey {
                 version: 0,
                 nibble_count,
@@ -416,9 +442,9 @@ mod tests {
                 panic!("unexpected node: {nodes:?}");
             };
 
-            let mut expected_node_len = nibble_count % InternalNode::MAX_CHILDREN;
+            let mut expected_node_len = nibble_count % max_node_children::<P>();
             if expected_node_len == 0 {
-                expected_node_len = InternalNode::MAX_CHILDREN;
+                expected_node_len = max_node_children::<P>();
             }
             assert_eq!(*node, InternalNode::new(expected_node_len.into(), 0));
         }
@@ -426,12 +452,12 @@ mod tests {
         let leaf_keys = [
             NodeKey {
                 version: 0,
-                nibble_count: Leaf::NIBBLES,
+                nibble_count: leaf_nibbles::<P>(),
                 index_on_level: 0,
             },
             NodeKey {
                 version: 0,
-                nibble_count: Leaf::NIBBLES,
+                nibble_count: leaf_nibbles::<P>(),
                 index_on_level: 1,
             },
         ];
@@ -442,5 +468,15 @@ mod tests {
         };
         assert_eq!(*first_leaf, Leaf::MIN_GUARD);
         assert_eq!(*second_leaf, Leaf::MAX_GUARD);
+    }
+
+    #[test]
+    fn persisting_nodes() {
+        println!("Default tree params");
+        test_persisting_nodes::<DefaultTreeParams>();
+        println!("Default tree params");
+        test_persisting_nodes::<DefaultTreeParams<64, 3>>();
+        println!("Default tree params");
+        test_persisting_nodes::<DefaultTreeParams<64, 2>>();
     }
 }

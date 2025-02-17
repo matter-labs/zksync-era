@@ -1,6 +1,6 @@
 use std::{
-    array,
     collections::{BTreeMap, BTreeSet, HashMap},
+    marker::PhantomData,
     ops,
     time::Instant,
 };
@@ -8,11 +8,12 @@ use std::{
 use anyhow::Context as _;
 use zksync_basic_types::H256;
 
-use super::{Database, InsertedKeyEntry, PatchSet};
+use super::{Database, InsertedKeyEntry, PartialPatchSet, PatchSet};
 use crate::{
     errors::{DeserializeContext, DeserializeErrorKind},
-    types::{InternalNode, KeyLookup, Leaf, Manifest, Node, NodeKey, Root},
-    DeserializeError, HashTree, MerkleTree, TreeEntry,
+    leaf_nibbles, max_nibbles_for_internal_node, max_node_children,
+    types::{InternalNode, KeyLookup, Leaf, Manifest, Node, NodeKey, Root, TreeTags},
+    DeserializeError, HashTree, MerkleTree, TreeEntry, TreeParams,
 };
 
 /// Information about an atomic tree update.
@@ -104,17 +105,29 @@ pub(crate) struct FinalTreeUpdate {
     pub(super) sorted_new_leaves: BTreeMap<H256, InsertedKeyEntry>,
 }
 
-#[derive(Debug, Clone)]
-pub(crate) struct PartialPatchSet {
-    pub(super) root: Root,
-    // FIXME: maybe, a wrapper around `Vec<(_, _)>` would be more efficient?
-    /// Offset by 1 (i.e., `internal[0]` corresponds to 1 nibble).
-    pub(super) internal: [HashMap<u64, InternalNode>; InternalNode::MAX_NIBBLES as usize],
-    /// Sorted by the index.
-    pub(super) leaves: HashMap<u64, Leaf>,
+impl PartialPatchSet {
+    fn update_ancestor_versions<P: TreeParams>(&mut self, leaf_idx: u64, version: u64) {
+        let mut idx = leaf_idx;
+        for internal_level in self.internal.iter_mut().rev() {
+            let parent = internal_level
+                .get_mut(&(idx >> P::INTERNAL_NODE_DEPTH))
+                .unwrap();
+            parent
+                .child_mut((idx % u64::from(max_node_children::<P>())) as usize)
+                .version = version;
+            idx >>= P::INTERNAL_NODE_DEPTH;
+        }
+        self.root.root_node.child_mut(idx as usize).version = version;
+    }
 }
 
-impl PartialPatchSet {
+#[derive(Debug)]
+pub(crate) struct WorkingPatchSet<P> {
+    inner: PartialPatchSet,
+    _params: PhantomData<P>,
+}
+
+impl<P: TreeParams> WorkingPatchSet<P> {
     pub(crate) fn empty() -> Self {
         Self::new(Root {
             leaf_count: 0,
@@ -124,10 +137,18 @@ impl PartialPatchSet {
 
     fn new(root: Root) -> Self {
         Self {
-            root,
-            internal: array::from_fn(|_| HashMap::new()),
-            leaves: HashMap::new(),
+            inner: PartialPatchSet {
+                root,
+                internal: vec![HashMap::new(); max_nibbles_for_internal_node::<P>() as usize],
+                leaves: HashMap::new(),
+            },
+            _params: PhantomData,
         }
+    }
+
+    #[cfg(test)]
+    pub(super) fn inner(&self) -> &PartialPatchSet {
+        &self.inner
     }
 
     /// `leaf_indices` must be sorted.
@@ -136,13 +157,14 @@ impl PartialPatchSet {
         db: &impl Database,
         leaf_indices: impl Iterator<Item = u64> + Clone,
     ) -> anyhow::Result<()> {
-        for nibble_count in 1..=Leaf::NIBBLES {
-            let bit_shift = (Leaf::NIBBLES - nibble_count) * InternalNode::DEPTH;
+        let this = &mut self.inner;
+        for nibble_count in 1..=leaf_nibbles::<P>() {
+            let bit_shift = (leaf_nibbles::<P>() - nibble_count) * P::INTERNAL_NODE_DEPTH;
 
             let mut prev_index_on_level = None;
             let parent_level = usize::from(nibble_count)
                 .checked_sub(2)
-                .map(|i| &self.internal[i]);
+                .map(|i| &this.internal[i]);
 
             let requested_keys = leaf_indices.clone().filter_map(|idx| {
                 let index_on_level = idx >> bit_shift;
@@ -152,13 +174,13 @@ impl PartialPatchSet {
                     prev_index_on_level = Some(index_on_level);
 
                     let parent = if let Some(parent_level) = parent_level {
-                        let parent_idx = index_on_level >> InternalNode::DEPTH;
+                        let parent_idx = index_on_level >> P::INTERNAL_NODE_DEPTH;
                         &parent_level[&parent_idx]
                     } else {
                         // nibble_count == 1, the parent is the root node
-                        &self.root.root_node
+                        &this.root.root_node
                     };
-                    let child_idx = index_on_level % u64::from(InternalNode::MAX_CHILDREN);
+                    let child_idx = index_on_level % u64::from(max_node_children::<P>());
                     let this_ref = parent.child_ref(child_idx as usize);
                     let requested_key = NodeKey {
                         version: this_ref.version,
@@ -171,8 +193,8 @@ impl PartialPatchSet {
             let (indices, requested_keys): (Vec<_>, Vec<_>) = requested_keys.unzip();
             let loaded_nodes = db.try_nodes(&requested_keys)?;
 
-            if nibble_count == Leaf::NIBBLES {
-                self.leaves = loaded_nodes
+            if nibble_count == leaf_nibbles::<P>() {
+                this.leaves = loaded_nodes
                     .into_iter()
                     .zip(indices)
                     .map(|(node, idx)| {
@@ -186,7 +208,7 @@ impl PartialPatchSet {
                     })
                     .collect();
             } else {
-                self.internal[nibble_count as usize - 1] = loaded_nodes
+                this.internal[nibble_count as usize - 1] = loaded_nodes
                     .into_iter()
                     .zip(indices)
                     .map(|(node, idx)| {
@@ -194,7 +216,15 @@ impl PartialPatchSet {
                             idx,
                             match node {
                                 Node::Internal(node) => node,
-                                Node::Leaf(_) => unreachable!(),
+                                Node::Leaf(_) => {
+                                    dbg!(
+                                        nibble_count,
+                                        P::TREE_DEPTH,
+                                        P::INTERNAL_NODE_DEPTH,
+                                        leaf_nibbles::<P>()
+                                    );
+                                    unreachable!()
+                                }
                             },
                         )
                     })
@@ -206,41 +236,19 @@ impl PartialPatchSet {
     }
 
     pub(crate) fn total_internal_nodes(&self) -> usize {
-        self.internal.iter().map(HashMap::len).sum()
-    }
-
-    pub(super) fn node(&self, nibble_count: u8, index_on_level: u64) -> Option<Node> {
-        Some(if nibble_count == Leaf::NIBBLES {
-            (*self.leaves.get(&index_on_level)?).into()
-        } else {
-            let level = &self.internal[usize::from(nibble_count) - 1];
-            level.get(&index_on_level)?.clone().into()
-        })
-    }
-
-    fn update_ancestor_versions(&mut self, leaf_idx: u64, version: u64) {
-        let mut idx = leaf_idx;
-        for internal_level in self.internal.iter_mut().rev() {
-            let parent = internal_level
-                .get_mut(&(idx >> InternalNode::DEPTH))
-                .unwrap();
-            parent
-                .child_mut((idx % u64::from(InternalNode::MAX_CHILDREN)) as usize)
-                .version = version;
-            idx >>= InternalNode::DEPTH;
-        }
-        self.root.root_node.child_mut(idx as usize).version = version;
+        self.inner.internal.iter().map(HashMap::len).sum()
     }
 
     pub(crate) fn update(&mut self, update: TreeUpdate) -> FinalTreeUpdate {
+        let this = &mut self.inner;
         let version = update.version;
         for (idx, value) in update.updates {
-            self.leaves.get_mut(&idx).unwrap().value = value;
-            self.update_ancestor_versions(idx, version);
+            this.leaves.get_mut(&idx).unwrap().value = value;
+            this.update_ancestor_versions::<P>(idx, version);
         }
 
         if !update.inserts.is_empty() {
-            let first_new_idx = self.root.leaf_count;
+            let first_new_idx = this.root.leaf_count;
             // Cannot underflow because `update.inserts.len() >= 1`
             let new_indexes = first_new_idx..=(first_new_idx + update.inserts.len() as u64 - 1);
 
@@ -249,37 +257,38 @@ impl PartialPatchSet {
                 // Prev / next leaf may also be new, in which case, we'll insert it with the correct prev / next pointers,
                 // so we don't need to do anything here.
                 let prev_idx = new_leaf.prev_index;
-                if let Some(prev_leaf) = self.leaves.get_mut(&prev_idx) {
+                if let Some(prev_leaf) = this.leaves.get_mut(&prev_idx) {
                     prev_leaf.next_index = idx;
-                    self.update_ancestor_versions(prev_idx, version);
+                    this.update_ancestor_versions::<P>(prev_idx, version);
                 }
 
                 let next_idx = new_leaf.next_index;
-                if let Some(next_leaf) = self.leaves.get_mut(&next_idx) {
+                if let Some(next_leaf) = this.leaves.get_mut(&next_idx) {
                     next_leaf.prev_index = idx;
-                    self.update_ancestor_versions(next_idx, version);
+                    this.update_ancestor_versions::<P>(next_idx, version);
                 }
             }
 
-            self.leaves.extend(new_indexes.clone().zip(update.inserts));
-            self.root.leaf_count = *new_indexes.end() + 1;
+            this.leaves.extend(new_indexes.clone().zip(update.inserts));
+            this.root.leaf_count = *new_indexes.end() + 1;
 
             // Add / update internal nodes.
-            for (i, internal_level) in self.internal.iter_mut().enumerate() {
+            for (i, internal_level) in this.internal.iter_mut().enumerate() {
                 let nibble_count = i as u8 + 1;
-                let child_depth = (InternalNode::MAX_NIBBLES - nibble_count) * InternalNode::DEPTH;
+                let child_depth =
+                    (max_nibbles_for_internal_node::<P>() - nibble_count) * P::INTERNAL_NODE_DEPTH;
                 let first_index_on_level =
-                    (new_indexes.start() >> child_depth) / u64::from(InternalNode::MAX_CHILDREN);
+                    (new_indexes.start() >> child_depth) / u64::from(max_node_children::<P>());
                 let last_child_index = new_indexes.end() >> child_depth;
-                let last_index_on_level = last_child_index / u64::from(InternalNode::MAX_CHILDREN);
+                let last_index_on_level = last_child_index / u64::from(max_node_children::<P>());
 
                 // Only `first_index_on_level` may exist already; all others are necessarily new.
                 let mut start_idx = first_index_on_level;
                 if let Some(parent) = internal_level.get_mut(&first_index_on_level) {
                     let expected_len = if last_index_on_level == first_index_on_level {
-                        (last_child_index % u64::from(InternalNode::MAX_CHILDREN)) as usize + 1
+                        (last_child_index % u64::from(max_node_children::<P>())) as usize + 1
                     } else {
-                        InternalNode::MAX_CHILDREN.into()
+                        max_node_children::<P>().into()
                     };
                     parent.ensure_len(expected_len, version);
                     start_idx += 1;
@@ -287,24 +296,24 @@ impl PartialPatchSet {
 
                 let new_nodes = (start_idx..=last_index_on_level).map(|idx| {
                     let expected_len = if idx == last_index_on_level {
-                        (last_child_index % u64::from(InternalNode::MAX_CHILDREN)) as usize + 1
+                        (last_child_index % u64::from(max_node_children::<P>())) as usize + 1
                     } else {
-                        InternalNode::MAX_CHILDREN.into()
+                        max_node_children::<P>().into()
                     };
                     (idx, InternalNode::new(expected_len, version))
                 });
                 internal_level.extend(new_nodes);
             }
 
-            let child_depth = InternalNode::MAX_NIBBLES * InternalNode::DEPTH;
+            let child_depth = max_nibbles_for_internal_node::<P>() * P::INTERNAL_NODE_DEPTH;
             let last_child_index = new_indexes.end() >> child_depth;
-            assert!(last_child_index < u64::from(InternalNode::MAX_CHILDREN));
+            assert!(last_child_index < u64::from(max_node_children::<P>()));
 
-            self.root
+            this.root
                 .root_node
                 .ensure_len(last_child_index as usize + 1, version);
 
-            self.update_ancestor_versions(first_new_idx, version);
+            this.update_ancestor_versions::<P>(first_new_idx, version);
         }
 
         FinalTreeUpdate {
@@ -313,60 +322,58 @@ impl PartialPatchSet {
         }
     }
 
-    pub(crate) fn finalize(
-        mut self,
-        hasher: &dyn HashTree,
-        update: FinalTreeUpdate,
-    ) -> (PatchSet, H256) {
+    pub(crate) fn finalize(self, hasher: &P::Hasher, update: FinalTreeUpdate) -> (PatchSet, H256) {
         use rayon::prelude::*;
 
-        let mut hashes: Vec<_> = self
+        let mut this = self.inner;
+        let mut hashes: Vec<_> = this
             .leaves
             .par_iter()
             .map(|(idx, leaf)| (*idx, hasher.hash_leaf(leaf)))
             .collect();
 
-        for (nibble_depth, internal_level) in self.internal.iter_mut().rev().enumerate() {
+        for (nibble_depth, internal_level) in this.internal.iter_mut().rev().enumerate() {
             for (idx, hash) in hashes {
                 // The parent node must exist by construction.
                 internal_level
-                    .get_mut(&(idx >> InternalNode::DEPTH))
+                    .get_mut(&(idx >> P::INTERNAL_NODE_DEPTH))
                     .unwrap()
-                    .child_mut((idx % u64::from(InternalNode::MAX_CHILDREN)) as usize)
+                    .child_mut((idx % u64::from(max_node_children::<P>())) as usize)
                     .hash = hash;
             }
 
-            let depth = nibble_depth as u8 * InternalNode::DEPTH;
+            let depth = nibble_depth as u8 * P::INTERNAL_NODE_DEPTH;
             hashes = internal_level
                 .par_iter()
-                .map(|(idx, node)| (*idx, node.hash(hasher, depth)))
+                .map(|(idx, node)| (*idx, node.hash::<P>(hasher, depth)))
                 .collect();
         }
 
         for (idx, hash) in hashes {
-            assert!(idx < u64::from(InternalNode::MAX_CHILDREN));
-            self.root
+            assert!(idx < u64::from(max_node_children::<P>()));
+            this.root
                 .root_node
-                .child_mut((idx % u64::from(InternalNode::MAX_CHILDREN)) as usize)
+                .child_mut((idx % u64::from(max_node_children::<P>())) as usize)
                 .hash = hash;
         }
-        let root_hash = self
-            .root
-            .root_node
-            .hash(hasher, InternalNode::MAX_NIBBLES * InternalNode::DEPTH);
+        let root_hash = this.root.root_node.hash::<P>(
+            hasher,
+            max_nibbles_for_internal_node::<P>() * P::INTERNAL_NODE_DEPTH,
+        );
 
         let patch = PatchSet {
             manifest: Manifest {
                 version_count: update.version + 1,
+                tags: TreeTags::for_params::<P>(hasher),
             },
-            patches_by_version: HashMap::from([(update.version, self)]),
+            patches_by_version: HashMap::from([(update.version, this)]),
             sorted_new_leaves: update.sorted_new_leaves,
         };
         (patch, root_hash)
     }
 }
 
-impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
+impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
     /// Loads data for processing the specified entries into a patch set.
     #[tracing::instrument(
         level = "debug",
@@ -377,7 +384,7 @@ impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
         &self,
         latest_version: u64,
         entries: &[TreeEntry],
-    ) -> anyhow::Result<(PartialPatchSet, TreeUpdate)> {
+    ) -> anyhow::Result<(WorkingPatchSet<P>, TreeUpdate)> {
         let root = self.db.try_root(latest_version)?.ok_or_else(|| {
             DeserializeError::from(DeserializeErrorKind::MissingNode)
                 .with_context(DeserializeContext::Node(NodeKey::root(latest_version)))
@@ -424,7 +431,7 @@ impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
         }
 
         let started_at = Instant::now();
-        let mut patch = PartialPatchSet::new(root);
+        let mut patch = WorkingPatchSet::new(root);
         patch.load_nodes(&self.db, distinct_indices.iter().copied())?;
         tracing::debug!(
             elapsed = ?started_at.elapsed(),

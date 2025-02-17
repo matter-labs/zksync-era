@@ -1,11 +1,13 @@
 //! Errors interacting with the Merkle tree.
 
-use std::fmt;
+use std::{error, fmt, str::Utf8Error};
 
 use crate::types::NodeKey;
 
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum DeserializeErrorKind {
+    #[error("Tree manifest was expected, but is missing")]
+    MissingManifest,
     #[error("Node was expected, but is missing")]
     MissingNode,
     #[error("Unexpected end of input")]
@@ -15,6 +17,25 @@ pub(crate) enum DeserializeErrorKind {
     /// Error reading a LEB128-encoded value.
     #[error("failed reading LEB128-encoded value: {0}")]
     Leb128(#[source] leb128::read::Error),
+    /// Error reading a UTF-8 string.
+    #[error("failed reading UTF-8 string: {0}")]
+    Utf8(#[source] Utf8Error),
+
+    /// Missing required tag in the tree manifest.
+    #[error("missing required tag `{0}` in tree manifest")]
+    MissingTag(&'static str),
+    /// Unknown tag in the tree manifest.
+    #[error("unknown tag `{0}` in tree manifest")]
+    UnknownTag(String),
+    /// Malformed tag in the tree manifest.
+    #[error("malformed tag `{name}` in tree manifest: {err}")]
+    MalformedTag {
+        /// Tag name.
+        name: &'static str,
+        /// Error that has occurred parsing the tag.
+        #[source]
+        err: Box<dyn error::Error + Send + Sync>,
+    },
 }
 
 #[derive(Debug)]

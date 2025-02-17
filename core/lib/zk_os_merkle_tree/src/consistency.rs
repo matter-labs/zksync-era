@@ -6,8 +6,9 @@ use std::{
 use zksync_basic_types::H256;
 
 use crate::{
+    leaf_nibbles, max_nibbles_for_internal_node, max_node_children,
     types::{InternalNode, KeyLookup, Leaf, Node, NodeKey},
-    Database, DeserializeError, HashTree, MerkleTree,
+    Database, DeserializeError, HashTree, MerkleTree, TreeParams,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -101,7 +102,7 @@ pub enum ConsistencyError {
     },
 }
 
-impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
+impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
     /// Verifies the internal tree consistency as stored in the database.
     ///
     /// If `validate_indices` flag is set, it will be checked that indices for all tree leaves are unique
@@ -145,15 +146,16 @@ impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
 
         let leaf_count = leaf_data.expected_leaf_count;
         assert!(leaf_count > 0); // checked during initialization
-        let child_depth = (InternalNode::MAX_NIBBLES - key.nibble_count) * InternalNode::DEPTH;
+        let child_depth =
+            (max_nibbles_for_internal_node::<P>() - key.nibble_count) * P::INTERNAL_NODE_DEPTH;
         let last_child_index = (leaf_count - 1) >> child_depth;
-        let last_index_on_level = last_child_index / u64::from(InternalNode::MAX_CHILDREN);
+        let last_index_on_level = last_child_index / u64::from(max_node_children::<P>());
 
         assert!(key.index_on_level <= last_index_on_level);
         let expected_child_count = if key.index_on_level < last_index_on_level {
-            InternalNode::MAX_CHILDREN.into()
+            max_node_children::<P>().into()
         } else {
-            (last_child_index % u64::from(InternalNode::MAX_CHILDREN)) as usize + 1
+            (last_child_index % u64::from(max_node_children::<P>())) as usize + 1
         };
 
         if node.children.len() != expected_child_count {
@@ -190,7 +192,7 @@ impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
                 let child_key = NodeKey {
                     version: child_ref.version,
                     nibble_count: key.nibble_count + 1,
-                    index_on_level: i as u64 + (key.index_on_level << InternalNode::DEPTH),
+                    index_on_level: i as u64 + (key.index_on_level << P::INTERNAL_NODE_DEPTH),
                 };
                 let children = self.db.try_nodes(&[child_key])?;
 
@@ -201,11 +203,11 @@ impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
                 // Recursion here is OK; the tree isn't that deep (16 nibbles max, with upper levels most likely having a single child).
                 let child_hash = match &child {
                     Node::Internal(node) => {
-                        assert!(child_key.nibble_count <= InternalNode::MAX_NIBBLES);
+                        assert!(child_key.nibble_count <= max_nibbles_for_internal_node::<P>());
                         self.validate_internal_node(node, child_key, leaf_data)?
                     }
                     Node::Leaf(leaf) => {
-                        assert_eq!(child_key.nibble_count, Leaf::NIBBLES);
+                        assert_eq!(child_key.nibble_count, leaf_nibbles::<P>());
                         self.validate_leaf(leaf, child_key, leaf_data)?
                     }
                 };
@@ -222,7 +224,7 @@ impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
                 }
             })?;
 
-        Ok(node.hash(&self.hasher, child_depth))
+        Ok(node.hash::<P>(&self.hasher, child_depth))
     }
 
     fn validate_leaf(

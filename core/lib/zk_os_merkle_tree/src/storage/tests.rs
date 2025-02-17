@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use zksync_crypto_primitives::hasher::blake2::Blake2Hasher;
 
 use super::*;
-use crate::{MerkleTree, TreeEntry};
+use crate::{DefaultTreeParams, MerkleTree, TreeEntry, TreeParams};
 
 #[test]
 fn creating_min_update_for_empty_tree() {
@@ -113,26 +113,32 @@ fn creating_non_empty_update_for_empty_tree() {
     );
 }
 
-#[test]
-fn creating_empty_tree() {
-    let mut patch = PartialPatchSet::empty();
+fn test_creating_empty_tree<P: TreeParams<Hasher = Blake2Hasher>>() {
+    const {
+        assert!(P::TREE_DEPTH == 64);
+    }
+
+    let mut patch = WorkingPatchSet::<P>::empty();
     let final_update = patch.update(TreeUpdate::for_empty_tree(&[]).unwrap());
     assert_eq!(final_update.version, 0);
 
-    assert_eq!(patch.leaves.len(), 2);
-    assert_eq!(patch.leaves[&0], Leaf::MIN_GUARD);
-    assert_eq!(patch.leaves[&1], Leaf::MAX_GUARD);
-    let last_level = patch.internal.last().unwrap();
-    assert_eq!(last_level.len(), 1);
-    assert_eq!(last_level[&0].children.len(), 2);
+    {
+        let patch = patch.inner();
+        assert_eq!(patch.leaves.len(), 2);
+        assert_eq!(patch.leaves[&0], Leaf::MIN_GUARD);
+        assert_eq!(patch.leaves[&1], Leaf::MAX_GUARD);
+        let last_level = patch.internal.last().unwrap();
+        assert_eq!(last_level.len(), 1);
+        assert_eq!(last_level[&0].children.len(), 2);
 
-    for level in patch.internal.iter().rev().skip(1) {
-        assert_eq!(level.len(), 1);
-        assert_eq!(level[&0].children.len(), 1);
+        for level in patch.internal.iter().rev().skip(1) {
+            assert_eq!(level.len(), 1);
+            assert_eq!(level[&0].children.len(), 1);
+        }
+
+        assert_eq!(patch.root.leaf_count, 2);
+        assert_eq!(patch.root.root_node.children.len(), 1);
     }
-
-    assert_eq!(patch.root.leaf_count, 2);
-    assert_eq!(patch.root.root_node.children.len(), 1);
 
     let (patch, _) = patch.finalize(&Blake2Hasher, final_update);
     assert_eq!(patch.manifest.version_count, 1);
@@ -145,12 +151,28 @@ fn creating_empty_tree() {
         "0x8a41011d351813c31088367deecc9b70677ecf15ffc24ee450045cdeaf447f63"
             .parse()
             .unwrap();
-    assert_eq!(root.hash(&Blake2Hasher), expected_root_hash);
+    assert_eq!(root.hash::<P>(&Blake2Hasher), expected_root_hash);
 }
 
 #[test]
-fn creating_tree_with_leaves_in_single_batch() {
-    let mut patch = PartialPatchSet::empty();
+fn creating_empty_tree() {
+    println!("Default tree params");
+    test_creating_empty_tree::<DefaultTreeParams>();
+    println!("Node depth = 3");
+    test_creating_empty_tree::<DefaultTreeParams<64, 3>>();
+    println!("Node depth = 2");
+    test_creating_empty_tree::<DefaultTreeParams<64, 2>>();
+}
+
+fn test_creating_tree_with_leaves_in_single_batch<P>()
+where
+    P: TreeParams<Hasher = Blake2Hasher>,
+{
+    const {
+        assert!(P::TREE_DEPTH == 64);
+    }
+
+    let mut patch = WorkingPatchSet::<P>::empty();
     let update = TreeUpdate::for_empty_tree(&[TreeEntry {
         key: H256::repeat_byte(0x01),
         value: H256::repeat_byte(0x10),
@@ -158,7 +180,7 @@ fn creating_tree_with_leaves_in_single_batch() {
     .unwrap();
     let final_update = patch.update(update);
 
-    assert_eq!(patch.leaves.len(), 3);
+    assert_eq!(patch.inner().leaves.len(), 3);
 
     let (patch, _) = patch.finalize(&Blake2Hasher, final_update);
     let root = patch.try_root(0).unwrap().expect("no root");
@@ -168,25 +190,41 @@ fn creating_tree_with_leaves_in_single_batch() {
         "0x91a1688c802dc607125d0b5e5ab4d95d89a4a4fb8cca71a122db6076cb70f8f3"
             .parse()
             .unwrap();
-    assert_eq!(root.hash(&Blake2Hasher), expected_root_hash);
+    assert_eq!(root.hash::<P>(&Blake2Hasher), expected_root_hash);
 }
 
 #[test]
-fn creating_tree_with_leaves_incrementally() {
-    let mut patch = PartialPatchSet::empty();
+fn creating_tree_with_leaves_in_single_batch() {
+    println!("Default tree params");
+    test_creating_tree_with_leaves_in_single_batch::<DefaultTreeParams>();
+    println!("Node depth = 3");
+    test_creating_tree_with_leaves_in_single_batch::<DefaultTreeParams<64, 3>>();
+    println!("Node depth = 2");
+    test_creating_tree_with_leaves_in_single_batch::<DefaultTreeParams<64, 2>>();
+}
+
+fn test_creating_tree_with_leaves_incrementally<P>()
+where
+    P: TreeParams<Hasher = Blake2Hasher>,
+{
+    const {
+        assert!(P::TREE_DEPTH == 64);
+    }
+
+    let mut patch = WorkingPatchSet::<P>::empty();
     let final_update = patch.update(TreeUpdate::for_empty_tree(&[]).unwrap());
     let (patch, _) = patch.finalize(&Blake2Hasher, final_update);
 
-    let merkle_tree = MerkleTree::new(patch).unwrap();
+    let merkle_tree = MerkleTree::<_, P>::with_hasher(patch, Blake2Hasher).unwrap();
     let new_entry = TreeEntry {
         key: H256::repeat_byte(0x01),
         value: H256::repeat_byte(0x10),
     };
     let (mut patch, update) = merkle_tree.create_patch(0, &[new_entry]).unwrap();
 
-    assert_eq!(patch.root.leaf_count, 2);
+    assert_eq!(patch.inner().root.leaf_count, 2);
     assert_eq!(
-        patch.leaves,
+        patch.inner().leaves,
         HashMap::from([(0, Leaf::MIN_GUARD), (1, Leaf::MAX_GUARD)])
     );
 
@@ -204,30 +242,33 @@ fn creating_tree_with_leaves_incrementally() {
     );
 
     let final_update = patch.update(update);
-    assert_eq!(patch.root.leaf_count, 3);
-    assert_eq!(
-        patch.leaves[&0],
-        Leaf {
-            next_index: 2,
-            ..Leaf::MIN_GUARD
-        }
-    );
-    assert_eq!(
-        patch.leaves[&1],
-        Leaf {
-            prev_index: 2,
-            ..Leaf::MAX_GUARD
-        }
-    );
-    assert_eq!(
-        patch.leaves[&2],
-        Leaf {
-            key: new_entry.key,
-            value: new_entry.value,
-            prev_index: 0,
-            next_index: 1,
-        }
-    );
+    {
+        let patch = patch.inner();
+        assert_eq!(patch.root.leaf_count, 3);
+        assert_eq!(
+            patch.leaves[&0],
+            Leaf {
+                next_index: 2,
+                ..Leaf::MIN_GUARD
+            }
+        );
+        assert_eq!(
+            patch.leaves[&1],
+            Leaf {
+                prev_index: 2,
+                ..Leaf::MAX_GUARD
+            }
+        );
+        assert_eq!(
+            patch.leaves[&2],
+            Leaf {
+                key: new_entry.key,
+                value: new_entry.value,
+                prev_index: 0,
+                next_index: 1,
+            }
+        );
+    }
 
     assert_eq!(final_update.version, 1);
     let (new_patch, _) = patch.finalize(&Blake2Hasher, final_update);
@@ -238,16 +279,32 @@ fn creating_tree_with_leaves_incrementally() {
         "0x91a1688c802dc607125d0b5e5ab4d95d89a4a4fb8cca71a122db6076cb70f8f3"
             .parse()
             .unwrap();
-    assert_eq!(root.hash(&Blake2Hasher), expected_root_hash);
+    assert_eq!(root.hash::<P>(&Blake2Hasher), expected_root_hash);
 }
 
 #[test]
-fn creating_tree_with_multiple_leaves_and_update() {
-    let mut patch = PartialPatchSet::empty();
+fn creating_tree_with_leaves_incrementally() {
+    println!("Default tree params");
+    test_creating_tree_with_leaves_incrementally::<DefaultTreeParams>();
+    println!("Node depth = 3");
+    test_creating_tree_with_leaves_incrementally::<DefaultTreeParams<64, 3>>();
+    println!("Node depth = 2");
+    test_creating_tree_with_leaves_incrementally::<DefaultTreeParams<64, 2>>();
+}
+
+fn test_creating_tree_with_multiple_leaves_and_update<P>()
+where
+    P: TreeParams<Hasher = Blake2Hasher>,
+{
+    const {
+        assert!(P::TREE_DEPTH == 64);
+    }
+
+    let mut patch = WorkingPatchSet::<P>::empty();
     let final_update = patch.update(TreeUpdate::for_empty_tree(&[]).unwrap());
     let (patch, _) = patch.finalize(&Blake2Hasher, final_update);
 
-    let mut merkle_tree = MerkleTree::new(patch).unwrap();
+    let mut merkle_tree = MerkleTree::<_, P>::with_hasher(patch, Blake2Hasher).unwrap();
     let first_entry = TreeEntry {
         key: H256::repeat_byte(0x01),
         value: H256::repeat_byte(0x10),
@@ -280,11 +337,14 @@ fn creating_tree_with_multiple_leaves_and_update() {
     assert!(update.inserts.is_empty());
     assert_eq!(update.updates, [(2, updated_entry.value)]);
 
-    // `patch` should only load the updated leaf
-    assert_eq!(patch.leaves.len(), 1);
-    assert_eq!(patch.leaves[&2].key, updated_entry.key);
-    for level in &patch.internal {
-        assert_eq!(level.len(), 1, "{level:?}");
+    {
+        let patch = patch.inner();
+        // `patch` should only load the updated leaf
+        assert_eq!(patch.leaves.len(), 1);
+        assert_eq!(patch.leaves[&2].key, updated_entry.key);
+        for level in &patch.internal {
+            assert_eq!(level.len(), 1, "{level:?}");
+        }
     }
 
     let final_update = patch.update(update);
@@ -299,8 +359,25 @@ fn creating_tree_with_multiple_leaves_and_update() {
 }
 
 #[test]
-fn mixed_update_and_insert() {
-    let mut merkle_tree = MerkleTree::new(PatchSet::default()).unwrap();
+fn creating_tree_with_multiple_leaves_and_update() {
+    println!("Default tree params");
+    test_creating_tree_with_multiple_leaves_and_update::<DefaultTreeParams>();
+    println!("Node depth = 3");
+    test_creating_tree_with_multiple_leaves_and_update::<DefaultTreeParams<64, 3>>();
+    println!("Node depth = 2");
+    test_creating_tree_with_multiple_leaves_and_update::<DefaultTreeParams<64, 2>>();
+}
+
+fn test_mixed_update_and_insert<P>()
+where
+    P: TreeParams<Hasher = Blake2Hasher>,
+{
+    const {
+        assert!(P::TREE_DEPTH == 64);
+    }
+
+    let mut merkle_tree =
+        MerkleTree::<_, P>::with_hasher(PatchSet::default(), Blake2Hasher).unwrap();
     let first_entry = TreeEntry {
         key: H256::repeat_byte(0x01),
         value: H256::repeat_byte(0x10),
@@ -331,7 +408,7 @@ fn mixed_update_and_insert() {
     assert_eq!(update.updates, [(2, updated_entry.value)]);
     // Leaf 1 is updated as a neighbor for the inserted leaf. Leaf 0 is not updated.
     assert_eq!(
-        patch.leaves.keys().copied().collect::<HashSet<_>>(),
+        patch.inner().leaves.keys().copied().collect::<HashSet<_>>(),
         HashSet::from([1, 2])
     );
 
@@ -344,4 +421,14 @@ fn mixed_update_and_insert() {
             .parse()
             .unwrap();
     assert_eq!(merkle_tree.root_hash(1).unwrap(), Some(expected_root_hash));
+}
+
+#[test]
+fn mixed_update_and_insert() {
+    println!("Default tree params");
+    test_mixed_update_and_insert::<DefaultTreeParams>();
+    println!("Node depth = 3");
+    test_mixed_update_and_insert::<DefaultTreeParams<64, 3>>();
+    println!("Node depth = 2");
+    test_mixed_update_and_insert::<DefaultTreeParams<64, 2>>();
 }

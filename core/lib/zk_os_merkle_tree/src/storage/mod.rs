@@ -1,12 +1,15 @@
-use std::collections::{BTreeMap, HashMap};
+use std::{
+    cmp,
+    collections::{BTreeMap, HashMap},
+};
 
 use zksync_basic_types::H256;
 
-pub(crate) use self::patch::{PartialPatchSet, TreeUpdate};
+pub(crate) use self::patch::{TreeUpdate, WorkingPatchSet};
 pub use self::rocksdb::{MerkleTreeColumnFamily, RocksDBWrapper};
 use crate::{
     errors::{DeserializeContext, DeserializeError, DeserializeErrorKind},
-    types::{KeyLookup, Leaf, Manifest, Node, NodeKey, Root},
+    types::{InternalNode, KeyLookup, Leaf, Manifest, Node, NodeKey, Root},
 };
 
 mod patch;
@@ -71,6 +74,31 @@ impl<DB: Database + ?Sized> Database for &mut DB {
 struct InsertedKeyEntry {
     index: u64,
     inserted_at: u64,
+}
+
+#[derive(Debug, Clone)]
+struct PartialPatchSet {
+    root: Root,
+    // FIXME: maybe, a wrapper around `Vec<(_, _)>` would be more efficient?
+    /// Offset by 1 (i.e., `internal[0]` corresponds to 1 nibble).
+    internal: Vec<HashMap<u64, InternalNode>>,
+    /// Sorted by the index.
+    leaves: HashMap<u64, Leaf>,
+}
+
+impl PartialPatchSet {
+    fn node(&self, nibble_count: u8, index_on_level: u64) -> Option<Node> {
+        let nibble_count = usize::from(nibble_count);
+        let leaf_nibbles = self.internal.len() + 1;
+        Some(match nibble_count.cmp(&leaf_nibbles) {
+            cmp::Ordering::Less => {
+                let level = &self.internal[nibble_count - 1];
+                level.get(&index_on_level)?.clone().into()
+            }
+            cmp::Ordering::Equal => (*self.leaves.get(&index_on_level)?).into(),
+            cmp::Ordering::Greater => return None,
+        })
+    }
 }
 
 #[derive(Debug, Clone, Default)]
@@ -138,7 +166,6 @@ impl Database for PatchSet {
     fn try_nodes(&self, keys: &[NodeKey]) -> Result<Vec<Node>, DeserializeError> {
         let nodes = keys.iter().map(|key| {
             assert!(key.nibble_count > 0);
-            assert!(key.nibble_count <= Leaf::NIBBLES);
 
             let maybe_node = self
                 .patches_by_version

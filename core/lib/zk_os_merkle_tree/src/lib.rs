@@ -1,6 +1,6 @@
 //! Persistent ZK OS Merkle tree.
 
-use std::time::Instant;
+use std::{fmt, time::Instant};
 
 use anyhow::Context as _;
 use zksync_basic_types::H256;
@@ -12,7 +12,10 @@ pub use self::{
     storage::{Database, MerkleTreeColumnFamily, PatchSet, RocksDBWrapper},
     types::{BatchOutput, TreeEntry},
 };
-use crate::storage::{PartialPatchSet, TreeUpdate};
+use crate::{
+    storage::{TreeUpdate, WorkingPatchSet},
+    types::MAX_TREE_DEPTH,
+};
 
 mod consistency;
 mod errors;
@@ -22,10 +25,50 @@ mod storage;
 mod tests;
 mod types;
 
+/// Marker trait for tree parameters.
+pub trait TreeParams: fmt::Debug + Send + Sync {
+    type Hasher: HashTree;
+
+    const TREE_DEPTH: u8;
+    const INTERNAL_NODE_DEPTH: u8;
+}
+
+#[inline(always)]
+pub(crate) fn leaf_nibbles<P: TreeParams>() -> u8 {
+    P::TREE_DEPTH.div_ceil(P::INTERNAL_NODE_DEPTH)
+}
+
+#[inline(always)]
+pub(crate) const fn max_nibbles_for_internal_node<P: TreeParams>() -> u8 {
+    P::TREE_DEPTH.div_ceil(P::INTERNAL_NODE_DEPTH) - 1
+}
+
+#[inline(always)]
+pub(crate) const fn max_node_children<P: TreeParams>() -> u8 {
+    1 << P::INTERNAL_NODE_DEPTH
+}
+
 #[derive(Debug)]
-pub struct MerkleTree<DB, H = Blake2Hasher> {
+pub struct DefaultTreeParams<const TREE_DEPTH: u8 = 64, const INTERNAL_NODE_DEPTH: u8 = 4>(());
+
+impl<const TREE_DEPTH: u8, const INTERNAL_NODE_DEPTH: u8> TreeParams
+    for DefaultTreeParams<TREE_DEPTH, INTERNAL_NODE_DEPTH>
+{
+    type Hasher = Blake2Hasher;
+    const TREE_DEPTH: u8 = {
+        assert!(TREE_DEPTH > 0 && TREE_DEPTH <= MAX_TREE_DEPTH);
+        TREE_DEPTH
+    };
+    const INTERNAL_NODE_DEPTH: u8 = {
+        assert!(INTERNAL_NODE_DEPTH > 0 && INTERNAL_NODE_DEPTH < 8); // to fit child count into `u8`
+        INTERNAL_NODE_DEPTH
+    };
+}
+
+#[derive(Debug)]
+pub struct MerkleTree<DB, P: TreeParams = DefaultTreeParams> {
     db: DB,
-    hasher: H,
+    hasher: P::Hasher,
 }
 
 impl<DB: Database> MerkleTree<DB> {
@@ -39,14 +82,14 @@ impl<DB: Database> MerkleTree<DB> {
     }
 }
 
-impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
+impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
     /// Loads a tree with the specified hasher.
     ///
     /// # Errors
     ///
     /// Errors if the hasher or basic tree parameters (e.g., the tree depth)
     /// do not match those of the tree loaded from the database.
-    pub fn with_hasher(db: DB, hasher: H) -> anyhow::Result<Self> {
+    pub fn with_hasher(db: DB, hasher: P::Hasher) -> anyhow::Result<Self> {
         Ok(Self { db, hasher })
     }
 
@@ -56,7 +99,7 @@ impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
         let Some(root) = self.db.try_root(version)? else {
             return Ok(None);
         };
-        Ok(Some(root.hash(&self.hasher)))
+        Ok(Some(root.hash::<P>(&self.hasher)))
     }
 
     /// Returns the latest version of the tree present in the database, or `None` if
@@ -102,7 +145,7 @@ impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
                 .context("failed loading tree data")?
         } else {
             (
-                PartialPatchSet::empty(),
+                WorkingPatchSet::<P>::empty(),
                 TreeUpdate::for_empty_tree(entries)?,
             )
         };

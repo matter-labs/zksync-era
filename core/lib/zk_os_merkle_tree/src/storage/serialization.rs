@@ -1,11 +1,13 @@
 //! Binary serialization of tree nodes.
 
+use std::str;
+
 use zksync_basic_types::H256;
 
 use crate::{
     errors::{DeserializeContext, DeserializeErrorKind},
     storage::InsertedKeyEntry,
-    types::{ChildRef, InternalNode, Leaf, Manifest, Root},
+    types::{ChildRef, InternalNode, Leaf, Manifest, Root, TreeTags},
     DeserializeError,
 };
 
@@ -121,15 +123,98 @@ impl Root {
     }
 }
 
+impl TreeTags {
+    fn deserialize_str<'a>(bytes: &mut &'a [u8]) -> Result<&'a str, DeserializeErrorKind> {
+        let str_len = leb128::read::unsigned(bytes).map_err(DeserializeErrorKind::Leb128)?;
+        let str_len = usize::try_from(str_len).map_err(|_| DeserializeErrorKind::UnexpectedEof)?;
+
+        if bytes.len() < str_len {
+            return Err(DeserializeErrorKind::UnexpectedEof);
+        }
+        let (s, rest) = bytes.split_at(str_len);
+        *bytes = rest;
+        str::from_utf8(s).map_err(DeserializeErrorKind::Utf8)
+    }
+
+    fn serialize_str(bytes: &mut Vec<u8>, s: &str) {
+        leb128::write::unsigned(bytes, s.len() as u64).unwrap();
+        bytes.extend_from_slice(s.as_bytes());
+    }
+
+    fn deserialize(bytes: &mut &[u8]) -> Result<Self, DeserializeError> {
+        let tag_count = leb128::read::unsigned(bytes).map_err(DeserializeErrorKind::Leb128)?;
+        let mut architecture = None;
+        let mut hasher = None;
+        let mut depth = None;
+        let mut internal_node_depth = None;
+
+        for _ in 0..tag_count {
+            let key = Self::deserialize_str(bytes)?;
+            let value = Self::deserialize_str(bytes)?;
+            match key {
+                "architecture" => architecture = Some(value.to_owned()),
+                "hasher" => hasher = Some(value.to_owned()),
+                "depth" => {
+                    let parsed =
+                        value
+                            .parse::<u8>()
+                            .map_err(|err| DeserializeErrorKind::MalformedTag {
+                                name: "depth",
+                                err: err.into(),
+                            })?;
+                    depth = Some(parsed);
+                }
+                "internal_node_depth" => {
+                    let parsed =
+                        value
+                            .parse::<u8>()
+                            .map_err(|err| DeserializeErrorKind::MalformedTag {
+                                name: "internal_node_depth",
+                                err: err.into(),
+                            })?;
+                    internal_node_depth = Some(parsed);
+                }
+                _ => return Err(DeserializeErrorKind::UnknownTag(key.to_owned()).into()),
+            }
+        }
+        Ok(Self {
+            architecture: architecture.ok_or(DeserializeErrorKind::MissingTag("architecture"))?,
+            depth: depth.ok_or(DeserializeErrorKind::MissingTag("depth"))?,
+            internal_node_depth: internal_node_depth
+                .ok_or(DeserializeErrorKind::MissingTag("internal_node_depth"))?,
+            hasher: hasher.ok_or(DeserializeErrorKind::MissingTag("hasher"))?,
+        })
+    }
+
+    fn serialize(&self, buffer: &mut Vec<u8>) {
+        let entry_count = 4; // custom tags aren't supported (yet?)
+        leb128::write::unsigned(buffer, entry_count).unwrap();
+
+        Self::serialize_str(buffer, "architecture");
+        Self::serialize_str(buffer, &self.architecture);
+        Self::serialize_str(buffer, "depth");
+        Self::serialize_str(buffer, &self.depth.to_string());
+        Self::serialize_str(buffer, "internal_node_depth");
+        Self::serialize_str(buffer, &self.internal_node_depth.to_string());
+        Self::serialize_str(buffer, "hasher");
+        Self::serialize_str(buffer, &self.hasher);
+    }
+}
+
 impl Manifest {
     pub(super) fn deserialize(mut bytes: &[u8]) -> Result<Self, DeserializeError> {
         let version_count =
             leb128::read::unsigned(&mut bytes).map_err(DeserializeErrorKind::Leb128)?;
+        let tags = TreeTags::deserialize(&mut bytes)?;
 
-        Ok(Self { version_count })
+        Ok(Self {
+            version_count,
+            tags,
+        })
     }
 
     pub(super) fn serialize(&self, buffer: &mut Vec<u8>) {
         leb128::write::unsigned(buffer, self.version_count).unwrap();
+        self.tags.serialize(buffer);
     }
 }

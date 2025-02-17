@@ -10,10 +10,22 @@ use rand::{
 };
 use tempfile::TempDir;
 use tracing_subscriber::EnvFilter;
-use zk_os_merkle_tree::{Database, HashTree, MerkleTree, PatchSet, RocksDBWrapper, TreeEntry};
+use zk_os_merkle_tree::{
+    Database, DefaultTreeParams, HashTree, MerkleTree, PatchSet, RocksDBWrapper, TreeEntry,
+    TreeParams,
+};
 use zksync_basic_types::H256;
 use zksync_crypto_primitives::hasher::{blake2::Blake2Hasher, Hasher};
 use zksync_storage::{RocksDB, RocksDBOptions};
+
+#[derive(Debug)]
+struct WithDynHasher;
+
+impl TreeParams for WithDynHasher {
+    type Hasher = &'static dyn HashTree;
+    const TREE_DEPTH: u8 = <DefaultTreeParams>::TREE_DEPTH;
+    const INTERNAL_NODE_DEPTH: u8 = <DefaultTreeParams>::INTERNAL_NODE_DEPTH;
+}
 
 /// CLI for load-testing for the Merkle tree implementation.
 #[derive(Debug, Parser)]
@@ -93,7 +105,8 @@ impl Cli {
         let hasher: &dyn HashTree = if self.no_hashing { &() } else { &Blake2Hasher };
         let mut rng = StdRng::seed_from_u64(self.rng_seed);
 
-        let mut tree = MerkleTree::with_hasher(db, hasher).context("cannot create tree")?;
+        let mut tree = MerkleTree::<_, WithDynHasher>::with_hasher(db, hasher)
+            .context("cannot create tree")?;
         let mut next_key_idx = 0_u64;
         let mut next_value_idx = 0_u64;
         for version in 0..self.batch_count {
