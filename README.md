@@ -36,6 +36,7 @@ at your option.
 - [Twitter](https://twitter.com/zksync)
 - [Twitter for Developers](https://twitter.com/zkSyncDevs)
 - [Discord](https://join.zksync.dev/)
+- [Hey](https://hey.xyz/u/zksync)
 - [Mirror](https://zksync.mirror.xyz/)
 - [Youtube](https://www.youtube.com/@zkSync-era)
 
