@@ -1,8 +1,8 @@
-mod gateway_client;
+mod contracts;
+mod slingshot_fetcher;
 
 use alloy::transports::http::Client;
-use zksync_basic_types::ethabi::Bytes;
-use zksync_basic_types::{Address, L1BatchNumber, H256};
+use zksync_basic_types::{ethabi::Bytes, Address, L1BatchNumber, H256};
 
 struct SlingshotFetcher<Database, EventFetcher> {
     database: Database,
