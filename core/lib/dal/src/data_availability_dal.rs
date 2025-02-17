@@ -274,10 +274,10 @@ impl DataAvailabilityDal<'_, '_> {
             l1_batch_number: L1BatchNumber(row.number as u32),
             sealed_at: row.sealed_at.unwrap().and_utc(),
             system_logs: row
-                    .system_logs
-                    .into_iter()
-                    .map(|raw_log| L2ToL1Log::from_slice(&raw_log))
-                    .collect(),
+                .system_logs
+                .into_iter()
+                .map(|raw_log| L2ToL1Log::from_slice(&raw_log))
+                .collect(),
         });
 
         Ok(row)
