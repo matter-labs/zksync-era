@@ -5,8 +5,9 @@ use zksync_db_connection::{
 };
 use zksync_types::{
     commitment::PubdataType,
+    l2_to_l1_log::L2ToL1Log,
     pubdata_da::{DataAvailabilityBlob, DataAvailabilityDetails},
-    l2_to_l1_log::L2ToL1Log, Address, L1BatchNumber,
+    Address, L1BatchNumber,
 };
 
 use crate::{
@@ -18,7 +19,7 @@ use crate::{
 pub struct DataAvailabilityDal<'a, 'c> {
     pub(crate) storage: &'a mut Connection<'c, Core>,
 }
-0x00000000000000000000000000000000000000005
+
 impl DataAvailabilityDal<'_, '_> {
     /// Inserts the blob_id for the given L1 batch. If the blob_id is already present,
     /// verifies that it matches the one provided in the function arguments
@@ -288,10 +289,10 @@ impl DataAvailabilityDal<'_, '_> {
                 1
             "#,
         )
-            .instrument("get_latest_batch_with_inclusion_data")
-            .report_latency()
-            .fetch_optional(self.storage)
-            .await?;
+        .instrument("get_latest_batch_with_inclusion_data")
+        .report_latency()
+        .fetch_optional(self.storage)
+        .await?;
 
         Ok(row.map(|row| L1BatchNumber(row.l1_batch_number as u32)))
     }

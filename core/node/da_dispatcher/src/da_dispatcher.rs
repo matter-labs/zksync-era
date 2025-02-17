@@ -15,7 +15,8 @@ use zksync_eth_client::{
     EthInterface,
 };
 use zksync_types::{
-    ethabi, l2_to_l1_log::L2ToL1Log, web3::CallRequest, Address, L1BatchNumber, H256, utils::client_type_to_pubdata_type
+    ethabi, l2_to_l1_log::L2ToL1Log, utils::client_type_to_pubdata_type, web3::CallRequest,
+    Address, L1BatchNumber, H256,
 };
 
 use crate::metrics::METRICS;
