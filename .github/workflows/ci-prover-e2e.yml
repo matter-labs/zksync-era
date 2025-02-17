@@ -30,6 +30,10 @@ jobs:
           
           mkdir -p prover_logs_${{matrix.compressor-mode}}
 
+      - name: Find the latest prover release tag
+        run: |
+          echo PROVER_COMMIT=git rev-list -n 1 $(git tag -l "prover-*" | sort -V | tail -n 1) >> .env
+
       - name: Start services
         run: |
           run_retried docker-compose -f ${RUNNER_COMPOSE_FILE} pull
@@ -58,6 +62,8 @@ jobs:
 
       - name: Init
         run: |
+          
+          git checkout $PROVER_COMMIT
           ci_run chmod -R +x ./bin
           
           ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup || true
