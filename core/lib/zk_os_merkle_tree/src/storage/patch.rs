@@ -216,15 +216,7 @@ impl<P: TreeParams> WorkingPatchSet<P> {
                             idx,
                             match node {
                                 Node::Internal(node) => node,
-                                Node::Leaf(_) => {
-                                    dbg!(
-                                        nibble_count,
-                                        P::TREE_DEPTH,
-                                        P::INTERNAL_NODE_DEPTH,
-                                        leaf_nibbles::<P>()
-                                    );
-                                    unreachable!()
-                                }
+                                Node::Leaf(_) => unreachable!(),
                             },
                         )
                     })

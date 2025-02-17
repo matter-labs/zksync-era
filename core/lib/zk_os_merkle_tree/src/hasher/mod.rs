@@ -7,6 +7,7 @@ use zksync_crypto_primitives::hasher::{blake2::Blake2Hasher, Hasher};
 use crate::types::{Leaf, MAX_TREE_DEPTH};
 
 mod nodes;
+mod proofs;
 
 /// Tree hashing functionality.
 pub trait HashTree: Send + Sync {
