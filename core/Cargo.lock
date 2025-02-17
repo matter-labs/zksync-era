@@ -11819,6 +11819,7 @@ version = "26.3.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "bincode",
+ "hex",
  "itertools 0.10.5",
  "thiserror 1.0.69",
  "tokio",

@@ -52,6 +52,7 @@ pub(super) fn get_storage_logs(system_contracts: &[DeployedContract]) -> Vec<Sto
         .iter()
         .map(|contract| {
             let hash = BytecodeHash::for_bytecode(&contract.bytecode).value();
+            println!("hash = {}, addr = {}", &hex::encode(&hash.0), &hex::encode(&contract.account_id.address().0));
             let known_code_key = get_known_code_key(&hash);
             let marked_known_value = H256::from_low_u64_be(1u64);
 
