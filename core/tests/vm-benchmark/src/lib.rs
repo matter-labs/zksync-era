@@ -7,8 +7,8 @@ pub use crate::{
         get_realistic_load_test_tx, get_transfer_tx, LoadTestParams,
     },
     vm::{
-        BenchmarkingVm, BenchmarkingVmFactory, CountInstructions, Fast, FastNoSignatures, Legacy,
-        VmLabel,
+        BenchmarkingVm, BenchmarkingVmFactory, CountInstructions, Fast, FastNoSignatures,
+        FastWithStorageLimit, Legacy, VmLabel,
     },
 };
 

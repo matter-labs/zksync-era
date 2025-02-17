@@ -1,5 +1,6 @@
 use chrono::{DateTime, NaiveDateTime, Utc};
 use zksync_types::{
+    l2_to_l1_log::L2ToL1Log,
     pubdata_da::{DataAvailabilityBlob, DataAvailabilityDetails},
     L1BatchNumber,
 };
@@ -49,5 +50,6 @@ impl From<StorageDADetails> for DataAvailabilityDetails {
 pub struct L1BatchDA {
     pub pubdata: Vec<u8>,
     pub l1_batch_number: L1BatchNumber,
+    pub system_logs: Vec<L2ToL1Log>,
     pub sealed_at: DateTime<Utc>,
 }

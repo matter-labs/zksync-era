@@ -1,8 +1,8 @@
 use chrono::{DateTime, Utc};
+use derive_more::Display;
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
 use serde_with::{hex::Hex, serde_as};
-use strum::Display;
 use zksync_basic_types::{
     commitment::PubdataType,
     web3::{AccessList, Bytes, Index},
@@ -1011,5 +1011,23 @@ mod tests {
 
         serde_json::from_str::<OldProtocolVersion>(&serde_json::to_string(&new_version).unwrap())
             .unwrap();
+    }
+
+    #[test]
+    fn proper_display() {
+        let block_number = BlockNumber::Committed;
+        assert_eq!(format!("{}", block_number), "Committed");
+        let block_number = BlockNumber::Finalized;
+        assert_eq!(format!("{}", block_number), "Finalized");
+        let block_number = BlockNumber::Latest;
+        assert_eq!(format!("{}", block_number), "Latest");
+        let block_number = BlockNumber::L1Committed;
+        assert_eq!(format!("{}", block_number), "L1Committed");
+        let block_number = BlockNumber::Earliest;
+        assert_eq!(format!("{}", block_number), "Earliest");
+        let block_number = BlockNumber::Pending;
+        assert_eq!(format!("{}", block_number), "Pending");
+        let block_number = BlockNumber::Number(U64::from(42));
+        assert_eq!(format!("{}", block_number), "42");
     }
 }

@@ -12,7 +12,7 @@ categories.workspace = true
 
 [dependencies]
 anyhow.workspace = true
-chrono.workspace = true
+chrono = { workspace = true, default-features = false, features = ["now"] }
 tokio.workspace = true
 tracing.workspace = true
 tracing-subscriber = { workspace = true, features = [

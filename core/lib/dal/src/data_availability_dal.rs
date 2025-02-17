@@ -6,7 +6,7 @@ use zksync_db_connection::{
 use zksync_types::{
     commitment::PubdataType,
     pubdata_da::{DataAvailabilityBlob, DataAvailabilityDetails},
-    L1BatchNumber,
+    l2_to_l1_log::L2ToL1Log, Address, L1BatchNumber,
 };
 
 use crate::{
@@ -18,7 +18,7 @@ use crate::{
 pub struct DataAvailabilityDal<'a, 'c> {
     pub(crate) storage: &'a mut Connection<'c, Core>,
 }
-
+0x00000000000000000000000000000000000000005
 impl DataAvailabilityDal<'_, '_> {
     /// Inserts the blob_id for the given L1 batch. If the blob_id is already present,
     /// verifies that it matches the one provided in the function arguments
@@ -30,6 +30,7 @@ impl DataAvailabilityDal<'_, '_> {
         sent_at: chrono::NaiveDateTime,
         pubdata_type: PubdataType,
         da_inclusion_data: Option<&[u8]>,
+        l2_validator_address: Address,
     ) -> DalResult<()> {
         let update_result = sqlx::query!(
             r#"
@@ -39,18 +40,20 @@ impl DataAvailabilityDal<'_, '_> {
                 blob_id,
                 inclusion_data,
                 client_type,
+                l2_da_validator_address,
                 sent_at,
                 created_at,
                 updated_at
             )
             VALUES
-            ($1, $2, $3, $4, $5, NOW(), NOW())
+            ($1, $2, $3, $4, $5, $6, NOW(), NOW())
             ON CONFLICT DO NOTHING
             "#,
             i64::from(number.0),
             blob_id,
             da_inclusion_data,
             pubdata_type.to_string(),
+            l2_validator_address.as_bytes(),
             sent_at,
         )
         .instrument("insert_l1_batch_da")
@@ -201,6 +204,7 @@ impl DataAvailabilityDal<'_, '_> {
             SELECT
                 number,
                 pubdata_input,
+                system_logs,
                 sealed_at
             FROM
                 l1_batches
@@ -232,6 +236,11 @@ impl DataAvailabilityDal<'_, '_> {
                 pubdata: row.pubdata_input.unwrap(),
                 l1_batch_number: L1BatchNumber(row.number as u32),
                 sealed_at: row.sealed_at.unwrap().and_utc(),
+                system_logs: row
+                    .system_logs
+                    .into_iter()
+                    .map(|raw_log| L2ToL1Log::from_slice(&raw_log))
+                    .collect(),
             })
             .collect())
     }
@@ -279,11 +288,36 @@ impl DataAvailabilityDal<'_, '_> {
                 1
             "#,
         )
-        .instrument("get_latest_batch_with_inclusion_data")
-        .report_latency()
-        .fetch_optional(self.storage)
-        .await?;
+            .instrument("get_latest_batch_with_inclusion_data")
+            .report_latency()
+            .fetch_optional(self.storage)
+            .await?;
 
         Ok(row.map(|row| L1BatchNumber(row.l1_batch_number as u32)))
+    }
+
+    pub async fn set_dummy_inclusion_data_for_old_batches(
+        &mut self,
+        current_l2_da_validator: Address,
+    ) -> DalResult<()> {
+        sqlx::query!(
+            r#"
+            UPDATE data_availability
+            SET
+                inclusion_data = $1,
+                updated_at = NOW()
+            WHERE
+                inclusion_data IS NULL
+                AND (l2_da_validator_address IS NULL OR l2_da_validator_address != $2)
+            "#,
+            vec![],
+            current_l2_da_validator.as_bytes(),
+        )
+        .instrument("set_dummy_inclusion_data_for_old_batches")
+        .report_latency()
+        .execute(self.storage)
+        .await?;
+
+        Ok(())
     }
 }
