@@ -1,4 +1,7 @@
-use std::collections::hash_map::{Entry, HashMap};
+use std::{
+    collections::hash_map::HashMap,
+    sync::Arc,
+};
 
 use tokio::sync::Mutex;
 use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool, Core, CoreDal};
@@ -9,11 +12,13 @@ use zksync_types::{l2::L2Tx, Address, Nonce, H256};
 use super::{tx_sink::TxSink, SubmitTxError};
 use crate::web3::metrics::API_METRICS;
 
+type LockedTxnMap = Mutex<HashMap<(Address, Nonce), (H256, Arc<Mutex<()>>)>>;
+
 /// Wrapper for the master DB pool that allows to submit transactions to the mempool.
 #[derive(Debug)]
 pub struct MasterPoolSink {
     master_pool: ConnectionPool<Core>,
-    inflight_requests: Mutex<HashMap<(Address, Nonce), H256>>,
+    inflight_requests: LockedTxnMap,
 }
 
 impl MasterPoolSink {
@@ -34,24 +39,24 @@ impl TxSink for MasterPoolSink {
         validation_traces: ValidationTraces,
     ) -> Result<L2TxSubmissionResult, SubmitTxError> {
         let address_and_nonce = (tx.initiator_account(), tx.nonce());
+        let tx_hash = tx.hash();
 
         let mut lock = self.inflight_requests.lock().await;
-        match lock.entry(address_and_nonce) {
-            Entry::Occupied(entry) => {
-                let submission_res_handle = if entry.get() == &tx.hash() {
-                    L2TxSubmissionResult::Duplicate
-                } else {
-                    L2TxSubmissionResult::InsertionInProgress
-                };
-                APP_METRICS.processed_txs[&TxStage::Mempool(submission_res_handle)].inc();
-                return Ok(submission_res_handle);
-            }
-            Entry::Vacant(entry) => {
-                entry.insert(tx.hash());
-                API_METRICS.inflight_tx_submissions.inc_by(1);
-            }
+        let (hash_in_progress, mutex) = lock.entry(address_and_nonce).or_default();
+        let mutex_clone = mutex.clone();
+        // `_internal_lock` prevents simultaneous insertion of multiple txs with the same `address_and_nonce`.
+        let Ok(_internal_lock) = mutex_clone.try_lock() else {
+            let submission_res_handle = if *hash_in_progress == tx_hash {
+                L2TxSubmissionResult::Duplicate
+            } else {
+                L2TxSubmissionResult::InsertionInProgress
+            };
+            APP_METRICS.processed_txs[&TxStage::Mempool(submission_res_handle)].inc();
+            return Ok(submission_res_handle);
         };
+        *hash_in_progress = tx_hash;
         drop(lock);
+        API_METRICS.inflight_tx_submissions.inc_by(1);
 
         let result = match self.master_pool.connection_tagged("api").await {
             Ok(mut connection) => connection
@@ -65,10 +70,6 @@ impl TxSink for MasterPoolSink {
             Err(err) => Err(err.generalize().into()),
         };
 
-        self.inflight_requests
-            .lock()
-            .await
-            .remove(&address_and_nonce);
         API_METRICS.inflight_tx_submissions.dec_by(1);
 
         result
