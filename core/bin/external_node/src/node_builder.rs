@@ -1,15 +1,15 @@
 //! This module provides a "builder" for the external node,
 //! as well as an interface to run the node with the specified components.
 
-use anyhow::Context as _;
+use anyhow::{bail, Context as _};
 use zksync_block_reverter::NodeRole;
 use zksync_config::{
     configs::{
         api::{HealthCheckConfig, MerkleTreeApiConfig},
         database::MerkleTreeMode,
-        DatabaseSecrets,
+        DataAvailabilitySecrets, DatabaseSecrets,
     },
-    PostgresConfig,
+    DAClientConfig, PostgresConfig,
 };
 use zksync_metadata_calculator::{
     MerkleTreeReaderConfig, MetadataCalculatorConfig, MetadataCalculatorRecoveryConfig,
@@ -22,6 +22,11 @@ use zksync_node_framework::{
         commitment_generator::CommitmentGeneratorLayer,
         consensus::ExternalNodeConsensusLayer,
         consistency_checker::ConsistencyCheckerLayer,
+        da_clients::{
+            avail::AvailWiringLayer, celestia::CelestiaWiringLayer, eigen::EigenWiringLayer,
+            no_da::NoDAClientWiringLayer, object_store::ObjectStorageClientWiringLayer,
+        },
+        data_availability_fetcher::DataAvailabilityFetcherLayer,
         healtcheck_server::HealthCheckLayer,
         l1_batch_commitment_mode_validation::L1BatchCommitmentModeValidationLayer,
         logs_bloom_backfill::LogsBloomBackfillLayer,
@@ -334,6 +339,47 @@ impl ExternalNodeBuilder {
             self.config.required.l2_chain_id,
         );
         self.node.add_layer(layer);
+        Ok(self)
+    }
+
+    fn add_da_client_layer(mut self) -> anyhow::Result<Self> {
+        let (da_client_config, da_client_secrets) = self.config.data_availability.clone();
+
+        let da_client_config = da_client_config.context("DA client config is missing")?;
+
+        if matches!(da_client_config, DAClientConfig::NoDA) {
+            self.node.add_layer(NoDAClientWiringLayer);
+            return Ok(self);
+        }
+
+        let da_client_secrets = da_client_secrets.context("DA client secrets are missing")?;
+        match (da_client_config, da_client_secrets) {
+            (DAClientConfig::Avail(config), DataAvailabilitySecrets::Avail(secret)) => {
+                self.node.add_layer(AvailWiringLayer::new(config, secret));
+            }
+
+            (DAClientConfig::Celestia(config), DataAvailabilitySecrets::Celestia(secret)) => {
+                self.node
+                    .add_layer(CelestiaWiringLayer::new(config, secret));
+            }
+
+            (DAClientConfig::Eigen(config), DataAvailabilitySecrets::Eigen(secret)) => {
+                self.node.add_layer(EigenWiringLayer::new(config, secret));
+            }
+
+            (DAClientConfig::ObjectStore(config), _) => {
+                self.node
+                    .add_layer(ObjectStorageClientWiringLayer::new(config));
+            }
+            _ => bail!("invalid pair of da_client and da_secrets"),
+        }
+
+        Ok(self)
+    }
+
+    fn add_data_availability_fetcher_layer(mut self) -> anyhow::Result<Self> {
+        self.node.add_layer(DataAvailabilityFetcherLayer);
+
         Ok(self)
     }
 
@@ -653,6 +699,11 @@ impl ExternalNodeBuilder {
                 }
                 Component::TreeFetcher => {
                     self = self.add_tree_data_fetcher_layer()?;
+                }
+                Component::DataAvailabilityFetcher => {
+                    self = self
+                        .add_da_client_layer()?
+                        .add_data_availability_fetcher_layer()?;
                 }
                 Component::Core => {
                     // Main tasks

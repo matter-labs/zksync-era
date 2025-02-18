@@ -1,3 +1,4 @@
+use zksync_basic_types::pubdata_da::DataAvailabilityDetails;
 use zksync_types::{
     api::{ChainAggProof, TeeProof, TransactionExecutionInfo},
     tee_types::TeeType,
@@ -43,6 +44,15 @@ impl UnstableNamespaceServer for UnstableNamespace {
 
     async fn get_unconfirmed_txs_count(&self) -> RpcResult<usize> {
         self.get_unconfirmed_txs_count_impl()
+            .await
+            .map_err(|err| self.current_method().map_err(err))
+    }
+
+    async fn get_data_availability_details(
+        &self,
+        batch: L1BatchNumber,
+    ) -> RpcResult<Option<DataAvailabilityDetails>> {
+        self.get_data_availability_details_impl(batch)
             .await
             .map_err(|err| self.current_method().map_err(err))
     }

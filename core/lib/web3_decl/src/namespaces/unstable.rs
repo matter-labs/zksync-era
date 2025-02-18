@@ -1,6 +1,7 @@
 #[cfg_attr(not(feature = "server"), allow(unused_imports))]
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
+use zksync_basic_types::pubdata_da::DataAvailabilityDetails;
 use zksync_types::{
     api::{ChainAggProof, TeeProof, TransactionExecutionInfo},
     tee_types::TeeType,
@@ -41,4 +42,10 @@ pub trait UnstableNamespace {
 
     #[method(name = "unconfirmedTxsCount")]
     async fn get_unconfirmed_txs_count(&self) -> RpcResult<usize>;
+
+    #[method(name = "getDataAvailabilityDetails")]
+    async fn get_data_availability_details(
+        &self,
+        batch: L1BatchNumber,
+    ) -> RpcResult<Option<DataAvailabilityDetails>>;
 }

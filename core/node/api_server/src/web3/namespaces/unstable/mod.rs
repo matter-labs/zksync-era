@@ -3,6 +3,7 @@ use itertools::Itertools;
 use utils::{
     chain_id_leaf_preimage, get_chain_count, get_chain_id_from_index, get_chain_root_from_id,
 };
+use zksync_basic_types::pubdata_da::DataAvailabilityDetails;
 use zksync_crypto_primitives::hasher::keccak::KeccakHasher;
 use zksync_dal::{CoreDal, DalError};
 use zksync_mini_merkle_tree::MiniMerkleTree;
@@ -150,5 +151,22 @@ impl UnstableNamespace {
             .map_err(DalError::generalize)?;
 
         Ok(result)
+    }
+
+    pub async fn get_data_availability_details_impl(
+        &self,
+        batch: L1BatchNumber,
+    ) -> Result<Option<DataAvailabilityDetails>, Web3Error> {
+        let mut connection = self.state.acquire_connection().await?;
+        let Some(da_details) = connection
+            .data_availability_dal()
+            .get_da_details_by_batch_number(batch)
+            .await
+            .map_err(DalError::generalize)?
+        else {
+            return Ok(None);
+        };
+
+        Ok(Some(da_details))
     }
 }
