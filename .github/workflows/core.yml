@@ -34,6 +34,8 @@ jobs:
 #          --health-interval 10s
 #          --health-timeout 5s
 #          --health-retries 5
+#      reth:
+#        image: ghcr.io/paradigmxyz/reth:v1.0.6
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -46,15 +48,15 @@ jobs:
       - name: Update path
         run: echo $(pwd)/bin >> ${GITHUB_PATH}
 
-      - name: Rust cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: |
-            core -> target
-            prover -> target
-            zkstack_cli -> target
-          shared-key: "shared"
-          save-if: false
+#      - name: Rust cache
+#        uses: Swatinem/rust-cache@v2
+#        with:
+#          workspaces: |
+#            core -> target
+#            prover -> target
+#            zkstack_cli -> target
+#          shared-key: "shared"
+#          save-if: false
 
       # TODO: Remove when we after upgrade of hardhat-plugins
 #      - name: pre-download compilers
@@ -79,42 +81,45 @@ jobs:
 #          ci_localnet_up
 #
 
-      - name: Install zkstack
-        env:
-          ZKSTACK_DOWNLOAD_URL: 'https://github.com/matter-labs/zksync-era/releases/download/ad0df3a'
-          ZKSTACK_FILENAME: 'zkstack-test-x86_64-unknown-linux-gnu.tar.gz'
-        run: |
-          curl -L ${ZKSTACK_DOWNLOAD_URL}/${ZKSTACK_FILENAME} --output ${ZKSTACK_FILENAME}
-          tar -xzf ${ZKSTACK_FILENAME}
-          mv zkstack ${PWD}/bin
-          echo ${PWD}/bin >> ${GITHUB_PATH}
-
 #      - name: Install zkstack
+#        env:
+#          ZKSTACK_DOWNLOAD_URL: 'https://github.com/matter-labs/zksync-era/releases/download/ad0df3a'
+#          ZKSTACK_FILENAME: 'zkstack-test-x86_64-unknown-linux-gnu.tar.gz'
 #        run: |
-#          ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup
-#          zkstackup -g --local
+#          curl -L ${ZKSTACK_DOWNLOAD_URL}/${ZKSTACK_FILENAME} --output ${ZKSTACK_FILENAME}
+#          tar -xzf ${ZKSTACK_FILENAME}
+#          mv zkstack ${PWD}/bin
+#          echo ${PWD}/bin >> ${GITHUB_PATH}
+
+      - name: Install zkstack
+        run: |
+          ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup
+          zkstackup -g --local
 
       - name: Start services
         run: docker compose up -d --wait reth postgres
 
-      - name: Build contracts
-        run: zkstack dev contracts
+#      - name: Build contracts
+#        run: zkstack dev contracts
 
-      - name: Download compilers for contract verifier tests
-        run: zkstack contract-verifier init --zksolc-version=v1.5.10 --zkvyper-version=v1.5.4 --solc-version=0.8.26 --vyper-version=v0.3.10 --era-vm-solc-version=0.8.26-1.0.1 --only --chain era
+#      - name: Build contracts
+#        uses: matter-labs/zksync-era/.github/actions/build-contracts@aba-ci-optimize
+
+#      - name: Build contracts
+#        run: zkstack dev contracts
+
+#      - name: Download compilers for contract verifier tests
+#        run: zkstack contract-verifier init --zksolc-version=v1.5.10 --zkvyper-version=v1.5.4 --solc-version=0.8.26 --vyper-version=v0.3.10 --era-vm-solc-version=0.8.26-1.0.1 --only --chain era
 
       - name: Rust unit tests
         working-directory: core
-#        env:
-#          TEST_DATABASE_URL: 'postgres://postgres:notsecurepassword@postgres:5432/zksync_local'
+        env:
+          TEST_DATABASE_URL: 'postgres://postgres:notsecurepassword@zksync-era-postgres-1:5432/zksync_local'
         run: |
-          # cargo sqlx database create --database-url ${TEST_DATABASE_URL}
-          # cargo sqlx migrate run --database-url ${TEST_DATABASE_URL}
-          # cargo nextest run --release --no-fail-fast
           zkstack dev test rust
           # Benchmarks are not tested by `cargo nextest` unless specified explicitly, and even then `criterion` harness is incompatible
           # with how `cargo nextest` runs tests. Thus, we run criterion-based benchmark tests manually.
-          cargo test --manifest-path ./core/Cargo.toml --release -p vm-benchmark --bench oneshot --bench batch
+          # cargo test --manifest-path ./core/Cargo.toml --release -p vm-benchmark --bench oneshot --bench batch
 
 #  loadtest:
 #    runs-on: [ matterlabs-ci-runner-high-performance ]

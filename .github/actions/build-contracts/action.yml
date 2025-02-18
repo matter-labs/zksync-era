@@ -36,15 +36,7 @@ runs:
         tar -C ./contracts -zxf l2-contracts.tar.gz
         tar -C ./contracts -zxf system-contracts.tar.gz
 
-    # TODO: use latest release instead of tmp
-    - name: Install zkstack
-      if: ${{ env.BUILD_CONTRACTS == 'true' }}
-      env:
-        ZKSTACK_DOWNLOAD_URL: 'https://github.com/matter-labs/zksync-era/releases/download/ad0df3a'
-        ZKSTACK_FILENAME: 'zkstack-test-x86_64-unknown-linux-gnu.tar.gz'
-      working-directory: bin
-      run: curl -L ${ZKSTACK_DOWNLOAD_URL}/${ZKSTACK_FILENAME} --output ${ZKSTACK_FILENAME} && tar -xzf ${ZKSTACK_FILENAME}
-
     - name: Build contracts
       if: ${{ env.BUILD_CONTRACTS == 'true' }}
+      shell: 'bash -ex {0}'
       run: zkstack dev contracts
