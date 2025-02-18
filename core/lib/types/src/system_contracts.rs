@@ -4,7 +4,7 @@ use zksync_basic_types::{AccountTreeId, Address, U256};
 use zksync_contracts::{read_sys_contract_bytecode, ContractLanguage, SystemContractsRepo};
 use zksync_system_constants::{
     BOOTLOADER_UTILITIES_ADDRESS, CODE_ORACLE_ADDRESS, COMPRESSOR_ADDRESS, CREATE2_FACTORY_ADDRESS,
-    EVENT_WRITER_ADDRESS, EVM_GAS_MANAGER_ADDRESS, EVM_PREDEPLOYS_MANAGER_ADDRESS,
+    EVENT_WRITER_ADDRESS, EVM_GAS_MANAGER_ADDRESS, EVM_PREDEPLOYS_MANAGER_ADDRESS, EVM_HASHES_STORAGE_ADDRESS,
     IDENTITY_ADDRESS, L2_ASSET_ROUTER_ADDRESS, L2_BRIDGEHUB_ADDRESS, L2_GENESIS_UPGRADE_ADDRESS,
     L2_MESSAGE_ROOT_ADDRESS, L2_NATIVE_TOKEN_VAULT_ADDRESS, L2_WRAPPED_BASE_TOKEN_IMPL,
     PUBDATA_CHUNK_PUBLISHER_ADDRESS, SECP256R1_VERIFY_PRECOMPILE_ADDRESS, SLOAD_CONTRACT_ADDRESS,
@@ -27,7 +27,7 @@ use crate::{
 pub const TX_NONCE_INCREMENT: U256 = U256([1, 0, 0, 0]); // 1
 pub const DEPLOYMENT_NONCE_INCREMENT: U256 = U256([0, 0, 1, 0]); // 2^128
 
-static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 35] = [
+static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 36] = [
     (
         "",
         "AccountCodeStorage",
@@ -165,6 +165,12 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 35] = [
         "",
         "EvmPredeploysManager",
         EVM_PREDEPLOYS_MANAGER_ADDRESS,
+        ContractLanguage::Sol,
+    ),
+    (
+        "",
+        "EvmHashesStorage",
+        EVM_HASHES_STORAGE_ADDRESS,
         ContractLanguage::Sol,
     ),
     // For now, only zero address and the bootloader address have empty bytecode at the init
