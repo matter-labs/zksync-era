@@ -1,7 +1,7 @@
 name: Core tests
 
 on:
-  pull_request:
+#  pull_request:
   merge_group:
 #  push:
 #    branches:
@@ -30,21 +30,36 @@ jobs:
         RUN_CONTRACT_VERIFICATION_TEST: true
     services:
       postgres:
-        image: postgres:14
+        image: postgres:16
         env:
           POSTGRES_PASSWORD: 'notsecurepassword'
+          POSTGRES_INITDB_ARGS: "-c max_connections=1500"
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
           submodules: "recursive"
 
-      - name: Fix git
+      - name: Safe git for Docker
         run: git config --global --add safe.directory '*'
+
+      - name: Update path
+        run: echo $(pwd)/bin >> ${GITHUB_PATH}
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            core -> target
+            prover -> target
+            zkstack_cli -> target
+          shared-key: "shared"
+          save-if: false
 
       # TODO: Remove when we after upgrade of hardhat-plugins
 #      - name: pre-download compilers
