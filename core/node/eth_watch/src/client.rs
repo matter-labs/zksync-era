@@ -64,6 +64,8 @@ pub trait EthClient: 'static + fmt::Debug + Send + Sync {
         hashes: Vec<H256>,
     ) -> EnrichedClientResult<Vec<Option<Vec<u8>>>>;
 
+    async fn get_settlement_layer(&self) -> Result<Address, ContractCallError>;
+
     async fn get_chain_gateway_upgrade_info(
         &self,
     ) -> Result<Option<ZkChainSpecificUpgradeData>, ContractCallError>;
@@ -532,6 +534,14 @@ where
             base_token_symbol,
         }))
     }
+
+    async fn get_settlement_layer(&self) -> Result<Address, ContractCallError> {
+        let settlement_layer: Address = CallFunctionArgs::new("getSettlementLayer", ())
+            .for_contract(self.diamond_proxy_addr, &self.getters_facet_contract_abi)
+            .call(&self.client)
+            .await?;
+        Ok(settlement_layer)
+    }
 }
 
 /// Encapsulates `eth_getLogs` calls.
@@ -690,6 +700,10 @@ impl EthClient for L2EthClientW {
         hashes: Vec<H256>,
     ) -> EnrichedClientResult<Vec<Option<Vec<u8>>>> {
         self.0.get_published_preimages(hashes).await
+    }
+
+    async fn get_settlement_layer(&self) -> Result<Address, ContractCallError> {
+        self.0.get_settlement_layer().await
     }
 }
 

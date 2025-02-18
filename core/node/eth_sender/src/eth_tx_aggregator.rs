@@ -1,8 +1,8 @@
 use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
-use zksync_contracts::BaseSystemContractsHashes;
+use zksync_contracts::{gateway_migration_contract, BaseSystemContractsHashes};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_eth_client::{BoundEthInterface, CallFunctionArgs, ContractCallError};
+use zksync_eth_client::{BoundEthInterface, CallFunctionArgs, ContractCallError, EthInterface};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_l1_contract_interface::{
     i_executor::{
@@ -21,8 +21,8 @@ use zksync_types::{
     l2_to_l1_log::UserL2ToL1Log,
     protocol_version::{L1VerifierConfig, PACKED_SEMVER_MINOR_MASK},
     pubdata_da::PubdataSendingMode,
-    settlement::SettlementMode,
-    web3::{contract::Error as Web3ContractError, BlockNumber},
+    server_notification::GatewayMigrationState,
+    web3::{contract::Error as Web3ContractError, BlockNumber, CallRequest},
     Address, L2ChainId, ProtocolVersionId, SLChainId, H256, U256,
 };
 
@@ -78,7 +78,7 @@ pub struct EthTxAggregator {
     /// address.
     custom_commit_sender_addr: Option<Address>,
     pool: ConnectionPool<Core>,
-    settlement_mode: SettlementMode,
+    gateway_migration_state: GatewayMigrationState,
     sl_chain_id: SLChainId,
     health_updater: HealthUpdater,
 }
@@ -103,7 +103,6 @@ impl EthTxAggregator {
         state_transition_chain_contract: Address,
         rollup_chain_id: L2ChainId,
         custom_commit_sender_addr: Option<Address>,
-        settlement_mode: SettlementMode,
     ) -> Self {
         let eth_client = eth_client.for_component("eth_tx_aggregator");
         let functions = ZkSyncFunctions::default();
@@ -121,6 +120,10 @@ impl EthTxAggregator {
             None => None,
         };
 
+        let gateway_migration_state =
+            gateway_status(&mut pool.connection().await.unwrap(), eth_client.as_ref())
+                .await
+                .unwrap();
         let sl_chain_id = (*eth_client).as_ref().fetch_chain_id().await.unwrap();
 
         Self {
@@ -137,7 +140,7 @@ impl EthTxAggregator {
             rollup_chain_id,
             custom_commit_sender_addr,
             pool,
-            settlement_mode,
+            gateway_migration_state,
             sl_chain_id,
             health_updater: ReactiveHealthCheck::new("eth_tx_aggregator").1,
         }
@@ -522,6 +525,7 @@ impl EthTxAggregator {
         &mut self,
         storage: &mut Connection<'_, Core>,
     ) -> Result<(), EthSenderError> {
+        self.gateway_migration_state = gateway_status(storage, self.eth_client.as_ref()).await?;
         let MulticallData {
             base_system_contracts_hashes,
             verifier_address,
@@ -553,11 +557,16 @@ impl EthTxAggregator {
             fflonk_snark_wrapper_vk_hash,
         };
 
-        let mut op_restrictions = OperationSkippingRestrictions {
-            commit_restriction: self
-                .config
+        let commit_restriction = if self.gateway_migration_state == GatewayMigrationState::Started {
+            Some("Gateway migration started")
+        } else {
+            self.config
                 .tx_aggregation_only_prove_and_execute
-                .then_some("tx_aggregation_only_prove_and_execute=true"),
+                .then_some("tx_aggregation_only_prove_and_execute=true")
+        };
+
+        let mut op_restrictions = OperationSkippingRestrictions {
+            commit_restriction,
             prove_restriction: None,
             execute_restriction: Self::is_pending_gateway_upgrade(
                 storage,
@@ -584,7 +593,7 @@ impl EthTxAggregator {
             )
             .await?
         {
-            let is_gateway = self.settlement_mode.is_gateway();
+            let is_gateway = self.gateway_migration_state.is_gateway();
             let tx = self
                 .save_eth_tx(
                     storage,
@@ -815,7 +824,7 @@ impl EthTxAggregator {
         storage: &mut Connection<'_, Core>,
         from_addr: Option<Address>,
     ) -> Result<u64, EthSenderError> {
-        let is_gateway = self.settlement_mode.is_gateway();
+        let is_gateway = self.gateway_migration_state.is_gateway();
         let db_nonce = storage
             .eth_sender_dal()
             .get_next_nonce(from_addr, is_gateway)
@@ -843,4 +852,65 @@ impl EthTxAggregator {
     pub fn health_check(&self) -> ReactiveHealthCheck {
         self.health_updater.subscribe()
     }
+}
+
+async fn query_no_params_method(
+    l1_client: &dyn BoundEthInterface,
+    method_name: &str,
+) -> Result<U256, EthSenderError> {
+    let data = l1_client
+        .contract()
+        .function(method_name)
+        .unwrap()
+        .encode_input(&[])
+        .unwrap();
+
+    // Now call `as_ref()` from `AsRef<dyn EthInterface>` explicitly:
+    let eth_interface: &dyn EthInterface = AsRef::<dyn EthInterface>::as_ref(l1_client);
+
+    let result = eth_interface
+        .call_contract_function(
+            CallRequest {
+                data: Some(data.into()),
+                to: Some(l1_client.contract_addr()),
+                ..CallRequest::default()
+            },
+            None,
+        )
+        .await?;
+
+    Ok(l1_client
+        .contract()
+        .function(method_name)
+        .unwrap()
+        .decode_output(&result.0)
+        .unwrap()[0]
+        .clone()
+        .into_uint()
+        .unwrap())
+}
+
+pub async fn gateway_status(
+    storage: &mut Connection<'_, Core>,
+    l1_client: &dyn BoundEthInterface,
+) -> Result<GatewayMigrationState, EthSenderError> {
+    let layer = query_no_params_method(l1_client, "getSettlementLayer").await?;
+    if layer != U256::zero() {
+        return Ok(GatewayMigrationState::Finalized);
+    };
+
+    // TODO support migration back
+    let topic = gateway_migration_contract()
+        .event("MigrateToGateway")
+        .unwrap()
+        .signature();
+    let notifications = storage
+        .server_notifications_dal()
+        .notifications_by_topic(topic)
+        .await
+        .unwrap();
+    if !notifications.is_empty() {
+        return Ok(GatewayMigrationState::Started);
+    }
+    Ok(GatewayMigrationState::Not)
 }

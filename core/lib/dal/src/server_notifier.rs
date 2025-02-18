@@ -1,5 +1,5 @@
 use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
-use zksync_types::{L1BlockNumber, H256};
+use zksync_types::{server_notification::ServerNotification, L1BlockNumber, H256};
 
 use crate::Core;
 
@@ -42,8 +42,11 @@ impl ServerNotificationsDal<'_, '_> {
         Ok(())
     }
 
-    pub async fn notifications_by_topic(&mut self, main_topic: H256) -> sqlx::Result<()> {
-        let row = sqlx::query!(
+    pub async fn notifications_by_topic(
+        &mut self,
+        main_topic: H256,
+    ) -> sqlx::Result<Vec<ServerNotification>> {
+        let rows = sqlx::query!(
             r#"
             SELECT
                 *
@@ -57,7 +60,15 @@ impl ServerNotificationsDal<'_, '_> {
             main_topic.as_bytes()
         )
         .fetch_all(self.storage.conn())
-        .await?;
-        Ok(())
+        .await?
+        .into_iter()
+        .map(|a| ServerNotification {
+            l1_block_number: L1BlockNumber(a.l1_block_number as u32),
+            main_topic,
+            value: a.value,
+        })
+        .collect();
+
+        Ok(rows)
     }
 }

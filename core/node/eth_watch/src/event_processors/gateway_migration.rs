@@ -4,18 +4,13 @@ use zksync_types::{api::Log, ethabi::Contract, L1BlockNumber, L2ChainId, H256, U
 
 use crate::event_processors::{EventProcessor, EventProcessorError, EventsSource};
 
-#[derive(Debug, Clone)]
-struct ServerNotification {
-    block_number: L1BlockNumber,
-}
-
 #[derive(Debug)]
-pub struct GatewayMigration {
+pub struct GatewayMigrationProcessor {
     gateway_migration_topic: H256,
     l2chain_id: L2ChainId,
 }
 
-impl GatewayMigration {
+impl GatewayMigrationProcessor {
     pub fn new(server_notifier: &Contract, l2chain_id: L2ChainId) -> Self {
         Self {
             gateway_migration_topic: server_notifier
@@ -28,7 +23,7 @@ impl GatewayMigration {
 }
 
 #[async_trait::async_trait]
-impl EventProcessor for GatewayMigration {
+impl EventProcessor for GatewayMigrationProcessor {
     async fn process_events(
         &mut self,
         storage: &mut Connection<'_, Core>,

@@ -181,7 +181,6 @@ impl WiringLayer for EthTxAggregatorLayer {
             diamond_proxy_addr,
             self.zksync_network_id,
             eth_client_blobs_addr,
-            self.settlement_mode,
         )
         .await;
 
