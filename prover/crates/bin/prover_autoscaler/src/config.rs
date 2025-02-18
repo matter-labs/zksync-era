@@ -1,11 +1,12 @@
-use std::{collections::HashMap, path::PathBuf, time::Duration};
+use std::{collections::HashMap, hash::Hash, path::PathBuf, time::Duration};
 
 use anyhow::Context;
 use serde::Deserialize;
 use strum::Display;
 use strum_macros::EnumString;
-use vise::EncodeLabelValue;
 use zksync_config::configs::ObservabilityConfig;
+
+use crate::key::{GpuKey, NoKey};
 
 /// Config used for running ProverAutoscaler (both Scaler and Agent).
 #[derive(Debug, Clone, PartialEq, Deserialize)]
@@ -56,13 +57,6 @@ pub struct ProverAutoscalerScalerConfig {
     /// Default priorities, which cluster to prefer when there is no other information.
     pub cluster_priorities: HashMap<String, u32>,
     /// Prover speed per GPU. Used to calculate desired number of provers for queue size.
-    pub prover_speed: HashMap<Gpu, u32>,
-    /// Maximum number of provers which can be run per cluster/GPU.
-    pub max_provers: HashMap<String, HashMap<Gpu, u32>>,
-    /// Minimum number of provers globally.
-    #[serde(default)]
-    pub min_provers: u32,
-    /// Name of primary namespace, all min numbers are applied to it.
     pub apply_min_to_namespace: Option<String>,
     /// Duration after which pending pod considered long pending.
     #[serde(
@@ -70,41 +64,13 @@ pub struct ProverAutoscalerScalerConfig {
         default = "ProverAutoscalerScalerConfig::default_long_pending_duration"
     )]
     pub long_pending_duration: Duration,
+    /// List of GPU autoscaler targets.
+    pub gpu_scaler_targets: Vec<ScalerTarget<GpuKey>>,
     /// List of simple autoscaler targets.
-    pub scaler_targets: Vec<ScalerTarget>,
+    pub scaler_targets: Vec<ScalerTarget<NoKey>>,
     /// If dry-run enabled don't send any scale requests.
     #[serde(default)]
     pub dry_run: bool,
-}
-
-#[derive(
-    Default,
-    Debug,
-    Display,
-    Hash,
-    PartialEq,
-    Eq,
-    Clone,
-    Copy,
-    Ord,
-    PartialOrd,
-    EnumString,
-    EncodeLabelValue,
-    Deserialize,
-)]
-pub enum Gpu {
-    #[default]
-    Unknown,
-    #[strum(ascii_case_insensitive)]
-    L4,
-    #[strum(ascii_case_insensitive)]
-    T4,
-    #[strum(ascii_case_insensitive)]
-    V100,
-    #[strum(ascii_case_insensitive)]
-    P100,
-    #[strum(ascii_case_insensitive)]
-    A100,
 }
 
 // TODO: generate this enum by QueueReport from https://github.com/matter-labs/zksync-era/blob/main/prover/crates/bin/prover_job_monitor/src/autoscaler_queue_reporter.rs#L23
@@ -130,19 +96,19 @@ pub enum QueueReportFields {
 }
 
 /// ScalerTarget can be configured to autoscale any of services for which queue is reported by
-/// prover-job-monitor, except of provers. Provers need special treatment due to GPU requirement.
+/// prover-job-monitor.
 #[derive(Debug, Clone, PartialEq, Deserialize, Default)]
-pub struct ScalerTarget {
+pub struct ScalerTarget<K: Default + Eq + Hash> {
     pub queue_report_field: QueueReportFields,
     pub deployment: String,
     /// Min replicas globally.
     #[serde(default)]
     pub min_replicas: usize,
     /// Max replicas per cluster.
-    pub max_replicas: HashMap<String, usize>,
+    pub max_replicas: HashMap<String, HashMap<K, usize>>,
     /// The queue will be divided by the speed and rounded up to get number of replicas.
     #[serde(default = "ScalerTarget::default_speed")]
-    pub speed: usize,
+    pub speed: HashMap<K, usize>,
 }
 
 impl ProverAutoscalerConfig {
@@ -179,9 +145,9 @@ impl ProverAutoscalerScalerConfig {
     }
 }
 
-impl ScalerTarget {
-    pub fn default_speed() -> usize {
-        1
+impl<K: Default + Eq + Hash> ScalerTarget<K> {
+    pub fn default_speed() -> HashMap<K, usize> {
+        [(K::default(), 1)].into()
     }
 }
 

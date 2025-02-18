@@ -118,7 +118,7 @@ async fn main() -> anyhow::Result<()> {
                 http_client,
                 scaler_config.prover_job_monitor_url.clone(),
             );
-            let scaler = global::scaler::Scaler::new(watcher.clone(), queuer, scaler_config);
+            let scaler = global::manager::Manager::new(watcher.clone(), queuer, scaler_config);
             tasks.extend(get_tasks(watcher, scaler, interval, stop_receiver)?);
         }
     }
@@ -141,7 +141,7 @@ async fn main() -> anyhow::Result<()> {
 
 fn get_tasks(
     watcher: global::watcher::Watcher,
-    scaler: global::scaler::Scaler,
+    scaler: global::manager::Manager,
     interval: Duration,
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<Vec<JoinHandle<anyhow::Result<()>>>> {

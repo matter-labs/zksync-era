@@ -1,6 +1,6 @@
 use vise::{Counter, Gauge, LabeledFamily, Metrics};
 
-use crate::config::Gpu;
+use crate::key::Gpu;
 
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "autoscaler")]
