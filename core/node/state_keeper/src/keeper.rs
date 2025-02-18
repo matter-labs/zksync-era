@@ -19,16 +19,13 @@ use zksync_shared_metrics::{TxStage, APP_METRICS};
 use zksync_state::{OwnedStorage, ReadStorageFactory};
 use zksync_types::{
     block::L2BlockExecutionData, commitment::PubdataParams, l2::TransactionType,
-    protocol_version::ProtocolVersionId, utils::display_timestamp, L1BatchNumber, Transaction,
+    utils::display_timestamp, Transaction,
 };
 
 use crate::{
     executor::TxExecutionResult,
     health::StateKeeperHealthDetails,
-    io::{
-        BatchFirstTransaction, IoCursor, L1BatchParams, L2BlockParams, OutputHandler,
-        PendingBatchData, StateKeeperIO,
-    },
+    io::{IoCursor, L1BatchParams, L2BlockParams, OutputHandler, PendingBatchData, StateKeeperIO},
     metrics::{AGGREGATION_METRICS, KEEPER_METRICS, L1_BATCH_METRICS},
     seal_criteria::{ConditionalSealer, SealData, SealResolution, UnexecutableReason},
     updates::UpdatesManager,
@@ -120,7 +117,7 @@ impl ZkSyncStateKeeper {
             cursor.next_l2_block
         );
 
-        let mut batch_first_tx: Option<BatchFirstTransaction>;
+        let mut batch_first_tx: Option<Transaction>;
         // Re-execute pending batch if it exists. Otherwise, initialize a new batch.
         let PendingBatchData {
             mut l1_batch_env,
@@ -158,9 +155,6 @@ impl ZkSyncStateKeeper {
             }
         };
 
-        let protocol_version = system_env.version;
-        self.check_correctly_initialized(&pending_l2_blocks, protocol_version, l1_batch_env.number)
-            .await?;
         let mut updates_manager = UpdatesManager::new(&l1_batch_env, &system_env, pubdata_params);
         let mut batch_executor = self
             .create_batch_executor(
@@ -251,47 +245,6 @@ impl ZkSyncStateKeeper {
             .init_batch(storage, l1_batch_env, system_env, pubdata_params))
     }
 
-    /// This function is meant to be called only once during the state-keeper initialization.
-    /// It will check if we should load a protocol upgrade or a `GenesisUpgrade` transaction,
-    /// and perform some checks.
-    pub(super) async fn check_correctly_initialized(
-        &mut self,
-        pending_l2_blocks: &[L2BlockExecutionData],
-        protocol_version: ProtocolVersionId,
-        l1_batch_number: L1BatchNumber,
-    ) -> Result<(), Error> {
-        // After the Shared Bridge is integrated,
-        // there has to be a GenesisUpgrade upgrade transaction after the chain genesis.
-        // It has to be the first transaction of the first batch.
-        // The GenesisUpgrade upgrade does not bump the protocol version, but attaches an upgrade
-        // transaction to the genesis protocol version.
-        let first_batch_in_shared_bridge =
-            l1_batch_number == L1BatchNumber(1) && !protocol_version.is_pre_shared_bridge();
-        let previous_batch_protocol_version =
-            self.io.load_batch_version_id(l1_batch_number - 1).await?;
-
-        let version_changed = protocol_version != previous_batch_protocol_version;
-        let protocol_upgrade_tx = if version_changed || first_batch_in_shared_bridge {
-            self.io.load_upgrade_tx(protocol_version).await?
-        } else {
-            None
-        };
-
-        // Sanity check: if `txs_to_reexecute` is not empty and upgrade tx is present for this block
-        // then it must be the first one in `txs_to_reexecute`.
-        if !pending_l2_blocks.is_empty() && protocol_upgrade_tx.is_some() {
-            // We already processed the upgrade tx but did not seal the batch it was in.
-            let first_tx_to_reexecute = &pending_l2_blocks[0].txs[0];
-            assert_eq!(
-                first_tx_to_reexecute.tx_format(),
-                TransactionType::ProtocolUpgradeTransaction,
-                "Expected an upgrade transaction to be the first one in pending L2 blocks, but found {:?}",
-                first_tx_to_reexecute.hash()
-            );
-        }
-        Ok(())
-    }
-
     #[tracing::instrument(
         skip_all,
         fields(
@@ -325,15 +278,7 @@ impl ZkSyncStateKeeper {
         &mut self,
         cursor: &IoCursor,
         stop_receiver: &mut watch::Receiver<bool>,
-    ) -> Result<
-        (
-            SystemEnv,
-            L1BatchEnv,
-            PubdataParams,
-            Option<BatchFirstTransaction>,
-        ),
-        Error,
-    > {
+    ) -> Result<(SystemEnv, L1BatchEnv, PubdataParams, Option<Transaction>), Error> {
         // `io.wait_for_new_batch_params(..)` is not cancel-safe; once we get new batch params, we must hold onto them
         // until we get the rest of parameters from I/O or receive a stop signal.
         let params = self
@@ -559,11 +504,11 @@ impl ZkSyncStateKeeper {
         &mut self,
         batch_executor: &mut dyn BatchExecutor<OwnedStorage>,
         updates_manager: &mut UpdatesManager,
-        batch_first_tx: Option<BatchFirstTransaction>,
+        batch_first_tx: Option<Transaction>,
         stop_receiver: &watch::Receiver<bool>,
     ) -> Result<(), Error> {
         if let Some(tx) = batch_first_tx {
-            self.process_first_transaction(batch_executor, updates_manager, tx)
+            self.process_first_tx(batch_executor, updates_manager, tx)
                 .await?;
         }
 
@@ -700,15 +645,15 @@ impl ZkSyncStateKeeper {
         Err(Error::Canceled)
     }
 
-    async fn process_first_transaction(
+    async fn process_first_tx(
         &mut self,
         batch_executor: &mut dyn BatchExecutor<OwnedStorage>,
         updates_manager: &mut UpdatesManager,
-        batch_first_tx: BatchFirstTransaction,
+        first_tx: Transaction,
     ) -> anyhow::Result<()> {
         // Sanity check: tx must be the first one in the batch.
         assert_eq!(updates_manager.pending_executed_transactions_len(), 0);
-        let first_tx = batch_first_tx.transaction;
+        let is_upgrade_tx = first_tx.tx_format() == TransactionType::ProtocolUpgradeTransaction;
         let first_tx_hash = first_tx.hash();
 
         let (seal_resolution, exec_result) = self
@@ -728,7 +673,7 @@ impl ZkSyncStateKeeper {
                 };
                 // Despite success of upgrade transaction is not enforced by protocol,
                 // we panic here because failed upgrade tx is not intended in any case.
-                if batch_first_tx.is_upgrade_tx && tx_result.result.is_failed() {
+                if is_upgrade_tx && tx_result.result.is_failed() {
                     anyhow::bail!("Failed upgrade tx {:?}", first_tx_hash);
                 }
                 updates_manager.extend_from_executed_transaction(
@@ -743,7 +688,7 @@ impl ZkSyncStateKeeper {
                 anyhow::bail!("first tx in batch cannot result into `ExcludeAndSeal`");
             }
             SealResolution::Unexecutable(reason) => {
-                if batch_first_tx.is_upgrade_tx {
+                if is_upgrade_tx {
                     anyhow::bail!(
                         "Upgrade transaction {:?} is unexecutable: {reason}",
                         first_tx.hash()

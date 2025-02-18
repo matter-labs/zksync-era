@@ -6,7 +6,6 @@ use std::{
     time::{Instant, SystemTime, UNIX_EPOCH},
 };
 
-use tokio::sync::watch;
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_multivm::{
     interface::{
@@ -28,14 +27,10 @@ use crate::{
     seal_criteria::{criteria::SlotsCriterion, SequencerSealer, UnexecutableReason},
     testonly::{
         successful_exec,
-        test_batch_executor::{
-            random_tx, random_upgrade_tx, rejected_exec, MockReadStorageFactory,
-            TestBatchExecutorBuilder, TestIO, TestScenario, FEE_ACCOUNT,
-        },
+        test_batch_executor::{random_tx, rejected_exec, TestScenario, FEE_ACCOUNT},
         BASE_SYSTEM_CONTRACTS,
     },
     updates::UpdatesManager,
-    ZkSyncStateKeeper,
 };
 
 pub(crate) fn seconds_since_epoch() -> u64 {
@@ -285,31 +280,6 @@ async fn pending_batch_is_applied() {
         })
         .run(sealer)
         .await;
-}
-
-/// Load protocol upgrade transactions
-#[tokio::test]
-async fn load_upgrade_tx() {
-    let sealer = SequencerSealer::default();
-    let scenario = TestScenario::new();
-    let batch_executor = TestBatchExecutorBuilder::new(&scenario);
-    let (stop_sender, _stop_receiver) = watch::channel(false);
-
-    let (mut io, output_handler) = TestIO::new(stop_sender, scenario);
-    io.add_upgrade_tx(ProtocolVersionId::latest(), random_upgrade_tx(1));
-    io.add_upgrade_tx(ProtocolVersionId::next(), random_upgrade_tx(2));
-
-    let _sk = ZkSyncStateKeeper::new(
-        Box::new(io),
-        Box::new(batch_executor),
-        output_handler,
-        Arc::new(sealer),
-        Arc::new(MockReadStorageFactory),
-    );
-
-    // TODO: add one more test case for the shared bridge after it's integrated.
-    // If we are processing the 1st batch while using the shared bridge,
-    // we should load the upgrade transaction -- that's the `GenesisUpgrade`.
 }
 
 /// Unconditionally seal the batch without triggering specific criteria.

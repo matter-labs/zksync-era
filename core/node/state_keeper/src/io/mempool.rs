@@ -26,7 +26,7 @@ use crate::{
     io::{
         common::{load_pending_batch, poll_iters, IoCursor},
         seal_logic::l2_block_seal_subtasks::L2BlockSealProcess,
-        BatchFirstTransaction, L1BatchParams, L2BlockParams, PendingBatchData, StateKeeperIO,
+        L1BatchParams, L2BlockParams, PendingBatchData, StateKeeperIO,
     },
     mempool_actor::l2_tx_filter,
     metrics::{L2BlockSealReason, AGGREGATION_METRICS, KEEPER_METRICS},
@@ -233,24 +233,18 @@ impl StateKeeperIO for MempoolIO {
             .await
             .context("failed creating L2 transaction filter")?;
 
-            let batch_first_tx: BatchFirstTransaction;
+            let batch_first_tx: Transaction;
 
             // Check first if there is an upgrade tx
             if let Some(protocol_upgrade_tx) = batch_upgrade_tx {
-                batch_first_tx = BatchFirstTransaction {
-                    transaction: protocol_upgrade_tx.into(),
-                    is_upgrade_tx: true,
-                };
+                batch_first_tx = protocol_upgrade_tx.into();
                 // We do not populate mempool with upgrade tx so the mempool should be checked separately.
             } else if let Some(tx) = self
                 .wait_for_next_tx(max_wait, timestamp)
                 .await
                 .context("error waiting for next transaction")?
             {
-                batch_first_tx = BatchFirstTransaction {
-                    transaction: tx,
-                    is_upgrade_tx: false,
-                };
+                batch_first_tx = tx;
             } else {
                 tokio::time::sleep(self.delay_interval).await;
                 continue;
