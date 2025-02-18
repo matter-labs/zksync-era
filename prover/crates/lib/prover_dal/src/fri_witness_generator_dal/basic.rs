@@ -3,7 +3,7 @@ use std::time::Duration;
 use zksync_basic_types::{
     protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch},
     prover_dal::{BasicWitnessGeneratorJobInfo, StuckJobs, WitnessJobStatus},
-    L1BatchNumber,
+    L1BatchNumber, L2ChainId,
 };
 use zksync_db_connection::{
     connection::Connection,
@@ -20,6 +20,7 @@ pub struct FriBasicWitnessGeneratorDal<'a, 'c> {
 impl FriBasicWitnessGeneratorDal<'_, '_> {
     pub async fn save_witness_inputs(
         &mut self,
+        chain_id: L2ChainId,
         block_number: L1BatchNumber,
         witness_inputs_blob_url: &str,
         protocol_version: ProtocolSemanticVersion,
@@ -28,6 +29,7 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
             r#"
             INSERT INTO
             witness_inputs_fri (
+                chain_id,
                 l1_batch_number,
                 witness_inputs_blob_url,
                 protocol_version,
@@ -37,9 +39,10 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
                 protocol_version_patch
             )
             VALUES
-            ($1, $2, $3, 'queued', NOW(), NOW(), $4)
+            ($1, $2, $3, $4, 'queued', NOW(), NOW(), $5)
             ON CONFLICT (l1_batch_number) DO NOTHING
             "#,
+            chain_id.as_u64() as i32,
             i64::from(block_number.0),
             witness_inputs_blob_url,
             protocol_version.minor as i32,

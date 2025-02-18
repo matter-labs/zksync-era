@@ -6,7 +6,7 @@ use serde_with::{hex::Hex, serde_as};
 use zksync_types::{
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     tee_types::TeeType,
-    L1BatchNumber,
+    L1BatchNumber, L2ChainId,
 };
 
 use crate::{
@@ -18,6 +18,7 @@ use crate::{
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProofGenerationData {
+    pub chain_id: L2ChainId,
     pub l1_batch_number: L1BatchNumber,
     pub witness_input_data: WitnessInputData,
     pub protocol_version: ProtocolSemanticVersion,
@@ -25,13 +26,10 @@ pub struct ProofGenerationData {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub enum ProofGenerationDataResponse {
-    Success(Option<Box<ProofGenerationData>>),
-    Error(String),
-}
+pub struct TeeProofGenerationDataResponse(pub Box<TeeVerifierInput>);
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct TeeProofGenerationDataResponse(pub Box<TeeVerifierInput>);
+pub struct SubmitProofGenerationDataResponse {}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum SubmitProofResponse {
@@ -61,9 +59,9 @@ pub struct TeeProofGenerationDataRequest {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum SubmitProofRequest {
-    Proof(Box<L1BatchProofForL1>),
+    Proof(L1BatchNumber, Box<L1BatchProofForL1>),
     // The proof generation was skipped due to sampling
-    SkippedProofGeneration,
+    SkippedProofGeneration(L1BatchNumber),
 }
 
 #[derive(Debug, Serialize, Deserialize)]
