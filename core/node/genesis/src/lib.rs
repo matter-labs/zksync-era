@@ -209,8 +209,6 @@ pub fn make_genesis_batch_params(
         })
         .collect::<Vec<_>>();
 
-    println!("{:#?}", storage_logs);
-
     let metadata = ZkSyncTree::process_genesis_batch(&storage_logs);
     let root_hash = metadata.root_hash;
     let rollup_last_leaf_index = metadata.leaf_count + 1;
