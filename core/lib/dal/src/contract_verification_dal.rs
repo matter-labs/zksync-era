@@ -774,8 +774,10 @@ impl ContractVerificationDal<'_, '_> {
                     hex::encode(ids[idx].bytecode_without_metadata_keccak256);
                 let verification_info = verification_infos[idx].replace('"', r#""""#);
 
+                // Note: when using CSV format, you shouldn't escape backslashes, as they are not treated as escape characters.
+                // If you will use `\\` here, it will be treated as a string instead of bytea.
                 let row = format!(
-                    r#"\\x{initial_contract_addr},\\x{bytecode_keccak256},\\x{bytecode_without_metadata_keccak256},"{verification_info}",{created_at},{updated_at}"#,
+                    r#"\x{initial_contract_addr},\x{bytecode_keccak256},\x{bytecode_without_metadata_keccak256},"{verification_info}",{created_at},{updated_at}"#,
                     initial_contract_addr = address,
                     bytecode_keccak256 = bytecode_keccak256,
                     bytecode_without_metadata_keccak256 = bytecode_without_metadata_keccak256,
@@ -812,25 +814,24 @@ impl ContractVerificationDal<'_, '_> {
 
         // Sanity check.
         tracing::info!("All the rows are migrated, verifying the migration");
-        let count_unequal = sqlx::query!(
+        let row = sqlx::query!(
             r#"
             SELECT
-                COUNT(*)
+                COUNT(*) AS count_equal,
+                (SELECT COUNT(*) FROM contracts_verification_info) AS count_v1
             FROM
                 contract_verification_info_v2 v2
             JOIN contracts_verification_info v1 ON initial_contract_addr = address
-            WHERE v1.verification_info::text != v2.verification_info::text
+            WHERE v1.verification_info::text = v2.verification_info::text
             "#,
         )
         .instrument("is_verification_info_migration_performed")
         .fetch_one(&mut transaction)
-        .await?
-        .count
-        .unwrap();
-        if count_unequal > 0 {
+        .await?;
+        let (count_equal, count_v1) = (row.count_equal.unwrap(), row.count_v1.unwrap());
+        if count_equal != count_v1 {
             anyhow::bail!(
-                "Migration failed: {} rows have different data in the new table",
-                count_unequal
+                "Migration failed: v1 table has {count_v1} rows, but only {count_equal} matched after migration",
             );
         }
 

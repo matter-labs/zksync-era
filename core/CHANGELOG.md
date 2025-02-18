@@ -1,5 +1,17 @@
 # Changelog
 
+## [26.4.0](https://github.com/matter-labs/zksync-era/compare/core-v26.3.0...core-v26.4.0) (2025-02-13)
+
+
+### Features
+
+* Avail gas relay upgrade ([#3601](https://github.com/matter-labs/zksync-era/issues/3601)) ([e32fee0](https://github.com/matter-labs/zksync-era/commit/e32fee04bfcfd46f4ed2edf2ea564f7aafd5db10))
+
+
+### Bug Fixes
+
+* **contract-verifier:** Fix verifier data migration ([#3608](https://github.com/matter-labs/zksync-era/issues/3608)) ([0bb0c88](https://github.com/matter-labs/zksync-era/commit/0bb0c886ad0d65fc97937680ebbc1fa6eb3d0c2c))
+
 ## [26.3.0](https://github.com/matter-labs/zksync-era/compare/core-v26.2.1...core-v26.3.0) (2025-02-12)
 
 
