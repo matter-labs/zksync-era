@@ -176,6 +176,8 @@ impl StateKeeperIO for MempoolIO {
                     virtual_blocks: 1,
                 },
                 pubdata_params: self.pubdata_params(protocol_version)?,
+                // This value is irrelevant for a non-empty batch
+                batch_first_tx: None,
             }));
         }
 
@@ -211,15 +213,14 @@ impl StateKeeperIO for MempoolIO {
                 .pending_protocol_version()
                 .await
                 .context("Failed loading previous protocol version")?;
-            let batch_with_upgrade_tx = if previous_protocol_version != protocol_version {
+            let batch_upgrade_tx = if previous_protocol_version != protocol_version {
                 storage
                     .protocol_versions_dal()
                     .get_protocol_upgrade_tx(protocol_version)
                     .await
                     .context("Failed loading protocol upgrade tx")?
-                    .is_some()
             } else {
-                false
+                None
             };
             drop(storage);
 
@@ -232,8 +233,19 @@ impl StateKeeperIO for MempoolIO {
             .await
             .context("failed creating L2 transaction filter")?;
 
-            // We do not populate mempool with upgrade tx so it should be checked separately.
-            if !batch_with_upgrade_tx && !self.mempool.has_next(&self.filter) {
+            let batch_first_tx: Transaction;
+
+            // Check first if there is an upgrade tx
+            if let Some(protocol_upgrade_tx) = batch_upgrade_tx {
+                batch_first_tx = protocol_upgrade_tx.into();
+                // We do not populate mempool with upgrade tx so the mempool should be checked separately.
+            } else if let Some(tx) = self
+                .wait_for_next_tx(max_wait, timestamp)
+                .await
+                .context("error waiting for next transaction")?
+            {
+                batch_first_tx = tx;
+            } else {
                 tokio::time::sleep(self.delay_interval).await;
                 continue;
             }
@@ -262,6 +274,7 @@ impl StateKeeperIO for MempoolIO {
                     virtual_blocks: 1,
                 },
                 pubdata_params: self.pubdata_params(protocol_version)?,
+                batch_first_tx: Some(batch_first_tx),
             }));
         }
         Ok(None)

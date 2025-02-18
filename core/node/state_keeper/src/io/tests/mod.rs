@@ -552,7 +552,7 @@ async fn l2_block_processing_after_snapshot_recovery(commitment_mode: L1BatchCom
         .await
         .unwrap()
         .expect("no batch params generated");
-    let (system_env, l1_batch_env, pubdata_params) = l1_batch_params.into_env(
+    let (system_env, l1_batch_env, pubdata_params, _) = l1_batch_params.into_env(
         L2ChainId::default(),
         BASE_SYSTEM_CONTRACTS.clone(),
         &cursor,

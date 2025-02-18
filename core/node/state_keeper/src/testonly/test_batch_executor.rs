@@ -701,6 +701,7 @@ impl StateKeeperIO for TestIO {
                 virtual_blocks: 1,
             },
             pubdata_params: Default::default(),
+            batch_first_tx: None,
         };
         self.l2_block_number += 1;
         self.timestamp += 1;
