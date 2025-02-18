@@ -146,7 +146,9 @@ where
             execution_latency_histogram: self.execution_latency_histogram,
         };
 
+        let current_span = tracing::Span::current();
         tokio::task::spawn_blocking(move || {
+            let _entered_span = current_span.entered();
             sandbox.execute_in_vm(|vm, transaction| {
                 vm.inspect_transaction_with_bytecode_compression(
                     missed_storage_invocation_limit,
@@ -193,7 +195,9 @@ where
             execution_latency_histogram: self.execution_latency_histogram,
         };
 
+        let current_span = tracing::Span::current();
         tokio::task::spawn_blocking(move || {
+            let _entered_span = current_span.entered();
             let version = sandbox.env.system.version.into();
             let batch_timestamp = l1_batch_env.timestamp;
 
