@@ -1,7 +1,7 @@
 name: Core tests
 
 on:
-#  pull_request:
+  pull_request:
   merge_group:
 #  push:
 #    branches:
@@ -10,10 +10,6 @@ on:
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
-
-env:
-  RUST_BACKTRACE: 1
-  PASSED_ENV_VARS: RUST_BACKTRACE
 
 jobs:
 
