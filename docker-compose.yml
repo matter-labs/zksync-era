@@ -46,10 +46,12 @@ services:
       - SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com
       - SCCACHE_ERROR_LOG=/tmp/sccache_log.txt
       - SCCACHE_GCS_RW_MODE=READ_WRITE
+      - RUSTC_WRAPPER=sccache
+      - ZKSYNC_USE_CUDA_STUBS=true
       - CI=1
       - GITHUB_WORKSPACE=$GITHUB_WORKSPACE
-    env_file:
-      - ./.env
+#    env_file:
+#      - ./.env
     extra_hosts:
       - "host:host-gateway"
     profiles:

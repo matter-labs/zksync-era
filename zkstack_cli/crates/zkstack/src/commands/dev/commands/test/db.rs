@@ -12,17 +12,6 @@ pub async fn reset_test_databases(
 ) -> anyhow::Result<()> {
     logger::info(MSG_RESETTING_TEST_DATABASES);
 
-    Cmd::new(cmd!(
-        shell,
-        "docker compose -f docker-compose-unit-tests.yml down"
-    ))
-    .run()?;
-    Cmd::new(cmd!(
-        shell,
-        "docker compose -f docker-compose-unit-tests.yml up -d"
-    ))
-    .run()?;
-
     for dal in dals {
         let mut url = dal.url.clone();
         url.set_path("");
