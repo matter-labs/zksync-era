@@ -3,12 +3,11 @@ use itertools::Itertools;
 use utils::{
     chain_id_leaf_preimage, get_chain_count, get_chain_id_from_index, get_chain_root_from_id,
 };
-use zksync_basic_types::pubdata_da::DataAvailabilityDetails;
 use zksync_crypto_primitives::hasher::keccak::KeccakHasher;
 use zksync_dal::{CoreDal, DalError};
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_types::{
-    api::{ChainAggProof, TeeProof, TransactionExecutionInfo},
+    api::{ChainAggProof, DataAvailabilityDetails, TeeProof, TransactionExecutionInfo},
     tee_types::TeeType,
     L1BatchNumber, L2ChainId,
 };
@@ -167,6 +166,12 @@ impl UnstableNamespace {
             return Ok(None);
         };
 
-        Ok(Some(da_details))
+        Ok(Some(DataAvailabilityDetails {
+            pubdata_type: da_details.pubdata_type,
+            blob_id: da_details.blob_id,
+            inclusion_data: da_details.inclusion_data,
+            sent_at: da_details.sent_at,
+            l2_da_validator: da_details.l2_da_validator,
+        }))
     }
 }

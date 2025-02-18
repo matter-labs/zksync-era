@@ -1,9 +1,8 @@
 #[cfg_attr(not(feature = "server"), allow(unused_imports))]
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
-use zksync_basic_types::pubdata_da::DataAvailabilityDetails;
 use zksync_types::{
-    api::{ChainAggProof, TeeProof, TransactionExecutionInfo},
+    api::{ChainAggProof, DataAvailabilityDetails, TeeProof, TransactionExecutionInfo},
     tee_types::TeeType,
     L1BatchNumber, L2ChainId, H256,
 };

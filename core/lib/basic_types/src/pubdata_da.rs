@@ -31,7 +31,7 @@ pub struct DataAvailabilityBlob {
 }
 
 /// Represents the data availability details of a certain batch.
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Clone)]
 pub struct DataAvailabilityDetails {
     pub blob_id: String,
     pub pubdata_type: Option<PubdataType>,
