@@ -16,6 +16,12 @@ use crate::{
 #[derive(Debug, Default)]
 struct InternalNodeHashes(Vec<Vec<H256>>);
 
+impl InternalNodeHashes {
+    fn get(&self, depth_in_node: u8, index_in_node: u64) -> H256 {
+        self.0[usize::from(depth_in_node) - 1][index_in_node as usize]
+    }
+}
+
 impl InternalNode {
     pub(crate) fn hash<P: TreeParams>(&self, hasher: &P::Hasher, depth: u8) -> H256 {
         self.hash_inner::<P>(hasher, depth, true, |_| {})
@@ -79,7 +85,7 @@ pub(crate) struct InternalHashes<'a> {
     nodes: &'a HashMap<u64, InternalNode>,
     // TODO: `Vec<(u64, H256)>` for a level may be more efficient
     /// Ordered by ascending depth `1..internal_node_depth` where `depth == 1` is just above child refs.
-    internal_hashes: Vec<HashMap<u64, H256>>,
+    internal_hashes: HashMap<u64, InternalNodeHashes>,
     internal_node_depth: u8,
 }
 
@@ -91,26 +97,10 @@ impl<'a> InternalHashes<'a> {
     ) -> Self {
         use rayon::prelude::*;
 
-        let hashes_per_node: Vec<_> = nodes
+        let internal_hashes = nodes
             .par_iter()
             .map(|(idx, node)| (*idx, node.internal_hashes::<P>(hasher, depth)))
             .collect();
-
-        let mut internal_hashes: Vec<_> = (1..=P::INTERNAL_NODE_DEPTH - 1)
-            .map(|depth_in_node| {
-                let hashes_per_node = 1 << (P::INTERNAL_NODE_DEPTH - depth_in_node);
-                HashMap::with_capacity(nodes.len() * hashes_per_node)
-            })
-            .collect();
-
-        // TODO: bottleneck here
-        for (idx, node_hashes) in hashes_per_node {
-            for (level, depth_in_node) in node_hashes.0.into_iter().zip(1_usize..) {
-                let hashes_per_node = 1 << (P::INTERNAL_NODE_DEPTH - depth_in_node as u8);
-                let indices = (idx * hashes_per_node)..;
-                internal_hashes[depth_in_node - 1].extend(indices.zip(level));
-            }
-        }
 
         Self {
             nodes,
@@ -120,16 +110,17 @@ impl<'a> InternalHashes<'a> {
     }
 
     pub(crate) fn get(&self, depth_in_node: u8, index_on_level: u64) -> H256 {
-        let depth_in_node = usize::from(depth_in_node);
+        let bit_shift = self.internal_node_depth - depth_in_node;
+        let node_index = index_on_level >> bit_shift;
+        let index_in_node = index_on_level % (1 << bit_shift);
+
         if depth_in_node == 0 {
             // Get the hash from a `ChildRef`
-            let node_index = index_on_level >> self.internal_node_depth;
-            let index_in_node = index_on_level % (1 << self.internal_node_depth);
             self.nodes[&node_index]
                 .child_ref(index_in_node as usize)
                 .hash
         } else {
-            self.internal_hashes[depth_in_node - 1][&index_on_level]
+            self.internal_hashes[&node_index].get(depth_in_node, index_in_node)
         }
     }
 }
@@ -149,10 +140,7 @@ mod tests {
         for i in 0..(16 + 7) {
             assert_eq!(internal_hashes.get(0, i), H256::zero());
         }
-        assert_eq!(internal_hashes.internal_hashes.len(), 3);
-        assert_eq!(internal_hashes.internal_hashes[0].len(), 8 + 4);
-        assert_eq!(internal_hashes.internal_hashes[1].len(), 4 + 2);
-        assert_eq!(internal_hashes.internal_hashes[2].len(), 2 + 1);
+        assert_eq!(internal_hashes.internal_hashes.len(), 2);
 
         let expected_hash = Blake2Hasher.hash_branch(&H256::zero(), &H256::zero());
         for i in 0..(8 + 3) {
