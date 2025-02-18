@@ -14,7 +14,7 @@ use crate::{
     hasher::{BatchTreeProof, InternalHashes, TreeOperation},
     leaf_nibbles, max_nibbles_for_internal_node, max_node_children,
     types::{InternalNode, KeyLookup, Leaf, Manifest, Node, NodeKey, Root, TreeTags},
-    DeserializeError, HashTree, MerkleTree, TreeEntry, TreeParams,
+    BatchOutput, DeserializeError, HashTree, MerkleTree, TreeEntry, TreeParams,
 };
 
 /// Information about an atomic tree update.
@@ -259,7 +259,10 @@ impl<P: TreeParams> WorkingPatchSet<P> {
         }
     }
 
-    // `leaf_indices` must be sorted.
+    /// Provides necessary and sufficient hashes for a [`BatchTreeProof`]. Should be called before any modifying operations;
+    /// by design, leaves loaded for a batch update are exactly leaves included into a `BatchTreeProof`.
+    ///
+    /// `leaf_indices` is the sorted list of all loaded leaves.
     fn collect_hashes(&self, leaf_indices: Vec<u64>, hasher: &P::Hasher) -> Vec<H256> {
         let mut indices_on_level = leaf_indices;
         if indices_on_level.is_empty() {
@@ -276,10 +279,13 @@ impl<P: TreeParams> WorkingPatchSet<P> {
         // FIXME: place root in `this.internal`?
         let root_level = HashMap::from([(0, this.root.root_node.clone())]);
 
+        // The logic below essentially repeats `BatchTreeProof::zip_leaves()`, only instead of taking provided hashes,
+        // they are put in `hashes`.
         for depth in 0..P::TREE_DEPTH {
             let depth_in_internal_node = depth % P::INTERNAL_NODE_DEPTH;
             if depth_in_internal_node == 0 {
-                // Initialize / update `internal_hashes`
+                // Initialize / update `internal_hashes`. Computing *all* internal hashes may be somewhat inefficient,
+                // but since it's parallelized, it doesn't look like a major concern.
                 let level = internal_node_levels.next().unwrap_or(&root_level);
                 internal_hashes = Some(InternalHashes::new::<P>(level, hasher, depth));
             }
@@ -402,7 +408,11 @@ impl<P: TreeParams> WorkingPatchSet<P> {
         }
     }
 
-    pub(crate) fn finalize(self, hasher: &P::Hasher, update: FinalTreeUpdate) -> (PatchSet, H256) {
+    pub(crate) fn finalize(
+        self,
+        hasher: &P::Hasher,
+        update: FinalTreeUpdate,
+    ) -> (PatchSet, BatchOutput) {
         use rayon::prelude::*;
 
         let mut this = self.inner;
@@ -440,6 +450,10 @@ impl<P: TreeParams> WorkingPatchSet<P> {
             hasher,
             max_nibbles_for_internal_node::<P>() * P::INTERNAL_NODE_DEPTH,
         );
+        let output = BatchOutput {
+            leaf_count: this.root.leaf_count,
+            root_hash,
+        };
 
         let patch = PatchSet {
             manifest: Manifest {
@@ -449,7 +463,7 @@ impl<P: TreeParams> WorkingPatchSet<P> {
             patches_by_version: HashMap::from([(update.version, this)]),
             sorted_new_leaves: update.sorted_new_leaves,
         };
-        (patch, root_hash)
+        (patch, output)
     }
 }
 

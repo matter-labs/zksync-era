@@ -174,7 +174,12 @@ impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
         let proof = if with_proof {
             let started_at = Instant::now();
             let proof = patch.create_batch_proof(&self.hasher, update.take_operations());
-            tracing::debug!(elapsed = ?started_at.elapsed(), "created batch proof");
+            tracing::debug!(
+                elapsed = ?started_at.elapsed(),
+                proof.leaves.len = proof.sorted_leaves.len(),
+                proof.hashes.len = proof.hashes.len(),
+                "created batch proof"
+            );
             Some(proof)
         } else {
             None
@@ -185,7 +190,7 @@ impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
         tracing::debug!(elapsed = ?started_at.elapsed(), "updated tree structure");
 
         let started_at = Instant::now();
-        let (patch, root_hash) = patch.finalize(&self.hasher, update);
+        let (patch, output) = patch.finalize(&self.hasher, update);
         tracing::debug!(elapsed = ?started_at.elapsed(), "hashed tree");
 
         let started_at = Instant::now();
@@ -193,7 +198,7 @@ impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
             .apply_patch(patch)
             .context("failed persisting tree changes")?;
         tracing::debug!(elapsed = ?started_at.elapsed(), "persisted tree");
-        Ok((BatchOutput { root_hash }, proof))
+        Ok((output, proof))
     }
 
     pub fn extend_with_proof(

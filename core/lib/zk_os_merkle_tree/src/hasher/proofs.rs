@@ -3,16 +3,17 @@ use std::collections::{BTreeMap, HashMap};
 use anyhow::Context;
 use zksync_basic_types::H256;
 
-use crate::{types::Leaf, HashTree, TreeEntry};
+use crate::{types::Leaf, BatchOutput, HashTree, TreeEntry};
 
+/// Operation on a Merkle tree entry used in [`BatchTreeProof`].
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(test, derive(PartialEq))]
 pub enum TreeOperation {
-    Update {
-        index: u64,
-    },
+    /// Update of an existing entry.
+    Update { index: u64 },
+    /// Insertion of a new entry.
     Insert {
-        /// Prev index before batch insertion.
+        /// Prev index before *batch* insertion (i.e., always points to an index existing before batch insertion).
         prev_index: u64,
     },
 }
@@ -36,37 +37,53 @@ impl InsertedRange {
     }
 }
 
+/// Merkle proof of batch insertion into [`MerkleTree`](crate::MerkleTree).
+///
+/// # How it's verified
+///
+/// Assumes that the tree before insertion is correctly constructed (in particular, leaves are correctly linked via prev / next index).
+/// Given that, proof verification is as follows:
+///
+/// 1. Check that all necessary leaves are present in `sorted_leaves`, and their keys match inserted / updated entries.
+/// 2. Previous root hash of the tree is recreated using `sorted_leaves` and `hashes`.
+/// 3. `sorted_leaves` are updated / extended as per inserted / updated entries.
+/// 4. New root hash of the tree is recreated using updated `sorted_leaves` and (the same) `hashes`.
 #[derive(Debug)]
 pub struct BatchTreeProof {
+    /// Performed tree operations. Correspond 1-to-1 to [`TreeEntry`]s.
     pub operations: Vec<TreeOperation>,
+    /// Sorted leaves from the tree before insertion sufficient to prove it. Contains all updated leaves
+    /// (incl. prev / next neighbors for the inserted leaves), and the last leaf in the tree if there are inserts.
     pub sorted_leaves: BTreeMap<u64, Leaf>,
+    /// Hashes necessary and sufficient to restore previous and updated root hashes. Provided in the ascending `(depth, index_on_level)` order,
+    /// where `depth == 0` are leaves, `depth == 1` are nodes aggregating leaf pairs etc.
     pub hashes: Vec<H256>,
 }
 
 impl BatchTreeProof {
+    /// Returns the new root hash of the tree on success.
     pub fn verify(
         mut self,
         hasher: &dyn HashTree,
         tree_depth: u8,
+        prev_output: BatchOutput,
         entries: &[TreeEntry],
-        prev_leaf_count: u64,
-        prev_hash: H256,
     ) -> anyhow::Result<H256> {
         anyhow::ensure!(
             self.operations.len() == entries.len(),
             "Unexpected operations length"
         );
         if let Some((max_idx, _)) = self.sorted_leaves.iter().next_back() {
-            anyhow::ensure!(*max_idx < prev_leaf_count, "Index is too large");
+            anyhow::ensure!(*max_idx < prev_output.leaf_count, "Index is too large");
         }
 
         let mut inserted_ranges = HashMap::<_, InsertedRange>::new();
-        let mut next_tree_index = prev_leaf_count;
+        let mut next_tree_index = prev_output.leaf_count;
         for (&operation, entry) in self.operations.iter().zip(entries) {
             match operation {
                 TreeOperation::Update { index } => {
                     anyhow::ensure!(
-                        index < prev_leaf_count,
+                        index < prev_output.leaf_count,
                         "Updated non-existing index {index}"
                     );
                     let existing_leaf = self
@@ -101,14 +118,17 @@ impl BatchTreeProof {
             }
         }
 
-        let actual_prev_hash = Self::zip_leaves(
+        let restored_prev_hash = Self::zip_leaves(
             hasher,
             tree_depth,
-            prev_leaf_count,
+            prev_output.leaf_count,
             self.sorted_leaves.iter().map(|(idx, leaf)| (*idx, leaf)),
             self.hashes.iter().copied(),
         )?;
-        anyhow::ensure!(actual_prev_hash == prev_hash, "Mismatch for previous hash");
+        anyhow::ensure!(
+            restored_prev_hash == prev_output.root_hash,
+            "Mismatch for previous root hash: prev_output={prev_output:?}, restored={restored_prev_hash:?}"
+        );
 
         // Expand `leaves` with the newly inserted leaves and update the existing leaves.
         for (&operation, entry) in self.operations.iter().zip(entries) {
@@ -233,20 +253,21 @@ mod tests {
             hashes: vec![],
         };
 
-        let empty_tree_hash: H256 =
-            "0x8a41011d351813c31088367deecc9b70677ecf15ffc24ee450045cdeaf447f63"
+        let empty_tree_output = BatchOutput {
+            leaf_count: 2,
+            root_hash: "0x8a41011d351813c31088367deecc9b70677ecf15ffc24ee450045cdeaf447f63"
                 .parse()
-                .unwrap();
+                .unwrap(),
+        };
         let new_tree_hash = proof
             .verify(
                 &Blake2Hasher,
                 64,
+                empty_tree_output,
                 &[TreeEntry {
                     key: H256::repeat_byte(0x01),
                     value: H256::repeat_byte(0x10),
                 }],
-                2,
-                empty_tree_hash,
             )
             .unwrap();
 

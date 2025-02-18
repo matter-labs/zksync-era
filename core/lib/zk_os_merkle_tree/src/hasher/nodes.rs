@@ -10,6 +10,9 @@ use crate::{
     HashTree, TreeParams,
 };
 
+/// Internal hashes for a single `InternalNode`. Ordered by ascending depth `1..internal_node_depth`
+/// where `depth == 1` is just above child refs. I.e., the last entry contains 2 hashes (unless the internal node is incomplete),
+/// the penultimate one 4 hashes, etc.
 #[derive(Debug, Default)]
 struct InternalNodeHashes(Vec<Vec<H256>>);
 
@@ -75,6 +78,7 @@ impl Root {
 pub(crate) struct InternalHashes<'a> {
     nodes: &'a HashMap<u64, InternalNode>,
     // TODO: `Vec<(u64, H256)>` for a level may be more efficient
+    /// Ordered by ascending depth `1..internal_node_depth` where `depth == 1` is just above child refs.
     internal_hashes: Vec<HashMap<u64, H256>>,
     internal_node_depth: u8,
 }
@@ -99,6 +103,7 @@ impl<'a> InternalHashes<'a> {
             })
             .collect();
 
+        // TODO: bottleneck here
         for (idx, node_hashes) in hashes_per_node {
             for (level, depth_in_node) in node_hashes.0.into_iter().zip(1_usize..) {
                 let hashes_per_node = 1 << (P::INTERNAL_NODE_DEPTH - depth_in_node as u8);

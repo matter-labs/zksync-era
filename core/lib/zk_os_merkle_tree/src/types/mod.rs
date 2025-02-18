@@ -243,7 +243,10 @@ pub struct Manifest {
     pub(crate) tags: TreeTags,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct BatchOutput {
+    /// New root hash of the tree.
     pub root_hash: H256,
+    /// New leaf count (including 2 guard entries).
+    pub leaf_count: u64,
 }

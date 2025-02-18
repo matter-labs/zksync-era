@@ -1,6 +1,6 @@
 //! Load test for the Merkle tree.
 
-use std::time::Instant;
+use std::{hint::black_box, time::Instant};
 
 use anyhow::Context;
 use clap::Parser;
@@ -40,6 +40,9 @@ struct Cli {
     /// Additional number of updates of previously written keys per commit.
     #[arg(name = "updates", long, default_value = "0")]
     updates_per_batch: usize,
+    /// Generate Merkle proofs for each operation.
+    #[arg(name = "proofs", long)]
+    proofs: bool,
     /// Use a no-op hashing function.
     #[arg(name = "no-hash", long)]
     no_hashing: bool,
@@ -127,12 +130,20 @@ impl Cli {
                 key,
                 value: H256::from_low_u64_be(idx),
             });
+            let kvs = kvs.collect::<Vec<_>>();
 
             tracing::info!("Processing block #{version}");
             let start = Instant::now();
-            let root_hash = tree
-                .extend(&kvs.collect::<Vec<_>>())
-                .context("failed extending tree")?;
+            let output = if self.proofs {
+                let (output, proof) = tree
+                    .extend_with_proof(&kvs)
+                    .context("failed extending tree")?;
+                black_box(proof); // Ensure that proof creation isn't optimized away
+                output
+            } else {
+                tree.extend(&kvs).context("failed extending tree")?
+            };
+            let root_hash = output.root_hash;
 
             let elapsed = start.elapsed();
             tracing::info!("Processed block #{version} in {elapsed:?}, root hash = {root_hash:?}");
