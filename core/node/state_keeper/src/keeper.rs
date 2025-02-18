@@ -19,8 +19,7 @@ use zksync_shared_metrics::{TxStage, APP_METRICS};
 use zksync_state::{OwnedStorage, ReadStorageFactory};
 use zksync_types::{
     block::L2BlockExecutionData, commitment::PubdataParams, l2::TransactionType,
-    protocol_upgrade::ProtocolUpgradeTx, protocol_version::ProtocolVersionId,
-    utils::display_timestamp, L1BatchNumber, Transaction,
+    protocol_version::ProtocolVersionId, utils::display_timestamp, L1BatchNumber, Transaction,
 };
 
 use crate::{
@@ -118,6 +117,7 @@ impl ZkSyncStateKeeper {
             cursor.next_l2_block
         );
 
+        let mut first_transaction_to_execute: Option<Transaction>;
         // Re-execute pending batch if it exists. Otherwise, initialize a new batch.
         let PendingBatchData {
             mut l1_batch_env,
@@ -135,14 +135,17 @@ impl ZkSyncStateKeeper {
                         .context("expected at least one pending L2 block")?
                         .number
                 );
+                // In case of pending state, the first transaction has already been executed
+                first_transaction_to_execute = None;
                 params
             }
             None => {
                 tracing::info!("There is no open pending batch, starting a new empty batch");
-                let (system_env, l1_batch_env, pubdata_params) = self
+                let (system_env, l1_batch_env, pubdata_params, transaction) = self
                     .wait_for_new_batch_env(&cursor, &mut stop_receiver)
                     .await
                     .map_err(|e| e.context("wait_for_new_batch_params()"))?;
+                first_transaction_to_execute = transaction;
                 PendingBatchData {
                     l1_batch_env,
                     pending_l2_blocks: Vec::new(),
@@ -153,11 +156,9 @@ impl ZkSyncStateKeeper {
         };
 
         let protocol_version = system_env.version;
-        let mut updates_manager = UpdatesManager::new(&l1_batch_env, &system_env, pubdata_params);
-        let mut protocol_upgrade_tx: Option<ProtocolUpgradeTx> = self
-            .load_protocol_upgrade_tx(&pending_l2_blocks, protocol_version, l1_batch_env.number)
+        self.check_correctly_initialized(&pending_l2_blocks, protocol_version, l1_batch_env.number)
             .await?;
-
+        let mut updates_manager = UpdatesManager::new(&l1_batch_env, &system_env, pubdata_params);
         let mut batch_executor = self
             .create_batch_executor(
                 l1_batch_env.clone(),
@@ -180,7 +181,7 @@ impl ZkSyncStateKeeper {
             self.process_l1_batch(
                 &mut *batch_executor,
                 &mut updates_manager,
-                protocol_upgrade_tx,
+                first_transaction_to_execute,
                 &stop_receiver,
             )
             .await?;
@@ -199,7 +200,6 @@ impl ZkSyncStateKeeper {
             }
 
             let (finished_batch, _) = batch_executor.finish_batch().await?;
-            let sealed_batch_protocol_version = updates_manager.protocol_version();
             updates_manager.finish_batch(finished_batch);
             let mut next_cursor = updates_manager.io_cursor();
             self.output_handler
@@ -214,7 +214,12 @@ impl ZkSyncStateKeeper {
 
             // Start the new batch.
             next_cursor.l1_batch += 1;
-            (system_env, l1_batch_env, pubdata_params) = self
+            (
+                system_env,
+                l1_batch_env,
+                pubdata_params,
+                first_transaction_to_execute,
+            ) = self
                 .wait_for_new_batch_env(&next_cursor, &mut stop_receiver)
                 .await?;
             updates_manager = UpdatesManager::new(&l1_batch_env, &system_env, pubdata_params);
@@ -226,13 +231,6 @@ impl ZkSyncStateKeeper {
                     &stop_receiver,
                 )
                 .await?;
-
-            let version_changed = system_env.version != sealed_batch_protocol_version;
-            protocol_upgrade_tx = if version_changed {
-                self.load_upgrade_tx(system_env.version).await?
-            } else {
-                None
-            };
         }
         Err(Error::Canceled)
     }
@@ -257,13 +255,13 @@ impl ZkSyncStateKeeper {
 
     /// This function is meant to be called only once during the state-keeper initialization.
     /// It will check if we should load a protocol upgrade or a `GenesisUpgrade` transaction,
-    /// perform some checks and return it.
-    pub(super) async fn load_protocol_upgrade_tx(
+    /// and perform some checks.
+    pub(super) async fn check_correctly_initialized(
         &mut self,
         pending_l2_blocks: &[L2BlockExecutionData],
         protocol_version: ProtocolVersionId,
         l1_batch_number: L1BatchNumber,
-    ) -> Result<Option<ProtocolUpgradeTx>, Error> {
+    ) -> Result<(), Error> {
         // After the Shared Bridge is integrated,
         // there has to be a GenesisUpgrade upgrade transaction after the chain genesis.
         // It has to be the first transaction of the first batch.
@@ -275,7 +273,7 @@ impl ZkSyncStateKeeper {
             self.io.load_batch_version_id(l1_batch_number - 1).await?;
 
         let version_changed = protocol_version != previous_batch_protocol_version;
-        let mut protocol_upgrade_tx = if version_changed || first_batch_in_shared_bridge {
+        let protocol_upgrade_tx = if version_changed || first_batch_in_shared_bridge {
             self.io.load_upgrade_tx(protocol_version).await?
         } else {
             None
@@ -292,26 +290,8 @@ impl ZkSyncStateKeeper {
                 "Expected an upgrade transaction to be the first one in pending L2 blocks, but found {:?}",
                 first_tx_to_reexecute.hash()
             );
-            tracing::info!(
-                "There is a protocol upgrade in batch #{l1_batch_number}, upgrade tx already processed"
-            );
-            protocol_upgrade_tx = None; // The protocol upgrade was already executed
         }
-
-        if protocol_upgrade_tx.is_some() {
-            tracing::info!("There is a new upgrade tx to be executed in batch #{l1_batch_number}");
-        }
-        Ok(protocol_upgrade_tx)
-    }
-
-    async fn load_upgrade_tx(
-        &mut self,
-        protocol_version: ProtocolVersionId,
-    ) -> anyhow::Result<Option<ProtocolUpgradeTx>> {
-        self.io
-            .load_upgrade_tx(protocol_version)
-            .await
-            .with_context(|| format!("failed loading upgrade transaction for {protocol_version:?}"))
+        Ok(())
     }
 
     #[tracing::instrument(
@@ -347,7 +327,7 @@ impl ZkSyncStateKeeper {
         &mut self,
         cursor: &IoCursor,
         stop_receiver: &mut watch::Receiver<bool>,
-    ) -> Result<(SystemEnv, L1BatchEnv, PubdataParams), Error> {
+    ) -> Result<(SystemEnv, L1BatchEnv, PubdataParams, Option<Transaction>), Error> {
         // `io.wait_for_new_batch_params(..)` is not cancel-safe; once we get new batch params, we must hold onto them
         // until we get the rest of parameters from I/O or receive a stop signal.
         let params = self
@@ -573,11 +553,11 @@ impl ZkSyncStateKeeper {
         &mut self,
         batch_executor: &mut dyn BatchExecutor<OwnedStorage>,
         updates_manager: &mut UpdatesManager,
-        protocol_upgrade_tx: Option<ProtocolUpgradeTx>,
+        first_transaction_to_execute: Option<Transaction>,
         stop_receiver: &watch::Receiver<bool>,
     ) -> Result<(), Error> {
-        if let Some(protocol_upgrade_tx) = protocol_upgrade_tx {
-            self.process_upgrade_tx(batch_executor, updates_manager, protocol_upgrade_tx)
+        if let Some(transaction) = first_transaction_to_execute {
+            self.process_upgrade_tx(batch_executor, updates_manager, transaction)
                 .await?;
         }
 
@@ -718,12 +698,11 @@ impl ZkSyncStateKeeper {
         &mut self,
         batch_executor: &mut dyn BatchExecutor<OwnedStorage>,
         updates_manager: &mut UpdatesManager,
-        protocol_upgrade_tx: ProtocolUpgradeTx,
+        tx: Transaction,
     ) -> anyhow::Result<()> {
         // Sanity check: protocol upgrade tx must be the first one in the batch.
         assert_eq!(updates_manager.pending_executed_transactions_len(), 0);
 
-        let tx: Transaction = protocol_upgrade_tx.into();
         let (seal_resolution, exec_result) = self
             .process_one_tx(batch_executor, updates_manager, tx.clone())
             .await?;

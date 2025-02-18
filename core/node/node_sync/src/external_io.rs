@@ -532,6 +532,7 @@ mod tests {
                 virtual_blocks: 1,
             },
             pubdata_params: Default::default(),
+            first_tx_to_be_executed: None,
         };
         actions_sender
             .push_action_unchecked(SyncAction::OpenBatch {

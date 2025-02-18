@@ -264,7 +264,7 @@ impl StateKeeper {
         ))
     }
 
-    fn open_block(&mut self) -> SyncAction {
+    fn open_block(&mut self, first_tx_to_be_executed: Option<Transaction>) -> SyncAction {
         if self.batch_sealed {
             self.last_batch += 1;
             self.last_block += 1;
@@ -284,6 +284,7 @@ impl StateKeeper {
                         virtual_blocks: 1,
                     },
                     pubdata_params: Default::default(),
+                    first_tx_to_be_executed,
                 },
                 number: self.last_batch,
                 first_l2_block_number: self.last_block,
@@ -302,9 +303,12 @@ impl StateKeeper {
     }
 
     pub async fn push_block(&mut self, txs: &[Transaction]) {
-        let mut actions = vec![self.open_block()];
+        let first_tx = txs.first().cloned();
+        let txs_without_first = if !txs.is_empty() { &txs[1..] } else { &[] };
+        let mut actions = vec![self.open_block(first_tx)];
         actions.extend(
-            txs.iter()
+            txs_without_first
+                .iter()
                 .map(|tx| FetchedTransaction::new(tx.clone()).into()),
         );
         actions.push(SyncAction::SealL2Block);
@@ -332,7 +336,7 @@ impl StateKeeper {
     /// Pushes `SealBatch` command to the `StateKeeper`.
     pub async fn seal_batch(&mut self) {
         // Each batch ends with an empty block (aka fictive block).
-        let mut actions = vec![self.open_block()];
+        let mut actions = vec![self.open_block(None)];
         actions.push(SyncAction::SealBatch);
         self.actions_sender.push_actions(actions).await.unwrap();
         self.batch_sealed = true;

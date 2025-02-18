@@ -60,7 +60,7 @@ pub struct L2BlockParams {
 }
 
 /// Parameters for a new L1 batch returned by [`StateKeeperIO::wait_for_new_batch_params()`].
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct L1BatchParams {
     /// Protocol version for the new L1 batch.
     pub protocol_version: ProtocolVersionId,
@@ -74,6 +74,8 @@ pub struct L1BatchParams {
     pub first_l2_block: L2BlockParams,
     /// Params related to how the pubdata should be processed by the bootloader in the batch.
     pub pubdata_params: PubdataParams,
+    /// First transaction to be executed in the batch, this value is empty in case of restore state
+    pub first_tx_to_be_executed: Option<Transaction>,
 }
 
 impl L1BatchParams {
@@ -83,7 +85,7 @@ impl L1BatchParams {
         contracts: BaseSystemContracts,
         cursor: &IoCursor,
         previous_batch_hash: H256,
-    ) -> (SystemEnv, L1BatchEnv, PubdataParams) {
+    ) -> (SystemEnv, L1BatchEnv, PubdataParams, Option<Transaction>) {
         let (system_env, l1_batch_env) = l1_batch_params(
             cursor.l1_batch,
             self.operator_address,
@@ -99,9 +101,29 @@ impl L1BatchParams {
             chain_id,
         );
 
-        (system_env, l1_batch_env, self.pubdata_params)
+        (
+            system_env,
+            l1_batch_env,
+            self.pubdata_params,
+            self.first_tx_to_be_executed,
+        )
     }
 }
+
+// Reimplement PartialEq to ignore first_tx_to_be_executed
+// TODO: store first_tx_to_be_executed in db
+impl PartialEq for L1BatchParams {
+    fn eq(&self, other: &Self) -> bool {
+        self.protocol_version == other.protocol_version
+            && self.validation_computational_gas_limit == other.validation_computational_gas_limit
+            && self.operator_address == other.operator_address
+            && self.fee_input == other.fee_input
+            && self.first_l2_block == other.first_l2_block
+            && self.pubdata_params == other.pubdata_params
+    }
+}
+
+impl Eq for L1BatchParams {}
 
 /// Provides the interactive layer for the state keeper:
 /// it's used to receive volatile parameters (such as batch parameters) and sequence transactions
