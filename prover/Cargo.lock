@@ -8438,7 +8438,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_da_client"
-version = "26.2.1-non-semver-compat"
+version = "26.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -9206,6 +9206,7 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
+ "zksync_basic_types",
  "zksync_config",
  "zksync_types",
 ]
