@@ -8,4 +8,4 @@ The chain uses contracts to [settle](./settlement_contracts/zkchain_basics.md).
 
 Chain admins use contracts on L1 to [manage](./chain_management/overview.md) the chain.
 
-Contracts are also used to [bridge](./bridging/README.md) assets between chains.
+Contracts are also used to [bridge](./bridging/overview.md) assets between chains.
