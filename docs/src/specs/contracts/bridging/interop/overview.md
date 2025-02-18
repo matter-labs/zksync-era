@@ -36,7 +36,7 @@ This document describes a standard asset bridging scenario using proof-based int
 6. **Verifying and Executing the Interop Transaction**
    - The interop transaction is verified and executed on the destination chain using account abstraction and the `InteropHandler` contract.
    - The sender of the interop transaction is the address specified in the trigger; that contract must support account abstraction.
-   - **Reminder:** In ZKsync, EOAs use the [DefaultAccount](../../../../../../contracts/system-contracts/contracts/DefaultAccount.sol) contract, which will support interop. To have EVM-equivalence, a standard trigger can be used as the trigger.
+   - **Reminder:** In ZKsync, EOAs use the [DefaultAccount](../../../../../../contracts/system-contracts/contracts/DefaultAccount.sol) contract, which will support interop. To have EVM-equivalence, a standard account contract can be used.
    - During the `validateTransaction` step of the account abstraction flow, the triggered account contract:
      - Verifies the Merkle proof of the trigger using the `MessageVerification` contract and confirms that the origin chain sender has the appropriate permissions. It also verifies the other fields in the trigger (e.g. that the `gasPrice` is the same as in the trigger).
      - Calls the InteropHandler contract to execute the PaymasterBundle.
