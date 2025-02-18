@@ -271,6 +271,11 @@ impl<S: ReadStorage> ImmutableStorageView<S> {
     pub fn new(ptr: StoragePtr<StorageView<S>>) -> Self {
         Self(ptr)
     }
+
+    #[doc(hidden)] // can easily break invariants if not used carefully
+    pub fn to_rc_ptr(&self) -> StoragePtr<StorageView<S>> {
+        self.0.clone()
+    }
 }
 
 // All methods other than `read_value()` do not read back modified storage slots, so we proxy them as-is.
