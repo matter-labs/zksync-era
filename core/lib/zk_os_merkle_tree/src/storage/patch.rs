@@ -1,7 +1,7 @@
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     marker::PhantomData,
-    ops,
+    mem, ops,
     time::Instant,
 };
 
@@ -11,6 +11,7 @@ use zksync_basic_types::H256;
 use super::{Database, InsertedKeyEntry, PartialPatchSet, PatchSet};
 use crate::{
     errors::{DeserializeContext, DeserializeErrorKind},
+    hasher::{BatchTreeProof, InternalHashes, TreeOperation},
     leaf_nibbles, max_nibbles_for_internal_node, max_node_children,
     types::{InternalNode, KeyLookup, Leaf, Manifest, Node, NodeKey, Root, TreeTags},
     DeserializeError, HashTree, MerkleTree, TreeEntry, TreeParams,
@@ -24,6 +25,7 @@ pub(crate) struct TreeUpdate {
     pub(super) sorted_new_leaves: BTreeMap<H256, InsertedKeyEntry>,
     pub(crate) updates: Vec<(u64, H256)>,
     pub(crate) inserts: Vec<Leaf>,
+    operations: Vec<TreeOperation>,
 }
 
 impl TreeUpdate {
@@ -60,6 +62,7 @@ impl TreeUpdate {
         );
 
         let mut inserts = Vec::with_capacity(entries.len() + 2);
+        let mut operations = Vec::with_capacity(entries.len() + 2);
         for entry in [&TreeEntry::MIN_GUARD, &TreeEntry::MAX_GUARD]
             .into_iter()
             .chain(entries)
@@ -87,6 +90,8 @@ impl TreeUpdate {
                 prev_index,
                 next_index,
             });
+            // FIXME: this is incorrect
+            operations.push(TreeOperation::Insert { prev_index: 0 });
         }
 
         Ok(Self {
@@ -94,7 +99,12 @@ impl TreeUpdate {
             sorted_new_leaves,
             updates: vec![],
             inserts,
+            operations,
         })
+    }
+
+    pub(crate) fn take_operations(&mut self) -> Vec<TreeOperation> {
+        mem::take(&mut self.operations)
     }
 }
 
@@ -229,6 +239,84 @@ impl<P: TreeParams> WorkingPatchSet<P> {
 
     pub(crate) fn total_internal_nodes(&self) -> usize {
         self.inner.internal.iter().map(HashMap::len).sum()
+    }
+
+    pub(crate) fn create_batch_proof(
+        &self,
+        hasher: &P::Hasher,
+        operations: Vec<TreeOperation>,
+    ) -> BatchTreeProof {
+        let sorted_leaves: BTreeMap<_, _> = self
+            .inner
+            .leaves
+            .iter()
+            .map(|(idx, leaf)| (*idx, *leaf))
+            .collect();
+        BatchTreeProof {
+            operations,
+            hashes: self.collect_hashes(sorted_leaves.keys().copied().collect(), hasher),
+            sorted_leaves,
+        }
+    }
+
+    // `leaf_indices` must be sorted.
+    fn collect_hashes(&self, leaf_indices: Vec<u64>, hasher: &P::Hasher) -> Vec<H256> {
+        let mut indices_on_level = leaf_indices;
+        if indices_on_level.is_empty() {
+            return vec![];
+        }
+
+        let this = &self.inner;
+        let mut hashes = vec![];
+        // Should not underflow because `indices_on_level` is non-empty.
+        let mut last_idx_on_level = this.root.leaf_count - 1;
+
+        let mut internal_hashes = None;
+        let mut internal_node_levels = this.internal.iter().rev();
+        // FIXME: place root in `this.internal`?
+        let root_level = HashMap::from([(0, this.root.root_node.clone())]);
+
+        for depth in 0..P::TREE_DEPTH {
+            let depth_in_internal_node = depth % P::INTERNAL_NODE_DEPTH;
+            if depth_in_internal_node == 0 {
+                // Initialize / update `internal_hashes`
+                let level = internal_node_levels.next().unwrap_or(&root_level);
+                internal_hashes = Some(InternalHashes::new::<P>(level, hasher, depth));
+            }
+            let depth = depth_in_internal_node;
+            // `unwrap()` is safe; `internal_hashes` is initialized on the first loop iteration
+            let internal_hashes = internal_hashes.as_ref().unwrap();
+
+            let mut i = 0;
+            let mut next_level_i = 0;
+            while i < indices_on_level.len() {
+                let current_idx = indices_on_level[i];
+                if current_idx % 2 == 1 {
+                    // The hash to the left is missing; get it from `hashes`
+                    i += 1;
+                    hashes.push(internal_hashes.get(depth, current_idx - 1));
+                } else if indices_on_level
+                    .get(i + 1)
+                    .map_or(false, |&next_idx| next_idx == current_idx + 1)
+                {
+                    i += 2;
+                    // Don't get the hash, it'll be available locally.
+                } else {
+                    // The hash to the right is missing; get it from `hashes`, or set to the empty subtree hash.
+                    i += 1;
+                    if current_idx < last_idx_on_level {
+                        hashes.push(internal_hashes.get(depth, current_idx + 1));
+                    }
+                };
+
+                indices_on_level[next_level_i] = current_idx / 2;
+                next_level_i += 1;
+            }
+            indices_on_level.truncate(next_level_i);
+            last_idx_on_level /= 2;
+        }
+
+        hashes
     }
 
     pub(crate) fn update(&mut self, update: TreeUpdate) -> FinalTreeUpdate {
@@ -433,10 +521,12 @@ impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
 
         let mut updates = Vec::with_capacity(entries.len() - sorted_new_leaves.len());
         let mut inserts = Vec::with_capacity(sorted_new_leaves.len());
+        let mut operations = Vec::with_capacity(entries.len());
         for (entry, lookup) in entries.iter().zip(lookup) {
             match lookup {
                 KeyLookup::Existing(idx) => {
                     updates.push((idx, entry.value));
+                    operations.push(TreeOperation::Update { index: idx });
                 }
 
                 KeyLookup::Missing {
@@ -445,6 +535,8 @@ impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
                 } => {
                     // Adjust previous / next indices according to the data inserted in the same batch.
                     let mut prev_index = prev_key_and_index.1;
+                    operations.push(TreeOperation::Insert { prev_index });
+
                     if let Some((&local_prev_key, inserted)) =
                         sorted_new_leaves.range(..entry.key).next_back()
                     {
@@ -486,6 +578,7 @@ impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
                 sorted_new_leaves,
                 updates,
                 inserts,
+                operations,
             },
         ))
     }

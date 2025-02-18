@@ -13,6 +13,7 @@ pub use self::{
     types::{BatchOutput, TreeEntry},
 };
 use crate::{
+    hasher::BatchTreeProof,
     storage::{TreeUpdate, WorkingPatchSet},
     types::MAX_TREE_DEPTH,
 };
@@ -136,15 +137,24 @@ impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
     /// # Errors
     ///
     /// Proxies database I/O errors.
-    #[tracing::instrument(level = "debug", skip_all, fields(latest_version))]
     pub fn extend(&mut self, entries: &[TreeEntry]) -> anyhow::Result<BatchOutput> {
+        let (output, _) = self.extend_inner(entries, false)?;
+        Ok(output)
+    }
+
+    #[tracing::instrument(level = "debug", name = "extend", skip_all, fields(latest_version))]
+    fn extend_inner(
+        &mut self,
+        entries: &[TreeEntry],
+        with_proof: bool,
+    ) -> anyhow::Result<(BatchOutput, Option<BatchTreeProof>)> {
         let latest_version = self
             .latest_version()
             .context("failed getting latest version")?;
         tracing::Span::current().record("latest_version", latest_version);
 
         let started_at = Instant::now();
-        let (mut patch, update) = if let Some(version) = latest_version {
+        let (mut patch, mut update) = if let Some(version) = latest_version {
             self.create_patch(version, entries)
                 .context("failed loading tree data")?
         } else {
@@ -161,6 +171,15 @@ impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
             "loaded tree data"
         );
 
+        let proof = if with_proof {
+            let started_at = Instant::now();
+            let proof = patch.create_batch_proof(&self.hasher, update.take_operations());
+            tracing::debug!(elapsed = ?started_at.elapsed(), "created batch proof");
+            Some(proof)
+        } else {
+            None
+        };
+
         let started_at = Instant::now();
         let update = patch.update(update);
         tracing::debug!(elapsed = ?started_at.elapsed(), "updated tree structure");
@@ -174,7 +193,15 @@ impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
             .apply_patch(patch)
             .context("failed persisting tree changes")?;
         tracing::debug!(elapsed = ?started_at.elapsed(), "persisted tree");
-        Ok(BatchOutput { root_hash })
+        Ok((BatchOutput { root_hash }, proof))
+    }
+
+    pub fn extend_with_proof(
+        &mut self,
+        entries: &[TreeEntry],
+    ) -> anyhow::Result<(BatchOutput, BatchTreeProof)> {
+        let (output, proof) = self.extend_inner(entries, true)?;
+        Ok((output, proof.unwrap()))
     }
 
     pub fn truncate_recent_versions(&mut self, retained_version_count: u64) -> anyhow::Result<()> {

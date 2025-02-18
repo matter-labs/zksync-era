@@ -4,6 +4,8 @@ use once_cell::sync::Lazy;
 use zksync_basic_types::H256;
 use zksync_crypto_primitives::hasher::{blake2::Blake2Hasher, Hasher};
 
+pub(crate) use self::nodes::InternalHashes;
+pub use self::proofs::{BatchTreeProof, TreeOperation};
 use crate::types::{Leaf, MAX_TREE_DEPTH};
 
 mod nodes;

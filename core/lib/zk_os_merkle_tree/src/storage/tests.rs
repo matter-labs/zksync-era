@@ -140,7 +140,7 @@ fn test_creating_empty_tree<P: TreeParams<Hasher = Blake2Hasher>>() {
         assert_eq!(patch.root.root_node.children.len(), 1);
     }
 
-    let (patch, _) = patch.finalize(&Blake2Hasher, final_update);
+    let (patch, ..) = patch.finalize(&Blake2Hasher, final_update);
     assert_eq!(patch.manifest.version_count, 1);
     assert_eq!(patch.patches_by_version.len(), 1);
     let root = patch.try_root(0).unwrap().expect("no root");
@@ -182,7 +182,7 @@ where
 
     assert_eq!(patch.inner().leaves.len(), 3);
 
-    let (patch, _) = patch.finalize(&Blake2Hasher, final_update);
+    let (patch, ..) = patch.finalize(&Blake2Hasher, final_update);
     let root = patch.try_root(0).unwrap().expect("no root");
     assert_eq!(root.leaf_count, 3);
 
@@ -213,7 +213,7 @@ where
 
     let mut patch = WorkingPatchSet::<P>::empty();
     let final_update = patch.update(TreeUpdate::for_empty_tree(&[]).unwrap());
-    let (patch, _) = patch.finalize(&Blake2Hasher, final_update);
+    let (patch, ..) = patch.finalize(&Blake2Hasher, final_update);
 
     let merkle_tree = MerkleTree::<_, P>::with_hasher(patch, Blake2Hasher).unwrap();
     let new_entry = TreeEntry {
@@ -271,7 +271,7 @@ where
     }
 
     assert_eq!(final_update.version, 1);
-    let (new_patch, _) = patch.finalize(&Blake2Hasher, final_update);
+    let (new_patch, ..) = patch.finalize(&Blake2Hasher, final_update);
     assert_eq!(new_patch.manifest.version_count, 2);
     assert_eq!(new_patch.patches_by_version.len(), 1);
     let root = &new_patch.patches_by_version[&1].root;
@@ -302,7 +302,7 @@ where
 
     let mut patch = WorkingPatchSet::<P>::empty();
     let final_update = patch.update(TreeUpdate::for_empty_tree(&[]).unwrap());
-    let (patch, _) = patch.finalize(&Blake2Hasher, final_update);
+    let (patch, ..) = patch.finalize(&Blake2Hasher, final_update);
 
     let mut merkle_tree = MerkleTree::<_, P>::with_hasher(patch, Blake2Hasher).unwrap();
     let first_entry = TreeEntry {
@@ -318,7 +318,7 @@ where
         .unwrap();
 
     let final_update = patch.update(update);
-    let (new_patch, _) = patch.finalize(&Blake2Hasher, final_update);
+    let (new_patch, ..) = patch.finalize(&Blake2Hasher, final_update);
 
     merkle_tree.db.apply_patch(new_patch).unwrap();
 
@@ -348,7 +348,7 @@ where
     }
 
     let final_update = patch.update(update);
-    let (new_patch, _) = patch.finalize(&Blake2Hasher, final_update);
+    let (new_patch, ..) = patch.finalize(&Blake2Hasher, final_update);
     merkle_tree.db.apply_patch(new_patch).unwrap();
 
     let expected_root_hash: H256 =
@@ -413,7 +413,7 @@ where
     );
 
     let final_update = patch.update(update);
-    let (new_patch, _) = patch.finalize(&Blake2Hasher, final_update);
+    let (new_patch, ..) = patch.finalize(&Blake2Hasher, final_update);
     merkle_tree.db.apply_patch(new_patch).unwrap();
 
     let expected_root_hash: H256 =
