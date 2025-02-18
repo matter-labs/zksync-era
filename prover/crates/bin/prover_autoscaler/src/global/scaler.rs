@@ -81,7 +81,7 @@ impl<K: Key> Scaler<K> {
 
         let mut pool_map = HashMap::new(); // <key, Pool>
         for deployment in namespace_value.deployments.keys() {
-            // Processing only provers.
+            // Processing only selected deployment(s).
             let Some(key) = K::new(&self.deployment, deployment) else {
                 continue;
             };
@@ -112,11 +112,7 @@ impl<K: Key> Scaler<K> {
             .filter(|v| v.time < Utc::now() - chrono::Duration::minutes(4)) // TODO Move the duration into config. This should be at least x2 or run interval.
             .count();
 
-        for (pod, pod_value) in namespace_value
-            .pods
-            .iter()
-            .filter(|(p, _)| p.starts_with(&self.deployment))
-        {
+        for (pod, pod_value) in namespace_value.pods.iter() {
             let Some(key) = K::new(&self.deployment, pod) else {
                 continue;
             };

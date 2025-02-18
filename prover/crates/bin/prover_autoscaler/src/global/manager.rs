@@ -66,6 +66,7 @@ impl Manager {
         }
     }
 }
+
 /// is_namespace_running returns true if there are some pods running in it.
 fn is_namespace_running(namespace: &str, clusters: &Clusters) -> bool {
     clusters
@@ -98,7 +99,7 @@ impl Task for Manager {
             }
 
             for (ns, ppv) in &self.namespaces {
-                // Prover
+                // GPU Scalers
                 for scaler in &self.gpu_scalers {
                     let q = queue
                         .get(&(ppv.to_string(), scaler.queue_report_field))
@@ -119,7 +120,7 @@ impl Task for Manager {
                     }
                 }
 
-                // Simple Scalers.
+                // Non-GPU Scalers.
                 for scaler in &self.scalers {
                     let q = queue
                         .get(&(ppv.to_string(), scaler.queue_report_field))
