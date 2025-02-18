@@ -1,6 +1,6 @@
 use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
-use zksync_contracts::BaseSystemContractsHashes;
+use zksync_contracts::{gateway_migration_contract, BaseSystemContractsHashes};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{BoundEthInterface, CallFunctionArgs, ContractCallError, EthInterface};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
@@ -21,6 +21,7 @@ use zksync_types::{
     l2_to_l1_log::UserL2ToL1Log,
     protocol_version::{L1VerifierConfig, PACKED_SEMVER_MINOR_MASK},
     pubdata_da::PubdataSendingMode,
+    server_notification::GatewayMigrationState,
     settlement::SettlementMode,
     web3::{contract::Error as Web3ContractError, BlockNumber, CallRequest},
     Address, L2ChainId, ProtocolVersionId, SLChainId, H256, U256,
@@ -78,10 +79,11 @@ pub struct EthTxAggregator {
     /// address.
     custom_commit_sender_addr: Option<Address>,
     pool: ConnectionPool<Core>,
-    settlement_mode: SettlementMode,
+    gateway_migration_state: GatewayMigrationState,
     sl_chain_id: SLChainId,
     health_updater: HealthUpdater,
     priority_tree_start_index: Option<usize>,
+    settlement_mode: SettlementMode,
 }
 
 struct TxData {
@@ -122,6 +124,10 @@ impl EthTxAggregator {
             None => None,
         };
 
+        let gateway_migration_state =
+            gateway_status(&mut pool.connection().await.unwrap(), settlement_mode)
+                .await
+                .unwrap();
         let sl_chain_id = (*eth_client).as_ref().fetch_chain_id().await.unwrap();
 
         Self {
@@ -138,10 +144,11 @@ impl EthTxAggregator {
             rollup_chain_id,
             custom_commit_sender_addr,
             pool,
-            settlement_mode,
+            gateway_migration_state,
             sl_chain_id,
             health_updater: ReactiveHealthCheck::new("eth_tx_aggregator").1,
             priority_tree_start_index: None,
+            settlement_mode,
         }
     }
 
@@ -524,6 +531,7 @@ impl EthTxAggregator {
         &mut self,
         storage: &mut Connection<'_, Core>,
     ) -> Result<(), EthSenderError> {
+        self.gateway_migration_state = gateway_status(storage, self.settlement_mode).await?;
         let MulticallData {
             base_system_contracts_hashes,
             verifier_address,
@@ -563,12 +571,16 @@ impl EthTxAggregator {
                     get_priority_tree_start_index(self.eth_client.as_ref()).await?;
                 self.priority_tree_start_index
             };
+        let commit_restriction = if self.gateway_migration_state == GatewayMigrationState::Started {
+            Some("Gateway migration started")
+        } else {
+            self.config
+                .tx_aggregation_only_prove_and_execute
+                .then_some("tx_aggregation_only_prove_and_execute=true")
+        };
 
         let mut op_restrictions = OperationSkippingRestrictions {
-            commit_restriction: self
-                .config
-                .tx_aggregation_only_prove_and_execute
-                .then_some("tx_aggregation_only_prove_and_execute=true"),
+            commit_restriction,
             prove_restriction: None,
             execute_restriction: Self::is_pending_gateway_upgrade(
                 storage,
@@ -596,7 +608,7 @@ impl EthTxAggregator {
             )
             .await?
         {
-            let is_gateway = self.settlement_mode.is_gateway();
+            let is_gateway = self.gateway_migration_state.is_gateway();
             let tx = self
                 .save_eth_tx(
                     storage,
@@ -827,7 +839,7 @@ impl EthTxAggregator {
         storage: &mut Connection<'_, Core>,
         from_addr: Option<Address>,
     ) -> Result<u64, EthSenderError> {
-        let is_gateway = self.settlement_mode.is_gateway();
+        let is_gateway = self.gateway_migration_state.is_gateway();
         let db_nonce = storage
             .eth_sender_dal()
             .get_next_nonce(from_addr, is_gateway)
@@ -912,4 +924,27 @@ async fn get_priority_tree_start_index(
         .unwrap();
 
     Ok(Some(priority_tree_start_index.as_usize()))
+}
+
+pub async fn gateway_status(
+    storage: &mut Connection<'_, Core>,
+    settlement_mode: SettlementMode,
+) -> Result<GatewayMigrationState, EthSenderError> {
+    if settlement_mode == SettlementMode::Gateway {
+        return Ok(GatewayMigrationState::Finalized);
+    }
+    // TODO support the migration back
+    let topic = gateway_migration_contract()
+        .event("MigrateToGateway")
+        .unwrap()
+        .signature();
+    let notifications = storage
+        .server_notifications_dal()
+        .notifications_by_topic(topic)
+        .await
+        .unwrap();
+    if !notifications.is_empty() {
+        return Ok(GatewayMigrationState::Started);
+    }
+    Ok(GatewayMigrationState::Not)
 }

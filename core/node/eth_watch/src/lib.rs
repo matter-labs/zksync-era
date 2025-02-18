@@ -6,12 +6,14 @@ use std::{sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use tokio::sync::watch;
+use zksync_contracts::gateway_migration_contract;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_system_constants::PRIORITY_EXPIRATION;
 use zksync_types::{
-    ethabi::Contract, protocol_version::ProtocolSemanticVersion, settlement::SettlementMode,
-    web3::BlockNumber as Web3BlockNumber, L1BatchNumber, L2ChainId, PriorityOpId,
+    ethabi::Contract, protocol_version::ProtocolSemanticVersion,
+    server_notification::GatewayMigrationState, web3::BlockNumber as Web3BlockNumber, Address,
+    L1BatchNumber, L2ChainId, PriorityOpId,
 };
 
 pub use self::client::{EthClient, EthHttpQueryClient, L2EthClient};
@@ -22,6 +24,7 @@ use self::{
 };
 use crate::event_processors::{
     BatchRootProcessor, DecentralizedUpgradesEventProcessor, EventsSource,
+    GatewayMigrationProcessor,
 };
 
 mod client;
@@ -43,6 +46,7 @@ struct EthWatchState {
 pub struct EthWatch {
     l1_client: Arc<dyn EthClient>,
     sl_client: Arc<dyn EthClient>,
+    gateway_status: GatewayMigrationState,
     poll_interval: Duration,
     event_processors: Vec<Box<dyn EventProcessor>>,
     pool: ConnectionPool<Core>,
@@ -52,6 +56,7 @@ impl EthWatch {
     #[allow(clippy::too_many_arguments)]
     pub async fn new(
         chain_admin_contract: &Contract,
+        server_notifier: &Contract,
         l1_client: Box<dyn EthClient>,
         sl_client: Box<dyn EthClient>,
         sl_layer: SettlementMode,
@@ -65,6 +70,9 @@ impl EthWatch {
 
         let state = Self::initialize_state(&mut storage, sl_client.as_ref()).await?;
         tracing::info!("initialized state: {state:?}");
+        let gateway_status = gateway_status(&mut storage, l1_client.as_ref()).await?;
+        tracing::info!("Gateway status {:?}", &gateway_status);
+
         drop(storage);
 
         let priority_ops_processor =
@@ -75,9 +83,13 @@ impl EthWatch {
             sl_client.clone(),
             l1_client.clone(),
         );
+
+        let gateway_migration_processor = GatewayMigrationProcessor::new(server_notifier, chain_id);
+
         let mut event_processors: Vec<Box<dyn EventProcessor>> = vec![
             Box::new(priority_ops_processor),
             Box::new(decentralized_upgrades_processor),
+            Box::new(gateway_migration_processor),
         ];
 
         if sl_layer.is_gateway() {
@@ -93,6 +105,7 @@ impl EthWatch {
         Ok(Self {
             l1_client,
             sl_client,
+            gateway_status,
             poll_interval,
             event_processors,
             pool,
@@ -179,7 +192,12 @@ impl EthWatch {
         for processor in &mut self.event_processors {
             let client = match processor.event_source() {
                 EventsSource::L1 => self.l1_client.as_ref(),
-                EventsSource::SL => self.sl_client.as_ref(),
+                EventsSource::SL => match &self.gateway_status {
+                    GatewayMigrationState::Not => self.l1_client.as_ref(),
+                    GatewayMigrationState::Started | GatewayMigrationState::Finalized => {
+                        self.sl_client.as_ref()
+                    }
+                },
             };
             let chain_id = client.chain_id().await?;
             let to_block = if processor.only_finalized_block() {
@@ -239,6 +257,32 @@ impl EthWatch {
                 .await
                 .map_err(DalError::generalize)?;
         }
+
+        self.gateway_status = gateway_status(storage, self.l1_client.as_ref()).await?;
         Ok(())
     }
+}
+
+pub async fn gateway_status(
+    storage: &mut Connection<'_, Core>,
+    l1_client: &dyn EthClient,
+) -> anyhow::Result<GatewayMigrationState> {
+    let layer = l1_client.get_settlement_layer().await?;
+    if layer != Address::zero() {
+        return Ok(GatewayMigrationState::Finalized);
+    };
+
+    // TODO support migration back
+    let topic = gateway_migration_contract()
+        .event("MigrateToGateway")
+        .unwrap()
+        .signature();
+    let notifications = storage
+        .server_notifications_dal()
+        .notifications_by_topic(topic)
+        .await?;
+    if !notifications.is_empty() {
+        return Ok(GatewayMigrationState::Started);
+    }
+    Ok(GatewayMigrationState::Not)
 }

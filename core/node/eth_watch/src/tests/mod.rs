@@ -1,6 +1,6 @@
 use std::convert::TryInto;
 
-use zksync_contracts::chain_admin_contract;
+use zksync_contracts::{chain_admin_contract, gateway_migration_contract};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_types::{
     abi,
@@ -106,6 +106,7 @@ async fn create_test_watcher(
     };
     let watcher = EthWatch::new(
         &chain_admin_contract(),
+        &gateway_migration_contract(),
         Box::new(l1_client.clone()),
         sl_l2_client,
         settlement_mode,
@@ -214,6 +215,7 @@ async fn test_normal_operation_upgrade_timestamp() {
     let mut client = MockEthClient::new(SLChainId(42));
     let mut watcher = EthWatch::new(
         &chain_admin_contract(),
+        &gateway_migration_contract(),
         Box::new(client.clone()),
         Box::new(client.clone()),
         SettlementMode::SettlesToL1,
