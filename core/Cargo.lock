@@ -3397,13 +3397,13 @@ dependencies = [
  "alloy",
  "celestia-types 0.9.0",
  "nmt-rs",
- "prost 0.12.6",
+ "prost 0.13.4",
  "serde",
  "sha3 0.10.8",
  "tendermint",
  "tendermint-proto",
  "thiserror 2.0.6",
- "tonic 0.11.0",
+ "tonic 0.12.3",
  "tonic-build",
 ]
 
@@ -11709,13 +11709,14 @@ dependencies = [
 
 [[package]]
 name = "tonic-build"
-version = "0.11.0"
+version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "be4ef6dd70a610078cb4e338a0f79d06bc759ff1b22d2120c2ff02ae264ba9c2"
+checksum = "9557ce109ea773b399c9b9e5dca39294110b74f1f342cb347a80d1fce8c26a11"
 dependencies = [
  "prettyplease",
  "proc-macro2 1.0.92",
- "prost-build 0.12.6",
+ "prost-build 0.13.4",
+ "prost-types 0.13.4",
  "quote 1.0.37",
  "syn 2.0.90",
 ]

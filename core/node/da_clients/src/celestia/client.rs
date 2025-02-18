@@ -19,6 +19,10 @@ use zksync_da_client::{
 use zksync_eth_client::{
     clients::{DynClient, L1},
 };
+use zksync_basic_types::web3::{Log, Filter, BlockNumber, FilterBuilder};
+use zksync_basic_types::ethabi::{Contract, Event, ParamType, RawTopicFilter};
+use zksync_basic_types::ethabi::decode;
+use zksync_basic_types::{U256, H256};
 
 use crate::{
     celestia::sdk::{BlobTxHash, RawCelestiaClient},
@@ -132,9 +136,9 @@ impl DataAvailabilityClient for CelestiaClient {
                 return Ok(None);
             }
         };
-        let request = self.eth_client.call_contract_function(request, block);
         // Here we want to poll blobstream until the included block is in blobstream
         //self.eth_client.call_contract_function(request, block)
+        self.eth_client
 
         Ok(Some(InclusionData { data: vec![] }))
     }
