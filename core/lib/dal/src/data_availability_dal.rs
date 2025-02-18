@@ -31,7 +31,7 @@ impl DataAvailabilityDal<'_, '_> {
         sent_at: chrono::NaiveDateTime,
         pubdata_type: PubdataType,
         da_inclusion_data: Option<&[u8]>,
-        l2_validator_address: Address,
+        l2_validator_address: Option<Address>,
     ) -> DalResult<()> {
         let update_result = sqlx::query!(
             r#"
@@ -54,7 +54,7 @@ impl DataAvailabilityDal<'_, '_> {
             blob_id,
             da_inclusion_data,
             pubdata_type.to_string(),
-            l2_validator_address.as_bytes(),
+            l2_validator_address.map(|addr| addr.as_bytes().to_vec()),
             sent_at,
         )
         .instrument("insert_l1_batch_da")
@@ -257,7 +257,8 @@ impl DataAvailabilityDal<'_, '_> {
                 blob_id,
                 client_type,
                 inclusion_data,
-                sent_at
+                sent_at,
+                l2_da_validator_address
             FROM
                 data_availability
             WHERE

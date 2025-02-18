@@ -4,7 +4,6 @@ use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
 use serde_with::{hex::Hex, serde_as};
 use zksync_basic_types::{
-    commitment::PubdataType,
     web3::{AccessList, Bytes, Index},
     Bloom, L1BatchNumber, SLChainId, H160, H256, H64, U256, U64,
 };
@@ -966,16 +965,6 @@ pub struct FeeHistory {
     /// An array of effective pubdata prices. Note, that this field is L2-specific and only provided by L2 nodes.
     #[serde(default)]
     pub l2_pubdata_price: Vec<U256>,
-}
-
-/// The data availability details type. Used exclusively in Validiums.
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct DataAvailabilityDetails {
-    pub pubdata_type: PubdataType,
-    pub blob_id: String,
-    pub inclusion_data: Option<Vec<u8>>,
-    pub sent_at: DateTime<Utc>,
 }
 
 #[cfg(test)]

@@ -3,11 +3,12 @@ use itertools::Itertools;
 use utils::{
     chain_id_leaf_preimage, get_chain_count, get_chain_id_from_index, get_chain_root_from_id,
 };
+use zksync_basic_types::pubdata_da::DataAvailabilityDetails;
 use zksync_crypto_primitives::hasher::keccak::KeccakHasher;
 use zksync_dal::{CoreDal, DalError};
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_types::{
-    api::{ChainAggProof, DataAvailabilityDetails, TeeProof, TransactionExecutionInfo},
+    api::{ChainAggProof, TeeProof, TransactionExecutionInfo},
     tee_types::TeeType,
     L1BatchNumber, L2ChainId,
 };
@@ -157,7 +158,7 @@ impl UnstableNamespace {
         batch: L1BatchNumber,
     ) -> Result<Option<DataAvailabilityDetails>, Web3Error> {
         let mut connection = self.state.acquire_connection().await?;
-        let Some(db_details) = connection
+        let Some(da_details) = connection
             .data_availability_dal()
             .get_da_details_by_batch_number(batch)
             .await
@@ -166,11 +167,6 @@ impl UnstableNamespace {
             return Ok(None);
         };
 
-        Ok(Some(DataAvailabilityDetails {
-            pubdata_type: db_details.pubdata_type,
-            blob_id: db_details.blob_id,
-            inclusion_data: db_details.inclusion_data,
-            sent_at: db_details.sent_at,
-        }))
+        Ok(Some(da_details))
     }
 }

@@ -147,7 +147,7 @@ impl DataAvailabilityDispatcher {
                     sent_at.naive_utc(),
                     client_type_to_pubdata_type(self.client.client_type()),
                     None,
-                    find_l2_da_validator_address(batch.system_logs.as_slice())?,
+                    Some(find_l2_da_validator_address(batch.system_logs.as_slice())?),
                 )
                 .await?;
             drop(conn);

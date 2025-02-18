@@ -5,10 +5,10 @@ use std::time::Duration;
 use anyhow::Context as _;
 use serde::Serialize;
 use tokio::sync::watch;
-use zksync_da_client::DataAvailabilityClient;
+use zksync_da_client::{types::InclusionData, DataAvailabilityClient};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
-use zksync_types::{utils::client_type_to_pubdata_type, L1BatchNumber};
+use zksync_types::{commitment::PubdataType, utils::client_type_to_pubdata_type, L1BatchNumber};
 use zksync_web3_decl::{
     client::{DynClient, L2},
     namespaces::UnstableNamespaceClient,
@@ -19,7 +19,7 @@ use zksync_web3_decl::{
 enum DataAvailabilityFetcherHealth {
     Ready {
         #[serde(skip_serializing_if = "Option::is_none")]
-        last_dispatched_batch_number: Option<L1BatchNumber>,
+        last_fetched_batch_number: Option<L1BatchNumber>,
     },
     Affected {
         error: String,
@@ -53,6 +53,7 @@ enum StepOutcome {
     NoInclusionDataFromMainNode,
     UnableToFetchInclusionData,
 }
+
 impl From<DataAvailabilityFetcherHealth> for Health {
     fn from(health: DataAvailabilityFetcherHealth) -> Self {
         let status = match health {
@@ -154,12 +155,22 @@ impl DataAvailabilityFetcher {
             return Ok(StepOutcome::NoProgress);
         };
 
+        let Some(pubdata_type) = da_details.pubdata_type else {
+            tracing::warn!(
+                "No pubdata type for L1 batch #{}; waiting for the main node to provide it",
+                l1_batch_to_fetch
+            );
+            return Ok(StepOutcome::NoProgress);
+        };
+
         let config_pubdata_type = client_type_to_pubdata_type(self.da_client.client_type());
-        if da_details.pubdata_type != config_pubdata_type {
+        // if pubdata type of the DA client is NoDA and pubdata type of the EN is not - it means
+        // that the main node is planning to use the DA layer, so ENs were configured earlier
+        if pubdata_type != config_pubdata_type && pubdata_type != PubdataType::NoDA {
             return Err(to_fatal_error(anyhow::anyhow!(
                 "DA client mismatch, used in config: {}, received from main node: {}",
                 config_pubdata_type,
-                da_details.pubdata_type
+                pubdata_type
             )));
         }
 
@@ -167,16 +178,22 @@ impl DataAvailabilityFetcher {
             return Ok(StepOutcome::NoInclusionDataFromMainNode);
         };
 
-        let inclusion_data = self
-            .da_client
-            .get_inclusion_data(da_details.blob_id.as_str())
-            .await
-            .map_err(|err| {
-                to_retriable_error(anyhow::anyhow!("Error fetching inclusion data: {err}"))
-            })?;
+        let inclusion_data = match pubdata_type {
+            PubdataType::NoDA => InclusionData::default(), // to handle Stage 0 -> Stage 1 Validium migration
+            _ => {
+                let inclusion_data_from_rpc = self
+                    .da_client
+                    .get_inclusion_data(da_details.blob_id.as_str())
+                    .await
+                    .map_err(|err| {
+                        to_retriable_error(anyhow::anyhow!("Error fetching inclusion data: {err}"))
+                    })?;
 
-        let Some(inclusion_data) = inclusion_data else {
-            return Ok(StepOutcome::UnableToFetchInclusionData);
+                match inclusion_data_from_rpc {
+                    Some(data) => data,
+                    None => return Ok(StepOutcome::UnableToFetchInclusionData),
+                }
+            }
         };
 
         // - if inclusion data is `Some`, but empty - it means that the main node uses dummy inclusion proofs
@@ -204,8 +221,9 @@ impl DataAvailabilityFetcher {
                 l1_batch_to_fetch,
                 da_details.blob_id.as_str(),
                 da_details.sent_at.naive_utc(),
-                da_details.pubdata_type,
+                pubdata_type,
                 Some(inclusion_data.data.as_slice()),
+                da_details.l2_da_validator,
             )
             .await
             .map_err(|err| to_fatal_error(err.generalize()))?;
@@ -218,9 +236,9 @@ impl DataAvailabilityFetcher {
         Ok(StepOutcome::UpdatedBatch(l1_batch_to_fetch))
     }
 
-    fn update_health(&self, last_dispatched_batch_number: Option<L1BatchNumber>) {
+    fn update_health(&self, last_fetched_batch_number: Option<L1BatchNumber>) {
         let health = DataAvailabilityFetcherHealth::Ready {
-            last_dispatched_batch_number,
+            last_fetched_batch_number,
         };
         self.health_updater.update(health.into());
     }

@@ -2,7 +2,7 @@ use chrono::{DateTime, NaiveDateTime, Utc};
 use zksync_types::{
     l2_to_l1_log::L2ToL1Log,
     pubdata_da::{DataAvailabilityBlob, DataAvailabilityDetails},
-    L1BatchNumber,
+    Address, L1BatchNumber,
 };
 
 /// Represents a blob in the data availability layer.
@@ -28,19 +28,23 @@ impl From<StorageDABlob> for DataAvailabilityBlob {
 #[derive(Debug, Clone)]
 pub struct StorageDADetails {
     pub blob_id: String,
-    pub client_type: String,
+    pub client_type: Option<String>,
     pub inclusion_data: Option<Vec<u8>>,
     pub sent_at: NaiveDateTime,
+    pub l2_da_validator_address: Option<Vec<u8>>,
 }
 
 impl From<StorageDADetails> for DataAvailabilityDetails {
-    fn from(blob: StorageDADetails) -> DataAvailabilityDetails {
+    fn from(row: StorageDADetails) -> DataAvailabilityDetails {
         DataAvailabilityDetails {
-            blob_id: blob.blob_id,
+            blob_id: row.blob_id,
             // safe to unwrap because the value in the database is assumed to be always correct
-            pubdata_type: blob.client_type.as_str().parse().unwrap(),
-            inclusion_data: blob.inclusion_data,
-            sent_at: blob.sent_at.and_utc(),
+            pubdata_type: row.client_type.map(|t| t.parse().unwrap()),
+            inclusion_data: row.inclusion_data,
+            sent_at: row.sent_at.and_utc(),
+            l2_da_validator: row
+                .l2_da_validator_address
+                .map(|addr| Address::from_slice(addr.as_slice())),
         }
     }
 }

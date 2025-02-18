@@ -11636,6 +11636,7 @@ dependencies = [
  "tracing",
  "vise",
  "zk_evm 0.150.20",
+ "zksync_basic_types",
  "zksync_config",
  "zksync_consensus_roles",
  "zksync_contracts",
@@ -12495,6 +12496,7 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
+ "zksync_basic_types",
  "zksync_config",
  "zksync_types",
 ]

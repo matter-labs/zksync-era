@@ -347,7 +347,7 @@ impl ExternalNodeBuilder {
 
         let da_client_config = da_client_config.context("DA client config is missing")?;
 
-        if let DAClientConfig::NoDA = da_client_config {
+        if matches!(da_client_config, DAClientConfig::NoDA) {
             self.node.add_layer(NoDAClientWiringLayer);
             return Ok(self);
         }

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                blob_id,\n                client_type,\n                inclusion_data,\n                sent_at\n            FROM\n                data_availability\n            WHERE\n                l1_batch_number = $1\n            ",
+  "query": "\n            SELECT\n                blob_id,\n                client_type,\n                inclusion_data,\n                sent_at,\n                l2_da_validator_address\n            FROM\n                data_availability\n            WHERE\n                l1_batch_number = $1\n            ",
   "describe": {
     "columns": [
       {
@@ -22,6 +22,11 @@
         "ordinal": 3,
         "name": "sent_at",
         "type_info": "Timestamp"
+      },
+      {
+        "ordinal": 4,
+        "name": "l2_da_validator_address",
+        "type_info": "Bytea"
       }
     ],
     "parameters": {
@@ -33,8 +38,9 @@
       false,
       false,
       true,
-      false
+      false,
+      true
     ]
   },
-  "hash": "f4eddcbf99b9da4702785f3201736bd324e0b13e4f230a1395243d1184f48aea"
+  "hash": "5abbf93bf4cc3671ad91d65d0c29dd0c5ee702bfd3dd82d0f54ed73509b83411"
 }

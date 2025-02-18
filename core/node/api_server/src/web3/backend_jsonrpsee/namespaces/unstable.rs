@@ -1,5 +1,6 @@
+use zksync_basic_types::pubdata_da::DataAvailabilityDetails;
 use zksync_types::{
-    api::{ChainAggProof, DataAvailabilityDetails, TeeProof, TransactionExecutionInfo},
+    api::{ChainAggProof, TeeProof, TransactionExecutionInfo},
     tee_types::TeeType,
     L1BatchNumber, L2ChainId, H256,
 };
