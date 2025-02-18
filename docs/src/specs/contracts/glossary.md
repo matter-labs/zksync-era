@@ -9,7 +9,7 @@
 - **Facet** - implementation contract. The word comes from the EIP-2535.
 - **Gas** - a unit that measures the amount of computational effort required to execute specific operations on the
   ZKsync Era network.
-- **MessageRoot**, **ChainRoot**, **ChainBatchRoot**, **LocalLogsRoot** - different nodes in the recursive Merkle tree used to aggregate messages. 
+- **MessageRoot**, **ChainRoot**, **ChainBatchRoot**, **LocalLogsRoot** , **L2ToL1LogsRoot**- different nodes in the recursive Merkle tree used to aggregate messages. Note, LocalLogsRoot and L2ToL1LogsRoot are the same. 
 - **InteropMessage, InteropCall, InteropBundle, InteropTrigger, InteropTransaction** different levels and types of interop methods.
 - **assetId** - unique 32 bytes used to identify different assets in the AssetRouter.
 - **Settlement Layer** - the layer where a chains settles its batches. Can be L1 or Gateway.
