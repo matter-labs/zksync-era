@@ -13,6 +13,7 @@ use xshell::Shell;
 use zkstack_cli_common::{
     config::global_config,
     forge::{Forge, ForgeScriptArgs},
+    logger,
     wallets::Wallet,
 };
 use zkstack_cli_config::{
@@ -104,7 +105,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         .access_control_restriction_addr
         .context("chain_access_control_restriction")?;
 
-    println!("Whitelisting the chains' addresseses...");
+    logger::info("Whitelisting the chains' addresseses...");
     call_script(
         shell,
         args.forge_args.clone(),
@@ -130,7 +131,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     )
     .await?;
 
-    println!("Migrating the chain to the Gateway...");
+    logger::info("Migrating the chain to the Gateway...");
 
     let l2_chain_admin = call_script(
         shell,
@@ -144,10 +145,10 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     )
     .await?
     .l2_chain_admin_address;
-    println!(
+    logger::info(format!(
         "L2 chain admin deployed! Its address: {:#?}",
         l2_chain_admin
-    );
+    ));
 
     let hash = call_script(
         shell,
@@ -176,9 +177,12 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     let gateway_provider = Provider::<Http>::try_from(l2_rpc_url.clone())?;
 
     if hash == H256::zero() {
-        println!("Chain already migrated!");
+        logger::info("Chain already migrated!");
     } else {
-        println!("Migration started! Migration hash: {}", hex::encode(hash));
+        logger::info(format!(
+            "Migration started! Migration hash: {}",
+            hex::encode(hash)
+        ));
         await_for_tx_to_complete(&gateway_provider, hash).await?;
     }
 
@@ -195,10 +199,10 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
 
     let new_diamond_proxy_address = method.call().await?;
 
-    println!(
+    logger::info(format!(
         "New diamond proxy address: {}",
         hex::encode(new_diamond_proxy_address.as_bytes())
-    );
+    ));
 
     let chain_contracts_config = chain_config.get_contracts_config().unwrap();
 
@@ -213,7 +217,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         gateway_gateway_config.validium_da_validator
     };
 
-    println!("Setting DA validator pair...");
+    logger::info("Setting DA validator pair...");
     let hash = call_script(
         shell,
         args.forge_args.clone(),
@@ -240,14 +244,14 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     )
     .await?
     .governance_l2_tx_hash;
-    println!(
+    logger::info(format!(
         "DA validator pair set! Hash: {}",
         hex::encode(hash.as_bytes())
-    );
+    ));
 
     let chain_secrets_config = chain_config.get_wallets_config().unwrap();
 
-    println!("Enabling validators...");
+    logger::info("Enabling validators...");
     let hash = call_script(
         shell,
         args.forge_args.clone(),
@@ -270,10 +274,10 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     )
     .await?
     .governance_l2_tx_hash;
-    println!(
+    logger::info(format!(
         "blob_operator enabled! Hash: {}",
         hex::encode(hash.as_bytes())
-    );
+    ));
 
     let hash = call_script(
         shell,
@@ -293,10 +297,10 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     )
     .await?
     .governance_l2_tx_hash;
-    println!(
+    logger::info(format!(
         "blob_operator supplied with 10 ETH! Hash: {}",
         hex::encode(hash.as_bytes())
-    );
+    ));
 
     let hash = call_script(
         shell,
@@ -320,7 +324,10 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     )
     .await?
     .governance_l2_tx_hash;
-    println!("operator enabled! Hash: {}", hex::encode(hash.as_bytes()));
+    logger::info(format!(
+        "operator enabled! Hash: {}",
+        hex::encode(hash.as_bytes())
+    ));
 
     let hash = call_script(
         shell,
@@ -340,10 +347,10 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     )
     .await?
     .governance_l2_tx_hash;
-    println!(
+    logger::info(format!(
         "operator supplied with 10 ETH! Hash: {}",
         hex::encode(hash.as_bytes())
-    );
+    ));
 
     let gateway_url = l2_rpc_url;
     let mut chain_secrets_config = chain_config.get_secrets_config().await?.patched();
@@ -381,7 +388,7 @@ async fn await_for_tx_to_complete(
     gateway_provider: &Provider<Http>,
     hash: H256,
 ) -> anyhow::Result<()> {
-    println!("Waiting for transaction to complete...");
+    logger::info("Waiting for transaction to complete...");
     while gateway_provider
         .get_transaction_receipt(hash)
         .await?
@@ -397,7 +404,7 @@ async fn await_for_tx_to_complete(
         .unwrap();
 
     if receipt.status == Some(U64::from(1)) {
-        println!("Transaction completed successfully!");
+        logger::info("Transaction completed successfully!");
     } else {
         panic!("Transaction failed!");
     }

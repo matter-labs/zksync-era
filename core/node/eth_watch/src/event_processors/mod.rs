@@ -12,6 +12,7 @@ pub(crate) use self::{
 
 mod appended_chain_batch_root;
 mod decentralized_upgrades;
+mod gateway_migration;
 mod priority_ops;
 
 /// Errors issued by an [`EventProcessor`].
