@@ -54,7 +54,7 @@ jobs:
         if: matrix.compressor-mode == 'fflonk'
         run: |
           sudo sed -i 's/^genesis_root: .*/genesis_root: 0xf15e1f51b54d18843eb6ff18532921165b3393910b489a7b58933220363d9204/' genesis.yaml
-          sudo sed -i "s/^genesis_batch_commitment: .*/genesis_batch_commitment: 0x17689e705b5749ed0bbd53c845988d17c419697c2cb29eabab8785f1cb775b4a/" genesis.yaml
+          sudo sed -i "s/^genesis_batch_commitment: .*/genesis_batch_commitment: 0xabfaad1553b5325624826db5b57de11b6be33285b9e0324665cce50d7f179a63/" genesis.yaml
 
       - name: Init
         run: |
