@@ -4,7 +4,7 @@
 ## Introduction
 
 ZK Stack chains will be launched on L1 into an ecosystem of contracts with the main registry being the [bridgehub](../chain_management/bridgehub.md). The Bridgehub creates an
-ecosystem of chains, with shared standards, upgrades. Communication with these chains is enabled via [interop](./interop/overview.md), specifically the [InteropCenter](./interop/interop_center/overview.md) contract is used to start the transaction, while the InteropHandler and L1Nullifier is used to receive them. The bridging of assets is handled by the [AssetRouter](./asset_router_and_ntv/asset_router.md) and NativeTokenVault contracts. Additional security is provided by the [AssetTracker](./firewall/firewall.md) contracts.
+ecosystem of chains, with shared standards, upgrades. This allows chains to trust each other. Communication between these chains is enabled via [interop](./interop/overview.md). Specifically the [InteropCenter](./interop/interop_center/overview.md) contract is used to start the transaction, while the InteropHandler and L1Nullifier is used to receive them. The bridging of assets is handled by the [AssetRouter](./asset_router_and_ntv/asset_router.md) and NativeTokenVault contracts. Additional security is provided by the [AssetTracker](./asset_tracker/asset_tracker.md) contracts.
 
 ## InteropCenter, Interop Handler and L1 Nullifier
 
@@ -13,7 +13,7 @@ There are three different messaging scenarios, [L1->L2 priority](../settlement_c
 The processing of the interop txs happen via different mechanisms.
 - L1->L2 txs are priority txs, and are done automatically by the bootloader. These txs have their own tx_type. 
 - L2->L1 txs are not processed automatically, the user has to trigger them manually on L1 (due to high and fluctuating gas costs). For our AssetRouter use case the L1Nullifier is used, it stores that a txs has been executed or not. 
-- L2->L2 txs can be triggered automatically, and are processed by the [InteropHandler](./interop/interop_handler.md). 
+- Interop (L1->L2 and L2->L2) txs can be triggered automatically, and are processed by the [InteropHandler](./interop/interop_handler.md). 
 
 ## AssetRouter and NativeTokenVault
 

@@ -62,7 +62,7 @@
   - [Bridging](specs/contracts/bridging/overview.md)
     - [Interop](specs/contracts/bridging/interop/overview.md)
     - [Asset Router](specs/contracts/bridging/asset_router_and_ntv/asset_router.md)
-    - [Asset Tracker](specs/contracts/bridging/firewall/firewall.md)
+    - [Asset Tracker](specs/contracts/bridging/asset_tracker/asset_tracker.md)
   - [Settlment Contracts](specs/contracts/settlement_contracts/zkchain_basics.md)
     - [L1 L2 Communication](specs/l1_l2_communication/overview_deposits_withdrawals.md)
     - [Data Availability](specs/data_availability/overview.md)

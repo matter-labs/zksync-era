@@ -12,7 +12,7 @@
   - [Bridging](./contracts/bridging/overview.md)
     - [Interop](./contracts/bridging/interop/overview.md)
     - [Asset Router](./contracts/bridging/asset_router_and_ntv/asset_router.md)
-    - [Asset Tracker](./contracts/bridging/firewall/firewall.md)
+    - [Asset Tracker](./contracts/bridging/asset_tracker/asset_tracker.md)
   - [Settlment Contracts](./contracts/settlement_contracts/zkchain_basics.md)
     - [L1 L2 Communication](./contracts/settlement_contracts/priority_queue/processing_of_l1-l2_txs.md)
     - [Data Availability](./contracts/settlement_contracts/data_availability/overview.md)

@@ -29,7 +29,7 @@ The order of the files here only roughly represents the order of reading. A lot 
     - [Forms of finality](./bridging/interop/forms_of_finality.md)
   - [Asset Router](./bridging/asset_router_and_ntv/asset_router.md)
   - [Native token vault](./bridging/asset_router_and_ntv/native_token_vault.md)
-  - [Asset Tracker](./bridging/firewall/firewall.md)
+  - [Asset Tracker](./bridging/asset_tracker/asset_tracker.md)
 - [Settlment Contracts](./settlement_contracts/zkchain_basics.md)
   - L1->L2 transaction handling
     - [Processing of L1->L2 transactions](./settlement_contracts/priority_queue/processing_of_l1-l2_txs.md)
@@ -62,7 +62,7 @@ The order of the files here only roughly represents the order of reading. A lot 
 
 ![Reading order](./img/reading_order.png)
 
-## Repo structure
+## Contracts repo structure
 
 The repository contains the following sections:
 
