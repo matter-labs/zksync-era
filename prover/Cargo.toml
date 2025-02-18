@@ -68,7 +68,7 @@ tracing-subscriber = "0.3"
 tracing-test = "0.2.5"
 url = "2.5.2"
 vise = "0.2.0"
-jsonrpsee = "0.23"
+jsonrpsee = "0.24"
 
 circuit_definitions = "=0.150.20"
 circuit_sequencer_api = "=0.150.20"

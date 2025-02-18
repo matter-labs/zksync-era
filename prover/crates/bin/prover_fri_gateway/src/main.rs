@@ -13,7 +13,6 @@ use zksync_vlog::prometheus::PrometheusExporterConfig;
 use crate::rpc_server::RpcServer;
 
 mod metrics;
-mod middleware;
 mod rpc_server;
 
 #[tokio::main]

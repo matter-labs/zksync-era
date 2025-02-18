@@ -1,21 +1,12 @@
 mod processor;
 
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 
-use jsonrpsee::{
-    core::{async_trait, RpcResult, SubscriptionResult},
-    proc_macros::rpc,
-    server::Server,
-    PendingSubscriptionSink, RpcModule, SubscriptionMessage, TrySendError,
-};
+use jsonrpsee::server::Server;
 use tokio::sync::watch;
-use zksync_config::configs::{FriProverGatewayConfig, GatewayConfig};
 use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover};
-use zksync_prover_interface::{
-    api::ProofGenerationData, outputs::L1BatchProofForL1, rpc::GatewayRpcServer,
-};
-use zksync_types::L2ChainId;
+use zksync_prover_interface::rpc::GatewayRpcServer;
 
 use crate::rpc_server::processor::RpcDataProcessor;
 
@@ -34,10 +25,11 @@ impl RpcServer {
         Self { processor, ws_port }
     }
 
-    pub async fn run(mut self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+    pub async fn run(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         let address = format!("127.0.0.1:{}", self.ws_port);
         let server = Server::builder().build(address).await?;
         let handle = server.start(self.processor.into_rpc());
+        let close_handle = handle.clone();
 
         tokio::spawn(async move {
             if stop_receiver.changed().await.is_err() {
@@ -47,7 +39,7 @@ impl RpcServer {
                 );
             }
 
-            handle.stop().ok()
+            close_handle.stop().ok()
         });
 
         handle.stopped().await;

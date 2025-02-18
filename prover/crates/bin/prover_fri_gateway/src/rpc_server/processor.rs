@@ -3,7 +3,7 @@ use std::{sync::Arc, time::Duration};
 use axum::async_trait;
 use jsonrpsee::{
     core::{RpcResult, SubscriptionResult},
-    proc_macros::rpc,
+    types::ErrorObject,
     PendingSubscriptionSink, SubscriptionMessage, TrySendError,
 };
 use zksync_object_store::ObjectStore;
@@ -13,8 +13,6 @@ use zksync_prover_interface::{
     rpc::GatewayRpcServer,
 };
 use zksync_types::{prover_dal::ProofCompressionJobStatus, L1BatchNumber, L2ChainId};
-
-use crate::api::ProcessorError;
 
 pub struct RpcDataProcessor {
     pool: ConnectionPool<Prover>,
@@ -42,7 +40,7 @@ impl RpcDataProcessor {
                 }
             };
 
-            let msg = SubscriptionMessage::from_json(&request)?;
+            let msg = SubscriptionMessage::from_json(&request).unwrap();
             match sink.try_send(msg) {
                 Ok(_) => {
                     tracing::info!("Proof for {:?} was sent to client", l1_batch_number);
@@ -103,10 +101,7 @@ impl RpcDataProcessor {
             .await;
     }
 
-    pub async fn save_proof_gen_data(
-        &self,
-        data: ProofGenerationData,
-    ) -> Result<(), ProcessorError> {
+    pub async fn save_proof_gen_data(&self, data: ProofGenerationData) -> anyhow::Result<()> {
         tracing::info!(
             "Received proof generation data for batch: {:?}",
             data.l1_batch_number
@@ -142,7 +137,9 @@ impl RpcDataProcessor {
 #[async_trait]
 impl GatewayRpcServer for RpcDataProcessor {
     async fn submit_proof_generation_data(&self, data: ProofGenerationData) -> RpcResult<()> {
-        self.save_proof_gen_data(data).await?;
+        self.save_proof_gen_data(data)
+            .await
+            .map_err(|_| ErrorObject::owned(0, "", None::<()>))?;
         Ok(())
     }
 
