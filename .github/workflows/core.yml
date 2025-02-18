@@ -15,7 +15,6 @@ jobs:
 
   unit-tests:
     runs-on: matterlabs-ci-runner-highmem-long
-#    runs-on: [ci-runner-compiler, Linux]
     container:
       image: ghcr.io/matter-labs/zk-environment:latest2.0-lightweight
       env:
@@ -24,17 +23,17 @@ jobs:
         SCCACHE_GCS_SERVICE_ACCOUNT: gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com
         SCCACHE_GCS_RW_MODE: READ_WRITE
         RUN_CONTRACT_VERIFICATION_TEST: true
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_PASSWORD: 'notsecurepassword'
-          POSTGRES_INITDB_ARGS: "-c max_connections=1500"
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
+#    services:
+#      postgres:
+#        image: postgres:16
+#        env:
+#          POSTGRES_PASSWORD: 'notsecurepassword'
+#          POSTGRES_INITDB_ARGS: "-c max_connections=1500"
+#        options: >-
+#          --health-cmd pg_isready
+#          --health-interval 10s
+#          --health-timeout 5s
+#          --health-retries 5
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -80,20 +79,23 @@ jobs:
 #          ci_localnet_up
 #
 
-#      - name: Install zkstack
-#        env:
-#          ZKSTACK_DOWNLOAD_URL: 'https://github.com/matter-labs/zksync-era/releases/download/ad0df3a'
-#          ZKSTACK_FILENAME: 'zkstack-test-x86_64-unknown-linux-gnu.tar.gz'
-#        run: |
-#          curl -L ${ZKSTACK_DOWNLOAD_URL}/${ZKSTACK_FILENAME} --output ${ZKSTACK_FILENAME}
-#          tar -xzf ${ZKSTACK_FILENAME}
-#          mv zkstack ${PWD}/bin
-#          echo ${PWD}/bin >> ${GITHUB_PATH}
-
       - name: Install zkstack
+        env:
+          ZKSTACK_DOWNLOAD_URL: 'https://github.com/matter-labs/zksync-era/releases/download/ad0df3a'
+          ZKSTACK_FILENAME: 'zkstack-test-x86_64-unknown-linux-gnu.tar.gz'
         run: |
-          ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup
-          zkstackup -g --local
+          curl -L ${ZKSTACK_DOWNLOAD_URL}/${ZKSTACK_FILENAME} --output ${ZKSTACK_FILENAME}
+          tar -xzf ${ZKSTACK_FILENAME}
+          mv zkstack ${PWD}/bin
+          echo ${PWD}/bin >> ${GITHUB_PATH}
+
+#      - name: Install zkstack
+#        run: |
+#          ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup
+#          zkstackup -g --local
+
+      - name: Start services
+        run: docker compose up -d --wait reth postgres
 
       - name: Build contracts
         run: zkstack dev contracts
@@ -103,8 +105,8 @@ jobs:
 
       - name: Rust unit tests
         working-directory: core
-        env:
-          TEST_DATABASE_URL: 'postgres://postgres:notsecurepassword@postgres:5432/zksync_local'
+#        env:
+#          TEST_DATABASE_URL: 'postgres://postgres:notsecurepassword@postgres:5432/zksync_local'
         run: |
           # cargo sqlx database create --database-url ${TEST_DATABASE_URL}
           # cargo sqlx migrate run --database-url ${TEST_DATABASE_URL}

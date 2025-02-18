@@ -40,6 +40,7 @@ jobs:
             prover -> target
             zkstack_cli -> target
           shared-key: "shared"
+          cache-all-crates: true
           save-if: true
 
       - name: Generate cache

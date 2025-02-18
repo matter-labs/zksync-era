@@ -1,0 +1,33 @@
+name: 'Install zkstack'
+description: 'Builds or downloads zkstack.'
+inputs:
+  version:
+    description: 'zkstack version to download.'
+    required: false
+    default: 'latest'
+
+runs:
+  using: "composite"
+  steps:
+
+    - name: Check zkstack changes
+      id: changed-files
+      uses: tj-actions/changed-files@v45
+      with:
+        files: |
+          zkstack_cli/**
+
+    # TODO: change to use latest release instead of tmp
+    - name: Download zkstack
+      if: steps.changed-files.outputs.any_changed == 'false'
+      env:
+        ZKSTACK_DOWNLOAD_URL: 'https://github.com/matter-labs/zksync-era/releases/download/ad0df3a'
+        ZKSTACK_FILENAME: 'zkstack-test-x86_64-unknown-linux-gnu.tar.gz'
+      working-directory: bin
+      run: curl -L ${ZKSTACK_DOWNLOAD_URL}/${ZKSTACK_FILENAME} --output ${ZKSTACK_FILENAME} && tar -xzf ${ZKSTACK_FILENAME}
+
+    - name: Build zkstack
+      if: steps.changed-files.outputs.any_changed == 'true'
+      run: |
+        ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup
+        zkstackup -g --local
