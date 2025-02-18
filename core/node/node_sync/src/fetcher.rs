@@ -177,7 +177,7 @@ impl IoCursorExt for IoCursor {
                         virtual_blocks: block.virtual_blocks,
                     },
                     pubdata_params: block.pubdata_params,
-                    first_tx_to_be_executed: None,
+                    batch_first_tx: None,
                 },
                 number: block.l1_batch_number,
                 first_l2_block_number: block.number,

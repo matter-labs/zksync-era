@@ -59,6 +59,22 @@ pub struct L2BlockParams {
     pub virtual_blocks: u32,
 }
 
+#[derive(Debug, Clone)]
+pub struct BatchFirstTransaction {
+    pub transaction: Transaction,
+    /// Is true if the first transaction of the batch is an upgrade tx.
+    pub is_upgrade_tx: bool,
+}
+
+impl BatchFirstTransaction {
+    pub fn new(transaction: Transaction, is_upgrade_tx: bool) -> Self {
+        Self {
+            transaction,
+            is_upgrade_tx,
+        }
+    }
+}
+
 /// Parameters for a new L1 batch returned by [`StateKeeperIO::wait_for_new_batch_params()`].
 #[derive(Debug, Clone)]
 pub struct L1BatchParams {
@@ -74,8 +90,8 @@ pub struct L1BatchParams {
     pub first_l2_block: L2BlockParams,
     /// Params related to how the pubdata should be processed by the bootloader in the batch.
     pub pubdata_params: PubdataParams,
-    /// First transaction to be executed in the batch, this value is empty in case of restore state
-    pub first_tx_to_be_executed: Option<Transaction>,
+    /// First transaction to be executed, this value is empty in case of restore state
+    pub batch_first_tx: Option<BatchFirstTransaction>,
 }
 
 impl L1BatchParams {
@@ -85,7 +101,12 @@ impl L1BatchParams {
         contracts: BaseSystemContracts,
         cursor: &IoCursor,
         previous_batch_hash: H256,
-    ) -> (SystemEnv, L1BatchEnv, PubdataParams, Option<Transaction>) {
+    ) -> (
+        SystemEnv,
+        L1BatchEnv,
+        PubdataParams,
+        Option<BatchFirstTransaction>,
+    ) {
         let (system_env, l1_batch_env) = l1_batch_params(
             cursor.l1_batch,
             self.operator_address,
@@ -105,13 +126,13 @@ impl L1BatchParams {
             system_env,
             l1_batch_env,
             self.pubdata_params,
-            self.first_tx_to_be_executed,
+            self.batch_first_tx,
         )
     }
 }
 
-// Reimplement PartialEq to ignore first_tx_to_be_executed
-// TODO: store first_tx_to_be_executed in db
+// Reimplement PartialEq to ignore batch_first_tx
+// TODO: store batch_first_tx in db
 impl PartialEq for L1BatchParams {
     fn eq(&self, other: &Self) -> bool {
         self.protocol_version == other.protocol_version

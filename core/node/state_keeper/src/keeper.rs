@@ -25,7 +25,10 @@ use zksync_types::{
 use crate::{
     executor::TxExecutionResult,
     health::StateKeeperHealthDetails,
-    io::{IoCursor, L1BatchParams, L2BlockParams, OutputHandler, PendingBatchData, StateKeeperIO},
+    io::{
+        BatchFirstTransaction, IoCursor, L1BatchParams, L2BlockParams, OutputHandler,
+        PendingBatchData, StateKeeperIO,
+    },
     metrics::{AGGREGATION_METRICS, KEEPER_METRICS, L1_BATCH_METRICS},
     seal_criteria::{ConditionalSealer, SealData, SealResolution, UnexecutableReason},
     updates::UpdatesManager,
@@ -117,7 +120,7 @@ impl ZkSyncStateKeeper {
             cursor.next_l2_block
         );
 
-        let mut first_transaction_to_execute: Option<Transaction>;
+        let mut batch_first_tx: Option<BatchFirstTransaction>;
         // Re-execute pending batch if it exists. Otherwise, initialize a new batch.
         let PendingBatchData {
             mut l1_batch_env,
@@ -136,16 +139,16 @@ impl ZkSyncStateKeeper {
                         .number
                 );
                 // In case of pending state, the first transaction has already been executed
-                first_transaction_to_execute = None;
+                batch_first_tx = None;
                 params
             }
             None => {
                 tracing::info!("There is no open pending batch, starting a new empty batch");
-                let (system_env, l1_batch_env, pubdata_params, transaction) = self
+                let (system_env, l1_batch_env, pubdata_params, tx) = self
                     .wait_for_new_batch_env(&cursor, &mut stop_receiver)
                     .await
                     .map_err(|e| e.context("wait_for_new_batch_params()"))?;
-                first_transaction_to_execute = transaction;
+                batch_first_tx = tx;
                 PendingBatchData {
                     l1_batch_env,
                     pending_l2_blocks: Vec::new(),
@@ -181,7 +184,7 @@ impl ZkSyncStateKeeper {
             self.process_l1_batch(
                 &mut *batch_executor,
                 &mut updates_manager,
-                first_transaction_to_execute,
+                batch_first_tx,
                 &stop_receiver,
             )
             .await?;
@@ -214,12 +217,7 @@ impl ZkSyncStateKeeper {
 
             // Start the new batch.
             next_cursor.l1_batch += 1;
-            (
-                system_env,
-                l1_batch_env,
-                pubdata_params,
-                first_transaction_to_execute,
-            ) = self
+            (system_env, l1_batch_env, pubdata_params, batch_first_tx) = self
                 .wait_for_new_batch_env(&next_cursor, &mut stop_receiver)
                 .await?;
             updates_manager = UpdatesManager::new(&l1_batch_env, &system_env, pubdata_params);
@@ -327,7 +325,15 @@ impl ZkSyncStateKeeper {
         &mut self,
         cursor: &IoCursor,
         stop_receiver: &mut watch::Receiver<bool>,
-    ) -> Result<(SystemEnv, L1BatchEnv, PubdataParams, Option<Transaction>), Error> {
+    ) -> Result<
+        (
+            SystemEnv,
+            L1BatchEnv,
+            PubdataParams,
+            Option<BatchFirstTransaction>,
+        ),
+        Error,
+    > {
         // `io.wait_for_new_batch_params(..)` is not cancel-safe; once we get new batch params, we must hold onto them
         // until we get the rest of parameters from I/O or receive a stop signal.
         let params = self
@@ -553,11 +559,11 @@ impl ZkSyncStateKeeper {
         &mut self,
         batch_executor: &mut dyn BatchExecutor<OwnedStorage>,
         updates_manager: &mut UpdatesManager,
-        first_transaction_to_execute: Option<Transaction>,
+        batch_first_tx: Option<BatchFirstTransaction>,
         stop_receiver: &watch::Receiver<bool>,
     ) -> Result<(), Error> {
-        if let Some(transaction) = first_transaction_to_execute {
-            self.process_upgrade_tx(batch_executor, updates_manager, transaction)
+        if let Some(tx) = batch_first_tx {
+            self.process_first_transaction(batch_executor, updates_manager, tx)
                 .await?;
         }
 
@@ -694,17 +700,19 @@ impl ZkSyncStateKeeper {
         Err(Error::Canceled)
     }
 
-    async fn process_upgrade_tx(
+    async fn process_first_transaction(
         &mut self,
         batch_executor: &mut dyn BatchExecutor<OwnedStorage>,
         updates_manager: &mut UpdatesManager,
-        tx: Transaction,
+        batch_first_tx: BatchFirstTransaction,
     ) -> anyhow::Result<()> {
-        // Sanity check: protocol upgrade tx must be the first one in the batch.
+        // Sanity check: tx must be the first one in the batch.
         assert_eq!(updates_manager.pending_executed_transactions_len(), 0);
+        let first_tx = batch_first_tx.transaction;
+        let first_tx_hash = first_tx.hash();
 
         let (seal_resolution, exec_result) = self
-            .process_one_tx(batch_executor, updates_manager, tx.clone())
+            .process_one_tx(batch_executor, updates_manager, first_tx.clone())
             .await?;
 
         match &seal_resolution {
@@ -718,15 +726,13 @@ impl ZkSyncStateKeeper {
                 else {
                     anyhow::bail!("Tx inclusion seal resolution must be a result of a successful tx execution");
                 };
-
                 // Despite success of upgrade transaction is not enforced by protocol,
                 // we panic here because failed upgrade tx is not intended in any case.
-                if tx_result.result.is_failed() {
-                    anyhow::bail!("Failed upgrade tx {:?}", tx.hash());
+                if batch_first_tx.is_upgrade_tx && tx_result.result.is_failed() {
+                    anyhow::bail!("Failed upgrade tx {:?}", first_tx_hash);
                 }
-
                 updates_manager.extend_from_executed_transaction(
-                    tx,
+                    first_tx,
                     *tx_result,
                     *tx_execution_metrics,
                     call_tracer_result,
@@ -737,10 +743,19 @@ impl ZkSyncStateKeeper {
                 anyhow::bail!("first tx in batch cannot result into `ExcludeAndSeal`");
             }
             SealResolution::Unexecutable(reason) => {
-                anyhow::bail!(
-                    "Upgrade transaction {:?} is unexecutable: {reason}",
-                    tx.hash()
-                );
+                if batch_first_tx.is_upgrade_tx {
+                    anyhow::bail!(
+                        "Upgrade transaction {:?} is unexecutable: {reason}",
+                        first_tx.hash()
+                    );
+                } else {
+                    batch_executor.rollback_last_tx().await.with_context(|| {
+                        format!(
+                            "failed rolling back transaction {first_tx_hash:?} in batch executor"
+                        )
+                    })?;
+                    self.io.reject(&first_tx, reason.clone()).await
+                }
             }
         }
     }

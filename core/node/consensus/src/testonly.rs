@@ -28,7 +28,7 @@ use zksync_node_sync::{
 use zksync_node_test_utils::{create_l1_batch_metadata, l1_batch_metadata_to_commitment_artifacts};
 use zksync_state_keeper::{
     executor::MainBatchExecutorFactory,
-    io::{IoCursor, L1BatchParams, L2BlockParams},
+    io::{BatchFirstTransaction, IoCursor, L1BatchParams, L2BlockParams},
     seal_criteria::NoopSealer,
     testonly::{fee, fund, test_batch_executor::MockReadStorageFactory, MockBatchExecutor},
     AsyncRocksdbCache, OutputHandler, StateKeeperPersistence, TreeWritesPersistence,
@@ -264,7 +264,7 @@ impl StateKeeper {
         ))
     }
 
-    fn open_block(&mut self, first_tx_to_be_executed: Option<Transaction>) -> SyncAction {
+    fn open_block(&mut self, batch_first_tx: Option<BatchFirstTransaction>) -> SyncAction {
         if self.batch_sealed {
             self.last_batch += 1;
             self.last_block += 1;
@@ -284,7 +284,7 @@ impl StateKeeper {
                         virtual_blocks: 1,
                     },
                     pubdata_params: Default::default(),
-                    first_tx_to_be_executed,
+                    batch_first_tx,
                 },
                 number: self.last_batch,
                 first_l2_block_number: self.last_block,
@@ -305,7 +305,15 @@ impl StateKeeper {
     pub async fn push_block(&mut self, txs: &[Transaction]) {
         let first_tx = txs.first().cloned();
         let txs_without_first = if !txs.is_empty() { &txs[1..] } else { &[] };
-        let mut actions = vec![self.open_block(first_tx)];
+        let mut actions;
+        if let Some(first_tx) = first_tx {
+            actions = vec![self.open_block(Some(BatchFirstTransaction {
+                transaction: first_tx,
+                is_upgrade_tx: false,
+            }))];
+        } else {
+            actions = vec![self.open_block(None)];
+        }
         actions.extend(
             txs_without_first
                 .iter()

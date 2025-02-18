@@ -26,7 +26,7 @@ use crate::{
     io::{
         common::{load_pending_batch, poll_iters, IoCursor},
         seal_logic::l2_block_seal_subtasks::L2BlockSealProcess,
-        L1BatchParams, L2BlockParams, PendingBatchData, StateKeeperIO,
+        BatchFirstTransaction, L1BatchParams, L2BlockParams, PendingBatchData, StateKeeperIO,
     },
     mempool_actor::l2_tx_filter,
     metrics::{L2BlockSealReason, AGGREGATION_METRICS, KEEPER_METRICS},
@@ -177,7 +177,7 @@ impl StateKeeperIO for MempoolIO {
                 },
                 pubdata_params: self.pubdata_params(protocol_version)?,
                 // This value is irrelevant for a non-empty batch
-                first_tx_to_be_executed: None,
+                batch_first_tx: None,
             }));
         }
 
@@ -233,18 +233,24 @@ impl StateKeeperIO for MempoolIO {
             .await
             .context("failed creating L2 transaction filter")?;
 
-            let first_transaction_to_be_executed: Transaction;
+            let batch_first_tx: BatchFirstTransaction;
 
             // Check first if there is an upgrade tx
-            if let Some(transaction) = batch_upgrade_tx {
-                first_transaction_to_be_executed = transaction.into()
+            if let Some(protocol_upgrade_tx) = batch_upgrade_tx {
+                batch_first_tx = BatchFirstTransaction {
+                    transaction: protocol_upgrade_tx.into(),
+                    is_upgrade_tx: true,
+                };
                 // We do not populate mempool with upgrade tx so the mempool should be checked separately.
             } else if let Some(tx) = self
                 .wait_for_next_tx(max_wait, timestamp)
                 .await
                 .context("error waiting for next transaction")?
             {
-                first_transaction_to_be_executed = tx;
+                batch_first_tx = BatchFirstTransaction {
+                    transaction: tx,
+                    is_upgrade_tx: false,
+                };
             } else {
                 tokio::time::sleep(self.delay_interval).await;
                 continue;
@@ -274,7 +280,7 @@ impl StateKeeperIO for MempoolIO {
                     virtual_blocks: 1,
                 },
                 pubdata_params: self.pubdata_params(protocol_version)?,
-                first_tx_to_be_executed: Some(first_transaction_to_be_executed),
+                batch_first_tx: Some(batch_first_tx),
             }));
         }
         Ok(None)

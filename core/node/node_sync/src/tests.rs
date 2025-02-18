@@ -12,7 +12,7 @@ use zksync_node_test_utils::{
     create_l1_batch_metadata, create_l2_transaction, prepare_recovery_snapshot,
 };
 use zksync_state_keeper::{
-    io::{L1BatchParams, L2BlockParams},
+    io::{BatchFirstTransaction, L1BatchParams, L2BlockParams},
     seal_criteria::NoopSealer,
     testonly::test_batch_executor::{MockReadStorageFactory, TestBatchExecutorBuilder},
     OutputHandler, StateKeeperPersistence, TreeWritesPersistence, ZkSyncStateKeeper,
@@ -37,7 +37,7 @@ fn open_l1_batch(
     number: u32,
     timestamp: u64,
     first_l2_block_number: u32,
-    first_tx_to_be_executed: Option<Transaction>,
+    batch_first_tx: Option<BatchFirstTransaction>,
 ) -> SyncAction {
     SyncAction::OpenBatch {
         params: L1BatchParams {
@@ -50,7 +50,7 @@ fn open_l1_batch(
                 virtual_blocks: 1,
             },
             pubdata_params: Default::default(),
-            first_tx_to_be_executed,
+            batch_first_tx,
         },
         number: L1BatchNumber(number),
         first_l2_block_number: L2BlockNumber(first_l2_block_number),
@@ -226,7 +226,10 @@ async fn external_io_basics(snapshot_recovery: bool) {
         snapshot.l1_batch_number.0 + 1,
         snapshot.l2_block_timestamp + 1,
         snapshot.l2_block_number.0 + 1,
-        Some(Transaction::from(tx)),
+        Some(BatchFirstTransaction {
+            transaction: Transaction::from(tx),
+            is_upgrade_tx: false,
+        }),
     );
 
     let actions = vec![open_l1_batch, SyncAction::SealL2Block];
@@ -295,7 +298,10 @@ async fn external_io_works_without_local_protocol_version(snapshot_recovery: boo
         snapshot.l1_batch_number.0 + 1,
         snapshot.l2_block_timestamp + 1,
         snapshot.l2_block_number.0 + 1,
-        Some(Transaction::from(tx)),
+        Some(BatchFirstTransaction {
+            transaction: Transaction::from(tx),
+            is_upgrade_tx: false,
+        }),
     );
     if let SyncAction::OpenBatch { params, .. } = &mut open_l1_batch {
         params.protocol_version = ProtocolVersionId::next();
@@ -566,7 +572,10 @@ pub(super) async fn run_state_keeper_with_multiple_l1_batches(
         snapshot.l1_batch_number.0 + 1,
         snapshot.l2_block_timestamp + 1,
         snapshot.l2_block_number.0 + 1,
-        Some(Transaction::from(first_tx)),
+        Some(BatchFirstTransaction {
+            transaction: Transaction::from(first_tx),
+            is_upgrade_tx: false,
+        }),
     );
 
     let first_l1_batch_actions = vec![l1_batch, SyncAction::SealL2Block];
@@ -586,7 +595,10 @@ pub(super) async fn run_state_keeper_with_multiple_l1_batches(
         snapshot.l1_batch_number.0 + 2,
         snapshot.l2_block_timestamp + 3,
         snapshot.l2_block_number.0 + 3,
-        Some(Transaction::from(second_tx)),
+        Some(BatchFirstTransaction {
+            transaction: Transaction::from(second_tx),
+            is_upgrade_tx: false,
+        }),
     );
 
     let second_l1_batch_actions = vec![l1_batch, SyncAction::SealL2Block];
