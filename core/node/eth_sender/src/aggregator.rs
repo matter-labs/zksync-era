@@ -18,7 +18,7 @@ use zksync_types::{
     pubdata_da::PubdataSendingMode,
     settlement::SettlementMode,
     web3::CallRequest,
-    Address, L1BatchNumber, ProtocolVersionId, U256,
+    Address, L1BatchNumber, L2ChainId, ProtocolVersionId, U256,
 };
 
 use super::{
@@ -49,6 +49,7 @@ pub struct Aggregator {
     commitment_mode: L1BatchCommitmentMode,
     priority_merkle_tree: Option<MiniMerkleTree<L1Tx>>,
     priority_tree_start_index: Option<usize>,
+    chain_id: L2ChainId,
 }
 
 /// Denotes whether there are any restrictions on sending either
@@ -114,6 +115,7 @@ impl Aggregator {
         pool: ConnectionPool<Core>,
         sl_client: Box<dyn BoundEthInterface>,
         settlement_mode: SettlementMode,
+        chain_id: L2ChainId,
     ) -> anyhow::Result<Self> {
         let pubdata_da = config.pubdata_sending_mode;
 
@@ -204,6 +206,7 @@ impl Aggregator {
             priority_tree_start_index: None,
             pool,
             sl_client,
+            chain_id,
         })
     }
 
@@ -537,6 +540,7 @@ impl Aggregator {
         l1_verifier_config: L1VerifierConfig,
         blob_store: &dyn ObjectStore,
         is_4844_mode: bool,
+        chain_id: L2ChainId,
     ) -> Option<ProveBatches> {
         let previous_proven_batch_number = storage
             .blocks_dal()
@@ -594,8 +598,13 @@ impl Aggregator {
             })
             .collect();
 
-        let proof =
-            load_wrapped_fri_proofs_for_range(batch_to_prove, blob_store, &allowed_versions).await;
+        let proof = load_wrapped_fri_proofs_for_range(
+            batch_to_prove,
+            blob_store,
+            &allowed_versions,
+            chain_id,
+        )
+        .await;
         let Some(proof) = proof else {
             // The proof for the next L1 batch is not generated yet
             return None;
@@ -674,6 +683,7 @@ impl Aggregator {
                     l1_verifier_config,
                     &*self.blob_store,
                     self.operate_4844_mode,
+                    self.chain_id,
                 )
                 .await
             }
@@ -696,6 +706,7 @@ impl Aggregator {
                     l1_verifier_config,
                     &*self.blob_store,
                     self.operate_4844_mode,
+                    self.chain_id,
                 )
                 .await
                 {
@@ -755,10 +766,11 @@ pub async fn load_wrapped_fri_proofs_for_range(
     l1_batch_number: L1BatchNumber,
     blob_store: &dyn ObjectStore,
     allowed_versions: &[ProtocolSemanticVersion],
+    chain_id: L2ChainId,
 ) -> Option<L1BatchProofForL1> {
     for version in allowed_versions {
         match blob_store
-            .get::<L1BatchProofForL1>((l1_batch_number, *version))
+            .get::<L1BatchProofForL1>((chain_id, l1_batch_number, *version))
             .await
         {
             Ok(proof) => return Some(proof),

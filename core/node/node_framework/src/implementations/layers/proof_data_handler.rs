@@ -1,7 +1,6 @@
 use zksync_config::configs::ProofDataHandlerConfig;
 use zksync_proof_data_handler::{
-    ProofDataProcessor, ProofGenerationDataProcessor, ProofGenerationDataSubmitter,
-    RequestProcessor, RpcClient, TeeProofDataHandler,
+    ProofDataProcessor, RequestProcessor, RpcClient, TeeProofDataHandler,
 };
 use zksync_types::{commitment::L1BatchCommitmentMode, L2ChainId};
 
@@ -73,7 +72,7 @@ impl WiringLayer for ProofDataHandlerLayer {
         );
 
         let api = if self.proof_data_handler_config.tee_config.tee_support {
-            Some(TeeProofDataHandler::new_with_tee_support(
+            Some(TeeProofDataHandler::new(
                 processor,
                 self.proof_data_handler_config.http_port,
             ))
@@ -85,7 +84,7 @@ impl WiringLayer for ProofDataHandlerLayer {
             ProofDataProcessor::new(main_pool.clone(), blob_store, self.commitment_mode);
         let rpc_client = RpcClient::new(
             processor,
-            self.proof_data_handler_config.api_url,
+            self.proof_data_handler_config.clone().api_url,
             self.l2_chain_id,
             self.proof_data_handler_config.api_poll_duration(),
             self.proof_data_handler_config.retry_connection_interval(),
