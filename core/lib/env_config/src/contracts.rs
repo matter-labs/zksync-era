@@ -18,6 +18,9 @@ impl FromEnv for EcosystemContracts {
             )?
             .parse()
             .ok(),
+            server_notifier_addr: std::env::var("CONTRACTS_SERVER_NOTIFIER_ADDR")?
+                .parse()
+                .ok(),
         })
     }
 }
@@ -87,6 +90,7 @@ mod tests {
                 l1_wrapped_base_token_store: Some(addr(
                     "0x36ea7f92f4c5f433efe15284e99c040110cf6298",
                 )),
+                server_notifier_addr: Some(addr("0x36ea7f92f4c5f433efe15284e99c040110cf6298")),
             }),
             base_token_addr: Some(SHARED_BRIDGE_ETHER_TOKEN_ADDRESS),
             l1_base_token_asset_id: Some(

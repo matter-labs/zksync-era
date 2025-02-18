@@ -1,7 +1,8 @@
+use std::fmt::format;
+
 use anyhow::Context;
 use ethers::{abi::parse_abi, contract::BaseContract, types::Bytes, utils::hex};
 use lazy_static::lazy_static;
-use std::fmt::format;
 use xshell::Shell;
 use zkstack_cli_common::{
     config::global_config,
