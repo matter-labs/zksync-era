@@ -8,6 +8,7 @@ message EcosystemContracts {
   optional string transparent_proxy_admin_addr = 3; // optional; h160
   optional string l1_bytecodes_supplier_addr = 4; // optional; h160
   optional string l1_wrapped_base_token_store = 5; // optional; h160 
+  optional string server_notifier_addr = 6; // optional; h160
 }
 
 message L1 {

@@ -13,6 +13,7 @@ pub struct EcosystemContracts {
     // while on the server side for consistency with the conventions, where the prefix denotes
     // the location of the contracts we call it `l1_wrapped_base_token_store`
     pub l1_wrapped_base_token_store: Option<Address>,
+    pub server_notifier_addr: Option<Address>,
 }
 
 impl EcosystemContracts {
@@ -23,6 +24,7 @@ impl EcosystemContracts {
             transparent_proxy_admin_addr: Address::repeat_byte(0x15),
             l1_bytecodes_supplier_addr: Some(Address::repeat_byte(0x16)),
             l1_wrapped_base_token_store: Some(Address::repeat_byte(0x17)),
+            server_notifier_addr: Some(Address::repeat_byte(0x18)),
         }
     }
 }

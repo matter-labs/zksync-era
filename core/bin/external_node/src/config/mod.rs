@@ -129,6 +129,7 @@ pub(crate) struct RemoteENConfig {
     pub l2_testnet_paymaster_addr: Option<Address>,
     pub l2_timestamp_asserter_addr: Option<Address>,
     pub l1_wrapped_base_token_store: Option<Address>,
+    pub l1_server_notifier_addr: Option<Address>,
     pub base_token_addr: Address,
     pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
     pub dummy_verifier: bool,
@@ -199,6 +200,9 @@ impl RemoteENConfig {
             l1_wrapped_base_token_store: ecosystem_contracts
                 .as_ref()
                 .and_then(|a| a.l1_wrapped_base_token_store),
+            l1_server_notifier_addr: ecosystem_contracts
+                .as_ref()
+                .and_then(|a| a.server_notifier_addr),
             l1_diamond_proxy_addr,
             l2_testnet_paymaster_addr,
             l1_erc20_bridge_proxy_addr: bridges.l1_erc20_default_bridge,
@@ -1495,6 +1499,7 @@ impl From<&ExternalNodeConfig> for InternalApiConfig {
             dummy_verifier: config.remote.dummy_verifier,
             l1_batch_commit_data_generator_mode: config.remote.l1_batch_commit_data_generator_mode,
             timestamp_asserter_address: config.remote.l2_timestamp_asserter_addr,
+            l1_server_notifier_addr: config.remote.l1_server_notifier_addr,
         }
     }
 }
