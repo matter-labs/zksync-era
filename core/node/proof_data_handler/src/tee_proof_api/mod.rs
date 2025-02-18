@@ -12,15 +12,13 @@ use zksync_config::configs::ProofDataHandlerConfig;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStore;
 use zksync_prover_interface::api::{
-    RegisterTeeAttestationRequest, RegisterTeeAttestationResponse, SubmitProofRequest,
-    SubmitProofResponse, SubmitTeeProofRequest, TeeProofGenerationDataRequest,
-    TeeProofGenerationDataResponse,
+    RegisterTeeAttestationRequest, RegisterTeeAttestationResponse, SubmitProofResponse,
+    SubmitTeeProofRequest, TeeProofGenerationDataRequest, TeeProofGenerationDataResponse,
 };
 use zksync_types::{L1BatchNumber, L2ChainId};
 
 use crate::{errors::RequestProcessorError, metrics::Method, middleware::MetricsMiddleware};
 
-mod request_processor;
 mod tee_request_processor;
 
 #[derive(Debug)]

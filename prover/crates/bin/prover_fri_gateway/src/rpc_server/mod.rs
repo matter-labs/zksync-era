@@ -1,19 +1,22 @@
 mod processor;
 
-use std::sync::Arc;
-use std::time::Duration;
-use jsonrpsee::proc_macros::rpc;
-use jsonrpsee::{PendingSubscriptionSink, RpcModule, SubscriptionMessage, TrySendError};
-use jsonrpsee::core::{async_trait, RpcResult, SubscriptionResult};
-use jsonrpsee::server::Server;
+use std::{sync::Arc, time::Duration};
+
+use jsonrpsee::{
+    core::{async_trait, RpcResult, SubscriptionResult},
+    proc_macros::rpc,
+    server::Server,
+    PendingSubscriptionSink, RpcModule, SubscriptionMessage, TrySendError,
+};
 use tokio::sync::watch;
 use zksync_config::configs::{FriProverGatewayConfig, GatewayConfig};
 use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover};
-use zksync_prover_interface::api::ProofGenerationData;
-use zksync_prover_interface::outputs::L1BatchProofForL1;
-use zksync_prover_interface::rpc::GatewayRpcServer;
+use zksync_prover_interface::{
+    api::ProofGenerationData, outputs::L1BatchProofForL1, rpc::GatewayRpcServer,
+};
 use zksync_types::L2ChainId;
+
 use crate::rpc_server::processor::RpcDataProcessor;
 
 pub struct RpcServer {
@@ -22,12 +25,13 @@ pub struct RpcServer {
 }
 
 impl RpcServer {
-    pub fn new(ws_port: u16, blob_store: Arc<dyn ObjectStore>, pool: ConnectionPool<Prover>) -> Self {
+    pub fn new(
+        ws_port: u16,
+        blob_store: Arc<dyn ObjectStore>,
+        pool: ConnectionPool<Prover>,
+    ) -> Self {
         let processor = RpcDataProcessor::new(pool, blob_store);
-        Self {
-            processor,
-            ws_port,
-        }
+        Self { processor, ws_port }
     }
 
     pub async fn run(mut self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
@@ -46,6 +50,7 @@ impl RpcServer {
             handle.stop().ok()
         });
 
-        handle.stopped().await?
+        handle.stopped().await;
+        Ok(())
     }
 }

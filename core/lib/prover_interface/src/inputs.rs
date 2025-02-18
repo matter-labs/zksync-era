@@ -3,7 +3,11 @@ use std::{collections::HashMap, convert::TryInto, fmt::Debug};
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, Bytes};
 use zksync_object_store::{_reexports::BoxedError, serialize_using_bincode, Bucket, StoredObject};
-use zksync_types::{basic_fri_types::Eip4844Blobs, block::L2BlockExecutionData, commitment::PubdataParams, witness_block_state::WitnessStorageState, L1BatchNumber, ProtocolVersionId, H256, U256, L2ChainId};
+use zksync_types::{
+    basic_fri_types::Eip4844Blobs, block::L2BlockExecutionData, commitment::PubdataParams,
+    witness_block_state::WitnessStorageState, L1BatchNumber, L2ChainId, ProtocolVersionId, H256,
+    U256,
+};
 use zksync_vm_interface::{L1BatchEnv, SystemEnv};
 
 const HASH_LEN: usize = H256::len_bytes();
@@ -235,7 +239,7 @@ impl StoredObject for WitnessInputData {
     type Key<'a> = (L2ChainId, L1BatchNumber);
 
     fn encode_key(key: Self::Key<'_>) -> String {
-        format!("witness_inputs_{}_{}.bin", key.0.as_u64(), key.1.0)
+        format!("witness_inputs_{}_{}.bin", key.0.as_u64(), key.1 .0)
     }
 
     fn serialize(&self) -> Result<Vec<u8>, BoxedError> {

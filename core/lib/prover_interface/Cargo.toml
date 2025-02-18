@@ -14,7 +14,7 @@ categories.workspace = true
 zksync_vm_interface.workspace = true
 zksync_object_store.workspace = true
 zksync_types.workspace = true
-jsonrpsee.workspace = true
+jsonrpsee = { workspace = true, features = ["ws-client", "server", "macros", "client-ws-transport-tls"]}
 
 # We can use the newest api to send proofs to L1.
 circuit_definitions.workspace = true

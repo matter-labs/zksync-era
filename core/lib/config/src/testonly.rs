@@ -682,6 +682,7 @@ impl Distribution<configs::ProofDataHandlerConfig> for EncodeDist {
             api_url: self.sample(rng),
             api_poll_duration_in_secs: self.sample(rng),
             proof_generation_timeout_in_secs: self.sample(rng),
+            retry_connection_interval_in_secs: self.sample(rng),
             tee_config: configs::TeeConfig {
                 tee_support: self.sample(rng),
                 first_tee_processed_batch: L1BatchNumber(rng.gen()),

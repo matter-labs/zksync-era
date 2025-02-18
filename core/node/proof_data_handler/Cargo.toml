@@ -26,7 +26,7 @@ tower-http = { workspace = true, features = ["compression-zstd", "decompression-
 tracing.workspace = true
 reqwest.workspace = true
 tower.workspace = true
-jsonrpsee = { workspace = true, features = ["ws-client", "macros", "client-ws-transport-tls"]}
+jsonrpsee = { workspace = true, features = ["async-client", "ws-client", "macros", "client-ws-transport-tls"]}
 
 [dev-dependencies]
 hyper.workspace = true

@@ -11,7 +11,9 @@ use fflonk::FflonkProof;
 use serde::{Deserialize, Serialize};
 use serde_with::{hex::Hex, serde_as};
 use zksync_object_store::{serialize_using_bincode, Bucket, StoredObject, _reexports::BoxedError};
-use zksync_types::{protocol_version::ProtocolSemanticVersion, tee_types::TeeType, L1BatchNumber, L2ChainId};
+use zksync_types::{
+    protocol_version::ProtocolSemanticVersion, tee_types::TeeType, L1BatchNumber, L2ChainId,
+};
 
 /// A "final" ZK proof that can be sent to the L1 contract.
 #[derive(Clone, Serialize, Deserialize)]
@@ -127,7 +129,10 @@ impl StoredObject for L1BatchProofForL1 {
     fn encode_key(key: Self::Key<'_>) -> String {
         let (chain_id, l1_batch_number, protocol_version) = key;
         let semver_suffix = protocol_version.to_string().replace('.', "_");
-        format!("l1_batch_proof_{}_{l1_batch_number}_{semver_suffix}.bin", chain_id.as_u64())
+        format!(
+            "l1_batch_proof_{}_{l1_batch_number}_{semver_suffix}.bin",
+            chain_id.as_u64()
+        )
     }
 
     fn serialize(&self) -> Result<Vec<u8>, BoxedError> {

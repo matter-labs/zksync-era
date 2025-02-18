@@ -49,7 +49,11 @@ async fn main() -> anyhow::Result<()> {
     );
     let store_factory = ObjectStoreFactory::new(object_store_config.0);
 
-    let rpc_server = RpcServer::new(config.ws_port, store_factory.create_store().await?, pool.clone());
+    let rpc_server = RpcServer::new(
+        config.ws_port,
+        store_factory.create_store().await?,
+        pool.clone(),
+    );
 
     let (stop_sender, stop_receiver) = watch::channel(false);
 

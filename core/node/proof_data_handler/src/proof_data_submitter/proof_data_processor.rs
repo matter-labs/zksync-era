@@ -8,7 +8,9 @@ use zksync_prover_interface::{
         L1BatchMetadataHashes, VMRunWitnessInputData, WitnessInputData, WitnessInputMerklePaths,
     },
 };
-use zksync_types::{basic_fri_types::Eip4844Blobs, commitment::L1BatchCommitmentMode, L1BatchNumber, L2ChainId};
+use zksync_types::{
+    basic_fri_types::Eip4844Blobs, commitment::L1BatchCommitmentMode, L1BatchNumber, L2ChainId,
+};
 
 use crate::metrics::METRICS;
 

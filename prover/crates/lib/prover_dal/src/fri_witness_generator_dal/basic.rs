@@ -1,6 +1,10 @@
 use std::time::Duration;
 
-use zksync_basic_types::{protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch}, prover_dal::{BasicWitnessGeneratorJobInfo, StuckJobs, WitnessJobStatus}, L1BatchNumber, L2ChainId};
+use zksync_basic_types::{
+    protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch},
+    prover_dal::{BasicWitnessGeneratorJobInfo, StuckJobs, WitnessJobStatus},
+    L1BatchNumber, L2ChainId,
+};
 use zksync_db_connection::{
     connection::Connection,
     utils::{duration_to_naive_time, pg_interval_from_duration},
@@ -35,10 +39,10 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
                 protocol_version_patch
             )
             VALUES
-            ($2, $3, $4, 'queued', NOW(), NOW(), $5)
+            ($1, $2, $3, $4, 'queued', NOW(), NOW(), $5)
             ON CONFLICT (l1_batch_number) DO NOTHING
             "#,
-            i64::from(chain_id.as_u64()),
+            chain_id.as_u64() as i32,
             i64::from(block_number.0),
             witness_inputs_blob_url,
             protocol_version.minor as i32,

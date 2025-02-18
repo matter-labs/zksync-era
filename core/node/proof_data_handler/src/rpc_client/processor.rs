@@ -1,48 +1,46 @@
 use std::sync::Arc;
-use std::time::Duration;
-use axum::Json;
 
-use tokio::sync::watch;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
-use zksync_multivm::zk_evm_latest::ethereum_types::H256;
 use zksync_object_store::ObjectStore;
-use zksync_prover_interface::api::{ProofGenerationData, SubmitProofGenerationDataResponse, SubmitProofRequest, SubmitProofResponse};
-use zksync_prover_interface::inputs::{L1BatchMetadataHashes, VMRunWitnessInputData, WitnessInputData, WitnessInputMerklePaths};
-use zksync_types::commitment::{L1BatchCommitmentMode, serialize_commitments};
-use zksync_types::{L1BatchNumber, L2ChainId, ProtocolVersionId, STATE_DIFF_HASH_KEY_PRE_GATEWAY};
-use zksync_types::basic_fri_types::Eip4844Blobs;
-use zksync_types::web3::keccak256;
-use crate::errors::RequestProcessorError;
+use zksync_prover_interface::{
+    api::{ProofGenerationData, SubmitProofRequest},
+    inputs::{
+        L1BatchMetadataHashes, VMRunWitnessInputData, WitnessInputData, WitnessInputMerklePaths,
+    },
+};
+use zksync_types::{
+    basic_fri_types::Eip4844Blobs,
+    commitment::{serialize_commitments, L1BatchCommitmentMode},
+    web3::keccak256,
+    L1BatchNumber, L2ChainId, ProtocolVersionId, H256, STATE_DIFF_HASH_KEY_PRE_GATEWAY,
+};
+
 use crate::metrics::METRICS;
 
 #[derive(Debug)]
 pub struct ProofDataProcessor {
-    chain_id: L2ChainId,
     pool: ConnectionPool<Core>,
     blob_store: Arc<dyn ObjectStore>,
-    commitment_mode: L1BatchCommitmentMode
+    commitment_mode: L1BatchCommitmentMode,
 }
-
-const ENDPOINT: &str = "/proof_generation_data";
 
 impl ProofDataProcessor {
     pub fn new(
-        chain_id: L2ChainId,
         pool: ConnectionPool<Core>,
         blob_store: Arc<dyn ObjectStore>,
         commitment_mode: L1BatchCommitmentMode,
     ) -> Self {
         Self {
-            chain_id,
             pool,
             blob_store,
-            commitment_mode
+            commitment_mode,
         }
     }
 
     #[tracing::instrument(skip_all)]
     pub(crate) async fn get_proof_generation_data(
         &self,
+        l2_chain_id: L2ChainId,
     ) -> anyhow::Result<Option<ProofGenerationData>> {
         let l1_batch_number = match self.lock_batch_for_proving().await? {
             Some(number) => number,
@@ -50,7 +48,7 @@ impl ProofDataProcessor {
         };
 
         Ok(Some(
-            self.proof_generation_data_for_existing_batch(l1_batch_number)
+            self.proof_generation_data_for_existing_batch(l2_chain_id, l1_batch_number)
                 .await?,
         ))
     }
@@ -85,6 +83,7 @@ impl ProofDataProcessor {
     #[tracing::instrument(skip(self))]
     async fn proof_generation_data_for_existing_batch(
         &self,
+        l2_chain_id: L2ChainId,
         l1_batch_number: L1BatchNumber,
     ) -> anyhow::Result<ProofGenerationData> {
         let vm_run_data: VMRunWitnessInputData = self.blob_store.get(l1_batch_number).await?;
@@ -146,7 +145,7 @@ impl ProofDataProcessor {
         METRICS.observe_blob_sizes(&blob);
 
         Ok(ProofGenerationData {
-            chain_id: self.chain_id,
+            chain_id: l2_chain_id,
             l1_batch_number,
             witness_input_data: blob,
             protocol_version: protocol_version.version,
@@ -156,17 +155,20 @@ impl ProofDataProcessor {
 
     pub(crate) async fn handle_proof(
         &self,
+        chain_id: L2ChainId,
         proof: SubmitProofRequest,
-    ) -> Result<(), RequestProcessorError> {
+    ) -> anyhow::Result<()> {
         match proof {
             SubmitProofRequest::Proof(l1_batch_number, proof) => {
                 tracing::info!("Received proof for block number: {:?}", l1_batch_number);
 
                 let blob_url = self
                     .blob_store
-                    .put((l1_batch_number, proof.protocol_version()), &*proof)
-                    .await
-                    .map_err(RequestProcessorError::ObjectStore)?;
+                    .put(
+                        (chain_id, l1_batch_number, proof.protocol_version()),
+                        &*proof,
+                    )
+                    .await?;
 
                 let aggregation_coords = proof.aggregation_result_coords();
 
@@ -201,7 +203,7 @@ impl ProofDataProcessor {
 
                 if events_queue_state != events_queue_state_from_prover
                     || bootloader_heap_initial_content
-                    != bootloader_heap_initial_content_from_prover
+                        != bootloader_heap_initial_content_from_prover
                 {
                     panic!(
                         "Auxilary output doesn't match\n\
@@ -221,7 +223,7 @@ impl ProofDataProcessor {
                         .find_map(|log| {
                             (log.0.key
                                 == H256::from_low_u64_be(STATE_DIFF_HASH_KEY_PRE_GATEWAY as u64))
-                                .then_some(log.0.value)
+                            .then_some(log.0.value)
                         })
                         .expect("Failed to get state_diff_hash from system logs")
                 } else {
@@ -245,8 +247,7 @@ impl ProofDataProcessor {
                 storage
                     .proof_generation_dal()
                     .save_proof_artifacts_metadata(l1_batch_number, &blob_url)
-                    .await
-                    .map_err(RequestProcessorError::Dal)?;
+                    .await?;
             }
             SubmitProofRequest::SkippedProofGeneration(l1_batch_number) => {
                 tracing::info!("Skipped proof for block number: {:?}", l1_batch_number);
@@ -256,8 +257,7 @@ impl ProofDataProcessor {
                     .unwrap()
                     .proof_generation_dal()
                     .mark_proof_generation_job_as_skipped(l1_batch_number)
-                    .await
-                    .map_err(RequestProcessorError::Dal)?;
+                    .await?;
             }
         }
 

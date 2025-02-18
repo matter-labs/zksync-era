@@ -1,7 +1,7 @@
 use zksync_config::configs::ProofDataHandlerConfig;
 use zksync_proof_data_handler::{
-    TeeProofDataHandler, ProofGenerationDataProcessor, ProofGenerationDataSubmitter,
-    RequestProcessor,
+    ProofDataProcessor, ProofGenerationDataProcessor, ProofGenerationDataSubmitter,
+    RequestProcessor, RpcClient, TeeProofDataHandler,
 };
 use zksync_types::{commitment::L1BatchCommitmentMode, L2ChainId};
 
@@ -73,24 +73,25 @@ impl WiringLayer for ProofDataHandlerLayer {
         );
 
         let api = if self.proof_data_handler_config.tee_config.tee_support {
-            TeeProofDataHandler::new_with_tee_support(
+            Some(TeeProofDataHandler::new_with_tee_support(
                 processor,
                 self.proof_data_handler_config.http_port,
-            )
+            ))
         } else {
-            TeeProofDataHandler::new(processor, self.proof_data_handler_config.http_port)
+            None
         };
 
-        let proof_gen_data_processor =
-            ProofGenerationDataProcessor::new(self.l2_chain_id, main_pool, blob_store.clone(), self.commitment_mode);
-
-        let data_submitter = ProofGenerationDataSubmitter::new(
-            proof_gen_data_processor,
-            self.proof_data_handler_config.api_poll_duration(),
+        let processor =
+            ProofDataProcessor::new(main_pool.clone(), blob_store, self.commitment_mode);
+        let rpc_client = RpcClient::new(
+            processor,
             self.proof_data_handler_config.api_url,
+            self.l2_chain_id,
+            self.proof_data_handler_config.api_poll_duration(),
+            self.proof_data_handler_config.retry_connection_interval(),
         );
 
-        let task = ProofDataHandlerTask::new(api, data_submitter);
+        let task = ProofDataHandlerTask::new(api, rpc_client);
 
         Ok(Output { task })
     }
@@ -98,29 +99,32 @@ impl WiringLayer for ProofDataHandlerLayer {
 
 #[derive(Debug)]
 struct ProofDataHandlerTask {
-    api: TeeProofDataHandler,
-    data_submitter: ProofGenerationDataSubmitter,
+    tee_api: Option<TeeProofDataHandler>,
+    rpc_client: RpcClient,
 }
 
 impl ProofDataHandlerTask {
-    pub fn new(api: TeeProofDataHandler, data_submitter: ProofGenerationDataSubmitter) -> Self {
+    pub fn new(tee_api: Option<TeeProofDataHandler>, rpc_client: RpcClient) -> Self {
         Self {
-            api,
-            data_submitter,
+            tee_api,
+            rpc_client,
         }
     }
 
     async fn run(self, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        let api = self.api;
-        let data_submitter = self.data_submitter;
+        let rpc_client = self.rpc_client;
 
-        tokio::select! {
-            _ = api.run(stop_receiver.0.clone()) => {
-                tracing::info!("Proof data handler API stopped");
+        if let Some(tee_api) = self.tee_api {
+            tokio::select! {
+                _ = tee_api.run(stop_receiver.0.clone()) => {
+                    tracing::info!("Proof data handler API stopped");
+                }
+                _ = rpc_client.run(stop_receiver.0.clone()) => {
+                    tracing::info!("Rpc client stopped");
+                }
             }
-            _ = data_submitter.run(stop_receiver.0) => {
-                tracing::info!("Proof data submitter stopped");
-            }
+        } else {
+            rpc_client.run(stop_receiver.0.clone()).await?;
         }
 
         Ok(())

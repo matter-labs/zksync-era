@@ -1,12 +1,10 @@
 #![doc = include_str!("../doc/ProofGenerationDal.md")]
-use std::time::Duration;
 
 use strum::{Display, EnumString};
 use zksync_db_connection::{
     connection::Connection,
     error::DalResult,
     instrument::{InstrumentExt, Instrumented},
-    utils::pg_interval_from_duration,
 };
 use zksync_types::L1BatchNumber;
 

@@ -12,7 +12,7 @@ use zksync_object_store::MockObjectStore;
 use zksync_prover_interface::api::SubmitTeeProofRequest;
 use zksync_types::{tee_types::TeeType, L1BatchNumber, L2ChainId};
 
-use crate::{TeeProofDataHandler, RequestProcessor};
+use crate::{RequestProcessor, TeeProofDataHandler};
 
 #[tokio::test]
 async fn request_tee_proof_inputs() {

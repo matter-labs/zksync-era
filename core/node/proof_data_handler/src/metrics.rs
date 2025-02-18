@@ -26,7 +26,6 @@ pub(super) struct ProofDataHandlerMetrics {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet, EncodeLabelValue)]
 #[metrics(label = "type", rename_all = "snake_case")]
 pub(crate) enum Method {
-    SubmitProof,
     GetTeeProofInputs,
     TeeSubmitProofs,
     TeeRegisterAttestation,
