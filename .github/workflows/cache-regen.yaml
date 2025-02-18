@@ -5,6 +5,8 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
+
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -13,6 +15,7 @@ concurrency:
 
 jobs:
 
+  # TODO: maybe, there will be 3 different jobs in the future
   cache-regen:
     runs-on: matterlabs-ci-runner-highmem-long
     container:
@@ -24,18 +27,20 @@ jobs:
         SCCACHE_GCS_RW_MODE: READ_WRITE
         ZKSYNC_USE_CUDA_STUBS: true
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
           submodules: "recursive"
 
-      - uses: Swatinem/rust-cache@v2
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
         with:
           workspaces: |
             core -> target
             prover -> target
             zkstack_cli -> target
           shared-key: "shared"
-          # save-if: ${{ github.ref_name == github.event.repository.default_branch }}
+          save-if: true
 
       - name: Generate cache
         run: |

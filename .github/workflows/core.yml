@@ -1,11 +1,11 @@
 name: Core tests
 
 on:
-#  pull_request:
+  pull_request:
   merge_group:
-  push:
-    branches:
-      - main
+#  push:
+#    branches:
+#      - main
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
