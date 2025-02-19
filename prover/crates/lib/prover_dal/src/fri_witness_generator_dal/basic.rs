@@ -7,6 +7,8 @@ use zksync_basic_types::{
 };
 use zksync_db_connection::{
     connection::Connection,
+    error::DalResult,
+    instrument::InstrumentExt,
     utils::{duration_to_naive_time, pg_interval_from_duration},
 };
 
@@ -23,7 +25,7 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
         block_number: L1BatchNumber,
         witness_inputs_blob_url: &str,
         protocol_version: ProtocolSemanticVersion,
-    ) {
+    ) -> DalResult<()> {
         sqlx::query!(
             r#"
             INSERT INTO
@@ -45,9 +47,10 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
             protocol_version.minor as i32,
             protocol_version.patch.0 as i32,
         )
-        .fetch_optional(self.storage.conn())
-        .await
-        .unwrap();
+        .instrument("save_witness_inputs")
+        .fetch_optional(self.storage)
+        .await?;
+        Ok(())
     }
 
     /// Gets the next job to be executed. Returns the batch number and its corresponding blobs.

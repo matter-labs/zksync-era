@@ -10,32 +10,37 @@ use zksync_config::configs::{ProofDataHandlerConfig, TeeConfig};
 use zksync_dal::{ConnectionPool, CoreDal};
 use zksync_object_store::MockObjectStore;
 use zksync_prover_interface::api::SubmitTeeProofRequest;
-use zksync_types::{
-    commitment::L1BatchCommitmentMode, tee_types::TeeType, L1BatchNumber, L2ChainId,
-};
+use zksync_types::{tee_types::TeeType, L1BatchNumber, L2ChainId};
 
-use crate::create_proof_processing_router;
+use crate::{RequestProcessor, TeeProofDataHandler};
 
 #[tokio::test]
 async fn request_tee_proof_inputs() {
     let db_conn_pool = ConnectionPool::test_pool().await;
 
-    let app = create_proof_processing_router(
+    let config = ProofDataHandlerConfig {
+        http_port: 1337,
+        api_url: "".to_string(),
+        api_poll_duration_in_secs: 1,
+        proof_generation_timeout_in_secs: 10,
+        retry_connection_interval_in_secs: 10,
+        tee_config: TeeConfig {
+            tee_support: true,
+            first_tee_processed_batch: L1BatchNumber(0),
+            tee_proof_generation_timeout_in_secs: 600,
+            tee_batch_permanently_ignored_timeout_in_hours: 10 * 24,
+        },
+    };
+
+    let processor = RequestProcessor::new(
         MockObjectStore::arc(),
         db_conn_pool.clone(),
-        ProofDataHandlerConfig {
-            http_port: 1337,
-            proof_generation_timeout_in_secs: 10,
-            tee_config: TeeConfig {
-                tee_support: true,
-                first_tee_processed_batch: L1BatchNumber(0),
-                tee_proof_generation_timeout_in_secs: 600,
-                tee_batch_permanently_ignored_timeout_in_hours: 10 * 24,
-            },
-        },
-        L1BatchCommitmentMode::Rollup,
+        config.clone(),
         L2ChainId::default(),
     );
+
+    let app = TeeProofDataHandler::new_with_tee_support(processor, config.http_port);
+
     let test_cases = vec![
         (json!({ "tee_type": "sgx" }), StatusCode::NO_CONTENT),
         (
@@ -47,6 +52,7 @@ async fn request_tee_proof_inputs() {
     for (body, expected_status) in test_cases {
         let req_body = Body::from(serde_json::to_vec(&body).unwrap());
         let response = app
+            .router
             .clone()
             .oneshot(
                 Request::builder()
@@ -80,26 +86,32 @@ async fn submit_tee_proof() {
     let tee_proof_request =
         serde_json::from_str::<SubmitTeeProofRequest>(tee_proof_request_str).unwrap();
     let uri = format!("/tee/submit_proofs/{}", batch_number.0);
-    let app = create_proof_processing_router(
+
+    let config = ProofDataHandlerConfig {
+        http_port: 1337,
+        api_url: "".to_string(),
+        api_poll_duration_in_secs: 1,
+        proof_generation_timeout_in_secs: 10,
+        tee_config: TeeConfig {
+            tee_support: true,
+            first_tee_processed_batch: L1BatchNumber(0),
+            tee_proof_generation_timeout_in_secs: 600,
+            tee_batch_permanently_ignored_timeout_in_hours: 10 * 24,
+        },
+    };
+
+    let processor = RequestProcessor::new(
         MockObjectStore::arc(),
         db_conn_pool.clone(),
-        ProofDataHandlerConfig {
-            http_port: 1337,
-            proof_generation_timeout_in_secs: 10,
-            tee_config: TeeConfig {
-                tee_support: true,
-                first_tee_processed_batch: L1BatchNumber(0),
-                tee_proof_generation_timeout_in_secs: 600,
-                tee_batch_permanently_ignored_timeout_in_hours: 10 * 24,
-            },
-        },
-        L1BatchCommitmentMode::Rollup,
+        config.clone(),
         L2ChainId::default(),
     );
 
+    let app = TeeProofDataHandler::new_with_tee_support(processor, config.http_port);
+
     // this should fail because we haven't saved the attestation for the pubkey yet
 
-    let response = send_submit_tee_proof_request(&app, &uri, &tee_proof_request).await;
+    let response = send_submit_tee_proof_request(&app.router, &uri, &tee_proof_request).await;
     assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
 
     // save the attestation for the pubkey
@@ -114,7 +126,7 @@ async fn submit_tee_proof() {
 
     // resend the same request; this time, it should be successful
 
-    let response = send_submit_tee_proof_request(&app, &uri, &tee_proof_request).await;
+    let response = send_submit_tee_proof_request(&app.router, &uri, &tee_proof_request).await;
     assert_eq!(response.status(), StatusCode::OK);
 
     // there should not be any batches awaiting proof in the db anymore
