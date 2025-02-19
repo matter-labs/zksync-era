@@ -3,10 +3,10 @@ use std::{fmt::Debug, time::Duration};
 use anyhow::bail;
 use tokio::sync::watch;
 use zksync_basic_types::{ethabi::Contract, settlement::SettlementMode, Address};
-use zksync_contracts::{getters_facet_contract, hyperchain_contract};
+use zksync_contracts::getters_facet_contract;
 use zksync_eth_client::{
     clients::{DynClient, L1},
-    BoundEthInterface, CallFunctionArgs, ContractCallError, EnrichedClientResult, EthInterface,
+    CallFunctionArgs, EthInterface,
 };
 
 #[derive(Debug)]

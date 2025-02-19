@@ -9,3 +9,5 @@ CREATE TABLE IF NOT EXISTS server_notifications
 
 
 CREATE UNIQUE INDEX server_notifications_topic_block_number ON server_notifications (main_topic, l1_block_number);
+ALTER TYPE event_type ADD VALUE 'ServerNotification';
+

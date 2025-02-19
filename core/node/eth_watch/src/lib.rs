@@ -12,13 +12,13 @@ use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_system_constants::PRIORITY_EXPIRATION;
 use zksync_types::{
     ethabi::Contract, protocol_version::ProtocolSemanticVersion,
-    server_notification::GatewayMigrationState, web3::BlockNumber as Web3BlockNumber, Address,
-    L1BatchNumber, L2ChainId, PriorityOpId,
+    server_notification::GatewayMigrationState, settlement::SettlementMode,
+    web3::BlockNumber as Web3BlockNumber, Address, L1BatchNumber, L2ChainId, PriorityOpId,
 };
 
 pub use self::client::{EthClient, EthHttpQueryClient, L2EthClient};
 use self::{
-    client::{L2EthClientW, RETRY_LIMIT},
+    client::RETRY_LIMIT,
     event_processors::{EventProcessor, EventProcessorError, PriorityOpsEventProcessor},
     metrics::METRICS,
 };

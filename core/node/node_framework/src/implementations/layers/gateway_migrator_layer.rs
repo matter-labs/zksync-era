@@ -1,8 +1,5 @@
 use async_trait::async_trait;
-use tokio::{sync::oneshot, task::JoinHandle};
-use zksync_contracts::getters_facet_contract;
-use zksync_eth_client::clients::PKSigningClient;
-use zksync_multilayer_client::{get_settlement_layer, GatewayMigrator};
+use zksync_multilayer_client::GatewayMigrator;
 use zksync_types::Address;
 
 use crate::{
