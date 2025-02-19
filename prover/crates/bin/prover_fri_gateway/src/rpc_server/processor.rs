@@ -131,6 +131,7 @@ impl GatewayRpcServer for RpcDataProcessor {
     }
 
     async fn received_final_proof(&self, l1_batch_number: L1BatchNumber) -> RpcResult<()> {
+        tracing::info!("Received confirmation of successfully sent proof for batch {:?}", l1_batch_number);
         self.save_successful_sent_proof(l1_batch_number)
             .await
             .map_err(|err| ErrorObject::owned(INTERNAL_ERROR_CODE, format!("{err:?}"), None::<()>))
