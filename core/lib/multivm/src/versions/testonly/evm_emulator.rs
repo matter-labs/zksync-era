@@ -85,7 +85,10 @@ impl EvmTestBuilder {
             );
             for evm_address in self.evm_contract_addresses {
                 storage.set_value(get_code_key(&evm_address), evm_bytecode_hash);
-                storage.set_value(get_evm_code_hash_key(&evm_address), keccak_bytecode_hash);
+                storage.set_value(
+                    get_evm_code_hash_key(evm_bytecode_hash),
+                    keccak_bytecode_hash,
+                );
             }
 
             system_env.base_system_smart_contracts.evm_emulator = Some(SystemContractCode {
