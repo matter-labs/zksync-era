@@ -107,7 +107,6 @@ impl DataAvailabilityClient for CelestiaClient {
             namespace,
             height,
         };
-        let blob_bytes = bincode::serialize(&blob_id).map_err(to_non_retriable_da_error)?;
 
         if let Err(tonic_status) = self.integration_client.get_keccak_inclusion(&blob_id).await {
             // gRPC error, should be retriable, could be something on the eq-service side
@@ -118,7 +117,7 @@ impl DataAvailabilityClient for CelestiaClient {
         }
 
         Ok(DispatchResponse {
-            blob_id: hex::encode(&blob_bytes),
+            blob_id: blob_id.to_string(),
         })
     }
 
