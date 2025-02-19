@@ -854,7 +854,7 @@ impl EthTxAggregator {
     }
 }
 
-async fn get_settlement_later(
+async fn get_settlement_layer(
     l1_client: &dyn BoundEthInterface,
 ) -> Result<Address, EthSenderError> {
     let method_name = "getSettlementLayer";
@@ -894,7 +894,7 @@ pub async fn gateway_status(
     storage: &mut Connection<'_, Core>,
     l1_client: &dyn BoundEthInterface,
 ) -> Result<GatewayMigrationState, EthSenderError> {
-    let layer = get_settlement_later(l1_client).await?;
+    let layer = get_settlement_layer(l1_client).await?;
     if layer != Address::zero() {
         return Ok(GatewayMigrationState::Finalized);
     };

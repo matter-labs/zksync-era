@@ -60,6 +60,10 @@ impl EventProcessor for GatewayMigrationProcessor {
         self.gateway_migration_topic
     }
 
+    fn topic2(&self) -> Option<H256> {
+        Some(H256::from_low_u64_be(self.l2chain_id.as_u64()))
+    }
+
     fn event_source(&self) -> EventsSource {
         EventsSource::L1
     }
