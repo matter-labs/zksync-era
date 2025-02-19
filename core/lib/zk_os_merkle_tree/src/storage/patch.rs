@@ -2,7 +2,7 @@ use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     marker::PhantomData,
     mem, ops,
-    time::Instant,
+    time::{Duration, Instant},
 };
 
 use anyhow::Context as _;
@@ -279,6 +279,9 @@ impl<P: TreeParams> WorkingPatchSet<P> {
         // FIXME: place root in `this.internal`?
         let root_level = HashMap::from([(0, this.root.root_node.clone())]);
 
+        let mut hash_latency = Duration::ZERO;
+        let mut traverse_latency = Duration::ZERO;
+
         // The logic below essentially repeats `BatchTreeProof::zip_leaves()`, only instead of taking provided hashes,
         // they are put in `hashes`.
         for depth in 0..P::TREE_DEPTH {
@@ -287,8 +290,12 @@ impl<P: TreeParams> WorkingPatchSet<P> {
                 // Initialize / update `internal_hashes`. Computing *all* internal hashes may be somewhat inefficient,
                 // but since it's parallelized, it doesn't look like a major concern.
                 let level = internal_node_levels.next().unwrap_or(&root_level);
+                let started_at = Instant::now();
                 internal_hashes = Some(InternalHashes::new::<P>(level, hasher, depth));
+                hash_latency += started_at.elapsed();
             }
+
+            let started_at = Instant::now();
             let depth = depth_in_internal_node;
             // `unwrap()` is safe; `internal_hashes` is initialized on the first loop iteration
             let internal_hashes = internal_hashes.as_ref().unwrap();
@@ -320,8 +327,14 @@ impl<P: TreeParams> WorkingPatchSet<P> {
             }
             indices_on_level.truncate(next_level_i);
             last_idx_on_level /= 2;
+            traverse_latency += started_at.elapsed();
         }
 
+        tracing::debug!(
+            ?hash_latency,
+            ?traverse_latency,
+            "collected hashes for batch proof"
+        );
         hashes
     }
 
