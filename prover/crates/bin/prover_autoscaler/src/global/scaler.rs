@@ -207,7 +207,7 @@ impl<K: Key> Scaler<K> {
             &sorted_clusters
         );
 
-        // Increase queue size, if it's too small, to make sure that required min_provers are
+        // Increase queue size, if it's too small, to make sure that required min_replicas are
         // running.
         let queue: usize = if self.apply_min_to_namespace.as_deref() == Some(namespace.as_str()) {
             self.normalize_queue(K::default(), queue as usize)
@@ -336,7 +336,7 @@ mod tests {
     use super::*;
     use crate::{
         cluster_types::{Deployment, Namespace, Pod, ScaleEvent},
-        key::{Gpu, GpuKey},
+        key::{Gpu, GpuKey, NoKey},
     };
 
     #[tracing_test::traced_test]
@@ -803,6 +803,173 @@ mod tests {
             ]
             .into(),
             "Move 1 prover to bar"
+        );
+    }
+
+    #[tracing_test::traced_test]
+    #[test]
+    fn test_run_nokey() {
+        let scaler = Scaler::new(
+            &ScalerTarget::<NoKey> {
+                queue_report_field: QueueReportFields::prover_jobs,
+                deployment: "some-deployment".into(),
+                min_replicas: 0,
+                max_replicas: [
+                    ("foo".into(), [(NoKey(), 100)].into()),
+                    ("bar".into(), [(NoKey(), 100)].into()),
+                ]
+                .into(),
+                ..Default::default()
+            },
+            [("foo".into(), 0), ("bar".into(), 10)].into(),
+            None,
+            chrono::Duration::seconds(600),
+        );
+
+        assert_eq!(
+            scaler.run(
+                &"prover".into(),
+                1499,
+                &Clusters {
+                    clusters: [(
+                        "foo".into(),
+                        Cluster {
+                            name: "foo".into(),
+                            namespaces: [(
+                                "prover".into(),
+                                Namespace {
+                                    deployments: [(
+                                        "some-deployment".into(),
+                                        Deployment::default(),
+                                    )]
+                                    .into(),
+                                    pods: [
+                                        (
+                                            "some-deployment-7c5f8fc747-gmtcr".into(),
+                                            Pod {
+                                                status: "Running".into(),
+                                                ..Default::default()
+                                            },
+                                        ),
+                                        (
+                                            "some-other-deployment-7c5f8fc747-12345".into(),
+                                            Pod {
+                                                status: "Running".into(),
+                                                ..Default::default()
+                                            },
+                                        ),
+                                        (
+                                            "some-other-deployment-7c5f8fc747-12346".into(),
+                                            Pod {
+                                                status: "Running".into(),
+                                                ..Default::default()
+                                            },
+                                        ),
+                                        (
+                                            "some-other-deployment-7c5f8fc747-12347".into(),
+                                            Pod {
+                                                status: "Running".into(),
+                                                ..Default::default()
+                                            },
+                                        ),
+                                    ]
+                                    .into(),
+                                    ..Default::default()
+                                },
+                            )]
+                            .into(),
+                        },
+                    )]
+                    .into(),
+                    ..Default::default()
+                },
+            ),
+            [(
+                PoolKey {
+                    cluster: "foo".into(),
+                    key: NoKey(),
+                },
+                3,
+            )]
+            .into(),
+            "3 new provers"
+        );
+        assert_eq!(
+            scaler.run(
+                &"prover".into(),
+                499,
+                &Clusters {
+                    clusters: [
+                        (
+                            "foo".into(),
+                            Cluster {
+                                name: "foo".into(),
+                                namespaces: [(
+                                    "prover".into(),
+                                    Namespace {
+                                        deployments: [(
+                                            "some-deployment".into(),
+                                            Deployment::default(),
+                                        )]
+                                        .into(),
+                                        ..Default::default()
+                                    },
+                                )]
+                                .into(),
+                            },
+                        ),
+                        (
+                            "bar".into(),
+                            Cluster {
+                                name: "bar".into(),
+                                namespaces: [(
+                                    "prover".into(),
+                                    Namespace {
+                                        deployments: [(
+                                            "some-deployment".into(),
+                                            Deployment {
+                                                running: 1,
+                                                desired: 1,
+                                            },
+                                        )]
+                                        .into(),
+                                        pods: [(
+                                            "some-deployment-7c5f8fc747-gmtcr".into(),
+                                            Pod {
+                                                status: "Running".into(),
+                                                ..Default::default()
+                                            },
+                                        )]
+                                        .into(),
+                                        ..Default::default()
+                                    },
+                                )]
+                                .into(),
+                            },
+                        )
+                    ]
+                    .into(),
+                    ..Default::default()
+                },
+            ),
+            [
+                (
+                    PoolKey {
+                        cluster: "foo".into(),
+                        key: NoKey(),
+                    },
+                    0,
+                ),
+                (
+                    PoolKey {
+                        cluster: "bar".into(),
+                        key: NoKey(),
+                    },
+                    1,
+                )
+            ]
+            .into(),
+            "Preserve running"
         );
     }
 }

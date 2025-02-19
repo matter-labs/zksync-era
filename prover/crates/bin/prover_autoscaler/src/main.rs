@@ -9,7 +9,7 @@ use tokio::{
 use zksync_prover_autoscaler::{
     agent,
     config::{config_from_yaml, ProverAutoscalerConfig},
-    global::{self},
+    global::{manager::Manager, queuer::Queuer, watcher},
     http_client::HttpClient,
     k8s::{Scaler, Watcher},
     task_wiring::TaskRunner,
@@ -109,16 +109,13 @@ async fn main() -> anyhow::Result<()> {
             let interval = scaler_config.scaler_run_interval;
             let exporter_config = PrometheusExporterConfig::pull(scaler_config.prometheus_port);
             tasks.push(tokio::spawn(exporter_config.run(stop_receiver.clone())));
-            let watcher = global::watcher::Watcher::new(
+            let watcher = watcher::Watcher::new(
                 http_client.clone(),
                 scaler_config.agents.clone(),
                 scaler_config.dry_run,
             );
-            let queuer = global::queuer::Queuer::new(
-                http_client,
-                scaler_config.prover_job_monitor_url.clone(),
-            );
-            let scaler = global::manager::Manager::new(watcher.clone(), queuer, scaler_config);
+            let queuer = Queuer::new(http_client, scaler_config.prover_job_monitor_url.clone());
+            let scaler = Manager::new(watcher.clone(), queuer, scaler_config);
             tasks.extend(get_tasks(watcher, scaler, interval, stop_receiver)?);
         }
     }
@@ -140,8 +137,8 @@ async fn main() -> anyhow::Result<()> {
 }
 
 fn get_tasks(
-    watcher: global::watcher::Watcher,
-    scaler: global::manager::Manager,
+    watcher: watcher::Watcher,
+    scaler: Manager,
     interval: Duration,
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<Vec<JoinHandle<anyhow::Result<()>>>> {
