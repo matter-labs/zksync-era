@@ -2,7 +2,7 @@ use std::{sync::Arc, time::Duration};
 
 use jsonrpsee::{
     core::{async_trait, RpcResult, SubscriptionResult},
-    types::ErrorObject,
+    types::{error::INTERNAL_ERROR_CODE, ErrorObject},
     PendingSubscriptionSink, SubscriptionMessage, TrySendError,
 };
 use zksync_object_store::ObjectStore;
@@ -29,7 +29,7 @@ impl RpcDataProcessor {
         };
 
         loop {
-            tokio::time::sleep(Duration::from_secs(5)).await;
+            tokio::time::sleep(Duration::from_secs(10)).await;
 
             let (l1_batch_number, request) = match self.next_submit_proof_request().await {
                 Some(data) => data,
@@ -124,16 +124,16 @@ impl RpcDataProcessor {
 #[async_trait]
 impl GatewayRpcServer for RpcDataProcessor {
     async fn submit_proof_generation_data(&self, data: ProofGenerationData) -> RpcResult<()> {
-        self.save_proof_gen_data(data)
-            .await
-            .map_err(|_| ErrorObject::owned(0, "", None::<()>))?;
+        self.save_proof_gen_data(data).await.map_err(|err| {
+            ErrorObject::owned(INTERNAL_ERROR_CODE, format!("{err:?}"), None::<()>)
+        })?;
         Ok(())
     }
 
     async fn received_final_proof(&self, l1_batch_number: L1BatchNumber) -> RpcResult<()> {
         self.save_successful_sent_proof(l1_batch_number)
             .await
-            .map_err(|_| ErrorObject::owned(0, "", None::<()>))
+            .map_err(|err| ErrorObject::owned(INTERNAL_ERROR_CODE, format!("{err:?}"), None::<()>))
     }
 
     async fn subscribe_for_proofs(

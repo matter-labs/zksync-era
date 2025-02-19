@@ -39,7 +39,7 @@ impl RpcClient {
 
         tokio::select! {
             _ = proof_data_sender => {
-                tracing::info!("Proof data sender stopped");
+                tracing::info!("Proof data submitter stopped");
             }
             _ = proof_receiver => {
                 tracing::info!("Proof receiver stopped");
@@ -56,7 +56,7 @@ impl RpcClient {
         loop {
             tokio::time::sleep(self.connection_retry_interval).await;
             if *stop_receiver.borrow() {
-                tracing::warn!("Stop signal received, shutting down ProofDataSubmitter");
+                tracing::warn!("Stop signal received, shutting down proof data submitter");
                 return Ok(());
             }
 
@@ -71,7 +71,7 @@ impl RpcClient {
             }
 
             tracing::info!(
-                "Established long living connection with gateway for proof data sender by URL: {}",
+                "Established long living connection with gateway for proof data submitter by URL: {}",
                 self.ws_url
             );
 
@@ -79,7 +79,7 @@ impl RpcClient {
                 .run_proof_data_submitter(client?, stop_receiver.clone())
                 .await
             {
-                tracing::error!("Proof data sender failed: {}", e);
+                tracing::error!("Proof data submitter failed: {}", e);
             }
         }
     }
@@ -92,7 +92,7 @@ impl RpcClient {
         loop {
             tokio::time::sleep(self.poll_duration).await;
             if *stop_receiver.borrow() {
-                tracing::warn!("Stop signal received, shutting down proof data sender");
+                tracing::warn!("Stop signal received, shutting down proof data submitter");
                 return Ok(());
             }
             if !client.is_connected() {
@@ -116,6 +116,11 @@ impl RpcClient {
                     l1_batch_number
                 );
                 self.processor.unlock_batch(l1_batch_number).await?;
+            } else {
+                tracing::info!(
+                    "Proof generation data for batch {:?} was sent successfully",
+                    l1_batch_number
+                );
             }
         }
     }
@@ -150,7 +155,7 @@ impl RpcClient {
                 .run_proof_receiver(client?, stop_receiver.clone())
                 .await
             {
-                tracing::error!("Proof data sender failed: {}", e);
+                tracing::error!("Proof data receiver failed: {}", e);
             }
         }
     }
@@ -163,14 +168,14 @@ impl RpcClient {
         let mut subscription = client.subscribe_for_proofs().await?;
         loop {
             if *stop_receiver.borrow() {
-                tracing::warn!("Stop signal received, shutting down proof data sender");
+                tracing::warn!("Stop signal received, shutting down proof data receiver");
                 return Ok(());
             }
 
             let proof = match subscription.next().await {
                 Some(proof) => proof?,
                 None => {
-                    tracing::info!("Proof subscription ended, needs resubscribing");
+                    tracing::warn!("Proof subscription ended, needs resubscribing");
                     return Err(anyhow::anyhow!("Proof subscription ended"));
                 }
             };

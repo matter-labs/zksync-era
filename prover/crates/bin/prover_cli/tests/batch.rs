@@ -225,7 +225,8 @@ async fn insert_bwg_job(
     connection
         .fri_basic_witness_generator_dal()
         .save_witness_inputs(batch_number, "", ProtocolSemanticVersion::default())
-        .await?;
+        .await
+        .unwrap();
     connection
         .fri_basic_witness_generator_dal()
         .set_status_for_basic_witness_job(status, batch_number)
