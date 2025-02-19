@@ -6,55 +6,63 @@ use std::{
 };
 
 use async_trait::async_trait;
-use celestia_types::{blob::Commitment, nmt::Namespace, Blob};
-use eq_common::eqs::{GetKeccakInclusionResponse, get_keccak_inclusion_response::{Status as InclusionResponseStatus, ResponseValue as InclusionResponseValue}};
-use serde::{Deserialize, Serialize};
+use celestia_types::{blob::Commitment, nmt::Namespace, AppVersion, Blob, Height};
 use subxt_signer::ExposeSecret;
 use tonic::transport::Endpoint;
+use zksync_basic_types::ethabi::decode;
+use zksync_basic_types::ethabi::{Contract, Event, ParamType, RawTopicFilter};
+use zksync_basic_types::web3::{BlockNumber, Filter, FilterBuilder, Log};
+use zksync_basic_types::{H256, U256};
 use zksync_config::configs::da_client::celestia::{CelestiaConfig, CelestiaSecrets};
 use zksync_da_client::{
     types::{DAError, DispatchResponse, InclusionData},
     DataAvailabilityClient,
 };
-use zksync_eth_client::{
-    clients::{DynClient, L1},
-};
-use zksync_basic_types::web3::{Log, Filter, BlockNumber, FilterBuilder};
-use zksync_basic_types::ethabi::{Contract, Event, ParamType, RawTopicFilter};
-use zksync_basic_types::ethabi::decode;
-use zksync_basic_types::{U256, H256};
+use zksync_eth_client::clients::{DynClient, L1};
 
 use crate::{
     celestia::sdk::{BlobTxHash, RawCelestiaClient},
-    celestia::integration_service::IntegrationClient,
     utils::{to_non_retriable_da_error, to_retriable_da_error},
 };
 
-/// An implementation of the `DataAvailabilityClient` trait that interacts with the Avail network.
+use eq_sdk::{
+    get_keccak_inclusion_response::{
+        ResponseValue as InclusionResponseValue, Status as InclusionResponseStatus,
+    },
+    BlobId, EqClient,
+};
+
+/// An implementation of the `DataAvailabilityClient` trait that interacts with the Celestia network.
 #[derive(Clone)]
 pub struct CelestiaClient {
     config: CelestiaConfig,
-    integration_client: Arc<IntegrationClient>,
+    integration_client: Arc<EqClient>,
     celestia_client: Arc<RawCelestiaClient>,
     eth_client: Box<DynClient<L1>>,
 }
 
 impl CelestiaClient {
-    pub async fn new(config: CelestiaConfig, secrets: CelestiaSecrets, eth_client: Box<DynClient<L1>>) -> anyhow::Result<Self> {
+    pub async fn new(
+        config: CelestiaConfig,
+        secrets: CelestiaSecrets,
+        eth_client: Box<DynClient<L1>>,
+    ) -> anyhow::Result<Self> {
         let celestia_grpc_channel = Endpoint::from_str(config.api_node_url.clone().as_str())?
             .timeout(time::Duration::from_millis(config.timeout_ms))
             .connect()
             .await?;
 
         let private_key = secrets.private_key.0.expose_secret().to_string();
-        let client = RawCelestiaClient::new(celestia_grpc_channel, private_key, config.chain_id.clone())
-            .expect("could not create Celestia client");
+        let client =
+            RawCelestiaClient::new(celestia_grpc_channel, private_key, config.chain_id.clone())
+                .expect("could not create Celestia client");
 
-        let integration_grpc_channel = Endpoint::from_str(config.integration_service_url.clone().as_str())?
-            .timeout(time::Duration::from_millis(config.timeout_ms))
-            .connect()
-            .await?;
-        let integration_client = IntegrationClient::new(integration_grpc_channel);
+        let integration_grpc_channel =
+            Endpoint::from_str(config.integration_service_url.clone().as_str())?
+                .timeout(time::Duration::from_millis(config.timeout_ms))
+                .connect()
+                .await?;
+        let integration_client = EqClient::new(integration_grpc_channel);
         Ok(Self {
             config,
             celestia_client: Arc::new(client),
@@ -62,12 +70,6 @@ impl CelestiaClient {
             eth_client,
         })
     }
-}
-#[derive(Serialize, Deserialize)]
-pub struct BlobId {
-    pub commitment: Commitment,
-    pub namespace: Namespace,
-    pub height: u64,
 }
 
 #[async_trait]
@@ -81,7 +83,8 @@ impl DataAvailabilityClient for CelestiaClient {
             hex::decode(&self.config.namespace).map_err(to_non_retriable_da_error)?;
         let namespace =
             Namespace::new_v0(namespace_bytes.as_slice()).map_err(to_non_retriable_da_error)?;
-        let blob = Blob::new(namespace, data).map_err(to_non_retriable_da_error)?;
+        let blob =
+            Blob::new(namespace, data, AppVersion::latest()).map_err(to_non_retriable_da_error)?;
 
         let commitment = blob.commitment;
         let blob_tx = self
@@ -91,18 +94,27 @@ impl DataAvailabilityClient for CelestiaClient {
             .map_err(to_non_retriable_da_error)?;
 
         let blob_tx_hash = BlobTxHash::compute(&blob_tx);
-        let height = self
-            .celestia_client
-            .submit(blob_tx_hash, blob_tx)
-            .await
-            .map_err(to_non_retriable_da_error)?;
+        let height = <u64 as TryInto<Height>>::try_into(
+            self.celestia_client
+                .submit(blob_tx_hash, blob_tx)
+                .await
+                .map_err(to_non_retriable_da_error)?,
+        )
+        .map_err(to_non_retriable_da_error)?;
 
-        let blob_id = BlobId { commitment, namespace, height };
+        let blob_id = BlobId {
+            commitment,
+            namespace,
+            height,
+        };
         let blob_bytes = bincode::serialize(&blob_id).map_err(to_non_retriable_da_error)?;
 
         if let Err(tonic_status) = self.integration_client.get_keccak_inclusion(&blob_id).await {
             // gRPC error, should be retriable, could be something on the eq-service side
-            return Err(DAError { error: tonic_status.into(), is_retriable: true });
+            return Err(DAError {
+                error: tonic_status.into(),
+                is_retriable: true,
+            });
         }
 
         Ok(DispatchResponse {
@@ -111,34 +123,36 @@ impl DataAvailabilityClient for CelestiaClient {
     }
 
     async fn get_inclusion_data(&self, blob_id: &str) -> Result<Option<InclusionData>, DAError> {
+        let blob_id_struct = blob_id.parse::<BlobId>().unwrap();
+        // .map_err(to_non_retriable_da_error)?;
 
-        let blob_id_bytes = hex::decode(blob_id).map_err(to_non_retriable_da_error)?;
-        let blob_id: BlobId = bincode::deserialize(&blob_id_bytes).map_err(to_non_retriable_da_error)?;
-
-        let response = self.integration_client.get_keccak_inclusion(&blob_id)
+        let response = self
+            .integration_client
+            .get_keccak_inclusion(&blob_id_struct)
             .await
             .map_err(to_retriable_da_error)?;
-        let response_data: Option<InclusionResponseValue> = response.response_value.try_into().map_err(to_non_retriable_da_error)?;
-        let response_status: InclusionResponseStatus = response.status.try_into().map_err(to_non_retriable_da_error)?;
+        let response_data: Option<InclusionResponseValue> = response
+            .response_value
+            .try_into()
+            .map_err(to_non_retriable_da_error)?;
+        let response_status: InclusionResponseStatus = response
+            .status
+            .try_into()
+            .map_err(to_non_retriable_da_error)?;
 
         let proof_data = match response_status {
-            InclusionResponseStatus::Complete => {
-                match response_data {
-                    Some(InclusionResponseValue::Proof(proof)) => {
-                        proof
-                    },
-                    _ => {
-                        return Err(DAError { error: anyhow::anyhow!("Complete status should be accompanied by a Proof, eq-service is broken"), is_retriable: false });
-                    }
+            InclusionResponseStatus::ZkpFinished => match response_data {
+                Some(InclusionResponseValue::Proof(proof)) => proof,
+                _ => {
+                    return Err(DAError { error: anyhow::anyhow!("Complete status should be accompanied by a Proof, eq-service is broken"), is_retriable: false });
                 }
-            }
+            },
             _ => {
                 return Ok(None);
             }
         };
         // Here we want to poll blobstream until the included block is in blobstream
         //self.eth_client.call_contract_function(request, block)
-        self.eth_client
 
         Ok(Some(InclusionData { data: vec![] }))
     }
