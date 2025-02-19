@@ -8,6 +8,7 @@ pub mod consistency_checker;
 pub mod contract_verification_api;
 pub mod da_clients;
 pub mod da_dispatcher;
+pub mod data_availability_fetcher;
 pub mod eth_sender;
 pub mod eth_watch;
 pub mod external_proof_integration_api;
