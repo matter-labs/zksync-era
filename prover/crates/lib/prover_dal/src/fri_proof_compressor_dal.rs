@@ -38,7 +38,7 @@ impl FriProofCompressorDal<'_, '_> {
             )
             VALUES
             ($1, $2, $3, NOW(), NOW(), $4, $5)
-            ON CONFLICT (l1_batch_number) DO NOTHING
+            ON CONFLICT (chain_id, l1_batch_number) DO NOTHING
             "#,
             i64::from(block_number.0),
             fri_proof_blob_url,

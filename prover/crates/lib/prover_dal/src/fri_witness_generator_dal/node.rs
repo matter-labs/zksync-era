@@ -163,7 +163,7 @@ impl FriNodeWitnessGeneratorDal<'_, '_> {
             )
             VALUES
             ($1, $2, $3, $4, $5, $6, 'waiting_for_proofs', NOW(), NOW(), $7)
-            ON CONFLICT (l1_batch_number, circuit_id, depth) DO
+            ON CONFLICT (chain_id, l1_batch_number, circuit_id, depth) DO
             UPDATE
             SET
             updated_at = NOW()

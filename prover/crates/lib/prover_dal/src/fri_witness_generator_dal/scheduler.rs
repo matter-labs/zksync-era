@@ -285,7 +285,7 @@ impl FriSchedulerWitnessGeneratorDal<'_, '_> {
             )
             VALUES
             ($1, $2, $3, 'waiting_for_proofs', NOW(), NOW(), $4)
-            ON CONFLICT (l1_batch_number) DO
+            ON CONFLICT (chain_id, l1_batch_number) DO
             UPDATE
             SET
             updated_at = NOW()

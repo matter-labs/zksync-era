@@ -255,7 +255,7 @@ impl FriLeafWitnessGeneratorDal<'_, '_> {
             )
             VALUES
             ($1, $2, $3, $4, $5, 'waiting_for_proofs', NOW(), NOW(), $6)
-            ON CONFLICT (l1_batch_number, circuit_id) DO
+            ON CONFLICT (chain_id, l1_batch_number, circuit_id) DO
             UPDATE
             SET
             updated_at = NOW()

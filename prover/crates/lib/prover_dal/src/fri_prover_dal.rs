@@ -597,7 +597,12 @@ impl FriProverDal<'_, '_> {
             VALUES
             ($1, $2, $3, $4, $5, $6, $7, $8, 'queued', NOW(), NOW(), $9)
             ON CONFLICT (
-                l1_batch_number, aggregation_round, circuit_id, depth, sequence_number
+                chain_id,
+                l1_batch_number,
+                aggregation_round,
+                circuit_id,
+                depth,
+                sequence_number
             ) DO
             UPDATE
             SET
