@@ -1,6 +1,7 @@
 use assert_cmd::Command;
 use circuit_definitions::zkevm_circuits::scheduler::aux::BaseLayerCircuitType;
 use prover_cli::commands::status::utils::Status;
+use zksync_basic_types::L2ChainId;
 use zksync_prover_dal::{
     fri_witness_generator_dal::FriWitnessJobStatus, Connection, ConnectionPool, Prover, ProverDal,
 };
@@ -85,7 +86,8 @@ async fn pli_status_of_non_existing_batch_succeeds() {
             ProtocolSemanticVersion::default(),
             L1VerifierConfig::default(),
         )
-        .await;
+        .await
+        .unwrap();
 
     Command::cargo_bin("prover_cli")
         .unwrap()
@@ -110,7 +112,8 @@ async fn pli_status_of_multiple_non_existing_batch_succeeds() {
             ProtocolSemanticVersion::default(),
             L1VerifierConfig::default(),
         )
-        .await;
+        .await
+        .unwrap();
 
     Command::cargo_bin("prover_cli")
         .unwrap()
@@ -222,8 +225,14 @@ async fn insert_bwg_job(
 ) {
     connection
         .fri_basic_witness_generator_dal()
-        .save_witness_inputs(batch_number, "", ProtocolSemanticVersion::default())
-        .await;
+        .save_witness_inputs(
+            L2ChainId(1),
+            batch_number,
+            "",
+            ProtocolSemanticVersion::default(),
+        )
+        .await
+        .unwrap();
     connection
         .fri_basic_witness_generator_dal()
         .set_status_for_basic_witness_job(status, batch_number)
@@ -525,7 +534,8 @@ async fn pli_status_complete() {
             ProtocolSemanticVersion::default(),
             L1VerifierConfig::default(),
         )
-        .await;
+        .await
+        .unwrap();
 
     let batch_0 = L1BatchNumber(0);
 
@@ -924,7 +934,8 @@ async fn pli_status_complete_verbose() {
             ProtocolSemanticVersion::default(),
             L1VerifierConfig::default(),
         )
-        .await;
+        .await
+        .unwrap();
 
     let batch_0 = L1BatchNumber(0);
 
