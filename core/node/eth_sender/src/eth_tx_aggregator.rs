@@ -854,10 +854,10 @@ impl EthTxAggregator {
     }
 }
 
-async fn query_no_params_method(
+async fn get_settlement_later(
     l1_client: &dyn BoundEthInterface,
-    method_name: &str,
-) -> Result<U256, EthSenderError> {
+) -> Result<Address, EthSenderError> {
+    let method_name = "getSettlementLayer";
     let data = l1_client
         .contract()
         .function(method_name)
@@ -886,7 +886,7 @@ async fn query_no_params_method(
         .decode_output(&result.0)
         .unwrap()[0]
         .clone()
-        .into_uint()
+        .into_address()
         .unwrap())
 }
 
@@ -894,8 +894,8 @@ pub async fn gateway_status(
     storage: &mut Connection<'_, Core>,
     l1_client: &dyn BoundEthInterface,
 ) -> Result<GatewayMigrationState, EthSenderError> {
-    let layer = query_no_params_method(l1_client, "getSettlementLayer").await?;
-    if layer != U256::zero() {
+    let layer = get_settlement_later(l1_client).await?;
+    if layer != Address::zero() {
         return Ok(GatewayMigrationState::Finalized);
     };
 
