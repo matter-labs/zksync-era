@@ -10507,7 +10507,7 @@ dependencies = [
 
 [[package]]
 name = "zk_os_merkle_tree"
-version = "26.2.1-non-semver-compat"
+version = "26.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "clap 4.5.23",
