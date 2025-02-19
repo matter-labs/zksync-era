@@ -52,10 +52,10 @@ are using Simple algorithm.
 
 Simple algorithm tries to scale the Deployment up to `queue / speed` replicas (rounded up) in the best cluster. If there
 is not enough capacity it continue in the next best cluster and so on. On each run it selects "best cluster" using
-priority, number of capacity issues and cluster size. The capacity is limited by config
-`max_replicas` and also by availability of machines in the cluster. Autoscaler detects that a cluster is running out of
-particular machines by watching for `FailedScaleUp` events and also by checking if a Pod stuck in Pending for longer
-than `long_pending_duration`. If not enough capacity is detected not running Pods will be moved.
+priority, number of capacity issues and cluster size. The capacity is limited by config `max_replicas` and also by
+availability of machines in the cluster. Autoscaler detects that a cluster is running out of particular machines by
+watching for `FailedScaleUp` events and also by checking if a Pod stuck in Pending for longer than
+`long_pending_duration`. If not enough capacity is detected not running Pods will be moved.
 
 GPU algorithm works similar to Simple one, but it also recognise different GPU types and distribute load across L4 GPUs
 first, then T4, V100, P100 and A100, if available.
@@ -155,7 +155,8 @@ agent_config:
 - `apply_min_to_namespace` specifies current primary namespace to run min number of provers in it.
 - `long_pending_duration` is time after a pending pod considered long pending and will be relocated to different
   cluster. Default: 10m.
-- `gpu_scaler_targets` subsection is a list of GPU targets, similar to `scaler_targets`, but includes GPU type for `max_replicas` and `speed`.
+- `gpu_scaler_targets` subsection is a list of GPU targets, similar to `scaler_targets`, but includes GPU type for
+  `max_replicas` and `speed`.
 - `scaler_targets` subsection is a list of non-GPU targets:
   - `queue_report_field` is name of corresponding queue report section. See example for possible options.
   - `deployment` is name of a Deployment to scale.
@@ -207,46 +208,46 @@ scaler_config:
       min_replicas: 1
       max_replicas:
         cluster1:
-            []: 10
+          []: 10
         cluster2:
-            []: 20
+          []: 20
       speed:
         []: 4
     - queue_report_field: leaf_witness_jobs
       deployment: witness-generator-leaf-fri
       max_replicas:
         cluster1:
-            []: 10
+          []: 10
       speed:
         []: 10
     - queue_report_field: node_witness_jobs
       deployment: witness-generator-node-fri
       max_replicas:
         cluster1:
-            []: 10
+          []: 10
       speed:
         []: 10
     - queue_report_field: recursion_tip_witness_jobs
       deployment: witness-generator-recursion-tip-fri
       max_replicas:
         cluster1:
-            []: 10
+          []: 10
       speed:
         []: 10
     - queue_report_field: scheduler_witness_jobs
       deployment: witness-generator-scheduler-fri
       max_replicas:
         cluster1:
-            []: 10
+          []: 10
       speed:
         []: 10
     - queue_report_field: proof_compressor_jobs
       deployment: proof-fri-gpu-compressor
       max_replicas:
         cluster1:
-            []: 10
+          []: 10
         cluster2:
-            []: 20
+          []: 20
       speed:
         []: 5
 ```
