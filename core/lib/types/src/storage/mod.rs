@@ -77,11 +77,12 @@ pub fn get_code_key(account: &Address) -> StorageKey {
     StorageKey::new(account_code_storage, address_to_h256(account))
 }
 
-pub fn get_evm_code_hash_key(account: &Address) -> StorageKey {
-    let mut slot = address_to_h256(account);
-    slot.0[0] |= 64;
-    // Equivalent to `slot = (1 << 254) + address`
-    get_deployer_key(slot)
+/// Gets a slot holding EVM-compatible bytecode hash (i.e., `keccak256` of the non-padded EVM bytecode).
+pub fn get_evm_code_hash_key(versioned_bytecode_hash: H256) -> StorageKey {
+    StorageKey::new(
+        AccountTreeId::new(EVM_HASHES_STORAGE_ADDRESS),
+        versioned_bytecode_hash,
+    )
 }
 
 pub fn get_known_code_key(hash: &H256) -> StorageKey {
