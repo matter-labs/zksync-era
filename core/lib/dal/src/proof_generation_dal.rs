@@ -1,10 +1,13 @@
 #![doc = include_str!("../doc/ProofGenerationDal.md")]
 
+use std::time::Duration;
+
 use strum::{Display, EnumString};
 use zksync_db_connection::{
     connection::Connection,
     error::DalResult,
     instrument::{InstrumentExt, Instrumented},
+    utils::pg_interval_from_duration,
 };
 use zksync_types::L1BatchNumber;
 
@@ -32,9 +35,6 @@ impl ProofGenerationDal<'_, '_> {
     /// and is not already picked.
     ///
     /// Marks the batch as picked by the prover, preventing it from being picked twice.
-    ///
-    /// The batch can be unpicked either via a corresponding DAL method, or it is considered
-    /// not picked after `processing_timeout` passes.
     pub async fn lock_batch_for_proving(&mut self) -> DalResult<Option<L1BatchNumber>> {
         let result: Option<L1BatchNumber> = sqlx::query!(
             r#"

@@ -8,7 +8,7 @@ use zksync_basic_types::{
     },
     L1BatchNumber, L2ChainId,
 };
-use zksync_db_connection::connection::Connection;
+use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
 
 use crate::{duration_to_naive_time, pg_interval_from_duration, Prover};
 
@@ -228,7 +228,7 @@ impl FriProofCompressorDal<'_, '_> {
         &mut self,
         block_number: L1BatchNumber,
         chain_id: L2ChainId,
-    ) {
+    ) -> DalResult<()> {
         sqlx::query!(
             r#"
             UPDATE proof_compression_jobs_fri
@@ -243,9 +243,10 @@ impl FriProofCompressorDal<'_, '_> {
             i64::from(block_number.0),
             chain_id.as_u64() as i32
         )
-        .execute(self.storage.conn())
-        .await
-        .unwrap();
+        .instrument("mark_proof_sent_to_server")
+        .execute(self.storage)
+        .await?;
+        Ok(())
     }
 
     pub async fn get_jobs_stats(&mut self) -> HashMap<ProtocolSemanticVersion, JobCountStatistics> {

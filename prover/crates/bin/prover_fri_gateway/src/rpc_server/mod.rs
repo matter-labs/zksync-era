@@ -27,9 +27,11 @@ impl RpcServer {
 
     pub async fn run(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         let address = format!("127.0.0.1:{}", self.ws_port);
-        let server = Server::builder().build(address).await?;
+        let server = Server::builder().build(address.clone()).await?;
         let handle = server.start(self.processor.into_rpc());
         let close_handle = handle.clone();
+
+        tracing::info!("Started JSON-RPC server at {}", address);
 
         tokio::spawn(async move {
             if stop_receiver.changed().await.is_err() {

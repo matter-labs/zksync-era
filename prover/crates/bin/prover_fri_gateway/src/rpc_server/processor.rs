@@ -91,14 +91,14 @@ impl RpcDataProcessor {
         &self,
         l1_batch_number: L1BatchNumber,
         chain_id: L2ChainId,
-    ) {
+    ) -> anyhow::Result<()> {
         self.pool
             .connection()
-            .await
-            .unwrap()
+            .await?
             .fri_proof_compressor_dal()
             .mark_proof_sent_to_server(l1_batch_number, chain_id)
-            .await;
+            .await
+            .map_err(|e| anyhow::anyhow!(e))
     }
 
     pub async fn save_proof_gen_data(&self, data: ProofGenerationData) -> anyhow::Result<()> {
@@ -119,7 +119,7 @@ impl RpcDataProcessor {
         connection
             .fri_protocol_versions_dal()
             .save_prover_protocol_version(data.protocol_version, data.l1_verifier_config)
-            .await;
+            .await?;
 
         connection
             .fri_basic_witness_generator_dal()
@@ -129,7 +129,7 @@ impl RpcDataProcessor {
                 &witness_inputs,
                 data.protocol_version,
             )
-            .await;
+            .await?;
         Ok(())
     }
 }
@@ -149,8 +149,8 @@ impl GatewayRpcServer for RpcDataProcessor {
         l1_batch_number: L1BatchNumber,
     ) -> RpcResult<()> {
         self.save_successful_sent_proof(l1_batch_number, chain_id)
-            .await;
-        Ok(())
+            .await
+            .map_err(|_| ErrorObject::owned(0, "", None::<()>))
     }
 
     async fn subscribe_for_proofs(

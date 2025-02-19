@@ -39,6 +39,8 @@ impl RpcClient {
         let proof_data_sender = self.run_and_maintain_proof_data_submitter(stop_receiver.clone());
         let proof_receiver = self.run_and_maintain_proof_receiver(stop_receiver.clone());
 
+        tracing::info!("Starting proof data submitter and receiver");
+
         tokio::select! {
             _ = proof_data_sender => {
                 tracing::info!("Proof data sender stopped");
@@ -56,6 +58,7 @@ impl RpcClient {
         stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<()> {
         loop {
+            tokio::time::sleep(self.connection_retry_interval).await;
             if *stop_receiver.borrow() {
                 tracing::warn!("Stop signal received, shutting down ProofDataSubmitter");
                 return Ok(());
@@ -64,10 +67,10 @@ impl RpcClient {
             let client = WsClientBuilder::default().build(&self.ws_url).await;
             if let Err(e) = client {
                 tracing::error!(
-                    "Failed to connect to the server for proof data submitter: {}",
-                    e
+                    "Failed to connect to the server for proof data submitter: {}, sleeping for {:?}",
+                    e,
+                    self.connection_retry_interval
                 );
-                tokio::time::sleep(self.connection_retry_interval).await;
                 continue;
             }
 
@@ -91,9 +94,14 @@ impl RpcClient {
         stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<()> {
         loop {
+            tokio::time::sleep(self.poll_duration).await;
             if *stop_receiver.borrow() {
                 tracing::warn!("Stop signal received, shutting down proof data sender");
                 return Ok(());
+            }
+            if !client.is_connected() {
+                tracing::error!("Connection to the server is lost, trying to reconnect");
+                return Err(anyhow::anyhow!("Connection to the server is lost"));
             }
 
             let Some(data) = self
@@ -101,8 +109,7 @@ impl RpcClient {
                 .get_proof_generation_data(self.chain_id)
                 .await?
             else {
-                tracing::info!("No proof generation data to send, waiting for new ones");
-                tokio::time::sleep(self.poll_duration).await;
+                tracing::info!("No proof generation data to send, waiting for new batches");
                 continue;
             };
 
@@ -111,7 +118,11 @@ impl RpcClient {
             tracing::info!("Sending proof for batch {:?}", l1_batch_number);
 
             if let Err(e) = client.submit_proof_generation_data(data).await {
-                tracing::error!("Failed to submit proof generation data: {}", e);
+                tracing::error!(
+                    "Failed to submit proof generation data for batch {:?}, unlocking: {}",
+                    e,
+                    l1_batch_number
+                );
                 self.processor.unlock_batch(l1_batch_number).await?;
             }
         }
