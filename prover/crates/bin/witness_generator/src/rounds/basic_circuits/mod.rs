@@ -13,9 +13,7 @@ use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::get_current_pod_name;
 use zksync_prover_interface::inputs::WitnessInputData;
 use zksync_prover_keystore::keystore::Keystore;
-use zksync_types::{
-    basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion, L1BatchNumber,
-};
+use zksync_types::{basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion, L1BatchNumber, L2ChainId};
 
 use crate::{
     artifacts::ArtifactsManager,
@@ -101,11 +99,11 @@ impl JobManager for BasicCircuits {
     }
 
     async fn prepare_job(
-        metadata: L1BatchNumber,
+        metadata: (L2ChainId, L1BatchNumber),
         object_store: &dyn ObjectStore,
         _keystore: Keystore,
     ) -> anyhow::Result<Self::Job> {
-        tracing::info!("Processing FRI basic witness-gen for block {}", metadata.0);
+        tracing::info!("Processing FRI basic witness-gen for chain: {:?}, batch {}", metadata.0, metadata.1);
         let started_at = Instant::now();
         let job = Self::get_artifacts(&metadata, object_store).await?;
 

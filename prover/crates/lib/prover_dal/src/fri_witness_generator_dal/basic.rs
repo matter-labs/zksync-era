@@ -62,7 +62,7 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
         &mut self,
         protocol_version: ProtocolSemanticVersion,
         picked_by: &str,
-    ) -> Option<L1BatchNumber> {
+    ) -> Option<(L2ChainId, L1BatchNumber)> {
         sqlx::query!(
             r#"
             UPDATE witness_inputs_fri
@@ -91,6 +91,7 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
                     SKIP LOCKED
                 )
             RETURNING
+            witness_inputs_fri.chain_id,
             witness_inputs_fri.l1_batch_number
             "#,
             protocol_version.minor as i32,
@@ -100,7 +101,7 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
         .fetch_optional(self.storage.conn())
         .await
         .unwrap()
-        .map(|row| L1BatchNumber(row.l1_batch_number as u32))
+        .map(|row| (L2ChainId::new(row.chain_id as u64).unwrap(), L1BatchNumber(row.l1_batch_number as u32)))
     }
 
     pub async fn set_status_for_basic_witness_job(
