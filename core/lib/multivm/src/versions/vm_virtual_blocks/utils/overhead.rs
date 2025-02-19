@@ -50,12 +50,12 @@ pub(crate) fn derive_overhead(
     // ```
 
     vec![
-        (coefficients.ergs_limit_overhead_coeficient
+        (coefficients.ergs_limit_overhead_coefficient
             * overhead_for_single_instance_circuits.as_u32() as f64)
             .floor() as u32,
-        (coefficients.bootloader_memory_overhead_coeficient * overhead_for_length.as_u32() as f64)
+        (coefficients.bootloader_memory_overhead_coefficient * overhead_for_length.as_u32() as f64)
             .floor() as u32,
-        (coefficients.slot_overhead_coeficient * tx_slot_overhead.as_u32() as f64) as u32,
+        (coefficients.slot_overhead_coefficient * tx_slot_overhead.as_u32() as f64) as u32,
     ]
     .into_iter()
     .max()
@@ -69,28 +69,28 @@ pub(crate) fn derive_overhead(
 /// result in an integer number
 #[derive(Debug, Clone, Copy)]
 pub struct OverheadCoefficients {
-    slot_overhead_coeficient: f64,
-    bootloader_memory_overhead_coeficient: f64,
-    ergs_limit_overhead_coeficient: f64,
+    slot_overhead_coefficient: f64,
+    bootloader_memory_overhead_coefficient: f64,
+    ergs_limit_overhead_coefficient: f64,
 }
 
 impl OverheadCoefficients {
     // This method ensures that the parameters keep the required invariants
     fn new_checked(
-        slot_overhead_coeficient: f64,
-        bootloader_memory_overhead_coeficient: f64,
-        ergs_limit_overhead_coeficient: f64,
+        slot_overhead_coefficient: f64,
+        bootloader_memory_overhead_coefficient: f64,
+        ergs_limit_overhead_coefficient: f64,
     ) -> Self {
         assert!(
-            (MAX_TX_ERGS_LIMIT as f64 / ergs_limit_overhead_coeficient).round()
-                == MAX_TX_ERGS_LIMIT as f64 / ergs_limit_overhead_coeficient,
-            "MAX_TX_ERGS_LIMIT / ergs_limit_overhead_coeficient must be an integer"
+            (MAX_TX_ERGS_LIMIT as f64 / ergs_limit_overhead_coefficient).round()
+                == MAX_TX_ERGS_LIMIT as f64 / ergs_limit_overhead_coefficient,
+            "MAX_TX_ERGS_LIMIT / ergs_limit_overhead_coefficient must be an integer"
         );
 
         Self {
-            slot_overhead_coeficient,
-            bootloader_memory_overhead_coeficient,
-            ergs_limit_overhead_coeficient,
+            slot_overhead_coefficient,
+            bootloader_memory_overhead_coefficient,
+            ergs_limit_overhead_coefficient,
         }
     }
 
@@ -162,7 +162,7 @@ pub(crate) fn get_amortized_overhead(
     let tx_slot_overhead = {
         let tx_slot_overhead =
             ceil_div_u256(overhead_for_block_gas, MAX_TXS_IN_BLOCK.into()).as_u32();
-        (coefficients.slot_overhead_coeficient * tx_slot_overhead as f64).floor() as u32
+        (coefficients.slot_overhead_coefficient * tx_slot_overhead as f64).floor() as u32
     };
 
     // 2. The overhead for occupying the bootloader memory can be derived from `encoded_len`
@@ -173,7 +173,7 @@ pub(crate) fn get_amortized_overhead(
         )
         .as_u32();
 
-        (coefficients.bootloader_memory_overhead_coeficient * overhead_for_length as f64).floor()
+        (coefficients.bootloader_memory_overhead_coefficient * overhead_for_length as f64).floor()
             as u32
     };
 
@@ -222,7 +222,7 @@ pub(crate) fn get_amortized_overhead(
     let overhead_for_gas = {
         let numerator = overhead_for_block_gas * total_gas_limit + U256::from(MAX_TX_ERGS_LIMIT);
         let denominator: U256 = U256::from(
-            (MAX_TX_ERGS_LIMIT as f64 / coefficients.ergs_limit_overhead_coeficient) as u64,
+            (MAX_TX_ERGS_LIMIT as f64 / coefficients.ergs_limit_overhead_coefficient) as u64,
         ) + overhead_for_block_gas;
 
         let overhead_for_gas = (numerator - 1) / denominator;
