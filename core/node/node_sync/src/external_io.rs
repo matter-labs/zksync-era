@@ -284,14 +284,14 @@ impl StateKeeperIO for ExternalIO {
         Ok((cursor, Some(data)))
     }
 
-    async fn wait_for_new_batch_params(
+    async fn wait_for_new_batch_params_and_first_tx(
         &mut self,
         cursor: &IoCursor,
         max_wait: Duration,
-    ) -> anyhow::Result<Option<L1BatchParams>> {
+    ) -> anyhow::Result<(Option<L1BatchParams>, Option<Transaction>)> {
         tracing::debug!("Waiting for the new batch params");
         let Some(action) = self.actions.recv_action(max_wait).await else {
-            return Ok(None);
+            return Ok((None, None));
         };
         match action {
             SyncAction::OpenBatch {
@@ -324,7 +324,7 @@ impl StateKeeperIO for ExternalIO {
                         fee_input: params.fee_input,
                     })
                     .await?;
-                return Ok(Some(*params));
+                return Ok((Some(params), None));
             }
             other => {
                 anyhow::bail!("unexpected action in the action queue: {other:?}");
@@ -532,20 +532,20 @@ mod tests {
                 virtual_blocks: 1,
             },
             pubdata_params: Default::default(),
-            batch_first_tx: None,
         };
         actions_sender
             .push_action_unchecked(SyncAction::OpenBatch {
-                params: Box::from(params.clone()),
+                params: params.clone(),
                 number: L1BatchNumber(1),
                 first_l2_block_number: L2BlockNumber(1),
             })
             .await
             .unwrap();
         let fetched_params = external_io
-            .wait_for_new_batch_params(&cursor, Duration::from_secs(10))
+            .wait_for_new_batch_params_and_first_tx(&cursor, Duration::from_secs(10))
             .await
             .unwrap()
+            .0
             .unwrap();
         assert_eq!(fetched_params, params);
 

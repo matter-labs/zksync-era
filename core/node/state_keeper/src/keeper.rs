@@ -54,6 +54,14 @@ impl Error {
     }
 }
 
+#[derive(Debug)]
+struct ZkSyncStateKeeperBatchEnv {
+    system_env: SystemEnv,
+    l1_batch_env: L1BatchEnv,
+    pubdata_params: PubdataParams,
+    batch_first_tx: Option<Transaction>,
+}
+
 /// State keeper represents a logic layer of L1 batch / L2 block processing flow.
 /// It's responsible for taking all the data from the `StateKeeperIO`, feeding it into `BatchExecutor` objects
 /// and calling `SealManager` to decide whether an L2 block or L1 batch should be sealed.
@@ -141,16 +149,16 @@ impl ZkSyncStateKeeper {
             }
             None => {
                 tracing::info!("There is no open pending batch, starting a new empty batch");
-                let (system_env, l1_batch_env, pubdata_params, tx) = self
+                let state_keeper_batch_env = self
                     .wait_for_new_batch_env(&cursor, &mut stop_receiver)
                     .await
-                    .map_err(|e| e.context("wait_for_new_batch_params()"))?;
-                batch_first_tx = tx;
+                    .map_err(|e| e.context("wait_for_new_batch_env()"))?;
+                batch_first_tx = state_keeper_batch_env.batch_first_tx;
                 PendingBatchData {
-                    l1_batch_env,
+                    l1_batch_env: state_keeper_batch_env.l1_batch_env,
+                    system_env: state_keeper_batch_env.system_env,
+                    pubdata_params: state_keeper_batch_env.pubdata_params,
                     pending_l2_blocks: Vec::new(),
-                    system_env,
-                    pubdata_params,
                 }
             }
         };
@@ -211,9 +219,14 @@ impl ZkSyncStateKeeper {
 
             // Start the new batch.
             next_cursor.l1_batch += 1;
-            (system_env, l1_batch_env, pubdata_params, batch_first_tx) = self
+            let state_keeper_batch_env = self
                 .wait_for_new_batch_env(&next_cursor, &mut stop_receiver)
                 .await?;
+
+            system_env = state_keeper_batch_env.system_env;
+            l1_batch_env = state_keeper_batch_env.l1_batch_env;
+            pubdata_params = state_keeper_batch_env.pubdata_params;
+            batch_first_tx = state_keeper_batch_env.batch_first_tx;
             updates_manager = UpdatesManager::new(&l1_batch_env, &system_env, pubdata_params);
             batch_executor = self
                 .create_batch_executor(
@@ -251,18 +264,18 @@ impl ZkSyncStateKeeper {
             l1_batch = %cursor.l1_batch,
         )
     )]
-    async fn wait_for_new_batch_params(
+    async fn wait_for_new_batch_params_and_first_tx(
         &mut self,
         cursor: &IoCursor,
         stop_receiver: &watch::Receiver<bool>,
-    ) -> Result<L1BatchParams, Error> {
+    ) -> Result<(L1BatchParams, Option<Transaction>), Error> {
         while !is_canceled(stop_receiver) {
-            if let Some(params) = self
+            if let (Some(params), transaction) = self
                 .io
-                .wait_for_new_batch_params(cursor, POLL_WAIT_DURATION)
+                .wait_for_new_batch_params_and_first_tx(cursor, POLL_WAIT_DURATION)
                 .await?
             {
-                return Ok(params);
+                return Ok((params, transaction));
             }
         }
         Err(Error::Canceled)
@@ -278,11 +291,11 @@ impl ZkSyncStateKeeper {
         &mut self,
         cursor: &IoCursor,
         stop_receiver: &mut watch::Receiver<bool>,
-    ) -> Result<(SystemEnv, L1BatchEnv, PubdataParams, Option<Transaction>), Error> {
-        // `io.wait_for_new_batch_params(..)` is not cancel-safe; once we get new batch params, we must hold onto them
+    ) -> Result<ZkSyncStateKeeperBatchEnv, Error> {
+        // `io.wait_for_new_batch_params_and_first_tx(..)` is not cancel-safe; once we get new batch params, we must hold onto them
         // until we get the rest of parameters from I/O or receive a stop signal.
-        let params = self
-            .wait_for_new_batch_params(cursor, stop_receiver)
+        let (params, tx) = self
+            .wait_for_new_batch_params_and_first_tx(cursor, stop_receiver)
             .await?;
         let contracts = self
             .io
@@ -299,7 +312,9 @@ impl ZkSyncStateKeeper {
         tokio::select! {
             hash_result = self.io.load_batch_state_hash(cursor.l1_batch - 1) => {
                 let previous_batch_hash = hash_result.context("cannot load state hash for previous L1 batch")?;
-                Ok(params.into_env(self.io.chain_id(), contracts, cursor, previous_batch_hash))
+                let env = params.into_env(self.io.chain_id(), contracts, cursor, previous_batch_hash);
+                Ok(ZkSyncStateKeeperBatchEnv{
+                system_env:env.0,l1_batch_env: env.1,pubdata_params: env.2,batch_first_tx: tx,})
             }
             _ = stop_receiver.changed() => Err(Error::Canceled),
         }

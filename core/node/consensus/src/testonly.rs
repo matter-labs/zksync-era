@@ -271,7 +271,7 @@ impl StateKeeper {
             self.last_timestamp += 5;
             self.batch_sealed = false;
             SyncAction::OpenBatch {
-                params: Box::from(L1BatchParams {
+                params: L1BatchParams {
                     protocol_version: self.protocol_version,
                     validation_computational_gas_limit: u32::MAX,
                     operator_address: GenesisParams::mock().config().fee_account,
@@ -284,8 +284,7 @@ impl StateKeeper {
                         virtual_blocks: 1,
                     },
                     pubdata_params: Default::default(),
-                    batch_first_tx: None,
-                }),
+                },
                 number: self.last_batch,
                 first_l2_block_number: self.last_block,
             }

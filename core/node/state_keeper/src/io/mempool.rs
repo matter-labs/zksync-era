@@ -148,11 +148,11 @@ impl StateKeeperIO for MempoolIO {
         Ok((cursor, Some(pending_batch_data)))
     }
 
-    async fn wait_for_new_batch_params(
+    async fn wait_for_new_batch_params_and_first_tx(
         &mut self,
         cursor: &IoCursor,
         max_wait: Duration,
-    ) -> anyhow::Result<Option<L1BatchParams>> {
+    ) -> anyhow::Result<(Option<L1BatchParams>, Option<Transaction>)> {
         // Check if there is an existing unsealed batch
         if let Some(unsealed_storage_batch) = self
             .pool
@@ -165,20 +165,22 @@ impl StateKeeperIO for MempoolIO {
             let protocol_version = unsealed_storage_batch
                 .protocol_version
                 .context("unsealed batch is missing protocol version")?;
-            return Ok(Some(L1BatchParams {
-                protocol_version,
-                validation_computational_gas_limit: self.validation_computational_gas_limit,
-                operator_address: unsealed_storage_batch.fee_address,
-                fee_input: unsealed_storage_batch.fee_input,
-                first_l2_block: L2BlockParams {
-                    timestamp: unsealed_storage_batch.timestamp,
-                    // This value is effectively ignored by the protocol.
-                    virtual_blocks: 1,
-                },
-                pubdata_params: self.pubdata_params(protocol_version)?,
+            return Ok((
+                Some(L1BatchParams {
+                    protocol_version,
+                    validation_computational_gas_limit: self.validation_computational_gas_limit,
+                    operator_address: unsealed_storage_batch.fee_address,
+                    fee_input: unsealed_storage_batch.fee_input,
+                    first_l2_block: L2BlockParams {
+                        timestamp: unsealed_storage_batch.timestamp,
+                        // This value is effectively ignored by the protocol.
+                        virtual_blocks: 1,
+                    },
+                    pubdata_params: self.pubdata_params(protocol_version)?,
+                }),
                 // This value is irrelevant for a non-empty batch
-                batch_first_tx: None,
-            }));
+                None,
+            ));
         }
 
         let deadline = Instant::now() + max_wait;
@@ -194,7 +196,7 @@ impl StateKeeperIO for MempoolIO {
                 sleep_past(cursor.prev_l2_block_timestamp, cursor.next_l2_block),
             );
             let Some(timestamp) = timestamp.await.ok() else {
-                return Ok(None);
+                return Ok((None, None));
             };
 
             tracing::trace!(
@@ -213,15 +215,19 @@ impl StateKeeperIO for MempoolIO {
                 .pending_protocol_version()
                 .await
                 .context("Failed loading previous protocol version")?;
-            let batch_upgrade_tx = if previous_protocol_version != protocol_version {
-                storage
-                    .protocol_versions_dal()
-                    .get_protocol_upgrade_tx(protocol_version)
-                    .await
-                    .context("Failed loading protocol upgrade tx")?
-            } else {
-                None
-            };
+
+            let first_batch_in_shared_bridge =
+                cursor.l1_batch == L1BatchNumber(1) && !protocol_version.is_pre_shared_bridge();
+            let batch_upgrade_tx =
+                if previous_protocol_version != protocol_version || first_batch_in_shared_bridge {
+                    storage
+                        .protocol_versions_dal()
+                        .get_protocol_upgrade_tx(protocol_version)
+                        .await
+                        .context("Failed loading protocol upgrade tx")?
+                } else {
+                    None
+                };
             drop(storage);
 
             // We create a new filter each time, since parameters may change and a previously
@@ -238,7 +244,7 @@ impl StateKeeperIO for MempoolIO {
             // Check first if there is an upgrade tx
             if let Some(protocol_upgrade_tx) = batch_upgrade_tx {
                 batch_first_tx = protocol_upgrade_tx.into();
-                // We do not populate mempool with upgrade tx so the mempool should be checked separately.
+                // Otherwise wait for the next tx in the mempool
             } else if let Some(tx) = self
                 .wait_for_next_tx(max_wait, timestamp)
                 .await
@@ -263,21 +269,23 @@ impl StateKeeperIO for MempoolIO {
                 })
                 .await?;
 
-            return Ok(Some(L1BatchParams {
-                protocol_version,
-                validation_computational_gas_limit: self.validation_computational_gas_limit,
-                operator_address: self.fee_account,
-                fee_input: self.filter.fee_input,
-                first_l2_block: L2BlockParams {
-                    timestamp,
-                    // This value is effectively ignored by the protocol.
-                    virtual_blocks: 1,
-                },
-                pubdata_params: self.pubdata_params(protocol_version)?,
-                batch_first_tx: Some(batch_first_tx),
-            }));
+            return Ok((
+                Some(L1BatchParams {
+                    protocol_version,
+                    validation_computational_gas_limit: self.validation_computational_gas_limit,
+                    operator_address: self.fee_account,
+                    fee_input: self.filter.fee_input,
+                    first_l2_block: L2BlockParams {
+                        timestamp,
+                        // This value is effectively ignored by the protocol.
+                        virtual_blocks: 1,
+                    },
+                    pubdata_params: self.pubdata_params(protocol_version)?,
+                }),
+                Some(batch_first_tx),
+            ));
         }
-        Ok(None)
+        Ok((None, None))
     }
 
     async fn wait_for_new_l2_block_params(

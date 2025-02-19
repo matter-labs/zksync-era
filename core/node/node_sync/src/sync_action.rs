@@ -155,7 +155,7 @@ impl ActionQueue {
 #[derive(Debug, Clone)]
 pub enum SyncAction {
     OpenBatch {
-        params: Box<L1BatchParams>,
+        params: L1BatchParams,
         // Additional parameters used only for sanity checks
         number: L1BatchNumber,
         first_l2_block_number: L2BlockNumber,
@@ -189,7 +189,7 @@ mod tests {
 
     fn open_batch() -> SyncAction {
         SyncAction::OpenBatch {
-            params: Box::from(L1BatchParams {
+            params: L1BatchParams {
                 protocol_version: ProtocolVersionId::latest(),
                 validation_computational_gas_limit: u32::MAX,
                 operator_address: Address::default(),
@@ -199,8 +199,7 @@ mod tests {
                     virtual_blocks: 1,
                 },
                 pubdata_params: Default::default(),
-                batch_first_tx: None,
-            }),
+            },
             number: L1BatchNumber(1),
             first_l2_block_number: L2BlockNumber(1),
         }

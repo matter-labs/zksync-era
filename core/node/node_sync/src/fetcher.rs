@@ -162,7 +162,7 @@ impl IoCursorExt for IoCursor {
             );
 
             new_actions.push(SyncAction::OpenBatch {
-                params: Box::from(L1BatchParams {
+                params: L1BatchParams {
                     protocol_version: block.protocol_version,
                     validation_computational_gas_limit: super::VALIDATION_COMPUTATIONAL_GAS_LIMIT,
                     operator_address: block.operator_address,
@@ -177,8 +177,7 @@ impl IoCursorExt for IoCursor {
                         virtual_blocks: block.virtual_blocks,
                     },
                     pubdata_params: block.pubdata_params,
-                    batch_first_tx: None,
-                }),
+                },
                 number: block.l1_batch_number,
                 first_l2_block_number: block.number,
             });

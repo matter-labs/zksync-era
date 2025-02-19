@@ -33,14 +33,9 @@ const TEST_TIMEOUT: Duration = Duration::from_secs(10);
 const POLL_INTERVAL: Duration = Duration::from_millis(50);
 pub(crate) const OPERATOR_ADDRESS: Address = Address::repeat_byte(1);
 
-fn open_l1_batch(
-    number: u32,
-    timestamp: u64,
-    first_l2_block_number: u32,
-    batch_first_tx: Option<Transaction>,
-) -> SyncAction {
+fn open_l1_batch(number: u32, timestamp: u64, first_l2_block_number: u32) -> SyncAction {
     SyncAction::OpenBatch {
-        params: Box::from(L1BatchParams {
+        params: L1BatchParams {
             protocol_version: ProtocolVersionId::latest(),
             validation_computational_gas_limit: u32::MAX,
             operator_address: OPERATOR_ADDRESS,
@@ -50,8 +45,7 @@ fn open_l1_batch(
                 virtual_blocks: 1,
             },
             pubdata_params: Default::default(),
-            batch_first_tx,
-        }),
+        },
         number: L1BatchNumber(number),
         first_l2_block_number: L2BlockNumber(first_l2_block_number),
     }
@@ -220,21 +214,25 @@ async fn external_io_basics(snapshot_recovery: bool) {
         genesis_snapshot_recovery_status()
     };
 
-    let tx = create_l2_transaction(10, 100);
-    let tx_hash = tx.hash();
     let open_l1_batch = open_l1_batch(
         snapshot.l1_batch_number.0 + 1,
         snapshot.l2_block_timestamp + 1,
         snapshot.l2_block_number.0 + 1,
-        Some(Transaction::from(tx)),
     );
-
-    let actions = vec![open_l1_batch, SyncAction::SealL2Block];
+    let tx = create_l2_transaction(10, 100);
+    let tx_hash = tx.hash();
+    let tx = FetchedTransaction::new(tx.into());
+    let actions = vec![open_l1_batch, tx.into(), SyncAction::SealL2Block];
 
     let (actions_sender, action_queue) = ActionQueue::new();
     let client = MockMainNodeClient::default();
-    let state_keeper =
-        StateKeeperHandles::new(pool.clone(), client, action_queue, &[&[tx_hash]]).await;
+    let state_keeper = StateKeeperHandles::new(
+        pool.clone(),
+        client,
+        action_queue,
+        &[&extract_tx_hashes(&actions)],
+    )
+    .await;
     actions_sender.push_actions(actions).await.unwrap();
     // Wait until the L2 block is sealed.
     state_keeper
@@ -289,13 +287,10 @@ async fn external_io_works_without_local_protocol_version(snapshot_recovery: boo
         genesis_snapshot_recovery_status()
     };
 
-    let tx = create_l2_transaction(10, 100);
-    let tx_hash = tx.hash();
     let mut open_l1_batch = open_l1_batch(
         snapshot.l1_batch_number.0 + 1,
         snapshot.l2_block_timestamp + 1,
         snapshot.l2_block_number.0 + 1,
-        Some(Transaction::from(tx)),
     );
     if let SyncAction::OpenBatch { params, .. } = &mut open_l1_batch {
         params.protocol_version = ProtocolVersionId::next();
@@ -303,7 +298,9 @@ async fn external_io_works_without_local_protocol_version(snapshot_recovery: boo
         unreachable!();
     };
 
-    let actions = vec![open_l1_batch, SyncAction::SealL2Block];
+    let tx = create_l2_transaction(10, 100);
+    let tx = FetchedTransaction::new(tx.into());
+    let actions = vec![open_l1_batch, tx.into(), SyncAction::SealL2Block];
 
     let (actions_sender, action_queue) = ActionQueue::new();
     let mut client = MockMainNodeClient::default();
@@ -317,8 +314,13 @@ async fn external_io_works_without_local_protocol_version(snapshot_recovery: boo
     };
     client.insert_protocol_version(next_protocol_version.clone());
 
-    let state_keeper =
-        StateKeeperHandles::new(pool.clone(), client, action_queue, &[&[tx_hash]]).await;
+    let state_keeper = StateKeeperHandles::new(
+        pool.clone(),
+        client,
+        action_queue,
+        &[&extract_tx_hashes(&actions)],
+    )
+    .await;
     actions_sender.push_actions(actions).await.unwrap();
     // Wait until the L2 block is sealed.
     state_keeper
@@ -383,7 +385,6 @@ pub(super) async fn run_state_keeper_with_multiple_l2_blocks(
         snapshot.l1_batch_number.0 + 1,
         snapshot.l2_block_timestamp + 1,
         snapshot.l2_block_number.0 + 1,
-        None,
     );
     let txs = (0..5).map(|_| {
         let tx = create_l2_transaction(10, 100);
@@ -560,16 +561,15 @@ pub(super) async fn run_state_keeper_with_multiple_l1_batches(
     };
     drop(storage);
 
-    let first_tx = create_l2_transaction(10, 100);
-    let first_tx_hash = first_tx.hash();
     let l1_batch = open_l1_batch(
         snapshot.l1_batch_number.0 + 1,
         snapshot.l2_block_timestamp + 1,
         snapshot.l2_block_number.0 + 1,
-        Some(Transaction::from(first_tx)),
     );
-
-    let first_l1_batch_actions = vec![l1_batch, SyncAction::SealL2Block];
+    let first_tx = create_l2_transaction(10, 100);
+    let first_tx_hash = first_tx.hash();
+    let first_tx = FetchedTransaction::new(first_tx.into());
+    let first_l1_batch_actions = vec![l1_batch, first_tx.into(), SyncAction::SealL2Block];
 
     let fictive_l2_block = SyncAction::L2Block {
         params: L2BlockParams {
@@ -580,16 +580,15 @@ pub(super) async fn run_state_keeper_with_multiple_l1_batches(
     };
     let fictive_l2_block_actions = vec![fictive_l2_block, SyncAction::SealBatch];
 
-    let second_tx = create_l2_transaction(10, 100);
-    let second_tx_hash = second_tx.hash();
     let l1_batch = open_l1_batch(
         snapshot.l1_batch_number.0 + 2,
         snapshot.l2_block_timestamp + 3,
         snapshot.l2_block_number.0 + 3,
-        Some(Transaction::from(second_tx)),
     );
-
-    let second_l1_batch_actions = vec![l1_batch, SyncAction::SealL2Block];
+    let second_tx = create_l2_transaction(10, 100);
+    let second_tx_hash = second_tx.hash();
+    let second_tx = FetchedTransaction::new(second_tx.into());
+    let second_l1_batch_actions = vec![l1_batch, second_tx.into(), SyncAction::SealL2Block];
 
     let (actions_sender, action_queue) = ActionQueue::new();
     let state_keeper = StateKeeperHandles::new(
@@ -692,11 +691,11 @@ async fn external_io_empty_unsealed_batch() {
     ensure_genesis(&mut storage).await;
     drop(storage);
 
-    let open_batch_one = open_l1_batch(1, 1, 1, None);
+    let open_batch_one = open_l1_batch(1, 1, 1);
     let tx = create_l2_transaction(10, 100);
     let tx_hash = tx.hash();
     let tx = FetchedTransaction::new(tx.into());
-    let open_batch_two = open_l1_batch(2, 2, 3, None);
+    let open_batch_two = open_l1_batch(2, 2, 3);
     let fictive_l2_block = SyncAction::L2Block {
         params: L2BlockParams {
             timestamp: 2,

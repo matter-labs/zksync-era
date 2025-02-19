@@ -683,11 +683,11 @@ impl StateKeeperIO for TestIO {
         Ok((cursor, pending_batch))
     }
 
-    async fn wait_for_new_batch_params(
+    async fn wait_for_new_batch_params_and_first_tx(
         &mut self,
         cursor: &IoCursor,
         _max_wait: Duration,
-    ) -> anyhow::Result<Option<L1BatchParams>> {
+    ) -> anyhow::Result<(Option<L1BatchParams>, Option<Transaction>)> {
         assert_eq!(cursor.next_l2_block, self.l2_block_number);
         assert_eq!(cursor.l1_batch, self.batch_number);
 
@@ -701,12 +701,11 @@ impl StateKeeperIO for TestIO {
                 virtual_blocks: 1,
             },
             pubdata_params: Default::default(),
-            batch_first_tx: None,
         };
         self.l2_block_number += 1;
         self.timestamp += 1;
         self.batch_number += 1;
-        Ok(Some(params))
+        Ok((Some(params), None))
     }
 
     async fn wait_for_new_l2_block_params(

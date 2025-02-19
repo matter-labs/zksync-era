@@ -142,7 +142,7 @@ async fn test_filter_with_no_pending_batch(commitment_mode: L1BatchCommitmentMod
     // Now, given that there is a transaction matching the expected filter, waiting for the new batch params
     // should succeed and initialize the filter.
     mempool
-        .wait_for_new_batch_params(&io_cursor, Duration::from_secs(10))
+        .wait_for_new_batch_params_and_first_tx(&io_cursor, Duration::from_secs(10))
         .await
         .expect("No batch params in the test mempool");
     assert_eq!(mempool.filter(), &want_filter);
@@ -184,9 +184,10 @@ async fn test_timestamps_are_distinct(
     );
 
     let l1_batch_params = mempool
-        .wait_for_new_batch_params(&io_cursor, Duration::from_secs(10))
+        .wait_for_new_batch_params_and_first_tx(&io_cursor, Duration::from_secs(10))
         .await
         .unwrap()
+        .0
         .expect("No batch params in the test mempool");
     assert!(l1_batch_params.first_l2_block.timestamp > prev_l2_block_timestamp);
 }
@@ -548,11 +549,12 @@ async fn l2_block_processing_after_snapshot_recovery(commitment_mode: L1BatchCom
     assert_eq!(previous_batch_hash, snapshot_recovery.l1_batch_root_hash);
 
     let l1_batch_params = mempool
-        .wait_for_new_batch_params(&cursor, Duration::from_secs(10))
+        .wait_for_new_batch_params_and_first_tx(&cursor, Duration::from_secs(10))
         .await
         .unwrap()
+        .0
         .expect("no batch params generated");
-    let (system_env, l1_batch_env, pubdata_params, _) = l1_batch_params.into_env(
+    let (system_env, l1_batch_env, pubdata_params) = l1_batch_params.into_env(
         L2ChainId::default(),
         BASE_SYSTEM_CONTRACTS.clone(),
         &cursor,
@@ -689,9 +691,10 @@ async fn continue_unsealed_batch_on_restart(commitment_mode: L1BatchCommitmentMo
     insert_l2_transaction(&mut storage, &tx).await;
 
     let old_l1_batch_params = mempool
-        .wait_for_new_batch_params(&cursor, Duration::from_secs(10))
+        .wait_for_new_batch_params_and_first_tx(&cursor, Duration::from_secs(10))
         .await
         .unwrap()
+        .0
         .expect("no batch params generated");
 
     // Restart
@@ -700,9 +703,10 @@ async fn continue_unsealed_batch_on_restart(commitment_mode: L1BatchCommitmentMo
     let (cursor, _) = mempool.initialize().await.unwrap();
 
     let new_l1_batch_params = mempool
-        .wait_for_new_batch_params(&cursor, Duration::from_secs(10))
+        .wait_for_new_batch_params_and_first_tx(&cursor, Duration::from_secs(10))
         .await
         .unwrap()
+        .0
         .expect("no batch params generated");
 
     assert_eq!(old_l1_batch_params, new_l1_batch_params);
@@ -734,9 +738,10 @@ async fn insert_unsealed_batch_on_init(commitment_mode: L1BatchCommitmentMode) {
 
     // Make sure we are able to fetch the newly inserted batch's params
     let l1_batch_params = mempool
-        .wait_for_new_batch_params(&cursor, Duration::from_secs(10))
+        .wait_for_new_batch_params_and_first_tx(&cursor, Duration::from_secs(10))
         .await
         .unwrap()
+        .0
         .expect("no batch params generated");
     assert_eq!(l1_batch_params.fee_input, fee_input);
     assert_eq!(l1_batch_params.first_l2_block.timestamp, 2);
@@ -857,9 +862,10 @@ async fn test_batch_params_with_protocol_upgrade_tx() {
 
     // Check that new batch params are not returned when there is no tx to process.
     let new_batch_params = mempool
-        .wait_for_new_batch_params(&cursor, Duration::from_millis(100))
+        .wait_for_new_batch_params_and_first_tx(&cursor, Duration::from_millis(100))
         .await
-        .unwrap();
+        .unwrap()
+        .0;
     assert!(new_batch_params.is_none());
 
     // Insert protocol version with upgrade tx.
@@ -885,9 +891,10 @@ async fn test_batch_params_with_protocol_upgrade_tx() {
         .await
         .unwrap();
     let new_batch_params = mempool
-        .wait_for_new_batch_params(&cursor, Duration::from_millis(100))
+        .wait_for_new_batch_params_and_first_tx(&cursor, Duration::from_millis(100))
         .await
-        .unwrap();
+        .unwrap()
+        .0;
     assert!(new_batch_params.is_some());
 }
 
