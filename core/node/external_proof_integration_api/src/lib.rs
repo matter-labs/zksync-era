@@ -69,14 +69,14 @@ impl Api {
                 format!("Failed binding external prover API server to {bind_address}")
             })?;
         axum::serve(listener, self.router)
-        .with_graceful_shutdown(async move {
-            if stop_receiver.changed().await.is_err() {
-                tracing::warn!("Stop signal sender for external prover API server was dropped without sending a signal");
-            }
-            tracing::info!("Stop signal received, external prover API server is shutting down");
-        })
-        .await
-        .context("External prover API server failed")?;
+            .with_graceful_shutdown(async move {
+                if stop_receiver.changed().await.is_err() {
+                    tracing::warn!("Stop signal sender for external prover API server was dropped without sending a signal");
+                }
+                tracing::info!("Stop signal received, external prover API server is shutting down");
+            })
+            .await
+            .context("External prover API server failed")?;
         tracing::info!("External prover API server shut down");
         Ok(())
     }
