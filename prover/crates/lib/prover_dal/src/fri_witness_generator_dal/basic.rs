@@ -101,7 +101,12 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
         .fetch_optional(self.storage.conn())
         .await
         .unwrap()
-        .map(|row| (L2ChainId::new(row.chain_id as u64).unwrap(), L1BatchNumber(row.l1_batch_number as u32)))
+        .map(|row| {
+            (
+                L2ChainId::new(row.chain_id as u64).unwrap(),
+                L1BatchNumber(row.l1_batch_number as u32),
+            )
+        })
     }
 
     pub async fn set_status_for_basic_witness_job(
