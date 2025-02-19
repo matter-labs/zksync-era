@@ -462,7 +462,7 @@ fn clip_batch_fee_model_input_v2(
             fee_model.fair_l2_gas_price
         } else {
             tracing::warn!(
-                "Fair l2 gas price {} exceeds maximum. Limitting to {}",
+                "Fair l2 gas price {} exceeds maximum. Limiting to {}",
                 fee_model.fair_l2_gas_price,
                 MAXIMUM_L2_GAS_PRICE
             );
@@ -472,7 +472,7 @@ fn clip_batch_fee_model_input_v2(
             fee_model.fair_pubdata_price
         } else {
             tracing::warn!(
-                "Fair pubdata price {} exceeds maximum. Limitting to {}",
+                "Fair pubdata price {} exceeds maximum. Limiting to {}",
                 fee_model.fair_pubdata_price,
                 MAXIMUM_PUBDATA_PRICE
             );
