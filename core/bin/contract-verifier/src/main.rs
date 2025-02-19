@@ -2,11 +2,14 @@ use std::{path::PathBuf, time::Duration};
 
 use anyhow::Context as _;
 use clap::Parser;
+use secrecy::ExposeSecret;
 use tokio::sync::watch;
-use zksync_config::configs::PrometheusConfig;
+use zksync_config::configs::{ContractVerifierSecrets, DatabaseSecrets, PrometheusConfig};
 use zksync_contract_verifier_lib::{etherscan::EtherscanVerifier, ContractVerifier};
-use zksync_core_leftovers::temp_config_store::{load_database_secrets, load_general_config};
+use zksync_core_leftovers::temp_config_store::{load_general_config, read_yaml_repr};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
+use zksync_env_config::FromEnv;
+use zksync_protobuf_config::proto;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_task_management::ManagedTasks;
 use zksync_vlog::prometheus::PrometheusExporterConfig;
@@ -51,6 +54,31 @@ async fn perform_storage_migration(pool: &ConnectionPool<Core>) -> anyhow::Resul
     Ok(())
 }
 
+fn extract_secrets(
+    secrets_path: Option<std::path::PathBuf>,
+) -> anyhow::Result<(DatabaseSecrets, Option<String>)> {
+    let (database_secrets, contract_verifier_secrets) = if let Some(path) = secrets_path {
+        let secrets_config = read_yaml_repr::<proto::secrets::Secrets>(&path)
+            .context("failed decoding secrets YAML config")?;
+        (
+            secrets_config
+                .database
+                .context("failed to parse database secrets")?,
+            secrets_config.contract_verifier,
+        )
+    } else {
+        let db_secrets = DatabaseSecrets::from_env().context("DatabaseSecrets::from_env()")?;
+        let contract_verifier_secrets = ContractVerifierSecrets::from_env().ok();
+        (db_secrets, contract_verifier_secrets)
+    };
+
+    let api_key = contract_verifier_secrets
+        .and_then(|secrets| secrets.etherscan_api_key)
+        .map(|api_key| api_key.0.expose_secret().to_string());
+
+    Ok((database_secrets, api_key))
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let opt = Opt::parse();
@@ -61,7 +89,7 @@ async fn main() -> anyhow::Result<()> {
         .context("ObservabilityConfig")?;
     let _observability_guard = observability_config.install()?;
 
-    let database_secrets = load_database_secrets(opt.secrets_path).context("database secrets")?;
+    let (database_secrets, etherscan_api_key) = extract_secrets(opt.secrets_path)?;
     let verifier_config = general_config
         .contract_verifier
         .context("ContractVerifierConfig")?;
@@ -94,11 +122,8 @@ async fn main() -> anyhow::Result<()> {
                 .run(stop_receiver.clone()),
         ),
     ];
-    match (
-        std::env::var("ETHERSCAN_API_URL"),
-        std::env::var("ETHERSCAN_API_KEY"),
-    ) {
-        (Ok(api_url), Ok(api_key)) => {
+    match (verifier_config.etherscan_api_url, etherscan_api_key) {
+        (Some(api_url), Some(api_key)) => {
             tracing::info!("Etherscan verifier is enabled");
             let etherscan_verifier = EtherscanVerifier::new(api_url, api_key, pool);
             tasks.push(tokio::spawn(

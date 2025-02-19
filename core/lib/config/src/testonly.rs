@@ -242,6 +242,7 @@ impl Distribution<configs::ContractVerifierConfig> for EncodeDist {
             compilation_timeout: self.sample(rng),
             prometheus_port: self.sample(rng),
             port: self.sample(rng),
+            etherscan_api_url: self.sample(rng),
         }
     }
 }
@@ -883,6 +884,7 @@ impl Distribution<configs::secrets::Secrets> for EncodeDist {
             database: self.sample_opt(|| self.sample(rng)),
             l1: self.sample_opt(|| self.sample(rng)),
             data_availability: self.sample_opt(|| self.sample(rng)),
+            contract_verifier: self.sample_opt(|| self.sample(rng)),
         }
     }
 }
@@ -1199,6 +1201,14 @@ impl Distribution<TimestampAsserterConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> TimestampAsserterConfig {
         TimestampAsserterConfig {
             min_time_till_end_sec: self.sample(rng),
+        }
+    }
+}
+
+impl Distribution<configs::secrets::ContractVerifierSecrets> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::secrets::ContractVerifierSecrets {
+        configs::secrets::ContractVerifierSecrets {
+            etherscan_api_key: Some(<APIKey as From<String>>::from(self.sample(rng))),
         }
     }
 }
