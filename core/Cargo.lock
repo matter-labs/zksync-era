@@ -1648,8 +1648,7 @@ dependencies = [
 [[package]]
 name = "circuit_definitions"
 version = "0.151.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ebf439058d7be798f01bf48ed1c10dff40defcb8f2ba777f0f76125f95c9552d"
+source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=jms-memory-version#0b542be057988b26674889f9296c4c86c6ac932d"
 dependencies = [
  "circuit_encodings",
  "crossbeam",
@@ -1662,8 +1661,7 @@ dependencies = [
 [[package]]
 name = "circuit_encodings"
 version = "0.151.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a412456d29944426ad68a86976857667f8f0ea09e4d265b13549e1cb36e5f1c2"
+source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=jms-memory-version#0b542be057988b26674889f9296c4c86c6ac932d"
 dependencies = [
  "derivative",
  "serde",
@@ -1674,8 +1672,7 @@ dependencies = [
 [[package]]
 name = "circuit_sequencer_api"
 version = "0.151.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7dd678c691d33cb4533e3112188b21539abff6e6bff5ac0f9daf7f350939750f"
+source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=jms-memory-version#0b542be057988b26674889f9296c4c86c6ac932d"
 dependencies = [
  "derivative",
  "rayon",
@@ -10454,8 +10451,7 @@ dependencies = [
 [[package]]
 name = "zk_evm"
 version = "0.151.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "463f812e27ed5a9f6044e2dd17613aadd67230db1cc50e92c6153f2f9e701c72"
+source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=jms-memory-version#0b542be057988b26674889f9296c4c86c6ac932d"
 dependencies = [
  "anyhow",
  "lazy_static",
@@ -10508,8 +10504,7 @@ dependencies = [
 [[package]]
 name = "zk_evm_abstractions"
 version = "0.151.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3ce1c7fa8f596ea4b712ab86c13310940c759a7f8c1bf426eaec1b1446ba26e7"
+source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=jms-memory-version#0b542be057988b26674889f9296c4c86c6ac932d"
 dependencies = [
  "anyhow",
  "num_enum 0.6.1",
@@ -10521,8 +10516,7 @@ dependencies = [
 [[package]]
 name = "zkevm_circuits"
 version = "0.151.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a23c4fcba73d91004d7600d4f5b3fb6534c08d2b535cbeec0c080cf468e333f5"
+source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=jms-memory-version#0b542be057988b26674889f9296c4c86c6ac932d"
 dependencies = [
  "arrayvec 0.7.6",
  "boojum",
@@ -10600,8 +10594,7 @@ dependencies = [
 [[package]]
 name = "zkevm_opcode_defs"
 version = "0.151.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "40cd56a9dcbc98673b533660ca2f9b75a953c2c75035ac6e0b72c0b57e09f3c7"
+source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=jms-memory-version#0b542be057988b26674889f9296c4c86c6ac932d"
 dependencies = [
  "bitflags 2.6.0",
  "blake2 0.10.6",
@@ -11475,8 +11468,7 @@ dependencies = [
 [[package]]
 name = "zksync_kzg"
 version = "0.151.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "67d04afa89e7fdfbfe75c9c6780091659d9a9972e83e60d1e09e155ff343cdec"
+source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=jms-memory-version#0b542be057988b26674889f9296c4c86c6ac932d"
 dependencies = [
  "boojum",
  "derivative",
