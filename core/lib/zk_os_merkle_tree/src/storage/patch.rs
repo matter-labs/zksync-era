@@ -127,7 +127,6 @@ impl PartialPatchSet {
                 .version = version;
             idx >>= P::INTERNAL_NODE_DEPTH;
         }
-        self.root.root_node.child_mut(idx as usize).version = version;
     }
 }
 
@@ -146,10 +145,13 @@ impl<P: TreeParams> WorkingPatchSet<P> {
     }
 
     fn new(root: Root) -> Self {
+        let mut internal = vec![HashMap::new(); max_nibbles_for_internal_node::<P>() as usize + 1];
+        internal[0].insert(0, root.root_node);
+
         Self {
             inner: PartialPatchSet {
-                root,
-                internal: vec![HashMap::new(); max_nibbles_for_internal_node::<P>() as usize],
+                leaf_count: root.leaf_count,
+                internal,
                 leaves: HashMap::new(),
             },
             _params: PhantomData,
@@ -172,9 +174,7 @@ impl<P: TreeParams> WorkingPatchSet<P> {
             let bit_shift = (leaf_nibbles::<P>() - nibble_count) * P::INTERNAL_NODE_DEPTH;
 
             let mut prev_index_on_level = None;
-            let parent_level = usize::from(nibble_count)
-                .checked_sub(2)
-                .map(|i| &this.internal[i]);
+            let parent_level = &this.internal[usize::from(nibble_count) - 1];
 
             let requested_keys = leaf_indices.clone().filter_map(|idx| {
                 let index_on_level = idx >> bit_shift;
@@ -182,14 +182,8 @@ impl<P: TreeParams> WorkingPatchSet<P> {
                     None
                 } else {
                     prev_index_on_level = Some(index_on_level);
-
-                    let parent = if let Some(parent_level) = parent_level {
-                        let parent_idx = index_on_level >> P::INTERNAL_NODE_DEPTH;
-                        &parent_level[&parent_idx]
-                    } else {
-                        // nibble_count == 1, the parent is the root node
-                        &this.root.root_node
-                    };
+                    let parent_idx = index_on_level >> P::INTERNAL_NODE_DEPTH;
+                    let parent = &parent_level[&parent_idx];
                     let child_idx = index_on_level % u64::from(max_node_children::<P>());
                     let this_ref = parent.child_ref(child_idx as usize);
                     let requested_key = NodeKey {
@@ -218,7 +212,7 @@ impl<P: TreeParams> WorkingPatchSet<P> {
                     })
                     .collect();
             } else {
-                this.internal[nibble_count as usize - 1] = loaded_nodes
+                this.internal[usize::from(nibble_count)] = loaded_nodes
                     .into_iter()
                     .zip(indices)
                     .map(|(node, idx)| {
@@ -272,13 +266,10 @@ impl<P: TreeParams> WorkingPatchSet<P> {
         let this = &self.inner;
         let mut hashes = vec![];
         // Should not underflow because `indices_on_level` is non-empty.
-        let mut last_idx_on_level = this.root.leaf_count - 1;
+        let mut last_idx_on_level = this.leaf_count - 1;
 
         let mut internal_hashes = None;
         let mut internal_node_levels = this.internal.iter().rev();
-        // FIXME: place root in `this.internal`?
-        let root_level = HashMap::from([(0, this.root.root_node.clone())]);
-
         let mut hash_latency = Duration::ZERO;
         let mut traverse_latency = Duration::ZERO;
 
@@ -289,7 +280,9 @@ impl<P: TreeParams> WorkingPatchSet<P> {
             if depth_in_internal_node == 0 {
                 // Initialize / update `internal_hashes`. Computing *all* internal hashes may be somewhat inefficient,
                 // but since it's parallelized, it doesn't look like a major concern.
-                let level = internal_node_levels.next().unwrap_or(&root_level);
+                let level = internal_node_levels
+                    .next()
+                    .expect("run out of internal node levels");
                 let started_at = Instant::now();
                 internal_hashes = Some(InternalHashes::new::<P>(level, hasher, depth));
                 hash_latency += started_at.elapsed();
@@ -343,11 +336,13 @@ impl<P: TreeParams> WorkingPatchSet<P> {
         let version = update.version;
         for (idx, value) in update.updates {
             this.leaves.get_mut(&idx).unwrap().value = value;
+
+            // FIXME: inefficient (should batch-update versions for all leaves before anything else)
             this.update_ancestor_versions::<P>(idx, version);
         }
 
         if !update.inserts.is_empty() {
-            let first_new_idx = this.root.leaf_count;
+            let first_new_idx = this.leaf_count;
             // Cannot underflow because `update.inserts.len() >= 1`
             let new_indexes = first_new_idx..=(first_new_idx + update.inserts.len() as u64 - 1);
 
@@ -369,11 +364,11 @@ impl<P: TreeParams> WorkingPatchSet<P> {
             }
 
             this.leaves.extend(new_indexes.clone().zip(update.inserts));
-            this.root.leaf_count = *new_indexes.end() + 1;
+            this.leaf_count = *new_indexes.end() + 1;
 
             // Add / update internal nodes.
             for (i, internal_level) in this.internal.iter_mut().enumerate() {
-                let nibble_count = i as u8 + 1;
+                let nibble_count = i as u8;
                 let child_depth =
                     (max_nibbles_for_internal_node::<P>() - nibble_count) * P::INTERNAL_NODE_DEPTH;
                 let first_index_on_level =
@@ -403,14 +398,6 @@ impl<P: TreeParams> WorkingPatchSet<P> {
                 });
                 internal_level.extend(new_nodes);
             }
-
-            let child_depth = max_nibbles_for_internal_node::<P>() * P::INTERNAL_NODE_DEPTH;
-            let last_child_index = new_indexes.end() >> child_depth;
-            assert!(last_child_index < u64::from(max_node_children::<P>()));
-
-            this.root
-                .root_node
-                .ensure_len(last_child_index as usize + 1, version);
 
             this.update_ancestor_versions::<P>(first_new_idx, version);
         }
@@ -452,19 +439,11 @@ impl<P: TreeParams> WorkingPatchSet<P> {
                 .collect();
         }
 
-        for (idx, hash) in hashes {
-            assert!(idx < u64::from(max_node_children::<P>()));
-            this.root
-                .root_node
-                .child_mut((idx % u64::from(max_node_children::<P>())) as usize)
-                .hash = hash;
-        }
-        let root_hash = this.root.root_node.hash::<P>(
-            hasher,
-            max_nibbles_for_internal_node::<P>() * P::INTERNAL_NODE_DEPTH,
-        );
+        assert_eq!(hashes.len(), 1);
+        let (root_idx, root_hash) = hashes[0];
+        assert_eq!(root_idx, 0);
         let output = BatchOutput {
-            leaf_count: this.root.leaf_count,
+            leaf_count: this.leaf_count,
             root_hash,
         };
 

@@ -94,21 +94,28 @@ struct InsertedKeyEntry {
 
 #[derive(Debug, Clone)]
 struct PartialPatchSet {
-    root: Root,
-    // FIXME: maybe, a wrapper around `Vec<(_, _)>` would be more efficient?
-    /// Offset by 1 (i.e., `internal[0]` corresponds to 1 nibble).
+    leaf_count: u64,
+    // TODO: maybe, a wrapper around `Vec<(_, _)>` would be more efficient?
+    /// `internal[0]` corresponds to a root, `internal[1]` to single-nibble nodes etc.
     internal: Vec<HashMap<u64, InternalNode>>,
     /// Sorted by the index.
     leaves: HashMap<u64, Leaf>,
 }
 
 impl PartialPatchSet {
+    fn root(&self) -> Root {
+        Root {
+            leaf_count: self.leaf_count,
+            root_node: self.internal[0][&0].clone(),
+        }
+    }
+
     fn node(&self, nibble_count: u8, index_on_level: u64) -> Option<Node> {
         let nibble_count = usize::from(nibble_count);
-        let leaf_nibbles = self.internal.len() + 1;
+        let leaf_nibbles = self.internal.len();
         Some(match nibble_count.cmp(&leaf_nibbles) {
             cmp::Ordering::Less => {
-                let level = &self.internal[nibble_count - 1];
+                let level = &self.internal[nibble_count];
                 level.get(&index_on_level)?.clone().into()
             }
             cmp::Ordering::Equal => (*self.leaves.get(&index_on_level)?).into(),
@@ -179,7 +186,7 @@ impl Database for PatchSet {
         Ok(self
             .patches_by_version
             .get(&version)
-            .map(|patch| patch.root.clone()))
+            .map(PartialPatchSet::root))
     }
 
     fn try_nodes(&self, keys: &[NodeKey]) -> Result<Vec<Node>, DeserializeError> {

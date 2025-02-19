@@ -136,8 +136,8 @@ fn test_creating_empty_tree<P: TreeParams<Hasher = Blake2Hasher>>() {
             assert_eq!(level[&0].children.len(), 1);
         }
 
-        assert_eq!(patch.root.leaf_count, 2);
-        assert_eq!(patch.root.root_node.children.len(), 1);
+        assert_eq!(patch.leaf_count, 2);
+        assert_eq!(patch.root().root_node.children.len(), 1);
     }
 
     let (patch, ..) = patch.finalize(&Blake2Hasher, final_update);
@@ -222,7 +222,7 @@ where
     };
     let (mut patch, update) = merkle_tree.create_patch(0, &[new_entry]).unwrap();
 
-    assert_eq!(patch.inner().root.leaf_count, 2);
+    assert_eq!(patch.inner().leaf_count, 2);
     assert_eq!(
         patch.inner().leaves,
         HashMap::from([(0, Leaf::MIN_GUARD), (1, Leaf::MAX_GUARD)])
@@ -244,7 +244,7 @@ where
     let final_update = patch.update(update);
     {
         let patch = patch.inner();
-        assert_eq!(patch.root.leaf_count, 3);
+        assert_eq!(patch.leaf_count, 3);
         assert_eq!(
             patch.leaves[&0],
             Leaf {
@@ -274,7 +274,7 @@ where
     let (new_patch, ..) = patch.finalize(&Blake2Hasher, final_update);
     assert_eq!(new_patch.manifest.version_count, 2);
     assert_eq!(new_patch.patches_by_version.len(), 1);
-    let root = &new_patch.patches_by_version[&1].root;
+    let root = new_patch.patches_by_version[&1].root();
     let expected_root_hash: H256 =
         "0x91a1688c802dc607125d0b5e5ab4d95d89a4a4fb8cca71a122db6076cb70f8f3"
             .parse()

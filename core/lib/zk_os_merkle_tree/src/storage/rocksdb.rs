@@ -196,6 +196,7 @@ impl From<RocksDB<MerkleTreeColumnFamily>> for RocksDBWrapper {
 }
 
 impl Database for RocksDBWrapper {
+    // TODO: Try alternatives (e.g., reusing iterators)
     fn indices(&self, version: u64, keys: &[H256]) -> Result<Vec<KeyLookup>, DeserializeError> {
         use rayon::prelude::*;
 
@@ -267,11 +268,12 @@ impl Database for RocksDBWrapper {
             write_batch.delete_range_cf(tree_cf, keys_to_delete);
 
             node_bytes.clear();
-            sub_patch.root.serialize(&mut node_bytes);
+            sub_patch.root().serialize(&mut node_bytes);
             write_batch.put_cf(tree_cf, &root_key.as_db_key(), &node_bytes);
 
-            for (i, level) in sub_patch.internal.into_iter().enumerate() {
-                let nibble_count = i as u8 + 1;
+            // The root is serialized above, hence `skip(1)`
+            for (i, level) in sub_patch.internal.into_iter().enumerate().skip(1) {
+                let nibble_count = i as u8;
                 for (index_on_level, node) in level {
                     let node_key = NodeKey {
                         version,
@@ -468,11 +470,8 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let mut db = RocksDBWrapper::new(temp_dir.path()).unwrap();
         let patch = PartialPatchSet {
-            root: Root {
-                leaf_count: 2,
-                root_node: InternalNode::new(1, 0),
-            },
-            internal: (0..max_nibbles_for_internal_node::<P>())
+            leaf_count: 2,
+            internal: (0..leaf_nibbles::<P>())
                 .map(|i| {
                     HashMap::from([(
                         0,
@@ -511,10 +510,7 @@ mod tests {
                 panic!("unexpected node: {nodes:?}");
             };
 
-            let mut expected_node_len = nibble_count % max_node_children::<P>();
-            if expected_node_len == 0 {
-                expected_node_len = max_node_children::<P>();
-            }
+            let expected_node_len = nibble_count % max_node_children::<P>() + 1;
             assert_eq!(*node, InternalNode::new(expected_node_len.into(), 0));
         }
 
