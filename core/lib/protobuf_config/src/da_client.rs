@@ -79,9 +79,11 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                     .context("wait_for_finalization")?,
                 authenticated: *required(&conf.authenticated).context("authenticated")?,
                 points_source: match conf.points_source.clone() {
-                    Some(proto::eigen_config::PointsSource::PointsSourcePath(points_source_path)) => {
-                        zksync_config::configs::da_client::eigen::PointsSource::Path(points_source_path)
-                    }
+                    Some(proto::eigen_config::PointsSource::PointsSourcePath(
+                        points_source_path,
+                    )) => zksync_config::configs::da_client::eigen::PointsSource::Path(
+                        points_source_path,
+                    ),
                     Some(proto::eigen_config::PointsSource::PointsSourceUrl(points_source_url)) => {
                         let g1_url = required(&points_source_url.g1_url).context("g1_url")?;
                         let g2_url = required(&points_source_url.g2_url).context("g2_url")?;
