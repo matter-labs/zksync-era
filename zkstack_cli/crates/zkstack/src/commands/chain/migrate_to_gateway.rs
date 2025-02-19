@@ -22,7 +22,7 @@ use zkstack_cli_config::{
         script_params::GATEWAY_PREPARATION,
     },
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
-    EcosystemConfig,
+    ChainConfig, EcosystemConfig,
 };
 use zkstack_cli_types::L1BatchCommitmentMode;
 use zksync_basic_types::{settlement::SettlementMode, Address, H256, U256, U64};
@@ -53,7 +53,8 @@ lazy_static! {
             "function supplyGatewayWallet(address addr, uint256 addr) public",
             "function enableValidator(address chainAdmin,address accessControlRestriction,uint256 chainId,address validatorAddress,address gatewayValidatorTimelock,address chainAdminOnGateway) public",
             "function grantWhitelist(address filtererProxy, address[] memory addr) public",
-            "function deployL2ChainAdmin() public"
+            "function deployL2ChainAdmin() public",
+            "function notifyServer(address serverNotifier, address chainAdmin, address accessControlRestriction) public"
         ])
         .unwrap(),
     );
@@ -125,7 +126,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
                 ),
             )
             .unwrap(),
-        &ecosystem_config,
+        &chain_config,
         &gateway_chain_config.get_wallets_config()?.governor,
         l1_url.clone(),
     )
@@ -139,7 +140,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         &GATEWAY_PREPARATION_INTERFACE
             .encode("deployL2ChainAdmin", ())
             .unwrap(),
-        &ecosystem_config,
+        &chain_config,
         &chain_config.get_wallets_config()?.governor,
         l1_url.clone(),
     )
@@ -165,7 +166,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
                 ),
             )
             .unwrap(),
-        &ecosystem_config,
+        &chain_config,
         &chain_config.get_wallets_config()?.governor,
         l1_url.clone(),
     )
@@ -238,7 +239,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
                 ),
             )
             .unwrap(),
-        &ecosystem_config,
+        &chain_config,
         &chain_config.get_wallets_config()?.governor,
         l1_url.clone(),
     )
@@ -268,7 +269,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
                 ),
             )
             .unwrap(),
-        &ecosystem_config,
+        &chain_config,
         &chain_config.get_wallets_config()?.governor,
         l1_url.clone(),
     )
@@ -291,7 +292,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
                 ),
             )
             .unwrap(),
-        &ecosystem_config,
+        &chain_config,
         &chain_config.get_wallets_config()?.governor,
         l1_url.clone(),
     )
@@ -318,7 +319,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
                 ),
             )
             .unwrap(),
-        &ecosystem_config,
+        &chain_config,
         &chain_config.get_wallets_config()?.governor,
         l1_url.clone(),
     )
@@ -341,7 +342,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
                 ),
             )
             .unwrap(),
-        &ecosystem_config,
+        &chain_config,
         &chain_config.get_wallets_config()?.governor,
         l1_url.clone(),
     )
@@ -412,11 +413,42 @@ async fn await_for_tx_to_complete(
     Ok(())
 }
 
+pub(crate) async fn notify_server(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
+    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let chain_config = ecosystem_config
+        .load_current_chain()
+        .context(MSG_CHAIN_NOT_INITIALIZED)?;
+
+    let l1_url = chain_config
+        .get_secrets_config()
+        .await?
+        .get::<String>("l1.l1_rpc_url")?;
+    let contracts = chain_config.get_contracts_config()?;
+    let server_notifier = contracts.ecosystem_contracts.server_notifier_addr.unwrap();
+    let chain_admin = contracts.l1.chain_admin_addr;
+    let restrictions = contracts
+        .l1
+        .access_control_restriction_addr
+        .unwrap_or_default();
+
+    let result = call_script(
+        shell,
+        args,
+        &GATEWAY_PREPARATION_INTERFACE
+            .encode("notifyServer", (server_notifier, chain_admin, restrictions))?,
+        &chain_config,
+        &chain_config.get_wallets_config()?.governor,
+        l1_url,
+    )
+    .await?;
+    Ok(())
+}
+
 async fn call_script(
     shell: &Shell,
     forge_args: ForgeScriptArgs,
     data: &Bytes,
-    config: &EcosystemConfig,
+    config: &ChainConfig,
     governor: &Wallet,
     l1_rpc_url: String,
 ) -> anyhow::Result<GatewayPreparationOutput> {

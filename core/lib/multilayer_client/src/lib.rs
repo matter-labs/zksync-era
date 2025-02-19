@@ -35,7 +35,7 @@ impl GatewayMigrator {
         self.settlement_mode
     }
     pub async fn run_inner(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
-        let mut attempts = 0;
+        // let mut attempts = 0;
         loop {
             if *stop_receiver.borrow() {
                 tracing::info!("Stop signal received, GatewayMigrator is shutting down");
@@ -47,13 +47,13 @@ impl GatewayMigrator {
                     .unwrap();
 
             dbg!(settlement_mode);
-            // if settlement_mode != self.settlement_mode {
-            //     bail!("Settlement layer changed")
-            // }
-            if attempts == 10 {
+            if settlement_mode != self.settlement_mode {
                 bail!("Settlement layer changed")
             }
-            attempts += 1;
+            // if attempts == 10 {
+            //     bail!("Settlement layer changed")
+            // }
+            // attempts += 1;
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
     }
