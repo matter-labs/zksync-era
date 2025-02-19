@@ -61,7 +61,7 @@ pub struct BasicCircuits;
 #[async_trait]
 impl JobManager for BasicCircuits {
     type Job = BasicWitnessGeneratorJob;
-    type Metadata = L1BatchNumber;
+    type Metadata = (L2ChainId, L1BatchNumber);
 
     const ROUND: AggregationRound = AggregationRound::BasicCircuits;
     const SERVICE_NAME: &'static str = "fri_basic_circuit_witness_generator";
@@ -125,7 +125,7 @@ impl JobManager for BasicCircuits {
         protocol_version: ProtocolSemanticVersion,
     ) -> anyhow::Result<Option<(u32, Self::Metadata)>> {
         let pod_name = get_current_pod_name();
-        if let Some(l1_batch_number) = connection_pool
+        if let Some((chain_id, l1_batch_number)) = connection_pool
             .connection()
             .await
             .unwrap()
@@ -133,7 +133,7 @@ impl JobManager for BasicCircuits {
             .get_next_basic_circuit_witness_job(protocol_version, &pod_name)
             .await
         {
-            Ok(Some((l1_batch_number.0, l1_batch_number)))
+            Ok(Some((l1_batch_number.0, (chain_id, l1_batch_number))))
         } else {
             Ok(None)
         }
