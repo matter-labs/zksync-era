@@ -94,7 +94,7 @@ impl FriProverDal<'_, '_> {
             // Add the ON CONFLICT clause
             query_builder.push(
                 r#"
-                ON CONFLICT (l1_batch_number, aggregation_round, circuit_id, depth, sequence_number)
+                ON CONFLICT (l1_batch_number, chain_id, aggregation_round, circuit_id, depth, sequence_number)
                 DO UPDATE
                 SET updated_at = NOW()
                 "#,
