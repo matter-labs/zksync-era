@@ -1,8 +1,8 @@
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_multivm::{
     interface::{
-        storage::StorageViewCache, Call, CompressedBytecodeInfo, FinishedL1Batch, L1BatchEnv,
-        SystemEnv, VmExecutionMetrics, VmExecutionResultAndLogs,
+        storage::StorageViewCache, Call, FinishedL1Batch, L1BatchEnv, SystemEnv,
+        VmExecutionMetrics, VmExecutionResultAndLogs,
     },
     utils::{get_batch_base_fee, StorageWritesDeduplicator},
 };
@@ -30,7 +30,7 @@ pub mod l2_block_updates;
 pub struct UpdatesManager {
     batch_timestamp: u64,
     pub fee_account_address: Address,
-    batch_fee_input: BatchFeeInput,
+    pub batch_fee_input: BatchFeeInput,
     base_fee_per_gas: u64,
     base_system_contract_hashes: BaseSystemContractsHashes,
     protocol_version: ProtocolVersionId,
@@ -39,6 +39,7 @@ pub struct UpdatesManager {
     pub l2_block: L2BlockUpdates,
     pub storage_writes_deduplicator: StorageWritesDeduplicator,
     pubdata_params: PubdataParams,
+    next_l2_block_params: Option<L2BlockParams>,
 }
 
 impl UpdatesManager {
@@ -66,6 +67,7 @@ impl UpdatesManager {
             storage_writes_deduplicator: StorageWritesDeduplicator::new(),
             storage_view_cache: None,
             pubdata_params,
+            next_l2_block_params: None,
         }
     }
 
@@ -75,6 +77,26 @@ impl UpdatesManager {
 
     pub fn base_system_contract_hashes(&self) -> BaseSystemContractsHashes {
         self.base_system_contract_hashes
+    }
+
+    pub(crate) fn next_l2_block_timestamp_mut(&mut self) -> Option<&mut u64> {
+        self.next_l2_block_params
+            .as_mut()
+            .map(|params| &mut params.timestamp)
+    }
+
+    pub(crate) fn get_next_l2_block_params_or_batch_params(&mut self) -> L2BlockParams {
+        if let Some(next_l2_block_params) = self.next_l2_block_params {
+            return next_l2_block_params;
+        }
+        L2BlockParams {
+            timestamp: self.l2_block.timestamp,
+            virtual_blocks: self.l2_block.virtual_blocks,
+        }
+    }
+
+    pub(crate) fn has_next_block_params(&self) -> bool {
+        self.next_l2_block_params.is_some()
     }
 
     pub(crate) fn io_cursor(&self) -> IoCursor {
@@ -115,7 +137,6 @@ impl UpdatesManager {
         &mut self,
         tx: Transaction,
         tx_execution_result: VmExecutionResultAndLogs,
-        compressed_bytecodes: Vec<CompressedBytecodeInfo>,
         execution_metrics: VmExecutionMetrics,
         call_traces: Vec<Call>,
     ) {
@@ -128,7 +149,6 @@ impl UpdatesManager {
             tx,
             tx_execution_result,
             execution_metrics,
-            compressed_bytecodes,
             call_traces,
         );
         latency.observe();
@@ -142,7 +162,7 @@ impl UpdatesManager {
         );
 
         let result = &finished_batch.block_tip_execution_result;
-        let batch_tip_execution_metrics = result.get_execution_metrics(None);
+        let batch_tip_execution_metrics = result.get_execution_metrics();
 
         let before = self.storage_writes_deduplicator.metrics();
         self.storage_writes_deduplicator
@@ -167,17 +187,33 @@ impl UpdatesManager {
 
     /// Pushes a new L2 block with the specified timestamp into this manager. The previously
     /// held L2 block is considered sealed and is used to extend the L1 batch data.
-    pub fn push_l2_block(&mut self, l2_block_params: L2BlockParams) {
+    pub fn push_l2_block(&mut self) {
+        let next_l2_block_params = self
+            .next_l2_block_params
+            .take()
+            .expect("next l2 block params cannot be empty");
         let new_l2_block_updates = L2BlockUpdates::new(
-            l2_block_params.timestamp,
+            next_l2_block_params.timestamp,
             self.l2_block.number + 1,
             self.l2_block.get_l2_block_hash(),
-            l2_block_params.virtual_blocks,
+            next_l2_block_params.virtual_blocks,
             self.protocol_version,
         );
         let old_l2_block_updates = std::mem::replace(&mut self.l2_block, new_l2_block_updates);
         self.l1_batch
             .extend_from_sealed_l2_block(old_l2_block_updates);
+    }
+
+    pub fn set_next_l2_block_params(&mut self, l2_block_params: L2BlockParams) {
+        assert!(
+            self.next_l2_block_params.is_none(),
+            "next_l2_block_params cannot be set twice"
+        );
+        self.next_l2_block_params = Some(l2_block_params);
+    }
+
+    pub fn get_next_l2_block_params(&mut self) -> Option<L2BlockParams> {
+        self.next_l2_block_params
     }
 
     pub(crate) fn pending_executed_transactions_len(&self) -> usize {
@@ -232,7 +268,6 @@ mod tests {
         updates_manager.extend_from_executed_transaction(
             tx,
             create_execution_result([]),
-            vec![],
             VmExecutionMetrics::default(),
             vec![],
         );
@@ -243,10 +278,11 @@ mod tests {
         assert_eq!(updates_manager.l1_batch.executed_transactions.len(), 0);
 
         // Seal an L2 block.
-        updates_manager.push_l2_block(L2BlockParams {
+        updates_manager.set_next_l2_block_params(L2BlockParams {
             timestamp: 2,
             virtual_blocks: 1,
         });
+        updates_manager.push_l2_block();
 
         // Check that L1 batch updates are the same with the pending state
         // and L2 block updates are empty.

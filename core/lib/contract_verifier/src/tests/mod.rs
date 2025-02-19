@@ -1,9 +1,6 @@
 //! Tests for the contract verifier.
 
-use std::{
-    collections::{HashMap, HashSet},
-    iter,
-};
+use std::collections::{HashMap, HashSet};
 
 use test_casing::{test_casing, Product};
 use tokio::sync::watch;
@@ -11,8 +8,8 @@ use zksync_dal::Connection;
 use zksync_node_test_utils::{create_l1_batch, create_l2_block};
 use zksync_types::{
     address_to_h256,
-    bytecode::BytecodeHash,
-    contract_verification_api::{CompilerVersions, SourceCodeData, VerificationIncomingRequest},
+    bytecode::{pad_evm_bytecode, BytecodeHash},
+    contract_verification::api::{CompilerVersions, SourceCodeData, VerificationIncomingRequest},
     get_code_key, get_known_code_key,
     l2::L2Tx,
     tx::IncludedTxLocation,
@@ -114,28 +111,6 @@ impl TestContract {
     }
 }
 
-/// Pads an EVM bytecode in the same ways it's done by system contracts.
-fn pad_evm_bytecode(deployed_bytecode: &[u8]) -> Vec<u8> {
-    let mut padded = Vec::with_capacity(deployed_bytecode.len() + 32);
-    let len = U256::from(deployed_bytecode.len());
-    padded.extend_from_slice(&[0; 32]);
-    len.to_big_endian(&mut padded);
-    padded.extend_from_slice(deployed_bytecode);
-
-    // Pad to the 32-byte word boundary.
-    if padded.len() % 32 != 0 {
-        padded.extend(iter::repeat(0).take(32 - padded.len() % 32));
-    }
-    assert_eq!(padded.len() % 32, 0);
-
-    // Pad to contain the odd number of words.
-    if (padded.len() / 32) % 2 != 1 {
-        padded.extend_from_slice(&[0; 32]);
-    }
-    assert_eq!((padded.len() / 32) % 2, 1);
-    padded
-}
-
 async fn mock_deployment(
     storage: &mut Connection<'_, Core>,
     address: Address,
@@ -163,7 +138,7 @@ async fn mock_evm_deployment(
         factory_deps: vec![],
     };
     let bytecode = pad_evm_bytecode(deployed_bytecode);
-    let bytecode_hash = BytecodeHash::for_evm_bytecode(&bytecode).value();
+    let bytecode_hash = BytecodeHash::for_evm_bytecode(deployed_bytecode.len(), &bytecode).value();
     mock_deployment_inner(storage, address, bytecode_hash, bytecode, deployment).await;
 }
 
@@ -213,7 +188,6 @@ async fn mock_deployment_inner(
     let location = IncludedTxLocation {
         tx_hash: deploy_tx.hash(),
         tx_index_in_l2_block: 0,
-        tx_initiator_address: deployer_address,
     };
     let deploy_event = VmEvent {
         location: (L1BatchNumber(0), 0),
@@ -360,6 +334,7 @@ fn test_request(address: Address, source: &str) -> VerificationIncomingRequest {
         constructor_arguments: Default::default(),
         is_system: false,
         force_evmla: false,
+        evm_specific: Default::default(),
     }
 }
 
@@ -460,7 +435,7 @@ async fn contract_verifier_basics(contract: TestContract) {
     let (_stop_sender, stop_receiver) = watch::channel(false);
     verifier.run(stop_receiver, Some(1)).await.unwrap();
 
-    assert_request_success(&mut storage, request_id, address, &expected_bytecode).await;
+    assert_request_success(&mut storage, request_id, address, &expected_bytecode, &[]).await;
 }
 
 async fn assert_request_success(
@@ -468,6 +443,7 @@ async fn assert_request_success(
     request_id: usize,
     address: Address,
     expected_bytecode: &[u8],
+    verification_problems: &[VerificationProblem],
 ) -> VerificationInfo {
     let status = storage
         .contract_verification_dal()
@@ -490,6 +466,11 @@ async fn assert_request_success(
         without_internal_types(verification_info.artifacts.abi.clone()),
         without_internal_types(counter_contract_abi())
     );
+    assert_eq!(
+        &verification_info.verification_problems,
+        verification_problems
+    );
+
     verification_info
 }
 
@@ -566,7 +547,7 @@ async fn verifying_evm_bytecode(contract: TestContract) {
     let (_stop_sender, stop_receiver) = watch::channel(false);
     verifier.run(stop_receiver, Some(1)).await.unwrap();
 
-    assert_request_success(&mut storage, request_id, address, &creation_bytecode).await;
+    assert_request_success(&mut storage, request_id, address, &creation_bytecode, &[]).await;
 }
 
 #[tokio::test]
@@ -733,10 +714,12 @@ async fn creation_bytecode_mismatch() {
         .await
         .unwrap();
 
-    let mock_resolver = MockCompilerResolver::solc(move |_| CompilationArtifacts {
-        bytecode: vec![4; 20], // differs from `creation_bytecode`
-        deployed_bytecode: Some(deployed_bytecode.clone()),
-        abi: counter_contract_abi(),
+    let mock_resolver = MockCompilerResolver::solc(move |_| {
+        CompilationArtifacts {
+            bytecode: vec![4; 20], // differs from `creation_bytecode`
+            deployed_bytecode: Some(deployed_bytecode.clone()),
+            abi: counter_contract_abi(),
+        }
     });
     let verifier = ContractVerifier::with_resolver(
         Duration::from_secs(60),

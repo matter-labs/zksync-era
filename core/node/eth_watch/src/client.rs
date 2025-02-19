@@ -1,9 +1,9 @@
-use std::{fmt, sync::Arc};
+use std::{collections::HashMap, fmt, sync::Arc};
 
 use anyhow::Context;
 use zksync_contracts::{
-    getters_facet_contract, state_transition_manager_contract, verifier_contract,
-    MESSAGE_ROOT_CONTRACT,
+    bytecode_supplier_contract, getters_facet_contract, l1_asset_router_contract, l2_message_root,
+    state_transition_manager_contract, verifier_contract, wrapped_base_token_store_contract,
 };
 use zksync_eth_client::{
     clients::{DynClient, L1},
@@ -12,15 +12,19 @@ use zksync_eth_client::{
 };
 use zksync_system_constants::L2_MESSAGE_ROOT_ADDRESS;
 use zksync_types::{
+    abi::ZkChainSpecificUpgradeData,
     api::{ChainAggProof, Log},
-    ethabi::Contract,
-    web3::{BlockId, BlockNumber, Filter, FilterBuilder},
-    Address, L1BatchNumber, L2ChainId, SLChainId, H256, U256, U64,
+    ethabi::{self, decode, encode, Contract, ParamType},
+    web3::{keccak256, BlockId, BlockNumber, Filter, FilterBuilder},
+    Address, L1BatchNumber, L2ChainId, SLChainId, H256, L2_NATIVE_TOKEN_VAULT_ADDRESS,
+    SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256, U64,
 };
 use zksync_web3_decl::{
     client::{Network, L2},
     namespaces::{EthNamespaceClient, UnstableNamespaceClient, ZksNamespaceClient},
 };
+
+const FFLONK_VERIFIER_TYPE: i32 = 0;
 
 /// Common L1 and L2 client functionality used by [`EthWatch`](crate::EthWatch) and constituent event processors.
 #[async_trait::async_trait]
@@ -45,11 +49,24 @@ pub trait EthClient: 'static + fmt::Debug + Send + Sync {
     /// Returns scheduler verification key hash by verifier address.
     async fn scheduler_vk_hash(&self, verifier_address: Address)
         -> Result<H256, ContractCallError>;
+    async fn fflonk_scheduler_vk_hash(
+        &self,
+        verifier_address: Address,
+    ) -> Result<Option<H256>, ContractCallError>;
     /// Returns upgrade diamond cut by packed protocol version.
     async fn diamond_cut_by_version(
         &self,
         packed_version: H256,
     ) -> EnrichedClientResult<Option<Vec<u8>>>;
+
+    async fn get_published_preimages(
+        &self,
+        hashes: Vec<H256>,
+    ) -> EnrichedClientResult<Vec<Option<Vec<u8>>>>;
+
+    async fn get_chain_gateway_upgrade_info(
+        &self,
+    ) -> Result<Option<ZkChainSpecificUpgradeData>, ContractCallError>;
 
     /// Returns ID of the chain.
     async fn chain_id(&self) -> EnrichedClientResult<SLChainId>;
@@ -64,6 +81,8 @@ pub trait EthClient: 'static + fmt::Debug + Send + Sync {
     ) -> Result<H256, ContractCallError>;
 }
 
+// This constant is used for reading auxiliary events
+const LOOK_BACK_BLOCK_RANGE: u64 = 1_000_000;
 pub const RETRY_LIMIT: usize = 5;
 const TOO_MANY_RESULTS_INFURA: &str = "query returned more than";
 const TOO_MANY_RESULTS_ALCHEMY: &str = "response size exceeded";
@@ -78,26 +97,38 @@ pub struct EthHttpQueryClient<Net: Network> {
     diamond_proxy_addr: Address,
     governance_address: Address,
     new_upgrade_cut_data_signature: H256,
+    bytecode_published_signature: H256,
+    bytecode_supplier_addr: Option<Address>,
+    wrapped_base_token_store: Option<Address>,
+    l1_shared_bridge_addr: Option<Address>,
     // Only present for post-shared bridge chains.
     state_transition_manager_address: Option<Address>,
     chain_admin_address: Option<Address>,
     verifier_contract_abi: Contract,
     getters_facet_contract_abi: Contract,
     message_root_abi: Contract,
+    l1_asset_router_abi: Contract,
+    wrapped_base_token_store_abi: Contract,
     confirmations_for_eth_event: Option<u64>,
+    l2_chain_id: L2ChainId,
 }
 
 impl<Net: Network> EthHttpQueryClient<Net>
 where
     Box<DynClient<Net>>: GetLogsClient,
 {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         client: Box<DynClient<Net>>,
         diamond_proxy_addr: Address,
+        bytecode_supplier_addr: Option<Address>,
+        wrapped_base_token_store: Option<Address>,
+        l1_shared_bridge_addr: Option<Address>,
         state_transition_manager_address: Option<Address>,
         chain_admin_address: Option<Address>,
         governance_address: Address,
         confirmations_for_eth_event: Option<u64>,
+        l2_chain_id: L2ChainId,
     ) -> Self {
         tracing::debug!(
             "New eth client, ZKsync addr: {:x}, governance addr: {:?}",
@@ -110,15 +141,26 @@ where
             state_transition_manager_address,
             chain_admin_address,
             governance_address,
+            bytecode_supplier_addr,
             new_upgrade_cut_data_signature: state_transition_manager_contract()
                 .event("NewUpgradeCutData")
                 .context("NewUpgradeCutData event is missing in ABI")
                 .unwrap()
                 .signature(),
+            bytecode_published_signature: bytecode_supplier_contract()
+                .event("BytecodePublished")
+                .context("BytecodePublished event is missing in ABI")
+                .unwrap()
+                .signature(),
             verifier_contract_abi: verifier_contract(),
             getters_facet_contract_abi: getters_facet_contract(),
-            message_root_abi: MESSAGE_ROOT_CONTRACT.clone(),
+            message_root_abi: l2_message_root(),
+            l1_asset_router_abi: l1_asset_router_contract(),
+            wrapped_base_token_store_abi: wrapped_base_token_store_contract(),
             confirmations_for_eth_event,
+            wrapped_base_token_store,
+            l1_shared_bridge_addr,
+            l2_chain_id,
         }
     }
 
@@ -258,14 +300,12 @@ where
             .await
     }
 
-    async fn diamond_cut_by_version(
+    async fn get_published_preimages(
         &self,
-        packed_version: H256,
-    ) -> EnrichedClientResult<Option<Vec<u8>>> {
-        const LOOK_BACK_BLOCK_RANGE: u64 = 1_000_000;
-
-        let Some(state_transition_manager_address) = self.state_transition_manager_address else {
-            return Ok(None);
+        hashes: Vec<H256>,
+    ) -> EnrichedClientResult<Vec<Option<Vec<u8>>>> {
+        let Some(bytecode_supplier_addr) = self.bytecode_supplier_addr else {
+            return Ok(vec![None; hashes.len()]);
         };
 
         let to_block = self.client.block_number().await?;
@@ -275,14 +315,26 @@ where
             .get_events_inner(
                 from_block.into(),
                 to_block.into(),
-                Some(vec![self.new_upgrade_cut_data_signature]),
-                Some(vec![packed_version]),
-                Some(vec![state_transition_manager_address]),
+                Some(vec![self.bytecode_published_signature]),
+                Some(hashes.clone()),
+                Some(vec![bytecode_supplier_addr]),
                 RETRY_LIMIT,
             )
             .await?;
 
-        Ok(logs.into_iter().next().map(|log| log.data.0))
+        let mut preimages = HashMap::new();
+        for log in logs {
+            let hash = log.topics[1];
+            let preimage = decode(&[ParamType::Bytes], &log.data.0).expect("Invalid encoding");
+            assert_eq!(preimage.len(), 1);
+            let preimage = preimage[0].clone().into_bytes().unwrap();
+            preimages.insert(hash, preimage);
+        }
+
+        Ok(hashes
+            .into_iter()
+            .map(|hash| preimages.get(&hash).cloned())
+            .collect())
     }
 
     async fn get_events(
@@ -337,6 +389,57 @@ where
             .map(|x: U256| x.try_into().unwrap())
     }
 
+    async fn fflonk_scheduler_vk_hash(
+        &self,
+        verifier_address: Address,
+    ) -> Result<Option<H256>, ContractCallError> {
+        // New verifier returns the hash of the verification key.
+        // We are getting function separately to get the second function with the same name, but
+        // overriden one
+        let function = self
+            .verifier_contract_abi
+            .functions_by_name("verificationKeyHash")
+            .map_err(ContractCallError::Function)?
+            .get(1);
+
+        if let Some(function) = function {
+            Ok(
+                CallFunctionArgs::new("verificationKeyHash", U256::from(FFLONK_VERIFIER_TYPE))
+                    .for_contract(verifier_address, &self.verifier_contract_abi)
+                    .call_with_function(&self.client, function.clone())
+                    .await
+                    .ok(),
+            )
+        } else {
+            Ok(None)
+        }
+    }
+
+    async fn diamond_cut_by_version(
+        &self,
+        packed_version: H256,
+    ) -> EnrichedClientResult<Option<Vec<u8>>> {
+        let Some(state_transition_manager_address) = self.state_transition_manager_address else {
+            return Ok(None);
+        };
+
+        let to_block = self.client.block_number().await?;
+        let from_block = to_block.saturating_sub((LOOK_BACK_BLOCK_RANGE - 1).into());
+
+        let logs = self
+            .get_events_inner(
+                from_block.into(),
+                to_block.into(),
+                Some(vec![self.new_upgrade_cut_data_signature]),
+                Some(vec![packed_version]),
+                Some(vec![state_transition_manager_address]),
+                RETRY_LIMIT,
+            )
+            .await?;
+
+        Ok(logs.into_iter().next().map(|log| log.data.0))
+    }
+
     async fn chain_id(&self) -> EnrichedClientResult<SLChainId> {
         self.client.fetch_chain_id().await
     }
@@ -351,6 +454,83 @@ where
             .for_contract(L2_MESSAGE_ROOT_ADDRESS, &self.message_root_abi)
             .call(&self.client)
             .await
+    }
+
+    async fn get_chain_gateway_upgrade_info(
+        &self,
+    ) -> Result<Option<ZkChainSpecificUpgradeData>, ContractCallError> {
+        let Some(l1_shared_bridge_addr) = self.l1_shared_bridge_addr else {
+            tracing::warn!("l1 shared bridge is not provided!");
+            return Ok(None);
+        };
+
+        let Some(l1_wrapped_base_token_store) = self.wrapped_base_token_store else {
+            tracing::warn!("l1 wrapped base token store is not provided!");
+            return Ok(None);
+        };
+
+        let l2_chain_id = U256::from(self.l2_chain_id.as_u64());
+
+        // It does not matter whether the l1 shared bridge is an L1AssetRouter or L1Nullifier,
+        // either way it supports the "l2BridgeAddress" method.
+        let l2_legacy_shared_bridge: Address =
+            CallFunctionArgs::new("l2BridgeAddress", l2_chain_id)
+                .for_contract(l1_shared_bridge_addr, &self.l1_asset_router_abi)
+                .call(&self.client)
+                .await?;
+
+        if l2_legacy_shared_bridge == Address::zero() {
+            // This state is not completely impossible, but somewhat undesirable.
+            // Contracts will still allow the upgrade to go through without
+            // the shared bridge, so we will allow it here as well.
+            tracing::error!("L2 shared bridge from L1 is empty");
+        }
+
+        let l2_predeployed_wrapped_base_token: Address =
+            CallFunctionArgs::new("l2WBaseTokenAddress", l2_chain_id)
+                .for_contract(
+                    l1_wrapped_base_token_store,
+                    &self.wrapped_base_token_store_abi,
+                )
+                .call(&self.client)
+                .await?;
+
+        if l2_predeployed_wrapped_base_token == Address::zero() {
+            // This state is not completely impossible, but somewhat undesirable.
+            // Contracts will still allow the upgrade to go through without
+            // the l2 predeployed wrapped base token, so we will allow it here as well.
+            tracing::error!("L2 predeployed wrapped base token is empty");
+        }
+
+        let base_token_l1_address: Address = CallFunctionArgs::new("getBaseToken", ())
+            .for_contract(self.diamond_proxy_addr, &self.getters_facet_contract_abi)
+            .call(&self.client)
+            .await?;
+
+        let (base_token_name, base_token_symbol) =
+            if base_token_l1_address == SHARED_BRIDGE_ETHER_TOKEN_ADDRESS {
+                (String::from("Ether"), String::from("ETH"))
+            } else {
+                // Due to an issue in the upgrade process, the automatically
+                // deployed wrapped base tokens will contain generic names
+                (String::from("Base Token"), String::from("BT"))
+            };
+
+        let base_token_asset_id = encode_ntv_asset_id(
+            // Note, that this is correct only for tokens that are being upgraded to the gateway protocol version.
+            // The chains that were deployed after it may have tokens with non-L1 base tokens.
+            U256::from(self.chain_id().await?.0),
+            base_token_l1_address,
+        );
+
+        Ok(Some(ZkChainSpecificUpgradeData {
+            base_token_asset_id,
+            l2_legacy_shared_bridge,
+            l2_predeployed_wrapped_base_token,
+            base_token_l1_address,
+            base_token_name,
+            base_token_symbol,
+        }))
     }
 }
 
@@ -473,6 +653,13 @@ impl EthClient for L2EthClientW {
         self.0.scheduler_vk_hash(verifier_address).await
     }
 
+    async fn fflonk_scheduler_vk_hash(
+        &self,
+        verifier_address: Address,
+    ) -> Result<Option<H256>, ContractCallError> {
+        self.0.fflonk_scheduler_vk_hash(verifier_address).await
+    }
+
     async fn diamond_cut_by_version(
         &self,
         packed_version: H256,
@@ -491,4 +678,27 @@ impl EthClient for L2EthClientW {
     ) -> Result<H256, ContractCallError> {
         self.0.get_chain_root(block_number, l2_chain_id).await
     }
+
+    async fn get_chain_gateway_upgrade_info(
+        &self,
+    ) -> Result<Option<ZkChainSpecificUpgradeData>, ContractCallError> {
+        self.0.get_chain_gateway_upgrade_info().await
+    }
+
+    async fn get_published_preimages(
+        &self,
+        hashes: Vec<H256>,
+    ) -> EnrichedClientResult<Vec<Option<Vec<u8>>>> {
+        self.0.get_published_preimages(hashes).await
+    }
+}
+
+pub(crate) fn encode_ntv_asset_id(l1_chain_id: U256, addr: Address) -> H256 {
+    let encoded_data = encode(&[
+        ethabi::Token::Uint(l1_chain_id),
+        ethabi::Token::Address(L2_NATIVE_TOKEN_VAULT_ADDRESS),
+        ethabi::Token::Address(addr),
+    ]);
+
+    H256(keccak256(&encoded_data))
 }

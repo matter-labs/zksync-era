@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use zksync_multivm::{
     interface::{
-        Call, CompressedBytecodeInfo, ExecutionResult, L2BlockEnv, TransactionExecutionResult,
-        TxExecutionStatus, VmEvent, VmExecutionMetrics, VmExecutionResultAndLogs,
+        Call, ExecutionResult, L2BlockEnv, TransactionExecutionResult, TxExecutionStatus, VmEvent,
+        VmExecutionMetrics, VmExecutionResultAndLogs,
     },
     vm_latest::TransactionVmExt,
 };
@@ -77,20 +77,17 @@ impl L2BlockUpdates {
         self.block_execution_metrics += execution_metrics;
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub(crate) fn extend_from_executed_transaction(
         &mut self,
         tx: Transaction,
         tx_execution_result: VmExecutionResultAndLogs,
         execution_metrics: VmExecutionMetrics,
-        compressed_bytecodes: Vec<CompressedBytecodeInfo>,
         call_traces: Vec<Call>,
     ) {
         let saved_factory_deps =
             VmEvent::extract_bytecodes_marked_as_known(&tx_execution_result.logs.events);
 
         let gas_refunded = tx_execution_result.refunds.gas_refunded;
-        let operator_suggested_refund = tx_execution_result.refunds.operator_suggested_refund;
         let execution_status = if tx_execution_result.result.is_failed() {
             TxExecutionStatus::Failure
         } else {
@@ -160,8 +157,6 @@ impl L2BlockUpdates {
             execution_info: execution_metrics,
             execution_status,
             refunded_gas: gas_refunded,
-            operator_suggested_refund,
-            compressed_bytecodes,
             call_traces,
             revert_reason,
         });
@@ -211,7 +206,6 @@ mod tests {
             tx,
             create_execution_result([]),
             VmExecutionMetrics::default(),
-            vec![],
             vec![],
         );
 

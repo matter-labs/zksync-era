@@ -1,4 +1,4 @@
-use std::{borrow::Cow, fmt, marker::PhantomData, rc::Rc, sync::Arc, time::Duration};
+use std::{fmt, marker::PhantomData, rc::Rc, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use once_cell::sync::OnceCell;
@@ -8,15 +8,15 @@ use zksync_multivm::{
         executor::{BatchExecutor, BatchExecutorFactory},
         pubdata::PubdataBuilder,
         storage::{ReadStorage, StoragePtr, StorageView, StorageViewStats},
-        utils::DivergenceHandler,
-        BatchTransactionExecutionResult, BytecodeCompressionError, CompressedBytecodeInfo,
-        ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv, SystemEnv, VmFactory,
-        VmInterface, VmInterfaceHistoryEnabled,
+        utils::{DivergenceHandler, ShadowMut},
+        BatchTransactionExecutionResult, Call, ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv,
+        L2BlockEnv, SystemEnv, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
     },
     is_supported_by_fast_vm,
     pubdata_builders::pubdata_params_to_builder,
     tracers::CallTracer,
     vm_fast,
+    vm_fast::FastValidationTracer,
     vm_latest::HistoryEnabled,
     FastVmInstance, LegacyVmInstance, MultiVmTracer,
 };
@@ -28,6 +28,23 @@ use super::{
 };
 use crate::shared::{InteractionType, Sealed, STORAGE_METRICS};
 
+#[doc(hidden)]
+pub trait CallTracingTracer: vm_fast::interface::Tracer + Default {
+    fn into_traces(self) -> Vec<Call>;
+}
+
+impl CallTracingTracer for () {
+    fn into_traces(self) -> Vec<Call> {
+        vec![]
+    }
+}
+
+impl CallTracingTracer for vm_fast::CallTracer {
+    fn into_traces(self) -> Vec<Call> {
+        self.into_result()
+    }
+}
+
 /// Encapsulates a tracer used during batch processing. Currently supported tracers are `()` (no-op) and [`TraceCalls`].
 ///
 /// All members of this trait are implementation details.
@@ -37,7 +54,7 @@ pub trait BatchTracer: fmt::Debug + 'static + Send + Sealed {
     const TRACE_CALLS: bool;
     /// Tracer for the fast VM.
     #[doc(hidden)]
-    type Fast: vm_fast::interface::Tracer + Default + 'static;
+    type Fast: CallTracingTracer;
 }
 
 impl Sealed for () {}
@@ -56,7 +73,7 @@ impl Sealed for TraceCalls {}
 
 impl BatchTracer for TraceCalls {
     const TRACE_CALLS: bool = true;
-    type Fast = (); // TODO: change once call tracing is implemented in fast VM
+    type Fast = vm_fast::CallTracer;
 }
 
 /// The default implementation of [`BatchExecutorFactory`].
@@ -72,6 +89,7 @@ pub struct MainBatchExecutorFactory<Tr> {
     optional_bytecode_compression: bool,
     fast_vm_mode: FastVmMode,
     observe_storage_metrics: bool,
+    skip_signature_verification: bool,
     divergence_handler: Option<DivergenceHandler>,
     _tracer: PhantomData<Tr>,
 }
@@ -82,6 +100,7 @@ impl<Tr: BatchTracer> MainBatchExecutorFactory<Tr> {
             optional_bytecode_compression,
             fast_vm_mode: FastVmMode::Old,
             observe_storage_metrics: false,
+            skip_signature_verification: false,
             divergence_handler: None,
             _tracer: PhantomData,
         }
@@ -108,6 +127,15 @@ impl<Tr: BatchTracer> MainBatchExecutorFactory<Tr> {
         tracing::info!("Set VM divergence handler");
         self.divergence_handler = Some(handler);
     }
+
+    /// Skips signature verification for L2 transactions.
+    ///
+    /// # Important
+    ///
+    /// This is only safe to enable if transaction signatures are checked in some other way beforehand!
+    pub fn skip_signature_verification(&mut self) {
+        self.skip_signature_verification = true;
+    }
 }
 
 impl<S: ReadStorage + Send + 'static, Tr: BatchTracer> BatchExecutorFactory<S>
@@ -127,6 +155,7 @@ impl<S: ReadStorage + Send + 'static, Tr: BatchTracer> BatchExecutorFactory<S>
             optional_bytecode_compression: self.optional_bytecode_compression,
             fast_vm_mode: self.fast_vm_mode,
             observe_storage_metrics: self.observe_storage_metrics,
+            skip_signature_verification: self.skip_signature_verification,
             divergence_handler: self.divergence_handler.clone(),
             commands: commands_receiver,
             _storage: PhantomData,
@@ -144,8 +173,6 @@ impl<S: ReadStorage + Send + 'static, Tr: BatchTracer> BatchExecutorFactory<S>
         Box::new(MainBatchExecutor::new(handle, commands_sender))
     }
 }
-
-type BytecodeResult = Result<Vec<CompressedBytecodeInfo>, BytecodeCompressionError>;
 
 #[derive(Debug)]
 enum BatchVm<S: ReadStorage, Tr: BatchTracer> {
@@ -212,14 +239,15 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
         &mut self,
         tx: Transaction,
         with_compression: bool,
-    ) -> BatchTransactionExecutionResult<BytecodeResult> {
-        let call_tracer_result = Arc::new(OnceCell::default());
+    ) -> BatchTransactionExecutionResult {
+        let legacy_tracer_result = Arc::new(OnceCell::default());
         let legacy_tracer = if Tr::TRACE_CALLS {
-            vec![CallTracer::new(call_tracer_result.clone()).into_tracer_pointer()]
+            vec![CallTracer::new(legacy_tracer_result.clone()).into_tracer_pointer()]
         } else {
             vec![]
         };
         let mut legacy_tracer = legacy_tracer.into();
+        let mut fast_traces = vec![];
 
         let (compression_result, tx_result) = match self {
             Self::Legacy(vm) => vm.inspect_transaction_with_bytecode_compression(
@@ -228,19 +256,41 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
                 with_compression,
             ),
             Self::Fast(vm) => {
-                let mut tracer = (legacy_tracer.into(), <Tr::Fast>::default());
-                vm.inspect_transaction_with_bytecode_compression(&mut tracer, tx, with_compression)
+                let mut tracer = (
+                    legacy_tracer.into(),
+                    (Tr::Fast::default(), FastValidationTracer::default()),
+                );
+                let res = vm.inspect_transaction_with_bytecode_compression(
+                    &mut tracer,
+                    tx,
+                    with_compression,
+                );
+                let (_, (call_tracer, _)) = tracer;
+                fast_traces = call_tracer.into_traces();
+                res
             }
         };
 
-        let compressed_bytecodes = compression_result.map(Cow::into_owned);
-        let call_traces = Arc::try_unwrap(call_tracer_result)
+        let compressed_bytecodes = compression_result.map(drop);
+        let legacy_traces = Arc::try_unwrap(legacy_tracer_result)
             .expect("failed extracting call traces")
             .take()
             .unwrap_or_default();
+        let call_traces = match self {
+            Self::Legacy(_) => legacy_traces,
+            Self::Fast(FastVmInstance::Fast(_)) => fast_traces,
+            Self::Fast(FastVmInstance::Shadowed(vm)) => {
+                vm.get_custom_mut("call_traces", |r| match r {
+                    ShadowMut::Main(_) => legacy_traces.as_slice(),
+                    ShadowMut::Shadow(_) => fast_traces.as_slice(),
+                });
+                fast_traces
+            }
+        };
+
         BatchTransactionExecutionResult {
             tx_result: Box::new(tx_result),
-            compressed_bytecodes,
+            compression_result: compressed_bytecodes,
             call_traces,
         }
     }
@@ -257,6 +307,7 @@ struct CommandReceiver<S, Tr> {
     optional_bytecode_compression: bool,
     fast_vm_mode: FastVmMode,
     observe_storage_metrics: bool,
+    skip_signature_verification: bool,
     divergence_handler: Option<DivergenceHandler>,
     commands: mpsc::Receiver<Command>,
     _storage: PhantomData<S>,
@@ -280,6 +331,12 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
             storage_view.clone(),
             self.fast_vm_mode,
         );
+
+        if self.skip_signature_verification {
+            if let BatchVm::Fast(vm) = &mut vm {
+                vm.skip_signature_verification();
+            }
+        }
         let mut batch_finished = false;
         let mut prev_storage_stats = StorageViewStats::default();
 
@@ -410,10 +467,10 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
         // and so we re-execute the transaction, but without compression.
 
         let res = vm.inspect_transaction(tx.clone(), true);
-        if let Ok(compressed_bytecodes) = res.compressed_bytecodes {
+        if res.compression_result.is_ok() {
             return Ok(BatchTransactionExecutionResult {
                 tx_result: res.tx_result,
-                compressed_bytecodes,
+                compression_result: Ok(()),
                 call_traces: res.call_traces,
             });
         }
@@ -424,12 +481,11 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
         vm.make_snapshot();
 
         let res = vm.inspect_transaction(tx.clone(), false);
-        let compressed_bytecodes = res
-            .compressed_bytecodes
+        res.compression_result
             .context("compression failed when it wasn't applied")?;
         Ok(BatchTransactionExecutionResult {
             tx_result: res.tx_result,
-            compressed_bytecodes,
+            compression_result: Ok(()),
             call_traces: res.call_traces,
         })
     }
@@ -442,10 +498,10 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
         vm: &mut BatchVm<S, Tr>,
     ) -> anyhow::Result<BatchTransactionExecutionResult> {
         let res = vm.inspect_transaction(tx.clone(), true);
-        if let Ok(compressed_bytecodes) = res.compressed_bytecodes {
+        if res.compression_result.is_ok() {
             Ok(BatchTransactionExecutionResult {
                 tx_result: res.tx_result,
-                compressed_bytecodes,
+                compression_result: Ok(()),
                 call_traces: res.call_traces,
             })
         } else {
@@ -456,7 +512,7 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
             };
             Ok(BatchTransactionExecutionResult {
                 tx_result,
-                compressed_bytecodes: vec![],
+                compression_result: Ok(()),
                 call_traces: vec![],
             })
         }

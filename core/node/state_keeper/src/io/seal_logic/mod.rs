@@ -11,10 +11,7 @@ use itertools::Itertools;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_multivm::{
     interface::{DeduplicatedWritesMetrics, TransactionExecutionResult, VmEvent},
-    utils::{
-        get_max_batch_gas_limit, get_max_gas_per_pubdata_byte, ModifiedSlot,
-        StorageWritesDeduplicator,
-    },
+    utils::{get_max_batch_gas_limit, get_max_gas_per_pubdata_byte, StorageWritesDeduplicator},
 };
 use zksync_shared_metrics::{BlockStage, L2BlockStage, APP_METRICS};
 use zksync_types::{
@@ -133,6 +130,7 @@ impl UpdatesManager {
             system_logs: finished_batch.final_execution_state.system_logs.clone(),
             pubdata_input: finished_batch.pubdata_input.clone(),
             fee_address: self.fee_account_address,
+            batch_fee_input: self.batch_fee_input,
         };
 
         let final_bootloader_memory = finished_batch
@@ -442,19 +440,12 @@ impl L2BlockSealCommand {
     }
 
     fn extract_deduplicated_write_logs(&self) -> Vec<StorageLog> {
-        let mut storage_writes_deduplicator = StorageWritesDeduplicator::new();
-        storage_writes_deduplicator.apply(
+        StorageWritesDeduplicator::deduplicate_logs(
             self.l2_block
                 .storage_logs
                 .iter()
                 .filter(|log| log.log.is_write()),
-        );
-        let deduplicated_logs = storage_writes_deduplicator.into_modified_key_values();
-
-        deduplicated_logs
-            .into_iter()
-            .map(|(key, ModifiedSlot { value, .. })| StorageLog::new_write_log(key, value))
-            .collect()
+        )
     }
 
     fn transaction(&self, index: usize) -> &Transaction {
@@ -474,18 +465,16 @@ impl L2BlockSealCommand {
     ) -> Vec<(IncludedTxLocation, Vec<&'a T>)> {
         let grouped_entries = entries.iter().group_by(|&entry| tx_location(entry));
         let grouped_entries = grouped_entries.into_iter().map(|(tx_index, entries)| {
-            let (tx_hash, tx_initiator_address) = if is_fictive {
+            let tx_hash = if is_fictive {
                 assert_eq!(tx_index as usize, self.first_tx_index);
-                (H256::zero(), Address::zero())
+                H256::zero()
             } else {
-                let tx = self.transaction(tx_index as usize);
-                (tx.hash(), tx.initiator_account())
+                self.transaction(tx_index as usize).hash()
             };
 
             let location = IncludedTxLocation {
                 tx_hash,
                 tx_index_in_l2_block: tx_index - self.first_tx_index as u32,
-                tx_initiator_address,
             };
             (location, entries.collect())
         });

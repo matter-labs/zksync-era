@@ -77,6 +77,7 @@ impl EthWatch {
             state.last_seen_protocol_version,
             chain_admin_contract,
             sl_client.clone(),
+            l1_client.clone(),
         );
         let mut event_processors: Vec<Box<dyn EventProcessor>> = vec![
             Box::new(priority_ops_processor),
@@ -149,11 +150,13 @@ impl EthWatch {
                 _ = timer.tick() => { /* continue iterations */ }
                 _ = stop_receiver.changed() => break,
             }
-            METRICS.eth_poll.inc();
 
             let mut storage = pool.connection_tagged("eth_watch").await?;
             match self.loop_iteration(&mut storage).await {
-                Ok(()) => { /* everything went fine */ }
+                Ok(()) => {
+                    /* everything went fine */
+                    METRICS.eth_poll.inc();
+                }
                 Err(EventProcessorError::Internal(err)) => {
                     tracing::error!("Internal error processing new blocks: {err:?}");
                     return Err(err);

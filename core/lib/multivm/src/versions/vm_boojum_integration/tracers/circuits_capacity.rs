@@ -1,4 +1,4 @@
-use circuit_sequencer_api_1_4_0::{geometry_config::get_geometry_config, toolset::GeometryConfig};
+use circuit_sequencer_api::geometry_config::{GeometryConfig, ProtocolGeometry};
 
 use crate::{interface::CircuitStatistic, utils::CircuitCycleStatistic};
 
@@ -40,7 +40,7 @@ pub(crate) const UMA_READ_RAM_CYCLES: u32 = 3;
 pub(crate) const PRECOMPILE_RAM_CYCLES: u32 = 1;
 pub(crate) const PRECOMPILE_LOG_DEMUXER_CYCLES: u32 = 1;
 
-const GEOMETRY_CONFIG: GeometryConfig = get_geometry_config();
+const GEOMETRY_CONFIG: GeometryConfig = ProtocolGeometry::V1_4_0.config();
 
 pub(crate) fn circuit_statistic_from_cycles(cycles: CircuitCycleStatistic) -> CircuitStatistic {
     CircuitStatistic {
@@ -66,5 +66,6 @@ pub(crate) fn circuit_statistic_from_cycles(cycles: CircuitCycleStatistic) -> Ci
         sha256: cycles.sha256_cycles as f32 / GEOMETRY_CONFIG.cycles_per_sha256_circuit as f32,
         secp256k1_verify: 0.0,
         transient_storage_checker: 0.0,
+        ..Default::default()
     }
 }

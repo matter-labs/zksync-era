@@ -1,8 +1,8 @@
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
-use types::TokenInfo;
 use xshell::Shell;
+use zkstack_cli_types::TokenInfo;
 
 use crate::{
     consts::{

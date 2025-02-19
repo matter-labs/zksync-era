@@ -89,7 +89,7 @@ impl ArtifactsManager for NodeAggregation {
         let mut transaction = prover_connection.start_transaction().await.unwrap();
         let dependent_jobs = blob_urls.circuit_ids_and_urls.len();
         let protocol_version_id = transaction
-            .fri_witness_generator_dal()
+            .fri_basic_witness_generator_dal()
             .protocol_version_for_l1_batch(artifacts.block_number)
             .await;
         match artifacts.next_aggregations.len() > 1 {
@@ -105,7 +105,7 @@ impl ArtifactsManager for NodeAggregation {
                     )
                     .await;
                 transaction
-                    .fri_witness_generator_dal()
+                    .fri_node_witness_generator_dal()
                     .insert_node_aggregation_jobs(
                         artifacts.block_number,
                         artifacts.circuit_id,
@@ -135,7 +135,7 @@ impl ArtifactsManager for NodeAggregation {
         }
 
         transaction
-            .fri_witness_generator_dal()
+            .fri_node_witness_generator_dal()
             .mark_node_aggregation_as_successful(job_id, started_at.elapsed())
             .await;
 

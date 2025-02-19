@@ -16,4 +16,6 @@ vise.workspace = true
 tracing.workspace = true
 zksync_types.workspace = true
 zksync_dal.workspace = true
-zksync_bin_metadata.workspace = true
+
+[build-dependencies]
+rustc_version.workspace = true

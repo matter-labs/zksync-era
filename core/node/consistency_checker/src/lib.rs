@@ -14,12 +14,9 @@ use zksync_eth_client::{
 };
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_l1_contract_interface::{
-    i_executor::{
-        commit::kzg::ZK_SYNC_BYTES_PER_BLOB,
-        structures::{
-            CommitBatchInfo, StoredBatchInfo, PUBDATA_SOURCE_BLOBS, PUBDATA_SOURCE_CALLDATA,
-            PUBDATA_SOURCE_CUSTOM_PRE_GATEWAY, SUPPORTED_ENCODING_VERSION,
-        },
+    i_executor::structures::{
+        CommitBatchInfo, StoredBatchInfo, PUBDATA_SOURCE_BLOBS, PUBDATA_SOURCE_CALLDATA,
+        PUBDATA_SOURCE_CUSTOM_PRE_GATEWAY, SUPPORTED_ENCODING_VERSION,
     },
     Tokenizable,
 };
@@ -231,31 +228,19 @@ impl LocalL1BatchCommitData {
     }
 
     /// All returned errors are validation errors.
-    fn verify_commitment(&self, reference: &ethabi::Token) -> anyhow::Result<()> {
+    fn verify_commitment(&self, reference: &ethabi::Token, is_gateway: bool) -> anyhow::Result<()> {
         let protocol_version = self
             .l1_batch
             .header
             .protocol_version
             .unwrap_or_else(ProtocolVersionId::last_potentially_undefined);
-        let da = detect_da(protocol_version, reference, self.commitment_mode)
-            .context("cannot detect DA source from reference commitment token")?;
-
-        // For rollups with `PubdataSendingMode::Calldata`, it's required that the pubdata fits into a single blob.
-        if matches!(self.commitment_mode, L1BatchCommitmentMode::Rollup)
-            && matches!(da, PubdataSendingMode::Calldata)
-        {
-            let pubdata_len = self
-                .l1_batch
-                .header
-                .pubdata_input
-                .as_ref()
-                .map_or_else(|| self.l1_batch.construct_pubdata().len(), Vec::len);
-            anyhow::ensure!(
-                pubdata_len <= ZK_SYNC_BYTES_PER_BLOB,
-                "pubdata size is too large when using calldata DA source: expected <={ZK_SYNC_BYTES_PER_BLOB} bytes, \
-                 got {pubdata_len} bytes"
-            );
-        }
+        let da = detect_da(
+            protocol_version,
+            reference,
+            self.commitment_mode,
+            is_gateway,
+        )
+        .context("cannot detect DA source from reference commitment token")?;
 
         let local_token =
             CommitBatchInfo::new(self.commitment_mode, &self.l1_batch, da).into_token();
@@ -278,6 +263,7 @@ pub fn detect_da(
     protocol_version: ProtocolVersionId,
     reference: &Token,
     commitment_mode: L1BatchCommitmentMode,
+    is_gateway: bool,
 ) -> Result<PubdataSendingMode, ethabi::Error> {
     fn parse_error(message: impl Into<Cow<'static, str>>) -> ethabi::Error {
         ethabi::Error::Other(message.into())
@@ -351,7 +337,11 @@ pub fn detect_da(
             })? as usize;
 
             match last_reference_token.get(65 + 32 * number_of_blobs) {
-                Some(&byte) if byte == PUBDATA_SOURCE_CALLDATA => Ok(PubdataSendingMode::Calldata),
+                Some(&byte) if byte == PUBDATA_SOURCE_CALLDATA => if is_gateway {
+                    Ok(PubdataSendingMode::RelayedL2Calldata)
+                } else {
+                    Ok(PubdataSendingMode::Calldata)
+                },
                 Some(&byte) if byte == PUBDATA_SOURCE_BLOBS => Ok(PubdataSendingMode::Blobs),
                 Some(&byte) => Err(parse_error(format!(
                     "unexpected first byte of the last reference token for rollup; expected one of [{PUBDATA_SOURCE_CALLDATA}, {PUBDATA_SOURCE_BLOBS}], \
@@ -406,15 +396,9 @@ impl ConsistencyChecker {
         };
 
         let gateway_chain_data = if let Some(client) = gateway_client {
-            let contract = bridgehub_contract();
-            let function_name = if contract.function("getZKChain").is_ok() {
-                "getZKChain"
-            } else {
-                "getHyperchain"
-            };
             let gateway_diamond_proxy =
-                CallFunctionArgs::new(function_name, Token::Uint(l2_chain_id.as_u64().into()))
-                    .for_contract(L2_BRIDGEHUB_ADDRESS, &contract)
+                CallFunctionArgs::new("getZKChain", Token::Uint(l2_chain_id.as_u64().into()))
+                    .for_contract(L2_BRIDGEHUB_ADDRESS, &bridgehub_contract())
                     .call(&client)
                     .await?;
             let chain_id = client.fetch_chain_id().await?;
@@ -565,8 +549,10 @@ impl ConsistencyChecker {
             format!("failed extracting commit data for transaction {commit_tx_hash:?}")
         })
         .map_err(CheckError::Validation)?;
+
+        let is_gateway = chain_data.chain_id != self.l1_chain_data.chain_id;
         local
-            .verify_commitment(&commitment)
+            .verify_commitment(&commitment, is_gateway)
             .map_err(CheckError::Validation)
     }
 

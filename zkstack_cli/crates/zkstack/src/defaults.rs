@@ -1,6 +1,6 @@
-use config::ChainConfig;
 use lazy_static::lazy_static;
 use url::Url;
+use zkstack_cli_config::ChainConfig;
 
 lazy_static! {
     pub static ref DATABASE_SERVER_URL: Url =
@@ -9,6 +9,9 @@ lazy_static! {
         Url::parse("postgres://postgres:notsecurepassword@localhost:5432").unwrap();
     pub static ref DATABASE_EXPLORER_URL: Url =
         Url::parse("postgres://postgres:notsecurepassword@localhost:5432").unwrap();
+    pub static ref AVAIL_RPC_URL: Url = Url::parse("wss://turing-rpc.avail.so/ws").unwrap();
+    pub static ref AVAIL_BRIDGE_API_URL: Url =
+        Url::parse("https://turing-bridge-api.avail.so").unwrap();
 }
 
 pub const DEFAULT_OBSERVABILITY_PORT: u16 = 3000;

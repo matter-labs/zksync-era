@@ -1,20 +1,17 @@
 use std::str::FromStr;
 
 use anyhow::Context;
-use common::{cmd::Cmd, logger};
-use config::EcosystemConfig;
 use url::Url;
 use xshell::{cmd, Shell};
+use zkstack_cli_common::{cmd::Cmd, logger};
+use zkstack_cli_config::EcosystemConfig;
 
 use super::args::rust::RustArgs;
 use crate::commands::dev::{
     commands::test::db::reset_test_databases,
     dals::{Dal, CORE_DAL_PATH, PROVER_DAL_PATH},
     defaults::{TEST_DATABASE_PROVER_URL, TEST_DATABASE_SERVER_URL},
-    messages::{
-        MSG_CHAIN_NOT_FOUND_ERR, MSG_POSTGRES_CONFIG_NOT_FOUND_ERR, MSG_UNIT_TESTS_RUN_SUCCESS,
-        MSG_USING_CARGO_NEXTEST,
-    },
+    messages::{MSG_CHAIN_NOT_FOUND_ERR, MSG_UNIT_TESTS_RUN_SUCCESS, MSG_USING_CARGO_NEXTEST},
 };
 
 pub async fn run(shell: &Shell, args: RustArgs) -> anyhow::Result<()> {
@@ -23,21 +20,13 @@ pub async fn run(shell: &Shell, args: RustArgs) -> anyhow::Result<()> {
         .clone()
         .load_chain(Some(ecosystem.default_chain))
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;
-    let general_config = chain.get_general_config();
+    let general_config = chain.get_general_config().await;
     let link_to_code = ecosystem.link_to_code;
 
     let (test_server_url, test_prover_url) = if let Ok(general_config) = general_config {
-        let postgres = general_config
-            .postgres_config
-            .context(MSG_POSTGRES_CONFIG_NOT_FOUND_ERR)?;
-
         (
-            postgres
-                .test_server_url
-                .context(MSG_POSTGRES_CONFIG_NOT_FOUND_ERR)?,
-            postgres
-                .test_prover_url
-                .context(MSG_POSTGRES_CONFIG_NOT_FOUND_ERR)?,
+            general_config.get::<String>("postgres.test.server_url")?,
+            general_config.get::<String>("postgres.test.prover_url")?,
         )
     } else {
         (
@@ -59,7 +48,7 @@ pub async fn run(shell: &Shell, args: RustArgs) -> anyhow::Result<()> {
 
     reset_test_databases(shell, &link_to_code, dals).await?;
 
-    let _dir_guard = shell.push_dir(&link_to_code);
+    let _dir_guard = shell.push_dir(link_to_code.join("core"));
 
     logger::info(MSG_USING_CARGO_NEXTEST);
     let cmd = cmd!(shell, "cargo nextest run --release");

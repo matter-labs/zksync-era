@@ -5,13 +5,14 @@ use zksync_crypto_primitives::hasher::{keccak::KeccakHasher, Hasher};
 use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_metadata_calculator::api_server::TreeApiError;
 use zksync_mini_merkle_tree::MiniMerkleTree;
-use zksync_multivm::interface::VmExecutionResultAndLogs;
+use zksync_multivm::interface::VmEvent;
 use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     address_to_h256,
     api::{
-        state_override::StateOverride, BlockDetails, BridgeAddresses, GetLogsFilter,
-        L1BatchDetails, L2ToL1LogProof, Proof, ProtocolVersion, StorageProof, TransactionDetails,
+        self, state_override::StateOverride, BlockDetails, BridgeAddresses, GetLogsFilter,
+        L1BatchDetails, L2ToL1LogProof, Proof, ProtocolVersion, StorageProof,
+        TransactionDetailedResult, TransactionDetails,
     },
     fee::Fee,
     fee_model::{FeeParams, PubdataIndependentBatchFeeModelInput},
@@ -22,12 +23,14 @@ use zksync_types::{
     tokens::ETHEREUM_ADDRESS,
     transaction_request::CallRequest,
     utils::storage_key_for_standard_token_balance,
+    web3,
     web3::Bytes,
     AccountTreeId, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey, Transaction,
     L1_MESSENGER_ADDRESS, L2_BASE_TOKEN_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256, U64,
 };
 use zksync_web3_decl::{
-    error::Web3Error,
+    error::{ClientRpcContext, Web3Error},
+    namespaces::ZksNamespaceClient,
     types::{Address, Token, H256},
 };
 
@@ -237,6 +240,14 @@ impl ZksNamespace {
         msg: H256,
         l2_log_position: Option<usize>,
     ) -> Result<Option<L2ToL1LogProof>, Web3Error> {
+        if let Some(handler) = &self.state.l2_l1_log_proof_handler {
+            return handler
+                .get_l2_to_l1_msg_proof(block_number, sender, msg, l2_log_position)
+                .rpc_context("get_l2_to_l1_msg_proof")
+                .await
+                .map_err(Into::into);
+        }
+
         let mut storage = self.state.acquire_connection().await?;
         self.state
             .start_info
@@ -361,14 +372,14 @@ impl ZksNamespace {
 
         let Some(sl_chain_id) = storage
             .eth_sender_dal()
-            .get_batch_commit_chain_id(l1_batch_number)
+            .get_batch_execute_chain_id(l1_batch_number)
             .await
             .map_err(DalError::generalize)?
         else {
             return Ok(None);
         };
 
-        let (batch_proof_len, batch_chain_proof) =
+        let (batch_proof_len, batch_chain_proof, is_final_node) =
             if sl_chain_id.0 != self.state.api_config.l1_chain_id.0 {
                 let Some(batch_chain_proof) = storage
                     .blocks_dal()
@@ -379,9 +390,13 @@ impl ZksNamespace {
                     return Ok(None);
                 };
 
-                (batch_chain_proof.batch_proof_len, batch_chain_proof.proof)
+                (
+                    batch_chain_proof.batch_proof_len,
+                    batch_chain_proof.proof,
+                    false,
+                )
             } else {
-                (0, Vec::new())
+                (0, Vec::new(), true)
             };
 
         let proof = {
@@ -389,6 +404,7 @@ impl ZksNamespace {
             metadata[0] = LOG_PROOF_SUPPORTED_METADATA_VERSION;
             metadata[1] = log_leaf_proof.len() as u8;
             metadata[2] = batch_proof_len as u8;
+            metadata[3] = if is_final_node { 1 } else { 0 };
 
             let mut result = vec![H256(metadata)];
 
@@ -410,6 +426,14 @@ impl ZksNamespace {
         tx_hash: H256,
         index: Option<usize>,
     ) -> Result<Option<L2ToL1LogProof>, Web3Error> {
+        if let Some(handler) = &self.state.l2_l1_log_proof_handler {
+            return handler
+                .get_l2_to_l1_log_proof(tx_hash, index)
+                .rpc_context("get_l2_to_l1_log_proof")
+                .await
+                .map_err(Into::into);
+        }
+
         let mut storage = self.state.acquire_connection().await?;
         let Some((l1_batch_number, l1_batch_tx_index)) = storage
             .blocks_web3_dal()
@@ -655,9 +679,7 @@ impl ZksNamespace {
         Ok(self
             .state
             .tx_sender
-            .0
-            .batch_fee_input_provider
-            .get_batch_fee_input()
+            .scaled_batch_fee_input()
             .await?
             .into_pubdata_independent())
     }
@@ -666,20 +688,55 @@ impl ZksNamespace {
     pub async fn send_raw_transaction_with_detailed_output_impl(
         &self,
         tx_bytes: Bytes,
-    ) -> Result<(H256, VmExecutionResultAndLogs), Web3Error> {
+    ) -> Result<TransactionDetailedResult, Web3Error> {
         let mut connection = self.state.acquire_connection().await?;
         let block_args = BlockArgs::pending(&mut connection).await?;
         drop(connection);
-        let (mut tx, hash) = self
+        let (mut tx, tx_hash) = self
             .state
             .parse_transaction_bytes(&tx_bytes.0, &block_args)?;
-        tx.set_input(tx_bytes.0, hash);
+        tx.set_input(tx_bytes.0, tx_hash);
 
-        let submit_result = self.state.tx_sender.submit_tx(tx, block_args).await;
-        submit_result.map(|result| (hash, result.1)).map_err(|err| {
-            tracing::debug!("Send raw transaction error: {err}");
-            API_METRICS.submit_tx_error[&err.prom_error_code()].inc();
-            err.into()
+        let submit_output = self
+            .state
+            .tx_sender
+            .submit_tx(tx, block_args)
+            .await
+            .map_err(|err| {
+                tracing::debug!("Send raw transaction error: {err}");
+                API_METRICS.submit_tx_error[&err.prom_error_code()].inc();
+                err
+            })?;
+        Ok(TransactionDetailedResult {
+            transaction_hash: tx_hash,
+            storage_logs: submit_output
+                .write_logs
+                .into_iter()
+                .map(Into::into)
+                .collect(),
+            events: submit_output
+                .events
+                .into_iter()
+                .map(|event| map_event(event, tx_hash))
+                .collect(),
         })
+    }
+}
+
+fn map_event(vm_event: VmEvent, tx_hash: H256) -> api::Log {
+    api::Log {
+        address: vm_event.address,
+        topics: vm_event.indexed_topics,
+        data: web3::Bytes::from(vm_event.value),
+        block_hash: None,
+        block_number: None,
+        l1_batch_number: Some(U64::from(vm_event.location.0 .0)),
+        transaction_hash: Some(tx_hash),
+        transaction_index: Some(web3::Index::from(vm_event.location.1)),
+        log_index: None,
+        transaction_log_index: None,
+        log_type: None,
+        removed: Some(false),
+        block_timestamp: None,
     }
 }

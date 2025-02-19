@@ -7,7 +7,7 @@ import { Reporter } from './reporter';
 import * as yaml from 'yaml';
 import { L2_BASE_TOKEN_ADDRESS } from 'zksync-ethers/build/utils';
 import { FileConfig, loadConfig, loadEcosystem, shouldLoadConfigFromFile } from 'utils/build/file-configs';
-import { NodeSpawner } from './utils';
+import { NodeSpawner } from 'utils';
 import { logsTestPath } from 'utils/build/logs';
 import * as nodefs from 'node:fs/promises';
 import { exec } from 'utils';
@@ -168,6 +168,7 @@ async function loadTestEnvironmentFromFile(fileConfig: FileConfig): Promise<Test
     const healthcheckPort = generalConfig.api.healthcheck.port;
     const timestampAsserterAddress = contracts.l2.timestamp_asserter_addr;
     const timestampAsserterMinTimeTillEndSec = parseInt(generalConfig.timestamp_asserter.min_time_till_end_sec);
+    const l2WETHAddress = contracts.l2.predeployed_l2_wrapped_base_token_address;
     return {
         maxLogsLimit,
         pathToHome,
@@ -200,7 +201,8 @@ async function loadTestEnvironmentFromFile(fileConfig: FileConfig): Promise<Test
             l2Address: baseTokenAddressL2
         },
         timestampAsserterAddress,
-        timestampAsserterMinTimeTillEndSec
+        timestampAsserterMinTimeTillEndSec,
+        l2WETHAddress
     };
 }
 
@@ -326,7 +328,8 @@ export async function loadTestEnvironmentFromEnv(): Promise<TestEnvironment> {
             l2Address: baseTokenAddressL2
         },
         timestampAsserterAddress,
-        timestampAsserterMinTimeTillEndSec
+        timestampAsserterMinTimeTillEndSec,
+        l2WETHAddress: undefined
     };
 }
 

@@ -95,6 +95,17 @@ impl TestContract {
         &CONTRACT
     }
 
+    pub fn permissive_account() -> &'static Self {
+        static CONTRACT: Lazy<TestContract> = Lazy::new(|| {
+            let mut contract = TestContract::new(raw::custom_account::PermissiveAccount);
+            contract.dependencies = vec![TestContract::new(
+                raw::custom_account::PermissiveAccountDeployedContract,
+            )];
+            contract
+        });
+        &CONTRACT
+    }
+
     /// Returns a custom account with multiple owners.
     pub fn many_owners() -> &'static Self {
         static CONTRACT: Lazy<TestContract> =
@@ -112,6 +123,12 @@ impl TestContract {
     pub fn nonce_holder() -> &'static Self {
         static CONTRACT: Lazy<TestContract> =
             Lazy::new(|| TestContract::new(raw::custom_account::NonceHolderTest));
+        &CONTRACT
+    }
+
+    pub fn validation_test() -> &'static Self {
+        static CONTRACT: Lazy<TestContract> =
+            Lazy::new(|| TestContract::new(raw::custom_account::ValidationRuleBreaker));
         &CONTRACT
     }
 
@@ -168,6 +185,13 @@ impl TestContract {
     pub fn transfer_recipient() -> &'static Self {
         static CONTRACT: Lazy<TestContract> =
             Lazy::new(|| TestContract::new(raw::transfer::Recipient));
+        &CONTRACT
+    }
+
+    /// Returns a test ERC20 token implementation.
+    pub fn test_erc20() -> &'static Self {
+        static CONTRACT: Lazy<TestContract> =
+            Lazy::new(|| TestContract::new(raw::transfer::TestERC20));
         &CONTRACT
     }
 

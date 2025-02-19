@@ -37,33 +37,52 @@ const FORGE_PATH_PREFIX: &str = "contracts/l1-contracts/out";
 const BRIDGEHUB_CONTRACT_FILE: (&str, &str) = ("bridgehub", "IBridgehub.sol/IBridgehub.json");
 const STATE_TRANSITION_CONTRACT_FILE: (&str, &str) = (
     "state-transition",
-    "IStateTransitionManager.sol/IStateTransitionManager.json",
+    "ChainTypeManager.sol/ChainTypeManager.json",
 );
+const BYTECODE_SUPPLIER_CONTRACT_FILE: (&str, &str) =
+    ("upgrades", "BytecodesSupplier.sol/BytecodesSupplier.json");
 const ZKSYNC_HYPERCHAIN_CONTRACT_FILE: (&str, &str) = (
     "state-transition/chain-interfaces",
-    "IZkSyncHyperchain.sol/IZkSyncHyperchain.json",
+    "IZKChain.sol/IZKChain.json",
 );
 const DIAMOND_INIT_CONTRACT_FILE: (&str, &str) = (
     "state-transition",
     "chain-interfaces/IDiamondInit.sol/IDiamondInit.json",
 );
 const GOVERNANCE_CONTRACT_FILE: (&str, &str) = ("governance", "IGovernance.sol/IGovernance.json");
-const CHAIN_ADMIN_CONTRACT_FILE: (&str, &str) = ("governance", "IChainAdmin.sol/IChainAdmin.json");
+// TODO(EVM-924): We currently only support the "Ownable" chain admin.
+const CHAIN_ADMIN_CONTRACT_FILE: (&str, &str) = (
+    "governance",
+    "IChainAdminOwnable.sol/IChainAdminOwnable.json",
+);
 const GETTERS_FACET_CONTRACT_FILE: (&str, &str) = (
     "state-transition/chain-interfaces",
     "IGetters.sol/IGetters.json",
 );
 
 const MULTICALL3_CONTRACT_FILE: (&str, &str) = ("dev-contracts", "Multicall3.sol/Multicall3.json");
+const L1_ASSET_ROUTER_FILE: (&str, &str) = (
+    "bridge/asset-router",
+    "L1AssetRouter.sol/L1AssetRouter.json",
+);
+const L2_WRAPPED_BASE_TOKEN_STORE: (&str, &str) = (
+    "bridge",
+    "L2WrappedBaseTokenStore.sol/L2WrappedBaseTokenStore.json",
+);
+
 const VERIFIER_CONTRACT_FILE: (&str, &str) = ("state-transition", "Verifier.sol/Verifier.json");
+const DUAL_VERIFIER_CONTRACT_FILE: (&str, &str) = (
+    "state-transition/verifiers",
+    "DualVerifier.sol/DualVerifier.json",
+);
 
 const _IERC20_CONTRACT_FILE: &str =
     "contracts/l1-contracts/artifacts/contracts/common/interfaces/IERC20.sol/IERC20.json";
-const _FAIL_ON_RECEIVE_CONTRACT_FILE:  &str  =
+const _FAIL_ON_RECEIVE_CONTRACT_FILE: &str =
     "contracts/l1-contracts/artifacts/contracts/zksync/dev-contracts/FailOnReceive.sol/FailOnReceive.json";
 
 fn home_path() -> PathBuf {
-    Workspace::locate().core()
+    Workspace::locate().root()
 }
 
 fn read_file_to_json_value(path: impl AsRef<Path> + std::fmt::Debug) -> Option<serde_json::Value> {
@@ -154,6 +173,10 @@ pub fn state_transition_manager_contract() -> Contract {
     load_contract_for_both_compilers(STATE_TRANSITION_CONTRACT_FILE)
 }
 
+pub fn bytecode_supplier_contract() -> Contract {
+    load_contract_for_both_compilers(BYTECODE_SUPPLIER_CONTRACT_FILE)
+}
+
 pub fn hyperchain_contract() -> Contract {
     load_contract_for_both_compilers(ZKSYNC_HYPERCHAIN_CONTRACT_FILE)
 }
@@ -166,8 +189,24 @@ pub fn multicall_contract() -> Contract {
     load_contract_for_both_compilers(MULTICALL3_CONTRACT_FILE)
 }
 
+pub fn l1_asset_router_contract() -> Contract {
+    load_contract_for_both_compilers(L1_ASSET_ROUTER_FILE)
+}
+
+pub fn wrapped_base_token_store_contract() -> Contract {
+    load_contract_for_both_compilers(L2_WRAPPED_BASE_TOKEN_STORE)
+}
+
 pub fn verifier_contract() -> Contract {
-    load_contract_for_both_compilers(VERIFIER_CONTRACT_FILE)
+    let path = format!("{}/{}", FORGE_PATH_PREFIX, DUAL_VERIFIER_CONTRACT_FILE.1);
+    let zksync_home = home_path();
+    let path = Path::new(&zksync_home).join(path);
+
+    if path.exists() {
+        load_contract_for_both_compilers(DUAL_VERIFIER_CONTRACT_FILE)
+    } else {
+        load_contract_for_both_compilers(VERIFIER_CONTRACT_FILE)
+    }
 }
 
 pub fn deployer_contract() -> Contract {
@@ -178,9 +217,17 @@ pub fn l1_messenger_contract() -> Contract {
     load_sys_contract("L1Messenger")
 }
 
+pub fn l2_message_root() -> Contract {
+    load_contract("contracts/l1-contracts/out/MessageRoot.sol/MessageRoot.json")
+}
+
+pub fn l2_rollup_da_validator_bytecode() -> Vec<u8> {
+    read_bytecode("contracts/l2-contracts/zkout/RollupL2DAValidator.sol/RollupL2DAValidator.json")
+}
+
 /// Reads bytecode from the path RELATIVE to the Cargo workspace location.
 pub fn read_bytecode(relative_path: impl AsRef<Path> + std::fmt::Debug) -> Vec<u8> {
-    read_bytecode_from_path(relative_path).expect("Exists")
+    read_bytecode_from_path(relative_path).expect("Failed to open file")
 }
 
 pub fn eth_contract() -> Contract {
@@ -246,32 +293,66 @@ impl SystemContractsRepo {
     ) -> Vec<u8> {
         match lang {
             ContractLanguage::Sol => {
-                if let Some(contracts) = read_bytecode_from_path(
+                let possible_paths = [
                     self.root
                         .join(format!("zkout/{0}{1}.sol/{1}.json", directory, name)),
-                ) {
-                    contracts
-                } else {
-                    read_bytecode_from_path(self.root.join(format!(
+                    self.root.join(format!(
                         "artifacts-zk/contracts-preprocessed/{0}{1}.sol/{1}.json",
                         directory, name
-                    )))
-                    .unwrap_or_else(|| {
-                        panic!("One of the outputs should exists for {directory}{name}");
-                    })
+                    )),
+                ];
+                for path in &possible_paths {
+                    if let Some(contracts) = read_bytecode_from_path(path) {
+                        return contracts;
+                    }
                 }
+                panic!("One of the outputs should exist for {directory}{name}. Checked paths: {possible_paths:?}");
             }
             ContractLanguage::Yul => {
-                if let Some(contract) = read_bytecode_from_path(self.root.join(format!(
-                    "zkout/{name}.yul/contracts-preprocessed/{directory}/{name}.yul.json",
-                ))) {
-                    contract
+                // TODO: Newer versions of foundry-zksync no longer use directory for yul contracts, but we cannot
+                // easily get rid of the old lookup, because old foundry-zksync is compiled into `zk_environment`
+                // image. Once `foundry-zksync` is updated to at least 0.0.4, we can remove folder names from the
+                // `SYSTEM_CONTRACT_LIST` for yul contracts and merge two lookups below.
+                let possible_paths = [
+                    self.root.join(format!("zkout/{0}.yul/{0}.json", name)),
+                    self.root
+                        .join(format!("zkout/{0}{1}.yul/{1}.json", directory, name)),
+                    self.root.join(format!(
+                        "zkout/{name}.yul/contracts-preprocessed/{directory}/{name}.yul.json",
+                    )),
+                ];
+
+                for path in &possible_paths {
+                    if let Some(contracts) = read_bytecode_from_path(path) {
+                        return contracts;
+                    }
+                }
+
+                // Fallback for very old versions.
+                let artifacts_path = self
+                    .root
+                    .join(format!("contracts-preprocessed/{directory}artifacts"));
+
+                let bytecode_path = artifacts_path.join(format!("{name}.yul/{name}.yul.zbin"));
+                // Legacy versions of zksolc use the following path for output data if a yul file is being compiled: <name>.yul.zbin
+                // New zksolc versions use <name>.yul/<name>.yul.zbin, for consistency with solidity files compilation.
+                // In addition, the output of the legacy zksolc in this case is a binary file, while in new versions it is hex encoded.
+                if fs::exists(&bytecode_path)
+                    .unwrap_or_else(|err| panic!("Invalid path: {bytecode_path:?}, {err}"))
+                {
+                    read_zbin_bytecode_from_hex_file(bytecode_path)
                 } else {
-                    read_yul_bytecode_by_path(
-                        self.root
-                            .join(format!("contracts-preprocessed/{directory}artifacts")),
-                        name,
-                    )
+                    let bytecode_path_legacy = artifacts_path.join(format!("{name}.yul.zbin"));
+
+                    if fs::exists(&bytecode_path_legacy).unwrap_or_else(|err| {
+                        panic!("Invalid path: {bytecode_path_legacy:?}, {err}")
+                    }) {
+                        read_zbin_bytecode_from_path(bytecode_path_legacy)
+                    } else {
+                        panic!(
+                            "Can't find bytecode for '{name}' yul contract at {artifacts_path:?} or {possible_paths:?}"
+                        )
+                    }
                 }
             }
         }
@@ -279,59 +360,13 @@ impl SystemContractsRepo {
 }
 
 pub fn read_bootloader_code(bootloader_type: &str) -> Vec<u8> {
-    if let Some(contract) =
-        read_bytecode_from_path(home_path().join("contracts/system-contracts").join(format!(
-            "zkout/{bootloader_type}.yul/contracts-preprocessed/bootloader/{bootloader_type}.yul.json",
-        )))
-    {
-        return contract;
-    };
-    read_yul_bytecode(
-        "contracts/system-contracts/bootloader/build/artifacts",
-        bootloader_type,
-    )
-}
-
-fn read_proved_batch_bootloader_bytecode() -> Vec<u8> {
-    read_bootloader_code("proved_batch")
-}
-
-fn read_playground_batch_bootloader_bytecode() -> Vec<u8> {
-    read_bootloader_code("playground_batch")
+    read_sys_contract_bytecode("bootloader", bootloader_type, ContractLanguage::Yul)
 }
 
 /// Reads zbin bytecode from a given path, relative to workspace location.
 pub fn read_zbin_bytecode(relative_zbin_path: impl AsRef<Path>) -> Vec<u8> {
     let bytecode_path = Path::new(&home_path()).join(relative_zbin_path);
     read_zbin_bytecode_from_path(bytecode_path)
-}
-
-pub fn read_yul_bytecode(relative_artifacts_path: &str, name: &str) -> Vec<u8> {
-    let artifacts_path = Path::new(&home_path()).join(relative_artifacts_path);
-    read_yul_bytecode_by_path(artifacts_path, name)
-}
-
-pub fn read_yul_bytecode_by_path(artifacts_path: PathBuf, name: &str) -> Vec<u8> {
-    let bytecode_path = artifacts_path.join(format!("{name}.yul/{name}.yul.zbin"));
-
-    // Legacy versions of zksolc use the following path for output data if a yul file is being compiled: <name>.yul.zbin
-    // New zksolc versions use <name>.yul/<name>.yul.zbin, for consistency with solidity files compilation.
-    // In addition, the output of the legacy zksolc in this case is a binary file, while in new versions it is hex encoded.
-    if fs::exists(&bytecode_path)
-        .unwrap_or_else(|err| panic!("Invalid path: {bytecode_path:?}, {err}"))
-    {
-        read_zbin_bytecode_from_hex_file(bytecode_path)
-    } else {
-        let bytecode_path_legacy = artifacts_path.join(format!("{name}.yul.zbin"));
-
-        if fs::exists(&bytecode_path_legacy)
-            .unwrap_or_else(|err| panic!("Invalid path: {bytecode_path_legacy:?}, {err}"))
-        {
-            read_zbin_bytecode_from_path(bytecode_path_legacy)
-        } else {
-            panic!("Can't find bytecode for '{name}' yul contract at {artifacts_path:?}")
-        }
-    }
 }
 
 /// Reads zbin bytecode from a given path.
@@ -404,7 +439,7 @@ impl BaseSystemContracts {
 
     /// BaseSystemContracts with proved bootloader - for handling transactions.
     pub fn load_from_disk() -> Self {
-        let bootloader_bytecode = read_proved_batch_bootloader_bytecode();
+        let bootloader_bytecode = read_bootloader_code("proved_batch");
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
     }
 
@@ -421,7 +456,7 @@ impl BaseSystemContracts {
 
     /// BaseSystemContracts with playground bootloader - used for handling eth_calls.
     pub fn playground() -> Self {
-        let bootloader_bytecode = read_playground_batch_bootloader_bytecode();
+        let bootloader_bytecode = read_bootloader_code("playground_batch");
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
     }
 
@@ -707,14 +742,14 @@ pub static PRE_BOOJUM_COMMIT_FUNCTION: Lazy<Function> = Lazy::new(|| {
     serde_json::from_str(abi).unwrap()
 });
 
-pub static SET_CHAIN_ID_EVENT: Lazy<Event> = Lazy::new(|| {
+pub static GENESIS_UPGRADE_EVENT: Lazy<Event> = Lazy::new(|| {
     let abi = r#"
     {
       "anonymous": false,
       "inputs": [
         {
           "indexed": true,
-          "name": "_stateTransitionChain",
+          "name": "_hyperchain",
           "type": "address"
         },
         {
@@ -792,9 +827,14 @@ pub static SET_CHAIN_ID_EVENT: Lazy<Event> = Lazy::new(|| {
           "indexed": true,
           "name": "_protocolVersion",
           "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "name": "_factoryDeps",
+          "type": "bytes[]"
         }
       ],
-      "name": "SetChainIdUpgrade",
+      "name": "GenesisUpgrade",
       "type": "event"
     }"#;
     serde_json::from_str(abi).unwrap()
@@ -1408,30 +1448,5 @@ pub static POST_SHARED_BRIDGE_EXECUTE_FUNCTION: Lazy<Function> = Lazy::new(|| {
       "stateMutability": "nonpayable",
       "type": "function"
     }"#;
-    serde_json::from_str(abi).unwrap()
-});
-
-// Temporary thing, should be removed when new contracts are merged.
-pub static MESSAGE_ROOT_CONTRACT: Lazy<Contract> = Lazy::new(|| {
-    let abi = r#"
-    [{
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "_chainId",
-          "type": "uint256"
-        }
-      ],
-      "name": "getChainRoot",
-      "outputs": [
-        {
-          "internalType": "bytes32",
-          "name": "",
-          "type": "bytes32"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    }]"#;
     serde_json::from_str(abi).unwrap()
 });

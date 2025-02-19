@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use circuit_sequencer_api_1_3_3::INITIAL_MONOTONIC_CYCLE_COUNTER;
+use circuit_sequencer_api::INITIAL_MONOTONIC_CYCLE_COUNTER;
 use zk_evm_1_3_1::{
     abstractions::{MAX_HEAP_PAGE_SIZE_IN_WORDS, MAX_MEMORY_BYTES},
     aux_structures::{MemoryPage, Timestamp},
@@ -15,7 +15,7 @@ use zksync_contracts::BaseSystemContracts;
 use zksync_system_constants::MAX_L2_TX_GAS_LIMIT;
 use zksync_types::{
     address_to_u256, bytecode::BytecodeHash, fee_model::L1PeggedBatchFeeModelInput, h256_to_u256,
-    Address, Transaction, BOOTLOADER_ADDRESS, L1_GAS_PER_PUBDATA_BYTE, MAX_NEW_FACTORY_DEPS, U256,
+    Address, Transaction, BOOTLOADER_ADDRESS, L1_GAS_PER_PUBDATA_BYTE, U256,
 };
 
 use crate::{
@@ -154,6 +154,8 @@ pub const MAX_POSTOP_SLOTS: usize = PAYMASTER_CONTEXT_SLOTS + 7;
 // Slots used to store the current L2 transaction's hash and the hash recommended
 // to be used for signing the transaction's content.
 const CURRENT_L2_TX_HASHES_SLOTS: usize = 2;
+
+pub(crate) const MAX_NEW_FACTORY_DEPS: usize = 32;
 
 // Slots used to store the calldata for the KnownCodesStorage to mark new factory
 // dependencies as known ones. Besides the slots for the new factory dependencies themselves

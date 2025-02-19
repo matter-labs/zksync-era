@@ -1,5 +1,5 @@
 [package]
-name = "git_version_macro"
+name = "zkstack_cli_git_version_macro"
 edition = "2021"
 description = "Procedural macro to generate metainformation about build in compile time"
 version.workspace = true

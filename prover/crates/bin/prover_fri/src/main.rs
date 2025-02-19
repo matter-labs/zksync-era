@@ -1,5 +1,5 @@
 #![allow(incomplete_features)] // We have to use generic const exprs.
-#![feature(generic_const_exprs)]
+#![feature(generic_const_exprs, allocator_api)]
 
 use std::{future::Future, sync::Arc, time::Duration};
 
@@ -21,11 +21,11 @@ use zksync_prover_fri_utils::{
     region_fetcher::{RegionFetcher, Zone},
 };
 use zksync_queued_job_processor::JobProcessor;
+use zksync_task_management::ManagedTasks;
 use zksync_types::{
     basic_fri_types::CircuitIdRoundTuple,
     prover_dal::{GpuProverInstanceStatus, SocketAddress},
 };
-use zksync_utils::wait_for_tasks::ManagedTasks;
 use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 mod gpu_prover_availability_checker;
