@@ -173,9 +173,6 @@ fn comparing_tree_hash_with_updates() {
 fn test_extending_tree_with_proof(db: impl Database, inserts_count: usize, update_count: usize) {
     const RNG_SEED: u64 = 42;
 
-    let mut tree = MerkleTree::new(db).unwrap();
-    let empty_tree_output = tree.extend(&[]).unwrap();
-
     let mut rng = StdRng::seed_from_u64(RNG_SEED);
     let nodes = (0..inserts_count).map(|_| TreeEntry {
         key: H256(rng.gen()),
@@ -183,21 +180,9 @@ fn test_extending_tree_with_proof(db: impl Database, inserts_count: usize, updat
     });
     let inserts: Vec<_> = nodes.collect();
 
+    let mut tree = MerkleTree::new(db).unwrap();
     let (inserts_output, proof) = tree.extend_with_proof(&inserts).unwrap();
-
-    assert_eq!(proof.operations.len(), inserts.len());
-    for op in &proof.operations {
-        assert_eq!(*op, TreeOperation::Insert { prev_index: 0 });
-    }
-    assert_eq!(proof.sorted_leaves.len(), 2);
-    assert_eq!(
-        proof.sorted_leaves.keys().copied().collect::<Vec<_>>(),
-        [0, 1]
-    );
-
-    let root_hash_from_proof = proof
-        .verify(&Blake2Hasher, 64, empty_tree_output, &inserts)
-        .unwrap();
+    let root_hash_from_proof = proof.verify(&Blake2Hasher, 64, None, &inserts).unwrap();
     assert_eq!(root_hash_from_proof, inserts_output.root_hash);
 
     // Test a proof with only updates.
@@ -229,7 +214,7 @@ fn test_extending_tree_with_proof(db: impl Database, inserts_count: usize, updat
     );
 
     let root_hash_from_proof = proof
-        .verify(&Blake2Hasher, 64, inserts_output, &updates)
+        .verify(&Blake2Hasher, 64, Some(inserts_output), &updates)
         .unwrap();
     assert_eq!(root_hash_from_proof, updates_tree_hash);
 }
@@ -278,7 +263,7 @@ fn test_incrementally_extending_tree_with_proofs(db: impl Database, update_count
 
             let (new_output, proof) = tree.extend_with_proof(&entries).unwrap();
             let proof_hash = proof
-                .verify(&Blake2Hasher, 64, tree_output, &entries)
+                .verify(&Blake2Hasher, 64, Some(tree_output), &entries)
                 .unwrap();
             assert_eq!(proof_hash, new_output.root_hash);
             tree_output = new_output;

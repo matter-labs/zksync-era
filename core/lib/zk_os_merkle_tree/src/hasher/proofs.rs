@@ -1,4 +1,7 @@
-use std::collections::{BTreeMap, HashMap};
+use std::{
+    collections::{BTreeMap, HashMap},
+    iter,
+};
 
 use anyhow::Context;
 use zksync_basic_types::H256;
@@ -61,14 +64,27 @@ pub struct BatchTreeProof {
 }
 
 impl BatchTreeProof {
+    #[cfg(test)]
+    fn empty() -> Self {
+        Self {
+            operations: vec![],
+            sorted_leaves: BTreeMap::new(),
+            hashes: vec![],
+        }
+    }
+
     /// Returns the new root hash of the tree on success.
     pub fn verify(
         mut self,
         hasher: &dyn HashTree,
         tree_depth: u8,
-        prev_output: BatchOutput,
+        prev_output: Option<BatchOutput>,
         entries: &[TreeEntry],
     ) -> anyhow::Result<H256> {
+        let Some(prev_output) = prev_output else {
+            return self.verify_for_empty_tree(hasher, tree_depth, entries);
+        };
+
         anyhow::ensure!(
             self.operations.len() == entries.len(),
             "Unexpected operations length"
@@ -187,6 +203,77 @@ impl BatchTreeProof {
         )
     }
 
+    fn verify_for_empty_tree(
+        self,
+        hasher: &dyn HashTree,
+        tree_depth: u8,
+        entries: &[TreeEntry],
+    ) -> anyhow::Result<H256> {
+        // The proof must be entirely empty since we can get all data from `entries`.
+        anyhow::ensure!(self.sorted_leaves.is_empty());
+        anyhow::ensure!(self.operations.is_empty());
+        anyhow::ensure!(self.hashes.is_empty());
+
+        let index_by_key: BTreeMap<_, _> = entries
+            .iter()
+            .enumerate()
+            .map(|(i, entry)| (entry.key, i as u64 + 2))
+            .collect();
+        anyhow::ensure!(
+            index_by_key.len() == entries.len(),
+            "There are entries with duplicate keys"
+        );
+
+        let mut min_leaf_index = 1;
+        let mut max_leaf_index = 0;
+        let sorted_leaves = entries.iter().enumerate().map(|(i, entry)| {
+            let this_index = i as u64 + 2;
+
+            // The key itself is guaranteed to be the first yielded item, hence `skip(1)`.
+            let mut it = index_by_key.range(entry.key..).skip(1);
+            let next_index = it.next().map(|(_, idx)| *idx).unwrap_or_else(|| {
+                max_leaf_index = this_index;
+                1
+            });
+            let prev_index = index_by_key
+                .range(..entry.key)
+                .map(|(_, idx)| *idx)
+                .next_back()
+                .unwrap_or_else(|| {
+                    min_leaf_index = this_index;
+                    0
+                });
+
+            Leaf {
+                key: entry.key,
+                value: entry.value,
+                prev_index,
+                next_index,
+            }
+        });
+        let sorted_leaves: Vec<_> = sorted_leaves.collect();
+
+        let min_guard = Leaf {
+            next_index: min_leaf_index,
+            ..Leaf::MIN_GUARD
+        };
+        let max_guard = Leaf {
+            prev_index: max_leaf_index,
+            ..Leaf::MAX_GUARD
+        };
+        let leaves_with_guards = [(0, &min_guard), (1, &max_guard)]
+            .into_iter()
+            .chain((2..).zip(&sorted_leaves));
+
+        Self::zip_leaves(
+            hasher,
+            tree_depth,
+            2 + entries.len() as u64,
+            leaves_with_guards,
+            iter::empty(),
+        )
+    }
+
     fn zip_leaves<'a>(
         hasher: &dyn HashTree,
         tree_depth: u8,
@@ -246,6 +333,31 @@ mod tests {
     use super::*;
 
     #[test]
+    fn insertion_proof_for_empty_tree() {
+        let proof = BatchTreeProof::empty();
+        let hash = proof.verify(&Blake2Hasher, 64, None, &[]).unwrap();
+        assert_eq!(
+            hash,
+            "0x8a41011d351813c31088367deecc9b70677ecf15ffc24ee450045cdeaf447f63"
+                .parse()
+                .unwrap()
+        );
+
+        let proof = BatchTreeProof::empty();
+        let entry = TreeEntry {
+            key: H256::repeat_byte(0x01),
+            value: H256::repeat_byte(0x10),
+        };
+        let hash = proof.verify(&Blake2Hasher, 64, None, &[entry]).unwrap();
+        assert_eq!(
+            hash,
+            "0x91a1688c802dc607125d0b5e5ab4d95d89a4a4fb8cca71a122db6076cb70f8f3"
+                .parse()
+                .unwrap()
+        );
+    }
+
+    #[test]
     fn basic_insertion_proof() {
         let proof = BatchTreeProof {
             operations: vec![TreeOperation::Insert { prev_index: 0 }],
@@ -263,7 +375,7 @@ mod tests {
             .verify(
                 &Blake2Hasher,
                 64,
-                empty_tree_output,
+                Some(empty_tree_output),
                 &[TreeEntry {
                     key: H256::repeat_byte(0x01),
                     value: H256::repeat_byte(0x10),

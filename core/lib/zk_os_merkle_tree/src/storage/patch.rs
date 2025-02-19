@@ -62,7 +62,6 @@ impl TreeUpdate {
         );
 
         let mut inserts = Vec::with_capacity(entries.len() + 2);
-        let mut operations = Vec::with_capacity(entries.len() + 2);
         for entry in [&TreeEntry::MIN_GUARD, &TreeEntry::MAX_GUARD]
             .into_iter()
             .chain(entries)
@@ -90,8 +89,6 @@ impl TreeUpdate {
                 prev_index,
                 next_index,
             });
-            // FIXME: this is incorrect
-            operations.push(TreeOperation::Insert { prev_index: 0 });
         }
 
         Ok(Self {
@@ -99,7 +96,7 @@ impl TreeUpdate {
             sorted_new_leaves,
             updates: vec![],
             inserts,
-            operations,
+            operations: vec![],
         })
     }
 
