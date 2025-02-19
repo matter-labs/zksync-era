@@ -269,6 +269,7 @@ impl Distribution<configs::ContractsConfig> for EncodeDist {
             l1_base_token_asset_id: self.sample_opt(|| rng.gen()),
             chain_admin_addr: self.sample_opt(|| rng.gen()),
             l2_da_validator_addr: self.sample_opt(|| rng.gen()),
+            no_da_validium_l1_validator_addr: self.sample_opt(|| rng.gen()),
         }
     }
 }
@@ -465,8 +466,6 @@ impl Distribution<configs::FriProofCompressorConfig> for EncodeDist {
             universal_setup_path: self.sample(rng),
             universal_setup_download_url: self.sample(rng),
             verify_wrapper_proof: self.sample(rng),
-            universal_fflonk_setup_path: self.sample(rng),
-            universal_fflonk_setup_download_url: self.sample(rng),
         }
     }
 }
@@ -984,6 +983,7 @@ impl Distribution<configs::da_dispatcher::DADispatcherConfig> for EncodeDist {
             max_rows_to_dispatch: self.sample(rng),
             max_retries: self.sample(rng),
             use_dummy_inclusion_data: self.sample(rng),
+            inclusion_verification_transition_enabled: self.sample(rng),
         }
     }
 }
