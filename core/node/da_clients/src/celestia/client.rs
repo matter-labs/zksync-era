@@ -3,6 +3,7 @@ use std::{
     str::FromStr,
     sync::Arc,
     time,
+    fs::File,
 };
 
 use async_trait::async_trait;
@@ -17,6 +18,7 @@ use zksync_da_client::{
     DataAvailabilityClient,
 };
 use zksync_eth_client::{
+    EthInterface,
     clients::{DynClient, L1},
 };
 use zksync_basic_types::web3::{Log, Filter, BlockNumber, FilterBuilder};
@@ -37,10 +39,22 @@ pub struct CelestiaClient {
     integration_client: Arc<IntegrationClient>,
     celestia_client: Arc<RawCelestiaClient>,
     eth_client: Box<DynClient<L1>>,
+    blobstream_update_event: Event,
 }
 
 impl CelestiaClient {
     pub async fn new(config: CelestiaConfig, secrets: CelestiaSecrets, eth_client: Box<DynClient<L1>>) -> anyhow::Result<Self> {
+
+        let contract_file = File::open("blobstream.json")
+            .map_err(to_non_retriable_da_error)?;
+        let contract = Contract::load(contract_file)
+            .map_err(to_non_retriable_da_error)?;
+        let blobstream_update_event = contract.events_by_name("DataCommitmentStored")
+            .map_err(to_non_retriable_da_error)?
+            .first()
+            .ok_or_else(|| to_non_retriable_da_error(anyhow::anyhow!("DataCommitmentStored event not found in contract")))?
+            .clone();
+
         let celestia_grpc_channel = Endpoint::from_str(config.api_node_url.clone().as_str())?
             .timeout(time::Duration::from_millis(config.timeout_ms))
             .connect()
@@ -60,6 +74,7 @@ impl CelestiaClient {
             celestia_client: Arc::new(client),
             integration_client: Arc::new(integration_client),
             eth_client,
+            blobstream_update_event,
         })
     }
 }
@@ -138,7 +153,10 @@ impl DataAvailabilityClient for CelestiaClient {
         };
         // Here we want to poll blobstream until the included block is in blobstream
         //self.eth_client.call_contract_function(request, block)
-        self.eth_client
+        let block_num = self.eth_client.block_number()
+            .await
+            .map_err(|e| to_retriable_da_error(e))?;
+
 
         Ok(Some(InclusionData { data: vec![] }))
     }
