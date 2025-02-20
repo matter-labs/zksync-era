@@ -174,7 +174,7 @@ impl DataAvailabilityDispatcher {
                 let balance = client_arc
                     .balance()
                     .await
-                    .with_context(|| "Unable to retrieve DA operator balance");
+                    .context("Unable to retrieve DA operator balance");
 
                 match balance {
                     Ok(balance) => {

@@ -355,9 +355,9 @@ impl RawAvailClient {
             .as_str()
             .ok_or_else(|| anyhow::anyhow!("Invalid balance"))?;
 
-        balance
+        Ok(balance
             .parse()
-            .context("Unable to parse the account balance")
+            .context("Unable to parse the account balance")?)
     }
 }
 
