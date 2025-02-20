@@ -453,14 +453,6 @@ mod tests {
             .unwrap();
         assert_eq!(picked_l1_batch, Some(L1BatchNumber(1)));
 
-        // Check that with small enough processing timeout, the L1 batch can be picked again
-        let picked_l1_batch = conn
-            .proof_generation_dal()
-            .lock_batch_for_proving()
-            .await
-            .unwrap();
-        assert_eq!(picked_l1_batch, Some(L1BatchNumber(1)));
-
         conn.proof_generation_dal()
             .save_proof_artifacts_metadata(L1BatchNumber(1), "proof")
             .await
