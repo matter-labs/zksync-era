@@ -83,9 +83,9 @@ jobs:
           ci_run zkstack ecosystem init --dev --update-submodules=${{matrix.compressor-mode == 'plonk'}} --verbose
 
           ci_run zkstack prover init --dev --verbose
-          WEB3_HTTP_PORT=$(yq -e '.api.web3_json_rpc.http_port' < ./chains/proving_chain/configs/general.yaml)
-          echo "Using Web3 HTTP port: $WEB3_HTTP_PORT"
-          echo "URL=http://127.0.0.1:$WEB3_HTTP_PORT" >> $GITHUB_ENV
+          WEB3_HTTP_URL=$(yq -e '.api.web3_json_rpc.http_url' < ./chains/proving_chain/configs/general.yaml)
+          echo "Using Web3 HTTP URL: $WEB3_HTTP_URL"
+          echo "URL=$WEB3_HTTP_URL" >> $GITHUB_ENV
 
       - name: Switch verifier to FFLONK interface
         working-directory: ./chains/proving_chain/configs

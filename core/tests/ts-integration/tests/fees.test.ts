@@ -108,7 +108,7 @@ testFees('Test fees', function () {
             });
 
             ethClientWeb3Url = secretsConfig.l1.l1_rpc_url;
-            apiWeb3JsonRpcHttpUrl = `http://127.0.0.1:${generalConfig.api.web3_json_rpc.http_port}`;
+            apiWeb3JsonRpcHttpUrl = generalConfig.api.web3_json_rpc.http_url;
             baseTokenAddress = contractsConfig.l1.base_token_addr;
         }
 

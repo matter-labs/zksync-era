@@ -65,14 +65,12 @@ impl GeneralConfig {
 
     /// Obtains HTTP RPC URL for the main node based on its general config. The URL will have 127.0.0.1 host.
     pub fn l2_http_url(&self) -> anyhow::Result<String> {
-        let port = self.0.get::<u16>("api.web3_json_rpc.http_port")?;
-        Ok(format!("http://127.0.0.1:{port}"))
+        self.0.get("api.web3_json_rpc.http_url")
     }
 
     /// Obtains WS RPC URL for the main node based on its general config. The URL will have 127.0.0.1 host.
     pub fn l2_ws_url(&self) -> anyhow::Result<String> {
-        let port = self.0.get::<u16>("api.web3_json_rpc.ws_port")?;
-        Ok(format!("ws://127.0.0.1:{port}"))
+        self.0.get("api.web3_json_rpc.ws_url")
     }
 
     pub fn healthcheck_url(&self) -> anyhow::Result<String> {

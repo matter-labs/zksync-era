@@ -91,7 +91,7 @@ async function loadTestEnvironmentFromFile(fileConfig: FileConfig): Promise<Test
 
     const network = ecosystem.l1_network.toLowerCase();
     let mainWalletPK = getMainWalletPk(pathToHome);
-    const l2NodeUrl = `http://127.0.0.1:${generalConfig.api.web3_json_rpc.http_port}`;
+    const l2NodeUrl = generalConfig.api.web3_json_rpc.http_url;
     const l1NodeUrl = secretsConfig.l1.l1_rpc_url;
 
     const pathToMainLogs = await logsPath(fileConfig.chain!, 'server.log');
@@ -121,9 +121,7 @@ async function loadTestEnvironmentFromFile(fileConfig: FileConfig): Promise<Test
 
     const l2Provider = new zksync.Provider(l2NodeUrl);
     const baseTokenAddress = await l2Provider.getBaseTokenContractAddress();
-
-    const wsL2NodeUrl = `ws://127.0.0.1:${generalConfig.api.web3_json_rpc.ws_port}`;
-
+    const wsL2NodeUrl = generalConfig.api.web3_json_rpc.ws_url;
     const contractVerificationUrl = `http://127.0.0.1:${generalConfig.contract_verifier.port}`;
 
     const tokens = getTokensNew(pathToHome);
