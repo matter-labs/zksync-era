@@ -1,11 +1,13 @@
-# EigenDA client
+# EigenDA Client
 
----
+EigenDA is as a high-throughput data availability layer for rollups. It is an EigenLayer AVS (Actively Validated
+Service), so it leverages Ethereum's economic security instead of bootstrapping a new network with its own validators.
+For more information you can check the [docs](https://docs.eigenda.xyz/).
 
-This is an implementation of the EigenDA client capable of sending the blobs to DA layer. It uses authenticated
-requests, though the auth headers are kind of mocked in the current API implementation.
+## Temporary
 
-The generated files are received by compiling the `.proto` files from EigenDA repo using the following function:
+In order to implement the integration we generated some `.proto` files from EigenDA repo that were compiled using the
+following function:
 
 ```rust
 pub fn compile_protos() {
@@ -28,8 +30,8 @@ pub fn compile_protos() {
 }
 ```
 
+The generated folder is considered a temporary solution until the EigenDA has a library with either a protogen, or
+preferably a full Rust client implementation.
+
 proto files are not included here to not create confusion in case they are not updated in time, so the EigenDA
 [repo](https://github.com/Layr-Labs/eigenda/tree/master/api/proto) has to be a source of truth for the proto files.
-
-The generated folder here is considered a temporary solution until the EigenDA has a library with either a protogen, or
-preferably a full Rust client implementation.
