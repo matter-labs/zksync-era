@@ -23,6 +23,7 @@ import {
     L2_NATIVE_TOKEN_VAULT_ADDRESS,
     L2_INTEROP_HANDLER_ADDRESS,
     L2_INTEROP_CENTER_ADDRESS,
+    L2_STANDARD_TRIGGER_ACCOUNT_ADDRESS,
     REQUIRED_L2_GAS_PRICE_PER_PUBDATA,
     L2_TO_L1_MESSENGER_SYSTEM_CONTRACT_ADDR,
     BRIDGEHUB_L2_CANONICAL_TRANSACTION_ABI,
@@ -248,7 +249,7 @@ describe('Interop checks', () => {
                     directCall: true,
                     nextContract: interop1_wallet.address,
                     data: '0x',
-                    value: '0x' + mintValue.toString(16),
+                    value: '0x',
                     requestedInteropCallValue: '0x' + mintValue.toString(16)
                 }
             ],
@@ -449,7 +450,7 @@ describe('Interop checks', () => {
                     directCall: true,
                     nextContract: aliased_interop1_wallet_address,
                     data: '0x',
-                    value: '0x' + mintValue.toString(16),
+                    value: '0x0',
                     requestedInteropCallValue: '0x' + mintValue.toString(16)
                 }
             ],
@@ -958,8 +959,6 @@ describe('Interop checks', () => {
         // await waitForL2ToL1LogProof(sender_chain_utilityWallet, txReceipt!.blockNumber, txHash);
         await waitUntilBlockCommitted(sender_chain_utilityWallet, txReceipt!.blockNumber);
 
-        console.log('txHash', txHash);
-
         const {
             l1BatchNumber: l1BatchNumber_trigger,
             l2TxNumberInBlock: l2TxNumberInBlock_trigger,
@@ -1005,7 +1004,7 @@ describe('Interop checks', () => {
         const feeData = await receiver_chain_provider.getFeeData();
         let interopTx = {
             // type: INTEROP_TX_TYPE,
-            from: xl2Input.from,
+            from: xl2Input.from, //L2_STANDARD_TRIGGER_ACCOUNT_ADDRESS, kl todo
             to: L2_INTEROP_HANDLER_ADDRESS,
             chainId: (await receiver_chain_provider.getNetwork()).chainId.toString(),
             data: txData,

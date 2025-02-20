@@ -15,6 +15,7 @@ export const L2_INTEROP_CENTER_ADDRESS = '0x000000000000000000000000000000000001
 export const L2_INTEROP_HANDLER_ADDRESS = '0x0000000000000000000000000000000000010009';
 export const L2_MESSAGE_ROOT_STORAGE_ADDRESS = '0x000000000000000000000000000000000001000B';
 export const L2_MESSAGE_VERIFICATION_ADDRESS = '0x000000000000000000000000000000000001000C';
+export const L2_STANDARD_TRIGGER_ACCOUNT_ADDRESS = '0x000000000000000000000000000000000001000e';
 export const DEPLOYER_SYSTEM_CONTRACT_ADDRESS = '0x0000000000000000000000000000000000008006';
 export const L2_TO_L1_MESSENGER_SYSTEM_CONTRACT_ADDR = '0x0000000000000000000000000000000000008008';
 export const EMPTY_STRING_KECCAK = '0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470';
@@ -28,7 +29,7 @@ export const ARTIFACTS_PATH = '../../../contracts/l1-contracts/out/';
 export const SYSTEM_ARTIFACTS_PATH = '../../../contracts/system-contracts/zkout/';
 
 export const INTEROP_TRIGGER_ABI =
-    'tuple(uint256 destinationChainId, address from, bytes32 feeBundleHash, bytes32 executionBundleHash, tuple(uint256 gasLimit, uint256 gasPerPubdataByteLimit, address refundRecipient) gasFields)';
+    'tuple(uint256 destinationChainId, address from, address recipient,bytes32 feeBundleHash, bytes32 executionBundleHash, tuple(uint256 gasLimit, uint256 gasPerPubdataByteLimit, address refundRecipient) gasFields)';
 
 export const INTEROP_CALL_ABI = 'tuple(address to, address from, uint256 value, bytes data)';
 export const INTEROP_BUNDLE_ABI =

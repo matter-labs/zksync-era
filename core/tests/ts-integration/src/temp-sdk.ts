@@ -113,8 +113,8 @@ export async function getInteropTriggerData(
     // console.log("decodedRequest", decodedRequest)
 
     let trigger = false;
-    if (decodedRequest[0][4]) {
-        if (decodedRequest[0][4][1] == 800n) {
+    if (decodedRequest[0][5]) {
+        if (decodedRequest[0][5][1] == 800n) {
             trigger = true;
         }
     }
@@ -132,12 +132,13 @@ export async function getInteropTriggerData(
     let output = {
         destinationChainId: decodedRequest[0][0],
         from: decodedRequest[0][1],
-        feeBundleHash: decodedRequest[0][2],
-        executionBundleHash: decodedRequest[0][3],
+        recipient: decodedRequest[0][2],
+        feeBundleHash: decodedRequest[0][3],
+        executionBundleHash: decodedRequest[0][4],
         gasFields: {
-            gasLimit: decodedRequest[0][4][0],
-            gasPerPubdataByteLimit: decodedRequest[0][4][1],
-            refundRecipient: decodedRequest[0][4][2]
+            gasLimit: decodedRequest[0][5][0],
+            gasPerPubdataByteLimit: decodedRequest[0][5][1],
+            refundRecipient: decodedRequest[0][5][2]
         }
     };
     // console.log("output", output)
