@@ -26,7 +26,7 @@ use zksync_types::{
 };
 use zksync_web3_decl::{
     client::{Client, DynClient, L2},
-    namespaces::{UnstableNamespaceClient, ZksNamespaceClient},
+    namespaces::{EthNamespaceClient, UnstableNamespaceClient, ZksNamespaceClient},
 };
 
 /// To support both functionality of assignment inside local tests
@@ -106,6 +106,22 @@ abigen!(
 ]"
 );
 
+// L2WrappedBaseTokenStore ABI
+abigen!(
+    L2NativeTokenVaultAbi,
+    r"[
+    function assetId(address)(bytes32)
+    function L2_LEGACY_SHARED_BRIDGE()(address)
+]"
+);
+
+abigen!(
+    L2LegacySharedBridgeAbi,
+    r"[
+    function l1TokenAddress(address)(address)
+]"
+);
+
 // ZKChain ABI
 abigen!(
     ZKChainAbi,
@@ -156,11 +172,106 @@ async fn verify_next_batch_new_version(
     Ok(())
 }
 
+pub(crate) async fn check_l2_ntv_existence(l2_client: &Box<DynClient<L2>>) -> anyhow::Result<()> {
+    let l2_ntv_code = l2_client
+        .get_code(L2_NATIVE_TOKEN_VAULT_ADDRESS, None)
+        .await?;
+    if l2_ntv_code.0.is_empty() {
+        anyhow::bail!("Gateway upgrade has not yet been completed on the server side");
+    }
+
+    Ok(())
+}
+
+pub async fn get_all_tokens(
+    l2_client: &Box<DynClient<L2>>,
+) -> anyhow::Result<Vec<zksync_web3_decl::types::Token>> {
+    const LIMIT_PER_QUERY: u8 = 255;
+
+    let mut result = vec![];
+    let mut offset = 0;
+
+    loop {
+        let tokens = l2_client
+            .get_confirmed_tokens(offset, LIMIT_PER_QUERY)
+            .await?;
+
+        if tokens.is_empty() {
+            break;
+        }
+
+        result.extend(tokens.into_iter());
+        offset += LIMIT_PER_QUERY as u32;
+    }
+
+    Ok(result)
+}
+
+pub(crate) fn get_ethers_provider(url: String) -> anyhow::Result<Arc<Provider<Http>>> {
+    let provider = match Provider::<Http>::try_from(&url) {
+        Ok(provider) => provider,
+        Err(err) => {
+            anyhow::bail!("Connection error: {:#?}", err);
+        }
+    };
+
+    Ok(Arc::new(provider))
+}
+
+pub(crate) fn get_zk_client(url: &str, l2_chain_id: u64) -> anyhow::Result<Box<DynClient<L2>>> {
+    let l2_client = Client::http(SensitiveUrl::from_str(url).unwrap())
+        .context("failed creating JSON-RPC client for main node")?
+        .for_network(L2ChainId::new(l2_chain_id).unwrap().into())
+        .with_allowed_requests_per_second(NonZeroUsize::new(100_usize).unwrap())
+        .build();
+
+    let l2_client = Box::new(l2_client) as Box<DynClient<L2>>;
+
+    Ok(l2_client)
+}
+
+pub async fn check_token_readiness(l2_rpc_url: String, l2_chain_id: u64) -> anyhow::Result<()> {
+    let l2_client = get_zk_client(&l2_rpc_url, l2_chain_id)?;
+
+    check_l2_ntv_existence(&l2_client).await?;
+
+    let provider = get_ethers_provider(l2_rpc_url)?;
+
+    let all_tokens = get_all_tokens(&l2_client).await?;
+
+    let l2_native_token_vault =
+        L2NativeTokenVaultAbi::new(L2_NATIVE_TOKEN_VAULT_ADDRESS, provider.clone());
+    let l2_legacy_shared_bridge_addr = l2_native_token_vault.l2_legacy_shared_bridge().await?;
+    if l2_legacy_shared_bridge_addr == Address::zero() {
+        println!("Chain does not have a legacy bridge. Nothing to migrate");
+        return Ok(());
+    }
+
+    let l2_legacy_shared_bridge =
+        L2LegacySharedBridgeAbi::new(l2_legacy_shared_bridge_addr, provider);
+
+    for token in all_tokens {
+        let current_asset_id = l2_native_token_vault.asset_id(token.l2_address).await?;
+        // Let's double check whether the token can be registered at all
+        let l1_address = l2_legacy_shared_bridge
+            .l_1_token_address(token.l2_address)
+            .await?;
+
+        if current_asset_id == [0u8; 32] && l1_address != Address::zero() {
+            anyhow::bail!("There are unregistered L2 tokens! (E.g. {} (address {:#?})). Please register them to smoother migration for your users.", token.name, token.l2_address)
+        }
+    }
+
+    Ok(())
+}
+
 pub async fn check_chain_readiness(
     l1_rpc_url: String,
     l2_rpc_url: String,
     l2_chain_id: u64,
 ) -> anyhow::Result<()> {
+    check_token_readiness(l2_rpc_url.clone(), l2_chain_id).await?;
+
     let l1_provider = match Provider::<Http>::try_from(&l1_rpc_url) {
         Ok(provider) => provider,
         Err(err) => {
@@ -169,12 +280,7 @@ pub async fn check_chain_readiness(
     };
     let l1_client = Arc::new(l1_provider);
 
-    let l2_client = Client::http(SensitiveUrl::from_str(&l2_rpc_url).unwrap())
-        .context("failed creating JSON-RPC client for main node")?
-        .for_network(L2ChainId::new(l2_chain_id).unwrap().into())
-        .with_allowed_requests_per_second(NonZeroUsize::new(100_usize).unwrap())
-        .build();
-    let l2_client = Box::new(l2_client) as Box<DynClient<L2>>;
+    let l2_client = get_zk_client(&l2_rpc_url, l2_chain_id)?;
 
     let inflight_txs_count = match l2_client.get_unconfirmed_txs_count().await {
         Ok(x) => x,
