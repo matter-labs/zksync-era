@@ -5,6 +5,7 @@ use zkstack_cli_config::{
     copy_configs, set_l1_rpc_url, traits::SaveConfigWithBasePath, update_from_chain_config,
     ChainConfig, ContractsConfig, EcosystemConfig,
 };
+use zksync_basic_types::L2ChainId;
 use zksync_types::Address;
 
 use crate::{
@@ -108,6 +109,16 @@ pub async fn init_configs(
             secrets.insert_yaml("da.avail", avail_secrets)?;
         }
     }
+    // kl todo
+    println!("inserting dependency chain rpc url");
+    let (dependency_chain_rpc_url, dependency_chain_id) =
+        if chain_config.chain_id == L2ChainId::from(271) {
+            ("http://localhost:3152", 505)
+        } else {
+            ("http://localhost:3050", 271)
+        };
+    secrets.insert("l1.dependency_chain_rpc_url", dependency_chain_rpc_url)?;
+    secrets.insert("l1.dependency_chain_id", dependency_chain_id)?;
     secrets.save().await?;
 
     genesis::database::update_configs(init_args.genesis_args.clone(), shell, chain_config).await?;

@@ -17,14 +17,17 @@ impl MessageRootDal<'_, '_> {
         &mut self,
         chain_id: SLChainId,
         number: L1BatchNumber,
-        message_root: H256,
+        message_root: &[H256],
         // proof: BatchAndChainMerklePath,
     ) -> DalResult<()> {
         println!(
             "set_message_root {:?} {:?} {:?}",
             chain_id.0, number.0, message_root
         );
-        let sides = message_root.as_bytes().to_vec();
+        let sides = message_root
+            .iter()
+            .map(|root| root.as_bytes().to_vec())
+            .collect::<Vec<_>>();
         sqlx::query!(
             r#"
             INSERT INTO message_roots (chain_id, block_number, message_root_sides)
@@ -34,7 +37,7 @@ impl MessageRootDal<'_, '_> {
             "#,
             chain_id.0 as i64,
             number.0 as i64,
-            &[sides]
+            &sides
         )
         .instrument("set_message_root")
         .with_arg("chain_id", &chain_id)
@@ -74,7 +77,11 @@ impl MessageRootDal<'_, '_> {
         .into_iter()
         .map(|record| {
             let block_number = record.block_number as u32;
-            let root = record.message_root_sides.iter().map(|side| h256_to_u256(H256::from_slice(side))).collect::<Vec<_>>();
+            let root = record
+                .message_root_sides
+                .iter()
+                .map(|side| h256_to_u256(H256::from_slice(side)))
+                .collect::<Vec<_>>();
             let chain_id = record.chain_id as u32;
             MessageRoot::new(chain_id, block_number, root)
         })

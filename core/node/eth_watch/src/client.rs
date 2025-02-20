@@ -16,8 +16,8 @@ use zksync_types::{
     api::{ChainAggProof, Log},
     ethabi::{self, decode, encode, Contract, ParamType},
     web3::{keccak256, BlockId, BlockNumber, Filter, FilterBuilder},
-    Address, L1BatchNumber, L2ChainId, SLChainId, H256, L2_NATIVE_TOKEN_VAULT_ADDRESS,
-    SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256, U64,
+    Address, L1BatchNumber, L2ChainId, SLChainId, H256, L1_MESSENGER_ADDRESS,
+    L2_NATIVE_TOKEN_VAULT_ADDRESS, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256, U64,
 };
 use zksync_web3_decl::{
     client::{Network, L2},
@@ -112,6 +112,7 @@ pub struct EthHttpQueryClient<Net: Network> {
     wrapped_base_token_store_abi: Contract,
     confirmations_for_eth_event: Option<u64>,
     l2_chain_id: L2ChainId,
+    dependency_l2_chain: bool,
 }
 
 impl<Net: Network> EthHttpQueryClient<Net>
@@ -131,6 +132,7 @@ where
         governance_address: Address,
         confirmations_for_eth_event: Option<u64>,
         l2_chain_id: L2ChainId,
+        dependency_l2_chain: bool,
     ) -> Self {
         tracing::debug!(
             "New eth client, ZKsync addr: {:x}, governance addr: {:?}",
@@ -164,22 +166,26 @@ where
             l1_shared_bridge_addr,
             l1_message_root_address,
             l2_chain_id,
+            dependency_l2_chain,
         }
     }
 
     fn get_default_address_list(&self) -> Vec<Address> {
         // println!("get_default_address_list: {:?}", self.l1_message_root_address);
-        [
+        let addresses = [
             Some(self.diamond_proxy_addr),
             Some(self.governance_address),
             self.state_transition_manager_address,
             self.chain_admin_address,
             Some(L2_MESSAGE_ROOT_ADDRESS),
             self.l1_message_root_address,
-        ]
-        .into_iter()
-        .flatten()
-        .collect()
+        ];
+        let mut addresses: Vec<Address> = addresses.into_iter().flatten().collect();
+        // we don't want to watch the L1 messenger on GW, only on the dependency chains
+        if self.dependency_l2_chain {
+            addresses.push(L1_MESSENGER_ADDRESS);
+        }
+        addresses
     }
 
     #[async_recursion::async_recursion]

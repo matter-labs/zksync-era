@@ -5,6 +5,7 @@ use secrecy::ExposeSecret;
 use zksync_basic_types::{
     secrets::{APIKey, PrivateKey, SeedPhrase},
     url::SensitiveUrl,
+    SLChainId,
 };
 use zksync_config::configs::{
     consensus::{AttesterSecretKey, ConsensusSecrets, NodeSecretKey, ValidatorSecretKey},
@@ -92,6 +93,13 @@ impl ProtoRepr for proto::L1Secrets {
                 .map(|url| SensitiveUrl::from_str(&url))
                 .transpose()
                 .context("gateway_rpc_url")?,
+            dependency_chain_rpc_url: self
+                .dependency_chain_rpc_url
+                .clone()
+                .map(|url| SensitiveUrl::from_str(&url))
+                .transpose()
+                .context("dependency_chain_rpc_url")?,
+            dependency_chain_id: self.dependency_chain_id.as_ref().map(|id| SLChainId(*id)),
         })
     }
 
@@ -102,6 +110,11 @@ impl ProtoRepr for proto::L1Secrets {
                 .gateway_rpc_url
                 .as_ref()
                 .map(|url| url.expose_url().to_string()),
+            dependency_chain_rpc_url: this
+                .dependency_chain_rpc_url
+                .as_ref()
+                .map(|url| url.expose_url().to_string()),
+            dependency_chain_id: this.dependency_chain_id.as_ref().map(|id| id.0),
         }
     }
 }

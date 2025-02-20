@@ -1,5 +1,5 @@
 use anyhow::Context;
-use zksync_basic_types::url::SensitiveUrl;
+use zksync_basic_types::{url::SensitiveUrl, SLChainId};
 
 use crate::configs::{
     consensus::ConsensusSecrets,
@@ -17,6 +17,8 @@ pub struct DatabaseSecrets {
 pub struct L1Secrets {
     pub l1_rpc_url: SensitiveUrl,
     pub gateway_rpc_url: Option<SensitiveUrl>,
+    pub dependency_chain_rpc_url: Option<SensitiveUrl>,
+    pub dependency_chain_id: Option<SLChainId>,
 }
 
 #[derive(Debug, Clone, PartialEq)]

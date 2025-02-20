@@ -189,6 +189,8 @@ impl MainNodeBuilder {
                 .as_ref()
                 .map(|c| c.gateway_chain_id),
             eth_config.gateway_rpc_url,
+            eth_config.dependency_chain_id,
+            eth_config.dependency_chain_rpc_url,
         );
         self.node.add_layer(query_eth_client_layer);
         Ok(self)
