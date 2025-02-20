@@ -2,45 +2,27 @@ use std::{
     collections::HashSet,
     fs::File,
     io::{BufReader, BufWriter},
-    num::NonZeroUsize,
     path::Path,
     str::FromStr,
     sync::Arc,
     time::Duration,
 };
 
-use anyhow::Context;
-use clap::{Parser, ValueEnum};
-// get_list_of_tokens.rs
-use ethers::prelude::*;
+use clap::Parser;
 use ethers::{
-    abi::{encode, parse_abi, Token},
+    abi::parse_abi,
     contract::{abigen, BaseContract},
+    prelude::*,
     providers::{Http, Middleware, Provider},
     utils::hex,
 };
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
-use strum::EnumIter;
 use tokio::time::sleep;
 use xshell::Shell;
-use zkstack_cli_config::{
-    forge_interface::gateway_ecosystem_upgrade::output::GatewayEcosystemUpgradeOutput,
-    traits::{ReadConfig, ZkStackConfig},
-    ContractsConfig,
-};
-use zksync_contracts::{chain_admin_contract, hyperchain_contract, DIAMOND_CUT};
-use zksync_types::{
-    ethabi, h256_to_address, h256_to_u256, u256_to_h256,
-    url::SensitiveUrl,
-    web3::{keccak256, Bytes},
-    Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, H256,
-    L2_NATIVE_TOKEN_VAULT_ADDRESS, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256,
-};
-use zksync_web3_decl::{
-    client::{Client, DynClient, L2},
-    namespaces::{UnstableNamespaceClient, ZksNamespaceClient},
-};
+use zkstack_cli_config::traits::ReadConfig;
+use zksync_basic_types::{h256_to_address, h256_to_u256, u256_to_h256, Address, H256, U256};
+use zksync_system_constants::SHARED_BRIDGE_ETHER_TOKEN_ADDRESS;
 
 use super::gateway::GatewayUpgradeInfo;
 
@@ -76,7 +58,7 @@ pub async fn get_list_of_tokens(
     // ---------------------------------------------------------
     // 1. Read or initialize the cache
     // ---------------------------------------------------------
-    let mut cache = read_cache_from_file(&existing_cache_path).unwrap_or_else(|| Cache {
+    let mut cache = read_cache_from_file(existing_cache_path).unwrap_or_else(|| Cache {
         first_seen_block: block_to_start_with,
         last_seen_block: block_to_start_with,
         added_tokens: vec![],
@@ -252,7 +234,7 @@ pub async fn get_list_of_tokens(
         cache.last_seen_block = end_of_range;
         cache.added_tokens = discovered_tokens.iter().copied().collect();
 
-        write_cache_to_file(&existing_cache_path, &cache).expect("Failed to write cache to file");
+        write_cache_to_file(existing_cache_path, &cache).expect("Failed to write cache to file");
 
         println!("Processed and saved the range!");
 
