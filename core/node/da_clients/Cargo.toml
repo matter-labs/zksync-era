@@ -44,6 +44,7 @@ backon.workspace = true
 url.workspace = true
 
 # Celestia dependencies
+eq-sdk = { path = "../../../../celestia/eq-service/sdk", package = "eq-sdk" }
 http.workspace = true
 bincode.workspace = true
 celestia-types.workspace = true

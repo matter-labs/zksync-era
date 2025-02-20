@@ -1892,22 +1892,8 @@ dependencies = [
 
 [[package]]
 name = "celestia-proto"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c6eb26c852e42015f85f3aed5c3d1472c751b143e2199d0401ebac2f4500b20d"
-dependencies = [
- "celestia-tendermint-proto",
- "prost 0.12.6",
- "prost-build 0.12.6",
- "prost-types 0.12.6",
- "protox 0.6.1",
- "serde",
-]
-
-[[package]]
-name = "celestia-proto"
-version = "0.6.0"
-source = "git+https://github.com/eigerco/lumina.git#7c5368f38a75c6e6293a1cdab25c3822f0fb9390"
+version = "0.7.0"
+source = "git+https://github.com/eigerco/lumina.git#c0dd5e227ef4d231a9a6261062edcb5a94995f0c"
 dependencies = [
  "bytes",
  "prost 0.13.4",
@@ -1920,92 +1906,16 @@ dependencies = [
 ]
 
 [[package]]
-name = "celestia-tendermint"
-version = "0.32.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ce8c92a01145f79a0f3ac7c44a43a9b5ee58e8a4c716b56d98833a3848db1afd"
-dependencies = [
- "bytes",
- "celestia-tendermint-proto",
- "digest 0.10.7",
- "ed25519",
- "ed25519-consensus",
- "flex-error",
- "futures 0.3.31",
- "num-traits",
- "once_cell",
- "prost 0.12.6",
- "prost-types 0.12.6",
- "serde",
- "serde_bytes",
- "serde_json",
- "serde_repr",
- "sha2 0.10.8",
- "signature 2.2.0",
- "subtle",
- "subtle-encoding",
- "time",
- "zeroize",
-]
-
-[[package]]
-name = "celestia-tendermint-proto"
-version = "0.32.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9a95746c5221a74d7b913a415fdbb9e7c90e1b4d818dbbff59bddc034cfce2ec"
-dependencies = [
- "bytes",
- "flex-error",
- "num-derive 0.3.3",
- "num-traits",
- "prost 0.12.6",
- "prost-types 0.12.6",
- "serde",
- "serde_bytes",
- "subtle-encoding",
- "time",
-]
-
-[[package]]
 name = "celestia-types"
-version = "0.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "caf52cc4b4cdf73fc07d9eeaea6d27bb39eed81f4bf8c89f01df86ace4e6da10"
-dependencies = [
- "base64 0.22.1",
- "bech32",
- "blockstore",
- "bytes",
- "celestia-proto 0.4.1",
- "celestia-tendermint",
- "celestia-tendermint-proto",
- "cid",
- "const_format",
- "enum_dispatch",
- "leopard-codec",
- "libp2p-identity",
- "multiaddr",
- "multihash",
- "nmt-rs",
- "ruint",
- "serde",
- "serde_repr",
- "sha2 0.10.8",
- "thiserror 1.0.69",
- "time",
-]
-
-[[package]]
-name = "celestia-types"
-version = "0.9.0"
-source = "git+https://github.com/eigerco/lumina.git#7c5368f38a75c6e6293a1cdab25c3822f0fb9390"
+version = "0.10.0"
+source = "git+https://github.com/eigerco/lumina.git#c0dd5e227ef4d231a9a6261062edcb5a94995f0c"
 dependencies = [
  "base64 0.22.1",
  "bech32",
  "bitvec",
  "blockstore",
  "bytes",
- "celestia-proto 0.6.0",
+ "celestia-proto",
  "cid",
  "const_format",
  "enum_dispatch",
@@ -3395,7 +3305,7 @@ name = "eq-common"
 version = "0.1.0"
 dependencies = [
  "alloy",
- "celestia-types 0.9.0",
+ "celestia-types",
  "nmt-rs",
  "prost 0.12.6",
  "serde",
@@ -3404,6 +3314,19 @@ dependencies = [
  "thiserror 2.0.6",
  "tonic 0.11.0",
  "tonic-build",
+]
+
+[[package]]
+name = "eq-sdk"
+version = "0.1.0"
+dependencies = [
+ "base64 0.22.1",
+ "celestia-types",
+ "eq-common",
+ "log",
+ "serde",
+ "tokio",
+ "tonic 0.11.0",
 ]
 
 [[package]]
@@ -3665,7 +3588,6 @@ version = "0.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c606d892c9de11507fa0dcffc116434f94e105d0bbdc4e405b61519464c49d7b"
 dependencies = [
- "eyre",
  "paste",
 ]
 
@@ -3899,7 +3821,7 @@ dependencies = [
  "itertools 0.10.5",
  "lazy_static",
  "num-bigint 0.4.6",
- "num-derive 0.2.5",
+ "num-derive",
  "num-integer",
  "num-traits",
  "rand 0.4.6",
@@ -6435,17 +6357,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "num-derive"
-version = "0.3.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "876a53fff98e03a936a674b29568b0e605f06b29372c2489ff4de23f1949743d"
-dependencies = [
- "proc-macro2 1.0.92",
- "quote 1.0.37",
- "syn 1.0.109",
-]
-
-[[package]]
 name = "num-integer"
 version = "0.1.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7872,19 +7783,6 @@ dependencies = [
 
 [[package]]
 name = "prost-reflect"
-version = "0.13.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6f5eec97d5d34bdd17ad2db2219aabf46b054c6c41bd5529767c9ce55be5898f"
-dependencies = [
- "logos 0.14.4",
- "miette 7.4.0",
- "once_cell",
- "prost 0.12.6",
- "prost-types 0.12.6",
-]
-
-[[package]]
-name = "prost-reflect"
 version = "0.14.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e92b959d24e05a3e2da1d0beb55b48bc8a97059b8336ea617780bd6addbbfb5a"
@@ -7931,21 +7829,6 @@ dependencies = [
 
 [[package]]
 name = "protox"
-version = "0.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ac532509cee918d40f38c3e12f8ef9230f215f017d54de7dd975015538a42ce7"
-dependencies = [
- "bytes",
- "miette 7.4.0",
- "prost 0.12.6",
- "prost-reflect 0.13.1",
- "prost-types 0.12.6",
- "protox-parse 0.6.1",
- "thiserror 1.0.69",
-]
-
-[[package]]
-name = "protox"
 version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6f352af331bf637b8ecc720f7c87bf903d2571fa2e14a66e9b2558846864b54a"
@@ -7967,18 +7850,6 @@ checksum = "7b4581f441c58863525a3e6bec7b8de98188cf75239a56c725a3e7288450a33f"
 dependencies = [
  "logos 0.13.0",
  "miette 5.10.0",
- "prost-types 0.12.6",
- "thiserror 1.0.69",
-]
-
-[[package]]
-name = "protox-parse"
-version = "0.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f6c33f43516fe397e2f930779d720ca12cd057f7da4cd6326a0ef78d69dee96"
-dependencies = [
- "logos 0.14.4",
- "miette 7.4.0",
  "prost-types 0.12.6",
  "thiserror 1.0.69",
 ]
@@ -13690,8 +13561,8 @@ dependencies = [
  "blake2 0.10.6",
  "blake2b_simd",
  "bytes",
- "celestia-types 0.6.1",
- "eq-common",
+ "celestia-types",
+ "eq-sdk",
  "flate2",
  "futures 0.3.31",
  "hex",
