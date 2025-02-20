@@ -3,7 +3,9 @@ use zksync_db_connection::{
     error::DalResult,
     instrument::{InstrumentExt, Instrumented},
 };
-use zksync_types::{pubdata_da::DataAvailabilityBlob, L1BatchNumber};
+use zksync_types::{
+    l2_to_l1_log::L2ToL1Log, pubdata_da::DataAvailabilityBlob, Address, L1BatchNumber,
+};
 
 use crate::{
     models::storage_data_availability::{L1BatchDA, StorageDABlob},
@@ -24,17 +26,26 @@ impl DataAvailabilityDal<'_, '_> {
         number: L1BatchNumber,
         blob_id: &str,
         sent_at: chrono::NaiveDateTime,
+        l2_validator_address: Address,
     ) -> DalResult<()> {
         let update_result = sqlx::query!(
             r#"
             INSERT INTO
-            data_availability (l1_batch_number, blob_id, sent_at, created_at, updated_at)
+            data_availability (
+                l1_batch_number,
+                blob_id,
+                l2_da_validator_address,
+                sent_at,
+                created_at,
+                updated_at
+            )
             VALUES
-            ($1, $2, $3, NOW(), NOW())
+            ($1, $2, $3, $4, NOW(), NOW())
             ON CONFLICT DO NOTHING
             "#,
             i64::from(number.0),
             blob_id,
+            l2_validator_address.as_bytes(),
             sent_at,
         )
         .instrument("insert_l1_batch_da")
@@ -185,6 +196,7 @@ impl DataAvailabilityDal<'_, '_> {
             SELECT
                 number,
                 pubdata_input,
+                system_logs,
                 sealed_at
             FROM
                 l1_batches
@@ -216,7 +228,83 @@ impl DataAvailabilityDal<'_, '_> {
                 pubdata: row.pubdata_input.unwrap(),
                 l1_batch_number: L1BatchNumber(row.number as u32),
                 sealed_at: row.sealed_at.unwrap().and_utc(),
+                system_logs: row
+                    .system_logs
+                    .into_iter()
+                    .map(|raw_log| L2ToL1Log::from_slice(&raw_log))
+                    .collect(),
             })
             .collect())
+    }
+
+    /// Fetches the pubdata for the L1 batch with a given blob id.
+    pub async fn get_blob_data_by_blob_id(
+        &mut self,
+        blob_id: &str,
+    ) -> DalResult<Option<L1BatchDA>> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                number,
+                pubdata_input,
+                system_logs,
+                sealed_at
+            FROM
+                l1_batches
+            LEFT JOIN
+                data_availability
+                ON data_availability.l1_batch_number = l1_batches.number
+            WHERE
+                number != 0
+                AND data_availability.blob_id = $1
+            ORDER BY
+                number
+            LIMIT
+                1
+            "#,
+            blob_id,
+        )
+        .instrument("get_blob_data_by_blob_id")
+        .with_arg("blob_id", &blob_id)
+        .fetch_optional(self.storage)
+        .await?
+        .map(|row| L1BatchDA {
+            // `unwrap` is safe here because we have a `WHERE` clause that filters out `NULL` values
+            pubdata: row.pubdata_input.unwrap(),
+            l1_batch_number: L1BatchNumber(row.number as u32),
+            sealed_at: row.sealed_at.unwrap().and_utc(),
+            system_logs: row
+                .system_logs
+                .into_iter()
+                .map(|raw_log| L2ToL1Log::from_slice(&raw_log))
+                .collect(),
+        });
+
+        Ok(row)
+    }
+
+    pub async fn set_dummy_inclusion_data_for_old_batches(
+        &mut self,
+        current_l2_da_validator: Address,
+    ) -> DalResult<()> {
+        sqlx::query!(
+            r#"
+            UPDATE data_availability
+            SET
+                inclusion_data = $1,
+                updated_at = NOW()
+            WHERE
+                inclusion_data IS NULL
+                AND (l2_da_validator_address IS NULL OR l2_da_validator_address != $2)
+            "#,
+            vec![],
+            current_l2_da_validator.as_bytes(),
+        )
+        .instrument("set_dummy_inclusion_data_for_old_batches")
+        .report_latency()
+        .execute(self.storage)
+        .await?;
+
+        Ok(())
     }
 }

@@ -1,7 +1,6 @@
 use std::num::NonZeroUsize;
 
 use rand::{distributions::Distribution, Rng};
-use secrecy::Secret;
 use zksync_basic_types::{
     basic_fri_types::CircuitIdRoundTuple,
     commitment::L1BatchCommitmentMode,
@@ -258,6 +257,7 @@ impl Distribution<configs::ContractsConfig> for EncodeDist {
             l1_base_token_asset_id: self.sample_opt(|| rng.gen()),
             chain_admin_addr: self.sample_opt(|| rng.gen()),
             l2_da_validator_addr: self.sample_opt(|| rng.gen()),
+            no_da_validium_l1_validator_addr: self.sample_opt(|| rng.gen()),
         }
     }
 }
@@ -452,8 +452,6 @@ impl Distribution<configs::FriProofCompressorConfig> for EncodeDist {
             universal_setup_path: self.sample(rng),
             universal_setup_download_url: self.sample(rng),
             verify_wrapper_proof: self.sample(rng),
-            universal_fflonk_setup_path: self.sample(rng),
-            universal_fflonk_setup_download_url: self.sample(rng),
         }
     }
 }
@@ -954,8 +952,8 @@ impl Distribution<configs::da_client::DAClientConfig> for EncodeDist {
 impl Distribution<configs::secrets::DataAvailabilitySecrets> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::secrets::DataAvailabilitySecrets {
         configs::secrets::DataAvailabilitySecrets::Avail(configs::da_client::avail::AvailSecrets {
-            seed_phrase: Some(SeedPhrase(Secret::new(self.sample(rng)))),
-            gas_relay_api_key: Some(APIKey(Secret::new(self.sample(rng)))),
+            seed_phrase: Some(<SeedPhrase as From<String>>::from(self.sample(rng))),
+            gas_relay_api_key: Some(<APIKey as From<String>>::from(self.sample(rng))),
         })
     }
 }
@@ -967,6 +965,7 @@ impl Distribution<configs::da_dispatcher::DADispatcherConfig> for EncodeDist {
             max_rows_to_dispatch: self.sample(rng),
             max_retries: self.sample(rng),
             use_dummy_inclusion_data: self.sample(rng),
+            inclusion_verification_transition_enabled: self.sample(rng),
         }
     }
 }

@@ -162,8 +162,6 @@ pub(crate) fn mock_execution_result(transaction: L2Tx) -> TransactionExecutionRe
         execution_info: VmExecutionMetrics::default(),
         execution_status: TxExecutionStatus::Success,
         refunded_gas: 0,
-        operator_suggested_refund: 0,
-        compressed_bytecodes: vec![],
         call_traces: vec![],
         revert_reason: None,
     }

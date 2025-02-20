@@ -569,6 +569,7 @@ impl MainNodeBuilder {
         }
 
         let secrets = try_load_config!(self.secrets.data_availability);
+        let l1_secrets = try_load_config!(self.secrets.l1);
         match (da_client_config, secrets) {
             (DAClientConfig::Avail(config), DataAvailabilitySecrets::Avail(secret)) => {
                 self.node.add_layer(AvailWiringLayer::new(config, secret));
@@ -579,7 +580,10 @@ impl MainNodeBuilder {
                     .add_layer(CelestiaWiringLayer::new(config, secret));
             }
 
-            (DAClientConfig::Eigen(config), DataAvailabilitySecrets::Eigen(secret)) => {
+            (DAClientConfig::Eigen(mut config), DataAvailabilitySecrets::Eigen(secret)) => {
+                if config.eigenda_eth_rpc.is_none() {
+                    config.eigenda_eth_rpc = Some(l1_secrets.l1_rpc_url);
+                }
                 self.node.add_layer(EigenWiringLayer::new(config, secret));
             }
 
@@ -607,6 +611,7 @@ impl MainNodeBuilder {
         self.node.add_layer(DataAvailabilityDispatcherLayer::new(
             state_keeper_config,
             da_config,
+            self.contracts_config.clone(),
         ));
 
         Ok(self)
