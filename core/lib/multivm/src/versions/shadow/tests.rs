@@ -539,6 +539,11 @@ mod simple_execution {
     fn create2_deployment_address() {
         test_create2_deployment_address::<super::ShadowedFastVm>();
     }
+
+    #[test]
+    fn transfer_to_self_with_low_gas_limit() {
+        test_transfer_to_self_with_low_gas_limit::<super::ShadowedFastVm<_>>();
+    }
 }
 
 mod storage {
