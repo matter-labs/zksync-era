@@ -654,9 +654,9 @@ dependencies = [
 
 [[package]]
 name = "boojum-cuda"
-version = "0.153.0"
+version = "0.153.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4b750c04e912a71aef6a8e95a93f102bce7626f3bbeeac091bde706a887da72b"
+checksum = "94c485188687b0ea48b4f016b0f86d4b8abd952c49cf50900913f94b04f5110c"
 dependencies = [
  "boojum",
  "cmake",
@@ -829,24 +829,11 @@ dependencies = [
 
 [[package]]
 name = "circuit_definitions"
-version = "0.151.2"
+version = "0.151.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ebf439058d7be798f01bf48ed1c10dff40defcb8f2ba777f0f76125f95c9552d"
+checksum = "0dad6ee3324a8ca75feeb50e85236c26783df45924637672bceda7371d7d06c9"
 dependencies = [
- "circuit_encodings 0.151.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "crossbeam",
- "derivative",
- "seq-macro",
- "serde",
- "snark_wrapper",
-]
-
-[[package]]
-name = "circuit_definitions"
-version = "0.151.2"
-source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=jms-memory-version#0b542be057988b26674889f9296c4c86c6ac932d"
-dependencies = [
- "circuit_encodings 0.151.2 (git+https://github.com/matter-labs/zksync-protocol.git?branch=jms-memory-version)",
+ "circuit_encodings",
  "crossbeam",
  "derivative",
  "seq-macro",
@@ -856,49 +843,26 @@ dependencies = [
 
 [[package]]
 name = "circuit_encodings"
-version = "0.151.2"
+version = "0.151.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a412456d29944426ad68a86976857667f8f0ea09e4d265b13549e1cb36e5f1c2"
+checksum = "98267ff65f737116d0364fc37bd58e82889523ad848b36ee5c888700df306b6b"
 dependencies = [
  "derivative",
  "serde",
- "zk_evm 0.151.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "zkevm_circuits 0.151.2 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "circuit_encodings"
-version = "0.151.2"
-source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=jms-memory-version#0b542be057988b26674889f9296c4c86c6ac932d"
-dependencies = [
- "derivative",
- "serde",
- "zk_evm 0.151.2 (git+https://github.com/matter-labs/zksync-protocol.git?branch=jms-memory-version)",
- "zkevm_circuits 0.151.2 (git+https://github.com/matter-labs/zksync-protocol.git?branch=jms-memory-version)",
+ "zk_evm 0.151.3",
+ "zkevm_circuits",
 ]
 
 [[package]]
 name = "circuit_sequencer_api"
-version = "0.151.2"
+version = "0.151.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7dd678c691d33cb4533e3112188b21539abff6e6bff5ac0f9daf7f350939750f"
+checksum = "359172aea9566a0e428eb4b351e3f30ebb5ccf4e5dfadde35fd1e5813dc1114c"
 dependencies = [
  "derivative",
  "rayon",
  "serde",
- "zk_evm 0.151.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "zksync_bellman",
-]
-
-[[package]]
-name = "circuit_sequencer_api"
-version = "0.151.2"
-source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=jms-memory-version#0b542be057988b26674889f9296c4c86c6ac932d"
-dependencies = [
- "derivative",
- "rayon",
- "serde",
- "zk_evm 0.151.2 (git+https://github.com/matter-labs/zksync-protocol.git?branch=jms-memory-version)",
+ "zk_evm 0.151.3",
  "zksync_bellman",
 ]
 
@@ -1766,9 +1730,9 @@ checksum = "5443807d6dff69373d433ab9ef5378ad8df50ca6298caf15de6e52e24aaf54d5"
 
 [[package]]
 name = "era_cudart"
-version = "0.153.0"
+version = "0.153.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5c24bf50945121a108ec8f592053106eba49bee4c4f6b12e8b34a330e6e936cb"
+checksum = "6fa671938c87303b61362742e32d74e16c4f95ce69a7d0ab8eff2cf8755d4abc"
 dependencies = [
  "bitflags 2.6.0",
  "era_cudart_sys",
@@ -1777,9 +1741,9 @@ dependencies = [
 
 [[package]]
 name = "era_cudart_sys"
-version = "0.153.0"
+version = "0.153.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b5dc30dc3d3c555ad87c13fa3dd614dc47d2ec12a7bd0d98510fb29d5640c9d9"
+checksum = "cf6101d8f8e941a8950619ccaaa6f6b781b4e00507e92336cc26677c7bb84398"
 dependencies = [
  "regex-lite",
 ]
@@ -1915,13 +1879,13 @@ dependencies = [
 
 [[package]]
 name = "fflonk-cuda"
-version = "0.153.0"
+version = "0.153.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c5f7dfafa953cc81aa60f698e824d4d0a362a799f510ac67db67b2d24f730c37"
+checksum = "e7641531d5d656cd31f4efedab4b057efa440e1e56c0d3af1d63fba08289054d"
 dependencies = [
  "bincode",
  "byteorder",
- "circuit_definitions 0.151.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "circuit_definitions",
  "derivative",
  "fflonk",
  "rand 0.4.6",
@@ -4643,14 +4607,14 @@ dependencies = [
 
 [[package]]
 name = "proof-compression"
-version = "0.153.0"
+version = "0.153.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "688bddfa02261fd42cc206334eb71ea135ef780a6bf70d7258b493751f29ed15"
+checksum = "570d7d282d140408a938663172a6c1421f0abe1ad433ed28c086b39c52601430"
 dependencies = [
  "bincode",
  "byteorder",
  "cfg-if",
- "circuit_definitions 0.151.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "circuit_definitions",
  "fflonk-cuda",
  "serde",
  "serde_json",
@@ -4805,7 +4769,7 @@ dependencies = [
  "assert_cmd",
  "bincode",
  "chrono",
- "circuit_definitions 0.151.2 (git+https://github.com/matter-labs/zksync-protocol.git?branch=jms-memory-version)",
+ "circuit_definitions",
  "clap 4.5.23",
  "colored",
  "dialoguer",
@@ -4815,7 +4779,7 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
- "zkevm_test_harness 0.151.2 (git+https://github.com/matter-labs/zksync-protocol.git?branch=jms-memory-version)",
+ "zkevm_test_harness",
  "zksync_basic_types",
  "zksync_config",
  "zksync_contracts",
@@ -5997,14 +5961,14 @@ checksum = "24188a676b6ae68c3b2cb3a01be17fbf7240ce009799bb56d5b1409051e78fde"
 
 [[package]]
 name = "shivini"
-version = "0.153.0"
+version = "0.153.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "56e13a9eb5a3034c49fa85693825646b83ea6a016ea4b8ea1a1733ebc372996d"
+checksum = "1abcd16ae6e5a20217fdb0bce5ac134f127115e182a58097e907afe53eaed1e8"
 dependencies = [
  "bincode",
  "boojum",
  "boojum-cuda",
- "circuit_definitions 0.151.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "circuit_definitions",
  "derivative",
  "era_cudart",
  "era_cudart_sys",
@@ -7991,9 +7955,9 @@ dependencies = [
 
 [[package]]
 name = "zk_evm"
-version = "0.151.2"
+version = "0.151.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "463f812e27ed5a9f6044e2dd17613aadd67230db1cc50e92c6153f2f9e701c72"
+checksum = "2b255c641faf40e20be07d8f3842ddd00793b597c0bd74c91b7a9a34b5a94308"
 dependencies = [
  "anyhow",
  "lazy_static",
@@ -8001,21 +7965,7 @@ dependencies = [
  "serde",
  "serde_json",
  "static_assertions",
- "zk_evm_abstractions 0.151.2 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "zk_evm"
-version = "0.151.2"
-source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=jms-memory-version#0b542be057988b26674889f9296c4c86c6ac932d"
-dependencies = [
- "anyhow",
- "lazy_static",
- "num",
- "serde",
- "serde_json",
- "static_assertions",
- "zk_evm_abstractions 0.151.2 (git+https://github.com/matter-labs/zksync-protocol.git?branch=jms-memory-version)",
+ "zk_evm_abstractions 0.151.3",
 ]
 
 [[package]]
@@ -8059,34 +8009,22 @@ dependencies = [
 
 [[package]]
 name = "zk_evm_abstractions"
-version = "0.151.2"
+version = "0.151.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3ce1c7fa8f596ea4b712ab86c13310940c759a7f8c1bf426eaec1b1446ba26e7"
+checksum = "a8d0349e9aaa8845759e7ac462427ce7f0f63a8f3e229423aa220f24fca1a12b"
 dependencies = [
  "anyhow",
  "num_enum 0.6.1",
  "serde",
  "static_assertions",
- "zkevm_opcode_defs 0.151.2 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "zk_evm_abstractions"
-version = "0.151.2"
-source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=jms-memory-version#0b542be057988b26674889f9296c4c86c6ac932d"
-dependencies = [
- "anyhow",
- "num_enum 0.6.1",
- "serde",
- "static_assertions",
- "zkevm_opcode_defs 0.151.2 (git+https://github.com/matter-labs/zksync-protocol.git?branch=jms-memory-version)",
+ "zkevm_opcode_defs 0.151.3",
 ]
 
 [[package]]
 name = "zkevm-assembly"
-version = "0.151.2"
+version = "0.151.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6d4ecb1df701d731099dc85f542257b272feeea0074fcc666aa7f023f9ed9b71"
+checksum = "57eb1e798eff5d51b73f6dbc53617409cb6b44ee4ca09755bf37ca94417ac997"
 dependencies = [
  "env_logger 0.9.3",
  "hex",
@@ -8099,33 +8037,14 @@ dependencies = [
  "smallvec",
  "structopt",
  "thiserror 1.0.69",
- "zkevm_opcode_defs 0.151.2 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "zkevm-assembly"
-version = "0.151.2"
-source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=jms-memory-version#0b542be057988b26674889f9296c4c86c6ac932d"
-dependencies = [
- "env_logger 0.9.3",
- "hex",
- "lazy_static",
- "log",
- "nom",
- "num-bigint 0.4.6",
- "num-traits",
- "sha3 0.10.8",
- "smallvec",
- "structopt",
- "thiserror 1.0.69",
- "zkevm_opcode_defs 0.151.2 (git+https://github.com/matter-labs/zksync-protocol.git?branch=jms-memory-version)",
+ "zkevm_opcode_defs 0.151.3",
 ]
 
 [[package]]
 name = "zkevm_circuits"
-version = "0.151.2"
+version = "0.151.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a23c4fcba73d91004d7600d4f5b3fb6534c08d2b535cbeec0c080cf468e333f5"
+checksum = "c51ee9324ec9002b288afb086a19b5bfb6ef1adb4cfd1451a1ac0d5749a5c717"
 dependencies = [
  "arrayvec 0.7.6",
  "boojum",
@@ -8137,26 +8056,7 @@ dependencies = [
  "seq-macro",
  "serde",
  "smallvec",
- "zkevm_opcode_defs 0.151.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "zksync_cs_derive",
-]
-
-[[package]]
-name = "zkevm_circuits"
-version = "0.151.2"
-source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=jms-memory-version#0b542be057988b26674889f9296c4c86c6ac932d"
-dependencies = [
- "arrayvec 0.7.6",
- "boojum",
- "derivative",
- "hex",
- "itertools 0.10.5",
- "rand 0.4.6",
- "rand 0.8.5",
- "seq-macro",
- "serde",
- "smallvec",
- "zkevm_opcode_defs 0.151.2 (git+https://github.com/matter-labs/zksync-protocol.git?branch=jms-memory-version)",
+ "zkevm_opcode_defs 0.151.3",
  "zksync_cs_derive",
 ]
 
@@ -8221,25 +8121,9 @@ dependencies = [
 
 [[package]]
 name = "zkevm_opcode_defs"
-version = "0.151.2"
+version = "0.151.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "40cd56a9dcbc98673b533660ca2f9b75a953c2c75035ac6e0b72c0b57e09f3c7"
-dependencies = [
- "bitflags 2.6.0",
- "blake2 0.10.6",
- "ethereum-types",
- "k256 0.13.4",
- "lazy_static",
- "p256",
- "serde",
- "sha2 0.10.8",
- "sha3 0.10.8",
-]
-
-[[package]]
-name = "zkevm_opcode_defs"
-version = "0.151.2"
-source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=jms-memory-version#0b542be057988b26674889f9296c4c86c6ac932d"
+checksum = "77281d3d9e706f1abdade5b8ffb8feee287a680d492705f012b2db37c516f267"
 dependencies = [
  "bitflags 2.6.0",
  "blake2 0.10.6",
@@ -8254,14 +8138,14 @@ dependencies = [
 
 [[package]]
 name = "zkevm_test_harness"
-version = "0.151.2"
+version = "0.151.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a4a244b847f0600dccb6fe08af3aadaaa5f37b5eff8fbfad666e76dfb8be8000"
+checksum = "61a6d4e9ac74931005993f62208f796565b57c7018d9e75eafb044e97967a8c7"
 dependencies = [
  "bincode",
- "circuit_definitions 0.151.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "circuit_encodings 0.151.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "circuit_sequencer_api 0.151.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "circuit_definitions",
+ "circuit_encodings",
+ "circuit_sequencer_api",
  "codegen",
  "crossbeam",
  "derivative",
@@ -8276,42 +8160,15 @@ dependencies = [
  "structopt",
  "test-log",
  "tracing",
- "zkevm-assembly 0.151.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "zksync_kzg 0.151.2 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "zkevm_test_harness"
-version = "0.151.2"
-source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=jms-memory-version#0b542be057988b26674889f9296c4c86c6ac932d"
-dependencies = [
- "bincode",
- "circuit_definitions 0.151.2 (git+https://github.com/matter-labs/zksync-protocol.git?branch=jms-memory-version)",
- "circuit_encodings 0.151.2 (git+https://github.com/matter-labs/zksync-protocol.git?branch=jms-memory-version)",
- "circuit_sequencer_api 0.151.2 (git+https://github.com/matter-labs/zksync-protocol.git?branch=jms-memory-version)",
- "codegen",
- "crossbeam",
- "derivative",
- "env_logger 0.9.3",
- "hex",
- "rand 0.4.6",
- "rayon",
- "regex",
- "serde",
- "serde_json",
- "smallvec",
- "structopt",
- "test-log",
- "tracing",
- "zkevm-assembly 0.151.2 (git+https://github.com/matter-labs/zksync-protocol.git?branch=jms-memory-version)",
- "zksync_kzg 0.151.2 (git+https://github.com/matter-labs/zksync-protocol.git?branch=jms-memory-version)",
+ "zkevm-assembly",
+ "zksync_kzg",
 ]
 
 [[package]]
 name = "zksync-gpu-ffi"
-version = "0.153.0"
+version = "0.153.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b2c18475dabc319508811c765b2e9d3faac94732bdf43b66c666da98c5fb8f7b"
+checksum = "a305bbe06ce4dcd007998cc704e7c1cc003296b94b1416a6ad0e86c54b3a78cf"
 dependencies = [
  "cmake",
  "crossbeam",
@@ -8324,9 +8181,9 @@ dependencies = [
 
 [[package]]
 name = "zksync-gpu-prover"
-version = "0.153.0"
+version = "0.153.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4e941f76eb822eb670df25189aaa715dc546a63da4274cf1b6766441761922d0"
+checksum = "de819978e3888c1a4048261e078f2fa4516f99b8bc767e351acb18b6126e645e"
 dependencies = [
  "bit-vec 0.6.3",
  "cfg-if",
@@ -8341,12 +8198,12 @@ dependencies = [
 
 [[package]]
 name = "zksync-wrapper-prover"
-version = "0.153.0"
+version = "0.153.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d49b864c0a71183cd6111e9ce39c2d3c4620c4c28e1da3207633ee984e993db9"
+checksum = "096661972cc3ac6514c9a4996fbdf8788eb8bc088da2f999d4ca78677079dd04"
 dependencies = [
- "circuit_definitions 0.151.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "zkevm_test_harness 0.151.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "circuit_definitions",
+ "zkevm_test_harness",
  "zksync-gpu-prover",
 ]
 
@@ -8407,7 +8264,7 @@ dependencies = [
  "tokio-util",
  "tracing",
  "vise",
- "zkevm_test_harness 0.151.2 (git+https://github.com/matter-labs/zksync-protocol.git?branch=jms-memory-version)",
+ "zkevm_test_harness",
  "zksync_circuit_prover_service",
  "zksync_config",
  "zksync_core_leftovers",
@@ -8435,7 +8292,7 @@ dependencies = [
  "tokio-util",
  "tracing",
  "vise",
- "zkevm_test_harness 0.151.2 (git+https://github.com/matter-labs/zksync-protocol.git?branch=jms-memory-version)",
+ "zkevm_test_harness",
  "zksync_object_store",
  "zksync_prover_dal",
  "zksync_prover_fri_types",
@@ -8744,7 +8601,7 @@ dependencies = [
  "tokio-util",
  "tracing",
  "vise",
- "zkevm_test_harness 0.151.2 (git+https://github.com/matter-labs/zksync-protocol.git?branch=jms-memory-version)",
+ "zkevm_test_harness",
  "zksync_circuit_prover_service",
  "zksync_config",
  "zksync_core_leftovers",
@@ -8763,9 +8620,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_kzg"
-version = "0.151.2"
+version = "0.151.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "67d04afa89e7fdfbfe75c9c6780091659d9a9972e83e60d1e09e155ff343cdec"
+checksum = "76e0399be30229dabd480ff459eaeac83419831808f9c4d48418ac5398e5cf9b"
 dependencies = [
  "boojum",
  "derivative",
@@ -8775,23 +8632,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_with",
- "zkevm_circuits 0.151.2 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "zksync_kzg"
-version = "0.151.2"
-source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=jms-memory-version#0b542be057988b26674889f9296c4c86c6ac932d"
-dependencies = [
- "boojum",
- "derivative",
- "hex",
- "once_cell",
- "rayon",
- "serde",
- "serde_json",
- "serde_with",
- "zkevm_circuits 0.151.2 (git+https://github.com/matter-labs/zksync-protocol.git?branch=jms-memory-version)",
+ "zkevm_circuits",
 ]
 
 [[package]]
@@ -8799,13 +8640,13 @@ name = "zksync_l1_contract_interface"
 version = "26.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
- "circuit_definitions 0.151.2 (git+https://github.com/matter-labs/zksync-protocol.git?branch=jms-memory-version)",
+ "circuit_definitions",
  "fflonk",
  "hex",
  "once_cell",
  "sha2 0.10.8",
  "sha3 0.10.8",
- "zksync_kzg 0.151.2 (git+https://github.com/matter-labs/zksync-protocol.git?branch=jms-memory-version)",
+ "zksync_kzg",
  "zksync_prover_interface",
  "zksync_solidity_vk_codegen",
  "zksync_types",
@@ -8825,7 +8666,7 @@ name = "zksync_multivm"
 version = "26.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
- "circuit_sequencer_api 0.151.2 (git+https://github.com/matter-labs/zksync-protocol.git?branch=jms-memory-version)",
+ "circuit_sequencer_api",
  "ethabi",
  "hex",
  "itertools 0.10.5",
@@ -8837,7 +8678,7 @@ dependencies = [
  "zk_evm 0.133.0",
  "zk_evm 0.140.0",
  "zk_evm 0.141.0",
- "zk_evm 0.151.2 (git+https://github.com/matter-labs/zksync-protocol.git?branch=jms-memory-version)",
+ "zk_evm 0.151.3",
  "zksync_contracts",
  "zksync_mini_merkle_tree",
  "zksync_system_constants",
@@ -8889,7 +8730,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "bincode",
- "circuit_sequencer_api 0.151.2 (git+https://github.com/matter-labs/zksync-protocol.git?branch=jms-memory-version)",
+ "circuit_sequencer_api",
  "clap 4.5.23",
  "ctrlc",
  "fflonk-cuda",
@@ -8903,7 +8744,7 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
- "zkevm_test_harness 0.151.2 (git+https://github.com/matter-labs/zksync-protocol.git?branch=jms-memory-version)",
+ "zkevm_test_harness",
  "zksync-wrapper-prover",
  "zksync_config",
  "zksync_core_leftovers",
@@ -9031,7 +8872,7 @@ version = "18.0.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "circuit_definitions 0.151.2 (git+https://github.com/matter-labs/zksync-protocol.git?branch=jms-memory-version)",
+ "circuit_definitions",
  "clap 4.5.23",
  "ctrlc",
  "futures 0.3.31",
@@ -9044,7 +8885,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "vise",
- "zkevm_test_harness 0.151.2 (git+https://github.com/matter-labs/zksync-protocol.git?branch=jms-memory-version)",
+ "zkevm_test_harness",
  "zksync_config",
  "zksync_core_leftovers",
  "zksync_env_config",
@@ -9089,7 +8930,7 @@ dependencies = [
 name = "zksync_prover_fri_types"
 version = "18.0.0"
 dependencies = [
- "circuit_definitions 0.151.2 (git+https://github.com/matter-labs/zksync-protocol.git?branch=jms-memory-version)",
+ "circuit_definitions",
  "serde",
  "zksync_object_store",
  "zksync_types",
@@ -9118,7 +8959,7 @@ dependencies = [
 name = "zksync_prover_interface"
 version = "26.4.0-non-semver-compat"
 dependencies = [
- "circuit_definitions 0.151.2 (git+https://github.com/matter-labs/zksync-protocol.git?branch=jms-memory-version)",
+ "circuit_definitions",
  "fflonk",
  "serde",
  "serde_with",
@@ -9173,7 +9014,7 @@ dependencies = [
  "bincode",
  "boojum-cuda",
  "byteorder",
- "circuit_definitions 0.151.2 (git+https://github.com/matter-labs/zksync-protocol.git?branch=jms-memory-version)",
+ "circuit_definitions",
  "fflonk",
  "fflonk-cuda",
  "futures 0.3.31",
@@ -9187,7 +9028,7 @@ dependencies = [
  "shivini",
  "tokio",
  "tracing",
- "zkevm_test_harness 0.151.2 (git+https://github.com/matter-labs/zksync-protocol.git?branch=jms-memory-version)",
+ "zkevm_test_harness",
  "zksync_basic_types",
  "zksync_prover_fri_types",
  "zksync_utils",
@@ -9287,7 +9128,7 @@ version = "18.0.0"
 dependencies = [
  "anyhow",
  "bincode",
- "circuit_definitions 0.151.2 (git+https://github.com/matter-labs/zksync-protocol.git?branch=jms-memory-version)",
+ "circuit_definitions",
  "clap 4.5.23",
  "indicatif",
  "proof-compression",
@@ -9297,7 +9138,7 @@ dependencies = [
  "toml_edit 0.14.4",
  "tracing",
  "tracing-subscriber",
- "zkevm_test_harness 0.151.2 (git+https://github.com/matter-labs/zksync-protocol.git?branch=jms-memory-version)",
+ "zkevm_test_harness",
  "zksync_prover_fri_types",
  "zksync_prover_keystore",
  "zksync_types",
@@ -9396,7 +9237,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "bincode",
- "circuit_definitions 0.151.2 (git+https://github.com/matter-labs/zksync-protocol.git?branch=jms-memory-version)",
+ "circuit_definitions",
  "const-decoder 0.3.0",
  "ctrlc",
  "futures 0.3.31",
@@ -9409,7 +9250,7 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
- "zkevm_test_harness 0.151.2 (git+https://github.com/matter-labs/zksync-protocol.git?branch=jms-memory-version)",
+ "zkevm_test_harness",
  "zksync_config",
  "zksync_core_leftovers",
  "zksync_env_config",
