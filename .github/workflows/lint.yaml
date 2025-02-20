@@ -1,0 +1,181 @@
+name: Lint
+
+on:
+#  pull_request:
+  merge_group:
+
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: 'bash -ex {0}'
+
+jobs:
+
+  unit-tests:
+    runs-on: matterlabs-ci-runner-highmem-long
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: "recursive"
+
+      - name: Setup runner
+        uses: matter-labs/zksync-ci-common/.github/actions/runner-setup@aba-ci-optimize
+        with:
+          workspace: 'core'
+
+      - name: Start reth
+        run: docker-compose up -d --wait reth
+
+      - name: Build contracts
+        uses: matter-labs/zksync-ci-common/.github/actions/build-contracts@aba-ci-optimize
+
+      - name: Build contracts
+        run: zkstack dev contracts
+
+#      - name: Download compilers for contract verifier tests
+#        run: zkstack contract-verifier init --zksolc-version=v1.5.10 --zkvyper-version=v1.5.4 --solc-version=0.8.26 --vyper-version=v0.3.10 --era-vm-solc-version=0.8.26-1.0.1 --only --chain era
+
+      - name: Rust unit tests
+        run: zkstack dev test rust
+
+      - name: Show sccache stats
+        run: sccache --show-stats
+
+  #  lint:
+  #    runs-on: matterlabs-ci-runner-highmem-long
+  #    steps:
+  #      - name: Checkout
+  #        uses: actions/checkout@v4
+  #        with:
+  #          submodules: "recursive"
+  #          fetch-depth: '1'
+  #
+  #      - name: Setup runner
+  #        uses: matter-labs/zksync-ci-common/.github/actions/runner-setup@aba-ci-optimize
+  #
+  #      - name: Format
+  #        run: zkstack dev fmt --check
+  #
+  #      - name: Lint
+  #        run: zkstack dev lint --check
+  #
+  #      - name: Show sccache stats
+  #        run: sccache --show-stats
+  #
+  #      - name: Start postgres
+  #        run: docker-compose up -d --wait postgres
+  #
+  #      - name: Check Database
+  #        env:
+  #          PROVER_URL: 'postgres://postgres:notsecurepassword@localhost:5432/zksync_local_prover'
+  #          CORE_URL: 'postgres://postgres:notsecurepassword@localhost:5432/zksync_local'
+  #        run: |
+  #          zkstack dev db setup --prover-url=${{ env.PROVER_URL }} --core-url=${{ env.CORE_URL }}
+  #          zkstack dev database check-sqlx-data --prover-url=${{ env.PROVER_URL }} --core-url=${{ env.CORE_URL }}
+
+
+#  lint-docker:
+#    runs-on: matterlabs-ci-runner-highmem-long
+#    container:
+#      image: ghcr.io/matter-labs/zk-environment:latest2.0-lightweight
+#      env:
+#        SCCACHE_CACHE_SIZE: 50g
+#        SCCACHE_GCS_BUCKET: matterlabs-infra-sccache-storage
+#        SCCACHE_GCS_SERVICE_ACCOUNT: gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com
+#        SCCACHE_GCS_RW_MODE: READ_WRITE
+#    steps:
+#      - name: Checkout
+#        uses: actions/checkout@v4
+#        with:
+#          submodules: "recursive"
+#
+#      - name: Safe git for Docker
+#        run: git config --global --add safe.directory '*'
+#
+#      - name: Update path
+#        run: echo $(pwd)/bin >> ${GITHUB_PATH}
+#
+#      - name: Rust cache
+#        uses: Swatinem/rust-cache@v2
+#        with:
+#          workspaces: |
+#            core -> target
+#            prover -> target
+#            zkstack_cli -> target
+#          shared-key: "shared"
+#          save-if: false
+#
+#      # TODO: use latest release instead of tmp
+#      - name: Install zkstack
+#        env:
+#          ZKSTACK_DOWNLOAD_URL: 'https://github.com/matter-labs/zksync-era/releases/download/ad0df3a'
+#          ZKSTACK_FILENAME: 'zkstack-test-x86_64-unknown-linux-gnu.tar.gz'
+#        working-directory: bin
+#        run: curl -L ${ZKSTACK_DOWNLOAD_URL}/${ZKSTACK_FILENAME} --output ${ZKSTACK_FILENAME} && tar -xzf ${ZKSTACK_FILENAME}
+#
+#      - name: Yarn install
+#        run: yarn install
+#
+##      - name: Install contracts
+##        working-directory: contracts
+##        run: yarn install
+#
+#      - name: Format
+#        run: zkstack dev fmt --check
+#
+#      - name: Lint
+#        run: zkstack dev lint --check
+#
+#      - name: Start services
+#        run: ci_localnet_up
+#
+#      - name: Check Database
+#        env:
+#          PROVER_URL: 'postgres://postgres:notsecurepassword@localhost:5432/zksync_local_prover'
+#          CORE_URL: 'postgres://postgres:notsecurepassword@localhost:5432/zksync_local'
+#        run: |
+#          ci_run zkstack dev db setup --prover-url=${{ env.PROVER_URL }} --core-url=${{ env.CORE_URL }}
+#          ci_run zkstack dev database check-sqlx-data --prover-url=${{ env.PROVER_URL }} --core-url=${{ env.CORE_URL }}
+
+#  lint:
+#    runs-on: matterlabs-ci-runner-highmem-long
+#    env:
+#      ZKSYNC_HOME: ${{ github.workspace }}
+#    steps:
+#      - uses: actions/checkout@v4
+#        with:
+#          submodules: "recursive"
+#
+#      - name: Update path
+#        run: echo $(pwd)/bin >> $GITHUB_PATH
+#
+#      - name: Start services
+#        run: ci_localnet_up
+#
+#      - name: Install zkstack
+#        run: |
+#          ci_run git config --global --add safe.directory /usr/src/zksync
+#          ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup
+#          ci_run zkstackup -g --local
+#
+#      - name: Build
+#        run: ci_run yarn install
+#
+#      - name: Format
+#        run: ci_run zkstack dev fmt --check
+#
+#      - name: Lint
+#        run: ci_run zkstack dev lint --check
+#
+#      - name: Check Database
+#        env:
+#          PROVER_URL: 'postgres://postgres:notsecurepassword@localhost:5432/zksync_local_prover'
+#          CORE_URL: 'postgres://postgres:notsecurepassword@localhost:5432/zksync_local'
+#        run: |
+#          ci_run zkstack dev db setup --prover-url=${{ env.PROVER_URL }} --core-url=${{ env.CORE_URL }}
+#          ci_run zkstack dev database check-sqlx-data --prover-url=${{ env.PROVER_URL }} --core-url=${{ env.CORE_URL }}
