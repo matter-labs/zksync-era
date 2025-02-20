@@ -24,7 +24,7 @@ pub struct EthWatchLayer {
     eth_watch_config: EthWatchConfig,
     contracts_config: ContractsConfig,
     gateway_chain_config: Option<GatewayChainConfig>,
-    settlement_mode: SettlementMode,
+    // settlement_mode: SettlementMode,
     chain_id: L2ChainId,
 }
 
@@ -48,14 +48,14 @@ impl EthWatchLayer {
         eth_watch_config: EthWatchConfig,
         contracts_config: ContractsConfig,
         gateway_chain_config: Option<GatewayChainConfig>,
-        settlement_mode: SettlementMode,
+        // settlement_mode: SettlementMode,
         chain_id: L2ChainId,
     ) -> Self {
         Self {
             eth_watch_config,
             contracts_config,
             gateway_chain_config,
-            settlement_mode,
+            // settlement_mode,
             chain_id,
         }
     }
@@ -74,21 +74,16 @@ impl WiringLayer for EthWatchLayer {
         let main_pool = input.master_pool.get().await?;
         let client = input.eth_client.0;
 
-        let sl_diamond_proxy_addr = if self.settlement_mode.is_gateway() {
-            self.gateway_chain_config
-                .clone()
-                .context("Lacking `gateway_contracts_config`")?
-                .diamond_proxy_addr
-        } else {
-            self.contracts_config.diamond_proxy_addr
-        };
         tracing::info!(
             "Diamond proxy address ethereum: {:#?}",
             self.contracts_config.diamond_proxy_addr
         );
         tracing::info!(
-            "Diamond proxy address settlement_layer: {:#?}",
-            sl_diamond_proxy_addr
+            "Diamond proxy address gateway settlement_layer: {:#?}",
+            self.gateway_chain_config
+                .clone()
+                .context("Lacking `gateway_contracts_config`")?
+                .diamond_proxy_addr
         );
 
         let l1_client = EthHttpQueryClient::new(

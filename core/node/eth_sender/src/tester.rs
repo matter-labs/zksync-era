@@ -248,11 +248,9 @@ impl EthSenderTester {
         let aggregator = Aggregator::new(
             aggregator_config.clone(),
             MockObjectStore::arc(),
-            custom_commit_sender_addr,
+            custom_commit_sender_addr.is_some(),
             commitment_mode,
             connection_pool.clone(),
-            gateway.clone(),
-            SettlementMode::SettlesToL1,
         )
         .await
         .unwrap();
@@ -268,13 +266,12 @@ impl EthSenderTester {
             aggregator,
             gateway.clone(),
             // ZKsync contract address
-            Address::random(),
-            STATE_TRANSITION_MANAGER_CONTRACT_ADDRESS,
-            contracts_config.l1_multicall3_addr,
-            STATE_TRANSITION_CONTRACT_ADDRESS,
-            Default::default(),
-            custom_commit_sender_addr,
-            SettlementMode::SettlesToL1,
+            // Address::random(),
+            // STATE_TRANSITION_MANAGER_CONTRACT_ADDRESS,
+            // contracts_config.l1_multicall3_addr,
+            // STATE_TRANSITION_CONTRACT_ADDRESS,
+            // Default::default(),
+            // custom_commit_sender_addr,
         )
         .await;
 

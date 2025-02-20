@@ -2,7 +2,7 @@ use anyhow::Context;
 use zksync_circuit_breaker::l1_txs::FailedL1TransactionChecker;
 use zksync_config::configs::{eth_sender::EthConfig, gateway::GatewayChainConfig, ContractsConfig};
 use zksync_eth_client::BoundEthInterface;
-use zksync_eth_sender::{Aggregator, EthTxAggregator};
+use zksync_eth_sender::{Aggregator, EthTxAggregator, EthTxAggregatorContracts};
 use zksync_types::{commitment::L1BatchCommitmentMode, settlement::SettlementMode, L2ChainId};
 
 use crate::{
@@ -47,7 +47,6 @@ pub struct EthTxAggregatorLayer {
     gateway_chain_config: Option<GatewayChainConfig>,
     zksync_network_id: L2ChainId,
     l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
-    settlement_mode: SettlementMode,
 }
 
 #[derive(Debug, FromContext)]
@@ -79,7 +78,6 @@ impl EthTxAggregatorLayer {
         gateway_chain_config: Option<GatewayChainConfig>,
         zksync_network_id: L2ChainId,
         l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
-        settlement_mode: SettlementMode,
     ) -> Self {
         Self {
             eth_sender_config,
@@ -87,7 +85,6 @@ impl EthTxAggregatorLayer {
             gateway_chain_config,
             zksync_network_id,
             l1_batch_commit_data_generator_mode,
-            settlement_mode,
         }
     }
 }
@@ -102,55 +99,42 @@ impl WiringLayer for EthTxAggregatorLayer {
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
-        tracing::info!(
-            "Wiring tx_aggregator in {:?} mode which is {}",
-            self.settlement_mode,
-            self.settlement_mode.is_gateway()
-        );
+        // tracing::info!(
+        //     "Wiring tx_aggregator in {:?} mode which is {}",
+        //     self.settlement_mode,
+        //     self.settlement_mode.is_gateway()
+        // );
         tracing::info!("Contracts: {:?}", self.contracts_config);
         tracing::info!("Gateway contracts: {:?}", self.gateway_chain_config);
         // Get resources.
 
-        let (
-            validator_timelock_addr,
-            multicall3_addr,
-            diamond_proxy_addr,
-            state_transition_manager_address,
-        ) = if self.settlement_mode.is_gateway() {
-            let gateway_chain_config = self
-                .gateway_chain_config
+        let getaway_contracts_config =
+            self.gateway_chain_config
                 .as_ref()
-                .context("gateway_chain_config")?;
-            (
-                gateway_chain_config.validator_timelock_addr,
-                gateway_chain_config.multicall3_addr,
-                gateway_chain_config.diamond_proxy_addr,
-                gateway_chain_config.state_transition_proxy_addr,
-            )
-        } else {
-            (
-                self.contracts_config.validator_timelock_addr,
-                self.contracts_config.l1_multicall3_addr,
-                self.contracts_config.diamond_proxy_addr,
-                self.contracts_config
-                    .ecosystem_contracts
-                    .context("Missing ecosystem contracts")?
-                    .state_transition_proxy_addr,
-            )
+                .map(|gateway_chain_config| EthTxAggregatorContracts {
+                    config_timelock_contract_address: gateway_chain_config.validator_timelock_addr,
+                    l1_multicall3_address: gateway_chain_config.multicall3_addr,
+                    state_transition_chain_contract: gateway_chain_config.diamond_proxy_addr,
+                    state_transition_manager_address: gateway_chain_config
+                        .state_transition_proxy_addr,
+                });
+        let l1_contracts_config = EthTxAggregatorContracts {
+            config_timelock_contract_address: self.contracts_config.validator_timelock_addr,
+            l1_multicall3_address: self.contracts_config.l1_multicall3_addr,
+            state_transition_chain_contract: self.contracts_config.diamond_proxy_addr,
+            state_transition_manager_address: self
+                .contracts_config
+                .ecosystem_contracts
+                .context("Missing ecosystem contracts")?
+                .state_transition_proxy_addr,
         };
 
-        let eth_client = if self.settlement_mode.is_gateway() {
-            input
-                .eth_client_gateway
-                .context("eth_client_gateway missing")?
-                .0
-        } else {
-            input.eth_client.context("eth_client missing")?.0
-        };
         let master_pool = input.master_pool.get().await.unwrap();
         let replica_pool = input.replica_pool.get().await.unwrap();
 
         let eth_client_blobs = input.eth_client_blobs.map(|c| c.0);
+        let eth_client = input.eth_client.map(|c| c.0).unwrap();
+        let gateway_client = input.eth_client_gateway.map(|c| c.0);
         let object_store = input.object_store.0;
 
         // Create and add tasks.
@@ -162,11 +146,9 @@ impl WiringLayer for EthTxAggregatorLayer {
         let aggregator = Aggregator::new(
             config.clone(),
             object_store,
-            eth_client_blobs_addr,
+            eth_client_blobs_addr.is_some(),
             self.l1_batch_commit_data_generator_mode,
             replica_pool.clone(),
-            eth_client.clone(),
-            self.settlement_mode,
         )
         .await?;
 
@@ -175,10 +157,9 @@ impl WiringLayer for EthTxAggregatorLayer {
             config.clone(),
             aggregator,
             eth_client,
-            validator_timelock_addr,
-            state_transition_manager_address,
-            multicall3_addr,
-            diamond_proxy_addr,
+            gateway_client,
+            l1_contracts_config,
+            getaway_contracts_config,
             self.zksync_network_id,
             eth_client_blobs_addr,
         )

@@ -18,6 +18,8 @@ mod tests;
 mod tester;
 
 pub use self::{
-    aggregator::Aggregator, error::EthSenderError, eth_tx_aggregator::EthTxAggregator,
+    aggregator::Aggregator,
+    error::EthSenderError,
+    eth_tx_aggregator::{EthTxAggregator, EthTxAggregatorContracts},
     eth_tx_manager::EthTxManager,
 };
