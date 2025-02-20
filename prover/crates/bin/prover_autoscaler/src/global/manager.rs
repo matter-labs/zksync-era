@@ -1,10 +1,14 @@
 use std::collections::HashMap;
 
-use super::{queuer, scaler::Scaler, watcher};
+use super::{
+    queuer,
+    scaler::{Scaler, ScalerTrait},
+    watcher,
+};
 use crate::{
     agent::ScaleRequest,
     cluster_types::Clusters,
-    config::{ProverAutoscalerScalerConfig, QueueReportFields},
+    config::{ProverAutoscalerScalerConfig, QueueReportFields, ScalerTargetType},
     key::{GpuKey, NoKey},
     metrics::AUTOSCALER_METRICS,
     task_wiring::Task,
@@ -17,8 +21,7 @@ pub struct Manager {
     queuer: queuer::Queuer,
 
     jobs: Vec<QueueReportFields>,
-    gpu_scalers: Vec<Scaler<GpuKey>>,
-    scalers: Vec<Scaler<NoKey>>,
+    scalers: Vec<Box<dyn ScalerTrait + Sync + Send>>,
 }
 
 impl Manager {
@@ -35,33 +38,44 @@ impl Manager {
                     .set(1);
             });
 
-        let mut gpu_scalers = Vec::default();
-        let mut scalers = Vec::default();
+        let mut scalers: Vec<Box<dyn ScalerTrait + Sync + Send>> = Vec::default();
         let mut jobs = vec![];
-        for c in &config.gpu_scaler_targets {
-            jobs.push(c.queue_report_field);
-            gpu_scalers.push(Scaler::new(
-                c,
-                config.cluster_priorities.clone(),
-                config.apply_min_to_namespace.clone(),
-                chrono::Duration::seconds(config.long_pending_duration.as_secs() as i64),
-            ))
-        }
         for c in &config.scaler_targets {
             jobs.push(c.queue_report_field);
-            scalers.push(Scaler::new(
-                c,
-                config.cluster_priorities.clone(),
-                config.apply_min_to_namespace.clone(),
-                chrono::Duration::seconds(config.long_pending_duration.as_secs() as i64),
-            ))
+            match c.scaler_target_type {
+                ScalerTargetType::Gpu => scalers.push(Box::new(Scaler::<GpuKey>::new(
+                    c.queue_report_field,
+                    c.deployment.clone(),
+                    c.min_replicas,
+                    c.max_replicas
+                        .iter()
+                        .map(|(k, v)| (k.clone(), v.into_map_gpukey()))
+                        .collect(),
+                    c.speed.into_map_gpukey(),
+                    config.cluster_priorities.clone(),
+                    config.apply_min_to_namespace.clone(),
+                    chrono::Duration::seconds(config.long_pending_duration.as_secs() as i64),
+                ))),
+                ScalerTargetType::Simple => scalers.push(Box::new(Scaler::<NoKey>::new(
+                    c.queue_report_field,
+                    c.deployment.clone(),
+                    c.min_replicas,
+                    c.max_replicas
+                        .iter()
+                        .map(|(k, v)| (k.clone(), v.into_map_nokey()))
+                        .collect(),
+                    c.speed.into_map_nokey(),
+                    config.cluster_priorities.clone(),
+                    config.apply_min_to_namespace.clone(),
+                    chrono::Duration::seconds(config.long_pending_duration.as_secs() as i64),
+                ))),
+            };
         }
         Self {
             namespaces: config.protocol_versions.clone(),
             watcher,
             queuer,
             jobs,
-            gpu_scalers,
             scalers,
         }
     }
@@ -99,46 +113,17 @@ impl Task for Manager {
             }
 
             for (ns, ppv) in &self.namespaces {
-                // GPU Scalers
-                for scaler in &self.gpu_scalers {
-                    let q = queue
-                        .get(&(ppv.to_string(), scaler.queue_report_field))
-                        .cloned()
-                        .unwrap_or(0);
-                    AUTOSCALER_METRICS.queue[&(ns.clone(), "prover".into())].set(q);
-                    tracing::debug!(
-                        "Running eval for namespace {ns}, PPV {ppv}, gpu scaler {} found queue {q}",
-                        scaler.deployment
-                    );
-                    if q > 0 || is_namespace_running(ns, &guard.clusters) {
-                        let replicas = scaler.run(ns, q, &guard.clusters);
-                        for (k, num) in &replicas {
-                            AUTOSCALER_METRICS.provers[&(k.cluster.clone(), ns.clone(), k.key.0)]
-                                .set(*num as u64);
-                        }
-                        scaler.diff(ns, replicas, &guard.clusters, &mut scale_requests);
-                    }
-                }
-
-                // Non-GPU Scalers.
                 for scaler in &self.scalers {
                     let q = queue
-                        .get(&(ppv.to_string(), scaler.queue_report_field))
+                        .get(&(ppv.to_string(), scaler.queue_report_field()))
                         .cloned()
                         .unwrap_or(0);
-                    AUTOSCALER_METRICS.queue[&(ns.clone(), scaler.deployment.clone())].set(q);
                     tracing::debug!(
                         "Running eval for namespace {ns}, PPV {ppv}, scaler {} found queue {q}",
-                        scaler.deployment
+                        scaler.deployment()
                     );
                     if q > 0 || is_namespace_running(ns, &guard.clusters) {
-                        let replicas = scaler.run(ns, q, &guard.clusters);
-                        for (k, num) in &replicas {
-                            AUTOSCALER_METRICS.jobs
-                                [&(scaler.deployment.clone(), k.cluster.clone(), ns.clone())]
-                                .set(*num as u64);
-                        }
-                        scaler.diff(ns, replicas, &guard.clusters, &mut scale_requests);
+                        scaler.run_diff(ns, q, &guard.clusters, &mut scale_requests);
                     }
                 }
             }

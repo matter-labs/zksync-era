@@ -35,9 +35,10 @@ pub enum Gpu {
     A100,
 }
 
-pub trait Key: Eq + Ord + Hash + Copy + Debug + Default + for<'a> Deserialize<'a> {
+pub trait Key: Eq + Ord + Hash + Copy + Debug + Default {
     fn new(deployment_prefix: &str, deployment: &str) -> Option<Self>;
     fn to_deployment(&self, deployment_prefix: &str) -> String;
+    fn gpu(&self) -> Option<Gpu>;
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Copy, Clone, Debug, Default, Deserialize)]
@@ -77,6 +78,10 @@ impl Key for GpuKey {
             ),
         }
     }
+
+    fn gpu(&self) -> Option<Gpu> {
+        Some(self.0)
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Copy, Clone, Debug, Default, Deserialize)]
@@ -95,6 +100,10 @@ impl Key for NoKey {
     /// to_deployment converts Key to corresponding deployment name.
     fn to_deployment(&self, deployment_prefix: &str) -> String {
         deployment_prefix.into()
+    }
+
+    fn gpu(&self) -> Option<Gpu> {
+        None
     }
 }
 

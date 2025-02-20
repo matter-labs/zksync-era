@@ -36,7 +36,7 @@ pub struct ProverAutoscalerAgentConfig {
     pub dry_run: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct ProverAutoscalerScalerConfig {
     /// Port for prometheus metrics connection.
     pub prometheus_port: u16,
@@ -64,10 +64,8 @@ pub struct ProverAutoscalerScalerConfig {
         default = "ProverAutoscalerScalerConfig::default_long_pending_duration"
     )]
     pub long_pending_duration: Duration,
-    /// List of GPU autoscaler targets.
-    pub gpu_scaler_targets: Vec<ScalerTarget<GpuKey>>,
     /// List of simple autoscaler targets.
-    pub scaler_targets: Vec<ScalerTarget<NoKey>>,
+    pub scaler_targets: Vec<ScalerTarget>,
     /// If dry-run enabled don't send any scale requests.
     #[serde(default)]
     pub dry_run: bool,
@@ -95,20 +93,51 @@ pub enum QueueReportFields {
     prover_jobs,
 }
 
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(untagged)]
+pub enum ScalarOrMap {
+    Scalar(usize),
+    Map(HashMap<GpuKey, usize>),
+}
+impl ScalarOrMap {
+    pub fn into_map_nokey(&self) -> HashMap<NoKey, usize> {
+        match self {
+            ScalarOrMap::Scalar(x) => [(NoKey::default(), *x)].into(),
+            ScalarOrMap::Map(m) => panic!("Passed GpuKey in NoKey context! {:?}", m),
+        }
+    }
+
+    pub fn into_map_gpukey(&self) -> HashMap<GpuKey, usize> {
+        match self {
+            ScalarOrMap::Scalar(x) => [(GpuKey::default(), *x)].into(),
+            ScalarOrMap::Map(m) => m.clone(),
+        }
+    }
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Deserialize)]
+pub enum ScalerTargetType {
+    #[default]
+    Simple,
+    Gpu,
+}
+
 /// ScalerTarget can be configured to autoscale any of services for which queue is reported by
 /// prover-job-monitor.
-#[derive(Debug, Clone, PartialEq, Deserialize, Default)]
-pub struct ScalerTarget<K: Default + Eq + Hash> {
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+pub struct ScalerTarget {
+    #[serde(default)]
+    pub scaler_target_type: ScalerTargetType,
     pub queue_report_field: QueueReportFields,
     pub deployment: String,
     /// Min replicas globally.
     #[serde(default)]
     pub min_replicas: usize,
     /// Max replicas per cluster.
-    pub max_replicas: HashMap<String, HashMap<K, usize>>,
+    pub max_replicas: HashMap<String, ScalarOrMap>,
     /// The queue will be divided by the speed and rounded up to get number of replicas.
     #[serde(default = "ScalerTarget::default_speed")]
-    pub speed: HashMap<K, usize>,
+    pub speed: ScalarOrMap,
 }
 
 impl ProverAutoscalerConfig {
@@ -145,9 +174,9 @@ impl ProverAutoscalerScalerConfig {
     }
 }
 
-impl<K: Default + Eq + Hash> ScalerTarget<K> {
-    pub fn default_speed() -> HashMap<K, usize> {
-        [(K::default(), 1)].into()
+impl ScalerTarget {
+    pub fn default_speed() -> ScalarOrMap {
+        ScalarOrMap::Scalar(1)
     }
 }
 

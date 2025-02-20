@@ -115,8 +115,8 @@ async fn main() -> anyhow::Result<()> {
                 scaler_config.dry_run,
             );
             let queuer = Queuer::new(http_client, scaler_config.prover_job_monitor_url.clone());
-            let scaler = Manager::new(watcher.clone(), queuer, scaler_config);
-            tasks.extend(get_tasks(watcher, scaler, interval, stop_receiver)?);
+            let manager = Manager::new(watcher.clone(), queuer, scaler_config);
+            tasks.extend(get_tasks(watcher, manager, interval, stop_receiver)?);
         }
     }
 
@@ -138,14 +138,14 @@ async fn main() -> anyhow::Result<()> {
 
 fn get_tasks(
     watcher: watcher::Watcher,
-    scaler: Manager,
+    manager: Manager,
     interval: Duration,
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<Vec<JoinHandle<anyhow::Result<()>>>> {
     let mut task_runner = TaskRunner::default();
 
     task_runner.add("Watcher", interval, watcher);
-    task_runner.add("Scaler", interval, scaler);
+    task_runner.add("Scaler", interval, manager);
 
     Ok(task_runner.spawn(stop_receiver))
 }

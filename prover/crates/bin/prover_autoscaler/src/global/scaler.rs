@@ -6,7 +6,7 @@ use debug_map_sorted::SortedOutputExt;
 use crate::{
     agent::{ScaleDeploymentRequest, ScaleRequest},
     cluster_types::{Cluster, Clusters, PodStatus},
-    config::{QueueReportFields, ScalerTarget},
+    config::QueueReportFields,
     key::Key,
     metrics::AUTOSCALER_METRICS,
 };
@@ -41,6 +41,7 @@ impl<K: Eq + Hash + Copy> Pool<K> {
     }
 }
 
+#[derive(Debug)]
 pub struct Scaler<K> {
     pub queue_report_field: QueueReportFields,
     pub deployment: String,
@@ -56,19 +57,23 @@ pub struct Scaler<K> {
 
 impl<K: Key> Scaler<K> {
     pub fn new(
-        config: &ScalerTarget<K>,
+        queue_report_field: QueueReportFields,
+        deployment: String,
+        min_replicas: usize,
+        max_replicas: HashMap<String, HashMap<K, usize>>,
+        speed: HashMap<K, usize>,
         cluster_priorities: HashMap<String, u32>,
         apply_min_to_namespace: Option<String>,
         long_pending_duration: chrono::Duration,
     ) -> Self {
         Self {
-            queue_report_field: config.queue_report_field,
-            deployment: config.deployment.clone(),
+            queue_report_field,
+            deployment,
             cluster_priorities,
             apply_min_to_namespace,
-            min_replicas: config.min_replicas,
-            max_replicas: config.max_replicas.clone(),
-            speed: config.speed.clone(),
+            min_replicas,
+            max_replicas,
+            speed,
             long_pending_duration,
         }
     }
@@ -331,6 +336,51 @@ impl<K: Key> Scaler<K> {
     }
 }
 
+pub trait ScalerTrait {
+    fn deployment(&self) -> String;
+    fn queue_report_field(&self) -> QueueReportFields;
+    fn run_diff(
+        &self,
+        namespace: &String,
+        queue: u64,
+        clusters: &Clusters,
+        requests: &mut HashMap<String, ScaleRequest>,
+    );
+}
+
+impl<K: Key> ScalerTrait for Scaler<K> {
+    fn deployment(&self) -> String {
+        self.deployment.clone()
+    }
+    fn queue_report_field(&self) -> QueueReportFields {
+        self.queue_report_field
+    }
+
+    fn run_diff(
+        &self,
+        namespace: &String,
+        queue: u64,
+        clusters: &Clusters,
+        requests: &mut HashMap<String, ScaleRequest>,
+    ) {
+        let replicas = self.run(namespace, queue, clusters);
+        for (k, num) in &replicas {
+            match k.key.gpu() {
+                Some(gpu) => AUTOSCALER_METRICS.provers
+                    [&(k.cluster.clone(), namespace.clone(), gpu)]
+                    .set(*num as u64),
+                None => AUTOSCALER_METRICS.jobs[&(
+                    self.deployment.clone(),
+                    k.cluster.clone(),
+                    namespace.clone(),
+                )]
+                    .set(*num as u64),
+            };
+        }
+        self.diff(namespace, replicas, clusters, requests);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -342,18 +392,16 @@ mod tests {
     #[tracing_test::traced_test]
     #[test]
     fn test_run() {
-        let scaler = Scaler::new(
-            &ScalerTarget::<GpuKey> {
-                queue_report_field: QueueReportFields::prover_jobs,
-                deployment: "circuit-prover-gpu".into(),
-                min_replicas: 2,
-                max_replicas: [
-                    ("foo".into(), [(GpuKey(Gpu::L4), 100)].into()),
-                    ("bar".into(), [(GpuKey(Gpu::L4), 100)].into()),
-                ]
-                .into(),
-                ..Default::default()
-            },
+        let scaler = Scaler::<GpuKey>::new(
+            QueueReportFields::prover_jobs,
+            "circuit-prover-gpu".into(),
+            2,
+            [
+                ("foo".into(), [(GpuKey(Gpu::L4), 100)].into()),
+                ("bar".into(), [(GpuKey(Gpu::L4), 100)].into()),
+            ]
+            .into(),
+            [(GpuKey(Gpu::L4), 500), (GpuKey(Gpu::T4), 100)].into(),
             [("foo".into(), 0), ("bar".into(), 10)].into(),
             Some("prover-other".into()),
             chrono::Duration::seconds(600),
@@ -487,17 +535,15 @@ mod tests {
     #[test]
     fn test_run_min_provers() {
         let scaler = Scaler::new(
-            &ScalerTarget::<GpuKey> {
-                queue_report_field: QueueReportFields::prover_jobs,
-                deployment: "circuit-prover-gpu".into(),
-                min_replicas: 2,
-                max_replicas: [
-                    ("foo".into(), [(GpuKey(Gpu::L4), 100)].into()),
-                    ("bar".into(), [(GpuKey(Gpu::L4), 100)].into()),
-                ]
-                .into(),
-                ..Default::default()
-            },
+            QueueReportFields::prover_jobs,
+            "circuit-prover-gpu".into(),
+            2,
+            [
+                ("foo".into(), [(GpuKey(Gpu::L4), 100)].into()),
+                ("bar".into(), [(GpuKey(Gpu::L4), 100)].into()),
+            ]
+            .into(),
+            [(GpuKey(Gpu::L4), 500), (GpuKey(Gpu::T4), 100)].into(),
             [("foo".into(), 0), ("bar".into(), 10)].into(),
             Some("prover".into()),
             chrono::Duration::seconds(600),
@@ -688,17 +734,15 @@ mod tests {
     #[test]
     fn test_run_need_move() {
         let scaler = Scaler::new(
-            &ScalerTarget::<GpuKey> {
-                queue_report_field: QueueReportFields::prover_jobs,
-                deployment: "circuit-prover-gpu".into(),
-                min_replicas: 2,
-                max_replicas: [
-                    ("foo".into(), [(GpuKey(Gpu::L4), 100)].into()),
-                    ("bar".into(), [(GpuKey(Gpu::L4), 100)].into()),
-                ]
-                .into(),
-                ..Default::default()
-            },
+            QueueReportFields::prover_jobs,
+            "circuit-prover-gpu".into(),
+            2,
+            [
+                ("foo".into(), [(GpuKey(Gpu::L4), 100)].into()),
+                ("bar".into(), [(GpuKey(Gpu::L4), 100)].into()),
+            ]
+            .into(),
+            [(GpuKey(Gpu::L4), 500), (GpuKey(Gpu::T4), 100)].into(),
             [("foo".into(), 0), ("bar".into(), 10)].into(),
             Some("prover".into()),
             chrono::Duration::seconds(600),
@@ -809,18 +853,16 @@ mod tests {
     #[tracing_test::traced_test]
     #[test]
     fn test_run_nokey() {
-        let scaler = Scaler::new(
-            &ScalerTarget::<NoKey> {
-                queue_report_field: QueueReportFields::prover_jobs,
-                deployment: "some-deployment".into(),
-                min_replicas: 0,
-                max_replicas: [
-                    ("foo".into(), [(NoKey(), 100)].into()),
-                    ("bar".into(), [(NoKey(), 100)].into()),
-                ]
-                .into(),
-                ..Default::default()
-            },
+        let scaler = Scaler::<NoKey>::new(
+            QueueReportFields::prover_jobs,
+            "some-deployment".into(),
+            0,
+            [
+                ("foo".into(), [(NoKey(), 100)].into()),
+                ("bar".into(), [(NoKey(), 100)].into()),
+            ]
+            .into(),
+            [(NoKey(), 10)].into(),
             [("foo".into(), 0), ("bar".into(), 10)].into(),
             None,
             chrono::Duration::seconds(600),
@@ -829,7 +871,7 @@ mod tests {
         assert_eq!(
             scaler.run(
                 &"prover".into(),
-                1499,
+                24,
                 &Clusters {
                     clusters: [(
                         "foo".into(),
@@ -897,7 +939,7 @@ mod tests {
         assert_eq!(
             scaler.run(
                 &"prover".into(),
-                499,
+                9,
                 &Clusters {
                     clusters: [
                         (

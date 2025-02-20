@@ -155,14 +155,13 @@ agent_config:
 - `apply_min_to_namespace` specifies current primary namespace to run min number of provers in it.
 - `long_pending_duration` is time after a pending pod considered long pending and will be relocated to different
   cluster. Default: 10m.
-- `gpu_scaler_targets` subsection is a list of GPU targets, similar to `scaler_targets`, but includes GPU type for
-  `max_replicas` and `speed`.
 - `scaler_targets` subsection is a list of non-GPU targets:
+  - `scaler_target_type` specifies the type, possible options: `Simple` (default) and `Gpu`.
   - `queue_report_field` is name of corresponding queue report section. See example for possible options.
   - `deployment` is name of a Deployment to scale.
   - `min_replicas` is a minimum number of replicas to run even if the queue is empty. Default: 0.
-  - `max_replicas` is a map of cluster name to maximum number of replicas.
-  - `speed` is a divider for corresponding queue.
+  - `max_replicas` is a map of cluster name to maximum number of replicas. Note: it can be a number of map of GPU types to a number.
+  - `speed` is a divider for corresponding queue. Note: it can be a number of map of GPU types to a number.
 
 Example:
 
@@ -185,8 +184,9 @@ scaler_config:
     cluster3: 200
   apply_min_to_namespace: prover-new
   long_pending_duration: 10m
-  gpu_scaler_targets:
+  scaler_targets:
     - queue_report_field: prover_jobs
+      scaler_target_type: Gpu
       deployment: circuit-prover-gpu
       min_replicas: 1
       max_replicas:
@@ -202,52 +202,37 @@ scaler_config:
       speed:
         L4: 500
         T4: 400
-  scaler_targets:
     - queue_report_field: basic_witness_jobs
       deployment: witness-generator-basic-fri
       min_replicas: 1
       max_replicas:
-        cluster1:
-          []: 10
-        cluster2:
-          []: 20
-      speed:
-        []: 4
+        cluster1: 10
+        cluster2: 20
+      speed: 4
     - queue_report_field: leaf_witness_jobs
       deployment: witness-generator-leaf-fri
       max_replicas:
-        cluster1:
-          []: 10
-      speed:
-        []: 10
+        cluster1: 10
+      speed: 10
     - queue_report_field: node_witness_jobs
       deployment: witness-generator-node-fri
       max_replicas:
-        cluster1:
-          []: 10
-      speed:
-        []: 10
+        cluster1: 10
+      speed: 10
     - queue_report_field: recursion_tip_witness_jobs
       deployment: witness-generator-recursion-tip-fri
       max_replicas:
-        cluster1:
-          []: 10
-      speed:
-        []: 10
+        cluster1: 10
+      speed: 10
     - queue_report_field: scheduler_witness_jobs
       deployment: witness-generator-scheduler-fri
       max_replicas:
-        cluster1:
-          []: 10
-      speed:
-        []: 10
+        cluster1: 10
+      speed: 10
     - queue_report_field: proof_compressor_jobs
       deployment: proof-fri-gpu-compressor
       max_replicas:
-        cluster1:
-          []: 10
-        cluster2:
-          []: 20
-      speed:
-        []: 5
+        cluster1: 10
+        cluster2: 20
+      speed: 5
 ```
