@@ -1,0 +1,94 @@
+name: Build contracts
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      commit:
+        type: string
+        description: SHA commit for build
+        required: false
+      prefix:
+        type: string
+        description: Prefix for release name
+        required: false
+        default: manual
+
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  FOUNDRY_VERSION: 'v0.0.8'
+
+jobs:
+
+  check-release:
+    runs-on: ubuntu-latest
+    outputs:
+      release_required: ${{ steps.changed-files.outputs.any_changed }}
+      commit: ${{ steps.contracts-commit.outputs.commit }}
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: "recursive"
+          fetch-depth: '1'
+
+      - name: Check contracts changes
+        id: changed-files
+        uses: tj-actions/changed-files@v45
+        with:
+          files: |
+            contracts
+            contracts/**
+
+      - name: Define contracts commit
+#        if: ${{ steps.changed-files.outputs.any_changed == 'true' }}
+        id: contracts-commit
+        run: echo "commit=$(cd contracts && git rev-parse HEAD)" >> "${GITHUB_OUTPUT}"
+
+
+  release-contracts:
+    needs: check-release
+    runs-on: matterlabs-ci-runner-highmem-long
+    if: ${{ needs.check-release.outputs.commit != '' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: "recursive"
+          repository: 'matter-labs/era-contracts'
+          ref: ${{ inputs.commit || needs.check-release.outputs.commit }}
+          path: contracts
+
+      - name: Setup runner
+        uses: matter-labs/zksync-ci-common/.github/actions/runner-setup@aba-ci-optimize
+
+      - name: Init
+        working-directory: contracts
+        run: yarn
+
+      - name: Build contracts
+        run: zkstack dev contracts
+
+      - name: Prepare artifacts
+        working-directory: contracts
+        run: |
+          tar -czvf l1-contracts.tar.gz ./l1-contracts
+          tar -czvf l2-contracts.tar.gz ./l2-contracts
+          tar -czvf system-contracts.tar.gz ./system-contracts
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          path: |
+            l1-contracts.tar.gz
+            l2-contracts.tar.gz
+            system-contracts.tar.gz
+          name: contracts-${{ inputs.commit || needs.check-release.outputs.commit }}
