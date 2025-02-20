@@ -38,6 +38,10 @@ impl ProtoRepr for proto::Contracts {
                     .l1_wrapped_base_token_store
                     .as_ref()
                     .map(|x| parse_h160(x).expect("Invalid address")),
+                server_notifier_addr: ecosystem_contracts
+                    .server_notifier_addr
+                    .as_ref()
+                    .map(|x| parse_h160(x).expect("Invalid address")),
             })
         } else {
             None
@@ -168,6 +172,9 @@ impl ProtoRepr for proto::Contracts {
                     .map(|x| format!("{:?}", x)),
                 l1_wrapped_base_token_store: ecosystem_contracts
                     .l1_wrapped_base_token_store
+                    .map(|x| format!("{:?}", x)),
+                server_notifier_addr: ecosystem_contracts
+                    .server_notifier_addr
                     .map(|x| format!("{:?}", x)),
             });
         Self {
