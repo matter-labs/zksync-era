@@ -19,7 +19,7 @@ pub async fn run(shell: &Shell, args: InsertBatchArgs) -> anyhow::Result<()> {
         .expect(MSG_CHAIN_NOT_FOUND_ERR);
 
     let version = info::get_protocol_version(shell, &get_link_to_prover(&ecosystem_config)).await?;
-    let prover_url = info::get_database_url(&chain_config).await?;
+    let prover_url = info::get_database_url(&chain_config).await?.to_string();
 
     let InsertBatchArgsFinal { number, version } = args.fill_values_with_prompts(version);
 
