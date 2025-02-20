@@ -353,11 +353,11 @@ impl RawAvailClient {
 
         let balance = resp
             .as_str()
-            .ok_or_else(|| anyhow::anyhow!("Invalid balance"))?;
-
-        Ok(balance
+            .ok_or_else(|| anyhow::anyhow!("Invalid balance"))?
             .parse()
-            .context("Unable to parse the account balance")?)
+            .context("Unable to parse the account balance")?;
+
+        Ok(balance)
     }
 }
 
