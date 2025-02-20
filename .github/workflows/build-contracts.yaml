@@ -1,0 +1,119 @@
+name: Build contracts
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      commit:
+        type: string
+        description: SHA commit for build
+        required: false
+      prefix:
+        type: string
+        description: Prefix for release name
+        required: false
+        default: manual
+
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  FOUNDRY_VERSION: 'v0.0.8'
+
+jobs:
+
+  check-release:
+    runs-on: ubuntu-latest
+    outputs:
+      release_required: ${{ steps.changed-files.outputs.any_changed }}
+      commit: ${{ steps.contracts-commit.outputs.commit }}
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: "recursive"
+          fetch-depth: '1'
+
+      - name: Check contracts changes
+        id: changed-files
+        uses: tj-actions/changed-files@v45
+        with:
+          files: |
+            contracts
+            contracts/**
+
+      - name: Define contracts commit
+#        if: ${{ steps.changed-files.outputs.any_changed == 'true' }}
+        id: contracts-commit
+        run: echo "commit=$(cd contracts && git rev-parse HEAD)" >> "${GITHUB_OUTPUT}"
+
+
+  release-contracts:
+    needs: check-release
+    runs-on: matterlabs-ci-runner-highmem-long
+    if: ${{ needs.check-release.outputs.commit != '' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: "recursive"
+          repository: 'matter-labs/era-contracts'
+          token: '${{ secrets.RELEASE_TOKEN }}'
+          ref: ${{ inputs.commit || needs.check-release.outputs.commit }}
+
+      - name: Use Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18.18.0
+
+      - name: Install yarn
+        run: npm install -g yarn
+
+      - name: Init
+        run: yarn
+
+      - name: Install forge
+        shell: 'bash -ex {0}'
+        env:
+          FORGE_DOWNLOAD_URL: 'https://github.com/matter-labs/foundry-zksync/releases/download/foundry-zksync-${{ env.FOUNDRY_VERSION }}'
+          FORGE_FILENAME: 'foundry_zksync_${{ env.FOUNDRY_VERSION }}_linux_amd64.tar.gz'
+        run: |
+          curl -L ${FORGE_DOWNLOAD_URL}/${FORGE_FILENAME} --output ${FORGE_FILENAME} && tar -xzf ${FORGE_FILENAME}
+          echo ${PWD} >> "${GITHUB_PATH}"
+
+      - name: Build l1 contracts
+        working-directory: l1-contracts
+        run: forge build
+
+      - name: Build l2 contracts
+        working-directory: l2-contracts
+        run: forge build --zksync --zk-enable-eravm-extensions
+
+      - name: Build system-contracts
+        working-directory: system-contracts
+        run: |
+          yarn install
+          yarn preprocess:system-contracts
+          forge build --zksync --zk-enable-eravm-extensions
+          yarn preprocess:bootloader
+          forge build --zksync --zk-enable-eravm-extensions
+
+      - name: Prepare artifacts
+        run: |
+          tar -czvf l1-contracts.tar.gz ./l1-contracts
+          tar -czvf l2-contracts.tar.gz ./l2-contracts
+          tar -czvf system-contracts.tar.gz ./system-contracts
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          path: |
+            l1-contracts.tar.gz
+            l2-contracts.tar.gz
+            system-contracts.tar.gz
+          name: contracts-${{ inputs.commit || needs.check-release.outputs.commit }}
