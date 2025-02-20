@@ -611,6 +611,7 @@ impl MainNodeBuilder {
         self.node.add_layer(DataAvailabilityDispatcherLayer::new(
             state_keeper_config,
             da_config,
+            self.contracts_config.clone(),
         ));
 
         Ok(self)

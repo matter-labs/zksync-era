@@ -41,7 +41,7 @@ struct SubmitData {
 struct BoundedVec<_0>(pub Vec<_0>);
 
 impl RawAvailClient {
-    pub(crate) const MAX_BLOB_SIZE: usize = 512 * 1024; // 512kb
+    pub(crate) const MAX_BLOB_SIZE: usize = 1024 * 1024; // 1mb
 
     pub(crate) async fn new(
         app_id: u32,

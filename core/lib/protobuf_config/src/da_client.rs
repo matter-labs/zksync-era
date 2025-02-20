@@ -79,12 +79,14 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                     .context("wait_for_finalization")?,
                 authenticated: *required(&conf.authenticated).context("authenticated")?,
                 points_source: match conf.points_source.clone() {
-                    Some(proto::eigen_config::PointsSource::Path(path)) => {
-                        zksync_config::configs::da_client::eigen::PointsSource::Path(path)
-                    }
-                    Some(proto::eigen_config::PointsSource::Url(url)) => {
-                        let g1_url = required(&url.g1_url).context("g1_url")?;
-                        let g2_url = required(&url.g2_url).context("g2_url")?;
+                    Some(proto::eigen_config::PointsSource::PointsSourcePath(
+                        points_source_path,
+                    )) => zksync_config::configs::da_client::eigen::PointsSource::Path(
+                        points_source_path,
+                    ),
+                    Some(proto::eigen_config::PointsSource::PointsSourceUrl(points_source_url)) => {
+                        let g1_url = required(&points_source_url.g1_url).context("g1_url")?;
+                        let g2_url = required(&points_source_url.g2_url).context("g2_url")?;
                         zksync_config::configs::da_client::eigen::PointsSource::Url((
                             g1_url.to_owned(),
                             g2_url.to_owned(),
@@ -148,12 +150,12 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                 authenticated: Some(config.authenticated),
                 points_source: Some(match &config.points_source {
                     zksync_config::configs::da_client::eigen::PointsSource::Path(path) => {
-                        proto::eigen_config::PointsSource::Path(path.clone())
+                        proto::eigen_config::PointsSource::PointsSourcePath(path.clone())
                     }
                     zksync_config::configs::da_client::eigen::PointsSource::Url((
                         g1_url,
                         g2_url,
-                    )) => proto::eigen_config::PointsSource::Url(proto::Url {
+                    )) => proto::eigen_config::PointsSource::PointsSourceUrl(proto::Url {
                         g1_url: Some(g1_url.clone()),
                         g2_url: Some(g2_url.clone()),
                     }),
