@@ -1,7 +1,4 @@
-use std::{
-    collections::{BTreeMap, HashMap},
-    iter,
-};
+use std::{collections::BTreeMap, iter};
 
 use anyhow::Context;
 use zksync_basic_types::H256;
@@ -22,22 +19,11 @@ pub enum TreeOperation {
 }
 
 #[derive(Debug)]
-struct InsertedRange {
-    old_next_index: u64,
-    keys_and_indices: BTreeMap<H256, u64>,
-}
-
-impl InsertedRange {
-    fn new(old_next_index: u64) -> Self {
-        Self {
-            old_next_index,
-            keys_and_indices: BTreeMap::new(),
-        }
-    }
-
-    fn update(&mut self, key: H256, index: u64) {
-        self.keys_and_indices.insert(key, index);
-    }
+pub struct IntermediateHash {
+    pub value: H256,
+    /// Level + index on level. Redundant and is only checked in tests.
+    #[cfg(test)]
+    pub location: (u8, u64),
 }
 
 /// Merkle proof of batch insertion into [`MerkleTree`](crate::MerkleTree).
@@ -60,7 +46,7 @@ pub struct BatchTreeProof {
     pub sorted_leaves: BTreeMap<u64, Leaf>,
     /// Hashes necessary and sufficient to restore previous and updated root hashes. Provided in the ascending `(depth, index_on_level)` order,
     /// where `depth == 0` are leaves, `depth == 1` are nodes aggregating leaf pairs etc.
-    pub hashes: Vec<H256>,
+    pub hashes: Vec<IntermediateHash>,
 }
 
 impl BatchTreeProof {
@@ -93,7 +79,12 @@ impl BatchTreeProof {
             anyhow::ensure!(*max_idx < prev_output.leaf_count, "Index is too large");
         }
 
-        let mut inserted_ranges = HashMap::<_, InsertedRange>::new();
+        let mut index_by_key: BTreeMap<_, _> = self
+            .sorted_leaves
+            .iter()
+            .map(|(idx, leaf)| (leaf.key, *idx))
+            .collect();
+
         let mut next_tree_index = prev_output.leaf_count;
         for (&operation, entry) in self.operations.iter().zip(entries) {
             match operation {
@@ -125,13 +116,10 @@ impl BatchTreeProof {
                     anyhow::ensure!(old_next_leaf.prev_index == prev_index);
                     anyhow::ensure!(entry.key < old_next_leaf.key);
 
-                    inserted_ranges
-                        .entry(prev_index)
-                        .or_insert_with(|| InsertedRange::new(old_next_index))
-                        .update(entry.key, next_tree_index);
+                    index_by_key.insert(entry.key, next_tree_index);
                     next_tree_index += 1;
                 }
-            }
+            };
         }
 
         let restored_prev_hash = Self::zip_leaves(
@@ -139,7 +127,7 @@ impl BatchTreeProof {
             tree_depth,
             prev_output.leaf_count,
             self.sorted_leaves.iter().map(|(idx, leaf)| (*idx, leaf)),
-            self.hashes.iter().copied(),
+            self.hashes.iter(),
         )?;
         anyhow::ensure!(
             restored_prev_hash == prev_output.root_hash,
@@ -153,33 +141,12 @@ impl BatchTreeProof {
                     // We've checked the key correspondence already.
                     self.sorted_leaves.get_mut(&index).unwrap().value = entry.value;
                 }
-                TreeOperation::Insert { prev_index } => {
-                    let inserted_keys = &inserted_ranges[&prev_index].keys_and_indices;
-
-                    let mut it = inserted_keys.range(entry.key..);
-                    // `unwrap()` is safe: the current leaf itself is always present.
+                TreeOperation::Insert { .. } => {
+                    let mut it = index_by_key.range(entry.key..);
                     let (_, &this_index) = it.next().unwrap();
-
-                    let next_index = if let Some((_, local_idx)) = it.next() {
-                        *local_idx
-                    } else {
-                        // Update the link for the existing leaf. Index access / `unwrap()` is safe since we've checked leaf existence before.
-                        let old_next_index = inserted_ranges[&prev_index].old_next_index;
-                        self.sorted_leaves
-                            .get_mut(&old_next_index)
-                            .unwrap()
-                            .prev_index = this_index;
-                        old_next_index
-                    };
-
-                    let prev_index = if let Some((_, local_idx)) =
-                        inserted_keys.range(..entry.key).next_back()
-                    {
-                        *local_idx
-                    } else {
-                        self.sorted_leaves.get_mut(&prev_index).unwrap().next_index = this_index;
-                        prev_index
-                    };
+                    // `unwrap()`s below are safe: at least the pre-existing next index is greater, and the pre-existing prev index is lesser.
+                    let (_, &next_index) = it.next().unwrap();
+                    let (_, &prev_index) = index_by_key.range(..entry.key).next_back().unwrap();
 
                     self.sorted_leaves.insert(
                         this_index,
@@ -190,6 +157,15 @@ impl BatchTreeProof {
                             next_index,
                         },
                     );
+
+                    // Prev / next leaves may be missing if they are inserted in the batch as well;
+                    // in this case, prev / next index will be set correctly once the leaf is created.
+                    if let Some(prev_leaf) = self.sorted_leaves.get_mut(&prev_index) {
+                        prev_leaf.next_index = this_index;
+                    }
+                    if let Some(next_leaf) = self.sorted_leaves.get_mut(&next_index) {
+                        next_leaf.prev_index = this_index;
+                    }
                 }
             }
         }
@@ -199,7 +175,7 @@ impl BatchTreeProof {
             tree_depth,
             next_tree_index,
             self.sorted_leaves.iter().map(|(idx, leaf)| (*idx, leaf)),
-            self.hashes.iter().copied(),
+            self.hashes.iter(),
         )
     }
 
@@ -279,7 +255,7 @@ impl BatchTreeProof {
         tree_depth: u8,
         leaf_count: u64,
         sorted_leaves: impl Iterator<Item = (u64, &'a Leaf)>,
-        mut hashes: impl Iterator<Item = H256>,
+        mut hashes: impl Iterator<Item = &'a IntermediateHash>,
     ) -> anyhow::Result<H256> {
         let mut node_hashes: Vec<_> = sorted_leaves
             .map(|(idx, leaf)| (idx, hasher.hash_leaf(leaf)))
@@ -295,7 +271,10 @@ impl BatchTreeProof {
                     // The hash to the left is missing; get it from `hashes`
                     i += 1;
                     let lhs = hashes.next().context("ran out of hashes")?;
-                    hasher.hash_branch(&lhs, &current_hash)
+                    #[cfg(test)]
+                    assert_eq!(lhs.location, (depth, current_idx - 1));
+
+                    hasher.hash_branch(&lhs.value, &current_hash)
                 } else if let Some((_, next_hash)) = node_hashes
                     .get(i + 1)
                     .filter(|(next_idx, _)| *next_idx == current_idx + 1)
@@ -308,7 +287,10 @@ impl BatchTreeProof {
                     let rhs = if current_idx == last_idx_on_level {
                         hasher.empty_subtree_hash(depth)
                     } else {
-                        hashes.next().context("ran out of hashes")?
+                        let rhs = hashes.next().context("ran out of hashes")?;
+                        #[cfg(test)]
+                        assert_eq!(rhs.location, (depth, current_idx + 1));
+                        rhs.value
                     };
                     hasher.hash_branch(&current_hash, &rhs)
                 };

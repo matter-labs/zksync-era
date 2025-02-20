@@ -11,7 +11,7 @@ use zksync_basic_types::H256;
 use super::{Database, InsertedKeyEntry, PartialPatchSet, PatchSet};
 use crate::{
     errors::{DeserializeContext, DeserializeErrorKind},
-    hasher::{BatchTreeProof, InternalHashes, TreeOperation},
+    hasher::{BatchTreeProof, IntermediateHash, InternalHashes, TreeOperation},
     leaf_nibbles, max_nibbles_for_internal_node, max_node_children,
     types::{InternalNode, KeyLookup, Leaf, Manifest, Node, NodeKey, Root, TreeTags},
     BatchOutput, DeserializeError, HashTree, MerkleTree, TreeEntry, TreeParams,
@@ -254,7 +254,7 @@ impl<P: TreeParams> WorkingPatchSet<P> {
     /// by design, leaves loaded for a batch update are exactly leaves included into a `BatchTreeProof`.
     ///
     /// `leaf_indices` is the sorted list of all loaded leaves.
-    fn collect_hashes(&self, leaf_indices: Vec<u64>, hasher: &P::Hasher) -> Vec<H256> {
+    fn collect_hashes(&self, leaf_indices: Vec<u64>, hasher: &P::Hasher) -> Vec<IntermediateHash> {
         let mut indices_on_level = leaf_indices;
         if indices_on_level.is_empty() {
             return vec![];
@@ -286,7 +286,6 @@ impl<P: TreeParams> WorkingPatchSet<P> {
             }
 
             let started_at = Instant::now();
-            let depth = depth_in_internal_node;
             // `unwrap()` is safe; `internal_hashes` is initialized on the first loop iteration
             let internal_hashes = internal_hashes.as_ref().unwrap();
 
@@ -297,7 +296,11 @@ impl<P: TreeParams> WorkingPatchSet<P> {
                 if current_idx % 2 == 1 {
                     // The hash to the left is missing; get it from `hashes`
                     i += 1;
-                    hashes.push(internal_hashes.get(depth, current_idx - 1));
+                    hashes.push(IntermediateHash {
+                        value: internal_hashes.get(depth_in_internal_node, current_idx - 1),
+                        #[cfg(test)]
+                        location: (depth, current_idx - 1),
+                    });
                 } else if indices_on_level
                     .get(i + 1)
                     .map_or(false, |&next_idx| next_idx == current_idx + 1)
@@ -308,7 +311,11 @@ impl<P: TreeParams> WorkingPatchSet<P> {
                     // The hash to the right is missing; get it from `hashes`, or set to the empty subtree hash.
                     i += 1;
                     if current_idx < last_idx_on_level {
-                        hashes.push(internal_hashes.get(depth, current_idx + 1));
+                        hashes.push(IntermediateHash {
+                            value: internal_hashes.get(depth_in_internal_node, current_idx + 1),
+                            #[cfg(test)]
+                            location: (depth, current_idx + 1),
+                        });
                     }
                 };
 

@@ -5,7 +5,7 @@ use zksync_basic_types::H256;
 use zksync_crypto_primitives::hasher::{blake2::Blake2Hasher, Hasher};
 
 pub(crate) use self::nodes::InternalHashes;
-pub use self::proofs::{BatchTreeProof, TreeOperation};
+pub use self::proofs::{BatchTreeProof, IntermediateHash, TreeOperation};
 use crate::types::{Leaf, MAX_TREE_DEPTH};
 
 mod nodes;
