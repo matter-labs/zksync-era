@@ -30,7 +30,7 @@ use crate::{
 };
 
 use eq_sdk::{EqClient, types::BlobId, get_keccak_inclusion_response::{ResponseValue as InclusionResponseValue, Status as InclusionResponseStatus}};
-
+use crate::celestia::tm_rpc_utils::TendermintRPCClient;
 /// An implementation of the `DataAvailabilityClient` trait that interacts with the Celestia network.
 #[derive(Clone)]
 pub struct CelestiaClient {
@@ -50,9 +50,9 @@ impl CelestiaClient {
     ) -> anyhow::Result<Self> {
         let contract_file = File::open("blobstream.json")
             .map_err(to_non_retriable_da_error)?;
-        let contract = Contract::load(contract_file)
+        let blobstream_contract = Contract::load(contract_file)
             .map_err(to_non_retriable_da_error)?;
-        let blobstream_update_event = contract.events_by_name("DataCommitmentStored")
+        let blobstream_update_event = blobstream_contract.events_by_name("DataCommitmentStored")
             .map_err(to_non_retriable_da_error)?
             .first()
             .ok_or_else(|| to_non_retriable_da_error(anyhow::anyhow!("DataCommitmentStored event not found in contract")))?
@@ -182,6 +182,10 @@ impl DataAvailabilityClient for CelestiaClient {
             &self.blobstream_update_event,
             &self.blobstream_contract
         ).await.expect("Failed to find block range");
+
+        let tm_rpc_client = TendermintRPCClient::new("http://public-celestia-mocha4-consensus.numia.xyz:26657".to_string());
+        let proof = tm_rpc_client.get_data_root_inclusion_proof(target_height, from.as_u64(), to.as_u64()).await.unwrap();
+        println!("Proof: {:?}", proof);
 
         Ok(Some(InclusionData { data: vec![] }))
     }
