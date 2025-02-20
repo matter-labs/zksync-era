@@ -115,10 +115,12 @@ impl ScalarOrMap {
     }
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Deserialize)]
+#[derive(Debug, Default, Display, Clone, Copy, PartialEq, EnumString, Deserialize)]
 pub enum ScalerTargetType {
     #[default]
+    #[serde(alias = "simple")]
     Simple,
+    #[serde(alias = "gpu", alias = "GPU")]
     Gpu,
 }
 

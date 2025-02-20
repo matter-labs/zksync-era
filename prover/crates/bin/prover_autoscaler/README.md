@@ -160,7 +160,8 @@ agent_config:
   - `queue_report_field` is name of corresponding queue report section. See example for possible options.
   - `deployment` is name of a Deployment to scale.
   - `min_replicas` is a minimum number of replicas to run even if the queue is empty. Default: 0.
-  - `max_replicas` is a map of cluster name to maximum number of replicas. Note: it can be a number of map of GPU types to a number.
+  - `max_replicas` is a map of cluster name to maximum number of replicas. Note: it can be a number of map of GPU types
+    to a number.
   - `speed` is a divider for corresponding queue. Note: it can be a number of map of GPU types to a number.
 
 Example:
