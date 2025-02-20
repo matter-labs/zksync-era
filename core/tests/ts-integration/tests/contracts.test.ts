@@ -50,9 +50,9 @@ describe('Smart contract behavior checks', () => {
         const feeCheck = await shouldOnlyTakeFee(alice);
 
         // Change the storage slot and ensure it actually changes.
-        expect(counterContract.get()).resolves.toEqual(0n);
+        await expect(counterContract.get()).resolves.toEqual(0n);
         await expect(counterContract.increment(42)).toBeAccepted([feeCheck]);
-        expect(counterContract.get()).resolves.toEqual(42n);
+        await expect(counterContract.get()).resolves.toEqual(42n);
     });
 
     test('Should deploy contract with a constructor', async () => {
@@ -199,7 +199,7 @@ describe('Smart contract behavior checks', () => {
 
         const oldValue = await ethersBasedContract.get();
         await expect(ethersBasedContract.increment(1)).toBeAccepted([]);
-        expect(ethersBasedContract.get()).resolves.toEqual(oldValue + 1n);
+        await expect(ethersBasedContract.get()).resolves.toEqual(oldValue + 1n);
     });
 
     test('Should check that eth_call works with custom block tags', async () => {
