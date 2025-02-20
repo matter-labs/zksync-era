@@ -244,7 +244,7 @@ impl<P: TreeParams> WorkingPatchSet<P> {
     }
 
     pub(crate) fn total_internal_nodes(&self) -> usize {
-        self.inner.internal.iter().map(HashMap::len).sum()
+        self.inner.total_internal_nodes()
     }
 
     pub(crate) fn create_batch_proof(

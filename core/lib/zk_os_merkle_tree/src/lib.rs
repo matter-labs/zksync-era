@@ -49,6 +49,7 @@ pub(crate) const fn max_node_children<P: TreeParams>() -> u8 {
     1 << P::INTERNAL_NODE_DEPTH
 }
 
+// TODO: internal node depth 3 looks slightly better from the I/O overhead & performance perspective
 #[derive(Debug)]
 pub struct DefaultTreeParams<const TREE_DEPTH: u8 = 64, const INTERNAL_NODE_DEPTH: u8 = 4>(());
 

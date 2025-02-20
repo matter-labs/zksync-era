@@ -122,6 +122,10 @@ impl PartialPatchSet {
             cmp::Ordering::Greater => return None,
         })
     }
+
+    fn total_internal_nodes(&self) -> usize {
+        self.internal.iter().map(HashMap::len).sum()
+    }
 }
 
 #[derive(Debug, Clone, Default)]

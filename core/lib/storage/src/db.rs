@@ -77,6 +77,10 @@ impl<CF: NamedColumnFamily> WriteBatch<'_, CF> {
         let cf = self.db.column_family(cf);
         self.inner.delete_range_cf(cf, keys.start, keys.end);
     }
+
+    pub fn size_in_bytes(&self) -> usize {
+        self.inner.size_in_bytes()
+    }
 }
 
 struct RocksDBCaches {
