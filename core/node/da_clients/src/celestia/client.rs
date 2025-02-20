@@ -36,7 +36,7 @@ use eq_sdk::{
 #[derive(Clone)]
 pub struct CelestiaClient {
     config: CelestiaConfig,
-    integration_client: Arc<EqClient>,
+    eq_client: Arc<EqClient>,
     celestia_client: Arc<RawCelestiaClient>,
     eth_client: Box<DynClient<L1>>,
 }
@@ -57,16 +57,16 @@ impl CelestiaClient {
             RawCelestiaClient::new(celestia_grpc_channel, private_key, config.chain_id.clone())
                 .expect("could not create Celestia client");
 
-        let integration_grpc_channel =
-            Endpoint::from_str(config.integration_service_url.clone().as_str())?
+        let eq_service_grpc_channel =
+            Endpoint::from_str(config.eq_service_url.clone().as_str())?
                 .timeout(time::Duration::from_millis(config.timeout_ms))
                 .connect()
                 .await?;
-        let integration_client = EqClient::new(integration_grpc_channel);
+        let eq_client = EqClient::new(eq_service_grpc_channel);
         Ok(Self {
             config,
             celestia_client: Arc::new(client),
-            integration_client: Arc::new(integration_client),
+            eq_client: Arc::new(eq_client),
             eth_client,
         })
     }
@@ -108,7 +108,7 @@ impl DataAvailabilityClient for CelestiaClient {
             height,
         };
 
-        if let Err(tonic_status) = self.integration_client.get_keccak_inclusion(&blob_id).await {
+        if let Err(tonic_status) = self.eq_client.get_keccak_inclusion(&blob_id).await {
             // gRPC error, should be retriable, could be something on the eq-service side
             return Err(DAError {
                 error: tonic_status.into(),
@@ -122,11 +122,11 @@ impl DataAvailabilityClient for CelestiaClient {
     }
 
     async fn get_inclusion_data(&self, blob_id: &str) -> Result<Option<InclusionData>, DAError> {
-        let blob_id_struct = blob_id.parse::<BlobId>().unwrap();
-        // .map_err(to_non_retriable_da_error)?;
+        let blob_id_struct = blob_id.parse::<BlobId>()
+        .map_err(to_non_retriable_da_error)?;
 
         let response = self
-            .integration_client
+            .eq_client
             .get_keccak_inclusion(&blob_id_struct)
             .await
             .map_err(to_retriable_da_error)?;

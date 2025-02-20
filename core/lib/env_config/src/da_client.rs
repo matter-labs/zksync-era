@@ -208,12 +208,14 @@ mod tests {
 
     fn expected_celestia_da_layer_config(
         api_node_url: &str,
+        eq_service_url: &str,
         namespace: &str,
         chain_id: &str,
         timeout_ms: u64,
     ) -> DAClientConfig {
         DAClientConfig::Celestia(CelestiaConfig {
             api_node_url: api_node_url.to_string(),
+            eq_service_url: eq_service_url.to_string(),
             namespace: namespace.to_string(),
             chain_id: chain_id.to_string(),
             timeout_ms,
@@ -237,6 +239,7 @@ mod tests {
             actual,
             expected_celestia_da_layer_config(
                 "localhost:12345",
+                "localhost:54321",
                 "0x1234567890abcdef",
                 "mocha-4",
                 7000
