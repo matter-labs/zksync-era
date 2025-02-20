@@ -7,3 +7,4 @@ pub mod api;
 pub mod inputs;
 /// Outputs of proof generation provided by the prover subsystem.
 pub mod outputs;
+pub mod rpc;

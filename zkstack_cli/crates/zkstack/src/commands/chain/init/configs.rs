@@ -68,6 +68,13 @@ pub async fn init_configs(
         general_config.insert("prover_gateway.api_url", format!("http://127.0.0.1:{port}"))?;
     }
 
+    let prover_gateway_port = general_config
+        .base()
+        .get_opt::<u16>("prover_gateway.ws_port")?;
+    if let Some(port) = prover_gateway_port {
+        general_config.insert("data_handler.api_url", format!("ws://127.0.0.1:{port}"))?;
+    }
+
     let consensus_keys = generate_consensus_keys();
     set_genesis_specs(&mut general_config, chain_config, &consensus_keys)?;
 
