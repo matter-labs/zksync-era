@@ -39,35 +39,35 @@ jobs:
       - name: Generate cache
         working-directory: ${{ matrix.workspace }}
         run: |
-          cargo build --release
+          # cargo build --release
           cargo nextest run --no-run --release
-          cargo clippy
+          # cargo clippy
 
-  cache-regen-full:
-    runs-on: matterlabs-ci-runner-highmem-long
-    env:
-      RUSTFLAGS: "-C link-arg=-fuse-ld=mold"
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: "recursive"
-
-      - name: Setup runner
-        uses: matter-labs/zksync-ci-common/.github/actions/runner-setup@aba-ci-optimize
-        with:
-          save_cache: true
-
-      - name: Generate cache
-        run: |
-          for WORKSPACE in core prover zkstack_cli; do
-            (
-              cd "${WORKSPACE}"
-              cargo build --release
-              cargo nextest run --no-run --release
-              cargo clippy
-            )
-          done
+#  cache-regen-full:
+#    runs-on: matterlabs-ci-runner-highmem-long
+#    env:
+#      RUSTFLAGS: "-C link-arg=-fuse-ld=mold"
+#    steps:
+#      - name: Checkout
+#        uses: actions/checkout@v4
+#        with:
+#          submodules: "recursive"
+#
+#      - name: Setup runner
+#        uses: matter-labs/zksync-ci-common/.github/actions/runner-setup@aba-ci-optimize
+#        with:
+#          save_cache: true
+#
+#      - name: Generate cache
+#        run: |
+#          for WORKSPACE in core prover zkstack_cli; do
+#            (
+#              cd "${WORKSPACE}"
+#              cargo build --release
+#              cargo nextest run --no-run --release
+#              cargo clippy
+#            )
+#          done
 
   # TODO: maybe, there will be 3 different jobs in the future
 #  cache-regen:

@@ -1,7 +1,7 @@
 name: Lint
 
 on:
-#  pull_request:
+  pull_request:
   merge_group:
 
 
@@ -33,12 +33,6 @@ jobs:
 
       - name: Build contracts
         uses: matter-labs/zksync-ci-common/.github/actions/build-contracts@aba-ci-optimize
-
-      - name: Build contracts
-        run: zkstack dev contracts
-
-#      - name: Download compilers for contract verifier tests
-#        run: zkstack contract-verifier init --zksolc-version=v1.5.10 --zkvyper-version=v1.5.4 --solc-version=0.8.26 --vyper-version=v0.3.10 --era-vm-solc-version=0.8.26-1.0.1 --only --chain era
 
       - name: Rust unit tests
         run: zkstack dev test rust

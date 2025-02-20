@@ -1,6 +1,7 @@
 name: Build contracts
 
 on:
+#  pull_request:
   push:
     branches:
       - main
@@ -61,59 +62,40 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          submodules: "recursive"
-          repository: 'matter-labs/era-contracts'
-          token: '${{ secrets.RELEASE_TOKEN }}'
-          ref: ${{ inputs.commit || needs.check-release.outputs.commit }}
+          submodules: "false"
 
-      - name: Use Node.js
-        uses: actions/setup-node@v3
+      - name: Clean-up contracts
+        run: rm -rf contracts
+
+      - name: Checkout contracts
+        uses: actions/checkout@v4
         with:
-          node-version: 18.18.0
+          repository: 'matter-labs/era-contracts'
+          ref: ${{ inputs.commit || needs.check-release.outputs.commit }}
+          path: contracts
+          submodules: "recursive"
 
-      - name: Install yarn
-        run: npm install -g yarn
+      - name: Setup runner
+        uses: matter-labs/zksync-ci-common/.github/actions/runner-setup@aba-ci-optimize
+        with:
+          enable_cache: false
 
-      - name: Init
-        run: yarn
-
-      - name: Install forge
-        shell: 'bash -ex {0}'
-        env:
-          FORGE_DOWNLOAD_URL: 'https://github.com/matter-labs/foundry-zksync/releases/download/foundry-zksync-${{ env.FOUNDRY_VERSION }}'
-          FORGE_FILENAME: 'foundry_zksync_${{ env.FOUNDRY_VERSION }}_linux_amd64.tar.gz'
-        run: |
-          curl -L ${FORGE_DOWNLOAD_URL}/${FORGE_FILENAME} --output ${FORGE_FILENAME} && tar -xzf ${FORGE_FILENAME}
-          echo ${PWD} >> "${GITHUB_PATH}"
-
-      - name: Build l1 contracts
-        working-directory: l1-contracts
-        run: forge build
-
-      - name: Build l2 contracts
-        working-directory: l2-contracts
-        run: forge build --zksync --zk-enable-eravm-extensions
-
-      - name: Build system-contracts
-        working-directory: system-contracts
-        run: |
-          yarn install
-          yarn preprocess:system-contracts
-          forge build --zksync --zk-enable-eravm-extensions
-          yarn preprocess:bootloader
-          forge build --zksync --zk-enable-eravm-extensions
+      - name: Build contracts
+        run: zkstack dev contracts
 
       - name: Prepare artifacts
+        working-directory: contracts
         run: |
-          tar -czvf l1-contracts.tar.gz ./l1-contracts
-          tar -czvf l2-contracts.tar.gz ./l2-contracts
-          tar -czvf system-contracts.tar.gz ./system-contracts
+          for DIR in l1-contracts l2-contracts system-contracts; do
+            rm -rf ./${DIR}/node_modules
+            tar -czvf ${DIR}.tar.gz ./${DIR}
+          done
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           path: |
-            l1-contracts.tar.gz
-            l2-contracts.tar.gz
-            system-contracts.tar.gz
+            contracts/l1-contracts.tar.gz
+            contracts/l2-contracts.tar.gz
+            contracts/system-contracts.tar.gz
           name: contracts-${{ inputs.commit || needs.check-release.outputs.commit }}
