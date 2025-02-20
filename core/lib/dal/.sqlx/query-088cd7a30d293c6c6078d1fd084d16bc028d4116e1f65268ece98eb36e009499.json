@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO\n            transactions (\n                hash,\n                is_priority,\n                initiator_address,\n                gas_limit,\n                max_fee_per_gas,\n                gas_per_pubdata_limit,\n                data,\n                upgrade_id,\n                contract_address,\n                l1_block_number,\n                value,\n                paymaster,\n                paymaster_input,\n                tx_format,\n                l1_tx_mint,\n                l1_tx_refund_recipient,\n                received_at,\n                created_at,\n                updated_at\n            )\n            VALUES\n            (\n                $1,\n                TRUE,\n                $2,\n                $3,\n                $4,\n                $5,\n                $6,\n                $7,\n                $8,\n                $9,\n                $10,\n                $11,\n                $12,\n                $13,\n                $14,\n                $15,\n                NOW(),\n                NOW(),\n                NOW()\n            )\n            ON CONFLICT (hash) DO NOTHING\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Bytea",
+        "Bytea",
+        "Numeric",
+        "Numeric",
+        "Numeric",
+        "Jsonb",
+        "Int4",
+        "Bytea",
+        "Int4",
+        "Numeric",
+        "Bytea",
+        "Bytea",
+        "Int4",
+        "Numeric",
+        "Bytea"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "088cd7a30d293c6c6078d1fd084d16bc028d4116e1f65268ece98eb36e009499"
+}
