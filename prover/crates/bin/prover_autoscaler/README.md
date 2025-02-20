@@ -52,10 +52,10 @@ are using Simple algorithm.
 
 Simple algorithm tries to scale the Deployment up to `queue / speed` replicas (rounded up) in the best cluster. If there
 is not enough capacity it continue in the next best cluster and so on. On each run it selects "best cluster" using
-priority, number of capacity issues and cluster size. The capacity is limited by config (`max_provers` or
-`max_replicas`) and also by availability of machines in the cluster. Autoscaler detects that a cluster is running out of
-particular machines by watching for `FailedScaleUp` events and also by checking if a Pod stuck in Pending for longer
-than `long_pending_duration`. If not enough capacity is detected not running Pods will be moved.
+priority, number of capacity issues and cluster size. The capacity is limited by config `max_replicas` and also by
+availability of machines in the cluster. Autoscaler detects that a cluster is running out of particular machines by
+watching for `FailedScaleUp` events and also by checking if a Pod stuck in Pending for longer than
+`long_pending_duration`. If not enough capacity is detected not running Pods will be moved.
 
 GPU algorithm works similar to Simple one, but it also recognise different GPU types and distribute load across L4 GPUs
 first, then T4, V100, P100 and A100, if available.
@@ -153,17 +153,16 @@ agent_config:
   there!
 - `cluster_priorities` is a map cluster name to priority, the lower will be used first.
 - `apply_min_to_namespace` specifies current primary namespace to run min number of provers in it.
-- `min_provers` is a minimum number of provers to run even if the queue is empty. Default: 0.
-- `max_provers` is a map of cluster name to map GPU type to maximum number of provers.
-- `prover_speed` is a map GPU to speed divider. Default: 500.
 - `long_pending_duration` is time after a pending pod considered long pending and will be relocated to different
   cluster. Default: 10m.
-- `scaler_targets` subsection is a list of Simple targets:
+- `scaler_targets` subsection is a list of non-GPU targets:
+  - `scaler_target_type` specifies the type, possible options: `Simple` (default) and `Gpu`.
   - `queue_report_field` is name of corresponding queue report section. See example for possible options.
   - `deployment` is name of a Deployment to scale.
   - `min_replicas` is a minimum number of replicas to run even if the queue is empty. Default: 0.
-  - `max_replicas` is a map of cluster name to maximum number of replicas.
-  - `speed` is a divider for corresponding queue.
+  - `max_replicas` is a map of cluster name to maximum number of replicas. Note: it can be a number of map of GPU types
+    to a number.
+  - `speed` is a divider for corresponding queue. Note: it can be a number of map of GPU types to a number.
 
 Example:
 
@@ -185,29 +184,32 @@ scaler_config:
     cluster2: 100
     cluster3: 200
   apply_min_to_namespace: prover-new
-  min_provers: 1
-  max_provers:
-    cluster1:
-      L4: 1
-      T4: 200
-    cluster2:
-      L4: 100
-      T4: 200
-    cluster3:
-      L4: 100
-      T4: 100
-  prover_speed:
-    L4: 500
-    T4: 400
   long_pending_duration: 10m
   scaler_targets:
+    - queue_report_field: prover_jobs
+      scaler_target_type: Gpu
+      deployment: circuit-prover-gpu
+      min_replicas: 1
+      max_replicas:
+        cluster1:
+          L4: 1
+          T4: 200
+        cluster2:
+          L4: 100
+          T4: 200
+        cluster3:
+          L4: 100
+          T4: 100
+      speed:
+        L4: 500
+        T4: 400
     - queue_report_field: basic_witness_jobs
       deployment: witness-generator-basic-fri
       min_replicas: 1
       max_replicas:
         cluster1: 10
         cluster2: 20
-      speed: 10
+      speed: 4
     - queue_report_field: leaf_witness_jobs
       deployment: witness-generator-leaf-fri
       max_replicas:
@@ -232,6 +234,6 @@ scaler_config:
       deployment: proof-fri-gpu-compressor
       max_replicas:
         cluster1: 10
-        cluster2: 10
+        cluster2: 20
       speed: 5
 ```
