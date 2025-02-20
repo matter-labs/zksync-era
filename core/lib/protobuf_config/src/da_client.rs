@@ -94,6 +94,7 @@ impl ProtoRepr for proto::DataAvailabilityClient {
             Celestia(config) => {
                 proto::data_availability_client::Config::Celestia(proto::CelestiaConfig {
                     api_node_url: Some(config.api_node_url.clone()),
+                    eq_service_url: Some(config.eq_service_url.clone()),
                     namespace: Some(config.namespace.clone()),
                     chain_id: Some(config.chain_id.clone()),
                     timeout_ms: Some(config.timeout_ms),

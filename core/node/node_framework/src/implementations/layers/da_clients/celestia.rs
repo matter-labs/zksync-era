@@ -1,15 +1,14 @@
 use zksync_config::{configs::da_client::celestia::CelestiaSecrets, CelestiaConfig};
 use zksync_da_client::DataAvailabilityClient;
 use zksync_da_clients::celestia::CelestiaClient;
-use zksync_eth_watch::{EthHttpQueryClient};
+use zksync_eth_watch::EthHttpQueryClient;
 
 use crate::{
     implementations::resources::{
-        da_client::DAClientResource, 
-        eth_interface::EthInterfaceResource,
+        da_client::DAClientResource, eth_interface::EthInterfaceResource,
     },
     wiring_layer::{WiringError, WiringLayer},
-    IntoContext, FromContext,
+    FromContext, IntoContext,
 };
 
 #[derive(Debug)]
@@ -46,7 +45,6 @@ impl WiringLayer for CelestiaWiringLayer {
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
-
         let eth_client = input.eth_client.0;
 
         let client: Box<dyn DataAvailabilityClient> =

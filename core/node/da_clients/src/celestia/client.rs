@@ -57,11 +57,10 @@ impl CelestiaClient {
             RawCelestiaClient::new(celestia_grpc_channel, private_key, config.chain_id.clone())
                 .expect("could not create Celestia client");
 
-        let eq_service_grpc_channel =
-            Endpoint::from_str(config.eq_service_url.clone().as_str())?
-                .timeout(time::Duration::from_millis(config.timeout_ms))
-                .connect()
-                .await?;
+        let eq_service_grpc_channel = Endpoint::from_str(config.eq_service_url.clone().as_str())?
+            .timeout(time::Duration::from_millis(config.timeout_ms))
+            .connect()
+            .await?;
         let eq_client = EqClient::new(eq_service_grpc_channel);
         Ok(Self {
             config,
@@ -122,8 +121,9 @@ impl DataAvailabilityClient for CelestiaClient {
     }
 
     async fn get_inclusion_data(&self, blob_id: &str) -> Result<Option<InclusionData>, DAError> {
-        let blob_id_struct = blob_id.parse::<BlobId>()
-        .map_err(to_non_retriable_da_error)?;
+        let blob_id_struct = blob_id
+            .parse::<BlobId>()
+            .map_err(to_non_retriable_da_error)?;
 
         let response = self
             .eq_client
