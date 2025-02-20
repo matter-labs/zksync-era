@@ -8,7 +8,7 @@ use crate::{
     cluster_types::{Cluster, Clusters, PodStatus},
     config::QueueReportFields,
     key::Key,
-    metrics::AUTOSCALER_METRICS,
+    metrics::{AdditionalKey, JobLabels, AUTOSCALER_METRICS},
 };
 
 const DEFAULT_SPEED: usize = 500;
@@ -200,7 +200,7 @@ impl<K: Key> Scaler<K> {
         (queue + speed - 1) / speed * speed
     }
 
-    pub fn run(
+    pub fn calculate(
         &self,
         namespace: &str,
         queue: u64,
@@ -340,7 +340,7 @@ impl<K: Key> Scaler<K> {
 pub trait ScalerTrait {
     fn deployment(&self) -> String;
     fn queue_report_field(&self) -> QueueReportFields;
-    fn run_diff(
+    fn run(
         &self,
         namespace: &str,
         queue: u64,
@@ -357,23 +357,32 @@ impl<K: Key> ScalerTrait for Scaler<K> {
         self.queue_report_field
     }
 
-    fn run_diff(
+    fn run(
         &self,
         namespace: &str,
         queue: u64,
         clusters: &Clusters,
         requests: &mut HashMap<String, ScaleRequest>,
     ) {
-        let replicas = self.run(namespace, queue, clusters);
+        let replicas = self.calculate(namespace, queue, clusters);
         for (k, num) in &replicas {
-            match k.key.gpu() {
-                Some(gpu) => AUTOSCALER_METRICS.provers
-                    [&(k.cluster.clone(), namespace.into(), gpu)]
-                    .set(*num as u64),
-                None => AUTOSCALER_METRICS.jobs
-                    [&(self.deployment.clone(), k.cluster.clone(), namespace.into())]
-                    .set(*num as u64),
+            let labels = JobLabels {
+                job: self.deployment.clone(),
+                target_cluster: k.cluster.clone(),
+                target_namespace: namespace.into(),
+                key: match k.key.gpu() {
+                    Some(gpu) => AdditionalKey::Gpu(gpu),
+                    None => AdditionalKey::No(),
+                },
             };
+            AUTOSCALER_METRICS.jobs[&labels].set(*num as u64);
+
+            if self.queue_report_field == QueueReportFields::prover_jobs {
+                // TODO: Remove after migration to jobs metric.
+                AUTOSCALER_METRICS.provers
+                    [&(k.cluster.clone(), namespace.into(), k.key.gpu().unwrap())]
+                    .set(*num as u64);
+            }
         }
         self.diff(namespace, replicas, clusters, requests);
     }
@@ -406,7 +415,7 @@ mod tests {
         );
 
         assert_eq!(
-            scaler.run(
+            scaler.calculate(
                 "prover",
                 1499,
                 &Clusters {
@@ -451,7 +460,7 @@ mod tests {
             "3 new provers"
         );
         assert_eq!(
-            scaler.run(
+            scaler.calculate(
                 "prover",
                 499,
                 &Clusters {
@@ -548,7 +557,7 @@ mod tests {
         );
 
         assert_eq!(
-            scaler.run(
+            scaler.calculate(
                 "prover",
                 10,
                 &Clusters {
@@ -614,7 +623,7 @@ mod tests {
             "Min 2 provers, non running"
         );
         assert_eq!(
-            scaler.run(
+            scaler.calculate(
                 "prover",
                 0,
                 &Clusters {
@@ -747,7 +756,7 @@ mod tests {
         );
 
         assert_eq!(
-            scaler.run(
+            scaler.calculate(
                 "prover",
                 1400,
                 &Clusters {
@@ -867,7 +876,7 @@ mod tests {
         );
 
         assert_eq!(
-            scaler.run(
+            scaler.calculate(
                 "prover",
                 24,
                 &Clusters {
@@ -935,7 +944,7 @@ mod tests {
             "3 new provers"
         );
         assert_eq!(
-            scaler.run(
+            scaler.calculate(
                 "prover",
                 9,
                 &Clusters {

@@ -1,6 +1,21 @@
-use vise::{Counter, Gauge, LabeledFamily, Metrics};
+use strum_macros::Display;
+use vise::{Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, LabeledFamily, Metrics};
 
 use crate::key::Gpu;
+
+#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue)]
+pub(crate) enum AdditionalKey {
+    No(),
+    Gpu(Gpu),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, EncodeLabelSet)]
+pub(crate) struct JobLabels {
+    pub job: String,
+    pub target_cluster: String,
+    pub target_namespace: String,
+    pub key: AdditionalKey,
+}
 
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "autoscaler")]
@@ -9,8 +24,7 @@ pub(crate) struct AutoscalerMetrics {
     pub prover_protocol_version: LabeledFamily<(String, String), Gauge<usize>, 2>,
     #[metrics(labels = ["target_cluster", "target_namespace", "gpu"])]
     pub provers: LabeledFamily<(String, String, Gpu), Gauge<u64>, 3>,
-    #[metrics(labels = ["job", "target_cluster", "target_namespace"])]
-    pub jobs: LabeledFamily<(String, String, String), Gauge<u64>, 3>,
+    pub jobs: Family<JobLabels, Gauge<u64>>,
     pub clusters_not_ready: Counter,
     #[metrics(labels = ["target", "status"])]
     pub calls: LabeledFamily<(String, u16), Counter, 2>,

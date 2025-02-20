@@ -39,7 +39,7 @@ impl Manager {
             });
 
         let mut scalers: Vec<Box<dyn ScalerTrait + Sync + Send>> = Vec::default();
-        let mut jobs = vec![];
+        let mut jobs = Vec::default();
         for c in &config.scaler_targets {
             jobs.push(c.queue_report_field);
             match c.scaler_target_type {
@@ -123,7 +123,7 @@ impl Task for Manager {
                         scaler.deployment()
                     );
                     if q > 0 || is_namespace_running(ns, &guard.clusters) {
-                        scaler.run_diff(ns, q, &guard.clusters, &mut scale_requests);
+                        scaler.run(ns, q, &guard.clusters, &mut scale_requests);
                     }
                 }
             }
