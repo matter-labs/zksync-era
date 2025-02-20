@@ -11,8 +11,6 @@ use celestia_types::{blob::Commitment, nmt::Namespace, AppVersion, Blob, Height}
 use subxt_signer::ExposeSecret;
 use tonic::transport::Endpoint;
 use zksync_basic_types::ethabi::decode;
-use zksync_basic_types::ethabi::{Contract, Event, ParamType, RawTopicFilter};
-use zksync_basic_types::web3::{BlockNumber, Filter, FilterBuilder, Log};
 use zksync_basic_types::{H256, U256};
 use zksync_config::configs::da_client::celestia::{CelestiaConfig, CelestiaSecrets};
 use zksync_da_client::{
@@ -25,20 +23,14 @@ use zksync_eth_client::{
 };
 use zksync_basic_types::web3::{Log, Filter, BlockNumber, FilterBuilder};
 use zksync_basic_types::ethabi::{Contract, Event, ParamType, RawTopicFilter};
-use zksync_basic_types::ethabi::decode;
-use zksync_basic_types::{U256, H256};
+use zksync_basic_types::{U256};
 
 use crate::{
     celestia::sdk::{BlobTxHash, RawCelestiaClient},
     utils::{to_non_retriable_da_error, to_retriable_da_error},
 };
 
-use eq_sdk::{
-    get_keccak_inclusion_response::{
-        ResponseValue as InclusionResponseValue, Status as InclusionResponseStatus,
-    },
-    BlobId, EqClient,
-};
+use eq_sdk::{EqClient, types::BlobId};
 
 /// An implementation of the `DataAvailabilityClient` trait that interacts with the Celestia network.
 #[derive(Clone)]
