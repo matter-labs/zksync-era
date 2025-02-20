@@ -56,6 +56,7 @@ pub struct Scaler<K> {
 }
 
 impl<K: Key> Scaler<K> {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         queue_report_field: QueueReportFields,
         deployment: String,
@@ -78,7 +79,7 @@ impl<K: Key> Scaler<K> {
         }
     }
 
-    fn convert_to_pool(&self, namespace: &String, cluster: &Cluster) -> Vec<Pool<K>> {
+    fn convert_to_pool(&self, namespace: &str, cluster: &Cluster) -> Vec<Pool<K>> {
         let Some(namespace_value) = &cluster.namespaces.get(namespace) else {
             // No namespace in config, ignoring.
             return vec![];
@@ -149,7 +150,7 @@ impl<K: Key> Scaler<K> {
         pool_map.into_values().collect()
     }
 
-    fn sorted_clusters(&self, namespace: &String, clusters: &Clusters) -> Vec<Pool<K>> {
+    fn sorted_clusters(&self, namespace: &str, clusters: &Clusters) -> Vec<Pool<K>> {
         let mut pools: Vec<Pool<K>> = clusters
             .clusters
             .values()
@@ -201,7 +202,7 @@ impl<K: Key> Scaler<K> {
 
     pub fn run(
         &self,
-        namespace: &String,
+        namespace: &str,
         queue: u64,
         clusters: &Clusters,
     ) -> HashMap<PoolKey<K>, usize> {
@@ -214,7 +215,7 @@ impl<K: Key> Scaler<K> {
 
         // Increase queue size, if it's too small, to make sure that required min_replicas are
         // running.
-        let queue: usize = if self.apply_min_to_namespace.as_deref() == Some(namespace.as_str()) {
+        let queue: usize = if self.apply_min_to_namespace.as_deref() == Some(namespace) {
             self.normalize_queue(K::default(), queue as usize)
                 .max(self.pods_to_speed(K::default(), self.min_replicas))
         } else {
@@ -341,7 +342,7 @@ pub trait ScalerTrait {
     fn queue_report_field(&self) -> QueueReportFields;
     fn run_diff(
         &self,
-        namespace: &String,
+        namespace: &str,
         queue: u64,
         clusters: &Clusters,
         requests: &mut HashMap<String, ScaleRequest>,
@@ -358,7 +359,7 @@ impl<K: Key> ScalerTrait for Scaler<K> {
 
     fn run_diff(
         &self,
-        namespace: &String,
+        namespace: &str,
         queue: u64,
         clusters: &Clusters,
         requests: &mut HashMap<String, ScaleRequest>,
@@ -367,13 +368,10 @@ impl<K: Key> ScalerTrait for Scaler<K> {
         for (k, num) in &replicas {
             match k.key.gpu() {
                 Some(gpu) => AUTOSCALER_METRICS.provers
-                    [&(k.cluster.clone(), namespace.clone(), gpu)]
+                    [&(k.cluster.clone(), namespace.into(), gpu)]
                     .set(*num as u64),
-                None => AUTOSCALER_METRICS.jobs[&(
-                    self.deployment.clone(),
-                    k.cluster.clone(),
-                    namespace.clone(),
-                )]
+                None => AUTOSCALER_METRICS.jobs
+                    [&(self.deployment.clone(), k.cluster.clone(), namespace.into())]
                     .set(*num as u64),
             };
         }
@@ -409,7 +407,7 @@ mod tests {
 
         assert_eq!(
             scaler.run(
-                &"prover".into(),
+                "prover",
                 1499,
                 &Clusters {
                     clusters: [(
@@ -454,7 +452,7 @@ mod tests {
         );
         assert_eq!(
             scaler.run(
-                &"prover".into(),
+                "prover",
                 499,
                 &Clusters {
                     clusters: [
@@ -551,7 +549,7 @@ mod tests {
 
         assert_eq!(
             scaler.run(
-                &"prover".into(),
+                "prover",
                 10,
                 &Clusters {
                     clusters: [
@@ -617,7 +615,7 @@ mod tests {
         );
         assert_eq!(
             scaler.run(
-                &"prover".into(),
+                "prover",
                 0,
                 &Clusters {
                     clusters: [
@@ -750,7 +748,7 @@ mod tests {
 
         assert_eq!(
             scaler.run(
-                &"prover".into(),
+                "prover",
                 1400,
                 &Clusters {
                     clusters: [
@@ -870,7 +868,7 @@ mod tests {
 
         assert_eq!(
             scaler.run(
-                &"prover".into(),
+                "prover",
                 24,
                 &Clusters {
                     clusters: [(
@@ -938,7 +936,7 @@ mod tests {
         );
         assert_eq!(
             scaler.run(
-                &"prover".into(),
+                "prover",
                 9,
                 &Clusters {
                     clusters: [
