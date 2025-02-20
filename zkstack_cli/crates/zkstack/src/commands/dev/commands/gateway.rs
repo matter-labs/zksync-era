@@ -269,8 +269,11 @@ pub async fn check_chain_readiness(
     l1_rpc_url: String,
     l2_rpc_url: String,
     l2_chain_id: u64,
+    skip_token_checks: bool,
 ) -> anyhow::Result<()> {
-    check_token_readiness(l2_rpc_url.clone(), l2_chain_id).await?;
+    if !skip_token_checks {
+        check_token_readiness(l2_rpc_url.clone(), l2_chain_id).await?;
+    }
 
     let l1_provider = match Provider::<Http>::try_from(&l1_rpc_url) {
         Ok(provider) => provider,
@@ -825,6 +828,8 @@ pub struct GatewayUpgradeCalldataArgs {
     dangerous_no_cross_check: Option<bool>,
     #[clap(long, default_missing_value = "false")]
     force_display_finalization_params: Option<bool>,
+    #[clap(long, default_missing_value = "false")]
+    skip_tokens_checks: Option<bool>,
 }
 
 pub struct GatewayUpgradeArgsInner {
@@ -920,6 +925,7 @@ pub(crate) async fn run(shell: &Shell, args: GatewayUpgradeCalldataArgs) -> anyh
             args.l1_rpc_url.clone(),
             args.l2_rpc_url.clone(),
             args.chain_id,
+            args.skip_tokens_checks.unwrap_or_default(),
         )
         .await;
 

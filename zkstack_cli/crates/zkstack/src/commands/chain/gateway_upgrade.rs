@@ -265,6 +265,7 @@ async fn finalize_stage1(
         l1_url.clone(),
         general_config.get("api.web3_json_rpc.http_url")?,
         chain_config.chain_id.as_u64(),
+        true,
     )
     .await?;
 
