@@ -1,20 +1,14 @@
-use strum_macros::Display;
-use vise::{Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, LabeledFamily, Metrics};
+use vise::{Counter, EncodeLabelSet, Family, Gauge, LabeledFamily, Metrics};
 
 use crate::key::Gpu;
-
-#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue)]
-pub(crate) enum AdditionalKey {
-    No(),
-    Gpu(Gpu),
-}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, EncodeLabelSet)]
 pub(crate) struct JobLabels {
     pub job: String,
     pub target_cluster: String,
     pub target_namespace: String,
-    pub key: AdditionalKey,
+    #[metrics(skip = Gpu::is_unknown)]
+    pub gpu: Gpu,
 }
 
 #[derive(Debug, Metrics)]

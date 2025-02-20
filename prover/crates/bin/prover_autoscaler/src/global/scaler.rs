@@ -7,8 +7,8 @@ use crate::{
     agent::{ScaleDeploymentRequest, ScaleRequest},
     cluster_types::{Cluster, Clusters, PodStatus},
     config::QueueReportFields,
-    key::Key,
-    metrics::{AdditionalKey, JobLabels, AUTOSCALER_METRICS},
+    key::{Gpu, Key},
+    metrics::{JobLabels, AUTOSCALER_METRICS},
 };
 
 const DEFAULT_SPEED: usize = 500;
@@ -370,9 +370,9 @@ impl<K: Key> ScalerTrait for Scaler<K> {
                 job: self.deployment.clone(),
                 target_cluster: k.cluster.clone(),
                 target_namespace: namespace.into(),
-                key: match k.key.gpu() {
-                    Some(gpu) => AdditionalKey::Gpu(gpu),
-                    None => AdditionalKey::No(),
+                gpu: match k.key.gpu() {
+                    Some(gpu) => gpu,
+                    None => Gpu::Unknown,
                 },
             };
             AUTOSCALER_METRICS.jobs[&labels].set(*num as u64);

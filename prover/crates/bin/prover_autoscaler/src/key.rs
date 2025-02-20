@@ -35,6 +35,12 @@ pub enum Gpu {
     A100,
 }
 
+impl Gpu {
+    pub fn is_unknown(&self) -> bool {
+        *self == Self::Unknown
+    }
+}
+
 pub trait Key: Eq + Ord + Hash + Copy + Debug + Default {
     fn new(deployment_prefix: &str, deployment: &str) -> Option<Self>;
     fn to_deployment(&self, deployment_prefix: &str) -> String;
