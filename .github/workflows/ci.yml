@@ -72,7 +72,6 @@ jobs:
               - 'bin/**'
               - 'etc/**'
               - 'contracts/**'
-              - 'contracts'
               - 'infrastructure/zk/**'
               - 'docker/zk-environment/**'
               - '!**/*.md'
