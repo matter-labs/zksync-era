@@ -26,6 +26,7 @@ impl ArtifactsManager for LeafAggregation {
         object_store: &dyn ObjectStore,
     ) -> anyhow::Result<Self::InputArtifacts> {
         let key = ClosedFormInputKey {
+            chain_id: metadata.chain_id,
             block_number: metadata.block_number,
             circuit_id: metadata.circuit_id,
         };

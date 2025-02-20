@@ -5,13 +5,12 @@ use chrono::{DateTime, Duration, NaiveDateTime, NaiveTime, Utc};
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
 
-use crate::{
-    basic_fri_types::AggregationRound, protocol_version::ProtocolVersionId, L1BatchNumber,
-};
+use crate::{basic_fri_types::AggregationRound, protocol_version::ProtocolVersionId, L1BatchNumber, L2ChainId};
 
 #[derive(Debug, Clone, Copy)]
 pub struct FriProverJobMetadata {
     pub id: u32,
+    pub chain_id: L2ChainId,
     pub block_number: L1BatchNumber,
     pub circuit_id: u8,
     pub aggregation_round: AggregationRound,
@@ -106,6 +105,7 @@ impl From<std::net::SocketAddr> for SocketAddress {
 #[derive(Debug, Clone)]
 pub struct LeafAggregationJobMetadata {
     pub id: u32,
+    pub chain_id: L2ChainId,
     pub block_number: L1BatchNumber,
     pub circuit_id: u8,
     pub prover_job_ids_for_proofs: Vec<u32>,
@@ -114,6 +114,7 @@ pub struct LeafAggregationJobMetadata {
 #[derive(Debug, Clone)]
 pub struct NodeAggregationJobMetadata {
     pub id: u32,
+    pub chain_id: L2ChainId,
     pub block_number: L1BatchNumber,
     pub circuit_id: u8,
     pub depth: u16,
