@@ -4,7 +4,6 @@ use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{Connection, Prover, ProverDal};
 use zksync_prover_fri_types::{
     circuit_definitions::{
-        boojum::gadgets::queue::full_state_queue::FullStateCircuitQueueRawWitness,
         circuit_definitions::{
             base_layer::ZkSyncBaseLayerCircuit,
             recursion_layer::{
@@ -73,6 +72,7 @@ pub async fn fetch_next_circuit(
         a @ CircuitWrapper::Base(_) => a,
         a @ CircuitWrapper::Recursive(_) => a,
         CircuitWrapper::BasePartial((circuit, aux_data)) => {
+            // TODO should be removed
             // inject additional data
             if let ZkSyncBaseLayerCircuit::RAMPermutation(circuit_instance) = circuit {
                 let sorted_witness_key = RamPermutationQueueWitnessKey {
@@ -97,12 +97,16 @@ pub async fn fetch_next_circuit(
                     sorted_witness_handle.await.unwrap();
 
                 let mut witness = circuit_instance.witness.take().unwrap();
-                witness.unsorted_queue_witness = FullStateCircuitQueueRawWitness {
-                    elements: unsorted_witness.witness.into(),
-                };
-                witness.sorted_queue_witness = FullStateCircuitQueueRawWitness {
-                    elements: sorted_witness.witness.into(),
-                };
+                witness.unsorted_queue_witness = unsorted_witness
+                    .witness
+                    .into_iter()
+                    .map(|(wit, _)| wit)
+                    .collect();
+                witness.sorted_queue_witness = sorted_witness
+                    .witness
+                    .into_iter()
+                    .map(|(wit, _)| wit)
+                    .collect();
                 circuit_instance.witness.store(Some(witness));
 
                 CircuitWrapper::Base(ZkSyncBaseLayerCircuit::RAMPermutation(circuit_instance))

@@ -60,7 +60,7 @@ pub(crate) fn mock_genesis_params(protocol_version: ProtocolVersionId) -> Genesi
     GenesisParams::from_genesis_config(
         cfg,
         BaseSystemContracts::load_from_disk(),
-        get_system_smart_contracts(false),
+        get_system_smart_contracts(),
     )
     .unwrap()
 }
