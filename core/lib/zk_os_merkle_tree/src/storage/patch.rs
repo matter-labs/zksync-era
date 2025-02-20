@@ -113,16 +113,31 @@ pub(crate) struct FinalTreeUpdate {
 }
 
 impl PartialPatchSet {
-    fn update_ancestor_versions<P: TreeParams>(&mut self, leaf_idx: u64, version: u64) {
-        let mut idx = leaf_idx;
+    /// Updates ancestor's `ChildRef` version for all loaded internal nodes. This should be called before adding new leaves
+    /// to the tree; it works because the loaded leaves are exactly the leaves for which ancestor versions must be updated.
+    fn update_ancestor_versions<P: TreeParams>(&mut self, version: u64) {
+        let mut indices: Vec<_> = self.leaves.keys().copied().collect();
+        indices.sort_unstable();
+
         for internal_level in self.internal.iter_mut().rev() {
-            let parent = internal_level
-                .get_mut(&(idx >> P::INTERNAL_NODE_DEPTH))
-                .unwrap();
-            parent
-                .child_mut((idx % u64::from(max_node_children::<P>())) as usize)
-                .version = version;
-            idx >>= P::INTERNAL_NODE_DEPTH;
+            let mut prev_index = None;
+            indices = indices
+                .into_iter()
+                .filter_map(|idx| {
+                    let parent_idx = idx >> P::INTERNAL_NODE_DEPTH;
+                    let parent = internal_level.get_mut(&parent_idx).unwrap();
+                    parent
+                        .child_mut((idx % u64::from(max_node_children::<P>())) as usize)
+                        .version = version;
+
+                    if prev_index == Some(parent_idx) {
+                        None
+                    } else {
+                        prev_index = Some(parent_idx);
+                        Some(parent_idx)
+                    }
+                })
+                .collect();
         }
     }
 }
@@ -338,11 +353,10 @@ impl<P: TreeParams> WorkingPatchSet<P> {
     pub(crate) fn update(&mut self, update: TreeUpdate) -> FinalTreeUpdate {
         let this = &mut self.inner;
         let version = update.version;
+        this.update_ancestor_versions::<P>(version);
+
         for (idx, value) in update.updates {
             this.leaves.get_mut(&idx).unwrap().value = value;
-
-            // FIXME: inefficient (should batch-update versions for all leaves before anything else)
-            this.update_ancestor_versions::<P>(idx, version);
         }
 
         if !update.inserts.is_empty() {
@@ -357,13 +371,11 @@ impl<P: TreeParams> WorkingPatchSet<P> {
                 let prev_idx = new_leaf.prev_index;
                 if let Some(prev_leaf) = this.leaves.get_mut(&prev_idx) {
                     prev_leaf.next_index = idx;
-                    this.update_ancestor_versions::<P>(prev_idx, version);
                 }
 
                 let next_idx = new_leaf.next_index;
                 if let Some(next_leaf) = this.leaves.get_mut(&next_idx) {
                     next_leaf.prev_index = idx;
-                    this.update_ancestor_versions::<P>(next_idx, version);
                 }
             }
 
@@ -402,8 +414,6 @@ impl<P: TreeParams> WorkingPatchSet<P> {
                 });
                 internal_level.extend(new_nodes);
             }
-
-            this.update_ancestor_versions::<P>(first_new_idx, version);
         }
 
         FinalTreeUpdate {
