@@ -4,7 +4,7 @@ use zksync_basic_types::secrets::PrivateKey;
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct CelestiaConfig {
     pub api_node_url: String,
-    pub integration_service_url: String,
+    pub eq_service_url: String,
     pub namespace: String,
     pub chain_id: String,
     pub timeout_ms: u64,

@@ -12,7 +12,6 @@ categories.workspace = true
 
 [dependencies]
 serde = { workspace = true, features = ["derive"] }
-eq-common = { path = "../../../../eq-service/common", features = ["service"] }
 tracing.workspace = true
 async-trait.workspace = true
 anyhow.workspace = true
@@ -44,6 +43,7 @@ backon.workspace = true
 url.workspace = true
 
 # Celestia dependencies
+eq-sdk = { path = "../../../../celestia/eq-service/sdk", package = "eq-sdk" }
 http.workspace = true
 bincode.workspace = true
 celestia-types.workspace = true

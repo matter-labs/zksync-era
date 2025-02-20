@@ -579,7 +579,7 @@ fn new_msg_pay_for_blobs(blobs: &[Blob], signer: String) -> anyhow::Result<MsgPa
     for blob in blobs {
         blob_sizes.push(blob.data.len());
         namespaces.push(Bytes::from(blob.namespace.as_bytes().to_vec()));
-        share_commitments.push(Bytes::from(blob.commitment.0.to_vec()));
+        share_commitments.push(Bytes::from(blob.commitment.hash().to_vec()));
         share_versions.push(u32::from(blob.share_version));
     }
 
