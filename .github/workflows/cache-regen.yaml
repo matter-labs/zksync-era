@@ -22,8 +22,8 @@ jobs:
       matrix:
         workspace:
           - core
-          - prover
-          - zkstack_cli
+#          - prover
+#          - zkstack_cli
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -39,9 +39,8 @@ jobs:
       - name: Generate cache
         working-directory: ${{ matrix.workspace }}
         run: |
-          # cargo build --release
-          cargo nextest run --no-run --release
-          # cargo clippy
+          cargo build
+          cargo nextest run --no-run
 
 #  cache-regen-full:
 #    runs-on: matterlabs-ci-runner-highmem-long

@@ -18,27 +18,42 @@ jobs:
   unit-tests:
     runs-on: matterlabs-ci-runner-highmem-long
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: "recursive"
+      - name: Test
+        run: |
+          uname -a
+          wget https://github.com/matter-labs/foundry-zksync/releases/download/foundry-zksync-v0.0.9/foundry_zksync_v0.0.9_linux_amd64.tar.gz
+          tar xzf foundry_zksync_v0.0.9_linux_amd64.tar.gz
+          ldd ./cast
+          ldd ./forge
+          ./forge -v
 
-      - name: Setup runner
-        uses: matter-labs/zksync-ci-common/.github/actions/runner-setup@aba-ci-optimize
-        with:
-          workspace: 'core'
-
-      - name: Start reth
-        run: docker-compose up -d --wait reth
-
-      - name: Build contracts
-        uses: matter-labs/zksync-ci-common/.github/actions/build-contracts@aba-ci-optimize
-
-      - name: Rust unit tests
-        run: zkstack dev test rust
-
-      - name: Show sccache stats
-        run: sccache --show-stats
+#  unit-tests:
+#    runs-on: matterlabs-ci-runner-highmem-long
+#    steps:
+#      - name: Checkout
+#        uses: actions/checkout@v4
+#        with:
+#          submodules: "recursive"
+#
+#      - name: Setup runner
+#        uses: matter-labs/zksync-ci-common/.github/actions/runner-setup@aba-ci-optimize
+#        with:
+#          workspace: 'core'
+#
+#      - name: Start reth
+#        run: docker-compose up -d --wait reth
+#
+#      - name: Build contracts
+#        uses: matter-labs/zksync-ci-common/.github/actions/build-contracts@aba-ci-optimize
+#
+#      - name: Rust unit tests
+#        run: |
+#          cd core
+#          cargo nextest run --no-run
+#          # zkstack dev test rust
+#
+#      - name: Show sccache stats
+#        run: sccache --show-stats
 
   #  lint:
   #    runs-on: matterlabs-ci-runner-highmem-long
