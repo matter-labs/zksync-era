@@ -100,7 +100,7 @@ async fn main() -> anyhow::Result<()> {
         base_system_contract_hashes,
         genesis_config
             .protocol_version
-            .ok_or(anyhow::anyhow!("No bootloader_hash specified"))?
+            .ok_or(anyhow::anyhow!("No bootloader_hash specified at all"))?
             .minor,
     );
 
