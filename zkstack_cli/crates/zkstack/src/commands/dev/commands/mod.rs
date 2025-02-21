@@ -2,6 +2,7 @@ pub mod clean;
 pub mod config_writer;
 pub mod contracts;
 pub mod database;
+pub(crate) mod events_gatherer;
 pub mod fmt;
 #[cfg(feature = "gateway")]
 pub mod gateway;
