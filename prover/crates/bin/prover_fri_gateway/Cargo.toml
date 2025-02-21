@@ -21,12 +21,12 @@ zksync_prover_interface.workspace = true
 zksync_task_management.workspace = true
 zksync_vlog.workspace = true
 
+jsonrpsee = { workspace = true, features = ["server", "macros", "client-ws-transport-tls"]}
 anyhow.workspace = true
 tracing.workspace = true
 reqwest = { workspace = true, features = ["blocking"] }
 tokio = { workspace = true, features = ["time", "macros"] }
 ctrlc = { workspace = true, features = ["termination"] }
-async-trait.workspace = true
 futures = { workspace = true, features = ["compat"] }
 serde = { workspace = true, features = ["derive"] }
 log.workspace = true
