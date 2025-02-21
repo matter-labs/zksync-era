@@ -87,7 +87,7 @@ async fn main() -> anyhow::Result<()> {
     let base_system_contract_hashes = BaseSystemContractsHashes {
         bootloader: genesis_config
             .bootloader_hash
-            .ok_or(anyhow::anyhow!("No bootloader_hash specified"))?,
+            .ok_or(anyhow::anyhow!("No bootloader_hash specified at all"))?,
         default_aa: genesis_config
             .default_aa_hash
             .ok_or(anyhow::anyhow!("No default_aa_hash specified"))?,
