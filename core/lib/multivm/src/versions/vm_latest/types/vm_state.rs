@@ -135,7 +135,7 @@ pub(crate) fn new_vm_state<S: WriteStorage, H: HistoryMode>(
             evm_emulator_code_hash: h256_to_u256(evm_emulator_code_hash),
             zkporter_is_available: system_env.zk_porter_available,
         },
-        if subversion < MultiVmSubversion::ProtocolVersion27 {
+        if subversion < MultiVmSubversion::EvmEmulator {
             Version::Initial
         } else {
             Version::Version27

@@ -179,7 +179,7 @@ pub(crate) fn apply_pubdata_to_memory(
 
             (l1_messenger_pubdata_start_slot, pubdata)
         }
-        MultiVmSubversion::Gateway | MultiVmSubversion::ProtocolVersion27 => {
+        MultiVmSubversion::Gateway | MultiVmSubversion::EvmEmulator => {
             // Skipping the first slot as it will be filled by the bootloader itself:
             // It is for the selector of the call to the L1Messenger.
             let l1_messenger_pubdata_start_slot =

@@ -42,26 +42,28 @@ pub(crate) enum MultiVmSubversion {
     IncreasedBootloaderMemory,
     /// VM for post-gateway versions.
     Gateway,
-    ProtocolVersion27,
+    EvmEmulator,
 }
 
 impl MultiVmSubversion {
     #[cfg(test)]
     pub(crate) fn latest() -> Self {
-        Self::Gateway
+        Self::EvmEmulator
     }
 }
 
 #[derive(Debug)]
 pub(crate) struct VmVersionIsNotVm150Error;
+
 impl TryFrom<VmVersion> for MultiVmSubversion {
     type Error = VmVersionIsNotVm150Error;
+
     fn try_from(value: VmVersion) -> Result<Self, Self::Error> {
         match value {
             VmVersion::Vm1_5_0SmallBootloaderMemory => Ok(Self::SmallBootloaderMemory),
             VmVersion::Vm1_5_0IncreasedBootloaderMemory => Ok(Self::IncreasedBootloaderMemory),
             VmVersion::VmGateway => Ok(Self::Gateway),
-            VmVersion::VmEvmEmulator => Ok(Self::ProtocolVersion27),
+            VmVersion::VmEvmEmulator => Ok(Self::EvmEmulator),
             _ => Err(VmVersionIsNotVm150Error),
         }
     }

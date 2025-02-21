@@ -273,11 +273,12 @@ pub fn get_bootloader_encoding_space(version: VmVersion) -> u32 {
                 crate::vm_latest::MultiVmSubversion::IncreasedBootloaderMemory,
             )
         }
-        VmVersion::VmGateway | VmVersion::VmEvmEmulator => {
-            crate::vm_latest::constants::get_bootloader_tx_encoding_space(
-                crate::vm_latest::MultiVmSubversion::Gateway,
-            )
-        }
+        VmVersion::VmGateway => crate::vm_latest::constants::get_bootloader_tx_encoding_space(
+            crate::vm_latest::MultiVmSubversion::Gateway,
+        ),
+        VmVersion::VmEvmEmulator => crate::vm_latest::constants::get_bootloader_tx_encoding_space(
+            crate::vm_latest::MultiVmSubversion::EvmEmulator,
+        ),
     }
 }
 
@@ -435,11 +436,12 @@ pub fn get_used_bootloader_memory_bytes(version: VmVersion) -> usize {
                 crate::vm_latest::MultiVmSubversion::IncreasedBootloaderMemory,
             )
         }
-        VmVersion::VmGateway | VmVersion::VmEvmEmulator => {
-            crate::vm_latest::constants::get_used_bootloader_memory_bytes(
-                crate::vm_latest::MultiVmSubversion::Gateway,
-            )
-        }
+        VmVersion::VmGateway => crate::vm_latest::constants::get_used_bootloader_memory_bytes(
+            crate::vm_latest::MultiVmSubversion::Gateway,
+        ),
+        VmVersion::VmEvmEmulator => crate::vm_latest::constants::get_used_bootloader_memory_bytes(
+            crate::vm_latest::MultiVmSubversion::EvmEmulator,
+        ),
     }
 }
 
