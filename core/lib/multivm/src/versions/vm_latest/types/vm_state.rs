@@ -2,7 +2,7 @@ use circuit_sequencer_api::INITIAL_MONOTONIC_CYCLE_COUNTER;
 use zk_evm_1_5_0::{
     aux_structures::{MemoryPage, PubdataCost, Timestamp},
     block_properties::BlockProperties,
-    vm_state::{CallStackEntry, PrimitiveValue, VmState},
+    vm_state::{CallStackEntry, PrimitiveValue, Version, VmState},
     witness_trace::DummyTracer,
     zkevm_opcode_defs::{
         system_params::{BOOTLOADER_MAX_MEMORY, INITIAL_FRAME_FORMAL_EH_LOCATION},
@@ -32,6 +32,7 @@ use crate::{
         },
         oracles::storage::StorageOracle,
         utils::l2_blocks::{assert_next_block, load_last_l2_block},
+        MultiVmSubversion,
     },
 };
 
@@ -63,6 +64,7 @@ pub(crate) fn new_vm_state<S: WriteStorage, H: HistoryMode>(
     storage: StoragePtr<S>,
     system_env: &SystemEnv,
     l1_batch_env: &L1BatchEnv,
+    subversion: MultiVmSubversion,
 ) -> (ZkSyncVmState<S, H>, BootloaderState) {
     let last_l2_block = if let Some(last_l2_block) = load_last_l2_block(&storage) {
         last_l2_block
@@ -130,8 +132,13 @@ pub(crate) fn new_vm_state<S: WriteStorage, H: HistoryMode>(
             default_aa_code_hash: h256_to_u256(
                 system_env.base_system_smart_contracts.default_aa.hash,
             ),
-            evm_simulator_code_hash: h256_to_u256(evm_emulator_code_hash),
+            evm_emulator_code_hash: h256_to_u256(evm_emulator_code_hash),
             zkporter_is_available: system_env.zk_porter_available,
+        },
+        if subversion < MultiVmSubversion::EvmEmulator {
+            Version::Initial
+        } else {
+            Version::Version27
         },
     );
 

@@ -31,10 +31,7 @@ to maximize usage.
 
 ### Job Picker
 
-Interacts with the database to get a job (as described above), loads the data from object store and then hydrates the
-circuit. In current implementation, Ram Permutation circuits are sent separately in order to save RAM in basic witness
-generation & reduce the amount of storage used by object store. A further optimization will be introduced later on,
-which will remove the necessity of witness hydration on circuits.
+Interacts with the database to get a job (as described above) and loads the data from object store.
 
 ### Executor
 
@@ -82,7 +79,7 @@ sequenceDiagram
     end
     wvg_p-->>db: Get job metadata
     wvg_p-->>os: Get circuit
-    wvg_p-->>wvg_p: Hydrate circuit & get finalization hints
+    wvg_p-->>wvg_p: Get finalization hints
     wvg_p-->>wvg_e: Provide metadata & circuit
     wvg_e-->>wvg_e: Synthesize witness vector
     wvg_e-->>wvg_s: Provide metadata & witness vector & circuit

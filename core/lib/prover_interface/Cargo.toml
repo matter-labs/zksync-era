@@ -19,10 +19,8 @@ zksync_types.workspace = true
 circuit_definitions.workspace = true
 fflonk.workspace = true
 bellman.workspace = true
-circuit_sequencer_api.workspace = true
 
 serde.workspace = true
-strum = { workspace = true, features = ["derive"] }
 serde_with = { workspace = true, features = ["base64", "hex"] }
 
 [dev-dependencies]
