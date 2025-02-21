@@ -127,7 +127,6 @@ impl ProtocolVersionId {
             ProtocolVersionId::Version27 => VmVersion::VmEvmEmulator,
 
             // Speculative VM version for the next protocol version to be used in the upgrade integration test etc.
-            // TODO: Must be changed when the protocol version is actually implemented!
             ProtocolVersionId::Version28 => VmVersion::VmEvmEmulator,
         }
     }
@@ -309,7 +308,6 @@ impl From<ProtocolVersionId> for VmVersion {
             ProtocolVersionId::Version27 => VmVersion::VmEvmEmulator,
 
             // Speculative VM version for the next protocol version to be used in the upgrade integration test etc.
-            // TODO: Must be changed when the protocol version is actually implemented!
             ProtocolVersionId::Version28 => VmVersion::VmEvmEmulator,
         }
     }
