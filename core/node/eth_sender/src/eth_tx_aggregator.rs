@@ -113,19 +113,6 @@ impl EthTxAggregator {
     ) -> Self {
         let eth_client = eth_client.for_component("eth_tx_aggregator");
         let functions = ZkSyncFunctions::default();
-        let base_nonce = eth_client.pending_nonce().await.unwrap().as_u64();
-
-        let base_nonce_custom_commit_sender = match custom_commit_sender_addr {
-            Some(addr) => Some(
-                (*eth_client)
-                    .as_ref()
-                    .nonce_at_for_account(addr, BlockNumber::Pending)
-                    .await
-                    .unwrap()
-                    .as_u64(),
-            ),
-            None => None,
-        };
 
         let gateway_migration_state =
             gateway_status(&mut pool.connection().await.unwrap(), eth_client.as_ref())
@@ -134,6 +121,25 @@ impl EthTxAggregator {
 
         let sl_chain_id = (*eth_client).as_ref().fetch_chain_id().await.unwrap();
 
+        let client = if gateway_migration_state.is_gateway() {
+            eth_gateway_client.as_ref().unwrap().as_ref()
+        } else {
+            eth_client.as_ref()
+        };
+
+        let base_nonce = client.pending_nonce().await.unwrap().as_u64();
+
+        let base_nonce_custom_commit_sender = match custom_commit_sender_addr {
+            Some(addr) => Some(
+                (*client)
+                    .as_ref()
+                    .nonce_at_for_account(addr, BlockNumber::Pending)
+                    .await
+                    .unwrap()
+                    .as_u64(),
+            ),
+            None => None,
+        };
         Self {
             config,
             aggregator,
@@ -197,7 +203,7 @@ impl EthTxAggregator {
             self.contracts().l1_multicall3_address,
             &self.functions.multicall_contract,
         );
-        let aggregate3_result: Token = args.call((*self.eth_client).as_ref()).await?;
+        let aggregate3_result: Token = args.call((*self.client()).as_ref()).await?;
         self.parse_multicall_data(aggregate3_result, evm_emulator_hash_requested)
     }
 
@@ -471,9 +477,9 @@ impl EthTxAggregator {
 
     fn client(&self) -> &dyn BoundEthInterface {
         if self.gateway_migration_state.is_gateway() {
-            self.eth_client.as_ref()
-        } else {
             self.eth_gateway_client.as_ref().unwrap().as_ref()
+        } else {
+            self.eth_client.as_ref()
         }
     }
 
@@ -544,13 +550,33 @@ impl EthTxAggregator {
         }
     }
 
+    async fn reset_nonce(&mut self) -> Result<(), EthSenderError> {
+        self.base_nonce = self.client().pending_nonce().await.unwrap().as_u64();
+
+        self.base_nonce_custom_commit_sender = match self.custom_commit_sender_addr {
+            Some(addr) => Some(
+                (*self.client())
+                    .as_ref()
+                    .nonce_at_for_account(addr, BlockNumber::Pending)
+                    .await
+                    .unwrap()
+                    .as_u64(),
+            ),
+            None => None,
+        };
+        Ok(())
+    }
+
     #[tracing::instrument(skip_all, name = "EthTxAggregator::loop_iteration")]
     async fn loop_iteration(
         &mut self,
         storage: &mut Connection<'_, Core>,
     ) -> Result<(), EthSenderError> {
-        self.gateway_migration_state = gateway_status(storage, self.eth_client.as_ref()).await?;
-
+        let new_gateway_state = gateway_status(storage, self.eth_client.as_ref()).await?;
+        if self.gateway_migration_state != new_gateway_state {
+            self.gateway_migration_state = new_gateway_state;
+            self.reset_nonce().await?;
+        }
         let priority_tree_start_index = if let Some(priority_tree_start_index) =
             self.priority_tree_start_index
         {

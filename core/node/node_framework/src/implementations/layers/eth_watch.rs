@@ -1,8 +1,7 @@
-use anyhow::Context;
 use zksync_config::{configs::gateway::GatewayChainConfig, ContractsConfig, EthWatchConfig};
 use zksync_contracts::{chain_admin_contract, gateway_migration_contract};
 use zksync_eth_watch::{EthHttpQueryClient, EthWatch, L2EthClient};
-use zksync_types::{settlement::SettlementMode, L2ChainId};
+use zksync_types::L2ChainId;
 
 use crate::{
     implementations::resources::{
@@ -24,7 +23,6 @@ pub struct EthWatchLayer {
     eth_watch_config: EthWatchConfig,
     contracts_config: ContractsConfig,
     gateway_chain_config: Option<GatewayChainConfig>,
-    // settlement_mode: SettlementMode,
     chain_id: L2ChainId,
 }
 
@@ -81,9 +79,8 @@ impl WiringLayer for EthWatchLayer {
         tracing::info!(
             "Diamond proxy address gateway settlement_layer: {:#?}",
             self.gateway_chain_config
-                .clone()
-                .context("Lacking `gateway_contracts_config`")?
-                .diamond_proxy_addr
+                .as_ref()
+                .map(|a| a.diamond_proxy_addr)
         );
 
         let l1_client = EthHttpQueryClient::new(

@@ -3,7 +3,6 @@ use std::sync::Arc;
 use zksync_config::configs::eth_sender::{ProofSendingMode, SenderConfig};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_eth_client::{BoundEthInterface, EthInterface};
 use zksync_l1_contract_interface::i_executor::methods::{ExecuteBatches, ProveBatches};
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_object_store::{ObjectStore, ObjectStoreError};
@@ -16,9 +15,7 @@ use zksync_types::{
     l1::L1Tx,
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     pubdata_da::PubdataSendingMode,
-    settlement::SettlementMode,
-    web3::CallRequest,
-    Address, L1BatchNumber, ProtocolVersionId, U256,
+    L1BatchNumber, ProtocolVersionId,
 };
 
 use super::{
