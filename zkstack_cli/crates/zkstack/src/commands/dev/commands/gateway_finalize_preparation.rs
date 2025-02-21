@@ -1,18 +1,6 @@
-use std::{
-    collections::HashSet,
-    fs::File,
-    io::{BufReader, BufWriter},
-    num::NonZeroUsize,
-    path::Path,
-    str::FromStr,
-    sync::Arc,
-    time::Duration,
-};
+use std::{collections::HashSet, str::FromStr, sync::Arc, time::Duration};
 
-use anyhow::Context;
 use clap::{Parser, ValueEnum};
-// get_list_of_tokens.rs
-use ethers::prelude::*;
 use ethers::{
     abi::{encode, parse_abi, Token},
     contract::{abigen, BaseContract},
@@ -20,40 +8,16 @@ use ethers::{
     utils::hex,
 };
 use lazy_static::lazy_static;
-use serde::{Deserialize, Serialize};
-use strum::EnumIter;
 use tokio::time::sleep;
 use xshell::Shell;
-use zkstack_cli_config::{
-    forge_interface::gateway_ecosystem_upgrade::output::GatewayEcosystemUpgradeOutput,
-    traits::{ReadConfig, ZkStackConfig},
-    ContractsConfig,
-};
-use zksync_contracts::{chain_admin_contract, hyperchain_contract, DIAMOND_CUT};
+use zkstack_cli_config::traits::ReadConfig;
 use zksync_types::{
-    ethabi, h256_to_address, h256_to_u256, u256_to_h256,
-    url::SensitiveUrl,
-    web3::{keccak256, Bytes},
-    Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, H256,
+    ethabi, h256_to_address, h256_to_u256, u256_to_h256, Address, H256,
     L2_NATIVE_TOKEN_VAULT_ADDRESS, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256,
 };
-use zksync_web3_decl::{
-    client::{Client, DynClient, L2},
-    namespaces::{UnstableNamespaceClient, ZksNamespaceClient},
-};
 
-use super::gateway::GatewayUpgradeInfo;
-
-/// Structure that we expect to read from / write to the existing cache file
-#[derive(Debug, Serialize, Deserialize)]
-struct Cache {
-    first_seen_block: u64,
-    last_seen_block: u64,
-    added_tokens: Vec<Address>,
-}
-
-/// How many blocks to process in one chunk
-const BLOCK_RANGE: u64 = 50_000;
+use super::{events_gatherer::get_logs_for_events, gateway::GatewayUpgradeInfo};
+use crate::commands::dev::commands::events_gatherer::DEFAULT_BLOCK_RANGE;
 
 /// This is the modified function that also accepts a `legacy_bridge_addr`.
 ///
@@ -73,26 +37,25 @@ pub async fn get_list_of_tokens(
     legacy_bridge_addr: Address,
     base_tokens: Vec<Address>,
 ) -> Vec<Address> {
-    // ---------------------------------------------------------
-    // 1. Read or initialize the cache
-    // ---------------------------------------------------------
-    let mut cache = read_cache_from_file(&existing_cache_path).unwrap_or_else(|| Cache {
-        first_seen_block: block_to_start_with,
-        last_seen_block: block_to_start_with,
-        added_tokens: vec![],
-    });
+    const BRIDGEHUB_EVENT: &'static str =
+        "BridgehubDepositInitiated(uint256,bytes32,address,address,address,uint256)";
+    const LEGACY_BRIDGE_EVENT: &'static str =
+        "DepositInitiated(bytes32,address,address,address,uint256)";
 
-    // If the cache file was found, check the condition about `first_seen_block`
-    if cache.first_seen_block > block_to_start_with {
-        // If the cache's first_seen_block is larger than our new start,
-        // clear the entire cache and reset.
-        cache.first_seen_block = block_to_start_with;
-        cache.last_seen_block = block_to_start_with;
-        cache.added_tokens.clear();
-    }
+    let queried_logs = get_logs_for_events(
+        block_to_start_with,
+        existing_cache_path,
+        l1_rpc_url,
+        DEFAULT_BLOCK_RANGE,
+        &[
+            (bridge_addr, BRIDGEHUB_EVENT, None),
+            (legacy_bridge_addr, LEGACY_BRIDGE_EVENT, None),
+        ],
+    )
+    .await;
 
     // We'll use a HashSet for tracking tokens to avoid duplicates easily
-    let mut discovered_tokens: HashSet<Address> = cache.added_tokens.iter().copied().collect();
+    let mut discovered_tokens: HashSet<Address> = Default::default();
 
     // Ensure that all base tokens are marked as discovered.
     for base_token in base_tokens {
@@ -101,65 +64,15 @@ pub async fn get_list_of_tokens(
 
     discovered_tokens.insert(SHARED_BRIDGE_ETHER_TOKEN_ADDRESS);
 
-    // ---------------------------------------------------------
-    // 2. Connect to a provider
-    // ---------------------------------------------------------
-    let provider =
-        Provider::<Http>::try_from(l1_rpc_url).expect("Could not instantiate HTTP Provider");
-
-    // Get the latest block so we know how far we can go
-    let latest_block = provider
-        .get_block_number()
-        .await
-        .expect("Failed to fetch latest block")
-        .as_u64();
-
-    // Our actual starting point is whichever is further along
-    let mut current_block = cache.last_seen_block;
-
-    // ---------------------------------------------------------
-    // 3. Process logs in chunks of BLOCK_RANGE
-    // ---------------------------------------------------------
-    while current_block <= latest_block {
-        let start_of_range = current_block;
-        let end_of_range = std::cmp::min(start_of_range + BLOCK_RANGE, latest_block);
-
-        println!("Processing range {start_of_range} - {end_of_range}\n");
-
-        // If the entire range is below what we have already processed, skip
-        if end_of_range < cache.last_seen_block {
-            // skip range
-            current_block = end_of_range + 1;
-            println!("Range is cached, skipping...");
-            continue;
-        }
-
-        // ---------------------------------------------------------
-        // 4. Build filters and fetch logs, parse out the l1Token
-        // ---------------------------------------------------------
-
-        // a) BridgehubDepositInitiated event at `bridge_addr`
-        let filter_bridgehub_deposit_initiated = Filter::new()
-            .address(bridge_addr)
-            .event("BridgehubDepositInitiated(uint256,bytes32,address,address,address,uint256)")
-            .from_block(start_of_range)
-            .to_block(end_of_range);
-
-        // Sleep for 1 second before the JSON-RPC request
-        sleep(Duration::from_secs(1)).await;
-        let logs_bridgehub = provider
-            .get_logs(&filter_bridgehub_deposit_initiated)
-            .await
-            .expect("Failed to fetch logs for BridgehubDepositInitiated");
-
-        for log in logs_bridgehub {
+    for log in queried_logs {
+        if log.address == bridge_addr {
             // The event is:
             // BridgehubDepositInitiated(uint256 chainId, bytes32 txDataHash, address from,
             //                           address to, address l1Token, uint256 amount)
             // If chainId, txDataHash, from are indexed, the next unindexed parameters in `log.data`
             // are `to`, `l1Token`, `amount` in that order.
             // So `l1Token` is in offset 32..64 within `log.data`.
-            let raw_data = log.data.0;
+            let raw_data = log.data;
             if raw_data.len() < 64 {
                 // Malformed log data, skip
                 continue;
@@ -167,26 +80,7 @@ pub async fn get_list_of_tokens(
             let l1_token_bytes = &raw_data[32..64];
             let l1_token_addr = Address::from_slice(&l1_token_bytes[12..32]); // last 20 bytes
             discovered_tokens.insert(l1_token_addr);
-        }
-
-        // b) Legacy deposit with signature: DepositInitiated(bytes32,address,address,address,uint256)
-        //    - l1Token is unindexed at the first 32 bytes in the log data.
-        let filter_legacy_deposit_initiated_1 = Filter::new()
-            .address(legacy_bridge_addr)
-            .event("DepositInitiated(bytes32,address,address,address,uint256)")
-            .from_block(start_of_range)
-            .to_block(end_of_range);
-
-        // Sleep for 1 second before the JSON-RPC request
-        sleep(Duration::from_secs(1)).await;
-        let logs_legacy_1 = provider
-            .get_logs(&filter_legacy_deposit_initiated_1)
-            .await
-            .expect(
-            "Failed to fetch logs for DepositInitiated - (bytes32,address,address,address,uint256)",
-        );
-
-        for log in logs_legacy_1 {
+        } else if log.address == legacy_bridge_addr {
             // The event layout is:
             //   event DepositInitiated(
             //       bytes32 indexed l2DepositTxHash,
@@ -199,7 +93,7 @@ pub async fn get_list_of_tokens(
             // Indexed:   l2DepositTxHash, from, to  (=> topics[1..=3])
             // Unindexed: l1Token (32 bytes), amount (32 bytes) => log.data
             // So `log.data[0..32]` is l1Token, `log.data[32..64]` is amount.
-            let raw_data = log.data.0;
+            let raw_data = log.data;
             if raw_data.len() < 64 {
                 continue;
             }
@@ -207,83 +101,13 @@ pub async fn get_list_of_tokens(
             let l1_token_bytes = &raw_data[0..32];
             let l1_token_addr = Address::from_slice(&l1_token_bytes[12..32]);
             discovered_tokens.insert(l1_token_addr);
-        }
-
-        // c) Legacy deposit with signature: DepositInitiated(address,address,address,uint256)
-        //    - l1Token is fully indexed, so it's the 3rd indexed address in topics[3].
-        let filter_legacy_deposit_initiated_2 = Filter::new()
-            .address(legacy_bridge_addr)
-            .event("DepositInitiated(address,address,address,uint256)")
-            .from_block(start_of_range)
-            .to_block(end_of_range);
-
-        // Sleep for 1 second before the JSON-RPC request
-        sleep(Duration::from_secs(1)).await;
-        let logs_legacy_2 = provider
-            .get_logs(&filter_legacy_deposit_initiated_2)
-            .await
-            .expect(
-                "Failed to fetch logs for DepositInitiated - (address,address,address,uint256)",
-            );
-
-        for log in logs_legacy_2 {
-            // The event layout is:
-            //   event DepositInitiated(
-            //       address indexed from,
-            //       address indexed to,
-            //       address indexed l1Token,
-            //       uint256 amount
-            //   );
-            //
-            // Indexed: from (topics[1]), to (topics[2]), l1Token (topics[3])
-            // The data field only has `amount`.
-            if log.topics.len() < 4 {
-                continue;
-            }
-            let l1_token_topic = log.topics[3];
-            // Parse last 20 bytes of the topic
-            let l1_token_addr = Address::from_slice(&l1_token_topic.as_bytes()[12..32]);
-            discovered_tokens.insert(l1_token_addr);
-        }
-
-        // ---------------------------------------------------------
-        // 5. Update the cache, flush it to disk
-        // ---------------------------------------------------------
-        cache.last_seen_block = end_of_range;
-        cache.added_tokens = discovered_tokens.iter().copied().collect();
-
-        write_cache_to_file(&existing_cache_path, &cache).expect("Failed to write cache to file");
-
-        println!("Processed and saved the range!");
-
-        // Move our current_block pointer forward
-        if end_of_range == latest_block {
-            break;
         } else {
-            current_block = end_of_range + 1;
+            panic!("Unexpected address");
         }
     }
 
     // Convert our HashSet to a Vec for the final result
     discovered_tokens.into_iter().collect()
-}
-
-/// Reads the cache JSON file if it exists and can be parsed.
-fn read_cache_from_file<P: AsRef<Path>>(path: P) -> Option<Cache> {
-    let file = File::open(path).ok()?;
-    let reader = BufReader::new(file);
-    serde_json::from_reader(reader).ok()
-}
-
-/// Writes the updated cache to disk, overwriting the old file.
-fn write_cache_to_file<P: AsRef<Path>>(
-    path: P,
-    cache: &Cache,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let file = File::create(path)?;
-    let writer = BufWriter::new(file);
-    serde_json::to_writer_pretty(writer, &cache)?;
-    Ok(())
 }
 
 abigen!(
