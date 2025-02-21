@@ -124,11 +124,11 @@ impl ProtocolVersionId {
             ProtocolVersionId::Version24 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
             ProtocolVersionId::Version25 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
             ProtocolVersionId::Version26 => VmVersion::VmGateway,
-            ProtocolVersionId::Version27 => VmVersion::VmGateway,
+            ProtocolVersionId::Version27 => VmVersion::VmEvmEmulator,
 
             // Speculative VM version for the next protocol version to be used in the upgrade integration test etc.
             // TODO: Must be changed when the protocol version is actually implemented!
-            ProtocolVersionId::Version28 => VmVersion::VmGateway,
+            ProtocolVersionId::Version28 => VmVersion::VmEvmEmulator,
         }
     }
 
@@ -306,11 +306,11 @@ impl From<ProtocolVersionId> for VmVersion {
             ProtocolVersionId::Version24 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
             ProtocolVersionId::Version25 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
             ProtocolVersionId::Version26 => VmVersion::VmGateway,
-            ProtocolVersionId::Version27 => VmVersion::VmGateway,
+            ProtocolVersionId::Version27 => VmVersion::VmEvmEmulator,
 
             // Speculative VM version for the next protocol version to be used in the upgrade integration test etc.
             // TODO: Must be changed when the protocol version is actually implemented!
-            ProtocolVersionId::Version28 => VmVersion::VmGateway,
+            ProtocolVersionId::Version28 => VmVersion::VmEvmEmulator,
         }
     }
 }
