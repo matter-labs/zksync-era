@@ -47,7 +47,7 @@ pub enum Circuit {
 impl Circuit {
     /// Generates proof for given witness vector.
     /// Expects setup_data to match witness vector.
-    pub(crate) fn prove(
+    pub fn prove(
         &self,
         witness_vector: WitnessVec<GoldilocksField>,
         setup_data: Arc<GoldilocksGpuProverSetupData>,

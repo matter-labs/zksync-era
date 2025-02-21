@@ -7,6 +7,8 @@ pub mod fmt;
 pub mod gateway;
 #[cfg(feature = "gateway")]
 pub mod gateway_finalize_preparation;
+#[cfg(feature = "gateway")]
+pub mod gateway_register_l2_tokens;
 pub mod genesis;
 pub mod lint;
 pub(crate) mod lint_utils;
