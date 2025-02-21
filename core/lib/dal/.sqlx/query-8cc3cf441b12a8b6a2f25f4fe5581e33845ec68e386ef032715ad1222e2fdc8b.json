@@ -6,7 +6,7 @@
     "parameters": {
       "Left": [
         "Bytea",
-        "Int8"
+        "Numeric"
       ]
     },
     "nullable": []

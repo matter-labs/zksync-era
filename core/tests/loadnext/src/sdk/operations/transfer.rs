@@ -169,7 +169,7 @@ where
         };
         let common_data = L2TxCommonData {
             initiator_address: self.wallet.address(),
-            nonce: Nonce(0),
+            nonce: Nonce(0.into()),
             paymaster_params,
             ..Default::default()
         };

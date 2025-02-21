@@ -798,14 +798,6 @@ impl TransactionRequest {
             gas_per_pubdata_limit,
         })
     }
-
-    fn get_nonce_checked(&self) -> Result<Nonce, SerializationTransactionError> {
-        if self.nonce <= U256::from(u32::MAX) {
-            Ok(Nonce(self.nonce.as_u32()))
-        } else {
-            Err(SerializationTransactionError::TooBigNonce)
-        }
-    }
 }
 
 impl L2Tx {
@@ -814,7 +806,7 @@ impl L2Tx {
         allow_no_target: bool,
     ) -> Result<Self, SerializationTransactionError> {
         let fee = value.get_fee_data_checked()?;
-        let nonce = value.get_nonce_checked()?;
+        let nonce = Nonce(value.nonce);
 
         let raw_signature = value.get_signature().unwrap_or_default();
         let meta = value.eip712_meta.take().unwrap_or_default();

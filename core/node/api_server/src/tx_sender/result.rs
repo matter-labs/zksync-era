@@ -9,9 +9,9 @@ use crate::execution_sandbox::{SandboxExecutionError, ValidationError};
 #[derive(Debug, Error)]
 pub enum SubmitTxError {
     #[error("nonce too high. allowed nonce range: {0} - {1}, actual: {2}")]
-    NonceIsTooHigh(u32, u32, u32),
+    NonceIsTooHigh(U256, U256, U256),
     #[error("nonce too low. allowed nonce range: {0} - {1}, actual: {2}")]
-    NonceIsTooLow(u32, u32, u32),
+    NonceIsTooLow(U256, U256, U256),
     #[error("insertion of another transaction with the same nonce is in progress")]
     InsertionInProgress,
     #[error("{0}")]

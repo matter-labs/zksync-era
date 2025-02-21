@@ -80,7 +80,7 @@ pub(crate) fn mock_l2_transaction() -> L2Tx {
     let mut l2_tx = L2Tx::new_signed(
         Some(Address::random()),
         vec![],
-        zksync_types::Nonce(0),
+        zksync_types::Nonce(0.into()),
         fee,
         Default::default(),
         L2ChainId::from(270),

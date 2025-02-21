@@ -216,6 +216,52 @@ impl From<u32> for L2ChainId {
     }
 }
 
+#[derive(
+    Default, Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
+)]
+pub struct Nonce(pub U256);
+
+#[derive(Default, Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct NonceKey(pub U256);
+
+impl Nonce {
+    pub fn split(self) -> (NonceKey, NonceValue) {
+        (self.key(), self.value())
+    }
+
+    pub fn combine(key: NonceKey, value: NonceValue) -> Self {
+        Self(key.0 << 64 | U256::from(value.0))
+    }
+
+    pub fn value(self) -> NonceValue {
+        NonceValue(self.0.low_u64())
+    }
+
+    pub fn key(self) -> NonceKey {
+        NonceKey(self.0 >> 64)
+    }
+}
+
+impl<T: Into<U256>> Add<T> for Nonce {
+    type Output = Self;
+
+    fn add(self, other: T) -> Self {
+        Self(self.0 + other.into())
+    }
+}
+
+impl<T: Into<U256>> std::ops::AddAssign<T> for Nonce {
+    fn add_assign(&mut self, other: T) {
+        self.0 += other.into();
+    }
+}
+
+impl<T: Into<U256>> From<T> for Nonce {
+    fn from(value: T) -> Self {
+        Self(value.into())
+    }
+}
+
 basic_type!(
     /// ZKsync network block sequential index.
     L2BlockNumber,
@@ -235,9 +281,9 @@ basic_type!(
 );
 
 basic_type!(
-    /// ZKsync account nonce.
-    Nonce,
-    u32
+    /// ZKsync nonce value (lower 64 bits)
+    NonceValue,
+    u64
 );
 
 basic_type!(

@@ -31,7 +31,7 @@ pub struct StorageTransaction {
     pub full_fee: Option<BigDecimal>,
     pub layer_2_tip_fee: Option<BigDecimal>,
     pub initiator_address: Vec<u8>,
-    pub nonce: Option<i64>,
+    pub nonce: Option<BigDecimal>,
     pub signature: Option<Vec<u8>>,
     pub gas_limit: Option<BigDecimal>,
     pub max_fee_per_gas: Option<BigDecimal>,
@@ -163,7 +163,11 @@ impl From<StorageTransaction> for L2TxCommonData {
             U256::from_dec_str(&gas_limit_string)
                 .unwrap_or_else(|_| panic!("Incorrect gas limit value in DB {}", gas_limit_string))
         };
-        let nonce = Nonce(tx.nonce.expect("no nonce in L2 tx in DB") as u32);
+        let nonce = {
+            let nonce_string = tx.nonce.expect("no nonce in L2 tx in DB").to_string();
+            U256::from_dec_str(&nonce_string)
+                .unwrap_or_else(|_| panic!("Incorrect nonce value in DB {}", nonce_string))
+        };
         let max_fee_per_gas = {
             let max_fee_per_gas_string = tx
                 .max_fee_per_gas
@@ -239,7 +243,7 @@ impl From<StorageTransaction> for L2TxCommonData {
         };
 
         L2TxCommonData::new(
-            nonce,
+            Nonce(nonce),
             fee,
             Address::from_slice(&initiator_address),
             signature.unwrap_or_else(|| {
@@ -353,7 +357,7 @@ pub(crate) struct StorageTransactionReceipt {
     pub gas_limit: Option<BigDecimal>,
     pub effective_gas_price: Option<BigDecimal>,
     pub initiator_address: Vec<u8>,
-    pub nonce: Option<i64>,
+    pub nonce: Option<BigDecimal>,
     pub block_timestamp: Option<i64>,
 }
 
@@ -412,7 +416,7 @@ impl From<StorageTransactionReceipt> for ExtendedTransactionReceipt {
 
         Self {
             inner,
-            nonce: (storage_receipt.nonce.unwrap_or(0) as u64).into(),
+            nonce: bigdecimal_to_u256(storage_receipt.nonce.unwrap_or_else(BigDecimal::zero)),
             calldata: serde_json::from_value(storage_receipt.calldata)
                 .expect("incorrect calldata in Postgres"),
         }
@@ -506,7 +510,7 @@ pub(crate) struct StorageApiTransaction {
     pub tx_hash: Vec<u8>,
     pub index_in_block: Option<i32>,
     pub block_number: Option<i64>,
-    pub nonce: Option<i64>,
+    pub nonce: Option<BigDecimal>,
     pub signature: Option<Vec<u8>>,
     pub initiator_address: Vec<u8>,
     pub tx_format: Option<i32>,
@@ -554,7 +558,7 @@ impl StorageApiTransaction {
         };
         let mut tx = api::Transaction {
             hash: H256::from_slice(&self.tx_hash),
-            nonce: U256::from(self.nonce.unwrap_or(0) as u64),
+            nonce: bigdecimal_to_u256(self.nonce.unwrap_or_else(BigDecimal::zero)),
             block_hash: self.block_hash.map(|hash| H256::from_slice(&hash)),
             block_number: self.block_number.map(|number| U64::from(number as u64)),
             transaction_index: self.index_in_block.map(|idx| U64::from(idx as u64)),

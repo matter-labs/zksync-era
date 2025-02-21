@@ -328,7 +328,7 @@ impl TransactionsDal<'_, '_> {
         let gas_per_pubdata_limit = u256_to_big_decimal(tx.common_data.fee.gas_per_pubdata_limit);
         let tx_format = tx.common_data.transaction_type as i32;
         let signature = &tx.common_data.signature;
-        let nonce = i64::from(tx.common_data.nonce.0);
+        let nonce = u256_to_big_decimal(tx.common_data.nonce.0);
         let input_data = &tx
             .common_data
             .input
@@ -619,7 +619,7 @@ impl TransactionsDal<'_, '_> {
                         AND nonce = $2
                     "#,
                     initiator.as_bytes(),
-                    nonce.0 as i32,
+                    u256_to_big_decimal(nonce.0),
                 )
                 .instrument("mark_txs_as_executed_in_l2_block#remove_old_txs_with_addr_and_nonce")
                 .execute(&mut transaction)
@@ -773,7 +773,7 @@ impl TransactionsDal<'_, '_> {
             l2_hashes.push(tx_res.hash.as_bytes());
             l2_indices_in_block.push(index_in_block as i32);
             l2_initiators.push(transaction.initiator_account().0);
-            l2_nonces.push(common_data.nonce.0 as i32);
+            l2_nonces.push(u256_to_big_decimal(common_data.nonce.0));
             l2_signatures.push(&common_data.signature[..]);
             l2_tx_formats.push(common_data.transaction_type as i32);
             l2_errors.push(Self::map_transaction_error(tx_res));
@@ -856,7 +856,7 @@ impl TransactionsDal<'_, '_> {
                     SELECT
                         UNNEST($1::bytea []) AS hash,
                         UNNEST($2::bytea []) AS initiator_address,
-                        UNNEST($3::int []) AS nonce,
+                        UNNEST($3::numeric []) AS nonce,
                         UNNEST($4::bytea []) AS signature,
                         UNNEST($5::numeric []) AS gas_limit,
                         UNNEST($6::numeric []) AS max_fee_per_gas,
@@ -979,7 +979,7 @@ impl TransactionsDal<'_, '_> {
             l2_hashes.push(tx_res.hash.as_bytes());
             l2_indices_in_block.push(index_in_block as i32);
             l2_initiators.push(transaction.initiator_account().0);
-            l2_nonces.push(common_data.nonce.0 as i32);
+            l2_nonces.push(u256_to_big_decimal(common_data.nonce.0));
             l2_signatures.push(&common_data.signature[..]);
             l2_tx_formats.push(common_data.transaction_type as i32);
             l2_errors.push(Self::map_transaction_error(tx_res));
@@ -1038,7 +1038,7 @@ impl TransactionsDal<'_, '_> {
                         (
                             SELECT
                                 UNNEST($1::bytea []) AS initiator_address,
-                                UNNEST($2::int []) AS nonce,
+                                UNNEST($2::numeric []) AS nonce,
                                 UNNEST($3::bytea []) AS hash,
                                 UNNEST($4::bytea []) AS signature,
                                 UNNEST($5::numeric []) AS gas_limit,

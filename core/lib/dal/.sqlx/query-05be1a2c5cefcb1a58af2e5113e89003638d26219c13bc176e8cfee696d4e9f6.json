@@ -21,7 +21,7 @@
       {
         "ordinal": 3,
         "name": "nonce",
-        "type_info": "Int8"
+        "type_info": "Numeric"
       },
       {
         "ordinal": 4,

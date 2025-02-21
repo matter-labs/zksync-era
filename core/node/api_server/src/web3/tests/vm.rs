@@ -1040,7 +1040,7 @@ impl HttpTest for EstimateGasTest {
         tx_executor.set_tx_responses(move |tx, env| {
             assert_eq!(tx.execute.calldata(), [] as [u8; 0]);
             if should_set_nonce {
-                assert_eq!(tx.nonce(), Some(Nonce(0)));
+                assert_eq!(tx.nonce(), Some(Nonce(0.into())));
             }
             assert_eq!(env.l1_batch.first_l2_block.number, pending_block_number.0);
 

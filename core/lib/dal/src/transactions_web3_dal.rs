@@ -14,9 +14,13 @@ use zksync_types::{
 };
 
 use crate::{
-    models::storage_transaction::{
-        StorageApiTransaction, StorageTransaction, StorageTransactionDetails,
-        StorageTransactionExecutionInfo, StorageTransactionReceipt,
+    models::{
+        bigdecimal_to_u256,
+        storage_transaction::{
+            StorageApiTransaction, StorageTransaction, StorageTransactionDetails,
+            StorageTransactionExecutionInfo, StorageTransactionReceipt,
+        },
+        u256_to_big_decimal,
     },
     Core, CoreDal,
 };
@@ -367,14 +371,14 @@ impl TransactionsWeb3Dal<'_, '_> {
     pub async fn next_nonce_by_initiator_account(
         &mut self,
         initiator_address: Address,
-        committed_next_nonce: u64,
+        committed_next_nonce: U256,
     ) -> DalResult<U256> {
         // Get nonces of non-rejected transactions, starting from the 'latest' nonce.
         // `latest` nonce is used, because it is guaranteed that there are no gaps before it.
         // `(miniblock_number IS NOT NULL OR error IS NULL)` is the condition that filters non-rejected transactions.
         // Query is fast because we have an index on (`initiator_address`, `nonce`)
         // and it cannot return more than `max_nonce_ahead` nonces.
-        let non_rejected_nonces: Vec<u64> = sqlx::query!(
+        let non_rejected_nonces: Vec<U256> = sqlx::query!(
             r#"
             SELECT
                 nonce AS "nonce!"
@@ -392,7 +396,7 @@ impl TransactionsWeb3Dal<'_, '_> {
                 nonce
             "#,
             initiator_address.as_bytes(),
-            committed_next_nonce as i64
+            u256_to_big_decimal(committed_next_nonce)
         )
         .instrument("next_nonce_by_initiator_account#non_rejected_nonces")
         .with_arg("initiator_address", &initiator_address)
@@ -400,20 +404,20 @@ impl TransactionsWeb3Dal<'_, '_> {
         .fetch_all(self.storage)
         .await?
         .into_iter()
-        .map(|row| row.nonce as u64)
+        .map(|row| bigdecimal_to_u256(row.nonce))
         .collect();
 
         // Find pending nonce as the first "gap" in nonces.
         let mut pending_nonce = committed_next_nonce;
         for nonce in non_rejected_nonces {
             if pending_nonce == nonce {
-                pending_nonce += 1;
+                pending_nonce += 1.into();
             } else {
                 break;
             }
         }
 
-        Ok(U256::from(pending_nonce))
+        Ok(pending_nonce)
     }
 
     /// Returns the server transactions (not API ones) from a L2 block range.
@@ -729,16 +733,16 @@ mod tests {
         let initiator = Address::repeat_byte(1);
         let next_nonce = conn
             .transactions_web3_dal()
-            .next_nonce_by_initiator_account(initiator, 0)
+            .next_nonce_by_initiator_account(initiator, 0.into())
             .await
             .unwrap();
         assert_eq!(next_nonce, 0.into());
 
         let mut tx_by_nonce = HashMap::new();
-        for nonce in [0, 1, 4] {
+        for nonce in [0u32, 1, 4] {
             let mut tx = mock_l2_transaction();
             // Changing transaction fields invalidates its signature, but it's OK for test purposes
-            tx.common_data.nonce = Nonce(nonce);
+            tx.common_data.nonce = Nonce(nonce.into());
             tx.common_data.initiator_address = initiator;
             tx_by_nonce.insert(nonce, tx.clone());
             conn.transactions_dal()
@@ -753,7 +757,7 @@ mod tests {
 
         let next_nonce = conn
             .transactions_web3_dal()
-            .next_nonce_by_initiator_account(initiator, 0)
+            .next_nonce_by_initiator_account(initiator, 0.into())
             .await
             .unwrap();
         assert_eq!(next_nonce, 2.into());
@@ -765,7 +769,7 @@ mod tests {
             .unwrap();
         let next_nonce = conn
             .transactions_web3_dal()
-            .next_nonce_by_initiator_account(initiator, 0)
+            .next_nonce_by_initiator_account(initiator, 0.into())
             .await
             .unwrap();
         assert_eq!(next_nonce, 1.into());
@@ -791,7 +795,7 @@ mod tests {
 
         let next_nonce = conn
             .transactions_web3_dal()
-            .next_nonce_by_initiator_account(initiator, 0)
+            .next_nonce_by_initiator_account(initiator, 0.into())
             .await
             .unwrap();
         assert_eq!(next_nonce, 2.into());
@@ -805,14 +809,14 @@ mod tests {
         let initiator = Address::repeat_byte(1);
         let next_nonce = conn
             .transactions_web3_dal()
-            .next_nonce_by_initiator_account(initiator, 1)
+            .next_nonce_by_initiator_account(initiator, 1.into())
             .await
             .unwrap();
         assert_eq!(next_nonce, 1.into());
 
         let mut tx = mock_l2_transaction();
         // Changing transaction fields invalidates its signature, but it's OK for test purposes
-        tx.common_data.nonce = Nonce(1);
+        tx.common_data.nonce = Nonce(1.into());
         tx.common_data.initiator_address = initiator;
         conn.transactions_dal()
             .insert_transaction_l2(
@@ -825,7 +829,7 @@ mod tests {
 
         let next_nonce = conn
             .transactions_web3_dal()
-            .next_nonce_by_initiator_account(initiator, 1)
+            .next_nonce_by_initiator_account(initiator, 1.into())
             .await
             .unwrap();
         assert_eq!(next_nonce, 2.into());

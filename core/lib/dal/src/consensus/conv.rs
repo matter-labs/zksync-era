@@ -355,9 +355,12 @@ impl ProtoRepr for proto::Transaction {
                 }
                 proto::transaction::CommonData::L2(common_data) => {
                     ExecuteTransactionCommon::L2(L2TxCommonData {
-                        nonce: required(&common_data.nonce)
-                            .map(|x| Nonce(*x))
-                            .context("common_data.nonce")?,
+                        nonce: Nonce(
+                            required(&common_data.nonce)
+                                .and_then(|x| parse_h256(x))
+                                .map(h256_to_u256)
+                                .context("common_data.nonce")?,
+                        ),
                         fee: Fee {
                             gas_limit: required(&common_data.gas_limit)
                                 .and_then(|x| parse_h256(x))
@@ -490,7 +493,7 @@ impl ProtoRepr for proto::Transaction {
             }
             ExecuteTransactionCommon::L2(data) => {
                 proto::transaction::CommonData::L2(proto::L2TxCommonData {
-                    nonce: Some(data.nonce.0),
+                    nonce: Some(u256_to_h256(data.nonce.0).as_bytes().into()),
                     gas_limit: Some(u256_to_h256(data.fee.gas_limit).as_bytes().into()),
                     max_fee_per_gas: Some(u256_to_h256(data.fee.max_fee_per_gas).as_bytes().into()),
                     max_priority_fee_per_gas: Some(

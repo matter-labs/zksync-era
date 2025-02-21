@@ -36,7 +36,7 @@ pub trait TxSink: std::fmt::Debug + Send + Sync + 'static {
     async fn lookup_pending_nonce(
         &self,
         _account_address: Address,
-        _last_known_nonce: u32,
+        _last_known_nonce: Nonce,
     ) -> Result<Option<Nonce>, Web3Error> {
         Ok(None)
     }

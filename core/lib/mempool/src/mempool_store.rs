@@ -25,6 +25,7 @@ pub struct MempoolStore {
     /// Pending L1 transactions
     l1_transactions: HashMap<PriorityOpId, L1Tx>,
     /// Pending L2 transactions grouped by initiator address
+    // TODO this has to be keyed by (Address, NonceKey)
     l2_transactions_per_account: HashMap<Address, AccountTransactions>,
     /// Global priority queue for L2 transactions. Used for scoring
     l2_priority_queue: BTreeSet<MempoolScore>,
@@ -56,6 +57,7 @@ impl MempoolStore {
     pub fn insert(
         &mut self,
         transactions: Vec<(Transaction, TransactionTimeRangeConstraint)>,
+        // TODO this should include nonce key
         initial_nonces: HashMap<Address, Nonce>,
     ) {
         for (transaction, constraint) in transactions {
@@ -78,7 +80,7 @@ impl MempoolStore {
                     );
                 }
                 ExecuteTransactionCommon::L2(data) => {
-                    tracing::trace!("inserting L2 transaction {}", data.nonce);
+                    tracing::trace!("inserting L2 transaction {:?}", data.nonce);
                     self.insert_l2_transaction(
                         L2Tx {
                             execute,
@@ -101,6 +103,7 @@ impl MempoolStore {
     pub fn insert_without_constraints(
         &mut self,
         transactions: Vec<Transaction>,
+        // TODO this should include nonce key
         initial_nonces: HashMap<Address, Nonce>,
     ) {
         self.insert(
@@ -116,6 +119,7 @@ impl MempoolStore {
         &mut self,
         transaction: L2Tx,
         constraint: TransactionTimeRangeConstraint,
+        // TODO this should include nonce key
         initial_nonces: &HashMap<Address, Nonce>,
     ) {
         let account = transaction.initiator_account();
@@ -123,7 +127,10 @@ impl MempoolStore {
         let metadata = match self.l2_transactions_per_account.entry(account) {
             hash_map::Entry::Occupied(mut txs) => txs.get_mut().insert(transaction, constraint),
             hash_map::Entry::Vacant(entry) => {
-                let account_nonce = initial_nonces.get(&account).cloned().unwrap_or(Nonce(0));
+                let account_nonce = initial_nonces
+                    .get(&account)
+                    .cloned()
+                    .unwrap_or(Nonce(0.into()));
                 entry
                     .insert(AccountTransactions::new(account_nonce))
                     .insert(transaction, constraint)

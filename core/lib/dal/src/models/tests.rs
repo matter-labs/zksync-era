@@ -73,7 +73,7 @@ fn l2_storage_tx(tx_format: i32) -> StorageTransaction {
         data: serde_json::to_value(default_execute().clone()).expect("invalid value"),
         received_at: Utc::now().naive_utc(),
         tx_format: Some(tx_format),
-        nonce: Some(11),
+        nonce: Some(11.into()),
         max_fee_per_gas: Some(BigDecimal::from(555)),
         max_priority_fee_per_gas: Some(BigDecimal::from(666)),
         gas_per_pubdata_limit: Some(BigDecimal::from(444)),
@@ -291,7 +291,7 @@ fn storage_tx_to_l2_tx(i_tx_format: i32, o_tx_format: i32) {
     assert_eq!(stx.input.clone().map(Bytes::from), tx.raw_bytes);
 
     if let ExecuteTransactionCommon::L2(l1_data) = tx.common_data {
-        assert_eq!(stx.nonce.unwrap() as u32, l1_data.nonce.0);
+        assert_eq!(bigdecimal_to_u256(stx.nonce.unwrap()), l1_data.nonce.0);
         assert_eq!(
             Fee {
                 gas_limit: stx.gas_limit.map(bigdecimal_to_u256).unwrap(),

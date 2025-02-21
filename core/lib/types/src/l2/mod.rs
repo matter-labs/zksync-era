@@ -57,9 +57,9 @@ pub struct L2TxCommonData {
     pub initiator_address: Address,
     pub signature: Vec<u8>,
     pub transaction_type: TransactionType,
-    /// This input consists of raw transaction bytes when we receive it from API.    
+    /// This input consists of raw transaction bytes when we receive it from API.
     /// But we still use this structure for zksync-rs and tests, and we don't have raw tx before
-    /// creating the structure. We setup this field manually later for consistency.    
+    /// creating the structure. We setup this field manually later for consistency.
     /// We need some research on how to change it
     pub input: Option<InputData>,
 
@@ -131,7 +131,7 @@ impl L2TxCommonData {
 impl Default for L2TxCommonData {
     fn default() -> Self {
         Self {
-            nonce: Nonce(0),
+            nonce: Default::default(),
             fee: Default::default(),
             initiator_address: Address::zero(),
             signature: Default::default(),
@@ -499,7 +499,7 @@ mod tests {
                 factory_deps: vec![],
             },
             common_data: L2TxCommonData {
-                nonce: Nonce(0),
+                nonce: Nonce(0.into()),
                 fee: Fee::default(),
                 initiator_address: Default::default(),
                 signature: signature.clone(),

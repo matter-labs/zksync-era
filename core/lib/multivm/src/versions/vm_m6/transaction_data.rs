@@ -54,8 +54,7 @@ impl From<Transaction> for TransactionData {
     fn from(execute_tx: Transaction) -> Self {
         match &execute_tx.common_data {
             ExecuteTransactionCommon::L2(common_data) => {
-                let nonce = U256::from_big_endian(&common_data.nonce.to_be_bytes());
-
+                let nonce = common_data.nonce.0;
                 let should_check_chain_id = if matches!(
                     common_data.transaction_type,
                     TransactionType::LegacyTransaction
@@ -354,7 +353,7 @@ impl OverheadCoefficients {
     }
 }
 
-/// This method returns the overhead for processing the block  
+/// This method returns the overhead for processing the block
 pub fn get_amortized_overhead(
     total_gas_limit: u32,
     gas_per_pubdata_byte_limit: u32,

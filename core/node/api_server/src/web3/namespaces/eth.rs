@@ -12,7 +12,7 @@ use zksync_types::{
     u256_to_h256,
     utils::decompose_full_nonce,
     web3::{self, Bytes, SyncInfo, SyncState},
-    AccountTreeId, L2BlockNumber, StorageKey, H256, L2_BASE_TOKEN_ADDRESS, U256,
+    AccountTreeId, L2BlockNumber, Nonce, StorageKey, H256, L2_BASE_TOKEN_ADDRESS, U256,
 };
 use zksync_web3_decl::{
     error::Web3Error,
@@ -476,12 +476,10 @@ impl EthNamespace {
         let (mut account_nonce, _) = decompose_full_nonce(full_nonce);
 
         if matches!(block_id, BlockId::Number(BlockNumber::Pending)) {
-            let account_nonce_u64 = u64::try_from(account_nonce)
-                .map_err(|err| anyhow::anyhow!("nonce conversion failed: {err}"))?;
             account_nonce = if let Some(account_nonce) = self
                 .state
                 .tx_sink()
-                .lookup_pending_nonce(address, account_nonce_u64 as u32)
+                .lookup_pending_nonce(address, Nonce(account_nonce))
                 .await?
             {
                 account_nonce.0.into()
@@ -489,7 +487,7 @@ impl EthNamespace {
                 // No nonce hint in the sink: get pending nonces from the mempool
                 connection
                     .transactions_web3_dal()
-                    .next_nonce_by_initiator_account(address, account_nonce_u64)
+                    .next_nonce_by_initiator_account(address, account_nonce)
                     .await
                     .map_err(DalError::generalize)?
             };

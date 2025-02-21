@@ -53,8 +53,7 @@ impl From<Transaction> for TransactionData {
     fn from(execute_tx: Transaction) -> Self {
         match &execute_tx.common_data {
             ExecuteTransactionCommon::L2(common_data) => {
-                let nonce = U256::from_big_endian(&common_data.nonce.to_be_bytes());
-
+                let nonce = common_data.nonce.0;
                 let should_check_chain_id = if matches!(
                     common_data.transaction_type,
                     TransactionType::LegacyTransaction

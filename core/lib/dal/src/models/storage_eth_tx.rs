@@ -74,7 +74,7 @@ impl From<StorageEthTx> for EthTx {
     fn from(tx: StorageEthTx) -> EthTx {
         EthTx {
             id: tx.id as u32,
-            nonce: Nonce(tx.nonce as u32),
+            nonce: Nonce((tx.nonce as u32).into()),
             contract_address: Address::from_str(&tx.contract_address)
                 .expect("Incorrect address in db"),
             raw_tx: tx.raw_tx.clone(),
@@ -122,7 +122,7 @@ impl From<StorageTxHistoryToSend> for TxHistoryToSend {
             signed_raw_tx: history
                 .signed_raw_tx
                 .expect("Should rely only on the new txs"),
-            nonce: Nonce(history.nonce as u32),
+            nonce: Nonce((history.nonce as u32).into()),
         }
     }
 }

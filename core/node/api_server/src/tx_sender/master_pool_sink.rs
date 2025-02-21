@@ -47,6 +47,7 @@ impl Drop for Guard {
 #[derive(Debug)]
 pub struct MasterPoolSink {
     master_pool: ConnectionPool<Core>,
+    // TODO: modify this to check allow keyed nonces
     inflight_requests: Arc<Mutex<HashMap<(Address, Nonce), H256>>>,
 }
 

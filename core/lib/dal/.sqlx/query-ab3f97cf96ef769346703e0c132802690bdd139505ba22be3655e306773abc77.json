@@ -13,7 +13,7 @@
       "Left": [
         "Bytea",
         "Bytea",
-        "Int8",
+        "Numeric",
         "Bytea",
         "Numeric",
         "Numeric",

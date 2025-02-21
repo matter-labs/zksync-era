@@ -20,7 +20,7 @@ fn basic_flow() {
     let account0 = Address::random();
     let account1 = Address::random();
     let transactions = vec![
-        gen_l2_tx(account0, Nonce(0)),
+        gen_l2_tx(account0, Nonce(0.into())),
         gen_l2_tx(account0, Nonce(1)),
         gen_l2_tx(account0, Nonce(2)),
         gen_l2_tx(account0, Nonce(3)),
@@ -47,7 +47,7 @@ fn basic_flow() {
     assert_eq!(mempool.next_transaction(&L2TxFilter::default()), None);
     // unclog second account and insert more transactions
     mempool.insert_without_constraints(
-        vec![gen_l2_tx(account1, Nonce(0)), gen_l2_tx(account0, Nonce(3))],
+        vec![gen_l2_tx(account1, Nonce(0.into())), gen_l2_tx(account0, Nonce(3))],
         HashMap::new(),
     );
     assert_eq!(
@@ -106,7 +106,7 @@ fn prioritize_l1_txns() {
     let mut mempool = MempoolStore::new(PriorityOpId(0), 100);
     let account = Address::random();
     let transactions = vec![
-        gen_l2_tx(account, Nonce(0)),
+        gen_l2_tx(account, Nonce(0.into())),
         gen_l2_tx(account, Nonce(1)),
         gen_l1_tx(PriorityOpId(0)),
     ];
@@ -149,7 +149,7 @@ fn rejected_tx() {
     let mut mempool = MempoolStore::new(PriorityOpId(0), 100);
     let account = Address::random();
     let transactions = vec![
-        gen_l2_tx(account, Nonce(0)),
+        gen_l2_tx(account, Nonce(0.into())),
         gen_l2_tx(account, Nonce(1)),
         gen_l2_tx(account, Nonce(2)),
         gen_l2_tx(account, Nonce(3)),
@@ -188,12 +188,12 @@ fn rejected_tx() {
 fn replace_tx() {
     let mut mempool = MempoolStore::new(PriorityOpId(0), 100);
     let account = Address::random();
-    mempool.insert_without_constraints(vec![gen_l2_tx(account, Nonce(0))], HashMap::new());
+    mempool.insert_without_constraints(vec![gen_l2_tx(account, Nonce(0.into()))], HashMap::new());
     // replace it
     mempool.insert_without_constraints(
         vec![gen_l2_tx_with_timestamp(
             account,
-            Nonce(0),
+            Nonce(0.into()),
             unix_timestamp_ms() + 10,
         )],
         HashMap::new(),
@@ -207,7 +207,7 @@ fn two_ready_txs() {
     let mut mempool = MempoolStore::new(PriorityOpId(0), 100);
     let account0 = Address::random();
     let account1 = Address::random();
-    let transactions = vec![gen_l2_tx(account0, Nonce(0)), gen_l2_tx(account1, Nonce(0))];
+    let transactions = vec![gen_l2_tx(account0, Nonce(0.into())), gen_l2_tx(account1, Nonce(0.into()))];
     mempool.insert_without_constraints(transactions, HashMap::new());
     assert_eq!(
         HashSet::<(_, _)>::from_iter(vec![
@@ -224,7 +224,7 @@ fn mempool_size() {
     let account0 = Address::random();
     let account1 = Address::random();
     let transactions = vec![
-        gen_l2_tx(account0, Nonce(0)),
+        gen_l2_tx(account0, Nonce(0.into())),
         gen_l2_tx(account0, Nonce(1)),
         gen_l2_tx(account0, Nonce(2)),
         gen_l2_tx(account0, Nonce(3)),
@@ -265,9 +265,9 @@ fn filtering() {
     // Second account will have just one transaction with the right value.
     mempool.insert_without_constraints(
         gen_transactions_for_filtering(vec![
-            (account0, Nonce(0), unix_timestamp_ms(), 0),
+            (account0, Nonce(0.into()), unix_timestamp_ms(), 0),
             (account0, Nonce(1), unix_timestamp_ms(), 1),
-            (account1, Nonce(0), unix_timestamp_ms() - 10, 1),
+            (account1, Nonce(0.into()), unix_timestamp_ms() - 10, 1),
         ]),
         HashMap::new(),
     );
@@ -306,9 +306,9 @@ fn stashed_accounts() {
 
     mempool.insert_without_constraints(
         gen_transactions_for_filtering(vec![
-            (account0, Nonce(0), unix_timestamp_ms(), 0),
+            (account0, Nonce(0.into()), unix_timestamp_ms(), 0),
             (account0, Nonce(1), unix_timestamp_ms(), 1),
-            (account1, Nonce(0), unix_timestamp_ms() + 10, 1),
+            (account1, Nonce(0.into()), unix_timestamp_ms() + 10, 1),
         ]),
         HashMap::new(),
     );
@@ -329,11 +329,11 @@ fn mempool_capacity() {
     let account2 = Address::random();
     let account3 = Address::random();
     let transactions = vec![
-        gen_l2_tx(account0, Nonce(0)),
+        gen_l2_tx(account0, Nonce(0.into())),
         gen_l2_tx(account0, Nonce(1)),
         gen_l2_tx(account0, Nonce(2)),
-        gen_l2_tx_with_timestamp(account1, Nonce(0), unix_timestamp_ms() + 1),
-        gen_l2_tx_with_timestamp(account2, Nonce(0), unix_timestamp_ms() + 2),
+        gen_l2_tx_with_timestamp(account1, Nonce(0.into()), unix_timestamp_ms() + 1),
+        gen_l2_tx_with_timestamp(account2, Nonce(0.into()), unix_timestamp_ms() + 2),
         gen_l2_tx(account3, Nonce(1)),
     ];
     mempool.insert_without_constraints(transactions, HashMap::new());
@@ -370,7 +370,7 @@ fn mempool_does_not_purge_all_accounts() {
     let account0 = Address::random();
     let account1 = Address::random();
     let transactions = vec![
-        gen_l2_tx(account0, Nonce(0)),
+        gen_l2_tx(account0, Nonce(0.into())),
         gen_l2_tx(account0, Nonce(1)),
         gen_l2_tx(account1, Nonce(1)),
     ];

@@ -9,9 +9,12 @@ use zksync_types::{
 #[derive(Debug)]
 pub(crate) struct AccountTransactions {
     /// transactions that belong to given account keyed by transaction nonce
+    // TODO: replace `Nonce` with `NonceValue` here
     transactions: HashMap<Nonce, (L2Tx, TransactionTimeRangeConstraint)>,
     /// account nonce in mempool
     /// equals to committed nonce in db + number of transactions sent to state keeper
+    // TODO: this should also be `NonceValue`, which which is the same thing, but maintained
+    // per-key
     nonce: Nonce,
 }
 
@@ -32,6 +35,7 @@ impl AccountTransactions {
         let mut metadata = InsertionMetadata::default();
         let nonce = transaction.common_data.nonce;
         // skip insertion if transaction is old
+        // TODO: compare only `nonceValue`s here.
         if nonce < self.nonce {
             return metadata;
         }
@@ -96,6 +100,7 @@ impl AccountTransactions {
 /// Currently trivial ordering is used based on received at timestamp
 #[derive(Eq, PartialEq, Clone, Debug, Hash)]
 pub struct MempoolScore {
+    // TODO: should this also include nonce key?
     pub account: Address,
     pub received_at_ms: u64,
     // Not used for actual scoring, but state keeper would request

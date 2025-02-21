@@ -73,7 +73,7 @@ fn setting_up_nonce_and_balance_in_storage() {
 #[test_casing(9, Product((EXEC_MODES, FAST_VM_MODES)))]
 #[tokio::test]
 async fn inspecting_transfer(exec_mode: TxExecutionMode, fast_vm_mode: FastVmMode) {
-    let tx = create_l2_transaction(1_000_000_000.into(), Nonce(0));
+    let tx = create_l2_transaction(1_000_000_000.into(), Nonce(0.into()));
     let mut storage = InMemoryStorage::with_system_contracts();
     storage.set_value(
         storage_key_for_eth_balance(&tx.initiator_account()),

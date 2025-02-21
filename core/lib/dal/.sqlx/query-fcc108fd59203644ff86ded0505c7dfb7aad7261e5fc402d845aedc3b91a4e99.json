@@ -6,13 +6,13 @@
       {
         "ordinal": 0,
         "name": "nonce!",
-        "type_info": "Int8"
+        "type_info": "Numeric"
       }
     ],
     "parameters": {
       "Left": [
         "Bytea",
-        "Int8"
+        "Numeric"
       ]
     },
     "nullable": [

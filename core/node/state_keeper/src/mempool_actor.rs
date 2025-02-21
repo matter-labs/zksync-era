@@ -11,7 +11,7 @@ use zksync_multivm::utils::derive_base_fee_and_gas_per_pubdata;
 use zksync_node_fee_model::BatchFeeModelInputProvider;
 #[cfg(test)]
 use zksync_types::H256;
-use zksync_types::{get_nonce_key, vm::VmVersion, Address, Nonce, Transaction};
+use zksync_types::{get_nonce_key, h256_to_u256, vm::VmVersion, Address, Nonce, Transaction};
 
 use super::{metrics::KEEPER_METRICS, types::MempoolGuard};
 
@@ -31,6 +31,7 @@ pub async fn l2_tx_filter(
     })
 }
 
+// TODO: modify the fetching of txs from database and integrate with proper insertion into mempool
 #[derive(Debug)]
 pub struct MempoolFetcher {
     mempool: MempoolGuard,
@@ -136,6 +137,7 @@ impl MempoolFetcher {
                 .map(|(t, _c)| t)
                 .collect();
 
+            // TODO modify creation of this map to be HashMap<(Address, NonceKey), NonceValue>
             let nonces = get_transaction_nonces(&mut storage, &transactions).await?;
             drop(storage);
 
@@ -157,6 +159,7 @@ impl MempoolFetcher {
 }
 
 /// Loads nonces for all distinct `transactions` initiators from the storage.
+// TODO is this the correct behavior with keyed nonces?
 async fn get_transaction_nonces(
     storage: &mut Connection<'_, Core>,
     transactions: &[&Transaction],
@@ -179,10 +182,10 @@ async fn get_transaction_nonces(
     Ok(nonce_values
         .into_iter()
         .map(|(nonce_key, nonce_value)| {
-            // `unwrap()` is safe by construction.
-            let be_u32_bytes: [u8; 4] = nonce_value[28..].try_into().unwrap();
-            let nonce = Nonce(u32::from_be_bytes(be_u32_bytes));
-            (address_by_nonce_key[&nonce_key], nonce)
+            (
+                address_by_nonce_key[&nonce_key],
+                Nonce(h256_to_u256(nonce_value)),
+            )
         })
         .collect())
 }
@@ -240,7 +243,7 @@ mod tests {
             nonces,
             HashMap::from([
                 (transaction_initiator, Nonce(42)),
-                (other_transaction_initiator, Nonce(0)),
+                (other_transaction_initiator, Nonce(0.into())),
             ])
         );
     }
@@ -383,7 +386,7 @@ mod tests {
 
         // Add a new transaction to the storage.
         let transaction = create_l2_transaction(base_fee * 2, gas_per_pubdata * 2);
-        assert_eq!(transaction.nonce(), Nonce(0));
+        assert_eq!(transaction.nonce(), Nonce(0.into()));
         let transaction_hash = transaction.hash();
         let nonce_key = get_nonce_key(&transaction.initiator_account());
         let nonce_log = StorageLog::new_write_log(nonce_key, u256_to_h256(42.into()));
