@@ -19,6 +19,9 @@ pub(super) const MSG_GATEWAY_UPGRADE_CALLDATA: &str =
 #[cfg(feature = "gateway")]
 pub(super) const MSG_GATEWAY_FINALIZE: &str = "Gateway upgrade post-stage2 finalization";
 
+#[cfg(feature = "gateway")]
+pub(super) const MSG_GATEWAY_REGISTER_L2_TOKENS: &str = "Gateway register legacy tokens on L2";
+
 pub(super) const MSG_SUBCOMMAND_FMT_ABOUT: &str = "Format code";
 
 pub(super) const MSG_SUBCOMMAND_SNAPSHOTS_CREATOR_ABOUT: &str = "Snapshots creator";
