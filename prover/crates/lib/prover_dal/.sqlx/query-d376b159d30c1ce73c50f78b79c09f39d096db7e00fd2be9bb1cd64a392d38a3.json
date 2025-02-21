@@ -87,6 +87,11 @@
         "ordinal": 16,
         "name": "priority",
         "type_info": "Int4"
+      },
+      {
+        "ordinal": 17,
+        "name": "chain_id",
+        "type_info": "Int4"
       }
     ],
     "parameters": {
@@ -112,6 +117,7 @@
       true,
       true,
       true,
+      false,
       false,
       false
     ]

@@ -24,6 +24,7 @@ pub use node_aggregation::NodeAggregation;
 pub use recursion_tip::RecursionTip;
 pub use scheduler::Scheduler;
 use zksync_types::basic_fri_types::AggregationRound;
+use zksync_types::L2ChainId;
 
 use crate::metrics::WITNESS_GENERATOR_METRICS;
 
@@ -51,7 +52,7 @@ pub trait JobManager: ArtifactsManager {
     async fn get_metadata(
         connection_pool: ConnectionPool<Prover>,
         protocol_version: ProtocolSemanticVersion,
-    ) -> anyhow::Result<Option<(u32, Self::Metadata)>>;
+    ) -> anyhow::Result<Option<(L2ChainId, u32, Self::Metadata)>>;
 }
 
 #[derive(Debug)]

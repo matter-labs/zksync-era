@@ -63,7 +63,7 @@ impl ArtifactsManager for Scheduler {
         let mut transaction = prover_connection.start_transaction().await?;
         let protocol_version_id = transaction
             .fri_basic_witness_generator_dal()
-            .protocol_version_for_l1_batch(L1BatchNumber(job_id))
+            .protocol_version_for_l1_batch_and_chain(L1BatchNumber(job_id))
             .await;
         transaction
             .fri_prover_jobs_dal()

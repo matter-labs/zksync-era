@@ -13,8 +13,9 @@ use crate::{
 #[derive(Debug, Clone, Copy)]
 pub struct FriProverJobMetadata {
     pub id: u32,
-    pub chain_id: L2ChainId,
     pub block_number: L1BatchNumber,
+
+    pub chain_id: L2ChainId,
     pub circuit_id: u8,
     pub aggregation_round: AggregationRound,
     pub sequence_number: usize,
@@ -76,6 +77,7 @@ impl JobCountStatistics {
 #[derive(Debug)]
 pub struct StuckJobs {
     pub id: u64,
+    pub chain_id: L2ChainId,
     pub status: String,
     pub attempts: u64,
     pub circuit_id: Option<u32>,
@@ -108,8 +110,8 @@ impl From<std::net::SocketAddr> for SocketAddress {
 #[derive(Debug, Clone)]
 pub struct LeafAggregationJobMetadata {
     pub id: u32,
-    pub chain_id: L2ChainId,
     pub block_number: L1BatchNumber,
+    pub chain_id: L2ChainId,
     pub circuit_id: u8,
     pub prover_job_ids_for_proofs: Vec<u32>,
 }
@@ -117,8 +119,8 @@ pub struct LeafAggregationJobMetadata {
 #[derive(Debug, Clone)]
 pub struct NodeAggregationJobMetadata {
     pub id: u32,
-    pub chain_id: L2ChainId,
     pub block_number: L1BatchNumber,
+    pub chain_id: L2ChainId,
     pub circuit_id: u8,
     pub depth: u16,
     pub prover_job_ids_for_proofs: Vec<u32>,
@@ -216,6 +218,7 @@ pub enum WitnessJobStatus {
 #[derive(Debug)]
 pub struct WitnessJobInfo {
     pub block_number: L1BatchNumber,
+    pub chain_id: L2ChainId,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub status: WitnessJobStatus,
@@ -226,6 +229,7 @@ pub struct WitnessJobInfo {
 pub struct ProverJobInfo {
     pub id: u32,
     pub block_number: L1BatchNumber,
+    pub chain_id: L2ChainId,
     pub circuit_type: String,
     pub position: JobPosition,
     pub input_length: u64,
@@ -273,6 +277,7 @@ impl FromStr for GpuProverInstanceStatus {
 pub struct ProverJobFriInfo {
     pub id: u32,
     pub l1_batch_number: L1BatchNumber,
+    pub chain_id: L2ChainId,
     pub circuit_id: u32,
     pub circuit_blob_url: String,
     pub aggregation_round: AggregationRound,
@@ -299,6 +304,7 @@ pub trait Stallable {
 #[derive(Debug, Clone)]
 pub struct BasicWitnessGeneratorJobInfo {
     pub l1_batch_number: L1BatchNumber,
+    pub chain_id: L2ChainId,
     pub witness_inputs_blob_url: Option<String>,
     pub attempts: u32,
     pub status: WitnessJobStatus,
@@ -325,6 +331,7 @@ impl Stallable for BasicWitnessGeneratorJobInfo {
 pub struct LeafWitnessGeneratorJobInfo {
     pub id: u32,
     pub l1_batch_number: L1BatchNumber,
+    pub chain_id: L2ChainId,
     pub circuit_id: u32,
     pub closed_form_inputs_blob_url: Option<String>,
     pub attempts: u32,
@@ -353,6 +360,7 @@ impl Stallable for LeafWitnessGeneratorJobInfo {
 pub struct NodeWitnessGeneratorJobInfo {
     pub id: u32,
     pub l1_batch_number: L1BatchNumber,
+    pub chain_id: L2ChainId,
     pub circuit_id: u32,
     pub depth: u32,
     pub status: WitnessJobStatus,
@@ -381,6 +389,7 @@ impl Stallable for NodeWitnessGeneratorJobInfo {
 #[derive(Debug, Clone)]
 pub struct RecursionTipWitnessGeneratorJobInfo {
     pub l1_batch_number: L1BatchNumber,
+    pub chain_id: L2ChainId,
     pub status: WitnessJobStatus,
     pub attempts: u32,
     pub processing_started_at: Option<NaiveDateTime>,
@@ -406,6 +415,7 @@ impl Stallable for RecursionTipWitnessGeneratorJobInfo {
 #[derive(Debug, Clone)]
 pub struct SchedulerWitnessGeneratorJobInfo {
     pub l1_batch_number: L1BatchNumber,
+    pub chain_id: L2ChainId,
     pub scheduler_partial_input_blob_url: String,
     pub status: WitnessJobStatus,
     pub processing_started_at: Option<NaiveDateTime>,
@@ -447,6 +457,7 @@ pub enum ProofCompressionJobStatus {
 #[derive(Debug, Clone)]
 pub struct ProofCompressionJobInfo {
     pub l1_batch_number: L1BatchNumber,
+    pub chain_id: L2ChainId,
     pub attempts: u32,
     pub status: ProofCompressionJobStatus,
     pub fri_proof_blob_url: Option<String>,
@@ -464,6 +475,7 @@ pub struct ProofCompressionJobInfo {
 #[derive(Debug, Clone)]
 pub struct ProofGenerationTime {
     pub l1_batch_number: L1BatchNumber,
+    pub chain_id: L2ChainId,
     pub time_taken: NaiveTime,
     pub created_at: NaiveDateTime,
 }

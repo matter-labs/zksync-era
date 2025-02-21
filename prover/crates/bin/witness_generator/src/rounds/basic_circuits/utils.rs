@@ -25,7 +25,7 @@ use zksync_prover_dal::{Connection, Prover, ProverDal};
 use zksync_prover_fri_types::keys::ClosedFormInputKey;
 use zksync_prover_interface::inputs::WitnessInputData;
 use zksync_system_constants::BOOTLOADER_ADDRESS;
-use zksync_types::{protocol_version::ProtocolSemanticVersion, L1BatchNumber};
+use zksync_types::{protocol_version::ProtocolSemanticVersion, L1BatchNumber, L2ChainId};
 
 use crate::{
     precalculated_merkle_paths_provider::PrecalculatedMerklePathsProvider,
@@ -267,6 +267,7 @@ async fn save_recursion_queue(
 pub(crate) async fn create_aggregation_jobs(
     connection: &mut Connection<'_, Prover>,
     block_number: L1BatchNumber,
+    chain_id: L2ChainId,
     closed_form_inputs_and_urls: &Vec<(u8, String, usize)>,
     scheduler_partial_input_blob_url: &str,
     base_layer_to_recursive_layer_circuit_id: fn(u8) -> u8,

@@ -24,7 +24,7 @@ use zksync_prover_fri_types::{
     keys::{AggregationsKey, ClosedFormInputKey, FriCircuitKey},
     CircuitWrapper, FriProofWrapper,
 };
-use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber, ProtocolVersionId, U256};
+use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber, L2ChainId, ProtocolVersionId, U256};
 
 // Creates a temporary file with the serialized KZG setup usable by `zkevm_test_harness` functions.
 pub(crate) static KZG_TRUSTED_SETUP_FILE: Lazy<tempfile::NamedTempFile> = Lazy::new(|| {
@@ -62,10 +62,11 @@ impl StoredObject for ClosedFormInputWrapper {
 
     fn encode_key(key: Self::Key<'_>) -> String {
         let ClosedFormInputKey {
+            chain_id,
             block_number,
             circuit_id,
         } = key;
-        format!("closed_form_inputs_{block_number}_{circuit_id}.bin")
+        format!("closed_form_inputs_{}_{block_number}_{circuit_id}.bin", chain_id.as_u64())
     }
 
     serialize_using_bincode!();
@@ -80,11 +81,12 @@ impl StoredObject for AggregationWrapper {
 
     fn encode_key(key: Self::Key<'_>) -> String {
         let AggregationsKey {
+            chain_id,
             block_number,
             circuit_id,
             depth,
         } = key;
-        format!("aggregations_{block_number}_{circuit_id}_{depth}.bin")
+        format!("aggregations_{}_{block_number}_{circuit_id}_{depth}.bin", chain_id.as_u64())
     }
 
     serialize_using_bincode!();
@@ -101,10 +103,10 @@ pub struct SchedulerPartialInputWrapper(
 
 impl StoredObject for SchedulerPartialInputWrapper {
     const BUCKET: Bucket = Bucket::SchedulerWitnessJobsFri;
-    type Key<'a> = L1BatchNumber;
+    type Key<'a> = (L2ChainId, L1BatchNumber);
 
     fn encode_key(key: Self::Key<'_>) -> String {
-        format!("scheduler_witness_{key}.bin")
+        format!("scheduler_witness_{}_{}.bin", key.0.as_u64(), key.1)
     }
 
     serialize_using_bincode!();
@@ -115,6 +117,7 @@ impl StoredObject for SchedulerPartialInputWrapper {
     fields(l1_batch = %block_number, circuit_id = %circuit.numeric_circuit_type())
 )]
 pub async fn save_circuit(
+    chain_id: L2ChainId,
     block_number: L1BatchNumber,
     circuit: ZkSyncBaseLayerCircuit,
     sequence_number: usize,
@@ -122,6 +125,7 @@ pub async fn save_circuit(
 ) -> (u8, String) {
     let circuit_id = circuit.numeric_circuit_type();
     let circuit_key = FriCircuitKey {
+        chain_id,
         block_number,
         sequence_number,
         circuit_id,

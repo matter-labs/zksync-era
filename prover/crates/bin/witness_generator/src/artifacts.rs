@@ -24,8 +24,8 @@ pub trait ArtifactsManager {
     ) -> anyhow::Result<Self::InputArtifacts>;
 
     async fn save_to_bucket(
-        chain_id: L2ChainId,
         job_id: u32,
+        chain_id: L2ChainId,
         artifacts: Self::OutputArtifacts,
         object_store: &dyn ObjectStore,
         shall_save_to_public_bucket: bool,
