@@ -290,10 +290,10 @@ impl DataAvailabilityDal<'_, '_> {
                 1
             "#,
         )
-            .instrument("get_latest_batch_with_inclusion_data")
-            .report_latency()
-            .fetch_optional(self.storage)
-            .await?;
+        .instrument("get_latest_batch_with_inclusion_data")
+        .report_latency()
+        .fetch_optional(self.storage)
+        .await?;
 
         Ok(row.map(|row| L1BatchNumber(row.l1_batch_number as u32)))
     }
