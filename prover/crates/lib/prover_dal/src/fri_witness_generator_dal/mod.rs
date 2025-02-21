@@ -42,6 +42,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
     pub async fn get_witness_job_attempts(
         &mut self,
         job_id: u32,
+        chain_id: L2ChainId,
         aggregation_round: AggregationRound,
     ) -> sqlx::Result<Option<u32>> {
         let table = match aggregation_round {
@@ -68,7 +69,9 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 {table}
             WHERE
                 {job_id_column} = {job_id}
+                AND chain_id = {}
             "#,
+            chain_id.as_u64()
         );
 
         let attempts = sqlx::query(&query)

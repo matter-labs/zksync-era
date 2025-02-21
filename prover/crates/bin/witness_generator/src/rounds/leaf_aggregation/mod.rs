@@ -184,6 +184,7 @@ impl JobManager for LeafAggregation {
 
         Ok(LeafAggregationArtifacts {
             circuit_id,
+            chain_id,
             block_number: job.block_number,
             aggregations,
             circuit_ids_and_urls,

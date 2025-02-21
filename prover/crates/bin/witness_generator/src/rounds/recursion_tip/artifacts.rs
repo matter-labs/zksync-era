@@ -9,7 +9,7 @@ use zkevm_test_harness::empty_node_proof;
 use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::{keys::FriCircuitKey, CircuitWrapper, FriProofWrapper};
-use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber};
+use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber, L2ChainId};
 
 use crate::{
     artifacts::ArtifactsManager,
@@ -18,7 +18,7 @@ use crate::{
 
 #[async_trait]
 impl ArtifactsManager for RecursionTip {
-    type InputMetadata = Vec<(u8, u32)>;
+    type InputMetadata = Vec<(u8, L1BatchNumber, L2ChainId)>;
     type InputArtifacts = Vec<ZkSyncRecursionProof>;
     type OutputArtifacts = RecursionTipArtifacts;
     type BlobUrls = String;
@@ -28,16 +28,16 @@ impl ArtifactsManager for RecursionTip {
     /// In this scenario, we still need to pass a proof, but it won't be taken into account during proving.
     /// For this scenario, we use an empty_proof, but any proof would suffice.
     async fn get_artifacts(
-        metadata: &Vec<(u8, u32)>,
+        metadata: &Vec<(u8, L1BatchNumber, L2ChainId)>,
         object_store: &dyn ObjectStore,
     ) -> anyhow::Result<Vec<ZkSyncRecursionProof>> {
-        let job_mapping: HashMap<u8, u32> = metadata
+        let job_mapping: HashMap<u8, (L2ChainId, u32)> = metadata
             .clone()
             .into_iter()
-            .map(|(leaf_circuit_id, job_id)| {
+            .map(|(leaf_circuit_id, job_id, chain_id)| {
                 (
                     ZkSyncRecursionLayerStorageType::from_leaf_u8_to_basic_u8(leaf_circuit_id),
-                    job_id,
+                    (chain_id, job_id.0),
                 )
             })
             .collect();
@@ -76,12 +76,14 @@ impl ArtifactsManager for RecursionTip {
 
     async fn save_to_bucket(
         job_id: u32,
+        chain_id: L2ChainId,
         artifacts: Self::OutputArtifacts,
         object_store: &dyn ObjectStore,
         _shall_save_to_public_bucket: bool,
         _public_blob_store: Option<std::sync::Arc<dyn ObjectStore>>,
     ) -> String {
         let key = FriCircuitKey {
+            chain_id,
             block_number: L1BatchNumber(job_id),
             circuit_id: 255,
             sequence_number: 0,
@@ -101,6 +103,7 @@ impl ArtifactsManager for RecursionTip {
     async fn save_to_database(
         connection_pool: &ConnectionPool<Prover>,
         job_id: u32,
+        chain_id: L2ChainId,
         started_at: Instant,
         blob_urls: String,
         _artifacts: Self::OutputArtifacts,
@@ -109,12 +112,13 @@ impl ArtifactsManager for RecursionTip {
         let mut transaction = prover_connection.start_transaction().await?;
         let protocol_version_id = transaction
             .fri_basic_witness_generator_dal()
-            .protocol_version_for_l1_batch_and_chain(L1BatchNumber(job_id))
+            .protocol_version_for_l1_batch_and_chain(L1BatchNumber(job_id), chain_id)
             .await;
         transaction
             .fri_prover_jobs_dal()
             .insert_prover_job(
                 L1BatchNumber(job_id),
+                chain_id,
                 ZkSyncRecursionLayerStorageType::RecursionTipCircuit as u8,
                 0,
                 0,
@@ -127,7 +131,11 @@ impl ArtifactsManager for RecursionTip {
 
         transaction
             .fri_recursion_tip_witness_generator_dal()
-            .mark_recursion_tip_job_as_successful(L1BatchNumber(job_id), started_at.elapsed())
+            .mark_recursion_tip_job_as_successful(
+                L1BatchNumber(job_id),
+                chain_id,
+                started_at.elapsed(),
+            )
             .await;
 
         transaction.commit().await?;

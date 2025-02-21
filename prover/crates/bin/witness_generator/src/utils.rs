@@ -125,8 +125,8 @@ impl StoredObject for SchedulerPartialInputWrapper {
     fields(l1_batch = %block_number, circuit_id = %circuit.numeric_circuit_type())
 )]
 pub async fn save_circuit(
-    chain_id: L2ChainId,
     block_number: L1BatchNumber,
+    chain_id: L2ChainId,
     circuit: ZkSyncBaseLayerCircuit,
     sequence_number: usize,
     object_store: Arc<dyn ObjectStore>,

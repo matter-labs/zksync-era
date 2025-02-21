@@ -86,8 +86,14 @@ impl JobManager for BasicCircuits {
             block_number.0
         );
 
-        let (circuit_urls, queue_urls, scheduler_witness, aux_output_witness) =
-            generate_witness(block_number, object_store, job, max_circuits_in_flight).await;
+        let (circuit_urls, queue_urls, scheduler_witness, aux_output_witness) = generate_witness(
+            block_number,
+            chain_id,
+            object_store,
+            job,
+            max_circuits_in_flight,
+        )
+        .await;
         WITNESS_GENERATOR_METRICS.witness_generation_time[&AggregationRound::BasicCircuits.into()]
             .observe(started_at.elapsed());
         tracing::info!(
@@ -137,7 +143,11 @@ impl JobManager for BasicCircuits {
             .get_next_basic_circuit_witness_job(protocol_version, &pod_name)
             .await
         {
-            Ok(Some((chain_id, l1_batch_number.0, l1_batch_number)))
+            Ok(Some((
+                chain_id,
+                l1_batch_number.0,
+                (chain_id, l1_batch_number),
+            )))
         } else {
             Ok(None)
         }

@@ -40,7 +40,7 @@ impl JobSaver for GpuCircuitProverJobSaver {
     #[tracing::instrument(
         name = "gpu_circuit_prover_job_saver",
         skip_all,
-        fields(l1_batch = % data.1.block_number)
+        fields(l1_batch = % data.1.block_number, chain = %data.1.chain_id.as_u64())
     )]
     async fn save_job_result(
         &self,
@@ -49,9 +49,10 @@ impl JobSaver for GpuCircuitProverJobSaver {
         let start_time = Instant::now();
         let (result, metadata) = data;
         tracing::info!(
-            "Started saving gpu circuit prover job {}, on batch {}, for circuit {}, at round {}",
+            "Started saving gpu circuit prover job {}, on batch {}, chain {}, for circuit {}, at round {}",
             metadata.id,
             metadata.block_number,
+            metadata.chain_id.as_u64(),
             metadata.circuit_id,
             metadata.aggregation_round
         );
@@ -68,7 +69,7 @@ impl JobSaver for GpuCircuitProverJobSaver {
 
                 let blob_url = self
                     .object_store
-                    .put(metadata.id, &proof_wrapper)
+                    .put((metadata.chain_id, metadata.id), &proof_wrapper)
                     .await
                     .context("failed to upload to object store")?;
 
@@ -78,13 +79,19 @@ impl JobSaver for GpuCircuitProverJobSaver {
                     .context("failed to start db transaction")?;
                 transaction
                     .fri_prover_jobs_dal()
-                    .save_proof(metadata.id, metadata.pick_time.elapsed(), &blob_url)
+                    .save_proof(
+                        metadata.id,
+                        metadata.chain_id,
+                        metadata.pick_time.elapsed(),
+                        &blob_url,
+                    )
                     .await;
                 if is_scheduler_proof {
                     transaction
                         .fri_proof_compressor_dal()
                         .insert_proof_compression_job(
                             metadata.block_number,
+                            metadata.chain_id,
                             &blob_url,
                             self.protocol_version,
                         )
@@ -103,14 +110,15 @@ impl JobSaver for GpuCircuitProverJobSaver {
                     .await
                     .context("failed to get db connection")?
                     .fri_prover_jobs_dal()
-                    .save_proof_error(metadata.id, error_message)
+                    .save_proof_error(metadata.id, metadata.chain_id, error_message)
                     .await;
             }
         };
         tracing::info!(
-            "Finished saving gpu circuit prover job {}, on batch {}, for circuit {}, at round {} after {:?}",
+            "Finished saving gpu circuit prover job {}, on batch {}, chain {}, for circuit {}, at round {} after {:?}",
             metadata.id,
             metadata.block_number,
+            metadata.chain_id.as_u64(),
             metadata.circuit_id,
             metadata.aggregation_round,
             start_time.elapsed()

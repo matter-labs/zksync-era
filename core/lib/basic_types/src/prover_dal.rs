@@ -14,7 +14,6 @@ use crate::{
 pub struct FriProverJobMetadata {
     pub id: u32,
     pub block_number: L1BatchNumber,
-
     pub chain_id: L2ChainId,
     pub circuit_id: u8,
     pub aggregation_round: AggregationRound,

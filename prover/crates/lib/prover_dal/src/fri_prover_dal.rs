@@ -800,6 +800,7 @@ impl FriProverDal<'_, '_> {
     pub async fn get_scheduler_proof_job_id(
         &mut self,
         l1_batch_number: L1BatchNumber,
+        chain_id: L2ChainId,
     ) -> Option<u32> {
         sqlx::query!(
             r#"
@@ -809,10 +810,12 @@ impl FriProverDal<'_, '_> {
                 prover_jobs_fri
             WHERE
                 l1_batch_number = $1
+                AND chain_id = $2
                 AND status = 'successful'
-                AND aggregation_round = $2
+                AND aggregation_round = $3
             "#,
             i64::from(l1_batch_number.0),
+            chain_id.as_u64() as i32,
             AggregationRound::Scheduler as i16,
         )
         .fetch_optional(self.storage.conn())
