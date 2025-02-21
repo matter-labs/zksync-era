@@ -1,9 +1,13 @@
-use std::{str::FromStr, time::Duration};
-use std::io::Chain;
+use std::{io::Chain, str::FromStr, time::Duration};
 
-use zksync_basic_types::{basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion, prover_dal::{
-    LeafAggregationJobMetadata, LeafWitnessGeneratorJobInfo, StuckJobs, WitnessJobStatus,
-}, L1BatchNumber, L2ChainId};
+use zksync_basic_types::{
+    basic_fri_types::AggregationRound,
+    protocol_version::ProtocolSemanticVersion,
+    prover_dal::{
+        LeafAggregationJobMetadata, LeafWitnessGeneratorJobInfo, StuckJobs, WitnessJobStatus,
+    },
+    L1BatchNumber, L2ChainId,
+};
 use zksync_db_connection::{
     connection::Connection,
     utils::{duration_to_naive_time, pg_interval_from_duration},
@@ -17,7 +21,12 @@ pub struct FriLeafWitnessGeneratorDal<'a, 'c> {
 }
 
 impl FriLeafWitnessGeneratorDal<'_, '_> {
-    pub async fn mark_leaf_aggregation_as_successful(&mut self, id: u32, chain_id: L2ChainId, time_taken: Duration) {
+    pub async fn mark_leaf_aggregation_as_successful(
+        &mut self,
+        id: u32,
+        chain_id: L2ChainId,
+        time_taken: Duration,
+    ) {
         sqlx::query!(
             r#"
             UPDATE leaf_aggregation_witness_jobs_fri
@@ -103,7 +112,9 @@ impl FriLeafWitnessGeneratorDal<'_, '_> {
         })
     }
 
-    pub async fn move_leaf_aggregation_jobs_from_waiting_to_queued(&mut self) -> Vec<(i64, L2ChainId, u8)> {
+    pub async fn move_leaf_aggregation_jobs_from_waiting_to_queued(
+        &mut self,
+    ) -> Vec<(i64, L2ChainId, u8)> {
         sqlx::query!(
             r#"
             UPDATE leaf_aggregation_witness_jobs_fri
@@ -144,7 +155,13 @@ impl FriLeafWitnessGeneratorDal<'_, '_> {
         .await
         .unwrap()
         .into_iter()
-        .map(|row| (row.l1_batch_number, L2ChainId::new(row.chain_id as u64).unwrap(), row.circuit_id as u8))
+        .map(|row| {
+            (
+                row.l1_batch_number,
+                L2ChainId::new(row.chain_id as u64).unwrap(),
+                row.circuit_id as u8,
+            )
+        })
         .collect()
     }
 

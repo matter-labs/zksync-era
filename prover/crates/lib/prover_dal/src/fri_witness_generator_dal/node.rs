@@ -1,8 +1,13 @@
 use std::{str::FromStr, time::Duration};
 
-use zksync_basic_types::{basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion, prover_dal::{
-    NodeAggregationJobMetadata, NodeWitnessGeneratorJobInfo, StuckJobs, WitnessJobStatus,
-}, L1BatchNumber, L2ChainId};
+use zksync_basic_types::{
+    basic_fri_types::AggregationRound,
+    protocol_version::ProtocolSemanticVersion,
+    prover_dal::{
+        NodeAggregationJobMetadata, NodeWitnessGeneratorJobInfo, StuckJobs, WitnessJobStatus,
+    },
+    L1BatchNumber, L2ChainId,
+};
 use zksync_db_connection::{
     connection::Connection,
     utils::{duration_to_naive_time, pg_interval_from_duration},
@@ -118,7 +123,12 @@ impl FriNodeWitnessGeneratorDal<'_, '_> {
         })
     }
 
-    pub async fn mark_node_aggregation_as_successful(&mut self, id: u32, chain_id: L2ChainId, time_taken: Duration) {
+    pub async fn mark_node_aggregation_as_successful(
+        &mut self,
+        id: u32,
+        chain_id: L2ChainId,
+        time_taken: Duration,
+    ) {
         sqlx::query!(
             r#"
             UPDATE node_aggregation_witness_jobs_fri
@@ -232,7 +242,14 @@ impl FriNodeWitnessGeneratorDal<'_, '_> {
         .await
         .unwrap()
         .into_iter()
-        .map(|row| (row.l1_batch_number, row.chain_id as u64, row.circuit_id as u8, row.depth as u16))
+        .map(|row| {
+            (
+                row.l1_batch_number,
+                row.chain_id as u64,
+                row.circuit_id as u8,
+                row.depth as u16,
+            )
+        })
         .collect()
     }
 

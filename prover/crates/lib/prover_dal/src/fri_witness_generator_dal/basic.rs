@@ -1,6 +1,10 @@
 use std::time::Duration;
 
-use zksync_basic_types::{protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch}, prover_dal::{BasicWitnessGeneratorJobInfo, StuckJobs, WitnessJobStatus}, L1BatchNumber, L2ChainId};
+use zksync_basic_types::{
+    protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch},
+    prover_dal::{BasicWitnessGeneratorJobInfo, StuckJobs, WitnessJobStatus},
+    L1BatchNumber, L2ChainId,
+};
 use zksync_db_connection::{
     connection::Connection,
     error::DalResult,
@@ -97,7 +101,12 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
         .fetch_optional(self.storage.conn())
         .await
         .unwrap()
-        .map(|row| (L2ChainId::new(row.chain_id as u64).unwrap(), L1BatchNumber(row.l1_batch_number as u32)))
+        .map(|row| {
+            (
+                L2ChainId::new(row.chain_id as u64).unwrap(),
+                L1BatchNumber(row.l1_batch_number as u32),
+            )
+        })
     }
 
     pub async fn set_status_for_basic_witness_job(
@@ -206,7 +215,7 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
     pub async fn protocol_version_for_l1_batch_and_chain(
         &mut self,
         l1_batch_number: L1BatchNumber,
-        chain_id: L2ChainId
+        chain_id: L2ChainId,
     ) -> ProtocolSemanticVersion {
         let result = sqlx::query!(
             r#"

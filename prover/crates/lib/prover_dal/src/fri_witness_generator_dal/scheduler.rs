@@ -1,6 +1,11 @@
 use std::{str::FromStr, time::Duration};
 
-use zksync_basic_types::{basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion, prover_dal::{SchedulerWitnessGeneratorJobInfo, StuckJobs, WitnessJobStatus}, L1BatchNumber, L2ChainId};
+use zksync_basic_types::{
+    basic_fri_types::AggregationRound,
+    protocol_version::ProtocolSemanticVersion,
+    prover_dal::{SchedulerWitnessGeneratorJobInfo, StuckJobs, WitnessJobStatus},
+    L1BatchNumber, L2ChainId,
+};
 use zksync_db_connection::{
     connection::Connection,
     utils::{duration_to_naive_time, pg_interval_from_duration},
@@ -29,8 +34,9 @@ impl FriSchedulerWitnessGeneratorDal<'_, '_> {
                         prover_jobs_fri
                     JOIN
                         scheduler_witness_jobs_fri swj
-                        ON prover_jobs_fri.l1_batch_number = swj.l1_batch_number
-                        AND prover_jobs_fri.chain_id = swj.chain_id
+                        ON
+                            prover_jobs_fri.l1_batch_number = swj.l1_batch_number
+                            AND prover_jobs_fri.chain_id = swj.chain_id
                     WHERE
                         swj.status = 'waiting_for_proofs'
                         AND prover_jobs_fri.status = 'successful'
@@ -50,7 +56,11 @@ impl FriSchedulerWitnessGeneratorDal<'_, '_> {
         .collect()
     }
 
-    pub async fn mark_scheduler_jobs_as_queued(&mut self, l1_batch_number: i64, chain_id: L2ChainId) {
+    pub async fn mark_scheduler_jobs_as_queued(
+        &mut self,
+        l1_batch_number: i64,
+        chain_id: L2ChainId,
+    ) {
         sqlx::query!(
             r#"
             UPDATE scheduler_witness_jobs_fri
@@ -164,7 +174,12 @@ impl FriSchedulerWitnessGeneratorDal<'_, '_> {
         .fetch_optional(self.storage.conn())
         .await
         .unwrap()
-        .map(|row| (L2ChainId::new(row.chain_id as u64).unwrap(), L1BatchNumber(row.l1_batch_number as u32)))
+        .map(|row| {
+            (
+                L2ChainId::new(row.chain_id as u64).unwrap(),
+                L1BatchNumber(row.l1_batch_number as u32),
+            )
+        })
     }
 
     pub async fn mark_scheduler_job_as_successful(

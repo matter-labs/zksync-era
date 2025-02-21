@@ -7,12 +7,17 @@ use std::{
 };
 
 use sqlx::QueryBuilder;
-use zksync_basic_types::{basic_fri_types::{
-    AggregationRound, CircuitIdRoundTuple, CircuitProverStatsEntry,
-    ProtocolVersionedCircuitProverStats,
-}, protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch}, prover_dal::{
-    FriProverJobMetadata, JobCountStatistics, ProverJobFriInfo, ProverJobStatus, StuckJobs,
-}, L1BatchNumber, L2ChainId};
+use zksync_basic_types::{
+    basic_fri_types::{
+        AggregationRound, CircuitIdRoundTuple, CircuitProverStatsEntry,
+        ProtocolVersionedCircuitProverStats,
+    },
+    protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch},
+    prover_dal::{
+        FriProverJobMetadata, JobCountStatistics, ProverJobFriInfo, ProverJobStatus, StuckJobs,
+    },
+    L1BatchNumber, L2ChainId,
+};
 use zksync_db_connection::{
     connection::Connection, instrument::InstrumentExt, metrics::MethodLatency,
 };
@@ -444,7 +449,11 @@ impl FriProverDal<'_, '_> {
         }
     }
 
-    pub async fn get_prover_job_attempts(&mut self, id: u32, chain_id: L2ChainId) -> sqlx::Result<Option<u32>> {
+    pub async fn get_prover_job_attempts(
+        &mut self,
+        id: u32,
+        chain_id: L2ChainId,
+    ) -> sqlx::Result<Option<u32>> {
         let attempts = sqlx::query!(
             r#"
             SELECT
@@ -731,7 +740,9 @@ impl FriProverDal<'_, '_> {
         }
     }
 
-    pub async fn min_unproved_l1_batch_number(&mut self) -> HashMap<(u8, u8), (L2ChainId, L1BatchNumber)> {
+    pub async fn min_unproved_l1_batch_number(
+        &mut self,
+    ) -> HashMap<(u8, u8), (L2ChainId, L1BatchNumber)> {
         {
             sqlx::query!(
                 r#"
@@ -757,7 +768,10 @@ impl FriProverDal<'_, '_> {
             .map(|row| {
                 (
                     (row.circuit_id as u8, row.aggregation_round as u8),
-                    (L2ChainId::new(row.chain_id as u64).unwrap(), L1BatchNumber(row.l1_batch_number as u32)),
+                    (
+                        L2ChainId::new(row.chain_id as u64).unwrap(),
+                        L1BatchNumber(row.l1_batch_number as u32),
+                    ),
                 )
             })
             .collect()

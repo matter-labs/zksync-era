@@ -5,7 +5,9 @@ use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::keys::{AggregationsKey, ClosedFormInputKey};
 use zksync_prover_fri_utils::get_recursive_layer_circuit_id_for_base_layer;
-use zksync_types::{basic_fri_types::AggregationRound, L2ChainId, prover_dal::LeafAggregationJobMetadata};
+use zksync_types::{
+    basic_fri_types::AggregationRound, prover_dal::LeafAggregationJobMetadata, L2ChainId,
+};
 
 use crate::{
     artifacts::{AggregationBlobUrls, ArtifactsManager},

@@ -16,7 +16,11 @@ use circuit_definitions::{
 };
 use keys::RamPermutationQueueWitnessKey;
 use zksync_object_store::{serialize_using_bincode, Bucket, StoredObject};
-use zksync_types::{basic_fri_types::AggregationRound, protocol_version::{ProtocolSemanticVersion, VersionPatch}, L1BatchNumber, ProtocolVersionId, L2ChainId};
+use zksync_types::{
+    basic_fri_types::AggregationRound,
+    protocol_version::{ProtocolSemanticVersion, VersionPatch},
+    L1BatchNumber, L2ChainId, ProtocolVersionId,
+};
 
 use crate::keys::FriCircuitKey;
 
@@ -59,7 +63,10 @@ impl StoredObject for CircuitWrapper {
             aggregation_round,
             depth,
         } = key;
-        format!("{}_{block_number}_{sequence_number}_{circuit_id}_{aggregation_round:?}_{depth}.bin", chain_id.as_u64())
+        format!(
+            "{}_{block_number}_{sequence_number}_{circuit_id}_{aggregation_round:?}_{depth}.bin",
+            chain_id.as_u64()
+        )
     }
 
     serialize_using_bincode!();
@@ -129,7 +136,11 @@ pub struct ProverArtifacts {
 }
 
 impl ProverArtifacts {
-    pub fn new(chain_id: L2ChainId, block_number: L1BatchNumber, proof_wrapper: FriProofWrapper) -> Self {
+    pub fn new(
+        chain_id: L2ChainId,
+        block_number: L1BatchNumber,
+        proof_wrapper: FriProofWrapper,
+    ) -> Self {
         Self {
             chain_id,
             block_number,

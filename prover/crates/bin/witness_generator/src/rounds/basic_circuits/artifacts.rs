@@ -1,5 +1,4 @@
-use std::{sync::Arc, time::Instant};
-use std::iter::chain;
+use std::{iter::chain, sync::Arc, time::Instant};
 
 use async_trait::async_trait;
 use zksync_object_store::ObjectStore;
@@ -56,7 +55,10 @@ impl ArtifactsManager for BasicCircuits {
         }
 
         object_store
-            .put((chain_id, L1BatchNumber(job_id)), &aux_output_witness_wrapper)
+            .put(
+                (chain_id, L1BatchNumber(job_id)),
+                &aux_output_witness_wrapper,
+            )
             .await
             .unwrap();
         let wrapper = SchedulerPartialInputWrapper(artifacts.scheduler_witness);

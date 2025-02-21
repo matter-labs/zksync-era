@@ -1,9 +1,13 @@
 #![doc = include_str!("../doc/FriProofCompressorDal.md")]
 use std::{collections::HashMap, str::FromStr, time::Duration};
 
-use zksync_basic_types::{protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch}, prover_dal::{
-    JobCountStatistics, ProofCompressionJobInfo, ProofCompressionJobStatus, StuckJobs,
-}, L1BatchNumber, L2ChainId};
+use zksync_basic_types::{
+    protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch},
+    prover_dal::{
+        JobCountStatistics, ProofCompressionJobInfo, ProofCompressionJobStatus, StuckJobs,
+    },
+    L1BatchNumber, L2ChainId,
+};
 use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
 
 use crate::{duration_to_naive_time, pg_interval_from_duration, Prover};
@@ -96,7 +100,12 @@ impl FriProofCompressorDal<'_, '_> {
         .fetch_optional(self.storage.conn())
         .await
         .unwrap()
-        .map(|row| (L2ChainId::new(row.chain_id as u64).unwrap(), L1BatchNumber(row.l1_batch_number as u32)))
+        .map(|row| {
+            (
+                L2ChainId::new(row.chain_id as u64).unwrap(),
+                L1BatchNumber(row.l1_batch_number as u32),
+            )
+        })
     }
 
     pub async fn get_proof_compression_job_attempts(
@@ -322,7 +331,12 @@ impl FriProofCompressorDal<'_, '_> {
         .fetch_optional(self.storage.conn())
         .await
         .unwrap()
-        .map(|row| (L2ChainId::new(row.chain_id as u64).unwrap(), L1BatchNumber(row.l1_batch_number as u32)));
+        .map(|row| {
+            (
+                L2ChainId::new(row.chain_id as u64).unwrap(),
+                L1BatchNumber(row.l1_batch_number as u32),
+            )
+        });
 
         result
     }

@@ -6,11 +6,15 @@ pub mod node;
 pub mod recursion_tip;
 pub mod scheduler;
 
-use std::collections::HashMap;
-use std::io::Chain;
+use std::{collections::HashMap, io::Chain};
 
 use sqlx::{types::chrono::NaiveDateTime, Row};
-use zksync_basic_types::{basic_fri_types::AggregationRound, protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch}, prover_dal::{JobCountStatistics, ProofGenerationTime, StuckJobs}, L1BatchNumber, L2ChainId};
+use zksync_basic_types::{
+    basic_fri_types::AggregationRound,
+    protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch},
+    prover_dal::{JobCountStatistics, ProofGenerationTime, StuckJobs},
+    L1BatchNumber, L2ChainId,
+};
 use zksync_db_connection::{connection::Connection, utils::naive_time_from_pg_interval};
 
 use crate::Prover;
@@ -201,8 +205,12 @@ impl FriWitnessGeneratorDal<'_, '_> {
         block_number: L1BatchNumber,
         chain_id: L2ChainId,
     ) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
-        self.delete_witness_generator_data_for_batch(block_number, chain_id, AggregationRound::BasicCircuits)
-            .await?;
+        self.delete_witness_generator_data_for_batch(
+            block_number,
+            chain_id,
+            AggregationRound::BasicCircuits,
+        )
+        .await?;
         self.delete_witness_generator_data_for_batch(
             block_number,
             chain_id,
@@ -218,8 +226,12 @@ impl FriWitnessGeneratorDal<'_, '_> {
         // TODO: THIS LOOKS SUS
         self.delete_witness_generator_data(AggregationRound::RecursionTip)
             .await?;
-        self.delete_witness_generator_data_for_batch(block_number, chain_id, AggregationRound::Scheduler)
-            .await
+        self.delete_witness_generator_data_for_batch(
+            block_number,
+            chain_id,
+            AggregationRound::Scheduler,
+        )
+        .await
     }
 
     pub async fn delete_witness_generator_data(
@@ -358,7 +370,11 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 wit.created_at
             FROM
                 proof_compression_jobs_fri AS comp
-            JOIN witness_inputs_fri AS wit ON comp.l1_batch_number = wit.l1_batch_number AND comp.chain_id = wit.chain_id
+            JOIN
+                witness_inputs_fri AS wit
+                ON
+                    comp.l1_batch_number = wit.l1_batch_number
+                    AND comp.chain_id = wit.chain_id
             WHERE
                 wit.created_at > $1
             ORDER BY

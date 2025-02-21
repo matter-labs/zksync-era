@@ -24,7 +24,10 @@ use zksync_prover_fri_types::{
     get_current_pod_name, FriProofWrapper,
 };
 use zksync_prover_keystore::keystore::Keystore;
-use zksync_types::{basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion, prover_dal::LeafAggregationJobMetadata, L1BatchNumber, L2ChainId};
+use zksync_types::{
+    basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion,
+    prover_dal::LeafAggregationJobMetadata, L1BatchNumber, L2ChainId,
+};
 
 use crate::{
     artifacts::ArtifactsManager,

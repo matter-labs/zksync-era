@@ -1,6 +1,11 @@
 use std::{str::FromStr, time::Duration};
 
-use zksync_basic_types::{basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion, prover_dal::{RecursionTipWitnessGeneratorJobInfo, StuckJobs, WitnessJobStatus}, L1BatchNumber, L2ChainId};
+use zksync_basic_types::{
+    basic_fri_types::AggregationRound,
+    protocol_version::ProtocolSemanticVersion,
+    prover_dal::{RecursionTipWitnessGeneratorJobInfo, StuckJobs, WitnessJobStatus},
+    L1BatchNumber, L2ChainId,
+};
 use zksync_db_connection::{
     connection::Connection,
     utils::{duration_to_naive_time, pg_interval_from_duration},

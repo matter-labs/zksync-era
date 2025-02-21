@@ -23,8 +23,7 @@ pub use leaf_aggregation::LeafAggregation;
 pub use node_aggregation::NodeAggregation;
 pub use recursion_tip::RecursionTip;
 pub use scheduler::Scheduler;
-use zksync_types::basic_fri_types::AggregationRound;
-use zksync_types::L2ChainId;
+use zksync_types::{basic_fri_types::AggregationRound, L2ChainId};
 
 use crate::metrics::WITNESS_GENERATOR_METRICS;
 
