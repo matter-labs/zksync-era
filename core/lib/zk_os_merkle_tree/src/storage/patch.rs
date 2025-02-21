@@ -96,6 +96,8 @@ impl TreeUpdate {
             sorted_new_leaves,
             updates: vec![],
             inserts,
+            // Since the tree is empty, we expect a completely empty `BatchTreeProof` incl. `operations`; see its validation logic.
+            // This makes the proof occupy less space and doesn't require to specify bogus indices for `TreeOperation::Insert`.
             operations: vec![],
         })
     }

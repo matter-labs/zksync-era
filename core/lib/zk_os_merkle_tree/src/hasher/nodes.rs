@@ -13,6 +13,10 @@ use crate::{
 /// Internal hashes for a single `InternalNode`. Ordered by ascending depth `1..internal_node_depth`
 /// where `depth == 1` is just above child refs. I.e., the last entry contains 2 hashes (unless the internal node is incomplete),
 /// the penultimate one 4 hashes, etc.
+///
+/// To access hashes more efficiently, we keep a flat `Vec` and uniform offsets for `(depth, index_on_level)` pairs.
+/// The latter requires potential padding for rightmost internal nodes; see [`InternalNode::internal_hashes()`].
+/// As a result of these efforts, generating proofs is ~2x more efficient than with layered `Vec<Vec<H256>>`.
 #[derive(Debug)]
 struct InternalNodeHashes(Vec<H256>);
 
@@ -87,9 +91,12 @@ impl Root {
 #[derive(Debug)]
 pub(crate) struct InternalHashes<'a> {
     nodes: &'a HashMap<u64, InternalNode>,
+    /// Internal hashes for each node.
     // TODO: `Vec<(u64, H256)>` for a level may be more efficient
-    /// Ordered by ascending depth `1..internal_node_depth` where `depth == 1` is just above child refs.
     internal_hashes: HashMap<u64, InternalNodeHashes>,
+    // `internal_node_depth` / `level_offsets` are constants w.r.t. `TreeParams`; we keep them as fields
+    // to avoid making `InternalHashes` parametric. (Also, `level_offsets` cannot be computed in compile time
+    // on stable Rust at the time.)
     internal_node_depth: u8,
     level_offsets: Vec<usize>,
 }

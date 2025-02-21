@@ -45,11 +45,12 @@ pub(crate) struct ChildRef {
     pub(crate) hash: H256,
 }
 
+/// Internal node of the tree, potentially amortized to have higher number of child references
+/// (e.g., 8 or 16 instead of 2), depending on [`TreeParams`].
 #[derive(Debug, Clone)]
 #[cfg_attr(test, derive(PartialEq))]
 pub struct InternalNode {
     pub(crate) children: Vec<ChildRef>,
-    // TODO: hashing cache?
 }
 
 impl InternalNode {
@@ -86,6 +87,7 @@ impl InternalNode {
     }
 }
 
+/// Arbitrary tree node.
 #[derive(Debug, Clone)]
 pub enum Node {
     Internal(InternalNode),
@@ -104,6 +106,10 @@ impl From<Leaf> for Node {
     }
 }
 
+/// Result of a key lookup in the tree.
+///
+/// Either a leaf with this key is already present in the tree, or there are neighbor leaves, which need to be updated during insertion
+/// or included into the proof for missing reads.
 #[derive(Debug)]
 #[cfg_attr(test, derive(PartialEq))]
 pub enum KeyLookup {
@@ -114,9 +120,12 @@ pub enum KeyLookup {
     },
 }
 
+/// Unique key for a versioned tree node.
 #[derive(Clone, Copy)]
 pub struct NodeKey {
+    /// Tree version.
     pub(crate) version: u64,
+    /// 0 is root, 1 is its children etc.
     pub(crate) nibble_count: u8,
     pub(crate) index_on_level: u64,
 }
@@ -147,13 +156,14 @@ impl fmt::Debug for NodeKey {
     }
 }
 
+/// Tree root: a node + additional metadata (for now, just the number of leaves in the tree).
 #[derive(Debug, Clone)]
 pub struct Root {
     pub(crate) leaf_count: u64,
     pub(crate) root_node: InternalNode,
 }
 
-/// Entry in a Merkle tree associated with a key.
+/// Entry in a Merkle tree associated with a key. Provided as an input for [`MerkleTree`](crate::MerkleTree) operations.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TreeEntry {
     /// Tree key.
@@ -174,7 +184,7 @@ impl TreeEntry {
     };
 }
 
-/// Tags associated with a tree.
+/// Persisted tags associated with a tree.
 #[derive(Debug, Clone)]
 #[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct TreeTags {
@@ -243,6 +253,7 @@ pub struct Manifest {
     pub(crate) tags: TreeTags,
 }
 
+/// Output of updating / inserting data in a [`MerkleTree`](crate::MerkleTree).
 #[derive(Debug, Clone, Copy)]
 pub struct BatchOutput {
     /// New root hash of the tree.

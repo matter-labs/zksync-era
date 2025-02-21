@@ -47,7 +47,8 @@ pub trait Database: Send + Sync {
     /// Returns I/O errors.
     fn apply_patch(&mut self, patch: PatchSet) -> anyhow::Result<()>;
 
-    /// Truncates the tree.
+    /// Truncates the tree. `manifest` specifies the new number of tree versions, and `truncated_versions`
+    /// contains the last version *before* the truncation. This operation should be atomic.
     fn truncate(
         &mut self,
         manifest: Manifest,
@@ -128,6 +129,7 @@ impl PartialPatchSet {
     }
 }
 
+/// Immutable in-memory changeset that can atomically applied to a [`Database`].
 #[derive(Debug, Clone, Default)]
 pub struct PatchSet {
     manifest: Manifest,
