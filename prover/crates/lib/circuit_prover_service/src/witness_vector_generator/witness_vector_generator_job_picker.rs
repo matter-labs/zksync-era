@@ -5,10 +5,7 @@ use async_trait::async_trait;
 use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover};
 use zksync_prover_fri_types::{
-    circuit_definitions::{
-        boojum::cs::implementations::setup::FinalizationHintsForProver,
-        circuit_definitions::base_layer::ZkSyncBaseLayerCircuit,
-    },
+    circuit_definitions::boojum::cs::implementations::setup::FinalizationHintsForProver,
     CircuitWrapper, ProverServiceDataKey,
 };
 use zksync_prover_job_processor::JobPicker;
