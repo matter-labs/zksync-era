@@ -1,5 +1,4 @@
 use std::{
-    collections::HashSet,
     fs::{File, OpenOptions},
     io::{Read, Write},
     time::Duration,
@@ -134,7 +133,7 @@ pub(crate) async fn get_logs_for_events(
             // Alternatively, you can manually set .topics(Some(vec![event_sig_hash]), None, None, None).
             let mut filter = Filter::new()
                 .address(*contract_address)
-                .event(*event_sig)
+                .event(event_sig)
                 .from_block(start_of_range)
                 .to_block(end_of_range);
 
