@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                UPDATE prover_jobs_fri\n                SET\n                    status = 'failed',\n                    error = $1,\n                    updated_at = NOW()\n                WHERE\n                    id = $2\n                    AND chain_id = $3\n                    AND status != 'successful'\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int8",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "1df8dc2e9f03c979552c6faa34c3d15d2d1cde9053851ccd87fa5267d2b54294"
+}

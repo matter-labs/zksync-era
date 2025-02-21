@@ -41,6 +41,7 @@ use zksync_prover_fri_types::{get_current_pod_name, keys::ClosedFormInputKey};
 use zksync_prover_keystore::{keystore::Keystore, utils::get_leaf_vk_params};
 use zksync_types::{
     basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion, L1BatchNumber,
+    L2ChainId,
 };
 
 use crate::{
@@ -68,6 +69,7 @@ pub struct RecursionTipArtifacts {
 
 pub struct RecursionTipJobMetadata {
     pub l1_batch_number: L1BatchNumber,
+    pub chain_id: L2ChainId,
     pub final_node_proof_job_ids: Vec<(u8, u32)>,
 }
 
@@ -151,6 +153,7 @@ impl JobManager for RecursionTip {
         let mut recursion_queues = vec![];
         for circuit_id in BaseLayerCircuitType::as_iter_u8() {
             let key = ClosedFormInputKey {
+                chain_id: metadata.chain_id,
                 block_number: metadata.l1_batch_number,
                 circuit_id,
             };
@@ -221,7 +224,7 @@ impl JobManager for RecursionTip {
         protocol_version: ProtocolSemanticVersion,
     ) -> anyhow::Result<Option<(u32, Self::Metadata)>> {
         let pod_name = get_current_pod_name();
-        let Some((l1_batch_number, number_of_final_node_jobs)) = connection_pool
+        let Some((chain_id, l1_batch_number, number_of_final_node_jobs)) = connection_pool
             .connection()
             .await?
             .fri_recursion_tip_witness_generator_dal()
@@ -235,7 +238,7 @@ impl JobManager for RecursionTip {
             .connection()
             .await?
             .fri_prover_jobs_dal()
-            .get_final_node_proof_job_ids_for(l1_batch_number)
+            .get_final_node_proof_job_ids_for(l1_batch_number, chain_id)
             .await;
 
         assert_eq!(
@@ -248,6 +251,7 @@ impl JobManager for RecursionTip {
         Ok(Some((
             l1_batch_number.0,
             RecursionTipJobMetadata {
+                chain_id,
                 l1_batch_number,
                 final_node_proof_job_ids,
             },

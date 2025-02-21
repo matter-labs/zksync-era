@@ -26,7 +26,7 @@ use zksync_prover_fri_types::{
 use zksync_prover_keystore::keystore::Keystore;
 use zksync_types::{
     basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion,
-    prover_dal::LeafAggregationJobMetadata, L1BatchNumber,
+    prover_dal::LeafAggregationJobMetadata, L1BatchNumber, L2ChainId,
 };
 
 use crate::{
@@ -43,6 +43,7 @@ mod artifacts;
 
 pub struct LeafAggregationWitnessGeneratorJob {
     pub(crate) circuit_id: u8,
+    pub(crate) chain_id: L2ChainId,
     pub(crate) block_number: L1BatchNumber,
     pub(crate) closed_form_inputs: ClosedFormInputWrapper,
     pub(crate) proofs_ids: Vec<u32>,
@@ -53,6 +54,7 @@ pub struct LeafAggregationWitnessGeneratorJob {
 #[derive(Clone)]
 pub struct LeafAggregationArtifacts {
     circuit_id: u8,
+    pub chain_id: L2ChainId,
     block_number: L1BatchNumber,
     pub aggregations: Vec<(u64, RecursionQueueSimulator<GoldilocksField>)>,
     pub circuit_ids_and_urls: Vec<(u8, String)>,
@@ -182,6 +184,7 @@ impl JobManager for LeafAggregation {
 
         Ok(LeafAggregationArtifacts {
             circuit_id,
+            chain_id,
             block_number: job.block_number,
             aggregations,
             circuit_ids_and_urls,
@@ -223,6 +226,7 @@ impl JobManager for LeafAggregation {
 
         Ok(LeafAggregationWitnessGeneratorJob {
             circuit_id: metadata.circuit_id,
+            chain_id: metadata.chain_id,
             block_number: metadata.block_number,
             closed_form_inputs: closed_form_input,
             proofs_ids: metadata.prover_job_ids_for_proofs,
@@ -234,7 +238,7 @@ impl JobManager for LeafAggregation {
     async fn get_metadata(
         connection_pool: ConnectionPool<Prover>,
         protocol_version: ProtocolSemanticVersion,
-    ) -> anyhow::Result<Option<(u32, Self::Metadata)>> {
+    ) -> anyhow::Result<Option<(L2ChainId, u32, Self::Metadata)>> {
         let pod_name = get_current_pod_name();
         let Some(metadata) = connection_pool
             .connection()
@@ -245,6 +249,6 @@ impl JobManager for LeafAggregation {
         else {
             return Ok(None);
         };
-        Ok(Some((metadata.id, metadata)))
+        Ok(Some((metadata.chain_id, metadata.id, metadata)))
     }
 }
