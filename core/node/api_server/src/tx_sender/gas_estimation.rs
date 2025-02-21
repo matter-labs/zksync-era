@@ -117,6 +117,11 @@ impl TxSender {
         );
 
         let suggested_gas_limit = (unscaled_gas_limit as f64 * estimated_fee_scale_factor) as u64;
+
+        #[cfg(feature = "zkos")]
+        // TODO: estimate gas should estimate validation cost, currently we just add some gas on top.
+        let suggested_gas_limit = suggested_gas_limit + 10000;
+
         estimator
             .finalize(suggested_gas_limit, estimated_fee_scale_factor)
             .await

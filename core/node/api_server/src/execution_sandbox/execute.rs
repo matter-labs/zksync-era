@@ -221,7 +221,6 @@ impl SandboxExecutor {
         // todo: gas
         let context = BatchContext {
             eip1559_basefee: U256::from(0),
-            gas_price: U256::from(1),
             gas_per_pubdata: Default::default(),
             block_number: (env.l1_batch.number.0 + 1) as u64,
             timestamp: SystemTime::now()
@@ -230,6 +229,8 @@ impl SandboxExecutor {
                 .as_secs(),
             chain_id: env.system.chain_id.as_u64(),
             gas_limit: 32000000, // TODO: what value should be used?
+            coinbase: Default::default(),
+            block_hashes: Default::default(),
         };
 
         // todo: storage commitment shouldn't be needed here

@@ -899,7 +899,7 @@ checksum = "7a81dae078cea95a014a339291cec439d2f232ebe854a9d672b796c6afafa9b7"
 [[package]]
 name = "crypto"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee?branch=forward-system-tx-result-callback#0ad250d9f214fb1eaa9390849b131a07bd61aa6f"
+source = "git+https://github.com/matter-labs/zk_ee?branch=forward-system-tx-result-callback#8291f39b71483349cec7d8efc532d0f0181c99d6"
 dependencies = [
  "blake2",
  "k256",
@@ -1670,7 +1670,7 @@ dependencies = [
 [[package]]
 name = "evm_interpreter"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee?branch=forward-system-tx-result-callback#0ad250d9f214fb1eaa9390849b131a07bd61aa6f"
+source = "git+https://github.com/matter-labs/zk_ee?branch=forward-system-tx-result-callback#8291f39b71483349cec7d8efc532d0f0181c99d6"
 dependencies = [
  "arrayvec",
  "crypto",
@@ -3115,7 +3115,7 @@ dependencies = [
 [[package]]
 name = "modexp"
 version = "1.0.0"
-source = "git+https://github.com/matter-labs/zk_ee?branch=forward-system-tx-result-callback#0ad250d9f214fb1eaa9390849b131a07bd61aa6f"
+source = "git+https://github.com/matter-labs/zk_ee?branch=forward-system-tx-result-callback#8291f39b71483349cec7d8efc532d0f0181c99d6"
 
 [[package]]
 name = "multimap"
@@ -5343,7 +5343,7 @@ dependencies = [
 [[package]]
 name = "system_hooks"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee?branch=forward-system-tx-result-callback#0ad250d9f214fb1eaa9390849b131a07bd61aa6f"
+source = "git+https://github.com/matter-labs/zk_ee?branch=forward-system-tx-result-callback#8291f39b71483349cec7d8efc532d0f0181c99d6"
 dependencies = [
  "crypto",
  "evm_interpreter",
@@ -6578,7 +6578,7 @@ dependencies = [
 [[package]]
 name = "zk_ee"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee?branch=forward-system-tx-result-callback#0ad250d9f214fb1eaa9390849b131a07bd61aa6f"
+source = "git+https://github.com/matter-labs/zk_ee?branch=forward-system-tx-result-callback#8291f39b71483349cec7d8efc532d0f0181c99d6"
 dependencies = [
  "arrayvec",
  "bitflags 2.6.0",

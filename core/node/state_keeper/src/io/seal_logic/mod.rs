@@ -448,9 +448,9 @@ impl L2BlockSealCommand {
         )
     }
 
-    fn transaction(&self, index: usize) -> &Transaction {
+    fn transaction_hash(&self, index: usize) -> H256 {
         let tx_result = &self.l2_block.executed_transactions[index - self.first_tx_index];
-        &tx_result.transaction
+        tx_result.hash
     }
 
     fn extract_events(&self, is_fictive: bool) -> Vec<(IncludedTxLocation, Vec<&VmEvent>)> {
@@ -469,7 +469,7 @@ impl L2BlockSealCommand {
                 assert_eq!(tx_index as usize, self.first_tx_index);
                 H256::zero()
             } else {
-                self.transaction(tx_index as usize).hash()
+                self.transaction_hash(tx_index as usize)
             };
 
             let location = IncludedTxLocation {

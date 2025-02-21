@@ -358,9 +358,6 @@ impl StateKeeperIO for MempoolIO {
             "L1 transactions should not be rejected: {reason}"
         );
 
-        // Reset the nonces in the mempool, but don't insert the transaction back.
-        self.mempool.rollback(rejected);
-
         // Mark tx as rejected in the storage.
         let mut storage = self.pool.connection_tagged("state_keeper").await?;
 
@@ -374,6 +371,11 @@ impl StateKeeperIO for MempoolIO {
             .transactions_dal()
             .mark_tx_as_rejected(rejected.hash(), &format!("rejected: {reason}"))
             .await?;
+
+        // In-memory pool should be updated strictly after DB is, so the rejected tx cannot be re-inserted there.
+        // Reset the nonces in the mempool, but don't insert the transaction back.
+        self.mempool.rollback(rejected);
+
         Ok(())
     }
 

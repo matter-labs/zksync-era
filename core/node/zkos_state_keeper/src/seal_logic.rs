@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use zk_os_basic_system::basic_system::BasicBlockMetadataFromOracle;
-use zk_os_forward_system::run::{BatchContext, BatchOutput, ExecutionResult};
+use zk_os_forward_system::run::{BatchContext, BatchOutput, ExecutionResult, TxOutput};
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_state_keeper::MempoolGuard;
 use zksync_types::{
@@ -123,7 +123,7 @@ pub async fn seal_in_db<'a>(
 
     transaction
         .blocks_dal()
-        .zkos_insert_sealed_l1_batch(&l1_batch_header)
+        .mark_l1_batch_as_sealed(&l1_batch_header, &[], &[], &[], Default::default())
         .await?;
 
     transaction
@@ -194,7 +194,7 @@ fn generate_l2_block_header(
         l1_tx_count: 0,
         l2_tx_count: 1,
         fee_account_address: Default::default(), // todo
-        base_fee_per_gas: 1,
+        base_fee_per_gas: context.eip1559_basefee.to(),
         batch_fee_input: Default::default(),
         base_system_contracts_hashes: Default::default(),
         protocol_version: Some(ProtocolVersionId::latest()),
@@ -241,4 +241,14 @@ fn extract_tx_internal_result(
             ))
         }
     }
+}
+
+pub fn extract_tx_output(tx_index_in_batch: usize, result: &BatchOutput) -> Option<TxOutput> {
+    let tx_result = if let Some(tx_result) = result.tx_results.get(tx_index_in_batch).cloned() {
+        tx_result
+    } else {
+        panic!("No tx result for #{tx_index_in_batch}");
+    };
+
+    tx_result.ok()
 }

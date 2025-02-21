@@ -25,7 +25,7 @@ use zksync_web3_decl::{
 use {
     ruint::aliases::B160, zk_ee::common_structs::derive_flat_storage_key,
     zk_os_basic_system::basic_io_implementer::address_into_special_storage_key,
-    zk_os_system_hooks::addresses_constants::NOMINAL_TOKEN_BALANCE_STORAGE_ADDRESS,
+    zk_os_basic_system::basic_io_implementer::io_implementer::NOMINAL_TOKEN_BALANCE_STORAGE_ADDRESS,
 };
 
 use crate::{

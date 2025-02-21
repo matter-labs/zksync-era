@@ -3,6 +3,9 @@ use std::sync::Arc;
 use zksync_state::OwnedStorage;
 use zksync_state_keeper::{seal_criteria::ConditionalSealer, OutputHandler, StateKeeperIO};
 use zksync_vm_executor::interface::BatchExecutorFactory;
+use zksync_zkos_state_keeper::{
+    OutputHandler as ZkOsOutputHandler, StateKeeperIO as ZkOsStateKeeperIO,
+};
 
 use crate::resource::{Resource, Unique};
 
@@ -18,6 +21,23 @@ impl Resource for StateKeeperIOResource {
 }
 
 impl<T: StateKeeperIO> From<T> for StateKeeperIOResource {
+    fn from(io: T) -> Self {
+        Self(Unique::new(Box::new(io)))
+    }
+}
+
+/// A resource that provides [`StateKeeperIO`] implementation to the service.
+/// This resource is unique, e.g. it's expected to be consumed by a single service.
+#[derive(Debug, Clone)]
+pub struct ZkOsStateKeeperIOResource(pub Unique<Box<dyn ZkOsStateKeeperIO>>);
+
+impl Resource for ZkOsStateKeeperIOResource {
+    fn name() -> String {
+        "zk_os_state_keeper/io".into()
+    }
+}
+
+impl<T: ZkOsStateKeeperIO> From<T> for ZkOsStateKeeperIOResource {
     fn from(io: T) -> Self {
         Self(Unique::new(Box::new(io)))
     }
@@ -56,6 +76,23 @@ impl Resource for OutputHandlerResource {
 
 impl From<OutputHandler> for OutputHandlerResource {
     fn from(handler: OutputHandler) -> Self {
+        Self(Unique::new(handler))
+    }
+}
+
+/// A resource that provides [`OutputHandler`] implementation to the service.
+/// This resource is unique, e.g. it's expected to be consumed by a single service.
+#[derive(Debug, Clone)]
+pub struct ZkOsOutputHandlerResource(pub Unique<ZkOsOutputHandler>);
+
+impl Resource for ZkOsOutputHandlerResource {
+    fn name() -> String {
+        "state_keeper/zk_os_output_handler".into()
+    }
+}
+
+impl From<ZkOsOutputHandler> for ZkOsOutputHandlerResource {
+    fn from(handler: ZkOsOutputHandler) -> Self {
         Self(Unique::new(handler))
     }
 }

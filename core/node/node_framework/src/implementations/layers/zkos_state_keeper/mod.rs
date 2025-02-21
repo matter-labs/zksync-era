@@ -9,24 +9,30 @@ use zksync_state::{
 };
 use zksync_state_keeper::{
     seal_criteria::ConditionalSealer, AsyncRocksdbCache, MempoolFetcher, MempoolGuard,
-    OutputHandler, StateKeeperIO, ZkSyncStateKeeper,
+    ZkSyncStateKeeper,
 };
 use zksync_storage::RocksDB;
 use zksync_vm_executor::interface::BatchExecutorFactory;
-use zksync_zkos_state_keeper::ZkosStateKeeper;
+use zksync_zkos_state_keeper::{OutputHandler, StateKeeperIO, ZkosStateKeeper};
 
 use crate::{
     implementations::resources::{
         fee_input::SequencerFeeInputResource,
         pools::{MasterPool, PoolResource},
+        state_keeper::{ZkOsOutputHandlerResource, ZkOsStateKeeperIOResource},
     },
     service::ShutdownHook,
     StopReceiver, Task, TaskId, WiringError, WiringLayer,
 };
 
+pub mod mempool_io;
+pub mod output_handler;
+
 #[derive(Debug, FromContext)]
 #[context(crate = crate)]
 pub struct Input {
+    pub state_keeper_io: ZkOsStateKeeperIOResource,
+    pub output_handler: ZkOsOutputHandlerResource,
     pub fee_input: SequencerFeeInputResource,
     pub master_pool: PoolResource<MasterPool>,
 }
@@ -36,31 +42,24 @@ pub struct Input {
 pub struct Output {
     #[context(task)]
     pub state_keeper: ZkOsStateKeeperTask,
-    // todo: add rocksDB cache
-    #[context(task)]
-    pub mempool_fetcher: MempoolFetcher,
 }
 
 #[derive(Debug)]
 pub struct ZkOsStateKeeperLayer {
-    // rocksdb_options: RocksdbStorageOptions,
     mempool_config: MempoolConfig,
 }
 
 impl ZkOsStateKeeperLayer {
     pub fn new(mempool_config: MempoolConfig) -> Self {
-        Self {
-            // rocksdb_options,
-            mempool_config,
-        }
+        Self { mempool_config }
     }
 }
 
 #[derive(Debug)]
 pub struct ZkOsStateKeeperTask {
     pool: PoolResource<MasterPool>,
-    // storage_factory: Arc<dyn ReadStorageFactory>,
-    mempool_guard: MempoolGuard,
+    io: Box<dyn StateKeeperIO>,
+    output_handler: OutputHandler,
 }
 
 impl ZkOsStateKeeperLayer {
@@ -94,46 +93,25 @@ impl WiringLayer for ZkOsStateKeeperLayer {
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         let master_pool = input.master_pool;
 
-        let mempool_guard = self.build_mempool_guard(&master_pool).await?;
-        // let (storage_factory, rocksdb_catchup) = Postgres()
-        //
-        //     AsyncRocksdbCache::new(
-        //     master_pool.get_custom(2).await?,
-        //     self.state_keeper_db_path,
-        //     self.rocksdb_options,
-        // );
+        let io = input
+            .state_keeper_io
+            .0
+            .take()
+            .context("StateKeeperIO was provided but taken by some other task")?;
 
-        let rocksdb_termination_hook = ShutdownHook::new("rocksdb_terminaton", async {
-            // Wait for all the instances of RocksDB to be destroyed.
-            tokio::task::spawn_blocking(RocksDB::await_rocksdb_termination)
-                .await
-                .context("failed terminating RocksDB instances")
-        });
-
-        let mempool_fetcher_pool = master_pool
-            .get_singleton()
-            .await
-            .context("Get master pool")?;
-        let batch_fee_input_provider = input.fee_input.0;
-
-        let mempool_fetcher = MempoolFetcher::new(
-            mempool_guard.clone(),
-            batch_fee_input_provider.clone(),
-            &self.mempool_config,
-            mempool_fetcher_pool,
-        );
+        let output_handler = input
+            .output_handler
+            .0
+            .take()
+            .context("HandleStateKeeperOutput was provided but taken by another task")?;
 
         let state_keeper = ZkOsStateKeeperTask {
-            // storage_factory: Arc::new(storage_factory),
             pool: master_pool.clone(),
-            mempool_guard,
+            io,
+            output_handler,
         };
 
-        Ok(Output {
-            state_keeper,
-            // rocksdb_termination_hook,
-            mempool_fetcher,
-        })
+        Ok(Output { state_keeper })
     }
 }
 
@@ -147,8 +125,8 @@ impl Task for ZkOsStateKeeperTask {
         let state_keeper = ZkosStateKeeper::new(
             stop_receiver.0,
             self.pool.get().await?,
-            // self.storage_factory.clone(),
-            self.mempool_guard,
+            self.io,
+            self.output_handler,
         );
         state_keeper.run().await
     }

@@ -55,7 +55,7 @@ use zksync_node_framework::{
         sigint::SigintHandlerLayer,
         state_keeper::{
             main_batch_executor::MainBatchExecutorLayer, mempool_io::MempoolIOLayer,
-            output_handler::OutputHandlerLayer, RocksdbStorageOptions, StateKeeperLayer,
+            RocksdbStorageOptions, StateKeeperLayer,
         },
         vm_runner::{
             bwip::BasicWitnessInputProducerLayer, playground::VmPlaygroundLayer,
@@ -68,7 +68,10 @@ use zksync_node_framework::{
             tx_sender::{PostgresStorageCachesConfig, TxSenderLayer},
             tx_sink::MasterPoolSinkLayer,
         },
-        zkos_state_keeper::ZkOsStateKeeperLayer,
+        zkos_state_keeper::{
+            mempool_io::MempoolIOLayer as ZkOsMempoolIOLayer, output_handler::OutputHandlerLayer,
+            ZkOsStateKeeperLayer,
+        },
     },
     service::{ZkStackService, ZkStackServiceBuilder},
 };
@@ -258,14 +261,28 @@ impl MainNodeBuilder {
     }
 
     fn add_state_keeper_layer(mut self) -> anyhow::Result<Self> {
+        let wallets = self.wallets.clone();
+
         //todo: this currently adds zkos state keeper. Consider introducing a separate component for it.
         let sk_config = try_load_config!(self.configs.state_keeper_config);
         let db_config = try_load_config!(self.configs.db_config);
 
+        let persistence_layer = OutputHandlerLayer::new();
+
+        let mempool_io_layer = ZkOsMempoolIOLayer::new(
+            self.genesis_config.l2_chain_id,
+            sk_config.clone(),
+            try_load_config!(self.configs.mempool_config),
+            try_load_config!(wallets.state_keeper),
+        );
+
         let state_keeper_layer =
             ZkOsStateKeeperLayer::new(try_load_config!(self.configs.mempool_config));
 
-        self.node.add_layer(state_keeper_layer);
+        self.node
+            .add_layer(persistence_layer)
+            .add_layer(mempool_io_layer)
+            .add_layer(state_keeper_layer);
         Ok(self)
     }
 

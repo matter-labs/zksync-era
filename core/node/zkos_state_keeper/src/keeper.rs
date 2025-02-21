@@ -18,7 +18,9 @@ use zk_ee::{
     utils::Bytes32,
 };
 use zk_os_basic_system::{
-    basic_io_implementer::address_into_special_storage_key,
+    basic_io_implementer::{
+        address_into_special_storage_key, io_implementer::NOMINAL_TOKEN_BALANCE_STORAGE_ADDRESS,
+    },
     basic_system::simple_growable_storage::TestingTree,
 };
 use zk_os_forward_system::run::{
@@ -28,20 +30,37 @@ use zk_os_forward_system::run::{
     BatchContext, BatchOutput, ExecutionResult, InvalidTransaction, NextTxResponse, PreimageSource,
     StorageCommitment, TxResultCallback, TxSource,
 };
-use zk_os_system_hooks::addresses_constants::NOMINAL_TOKEN_BALANCE_STORAGE_ADDRESS;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_mempool::L2TxFilter;
 use zksync_state::ReadStorageFactory;
-use zksync_state_keeper::{io::IoCursor, MempoolGuard};
+use zksync_state_keeper::{
+    io::IoCursor, metrics::KEEPER_METRICS, seal_criteria::UnexecutableReason, L2BlockParams,
+    MempoolGuard,
+};
 use zksync_types::{
     snapshots::SnapshotStorageLog, Address, L1BatchNumber, L2BlockNumber, StorageKey, StorageLog,
     Transaction, ERC20_TRANSFER_TOPIC, H256,
 };
+use zksync_vm_interface::Halt;
 use zksync_zkos_vm_runner::zkos_conversions::{bytes32_to_h256, h256_to_bytes32, tx_abi_encode};
 
-use crate::{millis_since_epoch, seal_logic::seal_in_db};
+use crate::{
+    io::{BlockParams, OutputHandler, StateKeeperIO},
+    millis_since_epoch,
+    seal_logic::{extract_tx_output, seal_in_db},
+    updates::UpdatesManager,
+};
 
-const POLL_WAIT_DURATION: Duration = Duration::from_millis(50);
+const POLL_WAIT_DURATION: Duration = Duration::from_millis(100);
+
+/// Structure used to indicate that task cancellation was requested.
+#[derive(thiserror::Error, Debug)]
+pub(super) enum Error {
+    #[error("canceled")]
+    Canceled,
+    #[error(transparent)]
+    Fatal(#[from] anyhow::Error),
+}
 
 /// A stripped-down version of the state keeper that supports zk Os
 
@@ -63,14 +82,17 @@ pub struct ZkosStateKeeper {
     preimage_source: InMemoryPreimageSource,
 
     pool: ConnectionPool<Core>,
-    mempool: MempoolGuard,
+
+    io: Box<dyn StateKeeperIO>,
+    output_handler: OutputHandler,
 }
 
 impl ZkosStateKeeper {
     pub fn new(
         stop_receiver: watch::Receiver<bool>,
         pool: ConnectionPool<Core>,
-        mempool: MempoolGuard,
+        io: Box<dyn StateKeeperIO>,
+        output_handler: OutputHandler,
     ) -> Self {
         let tree = InMemoryTree {
             storage_tree: TestingTree::new_in(Global),
@@ -84,71 +106,63 @@ impl ZkosStateKeeper {
             pool,
             tree,
             preimage_source,
-            mempool,
+            io,
+            output_handler,
         }
     }
     pub async fn run(mut self) -> anyhow::Result<()> {
         tracing::info!("Initializing ZkOs StateKeeper...");
 
-        let mut connection = self.pool.connection_tagged("state_keeper").await?;
-        let cursor = IoCursor::new(&mut connection).await?;
+        let mut cursor = self.io.initialize().await?;
+        self.output_handler.initialize(&cursor).await?;
+
         anyhow::ensure!(
             cursor.l1_batch.0 == cursor.next_l2_block.0,
             "For Zkos we expect batches to have just one l2 block each"
         );
 
-        let mut pending_block_number = cursor.next_l2_block;
-
-        Self::fund_dev_wallets_if_needed(&mut connection, &mut pending_block_number).await;
+        let mut connection = self.pool.connection_tagged("state_keeper").await?;
+        Self::fund_dev_wallets_if_needed(&mut connection, cursor.next_l2_block).await;
+        drop(connection);
 
         self.initialize_in_memory_storages().await?;
 
         while !self.is_canceled() {
-            tracing::info!("Waiting for the next transaction");
-
-            if wait_for_next_tx(&mut self.mempool, &mut self.stop_receiver)
-                .await
-                .is_err()
-            {
-                // Canceled.
-                break;
-            };
+            let block_params = self.wait_for_new_l2_block_params(&cursor).await?;
 
             let (sender, receiver) = tokio::sync::mpsc::channel(1);
             let (result_sender, result_receiver) = tokio::sync::mpsc::channel(1);
             let tx_source = OnlineTxSource::new(receiver);
             let tx_callback = ChannelTxResultCallback::new(result_sender);
 
-            let timestamp = (millis_since_epoch() / 1000) as u64;
             let gas_limit = 100_000_000; // TODO: what value should be used?;
             let tx_processor = TxProcessor::new(
-                self.mempool.clone(),
-                self.pool.clone(),
                 sender,
                 result_receiver,
                 10,
-                timestamp,
+                block_params.timestamp,
                 gas_limit,
             );
-            let tx_sourcing_task: JoinHandle<anyhow::Result<Vec<Transaction>>> =
-                tokio::task::spawn(async move { tx_processor.run().await });
 
             let context = BatchContext {
                 //todo: gas
-                eip1559_basefee: U256::from(1),
-                gas_price: U256::from(1),
+                eip1559_basefee: U256::from(block_params.base_fee),
                 gas_per_pubdata: Default::default(),
-                block_number: pending_block_number.0 as u64,
-                timestamp,
+                block_number: cursor.next_l2_block.0 as u64,
+                timestamp: block_params.timestamp,
                 chain_id: 37,
                 gas_limit,
+                coinbase: Default::default(),
+                block_hashes: Default::default(),
             };
 
             let storage_commitment = StorageCommitment {
                 root: self.tree.storage_tree.root().clone(),
                 next_free_slot: self.tree.storage_tree.next_free_slot,
             };
-            tracing::info!("Starting block {pending_block_number} with commitment root {:?} and next_free_slot {:?}",
+            tracing::info!(
+                "Starting block {} with commitment root {:?} and next_free_slot {:?}",
+                cursor.next_l2_block,
                 storage_commitment.root,
                 storage_commitment.next_free_slot
             );
@@ -159,7 +173,7 @@ impl ZkosStateKeeper {
             let preimage_source = self.preimage_source.clone();
             tracing::info!("Cloning done, running batch");
 
-            let result = spawn_blocking(move || {
+            let run_batch_task = spawn_blocking(move || {
                 run_batch(
                     context,
                     storage_commitment,
@@ -168,48 +182,72 @@ impl ZkosStateKeeper {
                     tx_source,
                     tx_callback,
                 )
-            })
-            .await
-            .expect("Task run_batch panicked");
+            });
 
-            // We need to stop tx_sourcing_task if block closed by timeout.
-            let executed_transactions = tx_sourcing_task
+            let mut updates_manager = UpdatesManager::new(
+                cursor.l1_batch,
+                cursor.next_l2_block,
+                block_params.timestamp,
+                Default::default(), //fee_account
+                block_params.fee_input,
+                block_params.base_fee,
+                block_params.protocol_version,
+                gas_limit,
+            );
+
+            let executed_transactions = tx_processor.run(&mut self.io, &self.stop_receiver).await?;
+
+            let result = run_batch_task
                 .await
-                .context("Joining tx_sourcing_task failed")?
-                .context("tx_sourcing_task failed")?;
+                .expect("Task run_batch panicked")
+                .map_err(|err| anyhow::anyhow!(err.0))
+                .context("run_batch failed")?;
 
-            match result {
-                Ok(result) => {
-                    tracing::info!("Batch executed successfully: {:?}", result);
+            tracing::info!("Batch executed successfully: {:?}", result);
 
-                    for storage_write in result.storage_writes.iter() {
-                        self.tree
-                            .cold_storage
-                            .insert(storage_write.key, storage_write.value);
-                        self.tree
-                            .storage_tree
-                            .insert(&storage_write.key, &storage_write.value);
-                    }
-
-                    for (hash, preimage) in result.published_preimages.iter() {
-                        self.preimage_source.inner.insert(
-                            (PreimageType::Bytecode(ExecutionEnvironmentType::EVM), *hash),
-                            preimage.clone(),
-                        );
-                    }
-
-                    let conn = self
-                        .pool
-                        .connection_tagged("zkos_state_keeper_seal_block")
-                        .await?;
-
-                    seal_in_db(conn, context, &result, executed_transactions, H256::zero()).await?;
-                    pending_block_number.0 += 1;
-                }
-                Err(err) => {
-                    tracing::error!("Error running batch: {:?}", err);
-                }
+            for storage_write in result.storage_writes.iter() {
+                self.tree
+                    .cold_storage
+                    .insert(storage_write.key, storage_write.value);
+                self.tree
+                    .storage_tree
+                    .insert(&storage_write.key, &storage_write.value);
             }
+
+            for (hash, preimage) in result.published_preimages.iter() {
+                self.preimage_source.inner.insert(
+                    (PreimageType::Bytecode(ExecutionEnvironmentType::EVM), *hash),
+                    preimage.clone(),
+                );
+            }
+
+            let mut next_index_in_batch_output = 0;
+            for tx in executed_transactions {
+                let tx_output = loop {
+                    let tx_output = extract_tx_output(next_index_in_batch_output, &result);
+                    next_index_in_batch_output += 1;
+                    if let Some(tx_output) = tx_output {
+                        break tx_output;
+                    }
+                };
+
+                updates_manager
+                    .l2_block
+                    .extend_from_executed_transaction(tx, tx_output);
+            }
+            updates_manager.l2_block.extend_from_block_output(result);
+
+            self.output_handler
+                .handle_block(Arc::new(updates_manager))
+                .await?;
+            // seal_in_db(conn, context, &result, executed_transactions, H256::zero()).await?;
+
+            cursor = IoCursor {
+                next_l2_block: cursor.next_l2_block + 1,
+                prev_l2_block_hash: Default::default(),
+                prev_l2_block_timestamp: block_params.timestamp,
+                l1_batch: cursor.l1_batch + 1,
+            };
         }
         Ok(())
     }
@@ -219,7 +257,7 @@ impl ZkosStateKeeper {
     // wallets can be added to this list without regenesis
     async fn fund_dev_wallets_if_needed(
         connection: &mut Connection<'_, Core>,
-        pending_block_number: &mut L2BlockNumber,
+        pending_block_number: L2BlockNumber,
     ) {
         for address in &[
             "0x27FBEc0B5D2A2B89f77e4D3648bBBBCF11784bdE",
@@ -238,7 +276,7 @@ impl ZkosStateKeeper {
 
             let r = connection
                 .storage_logs_dal()
-                .get_storage_values(&[flat_key], *pending_block_number)
+                .get_storage_values(&[flat_key], pending_block_number)
                 .await
                 .expect("Failed to get storage values for initial balances");
             if r.get(&flat_key).cloned().unwrap_or_default().is_some() {
@@ -314,6 +352,23 @@ impl ZkosStateKeeper {
     fn is_canceled(&self) -> bool {
         *self.stop_receiver.borrow()
     }
+
+    async fn wait_for_new_l2_block_params(
+        &mut self,
+        cursor: &IoCursor,
+    ) -> Result<BlockParams, Error> {
+        while !self.is_canceled() {
+            if let Some(params) = self
+                .io
+                .wait_for_new_l2_block_params(&cursor, POLL_WAIT_DURATION)
+                .await
+                .context("error waiting for new L2 block params")?
+            {
+                return Ok(params);
+            }
+        }
+        Err(Error::Canceled)
+    }
 }
 
 #[derive(Debug)]
@@ -367,8 +422,6 @@ impl TxResultCallback for ChannelTxResultCallback {
 /// - Keeps track of seal criteria: currently there are 3 of them: timestamp, gas, and number of txs.
 #[derive(Debug)]
 pub struct TxProcessor {
-    mempool: MempoolGuard,
-    pool: ConnectionPool<Core>,
     sender: Sender<NextTxResponse>,
     result_receiver: Receiver<Result<TxProcessingOutputOwned, InvalidTransaction>>,
     max_tx_count: usize,
@@ -378,8 +431,6 @@ pub struct TxProcessor {
 
 impl TxProcessor {
     pub fn new(
-        mempool: MempoolGuard,
-        pool: ConnectionPool<Core>,
         sender: Sender<NextTxResponse>,
         result_receiver: Receiver<Result<TxProcessingOutputOwned, InvalidTransaction>>,
         max_tx_count: usize,
@@ -387,8 +438,6 @@ impl TxProcessor {
         block_gas_limit: u64,
     ) -> Self {
         Self {
-            mempool,
-            pool,
             sender,
             result_receiver,
             max_tx_count,
@@ -397,25 +446,37 @@ impl TxProcessor {
         }
     }
 
-    pub async fn run(mut self) -> anyhow::Result<Vec<Transaction>> {
+    pub async fn run(
+        mut self,
+        io: &mut Box<dyn StateKeeperIO>,
+        stop_receiver: &watch::Receiver<bool>,
+    ) -> Result<Vec<Transaction>, Error> {
         let mut executed_txs = Vec::new();
         let mut gas_used = 0;
 
-        let mut connection = self.pool.connection_tagged("tx_processor").await?;
+        let started_at = Instant::now();
         loop {
+            if *stop_receiver.borrow() && executed_txs.is_empty() {
+                return Err(Error::Canceled);
+            }
+
             // TODO: proper timeout, should it be at `block_started_ms + 1000ms` or `block_timestamp_s + 1s`?
-            let wait =
-                tokio::time::timeout(Duration::from_secs(1), pop_next_tx(&mut self.mempool)).await;
-            let Ok(Some(tx)) = wait else {
+            if started_at.elapsed() > Duration::from_secs(1) {
                 if !executed_txs.is_empty() {
                     self.sender
                         .send(NextTxResponse::SealBatch)
                         .await
                         .context("NextTxResponse receiver was dropped")?;
                     break;
-                } else {
-                    continue;
                 }
+            }
+
+            let Some(tx) = io
+                .wait_for_next_tx(POLL_WAIT_DURATION, self.block_timestamp)
+                .await?
+            else {
+                tracing::trace!("No new transactions. Waiting!");
+                continue;
             };
 
             if !self.block_has_capacity_for_tx(
@@ -429,8 +490,7 @@ impl TxProcessor {
                     .await
                     .context("NextTxResponse receiver was dropped")?;
 
-                let constraint = self.mempool.rollback(&tx);
-                self.mempool.insert(vec![(tx, constraint)], HashMap::new());
+                io.rollback(tx).await?;
 
                 break;
             }
@@ -455,14 +515,11 @@ impl TxProcessor {
                 }
                 Err(reason) => {
                     let tx_hash = tx.hash();
-                    connection
-                        .transactions_dal()
-                        .mark_tx_as_rejected(
-                            tx_hash,
-                            &format!("Invalid transaction, hash: {tx_hash:#?}, reason: {reason:?}"),
-                        )
-                        .await?;
-                    self.mempool.rollback(&tx);
+                    // TODO: map InvalidTransaction to UnexecutableReason properly.
+                    let reason = UnexecutableReason::Halt(Halt::TracerCustom(format!(
+                        "Invalid transaction, hash: {tx_hash:#?}, reason: {reason:?}"
+                    )));
+                    io.reject(&tx, reason).await?;
                 }
             }
         }
@@ -487,45 +544,5 @@ impl TxProcessor {
         }
 
         true
-    }
-}
-
-// ok - for tx, err - for stop signal
-async fn wait_for_next_tx(
-    mempool: &mut MempoolGuard,
-    stop_receiver: &mut watch::Receiver<bool>,
-) -> Result<(), ()> {
-    // todo: gas - use proper filter
-    let filter = L2TxFilter {
-        fee_input: Default::default(),
-        fee_per_gas: 0,
-        gas_per_pubdata: 0,
-    };
-
-    while !*stop_receiver.borrow() {
-        if mempool.has_next(&filter) {
-            return Ok(());
-        }
-        tokio::time::sleep(POLL_WAIT_DURATION).await;
-    }
-    Err(())
-}
-
-async fn pop_next_tx(mempool: &mut MempoolGuard) -> Option<Transaction> {
-    // todo: gas - use proper filter
-    let filter = L2TxFilter {
-        fee_input: Default::default(),
-        fee_per_gas: 0,
-        gas_per_pubdata: 0,
-    };
-
-    loop {
-        let maybe_tx = mempool.next_transaction(&filter);
-        if let Some((tx, _)) = maybe_tx {
-            //todo: reject transactions with too big gas limit. They are also rejected on the API level, but
-            // we need to secure ourselves in case some tx will somehow get into mempool.
-            return Some(tx);
-        }
-        tokio::time::sleep(POLL_WAIT_DURATION).await;
     }
 }

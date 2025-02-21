@@ -1,5 +1,5 @@
 use zk_ee::{common_structs::derive_flat_storage_key, utils::Bytes32};
-use zk_os_system_hooks::addresses_constants::ACCOUNT_PARTIAL_DATA_STORAGE_ADDRESS;
+use zk_os_basic_system::basic_io_implementer::io_implementer::ACCOUNT_PARTIAL_DATA_STORAGE_ADDRESS;
 use zksync_types::{address_to_h256, h256_to_address, Address, H256};
 
 use crate::zkos_conversions::{bytes32_to_h256, h256_to_bytes32};

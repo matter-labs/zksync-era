@@ -4,7 +4,7 @@ pub use self::{
         StateKeeperOutputHandler, StateKeeperPersistence, TreeWritesPersistence,
     },
     keeper::ZkSyncStateKeeper,
-    mempool_actor::MempoolFetcher,
+    mempool_actor::{l2_tx_filter, MempoolFetcher},
     seal_criteria::SequencerSealer,
     state_keeper_storage::AsyncRocksdbCache,
     types::MempoolGuard,

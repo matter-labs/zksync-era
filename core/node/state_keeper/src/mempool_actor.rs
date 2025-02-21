@@ -30,8 +30,8 @@ pub async fn l2_tx_filter(
     let (base_fee, gas_per_pubdata) = derive_base_fee_and_gas_per_pubdata(fee_input, vm_version);
     Ok(L2TxFilter {
         fee_input,
-        fee_per_gas: 0,
-        gas_per_pubdata: 0,
+        fee_per_gas: base_fee,
+        gas_per_pubdata: gas_per_pubdata as u32,
     })
 }
 
