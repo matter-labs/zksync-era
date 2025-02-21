@@ -27,10 +27,59 @@ where `++` is byte concatenation.
 
 ## Storage layout
 
-RocksDB is used for tree persistence. The implementation uses parametric amortization strategy similar to [Jellyfish
-Merkle tree] to reduce the amount of I/O at the cost of increased hashing. Here, parametric means that the radix of
-internal nodes is configurable (obviously, it's fixed for a tree instance). Radix-8 or radix-16 look optimal; the
-default is currently set to radix-16.
+RocksDB is used for tree persistence. The implementation uses versioning and parametric amortization strategy similar to
+[Jellyfish Merkle tree] to reduce the amount of I/O at the cost of increased hashing. Here, parametric means that the
+radix of internal nodes is configurable (obviously, it's fixed for a specific tree instance). More details on what
+amortization means follow.
+
+A tree is _versioned_; a new version is created for each batch update, and all past versions are available. (This is
+necessary to be able to provide Merkle proofs for past versions.) Internally, the forest of all tree versions is built
+like an immutable data structure, with tree nodes reused where possible (i.e., if not changed in an update).
+
+As expected, the Merkle tree consists of leaves and internal nodes; the tree root is a special case of internal node
+with additional data (for now, it's just the number of leaves).
+
+- A **leaf** consists of a key, value and prev / next indices as expected.
+- **Internal nodes** consist of refs to children; each ref is a version + hash. To reduce the amount of I/O ops (at the
+  cost of read / write volume overhead), an internal node contains >2 child refs; that's what the radix mentioned above
+  means (e.g., in a radix-16 tree each internal node _usually_ contains 16 child refs, with the only possible exception
+  being the rightmost node on each tree level).
+
+E.g., here's a radix-16 amortized tree with 2 versions and toy depth 8 (i.e., 1 internal node level excluding the root,
+and 1 leaf level). The first version inserts 17 leaves, and the second version updates the last leaf.
+
+```mermaid
+---
+title: Tree structure
+---
+flowchart TD
+    Root0[Root v0]
+    Root1[Root v1]
+    Internal0[Internal 0]
+    Internal1[Internal 1]
+    Internal1_1[Internal 1']
+    Leaf0[Leaf 0]
+    Leaf1[Leaf 1]
+    Leaf15[Leaf 15]
+    Leaf16[Leaf 16]
+    Leaf16_1[Leaf 16']
+    Root0-->Internal0 & Internal1
+    Internal0-->Leaf0 & Leaf1 & Leaf15
+    Internal1-->Leaf16
+
+    Root1-->Internal0 & Internal1_1
+    Internal1_1-->Leaf16_1
+```
+
+Tree nodes are mapped to the RocksDB column family (CF) using _node keys_ consisting of a version, the number of
+_nibbles_ (root has 0, its children 1 etc.), and the 0-based index on the level. Without pruning, it's easy to see that
+storage is append-only.
+
+Besides the tree, RocksDB also persists the key to leaf index lookup in a separate CF. This lookup is used during
+updates and to get historic Merkle proofs. To accommodate for historic proofs, CF values contain the version at which
+the leaf was inserted besides its index; leaves with future versions are skipped during lookup. The lookup CF is
+insert-only even with pruning; the only exception is tree truncation. Unlike the tree CF, inserted entries are not
+ordered though.
 
 ## Benchmarking
 
