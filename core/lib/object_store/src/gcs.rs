@@ -2,7 +2,6 @@
 
 use std::{error::Error as StdError, fmt, io};
 
-use crate::raw::{Bucket, ObjectStore, ObjectStoreError};
 use async_trait::async_trait;
 use google_cloud_auth::{credentials::CredentialsFile, error::Error as AuthError};
 use google_cloud_storage::{
@@ -19,6 +18,8 @@ use google_cloud_storage::{
 };
 use http::StatusCode;
 use tokio::sync::{AcquireError, Semaphore};
+
+use crate::raw::{Bucket, ObjectStore, ObjectStoreError};
 
 const DEFAULT_MAX_CONCURRENT_REQUESTS: usize = 500;
 
