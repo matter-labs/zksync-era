@@ -36,11 +36,6 @@ pub const PROVER_PROTOCOL_SEMANTIC_VERSION: ProtocolSemanticVersion = ProtocolSe
 };
 
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
-pub struct CircuitAuxData {
-    pub circuit_subsequence_number: u32,
-}
-
-#[derive(serde::Serialize, serde::Deserialize, Clone)]
 #[allow(clippy::large_enum_variant)]
 pub enum CircuitWrapper {
     Base(ZkSyncBaseLayerCircuit),

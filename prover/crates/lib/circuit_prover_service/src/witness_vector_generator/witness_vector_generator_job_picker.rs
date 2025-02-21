@@ -9,11 +9,10 @@ use zksync_prover_fri_types::{
         boojum::cs::implementations::setup::FinalizationHintsForProver,
         circuit_definitions::base_layer::ZkSyncBaseLayerCircuit,
     },
-    keys::RamPermutationQueueWitnessKey,
-    CircuitAuxData, CircuitWrapper, ProverServiceDataKey, RamPermutationQueueWitness,
+    CircuitWrapper, ProverServiceDataKey,
 };
 use zksync_prover_job_processor::JobPicker;
-use zksync_types::{prover_dal::FriProverJobMetadata, L1BatchNumber};
+use zksync_types::prover_dal::FriProverJobMetadata;
 
 use crate::{
     metrics::WITNESS_VECTOR_GENERATOR_METRICS,
