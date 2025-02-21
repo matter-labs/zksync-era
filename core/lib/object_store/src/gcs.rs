@@ -73,7 +73,7 @@ impl GoogleCloudStore {
 
     /// Modifies the number of concurrent requests to GCS.
     /// NOTE: Big numbers can saturate the network and/or cause the GCS to be unavailable.
-    pub async fn with_request_limit(mut self, request_limit: usize) -> Self {
+    pub fn with_request_limit(mut self, request_limit: usize) -> Self {
         self.semaphore = Semaphore::new(request_limit);
         self
     }
