@@ -121,6 +121,7 @@ pub struct InternalApiConfig {
     pub dummy_verifier: bool,
     pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
     pub timestamp_asserter_address: Option<Address>,
+    pub l1_server_notifier_addr: Option<Address>,
 }
 
 impl InternalApiConfig {
@@ -183,6 +184,10 @@ impl InternalApiConfig {
             dummy_verifier: genesis_config.dummy_verifier,
             l1_batch_commit_data_generator_mode: genesis_config.l1_batch_commit_data_generator_mode,
             timestamp_asserter_address: contracts_config.l2_timestamp_asserter_addr,
+            l1_server_notifier_addr: contracts_config
+                .ecosystem_contracts
+                .as_ref()
+                .and_then(|a| a.server_notifier_addr),
         }
     }
 }
