@@ -10986,6 +10986,7 @@ dependencies = [
  "futures-util",
  "hex",
  "octocrab",
+ "once_cell",
  "regex",
  "reqwest 0.12.9",
  "rustls 0.23.19",

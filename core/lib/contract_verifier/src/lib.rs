@@ -118,6 +118,7 @@ pub struct ContractVerifier {
     contract_deployer: Contract,
     connection_pool: ConnectionPool<Core>,
     compiler_resolver: Arc<dyn CompilerResolver>,
+    etherscan_verifier_enabled: bool,
 }
 
 impl ContractVerifier {
@@ -125,6 +126,7 @@ impl ContractVerifier {
     pub async fn new(
         compilation_timeout: Duration,
         connection_pool: ConnectionPool<Core>,
+        etherscan_verifier_enabled: bool,
     ) -> anyhow::Result<Self> {
         let env_resolver = Arc::<EnvCompilerResolver>::default();
         let gh_resolver = Arc::new(GitHubCompilerResolver::new().await?);
@@ -139,13 +141,20 @@ impl ContractVerifier {
             tracing::warn!("GitHub resolver was disabled via DISABLE_GITHUB_RESOLVER env variable")
         }
 
-        Self::with_resolver(compilation_timeout, connection_pool, Arc::new(resolver)).await
+        Self::with_resolver(
+            compilation_timeout,
+            connection_pool,
+            Arc::new(resolver),
+            etherscan_verifier_enabled,
+        )
+        .await
     }
 
     async fn with_resolver(
         compilation_timeout: Duration,
         connection_pool: ConnectionPool<Core>,
         compiler_resolver: Arc<dyn CompilerResolver>,
+        etherscan_verifier_enabled: bool,
     ) -> anyhow::Result<Self> {
         Self::sync_compiler_versions(compiler_resolver.as_ref(), &connection_pool).await?;
         Ok(Self {
@@ -153,6 +162,7 @@ impl ContractVerifier {
             contract_deployer: zksync_contracts::deployer_contract(),
             connection_pool,
             compiler_resolver,
+            etherscan_verifier_enabled,
         })
     }
 
@@ -579,7 +589,8 @@ impl ContractVerifier {
             .await?;
         match verification_result {
             Ok((info, identifier)) => {
-                storage
+                let mut transaction = storage.start_transaction().await?;
+                transaction
                     .contract_verification_dal()
                     .save_verification_info(
                         info,
@@ -587,6 +598,14 @@ impl ContractVerifier {
                         identifier.bytecode_without_metadata_keccak256,
                     )
                     .await?;
+                if self.etherscan_verifier_enabled {
+                    tracing::info!("Created etherscan verification request with id = {request_id}");
+                    transaction
+                        .etherscan_verification_dal()
+                        .add_verification_request(request_id)
+                        .await?;
+                }
+                transaction.commit().await?;
                 tracing::info!("Successfully processed request with id = {request_id}");
 
                 API_CONTRACT_VERIFIER_METRICS.successful_verifications[&Self::SERVICE_NAME].inc();

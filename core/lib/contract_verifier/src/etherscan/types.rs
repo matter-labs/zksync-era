@@ -3,31 +3,8 @@ use zksync_types::contract_verification::api::{
     CompilerVersions, SourceCodeData, VerificationEvmSettings, VerificationIncomingRequest,
 };
 
+use super::utils::{normalize_solc_version, normalize_zksolc_version};
 use crate::Address;
-
-fn normalize_zksolc_version(version: Option<String>) -> Option<String> {
-    match version {
-        Some(version) => {
-            if version.starts_with("vm-") {
-                version.split('-').nth(1).map(|ver| format!("v{}", ver))
-            } else {
-                Some(version.clone())
-            }
-        }
-        None => None,
-    }
-}
-
-fn normalize_solc_version(version: String) -> String {
-    let mut solc_version = version.replace("zkVM-", "");
-    if !solc_version.starts_with("v") {
-        solc_version = format!("v{}", solc_version);
-    }
-    if !solc_version.ends_with("-1.0.1") {
-        solc_version = format!("{}-1.0.1", solc_version);
-    }
-    solc_version
-}
 
 /// EtherscanVerificationRequest struct represents the request that is sent to the Etherscan API.
 #[derive(Debug, Clone, Serialize)]
@@ -40,12 +17,12 @@ pub(crate) struct EtherscanVerificationRequest {
     #[serde(rename = "contractname")]
     pub contract_name: String,
     #[serde(rename = "zksolcVersion", skip_serializing_if = "Option::is_none")]
-    compiler_zksolc_version: Option<String>,
+    pub compiler_zksolc_version: Option<String>,
     #[serde(rename = "compilerversion")]
-    compiler_solc_version: String,
+    pub compiler_solc_version: String,
     // solc / zksync
     #[serde(rename = "compilermode")]
-    compiler_mode: String,
+    pub compiler_mode: String,
     pub optimization_used: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub optimizer_mode: Option<String>,
@@ -184,42 +161,6 @@ mod tests {
 
     use super::*;
 
-    #[test]
-    fn test_normalize_zksolc_version_with_vm_prefix() {
-        let normalized_version = normalize_zksolc_version(Some("vm-1.5.0-a167aa3".to_string()));
-        assert_eq!(normalized_version, Some("v1.5.0".to_string()));
-    }
-
-    #[test]
-    fn test_normalize_zksolc_version_without_vm_prefix() {
-        let normalized_version = normalize_zksolc_version(Some("v1.5.0".to_string()));
-        assert_eq!(normalized_version, Some("v1.5.0".to_string()));
-    }
-
-    #[test]
-    fn test_normalize_zksolc_version_with_none() {
-        let normalized_version = normalize_zksolc_version(None);
-        assert_eq!(normalized_version, None);
-    }
-
-    #[test]
-    fn test_normalize_solc_version_with_zkvm_prefix() {
-        let normalized_version = normalize_solc_version("zkVM-0.8.16-1.0.1".to_string());
-        assert_eq!(normalized_version, "v0.8.16-1.0.1".to_string());
-    }
-
-    #[test]
-    fn test_normalize_solc_version_without_zkvm_prefix() {
-        let normalized_version = normalize_solc_version("v0.8.16".to_string());
-        assert_eq!(normalized_version, "v0.8.16-1.0.1".to_string());
-    }
-
-    #[test]
-    fn test_normalize_solc_version_without_v_prefix() {
-        let normalized_version = normalize_solc_version("0.8.16".to_string());
-        assert_eq!(normalized_version, "v0.8.16-1.0.1".to_string());
-    }
-
     fn get_default_verification_request() -> VerificationIncomingRequest {
         VerificationIncomingRequest {
             contract_address: Address::default(),
@@ -255,7 +196,7 @@ mod tests {
         assert_eq!(etherscan_request.compiler_zksolc_version, None);
         assert_eq!(
             etherscan_request.compiler_solc_version,
-            "v0.8.16-1.0.1".to_string()
+            "v0.8.16+commit.07a7930e".to_string()
         );
         assert_eq!(etherscan_request.compiler_mode, "solc".to_string());
         assert_eq!(etherscan_request.optimization_used, "1".to_string());
@@ -297,7 +238,7 @@ mod tests {
         );
         assert_eq!(
             etherscan_request.compiler_solc_version,
-            "v0.8.16-1.0.1".to_string()
+            "v0.8.16+commit.07a7930e".to_string()
         );
         assert_eq!(etherscan_request.compiler_mode, "zksync".to_string());
         assert_eq!(etherscan_request.optimization_used, "0".to_string());
@@ -324,7 +265,7 @@ mod tests {
             source_code_data: stand_json_input_result,
             compiler_versions: CompilerVersions::Solc {
                 compiler_zksolc_version: Some("v1.3.18".to_string()),
-                compiler_solc_version: "zkVM-0.8.19-1.0.1".to_string(),
+                compiler_solc_version: "zkVM-0.8.19-1.0.0".to_string(),
             },
             optimization_used: true,
             optimizer_mode: None,

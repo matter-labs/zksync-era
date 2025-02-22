@@ -5,8 +5,9 @@ use std::time::{Duration, Instant};
 
 use client::EtherscanClient;
 use errors::{ApiError, ProcessingError, VerifierError};
+use solc_builds_fetcher::SOLC_BUILDS_FETCHER;
 use zksync_dal::{
-    contract_verification_dal::EtherscanVerificationJobResultStatus, ConnectionPool, Core, CoreDal,
+    etherscan_verification_dal::EtherscanVerificationJobResultStatus, ConnectionPool, Core, CoreDal,
 };
 use zksync_queued_job_processor::{async_trait, JobProcessor};
 use zksync_types::contract_verification::api::EtherscanVerificationRequest;
@@ -15,7 +16,9 @@ use crate::metrics::API_CONTRACT_VERIFIER_METRICS;
 
 pub mod client;
 pub mod errors;
+mod solc_builds_fetcher;
 pub mod types;
+pub mod utils;
 
 #[derive(Debug, Clone)]
 pub struct EtherscanVerifier {
@@ -85,7 +88,7 @@ fn get_api_error_retry_policy(api_error: &ApiError) -> ApiErrorRetryPolicy {
 impl EtherscanVerifier {
     pub fn new(api_url: String, api_key: String, connection_pool: ConnectionPool<Core>) -> Self {
         Self {
-            client: EtherscanClient::new(api_url, api_key, 10, 30),
+            client: EtherscanClient::new(api_url, api_key),
             connection_pool,
         }
     }
@@ -138,8 +141,8 @@ impl EtherscanVerifier {
                     .unwrap();
 
                 connection
-                    .contract_verification_dal()
-                    .save_etherscan_verification_request_id(verification_request.id, &request_id)
+                    .etherscan_verification_dal()
+                    .save_etherscan_verification_id(verification_request.id, &request_id)
                     .await
                     .unwrap();
 
@@ -189,8 +192,8 @@ impl EtherscanVerifier {
             .await?;
 
         connection
-            .contract_verification_dal()
-            .reset_etherscan_verification_processing_started_at(request_id)
+            .etherscan_verification_dal()
+            .reset_processing_started_at(request_id)
             .await?;
 
         Ok(())
@@ -206,6 +209,9 @@ impl JobProcessor for EtherscanVerifier {
     const BACKOFF_MULTIPLIER: u64 = 1;
 
     async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
+        if let Err(err) = SOLC_BUILDS_FETCHER.update_builds().await {
+            tracing::error!("Failed to update solc builds: {}", err);
+        }
         // We consider that the job is stuck if it's being processed for more than 2 hours.
         // We need large overhead because Etherscan has pretty strict daily
         // limits for verification requests.
@@ -220,8 +226,8 @@ impl JobProcessor for EtherscanVerifier {
             .await?;
 
         let job = connection
-            .contract_verification_dal()
-            .get_next_queued_etherscan_verification_request(TIME_OVERHEAD)
+            .etherscan_verification_dal()
+            .get_next_queued_verification_request(TIME_OVERHEAD)
             .await?;
         Ok(job.map(|job| (job.id, job)))
     }
@@ -307,8 +313,8 @@ impl JobProcessor for EtherscanVerifier {
             .unwrap();
 
         connection
-            .contract_verification_dal()
-            .save_etherscan_verification_result(
+            .etherscan_verification_dal()
+            .save_verification_result(
                 job_id,
                 EtherscanVerificationJobResultStatus::Successful,
                 None,
@@ -329,8 +335,8 @@ impl JobProcessor for EtherscanVerifier {
             .unwrap();
 
         connection
-            .contract_verification_dal()
-            .save_etherscan_verification_result(
+            .etherscan_verification_dal()
+            .save_verification_result(
                 job_id,
                 EtherscanVerificationJobResultStatus::Failed,
                 Some(&error),

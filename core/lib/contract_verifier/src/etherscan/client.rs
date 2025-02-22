@@ -87,19 +87,12 @@ impl EtherscanClient {
     /// # Arguments
     /// - `api_url` - URL of the Etherscan API.
     /// - `api_key` - API key for the Etherscan API.
-    /// - `connect_timeout_secs` - Timeout for establishing connection in seconds.
-    /// - `request_timeout_secs` - Total timeout for the client request in seconds.
-    pub fn new(
-        api_url: String,
-        api_key: String,
-        connect_timeout_secs: u64,
-        request_timeout_secs: u64,
-    ) -> Self {
+    pub fn new(api_url: String, api_key: String) -> Self {
         let client = Client::builder()
             // Timeout for establishing connection
-            .connect_timeout(Duration::from_secs(connect_timeout_secs))
+            .connect_timeout(Self::connect_timeout())
             // Total timeout for the request
-            .timeout(Duration::from_secs(request_timeout_secs))
+            .timeout(Self::request_timeout())
             .build()
             .expect("Failed to create a reqwest client for EtherscanClient");
 
@@ -108,6 +101,14 @@ impl EtherscanClient {
             api_key,
             http_client: client,
         }
+    }
+
+    fn connect_timeout() -> Duration {
+        Duration::from_secs(10)
+    }
+
+    fn request_timeout() -> Duration {
+        Duration::from_secs(60)
     }
 
     async fn post<'a, T>(

@@ -108,10 +108,15 @@ async fn main() -> anyhow::Result<()> {
     perform_storage_migration(&pool).await?;
 
     let (stop_sender, stop_receiver) = watch::channel(false);
-    let contract_verifier =
-        ContractVerifier::new(verifier_config.compilation_timeout(), pool.clone())
-            .await
-            .context("failed initializing contract verifier")?;
+    let etherscan_verifier_enabled =
+        verifier_config.etherscan_api_url.is_some() && etherscan_api_key.is_some();
+    let contract_verifier = ContractVerifier::new(
+        verifier_config.compilation_timeout(),
+        pool.clone(),
+        etherscan_verifier_enabled,
+    )
+    .await
+    .context("failed initializing contract verifier")?;
     let update_task = contract_verifier.sync_compiler_versions_task();
 
     let mut tasks = vec![
@@ -122,17 +127,18 @@ async fn main() -> anyhow::Result<()> {
                 .run(stop_receiver.clone()),
         ),
     ];
-    match (verifier_config.etherscan_api_url, etherscan_api_key) {
-        (Some(api_url), Some(api_key)) => {
-            tracing::info!("Etherscan verifier is enabled");
-            let etherscan_verifier = EtherscanVerifier::new(api_url, api_key, pool);
-            tasks.push(tokio::spawn(
-                etherscan_verifier.run(stop_receiver, opt.jobs_number),
-            ));
-        }
-        _ => {
-            tracing::info!("Etherscan verifier is disabled");
-        }
+    if etherscan_verifier_enabled {
+        tracing::info!("Etherscan verifier is enabled");
+        let etherscan_verifier = EtherscanVerifier::new(
+            verifier_config.etherscan_api_url.unwrap(),
+            etherscan_api_key.unwrap(),
+            pool,
+        );
+        tasks.push(tokio::spawn(
+            etherscan_verifier.run(stop_receiver, opt.jobs_number),
+        ));
+    } else {
+        tracing::info!("Etherscan verifier is disabled");
     }
 
     let mut tasks = ManagedTasks::new(tasks);
