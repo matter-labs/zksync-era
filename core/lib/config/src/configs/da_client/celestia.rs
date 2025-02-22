@@ -8,6 +8,7 @@ pub struct CelestiaConfig {
     pub namespace: String,
     pub chain_id: String,
     pub timeout_ms: u64,
+    pub tm_rpc_url: String,
 }
 
 #[derive(Clone, Debug, PartialEq)]

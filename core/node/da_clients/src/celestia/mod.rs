@@ -7,7 +7,7 @@ pub mod celestia_proto {
     include!("generated/celestia.blob.v1.rs");
 }
 
-pub mod tm_rpc_utils;
+pub mod blobstream;
 
 pub mod cosmos {
     pub mod auth {
