@@ -11247,6 +11247,7 @@ dependencies = [
  "ethabi",
  "futures-util",
  "hex",
+ "http 1.2.0",
  "octocrab",
  "once_cell",
  "regex",

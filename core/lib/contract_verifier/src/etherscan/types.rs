@@ -1,15 +1,21 @@
-use serde::{Deserialize, Serialize};
+use serde::{
+    de::{DeserializeOwned, Error},
+    Deserialize, Serialize,
+};
 use zksync_types::contract_verification::api::{
     CompilerVersions, SourceCodeData, VerificationEvmSettings, VerificationIncomingRequest,
 };
 
-use super::utils::{normalize_solc_version, normalize_zksolc_version};
+use super::{
+    errors::EtherscanError,
+    utils::{normalize_solc_version, normalize_zksolc_version},
+};
 use crate::Address;
 
 /// EtherscanVerificationRequest struct represents the request that is sent to the Etherscan API.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct EtherscanVerificationRequest {
+pub(super) struct EtherscanVerificationRequest {
     #[serde(rename = "contractaddress")]
     pub contract_address: Address,
     pub source_code: String,
@@ -92,7 +98,7 @@ impl From<VerificationIncomingRequest> for EtherscanVerificationRequest {
 }
 
 #[derive(Serialize, Debug)]
-pub(crate) struct ApiRequest<'a, T>
+pub(super) struct EtherscanRequest<'a, T>
 where
     T: Serialize,
 {
@@ -104,11 +110,16 @@ where
     other: T,
 }
 
-impl<'a, T> ApiRequest<'a, T>
+impl<'a, T> EtherscanRequest<'a, T>
 where
     T: Serialize,
 {
-    pub fn new(api_key: &'a str, module: ApiModule, action: ApiAction, other: T) -> Self {
+    pub fn new(
+        api_key: &'a str,
+        module: EtherscanModule,
+        action: EtherscanAction,
+        other: T,
+    ) -> Self {
         Self {
             api_key,
             module: module.as_str(),
@@ -118,39 +129,96 @@ where
     }
 }
 
-#[derive(Deserialize)]
-pub(crate) struct ApiResponseRaw {
+#[derive(Debug, Deserialize)]
+pub(super) struct RawEtherscanResponse {
     pub status: String,
     pub message: String,
-    pub result: String,
+    pub result: serde_json::Value,
 }
 
-#[derive(Debug)]
-pub(crate) enum ApiModule {
-    Contract,
-}
+impl RawEtherscanResponse {
+    pub(super) fn error_message(&self) -> EtherscanError {
+        match self.result.as_str() {
+            Some(result) => {
+                if result == "Contract source code not verified" {
+                    return EtherscanError::ContractNotVerified;
+                }
+                if result == "Contract source code already verified" {
+                    return EtherscanError::ContractAlreadyVerified;
+                }
+                if result == "Pending in queue" {
+                    return EtherscanError::VerificationPending;
+                }
+                // There is a number of daily limit in between the checked values.
+                // I don't want to rely on the exact number as it is a subject to change.
+                if result.starts_with("Daily limit")
+                    && result.ends_with("source code submissions reached")
+                {
+                    return EtherscanError::DailyVerificationRequestsLimitExceeded;
+                }
+                let result_lower = result.to_lowercase();
+                if result_lower.contains("rate limit reached") {
+                    return EtherscanError::RateLimitExceeded;
+                }
+                // Error message can be "Invalid API Key" or "Missing/Invalid API Key"
+                if result_lower.contains("invalid api key") {
+                    return EtherscanError::InvalidApiKey;
+                }
+                // Page not found error is checked both by 404 status and by the message
+                if result.contains("Page not found") {
+                    return EtherscanError::PageNotFound;
+                }
+                EtherscanError::ErrorResponse {
+                    message: self.message.clone(),
+                    result: result.to_string(),
+                }
+            }
+            None => EtherscanError::Serde {
+                error: serde_json::Error::custom(
+                    "Error deserializing an EtherscanError. Result is not a string.",
+                ),
+                content: self.message.clone(),
+            },
+        }
+    }
 
-impl ApiModule {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            ApiModule::Contract => "contract",
+    pub(super) fn deserialize_result<T: DeserializeOwned>(self) -> Result<T, EtherscanError> {
+        match serde_json::from_value(self.result) {
+            Ok(result) => Ok(result),
+            Err(e) => Err(EtherscanError::Serde {
+                error: e,
+                content: self.message,
+            }),
         }
     }
 }
 
 #[derive(Debug)]
-pub(crate) enum ApiAction {
+pub(super) enum EtherscanModule {
+    Contract,
+}
+
+impl EtherscanModule {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            EtherscanModule::Contract => "contract",
+        }
+    }
+}
+
+#[derive(Debug)]
+pub(super) enum EtherscanAction {
     GetAbi,
     GetVerificationStatus,
     VerifySourceCode,
 }
 
-impl ApiAction {
+impl EtherscanAction {
     pub fn as_str(&self) -> &'static str {
         match self {
-            ApiAction::GetAbi => "getabi",
-            ApiAction::GetVerificationStatus => "checkverifystatus",
-            ApiAction::VerifySourceCode => "verifysourcecode",
+            EtherscanAction::GetAbi => "getabi",
+            EtherscanAction::GetVerificationStatus => "checkverifystatus",
+            EtherscanAction::VerifySourceCode => "verifysourcecode",
         }
     }
 }
@@ -307,5 +375,156 @@ mod tests {
         assert!(!etherscan_request.is_system);
         assert!(!etherscan_request.force_evmla);
         assert_eq!(etherscan_request.evm_specific, request.evm_specific);
+    }
+
+    #[test]
+    fn test_raw_etherscan_response_error_message() {
+        let cases = vec![
+            (
+                RawEtherscanResponse {
+                    status: "0".to_string(),
+                    message: "Error".to_string(),
+                    result: serde_json::Value::String(
+                        "Contract source code not verified".to_string(),
+                    ),
+                },
+                EtherscanError::ContractNotVerified,
+            ),
+            (
+                RawEtherscanResponse {
+                    status: "0".to_string(),
+                    message: "Error".to_string(),
+                    result: serde_json::Value::String(
+                        "Contract source code already verified".to_string(),
+                    ),
+                },
+                EtherscanError::ContractAlreadyVerified,
+            ),
+            (
+                RawEtherscanResponse {
+                    status: "0".to_string(),
+                    message: "Error".to_string(),
+                    result: serde_json::Value::String("Pending in queue".to_string()),
+                },
+                EtherscanError::VerificationPending,
+            ),
+            (
+                RawEtherscanResponse {
+                    status: "0".to_string(),
+                    message: "Error".to_string(),
+                    result: serde_json::Value::String(
+                        "Daily limit of 100 source code submissions reached".to_string(),
+                    ),
+                },
+                EtherscanError::DailyVerificationRequestsLimitExceeded,
+            ),
+            (
+                RawEtherscanResponse {
+                    status: "0".to_string(),
+                    message: "Error".to_string(),
+                    result: serde_json::Value::String("Max rate limit reached".to_string()),
+                },
+                EtherscanError::RateLimitExceeded,
+            ),
+            (
+                RawEtherscanResponse {
+                    status: "0".to_string(),
+                    message: "Error".to_string(),
+                    result: serde_json::Value::String("Invalid API Key".to_string()),
+                },
+                EtherscanError::InvalidApiKey,
+            ),
+            (
+                RawEtherscanResponse {
+                    status: "0".to_string(),
+                    message: "Error".to_string(),
+                    result: serde_json::Value::String("Missing/Invalid API Key".to_string()),
+                },
+                EtherscanError::InvalidApiKey,
+            ),
+            (
+                RawEtherscanResponse {
+                    status: "0".to_string(),
+                    message: "Error".to_string(),
+                    result: serde_json::Value::String("Unknown error".to_string()),
+                },
+                EtherscanError::ErrorResponse {
+                    message: "Error".to_string(),
+                    result: "Unknown error".to_string(),
+                },
+            ),
+        ];
+
+        for (response, expected_error) in cases {
+            match (response.error_message(), expected_error) {
+                (EtherscanError::ContractNotVerified, EtherscanError::ContractNotVerified) => {}
+                (
+                    EtherscanError::ContractAlreadyVerified,
+                    EtherscanError::ContractAlreadyVerified,
+                ) => {}
+                (EtherscanError::VerificationPending, EtherscanError::VerificationPending) => {}
+                (
+                    EtherscanError::DailyVerificationRequestsLimitExceeded,
+                    EtherscanError::DailyVerificationRequestsLimitExceeded,
+                ) => {}
+                (EtherscanError::RateLimitExceeded, EtherscanError::RateLimitExceeded) => {}
+                (EtherscanError::InvalidApiKey, EtherscanError::InvalidApiKey) => {}
+                (
+                    EtherscanError::ErrorResponse {
+                        message: actual_msg,
+                        result: actual_res,
+                    },
+                    EtherscanError::ErrorResponse {
+                        message: expected_msg,
+                        result: expected_res,
+                    },
+                ) => {
+                    assert_eq!(actual_msg, expected_msg);
+                    assert_eq!(actual_res, expected_res);
+                }
+                (actual, expected) => {
+                    panic!("Unexpected error variant.\nActual: {actual:?}\nExpected: {expected:?}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_raw_etherscan_response_error_message_non_string_result() {
+        let response = RawEtherscanResponse {
+            status: "0".to_string(),
+            message: "Error message".to_string(),
+            result: serde_json::Value::Object(serde_json::Map::new()),
+        };
+        assert!(matches!(
+            response.error_message(),
+            EtherscanError::Serde { content, .. }
+            if content == "Error message"
+        ));
+    }
+
+    #[test]
+    fn test_raw_etherscan_response_deserialize_result() {
+        // Test successful deserialization
+        let response = RawEtherscanResponse {
+            status: "1".to_string(),
+            message: "OK".to_string(),
+            result: serde_json::Value::String("success".to_string()),
+        };
+        let result: Result<String, _> = response.deserialize_result();
+        assert_eq!(result.unwrap(), "success");
+
+        // Test failed deserialization
+        let response = RawEtherscanResponse {
+            status: "1".to_string(),
+            message: "message".to_string(),
+            result: serde_json::Value::Object(serde_json::Map::new()), // Invalid value for String
+        };
+        let result: Result<String, _> = response.deserialize_result();
+        assert!(matches!(
+            result,
+            Err(EtherscanError::Serde { content, .. })
+            if content == "message"
+        ));
     }
 }

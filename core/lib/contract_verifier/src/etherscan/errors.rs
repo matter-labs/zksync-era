@@ -1,7 +1,7 @@
 use zksync_dal::DalError;
 
 #[derive(Debug, thiserror::Error)]
-pub(crate) enum ApiError {
+pub(super) enum EtherscanError {
     #[error(transparent)]
     Reqwest(#[from] reqwest::Error),
     #[error("Failed to deserialize content: {error}\n{content}")]
@@ -29,62 +29,31 @@ pub(crate) enum ApiError {
     CloudFlareSecurityChallenge,
     #[error("Received `Page not found` response. API server is likely down")]
     PageNotFound,
-    #[error("Unexpected API response: message={message}, result={result}")]
-    UnexpectedResponse { message: String, result: String },
+    #[error("Unexpected API response: message={message}, status={status}")]
+    UnexpectedResponse { message: String, status: String },
 }
 
 #[derive(Debug, thiserror::Error)]
-pub(crate) enum ProcessingError {
+pub(super) enum ProcessingError {
     #[error("Get verification status timed out. Failing the verification process.")]
     VerificationStatusPollingTimeout,
     #[error("Database related error")]
     DalError(#[from] DalError),
 }
 
-pub(crate) enum VerifierError {
-    ApiError(ApiError),
+pub(super) enum VerifierError {
+    EtherscanError(EtherscanError),
     ProcessingError(ProcessingError),
 }
 
-impl From<ApiError> for VerifierError {
-    fn from(err: ApiError) -> Self {
-        Self::ApiError(err)
+impl From<EtherscanError> for VerifierError {
+    fn from(err: EtherscanError) -> Self {
+        Self::EtherscanError(err)
     }
 }
 
 impl From<ProcessingError> for VerifierError {
     fn from(err: ProcessingError) -> Self {
         Self::ProcessingError(err)
-    }
-}
-
-pub(crate) fn is_blocked_by_cloudflare_response(txt: &str) -> bool {
-    txt.to_lowercase().contains("sorry, you have been blocked")
-}
-
-pub(crate) fn is_cloudflare_security_challenge(txt: &str) -> bool {
-    txt.contains("https://www.cloudflare.com?utm_source=challenge")
-        || txt
-            .to_lowercase()
-            .contains("checking if the site connection is secure")
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_is_cloudflare_security_challenge() {
-        let res = "Security challenge link https://www.cloudflare.com?utm_source=challenge";
-        assert!(is_cloudflare_security_challenge(res));
-
-        let res = "Checking if the site connection is secure...";
-        assert!(is_cloudflare_security_challenge(res));
-    }
-
-    #[test]
-    fn test_is_blocked_by_cloudflare_response() {
-        let res = "Sorry, you have been blocked...";
-        assert!(is_blocked_by_cloudflare_response(res));
     }
 }

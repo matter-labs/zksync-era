@@ -4,7 +4,7 @@
 use std::time::{Duration, Instant};
 
 use client::EtherscanClient;
-use errors::{ApiError, ProcessingError, VerifierError};
+use errors::{EtherscanError, ProcessingError, VerifierError};
 use solc_builds_fetcher::SOLC_BUILDS_FETCHER;
 use zksync_dal::{
     etherscan_verification_dal::EtherscanVerificationJobResultStatus, ConnectionPool, Core, CoreDal,
@@ -37,9 +37,9 @@ enum ApiErrorRetryPolicy {
     },
 }
 
-fn get_api_error_retry_policy(api_error: &ApiError) -> ApiErrorRetryPolicy {
+fn get_api_error_retry_policy(api_error: &EtherscanError) -> ApiErrorRetryPolicy {
     match api_error {
-        ApiError::DailyVerificationRequestsLimitExceeded => {
+        EtherscanError::DailyVerificationRequestsLimitExceeded => {
             // The number of sent verification requests over the last 24 hours is not tracked
             // so there is no precise way to determine the proper pause duration.
             // 1 hour pause should be good enough, but if necessary more sophisticated solution can be implemented.
@@ -47,7 +47,7 @@ fn get_api_error_retry_policy(api_error: &ApiError) -> ApiErrorRetryPolicy {
                 pause_duration: Duration::from_secs(60 * 60), // 1 hour
             }
         }
-        ApiError::InvalidApiKey => {
+        EtherscanError::InvalidApiKey => {
             // Etherscan API key is invalid even though it has no expiration date.
             // Either Etherscan API is experiencing issues or the key was revoked.
             // 1 hour to give the API time to recover and not to spam the API with invalid requests.
@@ -56,23 +56,23 @@ fn get_api_error_retry_policy(api_error: &ApiError) -> ApiErrorRetryPolicy {
                 pause_duration: Duration::from_secs(60 * 60), // 1 hour
             }
         }
-        ApiError::BlockedByCloudflare
-        | ApiError::CloudFlareSecurityChallenge
-        | ApiError::PageNotFound => {
+        EtherscanError::BlockedByCloudflare
+        | EtherscanError::CloudFlareSecurityChallenge
+        | EtherscanError::PageNotFound => {
             // The request was blocked by the Cloudflare or a blank page was returned by the API, both of which are unexpected.
             // Likely Etherscan is experiencing issues.
             ApiErrorRetryPolicy::IndefinitelyRetryable {
                 pause_duration: Duration::from_secs(60 * 10), // 10 mins
             }
         }
-        ApiError::RateLimitExceeded => {
+        EtherscanError::RateLimitExceeded => {
             // Etherscan has different rate limits. Considering the number of requests we send
             // most likely none of them will be exceeded. But if it happens, we can pause for 10 mins.
             ApiErrorRetryPolicy::IndefinitelyRetryable {
                 pause_duration: Duration::from_secs(60 * 10), // 10 mins
             }
         }
-        ApiError::Reqwest(_) => {
+        EtherscanError::Reqwest(_) => {
             // Most likely the error is caused by the network issue of some sort.
             // But if the request error is caused by the constructed payload, we can't afford to retry indefinitely,
             // so we number of attempts is limited.
@@ -125,7 +125,7 @@ impl EtherscanVerifier {
                     // Even though there is a call to check if the contract is already verified
                     // we still need to process ContractAlreadyVerified response from the verification
                     // API call. This is because the contract can be verified by another party.
-                    Err(ApiError::ContractAlreadyVerified) => {
+                    Err(EtherscanError::ContractAlreadyVerified) => {
                         tracing::info!(
                             "Contract with address {:#?} is already verified",
                             req.contract_address
@@ -164,7 +164,7 @@ impl EtherscanVerifier {
             let result = self.client.get_verification_status(&verification_id).await;
             match result {
                 Ok(_) => break,
-                Err(ApiError::VerificationPending) => {
+                Err(EtherscanError::VerificationPending) => {
                     tokio::time::sleep(POLL_VERIFICATION_RESULT_INTERVAL).await;
                     if get_status_attempts > MAX_POLL_VERIFICATION_RESULT_ATTEMPTS {
                         tracing::warn!(
@@ -248,7 +248,7 @@ impl JobProcessor for EtherscanVerifier {
                 let verification_result = this.verify(job.clone()).await;
                 match verification_result {
                     Ok(_) => break Ok(()),
-                    Err(VerifierError::ApiError(api_error)) => {
+                    Err(VerifierError::EtherscanError(api_error)) => {
                         let retry_policy = get_api_error_retry_policy(&api_error);
                         match retry_policy {
                             ApiErrorRetryPolicy::NotRetryable => break Err(api_error.into()),
