@@ -52,6 +52,12 @@ impl From<EtherscanError> for VerifierError {
     }
 }
 
+impl From<DalError> for VerifierError {
+    fn from(err: DalError) -> Self {
+        Self::ProcessingError(ProcessingError::DalError(err))
+    }
+}
+
 impl From<ProcessingError> for VerifierError {
     fn from(err: ProcessingError) -> Self {
         Self::ProcessingError(err)

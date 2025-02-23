@@ -6,10 +6,10 @@ use std::time::{Duration, Instant};
 use client::EtherscanClient;
 use errors::{EtherscanError, ProcessingError, VerifierError};
 use solc_builds_fetcher::SOLC_BUILDS_FETCHER;
+use tokio::sync::watch;
 use zksync_dal::{
     etherscan_verification_dal::EtherscanVerificationJobResultStatus, ConnectionPool, Core, CoreDal,
 };
-use zksync_queued_job_processor::{async_trait, JobProcessor};
 use zksync_types::contract_verification::api::EtherscanVerificationRequest;
 
 use crate::metrics::API_CONTRACT_VERIFIER_METRICS;
@@ -66,10 +66,11 @@ fn get_api_error_retry_policy(api_error: &EtherscanError) -> ApiErrorRetryPolicy
             }
         }
         EtherscanError::RateLimitExceeded => {
-            // Etherscan has different rate limits. Considering the number of requests we send
-            // most likely none of them will be exceeded. But if it happens, we can pause for 10 mins.
+            // Etherscan has different rate limits. Verification requests limit is handled separately.
+            // Apart from that there are a per second and a per day limits. We are very unlikely to hit
+            // a daily limit. For the per second limit, we can pause for 5 sec.
             ApiErrorRetryPolicy::IndefinitelyRetryable {
-                pause_duration: Duration::from_secs(60 * 10), // 10 mins
+                pause_duration: Duration::from_secs(5),
             }
         }
         EtherscanError::Reqwest(_) => {
@@ -91,6 +92,99 @@ impl EtherscanVerifier {
             client: EtherscanClient::new(api_url, api_key),
             connection_pool,
         }
+    }
+
+    fn wait_for_request_interval() -> Duration {
+        Duration::from_secs(1)
+    }
+
+    async fn get_next_request(
+        &self,
+    ) -> anyhow::Result<Option<EtherscanVerificationRequest>, VerifierError> {
+        if let Err(err) = SOLC_BUILDS_FETCHER.update_builds().await {
+            tracing::error!("Failed to update solc builds: {}", err);
+        }
+        // We consider that the job is stuck if it's being processed for more than 2 hours.
+        // We need large overhead because Etherscan has pretty strict daily
+        // limits for verification requests.
+        // In case the daily verification rate limit is reached, the processing is paused for 1 hour
+        // and the processing_started_at field is reset to the current time after the pause.
+        // Since etherscan verification is completely async it shouldn't affect user experience much.
+        const TIME_OVERHEAD: Duration = Duration::from_secs(2 * 60 * 60); // 2 hours
+
+        let mut connection = self
+            .connection_pool
+            .connection_tagged("etherscan_verifier")
+            .await?;
+
+        let job = connection
+            .etherscan_verification_dal()
+            .get_next_queued_verification_request(TIME_OVERHEAD)
+            .await?;
+        Ok(job)
+    }
+
+    async fn save_result(&self, job_id: usize) -> anyhow::Result<(), VerifierError> {
+        tracing::info!("Successfully processed etherscan verification request with id = {job_id}");
+        let mut connection = self
+            .connection_pool
+            .connection_tagged("etherscan_verifier")
+            .await?;
+
+        connection
+            .etherscan_verification_dal()
+            .save_verification_result(
+                job_id,
+                EtherscanVerificationJobResultStatus::Successful,
+                None,
+            )
+            .await?;
+
+        API_CONTRACT_VERIFIER_METRICS.successful_verifications[&"etherscan_verifier"].inc();
+
+        Ok(())
+    }
+
+    async fn save_failure(
+        &self,
+        job_id: usize,
+        error: String,
+    ) -> anyhow::Result<(), VerifierError> {
+        tracing::warn!("Failed to process etherscan verification request with id = {job_id}");
+        let mut connection = self
+            .connection_pool
+            .connection_tagged("etherscan_verifier")
+            .await?;
+
+        connection
+            .etherscan_verification_dal()
+            .save_verification_result(
+                job_id,
+                EtherscanVerificationJobResultStatus::Failed,
+                Some(&error),
+            )
+            .await?;
+
+        API_CONTRACT_VERIFIER_METRICS.failed_verifications[&"etherscan_verifier"].inc();
+
+        Ok(())
+    }
+
+    async fn reset_etherscan_verification_processing_started_at(
+        &self,
+        request_id: usize,
+    ) -> Result<(), VerifierError> {
+        let mut connection = self
+            .connection_pool
+            .connection_tagged("etherscan_verifier")
+            .await?;
+
+        connection
+            .etherscan_verification_dal()
+            .reset_processing_started_at(request_id)
+            .await?;
+
+        Ok(())
     }
 
     async fn verify(
@@ -137,14 +231,12 @@ impl EtherscanVerifier {
                 let mut connection = self
                     .connection_pool
                     .connection_tagged("etherscan_verifier")
-                    .await
-                    .unwrap();
+                    .await?;
 
                 connection
                     .etherscan_verification_dal()
                     .save_etherscan_verification_id(verification_request.id, &request_id)
-                    .await
-                    .unwrap();
+                    .await?;
 
                 // Wait for the verification to be processed
                 tokio::time::sleep(POLL_VERIFICATION_RESULT_INTERVAL).await;
@@ -182,176 +274,104 @@ impl EtherscanVerifier {
         Ok(())
     }
 
-    async fn reset_etherscan_verification_processing_started_at(
-        &self,
-        request_id: usize,
-    ) -> Result<(), anyhow::Error> {
-        let mut connection = self
-            .connection_pool
-            .connection_tagged("etherscan_verifier")
-            .await?;
-
-        connection
-            .etherscan_verification_dal()
-            .reset_processing_started_at(request_id)
-            .await?;
-
-        Ok(())
-    }
-}
-
-#[async_trait]
-impl JobProcessor for EtherscanVerifier {
-    type Job = EtherscanVerificationRequest;
-    type JobId = usize;
-    type JobArtifacts = ();
-    const SERVICE_NAME: &'static str = "etherscan_verifier";
-    const BACKOFF_MULTIPLIER: u64 = 1;
-
-    async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
-        if let Err(err) = SOLC_BUILDS_FETCHER.update_builds().await {
-            tracing::error!("Failed to update solc builds: {}", err);
+    async fn process_next_request(&self) -> anyhow::Result<(), VerifierError> {
+        let mut started_at = Instant::now();
+        let verification_request = self.get_next_request().await?;
+        if verification_request.is_none() {
+            return Ok(());
         }
-        // We consider that the job is stuck if it's being processed for more than 2 hours.
-        // We need large overhead because Etherscan has pretty strict daily
-        // limits for verification requests.
-        // In case the daily verification rate limit is reached, the processing is paused for 1 hour
-        // and the processing_started_at field is reset to the current time after the pause.
-        // Since etherscan verification is completely async it shouldn't affect user experience much.
-        const TIME_OVERHEAD: Duration = Duration::from_secs(2 * 60 * 60); // 2 hours
 
-        let mut connection = self
-            .connection_pool
-            .connection_tagged(Self::SERVICE_NAME)
-            .await?;
-
-        let job = connection
-            .etherscan_verification_dal()
-            .get_next_queued_verification_request(TIME_OVERHEAD)
-            .await?;
-        Ok(job.map(|job| (job.id, job)))
-    }
-
-    #[allow(clippy::async_yields_async)]
-    async fn process_job(
-        &self,
-        _job_id: &Self::JobId,
-        job: Self::Job,
-        started_at: Instant,
-    ) -> tokio::task::JoinHandle<anyhow::Result<Self::JobArtifacts>> {
-        let this = self.clone();
-        let mut started_at = started_at;
-        tokio::task::spawn(async move {
-            tracing::info!("Started to process request with id = {}", job.id);
-            let mut verify_attempts = 0;
-            let processing_result: Result<(), anyhow::Error> = loop {
-                let verification_result = this.verify(job.clone()).await;
-                match verification_result {
-                    Ok(_) => break Ok(()),
-                    Err(VerifierError::EtherscanError(api_error)) => {
-                        let retry_policy = get_api_error_retry_policy(&api_error);
-                        match retry_policy {
-                            ApiErrorRetryPolicy::NotRetryable => break Err(api_error.into()),
-                            ApiErrorRetryPolicy::Retryable {
-                                pause_duration,
-                                max_attempts,
-                            } => {
-                                verify_attempts += 1;
-                                if verify_attempts > max_attempts {
-                                    tracing::warn!(
+        let verification_request = verification_request.unwrap();
+        tracing::info!(
+            "Started to process request with id = {}",
+            verification_request.id
+        );
+        let mut verify_attempts = 0;
+        let processing_result: Result<(), anyhow::Error> = loop {
+            let verification_result = self.verify(verification_request.clone()).await;
+            match verification_result {
+                Ok(_) => break Ok(()),
+                Err(VerifierError::EtherscanError(api_error)) => {
+                    let retry_policy = get_api_error_retry_policy(&api_error);
+                    match retry_policy {
+                        ApiErrorRetryPolicy::NotRetryable => break Err(api_error.into()),
+                        ApiErrorRetryPolicy::Retryable {
+                            pause_duration,
+                            max_attempts,
+                        } => {
+                            verify_attempts += 1;
+                            if verify_attempts > max_attempts {
+                                tracing::warn!(
                                         "Number of verification retries has exceed the limit. Failing the job.",
                                     );
-                                    break Err(api_error.into());
-                                }
-                                tracing::warn!(
-                                    "Pausing processing for {:?} due to the error: {:#?}",
-                                    pause_duration,
-                                    api_error
-                                );
-                                tokio::time::sleep(pause_duration).await;
-                                this.reset_etherscan_verification_processing_started_at(job.id)
-                                    .await?;
-                                started_at = Instant::now();
+                                break Err(api_error.into());
                             }
-                            ApiErrorRetryPolicy::IndefinitelyRetryable { pause_duration } => {
-                                tracing::warn!(
-                                    "Pausing processing for {:?} due to the error: {}",
-                                    pause_duration,
-                                    api_error
-                                );
-                                tokio::time::sleep(pause_duration).await;
-                                this.reset_etherscan_verification_processing_started_at(job.id)
-                                    .await?;
-                                started_at = Instant::now();
-                            }
+                            tracing::warn!(
+                                "Pausing processing for {:?} due to the error: {:#?}",
+                                pause_duration,
+                                api_error
+                            );
+                            tokio::time::sleep(pause_duration).await;
+                            self.reset_etherscan_verification_processing_started_at(
+                                verification_request.id,
+                            )
+                            .await?;
+                            started_at = Instant::now();
+                        }
+                        ApiErrorRetryPolicy::IndefinitelyRetryable { pause_duration } => {
+                            tracing::warn!(
+                                "Pausing processing for {:?} due to the error: {}",
+                                pause_duration,
+                                api_error
+                            );
+                            tokio::time::sleep(pause_duration).await;
+                            self.reset_etherscan_verification_processing_started_at(
+                                verification_request.id,
+                            )
+                            .await?;
+                            started_at = Instant::now();
                         }
                     }
-                    Err(VerifierError::ProcessingError(processing_error)) => {
-                        break Err(processing_error.into())
-                    }
                 }
-            };
-            API_CONTRACT_VERIFIER_METRICS
-                .etherscan_request_processing_time
-                .observe(started_at.elapsed());
+                Err(VerifierError::ProcessingError(processing_error)) => {
+                    break Err(processing_error.into())
+                }
+            }
+        };
 
-            processing_result
-        })
-    }
+        match processing_result {
+            Ok(_) => {
+                self.save_result(verification_request.id).await?;
+            }
+            Err(err) => {
+                self.save_failure(verification_request.id, err.to_string())
+                    .await?;
+            }
+        }
 
-    async fn save_result(
-        &self,
-        job_id: Self::JobId,
-        _: Instant,
-        _: Self::JobArtifacts,
-    ) -> anyhow::Result<()> {
-        tracing::info!("Successfully processed etherscan verification request with id = {job_id}");
-        let mut connection = self
-            .connection_pool
-            .connection_tagged(Self::SERVICE_NAME)
-            .await
-            .unwrap();
-
-        connection
-            .etherscan_verification_dal()
-            .save_verification_result(
-                job_id,
-                EtherscanVerificationJobResultStatus::Successful,
-                None,
-            )
-            .await
-            .unwrap();
-
-        API_CONTRACT_VERIFIER_METRICS.successful_verifications[&Self::SERVICE_NAME].inc();
+        API_CONTRACT_VERIFIER_METRICS
+            .etherscan_request_processing_time
+            .observe(started_at.elapsed());
 
         Ok(())
     }
 
-    async fn save_failure(&self, job_id: usize, _: Instant, error: String) {
-        let mut connection = self
-            .connection_pool
-            .connection_tagged(Self::SERVICE_NAME)
-            .await
-            .unwrap();
+    pub async fn run(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        loop {
+            if *stop_receiver.borrow() {
+                tracing::warn!("Stop signal received, shutting down etherscan verifier");
+                return Ok(());
+            }
 
-        connection
-            .etherscan_verification_dal()
-            .save_verification_result(
-                job_id,
-                EtherscanVerificationJobResultStatus::Failed,
-                Some(&error),
-            )
-            .await
-            .unwrap();
+            // Errors are handled internally so it's safe to ignore them here
+            // to keep the processing loop running.
+            self.process_next_request().await.ok();
 
-        API_CONTRACT_VERIFIER_METRICS.failed_verifications[&Self::SERVICE_NAME].inc();
-    }
-
-    fn max_attempts(&self) -> u32 {
-        10
-    }
-
-    async fn get_job_attempts(&self, _job_id: &Self::JobId) -> anyhow::Result<u32> {
-        Ok(1)
+            let wait_interval = Self::wait_for_request_interval();
+            tracing::trace!("Pausing execution for {} sec.", wait_interval.as_secs());
+            tokio::time::timeout(wait_interval, stop_receiver.changed())
+                .await
+                .ok();
+        }
     }
 }
