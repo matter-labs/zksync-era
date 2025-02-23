@@ -30,7 +30,7 @@ impl TxSink for WhitelistedDeployPoolSink {
         validation_traces: ValidationTraces,
     ) -> Result<L2TxSubmissionResult, SubmitTxError> {
         let initiator = tx.initiator_account();
-        
+
         tracing::info!("Processing transaction");
         if let Some(contract_address) = tx.execute.contract_address {
             tracing::info!("Allow List Sink : {:?}, {}", tx.hash(), contract_address);
@@ -41,22 +41,31 @@ impl TxSink for WhitelistedDeployPoolSink {
                     .connection_tagged("api")
                     .await
                     .map_err(DalError::generalize)?;
-                
+
                 let allow_list = connection
-                .contracts_deploy_allow_list_dal()
-                .get_allow_list()
-                .await
-                .unwrap();
-            
+                    .contracts_deploy_allow_list_dal()
+                    .get_allow_list()
+                    .await
+                    .unwrap();
+
                 if allow_list.contains(&initiator) {
-                    tracing::info!("Whitelisted address {:?} allowed to deploy contract: {:?}", initiator, tx.hash());
+                    tracing::info!(
+                        "Whitelisted address {:?} allowed to deploy contract: {:?}",
+                        initiator,
+                        tx.hash()
+                    );
                 } else {
-                    tracing::info!("Blocking contract deployment for non-whitelisted address: {:?}", initiator);
+                    tracing::info!(
+                        "Blocking contract deployment for non-whitelisted address: {:?}",
+                        initiator
+                    );
                     return Err(SubmitTxError::SenderInAllowList(initiator));
                 }
             }
         }
 
-        self.master_pool_sync.submit_tx(tx, execution_metrics, validation_traces).await
+        self.master_pool_sync
+            .submit_tx(tx, execution_metrics, validation_traces)
+            .await
     }
 }

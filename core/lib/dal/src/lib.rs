@@ -13,7 +13,8 @@ pub use zksync_db_connection::{
 
 use crate::{
     base_token_dal::BaseTokenDal, blocks_dal::BlocksDal, blocks_web3_dal::BlocksWeb3Dal,
-    consensus_dal::ConsensusDal, contract_verification_dal::ContractVerificationDal,
+    consensus_dal::ConsensusDal, contract_allow_list_dal::ContractDeployAllowListDal,
+    contract_verification_dal::ContractVerificationDal,
     custom_genesis_export_dal::CustomGenesisExportDal, data_availability_dal::DataAvailabilityDal,
     eth_sender_dal::EthSenderDal, eth_watcher_dal::EthWatcherDal, events_dal::EventsDal,
     events_web3_dal::EventsWeb3Dal, factory_deps_dal::FactoryDepsDal,
@@ -24,7 +25,7 @@ use crate::{
     storage_logs_dedup_dal::StorageLogsDedupDal, storage_web3_dal::StorageWeb3Dal,
     sync_dal::SyncDal, system_dal::SystemDal, tee_proof_generation_dal::TeeProofGenerationDal,
     tokens_dal::TokensDal, tokens_web3_dal::TokensWeb3Dal, transactions_dal::TransactionsDal,
-    transactions_web3_dal::TransactionsWeb3Dal, vm_runner_dal::VmRunnerDal, contract_allow_list_dal::ContractDeployAllowListDal
+    transactions_web3_dal::TransactionsWeb3Dal, vm_runner_dal::VmRunnerDal,
 };
 
 pub mod base_token_dal;
@@ -32,6 +33,7 @@ pub mod blocks_dal;
 pub mod blocks_web3_dal;
 pub mod consensus;
 pub mod consensus_dal;
+pub mod contract_allow_list_dal;
 pub mod contract_verification_dal;
 pub mod custom_genesis_export_dal;
 mod data_availability_dal;
@@ -57,7 +59,6 @@ pub mod sync_dal;
 pub mod system_dal;
 pub mod tee_proof_generation_dal;
 pub mod tokens_dal;
-pub mod contract_allow_list_dal;
 pub mod tokens_web3_dal;
 pub mod transactions_dal;
 pub mod transactions_web3_dal;
@@ -78,7 +79,7 @@ where
     Self: 'a,
 {
     fn contracts_deploy_allow_list_dal(&mut self) -> ContractDeployAllowListDal<'_, 'a>;
-    
+
     fn transactions_dal(&mut self) -> TransactionsDal<'_, 'a>;
 
     fn transactions_web3_dal(&mut self) -> TransactionsWeb3Dal<'_, 'a>;

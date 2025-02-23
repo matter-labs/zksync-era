@@ -1,6 +1,6 @@
 use thiserror::Error;
 use zksync_multivm::interface::ExecutionResult;
-use zksync_types::{l2::error::TxCheckError, U256, Address};
+use zksync_types::{l2::error::TxCheckError, Address, U256};
 use zksync_web3_decl::error::EnrichedClientError;
 
 use crate::execution_sandbox::{SandboxExecutionError, ValidationError};
@@ -70,7 +70,7 @@ pub enum SubmitTxError {
     #[error("transaction failed block.timestamp assertion")]
     FailedBlockTimestampAssertion,
     #[error("sender address {0} is in allow list")]
-    SenderInAllowList(Address), 
+    SenderInAllowList(Address),
 }
 
 impl SubmitTxError {

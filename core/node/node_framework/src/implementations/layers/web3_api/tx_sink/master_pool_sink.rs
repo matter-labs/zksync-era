@@ -1,4 +1,6 @@
-use zksync_node_api_server::tx_sender::{whitelisted_deploy_pool_sink::WhitelistedDeployPoolSink, master_pool_sink::MasterPoolSink};
+use zksync_node_api_server::tx_sender::{
+    master_pool_sink::MasterPoolSink, whitelisted_deploy_pool_sink::WhitelistedDeployPoolSink,
+};
 
 use crate::{
     implementations::resources::{
