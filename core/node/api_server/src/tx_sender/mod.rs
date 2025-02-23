@@ -45,6 +45,7 @@ use crate::execution_sandbox::{
 };
 
 mod gas_estimation;
+pub mod whitelisted_deploy_pool_sink;
 pub mod master_pool_sink;
 pub mod proxy;
 mod result;

@@ -1191,6 +1191,7 @@ impl Distribution<configs::GeneralConfig> for EncodeDist {
             experimental_vm_config: self.sample(rng),
             prover_job_monitor_config: self.sample(rng),
             timestamp_asserter_config: self.sample(rng),
+            tx_sink_config: self.sample(rng),
         }
     }
 }
@@ -1199,6 +1200,14 @@ impl Distribution<TimestampAsserterConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> TimestampAsserterConfig {
         TimestampAsserterConfig {
             min_time_till_end_sec: self.sample(rng),
+        }
+    }
+}
+
+impl Distribution<configs::TxSinkConfig> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::TxSinkConfig {
+        configs::TxSinkConfig {
+            allow_list: self.sample(rng),
         }
     }
 }

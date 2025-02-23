@@ -10,6 +10,7 @@ use crate::{
         da_dispatcher::DADispatcherConfig,
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
+        tx_sink::TxSinkConfig,
         prover_job_monitor::ProverJobMonitorConfig,
         pruning::PruningConfig,
         snapshot_recovery::SnapshotRecoveryConfig,
@@ -60,4 +61,5 @@ pub struct GeneralConfig {
     pub experimental_vm_config: Option<ExperimentalVmConfig>,
     pub prover_job_monitor_config: Option<ProverJobMonitorConfig>,
     pub timestamp_asserter_config: Option<TimestampAsserterConfig>,
+    pub tx_sink_config: Option<TxSinkConfig>,
 }

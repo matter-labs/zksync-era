@@ -29,6 +29,7 @@ pub use self::{
     secrets::{DataAvailabilitySecrets, DatabaseSecrets, L1Secrets, Secrets},
     snapshot_recovery::SnapshotRecoveryConfig,
     snapshots_creator::SnapshotsCreatorConfig,
+    tx_sink::TxSinkConfig,
     utils::PrometheusConfig,
     vm_runner::{BasicWitnessInputProducerConfig, ProtectiveReadsWriterConfig},
 };
@@ -67,6 +68,7 @@ pub mod pruning;
 pub mod secrets;
 pub mod snapshot_recovery;
 pub mod snapshots_creator;
+pub mod tx_sink;
 pub mod utils;
 pub mod vm_runner;
 pub mod wallets;

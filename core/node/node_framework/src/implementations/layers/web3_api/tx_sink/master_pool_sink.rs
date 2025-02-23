@@ -1,4 +1,4 @@
-use zksync_node_api_server::tx_sender::master_pool_sink::MasterPoolSink;
+use zksync_node_api_server::tx_sender::{whitelisted_deploy_pool_sink::WhitelistedDeployPoolSink, master_pool_sink::MasterPoolSink};
 
 use crate::{
     implementations::resources::{
@@ -36,7 +36,7 @@ impl WiringLayer for MasterPoolSinkLayer {
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         let pool = input.master_pool.get().await?;
         Ok(Output {
-            tx_sink: MasterPoolSink::new(pool).into(),
+            tx_sink: WhitelistedDeployPoolSink::new(MasterPoolSink::new(pool.clone()), pool).into(),
         })
     }
 }

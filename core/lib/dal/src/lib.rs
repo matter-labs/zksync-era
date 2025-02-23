@@ -24,7 +24,7 @@ use crate::{
     storage_logs_dedup_dal::StorageLogsDedupDal, storage_web3_dal::StorageWeb3Dal,
     sync_dal::SyncDal, system_dal::SystemDal, tee_proof_generation_dal::TeeProofGenerationDal,
     tokens_dal::TokensDal, tokens_web3_dal::TokensWeb3Dal, transactions_dal::TransactionsDal,
-    transactions_web3_dal::TransactionsWeb3Dal, vm_runner_dal::VmRunnerDal,
+    transactions_web3_dal::TransactionsWeb3Dal, vm_runner_dal::VmRunnerDal, contract_allow_list_dal::ContractDeployAllowListDal
 };
 
 pub mod base_token_dal;
@@ -57,6 +57,7 @@ pub mod sync_dal;
 pub mod system_dal;
 pub mod tee_proof_generation_dal;
 pub mod tokens_dal;
+pub mod contract_allow_list_dal;
 pub mod tokens_web3_dal;
 pub mod transactions_dal;
 pub mod transactions_web3_dal;
@@ -76,6 +77,8 @@ pub trait CoreDal<'a>: private::Sealed
 where
     Self: 'a,
 {
+    fn contracts_deploy_allow_list_dal(&mut self) -> ContractDeployAllowListDal<'_, 'a>;
+    
     fn transactions_dal(&mut self) -> TransactionsDal<'_, 'a>;
 
     fn transactions_web3_dal(&mut self) -> TransactionsWeb3Dal<'_, 'a>;
@@ -146,6 +149,10 @@ impl DbMarker for Core {}
 impl private::Sealed for Connection<'_, Core> {}
 
 impl<'a> CoreDal<'a> for Connection<'a, Core> {
+    fn contracts_deploy_allow_list_dal(&mut self) -> ContractDeployAllowListDal<'_, 'a> {
+        ContractDeployAllowListDal { storage: self }
+    }
+
     fn transactions_dal(&mut self) -> TransactionsDal<'_, 'a> {
         TransactionsDal { storage: self }
     }

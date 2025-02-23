@@ -28,6 +28,7 @@ impl ProtoRepr for proto::GeneralConfig {
             eth: read_optional_repr(&self.eth),
             snapshot_creator: read_optional_repr(&self.snapshot_creator),
             observability: read_optional_repr(&self.observability),
+            tx_sink_config: read_optional_repr(&self.tx_sink),
             da_client_config: read_optional_repr(&self.da_client),
             da_dispatcher_config: read_optional_repr(&self.da_dispatcher),
             protective_reads_writer_config: read_optional_repr(&self.protective_reads_writer),
@@ -78,6 +79,7 @@ impl ProtoRepr for proto::GeneralConfig {
             eth: this.eth.as_ref().map(ProtoRepr::build),
             snapshot_creator: this.snapshot_creator.as_ref().map(ProtoRepr::build),
             observability: this.observability.as_ref().map(ProtoRepr::build),
+            tx_sink: this.tx_sink_config.as_ref().map(ProtoRepr::build),
             da_client: this.da_client_config.as_ref().map(ProtoRepr::build),
             da_dispatcher: this.da_dispatcher_config.as_ref().map(ProtoRepr::build),
             protective_reads_writer: this
