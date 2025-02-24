@@ -7,9 +7,8 @@ use zksync_types::contract_verification::api::{
 };
 
 use super::{
-    errors::EtherscanError,
-    solc_versions_fetcher::SolcVersionsFetcher,
-    utils::{normalize_solc_version, normalize_zksolc_version},
+    errors::EtherscanError, solc_versions_fetcher::SolcVersionsFetcher,
+    utils::normalize_solc_version,
 };
 use crate::Address;
 
@@ -70,7 +69,7 @@ impl EtherscanVerificationRequest {
                 compiler_zksolc_version,
                 compiler_solc_version,
             } => (
-                normalize_zksolc_version(compiler_zksolc_version),
+                compiler_zksolc_version,
                 normalize_solc_version(compiler_solc_version, solc_versions_fetcher),
             ),
             // Should never happen as only sol and json code data are supposed to get here
