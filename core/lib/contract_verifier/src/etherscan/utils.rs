@@ -99,7 +99,6 @@ mod tests {
     fn test_normalize_solc_version_without_v_prefix() {
         let normalized_version =
             normalize_solc_version("0.8.16".to_string(), &SolcVersionsFetcher::new());
-        println!("{}", normalized_version);
         assert_eq!(normalized_version, "v0.8.16+commit.07a7930e".to_string());
     }
 }
