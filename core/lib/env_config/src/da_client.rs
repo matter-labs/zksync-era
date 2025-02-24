@@ -65,8 +65,8 @@ pub fn da_client_config_from_env(prefix: &str) -> anyhow::Result<DAClientConfig>
                     format!("{}POINTS_PATH", prefix),
                 )?),
                 "Url" => zksync_config::configs::da_client::eigen::PointsSource::Url((
-                    env::var(format!("{}DA_POINTS_LINK_G1", prefix))?,
-                    env::var(format!("{}DA_POINTS_LINK_G2", prefix))?,
+                    env::var(format!("{}POINTS_LINK_G1", prefix))?,
+                    env::var(format!("{}POINTS_LINK_G2", prefix))?,
                 )),
                 _ => anyhow::bail!("Unknown Eigen points type"),
             },
