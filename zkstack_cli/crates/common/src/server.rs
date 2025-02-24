@@ -70,7 +70,7 @@ impl Server {
         let mut cmd = Cmd::new(
             cmd!(
                 shell,
-                "cargo run --manifest-path ./core/Cargo.toml --release --bin zksync_server {uring...} --
+                "cargo run --manifest-path ./core/Cargo.toml --bin zksync_server {uring...} --
                 --genesis-path {genesis_path}
                 --wallets-path {wallets_path}
                 --config-path {general_path}
@@ -97,7 +97,7 @@ impl Server {
     /// Builds the server.
     pub fn build(&self, shell: &Shell) -> anyhow::Result<()> {
         let _dir_guard = shell.push_dir(self.code_path.join("core"));
-        Cmd::new(cmd!(shell, "cargo build --release --bin zksync_server")).run()?;
+        Cmd::new(cmd!(shell, "cargo build --bin zksync_server")).run()?;
         Ok(())
     }
 

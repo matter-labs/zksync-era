@@ -39,7 +39,7 @@ fn build_server(chain_config: &ChainConfig, shell: &Shell) -> anyhow::Result<()>
 
     logger::info(MSG_BUILDING_SERVER);
 
-    let mut cmd = Cmd::new(cmd!(shell, "cargo build --release --bin zksync_server"));
+    let mut cmd = Cmd::new(cmd!(shell, "cargo build --bin zksync_server"));
     cmd = cmd.with_force_run();
     cmd.run().context(MSG_FAILED_TO_BUILD_SERVER_ERR)
 }
