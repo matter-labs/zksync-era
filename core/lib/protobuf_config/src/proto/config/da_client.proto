@@ -50,8 +50,8 @@ message EigenConfig {
   optional bool wait_for_finalization = 7;
   optional bool authenticated = 8;
   oneof points_source {
-    string path = 9;
-    Url url = 10;
+    string points_source_path = 9;
+    Url points_source_url = 10;
   }
   reserved 1,2;
   reserved "rpc_node_url","inclusion_polling_interval_ms";
