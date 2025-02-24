@@ -42,9 +42,16 @@ impl Gpu {
 }
 
 pub trait Key: Eq + Ord + Hash + Copy + Debug + Default {
+    /// Convert correct Deployment name into a Key. Also works for Pods.
     fn new(deployment_prefix: &str, deployment: &str) -> Option<Self>;
-    fn to_deployment(&self, deployment_prefix: &str) -> String;
-    fn gpu(&self) -> Option<Gpu>;
+    /// to_deployment converts Key to corresponding deployment name.
+    fn to_deployment(&self, deployment_prefix: &str) -> String {
+        deployment_prefix.into()
+    }
+    /// Return Gpu if available in the Key.
+    fn gpu(&self) -> Option<Gpu> {
+        None
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Copy, Clone, Debug, Default, Deserialize)]
@@ -85,6 +92,7 @@ impl Key for GpuKey {
         }
     }
 
+    /// Return Gpu if available in the Key.
     fn gpu(&self) -> Option<Gpu> {
         Some(self.0)
     }
@@ -101,15 +109,6 @@ impl Key for NoKey {
         }
 
         Some(Self::default())
-    }
-
-    /// to_deployment converts Key to corresponding deployment name.
-    fn to_deployment(&self, deployment_prefix: &str) -> String {
-        deployment_prefix.into()
-    }
-
-    fn gpu(&self) -> Option<Gpu> {
-        None
     }
 }
 
