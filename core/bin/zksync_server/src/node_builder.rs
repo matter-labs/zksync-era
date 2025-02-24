@@ -267,7 +267,7 @@ impl MainNodeBuilder {
         let sk_config = try_load_config!(self.configs.state_keeper_config);
         let db_config = try_load_config!(self.configs.db_config);
 
-        let persistence_layer = OutputHandlerLayer::new();
+        let persistence_layer = OutputHandlerLayer::new(sk_config.l2_block_seal_queue_capacity);
 
         let mempool_io_layer = ZkOsMempoolIOLayer::new(
             self.genesis_config.l2_chain_id,

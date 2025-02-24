@@ -1,8 +1,8 @@
 use anyhow::Context as _;
 use zksync_node_framework_derive::FromContext;
 use zksync_zkos_state_keeper::{
-    io::seal_logic::l2_block_seal_subtasks::L2BlockSealProcess, OutputHandler,
-    StateKeeperPersistence,
+    io::{seal_logic::l2_block_seal_subtasks::L2BlockSealProcess, BlockPersistenceTask},
+    OutputHandler, StateKeeperPersistence,
 };
 
 use crate::{
@@ -13,7 +13,7 @@ use crate::{
     },
     resource::Unique,
     wiring_layer::{WiringError, WiringLayer},
-    IntoContext,
+    IntoContext, StopReceiver, Task, TaskId,
 };
 
 /// Wiring layer for the state keeper output handler.
@@ -36,6 +36,7 @@ pub struct OutputHandlerLayer {
     /// Should be set to `true` for EN's IO as EN doesn't store transactions in DB
     /// before they are included into L2 blocks.
     pre_insert_txs: bool,
+    l2_block_seal_queue_capacity: usize,
 }
 
 #[derive(Debug, FromContext)]
@@ -49,12 +50,15 @@ pub struct Input {
 #[context(crate = crate)]
 pub struct Output {
     pub output_handler: ZkOsOutputHandlerResource,
+    #[context(task)]
+    pub block_persistence: BlockPersistenceTask,
 }
 
 impl OutputHandlerLayer {
-    pub fn new() -> Self {
+    pub fn new(l2_block_seal_queue_capacity: usize) -> Self {
         Self {
             pre_insert_txs: false,
+            l2_block_seal_queue_capacity,
         }
     }
 
@@ -82,7 +86,11 @@ impl WiringLayer for OutputHandlerLayer {
             .await
             .context("Get master pool")?;
 
-        let mut persistence = StateKeeperPersistence::new(persistence_pool.clone()).await?;
+        let (mut persistence, block_persistence) = StateKeeperPersistence::new(
+            persistence_pool.clone(),
+            self.l2_block_seal_queue_capacity,
+        )
+        .await?;
         if self.pre_insert_txs {
             persistence = persistence.with_tx_insertion();
         }
@@ -93,6 +101,21 @@ impl WiringLayer for OutputHandlerLayer {
         // }
         let output_handler = ZkOsOutputHandlerResource(Unique::new(output_handler));
 
-        Ok(Output { output_handler })
+        Ok(Output {
+            output_handler,
+            block_persistence,
+        })
+    }
+}
+
+#[async_trait::async_trait]
+impl Task for BlockPersistenceTask {
+    fn id(&self) -> TaskId {
+        "zk_os_state_keeper/block_persistence".into()
+    }
+
+    async fn run(self: Box<Self>, _stop_receiver: StopReceiver) -> anyhow::Result<()> {
+        // Task will exit itself once sender is dropped.
+        (*self).run().await
     }
 }

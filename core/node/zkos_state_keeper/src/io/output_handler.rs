@@ -4,6 +4,7 @@ use std::{fmt, sync::Arc};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
+use zksync_types::block::UnsealedL1BatchHeader;
 
 use crate::{io::IoCursor, updates::UpdatesManager};
 
@@ -16,8 +17,13 @@ pub trait StateKeeperOutputHandler: 'static + Send + fmt::Debug {
         Ok(())
     }
 
+    ///
+    async fn handle_open_batch(&mut self, _header: UnsealedL1BatchHeader) -> anyhow::Result<()> {
+        Ok(())
+    }
+
     /// Handles an L1 batch produced by the state keeper.
-    async fn handle_block(&mut self, _updates_manager: Arc<UpdatesManager>) -> anyhow::Result<()>;
+    async fn handle_block(&mut self, updates_manager: Arc<UpdatesManager>) -> anyhow::Result<()>;
 }
 
 /// Compound output handler plugged into the state keeper.
@@ -52,6 +58,29 @@ impl OutputHandler {
                 .initialize(cursor)
                 .await
                 .with_context(|| format!("failed initializing handler {handler:?}"))?;
+        }
+        Ok(())
+    }
+
+    #[tracing::instrument(
+        name = "OutputHandler::handle_open_batch"
+        skip_all,
+        fields(l1_batch = %header.number)
+    )]
+    pub(crate) async fn handle_open_batch(
+        &mut self,
+        header: UnsealedL1BatchHeader,
+    ) -> anyhow::Result<()> {
+        for handler in &mut self.inner {
+            handler
+                .handle_open_batch(header.clone())
+                .await
+                .with_context(|| {
+                    format!(
+                        "failed handling opened batch {:?} on handler {handler:?}",
+                        header.number
+                    )
+                })?;
         }
         Ok(())
     }

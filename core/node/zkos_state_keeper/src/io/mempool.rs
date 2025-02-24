@@ -64,14 +64,14 @@ impl StateKeeperIO for MempoolIO {
         &mut self,
         cursor: &IoCursor,
         max_wait: Duration,
-    ) -> anyhow::Result<Option<BlockParams>> {
+    ) -> anyhow::Result<(Option<BlockParams>, Option<UnsealedL1BatchHeader>)> {
         // Check if there is an existing unsealed batch
         if let Some(unsealed_storage_batch) = self
             .pool
             .connection_tagged("state_keeper")
             .await?
             .blocks_dal()
-            .get_unsealed_l1_batch()
+            .get_unsealed_l1_batch_by_number(cursor.l1_batch)
             .await?
         {
             let protocol_version = unsealed_storage_batch
@@ -85,12 +85,15 @@ impl StateKeeperIO for MempoolIO {
             // TODO: zk os fee model
             let base_fee = unsealed_storage_batch.fee_input.fair_l2_gas_price();
 
-            return Ok(Some(BlockParams {
-                timestamp: unsealed_storage_batch.timestamp,
-                fee_input: unsealed_storage_batch.fee_input,
-                protocol_version,
-                base_fee,
-            }));
+            return Ok((
+                Some(BlockParams {
+                    timestamp: unsealed_storage_batch.timestamp,
+                    fee_input: unsealed_storage_batch.fee_input,
+                    protocol_version,
+                    base_fee,
+                }),
+                None,
+            ));
         }
 
         let deadline = Instant::now() + max_wait;
@@ -106,7 +109,7 @@ impl StateKeeperIO for MempoolIO {
                 sleep_past(cursor.prev_l2_block_timestamp, cursor.next_l2_block),
             );
             let Some(timestamp) = timestamp.await.ok() else {
-                return Ok(None);
+                return Ok((None, None));
             };
             let protocol_version = ProtocolVersionId::latest();
 
@@ -131,27 +134,23 @@ impl StateKeeperIO for MempoolIO {
                 continue;
             }
 
-            self.pool
-                .connection_tagged("state_keeper")
-                .await?
-                .blocks_dal()
-                .insert_l1_batch(UnsealedL1BatchHeader {
-                    number: cursor.l1_batch,
-                    timestamp,
-                    protocol_version: Some(protocol_version),
-                    fee_address: self.fee_account,
-                    fee_input: self.filter.fee_input,
-                })
-                .await?;
-
-            return Ok(Some(BlockParams {
+            let header = UnsealedL1BatchHeader {
+                number: cursor.l1_batch,
+                timestamp,
+                protocol_version: Some(protocol_version),
+                fee_address: self.fee_account,
+                fee_input: self.filter.fee_input,
+            };
+            let block_params = BlockParams {
                 timestamp,
                 fee_input: self.filter.fee_input,
                 protocol_version: ProtocolVersionId::latest(),
                 base_fee: self.filter.fee_per_gas,
-            }));
+            };
+
+            return Ok((Some(block_params), Some(header)));
         }
-        Ok(None)
+        Ok((None, None))
     }
 
     async fn wait_for_next_tx(

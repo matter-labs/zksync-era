@@ -861,6 +861,33 @@ impl BlocksDal<'_, '_> {
         Ok(batch.map(|b| b.into()))
     }
 
+    pub async fn get_unsealed_l1_batch_by_number(
+        &mut self,
+        number: L1BatchNumber,
+    ) -> DalResult<Option<UnsealedL1BatchHeader>> {
+        let batch = sqlx::query_as!(
+            UnsealedStorageL1Batch,
+            r#"
+            SELECT
+                number,
+                timestamp,
+                protocol_version,
+                fee_address,
+                l1_gas_price,
+                l2_fair_gas_price,
+                fair_pubdata_price
+            FROM l1_batches
+            WHERE number = $1 AND is_sealed = FALSE
+            "#,
+            i64::from(number.0),
+        )
+        .instrument("get_unsealed_l1_batch_by_number")
+        .fetch_optional(self.storage)
+        .await?;
+
+        Ok(batch.map(|b| b.into()))
+    }
+
     pub async fn insert_l2_block(&mut self, l2_block_header: &L2BlockHeader) -> DalResult<()> {
         let instrumentation =
             Instrumented::new("insert_l2_block").with_arg("number", &l2_block_header.number);

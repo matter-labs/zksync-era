@@ -38,8 +38,8 @@ use zksync_state_keeper::{
     MempoolGuard,
 };
 use zksync_types::{
-    snapshots::SnapshotStorageLog, Address, L1BatchNumber, L2BlockNumber, StorageKey, StorageLog,
-    Transaction, ERC20_TRANSFER_TOPIC, H256,
+    block::UnsealedL1BatchHeader, snapshots::SnapshotStorageLog, Address, L1BatchNumber,
+    L2BlockNumber, StorageKey, StorageLog, Transaction, ERC20_TRANSFER_TOPIC, H256,
 };
 use zksync_vm_interface::Halt;
 use zksync_zkos_vm_runner::zkos_conversions::{bytes32_to_h256, h256_to_bytes32, tx_abi_encode};
@@ -128,7 +128,13 @@ impl ZkosStateKeeper {
         self.initialize_in_memory_storages().await?;
 
         while !self.is_canceled() {
-            let block_params = self.wait_for_new_l2_block_params(&cursor).await?;
+            let (block_params, unsealed_header) =
+                self.wait_for_new_l2_block_params(&cursor).await?;
+            if let Some(unsealed_header) = unsealed_header {
+                self.output_handler
+                    .handle_open_batch(unsealed_header)
+                    .await?;
+            }
 
             let (sender, receiver) = tokio::sync::mpsc::channel(1);
             let (result_sender, result_receiver) = tokio::sync::mpsc::channel(1);
@@ -356,15 +362,15 @@ impl ZkosStateKeeper {
     async fn wait_for_new_l2_block_params(
         &mut self,
         cursor: &IoCursor,
-    ) -> Result<BlockParams, Error> {
+    ) -> Result<(BlockParams, Option<UnsealedL1BatchHeader>), Error> {
         while !self.is_canceled() {
-            if let Some(params) = self
+            if let (Some(params), header) = self
                 .io
                 .wait_for_new_l2_block_params(&cursor, POLL_WAIT_DURATION)
                 .await
                 .context("error waiting for new L2 block params")?
             {
-                return Ok(params);
+                return Ok((params, header));
             }
         }
         Err(Error::Canceled)

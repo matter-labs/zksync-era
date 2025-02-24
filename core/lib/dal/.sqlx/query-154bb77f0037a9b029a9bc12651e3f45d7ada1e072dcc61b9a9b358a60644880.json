@@ -1,0 +1,58 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                number,\n                timestamp,\n                protocol_version,\n                fee_address,\n                l1_gas_price,\n                l2_fair_gas_price,\n                fair_pubdata_price\n            FROM l1_batches\n            WHERE number = $1 AND is_sealed = FALSE\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "number",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "timestamp",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "protocol_version",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "fee_address",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 4,
+        "name": "l1_gas_price",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 5,
+        "name": "l2_fair_gas_price",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 6,
+        "name": "fair_pubdata_price",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "154bb77f0037a9b029a9bc12651e3f45d7ada1e072dcc61b9a9b358a60644880"
+}

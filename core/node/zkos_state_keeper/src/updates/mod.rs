@@ -21,10 +21,10 @@ pub struct UpdatesManager {
     timestamp: u64,
     pub fee_account_address: Address,
     pub batch_fee_input: BatchFeeInput,
-    base_fee_per_gas: u64,
+    pub base_fee_per_gas: u64,
     protocol_version: ProtocolVersionId,
     pub l2_block: L2BlockUpdates,
-    gas_limit: u64,
+    pub gas_limit: u64,
 }
 
 #[derive(Debug, Clone, PartialEq)]

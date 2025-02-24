@@ -2,9 +2,12 @@ use std::{fmt, time::Duration};
 
 use async_trait::async_trait;
 pub use output_handler::{OutputHandler, StateKeeperOutputHandler};
-pub use persistence::StateKeeperPersistence;
+pub use persistence::{BlockPersistenceTask, StateKeeperPersistence};
 use zksync_state_keeper::{io::IoCursor, seal_criteria::UnexecutableReason};
-use zksync_types::{fee_model::BatchFeeInput, L2ChainId, ProtocolVersionId, Transaction};
+use zksync_types::{
+    block::UnsealedL1BatchHeader, fee_model::BatchFeeInput, L2ChainId, ProtocolVersionId,
+    Transaction,
+};
 
 pub mod mempool;
 mod output_handler;
@@ -43,7 +46,7 @@ pub trait StateKeeperIO: 'static + Send + Sync + fmt::Debug {
         &mut self,
         cursor: &IoCursor,
         max_wait: Duration,
-    ) -> anyhow::Result<Option<BlockParams>>;
+    ) -> anyhow::Result<(Option<BlockParams>, Option<UnsealedL1BatchHeader>)>;
 
     /// Blocks for up to `max_wait` until the next transaction is available for execution.
     /// Returns `None` if no transaction became available until the timeout.
