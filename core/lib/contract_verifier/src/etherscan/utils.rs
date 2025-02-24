@@ -84,21 +84,21 @@ mod tests {
     #[test]
     fn test_normalize_solc_version_with_zkvm_prefix() {
         let normalized_version =
-            normalize_solc_version("zkVM-0.8.16-1.0.1".to_string(), SolcVersionsFetcher::new());
+            normalize_solc_version("zkVM-0.8.16-1.0.1".to_string(), &SolcVersionsFetcher::new());
         assert_eq!(normalized_version, "v0.8.16-1.0.1".to_string());
     }
 
     #[test]
     fn test_normalize_solc_version_with_zkvm_prefix_and_old_zk_version() {
         let normalized_version =
-            normalize_solc_version("zkVM-0.8.16-1.0.0".to_string(), SolcVersionsFetcher::new());
+            normalize_solc_version("zkVM-0.8.16-1.0.0".to_string(), &SolcVersionsFetcher::new());
         assert_eq!(normalized_version, "v0.8.16-1.0.1".to_string());
     }
 
     #[test]
     fn test_normalize_solc_version_without_v_prefix() {
         let normalized_version =
-            normalize_solc_version("0.8.16".to_string(), SolcVersionsFetcher::new());
+            normalize_solc_version("0.8.16".to_string(), &SolcVersionsFetcher::new());
         println!("{}", normalized_version);
         assert_eq!(normalized_version, "v0.8.16+commit.07a7930e".to_string());
     }

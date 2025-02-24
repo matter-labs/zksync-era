@@ -259,7 +259,7 @@ mod tests {
         let request = get_default_verification_request();
         let etherscan_request = EtherscanVerificationRequest::from_verification_request(
             request.clone(),
-            SolcVersionsFetcher::new(),
+            &SolcVersionsFetcher::new(),
         );
         assert_eq!(etherscan_request.contract_address, Address::default());
         assert_eq!(
@@ -301,7 +301,7 @@ mod tests {
 
         let etherscan_request = EtherscanVerificationRequest::from_verification_request(
             request.clone(),
-            SolcVersionsFetcher::new(),
+            &SolcVersionsFetcher::new(),
         );
         assert_eq!(etherscan_request.contract_address, Address::default());
         assert_eq!(
@@ -358,7 +358,7 @@ mod tests {
 
         let etherscan_request = EtherscanVerificationRequest::from_verification_request(
             request.clone(),
-            SolcVersionsFetcher::new(),
+            &SolcVersionsFetcher::new(),
         );
         assert_eq!(etherscan_request.contract_address, Address::default());
         assert_eq!(
