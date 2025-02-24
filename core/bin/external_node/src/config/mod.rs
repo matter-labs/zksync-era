@@ -23,7 +23,7 @@ use zksync_consensus_roles as roles;
 use zksync_core_leftovers::temp_config_store::read_yaml_repr;
 #[cfg(test)]
 use zksync_dal::{ConnectionPool, Core};
-use zksync_env_config::FromEnv;
+use zksync_env_config::da_client::{da_client_config_from_env, da_client_secrets_from_env};
 use zksync_metadata_calculator::MetadataCalculatorRecoveryConfig;
 use zksync_node_api_server::{
     tx_sender::{TimestampAsserterParams, TxSenderConfig},
@@ -1331,8 +1331,8 @@ impl ExternalNodeConfig<()> {
             consensus_secrets: read_consensus_secrets()
                 .context("config::read_consensus_secrets()")?,
             data_availability: (
-                DAClientConfig::from_env().ok(),
-                DataAvailabilitySecrets::from_env().ok(),
+                da_client_config_from_env("EN_DA_").ok(),
+                da_client_secrets_from_env("EN_DA_").ok(),
             ),
             remote: (),
         })

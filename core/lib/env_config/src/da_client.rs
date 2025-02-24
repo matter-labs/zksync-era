@@ -1,5 +1,4 @@
 use std::env;
-
 use zksync_config::configs::{
     da_client::{
         avail::{
@@ -16,72 +15,84 @@ use zksync_config::configs::{
 
 use crate::{envy_load, FromEnv};
 
+pub fn da_client_config_from_env(prefix: &str) -> anyhow::Result<DAClientConfig> {
+    let client_tag = env::var(format!("{}CLIENT", prefix))?;
+    let config = match client_tag.as_str() {
+        AVAIL_CLIENT_CONFIG_NAME => DAClientConfig::Avail(AvailConfig {
+            bridge_api_url: env::var(format!("{}BRIDGE_API_URL", prefix)).ok().unwrap(),
+            timeout_ms: env::var(format!("{}TIMEOUT_MS", prefix))?.parse()?,
+            config: match env::var(format!("{}AVAIL_CLIENT_TYPE", prefix))?.as_str() {
+                AVAIL_FULL_CLIENT_NAME => {
+                    AvailClientConfig::FullClient(envy_load("da_avail_full_client", prefix)?)
+                }
+                AVAIL_GAS_RELAY_CLIENT_NAME => {
+                    AvailClientConfig::GasRelay(envy_load("da_avail_gas_relay", prefix)?)
+                }
+                _ => anyhow::bail!("Unknown Avail DA client type"),
+            },
+        }),
+        CELESTIA_CLIENT_CONFIG_NAME => {
+            DAClientConfig::Celestia(envy_load("da_celestia_config", prefix)?)
+        }
+        EIGEN_CLIENT_CONFIG_NAME => DAClientConfig::Eigen(envy_load("da_eigen_config", "DA_")?),
+        OBJECT_STORE_CLIENT_CONFIG_NAME => {
+            DAClientConfig::ObjectStore(envy_load("da_object_store", prefix)?)
+        }
+        NO_DA_CLIENT_CONFIG_NAME => DAClientConfig::NoDA,
+        _ => anyhow::bail!("Unknown DA client name: {}", client_tag),
+    };
+
+    Ok(config)
+}
+
 impl FromEnv for DAClientConfig {
     fn from_env() -> anyhow::Result<Self> {
-        let client_tag = env::var("DA_CLIENT")?;
-        let config = match client_tag.as_str() {
-            AVAIL_CLIENT_CONFIG_NAME => Self::Avail(AvailConfig {
-                bridge_api_url: env::var("DA_BRIDGE_API_URL").ok().unwrap(),
-                timeout_ms: env::var("DA_TIMEOUT_MS")?.parse()?,
-                config: match env::var("DA_AVAIL_CLIENT_TYPE")?.as_str() {
-                    AVAIL_FULL_CLIENT_NAME => {
-                        AvailClientConfig::FullClient(envy_load("da_avail_full_client", "DA_")?)
-                    }
-                    AVAIL_GAS_RELAY_CLIENT_NAME => {
-                        AvailClientConfig::GasRelay(envy_load("da_avail_gas_relay", "DA_")?)
-                    }
-                    _ => anyhow::bail!("Unknown Avail DA client type"),
-                },
-            }),
-            CELESTIA_CLIENT_CONFIG_NAME => Self::Celestia(envy_load("da_celestia_config", "DA_")?),
-            EIGEN_CLIENT_CONFIG_NAME => Self::Eigen(envy_load("da_eigen_config", "DA_")?),
-            OBJECT_STORE_CLIENT_CONFIG_NAME => {
-                Self::ObjectStore(envy_load("da_object_store", "DA_")?)
-            }
-            NO_DA_CLIENT_CONFIG_NAME => Self::NoDA,
-            _ => anyhow::bail!("Unknown DA client name: {}", client_tag),
-        };
-
-        Ok(config)
+        da_client_config_from_env("DA_")
     }
+}
+
+pub fn da_client_secrets_from_env(prefix: &str) -> anyhow::Result<DataAvailabilitySecrets> {
+    let client_tag = env::var(format!("{}CLIENT", prefix))?;
+    let secrets = match client_tag.as_str() {
+        AVAIL_CLIENT_CONFIG_NAME => {
+            let seed_phrase: Option<zksync_basic_types::secrets::SeedPhrase> =
+                env::var(format!("{}SECRETS_SEED_PHRASE", prefix))
+                    .ok()
+                    .map(Into::into);
+            let gas_relay_api_key: Option<zksync_basic_types::secrets::APIKey> =
+                env::var(format!("{}SECRETS_GAS_RELAY_API_KEY", prefix))
+                    .ok()
+                    .map(Into::into);
+            if seed_phrase.is_none() && gas_relay_api_key.is_none() {
+                anyhow::bail!("No secrets provided for Avail DA client");
+            }
+            DataAvailabilitySecrets::Avail(AvailSecrets {
+                seed_phrase,
+                gas_relay_api_key,
+            })
+        }
+        CELESTIA_CLIENT_CONFIG_NAME => {
+            let private_key = env::var(format!("{}SECRETS_PRIVATE_KEY", prefix))
+                .map_err(|e| anyhow::format_err!("Celestia private key not found: {}", e))?
+                .into();
+            DataAvailabilitySecrets::Celestia(CelestiaSecrets { private_key })
+        }
+        EIGEN_CLIENT_CONFIG_NAME => {
+            let private_key = env::var(format!("{}SECRETS_PRIVATE_KEY", prefix))
+                .map_err(|e| anyhow::format_err!("Eigen private key not found: {}", e))?
+                .into();
+            DataAvailabilitySecrets::Eigen(EigenSecrets { private_key })
+        }
+
+        _ => anyhow::bail!("Unknown DA client name: {}", client_tag),
+    };
+
+    Ok(secrets)
 }
 
 impl FromEnv for DataAvailabilitySecrets {
     fn from_env() -> anyhow::Result<Self> {
-        let client_tag = std::env::var("DA_CLIENT")?;
-        let secrets = match client_tag.as_str() {
-            AVAIL_CLIENT_CONFIG_NAME => {
-                let seed_phrase: Option<zksync_basic_types::secrets::SeedPhrase> =
-                    env::var("DA_SECRETS_SEED_PHRASE").ok().map(Into::into);
-                let gas_relay_api_key: Option<zksync_basic_types::secrets::APIKey> =
-                    env::var("DA_SECRETS_GAS_RELAY_API_KEY")
-                        .ok()
-                        .map(Into::into);
-                if seed_phrase.is_none() && gas_relay_api_key.is_none() {
-                    anyhow::bail!("No secrets provided for Avail DA client");
-                }
-                Self::Avail(AvailSecrets {
-                    seed_phrase,
-                    gas_relay_api_key,
-                })
-            }
-            CELESTIA_CLIENT_CONFIG_NAME => {
-                let private_key = env::var("DA_SECRETS_PRIVATE_KEY")
-                    .map_err(|e| anyhow::format_err!("Celestia private key not found: {}", e))?
-                    .into();
-                Self::Celestia(CelestiaSecrets { private_key })
-            }
-            EIGEN_CLIENT_CONFIG_NAME => {
-                let private_key = env::var("DA_SECRETS_PRIVATE_KEY")
-                    .map_err(|e| anyhow::format_err!("Eigen private key not found: {}", e))?
-                    .into();
-                Self::Eigen(EigenSecrets { private_key })
-            }
-
-            _ => anyhow::bail!("Unknown DA client name: {}", client_tag),
-        };
-
-        Ok(secrets)
+        da_client_secrets_from_env("DA_")
     }
 }
 

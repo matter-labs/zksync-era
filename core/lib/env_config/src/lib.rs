@@ -32,7 +32,7 @@ mod test_utils;
 mod vm_runner;
 mod wallets;
 
-mod da_client;
+pub mod da_client;
 mod timestamp_asserter;
 
 pub trait FromEnv: Sized {
