@@ -303,6 +303,7 @@ zksync_crypto_primitives = { version = "26.4.0-non-semver-compat", path = "lib/c
 zksync_external_price_api = { version = "26.4.0-non-semver-compat", path = "lib/external_price_api" }
 zksync_task_management = { version = "26.4.0-non-semver-compat", path = "lib/task_management" }
 
+
 # Framework and components
 zksync_node_framework = { version = "26.4.0-non-semver-compat", path = "node/node_framework" }
 zksync_node_framework_derive = { version = "26.4.0-non-semver-compat", path = "lib/node_framework_derive" }
