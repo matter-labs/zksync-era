@@ -311,7 +311,7 @@ mod tests {
         assert_eq!(etherscan_request.contract_name, "MyContract".to_string());
         assert_eq!(
             etherscan_request.compiler_zksolc_version,
-            Some("v2.0.0".to_string())
+            Some("vm-2.0.0-abcedf".to_string())
         );
         assert_eq!(
             etherscan_request.compiler_solc_version,
@@ -375,7 +375,7 @@ mod tests {
         );
         assert_eq!(
             etherscan_request.compiler_solc_version,
-            "v0.8.19-1.0.1".to_string()
+            "v0.8.19-1.0.0".to_string()
         );
         assert_eq!(etherscan_request.compiler_mode, "zksync".to_string());
         assert_eq!(etherscan_request.optimization_used, "1".to_string());
