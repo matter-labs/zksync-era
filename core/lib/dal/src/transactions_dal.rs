@@ -1766,6 +1766,45 @@ impl TransactionsDal<'_, '_> {
         Ok(rows.len())
     }
 
+    /// Resets `in_mempool` to `FALSE` for the given transaction hashes.
+    pub async fn return_to_mempool(
+        &mut self,
+        transaction_hashes: &[H256],
+    ) -> DalResult<()> {
+        // Convert H256 hashes into `&[u8]`
+        let hashes: Vec<_> = transaction_hashes.iter().map(H256::as_bytes).collect();
+
+        // Execute the UPDATE query
+        let result = sqlx::query!(
+            r#"
+            UPDATE transactions
+            SET
+                in_mempool = FALSE
+            WHERE
+                hash = ANY($1)
+            "#,
+            &hashes as &[&[u8]]
+        )
+        .instrument("return_to_mempool#update_to_false")
+        .with_arg("transaction_hashes.len", &hashes.len())
+        .execute(self.storage)
+        .await?;
+
+        // Log debug information about how many rows were affected
+        tracing::debug!(
+            "Updated {} transactions to in_mempool = false; provided hashes: {}",
+            result.rows_affected(),
+            transaction_hashes
+                .iter()
+                .map(|hash| format!("{:x}", hash))
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
+
+        Ok(())
+    }
+
+
     /// Fetches new updates for mempool. Returns new transactions and current nonces for related accounts;
     /// the latter are only used to bootstrap mempool for given account.
     pub async fn sync_mempool(

@@ -87,3 +87,12 @@ pub const CURRENT_VIRTUAL_BLOCK_INFO_POSITION: H256 = H256([
 /// Block info is stored compactly as `SYSTEM_BLOCK_INFO_BLOCK_NUMBER_MULTIPLIER * block_number + block_timestamp`.
 /// This number is equal to `2**128`
 pub const SYSTEM_BLOCK_INFO_BLOCK_NUMBER_MULTIPLIER: U256 = U256([0, 0, 1, 0]);
+
+pub const IMMUTABLE_SIMULATOR_MAPPING_SLOT: H256 = H256::zero();
+
+// The `key` for the immutable variable that stores the address of the legacy bridge inside the L2 Asset Router.
+// It is equal to `96`.
+pub const L2_ASSET_ROUTER_LEGACY_SHARED_BRIDGE_IMMUTABLE_KEY: H256 = H256([
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x60,
+]);

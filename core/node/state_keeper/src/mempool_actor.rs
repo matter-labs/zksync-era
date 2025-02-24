@@ -9,9 +9,8 @@ use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_mempool::L2TxFilter;
 use zksync_multivm::utils::derive_base_fee_and_gas_per_pubdata;
 use zksync_node_fee_model::BatchFeeModelInputProvider;
-#[cfg(test)]
-use zksync_types::H256;
-use zksync_types::{get_nonce_key, vm::VmVersion, Address, Nonce, Transaction};
+use zksync_types::{h256_to_address, H256};
+use zksync_types::{get_immutable_simulator_key, get_nonce_key, vm::VmVersion, Address, Nonce, Transaction, L2_ASSET_ROUTER_ADDRESS, L2_ASSET_ROUTER_LEGACY_SHARED_BRIDGE_IMMUTABLE_KEY};
 
 use super::{metrics::KEEPER_METRICS, types::MempoolGuard};
 
@@ -41,6 +40,82 @@ pub struct MempoolFetcher {
     stuck_tx_timeout: Option<Duration>,
     #[cfg(test)]
     transaction_hashes_sender: mpsc::UnboundedSender<Vec<H256>>,
+}
+
+fn is_unsafe_deposit(tx: &Transaction, legacy_shared_bridge: Address) -> bool {
+    if !tx.is_l1() {
+        return false;
+    }
+
+    if tx.execute.contract_address != Some(legacy_shared_bridge) && tx.execute.contract_address != Some(L2_ASSET_ROUTER_ADDRESS) {
+        return false;
+    }
+
+    // TODO: try to parse.
+}
+
+/// Accepts a list of transactions to be included into the mempool and filters
+/// the unsafe deposits and returns two vectors:
+/// - Transactions to include into the mempool
+/// - Transactions to return to the mempool
+async fn filter_unsafe_deposits(txs: Vec<Transaction>, storage: &mut Connection<'static, Core>) -> anyhow::Result<(Vec<Transaction>, Vec<Transaction>)> {
+    // The rules are the following:
+    // - All L2 transactions are allowed
+    // - L1 transactions are allowed only if it is a deposit to an already registered token or
+    // to a non-legacy token.
+
+
+    // Firstly, let's check whether the chain has a legacy bridge.
+    // 0x0000000000000000000000000000000000008005
+
+    let legacy_bridge_key = get_immutable_simulator_key(
+        &L2_ASSET_ROUTER_ADDRESS,
+        L2_ASSET_ROUTER_LEGACY_SHARED_BRIDGE_IMMUTABLE_KEY
+    );
+
+    let value = storage.storage_web3_dal().get_value(&legacy_bridge_key).await?;
+
+    // There is either no legacy bridge or the L2AssetRouter has not been depoyed yet.
+    // In both cases, there can be no unsafe deposits.
+    if value == H256::zero() {
+        return Ok((txs, vec![]));
+    }
+
+    let legacy_l2_shared_bridge_addr = h256_to_address(&value);
+
+    // The legacy bridge does exist AND the chain has been upgraded to v26
+    // and so this deposit may be potentially dangerous
+    
+
+
+
+    (vec![], vec![])
+    // get_nonce_key(account)
+
+    let mut unsafe_deposit_present = false;
+
+    // We assume that all L1->L2 transactions are ordered by their id.
+    // Just in case, we do not allow any L1->L2 transaction after an unsafe deposit as well.
+
+    let mut allowed_txs = vec![];
+    allowed_txs.reserve(txs.len());
+
+    for tx in txs {
+        if !tx.is_l1() {
+            // Not a deposit
+            allowed_txs.push(tx);
+            continue;
+        }
+        
+        if tx.execute.contract_address != Some(legacy_shared_bridge) && tx.execute.contract_address != Some(L2_ASSET_ROUTER_ADDRESS) {
+            // Not a deposit
+            allowed_txs.push(tx);
+            continue;
+        }    
+
+        
+    }
+
 }
 
 impl MempoolFetcher {

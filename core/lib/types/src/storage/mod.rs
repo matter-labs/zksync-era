@@ -110,6 +110,31 @@ pub fn get_is_account_key(account: &Address) -> StorageKey {
     StorageKey::new(deployer, key)
 }
 
+pub fn get_immutable_simulator_key(account: &Address, immutable_key: H256) -> StorageKey {
+    // All the immutable variables are stored as inside the ImmutableSimulator system contracts
+    // in a mapping of the following form:
+    // mapping(uint256 contractAddress => mapping(uint256 index => bytes32 value)) internal immutableDataStorage;
+
+    let immutable_simulator = AccountTreeId::new(IMMUTABLE_SIMULATOR_STORAGE_ADDRESS);
+
+    let padded_address = address_to_h256(account);
+
+    let inner_mapping_slot = keccak256(&[
+        padded_address.as_bytes(), IMMUTABLE_SIMULATOR_MAPPING_SLOT.as_bytes()
+    ].concat());
+
+    let key = H256::from(keccak256(&[
+        &immutable_key.as_bytes(), &inner_mapping_slot as &[u8]
+    ].concat()));
+
+    StorageKey::new(immutable_simulator, key)
+}
+
+#[test]
+fn test_get_immutable_simulator_key() {
+    println!("{:#?}", get_immutable_simulator_key(&L2_ASSET_ROUTER_ADDRESS, u256_to_h256(96u32.into())))
+}
+
 pub type StorageValue = H256;
 
 pub fn get_system_context_init_logs(chain_id: L2ChainId) -> Vec<StorageLog> {
