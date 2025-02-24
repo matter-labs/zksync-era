@@ -5,26 +5,21 @@ use std::time::{Duration, Instant};
 
 use client::EtherscanClient;
 use errors::{EtherscanError, ProcessingError, VerifierError};
-use solc_builds_fetcher::SOLC_BUILDS_FETCHER;
+use solc_versions_fetcher::SolcVersionsFetcher;
 use tokio::sync::watch;
+use types::EtherscanVerificationRequest;
 use zksync_dal::{
     etherscan_verification_dal::EtherscanVerificationJobResultStatus, ConnectionPool, Core, CoreDal,
 };
-use zksync_types::contract_verification::api::EtherscanVerificationRequest;
+use zksync_types::contract_verification::api::EtherscanVerificationRequest as EtherscanVerificationRequestDto;
 
 use crate::metrics::API_CONTRACT_VERIFIER_METRICS;
 
 pub mod client;
 pub mod errors;
-mod solc_builds_fetcher;
+mod solc_versions_fetcher;
 pub mod types;
 pub mod utils;
-
-#[derive(Debug, Clone)]
-pub struct EtherscanVerifier {
-    client: EtherscanClient,
-    connection_pool: ConnectionPool<Core>,
-}
 
 enum ApiErrorRetryPolicy {
     NotRetryable,
@@ -86,11 +81,19 @@ fn get_api_error_retry_policy(api_error: &EtherscanError) -> ApiErrorRetryPolicy
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct EtherscanVerifier {
+    client: EtherscanClient,
+    connection_pool: ConnectionPool<Core>,
+    solc_versions_fetcher: SolcVersionsFetcher,
+}
+
 impl EtherscanVerifier {
     pub fn new(api_url: String, api_key: String, connection_pool: ConnectionPool<Core>) -> Self {
         Self {
             client: EtherscanClient::new(api_url, api_key),
             connection_pool,
+            solc_versions_fetcher: SolcVersionsFetcher::new(),
         }
     }
 
@@ -100,10 +103,7 @@ impl EtherscanVerifier {
 
     async fn get_next_request(
         &self,
-    ) -> anyhow::Result<Option<EtherscanVerificationRequest>, VerifierError> {
-        if let Err(err) = SOLC_BUILDS_FETCHER.update_builds().await {
-            tracing::error!("Failed to update solc builds: {}", err);
-        }
+    ) -> anyhow::Result<Option<EtherscanVerificationRequestDto>, VerifierError> {
         // We consider that the job is stuck if it's being processed for more than 2 hours.
         // We need large overhead because Etherscan has pretty strict daily
         // limits for verification requests.
@@ -189,7 +189,7 @@ impl EtherscanVerifier {
 
     async fn verify(
         &self,
-        verification_request: EtherscanVerificationRequest,
+        verification_request: EtherscanVerificationRequestDto,
     ) -> Result<(), VerifierError> {
         const POLL_VERIFICATION_RESULT_INTERVAL: Duration = Duration::from_secs(5);
         const MAX_POLL_VERIFICATION_RESULT_ATTEMPTS: u32 = 100;
@@ -214,7 +214,15 @@ impl EtherscanVerifier {
                     "Sending verification request to Etherscan, address = {:#?}",
                     req.contract_address,
                 );
-                let request_id = match self.client.verify(req.clone().into()).await {
+
+                let request_id = match self
+                    .client
+                    .verify(EtherscanVerificationRequest::from_verification_request(
+                        req.clone(),
+                        &self.solc_versions_fetcher,
+                    ))
+                    .await
+                {
                     Ok(id) => id,
                     // Even though there is a call to check if the contract is already verified
                     // we still need to process ContractAlreadyVerified response from the verification
@@ -356,11 +364,17 @@ impl EtherscanVerifier {
         Ok(())
     }
 
-    pub async fn run(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+    pub async fn run(mut self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         loop {
             if *stop_receiver.borrow() {
                 tracing::warn!("Stop signal received, shutting down etherscan verifier");
                 return Ok(());
+            }
+
+            // Update solc long versions, required for Etherscan verification.
+            // Internally cached, so it's fine to call it on every iteration.
+            if let Err(err) = self.solc_versions_fetcher.update_versions().await {
+                tracing::error!("Failed to update solc versions: {}", err);
             }
 
             // Errors are handled internally so it's safe to ignore them here

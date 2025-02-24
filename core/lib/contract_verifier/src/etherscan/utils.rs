@@ -1,5 +1,6 @@
-use super::solc_builds_fetcher::SOLC_BUILDS_FETCHER;
+use super::solc_versions_fetcher::SolcVersionsFetcher;
 
+/// Normalizes the zksolc version to the format expected by Etherscan.
 pub(super) fn normalize_zksolc_version(version: Option<String>) -> Option<String> {
     match version {
         Some(version) => {
@@ -26,7 +27,11 @@ fn get_zkvm_solc_era_version(solc_era_version: &str) -> String {
     }
 }
 
-pub(super) fn normalize_solc_version(version: String) -> String {
+/// Normalizes the solc version to the format expected by Etherscan.
+pub(super) fn normalize_solc_version(
+    version: String,
+    solc_versions_fetcher: &SolcVersionsFetcher,
+) -> String {
     if version.contains("zkVM-") {
         let parts: Vec<&str> = version.split('-').collect();
         let zkvm_solc_version = parts.get(1).unwrap_or(&"");
@@ -42,11 +47,11 @@ pub(super) fn normalize_solc_version(version: String) -> String {
 
     // Etherscan expects long solc versions to be passed in the request:
     // 0.8.28 -> 0.8.28+commit.7893614a etc.
-    let version = SOLC_BUILDS_FETCHER
+    let version = solc_versions_fetcher
         .get_solc_long_version(&version)
         .unwrap_or(version);
 
-    // Stored Solc versions and those returned by the SolcBuildsFetcher
+    // Stored Solc versions and those returned by the SolcVersionsFetcher
     // do not have a leading 'v', but Etherscan requires it.
     if !version.starts_with("v") {
         return format!("v{}", version);
@@ -78,19 +83,22 @@ mod tests {
 
     #[test]
     fn test_normalize_solc_version_with_zkvm_prefix() {
-        let normalized_version = normalize_solc_version("zkVM-0.8.16-1.0.1".to_string());
+        let normalized_version =
+            normalize_solc_version("zkVM-0.8.16-1.0.1".to_string(), SolcVersionsFetcher::new());
         assert_eq!(normalized_version, "v0.8.16-1.0.1".to_string());
     }
 
     #[test]
     fn test_normalize_solc_version_with_zkvm_prefix_and_old_zk_version() {
-        let normalized_version = normalize_solc_version("zkVM-0.8.16-1.0.0".to_string());
+        let normalized_version =
+            normalize_solc_version("zkVM-0.8.16-1.0.0".to_string(), SolcVersionsFetcher::new());
         assert_eq!(normalized_version, "v0.8.16-1.0.1".to_string());
     }
 
     #[test]
     fn test_normalize_solc_version_without_v_prefix() {
-        let normalized_version = normalize_solc_version("0.8.16".to_string());
+        let normalized_version =
+            normalize_solc_version("0.8.16".to_string(), SolcVersionsFetcher::new());
         println!("{}", normalized_version);
         assert_eq!(normalized_version, "v0.8.16+commit.07a7930e".to_string());
     }

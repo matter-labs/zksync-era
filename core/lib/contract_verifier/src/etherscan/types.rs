@@ -8,6 +8,7 @@ use zksync_types::contract_verification::api::{
 
 use super::{
     errors::EtherscanError,
+    solc_versions_fetcher::SolcVersionsFetcher,
     utils::{normalize_solc_version, normalize_zksolc_version},
 };
 use crate::Address;
@@ -39,8 +40,12 @@ pub(super) struct EtherscanVerificationRequest {
     #[serde(flatten)]
     pub evm_specific: VerificationEvmSettings,
 }
-impl From<VerificationIncomingRequest> for EtherscanVerificationRequest {
-    fn from(request: VerificationIncomingRequest) -> Self {
+
+impl EtherscanVerificationRequest {
+    pub fn from_verification_request(
+        request: VerificationIncomingRequest,
+        solc_versions_fetcher: &SolcVersionsFetcher,
+    ) -> Self {
         let (code_format, source_code, contract_name) = match request.source_code_data {
             SourceCodeData::SolSingleFile(data) => {
                 // Extract the actual contract name if the full path is provided
@@ -66,7 +71,7 @@ impl From<VerificationIncomingRequest> for EtherscanVerificationRequest {
                 compiler_solc_version,
             } => (
                 normalize_zksolc_version(compiler_zksolc_version),
-                normalize_solc_version(compiler_solc_version),
+                normalize_solc_version(compiler_solc_version, solc_versions_fetcher),
             ),
             // Should never happen as only sol and json code data are supposed to get here
             _ => panic!("Unsupported compiler version"),
@@ -252,8 +257,10 @@ mod tests {
     #[test]
     fn test_verification_request_from_solc_single_file_compilation_request() {
         let request = get_default_verification_request();
-
-        let etherscan_request = EtherscanVerificationRequest::from(request.clone());
+        let etherscan_request = EtherscanVerificationRequest::from_verification_request(
+            request.clone(),
+            SolcVersionsFetcher::new(),
+        );
         assert_eq!(etherscan_request.contract_address, Address::default());
         assert_eq!(
             etherscan_request.code_format,
@@ -292,7 +299,10 @@ mod tests {
             compiler_solc_version: "0.8.16".to_string(),
         };
 
-        let etherscan_request = EtherscanVerificationRequest::from(request.clone());
+        let etherscan_request = EtherscanVerificationRequest::from_verification_request(
+            request.clone(),
+            SolcVersionsFetcher::new(),
+        );
         assert_eq!(etherscan_request.contract_address, Address::default());
         assert_eq!(
             etherscan_request.code_format,
@@ -346,7 +356,10 @@ mod tests {
             },
         };
 
-        let etherscan_request = EtherscanVerificationRequest::from(request.clone());
+        let etherscan_request = EtherscanVerificationRequest::from_verification_request(
+            request.clone(),
+            SolcVersionsFetcher::new(),
+        );
         assert_eq!(etherscan_request.contract_address, Address::default());
         assert_eq!(
             etherscan_request.code_format,
