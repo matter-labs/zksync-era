@@ -332,3 +332,10 @@ zksync_contract_verification_server = { version = "26.4.0-non-semver-compat", pa
 zksync_node_api_server = { version = "26.4.0-non-semver-compat", path = "node/api_server" }
 zksync_base_token_adjuster = { version = "26.4.0-non-semver-compat", path = "node/base_token_adjuster" }
 zksync_logs_bloom_backfill = { version = "26.4.0-non-semver-compat", path = "node/logs_bloom_backfill" }
+
+[profile.dev]
+debug = 0
+strip = "debuginfo"
+
+[profile.dev.build-override]
+opt-level = 3

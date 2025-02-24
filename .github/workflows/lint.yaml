@@ -1,0 +1,307 @@
+name: Lint
+
+on:
+#  pull_request:
+  merge_group:
+
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: 'bash -ex {0}'
+
+env:
+  NEXTEST_ARCHIVE: nextest-archive.tar.zst
+
+jobs:
+
+#  loadtest:
+#    runs-on: matterlabs-ci-runner-high-performance
+#    strategy:
+#      fail-fast: false
+#      matrix:
+#        vm_mode: [ "OLD", "NEW" ]
+#
+#    steps:
+#      - name: Checkout
+#        uses: actions/checkout@v4
+#        with:
+#          submodules: "recursive"
+#
+#      - name: Setup runner
+#        uses: matter-labs/zksync-ci-common/.github/actions/runner-setup@aba-ci-optimize
+#        with:
+#          workspace: 'core'
+#
+#      - name: Loadtest configuration
+#        run: |
+#          echo EXPECTED_TX_COUNT=${{ matrix.vm_mode == 'NEW' && 30000 || 16000 }} >> .env
+#          echo ACCOUNTS_AMOUNT="100" >> .env
+#          echo MAX_INFLIGHT_TXS="10" >> .env
+#          echo SYNC_API_REQUESTS_LIMIT="15" >> .env
+#          echo FAIL_FAST=true >> .env
+#          echo IN_DOCKER=1 >> .env
+#
+#      - name: Start services
+#        run: docker compose up --wait
+#
+#      - name: Create and initialize legacy chain
+#        run: |
+#          zkstack chain create \
+#            --chain-name legacy \
+#            --chain-id sequential \
+#            --prover-mode no-proofs \
+#            --wallet-creation localhost \
+#            --l1-batch-commit-data-generator-mode rollup \
+#            --base-token-address 0x0000000000000000000000000000000000000001 \
+#            --base-token-price-nominator 1 \
+#            --base-token-price-denominator 1 \
+#            --set-as-default false \
+#            --ignore-prerequisites \
+#            --legacy-bridge \
+#            --evm-emulator false
+#
+#          zkstack ecosystem init --dev --support-l2-legacy-shared-bridge-test true --verbose
+#
+#      # `sleep 60` because we need to wait until server added all the tokens
+#      - name: Run server
+#        run: |
+#          zkstack dev config-writer --path ${{ matrix.vm_mode == 'NEW' && 'etc/env/file_based/overrides/tests/loadtest-new.yaml' || 'etc/env/file_based/overrides/tests/loadtest-old.yaml' }} --chain legacy
+#          zkstack server --uring --chain=legacy --components api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads &>server.log &
+#          sleep 60
+#
+#      - name: Perform loadtest
+#        run: zkstack dev t loadtest -v --chain=legacy
+#
+#      - name: Show server.log logs
+#        if: always()
+#        run: cat server.log || true
+
+  unit-tests:
+    runs-on: matterlabs-ci-runner-highmem-long
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: "recursive"
+
+      - name: Setup runner
+        uses: matter-labs/zksync-ci-common/.github/actions/runner-setup@aba-ci-optimize
+        with:
+          workspace: 'zkstack_cli'
+
+      - name: Build contracts
+        uses: matter-labs/zksync-ci-common/.github/actions/build-contracts@aba-ci-optimize
+
+      - name: Run unit tests
+        run: zkstack dev test rust
+
+      - name: Show sccache stats
+        run: sccache --show-stats
+
+
+#  build-unit-tests:
+#    runs-on: matterlabs-ci-runner-highmem-long
+#    steps:
+#      - name: Checkout
+#        uses: actions/checkout@v4
+#        with:
+#          submodules: "recursive"
+#
+#      - name: Setup runner
+#        uses: matter-labs/zksync-ci-common/.github/actions/runner-setup@aba-ci-optimize
+#        with:
+#          workspace: 'core'
+#          zkstack_version: '' # do not install zkstack
+#
+#      - name: Build and archive tests
+#        working-directory: core
+#        run: cargo nextest archive --archive-file ${{ env.NEXTEST_ARCHIVE }}
+#
+#      - name: Upload test archive
+#        uses: actions/upload-artifact@v4
+#        with:
+#          name: nextest-archive
+#          path: core/${{ env.NEXTEST_ARCHIVE }}
+#          retention-days: 1
+#
+#      - name: Show sccache stats
+#        run: sccache --show-stats
+
+#  run-unit-tests:
+#    runs-on: matterlabs-ci-runner-highmem-long
+#    needs: build-unit-tests
+#    strategy:
+#      matrix:
+#        partition: [ 1, 2 ]
+#      fail-fast: false
+#    steps:
+#      - name: Checkout
+#        uses: actions/checkout@v4
+#        with:
+#          submodules: "recursive"
+#
+#      - name: Setup runner
+#        uses: matter-labs/zksync-ci-common/.github/actions/runner-setup@aba-ci-optimize
+#        with:
+#          workspace: 'zkstack_cli'
+#
+#      - name: Build contracts
+#        uses: matter-labs/zksync-ci-common/.github/actions/build-contracts@aba-ci-optimize
+#
+#      - name: Download archive
+#        uses: actions/download-artifact@v4
+#        with:
+#          name: nextest-archive
+#          path: core
+#
+#      - name: Reset test db
+#        working-directory: core
+#        run: zkstack dev test reset-db
+#
+#      - name: Run tests
+#        working-directory: core
+#        env:
+#          TEST_DATABASE_URL: "postgres://postgres:notsecurepassword@localhost:5432/zksync_local_test"
+#          TEST_PROVER_DATABASE_URL: "postgres://postgres:notsecurepassword@localhost:5432/prover_local_test"
+#        run: |
+#          cargo nextest run --archive-file ${{ env.NEXTEST_ARCHIVE }} \
+#            --partition count:${{ matrix.partition }}/2
+
+
+  #  lint:
+  #    runs-on: matterlabs-ci-runner-highmem-long
+  #    steps:
+  #      - name: Checkout
+  #        uses: actions/checkout@v4
+  #        with:
+  #          submodules: "recursive"
+  #          fetch-depth: '1'
+  #
+  #      - name: Setup runner
+  #        uses: matter-labs/zksync-ci-common/.github/actions/runner-setup@aba-ci-optimize
+  #
+  #      - name: Format
+  #        run: zkstack dev fmt --check
+  #
+  #      - name: Lint
+  #        run: zkstack dev lint --check
+  #
+  #      - name: Show sccache stats
+  #        run: sccache --show-stats
+  #
+  #      - name: Start postgres
+  #        run: docker-compose up -d --wait postgres
+  #
+  #      - name: Check Database
+  #        env:
+  #          PROVER_URL: 'postgres://postgres:notsecurepassword@localhost:5432/zksync_local_prover'
+  #          CORE_URL: 'postgres://postgres:notsecurepassword@localhost:5432/zksync_local'
+  #        run: |
+  #          zkstack dev db setup --prover-url=${{ env.PROVER_URL }} --core-url=${{ env.CORE_URL }}
+  #          zkstack dev database check-sqlx-data --prover-url=${{ env.PROVER_URL }} --core-url=${{ env.CORE_URL }}
+
+
+#  lint-docker:
+#    runs-on: matterlabs-ci-runner-highmem-long
+#    container:
+#      image: ghcr.io/matter-labs/zk-environment:latest2.0-lightweight
+#      env:
+#        SCCACHE_CACHE_SIZE: 50g
+#        SCCACHE_GCS_BUCKET: matterlabs-infra-sccache-storage
+#        SCCACHE_GCS_SERVICE_ACCOUNT: gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com
+#        SCCACHE_GCS_RW_MODE: READ_WRITE
+#    steps:
+#      - name: Checkout
+#        uses: actions/checkout@v4
+#        with:
+#          submodules: "recursive"
+#
+#      - name: Safe git for Docker
+#        run: git config --global --add safe.directory '*'
+#
+#      - name: Update path
+#        run: echo $(pwd)/bin >> ${GITHUB_PATH}
+#
+#      - name: Rust cache
+#        uses: Swatinem/rust-cache@v2
+#        with:
+#          workspaces: |
+#            core -> target
+#            prover -> target
+#            zkstack_cli -> target
+#          shared-key: "shared"
+#          save-if: false
+#
+#      # TODO: use latest release instead of tmp
+#      - name: Install zkstack
+#        env:
+#          ZKSTACK_DOWNLOAD_URL: 'https://github.com/matter-labs/zksync-era/releases/download/ad0df3a'
+#          ZKSTACK_FILENAME: 'zkstack-test-x86_64-unknown-linux-gnu.tar.gz'
+#        working-directory: bin
+#        run: curl -L ${ZKSTACK_DOWNLOAD_URL}/${ZKSTACK_FILENAME} --output ${ZKSTACK_FILENAME} && tar -xzf ${ZKSTACK_FILENAME}
+#
+#      - name: Yarn install
+#        run: yarn install
+#
+##      - name: Install contracts
+##        working-directory: contracts
+##        run: yarn install
+#
+#      - name: Format
+#        run: zkstack dev fmt --check
+#
+#      - name: Lint
+#        run: zkstack dev lint --check
+#
+#      - name: Start services
+#        run: ci_localnet_up
+#
+#      - name: Check Database
+#        env:
+#          PROVER_URL: 'postgres://postgres:notsecurepassword@localhost:5432/zksync_local_prover'
+#          CORE_URL: 'postgres://postgres:notsecurepassword@localhost:5432/zksync_local'
+#        run: |
+#          ci_run zkstack dev db setup --prover-url=${{ env.PROVER_URL }} --core-url=${{ env.CORE_URL }}
+#          ci_run zkstack dev database check-sqlx-data --prover-url=${{ env.PROVER_URL }} --core-url=${{ env.CORE_URL }}
+
+#  lint:
+#    runs-on: matterlabs-ci-runner-highmem-long
+#    env:
+#      ZKSYNC_HOME: ${{ github.workspace }}
+#    steps:
+#      - uses: actions/checkout@v4
+#        with:
+#          submodules: "recursive"
+#
+#      - name: Update path
+#        run: echo $(pwd)/bin >> $GITHUB_PATH
+#
+#      - name: Start services
+#        run: ci_localnet_up
+#
+#      - name: Install zkstack
+#        run: |
+#          ci_run git config --global --add safe.directory /usr/src/zksync
+#          ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup
+#          ci_run zkstackup -g --local
+#
+#      - name: Build
+#        run: ci_run yarn install
+#
+#      - name: Format
+#        run: ci_run zkstack dev fmt --check
+#
+#      - name: Lint
+#        run: ci_run zkstack dev lint --check
+#
+#      - name: Check Database
+#        env:
+#          PROVER_URL: 'postgres://postgres:notsecurepassword@localhost:5432/zksync_local_prover'
+#          CORE_URL: 'postgres://postgres:notsecurepassword@localhost:5432/zksync_local'
+#        run: |
+#          ci_run zkstack dev db setup --prover-url=${{ env.PROVER_URL }} --core-url=${{ env.CORE_URL }}
+#          ci_run zkstack dev database check-sqlx-data --prover-url=${{ env.PROVER_URL }} --core-url=${{ env.CORE_URL }}
