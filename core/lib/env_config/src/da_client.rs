@@ -1,4 +1,5 @@
 use std::env;
+
 use zksync_config::configs::{
     da_client::{
         avail::{
