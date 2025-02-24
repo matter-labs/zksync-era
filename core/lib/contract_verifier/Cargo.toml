@@ -34,7 +34,6 @@ semver.workspace = true
 octocrab = { workspace = true, features = ["stream"] }
 futures-util.workspace = true
 rustls.workspace = true
-once_cell.workspace = true
 
 [dev-dependencies]
 zksync_node_test_utils.workspace = true

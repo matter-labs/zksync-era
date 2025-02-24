@@ -599,7 +599,7 @@ impl ContractVerifier {
                     )
                     .await?;
                 if self.etherscan_verifier_enabled {
-                    tracing::info!("Created etherscan verification request with id = {request_id}");
+                    tracing::debug!("Created etherscan verification request with id = {request_id}");
                     transaction
                         .etherscan_verification_dal()
                         .add_verification_request(request_id)
