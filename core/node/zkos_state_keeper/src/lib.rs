@@ -9,7 +9,6 @@ pub use self::{
 
 pub mod io;
 mod keeper;
-mod seal_logic;
 mod updates;
 
 pub fn millis_since_epoch() -> u128 {

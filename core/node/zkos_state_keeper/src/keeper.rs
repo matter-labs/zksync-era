@@ -47,7 +47,6 @@ use zksync_zkos_vm_runner::zkos_conversions::{bytes32_to_h256, h256_to_bytes32, 
 use crate::{
     io::{BlockParams, OutputHandler, StateKeeperIO},
     millis_since_epoch,
-    seal_logic::{extract_tx_output, seal_in_db},
     updates::UpdatesManager,
 };
 
@@ -227,26 +226,11 @@ impl ZkosStateKeeper {
                 );
             }
 
-            let mut next_index_in_batch_output = 0;
-            for tx in executed_transactions {
-                let tx_output = loop {
-                    let tx_output = extract_tx_output(next_index_in_batch_output, &result);
-                    next_index_in_batch_output += 1;
-                    if let Some(tx_output) = tx_output {
-                        break tx_output;
-                    }
-                };
-
-                updates_manager
-                    .l2_block
-                    .extend_from_executed_transaction(tx, tx_output);
-            }
-            updates_manager.l2_block.extend_from_block_output(result);
+            updates_manager.extend_with_block_result(executed_transactions, result);
 
             self.output_handler
                 .handle_block(Arc::new(updates_manager))
                 .await?;
-            // seal_in_db(conn, context, &result, executed_transactions, H256::zero()).await?;
 
             cursor = IoCursor {
                 next_l2_block: cursor.next_l2_block + 1,

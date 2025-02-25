@@ -184,6 +184,36 @@ impl UpdatesManager {
     pub fn protocol_version(&self) -> ProtocolVersionId {
         self.protocol_version
     }
+
+    pub fn extend_with_block_result(
+        &mut self,
+        executed_transactions: Vec<Transaction>,
+        block_result: BatchOutput,
+    ) {
+        let mut next_index_in_batch_output = 0;
+        for tx in executed_transactions {
+            let tx_output = loop {
+                let tx_output = if let Some(tx_result) = block_result
+                    .tx_results
+                    .get(next_index_in_batch_output)
+                    .cloned()
+                {
+                    tx_result.ok()
+                } else {
+                    panic!("No tx result for #{next_index_in_batch_output}");
+                };
+
+                next_index_in_batch_output += 1;
+                if let Some(tx_output) = tx_output {
+                    break tx_output;
+                }
+            };
+
+            self.l2_block
+                .extend_from_executed_transaction(tx, tx_output);
+        }
+        self.l2_block.extend_from_block_output(block_result);
+    }
 }
 
 /// Command to seal an L2 block containing all necessary data for it.
