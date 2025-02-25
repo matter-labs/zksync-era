@@ -1,5 +1,5 @@
 mod client;
 
-pub use eigenda_client_rs::client::GetBlobData;
+pub use rust_eigenda_client::client::BlobProvider;
 
 pub use self::client::EigenDAClient;

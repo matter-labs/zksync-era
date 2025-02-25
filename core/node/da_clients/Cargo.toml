@@ -56,5 +56,5 @@ tonic = { workspace = true, features = ["tls-roots", "prost", "codegen"] }
 pbjson-types.workspace = true
 
 # Eigen dependencies
-eigenda-client-rs.workspace = true
+rust-eigenda-client.workspace = true
 zksync_dal.workspace = true

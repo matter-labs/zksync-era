@@ -1,7 +1,7 @@
 use std::{str::FromStr, sync::Arc};
 
-use eigenda_client_rs::{
-    client::GetBlobData,
+use rust_eigenda_client::{
+    client::BlobProvider,
     config::{PrivateKey, SrsPointsSource},
     EigenClient,
 };
@@ -28,35 +28,35 @@ impl EigenDAClient {
     pub async fn new(
         config: EigenConfig,
         secrets: EigenSecrets,
-        get_blob_data: Arc<dyn GetBlobData>,
+        blob_provider: Arc<dyn BlobProvider>,
     ) -> anyhow::Result<Self> {
         let eth_rpc_url = match config.eigenda_eth_rpc {
             Some(url) => {
                 let url = Url::from_str(url.expose_str())
                     .map_err(|_| anyhow::anyhow!("Invalid eth rpc url"))?;
-                Some(eigenda_client_rs::config::SecretUrl::new(url))
+                Some(rust_eigenda_client::config::SecretUrl::new(url))
             }
             None => None,
         };
 
-        let points_source = match config.points_source {
+        let srs_points_source = match config.points_source {
             PointsSource::Path(path) => SrsPointsSource::Path(path),
             PointsSource::Url(url) => SrsPointsSource::Url(url),
         };
 
-        let eigen_config = eigenda_client_rs::config::EigenConfig {
+        let eigen_config = rust_eigenda_client::config::EigenConfig {
             disperser_rpc: config.disperser_rpc,
             settlement_layer_confirmation_depth: config.settlement_layer_confirmation_depth,
             eth_rpc_url,
             eigenda_svc_manager_address: config.eigenda_svc_manager_address,
             wait_for_finalization: config.wait_for_finalization,
             authenticated: config.authenticated,
-            points_source,
+            srs_points_source,
         };
         let private_key = PrivateKey::from_str(secrets.private_key.0.expose_secret())
             .map_err(|e| anyhow::anyhow!("Failed to parse private key: {}", e))?;
-        let eigen_secrets = eigenda_client_rs::config::EigenSecrets { private_key };
-        let client = EigenClient::new(eigen_config, eigen_secrets, get_blob_data)
+        let eigen_secrets = rust_eigenda_client::config::EigenSecrets { private_key };
+        let client = EigenClient::new(eigen_config, eigen_secrets, blob_provider)
             .await
             .map_err(|e| anyhow::anyhow!("Eigen client Error: {:?}", e))?;
         Ok(Self { client })
