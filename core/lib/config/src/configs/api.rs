@@ -136,12 +136,8 @@ pub struct MaxResponseSize {
 pub struct Web3JsonRpcConfig {
     /// Port to which the HTTP RPC server is listening.
     pub http_port: u16,
-    /// URL to access HTTP RPC server.
-    pub http_url: String,
     /// Port to which the WebSocket RPC server is listening.
     pub ws_port: u16,
-    /// URL to access WebSocket RPC server.
-    pub ws_url: String,
     /// Max possible limit of entities to be requested once.
     pub req_entities_limit: Option<u32>,
     /// Whether to support HTTP methods that install filters and query filter changes.
@@ -233,9 +229,7 @@ impl Web3JsonRpcConfig {
     pub fn for_tests() -> Self {
         Self {
             http_port: 3050,
-            http_url: "http://localhost:3050".into(),
             ws_port: 3051,
-            ws_url: "ws://localhost:3051".into(),
             req_entities_limit: Some(10000),
             filters_disabled: false,
             filters_limit: Some(10000),

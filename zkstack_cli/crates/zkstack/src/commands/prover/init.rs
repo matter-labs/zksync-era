@@ -10,9 +10,8 @@ use zkstack_cli_common::{
     spinner::Spinner,
 };
 use zkstack_cli_config::{
-    copy_configs, get_link_to_prover, raw::PatchedConfig, set_prover_database, EcosystemConfig,
+    copy_configs, get_link_to_prover, EcosystemConfig, ObjectStoreConfig, ObjectStoreMode,
 };
-use zksync_config::{configs::object_store::ObjectStoreMode, ObjectStoreConfig};
 
 use super::{
     args::init::{ProofStorageConfig, ProofStorageFileBacked, ProverInitArgs},
@@ -62,22 +61,14 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
         setup_keys::run(args, shell).await?;
     }
 
-    set_object_store(
-        &mut general_config,
-        "prover.prover_object_store",
-        &proof_object_store_config,
-    )?;
+    general_config.set_prover_object_store(&proof_object_store_config)?;
     if let Some(public_object_store_config) = public_object_store_config {
-        general_config.insert("prover.shall_save_to_public_bucket", true)?;
-        set_object_store(
-            &mut general_config,
-            "prover.public_object_store",
-            &public_object_store_config,
-        )?;
+        general_config.set_save_proofs_to_public_bucket(true)?;
+        general_config.set_public_prover_object_store(&public_object_store_config)?;
     } else {
-        general_config.insert("prover.shall_save_to_public_bucket", false)?;
+        general_config.set_save_proofs_to_public_bucket(false)?;
     }
-    general_config.insert_yaml("prover.cloud_type", args.cloud_type)?;
+    general_config.set_prover_cloud_type(args.cloud_type.into())?;
     general_config.save().await?;
 
     if let Some(args) = args.bellman_cuda_config {
@@ -88,7 +79,7 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
         let spinner = Spinner::new(MSG_INITIALIZING_DATABASES_SPINNER);
 
         let mut secrets = chain_config.get_secrets_config().await?.patched();
-        set_prover_database(&mut secrets, &prover_db.database_config)?;
+        secrets.set_prover_database(&prover_db.database_config)?;
         secrets.save().await?;
         initialize_prover_database(
             shell,
@@ -121,7 +112,6 @@ fn get_object_store_config(
                 gcs_credential_file_path: config.credentials_file,
             },
             max_retries: PROVER_STORE_MAX_RETRIES,
-            local_mirror_path: None,
         }),
         Some(ProofStorageConfig::GCSCreateBucket(config)) => {
             Some(create_gcs_bucket(shell, config)?)
@@ -130,50 +120,6 @@ fn get_object_store_config(
     };
 
     Ok(object_store)
-}
-
-fn set_object_store(
-    patch: &mut PatchedConfig,
-    prefix: &str,
-    config: &ObjectStoreConfig,
-) -> anyhow::Result<()> {
-    patch.insert(&format!("{prefix}.max_retries"), config.max_retries)?;
-    match &config.mode {
-        ObjectStoreMode::FileBacked {
-            file_backed_base_path,
-        } => {
-            patch.insert_yaml(
-                &format!("{prefix}.file_backed.file_backed_base_path"),
-                file_backed_base_path,
-            )?;
-        }
-        ObjectStoreMode::GCS { bucket_base_url } => {
-            patch.insert(
-                &format!("{prefix}.gcs.bucket_base_url"),
-                bucket_base_url.clone(),
-            )?;
-        }
-        ObjectStoreMode::GCSWithCredentialFile {
-            bucket_base_url,
-            gcs_credential_file_path,
-        } => {
-            patch.insert(
-                &format!("{prefix}.gcs_with_credential_file.bucket_base_url"),
-                bucket_base_url.clone(),
-            )?;
-            patch.insert(
-                &format!("{prefix}.gcs_with_credential_file.gcs_credential_file_path"),
-                gcs_credential_file_path.clone(),
-            )?;
-        }
-        ObjectStoreMode::GCSAnonymousReadOnly { bucket_base_url } => {
-            patch.insert(
-                &format!("{prefix}.gcs_anonymous_read_only.bucket_base_url"),
-                bucket_base_url.clone(),
-            )?;
-        }
-    }
-    Ok(())
 }
 
 async fn initialize_prover_database(
@@ -220,7 +166,6 @@ fn init_file_backed_proof_storage(
             file_backed_base_path: config.proof_store_dir,
         },
         max_retries: PROVER_STORE_MAX_RETRIES,
-        local_mirror_path: None,
     };
 
     Ok(object_store_config)

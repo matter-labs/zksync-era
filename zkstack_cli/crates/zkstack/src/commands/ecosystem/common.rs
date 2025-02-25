@@ -8,9 +8,8 @@ use zkstack_cli_config::{
         },
         script_params::DEPLOY_ECOSYSTEM_SCRIPT_PARAMS,
     },
-    raw::RawConfig,
     traits::{ReadConfig, SaveConfig},
-    ContractsConfig, EcosystemConfig, GENESIS_FILE,
+    ContractsConfig, EcosystemConfig, GenesisConfig, GENESIS_FILE,
 };
 use zkstack_cli_types::{L1Network, ProverMode};
 
@@ -29,7 +28,7 @@ pub async fn deploy_l1(
 ) -> anyhow::Result<ContractsConfig> {
     let deploy_config_path = DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.input(&config.link_to_code);
     let genesis_config_path = config.get_default_configs_path().join(GENESIS_FILE);
-    let default_genesis_config = RawConfig::read(shell, genesis_config_path).await?;
+    let default_genesis_config = GenesisConfig::read(shell, genesis_config_path).await?;
     let default_genesis_input = GenesisInput::new(&default_genesis_config)?;
 
     let wallets_config = config.get_wallets()?;

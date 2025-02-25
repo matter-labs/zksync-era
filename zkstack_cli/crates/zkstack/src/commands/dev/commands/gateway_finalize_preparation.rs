@@ -1,8 +1,8 @@
 use std::{collections::HashSet, str::FromStr, sync::Arc, time::Duration};
 
-use clap::{Parser, ValueEnum};
+use clap::Parser;
 use ethers::{
-    abi::{encode, parse_abi, Token},
+    abi::parse_abi,
     contract::{abigen, BaseContract},
     providers::{Http, Middleware, Provider},
     utils::hex,
@@ -11,10 +11,8 @@ use lazy_static::lazy_static;
 use tokio::time::sleep;
 use xshell::Shell;
 use zkstack_cli_config::traits::ReadConfig;
-use zksync_types::{
-    ethabi, h256_to_address, h256_to_u256, u256_to_h256, Address, H256,
-    L2_NATIVE_TOKEN_VAULT_ADDRESS, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256,
-};
+use zksync_basic_types::{h256_to_address, h256_to_u256, u256_to_h256, Address, H256, U256};
+use zksync_system_constants::SHARED_BRIDGE_ETHER_TOKEN_ADDRESS;
 
 use super::{events_gatherer::get_logs_for_events, gateway::GatewayUpgradeInfo};
 use crate::commands::dev::commands::events_gatherer::DEFAULT_BLOCK_RANGE;
@@ -37,10 +35,9 @@ pub async fn get_list_of_tokens(
     legacy_bridge_addr: Address,
     base_tokens: Vec<Address>,
 ) -> Vec<Address> {
-    const BRIDGEHUB_EVENT: &'static str =
+    const BRIDGEHUB_EVENT: &str =
         "BridgehubDepositInitiated(uint256,bytes32,address,address,address,uint256)";
-    const LEGACY_BRIDGE_EVENT: &'static str =
-        "DepositInitiated(bytes32,address,address,address,uint256)";
+    const LEGACY_BRIDGE_EVENT: &str = "DepositInitiated(bytes32,address,address,address,uint256)";
 
     let queried_logs = get_logs_for_events(
         block_to_start_with,
