@@ -54,8 +54,8 @@ impl DataAvailabilityDispatcher {
                     self_arc.config.polling_interval(),
                     stop_receiver_dispatch.changed(),
                 )
-                .await
-                .is_ok()
+                    .await
+                    .is_ok()
                 {
                     break;
                 }
@@ -76,8 +76,8 @@ impl DataAvailabilityDispatcher {
                     self.config.polling_interval(),
                     stop_receiver_poll_for_inclusion.changed(),
                 )
-                .await
-                .is_ok()
+                    .await
+                    .is_ok()
                 {
                     break;
                 }
@@ -109,14 +109,14 @@ impl DataAvailabilityDispatcher {
                 self.client
                     .dispatch_blob(batch.l1_batch_number.0, batch.pubdata.clone())
             })
-            .await
-            .with_context(|| {
-                format!(
-                    "failed to dispatch a blob with batch_number: {}, pubdata_len: {}",
-                    batch.l1_batch_number,
-                    batch.pubdata.len()
-                )
-            })?;
+                .await
+                .with_context(|| {
+                    format!(
+                        "failed to dispatch a blob with batch_number: {}, pubdata_len: {}",
+                        batch.l1_batch_number,
+                        batch.pubdata.len()
+                    )
+                })?;
             let dispatch_latency_duration = dispatch_latency.observe();
 
             let sent_at = Utc::now().naive_utc();
@@ -209,7 +209,7 @@ async fn retry<T, Fut, F>(
     mut f: F,
 ) -> Result<T, DAError>
 where
-    Fut: Future<Output = Result<T, DAError>>,
+    Fut: Future<Output=Result<T, DAError>>,
     F: FnMut() -> Fut,
 {
     let mut retries = 1;
@@ -228,7 +228,12 @@ where
                 retries += 1;
                 let sleep_duration = Duration::from_secs(backoff_secs)
                     .mul_f32(rand::thread_rng().gen_range(0.8..1.2));
-                tracing::warn!(%err, "Failed DA dispatch request {retries}/{max_retries} for batch {batch_number}, retrying in {} milliseconds.", sleep_duration.as_millis());
+                tracing::warn!(
+                    %err,
+                    "Failed DA dispatch request {retries}/{} for batch {batch_number}, retrying in {} milliseconds.",
+                    max_retries+1,
+                    sleep_duration.as_millis()
+                );
                 tokio::time::sleep(sleep_duration).await;
 
                 backoff_secs = (backoff_secs * 2).min(128); // cap the back-off at 128 seconds
