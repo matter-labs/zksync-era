@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO\n            data_availability (\n                l1_batch_number,\n                blob_id,\n                inclusion_data,\n                client_type,\n                l2_da_validator_address,\n                sent_at,\n                created_at,\n                updated_at\n            )\n            VALUES\n            ($1, $2, $3, $4, $5, $6, NOW(), NOW())\n            ON CONFLICT DO NOTHING\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text",
+        "Bytea",
+        "Text",
+        "Bytea",
+        "Timestamp"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "740b5e99fe83d32867524f5ba853d0cf2e98af2bdb3b642ee93b22c3a119ccee"
+}
