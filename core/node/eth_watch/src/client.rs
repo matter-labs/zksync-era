@@ -12,7 +12,13 @@ use zksync_eth_client::{
 };
 use zksync_system_constants::L2_MESSAGE_ROOT_ADDRESS;
 use zksync_types::{
-    abi::ZkChainSpecificUpgradeData, api::{ChainAggProof, Log}, ethabi::{self, decode, encode, Contract, ParamType}, utils::encode_ntv_asset_id, web3::{keccak256, BlockId, BlockNumber, Filter, FilterBuilder}, Address, L1BatchNumber, L2ChainId, SLChainId, H256, L2_NATIVE_TOKEN_VAULT_ADDRESS, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256, U64
+    abi::ZkChainSpecificUpgradeData,
+    api::{ChainAggProof, Log},
+    ethabi::{self, decode, encode, Contract, ParamType},
+    utils::encode_ntv_asset_id,
+    web3::{keccak256, BlockId, BlockNumber, Filter, FilterBuilder},
+    Address, L1BatchNumber, L2ChainId, SLChainId, H256, L2_NATIVE_TOKEN_VAULT_ADDRESS,
+    SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256, U64,
 };
 use zksync_web3_decl::{
     client::{Network, L2},

@@ -222,11 +222,11 @@ pub fn l2_message_root() -> Contract {
 }
 
 pub fn l2_asset_router() -> Contract {
-  load_contract("contracts/l1-contracts/out/L2AssetRouter.sol/L2AssetRouter.json")
+    load_contract("contracts/l1-contracts/out/L2AssetRouter.sol/L2AssetRouter.json")
 }
 
 pub fn l2_legacy_shared_bridge() -> Contract {
-  load_contract("contracts/l1-contracts/out/L2SharedBridgeLegacy.sol/L2SharedBridgeLegacy.json")
+    load_contract("contracts/l1-contracts/out/L2SharedBridgeLegacy.sol/L2SharedBridgeLegacy.json")
 }
 
 pub fn l2_rollup_da_validator_bytecode() -> Vec<u8> {

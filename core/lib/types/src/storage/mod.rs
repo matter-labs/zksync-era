@@ -119,20 +119,27 @@ pub fn get_immutable_simulator_key(account: &Address, immutable_key: H256) -> St
 
     let padded_address = address_to_h256(account);
 
-    let inner_mapping_slot = keccak256(&[
-        padded_address.as_bytes(), IMMUTABLE_SIMULATOR_MAPPING_SLOT.as_bytes()
-    ].concat());
+    let inner_mapping_slot = keccak256(
+        &[
+            padded_address.as_bytes(),
+            IMMUTABLE_SIMULATOR_MAPPING_SLOT.as_bytes(),
+        ]
+        .concat(),
+    );
 
-    let key = H256::from(keccak256(&[
-        &immutable_key.as_bytes(), &inner_mapping_slot as &[u8]
-    ].concat()));
+    let key = H256::from(keccak256(
+        &[&immutable_key.as_bytes(), &inner_mapping_slot as &[u8]].concat(),
+    ));
 
     StorageKey::new(immutable_simulator, key)
 }
 
 #[test]
 fn test_get_immutable_simulator_key() {
-    println!("{:#?}", get_immutable_simulator_key(&L2_ASSET_ROUTER_ADDRESS, u256_to_h256(96u32.into())))
+    println!(
+        "{:#?}",
+        get_immutable_simulator_key(&L2_ASSET_ROUTER_ADDRESS, u256_to_h256(96u32.into()))
+    )
 }
 
 pub type StorageValue = H256;

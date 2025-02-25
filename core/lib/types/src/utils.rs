@@ -1,7 +1,10 @@
 use std::fmt;
 
 use chrono::{DateTime, TimeZone, Utc};
-use zksync_basic_types::{ethabi::{self, encode}, Address, H256};
+use zksync_basic_types::{
+    ethabi::{self, encode},
+    Address, H256,
+};
 use zksync_system_constants::L2_NATIVE_TOKEN_VAULT_ADDRESS;
 
 use crate::{

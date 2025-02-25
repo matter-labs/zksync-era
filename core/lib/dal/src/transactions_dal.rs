@@ -1767,10 +1767,7 @@ impl TransactionsDal<'_, '_> {
     }
 
     /// Resets `in_mempool` to `FALSE` for the given transaction hashes.
-    pub async fn return_to_mempool(
-        &mut self,
-        transaction_hashes: &[H256],
-    ) -> DalResult<()> {
+    pub async fn return_to_mempool(&mut self, transaction_hashes: &[H256]) -> DalResult<()> {
         // Convert H256 hashes into `&[u8]`
         let hashes: Vec<_> = transaction_hashes.iter().map(H256::as_bytes).collect();
 
@@ -1803,7 +1800,6 @@ impl TransactionsDal<'_, '_> {
 
         Ok(())
     }
-
 
     /// Fetches new updates for mempool. Returns new transactions and current nonces for related accounts;
     /// the latter are only used to bootstrap mempool for given account.

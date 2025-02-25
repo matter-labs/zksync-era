@@ -6,7 +6,17 @@ use zksync_contracts::{
 };
 use zksync_eth_client::{ContractCallError, EnrichedClientResult};
 use zksync_types::{
-    abi::{self, ProposedUpgrade, ZkChainSpecificUpgradeData}, api::{ChainAggProof, Log}, bytecode::BytecodeHash, ethabi::{self, Token}, l1::L1Tx, protocol_upgrade::ProtocolUpgradeTx, u256_to_h256, utils::encode_ntv_asset_id, web3::{contract::Tokenizable, BlockNumber}, Address, L1BatchNumber, L2ChainId, ProtocolUpgrade, SLChainId, Transaction, H256, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256, U64
+    abi::{self, ProposedUpgrade, ZkChainSpecificUpgradeData},
+    api::{ChainAggProof, Log},
+    bytecode::BytecodeHash,
+    ethabi::{self, Token},
+    l1::L1Tx,
+    protocol_upgrade::ProtocolUpgradeTx,
+    u256_to_h256,
+    utils::encode_ntv_asset_id,
+    web3::{contract::Tokenizable, BlockNumber},
+    Address, L1BatchNumber, L2ChainId, ProtocolUpgrade, SLChainId, Transaction, H256,
+    SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256, U64,
 };
 
 use crate::client::{EthClient, L2EthClient, RETRY_LIMIT};
