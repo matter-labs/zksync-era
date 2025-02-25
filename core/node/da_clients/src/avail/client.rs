@@ -40,13 +40,37 @@ pub struct AvailClient {
 pub struct BridgeAPIResponse {
     blob_root: Option<H256>,
     bridge_root: Option<H256>,
+    #[serde(deserialize_with = "deserialize_u256_from_integer")]
     data_root_index: Option<U256>,
     data_root_proof: Option<Vec<H256>>,
     leaf: Option<H256>,
+    #[serde(deserialize_with = "deserialize_u256_from_integer")]
     leaf_index: Option<U256>,
     leaf_proof: Option<Vec<H256>>,
     range_hash: Option<H256>,
     error: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum U256Value {
+    Number(u64),
+    String(String),
+}
+
+fn deserialize_u256_from_integer<'de, D>(deserializer: D) -> Result<Option<U256>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::de::Error;
+
+    match Option::<U256Value>::deserialize(deserializer)? {
+        Some(U256Value::Number(num)) => Ok(Some(U256::from(num))),
+        Some(U256Value::String(s)) => U256::from_str_radix(s.strip_prefix("0x").unwrap_or(&s), 16)
+            .map(Some)
+            .map_err(|e| D::Error::custom(format!("failed to parse hex string: {}", e))),
+        None => Ok(None),
+    }
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -209,19 +233,27 @@ impl DataAvailabilityClient for AvailClient {
             .await
             .map_err(to_retriable_da_error)?;
 
-        let attestation_data: MerkleProofInput = MerkleProofInput {
-            data_root_proof: bridge_api_data.data_root_proof.unwrap(),
-            leaf_proof: bridge_api_data.leaf_proof.unwrap(),
-            range_hash: bridge_api_data.range_hash.unwrap(),
-            data_root_index: bridge_api_data.data_root_index.unwrap(),
-            blob_root: bridge_api_data.blob_root.unwrap(),
-            bridge_root: bridge_api_data.bridge_root.unwrap(),
-            leaf: bridge_api_data.leaf.unwrap(),
-            leaf_index: bridge_api_data.leaf_index.unwrap(),
-        };
-        Ok(Some(InclusionData {
-            data: ethabi::encode(&attestation_data.into_tokens()),
-        }))
+        tracing::info!("Bridge API Response: {:?}", bridge_api_data);
+        // Check if there's an error in the response
+        if let Some(err) = bridge_api_data.error {
+            tracing::info!(
+                "Bridge API returned error: {:?}. Data might not be available yet.",
+                err
+            );
+            return Ok(None);
+        }
+
+        match bridge_response_to_merkle_proof_input(bridge_api_data) {
+            Some(attestation_data) => Ok(Some(InclusionData {
+                data: ethabi::encode(&attestation_data.into_tokens()),
+            })),
+            None => {
+                tracing::info!(
+                    "Bridge API response missing required fields. Data might not be available yet."
+                );
+                Ok(None)
+            }
+        }
     }
 
     fn clone_boxed(&self) -> Box<dyn DataAvailabilityClient> {
@@ -231,4 +263,19 @@ impl DataAvailabilityClient for AvailClient {
     fn blob_size_limit(&self) -> Option<usize> {
         Some(RawAvailClient::MAX_BLOB_SIZE)
     }
+}
+
+fn bridge_response_to_merkle_proof_input(
+    bridge_api_response: BridgeAPIResponse,
+) -> Option<MerkleProofInput> {
+    Some(MerkleProofInput {
+        data_root_proof: bridge_api_response.data_root_proof?,
+        leaf_proof: bridge_api_response.leaf_proof?,
+        range_hash: bridge_api_response.range_hash?,
+        data_root_index: bridge_api_response.data_root_index?,
+        blob_root: bridge_api_response.blob_root?,
+        bridge_root: bridge_api_response.bridge_root?,
+        leaf: bridge_api_response.leaf?,
+        leaf_index: bridge_api_response.leaf_index?,
+    })
 }
