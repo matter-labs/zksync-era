@@ -1,17 +1,8 @@
-use std::sync::Arc;
-
 use anyhow::Context;
 use zksync_config::configs::chain::MempoolConfig;
 use zksync_node_framework_derive::{FromContext, IntoContext};
-use zksync_state::{
-    AsyncCatchupTask, CommonStorage::Postgres, OwnedStorage, ReadStorageFactory,
-    RocksdbStorageOptions,
-};
-use zksync_state_keeper::{
-    seal_criteria::ConditionalSealer, AsyncRocksdbCache, MempoolFetcher, MempoolGuard,
-    ZkSyncStateKeeper,
-};
-use zksync_storage::RocksDB;
+use zksync_state::ReadStorageFactory;
+use zksync_state_keeper::{seal_criteria::ConditionalSealer, MempoolGuard};
 use zksync_vm_executor::interface::BatchExecutorFactory;
 use zksync_zkos_state_keeper::{OutputHandler, StateKeeperIO, ZkosStateKeeper};
 
@@ -21,12 +12,17 @@ use crate::{
         pools::{MasterPool, PoolResource},
         state_keeper::{ZkOsOutputHandlerResource, ZkOsStateKeeperIOResource},
     },
-    service::ShutdownHook,
     StopReceiver, Task, TaskId, WiringError, WiringLayer,
 };
 
 pub mod mempool_io;
 pub mod output_handler;
+
+/// Wiring layer for the state keeper.
+#[derive(Debug)]
+pub struct ZkOsStateKeeperLayer {
+    mempool_config: MempoolConfig,
+}
 
 #[derive(Debug, FromContext)]
 #[context(crate = crate)]
@@ -42,11 +38,6 @@ pub struct Input {
 pub struct Output {
     #[context(task)]
     pub state_keeper: ZkOsStateKeeperTask,
-}
-
-#[derive(Debug)]
-pub struct ZkOsStateKeeperLayer {
-    mempool_config: MempoolConfig,
 }
 
 impl ZkOsStateKeeperLayer {

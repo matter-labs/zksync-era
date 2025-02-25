@@ -16,9 +16,9 @@ funded. This list can be modified - added wallets are funded on server restart (
 
 **XL**:
 
-- Gas and pubdata price are hardcoded and/or ignored (zksync-era and zk_ee)
-  - `estimate_gas` returns `u32::MAX` instead of running the transaction
-  - mempool transactions are not filtered
+- Fee model (zksync-era and zk_ee)
+- Proper sandbox execution in API: full context is provided, validation can be run, maybe smth else (zksync-era and
+  zk_ee)
 - Tracing is not implemented (zksync-era and zk_ee)
 - Tree is not persisted and is rebuilt on every start. We need a persistent implementation (zksync-era)
 
@@ -32,8 +32,7 @@ funded. This list can be modified - added wallets are funded on server restart (
 - Genesis is commented out - we need to figure out what's expected there (zksync-era)
 - `zk_ee` [requires](https://github.com/matter-labs/zk_ee/blob/main/forward_system/src/run/tree.rs#L9) `'static` for
   storage provide - currently `RefCell` is used to satisfy it (zksync-era and zk_ee)
-- Make the error format and conditinos in `eth_call` compatible with Ethereum (zksync-era and zk_ee)
-- Transaction replacement is not supported (M, zksync-era)
+- Make the error format and conditions in `eth_call` compatible with Ethereum (zksync-era and zk_ee)
 
 **S**:
 

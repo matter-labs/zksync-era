@@ -3,20 +3,16 @@ use zksync_config::configs::{
     chain::{MempoolConfig, StateKeeperConfig},
     wallets,
 };
-use zksync_state_keeper::{MempoolFetcher, MempoolGuard, SequencerSealer};
-use zksync_types::{commitment::PubdataType, Address, L2ChainId};
+use zksync_state_keeper::{MempoolFetcher, MempoolGuard};
+use zksync_types::L2ChainId;
 use zksync_zkos_state_keeper::MempoolIO;
 
 use crate::{
     implementations::resources::{
         fee_input::SequencerFeeInputResource,
         pools::{MasterPool, PoolResource},
-        state_keeper::{
-            ConditionalSealerResource, StateKeeperIOResource, ZkOsStateKeeperIOResource,
-        },
+        state_keeper::ZkOsStateKeeperIOResource,
     },
-    service::StopReceiver,
-    task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
@@ -31,7 +27,6 @@ use crate::{
 /// ## Adds resources
 ///
 /// - `StateKeeperIOResource`
-/// - `ConditionalSealerResource`
 ///
 /// ## Adds tasks
 ///

@@ -124,14 +124,14 @@ impl MempoolFetcher {
                 (filter.fee_per_gas, filter.gas_per_pubdata)
             };
 
-            //todo: gas
+            //todo: gas per pubdata
             let transactions_with_constraints = storage
                 .transactions_dal()
                 .sync_mempool(
                     &mempool_info.stashed_accounts,
                     &mempool_info.purged_accounts,
                     0,
-                    0,
+                    fee_per_gas,
                     self.sync_batch_size,
                 )
                 .await
@@ -182,7 +182,7 @@ async fn get_transaction_nonces(
         .await
         .context("failed getting nonces from storage")?;
 
-    let storage_result: HashMap<Address, Nonce> = nonce_values
+    Ok(nonce_values
         .into_iter()
         .map(|(nonce_key, nonce_value)| {
             // `unwrap()` is safe by construction.
@@ -190,9 +190,7 @@ async fn get_transaction_nonces(
             let nonce = Nonce(u32::from_be_bytes(be_u32_bytes));
             (address_by_nonce_key[&nonce_key], nonce)
         })
-        .collect();
-
-    Ok(storage_result)
+        .collect())
 }
 
 #[cfg(test)]

@@ -14,6 +14,10 @@ use zksync_web3_decl::{
     client::{DynClient, L2},
     namespaces::EthNamespaceClient,
 };
+use zksync_zkos_state_keeper::{
+    io::StateKeeperOutputHandler as ZkOsStateKeeperOutputHandler,
+    UpdatesManager as ZkOsUpdatesManager,
+};
 
 /// `SyncState` is a structure that holds the state of the syncing process.
 /// The intended use case is to signalize to Web3 API whether the node is fully synced.
@@ -127,6 +131,24 @@ impl StateKeeperOutputHandler for SyncState {
     async fn handle_l1_batch(
         &mut self,
         updates_manager: Arc<UpdatesManager>,
+    ) -> anyhow::Result<()> {
+        let sealed_block_number = updates_manager.l2_block.number;
+        self.set_local_block(sealed_block_number);
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl ZkOsStateKeeperOutputHandler for SyncState {
+    async fn initialize(&mut self, cursor: &IoCursor) -> anyhow::Result<()> {
+        let sealed_block_number = cursor.next_l2_block.saturating_sub(1);
+        self.set_local_block(L2BlockNumber(sealed_block_number));
+        Ok(())
+    }
+
+    async fn handle_block(
+        &mut self,
+        updates_manager: Arc<ZkOsUpdatesManager>,
     ) -> anyhow::Result<()> {
         let sealed_block_number = updates_manager.l2_block.number;
         self.set_local_block(sealed_block_number);

@@ -25,7 +25,7 @@ use zksync_types::{
 use zksync_vm_interface::Halt;
 
 use crate::{
-    io::{BlockParams, StateKeeperIO},
+    io::{seal_logic::l2_block_seal_subtasks::L2BlockSealProcess, BlockParams, StateKeeperIO},
     millis_since_epoch,
 };
 
@@ -57,6 +57,8 @@ impl StateKeeperIO for MempoolIO {
         let mut storage = self.pool.connection_tagged("state_keeper").await?;
         let cursor = IoCursor::new(&mut storage).await?;
 
+        L2BlockSealProcess::clear_pending_l2_block(&mut storage, cursor.next_l2_block - 1).await?;
+
         Ok(cursor)
     }
 
@@ -77,10 +79,6 @@ impl StateKeeperIO for MempoolIO {
             let protocol_version = unsealed_storage_batch
                 .protocol_version
                 .context("unsealed batch is missing protocol version")?;
-            // let (base_fee, gas_per_pubdata) = derive_base_fee_and_gas_per_pubdata(
-            //     unsealed_storage_batch.fee_input,
-            //     protocol_version.into(),
-            // );
 
             // TODO: zk os fee model
             let base_fee = unsealed_storage_batch.fee_input.fair_l2_gas_price();
@@ -111,6 +109,8 @@ impl StateKeeperIO for MempoolIO {
             let Some(timestamp) = timestamp.await.ok() else {
                 return Ok((None, None));
             };
+
+            // TODO: zk os protocol versions/upgrades
             let protocol_version = ProtocolVersionId::latest();
 
             tracing::trace!(

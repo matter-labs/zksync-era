@@ -17,7 +17,7 @@ pub trait StateKeeperOutputHandler: 'static + Send + fmt::Debug {
         Ok(())
     }
 
-    ///
+    /// Handles a new L1 batch opening.
     async fn handle_open_batch(&mut self, _header: UnsealedL1BatchHeader) -> anyhow::Result<()> {
         Ok(())
     }

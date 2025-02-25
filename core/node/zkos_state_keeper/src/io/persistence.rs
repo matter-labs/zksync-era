@@ -15,14 +15,14 @@ use crate::{
     updates::{L2BlockSealCommand, UpdatesManager},
 };
 
-/// Canonical [`HandleStateKeeperOutput`] implementation that stores processed L2 blocks and L1 batches to Postgres.
+/// Canonical [`StateKeeperOutputHandler`] implementation that queues storing of L2 blocks and L1 batches to Postgres.
 #[derive(Debug)]
 pub struct StateKeeperPersistence {
     pool: ConnectionPool<Core>,
     pre_insert_txs: bool,
     commands_sender: mpsc::Sender<Completable<PersistenceCommand>>,
     latest_completion_receiver: Option<oneshot::Receiver<()>>,
-    // If true, `submit_l2_block()` will wait for the operation to complete.
+    // If true, submitting new command will wait for the operation to complete.
     is_sync: bool,
 }
 

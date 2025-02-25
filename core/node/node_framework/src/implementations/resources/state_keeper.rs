@@ -26,7 +26,7 @@ impl<T: StateKeeperIO> From<T> for StateKeeperIOResource {
     }
 }
 
-/// A resource that provides [`StateKeeperIO`] implementation to the service.
+/// A resource that provides [`ZkOsStateKeeperIO`] implementation to the service.
 /// This resource is unique, e.g. it's expected to be consumed by a single service.
 #[derive(Debug, Clone)]
 pub struct ZkOsStateKeeperIOResource(pub Unique<Box<dyn ZkOsStateKeeperIO>>);
@@ -80,7 +80,7 @@ impl From<OutputHandler> for OutputHandlerResource {
     }
 }
 
-/// A resource that provides [`OutputHandler`] implementation to the service.
+/// A resource that provides [`ZkOsOutputHandler`] implementation to the service.
 /// This resource is unique, e.g. it's expected to be consumed by a single service.
 #[derive(Debug, Clone)]
 pub struct ZkOsOutputHandlerResource(pub Unique<ZkOsOutputHandler>);

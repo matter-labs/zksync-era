@@ -20,12 +20,14 @@ pub struct BlockParams {
     pub timestamp: u64,
     /// Fee parameters to be used in the new L1 batch.
     pub fee_input: BatchFeeInput,
+    /// Protocol version for the new L1 batch.
     pub protocol_version: ProtocolVersionId,
+    // TODO: should be derivable from fee input?
     pub base_fee: u64,
 }
 
 /// Provides the interactive layer for the state keeper:
-/// it's used to receive volatile parameters (such as batch parameters) and sequence transactions
+/// it's used to receive volatile parameters (such as block parameters) and sequence transactions
 /// providing L2 block and L1 batch boundaries for them.
 ///
 /// Methods with `&self` receiver must be cancel-safe; i.e., they should not use interior mutability

@@ -29,7 +29,7 @@ use crate::{
 ///
 /// ## Adds tasks
 ///
-/// - `L2BlockSealerTask`
+/// - `BlockPersistenceTask`
 #[derive(Debug)]
 pub struct OutputHandlerLayer {
     /// Whether transactions should be pre-inserted to DB.
@@ -95,10 +95,10 @@ impl WiringLayer for OutputHandlerLayer {
             persistence = persistence.with_tx_insertion();
         }
 
-        let output_handler = OutputHandler::new(Box::new(persistence));
-        // if let Some(sync_state) = input.sync_state {
-        //     output_handler = output_handler.with_handler(Box::new(sync_state.0));
-        // }
+        let mut output_handler = OutputHandler::new(Box::new(persistence));
+        if let Some(sync_state) = input.sync_state {
+            output_handler = output_handler.with_handler(Box::new(sync_state.0));
+        }
         let output_handler = ZkOsOutputHandlerResource(Unique::new(output_handler));
 
         Ok(Output {

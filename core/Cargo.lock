@@ -12247,6 +12247,7 @@ dependencies = [
  "zksync_types",
  "zksync_vm_executor",
  "zksync_web3_decl",
+ "zksync_zkos_state_keeper",
 ]
 
 [[package]]
