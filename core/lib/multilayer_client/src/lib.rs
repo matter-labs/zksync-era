@@ -1,18 +1,22 @@
-use async_trait::async_trait;
-use std::fmt::Debug;
-use std::sync::{Arc, RwLock};
-
-use zksync_basic_types::ethabi::Contract;
-use zksync_basic_types::settlement::SettlementMode;
-use zksync_basic_types::web3::{
-    Block, BlockId, BlockNumber, Bytes, CallRequest, Filter, Log, Transaction, TransactionReceipt,
+use std::{
+    fmt::Debug,
+    sync::{Arc, RwLock},
 };
-use zksync_basic_types::{Address, SLChainId, H160, H256, U256, U64};
+
+use async_trait::async_trait;
+use zksync_basic_types::{
+    ethabi::Contract,
+    settlement::SettlementMode,
+    web3::{
+        Block, BlockId, BlockNumber, Bytes, CallRequest, Filter, Log, Transaction,
+        TransactionReceipt,
+    },
+    Address, SLChainId, H160, H256, U256, U64,
+};
 use zksync_contracts::getters_facet_contract;
-use zksync_eth_client::{BoundEthInterface, CallFunctionArgs, EthInterface, Options};
 use zksync_eth_client::{
-    ContractCallError, EnrichedClientResult, ExecutedTxStatus, FailureInfo, RawTransactionBytes,
-    SignedCallResult, SigningError,
+    BoundEthInterface, CallFunctionArgs, ContractCallError, EnrichedClientResult, EthInterface,
+    ExecutedTxStatus, FailureInfo, Options, RawTransactionBytes, SignedCallResult, SigningError,
 };
 
 #[derive(Debug)]

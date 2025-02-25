@@ -165,7 +165,6 @@ impl WiringLayer for EthTxAggregatorLayer {
             eth_client_blobs_addr,
             self.l1_batch_commit_data_generator_mode,
             replica_pool.clone(),
-            eth_client.clone(),
             self.settlement_mode,
         )
         .await?;

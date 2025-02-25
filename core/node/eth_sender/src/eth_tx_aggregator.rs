@@ -2,7 +2,7 @@ use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_eth_client::{BoundEthInterface, CallFunctionArgs, ContractCallError};
+use zksync_eth_client::{BoundEthInterface, CallFunctionArgs, ContractCallError, EthInterface};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_l1_contract_interface::{
     i_executor::{
@@ -22,7 +22,7 @@ use zksync_types::{
     protocol_version::{L1VerifierConfig, PACKED_SEMVER_MINOR_MASK},
     pubdata_da::PubdataSendingMode,
     settlement::SettlementMode,
-    web3::{contract::Error as Web3ContractError, BlockNumber},
+    web3::{contract::Error as Web3ContractError, BlockNumber, CallRequest},
     Address, L2ChainId, ProtocolVersionId, SLChainId, H256, U256,
 };
 
@@ -81,6 +81,7 @@ pub struct EthTxAggregator {
     settlement_mode: SettlementMode,
     sl_chain_id: SLChainId,
     health_updater: HealthUpdater,
+    priority_tree_start_index: Option<usize>,
 }
 
 struct TxData {
@@ -140,6 +141,7 @@ impl EthTxAggregator {
             settlement_mode,
             sl_chain_id,
             health_updater: ReactiveHealthCheck::new("eth_tx_aggregator").1,
+            priority_tree_start_index: None,
         }
     }
 
@@ -553,6 +555,15 @@ impl EthTxAggregator {
             fflonk_snark_wrapper_vk_hash,
         };
 
+        let priority_tree_start_index =
+            if let Some(priority_tree_start_index) = self.priority_tree_start_index {
+                Some(priority_tree_start_index)
+            } else {
+                self.priority_tree_start_index =
+                    get_priority_tree_start_index(self.eth_client.as_ref()).await?;
+                self.priority_tree_start_index
+            };
+
         let mut op_restrictions = OperationSkippingRestrictions {
             commit_restriction: self
                 .config
@@ -581,6 +592,7 @@ impl EthTxAggregator {
                 chain_protocol_version_id,
                 l1_verifier_config,
                 op_restrictions,
+                priority_tree_start_index,
             )
             .await?
         {
@@ -843,4 +855,61 @@ impl EthTxAggregator {
     pub fn health_check(&self) -> ReactiveHealthCheck {
         self.health_updater.subscribe()
     }
+}
+
+async fn query_contract(
+    l1_client: &dyn BoundEthInterface,
+    method_name: &str,
+    params: &[Token],
+) -> Result<Token, EthSenderError> {
+    let data = l1_client
+        .contract()
+        .function(method_name)
+        .unwrap()
+        .encode_input(params)
+        .unwrap();
+
+    let eth_interface: &dyn EthInterface = AsRef::<dyn EthInterface>::as_ref(l1_client);
+
+    let result = eth_interface
+        .call_contract_function(
+            CallRequest {
+                data: Some(data.into()),
+                to: Some(l1_client.contract_addr()),
+                ..CallRequest::default()
+            },
+            None,
+        )
+        .await?;
+    Ok(l1_client
+        .contract()
+        .function(method_name)
+        .unwrap()
+        .decode_output(&result.0)
+        .unwrap()[0]
+        .clone())
+}
+
+async fn get_priority_tree_start_index(
+    l1_client: &dyn BoundEthInterface,
+) -> Result<Option<usize>, EthSenderError> {
+    let packed_semver = query_contract(l1_client, "getProtocolVersion", &[])
+        .await?
+        .into_uint()
+        .unwrap();
+
+    // We always expect the provided version to be correct, so we panic if it is not
+    let version = ProtocolVersionId::try_from_packed_semver(packed_semver).unwrap();
+
+    // For pre-gateway versions the index is not supported.
+    if version.is_pre_gateway() {
+        return Ok(None);
+    }
+
+    let priority_tree_start_index = query_contract(l1_client, "getPriorityTreeStartIndex", &[])
+        .await?
+        .into_uint()
+        .unwrap();
+
+    Ok(Some(priority_tree_start_index.as_usize()))
 }
