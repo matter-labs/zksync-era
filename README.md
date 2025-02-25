@@ -12,8 +12,6 @@ On server start, the wallets listed
 [here](https://github.com/matter-labs/zksync-era/blob/zkos-dev/core/node/zkos_state_keeper/src/keeper.rs#L188) are
 funded. This list can be modified - added wallets are funded on server restart (no regenesis is needed)
 
-Note: The chain id is hardcoded as `37`, as this value is hardcoded on the Zk OS side.
-
 **TODOs and missing features:**
 
 **XL**:

@@ -156,7 +156,7 @@ impl ZkosStateKeeper {
                 gas_per_pubdata: Default::default(),
                 block_number: cursor.next_l2_block.0 as u64,
                 timestamp: block_params.timestamp,
-                chain_id: 37,
+                chain_id: self.io.chain_id().as_u64(),
                 gas_limit,
                 coinbase: Default::default(),
                 block_hashes: Default::default(),
