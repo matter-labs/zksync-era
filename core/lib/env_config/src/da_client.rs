@@ -1,5 +1,6 @@
 use std::{env, str::FromStr};
 
+use anyhow::Context;
 use zksync_basic_types::{url::SensitiveUrl, H160};
 use zksync_config::{
     configs::{
@@ -25,7 +26,7 @@ pub fn da_client_config_from_env(prefix: &str) -> anyhow::Result<DAClientConfig>
     let client_tag = env::var(format!("{}CLIENT", prefix))?;
     let config = match client_tag.as_str() {
         AVAIL_CLIENT_CONFIG_NAME => DAClientConfig::Avail(AvailConfig {
-            bridge_api_url: env::var(format!("{}BRIDGE_API_URL", prefix)).ok().unwrap(),
+            bridge_api_url: env::var(format!("{}BRIDGE_API_URL", prefix))?,
             timeout_ms: env::var(format!("{}TIMEOUT_MS", prefix))?.parse()?,
             config: match env::var(format!("{}AVAIL_CLIENT_TYPE", prefix))?.as_str() {
                 AVAIL_FULL_CLIENT_NAME => {
@@ -109,13 +110,13 @@ pub fn da_client_secrets_from_env(prefix: &str) -> anyhow::Result<DataAvailabili
         }
         CELESTIA_CLIENT_CONFIG_NAME => {
             let private_key = env::var(format!("{}SECRETS_PRIVATE_KEY", prefix))
-                .map_err(|e| anyhow::format_err!("Celestia private key not found: {}", e))?
+                .context("Celestia private key not found")?
                 .into();
             DataAvailabilitySecrets::Celestia(CelestiaSecrets { private_key })
         }
         EIGEN_CLIENT_CONFIG_NAME => {
             let private_key = env::var(format!("{}SECRETS_PRIVATE_KEY", prefix))
-                .map_err(|e| anyhow::format_err!("Eigen private key not found: {}", e))?
+                .context("Eigen private key not found")?
                 .into();
             DataAvailabilitySecrets::Eigen(EigenSecrets { private_key })
         }
