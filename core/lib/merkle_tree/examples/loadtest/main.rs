@@ -43,7 +43,7 @@ struct Cli {
     /// Number of commits to perform.
     #[arg(name = "commits")]
     commit_count: u64,
-    /// Number of inserts / updates per commit.
+    /// Number of inserts per commit.
     #[arg(name = "ops")]
     writes_per_commit: usize,
     /// Generate Merkle proofs for each operation.
