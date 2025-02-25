@@ -170,7 +170,7 @@ impl UpdatesManager {
         L2BlockSealCommand {
             l1_batch_number: self.l1_batch_number,
             l2_block: self.l2_block.clone(),
-            first_tx_index: self.l2_block.executed_transactions.len(),
+            first_tx_index: 0,
             fee_account_address: self.fee_account_address,
             fee_input: self.batch_fee_input,
             base_fee_per_gas: self.base_fee_per_gas,
