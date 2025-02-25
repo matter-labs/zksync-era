@@ -1,8 +1,7 @@
-use anyhow::Context;
 use zksync_config::{configs::gateway::GatewayChainConfig, ContractsConfig, EthWatchConfig};
-use zksync_contracts::chain_admin_contract;
+use zksync_contracts::{chain_admin_contract, gateway_migration_contract};
 use zksync_eth_watch::{EthHttpQueryClient, EthWatch, L2EthClient};
-use zksync_types::{settlement::SettlementMode, L2ChainId};
+use zksync_types::L2ChainId;
 
 use crate::{
     implementations::resources::{
@@ -24,7 +23,6 @@ pub struct EthWatchLayer {
     eth_watch_config: EthWatchConfig,
     contracts_config: ContractsConfig,
     gateway_chain_config: Option<GatewayChainConfig>,
-    settlement_mode: SettlementMode,
     chain_id: L2ChainId,
 }
 
@@ -48,14 +46,14 @@ impl EthWatchLayer {
         eth_watch_config: EthWatchConfig,
         contracts_config: ContractsConfig,
         gateway_chain_config: Option<GatewayChainConfig>,
-        settlement_mode: SettlementMode,
+        // settlement_mode: SettlementMode,
         chain_id: L2ChainId,
     ) -> Self {
         Self {
             eth_watch_config,
             contracts_config,
             gateway_chain_config,
-            settlement_mode,
+            // settlement_mode,
             chain_id,
         }
     }
@@ -74,21 +72,15 @@ impl WiringLayer for EthWatchLayer {
         let main_pool = input.master_pool.get().await?;
         let client = input.eth_client.0;
 
-        let sl_diamond_proxy_addr = if self.settlement_mode.is_gateway() {
-            self.gateway_chain_config
-                .clone()
-                .context("Lacking `gateway_contracts_config`")?
-                .diamond_proxy_addr
-        } else {
-            self.contracts_config.diamond_proxy_addr
-        };
         tracing::info!(
             "Diamond proxy address ethereum: {:#?}",
             self.contracts_config.diamond_proxy_addr
         );
         tracing::info!(
-            "Diamond proxy address settlement_layer: {:#?}",
-            sl_diamond_proxy_addr
+            "Diamond proxy address gateway settlement_layer: {:#?}",
+            self.gateway_chain_config
+                .as_ref()
+                .map(|a| a.diamond_proxy_addr)
         );
 
         let l1_client = EthHttpQueryClient::new(
@@ -108,6 +100,11 @@ impl WiringLayer for EthWatchLayer {
                 .as_ref()
                 .map(|a| a.state_transition_proxy_addr),
             self.contracts_config.chain_admin_addr,
+            self.contracts_config
+                .ecosystem_contracts
+                .as_ref()
+                .map(|a| a.server_notifier_addr)
+                .flatten(),
             self.contracts_config.governance_addr,
             self.eth_watch_config.confirmations_for_eth_event,
             self.chain_id,
@@ -126,7 +123,12 @@ impl WiringLayer for EthWatchLayer {
                     // Only present on L1.
                     None,
                     Some(contracts_config.state_transition_proxy_addr),
-                    contracts_config.chain_admin_addr,
+                    Some(contracts_config.chain_admin_addr),
+                    self.contracts_config
+                        .ecosystem_contracts
+                        .as_ref()
+                        .map(|a| a.server_notifier_addr)
+                        .flatten(),
                     contracts_config.governance_addr,
                     self.eth_watch_config.confirmations_for_eth_event,
                     self.chain_id,
@@ -137,6 +139,7 @@ impl WiringLayer for EthWatchLayer {
 
         let eth_watch = EthWatch::new(
             &chain_admin_contract(),
+            &gateway_migration_contract(),
             Box::new(l1_client),
             sl_l2_client,
             main_pool,

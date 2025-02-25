@@ -4,6 +4,7 @@ use zksync_config::{
     EthConfig,
 };
 use zksync_eth_client::{clients::PKSigningClient, EthInterface};
+use zksync_types::Address;
 
 use crate::{
     implementations::resources::eth_interface::{
@@ -106,7 +107,8 @@ impl WiringLayer for PKSigningEthClientLayer {
                 let GatewayEthInterfaceResource(gateway_client) = client;
                 let signing_client_for_blobs = PKSigningClient::new_raw(
                     private_key.clone(),
-                    gateway_contracts.diamond_proxy_addr,
+                    // TODO we don't have diamond proxy here by default
+                    Address::zero(),
                     gas_adjuster_config.default_priority_fee_per_gas,
                     gateway_contracts.gateway_chain_id,
                     gateway_client.clone(),
