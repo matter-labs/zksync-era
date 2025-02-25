@@ -1,0 +1,18 @@
+[package]
+name = "multilayer_client"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+zksync_eth_client.workspace = true
+zksync_basic_types.workspace = true
+tokio.workspace = true
+async-trait.workspace = true
+zksync_contracts.workspace = true
+anyhow.workspace = true

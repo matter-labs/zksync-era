@@ -5394,6 +5394,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "multilayer_client"
+version = "26.4.0-non-semver-compat"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "tokio",
+ "zksync_basic_types",
+ "zksync_contracts",
+ "zksync_eth_client",
+]
+
+[[package]]
 name = "multimap"
 version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
