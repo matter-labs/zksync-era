@@ -333,42 +333,40 @@ zksync_node_api_server = { version = "26.4.0-non-semver-compat", path = "node/ap
 zksync_base_token_adjuster = { version = "26.4.0-non-semver-compat", path = "node/base_token_adjuster" }
 zksync_logs_bloom_backfill = { version = "26.4.0-non-semver-compat", path = "node/logs_bloom_backfill" }
 
-[profile.test.package.zksync_basic_types]
+# Test profile settings to optimize unit tests compilation and execution time
+[profile.dev.package.zksync_basic_types]
 opt-level = 3
 
-[profile.test.package.zksync_crypto_primitives]
+[profile.dev.package.zksync_crypto_primitives]
 opt-level = 3
 
-[profile.test.package.zksync_vm_runner]
+[profile.dev.package.zksync_vm_runner]
 opt-level = 3
 
-[profile.test.package.zksync_mini_merkle_tree]
+[profile.dev.package.zksync_mini_merkle_tree]
 opt-level = 3
 
-[profile.test.package.zksync_multivm]
+[profile.dev.package.zksync_multivm]
 opt-level = 3
 
-[profile.test.package.vm-benchmark]
+[profile.dev.package.vm-benchmark]
 opt-level = 3
 
-[profile.test.package.zksync_pairing]
+[profile.dev.package.zksync_pairing]
 opt-level = 3
 
-[profile.test.package.zksync_eth_sender]
+[profile.dev.package.zksync_eth_sender]
 opt-level = 3
 
-[profile.test.package.zksync_consistency_checker]
+[profile.dev.package.zksync_consistency_checker]
 opt-level = 3
 
-# Enable a large amount of optimization in the dev profile for dependencies.
-[profile.test.package."*"]
+[profile.dev.package."*"]
 opt-level = 3
 
-# Enable a small amount of optimization in the dev profile.
-[profile.test]
-# opt-level = 1
+[profile.dev]
 debug = 0
 strip = "debuginfo"
 
-[profile.test.build-override]
+[profile.dev.build-override]
 opt-level = 3

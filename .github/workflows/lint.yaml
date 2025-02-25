@@ -38,8 +38,12 @@ jobs:
       - name: Rust unit tests
         run: zkstack dev test rust
 
+      - name: Run benchmarks
+        run: cargo test --package vm-benchmark --bench oneshot --bench batch
+
       - name: Show sccache stats
         run: sccache --show-stats
+
 
 #  load-test:
 #    runs-on: matterlabs-ci-runner-high-performance

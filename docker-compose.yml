@@ -50,8 +50,8 @@ services:
       - ZKSYNC_USE_CUDA_STUBS=true
       - CI=1
       - GITHUB_WORKSPACE=$GITHUB_WORKSPACE
-#    env_file:
-#      - ./.env
+    env_file:
+      - ./.env
     extra_hosts:
       - "host:host-gateway"
     profiles:
