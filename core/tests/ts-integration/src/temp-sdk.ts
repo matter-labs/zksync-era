@@ -39,7 +39,7 @@ export async function getInteropBundleData(
     const { message } = response!;
 
     // Decode the interop message
-    const decodedRequest = ethers.AbiCoder.defaultAbiCoder().decode([INTEROP_BUNDLE_ABI], '0x' + message.slice(2));
+    const decodedRequest = ethers.AbiCoder.defaultAbiCoder().decode([INTEROP_BUNDLE_ABI], '0x' + message.slice(3));
     let calls = [];
     for (let i = 0; i < decodedRequest[0][1].length; i++) {
         calls.push({
@@ -108,7 +108,7 @@ export async function getInteropTriggerData(
     // console.log("trigger message", message)
     // console.log("withdrawalHash", withdrawalHash)
 
-    let decodedRequest = ethers.AbiCoder.defaultAbiCoder().decode([INTEROP_TRIGGER_ABI], '0x' + message.slice(2));
+    let decodedRequest = ethers.AbiCoder.defaultAbiCoder().decode([INTEROP_TRIGGER_ABI], '0x' + message.slice(3));
 
     // console.log("decodedRequest", decodedRequest)
 
