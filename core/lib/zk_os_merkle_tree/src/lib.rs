@@ -127,6 +127,17 @@ impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
         self.root_hash(version)
     }
 
+    /// Creates a batch proof for `keys` at the specified tree version.
+    ///
+    /// # Errors
+    ///
+    /// - Returns an error if the version doesn't exist.
+    /// - Proxies database errors.
+    pub fn prove(&self, version: u64, keys: &[H256]) -> anyhow::Result<BatchTreeProof> {
+        let (patch, mut update) = self.create_patch(version, &[], keys)?;
+        Ok(patch.create_batch_proof(&self.hasher, vec![], update.take_read_operations()))
+    }
+
     /// Extends this tree by creating its new version.
     ///
     /// All keys in the provided entries must be distinct.

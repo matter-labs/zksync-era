@@ -316,6 +316,70 @@ fn incrementally_extending_tree_with_proofs() {
     }
 }
 
+fn test_read_proofs(db: impl Database) {
+    const RNG_SEED: u64 = 111;
+
+    let mut tree = MerkleTree::new(db).unwrap();
+    let empty_tree_output = tree.extend(&[]).unwrap();
+
+    let mut rng = StdRng::seed_from_u64(RNG_SEED);
+    let nodes = (0..1_000).map(|_| TreeEntry {
+        key: H256(rng.gen()),
+        value: H256(rng.gen()),
+    });
+    let inserts: Vec<_> = nodes.collect();
+    let mut inserted_keys: Vec<_> = inserts.iter().map(|entry| entry.key).collect();
+    inserted_keys.shuffle(&mut rng);
+
+    let new_tree_output = tree.extend(&inserts).unwrap();
+
+    // Create and check a proof at version 0 (i.e., before inserting entries).
+    let proof = tree.prove(0, &inserted_keys).unwrap();
+    let proven_tree_view = proof
+        .verify_reads(&Blake2Hasher, 64, empty_tree_output, &inserted_keys)
+        .unwrap();
+    assert_eq!(proven_tree_view.root_hash, empty_tree_output.root_hash);
+    assert_eq!(proven_tree_view.read_entries.len(), inserted_keys.len());
+    for key in &inserted_keys {
+        assert_eq!(proven_tree_view.read_entries[key], None);
+    }
+
+    // Create a proof for all inserted keys.
+    let proof = tree.prove(1, &inserted_keys).unwrap();
+    let proven_tree_view = proof
+        .verify_reads(&Blake2Hasher, 64, new_tree_output, &inserted_keys)
+        .unwrap();
+    assert_eq!(proven_tree_view.root_hash, new_tree_output.root_hash);
+    assert_eq!(proven_tree_view.read_entries.len(), inserted_keys.len());
+    for key in &inserted_keys {
+        assert!(proven_tree_view.read_entries[key].is_some());
+    }
+
+    // Create proof for key chunks and also mix some missing keys.
+    for chunk_size in [1, 2, 3, 5, 8, 13] {
+        println!("Using chunk size {chunk_size}");
+        for proven_keys in inserted_keys.chunks_exact(chunk_size) {
+            let mut proven_keys = proven_keys.to_vec();
+            proven_keys.extend((0..chunk_size).map(|_| H256(rng.gen())));
+
+            let proof = tree.prove(1, &proven_keys).unwrap();
+            let proven_tree_view = proof
+                .verify_reads(&Blake2Hasher, 64, new_tree_output, &proven_keys)
+                .unwrap();
+            assert_eq!(proven_tree_view.root_hash, new_tree_output.root_hash);
+            assert_eq!(proven_tree_view.read_entries.len(), proven_keys.len());
+            for (i, key) in proven_keys.iter().enumerate() {
+                assert_eq!(proven_tree_view.read_entries[key].is_some(), i < chunk_size);
+            }
+        }
+    }
+}
+
+#[test]
+fn read_proofs() {
+    test_read_proofs(PatchSet::default());
+}
+
 mod rocksdb {
     use tempfile::TempDir;
 
@@ -364,5 +428,12 @@ mod rocksdb {
                 test_incrementally_extending_tree_with_proofs(db, update_count, 0);
             }
         }
+    }
+
+    #[test]
+    fn read_proofs() {
+        let temp_dir = TempDir::new().unwrap();
+        let db = RocksDBWrapper::new(temp_dir.path()).unwrap();
+        test_read_proofs(db);
     }
 }

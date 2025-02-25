@@ -509,7 +509,7 @@ impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
         let started_at = Instant::now();
         let lookup = self
             .db
-            .indices(u64::MAX, &touched_keys)
+            .indices(latest_version, &touched_keys)
             .context("failed loading indices")?;
         tracing::debug!(elapsed = ?started_at.elapsed(), "loaded lookup info");
 

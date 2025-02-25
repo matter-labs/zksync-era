@@ -74,6 +74,17 @@ impl BatchTreeProof {
         }
     }
 
+    /// Shortcut for verifying a proof that should only contain read operations.
+    pub fn verify_reads(
+        self,
+        hasher: &dyn HashTree,
+        tree_depth: u8,
+        prev_output: BatchOutput,
+        read_keys: &[H256],
+    ) -> anyhow::Result<MerkleTreeView> {
+        self.verify(hasher, tree_depth, Some(prev_output), &[], read_keys)
+    }
+
     /// Returns the new root hash of the tree on success.
     pub fn verify(
         mut self,
@@ -144,6 +155,14 @@ impl BatchTreeProof {
             restored_prev_hash == prev_output.root_hash,
             "Mismatch for previous root hash: prev_output={prev_output:?}, restored={restored_prev_hash:?}"
         );
+
+        if self.operations.is_empty() {
+            // No updates or inserts, so we can exit early
+            return Ok(MerkleTreeView {
+                root_hash: restored_prev_hash,
+                read_entries,
+            });
+        }
 
         // Expand `leaves` with the newly inserted leaves and update the existing leaves.
         for (&operation, entry) in self.operations.iter().zip(entries) {
