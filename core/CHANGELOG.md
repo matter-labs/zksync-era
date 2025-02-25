@@ -1,5 +1,24 @@
 # Changelog
 
+## [26.5.0](https://github.com/matter-labs/zksync-era/compare/core-v26.4.0...core-v26.5.0) (2025-02-25)
+
+
+### Features
+
+* add a flag for stage1-&gt;stage2 validium migration ([#3562](https://github.com/matter-labs/zksync-era/issues/3562)) ([92e7895](https://github.com/matter-labs/zksync-era/commit/92e78955850e59f16967dff20122d56144509498))
+* **da-clients:** raise Avail blob size to 1mb ([#3624](https://github.com/matter-labs/zksync-era/issues/3624)) ([0baa7ff](https://github.com/matter-labs/zksync-era/commit/0baa7ff61805e90b1eaac202ed6e26f5cacfb532))
+* **eigenda:** implement eigenDA client remaining features ([#3243](https://github.com/matter-labs/zksync-era/issues/3243)) ([88fc971](https://github.com/matter-labs/zksync-era/commit/88fc9714b42e3cb81dab970ec55b2bbfe0c49f52))
+* preparation for new precompiles ([#3535](https://github.com/matter-labs/zksync-era/issues/3535)) ([3c1f3fb](https://github.com/matter-labs/zksync-era/commit/3c1f3fb0f24d1c19dce52b98df521703fa1bf638))
+* **tee:** add support for recoverable signatures ([#3414](https://github.com/matter-labs/zksync-era/issues/3414)) ([7241a73](https://github.com/matter-labs/zksync-era/commit/7241a73b27d0e71cbe6644a741a685bf45d11d5f))
+
+
+### Bug Fixes
+
+* **api:** Fix pending transactions filter again ([#3630](https://github.com/matter-labs/zksync-era/issues/3630)) ([7afa20f](https://github.com/matter-labs/zksync-era/commit/7afa20f74ee54af0b49e2f42f7e673de26a07e4f))
+* **api:** lock simultaneous tx insertsion with mutex ([#3616](https://github.com/matter-labs/zksync-era/issues/3616)) ([644b621](https://github.com/matter-labs/zksync-era/commit/644b62144da7bc1d12190c6e7cd2863aaaae985a))
+* block.timestamp is not accurate ([#3398](https://github.com/matter-labs/zksync-era/issues/3398)) ([adcb517](https://github.com/matter-labs/zksync-era/commit/adcb5172bf9aba308ae23c9031d32834be6997ea))
+* Fflonk versioning ([#3610](https://github.com/matter-labs/zksync-era/issues/3610)) ([fc80840](https://github.com/matter-labs/zksync-era/commit/fc80840d355aab1e8c65ca60bd2f5cb12e0638ab))
+
 ## [26.4.0](https://github.com/matter-labs/zksync-era/compare/core-v26.3.0...core-v26.4.0) (2025-02-13)
 
 
