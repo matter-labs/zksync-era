@@ -51,13 +51,13 @@ Block reverter performs following operations:
 
 	```bash
 	root@server-0:/# RUST_LOG=info ETH_SENDER_SENDER_OPERATOR_PRIVATE_KEY=CHANGE_ME ./usr/bin/block_reverter send-eth-transaction \
-	--l1-batch-number CHANGE_ME \
-	--nonce CHANGE_ME \
 	--genesis-path=/config/genesis/genesis.yaml \
 	--wallets-path=/config/wallets/wallets.yaml \
 	--config-path=/config/general/general.yaml \
 	--contracts-config-path=/config/contracts/contracts.yaml \
-	--secrets-path=/config/server-v2-secrets/server-v2-secrets.yaml
+	--secrets-path=/config/server-v2-secrets/server-v2-secrets.yaml \
+	--l1-batch-number CHANGE_ME \
+	--nonce CHANGE_ME
 	Mar 27 11:50:36.347  INFO zksync_eth_client::ethereum_gateway: Operator address: 0x01239bb69d0c5f795de5c86fd00d25f9cd3b9deb
 	waiting for L1 transaction confirmation...
 	revert transaction has completed
@@ -73,7 +73,14 @@ Block reverter performs following operations:
 - Rollback tree: run `rollback-db` with `--rollback-tree` flag
 
 	```bash
-	root@server-0:/# RUST_LOG=info ./usr/bin/block_reverter rollback-db --l1-batch-number CHANGE_ME --rollback-tree
+	root@server-0:/# RUST_LOG=info ./usr/bin/block_reverter rollback-db \
+	--genesis-path=/config/genesis/genesis.yaml \
+	--wallets-path=/config/wallets/wallets.yaml \
+	--config-path=/config/general/general.yaml \
+	--contracts-config-path=/config/contracts/contracts.yaml \
+	--secrets-path=/config/server/secrets.yaml \
+	--l1-batch-number CHANGE_ME \
+	--rollback-tree
 
 	{"timestamp":"2022-08-30T10:32:11.312280583Z","level":"INFO","fields":{"message":"Operator address: 0x85b7b2fcfd6d3e5c063e7a5063359f4e6b3fec29"},"target":"zksync_eth_client::clients::http_client"}
 	getting logs that should be applied to rollback state...
@@ -90,7 +97,14 @@ Block reverter performs following operations:
 - Rollback state keeper cache: run `rollback-db` with `--rollback-sk-cache`
 
 	```bash
-	root@server-0:/# RUST_LOG=info ./usr/bin/block_reverter rollback-db --l1-batch-number CHANGE_ME 
+	root@server-0:/# RUST_LOG=info ./usr/bin/block_reverter rollback-db \
+	--genesis-path=/config/genesis/genesis.yaml \
+	--wallets-path=/config/wallets/wallets.yaml \
+	--config-path=/config/general/general.yaml \
+	--contracts-config-path=/config/contracts/contracts.yaml \
+	--secrets-path=/config/server/secrets.yaml \
+	--l1-batch-number CHANGE_ME \
+	--rollback-sk-cache
 
 	{"timestamp":"2022-08-30T10:37:17.99102197Z","level":"INFO","fields":{"message":"Operator address: 0x85b7b2fcfd6d3e5c063e7a5063359f4e6b3fec29"},"target":"zksync_eth_client::clients::http_client"}
 	getting logs that should be applied to rollback state...
@@ -105,20 +119,40 @@ Block reverter performs following operations:
 
 - Rollback vm runners’ caches: connect to each vm-runner instance and run command
 
-	```
-	./usr/bin/block_reverter rollback-db --l1-batch-number CHANGE_ME --rollback-vm-runners-cache
+	```bash
+	./usr/bin/block_reverter rollback-db \ 
+	--genesis-path=/config/genesis/genesis.yaml \
+	--wallets-path=/config/wallets/wallets.yaml \
+	--config-path=/config/general/general.yaml \
+	--contracts-config-path=/config/contracts/contracts.yaml \
+	--secrets-path=/config/server/secrets.yaml \
+	--l1-batch-number CHANGE_ME \
+	--rollback-vm-runners-cache
 	```
 
 - Rollback postgres:
 
-	```
-	root@server-0:/# ./r/bin/block_reverter rollback-db --l1-batch-number CHANGE_ME --rollback-postgresus
+	```bash
+	root@server-0:/# ./r/bin/block_reverter rollback-db \ 
+	--genesis-path=/config/genesis/genesis.yaml \
+	--wallets-path=/config/wallets/wallets.yaml \
+	--config-path=/config/general/general.yaml \
+	--contracts-config-path=/config/contracts/contracts.yaml \
+	--secrets-path=/config/server/secrets.yaml \
+	--l1-batch-number CHANGE_ME \
+	--l1-batch-number CHANGE_ME --rollback-postgresus
 	```
 
-- Clear l1 txs
+- Clear failed l1 txs
     
-    ```jsx
-    root@server-0:/# ./usr/bin/block_reverter clear-failed-transactions 
+    ```bash
+    root@server-0:/# ./usr/bin/block_reverter clear-failed-transactions \ 
+	--genesis-path=/config/genesis/genesis.yaml \
+	--wallets-path=/config/wallets/wallets.yaml \
+	--config-path=/config/general/general.yaml \
+	--contracts-config-path=/config/contracts/contracts.yaml \
+	--secrets-path=/config/server/secrets.yaml \
+	--l1-batch-number CHANGE_ME \
     ```
     
 - Resume deployments for the relevant components
