@@ -261,6 +261,7 @@ async fn finalize_stage1(
         l1_url.clone(),
         general_config.l2_http_url()?,
         chain_config.chain_id.as_u64(),
+        None,
     )
     .await?;
 
