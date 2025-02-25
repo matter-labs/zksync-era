@@ -220,7 +220,7 @@ where
         key: H256::repeat_byte(0x01),
         value: H256::repeat_byte(0x10),
     };
-    let (mut patch, update) = merkle_tree.create_patch(0, &[new_entry]).unwrap();
+    let (mut patch, update) = merkle_tree.create_patch(0, &[new_entry], &[]).unwrap();
 
     assert_eq!(patch.inner().leaf_count, 2);
     assert_eq!(
@@ -314,7 +314,7 @@ where
         value: H256::repeat_byte(0x20),
     };
     let (mut patch, update) = merkle_tree
-        .create_patch(0, &[first_entry, second_entry])
+        .create_patch(0, &[first_entry, second_entry], &[])
         .unwrap();
 
     let final_update = patch.update(update);
@@ -332,7 +332,7 @@ where
         key: first_entry.key,
         value: H256::repeat_byte(0x33),
     };
-    let (mut patch, update) = merkle_tree.create_patch(1, &[updated_entry]).unwrap();
+    let (mut patch, update) = merkle_tree.create_patch(1, &[updated_entry], &[]).unwrap();
 
     assert!(update.inserts.is_empty());
     assert_eq!(update.updates, [(2, updated_entry.value)]);
@@ -393,7 +393,7 @@ where
         value: H256::repeat_byte(0x20),
     };
     let (mut patch, update) = merkle_tree
-        .create_patch(0, &[updated_entry, second_entry])
+        .create_patch(0, &[updated_entry, second_entry], &[])
         .unwrap();
 
     assert_eq!(

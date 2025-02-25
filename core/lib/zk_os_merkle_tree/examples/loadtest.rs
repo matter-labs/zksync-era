@@ -136,7 +136,7 @@ impl Cli {
             let start = Instant::now();
             let output = if self.proofs {
                 let (output, proof) = tree
-                    .extend_with_proof(&kvs)
+                    .extend_with_proof(&kvs, &[])
                     .context("failed extending tree")?;
                 black_box(proof); // Ensure that proof creation isn't optimized away
                 output

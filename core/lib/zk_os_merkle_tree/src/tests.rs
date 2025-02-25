@@ -181,8 +181,10 @@ fn test_extending_tree_with_proof(db: impl Database, inserts_count: usize, updat
     let inserts: Vec<_> = nodes.collect();
 
     let mut tree = MerkleTree::new(db).unwrap();
-    let (inserts_output, proof) = tree.extend_with_proof(&inserts).unwrap();
-    let root_hash_from_proof = proof.verify(&Blake2Hasher, 64, None, &inserts).unwrap();
+    let (inserts_output, proof) = tree.extend_with_proof(&inserts, &[]).unwrap();
+    let root_hash_from_proof = proof
+        .verify(&Blake2Hasher, 64, None, &inserts, &[])
+        .unwrap();
     assert_eq!(root_hash_from_proof, inserts_output.root_hash);
 
     // Test a proof with only updates.
@@ -194,7 +196,7 @@ fn test_extending_tree_with_proof(db: impl Database, inserts_count: usize, updat
         })
         .collect();
 
-    let (output, proof) = tree.extend_with_proof(&updates).unwrap();
+    let (output, proof) = tree.extend_with_proof(&updates, &[]).unwrap();
     let updates_tree_hash = output.root_hash;
 
     assert_eq!(proof.operations.len(), updates.len());
@@ -214,7 +216,7 @@ fn test_extending_tree_with_proof(db: impl Database, inserts_count: usize, updat
     );
 
     let root_hash_from_proof = proof
-        .verify(&Blake2Hasher, 64, Some(inserts_output), &updates)
+        .verify(&Blake2Hasher, 64, Some(inserts_output), &updates, &[])
         .unwrap();
     assert_eq!(root_hash_from_proof, updates_tree_hash);
 }
@@ -261,9 +263,9 @@ fn test_incrementally_extending_tree_with_proofs(db: impl Database, update_count
             let mut entries = chunk.to_vec();
             entries.extend(updates);
 
-            let (new_output, proof) = tree.extend_with_proof(&entries).unwrap();
+            let (new_output, proof) = tree.extend_with_proof(&entries, &[]).unwrap();
             let proof_hash = proof
-                .verify(&Blake2Hasher, 64, Some(tree_output), &entries)
+                .verify(&Blake2Hasher, 64, Some(tree_output), &entries, &[])
                 .unwrap();
             assert_eq!(proof_hash, new_output.root_hash);
             tree_output = new_output;

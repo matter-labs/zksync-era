@@ -26,6 +26,7 @@ pub(crate) struct TreeUpdate {
     pub(crate) updates: Vec<(u64, H256)>,
     pub(crate) inserts: Vec<Leaf>,
     operations: Vec<TreeOperation>,
+    read_operations: Vec<TreeOperation>,
 }
 
 impl TreeUpdate {
@@ -99,11 +100,16 @@ impl TreeUpdate {
             // Since the tree is empty, we expect a completely empty `BatchTreeProof` incl. `operations`; see its validation logic.
             // This makes the proof occupy less space and doesn't require to specify bogus indices for `TreeOperation::Insert`.
             operations: vec![],
+            read_operations: vec![],
         })
     }
 
     pub(crate) fn take_operations(&mut self) -> Vec<TreeOperation> {
         mem::take(&mut self.operations)
+    }
+
+    pub(crate) fn take_read_operations(&mut self) -> Vec<TreeOperation> {
+        mem::take(&mut self.read_operations)
     }
 }
 
@@ -253,6 +259,7 @@ impl<P: TreeParams> WorkingPatchSet<P> {
         &self,
         hasher: &P::Hasher,
         operations: Vec<TreeOperation>,
+        read_operations: Vec<TreeOperation>,
     ) -> BatchTreeProof {
         let sorted_leaves: BTreeMap<_, _> = self
             .inner
@@ -262,6 +269,7 @@ impl<P: TreeParams> WorkingPatchSet<P> {
             .collect();
         BatchTreeProof {
             operations,
+            read_operations,
             hashes: self.collect_hashes(sorted_leaves.keys().copied().collect(), hasher),
             sorted_leaves,
         }
@@ -486,17 +494,22 @@ impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
         &self,
         latest_version: u64,
         entries: &[TreeEntry],
+        reads: &[H256],
     ) -> anyhow::Result<(WorkingPatchSet<P>, TreeUpdate)> {
         let root = self.db.try_root(latest_version)?.ok_or_else(|| {
             DeserializeError::from(DeserializeErrorKind::MissingNode)
                 .with_context(DeserializeContext::Node(NodeKey::root(latest_version)))
         })?;
-        let keys: Vec<_> = entries.iter().map(|entry| entry.key).collect();
+        let touched_keys: Vec<_> = entries
+            .iter()
+            .map(|entry| entry.key)
+            .chain(reads.iter().copied())
+            .collect();
 
         let started_at = Instant::now();
         let lookup = self
             .db
-            .indices(u64::MAX, &keys)
+            .indices(u64::MAX, &touched_keys)
             .context("failed loading indices")?;
         tracing::debug!(elapsed = ?started_at.elapsed(), "loaded lookup info");
 
@@ -544,9 +557,9 @@ impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
         let mut updates = Vec::with_capacity(entries.len() - sorted_new_leaves.len());
         let mut inserts = Vec::with_capacity(sorted_new_leaves.len());
         let mut operations = Vec::with_capacity(entries.len());
-        for (entry, lookup) in entries.iter().zip(lookup) {
+        for (entry, lookup) in entries.iter().zip(&lookup) {
             match lookup {
-                KeyLookup::Existing(idx) => {
+                &KeyLookup::Existing(idx) => {
                     updates.push((idx, entry.value));
                     operations.push(TreeOperation::Update { index: idx });
                 }
@@ -593,6 +606,17 @@ impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
         );
         // We don't check for duplicate updates since they don't lead to logical errors, they're just inefficient
 
+        let read_operations = lookup[entries.len()..]
+            .iter()
+            .map(|lookup| match lookup {
+                KeyLookup::Existing(idx) => TreeOperation::Update { index: *idx },
+                KeyLookup::Missing {
+                    prev_key_and_index: (_, idx),
+                    ..
+                } => TreeOperation::Insert { prev_index: *idx },
+            })
+            .collect();
+
         Ok((
             patch,
             TreeUpdate {
@@ -601,6 +625,7 @@ impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
                 updates,
                 inserts,
                 operations,
+                read_operations,
             },
         ))
     }

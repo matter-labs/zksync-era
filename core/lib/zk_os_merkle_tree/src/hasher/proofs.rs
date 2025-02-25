@@ -41,6 +41,8 @@ pub struct IntermediateHash {
 pub struct BatchTreeProof {
     /// Performed tree operations. Correspond 1-to-1 to [`TreeEntry`]s.
     pub operations: Vec<TreeOperation>,
+    /// Performed read operations. Correspond 1-to-1 to read keys.
+    pub read_operations: Vec<TreeOperation>,
     /// Sorted leaves from the tree before insertion sufficient to prove it. Contains all updated leaves
     /// (incl. prev / next neighbors for the inserted leaves), and the last leaf in the tree if there are inserts.
     pub sorted_leaves: BTreeMap<u64, Leaf>,
@@ -54,6 +56,7 @@ impl BatchTreeProof {
     fn empty() -> Self {
         Self {
             operations: vec![],
+            read_operations: vec![],
             sorted_leaves: BTreeMap::new(),
             hashes: vec![],
         }
@@ -66,8 +69,10 @@ impl BatchTreeProof {
         tree_depth: u8,
         prev_output: Option<BatchOutput>,
         entries: &[TreeEntry],
+        read_keys: &[H256],
     ) -> anyhow::Result<H256> {
         let Some(prev_output) = prev_output else {
+            // `read_keys` are intentionally unused: we know that none of them are present.
             return self.verify_for_empty_tree(hasher, tree_depth, entries);
         };
 
@@ -75,8 +80,17 @@ impl BatchTreeProof {
             self.operations.len() == entries.len(),
             "Unexpected operations length"
         );
+        anyhow::ensure!(
+            self.read_operations.len() == read_keys.len(),
+            "Unexpected read operations length"
+        );
         if let Some((max_idx, _)) = self.sorted_leaves.iter().next_back() {
             anyhow::ensure!(*max_idx < prev_output.leaf_count, "Index is too large");
+        }
+
+        for (&operation, read_key) in self.read_operations.iter().zip(read_keys) {
+            self.verify_operation(&prev_output, operation, read_key)
+                .with_context(|| format!("reading {read_key:?}"))?;
         }
 
         let mut index_by_key: BTreeMap<_, _> = self
@@ -87,39 +101,13 @@ impl BatchTreeProof {
 
         let mut next_tree_index = prev_output.leaf_count;
         for (&operation, entry) in self.operations.iter().zip(entries) {
-            match operation {
-                TreeOperation::Update { index } => {
-                    anyhow::ensure!(
-                        index < prev_output.leaf_count,
-                        "Updated non-existing index {index}"
-                    );
-                    let existing_leaf = self
-                        .sorted_leaves
-                        .get(&index)
-                        .with_context(|| format!("Update for index {index} is not proven"))?;
-                    anyhow::ensure!(
-                        existing_leaf.key == entry.key,
-                        "Update for index {index} has unexpected key"
-                    );
-                }
-                TreeOperation::Insert { prev_index } => {
-                    let prev_leaf = self.sorted_leaves.get(&prev_index).with_context(|| {
-                        format!("prev leaf {prev_index} for {entry:?} is not proven")
-                    })?;
-                    anyhow::ensure!(prev_leaf.key < entry.key);
+            self.verify_operation(&prev_output, operation, &entry.key)
+                .with_context(|| format!("update / insert {entry:?}"))?;
 
-                    let old_next_index = prev_leaf.next_index;
-                    let old_next_leaf =
-                        self.sorted_leaves.get(&old_next_index).with_context(|| {
-                            format!("old next leaf {old_next_index} for {entry:?} is not proven")
-                        })?;
-                    anyhow::ensure!(old_next_leaf.prev_index == prev_index);
-                    anyhow::ensure!(entry.key < old_next_leaf.key);
-
-                    index_by_key.insert(entry.key, next_tree_index);
-                    next_tree_index += 1;
-                }
-            };
+            if matches!(operation, TreeOperation::Insert { .. }) {
+                index_by_key.insert(entry.key, next_tree_index);
+                next_tree_index += 1;
+            }
         }
 
         let restored_prev_hash = Self::zip_leaves(
@@ -179,6 +167,42 @@ impl BatchTreeProof {
         )
     }
 
+    fn verify_operation(
+        &self,
+        prev_output: &BatchOutput,
+        operation: TreeOperation,
+        key: &H256,
+    ) -> anyhow::Result<()> {
+        match operation {
+            TreeOperation::Update { index } => {
+                anyhow::ensure!(index < prev_output.leaf_count, "Non-existing index {index}");
+                let existing_leaf = self
+                    .sorted_leaves
+                    .get(&index)
+                    .with_context(|| format!("Update / read for index {index} is not proven"))?;
+                anyhow::ensure!(
+                    existing_leaf.key == *key,
+                    "Update / read for index {index} has unexpected key"
+                );
+            }
+            TreeOperation::Insert { prev_index } => {
+                let prev_leaf = self
+                    .sorted_leaves
+                    .get(&prev_index)
+                    .with_context(|| format!("prev leaf {prev_index} for {key:?} is not proven"))?;
+                anyhow::ensure!(prev_leaf.key < *key);
+
+                let old_next_index = prev_leaf.next_index;
+                let old_next_leaf = self.sorted_leaves.get(&old_next_index).with_context(|| {
+                    format!("old next leaf {old_next_index} for {key:?} is not proven")
+                })?;
+                anyhow::ensure!(old_next_leaf.prev_index == prev_index);
+                anyhow::ensure!(*key < old_next_leaf.key);
+            }
+        }
+        Ok(())
+    }
+
     fn verify_for_empty_tree(
         self,
         hasher: &dyn HashTree,
@@ -188,6 +212,7 @@ impl BatchTreeProof {
         // The proof must be entirely empty since we can get all data from `entries`.
         anyhow::ensure!(self.sorted_leaves.is_empty());
         anyhow::ensure!(self.operations.is_empty());
+        anyhow::ensure!(self.read_operations.is_empty());
         anyhow::ensure!(self.hashes.is_empty());
 
         let index_by_key: BTreeMap<_, _> = entries
@@ -317,7 +342,7 @@ mod tests {
     #[test]
     fn insertion_proof_for_empty_tree() {
         let proof = BatchTreeProof::empty();
-        let hash = proof.verify(&Blake2Hasher, 64, None, &[]).unwrap();
+        let hash = proof.verify(&Blake2Hasher, 64, None, &[], &[]).unwrap();
         assert_eq!(
             hash,
             "0x8a41011d351813c31088367deecc9b70677ecf15ffc24ee450045cdeaf447f63"
@@ -330,7 +355,9 @@ mod tests {
             key: H256::repeat_byte(0x01),
             value: H256::repeat_byte(0x10),
         };
-        let hash = proof.verify(&Blake2Hasher, 64, None, &[entry]).unwrap();
+        let hash = proof
+            .verify(&Blake2Hasher, 64, None, &[entry], &[])
+            .unwrap();
         assert_eq!(
             hash,
             "0x91a1688c802dc607125d0b5e5ab4d95d89a4a4fb8cca71a122db6076cb70f8f3"
@@ -343,6 +370,7 @@ mod tests {
     fn basic_insertion_proof() {
         let proof = BatchTreeProof {
             operations: vec![TreeOperation::Insert { prev_index: 0 }],
+            read_operations: vec![],
             sorted_leaves: BTreeMap::from([(0, Leaf::MIN_GUARD), (1, Leaf::MAX_GUARD)]),
             hashes: vec![],
         };
@@ -362,6 +390,7 @@ mod tests {
                     key: H256::repeat_byte(0x01),
                     value: H256::repeat_byte(0x10),
                 }],
+                &[],
             )
             .unwrap();
 

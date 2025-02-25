@@ -139,7 +139,7 @@ impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
     ///
     /// Proxies database I/O errors.
     pub fn extend(&mut self, entries: &[TreeEntry]) -> anyhow::Result<BatchOutput> {
-        let (output, _) = self.extend_inner(entries, false)?;
+        let (output, _) = self.extend_inner(entries, None)?;
         Ok(output)
     }
 
@@ -147,7 +147,7 @@ impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
     fn extend_inner(
         &mut self,
         entries: &[TreeEntry],
-        with_proof: bool,
+        read_keys: Option<&[H256]>,
     ) -> anyhow::Result<(BatchOutput, Option<BatchTreeProof>)> {
         let latest_version = self
             .latest_version()
@@ -156,7 +156,7 @@ impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
 
         let started_at = Instant::now();
         let (mut patch, mut update) = if let Some(version) = latest_version {
-            self.create_patch(version, entries)
+            self.create_patch(version, entries, read_keys.unwrap_or_default())
                 .context("failed loading tree data")?
         } else {
             (
@@ -172,9 +172,13 @@ impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
             "loaded tree data"
         );
 
-        let proof = if with_proof {
+        let proof = if read_keys.is_some() {
             let started_at = Instant::now();
-            let proof = patch.create_batch_proof(&self.hasher, update.take_operations());
+            let proof = patch.create_batch_proof(
+                &self.hasher,
+                update.take_operations(),
+                update.take_read_operations(),
+            );
             tracing::debug!(
                 elapsed = ?started_at.elapsed(),
                 proof.leaves.len = proof.sorted_leaves.len(),
@@ -202,11 +206,13 @@ impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
         Ok((output, proof))
     }
 
+    /// Same as [Self::extend()`], but also provides a Merkle proof of the update.
     pub fn extend_with_proof(
         &mut self,
         entries: &[TreeEntry],
+        read_keys: &[H256],
     ) -> anyhow::Result<(BatchOutput, BatchTreeProof)> {
-        let (output, proof) = self.extend_inner(entries, true)?;
+        let (output, proof) = self.extend_inner(entries, Some(read_keys))?;
         Ok((output, proof.unwrap()))
     }
 
