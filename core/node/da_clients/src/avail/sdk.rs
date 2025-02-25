@@ -2,6 +2,7 @@
 //! This is considered to be a temporary solution until a mature SDK is available on crates.io
 
 use std::{fmt::Debug, sync::Arc, time};
+
 use anyhow::{bail, Context};
 use backon::{ConstantBuilder, Retryable};
 use bytes::Bytes;
@@ -133,7 +134,7 @@ impl RawAvailClient {
         SubmitData {
             data: BoundedVec(data),
         }
-            .encode_as_fields_to(&mut fields, meta.types(), &mut bytes)?;
+        .encode_as_fields_to(&mut fields, meta.types(), &mut bytes)?;
 
         Ok(bytes)
     }
@@ -436,7 +437,7 @@ impl GasRelayClient {
             .header("x-api-key", &self.api_key)
             .send()
             .await
-            .context("Failed to submit data to the gas relay")?;;
+            .context("Failed to submit data to the gas relay")?;
 
         let response_bytes = submit_response
             .bytes()
@@ -467,12 +468,12 @@ impl GasRelayClient {
                 .send()
                 .await
         })
-            .retry(
-                &ConstantBuilder::default()
-                    .with_delay(Self::RETRY_DELAY)
-                    .with_max_times(self.max_retries),
-            )
-            .await?;
+        .retry(
+            &ConstantBuilder::default()
+                .with_delay(Self::RETRY_DELAY)
+                .with_max_times(self.max_retries),
+        )
+        .await?;
 
         let status_response_bytes = status_response
             .bytes()
