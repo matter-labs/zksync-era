@@ -1,4 +1,7 @@
-use std::{collections::BTreeMap, iter};
+use std::{
+    collections::{BTreeMap, HashMap},
+    iter,
+};
 
 use anyhow::Context;
 use zksync_basic_types::H256;
@@ -24,6 +27,15 @@ pub struct IntermediateHash {
     /// Level + index on level. Redundant and is only checked in tests.
     #[cfg(test)]
     pub location: (u8, u64),
+}
+
+/// Partial view of the Merkle tree returned from [`BatchTreeProof::verify()`].
+#[derive(Debug)]
+pub struct MerkleTreeView {
+    /// Root hash of the tree after the update.
+    pub root_hash: H256,
+    /// Read entries. `None` values mean missing reads.
+    pub read_entries: HashMap<H256, Option<H256>>,
 }
 
 /// Merkle proof of batch insertion into [`MerkleTree`](crate::MerkleTree).
@@ -70,10 +82,9 @@ impl BatchTreeProof {
         prev_output: Option<BatchOutput>,
         entries: &[TreeEntry],
         read_keys: &[H256],
-    ) -> anyhow::Result<H256> {
+    ) -> anyhow::Result<MerkleTreeView> {
         let Some(prev_output) = prev_output else {
-            // `read_keys` are intentionally unused: we know that none of them are present.
-            return self.verify_for_empty_tree(hasher, tree_depth, entries);
+            return self.verify_for_empty_tree(hasher, tree_depth, entries, read_keys);
         };
 
         anyhow::ensure!(
@@ -88,9 +99,21 @@ impl BatchTreeProof {
             anyhow::ensure!(*max_idx < prev_output.leaf_count, "Index is too large");
         }
 
+        let mut read_entries = HashMap::with_capacity(read_keys.len());
         for (&operation, read_key) in self.read_operations.iter().zip(read_keys) {
             self.verify_operation(&prev_output, operation, read_key)
                 .with_context(|| format!("reading {read_key:?}"))?;
+
+            read_entries.insert(
+                *read_key,
+                match operation {
+                    TreeOperation::Update { index } => {
+                        // We've verified the existence of the proven leaf above.
+                        Some(self.sorted_leaves[&index].value)
+                    }
+                    TreeOperation::Insert { .. } => None,
+                },
+            );
         }
 
         let mut index_by_key: BTreeMap<_, _> = self
@@ -158,13 +181,17 @@ impl BatchTreeProof {
             }
         }
 
-        Self::zip_leaves(
+        let new_root_hash = Self::zip_leaves(
             hasher,
             tree_depth,
             next_tree_index,
             self.sorted_leaves.iter().map(|(idx, leaf)| (*idx, leaf)),
             self.hashes.iter(),
-        )
+        )?;
+        Ok(MerkleTreeView {
+            root_hash: new_root_hash,
+            read_entries,
+        })
     }
 
     fn verify_operation(
@@ -208,7 +235,8 @@ impl BatchTreeProof {
         hasher: &dyn HashTree,
         tree_depth: u8,
         entries: &[TreeEntry],
-    ) -> anyhow::Result<H256> {
+        read_keys: &[H256],
+    ) -> anyhow::Result<MerkleTreeView> {
         // The proof must be entirely empty since we can get all data from `entries`.
         anyhow::ensure!(self.sorted_leaves.is_empty());
         anyhow::ensure!(self.operations.is_empty());
@@ -266,13 +294,17 @@ impl BatchTreeProof {
             .into_iter()
             .chain((2..).zip(&sorted_leaves));
 
-        Self::zip_leaves(
+        let new_tree_hash = Self::zip_leaves(
             hasher,
             tree_depth,
             2 + entries.len() as u64,
             leaves_with_guards,
             iter::empty(),
-        )
+        )?;
+        Ok(MerkleTreeView {
+            root_hash: new_tree_hash,
+            read_entries: read_keys.iter().map(|key| (*key, None)).collect(),
+        })
     }
 
     fn zip_leaves<'a>(
@@ -342,7 +374,10 @@ mod tests {
     #[test]
     fn insertion_proof_for_empty_tree() {
         let proof = BatchTreeProof::empty();
-        let hash = proof.verify(&Blake2Hasher, 64, None, &[], &[]).unwrap();
+        let hash = proof
+            .verify(&Blake2Hasher, 64, None, &[], &[])
+            .unwrap()
+            .root_hash;
         assert_eq!(
             hash,
             "0x8a41011d351813c31088367deecc9b70677ecf15ffc24ee450045cdeaf447f63"
@@ -355,11 +390,11 @@ mod tests {
             key: H256::repeat_byte(0x01),
             value: H256::repeat_byte(0x10),
         };
-        let hash = proof
+        let tree_view = proof
             .verify(&Blake2Hasher, 64, None, &[entry], &[])
             .unwrap();
         assert_eq!(
-            hash,
+            tree_view.root_hash,
             "0x91a1688c802dc607125d0b5e5ab4d95d89a4a4fb8cca71a122db6076cb70f8f3"
                 .parse()
                 .unwrap()
@@ -381,7 +416,7 @@ mod tests {
                 .parse()
                 .unwrap(),
         };
-        let new_tree_hash = proof
+        let tree_view = proof
             .verify(
                 &Blake2Hasher,
                 64,
@@ -395,10 +430,77 @@ mod tests {
             .unwrap();
 
         assert_eq!(
-            new_tree_hash,
+            tree_view.root_hash,
             "0x91a1688c802dc607125d0b5e5ab4d95d89a4a4fb8cca71a122db6076cb70f8f3"
                 .parse()
                 .unwrap()
         );
+    }
+
+    #[test]
+    fn basic_read_proof() {
+        let proof = BatchTreeProof {
+            operations: vec![],
+            read_operations: vec![TreeOperation::Insert { prev_index: 0 }],
+            sorted_leaves: BTreeMap::from([(0, Leaf::MIN_GUARD), (1, Leaf::MAX_GUARD)]),
+            hashes: vec![],
+        };
+
+        let empty_tree_output = BatchOutput {
+            leaf_count: 2,
+            root_hash: "0x8a41011d351813c31088367deecc9b70677ecf15ffc24ee450045cdeaf447f63"
+                .parse()
+                .unwrap(),
+        };
+        let tree_view = proof
+            .verify(
+                &Blake2Hasher,
+                64,
+                Some(empty_tree_output),
+                &[],
+                &[H256::repeat_byte(0x01)],
+            )
+            .unwrap();
+        assert_eq!(tree_view.root_hash, empty_tree_output.root_hash);
+        assert_eq!(tree_view.read_entries.len(), 1);
+        assert_eq!(tree_view.read_entries[&H256::repeat_byte(0x01)], None);
+    }
+
+    #[test]
+    fn mixed_read_write_proof() {
+        let proof = BatchTreeProof {
+            operations: vec![TreeOperation::Insert { prev_index: 0 }],
+            read_operations: vec![TreeOperation::Insert { prev_index: 0 }],
+            sorted_leaves: BTreeMap::from([(0, Leaf::MIN_GUARD), (1, Leaf::MAX_GUARD)]),
+            hashes: vec![],
+        };
+
+        let empty_tree_output = BatchOutput {
+            leaf_count: 2,
+            root_hash: "0x8a41011d351813c31088367deecc9b70677ecf15ffc24ee450045cdeaf447f63"
+                .parse()
+                .unwrap(),
+        };
+        let tree_view = proof
+            .verify(
+                &Blake2Hasher,
+                64,
+                Some(empty_tree_output),
+                &[TreeEntry {
+                    key: H256::repeat_byte(0x01),
+                    value: H256::repeat_byte(0x10),
+                }],
+                &[H256::repeat_byte(0x02)],
+            )
+            .unwrap();
+
+        assert_eq!(
+            tree_view.root_hash,
+            "0x91a1688c802dc607125d0b5e5ab4d95d89a4a4fb8cca71a122db6076cb70f8f3"
+                .parse()
+                .unwrap()
+        );
+        assert_eq!(tree_view.read_entries.len(), 1);
+        assert_eq!(tree_view.read_entries[&H256::repeat_byte(0x02)], None);
     }
 }

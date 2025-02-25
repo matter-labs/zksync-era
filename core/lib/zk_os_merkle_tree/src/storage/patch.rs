@@ -494,7 +494,7 @@ impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
         &self,
         latest_version: u64,
         entries: &[TreeEntry],
-        reads: &[H256],
+        read_keys: &[H256],
     ) -> anyhow::Result<(WorkingPatchSet<P>, TreeUpdate)> {
         let root = self.db.try_root(latest_version)?.ok_or_else(|| {
             DeserializeError::from(DeserializeErrorKind::MissingNode)
@@ -503,7 +503,7 @@ impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
         let touched_keys: Vec<_> = entries
             .iter()
             .map(|entry| entry.key)
-            .chain(reads.iter().copied())
+            .chain(read_keys.iter().copied())
             .collect();
 
         let started_at = Instant::now();
@@ -516,29 +516,50 @@ impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
         // Collect all distinct indices that need to be loaded.
         let mut sorted_new_leaves = BTreeMap::new();
         let mut new_index = root.leaf_count;
-        let distinct_indices =
-            lookup
-                .iter()
-                .zip(entries)
-                .flat_map(|(lookup, entry)| match lookup {
-                    KeyLookup::Existing(idx) => [*idx, *idx],
-                    KeyLookup::Missing {
-                        prev_key_and_index,
-                        next_key_and_index,
-                    } => {
-                        sorted_new_leaves.insert(
-                            entry.key,
-                            InsertedKeyEntry {
-                                index: new_index,
-                                inserted_at: latest_version + 1,
-                            },
-                        );
-                        new_index += 1;
+        let mut distinct_indices = BTreeSet::new();
+        for (lookup, entry) in lookup.iter().zip(entries) {
+            match lookup {
+                KeyLookup::Existing(idx) => {
+                    distinct_indices.insert(*idx);
+                }
+                KeyLookup::Missing {
+                    prev_key_and_index,
+                    next_key_and_index,
+                } => {
+                    sorted_new_leaves.insert(
+                        entry.key,
+                        InsertedKeyEntry {
+                            index: new_index,
+                            inserted_at: latest_version + 1,
+                        },
+                    );
+                    new_index += 1;
 
-                        [prev_key_and_index.1, next_key_and_index.1]
+                    distinct_indices.extend([prev_key_and_index.1, next_key_and_index.1]);
+                }
+            }
+        }
+
+        let mut read_operations = Vec::with_capacity(read_keys.len());
+        for lookup in &lookup[entries.len()..] {
+            let read_op = match lookup {
+                KeyLookup::Existing(idx) => {
+                    distinct_indices.insert(*idx);
+                    TreeOperation::Update { index: *idx }
+                }
+                KeyLookup::Missing {
+                    prev_key_and_index,
+                    next_key_and_index,
+                } => {
+                    distinct_indices.extend([prev_key_and_index.1, next_key_and_index.1]);
+                    TreeOperation::Insert {
+                        prev_index: prev_key_and_index.1,
                     }
-                });
-        let mut distinct_indices: BTreeSet<_> = distinct_indices.collect();
+                }
+            };
+            read_operations.push(read_op);
+        }
+
         if !sorted_new_leaves.is_empty() {
             // Need to load the latest existing leaf and its ancestors so that new ancestors can be correctly
             // inserted for the new leaves.
@@ -605,17 +626,6 @@ impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
             "Attempting to insert duplicate keys into a tree; please deduplicate keys on the caller side"
         );
         // We don't check for duplicate updates since they don't lead to logical errors, they're just inefficient
-
-        let read_operations = lookup[entries.len()..]
-            .iter()
-            .map(|lookup| match lookup {
-                KeyLookup::Existing(idx) => TreeOperation::Update { index: *idx },
-                KeyLookup::Missing {
-                    prev_key_and_index: (_, idx),
-                    ..
-                } => TreeOperation::Insert { prev_index: *idx },
-            })
-            .collect();
 
         Ok((
             patch,
