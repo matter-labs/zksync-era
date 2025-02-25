@@ -5,11 +5,14 @@ use anyhow::Context as _;
 use tokio::sync::mpsc;
 use tokio::sync::watch;
 use zksync_config::configs::chain::MempoolConfig;
+use zksync_contracts::{l2_asset_router, l2_legacy_shared_bridge};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_mempool::L2TxFilter;
 use zksync_multivm::utils::derive_base_fee_and_gas_per_pubdata;
 use zksync_node_fee_model::BatchFeeModelInputProvider;
-use zksync_types::{h256_to_address, H256};
+use zksync_types::ethabi::{Param, ParamType};
+use zksync_types::utils::encode_ntv_asset_id;
+use zksync_types::{ethabi, h256_to_address, TransactionTimeRangeConstraint, H256};
 use zksync_types::{get_immutable_simulator_key, get_nonce_key, vm::VmVersion, Address, Nonce, Transaction, L2_ASSET_ROUTER_ADDRESS, L2_ASSET_ROUTER_LEGACY_SHARED_BRIDGE_IMMUTABLE_KEY};
 
 use super::{metrics::KEEPER_METRICS, types::MempoolGuard};
@@ -42,23 +45,88 @@ pub struct MempoolFetcher {
     transaction_hashes_sender: mpsc::UnboundedSender<Vec<H256>>,
 }
 
-fn is_unsafe_deposit(tx: &Transaction, legacy_shared_bridge: Address) -> bool {
-    if !tx.is_l1() {
-        return false;
+fn extract_token_from_legacy_deposit(legacy_deposit_data: &[u8]) -> Option<Address> {
+    let contract = l2_legacy_shared_bridge();
+    let function = contract.function("finalizeDeposit").unwrap();
+
+    let short_sig = function.short_signature();
+
+    if legacy_deposit_data.len() < 4 || short_sig != legacy_deposit_data[..4] {
+        return None;
     }
 
-    if tx.execute.contract_address != Some(legacy_shared_bridge) && tx.execute.contract_address != Some(L2_ASSET_ROUTER_ADDRESS) {
-        return false;
-    }
-
-    // TODO: try to parse.
+    let decoded = function.decode_input(&legacy_deposit_data[4..]).ok()?;
+    decoded[2].clone().into_address()
 }
+
+fn extract_token_from_asset_router_deposit(
+    l1_chain_id: u64,
+    asset_router_deposit_data: &[u8]
+) -> Option<Address> {
+    let contract = l2_asset_router();
+
+    // There are two types of `finalizeDeposit` functions:
+    // - The one with 5 params that maintains the same interface as the one in the legacy contract
+    // - The one with 3 params with the new interface.
+
+    // TODO: maybe add a unit test to enforce that there are always two functions.
+    let finalize_deposit_functions = contract.functions.get("finalizeDeposit")?;
+    let finalize_deposit_3_params = finalize_deposit_functions.iter().find(|f| f.inputs.len() == 3).unwrap();
+    let finalize_deposit_5_params = finalize_deposit_functions.iter().find(|f| f.inputs.len() == 5).unwrap();
+    assert_eq!(finalize_deposit_functions.len(), 2, "Unexpected ABI of L2AssetRouter");
+
+    if asset_router_deposit_data.len() < 4 {
+        return None;
+    }
+
+    // Firstly, we test against the 5-input one as it is simpler.
+    if finalize_deposit_5_params.short_signature() == asset_router_deposit_data[..4] {
+        let decoded = finalize_deposit_5_params.decode_input(&asset_router_deposit_data[4..]).ok()?;
+        return decoded[2].clone().into_address();
+    }
+
+    // Now, we test the option when the 3-paramed function is used.
+    if finalize_deposit_3_params.short_signature() != asset_router_deposit_data[..4] {
+        return None;
+    }
+
+    let decoded = finalize_deposit_3_params.decode_input(&asset_router_deposit_data[4..]).ok()?;
+    let used_asset_id = H256::from_slice(&decoded[1].clone().into_fixed_bytes()?);
+    let bridge_mint_data = decoded[2].clone().into_bytes()?;
+
+    let decoded_ntv_input_data = ethabi::decode(&[ParamType::Address, ParamType::Address, ParamType::Address, ParamType::Uint(256), ParamType::Bytes], &bridge_mint_data).ok()?;
+    let origin_token_address = decoded_ntv_input_data[2].clone().into_address()?;
+
+    // We will also double check that the assetId corresponds to the assetId of a token that is bridged from l1
+    let expected_asset_id = encode_ntv_asset_id(
+        l1_chain_id.into(),
+        origin_token_address
+    );
+
+    // The used asset id is wrong, we should not rely on the token address to be processed by the native token vault
+    if expected_asset_id != used_asset_id {
+        return None;
+    }   
+
+    Some(origin_token_address)
+}
+
+async fn calculate_expected_token_address(storage: &mut Connection<'static, Core>, l1_token_address: Address, ) -> Address {
+    todo!()
+}
+
+async fn is_l2_token_legacy(storage: &mut Connection<'static, Core>, l2_token_address: Address) -> bool {
+    // 1. Read l1 token address from L2 shared bridge (must not be 0)
+    // 2. Read assetId from NTV (must be 0)
+
+    todo!()
+} 
 
 /// Accepts a list of transactions to be included into the mempool and filters
 /// the unsafe deposits and returns two vectors:
 /// - Transactions to include into the mempool
 /// - Transactions to return to the mempool
-async fn filter_unsafe_deposits(txs: Vec<Transaction>, storage: &mut Connection<'static, Core>) -> anyhow::Result<(Vec<Transaction>, Vec<Transaction>)> {
+async fn filter_unsafe_deposits(txs: Vec<(Transaction, TransactionTimeRangeConstraint)>, storage: &mut Connection<'static, Core>) -> anyhow::Result<(Vec<(Transaction, TransactionTimeRangeConstraint)>, Vec<H256>)> {
     // The rules are the following:
     // - All L2 transactions are allowed
     // - L1 transactions are allowed only if it is a deposit to an already registered token or
@@ -73,49 +141,87 @@ async fn filter_unsafe_deposits(txs: Vec<Transaction>, storage: &mut Connection<
         L2_ASSET_ROUTER_LEGACY_SHARED_BRIDGE_IMMUTABLE_KEY
     );
 
-    let value = storage.storage_web3_dal().get_value(&legacy_bridge_key).await?;
+    let legacy_l2_shared_bridge_addr = storage.storage_web3_dal().get_value(&legacy_bridge_key).await?;
+    let legacy_l2_shared_bridge_addr = h256_to_address(&legacy_l2_shared_bridge_addr);
 
     // There is either no legacy bridge or the L2AssetRouter has not been depoyed yet.
     // In both cases, there can be no unsafe deposits.
-    if value == H256::zero() {
+    if legacy_l2_shared_bridge_addr == Address::zero() {
         return Ok((txs, vec![]));
     }
 
-    let legacy_l2_shared_bridge_addr = h256_to_address(&value);
-
     // The legacy bridge does exist AND the chain has been upgraded to v26
-    // and so this deposit may be potentially dangerous
-    
-
-
-
-    (vec![], vec![])
-    // get_nonce_key(account)
-
+    // and so this deposit may be potentially unsafe
     let mut unsafe_deposit_present = false;
 
     // We assume that all L1->L2 transactions are ordered by their id.
     // Just in case, we do not allow any L1->L2 transaction after an unsafe deposit as well.
 
-    let mut allowed_txs = vec![];
-    allowed_txs.reserve(txs.len());
+    let mut txs_to_process = vec![];
+    let mut txs_to_return = vec![];
 
-    for tx in txs {
+    for (tx, constraint) in txs {
         if !tx.is_l1() {
             // Not a deposit
-            allowed_txs.push(tx);
+            txs_to_process.push((tx, constraint));
             continue;
         }
-        
-        if tx.execute.contract_address != Some(legacy_shared_bridge) && tx.execute.contract_address != Some(L2_ASSET_ROUTER_ADDRESS) {
-            // Not a deposit
-            allowed_txs.push(tx);
-            continue;
-        }    
 
+        // There was an unsafe deposit, so we remove all subsequent L1->L2 transactions.
+        if unsafe_deposit_present {
+            txs_to_return.push(tx.hash());
+            continue;
+        }
+
+        let Some(contract_address) = tx.execute.contract_address else {
+            txs_to_process.push((tx, constraint));
+            continue;
+        };
         
+        let l1_token_address = if contract_address == legacy_l2_shared_bridge_addr {
+            extract_token_from_legacy_deposit(tx.execute.calldata())
+        } else if contract_address == L2_ASSET_ROUTER_ADDRESS {
+            // FIXME: chain id not 0
+            extract_token_from_asset_router_deposit(0, tx.execute.calldata())
+        } else {
+            None
+        };
+        
+        let Some(l1_token_address) = l1_token_address else {
+            txs_to_process.push((tx, constraint));
+            continue;
+        };
+
+        // What is left to verify is whether the token is legacy. It is legacy if both of the 
+        // following is true:
+        // - It is present in legacy shared bridge
+        // - It is not present in the native token vault 
+        
+        // Checking that it is present in the legacy shared bridge:
+        
+        let l2_token_address = calculate_expected_token_address(
+            storage,
+            l1_token_address
+        ).await;
+
+        if is_l2_token_legacy(storage, l2_token_address).await {
+            unsafe_deposit_present = true;
+            txs_to_return.push(tx.hash());
+            continue;
+        }
+
+        // Not a deposit
+        txs_to_process.push((tx, constraint));
     }
 
+
+    // Now, we check that the token is a legacy one, i.e. whether it was registered with the L2 shared bridge
+    // before the v26 upgrade.
+    // It needs to meet two criterias:
+    // - Token is present in the L2SharedBridgeLegacy.
+    // - Token is not present in the L2Native  
+
+    Ok((txs_to_process, txs_to_return))
 }
 
 impl MempoolFetcher {
@@ -205,6 +311,13 @@ impl MempoolFetcher {
                 )
                 .await
                 .context("failed syncing mempool")?;
+        
+            let (transactions_with_constraints, transactions_to_return) = filter_unsafe_deposits(transactions_with_constraints, &mut storage).await?;
+            storage
+                .transactions_dal()
+                .return_to_mempool(&transactions_to_return)
+                .await
+                .context("failed to return txs to mempool")?;
 
             let transactions: Vec<_> = transactions_with_constraints
                 .iter()
