@@ -67,7 +67,7 @@ lazy_static! {
     );
 }
 
-pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()> {
+pub async fn predeploy_chain(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
 
     let chain_name = global_config().chain_name.clone();
@@ -98,13 +98,6 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         &gateway_gateway_config,
     )?;
     preparation_config.save(shell, preparation_config_path)?;
-
-    let chain_contracts_config = chain_config.get_contracts_config().unwrap();
-    let chain_admin_addr = chain_contracts_config.l1.chain_admin_addr;
-    let chain_access_control_restriction = chain_contracts_config
-        .l1
-        .access_control_restriction_addr
-        .context("chain_access_control_restriction")?;
 
     logger::info("Whitelisting the chains' addresseses...");
     call_script(
@@ -151,6 +144,72 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         l2_chain_admin
     ));
 
+    let general_config = gateway_chain_config.get_general_config().await?;
+    let l2_rpc_url = general_config.get::<String>("api.web3_json_rpc.http_url")?;
+
+    let gateway_url = l2_rpc_url;
+    let mut chain_secrets_config = chain_config.get_secrets_config().await?.patched();
+    chain_secrets_config.insert("l1.gateway_rpc_url", gateway_url)?;
+    chain_secrets_config.save().await?;
+
+    let gateway_chain_config = GatewayChainConfig::from_gateway_and_chain_data(
+        &gateway_gateway_config,
+        l2_chain_admin,
+        gateway_chain_id.into(),
+    );
+    gateway_chain_config.save_with_base_path(shell, chain_config.configs.clone())?;
+
+    let mut general_config = chain_config.get_general_config().await?.patched();
+    general_config.insert_yaml("eth.gas_adjuster.settlement_mode", SettlementMode::Gateway)?;
+    let is_rollup = matches!(
+        genesis_config.get("l1_batch_commit_data_generator_mode")?,
+        L1BatchCommitmentMode::Rollup
+    );
+
+    if is_rollup {
+        // For rollups, new type of commitment should be used, but not for validium.
+        // `PubdataSendingMode` has differing `serde` and file-based config serializations, hence
+        // we supply a raw string value.
+        general_config.insert("eth.sender.pubdata_sending_mode", "RELAYED_L2_CALLDATA")?;
+    }
+    general_config.insert("eth.sender.wait_confirmations", 0)?;
+    // TODO(EVM-925): the number below may not always work, especially for large prices on
+    // top of Gateway. This field would have to be either not used on GW or transformed into u64.
+    general_config.insert("eth.sender.max_aggregated_tx_gas", 4294967295_u64)?;
+    general_config.insert("eth.sender.max_eth_tx_data_size", 550_000)?;
+    general_config.save().await?;
+
+    Ok(())
+}
+pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()> {
+    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+
+    let chain_config = ecosystem_config
+        .load_current_chain()
+        .context(MSG_CHAIN_NOT_INITIALIZED)?;
+    let chain_contracts_config = chain_config.get_contracts_config().unwrap();
+
+    let gateway_chain_config = ecosystem_config
+        .load_chain(Some(args.gateway_chain_name.clone()))
+        .context("Gateway not present")?;
+    let gateway_gateway_config = gateway_chain_config
+        .get_gateway_config()
+        .context("Gateway config not present")?;
+
+    let gateway_chain_config = chain_config
+        .get_gateway_chain_config()
+        .context("Gateway Chain config not present")?;
+
+    let genesis_config = chain_config
+        .get_genesis_config()
+        .await
+        .context("Gateway Chain config not present")?;
+
+    let l1_url = chain_config
+        .get_secrets_config()
+        .await?
+        .get::<String>("l1.l1_rpc_url")?;
+
     let hash = call_script(
         shell,
         args.forge_args.clone(),
@@ -158,10 +217,13 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
             .encode(
                 "migrateChainToGateway",
                 (
-                    chain_admin_addr,
+                    chain_contracts_config.l1.chain_admin_addr,
                     // TODO(EVM-746): Use L2-based chain admin contract
-                    l2_chain_admin,
-                    chain_access_control_restriction,
+                    gateway_chain_config.chain_admin_addr,
+                    chain_contracts_config
+                        .l1
+                        .access_control_restriction_addr
+                        .unwrap_or_default(),
                     U256::from(chain_config.chain_id.as_u64()),
                 ),
             )
@@ -173,7 +235,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     .await?
     .governance_l2_tx_hash;
 
-    let general_config = gateway_chain_config.get_general_config().await?;
+    let general_config = chain_config.get_general_config().await?;
     let l2_rpc_url = general_config.get::<String>("api.web3_json_rpc.http_url")?;
     let gateway_provider = Provider::<Http>::try_from(l2_rpc_url.clone())?;
 
@@ -226,8 +288,11 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
             .encode(
                 "setDAValidatorPair",
                 (
-                    chain_admin_addr,
-                    chain_access_control_restriction,
+                    chain_contracts_config.l1.chain_admin_addr,
+                    chain_contracts_config
+                        .l1
+                        .access_control_restriction_addr
+                        .context("access_control_restriction_addr")?,
                     U256::from(chain_config.chain_id.as_u64()),
                     gateway_da_validator_address,
                     chain_contracts_config
@@ -235,7 +300,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
                         .da_validator_addr
                         .context("da_validator_addr")?,
                     new_diamond_proxy_address,
-                    l2_chain_admin,
+                    gateway_chain_config.chain_admin_addr,
                 ),
             )
             .unwrap(),
@@ -260,12 +325,15 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
             .encode(
                 "enableValidator",
                 (
-                    chain_admin_addr,
-                    chain_access_control_restriction,
+                    chain_contracts_config.l1.chain_admin_addr,
+                    chain_contracts_config
+                        .l1
+                        .access_control_restriction_addr
+                        .context("access_control_restriction_addr")?,
                     U256::from(chain_config.chain_id.as_u64()),
                     chain_secrets_config.blob_operator.address,
                     gateway_gateway_config.validator_timelock_addr,
-                    l2_chain_admin,
+                    gateway_chain_config.chain_admin_addr,
                 ),
             )
             .unwrap(),
@@ -310,12 +378,15 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
             .encode(
                 "enableValidator",
                 (
-                    chain_admin_addr,
-                    chain_access_control_restriction,
+                    chain_contracts_config.l1.chain_admin_addr,
+                    chain_contracts_config
+                        .l1
+                        .access_control_restriction_addr
+                        .context("chain_access_control_restriction")?,
                     U256::from(chain_config.chain_id.as_u64()),
                     chain_secrets_config.operator.address,
                     gateway_gateway_config.validator_timelock_addr,
-                    l2_chain_admin,
+                    gateway_chain_config.chain_admin_addr,
                 ),
             )
             .unwrap(),
@@ -352,36 +423,6 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         "operator supplied with 10 ETH! Hash: {}",
         hex::encode(hash.as_bytes())
     ));
-
-    let gateway_url = l2_rpc_url;
-    let mut chain_secrets_config = chain_config.get_secrets_config().await?.patched();
-    chain_secrets_config.insert("l1.gateway_rpc_url", gateway_url)?;
-    chain_secrets_config.save().await?;
-
-    let gateway_chain_config = GatewayChainConfig::from_gateway_and_chain_data(
-        &gateway_gateway_config,
-        new_diamond_proxy_address,
-        l2_chain_admin,
-        gateway_chain_id.into(),
-    );
-    gateway_chain_config.save_with_base_path(shell, chain_config.configs.clone())?;
-
-    let mut general_config = chain_config.get_general_config().await?.patched();
-    general_config.insert_yaml("eth.gas_adjuster.settlement_mode", SettlementMode::Gateway)?;
-
-    if is_rollup {
-        // For rollups, new type of commitment should be used, but not for validium.
-        // `PubdataSendingMode` has differing `serde` and file-based config serializations, hence
-        // we supply a raw string value.
-        general_config.insert("eth.sender.pubdata_sending_mode", "RELAYED_L2_CALLDATA")?;
-    }
-    general_config.insert("eth.sender.wait_confirmations", 0)?;
-    // TODO(EVM-925): the number below may not always work, especially for large prices on
-    // top of Gateway. This field would have to be either not used on GW or transformed into u64.
-    general_config.insert("eth.sender.max_aggregated_tx_gas", 4294967295_u64)?;
-    general_config.insert("eth.sender.max_eth_tx_data_size", 550_000)?;
-    general_config.save().await?;
-
     Ok(())
 }
 

@@ -123,7 +123,7 @@ impl WiringLayer for EthWatchLayer {
                     // Only present on L1.
                     None,
                     Some(contracts_config.state_transition_proxy_addr),
-                    contracts_config.chain_admin_addr,
+                    Some(contracts_config.chain_admin_addr),
                     self.contracts_config
                         .ecosystem_contracts
                         .as_ref()

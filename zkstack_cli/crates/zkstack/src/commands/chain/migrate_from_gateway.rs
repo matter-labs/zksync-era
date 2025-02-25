@@ -95,8 +95,6 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
     let chain_contracts_config = chain_config.get_contracts_config().unwrap();
     let mut gateway_chain_chain_config = chain_config.get_gateway_chain_config().unwrap();
     let chain_admin_addr = chain_contracts_config.l1.chain_admin_addr;
-    let chain_access_control_restriction =
-        chain_contracts_config.l1.access_control_restriction_addr;
 
     println!("Migrating the chain to L1...");
     let hash = call_script(
@@ -107,10 +105,11 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
                 "startMigrateChainFromGateway",
                 (
                     chain_admin_addr,
-                    chain_access_control_restriction.context("chain_access_control_restriction")?,
-                    gateway_chain_chain_config
-                        .chain_admin_addr
-                        .context("l2 chain admin missing")?,
+                    chain_contracts_config
+                        .l1
+                        .access_control_restriction_addr
+                        .context("chain_access_control_restriction")?,
+                    gateway_chain_chain_config.chain_admin_addr,
                     U256::from(chain_config.chain_id.as_u64()),
                 ),
             )

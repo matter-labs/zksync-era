@@ -236,24 +236,25 @@ async fn main() -> anyhow::Result<()> {
     };
 
     let (sl_rpc_url, sl_diamond_proxy, sl_validator_timelock) = if settlement_mode.is_gateway() {
+        todo!()
         // Gateway config is required to be provided by file for now.
-        let gateway_chain_config: GatewayChainConfig =
-            read_yaml_repr::<proto::gateway::GatewayChainConfig>(
-                &opts
-                    .gateway_chain_path
-                    .context("Genesis config path not provided")?,
-            )
-            .context("failed decoding genesis YAML config")?;
-
-        let gateway_url = l1_secrets
-            .gateway_rpc_url
-            .context("Gateway URL not found")?;
-
-        (
-            gateway_url,
-            gateway_chain_config.diamond_proxy_addr,
-            gateway_chain_config.validator_timelock_addr,
-        )
+        // let gateway_chain_config: GatewayChainConfig =
+        //     read_yaml_repr::<proto::gateway::GatewayChainConfig>(
+        //         &opts
+        //             .gateway_chain_path
+        //             .context("Genesis config path not provided")?,
+        //     )
+        //     .context("failed decoding genesis YAML config")?;
+        //
+        // let gateway_url = l1_secrets
+        //     .gateway_rpc_url
+        //     .context("Gateway URL not found")?;
+        //
+        // (
+        //     gateway_url,
+        //     gateway_chain_config.diamond_proxy_addr,
+        //     gateway_chain_config.validator_timelock_addr,
+        // )
     } else {
         (
             l1_secrets.l1_rpc_url,

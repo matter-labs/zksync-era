@@ -1,8 +1,10 @@
 use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
-use zksync_contracts::{gateway_migration_contract, BaseSystemContractsHashes};
+use zksync_contracts::{bridgehub_contract, gateway_migration_contract, BaseSystemContractsHashes};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_eth_client::{BoundEthInterface, CallFunctionArgs, ContractCallError, EthInterface};
+use zksync_eth_client::{
+    clients::Client, BoundEthInterface, CallFunctionArgs, ContractCallError, EthInterface,
+};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_l1_contract_interface::{
     i_executor::{
@@ -17,7 +19,7 @@ use zksync_types::{
     aggregated_operations::AggregatedActionType,
     commitment::{L1BatchCommitmentMode, L1BatchWithMetadata, SerializeCommitment},
     eth_sender::{EthTx, EthTxBlobSidecar, EthTxBlobSidecarV1, SidecarBlobV1},
-    ethabi::{Function, Token},
+    ethabi::{Contract, Function, Token},
     l2_to_l1_log::UserL2ToL1Log,
     protocol_version::{L1VerifierConfig, PACKED_SEMVER_MINOR_MASK},
     pubdata_da::PubdataSendingMode,
@@ -52,10 +54,11 @@ pub struct MulticallData {
 }
 
 #[derive(Debug)]
-pub struct EthTxAggregatorContracts {
-    pub config_timelock_contract_address: Address,
+pub struct EcosystemContracts {
+    pub timelock_contract_address: Address,
     pub l1_multicall3_address: Address,
-    pub state_transition_chain_contract: Address,
+    pub bridgehub: Address,
+    // pub state_transition_chain_contract: Address,
     pub state_transition_manager_address: Address,
 }
 
@@ -67,8 +70,9 @@ pub struct EthTxAggregator {
     aggregator: Aggregator,
     eth_client: Box<dyn BoundEthInterface>,
     eth_gateway_client: Option<Box<dyn BoundEthInterface>>,
-    eth_contracts: EthTxAggregatorContracts,
-    eth_gateway_contracts: Option<EthTxAggregatorContracts>,
+    eth_ecosystem_contracts: EcosystemContracts,
+    gateway_ecosystem_contracts: Option<EcosystemContracts>,
+    diamond_proxy_contract: Address,
     config: SenderConfig,
     // The validator timelock address provided in the config.
     // If the contracts have the same protocol version as the state transition manager, the validator timelock
@@ -106,8 +110,8 @@ impl EthTxAggregator {
         aggregator: Aggregator,
         eth_client: Box<dyn BoundEthInterface>,
         eth_gateway_client: Option<Box<dyn BoundEthInterface>>,
-        eth_contracts: EthTxAggregatorContracts,
-        eth_gateway_contracts: Option<EthTxAggregatorContracts>,
+        eth_ecosystem_contracts: EcosystemContracts,
+        gateway_ecosystem_contracts: Option<EcosystemContracts>,
         rollup_chain_id: L2ChainId,
         custom_commit_sender_addr: Option<Address>,
     ) -> Self {
@@ -121,10 +125,13 @@ impl EthTxAggregator {
 
         let sl_chain_id = (*eth_client).as_ref().fetch_chain_id().await.unwrap();
 
-        let client = if gateway_migration_state.is_gateway() {
-            eth_gateway_client.as_ref().unwrap().as_ref()
+        let (client, contracts) = if gateway_migration_state.is_gateway() {
+            (
+                eth_gateway_client.as_ref().unwrap().as_ref(),
+                gateway_ecosystem_contracts.as_ref().unwrap(),
+            )
         } else {
-            eth_client.as_ref()
+            (eth_client.as_ref(), &eth_ecosystem_contracts)
         };
 
         let base_nonce = client.pending_nonce().await.unwrap().as_u64();
@@ -140,12 +147,17 @@ impl EthTxAggregator {
             ),
             None => None,
         };
+
+        let diamond_proxy_contract = diamond_proxy_contract(client, contracts, rollup_chain_id)
+            .await
+            .unwrap();
+
         Self {
             config,
             aggregator,
             eth_client,
             eth_gateway_client,
-            eth_contracts,
+            eth_ecosystem_contracts,
             functions,
             base_nonce,
             base_nonce_custom_commit_sender,
@@ -156,15 +168,16 @@ impl EthTxAggregator {
             gateway_migration_state,
             sl_chain_id,
             health_updater: ReactiveHealthCheck::new("eth_tx_aggregator").1,
-            eth_gateway_contracts,
+            gateway_ecosystem_contracts,
+            diamond_proxy_contract,
         }
     }
 
-    fn contracts(&self) -> &EthTxAggregatorContracts {
+    fn contracts(&self) -> &EcosystemContracts {
         if self.gateway_migration_state.is_gateway() {
-            self.eth_gateway_contracts.as_ref().unwrap()
+            self.gateway_ecosystem_contracts.as_ref().unwrap()
         } else {
-            &self.eth_contracts
+            &self.eth_ecosystem_contracts
         }
     }
 
@@ -220,7 +233,7 @@ impl EthTxAggregator {
             .encode_input(&[])
             .unwrap();
         let get_bootloader_hash_call = Multicall3Call {
-            target: self.contracts().state_transition_chain_contract,
+            target: self.diamond_proxy_contract,
             allow_failure: ALLOW_FAILURE,
             calldata: get_l2_bootloader_hash_input,
         };
@@ -232,7 +245,7 @@ impl EthTxAggregator {
             .encode_input(&[])
             .unwrap();
         let get_default_aa_hash_call = Multicall3Call {
-            target: self.contracts().state_transition_chain_contract,
+            target: self.diamond_proxy_contract,
             allow_failure: ALLOW_FAILURE,
             calldata: get_l2_default_aa_hash_input,
         };
@@ -244,7 +257,7 @@ impl EthTxAggregator {
             .encode_input(&[])
             .unwrap();
         let get_verifier_params_call = Multicall3Call {
-            target: self.contracts().state_transition_chain_contract,
+            target: self.diamond_proxy_contract,
             allow_failure: ALLOW_FAILURE,
             calldata: get_verifier_params_input,
         };
@@ -252,7 +265,7 @@ impl EthTxAggregator {
         // Fourth zksync contract call
         let get_verifier_input = self.functions.get_verifier.encode_input(&[]).unwrap();
         let get_verifier_call = Multicall3Call {
-            target: self.contracts().state_transition_chain_contract,
+            target: self.diamond_proxy_contract,
             allow_failure: ALLOW_FAILURE,
             calldata: get_verifier_input,
         };
@@ -264,7 +277,7 @@ impl EthTxAggregator {
             .encode_input(&[])
             .unwrap();
         let get_protocol_version_call = Multicall3Call {
-            target: self.contracts().state_transition_chain_contract,
+            target: self.diamond_proxy_contract,
             allow_failure: ALLOW_FAILURE,
             calldata: get_protocol_version_input,
         };
@@ -313,7 +326,7 @@ impl EthTxAggregator {
             .and_then(|f| f.encode_input(&[]).ok());
         if let Some(input) = get_l2_evm_emulator_hash_input {
             let call = Multicall3Call {
-                target: self.contracts().state_transition_chain_contract,
+                target: self.diamond_proxy_contract,
                 allow_failure: ALLOW_FAILURE,
                 calldata: input,
             };
@@ -471,7 +484,7 @@ impl EthTxAggregator {
         if chain_protocol_version_id == stm_protocol_version_id {
             stm_validator_timelock_address
         } else {
-            self.contracts().config_timelock_contract_address
+            self.contracts().timelock_contract_address
         }
     }
 
@@ -576,6 +589,9 @@ impl EthTxAggregator {
         if self.gateway_migration_state != new_gateway_state {
             self.gateway_migration_state = new_gateway_state;
             self.reset_nonce().await?;
+            self.diamond_proxy_contract =
+                diamond_proxy_contract(self.client(), self.contracts(), self.rollup_chain_id)
+                    .await?;
         }
         let priority_tree_start_index = if let Some(priority_tree_start_index) =
             self.priority_tree_start_index
@@ -915,15 +931,17 @@ impl EthTxAggregator {
     }
 }
 
-async fn query_client(
+async fn query_contract(
     l1_client: &dyn BoundEthInterface,
     method_name: &str,
+    params: &[Token],
+    contract: &Contract,
+    contract_addr: Address,
 ) -> Result<Token, EthSenderError> {
-    let data = l1_client
-        .contract()
+    let data = contract
         .function(method_name)
         .unwrap()
-        .encode_input(&[])
+        .encode_input(params)
         .unwrap();
 
     let eth_interface: &dyn EthInterface = AsRef::<dyn EthInterface>::as_ref(l1_client);
@@ -932,14 +950,13 @@ async fn query_client(
         .call_contract_function(
             CallRequest {
                 data: Some(data.into()),
-                to: Some(l1_client.contract_addr()),
+                to: Some(contract_addr),
                 ..CallRequest::default()
             },
             None,
         )
         .await?;
-    Ok(l1_client
-        .contract()
+    Ok(contract
         .function(method_name)
         .unwrap()
         .decode_output(&result.0)
@@ -947,10 +964,24 @@ async fn query_client(
         .clone())
 }
 
+async fn query_default_contract(
+    l1_client: &dyn BoundEthInterface,
+    method_name: &str,
+) -> Result<Token, EthSenderError> {
+    query_contract(
+        l1_client,
+        method_name,
+        &[],
+        l1_client.contract(),
+        l1_client.contract_addr(),
+    )
+    .await
+}
+
 async fn get_settlement_layer(
     l1_client: &dyn BoundEthInterface,
 ) -> Result<Address, EthSenderError> {
-    let result = query_client(l1_client, "getSettlementLayer").await?;
+    let result = query_default_contract(l1_client, "getSettlementLayer").await?;
     Ok(result.into_address().unwrap())
 }
 
@@ -982,7 +1013,7 @@ pub async fn gateway_status(
 async fn get_priority_tree_start_index(
     l1_client: &dyn BoundEthInterface,
 ) -> Result<Option<usize>, EthSenderError> {
-    let packed_semver = query_client(l1_client, "getProtocolVersion")
+    let packed_semver = query_default_contract(l1_client, "getProtocolVersion")
         .await?
         .into_uint()
         .unwrap();
@@ -995,10 +1026,27 @@ async fn get_priority_tree_start_index(
         return Ok(None);
     }
 
-    let priority_tree_start_index = query_client(l1_client, "getPriorityTreeStartIndex")
+    let priority_tree_start_index = query_default_contract(l1_client, "getPriorityTreeStartIndex")
         .await?
         .into_uint()
         .unwrap();
 
     Ok(Some(priority_tree_start_index.as_usize()))
+}
+
+async fn diamond_proxy_contract(
+    l1_client: &dyn BoundEthInterface,
+    contracts: &EcosystemContracts,
+    chain_id: L2ChainId,
+) -> Result<Address, EthSenderError> {
+    Ok(query_contract(
+        l1_client,
+        "getZKChain",
+        &[Token::Uint(U256::from(chain_id.as_u64()))],
+        &bridgehub_contract(),
+        contracts.bridgehub,
+    )
+    .await?
+    .into_address()
+    .unwrap())
 }

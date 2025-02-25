@@ -96,8 +96,8 @@ const TOO_MANY_RESULTS_CHAINSTACK: &str = "range limit exceeded";
 #[derive(Debug, Clone)]
 pub struct EthHttpQueryClient<Net: Network> {
     client: Box<DynClient<Net>>,
-    diamond_proxy_addr: Address,
-    governance_address: Address,
+    diamond_proxy_addr: Option<Address>,
+    governance_address: Option<Address>,
     new_upgrade_cut_data_signature: H256,
     bytecode_published_signature: H256,
     bytecode_supplier_addr: Option<Address>,
@@ -123,19 +123,19 @@ where
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         client: Box<DynClient<Net>>,
-        diamond_proxy_addr: Address,
+        diamond_proxy_addr: Option<Address>,
         bytecode_supplier_addr: Option<Address>,
         wrapped_base_token_store: Option<Address>,
         l1_shared_bridge_addr: Option<Address>,
         state_transition_manager_address: Option<Address>,
         chain_admin_address: Option<Address>,
         server_notifier_address: Option<Address>,
-        governance_address: Address,
+        governance_address: Option<Address>,
         confirmations_for_eth_event: Option<u64>,
         l2_chain_id: L2ChainId,
     ) -> Self {
         tracing::debug!(
-            "New eth client, ZKsync addr: {:x}, governance addr: {:?}",
+            "New eth client, ZKsync addr: {:?}, governance addr: {:?}",
             diamond_proxy_addr,
             governance_address
         );
@@ -171,8 +171,8 @@ where
 
     fn get_default_address_list(&self) -> Vec<Address> {
         [
-            Some(self.diamond_proxy_addr),
-            Some(self.governance_address),
+            self.diamond_proxy_addr,
+            self.governance_address,
             self.state_transition_manager_address,
             self.chain_admin_address,
             self.server_notifier_address,

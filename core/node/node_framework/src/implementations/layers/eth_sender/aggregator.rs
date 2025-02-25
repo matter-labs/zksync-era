@@ -2,8 +2,8 @@ use anyhow::Context;
 use zksync_circuit_breaker::l1_txs::FailedL1TransactionChecker;
 use zksync_config::configs::{eth_sender::EthConfig, gateway::GatewayChainConfig, ContractsConfig};
 use zksync_eth_client::BoundEthInterface;
-use zksync_eth_sender::{Aggregator, EthTxAggregator, EthTxAggregatorContracts};
-use zksync_types::{commitment::L1BatchCommitmentMode, L2ChainId};
+use zksync_eth_sender::{Aggregator, EcosystemContracts, EthTxAggregator};
+use zksync_types::{commitment::L1BatchCommitmentMode, L2ChainId, L2_BRIDGEHUB_ADDRESS};
 
 use crate::{
     implementations::resources::{
@@ -111,22 +111,22 @@ impl WiringLayer for EthTxAggregatorLayer {
         let getaway_contracts_config =
             self.gateway_chain_config
                 .as_ref()
-                .map(|gateway_chain_config| EthTxAggregatorContracts {
-                    config_timelock_contract_address: gateway_chain_config.validator_timelock_addr,
+                .map(|gateway_chain_config| EcosystemContracts {
+                    timelock_contract_address: gateway_chain_config.validator_timelock_addr,
                     l1_multicall3_address: gateway_chain_config.multicall3_addr,
-                    state_transition_chain_contract: gateway_chain_config.diamond_proxy_addr,
+                    bridgehub: L2_BRIDGEHUB_ADDRESS,
                     state_transition_manager_address: gateway_chain_config
                         .state_transition_proxy_addr,
                 });
-        let l1_contracts_config = EthTxAggregatorContracts {
-            config_timelock_contract_address: self.contracts_config.validator_timelock_addr,
+        let ecosystem_contracts = self
+            .contracts_config
+            .ecosystem_contracts
+            .context("Missing ecosystem contracts")?;
+        let l1_contracts_config = EcosystemContracts {
+            timelock_contract_address: self.contracts_config.validator_timelock_addr,
             l1_multicall3_address: self.contracts_config.l1_multicall3_addr,
-            state_transition_chain_contract: self.contracts_config.diamond_proxy_addr,
-            state_transition_manager_address: self
-                .contracts_config
-                .ecosystem_contracts
-                .context("Missing ecosystem contracts")?
-                .state_transition_proxy_addr,
+            bridgehub: ecosystem_contracts.bridgehub_proxy_addr,
+            state_transition_manager_address: ecosystem_contracts.state_transition_proxy_addr,
         };
 
         let master_pool = input.master_pool.get().await.unwrap();
