@@ -13,6 +13,7 @@ use crate::{
     errors::{DeserializeContext, DeserializeErrorKind},
     hasher::{BatchTreeProof, IntermediateHash, InternalHashes, TreeOperation},
     leaf_nibbles, max_nibbles_for_internal_node, max_node_children,
+    metrics::{BatchProofStage, LoadStage, METRICS},
     types::{InternalNode, KeyLookup, Leaf, Manifest, Node, NodeKey, Root, TreeTags},
     BatchOutput, DeserializeError, HashTree, MerkleTree, TreeEntry, TreeParams,
 };
@@ -27,6 +28,7 @@ pub(crate) struct TreeUpdate {
     pub(crate) inserts: Vec<Leaf>,
     operations: Vec<TreeOperation>,
     read_operations: Vec<TreeOperation>,
+    pub(crate) missing_reads_count: usize,
 }
 
 impl TreeUpdate {
@@ -101,6 +103,7 @@ impl TreeUpdate {
             // This makes the proof occupy less space and doesn't require to specify bogus indices for `TreeOperation::Insert`.
             operations: vec![],
             read_operations: vec![],
+            missing_reads_count: 0,
         })
     }
 
@@ -251,7 +254,11 @@ impl<P: TreeParams> WorkingPatchSet<P> {
         Ok(())
     }
 
-    pub(crate) fn total_internal_nodes(&self) -> usize {
+    pub(crate) fn loaded_leaves_count(&self) -> usize {
+        self.inner.leaves.len()
+    }
+
+    pub(crate) fn loaded_internal_nodes_count(&self) -> usize {
         self.inner.total_internal_nodes()
     }
 
@@ -352,6 +359,8 @@ impl<P: TreeParams> WorkingPatchSet<P> {
             traverse_latency += started_at.elapsed();
         }
 
+        METRICS.batch_proof_latency[&BatchProofStage::Hashing].observe(hash_latency);
+        METRICS.batch_proof_latency[&BatchProofStage::Traversal].observe(traverse_latency);
         tracing::debug!(
             ?hash_latency,
             ?traverse_latency,
@@ -487,8 +496,8 @@ impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
     /// Loads data for processing the specified entries into a patch set.
     #[tracing::instrument(
         level = "debug",
-        skip(self, entries),
-        fields(entries.len = entries.len())
+        skip(self, entries, read_keys),
+        fields(entries.len = entries.len(), read_keys.len = read_keys.len())
     )]
     pub(crate) fn create_patch(
         &self,
@@ -506,12 +515,13 @@ impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
             .chain(read_keys.iter().copied())
             .collect();
 
-        let started_at = Instant::now();
+        let key_lookup_latency = METRICS.load_nodes_latency[&LoadStage::KeyLookup].start();
         let lookup = self
             .db
             .indices(latest_version, &touched_keys)
             .context("failed loading indices")?;
-        tracing::debug!(elapsed = ?started_at.elapsed(), "loaded lookup info");
+        let elapsed = key_lookup_latency.observe();
+        tracing::debug!(?elapsed, "loaded lookup info");
 
         // Collect all distinct indices that need to be loaded.
         let mut sorted_new_leaves = BTreeMap::new();
@@ -541,6 +551,7 @@ impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
         }
 
         let mut read_operations = Vec::with_capacity(read_keys.len());
+        let mut missing_reads_count = 0;
         for lookup in &lookup[entries.len()..] {
             let read_op = match lookup {
                 KeyLookup::Existing(idx) => {
@@ -551,6 +562,7 @@ impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
                     prev_key_and_index,
                     next_key_and_index,
                 } => {
+                    missing_reads_count += 1;
                     distinct_indices.extend([prev_key_and_index.1, next_key_and_index.1]);
                     TreeOperation::Insert {
                         prev_index: prev_key_and_index.1,
@@ -566,13 +578,14 @@ impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
             distinct_indices.insert(root.leaf_count - 1);
         }
 
-        let started_at = Instant::now();
+        let tree_nodes_latency = METRICS.load_nodes_latency[&LoadStage::TreeNodes].start();
         let mut patch = WorkingPatchSet::new(root);
         patch.load_nodes(&self.db, distinct_indices.iter().copied())?;
+        let elapsed = tree_nodes_latency.observe();
         tracing::debug!(
-            elapsed = ?started_at.elapsed(),
+            ?elapsed,
             distinct_indices.len = distinct_indices.len(),
-            "loaded nodes"
+            "loaded tree nodes"
         );
 
         let mut updates = Vec::with_capacity(entries.len() - sorted_new_leaves.len());
@@ -636,6 +649,7 @@ impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
                 inserts,
                 operations,
                 read_operations,
+                missing_reads_count,
             },
         ))
     }

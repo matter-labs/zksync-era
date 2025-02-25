@@ -1,6 +1,6 @@
 //! Persistent ZK OS Merkle tree.
 
-use std::{fmt, time::Instant};
+use std::fmt;
 
 use anyhow::Context as _;
 use zksync_basic_types::H256;
@@ -14,6 +14,7 @@ pub use self::{
 };
 use crate::{
     hasher::BatchTreeProof,
+    metrics::{BatchProofStage, LoadStage, METRICS},
     storage::{TreeUpdate, WorkingPatchSet},
     types::MAX_TREE_DEPTH,
 };
@@ -21,6 +22,7 @@ use crate::{
 mod consistency;
 mod errors;
 mod hasher;
+mod metrics;
 mod storage;
 #[cfg(test)]
 mod tests;
@@ -165,7 +167,7 @@ impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
             .context("failed getting latest version")?;
         tracing::Span::current().record("latest_version", latest_version);
 
-        let started_at = Instant::now();
+        let load_nodes_latency = METRICS.load_nodes_latency[&LoadStage::Total].start();
         let (mut patch, mut update) = if let Some(version) = latest_version {
             self.create_patch(version, entries, read_keys.unwrap_or_default())
                 .context("failed loading tree data")?
@@ -175,23 +177,44 @@ impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
                 TreeUpdate::for_empty_tree(entries)?,
             )
         };
+        let elapsed = load_nodes_latency.observe();
+        METRICS.batch_inserts_count.observe(update.inserts.len());
+        METRICS.batch_updates_count.observe(update.updates.len());
+        METRICS.loaded_leaves.observe(patch.loaded_leaves_count());
+        METRICS
+            .loaded_internal_nodes
+            .observe(patch.loaded_internal_nodes_count());
+        if let Some(keys) = read_keys {
+            METRICS
+                .batch_reads_count
+                .observe(keys.len() - update.missing_reads_count);
+            METRICS
+                .batch_missing_reads_count
+                .observe(update.missing_reads_count);
+        }
+
         tracing::debug!(
-            elapsed = ?started_at.elapsed(),
+            ?elapsed,
             inserts = update.inserts.len(),
             updates = update.updates.len(),
-            loaded_internal_nodes = patch.total_internal_nodes(),
+            reads = read_keys.map(|keys| keys.len() - update.missing_reads_count),
+            missing_reads = read_keys.is_some().then_some(update.missing_reads_count),
+            loaded_internal_nodes = patch.loaded_internal_nodes_count(),
             "loaded tree data"
         );
 
         let proof = if read_keys.is_some() {
-            let started_at = Instant::now();
+            let proof_latency = METRICS.batch_proof_latency[&BatchProofStage::Total].start();
             let proof = patch.create_batch_proof(
                 &self.hasher,
                 update.take_operations(),
                 update.take_read_operations(),
             );
+            let elapsed = proof_latency.observe();
+            METRICS.proof_hashes_count.observe(proof.hashes.len());
+
             tracing::debug!(
-                elapsed = ?started_at.elapsed(),
+                ?elapsed,
                 proof.leaves.len = proof.sorted_leaves.len(),
                 proof.hashes.len = proof.hashes.len(),
                 "created batch proof"
@@ -201,19 +224,24 @@ impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
             None
         };
 
-        let started_at = Instant::now();
+        let extend_patch_latency = METRICS.extend_patch_latency.start();
         let update = patch.update(update);
-        tracing::debug!(elapsed = ?started_at.elapsed(), "updated tree structure");
+        let elapsed = extend_patch_latency.observe();
+        tracing::debug!(?elapsed, "updated tree structure");
 
-        let started_at = Instant::now();
+        let finalize_latency = METRICS.finalize_patch_latency.start();
         let (patch, output) = patch.finalize(&self.hasher, update);
-        tracing::debug!(elapsed = ?started_at.elapsed(), "hashed tree");
+        let elapsed = finalize_latency.observe();
+        tracing::debug!(?elapsed, "hashed tree");
 
-        let started_at = Instant::now();
+        let apply_patch_latency = METRICS.apply_patch_latency.start();
         self.db
             .apply_patch(patch)
             .context("failed persisting tree changes")?;
-        tracing::debug!(elapsed = ?started_at.elapsed(), "persisted tree");
+        let elapsed = apply_patch_latency.observe();
+        tracing::debug!(?elapsed, "persisted tree");
+
+        METRICS.leaf_count.set(output.leaf_count);
         Ok((output, proof))
     }
 
