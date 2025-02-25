@@ -645,6 +645,7 @@ async fn using_real_compiler_in_verifier(bytecode_kind: BytecodeMarker, toolchai
         Duration::from_secs(60),
         pool.clone(),
         Arc::new(compiler_resolver),
+        false,
     )
     .await
     .unwrap();
@@ -796,6 +797,7 @@ async fn using_zksolc_partial_match(use_cbor: bool) {
         Duration::from_secs(60),
         pool.clone(),
         Arc::new(compiler_resolver),
+        false,
     )
     .await
     .unwrap();
@@ -847,6 +849,7 @@ async fn compilation_errors(bytecode_kind: BytecodeMarker) {
         Duration::from_secs(60),
         pool.clone(),
         Arc::new(compiler_resolver),
+        false,
     )
     .await
     .unwrap();

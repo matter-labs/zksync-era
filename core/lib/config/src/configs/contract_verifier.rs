@@ -12,6 +12,9 @@ pub struct ContractVerifierConfig {
     /// Port to which the Prometheus exporter server is listening.
     pub prometheus_port: u16,
     pub port: u16,
+    /// Etherscan API URL that is used for contract verification in Etherscan.
+    /// If not set, the Etherscan verification is disabled.
+    pub etherscan_api_url: Option<String>,
 }
 
 impl ContractVerifierConfig {

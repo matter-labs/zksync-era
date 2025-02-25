@@ -10,7 +10,7 @@ use zksync_config::configs::{
     consensus::{AttesterSecretKey, ConsensusSecrets, NodeSecretKey, ValidatorSecretKey},
     da_client::{avail::AvailSecrets, celestia::CelestiaSecrets, eigen::EigenSecrets},
     secrets::{DataAvailabilitySecrets, Secrets},
-    DatabaseSecrets, L1Secrets,
+    ContractVerifierSecrets, DatabaseSecrets, L1Secrets,
 };
 use zksync_protobuf::{required, ProtoRepr};
 
@@ -28,6 +28,7 @@ impl ProtoRepr for proto::Secrets {
             database: read_optional_repr(&self.database),
             l1: read_optional_repr(&self.l1),
             data_availability: read_optional_repr(&self.da),
+            contract_verifier: read_optional_repr(&self.contract_verifier),
         })
     }
 
@@ -37,6 +38,7 @@ impl ProtoRepr for proto::Secrets {
             l1: this.l1.as_ref().map(ProtoRepr::build),
             consensus: this.consensus.as_ref().map(ProtoRepr::build),
             da: this.data_availability.as_ref().map(ProtoRepr::build),
+            contract_verifier: this.contract_verifier.as_ref().map(ProtoRepr::build),
         }
     }
 }
@@ -237,5 +239,35 @@ impl ProtoRepr for proto::ConsensusSecrets {
                 .as_ref()
                 .map(|x| x.0.expose_secret().to_string()),
         }
+    }
+}
+
+impl ProtoRepr for proto::ContractVerifierSecrets {
+    type Type = ContractVerifierSecrets;
+
+    fn read(&self) -> anyhow::Result<Self::Type> {
+        Ok(ContractVerifierSecrets {
+            etherscan_api_key: self
+                .etherscan_api_key
+                .as_ref()
+                .map(|s| APIKey::from(s.as_str())),
+        })
+    }
+
+    fn build(this: &Self::Type) -> Self {
+        let etherscan_api_key = if this.etherscan_api_key.is_some() {
+            Some(
+                this.etherscan_api_key
+                    .clone()
+                    .unwrap()
+                    .0
+                    .expose_secret()
+                    .to_string(),
+            )
+        } else {
+            None
+        };
+
+        Self { etherscan_api_key }
     }
 }
