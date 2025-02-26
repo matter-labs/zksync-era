@@ -116,3 +116,7 @@ zksync_prover_job_monitor = { version = "18.0.0", path = "crates/bin/prover_job_
 [profile.perf]
 inherits = "release"
 debug = true
+
+[patch.crates-io]
+vise = { git = "https://github.com/matter-labs/vise.git", rev = "6c010a683de9750fb61ca2d30630d79afbe743d8" }
+vise-exporter = { git = "https://github.com/matter-labs/vise.git", rev = "6c010a683de9750fb61ca2d30630d79afbe743d8" }
