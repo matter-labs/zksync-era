@@ -30,7 +30,7 @@ use zk_os_forward_system::run::{
     BatchContext, BatchOutput, ExecutionResult, InvalidTransaction, NextTxResponse, PreimageSource,
     StorageCommitment, TxResultCallback, TxSource,
 };
-use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_mempool::L2TxFilter;
 use zksync_state::ReadStorageFactory;
 use zksync_state_keeper::{
@@ -109,18 +109,36 @@ impl ZkosStateKeeper {
             output_handler,
         }
     }
+
     pub async fn run(mut self) -> anyhow::Result<()> {
+        match self.run_inner().await {
+            Ok(_) => unreachable!(),
+            Err(Error::Fatal(err)) => Err(err).context("state_keeper failed"),
+            Err(Error::Canceled) => {
+                tracing::info!("Stop signal received, state keeper is shutting down");
+                Ok(())
+            }
+        }
+    }
+
+    async fn run_inner(mut self) -> Result<(), Error> {
         tracing::info!("Initializing ZkOs StateKeeper...");
 
         let mut cursor = self.io.initialize().await?;
         self.output_handler.initialize(&cursor).await?;
 
-        anyhow::ensure!(
-            cursor.l1_batch.0 == cursor.next_l2_block.0,
-            "For Zkos we expect batches to have just one l2 block each"
-        );
+        if cursor.l1_batch.0 != cursor.next_l2_block.0 {
+            return Err(anyhow::anyhow!(
+                "For Zkos we expect batches to have just one l2 block each"
+            )
+            .into());
+        }
 
-        let mut connection = self.pool.connection_tagged("state_keeper").await?;
+        let mut connection = self
+            .pool
+            .connection_tagged("state_keeper")
+            .await
+            .map_err(DalError::generalize)?;
         Self::fund_dev_wallets_if_needed(&mut connection, cursor.next_l2_block).await;
         drop(connection);
 
