@@ -520,6 +520,12 @@ impl<P: TreeParams> WorkingPatchSet<P> {
             root_hash,
         };
 
+        // Release excessive capacity occupied by the partial patch set. We'll never modify it inside a `PatchSet`.
+        this.leaves.shrink_to_fit();
+        for internal_level in &mut this.internal {
+            internal_level.shrink_to_fit();
+        }
+
         let patch = PatchSet {
             manifest: Manifest {
                 version_count: update.version + 1,

@@ -9,7 +9,7 @@ pub use zksync_crypto_primitives::hasher::blake2::Blake2Hasher;
 pub use self::{
     errors::DeserializeError,
     hasher::HashTree,
-    storage::{Database, MerkleTreeColumnFamily, PatchSet, RocksDBWrapper},
+    storage::{Database, MerkleTreeColumnFamily, PatchSet, Patched, RocksDBWrapper},
     types::{BatchOutput, TreeEntry},
 };
 use crate::{
@@ -27,6 +27,14 @@ mod storage;
 #[cfg(test)]
 mod tests;
 mod types;
+
+/// Unstable types that should not be used unless you know what you're doing (e.g., implementing
+/// `Database` trait for a custom type). There are no guarantees whatsoever that APIs / structure of
+/// these types will remain stable.
+#[doc(hidden)]
+pub mod unstable {
+    pub use crate::types::{KeyLookup, Manifest, Node, NodeKey, Root};
+}
 
 /// Marker trait for tree parameters.
 pub trait TreeParams: fmt::Debug + Send + Sync {
