@@ -321,7 +321,12 @@ impl<'a> GasEstimator<'a> {
     ) -> Result<Self, SubmitTxError> {
         let protocol_version = block_args.protocol_version();
 
+        #[cfg(feature = "zkos")]
+        let max_gas_limit = 100_000_000;
+
+        #[cfg(not(feature = "zkos"))]
         let max_gas_limit = get_max_batch_gas_limit(protocol_version.into());
+
         let fee_input = adjust_pubdata_price_for_tx(
             sender.scaled_batch_fee_input().await?,
             transaction.gas_per_pubdata_byte_limit(),

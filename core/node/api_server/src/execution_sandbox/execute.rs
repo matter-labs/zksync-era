@@ -14,7 +14,7 @@ use zksync_multivm::{
         executor::{OneshotExecutor, TransactionValidator},
         storage::StorageWithOverrides,
         tracer::TimestampAsserterParams,
-        Call, ExecutionResult, OneshotEnv, OneshotTracingParams, TransactionExecutionMetrics,
+        Call, ExecutionResult, Halt, OneshotEnv, OneshotTracingParams, TransactionExecutionMetrics,
         TxExecutionArgs, VmEvent, VmExecutionMetrics, VmRevertReason,
     },
     utils::StorageWritesDeduplicator,
@@ -228,7 +228,7 @@ impl SandboxExecutor {
                 .expect("Incorrect system time")
                 .as_secs(),
             chain_id: env.system.chain_id.as_u64(),
-            gas_limit: 32000000, // TODO: what value should be used?
+            gas_limit: 100_000_000, // TODO: what value should be used?
             coinbase: Default::default(),
             block_hashes: Default::default(),
         };
@@ -264,7 +264,16 @@ impl SandboxExecutor {
             Ok(Ok(tx_output)) => tx_output,
             // TODO: how to process InvalidTransaction?
             Ok(Err(invalid)) => {
-                anyhow::bail!("invalid transaction: {:?}", invalid)
+                return Ok(SandboxExecutionOutput {
+                    result: ExecutionResult::Halt {
+                        reason: Halt::TracerCustom(format!("{invalid:?}")),
+                    },
+                    write_logs: vec![],
+                    events: vec![],
+                    call_traces: vec![],
+                    metrics: Default::default(),
+                    are_published_bytecodes_ok: true,
+                })
             }
             Err(err) => {
                 anyhow::bail!("ZK OS execution failed with internal error: {:?}", err)

@@ -386,6 +386,13 @@ impl BlockArgs {
                 .protocol_version
                 .unwrap_or_else(ProtocolVersionId::last_potentially_undefined)
         };
-        Ok(get_eth_call_gas_limit(protocol_version.into()).into())
+
+        #[cfg(feature = "zkos")]
+        let gas_limit = 100_000_000.into();
+
+        #[cfg(not(feature = "zkos"))]
+        let gas_limit = get_eth_call_gas_limit(protocol_version.into()).into();
+
+        Ok(gas_limit)
     }
 }

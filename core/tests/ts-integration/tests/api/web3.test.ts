@@ -575,7 +575,7 @@ describe('web3 API compatibility tests', () => {
     // subscribe for events and then send transactions. However, this test
     // sometimes fails because one of the events was not received. Probably, there is
     // some problem in the pub-sub API that should be found & fixed.
-    test('Should listen for human-readable events', async () => {
+    test('Should listen for human-readable events: zkos', async () => {
         const contract = await deployContract(alice, contracts.events, []);
 
         const blockNumber = await alice.provider.getBlockNumber();
