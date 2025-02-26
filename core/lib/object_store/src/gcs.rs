@@ -21,6 +21,10 @@ use tokio::sync::{AcquireError, Semaphore};
 
 use crate::raw::{Bucket, ObjectStore, ObjectStoreError};
 
+/// Default maximum number of concurrent requests to GCS.
+/// Consider this a throttle to prevent overwhelming GCS or network card.
+/// The number has been picked after testing GCS in multiple conditions.
+/// Do NOT change it without proper, thorough testing.
 const DEFAULT_MAX_CONCURRENT_REQUESTS: usize = 500;
 
 /// [`ObjectStore`] implementation based on GCS.
@@ -144,7 +148,7 @@ impl From<AcquireError> for ObjectStoreError {
     fn from(err: AcquireError) -> Self {
         ObjectStoreError::Other {
             source: err.into(),
-            is_retriable: true,
+            is_retriable: false,
         }
     }
 }
@@ -216,8 +220,7 @@ impl ObjectStore for GoogleCloudStore {
         let _permit = self
             .semaphore
             .acquire()
-            .await
-            .map_err(Into::<ObjectStoreError>::into)?;
+            .await?;
         let filename = Self::filename(bucket.as_str(), key);
         tracing::trace!(
             "Storing data to GCS for key {filename} from bucket {}",
