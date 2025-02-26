@@ -36,7 +36,7 @@ To differentiate chains that can mint the asset, we will have minter roles. For 
 mapping(chainId => assetId => bool) isMinterChain;
 ```
 
-To enable interop, besides updating based on L1<>L2 txs, we will have to [parse all interop txs](https://github.com/matter-labs/era-contracts/blob/b5fda9c4dd8171ffb53337711fe8da43b4266026/l1-contracts/contracts/bridge/asset-tracker/AssetTrackerBase.sol#L35). This means we have to parse all L2toL1 logs, if the sender is the interopCenter parse the message, create ZK IP ops from that, and update the balance on the SL. 
+To enable interop, besides updating based on L1<>L2 txs, we will have to [parse all interop txs](https://github.com/matter-labs/era-contracts/blob/b5fda9c4dd8171ffb53337711fe8da43b4266026/l1-contracts/contracts/bridge/asset-tracker/AssetTrackerBase.sol#L35). This means we have to parse all L2toL1 logs, if the sender is the interopCenter parse the message, and update the balance on the SL. 
 
 We can have non balance changing operations. This is useful to set the `isMinterChain` role
 
@@ -82,7 +82,7 @@ contract AssetTracker {
 }
 ```
 
-### Different settlement layers
+### Migrating and settling on Gateway
 
 When a chain migrates from L1 to GW or from GW to L1, the `chainBalance` mapping does not get transferred automatically:
 
@@ -97,7 +97,7 @@ function moveBalanceToSL(uint256 chainId, bytes32 assetId) {
 	
 	uint256 currentBalance = balance[chainId][assetId];
 	balance[chainId][assetId] = 0;
-	*~~balance[settlmentLayer][assetId] += currentBalance;~~*
+	balance[settlmentLayer][assetId] += currentBalance;
 	
 	sendTxToSL(chinId, assetId, currentBalance);
 }
@@ -105,8 +105,9 @@ function moveBalanceToSL(uint256 chainId, bytes32 assetId) {
 
  - The same goes for the minter role.
 
-> The design does not consider any other settlement layers. We assume that we have only two of them. It may be not hard to expand it to multiple of those, but hopefully we’ll get to the full ZK IP sooner.
-> 
+The AssetTracker contracts will be deployed on the GW and the L1, but we might only allow interop and asset trackers on GW, since using them on L1 is expensive. 
+
+On GW we will also track the balances of the chains. To do this we will parse the L1->L3 messages as they are processed, and L3->L1 messages are processed same as L2->L1 messages on L1. 
 
 ## How full ZK IP could look like with the same user interface (+ migration) could look like
 
