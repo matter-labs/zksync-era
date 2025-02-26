@@ -11,7 +11,7 @@ use zksync_types::{
     transaction_request::PaymasterParams,
     web3::Bytes,
     Address, Execute, ExecuteTransactionCommon, L1TxCommonData, L2ChainId, L2TxCommonData, Nonce,
-    PackedEthSignature, PriorityOpId, ProtocolVersionId, Transaction,
+    NonceKey, NonceValue, PackedEthSignature, PriorityOpId, ProtocolVersionId, Transaction,
     TransactionTimeRangeConstraint, EIP_1559_TX_TYPE, EIP_2930_TX_TYPE, EIP_712_TX_TYPE, H160,
     H256, PRIORITY_OPERATION_L2_TX_TYPE, PROTOCOL_UPGRADE_TX_TYPE, U256, U64,
 };
@@ -31,7 +31,8 @@ pub struct StorageTransaction {
     pub full_fee: Option<BigDecimal>,
     pub layer_2_tip_fee: Option<BigDecimal>,
     pub initiator_address: Vec<u8>,
-    pub nonce: Option<BigDecimal>,
+    pub nonce_key: BigDecimal,
+    pub nonce: Option<i64>,
     pub signature: Option<Vec<u8>>,
     pub gas_limit: Option<BigDecimal>,
     pub max_fee_per_gas: Option<BigDecimal>,
@@ -164,9 +165,13 @@ impl From<StorageTransaction> for L2TxCommonData {
                 .unwrap_or_else(|_| panic!("Incorrect gas limit value in DB {}", gas_limit_string))
         };
         let nonce = {
-            let nonce_string = tx.nonce.expect("no nonce in L2 tx in DB").to_string();
-            U256::from_dec_str(&nonce_string)
-                .unwrap_or_else(|_| panic!("Incorrect nonce value in DB {}", nonce_string))
+            let nonce_value = tx.nonce.expect("no nonce in L2 tx in DB");
+            let nonce_key = U256::from_dec_str(&tx.nonce_key.to_string())
+                .unwrap_or_else(|_| panic!("Incorrect nonce key in DB {:?}", tx.nonce_key));
+            Nonce::combine(
+                NonceKey(nonce_key),
+                NonceValue(nonce_value.try_into().expect("Incorrect nonce value in DB")),
+            )
         };
         let max_fee_per_gas = {
             let max_fee_per_gas_string = tx
@@ -243,7 +248,7 @@ impl From<StorageTransaction> for L2TxCommonData {
         };
 
         L2TxCommonData::new(
-            Nonce(nonce),
+            nonce,
             fee,
             Address::from_slice(&initiator_address),
             signature.unwrap_or_else(|| {
@@ -357,7 +362,8 @@ pub(crate) struct StorageTransactionReceipt {
     pub gas_limit: Option<BigDecimal>,
     pub effective_gas_price: Option<BigDecimal>,
     pub initiator_address: Vec<u8>,
-    pub nonce: Option<BigDecimal>,
+    pub nonce_key: BigDecimal,
+    pub nonce: Option<i64>,
     pub block_timestamp: Option<i64>,
 }
 
@@ -414,9 +420,13 @@ impl From<StorageTransactionReceipt> for ExtendedTransactionReceipt {
             transaction_type: Some(tx_type),
         };
 
+        let nonce_key = bigdecimal_to_u256(storage_receipt.nonce_key);
+        let nonce_value = storage_receipt.nonce.unwrap_or_default() as u64;
+        let nonce = Nonce::combine(NonceKey(nonce_key), NonceValue(nonce_value)).0;
+
         Self {
             inner,
-            nonce: bigdecimal_to_u256(storage_receipt.nonce.unwrap_or_else(BigDecimal::zero)),
+            nonce,
             calldata: serde_json::from_value(storage_receipt.calldata)
                 .expect("incorrect calldata in Postgres"),
         }
@@ -510,7 +520,8 @@ pub(crate) struct StorageApiTransaction {
     pub tx_hash: Vec<u8>,
     pub index_in_block: Option<i32>,
     pub block_number: Option<i64>,
-    pub nonce: Option<BigDecimal>,
+    pub nonce_key: BigDecimal,
+    pub nonce: Option<i64>,
     pub signature: Option<Vec<u8>>,
     pub initiator_address: Vec<u8>,
     pub tx_format: Option<i32>,
@@ -556,9 +567,14 @@ impl StorageApiTransaction {
             None | Some(0) => None,
             _ => signature.as_ref().map(|s| U64::from(s.v())),
         };
+
+        let nonce_key = bigdecimal_to_u256(self.nonce_key);
+        let nonce_value = self.nonce.unwrap_or_default() as u64;
+        let nonce = Nonce::combine(NonceKey(nonce_key), NonceValue(nonce_value)).0;
+
         let mut tx = api::Transaction {
             hash: H256::from_slice(&self.tx_hash),
-            nonce: bigdecimal_to_u256(self.nonce.unwrap_or_else(BigDecimal::zero)),
+            nonce,
             block_hash: self.block_hash.map(|hash| H256::from_slice(&hash)),
             block_number: self.block_number.map(|number| U64::from(number as u64)),
             transaction_index: self.index_in_block.map(|idx| U64::from(idx as u64)),

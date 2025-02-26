@@ -482,14 +482,15 @@ impl EthNamespace {
                 .lookup_pending_nonce(address, Nonce(account_nonce))
                 .await?
             {
-                account_nonce.0.into()
+                account_nonce.0
             } else {
                 // No nonce hint in the sink: get pending nonces from the mempool
                 connection
                     .transactions_web3_dal()
-                    .next_nonce_by_initiator_account(address, account_nonce)
+                    .next_nonce_by_initiator_account(address, Nonce(account_nonce))
                     .await
                     .map_err(DalError::generalize)?
+                    .0
             };
         }
         Ok(account_nonce)

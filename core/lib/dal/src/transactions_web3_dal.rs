@@ -10,17 +10,13 @@ use zksync_db_connection::{
 };
 use zksync_types::{
     api, api::TransactionReceipt, block::build_bloom, web3, Address, BloomInput, L2BlockNumber,
-    L2ChainId, Transaction, H256, U256,
+    L2ChainId, Nonce, NonceKey, Transaction, H256, U256,
 };
 
 use crate::{
-    models::{
-        bigdecimal_to_u256,
-        storage_transaction::{
-            StorageApiTransaction, StorageTransaction, StorageTransactionDetails,
-            StorageTransactionExecutionInfo, StorageTransactionReceipt,
-        },
-        u256_to_big_decimal,
+    models::storage_transaction::{
+        StorageApiTransaction, StorageTransaction, StorageTransactionDetails,
+        StorageTransactionExecutionInfo, StorageTransactionReceipt,
     },
     Core, CoreDal,
 };
@@ -73,6 +69,7 @@ impl TransactionsWeb3Dal<'_, '_> {
                 transactions.tx_format AS "tx_format?",
                 transactions.refunded_gas,
                 transactions.gas_limit,
+                transactions.nonce_key,
                 transactions.nonce,
                 miniblocks.hash AS "block_hash",
                 miniblocks.l1_batch_number AS "l1_batch_number?",
@@ -204,6 +201,7 @@ impl TransactionsWeb3Dal<'_, '_> {
                     transactions.hash AS tx_hash,
                     transactions.index_in_block AS index_in_block,
                     miniblocks.number AS block_number,
+                    transactions.nonce_key AS nonce_key,
                     transactions.nonce AS nonce,
                     transactions.signature AS signature,
                     transactions.initiator_address AS initiator_address,
@@ -368,17 +366,23 @@ impl TransactionsWeb3Dal<'_, '_> {
     }
 
     /// `committed_next_nonce` should equal the nonce for `initiator_address` in the storage.
+    /// Returns first unused nonce with nonce_key == 0.
     pub async fn next_nonce_by_initiator_account(
         &mut self,
         initiator_address: Address,
-        committed_next_nonce: U256,
-    ) -> DalResult<U256> {
+        committed_next_nonce: Nonce,
+    ) -> DalResult<Nonce> {
+        assert_eq!(
+            committed_next_nonce.key(),
+            NonceKey(0.into()),
+            "Address {initiator_address:?} has next nonce {committed_next_nonce:?} with non-zero nonce key"
+        );
         // Get nonces of non-rejected transactions, starting from the 'latest' nonce.
         // `latest` nonce is used, because it is guaranteed that there are no gaps before it.
         // `(miniblock_number IS NOT NULL OR error IS NULL)` is the condition that filters non-rejected transactions.
-        // Query is fast because we have an index on (`initiator_address`, `nonce`)
+        // Query is fast because we have an index on (`initiator_address`, `nonce_key`, `nonce`)
         // and it cannot return more than `max_nonce_ahead` nonces.
-        let non_rejected_nonces: Vec<U256> = sqlx::query!(
+        let non_rejected_nonces: Vec<_> = sqlx::query!(
             r#"
             SELECT
                 nonce AS "nonce!"
@@ -387,6 +391,7 @@ impl TransactionsWeb3Dal<'_, '_> {
             WHERE
                 initiator_address = $1
                 AND nonce >= $2
+                AND nonce_key = 0
                 AND is_priority = FALSE
                 AND (
                     miniblock_number IS NOT NULL
@@ -396,7 +401,7 @@ impl TransactionsWeb3Dal<'_, '_> {
                 nonce
             "#,
             initiator_address.as_bytes(),
-            u256_to_big_decimal(committed_next_nonce)
+            committed_next_nonce.value().0 as i64
         )
         .instrument("next_nonce_by_initiator_account#non_rejected_nonces")
         .with_arg("initiator_address", &initiator_address)
@@ -404,14 +409,14 @@ impl TransactionsWeb3Dal<'_, '_> {
         .fetch_all(self.storage)
         .await?
         .into_iter()
-        .map(|row| bigdecimal_to_u256(row.nonce))
+        .map(|row| Nonce((row.nonce as u64).into()))
         .collect();
 
         // Find pending nonce as the first "gap" in nonces.
         let mut pending_nonce = committed_next_nonce;
         for nonce in non_rejected_nonces {
             if pending_nonce == nonce {
-                pending_nonce += 1.into();
+                pending_nonce += 1;
             } else {
                 break;
             }

@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                nonce AS \"nonce!\"\n            FROM\n                transactions\n            WHERE\n                initiator_address = $1\n                AND nonce >= $2\n                AND nonce_key = 0\n                AND is_priority = FALSE\n                AND (\n                    miniblock_number IS NOT NULL\n                    OR error IS NULL\n                )\n            ORDER BY\n                nonce\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "nonce!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bytea",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "d06ecec0879b5c700a74e70b7e70bfb6640bd03dfc635c2e6c42dd79eb4f77a8"
+}

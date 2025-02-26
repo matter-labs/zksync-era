@@ -34,7 +34,6 @@ pub async fn l2_tx_filter(
     })
 }
 
-// TODO: modify the fetching of txs from database and integrate with proper insertion into mempool
 #[derive(Debug)]
 pub struct MempoolFetcher {
     mempool: MempoolGuard,
