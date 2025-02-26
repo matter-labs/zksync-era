@@ -206,4 +206,3 @@ async function tryGetMessageData(provider: zksync.Provider, withdrawalHash: Byte
     }
     return { l1BatchNumber, l2TxNumberInBlock, message, l2MessageIndex, proof };
 }
-
