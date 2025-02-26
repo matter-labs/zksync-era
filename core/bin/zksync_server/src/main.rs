@@ -26,6 +26,7 @@ use zksync_core_leftovers::{
     Component, Components,
 };
 use zksync_env_config::FromEnv;
+use zksync_node_framework::service::{TaskError, ZkStackServiceError};
 
 use crate::node_builder::MainNodeBuilder;
 
@@ -175,8 +176,33 @@ fn main() -> anyhow::Result<()> {
         return Ok(());
     }
 
-    node.build(opt.components.0)?.run(observability_guard)?;
+    let result = node
+        .build(opt.components.0.clone())?
+        .run(observability_guard);
+    if find_gateway_update_error(&result) {
+        println!("Gateway has changed")
+    };
     Ok(())
+}
+
+fn find_gateway_update_error(zkstack_result: &Result<(), ZkStackServiceError>) -> bool {
+    if let Err(zkstack_err) = zkstack_result {
+        match &zkstack_err {
+            ZkStackServiceError::Task(tasks) => {
+                for task in &tasks.0 {
+                    if let TaskError::TaskFailed(task, err) = task {
+                        if task.contains("gateway_migrator")
+                            && err.to_string().contains("Settlement layer changed")
+                        {
+                            return true;
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    return false;
 }
 
 fn load_env_config() -> anyhow::Result<TempConfigStore> {
