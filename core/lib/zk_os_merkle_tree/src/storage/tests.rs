@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use zksync_crypto_primitives::hasher::blake2::Blake2Hasher;
 
 use super::*;
-use crate::{DefaultTreeParams, MerkleTree, TreeEntry, TreeParams};
+use crate::{leaf_nibbles, DefaultTreeParams, MerkleTree, TreeEntry, TreeParams};
 
 #[test]
 fn creating_min_update_for_empty_tree() {
@@ -511,4 +511,108 @@ fn patch_is_reduced_for_mixed_workload() {
     for internal_level in &patch.inner().internal {
         assert_eq!(internal_level.len(), 1, "{patch:#?}");
     }
+}
+
+fn assert_empty_tree(db: &impl Database) {
+    let indices = db
+        .indices(0, &[H256::zero(), H256::repeat_byte(1)])
+        .unwrap();
+    assert_eq!(
+        indices,
+        [
+            KeyLookup::Existing(0),
+            KeyLookup::Missing {
+                prev_key_and_index: (H256::zero(), 0),
+                next_key_and_index: (H256::repeat_byte(0xff), 1),
+            }
+        ]
+    );
+    let root = db.try_root(0).unwrap().expect("no root");
+    assert_eq!(root.leaf_count, 2);
+
+    let leaf_keys: Vec<_> = (0..2)
+        .map(|i| NodeKey {
+            version: 0,
+            nibble_count: leaf_nibbles::<DefaultTreeParams>(),
+            index_on_level: i,
+        })
+        .collect();
+    let leaves = db.try_nodes(&leaf_keys).unwrap();
+    assert_eq!(
+        leaves,
+        [Node::Leaf(Leaf::MIN_GUARD), Node::Leaf(Leaf::MAX_GUARD)]
+    );
+}
+
+#[test]
+fn using_patched_database() {
+    let mut tree = MerkleTree::new(PatchSet::default()).unwrap();
+    tree.extend(&[]).unwrap();
+
+    let db = Patched::new(tree.db);
+    assert_empty_tree(&db);
+
+    let mut tree = MerkleTree::new(db).unwrap();
+    let new_entry = TreeEntry {
+        key: H256::repeat_byte(1),
+        value: H256::repeat_byte(0x10),
+    };
+    tree.extend(&[new_entry]).unwrap();
+    let db = tree.db;
+
+    let patch = db.patch.as_ref().unwrap();
+    assert_eq!(patch.manifest.version_count, 2);
+    assert_eq!(patch.patches_by_version.len(), 1);
+    assert!(patch.patches_by_version.contains_key(&1));
+    assert_eq!(patch.sorted_new_leaves.len(), 1);
+    assert_eq!(patch.sorted_new_leaves[&new_entry.key].index, 2);
+
+    assert_empty_tree(&db);
+    let indices = db
+        .indices(1, &[H256::zero(), H256::repeat_byte(1)])
+        .unwrap();
+    assert_eq!(indices, [KeyLookup::Existing(0), KeyLookup::Existing(2)]);
+    let indices = db
+        .indices(1, &[H256::from_low_u64_be(1), H256::repeat_byte(2)])
+        .unwrap();
+    assert_eq!(
+        indices,
+        [
+            KeyLookup::Missing {
+                prev_key_and_index: (H256::zero(), 0),
+                next_key_and_index: (H256::repeat_byte(1), 2),
+            },
+            KeyLookup::Missing {
+                prev_key_and_index: (H256::repeat_byte(1), 2),
+                next_key_and_index: (H256::repeat_byte(0xff), 1),
+            }
+        ]
+    );
+
+    let root = db.try_root(1).unwrap().expect("no root");
+    assert_eq!(root.leaf_count, 3);
+    let leaf_keys: Vec<_> = (0..3)
+        .map(|i| NodeKey {
+            // There are updated guards in version 1, but we want to check distribution of loaded nodes among the patch and underlying DB
+            version: (i > 1).into(),
+            nibble_count: leaf_nibbles::<DefaultTreeParams>(),
+            index_on_level: i,
+        })
+        .collect();
+
+    let leaves = db.try_nodes(&leaf_keys).unwrap();
+    let new_leaf = Leaf {
+        key: new_entry.key,
+        value: new_entry.value,
+        prev_index: 0,
+        next_index: 1,
+    };
+    assert_eq!(
+        leaves,
+        [
+            Node::Leaf(Leaf::MIN_GUARD),
+            Node::Leaf(Leaf::MAX_GUARD),
+            Node::Leaf(new_leaf)
+        ]
+    );
 }
