@@ -39,6 +39,7 @@ pub struct DeployGatewayCTMInput {
 
     bootloader_hash: H256,
     default_aa_hash: H256,
+    evm_emulator_hash: Option<H256>,
 
     priority_tx_max_gas_limit: u64,
 
@@ -109,6 +110,7 @@ impl DeployGatewayCTMInput {
 
             bootloader_hash: genesis_input.bootloader_hash,
             default_aa_hash: genesis_input.default_aa_hash,
+            evm_emulator_hash: genesis_input.evm_emulator_hash,
 
             priority_tx_max_gas_limit: initial_deployment_config.priority_tx_max_gas_limit,
 

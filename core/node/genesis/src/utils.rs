@@ -120,12 +120,11 @@ pub fn get_deduped_log_queries(storage_logs: &[StorageLog]) -> Vec<LogQuery> {
     deduped_log_queries
 }
 
-// Default account and bootloader are not a regular system contracts
-// they have never been actually deployed anywhere,
-// They are the initial code that is fed into the VM upon its start.
-// Both are rather parameters of a block and not system contracts.
-// The code of the bootloader should not be deployed anywhere anywhere in the kernel space (i.e. addresses below 2^16)
-// because in this case we will have to worry about protecting it.
+/// Default account, bootloader and EVM emulator are not regular system contracts.
+/// They have never been actually deployed anywhere, rather, they are the initial code that is fed into the VM upon its start.
+/// Hence, they are rather parameters of a block and not *real* system contracts.
+/// The code of the bootloader should not be deployed anywhere in the kernel space (i.e. addresses below 2^16)
+/// because in this case we will have to worry about protecting it.
 pub(super) async fn insert_base_system_contracts_to_factory_deps(
     storage: &mut Connection<'_, Core>,
     contracts: &BaseSystemContracts,
