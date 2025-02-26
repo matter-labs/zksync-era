@@ -213,10 +213,7 @@ impl ObjectStore for GoogleCloudStore {
         key: &str,
         value: Vec<u8>,
     ) -> Result<(), ObjectStoreError> {
-        let _permit = self
-            .semaphore
-            .acquire()
-            .await?;
+        let _permit = self.semaphore.acquire().await?;
         let filename = Self::filename(bucket.as_str(), key);
         tracing::trace!(
             "Storing data to GCS for key {filename} from bucket {}",
@@ -235,11 +232,7 @@ impl ObjectStore for GoogleCloudStore {
     }
 
     async fn remove_raw(&self, bucket: Bucket, key: &str) -> Result<(), ObjectStoreError> {
-        let _permit = self
-            .semaphore
-            .acquire()
-            .await
-            .map_err(Into::<ObjectStoreError>::into)?;
+        let _permit = self.semaphore.acquire().await?;
         let filename = Self::filename(bucket.as_str(), key);
         tracing::trace!(
             "Removing data from GCS for key {filename} from bucket {}",
