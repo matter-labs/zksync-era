@@ -13,12 +13,13 @@ use zksync_types::{
     l1::L1Tx,
     protocol_upgrade::ProtocolUpgradeTx,
     u256_to_h256,
+    utils::encode_ntv_asset_id,
     web3::{contract::Tokenizable, BlockNumber},
     Address, L1BatchNumber, L2ChainId, ProtocolUpgrade, SLChainId, Transaction, H256,
     SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256, U64,
 };
 
-use crate::client::{encode_ntv_asset_id, EthClient, L2EthClient, RETRY_LIMIT};
+use crate::client::{EthClient, L2EthClient, RETRY_LIMIT};
 
 #[derive(Debug)]
 pub struct FakeEthClientData {
