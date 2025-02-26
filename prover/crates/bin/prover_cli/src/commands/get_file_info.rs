@@ -153,6 +153,11 @@ fn pretty_print_proof(result: &FriProofWrapper) {
                 proof.numeric_circuit_type(),
                 proof.short_description()
             );
+            let json = serde_json::to_string_pretty(&proof)
+                .expect("Failed to serialize proof to JSON");
+            std::fs::write("fri_proof.json", json)
+                .expect("Failed to write JSON to file");
+            println!("FRI proof written to fri_proof.json");
         }
         FriProofWrapper::Recursive(proof) => {
             println!(
