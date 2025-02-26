@@ -49,7 +49,7 @@ jobs:
             contracts/**
 
       - name: Define contracts commit
-        if: ${{ steps.changed-files.outputs.any_changed == 'true' }}
+#        if: ${{ steps.changed-files.outputs.any_changed == 'true' }}
         id: contracts-commit
         run: echo "commit=$(cd contracts && git rev-parse HEAD)" >> "${GITHUB_OUTPUT}"
 
@@ -86,7 +86,7 @@ jobs:
       - name: Prepare artifacts
         working-directory: contracts
         run: |
-          for DIR in l1-contracts l2-contracts system-contracts; do
+          for DIR in l1-contracts l2-contracts system-contracts da-contracts; do
             rm -rf ./${DIR}/node_modules
             tar -czvf ${DIR}.tar.gz ./${DIR}
           done
@@ -98,4 +98,5 @@ jobs:
             contracts/l1-contracts.tar.gz
             contracts/l2-contracts.tar.gz
             contracts/system-contracts.tar.gz
+            contracts/da-contracts.tar.gz
           name: contracts-${{ inputs.commit || needs.check-release.outputs.commit }}

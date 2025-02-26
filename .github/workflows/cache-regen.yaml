@@ -39,7 +39,8 @@ jobs:
       - name: Generate cache
         working-directory: ${{ matrix.workspace }}
         run: |
-          # cargo build --all-targets
+          cargo build --all-targets
+          cargo build --release --all-targets
           cargo nextest run --no-run
 
 #  cache-regen-full:

@@ -16,8 +16,52 @@ defaults:
 
 jobs:
 
-  unit-tests:
-    runs-on: matterlabs-ci-runner-highmem-long
+#  # READY
+#  unit-tests:
+#    runs-on: matterlabs-ci-runner-highmem-long
+#    steps:
+#      - name: Checkout
+#        uses: actions/checkout@v4
+#        with:
+#          submodules: "recursive"
+#
+#      - name: Setup runner
+#        uses: matter-labs/zksync-ci-common/.github/actions/runner-setup@aba-ci-optimize
+#        with:
+#          workspace: 'core'
+#
+#      - name: Build contracts
+#        uses: matter-labs/zksync-ci-common/.github/actions/build-contracts@aba-ci-optimize
+#
+#      - name: Start reth
+#        run: docker-compose up -d --wait reth
+#
+#      - name: Rust unit tests
+#        run: zkstack dev test rust
+#
+#      - name: Run benchmarks
+#        working-directory: core
+#        run: cargo test --package vm-benchmark --bench oneshot --bench batch
+#
+#      - name: Show sccache stats
+#        run: sccache --show-stats
+
+
+  load-test:
+    runs-on: matterlabs-ci-runner-high-performance
+    strategy:
+      fail-fast: false
+      matrix:
+        vm_mode:
+          - "old"
+          - "new"
+    env:
+      EXPECTED_TX_COUNT: ${{ matrix.vm_mode == 'new' && 30000 || 16000 }}
+      ACCOUNTS_AMOUNT: 100
+      MAX_INFLIGHT_TXS: 10
+      SYNC_API_REQUESTS_LIMIT: 15
+      FAIL_FAST: true
+      SERVER_LOG: server.log
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -32,85 +76,57 @@ jobs:
       - name: Build contracts
         uses: matter-labs/zksync-ci-common/.github/actions/build-contracts@aba-ci-optimize
 
-      - name: Start reth
-        run: docker-compose up -d --wait reth
+      - name: Start services
+        run: docker compose up --wait
 
-      - name: Rust unit tests
-        run: zkstack dev test rust
+      - name: Create legacy chain
+        run: |
+          zkstack chain create \
+            --chain-name legacy \
+            --chain-id sequential \
+            --prover-mode no-proofs \
+            --wallet-creation localhost \
+            --l1-batch-commit-data-generator-mode rollup \
+            --base-token-address 0x0000000000000000000000000000000000000001 \
+            --base-token-price-nominator 1 \
+            --base-token-price-denominator 1 \
+            --set-as-default false \
+            --ignore-prerequisites \
+            --legacy-bridge \
+            --evm-emulator false
 
-      - name: Run benchmarks
-        run: cargo test --package vm-benchmark --bench oneshot --bench batch
+      - name: Init ecosystem
+        run: |
+          zkstack ecosystem init \
+            --ignore-prerequisites \
+            --dev --skip-contract-compilation-override=true \
+            --support-l2-legacy-shared-bridge-test=true --verbose
 
-      - name: Show sccache stats
-        run: sccache --show-stats
+      - name: Update config
+        run: |
+          zkstack dev config-writer \
+            --ignore-prerequisites \
+            --path ${{ format('etc/env/file_based/overrides/tests/loadtest-{0}.yaml', matrix.vm_mode) }} \
+            --chain legacy
 
+      - name: Run server
+        run: |
+          zkstack server \
+            --ignore-prerequisites --uring --chain=legacy \
+            --components api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads \
+            &>${SERVER_LOG} &
 
-#  load-test:
-#    runs-on: matterlabs-ci-runner-high-performance
-#    strategy:
-#      fail-fast: false
-#      matrix:
-#        vm_mode:
-#          - "old"
-#          - "new"
-#    steps:
-#      - name: Checkout
-#        uses: actions/checkout@v4
-#        with:
-#          submodules: "recursive"
-#
-#      - name: Setup runner
-#        uses: matter-labs/zksync-ci-common/.github/actions/runner-setup@aba-ci-optimize
-#        with:
-#          workspace: 'core'
-#
-#      - name: Load test config
-#        run: |
-#          echo EXPECTED_TX_COUNT="${{ matrix.vm_mode == 'new' && 30000 || 16000 }}" >> "${GITHUB_ENV}"
-#          echo ACCOUNTS_AMOUNT="100" >> "${GITHUB_ENV}"
-#          echo MAX_INFLIGHT_TXS="10" >> "${GITHUB_ENV}"
-#          echo SYNC_API_REQUESTS_LIMIT="15" >> "${GITHUB_ENV}"
-#          echo FAIL_FAST=true >> "${GITHUB_ENV}"
-#
-#      - name: Start services
-#        run: docker compose up --wait
-#
-#      - name: Create and initialize legacy chain
-#        run: |
-#          zkstack chain create \
-#            --chain-name legacy \
-#            --chain-id sequential \
-#            --prover-mode no-proofs \
-#            --wallet-creation localhost \
-#            --l1-batch-commit-data-generator-mode rollup \
-#            --base-token-address 0x0000000000000000000000000000000000000001 \
-#            --base-token-price-nominator 1 \
-#            --base-token-price-denominator 1 \
-#            --set-as-default false \
-#            --ignore-prerequisites \
-#            --legacy-bridge \
-#            --evm-emulator false
-#
-#          zkstack ecosystem init --dev --skip-contract-compilation-override \
-#            --support-l2-legacy-shared-bridge-test=true --verbose
-#
-#      - name: Run server
-#        run: |
-#          zkstack dev config-writer \
-#            --path ${{ format('etc/env/file_based/overrides/tests/loadtest-{0}.yaml', matrix.vm_mode) }} \
-#            --chain legacy
-#          zkstack server --uring --chain=legacy \
-#            --components api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads \
-#            &>server.log &
-#          # `sleep 60` because we need to wait until server added all the tokens
-#          sleep 60
-#
-#      - name: Perform load test
-#        run: zkstack dev test loadtest -v --chain=legacy
-#
-#      - name: Show logs
-#        if: always()
-#        run: cat server.log || true
+      - name: Wait for server to start
+        run: |
+          zkstack server wait --chain=legacy \
+            --timeout 300 --poll-interval 1000
+
+      - name: Perform load test
+        run: zkstack dev test loadtest -v --chain=legacy
+
+      - name: Show server logs
+        if: failure()
+        run: cat ${SERVER_LOG}
 
 #  integration-tests:
 #    runs-on: [ matterlabs-ci-runner-ultra-performance ]
