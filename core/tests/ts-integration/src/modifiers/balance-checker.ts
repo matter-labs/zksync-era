@@ -9,6 +9,7 @@ import { TestMessage } from '../matchers/matcher-helpers';
 import { MatcherModifier, MatcherMessage } from '.';
 import { Fee } from '../types';
 import { IERC20__factory as IERC20Factory } from 'zksync-ethers/build/typechain';
+import { ArtifactAssetTracker, ArtifactBridgeHub, ArtifactL1AssetRouter, ArtifactNativeTokenVault } from '../constants';
 
 /**
  * Modifier that ensures that fee was taken from the wallet for a transaction.
@@ -91,6 +92,7 @@ export interface Params {
  */
 interface PopulatedBalanceChange extends BalanceChange {
     initialBalance: bigint;
+    initialChainBalance: bigint;
 }
 
 /**
@@ -118,11 +120,13 @@ class ShouldChangeBalance extends MatcherModifier {
             const wallet = entry.wallet;
             const address = entry.addressToCheck ?? entry.wallet.address;
             const initialBalance = await getBalance(l1, wallet, address, token, params?.ignoreUndeployedToken);
+            const initialChainBalance = await getChainBalance(l1, wallet, token, params?.ignoreUndeployedToken);
             populatedBalanceChanges.push({
                 wallet: entry.wallet,
                 change: entry.change,
                 addressToCheck: entry.addressToCheck,
-                initialBalance
+                initialBalance,
+                initialChainBalance
             });
         }
 
@@ -148,10 +152,11 @@ class ShouldChangeBalance extends MatcherModifier {
         let id = 0;
         for (const balanceChange of this.balanceChanges) {
             const prevBalance = balanceChange.initialBalance;
+            const prevChainBalance = balanceChange.initialChainBalance;
             const wallet = balanceChange.wallet;
             const address = balanceChange.addressToCheck ?? balanceChange.wallet.address;
             let newBalance = await getBalance(this.l1, wallet, address, this.token);
-
+            let newChainBalance = await getChainBalance(this.l1, wallet, this.token);
             // If fee should be checked, we're checking ETH token and this wallet is an initiator,
             // we should consider fees as well.
             const autoFeeCheck = !this.noAutoFeeCheck && this.token == zksync.utils.ETH_ADDRESS;
@@ -166,6 +171,14 @@ class ShouldChangeBalance extends MatcherModifier {
             }
 
             const diff = newBalance - prevBalance;
+            const diffChainBalance = newChainBalance - prevChainBalance;
+            if (!(await isMinterChain(this.l1, wallet, this.token))) {
+                if (diffChainBalance != diff) {
+                    throw new Error(
+                        `Chain balance change is not equal to the token balance change for wallet ${balanceChange.wallet.address} (index ${id} in array)`
+                    );
+                }
+            }
             if (diff != balanceChange.change) {
                 const message = new TestMessage()
                     .matcherHint(`ShouldChangeBalance modifier`)
@@ -305,4 +318,70 @@ async function getBalance(
         const erc20contract = IERC20Factory.connect(token, provider);
         return await erc20contract.balanceOf(address);
     }
+}
+
+/**
+ * Returns the balance of requested token for a certain address.
+ *
+ * @param l1 Whether to check l1 balance or l2
+ * @param wallet Wallet to make requests from (may not represent the address to check)
+ * @param token Address of the token
+ * @param ignoreUndeployedToken Whether allow token to be not deployed.
+ *     If it's set to `true` and token is not deployed, then function returns 0.
+ * @returns Token balance
+ */
+async function getChainBalance(
+    l1: boolean,
+    wallet: zksync.Wallet,
+    token: string,
+    ignoreUndeployedToken?: boolean
+): Promise<bigint> {
+    const provider = l1 ? wallet.providerL1! : wallet.provider;
+    const bridgehub = new ethers.Contract(
+        await (await wallet.getBridgehubContract()).getAddress(),
+        ArtifactBridgeHub.abi,
+        wallet.providerL1!
+    );
+    // console.log('bridgehub', await bridgehub.getAddress());
+    // console.log('interface', bridgehub.interface);
+    const bridgehubL1 = await bridgehub.L1_CHAIN_ID;
+    const assetTrackerAddress = await bridgehub.assetTracker();
+    // console.log('assetTrackerAddress', assetTrackerAddress);
+    const assetRouter = new zksync.Contract(
+        await bridgehub.assetRouter(),
+        ArtifactL1AssetRouter.abi,
+        wallet.providerL1!
+    );
+    const assetTracker = new zksync.Contract(assetTrackerAddress, ArtifactAssetTracker.abi, wallet.providerL1!);
+    const nativeTokenVault = new zksync.Contract(
+        await assetRouter.nativeTokenVault(),
+        ArtifactNativeTokenVault.abi,
+        wallet.providerL1!
+    );
+    const assetId = await nativeTokenVault.assetId(token);
+
+    return await assetTracker.chainBalance((await wallet.provider.getNetwork()).chainId, assetId);
+}
+
+async function isMinterChain(l1: boolean, wallet: zksync.Wallet, token: string): Promise<boolean> {
+    const bridgehub = new zksync.Contract(
+        await (await wallet.getBridgehubContract()).getAddress(),
+        ArtifactBridgeHub.abi,
+        wallet.providerL1!
+    );
+    const assetRouter = new zksync.Contract(
+        await bridgehub.assetRouter(),
+        ArtifactL1AssetRouter.abi,
+        wallet.providerL1!
+    );
+    const nativeTokenVault = new zksync.Contract(
+        await assetRouter.nativeTokenVault(),
+        ArtifactNativeTokenVault.abi,
+        wallet.providerL1!
+    );
+    const assetId = await nativeTokenVault.assetId(token);
+    // const assetTracker = new zksync.Contract(await bridgehub.assetTracker(), ArtifactAssetTracker.abi, wallet);
+    // // return await assetTracker.isMinterChain( (await wallet.provider.getNetwork()).chainId, assetId);
+    const provider = l1 ? wallet.providerL1! : wallet.provider;
+    return (await nativeTokenVault.originChainId(assetId)) != (await provider.getNetwork()).chainId;
 }

@@ -251,15 +251,15 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 40] = [
         ContractLanguage::Sol,
     ),
     (
-        "../../l1-contracts/zkout/",
-        "L2AssetTracker",
-        L2_ASSET_TRACKER_ADDRESS,
-        ContractLanguage::Sol,
-    ),
-    (
         "",
         "DefaultAccount",
         L2_STANDARD_TRIGGER_ACCOUNT_ADDRESS,
+        ContractLanguage::Sol,
+    ),
+    (
+        "../../l1-contracts/zkout/",
+        "AssetTracker",
+        L2_ASSET_TRACKER_ADDRESS,
         ContractLanguage::Sol,
     ),
 ];

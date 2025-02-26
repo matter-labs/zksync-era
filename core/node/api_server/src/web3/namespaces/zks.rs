@@ -304,6 +304,8 @@ impl ZksNamespace {
                         && log.key == address_to_h256(&sender)
                         && log.value == msg
                 },
+                None,
+                None,
             )
             .await?;
         Ok(log_proof)
@@ -324,6 +326,8 @@ impl ZksNamespace {
         l1_batch_number: L1BatchNumber,
         index_in_filtered_logs: usize,
         log_filter: impl Fn(&L2ToL1Log) -> bool,
+        proof_until_chain_id: Option<U64>,
+        precommit_log_index: Option<usize>,
     ) -> Result<Option<L2ToL1LogProof>, Web3Error> {
         let all_l1_logs_in_batch = storage
             .blocks_web3_dal()
@@ -339,6 +343,11 @@ impl ZksNamespace {
         else {
             return Ok(None);
         };
+        if let Some(precommit_log_index) = precommit_log_index {
+            if l1_log_index > precommit_log_index {
+                return Ok(None);
+            }
+        }
 
         let Some(batch_with_metadata) = storage
             .blocks_dal()
@@ -350,6 +359,9 @@ impl ZksNamespace {
         };
 
         let merkle_tree_leaves = all_l1_logs_in_batch.iter().map(L2ToL1Log::to_bytes);
+        // let merkle_tree_leaves = all_l1_logs_in_batch[..precommit_log_index.unwrap_or(all_l1_logs_in_batch.len())]
+        // .iter()
+        // .map(L2ToL1Log::to_bytes);
 
         let protocol_version = batch_with_metadata
             .header
@@ -376,6 +388,16 @@ impl ZksNamespace {
 
         let mut log_leaf_proof = proof;
         log_leaf_proof.push(aggregated_root);
+
+        // if we provide the GW chain id, we don't want to extend to L1.
+        // kl todo replace 506 with sl_chain_id.0.into(), and get it from somewhere
+        if Some(506.into()) == proof_until_chain_id {
+            return Ok(Some(L2ToL1LogProof {
+                proof: log_leaf_proof,
+                root,
+                id: l1_log_index as u32,
+            }));
+        }
 
         let Some(sl_chain_id) = storage
             .eth_sender_dal()
@@ -432,16 +454,31 @@ impl ZksNamespace {
         &self,
         tx_hash: H256,
         index: Option<usize>,
+        proof_until_chain_id: Option<U64>,
+        precommit_log_index: Option<usize>,
     ) -> Result<Option<L2ToL1LogProof>, Web3Error> {
         if let Some(handler) = &self.state.l2_l1_log_proof_handler {
+            if let Some(proof_until_chain_id) = proof_until_chain_id {
+                return handler
+                    .get_l2_to_l1_log_proof_until_chain_id(
+                        tx_hash,
+                        index,
+                        Some(proof_until_chain_id),
+                    )
+                    .rpc_context("get_l2_to_l1_log_proof_until_chain_id")
+                    .await
+                    .map_err(Into::into);
+            }
             return handler
-                .get_l2_to_l1_log_proof(tx_hash, index)
-                .rpc_context("get_l2_to_l1_log_proof")
+                .get_l2_to_l1_log_proof_precommit(tx_hash, index, precommit_log_index)
+                .rpc_context("get_l2_to_l1_log_proof_precommit")
                 .await
                 .map_err(Into::into);
         }
 
         let mut storage = self.state.acquire_connection().await?;
+        // kl todo for precommit based, we need it based on blocks.
+        // if precommit_log_index.is_none() {
         let Some((l1_batch_number, l1_batch_tx_index)) = storage
             .blocks_web3_dal()
             .get_l1_batch_info_for_tx(tx_hash)
@@ -455,6 +492,7 @@ impl ZksNamespace {
             .start_info
             .ensure_not_pruned(l1_batch_number, &mut storage)
             .await?;
+        // }
 
         let log_proof = self
             .get_l2_to_l1_log_proof_inner(
@@ -462,6 +500,8 @@ impl ZksNamespace {
                 l1_batch_number,
                 index.unwrap_or(0),
                 |log| log.tx_number_in_block == l1_batch_tx_index,
+                proof_until_chain_id,
+                precommit_log_index,
             )
             .await?;
         Ok(log_proof)

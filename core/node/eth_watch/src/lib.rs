@@ -97,7 +97,7 @@ impl EthWatch {
             sl_client.clone(),
             l1_client.clone(),
         );
-        let l1_message_root_processor = MessageRootProcessor::new(EventsSource::L1, None);
+        let l1_message_root_processor = MessageRootProcessor::new(EventsSource::L1, None, None);
         // let
         // let batch_root_processor = L1BatchRootProcessor::new(
         //     state.chain_batch_root_number_lower_bound,
@@ -124,7 +124,7 @@ impl EthWatch {
         // println!("dependency_chain_clients chain_id {:?}", dependency_chain_clients.clone().as_ref().unwrap()[0].chain_id().await);
         if let Some(_) = dependency_l2_chain_clients.clone() {
             let dependency_message_root_processor =
-                MessageRootProcessor::new(EventsSource::Dependency, Some(0));
+                MessageRootProcessor::new(EventsSource::Dependency, Some(0), None);
             event_processors.push(Box::new(dependency_message_root_processor));
         }
         Ok(Self {

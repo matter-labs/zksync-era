@@ -1,7 +1,13 @@
+use std::sync::Arc;
+
 use zksync_dal::{eth_watcher_dal::EventType, Connection, Core, CoreDal, DalError};
+use zksync_system_constants::L1_MESSENGER_ADDRESS;
 use zksync_types::{api::Log, ethabi, L1BatchNumber, SLChainId, H256};
 
-use crate::event_processors::{EventProcessor, EventProcessorError, EventsSource};
+use crate::{
+    client::L2EthClient,
+    event_processors::{EventProcessor, EventProcessorError, EventsSource},
+};
 
 /// Responsible for `AppendedChainBatchRoot` events and saving `BatchAndChainMerklePath` for batches.
 #[derive(Debug)]
@@ -9,10 +15,15 @@ pub struct MessageRootProcessor {
     appended_message_root_signature: H256,
     event_source: EventsSource,
     pub dependency_chain_number: Option<usize>,
+    pub sl_l2_client: Option<Arc<dyn L2EthClient>>,
 }
 
 impl MessageRootProcessor {
-    pub fn new(event_source: EventsSource, dependency_chain_number: Option<usize>) -> Self {
+    pub fn new(
+        event_source: EventsSource,
+        dependency_chain_number: Option<usize>,
+        sl_l2_client: Option<Arc<dyn L2EthClient>>,
+    ) -> Self {
         Self {
             appended_message_root_signature: ethabi::long_signature(
                 "NewMessageRoot",
@@ -25,6 +36,7 @@ impl MessageRootProcessor {
             ),
             event_source: event_source,
             dependency_chain_number: dependency_chain_number,
+            sl_l2_client: sl_l2_client,
         }
     }
 }
@@ -86,6 +98,14 @@ impl EventProcessor for MessageRootProcessor {
             let chain_id_bytes: [u8; 8] = event.topics[1].as_bytes()[24..32].try_into().unwrap();
             let block_number: u64 = u64::from_be_bytes(block_bytes);
             let chain_id = u64::from_be_bytes(chain_id_bytes);
+            if let Some(sl_l2_client) = self.sl_l2_client.clone() {
+                // we skip precommit message roots ( local roots) for GW.
+                let sl_chain_id = sl_l2_client.chain_id().await?;
+                if sl_chain_id.0 == chain_id && event.address == L1_MESSENGER_ADDRESS {
+                    continue;
+                }
+            }
+
             println!("block_number in global {:?}", block_number);
             println!("chain_id in global {:?}", chain_id);
             transaction

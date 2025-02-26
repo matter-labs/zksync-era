@@ -572,7 +572,7 @@ impl EthTxAggregator {
             op_restrictions.prove_restriction = reason;
             op_restrictions.execute_restriction = reason;
         }
-
+        let is_gateway = self.settlement_mode.is_gateway();
         if let Some(agg_op) = self
             .aggregator
             .get_next_ready_operation(
@@ -581,10 +581,10 @@ impl EthTxAggregator {
                 chain_protocol_version_id,
                 l1_verifier_config,
                 op_restrictions,
+                is_gateway,
             )
             .await?
         {
-            let is_gateway = self.settlement_mode.is_gateway();
             let tx = self
                 .save_eth_tx(
                     storage,

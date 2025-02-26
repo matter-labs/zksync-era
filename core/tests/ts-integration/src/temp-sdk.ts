@@ -9,6 +9,7 @@ import {
     MESSAGE_INCLUSION_PROOF_ABI,
     L2_INTEROP_CENTER_ADDRESS
 } from './constants';
+import { FinalizeWithdrawalParams } from 'zksync-ethers-interop-support/build/types';
 
 const L1_MESSENGER_ADDRESS = L2_TO_L1_MESSENGER_SYSTEM_CONTRACT_ADDR;
 
@@ -39,7 +40,8 @@ export async function getInteropBundleData(
     const { message } = response!;
 
     // Decode the interop message
-    const decodedRequest = ethers.AbiCoder.defaultAbiCoder().decode([INTEROP_BUNDLE_ABI], '0x' + message.slice(3));
+    // console.log("message", message)
+    const decodedRequest = ethers.AbiCoder.defaultAbiCoder().decode([INTEROP_BUNDLE_ABI], '0x' + message.slice(4));
     let calls = [];
     for (let i = 0; i < decodedRequest[0][1].length; i++) {
         calls.push({
@@ -107,8 +109,8 @@ export async function getInteropTriggerData(
     // Decode the interop message
     // console.log("trigger message", message)
     // console.log("withdrawalHash", withdrawalHash)
-
-    let decodedRequest = ethers.AbiCoder.defaultAbiCoder().decode([INTEROP_TRIGGER_ABI], '0x' + message.slice(3));
+    // console.log("message", message)
+    let decodedRequest = ethers.AbiCoder.defaultAbiCoder().decode([INTEROP_TRIGGER_ABI], '0x' + message.slice(4));
 
     // console.log("decodedRequest", decodedRequest)
 
@@ -165,47 +167,6 @@ export async function getInteropTriggerData(
     };
 }
 
-//   export async function getL2CanonicalTransactionData(
-//     provider: zksync.Provider,
-//     withdrawalHash: BytesLike,
-//     index = 0
-//   ){
-//     const response  = await tryGetMessageData(provider, withdrawalHash, index);
-//     if (!response) return;
-//     const { message } = response!;
-
-//     // Decode the interop message
-//     const decodedRequest = ethers.AbiCoder.defaultAbiCoder().decode(
-//         [BRIDGEHUB_L2_CANONICAL_TRANSACTION_ABI],
-//         '0x' + message.slice(2)
-//     );
-
-//     const xl2Input = {
-//         txType: decodedRequest[0][0],
-//         from: decodedRequest[0][1],
-//         to: decodedRequest[0][2],
-//         gasLimit: decodedRequest[0][3],
-//         gasPerPubdataByteLimit: decodedRequest[0][4],
-//         maxFeePerGas: decodedRequest[0][5],
-//         maxPriorityFeePerGas: decodedRequest[0][6],
-//         paymaster: decodedRequest[0][7],
-//         nonce: decodedRequest[0][8],
-//         value: decodedRequest[0][9],
-//         reserved: [
-//             decodedRequest[0][10][0],
-//             decodedRequest[0][10][1],
-//             decodedRequest[0][10][2],
-//             decodedRequest[0][10][3]
-//         ],
-//         data: decodedRequest[0][11],
-//         signature: decodedRequest[0][12],
-//         factoryDeps: decodedRequest[0][13],
-//         paymasterInput: decodedRequest[0][14],
-//         reservedDynamic: decodedRequest[0][15]
-//     };
-//     return { output: xl2Input, l1BatchNumber: response.l1BatchNumber, l2TxNumberInBlock: response.l2TxNumberInBlock };
-//   }
-
 async function tryGetMessageData(provider: zksync.Provider, withdrawalHash: BytesLike, index = 0) {
     let { l1BatchNumber, l2TxNumberInBlock, message, l2MessageIndex, proof } = {
         l1BatchNumber: 0,
@@ -219,13 +180,15 @@ async function tryGetMessageData(provider: zksync.Provider, withdrawalHash: Byte
         // console.log("Reading interop message");
         // `getFinalizeWithdrawalParamsWithoutProof` is only available for wallet instance but not provider
         const sender_chain_utilityWallet = new zksync.Wallet(zksync.Wallet.createRandom().privateKey, provider);
+        const { l2ToL1LogIndex } = await sender_chain_utilityWallet._getWithdrawalL2ToL1Log(withdrawalHash, index);
+        const gatewayChainId = 506;
         const {
             l1BatchNumber: l1BatchNumberRead,
             l2TxNumberInBlock: l2TxNumberInBlockRead,
             message: messageRead,
             l2MessageIndex: l2MessageIndexRead,
             proof: proofRead
-        } = await sender_chain_utilityWallet.getFinalizeWithdrawalParams(withdrawalHash, index);
+        } = await sender_chain_utilityWallet.getFinalizeWithdrawalParams(withdrawalHash, index, 0, gatewayChainId);
 
         // } = await getFinalizeWithdrawalParamsWithoutProof(provider, withdrawalHash, index);
         // console.log("Finished reading interop message");
@@ -244,102 +207,3 @@ async function tryGetMessageData(provider: zksync.Provider, withdrawalHash: Byte
     return { l1BatchNumber, l2TxNumberInBlock, message, l2MessageIndex, proof };
 }
 
-async function getFinalizeWithdrawalParamsWithoutProof(
-    provider: zksync.Provider,
-    withdrawalHash: BytesLike,
-    index = 0
-): Promise<FinalizeWithdrawalParamsWithoutProof> {
-    const { log, l1BatchTxId } = await getWithdrawalLog(provider, withdrawalHash, index);
-    // const {l2ToL1LogIndex} = await this._getWithdrawalL2ToL1Log(
-    //   withdrawalHash,
-    //   index
-    // );
-    const sender = ethers.dataSlice(log.topics[1], 12);
-
-    const message = ethers.AbiCoder.defaultAbiCoder().decode(['bytes'], log.data)[0];
-    return {
-        l1BatchNumber: log.l1BatchNumber,
-        l2TxNumberInBlock: l1BatchTxId,
-        message,
-        sender
-    };
-}
-
-async function getWithdrawalLog(provider: zksync.Provider, withdrawalHash: BytesLike, index = 0) {
-    const hash = ethers.hexlify(withdrawalHash);
-    const receipt = await provider.getTransactionReceipt(hash);
-    if (!receipt) {
-        throw new Error('Transaction is not mined!');
-    }
-    const log = receipt.logs.filter(
-        (log) =>
-            zksync.utils.isAddressEq(log.address, L1_MESSENGER_ADDRESS) &&
-            log.topics[0] === ethers.id('L1MessageSent(address,bytes32,bytes)')
-    )[index];
-
-    return {
-        log,
-        l1BatchTxId: receipt.l1BatchTxIndex
-    };
-}
-
-export interface FinalizeWithdrawalParamsWithoutProof {
-    /** The L2 batch number where the withdrawal was processed. */
-    l1BatchNumber: number | null;
-    // /** The position in the L2 logs Merkle tree of the l2Log that was sent with the message. */
-    // l2MessageIndex: number;
-    /** The L2 transaction number in the batch, in which the log was sent. */
-    l2TxNumberInBlock: number | null;
-    /** The L2 withdraw data, stored in an L2 -> L1 message. */
-    message: any;
-    /** The L2 address which sent the log. */
-    sender: string;
-    //     /** The Merkle proof of the inclusion L2 -> L1 message about withdrawal initialization. */
-    //     proof: string[];
-}
-
-// // Construct log for Merkle proof
-// const log = {
-//     l2ShardId: 0,
-//     isService: true,
-//     txNumberInBatch: l2TxNumberInBlock,
-//     sender: L2_TO_L1_MESSENGER_SYSTEM_CONTRACT_ADDR,
-//     key: ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address'], [interop1_wallet.address])),
-//     value: ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['bytes'], [message]))
-// };
-
-// const leafHash = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode([L2_LOG_STRING], [log]));
-
-// const proof1 =
-//     ethers.ZeroHash +
-//     ethers.AbiCoder.defaultAbiCoder()
-//         .encode(
-//             ['uint256', 'uint256', 'uint256', 'bytes32'],
-//             [(await sender_chain_provider.getNetwork()).chainId, l1BatchNumber, l2TxNumberInBlock, leafHash]
-//         )
-//         .slice(2);
-
-// const interopTxAsCanonicalTx = {
-//     txType: 253n,
-//     from: interopTx.from,
-//     to: interopTx.to,
-//     gasLimit: interopTx.gasLimit,
-//     gasPerPubdataByteLimit: 50000n,
-//     maxFeePerGas: interopTx.maxFeePerGas,
-//     maxPriorityFeePerGas: 0,
-//     paymaster: interopTx.customData.paymaster_params.paymaster,
-//     nonce: interopTx.nonce,
-//     value: interopTx.value,
-//     reserved: [interopTx.customData.toMint, interopTx.customData.refundRecipient, '0x00', '0x00'],
-//     data: interopTx.data,
-//     signature: '0x',
-//     factoryDeps: [],
-//     paymasterInput: '0x',
-//     reservedDynamic: proof1
-// };
-// const encodedTx = ethers.AbiCoder.defaultAbiCoder().encode(
-//     [BRIDGEHUB_L2_CANONICAL_TRANSACTION_ABI],
-//     [interopTxAsCanonicalTx]
-// );
-// const interopTxHash = ethers.keccak256(ethers.getBytes(encodedTx));
-// console.log('interopTxHash', interopTxHash);
