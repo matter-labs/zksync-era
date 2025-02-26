@@ -45,7 +45,7 @@ fn selecting_vm_for_execution() {
 #[test]
 fn setting_up_nonce_and_balance_in_storage() {
     let mut storage = StorageWithOverrides::new(InMemoryStorage::default());
-    let tx = create_l2_transaction(1_000_000_000.into(), Nonce(1));
+    let tx = create_l2_transaction(1_000_000_000.into(), Nonce(1.into()));
     let execution_args = TxExecutionArgs::for_gas_estimate(tx.clone().into());
     VmSandbox::setup_storage(&mut storage, &execution_args, None);
 

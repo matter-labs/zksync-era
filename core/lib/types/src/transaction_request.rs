@@ -1498,7 +1498,7 @@ mod tests {
             true,
         )
         .unwrap();
-        assert_eq!(l2_tx.nonce(), Nonce(123u32));
+        assert_eq!(l2_tx.nonce(), Nonce(123.into()));
 
         let mut call_request_without_nonce = call_request_with_nonce;
         call_request_without_nonce.nonce = None;
@@ -1506,7 +1506,7 @@ mod tests {
         let l2_tx =
             L2Tx::from_request(call_request_without_nonce.into(), MAX_ENCODED_TX_SIZE, true)
                 .unwrap();
-        assert_eq!(l2_tx.nonce(), Nonce(0u32));
+        assert_eq!(l2_tx.nonce(), Nonce(0.into()));
     }
 
     #[test]

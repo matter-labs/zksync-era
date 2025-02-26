@@ -57,7 +57,7 @@ where
 
         let nonce = match self.nonce {
             Some(nonce) => nonce,
-            None => Nonce(self.wallet.get_nonce().await?),
+            None => Nonce(self.wallet.get_nonce().await?.into()),
         };
 
         self.wallet

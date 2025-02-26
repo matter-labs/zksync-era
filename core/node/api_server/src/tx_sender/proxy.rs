@@ -668,7 +668,7 @@ mod tests {
         replacing_tx.common_data.initiator_address = tx.initiator_account();
         let mut future_tx = create_l2_transaction(10, 100);
         future_tx.common_data.initiator_address = tx.initiator_account();
-        future_tx.common_data.nonce = Nonce(1);
+        future_tx.common_data.nonce = Nonce(1.into());
 
         let main_node_client = MockClient::builder(L2::default())
             .method("eth_sendRawTransaction", |_bytes: Bytes| Ok(H256::zero()))
@@ -702,14 +702,17 @@ mod tests {
             let cache_inner = proxy.tx_cache.inner.read().await;
             assert_eq!(cache_inner.nonces_by_account.len(), 1);
             let account_nonces = &cache_inner.nonces_by_account[&tx.initiator_account()];
-            assert_eq!(*account_nonces, BTreeSet::from([Nonce(0.into()), Nonce(1)]));
+            assert_eq!(
+                *account_nonces,
+                BTreeSet::from([Nonce(0.into()), Nonce(1.into())])
+            );
             assert_eq!(cache_inner.tx_hashes_by_initiator.len(), 2);
             assert_eq!(
                 cache_inner.tx_hashes_by_initiator[&(tx.initiator_account(), Nonce(0.into()))],
                 HashSet::from([tx.hash(), replacing_tx.hash()])
             );
             assert_eq!(
-                cache_inner.tx_hashes_by_initiator[&(tx.initiator_account(), Nonce(1))],
+                cache_inner.tx_hashes_by_initiator[&(tx.initiator_account(), Nonce(1.into()))],
                 HashSet::from([future_tx.hash()])
             );
         }
@@ -741,13 +744,13 @@ mod tests {
                 .contains_key(&replacing_tx.hash()));
             assert_eq!(
                 cache_inner.nonces_by_account[&tx.initiator_account()],
-                BTreeSet::from([Nonce(1)])
+                BTreeSet::from([Nonce(1.into())])
             );
             assert!(!cache_inner
                 .tx_hashes_by_initiator
                 .contains_key(&(tx.initiator_account(), Nonce(0.into()))));
             assert_eq!(
-                cache_inner.tx_hashes_by_initiator[&(tx.initiator_account(), Nonce(1))],
+                cache_inner.tx_hashes_by_initiator[&(tx.initiator_account(), Nonce(1.into()))],
                 HashSet::from([future_tx.hash()])
             );
         }

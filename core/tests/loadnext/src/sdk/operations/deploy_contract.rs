@@ -57,7 +57,7 @@ where
 
         let nonce = match self.nonce {
             Some(nonce) => nonce,
-            None => Nonce(self.wallet.get_nonce().await?),
+            None => Nonce(self.wallet.get_nonce().await?.into()),
         };
 
         let main_contract_hash = BytecodeHash::for_bytecode(&bytecode).value();

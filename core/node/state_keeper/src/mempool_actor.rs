@@ -205,7 +205,8 @@ mod tests {
     use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
     use zksync_node_test_utils::create_l2_transaction;
     use zksync_types::{
-        u256_to_h256, L2BlockNumber, PriorityOpId, ProtocolVersionId, StorageLog, H256,
+        u256_to_h256, L2BlockNumber, Nonce, NonceKey, NonceValue, PriorityOpId, ProtocolVersionId,
+        StorageLog, H256,
     };
 
     use super::*;
@@ -250,8 +251,11 @@ mod tests {
         assert_eq!(
             nonces,
             HashMap::from([
-                (transaction_initiator, Nonce(42)),
-                (other_transaction_initiator, Nonce(0.into())),
+                ((transaction_initiator, NonceKey(0.into())), NonceValue(42)),
+                (
+                    (other_transaction_initiator, NonceKey(0.into())),
+                    NonceValue(0)
+                ),
             ])
         );
     }

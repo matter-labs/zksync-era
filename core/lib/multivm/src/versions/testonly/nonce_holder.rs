@@ -46,7 +46,7 @@ fn run_nonce_test(
             factory_deps: vec![],
         },
         None,
-        Nonce(nonce),
+        Nonce(nonce.into()),
     );
     let ExecuteTransactionCommon::L2(tx_data) = &mut transaction.common_data else {
         unreachable!();

@@ -362,7 +362,7 @@ impl Executor {
         ethereum.set_polling_interval(ETH_POLLING_INTERVAL);
 
         // We request nonce each time, so that if one iteration was failed, it will be repeated on the next iteration.
-        let mut nonce = Nonce(master_wallet.get_nonce().await?);
+        let mut nonce = Nonce(master_wallet.get_nonce().await?.into());
 
         let txs_amount = accounts_to_process * 2 + 1;
         let mut handles = Vec::with_capacity(accounts_to_process);
@@ -469,7 +469,7 @@ impl Executor {
             let handle_erc20 = builder.send().await?;
             handles.push(handle_erc20);
 
-            *nonce += 1;
+            nonce += 1;
         }
 
         // Wait for transactions to be committed, if at least one of them fails,

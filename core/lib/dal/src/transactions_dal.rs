@@ -1057,11 +1057,12 @@ impl TransactionsDal<'_, '_> {
                                 UNNEST($18::bytea []) AS contract_address,
                                 UNNEST($19::bytea []) AS paymaster,
                                 UNNEST($20::bytea []) AS paymaster_input,
-                                UNNEST($21::numeric []) as nonce_key
+                                UNNEST($21::numeric []) AS nonce_key
                         ) AS data_table_temp
                     JOIN transactions
                         ON
-                            transactions.initiator_address = data_table_temp.initiator_address
+                            transactions.initiator_address
+                            = data_table_temp.initiator_address
                             AND transactions.nonce_key = data_table_temp.nonce_key
                             AND transactions.nonce = data_table_temp.nonce
                     ORDER BY
@@ -1792,7 +1793,7 @@ impl TransactionsDal<'_, '_> {
                 SELECT
                     UNNEST($1::bytea []) AS address,
                     UNNEST($2::numeric []) AS nonce_key
-            ) as s
+            ) AS s
             WHERE
                 transactions.in_mempool = TRUE
                 AND transactions.initiator_address = s.address
@@ -1820,7 +1821,10 @@ impl TransactionsDal<'_, '_> {
         let result = sqlx::query!(
             r#"
             DELETE FROM transactions
-            USING unnest($1::bytea[], $2::numeric[]) AS purged (initiator_address, nonce_key)
+            USING
+                unnest($1::bytea [], $2::numeric []) AS purged (
+                    initiator_address, nonce_key
+                )
             WHERE
                 in_mempool = TRUE
                 AND transactions.initiator_address = purged.initiator_address
