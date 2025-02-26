@@ -152,6 +152,7 @@ install_local() {
     ensure cargo install --root "$LOCAL_DIR" \
       --path "./crates/$bin" \
       --force \
+      --locked \
       ${ZKSTACKUP_FEATURES:+--features "$ZKSTACKUP_FEATURES"}
     chmod +x "$BIN_DIR/$bin"
   done
