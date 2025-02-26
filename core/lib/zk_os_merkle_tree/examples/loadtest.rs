@@ -43,6 +43,9 @@ struct Cli {
     /// Generate Merkle proofs for each operation.
     #[arg(name = "proofs", long)]
     proofs: bool,
+    /// Additional number of reads of previously written keys per commit.
+    #[arg(name = "reads", long, default_value = "0", requires = "proofs")]
+    reads_per_batch: usize,
     /// Use a no-op hashing function.
     #[arg(name = "no-hash", long)]
     no_hashing: bool,
@@ -62,7 +65,7 @@ struct Cli {
     /// Seed to use in the RNG for reproducibility.
     #[arg(long = "rng-seed", default_value = "0")]
     rng_seed: u64,
-    // FIXME: restore missing options (proof, in-memory buffering)
+    // FIXME: restore missing options (in-memory buffering)
 }
 
 impl Cli {
@@ -118,6 +121,7 @@ impl Cli {
                 .collect();
             let updated_indices =
                 (0..next_key_idx).choose_multiple(&mut rng, self.updates_per_batch);
+            let read_indices = (0..next_key_idx).choose_multiple(&mut rng, self.reads_per_batch);
             next_key_idx += new_keys.len() as u64;
 
             next_value_idx += (new_keys.len() + updated_indices.len()) as u64;
@@ -135,8 +139,9 @@ impl Cli {
             tracing::info!("Processing block #{version}");
             let start = Instant::now();
             let output = if self.proofs {
+                let read_keys: Vec<_> = Self::generate_keys(read_indices.into_iter()).collect();
                 let (output, proof) = tree
-                    .extend_with_proof(&kvs, &[])
+                    .extend_with_proof(&kvs, &read_keys)
                     .context("failed extending tree")?;
                 black_box(proof); // Ensure that proof creation isn't optimized away
                 output

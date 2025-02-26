@@ -432,3 +432,83 @@ fn mixed_update_and_insert() {
     println!("Node depth = 2");
     test_mixed_update_and_insert::<DefaultTreeParams<64, 2>>();
 }
+
+#[test]
+fn patch_is_reduced_for_readonly_workload() {
+    let mut merkle_tree = MerkleTree::new(PatchSet::default()).unwrap();
+    merkle_tree
+        .extend(&[TreeEntry {
+            key: H256::repeat_byte(1),
+            value: H256::repeat_byte(0xff),
+        }])
+        .unwrap();
+
+    let read_keys = [H256::repeat_byte(1), H256::repeat_byte(2)];
+    let (mut patch, update) = merkle_tree.create_patch(0, &[], &read_keys).unwrap();
+    assert_eq!(update.inserts, []);
+    assert_eq!(update.updates, []);
+    assert_eq!(update.missing_reads_count, 1);
+    assert_eq!(
+        update
+            .readonly_leaf_indices
+            .iter()
+            .copied()
+            .collect::<HashSet<_>>(),
+        HashSet::from([1, 2])
+    );
+
+    let _ = patch.update(update);
+    // All leaves are readonly and must be removed
+    assert_eq!(patch.inner().leaves, HashMap::new());
+    assert_eq!(patch.inner().internal[0].len(), 1, "{patch:#?}");
+    for internal_level in &patch.inner().internal[1..] {
+        assert!(internal_level.is_empty(), "{patch:#?}");
+    }
+}
+
+#[test]
+fn patch_is_reduced_for_mixed_workload() {
+    let mut merkle_tree = MerkleTree::new(PatchSet::default()).unwrap();
+    merkle_tree
+        .extend(&[TreeEntry {
+            key: H256::repeat_byte(1),
+            value: H256::repeat_byte(0xff),
+        }])
+        .unwrap();
+
+    let read_keys = [H256::from_low_u64_be(1), H256::repeat_byte(2)];
+    let (mut patch, update) = merkle_tree
+        .create_patch(
+            0,
+            &[TreeEntry {
+                key: H256::repeat_byte(1),
+                value: H256::zero(),
+            }],
+            &read_keys,
+        )
+        .unwrap();
+    assert_eq!(update.inserts, []);
+    assert_eq!(update.updates.len(), 1);
+    assert_eq!(update.missing_reads_count, 2);
+    assert_eq!(
+        update
+            .readonly_leaf_indices
+            .iter()
+            .copied()
+            .collect::<HashSet<_>>(),
+        // Leaf #2 is updated, and guards are only read to prove the missing read
+        HashSet::from([0, 1])
+    );
+
+    let _ = patch.update(update);
+    let expected_leaf = Leaf {
+        key: H256::repeat_byte(1),
+        value: H256::zero(),
+        prev_index: 0,
+        next_index: 1,
+    };
+    assert_eq!(patch.inner().leaves, HashMap::from([(2, expected_leaf)]));
+    for internal_level in &patch.inner().internal {
+        assert_eq!(internal_level.len(), 1, "{patch:#?}");
+    }
+}
