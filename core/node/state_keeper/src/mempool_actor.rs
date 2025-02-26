@@ -8,16 +8,23 @@ use zksync_config::configs::chain::MempoolConfig;
 use zksync_contracts::{l2_asset_router, l2_legacy_shared_bridge};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_mempool::L2TxFilter;
-use zksync_multivm::utils::derive_base_fee_and_gas_per_pubdata;
+use zksync_multivm::{
+    utils::derive_base_fee_and_gas_per_pubdata, vm_fast::interface::opcodes::Add,
+};
 use zksync_node_fee_model::BatchFeeModelInputProvider;
 use zksync_types::{
-    ethabi,
-    ethabi::{Param, ParamType},
-    get_immutable_simulator_key, get_nonce_key, h256_to_address,
+    address_to_h256,
+    ethabi::{self, Param, ParamType, Token},
+    get_address_mapping_key, get_immutable_simulator_key, get_nonce_key, h256_to_address,
+    hasher::keccak,
+    tx::execute::Create2DeploymentParams,
     utils::encode_ntv_asset_id,
     vm::VmVersion,
-    Address, Nonce, Transaction, TransactionTimeRangeConstraint, H256, L2_ASSET_ROUTER_ADDRESS,
-    L2_ASSET_ROUTER_LEGACY_SHARED_BRIDGE_IMMUTABLE_KEY,
+    web3::keccak256,
+    AccountTreeId, Address, Nonce, StorageKey, Transaction, TransactionTimeRangeConstraint, H256,
+    L2_ASSET_ROUTER_ADDRESS, L2_ASSET_ROUTER_LEGACY_SHARED_BRIDGE_IMMUTABLE_KEY,
+    L2_LEGACY_SHARED_BRIDGE_BEACON_PROXY_BYTECODE_KEY, L2_LEGACY_SHARED_BRIDGE_L1_ADDRESSES_KEY,
+    L2_NATIVE_TOKEN_VAULT_ADDRESS, L2_NATIVE_TOKEN_VAULT_ASSET_ID_MAPPING_INDEX,
 };
 
 use super::{metrics::KEEPER_METRICS, types::MempoolGuard};
@@ -139,40 +146,97 @@ fn extract_token_from_asset_router_deposit(
 
 async fn calculate_expected_token_address(
     storage: &mut Connection<'static, Core>,
+    l2_legacy_shared_bridge_address: Address,
     l1_token_address: Address,
-) -> Address {
-    todo!()
+) -> anyhow::Result<Address> {
+    // The source of truth for this logic is `L2SharedBridgeLegacy._calculateCreate2TokenAddress`
+
+    let beacon_proxy_bytecode_hash_key = StorageKey::new(
+        AccountTreeId::new(l2_legacy_shared_bridge_address),
+        L2_LEGACY_SHARED_BRIDGE_BEACON_PROXY_BYTECODE_KEY,
+    );
+    let beacon_proxy_bytecode_hash = storage
+        .storage_web3_dal()
+        .get_value(&beacon_proxy_bytecode_hash_key)
+        .await?;
+
+    let params = Create2DeploymentParams {
+        salt: address_to_h256(&l1_token_address),
+        bytecode_hash: beacon_proxy_bytecode_hash,
+        raw_constructor_input: ethabi::encode(&[
+            Token::Address(l1_token_address),
+            Token::Bytes(vec![]),
+        ]),
+    };
+
+    Ok(params.derive_address(l2_legacy_shared_bridge_address))
 }
 
+/// Checks whether the token is legacy. It is legacy if both of the
+/// following is true:
+/// - It is present in legacy shared bridge
+/// - It is not present in the L2 native token vault
 async fn is_l2_token_legacy(
     storage: &mut Connection<'static, Core>,
+    l2_legacy_shared_bridge_address: Address,
     l2_token_address: Address,
-) -> bool {
+    expected_l1_address: Address,
+) -> anyhow::Result<bool> {
     // 1. Read l1 token address from L2 shared bridge (must not be 0)
-    // 2. Read assetId from NTV (must be 0)
 
-    todo!()
+    let stored_l1_address_key = StorageKey::new(
+        AccountTreeId::new(l2_legacy_shared_bridge_address),
+        get_address_mapping_key(&l2_token_address, L2_LEGACY_SHARED_BRIDGE_L1_ADDRESSES_KEY),
+    );
+    let stored_l1_address = storage
+        .storage_web3_dal()
+        .get_value(&stored_l1_address_key)
+        .await?;
+    let stored_l1_address = h256_to_address(&stored_l1_address);
+
+    // No address is stored, it means that the token has never been bridged before
+    // and thus, it is not legacy
+    if stored_l1_address == Address::zero() {
+        return Ok(false);
+    }
+
+    // Just for cross check
+    assert_eq!(expected_l1_address, stored_l1_address);
+
+    // 2. Read assetId from NTV (must be 0)
+    let stored_asset_id_key = StorageKey::new(
+        AccountTreeId::new(L2_NATIVE_TOKEN_VAULT_ADDRESS),
+        get_address_mapping_key(
+            &l2_token_address,
+            L2_NATIVE_TOKEN_VAULT_ASSET_ID_MAPPING_INDEX,
+        ),
+    );
+    let stored_asset_id = storage
+        .storage_web3_dal()
+        .get_value(&stored_asset_id_key)
+        .await?;
+
+    Ok(stored_asset_id == H256::zero())
 }
 
 /// Accepts a list of transactions to be included into the mempool and filters
 /// the unsafe deposits and returns two vectors:
 /// - Transactions to include into the mempool
 /// - Transactions to return to the mempool
-async fn filter_unsafe_deposits(
-    txs: Vec<(Transaction, TransactionTimeRangeConstraint)>,
+///
+/// Note, that the purpose of this function is not to find unsafe deposits *only*
+/// but detect whether they may be present at all. It does check that, e.g. the sender
+/// of the transactions is the correct l1 bridge.
+async fn is_unsafe_deposit_present(
+    txs: &[(Transaction, TransactionTimeRangeConstraint)],
     storage: &mut Connection<'static, Core>,
-) -> anyhow::Result<(
-    Vec<(Transaction, TransactionTimeRangeConstraint)>,
-    Vec<H256>,
-)> {
+) -> anyhow::Result<bool> {
     // The rules are the following:
     // - All L2 transactions are allowed
     // - L1 transactions are allowed only if it is a deposit to an already registered token or
     // to a non-legacy token.
 
     // Firstly, let's check whether the chain has a legacy bridge.
-    // 0x0000000000000000000000000000000000008005
-
     let legacy_bridge_key = get_immutable_simulator_key(
         &L2_ASSET_ROUTER_ADDRESS,
         L2_ASSET_ROUTER_LEGACY_SHARED_BRIDGE_IMMUTABLE_KEY,
@@ -187,34 +251,16 @@ async fn filter_unsafe_deposits(
     // There is either no legacy bridge or the L2AssetRouter has not been depoyed yet.
     // In both cases, there can be no unsafe deposits.
     if legacy_l2_shared_bridge_addr == Address::zero() {
-        return Ok((txs, vec![]));
+        return Ok(false);
     }
 
-    // The legacy bridge does exist AND the chain has been upgraded to v26
-    // and so this deposit may be potentially unsafe
-    let mut unsafe_deposit_present = false;
-
-    // We assume that all L1->L2 transactions are ordered by their id.
-    // Just in case, we do not allow any L1->L2 transaction after an unsafe deposit as well.
-
-    let mut txs_to_process = vec![];
-    let mut txs_to_return = vec![];
-
-    for (tx, constraint) in txs {
+    for (tx, _) in txs {
         if !tx.is_l1() {
             // Not a deposit
-            txs_to_process.push((tx, constraint));
-            continue;
-        }
-
-        // There was an unsafe deposit, so we remove all subsequent L1->L2 transactions.
-        if unsafe_deposit_present {
-            txs_to_return.push(tx.hash());
             continue;
         }
 
         let Some(contract_address) = tx.execute.contract_address else {
-            txs_to_process.push((tx, constraint));
             continue;
         };
 
@@ -228,36 +274,29 @@ async fn filter_unsafe_deposits(
         };
 
         let Some(l1_token_address) = l1_token_address else {
-            txs_to_process.push((tx, constraint));
             continue;
         };
 
-        // What is left to verify is whether the token is legacy. It is legacy if both of the
-        // following is true:
-        // - It is present in legacy shared bridge
-        // - It is not present in the native token vault
+        let l2_token_address = calculate_expected_token_address(
+            storage,
+            legacy_l2_shared_bridge_addr,
+            l1_token_address,
+        )
+        .await?;
 
-        // Checking that it is present in the legacy shared bridge:
-
-        let l2_token_address = calculate_expected_token_address(storage, l1_token_address).await;
-
-        if is_l2_token_legacy(storage, l2_token_address).await {
-            unsafe_deposit_present = true;
-            txs_to_return.push(tx.hash());
-            continue;
+        if is_l2_token_legacy(
+            storage,
+            legacy_l2_shared_bridge_addr,
+            l2_token_address,
+            l1_token_address,
+        )
+        .await?
+        {
+            return Ok(true);
         }
-
-        // Not a deposit
-        txs_to_process.push((tx, constraint));
     }
 
-    // Now, we check that the token is a legacy one, i.e. whether it was registered with the L2 shared bridge
-    // before the v26 upgrade.
-    // It needs to meet two criterias:
-    // - Token is present in the L2SharedBridgeLegacy.
-    // - Token is not present in the L2Native
-
-    Ok((txs_to_process, txs_to_return))
+    Ok(false)
 }
 
 impl MempoolFetcher {
@@ -343,18 +382,42 @@ impl MempoolFetcher {
                     &mempool_info.purged_accounts,
                     gas_per_pubdata,
                     fee_per_gas,
+                    true,
                     self.sync_batch_size,
                 )
                 .await
                 .context("failed syncing mempool")?;
 
-            let (transactions_with_constraints, transactions_to_return) =
-                filter_unsafe_deposits(transactions_with_constraints, &mut storage).await?;
-            storage
-                .transactions_dal()
-                .return_to_mempool(&transactions_to_return)
-                .await
-                .context("failed to return txs to mempool")?;
+            let exclude_l1_txs =
+                is_unsafe_deposit_present(&transactions_with_constraints, &mut storage).await?;
+
+            let transactions_with_constraints = if exclude_l1_txs {
+                let hashes: Vec<_> = transactions_with_constraints
+                    .iter()
+                    .map(|x| x.0.hash())
+                    .collect();
+
+                storage
+                    .transactions_dal()
+                    .return_to_mempool(&hashes)
+                    .await
+                    .context("failed to return txs to mempool")?;
+
+                storage
+                    .transactions_dal()
+                    .sync_mempool(
+                        &mempool_info.stashed_accounts,
+                        &mempool_info.purged_accounts,
+                        gas_per_pubdata,
+                        fee_per_gas,
+                        false,
+                        self.sync_batch_size,
+                    )
+                    .await
+                    .context("failed syncing mempool")?
+            } else {
+                transactions_with_constraints
+            };
 
             let transactions: Vec<_> = transactions_with_constraints
                 .iter()

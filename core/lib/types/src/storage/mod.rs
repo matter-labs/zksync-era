@@ -56,7 +56,7 @@ impl StorageKey {
 
 // Returns the storage key where the value for mapping(address => x)
 // at position `position` is stored.
-fn get_address_mapping_key(address: &Address, position: H256) -> H256 {
+pub fn get_address_mapping_key(address: &Address, position: H256) -> H256 {
     let padded_address = address_to_h256(address);
     H256(keccak256(
         &[padded_address.as_bytes(), position.as_bytes()].concat(),
