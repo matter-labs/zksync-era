@@ -9,6 +9,7 @@ use zksync_storage::{db::NamedColumnFamily, rocksdb, rocksdb::DBPinnableSlice, R
 
 use crate::{
     errors::{DeserializeContext, DeserializeErrorKind},
+    metrics::METRICS,
     storage::{InsertedKeyEntry, PartialPatchSet, PatchSet},
     types::{InternalNode, KeyLookup, Leaf, Manifest, Node, NodeKey, Root},
     Database, DeserializeError,
@@ -246,6 +247,7 @@ impl Database for RocksDBWrapper {
         let mut node_bytes = Vec::with_capacity(128);
         // ^ 128 looks somewhat reasonable as node capacity
 
+        let copied_hashes = patch.copied_hashes_count();
         let new_leaves = patch.sorted_new_leaves.len();
         let total_leaves: usize = patch
             .patches_by_version
@@ -310,11 +312,20 @@ impl Database for RocksDBWrapper {
             }
         }
 
+        METRICS
+            .apply_patch_key_lookup_entries_count
+            .observe(new_leaves);
+        METRICS.apply_patch_leaves_count.observe(total_leaves);
+        METRICS
+            .apply_patch_internal_nodes_count
+            .observe(total_internal_nodes);
+        METRICS.apply_patch_copied_hashes.observe(copied_hashes);
         tracing::debug!(
             total_size = write_batch.size_in_bytes(),
             new_leaves,
             total_leaves,
             total_internal_nodes,
+            copied_hashes,
             "writing to RocksDB"
         );
 

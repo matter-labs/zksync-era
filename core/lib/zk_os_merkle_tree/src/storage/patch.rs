@@ -405,6 +405,8 @@ impl<P: TreeParams> WorkingPatchSet<P> {
         if readonly_leaf_indices_len > 0 {
             // Filter out all internal nodes that were not updated (= don't have updated child refs).
             let removed_node_count = this.remove_readonly_nodes(version);
+            METRICS.readonly_leaves.observe(readonly_leaf_indices_len);
+            METRICS.readonly_internal_nodes.observe(removed_node_count);
             tracing::debug!(
                 leaves = readonly_leaf_indices_len,
                 internal_nodes = removed_node_count,

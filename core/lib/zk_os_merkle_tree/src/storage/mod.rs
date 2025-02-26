@@ -162,6 +162,18 @@ impl PatchSet {
         }
     }
 
+    fn copied_hashes_count(&self) -> usize {
+        let copied_hashes = self.patches_by_version.iter().map(|(&version, patch)| {
+            let copied_hashes = patch
+                .internal
+                .iter()
+                .flat_map(HashMap::values)
+                .map(|node| node.children.iter().filter(|r| r.version < version).count());
+            copied_hashes.sum::<usize>()
+        });
+        copied_hashes.sum()
+    }
+
     #[cfg(test)]
     pub(crate) fn manifest_mut(&mut self) -> &mut Manifest {
         &mut self.manifest

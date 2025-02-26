@@ -14,7 +14,7 @@ pub use self::{
 };
 use crate::{
     hasher::BatchTreeProof,
-    metrics::{BatchProofStage, LoadStage, METRICS},
+    metrics::{BatchProofStage, LoadStage, MerkleTreeInfo, METRICS},
     storage::{TreeUpdate, WorkingPatchSet},
     types::MAX_TREE_DEPTH,
 };
@@ -95,9 +95,18 @@ impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
     /// do not match those of the tree loaded from the database.
     pub fn with_hasher(db: DB, hasher: P::Hasher) -> anyhow::Result<Self> {
         let maybe_manifest = db.try_manifest().context("failed reading tree manifest")?;
-        if let Some(manifest) = maybe_manifest {
+        if let Some(manifest) = &maybe_manifest {
             manifest.tags.ensure_consistency::<P>(&hasher)?;
         }
+
+        let info = MerkleTreeInfo {
+            hasher: hasher.name(),
+            depth: P::TREE_DEPTH.into(),
+            internal_node_depth: P::INTERNAL_NODE_DEPTH.into(),
+        };
+        tracing::debug!(?info, manifest = ?maybe_manifest, "initialized Merkle tree");
+        METRICS.info.set(info).ok();
+
         Ok(Self { db, hasher })
     }
 
