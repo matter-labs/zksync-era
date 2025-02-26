@@ -11,7 +11,10 @@ use zksync_multivm::utils::derive_base_fee_and_gas_per_pubdata;
 use zksync_node_fee_model::BatchFeeModelInputProvider;
 #[cfg(test)]
 use zksync_types::H256;
-use zksync_types::{get_nonce_key, h256_to_u256, vm::VmVersion, Address, Nonce, Transaction};
+use zksync_types::{
+    get_keyed_nonce_key, get_nonce_key, h256_to_u256, vm::VmVersion, Address, NonceKey, NonceValue,
+    Transaction,
+};
 
 use super::{metrics::KEEPER_METRICS, types::MempoolGuard};
 
@@ -137,7 +140,6 @@ impl MempoolFetcher {
                 .map(|(t, _c)| t)
                 .collect();
 
-            // TODO modify creation of this map to be HashMap<(Address, NonceKey), NonceValue>
             let nonces = get_transaction_nonces(&mut storage, &transactions).await?;
             drop(storage);
 
@@ -159,32 +161,39 @@ impl MempoolFetcher {
 }
 
 /// Loads nonces for all distinct `transactions` initiators from the storage.
-// TODO is this the correct behavior with keyed nonces?
 async fn get_transaction_nonces(
     storage: &mut Connection<'_, Core>,
     transactions: &[&Transaction],
-) -> anyhow::Result<HashMap<Address, Nonce>> {
-    let (nonce_keys, address_by_nonce_key): (Vec<_>, HashMap<_, _>) = transactions
+) -> anyhow::Result<HashMap<(Address, NonceKey), NonceValue>> {
+    let (nonce_storage_keys, address_by_storage_key): (Vec<_>, HashMap<_, _>) = transactions
         .iter()
-        .map(|tx| {
-            let address = tx.initiator_account();
-            let nonce_key = get_nonce_key(&address).hashed_key();
-            (nonce_key, (nonce_key, address))
+        .filter_map(|tx| {
+            tx.nonce().map(|nonce| {
+                let nonce_storage_key = if nonce.key().0.is_zero() {
+                    get_nonce_key(&tx.initiator_account()).hashed_key()
+                } else {
+                    get_keyed_nonce_key(&tx.initiator_account(), nonce.key().0).hashed_key()
+                };
+                (
+                    nonce_storage_key,
+                    (nonce_storage_key, (tx.initiator_account(), nonce.key())),
+                )
+            })
         })
         .unzip();
 
     let nonce_values = storage
         .storage_web3_dal()
-        .get_values(&nonce_keys)
+        .get_values(&nonce_storage_keys)
         .await
         .context("failed getting nonces from storage")?;
 
     Ok(nonce_values
         .into_iter()
-        .map(|(nonce_key, nonce_value)| {
+        .map(|(nonce_storage_key, nonce_value)| {
             (
-                address_by_nonce_key[&nonce_key],
-                Nonce(h256_to_u256(nonce_value)),
+                address_by_storage_key[&nonce_storage_key],
+                NonceValue(h256_to_u256(nonce_value).as_u64()),
             )
         })
         .collect())

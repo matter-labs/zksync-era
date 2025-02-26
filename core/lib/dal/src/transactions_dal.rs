@@ -12,7 +12,7 @@ use zksync_db_connection::{
 use zksync_types::{
     block::L2BlockExecutionData, debug_flat_call::CallTraceMeta, l1::L1Tx, l2::L2Tx,
     protocol_upgrade::ProtocolUpgradeTx, Address, ExecuteTransactionCommon, L1BatchNumber,
-    L1BlockNumber, L2BlockNumber, PriorityOpId, ProtocolVersionId, Transaction,
+    L1BlockNumber, L2BlockNumber, NonceKey, PriorityOpId, ProtocolVersionId, Transaction,
     TransactionTimeRangeConstraint, H256, PROTOCOL_UPGRADE_TX_TYPE, U256,
 };
 use zksync_vm_interface::{
@@ -1770,13 +1770,17 @@ impl TransactionsDal<'_, '_> {
     /// the latter are only used to bootstrap mempool for given account.
     pub async fn sync_mempool(
         &mut self,
-        stashed_accounts: &[Address],
-        purged_accounts: &[Address],
+        stashed_accounts: &[(Address, NonceKey)],
+        purged_accounts: &[(Address, NonceKey)],
         gas_per_pubdata: u32,
         fee_per_gas: u64,
         limit: usize,
     ) -> DalResult<Vec<(Transaction, TransactionTimeRangeConstraint)>> {
-        let stashed_addresses: Vec<_> = stashed_accounts.iter().map(Address::as_bytes).collect();
+        // TODO
+        let stashed_addresses: Vec<_> = stashed_accounts
+            .iter()
+            .map(|(addr, _)| Address::as_bytes(addr))
+            .collect();
         let result = sqlx::query!(
             r#"
             UPDATE transactions
@@ -1799,10 +1803,14 @@ impl TransactionsDal<'_, '_> {
             "Updated {} transactions for stashed accounts, stashed accounts amount: {}, stashed_accounts: {:?}",
             result.rows_affected(),
             stashed_addresses.len(),
-            stashed_accounts.iter().map(|a|format!("{:x}", a)).collect::<Vec<_>>()
+            stashed_accounts.iter().map(|(a, _)|format!("{:x}", a)).collect::<Vec<_>>()
         );
 
-        let purged_addresses: Vec<_> = purged_accounts.iter().map(Address::as_bytes).collect();
+        // TODO
+        let purged_addresses: Vec<_> = purged_accounts
+            .iter()
+            .map(|(addr, _)| Address::as_bytes(addr))
+            .collect();
         let result = sqlx::query!(
             r#"
             DELETE FROM transactions

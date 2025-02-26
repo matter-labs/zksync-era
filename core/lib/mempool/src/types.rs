@@ -1,7 +1,7 @@
 use std::{cmp::Ordering, collections::HashMap};
 
 use zksync_types::{
-    fee::Fee, fee_model::BatchFeeInput, l2::L2Tx, Address, Nonce, Transaction,
+    fee::Fee, fee_model::BatchFeeInput, l2::L2Tx, Address, NonceKey, NonceValue, Transaction,
     TransactionTimeRangeConstraint, U256,
 };
 
@@ -9,17 +9,14 @@ use zksync_types::{
 #[derive(Debug)]
 pub(crate) struct AccountTransactions {
     /// transactions that belong to given account keyed by transaction nonce
-    // TODO: replace `Nonce` with `NonceValue` here
-    transactions: HashMap<Nonce, (L2Tx, TransactionTimeRangeConstraint)>,
+    transactions: HashMap<NonceValue, (L2Tx, TransactionTimeRangeConstraint)>,
     /// account nonce in mempool
     /// equals to committed nonce in db + number of transactions sent to state keeper
-    // TODO: this should also be `NonceValue`, which which is the same thing, but maintained
-    // per-key
-    nonce: Nonce,
+    nonce: NonceValue,
 }
 
 impl AccountTransactions {
-    pub fn new(nonce: Nonce) -> Self {
+    pub fn new(nonce: NonceValue) -> Self {
         Self {
             transactions: HashMap::new(),
             nonce,
@@ -33,9 +30,8 @@ impl AccountTransactions {
         constraint: TransactionTimeRangeConstraint,
     ) -> InsertionMetadata {
         let mut metadata = InsertionMetadata::default();
-        let nonce = transaction.common_data.nonce;
+        let nonce = transaction.common_data.nonce.value();
         // skip insertion if transaction is old
-        // TODO: compare only `nonceValue`s here.
         if nonce < self.nonce {
             return metadata;
         }
@@ -76,7 +72,8 @@ impl AccountTransactions {
         // current nonce for the group needs to be reset
         let tx_nonce = transaction
             .nonce()
-            .expect("nonce is not set for L2 transaction");
+            .expect("nonce is not set for L2 transaction")
+            .value();
         self.nonce = self.nonce.min(tx_nonce);
         self.transactions
             .get(&(tx_nonce + 1))
@@ -92,6 +89,7 @@ impl AccountTransactions {
             account: transaction.initiator_account(),
             received_at_ms: transaction.received_timestamp_ms,
             fee_data: transaction.common_data.fee.clone(),
+            nonce_key: transaction.common_data.nonce.key(),
         }
     }
 }
@@ -100,8 +98,8 @@ impl AccountTransactions {
 /// Currently trivial ordering is used based on received at timestamp
 #[derive(Eq, PartialEq, Clone, Debug, Hash)]
 pub struct MempoolScore {
-    // TODO: should this also include nonce key?
     pub account: Address,
+    pub nonce_key: NonceKey,
     pub received_at_ms: u64,
     // Not used for actual scoring, but state keeper would request
     // transactions that have acceptable fee values (so transactions
@@ -173,6 +171,7 @@ mod tests {
 
         let score = MempoolScore {
             account: Address::random(),
+            nonce_key: NonceKey(0.into()),
             received_at_ms: Default::default(), // Not important
             fee_data: Fee {
                 gas_limit: Default::default(), // Not important
