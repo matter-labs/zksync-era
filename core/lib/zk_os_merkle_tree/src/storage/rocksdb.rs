@@ -148,35 +148,35 @@ impl RocksDBWrapper {
     }
 
     fn lookup_key(&self, key: H256, version: u64) -> Result<KeyLookup, DeserializeError> {
-        let (next_key, next_entry) = self
+        let (next_key, next_idx) = self
             .db
             .from_iterator_cf(MerkleTreeColumnFamily::KeyIndices, key.as_bytes()..)
             .find_map(|(key, raw_entry)| {
                 let entry = InsertedKeyEntry::deserialize(&raw_entry)
                     .map_err(|err| err.with_context(DeserializeContext::KeyIndex(key.clone())))
                     .unwrap();
-                (entry.inserted_at <= version).then(|| (H256::from_slice(&key), entry))
+                (entry.inserted_at <= version).then(|| (H256::from_slice(&key), entry.index))
             })
-            .expect("guards must be inserted into a tree on initialization");
+            .unwrap_or_else(|| (H256::repeat_byte(0xff), 1));
 
         if next_key == key {
-            return Ok(KeyLookup::Existing(next_entry.index));
+            return Ok(KeyLookup::Existing(next_idx));
         }
 
-        let (prev_key, prev_entry) = self
+        let (prev_key, prev_idx) = self
             .db
             .to_iterator_cf(MerkleTreeColumnFamily::KeyIndices, ..=key.as_bytes())
             .find_map(|(key, raw_entry)| {
                 let entry = InsertedKeyEntry::deserialize(&raw_entry)
                     .map_err(|err| err.with_context(DeserializeContext::KeyIndex(key.clone())))
                     .unwrap();
-                (entry.inserted_at <= version).then(|| (H256::from_slice(&key), entry))
+                (entry.inserted_at <= version).then(|| (H256::from_slice(&key), entry.index))
             })
-            .expect("guards must be inserted into a tree on initialization");
+            .unwrap_or_else(|| (H256::zero(), 0));
 
         Ok(KeyLookup::Missing {
-            prev_key_and_index: (prev_key, prev_entry.index),
-            next_key_and_index: (next_key, next_entry.index),
+            prev_key_and_index: (prev_key, prev_idx),
+            next_key_and_index: (next_key, next_idx),
         })
     }
 

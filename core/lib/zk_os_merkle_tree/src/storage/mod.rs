@@ -425,10 +425,19 @@ impl<DB: Database> Database for Patched<DB> {
         manifest: Manifest,
         truncated_versions: ops::RangeTo<u64>,
     ) -> anyhow::Result<()> {
-        anyhow::ensure!(
-            self.patch.is_none(),
-            "Cannot truncate `Patched` database with non-flushed changes"
-        );
-        self.inner.truncate(manifest, truncated_versions)
+        let Some(patch) = &mut self.patch else {
+            return self.inner.truncate(manifest, truncated_versions);
+        };
+        patch.truncate(manifest.clone(), truncated_versions)?;
+
+        // If the patch set is fully truncated, we want to flush truncation to the underlying DB since it won't be applied
+        // in the following flushes.
+        if patch.patches_by_version.is_empty() {
+            assert!(patch.sorted_new_leaves.is_empty());
+
+            self.patch = None;
+            self.inner.truncate(manifest, truncated_versions)?;
+        }
+        Ok(())
     }
 }

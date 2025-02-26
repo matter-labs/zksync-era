@@ -7,7 +7,7 @@ use rand::{rngs::StdRng, seq::SliceRandom, Rng, SeedableRng};
 use super::*;
 use crate::{
     hasher::TreeOperation,
-    storage::PatchSet,
+    storage::{PatchSet, Patched},
     types::{Leaf, TreeTags},
 };
 
@@ -375,6 +375,53 @@ fn test_read_proofs(db: impl Database) {
     }
 }
 
+fn test_using_patched_database(db: impl Database) {
+    const RNG_SEED: u64 = 321;
+    const FLUSH_PROBABILITY: f64 = 0.4;
+
+    let mut tree = MerkleTree::new(Patched::new(db)).unwrap();
+    let empty_tree_output = tree.extend(&[]).unwrap();
+
+    let mut rng = StdRng::seed_from_u64(RNG_SEED);
+    let nodes = (0..1_000).map(|_| TreeEntry {
+        key: H256(rng.gen()),
+        value: H256(rng.gen()),
+    });
+    let inserts: Vec<_> = nodes.collect();
+
+    for chunk_size in [10, 42, 101, 333, 1_000] {
+        println!("Using chunk_size={chunk_size}");
+
+        let mut tree_output = empty_tree_output;
+        for chunk in inserts.chunks(chunk_size) {
+            let (new_output, proof) = tree.extend_with_proof(chunk, &[]).unwrap();
+            proof
+                .verify(&Blake2Hasher, 64, Some(tree_output), chunk, &[])
+                .unwrap();
+            tree_output = new_output;
+
+            let latest_version = tree.latest_version().unwrap().expect("no versions");
+            for version in latest_version.saturating_sub(5)..=latest_version {
+                println!(
+                    "verifying consistency for version={version}, latest_version={latest_version}"
+                );
+                tree.verify_consistency(version).unwrap();
+            }
+
+            if rng.gen_bool(FLUSH_PROBABILITY) {
+                tree.db.flush().unwrap();
+            }
+        }
+
+        tree.truncate_recent_versions(1).unwrap();
+    }
+}
+
+#[test]
+fn using_patched_database() {
+    test_using_patched_database(PatchSet::default());
+}
+
 #[test]
 fn read_proofs() {
     test_read_proofs(PatchSet::default());
@@ -435,5 +482,12 @@ mod rocksdb {
         let temp_dir = TempDir::new().unwrap();
         let db = RocksDBWrapper::new(temp_dir.path()).unwrap();
         test_read_proofs(db);
+    }
+
+    #[test]
+    fn using_patched_database() {
+        let temp_dir = TempDir::new().unwrap();
+        let db = RocksDBWrapper::new(temp_dir.path()).unwrap();
+        test_using_patched_database(db);
     }
 }
