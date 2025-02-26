@@ -55,8 +55,7 @@ impl TransactionData {
     pub(crate) fn new(execute_tx: Transaction, use_evm_emulator: bool) -> Self {
         match execute_tx.common_data {
             ExecuteTransactionCommon::L2(common_data) => {
-                let nonce = U256::from_big_endian(&common_data.nonce.to_be_bytes());
-
+                let nonce = common_data.nonce.0;
                 let should_check_chain_id = if matches!(
                     common_data.transaction_type,
                     TransactionType::LegacyTransaction
@@ -285,7 +284,7 @@ impl TryInto<L2Tx> for TransactionData {
 
         let common_data = L2TxCommonData {
             transaction_type: (self.tx_type as u32).try_into().unwrap(),
-            nonce: Nonce(self.nonce.as_u32()),
+            nonce: Nonce(self.nonce),
             fee: Fee {
                 max_fee_per_gas: self.max_fee_per_gas,
                 max_priority_fee_per_gas: self.max_priority_fee_per_gas,

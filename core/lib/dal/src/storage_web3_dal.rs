@@ -58,7 +58,7 @@ impl StorageWeb3Dal<'_, '_> {
                 let address = nonce_keys.get(&hashed_key)?;
                 let full_nonce = h256_to_u256(value);
                 let (nonce, _) = decompose_full_nonce(full_nonce);
-                Some((*address, Nonce(nonce.as_u32())))
+                Some((*address, Nonce(nonce)))
             })
             .collect();
         Ok(res)

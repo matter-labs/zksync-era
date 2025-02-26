@@ -147,7 +147,7 @@ where
         let l2_tx = L2Tx::new(
             Some(CONTRACT_DEPLOYER_ADDRESS),
             Execute::encode_deploy_params_create(Default::default(), main_contract_hash, calldata),
-            Nonce(0),
+            Nonce(0.into()),
             Default::default(),
             self.wallet.address(),
             self.value.unwrap_or_default(),

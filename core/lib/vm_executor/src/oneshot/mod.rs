@@ -445,9 +445,9 @@ impl<S: ReadStorage> VmSandbox<S> {
 
         let transaction = self.execution_args.transaction;
         let tx_id = format!(
-            "{:?}-{}",
+            "{:?}-{:?}",
             transaction.initiator_account(),
-            transaction.nonce().unwrap_or(Nonce(0))
+            transaction.nonce().unwrap_or(Nonce(0.into()))
         );
 
         let storage_view = StorageView::new(self.storage).to_rc_ptr();

@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            DELETE FROM transactions\n            USING unnest($1::bytea[], $2::numeric[]) AS purged (initiator_address, nonce_key)\n            WHERE\n                in_mempool = TRUE\n                AND transactions.initiator_address = purged.initiator_address\n                AND transactions.nonce_key = purged.nonce_key\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "ByteaArray",
+        "NumericArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "bed273d1490c04afb38365ab87b4f99638614535232725539f6c502561d19740"
+}
