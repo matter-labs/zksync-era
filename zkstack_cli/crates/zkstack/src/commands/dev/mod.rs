@@ -2,7 +2,9 @@ use clap::Subcommand;
 use commands::status::args::StatusArgs;
 use messages::MSG_STATUS_ABOUT;
 #[cfg(feature = "gateway")]
-use messages::{MSG_GATEWAY_FINALIZE, MSG_GATEWAY_UPGRADE_CALLDATA};
+use messages::{
+    MSG_GATEWAY_FINALIZE, MSG_GATEWAY_REGISTER_L2_TOKENS, MSG_GATEWAY_UPGRADE_CALLDATA,
+};
 use xshell::Shell;
 
 use self::commands::{
@@ -57,6 +59,9 @@ pub enum DevCommands {
     GatewayUpgradeFinalization(
         commands::gateway_finalize_preparation::GatewayFinalizePreparationArgs,
     ),
+    #[cfg(feature = "gateway")]
+    #[command(about = MSG_GATEWAY_REGISTER_L2_TOKENS)]
+    GatewayL2TokenRegistration(commands::gateway_register_l2_tokens::GatewayRegisterL2TokensArgs),
 }
 
 pub async fn run(shell: &Shell, args: DevCommands) -> anyhow::Result<()> {
@@ -80,6 +85,10 @@ pub async fn run(shell: &Shell, args: DevCommands) -> anyhow::Result<()> {
         #[cfg(feature = "gateway")]
         DevCommands::GatewayUpgradeFinalization(args) => {
             commands::gateway_finalize_preparation::run(shell, args).await?
+        }
+        #[cfg(feature = "gateway")]
+        DevCommands::GatewayL2TokenRegistration(args) => {
+            commands::gateway_register_l2_tokens::run(args).await?
         }
     }
     Ok(())

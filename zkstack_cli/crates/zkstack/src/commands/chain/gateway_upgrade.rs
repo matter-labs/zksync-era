@@ -28,9 +28,12 @@ use zkstack_cli_types::L1BatchCommitmentMode;
 use zksync_basic_types::{Address, U256};
 
 use crate::{
-    commands::dev::commands::gateway::{
-        check_chain_readiness, fetch_chain_info, get_admin_call_builder,
-        set_upgrade_timestamp_calldata, DAMode, GatewayUpgradeArgsInner, GatewayUpgradeInfo,
+    commands::dev::commands::{
+        events_gatherer::DEFAULT_BLOCK_RANGE,
+        gateway::{
+            check_chain_readiness, fetch_chain_info, get_admin_call_builder,
+            set_upgrade_timestamp_calldata, DAMode, GatewayUpgradeArgsInner, GatewayUpgradeInfo,
+        },
     },
     messages::MSG_CHAIN_NOT_INITIALIZED,
     utils::forge::{fill_forge_private_key, WalletOwner},
@@ -265,6 +268,7 @@ async fn finalize_stage1(
         l1_url.clone(),
         general_config.get("api.web3_json_rpc.http_url")?,
         chain_config.chain_id.as_u64(),
+        None,
     )
     .await?;
 

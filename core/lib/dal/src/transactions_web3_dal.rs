@@ -632,6 +632,7 @@ mod tests {
             .expect("no transaction");
         let mut fetched_tx = L2Tx::try_from(fetched_tx).unwrap();
         assert_eq!(fetched_tx.execute.contract_address, None);
+        fetched_tx.received_timestamp_ms = tx.received_timestamp_ms;
         fetched_tx.raw_bytes = tx.raw_bytes.clone();
         assert_eq!(fetched_tx, tx);
 
