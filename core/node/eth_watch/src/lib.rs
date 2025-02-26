@@ -10,7 +10,7 @@ use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_system_constants::PRIORITY_EXPIRATION;
 use zksync_types::{
-    ethabi::Contract, protocol_version::ProtocolSemanticVersion,
+    ethabi::Contract, protocol_version::ProtocolSemanticVersion, settlement::SettlementMode,
     web3::BlockNumber as Web3BlockNumber, L1BatchNumber, L2ChainId, PriorityOpId,
 };
 
@@ -53,19 +53,15 @@ impl EthWatch {
     pub async fn new(
         chain_admin_contract: &Contract,
         l1_client: Box<dyn EthClient>,
-        sl_l2_client: Option<Box<dyn L2EthClient>>,
+        sl_client: Box<dyn EthClient>,
+        sl_layer: SettlementMode,
         pool: ConnectionPool<Core>,
         poll_interval: Duration,
         chain_id: L2ChainId,
     ) -> anyhow::Result<Self> {
         let mut storage = pool.connection_tagged("eth_watch").await?;
         let l1_client: Arc<dyn EthClient> = l1_client.into();
-        let sl_l2_client: Option<Arc<dyn L2EthClient>> = sl_l2_client.map(Into::into);
-        let sl_client: Arc<dyn EthClient> = if let Some(sl_l2_client) = sl_l2_client.clone() {
-            Arc::new(L2EthClientW(sl_l2_client))
-        } else {
-            l1_client.clone()
-        };
+        let sl_client: Arc<dyn EthClient> = sl_client.into();
 
         let state = Self::initialize_state(&mut storage, sl_client.as_ref()).await?;
         tracing::info!("initialized state: {state:?}");
@@ -83,14 +79,16 @@ impl EthWatch {
             Box::new(priority_ops_processor),
             Box::new(decentralized_upgrades_processor),
         ];
-        if let Some(sl_l2_client) = sl_l2_client {
-            let batch_root_processor = BatchRootProcessor::new(
-                state.chain_batch_root_number_lower_bound,
-                state.batch_merkle_tree,
-                chain_id,
-                sl_l2_client,
-            );
-            event_processors.push(Box::new(batch_root_processor));
+
+        if sl_layer.is_gateway() {
+            todo!()
+            // let batch_root_processor = BatchRootProcessor::new(
+            //     state.chain_batch_root_number_lower_bound,
+            //     state.batch_merkle_tree,
+            //     chain_id,
+            //     sl_client.clone(),
+            // );
+            // event_processors.push(Box::new(batch_root_processor));
         }
         Ok(Self {
             l1_client,

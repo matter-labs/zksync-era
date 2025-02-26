@@ -12,6 +12,7 @@ pub mod object_store;
 pub mod pools;
 pub mod price_api_client;
 pub mod reverter;
+pub mod settlement_layer;
 pub mod state_keeper;
 pub mod sync_state;
 pub mod web3_api;

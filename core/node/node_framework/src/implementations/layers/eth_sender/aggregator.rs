@@ -15,6 +15,7 @@ use crate::{
         healthcheck::AppHealthCheckResource,
         object_store::ObjectStoreResource,
         pools::{MasterPool, PoolResource, ReplicaPool},
+        settlement_layer::SettlementModeResource,
     },
     service::StopReceiver,
     task::{Task, TaskId},
@@ -47,7 +48,6 @@ pub struct EthTxAggregatorLayer {
     gateway_chain_config: Option<GatewayChainConfig>,
     zksync_network_id: L2ChainId,
     l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
-    settlement_mode: SettlementMode,
 }
 
 #[derive(Debug, FromContext)]
@@ -59,6 +59,7 @@ pub struct Input {
     pub eth_client_blobs: Option<BoundEthInterfaceForBlobsResource>,
     pub eth_client_gateway: Option<BoundEthInterfaceForL2Resource>,
     pub object_store: ObjectStoreResource,
+    pub settlement_mode: SettlementModeResource,
     #[context(default)]
     pub circuit_breakers: CircuitBreakersResource,
     #[context(default)]
@@ -79,7 +80,6 @@ impl EthTxAggregatorLayer {
         gateway_chain_config: Option<GatewayChainConfig>,
         zksync_network_id: L2ChainId,
         l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
-        settlement_mode: SettlementMode,
     ) -> Self {
         Self {
             eth_sender_config,
@@ -87,7 +87,6 @@ impl EthTxAggregatorLayer {
             gateway_chain_config,
             zksync_network_id,
             l1_batch_commit_data_generator_mode,
-            settlement_mode,
         }
     }
 }
@@ -104,8 +103,8 @@ impl WiringLayer for EthTxAggregatorLayer {
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         tracing::info!(
             "Wiring tx_aggregator in {:?} mode which is {}",
-            self.settlement_mode,
-            self.settlement_mode.is_gateway()
+            input.settlement_mode.0,
+            input.settlement_mode.0.is_gateway()
         );
         tracing::info!("Contracts: {:?}", self.contracts_config);
         tracing::info!("Gateway contracts: {:?}", self.gateway_chain_config);
@@ -116,7 +115,7 @@ impl WiringLayer for EthTxAggregatorLayer {
             multicall3_addr,
             diamond_proxy_addr,
             state_transition_manager_address,
-        ) = if self.settlement_mode.is_gateway() {
+        ) = if input.settlement_mode.0.is_gateway() {
             let gateway_chain_config = self
                 .gateway_chain_config
                 .as_ref()
@@ -139,7 +138,7 @@ impl WiringLayer for EthTxAggregatorLayer {
             )
         };
 
-        let eth_client = if self.settlement_mode.is_gateway() {
+        let eth_client = if input.settlement_mode.0.is_gateway() {
             input
                 .eth_client_gateway
                 .context("eth_client_gateway missing")?
@@ -165,7 +164,7 @@ impl WiringLayer for EthTxAggregatorLayer {
             eth_client_blobs_addr,
             self.l1_batch_commit_data_generator_mode,
             replica_pool.clone(),
-            self.settlement_mode,
+            input.settlement_mode.0,
         )
         .await?;
 
@@ -180,7 +179,7 @@ impl WiringLayer for EthTxAggregatorLayer {
             diamond_proxy_addr,
             self.zksync_network_id,
             eth_client_blobs_addr,
-            self.settlement_mode,
+            input.settlement_mode.0,
         )
         .await;
 

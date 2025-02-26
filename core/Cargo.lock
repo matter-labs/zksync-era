@@ -5394,18 +5394,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "multilayer_client"
-version = "26.4.0-non-semver-compat"
-dependencies = [
- "anyhow",
- "async-trait",
- "tokio",
- "zksync_basic_types",
- "zksync_contracts",
- "zksync_eth_client",
-]
-
-[[package]]
 name = "multimap"
 version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -11860,6 +11848,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_multilayer_client"
+version = "26.4.0-non-semver-compat"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "tokio",
+ "tracing",
+ "zksync_basic_types",
+ "zksync_config",
+ "zksync_contracts",
+ "zksync_eth_client",
+]
+
+[[package]]
 name = "zksync_multivm"
 version = "26.4.0-non-semver-compat"
 dependencies = [
@@ -12070,6 +12072,7 @@ dependencies = [
  "zksync_logs_bloom_backfill",
  "zksync_metadata_calculator",
  "zksync_mini_merkle_tree",
+ "zksync_multilayer_client",
  "zksync_node_api_server",
  "zksync_node_consensus",
  "zksync_node_db_pruner",
