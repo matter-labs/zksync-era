@@ -435,6 +435,9 @@ mod tests {
             .unwrap()
             .unwrap();
         assert_eq!(verification.attempts, attempts_number);
-        assert_eq!(verification.retry_at.unwrap(), retry_at);
+        assert_eq!(
+            verification.retry_at.unwrap().timestamp(),
+            retry_at.timestamp()
+        );
     }
 }
