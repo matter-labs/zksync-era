@@ -169,7 +169,6 @@ impl RemoteENConfig {
         .await?;
 
         // These two config variables should always have the same value.
-        // TODO(EVM-578): double check and potentially forbid both of them being `None`.
         let l2_erc20_default_bridge = bridges
             .l2_erc20_default_bridge
             .or(bridges.l2_shared_default_bridge);
@@ -183,6 +182,9 @@ impl RemoteENConfig {
             if legacy_addr != shared_addr {
                 panic!("L2 erc20 bridge address and L2 shared bridge address are different.");
             }
+        } else if l2_erc20_default_bridge.is_none() && l2_erc20_shared_bridge.is_none() {
+            // Ensure that at least one bridge address is specified, as required for proper operation
+            anyhow::bail!("Both L2 erc20 bridge address and L2 shared bridge address are None. At least one must be specified.");
         }
 
         Ok(Self {
@@ -838,10 +840,6 @@ impl OptionalENConfig {
         500 // The default limit is chosen to be reasonably permissive.
     }
 
-    const fn default_max_response_body_size_mb() -> usize {
-        10
-    }
-
     fn default_max_response_body_size_overrides_mb() -> MaxResponseSizeOverrides {
         MaxResponseSizeOverrides::empty()
     }
@@ -1481,7 +1479,6 @@ impl From<&ExternalNodeConfig> for InternalApiConfig {
                 l1_weth_bridge: config.remote.l1_weth_bridge_addr,
                 l2_weth_bridge: config.remote.l2_weth_bridge_addr,
             },
-            l1_bytecodes_supplier_addr: config.remote.l1_bytecodes_supplier_addr,
             l1_wrapped_base_token_store: config.remote.l1_wrapped_base_token_store,
             l1_bridgehub_proxy_addr: config.remote.l1_bridgehub_proxy_addr,
             l1_state_transition_proxy_addr: config.remote.l1_state_transition_proxy_addr,
