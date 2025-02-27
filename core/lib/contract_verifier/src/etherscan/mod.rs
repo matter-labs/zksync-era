@@ -107,6 +107,17 @@ impl EtherscanVerifier {
         Duration::from_secs(1)
     }
 
+    async fn sleep(&mut self, time: Duration) -> Result<(), VerifierError> {
+        if tokio::time::timeout(time, self.stop_receiver.changed())
+            .await
+            .is_ok()
+        {
+            Err(VerifierError::Canceled)
+        } else {
+            Ok(())
+        }
+    }
+
     async fn get_next_request(
         &mut self,
     ) -> anyhow::Result<Option<(VerificationRequest, EtherscanVerification)>, VerifierError> {
@@ -137,15 +148,7 @@ impl EtherscanVerifier {
                         "Pausing processing for {:#?} sec before the retry",
                         to_wait.as_secs()
                     );
-                    // If stop signal has been received, return None as the process will be shut down.
-                    //let retry_at_utc = DateTime::<Utc>::from_naive_utc_and_offset(tx.created_at, Utc)
-                    if tokio::time::timeout(to_wait, self.stop_receiver.changed())
-                        .await
-                        .is_ok()
-                    {
-                        return Ok(None);
-                    }
-
+                    self.sleep(POLL_VERIFICATION_RESULT_INTERVAL).await?;
                     self.reset_etherscan_verification_processing_started_at(
                         verification_request.id,
                     )
@@ -289,41 +292,24 @@ impl EtherscanVerifier {
         verification_request: &VerificationRequest,
         verification_id: String,
     ) -> Result<(), VerifierError> {
-        let mut get_status_attempts = 0;
-        loop {
-            get_status_attempts += 1;
+        for attempt in 1..=MAX_POLL_VERIFICATION_RESULT_ATTEMPTS {
             tracing::info!(
                 "Fetching contract verification status, address = {:#?}, attempt = {}",
                 verification_request.req.contract_address,
-                get_status_attempts
+                attempt
             );
-            let result = self.client.get_verification_status(&verification_id).await;
-            match result {
-                Ok(_) => break,
+            match self.client.get_verification_status(&verification_id).await {
+                Ok(_) => return Ok(()),
                 Err(EtherscanError::VerificationPending) => {
-                    if tokio::time::timeout(
-                        POLL_VERIFICATION_RESULT_INTERVAL,
-                        self.stop_receiver.changed(),
-                    )
-                    .await
-                    .is_ok()
-                    {
-                        return Err(VerifierError::Canceled);
+                    if attempt < MAX_POLL_VERIFICATION_RESULT_ATTEMPTS {
+                        self.sleep(POLL_VERIFICATION_RESULT_INTERVAL).await?;
                     }
-                    if get_status_attempts > MAX_POLL_VERIFICATION_RESULT_ATTEMPTS {
-                        tracing::warn!(
-                            "Get verification status timed out for contract with address {:#?}",
-                            verification_request.req.contract_address
-                        );
-                        return Err(ProcessingError::VerificationStatusPollingTimeout.into());
-                    }
-                    continue;
                 }
                 Err(e) => return Err(e.into()),
             }
         }
 
-        Ok(())
+        Err(ProcessingError::VerificationStatusPollingTimeout.into())
     }
 
     async fn verify(
@@ -345,42 +331,32 @@ impl EtherscanVerifier {
             return Ok(());
         }
         let verification_id = match etherscan_verification_id {
-            Some(id) => Some(id),
+            Some(id) => id,
             None => {
-                let request_id = self
+                let Some(request_id) = self
                     .send_verification_request(&verification_request)
-                    .await?;
+                    .await?
+                else {
+                    // Contract is already verified.
+                    return Ok(());
+                };
                 // Wait for the verification to be processed
-                if tokio::time::timeout(
-                    POLL_VERIFICATION_RESULT_INTERVAL,
-                    self.stop_receiver.changed(),
-                )
-                .await
-                .is_ok()
-                {
-                    return Err(VerifierError::Canceled);
-                }
+                self.sleep(POLL_VERIFICATION_RESULT_INTERVAL).await?;
                 request_id
             }
         };
 
-        // None verification id means that the contract is already verified.
-        if verification_id.is_some() {
-            self.await_verification(&verification_request, verification_id.unwrap())
-                .await?;
-        }
+        self.await_verification(&verification_request, verification_id)
+            .await?;
 
         Ok(())
     }
 
     async fn process_next_request(&mut self) -> anyhow::Result<(), VerifierError> {
-        let verification_request = self.get_next_request().await?;
-        if verification_request.is_none() {
+        let Some((verification_request, verification)) = self.get_next_request().await? else {
             return Ok(());
-        }
+        };
         let started_at = Instant::now();
-
-        let (verification_request, verification) = verification_request.unwrap();
         tracing::info!(
             "Started to process request with id = {}",
             verification_request.id
