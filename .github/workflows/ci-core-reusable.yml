@@ -237,9 +237,6 @@ jobs:
           echo "FEES_LOGS_DIR=$FEES_LOGS_DIR" >> $GITHUB_ENV
           echo "REVERT_LOGS_DIR=$REVERT_LOGS_DIR" >> $GITHUB_ENV
       
-      - name: Generate genesis
-        run: |
-          ci_run zkstack dev generate-genesis
 
       - name: Initialize ecosystem
         run: |
@@ -250,6 +247,14 @@ jobs:
           ci_run zkstack ecosystem init --dev \
           --ignore-prerequisites --verbose \
           --observability=false
+
+          ci_run zkstack dev generate-genesis 
+
+          ci_run zkstack ecosystem init --dev \
+          --ignore-prerequisites --verbose \
+          --observability=false
+
+        # kl TODO: remove this ^ dev generate-genesis, and second ecosystem init, its only for speed. 
 
       - name: Read Custom Token address and set as environment variable
         run: |
