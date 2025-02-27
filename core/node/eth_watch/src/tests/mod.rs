@@ -17,7 +17,7 @@ use zksync_types::{
     ProtocolVersion, ProtocolVersionId, SLChainId, Transaction, H256, U256,
 };
 
-use crate::{tests::client::MockEthClient, EthWatch, L2EthClient};
+use crate::{tests::client::MockEthClient, EthWatch, ZkSyncExtentionEthClient};
 
 mod client;
 
@@ -99,7 +99,7 @@ async fn create_test_watcher(
 ) -> (EthWatch, MockEthClient, MockEthClient) {
     let l1_client = MockEthClient::new(SLChainId(42));
     let sl_client = MockEthClient::new(SL_CHAIN_ID);
-    let sl_l2_client: Box<dyn L2EthClient> = if settlement_mode.is_gateway() {
+    let sl_l2_client: Box<dyn ZkSyncExtentionEthClient> = if settlement_mode.is_gateway() {
         Box::new(sl_client.clone())
     } else {
         Box::new(l1_client.clone())

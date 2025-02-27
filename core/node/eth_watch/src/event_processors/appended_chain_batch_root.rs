@@ -14,7 +14,7 @@ use zksync_types::{
 };
 
 use crate::{
-    client::L2EthClient,
+    client::ZkSyncExtentionEthClient,
     event_processors::{EventProcessor, EventProcessorError, EventsSource},
 };
 
@@ -27,7 +27,7 @@ pub struct BatchRootProcessor {
     appended_chain_batch_root_signature: H256,
     merkle_tree: MiniMerkleTree<[u8; 96]>,
     l2_chain_id: L2ChainId,
-    sl_l2_client: Arc<dyn L2EthClient>,
+    sl_l2_client: Arc<dyn ZkSyncExtentionEthClient>,
 }
 
 impl BatchRootProcessor {
@@ -35,7 +35,7 @@ impl BatchRootProcessor {
         next_batch_number_lower_bound: L1BatchNumber,
         merkle_tree: MiniMerkleTree<[u8; 96]>,
         l2_chain_id: L2ChainId,
-        sl_l2_client: Arc<dyn L2EthClient>,
+        sl_l2_client: Arc<dyn ZkSyncExtentionEthClient>,
     ) -> Self {
         Self {
             next_batch_number_lower_bound,

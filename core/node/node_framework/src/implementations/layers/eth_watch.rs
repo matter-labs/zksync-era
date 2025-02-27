@@ -1,7 +1,7 @@
 use anyhow::Context;
 use zksync_config::{configs::gateway::GatewayChainConfig, ContractsConfig, EthWatchConfig};
 use zksync_contracts::{chain_admin_contract, gateway_migration_contract};
-use zksync_eth_watch::{EthClient, EthHttpQueryClient, EthWatch};
+use zksync_eth_watch::{EthHttpQueryClient, EthWatch, ZkSyncExtentionEthClient};
 use zksync_types::L2ChainId;
 
 use crate::{
@@ -117,31 +117,32 @@ impl WiringLayer for EthWatchLayer {
             self.chain_id,
         );
 
-        let sl_l2_client: Box<dyn EthClient> = if let Some(gateway_client) = input.gateway_client {
-            let contracts_config = self.gateway_chain_config.unwrap();
-            Box::new(EthHttpQueryClient::new(
-                gateway_client.0,
-                contracts_config.diamond_proxy_addr,
-                // Only present on L1.
-                None,
-                // Only present on L1.
-                None,
-                // Only present on L1.
-                None,
-                Some(contracts_config.state_transition_proxy_addr),
-                contracts_config.chain_admin_addr,
-                self.contracts_config
-                    .ecosystem_contracts
-                    .as_ref()
-                    .map(|a| a.server_notifier_addr)
-                    .flatten(),
-                contracts_config.governance_addr,
-                self.eth_watch_config.confirmations_for_eth_event,
-                self.chain_id,
-            ))
-        } else {
-            Box::new(l1_client.clone())
-        };
+        let sl_l2_client: Box<dyn ZkSyncExtentionEthClient> =
+            if let Some(gateway_client) = input.gateway_client {
+                let contracts_config = self.gateway_chain_config.unwrap();
+                Box::new(EthHttpQueryClient::new(
+                    gateway_client.0,
+                    contracts_config.diamond_proxy_addr,
+                    // Only present on L1.
+                    None,
+                    // Only present on L1.
+                    None,
+                    // Only present on L1.
+                    None,
+                    Some(contracts_config.state_transition_proxy_addr),
+                    contracts_config.chain_admin_addr,
+                    self.contracts_config
+                        .ecosystem_contracts
+                        .as_ref()
+                        .map(|a| a.server_notifier_addr)
+                        .flatten(),
+                    contracts_config.governance_addr,
+                    self.eth_watch_config.confirmations_for_eth_event,
+                    self.chain_id,
+                ))
+            } else {
+                Box::new(l1_client.clone())
+            };
 
         let eth_watch = EthWatch::new(
             &chain_admin_contract(),

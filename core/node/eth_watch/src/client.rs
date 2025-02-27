@@ -580,7 +580,7 @@ impl GetLogsClient for Box<DynClient<L2>> {
 /// L2 client functionality used by [`EthWatch`](crate::EthWatch) and constituent event processors.
 /// Trait extension for [`EthClient`].
 #[async_trait::async_trait]
-pub trait L2EthClient: EthClient {
+pub trait ZkSyncExtentionEthClient: EthClient {
     async fn get_chain_log_proof(
         &self,
         l1_batch_number: L1BatchNumber,
@@ -595,7 +595,33 @@ pub trait L2EthClient: EthClient {
 }
 
 #[async_trait::async_trait]
-impl L2EthClient for EthHttpQueryClient<L2> {
+impl ZkSyncExtentionEthClient for EthHttpQueryClient<L1> {
+    async fn get_chain_log_proof(
+        &self,
+        _l1_batch_number: L1BatchNumber,
+        _chain_id: L2ChainId,
+    ) -> EnrichedClientResult<Option<ChainAggProof>> {
+        //TODO: Implement it using l1 contracts
+        Err(EnrichedClientError::custom(
+            "Method is not supported",
+            "get_chain_log_proof",
+        ))
+    }
+
+    async fn get_chain_root_l2(
+        &self,
+        _l1_batch_number: L1BatchNumber,
+        _l2_chain_id: L2ChainId,
+    ) -> Result<Option<H256>, ContractCallError> {
+        //TODO: Implement it using l1 contracts
+        Err(ContractCallError::EthereumGateway(
+            EnrichedClientError::custom("Method is not supported", "get_chain_root_l2"),
+        ))
+    }
+}
+
+#[async_trait::async_trait]
+impl ZkSyncExtentionEthClient for EthHttpQueryClient<L2> {
     async fn get_chain_log_proof(
         &self,
         l1_batch_number: L1BatchNumber,
@@ -631,7 +657,7 @@ impl L2EthClient for EthHttpQueryClient<L2> {
 /// It is used for L2EthClient -> EthClient dyn upcasting coercion:
 ///     Arc<dyn L2EthClient> -> L2EthClientW -> Arc<dyn EthClient>
 #[derive(Debug, Clone)]
-pub struct L2EthClientW(pub Arc<dyn L2EthClient>);
+pub struct L2EthClientW(pub Arc<dyn ZkSyncExtentionEthClient>);
 
 #[async_trait::async_trait]
 impl EthClient for L2EthClientW {

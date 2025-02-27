@@ -16,15 +16,18 @@ use zksync_types::{
     web3::BlockNumber as Web3BlockNumber, Address, L1BatchNumber, L2ChainId, PriorityOpId,
 };
 
-pub use self::client::{EthClient, EthHttpQueryClient, L2EthClient};
+pub use self::client::{EthClient, EthHttpQueryClient, ZkSyncExtentionEthClient};
 use self::{
     client::RETRY_LIMIT,
     event_processors::{EventProcessor, EventProcessorError, PriorityOpsEventProcessor},
     metrics::METRICS,
 };
-use crate::event_processors::{
-    BatchRootProcessor, DecentralizedUpgradesEventProcessor, EventsSource,
-    GatewayMigrationProcessor,
+use crate::{
+    client::L2EthClientW,
+    event_processors::{
+        BatchRootProcessor, DecentralizedUpgradesEventProcessor, EventsSource,
+        GatewayMigrationProcessor,
+    },
 };
 
 mod client;
@@ -58,7 +61,7 @@ impl EthWatch {
         chain_admin_contract: &Contract,
         server_notifier: &Contract,
         l1_client: Box<dyn EthClient>,
-        sl_client: Box<dyn EthClient>,
+        sl_client: Box<dyn ZkSyncExtentionEthClient>,
         sl_layer: SettlementMode,
         pool: ConnectionPool<Core>,
         poll_interval: Duration,
@@ -66,9 +69,10 @@ impl EthWatch {
     ) -> anyhow::Result<Self> {
         let mut storage = pool.connection_tagged("eth_watch").await?;
         let l1_client: Arc<dyn EthClient> = l1_client.into();
-        let sl_client: Arc<dyn EthClient> = sl_client.into();
+        let sl_client: Arc<dyn ZkSyncExtentionEthClient> = sl_client.into();
+        let sl_eth_client = Arc::new(L2EthClientW(sl_client.clone()));
 
-        let state = Self::initialize_state(&mut storage, sl_client.as_ref()).await?;
+        let state = Self::initialize_state(&mut storage, sl_eth_client.as_ref()).await?;
         tracing::info!("initialized state: {state:?}");
         let gateway_status = gateway_status(&mut storage, l1_client.as_ref()).await?;
         tracing::info!("Gateway status {:?}", &gateway_status);
@@ -76,11 +80,11 @@ impl EthWatch {
         drop(storage);
 
         let priority_ops_processor =
-            PriorityOpsEventProcessor::new(state.next_expected_priority_id, sl_client.clone())?;
+            PriorityOpsEventProcessor::new(state.next_expected_priority_id, sl_eth_client.clone())?;
         let decentralized_upgrades_processor = DecentralizedUpgradesEventProcessor::new(
             state.last_seen_protocol_version,
             chain_admin_contract,
-            sl_client.clone(),
+            sl_eth_client.clone(),
             l1_client.clone(),
         );
 
@@ -93,18 +97,17 @@ impl EthWatch {
         ];
 
         if sl_layer.is_gateway() {
-            todo!()
-            // let batch_root_processor = BatchRootProcessor::new(
-            //     state.chain_batch_root_number_lower_bound,
-            //     state.batch_merkle_tree,
-            //     chain_id,
-            //     sl_client.clone(),
-            // );
-            // event_processors.push(Box::new(batch_root_processor));
+            let batch_root_processor = BatchRootProcessor::new(
+                state.chain_batch_root_number_lower_bound,
+                state.batch_merkle_tree,
+                chain_id,
+                sl_client.clone(),
+            );
+            event_processors.push(Box::new(batch_root_processor));
         }
         Ok(Self {
             l1_client,
-            sl_client,
+            sl_client: sl_eth_client,
             gateway_status,
             poll_interval,
             event_processors,
@@ -192,12 +195,7 @@ impl EthWatch {
         for processor in &mut self.event_processors {
             let client = match processor.event_source() {
                 EventsSource::L1 => self.l1_client.as_ref(),
-                EventsSource::SL => match &self.gateway_status {
-                    GatewayMigrationState::Not => self.l1_client.as_ref(),
-                    GatewayMigrationState::Started | GatewayMigrationState::Finalized => {
-                        self.sl_client.as_ref()
-                    }
-                },
+                EventsSource::SL => self.sl_client.as_ref(),
             };
             let chain_id = client.chain_id().await?;
             let to_block = if processor.only_finalized_block() {
