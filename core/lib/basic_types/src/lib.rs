@@ -296,6 +296,13 @@ impl Default for PriorityOpId {
     }
 }
 
+#[allow(clippy::derivable_impls)]
+impl Default for Nonce {
+    fn default() -> Self {
+        Self(0)
+    }   
+}
+
 #[cfg(test)]
 mod tests {
     use serde_json::from_str;

@@ -11853,6 +11853,7 @@ version = "26.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "assert_matches",
+ "async-trait",
  "circuit_sequencer_api",
  "ethabi",
  "hex",
@@ -11862,6 +11863,7 @@ dependencies = [
  "rand 0.8.5",
  "test-casing",
  "thiserror 1.0.69",
+ "tokio",
  "tracing",
  "vise",
  "zk_evm 0.131.0-rc.2",

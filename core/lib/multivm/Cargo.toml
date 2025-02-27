@@ -20,6 +20,7 @@ zksync_vm2.workspace = true
 
 circuit_sequencer_api.workspace = true
 
+async-trait.workspace = true
 zksync_types.workspace = true
 zksync_contracts.workspace = true
 zksync_system_constants.workspace = true
@@ -42,3 +43,4 @@ rand.workspace = true
 test-casing.workspace = true
 zksync_eth_signer.workspace = true
 zksync_test_contracts.workspace = true
+tokio = { workspace = true, features = ["macros"] }
