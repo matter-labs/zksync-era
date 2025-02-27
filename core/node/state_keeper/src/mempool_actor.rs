@@ -192,7 +192,7 @@ async fn get_transaction_nonces(
         .map(|(nonce_storage_key, nonce_value)| {
             (
                 address_by_storage_key[&nonce_storage_key],
-                NonceValue(h256_to_u256(nonce_value).as_u64()),
+                NonceValue(h256_to_u256(nonce_value).low_u64()),
             )
         })
         .collect())
