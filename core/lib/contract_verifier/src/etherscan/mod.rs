@@ -11,7 +11,7 @@ use types::EtherscanVerificationRequest;
 use zksync_dal::{
     etherscan_verification_dal::EtherscanVerificationJobResultStatus, ConnectionPool, Core, CoreDal,
 };
-use zksync_types::contract_verification::api::EtherscanVerificationRequest as EtherscanVerificationRequestDto;
+use zksync_types::contract_verification::api::VerificationRequest;
 
 use crate::metrics::API_CONTRACT_VERIFIER_METRICS;
 
@@ -81,19 +81,29 @@ fn get_api_error_retry_policy(api_error: &EtherscanError) -> ApiErrorRetryPolicy
     }
 }
 
+const POLL_VERIFICATION_RESULT_INTERVAL: Duration = Duration::from_secs(5);
+const MAX_POLL_VERIFICATION_RESULT_ATTEMPTS: u32 = 100;
+
 #[derive(Debug, Clone)]
 pub struct EtherscanVerifier {
     client: EtherscanClient,
     connection_pool: ConnectionPool<Core>,
     solc_versions_fetcher: SolcVersionsFetcher,
+    stop_receiver: watch::Receiver<bool>,
 }
 
 impl EtherscanVerifier {
-    pub fn new(api_url: String, api_key: String, connection_pool: ConnectionPool<Core>) -> Self {
+    pub fn new(
+        api_url: String,
+        api_key: String,
+        connection_pool: ConnectionPool<Core>,
+        stop_receiver: watch::Receiver<bool>,
+    ) -> Self {
         Self {
             client: EtherscanClient::new(api_url, api_key),
             connection_pool,
             solc_versions_fetcher: SolcVersionsFetcher::new(),
+            stop_receiver,
         }
     }
 
@@ -103,7 +113,7 @@ impl EtherscanVerifier {
 
     async fn get_next_request(
         &self,
-    ) -> anyhow::Result<Option<EtherscanVerificationRequestDto>, VerifierError> {
+    ) -> anyhow::Result<Option<(VerificationRequest, Option<String>)>, VerifierError> {
         // We consider that the job is stuck if it's being processed for more than 2 hours.
         // We need large overhead because Etherscan has pretty strict daily
         // limits for verification requests.
@@ -187,89 +197,79 @@ impl EtherscanVerifier {
         Ok(())
     }
 
-    async fn verify(
+    async fn send_verification_request(
         &self,
-        verification_request: EtherscanVerificationRequestDto,
-    ) -> Result<(), VerifierError> {
-        const POLL_VERIFICATION_RESULT_INTERVAL: Duration = Duration::from_secs(5);
-        const MAX_POLL_VERIFICATION_RESULT_ATTEMPTS: u32 = 100;
-
-        let req = verification_request.req;
-        let is_verified = self
+        verification_request: &VerificationRequest,
+    ) -> Result<Option<String>, VerifierError> {
+        let req = verification_request.req.clone();
+        tracing::info!(
+            "Sending verification request to Etherscan, address = {:#?}",
+            req.contract_address,
+        );
+        let request_id = match self
             .client
-            .is_contract_verified(req.contract_address)
+            .verify(EtherscanVerificationRequest::from_verification_request(
+                req.clone(),
+                &self.solc_versions_fetcher,
+            ))
+            .await
+        {
+            Ok(id) => id,
+            // Even though there is a call to check if the contract is already verified
+            // we still need to process ContractAlreadyVerified response from the verification
+            // API call. This is because the contract can be verified by another party.
+            Err(EtherscanError::ContractAlreadyVerified) => {
+                tracing::info!(
+                    "Contract with address {:#?} is already verified",
+                    req.contract_address
+                );
+                return Ok(None);
+            }
+            Err(e) => return Err(e.into()),
+        };
+        let mut connection = self
+            .connection_pool
+            .connection_tagged("etherscan_verifier")
             .await?;
 
-        if is_verified {
-            tracing::info!(
-                "Contract with address {:#?} is already verified",
-                req.contract_address
-            );
-            return Ok(());
-        }
-        let verification_id = match verification_request.etherscan_verification_id {
-            Some(id) => id,
-            None => {
-                tracing::info!(
-                    "Sending verification request to Etherscan, address = {:#?}",
-                    req.contract_address,
-                );
+        connection
+            .etherscan_verification_dal()
+            .save_etherscan_verification_id(verification_request.id, &request_id)
+            .await?;
 
-                let request_id = match self
-                    .client
-                    .verify(EtherscanVerificationRequest::from_verification_request(
-                        req.clone(),
-                        &self.solc_versions_fetcher,
-                    ))
-                    .await
-                {
-                    Ok(id) => id,
-                    // Even though there is a call to check if the contract is already verified
-                    // we still need to process ContractAlreadyVerified response from the verification
-                    // API call. This is because the contract can be verified by another party.
-                    Err(EtherscanError::ContractAlreadyVerified) => {
-                        tracing::info!(
-                            "Contract with address {:#?} is already verified",
-                            req.contract_address
-                        );
-                        return Ok(());
-                    }
-                    Err(e) => return Err(e.into()),
-                };
-                let mut connection = self
-                    .connection_pool
-                    .connection_tagged("etherscan_verifier")
-                    .await?;
+        Ok(Some(request_id))
+    }
 
-                connection
-                    .etherscan_verification_dal()
-                    .save_etherscan_verification_id(verification_request.id, &request_id)
-                    .await?;
-
-                // Wait for the verification to be processed
-                tokio::time::sleep(POLL_VERIFICATION_RESULT_INTERVAL).await;
-
-                request_id
-            }
-        };
-
+    async fn await_verification(
+        &mut self,
+        verification_request: &VerificationRequest,
+        verification_id: String,
+    ) -> Result<(), VerifierError> {
         let mut get_status_attempts = 0;
         loop {
             get_status_attempts += 1;
             tracing::info!(
                 "Fetching contract verification status, address = {:#?}, attempt = {}",
-                req.contract_address,
+                verification_request.req.contract_address,
                 get_status_attempts
             );
             let result = self.client.get_verification_status(&verification_id).await;
             match result {
                 Ok(_) => break,
                 Err(EtherscanError::VerificationPending) => {
-                    tokio::time::sleep(POLL_VERIFICATION_RESULT_INTERVAL).await;
+                    if tokio::time::timeout(
+                        POLL_VERIFICATION_RESULT_INTERVAL,
+                        self.stop_receiver.changed(),
+                    )
+                    .await
+                    .is_ok()
+                    {
+                        return Err(VerifierError::Canceled);
+                    }
                     if get_status_attempts > MAX_POLL_VERIFICATION_RESULT_ATTEMPTS {
                         tracing::warn!(
                             "Get verification status timed out for contract with address {:#?}",
-                            req.contract_address
+                            verification_request.req.contract_address
                         );
                         return Err(ProcessingError::VerificationStatusPollingTimeout.into());
                     }
@@ -282,21 +282,73 @@ impl EtherscanVerifier {
         Ok(())
     }
 
-    async fn process_next_request(&self) -> anyhow::Result<(), VerifierError> {
+    async fn verify(
+        &mut self,
+        verification_request: VerificationRequest,
+        etherscan_verification_id: Option<String>,
+    ) -> Result<(), VerifierError> {
+        let req = verification_request.req.clone();
+        let is_verified = self
+            .client
+            .is_contract_verified(req.contract_address)
+            .await?;
+
+        if is_verified {
+            tracing::info!(
+                "Contract with address {:#?} is already verified",
+                req.contract_address
+            );
+            return Ok(());
+        }
+        let verification_id = match etherscan_verification_id {
+            Some(id) => Some(id),
+            None => {
+                let request_id = self
+                    .send_verification_request(&verification_request)
+                    .await?;
+                // Wait for the verification to be processed
+                if tokio::time::timeout(
+                    POLL_VERIFICATION_RESULT_INTERVAL,
+                    self.stop_receiver.changed(),
+                )
+                .await
+                .is_ok()
+                {
+                    return Err(VerifierError::Canceled);
+                }
+                request_id
+            }
+        };
+
+        // None verification id means that the contract is already verified.
+        if verification_id.is_some() {
+            self.await_verification(&verification_request, verification_id.unwrap())
+                .await?;
+        }
+
+        Ok(())
+    }
+
+    async fn process_next_request(&mut self) -> anyhow::Result<(), VerifierError> {
         let mut started_at = Instant::now();
         let verification_request = self.get_next_request().await?;
         if verification_request.is_none() {
             return Ok(());
         }
 
-        let verification_request = verification_request.unwrap();
+        let (verification_request, etherscan_verification_id) = verification_request.unwrap();
         tracing::info!(
             "Started to process request with id = {}",
             verification_request.id
         );
         let mut verify_attempts = 0;
-        let processing_result: Result<(), anyhow::Error> = loop {
-            let verification_result = self.verify(verification_request.clone()).await;
+        let processing_result: Result<(), VerifierError> = loop {
+            let verification_result = self
+                .verify(
+                    verification_request.clone(),
+                    etherscan_verification_id.clone(),
+                )
+                .await;
             match verification_result {
                 Ok(_) => break Ok(()),
                 Err(VerifierError::EtherscanError(api_error)) => {
@@ -319,7 +371,12 @@ impl EtherscanVerifier {
                                 pause_duration,
                                 api_error
                             );
-                            tokio::time::sleep(pause_duration).await;
+                            if tokio::time::timeout(pause_duration, self.stop_receiver.changed())
+                                .await
+                                .is_ok()
+                            {
+                                break Err(VerifierError::Canceled);
+                            }
                             self.reset_etherscan_verification_processing_started_at(
                                 verification_request.id,
                             )
@@ -332,7 +389,12 @@ impl EtherscanVerifier {
                                 pause_duration,
                                 api_error
                             );
-                            tokio::time::sleep(pause_duration).await;
+                            if tokio::time::timeout(pause_duration, self.stop_receiver.changed())
+                                .await
+                                .is_ok()
+                            {
+                                break Err(VerifierError::Canceled);
+                            }
                             self.reset_etherscan_verification_processing_started_at(
                                 verification_request.id,
                             )
@@ -344,12 +406,16 @@ impl EtherscanVerifier {
                 Err(VerifierError::ProcessingError(processing_error)) => {
                     break Err(processing_error.into())
                 }
+                Err(VerifierError::Canceled) => break Err(VerifierError::Canceled),
             }
         };
 
         match processing_result {
             Ok(_) => {
                 self.save_result(verification_request.id).await?;
+            }
+            Err(VerifierError::Canceled) => {
+                return Err(VerifierError::Canceled);
             }
             Err(err) => {
                 self.save_failure(verification_request.id, err.to_string())
@@ -364,9 +430,9 @@ impl EtherscanVerifier {
         Ok(())
     }
 
-    pub async fn run(mut self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+    pub async fn run(mut self) -> anyhow::Result<()> {
         loop {
-            if *stop_receiver.borrow() {
+            if *self.stop_receiver.borrow() {
                 tracing::warn!("Stop signal received, shutting down etherscan verifier");
                 return Ok(());
             }
@@ -379,11 +445,13 @@ impl EtherscanVerifier {
 
             // Errors are handled internally so it's safe to ignore them here
             // to keep the processing loop running.
-            self.process_next_request().await.ok();
+            if let Err(VerifierError::Canceled) = self.process_next_request().await {
+                continue;
+            }
 
             let wait_interval = Self::wait_for_request_interval();
             tracing::trace!("Pausing execution for {} sec.", wait_interval.as_secs());
-            tokio::time::timeout(wait_interval, stop_receiver.changed())
+            tokio::time::timeout(wait_interval, self.stop_receiver.changed())
                 .await
                 .ok();
         }

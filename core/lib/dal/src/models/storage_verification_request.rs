@@ -1,7 +1,7 @@
 use zksync_types::{
     contract_verification::api::{
-        CompilerType, CompilerVersions, EtherscanVerificationRequest, SourceCodeData,
-        VerificationIncomingRequest, VerificationRequest,
+        CompilerType, CompilerVersions, SourceCodeData, VerificationIncomingRequest,
+        VerificationRequest,
     },
     Address,
 };
@@ -77,7 +77,7 @@ pub struct StorageEtherscanVerificationRequest {
     pub etherscan_verification_id: Option<String>,
     pub evm_specific: Option<serde_json::Value>,
 }
-impl From<StorageEtherscanVerificationRequest> for EtherscanVerificationRequest {
+impl From<StorageEtherscanVerificationRequest> for (VerificationRequest, Option<String>) {
     fn from(value: StorageEtherscanVerificationRequest) -> Self {
         let storage_verifier_request = StorageVerificationRequest {
             id: value.id,
@@ -93,11 +93,9 @@ impl From<StorageEtherscanVerificationRequest> for EtherscanVerificationRequest 
             force_evmla: value.force_evmla,
             evm_specific: value.evm_specific,
         };
-        let verifier_request: VerificationRequest = storage_verifier_request.into();
-        EtherscanVerificationRequest {
-            id: verifier_request.id,
-            req: verifier_request.req,
-            etherscan_verification_id: value.etherscan_verification_id,
-        }
+        (
+            storage_verifier_request.into(),
+            value.etherscan_verification_id,
+        )
     }
 }

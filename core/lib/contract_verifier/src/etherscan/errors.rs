@@ -41,9 +41,14 @@ pub(super) enum ProcessingError {
     DalError(#[from] DalError),
 }
 
+#[derive(Debug, thiserror::Error)]
 pub(super) enum VerifierError {
+    #[error("Error during Etherscan API request: {0}")]
     EtherscanError(EtherscanError),
+    #[error("The execution has been canceled")]
     ProcessingError(ProcessingError),
+    #[error("The execution has been canceled")]
+    Canceled,
 }
 
 impl From<EtherscanError> for VerifierError {

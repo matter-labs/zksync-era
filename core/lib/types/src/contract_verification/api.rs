@@ -230,15 +230,6 @@ pub struct VerificationRequest {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct EtherscanVerificationRequest {
-    pub id: usize,
-    pub etherscan_verification_id: Option<String>,
-    #[serde(flatten)]
-    pub req: VerificationIncomingRequest,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct CompilationArtifacts {
     /// In case of EVM contracts, this is the creation bytecode (`bytecode` in `solc` output).
     pub bytecode: Vec<u8>,

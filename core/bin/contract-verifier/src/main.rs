@@ -133,8 +133,9 @@ async fn main() -> anyhow::Result<()> {
             verifier_config.etherscan_api_url.unwrap(),
             etherscan_api_key.unwrap(),
             pool,
+            stop_receiver,
         );
-        tasks.push(tokio::spawn(etherscan_verifier.run(stop_receiver)));
+        tasks.push(tokio::spawn(etherscan_verifier.run()));
     } else {
         tracing::info!("Etherscan verifier is disabled");
     }

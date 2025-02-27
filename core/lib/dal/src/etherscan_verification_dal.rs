@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use sqlx::postgres::types::PgInterval;
 use zksync_db_connection::instrument::InstrumentExt;
-use zksync_types::contract_verification::api::EtherscanVerificationRequest;
+use zksync_types::contract_verification::api::VerificationRequest;
 
 use crate::{
     models::storage_verification_request::StorageEtherscanVerificationRequest, Connection, Core,
@@ -66,7 +66,7 @@ impl EtherscanVerificationDal<'_, '_> {
     pub async fn get_next_queued_verification_request(
         &mut self,
         processing_timeout: Duration,
-    ) -> DalResult<Option<EtherscanVerificationRequest>> {
+    ) -> DalResult<Option<(VerificationRequest, Option<String>)>> {
         let processing_timeout = PgInterval {
             months: 0,
             days: 0,
@@ -241,7 +241,7 @@ mod tests {
             .await
             .unwrap();
 
-        let req = conn
+        let (req, _) = conn
             .etherscan_verification_dal()
             .get_next_queued_verification_request(Duration::from_secs(600))
             .await
@@ -358,15 +358,12 @@ mod tests {
             .await
             .unwrap();
 
-        let request = conn
+        let (_, verification_id) = conn
             .etherscan_verification_dal()
             .get_next_queued_verification_request(Duration::from_secs(600))
             .await
             .unwrap()
             .unwrap();
-        assert_eq!(
-            request.etherscan_verification_id,
-            Some(etherscan_verification_id.to_string())
-        );
+        assert_eq!(verification_id, Some(etherscan_verification_id.to_string()));
     }
 }
