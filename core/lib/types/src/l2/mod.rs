@@ -324,7 +324,7 @@ impl From<L2Tx> for TransactionRequest {
         let (v, r, s) = signature_to_vrs(&tx.common_data.signature, tx_type);
 
         let mut base_tx_req = TransactionRequest {
-            nonce: U256::from(tx.common_data.nonce.0),
+            nonce: tx.common_data.nonce.0,
             from: Some(tx.common_data.initiator_address),
             to: tx.recipient_account(),
             value: tx.execute.value,
@@ -407,7 +407,7 @@ impl From<L2Tx> for api::Transaction {
         Self {
             hash: tx.hash(),
             chain_id: U256::from(tx.common_data.extract_chain_id().unwrap_or_default()),
-            nonce: U256::from(tx.common_data.nonce.0),
+            nonce: tx.common_data.nonce.0,
             from: Some(tx.common_data.initiator_address),
             to: tx.recipient_account(),
             value: tx.execute.value,
@@ -473,7 +473,7 @@ impl EIP712TypedStructure for L2Tx {
             "maxPriorityFeePerGas",
             &self.common_data.fee.max_priority_fee_per_gas,
         );
-        builder.add_member("nonce", &U256::from(self.common_data.nonce.0));
+        builder.add_member("nonce", &self.common_data.nonce.0);
     }
 }
 

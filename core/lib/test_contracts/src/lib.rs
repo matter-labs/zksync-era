@@ -130,7 +130,7 @@ impl Account {
 
         let address =
             // For L1Tx we usually use nonce 0
-            deployed_address_create(self.address, (tx.nonce().unwrap_or(Nonce(0.into())).0).into());
+            deployed_address_create(self.address, tx.nonce().unwrap_or(Nonce(0.into())).0);
         DeployContractsTx {
             tx,
             bytecode_hash: code_hash,

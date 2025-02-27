@@ -59,7 +59,7 @@ fn test_prestate_tracer_diff_mode() {
     let contract = TestContract::simple_transfer().bytecode;
     let account = &mut vm.rich_accounts[0];
     let tx = account.get_deploy_tx(contract, None, TxType::L2).tx;
-    let nonce = tx.nonce().unwrap().0.into();
+    let nonce = tx.nonce().unwrap().0;
     vm.vm.push_transaction(tx);
     vm.vm.execute(InspectExecutionMode::OneTx);
     let deployed_address = deployed_address_create(account.address, nonce);
@@ -67,7 +67,7 @@ fn test_prestate_tracer_diff_mode() {
 
     // Deploy a second copy of the contract to see its appearance in the pre-state
     let tx2 = account.get_deploy_tx(contract, None, TxType::L2).tx;
-    let nonce2 = tx2.nonce().unwrap().0.into();
+    let nonce2 = tx2.nonce().unwrap().0;
     vm.vm.push_transaction(tx2);
     vm.vm.execute(InspectExecutionMode::OneTx);
     let deployed_address2 = deployed_address_create(account.address, nonce2);
