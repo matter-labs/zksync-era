@@ -18,7 +18,9 @@ use crate::{
         validation_params, TestedVm, TestedVmForValidation, TestedVmWithCallTracer,
         TestedVmWithStorageLimit,
     },
-    vm_fast::{tracers::WithBuiltinTracers, CallTracer, StorageInvocationsTracer},
+    vm_fast::{
+        tracers::WithBuiltinTracers, CallTracer, FastValidationTracer, StorageInvocationsTracer,
+    },
 };
 
 mod account_validation_rules;
@@ -184,18 +186,22 @@ where
 }
 
 impl TestedVmForValidation for TestedFastVm<(), FullValidationTracer> {
-    fn run_validation(&mut self, tx: L2Tx, timestamp: u64) -> Option<ViolatedValidationRule> {
+    fn run_validation(
+        &mut self,
+        tx: L2Tx,
+        timestamp: u64,
+    ) -> (VmExecutionResultAndLogs, Option<ViolatedValidationRule>) {
         let validation_params = validation_params(&tx, &self.system_env);
         self.push_transaction(tx.into());
         let mut tracer = ((), FullValidationTracer::new(validation_params, timestamp));
-        self.inspect(&mut tracer, InspectExecutionMode::OneTx);
-        tracer.1.validation_error()
+        let result = self.inspect(&mut tracer, InspectExecutionMode::OneTx);
+        (result, tracer.1.validation_error())
     }
 }
 
-impl TestedVmWithCallTracer for TestedFastVm<CallTracer, ()> {
+impl TestedVmWithCallTracer for TestedFastVm<CallTracer, FastValidationTracer> {
     fn inspect_with_call_tracer(&mut self) -> (VmExecutionResultAndLogs, Vec<Call>) {
-        let mut tracer = (CallTracer::default(), ());
+        let mut tracer = (CallTracer::default(), FastValidationTracer::default());
         let result = self.inspect(&mut tracer, InspectExecutionMode::OneTx);
         (result, tracer.0.into_result())
     }
@@ -203,10 +209,13 @@ impl TestedVmWithCallTracer for TestedFastVm<CallTracer, ()> {
 
 type TestStorageLimiter = StorageInvocationsTracer<StorageView<InMemoryStorage>>;
 
-impl TestedVmWithStorageLimit for TestedFastVm<TestStorageLimiter, ()> {
+impl TestedVmWithStorageLimit for TestedFastVm<TestStorageLimiter, FastValidationTracer> {
     fn execute_with_storage_limit(&mut self, limit: usize) -> VmExecutionResultAndLogs {
         let storage = self.world.storage.to_rc_ptr();
-        let mut tracer = (StorageInvocationsTracer::new(storage, limit), ());
+        let mut tracer = (
+            StorageInvocationsTracer::new(storage, limit),
+            FastValidationTracer::default(),
+        );
         self.inspect(&mut tracer, InspectExecutionMode::OneTx)
     }
 }

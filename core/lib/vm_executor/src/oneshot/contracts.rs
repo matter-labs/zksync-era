@@ -109,9 +109,8 @@ impl<C: ContractsKind> MultiVmBaseSystemContracts<C> {
             ProtocolVersionId::Version23 => &self.vm_1_5_0_small_memory,
             ProtocolVersionId::Version24 => &self.vm_1_5_0_increased_memory,
             ProtocolVersionId::Version25 => &self.vm_protocol_defense,
-            ProtocolVersionId::Version26 => &self.gateway,
-            ProtocolVersionId::Version27 | ProtocolVersionId::Version28 => &self.interop,
-            ProtocolVersionId::Version29 => unreachable!("Version 29 is not supported yet"),
+            ProtocolVersionId::Version26 | ProtocolVersionId::Version27 => &self.gateway,
+            ProtocolVersionId::Version28 | ProtocolVersionId::Version29 => &self.interop,
         };
         let base = base.clone();
 

@@ -56,6 +56,9 @@ pub struct TransactionsDal<'c, 'a> {
     pub(crate) storage: &'c mut Connection<'a, Core>,
 }
 
+/// In transaction insertion methods, we intentionally override `tx.received_timestamp_ms` to have well-defined causal ordering
+/// among transactions (transactions persisted earlier should have earlier timestamp). Causal ordering by the received timestamp
+/// is assumed in some logic dealing with transactions, e.g., pending transaction filters on the API server.
 impl TransactionsDal<'_, '_> {
     pub async fn insert_transaction_l1(
         &mut self,
@@ -81,11 +84,6 @@ impl TransactionsDal<'_, '_> {
 
         let to_mint = u256_to_big_decimal(tx.common_data.to_mint);
         let refund_recipient = tx.common_data.refund_recipient.as_bytes();
-
-        let secs = (tx.received_timestamp_ms / 1000) as i64;
-        let nanosecs = ((tx.received_timestamp_ms % 1000) * 1_000_000) as u32;
-        #[allow(deprecated)]
-        let received_at = NaiveDateTime::from_timestamp_opt(secs, nanosecs).unwrap();
 
         sqlx::query!(
             r#"
@@ -133,7 +131,7 @@ impl TransactionsDal<'_, '_> {
                 $15,
                 $16,
                 $17,
-                $18,
+                NOW(),
                 NOW(),
                 NOW()
             )
@@ -156,7 +154,6 @@ impl TransactionsDal<'_, '_> {
             tx_format,
             to_mint,
             refund_recipient,
-            received_at,
         )
         .instrument("insert_transaction_l1")
         .with_arg("tx_hash", &tx_hash)
@@ -209,12 +206,6 @@ impl TransactionsDal<'_, '_> {
         let to_mint = u256_to_big_decimal(tx.common_data.to_mint);
         let refund_recipient = tx.common_data.refund_recipient.as_bytes().to_vec();
 
-        let secs = (tx.received_timestamp_ms / 1000) as i64;
-        let nanosecs = ((tx.received_timestamp_ms % 1000) * 1_000_000) as u32;
-
-        #[allow(deprecated)]
-        let received_at = NaiveDateTime::from_timestamp_opt(secs, nanosecs).unwrap();
-
         sqlx::query!(
             r#"
             INSERT INTO
@@ -257,7 +248,7 @@ impl TransactionsDal<'_, '_> {
                 $13,
                 $14,
                 $15,
-                $16,
+                NOW(),
                 NOW(),
                 NOW()
             )
@@ -278,7 +269,6 @@ impl TransactionsDal<'_, '_> {
             tx_format,
             to_mint,
             refund_recipient,
-            received_at,
         )
         .instrument("insert_system_transaction")
         .with_arg("tx_hash", &tx_hash)
@@ -338,10 +328,7 @@ impl TransactionsDal<'_, '_> {
         let value = u256_to_big_decimal(tx.execute.value);
         let paymaster = tx.common_data.paymaster_params.paymaster.0.as_ref();
         let paymaster_input = &tx.common_data.paymaster_params.paymaster_input;
-        let secs = (tx.received_timestamp_ms / 1000) as i64;
-        let nanosecs = ((tx.received_timestamp_ms % 1000) * 1_000_000) as u32;
-        #[allow(deprecated)]
-        let received_at = NaiveDateTime::from_timestamp_opt(secs, nanosecs).unwrap();
+
         let max_timestamp = NaiveDateTime::MAX.and_utc().timestamp() as u64;
         #[allow(deprecated)]
         let timestamp_asserter_range_start =
@@ -415,9 +402,9 @@ impl TransactionsDal<'_, '_> {
                     'contracts_used',
                     $18::INT
                 ),
+                NOW(),
                 $19,
                 $20,
-                $21,
                 NOW(),
                 NOW()
             )
@@ -447,9 +434,9 @@ impl TransactionsDal<'_, '_> {
                 $18::INT
             ),
             in_mempool = FALSE,
-            received_at = $19,
-            timestamp_asserter_range_start = $20,
-            timestamp_asserter_range_end = $21,
+            received_at = NOW(),
+            timestamp_asserter_range_start = $19,
+            timestamp_asserter_range_end = $20,
             created_at = NOW(),
             updated_at = NOW(),
             error = NULL
@@ -482,10 +469,10 @@ impl TransactionsDal<'_, '_> {
             value,
             &paymaster,
             &paymaster_input,
-            exec_info.gas_used as i64,
-            (exec_info.initial_storage_writes + exec_info.repeated_storage_writes) as i32,
-            exec_info.contracts_used as i32,
-            received_at,
+            exec_info.vm.gas_used as i64,
+            (exec_info.writes.initial_storage_writes + exec_info.writes.repeated_storage_writes)
+                as i32,
+            exec_info.vm.contracts_used as i32,
             timestamp_asserter_range_start,
             timestamp_asserter_range_end,
         )

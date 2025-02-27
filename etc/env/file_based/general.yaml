@@ -185,8 +185,6 @@ proof_compressor:
   universal_setup_path: keys/setup/setup_compact.key
   universal_setup_download_url: https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_compact.key
   verify_wrapper_proof: true
-  universal_fflonk_setup_path: keys/setup/setup_fflonk_compact.key
-  universal_fflonk_setup_download_url: https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_fflonk_compact.key
 prover_group:
   group_0:
     - circuit_id: 1

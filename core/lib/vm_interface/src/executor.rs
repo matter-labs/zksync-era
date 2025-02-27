@@ -64,7 +64,7 @@ pub trait OneshotExecutor<S: ReadStorage> {
 
 /// VM executor capable of validating transactions.
 #[async_trait]
-pub trait TransactionValidator<S: ReadStorage>: OneshotExecutor<S> {
+pub trait TransactionValidator<S: ReadStorage> {
     /// Validates the provided transaction.
     async fn validate_transaction(
         &self,

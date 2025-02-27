@@ -185,7 +185,7 @@ fn execute_test<VM: TestedVm>(test_data: L1MessengerTestData) -> TestStatistics 
     TestStatistics {
         max_used_gas: gas_before - gas_after,
         circuit_statistics: result.statistics.circuit_statistic.total() as u64,
-        execution_metrics_size: result.get_execution_metrics(None).size() as u64,
+        execution_metrics_size: result.get_execution_metrics().size() as u64,
     }
 }
 

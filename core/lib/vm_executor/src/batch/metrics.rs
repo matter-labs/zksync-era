@@ -93,7 +93,7 @@ impl BatchTipMetrics {
         self.circuit_statistic
             .observe(execution_result.statistics.circuit_statistic.total());
         self.execution_metrics_size
-            .observe(execution_result.get_execution_metrics(None).size());
+            .observe(execution_result.get_execution_metrics().size());
     }
 }
 

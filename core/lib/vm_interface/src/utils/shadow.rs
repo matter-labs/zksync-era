@@ -16,7 +16,7 @@ use super::dump::{DumpingVm, VmDump};
 use crate::{
     pubdata::PubdataBuilder,
     storage::{ReadStorage, StoragePtr, StorageView},
-    tracer::{ValidationError, ValidationTraces},
+    tracer::{ValidationError, ValidationTraces, ViolatedValidationRule},
     BytecodeCompressionResult, Call, CallType, CurrentExecutionState, ExecutionResult,
     FinishedL1Batch, Halt, InspectExecutionMode, L1BatchEnv, L2BlockEnv, PushTransactionResult,
     SystemEnv, VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
@@ -171,6 +171,18 @@ impl CheckDivergence for VmExecutionResultAndLogs {
         }
 
         errors.check_match("result", &self.result, &other.result);
+
+        if matches!(
+            &self.result,
+            ExecutionResult::Halt {
+                reason: Halt::ValidationOutOfGas,
+            }
+        ) {
+            // Because of differences in how validation is implemented in the legacy and fast VMs, we don't require
+            // the exact match in any other fields; even gas stats are slightly different.
+            return errors;
+        }
+
         errors.check_match("logs.events", &self.logs.events, &other.logs.events);
         errors.check_match(
             "logs.system_l2_to_l1_logs",
@@ -249,6 +261,23 @@ impl CheckDivergence for FinishedL1Batch {
 impl CheckDivergence for Result<ValidationTraces, ValidationError> {
     fn check_divergence(&self, other: &Self) -> DivergenceErrors {
         let mut errors = DivergenceErrors::new();
+
+        if matches!(
+            (self, other),
+            (
+                Err(ValidationError::ViolatedRule(
+                    ViolatedValidationRule::TookTooManyComputationalGas(_)
+                )),
+                Err(ValidationError::ViolatedRule(
+                    ViolatedValidationRule::TookTooManyComputationalGas(_)
+                )),
+            )
+        ) {
+            // Because of differences in how validation is implemented in the legacy and fast VMs, we don't require
+            // the exact match in the computational gas limit reported; it only influences error messages.
+            return errors;
+        }
+
         errors.check_match("validation result", self, other);
         errors
     }

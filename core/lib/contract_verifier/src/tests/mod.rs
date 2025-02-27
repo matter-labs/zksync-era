@@ -334,6 +334,7 @@ fn test_request(address: Address, source: &str) -> VerificationIncomingRequest {
         constructor_arguments: Default::default(),
         is_system: false,
         force_evmla: false,
+        evm_specific: Default::default(),
     }
 }
 

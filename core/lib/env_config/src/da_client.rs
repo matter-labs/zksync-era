@@ -1,17 +1,22 @@
-use std::env;
+use std::{env, str::FromStr};
 
-use zksync_config::configs::{
-    da_client::{
-        avail::{
-            AvailClientConfig, AvailSecrets, AVAIL_FULL_CLIENT_NAME, AVAIL_GAS_RELAY_CLIENT_NAME,
+use zksync_basic_types::{url::SensitiveUrl, H160};
+use zksync_config::{
+    configs::{
+        da_client::{
+            avail::{
+                AvailClientConfig, AvailSecrets, AVAIL_FULL_CLIENT_NAME,
+                AVAIL_GAS_RELAY_CLIENT_NAME,
+            },
+            celestia::CelestiaSecrets,
+            eigen::EigenSecrets,
+            DAClientConfig, AVAIL_CLIENT_CONFIG_NAME, CELESTIA_CLIENT_CONFIG_NAME,
+            EIGEN_CLIENT_CONFIG_NAME, NO_DA_CLIENT_CONFIG_NAME, OBJECT_STORE_CLIENT_CONFIG_NAME,
         },
-        celestia::CelestiaSecrets,
-        eigen::EigenSecrets,
-        DAClientConfig, AVAIL_CLIENT_CONFIG_NAME, CELESTIA_CLIENT_CONFIG_NAME,
-        EIGEN_CLIENT_CONFIG_NAME, OBJECT_STORE_CLIENT_CONFIG_NAME,
+        secrets::DataAvailabilitySecrets,
+        AvailConfig,
     },
-    secrets::DataAvailabilitySecrets,
-    AvailConfig,
+    EigenConfig,
 };
 
 use crate::{envy_load, FromEnv};
@@ -34,10 +39,39 @@ impl FromEnv for DAClientConfig {
                 },
             }),
             CELESTIA_CLIENT_CONFIG_NAME => Self::Celestia(envy_load("da_celestia_config", "DA_")?),
-            EIGEN_CLIENT_CONFIG_NAME => Self::Eigen(envy_load("da_eigen_config", "DA_")?),
+            EIGEN_CLIENT_CONFIG_NAME => Self::Eigen(EigenConfig {
+                disperser_rpc: env::var("DA_DISPERSER_RPC")?,
+                settlement_layer_confirmation_depth: env::var(
+                    "DA_SETTLEMENT_LAYER_CONFIRMATION_DEPTH",
+                )?
+                .parse()?,
+                eigenda_eth_rpc: match env::var("DA_EIGENDA_ETH_RPC") {
+                    // Use a specific L1 RPC URL for the EigenDA client.
+                    Ok(url) => Some(SensitiveUrl::from_str(&url)?),
+                    // Err means that the environment variable is not set.
+                    // Use zkSync default L1 RPC for the EigenDA client.
+                    Err(_) => None,
+                },
+                eigenda_svc_manager_address: H160::from_str(&env::var(
+                    "DA_EIGENDA_SVC_MANAGER_ADDRESS",
+                )?)?,
+                wait_for_finalization: env::var("DA_WAIT_FOR_FINALIZATION")?.parse()?,
+                authenticated: env::var("DA_AUTHENTICATED")?.parse()?,
+                points_source: match env::var("DA_POINTS_SOURCE")?.as_str() {
+                    "Path" => zksync_config::configs::da_client::eigen::PointsSource::Path(
+                        env::var("DA_POINTS_PATH")?,
+                    ),
+                    "Url" => zksync_config::configs::da_client::eigen::PointsSource::Url((
+                        env::var("DA_POINTS_LINK_G1")?,
+                        env::var("DA_POINTS_LINK_G2")?,
+                    )),
+                    _ => anyhow::bail!("Unknown Eigen points type"),
+                },
+            }),
             OBJECT_STORE_CLIENT_CONFIG_NAME => {
                 Self::ObjectStore(envy_load("da_object_store", "DA_")?)
             }
+            NO_DA_CLIENT_CONFIG_NAME => Self::NoDA,
             _ => anyhow::bail!("Unknown DA client name: {}", client_tag),
         };
 
@@ -86,10 +120,14 @@ impl FromEnv for DataAvailabilitySecrets {
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
+    use zksync_basic_types::url::SensitiveUrl;
     use zksync_config::{
         configs::{
             da_client::{
                 avail::{AvailClientConfig, AvailDefaultConfig},
+                eigen::PointsSource,
                 DAClientConfig::{self, ObjectStore},
             },
             object_store::ObjectStoreMode::GCS,
@@ -243,8 +281,14 @@ mod tests {
         let mut lock = MUTEX.lock();
         let config = r#"
             DA_CLIENT="Eigen"
-            DA_RPC_NODE_URL="localhost:12345"
-            DA_INCLUSION_POLLING_INTERVAL_MS="1000"
+            DA_DISPERSER_RPC="http://localhost:8080"
+            DA_SETTLEMENT_LAYER_CONFIRMATION_DEPTH=0
+            DA_EIGENDA_ETH_RPC="http://localhost:8545"
+            DA_EIGENDA_SVC_MANAGER_ADDRESS="0x0000000000000000000000000000000000000123"
+            DA_WAIT_FOR_FINALIZATION=true
+            DA_AUTHENTICATED=false
+            DA_POINTS_SOURCE="Path"
+            DA_POINTS_PATH="resources"
         "#;
         lock.set_env(config);
 
@@ -252,8 +296,15 @@ mod tests {
         assert_eq!(
             actual,
             DAClientConfig::Eigen(EigenConfig {
-                rpc_node_url: "localhost:12345".to_string(),
-                inclusion_polling_interval_ms: 1000,
+                disperser_rpc: "http://localhost:8080".to_string(),
+                settlement_layer_confirmation_depth: 0,
+                eigenda_eth_rpc: Some(SensitiveUrl::from_str("http://localhost:8545").unwrap()),
+                eigenda_svc_manager_address: "0x0000000000000000000000000000000000000123"
+                    .parse()
+                    .unwrap(),
+                wait_for_finalization: true,
+                authenticated: false,
+                points_source: PointsSource::Path("resources".to_string()),
             })
         );
     }

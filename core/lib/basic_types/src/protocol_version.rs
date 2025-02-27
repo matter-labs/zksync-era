@@ -125,9 +125,9 @@ impl ProtocolVersionId {
             ProtocolVersionId::Version24 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
             ProtocolVersionId::Version25 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
             ProtocolVersionId::Version26 => VmVersion::VmGateway,
-            ProtocolVersionId::Version27 => VmVersion::VmInterop,
+            ProtocolVersionId::Version27 => VmVersion::VmGateway,
             ProtocolVersionId::Version28 => VmVersion::VmInterop,
-            ProtocolVersionId::Version29 => unreachable!("Version 28 is not yet supported"),
+            ProtocolVersionId::Version29 => VmVersion::VmInterop,
         }
     }
 
@@ -306,9 +306,9 @@ impl From<ProtocolVersionId> for VmVersion {
             ProtocolVersionId::Version24 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
             ProtocolVersionId::Version25 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
             ProtocolVersionId::Version26 => VmVersion::VmGateway,
-            ProtocolVersionId::Version27 => VmVersion::VmInterop,
+            ProtocolVersionId::Version27 => VmVersion::VmGateway,
             ProtocolVersionId::Version28 => VmVersion::VmInterop,
-            ProtocolVersionId::Version29 => unreachable!("Version 29 is not yet supported"),
+            ProtocolVersionId::Version29 => VmVersion::VmInterop,
         }
     }
 }

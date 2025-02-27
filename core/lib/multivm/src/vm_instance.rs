@@ -13,7 +13,7 @@ use crate::{
         VmMemoryMetrics,
     },
     tracers::TracerDispatcher,
-    vm_fast::{self, interface::Tracer, FastVmVersion},
+    vm_fast::{self, interface::Tracer, FastValidationTracer, FastVmVersion},
     vm_latest::{self, HistoryEnabled},
 };
 
@@ -247,7 +247,7 @@ pub type ShadowedFastVm<S, Tr, Val> = ShadowVm<
 
 /// Fast VM variants.
 #[derive(Debug)]
-pub enum FastVmInstance<S: ReadStorage, Tr = (), Val = ()> {
+pub enum FastVmInstance<S: ReadStorage, Tr = (), Val = FastValidationTracer> {
     /// Fast VM running in isolation.
     Fast(vm_fast::Vm<ImmutableStorageView<S>, Tr, Val>),
     /// Fast VM shadowed by the latest legacy VM.
