@@ -44,3 +44,4 @@ test-casing.workspace = true
 zksync_eth_signer.workspace = true
 zksync_test_contracts.workspace = true
 tokio = { workspace = true, features = ["macros"] }
+serde_json.workspace = true

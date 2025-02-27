@@ -163,6 +163,7 @@ impl TransactionTestInfo {
                 },
             },
             TxExpectedResult::Processed { .. } => {
+                println!("{:#?}", result.result);
                 assert!(!result.result.is_failed());
             }
         }

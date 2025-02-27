@@ -218,15 +218,19 @@ pub fn l1_messenger_contract() -> Contract {
 }
 
 pub fn l2_message_root() -> Contract {
-    load_contract("contracts/l1-contracts/out/MessageRoot.sol/MessageRoot.json")
+    load_l1_zk_contract("MessageRoot")
 }
 
 pub fn l2_asset_router() -> Contract {
-    load_contract("contracts/l1-contracts/out/L2AssetRouter.sol/L2AssetRouter.json")
+    load_l1_zk_contract("L2AssetRouter")
+}
+
+pub fn l2_native_token_vault() -> Contract {
+    load_l1_zk_contract("L2NativeTokenVault")
 }
 
 pub fn l2_legacy_shared_bridge() -> Contract {
-    load_contract("contracts/l1-contracts/out/L2SharedBridgeLegacy.sol/L2SharedBridgeLegacy.json")
+    load_l1_zk_contract("L2SharedBridgeLegacy")
 }
 
 pub fn l2_rollup_da_validator_bytecode() -> Vec<u8> {

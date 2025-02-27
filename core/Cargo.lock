@@ -11861,6 +11861,7 @@ dependencies = [
  "once_cell",
  "pretty_assertions",
  "rand 0.8.5",
+ "serde_json",
  "test-casing",
  "thiserror 1.0.69",
  "tokio",
