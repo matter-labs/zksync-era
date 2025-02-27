@@ -54,7 +54,8 @@ lazy_static! {
             "function enableValidator(address chainAdmin,address accessControlRestriction,uint256 chainId,address validatorAddress,address gatewayValidatorTimelock,address chainAdminOnGateway) public",
             "function grantWhitelist(address filtererProxy, address[] memory addr) public",
             "function deployL2ChainAdmin() public",
-            "function notifyServer(address serverNotifier, address chainAdmin, address accessControlRestriction) public"
+            "function notifyServerMigrationFromGateway(address serverNotifier, address chainAdmin, address accessControlRestriction, uint256 chainId) public",
+            "function notifyServerMigrationToGateway(address serverNotifier, address chainAdmin, address accessControlRestriction, uint256 chainId) public"
         ])
         .unwrap(),
     );
@@ -413,7 +414,16 @@ async fn await_for_tx_to_complete(
     Ok(())
 }
 
-pub(crate) async fn notify_server(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
+pub(crate) enum MigrationDirection {
+    FromGateway,
+    ToGateway,
+}
+
+pub(crate) async fn notify_server(
+    args: ForgeScriptArgs,
+    shell: &Shell,
+    direction: MigrationDirection,
+) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
     let chain_config = ecosystem_config
         .load_current_chain()
@@ -431,11 +441,31 @@ pub(crate) async fn notify_server(args: ForgeScriptArgs, shell: &Shell) -> anyho
         .access_control_restriction_addr
         .unwrap_or_default();
 
-    let result = call_script(
+    let data = match direction {
+        MigrationDirection::FromGateway => &GATEWAY_PREPARATION_INTERFACE.encode(
+            "notifyServerMigrationFromGateway",
+            (
+                server_notifier,
+                chain_admin,
+                restrictions,
+                chain_config.chain_id.as_u64(),
+            ),
+        )?,
+        MigrationDirection::ToGateway => &GATEWAY_PREPARATION_INTERFACE.encode(
+            "notifyServerMigrationToGateway",
+            (
+                server_notifier,
+                chain_admin,
+                restrictions,
+                chain_config.chain_id.as_u64(),
+            ),
+        )?,
+    };
+
+    call_script(
         shell,
         args,
-        &GATEWAY_PREPARATION_INTERFACE
-            .encode("notifyServer", (server_notifier, chain_admin, restrictions))?,
+        data,
         &chain_config,
         &chain_config.get_wallets_config()?.governor,
         l1_url,
