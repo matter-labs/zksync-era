@@ -246,7 +246,7 @@ jobs:
 
       - name: initialize ecosystem 1
         run: 
-          ci_run zkstack ecosystem init --deploy-paymaster --deploy-erc20 --deploy-ecosystem --l1-rpc-url=http://localhost:8545 --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 --server-db-name=zksync_server_localhost_era --ignore-prerequisites --verbose --observability=false
+          ci_run zkstack ecosystem init --deploy-paymaster --deploy-erc20 --deploy-ecosystem --ecosystem-only true --l1-rpc-url=http://localhost:8545 --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 --server-db-name=zksync_server_localhost_era --ignore-prerequisites --verbose --observability=false
 
       - name: initialize ecosystem 2
         run: 
