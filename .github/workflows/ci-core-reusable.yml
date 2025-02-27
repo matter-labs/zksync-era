@@ -257,6 +257,10 @@ jobs:
           --ignore-prerequisites \
           --evm-emulator false
 
+          ci_run zkstack chain init --dev \
+          --chain validium \
+          --validium-type no-da
+
           ci_run zkstack dev generate-genesis --chain validium
 
           ci_run zkstack ecosystem init --dev \
