@@ -144,23 +144,23 @@ impl RawEtherscanResponse {
     pub(super) fn error_message(&self) -> EtherscanError {
         match self.result.as_str() {
             Some(result) => {
-                if result == "Contract source code not verified" {
+                let result_lower = result.to_lowercase();
+                if result_lower.contains("not verified") {
                     return EtherscanError::ContractNotVerified;
                 }
-                if result == "Contract source code already verified" {
-                    return EtherscanError::ContractAlreadyVerified;
-                }
-                if result == "Pending in queue" {
+                if result_lower.contains("pending") {
                     return EtherscanError::VerificationPending;
                 }
                 // There is a number of daily limit in between the checked values.
                 // I don't want to rely on the exact number as it is a subject to change.
-                if result.starts_with("Daily limit")
+                if result_lower.starts_with("daily limit")
                     && result.ends_with("source code submissions reached")
                 {
                     return EtherscanError::DailyVerificationRequestsLimitExceeded;
                 }
-                let result_lower = result.to_lowercase();
+                if result_lower.contains("already verified") {
+                    return EtherscanError::ContractAlreadyVerified;
+                }
                 if result_lower.contains("rate limit reached") {
                     return EtherscanError::RateLimitExceeded;
                 }
@@ -169,7 +169,7 @@ impl RawEtherscanResponse {
                     return EtherscanError::InvalidApiKey;
                 }
                 // Page not found error is checked both by 404 status and by the message
-                if result.contains("Page not found") {
+                if result_lower.contains("page not found") {
                     return EtherscanError::PageNotFound;
                 }
                 EtherscanError::ErrorResponse {
@@ -409,6 +409,14 @@ mod tests {
                     result: serde_json::Value::String(
                         "Contract source code already verified".to_string(),
                     ),
+                },
+                EtherscanError::ContractAlreadyVerified,
+            ),
+            (
+                RawEtherscanResponse {
+                    status: "0".to_string(),
+                    message: "Error".to_string(),
+                    result: serde_json::Value::String("Already Verified".to_string()),
                 },
                 EtherscanError::ContractAlreadyVerified,
             ),

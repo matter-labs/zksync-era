@@ -38,15 +38,15 @@ fn get_api_error_retry_policy(api_error: &EtherscanError) -> ApiErrorRetryPolicy
                 pause_duration: Duration::from_secs(60 * 60), // 1 hour
             }
         }
-        // EtherscanError::InvalidApiKey => {
-        //     // Etherscan API key is invalid even though it has no expiration date.
-        //     // Either Etherscan API is experiencing issues or the key was revoked.
-        //     // 1 hour to give the API time to recover and not to spam the API with invalid requests.
-        //     // Since Etherscan verification is completely async it shouldn't affect users much.
-        //     ApiErrorRetryPolicy::IndefinitelyRetryable {
-        //         pause_duration: Duration::from_secs(60), // 1 hour
-        //     }
-        // }
+        EtherscanError::InvalidApiKey => {
+            // Etherscan API key is invalid even though it has no expiration date.
+            // Either Etherscan API is experiencing issues or the key was revoked.
+            // 1 hour to give the API time to recover and not to spam the API with invalid requests.
+            // Since Etherscan verification is completely async it shouldn't affect users much.
+            ApiErrorRetryPolicy::IndefinitelyRetryable {
+                pause_duration: Duration::from_secs(60 * 60), // 1 hour
+            }
+        }
         EtherscanError::BlockedByCloudflare
         | EtherscanError::CloudFlareSecurityChallenge
         | EtherscanError::PageNotFound => {
@@ -64,7 +64,7 @@ fn get_api_error_retry_policy(api_error: &EtherscanError) -> ApiErrorRetryPolicy
                 pause_duration: Duration::from_secs(5),
             }
         }
-        EtherscanError::InvalidApiKey | EtherscanError::Reqwest(_) => {
+        EtherscanError::Reqwest(_) => {
             // Most likely the error is caused by the network issue of some sort.
             // But if the request error is caused by the constructed payload, we can't afford to retry indefinitely,
             // so we number of attempts is limited.
@@ -249,6 +249,21 @@ impl EtherscanVerifier {
         verification_request: &VerificationRequest,
     ) -> Result<Option<String>, VerifierError> {
         let req = verification_request.req.clone();
+        // We need to check if the contract is verified before submitting a verification request,
+        // because there is a hard per-day limit on request submissions (including already verified contracts).
+        let is_verified = self
+            .client
+            .is_contract_verified(req.contract_address)
+            .await?;
+
+        if is_verified {
+            tracing::info!(
+                "Contract with address {:#?} is already verified",
+                req.contract_address
+            );
+            return Ok(None);
+        }
+
         tracing::info!(
             "Sending verification request to Etherscan, address = {:#?}",
             req.contract_address,
@@ -292,6 +307,9 @@ impl EtherscanVerifier {
         verification_request: &VerificationRequest,
         verification_id: String,
     ) -> Result<(), VerifierError> {
+        // Wait for the verification to be processed before looping for the result
+        self.sleep(POLL_VERIFICATION_RESULT_INTERVAL).await?;
+
         for attempt in 1..=MAX_POLL_VERIFICATION_RESULT_ATTEMPTS {
             tracing::info!(
                 "Fetching contract verification status, address = {:#?}, attempt = {}",
@@ -299,7 +317,7 @@ impl EtherscanVerifier {
                 attempt
             );
             match self.client.get_verification_status(&verification_id).await {
-                Ok(_) => return Ok(()),
+                Ok(_) | Err(EtherscanError::ContractAlreadyVerified) => return Ok(()),
                 Err(EtherscanError::VerificationPending) => {
                     if attempt < MAX_POLL_VERIFICATION_RESULT_ATTEMPTS {
                         self.sleep(POLL_VERIFICATION_RESULT_INTERVAL).await?;
@@ -317,19 +335,6 @@ impl EtherscanVerifier {
         verification_request: VerificationRequest,
         etherscan_verification_id: Option<String>,
     ) -> Result<(), VerifierError> {
-        let req = verification_request.req.clone();
-        let is_verified = self
-            .client
-            .is_contract_verified(req.contract_address)
-            .await?;
-
-        if is_verified {
-            tracing::info!(
-                "Contract with address {:#?} is already verified",
-                req.contract_address
-            );
-            return Ok(());
-        }
         let verification_id = match etherscan_verification_id {
             Some(id) => id,
             None => {
@@ -340,8 +345,6 @@ impl EtherscanVerifier {
                     // Contract is already verified.
                     return Ok(());
                 };
-                // Wait for the verification to be processed
-                self.sleep(POLL_VERIFICATION_RESULT_INTERVAL).await?;
                 request_id
             }
         };
