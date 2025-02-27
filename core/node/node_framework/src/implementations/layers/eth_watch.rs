@@ -1,6 +1,5 @@
 use anyhow::Context;
 use zksync_config::{configs::gateway::GatewayChainConfig, ContractsConfig, EthWatchConfig};
-use zksync_contracts::{chain_admin_contract, gateway_migration_contract};
 use zksync_eth_watch::{EthHttpQueryClient, EthWatch, ZkSyncExtentionEthClient};
 use zksync_types::L2ChainId;
 
@@ -145,8 +144,6 @@ impl WiringLayer for EthWatchLayer {
             };
 
         let eth_watch = EthWatch::new(
-            &chain_admin_contract(),
-            &gateway_migration_contract(),
             Box::new(l1_client),
             sl_l2_client,
             input.settlement_mode.0,

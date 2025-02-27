@@ -11,9 +11,9 @@ use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_system_constants::PRIORITY_EXPIRATION;
 use zksync_types::{
-    ethabi::Contract, protocol_version::ProtocolSemanticVersion,
-    server_notification::GatewayMigrationState, settlement::SettlementMode,
-    web3::BlockNumber as Web3BlockNumber, Address, L1BatchNumber, L2ChainId, PriorityOpId,
+    protocol_version::ProtocolSemanticVersion, server_notification::GatewayMigrationState,
+    settlement::SettlementMode, web3::BlockNumber as Web3BlockNumber, Address, L1BatchNumber,
+    L2ChainId, PriorityOpId,
 };
 
 pub use self::client::{EthClient, EthHttpQueryClient, ZkSyncExtentionEthClient};
@@ -58,8 +58,6 @@ pub struct EthWatch {
 impl EthWatch {
     #[allow(clippy::too_many_arguments)]
     pub async fn new(
-        chain_admin_contract: &Contract,
-        server_notifier: &Contract,
         l1_client: Box<dyn EthClient>,
         sl_client: Box<dyn ZkSyncExtentionEthClient>,
         sl_layer: SettlementMode,
@@ -83,12 +81,11 @@ impl EthWatch {
             PriorityOpsEventProcessor::new(state.next_expected_priority_id, sl_eth_client.clone())?;
         let decentralized_upgrades_processor = DecentralizedUpgradesEventProcessor::new(
             state.last_seen_protocol_version,
-            chain_admin_contract,
             sl_eth_client.clone(),
             l1_client.clone(),
         );
 
-        let gateway_migration_processor = GatewayMigrationProcessor::new(server_notifier, chain_id);
+        let gateway_migration_processor = GatewayMigrationProcessor::new(chain_id);
 
         let mut event_processors: Vec<Box<dyn EventProcessor>> = vec![
             Box::new(priority_ops_processor),

@@ -1,6 +1,7 @@
 use anyhow::Context as _;
+use zksync_contracts::gateway_migration_contract;
 use zksync_dal::{eth_watcher_dal::EventType, Connection, Core, CoreDal};
-use zksync_types::{api::Log, ethabi::Contract, L1BlockNumber, L2ChainId, H256, U256};
+use zksync_types::{api::Log, L1BlockNumber, L2ChainId, H256, U256};
 
 use crate::event_processors::{EventProcessor, EventProcessorError, EventsSource};
 
@@ -11,9 +12,9 @@ pub struct GatewayMigrationProcessor {
 }
 
 impl GatewayMigrationProcessor {
-    pub fn new(server_notifier: &Contract, l2chain_id: L2ChainId) -> Self {
+    pub fn new(l2chain_id: L2ChainId) -> Self {
         Self {
-            gateway_migration_topic: server_notifier
+            gateway_migration_topic: gateway_migration_contract()
                 .event("MigrateToGateway")
                 .unwrap()
                 .signature(),

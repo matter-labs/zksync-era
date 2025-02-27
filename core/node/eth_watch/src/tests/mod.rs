@@ -105,8 +105,6 @@ async fn create_test_watcher(
         Box::new(l1_client.clone())
     };
     let watcher = EthWatch::new(
-        &chain_admin_contract(),
-        &gateway_migration_contract(),
         Box::new(l1_client.clone()),
         sl_l2_client,
         settlement_mode,
@@ -214,8 +212,6 @@ async fn test_normal_operation_upgrade_timestamp() {
 
     let mut client = MockEthClient::new(SLChainId(42));
     let mut watcher = EthWatch::new(
-        &chain_admin_contract(),
-        &gateway_migration_contract(),
         Box::new(client.clone()),
         Box::new(client.clone()),
         SettlementMode::SettlesToL1,
