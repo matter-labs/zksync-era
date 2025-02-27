@@ -48,3 +48,11 @@ pub struct InclusionData {
     /// the deserialization of the data in Solidity contracts.
     pub data: Vec<u8>,
 }
+
+pub enum ClientType {
+    NoDA,
+    Avail,
+    Celestia,
+    Eigen,
+    ObjectStore,
+}
