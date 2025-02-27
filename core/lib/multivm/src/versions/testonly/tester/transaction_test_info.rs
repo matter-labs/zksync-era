@@ -1,6 +1,4 @@
-use zksync_types::{
-    u256_to_h256, ExecuteTransactionCommon, Nonce, Transaction, H160,
-};
+use zksync_types::{u256_to_h256, ExecuteTransactionCommon, Nonce, Transaction, H160};
 
 use super::{TestedVm, VmTester};
 use crate::{
