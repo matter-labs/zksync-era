@@ -246,7 +246,7 @@ jobs:
 
       - name: initialize ecosystem 1
         run: 
-          ci_run zkstack ecosystem init --deploy-paymaster \ 
+          ci_run zkstack ecosystem init --deploy-paymaster \
           --deploy-erc20 \
           --deploy-ecosystem \
           --l1-rpc-url=http://localhost:8545 \
