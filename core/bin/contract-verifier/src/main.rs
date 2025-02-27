@@ -2,7 +2,6 @@ use std::{path::PathBuf, time::Duration};
 
 use anyhow::Context as _;
 use clap::Parser;
-use secrecy::ExposeSecret;
 use tokio::sync::watch;
 use zksync_config::configs::{ContractVerifierSecrets, DatabaseSecrets, PrometheusConfig};
 use zksync_contract_verifier_lib::{etherscan::EtherscanVerifier, ContractVerifier};
@@ -12,6 +11,7 @@ use zksync_env_config::FromEnv;
 use zksync_protobuf_config::proto;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_task_management::ManagedTasks;
+use zksync_types::secrets::APIKey;
 use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 #[derive(Debug, Parser)]
@@ -55,10 +55,10 @@ async fn perform_storage_migration(pool: &ConnectionPool<Core>) -> anyhow::Resul
 }
 
 fn extract_secrets(
-    secrets_path: Option<std::path::PathBuf>,
-) -> anyhow::Result<(DatabaseSecrets, Option<String>)> {
+    secrets_path: Option<&std::path::PathBuf>,
+) -> anyhow::Result<(DatabaseSecrets, Option<APIKey>)> {
     let (database_secrets, contract_verifier_secrets) = if let Some(path) = secrets_path {
-        let secrets_config = read_yaml_repr::<proto::secrets::Secrets>(&path)
+        let secrets_config = read_yaml_repr::<proto::secrets::Secrets>(path)
             .context("failed decoding secrets YAML config")?;
         (
             secrets_config
@@ -72,9 +72,7 @@ fn extract_secrets(
         (db_secrets, contract_verifier_secrets)
     };
 
-    let api_key = contract_verifier_secrets
-        .and_then(|secrets| secrets.etherscan_api_key)
-        .map(|api_key| api_key.0.expose_secret().to_string());
+    let api_key = contract_verifier_secrets.and_then(|secrets| secrets.etherscan_api_key);
 
     Ok((database_secrets, api_key))
 }
@@ -89,7 +87,7 @@ async fn main() -> anyhow::Result<()> {
         .context("ObservabilityConfig")?;
     let _observability_guard = observability_config.install()?;
 
-    let (database_secrets, etherscan_api_key) = extract_secrets(opt.secrets_path)?;
+    let (database_secrets, etherscan_api_key) = extract_secrets(opt.secrets_path.as_ref())?;
     let verifier_config = general_config
         .contract_verifier
         .context("ContractVerifierConfig")?;

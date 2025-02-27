@@ -11223,7 +11223,6 @@ version = "26.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "clap 4.5.23",
- "secrecy",
  "tokio",
  "tracing",
  "zksync_config",
@@ -11234,6 +11233,7 @@ dependencies = [
  "zksync_protobuf_config",
  "zksync_queued_job_processor",
  "zksync_task_management",
+ "zksync_types",
  "zksync_vlog",
 ]
 
@@ -11252,6 +11252,7 @@ dependencies = [
  "regex",
  "reqwest 0.12.9",
  "rustls 0.23.19",
+ "secrecy",
  "semver 1.0.23",
  "serde",
  "serde_json",

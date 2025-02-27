@@ -1,8 +1,9 @@
 use std::{collections::HashMap, time::Duration};
 
 use reqwest::Client;
+use secrecy::ExposeSecret;
 use serde::{de::DeserializeOwned, Serialize};
-use zksync_types::Address;
+use zksync_types::{secrets::APIKey, Address};
 
 use super::{
     errors::EtherscanError,
@@ -15,7 +16,7 @@ use super::{
 #[derive(Debug, Clone)]
 pub(super) struct EtherscanClient {
     api_url: String,
-    api_key: String,
+    api_key: APIKey,
     http_client: Client,
 }
 
@@ -31,7 +32,7 @@ async fn extract_result<T: DeserializeOwned>(
 
     if let Some(value) = response.headers().get("cf-mitigated") {
         if value == "challenge" {
-            return Err(EtherscanError::CloudFlareSecurityChallenge);
+            return Err(EtherscanError::CloudflareSecurityChallenge);
         }
     }
 
@@ -56,7 +57,7 @@ impl EtherscanClient {
     /// # Arguments
     /// - `api_url` - URL of the Etherscan API.
     /// - `api_key` - API key for the Etherscan API.
-    pub(super) fn new(api_url: String, api_key: String) -> Self {
+    pub(super) fn new(api_url: String, api_key: APIKey) -> Self {
         let client = Client::builder()
             // Timeout for establishing connection
             .connect_timeout(Self::connect_timeout())
@@ -89,7 +90,7 @@ impl EtherscanClient {
     where
         T: Serialize,
     {
-        let payload = EtherscanRequest::new(&self.api_key, module, action, form);
+        let payload = EtherscanRequest::new(self.api_key.0.expose_secret(), module, action, form);
         let response_result = self
             .http_client
             .post(&self.api_url)
@@ -109,7 +110,7 @@ impl EtherscanClient {
     where
         T: Serialize,
     {
-        let query = EtherscanRequest::new(&self.api_key, module, action, query);
+        let query = EtherscanRequest::new(self.api_key.0.expose_secret(), module, action, query);
         let response_result = self
             .http_client
             .get(&self.api_url)
@@ -199,7 +200,7 @@ mod tests {
         let result: Result<String, _> = extract_result(response).await;
         assert!(matches!(
             result,
-            Err(EtherscanError::CloudFlareSecurityChallenge)
+            Err(EtherscanError::CloudflareSecurityChallenge)
         ));
     }
 

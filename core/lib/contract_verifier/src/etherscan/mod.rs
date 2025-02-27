@@ -12,7 +12,10 @@ use types::EtherscanVerificationRequest;
 use zksync_dal::{
     etherscan_verification_dal::EtherscanVerificationJobResultStatus, ConnectionPool, Core, CoreDal,
 };
-use zksync_types::contract_verification::api::{EtherscanVerification, VerificationRequest};
+use zksync_types::{
+    contract_verification::api::{EtherscanVerification, VerificationRequest},
+    secrets::APIKey,
+};
 
 use crate::metrics::API_CONTRACT_VERIFIER_METRICS;
 
@@ -48,7 +51,7 @@ fn get_api_error_retry_policy(api_error: &EtherscanError) -> ApiErrorRetryPolicy
             }
         }
         EtherscanError::BlockedByCloudflare
-        | EtherscanError::CloudFlareSecurityChallenge
+        | EtherscanError::CloudflareSecurityChallenge
         | EtherscanError::PageNotFound => {
             // The request was blocked by the Cloudflare or a blank page was returned by the API, both of which are unexpected.
             // Likely Etherscan is experiencing issues.
@@ -91,7 +94,7 @@ pub struct EtherscanVerifier {
 impl EtherscanVerifier {
     pub fn new(
         api_url: String,
-        api_key: String,
+        api_key: APIKey,
         connection_pool: ConnectionPool<Core>,
         stop_receiver: watch::Receiver<bool>,
     ) -> Self {
@@ -139,20 +142,21 @@ impl EtherscanVerifier {
                 .get_next_queued_verification_request(TIME_OVERHEAD)
                 .await?
         };
-        if let Some((verification_request, verification_task)) = verification_task.clone() {
+        if let Some((verification_request, verification_task)) = &verification_task {
             if let Some(retry_at) = verification_task.retry_at {
                 let to_wait = retry_at.signed_duration_since(Utc::now());
                 if to_wait > TimeDelta::zero() {
-                    let to_wait = to_wait.to_std().unwrap();
-                    tracing::warn!(
-                        "Pausing processing for {:#?} sec before the retry",
-                        to_wait.as_secs()
-                    );
-                    self.sleep(POLL_VERIFICATION_RESULT_INTERVAL).await?;
-                    self.reset_etherscan_verification_processing_started_at(
-                        verification_request.id,
-                    )
-                    .await?;
+                    if let Ok(to_wait) = to_wait.to_std() {
+                        tracing::warn!(
+                            "Pausing processing for {:#?} sec before the retry",
+                            to_wait.as_secs()
+                        );
+                        self.sleep(to_wait).await?;
+                        self.reset_etherscan_verification_processing_started_at(
+                            verification_request.id,
+                        )
+                        .await?;
+                    }
                 }
             }
         }
@@ -248,7 +252,7 @@ impl EtherscanVerifier {
         &self,
         verification_request: &VerificationRequest,
     ) -> Result<Option<String>, VerifierError> {
-        let req = verification_request.req.clone();
+        let req = &verification_request.req;
         // We need to check if the contract is verified before submitting a verification request,
         // because there is a hard per-day limit on request submissions (including already verified contracts).
         let is_verified = self

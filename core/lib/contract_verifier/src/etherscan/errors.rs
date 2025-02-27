@@ -26,7 +26,7 @@ pub(super) enum EtherscanError {
     #[error("The request has been blocked by Cloudflare.")]
     BlockedByCloudflare,
     #[error("The request prompted a Cloudflare captcha security challenge.")]
-    CloudFlareSecurityChallenge,
+    CloudflareSecurityChallenge,
     #[error("Received `Page not found` response. API server is likely down")]
     PageNotFound,
     #[error("Unexpected API response: message={message}, status={status}")]
