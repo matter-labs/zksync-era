@@ -1,10 +1,11 @@
 use async_trait::async_trait;
+use zksync_config::{configs::GatewayChainConfig, ContractsConfig};
 use zksync_multilayer_client::GatewayMigrator;
-use zksync_types::Address;
 
 use crate::{
     implementations::resources::{
-        eth_interface::EthInterfaceResource, settlement_layer::SettlementModeResource,
+        contracts::ContractsResource, eth_interface::EthInterfaceResource,
+        settlement_layer::SettlementModeResource,
     },
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext, StopReceiver, Task, TaskId,
@@ -13,12 +14,19 @@ use crate::{
 /// Wiring layer for [`PKSigningClient`].
 #[derive(Debug)]
 pub struct GatewayMigratorLayer {
-    diamond_proxy_addr: Address,
+    contracts_config: ContractsConfig,
+    gateway_chain_config: Option<GatewayChainConfig>,
 }
 
 impl GatewayMigratorLayer {
-    pub fn new(diamond_proxy_addr: Address) -> Self {
-        Self { diamond_proxy_addr }
+    pub fn new(
+        contracts_config: ContractsConfig,
+        gateway_chain_config: Option<GatewayChainConfig>,
+    ) -> Self {
+        Self {
+            contracts_config,
+            gateway_chain_config,
+        }
     }
 }
 
@@ -32,6 +40,7 @@ pub struct Input {
 #[context(crate = crate)]
 pub struct Output {
     initial_settlement_mode: SettlementModeResource,
+    contracts: ContractsResource,
     #[context(task)]
     gateway_migrator: GatewayMigrator,
 }
@@ -46,10 +55,13 @@ impl WiringLayer for GatewayMigratorLayer {
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
-        let migrator = GatewayMigrator::new(input.eth_client.0, self.diamond_proxy_addr).await;
+        let migrator =
+            GatewayMigrator::new(input.eth_client.0, self.contracts_config.diamond_proxy_addr)
+                .await;
 
         Ok(Output {
             initial_settlement_mode: SettlementModeResource(migrator.settlement_mode()),
+            contracts: ContractsResource(self.gateway_chain_config.unwrap()),
             gateway_migrator: migrator,
         })
     }

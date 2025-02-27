@@ -97,7 +97,6 @@ const TOO_MANY_RESULTS_CHAINSTACK: &str = "range limit exceeded";
 pub struct EthHttpQueryClient<Net: Network> {
     client: Box<DynClient<Net>>,
     diamond_proxy_addr: Address,
-    governance_address: Address,
     new_upgrade_cut_data_signature: H256,
     bytecode_published_signature: H256,
     bytecode_supplier_addr: Option<Address>,
@@ -106,7 +105,7 @@ pub struct EthHttpQueryClient<Net: Network> {
     // Only present for post-shared bridge chains.
     state_transition_manager_address: Option<Address>,
     server_notifier_address: Option<Address>,
-    chain_admin_address: Option<Address>,
+    chain_admin_address: Address,
     verifier_contract_abi: Contract,
     getters_facet_contract_abi: Contract,
     message_root_abi: Contract,
@@ -128,16 +127,15 @@ where
         wrapped_base_token_store: Option<Address>,
         l1_shared_bridge_addr: Option<Address>,
         state_transition_manager_address: Option<Address>,
-        chain_admin_address: Option<Address>,
+        chain_admin_address: Address,
         server_notifier_address: Option<Address>,
-        governance_address: Address,
         confirmations_for_eth_event: Option<u64>,
         l2_chain_id: L2ChainId,
     ) -> Self {
         tracing::debug!(
-            "New eth client, ZKsync addr: {:x}, governance addr: {:?}",
+            "New eth client, ZKsync addr: {:x}, chain_admin_address: {:?}",
             diamond_proxy_addr,
-            governance_address
+            chain_admin_address
         );
         Self {
             client: client.for_component("watch"),
@@ -145,7 +143,6 @@ where
             state_transition_manager_address,
             server_notifier_address,
             chain_admin_address,
-            governance_address,
             bytecode_supplier_addr,
             new_upgrade_cut_data_signature: state_transition_manager_contract()
                 .event("NewUpgradeCutData")
@@ -172,9 +169,8 @@ where
     fn get_default_address_list(&self) -> Vec<Address> {
         [
             Some(self.diamond_proxy_addr),
-            Some(self.governance_address),
             self.state_transition_manager_address,
-            self.chain_admin_address,
+            Some(self.chain_admin_address),
             self.server_notifier_address,
             Some(L2_MESSAGE_ROOT_ADDRESS),
         ]

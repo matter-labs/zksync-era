@@ -111,7 +111,6 @@ impl WiringLayer for EthWatchLayer {
                 .as_ref()
                 .map(|a| a.server_notifier_addr)
                 .flatten(),
-            self.contracts_config.governance_addr,
             self.eth_watch_config.confirmations_for_eth_event,
             self.chain_id,
         );
@@ -135,7 +134,6 @@ impl WiringLayer for EthWatchLayer {
                         .as_ref()
                         .map(|a| a.server_notifier_addr)
                         .flatten(),
-                    contracts_config.governance_addr,
                     self.eth_watch_config.confirmations_for_eth_event,
                     self.chain_id,
                 ))

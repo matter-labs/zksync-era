@@ -314,7 +314,8 @@ impl MainNodeBuilder {
 
     fn add_gateway_migrator_layer(mut self) -> anyhow::Result<Self> {
         self.node.add_layer(GatewayMigratorLayer::new(
-            self.contracts_config.diamond_proxy_addr,
+            self.contracts_config.clone(),
+            self.gateway_chain_config.clone(),
         ));
         Ok(self)
     }
