@@ -1,7 +1,8 @@
+use chrono::{DateTime, NaiveDateTime, Utc};
 use zksync_types::{
     contract_verification::api::{
-        CompilerType, CompilerVersions, SourceCodeData, VerificationIncomingRequest,
-        VerificationRequest,
+        CompilerType, CompilerVersions, EtherscanVerification, SourceCodeData,
+        VerificationIncomingRequest, VerificationRequest,
     },
     Address,
 };
@@ -76,8 +77,10 @@ pub struct StorageEtherscanVerificationRequest {
     pub force_evmla: bool,
     pub etherscan_verification_id: Option<String>,
     pub evm_specific: Option<serde_json::Value>,
+    pub attempts: i32,
+    pub retry_at: Option<NaiveDateTime>,
 }
-impl From<StorageEtherscanVerificationRequest> for (VerificationRequest, Option<String>) {
+impl From<StorageEtherscanVerificationRequest> for (VerificationRequest, EtherscanVerification) {
     fn from(value: StorageEtherscanVerificationRequest) -> Self {
         let storage_verifier_request = StorageVerificationRequest {
             id: value.id,
@@ -95,7 +98,13 @@ impl From<StorageEtherscanVerificationRequest> for (VerificationRequest, Option<
         };
         (
             storage_verifier_request.into(),
-            value.etherscan_verification_id,
+            EtherscanVerification {
+                etherscan_verification_id: value.etherscan_verification_id,
+                attempts: value.attempts,
+                retry_at: value
+                    .retry_at
+                    .map(|t| DateTime::<Utc>::from_naive_utc_and_offset(t, Utc)),
+            },
         )
     }
 }

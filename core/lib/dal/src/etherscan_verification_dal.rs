@@ -1,8 +1,9 @@
 use std::time::Duration;
 
+use chrono::{DateTime, Utc};
 use sqlx::postgres::types::PgInterval;
 use zksync_db_connection::instrument::InstrumentExt;
-use zksync_types::contract_verification::api::VerificationRequest;
+use zksync_types::contract_verification::api::{EtherscanVerification, VerificationRequest};
 
 use crate::{
     models::storage_verification_request::StorageEtherscanVerificationRequest, Connection, Core,
@@ -66,7 +67,7 @@ impl EtherscanVerificationDal<'_, '_> {
     pub async fn get_next_queued_verification_request(
         &mut self,
         processing_timeout: Duration,
-    ) -> DalResult<Option<(VerificationRequest, Option<String>)>> {
+    ) -> DalResult<Option<(VerificationRequest, EtherscanVerification)>> {
         let processing_timeout = PgInterval {
             months: 0,
             days: 0,
@@ -78,7 +79,6 @@ impl EtherscanVerificationDal<'_, '_> {
             UPDATE etherscan_verification_requests evr
             SET
                 status = 'in_progress',
-                attempts = evr.attempts + 1,
                 updated_at = NOW(),
                 processing_started_at = NOW()
             FROM contract_verification_requests cvr
@@ -112,7 +112,9 @@ impl EtherscanVerificationDal<'_, '_> {
             cvr.is_system,
             cvr.force_evmla,
             cvr.evm_specific,
-            evr.etherscan_verification_id
+            evr.etherscan_verification_id,
+            evr.attempts,
+            evr.retry_at
             "#,
             &processing_timeout
         )
@@ -158,6 +160,7 @@ impl EtherscanVerificationDal<'_, '_> {
             r#"
             UPDATE etherscan_verification_requests
             SET
+                attempts = attempts + 1,
                 status = $2,
                 updated_at = NOW(),
                 error = $3
@@ -171,6 +174,35 @@ impl EtherscanVerificationDal<'_, '_> {
         .instrument("save_etherscan_verification_result")
         .with_arg("request_id", &request_id)
         .with_arg("error", &error)
+        .execute(self.storage)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn save_for_retry(
+        &mut self,
+        request_id: usize,
+        attempts: i32,
+        retry_at: DateTime<Utc>,
+    ) -> DalResult<()> {
+        sqlx::query!(
+            r#"
+            UPDATE etherscan_verification_requests
+            SET
+                status = 'queued',
+                attempts = $2,
+                updated_at = NOW(),
+                retry_at = $3
+            WHERE
+                contract_verification_request_id = $1
+            "#,
+            request_id as i64,
+            attempts as i32,
+            retry_at.naive_utc(),
+        )
+        .instrument("save_for_retry")
+        .with_arg("request_id", &request_id)
+        .with_arg("attempts", &attempts)
         .execute(self.storage)
         .await?;
         Ok(())
@@ -241,7 +273,7 @@ mod tests {
             .await
             .unwrap();
 
-        let (req, _) = conn
+        let (req, verification) = conn
             .etherscan_verification_dal()
             .get_next_queued_verification_request(Duration::from_secs(600))
             .await
@@ -256,6 +288,9 @@ mod tests {
         assert_eq!(req.req.constructor_arguments, request.constructor_arguments);
         assert_eq!(req.req.is_system, request.is_system);
         assert_eq!(req.req.force_evmla, request.force_evmla);
+        assert_eq!(verification.attempts, 0);
+        assert_eq!(verification.etherscan_verification_id, None);
+        assert_eq!(verification.retry_at, None);
 
         let maybe_req = conn
             .etherscan_verification_dal()
@@ -358,12 +393,48 @@ mod tests {
             .await
             .unwrap();
 
-        let (_, verification_id) = conn
+        let (_, verification) = conn
             .etherscan_verification_dal()
             .get_next_queued_verification_request(Duration::from_secs(600))
             .await
             .unwrap()
             .unwrap();
-        assert_eq!(verification_id, Some(etherscan_verification_id.to_string()));
+        assert_eq!(
+            verification.etherscan_verification_id,
+            Some(etherscan_verification_id.to_string())
+        );
+    }
+
+    #[tokio::test]
+    async fn test_saving_request_for_retry() {
+        let request = get_default_verification_request(Some("1.5.7"));
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
+        let id = conn
+            .contract_verification_dal()
+            .add_contract_verification_request(&request)
+            .await
+            .unwrap();
+
+        conn.etherscan_verification_dal()
+            .add_verification_request(id)
+            .await
+            .unwrap();
+
+        let retry_at = Utc::now();
+        let attempts_number: i32 = 10;
+        conn.etherscan_verification_dal()
+            .save_for_retry(id, 10, retry_at)
+            .await
+            .unwrap();
+
+        let (_, verification) = conn
+            .etherscan_verification_dal()
+            .get_next_queued_verification_request(Duration::from_secs(600))
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(verification.attempts, attempts_number);
+        assert_eq!(verification.retry_at.unwrap(), retry_at);
     }
 }

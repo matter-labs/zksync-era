@@ -3,6 +3,7 @@
 
 use std::time::{Duration, Instant};
 
+use chrono::{DateTime, TimeDelta, Utc};
 use client::EtherscanClient;
 use errors::{EtherscanError, ProcessingError, VerifierError};
 use solc_versions_fetcher::SolcVersionsFetcher;
@@ -11,7 +12,7 @@ use types::EtherscanVerificationRequest;
 use zksync_dal::{
     etherscan_verification_dal::EtherscanVerificationJobResultStatus, ConnectionPool, Core, CoreDal,
 };
-use zksync_types::contract_verification::api::VerificationRequest;
+use zksync_types::contract_verification::api::{EtherscanVerification, VerificationRequest};
 
 use crate::metrics::API_CONTRACT_VERIFIER_METRICS;
 
@@ -23,13 +24,8 @@ pub mod utils;
 
 enum ApiErrorRetryPolicy {
     NotRetryable,
-    Retryable {
-        pause_duration: Duration,
-        max_attempts: u32,
-    },
-    IndefinitelyRetryable {
-        pause_duration: Duration,
-    },
+    Retryable { pause_duration: Duration },
+    IndefinitelyRetryable { pause_duration: Duration },
 }
 
 fn get_api_error_retry_policy(api_error: &EtherscanError) -> ApiErrorRetryPolicy {
@@ -42,15 +38,15 @@ fn get_api_error_retry_policy(api_error: &EtherscanError) -> ApiErrorRetryPolicy
                 pause_duration: Duration::from_secs(60 * 60), // 1 hour
             }
         }
-        EtherscanError::InvalidApiKey => {
-            // Etherscan API key is invalid even though it has no expiration date.
-            // Either Etherscan API is experiencing issues or the key was revoked.
-            // 1 hour to give the API time to recover and not to spam the API with invalid requests.
-            // Since Etherscan verification is completely async it shouldn't affect users much.
-            ApiErrorRetryPolicy::IndefinitelyRetryable {
-                pause_duration: Duration::from_secs(60 * 60), // 1 hour
-            }
-        }
+        // EtherscanError::InvalidApiKey => {
+        //     // Etherscan API key is invalid even though it has no expiration date.
+        //     // Either Etherscan API is experiencing issues or the key was revoked.
+        //     // 1 hour to give the API time to recover and not to spam the API with invalid requests.
+        //     // Since Etherscan verification is completely async it shouldn't affect users much.
+        //     ApiErrorRetryPolicy::IndefinitelyRetryable {
+        //         pause_duration: Duration::from_secs(60), // 1 hour
+        //     }
+        // }
         EtherscanError::BlockedByCloudflare
         | EtherscanError::CloudFlareSecurityChallenge
         | EtherscanError::PageNotFound => {
@@ -68,13 +64,12 @@ fn get_api_error_retry_policy(api_error: &EtherscanError) -> ApiErrorRetryPolicy
                 pause_duration: Duration::from_secs(5),
             }
         }
-        EtherscanError::Reqwest(_) => {
+        EtherscanError::InvalidApiKey | EtherscanError::Reqwest(_) => {
             // Most likely the error is caused by the network issue of some sort.
             // But if the request error is caused by the constructed payload, we can't afford to retry indefinitely,
             // so we number of attempts is limited.
             ApiErrorRetryPolicy::Retryable {
                 pause_duration: Duration::from_secs(60), // 1 min
-                max_attempts: 10,
             }
         }
         _ => ApiErrorRetryPolicy::NotRetryable,
@@ -83,6 +78,7 @@ fn get_api_error_retry_policy(api_error: &EtherscanError) -> ApiErrorRetryPolicy
 
 const POLL_VERIFICATION_RESULT_INTERVAL: Duration = Duration::from_secs(5);
 const MAX_POLL_VERIFICATION_RESULT_ATTEMPTS: u32 = 100;
+const MAX_ATTEMPTS: i32 = 10;
 
 #[derive(Debug, Clone)]
 pub struct EtherscanVerifier {
@@ -112,30 +108,59 @@ impl EtherscanVerifier {
     }
 
     async fn get_next_request(
-        &self,
-    ) -> anyhow::Result<Option<(VerificationRequest, Option<String>)>, VerifierError> {
+        &mut self,
+    ) -> anyhow::Result<Option<(VerificationRequest, EtherscanVerification)>, VerifierError> {
         // We consider that the job is stuck if it's being processed for more than 2 hours.
         // We need large overhead because Etherscan has pretty strict daily
         // limits for verification requests.
         // In case the daily verification rate limit is reached, the processing is paused for 1 hour
         // and the processing_started_at field is reset to the current time after the pause.
         // Since etherscan verification is completely async it shouldn't affect user experience much.
-        const TIME_OVERHEAD: Duration = Duration::from_secs(2 * 60 * 60); // 2 hours
+        let verification_task = {
+            const TIME_OVERHEAD: Duration = Duration::from_secs(2 * 60 * 60); // 2 hours
+            let mut connection = self
+                .connection_pool
+                .connection_tagged("etherscan_verifier")
+                .await?;
 
-        let mut connection = self
-            .connection_pool
-            .connection_tagged("etherscan_verifier")
-            .await?;
+            connection
+                .etherscan_verification_dal()
+                .get_next_queued_verification_request(TIME_OVERHEAD)
+                .await?
+        };
+        if let Some((verification_request, verification_task)) = verification_task.clone() {
+            if let Some(retry_at) = verification_task.retry_at {
+                let to_wait = retry_at.signed_duration_since(Utc::now());
+                if to_wait > TimeDelta::zero() {
+                    let to_wait = to_wait.to_std().unwrap();
+                    tracing::warn!(
+                        "Pausing processing for {:#?} sec before the retry",
+                        to_wait.as_secs()
+                    );
+                    // If stop signal has been received, return None as the process will be shut down.
+                    //let retry_at_utc = DateTime::<Utc>::from_naive_utc_and_offset(tx.created_at, Utc)
+                    if tokio::time::timeout(to_wait, self.stop_receiver.changed())
+                        .await
+                        .is_ok()
+                    {
+                        return Ok(None);
+                    }
 
-        let job = connection
-            .etherscan_verification_dal()
-            .get_next_queued_verification_request(TIME_OVERHEAD)
-            .await?;
-        Ok(job)
+                    self.reset_etherscan_verification_processing_started_at(
+                        verification_request.id,
+                    )
+                    .await?;
+                }
+            }
+        }
+
+        Ok(verification_task)
     }
 
-    async fn save_result(&self, job_id: usize) -> anyhow::Result<(), VerifierError> {
-        tracing::info!("Successfully processed etherscan verification request with id = {job_id}");
+    async fn save_result(&self, request_id: usize) -> anyhow::Result<(), VerifierError> {
+        tracing::info!(
+            "Successfully processed etherscan verification request with id = {request_id}"
+        );
         let mut connection = self
             .connection_pool
             .connection_tagged("etherscan_verifier")
@@ -144,7 +169,7 @@ impl EtherscanVerifier {
         connection
             .etherscan_verification_dal()
             .save_verification_result(
-                job_id,
+                request_id,
                 EtherscanVerificationJobResultStatus::Successful,
                 None,
             )
@@ -157,10 +182,10 @@ impl EtherscanVerifier {
 
     async fn save_failure(
         &self,
-        job_id: usize,
+        request_id: usize,
         error: String,
     ) -> anyhow::Result<(), VerifierError> {
-        tracing::warn!("Failed to process etherscan verification request with id = {job_id}");
+        tracing::error!("Failed to process etherscan verification request with id = {request_id}");
         let mut connection = self
             .connection_pool
             .connection_tagged("etherscan_verifier")
@@ -169,13 +194,32 @@ impl EtherscanVerifier {
         connection
             .etherscan_verification_dal()
             .save_verification_result(
-                job_id,
+                request_id,
                 EtherscanVerificationJobResultStatus::Failed,
                 Some(&error),
             )
             .await?;
 
         API_CONTRACT_VERIFIER_METRICS.failed_verifications[&"etherscan_verifier"].inc();
+
+        Ok(())
+    }
+
+    async fn save_for_retry(
+        &self,
+        request_id: usize,
+        attempts: i32,
+        retry_at: DateTime<Utc>,
+    ) -> anyhow::Result<(), VerifierError> {
+        let mut connection = self
+            .connection_pool
+            .connection_tagged("etherscan_verifier")
+            .await?;
+
+        connection
+            .etherscan_verification_dal()
+            .save_for_retry(request_id, attempts, retry_at)
+            .await?;
 
         Ok(())
     }
@@ -330,102 +374,71 @@ impl EtherscanVerifier {
     }
 
     async fn process_next_request(&mut self) -> anyhow::Result<(), VerifierError> {
-        let mut started_at = Instant::now();
         let verification_request = self.get_next_request().await?;
         if verification_request.is_none() {
             return Ok(());
         }
+        let started_at = Instant::now();
 
-        let (verification_request, etherscan_verification_id) = verification_request.unwrap();
+        let (verification_request, verification) = verification_request.unwrap();
         tracing::info!(
             "Started to process request with id = {}",
             verification_request.id
         );
-        let mut verify_attempts = 0;
-        let processing_result: Result<(), VerifierError> = loop {
-            let verification_result = self
-                .verify(
-                    verification_request.clone(),
-                    etherscan_verification_id.clone(),
-                )
-                .await;
-            match verification_result {
-                Ok(_) => break Ok(()),
-                Err(VerifierError::EtherscanError(api_error)) => {
-                    let retry_policy = get_api_error_retry_policy(&api_error);
-                    match retry_policy {
-                        ApiErrorRetryPolicy::NotRetryable => break Err(api_error.into()),
-                        ApiErrorRetryPolicy::Retryable {
-                            pause_duration,
-                            max_attempts,
-                        } => {
-                            verify_attempts += 1;
-                            if verify_attempts > max_attempts {
-                                tracing::warn!(
-                                        "Number of verification retries has exceed the limit. Failing the job.",
-                                    );
-                                break Err(api_error.into());
-                            }
-                            tracing::warn!(
-                                "Pausing processing for {:?} due to the error: {:#?}",
-                                pause_duration,
-                                api_error
-                            );
-                            if tokio::time::timeout(pause_duration, self.stop_receiver.changed())
-                                .await
-                                .is_ok()
-                            {
-                                break Err(VerifierError::Canceled);
-                            }
-                            self.reset_etherscan_verification_processing_started_at(
-                                verification_request.id,
-                            )
-                            .await?;
-                            started_at = Instant::now();
-                        }
-                        ApiErrorRetryPolicy::IndefinitelyRetryable { pause_duration } => {
-                            tracing::warn!(
-                                "Pausing processing for {:?} due to the error: {}",
-                                pause_duration,
-                                api_error
-                            );
-                            if tokio::time::timeout(pause_duration, self.stop_receiver.changed())
-                                .await
-                                .is_ok()
-                            {
-                                break Err(VerifierError::Canceled);
-                            }
-                            self.reset_etherscan_verification_processing_started_at(
-                                verification_request.id,
-                            )
-                            .await?;
-                            started_at = Instant::now();
-                        }
-                    }
-                }
-                Err(VerifierError::ProcessingError(processing_error)) => {
-                    break Err(processing_error.into())
-                }
-                Err(VerifierError::Canceled) => break Err(VerifierError::Canceled),
-            }
-        };
 
-        match processing_result {
+        let verification_result = self
+            .verify(
+                verification_request.clone(),
+                verification.etherscan_verification_id,
+            )
+            .await;
+
+        match verification_result {
             Ok(_) => {
                 self.save_result(verification_request.id).await?;
+                API_CONTRACT_VERIFIER_METRICS
+                    .etherscan_request_processing_time
+                    .observe(started_at.elapsed());
             }
-            Err(VerifierError::Canceled) => {
-                return Err(VerifierError::Canceled);
+            Err(VerifierError::EtherscanError(api_error)) => {
+                let retry_policy = get_api_error_retry_policy(&api_error);
+                match retry_policy {
+                    ApiErrorRetryPolicy::NotRetryable => {
+                        self.save_failure(verification_request.id, api_error.to_string())
+                            .await?;
+                    }
+                    ApiErrorRetryPolicy::Retryable { pause_duration } => {
+                        if verification.attempts == MAX_ATTEMPTS {
+                            self.save_failure(verification_request.id, api_error.to_string())
+                                .await?;
+                        } else {
+                            self.save_for_retry(
+                                verification_request.id,
+                                // Increase the number of attempts so if the number of attempts is exceeded max attempts
+                                // number, the request will be marked as failed.
+                                verification.attempts + 1,
+                                Utc::now() + pause_duration,
+                            )
+                            .await?;
+                        }
+                    }
+                    ApiErrorRetryPolicy::IndefinitelyRetryable { pause_duration } => {
+                        self.save_for_retry(
+                            verification_request.id,
+                            // Do not increase the number of attempts so the request will be retried indefinitely.
+                            verification.attempts,
+                            Utc::now() + pause_duration,
+                        )
+                        .await?;
+                    }
+                }
             }
-            Err(err) => {
-                self.save_failure(verification_request.id, err.to_string())
+            Err(VerifierError::ProcessingError(processing_error)) => {
+                self.save_failure(verification_request.id, processing_error.to_string())
                     .await?;
             }
+            Err(VerifierError::Canceled) => return Err(VerifierError::Canceled),
         }
-
-        API_CONTRACT_VERIFIER_METRICS
-            .etherscan_request_processing_time
-            .observe(started_at.elapsed());
 
         Ok(())
     }
@@ -443,7 +456,8 @@ impl EtherscanVerifier {
                 tracing::error!("Failed to update solc versions: {}", err);
             }
 
-            // Errors are handled internally so it's safe to ignore them here
+            // VerifierError::Canceled happens when the stop signal is received.
+            // Other errors are handled internally so it's safe to ignore them
             // to keep the processing loop running.
             if let Err(VerifierError::Canceled) = self.process_next_request().await {
                 continue;

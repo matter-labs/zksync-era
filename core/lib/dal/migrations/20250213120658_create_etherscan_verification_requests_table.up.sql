@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS etherscan_verification_requests (
     attempts INT NOT NULL DEFAULT 0,
     etherscan_verification_id CHARACTER VARYING(128),
     error TEXT,
+    retry_at TIMESTAMP,
     created_at TIMESTAMP NOT NULL,
     updated_at TIMESTAMP NOT NULL,
     CONSTRAINT contract_verification_requests_id_fkey FOREIGN KEY (contract_verification_request_id) REFERENCES public.contract_verification_requests (id) ON UPDATE NO ACTION ON DELETE NO ACTION
