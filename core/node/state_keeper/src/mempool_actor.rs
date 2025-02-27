@@ -183,7 +183,7 @@ impl MempoolFetcher {
 
                 storage
                     .transactions_dal()
-                    .return_to_mempool(&hashes)
+                    .reset_mempool_status(&hashes)
                     .await
                     .context("failed to return txs to mempool")?;
 

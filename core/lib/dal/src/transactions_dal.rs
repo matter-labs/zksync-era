@@ -1767,7 +1767,7 @@ impl TransactionsDal<'_, '_> {
     }
 
     /// Resets `in_mempool` to `FALSE` for the given transaction hashes.
-    pub async fn return_to_mempool(&mut self, transaction_hashes: &[H256]) -> DalResult<()> {
+    pub async fn reset_mempool_status(&mut self, transaction_hashes: &[H256]) -> DalResult<()> {
         // Convert H256 hashes into `&[u8]`
         let hashes: Vec<_> = transaction_hashes.iter().map(H256::as_bytes).collect();
 
@@ -1789,13 +1789,8 @@ impl TransactionsDal<'_, '_> {
 
         // Log debug information about how many rows were affected
         tracing::debug!(
-            "Updated {} transactions to in_mempool = false; provided hashes: {}",
-            result.rows_affected(),
-            transaction_hashes
-                .iter()
-                .map(|hash| format!("{:x}", hash))
-                .collect::<Vec<_>>()
-                .join(", ")
+            "Updated {} transactions to in_mempool = false; provided hashes: {transaction_hashes:?}",
+            result.rows_affected()
         );
 
         Ok(())

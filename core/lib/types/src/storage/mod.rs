@@ -134,14 +134,6 @@ pub fn get_immutable_simulator_key(account: &Address, immutable_key: H256) -> St
     StorageKey::new(immutable_simulator, key)
 }
 
-#[test]
-fn test_get_immutable_simulator_key() {
-    println!(
-        "{:#?}",
-        get_immutable_simulator_key(&L2_ASSET_ROUTER_ADDRESS, u256_to_h256(96u32.into()))
-    )
-}
-
 pub type StorageValue = H256;
 
 pub fn get_system_context_init_logs(chain_id: L2ChainId) -> Vec<StorageLog> {
