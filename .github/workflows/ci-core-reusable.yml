@@ -236,6 +236,10 @@ jobs:
           echo "EXTERNAL_NODE_LOGS_DIR=$EXTERNAL_NODE_LOGS_DIR" >> $GITHUB_ENV
           echo "FEES_LOGS_DIR=$FEES_LOGS_DIR" >> $GITHUB_ENV
           echo "REVERT_LOGS_DIR=$REVERT_LOGS_DIR" >> $GITHUB_ENV
+      
+      - name: Generate genesis
+        run: |
+          ci_run zkstack dev generate-genesis
 
       - name: Initialize ecosystem
         run: |
