@@ -78,3 +78,6 @@ reqwest = { version = "0.12.8", features = ["blocking"] }
 
 [profile.release]
 strip = true
+
+[patch.crates-io]
+vise = { git = "https://github.com/matter-labs/vise.git", rev = "6c010a683de9750fb61ca2d30630d79afbe743d8" }
