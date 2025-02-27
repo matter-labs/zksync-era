@@ -42,10 +42,12 @@ impl ServerNotificationsDal<'_, '_> {
         Ok(())
     }
 
-    pub async fn notifications_by_topic(
+    pub async fn notifications_by_topics(
         &mut self,
-        main_topic: H256,
+        topics: Vec<H256>,
     ) -> sqlx::Result<Vec<ServerNotification>> {
+        let topics: Vec<Vec<u8>> = topics.into_iter().map(|a| a.as_bytes().to_vec()).collect();
+
         let rows = sqlx::query!(
             r#"
             SELECT
@@ -53,18 +55,18 @@ impl ServerNotificationsDal<'_, '_> {
             FROM
                 server_notifications
             WHERE
-                main_topic = $1
+                main_topic IN (SELECT unnest($1::bytea []))
             ORDER BY
                 id DESC
             "#,
-            main_topic.as_bytes()
+            &topics
         )
         .fetch_all(self.storage.conn())
         .await?
         .into_iter()
         .map(|a| ServerNotification {
             l1_block_number: L1BlockNumber(a.l1_block_number as u32),
-            main_topic,
+            main_topic: H256::from_slice(&a.main_topic),
             value: a.value,
         })
         .collect();

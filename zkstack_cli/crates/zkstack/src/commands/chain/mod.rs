@@ -5,10 +5,9 @@ use clap::{command, Subcommand};
 pub(crate) use create::create_chain_inner;
 use xshell::Shell;
 
-use crate::commands::chain::gateway_migration::MigrationDirection;
 use crate::commands::chain::{
     args::create::ChainCreateArgs, deploy_l2_contracts::Deploy2ContractsOption,
-    genesis::GenesisCommand, init::ChainInitCommand,
+    gateway_migration::MigrationDirection, genesis::GenesisCommand, init::ChainInitCommand,
 };
 
 mod accept_chain_ownership;

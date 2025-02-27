@@ -6,14 +6,12 @@ use std::{sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use tokio::sync::watch;
-use zksync_contracts::gateway_migration_contract;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_system_constants::PRIORITY_EXPIRATION;
 use zksync_types::{
-    protocol_version::ProtocolSemanticVersion, server_notification::GatewayMigrationState,
-    settlement::SettlementMode, web3::BlockNumber as Web3BlockNumber, Address, L1BatchNumber,
-    L2ChainId, PriorityOpId,
+    protocol_version::ProtocolSemanticVersion, settlement::SettlementMode,
+    web3::BlockNumber as Web3BlockNumber, L1BatchNumber, L2ChainId, PriorityOpId,
 };
 
 pub use self::client::{EthClient, EthHttpQueryClient, ZkSyncExtentionEthClient};
@@ -49,7 +47,6 @@ struct EthWatchState {
 pub struct EthWatch {
     l1_client: Arc<dyn EthClient>,
     sl_client: Arc<dyn EthClient>,
-    gateway_status: GatewayMigrationState,
     poll_interval: Duration,
     event_processors: Vec<Box<dyn EventProcessor>>,
     pool: ConnectionPool<Core>,
@@ -72,8 +69,6 @@ impl EthWatch {
 
         let state = Self::initialize_state(&mut storage, sl_eth_client.as_ref()).await?;
         tracing::info!("initialized state: {state:?}");
-        let gateway_status = gateway_status(&mut storage, l1_client.as_ref()).await?;
-        tracing::info!("Gateway status {:?}", &gateway_status);
 
         drop(storage);
 
@@ -105,7 +100,6 @@ impl EthWatch {
         Ok(Self {
             l1_client,
             sl_client: sl_eth_client,
-            gateway_status,
             poll_interval,
             event_processors,
             pool,
@@ -253,31 +247,6 @@ impl EthWatch {
                 .map_err(DalError::generalize)?;
         }
 
-        self.gateway_status = gateway_status(storage, self.l1_client.as_ref()).await?;
         Ok(())
     }
-}
-
-pub async fn gateway_status(
-    storage: &mut Connection<'_, Core>,
-    l1_client: &dyn EthClient,
-) -> anyhow::Result<GatewayMigrationState> {
-    let layer = l1_client.get_settlement_layer().await?;
-    if layer != Address::zero() {
-        return Ok(GatewayMigrationState::Finalized);
-    };
-
-    // TODO support migration back
-    let topic = gateway_migration_contract()
-        .event("MigrateToGateway")
-        .unwrap()
-        .signature();
-    let notifications = storage
-        .server_notifications_dal()
-        .notifications_by_topic(topic)
-        .await?;
-    if !notifications.is_empty() {
-        return Ok(GatewayMigrationState::Started);
-    }
-    Ok(GatewayMigrationState::Not)
 }

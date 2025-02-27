@@ -9,12 +9,6 @@ pub enum GatewayMigrationState {
     Finalized,
 }
 
-impl GatewayMigrationState {
-    pub fn is_gateway(&self) -> bool {
-        self == &Self::Finalized
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct ServerNotification {
     pub l1_block_number: L1BlockNumber,

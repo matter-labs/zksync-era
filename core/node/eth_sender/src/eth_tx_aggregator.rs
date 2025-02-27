@@ -125,9 +125,7 @@ impl EthTxAggregator {
         };
 
         let gateway_migration_state =
-            gateway_status(&mut pool.connection().await.unwrap(), settlement_mode)
-                .await
-                .unwrap();
+            gateway_status(&mut pool.connection().await.unwrap(), &settlement_mode).await;
         let sl_chain_id = (*eth_client).as_ref().fetch_chain_id().await.unwrap();
 
         Self {
@@ -531,7 +529,7 @@ impl EthTxAggregator {
         &mut self,
         storage: &mut Connection<'_, Core>,
     ) -> Result<(), EthSenderError> {
-        self.gateway_migration_state = gateway_status(storage, self.settlement_mode).await?;
+        self.gateway_migration_state = gateway_status(storage, &self.settlement_mode).await;
         let MulticallData {
             base_system_contracts_hashes,
             verifier_address,
@@ -608,7 +606,7 @@ impl EthTxAggregator {
             )
             .await?
         {
-            let is_gateway = self.gateway_migration_state.is_gateway();
+            let is_gateway = self.settlement_mode.is_gateway();
             let tx = self
                 .save_eth_tx(
                     storage,
@@ -839,7 +837,7 @@ impl EthTxAggregator {
         storage: &mut Connection<'_, Core>,
         from_addr: Option<Address>,
     ) -> Result<u64, EthSenderError> {
-        let is_gateway = self.gateway_migration_state.is_gateway();
+        let is_gateway = self.settlement_mode.is_gateway();
         let db_nonce = storage
             .eth_sender_dal()
             .get_next_nonce(from_addr, is_gateway)
@@ -926,25 +924,44 @@ async fn get_priority_tree_start_index(
     Ok(Some(priority_tree_start_index.as_usize()))
 }
 
-pub async fn gateway_status(
+async fn gateway_status(
     storage: &mut Connection<'_, Core>,
-    settlement_mode: SettlementMode,
-) -> Result<GatewayMigrationState, EthSenderError> {
-    if settlement_mode == SettlementMode::Gateway {
-        return Ok(GatewayMigrationState::Finalized);
-    }
-    // TODO support the migration back
-    let topic = gateway_migration_contract()
+    sl_layer: &SettlementMode,
+) -> GatewayMigrationState {
+    let to_gateway = gateway_migration_contract()
         .event("MigrateToGateway")
         .unwrap()
         .signature();
+    let from_gateway = gateway_migration_contract()
+        .event("MigrateFromGateway")
+        .unwrap()
+        .signature();
+
+    let topics = vec![to_gateway.clone(), from_gateway.clone()];
+
     let notifications = storage
         .server_notifications_dal()
-        .notifications_by_topic(topic)
+        .notifications_by_topics(topics)
         .await
         .unwrap();
-    if !notifications.is_empty() {
-        return Ok(GatewayMigrationState::Started);
-    }
-    Ok(GatewayMigrationState::Not)
+
+    notifications
+        .last()
+        .map(|a| match sl_layer {
+            SettlementMode::SettlesToL1 => {
+                if a.main_topic == to_gateway {
+                    GatewayMigrationState::Started
+                } else {
+                    GatewayMigrationState::Finalized
+                }
+            }
+            SettlementMode::Gateway => {
+                if a.main_topic == from_gateway {
+                    GatewayMigrationState::Started
+                } else {
+                    GatewayMigrationState::Finalized
+                }
+            }
+        })
+        .unwrap_or(GatewayMigrationState::Not)
 }
