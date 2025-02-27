@@ -243,35 +243,26 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
-      
-      - name: init help
-        run: |
-          ci_run zkstack ecosystem init --help
 
       - name: initialize ecosystem 1
         run: 
           ci_run zkstack ecosystem init --deploy-paymaster --deploy-erc20 --deploy-ecosystem --l1-rpc-url=http://localhost:8545 --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 --server-db-name=zksync_server_localhost_era --ignore-prerequisites --verbose --observability=false
 
-          ci_run zkstack chain create \
-          --chain-name validium \
-          --chain-id sequential \
-          --prover-mode no-proofs \
-          --wallet-creation localhost \
-          --l1-batch-commit-data-generator-mode validium \
-          --base-token-address 0x0000000000000000000000000000000000000001 \
-          --base-token-price-nominator 1 \
-          --base-token-price-denominator 1 \
-          --set-as-default false \
-          --ignore-prerequisites \
-          --evm-emulator false
+      - name: initialize ecosystem 2
+        run: 
+          ci_run zkstack chain create --chain-name validium --chain-id sequential --prover-mode no-proofs --wallet-creation localhost --l1-batch-commit-data-generator-mode validium --base-token-address 0x0000000000000000000000000000000000000001 --base-token-price-nominator 1 --base-token-price-denominator 1 --set-as-default false --ignore-prerequisites --evm-emulator false
 
+      - name: initialize ecosystem 3  
+        run: 
           ci_run zkstack chain init --dev \
           --chain validium \
           --validium-type no-da
 
+      - name: initialize ecosystem 4
+        run: 
           ci_run zkstack dev generate-genesis --chain validium
 
-      - name: Initialize ecosystem 2
+      - name: Initialize ecosystem 5
         run: |
           ci_run zkstack ecosystem init --dev \
           --ignore-prerequisites --verbose \
