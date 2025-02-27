@@ -6717,6 +6717,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_da_client"
+version = "26.4.0-non-semver-compat"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "serde",
+]
+
+[[package]]
 name = "zksync_eth_client"
 version = "26.4.0-non-semver-compat"
 dependencies = [
@@ -6819,6 +6828,7 @@ dependencies = [
  "zksync_basic_types",
  "zksync_contracts",
  "zksync_crypto_primitives",
+ "zksync_da_client",
  "zksync_mini_merkle_tree",
  "zksync_system_constants",
 ]
