@@ -253,7 +253,7 @@ jobs:
           ci_run zkstack chain create --chain-name validium --chain-id sequential --prover-mode no-proofs --wallet-creation localhost --l1-batch-commit-data-generator-mode validium --base-token-address 0x0000000000000000000000000000000000000001 --base-token-price-nominator 1 --base-token-price-denominator 1 --set-as-default false --ignore-prerequisites --evm-emulator false
 
       - name: initialize ecosystem 3  
-        run: 
+        run: |
           ci_run zkstack chain init --dev \
           --chain validium \
           --validium-type no-da
