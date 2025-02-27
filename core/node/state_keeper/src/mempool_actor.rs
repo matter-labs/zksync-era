@@ -9,7 +9,9 @@ use zksync_contracts::{l2_asset_router, l2_legacy_shared_bridge};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_mempool::L2TxFilter;
 use zksync_multivm::{
-    utils::derive_base_fee_and_gas_per_pubdata, vm_fast::interface::opcodes::Add, vm_latest::utils::v26_upgrade::{is_unsafe_deposit_present, AsyncStorageKeyAccess},
+    utils::derive_base_fee_and_gas_per_pubdata,
+    vm_fast::interface::opcodes::Add,
+    vm_latest::utils::v26_upgrade::{is_unsafe_deposit_present, AsyncStorageKeyAccess},
 };
 use zksync_node_fee_model::BatchFeeModelInputProvider;
 use zksync_types::{
@@ -60,18 +62,20 @@ struct PostgresStorageKeyAccess<'a, 'b> {
     storage: &'a mut Connection<'b, Core>,
 }
 
-impl<'a,'b> PostgresStorageKeyAccess<'a,'b> {
+impl<'a, 'b> PostgresStorageKeyAccess<'a, 'b> {
     fn new(storage: &'a mut Connection<'b, Core>) -> Self {
-        Self {
-            storage
-        }
+        Self { storage }
     }
 }
 
 #[async_trait::async_trait]
-impl<'a,'b> AsyncStorageKeyAccess for  PostgresStorageKeyAccess<'a,'b> {
+impl<'a, 'b> AsyncStorageKeyAccess for PostgresStorageKeyAccess<'a, 'b> {
     async fn read_key(&mut self, key: &StorageKey) -> anyhow::Result<H256> {
-        self.storage.storage_web3_dal().get_value(&key).await.map_err(|e| e.into())
+        self.storage
+            .storage_web3_dal()
+            .get_value(&key)
+            .await
+            .map_err(|e| e.into())
     }
 }
 
@@ -165,8 +169,11 @@ impl MempoolFetcher {
                 .await
                 .context("failed syncing mempool")?;
 
-            let exclude_l1_txs =
-                is_unsafe_deposit_present(&transactions_with_constraints, &mut PostgresStorageKeyAccess::new(&mut storage)).await?;
+            let exclude_l1_txs = is_unsafe_deposit_present(
+                &transactions_with_constraints,
+                &mut PostgresStorageKeyAccess::new(&mut storage),
+            )
+            .await?;
 
             let transactions_with_constraints = if exclude_l1_txs {
                 let hashes: Vec<_> = transactions_with_constraints

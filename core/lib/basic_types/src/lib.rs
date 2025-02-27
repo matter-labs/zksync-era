@@ -300,7 +300,7 @@ impl Default for PriorityOpId {
 impl Default for Nonce {
     fn default() -> Self {
         Self(0)
-    }   
+    }
 }
 
 #[cfg(test)]

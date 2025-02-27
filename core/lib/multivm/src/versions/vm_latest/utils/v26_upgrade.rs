@@ -1,8 +1,17 @@
 use ethabi::{ParamType, Token};
 use zksync_contracts::{l2_asset_router, l2_legacy_shared_bridge};
-use zksync_types::{address_to_h256, get_address_mapping_key, get_immutable_simulator_key, h256_to_address, h256_to_u256, tx::execute::Create2DeploymentParams, utils::encode_ntv_asset_id, AccountTreeId, Address, StorageKey, Transaction, TransactionTimeRangeConstraint, H256, L2_ASSET_ROUTER_ADDRESS, L2_ASSET_ROUTER_LEGACY_SHARED_BRIDGE_IMMUTABLE_KEY, L2_ASSET_ROUTER_LEGACY_SHARED_BRIDGE_L1_CHAIN_ID_KEY, L2_LEGACY_SHARED_BRIDGE_BEACON_PROXY_BYTECODE_KEY, L2_LEGACY_SHARED_BRIDGE_L1_ADDRESSES_KEY, L2_LEGACY_SHARED_BRIDGE_UPGRADEABLE_BEACON_ADDRESS_KEY, L2_NATIVE_TOKEN_VAULT_ADDRESS, L2_NATIVE_TOKEN_VAULT_ASSET_ID_MAPPING_INDEX, U256};
+use zksync_types::{
+    address_to_h256, get_address_mapping_key, get_immutable_simulator_key, h256_to_address,
+    h256_to_u256, tx::execute::Create2DeploymentParams, utils::encode_ntv_asset_id, AccountTreeId,
+    Address, StorageKey, Transaction, TransactionTimeRangeConstraint, H256,
+    L2_ASSET_ROUTER_ADDRESS, L2_ASSET_ROUTER_LEGACY_SHARED_BRIDGE_IMMUTABLE_KEY,
+    L2_ASSET_ROUTER_LEGACY_SHARED_BRIDGE_L1_CHAIN_ID_KEY,
+    L2_LEGACY_SHARED_BRIDGE_BEACON_PROXY_BYTECODE_KEY, L2_LEGACY_SHARED_BRIDGE_L1_ADDRESSES_KEY,
+    L2_LEGACY_SHARED_BRIDGE_UPGRADEABLE_BEACON_ADDRESS_KEY, L2_NATIVE_TOKEN_VAULT_ADDRESS,
+    L2_NATIVE_TOKEN_VAULT_ASSET_ID_MAPPING_INDEX, U256,
+};
 
-/// A small trait that provides the interface to 
+/// A small trait that provides the interface to
 /// read a single storage key,
 /// Unlike `ReadStorage` trait, it is async.
 #[async_trait::async_trait]
@@ -97,13 +106,15 @@ fn extract_token_from_asset_router_deposit(
     Some(origin_token_address)
 }
 
-
 async fn calculate_expected_token_address(
     storage: &mut impl AsyncStorageKeyAccess,
     l2_legacy_shared_bridge_address: Address,
     l1_token_address: Address,
 ) -> anyhow::Result<Address> {
-    println!("cc l2_legacy_shared_bridge_address = {:#?}", l2_legacy_shared_bridge_address);
+    println!(
+        "cc l2_legacy_shared_bridge_address = {:#?}",
+        l2_legacy_shared_bridge_address
+    );
     println!("cc l1_token_address = {:#?}", l1_token_address);
 
     // The source of truth for this logic is `L2SharedBridgeLegacy._calculateCreate2TokenAddress`
@@ -112,17 +123,13 @@ async fn calculate_expected_token_address(
         AccountTreeId::new(l2_legacy_shared_bridge_address),
         L2_LEGACY_SHARED_BRIDGE_BEACON_PROXY_BYTECODE_KEY,
     );
-    let beacon_proxy_bytecode_hash = storage
-        .read_key(&beacon_proxy_bytecode_hash_key)
-        .await?;
+    let beacon_proxy_bytecode_hash = storage.read_key(&beacon_proxy_bytecode_hash_key).await?;
 
     let beacon_address_key = StorageKey::new(
         AccountTreeId::new(l2_legacy_shared_bridge_address),
         L2_LEGACY_SHARED_BRIDGE_UPGRADEABLE_BEACON_ADDRESS_KEY,
     );
-    let beacon_address = storage
-        .read_key(&beacon_address_key)
-        .await?;
+    let beacon_address = storage.read_key(&beacon_address_key).await?;
     let beacon_address = h256_to_address(&beacon_address);
 
     let params = Create2DeploymentParams {
@@ -153,9 +160,7 @@ async fn is_l2_token_legacy(
         AccountTreeId::new(l2_legacy_shared_bridge_address),
         get_address_mapping_key(&l2_token_address, L2_LEGACY_SHARED_BRIDGE_L1_ADDRESSES_KEY),
     );
-    let stored_l1_address = storage
-        .read_key(&stored_l1_address_key)
-        .await?;
+    let stored_l1_address = storage.read_key(&stored_l1_address_key).await?;
     let stored_l1_address = h256_to_address(&stored_l1_address);
 
     // No address is stored, it means that the token has never been bridged before
@@ -175,9 +180,7 @@ async fn is_l2_token_legacy(
             L2_NATIVE_TOKEN_VAULT_ASSET_ID_MAPPING_INDEX,
         ),
     );
-    let stored_asset_id = storage
-        .read_key(&stored_asset_id_key)
-        .await?;
+    let stored_asset_id = storage.read_key(&stored_asset_id_key).await?;
 
     Ok(stored_asset_id == H256::zero())
 }
@@ -205,9 +208,7 @@ pub async fn is_unsafe_deposit_present(
         L2_ASSET_ROUTER_LEGACY_SHARED_BRIDGE_IMMUTABLE_KEY,
     );
 
-    let legacy_l2_shared_bridge_addr = storage
-        .read_key(&legacy_bridge_key)
-        .await?;
+    let legacy_l2_shared_bridge_addr = storage.read_key(&legacy_bridge_key).await?;
     let legacy_l2_shared_bridge_addr = h256_to_address(&legacy_l2_shared_bridge_addr);
 
     // There is either no legacy bridge or the L2AssetRouter has not been depoyed yet.
@@ -216,14 +217,12 @@ pub async fn is_unsafe_deposit_present(
         return Ok(false);
     }
 
-    // In theory it could be fetched from config, but we do it here for consistency 
+    // In theory it could be fetched from config, but we do it here for consistency
     let l1_chain_id_key = get_immutable_simulator_key(
         &L2_ASSET_ROUTER_ADDRESS,
         L2_ASSET_ROUTER_LEGACY_SHARED_BRIDGE_L1_CHAIN_ID_KEY,
     );
-    let l1_chain_id = storage
-        .read_key(&l1_chain_id_key)
-        .await?;
+    let l1_chain_id = storage.read_key(&l1_chain_id_key).await?;
     let l1_chain_id = h256_to_u256(l1_chain_id);
 
     for (tx, _) in txs {

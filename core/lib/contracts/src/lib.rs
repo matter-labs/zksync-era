@@ -234,11 +234,15 @@ pub fn l2_rollup_da_validator_bytecode() -> Vec<u8> {
 }
 
 pub fn read_l1_zk_contract(name: &str) -> Vec<u8> {
-    read_bytecode(format!("contracts/l1-contracts/zkout/{name}.sol/{name}.json"))
+    read_bytecode(format!(
+        "contracts/l1-contracts/zkout/{name}.sol/{name}.json"
+    ))
 }
 
 pub fn load_l1_zk_contract(name: &str) -> Contract {
-  load_contract(format!("contracts/l1-contracts/zkout/{name}.sol/{name}.json"))
+    load_contract(format!(
+        "contracts/l1-contracts/zkout/{name}.sol/{name}.json"
+    ))
 }
 
 /// Reads bytecode from the path RELATIVE to the Cargo workspace location.
