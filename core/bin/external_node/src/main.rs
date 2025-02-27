@@ -68,6 +68,7 @@ pub enum Component {
     TreeApi,
     TreeFetcher,
     Core,
+    DataAvailabilityFetcher,
 }
 
 impl Component {
@@ -79,6 +80,7 @@ impl Component {
             "tree" => Ok(&[Component::Tree]),
             "tree_api" => Ok(&[Component::TreeApi]),
             "tree_fetcher" => Ok(&[Component::TreeFetcher]),
+            "da_fetcher" => Ok(&[Component::DataAvailabilityFetcher]),
             "core" => Ok(&[Component::Core]),
             "all" => Ok(&[
                 Component::HttpApi,
