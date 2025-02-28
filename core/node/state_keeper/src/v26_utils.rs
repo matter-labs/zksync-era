@@ -295,7 +295,12 @@ pub(crate) async fn find_unsafe_deposit(
                 return Ok(Some(tx.hash()));
             }
             LegacyTokenStatus::UnexpectedDifferentL1Address(expected, stored) => {
-                tracing::error!("Unexpected stored L1 token for L2 token {:l2_token_address?}. Expected: {:expected?}, Stored: {:stored?}");
+                tracing::error!(
+                    "Unexpected stored L1 token for L2 token {:#?}. Expected: {:#?}, Stored: {:#?}",
+                    l2_token_address,
+                    expected,
+                    stored
+                );
                 // We return this transaction to ensure that it is not processed
                 return Ok(Some(tx.hash()));
             }
