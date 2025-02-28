@@ -252,8 +252,12 @@ jobs:
           --observability=false
 
       - name: initialize ecosystem 2
-        run: 
+        run: |
           ci_run zkstack dev generate-genesis
+          ci_run rm -rf ./chains/era/configs/*
+          ci_run rm -rf ./chains/second/configs/*
+          ci_run rm -rf ./chains/gateway/configs/*
+
 
       - name: Initialize ecosystem 3
         run: |
