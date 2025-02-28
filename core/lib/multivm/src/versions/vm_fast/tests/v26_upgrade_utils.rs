@@ -3,21 +3,21 @@ use crate::{
         test_post_bridging_test_storage_logs, test_post_registration_storage_logs,
         test_trivial_test_storage_logs,
     },
-    vm_latest::{HistoryEnabled, Vm},
+    vm_fast::Vm,
 };
 
 #[test]
 fn trivial_test_storage_logs() {
-    test_trivial_test_storage_logs::<Vm<_, HistoryEnabled>>();
+    test_trivial_test_storage_logs::<Vm<_>>();
 }
 
 #[test]
 fn post_bridging_test_storage_logs() {
-    test_post_bridging_test_storage_logs::<Vm<_, HistoryEnabled>>();
+    test_post_bridging_test_storage_logs::<Vm<_>>();
 }
 
 #[test]
 fn post_registration_storage_logs() {
-    test_post_registration_storage_logs::<Vm<_, HistoryEnabled>>();
+    test_post_registration_storage_logs::<Vm<_>>();
 }
 

@@ -129,7 +129,6 @@ fn setup_v26_unsafe_deposits_detection<VM: TestedVm>() -> (VmTester<VM>, V26Test
 
     assert!(!result.result.is_failed());
 
-    println!("{:#?}", H256::from_low_u64_be(1));
     let l2_token_address = vm.storage.borrow_mut().read_value(&StorageKey::new(
         AccountTreeId::new(COMPLEX_UPGRADER_ADDRESS),
         H256::from_low_u64_be(0),
@@ -171,14 +170,7 @@ pub(crate) fn test_trivial_test_storage_logs<VM: TestedVm>() {
 
     let storage_ptr = vm.storage.clone();
     let borrowed = storage_ptr.borrow();
-
-    let tmp: Vec<_> = borrowed
-        .modified_storage_keys()
-        .clone()
-        .into_iter()
-        .collect();
-    println!("{}", serde_json::to_string(&tmp).unwrap());
-
+    
     assert_eq!(
         borrowed.modified_storage_keys().clone(),
         trivial_test_storage_logs()
@@ -251,141 +243,3 @@ pub(crate) fn test_post_registration_storage_logs<VM: TestedVm>() {
         post_registration_test_storage_logs()
     );
 }
-
-pub(crate) async fn test_v26_unsafe_deposit_detection_trivial<VM: TestedVm>() {
-    let (mut vm, test_data) = setup_v26_unsafe_deposits_detection::<VM>();
-
-    let l1_tx_regisrtation = Transaction {
-        common_data: ExecuteTransactionCommon::L1(L1TxCommonData {
-            sender: test_data.l1_aliased_shared_bridge,
-            gas_limit: 200_000_000u32.into(),
-            gas_per_pubdata_limit: REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE.into(),
-            ..Default::default()
-        }),
-        execute: Execute {
-            contract_address: Some(L2_NATIVE_TOKEN_VAULT_ADDRESS),
-            calldata: encode_regisration(test_data.l2_token_address),
-            value: Default::default(),
-            factory_deps: vec![],
-        },
-        received_timestamp_ms: 0,
-        raw_bytes: None,
-    };
-
-    vm.execute_tx_and_verify(TransactionTestInfo::new_processed(
-        l1_tx_regisrtation,
-        false,
-    ));
-
-    let storage_ptr = vm.storage.clone();
-    let borrowed = storage_ptr.borrow();
-
-    let keys: Vec<_> = borrowed
-        .modified_storage_keys()
-        .clone()
-        .into_iter()
-        .collect();
-    println!("{}", serde_json::to_string(&keys).unwrap());
-
-    // assert_eq!(borrowed.modified_storage_keys().clone(), trivial_test_storage_logs());
-
-    drop(vm);
-    drop(borrowed);
-    let inner = std::rc::Rc::try_unwrap(storage_ptr).unwrap().into_inner();
-
-    // // No transactions, obviously no bad deposits.
-    // assert_eq!(
-    //     is_unsafe_deposit_present(&[], &mut inner).await.unwrap(),
-    //     false
-    // );
-
-    // let l2_tx = Transaction {
-    //     common_data: ExecuteTransactionCommon::L2(Default::default()),
-    //     execute: Execute {
-    //         contract_address: Some(test_data.l2_legacy_shared_bridge_address),
-    //         calldata: encode_legacy_finalize_deposit(test_data.l1_token_address),
-    //         value: Default::default(),
-    //         factory_deps: vec![],
-    //     },
-    //     received_timestamp_ms: 0,
-    //     raw_bytes: None,
-    // };
-
-    // let l1_tx = Transaction {
-    //     common_data: ExecuteTransactionCommon::L1(Default::default()),
-    //     ..l2_tx.clone()
-    // };
-
-    // let l1_tx_new_deposit = Transaction {
-    //     common_data: ExecuteTransactionCommon::L1(Default::default()),
-    //     execute: Execute {
-    //         contract_address: Some(L2_ASSET_ROUTER_ADDRESS),
-    //         calldata: encode_new_finalize_deposit(
-    //             test_data.l1_chain_id,
-    //             test_data.l1_token_address,
-    //         ),
-    //         value: Default::default(),
-    //         factory_deps: vec![],
-    //     },
-    //     ..l2_tx.clone()
-    // };
-
-    // let l1_tx_new_deposit_bad_address = Transaction {
-    //     common_data: ExecuteTransactionCommon::L1(Default::default()),
-    //     execute: Execute {
-    //         contract_address: Some(Address::from_low_u64_be(1)),
-    //         calldata: encode_new_finalize_deposit(
-    //             test_data.l1_chain_id,
-    //             test_data.l1_token_address,
-    //         ),
-    //         value: Default::default(),
-    //         factory_deps: vec![],
-    //     },
-    //     ..l2_tx.clone()
-    // };
-
-    // // Even though the transaction could've been a legacy one, it is still accepted as it is an L2 one.
-    // assert_eq!(
-    //     is_unsafe_deposit_present(&[(l2_tx.clone(), Default::default())], &mut inner)
-    //         .await
-    //         .unwrap(),
-    //     false
-    // );
-
-    // // The second transaction is a legacy one and thus it should be accepted.
-    // assert_eq!(
-    //     is_unsafe_deposit_present(
-    //         &[(l2_tx, Default::default()), (l1_tx, Default::default())],
-    //         &mut inner
-    //     )
-    //     .await
-    //     .unwrap(),
-    //     false
-    // );
-
-    // // The second transaction is a legacy one and thus it should be accepted.
-    // assert_eq!(
-    //     is_unsafe_deposit_present(&[(l1_tx_new_deposit, Default::default())], &mut inner)
-    //         .await
-    //         .unwrap(),
-    //     false
-    // );
-
-    // // The second transaction is a legacy one and thus it should be accepted.
-    // assert_eq!(
-    //     is_unsafe_deposit_present(
-    //         &[(l1_tx_new_deposit_bad_address, Default::default())],
-    //         &mut inner
-    //     )
-    //     .await
-    //     .unwrap(),
-    //     false
-    // );
-}
-
-// #[async_trait::async_trait]
-// impl AsyncStorageKeyAccess for StorageView<InMemoryStorage> {
-//     async fn read_key(&mut self, key: &StorageKey) -> anyhow::Result<H256> {
-//         Ok(self.read_value(key))
-//     }
-// }

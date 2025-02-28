@@ -49,6 +49,7 @@ mod storage;
 mod tracing_execution_error;
 mod transfer;
 mod upgrade;
+mod v26_upgrade_utils;
 
 trait ObjectSafeEq: fmt::Debug + AsRef<dyn Any> {
     fn eq(&self, other: &dyn ObjectSafeEq) -> bool;
