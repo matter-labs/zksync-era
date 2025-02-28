@@ -1,12 +1,10 @@
 use std::{
     collections::HashMap,
-    sync::Arc,
     time::{Duration, Instant},
 };
 
 use reqwest::Client;
 use serde::Deserialize;
-use tokio::sync::Mutex;
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -111,13 +109,13 @@ const SOLC_VERSIONS: &[(&str, &str)] = &[
     ("0.8.28", "0.8.28+commit.7893614a"),
 ];
 
-/// Fetches solc long versions from the official solc-bin repository.
-/// Long build versions are required for verifying contracts on Etherscan.
+/// Fetches solc long versions from the official solc-bin repository. Long build versions are required for verifying
+/// contracts on Etherscan.
 #[derive(Debug, Clone)]
 pub(super) struct SolcVersionsFetcher {
     http_client: Client,
     solc_long_versions: HashMap<String, String>,
-    last_update: Arc<Mutex<Option<Instant>>>,
+    last_update: Option<Instant>,
 }
 
 impl Default for SolcVersionsFetcher {
@@ -145,7 +143,7 @@ impl SolcVersionsFetcher {
         Self {
             http_client: client,
             solc_long_versions,
-            last_update: Arc::new(Mutex::new(None)),
+            last_update: None,
         }
     }
 
@@ -161,12 +159,11 @@ impl SolcVersionsFetcher {
         Duration::from_secs(60 * 30) // 30 minutes
     }
 
-    /// Updates solc long versions from the official solc-bin repository.
-    /// Internally cached so the actual update will happen only once per update interval.
+    /// Updates solc long versions from the official solc-bin repository. Internally cached so the actual update will
+    /// happen only once per update interval.
     pub async fn update_versions(&mut self) -> anyhow::Result<()> {
-        let mut last_update = self.last_update.lock().await;
         // Skip update if the update interval hasn't passed yet
-        if let Some(time) = *last_update {
+        if let Some(time) = self.last_update {
             if time.elapsed() < Self::update_interval() {
                 return Ok(());
             }
@@ -181,7 +178,7 @@ impl SolcVersionsFetcher {
                     .insert(build.version, build.long_version);
             }
         }
-        *last_update = Some(Instant::now());
+        self.last_update = Some(Instant::now());
         tracing::info!("Successfully updated solc long versions");
         Ok(())
     }

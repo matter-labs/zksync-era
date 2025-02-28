@@ -21,11 +21,11 @@ pub(super) enum EtherscanError {
     DailyVerificationRequestsLimitExceeded,
     #[error("Received error response: message={message}, result={result}")]
     ErrorResponse { message: String, result: String },
-    #[error("Etherscan API key is invalid even though it has no expiration date. Either Etherscan API is experiencing issues or the key was revoked.")]
+    #[error("Etherscan API key is invalid even though it has no expiration date. Either Etherscan API is experiencing issues or the key was revoked")]
     InvalidApiKey,
-    #[error("The request has been blocked by Cloudflare.")]
+    #[error("The request has been blocked by Cloudflare")]
     BlockedByCloudflare,
-    #[error("The request prompted a Cloudflare captcha security challenge.")]
+    #[error("The request prompted a Cloudflare captcha security challenge")]
     CloudflareSecurityChallenge,
     #[error("Received `Page not found` response. API server is likely down")]
     PageNotFound,
@@ -35,10 +35,14 @@ pub(super) enum EtherscanError {
 
 #[derive(Debug, thiserror::Error)]
 pub(super) enum ProcessingError {
-    #[error("Get verification status timed out. Failing the verification process.")]
+    #[error("Get verification status timed out. Failing the verification process")]
     VerificationStatusPollingTimeout,
     #[error("Database related error")]
     DalError(#[from] DalError),
+    #[error("Unsupported source code data format")]
+    UnsupportedSourceCodeFormat,
+    #[error("Unsupported compiler version")]
+    UnsupportedCompilerVersion,
 }
 
 #[derive(Debug, thiserror::Error)]

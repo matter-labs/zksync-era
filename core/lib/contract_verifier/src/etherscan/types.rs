@@ -8,9 +8,34 @@ use zksync_types::contract_verification::api::{
 
 use super::{
     errors::EtherscanError, solc_versions_fetcher::SolcVersionsFetcher,
-    utils::normalize_solc_version,
+    utils::normalize_solc_version, ProcessingError, VerifierError,
 };
 use crate::Address;
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub(super) enum CompilerMode {
+    Solc,
+    ZkSync,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub(super) enum OptimizationUsed {
+    #[serde(rename = "1")]
+    Yes,
+    #[serde(rename = "0")]
+    No,
+}
+
+impl From<bool> for OptimizationUsed {
+    fn from(used: bool) -> Self {
+        if used {
+            OptimizationUsed::Yes
+        } else {
+            OptimizationUsed::No
+        }
+    }
+}
 
 /// EtherscanVerificationRequest struct represents the request that is sent to the Etherscan API.
 #[derive(Debug, Clone, Serialize)]
@@ -26,10 +51,9 @@ pub(super) struct EtherscanVerificationRequest {
     pub compiler_zksolc_version: Option<String>,
     #[serde(rename = "compilerversion")]
     pub compiler_solc_version: String,
-    // solc / zksync
     #[serde(rename = "compilermode")]
-    pub compiler_mode: String,
-    pub optimization_used: String,
+    pub compiler_mode: CompilerMode,
+    pub optimization_used: OptimizationUsed,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub optimizer_mode: Option<String>,
     #[serde(rename = "constructorArguements")]
@@ -44,7 +68,7 @@ impl EtherscanVerificationRequest {
     pub fn from_verification_request(
         request: VerificationIncomingRequest,
         solc_versions_fetcher: &SolcVersionsFetcher,
-    ) -> Self {
+    ) -> anyhow::Result<Self, VerifierError> {
         let (code_format, source_code, contract_name) = match request.source_code_data {
             SourceCodeData::SolSingleFile(data) => {
                 // Extract the actual contract name if the full path is provided
@@ -60,8 +84,7 @@ impl EtherscanVerificationRequest {
                 serde_json::to_string(&data).unwrap(),
                 request.contract_name,
             ),
-            // Should never happen as only sol and json code data are supposed to get here
-            _ => panic!("Unsupported source code data format"),
+            _ => return Err(ProcessingError::UnsupportedSourceCodeFormat.into()),
         };
 
         let (compiler_zksolc_version, compiler_solc_version) = match request.compiler_versions {
@@ -72,18 +95,16 @@ impl EtherscanVerificationRequest {
                 compiler_zksolc_version,
                 normalize_solc_version(compiler_solc_version, solc_versions_fetcher),
             ),
-            // Should never happen as only sol and json code data are supposed to get here
-            _ => panic!("Unsupported compiler version"),
+            _ => return Err(ProcessingError::UnsupportedCompilerVersion.into()),
         };
 
-        let compiler_mode = (if compiler_zksolc_version.is_some() {
-            "zksync"
+        let compiler_mode = if compiler_zksolc_version.is_some() {
+            CompilerMode::ZkSync
         } else {
-            "solc"
-        })
-        .to_string();
+            CompilerMode::Solc
+        };
 
-        EtherscanVerificationRequest {
+        Ok(EtherscanVerificationRequest {
             contract_address: request.contract_address,
             code_format,
             source_code,
@@ -91,13 +112,13 @@ impl EtherscanVerificationRequest {
             compiler_zksolc_version,
             compiler_solc_version,
             compiler_mode,
-            optimization_used: (if request.optimization_used { "1" } else { "0" }).to_string(),
+            optimization_used: request.optimization_used.into(),
             optimizer_mode: request.optimizer_mode,
             constructor_arguments: hex::encode(&request.constructor_arguments.0),
             is_system: request.is_system,
             force_evmla: request.force_evmla,
             evm_specific: request.evm_specific,
-        }
+        })
     }
 }
 
@@ -151,8 +172,8 @@ impl RawEtherscanResponse {
                 if result_lower.contains("pending") {
                     return EtherscanError::VerificationPending;
                 }
-                // There is a number of daily limit in between the checked values.
-                // I don't want to rely on the exact number as it is a subject to change.
+                // There is a number of daily limit in between the checked values. I don't want to rely on the exact
+                // number as it is a subject to change.
                 if result_lower.starts_with("daily limit")
                     && result.ends_with("source code submissions reached")
                 {
@@ -229,7 +250,12 @@ impl EtherscanAction {
 
 #[cfg(test)]
 mod tests {
-    use zksync_types::{web3::Bytes, Address};
+    use serde_json;
+    use zksync_types::{
+        contract_verification::api::{CompilerVersions, SourceCodeData},
+        web3::Bytes,
+        Address,
+    };
 
     use super::*;
 
@@ -259,7 +285,8 @@ mod tests {
         let etherscan_request = EtherscanVerificationRequest::from_verification_request(
             request.clone(),
             &SolcVersionsFetcher::new(),
-        );
+        )
+        .unwrap();
         assert_eq!(etherscan_request.contract_address, Address::default());
         assert_eq!(
             etherscan_request.code_format,
@@ -272,8 +299,8 @@ mod tests {
             etherscan_request.compiler_solc_version,
             "v0.8.16+commit.07a7930e".to_string()
         );
-        assert_eq!(etherscan_request.compiler_mode, "solc".to_string());
-        assert_eq!(etherscan_request.optimization_used, "1".to_string());
+        assert_eq!(etherscan_request.compiler_mode, CompilerMode::Solc);
+        assert_eq!(etherscan_request.optimization_used, OptimizationUsed::Yes);
         assert_eq!(etherscan_request.optimizer_mode, Some("3".to_string()));
         assert_eq!(
             etherscan_request.constructor_arguments,
@@ -301,7 +328,8 @@ mod tests {
         let etherscan_request = EtherscanVerificationRequest::from_verification_request(
             request.clone(),
             &SolcVersionsFetcher::new(),
-        );
+        )
+        .unwrap();
         assert_eq!(etherscan_request.contract_address, Address::default());
         assert_eq!(
             etherscan_request.code_format,
@@ -317,8 +345,8 @@ mod tests {
             etherscan_request.compiler_solc_version,
             "v0.8.16+commit.07a7930e".to_string()
         );
-        assert_eq!(etherscan_request.compiler_mode, "zksync".to_string());
-        assert_eq!(etherscan_request.optimization_used, "0".to_string());
+        assert_eq!(etherscan_request.compiler_mode, CompilerMode::ZkSync);
+        assert_eq!(etherscan_request.optimization_used, OptimizationUsed::No);
         assert_eq!(etherscan_request.optimizer_mode, None);
         assert_eq!(
             etherscan_request.constructor_arguments,
@@ -358,7 +386,8 @@ mod tests {
         let etherscan_request = EtherscanVerificationRequest::from_verification_request(
             request.clone(),
             &SolcVersionsFetcher::new(),
-        );
+        )
+        .unwrap();
         assert_eq!(etherscan_request.contract_address, Address::default());
         assert_eq!(
             etherscan_request.code_format,
@@ -377,8 +406,8 @@ mod tests {
             etherscan_request.compiler_solc_version,
             "v0.8.19-1.0.0".to_string()
         );
-        assert_eq!(etherscan_request.compiler_mode, "zksync".to_string());
-        assert_eq!(etherscan_request.optimization_used, "1".to_string());
+        assert_eq!(etherscan_request.compiler_mode, CompilerMode::ZkSync);
+        assert_eq!(etherscan_request.optimization_used, OptimizationUsed::Yes);
         assert_eq!(etherscan_request.optimizer_mode, None);
         assert_eq!(
             etherscan_request.constructor_arguments,
@@ -387,6 +416,45 @@ mod tests {
         assert!(!etherscan_request.is_system);
         assert!(!etherscan_request.force_evmla);
         assert_eq!(etherscan_request.evm_specific, request.evm_specific);
+    }
+
+    #[test]
+    fn test_unsupported_source_code_format() {
+        let mut request = super::tests::get_default_verification_request();
+        let unsupported_source: SourceCodeData = SourceCodeData::YulSingleFile("dummy".to_string());
+        request.source_code_data = unsupported_source;
+
+        let result = EtherscanVerificationRequest::from_verification_request(
+            request,
+            &SolcVersionsFetcher::new(),
+        );
+        assert!(matches!(
+            result,
+            Err(VerifierError::ProcessingError(
+                ProcessingError::UnsupportedSourceCodeFormat
+            ))
+        ));
+    }
+
+    #[test]
+    fn test_unsupported_compiler_version() {
+        let mut request = super::tests::get_default_verification_request();
+        let unsupported_compiler: CompilerVersions = CompilerVersions::Vyper {
+            compiler_zkvyper_version: Some("compiler_zkvyper_version".to_string()),
+            compiler_vyper_version: "compiler_vyper_version".to_string(),
+        };
+        request.compiler_versions = unsupported_compiler;
+
+        let result = EtherscanVerificationRequest::from_verification_request(
+            request,
+            &SolcVersionsFetcher::new(),
+        );
+        assert!(matches!(
+            result,
+            Err(VerifierError::ProcessingError(
+                ProcessingError::UnsupportedCompilerVersion
+            ))
+        ));
     }
 
     #[test]
@@ -538,7 +606,8 @@ mod tests {
         let response = RawEtherscanResponse {
             status: "1".to_string(),
             message: "message".to_string(),
-            result: serde_json::Value::Object(serde_json::Map::new()), // Invalid value for String
+            // Invalid value for String
+            result: serde_json::Value::Object(serde_json::Map::new()),
         };
         let result: Result<String, _> = response.deserialize_result();
         assert!(matches!(

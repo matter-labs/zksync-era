@@ -3,7 +3,9 @@ use std::time::Duration;
 use chrono::{DateTime, Utc};
 use sqlx::postgres::types::PgInterval;
 use zksync_db_connection::instrument::InstrumentExt;
-use zksync_types::contract_verification::api::{EtherscanVerification, VerificationRequest};
+use zksync_types::contract_verification::{
+    api::VerificationRequest, etherscan::EtherscanVerification,
+};
 
 use crate::{
     models::storage_verification_request::StorageEtherscanVerificationRequest, Connection, Core,
@@ -31,8 +33,8 @@ pub struct EtherscanVerificationDal<'a, 'c> {
 }
 
 impl EtherscanVerificationDal<'_, '_> {
-    /// Inserts a new etherscan verification request
-    /// which is linked to the original contract verification request by its ID.
+    /// Inserts a new etherscan verification request which is linked to the original contract verification request by
+    /// its ID.
     pub async fn add_verification_request(
         &mut self,
         contract_verification_request_id: usize,
@@ -51,18 +53,16 @@ impl EtherscanVerificationDal<'_, '_> {
             "#,
             contract_verification_request_id as i64,
         )
-        .instrument("save_verification_info#add_etherscan_request")
+        .instrument("add_verification_request")
         .with_arg("id", &contract_verification_request_id)
         .execute(self.storage)
         .await?;
         Ok(())
     }
 
-    /// Returns the next verification request that is to be sent to Etherscan.
-    /// Selects the request id from etherscan_verification_requests
-    /// and then returns the actual request from joined contract_verification_requests.
-    /// Handles the situation where processing of some request
-    /// can be interrupted (panic, pod restart, etc..),
+    /// Returns the next verification request that is to be sent to Etherscan. Selects the request id from
+    /// etherscan_verification_requests and then returns the actual request from joined contract_verification_requests.
+    /// Handles the situation where processing of some request can be interrupted (panic, pod restart, etc..),
     /// `processing_timeout` parameter is used to avoid stuck requests.
     pub async fn get_next_queued_verification_request(
         &mut self,
@@ -118,7 +118,7 @@ impl EtherscanVerificationDal<'_, '_> {
             "#,
             &processing_timeout
         )
-        .instrument("get_next_queued_etherscan_verification_request")
+        .instrument("get_next_queued_verification_request")
         .with_arg("processing_timeout", &processing_timeout)
         .fetch_optional(self.storage)
         .await?
@@ -171,7 +171,7 @@ impl EtherscanVerificationDal<'_, '_> {
             status.as_str(),
             error,
         )
-        .instrument("save_etherscan_verification_result")
+        .instrument("save_verification_result")
         .with_arg("request_id", &request_id)
         .with_arg("error", &error)
         .execute(self.storage)

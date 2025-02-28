@@ -151,13 +151,6 @@ pub struct VerificationIncomingRequest {
     pub evm_specific: VerificationEvmSettings,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct EtherscanVerification {
-    pub etherscan_verification_id: Option<String>,
-    pub attempts: i32,
-    pub retry_at: Option<DateTime<Utc>>,
-}
-
 /// Settings for EVM verification, used only if
 /// `SourceCodeData` is `SolSingleFile`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]

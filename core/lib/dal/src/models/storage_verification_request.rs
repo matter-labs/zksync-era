@@ -1,8 +1,11 @@
 use chrono::{DateTime, NaiveDateTime, Utc};
 use zksync_types::{
-    contract_verification::api::{
-        CompilerType, CompilerVersions, EtherscanVerification, SourceCodeData,
-        VerificationIncomingRequest, VerificationRequest,
+    contract_verification::{
+        api::{
+            CompilerType, CompilerVersions, SourceCodeData, VerificationIncomingRequest,
+            VerificationRequest,
+        },
+        etherscan::EtherscanVerification,
     },
     Address,
 };
