@@ -1,10 +1,8 @@
 use std::fmt;
 
 use chrono::{DateTime, TimeZone, Utc};
-use zksync_basic_types::{
-    ethabi::{self, encode},
-    Address, H256,
-};
+use zksync_basic_types::{commitment::PubdataType, encode, Address, H256};
+use zksync_da_client::types::ClientType;
 use zksync_system_constants::L2_NATIVE_TOKEN_VAULT_ADDRESS;
 
 use crate::{
@@ -91,6 +89,16 @@ pub fn storage_key_for_standard_token_balance(
 
 pub fn storage_key_for_eth_balance(address: &Address) -> StorageKey {
     storage_key_for_standard_token_balance(AccountTreeId::new(L2_BASE_TOKEN_ADDRESS), address)
+}
+
+pub fn client_type_to_pubdata_type(client_type: ClientType) -> PubdataType {
+    match client_type {
+        ClientType::NoDA => PubdataType::NoDA,
+        ClientType::Avail => PubdataType::Avail,
+        ClientType::Celestia => PubdataType::Celestia,
+        ClientType::Eigen => PubdataType::Eigen,
+        ClientType::ObjectStore => PubdataType::ObjectStore,
+    }
 }
 
 /// Pre-calculates the address of the to-be-deployed EraVM contract (via CREATE, not CREATE2).
