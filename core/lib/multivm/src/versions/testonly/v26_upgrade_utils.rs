@@ -170,7 +170,7 @@ pub(crate) fn test_trivial_test_storage_logs<VM: TestedVm>() {
 
     let storage_ptr = vm.storage.clone();
     let borrowed = storage_ptr.borrow();
-    
+
     assert_eq!(
         borrowed.modified_storage_keys().clone(),
         trivial_test_storage_logs()

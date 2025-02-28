@@ -20,4 +20,3 @@ fn post_bridging_test_storage_logs() {
 fn post_registration_storage_logs() {
     test_post_registration_storage_logs::<Vm<_, HistoryEnabled>>();
 }
-
