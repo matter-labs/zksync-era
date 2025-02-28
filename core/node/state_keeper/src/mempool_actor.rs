@@ -17,7 +17,7 @@ use zksync_types::{
     address_to_h256, ethabi::{self, Param, ParamType, Token}, get_address_mapping_key, get_immutable_simulator_key, get_nonce_key, h256_to_address, h256_to_u256, hasher::keccak, tx::execute::Create2DeploymentParams, utils::encode_ntv_asset_id, vm::VmVersion, web3::keccak256, AccountTreeId, Address, Nonce, StorageKey, Transaction, TransactionTimeRangeConstraint, H256, L2_ASSET_ROUTER_ADDRESS, L2_ASSET_ROUTER_LEGACY_SHARED_BRIDGE_IMMUTABLE_KEY, L2_ASSET_ROUTER_LEGACY_SHARED_BRIDGE_L1_CHAIN_ID_KEY, L2_LEGACY_SHARED_BRIDGE_BEACON_PROXY_BYTECODE_KEY, L2_LEGACY_SHARED_BRIDGE_L1_ADDRESSES_KEY, L2_LEGACY_SHARED_BRIDGE_UPGRADEABLE_BEACON_ADDRESS_KEY, L2_NATIVE_TOKEN_VAULT_ADDRESS, L2_NATIVE_TOKEN_VAULT_ASSET_ID_MAPPING_INDEX, U256
 };
 
-use crate::v26_utils::is_unsafe_deposit_present;
+use crate::v26_utils::find_unsafe_deposit;
 
 use super::{metrics::KEEPER_METRICS, types::MempoolGuard};
 
@@ -45,6 +45,7 @@ pub struct MempoolFetcher {
     sync_interval: Duration,
     sync_batch_size: usize,
     stuck_tx_timeout: Option<Duration>,
+    skip_unsafe_deposit_checks: bool,
     #[cfg(test)]
     transaction_hashes_sender: mpsc::UnboundedSender<Vec<H256>>,
 }
@@ -62,6 +63,7 @@ impl MempoolFetcher {
             sync_interval: config.sync_interval(),
             sync_batch_size: config.sync_batch_size,
             stuck_tx_timeout: config.remove_stuck_txs.then(|| config.stuck_tx_timeout()),
+            skip_unsafe_deposit_checks: config.skip_unsafe_deposit_checks,
             #[cfg(test)]
             transaction_hashes_sender: mpsc::unbounded_channel().0,
         }
@@ -138,13 +140,20 @@ impl MempoolFetcher {
                 .await
                 .context("failed syncing mempool")?;
 
-            let exclude_l1_txs = is_unsafe_deposit_present(
+            let unsafe_deposit = if !self.skip_unsafe_deposit_checks { 
+                find_unsafe_deposit(
                 &transactions_with_constraints,
                 &mut storage,
-            )
-            .await?;
+                )
+                .await?
+            } else {
+                // We do not check for the unsafe deposits, so we just treat all deposits as "safe"
+                None
+            };
 
-            let transactions_with_constraints = if exclude_l1_txs {
+            let transactions_with_constraints = if let Some(hash) = unsafe_deposit {
+                tracing::warn!("Transaction with hash {:#?} is an unsafe deposit. All L1->L2 transactions are returned to mempool.", hash);
+
                 let hashes: Vec<_> = transactions_with_constraints
                     .iter()
                     .map(|x| x.0.hash())
@@ -249,6 +258,7 @@ mod tests {
         stuck_tx_timeout: 0,
         remove_stuck_txs: false,
         delay_interval: 10,
+        skip_unsafe_deposit_checks: false
     };
 
     #[tokio::test]

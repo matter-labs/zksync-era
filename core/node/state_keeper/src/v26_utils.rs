@@ -188,10 +188,10 @@ async fn is_l2_token_legacy(
 /// Note, that the purpose of this function is not to find unsafe deposits *only*
 /// but detect whether they may be present at all. It does check that, e.g. the sender
 /// of the transactions is the correct l1 bridge.
-pub(crate) async fn is_unsafe_deposit_present(
+pub(crate) async fn find_unsafe_deposit(
     txs: &[(Transaction, TransactionTimeRangeConstraint)],
     storage: &mut Connection<'_, Core>,
-) -> anyhow::Result<bool> {
+) -> anyhow::Result<Option<H256>> {
     // The rules are the following:
     // - All L2 transactions are allowed
     // - L1 transactions are allowed only if it is a deposit to an already registered token or
@@ -209,7 +209,7 @@ pub(crate) async fn is_unsafe_deposit_present(
     // There is either no legacy bridge or the L2AssetRouter has not been depoyed yet.
     // In both cases, there can be no unsafe deposits.
     if legacy_l2_shared_bridge_addr == Address::zero() {
-        return Ok(false);
+        return Ok(None);
     }
 
     // In theory it could be fetched from config, but we do it here for consistency
@@ -258,11 +258,11 @@ pub(crate) async fn is_unsafe_deposit_present(
         )
         .await?
         {
-            return Ok(true);
+            return Ok(Some(tx.hash()));
         }
     }
 
-    Ok(false)
+    Ok(None)
 }
 
 #[cfg(test)]
@@ -333,7 +333,7 @@ mod tests {
 
     async fn test_is_unsafe_deposit_present(
         storage_logs: HashMap<StorageKey, H256>,
-        txs: Vec<(Vec<Transaction>, bool)>
+        txs: Vec<(Vec<Transaction>, Option<H256>)>
     ) {
         let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
         let mut storage = pool.connection().await.unwrap();
@@ -351,7 +351,7 @@ mod tests {
         for (txs, result) in txs {
             let txs_with_constrains: Vec<_> = txs.into_iter().map(|tx| (tx, Default::default())).collect();
             assert_eq!(
-                is_unsafe_deposit_present(&txs_with_constrains, &mut storage).await.unwrap(),
+                find_unsafe_deposit(&txs_with_constrains, &mut storage).await.unwrap(),
                 result
             );
         }
@@ -362,11 +362,11 @@ mod tests {
         test_is_unsafe_deposit_present(
             post_bridging_test_storage_logs(),
             vec![
-                (vec![], false),
-                (vec![get_l2_dummy_bridging_tx()], false),
-                (vec![get_l2_dummy_bridging_tx(), get_l1_bridging_tx()], false),
-                (vec![get_l1_new_bridging_tx()], false),
-                (vec![get_l1_new_deposit_bad_address()], false)
+                (vec![], None),
+                (vec![get_l2_dummy_bridging_tx()], None),
+                (vec![get_l2_dummy_bridging_tx(), get_l1_bridging_tx()], None),
+                (vec![get_l1_new_bridging_tx()], None),
+                (vec![get_l1_new_deposit_bad_address()], None)
             ]
         ).await;
     }
@@ -376,11 +376,11 @@ mod tests {
         test_is_unsafe_deposit_present(
             post_registration_test_storage_logs(),
             vec![
-                (vec![], false),
-                (vec![get_l2_dummy_bridging_tx()], false),
-                (vec![get_l2_dummy_bridging_tx(), get_l1_bridging_tx()], false),
-                (vec![get_l1_new_bridging_tx()], false),
-                (vec![get_l1_new_deposit_bad_address()], false)
+                (vec![], None),
+                (vec![get_l2_dummy_bridging_tx()], None),
+                (vec![get_l2_dummy_bridging_tx(), get_l1_bridging_tx()], None),
+                (vec![get_l1_new_bridging_tx()], None),
+                (vec![get_l1_new_deposit_bad_address()], None)
             ]
         ).await;
     }
@@ -390,11 +390,11 @@ mod tests {
         test_is_unsafe_deposit_present(
             trivial_test_storage_logs(),
             vec![
-                (vec![], false),
-                (vec![get_l2_dummy_bridging_tx()], false),
-                (vec![get_l2_dummy_bridging_tx(), get_l1_bridging_tx()], true),
-                (vec![get_l1_new_bridging_tx()], true),
-                (vec![get_l1_new_deposit_bad_address()], false)
+                (vec![], None),
+                (vec![get_l2_dummy_bridging_tx()], None),
+                (vec![get_l2_dummy_bridging_tx(), get_l1_bridging_tx()], Some(get_l1_bridging_tx().hash())),
+                (vec![get_l1_new_bridging_tx()], Some(get_l1_new_bridging_tx().hash())),
+                (vec![get_l1_new_deposit_bad_address()], None)
             ]
         ).await;
     }

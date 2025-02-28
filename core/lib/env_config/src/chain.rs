@@ -172,6 +172,7 @@ mod tests {
             stuck_tx_timeout: 10,
             remove_stuck_txs: true,
             delay_interval: 100,
+            skip_unsafe_deposit_checks: false
         }
     }
 
