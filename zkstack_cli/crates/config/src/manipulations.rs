@@ -14,7 +14,9 @@ pub fn copy_configs(shell: &Shell, link_to_code: &Path, target_path: &Path) -> a
         if let Some(name) = file.file_name() {
             // Do not copy wallets file
             if name != WALLETS_FILE {
-                shell.copy_file(file, target_path)?;
+                let dest = target_path.join(name);
+                // kl todo, check with Danil
+                shell.copy_file(file, &dest)?;
             }
         }
     }
