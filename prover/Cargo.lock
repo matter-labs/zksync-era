@@ -8636,12 +8636,12 @@ name = "zksync_multivm"
 version = "26.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
- "async-trait",
  "circuit_sequencer_api",
  "ethabi",
  "hex",
  "itertools 0.10.5",
  "once_cell",
+ "serde_json",
  "thiserror 1.0.69",
  "tracing",
  "vise",
@@ -8654,6 +8654,7 @@ dependencies = [
  "zksync_mini_merkle_tree",
  "zksync_system_constants",
  "zksync_types",
+ "zksync_utils",
  "zksync_vm2",
  "zksync_vm_interface",
 ]

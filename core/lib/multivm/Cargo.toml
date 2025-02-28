@@ -20,12 +20,12 @@ zksync_vm2.workspace = true
 
 circuit_sequencer_api.workspace = true
 
-async-trait.workspace = true
 zksync_types.workspace = true
 zksync_contracts.workspace = true
 zksync_system_constants.workspace = true
 zksync_vm_interface.workspace = true
 zksync_mini_merkle_tree.workspace = true
+zksync_utils.workspace = true
 
 anyhow.workspace = true
 hex.workspace = true
@@ -35,6 +35,7 @@ thiserror.workspace = true
 tracing.workspace = true
 vise.workspace = true
 ethabi.workspace = true
+serde_json.workspace = true
 
 [dev-dependencies]
 assert_matches.workspace = true
@@ -43,5 +44,3 @@ rand.workspace = true
 test-casing.workspace = true
 zksync_eth_signer.workspace = true
 zksync_test_contracts.workspace = true
-tokio = { workspace = true, features = ["macros"] }
-serde_json.workspace = true

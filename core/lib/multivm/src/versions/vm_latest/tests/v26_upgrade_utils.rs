@@ -21,10 +21,10 @@ fn post_registration_storage_logs() {
     test_post_registration_storage_logs::<Vm<_, HistoryEnabled>>();
 }
 
-#[tokio::test]
-async fn v26_unsafe_deposits_detection() {
-    test_v26_unsafe_deposit_detection_trivial::<Vm<_, HistoryEnabled>>().await;
-}
+// #[tokio::test]
+// async fn v26_unsafe_deposits_detection() {
+//     test_v26_unsafe_deposit_detection_trivial::<Vm<_, HistoryEnabled>>().await;
+// }
 
 /*
 

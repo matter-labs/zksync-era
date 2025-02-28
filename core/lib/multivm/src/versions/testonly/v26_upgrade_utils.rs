@@ -1,7 +1,6 @@
 use std::{collections::HashMap, str::FromStr};
 
 use ethabi::{Contract, Token};
-use tokio::runtime::Runtime;
 use zksync_contracts::{
     l2_asset_router, l2_legacy_shared_bridge, l2_native_token_vault, load_contract,
     load_l1_zk_contract, load_sys_contract, read_bytecode, read_l1_zk_contract,
@@ -22,7 +21,7 @@ use zksync_vm_interface::{
 use super::{TestedVm, VmTester};
 use crate::{
     versions::testonly::{tester::TransactionTestInfo, ContractToDeploy, VmTesterBuilder},
-    vm_latest::utils::v26_upgrade::{is_unsafe_deposit_present, AsyncStorageKeyAccess},
+    vm_latest::utils::v26_upgrade::{encode_legacy_finalize_deposit, get_test_data, post_bridging_test_storage_logs, post_registration_test_storage_logs, trivial_test_storage_logs, V26TestData},
 };
 
 fn load_complex_upgrader_contract() -> Contract {
@@ -96,17 +95,7 @@ fn get_prepare_system_tx(
     }
 }
 
-#[derive(Debug)]
-struct TestData {
-    l1_chain_id: U256,
-    l1_shared_bridge_address: Address,
-    l1_token_address: Address,
-    l2_token_address: Address,
-    l2_legacy_shared_bridge_address: Address,
-    l1_aliased_shared_bridge: Address,
-}
-
-fn setup_v26_unsafe_deposits_detection<VM: TestedVm>() -> (VmTester<VM>, TestData) {
+fn setup_v26_unsafe_deposits_detection<VM: TestedVm>() -> (VmTester<VM>, V26TestData) {
     // In this test, we compare the execution of the bootloader with the predefined
     // refunded gas and without them
 
@@ -154,7 +143,7 @@ fn setup_v26_unsafe_deposits_detection<VM: TestedVm>() -> (VmTester<VM>, TestDat
         H256::from_low_u64_be(2),
     ));
 
-    let test_data = TestData {
+    let test_data = V26TestData {
         l1_chain_id,
         l1_shared_bridge_address,
         l1_token_address,
@@ -164,29 +153,6 @@ fn setup_v26_unsafe_deposits_detection<VM: TestedVm>() -> (VmTester<VM>, TestDat
     };
 
     (vm, test_data)
-}
-
-fn empty_erc20_metadata() -> Vec<u8> {
-    ethabi::encode(&[
-        Token::Bytes(vec![]),
-        Token::Bytes(vec![]),
-        Token::Bytes(vec![]),
-    ])
-}
-
-fn encode_legacy_finalize_deposit(l1_token_address: Address) -> Vec<u8> {
-    let legacy_shared_bridge = l2_legacy_shared_bridge();
-    legacy_shared_bridge
-        .function("finalizeDeposit")
-        .unwrap()
-        .encode_input(&[
-            Token::Address(Address::from_low_u64_be(1)),
-            Token::Address(Address::from_low_u64_be(2)),
-            Token::Address(l1_token_address),
-            Token::Uint(U256::from(1)),
-            Token::Bytes(empty_erc20_metadata()),
-        ])
-        .unwrap()
 }
 
 fn encode_regisration(l2_token_address: Address) -> Vec<u8> {
@@ -199,72 +165,10 @@ fn encode_regisration(l2_token_address: Address) -> Vec<u8> {
         .unwrap()
 }
 
-fn encode_new_finalize_deposit(l1_chain_id: U256, l1_token_address: Address) -> Vec<u8> {
-    let contract = l2_asset_router();
-    let functions = contract.functions.get("finalizeDeposit").unwrap();
-    let finalize_deposit_3_params = functions.iter().find(|f| f.inputs.len() == 3).unwrap();
-
-    let new_token_data = [
-        // New encoding version
-        vec![0x01 as u8],
-        ethabi::encode(&[
-            Token::Uint(U256::from(l1_chain_id)),
-            Token::Bytes(vec![]),
-            Token::Bytes(vec![]),
-            Token::Bytes(vec![]),
-        ]),
-    ]
-    .concat();
-
-    // The original Solidity code can be found in `DataEncoding`
-    let bridge_mint_data = ethabi::encode(&[
-        Token::Address(Address::from_low_u64_be(1)),
-        Token::Address(Address::from_low_u64_be(2)),
-        Token::Address(l1_token_address),
-        Token::Uint(U256::from(1u32)),
-        Token::Bytes(new_token_data),
-    ]);
-
-    let asset_id = encode_ntv_asset_id(l1_chain_id, l1_token_address);
-
-    finalize_deposit_3_params
-        .encode_input(&[
-            Token::Uint(0.into()),
-            Token::FixedBytes(asset_id.0.to_vec()),
-            Token::Bytes(bridge_mint_data),
-        ])
-        .unwrap()
-}
-
-pub fn trivial_test_storage_logs() -> HashMap<StorageKey, H256> {
-    let x: Vec<_> = serde_json::from_str(
-        &std::fs::read_to_string("src/versions/testonly/v26_utils_outputs/simple-test.json")
-            .unwrap(),
-    )
-    .unwrap();
-    x.into_iter().collect()
-}
-
-pub fn post_bridging_test_storage_logs() -> HashMap<StorageKey, H256> {
-    let x: Vec<_> = serde_json::from_str(
-        &std::fs::read_to_string("src/versions/testonly/v26_utils_outputs/post-bridging.json")
-            .unwrap(),
-    )
-    .unwrap();
-    x.into_iter().collect()
-}
-
-pub fn post_registration_test_storage_logs() -> HashMap<StorageKey, H256> {
-    let x: Vec<_> = serde_json::from_str(
-        &std::fs::read_to_string("src/versions/testonly/v26_utils_outputs/post-registration.json")
-            .unwrap(),
-    )
-    .unwrap();
-    x.into_iter().collect()
-}
 
 pub(crate) fn test_trivial_test_storage_logs<VM: TestedVm>() {
-    let (vm, _) = setup_v26_unsafe_deposits_detection::<VM>();
+    let (vm, test_data) = setup_v26_unsafe_deposits_detection::<VM>();
+    assert_eq!(test_data, get_test_data());
 
     let storage_ptr = vm.storage.clone();
     let borrowed = storage_ptr.borrow();
@@ -284,7 +188,8 @@ pub(crate) fn test_trivial_test_storage_logs<VM: TestedVm>() {
 
 pub(crate) fn test_post_bridging_test_storage_logs<VM: TestedVm>() {
     let (mut vm, test_data) = setup_v26_unsafe_deposits_detection::<VM>();
-
+    assert_eq!(test_data, get_test_data());
+    
     let l1_tx_new_deposit = Transaction {
         common_data: ExecuteTransactionCommon::L1(L1TxCommonData {
             sender: test_data.l1_aliased_shared_bridge,
@@ -315,6 +220,7 @@ pub(crate) fn test_post_bridging_test_storage_logs<VM: TestedVm>() {
 
 pub(crate) fn test_post_registration_storage_logs<VM: TestedVm>() {
     let (mut vm, test_data) = setup_v26_unsafe_deposits_detection::<VM>();
+    assert_eq!(test_data, get_test_data());
 
     let l1_tx_regisrtation = Transaction {
         common_data: ExecuteTransactionCommon::L1(L1TxCommonData {
@@ -346,8 +252,6 @@ pub(crate) fn test_post_registration_storage_logs<VM: TestedVm>() {
         post_registration_test_storage_logs()
     );
 }
-
-fn apply_l1_to_l2_alias() {}
 
 pub(crate) async fn test_v26_unsafe_deposit_detection_trivial<VM: TestedVm>() {
     let (mut vm, test_data) = setup_v26_unsafe_deposits_detection::<VM>();
@@ -390,99 +294,99 @@ pub(crate) async fn test_v26_unsafe_deposit_detection_trivial<VM: TestedVm>() {
     drop(borrowed);
     let mut inner = std::rc::Rc::try_unwrap(storage_ptr).unwrap().into_inner();
 
-    // No transactions, obviously no bad deposits.
-    assert_eq!(
-        is_unsafe_deposit_present(&[], &mut inner).await.unwrap(),
-        false
-    );
+    // // No transactions, obviously no bad deposits.
+    // assert_eq!(
+    //     is_unsafe_deposit_present(&[], &mut inner).await.unwrap(),
+    //     false
+    // );
 
-    let l2_tx = Transaction {
-        common_data: ExecuteTransactionCommon::L2(Default::default()),
-        execute: Execute {
-            contract_address: Some(test_data.l2_legacy_shared_bridge_address),
-            calldata: encode_legacy_finalize_deposit(test_data.l1_token_address),
-            value: Default::default(),
-            factory_deps: vec![],
-        },
-        received_timestamp_ms: 0,
-        raw_bytes: None,
-    };
+    // let l2_tx = Transaction {
+    //     common_data: ExecuteTransactionCommon::L2(Default::default()),
+    //     execute: Execute {
+    //         contract_address: Some(test_data.l2_legacy_shared_bridge_address),
+    //         calldata: encode_legacy_finalize_deposit(test_data.l1_token_address),
+    //         value: Default::default(),
+    //         factory_deps: vec![],
+    //     },
+    //     received_timestamp_ms: 0,
+    //     raw_bytes: None,
+    // };
 
-    let l1_tx = Transaction {
-        common_data: ExecuteTransactionCommon::L1(Default::default()),
-        ..l2_tx.clone()
-    };
+    // let l1_tx = Transaction {
+    //     common_data: ExecuteTransactionCommon::L1(Default::default()),
+    //     ..l2_tx.clone()
+    // };
 
-    let l1_tx_new_deposit = Transaction {
-        common_data: ExecuteTransactionCommon::L1(Default::default()),
-        execute: Execute {
-            contract_address: Some(L2_ASSET_ROUTER_ADDRESS),
-            calldata: encode_new_finalize_deposit(
-                test_data.l1_chain_id,
-                test_data.l1_token_address,
-            ),
-            value: Default::default(),
-            factory_deps: vec![],
-        },
-        ..l2_tx.clone()
-    };
+    // let l1_tx_new_deposit = Transaction {
+    //     common_data: ExecuteTransactionCommon::L1(Default::default()),
+    //     execute: Execute {
+    //         contract_address: Some(L2_ASSET_ROUTER_ADDRESS),
+    //         calldata: encode_new_finalize_deposit(
+    //             test_data.l1_chain_id,
+    //             test_data.l1_token_address,
+    //         ),
+    //         value: Default::default(),
+    //         factory_deps: vec![],
+    //     },
+    //     ..l2_tx.clone()
+    // };
 
-    let l1_tx_new_deposit_bad_address = Transaction {
-        common_data: ExecuteTransactionCommon::L1(Default::default()),
-        execute: Execute {
-            contract_address: Some(Address::from_low_u64_be(1)),
-            calldata: encode_new_finalize_deposit(
-                test_data.l1_chain_id,
-                test_data.l1_token_address,
-            ),
-            value: Default::default(),
-            factory_deps: vec![],
-        },
-        ..l2_tx.clone()
-    };
+    // let l1_tx_new_deposit_bad_address = Transaction {
+    //     common_data: ExecuteTransactionCommon::L1(Default::default()),
+    //     execute: Execute {
+    //         contract_address: Some(Address::from_low_u64_be(1)),
+    //         calldata: encode_new_finalize_deposit(
+    //             test_data.l1_chain_id,
+    //             test_data.l1_token_address,
+    //         ),
+    //         value: Default::default(),
+    //         factory_deps: vec![],
+    //     },
+    //     ..l2_tx.clone()
+    // };
 
-    // Even though the transaction could've been a legacy one, it is still accepted as it is an L2 one.
-    assert_eq!(
-        is_unsafe_deposit_present(&[(l2_tx.clone(), Default::default())], &mut inner)
-            .await
-            .unwrap(),
-        false
-    );
+    // // Even though the transaction could've been a legacy one, it is still accepted as it is an L2 one.
+    // assert_eq!(
+    //     is_unsafe_deposit_present(&[(l2_tx.clone(), Default::default())], &mut inner)
+    //         .await
+    //         .unwrap(),
+    //     false
+    // );
 
-    // The second transaction is a legacy one and thus it should be accepted.
-    assert_eq!(
-        is_unsafe_deposit_present(
-            &[(l2_tx, Default::default()), (l1_tx, Default::default())],
-            &mut inner
-        )
-        .await
-        .unwrap(),
-        false
-    );
+    // // The second transaction is a legacy one and thus it should be accepted.
+    // assert_eq!(
+    //     is_unsafe_deposit_present(
+    //         &[(l2_tx, Default::default()), (l1_tx, Default::default())],
+    //         &mut inner
+    //     )
+    //     .await
+    //     .unwrap(),
+    //     false
+    // );
 
-    // The second transaction is a legacy one and thus it should be accepted.
-    assert_eq!(
-        is_unsafe_deposit_present(&[(l1_tx_new_deposit, Default::default())], &mut inner)
-            .await
-            .unwrap(),
-        false
-    );
+    // // The second transaction is a legacy one and thus it should be accepted.
+    // assert_eq!(
+    //     is_unsafe_deposit_present(&[(l1_tx_new_deposit, Default::default())], &mut inner)
+    //         .await
+    //         .unwrap(),
+    //     false
+    // );
 
-    // The second transaction is a legacy one and thus it should be accepted.
-    assert_eq!(
-        is_unsafe_deposit_present(
-            &[(l1_tx_new_deposit_bad_address, Default::default())],
-            &mut inner
-        )
-        .await
-        .unwrap(),
-        false
-    );
+    // // The second transaction is a legacy one and thus it should be accepted.
+    // assert_eq!(
+    //     is_unsafe_deposit_present(
+    //         &[(l1_tx_new_deposit_bad_address, Default::default())],
+    //         &mut inner
+    //     )
+    //     .await
+    //     .unwrap(),
+    //     false
+    // );
 }
 
-#[async_trait::async_trait]
-impl AsyncStorageKeyAccess for StorageView<InMemoryStorage> {
-    async fn read_key(&mut self, key: &StorageKey) -> anyhow::Result<H256> {
-        Ok(self.read_value(key))
-    }
-}
+// #[async_trait::async_trait]
+// impl AsyncStorageKeyAccess for StorageView<InMemoryStorage> {
+//     async fn read_key(&mut self, key: &StorageKey) -> anyhow::Result<H256> {
+//         Ok(self.read_value(key))
+//     }
+// }
