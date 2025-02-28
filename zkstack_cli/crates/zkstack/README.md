@@ -42,7 +42,7 @@ This document contains the help content for the `zk_inception` command-line prog
 
 ## `zk_inception`
 
-ZK Stack CLI is a set of tools for working with zk stack.
+ZK Stack CLI is a set of tools for working with ZK Stack.
 
 **Usage:** `zk_inception [OPTIONS] <COMMAND>`
 
@@ -545,7 +545,7 @@ Setup keys
 
 - `--mode`
 
-  Possible valuess: `download`, `generate`
+  Possible values: `download`, `generate`
 
 - `--region`
 
@@ -568,9 +568,9 @@ Run prover
 
   Possible values: `true`, `false`
 
-- `--tag' - Tag of the docker image to run.
+- `--tag` - Tag of the docker image to run.
 
-  Default value is `latest2.0` but you can specify your prefered one.
+  Default value is `latest2.0` but you can specify your preferred one.
 
 - `--round <ROUND>`
 
