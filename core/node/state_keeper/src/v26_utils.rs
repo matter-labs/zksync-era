@@ -1,5 +1,3 @@
-#[cfg(test)]
-use tokio::sync::mpsc;
 use zksync_contracts::{l2_asset_router, l2_legacy_shared_bridge};
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_types::{
