@@ -1,6 +1,6 @@
 //! This module contains varios v26-upgrade-related functions to be used by the state keeper's
 //! unit tests.
-//! The correctness of the functionality present here is hard to enforce inside state keeper 
+//! The correctness of the functionality present here is hard to enforce inside state keeper
 //! directly, so it is done inside unit tests of the multivm.
 
 use std::{
@@ -46,7 +46,6 @@ fn get_test_v26_path(name: &str) -> PathBuf {
         "lib/multivm/src/versions/testonly/v26_utils_outputs/{name}"
     ))
 }
-
 
 pub fn trivial_test_storage_logs() -> HashMap<StorageKey, H256> {
     let x: Vec<_> = serde_json::from_str(
