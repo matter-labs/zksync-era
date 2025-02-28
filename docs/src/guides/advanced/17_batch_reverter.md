@@ -51,7 +51,8 @@ Suggested values for rollback: SuggestedRollbackValues {
 }
 ```
 
-- Rollback blocks on contract: run `send-eth-transaction` (Only if revert on L1 is needed)
+- Rollback blocks on contract: run `send-eth-transaction` (Only if revert on L1 is needed). Note: here and later
+  `--l1-batch-number` is the number of latest batch **remining** after revert.
 
 ```bash
 root@server-0:/# RUST_LOG=info ETH_SENDER_SENDER_OPERATOR_PRIVATE_KEY=CHANGE_ME ./usr/bin/block_reverter send-eth-transaction \
@@ -60,7 +61,7 @@ root@server-0:/# RUST_LOG=info ETH_SENDER_SENDER_OPERATOR_PRIVATE_KEY=CHANGE_ME 
 --config-path=/config/general/general.yaml \
 --contracts-config-path=/config/contracts/contracts.yaml \
 --secrets-path=/config/server-v2-secrets/server-v2-secrets.yaml \
---l1-batch-number CHANGE_ME \
+--l1-batch-number CHANGE_ME_LAST_TO_KEEP \
 --nonce CHANGE_ME
 Mar 27 11:50:36.347  INFO zksync_eth_client::ethereum_gateway: Operator address: 0x01239bb69d0c5f795de5c86fd00d25f9cd3b9deb
 waiting for L1 transaction confirmation...
@@ -83,7 +84,7 @@ root@server-0:/# RUST_LOG=info ./usr/bin/block_reverter rollback-db \
 --config-path=/config/general/general.yaml \
 --contracts-config-path=/config/contracts/contracts.yaml \
 --secrets-path=/config/server/secrets.yaml \
---l1-batch-number CHANGE_ME \
+--l1-batch-number CHANGE_ME_LAST_TO_KEEP \
 --rollback-tree
 
 {"timestamp":"2022-08-30T10:32:11.312280583Z","level":"INFO","fields":{"message":"Operator address: 0x85b7b2fcfd6d3e5c063e7a5063359f4e6b3fec29"},"target":"zksync_eth_client::clients::http_client"}
@@ -107,7 +108,7 @@ root@server-0:/# RUST_LOG=info ./usr/bin/block_reverter rollback-db \
 --config-path=/config/general/general.yaml \
 --contracts-config-path=/config/contracts/contracts.yaml \
 --secrets-path=/config/server/secrets.yaml \
---l1-batch-number CHANGE_ME \
+--l1-batch-number CHANGE_ME_LAST_TO_KEEP \
 --rollback-sk-cache
 
 {"timestamp":"2022-08-30T10:37:17.99102197Z","level":"INFO","fields":{"message":"Operator address: 0x85b7b2fcfd6d3e5c063e7a5063359f4e6b3fec29"},"target":"zksync_eth_client::clients::http_client"}
@@ -130,7 +131,7 @@ rolling back state keeper cache...
 --config-path=/config/general/general.yaml \
 --contracts-config-path=/config/contracts/contracts.yaml \
 --secrets-path=/config/server/secrets.yaml \
---l1-batch-number CHANGE_ME \
+--l1-batch-number CHANGE_ME_LAST_TO_KEEP \
 --rollback-vm-runners-cache
 ```
 
@@ -143,21 +144,20 @@ root@server-0:/# ./r/bin/block_reverter rollback-db \
 --config-path=/config/general/general.yaml \
 --contracts-config-path=/config/contracts/contracts.yaml \
 --secrets-path=/config/server/secrets.yaml \
---l1-batch-number CHANGE_ME \
---l1-batch-number CHANGE_ME --rollback-postgresus
+--l1-batch-number CHANGE_ME_LAST_TO_KEEP \
+--rollback-postgres
 ```
 
 - Clear failed l1 txs
 
   ```bash
   root@server-0:/# ./usr/bin/block_reverter clear-failed-transactions \
-
   --genesis-path=/config/genesis/genesis.yaml \
   --wallets-path=/config/wallets/wallets.yaml \
   --config-path=/config/general/general.yaml \
   --contracts-config-path=/config/contracts/contracts.yaml \
   --secrets-path=/config/server/secrets.yaml \
-  --l1-batch-number CHANGE_ME \
+  --l1-batch-number CHANGE_ME_LAST_TO_KEEP \
   ```
 
 - Resume deployments for the relevant components
