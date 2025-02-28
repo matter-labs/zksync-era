@@ -122,7 +122,6 @@ impl DataAvailabilityDispatcher {
 
         for batch in &batches {
             let dispatch_latency = METRICS.blob_dispatch_latency.start();
-            METRICS.blobs_pending_dispatch.inc_by(1);
             let dispatch_response = retry(self.config.max_retries(), batch.l1_batch_number, || {
                 self.client
                     .dispatch_blob(batch.l1_batch_number.0, batch.pubdata.clone())
@@ -155,7 +154,6 @@ impl DataAvailabilityDispatcher {
                 .set(batch.l1_batch_number.0 as usize);
             METRICS.blob_size.observe(batch.pubdata.len());
             METRICS.blobs_dispatched.inc_by(1);
-            METRICS.blobs_pending_dispatch.dec_by(1);
             METRICS.sealed_to_dispatched_lag.observe(
                 sent_at
                     .signed_duration_since(batch.sealed_at)
