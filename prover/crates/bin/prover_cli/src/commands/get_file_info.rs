@@ -15,7 +15,8 @@ use zksync_prover_fri_types::{
     },
     CircuitWrapper, FriProofWrapper,
 };
-use zksync_prover_interface::outputs::L1BatchProofForL1;
+use zksync_prover_interface::{inputs::WitnessInputMerklePaths, outputs::L1BatchProofForL1};
+use zksync_types::H256;
 
 #[derive(ClapArgs)]
 pub struct Args {
@@ -234,5 +235,27 @@ pub(crate) async fn run(args: Args) -> anyhow::Result<()> {
     } else {
         println!("  NOT a L1BatchProof.");
     }
+
+    let maybe_witness_input: Option<WitnessInputMerklePaths> = bincode::deserialize(&bytes).ok();
+    if let Some(witness_input) = maybe_witness_input {
+        println!("  Parsing file as WitnessInputMerklePaths.");
+        println!(" Next enumeration index: {}", witness_input.next_enumeration_index());
+        println!("  merkle paths: {:?}", witness_input.merkle_paths.len());
+        let aa = witness_input.merkle_paths[0].clone();
+        println!("root hash: {:?}", H256::from_slice(&aa.root_hash));
+        //println!("{:?}", aa);
+
+        let ll = witness_input.merkle_paths.last().unwrap().clone();
+        println!("last root hash: {:?}", H256::from_slice(&ll.root_hash));
+        
+
+
+        //println!("  Witness input: {:?}", witness_input);
+    } else {
+        println!("  NOT a WitnessInputMerklePaths.");
+    }
+
+
+    
     Ok(())
 }
