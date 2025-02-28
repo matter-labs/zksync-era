@@ -743,11 +743,11 @@ impl StateKeeperIO for TestIO {
         Ok(Some(params))
     }
 
-    fn update_next_l2_block_timestamp(&mut self, _block_timestamp: &mut u64) {
+    fn update_next_l2_block_timestamp(&mut self, block_timestamp: &mut u64) {
         let action = self.pop_next_item("update_next_l2_block_timestamp");
 
         if let ScenarioItem::UpdateBlockTimestamp(_, timestamp) = action {
-            *_block_timestamp = timestamp;
+            *block_timestamp = timestamp;
         } else {
             // Return the action to the scenario.
             self.actions.lock().unwrap().push_front(action);
