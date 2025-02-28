@@ -38,7 +38,6 @@ fn extract_token_from_asset_router_deposit(
     // - The one with 5 params that maintains the same interface as the one in the legacy contract
     // - The one with 3 params with the new interface.
 
-    // TODO: maybe add a unit test to enforce that there are always two functions.
     let finalize_deposit_functions = contract.functions.get("finalizeDeposit")?;
     let finalize_deposit_3_params = finalize_deposit_functions
         .iter()
@@ -245,7 +244,6 @@ pub(crate) async fn find_unsafe_deposit(
         let l1_token_address = if contract_address == legacy_l2_shared_bridge_addr {
             extract_token_from_legacy_deposit(tx.execute.calldata())
         } else if contract_address == L2_ASSET_ROUTER_ADDRESS {
-            // FIXME: chain id not 0
             extract_token_from_asset_router_deposit(l1_chain_id, tx.execute.calldata())
         } else {
             None
