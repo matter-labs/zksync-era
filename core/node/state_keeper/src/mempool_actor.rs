@@ -84,7 +84,7 @@ impl MempoolFetcher {
             }
             let latency = KEEPER_METRICS.mempool_sync.start();
             let mut connection = self.pool.connection_tagged("state_keeper").await?;
-            let mut storage = connection.start_transaction().await?;
+            let mut storage_transaction = connection.start_transaction().await?;
             let mempool_info = self.mempool.get_mempool_info();
 
             KEEPER_METRICS
@@ -94,13 +94,13 @@ impl MempoolFetcher {
                 .mempool_purged_accounts
                 .set(mempool_info.purged_accounts.len());
 
-            let protocol_version = storage
+            let protocol_version = storage_transaction
                 .blocks_dal()
                 .pending_protocol_version()
                 .await
                 .context("failed getting pending protocol version")?;
 
-            let (fee_per_gas, gas_per_pubdata) = if let Some(unsealed_batch) = storage
+            let (fee_per_gas, gas_per_pubdata) = if let Some(unsealed_batch) = storage_transaction
                 .blocks_dal()
                 .get_unsealed_l1_batch()
                 .await
@@ -122,7 +122,7 @@ impl MempoolFetcher {
                 (filter.fee_per_gas, filter.gas_per_pubdata)
             };
 
-            let transactions_with_constraints = storage
+            let transactions_with_constraints = storage_transaction
                 .transactions_dal()
                 .sync_mempool(
                     &mempool_info.stashed_accounts,
@@ -136,7 +136,7 @@ impl MempoolFetcher {
                 .context("failed syncing mempool")?;
 
             let unsafe_deposit = if !self.skip_unsafe_deposit_checks {
-                find_unsafe_deposit(&transactions_with_constraints, &mut storage).await?
+                find_unsafe_deposit(&transactions_with_constraints, &mut storage_transaction).await?
             } else {
                 // We do not check for the unsafe deposits, so we just treat all deposits as "safe"
                 None
@@ -150,13 +150,13 @@ impl MempoolFetcher {
                     .map(|x| x.0.hash())
                     .collect();
 
-                storage
+                storage_transaction
                     .transactions_dal()
                     .reset_mempool_status(&hashes)
                     .await
                     .context("failed to return txs to mempool")?;
 
-                storage
+                storage_transaction
                     .transactions_dal()
                     .sync_mempool(
                         &mempool_info.stashed_accounts,
@@ -177,9 +177,9 @@ impl MempoolFetcher {
                 .map(|(t, _c)| t)
                 .collect();
 
-            let nonces = get_transaction_nonces(&mut storage, &transactions).await?;
+            let nonces = get_transaction_nonces(&mut storage_transaction, &transactions).await?;
 
-            storage.commit().await?;
+            storage_transaction.commit().await?;
             drop(connection);
 
             #[cfg(test)]

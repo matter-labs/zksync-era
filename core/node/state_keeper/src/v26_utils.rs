@@ -138,6 +138,20 @@ async fn calculate_expected_token_address(
     Ok(params.derive_address(l2_legacy_shared_bridge_address))
 }
 
+#[derive(Debug)]
+enum LegacyTokenStatus {
+    // In case the deposited token is either not legacy or registered.
+    NotLegacyOrRegistered,
+    // In case the deposited token is a legacy token that has not
+    // been registered
+    Legacy,
+    // This is the case for an unexpected state where the predicted l1 
+    // address does not match the storage one. It should never happen, but
+    // we return an error instead of a panic for increased liveness / easier debugging,
+    // while the transaction will still not be allowed to pass through.
+    UnexpectedDifferentL1Address(Address, Address)
+}
+
 /// Checks whether the token is legacy. It is legacy if both of the
 /// following is true:
 /// - It is present in legacy shared bridge
@@ -147,7 +161,7 @@ async fn is_l2_token_legacy(
     l2_legacy_shared_bridge_address: Address,
     l2_token_address: Address,
     expected_l1_address: Address,
-) -> anyhow::Result<bool> {
+) -> anyhow::Result<LegacyTokenStatus> {
     // 1. Read l1 token address from L2 shared bridge (must not be 0)
 
     let stored_l1_address_key = StorageKey::new(
@@ -163,11 +177,12 @@ async fn is_l2_token_legacy(
     // No address is stored, it means that the token has never been bridged before
     // and thus, it is not legacy
     if stored_l1_address == Address::zero() {
-        return Ok(false);
+        return Ok(LegacyTokenStatus::NotLegacyOrRegistered);
     }
 
-    // Just for cross check
-    assert_eq!(expected_l1_address, stored_l1_address);
+    if expected_l1_address != stored_l1_address {
+        return Ok(LegacyTokenStatus::UnexpectedDifferentL1Address(expected_l1_address, stored_l1_address))
+    }
 
     // 2. Read assetId from NTV (must be 0)
     let stored_asset_id_key = StorageKey::new(
@@ -182,7 +197,11 @@ async fn is_l2_token_legacy(
         .get_value(&stored_asset_id_key)
         .await?;
 
-    Ok(stored_asset_id == H256::zero())
+    if stored_asset_id == H256::zero() {
+        Ok(LegacyTokenStatus::Legacy)
+    } else {
+        Ok(LegacyTokenStatus::NotLegacyOrRegistered)
+    }
 }
 
 /// Accepts a list of transactions to be included into the mempool and filters
@@ -260,15 +279,26 @@ pub(crate) async fn find_unsafe_deposit(
         )
         .await?;
 
-        if is_l2_token_legacy(
+        let token_legacy_status = is_l2_token_legacy(
             storage,
             legacy_l2_shared_bridge_addr,
             l2_token_address,
             l1_token_address,
         )
-        .await?
-        {
-            return Ok(Some(tx.hash()));
+        .await?;
+
+        match token_legacy_status {
+            LegacyTokenStatus::Legacy => {
+                return Ok(Some(tx.hash()));
+            }
+            LegacyTokenStatus::UnexpectedDifferentL1Address(expected,stored) => {
+                tracing::error!("Unexpected stored L1 token for L2 token {:l2_token_address?}. Expected: {:expected?}, Stored: {:stored?}");
+                // We return this transaction to ensure that it is not processed
+                return Ok(Some(tx.hash()));
+            }
+            LegacyTokenStatus::NotLegacyOrRegistered => {
+                // Do nothing.
+            }
         }
     }
 
