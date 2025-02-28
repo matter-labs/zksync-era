@@ -1,20 +1,17 @@
-use std::{collections::HashMap, str::FromStr};
+use std::str::FromStr;
 
 use ethabi::{Contract, Token};
 use zksync_contracts::{
-    l2_asset_router, l2_legacy_shared_bridge, l2_native_token_vault, load_contract,
-    load_l1_zk_contract, load_sys_contract, read_bytecode, read_l1_zk_contract,
+    l2_native_token_vault, load_l1_zk_contract, load_sys_contract, read_l1_zk_contract,
 };
-use zksync_test_contracts::Account;
 use zksync_types::{
     bytecode::BytecodeHash, h256_to_address, protocol_upgrade::ProtocolUpgradeTxCommonData,
-    utils::encode_ntv_asset_id, AccountTreeId, Address, Execute, ExecuteTransactionCommon,
-    L1TxCommonData, StorageKey, Transaction, COMPLEX_UPGRADER_ADDRESS,
-    CONTRACT_FORCE_DEPLOYER_ADDRESS, H256, L2_ASSET_ROUTER_ADDRESS, L2_NATIVE_TOKEN_VAULT_ADDRESS,
-    REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256,
+    AccountTreeId, Address, Execute, ExecuteTransactionCommon, L1TxCommonData, StorageKey,
+    Transaction, COMPLEX_UPGRADER_ADDRESS, CONTRACT_FORCE_DEPLOYER_ADDRESS, H256,
+    L2_NATIVE_TOKEN_VAULT_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256,
 };
 use zksync_vm_interface::{
-    storage::{InMemoryStorage, ReadStorage, StorageView, WriteStorage},
+    storage::{ReadStorage, WriteStorage},
     InspectExecutionMode, TxExecutionMode, VmInterfaceExt,
 };
 
@@ -294,7 +291,7 @@ pub(crate) async fn test_v26_unsafe_deposit_detection_trivial<VM: TestedVm>() {
 
     drop(vm);
     drop(borrowed);
-    let mut inner = std::rc::Rc::try_unwrap(storage_ptr).unwrap().into_inner();
+    let inner = std::rc::Rc::try_unwrap(storage_ptr).unwrap().into_inner();
 
     // // No transactions, obviously no bad deposits.
     // assert_eq!(

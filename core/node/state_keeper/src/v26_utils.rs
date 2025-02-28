@@ -1,36 +1,15 @@
-use std::{collections::HashMap, sync::Arc, time::Duration};
-
-use anyhow::Context as _;
 #[cfg(test)]
 use tokio::sync::mpsc;
-use tokio::sync::watch;
-use zksync_config::configs::chain::MempoolConfig;
 use zksync_contracts::{l2_asset_router, l2_legacy_shared_bridge};
-use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_mempool::L2TxFilter;
-use zksync_multivm::{
-    utils::derive_base_fee_and_gas_per_pubdata,
-    vm_fast::interface::opcodes::Add,
-    vm_latest::utils::v26_upgrade::{
-        encode_legacy_finalize_deposit, encode_new_finalize_deposit, get_test_data,
-        trivial_test_storage_logs,
-    },
-};
-use zksync_node_fee_model::BatchFeeModelInputProvider;
-use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
+use zksync_dal::{Connection, Core, CoreDal};
 use zksync_types::{
     address_to_h256,
-    ethabi::{self, Param, ParamType, Token},
-    get_address_mapping_key, get_immutable_simulator_key, get_nonce_key, h256_to_address,
-    h256_to_u256,
-    hasher::keccak,
+    ethabi::{self, ParamType, Token},
+    get_address_mapping_key, get_immutable_simulator_key, h256_to_address, h256_to_u256,
     tx::execute::Create2DeploymentParams,
     utils::encode_ntv_asset_id,
-    vm::VmVersion,
-    web3::keccak256,
-    AccountTreeId, Address, Execute, ExecuteTransactionCommon, L2BlockNumber, Nonce, StorageKey,
-    StorageLog, Transaction, TransactionTimeRangeConstraint, H256, L2_ASSET_ROUTER_ADDRESS,
-    L2_ASSET_ROUTER_LEGACY_SHARED_BRIDGE_IMMUTABLE_KEY,
+    AccountTreeId, Address, StorageKey, Transaction, TransactionTimeRangeConstraint, H256,
+    L2_ASSET_ROUTER_ADDRESS, L2_ASSET_ROUTER_LEGACY_SHARED_BRIDGE_IMMUTABLE_KEY,
     L2_ASSET_ROUTER_LEGACY_SHARED_BRIDGE_L1_CHAIN_ID_KEY,
     L2_LEGACY_SHARED_BRIDGE_BEACON_PROXY_BYTECODE_KEY, L2_LEGACY_SHARED_BRIDGE_L1_ADDRESSES_KEY,
     L2_LEGACY_SHARED_BRIDGE_UPGRADEABLE_BEACON_ADDRESS_KEY, L2_NATIVE_TOKEN_VAULT_ADDRESS,
@@ -302,11 +281,21 @@ pub(crate) async fn find_unsafe_deposit(
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
+    use zksync_dal::{ConnectionPool, Core, CoreDal};
     use zksync_multivm::vm_latest::utils::v26_upgrade::{
+        encode_legacy_finalize_deposit, encode_new_finalize_deposit, get_test_data,
         post_bridging_test_storage_logs, post_registration_test_storage_logs,
+        trivial_test_storage_logs,
+    };
+    use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
+    use zksync_types::{
+        Address, Execute, ExecuteTransactionCommon, L2BlockNumber, StorageKey, StorageLog,
+        Transaction, H256, L2_ASSET_ROUTER_ADDRESS,
     };
 
-    use super::*;
+    use crate::v26_utils::find_unsafe_deposit;
 
     // Bridging txs can never happen on L2, we use it to
     // just ensure that L2 txs are always allowed.

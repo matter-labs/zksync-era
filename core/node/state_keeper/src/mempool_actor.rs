@@ -5,30 +5,13 @@ use anyhow::Context as _;
 use tokio::sync::mpsc;
 use tokio::sync::watch;
 use zksync_config::configs::chain::MempoolConfig;
-use zksync_contracts::{l2_asset_router, l2_legacy_shared_bridge};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_mempool::L2TxFilter;
-use zksync_multivm::{
-    utils::derive_base_fee_and_gas_per_pubdata, vm_fast::interface::opcodes::Add,
-};
+use zksync_multivm::utils::derive_base_fee_and_gas_per_pubdata;
 use zksync_node_fee_model::BatchFeeModelInputProvider;
-use zksync_types::{
-    address_to_h256,
-    ethabi::{self, Param, ParamType, Token},
-    get_address_mapping_key, get_immutable_simulator_key, get_nonce_key, h256_to_address,
-    h256_to_u256,
-    hasher::keccak,
-    tx::execute::Create2DeploymentParams,
-    utils::encode_ntv_asset_id,
-    vm::VmVersion,
-    web3::keccak256,
-    AccountTreeId, Address, Nonce, StorageKey, Transaction, TransactionTimeRangeConstraint, H256,
-    L2_ASSET_ROUTER_ADDRESS, L2_ASSET_ROUTER_LEGACY_SHARED_BRIDGE_IMMUTABLE_KEY,
-    L2_ASSET_ROUTER_LEGACY_SHARED_BRIDGE_L1_CHAIN_ID_KEY,
-    L2_LEGACY_SHARED_BRIDGE_BEACON_PROXY_BYTECODE_KEY, L2_LEGACY_SHARED_BRIDGE_L1_ADDRESSES_KEY,
-    L2_LEGACY_SHARED_BRIDGE_UPGRADEABLE_BEACON_ADDRESS_KEY, L2_NATIVE_TOKEN_VAULT_ADDRESS,
-    L2_NATIVE_TOKEN_VAULT_ASSET_ID_MAPPING_INDEX, U256,
-};
+#[cfg(test)]
+use zksync_types::H256;
+use zksync_types::{get_nonce_key, vm::VmVersion, Address, Nonce, Transaction};
 
 use super::{metrics::KEEPER_METRICS, types::MempoolGuard};
 use crate::v26_utils::find_unsafe_deposit;

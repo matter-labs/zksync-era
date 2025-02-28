@@ -4,18 +4,9 @@ use std::{
     str::FromStr,
 };
 
-use ethabi::{ParamType, Token};
+use ethabi::Token;
 use zksync_contracts::{l2_asset_router, l2_legacy_shared_bridge};
-use zksync_types::{
-    address_to_h256, get_address_mapping_key, get_immutable_simulator_key, h256_to_address,
-    h256_to_u256, tx::execute::Create2DeploymentParams, utils::encode_ntv_asset_id, AccountTreeId,
-    Address, StorageKey, Transaction, TransactionTimeRangeConstraint, H256,
-    L2_ASSET_ROUTER_ADDRESS, L2_ASSET_ROUTER_LEGACY_SHARED_BRIDGE_IMMUTABLE_KEY,
-    L2_ASSET_ROUTER_LEGACY_SHARED_BRIDGE_L1_CHAIN_ID_KEY,
-    L2_LEGACY_SHARED_BRIDGE_BEACON_PROXY_BYTECODE_KEY, L2_LEGACY_SHARED_BRIDGE_L1_ADDRESSES_KEY,
-    L2_LEGACY_SHARED_BRIDGE_UPGRADEABLE_BEACON_ADDRESS_KEY, L2_NATIVE_TOKEN_VAULT_ADDRESS,
-    L2_NATIVE_TOKEN_VAULT_ASSET_ID_MAPPING_INDEX, U256,
-};
+use zksync_types::{utils::encode_ntv_asset_id, Address, StorageKey, H256, U256};
 use zksync_utils::env::Workspace;
 
 #[derive(Debug, PartialEq, Eq)]
@@ -46,7 +37,7 @@ pub fn get_test_data() -> V26TestData {
 
 fn get_test_v26_path(name: &str) -> PathBuf {
     let core_path = Workspace::locate().core();
-    Path::new(&core_path).join(&format!(
+    Path::new(&core_path).join(format!(
         "lib/multivm/src/versions/testonly/v26_utils_outputs/{name}"
     ))
 }
@@ -57,7 +48,7 @@ fn get_test_v26_path(name: &str) -> PathBuf {
 // unit tests of the multivm.
 pub fn trivial_test_storage_logs() -> HashMap<StorageKey, H256> {
     let x: Vec<_> = serde_json::from_str(
-        &std::fs::read_to_string(&get_test_v26_path("simple-test.json")).unwrap(),
+        &std::fs::read_to_string(get_test_v26_path("simple-test.json")).unwrap(),
     )
     .unwrap();
     x.into_iter().collect()
@@ -65,7 +56,7 @@ pub fn trivial_test_storage_logs() -> HashMap<StorageKey, H256> {
 
 pub fn post_bridging_test_storage_logs() -> HashMap<StorageKey, H256> {
     let x: Vec<_> = serde_json::from_str(
-        &std::fs::read_to_string(&get_test_v26_path("post-bridging.json")).unwrap(),
+        &std::fs::read_to_string(get_test_v26_path("post-bridging.json")).unwrap(),
     )
     .unwrap();
     x.into_iter().collect()
@@ -73,7 +64,7 @@ pub fn post_bridging_test_storage_logs() -> HashMap<StorageKey, H256> {
 
 pub fn post_registration_test_storage_logs() -> HashMap<StorageKey, H256> {
     let x: Vec<_> = serde_json::from_str(
-        &std::fs::read_to_string(&get_test_v26_path("post-registration.json")).unwrap(),
+        &std::fs::read_to_string(get_test_v26_path("post-registration.json")).unwrap(),
     )
     .unwrap();
     x.into_iter().collect()
@@ -94,9 +85,9 @@ pub fn encode_new_finalize_deposit(l1_chain_id: U256, l1_token_address: Address)
 
     let new_token_data = [
         // New encoding version
-        vec![0x01 as u8],
+        vec![0x01_u8],
         ethabi::encode(&[
-            Token::Uint(U256::from(l1_chain_id)),
+            Token::Uint(l1_chain_id),
             Token::Bytes(vec![]),
             Token::Bytes(vec![]),
             Token::Bytes(vec![]),

@@ -128,7 +128,7 @@ pub fn get_immutable_simulator_key(account: &Address, immutable_key: H256) -> St
     );
 
     let key = H256::from(keccak256(
-        &[&immutable_key.as_bytes(), &inner_mapping_slot as &[u8]].concat(),
+        &[immutable_key.as_bytes(), &inner_mapping_slot as &[u8]].concat(),
     ));
 
     StorageKey::new(immutable_simulator, key)
