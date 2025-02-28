@@ -156,7 +156,9 @@ fn main() -> anyhow::Result<()> {
         .clone()
         .context("observability config")?;
 
-    let node = MainNodeBuilder::new(configs, wallets, genesis, secrets)?;
+    // TODO wtf? where is the gateway contracts
+    let contracts = Contracts::new(contracts_config, None, gateway_contracts_config);
+    let node = MainNodeBuilder::new(configs, wallets, genesis, secrets, contracts)?;
 
     let observability_guard = {
         // Observability initialization should be performed within tokio context.

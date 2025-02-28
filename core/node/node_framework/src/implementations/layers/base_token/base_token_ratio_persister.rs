@@ -1,8 +1,5 @@
 use zksync_base_token_adjuster::{BaseTokenL1Behaviour, BaseTokenRatioPersister, UpdateOnL1Params};
-use zksync_config::{
-    configs::{base_token_adjuster::BaseTokenAdjusterConfig, wallets::Wallets},
-    ContractsConfig,
-};
+use zksync_config::configs::{base_token_adjuster::BaseTokenAdjusterConfig, wallets::Wallets};
 use zksync_contracts::{chain_admin_contract, getters_facet_contract};
 use zksync_eth_client::clients::PKSigningClient;
 use zksync_types::L1ChainId;

@@ -1,7 +1,7 @@
 // External uses
 use serde::{Deserialize, Serialize};
 // Workspace uses
-use zksync_basic_types::{Address, H256};
+use zksync_basic_types::Address;
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct EcosystemContracts {
@@ -39,10 +39,9 @@ pub struct EcosystemL1Specific {
 #[derive(Debug, Clone)]
 pub struct EcosystemCommonContracts {
     pub bridgehub_proxy_addr: Address,
-    pub state_transition_proxy_addr: Option<Address>,
+    pub state_transition_proxy_addr: Address,
     pub server_notifier_addr: Option<Address>,
     pub multicall3: Address,
     pub verifier_addr: Address,
     pub validator_timelock_addr: Address,
-    pub l1_transparent_proxy_admin_addr: Address,
 }

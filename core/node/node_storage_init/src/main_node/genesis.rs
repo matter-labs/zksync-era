@@ -2,7 +2,7 @@ use std::fs::File;
 
 use anyhow::Context as _;
 use tokio::sync::watch;
-use zksync_config::{Contracts, ContractsConfig, GenesisConfig};
+use zksync_config::{Contracts, GenesisConfig};
 use zksync_dal::{ConnectionPool, Core, CoreDal as _};
 use zksync_node_genesis::GenesisParams;
 use zksync_object_store::bincode;

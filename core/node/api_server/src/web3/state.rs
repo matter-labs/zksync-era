@@ -160,17 +160,14 @@ impl InternalApiConfig {
                     .ecosystem_contracts
                     .bridgehub_proxy_addr,
             ),
-            l1_state_transition_proxy_addr: contracts_config
-                .current_contracts()
-                .ecosystem_contracts
-                .state_transition_proxy_addr,
-
-            l1_transparent_proxy_admin_addr: Some(
+            l1_state_transition_proxy_addr: Some(
                 contracts_config
                     .current_contracts()
                     .ecosystem_contracts
-                    .l1_transparent_proxy_admin_addr,
+                    .state_transition_proxy_addr,
             ),
+
+            l1_transparent_proxy_admin_addr: None,
             l1_bytecodes_supplier_addr: contracts_config
                 .l1_specific_contracts()
                 .bytecodes_supplier_addr,

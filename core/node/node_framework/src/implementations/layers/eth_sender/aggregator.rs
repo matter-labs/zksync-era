@@ -130,8 +130,7 @@ impl WiringLayer for EthTxAggregatorLayer {
             .0
             .current_contracts()
             .ecosystem_contracts
-            .state_transition_proxy_addr
-            .unwrap();
+            .state_transition_proxy_addr;
 
         let eth_client = if input.settlement_mode.0.is_gateway() {
             input

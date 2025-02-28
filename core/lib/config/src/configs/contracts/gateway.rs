@@ -20,6 +20,7 @@ pub struct GatewayConfig {
     pub relayed_sl_da_validator: Address,
     pub validium_da_validator: Address,
     pub diamond_cut_data: Bytes,
+    pub server_notifier: Option<Address>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq)]

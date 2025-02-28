@@ -114,12 +114,14 @@ impl WiringLayer for EthWatchLayer {
                 .0
                 .l1_specific_contracts()
                 .shared_bridge,
-            input
-                .contracts_resource
-                .0
-                .current_contracts()
-                .ecosystem_contracts
-                .state_transition_proxy_addr,
+            Some(
+                input
+                    .contracts_resource
+                    .0
+                    .current_contracts()
+                    .ecosystem_contracts
+                    .state_transition_proxy_addr,
+            ),
             input
                 .contracts_resource
                 .0
@@ -148,9 +150,11 @@ impl WiringLayer for EthWatchLayer {
                     None,
                     // Only present on L1.
                     None,
-                    contracts_config
-                        .ecosystem_contracts
-                        .state_transition_proxy_addr,
+                    Some(
+                        contracts_config
+                            .ecosystem_contracts
+                            .state_transition_proxy_addr,
+                    ),
                     contracts_config.chain_contracts_config.chain_admin,
                     input
                         .contracts_resource

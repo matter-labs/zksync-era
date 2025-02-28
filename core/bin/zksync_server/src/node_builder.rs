@@ -93,6 +93,7 @@ pub struct MainNodeBuilder {
     wallets: Wallets,
     genesis_config: GenesisConfig,
     secrets: Secrets,
+    contracts: Contracts,
 }
 
 impl MainNodeBuilder {
@@ -101,6 +102,7 @@ impl MainNodeBuilder {
         wallets: Wallets,
         genesis_config: GenesisConfig,
         secrets: Secrets,
+        contracts: Contracts,
     ) -> anyhow::Result<Self> {
         Ok(Self {
             node: ZkStackServiceBuilder::new().context("Cannot create ZkStackServiceBuilder")?,
@@ -108,6 +110,7 @@ impl MainNodeBuilder {
             wallets,
             genesis_config,
             secrets,
+            contracts,
         })
     }
 
@@ -305,11 +308,8 @@ impl MainNodeBuilder {
     }
 
     fn add_gateway_migrator_layer(mut self) -> anyhow::Result<Self> {
-        self.node.add_layer(GatewayMigratorLayer::new(
-            Contracts::new(), // self.contracts_config.clone(),
-                              // self.contracts_config.clone(),
-                              // self.gateway_chain_config.clone(),
-        ));
+        self.node
+            .add_layer(GatewayMigratorLayer::new(self.contracts.clone()));
         Ok(self)
     }
 
@@ -450,10 +450,6 @@ impl MainNodeBuilder {
         };
         self.node.add_layer(Web3ServerLayer::ws(
             rpc_config.ws_port,
-            // InternalApiConfig::new(
-            //     &rpc_config,
-            // &self.contracts_config, &self.genesis_config
-            // ),
             optional_config,
             self.genesis_config.clone(),
             rpc_config,

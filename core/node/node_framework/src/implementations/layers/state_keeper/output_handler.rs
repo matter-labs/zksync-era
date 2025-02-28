@@ -4,7 +4,6 @@ use zksync_state_keeper::{
     io::seal_logic::l2_block_seal_subtasks::L2BlockSealProcess, L2BlockSealerTask, OutputHandler,
     StateKeeperPersistence, TreeWritesPersistence,
 };
-use zksync_types::Address;
 
 use crate::{
     implementations::resources::{

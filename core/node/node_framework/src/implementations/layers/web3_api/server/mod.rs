@@ -5,10 +5,7 @@ use bridge_addresses::{L1UpdaterInner, MainNodeUpdaterInner};
 use tokio::{sync::oneshot, task::JoinHandle};
 use zksync_circuit_breaker::replication_lag::ReplicationLagChecker;
 use zksync_config::{
-    configs::{
-        api::{MaxResponseSize, Web3JsonRpcConfig},
-        consensus::RpcConfig,
-    },
+    configs::api::{MaxResponseSize, Web3JsonRpcConfig},
     GenesisConfig,
 };
 use zksync_contracts::{bridgehub_contract, l1_asset_router_contract};
