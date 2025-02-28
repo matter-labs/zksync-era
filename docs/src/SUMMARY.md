@@ -35,7 +35,6 @@
   - [L1 Batch Reversion](guides/advanced/17_batch_reverter.md)
   - [Advanced Debugging](guides/advanced/90_advanced_debugging.md)
   - [Docker and CI](guides/advanced/91_docker_and_ci.md)
-  
 
 # External Node
 
