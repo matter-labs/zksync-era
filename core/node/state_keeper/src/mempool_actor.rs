@@ -9,17 +9,29 @@ use zksync_contracts::{l2_asset_router, l2_legacy_shared_bridge};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_mempool::L2TxFilter;
 use zksync_multivm::{
-    utils::derive_base_fee_and_gas_per_pubdata,
-    vm_fast::interface::opcodes::Add,
+    utils::derive_base_fee_and_gas_per_pubdata, vm_fast::interface::opcodes::Add,
 };
 use zksync_node_fee_model::BatchFeeModelInputProvider;
 use zksync_types::{
-    address_to_h256, ethabi::{self, Param, ParamType, Token}, get_address_mapping_key, get_immutable_simulator_key, get_nonce_key, h256_to_address, h256_to_u256, hasher::keccak, tx::execute::Create2DeploymentParams, utils::encode_ntv_asset_id, vm::VmVersion, web3::keccak256, AccountTreeId, Address, Nonce, StorageKey, Transaction, TransactionTimeRangeConstraint, H256, L2_ASSET_ROUTER_ADDRESS, L2_ASSET_ROUTER_LEGACY_SHARED_BRIDGE_IMMUTABLE_KEY, L2_ASSET_ROUTER_LEGACY_SHARED_BRIDGE_L1_CHAIN_ID_KEY, L2_LEGACY_SHARED_BRIDGE_BEACON_PROXY_BYTECODE_KEY, L2_LEGACY_SHARED_BRIDGE_L1_ADDRESSES_KEY, L2_LEGACY_SHARED_BRIDGE_UPGRADEABLE_BEACON_ADDRESS_KEY, L2_NATIVE_TOKEN_VAULT_ADDRESS, L2_NATIVE_TOKEN_VAULT_ASSET_ID_MAPPING_INDEX, U256
+    address_to_h256,
+    ethabi::{self, Param, ParamType, Token},
+    get_address_mapping_key, get_immutable_simulator_key, get_nonce_key, h256_to_address,
+    h256_to_u256,
+    hasher::keccak,
+    tx::execute::Create2DeploymentParams,
+    utils::encode_ntv_asset_id,
+    vm::VmVersion,
+    web3::keccak256,
+    AccountTreeId, Address, Nonce, StorageKey, Transaction, TransactionTimeRangeConstraint, H256,
+    L2_ASSET_ROUTER_ADDRESS, L2_ASSET_ROUTER_LEGACY_SHARED_BRIDGE_IMMUTABLE_KEY,
+    L2_ASSET_ROUTER_LEGACY_SHARED_BRIDGE_L1_CHAIN_ID_KEY,
+    L2_LEGACY_SHARED_BRIDGE_BEACON_PROXY_BYTECODE_KEY, L2_LEGACY_SHARED_BRIDGE_L1_ADDRESSES_KEY,
+    L2_LEGACY_SHARED_BRIDGE_UPGRADEABLE_BEACON_ADDRESS_KEY, L2_NATIVE_TOKEN_VAULT_ADDRESS,
+    L2_NATIVE_TOKEN_VAULT_ASSET_ID_MAPPING_INDEX, U256,
 };
 
-use crate::v26_utils::find_unsafe_deposit;
-
 use super::{metrics::KEEPER_METRICS, types::MempoolGuard};
+use crate::v26_utils::find_unsafe_deposit;
 
 /// Creates a mempool filter for L2 transactions based on the current L1 gas price.
 /// The filter is used to filter out transactions from the mempool that do not cover expenses
@@ -140,12 +152,8 @@ impl MempoolFetcher {
                 .await
                 .context("failed syncing mempool")?;
 
-            let unsafe_deposit = if !self.skip_unsafe_deposit_checks { 
-                find_unsafe_deposit(
-                &transactions_with_constraints,
-                &mut storage,
-                )
-                .await?
+            let unsafe_deposit = if !self.skip_unsafe_deposit_checks {
+                find_unsafe_deposit(&transactions_with_constraints, &mut storage).await?
             } else {
                 // We do not check for the unsafe deposits, so we just treat all deposits as "safe"
                 None
@@ -258,7 +266,7 @@ mod tests {
         stuck_tx_timeout: 0,
         remove_stuck_txs: false,
         delay_interval: 10,
-        skip_unsafe_deposit_checks: false
+        skip_unsafe_deposit_checks: false,
     };
 
     #[tokio::test]

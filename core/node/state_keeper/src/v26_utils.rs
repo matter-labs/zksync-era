@@ -1,4 +1,3 @@
-
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
@@ -11,14 +10,32 @@ use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_mempool::L2TxFilter;
 use zksync_multivm::{
     utils::derive_base_fee_and_gas_per_pubdata,
-    vm_fast::interface::opcodes::Add, vm_latest::utils::v26_upgrade::{encode_legacy_finalize_deposit, encode_new_finalize_deposit, get_test_data, trivial_test_storage_logs},
+    vm_fast::interface::opcodes::Add,
+    vm_latest::utils::v26_upgrade::{
+        encode_legacy_finalize_deposit, encode_new_finalize_deposit, get_test_data,
+        trivial_test_storage_logs,
+    },
 };
 use zksync_node_fee_model::BatchFeeModelInputProvider;
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_types::{
-    address_to_h256, ethabi::{self, Param, ParamType, Token}, get_address_mapping_key, get_immutable_simulator_key, get_nonce_key, h256_to_address, h256_to_u256, hasher::keccak, tx::execute::Create2DeploymentParams, utils::encode_ntv_asset_id, vm::VmVersion, web3::keccak256, AccountTreeId, Address, Execute, ExecuteTransactionCommon, L2BlockNumber, Nonce, StorageKey, StorageLog, Transaction, TransactionTimeRangeConstraint, H256, L2_ASSET_ROUTER_ADDRESS, L2_ASSET_ROUTER_LEGACY_SHARED_BRIDGE_IMMUTABLE_KEY, L2_ASSET_ROUTER_LEGACY_SHARED_BRIDGE_L1_CHAIN_ID_KEY, L2_LEGACY_SHARED_BRIDGE_BEACON_PROXY_BYTECODE_KEY, L2_LEGACY_SHARED_BRIDGE_L1_ADDRESSES_KEY, L2_LEGACY_SHARED_BRIDGE_UPGRADEABLE_BEACON_ADDRESS_KEY, L2_NATIVE_TOKEN_VAULT_ADDRESS, L2_NATIVE_TOKEN_VAULT_ASSET_ID_MAPPING_INDEX, U256
+    address_to_h256,
+    ethabi::{self, Param, ParamType, Token},
+    get_address_mapping_key, get_immutable_simulator_key, get_nonce_key, h256_to_address,
+    h256_to_u256,
+    hasher::keccak,
+    tx::execute::Create2DeploymentParams,
+    utils::encode_ntv_asset_id,
+    vm::VmVersion,
+    web3::keccak256,
+    AccountTreeId, Address, Execute, ExecuteTransactionCommon, L2BlockNumber, Nonce, StorageKey,
+    StorageLog, Transaction, TransactionTimeRangeConstraint, H256, L2_ASSET_ROUTER_ADDRESS,
+    L2_ASSET_ROUTER_LEGACY_SHARED_BRIDGE_IMMUTABLE_KEY,
+    L2_ASSET_ROUTER_LEGACY_SHARED_BRIDGE_L1_CHAIN_ID_KEY,
+    L2_LEGACY_SHARED_BRIDGE_BEACON_PROXY_BYTECODE_KEY, L2_LEGACY_SHARED_BRIDGE_L1_ADDRESSES_KEY,
+    L2_LEGACY_SHARED_BRIDGE_UPGRADEABLE_BEACON_ADDRESS_KEY, L2_NATIVE_TOKEN_VAULT_ADDRESS,
+    L2_NATIVE_TOKEN_VAULT_ASSET_ID_MAPPING_INDEX, U256,
 };
-
 
 fn extract_token_from_legacy_deposit(legacy_deposit_data: &[u8]) -> Option<Address> {
     let contract = l2_legacy_shared_bridge();
@@ -118,13 +135,19 @@ async fn calculate_expected_token_address(
         AccountTreeId::new(l2_legacy_shared_bridge_address),
         L2_LEGACY_SHARED_BRIDGE_BEACON_PROXY_BYTECODE_KEY,
     );
-    let beacon_proxy_bytecode_hash = storage.storage_web3_dal().get_value(&beacon_proxy_bytecode_hash_key).await?;
+    let beacon_proxy_bytecode_hash = storage
+        .storage_web3_dal()
+        .get_value(&beacon_proxy_bytecode_hash_key)
+        .await?;
 
     let beacon_address_key = StorageKey::new(
         AccountTreeId::new(l2_legacy_shared_bridge_address),
         L2_LEGACY_SHARED_BRIDGE_UPGRADEABLE_BEACON_ADDRESS_KEY,
     );
-    let beacon_address = storage.storage_web3_dal().get_value(&beacon_address_key).await?;
+    let beacon_address = storage
+        .storage_web3_dal()
+        .get_value(&beacon_address_key)
+        .await?;
     let beacon_address = h256_to_address(&beacon_address);
 
     let params = Create2DeploymentParams {
@@ -155,7 +178,10 @@ async fn is_l2_token_legacy(
         AccountTreeId::new(l2_legacy_shared_bridge_address),
         get_address_mapping_key(&l2_token_address, L2_LEGACY_SHARED_BRIDGE_L1_ADDRESSES_KEY),
     );
-    let stored_l1_address = storage.storage_web3_dal().get_value(&stored_l1_address_key).await?;
+    let stored_l1_address = storage
+        .storage_web3_dal()
+        .get_value(&stored_l1_address_key)
+        .await?;
     let stored_l1_address = h256_to_address(&stored_l1_address);
 
     // No address is stored, it means that the token has never been bridged before
@@ -175,7 +201,10 @@ async fn is_l2_token_legacy(
             L2_NATIVE_TOKEN_VAULT_ASSET_ID_MAPPING_INDEX,
         ),
     );
-    let stored_asset_id = storage.storage_web3_dal().get_value(&stored_asset_id_key).await?;
+    let stored_asset_id = storage
+        .storage_web3_dal()
+        .get_value(&stored_asset_id_key)
+        .await?;
 
     Ok(stored_asset_id == H256::zero())
 }
@@ -203,7 +232,10 @@ pub(crate) async fn find_unsafe_deposit(
         L2_ASSET_ROUTER_LEGACY_SHARED_BRIDGE_IMMUTABLE_KEY,
     );
 
-    let legacy_l2_shared_bridge_addr = storage.storage_web3_dal().get_value(&legacy_bridge_key).await?;
+    let legacy_l2_shared_bridge_addr = storage
+        .storage_web3_dal()
+        .get_value(&legacy_bridge_key)
+        .await?;
     let legacy_l2_shared_bridge_addr = h256_to_address(&legacy_l2_shared_bridge_addr);
 
     // There is either no legacy bridge or the L2AssetRouter has not been depoyed yet.
@@ -217,7 +249,10 @@ pub(crate) async fn find_unsafe_deposit(
         &L2_ASSET_ROUTER_ADDRESS,
         L2_ASSET_ROUTER_LEGACY_SHARED_BRIDGE_L1_CHAIN_ID_KEY,
     );
-    let l1_chain_id = storage.storage_web3_dal().get_value(&l1_chain_id_key).await?;
+    let l1_chain_id = storage
+        .storage_web3_dal()
+        .get_value(&l1_chain_id_key)
+        .await?;
     let l1_chain_id = h256_to_u256(l1_chain_id);
 
     for (tx, _) in txs {
@@ -225,7 +260,7 @@ pub(crate) async fn find_unsafe_deposit(
             // Not a deposit
             continue;
         }
-    
+
         let Some(contract_address) = tx.execute.contract_address else {
             continue;
         };
@@ -267,11 +302,13 @@ pub(crate) async fn find_unsafe_deposit(
 
 #[cfg(test)]
 mod tests {
-    use zksync_multivm::vm_latest::utils::v26_upgrade::{post_bridging_test_storage_logs, post_registration_test_storage_logs};
+    use zksync_multivm::vm_latest::utils::v26_upgrade::{
+        post_bridging_test_storage_logs, post_registration_test_storage_logs,
+    };
 
     use super::*;
 
-    // Bridging txs can never happen on L2, we use it to 
+    // Bridging txs can never happen on L2, we use it to
     // just ensure that L2 txs are always allowed.
     fn get_l2_dummy_bridging_tx() -> Transaction {
         let test_data = get_test_data();
@@ -333,7 +370,7 @@ mod tests {
 
     async fn test_is_unsafe_deposit_present(
         storage_logs: HashMap<StorageKey, H256>,
-        txs: Vec<(Vec<Transaction>, Option<H256>)>
+        txs: Vec<(Vec<Transaction>, Option<H256>)>,
     ) {
         let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
         let mut storage = pool.connection().await.unwrap();
@@ -341,17 +378,28 @@ mod tests {
             .await
             .unwrap();
 
-        let storage_logs: Vec<_> = storage_logs.into_iter().map(|(key, value)| {
-            StorageLog { kind: zksync_types::StorageLogKind::InitialWrite, key, value }
-        })
-        .collect();
+        let storage_logs: Vec<_> = storage_logs
+            .into_iter()
+            .map(|(key, value)| StorageLog {
+                kind: zksync_types::StorageLogKind::InitialWrite,
+                key,
+                value,
+            })
+            .collect();
 
-        storage.storage_logs_dal().append_storage_logs(L2BlockNumber(0), &storage_logs).await.unwrap();
+        storage
+            .storage_logs_dal()
+            .append_storage_logs(L2BlockNumber(0), &storage_logs)
+            .await
+            .unwrap();
 
         for (txs, result) in txs {
-            let txs_with_constrains: Vec<_> = txs.into_iter().map(|tx| (tx, Default::default())).collect();
+            let txs_with_constrains: Vec<_> =
+                txs.into_iter().map(|tx| (tx, Default::default())).collect();
             assert_eq!(
-                find_unsafe_deposit(&txs_with_constrains, &mut storage).await.unwrap(),
+                find_unsafe_deposit(&txs_with_constrains, &mut storage)
+                    .await
+                    .unwrap(),
                 result
             );
         }
@@ -366,9 +414,10 @@ mod tests {
                 (vec![get_l2_dummy_bridging_tx()], None),
                 (vec![get_l2_dummy_bridging_tx(), get_l1_bridging_tx()], None),
                 (vec![get_l1_new_bridging_tx()], None),
-                (vec![get_l1_new_deposit_bad_address()], None)
-            ]
-        ).await;
+                (vec![get_l1_new_deposit_bad_address()], None),
+            ],
+        )
+        .await;
     }
 
     #[tokio::test]
@@ -380,9 +429,10 @@ mod tests {
                 (vec![get_l2_dummy_bridging_tx()], None),
                 (vec![get_l2_dummy_bridging_tx(), get_l1_bridging_tx()], None),
                 (vec![get_l1_new_bridging_tx()], None),
-                (vec![get_l1_new_deposit_bad_address()], None)
-            ]
-        ).await;
+                (vec![get_l1_new_deposit_bad_address()], None),
+            ],
+        )
+        .await;
     }
 
     #[tokio::test]
@@ -392,11 +442,17 @@ mod tests {
             vec![
                 (vec![], None),
                 (vec![get_l2_dummy_bridging_tx()], None),
-                (vec![get_l2_dummy_bridging_tx(), get_l1_bridging_tx()], Some(get_l1_bridging_tx().hash())),
-                (vec![get_l1_new_bridging_tx()], Some(get_l1_new_bridging_tx().hash())),
-                (vec![get_l1_new_deposit_bad_address()], None)
-            ]
-        ).await;
+                (
+                    vec![get_l2_dummy_bridging_tx(), get_l1_bridging_tx()],
+                    Some(get_l1_bridging_tx().hash()),
+                ),
+                (
+                    vec![get_l1_new_bridging_tx()],
+                    Some(get_l1_new_bridging_tx().hash()),
+                ),
+                (vec![get_l1_new_deposit_bad_address()], None),
+            ],
+        )
+        .await;
     }
-
 }

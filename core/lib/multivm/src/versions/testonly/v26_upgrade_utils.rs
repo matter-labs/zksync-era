@@ -21,7 +21,10 @@ use zksync_vm_interface::{
 use super::{TestedVm, VmTester};
 use crate::{
     versions::testonly::{tester::TransactionTestInfo, ContractToDeploy, VmTesterBuilder},
-    vm_latest::utils::v26_upgrade::{encode_legacy_finalize_deposit, get_test_data, post_bridging_test_storage_logs, post_registration_test_storage_logs, trivial_test_storage_logs, V26TestData},
+    vm_latest::utils::v26_upgrade::{
+        encode_legacy_finalize_deposit, get_test_data, post_bridging_test_storage_logs,
+        post_registration_test_storage_logs, trivial_test_storage_logs, V26TestData,
+    },
 };
 
 fn load_complex_upgrader_contract() -> Contract {
@@ -165,7 +168,6 @@ fn encode_regisration(l2_token_address: Address) -> Vec<u8> {
         .unwrap()
 }
 
-
 pub(crate) fn test_trivial_test_storage_logs<VM: TestedVm>() {
     let (vm, test_data) = setup_v26_unsafe_deposits_detection::<VM>();
     assert_eq!(test_data, get_test_data());
@@ -189,7 +191,7 @@ pub(crate) fn test_trivial_test_storage_logs<VM: TestedVm>() {
 pub(crate) fn test_post_bridging_test_storage_logs<VM: TestedVm>() {
     let (mut vm, test_data) = setup_v26_unsafe_deposits_detection::<VM>();
     assert_eq!(test_data, get_test_data());
-    
+
     let l1_tx_new_deposit = Transaction {
         common_data: ExecuteTransactionCommon::L1(L1TxCommonData {
             sender: test_data.l1_aliased_shared_bridge,

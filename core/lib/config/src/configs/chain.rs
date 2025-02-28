@@ -230,7 +230,7 @@ pub struct MempoolConfig {
     pub remove_stuck_txs: bool,
     pub delay_interval: u64,
     #[serde(default)]
-    pub skip_unsafe_deposit_checks: bool
+    pub skip_unsafe_deposit_checks: bool,
 }
 
 impl MempoolConfig {
