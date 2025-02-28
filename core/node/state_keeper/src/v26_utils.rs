@@ -145,11 +145,11 @@ enum LegacyTokenStatus {
     // In case the deposited token is a legacy token that has not
     // been registered
     Legacy,
-    // This is the case for an unexpected state where the predicted l1 
+    // This is the case for an unexpected state where the predicted l1
     // address does not match the storage one. It should never happen, but
     // we return an error instead of a panic for increased liveness / easier debugging,
     // while the transaction will still not be allowed to pass through.
-    UnexpectedDifferentL1Address(Address, Address)
+    UnexpectedDifferentL1Address(Address, Address),
 }
 
 /// Checks whether the token is legacy. It is legacy if both of the
@@ -181,7 +181,10 @@ async fn is_l2_token_legacy(
     }
 
     if expected_l1_address != stored_l1_address {
-        return Ok(LegacyTokenStatus::UnexpectedDifferentL1Address(expected_l1_address, stored_l1_address))
+        return Ok(LegacyTokenStatus::UnexpectedDifferentL1Address(
+            expected_l1_address,
+            stored_l1_address,
+        ));
     }
 
     // 2. Read assetId from NTV (must be 0)
@@ -291,7 +294,7 @@ pub(crate) async fn find_unsafe_deposit(
             LegacyTokenStatus::Legacy => {
                 return Ok(Some(tx.hash()));
             }
-            LegacyTokenStatus::UnexpectedDifferentL1Address(expected,stored) => {
+            LegacyTokenStatus::UnexpectedDifferentL1Address(expected, stored) => {
                 tracing::error!("Unexpected stored L1 token for L2 token {:l2_token_address?}. Expected: {:expected?}, Stored: {:stored?}");
                 // We return this transaction to ensure that it is not processed
                 return Ok(Some(tx.hash()));

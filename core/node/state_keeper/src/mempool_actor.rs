@@ -136,7 +136,8 @@ impl MempoolFetcher {
                 .context("failed syncing mempool")?;
 
             let unsafe_deposit = if !self.skip_unsafe_deposit_checks {
-                find_unsafe_deposit(&transactions_with_constraints, &mut storage_transaction).await?
+                find_unsafe_deposit(&transactions_with_constraints, &mut storage_transaction)
+                    .await?
             } else {
                 // We do not check for the unsafe deposits, so we just treat all deposits as "safe"
                 None
