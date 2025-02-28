@@ -9,6 +9,7 @@ use zksync_types::L1ChainId;
 
 use crate::{
     implementations::resources::{
+        contracts::ContractsResource,
         eth_interface::EthInterfaceResource,
         l1_tx_params::TxParamsResource,
         pools::{MasterPool, PoolResource},
@@ -27,7 +28,6 @@ use crate::{
 #[derive(Debug)]
 pub struct BaseTokenRatioPersisterLayer {
     config: BaseTokenAdjusterConfig,
-    contracts_config: ContractsConfig,
     wallets_config: Wallets,
     l1_chain_id: L1ChainId,
 }
@@ -40,6 +40,7 @@ pub struct Input {
     pub price_api_client: PriceAPIClientResource,
     pub eth_client: EthInterfaceResource,
     pub tx_params: TxParamsResource,
+    pub contracts_resource: ContractsResource,
 }
 
 #[derive(Debug, IntoContext)]
@@ -52,13 +53,11 @@ pub struct Output {
 impl BaseTokenRatioPersisterLayer {
     pub fn new(
         config: BaseTokenAdjusterConfig,
-        contracts_config: ContractsConfig,
         wallets_config: Wallets,
         l1_chain_id: L1ChainId,
     ) -> Self {
         Self {
             config,
-            contracts_config,
             wallets_config,
             l1_chain_id,
         }
@@ -78,9 +77,12 @@ impl WiringLayer for BaseTokenRatioPersisterLayer {
         let master_pool = input.master_pool.get().await?;
 
         let price_api_client = input.price_api_client;
-        let base_token_addr = self
-            .contracts_config
-            .base_token_addr
+        let base_token_addr = input
+            .contracts_resource
+            .0
+            .current_contracts()
+            .chain_contracts_config
+            .base_token_address
             .expect("base token address is not set");
 
         let l1_behaviour = self
@@ -93,7 +95,12 @@ impl WiringLayer for BaseTokenRatioPersisterLayer {
 
                 let signing_client = PKSigningClient::new_raw(
                     tms_private_key.clone(),
-                    self.contracts_config.diamond_proxy_addr,
+                    input
+                        .contracts_resource
+                        .0
+                        .current_contracts()
+                        .chain_contracts_config
+                        .diamond_proxy_addr,
                     self.config.default_priority_fee_per_gas,
                     #[allow(clippy::useless_conversion)]
                     self.l1_chain_id.into(),
@@ -106,8 +113,20 @@ impl WiringLayer for BaseTokenRatioPersisterLayer {
                         token_multiplier_setter_account_address: tms_address,
                         chain_admin_contract: chain_admin_contract(),
                         getters_facet_contract: getters_facet_contract(),
-                        diamond_proxy_contract_address: self.contracts_config.diamond_proxy_addr,
-                        chain_admin_contract_address: Some(self.contracts_config.chain_admin_addr),
+                        diamond_proxy_contract_address: input
+                            .contracts_resource
+                            .0
+                            .current_contracts()
+                            .chain_contracts_config
+                            .diamond_proxy_addr,
+                        chain_admin_contract_address: Some(
+                            input
+                                .contracts_resource
+                                .0
+                                .current_contracts()
+                                .chain_contracts_config
+                                .chain_admin,
+                        ),
                         config: self.config.clone(),
                     },
                     last_persisted_l1_ratio: None,

@@ -4,7 +4,13 @@ use anyhow::Context;
 use bridge_addresses::{L1UpdaterInner, MainNodeUpdaterInner};
 use tokio::{sync::oneshot, task::JoinHandle};
 use zksync_circuit_breaker::replication_lag::ReplicationLagChecker;
-use zksync_config::configs::api::MaxResponseSize;
+use zksync_config::{
+    configs::{
+        api::{MaxResponseSize, Web3JsonRpcConfig},
+        consensus::RpcConfig,
+    },
+    GenesisConfig,
+};
 use zksync_contracts::{bridgehub_contract, l1_asset_router_contract};
 use zksync_node_api_server::web3::{
     state::{BridgeAddressesHandle, InternalApiConfig, SealedL2BlockNumber},
@@ -18,6 +24,7 @@ use crate::{
         },
         resources::{
             circuit_breakers::CircuitBreakersResource,
+            contracts::ContractsResource,
             eth_interface::EthInterfaceResource,
             healthcheck::AppHealthCheckResource,
             main_node_client::MainNodeClientResource,
@@ -115,7 +122,8 @@ enum Transport {
 pub struct Web3ServerLayer {
     transport: Transport,
     port: u16,
-    internal_api_config: InternalApiConfig,
+    genesis_config: GenesisConfig,
+    rpc_config: Web3JsonRpcConfig,
     optional_config: Web3ServerOptionalConfig,
 }
 
@@ -133,6 +141,7 @@ pub struct Input {
     pub app_health: AppHealthCheckResource,
     pub main_node_client: Option<MainNodeClientResource>,
     pub l1_eth_client: EthInterfaceResource,
+    pub contracts_resource: ContractsResource,
 }
 
 #[derive(Debug, IntoContext)]
@@ -151,26 +160,30 @@ pub struct Output {
 impl Web3ServerLayer {
     pub fn http(
         port: u16,
-        internal_api_config: InternalApiConfig,
         optional_config: Web3ServerOptionalConfig,
+        genesis_config: GenesisConfig,
+        rpc_config: Web3JsonRpcConfig,
     ) -> Self {
         Self {
             transport: Transport::Http,
             port,
-            internal_api_config,
+            genesis_config,
+            rpc_config,
             optional_config,
         }
     }
 
     pub fn ws(
         port: u16,
-        internal_api_config: InternalApiConfig,
         optional_config: Web3ServerOptionalConfig,
+        genesis_config: GenesisConfig,
+        rpc_config: Web3JsonRpcConfig,
     ) -> Self {
         Self {
             transport: Transport::Ws,
             port,
-            internal_api_config,
+            genesis_config,
+            rpc_config,
             optional_config,
         }
     }
@@ -198,9 +211,13 @@ impl WiringLayer for Web3ServerLayer {
         let sync_state = input.sync_state.map(|state| state.0);
         let tree_api_client = input.tree_api_client.map(|client| client.0);
 
+        let contracts = input.contracts_resource.0;
+        let internal_api_config =
+            InternalApiConfig::new(&self.rpc_config, &contracts, &self.genesis_config);
+
         let sealed_l2_block_handle = SealedL2BlockNumber::default();
         let bridge_addresses_handle =
-            BridgeAddressesHandle::new(self.internal_api_config.bridge_addresses.clone());
+            BridgeAddressesHandle::new(internal_api_config.bridge_addresses.clone());
 
         let sealed_l2_block_updater_task = SealedL2BlockUpdaterTask {
             number_updater: sealed_l2_block_handle.clone(),
@@ -220,8 +237,7 @@ impl WiringLayer for Web3ServerLayer {
                 BridgeAddressesUpdaterTask::L1Updater(L1UpdaterInner {
                     bridge_address_updater: bridge_addresses_handle.clone(),
                     l1_eth_client: input.l1_eth_client.0,
-                    bridgehub_addr: self
-                        .internal_api_config
+                    bridgehub_addr: internal_api_config
                         .l1_bridgehub_proxy_addr
                         .context("Lacking l1 bridgehub proxy address")?,
                     update_interval: self.optional_config.bridge_addresses_refresh_interval,
@@ -232,7 +248,7 @@ impl WiringLayer for Web3ServerLayer {
 
         // Build server.
         let mut api_builder =
-            ApiBuilder::jsonrpsee_backend(self.internal_api_config, replica_pool.clone())
+            ApiBuilder::jsonrpsee_backend(internal_api_config, replica_pool.clone())
                 .with_tx_sender(tx_sender)
                 .with_mempool_cache(mempool_cache)
                 .with_extended_tracing(self.optional_config.with_extended_tracing)

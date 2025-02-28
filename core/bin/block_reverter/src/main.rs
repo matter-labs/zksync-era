@@ -16,10 +16,9 @@ use zksync_block_reverter::{
 use zksync_config::{
     configs::{
         chain::NetworkConfig, wallets::Wallets, BasicWitnessInputProducerConfig, DatabaseSecrets,
-        GatewayChainConfig, GeneralConfig, L1Secrets, ObservabilityConfig,
-        ProtectiveReadsWriterConfig,
+        GeneralConfig, L1Secrets, ObservabilityConfig, ProtectiveReadsWriterConfig,
     },
-    ContractsConfig, DBConfig, EthConfig, GenesisConfig, PostgresConfig,
+    Contracts, ContractsConfig, DBConfig, EthConfig, GenesisConfig, PostgresConfig,
 };
 use zksync_core_leftovers::temp_config_store::read_yaml_repr;
 use zksync_dal::{ConnectionPool, Core};
@@ -235,32 +234,24 @@ async fn main() -> anyhow::Result<()> {
         }
     };
 
-    let (sl_rpc_url, sl_diamond_proxy, sl_validator_timelock) = if settlement_mode.is_gateway() {
-        // Gateway config is required to be provided by file for now.
-        let gateway_chain_config: GatewayChainConfig =
-            read_yaml_repr::<proto::gateway::GatewayChainConfig>(
-                &opts
-                    .gateway_chain_path
-                    .context("Genesis config path not provided")?,
-            )
-            .context("failed decoding genesis YAML config")?;
+    let contracts = Contracts::new();
 
-        let gateway_url = l1_secrets
+    let sl_rpc_url = if settlement_mode.is_gateway() {
+        l1_secrets
             .gateway_rpc_url
-            .context("Gateway URL not found")?;
-
-        (
-            gateway_url,
-            gateway_chain_config.diamond_proxy_addr,
-            gateway_chain_config.validator_timelock_addr,
-        )
+            .context("Gateway URL not found")?
     } else {
-        (
-            l1_secrets.l1_rpc_url,
-            contracts.diamond_proxy_addr,
-            contracts.validator_timelock_addr,
-        )
+        l1_secrets.l1_rpc_url
     };
+
+    let sl_diamond_proxy = contracts
+        .current_contracts()
+        .chain_contracts_config
+        .diamond_proxy_addr;
+    let sl_validator_timelock = contracts
+        .current_contracts()
+        .ecosystem_contracts
+        .validator_timelock_addr;
 
     let config = BlockReverterEthConfig::new(
         &eth_sender,

@@ -246,9 +246,9 @@ impl Distribution<configs::ContractVerifierConfig> for EncodeDist {
     }
 }
 
-impl Distribution<configs::ContractsConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::ContractsConfig {
-        configs::ContractsConfig {
+impl Distribution<configs::ChainContractsConfig> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::ChainContractsConfig {
+        configs::ChainContractsConfig {
             governance_addr: rng.gen(),
             verifier_addr: rng.gen(),
             default_upgrade_addr: rng.gen(),

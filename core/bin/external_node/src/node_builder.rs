@@ -204,22 +204,13 @@ impl ExternalNodeBuilder {
             .remote
             .l2_shared_bridge_addr
             .context("Missing `l2_shared_bridge_addr`")?;
-        let l2_legacy_shared_bridge_addr = if l2_shared_bridge_addr == L2_ASSET_ROUTER_ADDRESS {
-            // System has migrated to `L2_ASSET_ROUTER_ADDRESS`, use legacy shared bridge address from main node.
-            self.config.remote.l2_legacy_shared_bridge_addr
-        } else {
-            // System hasn't migrated on `L2_ASSET_ROUTER_ADDRESS`, we can safely use `l2_shared_bridge_addr`.
-            Some(l2_shared_bridge_addr)
-        };
 
-        let persistence_layer = OutputHandlerLayer::new(
-            l2_legacy_shared_bridge_addr,
-            self.config.optional.l2_block_seal_queue_capacity,
-        )
-        .with_pre_insert_txs(true) // EN requires txs to be pre-inserted.
-        .with_protective_reads_persistence_enabled(
-            self.config.optional.protective_reads_persistence_enabled,
-        );
+        let persistence_layer =
+            OutputHandlerLayer::new(self.config.optional.l2_block_seal_queue_capacity)
+                .with_pre_insert_txs(true) // EN requires txs to be pre-inserted.
+                .with_protective_reads_persistence_enabled(
+                    self.config.optional.protective_reads_persistence_enabled,
+                );
 
         let io_layer = ExternalIOLayer::new(self.config.required.l2_chain_id);
 
@@ -281,7 +272,6 @@ impl ExternalNodeBuilder {
 
     fn add_l1_batch_commitment_mode_validation_layer(mut self) -> anyhow::Result<Self> {
         let layer = L1BatchCommitmentModeValidationLayer::new(
-            self.config.l1_diamond_proxy_address(),
             self.config.optional.l1_batch_commit_data_generator_mode,
         );
         self.node.add_layer(layer);
@@ -424,22 +414,22 @@ impl ExternalNodeBuilder {
     }
 
     fn add_tx_sender_layer(mut self) -> anyhow::Result<Self> {
-        let postgres_storage_config = PostgresStorageCachesConfig {
-            factory_deps_cache_size: self.config.optional.factory_deps_cache_size() as u64,
-            initial_writes_cache_size: self.config.optional.initial_writes_cache_size() as u64,
-            latest_values_cache_size: self.config.optional.latest_values_cache_size() as u64,
-            latest_values_max_block_lag: 20, // reasonable default
-        };
-        let max_vm_concurrency = self.config.optional.vm_concurrency_limit;
-        let tx_sender_layer = TxSenderLayer::new(
-            (&self.config).into(),
-            postgres_storage_config,
-            max_vm_concurrency,
-        )
-        .with_whitelisted_tokens_for_aa_cache(true);
-
-        self.node.add_layer(ProxySinkLayer);
-        self.node.add_layer(tx_sender_layer);
+        // let postgres_storage_config = PostgresStorageCachesConfig {
+        //     factory_deps_cache_size: self.config.optional.factory_deps_cache_size() as u64,
+        //     initial_writes_cache_size: self.config.optional.initial_writes_cache_size() as u64,
+        //     latest_values_cache_size: self.config.optional.latest_values_cache_size() as u64,
+        //     latest_values_max_block_lag: 20, // reasonable default
+        // };
+        // let max_vm_concurrency = self.config.optional.vm_concurrency_limit;
+        // let tx_sender_layer = TxSenderLayer::new(
+        //     (&self.config).into(),
+        //     postgres_storage_config,
+        //     max_vm_concurrency,
+        // )
+        // .with_whitelisted_tokens_for_aa_cache(true);
+        //
+        // self.node.add_layer(ProxySinkLayer);
+        // self.node.add_layer(tx_sender_layer);
         Ok(self)
     }
 
@@ -492,25 +482,26 @@ impl ExternalNodeBuilder {
     }
 
     fn add_http_web3_api_layer(mut self) -> anyhow::Result<Self> {
-        let optional_config = self.web3_api_optional_config();
-        self.node.add_layer(Web3ServerLayer::http(
-            self.config.required.http_port,
-            (&self.config).into(),
-            optional_config,
-        ));
-
+        // let optional_config = self.web3_api_optional_config();
+        // self.node.add_layer(Web3ServerLayer::http(
+        //     self.config.required.http_port,
+        //     (&self.config).into(),
+        //     optional_config,
+        // ));
+        //
         Ok(self)
     }
 
     fn add_ws_web3_api_layer(mut self) -> anyhow::Result<Self> {
         // TODO: Support websocket requests per minute limit
-        let optional_config = self.web3_api_optional_config();
-        self.node.add_layer(Web3ServerLayer::ws(
-            self.config.required.ws_port,
-            (&self.config).into(),
-            optional_config,
-        ));
-
+        // let optional_config = self.web3_api_optional_config();
+        //
+        // self.node.add_layer(Web3ServerLayer::ws(
+        //     self.config.required.ws_port,
+        //     (&self.config).into(),
+        //     optional_config,
+        // ));
+        //
         Ok(self)
     }
 

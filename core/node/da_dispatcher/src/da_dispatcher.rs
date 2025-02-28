@@ -4,7 +4,7 @@ use anyhow::Context;
 use chrono::Utc;
 use rand::Rng;
 use tokio::sync::watch::Receiver;
-use zksync_config::{ContractsConfig, DADispatcherConfig};
+use zksync_config::{Contracts, ContractsConfig, DADispatcherConfig};
 use zksync_da_client::{
     types::{DAError, InclusionData},
     DataAvailabilityClient,
@@ -25,7 +25,7 @@ pub struct DataAvailabilityDispatcher {
     client: Box<dyn DataAvailabilityClient>,
     pool: ConnectionPool<Core>,
     config: DADispatcherConfig,
-    contracts_config: ContractsConfig,
+    contracts_config: Contracts,
     settlement_layer_client: Box<DynClient<L1>>,
 
     transitional_l2_da_validator_address: Option<Address>, // set only if inclusion_verification_transition_enabled is true
@@ -36,7 +36,7 @@ impl DataAvailabilityDispatcher {
         pool: ConnectionPool<Core>,
         config: DADispatcherConfig,
         client: Box<dyn DataAvailabilityClient>,
-        contracts_config: ContractsConfig,
+        contracts_config: Contracts,
         settlement_layer_client: Box<DynClient<L1>>,
     ) -> Self {
         Self {
@@ -265,7 +265,12 @@ impl DataAvailabilityDispatcher {
     }
 
     async fn check_for_misconfiguration(&mut self) -> anyhow::Result<()> {
-        if let Some(no_da_validator) = self.contracts_config.no_da_validium_l1_validator_addr {
+        if let Some(no_da_validator) = self
+            .contracts_config
+            .current_contracts()
+            .chain_contracts_config
+            .validium_da_validator
+        {
             if self.config.use_dummy_inclusion_data() {
                 let l1_da_validator_address = self.fetch_l1_da_validator_address().await?;
 
@@ -281,7 +286,9 @@ impl DataAvailabilityDispatcher {
         if self.config.inclusion_verification_transition_enabled() {
             self.transitional_l2_da_validator_address = Some(
                 self.contracts_config
-                    .l2_da_validator_addr
+                    .current_contracts()
+                    .chain_contracts_config
+                    .relayed_sl_da_validator
                     .context("L2 DA validator address is not set")?,
             );
         }
@@ -296,7 +303,12 @@ impl DataAvailabilityDispatcher {
             .call_contract_function(
                 CallRequest {
                     data: Some(signature.into()),
-                    to: Some(self.contracts_config.diamond_proxy_addr),
+                    to: Some(
+                        self.contracts_config
+                            .current_contracts()
+                            .chain_contracts_config
+                            .diamond_proxy_addr,
+                    ),
                     ..CallRequest::default()
                 },
                 None,

@@ -11,15 +11,16 @@ use zksync_config::{
         },
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
-        BasicWitnessInputProducerConfig, ContractsConfig, DataAvailabilitySecrets, DatabaseSecrets,
+        BasicWitnessInputProducerConfig, DataAvailabilitySecrets, DatabaseSecrets,
         ExperimentalVmConfig, ExternalPriceApiClientConfig, FriProofCompressorConfig,
         FriProverConfig, FriProverGatewayConfig, FriWitnessGeneratorConfig,
         FriWitnessVectorGeneratorConfig, L1Secrets, ObservabilityConfig, PrometheusConfig,
         ProofDataHandlerConfig, ProtectiveReadsWriterConfig, Secrets,
     },
-    ApiConfig, BaseTokenAdjusterConfig, ContractVerifierConfig, DAClientConfig, DADispatcherConfig,
-    DBConfig, EthConfig, EthWatchConfig, ExternalProofIntegrationApiConfig, GasAdjusterConfig,
-    GenesisConfig, ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
+    ApiConfig, BaseTokenAdjusterConfig, ContractVerifierConfig, Contracts, ContractsConfig,
+    DAClientConfig, DADispatcherConfig, DBConfig, EthConfig, EthWatchConfig,
+    ExternalProofIntegrationApiConfig, GasAdjusterConfig, GenesisConfig, ObjectStoreConfig,
+    PostgresConfig, SnapshotsCreatorConfig,
 };
 use zksync_core_leftovers::{
     temp_config_store::{read_yaml_repr, TempConfigStore},
@@ -155,14 +156,7 @@ fn main() -> anyhow::Result<()> {
         .clone()
         .context("observability config")?;
 
-    let node = MainNodeBuilder::new(
-        configs,
-        wallets,
-        genesis,
-        contracts_config,
-        gateway_contracts_config,
-        secrets,
-    )?;
+    let node = MainNodeBuilder::new(configs, wallets, genesis, secrets)?;
 
     let observability_guard = {
         // Observability initialization should be performed within tokio context.

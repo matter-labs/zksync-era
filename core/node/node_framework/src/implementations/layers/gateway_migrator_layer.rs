@@ -1,6 +1,7 @@
 use async_trait::async_trait;
-use zksync_config::{configs::GatewayChainConfig, ContractsConfig};
+use zksync_config::{Contracts, ContractsConfig};
 use zksync_multilayer_client::GatewayMigrator;
+use zksync_types::{settlement::SettlementMode, SLChainId};
 
 use crate::{
     implementations::resources::{
@@ -14,18 +15,13 @@ use crate::{
 /// Wiring layer for [`PKSigningClient`].
 #[derive(Debug)]
 pub struct GatewayMigratorLayer {
-    contracts_config: ContractsConfig,
-    gateway_chain_config: Option<GatewayChainConfig>,
+    contracts: Contracts,
 }
 
 impl GatewayMigratorLayer {
-    pub fn new(
-        contracts_config: ContractsConfig,
-        gateway_chain_config: Option<GatewayChainConfig>,
-    ) -> Self {
+    pub fn new(contracts_config: Contracts) -> Self {
         Self {
-            contracts_config,
-            gateway_chain_config,
+            contracts: contracts_config,
         }
     }
 }
@@ -55,13 +51,33 @@ impl WiringLayer for GatewayMigratorLayer {
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
-        let migrator =
-            GatewayMigrator::new(input.eth_client.0, self.contracts_config.diamond_proxy_addr)
-                .await;
+        let migrator = GatewayMigrator::new(
+            input.eth_client.0,
+            self.contracts
+                .current_contracts()
+                .chain_contracts_config
+                .diamond_proxy_addr,
+        )
+        .await;
 
+        // let contracts = match migrator.settlement_mode() {
+        //     SettlementMode::SettlesToL1 => GatewayChainConfig {
+        //         state_transition_proxy_addr: self
+        //             .contracts_config
+        //             .ecosystem_contracts
+        //             .unwrap()
+        //             .state_transition_proxy_addr,
+        //         validator_timelock_addr: self.contracts_config.validator_timelock_addr,
+        //         multicall3_addr: self.contracts_config.l1_multicall3_addr,
+        //         diamond_proxy_addr: self.contracts_config.diamond_proxy_addr,
+        //         chain_admin_addr: self.contracts_config.chain_admin_addr,
+        //         gateway_chain_id: SLChainId(0),
+        //     },
+        //     SettlementMode::Gateway => self.gateway_chain_config.clone().unwrap(),
+        // };
         Ok(Output {
             initial_settlement_mode: SettlementModeResource(migrator.settlement_mode()),
-            contracts: ContractsResource(self.gateway_chain_config.unwrap()),
+            contracts: ContractsResource(self.contracts),
             gateway_migrator: migrator,
         })
     }

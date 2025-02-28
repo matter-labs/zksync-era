@@ -1,5 +1,7 @@
 use anyhow::Context as _;
-use zksync_config::configs::{ContractsConfig, EcosystemContracts};
+use zksync_config::configs::contracts::{
+    chain::ChainContractsConfig as ContractsConfig, ecosystem::EcosystemContracts,
+};
 use zksync_protobuf::{repr::ProtoRepr, required};
 
 use crate::{parse_h160, parse_h256, proto::contracts as proto};

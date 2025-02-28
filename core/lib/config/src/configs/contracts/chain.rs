@@ -1,37 +1,11 @@
-// External uses
-use serde::{Deserialize, Serialize};
-// Workspace uses
+use serde::Deserialize;
 use zksync_basic_types::{Address, H256};
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-pub struct EcosystemContracts {
-    pub bridgehub_proxy_addr: Address,
-    pub state_transition_proxy_addr: Address,
-    pub transparent_proxy_admin_addr: Address,
-    pub l1_bytecodes_supplier_addr: Option<Address>,
-    // Note that on the contract side of things this contract is called `L2WrappedBaseTokenStore`,
-    // while on the server side for consistency with the conventions, where the prefix denotes
-    // the location of the contracts we call it `l1_wrapped_base_token_store`
-    pub l1_wrapped_base_token_store: Option<Address>,
-    pub server_notifier_addr: Option<Address>,
-}
-
-impl EcosystemContracts {
-    fn for_tests() -> Self {
-        Self {
-            bridgehub_proxy_addr: Address::repeat_byte(0x14),
-            state_transition_proxy_addr: Address::repeat_byte(0x15),
-            transparent_proxy_admin_addr: Address::repeat_byte(0x15),
-            l1_bytecodes_supplier_addr: Some(Address::repeat_byte(0x16)),
-            l1_wrapped_base_token_store: Some(Address::repeat_byte(0x17)),
-            server_notifier_addr: Some(Address::repeat_byte(0x18)),
-        }
-    }
-}
+use crate::configs::contracts::ecosystem::EcosystemContracts;
 
 /// Data about deployed contracts.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
-pub struct ContractsConfig {
+pub struct ChainContractsConfig {
     pub governance_addr: Address,
     pub verifier_addr: Address,
     pub default_upgrade_addr: Address,
@@ -62,7 +36,7 @@ pub struct ContractsConfig {
     pub no_da_validium_l1_validator_addr: Option<Address>,
 }
 
-impl ContractsConfig {
+impl ChainContractsConfig {
     pub fn for_tests() -> Self {
         Self {
             verifier_addr: Address::repeat_byte(0x06),
@@ -88,4 +62,23 @@ impl ContractsConfig {
             no_da_validium_l1_validator_addr: Some(Address::repeat_byte(0x1b)),
         }
     }
+}
+
+#[derive(Debug, Clone)]
+pub struct ChainContracts {
+    pub diamond_proxy_addr: Address,
+    pub relayed_sl_da_validator: Option<Address>,
+    pub validium_da_validator: Option<Address>,
+    pub chain_admin: Address,
+    pub base_token_address: Option<Address>,
+}
+
+#[derive(Debug, Clone)]
+pub struct L2Contracts {
+    pub l2_erc20_default_bridge: Option<Address>,
+    pub l2_shared_bridge_addr: Option<Address>,
+    pub l2_legacy_shared_bridge_addr: Option<Address>,
+    pub l2_timestamp_asserter_addr: Option<Address>,
+    pub l2_da_validator_addr: Option<Address>,
+    pub l2_testnet_paymaster_addr: Option<Address>,
 }

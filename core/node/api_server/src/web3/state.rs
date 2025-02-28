@@ -12,10 +12,7 @@ use futures::TryFutureExt;
 use lru::LruCache;
 use tokio::sync::{Mutex, RwLock};
 use vise::GaugeGuard;
-use zksync_config::{
-    configs::{api::Web3JsonRpcConfig, ContractsConfig},
-    GenesisConfig,
-};
+use zksync_config::{configs::api::Web3JsonRpcConfig, Contracts, GenesisConfig};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_metadata_calculator::api_server::TreeApiClient;
 use zksync_node_sync::SyncState;
@@ -127,7 +124,7 @@ pub struct InternalApiConfig {
 impl InternalApiConfig {
     pub fn new(
         web3_config: &Web3JsonRpcConfig,
-        contracts_config: &ContractsConfig,
+        contracts_config: &Contracts,
         genesis_config: &GenesisConfig,
     ) -> Self {
         Self {
@@ -139,55 +136,72 @@ impl InternalApiConfig {
                 .estimate_gas_acceptable_overestimation,
             estimate_gas_optimize_search: web3_config.estimate_gas_optimize_search,
             bridge_addresses: api::BridgeAddresses {
-                l1_erc20_default_bridge: contracts_config.l1_erc20_bridge_proxy_addr,
-                l2_erc20_default_bridge: contracts_config.l2_erc20_bridge_addr,
-                l1_shared_default_bridge: contracts_config.l1_shared_bridge_proxy_addr,
-                l2_shared_default_bridge: contracts_config.l2_shared_bridge_addr,
-                l1_weth_bridge: Some(
-                    contracts_config
-                        .l1_weth_bridge_proxy_addr
-                        .unwrap_or_default(),
-                ),
-                l2_weth_bridge: Some(
-                    contracts_config
-                        .l1_weth_bridge_proxy_addr
-                        .unwrap_or_default(),
-                ),
-                l2_legacy_shared_bridge: contracts_config.l2_legacy_shared_bridge_addr,
+                l1_erc20_default_bridge: contracts_config.l1_specific_contracts().erc_20_bridge,
+                l2_erc20_default_bridge: contracts_config
+                    .current_contracts()
+                    .l2_contracts
+                    .l2_erc20_default_bridge,
+                l1_shared_default_bridge: contracts_config.l1_specific_contracts().shared_bridge,
+                l2_shared_default_bridge: contracts_config
+                    .current_contracts()
+                    .l2_contracts
+                    .l2_shared_bridge_addr,
+                // Seems weth is not available
+                l1_weth_bridge: None,
+                l2_weth_bridge: None,
+                l2_legacy_shared_bridge: contracts_config
+                    .current_contracts()
+                    .l2_contracts
+                    .l2_legacy_shared_bridge_addr,
             },
-            l1_bridgehub_proxy_addr: contracts_config
-                .ecosystem_contracts
-                .as_ref()
-                .map(|a| a.bridgehub_proxy_addr),
+            l1_bridgehub_proxy_addr: Some(
+                contracts_config
+                    .current_contracts()
+                    .ecosystem_contracts
+                    .bridgehub_proxy_addr,
+            ),
             l1_state_transition_proxy_addr: contracts_config
+                .current_contracts()
                 .ecosystem_contracts
-                .as_ref()
-                .map(|a| a.state_transition_proxy_addr),
-            l1_transparent_proxy_admin_addr: contracts_config
-                .ecosystem_contracts
-                .as_ref()
-                .map(|a| a.transparent_proxy_admin_addr),
+                .state_transition_proxy_addr,
+
+            l1_transparent_proxy_admin_addr: Some(
+                contracts_config
+                    .current_contracts()
+                    .ecosystem_contracts
+                    .l1_transparent_proxy_admin_addr,
+            ),
             l1_bytecodes_supplier_addr: contracts_config
-                .ecosystem_contracts
-                .as_ref()
-                .and_then(|a| a.l1_bytecodes_supplier_addr),
+                .l1_specific_contracts()
+                .bytecodes_supplier_addr,
             l1_wrapped_base_token_store: contracts_config
-                .ecosystem_contracts
-                .as_ref()
-                .and_then(|a| a.l1_wrapped_base_token_store),
-            l1_diamond_proxy_addr: contracts_config.diamond_proxy_addr,
-            l2_testnet_paymaster_addr: contracts_config.l2_testnet_paymaster_addr,
+                .l1_specific_contracts()
+                .wrapped_base_token_store,
+            l1_diamond_proxy_addr: contracts_config
+                .current_contracts()
+                .chain_contracts_config
+                .diamond_proxy_addr,
+            l2_testnet_paymaster_addr: contracts_config
+                .current_contracts()
+                .l2_contracts
+                .l2_testnet_paymaster_addr,
             req_entities_limit: web3_config.req_entities_limit(),
             fee_history_limit: web3_config.fee_history_limit(),
-            base_token_address: contracts_config.base_token_addr,
+            base_token_address: contracts_config
+                .current_contracts()
+                .chain_contracts_config
+                .base_token_address,
             filters_disabled: web3_config.filters_disabled,
             dummy_verifier: genesis_config.dummy_verifier,
             l1_batch_commit_data_generator_mode: genesis_config.l1_batch_commit_data_generator_mode,
-            timestamp_asserter_address: contracts_config.l2_timestamp_asserter_addr,
+            timestamp_asserter_address: contracts_config
+                .current_contracts()
+                .l2_contracts
+                .l2_timestamp_asserter_addr,
             l1_server_notifier_addr: contracts_config
+                .current_contracts()
                 .ecosystem_contracts
-                .as_ref()
-                .and_then(|a| a.server_notifier_addr),
+                .server_notifier_addr,
         }
     }
 }
