@@ -265,110 +265,138 @@ pub(crate) async fn is_unsafe_deposit_present(
     Ok(false)
 }
 
-#[tokio::test]
-async fn test_is_unsafe_deposit_trivial_case() {
-    let test_data = get_test_data();
-    let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
-    let mut storage = pool.connection().await.unwrap();
-    insert_genesis_batch(&mut storage, &GenesisParams::mock())
-        .await
-        .unwrap();
+#[cfg(test)]
+mod tests {
+    use zksync_multivm::vm_latest::utils::v26_upgrade::{post_bridging_test_storage_logs, post_registration_test_storage_logs};
 
-    let trivial_test_logs = trivial_test_storage_logs();
-    let storage_logs: Vec<_> = trivial_test_logs.into_iter().map(|(key, value)| {
-        StorageLog { kind: zksync_types::StorageLogKind::InitialWrite, key, value }
-    })
-    .collect();
+    use super::*;
 
-    storage.storage_logs_dal().append_storage_logs(L2BlockNumber(0), &storage_logs).await.unwrap();
+    // Bridging txs can never happen on L2, we use it to 
+    // just ensure that L2 txs are always allowed.
+    fn get_l2_dummy_bridging_tx() -> Transaction {
+        let test_data = get_test_data();
+        Transaction {
+            common_data: ExecuteTransactionCommon::L2(Default::default()),
+            execute: Execute {
+                contract_address: Some(test_data.l2_legacy_shared_bridge_address),
+                calldata: encode_legacy_finalize_deposit(test_data.l1_token_address),
+                value: Default::default(),
+                factory_deps: vec![],
+            },
+            received_timestamp_ms: 0,
+            raw_bytes: None,
+        }
+    }
 
+    fn get_l1_bridging_tx() -> Transaction {
+        Transaction {
+            common_data: ExecuteTransactionCommon::L1(Default::default()),
+            ..get_l2_dummy_bridging_tx()
+        }
+    }
 
-    // No transactions, obviously no bad deposits.
-    assert_eq!(
-        is_unsafe_deposit_present(&[], &mut storage).await.unwrap(),
-        false
-    );
+    fn get_l1_new_bridging_tx() -> Transaction {
+        let test_data = get_test_data();
+        Transaction {
+            common_data: ExecuteTransactionCommon::L1(Default::default()),
+            execute: Execute {
+                contract_address: Some(L2_ASSET_ROUTER_ADDRESS),
+                calldata: encode_new_finalize_deposit(
+                    test_data.l1_chain_id,
+                    test_data.l1_token_address,
+                ),
+                value: Default::default(),
+                factory_deps: vec![],
+            },
+            received_timestamp_ms: 0,
+            raw_bytes: None,
+        }
+    }
 
-    let l2_tx = Transaction {
-        common_data: ExecuteTransactionCommon::L2(Default::default()),
-        execute: Execute {
-            contract_address: Some(test_data.l2_legacy_shared_bridge_address),
-            calldata: encode_legacy_finalize_deposit(test_data.l1_token_address),
-            value: Default::default(),
-            factory_deps: vec![],
-        },
-        received_timestamp_ms: 0,
-        raw_bytes: None,
-    };
+    fn get_l1_new_deposit_bad_address() -> Transaction {
+        let test_data = get_test_data();
+        Transaction {
+            common_data: ExecuteTransactionCommon::L1(Default::default()),
+            execute: Execute {
+                contract_address: Some(Address::from_low_u64_be(1)),
+                calldata: encode_new_finalize_deposit(
+                    test_data.l1_chain_id,
+                    test_data.l1_token_address,
+                ),
+                value: Default::default(),
+                factory_deps: vec![],
+            },
+            received_timestamp_ms: 0,
+            raw_bytes: None,
+        }
+    }
 
-    let l1_tx = Transaction {
-        common_data: ExecuteTransactionCommon::L1(Default::default()),
-        ..l2_tx.clone()
-    };
-
-    let l1_tx_new_deposit = Transaction {
-        common_data: ExecuteTransactionCommon::L1(Default::default()),
-        execute: Execute {
-            contract_address: Some(L2_ASSET_ROUTER_ADDRESS),
-            calldata: encode_new_finalize_deposit(
-                test_data.l1_chain_id,
-                test_data.l1_token_address,
-            ),
-            value: Default::default(),
-            factory_deps: vec![],
-        },
-        ..l2_tx.clone()
-    };
-
-    let l1_tx_new_deposit_bad_address = Transaction {
-        common_data: ExecuteTransactionCommon::L1(Default::default()),
-        execute: Execute {
-            contract_address: Some(Address::from_low_u64_be(1)),
-            calldata: encode_new_finalize_deposit(
-                test_data.l1_chain_id,
-                test_data.l1_token_address,
-            ),
-            value: Default::default(),
-            factory_deps: vec![],
-        },
-        ..l2_tx.clone()
-    };
-
-    // Even though the transaction could've been a legacy one, it is still accepted as it is an L2 one.
-    assert_eq!(
-        is_unsafe_deposit_present(&[(l2_tx.clone(), Default::default())], &mut storage)
+    async fn test_is_unsafe_deposit_present(
+        storage_logs: HashMap<StorageKey, H256>,
+        txs: Vec<(Vec<Transaction>, bool)>
+    ) {
+        let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
+        let mut storage = pool.connection().await.unwrap();
+        insert_genesis_batch(&mut storage, &GenesisParams::mock())
             .await
-            .unwrap(),
-        false
-    );
+            .unwrap();
 
-    // The second transaction is a legacy one and thus it should be accepted.
-    assert_eq!(
-        is_unsafe_deposit_present(
-            &[(l2_tx, Default::default()), (l1_tx, Default::default())],
-            &mut storage
-        )
-        .await
-        .unwrap(),
-        true
-    );
+        let storage_logs: Vec<_> = storage_logs.into_iter().map(|(key, value)| {
+            StorageLog { kind: zksync_types::StorageLogKind::InitialWrite, key, value }
+        })
+        .collect();
 
-    // The second transaction is a legacy one and thus it should be accepted.
-    assert_eq!(
-        is_unsafe_deposit_present(&[(l1_tx_new_deposit, Default::default())], &mut storage)
-            .await
-            .unwrap(),
-        true
-    );
+        storage.storage_logs_dal().append_storage_logs(L2BlockNumber(0), &storage_logs).await.unwrap();
 
-    // The second transaction is a legacy one and thus it should be accepted.
-    assert_eq!(
-        is_unsafe_deposit_present(
-            &[(l1_tx_new_deposit_bad_address, Default::default())],
-            &mut storage
-        )
-        .await
-        .unwrap(),
-        false
-    );
+        for (txs, result) in txs {
+            let txs_with_constrains: Vec<_> = txs.into_iter().map(|tx| (tx, Default::default())).collect();
+            assert_eq!(
+                is_unsafe_deposit_present(&txs_with_constrains, &mut storage).await.unwrap(),
+                result
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn test_is_unsafe_deposit_post_bridging() {
+        test_is_unsafe_deposit_present(
+            post_bridging_test_storage_logs(),
+            vec![
+                (vec![], false),
+                (vec![get_l2_dummy_bridging_tx()], false),
+                (vec![get_l2_dummy_bridging_tx(), get_l1_bridging_tx()], false),
+                (vec![get_l1_new_bridging_tx()], false),
+                (vec![get_l1_new_deposit_bad_address()], false)
+            ]
+        ).await;
+    }
+
+    #[tokio::test]
+    async fn test_is_unsafe_deposit_post_registration() {
+        test_is_unsafe_deposit_present(
+            post_registration_test_storage_logs(),
+            vec![
+                (vec![], false),
+                (vec![get_l2_dummy_bridging_tx()], false),
+                (vec![get_l2_dummy_bridging_tx(), get_l1_bridging_tx()], false),
+                (vec![get_l1_new_bridging_tx()], false),
+                (vec![get_l1_new_deposit_bad_address()], false)
+            ]
+        ).await;
+    }
+
+    #[tokio::test]
+    async fn test_is_unsafe_deposit_trivial_case() {
+        test_is_unsafe_deposit_present(
+            trivial_test_storage_logs(),
+            vec![
+                (vec![], false),
+                (vec![get_l2_dummy_bridging_tx()], false),
+                (vec![get_l2_dummy_bridging_tx(), get_l1_bridging_tx()], true),
+                (vec![get_l1_new_bridging_tx()], true),
+                (vec![get_l1_new_deposit_bad_address()], false)
+            ]
+        ).await;
+    }
+
 }
