@@ -254,6 +254,10 @@ pub(crate) async fn run(args: Args) -> anyhow::Result<()> {
 
         let ll = witness_input.merkle_paths.last().unwrap().clone();
         println!("last root hash: {:?}", H256::from_slice(&ll.root_hash));
+
+        for x in aa.merkle_paths {
+            println!("  path: {:?}", H256::from_slice((&x).as_slice()));
+        }
         
 
 
