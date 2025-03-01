@@ -16,7 +16,7 @@ use zksync_prover_fri_types::{
     CircuitWrapper, FriProofWrapper,
 };
 use zksync_prover_interface::{inputs::WitnessInputMerklePaths, outputs::L1BatchProofForL1};
-use zksync_types::H256;
+use zksync_types::{u256_to_h256, H256};
 
 #[derive(ClapArgs)]
 pub struct Args {
@@ -102,7 +102,15 @@ fn pretty_print_circuit_wrapper(circuit: &CircuitWrapper) {
                     println!("fsm input hash: {:?}", H256::from_slice(&ww.closed_form_input.hidden_fsm_input.current_root_hash));
                     println!("fsm output hash: {:?}", H256::from_slice(&ww.closed_form_input.hidden_fsm_output.current_root_hash));
                     println!("Final root hash: {:?}", H256::from_slice(&ww.closed_form_input.observable_output.new_root_hash));
-                    circuit.debug_witness()
+                    //circuit.debug_witness()
+
+                    let aa = ww.storage_queue_witness.elements;
+                    println!("storage queue elements: {:?}", aa.len());
+                    for (i, x) in aa.iter().enumerate() {
+                        println!("{}  element: rw:{:?} {:?} {:?} {:?}", i, x.0.rw_flag, x.0.address, u256_to_h256(x.0.key), u256_to_h256(x.0.written_value));
+                        
+                    }
+
                 },
                 ZkSyncBaseLayerCircuit::EventsSorter(_) => todo!(),
                 ZkSyncBaseLayerCircuit::L1MessagesSorter(_) => todo!(),
@@ -255,9 +263,21 @@ pub(crate) async fn run(args: Args) -> anyhow::Result<()> {
         let ll = witness_input.merkle_paths.last().unwrap().clone();
         println!("last root hash: {:?}", H256::from_slice(&ll.root_hash));
 
-        for x in aa.merkle_paths {
-            println!("  path: {:?}", H256::from_slice((&x).as_slice()));
+        //for x in aa.merkle_paths {
+        //    println!("  path: {:?}", H256::from_slice((&x).as_slice()));
+        //}
+
+        for (i, x ) in witness_input.merkle_paths.iter().enumerate() {
+            println!("  root hash  {}: {:?}", i, H256::from_slice((&x.root_hash).as_slice()));
+            println!(" leaf & value: {:?} {:?} ", u256_to_h256(x.leaf_hashed_key), H256::from_slice(&x.value_written));
+            if i > 30 {
+                break;
+            }
         }
+
+        //dbg!(witness_input);
+
+
         
 
 
