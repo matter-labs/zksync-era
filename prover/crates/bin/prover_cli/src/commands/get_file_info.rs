@@ -96,7 +96,14 @@ fn pretty_print_circuit_wrapper(circuit: &CircuitWrapper) {
                 }
                 ZkSyncBaseLayerCircuit::RAMPermutation(_) => todo!(),
                 ZkSyncBaseLayerCircuit::StorageSorter(_) => todo!(),
-                ZkSyncBaseLayerCircuit::StorageApplication(circuit) => circuit.debug_witness(),
+                ZkSyncBaseLayerCircuit::StorageApplication(circuit) => {
+                    let ww = circuit.clone_witness().unwrap();
+                    println!("Initial root hash: {:?}", H256::from_slice(&ww.closed_form_input.observable_input.initial_root_hash));
+                    println!("fsm input hash: {:?}", H256::from_slice(&ww.closed_form_input.hidden_fsm_input.current_root_hash));
+                    println!("fsm output hash: {:?}", H256::from_slice(&ww.closed_form_input.hidden_fsm_output.current_root_hash));
+                    println!("Final root hash: {:?}", H256::from_slice(&ww.closed_form_input.observable_output.new_root_hash));
+                    circuit.debug_witness()
+                },
                 ZkSyncBaseLayerCircuit::EventsSorter(_) => todo!(),
                 ZkSyncBaseLayerCircuit::L1MessagesSorter(_) => todo!(),
                 ZkSyncBaseLayerCircuit::L1MessagesHasher(_) => todo!(),
