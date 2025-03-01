@@ -33,6 +33,12 @@ pub(super) enum EtherscanError {
     UnexpectedResponse { message: String, status: String },
 }
 
+impl EtherscanError {
+    pub fn unexpected_response(message: String, status: String) -> Self {
+        Self::UnexpectedResponse { message, status }
+    }
+}
+
 #[derive(Debug, thiserror::Error)]
 pub(super) enum ProcessingError {
     #[error("Get verification status timed out. Failing the verification process")]

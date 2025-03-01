@@ -45,10 +45,10 @@ async fn extract_result<T: DeserializeOwned>(
         return raw_response.deserialize_result();
     }
 
-    Err(EtherscanError::UnexpectedResponse {
-        message: raw_response.message,
-        status: raw_response.status,
-    })
+    Err(EtherscanError::unexpected_response(
+        raw_response.message,
+        raw_response.status,
+    ))
 }
 
 impl EtherscanClient {
