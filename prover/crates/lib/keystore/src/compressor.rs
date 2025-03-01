@@ -18,7 +18,7 @@ impl proof_compression_gpu::BlobStorage for Keystore {
             ),
             ProverServiceDataType::VerificationKey,
         );
-
+        tracing::info!("Reading filepath {:?}", filepath);
         Box::new(File::open(filepath).unwrap())
     }
 
@@ -27,7 +27,7 @@ impl proof_compression_gpu::BlobStorage for Keystore {
             ProverServiceDataKey::new_compression(circuit_id),
             ProverServiceDataType::FinalizationHints,
         );
-
+        tracing::info!("Reading filepath {:?}", filepath);
         Box::new(File::open(filepath).unwrap())
     }
 
@@ -36,7 +36,7 @@ impl proof_compression_gpu::BlobStorage for Keystore {
             ProverServiceDataKey::new_compression(circuit_id),
             ProverServiceDataType::VerificationKey,
         );
-
+        tracing::info!("Reading filepath {:?}", filepath);
         Box::new(File::open(filepath).unwrap())
     }
 
@@ -45,7 +45,7 @@ impl proof_compression_gpu::BlobStorage for Keystore {
             ProverServiceDataKey::new_compression(circuit_id),
             ProverServiceDataType::SetupData,
         );
-
+        tracing::info!("Reading filepath {:?}", filepath);
         Box::new(File::open(filepath).unwrap())
     }
 
@@ -54,7 +54,7 @@ impl proof_compression_gpu::BlobStorage for Keystore {
             ProverServiceDataKey::new_compression_wrapper(circuit_id),
             ProverServiceDataType::FinalizationHints,
         );
-
+        tracing::info!("Reading filepath {:?}", filepath);
         Box::new(File::open(filepath).unwrap())
     }
 
@@ -63,7 +63,7 @@ impl proof_compression_gpu::BlobStorage for Keystore {
             ProverServiceDataKey::new_compression_wrapper(circuit_id),
             ProverServiceDataType::VerificationKey,
         );
-
+        tracing::info!("Reading filepath {:?}", filepath);
         Box::new(File::open(filepath).unwrap())
     }
 
@@ -75,7 +75,7 @@ impl proof_compression_gpu::BlobStorage for Keystore {
             ProverServiceDataKey::new_compression_wrapper(circuit_id),
             ProverServiceDataType::SetupData,
         );
-
+        tracing::info!("Reading filepath {:?}", filepath);
         Box::new(File::open(filepath).unwrap())
     }
 
@@ -84,7 +84,7 @@ impl proof_compression_gpu::BlobStorage for Keystore {
             ProverServiceDataKey::snark(),
             ProverServiceDataType::FflonkSnarkVerificationKey,
         );
-
+        tracing::info!("Reading filepath {:?}", filepath);
         Box::new(File::open(filepath).unwrap())
     }
 
@@ -93,7 +93,7 @@ impl proof_compression_gpu::BlobStorage for Keystore {
             ProverServiceDataKey::snark(),
             ProverServiceDataType::FflonkSetupData,
         );
-
+        tracing::info!("Reading filepath {:?}", filepath);
         Box::new(File::open(filepath).unwrap())
     }
 
@@ -102,7 +102,7 @@ impl proof_compression_gpu::BlobStorage for Keystore {
             ProverServiceDataKey::snark(),
             ProverServiceDataType::SnarkVerificationKey,
         );
-
+        tracing::info!("Reading filepath {:?}", filepath);
         Box::new(File::open(filepath).unwrap())
     }
 
@@ -111,13 +111,14 @@ impl proof_compression_gpu::BlobStorage for Keystore {
             ProverServiceDataKey::snark(),
             ProverServiceDataType::PlonkSetupData,
         );
-
+        tracing::info!("Reading filepath {:?}", filepath);
         Box::new(File::open(filepath).unwrap())
     }
 
     fn read_compact_raw_crs(&self) -> Box<dyn Read + Send + Sync> {
         let filepath =
             std::env::var(COMPACT_CRS_ENV_VAR).expect("No compact CRS file path provided");
+        tracing::info!("Reading filepath {:?}", filepath);
         Box::new(File::open(filepath).unwrap())
     }
 }
@@ -128,7 +129,7 @@ impl proof_compression_gpu::BlobStorageExt for Keystore {
             ProverServiceDataKey::new_compression(circuit_id),
             ProverServiceDataType::FinalizationHints,
         );
-
+        tracing::info!("Writing filepath {:?}", filepath);
         Box::new(File::create(filepath).unwrap())
     }
 
@@ -137,7 +138,7 @@ impl proof_compression_gpu::BlobStorageExt for Keystore {
             ProverServiceDataKey::new_compression(circuit_id),
             ProverServiceDataType::VerificationKey,
         );
-
+        tracing::info!("Writing filepath {:?}", filepath);
         Box::new(File::create(filepath).unwrap())
     }
 
@@ -146,7 +147,7 @@ impl proof_compression_gpu::BlobStorageExt for Keystore {
             ProverServiceDataKey::new_compression(circuit_id),
             ProverServiceDataType::SetupData,
         );
-
+        tracing::info!("Writing filepath {:?}", filepath);
         Box::new(File::create(filepath).unwrap())
     }
 
@@ -155,7 +156,7 @@ impl proof_compression_gpu::BlobStorageExt for Keystore {
             ProverServiceDataKey::new_compression_wrapper(circuit_id),
             ProverServiceDataType::FinalizationHints,
         );
-
+        tracing::info!("Writing filepath {:?}", filepath);
         Box::new(File::create(filepath).unwrap())
     }
 
@@ -164,7 +165,7 @@ impl proof_compression_gpu::BlobStorageExt for Keystore {
             ProverServiceDataKey::new_compression_wrapper(circuit_id),
             ProverServiceDataType::VerificationKey,
         );
-
+        tracing::info!("Writing filepath {:?}", filepath);
         Box::new(File::create(filepath).unwrap())
     }
 
@@ -173,7 +174,7 @@ impl proof_compression_gpu::BlobStorageExt for Keystore {
             ProverServiceDataKey::new_compression_wrapper(circuit_id),
             ProverServiceDataType::SetupData,
         );
-
+        tracing::info!("Writing filepath {:?}", filepath);
         Box::new(File::create(filepath).unwrap())
     }
 
@@ -182,7 +183,7 @@ impl proof_compression_gpu::BlobStorageExt for Keystore {
             ProverServiceDataKey::snark(),
             ProverServiceDataType::FflonkSnarkVerificationKey,
         );
-
+        tracing::info!("Writing filepath {:?}", filepath);
         Box::new(File::create(filepath).unwrap())
     }
 
@@ -191,7 +192,7 @@ impl proof_compression_gpu::BlobStorageExt for Keystore {
             ProverServiceDataKey::snark(),
             ProverServiceDataType::FflonkSetupData,
         );
-
+        tracing::info!("Writing filepath {:?}", filepath);
         Box::new(File::create(filepath).unwrap())
     }
 
@@ -200,7 +201,7 @@ impl proof_compression_gpu::BlobStorageExt for Keystore {
             ProverServiceDataKey::snark(),
             ProverServiceDataType::SnarkVerificationKey,
         );
-
+        tracing::info!("Writing filepath {:?}", filepath);
         Box::new(File::create(filepath).unwrap())
     }
 
@@ -209,13 +210,14 @@ impl proof_compression_gpu::BlobStorageExt for Keystore {
             ProverServiceDataKey::snark(),
             ProverServiceDataType::PlonkSetupData,
         );
-
+        tracing::info!("Writing filepath {:?}", filepath);
         Box::new(File::create(filepath).unwrap())
     }
 
     fn write_compact_raw_crs(&self) -> Box<dyn Write> {
         let filepath =
             std::env::var(COMPACT_CRS_ENV_VAR).expect("No compact CRS file path provided");
+        tracing::info!("Writing filepath {:?}", filepath);
         Box::new(File::create(filepath).unwrap())
     }
 }
