@@ -41,22 +41,67 @@ impl ContractEntry {
     }
 }
 
+fn resolve_module_name(
+    manifest_dir: &Path,
+    test_contracts_dir: &Path,
+    factory_deps_to_include: &HashSet<String>,
+    id: &ArtifactId
+) -> Option<String> {
+    let path_in_dir = id.source.strip_prefix(manifest_dir).ok()?;
+    let next_folder = path_in_dir.iter().next().expect("no dir");
+
+    let module_name = if next_folder.to_str() == test_contracts_dir.to_str() {
+        // We will use the test name folder and not the `contracts` folder for the module
+        path_in_dir.iter().skip(1).next().expect("no dir")
+    } else if factory_deps_to_include.contains(&format!("{}:{}", path_in_dir.to_str().unwrap(), id.name)) {
+        // We will use the dependency's folder as the module name
+        next_folder
+    } else {
+        return None
+    };
+
+    Some(module_name
+        .to_str()
+        .expect("contract dir is not UTF-8")
+        .replace('-', "_"))
+}
+
 fn save_artifacts(
     output: &mut impl Write,
     artifacts: impl Iterator<Item = (ArtifactId, ZkContractArtifact)>,
 ) {
-    let source_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("contracts");
+    let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let test_contracts_dir = Path::new("contracts");
+    let source_dir = manifest_dir.join(&test_contracts_dir);
     let mut modules = HashMap::<_, HashMap<_, _>>::new();
 
-    for (id, artifact) in artifacts {
-        let Ok(path_in_sources) = id.source.strip_prefix(&source_dir) else {
+    let artifacts: Vec<_> = artifacts.collect();
+    let mut factory_deps_to_include: HashSet<_> = Default::default();
+
+    for (id, artifact) in artifacts.iter() {
+        if !id.source.starts_with(&source_dir) {
             continue; // The artifact doesn't correspond to a source contract
         };
-        let contract_dir = path_in_sources.iter().next().expect("no dir");
-        let module_name = contract_dir
-            .to_str()
-            .expect("contract dir is not UTF-8")
-            .replace('-', "_");
+
+        let Some(factory_deps) = &artifact.factory_dependencies else {
+            continue;
+        };
+
+        for (_, source) in factory_deps {
+            factory_deps_to_include.insert(source.to_owned());
+        }
+    }
+
+    for (id, artifact) in artifacts {
+        let Some(module_name) = resolve_module_name(
+            manifest_dir,
+            test_contracts_dir,
+            &factory_deps_to_include,
+            &id
+        ) else {
+            continue;
+        };
+
         if let Some(entry) = ContractEntry::new(artifact) {
             modules
                 .entry(module_name)
@@ -114,9 +159,25 @@ fn main() {
         .sources(Path::new(env!("CARGO_MANIFEST_DIR")).join("contracts"))
         .remapping(Remapping {
             context: None,
-            name: "@openzeppelin/contracts".into(),
+            name: "@openzeppelin/contracts-v4".into(),
             path: format!(
                 "{}/contract-libs/openzeppelin-contracts-v4/contracts",
+                env!("CARGO_MANIFEST_DIR")
+            ),
+        })
+        .remapping(Remapping {
+            context: None,
+            name: "l1-contracts".into(),
+            path: format!(
+                "{}/contract-libs/l1-contracts/contracts",
+                env!("CARGO_MANIFEST_DIR")
+            ),
+        })
+        .remapping(Remapping {
+            context: None,
+            name: "@openzeppelin/contracts-upgradeable-v4".into(),
+            path: format!(
+                "{}/contract-libs/openzeppelin-contracts-upgradeable-v4/contracts",
                 env!("CARGO_MANIFEST_DIR")
             ),
         })

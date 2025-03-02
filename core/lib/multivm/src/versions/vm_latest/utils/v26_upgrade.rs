@@ -30,7 +30,7 @@ pub fn get_test_data() -> V26TestData {
         l1_shared_bridge_address: Address::from_str("abacabac00000000000000000000000000000001")
             .unwrap(),
         l1_token_address: Address::from_str("abacabac00000000000000000000000000000002").unwrap(),
-        l2_token_address: Address::from_str("de1b93723f716c741b771276465b7b58aa9c44a6").unwrap(),
+        l2_token_address: Address::from_str("1b5bf1cfb09fca6a08a0585f7a2c73d59e7a9b85").unwrap(),
         l2_legacy_shared_bridge_address: Address::from_str(
             "d316600b6009f94ab776e97f1fc985bc18b4e535",
         )
