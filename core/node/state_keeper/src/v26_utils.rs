@@ -1,7 +1,17 @@
 use zksync_contracts::{l2_asset_router, l2_legacy_shared_bridge};
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_types::{
-    address_to_h256, ethabi::{self, ParamType, Token}, get_address_mapping_key, get_immutable_simulator_key, h256_to_address, h256_to_u256, tx::execute::Create2DeploymentParams, utils::encode_ntv_asset_id, AccountTreeId, Address, L2BlockNumber, StorageKey, Transaction, TransactionTimeRangeConstraint, H256, L2_ASSET_ROUTER_ADDRESS, L2_ASSET_ROUTER_LEGACY_SHARED_BRIDGE_IMMUTABLE_KEY, L2_ASSET_ROUTER_LEGACY_SHARED_BRIDGE_L1_CHAIN_ID_KEY, L2_LEGACY_SHARED_BRIDGE_BEACON_PROXY_BYTECODE_KEY, L2_LEGACY_SHARED_BRIDGE_L1_ADDRESSES_KEY, L2_LEGACY_SHARED_BRIDGE_UPGRADEABLE_BEACON_ADDRESS_KEY, L2_NATIVE_TOKEN_VAULT_ADDRESS, L2_NATIVE_TOKEN_VAULT_ASSET_ID_MAPPING_INDEX, U256
+    address_to_h256,
+    ethabi::{self, ParamType, Token},
+    get_address_mapping_key, get_immutable_simulator_key, h256_to_address, h256_to_u256,
+    tx::execute::Create2DeploymentParams,
+    utils::encode_ntv_asset_id,
+    AccountTreeId, Address, L2BlockNumber, StorageKey, Transaction, TransactionTimeRangeConstraint,
+    H256, L2_ASSET_ROUTER_ADDRESS, L2_ASSET_ROUTER_LEGACY_SHARED_BRIDGE_IMMUTABLE_KEY,
+    L2_ASSET_ROUTER_LEGACY_SHARED_BRIDGE_L1_CHAIN_ID_KEY,
+    L2_LEGACY_SHARED_BRIDGE_BEACON_PROXY_BYTECODE_KEY, L2_LEGACY_SHARED_BRIDGE_L1_ADDRESSES_KEY,
+    L2_LEGACY_SHARED_BRIDGE_UPGRADEABLE_BEACON_ADDRESS_KEY, L2_NATIVE_TOKEN_VAULT_ADDRESS,
+    L2_NATIVE_TOKEN_VAULT_ASSET_ID_MAPPING_INDEX, U256,
 };
 
 fn extract_token_from_legacy_deposit(legacy_deposit_data: &[u8]) -> Option<Address> {
@@ -104,7 +114,10 @@ async fn calculate_expected_token_address(
     );
     let beacon_proxy_bytecode_hash = storage
         .storage_web3_dal()
-        .get_historical_value_unchecked(beacon_proxy_bytecode_hash_key.hashed_key(), last_sealed_l2_block_number)
+        .get_historical_value_unchecked(
+            beacon_proxy_bytecode_hash_key.hashed_key(),
+            last_sealed_l2_block_number,
+        )
         .await?;
 
     let beacon_address_key = StorageKey::new(
@@ -113,7 +126,10 @@ async fn calculate_expected_token_address(
     );
     let beacon_address = storage
         .storage_web3_dal()
-        .get_historical_value_unchecked(beacon_address_key.hashed_key(), last_sealed_l2_block_number)
+        .get_historical_value_unchecked(
+            beacon_address_key.hashed_key(),
+            last_sealed_l2_block_number,
+        )
         .await?;
     let beacon_address = h256_to_address(&beacon_address);
 
@@ -162,7 +178,10 @@ async fn is_l2_token_legacy(
     );
     let stored_l1_address = storage
         .storage_web3_dal()
-        .get_historical_value_unchecked(stored_l1_address_key.hashed_key(), last_sealed_l2_block_number)
+        .get_historical_value_unchecked(
+            stored_l1_address_key.hashed_key(),
+            last_sealed_l2_block_number,
+        )
         .await?;
     let stored_l1_address = h256_to_address(&stored_l1_address);
 
@@ -189,7 +208,10 @@ async fn is_l2_token_legacy(
     );
     let stored_asset_id = storage
         .storage_web3_dal()
-        .get_historical_value_unchecked(stored_asset_id_key.hashed_key(), last_sealed_l2_block_number)
+        .get_historical_value_unchecked(
+            stored_asset_id_key.hashed_key(),
+            last_sealed_l2_block_number,
+        )
         .await?;
 
     if stored_asset_id == H256::zero() {
@@ -216,7 +238,12 @@ pub(crate) async fn find_unsafe_deposit(
     // - L1 transactions are allowed only if it is a deposit to an already registered token or
     // to a non-legacy token.
 
-    let last_sealed_l2_block_number = storage.blocks_dal().get_last_sealed_l2_block_header().await?.unwrap().number;
+    let last_sealed_l2_block_number = storage
+        .blocks_dal()
+        .get_last_sealed_l2_block_header()
+        .await?
+        .unwrap()
+        .number;
 
     // Firstly, let's check whether the chain has a legacy bridge.
     let legacy_bridge_key = get_immutable_simulator_key(
