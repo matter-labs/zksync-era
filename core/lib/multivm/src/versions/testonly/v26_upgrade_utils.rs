@@ -4,9 +4,7 @@ use std::{
 };
 
 use ethabi::{Contract, Token};
-use zksync_contracts::{
-    l2_native_token_vault, load_l1_zk_contract, load_sys_contract, read_l1_zk_contract,
-};
+use zksync_contracts::{l2_native_token_vault, load_sys_contract, read_l1_zk_contract};
 use zksync_test_contracts::TestContract;
 use zksync_types::{
     bytecode::BytecodeHash, h256_to_address, protocol_upgrade::ProtocolUpgradeTxCommonData,
@@ -79,7 +77,7 @@ fn get_prepare_system_tx(
         calldata: complex_upgrader_calldata,
         factory_deps: dependencies
             .into_iter()
-            .chain(vec![beacon_proxy_bytecode].into_iter())
+            .chain(vec![beacon_proxy_bytecode])
             .collect(),
         value: U256::zero(),
     };
@@ -127,7 +125,7 @@ fn setup_v26_unsafe_deposits_detection<VM: TestedVm>() -> (VmTester<VM>, V26Test
         l1_token_address,
         l1_shared_bridge_address,
         test_address,
-        &test_contract,
+        test_contract,
     );
 
     vm.vm.push_transaction(system_tx);

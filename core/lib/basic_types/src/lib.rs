@@ -236,6 +236,7 @@ basic_type!(
 
 basic_type!(
     /// ZKsync account nonce.
+    #[derive(Default)]
     Nonce,
     u32
 );
@@ -291,13 +292,6 @@ impl Default for L1BlockNumber {
 
 #[allow(clippy::derivable_impls)]
 impl Default for PriorityOpId {
-    fn default() -> Self {
-        Self(0)
-    }
-}
-
-#[allow(clippy::derivable_impls)]
-impl Default for Nonce {
     fn default() -> Self {
         Self(0)
     }

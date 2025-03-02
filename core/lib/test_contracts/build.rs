@@ -52,7 +52,7 @@ fn resolve_module_name(
 
     let module_name = if next_folder.to_str() == test_contracts_dir.to_str() {
         // We will use the test name folder and not the `contracts` folder for the module
-        path_in_dir.iter().skip(1).next().expect("no dir")
+        path_in_dir.iter().nth(1).expect("no dir")
     } else if factory_deps_to_include.contains(&format!(
         "{}:{}",
         path_in_dir.to_str().unwrap(),
@@ -78,7 +78,7 @@ fn save_artifacts(
 ) {
     let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
     let test_contracts_dir = Path::new("contracts");
-    let source_dir = manifest_dir.join(&test_contracts_dir);
+    let source_dir = manifest_dir.join(test_contracts_dir);
     let mut modules = HashMap::<_, HashMap<_, _>>::new();
 
     let artifacts: Vec<_> = artifacts.collect();
