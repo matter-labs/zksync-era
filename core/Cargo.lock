@@ -13552,10 +13552,13 @@ dependencies = [
 name = "zksync_da_clients"
 version = "26.2.1-non-semver-compat"
 dependencies = [
+ "alloy-primitives",
+ "alloy-sol-types",
  "anyhow",
  "async-trait",
  "backon",
  "base58",
+ "base64 0.13.1",
  "bech32",
  "bincode",
  "blake2 0.10.6",

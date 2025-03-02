@@ -18,6 +18,8 @@ async-trait.workspace = true
 anyhow.workspace = true
 flate2.workspace = true
 tokio.workspace = true
+alloy-sol-types.workspace = true
+alloy-primitives.workspace = true
 
 zksync_config.workspace = true
 zksync_types.workspace = true
@@ -45,17 +47,18 @@ url.workspace = true
 
 # Celestia dependencies
 eq-sdk = { path = "../../../../eq-service/sdk", package = "eq-sdk" }
+base64.workspace = true
 http.workspace = true
 bincode.workspace = true
 celestia-types.workspace = true
 secp256k1.workspace = true
+sp1-sdk.workspace = true
 sha2.workspace = true
 prost.workspace = true
 bech32.workspace = true
 ripemd.workspace = true
 tonic = { workspace = true, features = ["tls-roots", "prost", "codegen"] }
 pbjson-types.workspace = true
-sp1-sdk = {version="4.0"}
 zksync_web3_decl.workspace = true
 zksync_eth_client.workspace = true
 # Eigen dependencies

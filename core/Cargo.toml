@@ -108,6 +108,7 @@ async-trait = "0.1"
 async-recursion = "1"
 axum = "0.7.5"
 backon = "0.4.4"
+base64 = "*"
 bigdecimal = "0.4.5"
 bincode = "1"
 blake2 = "0.10"
@@ -215,6 +216,9 @@ parity-scale-codec = { version = "3.6.9", default-features = false }
 subxt-signer = { version = "0.34", default-features = false }
 
 # Celestia
+alloy-sol-types = "*"
+alloy-primitives = "*"
+sp1-sdk = {version="4.0.0"}
 celestia-types = "0.10"
 bech32 = "0.11.0"
 ripemd = "0.1.3"

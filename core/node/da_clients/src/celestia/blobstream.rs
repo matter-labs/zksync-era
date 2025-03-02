@@ -12,6 +12,8 @@ use zksync_eth_client::{
 };
 use zksync_basic_types::web3::{Log, BlockNumber, FilterBuilder, CallRequest, BlockId};
 use zksync_basic_types::ethabi::{Contract, Event, ParamType};
+use serde::Deserialize;
+use alloy_sol_types::sol;
 
 pub struct TendermintRPCClient {
     url: String,
@@ -56,7 +58,7 @@ pub async fn find_block_range(
     eth_block_num: BlockNumber,
     blobstream_update_event: &Event,
     contract: &Contract,
-) -> Result<(U256, U256), Box<dyn std::error::Error>> {
+) -> Result<(U256, U256, U256), Box<dyn std::error::Error>> {
     if target_height < latest_block.as_u64() {
         // Search historical events
         println!("Target height is less than latest block, searching historical events");
@@ -88,7 +90,7 @@ pub async fn find_block_range(
                 commitment.end_block.as_u64() > target_height
             }) {
                 let commitment = DataCommitmentStored::from_log(log);
-                return Ok((commitment.start_block, commitment.end_block));
+                return Ok((commitment.start_block, commitment.end_block, commitment.proof_nonce));
             }
 
             page_start = page_end;
@@ -104,8 +106,17 @@ pub async fn find_block_range(
             current_block = get_latest_block(client, &contract).await;
             println!("Latest blobstream block: {}", current_block);
         }
-        
-        Ok((latest_block, current_block))
+
+        let request = CallRequest {
+            to: Some("0xF0c6429ebAB2e7DC6e05DaFB61128bE21f13cb1e".parse().unwrap()),
+            data: Some(contract.function("latestProofNonce").unwrap().encode_input(&[]).unwrap().into()),
+            ..Default::default()
+        };
+
+        let proof_nonce = client.call_contract_function(request, None)
+            .await?;
+
+        Ok((latest_block, current_block, U256::from_big_endian(&proof_nonce.0)))
     }
 }
 
@@ -129,5 +140,66 @@ impl DataCommitmentStored {
             end_block: U256::from_big_endian(&log.topics[2].as_bytes()),
             data_commitment: H256::from_slice(&log.topics[3].as_bytes()),
         }
+    }
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct DataRootInclusionProofResponse {
+    pub jsonrpc: String,
+    pub id: i64,
+    pub result: DataRootInclusionProofResult,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct DataRootInclusionProofResult {
+    pub proof: DataRootInclusionProof,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct DataRootInclusionProof {
+    #[serde(deserialize_with = "deserialize_base64_vec")]
+    pub aunts: Vec<Vec<u8>>,
+    pub index: String,
+    pub leaf_hash: String,
+    pub total: String,
+}
+
+pub fn deserialize_base64_vec<'de, D>(deserializer: D) -> Result<Vec<Vec<u8>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let strings: Vec<String> = Vec::deserialize(deserializer)?;
+    strings
+        .into_iter()
+        .map(|s| base64::decode(&s).map_err(serde::de::Error::custom))
+        .collect()
+}
+
+sol! {
+    struct DataRootTuple {
+        // Celestia block height the data root was included in.
+        // Genesis block is height = 0.
+        // First queryable block is height = 1.
+        uint256 height;
+        // Data root.
+        bytes32 dataRoot;
+    }
+
+    struct AttestationProof {
+        // the attestation nonce that commits to the data root tuple.
+        uint256 tupleRootNonce;
+        // the data root tuple that was committed to.
+        DataRootTuple tuple;
+        // the binary Merkle proof of the tuple to the commitment.
+        BinaryMerkleProof proof;
+    }
+
+    struct BinaryMerkleProof {
+        // List of side nodes to verify and calculate tree.
+        bytes32[] sideNodes;
+        // The key of the leaf to verify.
+        uint256 key;
+        // The number of leaves in the tree
+        uint256 numLeaves;
     }
 }

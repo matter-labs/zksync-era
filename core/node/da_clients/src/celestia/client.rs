@@ -8,6 +8,7 @@ use std::{
 
 use async_trait::async_trait;
 use celestia_types::{blob::Commitment, nmt::Namespace, AppVersion, Blob, Height};
+use eq_common::{KeccakInclusionToDataRootProofInput, KeccakInclusionToDataRootProofOutput};
 use subxt_signer::ExposeSecret;
 use tonic::transport::Endpoint;
 use zksync_basic_types::ethabi::decode;
@@ -30,7 +31,11 @@ use crate::{
 };
 
 use eq_sdk::{EqClient, types::BlobId, get_keccak_inclusion_response::{ResponseValue as InclusionResponseValue, Status as InclusionResponseStatus}};
-use crate::celestia::blobstream::{TendermintRPCClient, get_latest_block, find_block_range};
+use crate::celestia::blobstream::{TendermintRPCClient, get_latest_block, find_block_range, DataRootInclusionProofResponse, AttestationProof, DataRootTuple, BinaryMerkleProof};
+use alloy_sol_types::SolType;
+use alloy_primitives::{FixedBytes, Uint};
+use sp1_sdk::{SP1ProofWithPublicValues};
+
 /// An implementation of the `DataAvailabilityClient` trait that interacts with the Celestia network.
 #[derive(Clone)]
 pub struct CelestiaClient {
@@ -143,6 +148,10 @@ impl DataAvailabilityClient for CelestiaClient {
             .get_keccak_inclusion(&blob_id_struct)
             .await
             .map_err(to_retriable_da_error)?;
+        
+        // This code is a bit ugly because Prost doesn't turn protobuf enums into the most Rustic representation
+        // response_data and response_status have to be separate variables :/
+        // Maybe we ought to write a wrapper so it looks more Rustic
         let response_data: Option<InclusionResponseValue> = response
             .response_value
             .try_into()
@@ -163,6 +172,11 @@ impl DataAvailabilityClient for CelestiaClient {
                 return Ok(None);
             }
         };
+
+        let proof: SP1ProofWithPublicValues = bincode::deserialize(&proof_data).unwrap();
+        let public_values_bytes = proof.public_values.to_vec();
+        let (keccak_hash, data_root) = KeccakInclusionToDataRootProofOutput::abi_decode(&public_values_bytes, true).unwrap();
+
         // Here we want to poll blobstream until the included block is in blobstream
         //self.eth_client.call_contract_function(request, block)
         let block_num = self.eth_client.block_number()
@@ -174,7 +188,7 @@ impl DataAvailabilityClient for CelestiaClient {
 
         let target_height: u64 = blob_id_struct.height.into();
 
-        let (from, to) = find_block_range(
+        let (from, to, proof_nonce) = find_block_range(
             &self.eth_client,
             target_height,
             latest_block,
@@ -187,8 +201,43 @@ impl DataAvailabilityClient for CelestiaClient {
         let proof = tm_rpc_client.get_data_root_inclusion_proof(target_height, from.as_u64(), to.as_u64())
             .await
             .map_err(|e| DAError { error: anyhow::anyhow!("Failed to get data root inclusion proof: {}", e), is_retriable: false })?;
+        let data_root_inclusion_proof_data: DataRootInclusionProofResponse = serde_json::from_str(&proof).unwrap();
 
-        Ok(Some(InclusionData { data: vec![] }))
+        // Convert proof data into AttestationProof
+        let data_root_tuple = DataRootTuple {
+            // I think this is correct little endian but we'll see
+            height: Uint::<256, 4>::from_limbs([0, 0, 0, target_height]),
+            dataRoot: data_root,
+        };
+
+        let side_nodes: Vec<FixedBytes<32>> = data_root_inclusion_proof_data.result.proof.aunts
+            .iter()
+            .map(|aunt| FixedBytes::<32>::from_slice(aunt))
+            .collect();
+
+        let binary_merkle_proof = BinaryMerkleProof {
+            sideNodes: side_nodes,
+            key: proof_data.result.proof.index.parse()
+                .map_err(|e| DAError { 
+                    error: anyhow::anyhow!("Failed to parse proof index: {}", e), 
+                    is_retriable: false 
+                })?,
+            num_leaves: proof_data.result.proof.total.parse()
+                .map_err(|e| DAError { 
+                    error: anyhow::anyhow!("Failed to parse total leaves: {}", e), 
+                    is_retriable: false 
+                })?,
+        };
+
+        /*let attestation_proof = AttestationProof {
+            tuple_root_nonce: proof_nonce,
+            tuple: data_root_tuple,
+            proof: binary_merkle_proof,
+        };*/
+
+        Ok(Some(InclusionData { 
+            data: vec![]
+        }))
     }
 
     fn clone_boxed(&self) -> Box<dyn DataAvailabilityClient> {
