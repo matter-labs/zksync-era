@@ -1,4 +1,7 @@
-use std::{collections::{HashMap, HashSet}, str::FromStr};
+use std::{
+    collections::{HashMap, HashSet},
+    str::FromStr,
+};
 
 use ethabi::{Contract, Token};
 use zksync_contracts::{
@@ -6,7 +9,11 @@ use zksync_contracts::{
 };
 use zksync_test_contracts::TestContract;
 use zksync_types::{
-    bytecode::BytecodeHash, h256_to_address, protocol_upgrade::ProtocolUpgradeTxCommonData, AccountTreeId, Address, Execute, ExecuteTransactionCommon, L1TxCommonData, StorageKey, Transaction, COMPLEX_UPGRADER_ADDRESS, CONTRACT_FORCE_DEPLOYER_ADDRESS, H256, L1_MESSENGER_ADDRESS, L2_NATIVE_TOKEN_VAULT_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, SYSTEM_CONTEXT_ADDRESS, U256
+    bytecode::BytecodeHash, h256_to_address, protocol_upgrade::ProtocolUpgradeTxCommonData,
+    AccountTreeId, Address, Execute, ExecuteTransactionCommon, L1TxCommonData, StorageKey,
+    Transaction, COMPLEX_UPGRADER_ADDRESS, CONTRACT_FORCE_DEPLOYER_ADDRESS, H256,
+    L1_MESSENGER_ADDRESS, L2_NATIVE_TOKEN_VAULT_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
+    SYSTEM_CONTEXT_ADDRESS, U256,
 };
 use zksync_vm_interface::{
     storage::{ReadStorage, WriteStorage},
@@ -31,7 +38,7 @@ fn get_prepare_system_tx(
     legacy_l1_token: Address,
     l1_shared_bridge: Address,
     test_contract_addr: Address,
-    test_contract: &TestContract
+    test_contract: &TestContract,
 ) -> Transaction {
     let beacon_proxy_bytecode = read_l1_zk_contract("BeaconProxy");
 
@@ -62,7 +69,6 @@ fn get_prepare_system_tx(
         ])
         .unwrap();
 
-
     let mut dependencies: HashSet<Vec<u8>> = Default::default();
     for dep in test_contract.dependencies.iter() {
         dependencies.insert(dep.bytecode.to_vec());
@@ -71,9 +77,10 @@ fn get_prepare_system_tx(
     let execute = Execute {
         contract_address: Some(COMPLEX_UPGRADER_ADDRESS),
         calldata: complex_upgrader_calldata,
-        factory_deps: dependencies.into_iter().chain(vec![
-            beacon_proxy_bytecode,
-        ].into_iter()).collect(),
+        factory_deps: dependencies
+            .into_iter()
+            .chain(vec![beacon_proxy_bytecode].into_iter())
+            .collect(),
         value: U256::zero(),
     };
 
@@ -108,9 +115,10 @@ fn setup_v26_unsafe_deposits_detection<VM: TestedVm>() -> (VmTester<VM>, V26Test
     let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
-        .with_custom_contracts(vec![
-            ContractToDeploy::new(test_contract.bytecode.to_vec(), test_address)
-        ])
+        .with_custom_contracts(vec![ContractToDeploy::new(
+            test_contract.bytecode.to_vec(),
+            test_address,
+        )])
         .with_rich_accounts(1)
         .build::<VM>();
 
@@ -119,7 +127,7 @@ fn setup_v26_unsafe_deposits_detection<VM: TestedVm>() -> (VmTester<VM>, V26Test
         l1_token_address,
         l1_shared_bridge_address,
         test_address,
-        &test_contract
+        &test_contract,
     );
 
     vm.vm.push_transaction(system_tx);
@@ -167,14 +175,11 @@ fn encode_regisration(l2_token_address: Address) -> Vec<u8> {
 // essence of the test.
 fn get_irrelevant_keys() -> Vec<StorageKey> {
     vec![
-        StorageKey::new(
-            AccountTreeId::new(L1_MESSENGER_ADDRESS),
-            H256::zero()
-        ),
+        StorageKey::new(AccountTreeId::new(L1_MESSENGER_ADDRESS), H256::zero()),
         StorageKey::new(
             AccountTreeId::new(SYSTEM_CONTEXT_ADDRESS),
-            H256::from_low_u64_be(10)
-        )
+            H256::from_low_u64_be(10),
+        ),
     ]
 }
 
@@ -183,7 +188,7 @@ fn remove_irrelevant_keys(mut logs: HashMap<StorageKey, H256>) -> HashMap<Storag
         logs.remove(&to_remove);
     }
 
-    logs    
+    logs
 }
 
 pub(crate) fn test_trivial_test_storage_logs<VM: TestedVm>() {
@@ -196,10 +201,7 @@ pub(crate) fn test_trivial_test_storage_logs<VM: TestedVm>() {
     let expected = remove_irrelevant_keys(borrowed.modified_storage_keys().clone());
     let found = remove_irrelevant_keys(trivial_test_storage_logs());
 
-    assert_eq!(
-        expected,
-        found
-    );
+    assert_eq!(expected, found);
 }
 
 pub(crate) fn test_post_bridging_test_storage_logs<VM: TestedVm>() {
@@ -229,12 +231,10 @@ pub(crate) fn test_post_bridging_test_storage_logs<VM: TestedVm>() {
     let borrowed = storage_ptr.borrow();
 
     let expected = remove_irrelevant_keys(borrowed.modified_storage_keys().clone());
-    let found: HashMap<StorageKey, H256> = remove_irrelevant_keys(post_bridging_test_storage_logs());
+    let found: HashMap<StorageKey, H256> =
+        remove_irrelevant_keys(post_bridging_test_storage_logs());
 
-    assert_eq!(
-        expected,
-        found
-    );
+    assert_eq!(expected, found);
 }
 
 pub(crate) fn test_post_registration_storage_logs<VM: TestedVm>() {
@@ -267,10 +267,8 @@ pub(crate) fn test_post_registration_storage_logs<VM: TestedVm>() {
     let borrowed = storage_ptr.borrow();
 
     let expected = remove_irrelevant_keys(borrowed.modified_storage_keys().clone());
-    let found: HashMap<StorageKey, H256> = remove_irrelevant_keys(post_registration_test_storage_logs());
+    let found: HashMap<StorageKey, H256> =
+        remove_irrelevant_keys(post_registration_test_storage_logs());
 
-    assert_eq!(
-        expected,
-        found
-    );
+    assert_eq!(expected, found);
 }

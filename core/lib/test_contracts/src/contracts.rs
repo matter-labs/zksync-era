@@ -44,20 +44,19 @@ impl TestContract {
     }
 
     pub fn bridge_test() -> &'static Self {
-        static CONTRACT: Lazy<TestContract> =
-            Lazy::new(|| {
-                let mut contract = TestContract::new(raw::bridge_test::LegacySharedBridgeTest);
-                contract.dependencies = vec![
-                    TestContract::new(raw::contract_libs::L2SharedBridgeLegacy),
-                    TestContract::new(raw::contract_libs::BridgedStandardERC20),
-                    TestContract::new(raw::contract_libs::ProxyAdmin),
-                    TestContract::new(raw::contract_libs::TransparentUpgradeableProxy),
-                    TestContract::new(raw::contract_libs::UpgradeableBeacon),
-                    TestContract::new(raw::bridge_test::L2StandardERC20V25),
-                    TestContract::new(raw::bridge_test::L2SharedBridgeV25)
-                ];
-                contract
-            });
+        static CONTRACT: Lazy<TestContract> = Lazy::new(|| {
+            let mut contract = TestContract::new(raw::bridge_test::LegacySharedBridgeTest);
+            contract.dependencies = vec![
+                TestContract::new(raw::contract_libs::L2SharedBridgeLegacy),
+                TestContract::new(raw::contract_libs::BridgedStandardERC20),
+                TestContract::new(raw::contract_libs::ProxyAdmin),
+                TestContract::new(raw::contract_libs::TransparentUpgradeableProxy),
+                TestContract::new(raw::contract_libs::UpgradeableBeacon),
+                TestContract::new(raw::bridge_test::L2StandardERC20V25),
+                TestContract::new(raw::bridge_test::L2SharedBridgeV25),
+            ];
+            contract
+        });
         &CONTRACT
     }
 

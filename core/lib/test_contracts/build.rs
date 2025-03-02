@@ -45,7 +45,7 @@ fn resolve_module_name(
     manifest_dir: &Path,
     test_contracts_dir: &Path,
     factory_deps_to_include: &HashSet<String>,
-    id: &ArtifactId
+    id: &ArtifactId,
 ) -> Option<String> {
     let path_in_dir = id.source.strip_prefix(manifest_dir).ok()?;
     let next_folder = path_in_dir.iter().next().expect("no dir");
@@ -53,17 +53,23 @@ fn resolve_module_name(
     let module_name = if next_folder.to_str() == test_contracts_dir.to_str() {
         // We will use the test name folder and not the `contracts` folder for the module
         path_in_dir.iter().skip(1).next().expect("no dir")
-    } else if factory_deps_to_include.contains(&format!("{}:{}", path_in_dir.to_str().unwrap(), id.name)) {
+    } else if factory_deps_to_include.contains(&format!(
+        "{}:{}",
+        path_in_dir.to_str().unwrap(),
+        id.name
+    )) {
         // We will use the dependency's folder as the module name
         next_folder
     } else {
-        return None
+        return None;
     };
 
-    Some(module_name
-        .to_str()
-        .expect("contract dir is not UTF-8")
-        .replace('-', "_"))
+    Some(
+        module_name
+            .to_str()
+            .expect("contract dir is not UTF-8")
+            .replace('-', "_"),
+    )
 }
 
 fn save_artifacts(
@@ -97,7 +103,7 @@ fn save_artifacts(
             manifest_dir,
             test_contracts_dir,
             &factory_deps_to_include,
-            &id
+            &id,
         ) else {
             continue;
         };
