@@ -229,8 +229,8 @@ async fn is_l2_token_legacy(
 /// Note, that the purpose of this function is not to find unsafe deposits *only*
 /// but detect whether they may be present at all. It does check that, e.g. the sender
 /// of the transactions is the correct l1 bridge.
-pub(crate) async fn find_unsafe_deposit(
-    txs: &[(Transaction, TransactionTimeRangeConstraint)],
+pub(crate) async fn find_unsafe_deposit<'a>(
+    txs: impl Iterator<Item = &'a Transaction>,
     storage: &mut Connection<'_, Core>,
 ) -> anyhow::Result<Option<H256>> {
     // The rules are the following:
@@ -240,10 +240,9 @@ pub(crate) async fn find_unsafe_deposit(
 
     let last_sealed_l2_block_number = storage
         .blocks_dal()
-        .get_last_sealed_l2_block_header()
+        .get_sealed_l2_block_number()
         .await?
-        .unwrap()
-        .number;
+        .unwrap();
 
     // Firstly, let's check whether the chain has a legacy bridge.
     let legacy_bridge_key = get_immutable_simulator_key(
@@ -274,7 +273,7 @@ pub(crate) async fn find_unsafe_deposit(
         .await?;
     let l1_chain_id = h256_to_u256(l1_chain_id);
 
-    for (tx, _) in txs {
+    for tx in txs {
         if !tx.is_l1() {
             // Not a deposit
             continue;
@@ -404,7 +403,7 @@ mod tests {
             execute: Execute {
                 contract_address: Some(L2_ASSET_ROUTER_ADDRESS),
                 calldata: encode_new_finalize_deposit(
-                    test_data.l1_chain_id,
+                    test_data.l1_chain_id.0.into(),
                     test_data.l1_token_address,
                 ),
                 value: Default::default(),
@@ -459,8 +458,7 @@ mod tests {
             .unwrap();
 
         for (txs, result) in txs {
-            let txs_with_constrains: Vec<_> =
-                txs.into_iter().map(|tx| (tx, Default::default())).collect();
+            let txs_with_constrains: Vec<_> = txs.into_iter().map(|tx| tx).collect();
             assert_eq!(
                 find_unsafe_deposit(&txs_with_constrains, &mut storage)
                     .await

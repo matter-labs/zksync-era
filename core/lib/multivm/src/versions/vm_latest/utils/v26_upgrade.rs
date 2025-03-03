@@ -3,15 +3,13 @@
 //! The correctness of the functionality present here is hard to enforce inside state keeper
 //! directly, so it is done inside unit tests of the multivm.
 
-use std::str::FromStr;
-
 use ethabi::Token;
 use zksync_contracts::{l2_asset_router, l2_legacy_shared_bridge};
-use zksync_types::{utils::encode_ntv_asset_id, Address, U256};
+use zksync_types::{utils::encode_ntv_asset_id, Address, L1ChainId, U256};
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct V26TestData {
-    pub l1_chain_id: U256,
+    pub l1_chain_id: L1ChainId,
     pub l1_shared_bridge_address: Address,
     pub l1_token_address: Address,
     pub l2_token_address: Address,
@@ -22,16 +20,13 @@ pub struct V26TestData {
 pub fn get_test_data() -> V26TestData {
     V26TestData {
         l1_chain_id: 1.into(),
-        l1_shared_bridge_address: Address::from_str("abacabac00000000000000000000000000000001")
+        l1_shared_bridge_address: "abacabac00000000000000000000000000000001".parse().unwrap(),
+        l1_token_address: "abacabac00000000000000000000000000000002".parse().unwrap(),
+        l2_token_address: "1b5bf1cfb09fca6a08a0585f7a2c73d59e7a9b85".parse().unwrap(),
+        l2_legacy_shared_bridge_address: "d316600b6009f94ab776e97f1fc985bc18b4e535"
+            .parse()
             .unwrap(),
-        l1_token_address: Address::from_str("abacabac00000000000000000000000000000002").unwrap(),
-        l2_token_address: Address::from_str("1b5bf1cfb09fca6a08a0585f7a2c73d59e7a9b85").unwrap(),
-        l2_legacy_shared_bridge_address: Address::from_str(
-            "d316600b6009f94ab776e97f1fc985bc18b4e535",
-        )
-        .unwrap(),
-        l1_aliased_shared_bridge: Address::from_str("bcbdabac00000000000000000000000000001112")
-            .unwrap(),
+        l1_aliased_shared_bridge: "bcbdabac00000000000000000000000000001112".parse().unwrap(),
     }
 }
 

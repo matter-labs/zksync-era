@@ -1768,7 +1768,7 @@ impl TransactionsDal<'_, '_> {
             "#,
             &hashes as &[&[u8]]
         )
-        .instrument("return_to_mempool#update_to_false")
+        .instrument("reset_mempool_status")
         .with_arg("transaction_hashes.len", &hashes.len())
         .execute(self.storage)
         .await?;

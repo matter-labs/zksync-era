@@ -48,9 +48,9 @@ fn resolve_module_name(
     id: &ArtifactId,
 ) -> Option<String> {
     let path_in_dir = id.source.strip_prefix(manifest_dir).ok()?;
-    let next_folder = path_in_dir.iter().next().expect("no dir");
+    let next_dir = path_in_dir.iter().next().expect("no dir");
 
-    let module_name = if next_folder.to_str() == test_contracts_dir.to_str() {
+    let module_name = if next_dir.to_str() == test_contracts_dir.to_str() {
         // We will use the test name folder and not the `contracts` folder for the module
         path_in_dir.iter().nth(1).expect("no dir")
     } else if factory_deps_to_include.contains(&format!(
@@ -59,7 +59,7 @@ fn resolve_module_name(
         id.name
     )) {
         // We will use the dependency's folder as the module name
-        next_folder
+        next_dir
     } else {
         return None;
     };
@@ -82,21 +82,23 @@ fn save_artifacts(
     let mut modules = HashMap::<_, HashMap<_, _>>::new();
 
     let artifacts: Vec<_> = artifacts.collect();
-    let mut factory_deps_to_include: HashSet<_> = Default::default();
 
-    for (id, artifact) in artifacts.iter() {
-        if !id.source.starts_with(&source_dir) {
-            continue; // The artifact doesn't correspond to a source contract
-        };
+    let factory_deps_to_include: HashSet<_> = artifacts
+        .iter()
+        .filter_map(|(id, artifact)| {
+            if !id.source.starts_with(&source_dir) {
+                return None; // The artifact doesn't correspond to a source contract
+            };
 
-        let Some(factory_deps) = &artifact.factory_dependencies else {
-            continue;
-        };
+            let Some(factory_deps) = &artifact.factory_dependencies else {
+                return None;
+            };
 
-        for source in factory_deps.values() {
-            factory_deps_to_include.insert(source.to_owned());
-        }
-    }
+            Some(factory_deps.values())
+        })
+        .flatten()
+        .cloned()
+        .collect();
 
     for (id, artifact) in artifacts {
         let Some(module_name) = resolve_module_name(

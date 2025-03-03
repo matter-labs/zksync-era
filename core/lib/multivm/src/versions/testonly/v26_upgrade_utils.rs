@@ -8,8 +8,8 @@ use zksync_contracts::{l2_native_token_vault, load_sys_contract, read_l1_zk_cont
 use zksync_test_contracts::TestContract;
 use zksync_types::{
     bytecode::BytecodeHash, h256_to_address, protocol_upgrade::ProtocolUpgradeTxCommonData,
-    AccountTreeId, Address, Execute, ExecuteTransactionCommon, L1TxCommonData, StorageKey,
-    Transaction, COMPLEX_UPGRADER_ADDRESS, CONTRACT_FORCE_DEPLOYER_ADDRESS, H256,
+    AccountTreeId, Address, Execute, ExecuteTransactionCommon, L1ChainId, L1TxCommonData,
+    StorageKey, Transaction, COMPLEX_UPGRADER_ADDRESS, CONTRACT_FORCE_DEPLOYER_ADDRESS, H256,
     L1_MESSENGER_ADDRESS, L2_NATIVE_TOKEN_VAULT_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
     SYSTEM_CONTEXT_ADDRESS, U256,
 };
@@ -116,7 +116,7 @@ fn setup_v26_unsafe_deposits_detection<VM: TestedVm>() -> (VmTester<VM>, V26Test
     // In this test, we compare the execution of the bootloader with the predefined
     // refunded gas and without them
 
-    let l1_chain_id = U256::from(1u32);
+    let l1_chain_id = L1ChainId(1);
 
     let test_contract = zksync_test_contracts::TestContract::bridge_test();
     // Any random (but big) address is fine
@@ -150,15 +150,15 @@ fn setup_v26_unsafe_deposits_detection<VM: TestedVm>() -> (VmTester<VM>, V26Test
 
     assert!(!result.result.is_failed());
 
-    let l2_token_address = vm.storage.borrow_mut().read_value(&StorageKey::new(
+    let l2_token_address = vm.vm.read_storage(&StorageKey::new(
         AccountTreeId::new(COMPLEX_UPGRADER_ADDRESS),
         H256::from_low_u64_be(0),
     ));
-    let l2_legacy_shared_bridge_address = vm.storage.borrow_mut().read_value(&StorageKey::new(
+    let l2_legacy_shared_bridge_address = vm.vm.read_storage(&StorageKey::new(
         AccountTreeId::new(COMPLEX_UPGRADER_ADDRESS),
         H256::from_low_u64_be(1),
     ));
-    let l1_aliased_shared_bridge = vm.storage.borrow_mut().read_value(&StorageKey::new(
+    let l1_aliased_shared_bridge = vm.vm.read_storage(&StorageKey::new(
         AccountTreeId::new(COMPLEX_UPGRADER_ADDRESS),
         H256::from_low_u64_be(2),
     ));
