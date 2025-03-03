@@ -1,7 +1,7 @@
 use std::{
     mem,
     sync::{Arc, RwLock},
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use anyhow::Context as _;
@@ -190,12 +190,17 @@ impl ValuesCache {
         &self,
         from_l2_block: L2BlockNumber,
         to_l2_block: L2BlockNumber,
+        receive_latency: Duration,
         connection: &mut Connection<'_, Core>,
     ) -> anyhow::Result<()> {
         if from_l2_block == L2BlockNumber(0) {
-            tracing::debug!("Initializing storage values cache at L2 block {to_l2_block}");
+            tracing::debug!(
+                ?receive_latency,
+                "Initializing storage values cache at L2 block {to_l2_block}"
+            );
         } else {
             tracing::debug!(
+                ?receive_latency,
                 "Updating storage values cache from L2 block {from_l2_block} to {to_l2_block}"
             );
         }
@@ -250,7 +255,7 @@ impl ValuesCache {
 #[derive(Debug, Clone)]
 struct ValuesCacheAndUpdater {
     cache: ValuesCache,
-    command_sender: Arc<watch::Sender<L2BlockNumber>>,
+    command_sender: Arc<watch::Sender<(L2BlockNumber, Instant)>>,
 }
 
 /// Caches used during VM execution.
@@ -318,7 +323,7 @@ impl PostgresStorageCaches {
         );
         tracing::debug!("Initializing VM storage values cache with {capacity}B capacity");
 
-        let (command_sender, command_receiver) = watch::channel(L2BlockNumber(0));
+        let (command_sender, command_receiver) = watch::channel((L2BlockNumber(0), Instant::now()));
         let values_cache = ValuesCache::new(capacity);
         self.values = Some(ValuesCacheAndUpdater {
             cache: values_cache.clone(),
@@ -348,9 +353,21 @@ impl PostgresStorageCaches {
             return;
         };
 
-        values.command_sender.send_if_modified(|block_number| {
-            if *block_number < to_l2_block {
-                *block_number = to_l2_block;
+        values.command_sender.send_if_modified(|command| {
+            if command.0 < to_l2_block {
+                let now = Instant::now();
+                let command_interval = now
+                    .checked_duration_since(command.1)
+                    .unwrap_or(Duration::ZERO);
+                CACHE_METRICS
+                    .values_command_interval
+                    .observe(command_interval);
+                tracing::debug!(
+                    ?command_interval,
+                    "Queued update command from L2 block {} to {to_l2_block}",
+                    command.0
+                );
+                *command = (to_l2_block, now);
                 true
             } else {
                 // Filter out no-op updates right away in order to not wake up the update task unnecessarily.
@@ -369,7 +386,7 @@ pub struct PostgresStorageCachesTask {
     connection_pool: ConnectionPool<Core>,
     values_cache: ValuesCache,
     max_l2_blocks_lag: u32,
-    command_receiver: watch::Receiver<L2BlockNumber>,
+    command_receiver: watch::Receiver<(L2BlockNumber, Instant)>,
 }
 
 impl PostgresStorageCachesTask {
@@ -389,7 +406,7 @@ impl PostgresStorageCachesTask {
 
         let mut current_l2_block = self.values_cache.valid_for();
         loop {
-            let to_l2_block = tokio::select! {
+            let (to_l2_block, queued_at) = tokio::select! {
                 _ = stop_receiver.changed() => break,
                 Ok(()) = self.command_receiver.changed() => {
                     *self.command_receiver.borrow_and_update()
@@ -400,6 +417,11 @@ impl PostgresStorageCachesTask {
                     break;
                 }
             };
+
+            let receive_latency = queued_at.elapsed();
+            CACHE_METRICS
+                .values_receive_latency
+                .observe(receive_latency);
             if to_l2_block <= current_l2_block {
                 continue;
             }
@@ -412,7 +434,12 @@ impl PostgresStorageCachesTask {
                     .connection_tagged("values_cache_updater")
                     .await?;
                 self.values_cache
-                    .update(current_l2_block, to_l2_block, &mut connection)
+                    .update(
+                        current_l2_block,
+                        to_l2_block,
+                        receive_latency,
+                        &mut connection,
+                    )
                     .await?;
             }
             current_l2_block = to_l2_block;
