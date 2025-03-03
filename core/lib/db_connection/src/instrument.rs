@@ -27,6 +27,7 @@ use crate::{
     metrics::{RequestMetrics, REQUEST_METRICS},
     utils::InternalMarker,
 };
+use crate::metrics::RequestLabels;
 
 type ThreadSafeDebug<'a> = dyn fmt::Debug + Send + Sync + 'a;
 
@@ -183,7 +184,7 @@ impl ActiveCopy<'_> {
 #[derive(Debug, Clone)]
 struct InstrumentedData<'a> {
     name: &'static str,
-    metrics: &'static RequestMetrics,
+    metrics: vise::LazyItem<'static, RequestLabels, RequestMetrics>,
     location: &'static Location<'static>,
     args: QueryArgs<'a>,
     report_latency: bool,
@@ -194,7 +195,7 @@ impl<'a> InstrumentedData<'a> {
     fn new(name: &'static str, location: &'static Location<'static>) -> Self {
         Self {
             name,
-            metrics: &REQUEST_METRICS[&name.into()],
+            metrics: REQUEST_METRICS.get_lazy(name.into()),
             location,
             args: QueryArgs::default(),
             report_latency: false,
