@@ -343,8 +343,6 @@ mod tests {
     use zksync_dal::{ConnectionPool, Core, CoreDal};
     use zksync_multivm::vm_latest::utils::v26_upgrade::{
         encode_legacy_finalize_deposit, encode_new_finalize_deposit, get_test_data,
-        post_bridging_test_storage_logs, post_registration_test_storage_logs,
-        trivial_test_storage_logs,
     };
     use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
     use zksync_types::{
@@ -353,6 +351,31 @@ mod tests {
     };
 
     use crate::v26_utils::find_unsafe_deposit;
+
+    const SIMPLE_TEST_RESULT_JSON: &'static str = include_str!(
+        "../../../lib/multivm/src/versions/testonly/v26_utils_outputs/simple-test.json"
+    );
+    const POST_BRIDGING_TEST_RESULT_JSON: &'static str = include_str!(
+        "../../../lib/multivm/src/versions/testonly/v26_utils_outputs/post-bridging.json"
+    );
+    const POST_REGISTRATION_TEST_RESULT_JSON: &'static str = include_str!(
+        "../../../lib/multivm/src/versions/testonly/v26_utils_outputs/post-registration.json"
+    );
+
+    fn trivial_test_storage_logs() -> HashMap<StorageKey, H256> {
+        let x: Vec<_> = serde_json::from_str(SIMPLE_TEST_RESULT_JSON).unwrap();
+        x.into_iter().collect()
+    }
+
+    fn post_bridging_test_storage_logs() -> HashMap<StorageKey, H256> {
+        let x: Vec<_> = serde_json::from_str(POST_BRIDGING_TEST_RESULT_JSON).unwrap();
+        x.into_iter().collect()
+    }
+
+    fn post_registration_test_storage_logs() -> HashMap<StorageKey, H256> {
+        let x: Vec<_> = serde_json::from_str(POST_REGISTRATION_TEST_RESULT_JSON).unwrap();
+        x.into_iter().collect()
+    }
 
     // Bridging txs can never happen on L2, we use it to
     // just ensure that L2 txs are always allowed.

@@ -3,16 +3,11 @@
 //! The correctness of the functionality present here is hard to enforce inside state keeper
 //! directly, so it is done inside unit tests of the multivm.
 
-use std::{
-    collections::HashMap,
-    path::{Path, PathBuf},
-    str::FromStr,
-};
+use std::str::FromStr;
 
 use ethabi::Token;
 use zksync_contracts::{l2_asset_router, l2_legacy_shared_bridge};
-use zksync_types::{utils::encode_ntv_asset_id, Address, StorageKey, H256, U256};
-use zksync_utils::env::Workspace;
+use zksync_types::{utils::encode_ntv_asset_id, Address, U256};
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct V26TestData {
@@ -38,37 +33,6 @@ pub fn get_test_data() -> V26TestData {
         l1_aliased_shared_bridge: Address::from_str("bcbdabac00000000000000000000000000001112")
             .unwrap(),
     }
-}
-
-fn get_test_v26_path(name: &str) -> PathBuf {
-    let core_path = Workspace::locate().core();
-    Path::new(&core_path).join(format!(
-        "lib/multivm/src/versions/testonly/v26_utils_outputs/{name}"
-    ))
-}
-
-pub fn trivial_test_storage_logs() -> HashMap<StorageKey, H256> {
-    let x: Vec<_> = serde_json::from_str(
-        &std::fs::read_to_string(get_test_v26_path("simple-test.json")).unwrap(),
-    )
-    .unwrap();
-    x.into_iter().collect()
-}
-
-pub fn post_bridging_test_storage_logs() -> HashMap<StorageKey, H256> {
-    let x: Vec<_> = serde_json::from_str(
-        &std::fs::read_to_string(get_test_v26_path("post-bridging.json")).unwrap(),
-    )
-    .unwrap();
-    x.into_iter().collect()
-}
-
-pub fn post_registration_test_storage_logs() -> HashMap<StorageKey, H256> {
-    let x: Vec<_> = serde_json::from_str(
-        &std::fs::read_to_string(get_test_v26_path("post-registration.json")).unwrap(),
-    )
-    .unwrap();
-    x.into_iter().collect()
 }
 
 fn empty_erc20_metadata() -> Vec<u8> {

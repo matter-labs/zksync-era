@@ -11896,7 +11896,6 @@ dependencies = [
  "zksync_system_constants",
  "zksync_test_contracts",
  "zksync_types",
- "zksync_utils",
  "zksync_vm2",
  "zksync_vm_interface",
 ]
@@ -12493,6 +12492,7 @@ dependencies = [
  "once_cell",
  "rand 0.8.5",
  "serde",
+ "serde_json",
  "tempfile",
  "test-casing",
  "thiserror 1.0.69",
