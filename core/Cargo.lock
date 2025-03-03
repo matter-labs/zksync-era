@@ -10768,6 +10768,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "zk_os_merkle_tree"
+version = "26.4.0-non-semver-compat"
+dependencies = [
+ "anyhow",
+ "clap 4.5.23",
+ "leb128",
+ "once_cell",
+ "rand 0.8.5",
+ "rayon",
+ "tempfile",
+ "thiserror 1.0.69",
+ "tracing",
+ "tracing-subscriber",
+ "zksync_basic_types",
+ "zksync_crypto_primitives",
+ "zksync_storage",
+]
+
+[[package]]
 name = "zkevm_circuits"
 version = "0.150.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -11229,8 +11248,11 @@ dependencies = [
  "zksync_contract_verifier_lib",
  "zksync_core_leftovers",
  "zksync_dal",
+ "zksync_env_config",
+ "zksync_protobuf_config",
  "zksync_queued_job_processor",
  "zksync_task_management",
+ "zksync_types",
  "zksync_vlog",
 ]
 
@@ -11244,10 +11266,12 @@ dependencies = [
  "ethabi",
  "futures-util",
  "hex",
+ "http 1.2.0",
  "octocrab",
  "regex",
  "reqwest 0.12.9",
  "rustls 0.23.19",
+ "secrecy",
  "semver 1.0.23",
  "serde",
  "serde_json",
@@ -11595,6 +11619,7 @@ dependencies = [
  "zksync_core_leftovers",
  "zksync_dal",
  "zksync_db_connection",
+ "zksync_env_config",
  "zksync_eth_client",
  "zksync_eth_sender",
  "zksync_health_check",
@@ -12155,6 +12180,7 @@ dependencies = [
  "zksync_config",
  "zksync_consensus_roles",
  "zksync_contracts",
+ "zksync_da_client",
  "zksync_dal",
  "zksync_eth_client",
  "zksync_health_check",
@@ -12615,6 +12641,7 @@ dependencies = [
  "zksync_basic_types",
  "zksync_contracts",
  "zksync_crypto_primitives",
+ "zksync_da_client",
  "zksync_mini_merkle_tree",
  "zksync_protobuf",
  "zksync_protobuf_build",
