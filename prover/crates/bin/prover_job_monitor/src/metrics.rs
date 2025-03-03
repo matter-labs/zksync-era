@@ -2,14 +2,38 @@ use vise::{Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, LabeledFami
 use zksync_types::protocol_version::ProtocolSemanticVersion;
 
 #[derive(Debug, Metrics)]
-#[metrics(prefix = "house_keeper")]
-pub(crate) struct HouseKeeperMetrics {
+#[metrics(prefix = "prover_job_monitor")]
+pub(crate) struct ProverJobMonitorMetrics {
     pub prover_job_archived: Counter,
     pub gpu_prover_archived: Counter,
+    #[metrics(labels = ["job_type"])]
+    pub reached_max_attempts: LabeledFamily<JobType, Gauge>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue)]
+#[metrics(rename_all = "snake_case")]
+pub(crate) enum JobType {
+    BasicWitnessGenerator,
+    LeafWitnessGenerator,
+    NodeWitnessGenerator,
+    RecursionTipWitnessGenerator,
+    SchedulerWitnessGenerator,
+    ProverFri,
+    ProofCompressor,
+}
+
+impl ProverJobMonitorMetrics {
+    pub fn report_reached_max_attempts(&self, job_type: JobType, amount: usize) {
+        PROVER_JOB_MONITOR_METRICS.reached_max_attempts[&job_type].set(amount as i64);
+        if amount > 0 {
+            tracing::warn!("{:?} jobs reached max attempts: {:?}", job_type, amount);
+        }
+    }
 }
 
 #[vise::register]
-pub(crate) static HOUSE_KEEPER_METRICS: vise::Global<HouseKeeperMetrics> = vise::Global::new();
+pub(crate) static PROVER_JOB_MONITOR_METRICS: vise::Global<ProverJobMonitorMetrics> =
+    vise::Global::new();
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue)]
 #[metrics(rename_all = "snake_case")]

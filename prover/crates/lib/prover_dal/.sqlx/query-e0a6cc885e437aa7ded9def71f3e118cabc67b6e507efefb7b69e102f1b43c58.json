@@ -62,6 +62,11 @@
         "ordinal": 11,
         "name": "witness_inputs_blob_url",
         "type_info": "Text"
+      },
+      {
+        "ordinal": 12,
+        "name": "priority",
+        "type_info": "Int4"
       }
     ],
     "parameters": {
@@ -81,7 +86,8 @@
       true,
       true,
       false,
-      true
+      true,
+      false
     ]
   },
   "hash": "e0a6cc885e437aa7ded9def71f3e118cabc67b6e507efefb7b69e102f1b43c58"

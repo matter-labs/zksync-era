@@ -12,7 +12,7 @@ use crate::{
 /// `ProofCompressorQueueReporter` is a task that reports compression jobs status.
 /// Note: these values will be used for auto-scaling proof compressor.
 #[derive(Debug)]
-pub struct ProofCompressorQueueReporter {}
+pub struct ProofCompressorQueueReporter;
 
 impl ProofCompressorQueueReporter {
     async fn get_job_statistics(

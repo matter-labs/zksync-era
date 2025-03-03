@@ -25,7 +25,6 @@ zksync_vlog.workspace = true
 async-trait.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
-num = { workspace = true, features = ["serde"] }
 tokio = { workspace = true, features = ["full"] }
 futures.workspace = true
 anyhow.workspace = true
