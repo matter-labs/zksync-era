@@ -16,6 +16,7 @@ impl ProtoRepr for proto::ContractVerifier {
             port: required(&self.port)
                 .and_then(|x| (*x).try_into().context("overflow"))
                 .context("port")?,
+            etherscan_api_url: self.etherscan_api_url.clone(),
         })
     }
 
@@ -24,6 +25,7 @@ impl ProtoRepr for proto::ContractVerifier {
             port: Some(this.port as u32),
             compilation_timeout: Some(this.compilation_timeout),
             prometheus_port: Some(this.prometheus_port.into()),
+            etherscan_api_url: this.etherscan_api_url.clone(),
         }
     }
 }
