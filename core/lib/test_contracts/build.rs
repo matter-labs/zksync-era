@@ -93,7 +93,7 @@ fn save_artifacts(
             continue;
         };
 
-        for (_, source) in factory_deps {
+        for source in factory_deps.values() {
             factory_deps_to_include.insert(source.to_owned());
         }
     }
