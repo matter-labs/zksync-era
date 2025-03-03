@@ -6,7 +6,7 @@ use zksync_types::{
     get_address_mapping_key, get_immutable_simulator_key, h256_to_address, h256_to_u256,
     tx::execute::Create2DeploymentParams,
     utils::encode_ntv_asset_id,
-    AccountTreeId, Address, L2BlockNumber, StorageKey, Transaction, TransactionTimeRangeConstraint,
+    AccountTreeId, Address, L2BlockNumber, StorageKey, Transaction,
     H256, L2_ASSET_ROUTER_ADDRESS, L2_ASSET_ROUTER_LEGACY_SHARED_BRIDGE_IMMUTABLE_KEY,
     L2_ASSET_ROUTER_LEGACY_SHARED_BRIDGE_L1_CHAIN_ID_KEY,
     L2_LEGACY_SHARED_BRIDGE_BEACON_PROXY_BYTECODE_KEY, L2_LEGACY_SHARED_BRIDGE_L1_ADDRESSES_KEY,
@@ -421,7 +421,7 @@ mod tests {
             execute: Execute {
                 contract_address: Some(Address::from_low_u64_be(1)),
                 calldata: encode_new_finalize_deposit(
-                    test_data.l1_chain_id,
+                    test_data.l1_chain_id.0.into(),
                     test_data.l1_token_address,
                 ),
                 value: Default::default(),
@@ -463,14 +463,14 @@ mod tests {
         storage: &mut Connection<'static, Core>,
     ) {
         assert_eq!(
-            find_unsafe_deposit(&txs, &mut storage).await.unwrap(),
+            find_unsafe_deposit(txs.iter(), storage).await.unwrap(),
             expected_hash
         );
     }
 
     #[tokio::test]
     async fn test_is_unsafe_deposit_post_bridging() {
-        let storage = get_storage(post_bridging_test_storage_logs()).await;
+        let mut storage = get_storage(post_bridging_test_storage_logs()).await;
 
         run_test(vec![], None, &mut storage).await;
         run_test(vec![get_l2_dummy_bridging_tx()], None, &mut storage).await;
