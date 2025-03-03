@@ -12,7 +12,7 @@ use subxt_signer::ExposeSecret;
 use tonic::transport::Endpoint;
 use zksync_config::configs::da_client::celestia::{CelestiaConfig, CelestiaSecrets};
 use zksync_da_client::{
-    types::{DAError, DispatchResponse, InclusionData},
+    types::{ClientType, DAError, DispatchResponse, InclusionData},
     DataAvailabilityClient,
 };
 
@@ -96,6 +96,10 @@ impl DataAvailabilityClient for CelestiaClient {
 
     fn blob_size_limit(&self) -> Option<usize> {
         Some(1973786) // almost 2MB
+    }
+
+    fn client_type(&self) -> ClientType {
+        ClientType::Celestia
     }
 
     async fn balance(&self) -> Result<u64, DAError> {

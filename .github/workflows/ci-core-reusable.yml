@@ -129,7 +129,7 @@ jobs:
         run: |
           ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup || true
           ci_run zkstackup -g --local --cargo-features gateway
-  
+
 
       - name: Create and initialize legacy chain
         run: |
@@ -463,7 +463,7 @@ jobs:
           ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --no-deps --ignore-prerequisites" ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}
 
       - name: Repeat integration tests on push to main to check for flakiness
-        if: ${{ (steps.condition.outputs.should_run == 'true' && github.ref == 'refs/heads/main') }}
+        if: ${{ (github.ref == 'refs/heads/main') }}
         run: |
           for i in {1..10}; do
             echo "Iteration $i"
@@ -502,7 +502,7 @@ jobs:
       - name: Run external nodes
         run: |
           ci_run zkstack external-node run --ignore-prerequisites --chain era &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/rollup.log &
-          ci_run zkstack external-node run --ignore-prerequisites --chain validium &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/validium.log &
+          ci_run zkstack external-node run --ignore-prerequisites --chain validium --components all,da_fetcher &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/validium.log &
           ci_run zkstack external-node run --ignore-prerequisites --chain custom_token &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/custom_token.log &
           ci_run zkstack external-node run --ignore-prerequisites --chain consensus --enable-consensus &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/consensus.log &
 
@@ -516,7 +516,7 @@ jobs:
           ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --no-deps --ignore-prerequisites --external-node" ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}
 
       - name: Repeat integration tests en on push to main to check for flakiness
-        if: ${{ (steps.condition.outputs.should_run == 'true' && github.ref == 'refs/heads/main') }}
+        if: ${{ (github.ref == 'refs/heads/main') }}
         run: |
           for i in {1..10}; do
             echo "Iteration $i"
@@ -538,7 +538,7 @@ jobs:
           ci_run ./bin/run_on_all_chains.sh "zkstack dev test fees --no-deps --no-kill" ${{ env.CHAINS }} ${{ env.FEES_LOGS_DIR }}
 
       - name: Repeat fee projection tests on push to main to check for flakiness
-        if: ${{ (steps.condition.outputs.should_run == 'true' && github.ref == 'refs/heads/main') }}
+        if: ${{ (github.ref == 'refs/heads/main') }}
         run: |
           for i in {1..10}; do
             echo "Iteration $i"
