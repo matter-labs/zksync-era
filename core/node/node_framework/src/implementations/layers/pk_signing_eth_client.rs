@@ -1,8 +1,5 @@
 use anyhow::Context as _;
-use zksync_config::{
-    configs::{gateway::GatewayChainConfig, wallets},
-    EthConfig,
-};
+use zksync_config::{configs::wallets, EthConfig};
 use zksync_eth_client::{clients::PKSigningClient, EthInterface};
 
 use crate::{

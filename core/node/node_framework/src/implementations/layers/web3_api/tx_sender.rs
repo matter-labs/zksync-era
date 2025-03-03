@@ -1,16 +1,13 @@
 use std::{sync::Arc, time::Duration};
 
 use tokio::sync::RwLock;
-use zksync_config::configs::{
-    api::Web3JsonRpcConfig,
-    chain::{StateKeeperConfig, TimestampAsserterConfig},
-};
+use zksync_config::configs::chain::TimestampAsserterConfig;
 use zksync_node_api_server::{
     execution_sandbox::{VmConcurrencyBarrier, VmConcurrencyLimiter},
     tx_sender::{SandboxExecutorOptions, TimestampAsserterParams, TxSenderBuilder, TxSenderConfig},
 };
 use zksync_state::{PostgresStorageCaches, PostgresStorageCachesTask};
-use zksync_types::{vm::FastVmMode, AccountTreeId, Address, L2ChainId};
+use zksync_types::{vm::FastVmMode, AccountTreeId, Address};
 use zksync_web3_decl::{
     client::{DynClient, L2},
     jsonrpsee,

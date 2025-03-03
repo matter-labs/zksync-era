@@ -5,11 +5,9 @@ use zksync_config::{GasAdjusterConfig, GenesisConfig};
 use zksync_node_fee_model::l1_gas_price::GasAdjuster;
 use zksync_types::pubdata_da::PubdataSendingMode;
 
-use crate::implementations::resources::eth_interface::GatewayEthInterfaceResource;
 use crate::{
     implementations::resources::{
-        eth_interface::{EthInterfaceResource, L2InterfaceResource},
-        gas_adjuster::GasAdjusterResource,
+        eth_interface::GatewayEthInterfaceResource, gas_adjuster::GasAdjusterResource,
     },
     service::StopReceiver,
     task::{Task, TaskId},

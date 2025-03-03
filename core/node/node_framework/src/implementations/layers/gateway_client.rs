@@ -1,14 +1,12 @@
 use anyhow::Context;
 use zksync_node_framework_derive::FromContext;
-use zksync_types::settlement::SettlementMode;
-use zksync_types::{url::SensitiveUrl, L1ChainId, L2ChainId, SLChainId};
+use zksync_types::{settlement::SettlementMode, url::SensitiveUrl, L1ChainId};
 use zksync_web3_decl::client::Client;
 
-use crate::implementations::resources::contracts::ContractsResource;
-use crate::implementations::resources::settlement_layer::SettlementModeResource;
 use crate::{
-    implementations::resources::eth_interface::{
-        EthInterfaceResource, GatewayEthInterfaceResource, L2InterfaceResource,
+    implementations::resources::{
+        contracts::ContractsResource, eth_interface::GatewayEthInterfaceResource,
+        settlement_layer::SettlementModeResource,
     },
     wiring_layer::{WiringError, WiringLayer},
     IntoContext,

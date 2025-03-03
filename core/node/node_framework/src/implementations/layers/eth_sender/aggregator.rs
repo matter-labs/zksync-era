@@ -45,8 +45,6 @@ use crate::{
 #[derive(Debug)]
 pub struct EthTxAggregatorLayer {
     eth_sender_config: EthConfig,
-    // contracts_config: ContractsConfig,
-    // gateway_chain_config: Option<GatewayChainConfig>,
     zksync_network_id: L2ChainId,
     l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
 }

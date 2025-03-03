@@ -5,7 +5,7 @@ use crate::configs::{
         chain::{ChainContracts, ChainContractsConfig, L2Contracts},
         ecosystem::{EcosystemCommonContracts, EcosystemL1Specific},
     },
-    gateway::{GatewayChainConfig, GatewayConfig},
+    gateway::GatewayChainConfig,
 };
 
 pub mod chain;

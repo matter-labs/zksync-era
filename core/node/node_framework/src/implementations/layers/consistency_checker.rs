@@ -3,7 +3,7 @@ use zksync_types::{commitment::L1BatchCommitmentMode, Address, L2ChainId};
 
 use crate::{
     implementations::resources::{
-        eth_interface::{EthInterfaceResource, GatewayEthInterfaceResource},
+        eth_interface::GatewayEthInterfaceResource,
         healthcheck::AppHealthCheckResource,
         pools::{MasterPool, PoolResource},
     },

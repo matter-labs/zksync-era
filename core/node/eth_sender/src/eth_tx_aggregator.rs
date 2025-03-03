@@ -937,7 +937,7 @@ async fn gateway_status(
         .unwrap()
         .signature();
 
-    let topics = vec![to_gateway.clone(), from_gateway.clone()];
+    let topics = vec![to_gateway, from_gateway];
 
     let notifications = storage
         .server_notifications_dal()

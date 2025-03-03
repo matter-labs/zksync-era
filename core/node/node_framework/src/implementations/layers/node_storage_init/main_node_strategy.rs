@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use zksync_config::{ContractsConfig, GenesisConfig};
+use zksync_config::GenesisConfig;
 use zksync_node_storage_init::{main_node::MainNodeGenesis, NodeInitializationStrategy};
 
 use super::NodeInitializationStrategyResource;

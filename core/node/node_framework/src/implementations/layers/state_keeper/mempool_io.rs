@@ -4,7 +4,7 @@ use zksync_config::configs::{
     wallets,
 };
 use zksync_state_keeper::{MempoolFetcher, MempoolGuard, MempoolIO, SequencerSealer};
-use zksync_types::{commitment::PubdataType, Address, L2ChainId};
+use zksync_types::{commitment::PubdataType, L2ChainId};
 
 use crate::{
     implementations::resources::{

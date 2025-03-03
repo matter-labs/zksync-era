@@ -4,18 +4,13 @@ use anyhow::Context;
 use bridge_addresses::{L1UpdaterInner, MainNodeUpdaterInner};
 use tokio::{sync::oneshot, task::JoinHandle};
 use zksync_circuit_breaker::replication_lag::ReplicationLagChecker;
-use zksync_config::{
-    configs::api::{MaxResponseSize, Web3JsonRpcConfig},
-    GenesisConfig,
-};
+use zksync_config::configs::api::MaxResponseSize;
 use zksync_contracts::{bridgehub_contract, l1_asset_router_contract};
-use zksync_node_api_server::web3::state::InternalApiConfigBuilder;
 use zksync_node_api_server::web3::{
-    state::{BridgeAddressesHandle, InternalApiConfig, SealedL2BlockNumber},
+    state::{BridgeAddressesHandle, InternalApiConfigBuilder, SealedL2BlockNumber},
     ApiBuilder, ApiServer, Namespace,
 };
 
-use crate::implementations::resources::eth_interface::GatewayEthInterfaceResource;
 use crate::{
     implementations::{
         layers::web3_api::server::{
@@ -24,7 +19,7 @@ use crate::{
         resources::{
             circuit_breakers::CircuitBreakersResource,
             contracts::ContractsResource,
-            eth_interface::EthInterfaceResource,
+            eth_interface::GatewayEthInterfaceResource,
             healthcheck::AppHealthCheckResource,
             main_node_client::MainNodeClientResource,
             pools::{PoolResource, ReplicaPool},

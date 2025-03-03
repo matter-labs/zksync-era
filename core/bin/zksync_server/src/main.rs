@@ -181,23 +181,18 @@ fn main() -> anyhow::Result<()> {
 }
 
 fn find_gateway_update_error(zkstack_result: &Result<(), ZkStackServiceError>) -> bool {
-    if let Err(zkstack_err) = zkstack_result {
-        match &zkstack_err {
-            ZkStackServiceError::Task(tasks) => {
-                for task in &tasks.0 {
-                    if let TaskError::TaskFailed(task, err) = task {
-                        if task.contains("gateway_migrator")
-                            && err.to_string().contains("Settlement layer changed")
-                        {
-                            return true;
-                        }
-                    }
+    if let Err(ZkStackServiceError::Task(tasks)) = zkstack_result {
+        for task in &tasks.0 {
+            if let TaskError::TaskFailed(task, err) = task {
+                if task.contains("gateway_migrator")
+                    && err.to_string().contains("Settlement layer changed")
+                {
+                    return true;
                 }
             }
-            _ => {}
         }
     }
-    return false;
+    false
 }
 
 fn load_env_config() -> anyhow::Result<TempConfigStore> {

@@ -24,10 +24,9 @@ use zksync_core_leftovers::temp_config_store::read_yaml_repr;
 #[cfg(test)]
 use zksync_dal::{ConnectionPool, Core};
 use zksync_metadata_calculator::MetadataCalculatorRecoveryConfig;
-use zksync_node_api_server::web3::state::InternalApiConfigBuilder;
 use zksync_node_api_server::{
-    tx_sender::{TimestampAsserterParams, TxSenderConfig},
-    web3::{state::InternalApiConfig, Namespace},
+    tx_sender::TxSenderConfig,
+    web3::{state::InternalApiConfigBuilder, Namespace},
 };
 use zksync_protobuf_config::proto;
 use zksync_snapshots_applier::SnapshotsApplierConfig;

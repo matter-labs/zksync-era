@@ -66,7 +66,7 @@ pub async fn get_settlement_layer(
     abi: &Contract,
 ) -> anyhow::Result<SettlementMode> {
     let settlement_layer: Address = CallFunctionArgs::new("getSettlementLayer", ())
-        .for_contract(diamond_proxy_addr, &abi)
+        .for_contract(diamond_proxy_addr, abi)
         .call(eth_client)
         .await?;
 

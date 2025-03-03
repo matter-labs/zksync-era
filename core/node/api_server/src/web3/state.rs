@@ -17,10 +17,10 @@ use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_metadata_calculator::api_server::TreeApiClient;
 use zksync_node_sync::SyncState;
 use zksync_system_constants::ETHEREUM_ADDRESS;
-use zksync_types::api::BridgeAddresses;
 use zksync_types::{
-    api, commitment::L1BatchCommitmentMode, l2::L2Tx, transaction_request::CallRequest, Address,
-    L1BatchNumber, L1ChainId, L2BlockNumber, L2ChainId, H256, U256, U64,
+    api, api::BridgeAddresses, commitment::L1BatchCommitmentMode, l2::L2Tx,
+    transaction_request::CallRequest, Address, L1BatchNumber, L1ChainId, L2BlockNumber, L2ChainId,
+    H256, U256, U64,
 };
 use zksync_web3_decl::{
     client::{DynClient, L2},

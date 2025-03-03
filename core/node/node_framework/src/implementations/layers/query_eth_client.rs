@@ -3,9 +3,7 @@ use zksync_types::{url::SensitiveUrl, L1ChainId, L2ChainId, SLChainId};
 use zksync_web3_decl::client::Client;
 
 use crate::{
-    implementations::resources::eth_interface::{
-        EthInterfaceResource, GatewayEthInterfaceResource, L2InterfaceResource,
-    },
+    implementations::resources::eth_interface::{EthInterfaceResource, L2InterfaceResource},
     wiring_layer::{WiringError, WiringLayer},
     IntoContext,
 };

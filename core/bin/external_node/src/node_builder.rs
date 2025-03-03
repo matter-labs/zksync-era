@@ -2,12 +2,11 @@
 //! as well as an interface to run the node with the specified components.
 
 use anyhow::Context as _;
-use std::time::Duration;
 use zksync_block_reverter::NodeRole;
-use zksync_config::configs::chain::TimestampAsserterConfig;
 use zksync_config::{
     configs::{
         api::{HealthCheckConfig, MerkleTreeApiConfig},
+        chain::TimestampAsserterConfig,
         database::MerkleTreeMode,
         DatabaseSecrets,
     },
@@ -16,8 +15,7 @@ use zksync_config::{
 use zksync_metadata_calculator::{
     MerkleTreeReaderConfig, MetadataCalculatorConfig, MetadataCalculatorRecoveryConfig,
 };
-use zksync_node_api_server::web3::state::InternalApiConfigBuilder;
-use zksync_node_api_server::web3::Namespace;
+use zksync_node_api_server::web3::{state::InternalApiConfigBuilder, Namespace};
 use zksync_node_framework::{
     implementations::layers::{
         batch_status_updater::BatchStatusUpdaterLayer,
@@ -60,7 +58,6 @@ use zksync_node_framework::{
     service::{ZkStackService, ZkStackServiceBuilder},
 };
 use zksync_state::RocksdbStorageOptions;
-use zksync_types::L2_ASSET_ROUTER_ADDRESS;
 
 use crate::{config::ExternalNodeConfig, metrics::framework::ExternalNodeMetricsLayer, Component};
 

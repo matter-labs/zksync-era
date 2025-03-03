@@ -1,8 +1,6 @@
 //! This module provides a "builder" for the main node,
 //! as well as an interface to run the node with the specified components.
 
-use std::time::Duration;
-
 use anyhow::{bail, Context};
 use zksync_config::{
     configs::{
@@ -13,12 +11,10 @@ use zksync_config::{
 };
 use zksync_core_leftovers::Component;
 use zksync_metadata_calculator::MetadataCalculatorConfig;
-use zksync_node_api_server::web3::state::InternalApiConfigBuilder;
 use zksync_node_api_server::{
-    tx_sender::{TimestampAsserterParams, TxSenderConfig},
-    web3::{state::InternalApiConfig, Namespace},
+    tx_sender::TxSenderConfig,
+    web3::{state::InternalApiConfigBuilder, Namespace},
 };
-use zksync_node_framework::implementations::layers::gateway_client::GatewayClientLayer;
 use zksync_node_framework::{
     implementations::layers::{
         base_token::{
@@ -38,6 +34,7 @@ use zksync_node_framework::{
         eth_watch::EthWatchLayer,
         external_proof_integration_api::ExternalProofIntegrationApiLayer,
         gas_adjuster::GasAdjusterLayer,
+        gateway_client::GatewayClientLayer,
         gateway_migrator_layer::GatewayMigratorLayer,
         healtcheck_server::HealthCheckLayer,
         house_keeper::HouseKeeperLayer,
@@ -216,18 +213,13 @@ impl MainNodeBuilder {
 
     fn add_l1_gas_layer(mut self) -> anyhow::Result<Self> {
         // Ensure the BaseTokenRatioProviderResource is inserted if the base token is not ETH.
-        // TODO add base layer
-        // if self
-        //     .contracts_config
-        //     .current_contracts()
-        //     .chain_contracts_config
-        //     .base_token_address
-        //     != Some(SHARED_BRIDGE_ETHER_TOKEN_ADDRESS)
-        // {
-        //     let base_token_adjuster_config = try_load_config!(self.configs.base_token_adjuster);
-        //     self.node
-        //         .add_layer(BaseTokenRatioProviderLayer::new(base_token_adjuster_config));
-        // }
+        if self.contracts.l1_specific_contracts().base_token_address
+            != Some(SHARED_BRIDGE_ETHER_TOKEN_ADDRESS)
+        {
+            let base_token_adjuster_config = try_load_config!(self.configs.base_token_adjuster);
+            self.node
+                .add_layer(BaseTokenRatioProviderLayer::new(base_token_adjuster_config));
+        }
         let state_keeper_config = try_load_config!(self.configs.state_keeper_config);
         let l1_gas_layer = L1GasLayer::new(&state_keeper_config);
         self.node.add_layer(l1_gas_layer);

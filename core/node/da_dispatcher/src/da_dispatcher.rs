@@ -4,7 +4,7 @@ use anyhow::Context;
 use chrono::Utc;
 use rand::Rng;
 use tokio::sync::watch::Receiver;
-use zksync_config::{Contracts, ContractsConfig, DADispatcherConfig};
+use zksync_config::{Contracts, DADispatcherConfig};
 use zksync_da_client::{
     types::{DAError, InclusionData},
     DataAvailabilityClient,
@@ -50,7 +50,7 @@ impl DataAvailabilityDispatcher {
         }
     }
 
-    pub async fn run(mut self, mut stop_receiver: Receiver<bool>) -> anyhow::Result<()> {
+    pub async fn run(self, mut stop_receiver: Receiver<bool>) -> anyhow::Result<()> {
         // self.check_for_misconfiguration().await?;
         let self_arc = Arc::new(self.clone());
 

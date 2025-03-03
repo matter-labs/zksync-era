@@ -602,7 +602,10 @@ impl StateKeeperRunner {
                 // Spawn HTTP server.
                 let cfg = InternalApiConfig::new(
                     &configs::api::Web3JsonRpcConfig::for_tests(),
-                    &configs::contracts::ContractsConfig::for_tests(),
+                    &configs::contracts::Contracts::new(
+                        configs::ChainContractsConfig::for_tests(),
+                        None,
+                    ),
                     &configs::GenesisConfig::for_tests(),
                 );
                 let mut server = TestServerBuilder::new(self.pool.0.clone(), cfg)
@@ -683,7 +686,10 @@ impl StateKeeperRunner {
                 // Spawn HTTP server.
                 let cfg = InternalApiConfig::new(
                     &configs::api::Web3JsonRpcConfig::for_tests(),
-                    &configs::contracts::ContractsConfig::for_tests(),
+                    &configs::contracts::Contracts::new(
+                        configs::ChainContractsConfig::for_tests(),
+                        None,
+                    ),
                     &configs::GenesisConfig::for_tests(),
                 );
                 let mut server = TestServerBuilder::new(self.pool.0.clone(), cfg)

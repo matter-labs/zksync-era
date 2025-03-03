@@ -12,8 +12,9 @@ use zksync_eth_client::{
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_node_fee_model::l1_gas_price::TxParamsProvider;
 use zksync_shared_metrics::BlockL1Stage;
-use zksync_types::settlement::SettlementMode;
-use zksync_types::{eth_sender::EthTx, Address, L1BlockNumber, H256, U256};
+use zksync_types::{
+    eth_sender::EthTx, settlement::SettlementMode, Address, L1BlockNumber, H256, U256,
+};
 
 use super::{metrics::METRICS, EthSenderError};
 use crate::{

@@ -1,4 +1,3 @@
-use anyhow::Context;
 use zksync_config::EthWatchConfig;
 use zksync_eth_watch::{EthHttpQueryClient, EthWatch, ZkSyncExtentionEthClient};
 use zksync_types::L2ChainId;
@@ -44,16 +43,9 @@ pub struct Output {
 }
 
 impl EthWatchLayer {
-    pub fn new(
-        eth_watch_config: EthWatchConfig,
-        // contracts_config: ContractsConfig,
-        // gateway_chain_config: Option<GatewayChainConfig>,
-        chain_id: L2ChainId,
-    ) -> Self {
+    pub fn new(eth_watch_config: EthWatchConfig, chain_id: L2ChainId) -> Self {
         Self {
             eth_watch_config,
-            // contracts_config,
-            // gateway_chain_config,
             chain_id,
         }
     }

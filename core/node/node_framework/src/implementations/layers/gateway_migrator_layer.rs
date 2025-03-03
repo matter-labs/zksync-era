@@ -1,7 +1,6 @@
 use async_trait::async_trait;
-use zksync_config::{Contracts, ContractsConfig};
+use zksync_config::Contracts;
 use zksync_multilayer_client::GatewayMigrator;
-use zksync_types::{settlement::SettlementMode, SLChainId};
 
 use crate::{
     implementations::resources::{

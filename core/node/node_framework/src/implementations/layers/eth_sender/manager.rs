@@ -3,7 +3,6 @@ use zksync_circuit_breaker::l1_txs::FailedL1TransactionChecker;
 use zksync_config::configs::eth_sender::EthConfig;
 use zksync_eth_sender::EthTxManager;
 
-use crate::implementations::resources::settlement_layer::SettlementModeResource;
 use crate::{
     implementations::resources::{
         circuit_breakers::CircuitBreakersResource,
@@ -14,6 +13,7 @@ use crate::{
         gas_adjuster::GasAdjusterResource,
         healthcheck::AppHealthCheckResource,
         pools::{MasterPool, PoolResource, ReplicaPool},
+        settlement_layer::SettlementModeResource,
     },
     service::StopReceiver,
     task::{Task, TaskId},
