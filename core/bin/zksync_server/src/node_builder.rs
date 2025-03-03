@@ -13,6 +13,7 @@ use zksync_config::{
 };
 use zksync_core_leftovers::Component;
 use zksync_metadata_calculator::MetadataCalculatorConfig;
+use zksync_node_api_server::web3::state::InternalApiConfigBuilder;
 use zksync_node_api_server::{
     tx_sender::{TimestampAsserterParams, TxSenderConfig},
     web3::{state::InternalApiConfig, Namespace},
@@ -350,12 +351,14 @@ impl MainNodeBuilder {
         let layer = TxSenderLayer::new(
             postgres_storage_caches_config,
             rpc_config.vm_concurrency_limit(),
-            sk_config,
-            rpc_config,
-            try_load_config!(self.wallets.state_keeper)
-                .fee_account
-                .address(),
-            self.genesis_config.l2_chain_id,
+            TxSenderConfig::new(
+                &sk_config,
+                &rpc_config,
+                try_load_config!(self.wallets.state_keeper)
+                    .fee_account
+                    .address(),
+                self.genesis_config.l2_chain_id,
+            ),
             self.configs.timestamp_asserter_config.clone(),
         );
         let layer = layer.with_vm_mode(vm_config.api_fast_vm_mode);
@@ -406,11 +409,13 @@ impl MainNodeBuilder {
             with_extended_tracing: rpc_config.extended_api_tracing,
             ..Default::default()
         };
+        let http_port = rpc_config.http_port;
+        let internal_config_builder = InternalApiConfigBuilder::from_genesis(&self.genesis_config)
+            .with_web3_config(rpc_config);
         self.node.add_layer(Web3ServerLayer::http(
-            rpc_config.http_port,
+            http_port,
+            internal_config_builder,
             optional_config,
-            self.genesis_config.clone(),
-            rpc_config,
         ));
 
         Ok(self)
@@ -448,11 +453,14 @@ impl MainNodeBuilder {
             with_extended_tracing: rpc_config.extended_api_tracing,
             ..Default::default()
         };
+        let ws_port = rpc_config.ws_port;
+        let internal_config_builder = InternalApiConfigBuilder::from_genesis(&self.genesis_config)
+            .with_web3_config(rpc_config);
+
         self.node.add_layer(Web3ServerLayer::ws(
-            rpc_config.ws_port,
+            ws_port,
+            internal_config_builder,
             optional_config,
-            self.genesis_config.clone(),
-            rpc_config,
         ));
 
         Ok(self)

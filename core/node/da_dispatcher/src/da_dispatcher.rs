@@ -51,7 +51,7 @@ impl DataAvailabilityDispatcher {
     }
 
     pub async fn run(mut self, mut stop_receiver: Receiver<bool>) -> anyhow::Result<()> {
-        self.check_for_misconfiguration().await?;
+        // self.check_for_misconfiguration().await?;
         let self_arc = Arc::new(self.clone());
 
         let mut stop_receiver_dispatch = stop_receiver.clone();
@@ -264,37 +264,37 @@ impl DataAvailabilityDispatcher {
         Ok(())
     }
 
-    async fn check_for_misconfiguration(&mut self) -> anyhow::Result<()> {
-        if let Some(no_da_validator) = self
-            .contracts_config
-            .current_contracts()
-            .chain_contracts_config
-            .validium_da_validator
-        {
-            if self.config.use_dummy_inclusion_data() {
-                let l1_da_validator_address = self.fetch_l1_da_validator_address().await?;
-
-                if l1_da_validator_address != no_da_validator {
-                    anyhow::bail!(
-                        "Dummy inclusion data is enabled, but not the NoDAValidator is used: {:?} != {:?}",
-                        l1_da_validator_address, no_da_validator
-                    )
-                }
-            }
-        }
-
-        if self.config.inclusion_verification_transition_enabled() {
-            self.transitional_l2_da_validator_address = Some(
-                self.contracts_config
-                    .current_contracts()
-                    .chain_contracts_config
-                    .relayed_sl_da_validator
-                    .context("L2 DA validator address is not set")?,
-            );
-        }
-
-        Ok(())
-    }
+    // async fn check_for_misconfiguration(&mut self) -> anyhow::Result<()> {
+    //     if let Some(no_da_validator) = self
+    //         .contracts_config
+    //         .current_contracts()
+    //         .chain_contracts_config
+    //         .validium_da_validator
+    //     {
+    //         if self.config.use_dummy_inclusion_data() {
+    //             let l1_da_validator_address = self.fetch_l1_da_validator_address().await?;
+    //
+    //             if l1_da_validator_address != no_da_validator {
+    //                 anyhow::bail!(
+    //                     "Dummy inclusion data is enabled, but not the NoDAValidator is used: {:?} != {:?}",
+    //                     l1_da_validator_address, no_da_validator
+    //                 )
+    //             }
+    //         }
+    //     }
+    //
+    //     if self.config.inclusion_verification_transition_enabled() {
+    //         self.transitional_l2_da_validator_address = Some(
+    //             self.contracts_config
+    //                 .current_contracts()
+    //                 .chain_contracts_config
+    //                 .relayed_sl_da_validator
+    //                 .context("L2 DA validator address is not set")?,
+    //         );
+    //     }
+    //
+    //     Ok(())
+    // }
 
     async fn fetch_l1_da_validator_address(&self) -> anyhow::Result<Address> {
         let signature = ethabi::short_signature("getDAValidatorPair", &[]);

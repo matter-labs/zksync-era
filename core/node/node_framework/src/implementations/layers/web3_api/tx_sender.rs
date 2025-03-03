@@ -65,11 +65,8 @@ pub struct TxSenderLayer {
     max_vm_concurrency: usize,
     whitelisted_tokens_for_aa_cache: bool,
     vm_mode: FastVmMode,
-    state_keeper_config: StateKeeperConfig,
-    web3_json_config: Web3JsonRpcConfig,
-    fee_account_addr: Address,
-    chain_id: L2ChainId,
     timestamp_asserter_config: Option<TimestampAsserterConfig>,
+    tx_sender_config: TxSenderConfig,
 }
 
 #[derive(Debug, FromContext)]
@@ -99,22 +96,16 @@ impl TxSenderLayer {
     pub fn new(
         postgres_storage_caches_config: PostgresStorageCachesConfig,
         max_vm_concurrency: usize,
-        state_keeper_config: StateKeeperConfig,
-        web3_json_config: Web3JsonRpcConfig,
-        fee_account_addr: Address,
-        chain_id: L2ChainId,
-        timestamp_asserter_params: Option<TimestampAsserterConfig>,
+        tx_sender_config: TxSenderConfig,
+        timestamp_asserter_config: Option<TimestampAsserterConfig>,
     ) -> Self {
         Self {
             postgres_storage_caches_config,
             max_vm_concurrency,
             whitelisted_tokens_for_aa_cache: false,
             vm_mode: FastVmMode::Old,
-            state_keeper_config,
-            web3_json_config,
-            fee_account_addr,
-            chain_id,
-            timestamp_asserter_config: timestamp_asserter_params,
+            timestamp_asserter_config,
+            tx_sender_config,
         }
     }
 
@@ -150,7 +141,7 @@ impl WiringLayer for TxSenderLayer {
         let sealer = input.sealer.map(|s| s.0);
         let fee_input = input.fee_input.0;
 
-        let timestamp_asserter_params = match input
+        let config = match input
             .contracts_resource
             .0
             .current_contracts()
@@ -160,14 +151,16 @@ impl WiringLayer for TxSenderLayer {
             Some(address) => {
                 let timestamp_asserter_config =
                     self.timestamp_asserter_config.expect("Should be presented");
-                Some(TimestampAsserterParams {
-                    address,
-                    min_time_till_end: Duration::from_secs(
-                        timestamp_asserter_config.min_time_till_end_sec.into(),
-                    ),
-                })
+
+                self.tx_sender_config
+                    .with_timestamp_asserter_params(TimestampAsserterParams {
+                        address,
+                        min_time_till_end: Duration::from_secs(
+                            timestamp_asserter_config.min_time_till_end_sec.into(),
+                        ),
+                    })
             }
-            None => None,
+            None => self.tx_sender_config,
         };
 
         // Initialize Postgres caches.
@@ -197,13 +190,6 @@ impl WiringLayer for TxSenderLayer {
 
         // TODO (BFT-138): Allow to dynamically reload API contracts
 
-        let config = TxSenderConfig::new(
-            &self.state_keeper_config,
-            &self.web3_json_config,
-            self.fee_account_addr,
-            self.chain_id,
-            timestamp_asserter_params,
-        );
         let mut executor_options = SandboxExecutorOptions::new(
             config.chain_id,
             AccountTreeId::new(config.fee_account_addr),

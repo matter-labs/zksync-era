@@ -34,6 +34,7 @@ pub struct EcosystemL1Specific {
     pub wrapped_base_token_store: Option<Address>,
     pub shared_bridge: Option<Address>,
     pub erc_20_bridge: Option<Address>,
+    pub base_token_address: Option<Address>,
 }
 
 #[derive(Debug, Clone)]
@@ -42,6 +43,6 @@ pub struct EcosystemCommonContracts {
     pub state_transition_proxy_addr: Address,
     pub server_notifier_addr: Option<Address>,
     pub multicall3: Address,
-    pub verifier_addr: Address,
+    // pub verifier_addr: Address,
     pub validator_timelock_addr: Address,
 }

@@ -234,7 +234,7 @@ async fn main() -> anyhow::Result<()> {
         }
     };
 
-    let contracts = Contracts::new(contracts, None, None);
+    let contracts = Contracts::new(contracts, None);
 
     let sl_rpc_url = if settlement_mode.is_gateway() {
         l1_secrets

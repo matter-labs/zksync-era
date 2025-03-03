@@ -67,10 +67,7 @@ impl ChainContractsConfig {
 #[derive(Debug, Clone)]
 pub struct ChainContracts {
     pub diamond_proxy_addr: Address,
-    pub relayed_sl_da_validator: Option<Address>,
-    pub validium_da_validator: Option<Address>,
     pub chain_admin: Address,
-    pub base_token_address: Option<Address>,
 }
 
 #[derive(Debug, Clone)]

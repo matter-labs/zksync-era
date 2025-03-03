@@ -59,25 +59,12 @@ impl WiringLayer for GatewayMigratorLayer {
                 .diamond_proxy_addr,
         )
         .await;
+        let mut contracts = self.contracts.clone();
+        contracts.set_settlement_mode(migrator.settlement_mode());
 
-        // let contracts = match migrator.settlement_mode() {
-        //     SettlementMode::SettlesToL1 => GatewayChainConfig {
-        //         state_transition_proxy_addr: self
-        //             .contracts_config
-        //             .ecosystem_contracts
-        //             .unwrap()
-        //             .state_transition_proxy_addr,
-        //         validator_timelock_addr: self.contracts_config.validator_timelock_addr,
-        //         multicall3_addr: self.contracts_config.l1_multicall3_addr,
-        //         diamond_proxy_addr: self.contracts_config.diamond_proxy_addr,
-        //         chain_admin_addr: self.contracts_config.chain_admin_addr,
-        //         gateway_chain_id: SLChainId(0),
-        //     },
-        //     SettlementMode::Gateway => self.gateway_chain_config.clone().unwrap(),
-        // };
         Ok(Output {
             initial_settlement_mode: SettlementModeResource(migrator.settlement_mode()),
-            contracts: ContractsResource(self.contracts),
+            contracts: ContractsResource(contracts),
             gateway_migrator: migrator,
         })
     }

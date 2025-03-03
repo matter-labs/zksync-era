@@ -52,12 +52,14 @@ impl Contracts {
     pub fn gateway(&self) -> Option<&SpecificContracts> {
         self.gateway_contracts.as_ref()
     }
+    pub fn set_settlement_mode(&mut self, settlement_mode: SettlementMode) {
+        self.sl_mode = settlement_mode;
+    }
 }
 
 impl Contracts {
     pub fn new(
         contracts_config: ChainContractsConfig,
-        gateway_contracts_config: Option<GatewayConfig>,
         gateway_chain_config: Option<GatewayChainConfig>,
     ) -> Self {
         let ecosystem = contracts_config.ecosystem_contracts.unwrap();
@@ -67,6 +69,7 @@ impl Contracts {
                 wrapped_base_token_store: ecosystem.l1_wrapped_base_token_store,
                 shared_bridge: contracts_config.l1_shared_bridge_proxy_addr,
                 erc_20_bridge: contracts_config.l1_erc20_bridge_proxy_addr,
+                base_token_address: contracts_config.base_token_addr,
             },
             l1_contracts: SpecificContracts {
                 ecosystem_contracts: EcosystemCommonContracts {
@@ -74,17 +77,11 @@ impl Contracts {
                     state_transition_proxy_addr: ecosystem.state_transition_proxy_addr,
                     server_notifier_addr: ecosystem.server_notifier_addr,
                     multicall3: contracts_config.l1_multicall3_addr,
-                    verifier_addr: contracts_config.verifier_addr,
                     validator_timelock_addr: contracts_config.validator_timelock_addr,
                 },
                 chain_contracts_config: ChainContracts {
                     diamond_proxy_addr: contracts_config.diamond_proxy_addr,
-                    // TODO Check these values
-                    relayed_sl_da_validator: contracts_config.no_da_validium_l1_validator_addr,
-                    validium_da_validator: contracts_config.no_da_validium_l1_validator_addr,
-
                     chain_admin: contracts_config.chain_admin_addr,
-                    base_token_address: contracts_config.base_token_addr,
                 },
                 l2_contracts: L2Contracts {
                     l2_erc20_default_bridge: contracts_config.l2_erc20_bridge_addr,
@@ -95,22 +92,18 @@ impl Contracts {
                     l2_testnet_paymaster_addr: contracts_config.l2_testnet_paymaster_addr,
                 },
             },
-            gateway_contracts: gateway_contracts_config.map(|a| SpecificContracts {
+            gateway_chain_id: gateway_chain_config.as_ref().map(|a| a.gateway_chain_id),
+            gateway_contracts: gateway_chain_config.map(|a| SpecificContracts {
                 ecosystem_contracts: EcosystemCommonContracts {
                     bridgehub_proxy_addr: L2_BRIDGEHUB_ADDRESS,
                     state_transition_proxy_addr: a.state_transition_proxy_addr,
                     server_notifier_addr: a.server_notifier,
                     multicall3: a.multicall3_addr,
-                    verifier_addr: a.verifier_addr,
                     validator_timelock_addr: a.validator_timelock_addr,
                 },
                 chain_contracts_config: ChainContracts {
-                    diamond_proxy_addr: gateway_chain_config.as_ref().unwrap().diamond_proxy_addr,
-                    relayed_sl_da_validator: Some(a.relayed_sl_da_validator),
-                    validium_da_validator: Some(a.validium_da_validator),
-                    chain_admin: gateway_chain_config.as_ref().unwrap().chain_admin_addr,
-                    // TODO WTF were
-                    base_token_address: None,
+                    diamond_proxy_addr: a.diamond_proxy_addr,
+                    chain_admin: a.chain_admin_addr,
                 },
                 l2_contracts: L2Contracts {
                     l2_erc20_default_bridge: contracts_config.l2_erc20_bridge_addr,
@@ -122,7 +115,6 @@ impl Contracts {
                 },
             }),
             sl_mode: Default::default(),
-            gateway_chain_id: None,
         }
     }
 

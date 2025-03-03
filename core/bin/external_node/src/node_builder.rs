@@ -2,7 +2,9 @@
 //! as well as an interface to run the node with the specified components.
 
 use anyhow::Context as _;
+use std::time::Duration;
 use zksync_block_reverter::NodeRole;
+use zksync_config::configs::chain::TimestampAsserterConfig;
 use zksync_config::{
     configs::{
         api::{HealthCheckConfig, MerkleTreeApiConfig},
@@ -14,6 +16,7 @@ use zksync_config::{
 use zksync_metadata_calculator::{
     MerkleTreeReaderConfig, MetadataCalculatorConfig, MetadataCalculatorRecoveryConfig,
 };
+use zksync_node_api_server::web3::state::InternalApiConfigBuilder;
 use zksync_node_api_server::web3::Namespace;
 use zksync_node_framework::{
     implementations::layers::{
@@ -198,12 +201,6 @@ impl ExternalNodeBuilder {
         // compression will become optional on the sequencer again), EN has to allow txs without bytecode
         // compression.
         const OPTIONAL_BYTECODE_COMPRESSION: bool = true;
-
-        let l2_shared_bridge_addr = self
-            .config
-            .remote
-            .l2_shared_bridge_addr
-            .context("Missing `l2_shared_bridge_addr`")?;
 
         let persistence_layer =
             OutputHandlerLayer::new(self.config.optional.l2_block_seal_queue_capacity)
@@ -414,22 +411,28 @@ impl ExternalNodeBuilder {
     }
 
     fn add_tx_sender_layer(mut self) -> anyhow::Result<Self> {
-        // let postgres_storage_config = PostgresStorageCachesConfig {
-        //     factory_deps_cache_size: self.config.optional.factory_deps_cache_size() as u64,
-        //     initial_writes_cache_size: self.config.optional.initial_writes_cache_size() as u64,
-        //     latest_values_cache_size: self.config.optional.latest_values_cache_size() as u64,
-        //     latest_values_max_block_lag: 20, // reasonable default
-        // };
-        // let max_vm_concurrency = self.config.optional.vm_concurrency_limit;
-        // let tx_sender_layer = TxSenderLayer::new(
-        //     (&self.config).into(),
-        //     postgres_storage_config,
-        //     max_vm_concurrency,
-        // )
-        // .with_whitelisted_tokens_for_aa_cache(true);
-        //
-        // self.node.add_layer(ProxySinkLayer);
-        // self.node.add_layer(tx_sender_layer);
+        let postgres_storage_config = PostgresStorageCachesConfig {
+            factory_deps_cache_size: self.config.optional.factory_deps_cache_size() as u64,
+            initial_writes_cache_size: self.config.optional.initial_writes_cache_size() as u64,
+            latest_values_cache_size: self.config.optional.latest_values_cache_size() as u64,
+            latest_values_max_block_lag: 20, // reasonable default
+        };
+        let max_vm_concurrency = self.config.optional.vm_concurrency_limit;
+        let tx_sender_layer = TxSenderLayer::new(
+            postgres_storage_config,
+            max_vm_concurrency,
+            (&self.config).into(),
+            Some(TimestampAsserterConfig {
+                min_time_till_end_sec: self
+                    .config
+                    .optional
+                    .timestamp_asserter_min_time_till_end_sec,
+            }),
+        )
+        .with_whitelisted_tokens_for_aa_cache(true);
+
+        self.node.add_layer(ProxySinkLayer);
+        self.node.add_layer(tx_sender_layer);
         Ok(self)
     }
 
@@ -482,26 +485,29 @@ impl ExternalNodeBuilder {
     }
 
     fn add_http_web3_api_layer(mut self) -> anyhow::Result<Self> {
-        // let optional_config = self.web3_api_optional_config();
-        // self.node.add_layer(Web3ServerLayer::http(
-        //     self.config.required.http_port,
-        //     (&self.config).into(),
-        //     optional_config,
-        // ));
-        //
+        let optional_config = self.web3_api_optional_config();
+        let internal_api_config_builder: InternalApiConfigBuilder = (&self.config).into();
+
+        self.node.add_layer(Web3ServerLayer::http(
+            self.config.required.http_port,
+            internal_api_config_builder,
+            optional_config,
+        ));
+
         Ok(self)
     }
 
     fn add_ws_web3_api_layer(mut self) -> anyhow::Result<Self> {
         // TODO: Support websocket requests per minute limit
-        // let optional_config = self.web3_api_optional_config();
-        //
-        // self.node.add_layer(Web3ServerLayer::ws(
-        //     self.config.required.ws_port,
-        //     (&self.config).into(),
-        //     optional_config,
-        // ));
-        //
+        let optional_config = self.web3_api_optional_config();
+        let internal_api_config_builder: InternalApiConfigBuilder = (&self.config).into();
+
+        self.node.add_layer(Web3ServerLayer::ws(
+            self.config.required.ws_port,
+            internal_api_config_builder,
+            optional_config,
+        ));
+
         Ok(self)
     }
 

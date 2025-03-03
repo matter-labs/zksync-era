@@ -24,6 +24,7 @@ use zksync_core_leftovers::temp_config_store::read_yaml_repr;
 #[cfg(test)]
 use zksync_dal::{ConnectionPool, Core};
 use zksync_metadata_calculator::MetadataCalculatorRecoveryConfig;
+use zksync_node_api_server::web3::state::InternalApiConfigBuilder;
 use zksync_node_api_server::{
     tx_sender::{TimestampAsserterParams, TxSenderConfig},
     web3::{state::InternalApiConfig, Namespace},
@@ -1466,18 +1467,18 @@ impl ExternalNodeConfig {
     }
 }
 
-impl From<&ExternalNodeConfig> for InternalApiConfig {
+impl From<&ExternalNodeConfig> for InternalApiConfigBuilder {
     fn from(config: &ExternalNodeConfig) -> Self {
         Self {
             l1_chain_id: config.required.l1_chain_id,
             l2_chain_id: config.required.l2_chain_id,
-            max_tx_size: config.optional.max_tx_size_bytes,
-            estimate_gas_scale_factor: config.optional.estimate_gas_scale_factor,
-            estimate_gas_acceptable_overestimation: config
-                .optional
-                .estimate_gas_acceptable_overestimation,
-            estimate_gas_optimize_search: config.optional.estimate_gas_optimize_search,
-            bridge_addresses: BridgeAddresses {
+            max_tx_size: Some(config.optional.max_tx_size_bytes),
+            estimate_gas_scale_factor: Some(config.optional.estimate_gas_scale_factor),
+            estimate_gas_acceptable_overestimation: Some(
+                config.optional.estimate_gas_acceptable_overestimation,
+            ),
+            estimate_gas_optimize_search: Some(config.optional.estimate_gas_optimize_search),
+            bridge_addresses: Some(BridgeAddresses {
                 l1_erc20_default_bridge: config.remote.l1_erc20_bridge_proxy_addr,
                 l2_erc20_default_bridge: config.remote.l2_erc20_bridge_addr,
                 l1_shared_default_bridge: config.remote.l1_shared_bridge_proxy_addr,
@@ -1485,18 +1486,18 @@ impl From<&ExternalNodeConfig> for InternalApiConfig {
                 l2_legacy_shared_bridge: config.remote.l2_legacy_shared_bridge_addr,
                 l1_weth_bridge: config.remote.l1_weth_bridge_addr,
                 l2_weth_bridge: config.remote.l2_weth_bridge_addr,
-            },
+            }),
             l1_bytecodes_supplier_addr: config.remote.l1_bytecodes_supplier_addr,
             l1_wrapped_base_token_store: config.remote.l1_wrapped_base_token_store,
             l1_bridgehub_proxy_addr: config.remote.l1_bridgehub_proxy_addr,
             l1_state_transition_proxy_addr: config.remote.l1_state_transition_proxy_addr,
             l1_transparent_proxy_admin_addr: config.remote.l1_transparent_proxy_admin_addr,
-            l1_diamond_proxy_addr: config.l1_diamond_proxy_address(),
+            l1_diamond_proxy_addr: Some(config.l1_diamond_proxy_address()),
             l2_testnet_paymaster_addr: config.remote.l2_testnet_paymaster_addr,
-            req_entities_limit: config.optional.req_entities_limit,
-            fee_history_limit: config.optional.fee_history_limit,
+            req_entities_limit: Some(config.optional.req_entities_limit),
+            fee_history_limit: Some(config.optional.fee_history_limit),
             base_token_address: Some(config.remote.base_token_addr),
-            filters_disabled: config.optional.filters_disabled,
+            filters_disabled: Some(config.optional.filters_disabled),
             dummy_verifier: config.remote.dummy_verifier,
             l1_batch_commit_data_generator_mode: config.remote.l1_batch_commit_data_generator_mode,
             timestamp_asserter_address: config.remote.l2_timestamp_asserter_addr,
@@ -1523,17 +1524,7 @@ impl From<&ExternalNodeConfig> for TxSenderConfig {
             chain_id: config.required.l2_chain_id,
             // Does not matter for EN.
             whitelisted_tokens_for_aa: Default::default(),
-            timestamp_asserter_params: config.remote.l2_timestamp_asserter_addr.map(|address| {
-                TimestampAsserterParams {
-                    address,
-                    min_time_till_end: Duration::from_secs(
-                        config
-                            .optional
-                            .timestamp_asserter_min_time_till_end_sec
-                            .into(),
-                    ),
-                }
-            }),
+            timestamp_asserter_params: None,
         }
     }
 }

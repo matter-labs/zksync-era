@@ -33,6 +33,7 @@ impl ProtoRepr for proto::GatewayChainConfig {
             gateway_chain_id: required(&self.gateway_chain_id)
                 .map(|x| SLChainId(*x))
                 .context("gateway_chain_id")?,
+            server_notifier: None,
         })
     }
 

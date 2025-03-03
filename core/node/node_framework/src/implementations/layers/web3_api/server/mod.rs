@@ -9,6 +9,7 @@ use zksync_config::{
     GenesisConfig,
 };
 use zksync_contracts::{bridgehub_contract, l1_asset_router_contract};
+use zksync_node_api_server::web3::state::InternalApiConfigBuilder;
 use zksync_node_api_server::web3::{
     state::{BridgeAddressesHandle, InternalApiConfig, SealedL2BlockNumber},
     ApiBuilder, ApiServer, Namespace,
@@ -119,9 +120,8 @@ enum Transport {
 pub struct Web3ServerLayer {
     transport: Transport,
     port: u16,
-    genesis_config: GenesisConfig,
-    rpc_config: Web3JsonRpcConfig,
     optional_config: Web3ServerOptionalConfig,
+    internal_api_config_builder: InternalApiConfigBuilder,
 }
 
 #[derive(Debug, FromContext)]
@@ -157,31 +157,27 @@ pub struct Output {
 impl Web3ServerLayer {
     pub fn http(
         port: u16,
+        internal_api_config_builder: InternalApiConfigBuilder,
         optional_config: Web3ServerOptionalConfig,
-        genesis_config: GenesisConfig,
-        rpc_config: Web3JsonRpcConfig,
     ) -> Self {
         Self {
             transport: Transport::Http,
             port,
-            genesis_config,
-            rpc_config,
             optional_config,
+            internal_api_config_builder,
         }
     }
 
     pub fn ws(
         port: u16,
+        internal_api_config_builder: InternalApiConfigBuilder,
         optional_config: Web3ServerOptionalConfig,
-        genesis_config: GenesisConfig,
-        rpc_config: Web3JsonRpcConfig,
     ) -> Self {
         Self {
             transport: Transport::Ws,
             port,
-            genesis_config,
-            rpc_config,
             optional_config,
+            internal_api_config_builder,
         }
     }
 }
@@ -209,8 +205,10 @@ impl WiringLayer for Web3ServerLayer {
         let tree_api_client = input.tree_api_client.map(|client| client.0);
 
         let contracts = input.contracts_resource.0;
-        let internal_api_config =
-            InternalApiConfig::new(&self.rpc_config, &contracts, &self.genesis_config);
+        let internal_api_config = self
+            .internal_api_config_builder
+            .with_contracts(contracts)
+            .build();
 
         let sealed_l2_block_handle = SealedL2BlockNumber::default();
         let bridge_addresses_handle =

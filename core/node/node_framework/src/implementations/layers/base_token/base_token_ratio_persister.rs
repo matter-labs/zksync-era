@@ -77,8 +77,7 @@ impl WiringLayer for BaseTokenRatioPersisterLayer {
         let base_token_addr = input
             .contracts_resource
             .0
-            .current_contracts()
-            .chain_contracts_config
+            .l1_specific_contracts()
             .base_token_address
             .expect("base token address is not set");
 
