@@ -5,6 +5,7 @@ use zksync_config::{GasAdjusterConfig, GenesisConfig};
 use zksync_node_fee_model::l1_gas_price::GasAdjuster;
 use zksync_types::pubdata_da::PubdataSendingMode;
 
+use crate::implementations::resources::eth_interface::GatewayEthInterfaceResource;
 use crate::{
     implementations::resources::{
         eth_interface::{EthInterfaceResource, L2InterfaceResource},
@@ -28,8 +29,7 @@ pub struct GasAdjusterLayer {
 #[derive(Debug, FromContext)]
 #[context(crate = crate)]
 pub struct Input {
-    pub eth_interface_client: EthInterfaceResource,
-    pub l2_inteface_client: Option<L2InterfaceResource>,
+    pub client: GatewayEthInterfaceResource,
 }
 
 #[derive(Debug, IntoContext)]
@@ -65,14 +65,8 @@ impl WiringLayer for GasAdjusterLayer {
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
-        let client = if self.gas_adjuster_config.settlement_mode.is_gateway() {
-            input.l2_inteface_client.unwrap().0.into()
-        } else {
-            input.eth_interface_client.0.into()
-        };
-
         let adjuster = GasAdjuster::new(
-            client,
+            input.client.0.into(),
             self.gas_adjuster_config,
             self.pubdata_sending_mode,
             self.genesis_config.l1_batch_commit_data_generator_mode,

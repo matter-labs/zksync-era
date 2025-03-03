@@ -3,6 +3,7 @@ use zksync_circuit_breaker::l1_txs::FailedL1TransactionChecker;
 use zksync_config::configs::eth_sender::EthConfig;
 use zksync_eth_sender::EthTxManager;
 
+use crate::implementations::resources::settlement_layer::SettlementModeResource;
 use crate::{
     implementations::resources::{
         circuit_breakers::CircuitBreakersResource,
@@ -51,6 +52,7 @@ pub struct Input {
     pub eth_client_blobs: Option<BoundEthInterfaceForBlobsResource>,
     pub eth_client_gateway: Option<BoundEthInterfaceForL2Resource>,
     pub gas_adjuster: GasAdjusterResource,
+    pub sl_mode: SettlementModeResource,
     #[context(default)]
     pub circuit_breakers: CircuitBreakersResource,
     #[context(default)]
@@ -99,6 +101,7 @@ impl WiringLayer for EthTxManagerLayer {
             Some(eth_client),
             eth_client_blobs,
             l2_client,
+            input.sl_mode.0,
         );
 
         // Insert circuit breaker.

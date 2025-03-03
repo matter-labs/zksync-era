@@ -16,6 +16,7 @@ use zksync_config::{configs::api::Web3JsonRpcConfig, Contracts, GenesisConfig};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_metadata_calculator::api_server::TreeApiClient;
 use zksync_node_sync::SyncState;
+use zksync_system_constants::ETHEREUM_ADDRESS;
 use zksync_types::api::BridgeAddresses;
 use zksync_types::{
     api, commitment::L1BatchCommitmentMode, l2::L2Tx, transaction_request::CallRequest, Address,
@@ -163,6 +164,7 @@ impl InternalApiConfigBuilder {
     }
 
     pub fn with_contracts(mut self, contracts_config: Contracts) -> Self {
+        self.base_token_address = contracts_config.l1_specific_contracts().base_token_address;
         self.bridge_addresses = Some(BridgeAddresses {
             l1_erc20_default_bridge: contracts_config.l1_specific_contracts().erc_20_bridge,
             l2_erc20_default_bridge: contracts_config
@@ -338,7 +340,12 @@ impl InternalApiConfig {
                 .l2_testnet_paymaster_addr,
             req_entities_limit: web3_config.req_entities_limit(),
             fee_history_limit: web3_config.fee_history_limit(),
-            base_token_address: contracts_config.l1_specific_contracts().base_token_address,
+            base_token_address: Some(
+                contracts_config
+                    .l1_specific_contracts()
+                    .base_token_address
+                    .unwrap_or(ETHEREUM_ADDRESS),
+            ),
             filters_disabled: web3_config.filters_disabled,
             dummy_verifier: genesis_config.dummy_verifier,
             l1_batch_commit_data_generator_mode: genesis_config.l1_batch_commit_data_generator_mode,

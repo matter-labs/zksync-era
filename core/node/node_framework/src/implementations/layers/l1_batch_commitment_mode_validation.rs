@@ -1,6 +1,7 @@
 use zksync_commitment_generator::validation_task::L1BatchCommitmentModeValidationTask;
 use zksync_types::{commitment::L1BatchCommitmentMode, Address};
 
+use crate::implementations::resources::eth_interface::GatewayEthInterfaceResource;
 use crate::{
     implementations::resources::{
         contracts::ContractsResource, eth_interface::EthInterfaceResource,
@@ -22,7 +23,7 @@ pub struct L1BatchCommitmentModeValidationLayer {
 #[context(crate = crate)]
 pub struct Input {
     pub contracts: ContractsResource,
-    pub eth_client: EthInterfaceResource,
+    pub eth_client: GatewayEthInterfaceResource,
 }
 
 #[derive(Debug, IntoContext)]
@@ -50,7 +51,7 @@ impl WiringLayer for L1BatchCommitmentModeValidationLayer {
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
-        let EthInterfaceResource(query_client) = input.eth_client;
+        let GatewayEthInterfaceResource(query_client) = input.eth_client;
         let task = L1BatchCommitmentModeValidationTask::new(
             input
                 .contracts

@@ -18,6 +18,7 @@ use zksync_node_api_server::{
     tx_sender::{TimestampAsserterParams, TxSenderConfig},
     web3::{state::InternalApiConfig, Namespace},
 };
+use zksync_node_framework::implementations::layers::gateway_client::GatewayClientLayer;
 use zksync_node_framework::{
     implementations::layers::{
         base_token::{
@@ -181,7 +182,18 @@ impl MainNodeBuilder {
             eth_config.l1_rpc_url,
             // TODO query from the server
             None,
-            // self.contracts_config.gateway_chain_id(),
+            eth_config.gateway_rpc_url,
+        );
+        self.node.add_layer(query_eth_client_layer);
+        Ok(self)
+    }
+
+    fn add_gateway_client_layer(mut self) -> anyhow::Result<Self> {
+        let genesis = self.genesis_config.clone();
+        let eth_config = try_load_config!(self.secrets.l1);
+        let query_eth_client_layer = GatewayClientLayer::new(
+            genesis.l1_chain_id,
+            eth_config.l1_rpc_url,
             eth_config.gateway_rpc_url,
         );
         self.node.add_layer(query_eth_client_layer);
@@ -308,9 +320,11 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
-    fn add_gateway_migrator_layer(mut self) -> anyhow::Result<Self> {
-        self.node
-            .add_layer(GatewayMigratorLayer::new(self.contracts.clone()));
+    fn add_gateway_migrator_layer(mut self, dont_start: bool) -> anyhow::Result<Self> {
+        self.node.add_layer(GatewayMigratorLayer::new(
+            self.contracts.clone(),
+            dont_start,
+        ));
         Ok(self)
     }
 
@@ -700,6 +714,8 @@ impl MainNodeBuilder {
         self = self
             .add_pools_layer()?
             .add_query_eth_client_layer()?
+            .add_gateway_migrator_layer(true)?
+            .add_gateway_client_layer()?
             .add_storage_initialization_layer(LayerKind::Task)?;
 
         Ok(self.node.build())
@@ -716,7 +732,8 @@ impl MainNodeBuilder {
             .add_healthcheck_layer()?
             .add_prometheus_exporter_layer()?
             .add_query_eth_client_layer()?
-            .add_gateway_migrator_layer()?
+            .add_gateway_migrator_layer(false)?
+            .add_gateway_client_layer()?
             .add_gas_adjuster_layer()?;
 
         // Add preconditions for all the components.

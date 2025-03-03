@@ -16,12 +16,14 @@ use crate::{
 #[derive(Debug)]
 pub struct GatewayMigratorLayer {
     contracts: Contracts,
+    stop: bool,
 }
 
 impl GatewayMigratorLayer {
-    pub fn new(contracts_config: Contracts) -> Self {
+    pub fn new(contracts_config: Contracts, stop: bool) -> Self {
         Self {
             contracts: contracts_config,
+            stop,
         }
     }
 }
@@ -57,6 +59,7 @@ impl WiringLayer for GatewayMigratorLayer {
                 .current_contracts()
                 .chain_contracts_config
                 .diamond_proxy_addr,
+            self.stop,
         )
         .await;
         let mut contracts = self.contracts.clone();
@@ -77,6 +80,10 @@ impl Task for GatewayMigrator {
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        self.run_inner(stop_receiver.0).await
+        if !self.dont_start {
+            self.run_inner(stop_receiver.0).await
+        } else {
+            Ok(())
+        }
     }
 }

@@ -12,6 +12,7 @@ use zksync_eth_client::{
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_node_fee_model::l1_gas_price::TxParamsProvider;
 use zksync_shared_metrics::BlockL1Stage;
+use zksync_types::settlement::SettlementMode;
 use zksync_types::{eth_sender::EthTx, Address, L1BlockNumber, H256, U256};
 
 use super::{metrics::METRICS, EthSenderError};
@@ -36,6 +37,7 @@ pub struct EthTxManager {
     fees_oracle: Box<dyn EthFeesOracle>,
     pool: ConnectionPool<Core>,
     health_updater: HealthUpdater,
+    sl_mode: SettlementMode,
 }
 
 impl EthTxManager {
@@ -46,6 +48,7 @@ impl EthTxManager {
         ethereum_gateway: Option<Box<dyn BoundEthInterface>>,
         ethereum_gateway_blobs: Option<Box<dyn BoundEthInterface>>,
         l2_gateway: Option<Box<dyn BoundEthInterface>>,
+        sl_mode: SettlementMode,
     ) -> Self {
         let ethereum_gateway = ethereum_gateway.map(|eth| eth.for_component("eth_tx_manager"));
         let ethereum_gateway_blobs =
@@ -71,6 +74,7 @@ impl EthTxManager {
             fees_oracle: Box::new(fees_oracle),
             pool,
             health_updater: ReactiveHealthCheck::new("eth_tx_manager").1,
+            sl_mode,
         }
     }
 
@@ -645,11 +649,7 @@ impl EthTxManager {
         &mut self,
         storage: &mut Connection<'_, Core>,
     ) {
-        if !self
-            .l1_interface
-            .supported_operator_types()
-            .contains(&OperatorType::Gateway)
-        {
+        if !self.sl_mode.is_gateway() {
             return;
         }
 

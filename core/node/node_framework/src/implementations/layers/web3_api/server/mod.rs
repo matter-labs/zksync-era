@@ -15,6 +15,7 @@ use zksync_node_api_server::web3::{
     ApiBuilder, ApiServer, Namespace,
 };
 
+use crate::implementations::resources::eth_interface::GatewayEthInterfaceResource;
 use crate::{
     implementations::{
         layers::web3_api::server::{
@@ -137,7 +138,7 @@ pub struct Input {
     #[context(default)]
     pub app_health: AppHealthCheckResource,
     pub main_node_client: Option<MainNodeClientResource>,
-    pub l1_eth_client: EthInterfaceResource,
+    pub l1_eth_client: GatewayEthInterfaceResource,
     pub contracts_resource: ContractsResource,
 }
 

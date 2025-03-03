@@ -25,7 +25,7 @@ pub struct ConsistencyCheckerLayer {
 #[derive(Debug, FromContext)]
 #[context(crate = crate)]
 pub struct Input {
-    pub l1_client: EthInterfaceResource,
+    pub l1_client: GatewayEthInterfaceResource,
     pub gateway_client: Option<GatewayEthInterfaceResource>,
     pub master_pool: PoolResource<MasterPool>,
     #[context(default)]

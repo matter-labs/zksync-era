@@ -55,6 +55,9 @@ impl Contracts {
     pub fn set_settlement_mode(&mut self, settlement_mode: SettlementMode) {
         self.sl_mode = settlement_mode;
     }
+    pub fn settlement_mode(&self) -> SettlementMode {
+        self.sl_mode
+    }
 }
 
 impl Contracts {
