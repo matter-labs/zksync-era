@@ -11687,6 +11687,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_gateway_migrator"
+version = "26.4.0-non-semver-compat"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "tokio",
+ "tracing",
+ "zksync_basic_types",
+ "zksync_config",
+ "zksync_contracts",
+ "zksync_eth_client",
+]
+
+[[package]]
 name = "zksync_health_check"
 version = "26.4.0-non-semver-compat"
 dependencies = [
@@ -11845,20 +11859,6 @@ dependencies = [
  "once_cell",
  "zksync_basic_types",
  "zksync_crypto_primitives",
-]
-
-[[package]]
-name = "zksync_multilayer_client"
-version = "26.4.0-non-semver-compat"
-dependencies = [
- "anyhow",
- "async-trait",
- "tokio",
- "tracing",
- "zksync_basic_types",
- "zksync_config",
- "zksync_contracts",
- "zksync_eth_client",
 ]
 
 [[package]]
@@ -12067,12 +12067,12 @@ dependencies = [
  "zksync_eth_watch",
  "zksync_external_price_api",
  "zksync_external_proof_integration_api",
+ "zksync_gateway_migrator",
  "zksync_health_check",
  "zksync_house_keeper",
  "zksync_logs_bloom_backfill",
  "zksync_metadata_calculator",
  "zksync_mini_merkle_tree",
- "zksync_multilayer_client",
  "zksync_node_api_server",
  "zksync_node_consensus",
  "zksync_node_db_pruner",

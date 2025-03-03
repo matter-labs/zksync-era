@@ -15,25 +15,20 @@ pub struct GatewayMigrator {
     diamond_proxy_addr: Address,
     settlement_mode: SettlementMode,
     abi: Contract,
-    pub dont_start: bool,
 }
 
 impl GatewayMigrator {
-    pub async fn new(
+    pub fn new(
         eth_client: Box<DynClient<L1>>,
         diamond_proxy_addr: Address,
-        dont_start: bool,
+        initial_settlement_mode: SettlementMode,
     ) -> Self {
         let abi = getters_facet_contract();
-        let settlement_mode = get_settlement_layer(&eth_client, diamond_proxy_addr, &abi)
-            .await
-            .unwrap();
         Self {
             eth_client,
             diamond_proxy_addr,
-            settlement_mode,
+            settlement_mode: initial_settlement_mode,
             abi,
-            dont_start,
         }
     }
 

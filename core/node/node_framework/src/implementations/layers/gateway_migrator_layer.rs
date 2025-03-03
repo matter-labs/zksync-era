@@ -1,6 +1,5 @@
 use async_trait::async_trait;
-use zksync_config::Contracts;
-use zksync_multilayer_client::GatewayMigrator;
+use zksync_gateway_migrator::GatewayMigrator;
 
 use crate::{
     implementations::resources::{
@@ -13,31 +12,19 @@ use crate::{
 
 /// Wiring layer for [`PKSigningClient`].
 #[derive(Debug)]
-pub struct GatewayMigratorLayer {
-    contracts: Contracts,
-    stop: bool,
-}
-
-impl GatewayMigratorLayer {
-    pub fn new(contracts_config: Contracts, stop: bool) -> Self {
-        Self {
-            contracts: contracts_config,
-            stop,
-        }
-    }
-}
+pub struct GatewayMigratorLayer;
 
 #[derive(Debug, FromContext)]
 #[context(crate = crate)]
 pub struct Input {
-    pub eth_client: EthInterfaceResource,
+    eth_client: EthInterfaceResource,
+    contracts: ContractsResource,
+    settlement_mode_resource: SettlementModeResource,
 }
 
 #[derive(Debug, IntoContext)]
 #[context(crate = crate)]
 pub struct Output {
-    initial_settlement_mode: SettlementModeResource,
-    contracts: ContractsResource,
     #[context(task)]
     gateway_migrator: GatewayMigrator,
 }
@@ -54,19 +41,16 @@ impl WiringLayer for GatewayMigratorLayer {
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         let migrator = GatewayMigrator::new(
             input.eth_client.0,
-            self.contracts
+            input
+                .contracts
+                .0
                 .current_contracts()
                 .chain_contracts_config
                 .diamond_proxy_addr,
-            self.stop,
-        )
-        .await;
-        let mut contracts = self.contracts.clone();
-        contracts.set_settlement_mode(migrator.settlement_mode());
+            input.settlement_mode_resource.0,
+        );
 
         Ok(Output {
-            initial_settlement_mode: SettlementModeResource(migrator.settlement_mode()),
-            contracts: ContractsResource(contracts),
             gateway_migrator: migrator,
         })
     }
@@ -79,10 +63,6 @@ impl Task for GatewayMigrator {
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        if !self.dont_start {
-            self.run_inner(stop_receiver.0).await
-        } else {
-            Ok(())
-        }
+        self.run_inner(stop_receiver.0).await
     }
 }

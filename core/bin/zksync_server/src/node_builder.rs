@@ -52,6 +52,7 @@ use zksync_node_framework::{
         prometheus_exporter::PrometheusExporterLayer,
         proof_data_handler::ProofDataHandlerLayer,
         query_eth_client::QueryEthClientLayer,
+        settlement_layer_data::SettlementLayerData,
         sigint::SigintHandlerLayer,
         state_keeper::{
             main_batch_executor::MainBatchExecutorLayer, mempool_io::MempoolIOLayer,
@@ -312,11 +313,14 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
-    fn add_gateway_migrator_layer(mut self, dont_start: bool) -> anyhow::Result<Self> {
-        self.node.add_layer(GatewayMigratorLayer::new(
-            self.contracts.clone(),
-            dont_start,
-        ));
+    fn add_settlement_mode_data(mut self) -> anyhow::Result<Self> {
+        self.node
+            .add_layer(SettlementLayerData::new(self.contracts.clone()));
+        Ok(self)
+    }
+
+    fn add_gateway_migrator_layer(mut self) -> anyhow::Result<Self> {
+        self.node.add_layer(GatewayMigratorLayer);
         Ok(self)
     }
 
@@ -706,7 +710,7 @@ impl MainNodeBuilder {
         self = self
             .add_pools_layer()?
             .add_query_eth_client_layer()?
-            .add_gateway_migrator_layer(true)?
+            .add_settlement_mode_data()?
             .add_gateway_client_layer()?
             .add_storage_initialization_layer(LayerKind::Task)?;
 
@@ -724,7 +728,8 @@ impl MainNodeBuilder {
             .add_healthcheck_layer()?
             .add_prometheus_exporter_layer()?
             .add_query_eth_client_layer()?
-            .add_gateway_migrator_layer(false)?
+            .add_settlement_mode_data()?
+            .add_gateway_migrator_layer()?
             .add_gateway_client_layer()?
             .add_gas_adjuster_layer()?;
 
