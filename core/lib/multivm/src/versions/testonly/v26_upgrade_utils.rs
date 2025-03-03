@@ -7,11 +7,14 @@ use ethabi::{Contract, Token};
 use zksync_contracts::{l2_native_token_vault, load_sys_contract, read_l1_zk_contract};
 use zksync_test_contracts::TestContract;
 use zksync_types::{
-    bytecode::BytecodeHash, protocol_upgrade::ProtocolUpgradeTxCommonData, u256_to_address, AccountTreeId, Address, Execute, ExecuteTransactionCommon, L1ChainId, L1TxCommonData, StorageKey, Transaction, COMPLEX_UPGRADER_ADDRESS, CONTRACT_FORCE_DEPLOYER_ADDRESS, H256, L1_MESSENGER_ADDRESS, L2_NATIVE_TOKEN_VAULT_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, SYSTEM_CONTEXT_ADDRESS, U256
+    bytecode::BytecodeHash, protocol_upgrade::ProtocolUpgradeTxCommonData, u256_to_address,
+    AccountTreeId, Address, Execute, ExecuteTransactionCommon, L1ChainId, L1TxCommonData,
+    StorageKey, Transaction, COMPLEX_UPGRADER_ADDRESS, CONTRACT_FORCE_DEPLOYER_ADDRESS, H256,
+    L1_MESSENGER_ADDRESS, L2_NATIVE_TOKEN_VAULT_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
+    SYSTEM_CONTEXT_ADDRESS, U256,
 };
 use zksync_vm_interface::{
-    storage::WriteStorage,
-    InspectExecutionMode, TxExecutionMode, VmInterfaceExt,
+    storage::WriteStorage, InspectExecutionMode, TxExecutionMode, VmInterfaceExt,
 };
 
 use super::{TestedVm, VmTester};
