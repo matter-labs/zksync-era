@@ -13,21 +13,6 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub enum EtherscanVerificationJobResultStatus {
-    Successful,
-    Failed,
-}
-
-impl EtherscanVerificationJobResultStatus {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            EtherscanVerificationJobResultStatus::Successful => "successful",
-            EtherscanVerificationJobResultStatus::Failed => "failed",
-        }
-    }
-}
-
-#[derive(Debug)]
 pub struct EtherscanVerificationDal<'a, 'c> {
     pub(crate) storage: &'a mut Connection<'c, Core>,
 }
@@ -150,28 +135,46 @@ impl EtherscanVerificationDal<'_, '_> {
         Ok(())
     }
 
-    pub async fn save_verification_result(
+    pub async fn save_verification_success(&mut self, request_id: usize) -> DalResult<()> {
+        sqlx::query!(
+            r#"
+            UPDATE etherscan_verification_requests
+            SET
+                attempts = attempts + 1,
+                status = 'successful',
+                updated_at = NOW()
+            WHERE
+                contract_verification_request_id = $1
+            "#,
+            request_id as i64,
+        )
+        .instrument("save_verification_success")
+        .with_arg("request_id", &request_id)
+        .execute(self.storage)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn save_verification_failure(
         &mut self,
         request_id: usize,
-        status: EtherscanVerificationJobResultStatus,
-        error: Option<&str>,
+        error: &str,
     ) -> DalResult<()> {
         sqlx::query!(
             r#"
             UPDATE etherscan_verification_requests
             SET
                 attempts = attempts + 1,
-                status = $2,
+                status = 'failed',
                 updated_at = NOW(),
-                error = $3
+                error = $2
             WHERE
                 contract_verification_request_id = $1
             "#,
             request_id as i64,
-            status.as_str(),
             error,
         )
-        .instrument("save_verification_result")
+        .instrument("save_verification_failure")
         .with_arg("request_id", &request_id)
         .with_arg("error", &error)
         .execute(self.storage)
@@ -324,7 +327,7 @@ mod tests {
             .unwrap();
 
         conn.etherscan_verification_dal()
-            .save_verification_result(id, EtherscanVerificationJobResultStatus::Successful, None)
+            .save_verification_success(id)
             .await
             .unwrap();
 
@@ -354,11 +357,7 @@ mod tests {
             .unwrap();
 
         conn.etherscan_verification_dal()
-            .save_verification_result(
-                id,
-                EtherscanVerificationJobResultStatus::Failed,
-                Some("Error processing the request"),
-            )
+            .save_verification_failure(id, "Error processing the request")
             .await
             .unwrap();
 

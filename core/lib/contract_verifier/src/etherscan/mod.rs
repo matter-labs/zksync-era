@@ -9,9 +9,7 @@ use errors::{EtherscanError, ProcessingError, VerifierError};
 use solc_versions_fetcher::SolcVersionsFetcher;
 use tokio::sync::watch;
 use types::EtherscanVerificationRequest;
-use zksync_dal::{
-    etherscan_verification_dal::EtherscanVerificationJobResultStatus, ConnectionPool, Core, CoreDal,
-};
+use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_types::{
     contract_verification::{api::VerificationRequest, etherscan::EtherscanVerification},
     secrets::APIKey,
@@ -168,11 +166,7 @@ impl EtherscanVerifier {
 
         connection
             .etherscan_verification_dal()
-            .save_verification_result(
-                request_id,
-                EtherscanVerificationJobResultStatus::Successful,
-                None,
-            )
+            .save_verification_success(request_id)
             .await?;
 
         API_CONTRACT_VERIFIER_METRICS.successful_verifications[&"etherscan_verifier"].inc();
@@ -193,11 +187,7 @@ impl EtherscanVerifier {
 
         connection
             .etherscan_verification_dal()
-            .save_verification_result(
-                request_id,
-                EtherscanVerificationJobResultStatus::Failed,
-                Some(&error),
-            )
+            .save_verification_failure(request_id, &error)
             .await?;
 
         API_CONTRACT_VERIFIER_METRICS.failed_verifications[&"etherscan_verifier"].inc();

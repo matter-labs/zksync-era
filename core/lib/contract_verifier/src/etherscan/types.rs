@@ -41,22 +41,21 @@ impl From<bool> for OptimizationUsed {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(super) struct EtherscanVerificationRequest {
-    #[serde(rename = "contractaddress")]
     pub contract_address: Address,
+    // Unfortunately, we can't use `SourceCodeData` here due to a issue with forms handling in `reqwest`,
+    // so we need to serialize it to string right away.
+    // See `reqwest` issue for details: https://github.com/seanmonstar/reqwest/issues/274
     pub source_code: String,
     pub code_format: String,
-    #[serde(rename = "contractname")]
     pub contract_name: String,
     #[serde(rename = "zksolcVersion", skip_serializing_if = "Option::is_none")]
     pub compiler_zksolc_version: Option<String>,
-    #[serde(rename = "compilerversion")]
+    #[serde(rename = "compilerVersion")]
     pub compiler_solc_version: String,
-    #[serde(rename = "compilermode")]
     pub compiler_mode: CompilerMode,
     pub optimization_used: OptimizationUsed,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub optimizer_mode: Option<String>,
-    #[serde(rename = "constructorArguements")]
     pub constructor_arguments: String,
     pub is_system: bool,
     pub force_evmla: bool,
