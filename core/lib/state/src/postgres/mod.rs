@@ -6,13 +6,7 @@ use std::{
 
 use anyhow::Context as _;
 use backon::{BlockingRetryable, ConstantBuilder};
-use tokio::{
-    runtime::Handle,
-    sync::{
-        mpsc::{self, UnboundedReceiver},
-        watch,
-    },
-};
+use tokio::{runtime::Handle, sync::watch};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_types::{L1BatchNumber, L2BlockNumber, StorageKey, StorageValue, H256};
 use zksync_vm_interface::storage::ReadStorage;
@@ -252,7 +246,7 @@ impl ValuesCache {
 #[derive(Debug, Clone)]
 struct ValuesCacheAndUpdater {
     cache: ValuesCache,
-    command_sender: mpsc::UnboundedSender<L2BlockNumber>,
+    command_sender: Arc<watch::Sender<L2BlockNumber>>,
 }
 
 /// Caches used during VM execution.
@@ -320,11 +314,11 @@ impl PostgresStorageCaches {
         );
         tracing::debug!("Initializing VM storage values cache with {capacity}B capacity");
 
-        let (command_sender, command_receiver) = mpsc::unbounded_channel();
+        let (command_sender, command_receiver) = watch::channel(L2BlockNumber(0));
         let values_cache = ValuesCache::new(capacity);
         self.values = Some(ValuesCacheAndUpdater {
             cache: values_cache.clone(),
-            command_sender,
+            command_sender: Arc::new(command_sender),
         });
 
         // We want to run updates in a separate task in order to not block VM execution on update
@@ -349,13 +343,19 @@ impl PostgresStorageCaches {
         let Some(values) = &self.values else {
             return;
         };
-        if values.cache.valid_for() < to_l2_block {
-            // Filter out no-op updates right away in order to not store lots of them in RAM.
-            // Since the task updating the values cache (`PostgresStorageCachesTask`) is cancel-aware,
-            // it can stop before some of `schedule_values_update()` calls; in this case, it's OK
-            // to ignore the updates.
-            values.command_sender.send(to_l2_block).ok();
-        }
+
+        values.command_sender.send_if_modified(|block_number| {
+            if *block_number < to_l2_block {
+                *block_number = to_l2_block;
+                true
+            } else {
+                // Filter out no-op updates right away in order to not wake up the update task unnecessarily.
+                // Since the task updating the values cache (`PostgresStorageCachesTask`) is cancel-aware,
+                // it can stop before some of `schedule_values_update()` calls; in this case, it's OK
+                // to ignore the updates.
+                false
+            }
+        });
     }
 }
 
@@ -365,7 +365,7 @@ pub struct PostgresStorageCachesTask {
     connection_pool: ConnectionPool<Core>,
     values_cache: ValuesCache,
     max_l2_blocks_lag: u32,
-    command_receiver: UnboundedReceiver<L2BlockNumber>,
+    command_receiver: watch::Receiver<L2BlockNumber>,
 }
 
 impl PostgresStorageCachesTask {
@@ -387,7 +387,9 @@ impl PostgresStorageCachesTask {
         loop {
             let to_l2_block = tokio::select! {
                 _ = stop_receiver.changed() => break,
-                Some(to_l2_block) = self.command_receiver.recv() => to_l2_block,
+                Ok(()) = self.command_receiver.changed() => {
+                    *self.command_receiver.borrow_and_update()
+                },
                 else => {
                     // The command sender has been dropped, which means that we must receive the stop signal soon.
                     stop_receiver.changed().await?;
