@@ -9,7 +9,7 @@ use subxt_signer::ExposeSecret;
 use url::Url;
 use zksync_config::configs::da_client::avail::{AvailClientConfig, AvailConfig, AvailSecrets};
 use zksync_da_client::{
-    types::{DAError, DispatchResponse, InclusionData},
+    types::{ClientType, DAError, DispatchResponse, InclusionData},
     DataAvailabilityClient,
 };
 use zksync_types::{
@@ -276,6 +276,10 @@ impl DataAvailabilityClient for AvailClient {
 
     fn blob_size_limit(&self) -> Option<usize> {
         Some(RawAvailClient::MAX_BLOB_SIZE)
+    }
+
+    fn client_type(&self) -> ClientType {
+        ClientType::Avail
     }
 
     async fn balance(&self) -> Result<u64, DAError> {

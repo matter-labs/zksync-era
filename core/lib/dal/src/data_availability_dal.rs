@@ -4,11 +4,14 @@ use zksync_db_connection::{
     instrument::{InstrumentExt, Instrumented},
 };
 use zksync_types::{
-    l2_to_l1_log::L2ToL1Log, pubdata_da::DataAvailabilityBlob, Address, L1BatchNumber,
+    commitment::PubdataType,
+    l2_to_l1_log::L2ToL1Log,
+    pubdata_da::{DataAvailabilityBlob, DataAvailabilityDetails},
+    Address, L1BatchNumber,
 };
 
 use crate::{
-    models::storage_data_availability::{L1BatchDA, StorageDABlob},
+    models::storage_data_availability::{L1BatchDA, StorageDABlob, StorageDADetails},
     Core,
 };
 
@@ -26,7 +29,9 @@ impl DataAvailabilityDal<'_, '_> {
         number: L1BatchNumber,
         blob_id: &str,
         sent_at: chrono::NaiveDateTime,
-        l2_validator_address: Address,
+        pubdata_type: PubdataType,
+        da_inclusion_data: Option<&[u8]>,
+        l2_validator_address: Option<Address>,
     ) -> DalResult<()> {
         let update_result = sqlx::query!(
             r#"
@@ -34,18 +39,22 @@ impl DataAvailabilityDal<'_, '_> {
             data_availability (
                 l1_batch_number,
                 blob_id,
+                inclusion_data,
+                client_type,
                 l2_da_validator_address,
                 sent_at,
                 created_at,
                 updated_at
             )
             VALUES
-            ($1, $2, $3, $4, NOW(), NOW())
+            ($1, $2, $3, $4, $5, $6, NOW(), NOW())
             ON CONFLICT DO NOTHING
             "#,
             i64::from(number.0),
             blob_id,
-            l2_validator_address.as_bytes(),
+            da_inclusion_data,
+            pubdata_type.to_string(),
+            l2_validator_address.map(|addr| addr.as_bytes().to_vec()),
             sent_at,
         )
         .instrument("insert_l1_batch_da")
@@ -235,6 +244,58 @@ impl DataAvailabilityDal<'_, '_> {
                     .collect(),
             })
             .collect())
+    }
+
+    pub async fn get_da_details_by_batch_number(
+        &mut self,
+        number: L1BatchNumber,
+    ) -> DalResult<Option<DataAvailabilityDetails>> {
+        Ok(sqlx::query_as!(
+            StorageDADetails,
+            r#"
+            SELECT
+                blob_id,
+                client_type,
+                inclusion_data,
+                sent_at,
+                l2_da_validator_address
+            FROM
+                data_availability
+            WHERE
+                l1_batch_number = $1
+            "#,
+            i64::from(number.0),
+        )
+        .instrument("get_da_details_by_batch_number")
+        .with_arg("number", &number)
+        .fetch_optional(self.storage)
+        .await?
+        .map(DataAvailabilityDetails::from))
+    }
+
+    pub async fn get_latest_batch_with_inclusion_data(
+        &mut self,
+    ) -> DalResult<Option<L1BatchNumber>> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                l1_batch_number
+            FROM
+                data_availability
+            WHERE
+                inclusion_data IS NOT NULL
+            ORDER BY
+                l1_batch_number DESC
+            LIMIT
+                1
+            "#,
+        )
+        .instrument("get_latest_batch_with_inclusion_data")
+        .report_latency()
+        .fetch_optional(self.storage)
+        .await?;
+
+        Ok(row.map(|row| L1BatchNumber(row.l1_batch_number as u32)))
     }
 
     /// Fetches the pubdata for the L1 batch with a given blob id.

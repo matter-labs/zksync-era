@@ -414,6 +414,7 @@ async fn contract_verifier_basics(contract: TestContract) {
         Duration::from_secs(60),
         pool.clone(),
         Arc::new(mock_resolver),
+        false,
     )
     .await
     .unwrap();
@@ -540,6 +541,7 @@ async fn verifying_evm_bytecode(contract: TestContract) {
         Duration::from_secs(60),
         pool.clone(),
         Arc::new(mock_resolver),
+        false,
     )
     .await
     .unwrap();
@@ -574,6 +576,7 @@ async fn bytecode_mismatch_error() {
         Duration::from_secs(60),
         pool.clone(),
         Arc::new(mock_resolver),
+        false,
     )
     .await
     .unwrap();
@@ -660,6 +663,7 @@ async fn args_mismatch_error(contract: TestContract, bytecode_kind: BytecodeMark
         Duration::from_secs(60),
         pool.clone(),
         Arc::new(mock_resolver),
+        false,
     )
     .await
     .unwrap();
@@ -725,6 +729,7 @@ async fn creation_bytecode_mismatch() {
         Duration::from_secs(60),
         pool.clone(),
         Arc::new(mock_resolver),
+        false,
     )
     .await
     .unwrap();
@@ -774,6 +779,7 @@ async fn no_compiler_version() {
         Duration::from_secs(60),
         pool.clone(),
         Arc::new(mock_resolver),
+        false,
     )
     .await
     .unwrap();

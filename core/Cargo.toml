@@ -77,6 +77,7 @@ members = [
   "lib/crypto_primitives",
   "lib/external_price_api",
   "lib/task_management",
+  "lib/zk_os_merkle_tree",
   "lib/test_contracts",
   # Test infrastructure
   "tests/loadnext",
