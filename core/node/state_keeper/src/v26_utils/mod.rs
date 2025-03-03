@@ -352,15 +352,11 @@ mod tests {
 
     use crate::v26_utils::find_unsafe_deposit;
 
-    const SIMPLE_TEST_RESULT_JSON: &str = include_str!(
-        "../../../lib/multivm/src/versions/testonly/v26_utils_outputs/simple-test.json"
-    );
-    const POST_BRIDGING_TEST_RESULT_JSON: &str = include_str!(
-        "../../../lib/multivm/src/versions/testonly/v26_utils_outputs/post-bridging.json"
-    );
-    const POST_REGISTRATION_TEST_RESULT_JSON: &str = include_str!(
-        "../../../lib/multivm/src/versions/testonly/v26_utils_outputs/post-registration.json"
-    );
+    const SIMPLE_TEST_RESULT_JSON: &str = include_str!("./test_v26_utils_outputs/simple-test.json");
+    const POST_BRIDGING_TEST_RESULT_JSON: &str =
+        include_str!("./test_v26_utils_outputs/post-bridging.json");
+    const POST_REGISTRATION_TEST_RESULT_JSON: &str =
+        include_str!("./test_v26_utils_outputs/post-registration.json");
 
     fn trivial_test_storage_logs() -> HashMap<StorageKey, H256> {
         let x: Vec<_> = serde_json::from_str(SIMPLE_TEST_RESULT_JSON).unwrap();
