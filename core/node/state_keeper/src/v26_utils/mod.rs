@@ -339,7 +339,7 @@ pub(crate) async fn find_unsafe_deposit<'a>(
 mod tests {
     use std::collections::HashMap;
 
-    use zksync_dal::{ConnectionPool, Core, CoreDal};
+    use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
     use zksync_multivm::vm_latest::utils::v26_upgrade::{
         encode_legacy_finalize_deposit, encode_new_finalize_deposit, get_test_data,
     };
@@ -432,6 +432,31 @@ mod tests {
         }
     }
 
+    async fn get_storage(storage_logs: HashMap<StorageKey, H256>) -> Connection<'static, Core> {
+        let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
+        let mut storage = pool.connection().await.unwrap();
+        insert_genesis_batch(&mut storage, &GenesisParams::mock())
+            .await
+            .unwrap();
+
+        let storage_logs: Vec<_> = storage_logs
+            .into_iter()
+            .map(|(key, value)| StorageLog {
+                kind: zksync_types::StorageLogKind::InitialWrite,
+                key,
+                value,
+            })
+            .collect();
+
+        storage
+            .storage_logs_dal()
+            .append_storage_logs(L2BlockNumber(0), &storage_logs)
+            .await
+            .unwrap();
+
+        storage
+    }
+
     async fn test_is_unsafe_deposit_present(
         storage_logs: HashMap<StorageKey, H256>,
         txs: Vec<(Vec<Transaction>, Option<H256>)>,
@@ -458,64 +483,74 @@ mod tests {
             .unwrap();
 
         for (txs, result) in txs {
-            let txs_with_constrains: Vec<_> = txs.into_iter().map(|tx| tx).collect();
             assert_eq!(
-                find_unsafe_deposit(&txs_with_constrains, &mut storage)
-                    .await
-                    .unwrap(),
+                find_unsafe_deposit(&txs, &mut storage).await.unwrap(),
                 result
             );
         }
     }
 
+    async fn run_test(
+        txs: Vec<Transaction>,
+        expected_hash: Option<H256>,
+        storage: &mut Connection<'static, Core>,
+    ) {
+        assert_eq!(
+            find_unsafe_deposit(&txs, &mut storage).await.unwrap(),
+            expected_hash
+        );
+    }
+
     #[tokio::test]
     async fn test_is_unsafe_deposit_post_bridging() {
-        test_is_unsafe_deposit_present(
-            post_bridging_test_storage_logs(),
-            vec![
-                (vec![], None),
-                (vec![get_l2_dummy_bridging_tx()], None),
-                (vec![get_l2_dummy_bridging_tx(), get_l1_bridging_tx()], None),
-                (vec![get_l1_new_bridging_tx()], None),
-                (vec![get_l1_new_deposit_bad_address()], None),
-            ],
+        let storage = get_storage(post_bridging_test_storage_logs()).await;
+
+        run_test(vec![], None, &mut storage).await;
+        run_test(vec![get_l2_dummy_bridging_tx()], None, &mut storage).await;
+        run_test(
+            vec![get_l2_dummy_bridging_tx(), get_l1_bridging_tx()],
+            None,
+            &mut storage,
         )
         .await;
+        run_test(vec![get_l1_new_bridging_tx()], None, &mut storage).await;
+        run_test(vec![get_l1_new_deposit_bad_address()], None, &mut storage).await;
     }
 
     #[tokio::test]
     async fn test_is_unsafe_deposit_post_registration() {
-        test_is_unsafe_deposit_present(
-            post_registration_test_storage_logs(),
-            vec![
-                (vec![], None),
-                (vec![get_l2_dummy_bridging_tx()], None),
-                (vec![get_l2_dummy_bridging_tx(), get_l1_bridging_tx()], None),
-                (vec![get_l1_new_bridging_tx()], None),
-                (vec![get_l1_new_deposit_bad_address()], None),
-            ],
+        let mut storage = get_storage(post_registration_test_storage_logs()).await;
+
+        run_test(vec![], None, &mut storage).await;
+        run_test(vec![get_l2_dummy_bridging_tx()], None, &mut storage).await;
+        run_test(
+            vec![get_l2_dummy_bridging_tx(), get_l1_bridging_tx()],
+            None,
+            &mut storage,
         )
         .await;
+        run_test(vec![get_l1_new_bridging_tx()], None, &mut storage).await;
+        run_test(vec![get_l1_new_deposit_bad_address()], None, &mut storage).await;
     }
 
     #[tokio::test]
     async fn test_is_unsafe_deposit_trivial_case() {
-        test_is_unsafe_deposit_present(
-            trivial_test_storage_logs(),
-            vec![
-                (vec![], None),
-                (vec![get_l2_dummy_bridging_tx()], None),
-                (
-                    vec![get_l2_dummy_bridging_tx(), get_l1_bridging_tx()],
-                    Some(get_l1_bridging_tx().hash()),
-                ),
-                (
-                    vec![get_l1_new_bridging_tx()],
-                    Some(get_l1_new_bridging_tx().hash()),
-                ),
-                (vec![get_l1_new_deposit_bad_address()], None),
-            ],
+        let mut storage = get_storage(trivial_test_storage_logs()).await;
+
+        run_test(vec![], None, &mut storage).await;
+        run_test(vec![get_l2_dummy_bridging_tx()], None, &mut storage).await;
+        run_test(
+            vec![get_l2_dummy_bridging_tx(), get_l1_bridging_tx()],
+            Some(get_l1_bridging_tx().hash()),
+            &mut storage,
         )
         .await;
+        run_test(
+            vec![get_l1_new_bridging_tx()],
+            Some(get_l1_new_bridging_tx().hash()),
+            &mut storage,
+        )
+        .await;
+        run_test(vec![get_l1_new_deposit_bad_address()], None, &mut storage).await;
     }
 }
