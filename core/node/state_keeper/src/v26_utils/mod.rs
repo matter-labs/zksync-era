@@ -457,39 +457,6 @@ mod tests {
         storage
     }
 
-    async fn test_is_unsafe_deposit_present(
-        storage_logs: HashMap<StorageKey, H256>,
-        txs: Vec<(Vec<Transaction>, Option<H256>)>,
-    ) {
-        let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
-        let mut storage = pool.connection().await.unwrap();
-        insert_genesis_batch(&mut storage, &GenesisParams::mock())
-            .await
-            .unwrap();
-
-        let storage_logs: Vec<_> = storage_logs
-            .into_iter()
-            .map(|(key, value)| StorageLog {
-                kind: zksync_types::StorageLogKind::InitialWrite,
-                key,
-                value,
-            })
-            .collect();
-
-        storage
-            .storage_logs_dal()
-            .append_storage_logs(L2BlockNumber(0), &storage_logs)
-            .await
-            .unwrap();
-
-        for (txs, result) in txs {
-            assert_eq!(
-                find_unsafe_deposit(&txs, &mut storage).await.unwrap(),
-                result
-            );
-        }
-    }
-
     async fn run_test(
         txs: Vec<Transaction>,
         expected_hash: Option<H256>,
