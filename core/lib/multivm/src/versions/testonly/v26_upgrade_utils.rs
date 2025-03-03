@@ -7,14 +7,10 @@ use ethabi::{Contract, Token};
 use zksync_contracts::{l2_native_token_vault, load_sys_contract, read_l1_zk_contract};
 use zksync_test_contracts::TestContract;
 use zksync_types::{
-    bytecode::BytecodeHash, h256_to_address, protocol_upgrade::ProtocolUpgradeTxCommonData,
-    AccountTreeId, Address, Execute, ExecuteTransactionCommon, L1ChainId, L1TxCommonData,
-    StorageKey, Transaction, COMPLEX_UPGRADER_ADDRESS, CONTRACT_FORCE_DEPLOYER_ADDRESS, H256,
-    L1_MESSENGER_ADDRESS, L2_NATIVE_TOKEN_VAULT_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
-    SYSTEM_CONTEXT_ADDRESS, U256,
+    bytecode::BytecodeHash, protocol_upgrade::ProtocolUpgradeTxCommonData, u256_to_address, AccountTreeId, Address, Execute, ExecuteTransactionCommon, L1ChainId, L1TxCommonData, StorageKey, Transaction, COMPLEX_UPGRADER_ADDRESS, CONTRACT_FORCE_DEPLOYER_ADDRESS, H256, L1_MESSENGER_ADDRESS, L2_NATIVE_TOKEN_VAULT_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, SYSTEM_CONTEXT_ADDRESS, U256
 };
 use zksync_vm_interface::{
-    storage::{ReadStorage, WriteStorage},
+    storage::WriteStorage,
     InspectExecutionMode, TxExecutionMode, VmInterfaceExt,
 };
 
@@ -49,7 +45,7 @@ fn load_complex_upgrader_contract() -> Contract {
 }
 
 fn get_prepare_system_tx(
-    l1_chain_id: U256,
+    l1_chain_id: L1ChainId,
     legacy_l1_token: Address,
     l1_shared_bridge: Address,
     test_contract_addr: Address,
@@ -62,7 +58,7 @@ fn get_prepare_system_tx(
         .function("resetLegacyParams")
         .unwrap()
         .encode_input(&[
-            Token::Uint(l1_chain_id),
+            Token::Uint(l1_chain_id.0.into()),
             Token::Address(legacy_l1_token),
             Token::Address(l1_shared_bridge),
             Token::FixedBytes(
@@ -150,15 +146,15 @@ fn setup_v26_unsafe_deposits_detection<VM: TestedVm>() -> (VmTester<VM>, V26Test
 
     assert!(!result.result.is_failed());
 
-    let l2_token_address = vm.vm.read_storage(&StorageKey::new(
+    let l2_token_address = vm.vm.read_storage(StorageKey::new(
         AccountTreeId::new(COMPLEX_UPGRADER_ADDRESS),
         H256::from_low_u64_be(0),
     ));
-    let l2_legacy_shared_bridge_address = vm.vm.read_storage(&StorageKey::new(
+    let l2_legacy_shared_bridge_address = vm.vm.read_storage(StorageKey::new(
         AccountTreeId::new(COMPLEX_UPGRADER_ADDRESS),
         H256::from_low_u64_be(1),
     ));
-    let l1_aliased_shared_bridge = vm.vm.read_storage(&StorageKey::new(
+    let l1_aliased_shared_bridge = vm.vm.read_storage(StorageKey::new(
         AccountTreeId::new(COMPLEX_UPGRADER_ADDRESS),
         H256::from_low_u64_be(2),
     ));
@@ -167,9 +163,9 @@ fn setup_v26_unsafe_deposits_detection<VM: TestedVm>() -> (VmTester<VM>, V26Test
         l1_chain_id,
         l1_shared_bridge_address,
         l1_token_address,
-        l2_token_address: h256_to_address(&l2_token_address),
-        l2_legacy_shared_bridge_address: h256_to_address(&l2_legacy_shared_bridge_address),
-        l1_aliased_shared_bridge: h256_to_address(&l1_aliased_shared_bridge),
+        l2_token_address: u256_to_address(&l2_token_address),
+        l2_legacy_shared_bridge_address: u256_to_address(&l2_legacy_shared_bridge_address),
+        l1_aliased_shared_bridge: u256_to_address(&l1_aliased_shared_bridge),
     };
 
     (vm, test_data)
