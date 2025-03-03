@@ -12,11 +12,11 @@ use crate::{types::Leaf, BatchOutput, HashTree, TreeEntry};
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(test, derive(PartialEq))]
 pub enum TreeOperation {
-    /// Update of an existing entry.
-    Update { index: u64 },
-    /// Insertion of a new entry.
-    Insert {
-        /// Prev index before *batch* insertion (i.e., always points to an index existing before batch insertion).
+    /// Operation hitting an existing entry (i.e., an update or read).
+    Hit { index: u64 },
+    /// Operation missing existing entries (i.e., an insert or missing read).
+    Miss {
+        /// Index of a lexicographically previous existing tree leaf.
         prev_index: u64,
     },
 }
@@ -85,7 +85,7 @@ impl BatchTreeProof {
         self.verify(hasher, tree_depth, Some(prev_output), &[], read_keys)
     }
 
-    /// Returns the new root hash of the tree on success.
+    /// Returns the restored view of the tree on success.
     pub fn verify(
         mut self,
         hasher: &dyn HashTree,
@@ -118,11 +118,11 @@ impl BatchTreeProof {
             read_entries.insert(
                 *read_key,
                 match operation {
-                    TreeOperation::Update { index } => {
+                    TreeOperation::Hit { index } => {
                         // We've verified the existence of the proven leaf above.
                         Some(self.sorted_leaves[&index].value)
                     }
-                    TreeOperation::Insert { .. } => None,
+                    TreeOperation::Miss { .. } => None,
                 },
             );
         }
@@ -138,7 +138,7 @@ impl BatchTreeProof {
             self.verify_operation(&prev_output, operation, &entry.key)
                 .with_context(|| format!("update / insert {entry:?}"))?;
 
-            if matches!(operation, TreeOperation::Insert { .. }) {
+            if matches!(operation, TreeOperation::Miss { .. }) {
                 index_by_key.insert(entry.key, next_tree_index);
                 next_tree_index += 1;
             }
@@ -167,11 +167,11 @@ impl BatchTreeProof {
         // Expand `leaves` with the newly inserted leaves and update the existing leaves.
         for (&operation, entry) in self.operations.iter().zip(entries) {
             match operation {
-                TreeOperation::Update { index } => {
+                TreeOperation::Hit { index } => {
                     // We've checked the key correspondence already.
                     self.sorted_leaves.get_mut(&index).unwrap().value = entry.value;
                 }
-                TreeOperation::Insert { .. } => {
+                TreeOperation::Miss { .. } => {
                     let mut it = index_by_key.range(entry.key..);
                     let (_, &this_index) = it.next().unwrap();
                     // `unwrap()`s below are safe: at least the pre-existing next index is greater, and the pre-existing prev index is lesser.
@@ -220,7 +220,7 @@ impl BatchTreeProof {
         key: &H256,
     ) -> anyhow::Result<()> {
         match operation {
-            TreeOperation::Update { index } => {
+            TreeOperation::Hit { index } => {
                 anyhow::ensure!(index < prev_output.leaf_count, "Non-existing index {index}");
                 let existing_leaf = self
                     .sorted_leaves
@@ -231,7 +231,7 @@ impl BatchTreeProof {
                     "Update / read for index {index} has unexpected key"
                 );
             }
-            TreeOperation::Insert { prev_index } => {
+            TreeOperation::Miss { prev_index } => {
                 let prev_leaf = self
                     .sorted_leaves
                     .get(&prev_index)
@@ -423,7 +423,7 @@ mod tests {
     #[test]
     fn basic_insertion_proof() {
         let proof = BatchTreeProof {
-            operations: vec![TreeOperation::Insert { prev_index: 0 }],
+            operations: vec![TreeOperation::Miss { prev_index: 0 }],
             read_operations: vec![],
             sorted_leaves: BTreeMap::from([(0, Leaf::MIN_GUARD), (1, Leaf::MAX_GUARD)]),
             hashes: vec![],
@@ -460,7 +460,7 @@ mod tests {
     fn basic_read_proof() {
         let proof = BatchTreeProof {
             operations: vec![],
-            read_operations: vec![TreeOperation::Insert { prev_index: 0 }],
+            read_operations: vec![TreeOperation::Miss { prev_index: 0 }],
             sorted_leaves: BTreeMap::from([(0, Leaf::MIN_GUARD), (1, Leaf::MAX_GUARD)]),
             hashes: vec![],
         };
@@ -488,8 +488,8 @@ mod tests {
     #[test]
     fn mixed_read_write_proof() {
         let proof = BatchTreeProof {
-            operations: vec![TreeOperation::Insert { prev_index: 0 }],
-            read_operations: vec![TreeOperation::Insert { prev_index: 0 }],
+            operations: vec![TreeOperation::Miss { prev_index: 0 }],
+            read_operations: vec![TreeOperation::Miss { prev_index: 0 }],
             sorted_leaves: BTreeMap::from([(0, Leaf::MIN_GUARD), (1, Leaf::MAX_GUARD)]),
             hashes: vec![],
         };

@@ -611,7 +611,7 @@ impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
                     if distinct_indices.insert(*idx) {
                         readonly_leaf_indices.push(*idx);
                     }
-                    TreeOperation::Update { index: *idx }
+                    TreeOperation::Hit { index: *idx }
                 }
                 KeyLookup::Missing {
                     prev_key_and_index: (_, prev_idx),
@@ -625,7 +625,7 @@ impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
                         readonly_leaf_indices.push(*next_idx);
                     }
 
-                    TreeOperation::Insert {
+                    TreeOperation::Miss {
                         prev_index: *prev_idx,
                     }
                 }
@@ -650,7 +650,7 @@ impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
             match lookup {
                 &KeyLookup::Existing(idx) => {
                     updates.push((idx, entry.value));
-                    operations.push(TreeOperation::Update { index: idx });
+                    operations.push(TreeOperation::Hit { index: idx });
                 }
 
                 KeyLookup::Missing {
@@ -659,7 +659,7 @@ impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
                 } => {
                     // Adjust previous / next indices according to the data inserted in the same batch.
                     let mut prev_index = prev_key_and_index.1;
-                    operations.push(TreeOperation::Insert { prev_index });
+                    operations.push(TreeOperation::Miss { prev_index });
 
                     if let Some((&local_prev_key, inserted)) =
                         sorted_new_leaves.range(..entry.key).next_back()

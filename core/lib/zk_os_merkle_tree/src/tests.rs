@@ -209,8 +209,8 @@ fn test_extending_tree_with_proof(db: impl Database, inserts_count: usize, updat
     let mut updated_indices = vec![];
     for op in &proof.operations {
         match *op {
-            TreeOperation::Update { index } => updated_indices.push(index),
-            TreeOperation::Insert { .. } => panic!("unexpected operation: {op:?}"),
+            TreeOperation::Hit { index } => updated_indices.push(index),
+            TreeOperation::Miss { .. } => panic!("unexpected operation: {op:?}"),
         }
     }
     updated_indices.sort_unstable();
