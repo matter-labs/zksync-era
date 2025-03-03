@@ -51,7 +51,7 @@ impl S3Store {
             .or_else(Region::new("auto"));
         let mut sdk_config = Self::get_client_config(auth_mode).region(region_provider);
         if let Some(endpoint) = endpoint.clone() {
-            //     info!(endpoint=%endpoint, "using S3 endpoint defined in storage config or environment variable");
+            tracing::info!(endpoint=%endpoint, "using S3 endpoint defined in storage config");
             sdk_config = sdk_config.endpoint_url(endpoint);
         }
         let sdk_config = sdk_config.load().await;
