@@ -70,6 +70,9 @@ struct Cli {
     /// Now the node framework is used by default and this argument is left for backward compatibility.
     #[arg(long)]
     use_node_framework: bool,
+
+    #[arg(long)]
+    only_verify_config: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -175,7 +178,13 @@ fn main() -> anyhow::Result<()> {
         return Ok(());
     }
 
-    node.build(opt.components.0)?.run(observability_guard)?;
+    let built_node = node.build(opt.components.0)?;
+
+    if opt.only_verify_config {
+        return Ok(());
+    }
+
+    built_node.run(observability_guard)?;
     Ok(())
 }
 
