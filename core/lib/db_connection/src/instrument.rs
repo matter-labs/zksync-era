@@ -24,10 +24,9 @@ use crate::{
     connection::{Connection, ConnectionTags, DbMarker},
     connection_pool::ConnectionPool,
     error::{DalError, DalRequestError, DalResult},
-    metrics::{RequestMetrics, REQUEST_METRICS},
+    metrics::{RequestLabels, RequestMetrics, REQUEST_METRICS},
     utils::InternalMarker,
 };
-use crate::metrics::RequestLabels;
 
 type ThreadSafeDebug<'a> = dyn fmt::Debug + Send + Sync + 'a;
 
