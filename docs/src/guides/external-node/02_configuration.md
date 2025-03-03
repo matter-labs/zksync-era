@@ -53,8 +53,8 @@ entries or the limit for the accepted transaction size. Provided files contain s
 use, but these can be edited, e.g. to make the Node more/less restrictive.
 
 **Some common api limits config:**\
-`EN_MAX_RESPONSE_BODY_SIZE_MB` (default 10 i.e. 10MB) controls max size of a single response. Hitting the limit will
-result in errors similar to:\
+`EN_MAX_RESPONSE_BODY_SIZE_MB` (default 10 i.e. 10MB) controls max size of a single response. Hitting the limit will result
+in errors similar to:\
 `Response is too big (...)`
 
 `EN_REQ_ENTITIES_LIMIT` (default 10000) controls max possible limit of entities to be requested at once. Hitting the

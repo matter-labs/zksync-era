@@ -96,12 +96,16 @@ export async function waitForNewL1Batch(wallet: zksync.Wallet): Promise<zksync.t
                     // Unlike `waitForTransaction` below, these errors are not wrapped as `EthersError` for some reason
                     if (<Error>e.message.match(/Not enough gas/)) {
                         console.log(
-                            `Transaction did not have enough gas, likely gas price went up (attempt ${i + 1}/${MAX_ATTEMPTS})`
+                            `Transaction did not have enough gas, likely gas price went up (attempt ${
+                                i + 1
+                            }/${MAX_ATTEMPTS})`
                         );
                         return null;
                     } else if (<Error>e.message.match(/max fee per gas less than block base fee/)) {
                         console.log(
-                            `Transaction's max fee per gas was lower than block base fee, likely gas price went up (attempt ${i + 1}/${MAX_ATTEMPTS})`
+                            `Transaction's max fee per gas was lower than block base fee, likely gas price went up (attempt ${
+                                i + 1
+                            }/${MAX_ATTEMPTS})`
                         );
                         return null;
                     } else if (<Error>e.message.match(/nonce too low/)) {
@@ -109,14 +113,18 @@ export async function waitForNewL1Batch(wallet: zksync.Wallet): Promise<zksync.t
                             // Our transaction was never accepted to the mempool with this nonce so it must have been used by another transaction.
                             return wallet.getNonce().then((newNonce) => {
                                 console.log(
-                                    `Transaction's nonce is too low, updating from ${nonce} to ${newNonce} (attempt ${i + 1}/${MAX_ATTEMPTS})`
+                                    `Transaction's nonce is too low, updating from ${nonce} to ${newNonce} (attempt ${
+                                        i + 1
+                                    }/${MAX_ATTEMPTS})`
                                 );
                                 nonce = newNonce;
                                 return null;
                             });
                         } else {
                             console.log(
-                                `Transaction's nonce is too low, likely previous attempt succeeded, waiting longer (attempt ${i + 1}/${MAX_ATTEMPTS})`
+                                `Transaction's nonce is too low, likely previous attempt succeeded, waiting longer (attempt ${
+                                    i + 1
+                                }/${MAX_ATTEMPTS})`
                             );
                             return txResponse;
                         }
