@@ -45,8 +45,8 @@ jobs:
       - name: Verify compatibility matrix
         run: |
           # Verify that latest prover and core versions are in the compatibility matrix 
-          CORE_MAJOR=${$CORE_TAG%%.*}
-          PROVER_MAJOR=${$PROVER_TAG%%.*}
+          CORE_MAJOR=${CORE_TAG%%.*}
+          PROVER_MAJOR=${PROVER_TAG%%.*}
 
           if ! grep -q "\"prover\": $PROVER_MAJOR" prover/compatibility_matrix.json || \
              ! grep -q "\"core\": \[.*$CORE_MAJOR.*\]" prover/compatibility_matrix.json; then
@@ -180,8 +180,8 @@ jobs:
         uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874 # v4.4.0
         if: always()
         with:
-          name: prover_logs_${{matrix.compressor-mode}}
-          path: prover_logs_${{matrix.compressor-mode}}
+          name: prover_logs_major_version_compatibility_${{matrix.compressor-mode}}
+          path: prover_logs_major_version_compatibility_${{matrix.compressor-mode}}
 
       - name: Show sccache logs
         if: always()
