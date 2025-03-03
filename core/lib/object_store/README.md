@@ -22,7 +22,7 @@ S3 implementation can be used to access different storages. Here is list of reco
 
 ### GCS
 
-See: https://cloud.google.com/storage/docs/authentication/managing-hmackeys
+See [details](https://cloud.google.com/storage/docs/authentication/managing-hmackeys)
 
 - Endpoint: `https://storage.googleapis.com`
 - Region: `us` or `auto`
@@ -31,7 +31,7 @@ See: https://cloud.google.com/storage/docs/authentication/managing-hmackeys
 
 ### R2
 
-See: https://developers.cloudflare.com/r2/api/s3/tokens/
+See [details](https://developers.cloudflare.com/r2/api/s3/tokens/)
 
 - Endpoint: `https://<ACCOUNT_ID>.r2.cloudflarestorage.com`
 - Region: `auto` or `us-east-1`
