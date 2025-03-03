@@ -192,9 +192,13 @@ impl ValuesCache {
         to_l2_block: L2BlockNumber,
         connection: &mut Connection<'_, Core>,
     ) -> anyhow::Result<()> {
-        tracing::debug!(
-            "Updating storage values cache from L2 block {from_l2_block} to {to_l2_block}"
-        );
+        if from_l2_block == L2BlockNumber(0) {
+            tracing::debug!("Initializing storage values cache at L2 block {to_l2_block}");
+        } else {
+            tracing::debug!(
+                "Updating storage values cache from L2 block {from_l2_block} to {to_l2_block}"
+            );
+        }
 
         let update_latency = CACHE_METRICS.values_update[&ValuesUpdateStage::LoadKeys].start();
         let l2_blocks = (from_l2_block + 1)..=to_l2_block;
