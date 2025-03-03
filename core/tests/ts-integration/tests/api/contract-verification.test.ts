@@ -118,7 +118,7 @@ describe('Tests for the contract verification API', () => {
 
             const bytecodePath = `${
                 testMaster.environment().pathToHome
-            }/core/tests/ts-integration/contracts/yul/artifacts/Empty.yul/yul/Empty.yul.zbin`;
+            }/core/tests/ts-integration/contracts/yul/artifacts/Empty.yul/Empty.yul/Empty.zbin`;
             const bytecode = fs.readFileSync(bytecodePath, 'utf8');
 
             const contractFactory = new zksync.ContractFactory([], bytecode, alice);
