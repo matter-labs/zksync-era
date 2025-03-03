@@ -31,11 +31,28 @@ jobs:
           
           mkdir -p prover_logs_${{matrix.compressor-mode}}
 
-      - name: Find the latest prover tag
+      - name: Find the latest core and prover tags
         run: |
           PROVER_TAG=$(git tag -l "prover-*" | sort -V | tail -n 1)
           PROVER_COMMIT=$(git rev-list -n 1 "$PROVER_TAG")
+          CORE_TAG=$(git tag -l "core-*" | sort -V | tail -n 1)
+          CORE_COMMIT=$(git rev-list -n 1 "$CORE_TAG")
+          echo "PROVER_TAG=$PROVER_TAG" >> .env
           echo "PROVER_COMMIT=$PROVER_COMMIT" >> .env
+          echo "CORE_TAG=$CORE_TAG" >> .env
+          echo "CORE_COMMIT=$CORE_COMMIT" >> .env
+
+      - name: Verify compatibility matrix
+        run: |
+          # Verify that latest prover and core versions are in the compatibility matrix 
+          CORE_MAJOR=${$CORE_TAG%%.*}
+          PROVER_MAJOR=${$PROVER_TAG%%.*}
+
+          if ! grep -q "\"prover\": $PROVER_MAJOR" prover/compatibility_matrix.json || \
+             ! grep -q "\"core\": \[.*$CORE_MAJOR.*\]" prover/compatibility_matrix.json; then
+            echo "Error: Latest core or prover majors are missing from compatibility_matrix.json"
+            exit 1
+          fi
 
       - name: Start services
         run: |
@@ -68,6 +85,9 @@ jobs:
           ci_run chmod -R +x ./bin
           
           ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup || true
+          
+          git checkout $CORE_COMMIT
+          
           ci_run zkstackup -g --local
           
           ci_run zkstack chain create \

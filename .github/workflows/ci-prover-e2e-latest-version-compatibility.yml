@@ -31,11 +31,11 @@ jobs:
           
           mkdir -p prover_logs_${{matrix.compressor-mode}}
 
-      - name: Find the latest prover tag
+      - name: Find the latest core tag
         run: |
-          PROVER_TAG=$(git tag -l "prover-*" | sort -V | tail -n 1)
-          PROVER_COMMIT=$(git rev-list -n 1 "$PROVER_TAG")
-          echo "PROVER_COMMIT=$PROVER_COMMIT" >> .env
+          CORE_TAG=$(git tag -l "core-*" | sort -V | tail -n 1)
+          CORE_COMMIT=$(git rev-list -n 1 "$CORE_TAG")
+          echo "CORE_COMMIT=$CORE_COMMIT" >> .env
 
       - name: Start services
         run: |
@@ -68,6 +68,9 @@ jobs:
           ci_run chmod -R +x ./bin
           
           ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup || true
+          
+          git checkout $CORE_COMMIT
+          
           ci_run zkstackup -g --local
           
           ci_run zkstack chain create \
@@ -103,9 +106,9 @@ jobs:
         run: |
           ci_run zkstack prover run --component=gateway --docker=false &>prover_logs_${{matrix.compressor-mode}}/gateway.log &
 
-      - name: Check out prover latest tag and rebuild zkstack
+      - name: Check out prover HEAD and rebuild zkstack
         run: |
-          git checkout $PROVER_COMMIT
+          git checkout HEAD
           ci_run zkstackup -g --local
 
       - name: Prepare prover subsystem
