@@ -72,6 +72,11 @@ pub fn set_file_artifacts(
         "snapshot_recovery.object_store",
         &file_artifacts.snapshot,
     )?;
+    set_file_backed_path_if_selected(
+        config,
+        "core_object_store",
+        &file_artifacts.core_object_store,
+    )?;
     Ok(())
 }
 
