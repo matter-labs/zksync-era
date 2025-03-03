@@ -1,5 +1,6 @@
 name: Workflow for testing prover component end-to-end
 on:
+  workflow_dispatch:
   workflow_call:
 
 jobs:
@@ -29,6 +30,13 @@ jobs:
           echo "RUSTC_WRAPPER=sccache" >> .env
           
           mkdir -p prover_logs_${{matrix.compressor-mode}}
+
+      - name: Find the latest prover minor release tag
+        run: |
+          LATEST_TAG=$(git tag -l "prover-*" | sort -V | tail -n 1)
+          LATEST_COMMIT=$(git rev-list -n 1 "$LATEST_TAG")
+          echo "Prover minor tag: $LATEST_TAG and commit: $LATEST_COMMIT "
+          echo "PROVER_COMMIT=$LATEST_COMMIT" >> .env
 
       - name: Start services
         run: |
@@ -89,17 +97,23 @@ jobs:
           sudo sed -i 's/is_verifier_pre_fflonk: true/is_verifier_pre_fflonk: false/' general.yaml
           grep "is_verifier_pre_fflonk" general.yaml | awk '{ print $2 }'
 
-      - name: Prepare prover subsystem
-        run: |
-          ci_run zkstack prover init-bellman-cuda --clone --verbose
-          ci_run zkstack prover setup-keys --mode=download --region=us --verbose
-
       - name: Run server
         run: |
           ci_run zkstack server --uring --chain=proving_chain --components=api,tree,eth,state_keeper,commitment_generator,proof_data_handler,vm_runner_protective_reads,vm_runner_bwip &>prover_logs_${{matrix.compressor-mode}}/server.log &
       - name: Run prover gateway
         run: |
           ci_run zkstack prover run --component=gateway --docker=false &>prover_logs_${{matrix.compressor-mode}}/gateway.log &
+
+      - name: Checking out latest minor prover version and rebuilding zkstack
+        run: |
+          git checkout $PROVER_COMMIT
+          ci_run zkstackup -g --local
+
+      - name: Prepare prover subsystem
+        run: |
+          ci_run zkstack prover init-bellman-cuda --clone --verbose
+          ci_run zkstack prover setup-keys --mode=download --region=us --verbose
+
       - name: Run Prover Job Monitor
         run: |
           ci_run zkstack prover run --component=prover-job-monitor --docker=false &>prover_logs_${{matrix.compressor-mode}}/prover-job-monitor.log &
