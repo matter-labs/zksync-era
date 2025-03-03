@@ -352,13 +352,13 @@ mod tests {
 
     use crate::v26_utils::find_unsafe_deposit;
 
-    const SIMPLE_TEST_RESULT_JSON: &'static str = include_str!(
+    const SIMPLE_TEST_RESULT_JSON: &str = include_str!(
         "../../../lib/multivm/src/versions/testonly/v26_utils_outputs/simple-test.json"
     );
-    const POST_BRIDGING_TEST_RESULT_JSON: &'static str = include_str!(
+    const POST_BRIDGING_TEST_RESULT_JSON: &str = include_str!(
         "../../../lib/multivm/src/versions/testonly/v26_utils_outputs/post-bridging.json"
     );
-    const POST_REGISTRATION_TEST_RESULT_JSON: &'static str = include_str!(
+    const POST_REGISTRATION_TEST_RESULT_JSON: &str = include_str!(
         "../../../lib/multivm/src/versions/testonly/v26_utils_outputs/post-registration.json"
     );
 

@@ -24,10 +24,9 @@ use crate::{
     vm_latest::utils::v26_upgrade::{encode_legacy_finalize_deposit, get_test_data, V26TestData},
 };
 
-const SIMPLE_TEST_RESULT_JSON: &'static str = include_str!("./v26_utils_outputs/simple-test.json");
-const POST_BRIDGING_TEST_RESULT_JSON: &'static str =
-    include_str!("./v26_utils_outputs/post-bridging.json");
-const POST_REGISTRATION_TEST_RESULT_JSON: &'static str =
+const SIMPLE_TEST_RESULT_JSON: &str = include_str!("./v26_utils_outputs/simple-test.json");
+const POST_BRIDGING_TEST_RESULT_JSON: &str = include_str!("./v26_utils_outputs/post-bridging.json");
+const POST_REGISTRATION_TEST_RESULT_JSON: &str =
     include_str!("./v26_utils_outputs/post-registration.json");
 
 fn trivial_test_storage_logs() -> HashMap<StorageKey, H256> {
