@@ -1,12 +1,17 @@
-use std::{collections::HashSet, fmt};
+use std::{collections::HashSet, fmt, ops::DerefMut, sync::Arc};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
 use tokio::{runtime::Handle, sync::watch};
+use zk_ee::{system::system_io_oracle::PreimageType, utils::Bytes32};
+use zk_os_forward_system::run::{
+    LeafProof, PreimageSource, ReadStorage as ReadStorageZkOs, ReadStorageTree,
+};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_storage::RocksDB;
 use zksync_types::{u256_to_h256, L1BatchNumber, StorageKey, StorageValue, H256};
 use zksync_vm_interface::storage::{ReadStorage, StorageSnapshot};
+use zksync_zkos_vm_runner::zkos_conversions::{bytes32_to_h256, h256_to_bytes32};
 
 use self::metrics::{SnapshotStage, SNAPSHOT_METRICS};
 pub use self::{
@@ -36,12 +41,12 @@ pub enum CommonStorage<'a> {
     Snapshot(SnapshotStorage<'a>),
     /// Generic implementation. Should be used for testing purposes only since it has performance penalty because
     /// of the dynamic dispatch.
-    Boxed(Box<dyn ReadStorage + Send + 'a>),
+    Boxed(Box<dyn ReadStorage + Send + Sync + 'a>),
 }
 
 impl<'a> CommonStorage<'a> {
     /// Creates a boxed storage. Should be used for testing purposes only.
-    pub fn boxed(storage: impl ReadStorage + Send + 'a) -> Self {
+    pub fn boxed(storage: impl ReadStorage + Send + Sync + 'a) -> Self {
         Self::Boxed(Box::new(storage))
     }
 }
@@ -91,9 +96,11 @@ impl CommonStorage<'static> {
     pub async fn rocksdb(
         connection: &mut Connection<'_, Core>,
         rocksdb: RocksDB<StateKeeperColumnFamily>,
+        batch_diffs: &[BatchDiff],
+        first_diff_number: Option<L1BatchNumber>,
         stop_receiver: &watch::Receiver<bool>,
         l1_batch_number: L1BatchNumber,
-    ) -> anyhow::Result<Option<Self>> {
+    ) -> anyhow::Result<Option<(Self, L1BatchNumber)>> {
         tracing::debug!("Catching up RocksDB synchronously");
         let rocksdb_builder = RocksdbStorageBuilder::from_rocksdb(rocksdb);
         let rocksdb = rocksdb_builder
@@ -108,15 +115,39 @@ impl CommonStorage<'static> {
             .l1_batch_number()
             .await
             .ok_or_else(|| anyhow::anyhow!("No L1 batches available in Postgres"))?;
-        if l1_batch_number + 1 != rocksdb_l1_batch_number {
+
+        if l1_batch_number + 1 == rocksdb_l1_batch_number {
+            tracing::debug!(%rocksdb_l1_batch_number, "Using RocksDB-based storage");
+            Ok(Some((rocksdb.into(), rocksdb_l1_batch_number)))
+        } else if l1_batch_number + 1 > rocksdb_l1_batch_number {
+            tracing::debug!(
+                "Using RocksDBWithMemory-based storage with {}",
+                l1_batch_number + 1
+            );
+
+            let first_diff_number = first_diff_number.unwrap();
+            let skip = rocksdb_l1_batch_number.0 - first_diff_number.0;
+            let take = l1_batch_number.0 - rocksdb_l1_batch_number.0 + 1;
+
+            let batch_diffs = batch_diffs
+                .iter()
+                .skip(skip as usize)
+                .take(take as usize)
+                .cloned()
+                .collect();
+            let storage = RocksdbWithMemory {
+                rocksdb,
+                batch_diffs,
+            };
+
+            Ok(Some((storage.into(), rocksdb_l1_batch_number)))
+        } else {
             anyhow::bail!(
                 "RocksDB synchronized to L1 batch #{} while #{} was expected",
                 rocksdb_l1_batch_number,
-                l1_batch_number
+                l1_batch_number + 1
             );
         }
-        tracing::debug!(%rocksdb_l1_batch_number, "Using RocksDB-based storage");
-        Ok(Some(rocksdb.into()))
     }
 
     /// Creates a storage snapshot. Require protective reads to be persisted for the batch, otherwise
@@ -274,6 +305,12 @@ impl From<RocksdbStorage> for CommonStorage<'_> {
     }
 }
 
+impl From<RocksdbWithMemory> for CommonStorage<'_> {
+    fn from(value: RocksdbWithMemory) -> Self {
+        Self::RocksdbWithMemory(value)
+    }
+}
+
 impl<'a> From<SnapshotStorage<'a>> for CommonStorage<'a> {
     fn from(value: SnapshotStorage<'a>) -> Self {
         Self::Snapshot(value)
@@ -282,6 +319,7 @@ impl<'a> From<SnapshotStorage<'a>> for CommonStorage<'a> {
 
 /// Storage with a static lifetime that can be sent to Tokio tasks etc.
 pub type OwnedStorage = CommonStorage<'static>;
+pub struct ArcOwnedStorage(pub Arc<OwnedStorage>);
 
 /// Factory that can produce storage instances on demand. The storage type is encapsulated as a type param
 /// (mostly for testing purposes); the default is [`OwnedStorage`].
@@ -311,5 +349,65 @@ impl ReadStorageFactory for ConnectionPool<Core> {
         let connection = self.connection().await?;
         let storage = OwnedStorage::postgres(connection, l1_batch_number).await?;
         Ok(Some(storage.into()))
+    }
+}
+
+impl ReadStorageZkOs for ArcOwnedStorage {
+    fn read(&mut self, key: Bytes32) -> Option<Bytes32> {
+        match self.0.as_ref() {
+            CommonStorage::Rocksdb(rocksdb) => rocksdb
+                .read_value_inner(bytes32_to_h256(key))
+                .map(h256_to_bytes32),
+            CommonStorage::RocksdbWithMemory(rocksdb_with_memory) => {
+                let hashed_key = bytes32_to_h256(key);
+                let value = match rocksdb_with_memory
+                    .batch_diffs
+                    .iter()
+                    .rev()
+                    .find_map(|b| b.state_diff.get(&hashed_key))
+                {
+                    None => rocksdb_with_memory.rocksdb.read_value_inner(hashed_key),
+                    Some(value) => Some(*value),
+                };
+                value.map(h256_to_bytes32)
+            }
+            _ => unimplemented!("unexpected storage {:?}", self.0),
+        }
+    }
+}
+
+impl ReadStorageTree for ArcOwnedStorage {
+    fn tree_index(&mut self, _key: Bytes32) -> Option<u64> {
+        panic!("tree_index") // TODO
+    }
+
+    fn merkle_proof(&mut self, _tree_index: u64) -> LeafProof {
+        panic!("merkle_proof")
+    }
+
+    fn neighbours_tree_indexes(&mut self, _key: Bytes32) -> (u64, u64) {
+        panic!("neighbours_tree_indexes")
+    }
+}
+
+impl PreimageSource for ArcOwnedStorage {
+    fn get_preimage(&mut self, _preimage_type: PreimageType, hash: Bytes32) -> Option<Vec<u8>> {
+        match self.0.as_ref() {
+            CommonStorage::Rocksdb(rocksdb) => {
+                rocksdb.load_factory_dep_inner(bytes32_to_h256(hash))
+            }
+            CommonStorage::RocksdbWithMemory(rocksdb_with_memory) => {
+                let hash = bytes32_to_h256(hash);
+                match rocksdb_with_memory
+                    .batch_diffs
+                    .iter()
+                    .find_map(|b| b.factory_dep_diff.get(&hash))
+                {
+                    None => rocksdb_with_memory.rocksdb.load_factory_dep_inner(hash),
+                    Some(value) => Some(value.clone()),
+                }
+            }
+            _ => unimplemented!("unexpected storage {:?}", self.0),
+        }
     }
 }

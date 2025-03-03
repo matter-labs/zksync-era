@@ -248,10 +248,12 @@ zk_evm_1_5_0 = { package = "zk_evm", version = "=0.150.20" }
 fflonk = "=0.30.13"
 bellman = { package = "zksync_bellman", version = "=0.30.13" }
 
-zk_os_forward_system = {package = "forward_system",  git="https://github.com/matter-labs/zk_ee", branch = "forward-system-tx-result-callback" }
-zk_ee = { package = "zk_ee",  git="https://github.com/matter-labs/zk_ee", branch = "forward-system-tx-result-callback"  }
-zk_os_basic_system = { package = "basic_system",  git="https://github.com/matter-labs/zk_ee", branch = "forward-system-tx-result-callback"  }
-zk_os_system_hooks = { package = "system_hooks",  git="https://github.com/matter-labs/zk_ee", branch = "forward-system-tx-result-callback"  }
+zk_os_forward_system = { package = "forward_system", git="https://github.com/matter-labs/zk_ee", branch = "forward-system-tx-result-callback" }
+zk_ee = { package = "zk_ee", git="https://github.com/matter-labs/zk_ee", branch = "forward-system-tx-result-callback" }
+zk_os_basic_system = { package = "basic_system", git="https://github.com/matter-labs/zk_ee", branch = "forward-system-tx-result-callback" }
+#zk_os_forward_system = { package = "forward_system", path = "../../zk_ee/forward_system" }
+#zk_ee = { package = "zk_ee", path = "../../zk_ee/zk_ee" }
+#zk_os_basic_system = { package = "basic_system", path = "../../zk_ee/basic_system" }
 # New VM; pinned to a specific commit because of instability
 zksync_vm2 = { git = "https://github.com/matter-labs/vm2.git", rev = "3841f5a430288a63c8207853eca11560bf7a5712" }
 

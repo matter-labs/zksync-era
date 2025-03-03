@@ -27,15 +27,15 @@ use zk_os_forward_system::run::{
     result_keeper::TxProcessingOutputOwned,
     run_batch,
     test_impl::{InMemoryPreimageSource, InMemoryTree, TxListSource},
-    BatchContext, BatchOutput, ExecutionResult, InvalidTransaction, NextTxResponse, PreimageSource,
-    StorageCommitment, TxResultCallback, TxSource,
+    BatchContext, BatchOutput, ExecutionResult, InvalidTransaction, LeafProof, NextTxResponse,
+    PreimageSource, ReadStorage, ReadStorageTree, StorageCommitment, TxResultCallback, TxSource,
 };
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_mempool::L2TxFilter;
-use zksync_state::ReadStorageFactory;
+use zksync_state::{ArcOwnedStorage, BatchDiff, CommonStorage, OwnedStorage, ReadStorageFactory};
 use zksync_state_keeper::{
-    io::IoCursor, metrics::KEEPER_METRICS, seal_criteria::UnexecutableReason, L2BlockParams,
-    MempoolGuard,
+    io::IoCursor, metrics::KEEPER_METRICS, seal_criteria::UnexecutableReason, AsyncRocksdbCache,
+    L2BlockParams, MempoolGuard,
 };
 use zksync_types::{
     block::UnsealedL1BatchHeader, snapshots::SnapshotStorageLog, Address, L1BatchNumber,
@@ -84,6 +84,7 @@ pub struct ZkosStateKeeper {
 
     io: Box<dyn StateKeeperIO>,
     output_handler: OutputHandler,
+    storage_factory: Arc<AsyncRocksdbCache>,
 }
 
 impl ZkosStateKeeper {
@@ -92,6 +93,7 @@ impl ZkosStateKeeper {
         pool: ConnectionPool<Core>,
         io: Box<dyn StateKeeperIO>,
         output_handler: OutputHandler,
+        storage_factory: Arc<AsyncRocksdbCache>,
     ) -> Self {
         let tree = InMemoryTree {
             storage_tree: TestingTree::new_in(Global),
@@ -107,6 +109,7 @@ impl ZkosStateKeeper {
             preimage_source,
             io,
             output_handler,
+            storage_factory,
         }
     }
 
@@ -134,13 +137,13 @@ impl ZkosStateKeeper {
             .into());
         }
 
-        let mut connection = self
-            .pool
-            .connection_tagged("state_keeper")
-            .await
-            .map_err(DalError::generalize)?;
-        Self::fund_dev_wallets_if_needed(&mut connection, cursor.next_l2_block).await;
-        drop(connection);
+        // let mut connection = self
+        //     .pool
+        //     .connection_tagged("state_keeper")
+        //     .await
+        //     .map_err(DalError::generalize)?;
+        // Self::fund_dev_wallets_if_needed(&mut connection, cursor.next_l2_block).await;
+        // drop(connection);
 
         self.initialize_in_memory_storages().await?;
 
@@ -196,12 +199,20 @@ impl ZkosStateKeeper {
             let preimage_source = self.preimage_source.clone();
             tracing::info!("Cloning done, running batch");
 
+            let Some(storage) = self
+                .storage_factory
+                .access_storage(&self.stop_receiver, cursor.l1_batch - 1)
+                .await?
+            else {
+                return Err(Error::Canceled);
+            };
+            let storage = Arc::new(storage);
             let run_batch_task = spawn_blocking(move || {
                 run_batch(
                     context,
                     storage_commitment,
-                    tree,
-                    preimage_source,
+                    ArcOwnedStorage(storage.clone()),
+                    ArcOwnedStorage(storage),
                     tx_source,
                     tx_callback,
                 )
@@ -243,6 +254,26 @@ impl ZkosStateKeeper {
                     preimage.clone(),
                 );
             }
+
+            let state_diff = result
+                .storage_writes
+                .iter()
+                .map(|write| (bytes32_to_h256(write.key), bytes32_to_h256(write.value)))
+                .collect();
+            let factory_dep_diff = result
+                .published_preimages
+                .iter()
+                .map(|(hash, bytecode)| (bytes32_to_h256(*hash), bytecode.clone()))
+                .collect();
+            let enum_index_diff = Default::default(); // TODO: works for now as enum indices are not queried.
+            let diff = BatchDiff {
+                state_diff,
+                enum_index_diff,
+                factory_dep_diff,
+            };
+            self.storage_factory
+                .push_batch_diff(cursor.l1_batch, diff)
+                .await;
 
             updates_manager.extend_with_block_result(executed_transactions, result);
 

@@ -276,8 +276,14 @@ impl MainNodeBuilder {
             try_load_config!(wallets.state_keeper),
         );
 
+        let rocksdb_options = RocksdbStorageOptions {
+            block_cache_capacity: db_config
+                .experimental
+                .state_keeper_db_block_cache_capacity(),
+            max_open_files: db_config.experimental.state_keeper_db_max_open_files,
+        };
         let state_keeper_layer =
-            ZkOsStateKeeperLayer::new(try_load_config!(self.configs.mempool_config));
+            ZkOsStateKeeperLayer::new(db_config.state_keeper_db_path, rocksdb_options);
 
         self.node
             .add_layer(persistence_layer)

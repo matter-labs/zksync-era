@@ -453,8 +453,15 @@ impl RocksdbStorage {
         Ok(())
     }
 
-    fn read_value_inner(&self, hashed_key: H256) -> Option<StorageValue> {
+    pub fn read_value_inner(&self, hashed_key: H256) -> Option<StorageValue> {
         Self::read_state_value(&self.db, hashed_key).map(|state_value| state_value.value)
+    }
+
+    pub fn load_factory_dep_inner(&self, hash: H256) -> Option<Vec<u8>> {
+        let cf = StateKeeperColumnFamily::FactoryDeps;
+        self.db
+            .get_cf(cf, hash.as_bytes())
+            .expect("failed to read RocksDB state value")
     }
 
     fn read_state_value(
@@ -644,10 +651,7 @@ impl ReadStorage for RocksdbStorage {
     }
 
     fn load_factory_dep(&mut self, hash: H256) -> Option<Vec<u8>> {
-        let cf = StateKeeperColumnFamily::FactoryDeps;
-        self.db
-            .get_cf(cf, hash.as_bytes())
-            .expect("failed to read RocksDB state value")
+        self.load_factory_dep_inner(hash)
     }
 
     fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64> {

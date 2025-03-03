@@ -1,11 +1,12 @@
-use std::fmt::Debug;
+use std::{fmt::Debug, sync::atomic::AtomicU32};
 
 use anyhow::Context;
 use async_trait::async_trait;
-use tokio::sync::watch;
+use tokio::sync::{watch, RwLock};
 use zksync_dal::{ConnectionPool, Core};
 use zksync_state::{
-    AsyncCatchupTask, OwnedStorage, ReadStorageFactory, RocksdbCell, RocksdbStorageOptions,
+    AsyncCatchupTask, BatchDiff, OwnedStorage, ReadStorageFactory, RocksdbCell,
+    RocksdbStorageOptions,
 };
 use zksync_types::L1BatchNumber;
 
@@ -18,6 +19,7 @@ use zksync_types::L1BatchNumber;
 pub struct AsyncRocksdbCache {
     pool: ConnectionPool<Core>,
     rocksdb_cell: RocksdbCell,
+    batch_diffs: RwLock<(Vec<BatchDiff>, Option<L1BatchNumber>)>,
 }
 
 impl AsyncRocksdbCache {
@@ -28,9 +30,19 @@ impl AsyncRocksdbCache {
     ) -> (Self, AsyncCatchupTask) {
         let (task, rocksdb_cell) = AsyncCatchupTask::new(pool.clone(), state_keeper_db_path);
         (
-            Self { pool, rocksdb_cell },
+            Self {
+                pool,
+                rocksdb_cell,
+                batch_diffs: Default::default(),
+            },
             task.with_db_options(state_keeper_db_options),
         )
+    }
+
+    pub async fn push_batch_diff(&self, l1_batch_number: L1BatchNumber, diff: BatchDiff) {
+        let mut lock = self.batch_diffs.write().await;
+        lock.0.push(diff);
+        lock.1 = Some(l1_batch_number);
     }
 }
 
@@ -63,11 +75,30 @@ impl ReadStorageFactory for AsyncRocksdbCache {
             .await
             .context("Failed getting a Postgres connection")?;
         if let Some(rocksdb) = rocksdb {
-            let storage =
-                OwnedStorage::rocksdb(&mut connection, rocksdb, stop_receiver, l1_batch_number)
-                    .await
-                    .context("Failed accessing RocksDB storage")?;
-            Ok(storage)
+            let mut lock = self.batch_diffs.write().await;
+            let Some((storage, rocksdb_l1_batch_number)) = OwnedStorage::rocksdb(
+                &mut connection,
+                rocksdb.clone(),
+                &lock.0,
+                lock.1,
+                stop_receiver,
+                l1_batch_number,
+            )
+            .await
+            .context("Failed accessing RocksDB storage")?
+            else {
+                return Ok(None);
+            };
+
+            if let Some(first_diff_batch_number) = lock.1 {
+                if first_diff_batch_number < rocksdb_l1_batch_number {
+                    for _ in 0..(rocksdb_l1_batch_number.0 - first_diff_batch_number.0) {
+                        lock.0.remove(0);
+                    }
+                }
+            }
+
+            Ok(Some(storage))
         } else {
             Ok(Some(
                 OwnedStorage::postgres(connection, l1_batch_number)

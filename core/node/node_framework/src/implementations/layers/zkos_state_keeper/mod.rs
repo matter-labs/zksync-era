@@ -1,8 +1,10 @@
+use std::sync::Arc;
+
 use anyhow::Context;
-use zksync_config::configs::chain::MempoolConfig;
 use zksync_node_framework_derive::{FromContext, IntoContext};
-use zksync_state::ReadStorageFactory;
-use zksync_state_keeper::{seal_criteria::ConditionalSealer, MempoolGuard};
+use zksync_state::{AsyncCatchupTask, ReadStorageFactory, RocksdbStorageOptions};
+use zksync_state_keeper::{seal_criteria::ConditionalSealer, AsyncRocksdbCache};
+use zksync_storage::RocksDB;
 use zksync_vm_executor::interface::BatchExecutorFactory;
 use zksync_zkos_state_keeper::{OutputHandler, StateKeeperIO, ZkosStateKeeper};
 
@@ -12,6 +14,7 @@ use crate::{
         pools::{MasterPool, PoolResource},
         state_keeper::{ZkOsOutputHandlerResource, ZkOsStateKeeperIOResource},
     },
+    service::ShutdownHook,
     StopReceiver, Task, TaskId, WiringError, WiringLayer,
 };
 
@@ -21,7 +24,8 @@ pub mod output_handler;
 /// Wiring layer for the state keeper.
 #[derive(Debug)]
 pub struct ZkOsStateKeeperLayer {
-    mempool_config: MempoolConfig,
+    state_keeper_db_path: String,
+    rocksdb_options: RocksdbStorageOptions,
 }
 
 #[derive(Debug, FromContext)]
@@ -38,11 +42,17 @@ pub struct Input {
 pub struct Output {
     #[context(task)]
     pub state_keeper: ZkOsStateKeeperTask,
+    #[context(task)]
+    pub rocksdb_catchup: AsyncCatchupTask,
+    pub rocksdb_termination_hook: ShutdownHook,
 }
 
 impl ZkOsStateKeeperLayer {
-    pub fn new(mempool_config: MempoolConfig) -> Self {
-        Self { mempool_config }
+    pub fn new(state_keeper_db_path: String, rocksdb_options: RocksdbStorageOptions) -> Self {
+        Self {
+            state_keeper_db_path,
+            rocksdb_options,
+        }
     }
 }
 
@@ -51,25 +61,7 @@ pub struct ZkOsStateKeeperTask {
     pool: PoolResource<MasterPool>,
     io: Box<dyn StateKeeperIO>,
     output_handler: OutputHandler,
-}
-
-impl ZkOsStateKeeperLayer {
-    async fn build_mempool_guard(
-        &self,
-        master_pool: &PoolResource<MasterPool>,
-    ) -> anyhow::Result<MempoolGuard> {
-        let connection_pool = master_pool
-            .get_singleton()
-            .await
-            .context("Get connection pool")?;
-        let mut storage = connection_pool
-            .connection()
-            .await
-            .context("Access storage to build mempool")?;
-        let mempool = MempoolGuard::from_storage(&mut storage, self.mempool_config.capacity).await;
-        mempool.register_metrics();
-        Ok(mempool)
-    }
+    storage_factory: Arc<AsyncRocksdbCache>,
 }
 
 #[async_trait::async_trait]
@@ -96,13 +88,31 @@ impl WiringLayer for ZkOsStateKeeperLayer {
             .take()
             .context("HandleStateKeeperOutput was provided but taken by another task")?;
 
+        let (storage_factory, rocksdb_catchup) = AsyncRocksdbCache::new(
+            master_pool.get_custom(2).await?,
+            self.state_keeper_db_path,
+            self.rocksdb_options,
+        );
+
         let state_keeper = ZkOsStateKeeperTask {
             pool: master_pool.clone(),
             io,
             output_handler,
+            storage_factory: Arc::new(storage_factory),
         };
 
-        Ok(Output { state_keeper })
+        let rocksdb_termination_hook = ShutdownHook::new("rocksdb_terminaton", async {
+            // Wait for all the instances of RocksDB to be destroyed.
+            tokio::task::spawn_blocking(RocksDB::await_rocksdb_termination)
+                .await
+                .context("failed terminating RocksDB instances")
+        });
+
+        Ok(Output {
+            state_keeper,
+            rocksdb_catchup,
+            rocksdb_termination_hook,
+        })
     }
 }
 
@@ -118,6 +128,7 @@ impl Task for ZkOsStateKeeperTask {
             self.pool.get().await?,
             self.io,
             self.output_handler,
+            self.storage_factory,
         );
         state_keeper.run().await
     }

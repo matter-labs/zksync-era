@@ -36,7 +36,6 @@ vise.workspace = true
 zk_os_forward_system = { workspace = true, optional = true }
 zk_ee = { workspace = true, optional = true }
 zk_os_basic_system = { workspace = true, optional = true }
-zk_os_system_hooks = { workspace = true, optional = true }
 
 anyhow.workspace = true
 async-trait.workspace = true
@@ -72,4 +71,4 @@ assert_matches.workspace = true
 test-casing.workspace = true
 
 [features]
-zkos = ["dep:zk_os_forward_system", "dep:zk_ee", "dep:zk_os_basic_system", "dep:zk_os_system_hooks", "dep:ruint", "dep:zksync_zkos_vm_runner"]
+zkos = ["dep:zk_os_forward_system", "dep:zk_ee", "dep:zk_os_basic_system", "dep:ruint", "dep:zksync_zkos_vm_runner"]
