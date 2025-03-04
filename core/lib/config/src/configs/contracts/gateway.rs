@@ -1,6 +1,6 @@
 use zksync_basic_types::{web3::Bytes, Address, SLChainId};
 
-use super::chain::ChainContractsConfig;
+use super::chain::AllContractsConfig;
 
 /// Config that is only stored for the gateway chain.
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq)]
@@ -52,7 +52,7 @@ impl GatewayChainConfig {
     }
 
     pub fn from_contracts_and_chain_id(
-        contracts: ChainContractsConfig,
+        contracts: AllContractsConfig,
         gateway_chain_id: SLChainId,
     ) -> Self {
         Self {

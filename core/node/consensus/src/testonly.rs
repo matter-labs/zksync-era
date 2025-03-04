@@ -603,7 +603,7 @@ impl StateKeeperRunner {
                 let cfg = InternalApiConfig::new(
                     &configs::api::Web3JsonRpcConfig::for_tests(),
                     &configs::contracts::Contracts::new(
-                        configs::ChainContractsConfig::for_tests(),
+                        configs::AllContractsConfig::for_tests(),
                         None,
                     ),
                     &configs::GenesisConfig::for_tests(),
@@ -687,7 +687,7 @@ impl StateKeeperRunner {
                 let cfg = InternalApiConfig::new(
                     &configs::api::Web3JsonRpcConfig::for_tests(),
                     &configs::contracts::Contracts::new(
-                        configs::ChainContractsConfig::for_tests(),
+                        configs::AllContractsConfig::for_tests(),
                         None,
                     ),
                     &configs::GenesisConfig::for_tests(),

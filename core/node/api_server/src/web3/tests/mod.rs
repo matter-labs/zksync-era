@@ -12,7 +12,7 @@ use zksync_config::{
     configs::{
         api::Web3JsonRpcConfig,
         chain::{NetworkConfig, StateKeeperConfig},
-        ChainContractsConfig as ContractsConfig,
+        AllContractsConfig as ContractsConfig,
     },
     Contracts, GenesisConfig,
 };

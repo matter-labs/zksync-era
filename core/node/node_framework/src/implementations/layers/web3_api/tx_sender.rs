@@ -143,7 +143,7 @@ impl WiringLayer for TxSenderLayer {
             .0
             .current_contracts()
             .l2_contracts
-            .l2_timestamp_asserter_addr
+            .timestamp_asserter_addr
         {
             Some(address) => {
                 let timestamp_asserter_config =

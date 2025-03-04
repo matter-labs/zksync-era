@@ -3,9 +3,9 @@ use zksync_basic_types::{Address, H256};
 
 use crate::configs::contracts::ecosystem::EcosystemContracts;
 
-/// Data about deployed contracts.
+/// Data about deployed contracts unified l1/l2 contracts and bridges. To Be Deleted
 #[derive(Debug, Deserialize, Clone, PartialEq)]
-pub struct ChainContractsConfig {
+pub struct AllContractsConfig {
     pub governance_addr: Address,
     pub verifier_addr: Address,
     pub default_upgrade_addr: Address,
@@ -36,7 +36,7 @@ pub struct ChainContractsConfig {
     pub no_da_validium_l1_validator_addr: Option<Address>,
 }
 
-impl ChainContractsConfig {
+impl AllContractsConfig {
     pub fn for_tests() -> Self {
         Self {
             verifier_addr: Address::repeat_byte(0x06),
@@ -64,18 +64,20 @@ impl ChainContractsConfig {
     }
 }
 
+// Contracts specific for the chain. Should be deployed to all Settlement Layers
 #[derive(Debug, Clone)]
 pub struct ChainContracts {
     pub diamond_proxy_addr: Address,
     pub chain_admin: Address,
 }
 
+// Contracts deployed to the l2
 #[derive(Debug, Clone)]
 pub struct L2Contracts {
-    pub l2_erc20_default_bridge: Option<Address>,
-    pub l2_shared_bridge_addr: Option<Address>,
-    pub l2_legacy_shared_bridge_addr: Option<Address>,
-    pub l2_timestamp_asserter_addr: Option<Address>,
-    pub l2_da_validator_addr: Option<Address>,
-    pub l2_testnet_paymaster_addr: Option<Address>,
+    pub erc20_default_bridge: Option<Address>,
+    pub shared_bridge_addr: Option<Address>,
+    pub legacy_shared_bridge_addr: Option<Address>,
+    pub timestamp_asserter_addr: Option<Address>,
+    pub da_validator_addr: Option<Address>,
+    pub testnet_paymaster_addr: Option<Address>,
 }

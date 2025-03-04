@@ -1,6 +1,6 @@
 use anyhow::Context as _;
 use zksync_config::configs::contracts::{
-    chain::ChainContractsConfig as ContractsConfig, ecosystem::EcosystemContracts,
+    chain::AllContractsConfig as ContractsConfig, ecosystem::EcosystemContracts,
 };
 use zksync_protobuf::{repr::ProtoRepr, required};
 

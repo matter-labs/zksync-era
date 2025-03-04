@@ -170,19 +170,19 @@ impl InternalApiConfigBuilder {
             l2_erc20_default_bridge: contracts_config
                 .current_contracts()
                 .l2_contracts
-                .l2_erc20_default_bridge,
+                .erc20_default_bridge,
             l1_shared_default_bridge: contracts_config.l1_specific_contracts().shared_bridge,
             l2_shared_default_bridge: contracts_config
                 .current_contracts()
                 .l2_contracts
-                .l2_shared_bridge_addr,
+                .shared_bridge_addr,
             // Seems weth is not available
             l1_weth_bridge: None,
             l2_weth_bridge: None,
             l2_legacy_shared_bridge: contracts_config
                 .current_contracts()
                 .l2_contracts
-                .l2_legacy_shared_bridge_addr,
+                .legacy_shared_bridge_addr,
         });
         self.l1_bridgehub_proxy_addr = Some(
             contracts_config
@@ -212,7 +212,7 @@ impl InternalApiConfigBuilder {
         self.l2_testnet_paymaster_addr = contracts_config
             .current_contracts()
             .l2_contracts
-            .l2_testnet_paymaster_addr;
+            .testnet_paymaster_addr;
         self
     }
 
@@ -296,19 +296,19 @@ impl InternalApiConfig {
                 l2_erc20_default_bridge: contracts_config
                     .current_contracts()
                     .l2_contracts
-                    .l2_erc20_default_bridge,
+                    .erc20_default_bridge,
                 l1_shared_default_bridge: contracts_config.l1_specific_contracts().shared_bridge,
                 l2_shared_default_bridge: contracts_config
                     .current_contracts()
                     .l2_contracts
-                    .l2_shared_bridge_addr,
+                    .shared_bridge_addr,
                 // Seems weth is not available
                 l1_weth_bridge: None,
                 l2_weth_bridge: None,
                 l2_legacy_shared_bridge: contracts_config
                     .current_contracts()
                     .l2_contracts
-                    .l2_legacy_shared_bridge_addr,
+                    .legacy_shared_bridge_addr,
             },
             l1_bridgehub_proxy_addr: Some(
                 contracts_config
@@ -337,7 +337,7 @@ impl InternalApiConfig {
             l2_testnet_paymaster_addr: contracts_config
                 .current_contracts()
                 .l2_contracts
-                .l2_testnet_paymaster_addr,
+                .testnet_paymaster_addr,
             req_entities_limit: web3_config.req_entities_limit(),
             fee_history_limit: web3_config.fee_history_limit(),
             base_token_address: Some(
@@ -352,7 +352,7 @@ impl InternalApiConfig {
             timestamp_asserter_address: contracts_config
                 .current_contracts()
                 .l2_contracts
-                .l2_timestamp_asserter_addr,
+                .timestamp_asserter_addr,
             l1_server_notifier_addr: contracts_config
                 .current_contracts()
                 .ecosystem_contracts

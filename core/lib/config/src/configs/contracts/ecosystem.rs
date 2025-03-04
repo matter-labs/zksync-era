@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 // Workspace uses
 use zksync_basic_types::Address;
 
+// Unified ecosystem contracts. To be deleted, after contracts config migration
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct EcosystemContracts {
     pub bridgehub_proxy_addr: Address,
@@ -28,15 +29,21 @@ impl EcosystemContracts {
         }
     }
 }
+
+// Ecosystem contracts that are specific only for L1
 #[derive(Debug, Clone)]
 pub struct EcosystemL1Specific {
     pub bytecodes_supplier_addr: Option<Address>,
+    // Note that on the contract side of things this contract is called `L2WrappedBaseTokenStore`,
+    // while on the server side for consistency with the conventions, where the prefix denotes
+    // the location of the contracts we call it `l1_wrapped_base_token_store`
     pub wrapped_base_token_store: Option<Address>,
     pub shared_bridge: Option<Address>,
     pub erc_20_bridge: Option<Address>,
     pub base_token_address: Option<Address>,
 }
 
+// Ecosystem contracts that are presented on all Settlement Layers
 #[derive(Debug, Clone)]
 pub struct EcosystemCommonContracts {
     pub bridgehub_proxy_addr: Address,

@@ -288,7 +288,7 @@ impl DataAvailabilityDispatcher {
                 self.contracts_config
                     .current_contracts()
                     .l2_contracts
-                    .l2_da_validator_addr
+                    .da_validator_addr
                     .context("L2 DA validator address is not set")?,
             );
         }

@@ -10,7 +10,7 @@ use crate::{
     FromContext, IntoContext, StopReceiver, Task, TaskId,
 };
 
-/// Wiring layer for [`PKSigningClient`].
+/// Wiring layer for [`GatewayMigrator`].
 #[derive(Debug)]
 pub struct GatewayMigratorLayer;
 

@@ -110,7 +110,7 @@ impl WiringLayer for OutputHandlerLayer {
                 .0
                 .current_contracts()
                 .l2_contracts
-                .l2_legacy_shared_bridge_addr,
+                .legacy_shared_bridge_addr,
             self.l2_block_seal_queue_capacity,
         )
         .await?;

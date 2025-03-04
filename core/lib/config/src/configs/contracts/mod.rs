@@ -2,7 +2,7 @@ use zksync_basic_types::{settlement::SettlementMode, Address, SLChainId, H160};
 
 use crate::configs::{
     contracts::{
-        chain::{ChainContracts, ChainContractsConfig, L2Contracts},
+        chain::{AllContractsConfig, ChainContracts, L2Contracts},
         ecosystem::{EcosystemCommonContracts, EcosystemL1Specific},
     },
     gateway::GatewayChainConfig,
@@ -18,7 +18,7 @@ pub const L2_BRIDGEHUB_ADDRESS: Address = H160([
 ]);
 
 #[derive(Debug, Clone)]
-pub struct SpecificContracts {
+pub struct ChainSpecificContracts {
     pub ecosystem_contracts: EcosystemCommonContracts,
     pub chain_contracts_config: ChainContracts,
     pub l2_contracts: L2Contracts,
@@ -27,14 +27,14 @@ pub struct SpecificContracts {
 #[derive(Debug, Clone)]
 pub struct Contracts {
     l1_specific: EcosystemL1Specific,
-    l1_contracts: SpecificContracts,
-    gateway_contracts: Option<SpecificContracts>,
+    l1_contracts: ChainSpecificContracts,
+    gateway_contracts: Option<ChainSpecificContracts>,
     sl_mode: SettlementMode,
     gateway_chain_id: Option<SLChainId>,
 }
 
 impl Contracts {
-    pub fn current_contracts(&self) -> &SpecificContracts {
+    pub fn current_contracts(&self) -> &ChainSpecificContracts {
         match self.sl_mode {
             SettlementMode::SettlesToL1 => &self.l1_contracts,
             SettlementMode::Gateway => self.gateway_contracts.as_ref().expect("Settles to Gateway"),
@@ -45,11 +45,11 @@ impl Contracts {
         &self.l1_specific
     }
 
-    pub fn l1_contracts(&self) -> &SpecificContracts {
+    pub fn l1_contracts(&self) -> &ChainSpecificContracts {
         &self.l1_contracts
     }
 
-    pub fn gateway(&self) -> Option<&SpecificContracts> {
+    pub fn gateway(&self) -> Option<&ChainSpecificContracts> {
         self.gateway_contracts.as_ref()
     }
     pub fn set_settlement_mode(&mut self, settlement_mode: SettlementMode) {
@@ -62,7 +62,7 @@ impl Contracts {
 
 impl Contracts {
     pub fn new(
-        contracts_config: ChainContractsConfig,
+        contracts_config: AllContractsConfig,
         gateway_chain_config: Option<GatewayChainConfig>,
     ) -> Self {
         let ecosystem = contracts_config.ecosystem_contracts.unwrap();
@@ -74,7 +74,7 @@ impl Contracts {
                 erc_20_bridge: contracts_config.l1_erc20_bridge_proxy_addr,
                 base_token_address: contracts_config.base_token_addr,
             },
-            l1_contracts: SpecificContracts {
+            l1_contracts: ChainSpecificContracts {
                 ecosystem_contracts: EcosystemCommonContracts {
                     bridgehub_proxy_addr: ecosystem.bridgehub_proxy_addr,
                     state_transition_proxy_addr: ecosystem.state_transition_proxy_addr,
@@ -89,16 +89,16 @@ impl Contracts {
                     chain_admin: contracts_config.chain_admin_addr,
                 },
                 l2_contracts: L2Contracts {
-                    l2_erc20_default_bridge: contracts_config.l2_erc20_bridge_addr,
-                    l2_shared_bridge_addr: contracts_config.l2_shared_bridge_addr,
-                    l2_legacy_shared_bridge_addr: contracts_config.l2_legacy_shared_bridge_addr,
-                    l2_timestamp_asserter_addr: contracts_config.l2_timestamp_asserter_addr,
-                    l2_da_validator_addr: contracts_config.l2_da_validator_addr,
-                    l2_testnet_paymaster_addr: contracts_config.l2_testnet_paymaster_addr,
+                    erc20_default_bridge: contracts_config.l2_erc20_bridge_addr,
+                    shared_bridge_addr: contracts_config.l2_shared_bridge_addr,
+                    legacy_shared_bridge_addr: contracts_config.l2_legacy_shared_bridge_addr,
+                    timestamp_asserter_addr: contracts_config.l2_timestamp_asserter_addr,
+                    da_validator_addr: contracts_config.l2_da_validator_addr,
+                    testnet_paymaster_addr: contracts_config.l2_testnet_paymaster_addr,
                 },
             },
             gateway_chain_id: gateway_chain_config.as_ref().map(|a| a.gateway_chain_id),
-            gateway_contracts: gateway_chain_config.map(|gateway| SpecificContracts {
+            gateway_contracts: gateway_chain_config.map(|gateway| ChainSpecificContracts {
                 ecosystem_contracts: EcosystemCommonContracts {
                     bridgehub_proxy_addr: L2_BRIDGEHUB_ADDRESS,
                     state_transition_proxy_addr: gateway.state_transition_proxy_addr,
@@ -113,12 +113,12 @@ impl Contracts {
                     chain_admin: gateway.chain_admin_addr,
                 },
                 l2_contracts: L2Contracts {
-                    l2_erc20_default_bridge: contracts_config.l2_erc20_bridge_addr,
-                    l2_shared_bridge_addr: contracts_config.l2_shared_bridge_addr,
-                    l2_legacy_shared_bridge_addr: contracts_config.l2_legacy_shared_bridge_addr,
-                    l2_timestamp_asserter_addr: contracts_config.l2_timestamp_asserter_addr,
-                    l2_da_validator_addr: contracts_config.l2_da_validator_addr,
-                    l2_testnet_paymaster_addr: contracts_config.l2_testnet_paymaster_addr,
+                    erc20_default_bridge: contracts_config.l2_erc20_bridge_addr,
+                    shared_bridge_addr: contracts_config.l2_shared_bridge_addr,
+                    legacy_shared_bridge_addr: contracts_config.l2_legacy_shared_bridge_addr,
+                    timestamp_asserter_addr: contracts_config.l2_timestamp_asserter_addr,
+                    da_validator_addr: contracts_config.l2_da_validator_addr,
+                    testnet_paymaster_addr: contracts_config.l2_testnet_paymaster_addr,
                 },
             }),
             sl_mode: Default::default(),

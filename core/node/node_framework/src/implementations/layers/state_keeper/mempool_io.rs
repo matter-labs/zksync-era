@@ -139,7 +139,7 @@ impl WiringLayer for MempoolIOLayer {
                 .0
                 .current_contracts()
                 .l2_contracts
-                .l2_da_validator_addr,
+                .da_validator_addr,
             self.pubdata_type,
         )?;
 

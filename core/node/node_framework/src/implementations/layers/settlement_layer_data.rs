@@ -11,7 +11,7 @@ use crate::{
     FromContext, IntoContext,
 };
 
-/// Wiring layer for [`PKSigningClient`].
+/// Wiring layer for [`SettlementLayerData`].
 #[derive(Debug)]
 pub struct SettlementLayerData {
     contracts: Contracts,
