@@ -1,5 +1,6 @@
 name: Workflow for testing prover component end-to-end
 on:
+  workflow_dispatch:
   workflow_call:
 
 jobs:
@@ -9,6 +10,7 @@ jobs:
         fail-fast: false
         matrix:
           compressor-mode: ["fflonk", "plonk"]
+          e2e-test-type: ["latest-2-latest", "tag-2-latest", "latest-2-tag", "tag-2-tag"]
     env:
       RUNNER_COMPOSE_FILE: "docker-compose-gpu-runner-cuda-12-0.yml"
 
@@ -29,6 +31,45 @@ jobs:
           echo "RUSTC_WRAPPER=sccache" >> .env
           
           mkdir -p prover_logs_${{matrix.compressor-mode}}
+
+      - name: Identify prover and core versions to run
+        run: |
+          if [ "${{matrix.e2e-test-type}}" = "latest-2-latest" ]; then
+            PROVER_TAG=HEAD
+            CORE_TAG=HEAD
+          elif [ "${{matrix.e2e-test-type}}" = "tag-2-latest" ]; then
+            CORE_TAG=HEAD
+            PROVER_TAG=$(git describe --tags --match "prover-*" --abbrev=0)
+          elif [ "${{matrix.e2e-test-type}}" = "latest-2-tag" ]; then
+            PROVER_TAG=HEAD
+            CORE_TAG=$(git describe --tags --match "core-*" --abbrev=0)
+          else
+            PROVER_TAG=$(git describe --tags --match "prover-*" --abbrev=0)
+            CORE_TAG=$(git describe --tags --match "core-*" --abbrev=0)
+          fi
+          
+          PROVER_COMMIT=$(git rev-list -n 1 "$PROVER_TAG")
+          CORE_COMMIT=$(git rev-list -n 1 "$CORE_TAG")
+
+          echo "PROVER_TAG=$PROVER_TAG" >> .env
+          echo "PROVER_COMMIT=$PROVER_COMMIT" >> .env
+          echo "CORE_TAG=$CORE_TAG" >> .env
+          echo "CORE_COMMIT=$CORE_COMMIT" >> .env
+
+      - name: Verify compatibility matrix
+        run: |
+          LATEST_CORE_TAG=$(git describe --tags --match "core-*" --abbrev=0)
+          LATEST_PROVER_TAG=$(git describe --tags --match "prover-*" --abbrev=0)
+          
+          # Verify that latest prover and core versions are in the compatibility matrix
+          CORE_MAJOR=${LATEST_CORE_TAG%%.*}
+          PROVER_MAJOR=${LATEST_PROVER_TAG%%.*}
+
+          if ! grep -q "\"prover\": $PROVER_MAJOR" prover/compatibility_matrix.json || \
+             ! grep -q "\"core\": \[.*$CORE_MAJOR.*\]" prover/compatibility_matrix.json; then
+            echo "Error: Latest core or prover majors are missing from compatibility_matrix.json"
+            exit 1
+          fi
 
       - name: Start services
         run: |
@@ -61,6 +102,9 @@ jobs:
           ci_run chmod -R +x ./bin
           
           ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup || true
+          
+          git checkout $CORE_COMMIT
+          
           ci_run zkstackup -g --local
           
           ci_run zkstack chain create \
@@ -89,10 +133,20 @@ jobs:
           sudo sed -i 's/is_verifier_pre_fflonk: true/is_verifier_pre_fflonk: false/' general.yaml
           grep "is_verifier_pre_fflonk" general.yaml | awk '{ print $2 }'
 
+      - name: Check out prover and rebuild zkstack
+        run: |
+          git checkout $PROVER_COMMIT
+          ci_run zkstackup -g --local
+
       - name: Prepare prover subsystem
         run: |
           ci_run zkstack prover init-bellman-cuda --clone --verbose
           ci_run zkstack prover setup-keys --mode=download --region=us --verbose
+
+      - name: Check out core and rebuild zkstack
+        run: |
+          git checkout $CORE_COMMIT
+          ci_run zkstackup -g --local
 
       - name: Run server
         run: |
@@ -100,6 +154,12 @@ jobs:
       - name: Run prover gateway
         run: |
           ci_run zkstack prover run --component=gateway --docker=false &>prover_logs_${{matrix.compressor-mode}}/gateway.log &
+
+      - name: Check out prover and rebuild zkstack
+        run: |
+          git checkout $PROVER_COMMIT
+          ci_run zkstackup -g --local
+
       - name: Run Prover Job Monitor
         run: |
           ci_run zkstack prover run --component=prover-job-monitor --docker=false &>prover_logs_${{matrix.compressor-mode}}/prover-job-monitor.log &
@@ -147,7 +207,7 @@ jobs:
         uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874 # v4.4.0
         if: always()
         with:
-          name: prover_logs_${{matrix.compressor-mode}}
+          name: prover_logs_${{matrix.e2e-test-type}}_${{matrix.compressor-mode}}
           path: prover_logs_${{matrix.compressor-mode}}
 
       - name: Show sccache logs
