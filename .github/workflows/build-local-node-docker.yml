@@ -64,6 +64,7 @@ jobs:
       - name: rustup
         run: |
           ci_run rustup show active-toolchain || ci_run rustup toolchain install
+          ci_run rustup toolchain install nightly-2024-08-01-x86_64-unknown-linux-gnu
       
       - name: Install zkstack
         run: |
