@@ -202,4 +202,9 @@ sol! {
         // The number of leaves in the tree
         uint256 numLeaves;
     }
+
+    struct CelestiaZKStackInput {
+        AttestationProof attestationProof;
+        bytes equivalenceProof;
+    }
 }

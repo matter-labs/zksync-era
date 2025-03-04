@@ -26,14 +26,14 @@ use zksync_basic_types::web3::{Log, Filter, BlockNumber, FilterBuilder, CallRequ
 use zksync_basic_types::ethabi::{Contract, Event, ParamType, RawTopicFilter};
 
 use crate::{
-    celestia::sdk::{BlobTxHash, RawCelestiaClient},
+    celestia::{blobstream::{DataRootInclusionProofResult, DataRootInclusionProof, CelestiaZKStackInput}, sdk::{BlobTxHash, RawCelestiaClient}},
     utils::{to_non_retriable_da_error, to_retriable_da_error},
 };
 
 use eq_sdk::{EqClient, types::BlobId, get_keccak_inclusion_response::{ResponseValue as InclusionResponseValue, Status as InclusionResponseStatus}};
 use crate::celestia::blobstream::{TendermintRPCClient, get_latest_block, find_block_range, DataRootInclusionProofResponse, AttestationProof, DataRootTuple, BinaryMerkleProof};
-use alloy_sol_types::SolType;
-use alloy_primitives::{FixedBytes, Uint};
+use alloy_sol_types::{SolType, SolValue};
+use alloy_primitives::{FixedBytes, Uint, Bytes};
 use sp1_sdk::{SP1ProofWithPublicValues};
 
 /// An implementation of the `DataAvailabilityClient` trait that interacts with the Celestia network.
@@ -198,10 +198,25 @@ impl DataAvailabilityClient for CelestiaClient {
         ).await.expect("Failed to find block range");
 
         let tm_rpc_client = TendermintRPCClient::new(self.config.tm_rpc_url.clone());
-        let proof = tm_rpc_client.get_data_root_inclusion_proof(target_height, from.as_u64(), to.as_u64())
+        let data_root_inclusion_proof_string = tm_rpc_client.get_data_root_inclusion_proof(target_height, from.as_u64(), to.as_u64())
             .await
             .map_err(|e| DAError { error: anyhow::anyhow!("Failed to get data root inclusion proof: {}", e), is_retriable: false })?;
-        let data_root_inclusion_proof_data: DataRootInclusionProofResponse = serde_json::from_str(&proof).unwrap();
+        let data_root_inclusion_proof_response: DataRootInclusionProofResponse = serde_json::from_str(&data_root_inclusion_proof_string).unwrap();
+        let data_root_inclusion_proof: DataRootInclusionProof = data_root_inclusion_proof_response.result.proof;
+
+        // data_root_index and total are returned as Strings
+        // Parsing into a Uint<256, 4> would be ugly.
+        // I think u64 is ok, not sure this will work.
+        // Let's find out in testing
+        let data_root_index: u64 = data_root_inclusion_proof.index
+            .parse()
+            .map_err(to_non_retriable_da_error)?;
+        let evm_index: Uint<256, 4> = Uint::from_limbs([0,0,0,data_root_index]);
+
+        let total: u64 = data_root_inclusion_proof.total
+            .parse()
+            .map_err(to_non_retriable_da_error)?;
+        let evm_total: Uint<256, 4> = Uint::from_limbs([0,0,0,total]);
 
         // Convert proof data into AttestationProof
         let data_root_tuple = DataRootTuple {
@@ -210,33 +225,30 @@ impl DataAvailabilityClient for CelestiaClient {
             dataRoot: data_root,
         };
 
-        let side_nodes: Vec<FixedBytes<32>> = data_root_inclusion_proof_data.result.proof.aunts
+        let side_nodes: Vec<FixedBytes<32>> = data_root_inclusion_proof.aunts
             .iter()
             .map(|aunt| FixedBytes::<32>::from_slice(aunt))
             .collect();
 
         let binary_merkle_proof = BinaryMerkleProof {
             sideNodes: side_nodes,
-            key: proof_data.result.proof.index.parse()
-                .map_err(|e| DAError { 
-                    error: anyhow::anyhow!("Failed to parse proof index: {}", e), 
-                    is_retriable: false 
-                })?,
-            num_leaves: proof_data.result.proof.total.parse()
-                .map_err(|e| DAError { 
-                    error: anyhow::anyhow!("Failed to parse total leaves: {}", e), 
-                    is_retriable: false 
-                })?,
+            key: evm_index,
+            numLeaves: evm_total,
         };
 
-        /*let attestation_proof = AttestationProof {
-            tuple_root_nonce: proof_nonce,
+        let attestation_proof = AttestationProof {
+            tupleRootNonce: Uint::<256, 4>::from_limbs(proof_nonce.0),
             tuple: data_root_tuple,
             proof: binary_merkle_proof,
-        };*/
+        };
+
+        let celestia_zkstack_input = CelestiaZKStackInput {
+            attestationProof: attestation_proof,
+            equivalenceProof: Bytes::from(proof.bytes()),
+        };
 
         Ok(Some(InclusionData { 
-            data: vec![]
+            data: celestia_zkstack_input.abi_encode(),
         }))
     }
 
