@@ -272,6 +272,7 @@ impl TxSenderConfig {
             timestamp_asserter_params: None,
         }
     }
+
     pub fn with_timestamp_asserter_params(
         mut self,
         timestamp_asserter_params: TimestampAsserterParams,

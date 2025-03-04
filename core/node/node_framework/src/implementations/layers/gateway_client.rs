@@ -1,11 +1,12 @@
 use anyhow::Context;
 use zksync_node_framework_derive::FromContext;
-use zksync_types::{settlement::SettlementMode, url::SensitiveUrl, L1ChainId};
+use zksync_types::{settlement::SettlementMode, url::SensitiveUrl};
 use zksync_web3_decl::client::Client;
 
 use crate::{
     implementations::resources::{
-        eth_interface::GatewayEthInterfaceResource, settlement_layer::SettlementModeResource,
+        eth_interface::GatewayEthInterfaceResource,
+        settlement_layer::{SettlementModeResource, SlChainIdResource},
     },
     wiring_layer::{WiringError, WiringLayer},
     IntoContext,
@@ -14,19 +15,13 @@ use crate::{
 /// Wiring layer for Ethereum client.
 #[derive(Debug)]
 pub struct GatewayClientLayer {
-    l1_chain_id: L1ChainId,
     l1_rpc_url: SensitiveUrl,
     gateway_rpc_url: Option<SensitiveUrl>,
 }
 
 impl GatewayClientLayer {
-    pub fn new(
-        l1_chain_id: L1ChainId,
-        l1_rpc_url: SensitiveUrl,
-        gateway_rpc_url: Option<SensitiveUrl>,
-    ) -> Self {
+    pub fn new(l1_rpc_url: SensitiveUrl, gateway_rpc_url: Option<SensitiveUrl>) -> Self {
         Self {
-            l1_chain_id,
             l1_rpc_url,
             gateway_rpc_url,
         }
@@ -37,6 +32,7 @@ impl GatewayClientLayer {
 #[context(crate = crate)]
 pub struct Input {
     initial_settlement_mode: SettlementModeResource,
+    sl_chain_id_resource: SlChainIdResource,
 }
 
 #[derive(Debug, IntoContext)]
@@ -59,15 +55,13 @@ impl WiringLayer for GatewayClientLayer {
             query_client_gateway: match input.initial_settlement_mode.0 {
                 SettlementMode::SettlesToL1 => {
                     let mut builder = Client::http(self.l1_rpc_url).context("Client::new()")?;
-                    builder = builder.for_network(self.l1_chain_id.into());
+                    builder = builder.for_network(input.sl_chain_id_resource.0.into());
                     GatewayEthInterfaceResource(Box::new(builder.build()))
                 }
                 SettlementMode::Gateway => {
                     let mut builder =
                         Client::http(self.gateway_rpc_url.unwrap()).context("Client::new()")?;
-                    // TODO set proper chain id
-                    // builder =
-                    //     builder.for_network(input.contracts.0.gateway_chain_id().unwrap().into());
+                    builder = builder.for_network(input.sl_chain_id_resource.0.into());
                     GatewayEthInterfaceResource(Box::new(builder.build()))
                 }
             },

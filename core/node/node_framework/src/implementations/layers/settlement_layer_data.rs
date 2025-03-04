@@ -1,12 +1,18 @@
+use anyhow::Context;
 use zksync_config::{configs::contracts::ecosystem::L1SpecificContracts, SettlementLayerContracts};
 use zksync_contracts::getters_facet_contract;
+use zksync_eth_client::EthInterface;
 use zksync_gateway_migrator::get_settlement_layer;
+use zksync_types::settlement::SettlementMode;
 
 use crate::{
     implementations::resources::{
-        contracts::{L1EcosystemContractsResource, SettlementLayerContractsResource},
-        eth_interface::EthInterfaceResource,
-        settlement_layer::SettlementModeResource,
+        contracts::{
+            L1ChainContractsResource, L1EcosystemContractsResource,
+            SettlementLayerContractsResource,
+        },
+        eth_interface::{EthInterfaceResource, L2InterfaceResource},
+        settlement_layer::{SettlementModeResource, SlChainIdResource},
     },
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
@@ -35,6 +41,7 @@ impl SettlementLayerData {
 #[context(crate = crate)]
 pub struct Input {
     pub eth_client: EthInterfaceResource,
+    pub l2_eth_client: Option<L2InterfaceResource>,
 }
 
 #[derive(Debug, IntoContext)]
@@ -43,6 +50,8 @@ pub struct Output {
     initial_settlement_mode: SettlementModeResource,
     contracts: SettlementLayerContractsResource,
     l1_ecosystem_contracts: L1EcosystemContractsResource,
+    l1_contracts: L1ChainContractsResource,
+    sl_chain_id: SlChainIdResource,
 }
 
 #[async_trait::async_trait]
@@ -66,6 +75,21 @@ impl WiringLayer for SettlementLayerData {
         )
         .await?;
         contracts.set_settlement_mode(initial_sl_mode);
+        let sl_chain_id = match initial_sl_mode {
+            SettlementMode::SettlesToL1 => input
+                .eth_client
+                .0
+                .fetch_chain_id()
+                .await
+                .context("fetch_chain_id")?,
+            SettlementMode::Gateway => input
+                .l2_eth_client
+                .expect("Should be present for gateway settlement mode")
+                .0
+                .fetch_chain_id()
+                .await
+                .context("fetch_chain_id")?,
+        };
 
         Ok(Output {
             initial_settlement_mode: SettlementModeResource(initial_sl_mode),
@@ -73,6 +97,8 @@ impl WiringLayer for SettlementLayerData {
             l1_ecosystem_contracts: L1EcosystemContractsResource(
                 self.l1_ecosystem_contracts.clone(),
             ),
+            l1_contracts: L1ChainContractsResource(contracts.l1_contracts().clone()),
+            sl_chain_id: SlChainIdResource(sl_chain_id),
         })
     }
 }
