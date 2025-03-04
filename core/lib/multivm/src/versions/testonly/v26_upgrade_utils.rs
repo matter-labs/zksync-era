@@ -1,7 +1,4 @@
-use std::{
-    collections::{HashMap, HashSet},
-    str::FromStr,
-};
+use std::collections::{HashMap, HashSet};
 
 use ethabi::{Contract, Token};
 use zksync_contracts::{l2_native_token_vault, load_sys_contract, read_l1_zk_contract};
