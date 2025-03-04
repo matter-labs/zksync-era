@@ -255,27 +255,10 @@ impl ZkosStateKeeper {
                 );
             }
 
-            let state_diff = result
-                .storage_writes
-                .iter()
-                .map(|write| (bytes32_to_h256(write.key), bytes32_to_h256(write.value)))
-                .collect();
-            let factory_dep_diff = result
-                .published_preimages
-                .iter()
-                .map(|(hash, bytecode)| (bytes32_to_h256(*hash), bytecode.clone()))
-                .collect();
-            let enum_index_diff = Default::default(); // TODO: works for now as enum indices are not queried.
-            let diff = BatchDiff {
-                state_diff,
-                enum_index_diff,
-                factory_dep_diff,
-            };
-            self.storage_factory
-                .push_batch_diff(cursor.l1_batch, diff)
-                .await;
+            updates_manager.extend_with_block_result(executed_transactions, result.clone());
 
-            updates_manager.extend_with_block_result(executed_transactions, result);
+            self.push_block_storage_diff(result, &mut updates_manager)
+                .await?;
 
             self.output_handler
                 .handle_block(Arc::new(updates_manager))
@@ -385,6 +368,54 @@ impl ZkosStateKeeper {
         }
 
         tracing::info!("Preimage recovery complete");
+        Ok(())
+    }
+
+    async fn push_block_storage_diff(
+        &mut self,
+        batch_output: BatchOutput,
+        updates_manager: &mut UpdatesManager,
+    ) -> Result<(), Error> {
+        let state_diff = batch_output
+            .storage_writes
+            .into_iter()
+            .map(|write| (bytes32_to_h256(write.key), bytes32_to_h256(write.value)))
+            .collect();
+        let factory_dep_diff = batch_output
+            .published_preimages
+            .into_iter()
+            .map(|(hash, bytecode)| (bytes32_to_h256(hash), bytecode))
+            .collect();
+
+        let mut connection = self
+            .pool
+            .connection_tagged("state_keeper")
+            .await
+            .map_err(DalError::generalize)?;
+        let initial_writes = updates_manager.get_initial_writes(&mut connection).await?;
+        let mut next_index = connection
+            .storage_logs_dedup_dal()
+            .max_enumeration_index_by_l1_batch(updates_manager.l1_batch_number - 1)
+            .await
+            .map_err(DalError::generalize)?
+            .unwrap_or(0)
+            + 1;
+        let enum_index_diff = initial_writes
+            .iter()
+            .enumerate()
+            .map(|(i, key)| (*key, next_index + i as u64))
+            .collect();
+        updates_manager.initial_writes = Some((initial_writes, next_index));
+
+        let diff = BatchDiff {
+            state_diff,
+            enum_index_diff,
+            factory_dep_diff,
+        };
+        self.storage_factory
+            .push_batch_diff(updates_manager.l1_batch_number, diff)
+            .await;
+
         Ok(())
     }
 

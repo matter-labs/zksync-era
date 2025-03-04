@@ -23,7 +23,7 @@ pub use self::{
     shadow_storage::ShadowStorage,
     storage_factory::{
         ArcOwnedStorage, BatchDiff, CommonStorage, OwnedStorage, ReadStorageFactory,
-        RocksdbWithMemory, SnapshotStorage,
+        RocksdbWithMemory, SnapshotStorage, BatchDiffs
     },
 };
 

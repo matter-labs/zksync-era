@@ -1,12 +1,11 @@
-use std::{fmt::Debug, sync::atomic::AtomicU32};
-
+use std::collections::VecDeque;
 use anyhow::Context;
 use async_trait::async_trait;
-use tokio::sync::{watch, RwLock};
+use tokio::sync::{watch, Mutex};
 use zksync_dal::{ConnectionPool, Core};
 use zksync_state::{
     AsyncCatchupTask, BatchDiff, OwnedStorage, ReadStorageFactory, RocksdbCell,
-    RocksdbStorageOptions,
+    RocksdbStorageOptions, BatchDiffs
 };
 use zksync_types::L1BatchNumber;
 
@@ -19,7 +18,7 @@ use zksync_types::L1BatchNumber;
 pub struct AsyncRocksdbCache {
     pool: ConnectionPool<Core>,
     rocksdb_cell: RocksdbCell,
-    batch_diffs: RwLock<(Vec<BatchDiff>, Option<L1BatchNumber>)>,
+    batch_diffs: Mutex<BatchDiffs>,
 }
 
 impl AsyncRocksdbCache {
@@ -27,31 +26,31 @@ impl AsyncRocksdbCache {
         pool: ConnectionPool<Core>,
         state_keeper_db_path: String,
         state_keeper_db_options: RocksdbStorageOptions,
+        catchup_indefinitely: bool,
     ) -> (Self, AsyncCatchupTask) {
-        let (task, rocksdb_cell) = AsyncCatchupTask::new(pool.clone(), state_keeper_db_path);
+        let (task, rocksdb_cell) =
+            AsyncCatchupTask::new(pool.clone(), state_keeper_db_path, catchup_indefinitely);
         (
             Self {
                 pool,
                 rocksdb_cell,
-                batch_diffs: Default::default(),
+                batch_diffs: Mutex::new(BatchDiffs::new()),
             },
             task.with_db_options(state_keeper_db_options),
         )
     }
 
     pub async fn push_batch_diff(&self, l1_batch_number: L1BatchNumber, diff: BatchDiff) {
-        let mut lock = self.batch_diffs.write().await;
-        lock.0.push(diff);
-        lock.1 = Some(l1_batch_number);
+        self.batch_diffs.lock().await.push(l1_batch_number, diff);
     }
 }
 
 #[async_trait]
 impl ReadStorageFactory for AsyncRocksdbCache {
-    #[tracing::instrument(skip(self, stop_receiver))]
+    #[tracing::instrument(skip(self, _stop_receiver))]
     async fn access_storage(
         &self,
-        stop_receiver: &watch::Receiver<bool>,
+        _stop_receiver: &watch::Receiver<bool>,
         l1_batch_number: L1BatchNumber,
     ) -> anyhow::Result<Option<OwnedStorage>> {
         let initial_state = self.rocksdb_cell.ensure_initialized().await?;
@@ -69,19 +68,11 @@ impl ReadStorageFactory for AsyncRocksdbCache {
             self.rocksdb_cell.get()
         };
 
-        let mut connection = self
-            .pool
-            .connection_tagged("state_keeper")
-            .await
-            .context("Failed getting a Postgres connection")?;
         if let Some(rocksdb) = rocksdb {
-            let mut lock = self.batch_diffs.write().await;
-            let Some((storage, rocksdb_l1_batch_number)) = OwnedStorage::rocksdb(
-                &mut connection,
+            let mut batch_diffs_lock = self.batch_diffs.lock().await;
+            let Some((storage, rocksdb_l1_batch_number)) = OwnedStorage::rocksdb_with_storage(
                 rocksdb.clone(),
-                &lock.0,
-                lock.1,
-                stop_receiver,
+                &batch_diffs_lock,
                 l1_batch_number,
             )
             .await
@@ -90,16 +81,15 @@ impl ReadStorageFactory for AsyncRocksdbCache {
                 return Ok(None);
             };
 
-            if let Some(first_diff_batch_number) = lock.1 {
-                if first_diff_batch_number < rocksdb_l1_batch_number {
-                    for _ in 0..(rocksdb_l1_batch_number.0 - first_diff_batch_number.0) {
-                        lock.0.remove(0);
-                    }
-                }
-            }
+            batch_diffs_lock.trim_start(rocksdb_l1_batch_number);
 
             Ok(Some(storage))
         } else {
+            let connection = self
+                .pool
+                .connection_tagged("state_keeper")
+                .await
+                .context("Failed getting a Postgres connection")?;
             Ok(Some(
                 OwnedStorage::postgres(connection, l1_batch_number)
                     .await?

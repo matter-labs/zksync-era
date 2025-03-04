@@ -15,7 +15,7 @@ use zksync_zkos_vm_runner::zkos_conversions::{bytes32_to_h256, h256_to_bytes32};
 
 use self::metrics::{SnapshotStage, SNAPSHOT_METRICS};
 pub use self::{
-    rocksdb_with_memory::{BatchDiff, RocksdbWithMemory},
+    rocksdb_with_memory::{BatchDiff, RocksdbWithMemory, BatchDiffs},
     snapshot::SnapshotStorage,
 };
 use crate::{PostgresStorage, RocksdbStorage, RocksdbStorageBuilder, StateKeeperColumnFamily};
@@ -87,30 +87,25 @@ impl CommonStorage<'static> {
         PostgresStorage::new_async(Handle::current(), connection, l2_block_number, true).await
     }
 
-    /// Catches up RocksDB synchronously (i.e. assumes the gap is small) and
-    /// returns a [`ReadStorage`] implementation backed by caught-up RocksDB.
+    /// Returns a [`ReadStorage`] implementation backed by [`RocksDBWithMemory`]
+    ///     and result of [`RocksdbStorage::l1_batch_number`].
+    /// RocksDB isn't caught up, instead batch diffs are used to fill the gap.
+    /// Note, as long as `RocksDBWithMemory` objects are held for `l1_batch_number >= X`,
+    /// than it's ok if RocksDB is caught up in parallel for L1 batch number up to X
+    /// because affected storage diff will be read from memory anyway.
     ///
     /// # Errors
     ///
-    /// Propagates RocksDB and Postgres errors.
-    pub async fn rocksdb(
-        connection: &mut Connection<'_, Core>,
+    /// Propagates RocksDB errors.
+    pub async fn rocksdb_with_storage(
         rocksdb: RocksDB<StateKeeperColumnFamily>,
-        batch_diffs: &[BatchDiff],
-        first_diff_number: Option<L1BatchNumber>,
-        stop_receiver: &watch::Receiver<bool>,
+        batch_diffs: &BatchDiffs,
         l1_batch_number: L1BatchNumber,
     ) -> anyhow::Result<Option<(Self, L1BatchNumber)>> {
         tracing::debug!("Catching up RocksDB synchronously");
         let rocksdb_builder = RocksdbStorageBuilder::from_rocksdb(rocksdb);
-        let rocksdb = rocksdb_builder
-            .synchronize(connection, stop_receiver, None)
-            .await
-            .context("Failed to catch up state keeper RocksDB storage to Postgres")?;
-        let Some(rocksdb) = rocksdb else {
-            tracing::info!("Synchronizing RocksDB interrupted");
-            return Ok(None);
-        };
+
+        let rocksdb = rocksdb_builder.skip_synchronize();
         let rocksdb_l1_batch_number = rocksdb
             .l1_batch_number()
             .await
@@ -120,24 +115,15 @@ impl CommonStorage<'static> {
             tracing::debug!(%rocksdb_l1_batch_number, "Using RocksDB-based storage");
             Ok(Some((rocksdb.into(), rocksdb_l1_batch_number)))
         } else if l1_batch_number + 1 > rocksdb_l1_batch_number {
+            let effective_storage_l1_batch_number = l1_batch_number + 1;
             tracing::debug!(
-                "Using RocksDBWithMemory-based storage with {}",
-                l1_batch_number + 1
+                %rocksdb_l1_batch_number, %effective_storage_l1_batch_number,
+                "Using RocksDBWithMemory-based storage",
             );
 
-            let first_diff_number = first_diff_number.unwrap();
-            let skip = rocksdb_l1_batch_number.0 - first_diff_number.0;
-            let take = l1_batch_number.0 - rocksdb_l1_batch_number.0 + 1;
-
-            let batch_diffs = batch_diffs
-                .iter()
-                .skip(skip as usize)
-                .take(take as usize)
-                .cloned()
-                .collect();
             let storage = RocksdbWithMemory {
                 rocksdb,
-                batch_diffs,
+                batch_diffs: batch_diffs.range(rocksdb_l1_batch_number, l1_batch_number),
             };
 
             Ok(Some((storage.into(), rocksdb_l1_batch_number)))

@@ -130,6 +130,7 @@ impl Tester {
                     self.pool(),
                     self.state_keeper_db_path(),
                     RocksdbStorageOptions::default(),
+                    false,
                 );
                 let handle = tokio::task::spawn(async move {
                     let (_stop_sender, stop_receiver) = watch::channel(false);
@@ -200,6 +201,7 @@ impl Tester {
             self.pool(),
             self.state_keeper_db_path(),
             RocksdbStorageOptions::default(),
+            false,
         );
         let (_, stop_receiver) = watch::channel(false);
         let handle = tokio::task::spawn(async move { task.run(stop_receiver).await.unwrap() });

@@ -126,7 +126,7 @@ impl From<anyhow::Error> for RocksdbSyncError {
 }
 
 /// Options for [`RocksdbStorage`].
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct RocksdbStorageOptions {
     /// Size of the RocksDB block cache in bytes. The default value is 128 MiB.
     pub block_cache_capacity: usize,
@@ -251,6 +251,27 @@ impl RocksdbStorageBuilder {
         }
     }
 
+    pub fn skip_synchronize(self) -> RocksdbStorage {
+        self.0
+    }
+
+    pub async fn update_from_postgres(
+        &mut self,
+        storage: &mut Connection<'_, Core>,
+        stop_receiver: &watch::Receiver<bool>,
+        to_l1_batch_number: Option<L1BatchNumber>,
+    ) -> anyhow::Result<Option<()>> {
+        let mut inner = &mut self.0;
+        match inner
+            .update_from_postgres(storage, stop_receiver, to_l1_batch_number)
+            .await
+        {
+            Ok(()) => Ok(Some(())),
+            Err(RocksdbSyncError::Interrupted) => Ok(None),
+            Err(RocksdbSyncError::Internal(err)) => Err(err),
+        }
+    }
+
     /// Reverts the state to a previous L1 batch number.
     ///
     /// # Errors
@@ -356,6 +377,11 @@ impl RocksdbStorage {
         } else {
             latest_l1_batch_number
         };
+
+        if current_l1_batch_number == to_l1_batch_number + 1 {
+            return Ok(());
+        }
+
         tracing::debug!("Loading storage for l1 batch number {to_l1_batch_number}");
 
         if current_l1_batch_number > to_l1_batch_number + 1 {

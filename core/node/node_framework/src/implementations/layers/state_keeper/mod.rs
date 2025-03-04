@@ -97,6 +97,7 @@ impl WiringLayer for StateKeeperLayer {
             master_pool.get_custom(2).await?,
             self.state_keeper_db_path,
             self.rocksdb_options,
+            false,
         );
 
         let state_keeper = ZkSyncStateKeeper::new(
@@ -155,7 +156,11 @@ impl Task for StateKeeperTask {
 #[async_trait::async_trait]
 impl Task for AsyncCatchupTask {
     fn kind(&self) -> TaskKind {
-        TaskKind::OneshotTask
+        if self.is_oneshot() {
+            TaskKind::OneshotTask
+        } else {
+            TaskKind::Task
+        }
     }
 
     fn id(&self) -> TaskId {

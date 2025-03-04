@@ -1,4 +1,7 @@
-use std::{error, fmt, time::Instant};
+use std::{
+    error, fmt,
+    time::{Duration, Instant},
+};
 
 use anyhow::Context;
 use tokio::sync::watch;
@@ -7,7 +10,9 @@ use zksync_shared_metrics::{SnapshotRecoveryStage, APP_METRICS};
 use zksync_storage::RocksDB;
 use zksync_types::L1BatchNumber;
 
-use crate::{RocksdbStorage, RocksdbStorageOptions, StateKeeperColumnFamily};
+use crate::{
+    RocksdbStorage, RocksdbStorageBuilder, RocksdbStorageOptions, StateKeeperColumnFamily,
+};
 
 /// Initial RocksDB cache state returned by [`RocksdbCell::ensure_initialized()`].
 #[derive(Debug, Clone)]
@@ -100,12 +105,17 @@ pub struct AsyncCatchupTask {
     initial_state_sender: watch::Sender<Option<InitialRocksdbState>>,
     db_sender: watch::Sender<Option<RocksDB<StateKeeperColumnFamily>>>,
     to_l1_batch_number: Option<L1BatchNumber>,
+    catchup_indefinitely: bool,
 }
 
 impl AsyncCatchupTask {
     /// Create a new catch-up task with the provided Postgres and RocksDB instances. Optionally
     /// accepts the last L1 batch number to catch up to (defaults to latest if not specified).
-    pub fn new(pool: ConnectionPool<Core>, state_keeper_db_path: String) -> (Self, RocksdbCell) {
+    pub fn new(
+        pool: ConnectionPool<Core>,
+        state_keeper_db_path: String,
+        catchup_indefinitely: bool,
+    ) -> (Self, RocksdbCell) {
         let (initial_state_sender, initial_state) = watch::channel(None);
         let (db_sender, db) = watch::channel(None);
         let this = Self {
@@ -115,6 +125,7 @@ impl AsyncCatchupTask {
             initial_state_sender,
             db_sender,
             to_l1_batch_number: None,
+            catchup_indefinitely,
         };
         (this, RocksdbCell { initial_state, db })
     }
@@ -174,12 +185,48 @@ impl AsyncCatchupTask {
             .await
             .context("Failed to catch up RocksDB to Postgres")?;
         drop(connection);
-        if let Some(rocksdb) = rocksdb {
-            self.db_sender.send_replace(Some(rocksdb.into_rocksdb()));
+
+        let rocksdb = rocksdb.map(|db| db.into_rocksdb());
+        if let Some(rocksdb) = &rocksdb {
+            self.db_sender.send_replace(Some(rocksdb.clone()));
         } else {
             tracing::info!("Synchronizing RocksDB interrupted");
         }
+
+        if self.catchup_indefinitely {
+            if let Some(rocksdb) = rocksdb {
+                self.update_loop(stop_receiver, rocksdb).await?;
+            }
+        }
+
         Ok(())
+    }
+
+    async fn update_loop(
+        self,
+        stop_receiver: watch::Receiver<bool>,
+        rocksdb: RocksDB<StateKeeperColumnFamily>,
+    ) -> anyhow::Result<()> {
+        const SLEEP_INTERVAL: Duration = Duration::from_millis(10);
+
+        let mut rocksdb_builder = RocksdbStorageBuilder::from_rocksdb(rocksdb);
+        let mut connection = self.pool.connection_tagged("state_keeper").await?;
+
+        loop {
+            if *stop_receiver.borrow() {
+                return Ok(());
+            }
+            rocksdb_builder
+                .update_from_postgres(&mut connection, &stop_receiver, None)
+                .await
+                .context("Failed to catch up RocksDB to Postgres")?;
+
+            tokio::time::sleep(SLEEP_INTERVAL).await;
+        }
+    }
+
+    pub fn is_oneshot(&self) -> bool {
+        !self.catchup_indefinitely
     }
 }
 
@@ -206,8 +253,11 @@ mod tests {
         drop(conn);
 
         let temp_dir = TempDir::new().unwrap();
-        let (task, rocksdb_cell) =
-            AsyncCatchupTask::new(pool.clone(), temp_dir.path().to_str().unwrap().to_owned());
+        let (task, rocksdb_cell) = AsyncCatchupTask::new(
+            pool.clone(),
+            temp_dir.path().to_str().unwrap().to_owned(),
+            false,
+        );
         let (_stop_sender, stop_receiver) = watch::channel(false);
         let task_handle = tokio::spawn(task.run(stop_receiver));
 
@@ -225,7 +275,7 @@ mod tests {
         drop(rocksdb_cell); // should be enough to release RocksDB lock
 
         let (task, rocksdb_cell) =
-            AsyncCatchupTask::new(pool, temp_dir.path().to_str().unwrap().to_owned());
+            AsyncCatchupTask::new(pool, temp_dir.path().to_str().unwrap().to_owned(), false);
         let (_stop_sender, stop_receiver) = watch::channel(false);
         let task_handle = tokio::spawn(task.run(stop_receiver));
 
@@ -258,8 +308,11 @@ mod tests {
         drop(conn);
 
         let temp_dir = TempDir::new().unwrap();
-        let (task, rocksdb_cell) =
-            AsyncCatchupTask::new(pool.clone(), temp_dir.path().to_str().unwrap().to_owned());
+        let (task, rocksdb_cell) = AsyncCatchupTask::new(
+            pool.clone(),
+            temp_dir.path().to_str().unwrap().to_owned(),
+            false,
+        );
         let (stop_sender, stop_receiver) = watch::channel(false);
         match scenario {
             CancellationScenario::DropTask => drop(task),

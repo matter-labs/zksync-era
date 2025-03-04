@@ -563,6 +563,7 @@ impl StateKeeperRunner {
                     .to_string_lossy()
                     .into(),
                 Default::default(),
+                false,
             );
             s.spawn_bg({
                 let stop_recv = stop_recv.clone();

@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use zk_os_forward_system::run::{BatchOutput, ExecutionResult, TxOutput};
+use zksync_dal::{Connection, Core, CoreDal};
 use zksync_state_keeper::io::IoCursor;
 use zksync_types::{
     fee_model::BatchFeeInput,
@@ -25,6 +26,7 @@ pub struct UpdatesManager {
     protocol_version: ProtocolVersionId,
     pub l2_block: L2BlockUpdates,
     pub gas_limit: u64,
+    pub initial_writes: Option<(Vec<H256>, u64)>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -150,6 +152,7 @@ impl UpdatesManager {
             protocol_version,
             gas_limit,
             l2_block: L2BlockUpdates::new(l1_batch_number, l2_block_number),
+            initial_writes: None,
         }
     }
 
@@ -213,6 +216,34 @@ impl UpdatesManager {
                 .extend_from_executed_transaction(tx, tx_output);
         }
         self.l2_block.extend_from_block_output(block_result);
+    }
+
+    pub async fn get_initial_writes(
+        &self,
+        connection: &mut Connection<'_, Core>,
+    ) -> anyhow::Result<Vec<H256>> {
+        if let Some((initial_writes, _)) = self.initial_writes.clone() {
+            return Ok(initial_writes);
+        }
+
+        let initial_writes: Vec<_> = {
+            let deduplicated_writes_hashed_keys_iter = self
+                .l2_block
+                .storage_logs
+                .iter()
+                .map(|log| log.key.hashed_key());
+            let deduplicated_writes_hashed_keys: Vec<_> =
+                deduplicated_writes_hashed_keys_iter.clone().collect();
+            let non_initial_writes = connection
+                .storage_logs_dedup_dal()
+                .filter_written_slots(&deduplicated_writes_hashed_keys)
+                .await?;
+            deduplicated_writes_hashed_keys_iter
+                .filter(|hashed_key| !non_initial_writes.contains(hashed_key))
+                .collect()
+        };
+
+        Ok(initial_writes)
     }
 }
 

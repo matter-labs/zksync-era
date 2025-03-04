@@ -317,22 +317,7 @@ impl UpdatesManager {
             )
             .await?;
 
-        let initial_writes: Vec<_> = {
-            let deduplicated_writes_hashed_keys_iter = self
-                .l2_block
-                .storage_logs
-                .iter()
-                .map(|log| log.key.hashed_key());
-            let deduplicated_writes_hashed_keys: Vec<_> =
-                deduplicated_writes_hashed_keys_iter.clone().collect();
-            let non_initial_writes = transaction
-                .storage_logs_dedup_dal()
-                .filter_written_slots(&deduplicated_writes_hashed_keys)
-                .await?;
-            deduplicated_writes_hashed_keys_iter
-                .filter(|hashed_key| !non_initial_writes.contains(hashed_key))
-                .collect()
-        };
+        let initial_writes = self.get_initial_writes(&mut transaction).await?;
         transaction
             .storage_logs_dedup_dal()
             .insert_initial_writes(self.l1_batch_number, &initial_writes)
