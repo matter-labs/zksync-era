@@ -503,6 +503,7 @@ impl TxSender {
         Ok(())
     }
 
+    // TODO: modify this to allow keyed nonces
     async fn validate_account_nonce(&self, tx: &L2Tx) -> Result<(), SubmitTxError> {
         let Nonce(expected_nonce) = self
             .get_expected_nonce(tx.initiator_account())
@@ -549,8 +550,6 @@ impl TxSender {
             .with_context(|| {
                 format!("failed getting nonce for address {initiator_account:?} at L2 block #{latest_block_number}")
             })?;
-        let nonce = u32::try_from(nonce)
-            .map_err(|err| anyhow::anyhow!("failed converting nonce to u32: {err}"))?;
         Ok(Nonce(nonce))
     }
 

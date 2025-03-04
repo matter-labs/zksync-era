@@ -63,11 +63,26 @@ fn get_address_mapping_key(address: &Address, position: H256) -> H256 {
     ))
 }
 
+fn get_uint_mapping_key(value: U256, position: H256) -> H256 {
+    H256(keccak256(
+        &[u256_to_h256(value).as_bytes(), position.as_bytes()].concat(),
+    ))
+}
+
 pub fn get_nonce_key(account: &Address) -> StorageKey {
     let nonce_manager = AccountTreeId::new(NONCE_HOLDER_ADDRESS);
 
     // The `minNonce` (used as nonce for EOAs) is stored in a mapping inside the `NONCE_HOLDER` system contract
     let key = get_address_mapping_key(account, H256::zero());
+
+    StorageKey::new(nonce_manager, key)
+}
+
+pub fn get_keyed_nonce_key(account: &Address, nonce_key: U256) -> StorageKey {
+    let nonce_manager = AccountTreeId::new(NONCE_HOLDER_ADDRESS);
+
+    let mapping_key = get_address_mapping_key(account, u256_to_h256(2.into()));
+    let key = get_uint_mapping_key(nonce_key, mapping_key);
 
     StorageKey::new(nonce_manager, key)
 }

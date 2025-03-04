@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE transactions\n            SET\n                in_mempool = FALSE\n            FROM (\n                SELECT\n                    UNNEST($1::bytea []) AS address,\n                    UNNEST($2::numeric []) AS nonce_key\n            ) AS s\n            WHERE\n                transactions.in_mempool = TRUE\n                AND transactions.initiator_address = s.address\n                AND transactions.nonce_key = s.nonce_key\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "ByteaArray",
+        "NumericArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "eb9b08297f78d423cd17f9844497d71b366d20f4ec2dafb727e65d246e8784d5"
+}

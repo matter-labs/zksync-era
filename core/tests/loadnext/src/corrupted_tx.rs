@@ -87,14 +87,14 @@ impl EthereumSigner for CorruptedSigner {
 mod tests {
     use zksync_eth_signer::PrivateKeySigner;
     use zksync_types::{
-        fee::Fee, tokens::ETHEREUM_ADDRESS, Address, K256PrivateKey, L2ChainId, Nonce,
+        fee::Fee, tokens::ETHEREUM_ADDRESS, Address, K256PrivateKey, L2ChainId, Nonce, U256,
     };
 
     use super::*;
 
     const AMOUNT: u64 = 100;
     const FEE: u64 = 100;
-    const NONCE: Nonce = Nonce(1);
+    const NONCE: Nonce = Nonce(U256([1, 0, 0, 0])); // NONCE = 1
 
     fn get_signer(chain_id: L2ChainId) -> Signer<PrivateKeySigner> {
         let eth_pk = K256PrivateKey::random();

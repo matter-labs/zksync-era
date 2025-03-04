@@ -695,10 +695,10 @@ impl HttpTest for TransactionCountTest {
         let test_address = Address::repeat_byte(11);
         let mut storage = pool.connection().await?;
         let mut l2_block_number = L2BlockNumber(0);
-        for nonce in [0, 1] {
+        for nonce in [0u32, 1] {
             let mut committed_tx = create_l2_transaction(10, 200);
             committed_tx.common_data.initiator_address = test_address;
-            committed_tx.common_data.nonce = Nonce(nonce);
+            committed_tx.common_data.nonce = Nonce(nonce.into());
             l2_block_number += 1;
             store_l2_block(
                 &mut storage,
@@ -721,7 +721,7 @@ impl HttpTest for TransactionCountTest {
 
         let mut pending_tx = create_l2_transaction(10, 200);
         pending_tx.common_data.initiator_address = test_address;
-        pending_tx.common_data.nonce = Nonce(2);
+        pending_tx.common_data.nonce = Nonce(2.into());
         storage
             .transactions_dal()
             .insert_transaction_l2(
@@ -804,7 +804,7 @@ impl HttpTest for TransactionCountAfterSnapshotRecoveryTest {
 
         let mut pending_tx = create_l2_transaction(10, 200);
         pending_tx.common_data.initiator_address = test_address;
-        pending_tx.common_data.nonce = Nonce(3);
+        pending_tx.common_data.nonce = Nonce(3.into());
         let mut storage = pool.connection().await?;
         storage
             .transactions_dal()
