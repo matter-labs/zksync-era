@@ -196,7 +196,6 @@ fn pretty_print_proof(result: &FriProofWrapper) {
                 proof.numeric_circuit_type(),
                 proof.short_description()
             );
-            println!("FRI proof written to fri_proof.json");
         }
         FriProofWrapper::Recursive(proof) => {
             println!(
