@@ -62,8 +62,8 @@ jobs:
           LATEST_PROVER_TAG=$(git describe --tags --match "prover-*" --abbrev=0)
           
           # Verify that latest prover and core versions are in the compatibility matrix
-          CORE_MAJOR=${LATEST_CORE_TAG%%.*}
-          PROVER_MAJOR=${LATEST_PROVER_TAG%%.*}
+          CORE_MAJOR=$(echo "$LATEST_CORE_TAG" | sed 's/core-v\([0-9]*\).*/\1/')
+          PROVER_MAJOR=$(echo "$LATEST_PROVER_TAG" | sed 's/prover-v\([0-9]*\).*/\1/')
 
           if ! grep -q "\"prover\": $PROVER_MAJOR" prover/compatibility_matrix.json || \
              ! grep -q "\"core\": \[.*$CORE_MAJOR.*\]" prover/compatibility_matrix.json; then
