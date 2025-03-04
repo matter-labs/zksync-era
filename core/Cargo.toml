@@ -253,16 +253,16 @@ bellman = { package = "zksync_bellman", version = "=0.30.13" }
 zksync_vm2 = { git = "https://github.com/matter-labs/vm2.git", rev = "3841f5a430288a63c8207853eca11560bf7a5712" }
 
 # Consensus dependencies.
-zksync_concurrency = "=0.8.0"
-zksync_consensus_bft = "=0.8.0"
-zksync_consensus_crypto = "=0.8.0"
-zksync_consensus_executor = "=0.8.0"
-zksync_consensus_network = "=0.8.0"
-zksync_consensus_roles = "=0.8.0"
-zksync_consensus_storage = "=0.8.0"
-zksync_consensus_utils = "=0.8.0"
-zksync_protobuf = "=0.8.0"
-zksync_protobuf_build = "=0.8.0"
+zksync_concurrency = "=0.9.0"
+zksync_consensus_bft = "=0.9.0"
+zksync_consensus_crypto = "=0.9.0"
+zksync_consensus_executor = "=0.9.0"
+zksync_consensus_network = "=0.9.0"
+zksync_consensus_roles = "=0.9.0"
+zksync_consensus_storage = "=0.9.0"
+zksync_consensus_utils = "=0.9.0"
+zksync_protobuf = "=0.9.0"
+zksync_protobuf_build = "=0.9.0"
 
 # "Local" dependencies
 zksync_multivm = { version = "26.5.0-non-semver-compat", path = "lib/multivm" }
