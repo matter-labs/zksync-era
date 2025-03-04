@@ -89,6 +89,10 @@ jobs:
           sudo sed -i 's/is_verifier_pre_fflonk: true/is_verifier_pre_fflonk: false/' general.yaml
           grep "is_verifier_pre_fflonk" general.yaml | awk '{ print $2 }'
 
+      - name: Prepare prover subsystem
+        run: |
+          ci_run zkstack prover init-bellman-cuda --clone --verbose
+          ci_run zkstack prover setup-keys --mode=download --region=us --verbose
 
       - name: Run server
         run: |
@@ -96,12 +100,6 @@ jobs:
       - name: Run prover gateway
         run: |
           ci_run zkstack prover run --component=gateway --docker=false &>prover_logs_${{matrix.compressor-mode}}/gateway.log &
-
-      - name: Prepare prover subsystem
-        run: |
-          ci_run zkstack prover init-bellman-cuda --clone --verbose
-          ci_run zkstack prover setup-keys --mode=download --region=us --verbose
-
       - name: Run Prover Job Monitor
         run: |
           ci_run zkstack prover run --component=prover-job-monitor --docker=false &>prover_logs_${{matrix.compressor-mode}}/prover-job-monitor.log &

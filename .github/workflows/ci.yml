@@ -114,11 +114,11 @@ jobs:
 #    if: ${{(needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
 #    uses: ./.github/workflows/ci-prover-e2e-major-version-compatibility.yml
 #
-#  e2e-for-prover-latest-version-compatibility:
-#    name: E2E Test for Prover to Server Latest Version Compatibility
-#    needs: changed_files
-#    if: ${{(needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
-#    uses: ./.github/workflows/ci-prover-e2e-latest-version-compatibility.yml
+  e2e-for-prover-latest-version-compatibility:
+    name: E2E Test for Prover to Server Latest Version Compatibility
+    needs: changed_files
+    if: ${{(needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
+    uses: ./.github/workflows/ci-prover-e2e-latest-version-compatibility.yml
 
   ci-for-docs:
     needs: changed_files
