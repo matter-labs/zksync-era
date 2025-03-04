@@ -60,14 +60,14 @@ ENV IN_DOCKER=1
 
 # Build `local-setup-preparation` tool
 # RUN cd /infrastructure/local-setup-preparation && yarn && cd /
-# Build L1 contracts package (contracts themselves should be already built)
-RUN cd /contracts/l1-contracts && yarn && yarn build:foundry && cd /
-# Same for L2 contracts
-RUN cd /contracts/l2-contracts && yarn && yarn build:foundry && cd /
 # Same for L1-da contracts
-RUN cd /contracts/da-contracts && yarn && yarn build:foundry && cd /
+RUN cd /contracts/da-contracts && yarn install --frozen-lockfile && yarn build:foundry && cd /
+# Build L1 contracts package (contracts themselves should be already built)
+RUN cd /contracts/l1-contracts && yarn install --frozen-lockfile && yarn build:foundry && cd /
+# Same for L2 contracts
+RUN cd /contracts/l2-contracts && yarn install --frozen-lockfile && yarn build:foundry && cd /
 # Same for system contracts
-RUN cd /contracts/system-contracts && yarn && yarn build:foundry && cd /
+RUN cd /contracts/system-contracts && yarn install --frozen-lockfile && yarn build:foundry && cd /
 
 # Copy the ZK stack tool Library
 COPY zkstack_cli /zkstack_cli
