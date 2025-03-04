@@ -28,10 +28,7 @@ pub struct GatewayChainConfig {
     pub validator_timelock_addr: Address,
     pub multicall3_addr: Address,
     pub diamond_proxy_addr: Address,
-    // TODO(EVM-921): there is no "governace" for a chain, only an admin, we
-    // need to figure out what we mean here
-    pub chain_admin_addr: Option<Address>,
-    pub governance_addr: Address,
+    pub chain_admin_addr: Address,
     pub gateway_chain_id: SLChainId,
 }
 
@@ -47,8 +44,7 @@ impl GatewayChainConfig {
             validator_timelock_addr: gateway_config.validator_timelock_addr,
             multicall3_addr: gateway_config.multicall3_addr,
             diamond_proxy_addr,
-            chain_admin_addr: Some(l2_chain_admin_addr),
-            governance_addr: l2_chain_admin_addr,
+            chain_admin_addr: l2_chain_admin_addr,
             gateway_chain_id,
         }
     }
@@ -66,7 +62,6 @@ impl GatewayChainConfig {
             multicall3_addr: contracts.l1_multicall3_addr,
             diamond_proxy_addr: contracts.diamond_proxy_addr,
             chain_admin_addr: contracts.chain_admin_addr,
-            governance_addr: contracts.governance_addr,
             gateway_chain_id,
         }
     }

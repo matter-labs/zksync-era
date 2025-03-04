@@ -1,0 +1,46 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                *\n            FROM\n                server_notifications\n            WHERE\n                main_topic IN (SELECT unnest($1::bytea []))\n            ORDER BY\n                id DESC\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "main_topic",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 2,
+        "name": "l1_block_number",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "value",
+        "type_info": "Json"
+      },
+      {
+        "ordinal": 4,
+        "name": "created_at",
+        "type_info": "Timestamp"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "ByteaArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "88e27f09c1cbae0f8acf7f2f8480f7bcf66fbe66fe3631932c724404d2cb1514"
+}

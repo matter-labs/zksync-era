@@ -251,7 +251,6 @@ impl EthSenderTester {
             custom_commit_sender_addr,
             commitment_mode,
             connection_pool.clone(),
-            gateway.clone(),
             SettlementMode::SettlesToL1,
         )
         .await

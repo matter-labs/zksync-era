@@ -268,7 +268,7 @@ impl Distribution<configs::ContractsConfig> for EncodeDist {
             ecosystem_contracts: self.sample(rng),
             base_token_addr: self.sample_opt(|| rng.gen()),
             l1_base_token_asset_id: self.sample_opt(|| rng.gen()),
-            chain_admin_addr: self.sample_opt(|| rng.gen()),
+            chain_admin_addr: rng.gen(),
             l2_da_validator_addr: self.sample_opt(|| rng.gen()),
             no_da_validium_l1_validator_addr: self.sample_opt(|| rng.gen()),
         }
@@ -762,6 +762,7 @@ impl Distribution<configs::EcosystemContracts> for EncodeDist {
             transparent_proxy_admin_addr: rng.gen(),
             l1_bytecodes_supplier_addr: rng.gen(),
             l1_wrapped_base_token_store: rng.gen(),
+            server_notifier_addr: rng.gen(),
         }
     }
 }

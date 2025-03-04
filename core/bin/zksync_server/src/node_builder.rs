@@ -36,6 +36,7 @@ use zksync_node_framework::{
         eth_watch::EthWatchLayer,
         external_proof_integration_api::ExternalProofIntegrationApiLayer,
         gas_adjuster::GasAdjusterLayer,
+        gateway_migrator_layer::GatewayMigratorLayer,
         healtcheck_server::HealthCheckLayer,
         house_keeper::HouseKeeperLayer,
         l1_batch_commitment_mode_validation::L1BatchCommitmentModeValidationLayer,
@@ -74,7 +75,6 @@ use zksync_node_framework::{
 use zksync_types::{
     commitment::{L1BatchCommitmentMode, PubdataType},
     pubdata_da::PubdataSendingMode,
-    settlement::SettlementMode,
     SHARED_BRIDGE_ETHER_TOKEN_ADDRESS,
 };
 use zksync_vlog::prometheus::PrometheusExporterConfig;
@@ -307,12 +307,15 @@ impl MainNodeBuilder {
             try_load_config!(eth_config.watcher),
             self.contracts_config.clone(),
             self.gateway_chain_config.clone(),
-            self.configs
-                .eth
-                .as_ref()
-                .and_then(|x| Some(x.gas_adjuster?.settlement_mode))
-                .unwrap_or(SettlementMode::SettlesToL1),
             self.genesis_config.l2_chain_id,
+        ));
+        Ok(self)
+    }
+
+    fn add_gateway_migrator_layer(mut self) -> anyhow::Result<Self> {
+        self.node.add_layer(GatewayMigratorLayer::new(
+            self.contracts_config.clone(),
+            self.gateway_chain_config.clone(),
         ));
         Ok(self)
     }
@@ -492,11 +495,6 @@ impl MainNodeBuilder {
             self.gateway_chain_config.clone(),
             self.genesis_config.l2_chain_id,
             self.genesis_config.l1_batch_commit_data_generator_mode,
-            self.configs
-                .eth
-                .as_ref()
-                .and_then(|x| Some(x.gas_adjuster?.settlement_mode))
-                .unwrap_or(SettlementMode::SettlesToL1),
         ));
 
         Ok(self)
@@ -738,6 +736,7 @@ impl MainNodeBuilder {
             .add_healthcheck_layer()?
             .add_prometheus_exporter_layer()?
             .add_query_eth_client_layer()?
+            .add_gateway_migrator_layer()?
             .add_gas_adjuster_layer()?;
 
         // Add preconditions for all the components.

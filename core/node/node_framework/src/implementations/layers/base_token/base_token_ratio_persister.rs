@@ -107,7 +107,7 @@ impl WiringLayer for BaseTokenRatioPersisterLayer {
                         chain_admin_contract: chain_admin_contract(),
                         getters_facet_contract: getters_facet_contract(),
                         diamond_proxy_contract_address: self.contracts_config.diamond_proxy_addr,
-                        chain_admin_contract_address: self.contracts_config.chain_admin_addr,
+                        chain_admin_contract_address: Some(self.contracts_config.chain_admin_addr),
                         config: self.config.clone(),
                     },
                     last_persisted_l1_ratio: None,
