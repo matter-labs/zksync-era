@@ -15,7 +15,7 @@ use zksync_zkos_vm_runner::zkos_conversions::{bytes32_to_h256, h256_to_bytes32};
 
 use self::metrics::{SnapshotStage, SNAPSHOT_METRICS};
 pub use self::{
-    rocksdb_with_memory::{BatchDiff, RocksdbWithMemory, BatchDiffs},
+    rocksdb_with_memory::{BatchDiff, BatchDiffs, RocksdbWithMemory},
     snapshot::SnapshotStorage,
 };
 use crate::{PostgresStorage, RocksdbStorage, RocksdbStorageBuilder, StateKeeperColumnFamily};

@@ -85,14 +85,13 @@ impl BatchDiffs {
     pub fn new() -> Self {
         Self {
             diffs: Default::default(),
-            first_diff_l1_batch_number: None
+            first_diff_l1_batch_number: None,
         }
     }
 
     /// Trims diffs that correspond to batches with number less than `trim_up_to`. Does nothing if there are no.
     pub fn trim_start(&mut self, trim_up_to: L1BatchNumber) {
-        let Some(first_diff_batch_number) = self.first_diff_l1_batch_number
-        else {
+        let Some(first_diff_batch_number) = self.first_diff_l1_batch_number else {
             return;
         };
 
@@ -117,7 +116,11 @@ impl BatchDiffs {
 
     /// Returns diffs for `from_l1_batch..=to_l1_batch`.
     /// Panics if there is no diff for some element in the range.
-    pub fn range(&self, from_l1_batch: L1BatchNumber, to_l1_batch: L1BatchNumber) -> Vec<BatchDiff> {
+    pub fn range(
+        &self,
+        from_l1_batch: L1BatchNumber,
+        to_l1_batch: L1BatchNumber,
+    ) -> Vec<BatchDiff> {
         let first_diff_number = self.first_diff_l1_batch_number.expect("empty batch_diffs");
         assert!(from_l1_batch >= first_diff_number);
         assert!(to_l1_batch < first_diff_number + self.diffs.len() as u32);

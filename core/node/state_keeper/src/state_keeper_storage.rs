@@ -1,11 +1,12 @@
 use std::collections::VecDeque;
+
 use anyhow::Context;
 use async_trait::async_trait;
 use tokio::sync::{watch, Mutex};
 use zksync_dal::{ConnectionPool, Core};
 use zksync_state::{
-    AsyncCatchupTask, BatchDiff, OwnedStorage, ReadStorageFactory, RocksdbCell,
-    RocksdbStorageOptions, BatchDiffs
+    AsyncCatchupTask, BatchDiff, BatchDiffs, OwnedStorage, ReadStorageFactory, RocksdbCell,
+    RocksdbStorageOptions,
 };
 use zksync_types::L1BatchNumber;
 
