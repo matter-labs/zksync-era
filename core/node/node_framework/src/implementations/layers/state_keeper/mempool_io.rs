@@ -134,12 +134,7 @@ impl WiringLayer for MempoolIOLayer {
             self.wallets.fee_account.address(),
             self.mempool_config.delay_interval(),
             self.zksync_network_id,
-            input
-                .contracts_resource
-                .0
-                .current_contracts()
-                .l2_contracts
-                .da_validator_addr,
+            input.contracts_resource.0.l2_contracts.da_validator_addr,
             self.pubdata_type,
         )?;
 

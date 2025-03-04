@@ -94,7 +94,6 @@ impl WiringLayer for BaseTokenRatioPersisterLayer {
                     input
                         .contracts_resource
                         .0
-                        .current_contracts()
                         .chain_contracts_config
                         .diamond_proxy_addr,
                     self.config.default_priority_fee_per_gas,
@@ -112,14 +111,12 @@ impl WiringLayer for BaseTokenRatioPersisterLayer {
                         diamond_proxy_contract_address: input
                             .contracts_resource
                             .0
-                            .current_contracts()
                             .chain_contracts_config
                             .diamond_proxy_addr,
                         chain_admin_contract_address: Some(
                             input
                                 .contracts_resource
                                 .0
-                                .current_contracts()
                                 .chain_contracts_config
                                 .chain_admin,
                         ),

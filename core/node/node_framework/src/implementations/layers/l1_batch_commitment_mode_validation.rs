@@ -52,12 +52,7 @@ impl WiringLayer for L1BatchCommitmentModeValidationLayer {
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         let GatewayEthInterfaceResource(query_client) = input.eth_client;
         let task = L1BatchCommitmentModeValidationTask::new(
-            input
-                .contracts
-                .0
-                .current_contracts()
-                .chain_contracts_config
-                .diamond_proxy_addr,
+            input.contracts.0.chain_contracts_config.diamond_proxy_addr,
             self.l1_batch_commit_data_generator_mode,
             query_client,
         );

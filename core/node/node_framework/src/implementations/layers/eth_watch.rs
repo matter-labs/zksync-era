@@ -4,8 +4,11 @@ use zksync_types::L2ChainId;
 
 use crate::{
     implementations::resources::{
-        contracts::{L1EcosystemContractsResource, SettlementLayerContractsResource},
-        eth_interface::{EthInterfaceResource, L2InterfaceResource},
+        contracts::{
+            L1ChainContractsResource, L1EcosystemContractsResource,
+            SettlementLayerContractsResource,
+        },
+        eth_interface::{EthInterfaceResource, GatewayEthInterfaceResource},
         pools::{MasterPool, PoolResource},
         settlement_layer::SettlementModeResource,
     },
@@ -28,11 +31,12 @@ pub struct EthWatchLayer {
 #[derive(Debug, FromContext)]
 #[context(crate = crate)]
 pub struct Input {
+    pub l1_contracts: L1ChainContractsResource,
     pub contracts_resource: SettlementLayerContractsResource,
     pub l1ecosystem_contracts_resource: L1EcosystemContractsResource,
     pub master_pool: PoolResource<MasterPool>,
     pub eth_client: EthInterfaceResource,
-    pub gateway_client: Option<L2InterfaceResource>,
+    pub gateway_client: GatewayEthInterfaceResource,
     pub settlement_mode: SettlementModeResource,
 }
 
@@ -66,20 +70,10 @@ impl WiringLayer for EthWatchLayer {
         let client = input.eth_client.0;
 
         tracing::info!(
-            "Diamond proxy address ethereum: {:#?}",
-            input
-                .contracts_resource
-                .0
-                .l1_contracts()
-                .chain_contracts_config
-                .diamond_proxy_addr
-        );
-        tracing::info!(
             "Diamond proxy address settlement_layer: {:#?}",
             input
                 .contracts_resource
                 .0
-                .current_contracts()
                 .chain_contracts_config
                 .diamond_proxy_addr
         );
@@ -87,9 +81,41 @@ impl WiringLayer for EthWatchLayer {
         let l1_client = EthHttpQueryClient::new(
             client,
             input
+                .l1_contracts
+                .0
+                .chain_contracts_config
+                .diamond_proxy_addr,
+            input
+                .l1ecosystem_contracts_resource
+                .0
+                .bytecodes_supplier_addr,
+            input
+                .l1ecosystem_contracts_resource
+                .0
+                .wrapped_base_token_store,
+            input.l1ecosystem_contracts_resource.0.shared_bridge,
+            Some(
+                input
+                    .l1_contracts
+                    .0
+                    .ecosystem_contracts
+                    .state_transition_proxy_addr,
+            ),
+            input.l1_contracts.0.chain_contracts_config.chain_admin,
+            input
+                .l1_contracts
+                .0
+                .ecosystem_contracts
+                .server_notifier_addr,
+            self.eth_watch_config.confirmations_for_eth_event,
+            self.chain_id,
+        );
+
+        let sl_l2_client: Box<dyn ZkSyncExtentionEthClient> = Box::new(EthHttpQueryClient::new(
+            input.gateway_client.0,
+            input
                 .contracts_resource
                 .0
-                .current_contracts()
                 .chain_contracts_config
                 .diamond_proxy_addr,
             input
@@ -105,56 +131,22 @@ impl WiringLayer for EthWatchLayer {
                 input
                     .contracts_resource
                     .0
-                    .current_contracts()
                     .ecosystem_contracts
                     .state_transition_proxy_addr,
             ),
             input
                 .contracts_resource
                 .0
-                .current_contracts()
                 .chain_contracts_config
-                .chain_admin,
+                .diamond_proxy_addr,
             input
                 .contracts_resource
                 .0
-                .current_contracts()
                 .ecosystem_contracts
                 .server_notifier_addr,
             self.eth_watch_config.confirmations_for_eth_event,
             self.chain_id,
-        );
-
-        let sl_l2_client: Box<dyn ZkSyncExtentionEthClient> =
-            if let Some(gateway_client) = input.gateway_client {
-                let contracts_config = input.contracts_resource.0.gateway().unwrap();
-                Box::new(EthHttpQueryClient::new(
-                    gateway_client.0,
-                    contracts_config.chain_contracts_config.diamond_proxy_addr,
-                    // Only present on L1.
-                    None,
-                    // Only present on L1.
-                    None,
-                    // Only present on L1.
-                    None,
-                    Some(
-                        contracts_config
-                            .ecosystem_contracts
-                            .state_transition_proxy_addr,
-                    ),
-                    contracts_config.chain_contracts_config.chain_admin,
-                    input
-                        .contracts_resource
-                        .0
-                        .current_contracts()
-                        .ecosystem_contracts
-                        .server_notifier_addr,
-                    self.eth_watch_config.confirmations_for_eth_event,
-                    self.chain_id,
-                ))
-            } else {
-                Box::new(l1_client.clone())
-            };
+        ));
 
         let eth_watch = EthWatch::new(
             Box::new(l1_client),

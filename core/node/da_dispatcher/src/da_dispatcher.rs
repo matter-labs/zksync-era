@@ -4,7 +4,7 @@ use anyhow::Context;
 use chrono::Utc;
 use rand::Rng;
 use tokio::sync::watch::Receiver;
-use zksync_config::{DADispatcherConfig, SettlementLayerContracts};
+use zksync_config::{configs::contracts::ChainSpecificContracts, DADispatcherConfig};
 use zksync_da_client::{
     types::{DAError, InclusionData},
     DataAvailabilityClient,
@@ -26,7 +26,7 @@ pub struct DataAvailabilityDispatcher {
     client: Box<dyn DataAvailabilityClient>,
     pool: ConnectionPool<Core>,
     config: DADispatcherConfig,
-    contracts_config: SettlementLayerContracts,
+    contracts_config: ChainSpecificContracts,
     settlement_layer_client: Box<DynClient<L1>>,
 
     transitional_l2_da_validator_address: Option<Address>, // set only if inclusion_verification_transition_enabled is true
@@ -37,7 +37,7 @@ impl DataAvailabilityDispatcher {
         pool: ConnectionPool<Core>,
         config: DADispatcherConfig,
         client: Box<dyn DataAvailabilityClient>,
-        contracts_config: SettlementLayerContracts,
+        contracts_config: ChainSpecificContracts,
         settlement_layer_client: Box<DynClient<L1>>,
     ) -> Self {
         Self {
@@ -270,7 +270,6 @@ impl DataAvailabilityDispatcher {
     async fn check_for_misconfiguration(&mut self) -> anyhow::Result<()> {
         if let Some(no_da_validator) = self
             .contracts_config
-            .current_contracts()
             .ecosystem_contracts
             .no_da_validium_l1_validator_addr
         {
@@ -289,7 +288,6 @@ impl DataAvailabilityDispatcher {
         if self.config.inclusion_verification_transition_enabled() {
             self.transitional_l2_da_validator_address = Some(
                 self.contracts_config
-                    .current_contracts()
                     .l2_contracts
                     .da_validator_addr
                     .context("L2 DA validator address is not set")?,
@@ -307,7 +305,6 @@ impl DataAvailabilityDispatcher {
                     data: Some(signature.into()),
                     to: Some(
                         self.contracts_config
-                            .current_contracts()
                             .chain_contracts_config
                             .diamond_proxy_addr,
                     ),

@@ -41,12 +41,7 @@ impl WiringLayer for GatewayMigratorLayer {
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         let migrator = GatewayMigrator::new(
             input.eth_client.0,
-            input
-                .contracts
-                .0
-                .current_contracts()
-                .chain_contracts_config
-                .diamond_proxy_addr,
+            input.contracts.0.chain_contracts_config.diamond_proxy_addr,
             input.settlement_mode_resource.0,
         );
 

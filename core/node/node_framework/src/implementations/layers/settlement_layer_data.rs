@@ -69,7 +69,7 @@ impl WiringLayer for SettlementLayerData {
 
         Ok(Output {
             initial_settlement_mode: SettlementModeResource(initial_sl_mode),
-            contracts: SettlementLayerContractsResource(contracts),
+            contracts: SettlementLayerContractsResource(contracts.current_contracts().clone()),
             l1_ecosystem_contracts: L1EcosystemContractsResource(
                 self.l1_ecosystem_contracts.clone(),
             ),

@@ -2,7 +2,7 @@ use std::fs::File;
 
 use anyhow::Context as _;
 use tokio::sync::watch;
-use zksync_config::{GenesisConfig, SettlementLayerContracts};
+use zksync_config::{configs::contracts::ChainSpecificContracts, GenesisConfig};
 use zksync_dal::{ConnectionPool, Core, CoreDal as _};
 use zksync_node_genesis::GenesisParams;
 use zksync_object_store::bincode;
@@ -13,7 +13,7 @@ use crate::traits::InitializeStorage;
 #[derive(Debug)]
 pub struct MainNodeGenesis {
     pub genesis: GenesisConfig,
-    pub contracts: SettlementLayerContracts,
+    pub contracts: ChainSpecificContracts,
     pub l1_client: Box<DynClient<L1>>,
     pub pool: ConnectionPool<Core>,
 }
@@ -36,10 +36,7 @@ impl InitializeStorage for MainNodeGenesis {
         zksync_node_genesis::validate_genesis_params(
             &params,
             &self.l1_client,
-            self.contracts
-                .current_contracts()
-                .chain_contracts_config
-                .diamond_proxy_addr,
+            self.contracts.chain_contracts_config.diamond_proxy_addr,
         )
         .await?;
 
@@ -61,10 +58,7 @@ impl InitializeStorage for MainNodeGenesis {
         zksync_node_genesis::save_set_chain_id_tx(
             &mut storage,
             &self.l1_client,
-            self.contracts
-                .current_contracts()
-                .chain_contracts_config
-                .diamond_proxy_addr,
+            self.contracts.chain_contracts_config.diamond_proxy_addr,
         )
         .await
         .context("Failed to save SetChainId upgrade transaction")?;

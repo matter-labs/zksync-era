@@ -141,7 +141,6 @@ impl WiringLayer for TxSenderLayer {
         let config = match input
             .contracts_resource
             .0
-            .current_contracts()
             .l2_contracts
             .timestamp_asserter_addr
         {

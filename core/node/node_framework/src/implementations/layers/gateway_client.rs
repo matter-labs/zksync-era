@@ -5,8 +5,7 @@ use zksync_web3_decl::client::Client;
 
 use crate::{
     implementations::resources::{
-        contracts::SettlementLayerContractsResource, eth_interface::GatewayEthInterfaceResource,
-        settlement_layer::SettlementModeResource,
+        eth_interface::GatewayEthInterfaceResource, settlement_layer::SettlementModeResource,
     },
     wiring_layer::{WiringError, WiringLayer},
     IntoContext,
@@ -37,7 +36,6 @@ impl GatewayClientLayer {
 #[derive(Debug, FromContext)]
 #[context(crate = crate)]
 pub struct Input {
-    contracts: SettlementLayerContractsResource,
     initial_settlement_mode: SettlementModeResource,
 }
 
@@ -67,8 +65,9 @@ impl WiringLayer for GatewayClientLayer {
                 SettlementMode::Gateway => {
                     let mut builder =
                         Client::http(self.gateway_rpc_url.unwrap()).context("Client::new()")?;
-                    builder =
-                        builder.for_network(input.contracts.0.gateway_chain_id().unwrap().into());
+                    // TODO set proper chain id
+                    // builder =
+                    //     builder.for_network(input.contracts.0.gateway_chain_id().unwrap().into());
                     GatewayEthInterfaceResource(Box::new(builder.build()))
                 }
             },

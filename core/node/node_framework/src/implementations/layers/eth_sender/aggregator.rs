@@ -108,25 +108,17 @@ impl WiringLayer for EthTxAggregatorLayer {
         let validator_timelock_addr = input
             .contracts_resource
             .0
-            .current_contracts()
             .ecosystem_contracts
             .validator_timelock_addr;
-        let multicall3_addr = input
-            .contracts_resource
-            .0
-            .current_contracts()
-            .ecosystem_contracts
-            .multicall3;
+        let multicall3_addr = input.contracts_resource.0.ecosystem_contracts.multicall3;
         let diamond_proxy_addr = input
             .contracts_resource
             .0
-            .current_contracts()
             .chain_contracts_config
             .diamond_proxy_addr;
         let state_transition_manager_address = input
             .contracts_resource
             .0
-            .current_contracts()
             .ecosystem_contracts
             .state_transition_proxy_addr;
 
