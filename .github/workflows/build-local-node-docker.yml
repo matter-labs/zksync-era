@@ -30,6 +30,11 @@ jobs:
           echo CI=1 >> .env
           echo IN_DOCKER=1 >> .env
       
+      - name: Install rustup
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          echo "${HOME}/.cargo/bin" >> $GITHUB_PATH
+
       - name: rustup
         run: |
           rustup show active-toolchain || rustup toolchain install
