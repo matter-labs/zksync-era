@@ -96,14 +96,7 @@ jobs:
           sudo sed -i 's/is_verifier_pre_fflonk: true/is_verifier_pre_fflonk: false/' general.yaml
           grep "is_verifier_pre_fflonk" general.yaml | awk '{ print $2 }'
 
-      - name: Run server
-        run: |
-          ci_run zkstack server --uring --chain=proving_chain --components=api,tree,eth,state_keeper,commitment_generator,proof_data_handler,vm_runner_protective_reads,vm_runner_bwip &>prover_logs_${{matrix.compressor-mode}}/server.log &
-      - name: Run prover gateway
-        run: |
-          ci_run zkstack prover run --component=gateway --docker=false &>prover_logs_${{matrix.compressor-mode}}/gateway.log &
-
-      - name: Check out prover latest tag and rebuild zkstack
+      - name: Check out prover and rebuild zkstack
         run: |
           git checkout $PROVER_COMMIT
           ci_run zkstackup -g --local
@@ -112,6 +105,23 @@ jobs:
         run: |
           ci_run zkstack prover init-bellman-cuda --clone --verbose
           ci_run zkstack prover setup-keys --mode=download --region=us --verbose
+
+      - name: Check out core and rebuild zkstack
+        run: |
+          git checkout HEAD
+          ci_run zkstackup -g --local
+
+      - name: Run server
+        run: |
+          ci_run zkstack server --uring --chain=proving_chain --components=api,tree,eth,state_keeper,commitment_generator,proof_data_handler,vm_runner_protective_reads,vm_runner_bwip &>prover_logs_${{matrix.compressor-mode}}/server.log &
+      - name: Run prover gateway
+        run: |
+          ci_run zkstack prover run --component=gateway --docker=false &>prover_logs_${{matrix.compressor-mode}}/gateway.log &
+
+      - name: Check out prover and rebuild zkstack
+        run: |
+          git checkout $PROVER_COMMIT
+          ci_run zkstackup -g --local
 
       - name: Run Prover Job Monitor
         run: |
