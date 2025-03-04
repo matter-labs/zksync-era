@@ -97,21 +97,48 @@ fn pretty_print_circuit_wrapper(circuit: &CircuitWrapper) {
                 ZkSyncBaseLayerCircuit::RAMPermutation(_) => todo!(),
                 ZkSyncBaseLayerCircuit::StorageSorter(_) => todo!(),
                 ZkSyncBaseLayerCircuit::StorageApplication(circuit) => {
-                    let ww = circuit.clone_witness().unwrap();
-                    println!("Initial root hash: {:?}", H256::from_slice(&ww.closed_form_input.observable_input.initial_root_hash));
-                    println!("fsm input hash: {:?}", H256::from_slice(&ww.closed_form_input.hidden_fsm_input.current_root_hash));
-                    println!("fsm output hash: {:?}", H256::from_slice(&ww.closed_form_input.hidden_fsm_output.current_root_hash));
-                    println!("Final root hash: {:?}", H256::from_slice(&ww.closed_form_input.observable_output.new_root_hash));
-                    //circuit.debug_witness()
+                    let witness = circuit.clone_witness().unwrap();
+                    println!(
+                        "Initial root hash: {:?}",
+                        H256::from_slice(
+                            &witness.closed_form_input.observable_input.initial_root_hash
+                        )
+                    );
+                    println!(
+                        "Fsm input hash: {:?}",
+                        H256::from_slice(
+                            &witness.closed_form_input.hidden_fsm_input.current_root_hash
+                        )
+                    );
+                    println!(
+                        "Fsm output hash: {:?}",
+                        H256::from_slice(
+                            &witness
+                                .closed_form_input
+                                .hidden_fsm_output
+                                .current_root_hash
+                        )
+                    );
+                    println!(
+                        "Final root hash: {:?}",
+                        H256::from_slice(
+                            &witness.closed_form_input.observable_output.new_root_hash
+                        )
+                    );
 
-                    let aa = ww.storage_queue_witness.elements;
-                    println!("storage queue elements: {:?}", aa.len());
-                    for (i, x) in aa.iter().enumerate() {
-                        println!("{}  element: rw:{:?} {:?} {:?} {:?}", i, x.0.rw_flag, x.0.address, u256_to_h256(x.0.key), u256_to_h256(x.0.written_value));
-                        
+                    let storage_queue = witness.storage_queue_witness.elements;
+                    println!("storage queue elements: {:?}", storage_queue.len());
+                    for (i, x) in storage_queue.iter().enumerate() {
+                        println!(
+                            "{}  element: rw:{:?} {:?} {:?} {:?}",
+                            i,
+                            x.0.rw_flag,
+                            x.0.address,
+                            u256_to_h256(x.0.key),
+                            u256_to_h256(x.0.written_value)
+                        );
                     }
-
-                },
+                }
                 ZkSyncBaseLayerCircuit::EventsSorter(_) => todo!(),
                 ZkSyncBaseLayerCircuit::L1MessagesSorter(_) => todo!(),
                 ZkSyncBaseLayerCircuit::L1MessagesHasher(_) => todo!(),
@@ -169,10 +196,6 @@ fn pretty_print_proof(result: &FriProofWrapper) {
                 proof.numeric_circuit_type(),
                 proof.short_description()
             );
-            let json = serde_json::to_string_pretty(&proof)
-                .expect("Failed to serialize proof to JSON");
-            std::fs::write("fri_proof.json", json)
-                .expect("Failed to write JSON to file");
             println!("FRI proof written to fri_proof.json");
         }
         FriProofWrapper::Recursive(proof) => {
@@ -254,39 +277,25 @@ pub(crate) async fn run(args: Args) -> anyhow::Result<()> {
     let maybe_witness_input: Option<WitnessInputMerklePaths> = bincode::deserialize(&bytes).ok();
     if let Some(witness_input) = maybe_witness_input {
         println!("  Parsing file as WitnessInputMerklePaths.");
-        println!(" Next enumeration index: {}", witness_input.next_enumeration_index());
+        println!(
+            " Next enumeration index: {}",
+            witness_input.next_enumeration_index()
+        );
         println!("  merkle paths: {:?}", witness_input.merkle_paths.len());
-        let aa = witness_input.merkle_paths[0].clone();
-        println!("root hash: {:?}", H256::from_slice(&aa.root_hash));
-        //println!("{:?}", aa);
+        let merkle_path = witness_input.merkle_paths[0].clone();
+        println!(
+            "first root hash: {:?}",
+            H256::from_slice(&merkle_path.root_hash)
+        );
 
-        let ll = witness_input.merkle_paths.last().unwrap().clone();
-        println!("last root hash: {:?}", H256::from_slice(&ll.root_hash));
-
-        //for x in aa.merkle_paths {
-        //    println!("  path: {:?}", H256::from_slice((&x).as_slice()));
-        //}
-
-        for (i, x ) in witness_input.merkle_paths.iter().enumerate() {
-            println!("  root hash  {}: {:?}", i, H256::from_slice((&x.root_hash).as_slice()));
-            println!(" leaf & value: {:?} {:?} ", u256_to_h256(x.leaf_hashed_key), H256::from_slice(&x.value_written));
-            if i > 30 {
-                break;
-            }
-        }
-
-        //dbg!(witness_input);
-
-
-        
-
-
-        //println!("  Witness input: {:?}", witness_input);
+        let merkle_path = witness_input.merkle_paths.last().unwrap().clone();
+        println!(
+            "last root hash: {:?}",
+            H256::from_slice(&merkle_path.root_hash)
+        );
     } else {
         println!("  NOT a WitnessInputMerklePaths.");
     }
 
-
-    
     Ok(())
 }
