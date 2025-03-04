@@ -8,6 +8,7 @@ use std::{
 use assert_matches::assert_matches;
 use async_trait::async_trait;
 use tokio::sync::watch;
+use zksync_config::configs::contracts::ecosystem::L1SpecificContracts;
 use zksync_config::{
     configs::{
         api::Web3JsonRpcConfig,
@@ -287,7 +288,8 @@ async fn test_http_server(test: impl HttpTest) {
     let genesis = GenesisConfig::for_tests();
     let mut api_config = InternalApiConfig::new(
         &web3_config,
-        &SettlementLayerContracts::new(contracts_config, None),
+        SettlementLayerContracts::new(&contracts_config, None).current_contracts(),
+        &L1SpecificContracts::new(&contracts_config),
         &genesis,
     );
     api_config.filters_disabled = test.filters_disabled();

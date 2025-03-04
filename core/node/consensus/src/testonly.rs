@@ -4,6 +4,7 @@ use std::sync::Arc;
 use anyhow::Context as _;
 use rand::Rng;
 use zksync_concurrency::{ctx, error::Wrap as _, scope, sync, time};
+use zksync_config::configs::contracts::ecosystem::L1SpecificContracts;
 use zksync_config::{
     configs,
     configs::{
@@ -602,10 +603,12 @@ impl StateKeeperRunner {
                 // Spawn HTTP server.
                 let cfg = InternalApiConfig::new(
                     &configs::api::Web3JsonRpcConfig::for_tests(),
-                    &configs::contracts::SettlementLayerContracts::new(
-                        configs::AllContractsConfig::for_tests(),
+                    configs::contracts::SettlementLayerContracts::new(
+                        &configs::AllContractsConfig::for_tests(),
                         None,
-                    ),
+                    )
+                    .current_contracts(),
+                    &L1SpecificContracts::new(&configs::AllContractsConfig::for_tests()),
                     &configs::GenesisConfig::for_tests(),
                 );
                 let mut server = TestServerBuilder::new(self.pool.0.clone(), cfg)
@@ -684,12 +687,16 @@ impl StateKeeperRunner {
             });
             s.spawn_bg(async {
                 // Spawn HTTP server.
+                let sl_contracts = &configs::contracts::SettlementLayerContracts::new(
+                    &configs::AllContractsConfig::for_tests(),
+                    None,
+                );
+                let l1_specific =
+                    L1SpecificContracts::new(&configs::AllContractsConfig::for_tests());
                 let cfg = InternalApiConfig::new(
                     &configs::api::Web3JsonRpcConfig::for_tests(),
-                    &configs::contracts::SettlementLayerContracts::new(
-                        configs::AllContractsConfig::for_tests(),
-                        None,
-                    ),
+                    sl_contracts.current_contracts(),
+                    &l1_specific,
                     &configs::GenesisConfig::for_tests(),
                 );
                 let mut server = TestServerBuilder::new(self.pool.0.clone(), cfg)
