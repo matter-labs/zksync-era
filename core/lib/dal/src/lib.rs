@@ -15,7 +15,8 @@ use crate::{
     base_token_dal::BaseTokenDal, blocks_dal::BlocksDal, blocks_web3_dal::BlocksWeb3Dal,
     consensus_dal::ConsensusDal, contract_verification_dal::ContractVerificationDal,
     custom_genesis_export_dal::CustomGenesisExportDal, data_availability_dal::DataAvailabilityDal,
-    eth_sender_dal::EthSenderDal, eth_watcher_dal::EthWatcherDal, events_dal::EventsDal,
+    eth_sender_dal::EthSenderDal, eth_watcher_dal::EthWatcherDal,
+    etherscan_verification_dal::EtherscanVerificationDal, events_dal::EventsDal,
     events_web3_dal::EventsWeb3Dal, factory_deps_dal::FactoryDepsDal,
     proof_generation_dal::ProofGenerationDal, protocol_versions_dal::ProtocolVersionsDal,
     protocol_versions_web3_dal::ProtocolVersionsWeb3Dal, pruning_dal::PruningDal,
@@ -38,6 +39,7 @@ pub mod custom_genesis_export_dal;
 mod data_availability_dal;
 pub mod eth_sender_dal;
 pub mod eth_watcher_dal;
+pub mod etherscan_verification_dal;
 pub mod events_dal;
 pub mod events_web3_dal;
 pub mod factory_deps_dal;
@@ -107,6 +109,8 @@ where
     fn tokens_web3_dal(&mut self) -> TokensWeb3Dal<'_, 'a>;
 
     fn contract_verification_dal(&mut self) -> ContractVerificationDal<'_, 'a>;
+
+    fn etherscan_verification_dal(&mut self) -> EtherscanVerificationDal<'_, 'a>;
 
     fn protocol_versions_dal(&mut self) -> ProtocolVersionsDal<'_, 'a>;
 
@@ -208,6 +212,10 @@ impl<'a> CoreDal<'a> for Connection<'a, Core> {
 
     fn contract_verification_dal(&mut self) -> ContractVerificationDal<'_, 'a> {
         ContractVerificationDal { storage: self }
+    }
+
+    fn etherscan_verification_dal(&mut self) -> EtherscanVerificationDal<'_, 'a> {
+        EtherscanVerificationDal { storage: self }
     }
 
     fn protocol_versions_dal(&mut self) -> ProtocolVersionsDal<'_, 'a> {

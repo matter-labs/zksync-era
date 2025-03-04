@@ -14,15 +14,16 @@ use zksync_config::{
         api::{MaxResponseSize, MaxResponseSizeOverrides},
         consensus::{ConsensusConfig, ConsensusSecrets},
         en_config::ENConfig,
-        GeneralConfig, Secrets,
+        DataAvailabilitySecrets, GeneralConfig, Secrets,
     },
-    ObjectStoreConfig,
+    DAClientConfig, ObjectStoreConfig,
 };
 use zksync_consensus_crypto::TextFmt;
 use zksync_consensus_roles as roles;
 use zksync_core_leftovers::temp_config_store::read_yaml_repr;
 #[cfg(test)]
 use zksync_dal::{ConnectionPool, Core};
+use zksync_env_config::da_client::{da_client_config_from_env, da_client_secrets_from_env};
 use zksync_metadata_calculator::MetadataCalculatorRecoveryConfig;
 use zksync_node_api_server::{
     tx_sender::{TimestampAsserterParams, TxSenderConfig},
@@ -1310,6 +1311,7 @@ pub(crate) struct ExternalNodeConfig<R = RemoteENConfig> {
     pub consensus_secrets: Option<ConsensusSecrets>,
     pub api_component: ApiComponentConfig,
     pub tree_component: TreeComponentConfig,
+    pub data_availability: (Option<DAClientConfig>, Option<DataAvailabilitySecrets>),
     pub remote: R,
 }
 
@@ -1333,6 +1335,10 @@ impl ExternalNodeConfig<()> {
                 .context("could not load external node config (tree component params)")?,
             consensus_secrets: read_consensus_secrets()
                 .context("config::read_consensus_secrets()")?,
+            data_availability: (
+                da_client_config_from_env("EN_DA_").ok(),
+                da_client_secrets_from_env("EN_DA_").ok(),
+            ),
             remote: (),
         })
     }
@@ -1385,6 +1391,10 @@ impl ExternalNodeConfig<()> {
 
         let api_component = ApiComponentConfig::from_configs(&general_config);
         let tree_component = TreeComponentConfig::from_configs(&general_config);
+        let data_availability = (
+            general_config.da_client_config,
+            secrets_config.data_availability,
+        );
 
         Ok(Self {
             required,
@@ -1396,6 +1406,7 @@ impl ExternalNodeConfig<()> {
             api_component,
             tree_component,
             consensus_secrets,
+            data_availability,
             remote: (),
         })
     }
@@ -1431,6 +1442,7 @@ impl ExternalNodeConfig<()> {
             tree_component: self.tree_component,
             api_component: self.api_component,
             consensus_secrets: self.consensus_secrets,
+            data_availability: self.data_availability,
             remote,
         })
     }
@@ -1452,6 +1464,7 @@ impl ExternalNodeConfig {
                 tree_api_remote_url: None,
             },
             tree_component: TreeComponentConfig { api_port: None },
+            data_availability: (None, None),
         }
     }
 
