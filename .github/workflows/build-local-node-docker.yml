@@ -32,12 +32,12 @@ jobs:
       
       - name: Install rustup
         run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-          echo "${HOME}/.cargo/bin" >> $GITHUB_PATH
+          ci_run curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          ci_run echo "${HOME}/.cargo/bin" >> $GITHUB_PATH
 
       - name: rustup
         run: |
-          rustup show active-toolchain || rustup toolchain install
+          ci_run rustup show active-toolchain || ci_run rustup toolchain install
   
       # TODO: Remove after when we can upgrade hardhat-plugins
       - name: pre-download compiilers
