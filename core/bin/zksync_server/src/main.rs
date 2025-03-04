@@ -72,7 +72,9 @@ struct Cli {
     #[arg(long)]
     use_node_framework: bool,
 
-    #[arg(long)]
+    /// Used for testing whether provided config is correct.
+    /// The node will not be started, only the config will be verified.
+    #[arg(long, conflicts_with = "genesis")]
     only_verify_config: bool,
 }
 
@@ -168,6 +170,12 @@ fn main() -> anyhow::Result<()> {
         secrets,
     )?;
 
+    if opt.only_verify_config {
+        node.build(opt.components.0)?;
+        tracing::info!("Config verification is successful!");
+        return Ok(());
+    }
+
     let observability_guard = {
         // Observability initialization should be performed within tokio context.
         let _context_guard = node.runtime_handle().enter();
@@ -180,13 +188,7 @@ fn main() -> anyhow::Result<()> {
         return Ok(());
     }
 
-    let built_node = node.build(opt.components.0)?;
-
-    if opt.only_verify_config {
-        return Ok(());
-    }
-
-    built_node.run(observability_guard)?;
+    node.build(opt.components.0)?.run(observability_guard)?;
     Ok(())
 }
 
