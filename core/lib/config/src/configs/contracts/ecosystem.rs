@@ -43,6 +43,6 @@ pub struct EcosystemCommonContracts {
     pub state_transition_proxy_addr: Address,
     pub server_notifier_addr: Option<Address>,
     pub multicall3: Address,
-    // pub verifier_addr: Address,
     pub validator_timelock_addr: Address,
+    pub no_da_validium_l1_validator_addr: Option<Address>,
 }

@@ -81,6 +81,8 @@ impl Contracts {
                     server_notifier_addr: ecosystem.server_notifier_addr,
                     multicall3: contracts_config.l1_multicall3_addr,
                     validator_timelock_addr: contracts_config.validator_timelock_addr,
+                    no_da_validium_l1_validator_addr: contracts_config
+                        .no_da_validium_l1_validator_addr,
                 },
                 chain_contracts_config: ChainContracts {
                     diamond_proxy_addr: contracts_config.diamond_proxy_addr,
@@ -96,17 +98,19 @@ impl Contracts {
                 },
             },
             gateway_chain_id: gateway_chain_config.as_ref().map(|a| a.gateway_chain_id),
-            gateway_contracts: gateway_chain_config.map(|a| SpecificContracts {
+            gateway_contracts: gateway_chain_config.map(|gateway| SpecificContracts {
                 ecosystem_contracts: EcosystemCommonContracts {
                     bridgehub_proxy_addr: L2_BRIDGEHUB_ADDRESS,
-                    state_transition_proxy_addr: a.state_transition_proxy_addr,
-                    server_notifier_addr: a.server_notifier,
-                    multicall3: a.multicall3_addr,
-                    validator_timelock_addr: a.validator_timelock_addr,
+                    state_transition_proxy_addr: gateway.state_transition_proxy_addr,
+                    server_notifier_addr: gateway.server_notifier,
+                    multicall3: gateway.multicall3_addr,
+                    validator_timelock_addr: gateway.validator_timelock_addr,
+                    // TODO set it properly
+                    no_da_validium_l1_validator_addr: None,
                 },
                 chain_contracts_config: ChainContracts {
-                    diamond_proxy_addr: a.diamond_proxy_addr,
-                    chain_admin: a.chain_admin_addr,
+                    diamond_proxy_addr: gateway.diamond_proxy_addr,
+                    chain_admin: gateway.chain_admin_addr,
                 },
                 l2_contracts: L2Contracts {
                     l2_erc20_default_bridge: contracts_config.l2_erc20_bridge_addr,
