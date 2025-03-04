@@ -34,6 +34,8 @@ RUN apt-get update && apt-get install -y \
     ca-certificates curl gnupg \
     && curl -L https://raw.githubusercontent.com/matter-labs/foundry-zksync/main/install-foundry-zksync | bash
 
+ENV PATH="/usr/local/cargo/bin:/root/.foundry/bin:$PATH"
+
 # Copy required packages while preserving the folders structure from the repo
 # It's required because these packages use relative paths to the SDK
 
@@ -121,7 +123,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Set persistent environment variables
 ENV LIBCLANG_PATH=/usr/lib/llvm-14/lib
-ENV PATH="/usr/local/cargo/bin:/root/.foundry/bin:$PATH"
 
 RUN ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup \
     && zkstackup -g --local --cargo-features gateway
