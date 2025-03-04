@@ -23,6 +23,7 @@ impl fmt::Debug for S3Store {
         formatter
             .debug_struct("S3Store")
             .field("bucket_prefix", &self.bucket_prefix)
+            .field("endpoint", &self.endpoint)
             // Skip `client` as its representation may contain sensitive info
             .finish_non_exhaustive()
     }
@@ -51,7 +52,7 @@ impl S3Store {
             .or_else(Region::new("auto"));
         let mut sdk_config = Self::get_client_config(auth_mode).region(region_provider);
         if let Some(endpoint) = endpoint.clone() {
-            tracing::info!(endpoint=%endpoint, "using S3 endpoint defined in storage config");
+            tracing::info!(%endpoint, "using S3 endpoint defined in storage config");
             sdk_config = sdk_config.endpoint_url(endpoint);
         }
         let sdk_config = sdk_config.load().await;
@@ -190,7 +191,7 @@ impl ObjectStore for S3Store {
         self.client
             .put_object()
             .bucket(self.bucket_prefix.clone())
-            .key(&filename)
+            .key(filename)
             .body(value.into())
             .content_length(length)
             .send()

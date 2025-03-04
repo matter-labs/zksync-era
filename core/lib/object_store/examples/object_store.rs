@@ -57,13 +57,9 @@ impl Cli {
         object_store
             .put::<SnapshotStorageLogsChunk>(key, &snapshot_chunk)
             .await?;
-        let result = object_store
-            .get::<SnapshotStorageLogsChunk>(key.into())
-            .await?;
-        object_store
-            .remove::<SnapshotStorageLogsChunk>(key.into())
-            .await?;
+        let result = object_store.get::<SnapshotStorageLogsChunk>(key).await?;
         tracing::info!("Result: {result:?}");
+        object_store.remove::<SnapshotStorageLogsChunk>(key).await?;
         Ok(())
     }
 }
