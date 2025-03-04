@@ -1,6 +1,4 @@
-use zksync_config::configs::contracts::{
-    ecosystem::EcosystemL1SpecificContracts, SettlementLayerContracts,
-};
+use zksync_config::configs::contracts::{ecosystem::L1SpecificContracts, SettlementLayerContracts};
 
 use crate::Resource;
 
@@ -14,7 +12,7 @@ impl Resource for SettlementLayerContractsResource {
 }
 
 #[derive(Debug, Clone)]
-pub struct L1EcosystemContractsResource(pub EcosystemL1SpecificContracts);
+pub struct L1EcosystemContractsResource(pub L1SpecificContracts);
 
 impl Resource for L1EcosystemContractsResource {
     fn name() -> String {

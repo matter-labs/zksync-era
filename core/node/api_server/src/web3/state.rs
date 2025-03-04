@@ -13,7 +13,7 @@ use lru::LruCache;
 use tokio::sync::{Mutex, RwLock};
 use vise::GaugeGuard;
 use zksync_config::{
-    configs::{api::Web3JsonRpcConfig, contracts::ecosystem::EcosystemL1SpecificContracts},
+    configs::{api::Web3JsonRpcConfig, contracts::ecosystem::L1SpecificContracts},
     GenesisConfig, SettlementLayerContracts,
 };
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
@@ -169,7 +169,7 @@ impl InternalApiConfigBuilder {
     pub fn with_contracts(
         mut self,
         contracts_config: SettlementLayerContracts,
-        l1_ecosystem_contracts: EcosystemL1SpecificContracts,
+        l1_ecosystem_contracts: L1SpecificContracts,
     ) -> Self {
         self.base_token_address = l1_ecosystem_contracts.base_token_address;
         self.bridge_addresses = Some(BridgeAddresses {
@@ -284,7 +284,7 @@ impl InternalApiConfig {
     pub fn new(
         web3_config: &Web3JsonRpcConfig,
         contracts_config: &SettlementLayerContracts,
-        l1_ecosystem_contracts: &EcosystemL1SpecificContracts,
+        l1_ecosystem_contracts: &L1SpecificContracts,
         genesis_config: &GenesisConfig,
     ) -> Self {
         Self {

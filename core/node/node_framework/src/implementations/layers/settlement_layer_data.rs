@@ -1,6 +1,4 @@
-use zksync_config::{
-    configs::contracts::ecosystem::EcosystemL1SpecificContracts, SettlementLayerContracts,
-};
+use zksync_config::{configs::contracts::ecosystem::L1SpecificContracts, SettlementLayerContracts};
 use zksync_contracts::getters_facet_contract;
 use zksync_gateway_migrator::get_settlement_layer;
 
@@ -18,13 +16,13 @@ use crate::{
 #[derive(Debug)]
 pub struct SettlementLayerData {
     contracts: SettlementLayerContracts,
-    l1_ecosystem_contracts: EcosystemL1SpecificContracts,
+    l1_ecosystem_contracts: L1SpecificContracts,
 }
 
 impl SettlementLayerData {
     pub fn new(
         contracts: SettlementLayerContracts,
-        l1_ecosystem_contracts: EcosystemL1SpecificContracts,
+        l1_ecosystem_contracts: L1SpecificContracts,
     ) -> Self {
         Self {
             contracts,

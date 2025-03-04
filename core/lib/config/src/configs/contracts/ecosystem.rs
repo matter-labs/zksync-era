@@ -34,7 +34,7 @@ impl EcosystemContracts {
 
 // Ecosystem contracts that are specific only for L1
 #[derive(Debug, Clone)]
-pub struct EcosystemL1SpecificContracts {
+pub struct L1SpecificContracts {
     pub bytecodes_supplier_addr: Option<Address>,
     // Note that on the contract side of things this contract is called `L2WrappedBaseTokenStore`,
     // while on the server side for consistency with the conventions, where the prefix denotes
@@ -56,7 +56,7 @@ pub struct EcosystemCommonContracts {
     pub no_da_validium_l1_validator_addr: Option<Address>,
 }
 
-impl EcosystemL1SpecificContracts {
+impl L1SpecificContracts {
     pub fn new(contracts_config: &AllContractsConfig) -> Self {
         let ecosystem = contracts_config.ecosystem_contracts.as_ref().unwrap();
         Self {
