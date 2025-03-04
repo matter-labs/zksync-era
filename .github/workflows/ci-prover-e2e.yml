@@ -2,11 +2,6 @@ name: Workflow for testing prover component end-to-end
 on:
   workflow_call:
 
-concurrency:
-  group: prover-e2e-tests
-  cancel-in-progress: false
-
-
 jobs:
   e2e-test:
     runs-on: [ matterlabs-ci-gpu-l4-runner-prover-tests ]
