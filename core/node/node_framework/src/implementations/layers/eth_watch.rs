@@ -4,7 +4,7 @@ use zksync_types::L2ChainId;
 
 use crate::{
     implementations::resources::{
-        contracts::ContractsResource,
+        contracts::{L1EcosystemContractsResource, SettlementLayerContractsResource},
         eth_interface::{EthInterfaceResource, L2InterfaceResource},
         pools::{MasterPool, PoolResource},
         settlement_layer::SettlementModeResource,
@@ -28,7 +28,8 @@ pub struct EthWatchLayer {
 #[derive(Debug, FromContext)]
 #[context(crate = crate)]
 pub struct Input {
-    pub contracts_resource: ContractsResource,
+    pub contracts_resource: SettlementLayerContractsResource,
+    pub l1ecosystem_contracts_resource: L1EcosystemContractsResource,
     pub master_pool: PoolResource<MasterPool>,
     pub eth_client: EthInterfaceResource,
     pub gateway_client: Option<L2InterfaceResource>,
@@ -92,20 +93,14 @@ impl WiringLayer for EthWatchLayer {
                 .chain_contracts_config
                 .diamond_proxy_addr,
             input
-                .contracts_resource
+                .l1ecosystem_contracts_resource
                 .0
-                .l1_specific_contracts()
                 .bytecodes_supplier_addr,
             input
-                .contracts_resource
+                .l1ecosystem_contracts_resource
                 .0
-                .l1_specific_contracts()
                 .wrapped_base_token_store,
-            input
-                .contracts_resource
-                .0
-                .l1_specific_contracts()
-                .shared_bridge,
+            input.l1ecosystem_contracts_resource.0.shared_bridge,
             Some(
                 input
                     .contracts_resource

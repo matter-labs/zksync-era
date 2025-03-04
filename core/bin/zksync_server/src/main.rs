@@ -9,6 +9,7 @@ use zksync_config::{
             CircuitBreakerConfig, MempoolConfig, NetworkConfig, OperationsManagerConfig,
             StateKeeperConfig, TimestampAsserterConfig,
         },
+        contracts::ecosystem::EcosystemL1SpecificContracts,
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
         BasicWitnessInputProducerConfig, ContractVerifierSecrets, DataAvailabilitySecrets,
@@ -17,10 +18,10 @@ use zksync_config::{
         FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig, L1Secrets, ObservabilityConfig,
         PrometheusConfig, ProofDataHandlerConfig, ProtectiveReadsWriterConfig, Secrets,
     },
-    ApiConfig, BaseTokenAdjusterConfig, ContractVerifierConfig, Contracts, ContractsConfig,
-    DAClientConfig, DADispatcherConfig, DBConfig, EthConfig, EthWatchConfig,
-    ExternalProofIntegrationApiConfig, GasAdjusterConfig, GenesisConfig, ObjectStoreConfig,
-    PostgresConfig, SnapshotsCreatorConfig,
+    ApiConfig, BaseTokenAdjusterConfig, ContractVerifierConfig, ContractsConfig, DAClientConfig,
+    DADispatcherConfig, DBConfig, EthConfig, EthWatchConfig, ExternalProofIntegrationApiConfig,
+    GasAdjusterConfig, GenesisConfig, ObjectStoreConfig, PostgresConfig, SettlementLayerContracts,
+    SnapshotsCreatorConfig,
 };
 use zksync_core_leftovers::{
     temp_config_store::{read_yaml_repr, TempConfigStore},
@@ -157,8 +158,18 @@ fn main() -> anyhow::Result<()> {
         .clone()
         .context("observability config")?;
 
-    let contracts = Contracts::new(contracts_config, gateway_contracts_config);
-    let node = MainNodeBuilder::new(configs, wallets, genesis, secrets, contracts)?;
+    let l1_specific_contracts = EcosystemL1SpecificContracts::new(&contracts_config);
+    let contracts =
+        SettlementLayerContracts::new(&contracts_config, gateway_contracts_config.as_ref());
+
+    let node = MainNodeBuilder::new(
+        configs,
+        wallets,
+        genesis,
+        secrets,
+        contracts,
+        l1_specific_contracts,
+    )?;
 
     let observability_guard = {
         // Observability initialization should be performed within tokio context.

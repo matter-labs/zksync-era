@@ -602,7 +602,7 @@ impl StateKeeperRunner {
                 // Spawn HTTP server.
                 let cfg = InternalApiConfig::new(
                     &configs::api::Web3JsonRpcConfig::for_tests(),
-                    &configs::contracts::Contracts::new(
+                    &configs::contracts::SettlementLayerContracts::new(
                         configs::AllContractsConfig::for_tests(),
                         None,
                     ),
@@ -686,7 +686,7 @@ impl StateKeeperRunner {
                 // Spawn HTTP server.
                 let cfg = InternalApiConfig::new(
                     &configs::api::Web3JsonRpcConfig::for_tests(),
-                    &configs::contracts::Contracts::new(
+                    &configs::contracts::SettlementLayerContracts::new(
                         configs::AllContractsConfig::for_tests(),
                         None,
                     ),

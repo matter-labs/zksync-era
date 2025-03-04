@@ -143,7 +143,7 @@ impl ChainConfig {
     }
 
     pub fn path_to_secrets_config(&self) -> PathBuf {
-        self.configs.join(SECRETS_FILE)
+        self.configs.join(SECRETS_FILE).canonicalize().unwrap()
     }
 
     pub fn path_to_gateway_config(&self) -> PathBuf {

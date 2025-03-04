@@ -4,10 +4,10 @@
 use anyhow::{bail, Context};
 use zksync_config::{
     configs::{
-        da_client::DAClientConfig, secrets::DataAvailabilitySecrets, wallets::Wallets,
-        GeneralConfig, Secrets,
+        contracts::ecosystem::EcosystemL1SpecificContracts, da_client::DAClientConfig,
+        secrets::DataAvailabilitySecrets, wallets::Wallets, GeneralConfig, Secrets,
     },
-    Contracts, GenesisConfig,
+    GenesisConfig, SettlementLayerContracts,
 };
 use zksync_core_leftovers::Component;
 use zksync_metadata_calculator::MetadataCalculatorConfig;
@@ -93,7 +93,8 @@ pub struct MainNodeBuilder {
     wallets: Wallets,
     genesis_config: GenesisConfig,
     secrets: Secrets,
-    contracts: Contracts,
+    contracts: SettlementLayerContracts,
+    l1_specific_contracts: EcosystemL1SpecificContracts,
 }
 
 impl MainNodeBuilder {
@@ -102,7 +103,8 @@ impl MainNodeBuilder {
         wallets: Wallets,
         genesis_config: GenesisConfig,
         secrets: Secrets,
-        contracts: Contracts,
+        contracts: SettlementLayerContracts,
+        l1_specific_contracts: EcosystemL1SpecificContracts,
     ) -> anyhow::Result<Self> {
         Ok(Self {
             node: ZkStackServiceBuilder::new().context("Cannot create ZkStackServiceBuilder")?,
@@ -111,6 +113,7 @@ impl MainNodeBuilder {
             genesis_config,
             secrets,
             contracts,
+            l1_specific_contracts,
         })
     }
 
@@ -214,8 +217,7 @@ impl MainNodeBuilder {
 
     fn add_l1_gas_layer(mut self) -> anyhow::Result<Self> {
         // Ensure the BaseTokenRatioProviderResource is inserted if the base token is not ETH.
-        if self.contracts.l1_specific_contracts().base_token_address
-            != Some(SHARED_BRIDGE_ETHER_TOKEN_ADDRESS)
+        if self.l1_specific_contracts.base_token_address != Some(SHARED_BRIDGE_ETHER_TOKEN_ADDRESS)
         {
             let base_token_adjuster_config = try_load_config!(self.configs.base_token_adjuster);
             self.node
@@ -314,8 +316,10 @@ impl MainNodeBuilder {
     }
 
     fn add_settlement_mode_data(mut self) -> anyhow::Result<Self> {
-        self.node
-            .add_layer(SettlementLayerData::new(self.contracts.clone()));
+        self.node.add_layer(SettlementLayerData::new(
+            self.contracts.clone(),
+            self.l1_specific_contracts.clone(),
+        ));
         Ok(self)
     }
 

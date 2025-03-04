@@ -3,7 +3,7 @@ use zksync_basic_types::{settlement::SettlementMode, Address, SLChainId, H160};
 use crate::configs::{
     contracts::{
         chain::{AllContractsConfig, ChainContracts, L2Contracts},
-        ecosystem::{EcosystemCommonContracts, EcosystemL1Specific},
+        ecosystem::EcosystemCommonContracts,
     },
     gateway::GatewayChainConfig,
 };
@@ -25,24 +25,19 @@ pub struct ChainSpecificContracts {
 }
 
 #[derive(Debug, Clone)]
-pub struct Contracts {
-    l1_specific: EcosystemL1Specific,
+pub struct SettlementLayerContracts {
     l1_contracts: ChainSpecificContracts,
     gateway_contracts: Option<ChainSpecificContracts>,
     sl_mode: SettlementMode,
     gateway_chain_id: Option<SLChainId>,
 }
 
-impl Contracts {
+impl SettlementLayerContracts {
     pub fn current_contracts(&self) -> &ChainSpecificContracts {
         match self.sl_mode {
             SettlementMode::SettlesToL1 => &self.l1_contracts,
             SettlementMode::Gateway => self.gateway_contracts.as_ref().expect("Settles to Gateway"),
         }
-    }
-
-    pub fn l1_specific_contracts(&self) -> &EcosystemL1Specific {
-        &self.l1_specific
     }
 
     pub fn l1_contracts(&self) -> &ChainSpecificContracts {
@@ -60,20 +55,13 @@ impl Contracts {
     }
 }
 
-impl Contracts {
+impl SettlementLayerContracts {
     pub fn new(
-        contracts_config: AllContractsConfig,
-        gateway_chain_config: Option<GatewayChainConfig>,
+        contracts_config: &AllContractsConfig,
+        gateway_chain_config: Option<&GatewayChainConfig>,
     ) -> Self {
-        let ecosystem = contracts_config.ecosystem_contracts.unwrap();
+        let ecosystem = contracts_config.ecosystem_contracts.as_ref().unwrap();
         Self {
-            l1_specific: EcosystemL1Specific {
-                bytecodes_supplier_addr: ecosystem.l1_bytecodes_supplier_addr,
-                wrapped_base_token_store: ecosystem.l1_wrapped_base_token_store,
-                shared_bridge: contracts_config.l1_shared_bridge_proxy_addr,
-                erc_20_bridge: contracts_config.l1_erc20_bridge_proxy_addr,
-                base_token_address: contracts_config.base_token_addr,
-            },
             l1_contracts: ChainSpecificContracts {
                 ecosystem_contracts: EcosystemCommonContracts {
                     bridgehub_proxy_addr: ecosystem.bridgehub_proxy_addr,

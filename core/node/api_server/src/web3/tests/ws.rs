@@ -6,7 +6,7 @@ use assert_matches::assert_matches;
 use async_trait::async_trait;
 use http::StatusCode;
 use tokio::sync::watch;
-use zksync_config::{configs::chain::NetworkConfig, Contracts};
+use zksync_config::{configs::chain::NetworkConfig, SettlementLayerContracts};
 use zksync_dal::ConnectionPool;
 use zksync_types::{api, Address, Bloom, L1BatchNumber, H160, H256, U64};
 use zksync_web3_decl::{
@@ -171,7 +171,7 @@ async fn test_ws_server(test: impl WsTest) {
 
     let api_config = InternalApiConfig::new(
         &web3_config,
-        &Contracts::new(contracts_config, None),
+        &SettlementLayerContracts::new(contracts_config, None),
         &genesis_config,
     );
     let mut storage = pool.connection().await.unwrap();

@@ -6,7 +6,7 @@ use zksync_types::L1ChainId;
 
 use crate::{
     implementations::resources::{
-        contracts::ContractsResource,
+        contracts::{L1EcosystemContractsResource, SettlementLayerContractsResource},
         eth_interface::EthInterfaceResource,
         l1_tx_params::TxParamsResource,
         pools::{MasterPool, PoolResource},
@@ -37,7 +37,8 @@ pub struct Input {
     pub price_api_client: PriceAPIClientResource,
     pub eth_client: EthInterfaceResource,
     pub tx_params: TxParamsResource,
-    pub contracts_resource: ContractsResource,
+    pub contracts_resource: SettlementLayerContractsResource,
+    pub l1ecosystem_contracts_resource: L1EcosystemContractsResource,
 }
 
 #[derive(Debug, IntoContext)]
@@ -75,9 +76,8 @@ impl WiringLayer for BaseTokenRatioPersisterLayer {
 
         let price_api_client = input.price_api_client;
         let base_token_addr = input
-            .contracts_resource
+            .l1ecosystem_contracts_resource
             .0
-            .l1_specific_contracts()
             .base_token_address
             .expect("base token address is not set");
 

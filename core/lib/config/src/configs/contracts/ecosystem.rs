@@ -1,7 +1,9 @@
 // External uses
 use serde::{Deserialize, Serialize};
-// Workspace uses
 use zksync_basic_types::Address;
+
+// Workspace uses
+use crate::configs::AllContractsConfig;
 
 // Unified ecosystem contracts. To be deleted, after contracts config migration
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -32,7 +34,7 @@ impl EcosystemContracts {
 
 // Ecosystem contracts that are specific only for L1
 #[derive(Debug, Clone)]
-pub struct EcosystemL1Specific {
+pub struct EcosystemL1SpecificContracts {
     pub bytecodes_supplier_addr: Option<Address>,
     // Note that on the contract side of things this contract is called `L2WrappedBaseTokenStore`,
     // while on the server side for consistency with the conventions, where the prefix denotes
@@ -52,4 +54,17 @@ pub struct EcosystemCommonContracts {
     pub multicall3: Address,
     pub validator_timelock_addr: Address,
     pub no_da_validium_l1_validator_addr: Option<Address>,
+}
+
+impl EcosystemL1SpecificContracts {
+    pub fn new(contracts_config: &AllContractsConfig) -> Self {
+        let ecosystem = contracts_config.ecosystem_contracts.as_ref().unwrap();
+        Self {
+            bytecodes_supplier_addr: ecosystem.l1_bytecodes_supplier_addr,
+            wrapped_base_token_store: ecosystem.l1_wrapped_base_token_store,
+            shared_bridge: contracts_config.l1_shared_bridge_proxy_addr,
+            erc_20_bridge: contracts_config.l1_erc20_bridge_proxy_addr,
+            base_token_address: contracts_config.base_token_addr,
+        }
+    }
 }

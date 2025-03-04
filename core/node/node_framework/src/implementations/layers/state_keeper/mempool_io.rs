@@ -8,7 +8,7 @@ use zksync_types::{commitment::PubdataType, L2ChainId};
 
 use crate::{
     implementations::resources::{
-        contracts::ContractsResource,
+        contracts::SettlementLayerContractsResource,
         fee_input::SequencerFeeInputResource,
         pools::{MasterPool, PoolResource},
         state_keeper::{ConditionalSealerResource, StateKeeperIOResource},
@@ -48,7 +48,7 @@ pub struct MempoolIOLayer {
 pub struct Input {
     pub fee_input: SequencerFeeInputResource,
     pub master_pool: PoolResource<MasterPool>,
-    pub contracts_resource: ContractsResource,
+    pub contracts_resource: SettlementLayerContractsResource,
 }
 
 #[derive(Debug, IntoContext)]

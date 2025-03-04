@@ -16,7 +16,7 @@ use zksync_web3_decl::{
 
 use crate::{
     implementations::resources::{
-        contracts::ContractsResource,
+        contracts::SettlementLayerContractsResource,
         fee_input::ApiFeeInputResource,
         main_node_client::MainNodeClientResource,
         pools::{PoolResource, ReplicaPool},
@@ -74,7 +74,7 @@ pub struct Input {
     pub fee_input: ApiFeeInputResource,
     pub main_node_client: Option<MainNodeClientResource>,
     pub sealer: Option<ConditionalSealerResource>,
-    pub contracts_resource: ContractsResource,
+    pub contracts_resource: SettlementLayerContractsResource,
 }
 
 #[derive(Debug, IntoContext)]

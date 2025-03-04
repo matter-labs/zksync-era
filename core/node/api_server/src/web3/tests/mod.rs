@@ -14,7 +14,7 @@ use zksync_config::{
         chain::{NetworkConfig, StateKeeperConfig},
         AllContractsConfig as ContractsConfig,
     },
-    Contracts, GenesisConfig,
+    GenesisConfig, SettlementLayerContracts,
 };
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{Connection, ConnectionPool, CoreDal};
@@ -287,7 +287,7 @@ async fn test_http_server(test: impl HttpTest) {
     let genesis = GenesisConfig::for_tests();
     let mut api_config = InternalApiConfig::new(
         &web3_config,
-        &Contracts::new(contracts_config, None),
+        &SettlementLayerContracts::new(contracts_config, None),
         &genesis,
     );
     api_config.filters_disabled = test.filters_disabled();

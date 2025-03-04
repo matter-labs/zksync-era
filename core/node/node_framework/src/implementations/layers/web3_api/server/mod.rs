@@ -18,7 +18,7 @@ use crate::{
         },
         resources::{
             circuit_breakers::CircuitBreakersResource,
-            contracts::ContractsResource,
+            contracts::{L1EcosystemContractsResource, SettlementLayerContractsResource},
             eth_interface::GatewayEthInterfaceResource,
             healthcheck::AppHealthCheckResource,
             main_node_client::MainNodeClientResource,
@@ -134,7 +134,8 @@ pub struct Input {
     pub app_health: AppHealthCheckResource,
     pub main_node_client: Option<MainNodeClientResource>,
     pub l1_eth_client: GatewayEthInterfaceResource,
-    pub contracts_resource: ContractsResource,
+    pub contracts_resource: SettlementLayerContractsResource,
+    pub l1ecosystem_contracts_resource: L1EcosystemContractsResource,
 }
 
 #[derive(Debug, IntoContext)]
@@ -203,7 +204,7 @@ impl WiringLayer for Web3ServerLayer {
         let contracts = input.contracts_resource.0;
         let internal_api_config = self
             .internal_api_config_builder
-            .with_contracts(contracts)
+            .with_contracts(contracts, input.l1ecosystem_contracts_resource.0)
             .build();
 
         let sealed_l2_block_handle = SealedL2BlockNumber::default();

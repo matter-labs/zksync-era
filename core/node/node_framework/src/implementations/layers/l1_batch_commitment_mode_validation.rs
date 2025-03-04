@@ -3,7 +3,7 @@ use zksync_types::commitment::L1BatchCommitmentMode;
 
 use crate::{
     implementations::resources::{
-        contracts::ContractsResource, eth_interface::GatewayEthInterfaceResource,
+        contracts::SettlementLayerContractsResource, eth_interface::GatewayEthInterfaceResource,
     },
     service::StopReceiver,
     task::{Task, TaskId, TaskKind},
@@ -21,7 +21,7 @@ pub struct L1BatchCommitmentModeValidationLayer {
 #[derive(Debug, FromContext)]
 #[context(crate = crate)]
 pub struct Input {
-    pub contracts: ContractsResource,
+    pub contracts: SettlementLayerContractsResource,
     pub eth_client: GatewayEthInterfaceResource,
 }
 

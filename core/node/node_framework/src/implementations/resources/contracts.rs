@@ -1,12 +1,23 @@
-use zksync_config::configs::contracts::Contracts;
+use zksync_config::configs::contracts::{
+    ecosystem::EcosystemL1SpecificContracts, SettlementLayerContracts,
+};
 
 use crate::Resource;
 
 #[derive(Debug, Clone)]
-pub struct ContractsResource(pub Contracts);
+pub struct SettlementLayerContractsResource(pub SettlementLayerContracts);
 
-impl Resource for ContractsResource {
+impl Resource for SettlementLayerContractsResource {
     fn name() -> String {
-        "common/contracts".into()
+        "common/sl_layer_contracts".into()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct L1EcosystemContractsResource(pub EcosystemL1SpecificContracts);
+
+impl Resource for L1EcosystemContractsResource {
+    fn name() -> String {
+        "common/l1_ecosystem_contracts".into()
     }
 }

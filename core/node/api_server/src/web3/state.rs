@@ -12,7 +12,10 @@ use futures::TryFutureExt;
 use lru::LruCache;
 use tokio::sync::{Mutex, RwLock};
 use vise::GaugeGuard;
-use zksync_config::{configs::api::Web3JsonRpcConfig, Contracts, GenesisConfig};
+use zksync_config::{
+    configs::{api::Web3JsonRpcConfig, contracts::ecosystem::EcosystemL1SpecificContracts},
+    GenesisConfig, SettlementLayerContracts,
+};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_metadata_calculator::api_server::TreeApiClient;
 use zksync_node_sync::SyncState;
@@ -163,15 +166,19 @@ impl InternalApiConfigBuilder {
         self
     }
 
-    pub fn with_contracts(mut self, contracts_config: Contracts) -> Self {
-        self.base_token_address = contracts_config.l1_specific_contracts().base_token_address;
+    pub fn with_contracts(
+        mut self,
+        contracts_config: SettlementLayerContracts,
+        l1_ecosystem_contracts: EcosystemL1SpecificContracts,
+    ) -> Self {
+        self.base_token_address = l1_ecosystem_contracts.base_token_address;
         self.bridge_addresses = Some(BridgeAddresses {
-            l1_erc20_default_bridge: contracts_config.l1_specific_contracts().erc_20_bridge,
+            l1_erc20_default_bridge: l1_ecosystem_contracts.erc_20_bridge,
             l2_erc20_default_bridge: contracts_config
                 .current_contracts()
                 .l2_contracts
                 .erc20_default_bridge,
-            l1_shared_default_bridge: contracts_config.l1_specific_contracts().shared_bridge,
+            l1_shared_default_bridge: l1_ecosystem_contracts.shared_bridge,
             l2_shared_default_bridge: contracts_config
                 .current_contracts()
                 .l2_contracts
@@ -197,12 +204,8 @@ impl InternalApiConfigBuilder {
                 .state_transition_proxy_addr,
         );
 
-        self.l1_bytecodes_supplier_addr = contracts_config
-            .l1_specific_contracts()
-            .bytecodes_supplier_addr;
-        self.l1_wrapped_base_token_store = contracts_config
-            .l1_specific_contracts()
-            .wrapped_base_token_store;
+        self.l1_bytecodes_supplier_addr = l1_ecosystem_contracts.bytecodes_supplier_addr;
+        self.l1_wrapped_base_token_store = l1_ecosystem_contracts.wrapped_base_token_store;
         self.l1_diamond_proxy_addr = Some(
             contracts_config
                 .current_contracts()
@@ -280,7 +283,8 @@ pub struct InternalApiConfig {
 impl InternalApiConfig {
     pub fn new(
         web3_config: &Web3JsonRpcConfig,
-        contracts_config: &Contracts,
+        contracts_config: &SettlementLayerContracts,
+        l1_ecosystem_contracts: &EcosystemL1SpecificContracts,
         genesis_config: &GenesisConfig,
     ) -> Self {
         Self {
@@ -292,12 +296,12 @@ impl InternalApiConfig {
                 .estimate_gas_acceptable_overestimation,
             estimate_gas_optimize_search: web3_config.estimate_gas_optimize_search,
             bridge_addresses: api::BridgeAddresses {
-                l1_erc20_default_bridge: contracts_config.l1_specific_contracts().erc_20_bridge,
+                l1_erc20_default_bridge: l1_ecosystem_contracts.erc_20_bridge,
                 l2_erc20_default_bridge: contracts_config
                     .current_contracts()
                     .l2_contracts
                     .erc20_default_bridge,
-                l1_shared_default_bridge: contracts_config.l1_specific_contracts().shared_bridge,
+                l1_shared_default_bridge: l1_ecosystem_contracts.shared_bridge,
                 l2_shared_default_bridge: contracts_config
                     .current_contracts()
                     .l2_contracts
@@ -324,12 +328,8 @@ impl InternalApiConfig {
             ),
 
             l1_transparent_proxy_admin_addr: None,
-            l1_bytecodes_supplier_addr: contracts_config
-                .l1_specific_contracts()
-                .bytecodes_supplier_addr,
-            l1_wrapped_base_token_store: contracts_config
-                .l1_specific_contracts()
-                .wrapped_base_token_store,
+            l1_bytecodes_supplier_addr: l1_ecosystem_contracts.bytecodes_supplier_addr,
+            l1_wrapped_base_token_store: l1_ecosystem_contracts.wrapped_base_token_store,
             l1_diamond_proxy_addr: contracts_config
                 .current_contracts()
                 .chain_contracts_config
@@ -341,8 +341,7 @@ impl InternalApiConfig {
             req_entities_limit: web3_config.req_entities_limit(),
             fee_history_limit: web3_config.fee_history_limit(),
             base_token_address: Some(
-                contracts_config
-                    .l1_specific_contracts()
+                l1_ecosystem_contracts
                     .base_token_address
                     .unwrap_or(ETHEREUM_ADDRESS),
             ),

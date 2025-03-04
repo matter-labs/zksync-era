@@ -8,7 +8,7 @@ use zksync_types::{commitment::L1BatchCommitmentMode, L2ChainId};
 use crate::{
     implementations::resources::{
         circuit_breakers::CircuitBreakersResource,
-        contracts::ContractsResource,
+        contracts::SettlementLayerContractsResource,
         eth_interface::{
             BoundEthInterfaceForBlobsResource, BoundEthInterfaceForL2Resource,
             BoundEthInterfaceResource,
@@ -63,7 +63,7 @@ pub struct Input {
     pub circuit_breakers: CircuitBreakersResource,
     #[context(default)]
     pub app_health: AppHealthCheckResource,
-    pub contracts_resource: ContractsResource,
+    pub contracts_resource: SettlementLayerContractsResource,
 }
 
 #[derive(Debug, IntoContext)]

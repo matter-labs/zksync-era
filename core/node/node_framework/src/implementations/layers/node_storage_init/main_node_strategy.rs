@@ -6,7 +6,7 @@ use zksync_node_storage_init::{main_node::MainNodeGenesis, NodeInitializationStr
 use super::NodeInitializationStrategyResource;
 use crate::{
     implementations::resources::{
-        contracts::ContractsResource,
+        contracts::SettlementLayerContractsResource,
         eth_interface::EthInterfaceResource,
         pools::{MasterPool, PoolResource},
     },
@@ -25,7 +25,7 @@ pub struct MainNodeInitStrategyLayer {
 pub struct Input {
     pub master_pool: PoolResource<MasterPool>,
     pub eth_interface: EthInterfaceResource,
-    pub contracts_resource: ContractsResource,
+    pub contracts_resource: SettlementLayerContractsResource,
 }
 
 #[derive(Debug, IntoContext)]

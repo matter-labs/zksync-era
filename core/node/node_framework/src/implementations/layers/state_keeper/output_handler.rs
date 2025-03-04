@@ -7,7 +7,7 @@ use zksync_state_keeper::{
 
 use crate::{
     implementations::resources::{
-        contracts::ContractsResource,
+        contracts::SettlementLayerContractsResource,
         pools::{MasterPool, PoolResource},
         state_keeper::OutputHandlerResource,
         sync_state::SyncStateResource,
@@ -51,7 +51,7 @@ pub struct OutputHandlerLayer {
 pub struct Input {
     pub master_pool: PoolResource<MasterPool>,
     pub sync_state: Option<SyncStateResource>,
-    pub contracts: ContractsResource,
+    pub contracts: SettlementLayerContractsResource,
 }
 
 #[derive(Debug, IntoContext)]

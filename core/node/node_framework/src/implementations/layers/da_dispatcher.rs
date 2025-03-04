@@ -3,7 +3,7 @@ use zksync_da_dispatcher::DataAvailabilityDispatcher;
 
 use crate::{
     implementations::resources::{
-        contracts::ContractsResource,
+        contracts::SettlementLayerContractsResource,
         da_client::DAClientResource,
         eth_interface::EthInterfaceResource,
         pools::{MasterPool, PoolResource},
@@ -27,7 +27,7 @@ pub struct Input {
     pub master_pool: PoolResource<MasterPool>,
     pub eth_client: EthInterfaceResource,
     pub da_client: DAClientResource,
-    pub contracts_resource: ContractsResource,
+    pub contracts_resource: SettlementLayerContractsResource,
 }
 
 #[derive(Debug, IntoContext)]

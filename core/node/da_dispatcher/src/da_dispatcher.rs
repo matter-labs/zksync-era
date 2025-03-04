@@ -4,7 +4,7 @@ use anyhow::Context;
 use chrono::Utc;
 use rand::Rng;
 use tokio::sync::watch::Receiver;
-use zksync_config::{Contracts, DADispatcherConfig};
+use zksync_config::{DADispatcherConfig, SettlementLayerContracts};
 use zksync_da_client::{
     types::{DAError, InclusionData},
     DataAvailabilityClient,
@@ -26,7 +26,7 @@ pub struct DataAvailabilityDispatcher {
     client: Box<dyn DataAvailabilityClient>,
     pool: ConnectionPool<Core>,
     config: DADispatcherConfig,
-    contracts_config: Contracts,
+    contracts_config: SettlementLayerContracts,
     settlement_layer_client: Box<DynClient<L1>>,
 
     transitional_l2_da_validator_address: Option<Address>, // set only if inclusion_verification_transition_enabled is true
@@ -37,7 +37,7 @@ impl DataAvailabilityDispatcher {
         pool: ConnectionPool<Core>,
         config: DADispatcherConfig,
         client: Box<dyn DataAvailabilityClient>,
-        contracts_config: Contracts,
+        contracts_config: SettlementLayerContracts,
         settlement_layer_client: Box<DynClient<L1>>,
     ) -> Self {
         Self {

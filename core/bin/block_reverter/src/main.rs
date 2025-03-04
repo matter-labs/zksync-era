@@ -18,7 +18,7 @@ use zksync_config::{
         chain::NetworkConfig, wallets::Wallets, BasicWitnessInputProducerConfig, DatabaseSecrets,
         GeneralConfig, L1Secrets, ObservabilityConfig, ProtectiveReadsWriterConfig,
     },
-    Contracts, ContractsConfig, DBConfig, EthConfig, GenesisConfig, PostgresConfig,
+    ContractsConfig, DBConfig, EthConfig, GenesisConfig, PostgresConfig, SettlementLayerContracts,
 };
 use zksync_core_leftovers::temp_config_store::read_yaml_repr;
 use zksync_dal::{ConnectionPool, Core};
@@ -234,7 +234,7 @@ async fn main() -> anyhow::Result<()> {
         }
     };
 
-    let contracts = Contracts::new(contracts, None);
+    let contracts = SettlementLayerContracts::new(&contracts, None);
 
     let sl_rpc_url = if settlement_mode.is_gateway() {
         l1_secrets

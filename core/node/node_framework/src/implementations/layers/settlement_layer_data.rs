@@ -1,10 +1,13 @@
-use zksync_config::Contracts;
+use zksync_config::{
+    configs::contracts::ecosystem::EcosystemL1SpecificContracts, SettlementLayerContracts,
+};
 use zksync_contracts::getters_facet_contract;
 use zksync_gateway_migrator::get_settlement_layer;
 
 use crate::{
     implementations::resources::{
-        contracts::ContractsResource, eth_interface::EthInterfaceResource,
+        contracts::{L1EcosystemContractsResource, SettlementLayerContractsResource},
+        eth_interface::EthInterfaceResource,
         settlement_layer::SettlementModeResource,
     },
     wiring_layer::{WiringError, WiringLayer},
@@ -14,13 +17,18 @@ use crate::{
 /// Wiring layer for [`SettlementLayerData`].
 #[derive(Debug)]
 pub struct SettlementLayerData {
-    contracts: Contracts,
+    contracts: SettlementLayerContracts,
+    l1_ecosystem_contracts: EcosystemL1SpecificContracts,
 }
 
 impl SettlementLayerData {
-    pub fn new(contracts_config: Contracts) -> Self {
+    pub fn new(
+        contracts: SettlementLayerContracts,
+        l1_ecosystem_contracts: EcosystemL1SpecificContracts,
+    ) -> Self {
         Self {
-            contracts: contracts_config,
+            contracts,
+            l1_ecosystem_contracts,
         }
     }
 }
@@ -35,7 +43,8 @@ pub struct Input {
 #[context(crate = crate)]
 pub struct Output {
     initial_settlement_mode: SettlementModeResource,
-    contracts: ContractsResource,
+    contracts: SettlementLayerContractsResource,
+    l1_ecosystem_contracts: L1EcosystemContractsResource,
 }
 
 #[async_trait::async_trait]
@@ -62,7 +71,10 @@ impl WiringLayer for SettlementLayerData {
 
         Ok(Output {
             initial_settlement_mode: SettlementModeResource(initial_sl_mode),
-            contracts: ContractsResource(contracts),
+            contracts: SettlementLayerContractsResource(contracts),
+            l1_ecosystem_contracts: L1EcosystemContractsResource(
+                self.l1_ecosystem_contracts.clone(),
+            ),
         })
     }
 }

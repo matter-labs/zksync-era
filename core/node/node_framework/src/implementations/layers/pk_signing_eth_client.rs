@@ -4,7 +4,7 @@ use zksync_eth_client::{clients::PKSigningClient, EthInterface};
 
 use crate::{
     implementations::resources::{
-        contracts::ContractsResource,
+        contracts::SettlementLayerContractsResource,
         eth_interface::{
             BoundEthInterfaceForBlobsResource, BoundEthInterfaceForL2Resource,
             BoundEthInterfaceResource, EthInterfaceResource, GatewayEthInterfaceResource,
@@ -25,7 +25,7 @@ pub struct PKSigningEthClientLayer {
 #[context(crate = crate)]
 pub struct Input {
     pub eth_client: EthInterfaceResource,
-    pub contracts: ContractsResource,
+    pub contracts: SettlementLayerContractsResource,
     pub gateway_client: Option<GatewayEthInterfaceResource>,
 }
 
