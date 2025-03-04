@@ -118,6 +118,7 @@ impl Task for Manager {
                         .get(&(ppv.to_string(), scaler.queue_report_field()))
                         .cloned()
                         .unwrap_or(0);
+                    AUTOSCALER_METRICS.queue[&(ns.clone(), scaler.deployment())].set(q);
                     tracing::debug!(
                         "Running eval for namespace {ns}, PPV {ppv}, scaler {} found queue {q}",
                         scaler.deployment()
