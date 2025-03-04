@@ -15,7 +15,8 @@ use zksync_eth_client::{
     EthInterface,
 };
 use zksync_types::{
-    ethabi, l2_to_l1_log::L2ToL1Log, web3::CallRequest, Address, L1BatchNumber, H256,
+    ethabi, l2_to_l1_log::L2ToL1Log, utils::client_type_to_pubdata_type, web3::CallRequest,
+    Address, L1BatchNumber, H256,
 };
 
 use crate::metrics::METRICS;
@@ -144,7 +145,9 @@ impl DataAvailabilityDispatcher {
                     batch.l1_batch_number,
                     dispatch_response.blob_id.as_str(),
                     sent_at.naive_utc(),
-                    find_l2_da_validator_address(batch.system_logs.as_slice())?,
+                    client_type_to_pubdata_type(self.client.client_type()),
+                    None,
+                    Some(find_l2_da_validator_address(batch.system_logs.as_slice())?),
                 )
                 .await?;
             drop(conn);

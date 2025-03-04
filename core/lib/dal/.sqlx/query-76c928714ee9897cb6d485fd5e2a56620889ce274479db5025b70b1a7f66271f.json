@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO\n            etherscan_verification_requests (\n                contract_verification_request_id,\n                status,\n                created_at,\n                updated_at\n            )\n            VALUES\n            ($1, 'queued', NOW(), NOW())\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "76c928714ee9897cb6d485fd5e2a56620889ce274479db5025b70b1a7f66271f"
+}

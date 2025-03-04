@@ -5,7 +5,7 @@ use secp256k1::SecretKey;
 use subxt_signer::ExposeSecret;
 use zksync_config::{configs::da_client::eigen::EigenSecrets, EigenConfig};
 use zksync_da_client::{
-    types::{DAError, DispatchResponse, InclusionData},
+    types::{ClientType, DAError, DispatchResponse, InclusionData},
     DataAvailabilityClient,
 };
 
@@ -76,6 +76,10 @@ impl DataAvailabilityClient for EigenClient {
 
     fn blob_size_limit(&self) -> Option<usize> {
         Some(RawEigenClient::blob_size_limit())
+    }
+
+    fn client_type(&self) -> ClientType {
+        ClientType::Eigen
     }
 
     async fn balance(&self) -> Result<u64, DAError> {
