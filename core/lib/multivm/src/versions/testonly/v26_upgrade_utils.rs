@@ -119,12 +119,11 @@ fn setup_v26_unsafe_deposits_detection<VM: TestedVm>() -> (VmTester<VM>, V26Test
 
     let test_contract = zksync_test_contracts::TestContract::bridge_test();
     // Any random (but big) address is fine
-    let test_address = Address::from_str("abacabac00000000000000000000000000000000").unwrap();
+    let test_address = "abacabac00000000000000000000000000000000".parse().unwrap();
     // Any random (but big) address is fine
-    let l1_shared_bridge_address =
-        Address::from_str("abacabac00000000000000000000000000000001").unwrap();
+    let l1_shared_bridge_address = "abacabac00000000000000000000000000000001".parse().unwrap();
     // Any random (but big) address is fine
-    let l1_token_address = Address::from_str("abacabac00000000000000000000000000000002").unwrap();
+    let l1_token_address = "abacabac00000000000000000000000000000002".parse().unwrap();
 
     let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()

@@ -221,10 +221,9 @@ async fn is_l2_token_legacy(
     }
 }
 
-/// Accepts a list of transactions to be included into the mempool and filters
-/// the unsafe deposits and returns two vectors:
-/// - Transactions to include into the mempool
-/// - Transactions to return to the mempool
+/// Accepts a list of transactions and returns:
+/// - `Some(unsafe_tx_hash)` if there is an unsafe deposit transaction.
+/// - `None` if there is no such transaction.  
 ///
 /// Note, that the purpose of this function is not to find unsafe deposits *only*
 /// but detect whether they may be present at all. It does check that, e.g. the sender

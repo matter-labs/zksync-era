@@ -3,7 +3,7 @@ use core::fmt::Debug;
 use blake2::{Blake2s256, Digest};
 pub use log::*;
 use serde::{Deserialize, Serialize};
-use zksync_basic_types::{web3::keccak256, L2ChainId};
+use zksync_basic_types::{web3::keccak256_concat, L2ChainId};
 pub use zksync_system_constants::*;
 
 use crate::{address_to_h256, u256_to_h256, AccountTreeId, Address, H160, H256, U256};
@@ -58,9 +58,7 @@ impl StorageKey {
 // at position `position` is stored.
 pub fn get_address_mapping_key(address: &Address, position: H256) -> H256 {
     let padded_address = address_to_h256(address);
-    H256(keccak256(
-        &[padded_address.as_bytes(), position.as_bytes()].concat(),
-    ))
+    keccak256_concat(padded_address, position)
 }
 
 pub fn get_nonce_key(account: &Address) -> StorageKey {
@@ -119,17 +117,8 @@ pub fn get_immutable_simulator_key(account: &Address, immutable_key: H256) -> St
 
     let padded_address = address_to_h256(account);
 
-    let inner_mapping_slot = keccak256(
-        &[
-            padded_address.as_bytes(),
-            IMMUTABLE_SIMULATOR_MAPPING_SLOT.as_bytes(),
-        ]
-        .concat(),
-    );
-
-    let key = H256::from(keccak256(
-        &[immutable_key.as_bytes(), &inner_mapping_slot as &[u8]].concat(),
-    ));
+    let inner_mapping_slot = keccak256_concat(padded_address, IMMUTABLE_SIMULATOR_MAPPING_SLOT);
+    let key = keccak256_concat(immutable_key, inner_mapping_slot);
 
     StorageKey::new(immutable_simulator, key)
 }

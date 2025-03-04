@@ -51,14 +51,14 @@ fn resolve_module_name(
     let next_dir = path_in_dir.iter().next().expect("no dir");
 
     let module_name = if next_dir.to_str() == test_contracts_dir.to_str() {
-        // We will use the test name folder and not the `contracts` folder for the module
+        // We will use the test name directory and not the `contracts` directory for the module
         path_in_dir.iter().nth(1).expect("no dir")
     } else if factory_deps_to_include.contains(&format!(
         "{}:{}",
         path_in_dir.to_str().unwrap(),
         id.name
     )) {
-        // We will use the dependency's folder as the module name
+        // We will use the dependency's directory as the module name
         next_dir
     } else {
         return None;
