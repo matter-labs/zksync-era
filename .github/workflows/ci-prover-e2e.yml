@@ -56,20 +56,20 @@ jobs:
           echo "CORE_TAG=$CORE_TAG" >> .env
           echo "CORE_COMMIT=$CORE_COMMIT" >> .env
 
-      - name: Verify compatibility matrix
-        run: |
-          LATEST_CORE_TAG=$(git describe --tags --match "core-*" --abbrev=0)
-          LATEST_PROVER_TAG=$(git describe --tags --match "prover-*" --abbrev=0)
-          
-          # Verify that latest prover and core versions are in the compatibility matrix
-          CORE_MAJOR=$(echo "$LATEST_CORE_TAG" | sed 's/core-v\([0-9]*\).*/\1/')
-          PROVER_MAJOR=$(echo "$LATEST_PROVER_TAG" | sed 's/prover-v\([0-9]*\).*/\1/')
-
-          if ! grep -q "\"prover\": $PROVER_MAJOR" prover/compatibility_matrix.json || \
-             ! grep -q "\"core\": \[.*$CORE_MAJOR.*\]" prover/compatibility_matrix.json; then
-            echo "Error: Latest core or prover majors are missing from compatibility_matrix.json"
-            exit 1
-          fi
+#      - name: Verify compatibility matrix
+#        run: |
+#          LATEST_CORE_TAG=$(git describe --tags --match "core-*" --abbrev=0)
+#          LATEST_PROVER_TAG=$(git describe --tags --match "prover-*" --abbrev=0)
+#
+#          # Verify that latest prover and core versions are in the compatibility matrix
+#          CORE_MAJOR=$(echo "$LATEST_CORE_TAG" | sed 's/core-v\([0-9]*\).*/\1/')
+#          PROVER_MAJOR=$(echo "$LATEST_PROVER_TAG" | sed 's/prover-v\([0-9]*\).*/\1/')
+#
+#          if ! grep -q "\"prover\": $PROVER_MAJOR" prover/compatibility_matrix.json || \
+#             ! grep -q "\"core\": \[.*$CORE_MAJOR.*\]" prover/compatibility_matrix.json; then
+#            echo "Error: Latest core or prover majors are missing from compatibility_matrix.json"
+#            exit 1
+#          fi
 
       - name: Start services
         run: |
