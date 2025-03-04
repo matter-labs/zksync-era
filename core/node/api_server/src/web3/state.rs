@@ -176,7 +176,7 @@ impl InternalApiConfigBuilder {
                 .current_contracts()
                 .l2_contracts
                 .shared_bridge_addr,
-            // Seems weth is not available
+            // WETH bridge is not available
             l1_weth_bridge: None,
             l2_weth_bridge: None,
             l2_legacy_shared_bridge: contracts_config
@@ -302,7 +302,7 @@ impl InternalApiConfig {
                     .current_contracts()
                     .l2_contracts
                     .shared_bridge_addr,
-                // Seems weth is not available
+                // WETH bridge is not available
                 l1_weth_bridge: None,
                 l2_weth_bridge: None,
                 l2_legacy_shared_bridge: contracts_config
