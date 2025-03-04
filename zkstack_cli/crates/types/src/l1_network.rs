@@ -45,7 +45,7 @@ impl L1Network {
             L1Network::Sepolia | L1Network::Holesky => {
                 Some(Address::from_str("0x73d59fe232fce421d1365d6a5beec49acde3d0d9").unwrap())
             }
-            L1Network::Mainnet => None, // TODO: add mainnet address after it is known
+            L1Network::Mainnet => Some(Address::from_str("0x73d59fe232fce421d1365d6a5beec49acde3d0d9").unwrap()),
         }
     }
 }
