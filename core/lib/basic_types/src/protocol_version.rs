@@ -70,7 +70,6 @@ pub enum ProtocolVersionId {
     Version25,
     Version26,
     Version27,
-    Version28,
 }
 
 impl ProtocolVersionId {
@@ -125,7 +124,6 @@ impl ProtocolVersionId {
             ProtocolVersionId::Version25 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
             ProtocolVersionId::Version26 => VmVersion::VmGateway,
             ProtocolVersionId::Version27 => VmVersion::VmGateway,
-            ProtocolVersionId::Version28 => unreachable!("Version 28 is not yet supported"),
         }
     }
 
@@ -152,7 +150,7 @@ impl ProtocolVersionId {
     }
 
     pub fn is_pre_fflonk(&self) -> bool {
-        self < &Self::Version28
+        self < &Self::Version27
     }
 
     pub fn is_1_4_0(&self) -> bool {
@@ -300,7 +298,6 @@ impl From<ProtocolVersionId> for VmVersion {
             ProtocolVersionId::Version25 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
             ProtocolVersionId::Version26 => VmVersion::VmGateway,
             ProtocolVersionId::Version27 => VmVersion::VmGateway,
-            ProtocolVersionId::Version28 => unreachable!("Version 28 is not yet supported"),
         }
     }
 }

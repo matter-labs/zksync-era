@@ -1,7 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use secrecy::ExposeSecret as _;
-pub use secrecy::Secret;
+use secrecy::{ExposeSecret as _, SecretString};
 use zksync_basic_types::{ethabi, L2ChainId};
 use zksync_concurrency::{limiter, time};
 
@@ -11,7 +10,7 @@ pub struct ValidatorPublicKey(pub String);
 
 /// `zksync_consensus_crypto::TextFmt` representation of `zksync_consensus_roles::validator::SecretKey`.
 #[derive(Debug, Clone)]
-pub struct ValidatorSecretKey(pub Secret<String>);
+pub struct ValidatorSecretKey(pub SecretString);
 
 /// `zksync_consensus_crypto::TextFmt` representation of `zksync_consensus_roles::attester::PublicKey`.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -19,7 +18,7 @@ pub struct AttesterPublicKey(pub String);
 
 /// `zksync_consensus_crypto::TextFmt` representation of `zksync_consensus_roles::attester::SecretKey`.
 #[derive(Debug, Clone)]
-pub struct AttesterSecretKey(pub Secret<String>);
+pub struct AttesterSecretKey(pub SecretString);
 
 /// `zksync_consensus_crypto::TextFmt` representation of `zksync_consensus_roles::node::PublicKey`.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -27,7 +26,7 @@ pub struct NodePublicKey(pub String);
 
 /// `zksync_consensus_crypto::TextFmt` representation of `zksync_consensus_roles::node::SecretKey`.
 #[derive(Debug, Clone)]
-pub struct NodeSecretKey(pub Secret<String>);
+pub struct NodeSecretKey(pub SecretString);
 
 impl PartialEq for ValidatorSecretKey {
     fn eq(&self, other: &Self) -> bool {

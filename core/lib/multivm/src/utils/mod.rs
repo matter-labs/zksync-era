@@ -578,4 +578,8 @@ pub(crate) struct CircuitCycleStatistic {
     pub sha256_cycles: u32,
     pub secp256k1_verify_cycles: u32,
     pub transient_storage_checker_cycles: u32,
+    pub modexp_cycles: u32,
+    pub ecadd_cycles: u32,
+    pub ecmul_cycles: u32,
+    pub ecpairing_cycles: u32,
 }

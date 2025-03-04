@@ -9,7 +9,10 @@ use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber};
 
 use crate::{
     artifacts::ArtifactsManager,
-    rounds::basic_circuits::{BasicCircuitArtifacts, BasicCircuits, BasicWitnessGeneratorJob},
+    rounds::basic_circuits::{
+        utils::create_aggregation_jobs, BasicCircuitArtifacts, BasicCircuits,
+        BasicWitnessGeneratorJob,
+    },
     utils::SchedulerPartialInputWrapper,
 };
 
@@ -77,7 +80,7 @@ impl ArtifactsManager for BasicCircuits {
             .await
             .expect("failed to get database transaction");
         let protocol_version_id = transaction
-            .fri_witness_generator_dal()
+            .fri_basic_witness_generator_dal()
             .protocol_version_for_l1_batch(L1BatchNumber(job_id))
             .await;
         transaction
@@ -90,18 +93,20 @@ impl ArtifactsManager for BasicCircuits {
                 protocol_version_id,
             )
             .await;
+
+        create_aggregation_jobs(
+            &mut transaction,
+            L1BatchNumber(job_id),
+            &artifacts.queue_urls,
+            &blob_urls,
+            get_recursive_layer_circuit_id_for_base_layer,
+            protocol_version_id,
+        )
+        .await
+        .unwrap();
+
         transaction
-            .fri_witness_generator_dal()
-            .create_aggregation_jobs(
-                L1BatchNumber(job_id),
-                &artifacts.queue_urls,
-                &blob_urls,
-                get_recursive_layer_circuit_id_for_base_layer,
-                protocol_version_id,
-            )
-            .await;
-        transaction
-            .fri_witness_generator_dal()
+            .fri_basic_witness_generator_dal()
             .mark_witness_job_as_successful(L1BatchNumber(job_id), started_at.elapsed())
             .await;
         transaction

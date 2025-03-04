@@ -5,7 +5,8 @@ use zksync_vm2::interface::{CycleStats, GlobalStateInterface, OpcodeType, Should
 pub(super) use self::evm_deploy::DynamicBytecodes;
 pub use self::{
     calls::CallTracer,
-    validation::{FullValidationTracer, ValidationTracer},
+    storage::StorageInvocationsTracer,
+    validation::{FastValidationTracer, FullValidationTracer, ValidationTracer},
 };
 use self::{circuits::CircuitsTracer, evm_deploy::EvmDeployTracer};
 use crate::interface::CircuitStatistic;
@@ -13,6 +14,7 @@ use crate::interface::CircuitStatistic;
 mod calls;
 mod circuits;
 mod evm_deploy;
+mod storage;
 mod validation;
 
 #[derive(Debug)]

@@ -8,6 +8,7 @@ pub(crate) mod logs;
 pub mod overhead;
 pub(crate) mod refund;
 pub mod transaction_encoding;
+pub mod v26_upgrade;
 
 pub const fn heap_page_from_base(base: MemoryPage) -> MemoryPage {
     MemoryPage(base.0 + 2)

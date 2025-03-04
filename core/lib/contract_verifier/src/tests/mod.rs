@@ -188,7 +188,6 @@ async fn mock_deployment_inner(
     let location = IncludedTxLocation {
         tx_hash: deploy_tx.hash(),
         tx_index_in_l2_block: 0,
-        tx_initiator_address: deployer_address,
     };
     let deploy_event = VmEvent {
         location: (L1BatchNumber(0), 0),
@@ -335,6 +334,7 @@ fn test_request(address: Address, source: &str) -> VerificationIncomingRequest {
         constructor_arguments: Default::default(),
         is_system: false,
         force_evmla: false,
+        evm_specific: Default::default(),
     }
 }
 
@@ -414,6 +414,7 @@ async fn contract_verifier_basics(contract: TestContract) {
         Duration::from_secs(60),
         pool.clone(),
         Arc::new(mock_resolver),
+        false,
     )
     .await
     .unwrap();
@@ -540,6 +541,7 @@ async fn verifying_evm_bytecode(contract: TestContract) {
         Duration::from_secs(60),
         pool.clone(),
         Arc::new(mock_resolver),
+        false,
     )
     .await
     .unwrap();
@@ -574,6 +576,7 @@ async fn bytecode_mismatch_error() {
         Duration::from_secs(60),
         pool.clone(),
         Arc::new(mock_resolver),
+        false,
     )
     .await
     .unwrap();
@@ -660,6 +663,7 @@ async fn args_mismatch_error(contract: TestContract, bytecode_kind: BytecodeMark
         Duration::from_secs(60),
         pool.clone(),
         Arc::new(mock_resolver),
+        false,
     )
     .await
     .unwrap();
@@ -725,6 +729,7 @@ async fn creation_bytecode_mismatch() {
         Duration::from_secs(60),
         pool.clone(),
         Arc::new(mock_resolver),
+        false,
     )
     .await
     .unwrap();
@@ -774,6 +779,7 @@ async fn no_compiler_version() {
         Duration::from_secs(60),
         pool.clone(),
         Arc::new(mock_resolver),
+        false,
     )
     .await
     .unwrap();

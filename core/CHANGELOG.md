@@ -1,5 +1,77 @@
 # Changelog
 
+## [26.5.0](https://github.com/matter-labs/zksync-era/compare/core-v26.4.0...core-v26.5.0) (2025-03-03)
+
+
+### Features
+
+* add a flag for stage1-&gt;stage2 validium migration ([#3562](https://github.com/matter-labs/zksync-era/issues/3562)) ([92e7895](https://github.com/matter-labs/zksync-era/commit/92e78955850e59f16967dff20122d56144509498))
+* add custom DA support in external node ([#3445](https://github.com/matter-labs/zksync-era/issues/3445)) ([1a8546d](https://github.com/matter-labs/zksync-era/commit/1a8546ddcd6b126657a99f68576b2a837a4c416d))
+* **contract-verifier:** add Etherscan contract verification ([#3609](https://github.com/matter-labs/zksync-era/issues/3609)) ([a4ea0f2](https://github.com/matter-labs/zksync-era/commit/a4ea0f2acae301e12338a862d6a76829899114d4))
+* **da-clients:** raise Avail blob size to 1mb ([#3624](https://github.com/matter-labs/zksync-era/issues/3624)) ([0baa7ff](https://github.com/matter-labs/zksync-era/commit/0baa7ff61805e90b1eaac202ed6e26f5cacfb532))
+* **eigenda:** implement eigenDA client remaining features ([#3243](https://github.com/matter-labs/zksync-era/issues/3243)) ([88fc971](https://github.com/matter-labs/zksync-era/commit/88fc9714b42e3cb81dab970ec55b2bbfe0c49f52))
+* preparation for new precompiles ([#3535](https://github.com/matter-labs/zksync-era/issues/3535)) ([3c1f3fb](https://github.com/matter-labs/zksync-era/commit/3c1f3fb0f24d1c19dce52b98df521703fa1bf638))
+* **tee:** add support for recoverable signatures ([#3414](https://github.com/matter-labs/zksync-era/issues/3414)) ([7241a73](https://github.com/matter-labs/zksync-era/commit/7241a73b27d0e71cbe6644a741a685bf45d11d5f))
+* **zkos:** Implement ZK OS Merkle tree ([#3625](https://github.com/matter-labs/zksync-era/issues/3625)) ([331e98c](https://github.com/matter-labs/zksync-era/commit/331e98c60508e1d4fbd6135e826400ed05d8a9d1))
+
+
+### Bug Fixes
+
+* **api:** Fix pending transactions filter again ([#3630](https://github.com/matter-labs/zksync-era/issues/3630)) ([7afa20f](https://github.com/matter-labs/zksync-era/commit/7afa20f74ee54af0b49e2f42f7e673de26a07e4f))
+* **api:** lock simultaneous tx insertsion with mutex ([#3616](https://github.com/matter-labs/zksync-era/issues/3616)) ([644b621](https://github.com/matter-labs/zksync-era/commit/644b62144da7bc1d12190c6e7cd2863aaaae985a))
+* block.timestamp is not accurate ([#3398](https://github.com/matter-labs/zksync-era/issues/3398)) ([adcb517](https://github.com/matter-labs/zksync-era/commit/adcb5172bf9aba308ae23c9031d32834be6997ea))
+* Fflonk versioning ([#3610](https://github.com/matter-labs/zksync-era/issues/3610)) ([fc80840](https://github.com/matter-labs/zksync-era/commit/fc80840d355aab1e8c65ca60bd2f5cb12e0638ab))
+* Limit number of connections open for GCS interactions ([#3637](https://github.com/matter-labs/zksync-era/issues/3637)) ([6b003e2](https://github.com/matter-labs/zksync-era/commit/6b003e2c3d3e576a6fedd4a05f07a46a2fe7f348))
+
+
+### Performance Improvements
+
+* **api:** Use watch channel in values cache updates ([#3663](https://github.com/matter-labs/zksync-era/issues/3663)) ([3a4bdcf](https://github.com/matter-labs/zksync-era/commit/3a4bdcf218012e1c42cb099ccdca3e6d48360f75))
+
+## [26.4.0](https://github.com/matter-labs/zksync-era/compare/core-v26.3.0...core-v26.4.0) (2025-02-13)
+
+
+### Features
+
+* Avail gas relay upgrade ([#3601](https://github.com/matter-labs/zksync-era/issues/3601)) ([e32fee0](https://github.com/matter-labs/zksync-era/commit/e32fee04bfcfd46f4ed2edf2ea564f7aafd5db10))
+
+
+### Bug Fixes
+
+* **contract-verifier:** Fix verifier data migration ([#3608](https://github.com/matter-labs/zksync-era/issues/3608)) ([0bb0c88](https://github.com/matter-labs/zksync-era/commit/0bb0c886ad0d65fc97937680ebbc1fa6eb3d0c2c))
+
+## [26.3.0](https://github.com/matter-labs/zksync-era/compare/core-v26.2.1...core-v26.3.0) (2025-02-12)
+
+
+### Features
+
+* **contract-verifier:** Do not allow verification requests for verified contracts ([#3578](https://github.com/matter-labs/zksync-era/issues/3578)) ([6a1f1b8](https://github.com/matter-labs/zksync-era/commit/6a1f1b801b49cec45e6e4e4b8596d866fa8fe819))
+* **contract-verifier:** Partial matching & automatic verification ([#3527](https://github.com/matter-labs/zksync-era/issues/3527)) ([bf9fe85](https://github.com/matter-labs/zksync-era/commit/bf9fe85f4fd1d739105e7b21d0eebb377f752bac))
+* **contract-verifier:** Support missing options for EVM in API ([#3592](https://github.com/matter-labs/zksync-era/issues/3592)) ([309fdf4](https://github.com/matter-labs/zksync-era/commit/309fdf43e93ed7a584c46227b0a3c088d658887d))
+* **en:** better EN default req entities limit, improved documentation for API limits ([#3546](https://github.com/matter-labs/zksync-era/issues/3546)) ([e7eb716](https://github.com/matter-labs/zksync-era/commit/e7eb716c241c8bf224361fee150f9d1fe3023ebb))
+* make `zksync_types` thinner ([#3574](https://github.com/matter-labs/zksync-era/issues/3574)) ([e7f93e4](https://github.com/matter-labs/zksync-era/commit/e7f93e43dd55674a1442111cc1f08c9d229d3e22))
+* new da_dispatcher metrics ([#3464](https://github.com/matter-labs/zksync-era/issues/3464)) ([75a7c08](https://github.com/matter-labs/zksync-era/commit/75a7c08868e5f794be0c50b012164fcba5846f08))
+* update FFLONK protocol version ([#3572](https://github.com/matter-labs/zksync-era/issues/3572)) ([a352852](https://github.com/matter-labs/zksync-era/commit/a3528522988093fbd2697b8fc35eb24f00166699))
+* **vm:** Allow caching signature verification ([#3505](https://github.com/matter-labs/zksync-era/issues/3505)) ([7bb5ed3](https://github.com/matter-labs/zksync-era/commit/7bb5ed377719227f5c9861231e110dd9a5bb2ac0))
+* **vm:** Support missed storage invocation limit in fast VM ([#3548](https://github.com/matter-labs/zksync-era/issues/3548)) ([ef67694](https://github.com/matter-labs/zksync-era/commit/ef67694b3dfb45c6f003c01d9c171236c7e1edc1))
+
+
+### Bug Fixes
+
+* Add debug information to object store retries ([#3576](https://github.com/matter-labs/zksync-era/issues/3576)) ([036315c](https://github.com/matter-labs/zksync-era/commit/036315cd560acf8a7c6b9b288bb77f7fe336947a))
+* allow configuring NoDA client via ENV ([#3599](https://github.com/matter-labs/zksync-era/issues/3599)) ([a72ab63](https://github.com/matter-labs/zksync-era/commit/a72ab63e6c35412e8feb8def78099dd5b202950e))
+* **api:** Change `contractAddress` assignment for transaction receipts ([#3452](https://github.com/matter-labs/zksync-era/issues/3452)) ([4179711](https://github.com/matter-labs/zksync-era/commit/4179711c82c210e0a1236c37a2a97fb9311ef820))
+* **api:** Improve estimation for gas_per_pubdata_limit ([#3475](https://github.com/matter-labs/zksync-era/issues/3475)) ([bda1b25](https://github.com/matter-labs/zksync-era/commit/bda1b25c67aed2d5cb7f7a1cc6eb0afc533c83b7))
+* Avail gas relay decoding issues ([#3547](https://github.com/matter-labs/zksync-era/issues/3547)) ([a171433](https://github.com/matter-labs/zksync-era/commit/a17143307ec3db898cf145665392d0a1530c17d0))
+* **ci:** commenting out getFilterChanges test until fix is ready ([#3582](https://github.com/matter-labs/zksync-era/issues/3582)) ([99c3905](https://github.com/matter-labs/zksync-era/commit/99c3905a9e92416e76d37b0858da7f6c7e123e0b))
+* Support newer versions of foundry-zksync ([#3556](https://github.com/matter-labs/zksync-era/issues/3556)) ([d39fb6d](https://github.com/matter-labs/zksync-era/commit/d39fb6da7e7c19a7435a4f59d0e2eb9361db218f))
+* **vm:** Fix VM divergences related to validation ([#3567](https://github.com/matter-labs/zksync-era/issues/3567)) ([170d194](https://github.com/matter-labs/zksync-era/commit/170d194fb0c629c61277e877a4493d52c3153c63))
+
+
+### Performance Improvements
+
+* **db:** Remove `events.tx_initiator_address` writes and index ([#3559](https://github.com/matter-labs/zksync-era/issues/3559)) ([298abd2](https://github.com/matter-labs/zksync-era/commit/298abd2f988229a7fe5ee77de1015940d1d9ad41))
+
 ## [26.2.1](https://github.com/matter-labs/zksync-era/compare/core-v26.2.0...core-v26.2.1) (2025-01-28)
 
 
