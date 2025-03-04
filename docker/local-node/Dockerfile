@@ -21,8 +21,10 @@ ENV RUSTUP_HOME=/usr/local/rustup \
     CARGO_HOME=/usr/local/cargo \
     PATH=/usr/local/cargo/bin:$PATH
 
-RUN curl https://sh.rustup.rs -sSf | bash -s -- -y && \
-    rustup install stable
+# Install Rust and required toolchain
+RUN curl https://sh.rustup.rs -sSf | bash -s -- -y \
+    && rustup install nightly-2024-08-01-x86_64-unknown-linux-gnu \
+    && rustup default nightly-2024-08-01-x86_64-unknown-linux-gnu
 
 RUN cargo install sqlx-cli --version 0.8.0
 
@@ -126,7 +128,3 @@ RUN ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup 
 # CMD ["/bin/bash"]
 
 ENTRYPOINT ["entrypoint.sh"]
-
-
-
-# Root hash mismatched: From config: 0xd8c9be7efb705e7dcf529c14fce7048ea99dea9eab6a6b4e5f8de1ebf4f2ebf2, Calculated 0xb6779307f23867c798513845edb67ce0eca31a433e3c86f46a6961d0567a067d
