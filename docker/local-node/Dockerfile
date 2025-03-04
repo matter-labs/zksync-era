@@ -28,6 +28,12 @@ RUN curl https://sh.rustup.rs -sSf | bash -s -- -y \
 
 RUN cargo install sqlx-cli --version 0.8.0
 
+# Install additional dependencies
+RUN apt-get update && apt-get install -y \
+    clang llvm-dev libclang-dev \
+    ca-certificates curl gnupg \
+    && curl -L https://raw.githubusercontent.com/matter-labs/foundry-zksync/main/install-foundry-zksync | bash
+
 # Copy required packages while preserving the folders structure from the repo
 # It's required because these packages use relative paths to the SDK
 
@@ -58,6 +64,8 @@ RUN cd /contracts/l1-contracts && yarn && yarn build:foundry && cd /
 RUN cd /contracts/l2-contracts && yarn && yarn build:foundry && cd /
 # Same for L1-da contracts
 RUN cd /contracts/da-contracts && yarn && yarn build:foundry && cd /
+# Same for system contracts
+RUN cd /contracts/system-contracts && yarn && yarn build:foundry && cd /
 
 # Copy the ZK stack tool Library
 COPY zkstack_cli /zkstack_cli
@@ -100,12 +108,6 @@ RUN apt-get update && apt-get install -y docker.io
 # ENV LIBCLANG_PATH=/usr/lib/llvm-14/lib
 ENV COMPOSE_PROJECT_NAME=my_project_name
 ENV GITHUB_WORKSPACE=my_github_workspace
-
-# Install additional dependencies
-RUN apt-get update && apt-get install -y \
-    clang llvm-dev libclang-dev \
-    ca-certificates curl gnupg \
-    && curl -L https://raw.githubusercontent.com/matter-labs/foundry-zksync/main/install-foundry-zksync | bash
 
 # Install required dependencies including Docker
 RUN apt-get update && apt-get install -y --no-install-recommends \
