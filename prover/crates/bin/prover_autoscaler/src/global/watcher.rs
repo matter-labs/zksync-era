@@ -90,7 +90,7 @@ impl Watcher {
                     .join("/scale")
                     .unwrap()
                     .to_string();
-                tracing::debug!("Sending scale request to {}, data: {:?}.", url, sr);
+                tracing::debug!("Sending scale request to {}, data: {:?}", url, sr);
                 let http_client = self.http_client.clone();
                 tokio::spawn(async move {
                     let mut headers = HeaderMap::new();
@@ -161,7 +161,7 @@ impl Task for Watcher {
             .into_iter()
             .enumerate()
             .map(|(i, a)| {
-                tracing::debug!("Getting cluster data from agent {}.", a);
+                tracing::debug!("Getting cluster data from agent {}", a);
                 let http_client = self.http_client.clone();
                 tokio::spawn(async move {
                     let url: String = a
