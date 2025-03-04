@@ -29,7 +29,11 @@ jobs:
           echo $(pwd)/bin >> $GITHUB_PATH
           echo CI=1 >> .env
           echo IN_DOCKER=1 >> .env
-
+      
+      - name: rustup
+        run: |
+          rustup show active-toolchain || rustup toolchain install
+  
       # TODO: Remove after when we can upgrade hardhat-plugins
       - name: pre-download compiilers
         run: |
