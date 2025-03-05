@@ -3,9 +3,11 @@
 use assert_matches::assert_matches;
 use once_cell::sync::Lazy;
 use test_casing::test_casing;
-use zksync_dal::{Connection, ConnectionPool, Core};
+use zksync_contracts::bridgehub_contract;
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_node_test_utils::create_l2_block;
+use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     api, ethabi,
@@ -308,19 +310,10 @@ async fn guessing_l1_commit_block_number() {
     }
 }
 
-async fn create_l1_data_provider(
-    l1_client: Box<DynClient<L1>>,
-    pool: ConnectionPool<Core>,
-) -> L1DataProvider {
-    L1DataProvider::new(
-        l1_client,
-        L1_DIAMOND_PROXY_ADDRESS,
-        None,
-        pool,
-        L2ChainId::new(ERA_CHAIN_ID).unwrap(),
-    )
-    .await
-    .unwrap()
+async fn create_l1_data_provider(l1_client: Box<DynClient<L1>>) -> L1DataProvider {
+    L1DataProvider::new(l1_client, L1_DIAMOND_PROXY_ADDRESS)
+        .await
+        .unwrap()
 }
 
 async fn test_using_l1_data_provider(l1_batch_timestamps: &[u64]) {
@@ -337,7 +330,7 @@ async fn test_using_l1_data_provider(l1_batch_timestamps: &[u64]) {
         eth_params.push_commit(number, ts + 1_000); // have a reasonable small diff between batch generation and commitment
     }
 
-    let mut provider = create_l1_data_provider(Box::new(eth_params.client()), pool.clone()).await;
+    let mut provider = create_l1_data_provider(Box::new(eth_params.client())).await;
     for i in 0..l1_batch_timestamps.len() {
         let number = L1BatchNumber(i as u32 + 1);
         let root_hash = provider
@@ -398,15 +391,10 @@ async fn using_different_settlement_layers() {
         params_array[sl_idx].push_commit(number, ts + 1_000); // have a reasonable small diff between batch generation and commitment
     }
 
-    let mut provider = L1DataProvider::new(
-        Box::new(params_array[0].client()),
-        L1_DIAMOND_PROXY_ADDRESS,
-        Some(Box::new(params_array[1].client())),
-        pool,
-        L2ChainId::new(ERA_CHAIN_ID).unwrap(),
-    )
-    .await
-    .unwrap();
+    let mut provider =
+        L1DataProvider::new(Box::new(params_array[0].client()), L1_DIAMOND_PROXY_ADDRESS)
+            .await
+            .unwrap();
     for i in 0..batch_commit_info.len() {
         let number = L1BatchNumber(i as u32 + 1);
         let root_hash = provider
@@ -435,7 +423,6 @@ async fn using_different_settlement_layers() {
 #[tokio::test]
 async fn detecting_reorg_in_l1_data_provider() {
     let l1_batch_number = H256::from_low_u64_be(1);
-    let pool = ConnectionPool::<Core>::test_pool().await;
     // Generate two logs for the same L1 batch #1
     let logs = vec![
         web3::Log {
@@ -463,7 +450,7 @@ async fn detecting_reorg_in_l1_data_provider() {
     ];
     let l1_client = mock_l1_client(200.into(), logs, SLChainId(9));
 
-    let mut provider = create_l1_data_provider(Box::new(l1_client), pool.clone()).await;
+    let mut provider = create_l1_data_provider(Box::new(l1_client)).await;
     let output = provider
         .batch_details(L1BatchNumber(1), &create_l2_block(1))
         .await
@@ -487,7 +474,7 @@ async fn combined_data_provider_errors() {
     let mut main_node_client = MockMainNodeClient::default();
     main_node_client.insert_batch(L1BatchNumber(2), H256::repeat_byte(2));
     let mut provider = CombinedDataProvider::new(main_node_client);
-    let l1_provider = create_l1_data_provider(Box::new(eth_params.client()), pool.clone()).await;
+    let l1_provider = create_l1_data_provider(Box::new(eth_params.client())).await;
     provider.set_l1(l1_provider);
 
     // L1 batch #1 should be obtained from L1

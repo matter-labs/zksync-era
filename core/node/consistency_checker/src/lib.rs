@@ -4,8 +4,7 @@ use anyhow::Context as _;
 use serde::Serialize;
 use tokio::sync::watch;
 use zksync_contracts::{
-    bridgehub_contract, POST_BOOJUM_COMMIT_FUNCTION, POST_SHARED_BRIDGE_COMMIT_FUNCTION,
-    PRE_BOOJUM_COMMIT_FUNCTION,
+    POST_BOOJUM_COMMIT_FUNCTION, POST_SHARED_BRIDGE_COMMIT_FUNCTION, PRE_BOOJUM_COMMIT_FUNCTION,
 };
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{
@@ -26,8 +25,7 @@ use zksync_types::{
     ethabi,
     ethabi::{ParamType, Token},
     pubdata_da::PubdataSendingMode,
-    Address, L1BatchNumber, L2ChainId, ProtocolVersionId, SLChainId, H256, L2_BRIDGEHUB_ADDRESS,
-    U256,
+    Address, L1BatchNumber, ProtocolVersionId, SLChainId, H256, U256,
 };
 
 #[cfg(test)]
@@ -439,26 +437,6 @@ impl ConsistencyChecker {
         let commit_tx_hash = local.commit_tx_hash;
         tracing::info!("Checking commit tx {commit_tx_hash} for L1 batch #{batch_number}");
 
-        let sl_chain_id = self
-            .pool
-            .connection_tagged("consistency_checker")
-            .await
-            .map_err(|err| CheckError::Internal(err.into()))?
-            .eth_sender_dal()
-            .get_batch_commit_chain_id(batch_number)
-            .await
-            .map_err(|err| CheckError::Internal(err.into()))?;
-        // let chain_data = match sl_chain_id {
-        //     Some(chain_id) => {
-        //         let Some(chain_data) = self.chain_data_by_id(chain_id) else {
-        //             return Err(CheckError::Validation(anyhow::anyhow!(
-        //                 "failed to find client for chain id {chain_id}"
-        //             )));
-        //         };
-        //         chain_data
-        //     }
-        //     None => &self.l1_chain_data,
-        // };
         let commit_tx_status = self
             .chain_data
             .client

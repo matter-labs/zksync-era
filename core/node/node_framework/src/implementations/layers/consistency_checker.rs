@@ -1,9 +1,9 @@
 use zksync_consistency_checker::ConsistencyChecker;
-use zksync_types::{commitment::L1BatchCommitmentMode, Address, L2ChainId};
+use zksync_types::commitment::L1BatchCommitmentMode;
 
 use crate::{
     implementations::resources::{
-        contracts::{GatewayChainContractsResource, SettlementLayerContractsResource},
+        contracts::SettlementLayerContractsResource,
         eth_interface::GatewayEthInterfaceResource,
         healthcheck::AppHealthCheckResource,
         pools::{MasterPool, PoolResource},

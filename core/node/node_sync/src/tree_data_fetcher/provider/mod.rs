@@ -2,12 +2,9 @@ use std::fmt;
 
 use anyhow::Context;
 use async_trait::async_trait;
-use zksync_contracts::bridgehub_contract;
-use zksync_dal::{ConnectionPool, Core, CoreDal};
-use zksync_eth_client::{CallFunctionArgs, EthInterface};
-use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
+use zksync_eth_client::EthInterface;
 use zksync_types::{
-    block::L2BlockHeader, web3, Address, L1BatchNumber, L2ChainId, SLChainId, H256, U256, U64,
+    block::L2BlockHeader, web3, Address, L1BatchNumber, SLChainId, H256, U256, U64,
 };
 use zksync_web3_decl::{
     client::{DynClient, L1, L2},
@@ -18,7 +15,7 @@ use zksync_web3_decl::{
 
 use super::{
     metrics::{ProcessingStage, TreeDataProviderSource, METRICS},
-    TreeDataFetcherError, TreeDataFetcherResult,
+    TreeDataFetcherResult,
 };
 
 #[cfg(test)]
@@ -119,7 +116,6 @@ pub(super) struct L1DataProvider {
     chain_data: SLChainAccess,
     block_commit_signature: H256,
     past_l1_batch: Option<PastL1BatchInfo>,
-    pool: ConnectionPool<Core>,
 }
 
 impl L1DataProvider {
@@ -132,7 +128,6 @@ impl L1DataProvider {
     pub async fn new(
         l1_client: Box<DynClient<L1>>,
         l1_diamond_proxy_addr: Address,
-        pool: ConnectionPool<Core>,
     ) -> anyhow::Result<Self> {
         let l1_chain_id = l1_client.fetch_chain_id().await?;
         let chain_data = SLChainAccess {
@@ -148,7 +143,6 @@ impl L1DataProvider {
             chain_data,
             block_commit_signature,
             past_l1_batch: None,
-            pool,
         })
     }
 
@@ -215,16 +209,6 @@ impl TreeDataProvider for L1DataProvider {
         number: L1BatchNumber,
         last_l2_block: &L2BlockHeader,
     ) -> TreeDataProviderResult {
-        let sl_chain_id = self
-            .pool
-            .connection_tagged("tree_data_fetcher")
-            .await
-            .map_err(|err| TreeDataFetcherError::Internal(err.into()))?
-            .eth_sender_dal()
-            .get_batch_commit_chain_id(number)
-            .await
-            .map_err(|err| TreeDataFetcherError::Internal(err.into()))?;
-
         let l1_batch_seal_timestamp = last_l2_block.timestamp;
         let from_block = self.past_l1_batch.and_then(|info| {
             assert!(

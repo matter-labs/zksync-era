@@ -84,8 +84,12 @@ mod tests {
             l1_multicall3_addr: addr("0xcA11bde05977b3631167028862bE2a173976CA11"),
             ecosystem_contracts: Some(EcosystemContracts {
                 bridgehub_proxy_addr: addr("0x35ea7f92f4c5f433efe15284e99c040110cf6297"),
-                state_transition_proxy_addr: addr("0xd90f1c081c6117241624e97cb6147257c3cb2097"),
-                transparent_proxy_admin_addr: addr("0xdd6fa5c14e7550b4caf2aa2818d24c69cbc347e5"),
+                state_transition_proxy_addr: Some(addr(
+                    "0xd90f1c081c6117241624e97cb6147257c3cb2097",
+                )),
+                transparent_proxy_admin_addr: Some(addr(
+                    "0xdd6fa5c14e7550b4caf2aa2818d24c69cbc347e5",
+                )),
                 l1_bytecodes_supplier_addr: Some(addr(
                     "0x36ea7f92f4c5f433efe15284e99c040110cf6297",
                 )),

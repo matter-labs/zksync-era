@@ -58,8 +58,7 @@ impl GatewayChainConfig {
         Self {
             state_transition_proxy_addr: contracts
                 .ecosystem_contracts
-                .map(|a| a.state_transition_proxy_addr)
-                .flatten(),
+                .and_then(|a| a.state_transition_proxy_addr),
             validator_timelock_addr: Some(contracts.validator_timelock_addr),
             multicall3_addr: contracts.l1_multicall3_addr,
             diamond_proxy_addr: contracts.diamond_proxy_addr,

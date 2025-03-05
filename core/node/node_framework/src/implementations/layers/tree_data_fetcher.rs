@@ -1,10 +1,9 @@
 use zksync_node_sync::tree_data_fetcher::TreeDataFetcher;
-use zksync_types::{Address, L2ChainId};
 
 use crate::{
     implementations::resources::{
         contracts::SettlementLayerContractsResource,
-        eth_interface::{EthInterfaceResource, GatewayEthInterfaceResource},
+        eth_interface::GatewayEthInterfaceResource,
         healthcheck::AppHealthCheckResource,
         main_node_client::MainNodeClientResource,
         pools::{MasterPool, PoolResource},

@@ -45,7 +45,6 @@ use zksync_node_framework::{
         pruning::PruningLayer,
         query_eth_client::QueryEthClientLayer,
         reorg_detector::ReorgDetectorLayer,
-        settlement_layer_data::SettlementLayerData,
         settlement_layer_data_en::SettlementLayerDataEn,
         sigint::SigintHandlerLayer,
         state_keeper::{

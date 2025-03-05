@@ -19,9 +19,9 @@ use zksync_config::{
             ChainSpecificContracts,
         },
         en_config::ENConfig,
-        AllContractsConfig, DataAvailabilitySecrets, GeneralConfig, Secrets,
+        DataAvailabilitySecrets, GeneralConfig, Secrets,
     },
-    DAClientConfig, ObjectStoreConfig, SettlementLayerContracts,
+    DAClientConfig, ObjectStoreConfig,
 };
 use zksync_consensus_crypto::TextFmt;
 use zksync_consensus_roles as roles;
@@ -196,12 +196,10 @@ impl RemoteENConfig {
             l1_bridgehub_proxy_addr: ecosystem_contracts.as_ref().map(|a| a.bridgehub_proxy_addr),
             l1_state_transition_proxy_addr: ecosystem_contracts
                 .as_ref()
-                .map(|a| a.state_transition_proxy_addr)
-                .flatten(),
+                .and_then(|a| a.state_transition_proxy_addr),
             l1_transparent_proxy_admin_addr: ecosystem_contracts
                 .as_ref()
-                .map(|a| a.transparent_proxy_admin_addr)
-                .flatten(),
+                .and_then(|a| a.transparent_proxy_admin_addr),
             l1_bytecodes_supplier_addr: ecosystem_contracts
                 .as_ref()
                 .and_then(|a| a.l1_bytecodes_supplier_addr),
@@ -245,7 +243,7 @@ impl RemoteENConfig {
             l2_erc20_bridge_addr: Some(Address::repeat_byte(3)),
             l2_weth_bridge_addr: None,
             l2_testnet_paymaster_addr: None,
-            base_token_addr: Address::repeat_byte(4),
+            base_token_addr: Some(Address::repeat_byte(4)),
             l1_shared_bridge_proxy_addr: Some(Address::repeat_byte(5)),
             l1_weth_bridge_addr: None,
             l2_shared_bridge_addr: Some(Address::repeat_byte(6)),

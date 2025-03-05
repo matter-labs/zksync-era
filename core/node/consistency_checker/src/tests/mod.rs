@@ -16,6 +16,7 @@ use zksync_node_test_utils::{
 use zksync_types::{
     aggregated_operations::AggregatedActionType, commitment::L1BatchWithMetadata,
     protocol_version::ProtocolSemanticVersion, web3::Log, ProtocolVersion, ProtocolVersionId, H256,
+    L2_BRIDGEHUB_ADDRESS,
 };
 
 use super::*;
@@ -98,7 +99,7 @@ pub(crate) async fn create_mock_checker(
     let (health_check, health_updater) = ConsistencyCheckerHealthUpdater::new();
     let client = client.into_client();
     let chain_id = client.fetch_chain_id().await.unwrap();
-    let l1_chain_data = SLChainAccess {
+    let chain_data = SLChainAccess {
         client: Box::new(client),
         chain_id,
         diamond_proxy_addr: Some(L1_DIAMOND_PROXY_ADDR),
@@ -107,8 +108,7 @@ pub(crate) async fn create_mock_checker(
         contract: zksync_contracts::hyperchain_contract(),
         max_batches_to_recheck: 100,
         sleep_interval: Duration::from_millis(10),
-        l1_chain_data,
-        gateway_chain_data: None,
+        chain_data,
         event_handler: Box::new(health_updater),
         l1_data_mismatch_behavior: L1DataMismatchBehavior::Bail,
         pool,
@@ -564,11 +564,9 @@ async fn checker_works_with_different_settlement_layers() {
     let (l1_batch_updates_sender, mut l1_batch_updates_receiver) = mpsc::unbounded_channel();
     let mut checker = ConsistencyChecker::new(
         Box::new(clients[0].clone().into_client()),
-        Some(Box::new(clients[1].clone().into_client())),
         100,
         pool.clone(),
         commitment_mode,
-        L2ChainId::new(ERA_CHAIN_ID).unwrap(),
     )
     .await
     .unwrap();

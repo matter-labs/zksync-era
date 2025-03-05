@@ -2,7 +2,7 @@ use zksync_config::configs::contracts::{ecosystem::L1SpecificContracts, ChainSpe
 use zksync_contracts::getters_facet_contract;
 use zksync_eth_client::EthInterface;
 use zksync_gateway_migrator::get_settlement_layer;
-use zksync_types::{settlement::SettlementMode, SLChainId};
+use zksync_types::settlement::SettlementMode;
 
 use crate::{
     implementations::resources::{

@@ -11,7 +11,7 @@ use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_types::{
     block::{L1BatchTreeData, L2BlockHeader},
-    Address, L1BatchNumber, L2ChainId,
+    Address, L1BatchNumber,
 };
 use zksync_web3_decl::{
     client::{DynClient, L1, L2},
@@ -140,7 +140,6 @@ impl TreeDataFetcher {
         let l1_provider = L1DataProvider::new(
             l1_client.for_component("tree_data_fetcher"),
             l1_diamond_proxy_addr,
-            self.pool.clone(),
         )
         .await?;
         self.data_provider.set_l1(l1_provider);
