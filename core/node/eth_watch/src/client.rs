@@ -17,8 +17,8 @@ use zksync_types::{
     ethabi::{decode, Contract, ParamType},
     utils::encode_ntv_asset_id,
     web3::{BlockId, BlockNumber, Filter, FilterBuilder},
-    Address, L1BatchNumber, L2ChainId, SLChainId, H256,L1_MESSENGER_ADDRESS, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256,
-    U64,
+    Address, L1BatchNumber, L2ChainId, SLChainId, H256, L1_MESSENGER_ADDRESS,
+    SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256, U64,
 };
 use zksync_web3_decl::{
     client::{Network, L2},
