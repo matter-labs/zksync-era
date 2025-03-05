@@ -66,8 +66,8 @@ RUN cd /contracts/da-contracts && yarn install --frozen-lockfile && yarn build:f
 RUN cd /contracts/l1-contracts && yarn install --frozen-lockfile && yarn build:foundry && cd /
 # Same for L2 contracts
 RUN cd /contracts/l2-contracts && yarn install --frozen-lockfile && yarn build:foundry && cd /
-# Same for system contracts
-RUN cd /contracts/system-contracts && yarn install --frozen-lockfile && yarn build:foundry && cd /
+# # Same for system contracts
+# RUN cd /contracts/system-contracts && yarn install --frozen-lockfile && yarn build:foundry && cd /
 
 # Copy the ZK stack tool Library
 COPY zkstack_cli /zkstack_cli
@@ -123,10 +123,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Set persistent environment variables
 ENV LIBCLANG_PATH=/usr/lib/llvm-14/lib
-
-RUN ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup \
-    && zkstackup -g --local --cargo-features gateway
-
 
 # CMD ["/bin/bash"]
 
