@@ -186,7 +186,7 @@ fn main() -> anyhow::Result<()> {
 
     if opt.no_run {
         tracing::info!("Node composed successfully; exiting due to --no-run flag");
-        return Ok(())
+        return Ok(());
     }
 
     node.run(observability_guard)?;
