@@ -1,8 +1,9 @@
 use std::fmt;
 
 use chrono::{DateTime, TimeZone, Utc};
-use zksync_basic_types::{commitment::PubdataType, Address, H256};
+use zksync_basic_types::{commitment::PubdataType, ethabi, Address, H256};
 use zksync_da_client::types::ClientType;
+use zksync_system_constants::L2_NATIVE_TOKEN_VAULT_ADDRESS;
 
 use crate::{
     address_to_h256, system_contracts::DEPLOYMENT_NONCE_INCREMENT, u256_to_h256, web3::keccak256,
@@ -123,6 +124,16 @@ pub fn deployed_address_evm_create(sender: Address, tx_nonce: U256) -> Address {
         .append(&tx_nonce)
         .finalize_unbounded_list();
     Address::from_slice(&keccak256(&stream.out())[12..])
+}
+
+pub fn encode_ntv_asset_id(l1_chain_id: U256, addr: Address) -> H256 {
+    let encoded_data = ethabi::encode(&[
+        ethabi::Token::Uint(l1_chain_id),
+        ethabi::Token::Address(L2_NATIVE_TOKEN_VAULT_ADDRESS),
+        ethabi::Token::Address(addr),
+    ]);
+
+    H256(keccak256(&encoded_data))
 }
 
 #[cfg(test)]

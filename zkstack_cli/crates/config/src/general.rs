@@ -162,6 +162,11 @@ impl GeneralConfigPatch {
             "snapshot_recovery.object_store",
             &file_artifacts.snapshot,
         )?;
+        set_file_backed_path_if_selected(
+            &mut self.0,
+            "core_object_store",
+            &file_artifacts.core_object_store,
+        )?;
         Ok(())
     }
 
