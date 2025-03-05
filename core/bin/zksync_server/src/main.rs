@@ -72,10 +72,10 @@ struct Cli {
     #[arg(long)]
     use_node_framework: bool,
 
-    /// Used for testing whether provided config is correct.
-    /// The node will not be started, only the config will be verified.
+    /// Only compose the node with the provided list of the components and then exit.
+    /// Can be used to catch issues with configuration.
     #[arg(long, conflicts_with = "genesis")]
-    only_verify_config: bool,
+    no_run: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -170,12 +170,6 @@ fn main() -> anyhow::Result<()> {
         secrets,
     )?;
 
-    if opt.only_verify_config {
-        node.build(opt.components.0)?;
-        tracing::info!("Config verification is successful!");
-        return Ok(());
-    }
-
     let observability_guard = {
         // Observability initialization should be performed within tokio context.
         let _context_guard = node.runtime_handle().enter();
@@ -188,7 +182,14 @@ fn main() -> anyhow::Result<()> {
         return Ok(());
     }
 
-    node.build(opt.components.0)?.run(observability_guard)?;
+    let node = node.build(opt.components.0)?;
+
+    if opt.no_run {
+        tracing::info!("Node composed successfully; exiting due to --no-run flag");
+        return Ok(())
+    }
+
+    node.run(observability_guard)?;
     Ok(())
 }
 
