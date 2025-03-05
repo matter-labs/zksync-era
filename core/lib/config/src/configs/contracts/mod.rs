@@ -78,7 +78,7 @@ impl SettlementLayerContracts {
             l1_contracts: ChainSpecificContracts {
                 ecosystem_contracts: EcosystemCommonContracts {
                     bridgehub_proxy_addr: Some(ecosystem.bridgehub_proxy_addr),
-                    state_transition_proxy_addr: Some(ecosystem.state_transition_proxy_addr),
+                    state_transition_proxy_addr: ecosystem.state_transition_proxy_addr,
                     server_notifier_addr: ecosystem.server_notifier_addr,
                     multicall3: Some(contracts_config.l1_multicall3_addr),
                     validator_timelock_addr: Some(contracts_config.validator_timelock_addr),
@@ -102,10 +102,10 @@ impl SettlementLayerContracts {
             gateway_contracts: gateway_chain_config.map(|gateway| ChainSpecificContracts {
                 ecosystem_contracts: EcosystemCommonContracts {
                     bridgehub_proxy_addr: Some(L2_BRIDGEHUB_ADDRESS),
-                    state_transition_proxy_addr: Some(gateway.state_transition_proxy_addr),
+                    state_transition_proxy_addr: gateway.state_transition_proxy_addr,
                     server_notifier_addr: gateway.server_notifier,
                     multicall3: Some(gateway.multicall3_addr),
-                    validator_timelock_addr: Some(gateway.validator_timelock_addr),
+                    validator_timelock_addr: gateway.validator_timelock_addr,
                     // TODO set it properly
                     no_da_validium_l1_validator_addr: None,
                 },

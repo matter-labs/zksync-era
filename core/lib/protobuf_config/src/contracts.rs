@@ -22,16 +22,18 @@ impl ProtoRepr for proto::Contracts {
                 bridgehub_proxy_addr: required(&ecosystem_contracts.bridgehub_proxy_addr)
                     .and_then(|x| parse_h160(x))
                     .context("bridgehub_proxy_addr")?,
-                state_transition_proxy_addr: required(
-                    &ecosystem_contracts.state_transition_proxy_addr,
-                )
-                .and_then(|x| parse_h160(x))
-                .context("state_transition_proxy_addr")?,
-                transparent_proxy_admin_addr: required(
-                    &ecosystem_contracts.transparent_proxy_admin_addr,
-                )
-                .and_then(|x| parse_h160(x))
-                .context("transparent_proxy_admin_addr")?,
+                state_transition_proxy_addr: ecosystem_contracts
+                    .state_transition_proxy_addr
+                    .as_ref()
+                    .map(|x| parse_h160(x))
+                    .transpose()
+                    .context("state_transition_proxy_addr")?,
+                transparent_proxy_admin_addr: ecosystem_contracts
+                    .transparent_proxy_admin_addr
+                    .as_ref()
+                    .map(|x| parse_h160(x))
+                    .transpose()
+                    .context("transparent_proxy_admin_addr")?,
                 l1_bytecodes_supplier_addr: ecosystem_contracts
                     .l1_bytecodes_supplier_addr
                     .as_ref()

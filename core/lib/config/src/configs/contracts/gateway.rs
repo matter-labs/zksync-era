@@ -24,8 +24,8 @@ pub struct GatewayConfig {
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq)]
 pub struct GatewayChainConfig {
-    pub state_transition_proxy_addr: Address,
-    pub validator_timelock_addr: Address,
+    pub state_transition_proxy_addr: Option<Address>,
+    pub validator_timelock_addr: Option<Address>,
     pub multicall3_addr: Address,
     pub diamond_proxy_addr: Address,
     pub chain_admin_addr: Address,
@@ -41,8 +41,8 @@ impl GatewayChainConfig {
         gateway_chain_id: SLChainId,
     ) -> Self {
         Self {
-            state_transition_proxy_addr: gateway_config.state_transition_proxy_addr,
-            validator_timelock_addr: gateway_config.validator_timelock_addr,
+            state_transition_proxy_addr: Some(gateway_config.state_transition_proxy_addr),
+            validator_timelock_addr: Some(gateway_config.validator_timelock_addr),
             multicall3_addr: gateway_config.multicall3_addr,
             diamond_proxy_addr,
             chain_admin_addr: l2_chain_admin_addr,
@@ -58,9 +58,9 @@ impl GatewayChainConfig {
         Self {
             state_transition_proxy_addr: contracts
                 .ecosystem_contracts
-                .unwrap()
-                .state_transition_proxy_addr,
-            validator_timelock_addr: contracts.validator_timelock_addr,
+                .map(|a| a.state_transition_proxy_addr)
+                .flatten(),
+            validator_timelock_addr: Some(contracts.validator_timelock_addr),
             multicall3_addr: contracts.l1_multicall3_addr,
             diamond_proxy_addr: contracts.diamond_proxy_addr,
             chain_admin_addr: contracts.chain_admin_addr,

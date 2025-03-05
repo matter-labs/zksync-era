@@ -7,9 +7,11 @@ impl FromEnv for EcosystemContracts {
         Ok(Self {
             bridgehub_proxy_addr: std::env::var("CONTRACTS_BRIDGEHUB_PROXY_ADDR")?.parse()?,
             state_transition_proxy_addr: std::env::var("CONTRACTS_STATE_TRANSITION_PROXY_ADDR")?
-                .parse()?,
+                .parse()
+                .ok(),
             transparent_proxy_admin_addr: std::env::var("CONTRACTS_TRANSPARENT_PROXY_ADMIN_ADDR")?
-                .parse()?,
+                .parse()
+                .ok(),
             l1_bytecodes_supplier_addr: std::env::var("CONTRACTS_L1_BYTECODE_SUPPLIER_ADDR")?
                 .parse()
                 .ok(),

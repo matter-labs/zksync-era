@@ -196,10 +196,12 @@ impl RemoteENConfig {
             l1_bridgehub_proxy_addr: ecosystem_contracts.as_ref().map(|a| a.bridgehub_proxy_addr),
             l1_state_transition_proxy_addr: ecosystem_contracts
                 .as_ref()
-                .map(|a| a.state_transition_proxy_addr),
+                .map(|a| a.state_transition_proxy_addr)
+                .flatten(),
             l1_transparent_proxy_admin_addr: ecosystem_contracts
                 .as_ref()
-                .map(|a| a.transparent_proxy_admin_addr),
+                .map(|a| a.transparent_proxy_admin_addr)
+                .flatten(),
             l1_bytecodes_supplier_addr: ecosystem_contracts
                 .as_ref()
                 .and_then(|a| a.l1_bytecodes_supplier_addr),

@@ -131,8 +131,6 @@ impl TreeDataFetcher {
         mut self,
         l1_client: Box<DynClient<L1>>,
         l1_diamond_proxy_addr: Address,
-        gateway_client: Option<Box<DynClient<L1>>>,
-        l2_chain_id: L2ChainId,
     ) -> anyhow::Result<Self> {
         anyhow::ensure!(
             self.diamond_proxy_address.is_none(),
@@ -142,9 +140,7 @@ impl TreeDataFetcher {
         let l1_provider = L1DataProvider::new(
             l1_client.for_component("tree_data_fetcher"),
             l1_diamond_proxy_addr,
-            gateway_client.map(|c| c.for_component("tree_data_fetcher")),
             self.pool.clone(),
-            l2_chain_id,
         )
         .await?;
         self.data_provider.set_l1(l1_provider);

@@ -334,11 +334,7 @@ impl ExternalNodeBuilder {
     }
 
     fn add_tree_data_fetcher_layer(mut self) -> anyhow::Result<Self> {
-        let layer = TreeDataFetcherLayer::new(
-            self.config.l1_diamond_proxy_address(),
-            self.config.required.l2_chain_id,
-        );
-        self.node.add_layer(layer);
+        self.node.add_layer(TreeDataFetcherLayer);
         Ok(self)
     }
 

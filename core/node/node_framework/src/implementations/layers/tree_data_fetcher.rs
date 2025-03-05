@@ -3,6 +3,7 @@ use zksync_types::{Address, L2ChainId};
 
 use crate::{
     implementations::resources::{
+        contracts::SettlementLayerContractsResource,
         eth_interface::{EthInterfaceResource, GatewayEthInterfaceResource},
         healthcheck::AppHealthCheckResource,
         main_node_client::MainNodeClientResource,
@@ -16,18 +17,15 @@ use crate::{
 
 /// Wiring layer for [`TreeDataFetcher`].
 #[derive(Debug)]
-pub struct TreeDataFetcherLayer {
-    l1_diamond_proxy_addr: Address,
-    l2_chain_id: L2ChainId,
-}
+pub struct TreeDataFetcherLayer;
 
 #[derive(Debug, FromContext)]
 #[context(crate = crate)]
 pub struct Input {
     pub master_pool: PoolResource<MasterPool>,
     pub main_node_client: MainNodeClientResource,
-    pub l1_client: EthInterfaceResource,
-    pub gateway_client: Option<GatewayEthInterfaceResource>,
+    pub gateway_client: GatewayEthInterfaceResource,
+    pub settlement_layer_contracts_resource: SettlementLayerContractsResource,
     #[context(default)]
     pub app_health: AppHealthCheckResource,
 }
@@ -37,15 +35,6 @@ pub struct Input {
 pub struct Output {
     #[context(task)]
     pub task: TreeDataFetcher,
-}
-
-impl TreeDataFetcherLayer {
-    pub fn new(l1_diamond_proxy_addr: Address, l2_chain_id: L2ChainId) -> Self {
-        Self {
-            l1_diamond_proxy_addr,
-            l2_chain_id,
-        }
-    }
 }
 
 #[async_trait::async_trait]
@@ -60,8 +49,8 @@ impl WiringLayer for TreeDataFetcherLayer {
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         let pool = input.master_pool.get().await?;
         let MainNodeClientResource(client) = input.main_node_client;
-        let EthInterfaceResource(l1_client) = input.l1_client;
-        let gateway_client = input.gateway_client.map(|c| c.0);
+        // let EthInterfaceResource(gateway_client) = input.l1_client;
+        let gateway_client = input.gateway_client.0;
 
         tracing::warn!(
             "Running tree data fetcher (allows a node to operate w/o a Merkle tree or w/o waiting the tree to catch up). \
@@ -69,10 +58,12 @@ impl WiringLayer for TreeDataFetcherLayer {
         );
         let task = TreeDataFetcher::new(client, pool)
             .with_l1_data(
-                l1_client,
-                self.l1_diamond_proxy_addr,
                 gateway_client,
-                self.l2_chain_id,
+                input
+                    .settlement_layer_contracts_resource
+                    .0
+                    .chain_contracts_config
+                    .diamond_proxy_addr,
             )
             .await?;
 
