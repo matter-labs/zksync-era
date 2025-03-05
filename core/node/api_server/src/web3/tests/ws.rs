@@ -6,8 +6,10 @@ use assert_matches::assert_matches;
 use async_trait::async_trait;
 use http::StatusCode;
 use tokio::sync::watch;
-use zksync_config::configs::contracts::ecosystem::L1SpecificContracts;
-use zksync_config::{configs::chain::NetworkConfig, SettlementLayerContracts};
+use zksync_config::{
+    configs::{chain::NetworkConfig, contracts::ecosystem::L1SpecificContracts},
+    SettlementLayerContracts,
+};
 use zksync_dal::ConnectionPool;
 use zksync_types::{api, Address, Bloom, L1BatchNumber, H160, H256, U64};
 use zksync_web3_decl::{

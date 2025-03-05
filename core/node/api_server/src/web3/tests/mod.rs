@@ -8,11 +8,11 @@ use std::{
 use assert_matches::assert_matches;
 use async_trait::async_trait;
 use tokio::sync::watch;
-use zksync_config::configs::contracts::ecosystem::L1SpecificContracts;
 use zksync_config::{
     configs::{
         api::Web3JsonRpcConfig,
         chain::{NetworkConfig, StateKeeperConfig},
+        contracts::ecosystem::L1SpecificContracts,
         AllContractsConfig as ContractsConfig,
     },
     GenesisConfig, SettlementLayerContracts,

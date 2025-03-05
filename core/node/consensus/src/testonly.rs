@@ -4,12 +4,12 @@ use std::sync::Arc;
 use anyhow::Context as _;
 use rand::Rng;
 use zksync_concurrency::{ctx, error::Wrap as _, scope, sync, time};
-use zksync_config::configs::contracts::ecosystem::L1SpecificContracts;
 use zksync_config::{
     configs,
     configs::{
         chain::{OperationsManagerConfig, StateKeeperConfig},
         consensus as config,
+        contracts::ecosystem::L1SpecificContracts,
         database::{MerkleTreeConfig, MerkleTreeMode},
     },
 };
