@@ -1,34 +1,9 @@
-use std::{num::NonZeroUsize, str::FromStr, sync::Arc};
+use std::sync::Arc;
 
-use anyhow::Context;
-use clap::{Parser, ValueEnum};
-use ethers::{
-    abi::{encode, parse_abi, Token},
-    contract::{abigen, BaseContract},
-    providers::{Http, Middleware, Provider},
-    signers::Signer,
-    utils::hex,
-};
-use serde::{Deserialize, Serialize};
-use strum::EnumIter;
-use xshell::Shell;
-use zkstack_cli_config::{
-    forge_interface::gateway_ecosystem_upgrade::output::GatewayEcosystemUpgradeOutput,
-    traits::{ReadConfig, ZkStackConfig},
-    ContractsConfig,
-};
-use zksync_contracts::{chain_admin_contract, hyperchain_contract, DIAMOND_CUT};
-use zksync_types::{
-    ethabi,
-    url::SensitiveUrl,
-    web3::{keccak256, Bytes},
-    Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, H256,
-    L2_NATIVE_TOKEN_VAULT_ADDRESS, U256,
-};
-use zksync_web3_decl::{
-    client::{Client, DynClient, L2},
-    namespaces::{EthNamespaceClient, UnstableNamespaceClient, ZksNamespaceClient},
-};
+use clap::Parser;
+use ethers::{contract::abigen, signers::Signer};
+use zksync_basic_types::Address;
+use zksync_system_constants::L2_NATIVE_TOKEN_VAULT_ADDRESS;
 
 use super::{
     events_gatherer::DEFAULT_BLOCK_RANGE,
@@ -60,7 +35,7 @@ pub async fn migrate_l2_tokens(
 ) -> anyhow::Result<()> {
     let l2_client = get_zk_client(&l2_rpc_url, l2_chain_id)?;
 
-    check_l2_ntv_existence(&l2_client).await?;
+    check_l2_ntv_existence(l2_client.as_ref()).await?;
     let ethers_provider = get_ethers_provider(&l2_rpc_url)?;
 
     let wallet = private_key.parse::<ethers::signers::LocalWallet>()?;

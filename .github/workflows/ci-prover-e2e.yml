@@ -47,14 +47,17 @@ jobs:
           git submodule update --init --recursive
           git rev-parse HEAD
 
+      - name: Install yq
+        run: sudo wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/local/bin/yq && sudo chmod a+x /usr/local/bin/yq
+
       - name: Set new genesis for fflonk 
-        # Note, that while `Verifier` is not explicitly a part of the genensis state,
+        # Note, that while `Verifier` is not explicitly a part of the genesis state,
         # it affects it indirectly as it is a part of the repo.
         working-directory: ./etc/env/file_based
         if: matrix.compressor-mode == 'fflonk'
         run: |
-          sudo sed -i 's/^genesis_root: .*/genesis_root: 0xf15e1f51b54d18843eb6ff18532921165b3393910b489a7b58933220363d9204/' genesis.yaml
-          sudo sed -i "s/^genesis_batch_commitment: .*/genesis_batch_commitment: 0xabfaad1553b5325624826db5b57de11b6be33285b9e0324665cce50d7f179a63/" genesis.yaml
+          yq -e -i '.genesis_root = "0xf15e1f51b54d18843eb6ff18532921165b3393910b489a7b58933220363d9204"' genesis.yaml
+          yq -e -i '.genesis_batch_commitment = "0xabfaad1553b5325624826db5b57de11b6be33285b9e0324665cce50d7f179a63"' genesis.yaml
 
       - name: Init
         run: |
@@ -80,14 +83,16 @@ jobs:
           ci_run zkstack ecosystem init --dev --update-submodules=${{matrix.compressor-mode == 'plonk'}} --verbose
 
           ci_run zkstack prover init --dev --verbose
-          echo "URL=$(grep "http_url" ./chains/proving_chain/configs/general.yaml | awk '{ print $2 }')" >> $GITHUB_ENV
+          WEB3_HTTP_URL=$(yq -e '.api.web3_json_rpc.http_url' < ./chains/proving_chain/configs/general.yaml)
+          echo "Using Web3 HTTP URL: $WEB3_HTTP_URL"
+          echo "URL=$WEB3_HTTP_URL" >> $GITHUB_ENV
 
       - name: Switch verifier to FFLONK interface
         working-directory: ./chains/proving_chain/configs
         if: matrix.compressor-mode == 'fflonk'
         run: |
-          sudo sed -i 's/is_verifier_pre_fflonk: true/is_verifier_pre_fflonk: false/' general.yaml
-          grep "is_verifier_pre_fflonk" general.yaml | awk '{ print $2 }'
+          sudo yq -e -i '.eth.sender.is_verifier_pre_fflonk = false' general.yaml
+          yq '.eth.sender.is_verifier_pre_fflonk' < general.yaml
 
       - name: Prepare prover subsystem
         run: |

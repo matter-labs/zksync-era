@@ -11,9 +11,8 @@ use zksync_basic_types::{protocol_version::ProtocolSemanticVersion, L2ChainId};
 
 use crate::{
     consts::INITIAL_DEPLOYMENT_FILE,
-    raw::RawConfig,
     traits::{FileConfigWithDefaultName, ZkStackConfig},
-    ContractsConfig, WalletsConfig, ERC20_DEPLOYMENT_FILE,
+    ContractsConfig, GenesisConfig, WalletsConfig, ERC20_DEPLOYMENT_FILE,
 };
 
 /// Part of the genesis config influencing `DeployGatewayCTMInput`.
@@ -30,15 +29,15 @@ pub struct GenesisInput {
 
 impl GenesisInput {
     // FIXME: is this enough? (cf. aliases in the "real" config definition)
-    pub fn new(raw: &RawConfig) -> anyhow::Result<Self> {
+    pub fn new(raw: &GenesisConfig) -> anyhow::Result<Self> {
         Ok(Self {
-            bootloader_hash: raw.get("bootloader_hash")?,
-            default_aa_hash: raw.get("default_aa_hash")?,
-            evm_emulator_hash: raw.get_opt("evm_emulator_hash")?,
-            genesis_root_hash: raw.get("genesis_root")?,
-            rollup_last_leaf_index: raw.get("genesis_rollup_leaf_index")?,
-            genesis_commitment: raw.get("genesis_batch_commitment")?,
-            protocol_version: raw.get("genesis_protocol_semantic_version")?,
+            bootloader_hash: raw.0.get("bootloader_hash")?,
+            default_aa_hash: raw.0.get("default_aa_hash")?,
+            evm_emulator_hash: raw.0.get_opt("evm_emulator_hash")?,
+            genesis_root_hash: raw.0.get("genesis_root")?,
+            rollup_last_leaf_index: raw.0.get("genesis_rollup_leaf_index")?,
+            genesis_commitment: raw.0.get("genesis_batch_commitment")?,
+            protocol_version: raw.0.get("genesis_protocol_semantic_version")?,
         })
     }
 }

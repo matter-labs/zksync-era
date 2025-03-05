@@ -2,9 +2,7 @@ use ethers::types::Address;
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::{commitment::L1BatchCommitmentMode, L2ChainId, U256};
 
-use crate::{
-    get_da_client_type, traits::ZkStackConfig, ChainConfig, ContractsConfig, DAValidatorType,
-};
+use crate::{traits::ZkStackConfig, ChainConfig, ContractsConfig, DAValidatorType};
 
 impl ZkStackConfig for DeployL2ContractsInput {}
 
@@ -50,7 +48,7 @@ async fn get_da_validator_type(config: &ChainConfig) -> anyhow::Result<DAValidat
 
     match (
         config.l1_batch_commit_data_generator_mode,
-        get_da_client_type(&general),
+        general.da_client_type(),
     ) {
         (L1BatchCommitmentMode::Rollup, _) => Ok(DAValidatorType::Rollup),
         (L1BatchCommitmentMode::Validium, None | Some("no_da")) => Ok(DAValidatorType::NoDA),

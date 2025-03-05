@@ -32,8 +32,7 @@ impl StatusArgs {
                 .load_current_chain()
                 .context(MSG_CHAIN_NOT_FOUND_ERR)?;
             let general_config = chain.get_general_config().await?;
-            let health_check_port = general_config.get::<u16>("api.healthcheck.port")?;
-            Ok(format!("http://localhost:{health_check_port}/health"))
+            general_config.healthcheck_url()
         }
     }
 }

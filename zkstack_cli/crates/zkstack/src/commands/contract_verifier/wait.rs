@@ -15,7 +15,7 @@ pub(crate) async fn wait(shell: &Shell, args: WaitArgs) -> anyhow::Result<()> {
     let prometheus_port = chain
         .get_general_config()
         .await?
-        .get("contract_verifier.prometheus_port")?;
+        .contract_verifier_prometheus_port()?;
     logger::info("Waiting for contract verifier to become alive");
     args.poll_prometheus(prometheus_port, verbose).await?;
     logger::info(format!(

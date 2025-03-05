@@ -1,32 +1,7 @@
 use std::{str::FromStr, time::Duration};
 
 use serde::{Deserialize, Serialize};
-use zksync_basic_types::{
-    commitment::L1BatchCommitmentMode, network::Network, Address, L2ChainId, H256,
-};
-
-#[derive(Debug, Deserialize, Clone, PartialEq)]
-pub struct NetworkConfig {
-    /// Name of the used Ethereum network, e.g. `localhost` or `rinkeby`.
-    pub network: Network,
-    /// Name of current ZKsync network
-    /// Used for Sentry environment
-    pub zksync_network: String,
-    /// ID of current ZKsync network treated as ETH network ID.
-    /// Used to distinguish ZKsync from other Web3-capable networks.
-    pub zksync_network_id: L2ChainId,
-}
-
-impl NetworkConfig {
-    /// Creates a config object suitable for use in unit tests.
-    pub fn for_tests() -> NetworkConfig {
-        Self {
-            network: Network::Localhost,
-            zksync_network: "localhost".into(),
-            zksync_network_id: L2ChainId::default(),
-        }
-    }
-}
+use zksync_basic_types::{commitment::L1BatchCommitmentMode, Address, H256};
 
 /// An enum that represents the version of the fee model to use.
 ///  - `V1`, the first model that was used in ZKsync Era. In this fee model, the pubdata price must be pegged to the L1 gas price.
