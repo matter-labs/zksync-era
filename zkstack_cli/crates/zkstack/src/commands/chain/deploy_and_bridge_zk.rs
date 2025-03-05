@@ -16,7 +16,7 @@ use zkstack_cli_common::{
     config::global_config,
     forge::{Forge, ForgeScriptArgs},
     wallets::Wallet,
-    withdraw::ZKSProvider,
+    zks_provider::ZKSProvider,
 };
 use zkstack_cli_config::{forge_interface::script_params::ZK_PREPARATION, EcosystemConfig};
 use zksync_basic_types::{H256, U256, U64};

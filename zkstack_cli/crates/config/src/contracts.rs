@@ -23,9 +23,6 @@ pub struct ContractsConfig {
     pub bridges: BridgesContracts,
     pub l1: L1Contracts,
     pub l2: L2Contracts,
-    // TODO: maybe move these guys to L1
-    pub user_facing_bridgehub: Address,
-    pub user_facing_diamond_proxy: Address,
     #[serde(flatten)]
     pub other: serde_json::Value,
 }
@@ -118,15 +115,6 @@ impl ContractsConfig {
                 .avail_l1_da_validator_addr,
         );
         self.l1.chain_admin_addr = deploy_l1_output.deployed_addresses.chain_admin;
-
-        self.user_facing_bridgehub = deploy_l1_output
-            .deployed_addresses
-            .bridgehub
-            .bridgehub_proxy_addr;
-        self.user_facing_diamond_proxy = deploy_l1_output
-            .deployed_addresses
-            .state_transition
-            .diamond_proxy_addr;
     }
 
     pub fn set_chain_contracts(&mut self, register_chain_output: &RegisterChainOutput) {
