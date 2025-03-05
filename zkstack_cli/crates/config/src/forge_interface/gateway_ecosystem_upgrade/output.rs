@@ -37,6 +37,7 @@ pub struct GatewayEcosystemUpgradeContractsOutput {
     pub diamond_init_max_pubdata_per_batch: u64,
     pub diamond_init_minimal_l2_gas_price: u64,
     pub diamond_init_priority_tx_max_pubdata: u64,
+    pub diamond_init_pubdata_pricing_mode: u64,
     pub expected_rollup_l2_da_validator: Address,
     pub expected_validium_l2_da_validator: Address,
 
@@ -65,6 +66,11 @@ pub struct GatewayEcosystemUpgradeDeployedAddresses {
     pub l1_bytecodes_supplier_addr: Address,
     pub l2_wrapped_base_token_store_addr: Address,
 
+    pub l1_transitionary_owner: Address,
+    pub l1_rollup_da_manager: Address,
+    pub l1_gateway_upgrade: Address,
+    pub l1_governance_upgrade_timer: Address,
+
     pub bridgehub: GatewayEcosystemUpgradeBridgehub,
     pub bridges: GatewayEcosystemUpgradeBridges,
     pub state_transition: GatewayEcosystemUpgradeStateTransition,
@@ -85,6 +91,8 @@ pub struct GatewayEcosystemUpgradeBridges {
     pub l1_nullifier_implementation_addr: Address,
     pub shared_bridge_implementation_addr: Address,
     pub shared_bridge_proxy_addr: Address,
+    pub bridged_standard_erc20_impl: Address,
+    pub bridged_token_beacon: Address,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]

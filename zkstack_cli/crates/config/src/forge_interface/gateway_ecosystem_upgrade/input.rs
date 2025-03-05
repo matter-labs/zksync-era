@@ -51,6 +51,9 @@ impl GatewayEcosystemUpgradeInput {
                     .diamond_init_minimal_l2_gas_price,
                 bootloader_hash: new_genesis_input.bootloader_hash,
                 default_aa_hash: new_genesis_input.default_aa_hash,
+                evm_emulator_hash: new_genesis_input
+                    .evm_emulator_hash
+                    .expect("EVM emulator hash is required"),
                 diamond_init_priority_tx_max_pubdata: initial_deployment_config
                     .diamond_init_priority_tx_max_pubdata,
                 diamond_init_pubdata_pricing_mode: initial_deployment_config
@@ -112,6 +115,7 @@ pub struct GatewayUpgradeContractsConfig {
     pub diamond_init_minimal_l2_gas_price: u64,
     pub bootloader_hash: H256,
     pub default_aa_hash: H256,
+    pub evm_emulator_hash: H256,
 
     pub bridgehub_proxy_address: Address,
     pub old_shared_bridge_proxy_address: Address,
