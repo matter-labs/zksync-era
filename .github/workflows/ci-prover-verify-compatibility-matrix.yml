@@ -1,0 +1,61 @@
+name: Verify Compatibility Matrix
+
+on:
+  pull_request:
+    paths:
+      - 'prover/compatibility_matrix.json'
+  push:
+    tags:
+      - 'prover-v*'
+      - 'core-v*'
+  workflow_dispatch:
+
+jobs:
+  verify-matrix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up version ranges
+        run: |
+          # Get latest tags
+          LATEST_CORE_TAG=$(git describe --tags --match "core-*" --abbrev=0)
+          LATEST_PROVER_TAG=$(git describe --tags --match "prover-*" --abbrev=0)
+          
+          # Extract major versions
+          LATEST_CORE_MAJOR=$(echo "$LATEST_CORE_TAG" | sed 's/core-v\([0-9]*\).*/\1/')
+          LATEST_PROVER_MAJOR=$(echo "$LATEST_PROVER_TAG" | sed 's/prover-v\([0-9]*\).*/\1/')
+          
+          # Set version ranges
+          echo "PROVER_RANGE_START=16" >> .env
+          echo "CORE_RANGE_START=24" >> .env
+          echo "PROVER_RANGE_END=$LATEST_PROVER_MAJOR" >> .env
+          echo "CORE_RANGE_END=$LATEST_CORE_MAJOR" >> .env
+
+      - name: Verify compatibility matrix
+        run: |
+          matrix_file="prover/compatibility_matrix.json"
+
+          if ! jq empty "$matrix_file" 2>/dev/null; then
+              echo "Invalid JSON format in $matrix_file"
+              exit 1
+          fi
+
+          echo "Prover versions range: $PROVER_RANGE_START to $PROVER_RANGE_END"
+          echo "Core versions range: $CORE_RANGE_START to $CORE_RANGE_END"
+
+          for ((ver=$PROVER_RANGE_START; ver<=$PROVER_RANGE_END; ver++)); do
+              if ! jq -e ".[\"$ver\"]" "$matrix_file" >/dev/null; then
+                  echo "Missing prover version $ver"
+                  exit 1
+              fi
+          done
+
+          for ((ver=$CORE_RANGE_START; ver<=$CORE_RANGE_END; ver++)); do
+              if ! jq -e "[to_entries[] | select(.value | contains([\"$ver\"]))] | length > 0" "$matrix_file" >/dev/null; then
+                  echo "Missing core version $ver"
+                  exit 1
+              fi
+          done
