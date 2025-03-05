@@ -130,9 +130,9 @@ describe('Interop checks', () => {
         );
         try {
             const blockNumber = await interop2_provider.getBlockNumber();
-            console.log("Second chain started, block number:", blockNumber);
-          } catch (_) {
-            console.log("Second chain not started, skipping")
+            console.log('Second chain started, block number:', blockNumber);
+        } catch (_) {
+            console.log('Second chain not started, skipping');
             skipTest = true;
             return;
         }
@@ -213,7 +213,7 @@ describe('Interop checks', () => {
 
     test('Can perform an ETH deposit', async () => {
         if (skipTest) {
-            console.log("Skipping ETH deposit test");
+            console.log('Skipping ETH deposit test');
             return;
         }
         // Fund accounts
@@ -304,7 +304,7 @@ describe('Interop checks', () => {
 
     test('Can deploy token contracts', async () => {
         if (skipTest) {
-            console.log("Skipping token deployment test");
+            console.log('Skipping token deployment test');
             return;
         }
         // Deploy token A on interop1 and register
@@ -371,7 +371,7 @@ describe('Interop checks', () => {
     // we want to remove this, it means L2<>L2 bridging does not work properly.
     test.skip('Withdraw and deposit tokens via L1', async () => {
         if (skipTest) {
-            console.log("Skipping withdraw and deposit tokens via L1 test");
+            console.log('Skipping withdraw and deposit tokens via L1 test');
             return;
         }
         const bridgeContracts = await interop1_wallet.getL1BridgeContracts();
@@ -450,7 +450,7 @@ describe('Interop checks', () => {
 
     test('Can perform cross chain transfer', async () => {
         if (skipTest) {
-            console.log("Skipping cross chain transfer test");
+            console.log('Skipping cross chain transfer test');
             return;
         }
         // Fund accounts
