@@ -263,7 +263,7 @@ jobs:
         run: |
           ci_run zkstack ecosystem init --dev \
           --ignore-prerequisites --verbose \
-          --observability=false --ecosystem-only
+          --observability=false
 
         # kl TODO: remove this ^ dev generate-genesis, and second ecosystem init, its only for speed. 
 
@@ -379,24 +379,6 @@ jobs:
       - name: Initialize gateway chain
         if: matrix.use_gateway_chain == 'WITH_GATEWAY'
         run: |
-          ci_run zkstack chain create \
-          --chain-name gateway \
-          --chain-id 505 \
-          --prover-mode no-proofs \
-          --wallet-creation localhost \
-          --l1-batch-commit-data-generator-mode rollup \
-          --base-token-address 0x0000000000000000000000000000000000000001 \
-          --base-token-price-nominator 1 \
-          --base-token-price-denominator 1 \
-          --set-as-default false \
-          --ignore-prerequisites \
-          --evm-emulator false
-          
-          ci_run zkstack chain init \
-          --dev \
-          --chain gateway \
-          --validium-type no-da
-          
           ci_run zkstack chain convert-to-gateway --chain gateway --ignore-prerequisites
 
       - name: Run gateway
