@@ -731,8 +731,8 @@ impl MainNodeBuilder {
             .add_prometheus_exporter_layer()?
             .add_query_eth_client_layer()?
             .add_settlement_mode_data()?
-            .add_gateway_migrator_layer()?
             .add_gateway_client_layer()?
+            .add_gateway_migrator_layer()?
             .add_gas_adjuster_layer()?;
 
         // Add preconditions for all the components.

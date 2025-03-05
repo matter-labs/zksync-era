@@ -1567,7 +1567,6 @@ impl From<&ExternalNodeConfig> for L1SpecificContracts {
 
 impl From<&ExternalNodeConfig> for ChainSpecificContracts {
     fn from(config: &ExternalNodeConfig) -> Self {
-        dbg!(&config.remote);
         ChainSpecificContracts {
             ecosystem_contracts: EcosystemCommonContracts {
                 bridgehub_proxy_addr: config.remote.l1_bridgehub_proxy_addr,

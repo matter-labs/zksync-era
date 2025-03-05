@@ -3,7 +3,8 @@ use zksync_gateway_migrator::GatewayMigrator;
 
 use crate::{
     implementations::resources::{
-        contracts::SettlementLayerContractsResource, eth_interface::EthInterfaceResource,
+        contracts::{L1ChainContractsResource, SettlementLayerContractsResource},
+        eth_interface::EthInterfaceResource,
         settlement_layer::SettlementModeResource,
     },
     wiring_layer::{WiringError, WiringLayer},
@@ -18,7 +19,7 @@ pub struct GatewayMigratorLayer;
 #[context(crate = crate)]
 pub struct Input {
     eth_client: EthInterfaceResource,
-    contracts: SettlementLayerContractsResource,
+    contracts: L1ChainContractsResource,
     settlement_mode_resource: SettlementModeResource,
 }
 
