@@ -9,18 +9,26 @@
 //! - Tests use [`VmTester`] built using [`VmTesterBuilder`] to create a VM instance. This allows to set up storage for the VM,
 //!   custom [`SystemEnv`] / [`L1BatchEnv`], deployed contracts, pre-funded accounts etc.
 
-use std::{collections::HashSet, rc::Rc};
+use std::{collections::HashSet, fs, path::Path, rc::Rc};
 
 use once_cell::sync::Lazy;
 use zksync_contracts::{
     read_bootloader_code, read_zbin_bytecode, BaseSystemContracts, SystemContractCode,
 };
-use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
+use zksync_system_constants::{
+    CONTRACT_DEPLOYER_ADDRESS, TRUSTED_ADDRESS_SLOTS, TRUSTED_TOKEN_SLOTS,
+};
 use zksync_types::{
     block::L2BlockHasher, bytecode::BytecodeHash, fee_model::BatchFeeInput, get_code_key,
     get_is_account_key, h256_to_address, h256_to_u256, u256_to_h256,
     utils::storage_key_for_eth_balance, Address, L1BatchNumber, L2BlockNumber, L2ChainId,
-    ProtocolVersionId, U256,
+    ProtocolVersionId, Transaction, U256,
+};
+use zksync_vm_interface::{
+    storage::{StorageSnapshot, StorageView},
+    tracer::ValidationParams,
+    utils::VmDump,
+    InspectExecutionMode, VmExecutionResultAndLogs, VmFactory,
 };
 
 pub(super) use self::tester::{
@@ -76,6 +84,59 @@ pub(crate) fn read_max_depth_contract() -> Vec<u8> {
     read_zbin_bytecode(
         "core/tests/ts-integration/contracts/zkasm/artifacts/deep_stak.zkasm/deep_stak.zkasm.zbin",
     )
+}
+
+pub(crate) fn load_vm_dump(name: &str) -> VmDump {
+    // We rely on the fact that unit tests are executed from the crate directory.
+    let path = Path::new("tests/vm_dumps").join(format!("{name}.json"));
+    let raw = fs::read_to_string(path).unwrap_or_else(|err| {
+        panic!("Failed reading VM dump `{name}`: {err}");
+    });
+    serde_json::from_str(&raw).unwrap_or_else(|err| {
+        panic!("Failed deserializing VM dump `{name}`: {err}");
+    })
+}
+
+pub(crate) fn inspect_oneshot_dump<VM>(
+    dump: VmDump,
+    tracer: &mut VM::TracerDispatcher,
+) -> VmExecutionResultAndLogs
+where
+    VM: VmFactory<StorageView<StorageSnapshot>>,
+{
+    let storage = StorageView::new(dump.storage).to_rc_ptr();
+
+    assert_eq!(dump.l2_blocks.len(), 1);
+    let transactions = dump.l2_blocks.into_iter().next().unwrap().txs;
+    assert_eq!(transactions.len(), 1);
+    let transaction = transactions.into_iter().next().unwrap();
+
+    let mut vm = VM::new(dump.l1_batch_env, dump.system_env, storage);
+    vm.push_transaction(transaction);
+    vm.inspect(tracer, InspectExecutionMode::OneTx)
+}
+
+pub(crate) fn mock_validation_params(
+    tx: &Transaction,
+    accessed_tokens: &[Address],
+) -> ValidationParams {
+    let trusted_slots = accessed_tokens
+        .iter()
+        .flat_map(|&addr| TRUSTED_TOKEN_SLOTS.iter().map(move |&slot| (addr, slot)))
+        .collect();
+    let trusted_address_slots = accessed_tokens
+        .iter()
+        .flat_map(|&addr| TRUSTED_ADDRESS_SLOTS.iter().map(move |&slot| (addr, slot)))
+        .collect();
+    ValidationParams {
+        user_address: tx.initiator_account(),
+        paymaster_address: tx.payer(),
+        trusted_slots,
+        trusted_addresses: Default::default(),
+        trusted_address_slots,
+        computational_gas_limit: u32::MAX,
+        timestamp_asserter_params: None,
+    }
 }
 
 pub(crate) fn get_bootloader(test: &str) -> SystemContractCode {
