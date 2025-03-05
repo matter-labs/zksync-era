@@ -251,7 +251,8 @@ async fn main() -> anyhow::Result<()> {
     let sl_validator_timelock = contracts
         .current_contracts()
         .ecosystem_contracts
-        .validator_timelock_addr;
+        .validator_timelock_addr
+        .expect("Should be presented");
 
     let config = BlockReverterEthConfig::new(
         &eth_sender,

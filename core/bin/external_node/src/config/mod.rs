@@ -13,10 +13,15 @@ use zksync_config::{
     configs::{
         api::{MaxResponseSize, MaxResponseSizeOverrides},
         consensus::{ConsensusConfig, ConsensusSecrets},
+        contracts::{
+            chain::{ChainContracts, L2Contracts},
+            ecosystem::{EcosystemCommonContracts, L1SpecificContracts},
+            ChainSpecificContracts,
+        },
         en_config::ENConfig,
-        DataAvailabilitySecrets, GeneralConfig, Secrets,
+        AllContractsConfig, DataAvailabilitySecrets, GeneralConfig, Secrets,
     },
-    DAClientConfig, ObjectStoreConfig,
+    DAClientConfig, ObjectStoreConfig, SettlementLayerContracts,
 };
 use zksync_consensus_crypto::TextFmt;
 use zksync_consensus_roles as roles;
@@ -131,7 +136,7 @@ pub(crate) struct RemoteENConfig {
     pub l2_timestamp_asserter_addr: Option<Address>,
     pub l1_wrapped_base_token_store: Option<Address>,
     pub l1_server_notifier_addr: Option<Address>,
-    pub base_token_addr: Address,
+    pub base_token_addr: Option<Address>,
     pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
     pub dummy_verifier: bool,
 }
@@ -213,7 +218,7 @@ impl RemoteENConfig {
             l2_legacy_shared_bridge_addr: bridges.l2_legacy_shared_bridge,
             l1_weth_bridge_addr: bridges.l1_weth_bridge,
             l2_weth_bridge_addr: bridges.l2_weth_bridge,
-            base_token_addr,
+            base_token_addr: Some(base_token_addr),
             l1_batch_commit_data_generator_mode: genesis
                 .as_ref()
                 .map(|a| a.l1_batch_commit_data_generator_mode)
@@ -1508,7 +1513,7 @@ impl From<&ExternalNodeConfig> for InternalApiConfigBuilder {
             l2_testnet_paymaster_addr: config.remote.l2_testnet_paymaster_addr,
             req_entities_limit: Some(config.optional.req_entities_limit),
             fee_history_limit: Some(config.optional.fee_history_limit),
-            base_token_address: Some(config.remote.base_token_addr),
+            base_token_address: config.remote.base_token_addr,
             filters_disabled: Some(config.optional.filters_disabled),
             dummy_verifier: config.remote.dummy_verifier,
             l1_batch_commit_data_generator_mode: config.remote.l1_batch_commit_data_generator_mode,
@@ -1544,6 +1549,46 @@ impl From<&ExternalNodeConfig> for TxSenderConfig {
                     ),
                 }
             }),
+        }
+    }
+}
+
+impl From<&ExternalNodeConfig> for L1SpecificContracts {
+    fn from(config: &ExternalNodeConfig) -> Self {
+        L1SpecificContracts {
+            bytecodes_supplier_addr: config.remote.l1_bytecodes_supplier_addr,
+            wrapped_base_token_store: config.remote.l1_wrapped_base_token_store,
+            shared_bridge: config.remote.l1_shared_bridge_proxy_addr,
+            erc_20_bridge: config.remote.l1_erc20_bridge_proxy_addr,
+            base_token_address: config.remote.base_token_addr,
+        }
+    }
+}
+
+impl From<&ExternalNodeConfig> for ChainSpecificContracts {
+    fn from(config: &ExternalNodeConfig) -> Self {
+        dbg!(&config.remote);
+        ChainSpecificContracts {
+            ecosystem_contracts: EcosystemCommonContracts {
+                bridgehub_proxy_addr: config.remote.l1_bridgehub_proxy_addr,
+                state_transition_proxy_addr: config.remote.l1_state_transition_proxy_addr,
+                server_notifier_addr: config.remote.l1_server_notifier_addr,
+                multicall3: None,
+                validator_timelock_addr: None,
+                no_da_validium_l1_validator_addr: None,
+            },
+            chain_contracts_config: ChainContracts {
+                diamond_proxy_addr: config.remote.l1_diamond_proxy_addr,
+                chain_admin: None,
+            },
+            l2_contracts: L2Contracts {
+                erc20_default_bridge: config.remote.l2_erc20_bridge_addr,
+                shared_bridge_addr: config.remote.l2_shared_bridge_addr,
+                legacy_shared_bridge_addr: config.remote.l2_legacy_shared_bridge_addr,
+                timestamp_asserter_addr: config.remote.l2_timestamp_asserter_addr,
+                da_validator_addr: None,
+                testnet_paymaster_addr: config.remote.l2_testnet_paymaster_addr,
+            },
         }
     }
 }

@@ -28,6 +28,7 @@ use zksync_node_framework::{
             no_da::NoDAClientWiringLayer, object_store::ObjectStorageClientWiringLayer,
         },
         data_availability_fetcher::DataAvailabilityFetcherLayer,
+        gateway_client::GatewayClientLayer,
         healtcheck_server::HealthCheckLayer,
         l1_batch_commitment_mode_validation::L1BatchCommitmentModeValidationLayer,
         logs_bloom_backfill::LogsBloomBackfillLayer,
@@ -44,6 +45,8 @@ use zksync_node_framework::{
         pruning::PruningLayer,
         query_eth_client::QueryEthClientLayer,
         reorg_detector::ReorgDetectorLayer,
+        settlement_layer_data::SettlementLayerData,
+        settlement_layer_data_en::SettlementLayerDataEn,
         sigint::SigintHandlerLayer,
         state_keeper::{
             external_io::ExternalIOLayer, main_batch_executor::MainBatchExecutorLayer,
@@ -146,6 +149,21 @@ impl ExternalNodeBuilder {
             l2_chain_id: self.config.required.l2_chain_id,
             postgres_pool_size: self.config.postgres.max_connections,
         });
+        Ok(self)
+    }
+
+    fn add_settlement_layer_data(mut self) -> anyhow::Result<Self> {
+        self.node.add_layer(SettlementLayerDataEn::new(
+            (&self.config).into(),
+            (&self.config).into(),
+        ));
+        Ok(self)
+    }
+
+    fn add_gateway_client_layer(mut self) -> anyhow::Result<Self> {
+        let query_eth_client_layer =
+            GatewayClientLayer::new(self.config.required.eth_client_url.clone(), None);
+        self.node.add_layer(query_eth_client_layer);
         Ok(self)
     }
 
@@ -290,10 +308,8 @@ impl ExternalNodeBuilder {
     fn add_consistency_checker_layer(mut self) -> anyhow::Result<Self> {
         let max_batches_to_recheck = 10; // TODO (BFT-97): Make it a part of a proper EN config
         let layer = ConsistencyCheckerLayer::new(
-            self.config.l1_diamond_proxy_address(),
             max_batches_to_recheck,
             self.config.optional.l1_batch_commit_data_generator_mode,
-            self.config.required.l2_chain_id,
         );
         self.node.add_layer(layer);
         Ok(self)
@@ -622,6 +638,8 @@ impl ExternalNodeBuilder {
             .add_pools_layer()?
             .add_main_node_client_layer()?
             .add_query_eth_client_layer()?
+            .add_settlement_layer_data()?
+            .add_gateway_client_layer()?
             .add_reorg_detector_layer()?;
 
         // Add layers that must run only on a single component.
@@ -642,7 +660,7 @@ impl ExternalNodeBuilder {
         // Add preconditions for all the components.
         self = self
             .add_l1_batch_commitment_mode_validation_layer()?
-            .add_validate_chain_ids_layer()?
+            // .add_validate_chain_ids_layer()?
             .add_storage_initialization_layer(LayerKind::Precondition)?;
 
         // Sort the components, so that the components they may depend on each other are added in the correct order.

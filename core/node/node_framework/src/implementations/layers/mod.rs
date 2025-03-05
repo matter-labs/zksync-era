@@ -35,6 +35,7 @@ pub mod pruning;
 pub mod query_eth_client;
 pub mod reorg_detector;
 pub mod settlement_layer_data;
+pub mod settlement_layer_data_en;
 pub mod sigint;
 pub mod state_keeper;
 pub mod sync_state_updater;

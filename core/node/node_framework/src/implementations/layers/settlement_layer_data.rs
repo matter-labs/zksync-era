@@ -60,7 +60,7 @@ impl WiringLayer for SettlementLayerData {
     type Output = Output;
 
     fn layer_name(&self) -> &'static str {
-        "gateway_migrator_layer"
+        "settlement_layer_data"
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {

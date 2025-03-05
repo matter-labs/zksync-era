@@ -56,6 +56,19 @@ impl SettlementLayerContracts {
 }
 
 impl SettlementLayerContracts {
+    pub fn new_raw(
+        l1_contracts: ChainSpecificContracts,
+        gateway_contracts: Option<ChainSpecificContracts>,
+        sl_mode: SettlementMode,
+    ) -> Self {
+        Self {
+            l1_contracts,
+            gateway_contracts,
+            sl_mode,
+            gateway_chain_id: None,
+        }
+    }
+
     pub fn new(
         contracts_config: &AllContractsConfig,
         gateway_chain_config: Option<&GatewayChainConfig>,
@@ -64,17 +77,17 @@ impl SettlementLayerContracts {
         Self {
             l1_contracts: ChainSpecificContracts {
                 ecosystem_contracts: EcosystemCommonContracts {
-                    bridgehub_proxy_addr: ecosystem.bridgehub_proxy_addr,
-                    state_transition_proxy_addr: ecosystem.state_transition_proxy_addr,
+                    bridgehub_proxy_addr: Some(ecosystem.bridgehub_proxy_addr),
+                    state_transition_proxy_addr: Some(ecosystem.state_transition_proxy_addr),
                     server_notifier_addr: ecosystem.server_notifier_addr,
-                    multicall3: contracts_config.l1_multicall3_addr,
-                    validator_timelock_addr: contracts_config.validator_timelock_addr,
+                    multicall3: Some(contracts_config.l1_multicall3_addr),
+                    validator_timelock_addr: Some(contracts_config.validator_timelock_addr),
                     no_da_validium_l1_validator_addr: contracts_config
                         .no_da_validium_l1_validator_addr,
                 },
                 chain_contracts_config: ChainContracts {
                     diamond_proxy_addr: contracts_config.diamond_proxy_addr,
-                    chain_admin: contracts_config.chain_admin_addr,
+                    chain_admin: Some(contracts_config.chain_admin_addr),
                 },
                 l2_contracts: L2Contracts {
                     erc20_default_bridge: contracts_config.l2_erc20_bridge_addr,
@@ -88,17 +101,17 @@ impl SettlementLayerContracts {
             gateway_chain_id: gateway_chain_config.as_ref().map(|a| a.gateway_chain_id),
             gateway_contracts: gateway_chain_config.map(|gateway| ChainSpecificContracts {
                 ecosystem_contracts: EcosystemCommonContracts {
-                    bridgehub_proxy_addr: L2_BRIDGEHUB_ADDRESS,
-                    state_transition_proxy_addr: gateway.state_transition_proxy_addr,
+                    bridgehub_proxy_addr: Some(L2_BRIDGEHUB_ADDRESS),
+                    state_transition_proxy_addr: Some(gateway.state_transition_proxy_addr),
                     server_notifier_addr: gateway.server_notifier,
-                    multicall3: gateway.multicall3_addr,
-                    validator_timelock_addr: gateway.validator_timelock_addr,
+                    multicall3: Some(gateway.multicall3_addr),
+                    validator_timelock_addr: Some(gateway.validator_timelock_addr),
                     // TODO set it properly
                     no_da_validium_l1_validator_addr: None,
                 },
                 chain_contracts_config: ChainContracts {
                     diamond_proxy_addr: gateway.diamond_proxy_addr,
-                    chain_admin: gateway.chain_admin_addr,
+                    chain_admin: Some(gateway.chain_admin_addr),
                 },
                 l2_contracts: L2Contracts {
                     erc20_default_bridge: contracts_config.l2_erc20_bridge_addr,

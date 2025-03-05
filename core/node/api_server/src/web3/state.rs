@@ -185,13 +185,10 @@ impl InternalApiConfigBuilder {
             l2_weth_bridge: None,
             l2_legacy_shared_bridge: contracts_config.l2_contracts.legacy_shared_bridge_addr,
         });
-        self.l1_bridgehub_proxy_addr =
-            Some(contracts_config.ecosystem_contracts.bridgehub_proxy_addr);
-        self.l1_state_transition_proxy_addr = Some(
-            contracts_config
-                .ecosystem_contracts
-                .state_transition_proxy_addr,
-        );
+        self.l1_bridgehub_proxy_addr = contracts_config.ecosystem_contracts.bridgehub_proxy_addr;
+        self.l1_state_transition_proxy_addr = contracts_config
+            .ecosystem_contracts
+            .state_transition_proxy_addr;
 
         self.l1_bytecodes_supplier_addr = l1_ecosystem_contracts.bytecodes_supplier_addr;
         self.l1_wrapped_base_token_store = l1_ecosystem_contracts.wrapped_base_token_store;
@@ -287,15 +284,10 @@ impl InternalApiConfig {
                 l2_weth_bridge: None,
                 l2_legacy_shared_bridge: contracts_config.l2_contracts.legacy_shared_bridge_addr,
             },
-            l1_bridgehub_proxy_addr: Some(
-                contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
-            ),
-            l1_state_transition_proxy_addr: Some(
-                contracts_config
-                    .ecosystem_contracts
-                    .state_transition_proxy_addr,
-            ),
-
+            l1_bridgehub_proxy_addr: contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
+            l1_state_transition_proxy_addr: contracts_config
+                .ecosystem_contracts
+                .state_transition_proxy_addr,
             l1_transparent_proxy_admin_addr: None,
             l1_bytecodes_supplier_addr: l1_ecosystem_contracts.bytecodes_supplier_addr,
             l1_wrapped_base_token_store: l1_ecosystem_contracts.wrapped_base_token_store,

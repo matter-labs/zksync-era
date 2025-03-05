@@ -68,7 +68,7 @@ impl AllContractsConfig {
 #[derive(Debug, Clone)]
 pub struct ChainContracts {
     pub diamond_proxy_addr: Address,
-    pub chain_admin: Address,
+    pub chain_admin: Option<Address>,
 }
 
 // Contracts deployed to the l2

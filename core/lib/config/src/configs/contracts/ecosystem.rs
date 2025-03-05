@@ -48,11 +48,11 @@ pub struct L1SpecificContracts {
 // Ecosystem contracts that are presented on all Settlement Layers
 #[derive(Debug, Clone)]
 pub struct EcosystemCommonContracts {
-    pub bridgehub_proxy_addr: Address,
-    pub state_transition_proxy_addr: Address,
+    pub bridgehub_proxy_addr: Option<Address>,
+    pub state_transition_proxy_addr: Option<Address>,
     pub server_notifier_addr: Option<Address>,
-    pub multicall3: Address,
-    pub validator_timelock_addr: Address,
+    pub multicall3: Option<Address>,
+    pub validator_timelock_addr: Option<Address>,
     pub no_da_validium_l1_validator_addr: Option<Address>,
 }
 

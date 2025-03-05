@@ -118,7 +118,8 @@ impl WiringLayer for BaseTokenRatioPersisterLayer {
                                 .contracts_resource
                                 .0
                                 .chain_contracts_config
-                                .chain_admin,
+                                .chain_admin
+                                .expect("Should be presented"),
                         ),
                         config: self.config.clone(),
                     },

@@ -109,8 +109,14 @@ impl WiringLayer for EthTxAggregatorLayer {
             .contracts_resource
             .0
             .ecosystem_contracts
-            .validator_timelock_addr;
-        let multicall3_addr = input.contracts_resource.0.ecosystem_contracts.multicall3;
+            .validator_timelock_addr
+            .expect("Should be presented");
+        let multicall3_addr = input
+            .contracts_resource
+            .0
+            .ecosystem_contracts
+            .multicall3
+            .expect("Should be presented");
         let diamond_proxy_addr = input
             .contracts_resource
             .0
@@ -120,7 +126,8 @@ impl WiringLayer for EthTxAggregatorLayer {
             .contracts_resource
             .0
             .ecosystem_contracts
-            .state_transition_proxy_addr;
+            .state_transition_proxy_addr
+            .expect("Should be presented");
 
         let eth_client = if input.settlement_mode.0.is_gateway() {
             input
