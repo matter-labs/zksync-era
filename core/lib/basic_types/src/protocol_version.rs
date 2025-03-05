@@ -76,11 +76,11 @@ pub enum ProtocolVersionId {
 
 impl ProtocolVersionId {
     pub const fn latest() -> Self {
-        Self::Version27
+        Self::Version28
     }
 
     pub const fn next() -> Self {
-        Self::Version28
+        Self::Version29
     }
 
     pub fn try_from_packed_semver(packed_semver: U256) -> Result<Self, String> {
