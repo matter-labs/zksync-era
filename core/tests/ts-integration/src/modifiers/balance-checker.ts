@@ -174,7 +174,7 @@ class ShouldChangeBalance extends MatcherModifier {
             const diffChainBalance = newChainBalance - prevChainBalance;
             if (!(await isMinterChain(this.l1, wallet, this.token))) {
                 if (diffChainBalance != diff) {
-                    // kl todo. We need this check. But it has issues. It does not query GW, only L1. And AssetTracker is not working properly on GW, as it does not check L1->L3 txs. 
+                    // kl todo. We need this check. But it has issues. It does not query GW, only L1. And AssetTracker is not working properly on GW, as it does not check L1->L3 txs.
                     // throw new Error(
                     //     `Chain balance change is not equal to the token balance change for wallet ${balanceChange.wallet.address} (index ${id} in array)`
                     // );
