@@ -10,6 +10,7 @@ pub use self::{
 
 pub mod io;
 mod keeper;
+pub mod state_keeper_storage;
 mod updates;
 
 pub fn millis_since_epoch() -> u128 {

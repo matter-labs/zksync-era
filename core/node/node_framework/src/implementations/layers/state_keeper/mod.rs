@@ -97,7 +97,6 @@ impl WiringLayer for StateKeeperLayer {
             master_pool.get_custom(2).await?,
             self.state_keeper_db_path,
             self.rocksdb_options,
-            false,
         );
 
         let state_keeper = ZkSyncStateKeeper::new(

@@ -34,8 +34,8 @@ use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_mempool::L2TxFilter;
 use zksync_state::{ArcOwnedStorage, BatchDiff, CommonStorage, OwnedStorage, ReadStorageFactory};
 use zksync_state_keeper::{
-    io::IoCursor, metrics::KEEPER_METRICS, seal_criteria::UnexecutableReason, AsyncRocksdbCache,
-    L2BlockParams, MempoolGuard,
+    io::IoCursor, metrics::KEEPER_METRICS, seal_criteria::UnexecutableReason, L2BlockParams,
+    MempoolGuard,
 };
 use zksync_types::{
     block::UnsealedL1BatchHeader, snapshots::SnapshotStorageLog, Address, L1BatchNumber,
@@ -47,6 +47,7 @@ use zksync_zkos_vm_runner::zkos_conversions::{bytes32_to_h256, h256_to_bytes32, 
 use crate::{
     io::{BlockParams, OutputHandler, StateKeeperIO},
     millis_since_epoch,
+    state_keeper_storage::ZkOsAsyncRocksdbCache,
     updates::UpdatesManager,
 };
 
@@ -84,7 +85,7 @@ pub struct ZkosStateKeeper {
 
     io: Box<dyn StateKeeperIO>,
     output_handler: OutputHandler,
-    storage_factory: Arc<AsyncRocksdbCache>,
+    storage_factory: Arc<ZkOsAsyncRocksdbCache>,
 }
 
 impl ZkosStateKeeper {
@@ -93,7 +94,7 @@ impl ZkosStateKeeper {
         pool: ConnectionPool<Core>,
         io: Box<dyn StateKeeperIO>,
         output_handler: OutputHandler,
-        storage_factory: Arc<AsyncRocksdbCache>,
+        storage_factory: Arc<ZkOsAsyncRocksdbCache>,
     ) -> Self {
         let tree = InMemoryTree {
             storage_tree: TestingTree::new_in(Global),

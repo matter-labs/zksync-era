@@ -3,10 +3,12 @@ use std::sync::Arc;
 use anyhow::Context;
 use zksync_node_framework_derive::{FromContext, IntoContext};
 use zksync_state::{AsyncCatchupTask, ReadStorageFactory, RocksdbStorageOptions};
-use zksync_state_keeper::{seal_criteria::ConditionalSealer, AsyncRocksdbCache};
+use zksync_state_keeper::seal_criteria::ConditionalSealer;
 use zksync_storage::RocksDB;
 use zksync_vm_executor::interface::BatchExecutorFactory;
-use zksync_zkos_state_keeper::{OutputHandler, StateKeeperIO, ZkosStateKeeper};
+use zksync_zkos_state_keeper::{
+    state_keeper_storage::ZkOsAsyncRocksdbCache, OutputHandler, StateKeeperIO, ZkosStateKeeper,
+};
 
 use crate::{
     implementations::resources::{
@@ -61,7 +63,7 @@ pub struct ZkOsStateKeeperTask {
     pool: PoolResource<MasterPool>,
     io: Box<dyn StateKeeperIO>,
     output_handler: OutputHandler,
-    storage_factory: Arc<AsyncRocksdbCache>,
+    storage_factory: Arc<ZkOsAsyncRocksdbCache>,
 }
 
 #[async_trait::async_trait]
@@ -88,7 +90,7 @@ impl WiringLayer for ZkOsStateKeeperLayer {
             .take()
             .context("HandleStateKeeperOutput was provided but taken by another task")?;
 
-        let (storage_factory, rocksdb_catchup) = AsyncRocksdbCache::new(
+        let (storage_factory, rocksdb_catchup) = ZkOsAsyncRocksdbCache::new(
             master_pool.get_custom(2).await?,
             self.state_keeper_db_path,
             self.rocksdb_options,
