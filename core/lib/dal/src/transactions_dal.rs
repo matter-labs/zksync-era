@@ -1867,7 +1867,8 @@ impl TransactionsDal<'_, '_> {
                                         AND $5 = TRUE
                                     )
                                     OR (
-                                        max_fee_per_gas >= $2
+                                        is_priority = FALSE
+                                        AND max_fee_per_gas >= $2
                                         AND gas_per_pubdata_limit >= $3
                                     )
                                 )
