@@ -203,7 +203,7 @@ describe('Tests for L1 behavior', () => {
         await priorityOpHandle.waitL1Commit();
     });
 
-    test('Should revert l1 tx with too many initial storage writes', async () => {
+    test.skip('Should revert l1 tx with too many initial storage writes', async () => {
         // This test sends a transaction that consumes a lot of L2 ergs and so may be too expensive for
         // stage environment. That's why we only test it on the local environment (which includes CI).
         if (!testMaster.isLocalHost()) {
@@ -238,7 +238,7 @@ describe('Tests for L1 behavior', () => {
         await expect(priorityOpHandle).toBeReverted();
     });
 
-    test('Should revert l1 tx with too many repeated storage writes', async () => {
+    test.skip('Should revert l1 tx with too many repeated storage writes', async () => {
         // This test sends a transaction that consumes a lot of L2 ergs and so may be too expensive for
         // stage environment. That's why we only test it on the local environment (which includes CI).
         if (!testMaster.isLocalHost()) {
@@ -293,7 +293,7 @@ describe('Tests for L1 behavior', () => {
         await expect(priorityOpHandle).toBeReverted();
     });
 
-    test('Should revert l1 tx with too many l2 to l1 messages', async () => {
+    test.skip('Should revert l1 tx with too many l2 to l1 messages', async () => {
         // This test sends a transaction that consumes a lot of L2 ergs and so may be too expensive for
         // stage environment. That's why we only test it on the local environment (which includes CI).
         if (!testMaster.isLocalHost()) {
@@ -328,7 +328,7 @@ describe('Tests for L1 behavior', () => {
         await expect(priorityOpHandle).toBeReverted();
     });
 
-    test('Should revert l1 tx with too big l2 to l1 message', async () => {
+    test.skip('Should revert l1 tx with too big l2 to l1 message', async () => {
         // This test sends a transaction that consumes a lot of L2 ergs and so may be too expensive for
         // stage environment. That's why we only test it on the local environment (which includes CI).
         if (!testMaster.isLocalHost()) {

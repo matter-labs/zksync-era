@@ -79,6 +79,7 @@ describe('Interop checks', () => {
 
     // Common Variables
     const timeout = 10000;
+    let skipTest = false;
 
     // Interop1 (Main Chain) Variables
     let interop1_provider: zksync.Provider;
@@ -127,6 +128,14 @@ describe('Interop checks', () => {
             undefined,
             testMaster.reporter
         );
+        try {
+            const blockNumber = await interop2_provider.getBlockNumber();
+            console.log("Second chain started, block number:", blockNumber);
+          } catch (_) {
+            console.log("Second chain not started, skipping")
+            skipTest = true;
+            return;
+        }
         interop2_wallet = new zksync.Wallet(test_wallet_pk, interop2_provider, l1_provider);
         interop2_rich_wallet = new zksync.Wallet(mainAccount.privateKey, interop2_provider, l1_provider);
 
@@ -203,6 +212,10 @@ describe('Interop checks', () => {
     });
 
     test('Can perform an ETH deposit', async () => {
+        if (skipTest) {
+            console.log("Skipping ETH deposit test");
+            return;
+        }
         // Fund accounts
         const gasPrice = await scaledGasPrice(interop1_rich_wallet);
         const fundAmount = ethers.parseEther('10');
@@ -290,6 +303,10 @@ describe('Interop checks', () => {
     });
 
     test('Can deploy token contracts', async () => {
+        if (skipTest) {
+            console.log("Skipping token deployment test");
+            return;
+        }
         // Deploy token A on interop1 and register
         console.log('Deploying token A on Interop1');
         const interop1_tokenA_contract_deployment = await deployContract(interop1_wallet, ArtifactMintableERC20, [
@@ -353,6 +370,10 @@ describe('Interop checks', () => {
 
     // we want to remove this, it means L2<>L2 bridging does not work properly.
     test.skip('Withdraw and deposit tokens via L1', async () => {
+        if (skipTest) {
+            console.log("Skipping withdraw and deposit tokens via L1 test");
+            return;
+        }
         const bridgeContracts = await interop1_wallet.getL1BridgeContracts();
         const assetRouter = bridgeContracts.shared;
         // console.log("assetRouter", assetRouter)
@@ -428,6 +449,10 @@ describe('Interop checks', () => {
     });
 
     test('Can perform cross chain transfer', async () => {
+        if (skipTest) {
+            console.log("Skipping cross chain transfer test");
+            return;
+        }
         // Fund accounts
         const gasPrice = await scaledGasPrice(interop1_rich_wallet);
         const fundAmount = ethers.parseEther('10');

@@ -263,7 +263,7 @@ jobs:
         run: |
           ci_run zkstack ecosystem init --dev \
           --ignore-prerequisites --verbose \
-          --observability=false
+          --observability=false --ecosystem-only
 
         # kl TODO: remove this ^ dev generate-genesis, and second ecosystem init, its only for speed. 
 
