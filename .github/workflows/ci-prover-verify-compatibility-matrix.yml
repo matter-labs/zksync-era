@@ -18,28 +18,18 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up version ranges
-        run: |
-          # Get latest tags
-          LATEST_CORE_TAG=$(git describe --tags --match "core-*" --abbrev=0)
-          LATEST_PROVER_TAG=$(git describe --tags --match "prover-*" --abbrev=0)
-          
-          # Extract major versions
-          LATEST_CORE_MAJOR=$(echo "$LATEST_CORE_TAG" | sed 's/core-v\([0-9]*\).*/\1/')
-          LATEST_PROVER_MAJOR=$(echo "$LATEST_PROVER_TAG" | sed 's/prover-v\([0-9]*\).*/\1/')
-          
-          # Set version ranges
-          echo "PROVER_RANGE_START=16" >> .env
-          echo "CORE_RANGE_START=24" >> .env
-          echo "PROVER_RANGE_END=$LATEST_PROVER_MAJOR" >> .env
-          echo "CORE_RANGE_END=$LATEST_CORE_MAJOR" >> .env
-
       - name: Verify compatibility matrix
         run: |
-          matrix_file="prover/compatibility_matrix.json"
-
-          if ! jq empty "$matrix_file" 2>/dev/null; then
-              echo "Invalid JSON format in $matrix_file"
+          MATRIX_FILE="prover/compatibility_matrix.json"
+          CORE_RANGE_START=24
+          PROVER_RANGE_START=16
+          LATEST_CORE_TAG=$(git describe --tags --match "core-*" --abbrev=0)
+          LATEST_PROVER_TAG=$(git describe --tags --match "prover-*" --abbrev=0)
+          CORE_RANGE_END=$(echo "$LATEST_CORE_TAG" | sed 's/core-v\([0-9]*\).*/\1/')
+          PROVER_RANGE_END=$(echo "$LATEST_PROVER_TAG" | sed 's/prover-v\([0-9]*\).*/\1/')
+          
+          if ! jq empty "$MATRIX_FILE" 2>/dev/null; then
+              echo "Invalid JSON format in $MATRIX_FILE"
               exit 1
           fi
 
@@ -47,14 +37,14 @@ jobs:
           echo "Core versions range: $CORE_RANGE_START to $CORE_RANGE_END"
 
           for ((ver=$PROVER_RANGE_START; ver<=$PROVER_RANGE_END; ver++)); do
-              if ! jq -e ".[\"$ver\"]" "$matrix_file" >/dev/null; then
+              if ! jq -e ".[\"$ver\"]" "$MATRIX_FILE" >/dev/null; then
                   echo "Missing prover version $ver"
                   exit 1
               fi
           done
 
           for ((ver=$CORE_RANGE_START; ver<=$CORE_RANGE_END; ver++)); do
-              if ! jq -e "[to_entries[] | select(.value | contains([\"$ver\"]))] | length > 0" "$matrix_file" >/dev/null; then
+              if ! jq -e "[to_entries[] | select(.value | contains([\"$ver\"]))] | length > 0" "$MATRIX_FILE" >/dev/null; then
                   echo "Missing core version $ver"
                   exit 1
               fi
