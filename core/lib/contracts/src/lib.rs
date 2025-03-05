@@ -287,7 +287,7 @@ pub fn read_bytecode_from_path(
 }
 
 pub fn read_sys_contract_bytecode(directory: &str, name: &str, lang: ContractLanguage) -> Vec<u8> {
-    DEFAULT_SYSTEM_CONTRACTS_REPO.read_sys_contract_bytecode(directory, name, lang)
+    DEFAULT_SYSTEM_CONTRACTS_REPO.read_sys_contract_bytecode(directory, name, None, lang)
 }
 
 static DEFAULT_SYSTEM_CONTRACTS_REPO: Lazy<SystemContractsRepo> =
@@ -315,6 +315,7 @@ impl SystemContractsRepo {
         &self,
         directory: &str,
         name: &str,
+        object_name: Option<&str>,
         lang: ContractLanguage,
     ) -> Vec<u8> {
         match lang {
@@ -339,6 +340,8 @@ impl SystemContractsRepo {
                 // easily get rid of the old lookup, because old foundry-zksync is compiled into `zk_environment`
                 // image. Once `foundry-zksync` is updated to at least 0.0.4, we can remove folder names from the
                 // `SYSTEM_CONTRACT_LIST` for yul contracts and merge two lookups below.
+                // in foundry-zksync starting from 0.0.8 json file name corresponds to the object inside the yul component
+                let object_name = object_name.unwrap_or(name);
                 let possible_paths = [
                     self.root.join(format!("zkout/{0}.yul/{0}.json", name)),
                     self.root
@@ -346,6 +349,8 @@ impl SystemContractsRepo {
                     self.root.join(format!(
                         "zkout/{name}.yul/contracts-preprocessed/{directory}/{name}.yul.json",
                     )),
+                    self.root
+                        .join(format!("zkout/{name}.yul/{object_name}.json",)),
                     self.root.join(format!(
                         "zkout/{name}.yul/contracts-preprocessed/{name}.yul.json",
                     )),
@@ -389,7 +394,12 @@ impl SystemContractsRepo {
 }
 
 pub fn read_bootloader_code(bootloader_type: &str) -> Vec<u8> {
-    read_sys_contract_bytecode("bootloader", bootloader_type, ContractLanguage::Yul)
+    DEFAULT_SYSTEM_CONTRACTS_REPO.read_sys_contract_bytecode(
+        "bootloader",
+        bootloader_type,
+        Some("Bootloader"),
+        ContractLanguage::Yul,
+    )
 }
 
 /// Reads zbin bytecode from a given path, relative to workspace location.
@@ -559,9 +569,8 @@ impl BaseSystemContracts {
     }
 
     pub fn playground_evm_emulator() -> Self {
-        let bootloader_bytecode = read_zbin_bytecode(
-          "etc/multivm_bootloaders/vm_evm_emulator/playground_batch.yul/playground_batch.yul.zbin",
-        );
+        let bootloader_bytecode: Vec<u8> = read_bootloader_code("playground_batch");
+
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode, true)
     }
 
@@ -643,9 +652,7 @@ impl BaseSystemContracts {
     }
 
     pub fn estimate_gas_evm_emulator() -> Self {
-        let bootloader_bytecode = read_zbin_bytecode(
-            "etc/multivm_bootloaders/vm_evm_emulator/fee_estimate.yul/fee_estimate.yul.zbin",
-        );
+        let bootloader_bytecode = read_bootloader_code("fee_estimate");
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode, true)
     }
 
