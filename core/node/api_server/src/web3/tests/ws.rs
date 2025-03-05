@@ -171,8 +171,8 @@ async fn test_ws_server(test: impl WsTest) {
     let contracts_config = ContractsConfig::for_tests();
     let web3_config = Web3JsonRpcConfig::for_tests();
     let genesis_config = GenesisConfig::for_tests();
-    let a = SettlementLayerContracts::new(&contracts_config, None);
-    let contracts = a.current_contracts();
+    let sl_layer_contracts = SettlementLayerContracts::new(&contracts_config, None);
+    let contracts = sl_layer_contracts.current_contracts();
     let l1_specific = L1SpecificContracts::new(&contracts_config);
     let api_config = InternalApiConfig::new(&web3_config, contracts, &l1_specific, &genesis_config);
     let mut storage = pool.connection().await.unwrap();

@@ -90,7 +90,7 @@ mod tests {
                 l1_wrapped_base_token_store: Some(addr(
                     "0x36ea7f92f4c5f433efe15284e99c040110cf6298",
                 )),
-                server_notifier_addr: Some(addr("0x36ea7f92f4c5f433efe15284e99c040110cf6298")),
+                server_notifier_addr: Some(addr("0xbe8381498ED34E9c2EdB51Ecd778d71B225E26fb")),
             }),
             base_token_addr: Some(SHARED_BRIDGE_ETHER_TOKEN_ADDRESS),
             l1_base_token_asset_id: Some(
@@ -140,6 +140,7 @@ CONTRACTS_CHAIN_ADMIN_ADDR="0xdd6fa5c14e7550b4caf2aa2818d24c69cbc347ff"
 CONTRACTS_L2_DA_VALIDATOR_ADDR="0xed6fa5c14e7550b4caf2aa2818d24c69cbc347ff"
 CONTRACTS_L2_TIMESTAMP_ASSERTER_ADDR="0x0000000000000000000000000000000000000002"
 CONTRACTS_NO_DA_VALIDIUM_L1_VALIDATOR_ADDR="0xbe8381498ED34E9c2EdB51Ecd778d71B225E26fb"
+CONTRACTS_SERVER_NOTIFIER_ADDR="0xbe8381498ED34E9c2EdB51Ecd778d71B225E26fb"
         "#;
         lock.set_env(config);
 
