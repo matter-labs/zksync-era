@@ -510,8 +510,8 @@ describe('Interop checks', () => {
         await waitUntilBlockCommitted(interop1_wallet, receipt!.blockNumber);
         // kl todo wait here for the batch to be committd by checking L1.
         // this should be checked in the server, we should not need this.
-        // await delay(10000);
-        // to add message roots
+        await delay(10000);
+        // kl todo. to add message roots we need to send a tx. Otherwise the gas estimation likely fails. 
         await (
             await interop2_wallet.transfer({
                 to: interop2_wallet.address,
@@ -519,6 +519,7 @@ describe('Interop checks', () => {
             })
         ).wait();
         // Read and broadcast the interop transaction from Interop1 to Interop2
+
         await readAndBroadcastInteropTx(tx.hash, interop1_provider, interop2_provider);
         await delay(timeout);
 
@@ -526,6 +527,11 @@ describe('Interop checks', () => {
             tokenA_details.assetId
         );
         await printBalances('after request transfer');
+        expect(await getTokenBalance({
+            provider: interop2_provider,
+            tokenAddress: tokenA_details.l2AddressSecondChain!,
+            address: aliased_interop1_wallet_address
+        }) > 0n).toBe(true);
     });
 
     test.skip('Deploy swap contract', async () => {
