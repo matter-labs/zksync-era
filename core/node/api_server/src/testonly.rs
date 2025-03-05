@@ -46,7 +46,7 @@ use zksync_types::{
 use zksync_vm_executor::{batch::MainBatchExecutorFactory, interface::BatchExecutorFactory};
 
 const MULTICALL3_CONTRACT_PATH: &str =
-    "contracts/l2-contracts/artifacts-zk/contracts/dev-contracts/Multicall3.sol/Multicall3.json";
+    "contracts/l2-contracts/zkout/Multicall3.sol/Multicall3.json";
 
 /// Inflates the provided bytecode by appending the specified amount of NOP instructions at the end.
 fn inflate_bytecode(bytecode: &mut Vec<u8>, nop_count: usize) {

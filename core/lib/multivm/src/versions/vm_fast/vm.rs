@@ -302,7 +302,6 @@ impl<S: ReadStorage, Tr: Tracer, Val: ValidationTracer> Vm<S, Tr, Val> {
             };
     }
 
-    // FIXME: restore this function once fast vm is enabled
     #[cfg(test)]
     pub(super) fn enforce_state_diffs(&mut self, diffs: Vec<StateDiffRecord>) {
         self.enforced_state_diffs = Some(diffs);

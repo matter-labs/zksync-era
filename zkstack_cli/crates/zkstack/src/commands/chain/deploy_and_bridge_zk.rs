@@ -88,7 +88,7 @@ pub async fn run(args: DeployAndBridgeZKArgs, shell: &Shell) -> anyhow::Result<(
         .await?
         .get("l1.l1_rpc_url")?;
 
-    let era_chain_id = U256::from(chain_config.chain_id.0);
+    let era_chain_id = U256::from(chain_config.chain_id.as_u64());
     let era_provider = Provider::<Http>::try_from(
         chain_config
             .get_general_config()
@@ -102,7 +102,7 @@ pub async fn run(args: DeployAndBridgeZKArgs, shell: &Shell) -> anyhow::Result<(
             .await?
             .get::<SensitiveUrl>("api.web3_json_rpc.http_url")?,
     )?
-    .for_network(L2::from(L2ChainId(chain_config.chain_id.0)))
+    .for_network(L2::from(chain_config.chain_id))
     .build();
 
     if args.only_funding_tx {

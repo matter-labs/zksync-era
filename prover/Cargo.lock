@@ -9118,7 +9118,6 @@ dependencies = [
 name = "zksync_mini_merkle_tree"
 version = "26.5.0-non-semver-compat"
 dependencies = [
- "hex",
  "once_cell",
  "zksync_basic_types",
  "zksync_crypto_primitives",

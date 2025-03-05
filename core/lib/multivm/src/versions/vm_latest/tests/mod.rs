@@ -203,10 +203,6 @@ impl TestedVm for TestedLatestVm {
     fn pubdata_input(&self) -> PubdataInput {
         self.bootloader_state.get_pubdata_information().clone()
     }
-
-    fn pubdata_input(&self) -> PubdataInput {
-        self.bootloader_state.get_pubdata_information().clone()
-    }
 }
 
 impl TestedVmForValidation for TestedLatestVm {

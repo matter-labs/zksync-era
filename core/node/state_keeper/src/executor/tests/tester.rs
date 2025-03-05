@@ -1,7 +1,7 @@
 //! Testing harness for the batch executor.
 //! Contains helper functionality to initialize test context and perform tests without too much boilerplate.
 
-use std::{collections::HashMap, fmt::Debug, str::FromStr, sync::Arc};
+use std::{collections::HashMap, fmt::Debug, sync::Arc};
 
 use assert_matches::assert_matches;
 use tempfile::TempDir;
@@ -753,27 +753,5 @@ impl StorageSnapshot {
             .await
             .unwrap();
         snapshot
-    }
-}
-
-async fn apply_genesis_log<'a>(storage: &mut Connection<'a, Core>, log: StorageLog) {
-    storage
-        .storage_logs_dal()
-        .append_storage_logs(L2BlockNumber(0), &[log])
-        .await
-        .unwrap();
-
-    if storage
-        .storage_logs_dedup_dal()
-        .filter_written_slots(&[log.key.hashed_key()])
-        .await
-        .unwrap()
-        .is_empty()
-    {
-        storage
-            .storage_logs_dedup_dal()
-            .insert_initial_writes(L1BatchNumber(0), &[log.key.hashed_key()])
-            .await
-            .unwrap();
     }
 }

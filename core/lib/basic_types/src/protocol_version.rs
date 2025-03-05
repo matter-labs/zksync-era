@@ -70,7 +70,6 @@ pub enum ProtocolVersionId {
     Version25,
     Version26,
     Version27,
-    Version28,
 }
 
 impl ProtocolVersionId {
@@ -125,7 +124,6 @@ impl ProtocolVersionId {
             ProtocolVersionId::Version25 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
             ProtocolVersionId::Version26 => VmVersion::VmGateway,
             ProtocolVersionId::Version27 => VmVersion::VmGateway,
-            ProtocolVersionId::Version28 => VmVersion::VmGateway,
         }
     }
 
@@ -300,7 +298,6 @@ impl From<ProtocolVersionId> for VmVersion {
             ProtocolVersionId::Version25 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
             ProtocolVersionId::Version26 => VmVersion::VmGateway,
             ProtocolVersionId::Version27 => VmVersion::VmGateway,
-            ProtocolVersionId::Version28 => VmVersion::VmGateway,
         }
     }
 }

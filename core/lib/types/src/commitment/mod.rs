@@ -8,7 +8,6 @@
 
 use std::{collections::HashMap, convert::TryFrom};
 
-use ethabi::Token;
 use serde::{Deserialize, Serialize};
 pub use zksync_basic_types::commitment::{L1BatchCommitmentMode, PubdataParams, PubdataType};
 use zksync_contracts::BaseSystemContractsHashes;

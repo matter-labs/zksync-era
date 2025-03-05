@@ -130,30 +130,11 @@ where
         });
     }
 
-    fn push_transaction_with_refund_and_compression(
-        &mut self,
-        tx: Transaction,
-        refund: u64,
-        compression: bool,
-    ) {
-        self.get_mut(
-            "push_transaction_with_refund_and_compression",
-            |r| match r {
-                ShadowMut::Main(vm) => {
-                    vm.push_transaction_with_refund_and_compression(tx.clone(), refund, compression)
-                }
-                ShadowMut::Shadow(vm) => {
-                    vm.push_transaction_with_refund_and_compression(tx.clone(), refund, compression)
-                }
-            },
-        );
-    }
-
-    fn pubdata_input(&self) -> PubdataInput {
-        self.get("pubdata_input", |r| match r {
-            ShadowRef::Main(vm) => vm.pubdata_input(),
-            ShadowRef::Shadow(vm) => vm.pubdata_input(),
-        })
+    fn push_transaction_with_refund(&mut self, tx: Transaction, refund: u64) {
+        self.get_mut("push_transaction_with_refund", |r| match r {
+            ShadowMut::Main(vm) => vm.push_transaction_with_refund(tx.clone(), refund),
+            ShadowMut::Shadow(vm) => vm.push_transaction_with_refund(tx.clone(), refund),
+        });
     }
 
     fn pubdata_input(&self) -> PubdataInput {

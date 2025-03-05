@@ -7,7 +7,6 @@ on:
     branches:
       - staging
       - trying
-      - sync-layer-stable # adding this branch here to run CI on it regardless of the conflicts
       - '!release-please--branches--**'
 
 concurrency:
@@ -88,7 +87,7 @@ jobs:
   ci-for-core:
     name: CI for Core Components
     needs: changed_files
-    if: ${{ (needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.zk_toolbox == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
+    if: ${{ (needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
     uses: ./.github/workflows/ci-core-reusable.yml
 
   ci-for-prover:

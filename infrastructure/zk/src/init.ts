@@ -41,14 +41,12 @@ const submoduleUpdate = async (): Promise<void> => {
 type InitSetupOptions = {
     skipEnvSetup: boolean;
     skipSubmodulesCheckout: boolean;
-    skipContractCompilation?: boolean;
     runObservability: boolean;
     deploymentMode: DeploymentMode;
 };
 const initSetup = async ({
     skipSubmodulesCheckout,
     skipEnvSetup,
-    skipContractCompilation,
     runObservability,
     deploymentMode
 }: InitSetupOptions): Promise<void> => {
@@ -68,12 +66,10 @@ const initSetup = async ({
 
     await announced('Compiling JS packages', run.yarn());
 
-    if (!skipContractCompilation) {
-        await Promise.all([
-            announced('Building L1 L2 contracts', contract.build(false)),
-            announced('Compile L2 system contracts', compiler.compileAll())
-        ]);
-    }
+    await Promise.all([
+        announced('Building L1 L2 contracts', contract.build()),
+        announced('Compile L2 system contracts', compiler.compileAll())
+    ]);
 };
 
 const initDatabase = async (shouldCheck: boolean = true): Promise<void> => {
@@ -125,7 +121,10 @@ const initHyperchain = async ({
     );
     await announced('Reloading env', env.reload());
     await announced('Running server genesis setup', server.genesisFromSources());
-    await announced('Deploying L2 contracts', contract.deployL2ThroughL1({ includePaymaster, deploymentMode }));
+    await announced(
+        'Deploying L2 contracts',
+        contract.deployL2ThroughL1({ includePaymaster, localLegacyBridgeTesting })
+    );
 };
 
 const makeEraChainIdSameAsCurrent = async () => {
@@ -157,7 +156,6 @@ type InitDevCmdActionOptions = InitSetupOptions & {
 export const initDevCmdAction = async ({
     skipEnvSetup,
     skipSubmodulesCheckout,
-    skipContractCompilation,
     skipVerifier,
     skipTestTokenDeployment,
     testTokenOptions,
@@ -175,7 +173,6 @@ export const initDevCmdAction = async ({
     await initSetup({
         skipEnvSetup,
         skipSubmodulesCheckout,
-        skipContractCompilation,
         runObservability,
         deploymentMode
     });
@@ -207,11 +204,7 @@ const lightweightInitCmdAction = async (): Promise<void> => {
     await announced('Running server genesis setup', server.genesisFromBinary());
     await announced('Deploying localhost ERC20 and Weth tokens', run.deployERC20AndWeth({ command: 'dev' }));
     await announced('Deploying L1 contracts', contract.redeployL1(false));
-    // TODO: double check that it is okay to always provide rollup here.
-    await announced(
-        'Deploying L2 contracts',
-        contract.deployL2ThroughL1({ includePaymaster: true, deploymentMode: contract.DeploymentMode.Rollup })
-    );
+    await announced('Deploying L2 contracts', contract.deployL2ThroughL1({ includePaymaster: true }));
     await announced('Initializing governance', contract.initializeGovernance());
 };
 
@@ -225,7 +218,6 @@ const initSharedBridgeCmdAction = async (options: InitSharedBridgeCmdActionOptio
 
 type InitHyperCmdActionOptions = {
     skipSetupCompletely: boolean;
-    skipContractCompilationOverride?: boolean;
     bumpChainId: boolean;
     baseTokenName?: string;
     runObservability: boolean;
@@ -234,15 +226,12 @@ type InitHyperCmdActionOptions = {
 };
 export const initHyperCmdAction = async ({
     skipSetupCompletely,
-    skipContractCompilationOverride,
     bumpChainId,
     baseTokenName,
     runObservability,
     deploymentMode,
     allowEvmEmulator
 }: InitHyperCmdActionOptions): Promise<void> => {
-    console.log('ZKSYNC_ENV : ', process.env.ZKSYNC_ENV);
-    console.log('DB URL : ', process.env.DATABASE_URL);
     if (bumpChainId) {
         config.bumpChainId();
     }
@@ -250,12 +239,11 @@ export const initHyperCmdAction = async ({
         await initSetup({
             skipEnvSetup: false,
             skipSubmodulesCheckout: false,
-            skipContractCompilation: skipContractCompilationOverride,
             runObservability,
             deploymentMode
         });
     }
-    await initDatabase(false);
+    await initDatabase();
     await initHyperchain({
         includePaymaster: true,
         baseTokenName,
@@ -263,25 +251,12 @@ export const initHyperCmdAction = async ({
         allowEvmEmulator
     });
 };
-type ConfigCmdActionOptions = {
-    skipContractCompilationOverride?: boolean;
-};
-export const configCmdAction = async ({ skipContractCompilationOverride }: ConfigCmdActionOptions): Promise<void> => {
-    if (!skipContractCompilationOverride) {
-        await Promise.all([
-            announced('Building L1 L2 contracts', contract.build(false)),
-            announced('Compile L2 system contracts', compiler.compileAll())
-        ]);
-    }
-    await initDatabase(true);
-    await announced('Running server genesis setup', server.genesisFromSources());
-};
 
 // ########################### Command Definitions ###########################
 export const initCommand = new Command('init')
     .option('--skip-submodules-checkout')
     .option('--skip-env-setup')
-    .option('--skip-contract-compilation')
+    .option('--skip-test-token-deployment')
     .option('--base-token-name <base-token-name>', 'base token name')
     .option('--validium-mode', 'deploy contracts in Validium mode')
     .option('--run-observability', 'run observability suite')
@@ -311,12 +286,9 @@ initCommand
     .command('hyper')
     .description('Registers a hyperchain and deploys L2 contracts only. It requires an already deployed shared bridge.')
     .option('--skip-setup-completely', 'skip the setup completely, use this if server was started already')
-    .option('--skip-contract-compilation-override')
-    .option('--base-token-name <base-token-name>', 'base token name')
     .option('--bump-chain-id', 'bump chain id to not conflict with previously deployed hyperchain')
+    .option('--base-token-name <base-token-name>', 'base token name')
     .option('--validium-mode', 'deploy contracts in Validium mode')
     .option('--run-observability', 'run observability suite')
     .option('--allow-evm-emulator', 'allow deployment of EVM contracts (not supported yet)')
     .action(initHyperCmdAction);
-
-initCommand.command('config').option('--skip-contract-compilation-override').action(configCmdAction);

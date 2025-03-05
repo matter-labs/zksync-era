@@ -12340,7 +12340,6 @@ name = "zksync_mini_merkle_tree"
 version = "26.5.0-non-semver-compat"
 dependencies = [
  "criterion",
- "hex",
  "once_cell",
  "zksync_basic_types",
  "zksync_crypto_primitives",
@@ -12439,7 +12438,6 @@ version = "26.5.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
- "hex",
  "rand 0.8.5",
  "secrecy",
  "semver 1.0.23",
@@ -12463,7 +12461,6 @@ dependencies = [
  "zksync_l1_contract_interface",
  "zksync_merkle_tree",
  "zksync_metadata_calculator",
- "zksync_multivm",
  "zksync_node_api_server",
  "zksync_node_genesis",
  "zksync_node_sync",

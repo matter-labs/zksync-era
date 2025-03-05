@@ -5,23 +5,13 @@ import fs from 'fs';
 import * as path from 'path';
 import * as db from './database';
 import * as env from './env';
-// import { time } from 'console';
 
-export async function server(
-    rebuildTree: boolean,
-    uring: boolean,
-    components?: string,
-    timeToLive?: string,
-    txAggregationPaused?: boolean
-) {
-    if (txAggregationPaused) {
-        process.env.ETH_SENDER_SENDER_TX_AGGREGATION_PAUSED = 'true';
-    }
+export async function server(rebuildTree: boolean, uring: boolean, components?: string, useNodeFramework?: boolean) {
     let options = '';
     if (uring) {
         options += '--features=rocksdb/io-uring';
     }
-    if (rebuildTree || components) {
+    if (rebuildTree || components || useNodeFramework) {
         options += ' --';
     }
     if (components) {
@@ -76,13 +66,6 @@ export async function genesisFromSources() {
     await create_genesis('cargo run --manifest-path core/Cargo.toml --bin zksync_server --release -- --genesis');
 }
 
-// FIXME: remove this option once it is removed from the server
-async function clearL1TxsHistory() {
-    // Note that that all the chains have the same chainId at genesis. It will be changed
-    // via an upgrade transaction during the registration of the chain.
-    await create_genesis('cargo run --bin zksync_server --release -- --clear-l1-txs-history');
-}
-
 export async function genesisFromBinary() {
     await create_genesis('zksync_server --genesis');
 }
@@ -90,21 +73,15 @@ export async function genesisFromBinary() {
 export const serverCommand = new Command('server')
     .description('start zksync server')
     .option('--genesis', 'generate genesis data via server')
-    // FIXME: remove this option once it is removed from the server
-    .option('--clear-l1-txs-history', 'clear l1 txs history')
     .option('--uring', 'enables uring support for RocksDB')
     .option('--components <components>', 'comma-separated list of components to run')
     .option('--chain-name <chain-name>', 'environment name')
-    .option('--time-to-live <time-to-live>', 'time to live for the server')
-    .option('--tx-aggregation-paused', 'pause tx aggregation')
     .action(async (cmd: Command) => {
         cmd.chainName ? env.reload(cmd.chainName) : env.load();
         if (cmd.genesis) {
             await genesisFromSources();
-        } else if (cmd.clearL1TxsHistory) {
-            await clearL1TxsHistory();
         } else {
-            await server(cmd.rebuildTree, cmd.uring, cmd.components, cmd.timeToLive, cmd.txAggregationPaused);
+            await server(cmd.rebuildTree, cmd.uring, cmd.components, cmd.useNodeFramework);
         }
     });
 
@@ -114,21 +91,3 @@ export const enCommand = new Command('external-node')
     .action(async (cmd: Command) => {
         await externalNode(cmd.reinit, cmd.args);
     });
-
-// const fn = async () => {
-//     const transactions: string[] = [];
-
-//     const validateTx = (tx: string) => {};
-//     const executeTx = (tx: string) => {};
-
-//     // 1. Initialize batch params.
-
-//     // 2. Validate and execute transactions:
-//     for (const transaction of transactions) {
-//         validateTx(transaction);
-//         executeTx(transaction);
-//     }
-
-//     // 3. Distribute funds to the operator
-//     // and compress the final state diffs.
-// };
