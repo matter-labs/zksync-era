@@ -75,6 +75,9 @@ if [ -z "$MASTER_URL" ]; then
 
   echo "Configuration updated successfully."
 
+  grep -rl "0x7bdb3d822ad837a3611c436d3be457363a08d06d83b74469831482353a7d8277" /chains /configs /etc --exclude-dir={.git,node_modules,logs} | xargs sed -i 's/0x7bdb3d822ad837a3611c436d3be457363a08d06d83b74469831482353a7d8277/0xd8c9be7efb705e7dcf529c14fce7048ea99dea9eab6a6b4e5f8de1ebf4f2ebf2/g'
+  grep -rl "0x81f5e324a4019e4161fb9dc5058a588aa364a551fdd5c0e8788521e64e7ad596" /chains /configs /etc --exclude-dir={.git,node_modules,logs} | xargs sed -i 's/0x81f5e324a4019e4161fb9dc5058a588aa364a551fdd5c0e8788521e64e7ad596/0xf6e873e8894b90f157511a133d941fb6f0892f83147e3d0d2cafa71af8c838e5/g'
+
   zkstack ecosystem init --deploy-paymaster --deploy-erc20 \
     --deploy-ecosystem --l1-rpc-url=$ETH_CLIENT_WEB3_URL \
     --server-db-url="$SERVER_DB_URL" \
