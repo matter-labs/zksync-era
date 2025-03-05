@@ -5,7 +5,7 @@ import { BigNumberish } from 'ethers';
 import { NodeMode, TestContext, TestEnvironment, TestWallets } from './types';
 import { lookupPrerequisites } from './prerequisites';
 import { Reporter } from './reporter';
-import { scaledGasPrice } from './helpers';
+import { isLocalHost, scaledGasPrice } from './helpers';
 import { RetryProvider } from './retry-provider';
 import { isNetworkLocal } from 'utils';
 import { killPidWithAllChilds } from 'utils/build/kill';
@@ -79,7 +79,7 @@ export class TestContextOwner {
             this.reporter
         );
 
-        if (isNetworkLocal(env.network)) {
+        if (isLocalHost(env.network)) {
             // Setup small polling interval on localhost to speed up tests.
             this.l1Provider.pollingInterval = 100;
             this.l2Provider.pollingInterval = 100;
@@ -91,12 +91,12 @@ export class TestContextOwner {
 
     // Returns the required amount of L1 ETH
     requiredL1ETHPerAccount() {
-        return isNetworkLocal(this.env.network) ? L1_EXTENDED_TESTS_ETH_PER_ACCOUNT : L1_DEFAULT_ETH_PER_ACCOUNT;
+        return isLocalHost(this.env.network) ? L1_EXTENDED_TESTS_ETH_PER_ACCOUNT : L1_DEFAULT_ETH_PER_ACCOUNT;
     }
 
     // Returns the required amount of L2 ETH
     requiredL2ETHPerAccount() {
-        return isNetworkLocal(this.env.network) ? L2_EXTENDED_TESTS_ETH_PER_ACCOUNT : L2_DEFAULT_ETH_PER_ACCOUNT;
+        return isLocalHost(this.env.network) ? L2_EXTENDED_TESTS_ETH_PER_ACCOUNT : L2_DEFAULT_ETH_PER_ACCOUNT;
     }
 
     /**
@@ -397,20 +397,12 @@ export class TestContextOwner {
                     overrides: {
                         nonce: nonce + (ethIsBaseToken ? 0 : 1), // if eth is base token the approve tx does not happen
                         gasPrice
-                    },
-                    // specify gas limit manually, until EVM-554 is fixed
-                    l2GasLimit: 2000000
+                    }
                 })
                 .then(async (tx) => {
                     const amount = ethers.formatEther(l2ETHAmountToDeposit);
                     this.reporter.debug(`Sent ETH deposit. Nonce ${tx.nonce}, amount: ${amount}, hash: ${tx.hash}`);
-
-                    const timeoutPromise = new Promise((_, reject) =>
-                        setTimeout(() => reject(new Error('Transaction wait timeout')), 120 * 1000)
-                    );
-
-                    // Race the transaction wait against the timeout
-                    await Promise.race([tx.wait(), timeoutPromise]);
+                    return tx.wait();
                 });
             nonce = nonce + 1 + (ethIsBaseToken ? 0 : 1);
             this.reporter.debug(
@@ -616,7 +608,7 @@ export class TestContextOwner {
         // Reset the reporter context.
         this.reporter = new Reporter();
         try {
-            if (this.env.nodeMode == NodeMode.Main && this.env.network.toLowerCase() === 'localhost') {
+            if (this.env.nodeMode == NodeMode.Main && isLocalHost(this.env.network)) {
                 // Check that the VM execution hasn't diverged using the VM playground. The component and thus the main node
                 // will crash on divergence, so we just need to make sure that the test doesn't exit before the VM playground
                 // processes all batches on the node.
@@ -624,8 +616,24 @@ export class TestContextOwner {
                 await this.waitForVmPlayground();
                 this.reporter.finishAction();
             }
-            this.reporter.startAction(`Tearing down the context`);
+            this.reporter.startAction(`Collecting funds`);
             await this.collectFunds();
+            this.reporter.finishAction();
+            this.reporter.startAction(`Destroying providers`);
+            // Destroy providers so that they drop potentially active connections to the node. Not doing so might cause
+            // unexpected network errors to propagate during node termination.
+            try {
+                this.l1Provider.destroy();
+            } catch (err: any) {
+                // Catch any request cancellation errors that propagate here after destroying L1 provider
+                console.log(`Caught error while destroying L1 provider: ${err}`);
+            }
+            try {
+                this.l2Provider.destroy();
+            } catch (err: any) {
+                // Catch any request cancellation errors that propagate here after destroying L2 provider
+                console.log(`Caught error while destroying L2 provider: ${err}`);
+            }
             this.reporter.finishAction();
         } catch (error: any) {
             // Report the issue to the console and mark the last action as failed.

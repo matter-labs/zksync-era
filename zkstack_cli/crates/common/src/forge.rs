@@ -144,6 +144,11 @@ impl ForgeScript {
         self
     }
 
+    pub fn with_gas_limit(mut self, gas_limit: u64) -> Self {
+        self.args.add_arg(ForgeScriptArg::GasLimit { gas_limit });
+        self
+    }
+
     /// Makes sure a transaction is sent, only after its previous one has been confirmed and succeeded.
     pub fn with_slow(mut self) -> Self {
         self.args.add_arg(ForgeScriptArg::Slow);
@@ -268,6 +273,10 @@ pub enum ForgeScriptArg {
     #[strum(to_string = "sender={address}")]
     Sender {
         address: String,
+    },
+    #[strum(to_string = "gas-limit={gas_limit}")]
+    GasLimit {
+        gas_limit: u64,
     },
     Zksync,
 }

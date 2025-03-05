@@ -388,12 +388,13 @@ export async function erc20BridgeFinish(args: any[] = []): Promise<void> {
 
 export async function registerZKChain({
     baseTokenName,
-    localLegacyBridgeTesting,
-    deploymentMode
+    deploymentMode,
+    allowEvmEmulator
 }: {
     baseTokenName?: string;
     localLegacyBridgeTesting?: boolean;
     deploymentMode?: DeploymentMode;
+    allowEvmEmulator?: boolean;
 }): Promise<void> {
     await utils.confirmAction();
 
@@ -416,7 +417,7 @@ export async function registerZKChain({
         baseTokenName ? `--base-token-name ${baseTokenName}` : '',
         deploymentMode == DeploymentMode.Validium ? '--validium-mode' : '',
         tokenMultiplierSetterAddress ? `--token-multiplier-setter-address ${tokenMultiplierSetterAddress}` : '',
-        '--use-governance'
+        allowEvmEmulator ? '--allow-evm-emulation' : ''
     ];
     await utils.spawn(
         `yarn l1-contracts register-zk-chain ${args.join(' ')} ${

@@ -17,10 +17,9 @@ use zksync_config::{
     GenesisConfig,
 };
 use zksync_contracts::BaseSystemContracts;
-use zksync_dal::{transactions_dal::L2TxSubmissionResult, Connection, ConnectionPool, CoreDal};
+use zksync_dal::{Connection, ConnectionPool, CoreDal};
 use zksync_multivm::interface::{
-    TransactionExecutionMetrics, TransactionExecutionResult, TxExecutionStatus, VmEvent,
-    VmExecutionMetrics,
+    tracer::ValidationTraces, TransactionExecutionMetrics, TransactionExecutionResult, VmEvent,
 };
 use zksync_node_genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams};
 use zksync_node_test_utils::{
@@ -32,21 +31,20 @@ use zksync_system_constants::{
 };
 use zksync_types::{
     api,
-    block::{pack_block_info, L2BlockHasher, L2BlockHeader},
+    block::{pack_block_info, L2BlockHasher, L2BlockHeader, UnsealedL1BatchHeader},
+    bytecode::{
+        testonly::{PADDED_EVM_BYTECODE, PROCESSED_EVM_BYTECODE},
+        BytecodeHash,
+    },
     fee_model::{BatchFeeInput, FeeParams},
     get_nonce_key,
-    l2::L2Tx,
     storage::get_code_key,
     system_contracts::get_system_smart_contracts,
     tokens::{TokenInfo, TokenMetadata},
     tx::IncludedTxLocation,
-    utils::{storage_key_for_eth_balance, storage_key_for_standard_token_balance},
-    AccountTreeId, Address, L1BatchNumber, Nonce, ProtocolVersionId, StorageKey, StorageLog, H256,
-    U256, U64,
-};
-use zksync_utils::{
-    bytecode::{hash_bytecode, hash_evm_bytecode},
     u256_to_h256,
+    utils::{storage_key_for_eth_balance, storage_key_for_standard_token_balance},
+    AccountTreeId, Address, L1BatchNumber, Nonce, StorageKey, StorageLog, H256, U256, U64,
 };
 use zksync_vm_executor::oneshot::MockOneshotExecutor;
 use zksync_web3_decl::{
@@ -65,7 +63,7 @@ use zksync_web3_decl::{
 
 use super::*;
 use crate::{
-    testonly::{PROCESSED_EVM_BYTECODE, RAW_EVM_BYTECODE},
+    testonly::{mock_execute_transaction, store_custom_l2_block},
     tx_sender::SandboxExecutorOptions,
     web3::testonly::TestServerBuilder,
 };
@@ -329,20 +327,6 @@ fn assert_logs_match(actual_logs: &[api::Log], expected_logs: &[&VmEvent]) {
     }
 }
 
-fn execute_l2_transaction(transaction: L2Tx) -> TransactionExecutionResult {
-    TransactionExecutionResult {
-        hash: transaction.hash(),
-        transaction: transaction.into(),
-        execution_info: VmExecutionMetrics::default(),
-        execution_status: TxExecutionStatus::Success,
-        refunded_gas: 0,
-        operator_suggested_refund: 0,
-        compressed_bytecodes: vec![],
-        call_traces: vec![],
-        revert_reason: None,
-    }
-}
-
 /// Stores L2 block and returns the L2 block header.
 async fn store_l2_block(
     storage: &mut Connection<'_, Core>,
@@ -354,46 +338,16 @@ async fn store_l2_block(
     Ok(header)
 }
 
-async fn store_custom_l2_block(
+async fn open_l1_batch(
     storage: &mut Connection<'_, Core>,
-    header: &L2BlockHeader,
-    transaction_results: &[TransactionExecutionResult],
-) -> anyhow::Result<()> {
-    let number = header.number;
-    for result in transaction_results {
-        let l2_tx = result.transaction.clone().try_into().unwrap();
-        let tx_submission_result = storage
-            .transactions_dal()
-            .insert_transaction_l2(&l2_tx, TransactionExecutionMetrics::default())
-            .await
-            .unwrap();
-        assert_matches!(tx_submission_result, L2TxSubmissionResult::Added);
-    }
-
-    // Record L2 block info which is read by the VM sandbox logic
-    let l2_block_info_key = StorageKey::new(
-        AccountTreeId::new(SYSTEM_CONTEXT_ADDRESS),
-        SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
-    );
-    let block_info = pack_block_info(number.0.into(), number.0.into());
-    let l2_block_log = StorageLog::new_write_log(l2_block_info_key, u256_to_h256(block_info));
-    storage
-        .storage_logs_dal()
-        .append_storage_logs(number, &[l2_block_log])
-        .await?;
-
-    storage.blocks_dal().insert_l2_block(header).await?;
-    storage
-        .transactions_dal()
-        .mark_txs_as_executed_in_l2_block(
-            number,
-            transaction_results,
-            1.into(),
-            ProtocolVersionId::latest(),
-            false,
-        )
-        .await?;
-    Ok(())
+    number: L1BatchNumber,
+    batch_fee_input: BatchFeeInput,
+) -> anyhow::Result<UnsealedL1BatchHeader> {
+    let mut header = create_l1_batch(number.0);
+    header.batch_fee_input = batch_fee_input;
+    let header = header.to_unsealed_header();
+    storage.blocks_dal().insert_l1_batch(header.clone()).await?;
+    Ok(header)
 }
 
 async fn seal_l1_batch(
@@ -432,7 +386,6 @@ async fn store_events(
     let tx_location = IncludedTxLocation {
         tx_hash: H256::repeat_byte(1),
         tx_index_in_l2_block: 0,
-        tx_initiator_address: Address::repeat_byte(2),
     };
     let events = vec![
         // Matches address, doesn't match topics
@@ -675,7 +628,7 @@ impl HttpTest for StorageAccessWithSnapshotRecovery {
     fn storage_initialization(&self) -> StorageInitialization {
         let address = Address::repeat_byte(1);
         let code_key = get_code_key(&address);
-        let code_hash = hash_bytecode(&[0; 32]);
+        let code_hash = BytecodeHash::for_bytecode(&[0; 32]).value();
         let balance_key = storage_key_for_eth_balance(&address);
         let logs = vec![
             StorageLog::new_write_log(code_key, code_hash),
@@ -750,7 +703,7 @@ impl HttpTest for TransactionCountTest {
             store_l2_block(
                 &mut storage,
                 l2_block_number,
-                &[execute_l2_transaction(committed_tx)],
+                &[mock_execute_transaction(committed_tx.into())],
             )
             .await?;
             let nonce_log = StorageLog::new_write_log(
@@ -771,7 +724,11 @@ impl HttpTest for TransactionCountTest {
         pending_tx.common_data.nonce = Nonce(2);
         storage
             .transactions_dal()
-            .insert_transaction_l2(&pending_tx, TransactionExecutionMetrics::default())
+            .insert_transaction_l2(
+                &pending_tx,
+                TransactionExecutionMetrics::default(),
+                ValidationTraces::default(),
+            )
             .await
             .unwrap();
 
@@ -851,7 +808,11 @@ impl HttpTest for TransactionCountAfterSnapshotRecoveryTest {
         let mut storage = pool.connection().await?;
         storage
             .transactions_dal()
-            .insert_transaction_l2(&pending_tx, TransactionExecutionMetrics::default())
+            .insert_transaction_l2(
+                &pending_tx,
+                TransactionExecutionMetrics::default(),
+                ValidationTraces::default(),
+            )
             .await
             .unwrap();
 
@@ -906,8 +867,8 @@ impl HttpTest for TransactionReceiptsTest {
         let tx1 = create_l2_transaction(10, 200);
         let tx2 = create_l2_transaction(10, 200);
         let tx_results = vec![
-            execute_l2_transaction(tx1.clone()),
-            execute_l2_transaction(tx2.clone()),
+            mock_execute_transaction(tx1.clone().into()),
+            mock_execute_transaction(tx2.clone().into()),
         ];
         store_l2_block(&mut storage, l2_block_number, &tx_results).await?;
 
@@ -1162,14 +1123,16 @@ impl GetBytecodeTest {
         at_block: L2BlockNumber,
         address: Address,
     ) -> anyhow::Result<()> {
-        let evm_bytecode_hash = hash_evm_bytecode(RAW_EVM_BYTECODE);
+        let evm_bytecode_hash =
+            BytecodeHash::for_evm_bytecode(PROCESSED_EVM_BYTECODE.len(), PADDED_EVM_BYTECODE)
+                .value();
         let code_log = StorageLog::new_write_log(get_code_key(&address), evm_bytecode_hash);
         connection
             .storage_logs_dal()
             .append_storage_logs(at_block, &[code_log])
             .await?;
 
-        let factory_deps = HashMap::from([(evm_bytecode_hash, RAW_EVM_BYTECODE.to_vec())]);
+        let factory_deps = HashMap::from([(evm_bytecode_hash, PADDED_EVM_BYTECODE.to_vec())]);
         connection
             .factory_deps_dal()
             .insert_factory_deps(at_block, &factory_deps)

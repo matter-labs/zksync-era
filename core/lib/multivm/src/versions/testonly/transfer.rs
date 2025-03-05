@@ -1,7 +1,6 @@
 use ethabi::Token;
-use zksync_contracts::{load_contract, read_bytecode};
-use zksync_types::{utils::storage_key_for_eth_balance, Address, Execute, U256};
-use zksync_utils::u256_to_h256;
+use zksync_test_contracts::TestContract;
+use zksync_types::{u256_to_h256, utils::storage_key_for_eth_balance, Address, Execute, U256};
 
 use super::{
     default_pubdata_builder, get_empty_storage, tester::VmTesterBuilder, ContractToDeploy, TestedVm,
@@ -14,33 +13,22 @@ enum TestOptions {
 }
 
 fn test_send_or_transfer<VM: TestedVm>(test_option: TestOptions) {
-    let test_bytecode = read_bytecode(
-        "etc/contracts-test-data/artifacts-zk/contracts/transfer/transfer.sol/TransferTest.json",
-    );
-    let recipient_bytecode = read_bytecode(
-        "etc/contracts-test-data/artifacts-zk/contracts/transfer/transfer.sol/Recipient.json",
-    );
-    let test_abi = load_contract(
-        "etc/contracts-test-data/artifacts-zk/contracts/transfer/transfer.sol/TransferTest.json",
-    );
-
+    let test_contract = TestContract::transfer_test();
     let test_contract_address = Address::repeat_byte(1);
     let recipient_address = Address::repeat_byte(2);
 
     let (value, calldata) = match test_option {
         TestOptions::Send(value) => (
             value,
-            test_abi
+            test_contract
                 .function("send")
-                .unwrap()
                 .encode_input(&[Token::Address(recipient_address), Token::Uint(value)])
                 .unwrap(),
         ),
         TestOptions::Transfer(value) => (
             value,
-            test_abi
+            test_contract
                 .function("transfer")
-                .unwrap()
                 .encode_input(&[Token::Address(recipient_address), Token::Uint(value)])
                 .unwrap(),
         ),
@@ -57,8 +45,14 @@ fn test_send_or_transfer<VM: TestedVm>(test_option: TestOptions) {
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_rich_accounts(1)
         .with_custom_contracts(vec![
-            ContractToDeploy::new(test_bytecode, test_contract_address),
-            ContractToDeploy::new(recipient_bytecode, recipient_address),
+            ContractToDeploy::new(
+                TestContract::transfer_test().bytecode.to_vec(),
+                test_contract_address,
+            ),
+            ContractToDeploy::new(
+                TestContract::transfer_recipient().bytecode.to_vec(),
+                recipient_address,
+            ),
         ])
         .build::<VM>();
 
@@ -98,28 +92,16 @@ pub(crate) fn test_send_and_transfer<VM: TestedVm>() {
 }
 
 fn test_reentrancy_protection_send_or_transfer<VM: TestedVm>(test_option: TestOptions) {
-    let test_bytecode = read_bytecode(
-        "etc/contracts-test-data/artifacts-zk/contracts/transfer/transfer.sol/TransferTest.json",
-    );
-    let reentrant_recipient_bytecode = read_bytecode(
-        "etc/contracts-test-data/artifacts-zk/contracts/transfer/transfer.sol/ReentrantRecipient.json",
-    );
-    let test_abi = load_contract(
-        "etc/contracts-test-data/artifacts-zk/contracts/transfer/transfer.sol/TransferTest.json",
-    );
-    let reentrant_recipient_abi = load_contract(
-        "etc/contracts-test-data/artifacts-zk/contracts/transfer/transfer.sol/ReentrantRecipient.json",
-    );
-
+    let test_contract = TestContract::transfer_test();
+    let reentrant_recipient_contract = TestContract::reentrant_recipient();
     let test_contract_address = Address::repeat_byte(1);
     let reentrant_recipient_address = Address::repeat_byte(2);
 
     let (value, calldata) = match test_option {
         TestOptions::Send(value) => (
             value,
-            test_abi
+            test_contract
                 .function("send")
-                .unwrap()
                 .encode_input(&[
                     Token::Address(reentrant_recipient_address),
                     Token::Uint(value),
@@ -128,9 +110,8 @@ fn test_reentrancy_protection_send_or_transfer<VM: TestedVm>(test_option: TestOp
         ),
         TestOptions::Transfer(value) => (
             value,
-            test_abi
+            test_contract
                 .function("transfer")
-                .unwrap()
                 .encode_input(&[
                     Token::Address(reentrant_recipient_address),
                     Token::Uint(value),
@@ -144,8 +125,14 @@ fn test_reentrancy_protection_send_or_transfer<VM: TestedVm>(test_option: TestOp
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_rich_accounts(1)
         .with_custom_contracts(vec![
-            ContractToDeploy::new(test_bytecode, test_contract_address),
-            ContractToDeploy::new(reentrant_recipient_bytecode, reentrant_recipient_address),
+            ContractToDeploy::new(
+                TestContract::transfer_test().bytecode.to_vec(),
+                test_contract_address,
+            ),
+            ContractToDeploy::new(
+                TestContract::reentrant_recipient().bytecode.to_vec(),
+                reentrant_recipient_address,
+            ),
         ])
         .build::<VM>();
 
@@ -154,9 +141,8 @@ fn test_reentrancy_protection_send_or_transfer<VM: TestedVm>(test_option: TestOp
     let tx1 = account.get_l2_tx_for_execute(
         Execute {
             contract_address: Some(reentrant_recipient_address),
-            calldata: reentrant_recipient_abi
+            calldata: reentrant_recipient_contract
                 .function("setX")
-                .unwrap()
                 .encode_input(&[])
                 .unwrap(),
             value: U256::from(1),

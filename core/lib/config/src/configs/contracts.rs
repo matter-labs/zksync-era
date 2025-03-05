@@ -1,13 +1,18 @@
 // External uses
 use serde::{Deserialize, Serialize};
 // Workspace uses
-use zksync_basic_types::Address;
+use zksync_basic_types::{Address, H256};
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct EcosystemContracts {
     pub bridgehub_proxy_addr: Address,
     pub state_transition_proxy_addr: Address,
     pub transparent_proxy_admin_addr: Address,
+    pub l1_bytecodes_supplier_addr: Option<Address>,
+    // Note that on the contract side of things this contract is called `L2WrappedBaseTokenStore`,
+    // while on the server side for consistency with the conventions, where the prefix denotes
+    // the location of the contracts we call it `l1_wrapped_base_token_store`
+    pub l1_wrapped_base_token_store: Option<Address>,
 }
 
 impl EcosystemContracts {
@@ -16,6 +21,8 @@ impl EcosystemContracts {
             bridgehub_proxy_addr: Address::repeat_byte(0x14),
             state_transition_proxy_addr: Address::repeat_byte(0x15),
             transparent_proxy_admin_addr: Address::repeat_byte(0x15),
+            l1_bytecodes_supplier_addr: Some(Address::repeat_byte(0x16)),
+            l1_wrapped_base_token_store: Some(Address::repeat_byte(0x17)),
         }
     }
 }
@@ -41,16 +48,16 @@ pub struct ContractsConfig {
     pub l1_weth_bridge_proxy_addr: Option<Address>,
     pub l2_weth_bridge_addr: Option<Address>,
     pub l2_testnet_paymaster_addr: Option<Address>,
+    pub l2_timestamp_asserter_addr: Option<Address>,
     pub l1_multicall3_addr: Address,
     pub ecosystem_contracts: Option<EcosystemContracts>,
     // Used by the RPC API and by the node builder in wiring the BaseTokenRatioProvider layer.
     pub base_token_addr: Option<Address>,
-    // FIXME: maybe refactor
-    pub user_facing_bridgehub_proxy_addr: Option<Address>,
-    pub user_facing_diamond_proxy_addr: Option<Address>,
+    pub l1_base_token_asset_id: Option<H256>,
+
     pub chain_admin_addr: Option<Address>,
-    pub settlement_layer: Option<u64>,
     pub l2_da_validator_addr: Option<Address>,
+    pub no_da_validium_l1_validator_addr: Option<Address>,
 }
 
 impl ContractsConfig {
@@ -69,14 +76,14 @@ impl ContractsConfig {
             l2_weth_bridge_addr: Some(Address::repeat_byte(0x0c)),
             l2_testnet_paymaster_addr: Some(Address::repeat_byte(0x11)),
             l1_multicall3_addr: Address::repeat_byte(0x12),
+            l2_timestamp_asserter_addr: Some(Address::repeat_byte(0x19)),
             governance_addr: Address::repeat_byte(0x13),
             base_token_addr: Some(Address::repeat_byte(0x14)),
+            l1_base_token_asset_id: Some(H256::repeat_byte(0x15)),
             ecosystem_contracts: Some(EcosystemContracts::for_tests()),
-            user_facing_bridgehub_proxy_addr: Some(Address::repeat_byte(0x15)),
-            user_facing_diamond_proxy_addr: Some(Address::repeat_byte(0x16)),
             chain_admin_addr: Some(Address::repeat_byte(0x18)),
-            settlement_layer: Some(0),
             l2_da_validator_addr: Some(Address::repeat_byte(0x1a)),
+            no_da_validium_l1_validator_addr: Some(Address::repeat_byte(0x1b)),
         }
     }
 }

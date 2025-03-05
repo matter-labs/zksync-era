@@ -7,7 +7,7 @@ import { Token } from '../src/types';
 
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
-import { scaledGasPrice, waitForBlockToBeFinalizedOnL1 } from '../src/helpers';
+import { scaledGasPrice, waitForL2ToL1LogProof } from '../src/helpers';
 
 const SECONDS = 2000;
 jest.setTimeout(100 * SECONDS);
@@ -39,9 +39,8 @@ describe('base ERC20 contract checks', () => {
         const numerator = Number(await zksyncContract.baseTokenGasPriceMultiplierNominator());
         const denominator = Number(await zksyncContract.baseTokenGasPriceMultiplierDenominator());
 
-        // checking that the numerator and denominator don't have their default values
-        expect(numerator).toBe(3);
-        expect(denominator).toBe(2);
+        expect(numerator).toBe(314);
+        expect(denominator).toBe(1000);
     });
 
     test('Can perform a deposit', async () => {
@@ -79,7 +78,7 @@ describe('base ERC20 contract checks', () => {
         // TODO: should all the following tests use strict equality?
 
         const finalEthBalance = await alice.getBalanceL1();
-        expect(initialEthBalance).toBeGreaterThan(finalEthBalance + fee); // Fee should be taken from the ETH balance on L1.
+        expect(initialEthBalance).toBeGreaterThanOrEqual(finalEthBalance + fee); // Fee should be taken from the ETH balance on L1.
 
         const finalL1Balance = await alice.getBalanceL1(baseTokenDetails.l1Address);
         expect(initialL1Balance).toBeGreaterThanOrEqual(finalL1Balance + amount);
@@ -169,7 +168,7 @@ describe('base ERC20 contract checks', () => {
         await expect(withdrawalPromise).toBeAccepted([]);
         const withdrawalTx = await withdrawalPromise;
         const l2Receipt = await withdrawalTx.wait();
-        await waitForBlockToBeFinalizedOnL1(alice, l2Receipt!.blockNumber);
+        await waitForL2ToL1LogProof(alice, l2Receipt!.blockNumber, withdrawalTx.hash);
 
         await expect(alice.finalizeWithdrawal(withdrawalTx.hash)).toBeAccepted([]);
         const receipt = await alice._providerL2().getTransactionReceipt(withdrawalTx.hash);

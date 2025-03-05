@@ -250,7 +250,8 @@ mod tests {
     use super::*;
     use crate::{
         types::{Node, NodeKey},
-        Database, Key, MerkleTree, PatchSet, TreeEntry, ValueHash,
+        utils::testonly::setup_tree_with_stale_keys,
+        Database, Key, MerkleTree, PatchSet, RocksDBWrapper, TreeEntry, ValueHash,
     };
 
     fn create_db() -> PatchSet {
@@ -505,5 +506,40 @@ mod tests {
         test_keys_are_removed_by_pruning_when_overwritten_in_multiple_batches(false);
         println!("Keys are pruned after each update");
         test_keys_are_removed_by_pruning_when_overwritten_in_multiple_batches(true);
+    }
+
+    fn test_pruning_with_truncation(mut db: impl PruneDatabase) {
+        setup_tree_with_stale_keys(&mut db, false);
+
+        let stale_keys = db.stale_keys(1);
+        assert_eq!(stale_keys.len(), 1);
+        assert!(
+            stale_keys[0].is_empty() && stale_keys[0].version == 0,
+            "{stale_keys:?}"
+        );
+
+        let (mut pruner, _) = MerkleTreePruner::new(db);
+        let prunable_version = pruner.last_prunable_version().unwrap();
+        assert_eq!(prunable_version, 1);
+        let stats = pruner
+            .prune_up_to(prunable_version)
+            .unwrap()
+            .expect("tree was not pruned");
+        assert_eq!(stats.target_retained_version, 1);
+        assert_eq!(stats.pruned_key_count, 1); // only the root node should have been pruned
+
+        let tree = MerkleTree::new(pruner.db).unwrap();
+        tree.verify_consistency(1, false).unwrap();
+    }
+
+    #[test]
+    fn pruning_with_truncation() {
+        test_pruning_with_truncation(PatchSet::default());
+    }
+
+    #[test]
+    fn pruning_with_truncation_on_rocksdb() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        test_pruning_with_truncation(RocksDBWrapper::new(temp_dir.path()).unwrap());
     }
 }

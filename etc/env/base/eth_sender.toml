@@ -50,6 +50,8 @@ proof_loading_mode="FriProofFromGcs"
 
 pubdata_sending_mode = "Calldata"
 
+is_verifier_pre_fflonk = true
+
 [eth_sender.gas_adjuster]
 # Priority fee to be used by GasAdjuster (in wei).
 default_priority_fee_per_gas = 1_000_000_000

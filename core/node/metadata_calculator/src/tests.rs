@@ -23,7 +23,6 @@ use zksync_types::{
     block::{L1BatchHeader, L1BatchTreeData},
     AccountTreeId, Address, L1BatchNumber, L2BlockNumber, StorageKey, StorageLog, H256,
 };
-use zksync_utils::u32_to_h256;
 
 use super::{
     helpers::L1BatchWithLogs, GenericAsyncTree, MetadataCalculator, MetadataCalculatorConfig,
@@ -403,12 +402,17 @@ async fn error_on_pruned_next_l1_batch(sealed_protective_reads: bool) {
     extend_db_state(&mut storage, new_logs).await;
     storage
         .pruning_dal()
-        .soft_prune_batches_range(L1BatchNumber(5), L2BlockNumber(5))
+        .insert_soft_pruning_log(L1BatchNumber(5), L2BlockNumber(5))
         .await
         .unwrap();
     storage
         .pruning_dal()
         .hard_prune_batches_range(L1BatchNumber(5), L2BlockNumber(5))
+        .await
+        .unwrap();
+    storage
+        .pruning_dal()
+        .insert_hard_pruning_log(L1BatchNumber(5), L2BlockNumber(5), H256::zero())
         .await
         .unwrap();
     // Sanity check: there should be no pruned batch headers.
@@ -696,7 +700,9 @@ async fn setup_calculator_with_options(
     object_store: Option<Arc<dyn ObjectStore>>,
 ) -> MetadataCalculator {
     let mut storage = pool.connection().await.unwrap();
-    if storage.blocks_dal().is_genesis_needed().await.unwrap() {
+    let pruning_info = storage.pruning_dal().get_pruning_info().await.unwrap();
+    let has_pruning_logs = pruning_info.last_hard_pruned.is_some();
+    if !has_pruning_logs && storage.blocks_dal().is_genesis_needed().await.unwrap() {
         insert_genesis_batch(&mut storage, &GenesisParams::mock())
             .await
             .unwrap();
@@ -782,13 +788,26 @@ pub(super) async fn extend_db_state(
         .await
         .unwrap()
         .expect("no L1 batches in Postgres");
-    extend_db_state_from_l1_batch(&mut storage, sealed_l1_batch + 1, new_logs).await;
+    let sealed_l2_block = storage
+        .blocks_dal()
+        .get_sealed_l2_block_number()
+        .await
+        .unwrap()
+        .expect("no L2 blocks in Postgres");
+    extend_db_state_from_l1_batch(
+        &mut storage,
+        sealed_l1_batch + 1,
+        sealed_l2_block + 1,
+        new_logs,
+    )
+    .await;
     storage.commit().await.unwrap();
 }
 
 pub(super) async fn extend_db_state_from_l1_batch(
     storage: &mut Connection<'_, Core>,
     next_l1_batch: L1BatchNumber,
+    mut next_l2_block: L2BlockNumber,
     new_logs: impl IntoIterator<Item = Vec<StorageLog>>,
 ) {
     assert!(storage.in_transaction(), "must be called in DB transaction");
@@ -797,8 +816,7 @@ pub(super) async fn extend_db_state_from_l1_batch(
         let header = create_l1_batch(idx);
         let batch_number = header.number;
         // Assumes that L1 batch consists of only one L2 block.
-        let l2_block_header = create_l2_block(idx);
-        let l2_block_number = l2_block_header.number;
+        let l2_block_header = create_l2_block(next_l2_block.0);
 
         storage
             .blocks_dal()
@@ -812,7 +830,7 @@ pub(super) async fn extend_db_state_from_l1_batch(
             .unwrap();
         storage
             .storage_logs_dal()
-            .insert_storage_logs(l2_block_number, &batch_logs)
+            .insert_storage_logs(next_l2_block, &batch_logs)
             .await
             .unwrap();
         storage
@@ -831,6 +849,8 @@ pub(super) async fn extend_db_state_from_l1_batch(
             .await
             .unwrap();
         insert_initial_writes_for_batch(storage, batch_number).await;
+
+        next_l2_block += 1;
     }
 }
 
@@ -888,9 +908,9 @@ pub(crate) fn gen_storage_logs(
     let proof_keys = accounts.iter().flat_map(|&account| {
         account_keys
             .clone()
-            .map(move |i| StorageKey::new(account, u32_to_h256(i)))
+            .map(move |i| StorageKey::new(account, H256::from_low_u64_be(i.into())))
     });
-    let proof_values = indices.map(u32_to_h256);
+    let proof_values = indices.map(|i| H256::from_low_u64_be(i.into()));
 
     let logs: Vec<_> = proof_keys
         .zip(proof_values)

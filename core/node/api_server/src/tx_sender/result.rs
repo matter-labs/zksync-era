@@ -1,5 +1,5 @@
 use thiserror::Error;
-use zksync_multivm::interface::{ExecutionResult, VmExecutionResultAndLogs};
+use zksync_multivm::interface::ExecutionResult;
 use zksync_types::{l2::error::TxCheckError, U256};
 use zksync_web3_decl::error::EnrichedClientError;
 
@@ -67,6 +67,8 @@ pub enum SubmitTxError {
     /// Catch-all internal error (e.g., database error) that should not be exposed to the caller.
     #[error("internal error")]
     Internal(#[from] anyhow::Error),
+    #[error("transaction failed block.timestamp assertion")]
+    FailedBlockTimestampAssertion,
 }
 
 impl SubmitTxError {
@@ -96,6 +98,7 @@ impl SubmitTxError {
             Self::MintedAmountOverflow => "minted-amount-overflow",
             Self::ProxyError(_) => "proxy-error",
             Self::Internal(_) => "internal",
+            Self::FailedBlockTimestampAssertion => "failed-block-timestamp-assertion",
         }
     }
 
@@ -133,6 +136,9 @@ impl From<SandboxExecutionError> for SubmitTxError {
             SandboxExecutionError::FailedToPayForTransaction(reason) => {
                 Self::FailedToChargeFee(reason)
             }
+            SandboxExecutionError::FailedBlockTimestampAssertion => {
+                Self::FailedBlockTimestampAssertion
+            }
         }
     }
 }
@@ -152,15 +158,15 @@ pub(crate) trait ApiCallResult: Sized {
     fn into_api_call_result(self) -> Result<Vec<u8>, SubmitTxError>;
 }
 
-impl ApiCallResult for VmExecutionResultAndLogs {
+impl ApiCallResult for ExecutionResult {
     fn check_api_call_result(&self) -> Result<(), SubmitTxError> {
-        match &self.result {
-            ExecutionResult::Success { .. } => Ok(()),
-            ExecutionResult::Revert { output } => Err(SubmitTxError::ExecutionReverted(
+        match self {
+            Self::Success { .. } => Ok(()),
+            Self::Revert { output } => Err(SubmitTxError::ExecutionReverted(
                 output.to_user_friendly_string(),
                 output.encoded_data(),
             )),
-            ExecutionResult::Halt { reason } => {
+            Self::Halt { reason } => {
                 let output: SandboxExecutionError = reason.clone().into();
                 Err(output.into())
             }
@@ -168,13 +174,13 @@ impl ApiCallResult for VmExecutionResultAndLogs {
     }
 
     fn into_api_call_result(self) -> Result<Vec<u8>, SubmitTxError> {
-        match self.result {
-            ExecutionResult::Success { output } => Ok(output),
-            ExecutionResult::Revert { output } => Err(SubmitTxError::ExecutionReverted(
+        match self {
+            Self::Success { output } => Ok(output),
+            Self::Revert { output } => Err(SubmitTxError::ExecutionReverted(
                 output.to_user_friendly_string(),
                 output.encoded_data(),
             )),
-            ExecutionResult::Halt { reason } => {
+            Self::Halt { reason } => {
                 let output: SandboxExecutionError = reason.into();
                 Err(output.into())
             }

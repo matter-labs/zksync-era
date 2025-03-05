@@ -5,8 +5,7 @@ use zk_evm_1_5_0::{
     vm_state::PrimitiveValue,
     zkevm_opcode_defs::{self},
 };
-use zksync_types::{StorageKey, H256, U256};
-use zksync_utils::{h256_to_u256, u256_to_h256};
+use zksync_types::{h256_to_u256, u256_to_h256, StorageKey, H256, U256};
 
 use crate::interface::storage::{StoragePtr, WriteStorage};
 
@@ -821,8 +820,12 @@ impl<H: HistoryMode> HistoryRecorder<TransientStorageWrapper, H> {
         self.apply_historic_record(StorageHistoryRecord { key, value }, timestamp)
     }
 
-    pub(crate) fn drain_inner(&mut self) -> Vec<(StorageKey, U256)> {
-        self.inner.inner.drain().collect()
+    pub(crate) fn clone_vec(&mut self) -> Vec<(StorageKey, U256)> {
+        self.inner
+            .inner
+            .iter()
+            .map(|(key, value)| (*key, *value))
+            .collect()
     }
 }
 

@@ -224,9 +224,6 @@ pub struct Web3JsonRpcConfig {
     /// (hundreds or thousands RPS).
     #[serde(default)]
     pub extended_api_tracing: bool,
-
-    #[serde(default)]
-    pub settlement_layer_url: Option<String>,
 }
 
 impl Web3JsonRpcConfig {
@@ -246,7 +243,7 @@ impl Web3JsonRpcConfig {
             pubsub_polling_interval: Some(200),
             max_nonce_ahead: 50,
             gas_price_scale_factor: 1.2,
-            estimate_gas_scale_factor: 1.2,
+            estimate_gas_scale_factor: 1.5,
             estimate_gas_acceptable_overestimation: 1000,
             estimate_gas_optimize_search: false,
             max_tx_size: 1000000,
@@ -267,7 +264,6 @@ impl Web3JsonRpcConfig {
             whitelisted_tokens_for_aa: vec![],
             api_namespaces: None,
             extended_api_tracing: false,
-            settlement_layer_url: None,
         }
     }
 

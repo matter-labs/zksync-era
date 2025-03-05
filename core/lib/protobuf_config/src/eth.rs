@@ -87,13 +87,6 @@ impl ProtoRepr for proto::Sender {
     type Type = configs::eth_sender::SenderConfig;
     fn read(&self) -> anyhow::Result<Self::Type> {
         Ok(Self::Type {
-            aggregated_proof_sizes: self
-                .aggregated_proof_sizes
-                .iter()
-                .enumerate()
-                .map(|(i, x)| (*x).try_into().context(i))
-                .collect::<Result<_, _>>()
-                .context("aggregated_proof_sizes")?,
             wait_confirmations: self.wait_confirmations,
             tx_poll_period: *required(&self.tx_poll_period).context("tx_poll_period")?,
             aggregate_tx_poll_period: *required(&self.aggregate_tx_poll_period)
@@ -132,21 +125,15 @@ impl ProtoRepr for proto::Sender {
                 .parse(),
             tx_aggregation_only_prove_and_execute: self.tx_aggregation_paused.unwrap_or(false),
             tx_aggregation_paused: self.tx_aggregation_only_prove_and_execute.unwrap_or(false),
-            ignore_db_nonce: None,
-            priority_tree_start_index: self.priority_op_start_index.map(|x| x as usize),
             time_in_mempool_in_l1_blocks_cap: self
                 .time_in_mempool_in_l1_blocks_cap
                 .unwrap_or(Self::Type::default_time_in_mempool_in_l1_blocks_cap()),
+            is_verifier_pre_fflonk: self.is_verifier_pre_fflonk.unwrap_or(true),
         })
     }
 
     fn build(this: &Self::Type) -> Self {
         Self {
-            aggregated_proof_sizes: this
-                .aggregated_proof_sizes
-                .iter()
-                .map(|x| (*x).try_into().unwrap())
-                .collect(),
             wait_confirmations: this.wait_confirmations,
             tx_poll_period: Some(this.tx_poll_period),
             aggregate_tx_poll_period: Some(this.aggregate_tx_poll_period),
@@ -169,8 +156,8 @@ impl ProtoRepr for proto::Sender {
             ),
             tx_aggregation_only_prove_and_execute: Some(this.tx_aggregation_only_prove_and_execute),
             tx_aggregation_paused: Some(this.tx_aggregation_paused),
-            priority_op_start_index: this.priority_tree_start_index.map(|x| x as u64),
             time_in_mempool_in_l1_blocks_cap: Some(this.time_in_mempool_in_l1_blocks_cap),
+            is_verifier_pre_fflonk: Some(this.is_verifier_pre_fflonk),
         }
     }
 }

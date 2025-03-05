@@ -68,6 +68,12 @@ pub const SETUP_LEGACY_BRIDGE: ForgeScriptParams = ForgeScriptParams {
     script_path: "deploy-scripts/dev/SetupLegacyBridge.s.sol",
 };
 
+pub const ENABLE_EVM_EMULATOR_PARAMS: ForgeScriptParams = ForgeScriptParams {
+    input: "script-config/enable-evm-emulator.toml",
+    output: "script-out/output-enable-evm-emulator.toml",
+    script_path: "deploy-scripts/EnableEvmEmulator.s.sol",
+};
+
 pub const DEPLOY_GATEWAY_CTM: ForgeScriptParams = ForgeScriptParams {
     input: "script-config/config-deploy-gateway-ctm.toml",
     output: "script-out/output-deploy-gateway-ctm.toml",
@@ -78,6 +84,27 @@ pub const GATEWAY_PREPARATION: ForgeScriptParams = ForgeScriptParams {
     input: "script-config/gateway-preparation-l1.toml",
     output: "script-out/output-gateway-preparation-l1.toml",
     script_path: "deploy-scripts/GatewayPreparation.s.sol",
+};
+
+pub const GATEWAY_GOVERNANCE_TX_PATH1: &str =
+    "contracts/l1-contracts/script-out/gateway-deploy-governance-txs-1.json";
+
+pub const GATEWAY_UPGRADE_ECOSYSTEM_PARAMS: ForgeScriptParams = ForgeScriptParams {
+    input: "script-config/gateway-upgrade-ecosystem.toml",
+    output: "script-out/gateway-upgrade-ecosystem.toml",
+    script_path: "deploy-scripts/upgrade/EcosystemUpgrade.s.sol",
+};
+
+pub const GATEWAY_UPGRADE_CHAIN_PARAMS: ForgeScriptParams = ForgeScriptParams {
+    input: "script-config/gateway-upgrade-chain.toml",
+    output: "script-out/gateway-upgrade-chain.toml",
+    script_path: "deploy-scripts/upgrade/ChainUpgrade.s.sol",
+};
+
+pub const FINALIZE_UPGRADE_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptParams {
+    input: "script-config/gateway-finalize-upgrade.toml",
+    output: "script-out/gateway-finalize-upgrade.toml",
+    script_path: "deploy-scripts/upgrade/FinalizeUpgrade.s.sol",
 };
 
 pub const ZK_PREPARATION: ForgeScriptParams = ForgeScriptParams {

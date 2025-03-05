@@ -10,6 +10,7 @@ use zk_evm_1_5_0::{
     },
 };
 use zksync_types::{
+    h256_to_u256, u256_to_h256,
     utils::storage_key_for_eth_balance,
     writes::{
         compression::compress_with_best_strategy, BYTES_PER_DERIVED_KEY,
@@ -17,7 +18,6 @@ use zksync_types::{
     },
     AccountTreeId, Address, StorageKey, StorageLogKind, BOOTLOADER_ADDRESS, U256,
 };
-use zksync_utils::{h256_to_u256, u256_to_h256};
 
 use crate::{
     glue::GlueInto,
@@ -576,7 +576,7 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
         // Note that while the history is preserved, the inner parts are fully cleared out.
         // TODO(X): potentially optimize this function by allowing rollbacks only at the bounds of transactions.
 
-        let current_active_keys = self.transient_storage.drain_inner();
+        let current_active_keys = self.transient_storage.clone_vec();
         for (key, current_value) in current_active_keys {
             self.write_transient_storage_value(ReducedTstoreLogQuery {
                 // We currently only support rollup shard id
@@ -620,8 +620,7 @@ fn get_pubdata_price_bytes(initial_value: U256, final_value: U256, is_initial: b
 
 #[cfg(test)]
 mod tests {
-    use zksync_types::H256;
-    use zksync_utils::h256_to_u256;
+    use zksync_types::{h256_to_u256, H256};
 
     use super::*;
     use crate::interface::storage::{InMemoryStorage, StorageView};

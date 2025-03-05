@@ -81,7 +81,7 @@ pub(crate) fn get_vm_hook_params(memory: &SimpleMemory) -> Vec<U256> {
 ///
 /// This enum allows to execute blocks with the same VM but different support for refunds.
 #[derive(Debug, Copy, Clone)]
-pub enum MultiVMSubversion {
+pub enum MultiVmSubversion {
     /// Initial VM M5 version, refunds are fully disabled.
     V1,
     /// Refunds were enabled. ETH balance for bootloader address was marked as a free slot.
@@ -99,7 +99,7 @@ pub struct VmInstance<S: Storage> {
     pub snapshots: Vec<VmSnapshot>,
 
     /// MultiVM-specific addition. See enum doc-comment for details.
-    pub(crate) refund_state: MultiVMSubversion,
+    pub(crate) refund_state: MultiVmSubversion,
 }
 
 /// This structure stores data that accumulates during the VM run.
@@ -560,12 +560,12 @@ impl<S: Storage> VmInstance<S> {
                 let refund_to_propose;
                 let refund_slot;
                 match self.refund_state {
-                    MultiVMSubversion::V1 => {
+                    MultiVmSubversion::V1 => {
                         refund_to_propose = bootloader_refund;
                         refund_slot =
                             OPERATOR_REFUNDS_OFFSET + self.bootloader_state.tx_to_execute() - 1;
                     }
-                    MultiVMSubversion::V2 => {
+                    MultiVmSubversion::V2 => {
                         let gas_spent_on_pubdata = tracer
                             .gas_spent_on_pubdata(&self.state.local_state)
                             - spent_pubdata_counter_before;

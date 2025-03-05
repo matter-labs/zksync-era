@@ -8,7 +8,7 @@ use ethers::{
     providers::Middleware,
     types::{Address, TransactionRequest},
 };
-use types::TokenInfo;
+use zkstack_cli_types::TokenInfo;
 
 use crate::{logger, wallets::Wallet};
 

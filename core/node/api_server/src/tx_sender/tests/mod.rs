@@ -1,9 +1,9 @@
 //! Tests for the transaction sender.
 
 use test_casing::TestCases;
-use zksync_contracts::test_contracts::LoadnextContractExecutionParams;
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_node_test_utils::{create_l2_block, prepare_recovery_snapshot};
+use zksync_test_contracts::LoadnextContractExecutionParams;
 use zksync_types::{get_nonce_key, L1BatchNumber, L2BlockNumber, StorageLog};
 use zksync_vm_executor::oneshot::MockOneshotExecutor;
 
@@ -14,11 +14,14 @@ mod call;
 mod gas_estimation;
 mod send_tx;
 
+const ALL_VM_MODES: [FastVmMode; 3] = [FastVmMode::Old, FastVmMode::New, FastVmMode::Shadow];
+
 const LOAD_TEST_CASES: TestCases<LoadnextContractExecutionParams> = test_casing::cases! {[
     LoadnextContractExecutionParams::default(),
     // No storage modification
     LoadnextContractExecutionParams {
-        writes: 0,
+        initial_writes: 0,
+        repeated_writes: 0,
         events: 0,
         ..LoadnextContractExecutionParams::default()
     },
@@ -137,6 +140,14 @@ async fn getting_nonce_for_account_after_snapshot_recovery() {
 }
 
 async fn create_real_tx_sender(pool: ConnectionPool<Core>) -> TxSender {
+    create_real_tx_sender_with_options(pool, FastVmMode::Shadow, usize::MAX).await
+}
+
+async fn create_real_tx_sender_with_options(
+    pool: ConnectionPool<Core>,
+    vm_mode: FastVmMode,
+    storage_invocations_limit: usize,
+) -> TxSender {
     let mut storage = pool.connection().await.unwrap();
     let genesis_params = GenesisParams::mock();
     insert_genesis_batch(&mut storage, &genesis_params)
@@ -152,10 +163,11 @@ async fn create_real_tx_sender(pool: ConnectionPool<Core>) -> TxSender {
     )
     .await
     .unwrap();
-    executor_options.set_fast_vm_mode(FastVmMode::Shadow);
+    executor_options.set_fast_vm_mode(vm_mode);
 
     let pg_caches = PostgresStorageCaches::new(1, 1);
-    let tx_executor = SandboxExecutor::real(executor_options, pg_caches, usize::MAX);
+    let tx_executor =
+        SandboxExecutor::real(executor_options, pg_caches, storage_invocations_limit, None);
     create_test_tx_sender(pool, genesis_params.config().l2_chain_id, tx_executor)
         .await
         .0

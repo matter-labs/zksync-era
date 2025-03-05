@@ -2,12 +2,12 @@ use std::{collections::HashMap, convert::TryInto, fmt::Debug};
 
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, Bytes};
-use zksync_multivm::interface::{L1BatchEnv, SystemEnv};
 use zksync_object_store::{_reexports::BoxedError, serialize_using_bincode, Bucket, StoredObject};
 use zksync_types::{
     basic_fri_types::Eip4844Blobs, block::L2BlockExecutionData, commitment::PubdataParams,
     witness_block_state::WitnessStorageState, L1BatchNumber, ProtocolVersionId, H256, U256,
 };
+use zksync_vm_interface::{L1BatchEnv, SystemEnv};
 
 const HASH_LEN: usize = H256::len_bytes();
 

@@ -170,7 +170,7 @@ where
     /// Returns the root hash and the Merkle proof for a leaf with the specified 0-based `index`.
     /// `index` is relative to the leftmost uncached leaf.
     /// # Panics
-    /// Panics if `index` is >= than the number of leaves in the tree.
+    /// Panics if `index` is >= than the number of uncached leaves in the tree.
     pub fn merkle_root_and_path(&self, index: usize) -> (H256, Vec<H256>) {
         assert!(index < self.hashes.len(), "leaf index out of bounds");
         let mut end_path = vec![];
@@ -179,6 +179,15 @@ where
             root_hash,
             end_path.into_iter().map(Option::unwrap).collect(),
         )
+    }
+
+    /// Returns the root hash and the Merkle proof for a leaf with the specified 0-based `index`.
+    /// `index` is an absolute position of the leaf.
+    /// # Panics
+    /// Panics if leaf at `index` is cached or if `index` is >= than the number of leaves in the tree.
+    pub fn merkle_root_and_path_by_absolute_index(&self, index: usize) -> (H256, Vec<H256>) {
+        assert!(index >= self.start_index, "leaf is cached");
+        self.merkle_root_and_path(index - self.start_index)
     }
 
     /// Returns the root hash and the Merkle proofs for a range of leafs.
@@ -321,10 +330,9 @@ pub trait HashEmptySubtree<L>: 'static + Send + Sync + Hasher<Hash = H256> {
     /// Returns the hash of an empty subtree with the given depth.
     /// Implementations are encouraged to cache the returned values.
     fn empty_subtree_hash(&self, depth: usize) -> H256 {
-        // static EMPTY_TREE_HASHES: OnceCell<Vec<H256>> = OnceCell::new();
-        // EMPTY_TREE_HASHES.get_or_init(||
-
-        compute_empty_tree_hashes(self.empty_leaf_hash())[depth] //)[depth]
+        // We do not cache by default since then the cached values would be preserved
+        // for all implementations which is not correct for different leaves.
+        compute_empty_tree_hashes(self.empty_leaf_hash())[depth]
     }
 
     /// Returns an empty hash
@@ -342,12 +350,6 @@ impl HashEmptySubtree<[u8; 96]> for KeccakHasher {
         self.hash_bytes(&[0_u8; 96])
     }
 }
-
-// impl HashEmptySubtree<H256> for KeccakHasher {
-//     fn empty_leaf_hash(&self) -> H256 {
-//         self.hash_bytes(&self.0)
-//     }
-// }
 
 fn compute_empty_tree_hashes(empty_leaf_hash: H256) -> Vec<H256> {
     iter::successors(Some(empty_leaf_hash), |hash| {

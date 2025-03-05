@@ -1,11 +1,14 @@
 //! Tests for sending raw transactions.
 
+use std::ops::Range;
+
 use assert_matches::assert_matches;
+use chrono::NaiveDateTime;
 use test_casing::test_casing;
-use zksync_multivm::interface::ExecutionResult;
-use zksync_node_fee_model::MockBatchFeeParamsProvider;
+use zksync_multivm::interface::{tracer::ValidationTraces, ExecutionResult};
+use zksync_node_fee_model::{BatchFeeModelInputProvider, MockBatchFeeParamsProvider};
 use zksync_node_test_utils::create_l2_transaction;
-use zksync_types::K256PrivateKey;
+use zksync_test_contracts::Account;
 
 use super::*;
 use crate::testonly::{StateBuilder, TestAccount};
@@ -19,10 +22,9 @@ async fn submitting_tx_requires_one_connection() {
         .unwrap();
 
     let l2_chain_id = L2ChainId::default();
-    let fee_input = MockBatchFeeParamsProvider::default()
-        .get_batch_fee_input_scaled(1.0, 1.0)
-        .await
-        .unwrap();
+    let fee_params_provider: &dyn BatchFeeModelInputProvider =
+        &MockBatchFeeParamsProvider::default();
+    let fee_input = fee_params_provider.get_batch_fee_input().await.unwrap();
     let (base_fee, gas_per_pubdata) =
         derive_base_fee_and_gas_per_pubdata(fee_input, ProtocolVersionId::latest().into());
     let tx = create_l2_transaction(base_fee, gas_per_pubdata);
@@ -44,8 +46,7 @@ async fn submitting_tx_requires_one_connection() {
     let (tx_sender, _) = create_test_tx_sender(pool.clone(), l2_chain_id, tx_executor).await;
     let block_args = pending_block_args(&tx_sender).await;
 
-    let submission_result = tx_sender.submit_tx(tx, block_args).await.unwrap();
-    assert_matches!(submission_result.0, L2TxSubmissionResult::Added);
+    tx_sender.submit_tx(tx, block_args).await.unwrap();
 
     let mut storage = pool.connection().await.unwrap();
     storage
@@ -54,6 +55,16 @@ async fn submitting_tx_requires_one_connection() {
         .await
         .unwrap()
         .expect("transaction is not persisted");
+
+    let storage_tx = storage
+        .transactions_dal()
+        .get_storage_tx_by_hash(tx_hash)
+        .await
+        .unwrap()
+        .expect("transaction is not persisted");
+    // verify that no validation traces have been persisted
+    assert!(storage_tx.timestamp_asserter_range_start.is_none());
+    assert!(storage_tx.timestamp_asserter_range_start.is_none());
 }
 
 #[tokio::test]
@@ -117,10 +128,9 @@ async fn fee_validation_errors() {
     let l2_chain_id = L2ChainId::default();
     let tx_executor = SandboxExecutor::mock(MockOneshotExecutor::default()).await;
     let (tx_sender, _) = create_test_tx_sender(pool.clone(), l2_chain_id, tx_executor).await;
-    let fee_input = MockBatchFeeParamsProvider::default()
-        .get_batch_fee_input_scaled(1.0, 1.0)
-        .await
-        .unwrap();
+    let fee_params_provider: &dyn BatchFeeModelInputProvider =
+        &MockBatchFeeParamsProvider::default();
+    let fee_input = fee_params_provider.get_batch_fee_input().await.unwrap();
     let (base_fee, gas_per_pubdata) =
         derive_base_fee_and_gas_per_pubdata(fee_input, ProtocolVersionId::latest().into());
     let tx = create_l2_transaction(base_fee, gas_per_pubdata);
@@ -180,7 +190,7 @@ async fn sending_transfer() {
     let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let tx_sender = create_real_tx_sender(pool).await;
     let block_args = pending_block_args(&tx_sender).await;
-    let alice = K256PrivateKey::random();
+    let mut alice = Account::random();
 
     // Manually set sufficient balance for the tx initiator.
     let mut storage = tx_sender.acquire_replica_connection().await.unwrap();
@@ -191,9 +201,8 @@ async fn sending_transfer() {
     drop(storage);
 
     let transfer = alice.create_transfer(1_000_000_000.into());
-    let (sub_result, vm_result) = tx_sender.submit_tx(transfer, block_args).await.unwrap();
-    assert_matches!(sub_result, L2TxSubmissionResult::Added);
-    assert!(!vm_result.result.is_failed(), "{:?}", vm_result.result);
+    let vm_result = tx_sender.submit_tx(transfer, block_args).await.unwrap();
+    assert!(!vm_result.result.is_failed(), "{vm_result:?}");
 }
 
 #[tokio::test]
@@ -201,7 +210,7 @@ async fn sending_transfer_with_insufficient_balance() {
     let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let tx_sender = create_real_tx_sender(pool).await;
     let block_args = pending_block_args(&tx_sender).await;
-    let alice = K256PrivateKey::random();
+    let mut alice = Account::random();
     let transfer_value = 1_000_000_000.into();
 
     let transfer = alice.create_transfer(transfer_value);
@@ -218,7 +227,7 @@ async fn sending_transfer_with_incorrect_signature() {
     let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let tx_sender = create_real_tx_sender(pool).await;
     let block_args = pending_block_args(&tx_sender).await;
-    let alice = K256PrivateKey::random();
+    let mut alice = Account::random();
     let transfer_value = 1_000_000_000.into();
 
     let mut storage = tx_sender.acquire_replica_connection().await.unwrap();
@@ -240,7 +249,7 @@ async fn sending_load_test_transaction(tx_params: LoadnextContractExecutionParam
     let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let tx_sender = create_real_tx_sender(pool).await;
     let block_args = pending_block_args(&tx_sender).await;
-    let alice = K256PrivateKey::random();
+    let mut alice = Account::random();
 
     let mut storage = tx_sender.acquire_replica_connection().await.unwrap();
     StateBuilder::default()
@@ -251,9 +260,8 @@ async fn sending_load_test_transaction(tx_params: LoadnextContractExecutionParam
     drop(storage);
 
     let tx = alice.create_load_test_tx(tx_params);
-    let (sub_result, vm_result) = tx_sender.submit_tx(tx, block_args).await.unwrap();
-    assert_matches!(sub_result, L2TxSubmissionResult::Added);
-    assert!(!vm_result.result.is_failed(), "{:?}", vm_result.result);
+    let vm_result = tx_sender.submit_tx(tx, block_args).await.unwrap();
+    assert!(!vm_result.result.is_failed(), "{vm_result:?}");
 }
 
 #[tokio::test]
@@ -261,7 +269,7 @@ async fn sending_reverting_transaction() {
     let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let tx_sender = create_real_tx_sender(pool).await;
     let block_args = pending_block_args(&tx_sender).await;
-    let alice = K256PrivateKey::random();
+    let mut alice = Account::random();
 
     let mut storage = tx_sender.acquire_replica_connection().await.unwrap();
     StateBuilder::default()
@@ -272,7 +280,7 @@ async fn sending_reverting_transaction() {
     drop(storage);
 
     let tx = alice.create_counter_tx(1.into(), true);
-    let (_, vm_result) = tx_sender.submit_tx(tx, block_args).await.unwrap();
+    let vm_result = tx_sender.submit_tx(tx, block_args).await.unwrap();
     assert_matches!(
         vm_result.result,
         ExecutionResult::Revert { output } if output.to_string().contains("This method always reverts")
@@ -284,7 +292,7 @@ async fn sending_transaction_out_of_gas() {
     let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let tx_sender = create_real_tx_sender(pool).await;
     let block_args = pending_block_args(&tx_sender).await;
-    let alice = K256PrivateKey::random();
+    let mut alice = Account::random();
 
     let mut storage = tx_sender.acquire_replica_connection().await.unwrap();
     StateBuilder::default()
@@ -295,6 +303,89 @@ async fn sending_transaction_out_of_gas() {
     drop(storage);
 
     let tx = alice.create_infinite_loop_tx();
-    let (_, vm_result) = tx_sender.submit_tx(tx, block_args).await.unwrap();
+    let vm_result = tx_sender.submit_tx(tx, block_args).await.unwrap();
     assert_matches!(vm_result.result, ExecutionResult::Revert { .. });
+}
+
+async fn submit_tx_with_validation_traces(actual_range: Range<u64>, expected_range: Range<i64>) {
+    // This test verifies that when a transaction produces ValidationTraces,
+    // range_start and range_end get persisted in the database
+    let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
+    let mut storage = pool.connection().await.unwrap();
+    insert_genesis_batch(&mut storage, &GenesisParams::mock())
+        .await
+        .unwrap();
+
+    let l2_chain_id = L2ChainId::default();
+    let fee_params_provider: &dyn BatchFeeModelInputProvider =
+        &MockBatchFeeParamsProvider::default();
+    let fee_input = fee_params_provider.get_batch_fee_input().await.unwrap();
+    let (base_fee, gas_per_pubdata) =
+        derive_base_fee_and_gas_per_pubdata(fee_input, ProtocolVersionId::latest().into());
+    let tx = create_l2_transaction(base_fee, gas_per_pubdata);
+    let tx_hash = tx.hash();
+
+    // Manually set sufficient balance for the tx initiator.
+    StateBuilder::default()
+        .with_balance(tx.initiator_account(), u64::MAX.into())
+        .apply(&mut storage)
+        .await;
+    drop(storage);
+
+    let mut tx_executor = MockOneshotExecutor::default();
+    tx_executor.set_tx_responses(move |received_tx, _| {
+        assert_eq!(received_tx.hash(), tx_hash);
+        ExecutionResult::Success { output: vec![] }
+    });
+    tx_executor.set_tx_validation_traces_responses(move |tx, _| {
+        assert_eq!(tx.hash(), tx_hash);
+        ValidationTraces {
+            timestamp_asserter_range: Some(actual_range.clone()),
+        }
+    });
+
+    let tx_executor = SandboxExecutor::mock(tx_executor).await;
+    let (tx_sender, _) = create_test_tx_sender(pool.clone(), l2_chain_id, tx_executor).await;
+    let block_args = pending_block_args(&tx_sender).await;
+
+    tx_sender.submit_tx(tx, block_args).await.unwrap();
+
+    let mut storage = pool.connection().await.unwrap();
+    let storage_tx = storage
+        .transactions_dal()
+        .get_storage_tx_by_hash(tx_hash)
+        .await
+        .unwrap()
+        .expect("transaction is not persisted");
+    assert_eq!(
+        expected_range.start,
+        storage_tx
+            .timestamp_asserter_range_start
+            .unwrap()
+            .and_utc()
+            .timestamp()
+    );
+    assert_eq!(
+        expected_range.end,
+        storage_tx
+            .timestamp_asserter_range_end
+            .unwrap()
+            .and_utc()
+            .timestamp()
+    );
+}
+
+#[tokio::test]
+async fn submitting_tx_with_validation_traces() {
+    // This test verifies that when a transaction produces ValidationTraces,
+    // range_start and range_end get persisted in the database
+    submit_tx_with_validation_traces(10..20, 10..20).await;
+}
+
+#[tokio::test]
+async fn submitting_tx_with_validation_traces_resulting_into_overflow() {
+    // This test verifies that the timestamp in ValidationTraces is capped at
+    // the maximum value supported by the NaiveDateTime type
+    submit_tx_with_validation_traces(10..u64::MAX, 10..NaiveDateTime::MAX.and_utc().timestamp())
+        .await;
 }

@@ -1,7 +1,10 @@
 use crate::{
     configs::{
         base_token_adjuster::BaseTokenAdjusterConfig,
-        chain::{CircuitBreakerConfig, MempoolConfig, OperationsManagerConfig, StateKeeperConfig},
+        chain::{
+            CircuitBreakerConfig, MempoolConfig, OperationsManagerConfig, StateKeeperConfig,
+            TimestampAsserterConfig,
+        },
         consensus::ConsensusConfig,
         da_client::DAClientConfig,
         da_dispatcher::DADispatcherConfig,
@@ -56,4 +59,5 @@ pub struct GeneralConfig {
     pub external_proof_integration_api_config: Option<ExternalProofIntegrationApiConfig>,
     pub experimental_vm_config: Option<ExperimentalVmConfig>,
     pub prover_job_monitor_config: Option<ProverJobMonitorConfig>,
+    pub timestamp_asserter_config: Option<TimestampAsserterConfig>,
 }

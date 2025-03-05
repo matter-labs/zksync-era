@@ -3,6 +3,7 @@ import { promisify } from 'util';
 import fs from 'fs';
 import readline from 'readline';
 import chalk from 'chalk';
+export * from './node-spawner';
 
 export type { ChildProcess } from 'child_process';
 

@@ -1,6 +1,6 @@
 use anyhow::Context as _;
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes, SystemContractCode};
-use zksync_dal::{Connection, Core, CoreDal};
+use zksync_dal::{custom_genesis_export_dal::GenesisState, Connection, Core, CoreDal};
 use zksync_node_genesis::{ensure_genesis_state, GenesisParams};
 use zksync_types::{
     block::DeployedContract, system_contracts::get_system_smart_contracts, AccountTreeId, L2ChainId,
@@ -16,13 +16,14 @@ pub async fn perform_genesis_if_needed(
     storage: &mut Connection<'_, Core>,
     zksync_chain_id: L2ChainId,
     client: &dyn MainNodeClient,
+    custom_genesis_state: Option<GenesisState>,
 ) -> anyhow::Result<()> {
     let mut transaction = storage.start_transaction().await?;
     // We want to check whether the genesis is needed before we create genesis params to not
     // make the node startup slower.
     if transaction.blocks_dal().is_genesis_needed().await? {
         let genesis_params = create_genesis_params(client, zksync_chain_id).await?;
-        ensure_genesis_state(&mut transaction, &genesis_params)
+        ensure_genesis_state(&mut transaction, &genesis_params, custom_genesis_state)
             .await
             .context("ensure_genesis_state")?;
     }
@@ -110,20 +111,17 @@ async fn fetch_base_system_contracts(
             .fetch_system_contract_by_hash(hash)
             .await?
             .context("EVM emulator bytecode is missing on main node")?;
-        Some(SystemContractCode {
-            code: zksync_utils::bytes_to_be_words(bytes),
-            hash,
-        })
+        Some(SystemContractCode { code: bytes, hash })
     } else {
         None
     };
     Ok(BaseSystemContracts {
         bootloader: SystemContractCode {
-            code: zksync_utils::bytes_to_be_words(bootloader_bytecode),
+            code: bootloader_bytecode,
             hash: contract_hashes.bootloader,
         },
         default_aa: SystemContractCode {
-            code: zksync_utils::bytes_to_be_words(default_aa_bytecode),
+            code: default_aa_bytecode,
             hash: contract_hashes.default_aa,
         },
         evm_emulator,

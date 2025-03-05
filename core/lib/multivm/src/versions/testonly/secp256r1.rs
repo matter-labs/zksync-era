@@ -1,7 +1,6 @@
 use zk_evm_1_5_0::zkevm_opcode_defs::p256;
-use zksync_system_constants::P256VERIFY_PRECOMPILE_ADDRESS;
-use zksync_types::{web3::keccak256, Execute, H256, U256};
-use zksync_utils::h256_to_u256;
+use zksync_system_constants::SECP256R1_VERIFY_PRECOMPILE_ADDRESS;
+use zksync_types::{h256_to_u256, web3::keccak256, Execute, H256, U256};
 
 use super::{tester::VmTesterBuilder, TestedVm};
 use crate::interface::{ExecutionResult, InspectExecutionMode, TxExecutionMode, VmInterfaceExt};
@@ -45,7 +44,7 @@ pub(crate) fn test_secp256r1<VM: TestedVm>() {
 
     let tx = account.get_l2_tx_for_execute(
         Execute {
-            contract_address: Some(P256VERIFY_PRECOMPILE_ADDRESS),
+            contract_address: Some(SECP256R1_VERIFY_PRECOMPILE_ADDRESS),
             calldata: [digest, encoded_r, encoded_s, x, y].concat(),
             value: U256::zero(),
             factory_deps: vec![],

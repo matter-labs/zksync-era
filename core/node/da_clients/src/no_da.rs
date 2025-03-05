@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use zksync_da_client::{
-    types::{DAError, DispatchResponse, InclusionData},
+    types::{ClientType, DAError, DispatchResponse, InclusionData},
     DataAvailabilityClient,
 };
 
@@ -15,7 +15,7 @@ impl DataAvailabilityClient for NoDAClient {
     }
 
     async fn get_inclusion_data(&self, _: &str) -> Result<Option<InclusionData>, DAError> {
-        return Ok(Some(InclusionData::default()));
+        Ok(Some(InclusionData::default()))
     }
 
     fn clone_boxed(&self) -> Box<dyn DataAvailabilityClient> {
@@ -24,5 +24,13 @@ impl DataAvailabilityClient for NoDAClient {
 
     fn blob_size_limit(&self) -> Option<usize> {
         None
+    }
+
+    fn client_type(&self) -> ClientType {
+        ClientType::NoDA
+    }
+
+    async fn balance(&self) -> Result<u64, DAError> {
+        Ok(0)
     }
 }

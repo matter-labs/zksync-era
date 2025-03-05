@@ -1,15 +1,15 @@
 [package]
 name = "vm-benchmark"
-version = "0.1.0"
+version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish = false
 
 [dependencies]
 zksync_contracts.workspace = true
+zksync_test_contracts.workspace = true
 zksync_multivm.workspace = true
 zksync_types.workspace = true
-zksync_utils.workspace = true
 zksync_vlog.workspace = true
 zksync_vm2.workspace = true
 
@@ -17,7 +17,7 @@ criterion.workspace = true
 once_cell.workspace = true
 rand.workspace = true
 vise.workspace = true
-tokio.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread"] }
 
 [dev-dependencies]
 assert_matches.workspace = true

@@ -2,13 +2,6 @@ use std::{fs, fs::File, io::BufReader, path::PathBuf};
 
 use anyhow::Context;
 use clap::Parser;
-use common::{
-    config::global_config,
-    forge::{Forge, ForgeScriptArgs},
-    wallets::Wallet,
-    withdraw::ZKSProvider,
-};
-use config::{forge_interface::script_params::ZK_PREPARATION, EcosystemConfig};
 use ethers::{
     abi::parse_abi,
     contract::BaseContract,
@@ -19,12 +12,19 @@ use ethers::{
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use xshell::Shell;
+use zkstack_cli_common::{
+    config::global_config,
+    forge::{Forge, ForgeScriptArgs},
+    wallets::Wallet,
+    withdraw::ZKSProvider,
+};
+use zkstack_cli_config::{forge_interface::script_params::ZK_PREPARATION, EcosystemConfig};
 use zksync_basic_types::{H256, U256, U64};
-use zksync_types::L2ChainId;
+use zksync_types::{url::SensitiveUrl, L2ChainId};
 use zksync_web3_decl::client::{Client, L2};
 
 use crate::{
-    messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_L1_SECRETS_MUST_BE_PRESENTED},
+    messages::MSG_CHAIN_NOT_INITIALIZED,
     utils::forge::{check_the_balance, fill_forge_private_key},
 };
 
@@ -83,34 +83,24 @@ pub async fn run(args: DeployAndBridgeZKArgs, shell: &Shell) -> anyhow::Result<(
         .load_chain(chain_name)
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
 
-    let l1_url = chain_config
-        .get_secrets_config()?
-        .l1
-        .context(MSG_L1_SECRETS_MUST_BE_PRESENTED)?
-        .l1_rpc_url
-        .expose_str()
-        .to_string();
+    let l1_url: String = chain_config
+        .get_secrets_config()
+        .await?
+        .get("l1.l1_rpc_url")?;
 
     let era_chain_id = U256::from(chain_config.chain_id.0);
     let era_provider = Provider::<Http>::try_from(
         chain_config
             .get_general_config()
-            .unwrap()
-            .api_config
-            .unwrap()
-            .web3_json_rpc
-            .http_url,
+            .await?
+            .get::<SensitiveUrl>("api.web3_json_rpc.http_url")?
+            .expose_str(),
     )?;
     let era_client: Client<L2> = Client::http(
         chain_config
             .get_general_config()
-            .unwrap()
-            .api_config
-            .unwrap()
-            .web3_json_rpc
-            .http_url
-            .parse()
-            .unwrap(),
+            .await?
+            .get::<SensitiveUrl>("api.web3_json_rpc.http_url")?,
     )?
     .for_network(L2::from(L2ChainId(chain_config.chain_id.0)))
     .build();
@@ -258,7 +248,12 @@ async fn call_script(
         .with_calldata(data);
 
     // Governor private key is required for this script
-    forge = fill_forge_private_key(forge, Some(account)).expect("private key signing failed");
+    forge = fill_forge_private_key(
+        forge,
+        Some(account),
+        crate::utils::forge::WalletOwner::Deployer,
+    )
+    .expect("private key signing failed");
     let _ = check_the_balance(&forge).await;
     let _ = forge.run(shell);
 }
@@ -281,7 +276,12 @@ async fn call_script_era(
         .with_calldata(data);
 
     // Governor private key is required for this script
-    forge = fill_forge_private_key(forge, Some(account)).expect("private key signing failed");
+    forge = fill_forge_private_key(
+        forge,
+        Some(account),
+        crate::utils::forge::WalletOwner::Deployer,
+    )
+    .expect("private key signing failed");
     let _ = check_the_balance(&forge).await;
     let _ = forge.run(shell);
 }

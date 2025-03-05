@@ -1,6 +1,6 @@
-use circuit_sequencer_api_1_3_3::sort_storage_access::sort_storage_access_queries as sort_storage_access_queries_1_3_3;
-use itertools::Itertools;
-use zk_evm_1_3_1::aux_structures::LogQuery as LogQuery_1_3_1;
+use std::collections::HashMap;
+
+use circuit_sequencer_api::sort_storage_access::sort_storage_access_queries;
 use zksync_types::l2_to_l1_log::UserL2ToL1Log;
 
 use crate::{
@@ -9,6 +9,7 @@ use crate::{
         CurrentExecutionState, ExecutionResult, Refunds, VmExecutionLogs, VmExecutionResultAndLogs,
         VmExecutionStatistics,
     },
+    utils::glue_log_query,
 };
 
 // Note: In version after vm `VmVirtualBlocks` the bootloader memory knowledge is encapsulated into the VM.
@@ -19,18 +20,12 @@ use crate::{
 impl GlueFrom<crate::vm_m5::vm_instance::VmBlockResult> for crate::interface::FinishedL1Batch {
     fn glue_from(value: crate::vm_m5::vm_instance::VmBlockResult) -> Self {
         let storage_log_queries = value.full_result.storage_log_queries.clone();
-        let deduplicated_storage_logs: Vec<LogQuery_1_3_1> = sort_storage_access_queries_1_3_3(
-            &storage_log_queries
+        let deduplicated_storage_logs = sort_storage_access_queries(
+            storage_log_queries
                 .iter()
-                .map(|log| {
-                    GlueInto::<zk_evm_1_3_3::aux_structures::LogQuery>::glue_into(log.log_query)
-                })
-                .collect_vec(),
+                .map(|log| glue_log_query(log.log_query)),
         )
-        .1
-        .into_iter()
-        .map(GlueInto::<LogQuery_1_3_1>::glue_into)
-        .collect();
+        .1;
 
         crate::interface::FinishedL1Batch {
             block_tip_execution_result: VmExecutionResultAndLogs {
@@ -47,7 +42,7 @@ impl GlueFrom<crate::vm_m5::vm_instance::VmBlockResult> for crate::interface::Fi
                     circuit_statistic: Default::default(),
                 },
                 refunds: Refunds::default(),
-                new_known_factory_deps: None,
+                dynamic_factory_deps: HashMap::new(),
             },
             final_execution_state: CurrentExecutionState {
                 events: value.full_result.events,
@@ -76,18 +71,12 @@ impl GlueFrom<crate::vm_m5::vm_instance::VmBlockResult> for crate::interface::Fi
 impl GlueFrom<crate::vm_m6::vm_instance::VmBlockResult> for crate::interface::FinishedL1Batch {
     fn glue_from(value: crate::vm_m6::vm_instance::VmBlockResult) -> Self {
         let storage_log_queries = value.full_result.storage_log_queries.clone();
-        let deduplicated_storage_logs: Vec<LogQuery_1_3_1> = sort_storage_access_queries_1_3_3(
-            &storage_log_queries
+        let deduplicated_storage_logs = sort_storage_access_queries(
+            storage_log_queries
                 .iter()
-                .map(|log| {
-                    GlueInto::<zk_evm_1_3_3::aux_structures::LogQuery>::glue_into(log.log_query)
-                })
-                .collect_vec(),
+                .map(|log| glue_log_query(log.log_query)),
         )
-        .1
-        .into_iter()
-        .map(GlueInto::<LogQuery_1_3_1>::glue_into)
-        .collect();
+        .1;
 
         crate::interface::FinishedL1Batch {
             block_tip_execution_result: VmExecutionResultAndLogs {
@@ -104,7 +93,7 @@ impl GlueFrom<crate::vm_m6::vm_instance::VmBlockResult> for crate::interface::Fi
                     circuit_statistic: Default::default(),
                 },
                 refunds: Refunds::default(),
-                new_known_factory_deps: None,
+                dynamic_factory_deps: HashMap::new(),
             },
             final_execution_state: CurrentExecutionState {
                 events: value.full_result.events,
@@ -133,11 +122,12 @@ impl GlueFrom<crate::vm_m6::vm_instance::VmBlockResult> for crate::interface::Fi
 impl GlueFrom<crate::vm_1_3_2::vm_instance::VmBlockResult> for crate::interface::FinishedL1Batch {
     fn glue_from(value: crate::vm_1_3_2::vm_instance::VmBlockResult) -> Self {
         let storage_log_queries = value.full_result.storage_log_queries.clone();
-        let deduplicated_storage_logs =
-            circuit_sequencer_api_1_3_3::sort_storage_access::sort_storage_access_queries(
-                storage_log_queries.iter().map(|log| &log.log_query),
-            )
-            .1;
+        let deduplicated_storage_logs = sort_storage_access_queries(
+            storage_log_queries
+                .iter()
+                .map(|log| glue_log_query(log.log_query)),
+        )
+        .1;
 
         crate::interface::FinishedL1Batch {
             block_tip_execution_result: VmExecutionResultAndLogs {
@@ -160,7 +150,7 @@ impl GlueFrom<crate::vm_1_3_2::vm_instance::VmBlockResult> for crate::interface:
                     circuit_statistic: Default::default(),
                 },
                 refunds: Refunds::default(),
-                new_known_factory_deps: None,
+                dynamic_factory_deps: HashMap::new(),
             },
             final_execution_state: CurrentExecutionState {
                 events: value.full_result.events,
@@ -230,7 +220,7 @@ impl GlueFrom<crate::vm_1_3_2::vm_instance::VmBlockResult>
                 circuit_statistic: Default::default(),
             },
             refunds: Refunds::default(),
-            new_known_factory_deps: None,
+            dynamic_factory_deps: HashMap::new(),
         }
     }
 }
@@ -263,7 +253,7 @@ impl GlueFrom<crate::vm_m5::vm_instance::VmBlockResult>
                 circuit_statistic: Default::default(),
             },
             refunds: Refunds::default(),
-            new_known_factory_deps: None,
+            dynamic_factory_deps: HashMap::new(),
         }
     }
 }
@@ -312,7 +302,7 @@ impl GlueFrom<crate::vm_m6::vm_instance::VmBlockResult>
                 circuit_statistic: Default::default(),
             },
             refunds: Refunds::default(),
-            new_known_factory_deps: None,
+            dynamic_factory_deps: HashMap::new(),
         }
     }
 }

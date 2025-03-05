@@ -5,11 +5,10 @@ use zksync_dal::{Connection, Core, CoreDal};
 use zksync_multivm::interface::VmEvent;
 use zksync_system_constants::{CONTRACT_DEPLOYER_ADDRESS, L2_NATIVE_TOKEN_VAULT_ADDRESS};
 use zksync_types::{
-    ethabi,
+    ethabi, h256_to_address,
     tokens::{TokenInfo, TokenMetadata},
     Address, L2BlockNumber, H256,
 };
-use zksync_utils::h256_to_account_address;
 
 use crate::{
     io::seal_logic::SealStrategy,
@@ -28,9 +27,9 @@ fn extract_added_tokens(
             event.address == CONTRACT_DEPLOYER_ADDRESS
                 && event.indexed_topics.len() == 4
                 && event.indexed_topics[0] == VmEvent::DEPLOY_EVENT_SIGNATURE
-                && h256_to_account_address(&event.indexed_topics[1]) == l2_token_deployer_addr
+                && h256_to_address(&event.indexed_topics[1]) == l2_token_deployer_addr
         })
-        .map(|event| h256_to_account_address(&event.indexed_topics[3]));
+        .map(|event| h256_to_address(&event.indexed_topics[3]));
 
     extract_added_token_info_from_addresses(all_generated_events, deployed_tokens)
 }
@@ -73,7 +72,7 @@ fn extract_added_token_info_from_addresses(
                             || event.indexed_topics[0] == *BRIDGE_INITIALIZATION_SIGNATURE_OLD)
                 })
                 .map(|event| {
-                    let l1_token_address = h256_to_account_address(&event.indexed_topics[1]);
+                    let l1_token_address = h256_to_address(&event.indexed_topics[1]);
                     let mut dec_ev = ethabi::decode(
                         &[
                             ethabi::ParamType::String,
@@ -458,7 +457,7 @@ impl L2BlockSealSubtask for InsertL2ToL1LogsSubtask {
 mod tests {
     use zksync_dal::{ConnectionPool, Core};
     use zksync_multivm::{
-        interface::{TransactionExecutionResult, TxExecutionStatus},
+        interface::{tracer::ValidationTraces, TransactionExecutionResult, TxExecutionStatus},
         utils::{get_max_batch_gas_limit, get_max_gas_per_pubdata_byte},
         zk_evm_latest::ethereum_types::H256,
         VmVersion,
@@ -467,11 +466,11 @@ mod tests {
     use zksync_types::{
         block::L2BlockHeader,
         commitment::PubdataParams,
+        h256_to_u256,
         l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
         AccountTreeId, Address, L1BatchNumber, ProtocolVersionId, StorageKey, StorageLog,
         StorageLogKind, StorageLogWithPreviousValue,
     };
-    use zksync_utils::h256_to_u256;
 
     use super::*;
     use crate::updates::L2BlockUpdates;
@@ -487,7 +486,7 @@ mod tests {
             .await
             .unwrap()
             .transactions_dal()
-            .insert_transaction_l2(&tx, Default::default())
+            .insert_transaction_l2(&tx, Default::default(), ValidationTraces::default())
             .await
             .unwrap();
         let tx_hash = tx.hash();
@@ -497,8 +496,6 @@ mod tests {
             execution_info: Default::default(),
             execution_status: TxExecutionStatus::Success,
             refunded_gas: 0,
-            operator_suggested_refund: 0,
-            compressed_bytecodes: Vec::new(),
             call_traces: Vec::new(),
             revert_reason: None,
         }];
@@ -539,10 +536,10 @@ mod tests {
                 user_l2_to_l1_logs,
                 system_l2_to_l1_logs: Default::default(),
                 new_factory_deps,
-                l1_gas_count: Default::default(),
                 block_execution_metrics: Default::default(),
                 txs_encoding_size: Default::default(),
                 payload_encoding_size: Default::default(),
+                l1_tx_count: 0,
                 timestamp: 1,
                 number: L2BlockNumber(1),
                 prev_block_hash: Default::default(),
@@ -595,14 +592,12 @@ mod tests {
 
         // Check DAL doesn't return tx receipt before block header is saved.
         let mut connection = pool.connection().await.unwrap();
-        let tx_receipt = connection
+        let tx_receipts = connection
             .transactions_web3_dal()
             .get_transaction_receipts(&[tx_hash])
             .await
-            .unwrap()
-            .first()
-            .cloned();
-        assert!(tx_receipt.is_none());
+            .unwrap();
+        assert!(tx_receipts.is_empty(), "{tx_receipts:?}");
 
         // Insert block header.
         let l2_block_header = L2BlockHeader {
@@ -639,7 +634,8 @@ mod tests {
             .get_transaction_receipts(&[tx_hash])
             .await
             .unwrap()
-            .remove(0);
+            .remove(0)
+            .inner;
         assert_eq!(tx_receipt.block_number.as_u32(), 1);
         assert_eq!(tx_receipt.logs.len(), 1);
         assert_eq!(tx_receipt.l2_to_l1_logs.len(), 1);

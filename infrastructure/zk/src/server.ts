@@ -27,38 +27,7 @@ export async function server(
     if (components) {
         options += ` --components=${components}`;
     }
-    if (!timeToLive) {
-        await utils.spawn(`cargo run --bin zksync_server --release ${options}`);
-    } else {
-        console.log('Starting server');
-        const child = utils.background({
-            command: `cargo run --bin zksync_server --release ${options}`,
-            stdio: [null, 'inherit', 'inherit']
-        });
-
-        const promise = new Promise((resolve, reject) => {
-            child.on('error', reject);
-            child.on('close', (code, signal) => {
-                signal == 'SIGKILL'
-                    ? resolve(signal)
-                    : reject(`Child process exited with code ${code} and signal ${signal}`);
-            });
-        });
-
-        await utils.sleep(+timeToLive);
-
-        console.log(`${+timeToLive} seconds passed, killing the server.`);
-
-        // Kill the server after the time to live.
-        process.kill(-child.pid!, 'SIGKILL');
-
-        console.log('Waiting for the server to shut down.');
-
-        // Now waiting for the graceful shutdown of the server.
-        await promise;
-
-        console.log('Server successfully shut down.');
-    }
+    await utils.spawn(`cargo run --manifest-path core/Cargo.toml--bin zksync_server --release ${options}`);
 }
 
 export async function externalNode(reinit: boolean = false, args: string[]) {
@@ -78,7 +47,9 @@ export async function externalNode(reinit: boolean = false, args: string[]) {
         clean(path.dirname(process.env.EN_MERKLE_TREE_PATH!));
     }
 
-    await utils.spawn(`cargo run --release --bin zksync_external_node -- ${args.join(' ')}`);
+    await utils.spawn(
+        `cargo run --manifest-path core/Cargo.toml --release --bin zksync_external_node -- ${args.join(' ')}`
+    );
 }
 
 async function create_genesis(cmd: string) {
@@ -102,7 +73,7 @@ async function create_genesis(cmd: string) {
 export async function genesisFromSources() {
     // Note that that all the chains have the same chainId at genesis. It will be changed
     // via an upgrade transaction during the registration of the chain.
-    await create_genesis('cargo run --bin zksync_server --release -- --genesis');
+    await create_genesis('cargo run --manifest-path core/Cargo.toml --bin zksync_server --release -- --genesis');
 }
 
 // FIXME: remove this option once it is removed from the server

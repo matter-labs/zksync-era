@@ -2,12 +2,12 @@ use std::collections::HashMap;
 
 use assert_matches::assert_matches;
 use ethabi::Token;
-use zksync_contracts::{get_loadnext_contract, test_contracts::LoadnextContractExecutionParams};
-use zksync_test_account::{DeployContractsTx, TxType};
+use zksync_test_contracts::{
+    DeployContractsTx, LoadnextContractExecutionParams, TestContract, TxType,
+};
 use zksync_types::{Address, Execute, Nonce, U256};
 
 use super::{
-    read_test_contract,
     tester::{TransactionTestInfo, TxModifier, VmTesterBuilder},
     ContractToDeploy, TestedVm,
 };
@@ -21,10 +21,10 @@ pub(crate) fn test_vm_rollbacks<VM: TestedVm>() {
         .build::<VM>();
 
     let mut account = vm.rich_accounts[0].clone();
-    let counter = read_test_contract();
-    let tx_0 = account.get_deploy_tx(&counter, None, TxType::L2).tx;
-    let tx_1 = account.get_deploy_tx(&counter, None, TxType::L2).tx;
-    let tx_2 = account.get_deploy_tx(&counter, None, TxType::L2).tx;
+    let counter = TestContract::counter().bytecode;
+    let tx_0 = account.get_deploy_tx(counter, None, TxType::L2).tx;
+    let tx_1 = account.get_deploy_tx(counter, None, TxType::L2).tx;
+    let tx_2 = account.get_deploy_tx(counter, None, TxType::L2).tx;
 
     let result_without_rollbacks = vm.execute_and_verify_txs(&vec![
         TransactionTestInfo::new_processed(tx_0.clone(), false),
@@ -87,16 +87,16 @@ pub(crate) fn test_vm_loadnext_rollbacks<VM: TestedVm>() {
         .build::<VM>();
     let mut account = vm.rich_accounts[0].clone();
 
-    let loadnext_contract = get_loadnext_contract();
+    let loadnext_contract = TestContract::load_test();
     let loadnext_constructor_data = &[Token::Uint(U256::from(100))];
     let DeployContractsTx {
         tx: loadnext_deploy_tx,
         address,
         ..
     } = account.get_deploy_tx_with_factory_deps(
-        &loadnext_contract.bytecode,
+        loadnext_contract.bytecode,
         Some(loadnext_constructor_data),
-        loadnext_contract.factory_deps.clone(),
+        loadnext_contract.factory_deps(),
         TxType::L2,
     );
 
@@ -105,7 +105,8 @@ pub(crate) fn test_vm_loadnext_rollbacks<VM: TestedVm>() {
             contract_address: Some(address),
             calldata: LoadnextContractExecutionParams {
                 reads: 100,
-                writes: 100,
+                initial_writes: 100,
+                repeated_writes: 100,
                 events: 100,
                 hashes: 500,
                 recursive_calls: 10,
@@ -123,7 +124,8 @@ pub(crate) fn test_vm_loadnext_rollbacks<VM: TestedVm>() {
             contract_address: Some(address),
             calldata: LoadnextContractExecutionParams {
                 reads: 100,
-                writes: 100,
+                initial_writes: 100,
+                repeated_writes: 100,
                 events: 100,
                 hashes: 500,
                 recursive_calls: 10,
@@ -174,7 +176,7 @@ pub(crate) fn test_vm_loadnext_rollbacks<VM: TestedVm>() {
 }
 
 pub(crate) fn test_rollback_in_call_mode<VM: TestedVm>() {
-    let counter_bytecode = read_test_contract();
+    let counter_bytecode = TestContract::counter().bytecode.to_vec();
     let counter_address = Address::repeat_byte(1);
 
     let mut vm = VmTesterBuilder::new()

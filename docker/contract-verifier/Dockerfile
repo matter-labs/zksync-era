@@ -17,7 +17,7 @@ ENV RUSTC_WRAPPER=${RUSTC_WRAPPER}
 WORKDIR /usr/src/zksync
 COPY . .
 
-RUN cargo build --release
+RUN cargo build --manifest-path ./core/Cargo.toml --release --bin zksync_contract_verifier
 
 FROM ghcr.io/matter-labs/zksync-runtime-base:latest
 
@@ -47,7 +47,7 @@ RUN mkdir -p /etc/zksolc-bin/vm-1.5.0-a167aa3 && \
     chmod +x /etc/zksolc-bin/vm-1.5.0-a167aa3/zksolc
 
 # install zksolc 1.5.x
-RUN for VERSION in $(seq -f "v1.5.%g" 0 6); do \
+RUN for VERSION in $(seq -f "v1.5.%g" 0 7); do \
     mkdir -p /etc/zksolc-bin/$VERSION && \
     wget https://github.com/matter-labs/zksolc-bin/raw/main/linux-amd64/zksolc-linux-amd64-musl-$VERSION -O /etc/zksolc-bin/$VERSION/zksolc && \
     chmod +x /etc/zksolc-bin/$VERSION/zksolc; \
@@ -68,7 +68,7 @@ RUN for VERSION in $(seq -f "v1.4.%g" 0 1); do \
     done
 
 # install zkvyper 1.5.x
-RUN for VERSION in $(seq -f "v1.5.%g" 0 6); do \
+RUN for VERSION in $(seq -f "v1.5.%g" 0 7); do \
     mkdir -p /etc/zkvyper-bin/$VERSION && \
     wget https://github.com/matter-labs/zkvyper-bin/raw/main/linux-amd64/zkvyper-linux-amd64-musl-$VERSION -O /etc/zkvyper-bin/$VERSION/zkvyper && \
     chmod +x /etc/zkvyper-bin/$VERSION/zkvyper; \
@@ -96,7 +96,7 @@ RUN mkdir -p /etc/vyper-bin/0.4.0 \
     && mv vyper0.4.0 /etc/vyper-bin/0.4.0/vyper \
     && chmod +x /etc/vyper-bin/0.4.0/vyper
 
-COPY --from=builder /usr/src/zksync/target/release/zksync_contract_verifier /usr/bin/
+COPY --from=builder /usr/src/zksync/core/target/release/zksync_contract_verifier /usr/bin/
 COPY contracts/system-contracts/zkout/ /contracts/system-contracts/zkout/
 
 # CMD tail -f /dev/null

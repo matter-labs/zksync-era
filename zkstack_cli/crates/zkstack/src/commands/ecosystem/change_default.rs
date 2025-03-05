@@ -1,6 +1,6 @@
-use common::PromptSelect;
-use config::{traits::SaveConfigWithBasePath, EcosystemConfig};
 use xshell::Shell;
+use zkstack_cli_common::PromptSelect;
+use zkstack_cli_config::{traits::SaveConfigWithBasePath, EcosystemConfig};
 
 use crate::{
     commands::ecosystem::args::change_default::ChangeDefaultChain,

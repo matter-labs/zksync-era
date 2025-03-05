@@ -1,7 +1,6 @@
 use std::{collections::HashSet, rc::Rc};
 
-use zksync_types::{vm::VmVersion, Transaction};
-use zksync_utils::{bytecode::hash_bytecode, h256_to_u256};
+use zksync_types::{bytecode::BytecodeHash, h256_to_u256, vm::VmVersion, Transaction};
 use zksync_vm_interface::{pubdata::PubdataBuilder, InspectExecutionMode};
 
 use crate::{
@@ -14,7 +13,7 @@ use crate::{
     },
     tracers::old::TracerDispatcher,
     utils::bytecode,
-    vm_m6::{storage::Storage, vm_instance::MultiVMSubversion, VmInstance},
+    vm_m6::{storage::Storage, vm_instance::MultiVmSubversion, VmInstance},
 };
 
 #[derive(Debug)]
@@ -28,7 +27,7 @@ impl<S: Storage, H: HistoryMode> Vm<S, H> {
         batch_env: L1BatchEnv,
         system_env: SystemEnv,
         storage: StoragePtr<S>,
-        vm_sub_version: MultiVMSubversion,
+        vm_sub_version: MultiVmSubversion,
     ) -> Self {
         let oracle_tools = crate::vm_m6::OracleTools::new(storage.clone(), H::VmM6Mode::default());
         let block_properties = zk_evm_1_3_1::block_properties::BlockProperties {
@@ -143,7 +142,7 @@ impl<S: Storage, H: HistoryMode> VmInterface for Vm<S, H> {
             let mut deps_hashes = HashSet::with_capacity(deps.len());
             let mut bytecode_hashes = vec![];
             let filtered_deps = deps.iter().filter_map(|bytecode| {
-                let bytecode_hash = hash_bytecode(bytecode);
+                let bytecode_hash = BytecodeHash::for_bytecode(bytecode).value();
                 let is_known = !deps_hashes.insert(bytecode_hash)
                     || self.vm.is_bytecode_exists(&bytecode_hash);
 
@@ -220,8 +219,8 @@ impl<S: Storage, H: HistoryMode> VmFactory<S> for Vm<S, H> {
     fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self {
         let vm_version: VmVersion = system_env.version.into();
         let vm_sub_version = match vm_version {
-            VmVersion::M6Initial => MultiVMSubversion::V1,
-            VmVersion::M6BugWithCompressionFixed => MultiVMSubversion::V2,
+            VmVersion::M6Initial => MultiVmSubversion::V1,
+            VmVersion::M6BugWithCompressionFixed => MultiVmSubversion::V2,
             _ => panic!("Unsupported protocol version for vm_m6: {:?}", vm_version),
         };
         Self::new_with_subversion(batch_env, system_env, storage, vm_sub_version)

@@ -94,6 +94,9 @@ export interface TestEnvironment {
      */
     baseToken: Token;
     healthcheckPort: string;
+    timestampAsserterAddress: string;
+    timestampAsserterMinTimeTillEndSec: number;
+    l2WETHAddress: string | undefined;
 }
 
 /**

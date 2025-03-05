@@ -1,11 +1,11 @@
 use ethers::abi::Address;
 use serde::{Deserialize, Serialize};
-use types::ProverMode;
+use zkstack_cli_types::ProverMode;
 use zksync_basic_types::{H256, U256};
-use zksync_config::GenesisConfig;
 
 use crate::{
-    forge_interface::deploy_ecosystem::input::InitialDeploymentConfig, traits::ZkStackConfig,
+    forge_interface::deploy_ecosystem::input::{GenesisInput, InitialDeploymentConfig},
+    traits::ZkStackConfig,
     ChainConfig, ContractsConfig, EcosystemConfig,
 };
 
@@ -16,7 +16,9 @@ pub struct DeployGatewayCTMInput {
     native_token_vault_addr: Address,
     chain_type_manager_proxy_addr: Address,
     shared_bridge_proxy_addr: Address,
+
     governance: Address,
+    base_token: Address,
 
     chain_chain_id: U256,
     era_chain_id: U256,
@@ -47,6 +49,8 @@ pub struct DeployGatewayCTMInput {
     latest_protocol_version: U256,
 
     force_deployments_data: String,
+
+    expected_rollup_l2_da_validator: Address,
 }
 
 impl ZkStackConfig for DeployGatewayCTMInput {}
@@ -55,7 +59,7 @@ impl DeployGatewayCTMInput {
     pub fn new(
         chain_config: &ChainConfig,
         ecosystem_config: &EcosystemConfig,
-        genesis_config: &GenesisConfig,
+        genesis_input: &GenesisInput,
         contracts_config: &ContractsConfig,
         initial_deployment_config: &InitialDeploymentConfig,
     ) -> Self {
@@ -63,22 +67,29 @@ impl DeployGatewayCTMInput {
             bridgehub_proxy_addr: contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
             ctm_deployment_tracker_proxy_addr: contracts_config
                 .ecosystem_contracts
-                .stm_deployment_tracker_proxy_addr,
-            native_token_vault_addr: contracts_config.ecosystem_contracts.native_token_vault_addr,
+                .stm_deployment_tracker_proxy_addr
+                .expect("stm_deployment_tracker_proxy_addr"),
+            native_token_vault_addr: contracts_config
+                .ecosystem_contracts
+                .native_token_vault_addr
+                .expect("native_token_vault_addr"),
             chain_type_manager_proxy_addr: contracts_config
                 .ecosystem_contracts
                 .state_transition_proxy_addr,
             shared_bridge_proxy_addr: contracts_config.bridges.shared.l1_address,
-            governance: contracts_config.l1.governance_addr,
+            governance: ecosystem_config
+                .get_contracts_config()
+                .unwrap()
+                .l1
+                .governance_addr,
 
-            chain_chain_id: U256::from(chain_config.chain_id.0),
-            era_chain_id: U256::from(ecosystem_config.era_chain_id.0),
+            base_token: chain_config.base_token.address,
+
+            chain_chain_id: U256::from(chain_config.chain_id.as_u64()),
+            era_chain_id: U256::from(ecosystem_config.era_chain_id.as_u64()),
             l1_chain_id: U256::from(ecosystem_config.l1_network.chain_id()),
 
-            // TODO: import it similar to DeployL1 config?
             testnet_verifier: ecosystem_config.prover_version == ProverMode::NoProofs,
-
-            // TODO: we should store it in ecosystem config somehwow and reuse here
             recursion_node_level_vk_hash: H256::zero(),
             recursion_leaf_level_vk_hash: H256::zero(),
             recursion_circuits_set_vks_hash: H256::zero(),
@@ -96,21 +107,27 @@ impl DeployGatewayCTMInput {
             diamond_init_minimal_l2_gas_price: initial_deployment_config
                 .diamond_init_minimal_l2_gas_price,
 
-            bootloader_hash: genesis_config.bootloader_hash.unwrap(),
-            default_aa_hash: genesis_config.default_aa_hash.unwrap(),
+            bootloader_hash: genesis_input.bootloader_hash,
+            default_aa_hash: genesis_input.default_aa_hash,
 
             priority_tx_max_gas_limit: initial_deployment_config.priority_tx_max_gas_limit,
 
-            genesis_root: genesis_config.genesis_root_hash.unwrap(),
-            genesis_rollup_leaf_index: genesis_config.rollup_last_leaf_index.unwrap(),
-            genesis_batch_commitment: genesis_config.genesis_commitment.unwrap(),
+            genesis_root: genesis_input.genesis_root_hash,
+            genesis_rollup_leaf_index: genesis_input.rollup_last_leaf_index,
+            genesis_batch_commitment: genesis_input.genesis_commitment,
 
-            latest_protocol_version: genesis_config.protocol_version.unwrap().pack(),
+            latest_protocol_version: genesis_input.protocol_version.pack(),
+
+            expected_rollup_l2_da_validator: contracts_config
+                .ecosystem_contracts
+                .expected_rollup_l2_da_validator
+                .unwrap(),
 
             force_deployments_data: contracts_config
                 .ecosystem_contracts
                 .force_deployments_data
-                .clone(),
+                .clone()
+                .expect("force_deployments_data"),
         }
     }
 }

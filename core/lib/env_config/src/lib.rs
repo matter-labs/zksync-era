@@ -1,4 +1,3 @@
-use anyhow::Context as _;
 use serde::de::DeserializeOwned;
 
 mod api;
@@ -32,14 +31,11 @@ mod test_utils;
 mod vm_runner;
 mod wallets;
 
-mod da_client;
+pub mod da_client;
+mod timestamp_asserter;
 
 pub trait FromEnv: Sized {
     fn from_env() -> anyhow::Result<Self>;
-}
-
-pub trait FromEnvVariant: Sized {
-    fn from_env_variant(variant_prefix: String) -> anyhow::Result<Self>;
 }
 
 /// Convenience function that loads the structure from the environment variable given the prefix.
@@ -47,5 +43,5 @@ pub trait FromEnvVariant: Sized {
 pub fn envy_load<T: DeserializeOwned>(name: &str, prefix: &str) -> anyhow::Result<T> {
     envy::prefixed(prefix)
         .from_env()
-        .with_context(|| format!("Cannot load config <{name}>"))
+        .map_err(|e| anyhow::anyhow!("Failed to load {} from env: {}", name, e))
 }

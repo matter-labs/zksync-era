@@ -1,13 +1,10 @@
-use std::{path::PathBuf, str::FromStr};
-
 use anyhow::{bail, Context};
-use common::{git, logger, spinner::Spinner};
-use config::{
+use xshell::Shell;
+use zkstack_cli_common::{logger, spinner::Spinner};
+use zkstack_cli_config::{
     create_local_configs_dir, create_wallets, get_default_era_chain_id,
     traits::SaveConfigWithBasePath, EcosystemConfig, EcosystemConfigFromFileError,
-    ZKSYNC_ERA_GIT_REPO,
 };
-use xshell::Shell;
 
 use crate::{
     commands::{
@@ -22,26 +19,27 @@ use crate::{
         },
     },
     messages::{
-        msg_created_ecosystem, MSG_ARGS_VALIDATOR_ERR, MSG_CLONING_ERA_REPO_SPINNER,
-        MSG_CREATING_DEFAULT_CHAIN_SPINNER, MSG_CREATING_ECOSYSTEM,
-        MSG_CREATING_INITIAL_CONFIGURATIONS_SPINNER, MSG_ECOSYSTEM_ALREADY_EXISTS_ERR,
-        MSG_ECOSYSTEM_CONFIG_INVALID_ERR, MSG_SELECTED_CONFIG, MSG_STARTING_CONTAINERS_SPINNER,
+        msg_created_ecosystem, MSG_ARGS_VALIDATOR_ERR, MSG_CREATING_DEFAULT_CHAIN_SPINNER,
+        MSG_CREATING_ECOSYSTEM, MSG_CREATING_INITIAL_CONFIGURATIONS_SPINNER,
+        MSG_ECOSYSTEM_ALREADY_EXISTS_ERR, MSG_ECOSYSTEM_CONFIG_INVALID_ERR, MSG_SELECTED_CONFIG,
+        MSG_STARTING_CONTAINERS_SPINNER,
     },
+    utils::link_to_code::resolve_link_to_code,
 };
 
-pub fn run(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
+pub async fn run(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
     match EcosystemConfig::from_file(shell) {
         Ok(_) => bail!(MSG_ECOSYSTEM_ALREADY_EXISTS_ERR),
         Err(EcosystemConfigFromFileError::InvalidConfig { .. }) => {
             bail!(MSG_ECOSYSTEM_CONFIG_INVALID_ERR)
         }
-        Err(EcosystemConfigFromFileError::NotExists { .. }) => create(args, shell)?,
+        Err(EcosystemConfigFromFileError::NotExists { .. }) => create(args, shell).await?,
     };
 
     Ok(())
 }
 
-fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
+async fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
     let args = args
         .fill_values_with_prompt(shell)
         .context(MSG_ARGS_VALIDATOR_ERR)?;
@@ -55,21 +53,12 @@ fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
 
     let configs_path = create_local_configs_dir(shell, ".")?;
 
-    let link_to_code = if args.link_to_code.is_empty() {
-        let spinner = Spinner::new(MSG_CLONING_ERA_REPO_SPINNER);
-        let link_to_code = git::clone(
-            shell,
-            shell.current_dir(),
-            ZKSYNC_ERA_GIT_REPO,
-            "zksync-era",
-        )?;
-        spinner.finish();
-        link_to_code
-    } else {
-        let path = PathBuf::from_str(&args.link_to_code)?;
-        git::submodule_update(shell, path.clone())?;
-        path
-    };
+    let link_to_code = resolve_link_to_code(
+        shell,
+        shell.current_dir(),
+        args.link_to_code.clone(),
+        args.update_submodules,
+    )?;
 
     let spinner = Spinner::new(MSG_CREATING_INITIAL_CONFIGURATIONS_SPINNER);
     let chain_config = args.chain_config();
@@ -107,7 +96,7 @@ fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
     spinner.finish();
 
     let spinner = Spinner::new(MSG_CREATING_DEFAULT_CHAIN_SPINNER);
-    create_chain_inner(chain_config, &ecosystem_config, shell)?;
+    create_chain_inner(chain_config, &ecosystem_config, shell).await?;
     spinner.finish();
 
     if args.start_containers {

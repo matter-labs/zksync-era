@@ -11,7 +11,7 @@ import {
 import { checkReceipt } from '../src/modifiers/receipt-check';
 
 import * as zksync from 'zksync-ethers';
-import { scaledGasPrice, waitForBlockToBeFinalizedOnL1 } from '../src/helpers';
+import { scaledGasPrice, waitForL2ToL1LogProof } from '../src/helpers';
 import { ethers } from 'ethers';
 
 describe('ETH token checks', () => {
@@ -59,8 +59,14 @@ describe('ETH token checks', () => {
 
         const gasPerPubdataByte = zksync.utils.REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_LIMIT;
 
-        // FIXME: restore the old logic
-        const l2GasLimit = 10_000_000;
+        const l2GasLimit = await alice.provider.estimateDefaultBridgeDepositL2Gas(
+            alice.providerL1!,
+            zksync.utils.ETH_ADDRESS_IN_CONTRACTS,
+            amount,
+            alice.address,
+            alice.address,
+            gasPerPubdataByte
+        );
         const expectedL2Costs = await alice.getBaseCost({
             gasLimit: l2GasLimit,
             gasPerPubdataByte,
@@ -255,7 +261,7 @@ describe('ETH token checks', () => {
         await expect(withdrawalPromise).toBeAccepted([l2ethBalanceChange]);
         const withdrawalTx = await withdrawalPromise;
         const l2TxReceipt = await alice.provider.getTransactionReceipt(withdrawalTx.hash);
-        await waitForBlockToBeFinalizedOnL1(alice, l2TxReceipt!.blockNumber);
+        await waitForL2ToL1LogProof(alice, l2TxReceipt!.blockNumber, withdrawalTx.hash);
 
         // TODO (SMA-1374): Enable L1 ETH checks as soon as they're supported.
         await expect(alice.finalizeWithdrawal(withdrawalTx.hash)).toBeAccepted();

@@ -1,10 +1,9 @@
 use std::collections::HashMap;
 
 use zksync_types::{
-    writes::compression::compress_with_best_strategy, StorageKey, StorageLogKind,
-    StorageLogWithPreviousValue, H256,
+    h256_to_u256, writes::compression::compress_with_best_strategy, StorageKey, StorageLog,
+    StorageLogKind, StorageLogWithPreviousValue, H256,
 };
-use zksync_utils::h256_to_u256;
 
 use crate::interface::DeduplicatedWritesMetrics;
 
@@ -50,6 +49,20 @@ impl StorageWritesDeduplicator {
 
     pub fn into_modified_key_values(self) -> HashMap<StorageKey, ModifiedSlot> {
         self.modified_key_values
+    }
+
+    /// Deduplicates the provided logs in isolation.
+    pub fn deduplicate_logs<'a>(
+        logs: impl Iterator<Item = &'a StorageLogWithPreviousValue>,
+    ) -> Vec<StorageLog> {
+        let mut deduplicator = Self::new();
+        deduplicator.apply(logs);
+        let deduplicated_logs = deduplicator.into_modified_key_values();
+
+        deduplicated_logs
+            .into_iter()
+            .map(|(key, ModifiedSlot { value, .. })| StorageLog::new_write_log(key, value))
+            .collect()
     }
 
     /// Applies storage logs to the state.
@@ -211,8 +224,7 @@ impl StorageWritesDeduplicator {
 
 #[cfg(test)]
 mod tests {
-    use zksync_types::{AccountTreeId, StorageLog, H160, U256};
-    use zksync_utils::u256_to_h256;
+    use zksync_types::{u256_to_h256, AccountTreeId, StorageLog, H160, U256};
 
     use super::*;
 

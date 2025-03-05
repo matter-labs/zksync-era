@@ -1,7 +1,7 @@
 //! Test utilities that can be used for testing sequencer that may
 //! be useful outside of this crate.
 
-use std::collections::HashMap;
+use std::collections::HashSet;
 
 use async_trait::async_trait;
 use once_cell::sync::Lazy;
@@ -10,18 +10,16 @@ use zksync_dal::{Connection, ConnectionPool, Core, CoreDal as _};
 use zksync_multivm::interface::{
     executor::{BatchExecutor, BatchExecutorFactory},
     storage::{InMemoryStorage, StorageView},
-    BatchTransactionExecutionResult, ExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv,
-    SystemEnv, VmExecutionResultAndLogs,
+    BatchTransactionExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv,
+    VmExecutionResultAndLogs,
 };
 use zksync_state::OwnedStorage;
-use zksync_test_account::Account;
 use zksync_types::{
-    commitment::PubdataParams, fee::Fee, get_code_key, get_known_code_key,
-    utils::storage_key_for_standard_token_balance, AccountTreeId, Address, Execute, L1BatchNumber,
-    L2BlockNumber, PriorityOpId, StorageLog, Transaction, H256, L2_BASE_TOKEN_ADDRESS,
-    SYSTEM_CONTEXT_MINIMAL_BASE_FEE, U256,
+    commitment::PubdataParams, fee::Fee, u256_to_h256,
+    utils::storage_key_for_standard_token_balance, AccountTreeId, Address, L1BatchNumber,
+    L2BlockNumber, StorageLog, Transaction, L2_BASE_TOKEN_ADDRESS, SYSTEM_CONTEXT_MINIMAL_BASE_FEE,
+    U256,
 };
-use zksync_utils::{bytecode::hash_bytecode, u256_to_h256};
 
 pub mod test_batch_executor;
 
@@ -31,14 +29,8 @@ pub(super) static BASE_SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> =
 /// Creates a `TxExecutionResult` object denoting a successful tx execution.
 pub(crate) fn successful_exec() -> BatchTransactionExecutionResult {
     BatchTransactionExecutionResult {
-        tx_result: Box::new(VmExecutionResultAndLogs {
-            result: ExecutionResult::Success { output: vec![] },
-            logs: Default::default(),
-            statistics: Default::default(),
-            refunds: Default::default(),
-            new_known_factory_deps: None,
-        }),
-        compressed_bytecodes: vec![],
+        tx_result: Box::new(VmExecutionResultAndLogs::mock_success()),
+        compression_result: Ok(()),
         call_traces: vec![],
     }
 }
@@ -84,25 +76,28 @@ impl BatchExecutor<OwnedStorage> for MockBatchExecutor {
     }
 }
 
-async fn apply_genesis_log<'a>(storage: &mut Connection<'a, Core>, log: StorageLog) {
+pub(crate) async fn apply_genesis_logs(storage: &mut Connection<'_, Core>, logs: &[StorageLog]) {
     storage
         .storage_logs_dal()
-        .append_storage_logs(L2BlockNumber(0), &[log])
+        .append_storage_logs(L2BlockNumber(0), logs)
         .await
         .unwrap();
-    if storage
+
+    let all_hashed_keys: Vec<_> = logs.iter().map(|log| log.key.hashed_key()).collect();
+    let repeated_writes = storage
         .storage_logs_dedup_dal()
-        .filter_written_slots(&[log.key.hashed_key()])
+        .filter_written_slots(&all_hashed_keys)
         .await
-        .unwrap()
-        .is_empty()
-    {
-        storage
-            .storage_logs_dedup_dal()
-            .insert_initial_writes(L1BatchNumber(0), &[log.key.hashed_key()])
-            .await
-            .unwrap();
-    }
+        .unwrap();
+    let initial_writes: Vec<_> = HashSet::from_iter(all_hashed_keys)
+        .difference(&repeated_writes)
+        .copied()
+        .collect();
+    storage
+        .storage_logs_dedup_dal()
+        .insert_initial_writes(L1BatchNumber(0), &initial_writes)
+        .await
+        .unwrap();
 }
 
 /// Adds funds for specified account list.
@@ -111,43 +106,18 @@ pub async fn fund(pool: &ConnectionPool<Core>, addresses: &[Address]) {
     let mut storage = pool.connection().await.unwrap();
 
     let eth_amount = U256::from(10u32).pow(U256::from(32)); //10^32 wei
+    let storage_logs: Vec<_> = addresses
+        .iter()
+        .map(|address| {
+            let key = storage_key_for_standard_token_balance(
+                AccountTreeId::new(L2_BASE_TOKEN_ADDRESS),
+                address,
+            );
+            StorageLog::new_write_log(key, u256_to_h256(eth_amount))
+        })
+        .collect();
 
-    for address in addresses {
-        let key = storage_key_for_standard_token_balance(
-            AccountTreeId::new(L2_BASE_TOKEN_ADDRESS),
-            address,
-        );
-        let value = u256_to_h256(eth_amount);
-        let storage_log = StorageLog::new_write_log(key, value);
-
-        apply_genesis_log(&mut storage, storage_log).await;
-    }
-}
-
-pub async fn setup_contract(pool: &ConnectionPool<Core>, address: Address, code: Vec<u8>) {
-    let mut storage = pool.connection().await.unwrap();
-
-    let hash: H256 = hash_bytecode(&code);
-    let known_code_key = get_known_code_key(&hash);
-    let code_key = get_code_key(&address);
-
-    let logs = vec![
-        StorageLog::new_write_log(known_code_key, H256::from_low_u64_be(1u64)),
-        StorageLog::new_write_log(code_key, hash),
-    ];
-
-    for log in logs {
-        apply_genesis_log(&mut storage, log).await;
-    }
-
-    let mut factory_deps = HashMap::new();
-    factory_deps.insert(hash, code);
-
-    storage
-        .factory_deps_dal()
-        .insert_factory_deps(L2BlockNumber(0), &factory_deps)
-        .await
-        .unwrap();
+    apply_genesis_logs(&mut storage, &storage_logs).await;
 }
 
 pub(crate) const DEFAULT_GAS_PER_PUBDATA: u32 = 10000;
@@ -159,30 +129,4 @@ pub fn fee(gas_limit: u32) -> Fee {
         max_priority_fee_per_gas: U256::zero(),
         gas_per_pubdata_limit: U256::from(DEFAULT_GAS_PER_PUBDATA),
     }
-}
-
-/// Returns a valid L2 transaction.
-/// Automatically increments nonce of the account.
-pub fn l2_transaction(account: &mut Account, gas_limit: u32) -> Transaction {
-    account.get_l2_tx_for_execute(
-        Execute {
-            contract_address: Some(Address::random()),
-            calldata: vec![],
-            value: Default::default(),
-            factory_deps: vec![],
-        },
-        Some(fee(gas_limit)),
-    )
-}
-
-pub fn l1_transaction(account: &mut Account, serial_id: PriorityOpId) -> Transaction {
-    account.get_l1_tx(
-        Execute {
-            contract_address: Some(Address::random()),
-            value: Default::default(),
-            calldata: vec![],
-            factory_deps: vec![],
-        },
-        serial_id.0,
-    )
 }

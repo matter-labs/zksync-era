@@ -1,7 +1,6 @@
 use std::{convert::TryInto, str::FromStr};
 
 use bigdecimal::Zero;
-use serde_json::Value;
 use sqlx::types::chrono::{DateTime, NaiveDateTime, Utc};
 use zksync_types::{
     api::{self, TransactionDetails, TransactionReceipt, TransactionStatus},
@@ -12,15 +11,16 @@ use zksync_types::{
     transaction_request::PaymasterParams,
     web3::Bytes,
     Address, Execute, ExecuteTransactionCommon, L1TxCommonData, L2ChainId, L2TxCommonData, Nonce,
-    PackedEthSignature, PriorityOpId, ProtocolVersionId, Transaction, EIP_1559_TX_TYPE,
-    EIP_2930_TX_TYPE, EIP_712_TX_TYPE, H160, H256, PRIORITY_OPERATION_L2_TX_TYPE,
-    PROTOCOL_UPGRADE_TX_TYPE, U256, U64,
+    PackedEthSignature, PriorityOpId, ProtocolVersionId, Transaction,
+    TransactionTimeRangeConstraint, EIP_1559_TX_TYPE, EIP_2930_TX_TYPE, EIP_712_TX_TYPE, H160,
+    H256, PRIORITY_OPERATION_L2_TX_TYPE, PROTOCOL_UPGRADE_TX_TYPE, U256, U64,
 };
-use zksync_utils::{bigdecimal_to_u256, h256_to_account_address};
 use zksync_vm_interface::Call;
 
 use super::call::{LegacyCall, LegacyMixedCall};
-use crate::BigDecimal;
+use crate::{
+    models::bigdecimal_to_u256, transactions_web3_dal::ExtendedTransactionReceipt, BigDecimal,
+};
 
 #[derive(Debug, Clone, sqlx::FromRow)]
 #[cfg_attr(test, derive(Default))]
@@ -67,6 +67,9 @@ pub struct StorageTransaction {
 
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
+
+    pub timestamp_asserter_range_start: Option<NaiveDateTime>,
+    pub timestamp_asserter_range_end: Option<NaiveDateTime>,
 
     // DEPRECATED.
     pub l1_block_number: Option<i32>,
@@ -321,6 +324,18 @@ impl From<StorageTransaction> for Transaction {
     }
 }
 
+impl From<&StorageTransaction> for TransactionTimeRangeConstraint {
+    fn from(tx: &StorageTransaction) -> Self {
+        Self {
+            timestamp_asserter_range: tx.timestamp_asserter_range_start.and_then(|start| {
+                tx.timestamp_asserter_range_end.map(|end| {
+                    (start.and_utc().timestamp() as u64)..(end.and_utc().timestamp() as u64)
+                })
+            }),
+        }
+    }
+}
+
 #[derive(sqlx::FromRow)]
 pub(crate) struct StorageTransactionReceipt {
     pub error: Option<String>,
@@ -333,15 +348,16 @@ pub(crate) struct StorageTransactionReceipt {
     pub l1_batch_number: Option<i64>,
     pub transfer_to: Option<serde_json::Value>,
     pub execute_contract_address: Option<serde_json::Value>,
+    pub calldata: serde_json::Value,
     pub refunded_gas: i64,
     pub gas_limit: Option<BigDecimal>,
     pub effective_gas_price: Option<BigDecimal>,
-    pub contract_address: Option<Vec<u8>>,
     pub initiator_address: Vec<u8>,
+    pub nonce: Option<i64>,
     pub block_timestamp: Option<i64>,
 }
 
-impl From<StorageTransactionReceipt> for TransactionReceipt {
+impl From<StorageTransactionReceipt> for ExtendedTransactionReceipt {
     fn from(storage_receipt: StorageTransactionReceipt) -> Self {
         let status = storage_receipt.error.map_or_else(U64::one, |_| U64::zero());
 
@@ -352,18 +368,16 @@ impl From<StorageTransactionReceipt> for TransactionReceipt {
             .index_in_block
             .map_or_else(Default::default, U64::from);
 
-        // For better compatibility with various clients, we never return `None` recipient address.
         let to = storage_receipt
             .transfer_to
             .or(storage_receipt.execute_contract_address)
             .and_then(|addr| {
                 serde_json::from_value::<Option<Address>>(addr)
                     .expect("invalid address value in the database")
-            })
-            .unwrap_or_else(Address::zero);
+            });
 
         let block_hash = H256::from_slice(&storage_receipt.block_hash);
-        TransactionReceipt {
+        let inner = TransactionReceipt {
             transaction_hash: H256::from_slice(&storage_receipt.tx_hash),
             transaction_index,
             block_hash,
@@ -371,7 +385,7 @@ impl From<StorageTransactionReceipt> for TransactionReceipt {
             l1_batch_tx_index: storage_receipt.l1_batch_tx_index.map(U64::from),
             l1_batch_number: storage_receipt.l1_batch_number.map(U64::from),
             from: H160::from_slice(&storage_receipt.initiator_address),
-            to: Some(to),
+            to,
             cumulative_gas_used: Default::default(), // TODO: Should be actually calculated (SMA-1183).
             gas_used: {
                 let refunded_gas: U256 = storage_receipt.refunded_gas.into();
@@ -386,17 +400,21 @@ impl From<StorageTransactionReceipt> for TransactionReceipt {
                     .map(bigdecimal_to_u256)
                     .unwrap_or_default(),
             ),
-            contract_address: storage_receipt
-                .contract_address
-                .map(|addr| h256_to_account_address(&H256::from_slice(&addr))),
+            contract_address: None, // Must be filled in separately
             logs: vec![],
             l2_to_l1_logs: vec![],
             status,
-            root: block_hash,
             logs_bloom: Default::default(),
             // Even though the Rust SDK recommends us to supply "None" for legacy transactions
             // we always supply some number anyway to have the same behavior as most popular RPCs
             transaction_type: Some(tx_type),
+        };
+
+        Self {
+            inner,
+            nonce: (storage_receipt.nonce.unwrap_or(0) as u64).into(),
+            calldata: serde_json::from_value(storage_receipt.calldata)
+                .expect("incorrect calldata in Postgres"),
         }
     }
 }
@@ -405,7 +423,7 @@ impl From<StorageTransactionReceipt> for TransactionReceipt {
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct StorageTransactionExecutionInfo {
     /// This is an opaque JSON field, with VM version specific contents.
-    pub execution_info: Value,
+    pub execution_info: serde_json::Value,
 }
 
 #[derive(Debug, Clone, sqlx::FromRow)]
@@ -527,6 +545,13 @@ impl StorageApiTransaction {
                 .or_else(|| self.max_fee_per_gas.clone())
                 .unwrap_or_else(BigDecimal::zero),
         };
+        // Legacy transactions are not supposed to have `yParity` and are reliant on `v` instead.
+        // Other transactions are required to have `yParity` which replaces the deprecated `v` value
+        // (still included for backwards compatibility).
+        let y_parity = match self.tx_format {
+            None | Some(0) => None,
+            _ => signature.as_ref().map(|s| U64::from(s.v())),
+        };
         let mut tx = api::Transaction {
             hash: H256::from_slice(&self.tx_hash),
             nonce: U256::from(self.nonce.unwrap_or(0) as u64),
@@ -539,6 +564,7 @@ impl StorageApiTransaction {
             gas_price: Some(bigdecimal_to_u256(gas_price)),
             gas: bigdecimal_to_u256(self.gas_limit.unwrap_or_else(BigDecimal::zero)),
             input: serde_json::from_value(self.calldata).expect("incorrect calldata in Postgres"),
+            y_parity,
             v: signature.as_ref().map(|s| U64::from(s.v())),
             r: signature.as_ref().map(|s| U256::from(s.r())),
             s: signature.as_ref().map(|s| U256::from(s.s())),
@@ -569,6 +595,7 @@ pub(crate) struct CallTrace {
     pub call_trace: Vec<u8>,
     pub tx_hash: Vec<u8>,
     pub tx_index_in_block: Option<i32>,
+    pub tx_error: Option<String>,
 }
 
 impl CallTrace {

@@ -1,4 +1,4 @@
-use zksync_basic_types::{web3::Bytes, Address};
+use zksync_basic_types::{web3::Bytes, Address, SLChainId};
 
 use super::ContractsConfig;
 
@@ -28,46 +28,46 @@ pub struct GatewayChainConfig {
     pub validator_timelock_addr: Address,
     pub multicall3_addr: Address,
     pub diamond_proxy_addr: Address,
+    // TODO(EVM-921): there is no "governace" for a chain, only an admin, we
+    // need to figure out what we mean here
     pub chain_admin_addr: Option<Address>,
     pub governance_addr: Address,
-    pub settlement_layer: u64,
+    pub gateway_chain_id: SLChainId,
 }
 
 impl GatewayChainConfig {
     pub fn from_gateway_and_chain_data(
         gateway_config: &GatewayConfig,
         diamond_proxy_addr: Address,
-        chain_admin_addr: Address,
-        settlement_layer: u64,
+        l2_chain_admin_addr: Address,
+        gateway_chain_id: SLChainId,
     ) -> Self {
-        // FIXME: there is no "governnace" for a chain, only an admin, we
-        // need to figure out what we mean here
-
         Self {
             state_transition_proxy_addr: gateway_config.state_transition_proxy_addr,
             validator_timelock_addr: gateway_config.validator_timelock_addr,
             multicall3_addr: gateway_config.multicall3_addr,
             diamond_proxy_addr,
-            chain_admin_addr: Some(chain_admin_addr),
-            governance_addr: chain_admin_addr,
-            settlement_layer,
+            chain_admin_addr: Some(l2_chain_admin_addr),
+            governance_addr: l2_chain_admin_addr,
+            gateway_chain_id,
         }
     }
-}
 
-impl From<ContractsConfig> for GatewayChainConfig {
-    fn from(value: ContractsConfig) -> Self {
+    pub fn from_contracts_and_chain_id(
+        contracts: ContractsConfig,
+        gateway_chain_id: SLChainId,
+    ) -> Self {
         Self {
-            state_transition_proxy_addr: value
+            state_transition_proxy_addr: contracts
                 .ecosystem_contracts
                 .unwrap()
                 .state_transition_proxy_addr,
-            validator_timelock_addr: value.validator_timelock_addr,
-            multicall3_addr: value.l1_multicall3_addr,
-            diamond_proxy_addr: value.diamond_proxy_addr,
-            chain_admin_addr: value.chain_admin_addr,
-            governance_addr: value.governance_addr,
-            settlement_layer: value.settlement_layer.unwrap(),
+            validator_timelock_addr: contracts.validator_timelock_addr,
+            multicall3_addr: contracts.l1_multicall3_addr,
+            diamond_proxy_addr: contracts.diamond_proxy_addr,
+            chain_admin_addr: contracts.chain_admin_addr,
+            governance_addr: contracts.governance_addr,
+            gateway_chain_id,
         }
     }
 }

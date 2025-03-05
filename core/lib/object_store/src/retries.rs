@@ -41,10 +41,10 @@ impl Request<'_> {
                 Ok(result) => break Ok(result),
                 Err(err) if err.is_retriable() => {
                     if retries > max_retries {
-                        tracing::warn!(%err, "Exhausted {max_retries} retries performing request; returning last error");
+                        tracing::warn!(?err, "Exhausted {max_retries} retries performing request; returning last error");
                         break Err(err);
                     }
-                    tracing::info!(%err, "Failed request, retries: {retries}/{max_retries}");
+                    tracing::info!(?err, "Failed request, retries: {retries}/{max_retries}");
                     retries += 1;
                     // Randomize sleep duration to prevent stampeding the server if multiple requests are initiated at the same time.
                     let sleep_duration = Duration::from_secs(backoff_secs)
@@ -53,7 +53,6 @@ impl Request<'_> {
                     backoff_secs *= 2;
                 }
                 Err(err) => {
-                    tracing::warn!(%err, "Failed request with a fatal error");
                     break Err(err);
                 }
             }

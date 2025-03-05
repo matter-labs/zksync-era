@@ -6,7 +6,7 @@ use zksync_config::{
         api::{HealthCheckConfig, MerkleTreeApiConfig, Web3JsonRpcConfig},
         chain::{
             CircuitBreakerConfig, MempoolConfig, NetworkConfig, OperationsManagerConfig,
-            StateKeeperConfig,
+            StateKeeperConfig, TimestampAsserterConfig,
         },
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
@@ -81,6 +81,7 @@ pub struct TempConfigStore {
     pub external_proof_integration_api_config: Option<ExternalProofIntegrationApiConfig>,
     pub experimental_vm_config: Option<ExperimentalVmConfig>,
     pub prover_job_monitor_config: Option<ProverJobMonitorConfig>,
+    pub timestamp_asserter_config: Option<TimestampAsserterConfig>,
 }
 
 impl TempConfigStore {
@@ -122,6 +123,7 @@ impl TempConfigStore {
                 .clone(),
             experimental_vm_config: self.experimental_vm_config.clone(),
             prover_job_monitor_config: self.prover_job_monitor_config.clone(),
+            timestamp_asserter_config: self.timestamp_asserter_config.clone(),
         }
     }
 
@@ -134,13 +136,9 @@ impl TempConfigStore {
             let blob_operator = sender
                 .private_key_blobs()
                 .and_then(|operator| Wallet::from_private_key_bytes(operator, None).ok());
-            let gateway = sender
-                .private_key_gateway()
-                .and_then(|operator| Wallet::from_private_key_bytes(operator, None).ok());
             Some(EthSender {
                 operator,
                 blob_operator,
-                gateway,
             })
         });
         let state_keeper = self
@@ -207,6 +205,7 @@ fn load_env_config() -> anyhow::Result<TempConfigStore> {
         external_proof_integration_api_config: ExternalProofIntegrationApiConfig::from_env().ok(),
         experimental_vm_config: ExperimentalVmConfig::from_env().ok(),
         prover_job_monitor_config: ProverJobMonitorConfig::from_env().ok(),
+        timestamp_asserter_config: TimestampAsserterConfig::from_env().ok(),
     })
 }
 

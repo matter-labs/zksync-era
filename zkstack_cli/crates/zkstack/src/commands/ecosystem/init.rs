@@ -1,17 +1,16 @@
 use std::{path::PathBuf, str::FromStr};
 
 use anyhow::Context;
-use common::{
+use xshell::Shell;
+use zkstack_cli_common::{
     config::global_config,
-    contracts::build_system_contracts,
+    contracts::{build_l1_contracts, build_l2_contracts, build_system_contracts},
     forge::{Forge, ForgeScriptArgs},
-    git,
-    hardhat::{build_l1_contracts, build_l2_contracts},
-    logger,
+    git, logger,
     spinner::Spinner,
     Prompt,
 };
-use config::{
+use zkstack_cli_config::{
     forge_interface::{
         deploy_ecosystem::{
             input::{DeployErc20Config, Erc20DeploymentConfig, InitialDeploymentConfig},
@@ -22,8 +21,7 @@ use config::{
     traits::{FileConfigWithDefaultName, ReadConfig, SaveConfig, SaveConfigWithBasePath},
     ContractsConfig, EcosystemConfig,
 };
-use types::L1Network;
-use xshell::Shell;
+use zkstack_cli_types::L1Network;
 
 use super::{
     args::init::{EcosystemArgsFinal, EcosystemInitArgs, EcosystemInitArgsFinal},
@@ -46,14 +44,13 @@ use crate::{
         MSG_ECOSYSTEM_CONTRACTS_PATH_PROMPT, MSG_INITIALIZING_ECOSYSTEM,
         MSG_INTALLING_DEPS_SPINNER,
     },
-    utils::forge::{check_the_balance, fill_forge_private_key},
+    utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
 
 pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
 
-    if !args.skip_submodules_checkout {
-        println!("Checking out submodules");
+    if args.update_submodules.is_none() || args.update_submodules == Some(true) {
         git::submodule_update(shell, ecosystem_config.link_to_code.clone())?;
     }
 
@@ -117,9 +114,9 @@ async fn init_ecosystem(
     install_yarn_dependencies(shell, &ecosystem_config.link_to_code)?;
     if !init_args.skip_contract_compilation_override {
         build_da_contracts(shell, &ecosystem_config.link_to_code)?;
-        build_l1_contracts(shell, &ecosystem_config.link_to_code)?;
+        build_l1_contracts(shell.clone(), ecosystem_config.link_to_code.clone())?;
         build_system_contracts(shell.clone(), ecosystem_config.link_to_code.clone())?;
-        build_l2_contracts(shell, &ecosystem_config.link_to_code)?;
+        build_l2_contracts(shell.clone(), ecosystem_config.link_to_code.clone())?;
     }
     spinner.finish();
 
@@ -129,6 +126,7 @@ async fn init_ecosystem(
         init_args.forge_args.clone(),
         ecosystem_config,
         initial_deployment_config,
+        init_args.support_l2_legacy_shared_bridge_test,
     )
     .await?;
     contracts.save_with_base_path(shell, &ecosystem_config.config)?;
@@ -162,7 +160,11 @@ async fn deploy_erc20(
         .with_rpc_url(l1_rpc_url)
         .with_broadcast();
 
-    forge = fill_forge_private_key(forge, ecosystem_config.get_wallets()?.deployer.as_ref())?;
+    forge = fill_forge_private_key(
+        forge,
+        ecosystem_config.get_wallets()?.deployer.as_ref(),
+        WalletOwner::Deployer,
+    )?;
 
     let spinner = Spinner::new(MSG_DEPLOYING_ERC20_SPINNER);
     check_the_balance(&forge).await?;
@@ -183,6 +185,7 @@ async fn deploy_ecosystem(
     forge_args: ForgeScriptArgs,
     ecosystem_config: &EcosystemConfig,
     initial_deployment_config: &InitialDeploymentConfig,
+    support_l2_legacy_shared_bridge_test: bool,
 ) -> anyhow::Result<ContractsConfig> {
     if ecosystem.deploy_ecosystem {
         return deploy_ecosystem_inner(
@@ -191,6 +194,7 @@ async fn deploy_ecosystem(
             ecosystem_config,
             initial_deployment_config,
             ecosystem.l1_rpc_url.clone(),
+            support_l2_legacy_shared_bridge_test,
         )
         .await;
     }
@@ -252,6 +256,7 @@ async fn deploy_ecosystem_inner(
     config: &EcosystemConfig,
     initial_deployment_config: &InitialDeploymentConfig,
     l1_rpc_url: String,
+    support_l2_legacy_shared_bridge_test: bool,
 ) -> anyhow::Result<ContractsConfig> {
     let spinner = Spinner::new(MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER);
     let contracts_config = deploy_l1(
@@ -262,6 +267,7 @@ async fn deploy_ecosystem_inner(
         &l1_rpc_url,
         None,
         true,
+        support_l2_legacy_shared_bridge_test,
     )
     .await?;
     spinner.finish();
@@ -335,7 +341,8 @@ async fn deploy_ecosystem_inner(
         &config.get_wallets()?.governor,
         contracts_config
             .ecosystem_contracts
-            .stm_deployment_tracker_proxy_addr,
+            .stm_deployment_tracker_proxy_addr
+            .context("stm_deployment_tracker_proxy_addr")?,
         &forge_args,
         l1_rpc_url.clone(),
     )
@@ -382,8 +389,9 @@ async fn init_chains(
             deploy_paymaster,
             l1_rpc_url: Some(final_init_args.ecosystem.l1_rpc_url.clone()),
             no_port_reallocation: final_init_args.no_port_reallocation,
+            update_submodules: init_args.update_submodules,
             dev: final_init_args.dev,
-            skip_submodules_checkout: final_init_args.skip_submodules_checkout,
+            validium_args: final_init_args.validium_args.clone(),
         };
         let final_chain_init_args = chain_init_args.fill_values_with_prompt(&chain_config);
 

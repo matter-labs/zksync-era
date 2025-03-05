@@ -13,7 +13,7 @@ use zksync_object_store::MockObjectStore;
 use zksync_types::{
     aggregated_operations::AggregatedActionType, block::L1BatchHeader,
     commitment::L1BatchCommitmentMode, eth_sender::EthTx, pubdata_da::PubdataSendingMode,
-    settlement::SettlementMode, Address, L1BatchNumber, ProtocolVersion, H256,
+    settlement::SettlementMode, Address, L1BatchNumber, ProtocolVersion, ProtocolVersionId, H256,
 };
 
 use crate::{
@@ -24,6 +24,7 @@ use crate::{
 };
 
 pub(super) const STATE_TRANSITION_CONTRACT_ADDRESS: Address = Address::repeat_byte(0xa0);
+pub(super) const STATE_TRANSITION_MANAGER_CONTRACT_ADDRESS: Address = Address::repeat_byte(0xb0);
 
 // Alias to conveniently call static methods of `ETHSender`.
 type MockEthTxManager = EthTxManager;
@@ -146,7 +147,6 @@ impl EthSenderTester {
                 PubdataSendingMode::Calldata
             };
         let aggregator_config = SenderConfig {
-            aggregated_proof_sizes: vec![1],
             pubdata_sending_mode,
             ..eth_sender_config.clone().sender.unwrap()
         };
@@ -245,13 +245,14 @@ impl EthSenderTester {
                 None
             };
 
-        let mut connection = connection_pool.connection().await.unwrap();
         let aggregator = Aggregator::new(
             aggregator_config.clone(),
             MockObjectStore::arc(),
-            aggregator_operate_4844_mode,
+            custom_commit_sender_addr,
             commitment_mode,
-            &mut connection,
+            connection_pool.clone(),
+            gateway.clone(),
+            SettlementMode::SettlesToL1,
         )
         .await
         .unwrap();
@@ -268,6 +269,7 @@ impl EthSenderTester {
             gateway.clone(),
             // ZKsync contract address
             Address::random(),
+            STATE_TRANSITION_MANAGER_CONTRACT_ADDRESS,
             contracts_config.l1_multicall3_addr,
             STATE_TRANSITION_CONTRACT_ADDRESS,
             Default::default(),
@@ -417,10 +419,7 @@ impl EthSenderTester {
                 .await,
         ];
         let operation = AggregatedOperation::Execute(ExecuteBatches {
-            priority_ops_proofs: l1_batch_headers
-                .iter()
-                .map(|_| Default::default())
-                .collect(),
+            priority_ops_proofs: vec![Default::default(); l1_batch_headers.len()],
             l1_batches: l1_batch_headers
                 .into_iter()
                 .map(l1_batch_with_metadata)
@@ -525,6 +524,8 @@ impl EthSenderTester {
             .save_eth_tx(
                 &mut self.conn.connection().await.unwrap(),
                 &aggregated_operation,
+                Address::random(),
+                ProtocolVersionId::latest(),
                 self.is_l2,
             )
             .await

@@ -23,7 +23,6 @@ impl EthConfig {
     pub fn for_tests() -> Self {
         Self {
             sender: Some(SenderConfig {
-                aggregated_proof_sizes: vec![1],
                 wait_confirmations: Some(10),
                 tx_poll_period: 1,
                 aggregate_tx_poll_period: 1,
@@ -42,9 +41,8 @@ impl EthConfig {
                 pubdata_sending_mode: PubdataSendingMode::Calldata,
                 tx_aggregation_paused: false,
                 tx_aggregation_only_prove_and_execute: false,
-                ignore_db_nonce: None,
-                priority_tree_start_index: Some(0),
                 time_in_mempool_in_l1_blocks_cap: 1800,
+                is_verifier_pre_fflonk: true,
             }),
             gas_adjuster: Some(GasAdjusterConfig {
                 default_priority_fee_per_gas: 1000000000,
@@ -84,7 +82,6 @@ pub enum ProofLoadingMode {
 
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct SenderConfig {
-    pub aggregated_proof_sizes: Vec<usize>,
     /// Amount of confirmations required to consider L1 transaction committed.
     /// If not specified L1 transaction will be considered finalized once its block is finalized.
     pub wait_confirmations: Option<u64>,
@@ -96,7 +93,7 @@ pub struct SenderConfig {
     pub max_txs_in_flight: u64,
     /// The mode in which proofs are sent.
     pub proof_sending_mode: ProofSendingMode,
-
+    /// Note, that it is used only for L1 transactions
     pub max_aggregated_tx_gas: u32,
     pub max_eth_tx_data_size: usize,
     pub max_aggregated_blocks_to_commit: u32,
@@ -121,13 +118,10 @@ pub struct SenderConfig {
     /// special mode specifically for gateway migration to decrease number of non-executed batches
     #[serde(default = "SenderConfig::default_tx_aggregation_only_prove_and_execute")]
     pub tx_aggregation_only_prove_and_execute: bool,
-    /// Used to ignore db nonce check for sender and only use the RPC one.
-    pub ignore_db_nonce: Option<bool>,
-    /// Index of the priority operation to start building the `PriorityMerkleTree` from.
-    pub priority_tree_start_index: Option<usize>,
     /// Cap of time in mempool for price calculations
     #[serde(default = "SenderConfig::default_time_in_mempool_in_l1_blocks_cap")]
     pub time_in_mempool_in_l1_blocks_cap: u32,
+    pub is_verifier_pre_fflonk: bool,
 }
 
 impl SenderConfig {
@@ -198,9 +192,13 @@ pub struct GasAdjusterConfig {
     /// Parameter of the transaction base_fee_per_gas pricing formula
     #[serde(default = "GasAdjusterConfig::default_pricing_formula_parameter_b")]
     pub pricing_formula_parameter_b: f64,
-    /// Parameter by which the base fee will be multiplied for internal purposes
+    /// Parameter by which the base fee will be multiplied for internal purposes.
+    /// TODO(EVM-920): Note, that while the name says "L1", this same parameter is actually used for
+    /// any settlement layer.
     pub internal_l1_pricing_multiplier: f64,
-    /// If equal to Some(x), then it will always provide `x` as the L1 gas price
+    /// If equal to Some(x), then it will always provide `x` as the L1 gas price.
+    /// TODO(EVM-920): Note, that while the name says "L1", this same parameter is actually used for
+    /// any settlement layer.
     pub internal_enforced_l1_gas_price: Option<u64>,
     /// If equal to Some(x), then it will always provide `x` as the pubdata price
     pub internal_enforced_pubdata_price: Option<u64>,

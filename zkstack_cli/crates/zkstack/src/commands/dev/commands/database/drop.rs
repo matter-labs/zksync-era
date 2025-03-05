@@ -1,9 +1,9 @@
-use common::{
+use xshell::Shell;
+use zkstack_cli_common::{
     db::{drop_db_if_exists, DatabaseConfig},
     logger,
     spinner::Spinner,
 };
-use xshell::Shell;
 
 use super::args::DatabaseCommonArgs;
 use crate::commands::dev::{
@@ -23,7 +23,7 @@ pub async fn run(shell: &Shell, args: DatabaseCommonArgs) -> anyhow::Result<()> 
 
     logger::info(msg_database_info(MSG_DATABASE_DROP_GERUND));
 
-    let dals = get_dals(shell, &args.selected_dals, &args.urls)?;
+    let dals = get_dals(shell, &args.selected_dals, &args.urls).await?;
     for dal in dals {
         drop_database(dal).await?;
     }

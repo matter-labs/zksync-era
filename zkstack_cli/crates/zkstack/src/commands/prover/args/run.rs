@@ -2,9 +2,10 @@ use std::path::Path;
 
 use anyhow::anyhow;
 use clap::{Parser, ValueEnum};
-use common::{Prompt, PromptSelect};
-use config::ChainConfig;
+use serde::{Deserialize, Serialize};
 use strum::{EnumIter, IntoEnumIterator};
+use zkstack_cli_common::{Prompt, PromptSelect};
+use zkstack_cli_config::ChainConfig;
 
 use crate::{
     consts::{
@@ -33,6 +34,8 @@ pub struct ProverRunArgs {
     pub fri_prover_args: FriProverRunArgs,
     #[clap(flatten)]
     pub circuit_prover_args: CircuitProverArgs,
+    #[clap(flatten)]
+    pub compressor_args: CompressorArgs,
     #[clap(long)]
     pub docker: Option<bool>,
     #[clap(long)]
@@ -87,12 +90,14 @@ impl ProverComponent {
     pub fn get_application_args(&self, in_docker: bool) -> anyhow::Result<Vec<String>> {
         let mut application_args = vec![];
 
-        if self == &Self::Prover || self == &Self::Compressor || self == &Self::CircuitProver {
-            if in_docker {
-                application_args.push("--gpus=all".to_string());
-            } else if self != &Self::CircuitProver {
-                application_args.push("--features=gpu".to_string());
-            }
+        if (self == &Self::Prover || self == &Self::Compressor || self == &Self::CircuitProver)
+            && in_docker
+        {
+            application_args.push("--gpus=all".to_string());
+        }
+
+        if self == &Self::Prover {
+            application_args.push("--features=gpu".to_string());
         }
 
         Ok(application_args)
@@ -176,18 +181,23 @@ impl ProverComponent {
                         args.fri_prover_args.max_allocation.unwrap()
                     ));
                 };
-                if args
-                    .circuit_prover_args
-                    .witness_vector_generator_count
-                    .is_some()
-                {
+                if args.circuit_prover_args.light_wvg_count.is_some() {
                     additional_args.push(format!(
-                        "--witness-vector-generator-count={}",
-                        args.circuit_prover_args
-                            .witness_vector_generator_count
-                            .unwrap()
+                        "--light-wvg-count={}",
+                        args.circuit_prover_args.light_wvg_count.unwrap()
                     ));
                 };
+                if args.circuit_prover_args.heavy_wvg_count.is_some() {
+                    additional_args.push(format!(
+                        "--heavy-wvg-count={}",
+                        args.circuit_prover_args.heavy_wvg_count.unwrap()
+                    ));
+                };
+            }
+            Self::Compressor => {
+                if args.compressor_args.mode == CompressorMode::Fflonk {
+                    additional_args.push("--fflonk=true".to_string());
+                }
             }
             _ => {}
         };
@@ -242,9 +252,11 @@ impl WitnessVectorGeneratorArgs {
 
 #[derive(Debug, Clone, Parser, Default)]
 pub struct CircuitProverArgs {
-    #[clap(long)]
-    pub witness_vector_generator_count: Option<usize>,
-    #[clap(long)]
+    #[clap(short = 'l', long)]
+    pub light_wvg_count: Option<usize>,
+    #[clap(short = 'h', long)]
+    pub heavy_wvg_count: Option<usize>,
+    #[clap(short = 'm', long)]
     pub max_allocation: Option<usize>,
 }
 
@@ -257,18 +269,48 @@ impl CircuitProverArgs {
             return Ok(Self::default());
         }
 
-        let witness_vector_generator_count =
-            self.witness_vector_generator_count.unwrap_or_else(|| {
-                Prompt::new("Number of WVG jobs to run in parallel")
-                    .default("1")
-                    .ask()
-            });
+        let light_wvg_count = self.light_wvg_count.unwrap_or_else(|| {
+            Prompt::new("Number of light WVG jobs to run in parallel")
+                .default("8")
+                .ask()
+        });
+
+        let heavy_wvg_count = self.heavy_wvg_count.unwrap_or_else(|| {
+            Prompt::new("Number of heavy WVG jobs to run in parallel")
+                .default("2")
+                .ask()
+        });
 
         Ok(CircuitProverArgs {
-            witness_vector_generator_count: Some(witness_vector_generator_count),
+            light_wvg_count: Some(light_wvg_count),
+            heavy_wvg_count: Some(heavy_wvg_count),
             max_allocation: self.max_allocation,
         })
     }
+}
+
+#[derive(Debug, Clone, Parser, Default)]
+pub struct CompressorArgs {
+    #[clap(long, default_value = "plonk")]
+    pub mode: CompressorMode,
+}
+
+#[derive(
+    Default,
+    Debug,
+    Clone,
+    ValueEnum,
+    EnumIter,
+    strum::Display,
+    PartialEq,
+    Eq,
+    Deserialize,
+    Serialize,
+)]
+pub enum CompressorMode {
+    Fflonk,
+    #[default]
+    Plonk,
 }
 
 #[derive(Debug, Clone, Parser, Default)]
@@ -310,6 +352,7 @@ impl ProverRunArgs {
             witness_vector_generator_args,
             fri_prover_args: self.fri_prover_args,
             circuit_prover_args,
+            compressor_args: self.compressor_args,
             docker: Some(docker),
             tag: Some(tag),
         })

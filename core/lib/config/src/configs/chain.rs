@@ -1,6 +1,6 @@
 use std::{str::FromStr, time::Duration};
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use zksync_basic_types::{
     commitment::L1BatchCommitmentMode, network::Network, Address, L2ChainId, H256,
 };
@@ -229,6 +229,8 @@ pub struct MempoolConfig {
     pub stuck_tx_timeout: u64,
     pub remove_stuck_txs: bool,
     pub delay_interval: u64,
+    #[serde(default)]
+    pub skip_unsafe_deposit_checks: bool,
 }
 
 impl MempoolConfig {
@@ -243,4 +245,10 @@ impl MempoolConfig {
     pub fn delay_interval(&self) -> Duration {
         Duration::from_millis(self.delay_interval)
     }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
+pub struct TimestampAsserterConfig {
+    /// Minimum time between current block.timestamp and the end of the asserted range
+    pub min_time_till_end_sec: u32,
 }

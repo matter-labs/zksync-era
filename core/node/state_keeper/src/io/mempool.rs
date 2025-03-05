@@ -15,14 +15,12 @@ use zksync_multivm::{interface::Halt, utils::derive_base_fee_and_gas_per_pubdata
 use zksync_node_fee_model::BatchFeeModelInputProvider;
 use zksync_types::{
     block::UnsealedL1BatchHeader,
-    commitment::{L1BatchCommitmentMode, PubdataParams},
+    commitment::{PubdataParams, PubdataType},
     protocol_upgrade::ProtocolUpgradeTx,
     utils::display_timestamp,
     Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256, U256,
 };
-// TODO (SMA-1206): use seconds instead of milliseconds.
-use zksync_utils::time::millis_since_epoch;
-use zksync_vm_executor::storage::L1BatchParamsProvider;
+use zksync_vm_executor::storage::{get_base_system_contracts_by_version_id, L1BatchParamsProvider};
 
 use crate::{
     io::{
@@ -36,6 +34,7 @@ use crate::{
         IoSealCriteria, L2BlockMaxPayloadSizeSealer, TimeoutSealer, UnexecutableReason,
     },
     updates::UpdatesManager,
+    utils::millis_since_epoch,
     MempoolGuard,
 };
 
@@ -59,7 +58,7 @@ pub struct MempoolIO {
     batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
     chain_id: L2ChainId,
     l2_da_validator_address: Option<Address>,
-    pubdata_type: L1BatchCommitmentMode,
+    pubdata_type: PubdataType,
 }
 
 impl IoSealCriteria for MempoolIO {
@@ -207,6 +206,21 @@ impl StateKeeperIO for MempoolIO {
                 .protocol_version_id_by_timestamp(timestamp)
                 .await
                 .context("Failed loading protocol version")?;
+            let previous_protocol_version = storage
+                .blocks_dal()
+                .pending_protocol_version()
+                .await
+                .context("Failed loading previous protocol version")?;
+            let batch_with_upgrade_tx = if previous_protocol_version != protocol_version {
+                storage
+                    .protocol_versions_dal()
+                    .get_protocol_upgrade_tx(protocol_version)
+                    .await
+                    .context("Failed loading protocol upgrade tx")?
+                    .is_some()
+            } else {
+                false
+            };
             drop(storage);
 
             // We create a new filter each time, since parameters may change and a previously
@@ -218,7 +232,8 @@ impl StateKeeperIO for MempoolIO {
             .await
             .context("failed creating L2 transaction filter")?;
 
-            if !self.mempool.has_next(&self.filter) {
+            // We do not populate mempool with upgrade tx so it should be checked separately.
+            if !batch_with_upgrade_tx && !self.mempool.has_next(&self.filter) {
                 tokio::time::sleep(self.delay_interval).await;
                 continue;
             }
@@ -275,9 +290,23 @@ impl StateKeeperIO for MempoolIO {
         }))
     }
 
+    fn update_next_l2_block_timestamp(&mut self, block_timestamp: &mut u64) {
+        let current_timestamp_millis = millis_since_epoch();
+        let current_timestamp = (current_timestamp_millis / 1_000) as u64;
+
+        if current_timestamp < *block_timestamp {
+            tracing::warn!(
+                "Trying to update block timestamp {block_timestamp} with lower value timestamp {current_timestamp}",
+            );
+        } else {
+            *block_timestamp = current_timestamp;
+        }
+    }
+
     async fn wait_for_next_tx(
         &mut self,
         max_wait: Duration,
+        l2_block_timestamp: u64,
     ) -> anyhow::Result<Option<Transaction>> {
         let started_at = Instant::now();
         while started_at.elapsed() <= max_wait {
@@ -285,7 +314,7 @@ impl StateKeeperIO for MempoolIO {
             let maybe_tx = self.mempool.next_transaction(&self.filter);
             get_latency.observe();
 
-            if let Some(tx) = maybe_tx {
+            if let Some((tx, constraint)) = maybe_tx {
                 // Reject transactions with too big gas limit. They are also rejected on the API level, but
                 // we need to secure ourselves in case some tx will somehow get into mempool.
                 if tx.gas_limit() > self.max_allowed_tx_gas_limit {
@@ -298,6 +327,23 @@ impl StateKeeperIO for MempoolIO {
                         .await?;
                     continue;
                 }
+
+                // Reject transactions that violate block.timestamp constraints. Such transactions should be
+                // rejected at the API level, but we need to protect ourselves in case if a transaction
+                // goes outside of the allowed range while being in the mempool
+                let matches_range = constraint
+                    .timestamp_asserter_range
+                    .map_or(true, |x| x.contains(&l2_block_timestamp));
+
+                if !matches_range {
+                    self.reject(
+                        &tx,
+                        UnexecutableReason::Halt(Halt::FailedBlockTimestampAssertion),
+                    )
+                    .await?;
+                    continue;
+                }
+
                 return Ok(Some(tx));
             } else {
                 tokio::time::sleep(self.delay_interval).await;
@@ -309,9 +355,9 @@ impl StateKeeperIO for MempoolIO {
 
     async fn rollback(&mut self, tx: Transaction) -> anyhow::Result<()> {
         // Reset nonces in the mempool.
-        self.mempool.rollback(&tx);
+        let constraint = self.mempool.rollback(&tx);
         // Insert the transaction back.
-        self.mempool.insert(vec![tx], HashMap::new());
+        self.mempool.insert(vec![(tx, constraint)], HashMap::new());
         Ok(())
     }
 
@@ -349,18 +395,15 @@ impl StateKeeperIO for MempoolIO {
         protocol_version: ProtocolVersionId,
         _cursor: &IoCursor,
     ) -> anyhow::Result<BaseSystemContracts> {
-        self.pool
-            .connection_tagged("state_keeper")
-            .await?
-            .protocol_versions_dal()
-            .load_base_system_contracts_by_version_id(protocol_version as u16)
-            .await
-            .context("failed loading base system contracts")?
-            .with_context(|| {
-                format!(
-                    "no base system contracts persisted for protocol version {protocol_version:?}"
-                )
-            })
+        get_base_system_contracts_by_version_id(
+            &mut self.pool.connection_tagged("state_keeper").await?,
+            protocol_version,
+        )
+        .await
+        .context("failed loading base system contracts")?
+        .with_context(|| {
+            format!("no base system contracts persisted for protocol version {protocol_version:?}")
+        })
     }
 
     async fn load_batch_version_id(
@@ -464,7 +507,7 @@ impl MempoolIO {
         delay_interval: Duration,
         chain_id: L2ChainId,
         l2_da_validator_address: Option<Address>,
-        pubdata_type: L1BatchCommitmentMode,
+        pubdata_type: PubdataType,
     ) -> anyhow::Result<Self> {
         Ok(Self {
             mempool,
@@ -513,9 +556,9 @@ impl MempoolIO {
 #[cfg(test)]
 mod tests {
     use tokio::time::timeout_at;
-    use zksync_utils::time::seconds_since_epoch;
 
     use super::*;
+    use crate::tests::seconds_since_epoch;
 
     // This test defensively uses large deadlines in order to account for tests running in parallel etc.
     #[tokio::test]

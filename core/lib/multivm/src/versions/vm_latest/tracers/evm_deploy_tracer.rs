@@ -7,15 +7,19 @@ use zk_evm_1_5_0::{
         FarCallOpcode, FatPointer, Opcode, CALL_IMPLICIT_CALLDATA_FAT_PTR_REGISTER,
     },
 };
-use zksync_types::{CONTRACT_DEPLOYER_ADDRESS, KNOWN_CODES_STORAGE_ADDRESS};
-use zksync_utils::{bytecode::hash_evm_bytecode, bytes_to_be_words, h256_to_u256};
-use zksync_vm_interface::storage::StoragePtr;
+use zksync_types::{
+    bytecode::BytecodeHash, CONTRACT_DEPLOYER_ADDRESS, KNOWN_CODES_STORAGE_ADDRESS,
+};
 
 use super::{traits::VmTracer, utils::read_pointer};
 use crate::{
-    interface::{storage::WriteStorage, tracer::TracerExecutionStatus},
+    interface::{
+        storage::{StoragePtr, WriteStorage},
+        tracer::TracerExecutionStatus,
+    },
     tracers::dynamic::vm_1_5_0::DynTracer,
-    vm_latest::{BootloaderState, HistoryMode, SimpleMemory, ZkSyncVmState},
+    utils::bytecode::bytes_to_be_words,
+    vm_latest::{bootloader::BootloaderState, HistoryMode, SimpleMemory, ZkSyncVmState},
 };
 
 /// Tracer responsible for collecting information about EVM deploys and providing those
@@ -23,14 +27,16 @@ use crate::{
 #[derive(Debug)]
 pub(crate) struct EvmDeployTracer<S> {
     tracked_signature: [u8; 4],
-    pending_bytecodes: Vec<Vec<u8>>,
+    pending_bytecodes: Vec<(usize, Vec<u8>)>,
     _phantom: PhantomData<S>,
 }
 
 impl<S> EvmDeployTracer<S> {
     pub(crate) fn new() -> Self {
-        let tracked_signature =
-            ethabi::short_signature("publishEVMBytecode", &[ethabi::ParamType::Bytes]);
+        let tracked_signature = ethabi::short_signature(
+            "publishEVMBytecode",
+            &[ethabi::ParamType::Uint(256), ethabi::ParamType::Bytes],
+        );
 
         Self {
             tracked_signature,
@@ -73,10 +79,23 @@ impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for EvmDeployTracer<S> {
             return;
         }
 
-        match ethabi::decode(&[ethabi::ParamType::Bytes], data) {
+        match ethabi::decode(
+            &[ethabi::ParamType::Uint(256), ethabi::ParamType::Bytes],
+            data,
+        ) {
             Ok(decoded) => {
-                let published_bytecode = decoded.into_iter().next().unwrap().into_bytes().unwrap();
-                self.pending_bytecodes.push(published_bytecode);
+                let mut decoded_iter = decoded.into_iter();
+                let raw_bytecode_len = decoded_iter.next().unwrap().into_uint().unwrap().try_into();
+                match raw_bytecode_len {
+                    Ok(raw_bytecode_len) => {
+                        let published_bytecode = decoded_iter.next().unwrap().into_bytes().unwrap();
+                        self.pending_bytecodes
+                            .push((raw_bytecode_len, published_bytecode));
+                    }
+                    Err(err) => {
+                        tracing::error!("Invalid bytecode len in `publishEVMBytecode` call: {err}")
+                    }
+                }
             }
             Err(err) => tracing::error!("Unable to decode `publishEVMBytecode` call: {err}"),
         }
@@ -89,14 +108,14 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for EvmDeployTracer<S> {
         state: &mut ZkSyncVmState<S, H>,
         _bootloader_state: &mut BootloaderState,
     ) -> TracerExecutionStatus {
-        for published_bytecode in mem::take(&mut self.pending_bytecodes) {
-            let hash = hash_evm_bytecode(&published_bytecode);
-            let as_words = bytes_to_be_words(published_bytecode);
-
-            state.decommittment_processor.populate(
-                vec![(h256_to_u256(hash), as_words)],
-                Timestamp(state.local_state.timestamp),
-            );
+        let timestamp = Timestamp(state.local_state.timestamp);
+        for (raw_bytecode_len, published_bytecode) in mem::take(&mut self.pending_bytecodes) {
+            let hash =
+                BytecodeHash::for_evm_bytecode(raw_bytecode_len, &published_bytecode).value_u256();
+            let as_words = bytes_to_be_words(&published_bytecode);
+            state
+                .decommittment_processor
+                .insert_dynamic_bytecode(hash, as_words, timestamp);
         }
         TracerExecutionStatus::Continue
     }

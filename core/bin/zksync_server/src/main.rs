@@ -7,13 +7,12 @@ use zksync_config::{
         api::{HealthCheckConfig, MerkleTreeApiConfig, Web3JsonRpcConfig},
         chain::{
             CircuitBreakerConfig, MempoolConfig, NetworkConfig, OperationsManagerConfig,
-            StateKeeperConfig,
+            StateKeeperConfig, TimestampAsserterConfig,
         },
         fri_prover_group::FriProverGroupConfig,
-        gateway::GatewayChainConfig,
         house_keeper::HouseKeeperConfig,
-        secrets::DataAvailabilitySecrets,
-        BasicWitnessInputProducerConfig, ContractsConfig, DatabaseSecrets, ExperimentalVmConfig,
+        BasicWitnessInputProducerConfig, ContractVerifierSecrets, ContractsConfig,
+        DataAvailabilitySecrets, DatabaseSecrets, ExperimentalVmConfig,
         ExternalPriceApiClientConfig, FriProofCompressorConfig, FriProverConfig,
         FriProverGatewayConfig, FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig,
         L1Secrets, ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig,
@@ -27,7 +26,7 @@ use zksync_core_leftovers::{
     temp_config_store::{read_yaml_repr, TempConfigStore},
     Component, Components,
 };
-use zksync_env_config::{FromEnv, FromEnvVariant};
+use zksync_env_config::FromEnv;
 
 use crate::node_builder::MainNodeBuilder;
 
@@ -43,9 +42,6 @@ struct Cli {
     /// Generate genesis block for the first contract deployment using temporary DB.
     #[arg(long)]
     genesis: bool,
-    /// FIXME: dangerous option. Should be decided within the team.
-    #[arg(long)]
-    clear_l1_txs_history: bool,
     /// Comma-separated list of components to launch.
     #[arg(
         long,
@@ -61,7 +57,8 @@ struct Cli {
     /// Path to the yaml with contracts. If set, it will be used instead of env vars.
     #[arg(long)]
     contracts_config_path: Option<std::path::PathBuf>,
-    /// Path to the yaml with contracts. If set, it will be used instead of env vars.
+    /// Path to the yaml with gateway contracts. Note, that at this moment,
+    /// env-based config is not supported for gateway-related functionality.
     #[arg(long)]
     gateway_contracts_config_path: Option<std::path::PathBuf>,
     /// Path to the wallets config. If set, it will be used instead of env vars.
@@ -125,6 +122,7 @@ fn main() -> anyhow::Result<()> {
             database: DatabaseSecrets::from_env().ok(),
             l1: L1Secrets::from_env().ok(),
             data_availability: DataAvailabilitySecrets::from_env().ok(),
+            contract_verifier: ContractVerifierSecrets::from_env().ok(),
         },
     };
 
@@ -134,19 +132,18 @@ fn main() -> anyhow::Result<()> {
             .context("failed decoding contracts YAML config")?,
     };
 
-    let gateway_contracts_config: Option<GatewayChainConfig> = match opt
-        .gateway_contracts_config_path
+    // We support only file based config for gateway
+    let gateway_contracts_config = if let Some(gateway_config_path) =
+        opt.gateway_contracts_config_path
     {
-        None => ContractsConfig::from_env_variant("GATEWAY_".to_string())
-            .ok()
-            .map(Into::into),
-        Some(path) => {
-            let result =
-                read_yaml_repr::<zksync_protobuf_config::proto::gateway::GatewayChainConfig>(&path)
-                    .context("failed decoding contracts YAML config")?;
+        let result = read_yaml_repr::<zksync_protobuf_config::proto::gateway::GatewayChainConfig>(
+            &gateway_config_path,
+        )
+        .context("failed decoding contracts YAML config")?;
 
-            Some(result)
-        }
+        Some(result)
+    } else {
+        None
     };
 
     let genesis = match opt.genesis_path {
@@ -158,23 +155,6 @@ fn main() -> anyhow::Result<()> {
         .observability
         .clone()
         .context("observability config")?;
-
-    // // FIXME: don't merge this into prod
-    // if opt.clear_l1_txs_history {
-    //     println!("Clearing L1 txs history!");
-
-    //     let tokio_runtime = tokio::runtime::Builder::new_multi_thread()
-    //         .enable_all()
-    //         .build()?;
-
-    //     tokio_runtime.block_on(async move {
-    //         let database_secrets = secrets.database.clone().context("DatabaseSecrets").unwrap();
-    //         delete_l1_txs_history(&database_secrets).await.unwrap();
-    //     });
-
-    //     println!("Complete!");
-    //     return Ok(());
-    // }
 
     let node = MainNodeBuilder::new(
         configs,
@@ -242,5 +222,6 @@ fn load_env_config() -> anyhow::Result<TempConfigStore> {
         external_proof_integration_api_config: ExternalProofIntegrationApiConfig::from_env().ok(),
         experimental_vm_config: ExperimentalVmConfig::from_env().ok(),
         prover_job_monitor_config: None,
+        timestamp_asserter_config: TimestampAsserterConfig::from_env().ok(),
     })
 }

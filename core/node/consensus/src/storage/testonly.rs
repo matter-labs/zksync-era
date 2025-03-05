@@ -16,6 +16,7 @@ use crate::registry;
 
 impl Connection<'_> {
     /// Wrapper for `consensus_dal().batch_of_block()`.
+    #[allow(dead_code)]
     pub async fn batch_of_block(
         &mut self,
         ctx: &ctx::Ctx,
@@ -27,6 +28,7 @@ impl Connection<'_> {
     }
 
     /// Wrapper for `consensus_dal().last_batch_certificate_number()`.
+    #[allow(dead_code)]
     pub async fn last_batch_certificate_number(
         &mut self,
         ctx: &ctx::Ctx,
@@ -37,6 +39,7 @@ impl Connection<'_> {
     }
 
     /// Wrapper for `consensus_dal().batch_certificate()`.
+    #[allow(dead_code)]
     pub async fn batch_certificate(
         &mut self,
         ctx: &ctx::Ctx,
@@ -73,7 +76,8 @@ impl ConnectionPool {
                     L1BatchNumber(23),
                     L2BlockNumber(87),
                     vec![],
-                    mock_genesis_params(protocol_version),
+                    &BaseSystemContracts::load_from_disk(),
+                    protocol_version,
                 ))
                 .await
             }
@@ -186,6 +190,7 @@ impl ConnectionPool {
         Ok(blocks)
     }
 
+    #[allow(dead_code)]
     pub async fn wait_for_batch_certificates_and_verify(
         &self,
         ctx: &ctx::Ctx,
@@ -216,7 +221,7 @@ impl ConnectionPool {
             .await
             .wrap("batch_of_block()")?
             .context("batch of first_block is missing")?;
-        let registry = registry::Registry::new(cfg.genesis.clone(), self.clone()).await;
+        let registry = registry::Registry::new(self.clone()).await;
         for i in first.0..want_last.0 {
             let i = attester::BatchNumber(i);
             let cert = conn
@@ -246,15 +251,20 @@ impl ConnectionPool {
             .await
             .wrap("get_l2_block_range_of_l1_batch()")?
             .context("batch not found")?;
-        let last_batch = L1BatchNumber(last_batch.0.try_into().context("oveflow")?);
-        let last_block = L2BlockNumber(last_block.0.try_into().context("oveflow")?);
+        let last_batch = L1BatchNumber(last_batch.0.try_into().context("overflow")?);
+        let last_batch_root_hash = ctx
+            .wait(conn.0.blocks_dal().get_l1_batch_state_root(last_batch))
+            .await?
+            .context("get_l1_batch_state_root()")?
+            .unwrap_or_default();
+        let last_block = L2BlockNumber(last_block.0.try_into().context("overflow")?);
         ctx.wait(
             conn.0
                 .pruning_dal()
-                .soft_prune_batches_range(last_batch, last_block),
+                .insert_soft_pruning_log(last_batch, last_block),
         )
         .await?
-        .context("soft_prune_batches_range()")?;
+        .context("insert_soft_pruning_log()")?;
         ctx.wait(
             conn.0
                 .pruning_dal()
@@ -262,6 +272,13 @@ impl ConnectionPool {
         )
         .await?
         .context("hard_prune_batches_range()")?;
+        ctx.wait(conn.0.pruning_dal().insert_hard_pruning_log(
+            last_batch,
+            last_block,
+            last_batch_root_hash,
+        ))
+        .await?
+        .context("insert_hard_pruning_log()")?;
         Ok(())
     }
 }

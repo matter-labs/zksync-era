@@ -1,11 +1,9 @@
 use std::collections::HashMap;
 
-use zksync_multivm::interface::VmEvent;
 use zksync_types::{
     api::{
-        state_override::StateOverride, ApiStorageLog, BlockDetails, BridgeAddresses,
-        L1BatchDetails, L1ProcessingDetails, L2ToL1LogProof, LeafAggProof, Log, Proof,
-        ProtocolVersion, TransactionDetailedResult, TransactionDetails,
+        state_override::StateOverride, BlockDetails, BridgeAddresses, L1BatchDetails,
+        L2ToL1LogProof, Proof, ProtocolVersion, TransactionDetailedResult, TransactionDetails,
     },
     fee::Fee,
     fee_model::{FeeParams, PubdataIndependentBatchFeeModelInput},
@@ -58,6 +56,10 @@ impl ZksNamespaceServer for ZksNamespace {
         Ok(self.get_bridge_contracts_impl().await)
     }
 
+    async fn get_timestamp_asserter(&self) -> RpcResult<Option<Address>> {
+        Ok(self.get_timestamp_asserter_impl())
+    }
+
     async fn l1_chain_id(&self) -> RpcResult<U64> {
         Ok(self.l1_chain_id_impl())
     }
@@ -95,17 +97,6 @@ impl ZksNamespaceServer for ZksNamespace {
         index: Option<usize>,
     ) -> RpcResult<Option<L2ToL1LogProof>> {
         self.get_l2_to_l1_log_proof_impl(tx_hash, index)
-            .await
-            .map_err(|err| self.current_method().map_err(err))
-    }
-
-    async fn get_aggregated_batch_inclusion_proof(
-        &self,
-        message_root_addr: Address,
-        batch_number: L1BatchNumber,
-        chain_id: u32,
-    ) -> RpcResult<Option<LeafAggProof>> {
-        self.get_aggregated_batch_inclusion_proof_impl(message_root_addr, batch_number, chain_id)
             .await
             .map_err(|err| self.current_method().map_err(err))
     }
@@ -151,15 +142,6 @@ impl ZksNamespaceServer for ZksNamespace {
         batch_number: L1BatchNumber,
     ) -> RpcResult<Option<L1BatchDetails>> {
         self.get_l1_batch_details_impl(batch_number)
-            .await
-            .map_err(|err| self.current_method().map_err(err))
-    }
-
-    async fn get_l1_processing_details(
-        &self,
-        batch_number: L1BatchNumber,
-    ) -> RpcResult<Option<L1ProcessingDetails>> {
-        self.get_l1_processing_details_impl(batch_number)
             .await
             .map_err(|err| self.current_method().map_err(err))
     }
@@ -219,46 +201,6 @@ impl ZksNamespaceServer for ZksNamespace {
     ) -> RpcResult<TransactionDetailedResult> {
         self.send_raw_transaction_with_detailed_output_impl(tx_bytes)
             .await
-            .map(|result| TransactionDetailedResult {
-                transaction_hash: result.0,
-                storage_logs: result
-                    .1
-                    .logs
-                    .storage_logs
-                    .iter()
-                    .filter(|x| x.log.is_write())
-                    .map(ApiStorageLog::from)
-                    .collect(),
-                events: result
-                    .1
-                    .logs
-                    .events
-                    .iter()
-                    .map(|event| {
-                        let mut log = map_event(event);
-                        log.transaction_hash = Some(result.0);
-                        log
-                    })
-                    .collect(),
-            })
             .map_err(|err| self.current_method().map_err(err))
-    }
-}
-
-fn map_event(vm_event: &VmEvent) -> Log {
-    Log {
-        address: vm_event.address,
-        topics: vm_event.indexed_topics.clone(),
-        data: web3::Bytes::from(vm_event.value.clone()),
-        block_hash: None,
-        block_number: None,
-        l1_batch_number: Some(U64::from(vm_event.location.0 .0)),
-        transaction_hash: None,
-        transaction_index: Some(web3::Index::from(vm_event.location.1)),
-        log_index: None,
-        transaction_log_index: None,
-        log_type: None,
-        removed: Some(false),
-        block_timestamp: None,
     }
 }

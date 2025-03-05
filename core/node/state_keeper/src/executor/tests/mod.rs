@@ -1,20 +1,21 @@
-// FIXME: move storage-agnostic tests to VM executor crate
-
 use assert_matches::assert_matches;
 use rand::{thread_rng, Rng};
 use test_casing::{test_casing, Product};
 use zksync_contracts::l2_message_root;
 use zksync_dal::{ConnectionPool, Core};
-use zksync_multivm::interface::{BatchTransactionExecutionResult, ExecutionResult, Halt};
-use zksync_test_account::Account;
+use zksync_multivm::interface::{
+    BatchTransactionExecutionResult, Call, CallType, ExecutionResult, Halt, VmEvent,
+};
+use zksync_system_constants::{COMPRESSOR_ADDRESS, L1_MESSENGER_ADDRESS};
+use zksync_test_contracts::{Account, TestContract};
 use zksync_types::{
-    get_nonce_key, utils::storage_key_for_eth_balance, vm::FastVmMode, Execute, PriorityOpId,
-    L2_MESSAGE_ROOT_ADDRESS, U256,
+    address_to_h256, get_nonce_key,
+    utils::{deployed_address_create, storage_key_for_eth_balance},
+    vm::FastVmMode,
+    web3, Execute, PriorityOpId, H256, L2_MESSAGE_ROOT_ADDRESS, U256,
 };
 
-use self::tester::{
-    AccountFailedCall, AccountLoadNextExecutable, StorageSnapshot, TestConfig, Tester,
-};
+use self::tester::{AccountExt, StorageSnapshot, TestConfig, Tester, TRANSFER_VALUE};
 
 mod read_storage_factory;
 mod tester;
@@ -26,6 +27,11 @@ fn assert_executed(execution_result: &BatchTransactionExecutionResult) {
         result,
         ExecutionResult::Success { .. } | ExecutionResult::Revert { .. }
     );
+}
+
+fn assert_succeeded(execution_result: &BatchTransactionExecutionResult) {
+    let result = &execution_result.tx_result.result;
+    assert_matches!(result, ExecutionResult::Success { .. })
 }
 
 /// Ensures that the transaction was rejected by the VM.
@@ -260,6 +266,62 @@ async fn execute_l2_and_l1_txs(vm_mode: FastVmMode) {
     executor.finish_batch().await.unwrap();
 }
 
+#[tokio::test]
+async fn working_with_transient_storage() {
+    let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
+    let mut alice = Account::random();
+
+    let mut tester = Tester::new(connection_pool, FastVmMode::Shadow);
+    tester.genesis().await;
+    tester.fund(&[alice.address()]).await;
+    let mut executor = tester
+        .create_batch_executor(StorageType::AsyncRocksdbCache)
+        .await;
+
+    let deploy_tx = alice.deploy_storage_tester();
+    let res = executor.execute_tx(deploy_tx.tx).await.unwrap();
+    assert_succeeded(&res);
+
+    let storage_test_address = deploy_tx.address;
+    let test_tx = alice.test_transient_store(storage_test_address);
+    let res = executor.execute_tx(test_tx).await.unwrap();
+    assert_succeeded(&res);
+
+    let test_tx = alice.assert_transient_value(storage_test_address, 0.into());
+    let res = executor.execute_tx(test_tx).await.unwrap();
+    assert_succeeded(&res);
+
+    executor.finish_batch().await.unwrap();
+}
+
+#[tokio::test]
+async fn decommitting_contract() {
+    let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
+    let mut alice = Account::random();
+
+    let mut tester = Tester::new(connection_pool, FastVmMode::Shadow);
+    tester.genesis().await;
+    tester.fund(&[alice.address()]).await;
+    let mut executor = tester
+        .create_batch_executor(StorageType::AsyncRocksdbCache)
+        .await;
+
+    let deploy_tx = alice.deploy_precompiles_test();
+    let res = executor.execute_tx(deploy_tx.tx).await.unwrap();
+    assert_succeeded(&res);
+
+    let keccak_bytecode_hash = web3::keccak256(TestContract::precompiles_test().bytecode);
+    let test_tx = alice.test_decommit(
+        deploy_tx.address,
+        deploy_tx.bytecode_hash,
+        H256(keccak_bytecode_hash),
+    );
+    let res = executor.execute_tx(test_tx).await.unwrap();
+    assert_succeeded(&res);
+
+    executor.finish_batch().await.unwrap();
+}
+
 /// Checks that we can successfully rollback the transaction and execute it once again.
 #[test_casing(3, FAST_VM_MODES)]
 #[tokio::test]
@@ -306,8 +368,8 @@ async fn rollback(vm_mode: FastVmMode) {
     let res_new = executor.execute_tx(tx.clone()).await.unwrap();
     assert_executed(&res_new);
 
-    let tx_metrics_old = res_old.tx_result.get_execution_metrics(Some(&tx));
-    let tx_metrics_new = res_new.tx_result.get_execution_metrics(Some(&tx));
+    let tx_metrics_old = res_old.tx_result.get_execution_metrics();
+    let tx_metrics_new = res_new.tx_result.get_execution_metrics();
     assert_eq!(
         tx_metrics_old, tx_metrics_new,
         "Execution results must be the same"
@@ -446,7 +508,7 @@ async fn deploy_and_call_loadtest(vm_mode: FastVmMode) {
     );
     assert_executed(
         &executor
-            .execute_tx(alice.loadnext_custom_writes_call(tx.address, 1, 500_000_000))
+            .execute_tx(alice.loadnext_custom_initial_writes_call(tx.address, 1, 500_000_000))
             .await
             .unwrap(),
     );
@@ -466,7 +528,7 @@ async fn deploy_failedcall(vm_mode: FastVmMode) {
         .create_batch_executor(StorageType::AsyncRocksdbCache)
         .await;
 
-    let tx = alice.deploy_failedcall_tx();
+    let tx = alice.deploy_failed_call_tx();
 
     let execute_tx = executor.execute_tx(tx.tx).await.unwrap();
     assert_executed(&execute_tx);
@@ -514,17 +576,15 @@ async fn execute_reverted_tx(vm_mode: FastVmMode) {
     let tx = alice.deploy_loadnext_tx();
     assert_executed(&executor.execute_tx(tx.tx).await.unwrap());
 
-    let txn = &executor
-        .execute_tx(alice.loadnext_custom_writes_call(
-            tx.address, 1,
-            1_000_000, // We provide enough gas for tx to be executed, but not enough for the call to be successful.
-        ))
-        .await
-        .unwrap();
-
-    dbg!(&txn);
-
-    assert_reverted(txn);
+    assert_reverted(
+        &executor
+            .execute_tx(alice.loadnext_custom_initial_writes_call(
+                tx.address, 1,
+                1_000_000, // We provide enough gas for tx to be executed, but not enough for the call to be successful.
+            ))
+            .await
+            .unwrap(),
+    );
     executor.finish_batch().await.unwrap();
 }
 
@@ -792,16 +852,29 @@ async fn execute_tx_with_large_packable_bytecode(vm_mode: FastVmMode) {
 
     let res = executor.execute_tx(tx).await.unwrap();
     assert_matches!(res.tx_result.result, ExecutionResult::Success { .. });
-    assert_eq!(res.compressed_bytecodes.len(), 1);
-    assert_eq!(res.compressed_bytecodes[0].original, packable_bytecode);
-    assert!(res.compressed_bytecodes[0].compressed.len() < BYTECODE_LEN / 2);
+    res.compression_result.unwrap();
+
+    let events = &res.tx_result.logs.events;
+    // Extract compressed bytecodes from the long L2-to-L1 messages by the compressor contract.
+    let compressed_bytecodes: Vec<_> = events
+        .iter()
+        .filter(|event| {
+            event.address == L1_MESSENGER_ADDRESS
+                && event.indexed_topics[0] == VmEvent::L1_MESSAGE_EVENT_SIGNATURE
+                && event.indexed_topics[1] == address_to_h256(&COMPRESSOR_ADDRESS)
+        })
+        .map(|event| &event.value)
+        .collect();
+
+    assert_eq!(compressed_bytecodes.len(), 1);
+    assert!(compressed_bytecodes[0].len() < BYTECODE_LEN / 2);
 
     executor.finish_batch().await.unwrap();
 }
 
-#[test_casing(2, [FastVmMode::Old, FastVmMode::Shadow])] // new VM doesn't support call tracing yet
+#[test_casing(3, FAST_VM_MODES)]
 #[tokio::test]
-async fn execute_tx_with_call_traces(vm_mode: FastVmMode) {
+async fn execute_txs_with_call_traces(vm_mode: FastVmMode) {
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let mut alice = Account::random();
     let mut tester = Tester::with_config(
@@ -821,4 +894,35 @@ async fn execute_tx_with_call_traces(vm_mode: FastVmMode) {
 
     assert_matches!(res.tx_result.result, ExecutionResult::Success { .. });
     assert!(!res.call_traces.is_empty());
+
+    find_first_call(&res.call_traces, &|call| {
+        call.from == alice.address && call.value == TRANSFER_VALUE.into()
+    })
+    .expect("no transfer call");
+
+    let deploy_tx = alice.deploy_loadnext_tx().tx;
+    let res = executor.execute_tx(deploy_tx).await.unwrap();
+    assert_matches!(res.tx_result.result, ExecutionResult::Success { .. });
+    assert!(!res.call_traces.is_empty());
+
+    let create_call = find_first_call(&res.call_traces, &|call| {
+        call.from == alice.address && call.r#type == CallType::Create
+    })
+    .expect("no create call");
+
+    let expected_address = deployed_address_create(alice.address, 0.into());
+    assert_eq!(create_call.to, expected_address);
+    assert!(!create_call.input.is_empty());
+}
+
+fn find_first_call<'a>(calls: &'a [Call], predicate: &impl Fn(&Call) -> bool) -> Option<&'a Call> {
+    for call in calls {
+        if predicate(call) {
+            return Some(call);
+        }
+        if let Some(call) = find_first_call(&call.calls, predicate) {
+            return Some(call);
+        }
+    }
+    None
 }

@@ -34,7 +34,7 @@ impl WitnessGeneratorJobRequeuer {
 
     async fn requeue_stuck_basic_jobs(&self, connection: &mut Connection<'_, Prover>) {
         let stuck_jobs = connection
-            .fri_witness_generator_dal()
+            .fri_basic_witness_generator_dal()
             .requeue_stuck_basic_jobs(self.processing_timeouts.basic(), self.max_attempts)
             .await;
         self.emit_telemetry(WitnessType::WitnessInputsFri, &stuck_jobs);
@@ -42,7 +42,7 @@ impl WitnessGeneratorJobRequeuer {
 
     async fn requeue_stuck_leaf_jobs(&self, connection: &mut Connection<'_, Prover>) {
         let stuck_jobs = connection
-            .fri_witness_generator_dal()
+            .fri_leaf_witness_generator_dal()
             .requeue_stuck_leaf_jobs(self.processing_timeouts.leaf(), self.max_attempts)
             .await;
         self.emit_telemetry(WitnessType::LeafAggregationJobsFri, &stuck_jobs);
@@ -50,7 +50,7 @@ impl WitnessGeneratorJobRequeuer {
 
     async fn requeue_stuck_node_jobs(&self, connection: &mut Connection<'_, Prover>) {
         let stuck_jobs = connection
-            .fri_witness_generator_dal()
+            .fri_node_witness_generator_dal()
             .requeue_stuck_node_jobs(self.processing_timeouts.node(), self.max_attempts)
             .await;
         self.emit_telemetry(WitnessType::NodeAggregationJobsFri, &stuck_jobs);
@@ -58,7 +58,7 @@ impl WitnessGeneratorJobRequeuer {
 
     async fn requeue_stuck_recursion_tip_jobs(&self, connection: &mut Connection<'_, Prover>) {
         let stuck_jobs = connection
-            .fri_witness_generator_dal()
+            .fri_recursion_tip_witness_generator_dal()
             .requeue_stuck_recursion_tip_jobs(
                 self.processing_timeouts.recursion_tip(),
                 self.max_attempts,
@@ -69,7 +69,7 @@ impl WitnessGeneratorJobRequeuer {
 
     async fn requeue_stuck_scheduler_jobs(&self, connection: &mut Connection<'_, Prover>) {
         let stuck_jobs = connection
-            .fri_witness_generator_dal()
+            .fri_scheduler_witness_generator_dal()
             .requeue_stuck_scheduler_jobs(self.processing_timeouts.scheduler(), self.max_attempts)
             .await;
         self.emit_telemetry(WitnessType::SchedulerJobsFri, &stuck_jobs);

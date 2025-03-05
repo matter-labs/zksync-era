@@ -1,7 +1,8 @@
 use std::fmt;
 
-use secp256k1::{ecdsa::Signature, Message, PublicKey, Secp256k1};
-use zksync_basic_types::H256;
+use secp256k1::{PublicKey, Secp256k1};
+use zksync_basic_types::{L1BatchNumber, H256};
+use zksync_crypto_primitives::{sign, K256PrivateKey, Signature};
 use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId},
@@ -10,7 +11,6 @@ use zksync_node_framework::{
 };
 use zksync_prover_interface::inputs::TeeVerifierInput;
 use zksync_tee_verifier::Verify;
-use zksync_types::L1BatchNumber;
 
 use crate::{
     api_client::TeeApiClient, config::TeeProverConfig, error::TeeProverError, metrics::METRICS,
@@ -67,6 +67,14 @@ impl fmt::Debug for TeeProver {
 }
 
 impl TeeProver {
+    /// Signs the message in Ethereum-compatible format for on-chain verification.
+    pub fn sign_message(&self, message: &H256) -> Result<Signature, TeeProverError> {
+        let private_key: K256PrivateKey = self.config.signing_key.into();
+        let signature =
+            sign(&private_key, message).map_err(|e| TeeProverError::Verification(e.into()))?;
+        Ok(signature)
+    }
+
     fn verify(
         &self,
         tvi: TeeVerifierInput,
@@ -75,12 +83,15 @@ impl TeeProver {
             TeeVerifierInput::V1(tvi) => {
                 let observer = METRICS.proof_generation_time.start();
                 let verification_result = tvi.verify().map_err(TeeProverError::Verification)?;
-                let root_hash_bytes = verification_result.value_hash.as_bytes();
                 let batch_number = verification_result.batch_number;
-                let msg_to_sign = Message::from_slice(root_hash_bytes)
-                    .map_err(|e| TeeProverError::Verification(e.into()))?;
-                let signature = self.config.signing_key.sign_ecdsa(msg_to_sign);
-                observer.observe();
+                let signature = self.sign_message(&verification_result.value_hash)?;
+                let duration = observer.observe();
+                tracing::info!(
+                    proof_generation_time = duration.as_secs_f64(),
+                    l1_batch_number = %batch_number,
+                    l1_root_hash = ?verification_result.value_hash,
+                    "L1 batch verified",
+                );
                 Ok((signature, batch_number, verification_result.value_hash))
             }
             _ => Err(TeeProverError::Verification(anyhow::anyhow!(
@@ -96,7 +107,7 @@ impl TeeProver {
                 self.api_client
                     .submit_proof(
                         batch_number,
-                        signature,
+                        signature.into_electrum(),
                         public_key,
                         root_hash,
                         self.config.tee_type,
@@ -174,5 +185,57 @@ impl Task for TeeProver {
                     .ok();
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use secp256k1::SecretKey;
+    use url::Url;
+    use zksync_basic_types::{self, tee_types::TeeType};
+    use zksync_crypto_primitives::{public_to_address, recover};
+
+    use super::*;
+
+    #[test]
+    fn test_recover() {
+        let signing_key = SecretKey::from_slice(
+            &hex::decode("c87509a1c067bbde78beb793e6fa76530b6382a4c0241e5e4a9ec0a0f44dc0d3")
+                .unwrap(),
+        )
+        .unwrap();
+        let tee_prover_config = TeeProverConfig {
+            signing_key,
+            attestation_quote_file_path: PathBuf::from("/tmp/mock"),
+            tee_type: TeeType::Sgx,
+            api_url: Url::parse("http://mock").unwrap(),
+            max_retries: TeeProverConfig::default_max_retries(),
+            initial_retry_backoff_sec: TeeProverConfig::default_initial_retry_backoff_sec(),
+            retry_backoff_multiplier: TeeProverConfig::default_retry_backoff_multiplier(),
+            max_backoff_sec: TeeProverConfig::default_max_backoff_sec(),
+        };
+        let tee_prover = TeeProver {
+            config: tee_prover_config,
+            api_client: TeeApiClient::new(Url::parse("http://mock").unwrap()),
+        };
+        let private_key: K256PrivateKey = signing_key.into();
+        let expected_address = "0x627306090abaB3A6e1400e9345bC60c78a8BEf57"
+            .parse()
+            .unwrap();
+        assert_eq!(private_key.address(), expected_address);
+
+        // Generate a random root hash, create a message from the hash, and sign the message using
+        // the secret key
+        let random_root_hash = H256::random();
+        let signature = tee_prover.sign_message(&random_root_hash).unwrap();
+
+        // Recover the signer's Ethereum address from the signature and the message, and verify it
+        // matches the expected address
+        let recovered_pubkey = recover(&signature, &random_root_hash).unwrap();
+        let proof_address = public_to_address(&recovered_pubkey);
+
+        assert_eq!(proof_address, expected_address);
     }
 }

@@ -7,7 +7,7 @@ import { Reporter } from './reporter';
 import * as yaml from 'yaml';
 import { L2_BASE_TOKEN_ADDRESS } from 'zksync-ethers/build/utils';
 import { FileConfig, loadConfig, loadEcosystem, shouldLoadConfigFromFile } from 'utils/build/file-configs';
-import { NodeSpawner } from './utils';
+import { NodeSpawner } from 'utils/src/node-spawner';
 import { logsTestPath } from 'utils/build/logs';
 import * as nodefs from 'node:fs/promises';
 import { exec } from 'utils';
@@ -87,7 +87,7 @@ async function loadTestEnvironmentFromFile(fileConfig: FileConfig): Promise<Test
     let configsFolderSuffix = nodeMode == NodeMode.External ? 'external_node' : undefined;
     let generalConfig = loadConfig({ pathToHome, chain, config: 'general.yaml', configsFolderSuffix });
     let secretsConfig = loadConfig({ pathToHome, chain, config: 'secrets.yaml', configsFolderSuffix });
-    let contracts = loadConfig({ pathToHome, chain, config: 'contracts.yaml', configsFolderSuffix });
+    let contracts = loadConfig({ pathToHome, chain, config: 'contracts.yaml' });
 
     const network = ecosystem.l1_network.toLowerCase();
     let mainWalletPK = getMainWalletPk(pathToHome);
@@ -117,7 +117,8 @@ async function loadTestEnvironmentFromFile(fileConfig: FileConfig): Promise<Test
             baseTokenAddress: contracts.l1.base_token_addr
         });
 
-        l2Node = await mainNodeSpawner.spawnMainNode();
+        await mainNodeSpawner.killAndSpawnMainNode();
+        l2Node = mainNodeSpawner.mainNode;
     }
 
     const l2Provider = new zksync.Provider(l2NodeUrl);
@@ -125,7 +126,7 @@ async function loadTestEnvironmentFromFile(fileConfig: FileConfig): Promise<Test
 
     const wsL2NodeUrl = generalConfig.api.web3_json_rpc.ws_url;
 
-    const contractVerificationUrl = generalConfig.contract_verifier.url;
+    const contractVerificationUrl = `http://127.0.0.1:${generalConfig.contract_verifier.port}`;
 
     const tokens = getTokensNew(pathToHome);
     // wBTC is chosen because it has decimals different from ETH (8 instead of 18).
@@ -165,6 +166,9 @@ async function loadTestEnvironmentFromFile(fileConfig: FileConfig): Promise<Test
     const maxLogsLimit = parseInt(generalConfig.api.web3_json_rpc.req_entities_limit);
 
     const healthcheckPort = generalConfig.api.healthcheck.port;
+    const timestampAsserterAddress = contracts.l2.timestamp_asserter_addr;
+    const timestampAsserterMinTimeTillEndSec = parseInt(generalConfig.timestamp_asserter.min_time_till_end_sec);
+    const l2WETHAddress = contracts.l2.predeployed_l2_wrapped_base_token_address;
     return {
         maxLogsLimit,
         pathToHome,
@@ -195,7 +199,10 @@ async function loadTestEnvironmentFromFile(fileConfig: FileConfig): Promise<Test
             decimals: baseToken?.decimals || token.decimals,
             l1Address: baseToken?.address || token.address,
             l2Address: baseTokenAddressL2
-        }
+        },
+        timestampAsserterAddress,
+        timestampAsserterMinTimeTillEndSec,
+        l2WETHAddress
     };
 }
 
@@ -286,6 +293,13 @@ export async function loadTestEnvironmentFromEnv(): Promise<TestEnvironment> {
     );
 
     const healthcheckPort = process.env.API_HEALTHCHECK_PORT ?? '3071';
+    if (!process.env.CONTRACTS_L2_TIMESTAMP_ASSERTER_ADDR) {
+        throw new Error('CONTRACTS_L2_TIMESTAMP_ASSERTER_ADDR is not defined');
+    }
+    const timestampAsserterAddress = process.env.CONTRACTS_L2_TIMESTAMP_ASSERTER_ADDR.toString();
+
+    const timestampAsserterMinTimeTillEndSec = parseInt(process.env.TIMESTAMP_ASSERTER_MIN_TIME_TILL_END_SEC!);
+
     return {
         maxLogsLimit,
         pathToHome,
@@ -316,7 +330,10 @@ export async function loadTestEnvironmentFromEnv(): Promise<TestEnvironment> {
             decimals: baseToken?.decimals || token.decimals,
             l1Address: baseToken?.address || token.address,
             l2Address: baseTokenAddressL2
-        }
+        },
+        timestampAsserterAddress,
+        timestampAsserterMinTimeTillEndSec,
+        l2WETHAddress: undefined
     };
 }
 

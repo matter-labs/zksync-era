@@ -1,15 +1,15 @@
 //! This module provides a "builder" for the external node,
 //! as well as an interface to run the node with the specified components.
 
-use anyhow::Context as _;
+use anyhow::{bail, Context as _};
 use zksync_block_reverter::NodeRole;
 use zksync_config::{
     configs::{
         api::{HealthCheckConfig, MerkleTreeApiConfig},
         database::MerkleTreeMode,
-        DatabaseSecrets,
+        DataAvailabilitySecrets, DatabaseSecrets,
     },
-    PostgresConfig,
+    DAClientConfig, PostgresConfig,
 };
 use zksync_metadata_calculator::{
     MerkleTreeReaderConfig, MetadataCalculatorConfig, MetadataCalculatorRecoveryConfig,
@@ -22,6 +22,11 @@ use zksync_node_framework::{
         commitment_generator::CommitmentGeneratorLayer,
         consensus::ExternalNodeConsensusLayer,
         consistency_checker::ConsistencyCheckerLayer,
+        da_clients::{
+            avail::AvailWiringLayer, celestia::CelestiaWiringLayer, eigen::EigenWiringLayer,
+            no_da::NoDAClientWiringLayer, object_store::ObjectStorageClientWiringLayer,
+        },
+        data_availability_fetcher::DataAvailabilityFetcherLayer,
         healtcheck_server::HealthCheckLayer,
         l1_batch_commitment_mode_validation::L1BatchCommitmentModeValidationLayer,
         logs_bloom_backfill::LogsBloomBackfillLayer,
@@ -33,7 +38,7 @@ use zksync_node_framework::{
             NodeStorageInitializerLayer,
         },
         pools_layer::PoolsLayerBuilder,
-        postgres_metrics::PostgresMetricsLayer,
+        postgres::PostgresLayer,
         prometheus_exporter::PrometheusExporterLayer,
         pruning::PruningLayer,
         query_eth_client::QueryEthClientLayer,
@@ -57,7 +62,7 @@ use zksync_node_framework::{
     service::{ZkStackService, ZkStackServiceBuilder},
 };
 use zksync_state::RocksdbStorageOptions;
-use zksync_types::L2_NATIVE_TOKEN_VAULT_ADDRESS;
+use zksync_types::L2_ASSET_ROUTER_ADDRESS;
 
 use crate::{config::ExternalNodeConfig, metrics::framework::ExternalNodeMetricsLayer, Component};
 
@@ -125,15 +130,19 @@ impl ExternalNodeBuilder {
         Ok(self)
     }
 
-    fn add_postgres_metrics_layer(mut self) -> anyhow::Result<Self> {
-        self.node.add_layer(PostgresMetricsLayer);
+    fn add_postgres_layer(mut self) -> anyhow::Result<Self> {
+        self.node.add_layer(PostgresLayer);
         Ok(self)
     }
 
     fn add_external_node_metrics_layer(mut self) -> anyhow::Result<Self> {
         self.node.add_layer(ExternalNodeMetricsLayer {
             l1_chain_id: self.config.required.l1_chain_id,
-            sl_chain_id: self.config.required.settlement_layer_id(),
+            sl_chain_id: self
+                .config
+                .required
+                .gateway_chain_id
+                .unwrap_or(self.config.required.l1_chain_id.into()),
             l2_chain_id: self.config.required.l2_chain_id,
             postgres_pool_size: self.config.postgres.max_connections,
         });
@@ -179,8 +188,9 @@ impl ExternalNodeBuilder {
 
     fn add_query_eth_client_layer(mut self) -> anyhow::Result<Self> {
         let query_eth_client_layer = QueryEthClientLayer::new(
-            self.config.required.settlement_layer_id(),
+            self.config.required.l1_chain_id,
             self.config.required.eth_client_url.clone(),
+            self.config.required.gateway_chain_id,
             self.config.optional.gateway_url.clone(),
         );
         self.node.add_layer(query_eth_client_layer);
@@ -199,12 +209,11 @@ impl ExternalNodeBuilder {
             .remote
             .l2_shared_bridge_addr
             .context("Missing `l2_shared_bridge_addr`")?;
-        let l2_legacy_shared_bridge_addr = if l2_shared_bridge_addr == L2_NATIVE_TOKEN_VAULT_ADDRESS
-        {
-            // System has migrated to `L2_NATIVE_TOKEN_VAULT_ADDRESS`, use legacy shared bridge address from main node.
+        let l2_legacy_shared_bridge_addr = if l2_shared_bridge_addr == L2_ASSET_ROUTER_ADDRESS {
+            // System has migrated to `L2_ASSET_ROUTER_ADDRESS`, use legacy shared bridge address from main node.
             self.config.remote.l2_legacy_shared_bridge_addr
         } else {
-            // System hasn't migrated on `L2_NATIVE_TOKEN_VAULT_ADDRESS`, we can safely use `l2_shared_bridge_addr`.
+            // System hasn't migrated on `L2_ASSET_ROUTER_ADDRESS`, we can safely use `l2_shared_bridge_addr`.
             Some(l2_shared_bridge_addr)
         };
 
@@ -277,7 +286,7 @@ impl ExternalNodeBuilder {
 
     fn add_l1_batch_commitment_mode_validation_layer(mut self) -> anyhow::Result<Self> {
         let layer = L1BatchCommitmentModeValidationLayer::new(
-            self.config.remote.user_facing_diamond_proxy,
+            self.config.l1_diamond_proxy_address(),
             self.config.optional.l1_batch_commit_data_generator_mode,
         );
         self.node.add_layer(layer);
@@ -286,8 +295,9 @@ impl ExternalNodeBuilder {
 
     fn add_validate_chain_ids_layer(mut self) -> anyhow::Result<Self> {
         let layer = ValidateChainIdsLayer::new(
-            self.config.required.settlement_layer_id(),
+            self.config.required.l1_chain_id,
             self.config.required.l2_chain_id,
+            self.config.required.gateway_chain_id,
         );
         self.node.add_layer(layer);
         Ok(self)
@@ -296,9 +306,10 @@ impl ExternalNodeBuilder {
     fn add_consistency_checker_layer(mut self) -> anyhow::Result<Self> {
         let max_batches_to_recheck = 10; // TODO (BFT-97): Make it a part of a proper EN config
         let layer = ConsistencyCheckerLayer::new(
-            self.config.remote.user_facing_diamond_proxy,
+            self.config.l1_diamond_proxy_address(),
             max_batches_to_recheck,
             self.config.optional.l1_batch_commit_data_generator_mode,
+            self.config.required.l2_chain_id,
         );
         self.node.add_layer(layer);
         Ok(self)
@@ -323,8 +334,52 @@ impl ExternalNodeBuilder {
     }
 
     fn add_tree_data_fetcher_layer(mut self) -> anyhow::Result<Self> {
-        let layer = TreeDataFetcherLayer::new(self.config.remote.user_facing_diamond_proxy);
+        let layer = TreeDataFetcherLayer::new(
+            self.config.l1_diamond_proxy_address(),
+            self.config.required.l2_chain_id,
+        );
         self.node.add_layer(layer);
+        Ok(self)
+    }
+
+    fn add_da_client_layer(mut self) -> anyhow::Result<Self> {
+        let (da_client_config, da_client_secrets) = self.config.data_availability.clone();
+
+        let da_client_config = da_client_config.context("DA client config is missing")?;
+
+        if matches!(da_client_config, DAClientConfig::NoDA) {
+            self.node.add_layer(NoDAClientWiringLayer);
+            return Ok(self);
+        }
+
+        let da_client_secrets = da_client_secrets.context("DA client secrets are missing")?;
+        match (da_client_config, da_client_secrets) {
+            (DAClientConfig::Avail(config), DataAvailabilitySecrets::Avail(secret)) => {
+                self.node.add_layer(AvailWiringLayer::new(config, secret));
+            }
+
+            (DAClientConfig::Celestia(config), DataAvailabilitySecrets::Celestia(secret)) => {
+                self.node
+                    .add_layer(CelestiaWiringLayer::new(config, secret));
+            }
+
+            (DAClientConfig::Eigen(config), DataAvailabilitySecrets::Eigen(secret)) => {
+                self.node.add_layer(EigenWiringLayer::new(config, secret));
+            }
+
+            (DAClientConfig::ObjectStore(config), _) => {
+                self.node
+                    .add_layer(ObjectStorageClientWiringLayer::new(config));
+            }
+            _ => bail!("invalid pair of da_client and da_secrets"),
+        }
+
+        Ok(self)
+    }
+
+    fn add_data_availability_fetcher_layer(mut self) -> anyhow::Result<Self> {
+        self.node.add_layer(DataAvailabilityFetcherLayer);
+
         Ok(self)
     }
 
@@ -375,6 +430,11 @@ impl ExternalNodeBuilder {
                     .context("should contain tree api port")?,
             };
             layer = layer.with_tree_api_config(merkle_tree_api_config);
+        }
+
+        // Add stale keys repair task if requested.
+        if self.config.optional.merkle_tree_repair_stale_keys {
+            layer = layer.with_stale_keys_repair();
         }
 
         // Add tree pruning if needed.
@@ -576,7 +636,7 @@ impl ExternalNodeBuilder {
             // so until we have a dedicated component for "auxiliary" tasks,
             // it's responsible for things like metrics.
             self = self
-                .add_postgres_metrics_layer()?
+                .add_postgres_layer()?
                 .add_external_node_metrics_layer()?;
             // We assign the storage initialization to the core, as it's considered to be
             // the "main" component.
@@ -639,6 +699,11 @@ impl ExternalNodeBuilder {
                 }
                 Component::TreeFetcher => {
                     self = self.add_tree_data_fetcher_layer()?;
+                }
+                Component::DataAvailabilityFetcher => {
+                    self = self
+                        .add_da_client_layer()?
+                        .add_data_availability_fetcher_layer()?;
                 }
                 Component::Core => {
                     // Main tasks

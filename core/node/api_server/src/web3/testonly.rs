@@ -34,6 +34,7 @@ pub(crate) async fn create_test_tx_sender(
         &web3_config,
         wallets.state_keeper.unwrap().fee_account.address(),
         l2_chain_id,
+        None,
     );
 
     let storage_caches = PostgresStorageCaches::new(1, 1);

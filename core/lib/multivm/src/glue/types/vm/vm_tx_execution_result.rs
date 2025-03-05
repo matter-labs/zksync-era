@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::{
     glue::{GlueFrom, GlueInto},
     interface::{
@@ -66,14 +68,14 @@ impl GlueFrom<Result<crate::vm_m6::vm_instance::VmTxExecutionResult, crate::vm_m
                         logs: Default::default(),
                         statistics: Default::default(),
                         refunds: Default::default(),
-                        new_known_factory_deps: None,
+                        dynamic_factory_deps: HashMap::new(),
                     },
                     TxRevertReason::Halt(halt) => VmExecutionResultAndLogs {
                         result: ExecutionResult::Halt { reason: halt },
                         logs: Default::default(),
                         statistics: Default::default(),
                         refunds: Default::default(),
-                        new_known_factory_deps: None,
+                        dynamic_factory_deps: HashMap::new(),
                     },
                 }
             }
@@ -102,14 +104,14 @@ impl
                         logs: Default::default(),
                         statistics: Default::default(),
                         refunds: Default::default(),
-                        new_known_factory_deps: None,
+                        dynamic_factory_deps: HashMap::new(),
                     },
                     TxRevertReason::Halt(halt) => VmExecutionResultAndLogs {
                         result: ExecutionResult::Halt { reason: halt },
                         logs: Default::default(),
                         statistics: Default::default(),
                         refunds: Default::default(),
-                        new_known_factory_deps: None,
+                        dynamic_factory_deps: HashMap::new(),
                     },
                 }
             }
@@ -133,7 +135,7 @@ impl GlueFrom<Result<crate::vm_m5::vm_instance::VmTxExecutionResult, crate::vm_m
                         logs: Default::default(),
                         statistics: Default::default(),
                         refunds: Default::default(),
-                        new_known_factory_deps: None,
+                        dynamic_factory_deps: HashMap::new(),
                     },
                     _ => {
                         unreachable!("Halt is the only revert reason for VM 5")

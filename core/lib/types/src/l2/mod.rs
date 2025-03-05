@@ -23,11 +23,12 @@ use crate::{
 
 pub mod error;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[derive(Serialize, Deserialize, TryFromPrimitive)]
 #[repr(u32)]
 pub enum TransactionType {
     // Native ECDSA Transaction
+    #[default]
     LegacyTransaction = 0,
     EIP2930Transaction = 1,
     EIP1559Transaction = 2,
@@ -396,6 +397,13 @@ impl From<L2Tx> for api::Transaction {
             } else {
                 (None, None, None)
             };
+        // Legacy transactions are not supposed to have `yParity` and are reliant on `v` instead.
+        // Other transactions are required to have `yParity` which replaces the deprecated `v` value
+        // (still included for backwards compatibility).
+        let y_parity = match tx.common_data.transaction_type {
+            TransactionType::LegacyTransaction => None,
+            _ => v,
+        };
 
         Self {
             hash: tx.hash(),
@@ -409,6 +417,7 @@ impl From<L2Tx> for api::Transaction {
             max_fee_per_gas: Some(tx.common_data.fee.max_fee_per_gas),
             gas: tx.common_data.fee.gas_limit,
             input: Bytes(tx.execute.calldata),
+            y_parity,
             v,
             r,
             s,

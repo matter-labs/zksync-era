@@ -7,7 +7,6 @@ use zksync_basic_types::{
 };
 use zksync_config::configs;
 use zksync_protobuf::{repr::ProtoRepr, required};
-use zksync_types::SLChainId;
 
 use crate::{parse_h160, parse_h256, proto::genesis as proto};
 
@@ -85,11 +84,16 @@ impl ProtoRepr for proto::Genesis {
             l1_chain_id: required(&self.l1_chain_id)
                 .map(|x| L1ChainId(*x))
                 .context("l1_chain_id")?,
-            sl_chain_id: self.sl_chain_id.map(SLChainId),
             l2_chain_id: required(&self.l2_chain_id)
                 .and_then(|x| L2ChainId::try_from(*x).map_err(|a| anyhow::anyhow!(a)))
                 .context("l2_chain_id")?,
             snark_wrapper_vk_hash,
+            fflonk_snark_wrapper_vk_hash: prover
+                .fflonk_snark_wrapper_vk_hash
+                .as_ref()
+                .map(|x| parse_h256(x).context("fflonk_snark_wrapper_vk_hash"))
+                .transpose()
+                .context("fflonk_snark_wrapper_vk_hash")?,
             fee_account: required(&self.fee_account)
                 .and_then(|x| parse_h160(x))
                 .context("fee_account")?,
@@ -100,6 +104,7 @@ impl ProtoRepr for proto::Genesis {
             .and_then(|x| Ok(proto::L1BatchCommitDataGeneratorMode::try_from(*x)?))
             .context("l1_batch_commit_data_generator_mode")?
             .parse(),
+            custom_genesis_state_path: self.custom_genesis_state_path.clone(),
         })
     }
 
@@ -116,11 +121,13 @@ impl ProtoRepr for proto::Genesis {
             fee_account: Some(format!("{:?}", this.fee_account)),
             l1_chain_id: Some(this.l1_chain_id.0),
             l2_chain_id: Some(this.l2_chain_id.as_u64()),
-            sl_chain_id: this.sl_chain_id.map(|x| x.0),
             prover: Some(proto::Prover {
                 recursion_scheduler_level_vk_hash: None, // Deprecated field.
                 dummy_verifier: Some(this.dummy_verifier),
                 snark_wrapper_vk_hash: Some(format!("{:?}", this.snark_wrapper_vk_hash)),
+                fflonk_snark_wrapper_vk_hash: this
+                    .fflonk_snark_wrapper_vk_hash
+                    .map(|x| format!("{:?}", x)),
             }),
             l1_batch_commit_data_generator_mode: Some(
                 proto::L1BatchCommitDataGeneratorMode::new(
@@ -128,6 +135,7 @@ impl ProtoRepr for proto::Genesis {
                 )
                 .into(),
             ),
+            custom_genesis_state_path: this.custom_genesis_state_path.clone(),
         }
     }
 }

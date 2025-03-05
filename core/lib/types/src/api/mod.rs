@@ -1,15 +1,14 @@
 use chrono::{DateTime, Utc};
+use derive_more::Display;
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
 use serde_with::{hex::Hex, serde_as};
-use strum::Display;
 use zksync_basic_types::{
-    tee_types::TeeType,
+    commitment::PubdataType,
     web3::{AccessList, Bytes, Index},
-    Bloom, L1BatchNumber, H160, H256, H64, U256, U64,
+    Bloom, L1BatchNumber, SLChainId, H160, H256, H64, U256, U64,
 };
 use zksync_contracts::BaseSystemContractsHashes;
-use zksync_utils::u256_to_h256;
 
 pub use crate::transaction_request::{
     Eip712Meta, SerializationTransactionError, TransactionRequest,
@@ -17,6 +16,7 @@ pub use crate::transaction_request::{
 use crate::{
     debug_flat_call::{DebugCallFlat, ResultDebugCallFlat},
     protocol_version::L1VerifierConfig,
+    tee_types::TeeType,
     Address, L2BlockNumber, ProtocolVersionId,
 };
 
@@ -199,63 +199,9 @@ pub struct L2ToL1LogProof {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct LeafAggProof {
-    pub leaf_chain_proof: LeafChainProof,
-    pub chain_agg_proof: ChainAggProof,
-    pub local_msg_root: H256,
-    pub sl_batch_number: U256,
-    pub sl_chain_id: U256,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct LeafChainProof {
-    pub batch_leaf_proof: Vec<H256>,
-    pub batch_leaf_proof_mask: U256,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
 pub struct ChainAggProof {
     pub chain_id_leaf_proof: Vec<H256>,
-    pub chain_id_leaf_proof_mask: U256,
-}
-
-impl LeafAggProof {
-    pub fn encode(self) -> (u32, Vec<H256>) {
-        let mut encoded_result = vec![];
-
-        let LeafAggProof {
-            leaf_chain_proof,
-            chain_agg_proof,
-            sl_batch_number,
-            sl_chain_id,
-            ..
-        } = self;
-
-        let LeafChainProof {
-            batch_leaf_proof,
-            batch_leaf_proof_mask,
-        } = leaf_chain_proof;
-
-        let ChainAggProof {
-            chain_id_leaf_proof: _,
-            chain_id_leaf_proof_mask,
-        } = chain_agg_proof;
-
-        let batch_leaf_proof_len = batch_leaf_proof.len() as u32;
-
-        encoded_result.push(u256_to_h256(batch_leaf_proof_mask));
-        encoded_result.extend(batch_leaf_proof);
-
-        let sl_encoded_data =
-            sl_batch_number * U256::from(2).pow(128.into()) + chain_id_leaf_proof_mask;
-        encoded_result.push(u256_to_h256(sl_encoded_data));
-
-        encoded_result.push(u256_to_h256(sl_chain_id));
-
-        (batch_leaf_proof_len, encoded_result)
-    }
+    pub chain_id_leaf_proof_mask: u64,
 }
 
 /// A struct with the two default bridge contracts.
@@ -319,8 +265,6 @@ pub struct TransactionReceipt {
     pub l2_to_l1_logs: Vec<L2ToL1Log>,
     /// Status: either 1 (success) or 0 (failure).
     pub status: U64,
-    /// State root.
-    pub root: H256,
     /// Logs bloom
     #[serde(rename = "logsBloom")]
     pub logs_bloom: Bloom,
@@ -530,6 +474,45 @@ impl Log {
     }
 }
 
+impl From<Log> for zksync_basic_types::web3::Log {
+    fn from(log: Log) -> Self {
+        zksync_basic_types::web3::Log {
+            address: log.address,
+            topics: log.topics,
+            data: log.data,
+            block_hash: log.block_hash,
+            block_number: log.block_number,
+            transaction_hash: log.transaction_hash,
+            transaction_index: log.transaction_index,
+            log_index: log.log_index,
+            transaction_log_index: log.transaction_log_index,
+            log_type: log.log_type,
+            removed: log.removed,
+            block_timestamp: log.block_timestamp,
+        }
+    }
+}
+
+impl From<zksync_basic_types::web3::Log> for Log {
+    fn from(log: zksync_basic_types::web3::Log) -> Self {
+        Log {
+            address: log.address,
+            topics: log.topics,
+            data: log.data,
+            block_hash: log.block_hash,
+            block_number: log.block_number,
+            transaction_hash: log.transaction_hash,
+            transaction_index: log.transaction_index,
+            log_index: log.log_index,
+            transaction_log_index: log.transaction_log_index,
+            log_type: log.log_type,
+            removed: log.removed,
+            block_timestamp: log.block_timestamp,
+            l1_batch_number: None,
+        }
+    }
+}
+
 /// A log produced by a transaction.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -579,6 +562,9 @@ pub struct Transaction {
     pub gas: U256,
     /// Input data
     pub input: Bytes,
+    /// The parity (0 for even, 1 for odd) of the y-value of the secp256k1 signature
+    #[serde(rename = "yParity", default, skip_serializing_if = "Option::is_none")]
+    pub y_parity: Option<U64>,
     /// ECDSA recovery id
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub v: Option<U64>,
@@ -880,10 +866,13 @@ pub struct BlockDetailsBase {
     pub status: BlockStatus,
     pub commit_tx_hash: Option<H256>,
     pub committed_at: Option<DateTime<Utc>>,
+    pub commit_chain_id: Option<SLChainId>,
     pub prove_tx_hash: Option<H256>,
     pub proven_at: Option<DateTime<Utc>>,
+    pub prove_chain_id: Option<SLChainId>,
     pub execute_tx_hash: Option<H256>,
     pub executed_at: Option<DateTime<Utc>>,
+    pub execute_chain_id: Option<SLChainId>,
     pub l1_gas_price: u64,
     pub l2_fair_gas_price: u64,
     // Cost of publishing one byte (in wei).
@@ -950,6 +939,7 @@ pub struct TeeProof {
     #[serde_as(as = "Option<Hex>")]
     pub proof: Option<Vec<u8>>,
     pub proved_at: DateTime<Utc>,
+    pub status: String,
     #[serde_as(as = "Option<Hex>")]
     pub attestation: Option<Vec<u8>>,
 }
@@ -989,6 +979,17 @@ pub struct FeeHistory {
     pub l2_pubdata_price: Vec<U256>,
 }
 
+/// The data availability details type. Used exclusively in Validiums.
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DataAvailabilityDetails {
+    pub pubdata_type: Option<PubdataType>,
+    pub blob_id: String,
+    pub inclusion_data: Option<Vec<u8>>,
+    pub sent_at: DateTime<Utc>,
+    pub l2_da_validator: Option<Address>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1022,5 +1023,23 @@ mod tests {
 
         serde_json::from_str::<OldProtocolVersion>(&serde_json::to_string(&new_version).unwrap())
             .unwrap();
+    }
+
+    #[test]
+    fn proper_display() {
+        let block_number = BlockNumber::Committed;
+        assert_eq!(format!("{}", block_number), "Committed");
+        let block_number = BlockNumber::Finalized;
+        assert_eq!(format!("{}", block_number), "Finalized");
+        let block_number = BlockNumber::Latest;
+        assert_eq!(format!("{}", block_number), "Latest");
+        let block_number = BlockNumber::L1Committed;
+        assert_eq!(format!("{}", block_number), "L1Committed");
+        let block_number = BlockNumber::Earliest;
+        assert_eq!(format!("{}", block_number), "Earliest");
+        let block_number = BlockNumber::Pending;
+        assert_eq!(format!("{}", block_number), "Pending");
+        let block_number = BlockNumber::Number(U64::from(42));
+        assert_eq!(format!("{}", block_number), "42");
     }
 }

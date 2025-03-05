@@ -1,18 +1,21 @@
 pub use zksync_vm2::interface;
 
-pub use self::{circuits_tracer::CircuitsTracer, vm::Vm};
+pub(crate) use self::version::FastVmVersion;
+pub use self::{
+    tracers::{
+        CallTracer, FastValidationTracer, FullValidationTracer, StorageInvocationsTracer,
+        ValidationTracer,
+    },
+    vm::Vm,
+};
 
-mod bootloader_state;
 mod bytecode;
-mod circuits_tracer;
 mod events;
 mod glue;
-mod hook;
-mod initial_bootloader_memory;
-mod pubdata;
-mod refund;
-// FIXME(EVM-711): restore tests for fast VM once it is integrated
 #[cfg(test)]
 mod tests;
-mod transaction_data;
+mod tracers;
+mod utils;
+mod version;
 mod vm;
+mod world;

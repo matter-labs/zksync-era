@@ -11,7 +11,9 @@ use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{clients::MockSettlementLayer, BaseFees};
 use zksync_multivm::{
-    interface::{TransactionExecutionMetrics, TransactionExecutionResult},
+    interface::{
+        tracer::ValidationTraces, TransactionExecutionMetrics, TransactionExecutionResult,
+    },
     vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
 use zksync_node_fee_model::{
@@ -30,7 +32,8 @@ use zksync_types::{
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     pubdata_da::PubdataSendingMode,
     system_contracts::get_system_smart_contracts,
-    L2BlockNumber, L2ChainId, PriorityOpId, ProtocolVersionId, H256,
+    L2BlockNumber, L2ChainId, PriorityOpId, ProtocolVersionId, TransactionTimeRangeConstraint,
+    H256,
 };
 
 use crate::{MempoolGuard, MempoolIO};
@@ -188,7 +191,11 @@ impl Tester {
         let tx = create_l2_transaction(10, 100);
         storage
             .transactions_dal()
-            .insert_transaction_l2(&tx, TransactionExecutionMetrics::default())
+            .insert_transaction_l2(
+                &tx,
+                TransactionExecutionMetrics::default(),
+                ValidationTraces::default(),
+            )
             .await
             .unwrap();
         storage
@@ -252,9 +259,10 @@ impl Tester {
         guard: &mut MempoolGuard,
         fee_per_gas: u64,
         gas_per_pubdata: u32,
+        constraint: TransactionTimeRangeConstraint,
     ) -> L2Tx {
         let tx = create_l2_transaction(fee_per_gas, gas_per_pubdata.into());
-        guard.insert(vec![tx.clone().into()], Default::default());
+        guard.insert(vec![(tx.clone().into(), constraint)], Default::default());
         tx
     }
 }

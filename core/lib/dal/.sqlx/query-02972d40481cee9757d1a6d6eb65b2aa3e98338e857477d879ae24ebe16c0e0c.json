@@ -1,0 +1,118 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                transactions.hash AS tx_hash,\n                transactions.index_in_block,\n                transactions.l1_batch_tx_index,\n                transactions.miniblock_number AS \"block_number!\",\n                transactions.error,\n                transactions.effective_gas_price,\n                transactions.initiator_address,\n                transactions.data -> 'to' AS \"transfer_to?\",\n                transactions.data -> 'contractAddress' AS \"execute_contract_address?\",\n                transactions.data -> 'calldata' AS \"calldata\",\n                transactions.tx_format AS \"tx_format?\",\n                transactions.refunded_gas,\n                transactions.gas_limit,\n                transactions.nonce,\n                miniblocks.hash AS \"block_hash\",\n                miniblocks.l1_batch_number AS \"l1_batch_number?\",\n                miniblocks.timestamp AS \"block_timestamp?\"\n            FROM\n                transactions\n            JOIN miniblocks ON miniblocks.number = transactions.miniblock_number\n            WHERE\n                transactions.hash = ANY($1)\n                AND transactions.data != '{}'::jsonb\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "tx_hash",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 1,
+        "name": "index_in_block",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "l1_batch_tx_index",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "block_number!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "error",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 5,
+        "name": "effective_gas_price",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 6,
+        "name": "initiator_address",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 7,
+        "name": "transfer_to?",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 8,
+        "name": "execute_contract_address?",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 9,
+        "name": "calldata",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 10,
+        "name": "tx_format?",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 11,
+        "name": "refunded_gas",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 12,
+        "name": "gas_limit",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 13,
+        "name": "nonce",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 14,
+        "name": "block_hash",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 15,
+        "name": "l1_batch_number?",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 16,
+        "name": "block_timestamp?",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "ByteaArray"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      null,
+      null,
+      null,
+      true,
+      false,
+      true,
+      true,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "02972d40481cee9757d1a6d6eb65b2aa3e98338e857477d879ae24ebe16c0e0c"
+}

@@ -1,6 +1,6 @@
-use common::spinner::Spinner;
-use config::{ChainConfig, EcosystemConfig};
-use types::{BaseToken, L1Network, WalletCreation};
+use zkstack_cli_common::spinner::Spinner;
+use zkstack_cli_config::{ChainConfig, EcosystemConfig};
+use zkstack_cli_types::{BaseToken, L1Network, WalletCreation};
 
 use crate::{
     consts::AMOUNT_FOR_DISTRIBUTION_TO_WALLETS,
@@ -27,7 +27,10 @@ pub async fn distribute_eth(
         if let Some(deployer) = chain_wallets.deployer {
             addresses.push(deployer.address)
         }
-        common::ethereum::distribute_eth(
+        if let Some(setter) = chain_wallets.token_multiplier_setter {
+            addresses.push(setter.address)
+        }
+        zkstack_cli_common::ethereum::distribute_eth(
             wallets.operator,
             addresses,
             l1_rpc_url,
@@ -62,7 +65,7 @@ pub async fn mint_base_token(
 
         let amount = AMOUNT_FOR_DISTRIBUTION_TO_WALLETS * base_token.nominator as u128
             / base_token.denominator as u128;
-        common::ethereum::mint_token(
+        zkstack_cli_common::ethereum::mint_token(
             wallets.governor,
             base_token.address,
             addresses,
