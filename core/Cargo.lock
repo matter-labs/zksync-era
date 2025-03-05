@@ -11362,7 +11362,7 @@ dependencies = [
  "ethereum-types",
  "k256 0.13.4",
  "lazy_static",
- "p256",
+ "p256 0.13.2",
  "serde",
  "sha2 0.10.8",
  "sha3 0.10.8",
