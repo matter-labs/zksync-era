@@ -25,7 +25,7 @@ use zksync_dal::{ConnectionPool, Core};
 use zksync_env_config::{object_store::SnapshotsObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
 use zksync_protobuf_config::proto;
-use zksync_types::{Address, L1BatchNumber};
+use zksync_types::{settlement::SettlementMode, Address, L1BatchNumber};
 
 #[derive(Debug, Parser)]
 #[command(author = "Matter Labs", version, about = "Block revert utility", long_about = None)]
@@ -202,7 +202,6 @@ async fn main() -> anyhow::Result<()> {
 
     let gas_adjuster = eth_sender.gas_adjuster.context("gas_adjuster")?;
     let default_priority_fee_per_gas = gas_adjuster.default_priority_fee_per_gas;
-    let settlement_mode = gas_adjuster.settlement_mode;
 
     let database_secrets = match &secrets_config {
         Some(secrets_config) => secrets_config
@@ -236,12 +235,16 @@ async fn main() -> anyhow::Result<()> {
 
     let contracts = SettlementLayerContracts::new(&contracts, None);
 
-    let sl_rpc_url = if settlement_mode.is_gateway() {
-        l1_secrets
-            .gateway_rpc_url
-            .context("Gateway URL not found")?
+    // TODO think more about it
+    let (sl_rpc_url, settlement_mode) = if opts.gateway_chain_path.is_some() {
+        (
+            l1_secrets
+                .gateway_rpc_url
+                .context("Gateway URL not found")?,
+            SettlementMode::Gateway,
+        )
     } else {
-        l1_secrets.l1_rpc_url
+        (l1_secrets.l1_rpc_url, SettlementMode::SettlesToL1)
     };
 
     let sl_diamond_proxy = contracts

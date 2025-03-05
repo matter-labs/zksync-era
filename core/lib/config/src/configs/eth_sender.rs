@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use anyhow::Context as _;
 use serde::Deserialize;
-use zksync_basic_types::{pubdata_da::PubdataSendingMode, settlement::SettlementMode, H256};
+use zksync_basic_types::{pubdata_da::PubdataSendingMode, H256};
 use zksync_crypto_primitives::K256PrivateKey;
 
 use crate::EthWatchConfig;
@@ -57,7 +57,6 @@ impl EthConfig {
                 num_samples_for_blob_base_fee_estimate: 10,
                 internal_pubdata_pricing_multiplier: 1.0,
                 max_blob_base_fee: None,
-                settlement_mode: Default::default(),
             }),
             watcher: Some(EthWatchConfig {
                 confirmations_for_eth_event: None,
@@ -206,10 +205,6 @@ pub struct GasAdjusterConfig {
     pub internal_pubdata_pricing_multiplier: f64,
     /// Max blob base fee that is allowed to be used.
     pub max_blob_base_fee: Option<u64>,
-    /// Whether the gas adjuster should require that the L2 node is used as a settlement layer.
-    /// It offers a runtime check for correctly provided values.
-    #[serde(default)]
-    pub settlement_mode: SettlementMode,
 }
 
 impl GasAdjusterConfig {

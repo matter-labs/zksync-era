@@ -6,7 +6,7 @@ use zksync_eth_client::{clients::MockSettlementLayer, BaseFees};
 use zksync_types::{
     commitment::L1BatchCommitmentMode, pubdata_da::PubdataSendingMode, settlement::SettlementMode,
 };
-use zksync_web3_decl::client::L2;
+use zksync_web3_decl::client::{DynClient, L2};
 
 use super::{GasAdjuster, GasStatistics, GasStatisticsInner};
 use crate::l1_gas_price::GasAdjusterClient;
@@ -72,7 +72,6 @@ fn test_config(settlement_mode: SettlementMode) -> GasAdjusterConfig {
         num_samples_for_blob_base_fee_estimate: 3,
         internal_pubdata_pricing_multiplier: 1.0,
         max_blob_base_fee: None,
-        settlement_mode,
     }
 }
 
@@ -102,8 +101,9 @@ async fn kept_updated(commitment_mode: L1BatchCommitmentMode) {
     eth_client.advance_block_number(6);
 
     let config = test_config(SettlementMode::SettlesToL1);
+    let client: Box<DynClient<L2>> = Box::new(eth_client.clone().into_client());
     let adjuster = GasAdjuster::new(
-        GasAdjusterClient::from_l1(Box::new(eth_client.clone().into_client())),
+        GasAdjusterClient::from(client),
         config,
         PubdataSendingMode::Calldata,
         commitment_mode,
@@ -166,8 +166,10 @@ async fn kept_updated_l2(commitment_mode: L1BatchCommitmentMode) {
     eth_client.advance_block_number(6);
 
     let config = test_config(SettlementMode::Gateway);
+    let client: Box<DynClient<L2>> = Box::new(eth_client.clone().into_client());
+
     let adjuster = GasAdjuster::new(
-        GasAdjusterClient::from_l2(Box::new(eth_client.clone().into_client())),
+        GasAdjusterClient::from(client),
         config,
         PubdataSendingMode::RelayedL2Calldata,
         commitment_mode,
