@@ -31,8 +31,14 @@ RUN cargo install sqlx-cli --version 0.8.0
 # Install additional dependencies
 RUN apt-get update && apt-get install -y \
     clang llvm-dev libclang-dev \
-    ca-certificates curl gnupg \
-    && curl -L https://raw.githubusercontent.com/matter-labs/foundry-zksync/main/install-foundry-zksync | bash
+    ca-certificates curl gnupg 
+    # && curl -L https://raw.githubusercontent.com/matter-labs/foundry-zksync/main/install-foundry-zksync | bash 
+
+RUN mkdir ./foundry-zksync
+RUN curl -LO https://github.com/matter-labs/foundry-zksync/releases/download/nightly-27360d4c8d12beddbb730dae07ad33a206b38f4b/foundry_nightly_linux_amd64.tar.gz
+RUN tar zxf foundry_nightly_linux_amd64.tar.gz -C ./foundry-zksync
+RUN chmod +x ./foundry-zksync/forge ./foundry-zksync/cast
+ENV PATH="/foundry-zksync:$PATH"
 
 ENV PATH="/usr/local/cargo/bin:/root/.foundry/bin:$PATH"
 
