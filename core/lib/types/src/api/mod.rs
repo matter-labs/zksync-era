@@ -659,6 +659,7 @@ pub struct ResultDebugCall {
 pub enum DebugCallType {
     #[default]
     Call,
+    DelegateCall,
     Create,
 }
 
