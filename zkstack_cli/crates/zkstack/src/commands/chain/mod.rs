@@ -3,9 +3,6 @@ use args::build_transactions::BuildTransactionsArgs;
 pub(crate) use args::create::ChainCreateArgsFinal;
 use clap::{command, Subcommand};
 pub(crate) use create::create_chain_inner;
-use deploy_and_bridge_zk::DeployAndBridgeZKArgs;
-use migrate_from_gateway::MigrateFromGatewayArgs;
-use migrate_to_gateway::MigrateToGatewayArgs;
 use xshell::Shell;
 
 use crate::commands::chain::{
@@ -20,6 +17,7 @@ pub(crate) mod common;
 #[cfg(feature = "gateway")]
 pub(crate) mod convert_to_gateway;
 pub(crate) mod create;
+#[cfg(feature = "gateway")]
 pub(crate) mod deploy_and_bridge_zk;
 pub mod deploy_l2_contracts;
 pub mod deploy_paymaster;
@@ -90,6 +88,9 @@ pub enum ChainCommands {
     /// Upgrade to the protocol version that supports Gateway
     #[cfg(feature = "gateway")]
     GatewayUpgrade(gateway_upgrade::GatewayUpgradeArgs),
+    /// Commands related to deployment and bridging of a custom token that is based on L2.
+    #[cfg(feature = "gateway")]
+    DeployAndBridgeZK(deploy_and_bridge_zk::DeployAndBridgeZKArgs),
     /// Enable EVM emulation on chain (Not supported yet)
     EnableEvmEmulator(ForgeScriptArgs),
 }
@@ -129,6 +130,8 @@ pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()
         ChainCommands::MigrateFromGateway(args) => migrate_from_gateway::run(args, shell).await,
         #[cfg(feature = "gateway")]
         ChainCommands::GatewayUpgrade(args) => gateway_upgrade::run(args, shell).await,
+        #[cfg(feature = "gateway")]
+        ChainCommands::DeployAndBridgeZK(args) => deploy_and_bridge_zk::run(args, shell).await,
         ChainCommands::EnableEvmEmulator(args) => enable_evm_emulator::run(args, shell).await,
     }
 }
