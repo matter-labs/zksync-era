@@ -1,5 +1,14 @@
 # Changelog
 
+## [26.7.0](https://github.com/matter-labs/zksync-era/compare/core-v26.6.0...core-v26.7.0) (2025-03-06)
+
+
+### Features
+
+* **api:** add endpoint supports_unsafe_deposit_filter ([#3679](https://github.com/matter-labs/zksync-era/issues/3679)) ([3902df3](https://github.com/matter-labs/zksync-era/commit/3902df39107c05ba9c737281f5975562132de9e5))
+* **zkos:** Merkle tree follow-ups ([#3662](https://github.com/matter-labs/zksync-era/issues/3662)) ([7c7c24c](https://github.com/matter-labs/zksync-era/commit/7c7c24c0736fe825d3be8d4d30f2d77c59b3d050))
+* **zksync_server:** adding --only-verify-config flag ([#3666](https://github.com/matter-labs/zksync-era/issues/3666)) ([022cade](https://github.com/matter-labs/zksync-era/commit/022cade897362fc7d9257a62064e19df88da6d83))
+
 ## [26.6.0](https://github.com/matter-labs/zksync-era/compare/core-v26.5.0...core-v26.6.0) (2025-03-05)
 
 
