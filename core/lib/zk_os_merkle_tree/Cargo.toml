@@ -21,6 +21,7 @@ once_cell.workspace = true
 rayon.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
+vise.workspace = true
 
 [dev-dependencies]
 clap = { workspace = true, features = ["derive"] }
