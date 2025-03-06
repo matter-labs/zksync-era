@@ -95,6 +95,9 @@ COPY package.json /
 COPY docker-compose.yml /docker-compose.yml
 COPY ZkStack.yaml /ZkStack.yaml
 
+# setup entrypoint script
+COPY ./docker/local-node/entrypoint.sh /usr/bin/
+
 # Copy Rust dependencies
 COPY rust-toolchain /
 COPY core/lib/dal core/lib/dal
