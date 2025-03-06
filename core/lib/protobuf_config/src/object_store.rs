@@ -32,6 +32,27 @@ impl ProtoRepr for proto::ObjectStore {
                         .clone(),
                 }
             }
+            proto::object_store::Mode::S3WithCredentialFile(mode) => {
+                ObjectStoreMode::S3WithCredentialFile {
+                    bucket_base_url: required(&mode.bucket_base_url)
+                        .context("bucket_base_url")?
+                        .clone(),
+                    s3_credential_file_path: required(&mode.s3_credential_file_path)
+                        .context("s3_credential_file_path")?
+                        .clone(),
+                    endpoint: mode.endpoint.clone(),
+                    region: mode.region.clone(),
+                }
+            }
+            proto::object_store::Mode::S3AnonymousReadOnly(mode) => {
+                ObjectStoreMode::S3AnonymousReadOnly {
+                    bucket_base_url: required(&mode.bucket_base_url)
+                        .context("bucket_base_url")?
+                        .clone(),
+                    endpoint: mode.endpoint.clone(),
+                    region: mode.region.clone(),
+                }
+            }
             proto::object_store::Mode::FileBacked(mode) => ObjectStoreMode::FileBacked {
                 file_backed_base_path: required(&mode.file_backed_base_path)
                     .context("file_backed_base_path")?
@@ -71,6 +92,30 @@ impl ProtoRepr for proto::ObjectStore {
                     },
                 )
             }
+            ObjectStoreMode::S3WithCredentialFile {
+                bucket_base_url,
+                s3_credential_file_path,
+                endpoint,
+                region,
+            } => proto::object_store::Mode::S3WithCredentialFile(
+                proto::object_store::S3WithCredentialFile {
+                    bucket_base_url: Some(bucket_base_url.clone()),
+                    s3_credential_file_path: Some(s3_credential_file_path.clone()),
+                    endpoint: endpoint.clone(),
+                    region: region.clone(),
+                },
+            ),
+            ObjectStoreMode::S3AnonymousReadOnly {
+                bucket_base_url,
+                endpoint,
+                region,
+            } => proto::object_store::Mode::S3AnonymousReadOnly(
+                proto::object_store::S3AnonymousReadOnly {
+                    bucket_base_url: Some(bucket_base_url.clone()),
+                    endpoint: endpoint.clone(),
+                    region: region.clone(),
+                },
+            ),
             ObjectStoreMode::FileBacked {
                 file_backed_base_path,
             } => proto::object_store::Mode::FileBacked(proto::object_store::FileBacked {
