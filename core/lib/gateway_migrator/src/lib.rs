@@ -4,14 +4,11 @@ use anyhow::bail;
 use tokio::sync::watch;
 use zksync_basic_types::{ethabi::Contract, settlement::SettlementMode, Address};
 use zksync_contracts::getters_facet_contract;
-use zksync_eth_client::{
-    clients::{DynClient, L1},
-    CallFunctionArgs, EthInterface,
-};
+use zksync_eth_client::{CallFunctionArgs, EthInterface};
 
 #[derive(Debug)]
 pub struct GatewayMigrator {
-    eth_client: Box<DynClient<L1>>,
+    sl_client: Box<dyn EthInterface>,
     diamond_proxy_addr: Address,
     settlement_mode: SettlementMode,
     abi: Contract,
@@ -19,13 +16,13 @@ pub struct GatewayMigrator {
 
 impl GatewayMigrator {
     pub fn new(
-        eth_client: Box<DynClient<L1>>,
+        sl_client: Box<dyn EthInterface>,
         diamond_proxy_addr: Address,
         initial_settlement_mode: SettlementMode,
     ) -> Self {
         let abi = getters_facet_contract();
         Self {
-            eth_client,
+            sl_client,
             diamond_proxy_addr,
             settlement_mode: initial_settlement_mode,
             abi,
@@ -43,7 +40,7 @@ impl GatewayMigrator {
                 return Ok(());
             }
             let settlement_mode =
-                get_settlement_layer(&self.eth_client, self.diamond_proxy_addr, &self.abi)
+                get_settlement_layer(self.sl_client.as_ref(), self.diamond_proxy_addr, &self.abi)
                     .await
                     .unwrap();
 

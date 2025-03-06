@@ -7,7 +7,8 @@ use crate::{
         contracts::{L1ChainContractsResource, SettlementLayerContractsResource},
         eth_interface::{
             BoundEthInterfaceForBlobsResource, BoundEthInterfaceForL2Resource,
-            BoundEthInterfaceResource, EthInterfaceResource, GatewayEthInterfaceResource,
+            BoundEthInterfaceResource, EthInterfaceResource,
+            GatewayEthInterfaceResourceUniversalClient, UniversalClient,
         },
     },
     wiring_layer::{WiringError, WiringLayer},
@@ -27,7 +28,7 @@ pub struct Input {
     pub eth_client: EthInterfaceResource,
     pub contracts: SettlementLayerContractsResource,
     pub l1_contracts: L1ChainContractsResource,
-    pub gateway_client: Option<GatewayEthInterfaceResource>,
+    pub gateway_client: GatewayEthInterfaceResourceUniversalClient,
 }
 
 #[derive(Debug, IntoContext)]
@@ -99,31 +100,31 @@ impl WiringLayer for PKSigningEthClientLayer {
             BoundEthInterfaceForBlobsResource(Box::new(signing_client_for_blobs))
         });
 
-        let signing_client_for_gateway = if let Some(client) = &input.gateway_client {
-            let private_key = self.wallets.operator.private_key();
-            let GatewayEthInterfaceResource(gateway_client) = client;
-            let chain_id = gateway_client
-                .fetch_chain_id()
-                .await
-                .map_err(WiringError::internal)?;
-            let signing_client_for_blobs = PKSigningClient::new_raw(
-                private_key.clone(),
-                input.contracts.0.chain_contracts_config.diamond_proxy_addr,
-                gas_adjuster_config.default_priority_fee_per_gas,
-                chain_id,
-                gateway_client.clone(),
-            );
-            Some(BoundEthInterfaceForL2Resource(Box::new(
-                signing_client_for_blobs,
-            )))
-        } else {
-            None
-        };
+        let signing_client_for_l2_gateway =
+            if let UniversalClient::L2(gateway_client) = input.gateway_client.0 {
+                let private_key = self.wallets.operator.private_key();
+                let chain_id = gateway_client
+                    .fetch_chain_id()
+                    .await
+                    .map_err(WiringError::internal)?;
+                let signing_client_for_blobs = PKSigningClient::new_raw(
+                    private_key.clone(),
+                    input.contracts.0.chain_contracts_config.diamond_proxy_addr,
+                    gas_adjuster_config.default_priority_fee_per_gas,
+                    chain_id,
+                    gateway_client.clone(),
+                );
+                Some(BoundEthInterfaceForL2Resource(Box::new(
+                    signing_client_for_blobs,
+                )))
+            } else {
+                None
+            };
 
         Ok(Output {
             signing_client,
             signing_client_for_blobs,
-            signing_client_for_gateway,
+            signing_client_for_gateway: signing_client_for_l2_gateway,
         })
     }
 }

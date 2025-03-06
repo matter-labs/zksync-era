@@ -7,7 +7,7 @@ use zksync_types::{
     block::L2BlockHeader, web3, Address, L1BatchNumber, SLChainId, H256, U256, U64,
 };
 use zksync_web3_decl::{
-    client::{DynClient, L1, L2},
+    client::{DynClient, L2},
     error::{ClientRpcContext, EnrichedClientError, EnrichedClientResult},
     jsonrpsee::core::ClientError,
     namespaces::ZksNamespaceClient,
@@ -96,7 +96,7 @@ struct PastL1BatchInfo {
 
 #[derive(Debug)]
 struct SLChainAccess {
-    client: Box<DynClient<L1>>,
+    client: Box<dyn EthInterface>,
     chain_id: SLChainId,
     diamond_proxy_addr: Address,
 }
@@ -126,7 +126,7 @@ impl L1DataProvider {
     const L1_BLOCK_RANGE: U64 = U64([20_000]);
 
     pub async fn new(
-        l1_client: Box<DynClient<L1>>,
+        l1_client: Box<dyn EthInterface>,
         l1_diamond_proxy_addr: Address,
     ) -> anyhow::Result<Self> {
         let l1_chain_id = l1_client.fetch_chain_id().await?;
@@ -236,7 +236,7 @@ impl TreeDataProvider for L1DataProvider {
             Some(number) => number,
             None => {
                 let (approximate_block, steps) = Self::guess_l1_commit_block_number(
-                    &self.chain_data.client,
+                    self.chain_data.client.as_ref(),
                     l1_batch_seal_timestamp,
                 )
                 .await?;

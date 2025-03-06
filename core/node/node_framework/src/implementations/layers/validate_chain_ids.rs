@@ -3,7 +3,7 @@ use zksync_types::{L1ChainId, L2ChainId, SLChainId};
 
 use crate::{
     implementations::resources::{
-        eth_interface::{EthInterfaceResource, GatewayEthInterfaceResource},
+        eth_interface::{EthInterfaceResource, GatewayEthInterfaceResourceUniversalClient},
         main_node_client::MainNodeClientResource,
     },
     service::StopReceiver,
@@ -35,7 +35,7 @@ pub struct ValidateChainIdsLayer {
 #[context(crate = crate)]
 pub struct Input {
     pub l1_client: EthInterfaceResource,
-    pub gateway_client: Option<GatewayEthInterfaceResource>,
+    pub gateway_client: GatewayEthInterfaceResourceUniversalClient,
     pub main_node_client: MainNodeClientResource,
 }
 
@@ -79,7 +79,7 @@ impl WiringLayer for ValidateChainIdsLayer {
             self.gateway_chain_id,
             l1_query_client,
             main_node_client,
-            input.gateway_client.map(|c| c.0),
+            Some(input.gateway_client.0.into()),
         );
 
         Ok(Output { task })

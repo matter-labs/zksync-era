@@ -14,7 +14,7 @@ use zksync_types::{
     web3::{BlockId, CallRequest},
     L2BlockNumber, ProtocolVersionId,
 };
-use zksync_web3_decl::client::MockClient;
+use zksync_web3_decl::client::{MockClient, L1};
 
 use super::*;
 use crate::tree_data_fetcher::tests::{
@@ -311,7 +311,7 @@ async fn guessing_l1_commit_block_number() {
 }
 
 async fn create_l1_data_provider(l1_client: Box<DynClient<L1>>) -> L1DataProvider {
-    L1DataProvider::new(l1_client, L1_DIAMOND_PROXY_ADDRESS)
+    L1DataProvider::new(Box::new(l1_client), L1_DIAMOND_PROXY_ADDRESS)
         .await
         .unwrap()
 }

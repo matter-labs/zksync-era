@@ -7,7 +7,8 @@ use zksync_types::pubdata_da::PubdataSendingMode;
 
 use crate::{
     implementations::resources::{
-        eth_interface::GatewayEthInterfaceResource, gas_adjuster::GasAdjusterResource,
+        eth_interface::{GatewayEthInterfaceResourceUniversalClient, UniversalClient},
+        gas_adjuster::GasAdjusterResource,
     },
     service::StopReceiver,
     task::{Task, TaskId},
@@ -27,7 +28,7 @@ pub struct GasAdjusterLayer {
 #[derive(Debug, FromContext)]
 #[context(crate = crate)]
 pub struct Input {
-    pub client: GatewayEthInterfaceResource,
+    pub client: GatewayEthInterfaceResourceUniversalClient,
 }
 
 #[derive(Debug, IntoContext)]
@@ -63,8 +64,13 @@ impl WiringLayer for GasAdjusterLayer {
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
+        let client = match input.client.0 {
+            UniversalClient::L1(client) => client.into(),
+            UniversalClient::L2(client) => client.into(),
+        };
+
         let adjuster = GasAdjuster::new(
-            input.client.0.into(),
+            client,
             self.gas_adjuster_config,
             self.pubdata_sending_mode,
             self.genesis_config.l1_batch_commit_data_generator_mode,

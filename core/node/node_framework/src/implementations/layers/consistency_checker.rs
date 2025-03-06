@@ -4,7 +4,7 @@ use zksync_types::commitment::L1BatchCommitmentMode;
 use crate::{
     implementations::resources::{
         contracts::SettlementLayerContractsResource,
-        eth_interface::GatewayEthInterfaceResource,
+        eth_interface::GatewayEthInterfaceResourceUniversalClient,
         healthcheck::AppHealthCheckResource,
         pools::{MasterPool, PoolResource},
     },
@@ -24,7 +24,7 @@ pub struct ConsistencyCheckerLayer {
 #[derive(Debug, FromContext)]
 #[context(crate = crate)]
 pub struct Input {
-    pub gateway_client: GatewayEthInterfaceResource,
+    pub gateway_client: GatewayEthInterfaceResourceUniversalClient,
     pub sl_chain_contracts: SettlementLayerContractsResource,
     pub master_pool: PoolResource<MasterPool>,
     #[context(default)]
@@ -65,7 +65,7 @@ impl WiringLayer for ConsistencyCheckerLayer {
         let singleton_pool = input.master_pool.get_singleton().await?;
 
         let consistency_checker = ConsistencyChecker::new(
-            gateway_client,
+            gateway_client.into(),
             self.max_batches_to_recheck,
             singleton_pool,
             self.commitment_mode,

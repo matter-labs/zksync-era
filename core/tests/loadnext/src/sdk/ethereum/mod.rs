@@ -58,7 +58,7 @@ pub fn l1_erc20_bridge_contract() -> ethabi::Contract {
 /// via `EthereumProvider::web3` method.
 #[derive(Debug)]
 pub struct EthereumProvider<S: EthereumSigner> {
-    eth_client: SigningClient<S>,
+    eth_client: SigningClient<S, L1>,
     default_bridges: BridgeAddresses,
     erc20_abi: ethabi::Contract,
     l1_erc20_bridge_abi: ethabi::Contract,

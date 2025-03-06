@@ -6,7 +6,7 @@ use zksync_eth_signer::{EthereumSigner, PrivateKeySigner, TransactionParameters}
 use zksync_types::{
     ethabi, web3, Address, K256PrivateKey, SLChainId, EIP_4844_TX_TYPE, H160, U256,
 };
-use zksync_web3_decl::client::{DynClient, L1};
+use zksync_web3_decl::client::{DynClient, Network};
 
 use super::{Method, LATENCIES};
 use crate::{
@@ -15,15 +15,15 @@ use crate::{
 };
 
 /// HTTP-based Ethereum client, backed by a private key to sign transactions.
-pub type PKSigningClient = SigningClient<PrivateKeySigner>;
+pub type PKSigningClient<Net> = SigningClient<PrivateKeySigner, Net>;
 
-impl PKSigningClient {
+impl<Net: Network> PKSigningClient<Net> {
     pub fn new_raw(
         operator_private_key: K256PrivateKey,
         diamond_proxy_addr: Address,
         default_priority_fee_per_gas: u64,
         chain_id: SLChainId,
-        query_client: Box<DynClient<L1>>,
+        query_client: Box<DynClient<Net>>,
     ) -> Self {
         let operator_address = operator_private_key.address();
         let signer = PrivateKeySigner::new(operator_private_key);
@@ -48,9 +48,9 @@ const FALLBACK_GAS_LIMIT: u64 = 3_000_000;
 
 /// HTTP-based client, instantiated for a certain account. This client is capable of signing transactions.
 #[derive(Clone)]
-pub struct SigningClient<S: EthereumSigner> {
+pub struct SigningClient<S: EthereumSigner, Net: Network> {
     inner: Arc<EthDirectClientInner<S>>,
-    query_client: Box<DynClient<L1>>,
+    query_client: Box<DynClient<Net>>,
 }
 
 struct EthDirectClientInner<S: EthereumSigner> {
@@ -62,7 +62,7 @@ struct EthDirectClientInner<S: EthereumSigner> {
     default_priority_fee_per_gas: U256,
 }
 
-impl<S: EthereumSigner> fmt::Debug for SigningClient<S> {
+impl<S: EthereumSigner, Net: Network> fmt::Debug for SigningClient<S, Net> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // We do not want to have a private key in the debug representation.
 
@@ -74,14 +74,14 @@ impl<S: EthereumSigner> fmt::Debug for SigningClient<S> {
     }
 }
 
-impl<S: EthereumSigner> AsRef<dyn EthInterface> for SigningClient<S> {
+impl<S: EthereumSigner, Net: Network> AsRef<dyn EthInterface> for SigningClient<S, Net> {
     fn as_ref(&self) -> &(dyn EthInterface + 'static) {
         &self.query_client
     }
 }
 
 #[async_trait]
-impl<S: EthereumSigner> BoundEthInterface for SigningClient<S> {
+impl<S: EthereumSigner, Net: Network> BoundEthInterface for SigningClient<S, Net> {
     fn clone_boxed(&self) -> Box<dyn BoundEthInterface> {
         Box::new(self.clone())
     }
@@ -209,9 +209,9 @@ impl<S: EthereumSigner> BoundEthInterface for SigningClient<S> {
     }
 }
 
-impl<S: EthereumSigner> SigningClient<S> {
+impl<S: EthereumSigner, Net: Network> SigningClient<S, Net> {
     pub fn new(
-        query_client: Box<DynClient<L1>>,
+        query_client: Box<DynClient<Net>>,
         contract: ethabi::Contract,
         operator_eth_addr: H160,
         eth_signer: S,

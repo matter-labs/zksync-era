@@ -297,7 +297,8 @@ async fn main() -> anyhow::Result<()> {
             priority_fee_per_gas,
             nonce,
         } => {
-            let sl_client = Client::http(sl_rpc_url).context("Ethereum client")?.build();
+            let sl_client: Client<L1> =
+                Client::http(sl_rpc_url).context("Ethereum client")?.build();
             let reverter_private_key = if let Some(wallets_config) = wallets_config {
                 wallets_config
                     .eth_sender
