@@ -1,6 +1,6 @@
 //! Load test for the Merkle tree.
 
-use std::{hint::black_box, time::Instant};
+use std::{hint::black_box, ops, time::Instant};
 
 use anyhow::Context;
 use clap::Parser;
@@ -11,8 +11,8 @@ use rand::{
 use tempfile::TempDir;
 use tracing_subscriber::EnvFilter;
 use zk_os_merkle_tree::{
-    Database, DefaultTreeParams, HashTree, MerkleTree, PatchSet, RocksDBWrapper, TreeEntry,
-    TreeParams,
+    unstable, Database, DefaultTreeParams, DeserializeError, HashTree, MerkleTree, PatchSet,
+    Patched, RocksDBWrapper, TreeEntry, TreeParams,
 };
 use zksync_basic_types::H256;
 use zksync_crypto_primitives::hasher::{blake2::Blake2Hasher, Hasher};
@@ -25,6 +25,69 @@ impl TreeParams for WithDynHasher {
     type Hasher = &'static dyn HashTree;
     const TREE_DEPTH: u8 = <DefaultTreeParams>::TREE_DEPTH;
     const INTERNAL_NODE_DEPTH: u8 = <DefaultTreeParams>::INTERNAL_NODE_DEPTH;
+}
+
+pub struct WithBatching<'a> {
+    inner: Patched<&'a mut dyn Database>,
+    batch_size: usize,
+    in_memory_batch_size: usize,
+}
+
+impl<'a> WithBatching<'a> {
+    pub fn new(db: &'a mut dyn Database, batch_size: usize) -> Self {
+        assert!(batch_size > 0, "Batch size must be positive");
+        Self {
+            inner: Patched::new(db),
+            batch_size,
+            in_memory_batch_size: 0,
+        }
+    }
+}
+
+impl Database for WithBatching<'_> {
+    fn indices(
+        &self,
+        version: u64,
+        keys: &[H256],
+    ) -> Result<Vec<unstable::KeyLookup>, DeserializeError> {
+        self.inner.indices(version, keys)
+    }
+
+    fn try_manifest(&self) -> Result<Option<unstable::Manifest>, DeserializeError> {
+        self.inner.try_manifest()
+    }
+
+    fn try_root(&self, version: u64) -> Result<Option<unstable::Root>, DeserializeError> {
+        self.inner.try_root(version)
+    }
+
+    fn try_nodes(
+        &self,
+        keys: &[unstable::NodeKey],
+    ) -> Result<Vec<unstable::Node>, DeserializeError> {
+        self.inner.try_nodes(keys)
+    }
+
+    fn apply_patch(&mut self, patch: PatchSet) -> anyhow::Result<()> {
+        self.inner.apply_patch(patch)?;
+
+        self.in_memory_batch_size += 1;
+        if self.in_memory_batch_size >= self.batch_size {
+            tracing::info!("Flushing changes to underlying DB");
+            self.inner.flush()?;
+            self.in_memory_batch_size = 0;
+        }
+        Ok(())
+    }
+
+    fn truncate(
+        &mut self,
+        manifest: unstable::Manifest,
+        truncated_versions: ops::RangeTo<u64>,
+    ) -> anyhow::Result<()> {
+        self.inner.flush()?;
+        self.inner.truncate(manifest, truncated_versions)
+    }
 }
 
 /// CLI for load-testing for the Merkle tree implementation.
@@ -43,6 +106,12 @@ struct Cli {
     /// Generate Merkle proofs for each operation.
     #[arg(name = "proofs", long)]
     proofs: bool,
+    /// Additional number of reads of previously written keys per commit.
+    #[arg(name = "reads", long, default_value = "0", requires = "proofs")]
+    reads_per_batch: usize,
+    /// Interval between flushes to the underlying DB.
+    #[arg(long = "flush-interval")]
+    flush_interval: Option<usize>,
     /// Use a no-op hashing function.
     #[arg(name = "no-hash", long)]
     no_hashing: bool,
@@ -62,7 +131,6 @@ struct Cli {
     /// Seed to use in the RNG for reproducibility.
     #[arg(long = "rng-seed", default_value = "0")]
     rng_seed: u64,
-    // FIXME: restore missing options (proof, in-memory buffering)
 }
 
 impl Cli {
@@ -79,7 +147,7 @@ impl Cli {
 
         let (mut mock_db, mut rocksdb);
         let mut _temp_dir = None;
-        let db: &mut dyn Database = if self.in_memory {
+        let mut db: &mut dyn Database = if self.in_memory {
             mock_db = PatchSet::default();
             &mut mock_db
         } else {
@@ -105,6 +173,12 @@ impl Cli {
             &mut rocksdb
         };
 
+        let mut batching_db;
+        if let Some(flush_interval) = self.flush_interval {
+            batching_db = WithBatching::new(db, flush_interval);
+            db = &mut batching_db;
+        }
+
         let hasher: &dyn HashTree = if self.no_hashing { &() } else { &Blake2Hasher };
         let mut rng = StdRng::seed_from_u64(self.rng_seed);
 
@@ -118,6 +192,7 @@ impl Cli {
                 .collect();
             let updated_indices =
                 (0..next_key_idx).choose_multiple(&mut rng, self.updates_per_batch);
+            let read_indices = (0..next_key_idx).choose_multiple(&mut rng, self.reads_per_batch);
             next_key_idx += new_keys.len() as u64;
 
             next_value_idx += (new_keys.len() + updated_indices.len()) as u64;
@@ -135,8 +210,9 @@ impl Cli {
             tracing::info!("Processing block #{version}");
             let start = Instant::now();
             let output = if self.proofs {
+                let read_keys: Vec<_> = Self::generate_keys(read_indices.into_iter()).collect();
                 let (output, proof) = tree
-                    .extend_with_proof(&kvs)
+                    .extend_with_proof(&kvs, &read_keys)
                     .context("failed extending tree")?;
                 black_box(proof); // Ensure that proof creation isn't optimized away
                 output
