@@ -13,6 +13,14 @@ mod testonly;
 #[cfg(test)]
 mod tests;
 
+/// Block certificate.
+#[derive(Debug, PartialEq, Clone)]
+pub enum BlockCertificate {
+    V1(validator::v1::CommitQC),
+    V2(validator::v2::CommitQC),
+}
+
+/// Block metadata.
 #[derive(Debug, PartialEq, Clone)]
 pub struct BlockMetadata {
     pub payload_hash: validator::PayloadHash,
