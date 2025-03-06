@@ -12,7 +12,7 @@ use zksync_config::{
     EigenConfig,
 };
 use zksync_da_client::{
-    types::{DAError, DispatchResponse, InclusionData},
+    types::{ClientType, DAError, DispatchResponse, InclusionData},
     DataAvailabilityClient,
 };
 
@@ -100,6 +100,10 @@ impl DataAvailabilityClient for EigenDAClient {
 
     fn blob_size_limit(&self) -> Option<usize> {
         self.client.blob_size_limit()
+    }
+
+    fn client_type(&self) -> ClientType {
+        ClientType::Eigen
     }
 
     async fn balance(&self) -> Result<u64, DAError> {

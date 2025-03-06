@@ -170,9 +170,11 @@ ENV RUSTC_WRAPPER=/usr/local/cargo/bin/sccache
 
 # If target is 'main' - then install default rust.
 FROM rust-lightweight-base as rust-lightweight
-RUN wget -c -O - https://sh.rustup.rs | bash -s -- -y
+RUN wget -c -O - https://sh.rustup.rs | bash -s -- -y && \
+    rustup show active-toolchain || rustup toolchain install
 
 
 # If target is nightly - then install only nightly rust.
 FROM rust-lightweight-base as rust-lightweight-nightly
-RUN wget -c -O - https://sh.rustup.rs | bash -s -- -y --default-toolchain nightly-2024-08-01
+RUN wget -c -O - https://sh.rustup.rs | bash -s -- -y --default-toolchain nightly-2024-08-01 && \
+    rustup show active-toolchain || rustup toolchain install

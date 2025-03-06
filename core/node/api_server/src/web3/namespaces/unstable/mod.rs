@@ -7,7 +7,7 @@ use zksync_crypto_primitives::hasher::keccak::KeccakHasher;
 use zksync_dal::{CoreDal, DalError};
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_types::{
-    api::{ChainAggProof, TeeProof, TransactionExecutionInfo},
+    api::{ChainAggProof, DataAvailabilityDetails, TeeProof, TransactionExecutionInfo},
     tee_types::TeeType,
     L1BatchNumber, L2ChainId,
 };
@@ -150,5 +150,32 @@ impl UnstableNamespace {
             .map_err(DalError::generalize)?;
 
         Ok(result)
+    }
+
+    pub async fn get_data_availability_details_impl(
+        &self,
+        batch: L1BatchNumber,
+    ) -> Result<Option<DataAvailabilityDetails>, Web3Error> {
+        let mut connection = self.state.acquire_connection().await?;
+        let Some(da_details) = connection
+            .data_availability_dal()
+            .get_da_details_by_batch_number(batch)
+            .await
+            .map_err(DalError::generalize)?
+        else {
+            return Ok(None);
+        };
+
+        Ok(Some(DataAvailabilityDetails {
+            pubdata_type: da_details.pubdata_type,
+            blob_id: da_details.blob_id,
+            inclusion_data: da_details.inclusion_data,
+            sent_at: da_details.sent_at,
+            l2_da_validator: da_details.l2_da_validator,
+        }))
+    }
+
+    pub fn supports_unsafe_deposit_filter_impl(&self) -> bool {
+        true
     }
 }
