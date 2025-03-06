@@ -57,4 +57,3 @@ pbjson-types.workspace = true
 
 # Eigen dependencies
 rust-eigenda-client.workspace = true
-zksync_dal.workspace = true

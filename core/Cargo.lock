@@ -11369,7 +11369,6 @@ dependencies = [
  "zksync_basic_types",
  "zksync_config",
  "zksync_da_client",
- "zksync_dal",
  "zksync_env_config",
  "zksync_object_store",
  "zksync_types",
