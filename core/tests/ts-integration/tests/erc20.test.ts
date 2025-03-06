@@ -209,17 +209,17 @@ describe('L1 ERC20 contract checks', () => {
             { txNumberInBatch: params.l2TxNumberInBlock, sender: params.sender, data: params.message },
             params.proof
         );
-        console.log(
-            'l2MessageVerification',
-            l2MessageVerification.interface.encodeFunctionData('proveL2MessageInclusionShared', [
-                0,
-                params.l1BatchNumber,
-                params.l2MessageIndex,
-                { txNumberInBatch: params.l2TxNumberInBlock, sender: params.sender, data: params.message },
-                params.proof
-            ])
-        );
-        console.log('included', included);
+        // console.log(
+        //     'l2MessageVerification',
+        //     l2MessageVerification.interface.encodeFunctionData('proveL2MessageInclusionShared', [
+        //         0,
+        //         params.l1BatchNumber,
+        //         params.l2MessageIndex,
+        //         { txNumberInBatch: params.l2TxNumberInBlock, sender: params.sender, data: params.message },
+        //         params.proof
+        //     ])
+        // );
+        // console.log('included', included);
         expect(included).toBe(true);
     });
 

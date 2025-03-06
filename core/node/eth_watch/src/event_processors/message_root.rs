@@ -76,7 +76,7 @@ impl EventProcessor for MessageRootProcessor {
             // .iter().map(|t| format!("{:02x}", t)).collect::<String>());
 
             let mut root: Vec<H256> = vec![];
-            if self.event_source == EventsSource::Dependency {
+            if event.address == L1_MESSENGER_ADDRESS {
                 root.push(H256::zero());
             }
             root = [
@@ -104,6 +104,10 @@ impl EventProcessor for MessageRootProcessor {
                 if sl_chain_id.0 == chain_id && event.address == L1_MESSENGER_ADDRESS {
                     continue;
                 }
+            }
+            if event.address == L1_MESSENGER_ADDRESS {
+                // kl todo we skip precommit for now.
+                continue;
             }
 
             println!("block_number in global {:?}", block_number);

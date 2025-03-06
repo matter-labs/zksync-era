@@ -154,7 +154,7 @@ describe('Interop checks', () => {
         interop2_message_root_storage = new zksync.Contract(
             L2_MESSAGE_ROOT_STORAGE_ADDRESS,
             ArtifactMessageRootStorage.abi,
-            interop2_wallet
+            interop2_wallet.provider
         );
         interop1_nativeTokenVault_contract = new zksync.Contract(
             L2_NATIVE_TOKEN_VAULT_ADDRESS,
@@ -512,12 +512,33 @@ describe('Interop checks', () => {
         // this should be checked in the server, we should not need this.
         await delay(10000);
         // kl todo. to add message roots we need to send a tx. Otherwise the gas estimation likely fails.
-        await (
-            await interop2_wallet.transfer({
-                to: interop2_wallet.address,
-                amount: 1
-            })
-        ).wait();
+
+        // console.log(interop2_message_root_storage.interface)
+        console.log('waiting for message root');
+        const receipt2 = await interop1_wallet.provider.getTransactionReceipt(tx.hash);
+        // console.log(receipt2);
+        const interop1_chainId = (await interop1_wallet.provider.getNetwork()).chainId;
+        while (true) {
+            await delay(1000);
+            await (
+                await interop1_wallet.transfer({
+                    to: interop1_wallet.address,
+                    amount: 1
+                })
+            ).wait();
+            await (
+                await interop2_wallet.transfer({
+                    to: interop2_wallet.address,
+                    amount: 1
+                })
+            ).wait();
+            const msgRoots = await interop2_message_root_storage.msgRoots(interop1_chainId, receipt2!.l1BatchNumber);
+            console.log('msgRoots', msgRoots);
+            if (msgRoots !== ethers.ZeroHash) {
+                break;
+            }
+        }
+
         // Read and broadcast the interop transaction from Interop1 to Interop2
 
         await readAndBroadcastInteropTx(tx.hash, interop1_provider, interop2_provider);
@@ -1058,14 +1079,14 @@ describe('Interop checks', () => {
             value: 0
         };
 
-        console.log('interopTx', interopTx);
+        const custom_sig = ethers.AbiCoder.defaultAbiCoder().encode(['bytes', 'bytes'], [proof_fee, proof_execution]);
+        console.log('interopTx', interopTx, 'sig', custom_sig);
         // const sig = ethers.AbiCoder.defaultAbiCoder().encode(['bytes', 'bytes'], )
         // const sig = ethers.Signature.from({
         //     v: 27,
         //     r: '0x0000000000000000000000000000000000000000000000000000000000000000',
         //     s: '0x0000000000000000000000000000000000000000000000000000000000000000'
         // });
-        const custom_sig = ethers.AbiCoder.defaultAbiCoder().encode(['bytes', 'bytes'], [proof_fee, proof_execution]);
         interopTx.customData.customSignature = custom_sig;
         const hexTx = zksync.utils.serializeEip712(interopTx);
         // console.log("interopTx fail", xl2Input.unimplemented[0])

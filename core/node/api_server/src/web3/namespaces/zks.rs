@@ -391,16 +391,6 @@ impl ZksNamespace {
         let mut log_leaf_proof = proof;
         log_leaf_proof.push(aggregated_root);
 
-        // if we provide the GW chain id, we don't want to extend to L1.
-        // kl todo replace 506 with sl_chain_id.0.into(), and get it from somewhere
-        if Some(506.into()) == proof_until_chain_id {
-            return Ok(Some(L2ToL1LogProof {
-                proof: log_leaf_proof,
-                root,
-                id: l1_log_index as u32,
-            }));
-        }
-
         let Some(sl_chain_id) = storage
             .eth_sender_dal()
             .get_batch_execute_chain_id(l1_batch_number)
@@ -411,7 +401,10 @@ impl ZksNamespace {
         };
 
         let (batch_proof_len, batch_chain_proof, is_final_node) =
-            if sl_chain_id.0 != self.state.api_config.l1_chain_id.0 {
+            // if we provide the GW chain id, we don't want to extend to L1.
+            if Some(U64::from(sl_chain_id.0)) == proof_until_chain_id {
+                (0, Vec::new(), true)
+            } else if sl_chain_id.0 != self.state.api_config.l1_chain_id.0 {
                 let Some(batch_chain_proof) = storage
                     .blocks_dal()
                     .get_l1_batch_chain_merkle_path(l1_batch_number)

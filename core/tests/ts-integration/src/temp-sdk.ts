@@ -180,7 +180,10 @@ async function tryGetMessageData(provider: zksync.Provider, withdrawalHash: Byte
         // console.log("Reading interop message");
         // `getFinalizeWithdrawalParamsWithoutProof` is only available for wallet instance but not provider
         const sender_chain_utilityWallet = new zksync.Wallet(zksync.Wallet.createRandom().privateKey, provider);
-        const { l2ToL1LogIndex } = await sender_chain_utilityWallet._getWithdrawalL2ToL1Log(withdrawalHash, index);
+        // const { l2ToL1LogIndex, l2ToL1Log } = await sender_chain_utilityWallet._getWithdrawalL2ToL1Log(
+        //     withdrawalHash,
+        //     index
+        // );
         const gatewayChainId = 506;
         const {
             l1BatchNumber: l1BatchNumberRead,
@@ -189,6 +192,21 @@ async function tryGetMessageData(provider: zksync.Provider, withdrawalHash: Byte
             l2MessageIndex: l2MessageIndexRead,
             proof: proofRead
         } = await sender_chain_utilityWallet.getFinalizeWithdrawalParams(withdrawalHash, index, 0, gatewayChainId);
+        // const logProof = await sender_chain_utilityWallet.provider.getLogProof(
+        //     withdrawalHash,
+        //     index,
+        //     0,
+        //     gatewayChainId
+        // );
+        // console.log({
+        //     l2ToL1Log: l2ToL1Log,
+        //     l2ToL1LogIndex: l2ToL1LogIndex,
+        //     l1BatchNumberRead: l1BatchNumberRead,
+        //     l2TxNumberInBlockRead: l2TxNumberInBlockRead,
+        //     l2MessageIndexRead: l2MessageIndexRead,
+        //     // "proofRead": proofRead,
+        //     logProof: logProof
+        // });
 
         // } = await getFinalizeWithdrawalParamsWithoutProof(provider, withdrawalHash, index);
         // console.log("Finished reading interop message");
