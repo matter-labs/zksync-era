@@ -118,6 +118,12 @@ ENV GITHUB_WORKSPACE=my_github_workspace
 # Install Docker
 RUN apt-get update && apt-get install -y docker.io
 
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential make bash git openssl libssl-dev gcc g++ curl pkg-config \
+    software-properties-common jq wget clang llvm-dev libclang-dev \
+    postgresql-client ca-certificates gnupg 
+
 # Install required dependencies including Docker
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates curl gnupg lsb-release \
