@@ -71,6 +71,12 @@ jobs:
         run: |
           ci_run zkstack dev contracts
 
+      - name: Use Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18.18.0
+          cache: yarn
+
       - name: Check contracts hashes
         working-directory: contracts
         run: |
