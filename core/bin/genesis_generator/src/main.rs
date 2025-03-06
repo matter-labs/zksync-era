@@ -22,7 +22,7 @@ use zksync_types::{
     protocol_version::ProtocolSemanticVersion, url::SensitiveUrl, ProtocolVersionId,
 };
 
-const DEFAULT_GENESIS_FILE_PATH: &str = "./etc/env/file_based/genesis.yaml";
+const DEFAULT_GENESIS_FILE_PATH: &str = "../etc/env/file_based/genesis.yaml";
 
 #[derive(Debug, Parser)]
 #[command(author = "Matter Labs", version, about = "Genesis config generator", long_about = None)]

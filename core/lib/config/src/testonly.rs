@@ -763,6 +763,7 @@ impl Distribution<configs::EcosystemContracts> for EncodeDist {
             transparent_proxy_admin_addr: rng.gen(),
             l1_bytecodes_supplier_addr: rng.gen(),
             l1_wrapped_base_token_store: rng.gen(),
+            message_root_proxy_addr: rng.gen(),
         }
     }
 }
@@ -860,6 +861,10 @@ impl Distribution<configs::secrets::L1Secrets> for EncodeDist {
         L1Secrets {
             l1_rpc_url: format!("localhost:{}", rng.gen::<u16>()).parse().unwrap(),
             gateway_rpc_url: Some(format!("localhost:{}", rng.gen::<u16>()).parse().unwrap()),
+            dependency_chain_rpc_url: Some(
+                format!("localhost:{}", rng.gen::<u16>()).parse().unwrap(),
+            ),
+            dependency_chain_id: Some(SLChainId(rng.gen())),
         }
     }
 }

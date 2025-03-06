@@ -12,7 +12,8 @@
               "Enum": [
                 "ProtocolUpgrades",
                 "PriorityTransactions",
-                "ChainBatchRoot"
+                "ChainBatchRoot",
+                "ChainBatchRootGlobal"
               ]
             }
           }

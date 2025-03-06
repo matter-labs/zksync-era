@@ -70,15 +70,17 @@ pub enum ProtocolVersionId {
     Version25,
     Version26,
     Version27,
+    Version28,
+    Version29,
 }
 
 impl ProtocolVersionId {
     pub const fn latest() -> Self {
-        Self::Version26
+        Self::Version28
     }
 
     pub const fn next() -> Self {
-        Self::Version27
+        Self::Version29
     }
 
     pub fn try_from_packed_semver(packed_semver: U256) -> Result<Self, String> {
@@ -124,6 +126,8 @@ impl ProtocolVersionId {
             ProtocolVersionId::Version25 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
             ProtocolVersionId::Version26 => VmVersion::VmGateway,
             ProtocolVersionId::Version27 => VmVersion::VmGateway,
+            ProtocolVersionId::Version28 => VmVersion::VmInterop,
+            ProtocolVersionId::Version29 => VmVersion::VmInterop,
         }
     }
 
@@ -150,6 +154,11 @@ impl ProtocolVersionId {
     }
 
     pub fn is_pre_fflonk(&self) -> bool {
+        self < &Self::Version27
+    }
+
+    pub fn is_pre_interop(&self) -> bool {
+        // note fflonk version has not been merged yet
         self < &Self::Version27
     }
 
@@ -298,6 +307,8 @@ impl From<ProtocolVersionId> for VmVersion {
             ProtocolVersionId::Version25 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
             ProtocolVersionId::Version26 => VmVersion::VmGateway,
             ProtocolVersionId::Version27 => VmVersion::VmGateway,
+            ProtocolVersionId::Version28 => VmVersion::VmInterop,
+            ProtocolVersionId::Version29 => VmVersion::VmInterop,
         }
     }
 }
