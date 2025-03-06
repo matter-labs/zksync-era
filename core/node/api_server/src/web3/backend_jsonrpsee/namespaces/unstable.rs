@@ -55,4 +55,8 @@ impl UnstableNamespaceServer for UnstableNamespace {
             .await
             .map_err(|err| self.current_method().map_err(err))
     }
+
+    async fn supports_unsafe_deposit_filter(&self) -> RpcResult<bool> {
+        Ok(self.supports_unsafe_deposit_filter_impl())
+    }
 }

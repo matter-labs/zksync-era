@@ -47,4 +47,7 @@ pub trait UnstableNamespace {
         &self,
         batch: L1BatchNumber,
     ) -> RpcResult<Option<DataAvailabilityDetails>>;
+
+    #[method(name = "supportsUnsafeDepositFilter")]
+    async fn supports_unsafe_deposit_filter(&self) -> RpcResult<bool>;
 }
