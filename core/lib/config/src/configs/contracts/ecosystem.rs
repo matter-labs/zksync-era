@@ -40,9 +40,11 @@ pub struct L1SpecificContracts {
     // while on the server side for consistency with the conventions, where the prefix denotes
     // the location of the contracts we call it `l1_wrapped_base_token_store`
     pub wrapped_base_token_store: Option<Address>,
+    pub bridge_hub: Option<Address>,
     pub shared_bridge: Option<Address>,
     pub erc_20_bridge: Option<Address>,
     pub base_token_address: Option<Address>,
+    pub l1_diamond_proxy: Address,
 }
 
 // Ecosystem contracts that are presented on all Settlement Layers
@@ -62,6 +64,8 @@ impl L1SpecificContracts {
         Self {
             bytecodes_supplier_addr: ecosystem.l1_bytecodes_supplier_addr,
             wrapped_base_token_store: ecosystem.l1_wrapped_base_token_store,
+            l1_diamond_proxy: contracts_config.diamond_proxy_addr,
+            bridge_hub: Some(ecosystem.bridgehub_proxy_addr),
             shared_bridge: contracts_config.l1_shared_bridge_proxy_addr,
             erc_20_bridge: contracts_config.l1_erc20_bridge_proxy_addr,
             base_token_address: contracts_config.base_token_addr,

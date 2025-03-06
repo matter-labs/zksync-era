@@ -1558,9 +1558,11 @@ impl From<&ExternalNodeConfig> for L1SpecificContracts {
         L1SpecificContracts {
             bytecodes_supplier_addr: config.remote.l1_bytecodes_supplier_addr,
             wrapped_base_token_store: config.remote.l1_wrapped_base_token_store,
+            bridge_hub: config.remote.l1_bridgehub_proxy_addr,
             shared_bridge: config.remote.l1_shared_bridge_proxy_addr,
             erc_20_bridge: config.remote.l1_erc20_bridge_proxy_addr,
             base_token_address: config.remote.base_token_addr,
+            l1_diamond_proxy: config.l1_diamond_proxy_address(),
         }
     }
 }
