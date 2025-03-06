@@ -238,7 +238,7 @@ impl ZkosStateKeeper {
                 .map_err(|err| anyhow::anyhow!(err.0))
                 .context("run_batch failed")?;
 
-            tracing::info!("Batch executed successfully: {:?}", result);
+            tracing::info!("Batch #{} executed successfully", cursor.l1_batch);
 
             for storage_write in result.storage_writes.iter() {
                 self.tree

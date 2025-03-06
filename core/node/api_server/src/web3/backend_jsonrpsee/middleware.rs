@@ -137,9 +137,6 @@ where
             .copied()
             .unwrap_or("");
 
-        tracing::info!("invoked method: {}", method_name);
-        tracing::info!("with params: {:?}", request.params);
-
         let observed_params = if TRACE_PARAMS {
             ObservedRpcParams::new(request.params.as_ref())
         } else {

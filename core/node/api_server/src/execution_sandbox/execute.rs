@@ -256,7 +256,6 @@ impl SandboxExecutor {
         .await
         .expect("");
 
-        tracing::info!("execute_in_sandbox Result: {:?}", result);
         drop(vm_permit);
 
         //todo: eth_call error format - should be compatible with era/ethereum

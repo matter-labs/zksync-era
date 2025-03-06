@@ -536,7 +536,6 @@ impl ZkOsReadStorage for PostgresStorageForZkOs {
         let value: Option<H256> = handle
             .block_on(dal.get_historical_option_value_unchecked(hashed_key, block_number))
             .expect("Failed executing `get_historical_option_value_unchecked`");
-        tracing::info!("value for key {:?} read: {:?}", key, value);
 
         value.map(|v| {
             let mut new = Bytes32::zero();
