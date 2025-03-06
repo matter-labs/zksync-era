@@ -13,6 +13,7 @@ use crate::{
     errors::{DeserializeContext, DeserializeErrorKind},
     hasher::{BatchTreeProof, IntermediateHash, InternalHashes, TreeOperation},
     leaf_nibbles, max_nibbles_for_internal_node, max_node_children,
+    metrics::{BatchProofStage, LoadStage, METRICS},
     types::{InternalNode, KeyLookup, Leaf, Manifest, Node, NodeKey, Root, TreeTags},
     BatchOutput, DeserializeError, HashTree, MerkleTree, TreeEntry, TreeParams,
 };
@@ -26,6 +27,11 @@ pub(crate) struct TreeUpdate {
     pub(crate) updates: Vec<(u64, H256)>,
     pub(crate) inserts: Vec<Leaf>,
     operations: Vec<TreeOperation>,
+    read_operations: Vec<TreeOperation>,
+    /// Indices of leaves that are loaded just for a batch proof for read operations. These leaves
+    /// are removed from a [`WorkingPatchSet`] after the proof is created.
+    pub(crate) readonly_leaf_indices: Vec<u64>,
+    pub(crate) missing_reads_count: usize,
 }
 
 impl TreeUpdate {
@@ -99,11 +105,18 @@ impl TreeUpdate {
             // Since the tree is empty, we expect a completely empty `BatchTreeProof` incl. `operations`; see its validation logic.
             // This makes the proof occupy less space and doesn't require to specify bogus indices for `TreeOperation::Insert`.
             operations: vec![],
+            read_operations: vec![],
+            readonly_leaf_indices: vec![],
+            missing_reads_count: 0,
         })
     }
 
     pub(crate) fn take_operations(&mut self) -> Vec<TreeOperation> {
         mem::take(&mut self.operations)
+    }
+
+    pub(crate) fn take_read_operations(&mut self) -> Vec<TreeOperation> {
+        mem::take(&mut self.read_operations)
     }
 }
 
@@ -141,6 +154,22 @@ impl PartialPatchSet {
                 })
                 .collect();
         }
+    }
+
+    fn remove_readonly_nodes(&mut self, updated_version: u64) -> usize {
+        // We always retain the root node (i.e., the only node in `self.internal[0]`), even if the tree hasn't changed.
+        let mut removed_node_count = 0;
+        for internal_level in &mut self.internal[1..] {
+            internal_level.retain(|_, node| {
+                let should_retain = node
+                    .children
+                    .iter()
+                    .any(|child_ref| child_ref.version == updated_version);
+                removed_node_count += usize::from(!should_retain);
+                should_retain
+            })
+        }
+        removed_node_count
     }
 }
 
@@ -245,7 +274,11 @@ impl<P: TreeParams> WorkingPatchSet<P> {
         Ok(())
     }
 
-    pub(crate) fn total_internal_nodes(&self) -> usize {
+    pub(crate) fn loaded_leaves_count(&self) -> usize {
+        self.inner.leaves.len()
+    }
+
+    pub(crate) fn loaded_internal_nodes_count(&self) -> usize {
         self.inner.total_internal_nodes()
     }
 
@@ -253,6 +286,7 @@ impl<P: TreeParams> WorkingPatchSet<P> {
         &self,
         hasher: &P::Hasher,
         operations: Vec<TreeOperation>,
+        read_operations: Vec<TreeOperation>,
     ) -> BatchTreeProof {
         let sorted_leaves: BTreeMap<_, _> = self
             .inner
@@ -262,6 +296,7 @@ impl<P: TreeParams> WorkingPatchSet<P> {
             .collect();
         BatchTreeProof {
             operations,
+            read_operations,
             hashes: self.collect_hashes(sorted_leaves.keys().copied().collect(), hasher),
             sorted_leaves,
         }
@@ -344,6 +379,8 @@ impl<P: TreeParams> WorkingPatchSet<P> {
             traverse_latency += started_at.elapsed();
         }
 
+        METRICS.batch_proof_latency[&BatchProofStage::Hashing].observe(hash_latency);
+        METRICS.batch_proof_latency[&BatchProofStage::Traversal].observe(traverse_latency);
         tracing::debug!(
             ?hash_latency,
             ?traverse_latency,
@@ -355,7 +392,27 @@ impl<P: TreeParams> WorkingPatchSet<P> {
     pub(crate) fn update(&mut self, update: TreeUpdate) -> FinalTreeUpdate {
         let this = &mut self.inner;
         let version = update.version;
+
+        // Remove readonly leaves first, so that we don't update bogus ancestors. If there are no read ops
+        // (or if there's no batch proof created), `update.readonly_leaf_indices` is empty, so we don't pay the overhead of doing this.
+        let readonly_leaf_indices_len = update.readonly_leaf_indices.len();
+        for idx in update.readonly_leaf_indices {
+            this.leaves.remove(&idx);
+        }
+
+        // Update ancestor versions based on the remaining leaves.
         this.update_ancestor_versions::<P>(version);
+        if readonly_leaf_indices_len > 0 {
+            // Filter out all internal nodes that were not updated (= don't have updated child refs).
+            let removed_node_count = this.remove_readonly_nodes(version);
+            METRICS.readonly_leaves.observe(readonly_leaf_indices_len);
+            METRICS.readonly_internal_nodes.observe(removed_node_count);
+            tracing::debug!(
+                leaves = readonly_leaf_indices_len,
+                internal_nodes = removed_node_count,
+                "removed readonly nodes from patch"
+            );
+        }
 
         for (idx, value) in update.updates {
             this.leaves.get_mut(&idx).unwrap().value = value;
@@ -463,6 +520,12 @@ impl<P: TreeParams> WorkingPatchSet<P> {
             root_hash,
         };
 
+        // Release excessive capacity occupied by the partial patch set. We'll never modify it inside a `PatchSet`.
+        this.leaves.shrink_to_fit();
+        for internal_level in &mut this.internal {
+            internal_level.shrink_to_fit();
+        }
+
         let patch = PatchSet {
             manifest: Manifest {
                 version_count: update.version + 1,
@@ -479,76 +542,115 @@ impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
     /// Loads data for processing the specified entries into a patch set.
     #[tracing::instrument(
         level = "debug",
-        skip(self, entries),
-        fields(entries.len = entries.len())
+        skip(self, entries, read_keys),
+        fields(entries.len = entries.len(), read_keys.len = read_keys.len())
     )]
     pub(crate) fn create_patch(
         &self,
         latest_version: u64,
         entries: &[TreeEntry],
+        read_keys: &[H256],
     ) -> anyhow::Result<(WorkingPatchSet<P>, TreeUpdate)> {
         let root = self.db.try_root(latest_version)?.ok_or_else(|| {
             DeserializeError::from(DeserializeErrorKind::MissingNode)
                 .with_context(DeserializeContext::Node(NodeKey::root(latest_version)))
         })?;
-        let keys: Vec<_> = entries.iter().map(|entry| entry.key).collect();
+        let touched_keys: Vec<_> = entries
+            .iter()
+            .map(|entry| entry.key)
+            .chain(read_keys.iter().copied())
+            .collect();
 
-        let started_at = Instant::now();
+        let key_lookup_latency = METRICS.load_nodes_latency[&LoadStage::KeyLookup].start();
         let lookup = self
             .db
-            .indices(u64::MAX, &keys)
+            .indices(latest_version, &touched_keys)
             .context("failed loading indices")?;
-        tracing::debug!(elapsed = ?started_at.elapsed(), "loaded lookup info");
+        let elapsed = key_lookup_latency.observe();
+        tracing::debug!(?elapsed, "loaded lookup info");
 
         // Collect all distinct indices that need to be loaded.
         let mut sorted_new_leaves = BTreeMap::new();
         let mut new_index = root.leaf_count;
-        let distinct_indices =
-            lookup
-                .iter()
-                .zip(entries)
-                .flat_map(|(lookup, entry)| match lookup {
-                    KeyLookup::Existing(idx) => [*idx, *idx],
-                    KeyLookup::Missing {
-                        prev_key_and_index,
-                        next_key_and_index,
-                    } => {
-                        sorted_new_leaves.insert(
-                            entry.key,
-                            InsertedKeyEntry {
-                                index: new_index,
-                                inserted_at: latest_version + 1,
-                            },
-                        );
-                        new_index += 1;
+        let mut distinct_indices = BTreeSet::new();
+        for (lookup, entry) in lookup.iter().zip(entries) {
+            match lookup {
+                KeyLookup::Existing(idx) => {
+                    distinct_indices.insert(*idx);
+                }
+                KeyLookup::Missing {
+                    prev_key_and_index,
+                    next_key_and_index,
+                } => {
+                    sorted_new_leaves.insert(
+                        entry.key,
+                        InsertedKeyEntry {
+                            index: new_index,
+                            inserted_at: latest_version + 1,
+                        },
+                    );
+                    new_index += 1;
 
-                        [prev_key_and_index.1, next_key_and_index.1]
-                    }
-                });
-        let mut distinct_indices: BTreeSet<_> = distinct_indices.collect();
+                    distinct_indices.extend([prev_key_and_index.1, next_key_and_index.1]);
+                }
+            }
+        }
+
         if !sorted_new_leaves.is_empty() {
             // Need to load the latest existing leaf and its ancestors so that new ancestors can be correctly
             // inserted for the new leaves.
             distinct_indices.insert(root.leaf_count - 1);
         }
 
-        let started_at = Instant::now();
+        let mut read_operations = Vec::with_capacity(read_keys.len());
+        let mut missing_reads_count = 0;
+        let mut readonly_leaf_indices = vec![];
+        for lookup in &lookup[entries.len()..] {
+            let read_op = match lookup {
+                KeyLookup::Existing(idx) => {
+                    if distinct_indices.insert(*idx) {
+                        readonly_leaf_indices.push(*idx);
+                    }
+                    TreeOperation::Hit { index: *idx }
+                }
+                KeyLookup::Missing {
+                    prev_key_and_index: (_, prev_idx),
+                    next_key_and_index: (_, next_idx),
+                } => {
+                    missing_reads_count += 1;
+                    if distinct_indices.insert(*prev_idx) {
+                        readonly_leaf_indices.push(*prev_idx);
+                    }
+                    if distinct_indices.insert(*next_idx) {
+                        readonly_leaf_indices.push(*next_idx);
+                    }
+
+                    TreeOperation::Miss {
+                        prev_index: *prev_idx,
+                    }
+                }
+            };
+            read_operations.push(read_op);
+        }
+
+        let tree_nodes_latency = METRICS.load_nodes_latency[&LoadStage::TreeNodes].start();
         let mut patch = WorkingPatchSet::new(root);
         patch.load_nodes(&self.db, distinct_indices.iter().copied())?;
+        let elapsed = tree_nodes_latency.observe();
         tracing::debug!(
-            elapsed = ?started_at.elapsed(),
+            ?elapsed,
             distinct_indices.len = distinct_indices.len(),
-            "loaded nodes"
+            "loaded tree nodes"
         );
 
         let mut updates = Vec::with_capacity(entries.len() - sorted_new_leaves.len());
         let mut inserts = Vec::with_capacity(sorted_new_leaves.len());
         let mut operations = Vec::with_capacity(entries.len());
-        for (entry, lookup) in entries.iter().zip(lookup) {
+        for (entry, lookup) in entries.iter().zip(&lookup) {
             match lookup {
-                KeyLookup::Existing(idx) => {
+                &KeyLookup::Existing(idx) => {
                     updates.push((idx, entry.value));
-                    operations.push(TreeOperation::Update { index: idx });
+                    operations.push(TreeOperation::Hit { index: idx });
                 }
 
                 KeyLookup::Missing {
@@ -557,7 +659,7 @@ impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
                 } => {
                     // Adjust previous / next indices according to the data inserted in the same batch.
                     let mut prev_index = prev_key_and_index.1;
-                    operations.push(TreeOperation::Insert { prev_index });
+                    operations.push(TreeOperation::Miss { prev_index });
 
                     if let Some((&local_prev_key, inserted)) =
                         sorted_new_leaves.range(..entry.key).next_back()
@@ -601,6 +703,9 @@ impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
                 updates,
                 inserts,
                 operations,
+                read_operations,
+                readonly_leaf_indices,
+                missing_reads_count,
             },
         ))
     }

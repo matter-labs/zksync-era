@@ -11254,6 +11254,7 @@ dependencies = [
  "thiserror 1.0.69",
  "tracing",
  "tracing-subscriber",
+ "vise",
  "zksync_basic_types",
  "zksync_crypto_primitives",
  "zksync_storage",
