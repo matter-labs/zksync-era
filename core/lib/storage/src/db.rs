@@ -628,6 +628,11 @@ impl<CF: NamedColumnFamily> RocksDB<CF> {
         // ^ unwrap() is safe for the same reasons as in `prefix_iterator_cf()`.
     }
 
+    pub fn raw_iterator(&self, cf: CF) -> rocksdb::DBIterator<'_> {
+        let cf = self.column_family(cf);
+        self.inner.db.iterator_cf(cf, IteratorMode::Start)
+    }
+
     /// Creates a new profiled operation.
     pub fn new_profiled_operation(&self, name: &'static str) -> ProfiledOperation {
         ProfiledOperation {
