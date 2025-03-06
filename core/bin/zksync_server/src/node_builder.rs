@@ -736,9 +736,9 @@ impl MainNodeBuilder {
             .add_gas_adjuster_layer()?;
 
         // Add preconditions for all the components.
-        self = self
-            .add_l1_batch_commitment_mode_validation_layer()?
-            .add_storage_initialization_layer(LayerKind::Precondition)?;
+        // self = self
+        //     .add_l1_batch_commitment_mode_validation_layer()?
+        //     .add_storage_initialization_layer(LayerKind::Precondition)?;
 
         // Sort the components, so that the components they may depend on each other are added in the correct order.
         components.sort_unstable_by_key(|component| match component {
