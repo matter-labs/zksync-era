@@ -230,6 +230,7 @@ pub async fn deploy_timestamp_asserter(
     )
     .await
 }
+
 pub async fn deploy_l2_da_validator(
     shell: &Shell,
     chain_config: &ChainConfig,
@@ -244,8 +245,7 @@ pub async fn deploy_l2_da_validator(
         forge_args,
         Some("runDeployL2DAValidator"),
         |shell, out| {
-            contracts_config
-                .set_timestamp_asserter_addr(&TimestampAsserterOutput::read(shell, out)?)
+            contracts_config.set_da_validator_addr(&InitializeBridgeOutput::read(shell, out)?)
         },
         true,
     )

@@ -170,6 +170,14 @@ impl ContractsConfig {
         self.l2.timestamp_asserter_addr = Some(timestamp_asserter_output.timestamp_asserter);
         Ok(())
     }
+
+    pub fn set_da_validator_addr(
+        &mut self,
+        initialize_bridges_output: &InitializeBridgeOutput,
+    ) -> anyhow::Result<()> {
+        self.l2.da_validator_addr = Some(initialize_bridges_output.l2_da_validator_address);
+        Ok(())
+    }
 }
 
 impl FileConfigWithDefaultName for ContractsConfig {
