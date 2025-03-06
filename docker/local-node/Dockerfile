@@ -71,6 +71,12 @@ ENV RUSTUP_HOME=/usr/local/rustup \
     IN_DOCKER=1 \
     LIBCLANG_PATH=/usr/lib/llvm-14/lib
 
+# Copy Rust executables (without reinstalling Rust)
+COPY --from=builder /usr/local/cargo/bin/cargo /usr/local/bin/cargo
+COPY --from=builder /usr/local/cargo/bin/sqlx /usr/local/bin/sqlx
+COPY --from=builder /usr/local/cargo/bin/rustc /usr/local/bin/rustc
+COPY --from=builder /usr/local/cargo/bin/rustup /usr/local/bin/rustup
+
 # Copy compiled binaries from the builder stage
 COPY --from=builder /usr/local/bin/zkstack /usr/local/bin/zkstack
 COPY --from=builder /app/foundry-zksync/forge /usr/local/bin/forge
