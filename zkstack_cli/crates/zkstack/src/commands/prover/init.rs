@@ -172,6 +172,55 @@ fn set_object_store(
                 bucket_base_url.clone(),
             )?;
         }
+        ObjectStoreMode::S3WithCredentialFile {
+            bucket_base_url,
+            s3_credential_file_path,
+            endpoint,
+            region,
+        } => {
+            patch.insert(
+                &format!("{prefix}.s3_with_credential_file.bucket_base_url"),
+                bucket_base_url.clone(),
+            )?;
+            patch.insert(
+                &format!("{prefix}.s3_with_credential_file.s3_credential_file_path"),
+                s3_credential_file_path.clone(),
+            )?;
+            if let Some(endpoint) = endpoint {
+                patch.insert(
+                    &format!("{prefix}.s3_with_credential_file.endpoint"),
+                    endpoint.clone(),
+                )?;
+            }
+            if let Some(region) = region {
+                patch.insert(
+                    &format!("{prefix}.s3_with_credential_file.region"),
+                    region.clone(),
+                )?;
+            }
+        }
+        ObjectStoreMode::S3AnonymousReadOnly {
+            bucket_base_url,
+            endpoint,
+            region,
+        } => {
+            patch.insert(
+                &format!("{prefix}.s3_anonymous_read_only.bucket_base_url"),
+                bucket_base_url.clone(),
+            )?;
+            if let Some(endpoint) = endpoint {
+                patch.insert(
+                    &format!("{prefix}.s3_anonymous_read_only.endpoint"),
+                    endpoint.clone(),
+                )?;
+            }
+            if let Some(region) = region {
+                patch.insert(
+                    &format!("{prefix}.s3_anonymous_read_only.region"),
+                    region.clone(),
+                )?;
+            }
+        }
     }
     Ok(())
 }
