@@ -628,9 +628,9 @@ impl<CF: NamedColumnFamily> RocksDB<CF> {
         // ^ unwrap() is safe for the same reasons as in `prefix_iterator_cf()`.
     }
 
-    pub fn raw_iterator(&self, cf: CF) -> rocksdb::DBIterator<'_> {
+    pub fn raw_iterator(&self, cf: CF, options: ReadOptions) -> rocksdb::DBRawIterator<'_> {
         let cf = self.column_family(cf);
-        self.inner.db.iterator_cf(cf, IteratorMode::Start)
+        self.inner.db.raw_iterator_cf_opt(cf, options)
     }
 
     /// Creates a new profiled operation.

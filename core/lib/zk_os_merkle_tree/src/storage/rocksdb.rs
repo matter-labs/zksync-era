@@ -147,43 +147,49 @@ impl RocksDBWrapper {
         node.map_err(|err| err.with_context(DeserializeContext::Node(*key)))
     }
 
-    fn lookup_key(
-        &self,
-        iter: &mut rocksdb::DBIterator<'_>,
-        key: H256,
+    fn find_key_and_value<const REVERSE: bool>(
+        iter: &mut rocksdb::DBRawIterator<'_>,
+        key: &H256,
         version: u64,
-    ) -> Result<KeyLookup, DeserializeError> {
-        iter.set_mode(rocksdb::IteratorMode::From(
-            key.as_bytes(),
-            rocksdb::Direction::Forward,
-        ));
-        let (next_key, next_idx) = iter
-            .map(Result::unwrap)
-            .find_map(|(key, raw_entry)| {
-                let entry = InsertedKeyEntry::deserialize(&raw_entry)
-                    .map_err(|err| err.with_context(DeserializeContext::KeyIndex(key.clone())))
-                    .unwrap();
-                (entry.inserted_at <= version).then(|| (H256::from_slice(&key), entry.index))
-            })
-            .unwrap_or_else(|| (H256::repeat_byte(0xff), 1));
+    ) -> Option<(H256, u64)> {
+        if REVERSE {
+            iter.seek_for_prev(key.as_bytes());
+        } else {
+            iter.seek(key.as_bytes());
+        }
 
+        loop {
+            let (key, raw_entry) = iter.item()?;
+            let entry = InsertedKeyEntry::deserialize(raw_entry)
+                .map_err(|err| err.with_context(DeserializeContext::KeyIndex(key.into())))
+                .unwrap();
+            if entry.inserted_at <= version {
+                break Some((H256::from_slice(key), entry.index));
+            }
+
+            if REVERSE {
+                iter.prev();
+            } else {
+                iter.next();
+            }
+        }
+    }
+
+    fn lookup_key(&self, key: H256, version: u64) -> Result<KeyLookup, DeserializeError> {
+        let mut options = rocksdb::ReadOptions::default();
+        options.fill_cache(false);
+        let mut iter = self
+            .db
+            .raw_iterator(MerkleTreeColumnFamily::KeyIndices, options);
+
+        let next_key_and_idx = Self::find_key_and_value::<false>(&mut iter, &key, version);
+        let (next_key, next_idx) = next_key_and_idx.unwrap_or_else(|| (H256::repeat_byte(0xff), 1));
         if next_key == key {
             return Ok(KeyLookup::Existing(next_idx));
         }
 
-        iter.set_mode(rocksdb::IteratorMode::From(
-            key.as_bytes(),
-            rocksdb::Direction::Reverse,
-        ));
-        let (prev_key, prev_idx) = iter
-            .map(Result::unwrap)
-            .find_map(|(key, raw_entry)| {
-                let entry = InsertedKeyEntry::deserialize(&raw_entry)
-                    .map_err(|err| err.with_context(DeserializeContext::KeyIndex(key.clone())))
-                    .unwrap();
-                (entry.inserted_at <= version).then(|| (H256::from_slice(&key), entry.index))
-            })
-            .unwrap_or_else(|| (H256::zero(), 0));
+        let prev_key_and_index = Self::find_key_and_value::<true>(&mut iter, &key, version);
+        let (prev_key, prev_idx) = prev_key_and_index.unwrap_or_else(|| (H256::zero(), 0));
 
         Ok(KeyLookup::Missing {
             prev_key_and_index: (prev_key, prev_idx),
@@ -209,15 +215,13 @@ impl From<RocksDB<MerkleTreeColumnFamily>> for RocksDBWrapper {
 
 impl Database for RocksDBWrapper {
     // TODO: Try alternatives (e.g., reusing iterators)
+    //   - no allocations for keys / values (raw iters)
     fn indices(&self, version: u64, keys: &[H256]) -> Result<Vec<KeyLookup>, DeserializeError> {
         use rayon::prelude::*;
 
         let mut results = vec![];
         keys.par_iter()
-            .map_init(
-                || self.db.raw_iterator(MerkleTreeColumnFamily::KeyIndices),
-                |iter, &key| self.lookup_key(iter, key, version),
-            )
+            .map(|&key| self.lookup_key(key, version))
             .collect_into_vec(&mut results);
         results.into_iter().collect()
     }
@@ -461,9 +465,8 @@ mod tests {
         };
         db.apply_patch(patch).unwrap();
 
-        let mut iter = db.db.raw_iterator(MerkleTreeColumnFamily::KeyIndices);
         assert_eq!(
-            db.lookup_key(&mut iter, H256::repeat_byte(1), 0).unwrap(),
+            db.lookup_key(H256::repeat_byte(1), 0).unwrap(),
             KeyLookup::Missing {
                 prev_key_and_index: (H256::zero(), 0),
                 next_key_and_index: (H256::repeat_byte(0xff), 1),
@@ -471,14 +474,13 @@ mod tests {
         );
         for version in [1, 2] {
             assert_eq!(
-                db.lookup_key(&mut iter, H256::repeat_byte(1), version)
-                    .unwrap(),
+                db.lookup_key(H256::repeat_byte(1), version).unwrap(),
                 KeyLookup::Existing(2)
             );
         }
 
         assert_eq!(
-            db.lookup_key(&mut iter, H256::repeat_byte(2), 0).unwrap(),
+            db.lookup_key(H256::repeat_byte(2), 0).unwrap(),
             KeyLookup::Missing {
                 prev_key_and_index: (H256::zero(), 0),
                 next_key_and_index: (H256::repeat_byte(0xff), 1),
@@ -486,8 +488,7 @@ mod tests {
         );
         for version in [1, 2] {
             assert_eq!(
-                db.lookup_key(&mut iter, H256::repeat_byte(2), version)
-                    .unwrap(),
+                db.lookup_key(H256::repeat_byte(2), version).unwrap(),
                 KeyLookup::Missing {
                     prev_key_and_index: (H256::repeat_byte(1), 2),
                     next_key_and_index: (H256::repeat_byte(0xff), 1),
@@ -496,8 +497,7 @@ mod tests {
         }
 
         assert_eq!(
-            db.lookup_key(&mut iter, H256::from_low_u64_be(u64::MAX), 0)
-                .unwrap(),
+            db.lookup_key(H256::from_low_u64_be(u64::MAX), 0).unwrap(),
             KeyLookup::Missing {
                 prev_key_and_index: (H256::zero(), 0),
                 next_key_and_index: (H256::repeat_byte(0xff), 1),
@@ -505,7 +505,7 @@ mod tests {
         );
         for version in [1, 2] {
             assert_eq!(
-                db.lookup_key(&mut iter, H256::from_low_u64_be(u64::MAX), version)
+                db.lookup_key(H256::from_low_u64_be(u64::MAX), version)
                     .unwrap(),
                 KeyLookup::Missing {
                     prev_key_and_index: (H256::zero(), 0),
