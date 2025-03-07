@@ -29,6 +29,8 @@ mod migrate_from_gateway;
 #[cfg(feature = "gateway")]
 mod migrate_to_gateway;
 pub mod register_chain;
+mod set_da_validator_pair;
+mod set_pubdata_pricing_mode;
 mod set_token_multiplier_setter;
 mod setup_legacy_bridge;
 mod utils;
@@ -88,6 +90,10 @@ pub enum ChainCommands {
     GatewayUpgrade(gateway_upgrade::GatewayUpgradeArgs),
     /// Enable EVM emulation on chain (Not supported yet)
     EnableEvmEmulator(ForgeScriptArgs),
+    /// Set the pubdata pricing mode on L1
+    SetPubdataPricingMode(ForgeScriptArgs),
+    /// Set the DA validator pair on L1
+    SetDAValidatorPair(ForgeScriptArgs),
 }
 
 pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()> {
@@ -117,6 +123,10 @@ pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()
         ChainCommands::UpdateTokenMultiplierSetter(args) => {
             set_token_multiplier_setter::run(args, shell).await
         }
+        ChainCommands::SetPubdataPricingMode(args) => {
+            set_pubdata_pricing_mode::run(args, shell).await
+        }
+        ChainCommands::SetDAValidatorPair(args) => set_da_validator_pair::run(args, shell).await,
         #[cfg(feature = "gateway")]
         ChainCommands::ConvertToGateway(args) => convert_to_gateway::run(args, shell).await,
         #[cfg(feature = "gateway")]
