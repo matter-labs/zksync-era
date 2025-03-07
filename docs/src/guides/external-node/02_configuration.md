@@ -42,13 +42,8 @@ The dockerized version of the server exposes the following ports:
 - Prometheus listener: 3322
 - Healthcheck server: 3081
 
-While the configuration variables for them exist, you are not expected to change them unless you want to use the EN
-outside of provided docker environment (not supported at the time of writing).
-
-**NOTE**: if the Prometheus port is configured, it must be [scraped](https://prometheus.io/docs/introduction/overview/)
-periodically to avoid a memory leak due to a
-[bug in an external metrics library](https://github.com/metrics-rs/metrics/issues/245). If you are not intending to use
-the metrics, leave this port not configured, and the metrics won't be collected.
+While the configuration variables for them exist, you are not expected to change them unless you want to use the Node
+outside provided Docker environment (not supported at the time of writing).
 
 ## API limits
 
@@ -56,14 +51,15 @@ There are variables that allow you to fine-tune the limits of the RPC servers, s
 entries or the limit for the accepted transaction size. Provided files contain sane defaults that are recommended for
 use, but these can be edited, e.g. to make the Node more/less restrictive.
 
-**Some common api limits config:**\
-`EN_MAX_RESPONSE_BODY_SIZE_MB` (default 10 i.e. 10MB) controls max size of a single response. Hitting the limit will
-result in errors similar to:\
-`Response is too big (...)`
+**Some common API limits config:**
 
-`EN_REQ_ENTITIES_LIMIT` (default 10000) controls max possible limit of entities to be requested at once. Hitting the
-limit will result in errors similar to:\
-`Query returned more than 10000 results (...)`
+- `EN_MAX_RESPONSE_BODY_SIZE_MB` (default is 10 i.e. 10MB) controls max size of a single response. Hitting the limit
+  will result in errors similar to: "Response is too big (...)".
+- `EN_MAX_RESPONSE_BODY_SIZE_OVERRIDES_MB` overrides max response size for specific RPC methods. E.g., setting this var
+  to `eth_getLogs=100,eth_getBlockReceipts=None` sets max response size for `eth_getLogs` to 100MB and disables size
+  limiting for `eth_getBlockReceipts`, while other RPC methods will use the `EN_MAX_RESPONSE_BODY_SIZE_MB` setting.
+- `EN_REQ_ENTITIES_LIMIT` (default 10,000) controls max possible limit of entities to be requested at once. Hitting the
+  limit will result in errors similar to: "Query returned more than 10000 results (...)"
 
 ## JSON-RPC API namespaces
 
@@ -74,13 +70,10 @@ enable using `EN_API_NAMESPACES` and specifying namespace names in a comma-separ
 
 ## Logging and observability
 
-`MISC_LOG_FORMAT` defines the format in which logs are shown: `plain` corresponds to the human-readable format, while
-the other option is `json` (recommended for deployments).
-
-`RUST_LOG` variable allows you to set up the logs granularity (e.g. make the Node emit fewer logs). You can read about
-the format [here](https://docs.rs/env_logger/0.10.0/env_logger/#enabling-logging).
-
-`MISC_SENTRY_URL` and `MISC_OTLP_URL` variables can be configured to set up Sentry and OpenTelemetry exporters.
-
-If Sentry is configured, you also have to set `EN_SENTRY_ENVIRONMENT` variable to configure the environment in events
-reported to sentry.
+- `MISC_LOG_FORMAT` defines the format in which logs are shown: `plain` corresponds to the human-readable format, while
+  the other option is `json` (recommended for deployments).
+- `RUST_LOG` variable allows you to set up the logs granularity (e.g. make the Node emit fewer logs). You can read about
+  the format [here](https://docs.rs/env_logger/0.10.0/env_logger/#enabling-logging).
+- `MISC_SENTRY_URL` and `MISC_OTLP_URL` variables can be configured to set up Sentry and OpenTelemetry exporters.
+- If Sentry is configured, you also have to set `EN_SENTRY_ENVIRONMENT` variable to configure the environment in events
+  reported to sentry.
