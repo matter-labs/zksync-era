@@ -66,6 +66,8 @@ pub enum ChainCommands {
     /// Deploy L2 TimestampAsserter
     #[command(alias = "timestamp-asserter")]
     DeployTimestampAsserter(ForgeScriptArgs),
+    /// Deploy L2 DA Validator
+    DeployL2DaValidator(ForgeScriptArgs),
     /// Deploy Default Upgrader
     #[command(alias = "upgrader")]
     DeployUpgrader(ForgeScriptArgs),
@@ -112,6 +114,9 @@ pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()
         }
         ChainCommands::DeployUpgrader(args) => {
             deploy_l2_contracts::run(args, shell, Deploy2ContractsOption::Upgrader).await
+        }
+        ChainCommands::DeployL2DaValidator(args) => {
+            deploy_l2_contracts::run(args, shell, Deploy2ContractsOption::L2DAValidator).await
         }
         ChainCommands::DeployPaymaster(args) => deploy_paymaster::run(args, shell).await,
         ChainCommands::UpdateTokenMultiplierSetter(args) => {
