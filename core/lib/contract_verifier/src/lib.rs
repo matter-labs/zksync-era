@@ -268,6 +268,7 @@ impl ContractVerifier {
                 request.id,
                 &deployed_contract,
                 &artifacts.bytecode,
+                &identifier,
             )?,
         };
 
@@ -556,7 +557,33 @@ impl ContractVerifier {
         request_id: usize,
         contract: &DeployedContractData,
         creation_bytecode: &[u8],
+        contract_identifier: &ContractIdentifier,
     ) -> Result<ConstructorArgs, ContractVerifierError> {
+        fn extract_arguments<'a>(
+            calldata: &'a [u8],
+            creation_bytecode: &'a [u8],
+            metadata_len: usize,
+        ) -> Result<&'a [u8], &'static str> {
+            if creation_bytecode.len() < metadata_len {
+                // This shouldn't normally happen, since we calculated contract identifier based on this code.
+                return Err("Creation bytecode doesn't fit metadata");
+            }
+            let creation_bytecode_without_metadata =
+                &creation_bytecode[..creation_bytecode.len() - metadata_len];
+
+            // Ensure equivalence of the creation bytecode (which can be different from the deployed bytecode).
+            // Note that metadata hash may still be different; this is checked by other part of the code.
+            let constructor_args_with_metadata = calldata
+                .strip_prefix(creation_bytecode_without_metadata)
+                .ok_or("Creation bytecode is different")?;
+
+            // Skip metadata to get to the constructor arguments.
+            if constructor_args_with_metadata.len() < metadata_len {
+                return Err("Provided bytecode has no metadata");
+            }
+            Ok(&constructor_args_with_metadata[metadata_len..])
+        }
+
         let Some(calldata) = &contract.calldata else {
             return Ok(ConstructorArgs::Ignore);
         };
@@ -565,16 +592,19 @@ impl ContractVerifier {
             return Ok(ConstructorArgs::Ignore);
         }
 
-        let args = calldata.strip_prefix(creation_bytecode).ok_or_else(|| {
-            tracing::info!(
-                request_id,
-                calldata = hex::encode(calldata),
-                compiled = hex::encode(creation_bytecode),
-                "Creation bytecode mismatch"
-            );
-            ContractVerifierError::CreationBytecodeMismatch
-        })?;
-        Ok(ConstructorArgs::Check(args.to_vec()))
+        let metadata_len = contract_identifier.metadata_length();
+        match extract_arguments(calldata, creation_bytecode, metadata_len) {
+            Ok(args) => Ok(ConstructorArgs::Check(args.to_vec())),
+            Err(err) => {
+                tracing::info!(
+                    request_id,
+                    calldata = hex::encode(calldata),
+                    compiled = hex::encode(creation_bytecode),
+                    "Creation bytecode mismatch: {err}"
+                );
+                Err(ContractVerifierError::CreationBytecodeMismatch)
+            }
+        }
     }
 
     #[tracing::instrument(level = "debug", skip_all, err, fields(id = request_id))]
