@@ -138,6 +138,8 @@ impl ProtoRepr for proto::Sender {
                 .context("gas_limit_mode")?
                 .map(|a| a.parse())
                 .unwrap_or(Self::Type::default_gas_limit_mode()),
+            max_acceptable_base_fee_in_wei: *required(&self.max_acceptable_base_fee_in_wei)
+                .context("max_acceptable_base_fee_in_wei")?,
         })
     }
 
@@ -168,6 +170,7 @@ impl ProtoRepr for proto::Sender {
             time_in_mempool_in_l1_blocks_cap: Some(this.time_in_mempool_in_l1_blocks_cap),
             is_verifier_pre_fflonk: Some(this.is_verifier_pre_fflonk),
             gas_limit_mode: Some(proto::GasLimitMode::new(&this.gas_limit_mode).into()),
+            max_acceptable_base_fee_in_wei: Some(this.max_acceptable_base_fee_in_wei),
         }
     }
 }
