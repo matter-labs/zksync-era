@@ -103,6 +103,17 @@ impl RocksDBCaches {
     }
 }
 
+/// Size statistics for a column family. All sizes are measured in bytes.
+#[derive(Debug)]
+pub struct SizeStats {
+    pub live_data_size: u64,
+    pub total_sst_size: u64,
+    pub total_mem_table_size: u64,
+    pub block_cache_size: u64,
+    pub index_and_filters_size: u64,
+    pub files_at_level: Vec<u64>,
+}
+
 #[derive(Debug)]
 pub(crate) struct RocksDBInner {
     db: DB,
@@ -116,8 +127,6 @@ pub(crate) struct RocksDBInner {
 
 impl RocksDBInner {
     pub(crate) fn collect_metrics(&self, metrics: &RocksdbSizeMetrics) {
-        const MAX_LEVEL: usize = 6;
-
         for &cf_name in &self.cf_names {
             let cf = self.db.cf_handle(cf_name).unwrap();
             // ^ `unwrap()` is safe (CF existence is checked during DB initialization)
@@ -150,33 +159,15 @@ impl RocksDBInner {
                 metrics.pending_compactions[&labels].set(pending_compactions);
             }
 
-            let live_data_size = self.int_property(cf, properties::ESTIMATE_LIVE_DATA_SIZE);
-            if let Some(size) = live_data_size {
-                metrics.live_data_size[&labels].set(size);
-            }
-            let total_sst_file_size = self.int_property(cf, properties::TOTAL_SST_FILES_SIZE);
-            if let Some(size) = total_sst_file_size {
-                metrics.total_sst_size[&labels].set(size);
-            }
-            let total_mem_table_size = self.int_property(cf, properties::SIZE_ALL_MEM_TABLES);
-            if let Some(size) = total_mem_table_size {
-                metrics.total_mem_table_size[&labels].set(size);
-            }
-            let block_cache_size = self.int_property(cf, properties::BLOCK_CACHE_USAGE);
-            if let Some(size) = block_cache_size {
-                metrics.block_cache_size[&labels].set(size);
-            }
-            let index_and_filters_size =
-                self.int_property(cf, properties::ESTIMATE_TABLE_READERS_MEM);
-            if let Some(size) = index_and_filters_size {
-                metrics.index_and_filters_size[&labels].set(size);
-            }
+            let size_stats = self.size_stats(cf);
+            metrics.live_data_size[&labels].set(size_stats.live_data_size);
+            metrics.total_sst_size[&labels].set(size_stats.total_sst_size);
+            metrics.total_mem_table_size[&labels].set(size_stats.total_mem_table_size);
+            metrics.block_cache_size[&labels].set(size_stats.block_cache_size);
+            metrics.index_and_filters_size[&labels].set(size_stats.index_and_filters_size);
 
-            for level in 0..=MAX_LEVEL {
-                let files_at_level = self.int_property(cf, &properties::num_files_at_level(level));
-                if let Some(files_at_level) = files_at_level {
-                    metrics.files_at_level[&labels.for_level(level)].set(files_at_level);
-                }
+            for (level, files_at_level) in size_stats.files_at_level.into_iter().enumerate() {
+                metrics.files_at_level[&labels.for_level(level)].set(files_at_level);
             }
         }
     }
@@ -193,6 +184,39 @@ impl RocksDBInner {
             tracing::warn!("Property `{name_str}` is not defined");
         }
         property
+    }
+
+    fn size_stats(&self, cf: &ColumnFamily) -> SizeStats {
+        const MAX_LEVEL: usize = 6;
+
+        let live_data_size = self
+            .int_property(cf, properties::ESTIMATE_LIVE_DATA_SIZE)
+            .unwrap_or(0);
+        let total_sst_size = self
+            .int_property(cf, properties::TOTAL_SST_FILES_SIZE)
+            .unwrap_or(0);
+        let total_mem_table_size = self
+            .int_property(cf, properties::SIZE_ALL_MEM_TABLES)
+            .unwrap_or(0);
+        let block_cache_size = self
+            .int_property(cf, properties::BLOCK_CACHE_USAGE)
+            .unwrap_or(0);
+        let index_and_filters_size = self
+            .int_property(cf, properties::ESTIMATE_TABLE_READERS_MEM)
+            .unwrap_or(0);
+        let files_at_level = (0..=MAX_LEVEL).map(|level| {
+            self.int_property(cf, &properties::num_files_at_level(level))
+                .unwrap_or(0)
+        });
+
+        SizeStats {
+            live_data_size,
+            total_sst_size,
+            total_mem_table_size,
+            block_cache_size,
+            index_and_filters_size,
+            files_at_level: files_at_level.collect(),
+        }
     }
 
     /// Waits until writes are not stopped for any of the CFs. Writes can stop immediately on DB initialization
@@ -570,6 +594,12 @@ impl<CF: NamedColumnFamily> RocksDB<CF> {
             .unwrap_or_else(|| panic!("Column family `{}` doesn't exist", cf.name()))
     }
 
+    /// Returns size stats for the specified column family.
+    pub fn size_stats(&self, cf: CF) -> SizeStats {
+        let cf = self.column_family(cf);
+        self.inner.size_stats(cf)
+    }
+
     pub fn get_cf(&self, cf: CF, key: &[u8]) -> Result<Option<Vec<u8>>, rocksdb::Error> {
         let cf = self.column_family(cf);
         self.inner.db.get_cf(cf, key)
@@ -626,6 +656,11 @@ impl<CF: NamedColumnFamily> RocksDB<CF> {
             .map(Result::unwrap)
             .fuse()
         // ^ unwrap() is safe for the same reasons as in `prefix_iterator_cf()`.
+    }
+
+    pub fn raw_iterator(&self, cf: CF, options: ReadOptions) -> rocksdb::DBRawIterator<'_> {
+        let cf = self.column_family(cf);
+        self.inner.db.raw_iterator_cf_opt(cf, options)
     }
 
     /// Creates a new profiled operation.

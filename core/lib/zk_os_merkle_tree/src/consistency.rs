@@ -200,7 +200,7 @@ impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
                 assert_eq!(children.len(), 1);
                 let child = children.into_iter().next().unwrap();
 
-                // Recursion here is OK; the tree isn't that deep (16 nibbles max, with upper levels most likely having a single child).
+                // Recursion here is OK; the tree isn't that deep.
                 let child_hash = match &child {
                     Node::Internal(node) => {
                         assert!(child_key.nibble_count <= max_nibbles_for_internal_node::<P>());
