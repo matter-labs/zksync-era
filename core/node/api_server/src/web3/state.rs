@@ -174,28 +174,31 @@ impl InternalApiConfigBuilder {
         contracts_config: ChainSpecificContracts,
         l1_ecosystem_contracts: L1SpecificContracts,
     ) -> Self {
-        self.base_token_address = l1_ecosystem_contracts.base_token_address;
-        self.bridge_addresses = Some(BridgeAddresses {
-            l1_erc20_default_bridge: l1_ecosystem_contracts.erc_20_bridge,
-            l2_erc20_default_bridge: contracts_config.l2_contracts.erc20_default_bridge,
-            l1_shared_default_bridge: l1_ecosystem_contracts.shared_bridge,
-            l2_shared_default_bridge: contracts_config.l2_contracts.shared_bridge_addr,
-            // WETH bridge is not available
-            l1_weth_bridge: None,
-            l2_weth_bridge: None,
-            l2_legacy_shared_bridge: contracts_config.l2_contracts.legacy_shared_bridge_addr,
-        });
-        self.l1_bridgehub_proxy_addr = l1_ecosystem_contracts.bridge_hub;
-
-        self.l1_state_transition_proxy_addr = contracts_config
-            .ecosystem_contracts
-            .state_transition_proxy_addr;
-
-        self.l1_bytecodes_supplier_addr = l1_ecosystem_contracts.bytecodes_supplier_addr;
-        self.l1_wrapped_base_token_store = l1_ecosystem_contracts.wrapped_base_token_store;
-        self.l1_diamond_proxy_addr = Some(l1_ecosystem_contracts.l1_diamond_proxy);
-        self.l2_testnet_paymaster_addr = contracts_config.l2_contracts.testnet_paymaster_addr;
-        self
+        InternalApiConfigBuilder {
+            bridge_addresses: Some(BridgeAddresses {
+                l1_erc20_default_bridge: l1_ecosystem_contracts.erc_20_bridge,
+                l2_erc20_default_bridge: contracts_config.l2_contracts.erc20_default_bridge,
+                l1_shared_default_bridge: l1_ecosystem_contracts.shared_bridge,
+                l2_shared_default_bridge: contracts_config.l2_contracts.shared_bridge_addr,
+                // WETH bridge is not available
+                l1_weth_bridge: None,
+                l2_weth_bridge: None,
+                l2_legacy_shared_bridge: contracts_config.l2_contracts.legacy_shared_bridge_addr,
+            }),
+            l1_bytecodes_supplier_addr: l1_ecosystem_contracts.bytecodes_supplier_addr,
+            l1_wrapped_base_token_store: l1_ecosystem_contracts.wrapped_base_token_store,
+            l1_bridgehub_proxy_addr: l1_ecosystem_contracts.bridge_hub,
+            l1_state_transition_proxy_addr: contracts_config
+                .ecosystem_contracts
+                .state_transition_proxy_addr,
+            l1_transparent_proxy_admin_addr: contracts_config.chain_contracts_config.chain_admin,
+            l1_diamond_proxy_addr: Some(l1_ecosystem_contracts.l1_diamond_proxy),
+            l2_testnet_paymaster_addr: contracts_config.l2_contracts.testnet_paymaster_addr,
+            base_token_address: l1_ecosystem_contracts.base_token_address,
+            timestamp_asserter_address: contracts_config.l2_contracts.timestamp_asserter_addr,
+            l1_server_notifier_addr: contracts_config.ecosystem_contracts.server_notifier_addr,
+            ..self
+        }
     }
 
     pub fn build(self) -> InternalApiConfig {

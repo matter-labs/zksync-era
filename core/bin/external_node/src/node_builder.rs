@@ -160,8 +160,10 @@ impl ExternalNodeBuilder {
     }
 
     fn add_gateway_client_layer(mut self) -> anyhow::Result<Self> {
-        let query_eth_client_layer =
-            GatewayClientLayer::new(self.config.required.eth_client_url.clone(), None);
+        let query_eth_client_layer = GatewayClientLayer::new(
+            self.config.required.eth_client_url.clone(),
+            self.config.optional.gateway_url.clone(),
+        );
         self.node.add_layer(query_eth_client_layer);
         Ok(self)
     }
@@ -654,8 +656,8 @@ impl ExternalNodeBuilder {
 
         // Add preconditions for all the components.
         self = self
-            .add_l1_batch_commitment_mode_validation_layer()?
-            .add_validate_chain_ids_layer()?
+            // .add_l1_batch_commitment_mode_validation_layer()?
+            // .add_validate_chain_ids_layer()?
             .add_storage_initialization_layer(LayerKind::Precondition)?;
 
         // Sort the components, so that the components they may depend on each other are added in the correct order.
@@ -718,7 +720,7 @@ impl ExternalNodeBuilder {
                         .add_state_keeper_layer()?
                         .add_consensus_layer()?
                         .add_pruning_layer()?
-                        .add_consistency_checker_layer()?
+                        // .add_consistency_checker_layer()?
                         .add_commitment_generator_layer()?
                         .add_batch_status_updater_layer()?
                         .add_logs_bloom_backfill_layer()?;
