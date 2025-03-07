@@ -13,15 +13,24 @@ pub struct V27EcosystemUpgradeOutput {
     pub l1_chain_id: u32,
     pub owner_address: Address,
     pub chain_upgrade_diamond_cut: Bytes,
-    pub governance_stage1_calls: Bytes,
-    pub governance_stage2_calls: Bytes,
+    pub protocol_upgrade_handler_proxy_address: Address,
+    pub protocol_upgrade_handler_impl_address: Address,
+    pub governance_calls: V27GovernanceCalls,
 
+    #[serde(rename = "contracts_newConfig")]
     pub contracts_config: V27EcosystemUpgradeContractsOutput,
+
     pub deployed_addresses: V27EcosystemUpgradeDeployedAddresses,
     /// List of transactions that were executed during the upgrade.
     /// This is added later by the zkstack and not present in the toml file that solidity creates.
     #[serde(default)]
     pub transactions: Vec<String>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct V27GovernanceCalls {
+    pub governance_stage1_calls: Bytes,
+    pub governance_stage2_calls: Bytes,
 }
 
 impl FileConfigWithDefaultName for V27EcosystemUpgradeOutput {
@@ -50,7 +59,7 @@ pub struct V27EcosystemUpgradeContractsOutput {
     pub recursion_leaf_level_vk_hash: H256,
     pub recursion_node_level_vk_hash: H256,
 
-    pub new_protocol_version: u64,
+    pub new_protocol_version: u64, // broken
     pub old_protocol_version: u64,
 
     pub old_validator_timelock: Address,
@@ -89,8 +98,9 @@ pub struct V27EcosystemUpgradeBridgehub {
 pub struct V27EcosystemUpgradeBridges {
     pub erc20_bridge_implementation_addr: Address,
     pub l1_nullifier_implementation_addr: Address,
-    pub shared_bridge_implementation_addr: Address,
-    pub shared_bridge_proxy_addr: Address,
+    // in the past known as 'shared bridge'
+    pub l1_asset_router_implementation_addr: Address,
+    pub l1_asset_router_proxy_addr: Address,
     pub bridged_standard_erc20_impl: Address,
     pub bridged_token_beacon: Address,
 }

@@ -78,15 +78,14 @@ async fn no_governance_prepare(
     // FIXME: we will have to force this in production environment
     // assert_eq!(era_config.chain_id, ecosystem_config.era_chain_id);
 
-    let gateway_upgrade_input = V27EcosystemUpgradeInput::new(
+    let upgrade_input = V27EcosystemUpgradeInput::new(
         &default_genesis_input,
         &current_contracts_config,
         &initial_deployment_config,
         ecosystem_config.era_chain_id,
-        era_config.get_contracts_config()?.l1.diamond_proxy_addr,
         ecosystem_config.prover_version == ProverMode::NoProofs,
     );
-    gateway_upgrade_input.save(shell, ecosystem_upgrade_config_path.clone())?;
+    upgrade_input.save(shell, ecosystem_upgrade_config_path.clone())?;
 
     let mut forge = Forge::new(&ecosystem_config.path_to_l1_foundry())
         .script(&V27_UPGRADE_ECOSYSTEM_PARAMS.script(), forge_args.clone())
