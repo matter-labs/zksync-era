@@ -1,5 +1,5 @@
 [package]
-name = "zksync_multilayer_client"
+name = "zksync_gateway_migrator"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

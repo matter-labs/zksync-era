@@ -12,9 +12,10 @@ use zksync_config::{
     configs::{
         api::Web3JsonRpcConfig,
         chain::{NetworkConfig, StateKeeperConfig},
-        ContractsConfig,
+        contracts::ecosystem::L1SpecificContracts,
+        AllContractsConfig as ContractsConfig,
     },
-    GenesisConfig,
+    GenesisConfig, SettlementLayerContracts,
 };
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{Connection, ConnectionPool, CoreDal};
@@ -285,7 +286,12 @@ async fn test_http_server(test: impl HttpTest) {
     let contracts_config = ContractsConfig::for_tests();
     let web3_config = Web3JsonRpcConfig::for_tests();
     let genesis = GenesisConfig::for_tests();
-    let mut api_config = InternalApiConfig::new(&web3_config, &contracts_config, &genesis);
+    let mut api_config = InternalApiConfig::new(
+        &web3_config,
+        SettlementLayerContracts::new(&contracts_config, None).current_contracts(),
+        &L1SpecificContracts::new(&contracts_config),
+        &genesis,
+    );
     api_config.filters_disabled = test.filters_disabled();
     let mut server_builder = TestServerBuilder::new(pool.clone(), api_config)
         .with_tx_executor(test.transaction_executor())

@@ -9,18 +9,19 @@ use zksync_config::{
             CircuitBreakerConfig, MempoolConfig, NetworkConfig, OperationsManagerConfig,
             StateKeeperConfig, TimestampAsserterConfig,
         },
+        contracts::ecosystem::L1SpecificContracts,
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
-        BasicWitnessInputProducerConfig, ContractVerifierSecrets, ContractsConfig,
-        DataAvailabilitySecrets, DatabaseSecrets, ExperimentalVmConfig,
-        ExternalPriceApiClientConfig, FriProofCompressorConfig, FriProverConfig,
-        FriProverGatewayConfig, FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig,
-        L1Secrets, ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig,
-        ProtectiveReadsWriterConfig, Secrets,
+        BasicWitnessInputProducerConfig, ContractVerifierSecrets, DataAvailabilitySecrets,
+        DatabaseSecrets, ExperimentalVmConfig, ExternalPriceApiClientConfig,
+        FriProofCompressorConfig, FriProverConfig, FriProverGatewayConfig,
+        FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig, L1Secrets, ObservabilityConfig,
+        PrometheusConfig, ProofDataHandlerConfig, ProtectiveReadsWriterConfig, Secrets,
     },
-    ApiConfig, BaseTokenAdjusterConfig, ContractVerifierConfig, DAClientConfig, DADispatcherConfig,
-    DBConfig, EthConfig, EthWatchConfig, ExternalProofIntegrationApiConfig, GasAdjusterConfig,
-    GenesisConfig, ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
+    ApiConfig, BaseTokenAdjusterConfig, ContractVerifierConfig, ContractsConfig, DAClientConfig,
+    DADispatcherConfig, DBConfig, EthConfig, EthWatchConfig, ExternalProofIntegrationApiConfig,
+    GasAdjusterConfig, GenesisConfig, ObjectStoreConfig, PostgresConfig, SettlementLayerContracts,
+    SnapshotsCreatorConfig,
 };
 use zksync_core_leftovers::{
     temp_config_store::{read_yaml_repr, TempConfigStore},
@@ -157,13 +158,17 @@ fn main() -> anyhow::Result<()> {
         .clone()
         .context("observability config")?;
 
+    let l1_specific_contracts = L1SpecificContracts::new(&contracts_config);
+    let contracts =
+        SettlementLayerContracts::new(&contracts_config, gateway_contracts_config.as_ref());
+
     let node = MainNodeBuilder::new(
         configs,
         wallets,
         genesis,
-        contracts_config,
-        gateway_contracts_config,
         secrets,
+        contracts,
+        l1_specific_contracts,
     )?;
 
     let observability_guard = {
@@ -188,23 +193,18 @@ fn main() -> anyhow::Result<()> {
 }
 
 fn find_gateway_update_error(zkstack_result: &Result<(), ZkStackServiceError>) -> bool {
-    if let Err(zkstack_err) = zkstack_result {
-        match &zkstack_err {
-            ZkStackServiceError::Task(tasks) => {
-                for task in &tasks.0 {
-                    if let TaskError::TaskFailed(task, err) = task {
-                        if task.contains("gateway_migrator")
-                            && err.to_string().contains("Settlement layer changed")
-                        {
-                            return true;
-                        }
-                    }
+    if let Err(ZkStackServiceError::Task(tasks)) = zkstack_result {
+        for task in &tasks.0 {
+            if let TaskError::TaskFailed(task, err) = task {
+                if task.contains("gateway_migrator")
+                    && err.to_string().contains("Settlement layer changed")
+                {
+                    return true;
                 }
             }
-            _ => {}
         }
     }
-    return false;
+    false
 }
 
 fn load_env_config() -> anyhow::Result<TempConfigStore> {

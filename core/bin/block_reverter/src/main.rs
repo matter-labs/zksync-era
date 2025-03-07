@@ -16,17 +16,16 @@ use zksync_block_reverter::{
 use zksync_config::{
     configs::{
         chain::NetworkConfig, wallets::Wallets, BasicWitnessInputProducerConfig, DatabaseSecrets,
-        GatewayChainConfig, GeneralConfig, L1Secrets, ObservabilityConfig,
-        ProtectiveReadsWriterConfig,
+        GeneralConfig, L1Secrets, ObservabilityConfig, ProtectiveReadsWriterConfig,
     },
-    ContractsConfig, DBConfig, EthConfig, GenesisConfig, PostgresConfig,
+    ContractsConfig, DBConfig, EthConfig, GenesisConfig, PostgresConfig, SettlementLayerContracts,
 };
 use zksync_core_leftovers::temp_config_store::read_yaml_repr;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_env_config::{object_store::SnapshotsObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
 use zksync_protobuf_config::proto;
-use zksync_types::{Address, L1BatchNumber};
+use zksync_types::{settlement::SettlementMode, Address, L1BatchNumber};
 
 #[derive(Debug, Parser)]
 #[command(author = "Matter Labs", version, about = "Block revert utility", long_about = None)]
@@ -203,7 +202,6 @@ async fn main() -> anyhow::Result<()> {
 
     let gas_adjuster = eth_sender.gas_adjuster.context("gas_adjuster")?;
     let default_priority_fee_per_gas = gas_adjuster.default_priority_fee_per_gas;
-    let settlement_mode = gas_adjuster.settlement_mode;
 
     let database_secrets = match &secrets_config {
         Some(secrets_config) => secrets_config
@@ -235,32 +233,29 @@ async fn main() -> anyhow::Result<()> {
         }
     };
 
-    let (sl_rpc_url, sl_diamond_proxy, sl_validator_timelock) = if settlement_mode.is_gateway() {
-        // Gateway config is required to be provided by file for now.
-        let gateway_chain_config: GatewayChainConfig =
-            read_yaml_repr::<proto::gateway::GatewayChainConfig>(
-                &opts
-                    .gateway_chain_path
-                    .context("Genesis config path not provided")?,
-            )
-            .context("failed decoding genesis YAML config")?;
+    let contracts = SettlementLayerContracts::new(&contracts, None);
 
-        let gateway_url = l1_secrets
-            .gateway_rpc_url
-            .context("Gateway URL not found")?;
-
+    // TODO think more about it
+    let (sl_rpc_url, settlement_mode) = if opts.gateway_chain_path.is_some() {
         (
-            gateway_url,
-            gateway_chain_config.diamond_proxy_addr,
-            gateway_chain_config.validator_timelock_addr,
+            l1_secrets
+                .gateway_rpc_url
+                .context("Gateway URL not found")?,
+            SettlementMode::Gateway,
         )
     } else {
-        (
-            l1_secrets.l1_rpc_url,
-            contracts.diamond_proxy_addr,
-            contracts.validator_timelock_addr,
-        )
+        (l1_secrets.l1_rpc_url, SettlementMode::SettlesToL1)
     };
+
+    let sl_diamond_proxy = contracts
+        .current_contracts()
+        .chain_contracts_config
+        .diamond_proxy_addr;
+    let sl_validator_timelock = contracts
+        .current_contracts()
+        .ecosystem_contracts
+        .validator_timelock_addr
+        .expect("Should be presented");
 
     let config = BlockReverterEthConfig::new(
         &eth_sender,
@@ -302,7 +297,8 @@ async fn main() -> anyhow::Result<()> {
             priority_fee_per_gas,
             nonce,
         } => {
-            let sl_client = Client::http(sl_rpc_url).context("Ethereum client")?.build();
+            let sl_client: Client<L1> =
+                Client::http(sl_rpc_url).context("Ethereum client")?.build();
             let reverter_private_key = if let Some(wallets_config) = wallets_config {
                 wallets_config
                     .eth_sender

@@ -14,7 +14,7 @@ use zksync_types::{
     web3::BlockNumber as Web3BlockNumber, L1BatchNumber, L2ChainId, PriorityOpId,
 };
 
-pub use self::client::{EthClient, EthHttpQueryClient, ZkSyncExtentionEthClient};
+pub use self::client::{EthClient, EthHttpQueryClient, GetLogsClient, ZkSyncExtentionEthClient};
 use self::{
     client::RETRY_LIMIT,
     event_processors::{EventProcessor, EventProcessorError, PriorityOpsEventProcessor},

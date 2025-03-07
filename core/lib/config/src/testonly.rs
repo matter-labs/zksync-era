@@ -247,9 +247,9 @@ impl Distribution<configs::ContractVerifierConfig> for EncodeDist {
     }
 }
 
-impl Distribution<configs::ContractsConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::ContractsConfig {
-        configs::ContractsConfig {
+impl Distribution<configs::AllContractsConfig> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::AllContractsConfig {
+        configs::AllContractsConfig {
             governance_addr: rng.gen(),
             verifier_addr: rng.gen(),
             default_upgrade_addr: rng.gen(),
@@ -440,8 +440,6 @@ impl Distribution<configs::eth_sender::GasAdjusterConfig> for EncodeDist {
             num_samples_for_blob_base_fee_estimate: self.sample(rng),
             internal_pubdata_pricing_multiplier: self.sample(rng),
             max_blob_base_fee: self.sample(rng),
-            // TODO(EVM-676): generate it randomly once this value is used
-            settlement_mode: Default::default(),
         }
     }
 }

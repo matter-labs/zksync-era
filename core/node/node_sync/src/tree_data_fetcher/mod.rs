@@ -8,13 +8,14 @@ use serde::Serialize;
 use tokio::sync::mpsc;
 use tokio::sync::watch;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
+use zksync_eth_client::EthInterface;
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_types::{
     block::{L1BatchTreeData, L2BlockHeader},
-    Address, L1BatchNumber, L2ChainId,
+    Address, L1BatchNumber,
 };
 use zksync_web3_decl::{
-    client::{DynClient, L1, L2},
+    client::{DynClient, L2},
     error::EnrichedClientError,
 };
 
@@ -129,24 +130,15 @@ impl TreeDataFetcher {
     /// which may not be committed on L1.
     pub async fn with_l1_data(
         mut self,
-        l1_client: Box<DynClient<L1>>,
+        l1_client: Box<dyn EthInterface>,
         l1_diamond_proxy_addr: Address,
-        gateway_client: Option<Box<DynClient<L1>>>,
-        l2_chain_id: L2ChainId,
     ) -> anyhow::Result<Self> {
         anyhow::ensure!(
             self.diamond_proxy_address.is_none(),
             "L1 tree data provider is already set up"
         );
 
-        let l1_provider = L1DataProvider::new(
-            l1_client.for_component("tree_data_fetcher"),
-            l1_diamond_proxy_addr,
-            gateway_client.map(|c| c.for_component("tree_data_fetcher")),
-            self.pool.clone(),
-            l2_chain_id,
-        )
-        .await?;
+        let l1_provider = L1DataProvider::new(l1_client, l1_diamond_proxy_addr).await?;
         self.data_provider.set_l1(l1_provider);
         self.diamond_proxy_address = Some(l1_diamond_proxy_addr);
         Ok(self)

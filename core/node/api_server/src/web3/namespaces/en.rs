@@ -154,16 +154,8 @@ impl EnNamespace {
             .l1_bridgehub_proxy_addr
             .map(|bridgehub_proxy_addr| EcosystemContracts {
                 bridgehub_proxy_addr,
-                state_transition_proxy_addr: self
-                    .state
-                    .api_config
-                    .l1_state_transition_proxy_addr
-                    .unwrap(),
-                transparent_proxy_admin_addr: self
-                    .state
-                    .api_config
-                    .l1_transparent_proxy_admin_addr
-                    .unwrap(),
+                state_transition_proxy_addr: self.state.api_config.l1_state_transition_proxy_addr,
+                transparent_proxy_admin_addr: self.state.api_config.l1_transparent_proxy_admin_addr,
                 l1_bytecodes_supplier_addr: self.state.api_config.l1_bytecodes_supplier_addr,
                 l1_wrapped_base_token_store: self.state.api_config.l1_wrapped_base_token_store,
                 server_notifier_addr: self.state.api_config.l1_server_notifier_addr,

@@ -1,8 +1,14 @@
 use zksync_commitment_generator::validation_task::L1BatchCommitmentModeValidationTask;
-use zksync_types::{commitment::L1BatchCommitmentMode, Address};
+use zksync_types::commitment::L1BatchCommitmentMode;
 
 use crate::{
-    implementations::resources::eth_interface::EthInterfaceResource,
+    implementations::resources::{
+        contracts::{
+            GatewayChainContractsResource, L1ChainContractsResource, L1EcosystemContractsResource,
+            SettlementLayerContractsResource,
+        },
+        eth_interface::{EthInterfaceResource, UniversalClient, UniversalClientResource},
+    },
     service::StopReceiver,
     task::{Task, TaskId, TaskKind},
     wiring_layer::{WiringError, WiringLayer},
@@ -13,14 +19,14 @@ use crate::{
 /// against L1.
 #[derive(Debug)]
 pub struct L1BatchCommitmentModeValidationLayer {
-    diamond_proxy_addr: Address,
     l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
 }
 
 #[derive(Debug, FromContext)]
 #[context(crate = crate)]
 pub struct Input {
-    pub eth_client: EthInterfaceResource,
+    pub contracts: L1EcosystemContractsResource,
+    pub client: EthInterfaceResource,
 }
 
 #[derive(Debug, IntoContext)]
@@ -31,12 +37,8 @@ pub struct Output {
 }
 
 impl L1BatchCommitmentModeValidationLayer {
-    pub fn new(
-        diamond_proxy_addr: Address,
-        l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
-    ) -> Self {
+    pub fn new(l1_batch_commit_data_generator_mode: L1BatchCommitmentMode) -> Self {
         Self {
-            diamond_proxy_addr,
             l1_batch_commit_data_generator_mode,
         }
     }
@@ -52,11 +54,10 @@ impl WiringLayer for L1BatchCommitmentModeValidationLayer {
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
-        let EthInterfaceResource(query_client) = input.eth_client;
         let task = L1BatchCommitmentModeValidationTask::new(
-            self.diamond_proxy_addr,
+            input.contracts.0.l1_diamond_proxy,
             self.l1_batch_commit_data_generator_mode,
-            query_client,
+            Box::new(input.client.0),
         );
 
         Ok(Output { task })

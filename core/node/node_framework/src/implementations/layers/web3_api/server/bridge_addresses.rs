@@ -1,10 +1,10 @@
 use std::time::Duration;
 
-use zksync_eth_client::{CallFunctionArgs, ContractCallError};
+use zksync_eth_client::{CallFunctionArgs, ContractCallError, EthInterface};
 use zksync_node_api_server::web3::state::BridgeAddressesHandle;
 use zksync_types::{ethabi::Contract, Address, L2_ASSET_ROUTER_ADDRESS};
 use zksync_web3_decl::{
-    client::{DynClient, L1, L2},
+    client::{DynClient, L2},
     namespaces::ZksNamespaceClient,
 };
 
@@ -33,7 +33,7 @@ impl MainNodeUpdaterInner {
 #[derive(Debug)]
 pub struct L1UpdaterInner {
     pub bridge_address_updater: BridgeAddressesHandle,
-    pub l1_eth_client: Box<DynClient<L1>>,
+    pub l1_eth_client: Box<dyn EthInterface>,
     pub bridgehub_addr: Address,
     pub update_interval: Option<Duration>,
     pub bridgehub_abi: Contract,
@@ -49,13 +49,13 @@ impl L1UpdaterInner {
     async fn get_shared_bridge_info(&self) -> Result<L1SharedBridgeInfo, ContractCallError> {
         let l1_shared_bridge_addr: Address = CallFunctionArgs::new("sharedBridge", ())
             .for_contract(self.bridgehub_addr, &self.bridgehub_abi)
-            .call(&self.l1_eth_client)
+            .call(self.l1_eth_client.as_ref())
             .await?;
 
         let l1_nullifier_addr: Result<Address, ContractCallError> =
             CallFunctionArgs::new("L1_NULLIFIER", ())
                 .for_contract(l1_shared_bridge_addr, &self.l1_asset_router_abi)
-                .call(&self.l1_eth_client)
+                .call(self.l1_eth_client.as_ref())
                 .await;
 
         // In case we can successfully retrieve the l1 nullifier, this is definitely the new l1 asset router.

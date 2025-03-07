@@ -5,9 +5,11 @@ use clap::{command, Subcommand};
 pub(crate) use create::create_chain_inner;
 use xshell::Shell;
 
+#[cfg(feature = "gateway")]
+use crate::commands::chain::gateway_migration::MigrationDirection;
 use crate::commands::chain::{
     args::create::ChainCreateArgs, deploy_l2_contracts::Deploy2ContractsOption,
-    gateway_migration::MigrationDirection, genesis::GenesisCommand, init::ChainInitCommand,
+    genesis::GenesisCommand, init::ChainInitCommand,
 };
 
 mod accept_chain_ownership;
@@ -133,6 +135,7 @@ pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()
         ChainCommands::NotifyAboutToGatewayUpdate(args) => {
             gateway_migration::notify_server(args, shell, MigrationDirection::ToGateway).await
         }
+        #[cfg(feature = "gateway")]
         ChainCommands::NotifyAboutFromGatewayUpdate(args) => {
             gateway_migration::notify_server(args, shell, MigrationDirection::FromGateway).await
         }

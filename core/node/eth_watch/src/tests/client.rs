@@ -328,6 +328,10 @@ impl EthClient for MockEthClient {
     ) -> Result<Option<H256>, ContractCallError> {
         Ok(Some(H256::zero()))
     }
+
+    async fn get_settlement_layer(&self) -> Result<Address, ContractCallError> {
+        Ok(Address::default())
+    }
 }
 
 #[async_trait::async_trait]

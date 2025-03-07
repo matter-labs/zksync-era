@@ -1,5 +1,3 @@
-use std::fmt::format;
-
 use anyhow::Context;
 use ethers::{abi::parse_abi, contract::BaseContract, types::Bytes, utils::hex};
 use lazy_static::lazy_static;
@@ -21,7 +19,7 @@ use zkstack_cli_config::{
     ChainConfig, EcosystemConfig,
 };
 use zksync_basic_types::H256;
-use zksync_config::configs::GatewayConfig;
+use zksync_config::configs::gateway::GatewayConfig;
 
 use crate::{
     messages::MSG_CHAIN_NOT_INITIALIZED,

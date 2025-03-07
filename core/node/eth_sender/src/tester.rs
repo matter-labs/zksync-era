@@ -5,7 +5,10 @@ use zksync_config::{
     ContractsConfig, EthConfig, GasAdjusterConfig,
 };
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_eth_client::{clients::MockSettlementLayer, BaseFees, BoundEthInterface};
+use zksync_eth_client::{
+    clients::{DynClient, MockSettlementLayer, L1},
+    BaseFees, BoundEthInterface,
+};
 use zksync_l1_contract_interface::i_executor::methods::{ExecuteBatches, ProveBatches};
 use zksync_node_fee_model::l1_gas_price::{GasAdjuster, GasAdjusterClient};
 use zksync_node_test_utils::{create_l1_batch, l1_batch_metadata_to_commitment_artifacts};
@@ -220,9 +223,10 @@ impl EthSenderTester {
         gateway_blobs.advance_block_number(Self::WAIT_CONFIRMATIONS);
         let gateway_blobs = Box::new(gateway_blobs);
 
+        let client: Box<DynClient<L1>> = Box::new(gateway.clone().into_client());
         let gas_adjuster = Arc::new(
             GasAdjuster::new(
-                GasAdjusterClient::from_l1(Box::new(gateway.clone().into_client())),
+                GasAdjusterClient::from(client),
                 GasAdjusterConfig {
                     max_base_fee_samples: Self::MAX_BASE_FEE_SAMPLES,
                     pricing_formula_parameter_a: 3.0,
@@ -284,6 +288,7 @@ impl EthSenderTester {
             Some(gateway.clone()),
             Some(gateway_blobs.clone()),
             None,
+            SettlementMode::SettlesToL1,
         );
 
         let connection_pool_clone = connection_pool.clone();
@@ -320,6 +325,7 @@ impl EthSenderTester {
             None,
             None,
             Some(self.l2_gateway.clone()),
+            SettlementMode::Gateway,
         );
         self.is_l2 = true;
         tracing::info!("Switched eth-sender tester to use Gateway!");

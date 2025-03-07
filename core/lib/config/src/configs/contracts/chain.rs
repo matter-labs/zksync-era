@@ -1,37 +1,11 @@
-// External uses
-use serde::{Deserialize, Serialize};
-// Workspace uses
+use serde::Deserialize;
 use zksync_basic_types::{Address, H256};
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-pub struct EcosystemContracts {
-    pub bridgehub_proxy_addr: Address,
-    pub state_transition_proxy_addr: Address,
-    pub transparent_proxy_admin_addr: Address,
-    pub l1_bytecodes_supplier_addr: Option<Address>,
-    // Note that on the contract side of things this contract is called `L2WrappedBaseTokenStore`,
-    // while on the server side for consistency with the conventions, where the prefix denotes
-    // the location of the contracts we call it `l1_wrapped_base_token_store`
-    pub l1_wrapped_base_token_store: Option<Address>,
-    pub server_notifier_addr: Option<Address>,
-}
+use crate::configs::contracts::ecosystem::EcosystemContracts;
 
-impl EcosystemContracts {
-    fn for_tests() -> Self {
-        Self {
-            bridgehub_proxy_addr: Address::repeat_byte(0x14),
-            state_transition_proxy_addr: Address::repeat_byte(0x15),
-            transparent_proxy_admin_addr: Address::repeat_byte(0x15),
-            l1_bytecodes_supplier_addr: Some(Address::repeat_byte(0x16)),
-            l1_wrapped_base_token_store: Some(Address::repeat_byte(0x17)),
-            server_notifier_addr: Some(Address::repeat_byte(0x18)),
-        }
-    }
-}
-
-/// Data about deployed contracts.
+/// Data about deployed contracts unified l1/l2 contracts and bridges. To Be Deleted
 #[derive(Debug, Deserialize, Clone, PartialEq)]
-pub struct ContractsConfig {
+pub struct AllContractsConfig {
     pub governance_addr: Address,
     pub verifier_addr: Address,
     pub default_upgrade_addr: Address,
@@ -62,7 +36,7 @@ pub struct ContractsConfig {
     pub no_da_validium_l1_validator_addr: Option<Address>,
 }
 
-impl ContractsConfig {
+impl AllContractsConfig {
     pub fn for_tests() -> Self {
         Self {
             verifier_addr: Address::repeat_byte(0x06),
@@ -88,4 +62,22 @@ impl ContractsConfig {
             no_da_validium_l1_validator_addr: Some(Address::repeat_byte(0x1b)),
         }
     }
+}
+
+// Contracts specific for the chain. Should be deployed to all Settlement Layers
+#[derive(Debug, Clone)]
+pub struct ChainContracts {
+    pub diamond_proxy_addr: Address,
+    pub chain_admin: Option<Address>,
+}
+
+// Contracts deployed to the l2
+#[derive(Debug, Clone)]
+pub struct L2Contracts {
+    pub erc20_default_bridge: Option<Address>,
+    pub shared_bridge_addr: Option<Address>,
+    pub legacy_shared_bridge_addr: Option<Address>,
+    pub timestamp_asserter_addr: Option<Address>,
+    pub da_validator_addr: Option<Address>,
+    pub testnet_paymaster_addr: Option<Address>,
 }

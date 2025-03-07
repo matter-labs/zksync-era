@@ -4,10 +4,10 @@ use zksync_state_keeper::{
     io::seal_logic::l2_block_seal_subtasks::L2BlockSealProcess, L2BlockSealerTask, OutputHandler,
     StateKeeperPersistence, TreeWritesPersistence,
 };
-use zksync_types::Address;
 
 use crate::{
     implementations::resources::{
+        contracts::SettlementLayerContractsResource,
         pools::{MasterPool, PoolResource},
         state_keeper::OutputHandlerResource,
         sync_state::SyncStateResource,
@@ -35,7 +35,6 @@ use crate::{
 /// - `L2BlockSealerTask`
 #[derive(Debug)]
 pub struct OutputHandlerLayer {
-    l2_legacy_shared_bridge_addr: Option<Address>,
     l2_block_seal_queue_capacity: usize,
     /// Whether transactions should be pre-inserted to DB.
     /// Should be set to `true` for EN's IO as EN doesn't store transactions in DB
@@ -52,6 +51,7 @@ pub struct OutputHandlerLayer {
 pub struct Input {
     pub master_pool: PoolResource<MasterPool>,
     pub sync_state: Option<SyncStateResource>,
+    pub contracts: SettlementLayerContractsResource,
 }
 
 #[derive(Debug, IntoContext)]
@@ -63,12 +63,8 @@ pub struct Output {
 }
 
 impl OutputHandlerLayer {
-    pub fn new(
-        l2_legacy_shared_bridge_addr: Option<Address>,
-        l2_block_seal_queue_capacity: usize,
-    ) -> Self {
+    pub fn new(l2_block_seal_queue_capacity: usize) -> Self {
         Self {
-            l2_legacy_shared_bridge_addr,
             l2_block_seal_queue_capacity,
             pre_insert_txs: false,
             protective_reads_persistence_enabled: false,
@@ -109,7 +105,7 @@ impl WiringLayer for OutputHandlerLayer {
 
         let (mut persistence, l2_block_sealer) = StateKeeperPersistence::new(
             persistence_pool.clone(),
-            self.l2_legacy_shared_bridge_addr,
+            input.contracts.0.l2_contracts.legacy_shared_bridge_addr,
             self.l2_block_seal_queue_capacity,
         )
         .await?;

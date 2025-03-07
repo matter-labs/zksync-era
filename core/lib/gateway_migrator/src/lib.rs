@@ -4,29 +4,27 @@ use anyhow::bail;
 use tokio::sync::watch;
 use zksync_basic_types::{ethabi::Contract, settlement::SettlementMode, Address};
 use zksync_contracts::getters_facet_contract;
-use zksync_eth_client::{
-    clients::{DynClient, L1},
-    CallFunctionArgs, EthInterface,
-};
+use zksync_eth_client::{CallFunctionArgs, EthInterface};
 
 #[derive(Debug)]
 pub struct GatewayMigrator {
-    eth_client: Box<DynClient<L1>>,
+    sl_client: Box<dyn EthInterface>,
     diamond_proxy_addr: Address,
     settlement_mode: SettlementMode,
     abi: Contract,
 }
 
 impl GatewayMigrator {
-    pub async fn new(eth_client: Box<DynClient<L1>>, diamond_proxy_addr: Address) -> Self {
+    pub fn new(
+        sl_client: Box<dyn EthInterface>,
+        diamond_proxy_addr: Address,
+        initial_settlement_mode: SettlementMode,
+    ) -> Self {
         let abi = getters_facet_contract();
-        let settlement_mode = get_settlement_layer(&eth_client, diamond_proxy_addr, &abi)
-            .await
-            .unwrap();
         Self {
-            eth_client,
+            sl_client,
             diamond_proxy_addr,
-            settlement_mode,
+            settlement_mode: initial_settlement_mode,
             abi,
         }
     }
@@ -42,18 +40,13 @@ impl GatewayMigrator {
                 return Ok(());
             }
             let settlement_mode =
-                get_settlement_layer(&self.eth_client, self.diamond_proxy_addr, &self.abi)
+                get_settlement_layer(self.sl_client.as_ref(), self.diamond_proxy_addr, &self.abi)
                     .await
                     .unwrap();
 
-            dbg!(settlement_mode);
             if settlement_mode != self.settlement_mode {
                 bail!("Settlement layer changed")
             }
-            // if attempts == 10 {
-            //     bail!("Settlement layer changed")
-            // }
-            // attempts += 1;
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
     }
@@ -65,7 +58,7 @@ pub async fn get_settlement_layer(
     abi: &Contract,
 ) -> anyhow::Result<SettlementMode> {
     let settlement_layer: Address = CallFunctionArgs::new("getSettlementLayer", ())
-        .for_contract(diamond_proxy_addr, &abi)
+        .for_contract(diamond_proxy_addr, abi)
         .call(eth_client)
         .await?;
 
