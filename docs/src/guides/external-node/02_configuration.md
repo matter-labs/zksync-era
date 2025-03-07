@@ -18,7 +18,11 @@ size of the connection pool.
 
 RocksDB is used in components where IO is a bottleneck, such as the State Keeper and the Merkle tree. If possible, it is
 recommended to use an NVME SSD for RocksDB. RocksDB requires two variables to be set: `EN_STATE_CACHE_PATH` and
-`EN_MERKLE_TREE_PATH`, which must point to different directories.
+`EN_MERKLE_TREE_PATH`, which must point to different directories. When running a Node inside Docker Compose, Kubernetes
+etc., these paths should point to dirs in a persistent volume (or 2 separate volumes). Persistent volumes **must** be
+exclusive to a node; i.e., they **must not** be shared among nodes concurrently or transferred from one node to another.
+Failing to adhere to this rule may result in RocksDB corruption or
+[the Node crashing on start](05_troubleshooting.md#rocksdb-issues).
 
 ## L1 Web3 client
 
