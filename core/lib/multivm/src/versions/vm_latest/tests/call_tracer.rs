@@ -18,7 +18,6 @@ fn test_max_depth() {
     let contarct = read_max_depth_contract();
     let address = Address::random();
     let mut vm = VmTesterBuilder::new()
-        .with_empty_in_memory_storage()
         .with_rich_accounts(1)
         .with_bootloader_gas_limit(BATCH_COMPUTATIONAL_GAS_LIMIT)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
@@ -74,4 +73,19 @@ fn out_of_gas() {
 #[test]
 fn recursive_tx() {
     call_tracer::test_recursive_tx::<Vm<_, _>>();
+}
+
+#[test]
+fn evm_to_eravm_call() {
+    call_tracer::test_evm_to_eravm_call::<Vm<_, _>>();
+}
+
+#[test]
+fn evm_deployment_tx() {
+    call_tracer::test_evm_deployment_tx::<Vm<_, _>>();
+}
+
+#[test]
+fn evm_deployment_from_contract() {
+    call_tracer::test_evm_deployment_from_contract::<Vm<_, _>>();
 }
