@@ -35,6 +35,7 @@ use crate::celestia::blobstream::{TendermintRPCClient, get_latest_block, find_bl
 use alloy_sol_types::{SolType, SolValue};
 use alloy_primitives::{FixedBytes, Uint, Bytes};
 use sp1_sdk::{SP1ProofWithPublicValues};
+use tracing_subscriber::{EnvFilter};
 
 /// An implementation of the `DataAvailabilityClient` trait that interacts with the Celestia network.
 #[derive(Clone)]
@@ -139,10 +140,12 @@ impl DataAvailabilityClient for CelestiaClient {
     }
 
     async fn get_inclusion_data(&self, blob_id: &str) -> Result<Option<InclusionData>, DAError> {
+        tracing::debug!("Parsing blob id: {}", blob_id);
         let blob_id_struct = blob_id
             .parse::<BlobId>()
             .map_err(to_non_retriable_da_error)?;
 
+        tracing::debug!("Calling eq-service...");
         let response = self
             .eq_client
             .get_keccak_inclusion(&blob_id_struct)
@@ -152,6 +155,7 @@ impl DataAvailabilityClient for CelestiaClient {
         // This code is a bit ugly because Prost doesn't turn protobuf enums into the most Rustic representation
         // response_data and response_status have to be separate variables :/
         // Maybe we ought to write a wrapper so it looks more Rustic
+        tracing::debug!("Got response from eq-service");
         let response_data: Option<InclusionResponseValue> = response
             .response_value
             .try_into()
@@ -169,13 +173,16 @@ impl DataAvailabilityClient for CelestiaClient {
                 }
             },
             _ => {
+                tracing::debug!("eq-service returned non-complete status, returning None");
                 return Ok(None);
             }
         };
+        tracing::debug!("Got proof data from eq-service: {:?}", proof_data);
 
         let proof: SP1ProofWithPublicValues = bincode::deserialize(&proof_data).unwrap();
         let public_values_bytes = proof.public_values.to_vec();
         let (keccak_hash, data_root) = KeccakInclusionToDataRootProofOutput::abi_decode(&public_values_bytes, true).unwrap();
+        tracing::debug!("Decoded public vlaues from SP1 proof {:?} {:?}", keccak_hash, data_root);
 
         // Here we want to poll blobstream until the included block is in blobstream
         //self.eth_client.call_contract_function(request, block)
@@ -184,10 +191,10 @@ impl DataAvailabilityClient for CelestiaClient {
             .map_err(|e| to_retriable_da_error(e))?;
 
         let latest_block = get_latest_block(&self.eth_client, &self.blobstream_contract).await;
-        println!("Latest blobstream block: {}", latest_block);
+        tracing::debug!("Latest blobstream block: {}", latest_block);
 
         let target_height: u64 = blob_id_struct.height.into();
-
+        tracing::debug!("Starting wait for blobstream");
         let (from, to, proof_nonce) = find_block_range(
             &self.eth_client,
             target_height,
