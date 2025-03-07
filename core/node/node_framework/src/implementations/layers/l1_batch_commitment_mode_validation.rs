@@ -3,7 +3,7 @@ use zksync_types::commitment::L1BatchCommitmentMode;
 
 use crate::{
     implementations::resources::{
-        contracts::SettlementLayerContractsResource, eth_interface::GatewayEthInterfaceResource,
+        contracts::L1ChainContractsResource, eth_interface::EthInterfaceResource,
     },
     service::StopReceiver,
     task::{Task, TaskId, TaskKind},
@@ -21,8 +21,8 @@ pub struct L1BatchCommitmentModeValidationLayer {
 #[derive(Debug, FromContext)]
 #[context(crate = crate)]
 pub struct Input {
-    pub contracts: SettlementLayerContractsResource,
-    pub eth_client: GatewayEthInterfaceResource,
+    pub contracts: L1ChainContractsResource,
+    pub client: EthInterfaceResource,
 }
 
 #[derive(Debug, IntoContext)]
@@ -50,11 +50,10 @@ impl WiringLayer for L1BatchCommitmentModeValidationLayer {
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
-        let GatewayEthInterfaceResource(query_client) = input.eth_client;
         let task = L1BatchCommitmentModeValidationTask::new(
             input.contracts.0.chain_contracts_config.diamond_proxy_addr,
             self.l1_batch_commit_data_generator_mode,
-            query_client,
+            Box::new(input.client.0),
         );
 
         Ok(Output { task })

@@ -3,8 +3,7 @@ use zksync_gateway_migrator::GatewayMigrator;
 
 use crate::{
     implementations::resources::{
-        contracts::{L1ChainContractsResource, SettlementLayerContractsResource},
-        eth_interface::EthInterfaceResource,
+        contracts::L1ChainContractsResource, eth_interface::EthInterfaceResource,
         settlement_layer::SettlementModeResource,
     },
     wiring_layer::{WiringError, WiringLayer},
@@ -41,7 +40,7 @@ impl WiringLayer for GatewayMigratorLayer {
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         let migrator = GatewayMigrator::new(
-            input.eth_client.0,
+            Box::new(input.eth_client.0),
             input.contracts.0.chain_contracts_config.diamond_proxy_addr,
             input.settlement_mode_resource.0,
         );

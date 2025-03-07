@@ -7,10 +7,7 @@ use zksync_contracts::{
     POST_BOOJUM_COMMIT_FUNCTION, POST_SHARED_BRIDGE_COMMIT_FUNCTION, PRE_BOOJUM_COMMIT_FUNCTION,
 };
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_eth_client::{
-    clients::{DynClient, L1},
-    CallFunctionArgs, ContractCallError, EnrichedClientError, EthInterface,
-};
+use zksync_eth_client::{CallFunctionArgs, ContractCallError, EnrichedClientError, EthInterface};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_l1_contract_interface::{
     i_executor::structures::{
@@ -353,7 +350,7 @@ pub fn detect_da(
 
 #[derive(Debug)]
 pub struct SLChainAccess {
-    client: Box<DynClient<L1>>,
+    client: Box<dyn EthInterface>,
     chain_id: SLChainId,
     diamond_proxy_addr: Option<Address>,
 }
@@ -378,7 +375,7 @@ impl ConsistencyChecker {
     const DEFAULT_SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 
     pub async fn new(
-        gateway_client: Box<DynClient<L1>>,
+        gateway_client: Box<dyn EthInterface>,
         max_batches_to_recheck: u32,
         pool: ConnectionPool<Core>,
         commitment_mode: L1BatchCommitmentMode,
@@ -386,7 +383,7 @@ impl ConsistencyChecker {
         let (health_check, health_updater) = ConsistencyCheckerHealthUpdater::new();
         let l1_chain_id = gateway_client.fetch_chain_id().await?;
         let chain_data = SLChainAccess {
-            client: gateway_client.for_component("consistency_checker"),
+            client: gateway_client,
             chain_id: l1_chain_id,
             diamond_proxy_addr: None,
         };
@@ -646,7 +643,7 @@ impl ConsistencyChecker {
 
         let version: U256 = CallFunctionArgs::new("getProtocolVersion", ())
             .for_contract(address, &self.contract)
-            .call(&self.chain_data.client)
+            .call(self.chain_data.client.as_ref())
             .await?;
         tracing::info!(
             "Checked chain id {chain_id}, diamond proxy {address:?} (protocol version: {version})"

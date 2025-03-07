@@ -1,6 +1,7 @@
 use zksync_config::EthWatchConfig;
-use zksync_eth_watch::{EthHttpQueryClient, EthWatch, ZkSyncExtentionEthClient};
+use zksync_eth_watch::{EthHttpQueryClient, EthWatch, GetLogsClient, ZkSyncExtentionEthClient};
 use zksync_types::L2ChainId;
+use zksync_web3_decl::client::{DynClient, Network};
 
 use crate::{
     implementations::resources::{
@@ -8,7 +9,7 @@ use crate::{
             L1ChainContractsResource, L1EcosystemContractsResource,
             SettlementLayerContractsResource,
         },
-        eth_interface::{EthInterfaceResource, GatewayEthInterfaceResource},
+        eth_interface::{EthInterfaceResource, UniversalClient, UniversalClientResource},
         pools::{MasterPool, PoolResource},
         settlement_layer::SettlementModeResource,
     },
@@ -36,7 +37,7 @@ pub struct Input {
     pub l1ecosystem_contracts_resource: L1EcosystemContractsResource,
     pub master_pool: PoolResource<MasterPool>,
     pub eth_client: EthInterfaceResource,
-    pub gateway_client: GatewayEthInterfaceResource,
+    pub client: UniversalClientResource,
     pub settlement_mode: SettlementModeResource,
 }
 
@@ -53,6 +54,40 @@ impl EthWatchLayer {
             eth_watch_config,
             chain_id,
         }
+    }
+    fn create_client<Net: Network>(
+        &self,
+        client: Box<DynClient<Net>>,
+        contracts_resource: &SettlementLayerContractsResource,
+        l1_ecosystem_contracts_resource: &L1EcosystemContractsResource,
+    ) -> EthHttpQueryClient<Net>
+    where
+        Box<DynClient<Net>>: GetLogsClient,
+    {
+        EthHttpQueryClient::new(
+            client,
+            contracts_resource
+                .0
+                .chain_contracts_config
+                .diamond_proxy_addr,
+            l1_ecosystem_contracts_resource.0.bytecodes_supplier_addr,
+            l1_ecosystem_contracts_resource.0.wrapped_base_token_store,
+            l1_ecosystem_contracts_resource.0.shared_bridge,
+            contracts_resource
+                .0
+                .ecosystem_contracts
+                .state_transition_proxy_addr,
+            contracts_resource
+                .0
+                .chain_contracts_config
+                .diamond_proxy_addr,
+            contracts_resource
+                .0
+                .ecosystem_contracts
+                .server_notifier_addr,
+            self.eth_watch_config.confirmations_for_eth_event,
+            self.chain_id,
+        )
     }
 }
 
@@ -114,40 +149,18 @@ impl WiringLayer for EthWatchLayer {
             self.chain_id,
         );
 
-        let sl_l2_client: Box<dyn ZkSyncExtentionEthClient> = Box::new(EthHttpQueryClient::new(
-            input.gateway_client.0,
-            input
-                .contracts_resource
-                .0
-                .chain_contracts_config
-                .diamond_proxy_addr,
-            input
-                .l1ecosystem_contracts_resource
-                .0
-                .bytecodes_supplier_addr,
-            input
-                .l1ecosystem_contracts_resource
-                .0
-                .wrapped_base_token_store,
-            input.l1ecosystem_contracts_resource.0.shared_bridge,
-            input
-                .contracts_resource
-                .0
-                .ecosystem_contracts
-                .state_transition_proxy_addr,
-            input
-                .contracts_resource
-                .0
-                .chain_contracts_config
-                .diamond_proxy_addr,
-            input
-                .contracts_resource
-                .0
-                .ecosystem_contracts
-                .server_notifier_addr,
-            self.eth_watch_config.confirmations_for_eth_event,
-            self.chain_id,
-        ));
+        let sl_l2_client: Box<dyn ZkSyncExtentionEthClient> = match input.client.0 {
+            UniversalClient::L1(client) => Box::new(self.create_client(
+                client,
+                &input.contracts_resource,
+                &input.l1ecosystem_contracts_resource,
+            )),
+            UniversalClient::L2(client) => Box::new(self.create_client(
+                client,
+                &input.contracts_resource,
+                &input.l1ecosystem_contracts_resource,
+            )),
+        };
 
         let eth_watch = EthWatch::new(
             Box::new(l1_client),

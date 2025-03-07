@@ -18,8 +18,8 @@ use crate::{
         },
         resources::{
             circuit_breakers::CircuitBreakersResource,
-            contracts::{L1EcosystemContractsResource, SettlementLayerContractsResource},
-            eth_interface::GatewayEthInterfaceResource,
+            contracts::{L1ChainContractsResource, L1EcosystemContractsResource},
+            eth_interface::EthInterfaceResource,
             healthcheck::AppHealthCheckResource,
             main_node_client::MainNodeClientResource,
             pools::{PoolResource, ReplicaPool},
@@ -133,9 +133,9 @@ pub struct Input {
     #[context(default)]
     pub app_health: AppHealthCheckResource,
     pub main_node_client: Option<MainNodeClientResource>,
-    pub l1_eth_client: GatewayEthInterfaceResource,
-    pub contracts_resource: SettlementLayerContractsResource,
-    pub l1ecosystem_contracts_resource: L1EcosystemContractsResource,
+    pub l1_client: EthInterfaceResource,
+    pub contracts_resource: L1ChainContractsResource,
+    pub l1_ecosystem_contracts_resource: L1EcosystemContractsResource,
 }
 
 #[derive(Debug, IntoContext)]
@@ -204,7 +204,7 @@ impl WiringLayer for Web3ServerLayer {
         let contracts = input.contracts_resource.0;
         let internal_api_config = self
             .internal_api_config_builder
-            .with_contracts(contracts, input.l1ecosystem_contracts_resource.0)
+            .with_contracts(contracts, input.l1_ecosystem_contracts_resource.0)
             .build();
 
         let sealed_l2_block_handle = SealedL2BlockNumber::default();
@@ -228,7 +228,7 @@ impl WiringLayer for Web3ServerLayer {
             } else {
                 BridgeAddressesUpdaterTask::L1Updater(L1UpdaterInner {
                     bridge_address_updater: bridge_addresses_handle.clone(),
-                    l1_eth_client: input.l1_eth_client.0,
+                    l1_eth_client: Box::new(input.l1_client.0),
                     bridgehub_addr: internal_api_config
                         .l1_bridgehub_proxy_addr
                         .context("Lacking l1 bridgehub proxy address")?,

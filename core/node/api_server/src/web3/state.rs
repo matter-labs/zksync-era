@@ -185,15 +185,15 @@ impl InternalApiConfigBuilder {
             l2_weth_bridge: None,
             l2_legacy_shared_bridge: contracts_config.l2_contracts.legacy_shared_bridge_addr,
         });
-        self.l1_bridgehub_proxy_addr = contracts_config.ecosystem_contracts.bridgehub_proxy_addr;
+        self.l1_bridgehub_proxy_addr = l1_ecosystem_contracts.bridge_hub;
+
         self.l1_state_transition_proxy_addr = contracts_config
             .ecosystem_contracts
             .state_transition_proxy_addr;
 
         self.l1_bytecodes_supplier_addr = l1_ecosystem_contracts.bytecodes_supplier_addr;
         self.l1_wrapped_base_token_store = l1_ecosystem_contracts.wrapped_base_token_store;
-        self.l1_diamond_proxy_addr =
-            Some(contracts_config.chain_contracts_config.diamond_proxy_addr);
+        self.l1_diamond_proxy_addr = Some(l1_ecosystem_contracts.l1_diamond_proxy);
         self.l2_testnet_paymaster_addr = contracts_config.l2_contracts.testnet_paymaster_addr;
         self
     }
@@ -284,14 +284,14 @@ impl InternalApiConfig {
                 l2_weth_bridge: None,
                 l2_legacy_shared_bridge: contracts_config.l2_contracts.legacy_shared_bridge_addr,
             },
-            l1_bridgehub_proxy_addr: contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
+            l1_bridgehub_proxy_addr: l1_ecosystem_contracts.bridge_hub,
             l1_state_transition_proxy_addr: contracts_config
                 .ecosystem_contracts
                 .state_transition_proxy_addr,
             l1_transparent_proxy_admin_addr: None,
             l1_bytecodes_supplier_addr: l1_ecosystem_contracts.bytecodes_supplier_addr,
             l1_wrapped_base_token_store: l1_ecosystem_contracts.wrapped_base_token_store,
-            l1_diamond_proxy_addr: contracts_config.chain_contracts_config.diamond_proxy_addr,
+            l1_diamond_proxy_addr: l1_ecosystem_contracts.l1_diamond_proxy,
             l2_testnet_paymaster_addr: contracts_config.l2_contracts.testnet_paymaster_addr,
             req_entities_limit: web3_config.req_entities_limit(),
             fee_history_limit: web3_config.fee_history_limit(),
