@@ -48,7 +48,6 @@ impl WiringLayer for TreeDataFetcherLayer {
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         let pool = input.master_pool.get().await?;
         let MainNodeClientResource(client) = input.main_node_client;
-        // let EthInterfaceResource(gateway_client) = input.l1_client;
         let gateway_client = input.gateway_client.0;
 
         tracing::warn!(

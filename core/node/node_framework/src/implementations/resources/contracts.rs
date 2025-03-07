@@ -34,6 +34,6 @@ pub struct GatewayChainContractsResource(pub ChainSpecificContracts);
 
 impl Resource for GatewayChainContractsResource {
     fn name() -> String {
-        "common/l1_contracts".into()
+        "common/gateway_chain_contracts".into()
     }
 }
