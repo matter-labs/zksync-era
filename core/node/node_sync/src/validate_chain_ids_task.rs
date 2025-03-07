@@ -45,15 +45,15 @@ impl ValidateChainIdsTask {
     }
 
     async fn check_client(
-        gateway_client: Option<Box<dyn EthInterface>>,
+        client: Option<Box<dyn EthInterface>>,
         expected: Option<SLChainId>,
     ) -> anyhow::Result<()> {
-        let (Some(l1_client), Some(expected)) = (gateway_client, expected) else {
+        let (Some(client), Some(expected)) = (client, expected) else {
             return Ok(());
         };
 
         loop {
-            match l1_client.fetch_chain_id().await {
+            match client.fetch_chain_id().await {
                 Ok(chain_id) => {
                     anyhow::ensure!(
                         expected == chain_id,

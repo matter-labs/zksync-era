@@ -29,9 +29,9 @@ impl From<UniversalClient> for Box<dyn EthInterface> {
 }
 
 #[derive(Debug, Clone)]
-pub struct GatewayEthInterfaceResourceUniversalClient(pub UniversalClient);
+pub struct UniversalClientResource(pub UniversalClient);
 
-impl Resource for GatewayEthInterfaceResourceUniversalClient {
+impl Resource for UniversalClientResource {
     fn name() -> String {
         "common/universal_client_gateway".into()
     }

@@ -66,7 +66,7 @@ impl<S: EthereumSigner, Net: Network> fmt::Debug for SigningClient<S, Net> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // We do not want to have a private key in the debug representation.
 
-        f.debug_struct("ETHDirectClient")
+        f.debug_struct("SigningClient")
             .field("sender_account", &self.inner.sender_account)
             .field("contract_addr", &self.inner.contract_addr)
             .field("chain_id", &self.inner.chain_id)

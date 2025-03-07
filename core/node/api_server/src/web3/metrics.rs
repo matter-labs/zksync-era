@@ -374,6 +374,7 @@ impl ApiMetrics {
             },
         };
         if self.web3_rpc_errors[&labels].inc() == 0 || FILTER.should_report() {
+            dbg!(raw_params);
             let ProtocolErrorLabels {
                 method,
                 error_code,

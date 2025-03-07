@@ -7,8 +7,8 @@ use crate::{
         contracts::{L1ChainContractsResource, SettlementLayerContractsResource},
         eth_interface::{
             BoundEthInterfaceForBlobsResource, BoundEthInterfaceForL2Resource,
-            BoundEthInterfaceResource, EthInterfaceResource,
-            GatewayEthInterfaceResourceUniversalClient, UniversalClient,
+            BoundEthInterfaceResource, EthInterfaceResource, UniversalClient,
+            UniversalClientResource,
         },
     },
     wiring_layer::{WiringError, WiringLayer},
@@ -28,7 +28,7 @@ pub struct Input {
     pub eth_client: EthInterfaceResource,
     pub contracts: SettlementLayerContractsResource,
     pub l1_contracts: L1ChainContractsResource,
-    pub gateway_client: GatewayEthInterfaceResourceUniversalClient,
+    pub gateway_client: UniversalClientResource,
 }
 
 #[derive(Debug, IntoContext)]
@@ -100,8 +100,8 @@ impl WiringLayer for PKSigningEthClientLayer {
             BoundEthInterfaceForBlobsResource(Box::new(signing_client_for_blobs))
         });
 
-        let signing_client_for_l2_gateway =
-            if let UniversalClient::L2(gateway_client) = input.gateway_client.0 {
+        let signing_client_for_l2_gateway = match input.gateway_client.0 {
+            UniversalClient::L2(gateway_client) => {
                 let private_key = self.wallets.operator.private_key();
                 let chain_id = gateway_client
                     .fetch_chain_id()
@@ -117,9 +117,9 @@ impl WiringLayer for PKSigningEthClientLayer {
                 Some(BoundEthInterfaceForL2Resource(Box::new(
                     signing_client_for_blobs,
                 )))
-            } else {
-                None
-            };
+            }
+            UniversalClient::L1(_) => None,
+        };
 
         Ok(Output {
             signing_client,

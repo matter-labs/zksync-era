@@ -5,7 +5,7 @@ use zksync_web3_decl::client::Client;
 
 use crate::{
     implementations::resources::{
-        eth_interface::{GatewayEthInterfaceResourceUniversalClient, UniversalClient},
+        eth_interface::{UniversalClient, UniversalClientResource},
         settlement_layer::{SettlementModeResource, SlChainIdResource},
     },
     wiring_layer::{WiringError, WiringLayer},
@@ -38,7 +38,7 @@ pub struct Input {
 #[derive(Debug, IntoContext)]
 #[context(crate = crate)]
 pub struct Output {
-    query_client_gateway: GatewayEthInterfaceResourceUniversalClient,
+    query_client_gateway: UniversalClientResource,
 }
 
 #[async_trait::async_trait]
@@ -56,9 +56,7 @@ impl WiringLayer for GatewayClientLayer {
                 SettlementMode::SettlesToL1 => {
                     let mut builder = Client::http(self.l1_rpc_url).context("Client::new()")?;
                     builder = builder.for_network(input.sl_chain_id_resource.0.into());
-                    GatewayEthInterfaceResourceUniversalClient(UniversalClient::L1(Box::new(
-                        builder.build(),
-                    )))
+                    UniversalClientResource(UniversalClient::L1(Box::new(builder.build())))
                 }
                 SettlementMode::Gateway => {
                     let mut builder =
@@ -68,9 +66,7 @@ impl WiringLayer for GatewayClientLayer {
                             .unwrap()
                             .into(),
                     );
-                    GatewayEthInterfaceResourceUniversalClient(UniversalClient::L2(Box::new(
-                        builder.build(),
-                    )))
+                    UniversalClientResource(UniversalClient::L2(Box::new(builder.build())))
                 }
             },
         })

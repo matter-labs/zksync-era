@@ -7,7 +7,7 @@ use zksync_types::pubdata_da::PubdataSendingMode;
 
 use crate::{
     implementations::resources::{
-        eth_interface::{GatewayEthInterfaceResourceUniversalClient, UniversalClient},
+        eth_interface::{UniversalClient, UniversalClientResource},
         gas_adjuster::GasAdjusterResource,
     },
     service::StopReceiver,
@@ -28,7 +28,7 @@ pub struct GasAdjusterLayer {
 #[derive(Debug, FromContext)]
 #[context(crate = crate)]
 pub struct Input {
-    pub client: GatewayEthInterfaceResourceUniversalClient,
+    pub client: UniversalClientResource,
 }
 
 #[derive(Debug, IntoContext)]
