@@ -93,7 +93,6 @@ db-ssd/
 backups/
 artifacts/
 artifacts-zk/
-cache-evm/
 cache-zk/
 zksolc
 verified_sources
