@@ -37,9 +37,7 @@ type Extension = GoldilocksExt2;
 type Proof = CryptoProof<Field, Hasher, Extension>;
 
 /// Hydrated circuit.
-/// Circuits are currently dehydrated for memory and storage reasons.
-/// Circuits are hydrated on the flight where necessary.
-// TODO: This enum will be merged with CircuitWrapper once BWG changes are done.
+// TODO: This enum should be merged with CircuitWrapper.
 #[allow(clippy::large_enum_variant)]
 pub enum Circuit {
     Base(ZkSyncBaseLayerCircuit),
@@ -49,7 +47,7 @@ pub enum Circuit {
 impl Circuit {
     /// Generates proof for given witness vector.
     /// Expects setup_data to match witness vector.
-    pub(crate) fn prove(
+    pub fn prove(
         &self,
         witness_vector: WitnessVec<GoldilocksField>,
         setup_data: Arc<GoldilocksGpuProverSetupData>,

@@ -24,8 +24,8 @@ use zksync_types::{
 };
 
 pub(super) use self::tester::{
-    validation_params, TestedVm, TestedVmForValidation, TestedVmWithCallTracer, VmTester,
-    VmTesterBuilder,
+    validation_params, TestedVm, TestedVmForValidation, TestedVmWithCallTracer,
+    TestedVmWithStorageLimit, VmTester, VmTesterBuilder,
 };
 use crate::{
     interface::{
@@ -63,6 +63,7 @@ mod tester;
 pub(super) mod tracing_execution_error;
 pub(super) mod transfer;
 pub(super) mod upgrade;
+pub(super) mod v26_upgrade_utils;
 
 static BASE_SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> =
     Lazy::new(BaseSystemContracts::load_from_disk);
