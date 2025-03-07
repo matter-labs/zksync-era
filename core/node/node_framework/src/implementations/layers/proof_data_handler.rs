@@ -80,13 +80,19 @@ impl WiringLayer for ProofDataHandlerLayer {
             None
         };
 
-        let processor =
-            ProofDataProcessor::new(main_pool.clone(), blob_store, self.commitment_mode);
+        let processor = ProofDataProcessor::new(
+            main_pool.clone(),
+            blob_store,
+            self.commitment_mode,
+            self.l2_chain_id,
+        );
         let rpc_client = RpcClient::new(
             processor,
             self.proof_data_handler_config.clone().api_url,
             self.proof_data_handler_config.api_poll_duration(),
             self.proof_data_handler_config.retry_connection_interval(),
+            self.l2_chain_id,
+            self.proof_data_handler_config.subscribe_for_zero_chain_id,
         );
 
         let task = ProofDataHandlerTask::new(api, rpc_client);

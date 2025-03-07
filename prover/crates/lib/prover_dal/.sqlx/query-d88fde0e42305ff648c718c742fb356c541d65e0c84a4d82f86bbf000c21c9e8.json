@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                id\n            FROM\n                prover_jobs_fri\n            WHERE\n                l1_batch_number = $1\n                AND chain_id = $2\n                AND status = 'successful'\n                AND aggregation_round = $3\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int4",
+        "Int2"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "d88fde0e42305ff648c718c742fb356c541d65e0c84a4d82f86bbf000c21c9e8"
+}

@@ -16,7 +16,7 @@ use zksync_prover_fri_types::{
     CircuitAuxData, CircuitWrapper, ProverServiceDataKey, RamPermutationQueueWitness,
 };
 use zksync_prover_job_processor::JobPicker;
-use zksync_types::{prover_dal::FriProverJobMetadata, L1BatchNumber};
+use zksync_types::{prover_dal::FriProverJobMetadata, L1BatchNumber, L2ChainId};
 
 use crate::{
     metrics::WITNESS_VECTOR_GENERATOR_METRICS,
@@ -60,9 +60,11 @@ impl<ML: WitnessVectorMetadataLoader> WitnessVectorGeneratorJobPicker<ML> {
         circuit: ZkSyncBaseLayerCircuit,
         aux_data: CircuitAuxData,
         l1_batch_number: L1BatchNumber,
+        chain_id: L2ChainId,
     ) -> anyhow::Result<Circuit> {
         if let ZkSyncBaseLayerCircuit::RAMPermutation(circuit_instance) = circuit {
             let sorted_witness_key = RamPermutationQueueWitnessKey {
+                chain_id,
                 block_number: l1_batch_number,
                 circuit_subsequence_number: aux_data.circuit_subsequence_number as usize,
                 is_sorted: true,
@@ -74,6 +76,7 @@ impl<ML: WitnessVectorMetadataLoader> WitnessVectorGeneratorJobPicker<ML> {
                 .context("failed to load sorted witness key")?;
 
             let unsorted_witness_key = RamPermutationQueueWitnessKey {
+                chain_id,
                 block_number: l1_batch_number,
                 circuit_subsequence_number: aux_data.circuit_subsequence_number as usize,
                 is_sorted: false,
@@ -131,7 +134,7 @@ impl<ML: WitnessVectorMetadataLoader> JobPicker for WitnessVectorGeneratorJobPic
             CircuitWrapper::Base(circuit) => Circuit::Base(circuit),
             CircuitWrapper::Recursive(circuit) => Circuit::Recursive(circuit),
             CircuitWrapper::BasePartial((circuit, aux_data)) => self
-                .fill_witness(circuit, aux_data, metadata.block_number)
+                .fill_witness(circuit, aux_data, metadata.block_number, metadata.chain_id)
                 .await
                 .context("failed to fill witness")?,
         };

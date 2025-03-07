@@ -92,10 +92,11 @@ impl WitnessJobQueuer {
             .fri_scheduler_witness_generator_dal()
             .move_scheduler_jobs_from_waiting_to_queued()
             .await;
-        for l1_batch_number in &l1_batch_numbers {
+        for (chain_id, l1_batch_number) in &l1_batch_numbers {
             tracing::info!(
-                "Marked scheduler job for l1_batch {} as queued.",
+                "Marked scheduler job for l1_batch {}, chain {} as queued.",
                 l1_batch_number,
+                chain_id,
             );
         }
         SERVER_METRICS
