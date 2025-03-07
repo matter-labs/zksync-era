@@ -30,14 +30,14 @@ impl EigenDAClient {
         secrets: EigenSecrets,
         blob_provider: Arc<dyn BlobProvider>,
     ) -> anyhow::Result<Self> {
-        let eth_rpc_url = match config.eigenda_eth_rpc {
-            Some(url) => {
-                let url = Url::from_str(url.expose_str())
-                    .map_err(|_| anyhow::anyhow!("Invalid eth rpc url"))?;
-                Some(rust_eigenda_client::config::SecretUrl::new(url))
-            }
-            None => None,
-        };
+        let url = Url::from_str(
+            config
+                .eigenda_eth_rpc
+                .ok_or(anyhow::anyhow!("Eigenda eth rpc url is not set"))?
+                .expose_str(),
+        )
+        .map_err(|_| anyhow::anyhow!("Invalid eth rpc url"))?;
+        let eth_rpc_url = rust_eigenda_client::config::SecretUrl::new(url);
 
         let srs_points_source = match config.points_source {
             PointsSource::Path(path) => SrsPointsSource::Path(path),
