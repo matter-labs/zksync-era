@@ -1,5 +1,16 @@
 # Changelog
 
+## [27.0.0](https://github.com/matter-labs/zksync-era/compare/core-v26.7.0...core-v27.0.0) (2025-03-07)
+
+
+### ⚠ BREAKING CHANGES
+
+* V27 update ([#3580](https://github.com/matter-labs/zksync-era/issues/3580))
+
+### Features
+
+* V27 update ([#3580](https://github.com/matter-labs/zksync-era/issues/3580)) ([9e18550](https://github.com/matter-labs/zksync-era/commit/9e1855050e3457ecef2b45a75e993dcdc2de370a))
+
 ## [26.7.0](https://github.com/matter-labs/zksync-era/compare/core-v26.6.0...core-v26.7.0) (2025-03-06)
 
 
