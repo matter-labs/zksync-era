@@ -5,7 +5,8 @@ use serde_with::{serde_as, Bytes};
 use zksync_object_store::{_reexports::BoxedError, serialize_using_bincode, Bucket, StoredObject};
 use zksync_types::{
     basic_fri_types::Eip4844Blobs, block::L2BlockExecutionData, commitment::PubdataParams,
-    witness_block_state::WitnessStorageState, L1BatchNumber, ProtocolVersionId, H256, U256,
+    witness_block_state::WitnessStorageState, L1BatchNumber, L2ChainId, ProtocolVersionId, H256,
+    U256,
 };
 use zksync_vm_interface::{L1BatchEnv, SystemEnv};
 
@@ -235,10 +236,10 @@ impl From<WitnessInputDataLegacy> for WitnessInputData {
 impl StoredObject for WitnessInputData {
     const BUCKET: Bucket = Bucket::WitnessInput;
 
-    type Key<'a> = L1BatchNumber;
+    type Key<'a> = (L2ChainId, L1BatchNumber);
 
     fn encode_key(key: Self::Key<'_>) -> String {
-        format!("witness_inputs_{key}.bin")
+        format!("witness_inputs_{}_{}.bin", key.0.as_u64(), key.1)
     }
 
     fn serialize(&self) -> Result<Vec<u8>, BoxedError> {

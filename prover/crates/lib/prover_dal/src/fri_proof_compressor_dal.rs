@@ -196,8 +196,8 @@ impl FriProofCompressorDal<'_, '_> {
 
     pub async fn get_least_proven_block_not_sent_to_server(
         &mut self,
+        chain_id: L2ChainId,
     ) -> Option<(
-        L2ChainId,
         L1BatchNumber,
         ProtocolSemanticVersion,
         ProofCompressionJobStatus,
@@ -213,27 +213,28 @@ impl FriProofCompressorDal<'_, '_> {
             FROM
                 proof_compression_jobs_fri
             WHERE
-                (l1_batch_number, chain_id) = (
+                (l1_batch_number) = (
                     SELECT
-                        MIN(l1_batch_number),
-                        chain_id
+                        MIN(l1_batch_number)
                     FROM
                         proof_compression_jobs_fri
                     WHERE
-                        status = $1
-                        OR status = $2
-                    GROUP BY chain_id
+                        (
+                            status = $1
+                            OR status = $2
+                        )
+                        AND chain_id = $3
                 )
             "#,
             ProofCompressionJobStatus::Successful.to_string(),
-            ProofCompressionJobStatus::Skipped.to_string()
+            ProofCompressionJobStatus::Skipped.to_string(),
+            chain_id.as_u64() as i32
         )
         .fetch_optional(self.storage.conn())
         .await
         .ok()?;
         match row {
             Some(row) => Some((
-                L2ChainId::new(row.chain_id as u64).unwrap(),
                 L1BatchNumber(row.l1_batch_number as u32),
                 ProtocolSemanticVersion::new(
                     ProtocolVersionId::try_from(row.protocol_version.unwrap() as u16).unwrap(),

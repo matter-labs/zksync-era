@@ -128,7 +128,9 @@ impl JobManager for LeafAggregation {
                     .await
                     .expect("failed to get permit to process queues chunk");
 
-                let proofs = load_proofs_for_job_ids(&proofs_ids_for_queue, &*object_store).await;
+                let proofs =
+                    load_proofs_for_job_ids(job.chain_id, &proofs_ids_for_queue, &*object_store)
+                        .await;
                 let base_proofs = proofs
                     .into_iter()
                     .map(|wrapper| match wrapper {
@@ -151,6 +153,7 @@ impl JobManager for LeafAggregation {
                 );
 
                 save_recursive_layer_prover_input_artifacts(
+                    job.chain_id,
                     job.block_number,
                     circuit_idx,
                     vec![circuit],
@@ -184,7 +187,7 @@ impl JobManager for LeafAggregation {
 
         Ok(LeafAggregationArtifacts {
             circuit_id,
-            chain_id,
+            chain_id: job.chain_id,
             block_number: job.block_number,
             aggregations,
             circuit_ids_and_urls,

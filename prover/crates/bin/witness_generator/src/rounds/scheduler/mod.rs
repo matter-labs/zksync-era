@@ -43,6 +43,8 @@ pub struct SchedulerArtifacts {
 #[derive(Clone)]
 pub struct SchedulerWitnessGeneratorJob {
     block_number: L1BatchNumber,
+    // todo: should be allowed?
+    #[allow(dead_code)]
     chain_id: L2ChainId,
     scheduler_witness: SchedulerCircuitInstanceWitness<
         GoldilocksField,
@@ -126,7 +128,11 @@ impl JobManager for Scheduler {
         keystore: Keystore,
     ) -> anyhow::Result<Self::Job> {
         let started_at = Instant::now();
-        let wrapper = Self::get_artifacts(&metadata.recursion_tip_job_id, object_store).await?;
+        let wrapper = Self::get_artifacts(
+            &(metadata.chain_id, metadata.recursion_tip_job_id),
+            object_store,
+        )
+        .await?;
         let recursion_tip_proof = match wrapper {
             FriProofWrapper::Base(_) => Err(anyhow::anyhow!(
                 "Expected only recursive proofs for scheduler l1 batch {}, got Base",
@@ -143,8 +149,9 @@ impl JobManager for Scheduler {
                 ZkSyncRecursionLayerStorageType::NodeLayerCircuit as u8,
             )
             .context("get_recursive_layer_vk_for_circuit_type()")?;
-        let SchedulerPartialInputWrapper(mut scheduler_witness) =
-            object_store.get(metadata.l1_batch_number).await?;
+        let SchedulerPartialInputWrapper(mut scheduler_witness) = object_store
+            .get((metadata.chain_id, metadata.l1_batch_number))
+            .await?;
 
         let recursion_tip_vk = keystore
             .load_recursive_layer_verification_key(
@@ -177,7 +184,7 @@ impl JobManager for Scheduler {
     async fn get_metadata(
         connection_pool: ConnectionPool<Prover>,
         protocol_version: ProtocolSemanticVersion,
-    ) -> anyhow::Result<Option<(u32, Self::Metadata)>> {
+    ) -> anyhow::Result<Option<(L2ChainId, u32, Self::Metadata)>> {
         let pod_name = get_current_pod_name();
         let Some((chain_id, l1_batch_number)) = connection_pool
             .connection()
@@ -200,6 +207,7 @@ impl JobManager for Scheduler {
             ))?;
 
         Ok(Some((
+            chain_id,
             l1_batch_number.0,
             SchedulerWitnessJobMetadata {
                 chain_id,

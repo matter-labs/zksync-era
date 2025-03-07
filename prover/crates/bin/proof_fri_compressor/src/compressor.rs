@@ -98,7 +98,7 @@ impl JobProcessor for ProofCompressor {
         );
         let observer = METRICS.blob_fetch_time.start();
 
-        let fri_proof: FriProofWrapper = self.blob_store.get(fri_proof_id)
+        let fri_proof: FriProofWrapper = self.blob_store.get((chain_id, fri_proof_id))
             .await.with_context(|| format!("Failed to get fri proof from blob store for batch {l1_batch_number}, chain {} with id {fri_proof_id}", chain_id.as_u64()))?;
 
         observer.observe();
@@ -182,7 +182,7 @@ impl JobProcessor for ProofCompressor {
         let blob_save_started_at = Instant::now();
         let blob_url = self
             .blob_store
-            .put((job_id, self.protocol_version), &l1_batch_proof)
+            .put((job_id.0, job_id.1, self.protocol_version), &l1_batch_proof)
             .await
             .context("Failed to save converted l1_batch_proof")?;
         METRICS

@@ -125,7 +125,9 @@ impl JobManager for NodeAggregation {
                     .await
                     .expect("failed to get permit to process queues chunk");
 
-                let proofs = load_proofs_for_job_ids(&proofs_ids_for_chunk, &*object_store).await;
+                let proofs =
+                    load_proofs_for_job_ids(job.chain_id, &proofs_ids_for_chunk, &*object_store)
+                        .await;
                 let mut recursive_proofs = vec![];
                 for wrapper in proofs {
                     match wrapper {
@@ -150,6 +152,7 @@ impl JobManager for NodeAggregation {
                 );
 
                 let recursive_circuit_id_and_url = save_recursive_layer_prover_input_artifacts(
+                    job.chain_id,
                     job.block_number,
                     circuit_idx,
                     vec![recursive_circuit],
@@ -246,7 +249,7 @@ impl JobManager for NodeAggregation {
     async fn get_metadata(
         connection_pool: ConnectionPool<Prover>,
         protocol_version: ProtocolSemanticVersion,
-    ) -> anyhow::Result<Option<(u32, Self::Metadata)>> {
+    ) -> anyhow::Result<Option<(L2ChainId, u32, Self::Metadata)>> {
         let pod_name = get_current_pod_name();
         let Some(metadata) = connection_pool
             .connection()
@@ -258,6 +261,6 @@ impl JobManager for NodeAggregation {
             return Ok(None);
         };
 
-        Ok(Some((metadata.id, metadata)))
+        Ok(Some((metadata.chain_id, metadata.id, metadata)))
     }
 }

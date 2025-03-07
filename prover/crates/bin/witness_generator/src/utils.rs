@@ -154,6 +154,7 @@ pub async fn save_circuit(
     fields(l1_batch = %block_number)
 )]
 pub async fn save_recursive_layer_prover_input_artifacts(
+    chain_id: L2ChainId,
     block_number: L1BatchNumber,
     sequence_number_offset: usize,
     recursive_circuits: Vec<ZkSyncRecursiveLayerCircuit>,
@@ -166,6 +167,7 @@ pub async fn save_recursive_layer_prover_input_artifacts(
     for (sequence_number, circuit) in recursive_circuits.into_iter().enumerate() {
         let circuit_id = base_layer_circuit_id.unwrap_or_else(|| circuit.numeric_circuit_type());
         let circuit_key = FriCircuitKey {
+            chain_id,
             block_number,
             sequence_number: sequence_number_offset + sequence_number,
             circuit_id,
@@ -183,12 +185,13 @@ pub async fn save_recursive_layer_prover_input_artifacts(
 
 #[tracing::instrument(skip_all)]
 pub async fn load_proofs_for_job_ids(
+    chain_id: L2ChainId,
     job_ids: &[u32],
     object_store: &dyn ObjectStore,
 ) -> Vec<FriProofWrapper> {
     let mut handles = Vec::with_capacity(job_ids.len());
     for job_id in job_ids {
-        handles.push(object_store.get(*job_id));
+        handles.push(object_store.get((chain_id, *job_id)));
     }
     futures::future::join_all(handles)
         .await

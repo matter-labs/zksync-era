@@ -146,7 +146,7 @@ where
         })
     }
 
-    #[tracing::instrument(skip_all, fields(job_id = %job_id))]
+    #[tracing::instrument(skip_all, fields(job_id = %job_id.1))]
     async fn save_result(
         &self,
         job_id: Self::JobId,

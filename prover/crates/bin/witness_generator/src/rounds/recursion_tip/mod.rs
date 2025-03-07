@@ -137,8 +137,15 @@ impl JobManager for RecursionTip {
         keystore: Keystore,
     ) -> anyhow::Result<RecursionTipWitnessGeneratorJob> {
         let started_at = Instant::now();
-        let recursion_tip_proofs =
-            Self::get_artifacts(&metadata.final_node_proof_job_ids, object_store).await?;
+        let job_ids = metadata
+            .final_node_proof_job_ids
+            .clone()
+            .into_iter()
+            .map(|(circuit, batch_number)| {
+                (circuit, L1BatchNumber(batch_number), metadata.chain_id)
+            })
+            .collect::<Vec<(u8, L1BatchNumber, L2ChainId)>>();
+        let recursion_tip_proofs = Self::get_artifacts(&job_ids, object_store).await?;
         WITNESS_GENERATOR_METRICS.blob_fetch_time[&AggregationRound::RecursionTip.into()]
             .observe(started_at.elapsed());
 
@@ -222,7 +229,7 @@ impl JobManager for RecursionTip {
     async fn get_metadata(
         connection_pool: ConnectionPool<Prover>,
         protocol_version: ProtocolSemanticVersion,
-    ) -> anyhow::Result<Option<(u32, Self::Metadata)>> {
+    ) -> anyhow::Result<Option<(L2ChainId, u32, Self::Metadata)>> {
         let pod_name = get_current_pod_name();
         let Some((chain_id, l1_batch_number, number_of_final_node_jobs)) = connection_pool
             .connection()
@@ -249,6 +256,7 @@ impl JobManager for RecursionTip {
         );
 
         Ok(Some((
+            chain_id,
             l1_batch_number.0,
             RecursionTipJobMetadata {
                 chain_id,

@@ -1,4 +1,4 @@
-use std::{iter::chain, sync::Arc, time::Instant};
+use std::{sync::Arc, time::Instant};
 
 use async_trait::async_trait;
 use zksync_object_store::ObjectStore;

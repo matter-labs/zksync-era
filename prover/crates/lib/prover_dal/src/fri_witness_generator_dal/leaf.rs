@@ -1,4 +1,4 @@
-use std::{io::Chain, str::FromStr, time::Duration};
+use std::{str::FromStr, time::Duration};
 
 use zksync_basic_types::{
     basic_fri_types::AggregationRound,

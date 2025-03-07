@@ -6,7 +6,7 @@ use serde_with::{hex::Hex, serde_as};
 use zksync_types::{
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     tee_types::TeeType,
-    L1BatchNumber,
+    L1BatchNumber, L2ChainId,
 };
 
 use crate::{
@@ -19,6 +19,7 @@ use crate::{
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProofGenerationData {
     pub l1_batch_number: L1BatchNumber,
+    pub chain_id: L2ChainId,
     pub witness_input_data: WitnessInputData,
     pub protocol_version: ProtocolSemanticVersion,
     pub l1_verifier_config: L1VerifierConfig,

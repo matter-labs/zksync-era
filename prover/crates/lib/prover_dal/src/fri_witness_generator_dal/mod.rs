@@ -6,7 +6,7 @@ pub mod node;
 pub mod recursion_tip;
 pub mod scheduler;
 
-use std::{collections::HashMap, io::Chain};
+use std::collections::HashMap;
 
 use sqlx::{types::chrono::NaiveDateTime, Row};
 use zksync_basic_types::{
