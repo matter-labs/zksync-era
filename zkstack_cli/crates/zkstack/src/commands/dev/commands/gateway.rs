@@ -315,6 +315,17 @@ pub async fn check_chain_readiness(
         }
     };
 
+    match l2_client.supports_unsafe_deposit_filter().await {
+        Ok(result) => {
+            if !result {
+                anyhow::bail!("The chain does not support unsafe deposit filtering! Please update your server version to the latest one.")
+            }
+        }
+        Err(e) => {
+            anyhow::bail!("Failed to check that the chain supports unsafe deposit filtering: {:#?}. Please update your server version to the latest one.", e);
+        }
+    }
+
     let diamond_proxy_addr = l2_client.get_main_contract().await?;
 
     if inflight_txs_count != 0 {

@@ -14,5 +14,7 @@ COPY --from=proof_fri_gpu /usr/bin/zksync_proof_fri_compressor /usr/bin/
 
 ENV COMPACT_CRS_FILE=/setup_compact.key
 
+# Hack to make compressor work because it for very unknown reason shares config with prover which has setup-data in /setup-data directory now.
+RUN ln -s / /setup-data
 
 ENTRYPOINT ["zksync_proof_fri_compressor"]
