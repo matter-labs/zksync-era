@@ -9,6 +9,8 @@ jobs:
   vm-benchmarks:
     name: Run VM benchmarks
     runs-on: [ matterlabs-ci-runner-highmem-long ]
+    permissions:
+      pull-requests: write
 
     steps:
       - name: checkout base branch

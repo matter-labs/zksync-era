@@ -134,7 +134,7 @@ _arguments "${_arguments_options[@]}" : \
 '-o+[Enable Grafana]' \
 '--observability=[Enable Grafana]' \
 '--update-submodules=[]:UPDATE_SUBMODULES:(true false)' \
-'--validium-type=[Type of the Validium network]:VALIDIUM_TYPE:(no-da avail)' \
+'--validium-type=[Type of the Validium network]:VALIDIUM_TYPE:(no-da avail eigen-da)' \
 '--support-l2-legacy-shared-bridge-test=[]' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--resume[]' \
@@ -295,7 +295,7 @@ _arguments "${_arguments_options[@]}" : \
 '--deploy-paymaster=[]' \
 '--l1-rpc-url=[L1 RPC URL]:L1_RPC_URL:_default' \
 '--update-submodules=[]:UPDATE_SUBMODULES:(true false)' \
-'--validium-type=[Type of the Validium network]:VALIDIUM_TYPE:(no-da avail)' \
+'--validium-type=[Type of the Validium network]:VALIDIUM_TYPE:(no-da avail eigen-da)' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--resume[]' \
 '--zksync[]' \
@@ -1906,9 +1906,7 @@ _arguments "${_arguments_options[@]}" : \
 '(--clone)--bellman-cuda-dir=[]:BELLMAN_CUDA_DIR:_default' \
 '--bellman-cuda=[]' \
 '--setup-compressor-key=[]' \
-'--plonk-path=[]:PLONK_PATH:_default' \
-'--fflonk-path=[]:FFLONK_PATH:_default' \
-'--compressor-type=[]:COMPRESSOR_TYPE:(fflonk plonk all)' \
+'--path=[]:PATH:_files' \
 '--region=[]:REGION:(us europe asia)' \
 '--mode=[]:MODE:(download generate)' \
 '--setup-keys=[]' \
@@ -1979,9 +1977,7 @@ _arguments "${_arguments_options[@]}" : \
 ;;
 (compressor-keys)
 _arguments "${_arguments_options[@]}" : \
-'--plonk-path=[]:PLONK_PATH:_default' \
-'--fflonk-path=[]:FFLONK_PATH:_default' \
-'--compressor-type=[]:COMPRESSOR_TYPE:(fflonk plonk all)' \
+'--path=[]:PATH:_files' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \

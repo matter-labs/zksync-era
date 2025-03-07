@@ -3,11 +3,8 @@ use serde::{Deserialize, Serialize};
 use strum::{Display, EnumIter, IntoEnumIterator};
 use url::Url;
 use zkstack_cli_common::{Prompt, PromptSelect};
-use zksync_config::{
-    configs::da_client::avail::{
-        AvailClientConfig, AvailDefaultConfig, AvailGasRelayConfig, AvailSecrets,
-    },
-    AvailConfig,
+use zkstack_cli_config::da::{
+    AvailClientConfig, AvailConfig, AvailDefaultConfig, AvailGasRelayConfig, AvailSecrets,
 };
 
 use crate::{
@@ -31,6 +28,7 @@ pub struct ValidiumTypeArgs {
 pub enum ValidiumTypeInternal {
     NoDA,
     Avail,
+    EigenDA,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, EnumIter, Display, ValueEnum)]
@@ -43,6 +41,7 @@ pub enum AvailClientTypeInternal {
 pub enum ValidiumType {
     NoDA,
     Avail((AvailConfig, AvailSecrets)),
+    EigenDA,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, EnumIter, Display, ValueEnum)]
@@ -54,6 +53,7 @@ pub enum AvailFinalityState {
 impl ValidiumType {
     pub fn read() -> Self {
         match PromptSelect::new(MSG_VALIDIUM_TYPE_PROMPT, ValidiumTypeInternal::iter()).ask() {
+            ValidiumTypeInternal::EigenDA => ValidiumType::EigenDA, // EigenDA doesn't support configuration through CLI
             ValidiumTypeInternal::NoDA => ValidiumType::NoDA,
             ValidiumTypeInternal::Avail => {
                 let avail_client_type = PromptSelect::new(

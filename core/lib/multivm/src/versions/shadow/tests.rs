@@ -299,6 +299,11 @@ mod default_aa {
     fn default_aa_interaction() {
         test_default_aa_interaction::<super::ShadowedFastVm>();
     }
+
+    #[test]
+    fn permissive_aa_works() {
+        test_permissive_aa_works::<super::ShadowedFastVm>();
+    }
 }
 
 mod evm {
@@ -627,6 +632,11 @@ mod simple_execution {
     #[test]
     fn simple_execute() {
         test_simple_execute::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn create2_deployment_address() {
+        test_create2_deployment_address::<super::ShadowedFastVm>();
     }
 }
 

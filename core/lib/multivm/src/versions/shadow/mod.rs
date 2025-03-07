@@ -18,14 +18,17 @@ use crate::{
     versions::testonly::{
         default_l1_batch, default_system_env, make_address_rich, ContractToDeploy,
     },
-    vm_fast, vm_latest,
+    vm_fast,
+    vm_fast::FastValidationTracer,
+    vm_latest,
     vm_latest::HistoryEnabled,
 };
 
 mod tests;
 
 type ReferenceVm<S = InMemoryStorage> = vm_latest::Vm<StorageView<S>, HistoryEnabled>;
-type ShadowedFastVm<S = InMemoryStorage, Tr = ()> = crate::vm_instance::ShadowedFastVm<S, Tr, ()>;
+type ShadowedFastVm<S = InMemoryStorage, Tr = ()> =
+    crate::vm_instance::ShadowedFastVm<S, Tr, FastValidationTracer>;
 
 fn hash_block(block_env: L2BlockEnv, tx_hashes: &[H256]) -> H256 {
     let mut hasher = L2BlockHasher::new(

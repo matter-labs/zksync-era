@@ -93,7 +93,7 @@ fn print_status(health_check_url: String) -> anyhow::Result<()> {
 }
 
 fn print_ports(shell: &Shell) -> anyhow::Result<()> {
-    let ports = EcosystemPortsScanner::scan(shell)?;
+    let ports = EcosystemPortsScanner::scan(shell, None)?;
     let grouped_ports = ports.group_by_file_path();
 
     let mut all_port_lines: Vec<String> = Vec::new();
@@ -129,7 +129,7 @@ pub async fn run(shell: &Shell, args: StatusArgs) -> anyhow::Result<()> {
         return print_ports(shell);
     }
 
-    let health_check_url = args.get_url(shell)?;
+    let health_check_url = args.get_url(shell).await?;
 
     print_status(health_check_url)
 }

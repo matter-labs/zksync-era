@@ -70,6 +70,7 @@ contract MockContractDeployer {
 
     IAccountCodeStorage constant ACCOUNT_CODE_STORAGE_CONTRACT = IAccountCodeStorage(address(0x8002));
     MockKnownCodeStorage constant KNOWN_CODE_STORAGE_CONTRACT = MockKnownCodeStorage(address(0x8004));
+    IEvmHashesStorage constant EVM_HASHES_STORAGE_CONTRACT = IEvmHashesStorage(address(0x8015));
 
     /// The returned value is obviously incorrect in the general case, but works well enough when called by the bootloader.
     function extendedAccountVersion(address _address) public view returns (AccountAbstractionVersion) {
@@ -90,7 +91,7 @@ contract MockContractDeployer {
         ACCOUNT_CODE_STORAGE_CONTRACT.storeAccountConstructedCodeHash(newAddress, _salt);
 
         bytes32 evmBytecodeHash = keccak256(_input);
-        _setEvmCodeHash(newAddress, evmBytecodeHash);
+        EVM_HASHES_STORAGE_CONTRACT.storeEvmCodeHash(_salt, evmBytecodeHash);
         return newAddress;
     }
 
@@ -127,13 +128,17 @@ contract MockContractDeployer {
         );
         newAddress = address(uint160(uint256(hash)));
         ACCOUNT_CODE_STORAGE_CONTRACT.storeAccountConstructedCodeHash(newAddress, _bytecodeHash);
-        _setEvmCodeHash(newAddress, _bytecodeHash);
+        EVM_HASHES_STORAGE_CONTRACT.storeEvmCodeHash(_bytecodeHash, _bytecodeHash);
     }
 }
 
 interface IAccountCodeStorage {
     function getRawCodeHash(address _address) external view returns (bytes32);
     function storeAccountConstructedCodeHash(address _address, bytes32 _hash) external;
+}
+
+interface IEvmHashesStorage {
+    function storeEvmCodeHash(bytes32 versionedBytecodeHash, bytes32 evmBytecodeHash) external;
 }
 
 interface IRecursiveContract {

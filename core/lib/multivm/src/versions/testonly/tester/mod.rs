@@ -169,16 +169,12 @@ impl VmTesterBuilder {
         VM: VmFactory<StorageView<InMemoryStorage>>,
     {
         let enable_evm_emulator = self.enable_evm_emulator || !self.custom_evm_contracts.is_empty();
-        let mut system_env = self.system_env;
-        if enable_evm_emulator
-            && system_env
+        let system_env = self.system_env;
+        if enable_evm_emulator {
+            assert!(system_env
                 .base_system_smart_contracts
                 .evm_emulator
-                .is_none()
-        {
-            system_env.base_system_smart_contracts = system_env
-                .base_system_smart_contracts
-                .with_latest_evm_emulator();
+                .is_some());
         }
 
         let l1_batch_env = self
@@ -188,7 +184,7 @@ impl VmTesterBuilder {
         let mut raw_storage = self.storage.unwrap_or_else(|| {
             InMemoryStorage::with_custom_system_contracts_and_chain_id(
                 L2ChainId::default(),
-                get_system_smart_contracts(enable_evm_emulator),
+                get_system_smart_contracts(),
             )
         });
         for (key, value) in self.storage_slots {
@@ -287,8 +283,12 @@ pub(crate) trait TestedVm:
     fn pubdata_input(&self) -> PubdataInput;
 }
 
-pub(crate) trait TestedVmForValidation {
-    fn run_validation(&mut self, tx: L2Tx, timestamp: u64) -> Option<ViolatedValidationRule>;
+pub(crate) trait TestedVmForValidation: TestedVm {
+    fn run_validation(
+        &mut self,
+        tx: L2Tx,
+        timestamp: u64,
+    ) -> (VmExecutionResultAndLogs, Option<ViolatedValidationRule>);
 }
 
 pub(crate) fn validation_params(tx: &L2Tx, system: &SystemEnv) -> ValidationParams {
@@ -300,7 +300,7 @@ pub(crate) fn validation_params(tx: &L2Tx, system: &SystemEnv) -> ValidationPara
         trusted_slots: Default::default(),
         trusted_addresses: Default::default(),
         // field `trustedAddress` of ValidationRuleBreaker
-        trusted_address_slots: [(Address::repeat_byte(0x10), 2.into())].into(),
+        trusted_address_slots: [(Address::repeat_byte(0x10), 1.into())].into(),
         computational_gas_limit: system.default_validation_computational_gas_limit,
         timestamp_asserter_params: None,
     }
@@ -308,4 +308,8 @@ pub(crate) fn validation_params(tx: &L2Tx, system: &SystemEnv) -> ValidationPara
 
 pub(crate) trait TestedVmWithCallTracer: TestedVm {
     fn inspect_with_call_tracer(&mut self) -> (VmExecutionResultAndLogs, Vec<Call>);
+}
+
+pub(crate) trait TestedVmWithStorageLimit: TestedVm {
+    fn execute_with_storage_limit(&mut self, limit: usize) -> VmExecutionResultAndLogs;
 }

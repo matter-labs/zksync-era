@@ -79,7 +79,7 @@ pub(crate) async fn run(args: ProverRunArgs, shell: &Shell) -> anyhow::Result<()
     if in_docker {
         let path_to_configs = chain.configs.clone();
         let path_to_prover = get_link_to_prover(&ecosystem_config);
-        update_setup_data_path(&chain, "prover/data/keys".to_string())?;
+        update_setup_data_path(&chain, "prover/data/keys").await?;
         run_dockerized_component(
             shell,
             component.image_name(),
@@ -93,7 +93,7 @@ pub(crate) async fn run(args: ProverRunArgs, shell: &Shell) -> anyhow::Result<()
             &path_to_ecosystem,
         )?
     } else {
-        update_setup_data_path(&chain, "data/keys".to_string())?;
+        update_setup_data_path(&chain, "data/keys").await?;
         run_binary_component(
             shell,
             component.binary_name(),
@@ -151,13 +151,8 @@ fn run_binary_component(
     cmd.run().context(error)
 }
 
-fn update_setup_data_path(chain: &ChainConfig, path: String) -> anyhow::Result<()> {
-    let mut general_config = chain.get_general_config()?;
-    general_config
-        .prover_config
-        .as_mut()
-        .expect("Prover config not found")
-        .setup_data_path = path;
-    chain.save_general_config(&general_config)?;
-    Ok(())
+async fn update_setup_data_path(chain: &ChainConfig, path: &str) -> anyhow::Result<()> {
+    let mut general_config = chain.get_general_config().await?.patched();
+    general_config.insert_path("prover.setup_data_path", path.as_ref())?;
+    general_config.save().await
 }

@@ -1,8 +1,9 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     env,
     fs::File,
     io::{BufWriter, Write},
+    iter,
     path::{Path, PathBuf},
 };
 
@@ -22,7 +23,9 @@ use foundry_compilers::{
 trait ContractEntry: Sized {
     type Artifact;
 
-    fn source_dir() -> PathBuf;
+    fn source_dir() -> &'static Path;
+
+    fn factory_deps(artifact: &Self::Artifact) -> impl Iterator<Item = &str> + '_;
 
     fn from_raw(raw: Self::Artifact) -> Option<Self>;
 
@@ -38,8 +41,15 @@ struct EravmContractEntry {
 impl ContractEntry for EravmContractEntry {
     type Artifact = ZkContractArtifact;
 
-    fn source_dir() -> PathBuf {
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("contracts")
+    fn source_dir() -> &'static Path {
+        Path::new("contracts")
+    }
+
+    fn factory_deps(artifact: &Self::Artifact) -> impl Iterator<Item = &str> + '_ {
+        const EMPTY_DEPS: &BTreeMap<String, String> = &BTreeMap::new();
+
+        let factory_deps = artifact.factory_dependencies.as_ref().unwrap_or(EMPTY_DEPS);
+        factory_deps.values().map(String::as_str)
     }
 
     fn from_raw(artifact: Self::Artifact) -> Option<Self> {
@@ -76,8 +86,12 @@ struct EvmContractEntry {
 impl ContractEntry for EvmContractEntry {
     type Artifact = ConfigurableContractArtifact;
 
-    fn source_dir() -> PathBuf {
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("evm-contracts")
+    fn source_dir() -> &'static Path {
+        Path::new("evm-contracts")
+    }
+
+    fn factory_deps(_artifact: &Self::Artifact) -> impl Iterator<Item = &str> + '_ {
+        iter::empty()
     }
 
     fn from_raw(artifact: Self::Artifact) -> Option<Self> {
@@ -128,25 +142,71 @@ impl ContractEntry for EvmContractEntry {
     }
 }
 
+fn resolve_module_name(
+    manifest_dir: &Path,
+    test_contracts_dir: &Path,
+    factory_deps_to_include: &HashSet<String>,
+    id: &ArtifactId,
+) -> Option<String> {
+    let path_in_dir = id.source.strip_prefix(manifest_dir).ok()?;
+    let next_dir = path_in_dir.iter().next().expect("no dir");
+
+    let module_name = if next_dir.to_str() == test_contracts_dir.to_str() {
+        // We will use the test name directory and not the `contracts` directory for the module
+        path_in_dir.iter().nth(1).expect("no dir")
+    } else if factory_deps_to_include.contains(&format!(
+        "{}:{}",
+        path_in_dir.to_str().unwrap(),
+        id.name
+    )) {
+        // We will use the dependency's directory as the module name
+        next_dir
+    } else {
+        return None;
+    };
+
+    let mut module_name = module_name
+        .to_str()
+        .expect("contract dir is not UTF-8")
+        .replace('-', "_");
+    if module_name.ends_with(".sol") {
+        module_name.truncate(module_name.len() - 4);
+    }
+    Some(module_name)
+}
+
 fn save_artifacts<E: ContractEntry>(
     output: &mut impl Write,
     artifacts: impl Iterator<Item = (ArtifactId, E::Artifact)>,
 ) {
-    let source_dir = E::source_dir();
+    let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let test_contracts_dir = E::source_dir();
+    let source_dir = manifest_dir.join(test_contracts_dir);
     let mut modules = HashMap::<_, HashMap<_, _>>::new();
 
+    let artifacts: Vec<_> = artifacts.collect();
+
+    let factory_deps_to_include: HashSet<_> = artifacts
+        .iter()
+        .filter_map(|(id, artifact)| {
+            if !id.source.starts_with(&source_dir) {
+                return None; // The artifact doesn't correspond to a source contract
+            };
+            Some(E::factory_deps(artifact))
+        })
+        .flatten()
+        .map(str::to_owned)
+        .collect();
+
     for (id, artifact) in artifacts {
-        let Ok(path_in_sources) = id.source.strip_prefix(&source_dir) else {
-            continue; // The artifact doesn't correspond to a source contract
+        let Some(module_name) = resolve_module_name(
+            manifest_dir,
+            test_contracts_dir,
+            &factory_deps_to_include,
+            &id,
+        ) else {
+            continue;
         };
-        let contract_dir = path_in_sources.iter().next().expect("no dir");
-        let mut module_name = contract_dir
-            .to_str()
-            .expect("contract dir is not UTF-8")
-            .replace('-', "_");
-        if module_name.ends_with(".sol") {
-            module_name.truncate(module_name.len() - 4);
-        }
 
         if let Some(entry) = E::from_raw(artifact) {
             modules
@@ -199,9 +259,25 @@ fn compile_eravm_contracts(temp_dir: &Path) {
         .sources(Path::new(env!("CARGO_MANIFEST_DIR")).join("contracts"))
         .remapping(Remapping {
             context: None,
-            name: "@openzeppelin/contracts".into(),
+            name: "@openzeppelin/contracts-v4".into(),
             path: format!(
                 "{}/contract-libs/openzeppelin-contracts-v4/contracts",
+                env!("CARGO_MANIFEST_DIR")
+            ),
+        })
+        .remapping(Remapping {
+            context: None,
+            name: "l1-contracts".into(),
+            path: format!(
+                "{}/contract-libs/l1-contracts/contracts",
+                env!("CARGO_MANIFEST_DIR")
+            ),
+        })
+        .remapping(Remapping {
+            context: None,
+            name: "@openzeppelin/contracts-upgradeable-v4".into(),
+            path: format!(
+                "{}/contract-libs/openzeppelin-contracts-upgradeable-v4/contracts",
                 env!("CARGO_MANIFEST_DIR")
             ),
         })

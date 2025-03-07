@@ -12,7 +12,7 @@ categories.workspace = true
 
 [dependencies]
 zksync_dal.workspace = true
-zksync_types.workspace = true
+zksync_types = { workspace = true, features = ["contract-verification"] }
 vise.workspace = true
 
 anyhow.workspace = true
@@ -25,6 +25,7 @@ tracing.workspace = true
 zksync_node_test_utils.workspace = true
 
 http-body-util.workspace = true
+serde.workspace = true
 serde_json.workspace = true
 test-casing.workspace = true
 tower.workspace = true

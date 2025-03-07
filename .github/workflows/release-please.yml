@@ -22,7 +22,7 @@ jobs:
     uses: matter-labs/zksync-ci-common/.github/workflows/release-please.yaml@v1
     secrets:
       slack_webhook: ${{ secrets.SLACK_WEBHOOK_RELEASES }}  # Slack webhook for notifications
-      gh_token: ${{ secrets.GITHUB_TOKEN }}                 # GitHub token for release-please
+      gh_token: ${{ secrets.RELEASE_TOKEN }}                # GitHub token for release-please
     with:
       config: '.github/release-please/config.json'          # Path to the configuration file
       manifest: '.github/release-please/manifest.json'      # Path to the manifest file
@@ -30,3 +30,13 @@ jobs:
       publish-to-crates-io: true                            # Enable publishing to crates.io
       upgrade-dependencies: true                            # Upgrade cross-workspace dependencies
       version-suffix: 'non-semver-compat'                   # Version suffix for the crates.io release
+      workspace-dirs: 'core prover zkstack_cli'             # List of additional workspace directories to update Cargo.lock
+
+  # Trigger workflow to publish zkstack binaries
+  release-zkstack-cli-bins:
+    if: ${{ fromJSON(needs.release-please.outputs.all).zkstack_cli--release_created == 'true' }}
+    needs: release-please
+    uses: ./.github/workflows/release-zkstack-bins.yml
+    with:
+      tag: ${{ fromJSON(needs.release-please.outputs.all).zkstack_cli--tag_name }}
+    secrets: inherit

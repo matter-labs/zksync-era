@@ -18,16 +18,18 @@ use zkstack_cli_config::{
 };
 use zksync_contracts::{chain_admin_contract, hyperchain_contract, DIAMOND_CUT};
 use zksync_types::{
-    ethabi,
+    address_to_h256, ethabi, h256_to_address,
     url::SensitiveUrl,
     web3::{keccak256, Bytes},
-    Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, H256,
-    L2_NATIVE_TOKEN_VAULT_ADDRESS, U256,
+    Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, CONTRACT_DEPLOYER_ADDRESS,
+    H256, L2_NATIVE_TOKEN_VAULT_ADDRESS, U256,
 };
 use zksync_web3_decl::{
     client::{Client, DynClient, L2},
-    namespaces::{UnstableNamespaceClient, ZksNamespaceClient},
+    namespaces::{EthNamespaceClient, UnstableNamespaceClient, ZksNamespaceClient},
 };
+
+use super::events_gatherer::{get_logs_for_events, DEFAULT_BLOCK_RANGE};
 
 /// To support both functionality of assignment inside local tests
 /// and to print out the changes to the user the following function is used.
@@ -53,13 +55,13 @@ macro_rules! amend_config_pre_upgrade {
 pub(crate) struct GatewayUpgradeInfo {
     // Information about pre-upgrade contracts.
     l1_chain_id: u32,
-    bridgehub_addr: Address,
+    pub(crate) bridgehub_addr: Address,
     old_validator_timelock: Address,
-    l1_legacy_shared_bridge: Address,
+    pub(crate) l1_legacy_shared_bridge: Address,
 
     // Information about the post-upgrade contracts.
     ctm_deployment_tracker_proxy_addr: Address,
-    native_token_vault_addr: Address,
+    pub(crate) native_token_vault_addr: Address,
     l1_bytecodes_supplier_addr: Address,
     rollup_l1_da_validator_addr: Address,
     no_da_validium_l1_validator_addr: Address,
@@ -79,6 +81,7 @@ pub struct FetchedChainInfo {
     l2_legacy_shared_bridge_addr: Address,
     hyperchain_addr: Address,
     base_token_addr: Address,
+    chain_admin_addr: Address,
 }
 
 // Bridgehub ABI
@@ -105,12 +108,29 @@ abigen!(
 ]"
 );
 
+// L2WrappedBaseTokenStore ABI
+abigen!(
+    L2NativeTokenVaultAbi,
+    r"[
+    function assetId(address)(bytes32)
+    function L2_LEGACY_SHARED_BRIDGE()(address)
+]"
+);
+
+abigen!(
+    L2LegacySharedBridgeAbi,
+    r"[
+    function l1TokenAddress(address)(address)
+]"
+);
+
 // ZKChain ABI
 abigen!(
     ZKChainAbi,
     r"[
     function getPubdataPricingMode()(uint256)
     function getBaseToken()(address)
+    function getAdmin()(address)
     function getTotalBatchesCommitted() external view returns (uint256)
     function getTotalBatchesVerified() external view returns (uint256)
 ]"
@@ -154,11 +174,130 @@ async fn verify_next_batch_new_version(
     Ok(())
 }
 
+pub(crate) async fn check_l2_ntv_existence(l2_client: &Box<DynClient<L2>>) -> anyhow::Result<()> {
+    let l2_ntv_code = l2_client
+        .get_code(L2_NATIVE_TOKEN_VAULT_ADDRESS, None)
+        .await?;
+    if l2_ntv_code.0.is_empty() {
+        anyhow::bail!("Gateway upgrade has not yet been completed on the server side");
+    }
+
+    Ok(())
+}
+
+const L2_TOKENS_CACHE: &'static str = "l2-tokens-cache.json";
+const CONTRACT_DEPLOYED_EVENT: &'static str = "ContractDeployed(address,bytes32,address)";
+
+/// Returns a list of tokens that can be deployed via the L2 legacy shared bridge.
+/// Note that it is a *superset* of all bridged tokens. Some of the deployed contracts
+/// are not tokens. The caller will have to double check for each individual token that it is correct.
+pub async fn get_deployed_by_bridge(
+    l2_rpc_url: &str,
+    l2_shared_bridge_address: Address,
+    block_range: u64,
+) -> anyhow::Result<Vec<Address>> {
+    println!(
+        "Retrieving L2 bridged tokens... If done for the first time, it may take a few minutes"
+    );
+    // Each legacy bridged token is deployed via the legacy shared bridge.
+    let total_logs_for_bridged_tokens = get_logs_for_events(
+        0,
+        &L2_TOKENS_CACHE,
+        l2_rpc_url,
+        block_range,
+        &[(
+            CONTRACT_DEPLOYER_ADDRESS,
+            CONTRACT_DEPLOYED_EVENT,
+            Some(address_to_h256(&l2_shared_bridge_address)),
+        )],
+    )
+    .await;
+    println!("Done!");
+
+    Ok(total_logs_for_bridged_tokens
+        .into_iter()
+        .map(|log| h256_to_address(&log.topics[3]))
+        .collect())
+}
+
+pub(crate) fn get_ethers_provider(url: &str) -> anyhow::Result<Arc<Provider<Http>>> {
+    let provider = match Provider::<Http>::try_from(url) {
+        Ok(provider) => provider,
+        Err(err) => {
+            anyhow::bail!("Connection error: {:#?}", err);
+        }
+    };
+
+    Ok(Arc::new(provider))
+}
+
+pub(crate) fn get_zk_client(url: &str, l2_chain_id: u64) -> anyhow::Result<Box<DynClient<L2>>> {
+    let l2_client = Client::http(SensitiveUrl::from_str(url).unwrap())
+        .context("failed creating JSON-RPC client for main node")?
+        .for_network(L2ChainId::new(l2_chain_id).unwrap().into())
+        .with_allowed_requests_per_second(NonZeroUsize::new(100_usize).unwrap())
+        .build();
+
+    let l2_client = Box::new(l2_client) as Box<DynClient<L2>>;
+
+    Ok(l2_client)
+}
+
+pub async fn check_token_readiness(
+    l2_rpc_url: String,
+    l2_chain_id: u64,
+    l2_tokens_indexing_block_range: Option<u64>,
+) -> anyhow::Result<()> {
+    let l2_client = get_zk_client(&l2_rpc_url, l2_chain_id)?;
+
+    check_l2_ntv_existence(&l2_client).await?;
+
+    let provider = get_ethers_provider(&l2_rpc_url)?;
+
+    let l2_native_token_vault =
+        L2NativeTokenVaultAbi::new(L2_NATIVE_TOKEN_VAULT_ADDRESS, provider.clone());
+    let l2_legacy_shared_bridge_addr = l2_native_token_vault.l2_legacy_shared_bridge().await?;
+    if l2_legacy_shared_bridge_addr == Address::zero() {
+        println!("Chain does not have a legacy bridge. Nothing to migrate");
+        return Ok(());
+    }
+
+    let all_tokens = get_deployed_by_bridge(
+        &l2_rpc_url,
+        l2_legacy_shared_bridge_addr,
+        l2_tokens_indexing_block_range.unwrap_or(DEFAULT_BLOCK_RANGE),
+    )
+    .await?;
+
+    let l2_legacy_shared_bridge =
+        L2LegacySharedBridgeAbi::new(l2_legacy_shared_bridge_addr, provider);
+
+    for token in all_tokens {
+        let current_asset_id = l2_native_token_vault.asset_id(token).await?;
+        // Let's double check whether the token is a valid legacy token
+        let l1_address = l2_legacy_shared_bridge.l_1_token_address(token).await?;
+
+        if current_asset_id == [0u8; 32] && l1_address != Address::zero() {
+            anyhow::bail!("There are unregistered L2 tokens! (E.g. {:#?}). Please register them to smoother migration for your users.", token)
+        }
+    }
+
+    Ok(())
+}
+
 pub async fn check_chain_readiness(
     l1_rpc_url: String,
     l2_rpc_url: String,
     l2_chain_id: u64,
+    l2_tokens_indexing_block_range: Option<u64>,
 ) -> anyhow::Result<()> {
+    check_token_readiness(
+        l2_rpc_url.clone(),
+        l2_chain_id,
+        l2_tokens_indexing_block_range,
+    )
+    .await?;
+
     let l1_provider = match Provider::<Http>::try_from(&l1_rpc_url) {
         Ok(provider) => provider,
         Err(err) => {
@@ -167,14 +306,26 @@ pub async fn check_chain_readiness(
     };
     let l1_client = Arc::new(l1_provider);
 
-    let l2_client = Client::http(SensitiveUrl::from_str(&l2_rpc_url).unwrap())
-        .context("failed creating JSON-RPC client for main node")?
-        .for_network(L2ChainId::new(l2_chain_id).unwrap().into())
-        .with_allowed_requests_per_second(NonZeroUsize::new(100_usize).unwrap())
-        .build();
-    let l2_client = Box::new(l2_client) as Box<DynClient<L2>>;
+    let l2_client = get_zk_client(&l2_rpc_url, l2_chain_id)?;
 
-    let inflight_txs_count: usize = l2_client.get_unconfirmed_txs_count().await?;
+    let inflight_txs_count = match l2_client.get_unconfirmed_txs_count().await {
+        Ok(x) => x,
+        Err(e) => {
+            anyhow::bail!("Failed to call `unstable_unconfirmedTxsCount`. Reason: `{}`.\nEnsure that `unstable` namespace is enabled on your server and it runs the latest version", e)
+        }
+    };
+
+    match l2_client.supports_unsafe_deposit_filter().await {
+        Ok(result) => {
+            if !result {
+                anyhow::bail!("The chain does not support unsafe deposit filtering! Please update your server version to the latest one.")
+            }
+        }
+        Err(e) => {
+            anyhow::bail!("Failed to check that the chain supports unsafe deposit filtering: {:#?}. Please update your server version to the latest one.", e);
+        }
+    }
+
     let diamond_proxy_addr = l2_client.get_main_contract().await?;
 
     if inflight_txs_count != 0 {
@@ -260,6 +411,7 @@ pub async fn fetch_chain_info(
 
     let zkchain = ZKChainAbi::new(hyperchain_addr, client.clone());
 
+    let chain_admin_addr = zkchain.get_admin().await?;
     let base_token_addr = zkchain.get_base_token().await?;
 
     if !args.dangerous_no_cross_check {
@@ -313,6 +465,7 @@ pub async fn fetch_chain_info(
         l2_legacy_shared_bridge_addr,
         hyperchain_addr,
         base_token_addr,
+        chain_admin_addr,
     })
 }
 
@@ -428,13 +581,6 @@ impl GatewayUpgradeInfo {
             assign
         );
 
-        assign_or_print!(
-            contracts_config
-                .ecosystem_contracts
-                .stm_deployment_tracker_proxy_addr,
-            Some(self.ctm_deployment_tracker_proxy_addr),
-            assign
-        );
         assign_or_print!(
             contracts_config
                 .ecosystem_contracts
@@ -631,7 +777,7 @@ impl AdminCallBuilder {
                 Token::Address(l2_da_validator),
             ])
             .unwrap();
-        let description = "Executing upgrade:".to_string();
+        let description = "Setting DA validator pair".to_string();
 
         let call = AdminCall {
             description,
@@ -714,6 +860,9 @@ pub struct GatewayUpgradeCalldataArgs {
     da_mode: DAMode,
     #[clap(long, default_missing_value = "false")]
     dangerous_no_cross_check: Option<bool>,
+    #[clap(long, default_missing_value = "false")]
+    force_display_finalization_params: Option<bool>,
+    l2_tokens_indexing_block_range: Option<u64>,
 }
 
 pub struct GatewayUpgradeArgsInner {
@@ -791,14 +940,38 @@ pub(crate) async fn run(shell: &Shell, args: GatewayUpgradeCalldataArgs) -> anyh
     // 2. Generate calldata
 
     let schedule_calldata = set_upgrade_timestamp_calldata(
-        args.server_upgrade_timestamp,
         upgrade_info.new_protocol_version,
+        args.server_upgrade_timestamp,
     );
 
-    println!(
-        "Calldata to schedule upgrade: {}",
-        hex::encode(&schedule_calldata)
-    );
+    let set_timestamp_call = AdminCall {
+        description: "Calldata to schedule upgrade".to_string(),
+        data: schedule_calldata,
+        target: chain_info.chain_admin_addr,
+        value: U256::zero(),
+    };
+    println!("{}", serde_json::to_string_pretty(&set_timestamp_call)?);
+    println!("---------------------------");
+
+    if !args.force_display_finalization_params.unwrap_or_default() {
+        let chain_readiness = check_chain_readiness(
+            args.l1_rpc_url.clone(),
+            args.l2_rpc_url.clone(),
+            args.chain_id,
+            args.l2_tokens_indexing_block_range,
+        )
+        .await;
+
+        if let Err(err) = chain_readiness {
+            println!(
+                "Chain is not ready to finalize the upgrade due to the reason:\n{:#?}",
+                err
+            );
+            println!("Once the chain is ready, you can re-run this command to obtain the calls to finalize the upgrade");
+            println!("If you want to display finalization params anyway, pass `--force-display-finalization-params=true`.");
+            return Ok(());
+        };
+    }
 
     let admin_calls_finalize = get_admin_call_builder(&upgrade_info, &chain_info, args.into());
 
