@@ -19,7 +19,7 @@ use crate::{
         resources::{
             circuit_breakers::CircuitBreakersResource,
             contracts::{L1EcosystemContractsResource, SettlementLayerContractsResource},
-            eth_interface::GatewayEthInterfaceResourceUniversalClient,
+            eth_interface::{EthInterfaceResource, GatewayEthInterfaceResourceUniversalClient},
             healthcheck::AppHealthCheckResource,
             main_node_client::MainNodeClientResource,
             pools::{PoolResource, ReplicaPool},
@@ -133,7 +133,7 @@ pub struct Input {
     #[context(default)]
     pub app_health: AppHealthCheckResource,
     pub main_node_client: Option<MainNodeClientResource>,
-    pub gateway_client: GatewayEthInterfaceResourceUniversalClient,
+    pub l1_client: EthInterfaceResource,
     pub contracts_resource: SettlementLayerContractsResource,
     pub l1ecosystem_contracts_resource: L1EcosystemContractsResource,
 }
@@ -228,7 +228,7 @@ impl WiringLayer for Web3ServerLayer {
             } else {
                 BridgeAddressesUpdaterTask::L1Updater(L1UpdaterInner {
                     bridge_address_updater: bridge_addresses_handle.clone(),
-                    l1_eth_client: input.gateway_client.0.into(),
+                    l1_eth_client: Box::new(input.l1_client.0),
                     bridgehub_addr: internal_api_config
                         .l1_bridgehub_proxy_addr
                         .context("Lacking l1 bridgehub proxy address")?,
