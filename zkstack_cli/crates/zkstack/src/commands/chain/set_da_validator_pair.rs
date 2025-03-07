@@ -48,7 +48,11 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         MSG_DA_VALIDATOR_PAIR_SET_TO,
         format!(
             "l1_da_validator: {:?}, l2_da_validator: {:?}",
-            l1_da_validator_addr, contracts_config.l2.da_validator_addr
+            l1_da_validator_addr,
+            contracts_config
+                .l2
+                .da_validator_addr
+                .context("da_validator_addr")?
         ),
     );
 
