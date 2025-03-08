@@ -69,6 +69,7 @@ pub struct V27EcosystemUpgradeContractsOutput {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct V27EcosystemUpgradeDeployedAddresses {
     pub native_token_vault_addr: Address,
+    pub native_token_vault_implementation_addr: Address,
     pub rollup_l1_da_validator_addr: Address,
     pub validator_timelock_addr: Address,
     pub validium_l1_da_validator_addr: Address,
@@ -77,7 +78,6 @@ pub struct V27EcosystemUpgradeDeployedAddresses {
 
     pub l1_transitionary_owner: Address,
     pub l1_rollup_da_manager: Address,
-    pub l1_gateway_upgrade: Address,
     pub l1_governance_upgrade_timer: Address,
 
     pub bridgehub: V27EcosystemUpgradeBridgehub,
@@ -98,6 +98,7 @@ pub struct V27EcosystemUpgradeBridgehub {
 pub struct V27EcosystemUpgradeBridges {
     pub erc20_bridge_implementation_addr: Address,
     pub l1_nullifier_implementation_addr: Address,
+    pub l1_nullifier_proxy_addr: Address,
     // in the past known as 'shared bridge'
     pub l1_asset_router_implementation_addr: Address,
     pub l1_asset_router_proxy_addr: Address,

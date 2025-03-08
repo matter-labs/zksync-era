@@ -25,8 +25,8 @@ pub struct V27EcosystemUpgradeInput {
 
 impl ZkStackConfig for V27EcosystemUpgradeInput {}
 
-const PREVIOUS_PROTOCOL_VERSION: u64 = 26;
-const LATEST_PROTOCOL_VERSION: u64 = 27;
+const PREVIOUS_PROTOCOL_VERSION: u64 = 26 << 32;
+const LATEST_PROTOCOL_VERSION: u64 = 27 << 32;
 
 impl V27EcosystemUpgradeInput {
     pub fn new(
@@ -47,8 +47,8 @@ impl V27EcosystemUpgradeInput {
             // TODO: for local testing, even 0 is fine - but before prod, we should load it from some configuration.
             governance_upgrade_timer_initial_delay: 0,
             contracts: V27UpgradeContractsConfig {
-                create2_factory_addr: initial_deployment_config.create2_factory_addr,
-                create2_factory_salt: initial_deployment_config.create2_factory_salt,
+                create2_factory_addr: current_contracts_config.create2_factory_addr,
+                create2_factory_salt: current_contracts_config.create2_factory_salt,
                 governance_min_delay: initial_deployment_config.governance_min_delay,
                 max_number_of_chains: initial_deployment_config.max_number_of_chains,
                 diamond_init_batch_overhead_l1_gas: initial_deployment_config
@@ -89,9 +89,11 @@ impl V27EcosystemUpgradeInput {
                     .ecosystem_contracts
                     .l1_bytecodes_supplier_addr
                     .unwrap(),
+                // For local setup - the governance addr is the 'upgrade handler / owner'
+                protocol_upgrade_handler_proxy_address: current_contracts_config.l1.governance_addr,
                 // FIXME
                 governance_security_council_address: Address::zero(),
-                protocol_upgrade_handler_proxy_address: Address::zero(),
+
                 protocol_upgrade_handler_impl_address: Address::zero(),
 
                 latest_protocol_version: LATEST_PROTOCOL_VERSION,
@@ -113,8 +115,7 @@ pub struct V27UpgradeContractsConfig {
     pub governance_min_delay: u64,
     pub max_number_of_chains: u64,
     pub create2_factory_salt: H256,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub create2_factory_addr: Option<Address>,
+    pub create2_factory_addr: Address,
     pub validator_timelock_execution_delay: u64,
     pub genesis_root: H256,
     pub genesis_rollup_leaf_index: u64,

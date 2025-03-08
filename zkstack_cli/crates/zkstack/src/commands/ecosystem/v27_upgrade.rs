@@ -109,28 +109,30 @@ async fn no_governance_prepare(
 
     let l1_chain_id = era_config.l1_network.chain_id();
 
-    let broadcast_file: BroadcastFile = {
-        let file_content = std::fs::read_to_string(
-            ecosystem_config
-                .link_to_code
-                .join("contracts/l1-contracts")
-                .join(format!(
-                    "broadcast/EcosystemUpgrade.s.sol/{}/run-latest.json",
-                    l1_chain_id
-                )),
-        )
-        .context("Failed to read broadcast file")?;
-        serde_json::from_str(&file_content).context("Failed to parse broadcast file")?
-    };
-
     let mut output = V27EcosystemUpgradeOutput::read(
         shell,
         V27_UPGRADE_ECOSYSTEM_PARAMS.output(&ecosystem_config.link_to_code),
     )?;
 
-    // Add all the transaction hashes.
-    for tx in broadcast_file.transactions {
-        output.transactions.push(tx.hash);
+    for important_contracts in ["EcosystemUpgrade.s.sol", "DeployL1.s.sol"] {
+        let broadcast_file: BroadcastFile = {
+            let file_content = std::fs::read_to_string(
+                ecosystem_config
+                    .link_to_code
+                    .join("contracts/l1-contracts")
+                    .join(format!(
+                        "broadcast/{}/{}/run-latest.json",
+                        important_contracts, l1_chain_id
+                    )),
+            )
+            .context("Failed to read broadcast file")?;
+            serde_json::from_str(&file_content).context("Failed to parse broadcast file")?
+        };
+
+        // Add all the transaction hashes.
+        for tx in broadcast_file.transactions {
+            output.transactions.push(tx.hash);
+        }
     }
 
     output.save_with_base_path(shell, &ecosystem_config.config)?;
