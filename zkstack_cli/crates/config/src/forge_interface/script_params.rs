@@ -106,3 +106,9 @@ pub const FINALIZE_UPGRADE_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptParams 
     output: "script-out/gateway-finalize-upgrade.toml",
     script_path: "deploy-scripts/upgrade/FinalizeUpgrade.s.sol",
 };
+
+pub const ZK_PREPARATION: ForgeScriptParams = ForgeScriptParams {
+    input: "script-config/config-deploy-zk.toml",
+    output: "script-out/output-deploy-zk-token.toml",
+    script_path: "deploy-scripts/DeployZKAndBridgeToL1.s.sol",
+};
