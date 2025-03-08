@@ -31,7 +31,7 @@ jobs:
     runs-on: matterlabs-ci-runner-high-performance
     steps:
       - name: Publish crates
-        uses: matter-labs/zksync-ci-common/.github/actions/publish-crates@v1
+        uses: matter-labs/zksync-ci-common/.github/actions/publish-crates@cf7dd111157a930233f46ad82761d1d40ce5b5da # v1
         with:
           slack_webhook: ${{ secrets.SLACK_WEBHOOK_RELEASES }} # Slack webhook for notifications
           cargo_registry_token: ${{ secrets.CRATES_IO_TOKEN }} # Crates.io token for publishing
