@@ -279,7 +279,7 @@ impl FriRecursionTipWitnessGeneratorDal<'_, '_> {
             )
             VALUES
             ($1, 'waiting_for_proofs', $2, $3, NOW(), NOW(), $4)
-            ON CONFLICT (l1_batch_number) DO
+            ON CONFLICT (chain_id, l1_batch_number) DO
             UPDATE
             SET
             updated_at = NOW()

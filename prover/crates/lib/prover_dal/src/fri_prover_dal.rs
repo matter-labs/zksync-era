@@ -94,7 +94,7 @@ impl FriProverDal<'_, '_> {
             // Add the ON CONFLICT clause
             query_builder.push(
                 r#"
-                ON CONFLICT (l1_batch_number, aggregation_round, circuit_id, depth, sequence_number)
+                ON CONFLICT (l1_batch_number, chain_id, aggregation_round, circuit_id, depth, sequence_number)
                 DO UPDATE
                 SET updated_at = NOW()
                 "#,
@@ -597,7 +597,12 @@ impl FriProverDal<'_, '_> {
             VALUES
             ($1, $2, $3, $4, $5, $6, $7, $8, 'queued', NOW(), NOW(), $9)
             ON CONFLICT (
-                l1_batch_number, aggregation_round, circuit_id, depth, sequence_number
+                chain_id,
+                l1_batch_number,
+                aggregation_round,
+                circuit_id,
+                depth,
+                sequence_number
             ) DO
             UPDATE
             SET
@@ -1078,7 +1083,8 @@ mod tests {
                 ProtocolSemanticVersion::default(),
                 L1VerifierConfig::default(),
             )
-            .await;
+            .await
+            .unwrap();
         transaction
             .fri_prover_jobs_dal()
             .insert_prover_jobs(
