@@ -30,6 +30,8 @@ jobs:
           echo CI=1 >> .env
           echo IN_DOCKER=1 >> .env
 
+
+  
       # TODO: Remove after when we can upgrade hardhat-plugins
       - name: pre-download compiilers
         run: |
@@ -52,7 +54,18 @@ jobs:
         run: |
           run_retried docker compose pull zk postgres
           docker compose up -d zk postgres
-        
+
+      
+      - name: Install rustup
+        run: |
+          ci_run curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          ci_run echo "${HOME}/.cargo/bin" >> $GITHUB_PATH
+
+      - name: rustup
+        run: |
+          ci_run rustup show active-toolchain || ci_run rustup toolchain install
+          ci_run rustup toolchain install nightly-2024-08-01-x86_64-unknown-linux-gnu
+      
       - name: Install zkstack
         run: |
           ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup || true
