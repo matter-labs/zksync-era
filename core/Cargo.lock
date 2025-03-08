@@ -3305,6 +3305,8 @@ name = "eq-common"
 version = "0.1.0"
 dependencies = [
  "alloy",
+ "alloy-primitives",
+ "alloy-sol-types",
  "celestia-types",
  "nmt-rs",
  "prost 0.12.6",

@@ -35,7 +35,6 @@ use crate::celestia::blobstream::{TendermintRPCClient, get_latest_block, find_bl
 use alloy_sol_types::{SolType, SolValue};
 use alloy_primitives::{FixedBytes, Uint, Bytes};
 use sp1_sdk::{SP1ProofWithPublicValues};
-use tracing_subscriber::{EnvFilter};
 
 /// An implementation of the `DataAvailabilityClient` trait that interacts with the Celestia network.
 #[derive(Clone)]
@@ -126,6 +125,7 @@ impl DataAvailabilityClient for CelestiaClient {
             height,
         };
 
+        tracing::debug!("Calling eq-service...");
         if let Err(tonic_status) = self.eq_client.get_keccak_inclusion(&blob_id).await {
             // gRPC error, should be retriable, could be something on the eq-service side
             return Err(DAError {
@@ -133,6 +133,7 @@ impl DataAvailabilityClient for CelestiaClient {
                 is_retriable: true,
             });
         }
+        tracing::debug!("Successfully called eq-service to begin zk equivallence proving");
 
         Ok(DispatchResponse {
             blob_id: blob_id.to_string(),
@@ -160,10 +161,12 @@ impl DataAvailabilityClient for CelestiaClient {
             .response_value
             .try_into()
             .map_err(to_non_retriable_da_error)?;
+        tracing::debug!("response_data: {:?}", response_data);
         let response_status: InclusionResponseStatus = response
             .status
             .try_into()
             .map_err(to_non_retriable_da_error)?;
+        tracing::debug!("response_status: {:?}", response_status);
 
         let proof_data = match response_status {
             InclusionResponseStatus::ZkpFinished => match response_data {

@@ -57,67 +57,42 @@ pub async fn find_block_range(
     latest_block: U256,
     eth_block_num: BlockNumber,
     blobstream_update_event: &Event,
-    contract: &Contract,
-) -> Result<(U256, U256, U256), Box<dyn std::error::Error>> {
-    if target_height < latest_block.as_u64() {
-        // Search historical events
-        println!("Target height is less than latest block, searching historical events");
-        let mut page_start = match eth_block_num {
-            BlockNumber::Number(num) => num,
-            _ => return Err("Invalid block number".into()),
-        };
-
-        let contract_address = "0xF0c6429ebAB2e7DC6e05DaFB61128bE21f13cb1e".parse()?;
-
-        for multiplier in 1.. {  // Infinite iterator with safety check
-            if multiplier > 1000 {  // Safety limit to prevent infinite loops
-                return Err("Exceeded maximum search depth".into());
-            }
-
-            let page_end = page_start - 500 * multiplier;
-            let filter = FilterBuilder::default()
-                .from_block(BlockNumber::Number(page_end))
-                .to_block(BlockNumber::Number(page_start))
-                .address(vec![contract_address])
-                .topics(Some(vec![blobstream_update_event.signature()]), None, None, None)
-                .build();
-
-            let logs = client.logs(&filter).await?;
-            
-            if let Some(log) = logs.iter().find(|log| {
-                let commitment = DataCommitmentStored::from_log(log);
-                commitment.start_block.as_u64() <= target_height && 
-                commitment.end_block.as_u64() > target_height
-            }) {
-                let commitment = DataCommitmentStored::from_log(log);
-                return Ok((commitment.start_block, commitment.end_block, commitment.proof_nonce));
-            }
-
-            page_start = page_end;
-        }
-        Err("No matching block range found".into())
-    } else {
-        // Wait for future blocks
-        println!("Target height is greater than latest block, waiting for future updates");
-        let mut current_block = latest_block;
-        
-        while current_block < target_height.into() {
-            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-            current_block = get_latest_block(client, &contract).await;
-            println!("Latest blobstream block: {}", current_block);
-        }
-
-        let request = CallRequest {
-            to: Some("0xF0c6429ebAB2e7DC6e05DaFB61128bE21f13cb1e".parse().unwrap()),
-            data: Some(contract.function("latestProofNonce").unwrap().encode_input(&[]).unwrap().into()),
-            ..Default::default()
-        };
-
-        let proof_nonce = client.call_contract_function(request, None)
-            .await?;
-
-        Ok((latest_block, current_block, U256::from_big_endian(&proof_nonce.0)))
+) -> Result<Option<(U256, U256, U256)>, Box<dyn std::error::Error>> {
+    if target_height >= latest_block.as_u64() {
+        return Ok(None);
     }
+
+    let mut page_start = match eth_block_num {
+        BlockNumber::Number(num) => num,
+        _ => return Err("Invalid block number".into()),
+    };
+
+    let contract_address = "0xF0c6429ebAB2e7DC6e05DaFB61128bE21f13cb1e".parse()?;
+
+    for multiplier in 1..=1000 {  // Limited to 1000 pages
+        let page_end = page_start - 500 * multiplier;
+        let filter = FilterBuilder::default()
+            .from_block(BlockNumber::Number(page_end))
+            .to_block(BlockNumber::Number(page_start))
+            .address(vec![contract_address])
+            .topics(Some(vec![blobstream_update_event.signature()]), None, None, None)
+            .build();
+
+        let logs = client.logs(&filter).await?;
+        
+        if let Some(log) = logs.iter().find(|log| {
+            let commitment = DataCommitmentStored::from_log(log);
+            commitment.start_block.as_u64() <= target_height && 
+            commitment.end_block.as_u64() > target_height
+        }) {
+            let commitment = DataCommitmentStored::from_log(log);
+            return Ok(Some((commitment.start_block, commitment.end_block, commitment.proof_nonce)));
+        }
+
+        page_start = page_end;
+    }
+    
+    Err("No matching block range found after 1000 pages".into())
 }
 
 // The BlobStream contract event
