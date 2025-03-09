@@ -15,6 +15,7 @@ use zkstack_cli_config::{
     forge_interface::script_params::ACCEPT_GOVERNANCE_SCRIPT_PARAMS, ChainConfig, ContractsConfig,
     EcosystemConfig,
 };
+use zkstack_cli_types::L1BatchCommitmentMode;
 use zksync_basic_types::U256;
 
 use crate::{
@@ -32,7 +33,8 @@ lazy_static! {
             "function governanceExecuteCalls(bytes calldata callsToExecute, address target) public",
             "function adminExecuteUpgrade(bytes memory diamondCut, address adminAddr, address accessControlRestriction, address chainDiamondProxy)",
             "function adminScheduleUpgrade(address adminAddr, address accessControlRestriction, uint256 newProtocolVersion, uint256 timestamp)",
-            "function updateValidator(address adminAddr,address accessControlRestriction,address validatorTimelock,uint256 chainId,address validatorAddress,bool addValidator) public"
+            "function updateValidator(address adminAddr,address accessControlRestriction,address validatorTimelock,uint256 chainId,address validatorAddress,bool addValidator) public",
+            "function setPubdataPricingMode(address adminAddr, address target, uint8 pricingMode) public",
         ])
         .unwrap(),
     );
@@ -123,6 +125,40 @@ pub async fn set_da_validator_pair(
                 l1_da_validator_address,
                 l2_da_validator_address,
             ),
+        )
+        .unwrap();
+    let foundry_contracts_path = ecosystem_config.path_to_l1_foundry();
+    let forge = Forge::new(&foundry_contracts_path)
+        .script(
+            &ACCEPT_GOVERNANCE_SCRIPT_PARAMS.script(),
+            forge_args.clone(),
+        )
+        .with_ffi()
+        .with_rpc_url(l1_rpc_url)
+        .with_broadcast()
+        .with_calldata(&calldata);
+    accept_ownership(shell, governor, forge).await
+}
+
+#[allow(clippy::too_many_arguments)]
+pub async fn set_pubdata_pricing_mode(
+    shell: &Shell,
+    ecosystem_config: &EcosystemConfig,
+    pricing_mode: L1BatchCommitmentMode,
+    chain_admin_addr: Address,
+    diamond_proxy_address: Address,
+    governor: &Wallet,
+    forge_args: &ForgeScriptArgs,
+    l1_rpc_url: String,
+) -> anyhow::Result<()> {
+    // resume doesn't properly work here.
+    let mut forge_args = forge_args.clone();
+    forge_args.resume = false;
+
+    let calldata = ACCEPT_ADMIN
+        .encode(
+            "setPubdataPricingMode",
+            (chain_admin_addr, diamond_proxy_address, pricing_mode as u8),
         )
         .unwrap();
     let foundry_contracts_path = ecosystem_config.path_to_l1_foundry();
