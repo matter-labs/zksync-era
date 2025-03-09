@@ -117,6 +117,8 @@ pub struct V27EcosystemUpgradeStateTransition {
     pub mailbox_facet_addr: Address,
     pub state_transition_implementation_addr: Address,
     pub verifier_addr: Address,
+    pub verifier_fflonk_addr: Address,
+    pub verifier_plonk_addr: Address,
 }
 
 impl ZkStackConfig for V27EcosystemUpgradeOutput {}
