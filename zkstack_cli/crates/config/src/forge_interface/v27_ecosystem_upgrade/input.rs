@@ -19,8 +19,6 @@ pub struct V27EcosystemUpgradeInput {
     pub contracts: V27UpgradeContractsConfig,
     pub tokens: V27UpgradeTokensConfig,
     pub governance_upgrade_timer_initial_delay: u64,
-
-    pub gateway: V27GatewayConfig,
 }
 
 impl ZkStackConfig for V27EcosystemUpgradeInput {}
@@ -101,11 +99,6 @@ impl V27EcosystemUpgradeInput {
             tokens: V27UpgradeTokensConfig {
                 token_weth_address: initial_deployment_config.token_weth_address,
             },
-            // For now, gateway is disabled.
-            gateway: V27GatewayConfig {
-                chain_id: 0,
-                gateway_state_transition: V27GatewayStateTransition {},
-            },
         }
     }
 }
@@ -149,12 +142,3 @@ pub struct V27UpgradeContractsConfig {
 pub struct V27UpgradeTokensConfig {
     pub token_weth_address: Address,
 }
-
-#[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct V27GatewayConfig {
-    pub chain_id: u64,
-    pub gateway_state_transition: V27GatewayStateTransition,
-}
-
-#[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct V27GatewayStateTransition {}
