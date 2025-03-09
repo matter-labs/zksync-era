@@ -87,6 +87,8 @@ in-file\:"Specify file with wallets"))' \
 '--update-submodules=[]:UPDATE_SUBMODULES:(true false)' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--legacy-bridge[]' \
+'--skip-submodules-checkout[Skip submodules checkout]' \
+'--skip-contract-compilation-override[Skip contract compilation override]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
@@ -254,6 +256,8 @@ in-file\:"Specify file with wallets"))' \
 '--update-submodules=[Whether to update git submodules of repo]:UPDATE_SUBMODULES:(true false)' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--legacy-bridge[]' \
+'--skip-submodules-checkout[Skip submodules checkout]' \
+'--skip-contract-compilation-override[Skip contract compilation override]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
@@ -303,6 +307,7 @@ _arguments "${_arguments_options[@]}" : \
 '--dont-drop[]' \
 '--no-port-reallocation[Do not reallocate ports]' \
 '--dev[Use defaults for all options and flags. Suitable for local development]' \
+'--skip-submodules-checkout[Skip submodules checkout]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
@@ -3275,10 +3280,20 @@ _zkstack__chain__build-transactions_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack chain build-transactions commands' commands "$@"
 }
+(( $+functions[_zkstack__chain__convert-to-gateway_commands] )) ||
+_zkstack__chain__convert-to-gateway_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain convert-to-gateway commands' commands "$@"
+}
 (( $+functions[_zkstack__chain__create_commands] )) ||
 _zkstack__chain__create_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack chain create commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__deploy-and-bridge-zk_commands] )) ||
+_zkstack__chain__deploy-and-bridge-zk_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain deploy-and-bridge-zk commands' commands "$@"
 }
 (( $+functions[_zkstack__chain__deploy-consensus-registry_commands] )) ||
 _zkstack__chain__deploy-consensus-registry_commands() {
@@ -3389,10 +3404,20 @@ _zkstack__chain__help__build-transactions_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack chain help build-transactions commands' commands "$@"
 }
+(( $+functions[_zkstack__chain__help__convert-to-gateway_commands] )) ||
+_zkstack__chain__help__convert-to-gateway_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain help convert-to-gateway commands' commands "$@"
+}
 (( $+functions[_zkstack__chain__help__create_commands] )) ||
 _zkstack__chain__help__create_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack chain help create commands' commands "$@"
+}
+(( $+functions[_zkstack__chain__help__deploy-and-bridge-zk_commands] )) ||
+_zkstack__chain__help__deploy-and-bridge-zk_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack chain help deploy-and-bridge-zk commands' commands "$@"
 }
 (( $+functions[_zkstack__chain__help__deploy-consensus-registry_commands] )) ||
 _zkstack__chain__help__deploy-consensus-registry_commands() {
@@ -4701,10 +4726,20 @@ _zkstack__help__chain__build-transactions_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack help chain build-transactions commands' commands "$@"
 }
+(( $+functions[_zkstack__help__chain__convert-to-gateway_commands] )) ||
+_zkstack__help__chain__convert-to-gateway_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack help chain convert-to-gateway commands' commands "$@"
+}
 (( $+functions[_zkstack__help__chain__create_commands] )) ||
 _zkstack__help__chain__create_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack help chain create commands' commands "$@"
+}
+(( $+functions[_zkstack__help__chain__deploy-and-bridge-zk_commands] )) ||
+_zkstack__help__chain__deploy-and-bridge-zk_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack help chain deploy-and-bridge-zk commands' commands "$@"
 }
 (( $+functions[_zkstack__help__chain__deploy-consensus-registry_commands] )) ||
 _zkstack__help__chain__deploy-consensus-registry_commands() {
