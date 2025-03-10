@@ -19,7 +19,7 @@ use zksync_object_store::{serialize_using_bincode, Bucket, StoredObject};
 use zksync_types::{
     basic_fri_types::AggregationRound,
     protocol_version::{ProtocolSemanticVersion, VersionPatch},
-    L1BatchNumber, L2ChainId, ProtocolVersionId,
+    ChainAwareL1BatchNumber, L1BatchNumber, L2ChainId, ProtocolVersionId,
 };
 
 use crate::keys::FriCircuitKey;
@@ -345,10 +345,14 @@ pub struct AuxOutputWitnessWrapper(pub BlockAuxilaryOutputWitness<GoldilocksFiel
 
 impl StoredObject for AuxOutputWitnessWrapper {
     const BUCKET: Bucket = Bucket::SchedulerWitnessJobsFri;
-    type Key<'a> = (L2ChainId, L1BatchNumber);
+    type Key<'a> = ChainAwareL1BatchNumber;
 
     fn encode_key(key: Self::Key<'_>) -> String {
-        format!("aux_output_witness_{}_{}.bin", key.0.as_u64(), key.1)
+        format!(
+            "aux_output_witness_{}_{}.bin",
+            key.raw_chain_id(),
+            key.raw_batch_number()
+        )
     }
 
     serialize_using_bincode!();

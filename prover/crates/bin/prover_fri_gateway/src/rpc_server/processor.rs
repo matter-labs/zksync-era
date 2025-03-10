@@ -11,7 +11,9 @@ use zksync_prover_interface::{
     api::{ProofGenerationData, SubmitProofRequest},
     rpc::GatewayRpcServer,
 };
-use zksync_types::{prover_dal::ProofCompressionJobStatus, L1BatchNumber, L2ChainId};
+use zksync_types::{
+    prover_dal::ProofCompressionJobStatus, ChainAwareL1BatchNumber, L1BatchNumber, L2ChainId,
+};
 
 pub struct RpcDataProcessor {
     pool: ConnectionPool<Prover>,
@@ -69,11 +71,13 @@ impl RpcDataProcessor {
             .get_least_proven_block_not_sent_to_server(chain_id)
             .await?;
 
+        let batch_number = ChainAwareL1BatchNumber::new(chain_id, l1_batch_number);
+
         let request = match status {
             ProofCompressionJobStatus::Successful => {
                 let proof = self
                     .blob_store
-                    .get((chain_id, l1_batch_number, protocol_version))
+                    .get((batch_number, protocol_version))
                     .await
                     .expect("Failed to get compressed snark proof from blob store");
                 SubmitProofRequest::Proof(l1_batch_number, Box::new(proof))
@@ -99,7 +103,7 @@ impl RpcDataProcessor {
             .connection()
             .await?
             .fri_proof_compressor_dal()
-            .mark_proof_sent_to_server(l1_batch_number, chain_id)
+            .mark_proof_sent_to_server(ChainAwareL1BatchNumber::new(chain_id, l1_batch_number))
             .await
             .map_err(|e| anyhow::anyhow!(e))
     }
@@ -114,7 +118,7 @@ impl RpcDataProcessor {
         let store = &*self.blob_store;
         let witness_inputs = store
             .put(
-                (data.chain_id, data.l1_batch_number),
+                ChainAwareL1BatchNumber::new(data.chain_id, data.l1_batch_number),
                 &data.witness_input_data,
             )
             .await?;
@@ -128,8 +132,7 @@ impl RpcDataProcessor {
         connection
             .fri_basic_witness_generator_dal()
             .save_witness_inputs(
-                data.l1_batch_number,
-                data.chain_id,
+                ChainAwareL1BatchNumber::new(data.chain_id, data.l1_batch_number),
                 &witness_inputs,
                 data.protocol_version,
             )
@@ -164,8 +167,8 @@ impl GatewayRpcServer for RpcDataProcessor {
 
     async fn subscribe_for_proofs(
         &self,
-        chain_id: L2ChainId,
         subscription_sink: PendingSubscriptionSink,
+        chain_id: L2ChainId,
     ) -> SubscriptionResult {
         self.subscribe(chain_id, subscription_sink).await;
         Ok(())

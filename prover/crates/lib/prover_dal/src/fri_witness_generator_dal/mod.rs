@@ -13,7 +13,7 @@ use zksync_basic_types::{
     basic_fri_types::AggregationRound,
     protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch},
     prover_dal::{JobCountStatistics, ProofGenerationTime, StuckJobs},
-    L1BatchNumber, L2ChainId,
+    ChainAwareL1BatchNumber, L1BatchNumber, L2ChainId,
 };
 use zksync_db_connection::{connection::Connection, utils::naive_time_from_pg_interval};
 
@@ -180,8 +180,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
 
     pub async fn delete_witness_generator_data_for_batch(
         &mut self,
-        block_number: L1BatchNumber,
-        chain_id: L2ChainId,
+        batch_number: ChainAwareL1BatchNumber,
         aggregation_round: AggregationRound,
     ) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
         sqlx::query(
@@ -194,8 +193,8 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 AND chain_id = {chain_id}
             "#,
                 table = Self::input_table_name_for(aggregation_round),
-                l1_batch_number = i64::from(block_number.0),
-                chain_id = chain_id.as_u64(),
+                l1_batch_number = batch_number.raw_batch_number(),
+                chain_id = batch_number.raw_chain_id(),
             )
             .as_str(),
         )
@@ -205,36 +204,25 @@ impl FriWitnessGeneratorDal<'_, '_> {
 
     pub async fn delete_batch_data(
         &mut self,
-        block_number: L1BatchNumber,
-        chain_id: L2ChainId,
+        batch_number: ChainAwareL1BatchNumber,
     ) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
+        self.delete_witness_generator_data_for_batch(batch_number, AggregationRound::BasicCircuits)
+            .await?;
         self.delete_witness_generator_data_for_batch(
-            block_number,
-            chain_id,
-            AggregationRound::BasicCircuits,
-        )
-        .await?;
-        self.delete_witness_generator_data_for_batch(
-            block_number,
-            chain_id,
+            batch_number,
             AggregationRound::LeafAggregation,
         )
         .await?;
         self.delete_witness_generator_data_for_batch(
-            block_number,
-            chain_id,
+            batch_number,
             AggregationRound::NodeAggregation,
         )
         .await?;
         // TODO: THIS LOOKS SUS
         self.delete_witness_generator_data(AggregationRound::RecursionTip)
             .await?;
-        self.delete_witness_generator_data_for_batch(
-            block_number,
-            chain_id,
-            AggregationRound::Scheduler,
-        )
-        .await
+        self.delete_witness_generator_data_for_batch(batch_number, AggregationRound::Scheduler)
+            .await
     }
 
     pub async fn delete_witness_generator_data(
@@ -270,14 +258,12 @@ impl FriWitnessGeneratorDal<'_, '_> {
 
     pub async fn requeue_stuck_leaf_aggregation_jobs_for_batch(
         &mut self,
-        block_number: L1BatchNumber,
-        chain_id: L2ChainId,
+        batch_number: ChainAwareL1BatchNumber,
         max_attempts: u32,
     ) -> Vec<StuckJobs> {
         self.requeue_stuck_jobs_for_batch_in_aggregation_round(
             AggregationRound::LeafAggregation,
-            block_number,
-            chain_id,
+            batch_number,
             max_attempts,
         )
         .await
@@ -285,14 +271,12 @@ impl FriWitnessGeneratorDal<'_, '_> {
 
     pub async fn requeue_stuck_node_aggregation_jobs_for_batch(
         &mut self,
-        block_number: L1BatchNumber,
-        chain_id: L2ChainId,
+        batch_number: ChainAwareL1BatchNumber,
         max_attempts: u32,
     ) -> Vec<StuckJobs> {
         self.requeue_stuck_jobs_for_batch_in_aggregation_round(
             AggregationRound::NodeAggregation,
-            block_number,
-            chain_id,
+            batch_number,
             max_attempts,
         )
         .await
@@ -301,8 +285,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
     async fn requeue_stuck_jobs_for_batch_in_aggregation_round(
         &mut self,
         aggregation_round: AggregationRound,
-        block_number: L1BatchNumber,
-        chain_id: L2ChainId,
+        batch_number: ChainAwareL1BatchNumber,
         max_attempts: u32,
     ) -> Vec<StuckJobs> {
         let table_name = Self::input_table_name_for(aggregation_round);
@@ -329,8 +312,8 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 picked_by
             "#,
             table_name,
-            i64::from(block_number.0),
-            chain_id.as_u64(),
+            batch_number.raw_batch_number() as i64,
+            batch_number.raw_chain_id() as i32,
             max_attempts,
             job_id_table_name
         );

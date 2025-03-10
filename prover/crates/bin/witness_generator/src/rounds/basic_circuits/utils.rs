@@ -25,7 +25,9 @@ use zksync_prover_dal::{Connection, Prover, ProverDal};
 use zksync_prover_fri_types::keys::ClosedFormInputKey;
 use zksync_prover_interface::inputs::WitnessInputData;
 use zksync_system_constants::BOOTLOADER_ADDRESS;
-use zksync_types::{protocol_version::ProtocolSemanticVersion, L1BatchNumber, L2ChainId};
+use zksync_types::{
+    protocol_version::ProtocolSemanticVersion, ChainAwareL1BatchNumber, L1BatchNumber, L2ChainId,
+};
 
 use crate::{
     precalculated_merkle_paths_provider::PrecalculatedMerklePathsProvider,
@@ -270,8 +272,7 @@ async fn save_recursion_queue(
 
 pub(crate) async fn create_aggregation_jobs(
     connection: &mut Connection<'_, Prover>,
-    block_number: L1BatchNumber,
-    chain_id: L2ChainId,
+    batch_number: ChainAwareL1BatchNumber,
     closed_form_inputs_and_urls: &Vec<(u8, String, usize)>,
     scheduler_partial_input_blob_url: &str,
     base_layer_to_recursive_layer_circuit_id: fn(u8) -> u8,
@@ -283,8 +284,7 @@ pub(crate) async fn create_aggregation_jobs(
         connection
             .fri_leaf_witness_generator_dal()
             .insert_leaf_aggregation_jobs(
-                block_number,
-                chain_id,
+                batch_number,
                 protocol_version,
                 *circuit_id,
                 closed_form_inputs_url.clone(),
@@ -295,8 +295,7 @@ pub(crate) async fn create_aggregation_jobs(
         connection
             .fri_node_witness_generator_dal()
             .insert_node_aggregation_jobs(
-                block_number,
-                chain_id,
+                batch_number,
                 base_layer_to_recursive_layer_circuit_id(*circuit_id),
                 None,
                 0,
@@ -309,8 +308,7 @@ pub(crate) async fn create_aggregation_jobs(
     connection
         .fri_recursion_tip_witness_generator_dal()
         .insert_recursion_tip_aggregation_jobs(
-            block_number,
-            chain_id,
+            batch_number,
             closed_form_inputs_and_urls,
             protocol_version,
         )
@@ -319,8 +317,7 @@ pub(crate) async fn create_aggregation_jobs(
     connection
         .fri_scheduler_witness_generator_dal()
         .insert_scheduler_aggregation_jobs(
-            block_number,
-            chain_id,
+            batch_number,
             scheduler_partial_input_blob_url,
             protocol_version,
         )

@@ -5,7 +5,9 @@ use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::AuxOutputWitnessWrapper;
 use zksync_prover_fri_utils::get_recursive_layer_circuit_id_for_base_layer;
-use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber, L2ChainId};
+use zksync_types::{
+    basic_fri_types::AggregationRound, ChainAwareL1BatchNumber, L1BatchNumber, L2ChainId,
+};
 
 use crate::{
     artifacts::ArtifactsManager,
@@ -18,7 +20,7 @@ use crate::{
 
 #[async_trait]
 impl ArtifactsManager for BasicCircuits {
-    type InputMetadata = (L2ChainId, L1BatchNumber);
+    type InputMetadata = ChainAwareL1BatchNumber;
     type InputArtifacts = BasicWitnessGeneratorJob;
     type OutputArtifacts = BasicCircuitArtifacts;
     type BlobUrls = String;
@@ -27,11 +29,11 @@ impl ArtifactsManager for BasicCircuits {
         metadata: &Self::InputMetadata,
         object_store: &dyn ObjectStore,
     ) -> anyhow::Result<Self::InputArtifacts> {
-        let (chain_id, l1_batch_number) = *metadata;
-        let data = object_store.get((chain_id, l1_batch_number)).await.unwrap();
+        let batch_number = *metadata;
+        let data = object_store.get(batch_number).await.unwrap();
         Ok(BasicWitnessGeneratorJob {
-            chain_id,
-            block_number: l1_batch_number,
+            chain_id: batch_number.chain_id(),
+            block_number: batch_number.batch_number(),
             data,
         })
     }
@@ -85,15 +87,17 @@ impl ArtifactsManager for BasicCircuits {
             .start_transaction()
             .await
             .expect("failed to get database transaction");
+
+        let batch_number = ChainAwareL1BatchNumber::new(chain_id, L1BatchNumber(job_id));
+
         let protocol_version_id = transaction
             .fri_basic_witness_generator_dal()
-            .protocol_version_for_l1_batch_and_chain(L1BatchNumber(job_id), chain_id)
+            .protocol_version_for_l1_batch_and_chain(batch_number)
             .await;
         transaction
             .fri_prover_jobs_dal()
             .insert_prover_jobs(
-                L1BatchNumber(job_id),
-                chain_id,
+                batch_number,
                 artifacts.circuit_urls,
                 AggregationRound::BasicCircuits,
                 0,
@@ -103,8 +107,7 @@ impl ArtifactsManager for BasicCircuits {
 
         create_aggregation_jobs(
             &mut transaction,
-            L1BatchNumber(job_id),
-            chain_id,
+            batch_number,
             &artifacts.queue_urls,
             &blob_urls,
             get_recursive_layer_circuit_id_for_base_layer,
@@ -115,7 +118,7 @@ impl ArtifactsManager for BasicCircuits {
 
         transaction
             .fri_basic_witness_generator_dal()
-            .mark_witness_job_as_successful(L1BatchNumber(job_id), chain_id, started_at.elapsed())
+            .mark_witness_job_as_successful(batch_number, started_at.elapsed())
             .await;
         transaction
             .commit()

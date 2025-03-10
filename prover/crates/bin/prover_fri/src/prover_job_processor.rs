@@ -23,7 +23,7 @@ use zksync_prover_fri_utils::fetch_next_circuit;
 use zksync_prover_keystore::{keystore::Keystore, GoldilocksProverSetupData};
 use zksync_queued_job_processor::{async_trait, JobProcessor};
 use zksync_types::{
-    basic_fri_types::CircuitIdRoundTuple, protocol_version::ProtocolSemanticVersion,
+    basic_fri_types::CircuitIdRoundTuple, protocol_version::ProtocolSemanticVersion, L2ChainId,
 };
 
 use crate::{
@@ -190,7 +190,7 @@ impl Prover {
 #[async_trait]
 impl JobProcessor for Prover {
     type Job = ProverJob;
-    type JobId = u32;
+    type JobId = (L2ChainId, u32);
     type JobArtifacts = ProverArtifacts;
     const SERVICE_NAME: &'static str = "FriCpuProver";
 
@@ -206,7 +206,7 @@ impl JobProcessor for Prover {
         else {
             return Ok(None);
         };
-        Ok(Some((prover_job.job_id, prover_job)))
+        Ok(Some(((prover_job.chain_id, prover_job.job_id), prover_job)))
     }
 
     async fn save_failure(&self, job_id: Self::JobId, _started_at: Instant, error: String) {
@@ -215,7 +215,7 @@ impl JobProcessor for Prover {
             .await
             .unwrap()
             .fri_prover_jobs_dal()
-            .save_proof_error(job_id, error)
+            .save_proof_error(job_id.1, job_id.0, error)
             .await;
     }
 
@@ -248,7 +248,8 @@ impl JobProcessor for Prover {
 
         let mut storage_processor = self.prover_connection_pool.connection().await.unwrap();
         save_proof(
-            job_id,
+            job_id.1,
+            job_id.0,
             started_at,
             artifacts,
             &*self.blob_store,
@@ -265,7 +266,7 @@ impl JobProcessor for Prover {
         self.config.max_attempts
     }
 
-    async fn get_job_attempts(&self, job_id: &u32) -> anyhow::Result<u32> {
+    async fn get_job_attempts(&self, job_id: &(L2ChainId, u32)) -> anyhow::Result<u32> {
         let mut prover_storage = self
             .prover_connection_pool
             .connection()
@@ -273,7 +274,7 @@ impl JobProcessor for Prover {
             .context("failed to acquire DB connection for Prover")?;
         prover_storage
             .fri_prover_jobs_dal()
-            .get_prover_job_attempts(*job_id)
+            .get_prover_job_attempts(job_id.1, job_id.0)
             .await
             .map(|attempts| attempts.unwrap_or(0))
             .context("failed to get job attempts for Prover")

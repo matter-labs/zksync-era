@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use zksync_prover_dal::{Connection, Prover, ProverDal};
+use zksync_types::ChainAwareL1BatchNumber;
 
 use crate::{metrics::SERVER_METRICS, task_wiring::Task};
 
@@ -17,10 +18,11 @@ impl WitnessJobQueuer {
             .move_leaf_aggregation_jobs_from_waiting_to_queued()
             .await;
         let len = l1_batch_numbers.len();
-        for (l1_batch_number, circuit_id) in l1_batch_numbers {
+        for (batch_number, circuit_id) in l1_batch_numbers {
             tracing::info!(
-                "Marked leaf job for l1_batch {} and circuit_id {} as queued.",
-                l1_batch_number,
+                "Marked leaf job for l1_batch {}, chain id {} and circuit_id {} as queued.",
+                batch_number.raw_batch_number(),
+                batch_number.raw_chain_id(),
                 circuit_id
             );
         }
@@ -33,11 +35,12 @@ impl WitnessJobQueuer {
     async fn move_node_aggregation_jobs_from_waiting_to_queued(
         &self,
         connection: &mut Connection<'_, Prover>,
-    ) -> Vec<(i64, u8, u16)> {
+    ) -> Vec<(ChainAwareL1BatchNumber, u8, u16)> {
         let mut jobs = connection
             .fri_node_witness_generator_dal()
             .move_depth_zero_node_aggregation_jobs()
             .await;
+        // todo: wtf is this
         jobs.extend(
             connection
                 .fri_node_witness_generator_dal()
@@ -54,10 +57,11 @@ impl WitnessJobQueuer {
             .move_node_aggregation_jobs_from_waiting_to_queued(connection)
             .await;
         let len = l1_batch_numbers.len();
-        for (l1_batch_number, circuit_id, depth) in l1_batch_numbers {
+        for (batch_number, circuit_id, depth) in l1_batch_numbers {
             tracing::info!(
-                "Marked node job for l1_batch {} and circuit_id {} at depth {} as queued.",
-                l1_batch_number,
+                "Marked node job for l1_batch {}, chain id {} and circuit_id {} at depth {} as queued.",
+                batch_number.raw_batch_number(),
+                batch_number.raw_chain_id(),
                 circuit_id,
                 depth
             );
@@ -74,10 +78,11 @@ impl WitnessJobQueuer {
             .fri_recursion_tip_witness_generator_dal()
             .move_recursion_tip_jobs_from_waiting_to_queued()
             .await;
-        for l1_batch_number in &l1_batch_numbers {
+        for batch_number in &l1_batch_numbers {
             tracing::info!(
-                "Marked recursion tip job for l1_batch {} as queued.",
-                l1_batch_number,
+                "Marked recursion tip job for l1_batch {}, chain {} as queued.",
+                batch_number.raw_batch_number(),
+                batch_number.raw_chain_id()
             );
         }
         SERVER_METRICS
@@ -92,11 +97,11 @@ impl WitnessJobQueuer {
             .fri_scheduler_witness_generator_dal()
             .move_scheduler_jobs_from_waiting_to_queued()
             .await;
-        for (chain_id, l1_batch_number) in &l1_batch_numbers {
+        for batch_number in &l1_batch_numbers {
             tracing::info!(
                 "Marked scheduler job for l1_batch {}, chain {} as queued.",
-                l1_batch_number,
-                chain_id,
+                batch_number.raw_batch_number(),
+                batch_number.raw_chain_id(),
             );
         }
         SERVER_METRICS

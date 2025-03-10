@@ -5,7 +5,9 @@ use circuit_definitions::circuit_definitions::recursion_layer::ZkSyncRecursionLa
 use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::{keys::FriCircuitKey, CircuitWrapper, FriProofWrapper};
-use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber, L2ChainId};
+use zksync_types::{
+    basic_fri_types::AggregationRound, ChainAwareL1BatchNumber, L1BatchNumber, L2ChainId,
+};
 
 use crate::{
     artifacts::ArtifactsManager,
@@ -64,15 +66,18 @@ impl ArtifactsManager for Scheduler {
     ) -> anyhow::Result<()> {
         let mut prover_connection = connection_pool.connection().await?;
         let mut transaction = prover_connection.start_transaction().await?;
+
+        let batch_number = ChainAwareL1BatchNumber::new(chain_id, L1BatchNumber(job_id));
+
         let protocol_version_id = transaction
             .fri_basic_witness_generator_dal()
-            .protocol_version_for_l1_batch_and_chain(L1BatchNumber(job_id), chain_id)
+            .protocol_version_for_l1_batch_and_chain(batch_number)
             .await;
+
         transaction
             .fri_prover_jobs_dal()
             .insert_prover_job(
-                L1BatchNumber(job_id),
-                chain_id,
+                batch_number,
                 ZkSyncRecursionLayerStorageType::SchedulerCircuit as u8,
                 0,
                 0,
@@ -85,7 +90,7 @@ impl ArtifactsManager for Scheduler {
 
         transaction
             .fri_scheduler_witness_generator_dal()
-            .mark_scheduler_job_as_successful(L1BatchNumber(job_id), chain_id, started_at.elapsed())
+            .mark_scheduler_job_as_successful(batch_number, started_at.elapsed())
             .await;
 
         transaction.commit().await?;

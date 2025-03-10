@@ -6,7 +6,8 @@ use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::keys::{AggregationsKey, ClosedFormInputKey};
 use zksync_prover_fri_utils::get_recursive_layer_circuit_id_for_base_layer;
 use zksync_types::{
-    basic_fri_types::AggregationRound, prover_dal::LeafAggregationJobMetadata, L2ChainId,
+    basic_fri_types::AggregationRound, prover_dal::LeafAggregationJobMetadata,
+    ChainAwareL1BatchNumber, L2ChainId,
 };
 
 use crate::{
@@ -97,9 +98,12 @@ impl ArtifactsManager for LeafAggregation {
         let mut prover_connection = connection_pool.connection().await.unwrap();
         let mut transaction = prover_connection.start_transaction().await.unwrap();
         let number_of_dependent_jobs = blob_urls.circuit_ids_and_urls.len();
+
+        let batch_number = ChainAwareL1BatchNumber::new(artifacts.chain_id, artifacts.block_number);
+
         let protocol_version_id = transaction
             .fri_basic_witness_generator_dal()
-            .protocol_version_for_l1_batch_and_chain(artifacts.block_number, artifacts.chain_id)
+            .protocol_version_for_l1_batch_and_chain(batch_number)
             .await;
         tracing::info!(
             "Inserting {} prover jobs for job_id {}, chain {}, block {} with circuit id {}",
@@ -112,8 +116,7 @@ impl ArtifactsManager for LeafAggregation {
         transaction
             .fri_prover_jobs_dal()
             .insert_prover_jobs(
-                artifacts.block_number,
-                artifacts.chain_id,
+                batch_number,
                 blob_urls.circuit_ids_and_urls,
                 AggregationRound::LeafAggregation,
                 0,
@@ -130,8 +133,7 @@ impl ArtifactsManager for LeafAggregation {
         transaction
             .fri_node_witness_generator_dal()
             .update_node_aggregation_jobs_url(
-                artifacts.block_number,
-                artifacts.chain_id,
+                batch_number,
                 get_recursive_layer_circuit_id_for_base_layer(artifacts.circuit_id),
                 number_of_dependent_jobs,
                 0,

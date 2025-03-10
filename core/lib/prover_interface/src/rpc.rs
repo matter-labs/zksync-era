@@ -5,6 +5,7 @@ use jsonrpsee::{
 use zksync_types::{L1BatchNumber, L2ChainId};
 
 use crate::api::{ProofGenerationData, SubmitProofRequest};
+
 #[rpc(server, client)]
 pub trait GatewayRpc {
     /// Submits proof generation data from client to server
@@ -16,7 +17,7 @@ pub trait GatewayRpc {
     async fn received_final_proof(
         &self,
         chain_id: L2ChainId,
-        batch: L1BatchNumber,
+        l1_batch_number: L1BatchNumber,
     ) -> RpcResult<()>;
 
     /// Subscription method, needs a chain id, for which subscription should be enabled

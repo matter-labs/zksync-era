@@ -14,8 +14,8 @@ use zksync_prover_fri_types::get_current_pod_name;
 use zksync_prover_interface::inputs::WitnessInputData;
 use zksync_prover_keystore::keystore::Keystore;
 use zksync_types::{
-    basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion, L1BatchNumber,
-    L2ChainId,
+    basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion,
+    ChainAwareL1BatchNumber, L1BatchNumber, L2ChainId,
 };
 
 use crate::{
@@ -62,7 +62,7 @@ pub struct BasicCircuits;
 #[async_trait]
 impl JobManager for BasicCircuits {
     type Job = BasicWitnessGeneratorJob;
-    type Metadata = (L2ChainId, L1BatchNumber);
+    type Metadata = ChainAwareL1BatchNumber;
 
     const ROUND: AggregationRound = AggregationRound::BasicCircuits;
     const SERVICE_NAME: &'static str = "fri_basic_circuit_witness_generator";
@@ -112,14 +112,14 @@ impl JobManager for BasicCircuits {
     }
 
     async fn prepare_job(
-        metadata: (L2ChainId, L1BatchNumber),
+        metadata: ChainAwareL1BatchNumber,
         object_store: &dyn ObjectStore,
         _keystore: Keystore,
     ) -> anyhow::Result<Self::Job> {
         tracing::info!(
             "Processing FRI basic witness-gen for chain {} block {}",
-            metadata.0.as_u64(),
-            metadata.1
+            metadata.raw_chain_id(),
+            metadata.raw_batch_number()
         );
         let started_at = Instant::now();
         let job = Self::get_artifacts(&metadata, object_store).await?;
@@ -135,7 +135,7 @@ impl JobManager for BasicCircuits {
         protocol_version: ProtocolSemanticVersion,
     ) -> anyhow::Result<Option<(L2ChainId, u32, Self::Metadata)>> {
         let pod_name = get_current_pod_name();
-        if let Some((chain_id, l1_batch_number)) = connection_pool
+        if let Some(batch_number) = connection_pool
             .connection()
             .await
             .unwrap()
@@ -144,9 +144,9 @@ impl JobManager for BasicCircuits {
             .await
         {
             Ok(Some((
-                chain_id,
-                l1_batch_number.0,
-                (chain_id, l1_batch_number),
+                batch_number.chain_id(),
+                batch_number.raw_batch_number(),
+                batch_number,
             )))
         } else {
             Ok(None)

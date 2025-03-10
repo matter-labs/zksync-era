@@ -186,7 +186,7 @@ impl JobManager for Scheduler {
         protocol_version: ProtocolSemanticVersion,
     ) -> anyhow::Result<Option<(L2ChainId, u32, Self::Metadata)>> {
         let pod_name = get_current_pod_name();
-        let Some((chain_id, l1_batch_number)) = connection_pool
+        let Some(batch_number) = connection_pool
             .connection()
             .await?
             .fri_scheduler_witness_generator_dal()
@@ -199,19 +199,19 @@ impl JobManager for Scheduler {
             .connection()
             .await?
             .fri_prover_jobs_dal()
-            .get_recursion_tip_proof_job_id(l1_batch_number, chain_id)
+            .get_recursion_tip_proof_job_id(batch_number)
             .await
             .context(format!(
-                "could not find recursion tip proof for l1 batch {}",
-                l1_batch_number
+                "could not find recursion tip proof for l1 batch {:?}",
+                batch_number
             ))?;
 
         Ok(Some((
-            chain_id,
-            l1_batch_number.0,
+            batch_number.chain_id(),
+            batch_number.raw_batch_number(),
             SchedulerWitnessJobMetadata {
-                chain_id,
-                l1_batch_number,
+                chain_id: batch_number.chain_id(),
+                l1_batch_number: batch_number.batch_number(),
                 recursion_tip_job_id,
             },
         )))

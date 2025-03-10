@@ -9,7 +9,9 @@ use zkevm_test_harness::empty_node_proof;
 use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::{keys::FriCircuitKey, CircuitWrapper, FriProofWrapper};
-use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber, L2ChainId};
+use zksync_types::{
+    basic_fri_types::AggregationRound, ChainAwareL1BatchNumber, L1BatchNumber, L2ChainId,
+};
 
 use crate::{
     artifacts::ArtifactsManager,
@@ -110,15 +112,17 @@ impl ArtifactsManager for RecursionTip {
     ) -> anyhow::Result<()> {
         let mut prover_connection = connection_pool.connection().await?;
         let mut transaction = prover_connection.start_transaction().await?;
+
+        let batch_number = ChainAwareL1BatchNumber::new(chain_id, L1BatchNumber(job_id));
+
         let protocol_version_id = transaction
             .fri_basic_witness_generator_dal()
-            .protocol_version_for_l1_batch_and_chain(L1BatchNumber(job_id), chain_id)
+            .protocol_version_for_l1_batch_and_chain(batch_number)
             .await;
         transaction
             .fri_prover_jobs_dal()
             .insert_prover_job(
-                L1BatchNumber(job_id),
-                chain_id,
+                batch_number,
                 ZkSyncRecursionLayerStorageType::RecursionTipCircuit as u8,
                 0,
                 0,
@@ -131,11 +135,7 @@ impl ArtifactsManager for RecursionTip {
 
         transaction
             .fri_recursion_tip_witness_generator_dal()
-            .mark_recursion_tip_job_as_successful(
-                L1BatchNumber(job_id),
-                chain_id,
-                started_at.elapsed(),
-            )
+            .mark_recursion_tip_job_as_successful(batch_number, started_at.elapsed())
             .await;
 
         transaction.commit().await?;

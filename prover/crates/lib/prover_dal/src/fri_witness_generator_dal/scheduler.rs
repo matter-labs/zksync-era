@@ -4,7 +4,7 @@ use zksync_basic_types::{
     basic_fri_types::AggregationRound,
     protocol_version::ProtocolSemanticVersion,
     prover_dal::{SchedulerWitnessGeneratorJobInfo, StuckJobs, WitnessJobStatus},
-    L1BatchNumber, L2ChainId,
+    ChainAwareL1BatchNumber, L2ChainId,
 };
 use zksync_db_connection::{
     connection::Connection,
@@ -19,7 +19,9 @@ pub struct FriSchedulerWitnessGeneratorDal<'a, 'c> {
 }
 
 impl FriSchedulerWitnessGeneratorDal<'_, '_> {
-    pub async fn move_scheduler_jobs_from_waiting_to_queued(&mut self) -> Vec<(u64, u64)> {
+    pub async fn move_scheduler_jobs_from_waiting_to_queued(
+        &mut self,
+    ) -> Vec<ChainAwareL1BatchNumber> {
         sqlx::query!(
             r#"
             UPDATE scheduler_witness_jobs_fri
@@ -52,15 +54,13 @@ impl FriSchedulerWitnessGeneratorDal<'_, '_> {
         .await
         .unwrap()
         .into_iter()
-        .map(|row| (row.chain_id as u64, row.l1_batch_number as u64))
+        .map(|row| {
+            ChainAwareL1BatchNumber::from_raw(row.chain_id as u64, row.l1_batch_number as u32)
+        })
         .collect()
     }
 
-    pub async fn mark_scheduler_jobs_as_queued(
-        &mut self,
-        l1_batch_number: i64,
-        chain_id: L2ChainId,
-    ) {
+    pub async fn mark_scheduler_jobs_as_queued(&mut self, batch_number: ChainAwareL1BatchNumber) {
         sqlx::query!(
             r#"
             UPDATE scheduler_witness_jobs_fri
@@ -72,8 +72,8 @@ impl FriSchedulerWitnessGeneratorDal<'_, '_> {
                 AND status != 'successful'
                 AND status != 'in_progress'
             "#,
-            l1_batch_number,
-            chain_id.as_u64() as i32,
+            batch_number.raw_batch_number() as i64,
+            batch_number.raw_chain_id() as i32,
         )
         .execute(self.storage.conn())
         .await
@@ -135,7 +135,7 @@ impl FriSchedulerWitnessGeneratorDal<'_, '_> {
         &mut self,
         protocol_version: ProtocolSemanticVersion,
         picked_by: &str,
-    ) -> Option<(L2ChainId, L1BatchNumber)> {
+    ) -> Option<ChainAwareL1BatchNumber> {
         sqlx::query!(
             r#"
             UPDATE scheduler_witness_jobs_fri
@@ -175,17 +175,13 @@ impl FriSchedulerWitnessGeneratorDal<'_, '_> {
         .await
         .unwrap()
         .map(|row| {
-            (
-                L2ChainId::new(row.chain_id as u64).unwrap(),
-                L1BatchNumber(row.l1_batch_number as u32),
-            )
+            ChainAwareL1BatchNumber::from_raw(row.chain_id as u64, row.l1_batch_number as u32)
         })
     }
 
     pub async fn mark_scheduler_job_as_successful(
         &mut self,
-        block_number: L1BatchNumber,
-        chain_id: L2ChainId,
+        batch_number: ChainAwareL1BatchNumber,
         time_taken: Duration,
     ) {
         sqlx::query!(
@@ -200,8 +196,8 @@ impl FriSchedulerWitnessGeneratorDal<'_, '_> {
                 AND chain_id = $3
             "#,
             duration_to_naive_time(time_taken),
-            i64::from(block_number.0),
-            chain_id.as_u64() as i32,
+            batch_number.raw_batch_number() as i64,
+            batch_number.raw_chain_id() as i32,
         )
         .execute(self.storage.conn())
         .await
@@ -210,8 +206,7 @@ impl FriSchedulerWitnessGeneratorDal<'_, '_> {
 
     pub async fn get_scheduler_witness_generator_jobs_for_batch(
         &mut self,
-        l1_batch_number: L1BatchNumber,
-        chain_id: L2ChainId,
+        batch_number: ChainAwareL1BatchNumber,
     ) -> Option<SchedulerWitnessGeneratorJobInfo> {
         sqlx::query!(
             r#"
@@ -223,15 +218,15 @@ impl FriSchedulerWitnessGeneratorDal<'_, '_> {
                 l1_batch_number = $1
                 AND chain_id = $2
             "#,
-            i64::from(l1_batch_number.0),
-            chain_id.as_u64() as i32,
+            batch_number.raw_batch_number() as i64,
+            batch_number.raw_chain_id() as i32,
         )
         .fetch_optional(self.storage.conn())
         .await
         .unwrap()
         .map(|row| SchedulerWitnessGeneratorJobInfo {
-            l1_batch_number,
-            chain_id: L2ChainId::new(row.chain_id as u64).unwrap(),
+            l1_batch_number: batch_number.batch_number(),
+            chain_id: batch_number.chain_id(),
             scheduler_partial_input_blob_url: row.scheduler_partial_input_blob_url.clone(),
             status: WitnessJobStatus::from_str(&row.status).unwrap(),
             processing_started_at: row.processing_started_at,
@@ -247,8 +242,7 @@ impl FriSchedulerWitnessGeneratorDal<'_, '_> {
 
     pub async fn requeue_stuck_scheduler_jobs_for_batch(
         &mut self,
-        block_number: L1BatchNumber,
-        chain_id: L2ChainId,
+        batch_number: ChainAwareL1BatchNumber,
         max_attempts: u32,
     ) -> Vec<StuckJobs> {
         sqlx::query!(
@@ -275,8 +269,8 @@ impl FriSchedulerWitnessGeneratorDal<'_, '_> {
             error,
             picked_by
             "#,
-            i64::from(block_number.0),
-            chain_id.as_u64() as i32,
+            batch_number.raw_batch_number() as i64,
+            batch_number.raw_chain_id() as i32,
             max_attempts as i64
         )
         .fetch_all(self.storage.conn())
@@ -297,8 +291,7 @@ impl FriSchedulerWitnessGeneratorDal<'_, '_> {
 
     pub async fn insert_scheduler_aggregation_jobs(
         &mut self,
-        block_number: L1BatchNumber,
-        chain_id: L2ChainId,
+        batch_number: ChainAwareL1BatchNumber,
         scheduler_partial_input_blob_url: &str,
         protocol_version: ProtocolSemanticVersion,
     ) {
@@ -322,8 +315,8 @@ impl FriSchedulerWitnessGeneratorDal<'_, '_> {
             SET
             updated_at = NOW()
             "#,
-            i64::from(block_number.0),
-            chain_id.as_u64() as i32,
+            batch_number.raw_batch_number() as i64,
+            batch_number.raw_chain_id() as i32,
             scheduler_partial_input_blob_url,
             protocol_version.minor as i32,
             protocol_version.patch.0 as i32,

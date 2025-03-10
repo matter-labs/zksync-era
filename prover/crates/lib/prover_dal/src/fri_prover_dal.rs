@@ -16,7 +16,7 @@ use zksync_basic_types::{
     prover_dal::{
         FriProverJobMetadata, JobCountStatistics, ProverJobFriInfo, ProverJobStatus, StuckJobs,
     },
-    L1BatchNumber, L2ChainId,
+    ChainAwareL1BatchNumber, L1BatchNumber, L2ChainId,
 };
 use zksync_db_connection::{
     connection::Connection, instrument::InstrumentExt, metrics::MethodLatency,
@@ -38,8 +38,7 @@ impl FriProverDal<'_, '_> {
 
     pub async fn insert_prover_jobs(
         &mut self,
-        l1_batch_number: L1BatchNumber,
-        chain_id: L2ChainId,
+        batch_number: ChainAwareL1BatchNumber,
         circuit_ids_and_urls: Vec<(u8, String)>,
         aggregation_round: AggregationRound,
         depth: u16,
@@ -78,8 +77,8 @@ impl FriProverDal<'_, '_> {
             query_builder.push_values(
                 chunk.iter().enumerate(),
                 |mut row, (i, (circuit_id, circuit_blob_url))| {
-                    row.push_bind(l1_batch_number.0 as i64)
-                        .push_bind(chain_id.as_u64() as i32)
+                    row.push_bind(batch_number.raw_batch_number() as i64)
+                        .push_bind(batch_number.raw_chain_id() as i32)
                         .push_bind(*circuit_id as i16)
                         .push_bind(circuit_blob_url)
                         .push_bind(aggregation_round as i64)
@@ -595,8 +594,7 @@ impl FriProverDal<'_, '_> {
     #[allow(clippy::too_many_arguments)]
     pub async fn insert_prover_job(
         &mut self,
-        l1_batch_number: L1BatchNumber,
-        chain_id: L2ChainId,
+        batch_number: ChainAwareL1BatchNumber,
         circuit_id: u8,
         depth: u16,
         sequence_number: usize,
@@ -632,8 +630,8 @@ impl FriProverDal<'_, '_> {
             SET
             updated_at = NOW()
             "#,
-            i64::from(l1_batch_number.0),
-            chain_id.as_u64() as i32,
+            batch_number.raw_batch_number() as i64,
+            batch_number.raw_chain_id() as i32,
             i16::from(circuit_id),
             circuit_blob_url,
             aggregation_round as i64,
@@ -742,7 +740,7 @@ impl FriProverDal<'_, '_> {
 
     pub async fn min_unproved_l1_batch_number(
         &mut self,
-    ) -> HashMap<(u8, u8), (L2ChainId, L1BatchNumber)> {
+    ) -> HashMap<(u8, u8), ChainAwareL1BatchNumber> {
         {
             sqlx::query!(
                 r#"
@@ -768,9 +766,9 @@ impl FriProverDal<'_, '_> {
             .map(|row| {
                 (
                     (row.circuit_id as u8, row.aggregation_round as u8),
-                    (
-                        L2ChainId::new(row.chain_id as u64).unwrap(),
-                        L1BatchNumber(row.l1_batch_number as u32),
+                    ChainAwareL1BatchNumber::from_raw(
+                        row.chain_id as u64,
+                        row.l1_batch_number as u32,
                     ),
                 )
             })
@@ -799,8 +797,7 @@ impl FriProverDal<'_, '_> {
 
     pub async fn get_scheduler_proof_job_id(
         &mut self,
-        l1_batch_number: L1BatchNumber,
-        chain_id: L2ChainId,
+        batch_number: ChainAwareL1BatchNumber,
     ) -> Option<u32> {
         sqlx::query!(
             r#"
@@ -814,8 +811,8 @@ impl FriProverDal<'_, '_> {
                 AND status = 'successful'
                 AND aggregation_round = $3
             "#,
-            i64::from(l1_batch_number.0),
-            chain_id.as_u64() as i32,
+            batch_number.raw_batch_number() as i64,
+            batch_number.raw_chain_id() as i32,
             AggregationRound::Scheduler as i16,
         )
         .fetch_optional(self.storage.conn())
@@ -826,8 +823,7 @@ impl FriProverDal<'_, '_> {
 
     pub async fn get_recursion_tip_proof_job_id(
         &mut self,
-        l1_batch_number: L1BatchNumber,
-        chain_id: L2ChainId,
+        batch_number: ChainAwareL1BatchNumber,
     ) -> Option<u32> {
         sqlx::query!(
             r#"
@@ -841,8 +837,8 @@ impl FriProverDal<'_, '_> {
                 AND status = 'successful'
                 AND aggregation_round = $3
             "#,
-            l1_batch_number.0 as i64,
-            chain_id.as_u64() as i32,
+            batch_number.raw_batch_number() as i64,
+            batch_number.raw_chain_id() as i32,
             AggregationRound::RecursionTip as i16,
         )
         .fetch_optional(self.storage.conn())
@@ -881,8 +877,7 @@ impl FriProverDal<'_, '_> {
 
     pub async fn get_final_node_proof_job_ids_for(
         &mut self,
-        l1_batch_number: L1BatchNumber,
-        chain_id: L2ChainId,
+        batch_number: ChainAwareL1BatchNumber,
     ) -> Vec<(u8, u32)> {
         sqlx::query!(
             r#"
@@ -899,8 +894,8 @@ impl FriProverDal<'_, '_> {
             ORDER BY
                 circuit_id ASC
             "#,
-            l1_batch_number.0 as i64,
-            chain_id.as_u64() as i32
+            batch_number.raw_batch_number() as i64,
+            batch_number.raw_chain_id() as i32
         )
         .fetch_all(self.storage.conn())
         .await
@@ -912,8 +907,7 @@ impl FriProverDal<'_, '_> {
 
     pub async fn get_prover_jobs_stats_for_batch(
         &mut self,
-        l1_batch_number: L1BatchNumber,
-        chain_id: L2ChainId,
+        batch_number: ChainAwareL1BatchNumber,
         aggregation_round: AggregationRound,
     ) -> Vec<ProverJobFriInfo> {
         sqlx::query!(
@@ -927,8 +921,8 @@ impl FriProverDal<'_, '_> {
                 AND aggregation_round = $2
                 AND chain_id = $3
             "#,
-            i64::from(l1_batch_number.0),
-            chain_id.as_u64() as i32,
+            batch_number.raw_batch_number() as i64,
+            batch_number.raw_chain_id() as i32,
             aggregation_round as i16
         )
         .fetch_all(self.storage.conn())
@@ -937,8 +931,8 @@ impl FriProverDal<'_, '_> {
         .iter()
         .map(|row| ProverJobFriInfo {
             id: row.id as u32,
-            l1_batch_number,
-            chain_id: L2ChainId::new(row.chain_id as u64).unwrap(),
+            l1_batch_number: batch_number.batch_number(),
+            chain_id: batch_number.chain_id(),
             circuit_id: row.circuit_id as u32,
             circuit_blob_url: row.circuit_blob_url.clone(),
             aggregation_round,
@@ -963,8 +957,7 @@ impl FriProverDal<'_, '_> {
 
     pub async fn delete_prover_jobs_fri_batch_data(
         &mut self,
-        l1_batch_number: L1BatchNumber,
-        chain_id: L2ChainId,
+        batch_number: ChainAwareL1BatchNumber,
     ) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
         sqlx::query!(
             r#"
@@ -973,8 +966,8 @@ impl FriProverDal<'_, '_> {
                 l1_batch_number = $1
                 AND chain_id = $2
             "#,
-            i64::from(l1_batch_number.0),
-            chain_id.as_u64() as i32
+            batch_number.raw_batch_number() as i64,
+            batch_number.raw_chain_id() as i32
         )
         .execute(self.storage.conn())
         .await
@@ -982,11 +975,9 @@ impl FriProverDal<'_, '_> {
 
     pub async fn delete_batch_data(
         &mut self,
-        l1_batch_number: L1BatchNumber,
-        chain_id: L2ChainId,
+        batch_number: ChainAwareL1BatchNumber,
     ) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
-        self.delete_prover_jobs_fri_batch_data(l1_batch_number, chain_id)
-            .await
+        self.delete_prover_jobs_fri_batch_data(batch_number).await
     }
 
     pub async fn delete_prover_jobs_fri(&mut self) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
@@ -1005,8 +996,7 @@ impl FriProverDal<'_, '_> {
 
     pub async fn requeue_stuck_jobs_for_batch(
         &mut self,
-        block_number: L1BatchNumber,
-        chain_id: L2ChainId,
+        batch_number: ChainAwareL1BatchNumber,
         max_attempts: u32,
     ) -> Vec<StuckJobs> {
         {
@@ -1037,8 +1027,8 @@ impl FriProverDal<'_, '_> {
                 error,
                 picked_by
                 "#,
-                i64::from(block_number.0),
-                chain_id.as_u64() as i32,
+                batch_number.raw_batch_number() as i64,
+                batch_number.raw_chain_id() as i32,
                 max_attempts as i32,
             )
             .fetch_all(self.storage.conn())
@@ -1060,8 +1050,7 @@ impl FriProverDal<'_, '_> {
 
     pub async fn prover_job_ids_for(
         &mut self,
-        block_number: L1BatchNumber,
-        chain_id: L2ChainId,
+        batch_number: ChainAwareL1BatchNumber,
         circuit_id: u8,
         round: AggregationRound,
         depth: u16,
@@ -1083,11 +1072,11 @@ impl FriProverDal<'_, '_> {
             ORDER BY
                 sequence_number ASC;
             "#,
-            i64::from(block_number.0),
-            i16::from(circuit_id),
+            batch_number.raw_batch_number() as i64,
+            circuit_id as i8,
             round as i16,
             i32::from(depth),
-            chain_id.as_u64() as i32
+            batch_number.raw_chain_id() as i32
         )
         .fetch_all(self.storage.conn())
         .await
@@ -1146,8 +1135,7 @@ mod tests {
         transaction
             .fri_prover_jobs_dal()
             .insert_prover_jobs(
-                L1BatchNumber(1),
-                L2ChainId::new(1).unwrap(),
+                ChainAwareL1BatchNumber::from_raw(1, 1),
                 mock_circuit_ids_and_urls(10000),
                 AggregationRound::Scheduler,
                 1,

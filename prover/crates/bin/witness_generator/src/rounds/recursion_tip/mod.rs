@@ -231,7 +231,7 @@ impl JobManager for RecursionTip {
         protocol_version: ProtocolSemanticVersion,
     ) -> anyhow::Result<Option<(L2ChainId, u32, Self::Metadata)>> {
         let pod_name = get_current_pod_name();
-        let Some((chain_id, l1_batch_number, number_of_final_node_jobs)) = connection_pool
+        let Some((batch_number, number_of_final_node_jobs)) = connection_pool
             .connection()
             .await?
             .fri_recursion_tip_witness_generator_dal()
@@ -245,7 +245,7 @@ impl JobManager for RecursionTip {
             .connection()
             .await?
             .fri_prover_jobs_dal()
-            .get_final_node_proof_job_ids_for(l1_batch_number, chain_id)
+            .get_final_node_proof_job_ids_for(batch_number)
             .await;
 
         assert_eq!(
@@ -256,11 +256,11 @@ impl JobManager for RecursionTip {
         );
 
         Ok(Some((
-            chain_id,
-            l1_batch_number.0,
+            batch_number.chain_id(),
+            batch_number.raw_batch_number(),
             RecursionTipJobMetadata {
-                chain_id,
-                l1_batch_number,
+                chain_id: batch_number.chain_id(),
+                l1_batch_number: batch_number.batch_number(),
                 final_node_proof_job_ids,
             },
         )))

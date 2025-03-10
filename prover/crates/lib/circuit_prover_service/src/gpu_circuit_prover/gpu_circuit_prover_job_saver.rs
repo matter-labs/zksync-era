@@ -6,7 +6,10 @@ use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::FriProofWrapper;
 use zksync_prover_job_processor::JobSaver;
-use zksync_types::{protocol_version::ProtocolSemanticVersion, prover_dal::FriProverJobMetadata};
+use zksync_types::{
+    protocol_version::ProtocolSemanticVersion, prover_dal::FriProverJobMetadata,
+    ChainAwareL1BatchNumber,
+};
 
 use crate::{gpu_circuit_prover::GpuCircuitProverExecutor, metrics::CIRCUIT_PROVER_METRICS};
 
@@ -90,8 +93,7 @@ impl JobSaver for GpuCircuitProverJobSaver {
                     transaction
                         .fri_proof_compressor_dal()
                         .insert_proof_compression_job(
-                            metadata.block_number,
-                            metadata.chain_id,
+                            ChainAwareL1BatchNumber::new(metadata.chain_id, metadata.block_number),
                             &blob_url,
                             self.protocol_version,
                         )

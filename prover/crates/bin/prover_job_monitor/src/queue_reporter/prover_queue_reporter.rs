@@ -69,10 +69,11 @@ impl Task for ProverQueueReporter {
             .min_unproved_l1_batch_number()
             .await;
 
-        for ((circuit_id, aggregation_round), (_, l1_batch_number)) in lag_by_circuit_type {
+        // todo: this metric might be revisited
+        for ((circuit_id, aggregation_round), batch_number) in lag_by_circuit_type {
             FRI_PROVER_METRICS.block_number
                 [&(circuit_id.to_string(), aggregation_round.to_string())]
-                .set(l1_batch_number.0 as u64);
+                .set(batch_number.raw_batch_number() as u64);
         }
 
         Ok(())
