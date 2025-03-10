@@ -20,18 +20,21 @@ use crate::{
 /// Wiring layer for [`SettlementLayerData`].
 #[derive(Debug)]
 pub struct SettlementLayerDataEn {
-    l1specific_contracts: L1SpecificContracts,
-    chain_specific_contracts: ChainSpecificContracts,
+    l1_specific_contracts: L1SpecificContracts,
+    sl_chain_contracts: ChainSpecificContracts,
+    l1_chain_contracts: ChainSpecificContracts,
 }
 
 impl SettlementLayerDataEn {
     pub fn new(
-        l1specific_contracts: L1SpecificContracts,
-        chain_specific_contracts: ChainSpecificContracts,
+        l1_specific_contracts: L1SpecificContracts,
+        sl_chain_contracts: ChainSpecificContracts,
+        l1_chain_contracts: ChainSpecificContracts,
     ) -> Self {
         Self {
-            l1specific_contracts,
-            chain_specific_contracts,
+            l1_specific_contracts,
+            sl_chain_contracts,
+            l1_chain_contracts,
         }
     }
 }
@@ -63,9 +66,10 @@ impl WiringLayer for SettlementLayerDataEn {
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
+        // TODO fix sl_mode, now it's incorrect for en
         let initial_sl_mode = get_settlement_layer(
             &input.eth_client.0,
-            self.chain_specific_contracts
+            self.l1_chain_contracts
                 .chain_contracts_config
                 .diamond_proxy_addr,
             &getters_facet_contract(),
@@ -84,9 +88,11 @@ impl WiringLayer for SettlementLayerDataEn {
         };
 
         Ok(Output {
-            contracts: SettlementLayerContractsResource(self.chain_specific_contracts.clone()),
-            l1_contracts: L1ChainContractsResource(self.chain_specific_contracts.clone()),
-            l1_ecosystem_contracts: L1EcosystemContractsResource(self.l1specific_contracts.clone()),
+            contracts: SettlementLayerContractsResource(self.sl_chain_contracts.clone()),
+            l1_contracts: L1ChainContractsResource(self.l1_chain_contracts.clone()),
+            l1_ecosystem_contracts: L1EcosystemContractsResource(
+                self.l1_specific_contracts.clone(),
+            ),
             initial_settlement_mode: SettlementModeResource(initial_sl_mode),
             sl_chain_id_resource: SlChainIdResource(chain_id),
         })

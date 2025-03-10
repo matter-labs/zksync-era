@@ -567,6 +567,7 @@ async fn checker_works_with_different_settlement_layers() {
         100,
         pool.clone(),
         commitment_mode,
+        SettlementMode::Gateway,
     )
     .await
     .unwrap();

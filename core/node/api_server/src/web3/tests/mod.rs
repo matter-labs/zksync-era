@@ -289,6 +289,7 @@ async fn test_http_server(test: impl HttpTest) {
     let mut api_config = InternalApiConfig::new(
         &web3_config,
         SettlementLayerContracts::new(&contracts_config, None).current_contracts(),
+        SettlementLayerContracts::new(&contracts_config, None).current_contracts(),
         &L1SpecificContracts::new(&contracts_config),
         &genesis,
     );

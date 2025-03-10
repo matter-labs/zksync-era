@@ -113,8 +113,8 @@ pub(crate) struct RemoteENConfig {
     pub l1_bridgehub_proxy_addr: Option<Address>,
     #[serde(alias = "state_transition_proxy_addr")]
     pub l1_state_transition_proxy_addr: Option<Address>,
-    #[serde(alias = "transparent_proxy_admin_addr")]
-    pub l1_transparent_proxy_admin_addr: Option<Address>,
+    // #[serde(alias = "transparent_proxy_admin_addr")]
+    // pub l1_transparent_proxy_admin_addr: Option<Address>,
     /// Should not be accessed directly. Use [`ExternalNodeConfig::l1_diamond_proxy_address`] instead.
     #[serde(alias = "diamond_proxy_addr")]
     l1_diamond_proxy_addr: Address,
@@ -139,6 +139,10 @@ pub(crate) struct RemoteENConfig {
     pub base_token_addr: Option<Address>,
     pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
     pub dummy_verifier: bool,
+    pub sl_diamond_proxy_addr: Option<Address>,
+    pub sl_bridgehub_proxy_addr: Option<Address>,
+    pub sl_server_notifier_addr: Option<Address>,
+    pub sl_state_transition_proxy_addr: Option<Address>,
 }
 
 impl RemoteENConfig {
@@ -152,14 +156,24 @@ impl RemoteENConfig {
             .rpc_context("get_testnet_paymaster")
             .await?;
         let genesis = client.genesis_config().rpc_context("genesis").await.ok();
-        let ecosystem_contracts = client
+        let sl_ecosystem_contracts = client
             .get_ecosystem_contracts()
             .rpc_context("ecosystem_contracts")
             .await
             .ok();
-        let l1_diamond_proxy_addr = client
-            .get_main_contract()
+        let sl_diamond_proxy_addr = client
+            .get_main_sl_contract()
             .rpc_context("get_main_contract")
+            .await?;
+
+        let l1_ecosystem_contracts = client
+            .get_l1_ecosystem_contracts()
+            .rpc_context("l1_ecosystem_contracts")
+            .await
+            .ok();
+        let l1_diamond_proxy_addr = client
+            .get_main_l1_contract()
+            .rpc_context("get_main_l1_contract")
             .await?;
 
         let timestamp_asserter_address = handle_rpc_response_with_fallback(
@@ -193,20 +207,22 @@ impl RemoteENConfig {
         }
 
         Ok(Self {
-            l1_bridgehub_proxy_addr: ecosystem_contracts.as_ref().map(|a| a.bridgehub_proxy_addr),
-            l1_state_transition_proxy_addr: ecosystem_contracts
+            l1_bridgehub_proxy_addr: l1_ecosystem_contracts
+                .as_ref()
+                .map(|a| a.bridgehub_proxy_addr),
+            l1_state_transition_proxy_addr: l1_ecosystem_contracts
                 .as_ref()
                 .and_then(|a| a.state_transition_proxy_addr),
-            l1_transparent_proxy_admin_addr: ecosystem_contracts
-                .as_ref()
-                .and_then(|a| a.transparent_proxy_admin_addr),
-            l1_bytecodes_supplier_addr: ecosystem_contracts
+            // l1_transparent_proxy_admin_addr: l1_ecosystem_contracts
+            //     .as_ref()
+            //     .and_then(|a| a.transparent_proxy_admin_addr),
+            l1_bytecodes_supplier_addr: l1_ecosystem_contracts
                 .as_ref()
                 .and_then(|a| a.l1_bytecodes_supplier_addr),
-            l1_wrapped_base_token_store: ecosystem_contracts
+            l1_wrapped_base_token_store: l1_ecosystem_contracts
                 .as_ref()
                 .and_then(|a| a.l1_wrapped_base_token_store),
-            l1_server_notifier_addr: ecosystem_contracts
+            l1_server_notifier_addr: l1_ecosystem_contracts
                 .as_ref()
                 .and_then(|a| a.server_notifier_addr),
             l1_diamond_proxy_addr,
@@ -227,6 +243,16 @@ impl RemoteENConfig {
                 .as_ref()
                 .map(|a| a.dummy_verifier)
                 .unwrap_or_default(),
+            sl_diamond_proxy_addr: Some(sl_diamond_proxy_addr),
+            sl_bridgehub_proxy_addr: sl_ecosystem_contracts
+                .as_ref()
+                .map(|a| a.bridgehub_proxy_addr),
+            sl_server_notifier_addr: sl_ecosystem_contracts
+                .as_ref()
+                .and_then(|a| a.server_notifier_addr),
+            sl_state_transition_proxy_addr: sl_ecosystem_contracts
+                .as_ref()
+                .and_then(|a| a.state_transition_proxy_addr),
             l2_timestamp_asserter_addr: timestamp_asserter_address,
         })
     }
@@ -251,6 +277,10 @@ impl RemoteENConfig {
             l1_batch_commit_data_generator_mode: L1BatchCommitmentMode::Rollup,
             l1_wrapped_base_token_store: None,
             dummy_verifier: true,
+            sl_diamond_proxy_addr: Some(Address::repeat_byte(8)),
+            sl_bridgehub_proxy_addr: Some(Address::repeat_byte(9)),
+            sl_server_notifier_addr: Some(Address::repeat_byte(10)),
+            sl_state_transition_proxy_addr: Some(Address::repeat_byte(11)),
             l2_timestamp_asserter_addr: None,
             l1_server_notifier_addr: None,
         }
@@ -1505,11 +1535,25 @@ impl From<&ExternalNodeConfig> for InternalApiConfigBuilder {
                 l2_weth_bridge: config.remote.l2_weth_bridge_addr,
             }),
             l1_bytecodes_supplier_addr: config.remote.l1_bytecodes_supplier_addr,
-            l1_wrapped_base_token_store: config.remote.l1_wrapped_base_token_store,
-            l1_bridgehub_proxy_addr: config.remote.l1_bridgehub_proxy_addr,
-            l1_state_transition_proxy_addr: config.remote.l1_state_transition_proxy_addr,
-            l1_transparent_proxy_admin_addr: config.remote.l1_transparent_proxy_admin_addr,
             l1_diamond_proxy_addr: Some(config.l1_diamond_proxy_address()),
+            sl_diamond_proxy_addr: config.remote.sl_diamond_proxy_addr,
+            l1_ecosystem_contracts: Some(EcosystemCommonContracts {
+                bridgehub_proxy_addr: config.remote.l1_bridgehub_proxy_addr,
+                state_transition_proxy_addr: config.remote.l1_state_transition_proxy_addr,
+                server_notifier_addr: config.remote.l1_server_notifier_addr,
+                multicall3: None,
+                validator_timelock_addr: None,
+                no_da_validium_l1_validator_addr: None,
+            }),
+            sl_ecosystem_contracts: Some(EcosystemCommonContracts {
+                bridgehub_proxy_addr: config.remote.sl_bridgehub_proxy_addr,
+                state_transition_proxy_addr: config.remote.sl_state_transition_proxy_addr,
+                server_notifier_addr: config.remote.sl_server_notifier_addr,
+                multicall3: None,
+                validator_timelock_addr: None,
+                no_da_validium_l1_validator_addr: None,
+            }),
+
             l2_testnet_paymaster_addr: config.remote.l2_testnet_paymaster_addr,
             req_entities_limit: Some(config.optional.req_entities_limit),
             fee_history_limit: Some(config.optional.fee_history_limit),
@@ -1519,6 +1563,7 @@ impl From<&ExternalNodeConfig> for InternalApiConfigBuilder {
             l1_batch_commit_data_generator_mode: config.remote.l1_batch_commit_data_generator_mode,
             timestamp_asserter_address: config.remote.l2_timestamp_asserter_addr,
             l1_server_notifier_addr: config.remote.l1_server_notifier_addr,
+            l1_wrapped_base_token_store: config.remote.l1_wrapped_base_token_store,
         }
     }
 }
@@ -1553,42 +1598,63 @@ impl From<&ExternalNodeConfig> for TxSenderConfig {
     }
 }
 
-impl From<&ExternalNodeConfig> for L1SpecificContracts {
-    fn from(config: &ExternalNodeConfig) -> Self {
+impl ExternalNodeConfig {
+    pub fn l1_specific_contracts(&self) -> L1SpecificContracts {
         L1SpecificContracts {
-            bytecodes_supplier_addr: config.remote.l1_bytecodes_supplier_addr,
-            wrapped_base_token_store: config.remote.l1_wrapped_base_token_store,
-            bridge_hub: config.remote.l1_bridgehub_proxy_addr,
-            shared_bridge: config.remote.l1_shared_bridge_proxy_addr,
-            erc_20_bridge: config.remote.l1_erc20_bridge_proxy_addr,
-            base_token_address: config.remote.base_token_addr,
-            l1_diamond_proxy: config.l1_diamond_proxy_address(),
+            bytecodes_supplier_addr: self.remote.l1_bytecodes_supplier_addr,
+            wrapped_base_token_store: self.remote.l1_wrapped_base_token_store,
+            bridge_hub: self.remote.l1_bridgehub_proxy_addr,
+            shared_bridge: self.remote.l1_shared_bridge_proxy_addr,
+            erc_20_bridge: self.remote.l1_erc20_bridge_proxy_addr,
+            base_token_address: self.remote.base_token_addr,
+            l1_diamond_proxy: self.l1_diamond_proxy_address(),
         }
     }
-}
-
-impl From<&ExternalNodeConfig> for ChainSpecificContracts {
-    fn from(config: &ExternalNodeConfig) -> Self {
+    pub fn l1_chain_contracts(&self) -> ChainSpecificContracts {
         ChainSpecificContracts {
             ecosystem_contracts: EcosystemCommonContracts {
-                bridgehub_proxy_addr: config.remote.l1_bridgehub_proxy_addr,
-                state_transition_proxy_addr: config.remote.l1_state_transition_proxy_addr,
-                server_notifier_addr: config.remote.l1_server_notifier_addr,
+                bridgehub_proxy_addr: self.remote.l1_bridgehub_proxy_addr,
+                state_transition_proxy_addr: self.remote.l1_state_transition_proxy_addr,
+                server_notifier_addr: self.remote.l1_server_notifier_addr,
                 multicall3: None,
                 validator_timelock_addr: None,
                 no_da_validium_l1_validator_addr: None,
             },
             chain_contracts_config: ChainContracts {
-                diamond_proxy_addr: config.remote.l1_diamond_proxy_addr,
+                diamond_proxy_addr: self.remote.l1_diamond_proxy_addr,
                 chain_admin: None,
             },
             l2_contracts: L2Contracts {
-                erc20_default_bridge: config.remote.l2_erc20_bridge_addr,
-                shared_bridge_addr: config.remote.l2_shared_bridge_addr,
-                legacy_shared_bridge_addr: config.remote.l2_legacy_shared_bridge_addr,
-                timestamp_asserter_addr: config.remote.l2_timestamp_asserter_addr,
+                erc20_default_bridge: self.remote.l2_erc20_bridge_addr,
+                shared_bridge_addr: self.remote.l2_shared_bridge_addr,
+                legacy_shared_bridge_addr: self.remote.l2_legacy_shared_bridge_addr,
+                timestamp_asserter_addr: self.remote.l2_timestamp_asserter_addr,
                 da_validator_addr: None,
-                testnet_paymaster_addr: config.remote.l2_testnet_paymaster_addr,
+                testnet_paymaster_addr: self.remote.l2_testnet_paymaster_addr,
+            },
+        }
+    }
+    pub fn sl_chain_contracts(&self) -> ChainSpecificContracts {
+        ChainSpecificContracts {
+            ecosystem_contracts: EcosystemCommonContracts {
+                bridgehub_proxy_addr: self.remote.sl_bridgehub_proxy_addr,
+                state_transition_proxy_addr: self.remote.sl_state_transition_proxy_addr,
+                server_notifier_addr: self.remote.sl_server_notifier_addr,
+                multicall3: None,
+                validator_timelock_addr: None,
+                no_da_validium_l1_validator_addr: None,
+            },
+            chain_contracts_config: ChainContracts {
+                diamond_proxy_addr: self.remote.sl_diamond_proxy_addr.unwrap(),
+                chain_admin: None,
+            },
+            l2_contracts: L2Contracts {
+                erc20_default_bridge: self.remote.l2_erc20_bridge_addr,
+                shared_bridge_addr: self.remote.l2_shared_bridge_addr,
+                legacy_shared_bridge_addr: self.remote.l2_legacy_shared_bridge_addr,
+                timestamp_asserter_addr: self.remote.l2_timestamp_asserter_addr,
+                da_validator_addr: None,
+                testnet_paymaster_addr: self.remote.l2_testnet_paymaster_addr,
             },
         }
     }

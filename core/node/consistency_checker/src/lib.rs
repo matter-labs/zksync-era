@@ -22,6 +22,7 @@ use zksync_types::{
     ethabi,
     ethabi::{ParamType, Token},
     pubdata_da::PubdataSendingMode,
+    settlement::SettlementMode,
     Address, L1BatchNumber, ProtocolVersionId, SLChainId, H256, U256,
 };
 
@@ -363,7 +364,7 @@ pub struct ConsistencyChecker {
     max_batches_to_recheck: u32,
     sleep_interval: Duration,
     chain_data: SLChainAccess,
-    // gateway_chain_data: Option<SLChainAccess>,
+    settlement_mode: SettlementMode,
     event_handler: Box<dyn HandleConsistencyCheckerEvent>,
     l1_data_mismatch_behavior: L1DataMismatchBehavior,
     pool: ConnectionPool<Core>,
@@ -379,6 +380,7 @@ impl ConsistencyChecker {
         max_batches_to_recheck: u32,
         pool: ConnectionPool<Core>,
         commitment_mode: L1BatchCommitmentMode,
+        settlement_mode: SettlementMode,
     ) -> anyhow::Result<Self> {
         let (health_check, health_updater) = ConsistencyCheckerHealthUpdater::new();
         let l1_chain_id = gateway_client.fetch_chain_id().await?;
@@ -408,6 +410,7 @@ impl ConsistencyChecker {
             max_batches_to_recheck,
             sleep_interval: Self::DEFAULT_SLEEP_INTERVAL,
             chain_data,
+            settlement_mode,
             event_handler: Box::new(health_updater),
             l1_data_mismatch_behavior: L1DataMismatchBehavior::Log,
             pool,
@@ -526,7 +529,7 @@ impl ConsistencyChecker {
 
         // TODO set properly
         // let is_gateway =  self.chain_data.chain_id != self.l1_chain_data.chain_id;
-        let is_gateway = false;
+        let is_gateway = self.settlement_mode.is_gateway();
         local
             .verify_commitment(&commitment, is_gateway)
             .map_err(CheckError::Validation)
