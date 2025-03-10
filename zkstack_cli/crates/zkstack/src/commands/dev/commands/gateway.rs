@@ -88,7 +88,7 @@ pub struct FetchedChainInfo {
 abigen!(
     BridgehubAbi,
     r"[
-    function getHyperchain(uint256)(address)
+    function getZKChain(uint256)(address)
 ]"
 );
 
@@ -370,7 +370,7 @@ pub async fn fetch_chain_info(
     let chain_id = U256::from(args.chain_id);
 
     let bridgehub = BridgehubAbi::new(upgrade_info.bridgehub_addr, client.clone());
-    let hyperchain_addr = bridgehub.get_hyperchain(chain_id).await?;
+    let hyperchain_addr = bridgehub.get_zk_chain(chain_id).await?;
     if hyperchain_addr == Address::zero() {
         anyhow::bail!("Chain not present in bridgehub");
     }

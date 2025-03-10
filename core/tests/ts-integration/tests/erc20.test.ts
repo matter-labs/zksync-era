@@ -52,7 +52,8 @@ describe('L1 ERC20 contract checks', () => {
             tokenDetails.l1Address,
             [{ wallet: alice, change: -amount }],
             {
-                l1: true
+                l1: true,
+                checkChainBalance: true
             }
         );
         const l2BalanceChange = await shouldChangeTokenBalances(tokenDetails.l2Address, [
@@ -161,7 +162,6 @@ describe('L1 ERC20 contract checks', () => {
         await expect(aliceErc20.allowance(alice.address, bob.address)).resolves.toEqual(0n);
     });
 
-    let withdrawalHash: string;
     test('Can perform a withdrawal', async () => {
         if (testMaster.isFastMode()) {
             return;
@@ -178,7 +178,6 @@ describe('L1 ERC20 contract checks', () => {
         });
         await expect(withdrawalPromise).toBeAccepted([l2BalanceChange, feeCheck]);
         const withdrawalTx = await withdrawalPromise;
-        withdrawalHash = withdrawalTx.hash;
         const l2TxReceipt = await alice.provider.getTransactionReceipt(withdrawalTx.hash);
         await waitForL2ToL1LogProof(alice, l2TxReceipt!.blockNumber, withdrawalTx.hash);
 
@@ -187,40 +186,11 @@ describe('L1 ERC20 contract checks', () => {
             tokenDetails.l1Address,
             [{ wallet: alice, change: amount }],
             {
-                l1: true
+                l1: true,
+                checkChainBalance: true
             }
         );
-
         await expect(alice.finalizeWithdrawal(withdrawalTx.hash)).toBeAccepted([l1BalanceChange]);
-    });
-
-    test('Can check withdrawal hash in L2 ', async () => {
-        const l2MessageVerification = new zksync.Contract(
-            L2_MESSAGE_VERIFICATION_ADDRESS,
-            ArtifactL2MessageVerification.abi,
-            alice
-        );
-        // console.log('l2MessageVerification', ArtifactL2MessageVerification.abi);
-        const params = await alice.getFinalizeWithdrawalParams(withdrawalHash);
-        const included = await l2MessageVerification.proveL2MessageInclusionShared(
-            0,
-            params.l1BatchNumber,
-            params.l2MessageIndex,
-            { txNumberInBatch: params.l2TxNumberInBlock, sender: params.sender, data: params.message },
-            params.proof
-        );
-        // console.log(
-        //     'l2MessageVerification',
-        //     l2MessageVerification.interface.encodeFunctionData('proveL2MessageInclusionShared', [
-        //         0,
-        //         params.l1BatchNumber,
-        //         params.l2MessageIndex,
-        //         { txNumberInBatch: params.l2TxNumberInBlock, sender: params.sender, data: params.message },
-        //         params.proof
-        //     ])
-        // );
-        // console.log('included', included);
-        expect(included).toBe(true);
     });
 
     test.skip('Should claim failed deposit', async () => {

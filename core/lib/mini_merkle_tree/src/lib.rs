@@ -278,8 +278,7 @@ where
 
         let mut hashes = self.hashes.clone();
         let mut absolute_start_index = self.start_index;
-        // println!("depth: {:?}", depth);
-        // println!("self size: {:?}", self.binary_tree_size);
+
         for level in 0..depth {
             // If the first untrimmed leaf is a right sibling,
             // add it's left sibling to `hashes` from cache for convenient iteration later.
@@ -298,15 +297,7 @@ where
                     )[level],
                 );
             }
-            // println!("hashes: {:?}", hashes);
-            // println!(
-            //     "zeros: {:?}",
-            //     compute_empty_tree_hashes(
-            //         self.empty_leaf_hash
-            //             .unwrap_or(self.hasher.empty_leaf_hash())
-            //     )
-            // );
-            // println!("empty leaf hash: {:?}", self.empty_leaf_hash);
+
             if let Some(path) = path.as_deref_mut() {
                 let hash = match side {
                     Some(Side::Left) if index % 2 == 0 => None,

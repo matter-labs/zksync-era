@@ -59,7 +59,7 @@ lazy_static! {
 
     static ref BRIDGEHUB_INTERFACE: BaseContract = BaseContract::from(
         parse_abi(&[
-            "function getHyperchain(uint256 chainId) public returns (address)"
+            "function getZKChain(uint256 chainId) public returns (address)"
         ])
         .unwrap(),
     );
@@ -191,7 +191,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         .clone()
         .into_contract(L2_BRIDGEHUB_ADDRESS, gateway_provider);
 
-    let method = contract.method::<U256, Address>("getHyperchain", chain_id)?;
+    let method = contract.method::<U256, Address>("getZKChain", chain_id)?;
 
     let new_diamond_proxy_address = method.call().await?;
 
