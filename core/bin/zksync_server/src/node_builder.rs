@@ -34,7 +34,7 @@ use zksync_node_framework::{
         eth_watch::EthWatchLayer,
         external_proof_integration_api::ExternalProofIntegrationApiLayer,
         gas_adjuster::GasAdjusterLayer,
-        gateway_client::GatewayClientLayer,
+        gateway_client::SettlementLayerClientLayer,
         gateway_migrator_layer::GatewayMigratorLayer,
         healtcheck_server::HealthCheckLayer,
         house_keeper::HouseKeeperLayer,
@@ -192,7 +192,7 @@ impl MainNodeBuilder {
     fn add_gateway_client_layer(mut self) -> anyhow::Result<Self> {
         let eth_config = try_load_config!(self.secrets.l1);
         let query_eth_client_layer =
-            GatewayClientLayer::new(eth_config.l1_rpc_url, eth_config.gateway_rpc_url);
+            SettlementLayerClientLayer::new(eth_config.l1_rpc_url, eth_config.gateway_rpc_url);
         self.node.add_layer(query_eth_client_layer);
         Ok(self)
     }

@@ -170,7 +170,7 @@ impl InternalApiConfigBuilder {
     }
 
     pub fn with_contracts(
-        mut self,
+        self,
         contracts_config: ChainSpecificContracts,
         l1_ecosystem_contracts: L1SpecificContracts,
     ) -> Self {
@@ -192,7 +192,7 @@ impl InternalApiConfigBuilder {
                 .ecosystem_contracts
                 .state_transition_proxy_addr,
             l1_transparent_proxy_admin_addr: contracts_config.chain_contracts_config.chain_admin,
-            l1_diamond_proxy_addr: Some(l1_ecosystem_contracts.l1_diamond_proxy),
+            l1_diamond_proxy_addr: Some(contracts_config.chain_contracts_config.diamond_proxy_addr),
             l2_testnet_paymaster_addr: contracts_config.l2_contracts.testnet_paymaster_addr,
             base_token_address: l1_ecosystem_contracts.base_token_address,
             timestamp_asserter_address: contracts_config.l2_contracts.timestamp_asserter_addr,
@@ -294,7 +294,7 @@ impl InternalApiConfig {
             l1_transparent_proxy_admin_addr: None,
             l1_bytecodes_supplier_addr: l1_ecosystem_contracts.bytecodes_supplier_addr,
             l1_wrapped_base_token_store: l1_ecosystem_contracts.wrapped_base_token_store,
-            l1_diamond_proxy_addr: l1_ecosystem_contracts.l1_diamond_proxy,
+            l1_diamond_proxy_addr: contracts_config.chain_contracts_config.diamond_proxy_addr,
             l2_testnet_paymaster_addr: contracts_config.l2_contracts.testnet_paymaster_addr,
             req_entities_limit: web3_config.req_entities_limit(),
             fee_history_limit: web3_config.fee_history_limit(),

@@ -18,7 +18,7 @@ use crate::{
         },
         resources::{
             circuit_breakers::CircuitBreakersResource,
-            contracts::{L1ChainContractsResource, L1EcosystemContractsResource},
+            contracts::{L1EcosystemContractsResource, SettlementLayerContractsResource},
             eth_interface::EthInterfaceResource,
             healthcheck::AppHealthCheckResource,
             main_node_client::MainNodeClientResource,
@@ -134,7 +134,7 @@ pub struct Input {
     pub app_health: AppHealthCheckResource,
     pub main_node_client: Option<MainNodeClientResource>,
     pub l1_client: EthInterfaceResource,
-    pub contracts_resource: L1ChainContractsResource,
+    pub contracts_resource: SettlementLayerContractsResource,
     pub l1_ecosystem_contracts_resource: L1EcosystemContractsResource,
 }
 
