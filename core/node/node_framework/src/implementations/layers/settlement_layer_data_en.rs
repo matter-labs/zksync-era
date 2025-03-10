@@ -1,8 +1,14 @@
-use zksync_config::configs::contracts::{ecosystem::L1SpecificContracts, ChainSpecificContracts};
+use zksync_config::configs::contracts::chain::L2Contracts;
+use zksync_config::configs::contracts::{
+    ecosystem::L1SpecificContracts, ChainSpecificContracts, L2_BRIDGEHUB_ADDRESS,
+};
 use zksync_consistency_checker::get_settlement_mode;
 use zksync_eth_client::EthInterface;
 use zksync_types::settlement::SettlementMode;
+use zksync_types::{Address, L2ChainId};
 
+use crate::implementations::layers::contracts_loader_layer::load_sl_contracts;
+use crate::implementations::resources::contracts::L2ContractsResource;
 use crate::{
     implementations::resources::{
         contracts::{
@@ -21,20 +27,23 @@ use crate::{
 #[derive(Debug)]
 pub struct SettlementLayerDataEn {
     l1_specific_contracts: L1SpecificContracts,
-    sl_chain_contracts: ChainSpecificContracts,
     l1_chain_contracts: ChainSpecificContracts,
+    l2_contracts: L2Contracts,
+    chain_id: L2ChainId,
 }
 
 impl SettlementLayerDataEn {
     pub fn new(
+        chain_id: L2ChainId,
         l1_specific_contracts: L1SpecificContracts,
-        sl_chain_contracts: ChainSpecificContracts,
         l1_chain_contracts: ChainSpecificContracts,
+        l2_contracts: L2Contracts,
     ) -> Self {
         Self {
             l1_specific_contracts,
-            sl_chain_contracts,
             l1_chain_contracts,
+            l2_contracts,
+            chain_id,
         }
     }
 }
@@ -55,6 +64,7 @@ pub struct Output {
     l1_contracts: L1ChainContractsResource,
     l1_ecosystem_contracts: L1EcosystemContractsResource,
     sl_chain_id_resource: SlChainIdResource,
+    l2_contracts: L2ContractsResource,
 }
 
 #[async_trait::async_trait]
@@ -74,23 +84,28 @@ impl WiringLayer for SettlementLayerDataEn {
         )
         .await?;
 
-        let chain_id = match initial_sl_mode {
-            SettlementMode::SettlesToL1 => input.eth_client.0.fetch_chain_id().await.unwrap(),
-            SettlementMode::Gateway => input
-                .l2_eth_client
-                .unwrap()
-                .0
-                .fetch_chain_id()
-                .await
-                .unwrap(),
+        let (client, bridgehub): (Box<dyn EthInterface>, Address) = match initial_sl_mode {
+            SettlementMode::SettlesToL1 => (
+                Box::new(input.eth_client.0),
+                self.l1_chain_contracts
+                    .ecosystem_contracts
+                    .bridgehub_proxy_addr
+                    .unwrap(),
+            ),
+            SettlementMode::Gateway => (
+                Box::new(input.l2_eth_client.unwrap().0),
+                L2_BRIDGEHUB_ADDRESS,
+            ),
         };
 
+        let chain_id = client.fetch_chain_id().await.unwrap();
+
+        let contracts = load_sl_contracts(client.as_ref(), bridgehub, self.chain_id).await?;
         Ok(Output {
-            contracts: SettlementLayerContractsResource(self.sl_chain_contracts.clone()),
-            l1_contracts: L1ChainContractsResource(self.l1_chain_contracts.clone()),
-            l1_ecosystem_contracts: L1EcosystemContractsResource(
-                self.l1_specific_contracts.clone(),
-            ),
+            contracts: SettlementLayerContractsResource(contracts),
+            l1_contracts: L1ChainContractsResource(self.l1_chain_contracts),
+            l1_ecosystem_contracts: L1EcosystemContractsResource(self.l1_specific_contracts),
+            l2_contracts: L2ContractsResource(self.l2_contracts),
             initial_settlement_mode: SettlementModeResource(initial_sl_mode),
             sl_chain_id_resource: SlChainIdResource(chain_id),
         })

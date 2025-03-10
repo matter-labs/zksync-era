@@ -1,10 +1,12 @@
 use anyhow::Context;
+use zksync_config::configs::contracts::chain::L2Contracts;
 use zksync_config::{configs::contracts::ecosystem::L1SpecificContracts, SettlementLayerContracts};
 use zksync_contracts::getters_facet_contract;
 use zksync_eth_client::EthInterface;
 use zksync_gateway_migrator::get_settlement_layer;
 use zksync_types::settlement::SettlementMode;
 
+use crate::implementations::resources::contracts::L2ContractsResource;
 use crate::{
     implementations::resources::{
         contracts::{
@@ -22,6 +24,7 @@ use crate::{
 #[derive(Debug)]
 pub struct SettlementLayerData {
     contracts: SettlementLayerContracts,
+    l2_contracts: L2Contracts,
     l1_ecosystem_contracts: L1SpecificContracts,
 }
 
@@ -29,9 +32,11 @@ impl SettlementLayerData {
     pub fn new(
         contracts: SettlementLayerContracts,
         l1_ecosystem_contracts: L1SpecificContracts,
+        l2_contracts: L2Contracts,
     ) -> Self {
         Self {
             contracts,
+            l2_contracts,
             l1_ecosystem_contracts,
         }
     }
@@ -52,6 +57,7 @@ pub struct Output {
     l1_ecosystem_contracts: L1EcosystemContractsResource,
     l1_contracts: L1ChainContractsResource,
     sl_chain_id: SlChainIdResource,
+    l2_contracts: L2ContractsResource,
 }
 
 #[async_trait::async_trait]
@@ -97,6 +103,7 @@ impl WiringLayer for SettlementLayerData {
             l1_ecosystem_contracts: L1EcosystemContractsResource(
                 self.l1_ecosystem_contracts.clone(),
             ),
+            l2_contracts: L2ContractsResource(self.l2_contracts),
             l1_contracts: L1ChainContractsResource(contracts.l1_contracts().clone()),
             sl_chain_id: SlChainIdResource(sl_chain_id),
         })

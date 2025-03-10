@@ -147,10 +147,6 @@ impl ZksNamespace {
             .bridgehub_proxy_addr
     }
 
-    pub fn get_main_sl_contract_impl(&self) -> Address {
-        self.state.api_config.sl_diamond_proxy_addr
-    }
-
     pub fn get_main_l1_contract_impl(&self) -> Address {
         self.state.api_config.l1_diamond_proxy_addr
     }

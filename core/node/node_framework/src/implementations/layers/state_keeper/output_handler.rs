@@ -5,6 +5,7 @@ use zksync_state_keeper::{
     StateKeeperPersistence, TreeWritesPersistence,
 };
 
+use crate::implementations::resources::contracts::L2ContractsResource;
 use crate::{
     implementations::resources::{
         contracts::SettlementLayerContractsResource,
@@ -52,6 +53,7 @@ pub struct Input {
     pub master_pool: PoolResource<MasterPool>,
     pub sync_state: Option<SyncStateResource>,
     pub contracts: SettlementLayerContractsResource,
+    pub l2_contracts_resource: L2ContractsResource,
 }
 
 #[derive(Debug, IntoContext)]
@@ -105,7 +107,7 @@ impl WiringLayer for OutputHandlerLayer {
 
         let (mut persistence, l2_block_sealer) = StateKeeperPersistence::new(
             persistence_pool.clone(),
-            input.contracts.0.l2_contracts.legacy_shared_bridge_addr,
+            input.l2_contracts_resource.0.legacy_shared_bridge_addr,
             self.l2_block_seal_queue_capacity,
         )
         .await?;

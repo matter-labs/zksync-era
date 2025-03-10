@@ -4,6 +4,7 @@ use anyhow::Context;
 use chrono::Utc;
 use rand::Rng;
 use tokio::sync::watch::Receiver;
+use zksync_config::configs::contracts::chain::L2Contracts;
 use zksync_config::{configs::contracts::ChainSpecificContracts, DADispatcherConfig};
 use zksync_da_client::{
     types::{DAError, InclusionData},
@@ -27,6 +28,7 @@ pub struct DataAvailabilityDispatcher {
     pool: ConnectionPool<Core>,
     config: DADispatcherConfig,
     contracts_config: ChainSpecificContracts,
+    l2_contracts: L2Contracts,
     settlement_layer_client: Box<DynClient<L1>>,
 
     transitional_l2_da_validator_address: Option<Address>, // set only if inclusion_verification_transition_enabled is true
@@ -38,6 +40,7 @@ impl DataAvailabilityDispatcher {
         config: DADispatcherConfig,
         client: Box<dyn DataAvailabilityClient>,
         contracts_config: ChainSpecificContracts,
+        l2_contracts: L2Contracts,
         settlement_layer_client: Box<DynClient<L1>>,
     ) -> Self {
         Self {
@@ -45,8 +48,8 @@ impl DataAvailabilityDispatcher {
             config,
             client,
             contracts_config,
+            l2_contracts,
             settlement_layer_client,
-
             transitional_l2_da_validator_address: None,
         }
     }
@@ -287,8 +290,7 @@ impl DataAvailabilityDispatcher {
 
         if self.config.inclusion_verification_transition_enabled() {
             self.transitional_l2_da_validator_address = Some(
-                self.contracts_config
-                    .l2_contracts
+                self.l2_contracts
                     .da_validator_addr
                     .context("L2 DA validator address is not set")?,
             );

@@ -14,6 +14,7 @@ use zksync_web3_decl::{
     namespaces::EnNamespaceClient as _,
 };
 
+use crate::implementations::resources::contracts::L2ContractsResource;
 use crate::{
     implementations::resources::{
         contracts::SettlementLayerContractsResource,
@@ -75,6 +76,7 @@ pub struct Input {
     pub main_node_client: Option<MainNodeClientResource>,
     pub sealer: Option<ConditionalSealerResource>,
     pub contracts_resource: SettlementLayerContractsResource,
+    pub l2_contracts_resource: L2ContractsResource,
 }
 
 #[derive(Debug, IntoContext)]
@@ -138,12 +140,7 @@ impl WiringLayer for TxSenderLayer {
         let sealer = input.sealer.map(|s| s.0);
         let fee_input = input.fee_input.0;
 
-        let config = match input
-            .contracts_resource
-            .0
-            .l2_contracts
-            .timestamp_asserter_addr
-        {
+        let config = match input.l2_contracts_resource.0.timestamp_asserter_addr {
             Some(address) => {
                 let timestamp_asserter_config =
                     self.timestamp_asserter_config.expect("Should be presented");

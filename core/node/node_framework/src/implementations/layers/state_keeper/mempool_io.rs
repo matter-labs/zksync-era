@@ -6,6 +6,7 @@ use zksync_config::configs::{
 use zksync_state_keeper::{MempoolFetcher, MempoolGuard, MempoolIO, SequencerSealer};
 use zksync_types::{commitment::PubdataType, L2ChainId};
 
+use crate::implementations::resources::contracts::L2ContractsResource;
 use crate::{
     implementations::resources::{
         contracts::SettlementLayerContractsResource,
@@ -49,6 +50,7 @@ pub struct Input {
     pub fee_input: SequencerFeeInputResource,
     pub master_pool: PoolResource<MasterPool>,
     pub contracts_resource: SettlementLayerContractsResource,
+    pub l2_contracts_resource: L2ContractsResource,
 }
 
 #[derive(Debug, IntoContext)]
@@ -134,7 +136,7 @@ impl WiringLayer for MempoolIOLayer {
             self.wallets.fee_account.address(),
             self.mempool_config.delay_interval(),
             self.zksync_network_id,
-            input.contracts_resource.0.l2_contracts.da_validator_addr,
+            input.l2_contracts_resource.0.da_validator_addr,
             self.pubdata_type,
         )?;
 

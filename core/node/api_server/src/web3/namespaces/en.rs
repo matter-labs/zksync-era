@@ -147,31 +147,6 @@ impl EnNamespace {
     }
 
     #[tracing::instrument(skip(self))]
-    pub async fn get_ecosystem_contracts_impl(&self) -> Result<EcosystemContracts, Web3Error> {
-        Ok(EcosystemContracts {
-            bridgehub_proxy_addr: self
-                .state
-                .api_config
-                .sl_ecosystem_contracts
-                .bridgehub_proxy_addr
-                .unwrap(),
-            state_transition_proxy_addr: self
-                .state
-                .api_config
-                .sl_ecosystem_contracts
-                .state_transition_proxy_addr,
-            transparent_proxy_admin_addr: None,
-            l1_bytecodes_supplier_addr: self.state.api_config.l1_bytecodes_supplier_addr,
-            l1_wrapped_base_token_store: self.state.api_config.l1_wrapped_base_token_store,
-            server_notifier_addr: self
-                .state
-                .api_config
-                .sl_ecosystem_contracts
-                .server_notifier_addr,
-        })
-    }
-
-    #[tracing::instrument(skip(self))]
     pub async fn get_l1_ecosystem_contracts_impl(&self) -> Result<EcosystemContracts, Web3Error> {
         Ok(EcosystemContracts {
             bridgehub_proxy_addr: self

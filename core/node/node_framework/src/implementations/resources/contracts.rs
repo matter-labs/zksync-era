@@ -1,3 +1,4 @@
+use zksync_config::configs::contracts::chain::L2Contracts;
 use zksync_config::configs::contracts::{ecosystem::L1SpecificContracts, ChainSpecificContracts};
 
 use crate::Resource;
@@ -8,6 +9,15 @@ pub struct SettlementLayerContractsResource(pub ChainSpecificContracts);
 impl Resource for SettlementLayerContractsResource {
     fn name() -> String {
         "common/sl_layer_contracts".into()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct L2ContractsResource(pub L2Contracts);
+
+impl Resource for L2ContractsResource {
+    fn name() -> String {
+        "common/l2_contracts".into()
     }
 }
 

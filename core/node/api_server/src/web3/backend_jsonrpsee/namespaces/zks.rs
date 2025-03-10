@@ -203,8 +203,4 @@ impl ZksNamespaceServer for ZksNamespace {
             .await
             .map_err(|err| self.current_method().map_err(err))
     }
-
-    async fn get_main_sl_contract(&self) -> RpcResult<Address> {
-        Ok(self.get_main_sl_contract_impl())
-    }
 }

@@ -12,6 +12,7 @@ use futures::TryFutureExt;
 use lru::LruCache;
 use tokio::sync::{Mutex, RwLock};
 use vise::GaugeGuard;
+use zksync_config::configs::contracts::chain::L2Contracts;
 use zksync_config::{
     configs::{
         api::Web3JsonRpcConfig,
@@ -118,7 +119,6 @@ pub struct InternalApiConfigBuilder {
     pub estimate_gas_optimize_search: Option<bool>,
     pub bridge_addresses: Option<BridgeAddresses>,
     pub l1_diamond_proxy_addr: Option<Address>,
-    pub sl_diamond_proxy_addr: Option<Address>,
     pub l2_testnet_paymaster_addr: Option<Address>,
     pub base_token_address: Option<Address>,
     pub timestamp_asserter_address: Option<Address>,
@@ -127,7 +127,6 @@ pub struct InternalApiConfigBuilder {
     pub fee_history_limit: Option<u64>,
     pub filters_disabled: Option<bool>,
     pub l1_ecosystem_contracts: Option<EcosystemCommonContracts>,
-    pub sl_ecosystem_contracts: Option<EcosystemCommonContracts>,
     pub l1_bytecodes_supplier_addr: Option<Address>,
     pub l1_wrapped_base_token_store: Option<Address>,
 }
@@ -145,7 +144,6 @@ impl InternalApiConfigBuilder {
             estimate_gas_optimize_search: None,
             bridge_addresses: None,
             l1_diamond_proxy_addr: None,
-            sl_diamond_proxy_addr: None,
             l2_testnet_paymaster_addr: None,
             req_entities_limit: None,
             fee_history_limit: None,
@@ -154,7 +152,6 @@ impl InternalApiConfigBuilder {
             l1_ecosystem_contracts: None,
             timestamp_asserter_address: None,
             l1_server_notifier_addr: None,
-            sl_ecosystem_contracts: None,
             l1_bytecodes_supplier_addr: None,
             l1_wrapped_base_token_store: None,
         }
@@ -175,34 +172,28 @@ impl InternalApiConfigBuilder {
     pub fn with_contracts(
         self,
         l1_contracts_config: ChainSpecificContracts,
-        sl_contracts_config: ChainSpecificContracts,
         l1_ecosystem_contracts: L1SpecificContracts,
+        l2_contracts: L2Contracts,
     ) -> Self {
         InternalApiConfigBuilder {
             bridge_addresses: Some(BridgeAddresses {
                 l1_erc20_default_bridge: l1_ecosystem_contracts.erc_20_bridge,
-                l2_erc20_default_bridge: sl_contracts_config.l2_contracts.erc20_default_bridge,
+                l2_erc20_default_bridge: l2_contracts.erc20_default_bridge,
                 l1_shared_default_bridge: l1_ecosystem_contracts.shared_bridge,
-                l2_shared_default_bridge: sl_contracts_config.l2_contracts.shared_bridge_addr,
+                l2_shared_default_bridge: l2_contracts.shared_bridge_addr,
                 // WETH bridge is not available
                 l1_weth_bridge: None,
                 l2_weth_bridge: None,
-                l2_legacy_shared_bridge: sl_contracts_config.l2_contracts.legacy_shared_bridge_addr,
+                l2_legacy_shared_bridge: l2_contracts.legacy_shared_bridge_addr,
             }),
             l1_diamond_proxy_addr: Some(
                 l1_contracts_config
                     .chain_contracts_config
                     .diamond_proxy_addr,
             ),
-            sl_diamond_proxy_addr: Some(
-                sl_contracts_config
-                    .chain_contracts_config
-                    .diamond_proxy_addr,
-            ),
-            l2_testnet_paymaster_addr: sl_contracts_config.l2_contracts.testnet_paymaster_addr,
+            l2_testnet_paymaster_addr: l2_contracts.testnet_paymaster_addr,
             base_token_address: l1_ecosystem_contracts.base_token_address,
-            timestamp_asserter_address: sl_contracts_config.l2_contracts.timestamp_asserter_addr,
-            sl_ecosystem_contracts: Some(sl_contracts_config.ecosystem_contracts.clone()),
+            timestamp_asserter_address: l2_contracts.timestamp_asserter_addr,
             l1_ecosystem_contracts: Some(l1_contracts_config.ecosystem_contracts.clone()),
             l1_wrapped_base_token_store: l1_ecosystem_contracts.wrapped_base_token_store,
             ..self
@@ -221,7 +212,6 @@ impl InternalApiConfigBuilder {
             estimate_gas_optimize_search: self.estimate_gas_optimize_search.unwrap(),
             bridge_addresses: self.bridge_addresses.unwrap(),
             l1_ecosystem_contracts: self.l1_ecosystem_contracts.unwrap(),
-            sl_ecosystem_contracts: self.sl_ecosystem_contracts.unwrap(),
             l1_bytecodes_supplier_addr: self.l1_bytecodes_supplier_addr,
             l2_testnet_paymaster_addr: self.l2_testnet_paymaster_addr,
             base_token_address: self.base_token_address,
@@ -232,7 +222,6 @@ impl InternalApiConfigBuilder {
             dummy_verifier: self.dummy_verifier,
             l1_batch_commit_data_generator_mode: self.l1_batch_commit_data_generator_mode,
             timestamp_asserter_address: self.timestamp_asserter_address,
-            sl_diamond_proxy_addr: self.sl_diamond_proxy_addr.unwrap(),
             l1_wrapped_base_token_store: self.l1_wrapped_base_token_store,
         }
     }
@@ -253,10 +242,8 @@ pub struct InternalApiConfig {
     pub estimate_gas_optimize_search: bool,
     pub bridge_addresses: api::BridgeAddresses,
     pub l1_ecosystem_contracts: EcosystemCommonContracts,
-    pub sl_ecosystem_contracts: EcosystemCommonContracts,
     pub l1_bytecodes_supplier_addr: Option<Address>,
     pub l1_wrapped_base_token_store: Option<Address>,
-    pub sl_diamond_proxy_addr: Address,
     pub l1_diamond_proxy_addr: Address,
     pub l2_testnet_paymaster_addr: Option<Address>,
     pub req_entities_limit: usize,
@@ -272,8 +259,8 @@ impl InternalApiConfig {
     pub fn new(
         web3_config: &Web3JsonRpcConfig,
         l1_contracts_config: &ChainSpecificContracts,
-        sl_contracts_config: &ChainSpecificContracts,
         l1_ecosystem_contracts: &L1SpecificContracts,
+        l2_contracts: &L2Contracts,
         genesis_config: &GenesisConfig,
     ) -> Self {
         Self {
@@ -286,25 +273,21 @@ impl InternalApiConfig {
             estimate_gas_optimize_search: web3_config.estimate_gas_optimize_search,
             bridge_addresses: api::BridgeAddresses {
                 l1_erc20_default_bridge: l1_ecosystem_contracts.erc_20_bridge,
-                l2_erc20_default_bridge: sl_contracts_config.l2_contracts.erc20_default_bridge,
+                l2_erc20_default_bridge: l2_contracts.erc20_default_bridge,
                 l1_shared_default_bridge: l1_ecosystem_contracts.shared_bridge,
-                l2_shared_default_bridge: sl_contracts_config.l2_contracts.shared_bridge_addr,
+                l2_shared_default_bridge: l2_contracts.shared_bridge_addr,
                 // WETH bridge is not available
                 l1_weth_bridge: None,
                 l2_weth_bridge: None,
-                l2_legacy_shared_bridge: sl_contracts_config.l2_contracts.legacy_shared_bridge_addr,
+                l2_legacy_shared_bridge: l2_contracts.legacy_shared_bridge_addr,
             },
             l1_ecosystem_contracts: l1_contracts_config.ecosystem_contracts.clone(),
-            sl_ecosystem_contracts: sl_contracts_config.ecosystem_contracts.clone(),
             l1_bytecodes_supplier_addr: l1_ecosystem_contracts.bytecodes_supplier_addr,
             l1_wrapped_base_token_store: l1_ecosystem_contracts.wrapped_base_token_store,
-            sl_diamond_proxy_addr: sl_contracts_config
-                .chain_contracts_config
-                .diamond_proxy_addr,
             l1_diamond_proxy_addr: l1_contracts_config
                 .chain_contracts_config
                 .diamond_proxy_addr,
-            l2_testnet_paymaster_addr: sl_contracts_config.l2_contracts.testnet_paymaster_addr,
+            l2_testnet_paymaster_addr: l2_contracts.testnet_paymaster_addr,
             req_entities_limit: web3_config.req_entities_limit(),
             fee_history_limit: web3_config.fee_history_limit(),
             base_token_address: Some(
@@ -315,7 +298,7 @@ impl InternalApiConfig {
             filters_disabled: web3_config.filters_disabled,
             dummy_verifier: genesis_config.dummy_verifier,
             l1_batch_commit_data_generator_mode: genesis_config.l1_batch_commit_data_generator_mode,
-            timestamp_asserter_address: sl_contracts_config.l2_contracts.timestamp_asserter_addr,
+            timestamp_asserter_address: l2_contracts.timestamp_asserter_addr,
         }
     }
 }
