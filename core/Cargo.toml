@@ -333,3 +333,41 @@ zksync_contract_verification_server = { version = "26.7.0-non-semver-compat", pa
 zksync_node_api_server = { version = "26.7.0-non-semver-compat", path = "node/api_server" }
 zksync_base_token_adjuster = { version = "26.7.0-non-semver-compat", path = "node/base_token_adjuster" }
 zksync_logs_bloom_backfill = { version = "26.7.0-non-semver-compat", path = "node/logs_bloom_backfill" }
+
+# Test profile settings to optimize unit tests compilation and execution time
+[profile.dev.package.zksync_basic_types]
+opt-level = 3
+
+[profile.dev.package.zksync_crypto_primitives]
+opt-level = 3
+
+[profile.dev.package.zksync_vm_runner]
+opt-level = 3
+
+[profile.dev.package.zksync_mini_merkle_tree]
+opt-level = 3
+
+[profile.dev.package.zksync_multivm]
+opt-level = 3
+
+[profile.dev.package.vm-benchmark]
+opt-level = 3
+
+[profile.dev.package.zksync_pairing]
+opt-level = 3
+
+[profile.dev.package.zksync_eth_sender]
+opt-level = 3
+
+[profile.dev.package.zksync_consistency_checker]
+opt-level = 3
+
+[profile.dev.package."*"]
+opt-level = 3
+
+[profile.dev]
+debug = 0
+strip = "debuginfo"
+
+[profile.dev.build-override]
+opt-level = 3

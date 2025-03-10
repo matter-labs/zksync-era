@@ -1,0 +1,386 @@
+name: Lint
+
+on:
+  pull_request:
+  merge_group:
+
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: 'bash -ex {0}'
+
+
+jobs:
+
+#  # READY
+#  # TODO: remove unnecessary 5433 and use 5432 and basic docker compose everywhere
+#  unit-tests:
+#    runs-on: matterlabs-ci-runner-highmem-long
+#    steps:
+#      - name: Checkout
+#        uses: actions/checkout@v4
+#        with:
+#          submodules: "recursive"
+#
+#      - name: Setup runner
+#        uses: matter-labs/zksync-ci-common/.github/actions/runner-setup@aba-ci-optimize
+#        with:
+#          workspace: 'core'
+#
+#      - name: Build contracts
+#        uses: matter-labs/zksync-ci-common/.github/actions/build-contracts@aba-ci-optimize
+#
+#      - name: Start reth
+#        run: docker-compose up -d --wait reth
+#
+#      - name: Rust unit tests
+#        run: zkstack dev test rust
+#
+##      - name: Run benchmarks
+##        working-directory: core
+##        run: cargo test --package vm-benchmark --bench oneshot --bench batch
+#
+#      - name: Show sccache stats
+#        run: sccache --show-stats
+
+
+#  # READY:
+#  # TODO: Think about server recompilations, run binary instead of cargo run
+#  load-test:
+#    runs-on: matterlabs-ci-runner-high-performance
+#    strategy:
+#      fail-fast: false
+#      matrix:
+#        vm_mode:
+#          - "old"
+#          - "new"
+#    env:
+#      EXPECTED_TX_COUNT: ${{ matrix.vm_mode == 'new' && 30000 || 16000 }}
+#      ACCOUNTS_AMOUNT: 100
+#      MAX_INFLIGHT_TXS: 10
+#      SYNC_API_REQUESTS_LIMIT: 15
+#      FAIL_FAST: true
+#      SERVER_LOG: server.log
+#    steps:
+#      - name: Checkout
+#        uses: actions/checkout@v4
+#        with:
+#          submodules: "recursive"
+#
+#      - name: Setup runner
+#        uses: matter-labs/zksync-ci-common/.github/actions/runner-setup@aba-ci-optimize
+#        with:
+#          workspace: 'core'
+#
+#      - name: Build contracts
+#        uses: matter-labs/zksync-ci-common/.github/actions/build-contracts@aba-ci-optimize
+#
+#      - name: Start services
+#        run: docker compose up --wait
+#
+#      - name: Create legacy chain
+#        run: |
+#          zkstack chain create \
+#            --chain-name legacy \
+#            --chain-id sequential \
+#            --prover-mode no-proofs \
+#            --wallet-creation localhost \
+#            --l1-batch-commit-data-generator-mode rollup \
+#            --base-token-address 0x0000000000000000000000000000000000000001 \
+#            --base-token-price-nominator 1 \
+#            --base-token-price-denominator 1 \
+#            --set-as-default false \
+#            --ignore-prerequisites \
+#            --legacy-bridge \
+#            --evm-emulator false
+#
+#      - name: Init ecosystem
+#        run: |
+#          zkstack ecosystem init \
+#            --ignore-prerequisites \
+#            --dev --skip-contract-compilation-override=true \
+#            --support-l2-legacy-shared-bridge-test=true --verbose
+#
+#      - name: Update config
+#        run: |
+#          zkstack dev config-writer \
+#            --ignore-prerequisites \
+#            --path ${{ format('etc/env/file_based/overrides/tests/loadtest-{0}.yaml', matrix.vm_mode) }} \
+#            --chain legacy
+#
+#      - name: Run server
+#        run: |
+#          zkstack server \
+#            --ignore-prerequisites --uring --chain=legacy \
+#            --components api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads \
+#            &>${SERVER_LOG} &
+#
+#      - name: Wait for server to start
+#        run: |
+#          zkstack server wait --chain=legacy \
+#            --timeout 300 --poll-interval 1000
+#
+#      - name: Perform load test
+#        run: zkstack dev test loadtest -v --chain=legacy
+#
+#      - name: Show server logs
+#        if: failure()
+#        run: cat ${SERVER_LOG}
+
+  integration-tests:
+    runs-on: matterlabs-ci-runner-ultra-performance
+    env:
+      RUN_CONTRACT_VERIFICATION_TEST: true
+      ZKSYNC_HOME: ${{ github.workspace }}
+      L1_RPC_URL: "http://localhost:8545"
+      SERVER_DB_URL: "postgres://postgres:notsecurepassword@localhost:5432"
+    strategy:
+      # ----------------------------------------------
+      # Note, that while the contracts do support gateway chain
+      # in reality it won't exist for quite some time and so
+      # we will test both cases here
+      # ----------------------------------------------
+      matrix:
+        use_gateway_chain:
+          - "WITH_GATEWAY"
+          - "WITHOUT_GATEWAY"
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: "recursive"
+
+      - name: Setup runner
+        uses: matter-labs/zksync-ci-common/.github/actions/runner-setup@aba-ci-optimize
+        with:
+          workspace: 'core'
+
+      - name: Build contracts
+        uses: matter-labs/zksync-ci-common/.github/actions/build-contracts@aba-ci-optimize
+
+      - name: Start services
+        run: docker compose up --wait
+
+      - name: Set up logs directories
+        run: |
+          LOG_DIRS=(
+            "SERVER_LOGS_DIR=logs/server"
+            "INTEGRATION_TESTS_LOGS_DIR=logs/integration_tests"
+            "INTEGRATION_TESTS_EN_LOGS_DIR=logs/integration_tests/en"
+            "SNAPSHOT_RECOVERY_LOGS_DIR=logs/snapshot_recovery"
+            "GENESIS_RECOVERY_LOGS_DIR=logs/genesis_recovery"
+            "EXTERNAL_NODE_LOGS_DIR=logs/external_node"
+            "FEES_LOGS_DIR=logs/fees"
+            "REVERT_LOGS_DIR=logs/revert"
+          )
+          for DIR in "${LOG_DIRS[@]}"; do
+            mkdir -p "${DIR#*=}"
+            echo "${DIR}" >> "${GITHUB_ENV}"
+          done
+
+      - name: Initialize chains
+        run: ./.github/scripts/init_chains.sh "${{ matrix.use_gateway_chain }}"
+
+      - name: Build test dependencies
+        run: zkstack dev test build
+
+      - name: Build tested binaries
+        run: |
+          zkstack server build
+          zkstack external-node build
+          zkstack contract-verifier build
+
+      - name: Initialize Contract verifier
+        run: |
+          zkstack contract-verifier init --zksolc-version=v1.5.10 --zkvyper-version=v1.5.4 --solc-version=0.8.26 --vyper-version=v0.3.10 --era-vm-solc-version=0.8.26-1.0.1 --only --chain era
+          zkstack contract-verifier run --chain era &> ${{ env.SERVER_LOGS_DIR }}/contract-verifier-rollup.log &
+          zkstack contract-verifier wait --chain era --verbose
+
+      - name: Run servers
+        run: |
+          for chain in era validium; do
+            zkstack dev config-writer --path etc/env/file_based/overrides/tests/integration.yaml --chain "${chain}"
+          done
+          for chain in era validium custom_token consensus; do
+            log_file="${SERVER_LOGS_DIR}/${chain}.log"
+            if [[ "${chain}" == "consensus" ]]; then
+              components="--components=api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads,vm_runner_bwip,vm_playground,da_dispatcher,consensus"
+            else
+              components=""
+            fi
+            zkstack server --ignore-prerequisites --chain "${chain}" $components &> "$log_file" &
+          done
+          for chain in era validium custom_token consensus; do
+            zkstack server wait --ignore-prerequisites --verbose --chain "${chain}"
+          done
+
+      - name: Set up attester committee for the consensus chain
+        run: |
+          zkstack consensus wait-for-registry --ignore-prerequisites --verbose --chain consensus
+          zkstack consensus set-attester-committee --chain consensus \
+            --ignore-prerequisites --verbose --from-genesis &> ${INTEGRATION_TESTS_LOGS_DIR}/consensus.log
+
+      - name: Run integration tests
+        run: |
+          ./bin/run_on_all_chains.sh "zkstack dev test integration --no-deps --ignore-prerequisites" \
+            ${CHAINS} ${INTEGRATION_TESTS_LOGS_DIR}
+
+      - name: Repeat integration tests on push to main to check for flakiness
+        if: ${{ github.ref == 'refs/heads/main' }}
+        run: |
+          for i in {1..10}; do
+            echo "Iteration $i"
+            mkdir -p ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/$i
+            ./bin/run_on_all_chains.sh "zkstack dev test integration --no-deps --ignore-prerequisites" \
+              ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/$i
+          done
+
+      - name: Init external nodes
+        run: |          
+          if [[ "${{ matrix.use_gateway_chain }}" == "WITH_GATEWAY" ]]; then
+            GATEWAY_RPC_URL="--gateway-rpc-url=http://localhost:3550"
+          fi
+          chains=("era" "validium" "custom_token" "consensus")
+          for chain in "${chains[@]}"; do
+            zkstack external-node configs --chain "${chain}" \
+              --db-url="${SERVER_DB_URL}" \
+              --db-name="zksync_en_localhost_${chain}" \
+              --l1-rpc-url="${L1_RPC_URL}" ${GATEWAY_RPC_URL}
+            zkstack external-node init --ignore-prerequisites --chain "${chain}"
+          done
+
+      - name: Run recovery tests (from snapshot)
+        run: |
+          ./bin/run_on_all_chains.sh "zkstack dev test recovery --snapshot --no-deps --ignore-prerequisites --verbose" \
+              ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}
+
+      - name: Run recovery tests (from genesis)
+        run: |
+          ./bin/run_on_all_chains.sh "zkstack dev test recovery --no-deps --no-kill --ignore-prerequisites --verbose" \
+            ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}
+
+      - name: Run external nodes
+        run: |
+          declare -A chain_options=(
+            [era]=""
+            [validium]="--components all,da_fetcher"
+            [custom_token]=""
+            [consensus]="--enable-consensus"
+          )
+          for chain in "${!chain_options[@]}"; do
+            log_file="${EXTERNAL_NODE_LOGS_DIR}/${chain}.log"
+            zkstack external-node run --ignore-prerequisites --chain "$chain" ${chain_options[$chain]} &> "$log_file" &
+          done
+          for chain in "${!chain_options[@]}"; do
+            zkstack external-node wait --ignore-prerequisites --verbose --chain "${chain}"
+          done
+
+      - name: Run integration tests en
+        run: |
+          ./bin/run_on_all_chains.sh "zkstack dev test integration --no-deps --ignore-prerequisites --external-node" \
+              ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}
+
+      - name: Repeat integration tests en on push to main to check for flakiness
+        if: ${{ (steps.condition.outputs.should_run == 'true' && github.ref == 'refs/heads/main') }}
+        run: |
+          for i in {1..10}; do
+            echo "Iteration $i"
+            mkdir -p ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/$i
+            ./bin/run_on_all_chains.sh "zkstack dev test integration --no-deps --ignore-prerequisites --external-node" ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/$i
+          done
+
+      - name: Fee projection tests
+        run: |
+          killall -INT zksync_server || true
+
+          # Only start & wait for the gateway server if use_gateway_chain == WITH_GATEWAY
+          if [ "${{ matrix.use_gateway_chain }}" == "WITH_GATEWAY" ]; then
+            zkstack server --ignore-prerequisites --chain gateway &> ${{ env.SERVER_LOGS_DIR }}/gateway.log &
+            zkstack server wait --ignore-prerequisites --verbose --chain gateway
+          fi
+
+          # Always run the chain-specific fee tests
+          ./bin/run_on_all_chains.sh "zkstack dev test fees --no-deps --no-kill" ${{ env.CHAINS }} ${{ env.FEES_LOGS_DIR }}
+
+      - name: Repeat fee projection tests on push to main to check for flakiness
+        if: ${{ github.ref == 'refs/heads/main' }}
+        run: |
+          for i in {1..10}; do
+            echo "Iteration $i"
+            mkdir -p ${{ env.FEES_LOGS_DIR }}/$i
+            ./bin/run_on_all_chains.sh "zkstack dev test fees --no-deps --no-kill" ${{ env.CHAINS }} ${{ env.FEES_LOGS_DIR }}/$i
+          done
+
+      - name: Run revert tests
+        run: |
+          killall -INT zksync_server || true
+          killall -INT zksync_external_node || true
+
+          # Only start & wait for the gateway server if use_gateway_chain == WITH_GATEWAY
+          if [ "${{ matrix.use_gateway_chain }}" == "WITH_GATEWAY" ]; then
+            zkstack server --ignore-prerequisites --chain gateway &> ${{ env.SERVER_LOGS_DIR }}/gateway.log &
+            zkstack server wait --ignore-prerequisites --verbose --chain gateway
+          fi
+
+          # Always run the chain-specific revert tests
+          ./bin/run_on_all_chains.sh "zkstack dev test revert --no-deps --external-node --no-kill --ignore-prerequisites" ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}
+
+      # Upgrade tests should run last, because as soon as they
+      # finish the bootloader will be different
+      # TODO make upgrade tests safe to run multiple times
+      - name: Run upgrade test
+        run: |
+          killall -INT zksync_server || true
+
+          # Only start & wait for the gateway server if use_gateway_chain == WITH_GATEWAY
+          if [ "${{ matrix.use_gateway_chain }}" == "WITH_GATEWAY" ]; then
+            zkstack server --ignore-prerequisites --chain gateway &> ${{ env.SERVER_LOGS_DIR }}/gateway.log &
+            zkstack server wait --ignore-prerequisites --verbose --chain gateway
+          fi
+
+          # Always run the upgrade test against era
+          zkstack dev test upgrade --no-deps --chain era
+
+      - name: Upload logs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: logs_${{ matrix.use_gateway_chain }}
+          path: logs
+
+
+  #  lint:
+  #    runs-on: matterlabs-ci-runner-highmem-long
+  #    steps:
+  #      - name: Checkout
+  #        uses: actions/checkout@v4
+  #        with:
+  #          submodules: "recursive"
+  #          fetch-depth: '1'
+  #
+  #      - name: Setup runner
+  #        uses: matter-labs/zksync-ci-common/.github/actions/runner-setup@aba-ci-optimize
+  #
+  #      - name: Format
+  #        run: zkstack dev fmt --check
+  #
+  #      - name: Lint
+  #        run: zkstack dev lint --check
+  #
+  #      - name: Show sccache stats
+  #        run: sccache --show-stats
+  #
+  #      - name: Start postgres
+  #        run: docker-compose up -d --wait postgres
+  #
+  #      - name: Check Database
+  #        env:
+  #          PROVER_URL: 'postgres://postgres:notsecurepassword@localhost:5432/zksync_local_prover'
+  #          CORE_URL: 'postgres://postgres:notsecurepassword@localhost:5432/zksync_local'
+  #        run: |
+  #          zkstack dev db setup --prover-url=${{ env.PROVER_URL }} --core-url=${{ env.CORE_URL }}
+  #          zkstack dev database check-sqlx-data --prover-url=${{ env.PROVER_URL }} --core-url=${{ env.CORE_URL }}
