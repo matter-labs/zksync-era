@@ -29,3 +29,18 @@ fn out_of_gas() {
 fn recursive_tx() {
     call_tracer::test_recursive_tx::<Vm<_, _, _>>();
 }
+
+#[test]
+fn evm_to_eravm_call() {
+    call_tracer::test_evm_to_eravm_call::<Vm<_, _, _>>();
+}
+
+#[test]
+fn evm_deployment_tx() {
+    call_tracer::test_evm_deployment_tx::<Vm<_, _, _>>();
+}
+
+#[test]
+fn evm_deployment_from_contract() {
+    call_tracer::test_evm_deployment_from_contract::<Vm<_, _, _>>();
+}

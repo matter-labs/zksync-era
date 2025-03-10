@@ -22,7 +22,6 @@ pub(crate) fn test_require_eip712<VM: TestedVm>() {
 
     let bytecode = TestContract::many_owners().bytecode.to_vec();
     let mut vm = VmTesterBuilder::new()
-        .with_empty_in_memory_storage()
         .with_custom_contracts(vec![
             ContractToDeploy::account(bytecode, aa_address).funded()
         ])
