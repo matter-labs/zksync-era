@@ -5,6 +5,8 @@ use zksync_config::configs::contracts::{
 };
 use zksync_contracts::{bridgehub_contract, state_transition_manager_contract};
 use zksync_eth_client::{CallFunctionArgs, EthInterface};
+use zksync_types::ethabi::Contract;
+use zksync_types::settlement::SettlementMode;
 use zksync_types::{ethabi::Token, Address, L2ChainId};
 
 pub async fn load_sl_contracts(
@@ -49,8 +51,7 @@ pub async fn load_sl_contracts(
             state_transition_proxy_addr: Some(ctm_address),
             server_notifier_addr,
             validator_timelock_addr,
-            // TODO find them somehow
-            no_da_validium_l1_validator_addr: None,
+            // TODO find it somehow
             multicall3: None,
         },
         chain_contracts_config: ChainContracts {
@@ -91,4 +92,23 @@ pub async fn load_l1_specific_contracts(
         bytecodes_supplier_addr: None,
         wrapped_base_token_store: None,
     })
+}
+
+pub async fn get_settlement_layer(
+    eth_client: &dyn EthInterface,
+    diamond_proxy_addr: Address,
+    abi: &Contract,
+) -> anyhow::Result<SettlementMode> {
+    let settlement_layer: Address = CallFunctionArgs::new("getSettlementLayer", ())
+        .for_contract(diamond_proxy_addr, abi)
+        .call(eth_client)
+        .await?;
+
+    let mode = if settlement_layer.is_zero() {
+        SettlementMode::SettlesToL1
+    } else {
+        SettlementMode::Gateway
+    };
+
+    Ok(mode)
 }

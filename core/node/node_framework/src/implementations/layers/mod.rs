@@ -7,7 +7,6 @@ pub mod consensus;
 pub mod consistency_checker;
 pub mod contract_verification_api;
 pub mod contracts_layer;
-mod contracts_loader_layer;
 pub mod da_clients;
 pub mod da_dispatcher;
 pub mod data_availability_fetcher;

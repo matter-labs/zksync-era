@@ -4,7 +4,8 @@ use anyhow::bail;
 use tokio::sync::watch;
 use zksync_basic_types::{ethabi::Contract, settlement::SettlementMode, Address};
 use zksync_contracts::getters_facet_contract;
-use zksync_eth_client::{CallFunctionArgs, EthInterface};
+use zksync_contracts_loader::get_settlement_layer;
+use zksync_eth_client::EthInterface;
 
 #[derive(Debug)]
 pub struct GatewayMigrator {
@@ -50,23 +51,4 @@ impl GatewayMigrator {
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
     }
-}
-
-pub async fn get_settlement_layer(
-    eth_client: &dyn EthInterface,
-    diamond_proxy_addr: Address,
-    abi: &Contract,
-) -> anyhow::Result<SettlementMode> {
-    let settlement_layer: Address = CallFunctionArgs::new("getSettlementLayer", ())
-        .for_contract(diamond_proxy_addr, abi)
-        .call(eth_client)
-        .await?;
-
-    let mode = if settlement_layer.is_zero() {
-        SettlementMode::SettlesToL1
-    } else {
-        SettlementMode::Gateway
-    };
-
-    Ok(mode)
 }

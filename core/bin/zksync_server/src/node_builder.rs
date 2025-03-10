@@ -10,7 +10,7 @@ use zksync_config::{
         wallets::Wallets,
         GeneralConfig, Secrets,
     },
-    GenesisConfig, SettlementLayerContracts,
+    GenesisConfig,
 };
 use zksync_core_leftovers::Component;
 use zksync_metadata_calculator::MetadataCalculatorConfig;
@@ -96,7 +96,6 @@ pub struct MainNodeBuilder {
     wallets: Wallets,
     genesis_config: GenesisConfig,
     secrets: Secrets,
-    contracts: SettlementLayerContracts,
     l1_specific_contracts: L1SpecificContracts,
     l2_contracts: L2Contracts,
 }
@@ -107,7 +106,6 @@ impl MainNodeBuilder {
         wallets: Wallets,
         genesis_config: GenesisConfig,
         secrets: Secrets,
-        contracts: SettlementLayerContracts,
         l1_specific_contracts: L1SpecificContracts,
         l2_contracts: L2Contracts,
     ) -> anyhow::Result<Self> {
@@ -117,7 +115,6 @@ impl MainNodeBuilder {
             wallets,
             genesis_config,
             secrets,
-            contracts,
             l1_specific_contracts,
             l2_contracts,
         })
@@ -319,9 +316,9 @@ impl MainNodeBuilder {
 
     fn add_settlement_mode_data(mut self) -> anyhow::Result<Self> {
         self.node.add_layer(SettlementLayerData::new(
-            self.contracts.clone(),
             self.l1_specific_contracts.clone(),
             self.l2_contracts.clone(),
+            self.genesis_config.l2_chain_id,
         ));
         Ok(self)
     }

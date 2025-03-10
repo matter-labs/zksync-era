@@ -1,5 +1,5 @@
 [package]
-name = "zksync_gateway_migrator"
+name = "zksync_contracts_loader"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -10,12 +10,8 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
+zksync_types.workspace = true
 zksync_eth_client.workspace = true
-zksync_basic_types.workspace = true
-tokio.workspace = true
-async-trait.workspace = true
-zksync_contracts.workspace = true
 zksync_config.workspace = true
-zksync_contracts_loader.workspace = true
+zksync_contracts.workspace = true
 anyhow.workspace = true
-tracing = "0.1.41"

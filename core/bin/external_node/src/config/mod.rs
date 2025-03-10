@@ -1514,7 +1514,6 @@ impl From<&ExternalNodeConfig> for InternalApiConfigBuilder {
                 server_notifier_addr: config.remote.l1_server_notifier_addr,
                 multicall3: None,
                 validator_timelock_addr: None,
-                no_da_validium_l1_validator_addr: None,
             }),
 
             l2_testnet_paymaster_addr: config.remote.l2_testnet_paymaster_addr,
@@ -1580,7 +1579,6 @@ impl ExternalNodeConfig {
                 server_notifier_addr: self.remote.l1_server_notifier_addr,
                 multicall3: None,
                 validator_timelock_addr: None,
-                no_da_validium_l1_validator_addr: None,
             },
             chain_contracts_config: ChainContracts {
                 diamond_proxy_addr: self.remote.l1_diamond_proxy_addr,

@@ -1,12 +1,11 @@
 use anyhow::Context;
-use zksync_config::{
-    configs::contracts::{chain::L2Contracts, ecosystem::L1SpecificContracts},
-    SettlementLayerContracts,
-};
+use zksync_config::configs::contracts::{chain::L2Contracts, ecosystem::L1SpecificContracts};
 use zksync_contracts::getters_facet_contract;
+use zksync_contracts_loader::get_settlement_layer;
+use zksync_contracts_loader::load_sl_contracts;
 use zksync_eth_client::EthInterface;
-use zksync_gateway_migrator::get_settlement_layer;
 use zksync_types::settlement::SettlementMode;
+use zksync_types::{L2ChainId, L2_BRIDGEHUB_ADDRESS};
 
 use crate::{
     implementations::resources::{
@@ -24,21 +23,21 @@ use crate::{
 /// Wiring layer for [`SettlementLayerData`].
 #[derive(Debug)]
 pub struct SettlementLayerData {
-    contracts: SettlementLayerContracts,
     l2_contracts: L2Contracts,
-    l1_ecosystem_contracts: L1SpecificContracts,
+    l1_specific_contracts: L1SpecificContracts,
+    l2_chain_id: L2ChainId,
 }
 
 impl SettlementLayerData {
     pub fn new(
-        contracts: SettlementLayerContracts,
-        l1_ecosystem_contracts: L1SpecificContracts,
+        l1_specific_contracts: L1SpecificContracts,
         l2_contracts: L2Contracts,
+        l2_chain_id: L2ChainId,
     ) -> Self {
         Self {
-            contracts,
             l2_contracts,
-            l1_ecosystem_contracts,
+            l1_specific_contracts,
+            l2_chain_id,
         }
     }
 }
@@ -71,41 +70,53 @@ impl WiringLayer for SettlementLayerData {
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
-        let mut contracts = self.contracts.clone();
+        let sl_l1_contracts = load_sl_contracts(
+            &input.eth_client.0,
+            self.l1_specific_contracts.bridge_hub.unwrap(),
+            self.l2_chain_id,
+        )
+        .await?;
         let initial_sl_mode = get_settlement_layer(
             &input.eth_client.0,
-            self.contracts
-                .l1_contracts()
-                .chain_contracts_config
-                .diamond_proxy_addr,
+            sl_l1_contracts.chain_contracts_config.diamond_proxy_addr,
             &getters_facet_contract(),
         )
         .await?;
-        contracts.set_settlement_mode(initial_sl_mode);
-        let sl_chain_id = match initial_sl_mode {
-            SettlementMode::SettlesToL1 => input
-                .eth_client
-                .0
-                .fetch_chain_id()
-                .await
-                .context("fetch_chain_id")?,
-            SettlementMode::Gateway => input
-                .l2_eth_client
-                .expect("Should be present for gateway settlement mode")
-                .0
-                .fetch_chain_id()
-                .await
-                .context("fetch_chain_id")?,
+
+        let (sl_chain_id, sl_chain_contracts) = match initial_sl_mode {
+            SettlementMode::SettlesToL1 => {
+                let chain_id = input
+                    .eth_client
+                    .0
+                    .as_ref()
+                    .fetch_chain_id()
+                    .await
+                    .context("Failed to fetch chain id")?;
+                (chain_id, sl_l1_contracts.clone())
+            }
+            SettlementMode::Gateway => {
+                let client = input
+                    .l2_eth_client
+                    .expect("Should be present for gateway settlement mode")
+                    .0;
+                let chain_id = client
+                    .fetch_chain_id()
+                    .await
+                    .context("Failed to fetch chain id")?;
+                let sl_contracts =
+                    load_sl_contracts(&client, L2_BRIDGEHUB_ADDRESS, self.l2_chain_id).await?;
+                (chain_id, sl_contracts)
+            }
         };
 
         Ok(Output {
             initial_settlement_mode: SettlementModeResource(initial_sl_mode),
-            contracts: SettlementLayerContractsResource(contracts.current_contracts().clone()),
+            contracts: SettlementLayerContractsResource(sl_chain_contracts),
             l1_ecosystem_contracts: L1EcosystemContractsResource(
-                self.l1_ecosystem_contracts.clone(),
+                self.l1_specific_contracts.clone(),
             ),
             l2_contracts: L2ContractsResource(self.l2_contracts),
-            l1_contracts: L1ChainContractsResource(contracts.l1_contracts().clone()),
+            l1_contracts: L1ChainContractsResource(sl_l1_contracts),
             sl_chain_id: SlChainIdResource(sl_chain_id),
         })
     }

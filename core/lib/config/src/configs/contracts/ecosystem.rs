@@ -51,5 +51,4 @@ pub struct EcosystemCommonContracts {
     pub server_notifier_addr: Option<Address>,
     pub multicall3: Option<Address>,
     pub validator_timelock_addr: Option<Address>,
-    pub no_da_validium_l1_validator_addr: Option<Address>,
 }

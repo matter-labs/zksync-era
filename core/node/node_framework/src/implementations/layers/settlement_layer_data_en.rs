@@ -1,23 +1,20 @@
 use zksync_config::configs::contracts::{
     chain::L2Contracts, ecosystem::L1SpecificContracts, ChainSpecificContracts,
-    L2_BRIDGEHUB_ADDRESS,
 };
 use zksync_consistency_checker::get_settlement_mode;
+use zksync_contracts_loader::load_sl_contracts;
 use zksync_eth_client::EthInterface;
-use zksync_types::{settlement::SettlementMode, Address, L2ChainId};
+use zksync_types::{settlement::SettlementMode, Address, L2ChainId, L2_BRIDGEHUB_ADDRESS};
 
 use crate::{
-    implementations::{
-        layers::contracts_loader_layer::load_sl_contracts,
-        resources::{
-            contracts::{
-                L1ChainContractsResource, L1EcosystemContractsResource, L2ContractsResource,
-                SettlementLayerContractsResource,
-            },
-            eth_interface::{EthInterfaceResource, L2InterfaceResource},
-            pools::{MasterPool, PoolResource},
-            settlement_layer::{SettlementModeResource, SlChainIdResource},
+    implementations::resources::{
+        contracts::{
+            L1ChainContractsResource, L1EcosystemContractsResource, L2ContractsResource,
+            SettlementLayerContractsResource,
         },
+        eth_interface::{EthInterfaceResource, L2InterfaceResource},
+        pools::{MasterPool, PoolResource},
+        settlement_layer::{SettlementModeResource, SlChainIdResource},
     },
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
