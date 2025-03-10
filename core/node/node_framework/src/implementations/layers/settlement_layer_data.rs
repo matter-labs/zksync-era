@@ -78,7 +78,8 @@ impl WiringLayer for SettlementLayerData {
             self.l2_chain_id,
             self.multicall3,
         )
-        .await?;
+        .await?
+        .context("No diamond proxy deployed for chain id on L1")?;
         let initial_sl_mode = get_settlement_layer(
             &input.eth_client.0,
             sl_l1_contracts.chain_contracts_config.diamond_proxy_addr,
@@ -116,7 +117,8 @@ impl WiringLayer for SettlementLayerData {
                     self.l2_chain_id,
                     l2_multicall3,
                 )
-                .await?;
+                .await?
+                .context("No diamond proxy deployed for chain id on Gateway")?;
                 (chain_id, sl_contracts)
             }
         };

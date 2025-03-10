@@ -245,7 +245,8 @@ async fn main() -> anyhow::Result<()> {
         zksync_network_id,
         None,
     )
-    .await?;
+    .await?
+    .context("No chain has been deployed")?;
     let settlement_mode = get_settlement_layer(
         &eth_client,
         sl_l1_contracts.chain_contracts_config.diamond_proxy_addr,
@@ -266,7 +267,8 @@ async fn main() -> anyhow::Result<()> {
                 zksync_network_id,
                 None,
             )
-            .await?;
+            .await?
+            .context("No chain has been deployed")?;
             (gateway_client, sl_contracts)
         }
     };

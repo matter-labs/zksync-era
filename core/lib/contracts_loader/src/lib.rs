@@ -16,12 +16,16 @@ pub async fn load_sl_contracts(
     bridgehub_address: Address,
     l2_chain_id: L2ChainId,
     multicall3: Option<Address>,
-) -> anyhow::Result<ChainSpecificContracts> {
-    let gateway_diamond_proxy =
+) -> anyhow::Result<Option<ChainSpecificContracts>> {
+    let gateway_diamond_proxy: Address =
         CallFunctionArgs::new("getZKChain", Token::Uint(l2_chain_id.as_u64().into()))
             .for_contract(bridgehub_address, &bridgehub_contract())
             .call(sl_client)
             .await?;
+
+    if gateway_diamond_proxy.is_zero() {
+        return Ok(None);
+    }
 
     let ctm_address =
         CallFunctionArgs::new("chainTypeManager", Token::Uint(l2_chain_id.as_u64().into()))
@@ -48,7 +52,7 @@ pub async fn load_sl_contracts(
             .await
             .map(|a: Address| if a.is_zero() { None } else { Some(a) })?;
 
-    Ok(ChainSpecificContracts {
+    Ok(Some(ChainSpecificContracts {
         ecosystem_contracts: EcosystemCommonContracts {
             bridgehub_proxy_addr: Some(bridgehub_address),
             state_transition_proxy_addr: Some(ctm_address),
@@ -60,7 +64,7 @@ pub async fn load_sl_contracts(
             diamond_proxy_addr: gateway_diamond_proxy,
             chain_admin,
         },
-    })
+    }))
 }
 
 pub async fn load_l1_specific_contracts(
