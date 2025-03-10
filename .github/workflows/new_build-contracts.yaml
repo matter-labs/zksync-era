@@ -1,0 +1,102 @@
+name: Build contracts
+
+on:
+#  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      commit:
+        type: string
+        description: SHA commit for build
+        required: false
+      prefix:
+        type: string
+        description: Prefix for release name
+        required: false
+        default: manual
+
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  FOUNDRY_VERSION: 'v0.0.8'
+
+jobs:
+
+  check-release:
+    runs-on: ubuntu-latest
+    outputs:
+      release_required: ${{ steps.changed-files.outputs.any_changed }}
+      commit: ${{ steps.contracts-commit.outputs.commit }}
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: "recursive"
+          fetch-depth: '1'
+
+      - name: Check contracts changes
+        id: changed-files
+        uses: tj-actions/changed-files@v45
+        with:
+          files: |
+            contracts
+            contracts/**
+
+      - name: Define contracts commit
+#        if: ${{ steps.changed-files.outputs.any_changed == 'true' }}
+        id: contracts-commit
+        run: echo "commit=$(cd contracts && git rev-parse HEAD)" >> "${GITHUB_OUTPUT}"
+
+
+  release-contracts:
+    needs: check-release
+    runs-on: matterlabs-ci-runner-highmem-long
+    if: ${{ needs.check-release.outputs.commit != '' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: "false"
+
+      - name: Clean-up contracts
+        run: rm -rf contracts
+
+      - name: Checkout contracts
+        uses: actions/checkout@v4
+        with:
+          repository: 'matter-labs/era-contracts'
+          ref: ${{ inputs.commit || needs.check-release.outputs.commit }}
+          path: contracts
+          submodules: "recursive"
+
+      - name: Setup runner
+        uses: matter-labs/zksync-ci-common/.github/actions/runner-setup@aba-ci-optimize
+        with:
+          enable_cache: false
+
+      - name: Build contracts
+        run: zkstack dev contracts
+
+      - name: Prepare artifacts
+        working-directory: contracts
+        run: |
+          for DIR in l1-contracts l2-contracts system-contracts da-contracts; do
+            rm -rf ./${DIR}/node_modules
+            tar -czvf ${DIR}.tar.gz ./${DIR}
+          done
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          path: |
+            contracts/l1-contracts.tar.gz
+            contracts/l2-contracts.tar.gz
+            contracts/system-contracts.tar.gz
+            contracts/da-contracts.tar.gz
+          name: contracts-${{ inputs.commit || needs.check-release.outputs.commit }}

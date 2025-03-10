@@ -117,6 +117,8 @@ async fn init_ecosystem(
         build_l1_contracts(shell.clone(), ecosystem_config.link_to_code.clone())?;
         build_system_contracts(shell.clone(), ecosystem_config.link_to_code.clone())?;
         build_l2_contracts(shell.clone(), ecosystem_config.link_to_code.clone())?;
+    } else {
+        logger::info("Skipping contract compilation");
     }
     spinner.finish();
 
