@@ -1,11 +1,9 @@
 use anyhow::Context;
 use zksync_config::configs::contracts::{chain::L2Contracts, ecosystem::L1SpecificContracts};
 use zksync_contracts::getters_facet_contract;
-use zksync_contracts_loader::get_settlement_layer;
-use zksync_contracts_loader::load_sl_contracts;
+use zksync_contracts_loader::{get_settlement_layer, load_sl_contracts};
 use zksync_eth_client::EthInterface;
-use zksync_types::settlement::SettlementMode;
-use zksync_types::{L2ChainId, L2_BRIDGEHUB_ADDRESS};
+use zksync_types::{settlement::SettlementMode, L2ChainId, L2_BRIDGEHUB_ADDRESS};
 
 use crate::{
     implementations::resources::{

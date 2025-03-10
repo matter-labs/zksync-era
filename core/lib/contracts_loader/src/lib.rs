@@ -5,9 +5,11 @@ use zksync_config::configs::contracts::{
 };
 use zksync_contracts::{bridgehub_contract, state_transition_manager_contract};
 use zksync_eth_client::{CallFunctionArgs, EthInterface};
-use zksync_types::ethabi::Contract;
-use zksync_types::settlement::SettlementMode;
-use zksync_types::{ethabi::Token, Address, L2ChainId};
+use zksync_types::{
+    ethabi::{Contract, Token},
+    settlement::SettlementMode,
+    Address, L2ChainId,
+};
 
 pub async fn load_sl_contracts(
     sl_client: &dyn EthInterface,

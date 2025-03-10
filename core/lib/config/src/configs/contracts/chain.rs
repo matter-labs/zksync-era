@@ -1,7 +1,10 @@
 use serde::Deserialize;
 use zksync_basic_types::{Address, H256};
 
-use crate::configs::contracts::ecosystem::{EcosystemContracts, L1SpecificContracts};
+use crate::configs::contracts::{
+    ecosystem::{EcosystemCommonContracts, EcosystemContracts, L1SpecificContracts},
+    ChainSpecificContracts,
+};
 
 /// Data about deployed contracts unified l1/l2 contracts and bridges. To Be Deleted
 #[derive(Debug, Deserialize, Clone, PartialEq)]
@@ -81,6 +84,24 @@ impl AllContractsConfig {
             timestamp_asserter_addr: self.l2_timestamp_asserter_addr,
             da_validator_addr: self.l2_da_validator_addr,
             testnet_paymaster_addr: self.l2_testnet_paymaster_addr,
+        }
+    }
+
+    pub fn chain_specific_contracts(&self) -> ChainSpecificContracts {
+        let ecosystem = self.ecosystem_contracts.as_ref().unwrap();
+
+        ChainSpecificContracts {
+            ecosystem_contracts: EcosystemCommonContracts {
+                bridgehub_proxy_addr: Some(ecosystem.bridgehub_proxy_addr),
+                state_transition_proxy_addr: ecosystem.state_transition_proxy_addr,
+                server_notifier_addr: ecosystem.server_notifier_addr,
+                multicall3: Some(self.l1_multicall3_addr),
+                validator_timelock_addr: Some(self.validator_timelock_addr),
+            },
+            chain_contracts_config: ChainContracts {
+                diamond_proxy_addr: self.diamond_proxy_addr,
+                chain_admin: Some(self.chain_admin_addr),
+            },
         }
     }
 }

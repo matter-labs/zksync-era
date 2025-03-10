@@ -138,6 +138,7 @@ impl HandleConsistencyCheckerEvent for ConsistencyCheckerHealthUpdater {
 // (and thus persisted by external nodes). Eventually, we want to go back to bailing on L1 data mismatch;
 // for now, it's only enabled for the unit tests.
 #[derive(Debug)]
+#[allow(dead_code)]
 enum L1DataMismatchBehavior {
     Bail,
     Log,

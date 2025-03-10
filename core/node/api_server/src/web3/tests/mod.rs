@@ -14,7 +14,7 @@ use zksync_config::{
         chain::{NetworkConfig, StateKeeperConfig},
         AllContractsConfig as ContractsConfig,
     },
-    GenesisConfig, SettlementLayerContracts,
+    GenesisConfig,
 };
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{Connection, ConnectionPool, CoreDal};
@@ -287,7 +287,7 @@ async fn test_http_server(test: impl HttpTest) {
     let genesis = GenesisConfig::for_tests();
     let mut api_config = InternalApiConfig::new(
         &web3_config,
-        SettlementLayerContracts::new(&contracts_config, None).current_contracts(),
+        &contracts_config.chain_specific_contracts(),
         &contracts_config.l1_specific_contracts(),
         &contracts_config.l2_contracts(),
         &genesis,
