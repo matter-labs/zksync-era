@@ -78,7 +78,7 @@ use zksync_node_framework::{
 use zksync_types::{
     commitment::{L1BatchCommitmentMode, PubdataType},
     pubdata_da::PubdataSendingMode,
-    SHARED_BRIDGE_ETHER_TOKEN_ADDRESS,
+    Address, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS,
 };
 use zksync_vlog::prometheus::PrometheusExporterConfig;
 
@@ -98,6 +98,7 @@ pub struct MainNodeBuilder {
     secrets: Secrets,
     l1_specific_contracts: L1SpecificContracts,
     l2_contracts: L2Contracts,
+    multicall3: Option<Address>,
 }
 
 impl MainNodeBuilder {
@@ -108,6 +109,7 @@ impl MainNodeBuilder {
         secrets: Secrets,
         l1_specific_contracts: L1SpecificContracts,
         l2_contracts: L2Contracts,
+        multicall3: Option<Address>,
     ) -> anyhow::Result<Self> {
         Ok(Self {
             node: ZkStackServiceBuilder::new().context("Cannot create ZkStackServiceBuilder")?,
@@ -117,6 +119,7 @@ impl MainNodeBuilder {
             secrets,
             l1_specific_contracts,
             l2_contracts,
+            multicall3,
         })
     }
 
@@ -319,6 +322,7 @@ impl MainNodeBuilder {
             self.l1_specific_contracts.clone(),
             self.l2_contracts.clone(),
             self.genesis_config.l2_chain_id,
+            self.multicall3,
         ));
         Ok(self)
     }

@@ -271,6 +271,7 @@ impl Distribution<configs::AllContractsConfig> for EncodeDist {
             chain_admin_addr: rng.gen(),
             l2_da_validator_addr: self.sample_opt(|| rng.gen()),
             no_da_validium_l1_validator_addr: self.sample_opt(|| rng.gen()),
+            l2_multicall3_addr: self.sample_opt(|| rng.gen()),
         }
     }
 }

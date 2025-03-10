@@ -15,6 +15,7 @@ pub async fn load_sl_contracts(
     sl_client: &dyn EthInterface,
     bridgehub_address: Address,
     l2_chain_id: L2ChainId,
+    multicall3: Option<Address>,
 ) -> anyhow::Result<ChainSpecificContracts> {
     let gateway_diamond_proxy =
         CallFunctionArgs::new("getZKChain", Token::Uint(l2_chain_id.as_u64().into()))
@@ -53,8 +54,7 @@ pub async fn load_sl_contracts(
             state_transition_proxy_addr: Some(ctm_address),
             server_notifier_addr,
             validator_timelock_addr,
-            // TODO find it somehow
-            multicall3: None,
+            multicall3,
         },
         chain_contracts_config: ChainContracts {
             diamond_proxy_addr: gateway_diamond_proxy,

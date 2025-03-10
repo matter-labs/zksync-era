@@ -675,6 +675,10 @@ impl ZksNamespace {
             .ok_or(Web3Error::MethodNotImplemented)
     }
 
+    pub fn get_l2_multicall3_impl(&self) -> Result<Option<Address>, Web3Error> {
+        Ok(self.state.api_config.l2_multicall3)
+    }
+
     #[tracing::instrument(skip(self))]
     pub async fn get_batch_fee_input_impl(
         &self,

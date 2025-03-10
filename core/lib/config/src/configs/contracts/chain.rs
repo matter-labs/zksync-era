@@ -37,6 +37,7 @@ pub struct AllContractsConfig {
     pub chain_admin_addr: Address,
     pub l2_da_validator_addr: Option<Address>,
     pub no_da_validium_l1_validator_addr: Option<Address>,
+    pub l2_multicall3_addr: Option<Address>,
 }
 
 impl AllContractsConfig {
@@ -63,6 +64,7 @@ impl AllContractsConfig {
             chain_admin_addr: Address::repeat_byte(0x18),
             l2_da_validator_addr: Some(Address::repeat_byte(0x1a)),
             no_da_validium_l1_validator_addr: Some(Address::repeat_byte(0x1b)),
+            l2_multicall3_addr: Some(Address::repeat_byte(0x1c)),
         }
     }
     pub fn l1_specific_contracts(&self) -> L1SpecificContracts {
@@ -84,6 +86,7 @@ impl AllContractsConfig {
             timestamp_asserter_addr: self.l2_timestamp_asserter_addr,
             da_validator_addr: self.l2_da_validator_addr,
             testnet_paymaster_addr: self.l2_testnet_paymaster_addr,
+            multicall3: self.l2_multicall3_addr,
         }
     }
 
@@ -122,4 +125,5 @@ pub struct L2Contracts {
     pub timestamp_asserter_addr: Option<Address>,
     pub da_validator_addr: Option<Address>,
     pub testnet_paymaster_addr: Option<Address>,
+    pub multicall3: Option<Address>,
 }

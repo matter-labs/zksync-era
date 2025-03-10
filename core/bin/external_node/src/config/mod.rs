@@ -137,6 +137,7 @@ pub(crate) struct RemoteENConfig {
     pub l1_wrapped_base_token_store: Option<Address>,
     pub l1_server_notifier_addr: Option<Address>,
     pub base_token_addr: Option<Address>,
+    pub l2_multicall3: Option<Address>,
     pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
     pub dummy_verifier: bool,
 }
@@ -167,6 +168,12 @@ impl RemoteENConfig {
             client.get_timestamp_asserter(),
             None,
             "Failed to fetch timestamp asserter address".to_string(),
+        )
+        .await?;
+        let l2_multicall3 = handle_rpc_response_with_fallback(
+            client.get_l2_multicall3(),
+            None,
+            "Failed to fetch l2 multicall3".to_string(),
         )
         .await?;
         let base_token_addr = handle_rpc_response_with_fallback(
@@ -200,9 +207,6 @@ impl RemoteENConfig {
             l1_state_transition_proxy_addr: l1_ecosystem_contracts
                 .as_ref()
                 .and_then(|a| a.state_transition_proxy_addr),
-            // l1_transparent_proxy_admin_addr: l1_ecosystem_contracts
-            //     .as_ref()
-            //     .and_then(|a| a.transparent_proxy_admin_addr),
             l1_bytecodes_supplier_addr: l1_ecosystem_contracts
                 .as_ref()
                 .and_then(|a| a.l1_bytecodes_supplier_addr),
@@ -222,6 +226,7 @@ impl RemoteENConfig {
             l1_weth_bridge_addr: bridges.l1_weth_bridge,
             l2_weth_bridge_addr: bridges.l2_weth_bridge,
             base_token_addr: Some(base_token_addr),
+            l2_multicall3,
             l1_batch_commit_data_generator_mode: genesis
                 .as_ref()
                 .map(|a| a.l1_batch_commit_data_generator_mode)
@@ -255,6 +260,7 @@ impl RemoteENConfig {
             dummy_verifier: true,
             l2_timestamp_asserter_addr: None,
             l1_server_notifier_addr: None,
+            l2_multicall3: None,
         }
     }
 }
@@ -1526,6 +1532,7 @@ impl From<&ExternalNodeConfig> for InternalApiConfigBuilder {
             timestamp_asserter_address: config.remote.l2_timestamp_asserter_addr,
             l1_server_notifier_addr: config.remote.l1_server_notifier_addr,
             l1_wrapped_base_token_store: config.remote.l1_wrapped_base_token_store,
+            l2_multicall3: config.remote.l2_multicall3,
         }
     }
 }
@@ -1595,6 +1602,7 @@ impl ExternalNodeConfig {
             timestamp_asserter_addr: self.remote.l2_timestamp_asserter_addr,
             da_validator_addr: None,
             testnet_paymaster_addr: self.remote.l2_testnet_paymaster_addr,
+            multicall3: self.remote.l2_multicall3,
         }
     }
 }

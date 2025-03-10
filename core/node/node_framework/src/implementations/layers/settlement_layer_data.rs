@@ -3,7 +3,8 @@ use zksync_config::configs::contracts::{chain::L2Contracts, ecosystem::L1Specifi
 use zksync_contracts::getters_facet_contract;
 use zksync_contracts_loader::{get_settlement_layer, load_sl_contracts};
 use zksync_eth_client::EthInterface;
-use zksync_types::{settlement::SettlementMode, L2ChainId, L2_BRIDGEHUB_ADDRESS};
+use zksync_types::{settlement::SettlementMode, Address, L2ChainId, L2_BRIDGEHUB_ADDRESS};
+use zksync_web3_decl::namespaces::ZksNamespaceClient;
 
 use crate::{
     implementations::resources::{
@@ -24,6 +25,7 @@ pub struct SettlementLayerData {
     l2_contracts: L2Contracts,
     l1_specific_contracts: L1SpecificContracts,
     l2_chain_id: L2ChainId,
+    multicall3: Option<Address>,
 }
 
 impl SettlementLayerData {
@@ -31,11 +33,13 @@ impl SettlementLayerData {
         l1_specific_contracts: L1SpecificContracts,
         l2_contracts: L2Contracts,
         l2_chain_id: L2ChainId,
+        multicall3: Option<Address>,
     ) -> Self {
         Self {
             l2_contracts,
             l1_specific_contracts,
             l2_chain_id,
+            multicall3,
         }
     }
 }
@@ -72,6 +76,7 @@ impl WiringLayer for SettlementLayerData {
             &input.eth_client.0,
             self.l1_specific_contracts.bridge_hub.unwrap(),
             self.l2_chain_id,
+            self.multicall3,
         )
         .await?;
         let initial_sl_mode = get_settlement_layer(
@@ -101,8 +106,17 @@ impl WiringLayer for SettlementLayerData {
                     .fetch_chain_id()
                     .await
                     .context("Failed to fetch chain id")?;
-                let sl_contracts =
-                    load_sl_contracts(&client, L2_BRIDGEHUB_ADDRESS, self.l2_chain_id).await?;
+                let l2_multicall3 = client
+                    .get_l2_multicall3()
+                    .await
+                    .context("Failed to fecth multicall3")?;
+                let sl_contracts = load_sl_contracts(
+                    &client,
+                    L2_BRIDGEHUB_ADDRESS,
+                    self.l2_chain_id,
+                    l2_multicall3,
+                )
+                .await?;
                 (chain_id, sl_contracts)
             }
         };

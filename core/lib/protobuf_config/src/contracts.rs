@@ -148,6 +148,10 @@ impl ProtoRepr for proto::Contracts {
                 .no_da_validium_l1_validator_addr
                 .as_ref()
                 .map(|x| parse_h160(x).expect("Invalid address")),
+            l2_multicall3_addr: l2
+                .multicall3
+                .as_ref()
+                .map(|x| parse_h160(x).expect("Invalid address")),
         })
     }
 
@@ -203,6 +207,7 @@ impl ProtoRepr for proto::Contracts {
                 timestamp_asserter_addr: this
                     .l2_timestamp_asserter_addr
                     .map(|a| format!("{:?}", a)),
+                multicall3: this.l2_multicall3_addr.map(|a| format!("{:?}", a)),
             }),
             bridges: Some(proto::Bridges {
                 shared: Some(proto::Bridge {

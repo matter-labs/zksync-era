@@ -97,7 +97,8 @@ impl WiringLayer for SettlementLayerDataEn {
 
         let chain_id = client.fetch_chain_id().await.unwrap();
 
-        let contracts = load_sl_contracts(client.as_ref(), bridgehub, self.chain_id).await?;
+        // There is no need to specify multicall3 for external node
+        let contracts = load_sl_contracts(client.as_ref(), bridgehub, self.chain_id, None).await?;
         Ok(Output {
             contracts: SettlementLayerContractsResource(contracts),
             l1_contracts: L1ChainContractsResource(self.l1_chain_contracts),

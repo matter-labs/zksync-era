@@ -129,6 +129,7 @@ pub struct InternalApiConfigBuilder {
     pub l1_ecosystem_contracts: Option<EcosystemCommonContracts>,
     pub l1_bytecodes_supplier_addr: Option<Address>,
     pub l1_wrapped_base_token_store: Option<Address>,
+    pub l2_multicall3: Option<Address>,
 }
 
 impl InternalApiConfigBuilder {
@@ -154,6 +155,7 @@ impl InternalApiConfigBuilder {
             l1_server_notifier_addr: None,
             l1_bytecodes_supplier_addr: None,
             l1_wrapped_base_token_store: None,
+            l2_multicall3: None,
         }
     }
 
@@ -196,6 +198,7 @@ impl InternalApiConfigBuilder {
             timestamp_asserter_address: l2_contracts.timestamp_asserter_addr,
             l1_ecosystem_contracts: Some(l1_contracts_config.ecosystem_contracts.clone()),
             l1_wrapped_base_token_store: l1_ecosystem_contracts.wrapped_base_token_store,
+            l2_multicall3: l2_contracts.multicall3,
             ..self
         }
     }
@@ -223,6 +226,7 @@ impl InternalApiConfigBuilder {
             l1_batch_commit_data_generator_mode: self.l1_batch_commit_data_generator_mode,
             timestamp_asserter_address: self.timestamp_asserter_address,
             l1_wrapped_base_token_store: self.l1_wrapped_base_token_store,
+            l2_multicall3: self.l2_multicall3,
         }
     }
 }
@@ -253,6 +257,7 @@ pub struct InternalApiConfig {
     pub dummy_verifier: bool,
     pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
     pub timestamp_asserter_address: Option<Address>,
+    pub l2_multicall3: Option<Address>,
 }
 
 impl InternalApiConfig {
@@ -299,6 +304,7 @@ impl InternalApiConfig {
             dummy_verifier: genesis_config.dummy_verifier,
             l1_batch_commit_data_generator_mode: genesis_config.l1_batch_commit_data_generator_mode,
             timestamp_asserter_address: l2_contracts.timestamp_asserter_addr,
+            l2_multicall3: l2_contracts.multicall3,
         }
     }
 }

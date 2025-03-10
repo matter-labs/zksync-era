@@ -243,6 +243,7 @@ async fn main() -> anyhow::Result<()> {
         &eth_client,
         contracts.ecosystem_contracts.unwrap().bridgehub_proxy_addr,
         zksync_network_id,
+        None,
     )
     .await?;
     let settlement_mode = get_settlement_layer(
@@ -259,8 +260,13 @@ async fn main() -> anyhow::Result<()> {
                 .context("Gateway client")?
                 .build();
 
-            let sl_contracts =
-                load_sl_contracts(&gateway_client, L2_BRIDGEHUB_ADDRESS, zksync_network_id).await?;
+            let sl_contracts = load_sl_contracts(
+                &gateway_client,
+                L2_BRIDGEHUB_ADDRESS,
+                zksync_network_id,
+                None,
+            )
+            .await?;
             (gateway_client, sl_contracts)
         }
     };
