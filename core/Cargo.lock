@@ -11737,6 +11737,7 @@ dependencies = [
  "zksync_contracts",
  "zksync_contracts_loader",
  "zksync_eth_client",
+ "zksync_system_constants",
 ]
 
 [[package]]

@@ -87,17 +87,16 @@ impl WiringLayer for SettlementLayerData {
         )
         .await?;
 
-        let (sl_chain_id, sl_chain_contracts) = match initial_sl_mode {
-            SettlementMode::SettlesToL1 => {
-                let chain_id = input
-                    .eth_client
-                    .0
-                    .as_ref()
-                    .fetch_chain_id()
-                    .await
-                    .context("Failed to fetch chain id")?;
-                (chain_id, sl_l1_contracts.clone())
-            }
+        let eth_chain_id = input
+            .eth_client
+            .0
+            .as_ref()
+            .fetch_chain_id()
+            .await
+            .context("Failed to fetch chain id")?;
+
+        let (sl_chain_id, sl_chain_contracts, settlement_mode) = match initial_sl_mode {
+            SettlementMode::SettlesToL1 => (eth_chain_id, sl_l1_contracts.clone(), initial_sl_mode),
             SettlementMode::Gateway => {
                 let client = input
                     .l2_eth_client
@@ -117,14 +116,22 @@ impl WiringLayer for SettlementLayerData {
                     self.l2_chain_id,
                     l2_multicall3,
                 )
-                .await?
-                .context("No diamond proxy deployed for chain id on Gateway")?;
-                (chain_id, sl_contracts)
+                .await?;
+                if let Some(contracts) = sl_contracts {
+                    (chain_id, contracts, initial_sl_mode)
+                } else {
+                    // If chain has not yet been deployed to gateway, continue as SettlesToL1
+                    (
+                        eth_chain_id,
+                        sl_l1_contracts.clone(),
+                        SettlementMode::SettlesToL1,
+                    )
+                }
             }
         };
 
         Ok(Output {
-            initial_settlement_mode: SettlementModeResource(initial_sl_mode),
+            initial_settlement_mode: SettlementModeResource(settlement_mode),
             contracts: SettlementLayerContractsResource(sl_chain_contracts),
             l1_ecosystem_contracts: L1EcosystemContractsResource(
                 self.l1_specific_contracts.clone(),
