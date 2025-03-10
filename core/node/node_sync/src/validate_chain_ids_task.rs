@@ -17,10 +17,8 @@ use zksync_web3_decl::{
 pub struct ValidateChainIdsTask {
     l1_chain_id: L1ChainId,
     l2_chain_id: L2ChainId,
-    gateway_chain_id: Option<SLChainId>,
     l1_client: Box<DynClient<L1>>,
     main_node_client: Box<DynClient<L2>>,
-    gateway_client: Option<Box<dyn EthInterface>>,
 }
 
 impl ValidateChainIdsTask {
@@ -29,18 +27,14 @@ impl ValidateChainIdsTask {
     pub fn new(
         l1_chain_id: L1ChainId,
         l2_chain_id: L2ChainId,
-        gateway_chain_id: Option<SLChainId>,
         l1_client: Box<DynClient<L1>>,
         main_node_client: Box<DynClient<L2>>,
-        gateway_client: Option<Box<dyn EthInterface>>,
     ) -> Self {
         Self {
             l1_chain_id,
             l2_chain_id,
-            gateway_chain_id,
             l1_client: l1_client.for_component("chain_ids_validation"),
             main_node_client: main_node_client.for_component("chain_ids_validation"),
-            gateway_client,
         }
     }
 
@@ -156,15 +150,10 @@ impl ValidateChainIdsTask {
             Self::check_l1_chain_using_main_node(self.main_node_client.clone(), self.l1_chain_id);
         let main_node_l2_check =
             Self::check_l2_chain_using_main_node(self.main_node_client, self.l2_chain_id);
-        let gateway_check = Self::check_client(self.gateway_client, self.gateway_chain_id);
 
-        let joined_futures = futures::future::try_join4(
-            l1_client_check,
-            main_node_l1_check,
-            main_node_l2_check,
-            gateway_check,
-        )
-        .fuse();
+        let joined_futures =
+            futures::future::try_join3(l1_client_check, main_node_l1_check, main_node_l2_check)
+                .fuse();
         tokio::select! {
             res = joined_futures => res.map(drop),
             _ = stop_receiver.changed() =>  Ok(()),
@@ -185,12 +174,10 @@ impl ValidateChainIdsTask {
                 .fuse();
         let main_node_l2_check =
             Self::check_l2_chain_using_main_node(self.main_node_client, self.l2_chain_id).fuse();
-        let gateway_check = Self::check_client(self.gateway_client, self.gateway_chain_id).fuse();
         tokio::select! {
             Err(err) = l1_client_check =>  Err(err),
             Err(err) = main_node_l1_check =>  Err(err),
             Err(err) = main_node_l2_check =>  Err(err),
-            Err(err) = gateway_check =>  Err(err),
             _ = stop_receiver.changed() =>  Ok(()),
         }
     }
@@ -216,10 +203,8 @@ mod tests {
         let validation_task = ValidateChainIdsTask::new(
             L1ChainId(3), // << mismatch with the Ethereum client
             L2ChainId::default(),
-            None,
             Box::new(eth_client.clone()),
             Box::new(main_node_client.clone()),
-            None,
         );
         let (_stop_sender, stop_receiver) = watch::channel(false);
         let err = validation_task
@@ -235,10 +220,8 @@ mod tests {
         let validation_task = ValidateChainIdsTask::new(
             L1ChainId(9), // << mismatch with the main node client
             L2ChainId::from(270),
-            None,
             Box::new(eth_client.clone()),
             Box::new(main_node_client),
-            None,
         );
         let err = validation_task
             .run(stop_receiver.clone())
@@ -258,10 +241,8 @@ mod tests {
         let validation_task = ValidateChainIdsTask::new(
             L1ChainId(9),
             L2ChainId::from(271), // << mismatch with the main node client
-            None,
             Box::new(eth_client),
             Box::new(main_node_client),
-            None,
         );
         let err = validation_task
             .run(stop_receiver)
@@ -287,10 +268,8 @@ mod tests {
         let validation_task = ValidateChainIdsTask::new(
             L1ChainId(9),
             L2ChainId::default(),
-            None,
             Box::new(eth_client),
             Box::new(main_node_client),
-            None,
         );
         let (stop_sender, stop_receiver) = watch::channel(false);
         let task = tokio::spawn(validation_task.run(stop_receiver));

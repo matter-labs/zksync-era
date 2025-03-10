@@ -14,12 +14,12 @@ use crate::{
 
 /// Wiring layer for Ethereum client.
 #[derive(Debug)]
-pub struct GatewayClientLayer {
+pub struct SettlementLayerClientLayer {
     l1_rpc_url: SensitiveUrl,
     gateway_rpc_url: Option<SensitiveUrl>,
 }
 
-impl GatewayClientLayer {
+impl SettlementLayerClientLayer {
     pub fn new(l1_rpc_url: SensitiveUrl, gateway_rpc_url: Option<SensitiveUrl>) -> Self {
         Self {
             l1_rpc_url,
@@ -38,11 +38,11 @@ pub struct Input {
 #[derive(Debug, IntoContext)]
 #[context(crate = crate)]
 pub struct Output {
-    query_client_gateway: UniversalClientResource,
+    query_client_settlement_layer: UniversalClientResource,
 }
 
 #[async_trait::async_trait]
-impl WiringLayer for GatewayClientLayer {
+impl WiringLayer for SettlementLayerClientLayer {
     type Input = Input;
     type Output = Output;
 
@@ -52,7 +52,7 @@ impl WiringLayer for GatewayClientLayer {
 
     async fn wire(self, input: Self::Input) -> Result<Output, WiringError> {
         Ok(Output {
-            query_client_gateway: match input.initial_settlement_mode.0 {
+            query_client_settlement_layer: match input.initial_settlement_mode.0 {
                 SettlementMode::SettlesToL1 => {
                     let mut builder = Client::http(self.l1_rpc_url).context("Client::new()")?;
                     builder = builder.for_network(input.sl_chain_id_resource.0.into());

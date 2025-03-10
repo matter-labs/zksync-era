@@ -86,6 +86,25 @@ impl EthSenderDal<'_, '_> {
         Ok(count.try_into().unwrap())
     }
 
+    pub async fn get_last_eth_tx(&mut self) -> DalResult<Option<H256>> {
+        let res = sqlx::query!(
+            r#"
+            SELECT
+                tx_hash
+            FROM
+                eth_txs_history
+            ORDER BY id DESC
+            LIMIT 1
+            "#,
+        )
+        .instrument("get_last_eth_tx")
+        .fetch_optional(self.storage)
+        .await?
+        .map(|row| H256::from_str(&row.tx_hash).unwrap());
+
+        Ok(res)
+    }
+
     pub async fn get_unconfirmed_txs_count(&mut self) -> DalResult<usize> {
         let count = sqlx::query!(
             r#"

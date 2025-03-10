@@ -3,11 +3,7 @@ use zksync_types::commitment::L1BatchCommitmentMode;
 
 use crate::{
     implementations::resources::{
-        contracts::{
-            GatewayChainContractsResource, L1ChainContractsResource, L1EcosystemContractsResource,
-            SettlementLayerContractsResource,
-        },
-        eth_interface::{EthInterfaceResource, UniversalClient, UniversalClientResource},
+        contracts::L1EcosystemContractsResource, eth_interface::EthInterfaceResource,
     },
     service::StopReceiver,
     task::{Task, TaskId, TaskKind},

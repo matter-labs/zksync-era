@@ -1,7 +1,6 @@
 use zksync_config::configs::contracts::{ecosystem::L1SpecificContracts, ChainSpecificContracts};
-use zksync_contracts::getters_facet_contract;
+use zksync_consistency_checker::get_settlement_mode;
 use zksync_eth_client::EthInterface;
-use zksync_gateway_migrator::get_settlement_layer;
 use zksync_types::settlement::SettlementMode;
 
 use crate::{
@@ -11,6 +10,7 @@ use crate::{
             SettlementLayerContractsResource,
         },
         eth_interface::{EthInterfaceResource, L2InterfaceResource},
+        pools::{MasterPool, PoolResource},
         settlement_layer::{SettlementModeResource, SlChainIdResource},
     },
     wiring_layer::{WiringError, WiringLayer},
@@ -20,18 +20,21 @@ use crate::{
 /// Wiring layer for [`SettlementLayerData`].
 #[derive(Debug)]
 pub struct SettlementLayerDataEn {
-    l1specific_contracts: L1SpecificContracts,
-    chain_specific_contracts: ChainSpecificContracts,
+    l1_specific_contracts: L1SpecificContracts,
+    sl_chain_contracts: ChainSpecificContracts,
+    l1_chain_contracts: ChainSpecificContracts,
 }
 
 impl SettlementLayerDataEn {
     pub fn new(
-        l1specific_contracts: L1SpecificContracts,
-        chain_specific_contracts: ChainSpecificContracts,
+        l1_specific_contracts: L1SpecificContracts,
+        sl_chain_contracts: ChainSpecificContracts,
+        l1_chain_contracts: ChainSpecificContracts,
     ) -> Self {
         Self {
-            l1specific_contracts,
-            chain_specific_contracts,
+            l1_specific_contracts,
+            sl_chain_contracts,
+            l1_chain_contracts,
         }
     }
 }
@@ -41,6 +44,7 @@ impl SettlementLayerDataEn {
 pub struct Input {
     pub eth_client: EthInterfaceResource,
     pub l2_eth_client: Option<L2InterfaceResource>,
+    pub master_pool: PoolResource<MasterPool>,
 }
 
 #[derive(Debug, IntoContext)]
@@ -63,12 +67,10 @@ impl WiringLayer for SettlementLayerDataEn {
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
-        let initial_sl_mode = get_settlement_layer(
-            &input.eth_client.0,
-            self.chain_specific_contracts
-                .chain_contracts_config
-                .diamond_proxy_addr,
-            &getters_facet_contract(),
+        let initial_sl_mode = get_settlement_mode(
+            input.master_pool.get().await?,
+            input.eth_client.0.clone(),
+            input.l2_eth_client.as_ref().map(|a| a.0.clone()),
         )
         .await?;
 
@@ -84,9 +86,11 @@ impl WiringLayer for SettlementLayerDataEn {
         };
 
         Ok(Output {
-            contracts: SettlementLayerContractsResource(self.chain_specific_contracts.clone()),
-            l1_contracts: L1ChainContractsResource(self.chain_specific_contracts.clone()),
-            l1_ecosystem_contracts: L1EcosystemContractsResource(self.l1specific_contracts.clone()),
+            contracts: SettlementLayerContractsResource(self.sl_chain_contracts.clone()),
+            l1_contracts: L1ChainContractsResource(self.l1_chain_contracts.clone()),
+            l1_ecosystem_contracts: L1EcosystemContractsResource(
+                self.l1_specific_contracts.clone(),
+            ),
             initial_settlement_mode: SettlementModeResource(initial_sl_mode),
             sl_chain_id_resource: SlChainIdResource(chain_id),
         })

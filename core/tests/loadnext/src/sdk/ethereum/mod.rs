@@ -89,7 +89,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
         })?;
         let sl_chain_id = SLChainId(l1_chain_id);
 
-        let contract_address = provider.get_main_contract().await?;
+        let contract_address = provider.get_main_l1_contract().await?;
         let default_bridges = provider
             .get_bridge_contracts()
             .await
