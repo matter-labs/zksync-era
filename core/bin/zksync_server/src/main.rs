@@ -9,7 +9,6 @@ use zksync_config::{
             CircuitBreakerConfig, MempoolConfig, NetworkConfig, OperationsManagerConfig,
             StateKeeperConfig, TimestampAsserterConfig,
         },
-        contracts::ecosystem::L1SpecificContracts,
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
         BasicWitnessInputProducerConfig, ContractVerifierSecrets, DataAvailabilitySecrets,
@@ -158,7 +157,6 @@ fn main() -> anyhow::Result<()> {
         .clone()
         .context("observability config")?;
 
-    let l1_specific_contracts = L1SpecificContracts::new(&contracts_config);
     let contracts =
         SettlementLayerContracts::new(&contracts_config, gateway_contracts_config.as_ref());
 
@@ -168,7 +166,8 @@ fn main() -> anyhow::Result<()> {
         genesis,
         secrets,
         contracts,
-        l1_specific_contracts,
+        contracts_config.l1_specific_contracts(),
+        contracts_config.l2_contracts(),
     )?;
 
     let observability_guard = {

@@ -2,7 +2,7 @@ use zksync_basic_types::{settlement::SettlementMode, Address, SLChainId, H160};
 
 use crate::configs::{
     contracts::{
-        chain::{AllContractsConfig, ChainContracts, L2Contracts},
+        chain::{AllContractsConfig, ChainContracts},
         ecosystem::EcosystemCommonContracts,
     },
     gateway::GatewayChainConfig,
@@ -21,7 +21,6 @@ pub const L2_BRIDGEHUB_ADDRESS: Address = H160([
 pub struct ChainSpecificContracts {
     pub ecosystem_contracts: EcosystemCommonContracts,
     pub chain_contracts_config: ChainContracts,
-    pub l2_contracts: L2Contracts,
 }
 
 #[derive(Debug, Clone)]
@@ -89,14 +88,6 @@ impl SettlementLayerContracts {
                     diamond_proxy_addr: contracts_config.diamond_proxy_addr,
                     chain_admin: Some(contracts_config.chain_admin_addr),
                 },
-                l2_contracts: L2Contracts {
-                    erc20_default_bridge: contracts_config.l2_erc20_bridge_addr,
-                    shared_bridge_addr: contracts_config.l2_shared_bridge_addr,
-                    legacy_shared_bridge_addr: contracts_config.l2_legacy_shared_bridge_addr,
-                    timestamp_asserter_addr: contracts_config.l2_timestamp_asserter_addr,
-                    da_validator_addr: contracts_config.l2_da_validator_addr,
-                    testnet_paymaster_addr: contracts_config.l2_testnet_paymaster_addr,
-                },
             },
             gateway_chain_id: gateway_chain_config.as_ref().map(|a| a.gateway_chain_id),
             gateway_contracts: gateway_chain_config.map(|gateway| ChainSpecificContracts {
@@ -112,14 +103,6 @@ impl SettlementLayerContracts {
                 chain_contracts_config: ChainContracts {
                     diamond_proxy_addr: gateway.diamond_proxy_addr,
                     chain_admin: Some(gateway.chain_admin_addr),
-                },
-                l2_contracts: L2Contracts {
-                    erc20_default_bridge: contracts_config.l2_erc20_bridge_addr,
-                    shared_bridge_addr: contracts_config.l2_shared_bridge_addr,
-                    legacy_shared_bridge_addr: contracts_config.l2_legacy_shared_bridge_addr,
-                    timestamp_asserter_addr: contracts_config.l2_timestamp_asserter_addr,
-                    da_validator_addr: contracts_config.l2_da_validator_addr,
-                    testnet_paymaster_addr: contracts_config.l2_testnet_paymaster_addr,
                 },
             }),
             sl_mode: Default::default(),

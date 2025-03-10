@@ -6,10 +6,7 @@ use assert_matches::assert_matches;
 use async_trait::async_trait;
 use http::StatusCode;
 use tokio::sync::watch;
-use zksync_config::{
-    configs::{chain::NetworkConfig, contracts::ecosystem::L1SpecificContracts},
-    SettlementLayerContracts,
-};
+use zksync_config::{configs::chain::NetworkConfig, SettlementLayerContracts};
 use zksync_dal::ConnectionPool;
 use zksync_types::{api, Address, Bloom, L1BatchNumber, H160, H256, U64};
 use zksync_web3_decl::{
@@ -173,8 +170,13 @@ async fn test_ws_server(test: impl WsTest) {
     let genesis_config = GenesisConfig::for_tests();
     let sl_layer_contracts = SettlementLayerContracts::new(&contracts_config, None);
     let contracts = sl_layer_contracts.current_contracts();
-    let l1_specific = L1SpecificContracts::new(&contracts_config);
-    let api_config = InternalApiConfig::new(&web3_config, contracts, &l1_specific, &genesis_config);
+    let api_config = InternalApiConfig::new(
+        &web3_config,
+        contracts,
+        &contracts_config.l1_specific_contracts(),
+        &contracts_config.l2_contracts(),
+        &genesis_config,
+    );
     let mut storage = pool.connection().await.unwrap();
     test.storage_initialization()
         .prepare_storage(&network_config, &mut storage)

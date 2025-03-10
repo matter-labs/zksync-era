@@ -9,7 +9,6 @@ use zksync_config::{
     configs::{
         chain::{OperationsManagerConfig, StateKeeperConfig},
         consensus as config,
-        contracts::ecosystem::L1SpecificContracts,
         database::{MerkleTreeConfig, MerkleTreeMode},
     },
 };
@@ -608,7 +607,8 @@ impl StateKeeperRunner {
                         None,
                     )
                     .current_contracts(),
-                    &L1SpecificContracts::new(&configs::AllContractsConfig::for_tests()),
+                    &configs::AllContractsConfig::for_tests().l1_specific_contracts(),
+                    &configs::AllContractsConfig::for_tests().l2_contracts(),
                     &configs::GenesisConfig::for_tests(),
                 );
                 let mut server = TestServerBuilder::new(self.pool.0.clone(), cfg)
@@ -691,12 +691,12 @@ impl StateKeeperRunner {
                     &configs::AllContractsConfig::for_tests(),
                     None,
                 );
-                let l1_specific =
-                    L1SpecificContracts::new(&configs::AllContractsConfig::for_tests());
+                let l1_specific = &configs::AllContractsConfig::for_tests().l1_specific_contracts();
                 let cfg = InternalApiConfig::new(
                     &configs::api::Web3JsonRpcConfig::for_tests(),
                     sl_contracts.current_contracts(),
-                    &l1_specific,
+                    l1_specific,
+                    &configs::AllContractsConfig::for_tests().l2_contracts(),
                     &configs::GenesisConfig::for_tests(),
                 );
                 let mut server = TestServerBuilder::new(self.pool.0.clone(), cfg)

@@ -1,5 +1,5 @@
 use zksync_node_sync::validate_chain_ids_task::ValidateChainIdsTask;
-use zksync_types::{L1ChainId, L2ChainId, SLChainId};
+use zksync_types::{L1ChainId, L2ChainId};
 
 use crate::{
     implementations::resources::{

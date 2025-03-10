@@ -57,7 +57,4 @@ pub trait EnNamespace {
 
     #[method(name = "getEcosystemContracts")]
     async fn get_ecosystem_contracts(&self) -> RpcResult<EcosystemContracts>;
-
-    #[method(name = "getL1EcosystemContracts")]
-    async fn get_l1_ecosystem_contracts(&self) -> RpcResult<EcosystemContracts>;
 }

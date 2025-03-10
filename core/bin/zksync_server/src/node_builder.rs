@@ -4,8 +4,11 @@
 use anyhow::{bail, Context};
 use zksync_config::{
     configs::{
-        contracts::ecosystem::L1SpecificContracts, da_client::DAClientConfig,
-        secrets::DataAvailabilitySecrets, wallets::Wallets, GeneralConfig, Secrets,
+        contracts::{chain::L2Contracts, ecosystem::L1SpecificContracts},
+        da_client::DAClientConfig,
+        secrets::DataAvailabilitySecrets,
+        wallets::Wallets,
+        GeneralConfig, Secrets,
     },
     GenesisConfig, SettlementLayerContracts,
 };
@@ -95,6 +98,7 @@ pub struct MainNodeBuilder {
     secrets: Secrets,
     contracts: SettlementLayerContracts,
     l1_specific_contracts: L1SpecificContracts,
+    l2_contracts: L2Contracts,
 }
 
 impl MainNodeBuilder {
@@ -105,6 +109,7 @@ impl MainNodeBuilder {
         secrets: Secrets,
         contracts: SettlementLayerContracts,
         l1_specific_contracts: L1SpecificContracts,
+        l2_contracts: L2Contracts,
     ) -> anyhow::Result<Self> {
         Ok(Self {
             node: ZkStackServiceBuilder::new().context("Cannot create ZkStackServiceBuilder")?,
@@ -114,6 +119,7 @@ impl MainNodeBuilder {
             secrets,
             contracts,
             l1_specific_contracts,
+            l2_contracts,
         })
     }
 
@@ -315,6 +321,7 @@ impl MainNodeBuilder {
         self.node.add_layer(SettlementLayerData::new(
             self.contracts.clone(),
             self.l1_specific_contracts.clone(),
+            self.l2_contracts.clone(),
         ));
         Ok(self)
     }

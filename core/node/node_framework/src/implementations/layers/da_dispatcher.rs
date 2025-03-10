@@ -3,7 +3,7 @@ use zksync_da_dispatcher::DataAvailabilityDispatcher;
 
 use crate::{
     implementations::resources::{
-        contracts::SettlementLayerContractsResource,
+        contracts::{L2ContractsResource, SettlementLayerContractsResource},
         da_client::DAClientResource,
         eth_interface::EthInterfaceResource,
         pools::{MasterPool, PoolResource},
@@ -28,6 +28,7 @@ pub struct Input {
     pub eth_client: EthInterfaceResource,
     pub da_client: DAClientResource,
     pub contracts_resource: SettlementLayerContractsResource,
+    l2_contracts_resource: L2ContractsResource,
 }
 
 #[derive(Debug, IntoContext)]
@@ -74,6 +75,7 @@ impl WiringLayer for DataAvailabilityDispatcherLayer {
             self.da_config,
             da_client,
             input.contracts_resource.0.clone(),
+            input.l2_contracts_resource.0.clone(),
             input.eth_client.0,
         );
 
