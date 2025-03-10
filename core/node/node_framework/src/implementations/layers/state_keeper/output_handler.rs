@@ -5,10 +5,9 @@ use zksync_state_keeper::{
     StateKeeperPersistence, TreeWritesPersistence,
 };
 
-use crate::implementations::resources::contracts::L2ContractsResource;
 use crate::{
     implementations::resources::{
-        contracts::SettlementLayerContractsResource,
+        contracts::{L2ContractsResource, SettlementLayerContractsResource},
         pools::{MasterPool, PoolResource},
         state_keeper::OutputHandlerResource,
         sync_state::SyncStateResource,

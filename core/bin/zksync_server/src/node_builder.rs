@@ -2,11 +2,13 @@
 //! as well as an interface to run the node with the specified components.
 
 use anyhow::{bail, Context};
-use zksync_config::configs::contracts::chain::L2Contracts;
 use zksync_config::{
     configs::{
-        contracts::ecosystem::L1SpecificContracts, da_client::DAClientConfig,
-        secrets::DataAvailabilitySecrets, wallets::Wallets, GeneralConfig, Secrets,
+        contracts::{chain::L2Contracts, ecosystem::L1SpecificContracts},
+        da_client::DAClientConfig,
+        secrets::DataAvailabilitySecrets,
+        wallets::Wallets,
+        GeneralConfig, Secrets,
     },
     GenesisConfig, SettlementLayerContracts,
 };

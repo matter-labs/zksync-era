@@ -11,7 +11,6 @@ use zksync_node_api_server::web3::{
     ApiBuilder, ApiServer, Namespace,
 };
 
-use crate::implementations::resources::contracts::L2ContractsResource;
 use crate::{
     implementations::{
         layers::web3_api::server::{
@@ -20,7 +19,7 @@ use crate::{
         resources::{
             circuit_breakers::CircuitBreakersResource,
             contracts::{
-                L1ChainContractsResource, L1EcosystemContractsResource,
+                L1ChainContractsResource, L1EcosystemContractsResource, L2ContractsResource,
                 SettlementLayerContractsResource,
             },
             eth_interface::EthInterfaceResource,

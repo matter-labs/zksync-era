@@ -1,10 +1,9 @@
 use zksync_config::configs::{chain::StateKeeperConfig, da_dispatcher::DADispatcherConfig};
 use zksync_da_dispatcher::DataAvailabilityDispatcher;
 
-use crate::implementations::resources::contracts::L2ContractsResource;
 use crate::{
     implementations::resources::{
-        contracts::SettlementLayerContractsResource,
+        contracts::{L2ContractsResource, SettlementLayerContractsResource},
         da_client::DAClientResource,
         eth_interface::EthInterfaceResource,
         pools::{MasterPool, PoolResource},

@@ -1,9 +1,10 @@
 use zksync_commitment_generator::validation_task::L1BatchCommitmentModeValidationTask;
 use zksync_types::commitment::L1BatchCommitmentMode;
 
-use crate::implementations::resources::contracts::L1ChainContractsResource;
 use crate::{
-    implementations::resources::eth_interface::EthInterfaceResource,
+    implementations::resources::{
+        contracts::L1ChainContractsResource, eth_interface::EthInterfaceResource,
+    },
     service::StopReceiver,
     task::{Task, TaskId, TaskKind},
     wiring_layer::{WiringError, WiringLayer},

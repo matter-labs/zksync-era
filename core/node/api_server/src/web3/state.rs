@@ -12,11 +12,11 @@ use futures::TryFutureExt;
 use lru::LruCache;
 use tokio::sync::{Mutex, RwLock};
 use vise::GaugeGuard;
-use zksync_config::configs::contracts::chain::L2Contracts;
 use zksync_config::{
     configs::{
         api::Web3JsonRpcConfig,
         contracts::{
+            chain::L2Contracts,
             ecosystem::{EcosystemCommonContracts, L1SpecificContracts},
             ChainSpecificContracts,
         },

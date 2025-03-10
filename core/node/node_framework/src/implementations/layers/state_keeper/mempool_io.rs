@@ -6,10 +6,9 @@ use zksync_config::configs::{
 use zksync_state_keeper::{MempoolFetcher, MempoolGuard, MempoolIO, SequencerSealer};
 use zksync_types::{commitment::PubdataType, L2ChainId};
 
-use crate::implementations::resources::contracts::L2ContractsResource;
 use crate::{
     implementations::resources::{
-        contracts::SettlementLayerContractsResource,
+        contracts::{L2ContractsResource, SettlementLayerContractsResource},
         fee_input::SequencerFeeInputResource,
         pools::{MasterPool, PoolResource},
         state_keeper::{ConditionalSealerResource, StateKeeperIOResource},

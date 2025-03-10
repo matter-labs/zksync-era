@@ -1,10 +1,11 @@
-use zksync_config::configs::contracts::chain::ChainContracts;
-use zksync_config::configs::contracts::ecosystem::{EcosystemCommonContracts, L1SpecificContracts};
-use zksync_config::configs::contracts::ChainSpecificContracts;
+use zksync_config::configs::contracts::{
+    chain::ChainContracts,
+    ecosystem::{EcosystemCommonContracts, L1SpecificContracts},
+    ChainSpecificContracts,
+};
 use zksync_contracts::{bridgehub_contract, state_transition_manager_contract};
 use zksync_eth_client::{CallFunctionArgs, EthInterface};
-use zksync_types::ethabi::Token;
-use zksync_types::{Address, L2ChainId};
+use zksync_types::{ethabi::Token, Address, L2ChainId};
 
 pub async fn load_sl_contracts(
     sl_client: &dyn EthInterface,

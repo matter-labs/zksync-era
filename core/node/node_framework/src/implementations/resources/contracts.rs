@@ -1,5 +1,6 @@
-use zksync_config::configs::contracts::chain::L2Contracts;
-use zksync_config::configs::contracts::{ecosystem::L1SpecificContracts, ChainSpecificContracts};
+use zksync_config::configs::contracts::{
+    chain::L2Contracts, ecosystem::L1SpecificContracts, ChainSpecificContracts,
+};
 
 use crate::Resource;
 

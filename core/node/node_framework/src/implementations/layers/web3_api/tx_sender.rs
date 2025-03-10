@@ -14,10 +14,9 @@ use zksync_web3_decl::{
     namespaces::EnNamespaceClient as _,
 };
 
-use crate::implementations::resources::contracts::L2ContractsResource;
 use crate::{
     implementations::resources::{
-        contracts::SettlementLayerContractsResource,
+        contracts::{L2ContractsResource, SettlementLayerContractsResource},
         fee_input::ApiFeeInputResource,
         main_node_client::MainNodeClientResource,
         pools::{PoolResource, ReplicaPool},

@@ -823,17 +823,17 @@ pub async fn get_settlement_mode(
     if let Some(tx_hash) = tx_hash {
         let tx_status = eth_client.get_tx_status(tx_hash).await?;
         if tx_status.is_some() {
-            return Ok(SettlementMode::SettlesToL1);
+            Ok(SettlementMode::SettlesToL1)
         } else {
             // The tx has not been found on l1, we have to check on l2
             if sl_client.unwrap().get_tx_status(tx_hash).await?.is_some() {
-                return Ok(SettlementMode::Gateway);
+                Ok(SettlementMode::Gateway)
             } else {
-                return Ok(SettlementMode::SettlesToL1);
-            };
+                Ok(SettlementMode::SettlesToL1)
+            }
         }
     } else {
         // We can assume settlement to l1 by default in the worst case scenario, en will be restarted right after the getting the very first commit_tx
-        return Ok(SettlementMode::SettlesToL1);
+        Ok(SettlementMode::SettlesToL1)
     }
 }

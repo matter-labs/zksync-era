@@ -4,8 +4,10 @@ use anyhow::Context;
 use chrono::Utc;
 use rand::Rng;
 use tokio::sync::watch::Receiver;
-use zksync_config::configs::contracts::chain::L2Contracts;
-use zksync_config::{configs::contracts::ChainSpecificContracts, DADispatcherConfig};
+use zksync_config::{
+    configs::contracts::{chain::L2Contracts, ChainSpecificContracts},
+    DADispatcherConfig,
+};
 use zksync_da_client::{
     types::{DAError, InclusionData},
     DataAvailabilityClient,
