@@ -514,8 +514,6 @@ impl ConsistencyChecker {
         })
         .map_err(CheckError::Validation)?;
 
-        // TODO set properly
-        // let is_gateway =  self.chain_data.chain_id != self.l1_chain_data.chain_id;
         let is_gateway = self.settlement_mode.is_gateway();
         local
             .verify_commitment(&commitment, is_gateway)

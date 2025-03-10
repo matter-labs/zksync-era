@@ -301,7 +301,6 @@ impl ExternalNodeBuilder {
         let layer = ValidateChainIdsLayer::new(
             self.config.required.l1_chain_id,
             self.config.required.l2_chain_id,
-            self.config.required.gateway_chain_id,
         );
         self.node.add_layer(layer);
         Ok(self)
@@ -658,7 +657,7 @@ impl ExternalNodeBuilder {
         // Add preconditions for all the components.
         self = self
             .add_l1_batch_commitment_mode_validation_layer()?
-            // .add_validate_chain_ids_layer()?
+            .add_validate_chain_ids_layer()?
             .add_storage_initialization_layer(LayerKind::Precondition)?;
 
         // Sort the components, so that the components they may depend on each other are added in the correct order.
