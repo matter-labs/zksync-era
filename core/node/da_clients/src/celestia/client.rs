@@ -4,6 +4,7 @@ use std::{
     sync::Arc,
     time,
     fs::File,
+    collections::HashMap,
 };
 
 use async_trait::async_trait;
@@ -45,6 +46,7 @@ pub struct CelestiaClient {
     eth_client: Box<DynClient<L1>>,
     blobstream_update_event: Event,
     blobstream_contract: Contract,
+    equivalence_proof_cache: HashMap<String, (FixedBytes<32>, FixedBytes<32>, SP1ProofWithPublicValues)>,
 }
 
 impl CelestiaClient {
@@ -85,7 +87,60 @@ impl CelestiaClient {
             eth_client,
             blobstream_update_event,
             blobstream_contract,
+            equivalence_proof_cache: HashMap::new(),
         })
+    }
+
+    async fn get_proof_data(&self, blob_id: &str) -> Result<Option<(FixedBytes<32>, FixedBytes<32>, SP1ProofWithPublicValues)>, DAError> {
+
+        tracing::debug!("Parsing blob id: {}", blob_id);
+        let blob_id_struct = blob_id
+            .parse::<BlobId>()
+            .map_err(to_non_retriable_da_error)?;
+
+        let response = self
+            .eq_client
+            .get_keccak_inclusion(&blob_id_struct)
+            .await
+            .map_err(to_retriable_da_error)?;
+        
+        tracing::debug!("Got response from eq-service");
+        let response_data: Option<InclusionResponseValue> = response
+            .response_value
+            .try_into()
+            .map_err(to_non_retriable_da_error)?;
+        tracing::debug!("response_data: {:?}", response_data);
+        
+        let response_status: InclusionResponseStatus = response
+            .status
+            .try_into()
+            .map_err(to_non_retriable_da_error)?;
+        tracing::debug!("response_status: {:?}", response_status);
+
+        let proof_data = match response_status {
+            InclusionResponseStatus::ZkpFinished => match response_data {
+                Some(InclusionResponseValue::Proof(proof)) => proof,
+                _ => {
+                    return Err(DAError { 
+                        error: anyhow::anyhow!("Complete status should be accompanied by a Proof, eq-service is broken"), 
+                        is_retriable: false 
+                    });
+                }
+            },
+            _ => {
+                tracing::debug!("eq-service returned non-complete status, returning None");
+                return Ok(None);
+            }
+        };
+        tracing::debug!("Got proof data from eq-service: {:?}", proof_data);
+
+        let proof: SP1ProofWithPublicValues = bincode::deserialize(&proof_data).unwrap();
+        let public_values_bytes = proof.public_values.to_vec();
+        let (keccak_hash, data_root) = KeccakInclusionToDataRootProofOutput::abi_decode(&public_values_bytes, true)
+            .map_err(to_non_retriable_da_error)?;
+        tracing::debug!("Decoded public values from SP1 proof {:?} {:?}", keccak_hash, data_root);
+
+        Ok(Some((keccak_hash, data_root, proof)))
     }
 }
 
@@ -141,54 +196,33 @@ impl DataAvailabilityClient for CelestiaClient {
     }
 
     async fn get_inclusion_data(&self, blob_id: &str) -> Result<Option<InclusionData>, DAError> {
-        tracing::debug!("Parsing blob id: {}", blob_id);
-        let blob_id_struct = blob_id
-            .parse::<BlobId>()
-            .map_err(to_non_retriable_da_error)?;
 
-        tracing::debug!("Calling eq-service...");
-        let response = self
-            .eq_client
-            .get_keccak_inclusion(&blob_id_struct)
-            .await
-            .map_err(to_retriable_da_error)?;
-        
-        // This code is a bit ugly because Prost doesn't turn protobuf enums into the most Rustic representation
-        // response_data and response_status have to be separate variables :/
-        // Maybe we ought to write a wrapper so it looks more Rustic
-        tracing::debug!("Got response from eq-service");
-        let response_data: Option<InclusionResponseValue> = response
-            .response_value
-            .try_into()
-            .map_err(to_non_retriable_da_error)?;
-        tracing::debug!("response_data: {:?}", response_data);
-        let response_status: InclusionResponseStatus = response
-            .status
-            .try_into()
-            .map_err(to_non_retriable_da_error)?;
-        tracing::debug!("response_status: {:?}", response_status);
-
-        let proof_data = match response_status {
-            InclusionResponseStatus::ZkpFinished => match response_data {
-                Some(InclusionResponseValue::Proof(proof)) => proof,
-                _ => {
-                    return Err(DAError { error: anyhow::anyhow!("Complete status should be accompanied by a Proof, eq-service is broken"), is_retriable: false });
-                }
+        // We store the equivallence proofs in self.equivallence_proof_cache
+        // This allows us to avoid redundant calls to eq-service
+        // since get_inclusion_data gets polled by zk-stack
+        let (keccak_hash, data_root, proof) = match self.equivalence_proof_cache.get(&blob_id.to_string()) {
+            Some(cached_proof) => {
+                tracing::debug!("Found cached proof for blob_id: {}", blob_id);
+                (cached_proof.0, cached_proof.1, cached_proof.2.clone())
             },
-            _ => {
-                tracing::debug!("eq-service returned non-complete status, returning None");
-                return Ok(None);
+            None => {
+                tracing::debug!("Calling get_proof_data and caching result for blob_id: {}", blob_id);
+                // get_proof_data will return None if the proof is still in progress
+                match self.get_proof_data(&blob_id).await? {
+                    Some(proof) => {
+                        tracing::debug!("Got complete zk equivallence proof for blob_id: {}", blob_id);
+                        self.equivalence_proof_cache.insert(blob_id.to_string(), proof.clone());
+                        proof
+                    },
+                    None => {
+                        tracing::debug!("eq-service is still working on proving blob_id: {}", blob_id);
+                        return Ok(None);
+                    }
+                }
             }
         };
-        tracing::debug!("Got proof data from eq-service: {:?}", proof_data);
 
-        let proof: SP1ProofWithPublicValues = bincode::deserialize(&proof_data).unwrap();
-        let public_values_bytes = proof.public_values.to_vec();
-        let (keccak_hash, data_root) = KeccakInclusionToDataRootProofOutput::abi_decode(&public_values_bytes, true).unwrap();
-        tracing::debug!("Decoded public vlaues from SP1 proof {:?} {:?}", keccak_hash, data_root);
-
-        // Here we want to poll blobstream until the included block is in blobstream
-        //self.eth_client.call_contract_function(request, block)
+        // Now we begin the blobstream part
         let block_num = self.eth_client.block_number()
             .await
             .map_err(|e| to_retriable_da_error(e))?;
