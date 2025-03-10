@@ -1,7 +1,7 @@
 name: Cache regen
 
 on:
-#  pull_request:
+  pull_request:
   push:
     branches:
       - main
@@ -25,9 +25,8 @@ jobs:
 #          - prover
 #          - zkstack_cli
         build-type:
-          - debug
           - release
-          - nextest
+          - dev
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -38,23 +37,18 @@ jobs:
         uses: matter-labs/zksync-ci-common/.github/actions/runner-setup@aba-ci-optimize
         with:
           save_cache: true
-          cache_shared_key: "${{ matrix.build-type }}"
+          cache_shared_key: ${{ matrix.build-type }}
           workspace: ${{ matrix.workspace }}
 
-      - name: Generate cache
+      - name: Generate cache release
         if: ${{ matrix.build-type == 'release' }}
         working-directory: ${{ matrix.workspace }}
         run: cargo build --release --all-targets
 
-      - name: Generate cache
-        if: ${{ matrix.build-type == 'nextest' }}
+      - name: Generate cache dev
+        if: ${{ matrix.build-type == 'dev' }}
         working-directory: ${{ matrix.workspace }}
-        run: cargo nextest run --no-run
-
-      - name: Generate cache
-        if: ${{ matrix.build-type == 'debug' }}
-        working-directory: ${{ matrix.workspace }}
-        run: cargo build --all-targets
+        run: cargo nextest run --no-run --all-targets
 
 #  cache-regen-full:
 #    runs-on: matterlabs-ci-runner-highmem-long
