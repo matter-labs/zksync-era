@@ -14,7 +14,7 @@ use zksync_basic_types::web3::{Log, BlockNumber, FilterBuilder, CallRequest, Blo
 use zksync_basic_types::ethabi::{Contract, Event, ParamType};
 use serde::Deserialize;
 use alloy_sol_types::sol;
-
+use zksync_basic_types::H160;
 pub struct TendermintRPCClient {
     url: String,
 }
@@ -39,7 +39,7 @@ impl TendermintRPCClient {
 }
 
 // Get the latest block relayed to Blobstream
-pub async fn get_latest_block(client: &Box<DynClient<L1>>, contract: &Contract) -> U256 {
+pub async fn get_latest_blobstream_relayed_height(client: &Box<DynClient<L1>>, contract: &Contract) -> U256 {
     let request = CallRequest {
         to: Some("0xF0c6429ebAB2e7DC6e05DaFB61128bE21f13cb1e".parse().unwrap()),
         data: Some(contract.function("latestBlock").unwrap().encode_input(&[]).unwrap().into()),
@@ -57,6 +57,7 @@ pub async fn find_block_range(
     latest_block: U256,
     eth_block_num: BlockNumber,
     blobstream_update_event: &Event,
+    contract_address: H160,
 ) -> Result<Option<(U256, U256, U256)>, Box<dyn std::error::Error>> {
     if target_height >= latest_block.as_u64() {
         return Ok(None);
@@ -66,8 +67,6 @@ pub async fn find_block_range(
         BlockNumber::Number(num) => num,
         _ => return Err("Invalid block number".into()),
     };
-
-    let contract_address = "0xF0c6429ebAB2e7DC6e05DaFB61128bE21f13cb1e".parse()?;
 
     for multiplier in 1..=1000 {  // Limited to 1000 pages
         let page_end = page_start - 500 * multiplier;

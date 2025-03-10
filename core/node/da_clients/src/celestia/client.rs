@@ -1,7 +1,7 @@
 use std::{
     fmt::{Debug, Formatter},
     str::FromStr,
-    sync::Arc,
+    sync::{Arc, Mutex},
     time,
     fs::File,
     collections::HashMap,
@@ -32,7 +32,7 @@ use crate::{
 };
 
 use eq_sdk::{EqClient, types::BlobId, get_keccak_inclusion_response::{ResponseValue as InclusionResponseValue, Status as InclusionResponseStatus}};
-use crate::celestia::blobstream::{TendermintRPCClient, get_latest_block, find_block_range, DataRootInclusionProofResponse, AttestationProof, DataRootTuple, BinaryMerkleProof};
+use crate::celestia::blobstream::{TendermintRPCClient, get_latest_blobstream_relayed_height, find_block_range, DataRootInclusionProofResponse, AttestationProof, DataRootTuple, BinaryMerkleProof};
 use alloy_sol_types::{SolType, SolValue};
 use alloy_primitives::{FixedBytes, Uint, Bytes};
 use sp1_sdk::{SP1ProofWithPublicValues};
@@ -46,7 +46,8 @@ pub struct CelestiaClient {
     eth_client: Box<DynClient<L1>>,
     blobstream_update_event: Event,
     blobstream_contract: Contract,
-    equivalence_proof_cache: HashMap<String, (FixedBytes<32>, FixedBytes<32>, SP1ProofWithPublicValues)>,
+    equivalence_proof_cache: Arc<Mutex<HashMap<String, (FixedBytes<32>, FixedBytes<32>, SP1ProofWithPublicValues)>>>,
+    //blobstream_range_cache: Arc<Mutex<HashMap<u64, (U256, U256, U256)>>>,
 }
 
 impl CelestiaClient {
@@ -87,7 +88,7 @@ impl CelestiaClient {
             eth_client,
             blobstream_update_event,
             blobstream_contract,
-            equivalence_proof_cache: HashMap::new(),
+            equivalence_proof_cache: Arc::new(Mutex::new(HashMap::new())),
         })
     }
 
@@ -196,22 +197,27 @@ impl DataAvailabilityClient for CelestiaClient {
     }
 
     async fn get_inclusion_data(&self, blob_id: &str) -> Result<Option<InclusionData>, DAError> {
+        // First check the cache with a scoped lock
+        let cached_proof = {
+            let cache = self.equivalence_proof_cache.lock().unwrap();
+            cache.get(&blob_id.to_string()).cloned()
+        };
 
-        // We store the equivallence proofs in self.equivallence_proof_cache
-        // This allows us to avoid redundant calls to eq-service
-        // since get_inclusion_data gets polled by zk-stack
-        let (keccak_hash, data_root, proof) = match self.equivalence_proof_cache.get(&blob_id.to_string()) {
+        let (keccak_hash, data_root, proof) = match cached_proof {
             Some(cached_proof) => {
                 tracing::debug!("Found cached proof for blob_id: {}", blob_id);
-                (cached_proof.0, cached_proof.1, cached_proof.2.clone())
+                (cached_proof.0, cached_proof.1, cached_proof.2)
             },
             None => {
                 tracing::debug!("Calling get_proof_data and caching result for blob_id: {}", blob_id);
-                // get_proof_data will return None if the proof is still in progress
                 match self.get_proof_data(&blob_id).await? {
                     Some(proof) => {
                         tracing::debug!("Got complete zk equivallence proof for blob_id: {}", blob_id);
-                        self.equivalence_proof_cache.insert(blob_id.to_string(), proof.clone());
+                        // Create a new scope for the mutex lock when inserting
+                        {
+                            let mut cache = self.equivalence_proof_cache.lock().unwrap();
+                            cache.insert(blob_id.to_string(), proof.clone());
+                        }
                         proof
                     },
                     None => {
@@ -223,23 +229,44 @@ impl DataAvailabilityClient for CelestiaClient {
         };
 
         // Now we begin the blobstream part
-        let block_num = self.eth_client.block_number()
+        let eth_current_height = self.eth_client.block_number()
             .await
             .map_err(|e| to_retriable_da_error(e))?;
 
-        let latest_block = get_latest_block(&self.eth_client, &self.blobstream_contract).await;
-        tracing::debug!("Latest blobstream block: {}", latest_block);
+        let latest_blobstream_height = get_latest_blobstream_relayed_height(&self.eth_client, &self.blobstream_contract).await;
+        tracing::debug!("Latest blobstream block: {}", latest_blobstream_height);
+
+        tracing::debug!("Parsing blob id: {}", blob_id);
+        let blob_id_struct = blob_id
+            .parse::<BlobId>()
+            .map_err(to_non_retriable_da_error)?;
 
         let target_height: u64 = blob_id_struct.height.into();
-        tracing::debug!("Starting wait for blobstream");
-        let (from, to, proof_nonce) = find_block_range(
+        tracing::debug!("Checking blobstream for height: {}", target_height);
+
+        let blobstream_contract_address = "0xF0c6429ebAB2e7DC6e05DaFB61128bE21f13cb1e"
+            .parse()
+            .map_err(to_non_retriable_da_error)?;
+
+        // Call find_block_range
+        // This function will return None until the relayed height is relayed to blobstream
+        let (from, to, proof_nonce) = match find_block_range(
             &self.eth_client,
             target_height,
-            latest_block,
-            BlockNumber::Number(block_num),
+            latest_blobstream_height,
+            BlockNumber::Number(eth_current_height),
             &self.blobstream_update_event,
-            &self.blobstream_contract
-        ).await.expect("Failed to find block range");
+            blobstream_contract_address
+        ).await.map_err(|e| to_retriable_da_error(anyhow::anyhow!("Failed to find block range: {}", e)))? {
+            Some((from, to, proof_nonce)) => {
+                tracing::debug!("Found block range: {} - {}", from, to);
+                (from, to, proof_nonce)
+            },
+            None => {
+                tracing::debug!("Blobstream is still waiting for height: {}", target_height);
+                return Ok(None);
+            }
+        };
 
         let tm_rpc_client = TendermintRPCClient::new(self.config.tm_rpc_url.clone());
         let data_root_inclusion_proof_string = tm_rpc_client.get_data_root_inclusion_proof(target_height, from.as_u64(), to.as_u64())
