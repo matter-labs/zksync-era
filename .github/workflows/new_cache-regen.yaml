@@ -1,7 +1,7 @@
 name: Cache regen
 
 on:
-#  pull_request:
+  pull_request:
   push:
     branches:
       - main
@@ -24,37 +24,59 @@ jobs:
           - core
 #          - prover
 #          - zkstack_cli
-        build-type:
-          - debug
-          - release
-          - nextest
+#        build-type:
+#          - debug
+#          - release
+#          - nextest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+#      - name: Checkout
+#        uses: actions/checkout@v4
+#        with:
+#          submodules: "recursive"
+
+      - uses: actions/cache/restore@v4
+        id: cache
         with:
-          submodules: "recursive"
+          path: nextest
+          key: 'v0-rust-core-nextest-Linux-86053102-19ee9ca6'
 
-      - name: Setup runner
-        uses: matter-labs/zksync-ci-common/.github/actions/runner-setup@aba-ci-optimize
+      - uses: actions/upload-artifact@v4
         with:
-          save_cache: true
-          cache_shared_key: "${{ matrix.build-type }}"
-          workspace: ${{ matrix.workspace }}
+          name: nextest-cache
+          path: nextest/
 
-      - name: Generate cache
-        if: ${{ matrix.build-type == 'release' }}
-        working-directory: ${{ matrix.workspace }}
-        run: cargo build --release --all-targets
+      - uses: actions/cache/restore@v4
+        id: cache
+        with:
+          path: release
+          key: 'v0-rust-core-release-Linux-86053102-19ee9ca6'
 
-      - name: Generate cache
-        if: ${{ matrix.build-type == 'nextest' }}
-        working-directory: ${{ matrix.workspace }}
-        run: cargo nextest run --no-run
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-cache
+          path: release/
 
-      - name: Generate cache
-        if: ${{ matrix.build-type == 'debug' }}
-        working-directory: ${{ matrix.workspace }}
-        run: cargo build --all-targets
+#      - name: Setup runner
+#        uses: matter-labs/zksync-ci-common/.github/actions/runner-setup@aba-ci-optimize
+#        with:
+#          save_cache: true
+#          cache_shared_key: "${{ matrix.build-type }}"
+#          workspace: ${{ matrix.workspace }}
+#
+#      - name: Generate cache
+#        if: ${{ matrix.build-type == 'release' }}
+#        working-directory: ${{ matrix.workspace }}
+#        run: cargo build --release --all-targets
+#
+#      - name: Generate cache
+#        if: ${{ matrix.build-type == 'nextest' }}
+#        working-directory: ${{ matrix.workspace }}
+#        run: cargo nextest run --no-run
+#
+#      - name: Generate cache
+#        if: ${{ matrix.build-type == 'debug' }}
+#        working-directory: ${{ matrix.workspace }}
+#        run: cargo build --all-targets
 
 #  cache-regen-full:
 #    runs-on: matterlabs-ci-runner-highmem-long
