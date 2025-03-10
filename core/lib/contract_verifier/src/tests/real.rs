@@ -748,12 +748,18 @@ async fn using_zksolc_partial_match(use_cbor: bool) {
     );
 
     assert_eq!(
-        identifier_for_request.matches(output_for_storage.deployed_bytecode()),
+        identifier_for_request.matches(&ContractIdentifier::from_bytecode(
+            BytecodeMarker::EraVm,
+            output_for_storage.deployed_bytecode()
+        )),
         Match::Partial,
         "must be a partial match (1)"
     );
     assert_eq!(
-        identifier_for_storage.matches(output_for_request.deployed_bytecode()),
+        identifier_for_storage.matches(&ContractIdentifier::from_bytecode(
+            BytecodeMarker::EraVm,
+            output_for_request.deployed_bytecode()
+        )),
         Match::Partial,
         "must be a partial match (2)"
     );

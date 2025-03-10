@@ -193,10 +193,8 @@ impl ContractIdentifier {
     }
 
     /// Checks the kind of match between identifier and other bytecode.
-    pub fn matches(&self, other: &[u8]) -> Match {
-        let other_identifier = Self::from_bytecode(self.bytecode_marker, other);
-
-        if self.bytecode_keccak256 == other_identifier.bytecode_keccak256 {
+    pub fn matches(&self, other: &Self) -> Match {
+        if self.bytecode_keccak256 == other.bytecode_keccak256 {
             return Match::Full;
         }
 
@@ -205,9 +203,7 @@ impl ContractIdentifier {
         // and presence in another, or different kinds of metadata. This is OK: partial
         // match is needed mostly when you cannot reproduce the original metadata, but one always
         // can submit the contract with the same metadata kind.
-        if self.bytecode_without_metadata_keccak256
-            == other_identifier.bytecode_without_metadata_keccak256
-        {
+        if self.bytecode_without_metadata_keccak256 == other.bytecode_without_metadata_keccak256 {
             return Match::Partial;
         }
 

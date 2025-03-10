@@ -259,18 +259,8 @@ impl ContractVerifier {
         let bytecode_marker = BytecodeMarker::new(deployed_contract.bytecode_hash)
             .context("unknown bytecode kind")?;
         let artifacts = self.compile(request.req.clone(), bytecode_marker).await?;
-        let identifier =
+        let compiled_identifier =
             ContractIdentifier::from_bytecode(bytecode_marker, artifacts.deployed_bytecode());
-        let constructor_args = match bytecode_marker {
-            BytecodeMarker::EraVm => self
-                .decode_era_vm_constructor_args(&deployed_contract, request.req.contract_address)?,
-            BytecodeMarker::Evm => Self::decode_evm_constructor_args(
-                request.id,
-                &deployed_contract,
-                &artifacts.bytecode,
-                &identifier,
-            )?,
-        };
 
         let deployed_bytecode = match bytecode_marker {
             BytecodeMarker::EraVm => deployed_contract.bytecode.as_slice(),
@@ -281,10 +271,24 @@ impl ContractVerifier {
             )
             .context("invalid stored EVM bytecode")?,
         };
+        let deployed_identifier =
+            ContractIdentifier::from_bytecode(bytecode_marker, deployed_bytecode);
+
+        let constructor_args = match bytecode_marker {
+            BytecodeMarker::EraVm => self
+                .decode_era_vm_constructor_args(&deployed_contract, request.req.contract_address)?,
+            BytecodeMarker::Evm => Self::decode_evm_constructor_args(
+                request.id,
+                &deployed_contract,
+                &artifacts.bytecode,
+                &compiled_identifier,
+                &deployed_identifier,
+            )?,
+        };
 
         let mut verification_problems = Vec::new();
 
-        match identifier.matches(deployed_bytecode) {
+        match compiled_identifier.matches(&deployed_identifier) {
             Match::Full => {}
             Match::Partial => {
                 tracing::trace!(
@@ -336,7 +340,7 @@ impl ContractVerifier {
             verified_at,
             verification_problems,
         };
-        Ok((info, identifier))
+        Ok((info, compiled_identifier))
     }
 
     async fn compile_zksolc(
@@ -557,19 +561,21 @@ impl ContractVerifier {
         request_id: usize,
         contract: &DeployedContractData,
         creation_bytecode: &[u8],
-        contract_identifier: &ContractIdentifier,
+        compiled_identifier: &ContractIdentifier,
+        deployed_identifier: &ContractIdentifier,
     ) -> Result<ConstructorArgs, ContractVerifierError> {
         fn extract_arguments<'a>(
             calldata: &'a [u8],
             creation_bytecode: &'a [u8],
-            metadata_len: usize,
+            compiled_identifier: &ContractIdentifier,
+            deployed_identifier: &ContractIdentifier,
         ) -> Result<&'a [u8], &'static str> {
-            if creation_bytecode.len() < metadata_len {
+            if creation_bytecode.len() < compiled_identifier.metadata_length() {
                 // This shouldn't normally happen, since we calculated contract identifier based on this code.
                 return Err("Creation bytecode doesn't fit metadata");
             }
-            let creation_bytecode_without_metadata =
-                &creation_bytecode[..creation_bytecode.len() - metadata_len];
+            let creation_bytecode_without_metadata = &creation_bytecode
+                [..creation_bytecode.len() - compiled_identifier.metadata_length()];
 
             // Ensure equivalence of the creation bytecode (which can be different from the deployed bytecode).
             // Note that metadata hash may still be different; this is checked by other part of the code.
@@ -578,10 +584,12 @@ impl ContractVerifier {
                 .ok_or("Creation bytecode is different")?;
 
             // Skip metadata to get to the constructor arguments.
-            if constructor_args_with_metadata.len() < metadata_len {
-                return Err("Provided bytecode has no metadata");
+            // Note that deployed contract may have different metadata, so we use another
+            // identifier here.
+            if constructor_args_with_metadata.len() < deployed_identifier.metadata_length() {
+                return Err("Calldata doesn't fit metadata");
             }
-            Ok(&constructor_args_with_metadata[metadata_len..])
+            Ok(&constructor_args_with_metadata[deployed_identifier.metadata_length()..])
         }
 
         let Some(calldata) = &contract.calldata else {
@@ -592,8 +600,12 @@ impl ContractVerifier {
             return Ok(ConstructorArgs::Ignore);
         }
 
-        let metadata_len = contract_identifier.metadata_length();
-        match extract_arguments(calldata, creation_bytecode, metadata_len) {
+        match extract_arguments(
+            calldata,
+            creation_bytecode,
+            compiled_identifier,
+            deployed_identifier,
+        ) {
             Ok(args) => Ok(ConstructorArgs::Check(args.to_vec())),
             Err(err) => {
                 tracing::info!(
