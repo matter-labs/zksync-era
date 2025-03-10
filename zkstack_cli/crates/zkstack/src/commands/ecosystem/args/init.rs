@@ -109,8 +109,8 @@ pub struct EcosystemInitArgs {
     pub validium_args: ValidiumTypeArgs,
     #[clap(long, default_missing_value = "false", num_args = 0..=1)]
     pub support_l2_legacy_shared_bridge_test: Option<bool>,
-    #[clap(long, default_missing_value = "false")]
-    pub skip_contract_compilation_override: bool,
+    #[clap(long, default_missing_value = "false", num_args = 0..=1)]
+    pub skip_contract_compilation_override: Option<bool>,
 }
 
 impl EcosystemInitArgs {
@@ -152,7 +152,9 @@ impl EcosystemInitArgs {
             observability,
             ecosystem_only: self.ecosystem_only,
             no_port_reallocation: self.no_port_reallocation,
-            skip_contract_compilation_override: self.skip_contract_compilation_override,
+            skip_contract_compilation_override: self
+                .skip_contract_compilation_override
+                .unwrap_or_default(),
             validium_args: self.validium_args,
             support_l2_legacy_shared_bridge_test: self
                 .support_l2_legacy_shared_bridge_test
