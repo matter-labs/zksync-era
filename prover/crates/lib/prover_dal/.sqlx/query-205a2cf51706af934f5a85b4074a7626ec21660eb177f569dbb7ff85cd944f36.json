@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                attempts\n            FROM\n                proof_compression_jobs_fri\n            WHERE\n                l1_batch_number = $1\n                AND chain_id = $2\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "attempts",
+        "type_info": "Int2"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "205a2cf51706af934f5a85b4074a7626ec21660eb177f569dbb7ff85cd944f36"
+}

@@ -148,6 +148,44 @@ impl<'de> Deserialize<'de> for L2ChainId {
     }
 }
 
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
+pub struct ChainAwareL1BatchNumber {
+    chain_id: L2ChainId,
+    batch_number: L1BatchNumber,
+}
+
+impl ChainAwareL1BatchNumber {
+    pub fn new(chain_id: L2ChainId, batch_number: L1BatchNumber) -> Self {
+        Self {
+            chain_id,
+            batch_number,
+        }
+    }
+
+    pub fn from_raw(chain_id: u64, batch_number: u32) -> Self {
+        Self {
+            chain_id: L2ChainId::new(chain_id).expect("Invalid chain ID"),
+            batch_number: L1BatchNumber(batch_number),
+        }
+    }
+
+    pub fn chain_id(&self) -> L2ChainId {
+        self.chain_id
+    }
+
+    pub fn batch_number(&self) -> L1BatchNumber {
+        self.batch_number
+    }
+
+    pub fn raw_chain_id(&self) -> u64 {
+        self.chain_id.as_u64()
+    }
+
+    pub fn raw_batch_number(&self) -> u32 {
+        self.batch_number.0
+    }
+}
+
 impl L2ChainId {
     pub fn new(number: u64) -> Result<Self, String> {
         if number > L2ChainId::max().0 {

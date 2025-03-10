@@ -167,6 +167,7 @@ impl WiringLayer for EthTxAggregatorLayer {
             replica_pool.clone(),
             eth_client.clone(),
             self.settlement_mode,
+            self.zksync_network_id,
         )
         .await?;
 

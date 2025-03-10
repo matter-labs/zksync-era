@@ -28,6 +28,7 @@ mod tests {
             api_poll_duration_in_secs: 123,
             proof_generation_timeout_in_secs: 18000,
             retry_connection_interval_in_secs: 123,
+            subscribe_for_zero_chain_id: false,
             tee_config: TeeConfig {
                 tee_support: true,
                 first_tee_processed_batch: L1BatchNumber(1337),
@@ -49,6 +50,7 @@ mod tests {
             PROOF_DATA_HANDLER_FIRST_TEE_PROCESSED_BATCH="1337"
             PROOF_DATA_HANDLER_TEE_PROOF_GENERATION_TIMEOUT_IN_SECS="600"
             PROOF_DATA_HANDLER_TEE_BATCH_PERMANENTLY_IGNORED_TIMEOUT_IN_HOURS="240"
+            PROOF_DATA_HANDLER_SUBSCRIBE_FOR_ZERO_CHAIN_ID="false"
         "#;
         let mut lock = MUTEX.lock();
         lock.set_env(config);

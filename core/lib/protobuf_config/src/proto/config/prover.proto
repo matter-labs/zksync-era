@@ -108,7 +108,6 @@ message WitnessVectorGenerator {
   optional uint32 specialized_group_id = 7; // required; u8
 }
 
-
 message ProofDataHandler {
   optional uint32 http_port = 1; // required; u16
   optional uint32 proof_generation_timeout_in_secs = 2; // required; s
@@ -119,4 +118,5 @@ message ProofDataHandler {
   optional string api_url = 7; // required; string
   optional uint32 api_poll_duration_in_secs = 8; // required; s
   optional uint32 retry_connection_interval_in_secs = 9; // required; s
+  optional bool subscribe_for_zero_chain_id = 10; // optional
 }
