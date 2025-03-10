@@ -128,6 +128,12 @@ impl CelestiaClient {
                     });
                 }
             },
+            InclusionResponseStatus::PermanentFailure => {
+                return Err(DAError { 
+                    error: anyhow::anyhow!("eq-service returned PermanentFailure"), 
+                    is_retriable: false 
+                });
+            }
             _ => {
                 tracing::debug!("eq-service returned non-complete status, returning None");
                 return Ok(None);
