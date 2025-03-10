@@ -139,7 +139,6 @@ impl HandleConsistencyCheckerEvent for ConsistencyCheckerHealthUpdater {
 // for now, it's only enabled for the unit tests.
 #[derive(Debug)]
 enum L1DataMismatchBehavior {
-    #[cfg(test)]
     Bail,
     Log,
 }
@@ -400,7 +399,7 @@ impl ConsistencyChecker {
             chain_data,
             settlement_mode,
             event_handler: Box::new(health_updater),
-            l1_data_mismatch_behavior: L1DataMismatchBehavior::Log,
+            l1_data_mismatch_behavior: L1DataMismatchBehavior::Bail,
             pool,
             health_check,
             commitment_mode,
@@ -742,7 +741,6 @@ impl ConsistencyChecker {
                     self.event_handler
                         .report_inconsistent_batch(batch_number, &err);
                     match &self.l1_data_mismatch_behavior {
-                        #[cfg(test)]
                         L1DataMismatchBehavior::Bail => {
                             let context =
                                 format!("L1 batch #{batch_number} is inconsistent with L1");
