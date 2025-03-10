@@ -16,13 +16,13 @@ on:
       - main
     paths:
       - "docker/zk-environment/**"
-      - ".github/workflows/zk-environment-publish.yml"
+      - "zk-environment-publish.yml"
   pull_request:
     branches:
       - main
     paths:
       - "docker/zk-environment/**"
-      - ".github/workflows/zk-environment-publish.yml"
+      - "zk-environment-publish.yml"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.sha }}

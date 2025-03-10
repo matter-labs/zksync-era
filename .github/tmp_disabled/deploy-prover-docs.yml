@@ -1,22 +1,22 @@
-name: Deploy core docs
+name: Deploy prover docs
 
 on:
   push:
     branches:
       - "main"
     tags:
-      - "core-v*.*.*"
+      - "prover-v*.*.*"
     paths:
-      - 'docs/**'
-      - '.github/workflows/deploy-core-docs.yml'
+      - 'prover/docs/**'
+      - 'deploy-prover-docs.yml'
   pull_request:
     paths:
-      - 'docs/**'
-      - '.github/workflows/deploy-core-docs.yml'
+      - 'prover/docs/**'
+      - 'deploy-prover-docs.yml'
   workflow_dispatch:
     inputs:
       ref:
-        description: "Branch, tag or commit to deploy the core docs. If empty, use the ref that triggered the workflow."
+        description: "Branch, tag or commit to deploy the prover docs. If empty, use the ref that triggered the workflow."
         required: false
         default: ""
       version:
@@ -33,13 +33,13 @@ concurrency:
 
 jobs:
 
-  deploy-core-docs:
+  deploy-prover-docs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
     env:
-      DOCS_DIR: 'docs'
-      PROJECT: 'core'
+      DOCS_DIR: 'prover/docs'
+      PROJECT: 'prover'
       ENABLE_TESTS: false
     steps:
       - name: Checkout
@@ -56,7 +56,7 @@ jobs:
           VERSION="${TAG#*-}"
           echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
 
-      - name: Deploy core docs
+      - name: Deploy prover docs
         uses: matter-labs/deploy-mdbooks@73f638643d1be948d1002fe5433747f4a3e37a29 # v1
         with:
           version: ${{ inputs.version || steps.extract-version.outputs.version || github.ref_name }}
