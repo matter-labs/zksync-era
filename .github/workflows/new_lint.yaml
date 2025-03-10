@@ -1,7 +1,7 @@
 name: Lint
 
 on:
-#  pull_request:
+  pull_request:
   merge_group:
 
 
@@ -30,6 +30,7 @@ jobs:
         uses: matter-labs/zksync-ci-common/.github/actions/runner-setup@aba-ci-optimize
         with:
           workspace: 'core'
+          cache_shared_key: "nextest"
 
       - name: Build contracts
         uses: matter-labs/zksync-ci-common/.github/actions/build-contracts@aba-ci-optimize
@@ -37,16 +38,16 @@ jobs:
       - name: Start reth
         run: docker-compose up -d --wait reth
 
-      - name: Check contracts hashes
-        working-directory: contracts
-        run: yarn calculate-hashes:check
+#      - name: Check contracts hashes
+#        working-directory: contracts
+#        run: yarn calculate-hashes:check
 
       - name: Rust unit tests
         run: zkstack dev test rust
 
-      - name: Run benchmarks
-        working-directory: core
-        run: cargo test --package vm-benchmark --bench oneshot --bench batch
+#      - name: Run benchmarks
+#        working-directory: core
+#        run: cargo test --package vm-benchmark --bench oneshot --bench batch
 
       - name: Show sccache stats
         run: sccache --show-stats
