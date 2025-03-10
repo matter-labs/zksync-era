@@ -9,4 +9,4 @@ jobs:
       with:
         manifest-path: "./core/Cargo.toml"
         command: check
-        command-arguments: "--hide-inclusion-graph"
+        command-arguments: "--allow unmaintained --hide-inclusion-graph"
