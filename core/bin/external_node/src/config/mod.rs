@@ -163,7 +163,7 @@ impl RemoteENConfig {
             .ok();
         let sl_diamond_proxy_addr = client
             .get_main_sl_contract()
-            .rpc_context("get_main_contract")
+            .rpc_context("get_main_sl_contract")
             .await?;
 
         let l1_ecosystem_contracts = client

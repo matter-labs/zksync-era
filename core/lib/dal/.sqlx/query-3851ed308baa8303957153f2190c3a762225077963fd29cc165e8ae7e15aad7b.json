@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                tx_hash\n            FROM\n               eth_txs_history\n            ORDER BY id desc\n            LIMIT 1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "tx_hash",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "3851ed308baa8303957153f2190c3a762225077963fd29cc165e8ae7e15aad7b"
+}

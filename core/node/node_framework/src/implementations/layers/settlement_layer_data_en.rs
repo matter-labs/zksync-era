@@ -1,7 +1,6 @@
 use zksync_config::configs::contracts::{ecosystem::L1SpecificContracts, ChainSpecificContracts};
-use zksync_contracts::getters_facet_contract;
+use zksync_consistency_checker::get_settlement_mode;
 use zksync_eth_client::EthInterface;
-use zksync_gateway_migrator::get_settlement_layer;
 use zksync_types::settlement::SettlementMode;
 
 use crate::{
@@ -11,6 +10,7 @@ use crate::{
             SettlementLayerContractsResource,
         },
         eth_interface::{EthInterfaceResource, L2InterfaceResource},
+        pools::{MasterPool, PoolResource},
         settlement_layer::{SettlementModeResource, SlChainIdResource},
     },
     wiring_layer::{WiringError, WiringLayer},
@@ -44,6 +44,7 @@ impl SettlementLayerDataEn {
 pub struct Input {
     pub eth_client: EthInterfaceResource,
     pub l2_eth_client: Option<L2InterfaceResource>,
+    pub master_pool: PoolResource<MasterPool>,
 }
 
 #[derive(Debug, IntoContext)]
@@ -66,13 +67,10 @@ impl WiringLayer for SettlementLayerDataEn {
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
-        // TODO fix sl_mode, now it's incorrect for en
-        let initial_sl_mode = get_settlement_layer(
-            &input.eth_client.0,
-            self.l1_chain_contracts
-                .chain_contracts_config
-                .diamond_proxy_addr,
-            &getters_facet_contract(),
+        let initial_sl_mode = get_settlement_mode(
+            input.master_pool.get().await?,
+            input.eth_client.0.clone(),
+            input.l2_eth_client.as_ref().map(|a| a.0.clone()),
         )
         .await?;
 

@@ -7,7 +7,10 @@ use zksync_contracts::{
     POST_BOOJUM_COMMIT_FUNCTION, POST_SHARED_BRIDGE_COMMIT_FUNCTION, PRE_BOOJUM_COMMIT_FUNCTION,
 };
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_eth_client::{CallFunctionArgs, ContractCallError, EnrichedClientError, EthInterface};
+use zksync_eth_client::{
+    clients::{DynClient, L1, L2},
+    CallFunctionArgs, ContractCallError, EnrichedClientError, EthInterface,
+};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_l1_contract_interface::{
     i_executor::structures::{
@@ -390,21 +393,6 @@ impl ConsistencyChecker {
             diamond_proxy_addr: None,
         };
 
-        // let gateway_chain_data = if let Some(client) = gateway_client {
-        //     let gateway_diamond_proxy =
-        //         CallFunctionArgs::new("getZKChain", Token::Uint(l2_chain_id.as_u64().into()))
-        //             .for_contract(L2_BRIDGEHUB_ADDRESS, &bridgehub_contract())
-        //             .call(&client)
-        //             .await?;
-        //     let chain_id = client.fetch_chain_id().await?;
-        //     Some(SLChainAccess {
-        //         client: client.for_component("consistency_checker"),
-        //         chain_id,
-        //         diamond_proxy_addr: Some(gateway_diamond_proxy),
-        //     })
-        // } else {
-        //     None
-        // };
         Ok(Self {
             contract: zksync_contracts::hyperchain_contract(),
             max_batches_to_recheck,
@@ -788,16 +776,6 @@ impl ConsistencyChecker {
         tracing::info!("Stop signal received, consistency_checker is shutting down");
         Ok(())
     }
-
-    // fn chain_data_by_id(&self, searched_chain_id: SLChainId) -> Option<&SLChainAccess> {
-    //     if searched_chain_id == self.l1_chain_data.chain_id {
-    //         Some(&self.l1_chain_data)
-    //     } else if Some(searched_chain_id) == self.gateway_chain_data.as_ref().map(|d| d.chain_id) {
-    //         self.gateway_chain_data.as_ref()
-    //     } else {
-    //         None
-    //     }
-    // }
 }
 
 /// Repeatedly polls the DB until there is an L1 batch with metadata. We may not have such a batch initially
@@ -830,5 +808,36 @@ async fn wait_for_l1_batch_with_metadata(
         tokio::time::timeout(poll_interval, stop_receiver.changed())
             .await
             .ok();
+    }
+}
+
+// Get settlement layer based on ETH tx, all eth txs should be presented on settlement layer. what is the best place for this function?
+pub async fn get_settlement_mode(
+    db_pool: ConnectionPool<Core>,
+    eth_client: Box<DynClient<L1>>,
+    sl_client: Option<Box<DynClient<L2>>>,
+) -> anyhow::Result<SettlementMode> {
+    let tx_hash = db_pool
+        .connection()
+        .await?
+        .eth_sender_dal()
+        .get_last_eth_tx()
+        .await?;
+
+    if let Some(tx_hash) = tx_hash {
+        let tx_status = eth_client.get_tx_status(tx_hash).await?;
+        if tx_status.is_some() {
+            return Ok(SettlementMode::SettlesToL1);
+        } else {
+            // The tx has not been found on l1, we have to check on l2
+            if sl_client.unwrap().get_tx_status(tx_hash).await?.is_some() {
+                return Ok(SettlementMode::Gateway);
+            } else {
+                return Ok(SettlementMode::SettlesToL1);
+            };
+        }
+    } else {
+        // We can assume settlement to l1 by default in the worst case scenario, en will be restarted right after the getting the very first commit_tx
+        return Ok(SettlementMode::SettlesToL1);
     }
 }
