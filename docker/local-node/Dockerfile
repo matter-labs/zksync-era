@@ -133,7 +133,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     | tee /etc/apt/sources.list.d/docker.list \
   && apt-get update \
   && apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin \
-  && apt-get purge -y --auto-remove curl gnupg lsb-release \
   && rm -rf /var/lib/apt/lists/*
 
 # Clean Yarn cache
