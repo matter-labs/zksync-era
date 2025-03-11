@@ -266,7 +266,12 @@ mod tests {
         let initial_state = rocksdb_cell.ensure_initialized().await.unwrap();
         assert_eq!(initial_state.l1_batch_number, None);
 
+        let started_at = Instant::now();
         loop {
+            if started_at.elapsed() > Duration::from_secs(10) {
+                panic!("Timeout waiting for init");
+            }
+
             if let Some(db) = rocksdb_cell.get() {
                 let l1_batch_number = RocksdbStorageBuilder::from_rocksdb(db)
                     .l1_batch_number()
@@ -311,7 +316,12 @@ mod tests {
 
             let rocksdb = rocksdb_cell.get().unwrap();
             let builder = RocksdbStorageBuilder::from_rocksdb(rocksdb);
+            let started_at = Instant::now();
             loop {
+                if started_at.elapsed() > Duration::from_secs(10) {
+                    panic!("Timeout waiting for catch up");
+                }
+
                 if builder.l1_batch_number().await == Some(L1BatchNumber(3)) {
                     break;
                 } else {
