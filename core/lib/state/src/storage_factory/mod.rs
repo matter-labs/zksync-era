@@ -1,4 +1,4 @@
-use std::{collections::HashSet, fmt};
+use std::{cmp::Ordering, collections::HashSet, fmt};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
@@ -143,27 +143,31 @@ impl CommonStorage<'static> {
             .await
             .ok_or_else(|| anyhow::anyhow!("No L1 batches available in Postgres"))?;
 
-        if l1_batch_number + 1 == rocksdb_l1_batch_number {
-            tracing::debug!(%rocksdb_l1_batch_number, "Using RocksDB-based storage");
-            Ok((rocksdb.into(), rocksdb_l1_batch_number))
-        } else if l1_batch_number + 1 > rocksdb_l1_batch_number {
-            let effective_storage_l1_batch_number = l1_batch_number + 1;
-            tracing::debug!(
-                %rocksdb_l1_batch_number, %effective_storage_l1_batch_number,
-                "Using RocksDBWithMemory-based storage",
-            );
+        match (l1_batch_number + 1).cmp(&rocksdb_l1_batch_number) {
+            Ordering::Equal => {
+                tracing::debug!(%rocksdb_l1_batch_number, "Using RocksDB-based storage");
+                Ok((rocksdb.into(), rocksdb_l1_batch_number))
+            }
+            Ordering::Greater => {
+                let effective_storage_l1_batch_number = l1_batch_number + 1;
+                tracing::debug!(
+                    %rocksdb_l1_batch_number, %effective_storage_l1_batch_number,
+                    "Using RocksDBWithMemory-based storage",
+                );
 
-            let storage = RocksdbWithMemory {
-                rocksdb,
-                batch_diffs: batch_diffs.range(rocksdb_l1_batch_number, l1_batch_number),
-            };
+                let storage = RocksdbWithMemory {
+                    rocksdb,
+                    batch_diffs: batch_diffs.range(rocksdb_l1_batch_number, l1_batch_number),
+                };
 
-            Ok((storage.into(), rocksdb_l1_batch_number))
-        } else {
-            anyhow::bail!(
-                "RocksDB's L1 batch is #{}, cannot make storage for #{l1_batch_number}",
-                rocksdb_l1_batch_number - 1
-            );
+                Ok((storage.into(), rocksdb_l1_batch_number))
+            }
+            Ordering::Less => {
+                anyhow::bail!(
+                    "RocksDB's L1 batch is #{}, cannot make storage for #{l1_batch_number}",
+                    rocksdb_l1_batch_number - 1
+                );
+            }
         }
     }
 

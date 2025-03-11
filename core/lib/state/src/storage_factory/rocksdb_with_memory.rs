@@ -75,7 +75,7 @@ impl ReadStorage for RocksdbWithMemory {
 }
 
 /// Data structure that keeps a continuous list of batch diffs.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct BatchDiffs {
     diffs: VecDeque<BatchDiff>,
     first_diff_l1_batch_number: Option<L1BatchNumber>,
@@ -84,10 +84,7 @@ pub struct BatchDiffs {
 impl BatchDiffs {
     /// Creates empty `BatchDiffs`.
     pub fn new() -> Self {
-        Self {
-            diffs: Default::default(),
-            first_diff_l1_batch_number: None,
-        }
+        Self::default()
     }
 
     /// Trims diffs that correspond to batches with number less than `trim_up_to`. Does nothing if there are no.
@@ -116,6 +113,9 @@ impl BatchDiffs {
     }
 
     /// Returns diffs for `from_l1_batch..=to_l1_batch`.
+    ///
+    /// # Panics
+    ///
     /// Panics if there is no diff for some element in the range.
     pub fn range(
         &self,
@@ -124,7 +124,7 @@ impl BatchDiffs {
     ) -> Vec<BatchDiff> {
         let first_diff_number = self.first_diff_l1_batch_number.expect("empty batch_diffs");
         assert!(from_l1_batch >= first_diff_number);
-        assert!(to_l1_batch < first_diff_number + self.diffs.len() as u32);
+        assert!((to_l1_batch.0 as usize) < (first_diff_number.0 as usize) + self.diffs.len());
 
         let to_skip = from_l1_batch.0 - first_diff_number.0;
         let to_take = to_l1_batch.0 - from_l1_batch.0 + 1;

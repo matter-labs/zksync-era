@@ -246,7 +246,7 @@ impl RocksdbStorageBuilder {
     ) -> anyhow::Result<Option<RocksdbStorage>> {
         self.update_from_postgres(storage, stop_receiver, to_l1_batch_number)
             .await
-            .map(|s| s.map(|_| self.0))
+            .map(|s| s.map(|()| self.0))
     }
 
     pub(crate) async fn update_from_postgres(

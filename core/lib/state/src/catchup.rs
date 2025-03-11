@@ -186,7 +186,7 @@ impl AsyncCatchupTask {
             .context("Failed to catch up RocksDB to Postgres")?;
         drop(connection);
 
-        let rocksdb = rocksdb.map(|db| db.into_rocksdb());
+        let rocksdb = rocksdb.map(RocksdbStorage::into_rocksdb);
         if let Some(rocksdb) = &rocksdb {
             self.db_sender.send_replace(Some(rocksdb.clone()));
         } else {
