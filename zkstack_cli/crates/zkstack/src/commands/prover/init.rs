@@ -50,7 +50,6 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
 
     let proof_object_store_config =
         get_object_store_config(shell, Some(args.proof_store))?.unwrap();
-    let public_object_store_config = get_object_store_config(shell, args.public_store)?;
 
     if let Some(args) = args.compressor_key_args {
         let path = args.path.context(MSG_SETUP_KEY_PATH_ERROR)?;
@@ -67,16 +66,6 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
         "prover.prover_object_store",
         &proof_object_store_config,
     )?;
-    if let Some(public_object_store_config) = public_object_store_config {
-        general_config.insert("prover.shall_save_to_public_bucket", true)?;
-        set_object_store(
-            &mut general_config,
-            "prover.public_object_store",
-            &public_object_store_config,
-        )?;
-    } else {
-        general_config.insert("prover.shall_save_to_public_bucket", false)?;
-    }
     general_config.insert_yaml("prover.cloud_type", args.cloud_type)?;
     general_config.save().await?;
 

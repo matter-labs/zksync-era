@@ -1,16 +1,11 @@
 use zksync_config::configs::FriProverConfig;
 
-use crate::{
-    envy_load,
-    object_store::{ProverObjectStoreConfig, PublicObjectStoreConfig},
-    FromEnv,
-};
+use crate::{envy_load, object_store::ProverObjectStoreConfig, FromEnv};
 
 impl FromEnv for FriProverConfig {
     fn from_env() -> anyhow::Result<Self> {
         let mut prover: FriProverConfig = envy_load("fri_prover", "FRI_PROVER_")?;
         prover.prover_object_store = ProverObjectStoreConfig::from_env().map(|a| a.0).ok();
-        prover.public_object_store = PublicObjectStoreConfig::from_env().map(|a| a.0).ok();
         Ok(prover)
     }
 }
@@ -42,23 +37,6 @@ mod tests {
             witness_vector_receiver_port: 3316,
             zone_read_url: "http://metadata.google.internal/computeMetadata/v1/instance/zone"
                 .to_string(),
-            shall_save_to_public_bucket: true,
-            prover_object_store: Some(ObjectStoreConfig {
-                mode: ObjectStoreMode::GCSWithCredentialFile {
-                    bucket_base_url: "/base/url".to_owned(),
-                    gcs_credential_file_path: "/path/to/credentials1.json".to_owned(),
-                },
-                max_retries: 5,
-                local_mirror_path: None,
-            }),
-            public_object_store: Some(ObjectStoreConfig {
-                mode: ObjectStoreMode::GCSWithCredentialFile {
-                    bucket_base_url: "/base/url".to_owned(),
-                    gcs_credential_file_path: "/path/to/credentials2.json".to_owned(),
-                },
-                max_retries: 5,
-                local_mirror_path: None,
-            }),
             availability_check_interval_in_secs: Some(1_800),
             cloud_type: CloudConnectionMode::GCP,
         }
@@ -77,7 +55,6 @@ mod tests {
             FRI_PROVER_QUEUE_CAPACITY="10"
             FRI_PROVER_WITNESS_VECTOR_RECEIVER_PORT="3316"
             FRI_PROVER_ZONE_READ_URL="http://metadata.google.internal/computeMetadata/v1/instance/zone"
-            FRI_PROVER_SHALL_SAVE_TO_PUBLIC_BUCKET=true
             FRI_PROVER_AVAILABILITY_CHECK_INTERVAL_IN_SECS="1800"
             PROVER_OBJECT_STORE_BUCKET_BASE_URL="/base/url"
             PROVER_OBJECT_STORE_MODE="GCSWithCredentialFile"

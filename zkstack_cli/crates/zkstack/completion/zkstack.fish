@@ -487,13 +487,6 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from init" -l bucket-name -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from init" -l location -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from init" -l project-id -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from init" -l shall-save-to-public-bucket -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from init" -l public-store-dir -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from init" -l public-bucket-base-url -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from init" -l public-credentials-file -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from init" -l public-bucket-name -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from init" -l public-location -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from init" -l public-project-id -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from init" -l bellman-cuda-dir -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from init" -l bellman-cuda -r -f -a "{true\t'',false\t''}"
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from init" -l setup-compressor-key -r -f -a "{true\t'',false\t''}"
