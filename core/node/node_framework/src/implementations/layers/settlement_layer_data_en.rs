@@ -2,8 +2,9 @@ use anyhow::Context;
 use zksync_config::configs::contracts::{
     chain::L2Contracts, ecosystem::L1SpecificContracts, ChainSpecificContracts,
 };
-use zksync_consistency_checker::get_settlement_mode;
-use zksync_contracts_loader::load_sl_contracts;
+use zksync_consistency_checker::get_db_settlement_mode;
+use zksync_contracts::getters_facet_contract;
+use zksync_contracts_loader::{get_settlement_layer_for_l1_call, load_sl_contracts};
 use zksync_eth_client::EthInterface;
 use zksync_types::{settlement::SettlementMode, Address, L2ChainId, L2_BRIDGEHUB_ADDRESS};
 
@@ -75,7 +76,24 @@ impl WiringLayer for SettlementLayerDataEn {
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
-        let initial_sl_mode = get_settlement_mode(input.master_pool.get().await?).await?;
+        let initial_db_sl_mode = get_db_settlement_mode(input.master_pool.get().await?).await?;
+
+        let initial_sl_mode = if let Some(mode) = initial_db_sl_mode {
+            mode
+        } else {
+            // If it's the new chain it's safe to check the actual sl onchain,
+            // in the worst case scenario chain
+            // en will be restarted right after the first batch and fill the database with correct values
+            get_settlement_layer_for_l1_call(
+                &input.eth_client.0.as_ref(),
+                self.l1_chain_contracts
+                    .ecosystem_contracts
+                    .bridgehub_proxy_addr
+                    .unwrap(),
+                &getters_facet_contract(),
+            )
+            .await?
+        };
 
         let (client, bridgehub): (Box<dyn EthInterface>, Address) = match initial_sl_mode {
             SettlementMode::SettlesToL1 => (

@@ -7,10 +7,7 @@ use zksync_contracts::{
     POST_BOOJUM_COMMIT_FUNCTION, POST_SHARED_BRIDGE_COMMIT_FUNCTION, PRE_BOOJUM_COMMIT_FUNCTION,
 };
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_eth_client::{
-    clients::{DynClient, L1, L2},
-    CallFunctionArgs, ContractCallError, EnrichedClientError, EthInterface,
-};
+use zksync_eth_client::{CallFunctionArgs, ContractCallError, EnrichedClientError, EthInterface};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_l1_contract_interface::{
     i_executor::structures::{
@@ -809,23 +806,21 @@ async fn wait_for_l1_batch_with_metadata(
 }
 
 // Get settlement layer based on ETH tx, all eth txs should be presented on settlement layer. what is the best place for this function?
-pub async fn get_settlement_mode(db_pool: ConnectionPool<Core>) -> anyhow::Result<SettlementMode> {
-    let tx_hash = db_pool
+pub async fn get_db_settlement_mode(
+    db_pool: ConnectionPool<Core>,
+) -> anyhow::Result<Option<SettlementMode>> {
+    let is_gateway = db_pool
         .connection()
         .await?
         .eth_sender_dal()
         .get_settlement_layer_of_last_eth_tx()
         .await?;
 
-    let res = if let Some(is_gateway) = tx_hash {
+    Ok(is_gateway.map(|is_gateway| {
         if is_gateway {
             SettlementMode::Gateway
         } else {
             SettlementMode::SettlesToL1
         }
-    } else {
-        // We can assume settlement to l1 by default in the worst case scenario, en will be restarted right after the getting the very first commit_tx
-        SettlementMode::SettlesToL1
-    };
-    Ok(res)
+    }))
 }
