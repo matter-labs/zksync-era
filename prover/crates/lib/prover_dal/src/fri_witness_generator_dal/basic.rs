@@ -50,7 +50,7 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
             protocol_version.patch.0 as i32,
         )
         .instrument("save_witness_inputs")
-        .fetch_optional(self.storage)
+        .execute(self.storage)
         .await?;
         Ok(())
     }

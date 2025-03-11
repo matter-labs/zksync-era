@@ -40,7 +40,7 @@ async fn request_tee_proof_inputs() {
         L2ChainId::default(),
     );
 
-    let app = TeeProofDataHandler::new_with_tee_support(processor, config.http_port);
+    let app = TeeProofDataHandler::new(processor, config.http_port);
 
     let test_cases = vec![
         (json!({ "tee_type": "sgx" }), StatusCode::NO_CONTENT),
@@ -110,7 +110,7 @@ async fn submit_tee_proof() {
         L2ChainId::default(),
     );
 
-    let app = TeeProofDataHandler::new_with_tee_support(processor, config.http_port);
+    let app = TeeProofDataHandler::new(processor, config.http_port);
 
     // this should fail because we haven't saved the attestation for the pubkey yet
 
