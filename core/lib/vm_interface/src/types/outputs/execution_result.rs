@@ -100,7 +100,8 @@ impl VmEvent {
     pub fn contains_contract_deployment(events: &[Self]) -> bool {
         events.iter().any(|event| {
             // We expect that the first indexed topic is the event signature.
-            event.indexed_topics
+            event
+                .indexed_topics
                 .get(0)
                 .map_or(false, |&topic| topic == VmEvent::DEPLOY_EVENT_SIGNATURE)
         })

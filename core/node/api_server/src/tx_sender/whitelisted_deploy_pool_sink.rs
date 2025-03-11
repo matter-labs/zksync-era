@@ -31,7 +31,10 @@ impl TxSink for WhitelistedDeployPoolSink {
     ) -> Result<L2TxSubmissionResult, SubmitTxError> {
         let initiator = tx.initiator_account();
 
-        tracing::info!("Processing transaction isContractDeployed: {}", execution_metrics.vm.is_contract_deployed);
+        tracing::info!(
+            "Processing transaction isContractDeployed: {}",
+            execution_metrics.vm.is_contract_deployed
+        );
         if let Some(contract_address) = tx.execute.contract_address {
             tracing::info!(
                 "Allow List Sink: Tx {:?} with contract address {}",
