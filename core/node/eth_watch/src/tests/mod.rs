@@ -623,7 +623,7 @@ async fn get_all_db_txs(storage: &mut Connection<'_, Core>) -> Vec<Transaction> 
     storage.transactions_dal().reset_mempool().await.unwrap();
     storage
         .transactions_dal()
-        .sync_mempool(&[], &[], 0, 0, 1000)
+        .sync_mempool(&[], &[], 0, 0, true, 1000)
         .await
         .unwrap()
         .into_iter()

@@ -97,7 +97,7 @@ impl JobSaver for GpuCircuitProverJobSaver {
             }
             Err(error) => {
                 let error_message = error.to_string();
-                tracing::error!("GPU circuit prover failed: {:?}", error_message);
+                tracing::error!("GPU circuit prover failed: {:?}", error);
                 self.connection_pool
                     .connection()
                     .await

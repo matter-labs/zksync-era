@@ -7,7 +7,7 @@ use rand::{rngs::StdRng, seq::SliceRandom, Rng, SeedableRng};
 use super::*;
 use crate::{
     hasher::TreeOperation,
-    storage::PatchSet,
+    storage::{PatchSet, Patched},
     types::{Leaf, TreeTags},
 };
 
@@ -170,7 +170,7 @@ fn comparing_tree_hash_with_updates() {
     test_comparing_tree_hash_with_updates(PatchSet::default());
 }
 
-fn test_extending_tree_with_proof(db: impl Database, inserts_count: usize, update_count: usize) {
+fn test_extending_tree_with_proof(db: impl Database, inserts_count: usize, updates_count: usize) {
     const RNG_SEED: u64 = 42;
 
     let mut rng = StdRng::seed_from_u64(RNG_SEED);
@@ -180,29 +180,37 @@ fn test_extending_tree_with_proof(db: impl Database, inserts_count: usize, updat
     });
     let inserts: Vec<_> = nodes.collect();
 
+    let missing_reads: Vec<_> = (0..inserts_count).map(|_| H256(rng.gen())).collect();
+
     let mut tree = MerkleTree::new(db).unwrap();
-    let (inserts_output, proof) = tree.extend_with_proof(&inserts).unwrap();
-    let root_hash_from_proof = proof.verify(&Blake2Hasher, 64, None, &inserts).unwrap();
-    assert_eq!(root_hash_from_proof, inserts_output.root_hash);
+    let (inserts_output, proof) = tree.extend_with_proof(&inserts, &missing_reads).unwrap();
+    let proven_tree_view = proof
+        .verify(&Blake2Hasher, 64, None, &inserts, &missing_reads)
+        .unwrap();
+    assert_eq!(proven_tree_view.root_hash, inserts_output.root_hash);
+    assert_eq!(proven_tree_view.read_entries.len(), missing_reads.len());
+    for read_key in &missing_reads {
+        assert_eq!(proven_tree_view.read_entries[read_key], None);
+    }
 
     // Test a proof with only updates.
     let updates: Vec<_> = inserts
-        .choose_multiple(&mut rng, update_count)
+        .choose_multiple(&mut rng, updates_count)
         .map(|entry| TreeEntry {
             key: entry.key,
             value: H256::zero(),
         })
         .collect();
 
-    let (output, proof) = tree.extend_with_proof(&updates).unwrap();
+    let (output, proof) = tree.extend_with_proof(&updates, &[]).unwrap();
     let updates_tree_hash = output.root_hash;
 
     assert_eq!(proof.operations.len(), updates.len());
     let mut updated_indices = vec![];
     for op in &proof.operations {
         match *op {
-            TreeOperation::Update { index } => updated_indices.push(index),
-            TreeOperation::Insert { .. } => panic!("unexpected operation: {op:?}"),
+            TreeOperation::Hit { index } => updated_indices.push(index),
+            TreeOperation::Miss { .. } => panic!("unexpected operation: {op:?}"),
         }
     }
     updated_indices.sort_unstable();
@@ -213,10 +221,10 @@ fn test_extending_tree_with_proof(db: impl Database, inserts_count: usize, updat
         updated_indices
     );
 
-    let root_hash_from_proof = proof
-        .verify(&Blake2Hasher, 64, Some(inserts_output), &updates)
+    let proven_tree_view = proof
+        .verify(&Blake2Hasher, 64, Some(inserts_output), &updates, &[])
         .unwrap();
-    assert_eq!(root_hash_from_proof, updates_tree_hash);
+    assert_eq!(proven_tree_view.root_hash, updates_tree_hash);
 }
 
 #[test]
@@ -229,10 +237,15 @@ fn extending_tree_with_proof() {
     }
 }
 
-fn test_incrementally_extending_tree_with_proofs(db: impl Database, update_count: usize) {
+fn test_incrementally_extending_tree_with_proofs(
+    db: impl Database,
+    update_count: usize,
+    read_count: usize,
+) {
     const RNG_SEED: u64 = 123;
 
     let mut tree = MerkleTree::new(db).unwrap();
+    let mut current_state = HashMap::new();
     let empty_tree_output = tree.extend(&[]).unwrap();
 
     let mut rng = StdRng::seed_from_u64(RNG_SEED);
@@ -257,15 +270,31 @@ fn test_incrementally_extending_tree_with_proofs(db: impl Database, update_count
                 })
                 .collect();
 
+            let existing_reads = inserts[..chunk_start_idx]
+                .choose_multiple(&mut rng, read_count.min(chunk_start_idx))
+                .map(|entry| entry.key);
+            let missing_reads = (0..read_count).map(|_| H256(rng.gen()));
+            let mut all_reads: Vec<_> = missing_reads.chain(existing_reads).collect();
+            all_reads.shuffle(&mut rng);
+
             updates.shuffle(&mut rng);
             let mut entries = chunk.to_vec();
             entries.extend(updates);
 
-            let (new_output, proof) = tree.extend_with_proof(&entries).unwrap();
-            let proof_hash = proof
-                .verify(&Blake2Hasher, 64, Some(tree_output), &entries)
+            let (new_output, proof) = tree.extend_with_proof(&entries, &all_reads).unwrap();
+            let proven_tree_view = proof
+                .verify(&Blake2Hasher, 64, Some(tree_output), &entries, &all_reads)
                 .unwrap();
-            assert_eq!(proof_hash, new_output.root_hash);
+            assert_eq!(proven_tree_view.root_hash, new_output.root_hash);
+
+            for read_key in &all_reads {
+                assert_eq!(
+                    proven_tree_view.read_entries[read_key],
+                    current_state.get(read_key).copied()
+                );
+            }
+
+            current_state.extend(entries.into_iter().map(|entry| (entry.key, entry.value)));
             tree_output = new_output;
         }
 
@@ -275,10 +304,127 @@ fn test_incrementally_extending_tree_with_proofs(db: impl Database, update_count
 
 #[test]
 fn incrementally_extending_tree_with_proofs() {
-    for update_count in [0, 1, 2, 5, 10] {
-        println!("update_count={update_count}");
-        test_incrementally_extending_tree_with_proofs(PatchSet::default(), update_count);
+    for update_count in [0, 1, 5] {
+        for read_count in [0, 1, 10] {
+            println!("update_count={update_count}, read_count={read_count}");
+            test_incrementally_extending_tree_with_proofs(
+                PatchSet::default(),
+                update_count,
+                read_count,
+            );
+        }
     }
+}
+
+fn test_read_proofs(db: impl Database) {
+    const RNG_SEED: u64 = 111;
+
+    let mut tree = MerkleTree::new(db).unwrap();
+    let empty_tree_output = tree.extend(&[]).unwrap();
+
+    let mut rng = StdRng::seed_from_u64(RNG_SEED);
+    let nodes = (0..1_000).map(|_| TreeEntry {
+        key: H256(rng.gen()),
+        value: H256(rng.gen()),
+    });
+    let inserts: Vec<_> = nodes.collect();
+    let mut inserted_keys: Vec<_> = inserts.iter().map(|entry| entry.key).collect();
+    inserted_keys.shuffle(&mut rng);
+
+    let new_tree_output = tree.extend(&inserts).unwrap();
+
+    // Create and check a proof at version 0 (i.e., before inserting entries).
+    let proof = tree.prove(0, &inserted_keys).unwrap();
+    let proven_tree_view = proof
+        .verify_reads(&Blake2Hasher, 64, empty_tree_output, &inserted_keys)
+        .unwrap();
+    assert_eq!(proven_tree_view.root_hash, empty_tree_output.root_hash);
+    assert_eq!(proven_tree_view.read_entries.len(), inserted_keys.len());
+    for key in &inserted_keys {
+        assert_eq!(proven_tree_view.read_entries[key], None);
+    }
+
+    // Create a proof for all inserted keys.
+    let proof = tree.prove(1, &inserted_keys).unwrap();
+    let proven_tree_view = proof
+        .verify_reads(&Blake2Hasher, 64, new_tree_output, &inserted_keys)
+        .unwrap();
+    assert_eq!(proven_tree_view.root_hash, new_tree_output.root_hash);
+    assert_eq!(proven_tree_view.read_entries.len(), inserted_keys.len());
+    for key in &inserted_keys {
+        assert!(proven_tree_view.read_entries[key].is_some());
+    }
+
+    // Create proof for key chunks and also mix some missing keys.
+    for chunk_size in [1, 2, 3, 5, 8, 13] {
+        println!("Using chunk size {chunk_size}");
+        for proven_keys in inserted_keys.chunks_exact(chunk_size) {
+            let mut proven_keys = proven_keys.to_vec();
+            proven_keys.extend((0..chunk_size).map(|_| H256(rng.gen())));
+
+            let proof = tree.prove(1, &proven_keys).unwrap();
+            let proven_tree_view = proof
+                .verify_reads(&Blake2Hasher, 64, new_tree_output, &proven_keys)
+                .unwrap();
+            assert_eq!(proven_tree_view.root_hash, new_tree_output.root_hash);
+            assert_eq!(proven_tree_view.read_entries.len(), proven_keys.len());
+            for (i, key) in proven_keys.iter().enumerate() {
+                assert_eq!(proven_tree_view.read_entries[key].is_some(), i < chunk_size);
+            }
+        }
+    }
+}
+
+fn test_using_patched_database(db: impl Database) {
+    const RNG_SEED: u64 = 321;
+    const FLUSH_PROBABILITY: f64 = 0.4;
+
+    let mut tree = MerkleTree::new(Patched::new(db)).unwrap();
+    let empty_tree_output = tree.extend(&[]).unwrap();
+
+    let mut rng = StdRng::seed_from_u64(RNG_SEED);
+    let nodes = (0..1_000).map(|_| TreeEntry {
+        key: H256(rng.gen()),
+        value: H256(rng.gen()),
+    });
+    let inserts: Vec<_> = nodes.collect();
+
+    for chunk_size in [10, 42, 101, 333, 1_000] {
+        println!("Using chunk_size={chunk_size}");
+
+        let mut tree_output = empty_tree_output;
+        for chunk in inserts.chunks(chunk_size) {
+            let (new_output, proof) = tree.extend_with_proof(chunk, &[]).unwrap();
+            proof
+                .verify(&Blake2Hasher, 64, Some(tree_output), chunk, &[])
+                .unwrap();
+            tree_output = new_output;
+
+            let latest_version = tree.latest_version().unwrap().expect("no versions");
+            for version in latest_version.saturating_sub(5)..=latest_version {
+                println!(
+                    "verifying consistency for version={version}, latest_version={latest_version}"
+                );
+                tree.verify_consistency(version).unwrap();
+            }
+
+            if rng.gen_bool(FLUSH_PROBABILITY) {
+                tree.db.flush().unwrap();
+            }
+        }
+
+        tree.truncate_recent_versions(1).unwrap();
+    }
+}
+
+#[test]
+fn using_patched_database() {
+    test_using_patched_database(PatchSet::default());
+}
+
+#[test]
+fn read_proofs() {
+    test_read_proofs(PatchSet::default());
 }
 
 mod rocksdb {
@@ -321,11 +467,27 @@ mod rocksdb {
     #[test]
     fn incrementally_extending_tree_with_proofs() {
         let temp_dir = TempDir::new().unwrap();
-        for update_count in [0, 1, 2, 5, 10] {
-            println!("update_count={update_count}");
-            let db_path = temp_dir.path().join(update_count.to_string());
-            let db = RocksDBWrapper::new(&db_path).unwrap();
-            test_incrementally_extending_tree_with_proofs(db, update_count);
+        for update_count in [0, 1, 5] {
+            for read_count in [0, 1, 10] {
+                println!("update_count={update_count}, read_count={read_count}");
+                let db_path = temp_dir.path().join(format!("{update_count}-{read_count}"));
+                let db = RocksDBWrapper::new(&db_path).unwrap();
+                test_incrementally_extending_tree_with_proofs(db, update_count, 0);
+            }
         }
+    }
+
+    #[test]
+    fn read_proofs() {
+        let temp_dir = TempDir::new().unwrap();
+        let db = RocksDBWrapper::new(temp_dir.path()).unwrap();
+        test_read_proofs(db);
+    }
+
+    #[test]
+    fn using_patched_database() {
+        let temp_dir = TempDir::new().unwrap();
+        let db = RocksDBWrapper::new(temp_dir.path()).unwrap();
+        test_using_patched_database(db);
     }
 }

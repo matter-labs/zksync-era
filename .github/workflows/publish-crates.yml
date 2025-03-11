@@ -28,7 +28,9 @@ jobs:
 
   publish-crates:
     name: Publish to crates.io
-    runs-on: matterlabs-ci-runner-high-performance
+    runs-on: matterlabs-ci-runner-highdisk
+    env:
+      ZKSYNC_USE_CUDA_STUBS: true
     steps:
       - name: Publish crates
         uses: matter-labs/zksync-ci-common/.github/actions/publish-crates@v1
@@ -40,3 +42,4 @@ jobs:
           run_build: ${{ inputs.run-build }}
           run_tests: ${{ inputs.run-tests }}
           gh_token: ${{ secrets.GITHUB_TOKEN }}
+          dependencies: 'clang libclang-dev'

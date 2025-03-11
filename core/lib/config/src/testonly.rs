@@ -232,6 +232,7 @@ impl Distribution<configs::chain::MempoolConfig> for EncodeDist {
             stuck_tx_timeout: self.sample(rng),
             remove_stuck_txs: self.sample(rng),
             delay_interval: self.sample(rng),
+            skip_unsafe_deposit_checks: self.sample(rng),
         }
     }
 }

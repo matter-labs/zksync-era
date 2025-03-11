@@ -174,4 +174,8 @@ impl UnstableNamespace {
             l2_da_validator: da_details.l2_da_validator,
         }))
     }
+
+    pub fn supports_unsafe_deposit_filter_impl(&self) -> bool {
+        true
+    }
 }

@@ -89,6 +89,7 @@ impl InternalNode {
 
 /// Arbitrary tree node.
 #[derive(Debug, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
 pub enum Node {
     Internal(InternalNode),
     Leaf(Leaf),

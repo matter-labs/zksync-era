@@ -14,10 +14,11 @@ use zksync_system_constants::L2_MESSAGE_ROOT_ADDRESS;
 use zksync_types::{
     abi::ZkChainSpecificUpgradeData,
     api::{ChainAggProof, Log},
-    ethabi::{self, decode, encode, Contract, ParamType},
-    web3::{keccak256, BlockId, BlockNumber, Filter, FilterBuilder},
-    Address, L1BatchNumber, L2ChainId, SLChainId, H256, L2_NATIVE_TOKEN_VAULT_ADDRESS,
-    SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256, U64,
+    ethabi::{decode, Contract, ParamType},
+    utils::encode_ntv_asset_id,
+    web3::{BlockId, BlockNumber, Filter, FilterBuilder},
+    Address, L1BatchNumber, L2ChainId, SLChainId, H256, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256,
+    U64,
 };
 use zksync_web3_decl::{
     client::{Network, L2},
@@ -731,14 +732,4 @@ impl EthClient for L2EthClientW {
     async fn get_settlement_layer(&self) -> Result<Address, ContractCallError> {
         self.0.get_settlement_layer().await
     }
-}
-
-pub(crate) fn encode_ntv_asset_id(l1_chain_id: U256, addr: Address) -> H256 {
-    let encoded_data = encode(&[
-        ethabi::Token::Uint(l1_chain_id),
-        ethabi::Token::Address(L2_NATIVE_TOKEN_VAULT_ADDRESS),
-        ethabi::Token::Address(addr),
-    ]);
-
-    H256(keccak256(&encoded_data))
 }
