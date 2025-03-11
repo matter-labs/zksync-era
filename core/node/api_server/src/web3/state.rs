@@ -184,8 +184,8 @@ impl InternalApiConfigBuilder {
                 l1_shared_default_bridge: l1_ecosystem_contracts.shared_bridge,
                 l2_shared_default_bridge: l2_contracts.shared_bridge_addr,
                 // WETH bridge is not available
-                l1_weth_bridge: None,
-                l2_weth_bridge: None,
+                l1_weth_bridge: Some(Address::zero()),
+                l2_weth_bridge: Some(Address::zero()),
                 l2_legacy_shared_bridge: l2_contracts.legacy_shared_bridge_addr,
             }),
             l1_diamond_proxy_addr: Some(

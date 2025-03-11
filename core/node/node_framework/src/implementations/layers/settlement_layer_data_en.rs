@@ -87,9 +87,8 @@ impl WiringLayer for SettlementLayerDataEn {
             get_settlement_layer_for_l1_call(
                 &input.eth_client.0.as_ref(),
                 self.l1_chain_contracts
-                    .ecosystem_contracts
-                    .bridgehub_proxy_addr
-                    .unwrap(),
+                    .chain_contracts_config
+                    .diamond_proxy_addr,
                 &getters_facet_contract(),
             )
             .await?
