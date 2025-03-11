@@ -36,7 +36,6 @@ const GATEWAY_DIAMOND_PROXY_ADDR: Address = Address::repeat_byte(2);
 const VALIDATOR_TIMELOCK_ADDR: Address = Address::repeat_byte(23);
 const ERA_CHAIN_ID: u64 = 270;
 const L1_CHAIN_ID: u64 = 9;
-const GATEWAY_CHAIN_ID: u64 = 505;
 const COMMITMENT_MODES: [L1BatchCommitmentMode; 2] = [
     L1BatchCommitmentMode::Rollup,
     L1BatchCommitmentMode::Validium,
@@ -152,10 +151,6 @@ fn create_mock_sl(chain_id: u64, with_get_zk_chain: bool) -> MockSettlementLayer
 
 fn create_mock_ethereum() -> MockSettlementLayer {
     create_mock_sl(L1_CHAIN_ID, false)
-}
-
-fn create_mock_gateway() -> MockSettlementLayer {
-    create_mock_sl(GATEWAY_CHAIN_ID, true)
 }
 
 impl HandleConsistencyCheckerEvent for mpsc::UnboundedSender<L1BatchNumber> {

@@ -503,10 +503,8 @@ impl Distribution<configs::FriProverConfig> for EncodeDist {
             queue_capacity: self.sample(rng),
             witness_vector_receiver_port: self.sample(rng),
             zone_read_url: self.sample(rng),
-            shall_save_to_public_bucket: self.sample(rng),
             availability_check_interval_in_secs: self.sample(rng),
             prover_object_store: self.sample(rng),
-            public_object_store: self.sample(rng),
             cloud_type: self.sample(rng),
         }
     }
@@ -614,7 +612,6 @@ impl Distribution<configs::FriWitnessGeneratorConfig> for EncodeDist {
             scheduler_generation_timeout_in_secs: self.sample(rng),
             max_attempts: self.sample(rng),
             last_l1_batch_to_process: self.sample(rng),
-            shall_save_to_public_bucket: self.sample(rng),
             prometheus_listener_port: self.sample(rng),
             max_circuits_in_flight: self.sample(rng),
         }

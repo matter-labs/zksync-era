@@ -19,7 +19,7 @@ use zksync_types::{
     SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256, U64,
 };
 
-use crate::client::{EthClient, L2EthClient, RETRY_LIMIT};
+use crate::client::{EthClient, ZkSyncExtentionEthClient, RETRY_LIMIT};
 
 #[derive(Debug)]
 pub struct FakeEthClientData {
