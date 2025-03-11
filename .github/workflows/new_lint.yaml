@@ -16,8 +16,6 @@ defaults:
 
 jobs:
 
-#  # READY
-#  # TODO: remove unnecessary 5433 and use 5432 and basic docker compose everywhere
   unit-tests:
     runs-on: matterlabs-ci-runner-highmem-long
     steps:
@@ -55,86 +53,87 @@ jobs:
 
 #  # READY:
 #  # TODO: Think about server recompilations, run binary instead of cargo run
-#  load-test:
-#    runs-on: matterlabs-ci-runner-high-performance
-#    strategy:
-#      fail-fast: false
-#      matrix:
-#        vm_mode:
-#          - "old"
-#          - "new"
-#    env:
-#      EXPECTED_TX_COUNT: ${{ matrix.vm_mode == 'new' && 30000 || 16000 }}
-#      ACCOUNTS_AMOUNT: 100
-#      MAX_INFLIGHT_TXS: 10
-#      SYNC_API_REQUESTS_LIMIT: 15
-#      FAIL_FAST: true
-#      SERVER_LOG: server.log
-#    steps:
-#      - name: Checkout
-#        uses: actions/checkout@v4
-#        with:
-#          submodules: "recursive"
-#
-#      - name: Setup runner
-#        uses: matter-labs/zksync-ci-common/.github/actions/runner-setup@aba-ci-optimize
-#        with:
-#          workspace: 'core'
-#
-#      - name: Build contracts
-#        uses: matter-labs/zksync-ci-common/.github/actions/build-contracts@aba-ci-optimize
-#
-#      - name: Start services
-#        run: docker compose up --wait
-#
-#      - name: Create legacy chain
-#        run: |
-#          zkstack chain create \
-#            --chain-name legacy \
-#            --chain-id sequential \
-#            --prover-mode no-proofs \
-#            --wallet-creation localhost \
-#            --l1-batch-commit-data-generator-mode rollup \
-#            --base-token-address 0x0000000000000000000000000000000000000001 \
-#            --base-token-price-nominator 1 \
-#            --base-token-price-denominator 1 \
-#            --set-as-default false \
-#            --ignore-prerequisites \
-#            --legacy-bridge \
-#            --evm-emulator false
-#
-#      - name: Init ecosystem
-#        run: |
-#          zkstack ecosystem init \
-#            --ignore-prerequisites \
-#            --dev --skip-contract-compilation-override=true \
-#            --support-l2-legacy-shared-bridge-test=true --verbose
-#
-#      - name: Update config
-#        run: |
-#          zkstack dev config-writer \
-#            --ignore-prerequisites \
-#            --path ${{ format('etc/env/file_based/overrides/tests/loadtest-{0}.yaml', matrix.vm_mode) }} \
-#            --chain legacy
-#
-#      - name: Run server
-#        run: |
-#          zkstack server \
-#            --ignore-prerequisites --uring --chain=legacy \
-#            --components api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads \
-#            &>${SERVER_LOG} &
-#
-#      - name: Wait for server to start
-#        run: |
-#          zkstack server wait --chain=legacy \
-#            --timeout 300 --poll-interval 1000
-#
-#      - name: Perform load test
-#        run: zkstack dev test loadtest -v --chain=legacy
-#
-#      - name: Show server logs
-#        if: failure()
-#        run: cat ${SERVER_LOG}
+  load-test:
+    runs-on: matterlabs-ci-runner-high-performance
+    strategy:
+      fail-fast: false
+      matrix:
+        vm_mode:
+          - "old"
+          - "new"
+    env:
+      EXPECTED_TX_COUNT: ${{ matrix.vm_mode == 'new' && 30000 || 16000 }}
+      ACCOUNTS_AMOUNT: 100
+      MAX_INFLIGHT_TXS: 10
+      SYNC_API_REQUESTS_LIMIT: 15
+      FAIL_FAST: true
+      SERVER_LOG: server.log
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: "recursive"
+
+      - name: Setup runner
+        uses: matter-labs/zksync-ci-common/.github/actions/runner-setup@aba-ci-optimize
+        with:
+          workspace: 'core'
+          cache_shared_key: 'release'
+
+      - name: Build contracts
+        uses: matter-labs/zksync-ci-common/.github/actions/build-contracts@aba-ci-optimize
+
+      - name: Start services
+        run: docker compose up --wait
+
+      - name: Create legacy chain
+        run: |
+          zkstack chain create \
+            --chain-name legacy \
+            --chain-id sequential \
+            --prover-mode no-proofs \
+            --wallet-creation localhost \
+            --l1-batch-commit-data-generator-mode rollup \
+            --base-token-address 0x0000000000000000000000000000000000000001 \
+            --base-token-price-nominator 1 \
+            --base-token-price-denominator 1 \
+            --set-as-default false \
+            --ignore-prerequisites \
+            --legacy-bridge \
+            --evm-emulator false
+
+      - name: Init ecosystem
+        run: |
+          zkstack ecosystem init \
+            --ignore-prerequisites \
+            --dev --skip-contract-compilation-override=true \
+            --support-l2-legacy-shared-bridge-test=true --verbose
+
+      - name: Update config
+        run: |
+          zkstack dev config-writer \
+            --ignore-prerequisites \
+            --path ${{ format('etc/env/file_based/overrides/tests/loadtest-{0}.yaml', matrix.vm_mode) }} \
+            --chain legacy
+
+      - name: Run server
+        run: |
+          zkstack server \
+            --ignore-prerequisites --uring --chain=legacy \
+            --components api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads \
+            &>${SERVER_LOG} &
+
+      - name: Wait for server to start
+        run: |
+          zkstack server wait --chain=legacy \
+            --timeout 300 --poll-interval 1000
+
+      - name: Perform load test
+        run: zkstack dev test loadtest -v --chain=legacy
+
+      - name: Show server logs
+        if: failure()
+        run: cat ${SERVER_LOG}
 
 #  integration-tests:
 #    runs-on: matterlabs-ci-runner-ultra-performance
