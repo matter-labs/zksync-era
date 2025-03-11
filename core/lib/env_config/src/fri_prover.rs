@@ -68,10 +68,6 @@ mod tests {
             PROVER_OBJECT_STORE_MODE="GCSWithCredentialFile"
             PROVER_OBJECT_STORE_GCS_CREDENTIAL_FILE_PATH="/path/to/credentials1.json"
             PROVER_OBJECT_STORE_MAX_RETRIES="5"
-            PUBLIC_OBJECT_STORE_BUCKET_BASE_URL="/base/url"
-            PUBLIC_OBJECT_STORE_MODE="GCSWithCredentialFile"
-            PUBLIC_OBJECT_STORE_GCS_CREDENTIAL_FILE_PATH="/path/to/credentials2.json"
-            PUBLIC_OBJECT_STORE_MAX_RETRIES="5"
         "#;
         lock.set_env(config);
 
