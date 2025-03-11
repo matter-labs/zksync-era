@@ -13,6 +13,7 @@ use crate::{
         gas_adjuster::GasAdjusterResource,
         healthcheck::AppHealthCheckResource,
         pools::{MasterPool, PoolResource, ReplicaPool},
+        settlement_layer::SettlementModeResource,
     },
     service::StopReceiver,
     task::{Task, TaskId},
@@ -51,6 +52,7 @@ pub struct Input {
     pub eth_client_blobs: Option<BoundEthInterfaceForBlobsResource>,
     pub eth_client_gateway: Option<BoundEthInterfaceForL2Resource>,
     pub gas_adjuster: GasAdjusterResource,
+    pub sl_mode: SettlementModeResource,
     #[context(default)]
     pub circuit_breakers: CircuitBreakersResource,
     #[context(default)]
@@ -99,6 +101,7 @@ impl WiringLayer for EthTxManagerLayer {
             Some(eth_client),
             eth_client_blobs,
             l2_client,
+            input.sl_mode.0,
         );
 
         // Insert circuit breaker.

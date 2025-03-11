@@ -1,46 +1,38 @@
 use async_trait::async_trait;
-use zksync_config::{configs::GatewayChainConfig, ContractsConfig};
-use zksync_multilayer_client::GatewayMigrator;
+use zksync_eth_client::EthInterface;
+use zksync_gateway_migrator::GatewayMigrator;
+use zksync_types::L2ChainId;
 
 use crate::{
     implementations::resources::{
-        contracts::ContractsResource, eth_interface::EthInterfaceResource,
+        contracts::L1ChainContractsResource,
+        eth_interface::{EthInterfaceResource, L2InterfaceResource},
+        pools::{MasterPool, PoolResource},
         settlement_layer::SettlementModeResource,
     },
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext, StopReceiver, Task, TaskId,
 };
 
-/// Wiring layer for [`PKSigningClient`].
+/// Wiring layer for [`GatewayMigrator`].
 #[derive(Debug)]
 pub struct GatewayMigratorLayer {
-    contracts_config: ContractsConfig,
-    gateway_chain_config: Option<GatewayChainConfig>,
-}
-
-impl GatewayMigratorLayer {
-    pub fn new(
-        contracts_config: ContractsConfig,
-        gateway_chain_config: Option<GatewayChainConfig>,
-    ) -> Self {
-        Self {
-            contracts_config,
-            gateway_chain_config,
-        }
-    }
+    pub l2chain_id: L2ChainId,
 }
 
 #[derive(Debug, FromContext)]
 #[context(crate = crate)]
 pub struct Input {
-    pub eth_client: EthInterfaceResource,
+    eth_client: EthInterfaceResource,
+    gateway_client: Option<L2InterfaceResource>,
+    contracts: L1ChainContractsResource,
+    settlement_mode_resource: SettlementModeResource,
+    pool: PoolResource<MasterPool>,
 }
 
 #[derive(Debug, IntoContext)]
 #[context(crate = crate)]
 pub struct Output {
-    initial_settlement_mode: SettlementModeResource,
-    contracts: ContractsResource,
     #[context(task)]
     gateway_migrator: GatewayMigrator,
 }
@@ -55,13 +47,18 @@ impl WiringLayer for GatewayMigratorLayer {
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
-        let migrator =
-            GatewayMigrator::new(input.eth_client.0, self.contracts_config.diamond_proxy_addr)
-                .await;
+        let migrator = GatewayMigrator::new(
+            Box::new(input.eth_client.0),
+            input
+                .gateway_client
+                .map(|a| Box::new(a.0) as Box<dyn EthInterface>),
+            input.contracts.0.chain_contracts_config.diamond_proxy_addr,
+            input.settlement_mode_resource.0,
+            self.l2chain_id,
+            input.pool.get().await?,
+        );
 
         Ok(Output {
-            initial_settlement_mode: SettlementModeResource(migrator.settlement_mode()),
-            contracts: ContractsResource(self.gateway_chain_config.unwrap()),
             gateway_migrator: migrator,
         })
     }

@@ -7,9 +7,11 @@ impl FromEnv for EcosystemContracts {
         Ok(Self {
             bridgehub_proxy_addr: std::env::var("CONTRACTS_BRIDGEHUB_PROXY_ADDR")?.parse()?,
             state_transition_proxy_addr: std::env::var("CONTRACTS_STATE_TRANSITION_PROXY_ADDR")?
-                .parse()?,
+                .parse()
+                .ok(),
             transparent_proxy_admin_addr: std::env::var("CONTRACTS_TRANSPARENT_PROXY_ADMIN_ADDR")?
-                .parse()?,
+                .parse()
+                .ok(),
             l1_bytecodes_supplier_addr: std::env::var("CONTRACTS_L1_BYTECODE_SUPPLIER_ADDR")?
                 .parse()
                 .ok(),
@@ -82,15 +84,19 @@ mod tests {
             l1_multicall3_addr: addr("0xcA11bde05977b3631167028862bE2a173976CA11"),
             ecosystem_contracts: Some(EcosystemContracts {
                 bridgehub_proxy_addr: addr("0x35ea7f92f4c5f433efe15284e99c040110cf6297"),
-                state_transition_proxy_addr: addr("0xd90f1c081c6117241624e97cb6147257c3cb2097"),
-                transparent_proxy_admin_addr: addr("0xdd6fa5c14e7550b4caf2aa2818d24c69cbc347e5"),
+                state_transition_proxy_addr: Some(addr(
+                    "0xd90f1c081c6117241624e97cb6147257c3cb2097",
+                )),
+                transparent_proxy_admin_addr: Some(addr(
+                    "0xdd6fa5c14e7550b4caf2aa2818d24c69cbc347e5",
+                )),
                 l1_bytecodes_supplier_addr: Some(addr(
                     "0x36ea7f92f4c5f433efe15284e99c040110cf6297",
                 )),
                 l1_wrapped_base_token_store: Some(addr(
                     "0x36ea7f92f4c5f433efe15284e99c040110cf6298",
                 )),
-                server_notifier_addr: Some(addr("0x36ea7f92f4c5f433efe15284e99c040110cf6298")),
+                server_notifier_addr: Some(addr("0xbe8381498ED34E9c2EdB51Ecd778d71B225E26fb")),
             }),
             base_token_addr: Some(SHARED_BRIDGE_ETHER_TOKEN_ADDRESS),
             l1_base_token_asset_id: Some(
@@ -99,12 +105,13 @@ mod tests {
                 )
                 .unwrap(),
             ),
-            chain_admin_addr: Some(addr("0xdd6fa5c14e7550b4caf2aa2818d24c69cbc347ff")),
+            chain_admin_addr: addr("0xdd6fa5c14e7550b4caf2aa2818d24c69cbc347ff"),
             l2_da_validator_addr: Some(addr("0xed6fa5c14e7550b4caf2aa2818d24c69cbc347ff")),
             l2_timestamp_asserter_addr: Some(addr("0x0000000000000000000000000000000000000002")),
             no_da_validium_l1_validator_addr: Some(addr(
                 "0xbe8381498ED34E9c2EdB51Ecd778d71B225E26fb",
             )),
+            l2_multicall3_addr: Some(addr("0xbe8381498ED34E9c2EdB51Ecd778d71B225E26fa")),
         }
     }
 
@@ -140,6 +147,8 @@ CONTRACTS_CHAIN_ADMIN_ADDR="0xdd6fa5c14e7550b4caf2aa2818d24c69cbc347ff"
 CONTRACTS_L2_DA_VALIDATOR_ADDR="0xed6fa5c14e7550b4caf2aa2818d24c69cbc347ff"
 CONTRACTS_L2_TIMESTAMP_ASSERTER_ADDR="0x0000000000000000000000000000000000000002"
 CONTRACTS_NO_DA_VALIDIUM_L1_VALIDATOR_ADDR="0xbe8381498ED34E9c2EdB51Ecd778d71B225E26fb"
+CONTRACTS_SERVER_NOTIFIER_ADDR="0xbe8381498ED34E9c2EdB51Ecd778d71B225E26fb"
+CONTRACTS_L2_MULTICALL3_ADDR="0xbe8381498ED34E9c2EdB51Ecd778d71B225E26fa"
         "#;
         lock.set_env(config);
 

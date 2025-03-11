@@ -1,6 +1,5 @@
 use std::convert::TryInto;
 
-use zksync_contracts::{chain_admin_contract, gateway_migration_contract};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_types::{
     abi,

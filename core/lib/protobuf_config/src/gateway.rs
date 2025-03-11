@@ -10,12 +10,18 @@ impl ProtoRepr for proto::GatewayChainConfig {
 
     fn read(&self) -> anyhow::Result<Self::Type> {
         Ok(Self::Type {
-            state_transition_proxy_addr: required(&self.state_transition_proxy_addr)
-                .and_then(|x| parse_h160(x))
+            state_transition_proxy_addr: self
+                .state_transition_proxy_addr
+                .as_ref()
+                .map(|x| parse_h160(x))
+                .transpose()
                 .context("state_transition_proxy_addr")?,
 
-            validator_timelock_addr: required(&self.validator_timelock_addr)
-                .and_then(|x| parse_h160(x))
+            validator_timelock_addr: self
+                .validator_timelock_addr
+                .as_ref()
+                .map(|x| parse_h160(x))
+                .transpose()
                 .context("validator_timelock_addr")?,
 
             multicall3_addr: required(&self.multicall3_addr)
@@ -33,6 +39,7 @@ impl ProtoRepr for proto::GatewayChainConfig {
             gateway_chain_id: required(&self.gateway_chain_id)
                 .map(|x| SLChainId(*x))
                 .context("gateway_chain_id")?,
+            server_notifier: None,
         })
     }
 

@@ -1,6 +1,6 @@
 use anyhow::Context;
 use zksync_circuit_breaker::l1_txs::FailedL1TransactionChecker;
-use zksync_config::configs::{eth_sender::EthConfig, gateway::GatewayChainConfig, ContractsConfig};
+use zksync_config::configs::eth_sender::EthConfig;
 use zksync_eth_client::BoundEthInterface;
 use zksync_eth_sender::{Aggregator, EthTxAggregator};
 use zksync_types::{commitment::L1BatchCommitmentMode, L2ChainId};
@@ -8,6 +8,7 @@ use zksync_types::{commitment::L1BatchCommitmentMode, L2ChainId};
 use crate::{
     implementations::resources::{
         circuit_breakers::CircuitBreakersResource,
+        contracts::SettlementLayerContractsResource,
         eth_interface::{
             BoundEthInterfaceForBlobsResource, BoundEthInterfaceForL2Resource,
             BoundEthInterfaceResource,
@@ -44,8 +45,6 @@ use crate::{
 #[derive(Debug)]
 pub struct EthTxAggregatorLayer {
     eth_sender_config: EthConfig,
-    contracts_config: ContractsConfig,
-    gateway_chain_config: Option<GatewayChainConfig>,
     zksync_network_id: L2ChainId,
     l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
 }
@@ -64,6 +63,7 @@ pub struct Input {
     pub circuit_breakers: CircuitBreakersResource,
     #[context(default)]
     pub app_health: AppHealthCheckResource,
+    pub contracts_resource: SettlementLayerContractsResource,
 }
 
 #[derive(Debug, IntoContext)]
@@ -76,15 +76,11 @@ pub struct Output {
 impl EthTxAggregatorLayer {
     pub fn new(
         eth_sender_config: EthConfig,
-        contracts_config: ContractsConfig,
-        gateway_chain_config: Option<GatewayChainConfig>,
         zksync_network_id: L2ChainId,
         l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
     ) -> Self {
         Self {
             eth_sender_config,
-            contracts_config,
-            gateway_chain_config,
             zksync_network_id,
             l1_batch_commit_data_generator_mode,
         }
@@ -106,37 +102,32 @@ impl WiringLayer for EthTxAggregatorLayer {
             input.settlement_mode.0,
             input.settlement_mode.0.is_gateway()
         );
-        tracing::info!("Contracts: {:?}", self.contracts_config);
-        tracing::info!("Gateway contracts: {:?}", self.gateway_chain_config);
+        tracing::info!("Contracts: {:?}", &input.contracts_resource.0);
         // Get resources.
 
-        let (
-            validator_timelock_addr,
-            multicall3_addr,
-            diamond_proxy_addr,
-            state_transition_manager_address,
-        ) = if input.settlement_mode.0.is_gateway() {
-            let gateway_chain_config = self
-                .gateway_chain_config
-                .as_ref()
-                .context("gateway_chain_config")?;
-            (
-                gateway_chain_config.validator_timelock_addr,
-                gateway_chain_config.multicall3_addr,
-                gateway_chain_config.diamond_proxy_addr,
-                gateway_chain_config.state_transition_proxy_addr,
-            )
-        } else {
-            (
-                self.contracts_config.validator_timelock_addr,
-                self.contracts_config.l1_multicall3_addr,
-                self.contracts_config.diamond_proxy_addr,
-                self.contracts_config
-                    .ecosystem_contracts
-                    .context("Missing ecosystem contracts")?
-                    .state_transition_proxy_addr,
-            )
-        };
+        let validator_timelock_addr = input
+            .contracts_resource
+            .0
+            .ecosystem_contracts
+            .validator_timelock_addr
+            .expect("Should be presented");
+        let multicall3_addr = input
+            .contracts_resource
+            .0
+            .ecosystem_contracts
+            .multicall3
+            .expect("Should be presented");
+        let diamond_proxy_addr = input
+            .contracts_resource
+            .0
+            .chain_contracts_config
+            .diamond_proxy_addr;
+        let state_transition_manager_address = input
+            .contracts_resource
+            .0
+            .ecosystem_contracts
+            .state_transition_proxy_addr
+            .expect("Should be presented");
 
         let eth_client = if input.settlement_mode.0.is_gateway() {
             input

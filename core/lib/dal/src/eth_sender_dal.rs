@@ -67,6 +67,7 @@ impl EthSenderDal<'_, '_> {
 
     pub async fn get_non_gateway_inflight_txs_count_for_gateway_migration(
         &mut self,
+        is_gateway: bool,
     ) -> sqlx::Result<usize> {
         let count = sqlx::query!(
             r#"
@@ -76,14 +77,33 @@ impl EthSenderDal<'_, '_> {
                 eth_txs
             WHERE
                 confirmed_eth_tx_history_id IS NULL
-                AND is_gateway = FALSE
-            "#
+                AND is_gateway = $1
+            "#,
+            is_gateway
         )
         .fetch_one(self.storage.conn())
         .await?
         .count
         .unwrap();
         Ok(count.try_into().unwrap())
+    }
+
+    pub async fn get_chain_id_of_last_eth_tx(&mut self) -> DalResult<Option<u64>> {
+        let res = sqlx::query!(
+            r#"
+            SELECT
+                chain_id
+            FROM
+                eth_txs
+            ORDER BY id DESC
+            LIMIT 1
+            "#,
+        )
+        .instrument("get_settlement_layer_of_last_eth_tx")
+        .fetch_optional(self.storage)
+        .await?
+        .and_then(|row| row.chain_id.map(|a| a as u64));
+        Ok(res)
     }
 
     pub async fn get_unconfirmed_txs_count(&mut self) -> DalResult<usize> {

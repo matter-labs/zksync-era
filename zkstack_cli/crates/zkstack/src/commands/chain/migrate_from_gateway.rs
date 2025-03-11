@@ -108,9 +108,7 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
                 (
                     chain_admin_addr,
                     chain_access_control_restriction.context("chain_access_control_restriction")?,
-                    gateway_chain_chain_config
-                        .chain_admin_addr
-                        .context("l2 chain admin missing")?,
+                    gateway_chain_chain_config.chain_admin_addr,
                     U256::from(chain_config.chain_id.as_u64()),
                 ),
             )

@@ -3,9 +3,7 @@ use zksync_types::{url::SensitiveUrl, L1ChainId, L2ChainId, SLChainId};
 use zksync_web3_decl::client::Client;
 
 use crate::{
-    implementations::resources::eth_interface::{
-        EthInterfaceResource, GatewayEthInterfaceResource, L2InterfaceResource,
-    },
+    implementations::resources::eth_interface::{EthInterfaceResource, L2InterfaceResource},
     wiring_layer::{WiringError, WiringLayer},
     IntoContext,
 };
@@ -40,7 +38,6 @@ impl QueryEthClientLayer {
 pub struct Output {
     query_client_l1: EthInterfaceResource,
     query_client_l2: Option<L2InterfaceResource>,
-    query_client_gateway: Option<GatewayEthInterfaceResource>,
 }
 
 #[async_trait::async_trait]
@@ -53,7 +50,6 @@ impl WiringLayer for QueryEthClientLayer {
     }
 
     async fn wire(self, _input: Self::Input) -> Result<Output, WiringError> {
-        // Both `query_client_gateway` and `query_client_l2` use the same URL, but provide different type guarantees.
         Ok(Output {
             query_client_l1: EthInterfaceResource(Box::new(
                 Client::http(self.l1_rpc_url.clone())
@@ -69,16 +65,6 @@ impl WiringLayer for QueryEthClientLayer {
                 }
 
                 Some(L2InterfaceResource(Box::new(builder.build())))
-            } else {
-                None
-            },
-            query_client_gateway: if let Some(gateway_rpc_url) = self.gateway_rpc_url {
-                let mut builder = Client::http(gateway_rpc_url).context("Client::new()")?;
-                if let Some(gateway_chain_id) = self.gateway_chain_id {
-                    builder = builder.for_network(gateway_chain_id.into())
-                }
-
-                Some(GatewayEthInterfaceResource(Box::new(builder.build())))
             } else {
                 None
             },

@@ -11,16 +11,15 @@ use zksync_config::{
         },
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
-        BasicWitnessInputProducerConfig, ContractVerifierSecrets, ContractsConfig,
-        DataAvailabilitySecrets, DatabaseSecrets, ExperimentalVmConfig,
-        ExternalPriceApiClientConfig, FriProofCompressorConfig, FriProverConfig,
-        FriProverGatewayConfig, FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig,
-        L1Secrets, ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig,
-        ProtectiveReadsWriterConfig, Secrets,
+        BasicWitnessInputProducerConfig, ContractVerifierSecrets, DataAvailabilitySecrets,
+        DatabaseSecrets, ExperimentalVmConfig, ExternalPriceApiClientConfig,
+        FriProofCompressorConfig, FriProverConfig, FriProverGatewayConfig,
+        FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig, L1Secrets, ObservabilityConfig,
+        PrometheusConfig, ProofDataHandlerConfig, ProtectiveReadsWriterConfig, Secrets,
     },
-    ApiConfig, BaseTokenAdjusterConfig, ContractVerifierConfig, DAClientConfig, DADispatcherConfig,
-    DBConfig, EthConfig, EthWatchConfig, ExternalProofIntegrationApiConfig, GasAdjusterConfig,
-    GenesisConfig, ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
+    ApiConfig, BaseTokenAdjusterConfig, ContractVerifierConfig, ContractsConfig, DAClientConfig,
+    DADispatcherConfig, DBConfig, EthConfig, EthWatchConfig, ExternalProofIntegrationApiConfig,
+    GasAdjusterConfig, GenesisConfig, ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
 };
 use zksync_core_leftovers::{
     temp_config_store::{read_yaml_repr, TempConfigStore},
@@ -133,20 +132,6 @@ fn main() -> anyhow::Result<()> {
             .context("failed decoding contracts YAML config")?,
     };
 
-    // We support only file based config for gateway
-    let gateway_contracts_config = if let Some(gateway_config_path) =
-        opt.gateway_contracts_config_path
-    {
-        let result = read_yaml_repr::<zksync_protobuf_config::proto::gateway::GatewayChainConfig>(
-            &gateway_config_path,
-        )
-        .context("failed decoding contracts YAML config")?;
-
-        Some(result)
-    } else {
-        None
-    };
-
     let genesis = match opt.genesis_path {
         None => GenesisConfig::from_env().context("Genesis config")?,
         Some(path) => read_yaml_repr::<zksync_protobuf_config::proto::genesis::Genesis>(&path)
@@ -161,9 +146,10 @@ fn main() -> anyhow::Result<()> {
         configs,
         wallets,
         genesis,
-        contracts_config,
-        gateway_contracts_config,
         secrets,
+        contracts_config.l1_specific_contracts(),
+        contracts_config.l2_contracts(),
+        Some(contracts_config.l1_multicall3_addr),
     )?;
 
     let observability_guard = {
@@ -188,23 +174,18 @@ fn main() -> anyhow::Result<()> {
 }
 
 fn find_gateway_update_error(zkstack_result: &Result<(), ZkStackServiceError>) -> bool {
-    if let Err(zkstack_err) = zkstack_result {
-        match &zkstack_err {
-            ZkStackServiceError::Task(tasks) => {
-                for task in &tasks.0 {
-                    if let TaskError::TaskFailed(task, err) = task {
-                        if task.contains("gateway_migrator")
-                            && err.to_string().contains("Settlement layer changed")
-                        {
-                            return true;
-                        }
-                    }
+    if let Err(ZkStackServiceError::Task(tasks)) = zkstack_result {
+        for task in &tasks.0 {
+            if let TaskError::TaskFailed(task, err) = task {
+                if task.contains("gateway_migrator")
+                    && err.to_string().contains("Settlement layer changed")
+                {
+                    return true;
                 }
             }
-            _ => {}
         }
     }
-    return false;
+    false
 }
 
 fn load_env_config() -> anyhow::Result<TempConfigStore> {

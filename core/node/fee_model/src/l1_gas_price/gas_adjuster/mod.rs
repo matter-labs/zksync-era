@@ -23,35 +23,22 @@ mod tests;
 
 #[derive(Debug)]
 pub struct GasAdjusterClient {
-    gateway_mode: bool,
     inner: Box<dyn EthFeeInterface>,
-}
-
-impl GasAdjusterClient {
-    pub fn from_l1(inner: Box<DynClient<L1>>) -> Self {
-        Self {
-            inner: Box::new(inner.for_component("gas_adjuster")),
-            gateway_mode: false,
-        }
-    }
-
-    pub fn from_l2(inner: Box<DynClient<L2>>) -> Self {
-        Self {
-            inner: Box::new(inner.for_component("gas_adjuster")),
-            gateway_mode: true,
-        }
-    }
 }
 
 impl From<Box<DynClient<L1>>> for GasAdjusterClient {
     fn from(inner: Box<DynClient<L1>>) -> Self {
-        Self::from_l1(inner)
+        Self {
+            inner: Box::new(inner.for_component("gas_adjuster")),
+        }
     }
 }
 
 impl From<Box<DynClient<L2>>> for GasAdjusterClient {
     fn from(inner: Box<DynClient<L2>>) -> Self {
-        Self::from_l2(inner)
+        Self {
+            inner: Box::new(inner.for_component("gas_adjuster")),
+        }
     }
 }
 
@@ -84,21 +71,21 @@ impl GasAdjuster {
         commitment_mode: L1BatchCommitmentMode,
     ) -> anyhow::Result<Self> {
         // A runtime check to ensure consistent config.
-        if config.settlement_mode.is_gateway() {
-            anyhow::ensure!(client.gateway_mode, "Must be L2 client in L2 mode");
-
-            anyhow::ensure!(
-                matches!(pubdata_sending_mode, PubdataSendingMode::RelayedL2Calldata | PubdataSendingMode::Custom),
-                "Only relayed L2 calldata or Custom is available for L2 mode, got: {pubdata_sending_mode:?}"
-            );
-        } else {
-            anyhow::ensure!(!client.gateway_mode, "Must be L1 client in L1 mode");
-
-            anyhow::ensure!(
-                !matches!(pubdata_sending_mode, PubdataSendingMode::RelayedL2Calldata),
-                "Relayed L2 calldata is only available in L2 mode"
-            );
-        }
+        // if config.settlement_mode.is_gateway() {
+        //     anyhow::ensure!(client.gateway_mode, "Must be L2 client in L2 mode");
+        //
+        //     anyhow::ensure!(
+        //         matches!(pubdata_sending_mode, PubdataSendingMode::RelayedL2Calldata | PubdataSendingMode::Custom),
+        //         "Only relayed L2 calldata or Custom is available for L2 mode, got: {pubdata_sending_mode:?}"
+        //     );
+        // } else {
+        //     anyhow::ensure!(!client.gateway_mode, "Must be L1 client in L1 mode");
+        //
+        //     anyhow::ensure!(
+        //         !matches!(pubdata_sending_mode, PubdataSendingMode::RelayedL2Calldata),
+        //         "Relayed L2 calldata is only available in L2 mode"
+        //     );
+        // }
 
         // Subtracting 1 from the "latest" block number to prevent errors in case
         // the info about the latest block is not yet present on the node.
