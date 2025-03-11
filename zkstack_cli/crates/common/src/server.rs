@@ -4,9 +4,16 @@ use xshell::{cmd, Shell};
 
 use crate::cmd::Cmd;
 
+/// Default command to run the server; will use `cargo` to build it.
+const DEFAULT_SERVER_COMMAND: &str =
+    "cargo run --manifest-path ./core/Cargo.toml --release --bin zksync_server";
+
 /// Allows to perform server operations.
 #[derive(Debug)]
 pub struct Server {
+    /// Command to run the server, could be a path to the binary.
+    /// If not set, the server will be built using cargo.
+    server_command: Option<String>,
     components: Option<Vec<String>>,
     code_path: PathBuf,
     uring: bool,
@@ -21,8 +28,14 @@ pub enum ServerMode {
 
 impl Server {
     /// Creates a new instance of the server.
-    pub fn new(components: Option<Vec<String>>, code_path: PathBuf, uring: bool) -> Self {
+    pub fn new(
+        server_command: Option<String>,
+        components: Option<Vec<String>>,
+        code_path: PathBuf,
+        uring: bool,
+    ) -> Self {
         Self {
+            server_command,
             components,
             code_path,
             uring,
@@ -67,10 +80,26 @@ impl Server {
                 (None, None)
             };
 
+        let server_command = match &self.server_command {
+            Some(command) => {
+                // We assume that if the user provides a custom server command,
+                // they can include any feature flags they need themselves.
+                if uring.is_some() {
+                    return Err(anyhow::anyhow!(
+                        "Cannot use uring with a custom server command"
+                    ));
+                }
+                command.clone()
+            }
+            None => {
+                let uring = uring.unwrap_or_default();
+                format!("{DEFAULT_SERVER_COMMAND} {uring} --")
+            }
+        };
         let mut cmd = Cmd::new(
             cmd!(
                 shell,
-                "cargo run --manifest-path ./core/Cargo.toml --release --bin zksync_server {uring...} --
+                "{server_command}
                 --genesis-path {genesis_path}
                 --wallets-path {wallets_path}
                 --config-path {general_path}
