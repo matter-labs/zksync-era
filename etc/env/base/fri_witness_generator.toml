@@ -6,5 +6,4 @@ node_generation_timeout_in_secs = 900
 recursion_tip_generation_timeout_in_secs = 900
 scheduler_generation_timeout_in_secs = 900
 max_attempts = 10
-shall_save_to_public_bucket = true
 prometheus_listener_port = 3116
