@@ -16,7 +16,7 @@ pub async fn run(shell: &Shell) -> anyhow::Result<()> {
 
     let mut command = cmd!(
         shell,
-        "cargo run --manifest-path ./core/Cargo.toml --bin loadnext"
+        "cargo run --manifest-path ./core/Cargo.toml --release --bin loadnext"
     )
     .env(
         "L2_CHAIN_ID",

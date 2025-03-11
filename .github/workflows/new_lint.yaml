@@ -1,7 +1,7 @@
 name: Lint
 
 on:
-#  pull_request:
+  pull_request:
   merge_group:
 
 
@@ -16,43 +16,41 @@ defaults:
 
 jobs:
 
-  unit-tests:
-    runs-on: matterlabs-ci-runner-highmem-long
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: "recursive"
+#  unit-tests:
+#    runs-on: matterlabs-ci-runner-highmem-long
+#    steps:
+#      - name: Checkout
+#        uses: actions/checkout@v4
+#        with:
+#          submodules: "recursive"
+#
+#      - name: Setup runner
+#        uses: matter-labs/zksync-ci-common/.github/actions/runner-setup@aba-ci-optimize
+#        with:
+#          workspace: 'core'
+#          cache_shared_key: 'dev'
+#
+#      - name: Build contracts
+#        uses: matter-labs/zksync-ci-common/.github/actions/build-contracts@aba-ci-optimize
+#
+#      - name: Start reth
+#        run: docker-compose up -d --wait reth
+#
+#      - name: Check contracts hashes
+#        working-directory: contracts
+#        run: yarn install && yarn calculate-hashes:check
+#
+#      - name: Rust unit tests
+#        run: zkstack dev test rust
+#
+#      - name: Run benchmarks
+#        working-directory: core
+#        run: cargo test --package vm-benchmark --bench oneshot --bench batch
+#
+#      - name: Show sccache stats
+#        run: sccache --show-stats
 
-      - name: Setup runner
-        uses: matter-labs/zksync-ci-common/.github/actions/runner-setup@aba-ci-optimize
-        with:
-          workspace: 'core'
-          cache_shared_key: 'dev'
 
-      - name: Build contracts
-        uses: matter-labs/zksync-ci-common/.github/actions/build-contracts@aba-ci-optimize
-
-      - name: Start reth
-        run: docker-compose up -d --wait reth
-
-      - name: Check contracts hashes
-        working-directory: contracts
-        run: yarn install && yarn calculate-hashes:check
-
-      - name: Rust unit tests
-        run: zkstack dev test rust
-
-      - name: Run benchmarks
-        working-directory: core
-        run: cargo test --package vm-benchmark --bench oneshot --bench batch
-
-      - name: Show sccache stats
-        run: sccache --show-stats
-
-
-#  # READY:
-#  # TODO: Think about server recompilations, run binary instead of cargo run
   load-test:
     runs-on: matterlabs-ci-runner-high-performance
     strategy:
@@ -84,7 +82,7 @@ jobs:
         uses: matter-labs/zksync-ci-common/.github/actions/build-contracts@aba-ci-optimize
 
       - name: Start services
-        run: docker compose up --wait
+        run: docker compose up --wait postgres reth
 
       - name: Create legacy chain
         run: |
@@ -102,12 +100,16 @@ jobs:
             --legacy-bridge \
             --evm-emulator false
 
+      - name: Build server
+        run: zkstack server build
+
       - name: Init ecosystem
         run: |
           zkstack ecosystem init \
             --ignore-prerequisites \
             --dev --skip-contract-compilation-override=true \
-            --support-l2-legacy-shared-bridge-test=true --verbose
+            --support-l2-legacy-shared-bridge-test=true \
+            --verbose
 
       - name: Update config
         run: |
