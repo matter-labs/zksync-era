@@ -37,6 +37,14 @@ mod tests {
             witness_vector_receiver_port: 3316,
             zone_read_url: "http://metadata.google.internal/computeMetadata/v1/instance/zone"
                 .to_string(),
+            prover_object_store: Some(ObjectStoreConfig {
+                mode: ObjectStoreMode::GCSWithCredentialFile {
+                    bucket_base_url: "/base/url".to_owned(),
+                    gcs_credential_file_path: "/path/to/credentials1.json".to_owned(),
+                },
+                max_retries: 5,
+                local_mirror_path: None,
+            }),
             availability_check_interval_in_secs: Some(1_800),
             cloud_type: CloudConnectionMode::GCP,
         }

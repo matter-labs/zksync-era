@@ -452,9 +452,8 @@ contracts to be deployed.
 
 - `--from-genesis` — Set attester committee to `consensus.genesis_spec.attesters` in general.yaml Mutually exclusive
   with `--from-file`.
-- `--from-file <PATH>` — Set attester committee to committee specified in yaml file at `PATH`.
-  Mutually exclusive with `--from-genesis`. File format is specified in
-  `zk_inception/src/commands/consensus/proto/mod.proto`. Example:
+- `--from-file <PATH>` — Set attester committee to committee specified in yaml file at `PATH`. Mutually exclusive with
+  `--from-genesis`. File format is specified in `zk_inception/src/commands/consensus/proto/mod.proto`. Example:
 
   ```yaml
   attesters:
