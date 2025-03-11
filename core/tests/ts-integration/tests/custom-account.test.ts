@@ -466,6 +466,23 @@ describe('Tests for the custom account behavior', () => {
         }
     });
 
+    test("Send a transaction with keyed nonce", async () => {
+        // TODO: SDK thinks nonce is a `number`, not `BigInt`
+        // so keyed nonces do not fit.
+        const tx = { to: alice.address, nonce: (1n << 64n) };
+        const customAccountAddress = await customAccount.getAddress();
+
+        // Check that transaction succeeds.
+        await expect(
+            sendCustomAccountTransaction(
+                zksync.types.Transaction.from(tx),
+                alice.provider,
+                customAccountAddress,
+                testMaster.environment().l2ChainId
+            )
+        ).toBeAccepted();
+    });
+
     afterAll(async () => {
         await testMaster.deinitialize();
     });

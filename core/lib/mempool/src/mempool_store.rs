@@ -118,6 +118,7 @@ impl MempoolStore {
         constraint: TransactionTimeRangeConstraint,
         initial_nonces: &HashMap<(Address, NonceKey), NonceValue>,
     ) {
+        // TODO: for DefaultAccount, only insert into mempool if nonce_key == 0
         let account = transaction.initiator_account();
         let nonce_key = transaction.nonce().key();
         let metadata = match self.l2_transactions_per_account.entry((account, nonce_key)) {

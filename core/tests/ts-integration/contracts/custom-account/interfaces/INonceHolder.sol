@@ -28,8 +28,12 @@ interface INonceHolder {
     function getValueUnderNonce(uint256 _key) external view returns (uint256);
 
     /// @dev A convenience method to increment the minimal nonce if it is equal
-    /// to the `_expectedNonce`.
+    /// to the `_expectedNonce`, for non-keyed nonces.
     function incrementMinNonceIfEquals(uint256 _expectedNonce) external;
+
+    /// @dev A convenience method to increment the minimal nonce if it is equal
+    /// to the `_expectedNonce`, for keyed nonces.
+    function incrementMinNonceIfEqualsKeyed(uint256 _expectedNonce) external;
 
     /// @dev Returns the deployment nonce for the accounts used for CREATE opcode.
     function getDeploymentNonce(address _address) external view returns (uint256);

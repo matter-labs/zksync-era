@@ -62,11 +62,19 @@ contract CustomAccount is IAccount {
 			_suggestedSignedTxHash = _transaction.encodeHash();
 		}
 
+        // Allow using keyed nonces for this account
+        uint256 nonceKey = _transaction.nonce >> 64;
+        bytes memory nonceIncrementCall;
+        if (nonceKey == 0) {
+            nonceIncrementCall = abi.encodeCall(INonceHolder.incrementMinNonceIfEquals, (_transaction.nonce));
+        } else {
+            nonceIncrementCall = abi.encodeCall(INonceHolder.incrementMinNonceIfEqualsKeyed, (_transaction.nonce));
+        }
 		SystemContractsCaller.systemCallWithPropagatedRevert(
 			uint32(gasleft()),
 			address(NONCE_HOLDER_SYSTEM_CONTRACT),
 			0,
-			abi.encodeCall(INonceHolder.incrementMinNonceIfEquals, (_transaction.nonce))
+            nonceIncrementCall
 		);
 
 		bytes memory correctSignature = abi.encodePacked(_suggestedSignedTxHash, address(this));
