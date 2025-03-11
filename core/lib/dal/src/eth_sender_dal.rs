@@ -88,22 +88,21 @@ impl EthSenderDal<'_, '_> {
         Ok(count.try_into().unwrap())
     }
 
-    pub async fn get_last_eth_tx(&mut self) -> DalResult<Option<H256>> {
+    pub async fn get_settlement_layer_of_last_eth_tx(&mut self) -> DalResult<Option<bool>> {
         let res = sqlx::query!(
             r#"
             SELECT
-                tx_hash
+                is_gateway
             FROM
-                eth_txs_history
+                eth_txs
             ORDER BY id DESC
             LIMIT 1
             "#,
         )
-        .instrument("get_last_eth_tx")
+        .instrument("get_settlement_layer_of_last_eth_tx")
         .fetch_optional(self.storage)
         .await?
-        .map(|row| H256::from_str(&row.tx_hash).unwrap());
-
+        .map(|row| row.is_gateway);
         Ok(res)
     }
 

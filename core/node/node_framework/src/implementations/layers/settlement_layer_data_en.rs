@@ -75,12 +75,7 @@ impl WiringLayer for SettlementLayerDataEn {
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
-        let initial_sl_mode = get_settlement_mode(
-            input.master_pool.get().await?,
-            input.eth_client.0.clone(),
-            input.l2_eth_client.as_ref().map(|a| a.0.clone()),
-        )
-        .await?;
+        let initial_sl_mode = get_settlement_mode(input.master_pool.get().await?).await?;
 
         let (client, bridgehub): (Box<dyn EthInterface>, Address) = match initial_sl_mode {
             SettlementMode::SettlesToL1 => (

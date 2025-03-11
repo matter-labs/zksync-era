@@ -809,32 +809,23 @@ async fn wait_for_l1_batch_with_metadata(
 }
 
 // Get settlement layer based on ETH tx, all eth txs should be presented on settlement layer. what is the best place for this function?
-pub async fn get_settlement_mode(
-    db_pool: ConnectionPool<Core>,
-    eth_client: Box<DynClient<L1>>,
-    sl_client: Option<Box<DynClient<L2>>>,
-) -> anyhow::Result<SettlementMode> {
+pub async fn get_settlement_mode(db_pool: ConnectionPool<Core>) -> anyhow::Result<SettlementMode> {
     let tx_hash = db_pool
         .connection()
         .await?
         .eth_sender_dal()
-        .get_last_eth_tx()
+        .get_settlement_layer_of_last_eth_tx()
         .await?;
 
-    if let Some(tx_hash) = tx_hash {
-        let tx_status = eth_client.get_tx_status(tx_hash).await?;
-        if tx_status.is_some() {
-            Ok(SettlementMode::SettlesToL1)
+    let res = if let Some(is_gateway) = tx_hash {
+        if is_gateway {
+            SettlementMode::Gateway
         } else {
-            // The tx has not been found on l1, we have to check on l2
-            if sl_client.unwrap().get_tx_status(tx_hash).await?.is_some() {
-                Ok(SettlementMode::Gateway)
-            } else {
-                Ok(SettlementMode::SettlesToL1)
-            }
+            SettlementMode::SettlesToL1
         }
     } else {
         // We can assume settlement to l1 by default in the worst case scenario, en will be restarted right after the getting the very first commit_tx
-        Ok(SettlementMode::SettlesToL1)
-    }
+        SettlementMode::SettlesToL1
+    };
+    Ok(res)
 }
