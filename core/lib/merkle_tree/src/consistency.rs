@@ -245,7 +245,7 @@ struct AtomicBitSet {
 }
 
 impl AtomicBitSet {
-    const BITS_PER_ATOMIC: usize = 8;
+    const BITS_PER_ATOMIC: usize = 64;
 
     fn new(len: usize) -> Self {
         let atomic_count = (len + Self::BITS_PER_ATOMIC - 1) / Self::BITS_PER_ATOMIC;
