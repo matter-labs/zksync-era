@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_object_store::ObjectStore;
@@ -22,6 +22,7 @@ pub struct ProofDataProcessor {
     pool: ConnectionPool<Core>,
     blob_store: Arc<dyn ObjectStore>,
     commitment_mode: L1BatchCommitmentMode,
+    proof_generation_timeout: Duration,
 }
 
 impl ProofDataProcessor {
@@ -29,11 +30,13 @@ impl ProofDataProcessor {
         pool: ConnectionPool<Core>,
         blob_store: Arc<dyn ObjectStore>,
         commitment_mode: L1BatchCommitmentMode,
+        proof_generation_timeout: Duration,
     ) -> Self {
         Self {
             pool,
             blob_store,
             commitment_mode,
+            proof_generation_timeout,
         }
     }
 
@@ -58,7 +61,7 @@ impl ProofDataProcessor {
             .connection()
             .await?
             .proof_generation_dal()
-            .lock_batch_for_proving()
+            .lock_batch_for_proving(self.proof_generation_timeout)
             .await
             .map_err(|e| anyhow::anyhow!(e))
     }

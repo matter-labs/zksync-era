@@ -12,7 +12,7 @@ pub mod processor;
 pub struct RpcClient {
     processor: ProofDataProcessor,
     ws_url: String,
-    poll_duration: Duration,
+    readiness_check_interval: Duration,
     connection_retry_interval: Duration,
 }
 
@@ -20,13 +20,13 @@ impl RpcClient {
     pub fn new(
         processor: ProofDataProcessor,
         ws_url: String,
-        poll_duration: Duration,
+        readiness_check_interval: Duration,
         connection_retry_interval: Duration,
     ) -> Self {
         Self {
             processor,
             ws_url,
-            poll_duration,
+            readiness_check_interval,
             connection_retry_interval,
         }
     }
@@ -90,7 +90,7 @@ impl RpcClient {
         stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<()> {
         loop {
-            tokio::time::sleep(self.poll_duration).await;
+            tokio::time::sleep(self.readiness_check_interval).await;
             if *stop_receiver.borrow() {
                 tracing::warn!("Stop signal received, shutting down proof data submitter");
                 return Ok(());

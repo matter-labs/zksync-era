@@ -19,9 +19,11 @@ impl ProtoRepr for proto::ProofDataHandler {
                 .and_then(|x| Ok((*x).try_into()?))
                 .context("retry_connection_interval_in_secs")?,
             api_url: required(&self.api_url).context("api_url")?.clone(),
-            api_poll_duration_in_secs: required(&self.api_poll_duration_in_secs)
-                .and_then(|x| Ok((*x).try_into()?))
-                .context("api_poll_duration_in_secs")?,
+            batch_readiness_check_interval_in_secs: required(
+                &self.batch_readiness_check_interval_in_secs,
+            )
+            .and_then(|x| Ok((*x).try_into()?))
+            .context("api_poll_duration_in_secs")?,
             tee_config: configs::TeeConfig {
                 tee_support: self
                     .tee_support
@@ -50,7 +52,9 @@ impl ProtoRepr for proto::ProofDataHandler {
         Self {
             http_port: Some(this.http_port.into()),
             api_url: Some(this.api_url.clone()),
-            api_poll_duration_in_secs: Some(this.api_poll_duration_in_secs.into()),
+            batch_readiness_check_interval_in_secs: Some(
+                this.batch_readiness_check_interval_in_secs.into(),
+            ),
             retry_connection_interval_in_secs: Some(this.retry_connection_interval_in_secs.into()),
             proof_generation_timeout_in_secs: Some(this.proof_generation_timeout_in_secs.into()),
             tee_support: Some(this.tee_config.tee_support),

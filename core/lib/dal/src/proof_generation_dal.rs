@@ -1,10 +1,12 @@
 #![doc = include_str!("../doc/ProofGenerationDal.md")]
+use std::time::Duration;
 
 use strum::{Display, EnumString};
 use zksync_db_connection::{
     connection::Connection,
     error::DalResult,
     instrument::{InstrumentExt, Instrumented},
+    utils::pg_interval_from_duration,
 };
 use zksync_types::L1BatchNumber;
 
@@ -35,7 +37,11 @@ impl ProofGenerationDal<'_, '_> {
     ///
     /// The batch can be unpicked either via a corresponding DAL method, or it is considered
     /// not picked after `processing_timeout` passes.
-    pub async fn lock_batch_for_proving(&mut self) -> DalResult<Option<L1BatchNumber>> {
+    pub async fn lock_batch_for_proving(
+        &mut self,
+        processing_timeout: Duration,
+    ) -> DalResult<Option<L1BatchNumber>> {
+        let processing_timeout = pg_interval_from_duration(processing_timeout);
         let result: Option<L1BatchNumber> = sqlx::query!(
             r#"
             UPDATE proof_generation_details
@@ -59,6 +65,10 @@ impl ProofGenerationDal<'_, '_> {
                             AND l1_batches.meta_parameters_hash IS NOT NULL
                             AND status = 'unpicked'
                         )
+                        OR (
+                            status = 'picked_by_prover'
+                            AND prover_taken_at < NOW() - $1::INTERVAL
+                        )
                     ORDER BY
                         l1_batch_number ASC
                     LIMIT
@@ -67,8 +77,10 @@ impl ProofGenerationDal<'_, '_> {
             RETURNING
             proof_generation_details.l1_batch_number
             "#,
+            &processing_timeout,
         )
         .instrument("lock_batch_for_proving")
+        .with_arg("processing_timeout", &processing_timeout)
         .fetch_optional(self.storage)
         .await?
         .map(|row| L1BatchNumber(row.l1_batch_number as u32));
@@ -430,7 +442,7 @@ mod tests {
 
         let picked_l1_batch = conn
             .proof_generation_dal()
-            .lock_batch_for_proving()
+            .lock_batch_for_proving(Duration::MAX)
             .await
             .unwrap();
         assert_eq!(picked_l1_batch, Some(L1BatchNumber(1)));
@@ -448,7 +460,15 @@ mod tests {
             .unwrap();
         let picked_l1_batch = conn
             .proof_generation_dal()
-            .lock_batch_for_proving()
+            .lock_batch_for_proving(Duration::MAX)
+            .await
+            .unwrap();
+        assert_eq!(picked_l1_batch, Some(L1BatchNumber(1)));
+
+        // Check that with small enough processing timeout, the L1 batch can be picked again
+        let picked_l1_batch = conn
+            .proof_generation_dal()
+            .lock_batch_for_proving(Duration::ZERO)
             .await
             .unwrap();
         assert_eq!(picked_l1_batch, Some(L1BatchNumber(1)));
@@ -460,7 +480,7 @@ mod tests {
 
         let picked_l1_batch = conn
             .proof_generation_dal()
-            .lock_batch_for_proving()
+            .lock_batch_for_proving(Duration::MAX)
             .await
             .unwrap();
         assert_eq!(picked_l1_batch, None);

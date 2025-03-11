@@ -25,7 +25,7 @@ mod tests {
         ProofDataHandlerConfig {
             http_port: 3320,
             api_url: "2342".to_string(),
-            api_poll_duration_in_secs: 123,
+            batch_readiness_check_interval_in_secs: 123,
             proof_generation_timeout_in_secs: 18000,
             retry_connection_interval_in_secs: 123,
             tee_config: TeeConfig {
@@ -42,7 +42,7 @@ mod tests {
         let config = r#"
             PROOF_DATA_HANDLER_PROOF_GENERATION_TIMEOUT_IN_SECS="18000"
             PROOF_DATA_HANDLER_HTTP_PORT="3320"
-            PROOF_DATA_HANDLER_API_POLL_DURATION_IN_SECS="123"
+            PROOF_DATA_HANDLER_BATCH_READINESS_CHECK_INTERVAL_IN_SECS="123"
             PROOF_DATA_HANDLER_RETRY_CONNECTION_INTERVAL_IN_SECS="123"
             PROOF_DATA_HANDLER_API_URL="2342"
             PROOF_DATA_HANDLER_TEE_SUPPORT="true"

@@ -21,7 +21,7 @@ async fn request_tee_proof_inputs() {
     let config = ProofDataHandlerConfig {
         http_port: 1337,
         api_url: "".to_string(),
-        api_poll_duration_in_secs: 1,
+        batch_readiness_check_interval_in_secs: 1,
         proof_generation_timeout_in_secs: 10,
         retry_connection_interval_in_secs: 10,
         tee_config: TeeConfig {
@@ -90,7 +90,7 @@ async fn submit_tee_proof() {
     let config = ProofDataHandlerConfig {
         http_port: 1337,
         api_url: "".to_string(),
-        api_poll_duration_in_secs: 1,
+        batch_readiness_check_interval_in_secs: 1,
         proof_generation_timeout_in_secs: 10,
         retry_connection_interval_in_secs: 10,
         tee_config: TeeConfig {
