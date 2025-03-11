@@ -83,6 +83,7 @@ members = [
     # Test infrastructure
     "tests/loadnext",
     "tests/vm-benchmark",
+    "lib/contracts_loader",
 ]
 resolver = "2"
 
@@ -304,6 +305,7 @@ zksync_web3_decl = { version = "26.5.0-non-semver-compat", path = "lib/web3_decl
 zksync_crypto_primitives = { version = "26.5.0-non-semver-compat", path = "lib/crypto_primitives" }
 zksync_external_price_api = { version = "26.5.0-non-semver-compat", path = "lib/external_price_api" }
 zksync_task_management = { version = "26.5.0-non-semver-compat", path = "lib/task_management" }
+zksync_contracts_loader = { version = "26.5.0-non-semver-compat", path = "lib/contracts_loader" }
 
 # Framework and components
 zksync_node_framework = { version = "26.5.0-non-semver-compat", path = "node/node_framework" }

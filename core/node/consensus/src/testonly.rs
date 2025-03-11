@@ -9,7 +9,6 @@ use zksync_config::{
     configs::{
         chain::{OperationsManagerConfig, StateKeeperConfig},
         consensus as config,
-        contracts::ecosystem::L1SpecificContracts,
         database::{MerkleTreeConfig, MerkleTreeMode},
     },
 };
@@ -603,12 +602,9 @@ impl StateKeeperRunner {
                 // Spawn HTTP server.
                 let cfg = InternalApiConfig::new(
                     &configs::api::Web3JsonRpcConfig::for_tests(),
-                    configs::contracts::SettlementLayerContracts::new(
-                        &configs::AllContractsConfig::for_tests(),
-                        None,
-                    )
-                    .current_contracts(),
-                    &L1SpecificContracts::new(&configs::AllContractsConfig::for_tests()),
+                    &configs::AllContractsConfig::for_tests().chain_specific_contracts(),
+                    &configs::AllContractsConfig::for_tests().l1_specific_contracts(),
+                    &configs::AllContractsConfig::for_tests().l2_contracts(),
                     &configs::GenesisConfig::for_tests(),
                 );
                 let mut server = TestServerBuilder::new(self.pool.0.clone(), cfg)
@@ -687,16 +683,12 @@ impl StateKeeperRunner {
             });
             s.spawn_bg(async {
                 // Spawn HTTP server.
-                let sl_contracts = &configs::contracts::SettlementLayerContracts::new(
-                    &configs::AllContractsConfig::for_tests(),
-                    None,
-                );
-                let l1_specific =
-                    L1SpecificContracts::new(&configs::AllContractsConfig::for_tests());
+                let l1_specific = &configs::AllContractsConfig::for_tests().l1_specific_contracts();
                 let cfg = InternalApiConfig::new(
                     &configs::api::Web3JsonRpcConfig::for_tests(),
-                    sl_contracts.current_contracts(),
-                    &l1_specific,
+                    &configs::AllContractsConfig::for_tests().chain_specific_contracts(),
+                    l1_specific,
+                    &configs::AllContractsConfig::for_tests().l2_contracts(),
                     &configs::GenesisConfig::for_tests(),
                 );
                 let mut server = TestServerBuilder::new(self.pool.0.clone(), cfg)

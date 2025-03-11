@@ -7,10 +7,7 @@ use zksync_contracts::{
     POST_BOOJUM_COMMIT_FUNCTION, POST_SHARED_BRIDGE_COMMIT_FUNCTION, PRE_BOOJUM_COMMIT_FUNCTION,
 };
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_eth_client::{
-    clients::{DynClient, L1, L2},
-    CallFunctionArgs, ContractCallError, EnrichedClientError, EthInterface,
-};
+use zksync_eth_client::{CallFunctionArgs, ContractCallError, EnrichedClientError, EthInterface};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_l1_contract_interface::{
     i_executor::structures::{
@@ -138,6 +135,7 @@ impl HandleConsistencyCheckerEvent for ConsistencyCheckerHealthUpdater {
 // (and thus persisted by external nodes). Eventually, we want to go back to bailing on L1 data mismatch;
 // for now, it's only enabled for the unit tests.
 #[derive(Debug)]
+#[allow(dead_code)]
 enum L1DataMismatchBehavior {
     Bail,
     Log,
@@ -808,32 +806,22 @@ async fn wait_for_l1_batch_with_metadata(
 }
 
 // Get settlement layer based on ETH tx, all eth txs should be presented on settlement layer. what is the best place for this function?
-pub async fn get_settlement_mode(
+pub async fn get_db_settlement_mode(
     db_pool: ConnectionPool<Core>,
-    eth_client: Box<DynClient<L1>>,
-    sl_client: Option<Box<DynClient<L2>>>,
-) -> anyhow::Result<SettlementMode> {
-    let tx_hash = db_pool
+    l1chain_id: SLChainId,
+) -> anyhow::Result<Option<SettlementMode>> {
+    let db_chain_id = db_pool
         .connection()
         .await?
         .eth_sender_dal()
-        .get_last_eth_tx()
+        .get_chain_id_of_last_eth_tx()
         .await?;
 
-    if let Some(tx_hash) = tx_hash {
-        let tx_status = eth_client.get_tx_status(tx_hash).await?;
-        if tx_status.is_some() {
-            return Ok(SettlementMode::SettlesToL1);
+    Ok(db_chain_id.map(|chain_id| {
+        if chain_id != l1chain_id.0 {
+            SettlementMode::Gateway
         } else {
-            // The tx has not been found on l1, we have to check on l2
-            if sl_client.unwrap().get_tx_status(tx_hash).await?.is_some() {
-                return Ok(SettlementMode::Gateway);
-            } else {
-                return Ok(SettlementMode::SettlesToL1);
-            };
+            SettlementMode::SettlesToL1
         }
-    } else {
-        // We can assume settlement to l1 by default in the worst case scenario, en will be restarted right after the getting the very first commit_tx
-        return Ok(SettlementMode::SettlesToL1);
-    }
+    }))
 }

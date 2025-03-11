@@ -29,6 +29,7 @@ message L2 {
   optional string da_validator_addr = 2; // optional; H160
   optional string legacy_shared_bridge_addr = 3; // optional; H160
   optional string timestamp_asserter_addr = 4; // optional; H160
+  optional string multicall3 = 6; // optional; H160
   reserved 5; reserved "predeployed_wrapped_base_token_address";
 }
 

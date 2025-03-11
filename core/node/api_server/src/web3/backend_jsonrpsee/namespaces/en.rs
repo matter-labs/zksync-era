@@ -65,12 +65,6 @@ impl EnNamespaceServer for EnNamespace {
     }
 
     async fn get_ecosystem_contracts(&self) -> RpcResult<EcosystemContracts> {
-        self.get_ecosystem_contracts_impl()
-            .await
-            .map_err(|err| self.current_method().map_err(err))
-    }
-
-    async fn get_l1_ecosystem_contracts(&self) -> RpcResult<EcosystemContracts> {
         self.get_l1_ecosystem_contracts_impl()
             .await
             .map_err(|err| self.current_method().map_err(err))

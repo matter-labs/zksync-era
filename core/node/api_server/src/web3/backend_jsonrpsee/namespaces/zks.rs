@@ -204,7 +204,8 @@ impl ZksNamespaceServer for ZksNamespace {
             .map_err(|err| self.current_method().map_err(err))
     }
 
-    async fn get_main_sl_contract(&self) -> RpcResult<Address> {
-        Ok(self.get_main_sl_contract_impl())
+    async fn get_l2_multicall3(&self) -> RpcResult<Option<Address>> {
+        self.get_l2_multicall3_impl()
+            .map_err(|err| self.current_method().map_err(err))
     }
 }

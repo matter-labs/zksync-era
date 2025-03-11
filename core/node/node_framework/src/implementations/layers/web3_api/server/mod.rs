@@ -19,7 +19,7 @@ use crate::{
         resources::{
             circuit_breakers::CircuitBreakersResource,
             contracts::{
-                L1ChainContractsResource, L1EcosystemContractsResource,
+                L1ChainContractsResource, L1EcosystemContractsResource, L2ContractsResource,
                 SettlementLayerContractsResource,
             },
             eth_interface::EthInterfaceResource,
@@ -140,6 +140,7 @@ pub struct Input {
     pub sl_contracts_resource: SettlementLayerContractsResource,
     pub l1_contracts_resource: L1ChainContractsResource,
     pub l1_ecosystem_contracts_resource: L1EcosystemContractsResource,
+    pub l2_contracts_resource: L2ContractsResource,
 }
 
 #[derive(Debug, IntoContext)]
@@ -205,14 +206,13 @@ impl WiringLayer for Web3ServerLayer {
         let sync_state = input.sync_state.map(|state| state.0);
         let tree_api_client = input.tree_api_client.map(|client| client.0);
 
-        let sl_contracts = input.sl_contracts_resource.0;
         let l1_contracts = input.l1_contracts_resource.0;
         let internal_api_config = self
             .internal_api_config_builder
             .with_contracts(
                 l1_contracts,
-                sl_contracts,
                 input.l1_ecosystem_contracts_resource.0,
+                input.l2_contracts_resource.0,
             )
             .build();
 
