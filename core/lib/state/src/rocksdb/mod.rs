@@ -126,7 +126,7 @@ impl From<anyhow::Error> for RocksdbSyncError {
 }
 
 /// Options for [`RocksdbStorage`].
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct RocksdbStorageOptions {
     /// Size of the RocksDB block cache in bytes. The default value is 128 MiB.
     pub block_cache_capacity: usize,
@@ -224,6 +224,10 @@ impl RocksdbStorageBuilder {
         }
     }
 
+    pub(crate) fn skip_synchronize(self) -> RocksdbStorage {
+        self.0
+    }
+
     /// Synchronizes this storage with Postgres using the provided connection.
     ///
     /// # Return value
@@ -235,17 +239,28 @@ impl RocksdbStorageBuilder {
     /// - Errors if the local L1 batch number is greater than the last sealed L1 batch number
     ///   in Postgres.
     pub async fn synchronize(
-        self,
+        mut self,
         storage: &mut Connection<'_, Core>,
         stop_receiver: &watch::Receiver<bool>,
         to_l1_batch_number: Option<L1BatchNumber>,
     ) -> anyhow::Result<Option<RocksdbStorage>> {
-        let mut inner = self.0;
+        self.update_from_postgres(storage, stop_receiver, to_l1_batch_number)
+            .await
+            .map(|s| s.map(|_| self.0))
+    }
+
+    pub(crate) async fn update_from_postgres(
+        &mut self,
+        storage: &mut Connection<'_, Core>,
+        stop_receiver: &watch::Receiver<bool>,
+        to_l1_batch_number: Option<L1BatchNumber>,
+    ) -> anyhow::Result<Option<()>> {
+        let inner = &mut self.0;
         match inner
             .update_from_postgres(storage, stop_receiver, to_l1_batch_number)
             .await
         {
-            Ok(()) => Ok(Some(inner)),
+            Ok(()) => Ok(Some(())),
             Err(RocksdbSyncError::Interrupted) => Ok(None),
             Err(RocksdbSyncError::Internal(err)) => Err(err),
         }

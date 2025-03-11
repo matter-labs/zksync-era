@@ -1,12 +1,12 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 
-use zksync_types::{StorageKey, StorageValue, H256};
+use zksync_types::{L1BatchNumber, StorageKey, StorageValue, H256};
 use zksync_vm_interface::storage::ReadStorage;
 
 use crate::RocksdbStorage;
 
 /// DB difference introduced by one batch.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct BatchDiff {
     /// Storage slots touched by this batch along with new values there.
     pub state_diff: HashMap<H256, H256>,
@@ -71,5 +71,105 @@ impl ReadStorage for RocksdbWithMemory {
             None => self.rocksdb.get_enumeration_index(key),
             Some(value) => Some(*value),
         }
+    }
+}
+
+/// Data structure that keeps a continuous list of batch diffs.
+#[derive(Debug)]
+pub struct BatchDiffs {
+    diffs: VecDeque<BatchDiff>,
+    first_diff_l1_batch_number: Option<L1BatchNumber>,
+}
+
+impl BatchDiffs {
+    /// Creates empty `BatchDiffs`.
+    pub fn new() -> Self {
+        Self {
+            diffs: Default::default(),
+            first_diff_l1_batch_number: None,
+        }
+    }
+
+    /// Trims diffs that correspond to batches with number less than `trim_up_to`. Does nothing if there are no.
+    pub fn trim_start(&mut self, trim_up_to: L1BatchNumber) {
+        let Some(first_diff_batch_number) = self.first_diff_l1_batch_number else {
+            return;
+        };
+
+        if first_diff_batch_number < trim_up_to {
+            let split_at = (trim_up_to.0 - first_diff_batch_number.0) as usize;
+            self.diffs = self.diffs.split_off(split_at);
+            if self.diffs.is_empty() {
+                self.first_diff_l1_batch_number = None;
+            } else {
+                self.first_diff_l1_batch_number = Some(trim_up_to);
+            }
+        }
+    }
+
+    /// Pushes the diff.
+    pub fn push(&mut self, l1_batch_number: L1BatchNumber, diff: BatchDiff) {
+        if self.first_diff_l1_batch_number.is_none() {
+            self.first_diff_l1_batch_number = Some(l1_batch_number);
+        }
+        self.diffs.push_back(diff);
+    }
+
+    /// Returns diffs for `from_l1_batch..=to_l1_batch`.
+    /// Panics if there is no diff for some element in the range.
+    pub fn range(
+        &self,
+        from_l1_batch: L1BatchNumber,
+        to_l1_batch: L1BatchNumber,
+    ) -> Vec<BatchDiff> {
+        let first_diff_number = self.first_diff_l1_batch_number.expect("empty batch_diffs");
+        assert!(from_l1_batch >= first_diff_number);
+        assert!(to_l1_batch < first_diff_number + self.diffs.len() as u32);
+
+        let to_skip = from_l1_batch.0 - first_diff_number.0;
+        let to_take = to_l1_batch.0 - from_l1_batch.0 + 1;
+
+        self.diffs
+            .iter()
+            .skip(to_skip as usize)
+            .take(to_take as usize)
+            .cloned()
+            .collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn batch_diffs_basics() {
+        let mut diffs = BatchDiffs::new();
+
+        diffs.push(L1BatchNumber(1), BatchDiff::default());
+        let res = diffs.range(L1BatchNumber(1), L1BatchNumber(1));
+        assert_eq!(res.len(), 1);
+
+        diffs.push(L1BatchNumber(2), BatchDiff::default());
+        diffs.push(L1BatchNumber(3), BatchDiff::default());
+        let res = diffs.range(L1BatchNumber(1), L1BatchNumber(3));
+        assert_eq!(res.len(), 3);
+
+        diffs.trim_start(L1BatchNumber(2));
+        let res = diffs.range(L1BatchNumber(2), L1BatchNumber(3));
+        assert_eq!(res.len(), 2);
+    }
+
+    #[test]
+    #[should_panic(expected = "assertion failed: from_l1_batch >= first_diff_number")]
+    fn batch_diffs_panics() {
+        let mut diffs = BatchDiffs::new();
+
+        diffs.push(L1BatchNumber(1), BatchDiff::default());
+        diffs.push(L1BatchNumber(2), BatchDiff::default());
+        diffs.push(L1BatchNumber(3), BatchDiff::default());
+
+        diffs.trim_start(L1BatchNumber(2));
+        diffs.range(L1BatchNumber(1), L1BatchNumber(3));
     }
 }
