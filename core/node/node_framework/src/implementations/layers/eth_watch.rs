@@ -77,10 +77,7 @@ impl EthWatchLayer {
                 .0
                 .ecosystem_contracts
                 .state_transition_proxy_addr,
-            contracts_resource
-                .0
-                .chain_contracts_config
-                .diamond_proxy_addr,
+            contracts_resource.0.chain_contracts_config.chain_admin,
             contracts_resource
                 .0
                 .ecosystem_contracts
@@ -134,12 +131,7 @@ impl WiringLayer for EthWatchLayer {
                 .0
                 .ecosystem_contracts
                 .state_transition_proxy_addr,
-            input
-                .l1_contracts
-                .0
-                .chain_contracts_config
-                .chain_admin
-                .expect("Should be presented"),
+            input.l1_contracts.0.chain_contracts_config.chain_admin,
             input
                 .l1_contracts
                 .0

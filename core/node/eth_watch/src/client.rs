@@ -106,7 +106,7 @@ pub struct EthHttpQueryClient<Net: Network> {
     // Only present for post-shared bridge chains.
     state_transition_manager_address: Option<Address>,
     server_notifier_address: Option<Address>,
-    chain_admin_address: Address,
+    chain_admin_address: Option<Address>,
     verifier_contract_abi: Contract,
     getters_facet_contract_abi: Contract,
     message_root_abi: Contract,
@@ -128,7 +128,7 @@ where
         wrapped_base_token_store: Option<Address>,
         l1_shared_bridge_addr: Option<Address>,
         state_transition_manager_address: Option<Address>,
-        chain_admin_address: Address,
+        chain_admin_address: Option<Address>,
         server_notifier_address: Option<Address>,
         confirmations_for_eth_event: Option<u64>,
         l2_chain_id: L2ChainId,
@@ -171,7 +171,7 @@ where
         [
             Some(self.diamond_proxy_addr),
             self.state_transition_manager_address,
-            Some(self.chain_admin_address),
+            self.chain_admin_address,
             self.server_notifier_address,
             Some(L2_MESSAGE_ROOT_ADDRESS),
         ]

@@ -189,6 +189,7 @@ impl EthWatch {
                 EventsSource::SL => self.sl_client.as_ref(),
             };
             let chain_id = client.chain_id().await?;
+
             let to_block = if processor.only_finalized_block() {
                 client.finalized_block_number().await?
             } else {
