@@ -5,12 +5,15 @@ use tokio::sync::watch;
 use zksync_basic_types::{ethabi::Contract, settlement::SettlementMode, Address, L2ChainId};
 use zksync_contracts::getters_facet_contract;
 use zksync_contracts_loader::{
-    get_settlement_layer_address, get_settlement_layer_for_l1_call, load_sl_contracts,
+    get_settlement_layer_address, get_settlement_layer_for_l1_call, load_settlement_layer_contracts,
 };
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::EthInterface;
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 
+/// Gateway Migrator component
+/// Component checks the current settlement layer and once it changed and it safe to exit
+/// it raised an error forcing server to restart
 #[derive(Debug)]
 pub struct GatewayMigrator {
     eth_client: Box<dyn EthInterface>,
@@ -57,7 +60,6 @@ impl GatewayMigrator {
             )
             .await?;
 
-            // let gateway_client = gateway_client.clone().as_ref();
             if settlement_mode != self.settlement_mode
                 && switch_to_current_settlement_mode(
                     settlement_mode,
@@ -103,8 +105,13 @@ pub async fn switch_to_current_settlement_mode(
             // Load chain contracts from gateway
             let gateway_client = gateway_client.unwrap();
 
-            let sl_contracts =
-                load_sl_contracts(gateway_client, L2_BRIDGEHUB_ADDRESS, l2chain_id, None).await?;
+            let sl_contracts = load_settlement_layer_contracts(
+                gateway_client,
+                L2_BRIDGEHUB_ADDRESS,
+                l2chain_id,
+                None,
+            )
+            .await?;
             // Wait until the contracts are deployed on l2
             if let Some(contracts) = sl_contracts {
                 let settlement_layer_address = get_settlement_layer_address(

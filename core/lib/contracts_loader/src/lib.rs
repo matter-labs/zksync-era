@@ -11,7 +11,8 @@ use zksync_types::{
     Address, L2ChainId,
 };
 
-pub async fn load_sl_contracts(
+/// Load contacts specific for each settlement layer, using bridgehub contract
+pub async fn load_settlement_layer_contracts(
     sl_client: &dyn EthInterface,
     bridgehub_address: Address,
     l2_chain_id: L2ChainId,
@@ -67,6 +68,7 @@ pub async fn load_sl_contracts(
     }))
 }
 
+// Load Contracts specific for l1, from bridgehub contracts
 pub async fn load_l1_specific_contracts(
     eth_client: &dyn EthInterface,
     bridgehub_address: Address,
@@ -95,6 +97,8 @@ pub async fn load_l1_specific_contracts(
         shared_bridge,
         base_token_address: base_token,
         erc_20_bridge: erc20_bridge,
+        // TODO add support for loading bytecodes_supplier_addr and
+        // wrapped_base_token_store from bridgehub
         bytecodes_supplier_addr: None,
         wrapped_base_token_store: None,
     })

@@ -6,7 +6,6 @@ pub mod commitment_generator;
 pub mod consensus;
 pub mod consistency_checker;
 pub mod contract_verification_api;
-pub mod contracts_layer;
 pub mod da_clients;
 pub mod da_dispatcher;
 pub mod data_availability_fetcher;

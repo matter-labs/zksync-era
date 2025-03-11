@@ -28,8 +28,8 @@ enum PubdataSendingMode {
 }
 
 enum SettlementMode {
-    SettlesToL1 = 0;
-    Gateway = 1;
+  SettlesToL1 = 0;
+  Gateway = 1;
 }
 
 message Sender {
@@ -71,7 +71,7 @@ message GasAdjuster {
   optional uint64 num_samples_for_blob_base_fee_estimate = 9; // required;
   optional double internal_pubdata_pricing_multiplier = 10; // required;
   optional uint64 max_blob_base_fee = 11; // optional; wei
-  optional SettlementMode settlement_mode = 13; // optional
+  reserved 13; reserved 'settlement_mode';
 }
 
 message ETHWatch {

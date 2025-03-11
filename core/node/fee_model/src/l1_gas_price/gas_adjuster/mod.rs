@@ -70,23 +70,6 @@ impl GasAdjuster {
         pubdata_sending_mode: PubdataSendingMode,
         commitment_mode: L1BatchCommitmentMode,
     ) -> anyhow::Result<Self> {
-        // A runtime check to ensure consistent config.
-        // if config.settlement_mode.is_gateway() {
-        //     anyhow::ensure!(client.gateway_mode, "Must be L2 client in L2 mode");
-        //
-        //     anyhow::ensure!(
-        //         matches!(pubdata_sending_mode, PubdataSendingMode::RelayedL2Calldata | PubdataSendingMode::Custom),
-        //         "Only relayed L2 calldata or Custom is available for L2 mode, got: {pubdata_sending_mode:?}"
-        //     );
-        // } else {
-        //     anyhow::ensure!(!client.gateway_mode, "Must be L1 client in L1 mode");
-        //
-        //     anyhow::ensure!(
-        //         !matches!(pubdata_sending_mode, PubdataSendingMode::RelayedL2Calldata),
-        //         "Relayed L2 calldata is only available in L2 mode"
-        //     );
-        // }
-
         // Subtracting 1 from the "latest" block number to prevent errors in case
         // the info about the latest block is not yet present on the node.
         // This sometimes happens on Infura.

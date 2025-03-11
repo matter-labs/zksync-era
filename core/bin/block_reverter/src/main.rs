@@ -21,7 +21,7 @@ use zksync_config::{
     ContractsConfig, DBConfig, EthConfig, GenesisConfig, PostgresConfig,
 };
 use zksync_contracts::getters_facet_contract;
-use zksync_contracts_loader::{get_settlement_layer_for_l1_call, load_sl_contracts};
+use zksync_contracts_loader::{get_settlement_layer_for_l1_call, load_settlement_layer_contracts};
 use zksync_core_leftovers::temp_config_store::read_yaml_repr;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_env_config::{object_store::SnapshotsObjectStoreConfig, FromEnv};
@@ -239,7 +239,7 @@ async fn main() -> anyhow::Result<()> {
         .context("Ethereum client")?
         .build();
 
-    let sl_l1_contracts = load_sl_contracts(
+    let sl_l1_contracts = load_settlement_layer_contracts(
         &eth_client,
         contracts.ecosystem_contracts.unwrap().bridgehub_proxy_addr,
         zksync_network_id,
@@ -261,7 +261,7 @@ async fn main() -> anyhow::Result<()> {
                 .context("Gateway client")?
                 .build();
 
-            let sl_contracts = load_sl_contracts(
+            let sl_contracts = load_settlement_layer_contracts(
                 &gateway_client,
                 L2_BRIDGEHUB_ADDRESS,
                 zksync_network_id,

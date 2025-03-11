@@ -1,7 +1,7 @@
 use anyhow::Context;
 use zksync_config::configs::contracts::{chain::L2Contracts, ecosystem::L1SpecificContracts};
 use zksync_contracts::getters_facet_contract;
-use zksync_contracts_loader::{get_settlement_layer_for_l1_call, load_sl_contracts};
+use zksync_contracts_loader::{get_settlement_layer_for_l1_call, load_settlement_layer_contracts};
 use zksync_eth_client::EthInterface;
 use zksync_gateway_migrator::switch_to_current_settlement_mode;
 use zksync_types::{settlement::SettlementMode, Address, L2ChainId, L2_BRIDGEHUB_ADDRESS};
@@ -75,7 +75,7 @@ impl WiringLayer for SettlementLayerData {
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
-        let sl_l1_contracts = load_sl_contracts(
+        let sl_l1_contracts = load_settlement_layer_contracts(
             &input.eth_client.0,
             self.l1_specific_contracts.bridge_hub.unwrap(),
             self.l2_chain_id,
@@ -135,7 +135,7 @@ impl WiringLayer for SettlementLayerData {
                     .get_l2_multicall3()
                     .await
                     .context("Failed to fecth multicall3")?;
-                let sl_contracts = load_sl_contracts(
+                let sl_contracts = load_settlement_layer_contracts(
                     &client,
                     L2_BRIDGEHUB_ADDRESS,
                     self.l2_chain_id,

@@ -1,5 +1,5 @@
 use anyhow::Context as _;
-use zksync_contracts::gateway_migration_contract;
+use zksync_contracts::server_notifier_contract;
 use zksync_dal::{eth_watcher_dal::EventType, Connection, Core, CoreDal};
 use zksync_types::{api::Log, L1BlockNumber, L2ChainId, H256, U256};
 
@@ -14,7 +14,7 @@ pub struct GatewayMigrationProcessor {
 impl GatewayMigrationProcessor {
     pub fn new(l2chain_id: L2ChainId) -> Self {
         Self {
-            gateway_migration_topic: gateway_migration_contract()
+            gateway_migration_topic: server_notifier_contract()
                 .event("MigrateToGateway")
                 .unwrap()
                 .signature(),

@@ -55,6 +55,7 @@ impl EthWatchLayer {
             chain_id,
         }
     }
+
     fn create_client<Net: Network>(
         &self,
         client: Box<DynClient<Net>>,

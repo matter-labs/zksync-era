@@ -58,7 +58,7 @@ const CHAIN_ADMIN_CONTRACT_FILE: (&str, &str) = (
     "IChainAdminOwnable.sol/IChainAdminOwnable.json",
 );
 
-const GATEWAY_MIGRATION_CONTRACT_FILE: (&str, &str) =
+const SERVER_NOTIFIER_CONTRACT_FILE: (&str, &str) =
     ("governance", "ServerNotifier.sol/ServerNotifier.json");
 
 const GETTERS_FACET_CONTRACT_FILE: (&str, &str) = (
@@ -171,8 +171,8 @@ pub fn chain_admin_contract() -> Contract {
     load_contract_for_both_compilers(CHAIN_ADMIN_CONTRACT_FILE)
 }
 
-pub fn gateway_migration_contract() -> Contract {
-    load_contract_for_both_compilers(GATEWAY_MIGRATION_CONTRACT_FILE)
+pub fn server_notifier_contract() -> Contract {
+    load_contract_for_both_compilers(SERVER_NOTIFIER_CONTRACT_FILE)
 }
 
 pub fn getters_facet_contract() -> Contract {

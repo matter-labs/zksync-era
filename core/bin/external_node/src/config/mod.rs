@@ -113,8 +113,6 @@ pub(crate) struct RemoteENConfig {
     pub l1_bridgehub_proxy_addr: Option<Address>,
     #[serde(alias = "state_transition_proxy_addr")]
     pub l1_state_transition_proxy_addr: Option<Address>,
-    // #[serde(alias = "transparent_proxy_admin_addr")]
-    // pub l1_transparent_proxy_admin_addr: Option<Address>,
     /// Should not be accessed directly. Use [`ExternalNodeConfig::l1_diamond_proxy_address`] instead.
     #[serde(alias = "diamond_proxy_addr")]
     l1_diamond_proxy_addr: Address,
@@ -1578,17 +1576,20 @@ impl ExternalNodeConfig {
             base_token_address: self.remote.base_token_addr,
         }
     }
+
     pub fn l1_chain_contracts(&self) -> ChainSpecificContracts {
         ChainSpecificContracts {
             ecosystem_contracts: EcosystemCommonContracts {
                 bridgehub_proxy_addr: self.remote.l1_bridgehub_proxy_addr,
                 state_transition_proxy_addr: self.remote.l1_state_transition_proxy_addr,
                 server_notifier_addr: self.remote.l1_server_notifier_addr,
+                // Multicall 3 is useless for external node
                 multicall3: None,
                 validator_timelock_addr: None,
             },
             chain_contracts_config: ChainContracts {
                 diamond_proxy_addr: self.remote.l1_diamond_proxy_addr,
+                // We don't need chain admin for external node
                 chain_admin: None,
             },
         }

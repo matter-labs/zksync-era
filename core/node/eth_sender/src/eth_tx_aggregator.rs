@@ -1,6 +1,6 @@
 use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
-use zksync_contracts::{gateway_migration_contract, BaseSystemContractsHashes};
+use zksync_contracts::{server_notifier_contract, BaseSystemContractsHashes};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{BoundEthInterface, CallFunctionArgs, ContractCallError, EthInterface};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
@@ -928,11 +928,11 @@ async fn gateway_status(
     storage: &mut Connection<'_, Core>,
     sl_layer: &SettlementMode,
 ) -> GatewayMigrationState {
-    let to_gateway = gateway_migration_contract()
+    let to_gateway = server_notifier_contract()
         .event("MigrateToGateway")
         .unwrap()
         .signature();
-    let from_gateway = gateway_migration_contract()
+    let from_gateway = server_notifier_contract()
         .event("MigrateFromGateway")
         .unwrap()
         .signature();

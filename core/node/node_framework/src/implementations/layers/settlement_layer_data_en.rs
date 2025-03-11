@@ -4,7 +4,7 @@ use zksync_config::configs::contracts::{
 };
 use zksync_consistency_checker::get_db_settlement_mode;
 use zksync_contracts::getters_facet_contract;
-use zksync_contracts_loader::{get_settlement_layer_for_l1_call, load_sl_contracts};
+use zksync_contracts_loader::{get_settlement_layer_for_l1_call, load_settlement_layer_contracts};
 use zksync_eth_client::EthInterface;
 use zksync_types::{settlement::SettlementMode, Address, L2ChainId, L2_BRIDGEHUB_ADDRESS};
 
@@ -114,9 +114,10 @@ impl WiringLayer for SettlementLayerDataEn {
         let chain_id = client.fetch_chain_id().await.unwrap();
 
         // There is no need to specify multicall3 for external node
-        let contracts = load_sl_contracts(client.as_ref(), bridgehub, self.chain_id, None)
-            .await?
-            .context("No Diamond proxy deployed")?;
+        let contracts =
+            load_settlement_layer_contracts(client.as_ref(), bridgehub, self.chain_id, None)
+                .await?
+                .context("No Diamond proxy deployed")?;
         Ok(Output {
             contracts: SettlementLayerContractsResource(contracts),
             l1_contracts: L1ChainContractsResource(self.l1_chain_contracts),
