@@ -21,7 +21,7 @@ use zksync_config::{
     ContractsConfig, DBConfig, EthConfig, GenesisConfig, PostgresConfig,
 };
 use zksync_contracts::getters_facet_contract;
-use zksync_contracts_loader::{get_settlement_layer, load_sl_contracts};
+use zksync_contracts_loader::{get_settlement_layer_for_l1_call, load_sl_contracts};
 use zksync_core_leftovers::temp_config_store::read_yaml_repr;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_env_config::{object_store::SnapshotsObjectStoreConfig, FromEnv};
@@ -247,7 +247,7 @@ async fn main() -> anyhow::Result<()> {
     )
     .await?
     .context("No chain has been deployed")?;
-    let settlement_mode = get_settlement_layer(
+    let settlement_mode = get_settlement_layer_for_l1_call(
         &eth_client,
         sl_l1_contracts.chain_contracts_config.diamond_proxy_addr,
         &getters_facet_contract(),

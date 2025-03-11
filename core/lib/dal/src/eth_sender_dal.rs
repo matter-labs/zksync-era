@@ -67,6 +67,7 @@ impl EthSenderDal<'_, '_> {
 
     pub async fn get_non_gateway_inflight_txs_count_for_gateway_migration(
         &mut self,
+        is_gateway: bool,
     ) -> sqlx::Result<usize> {
         let count = sqlx::query!(
             r#"
@@ -76,8 +77,9 @@ impl EthSenderDal<'_, '_> {
                 eth_txs
             WHERE
                 confirmed_eth_tx_history_id IS NULL
-                AND is_gateway = FALSE
-            "#
+                AND is_gateway = $1
+            "#,
+            is_gateway
         )
         .fetch_one(self.storage.conn())
         .await?

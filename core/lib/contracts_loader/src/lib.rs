@@ -100,15 +100,13 @@ pub async fn load_l1_specific_contracts(
     })
 }
 
-pub async fn get_settlement_layer(
+pub async fn get_settlement_layer_for_l1_call(
     eth_client: &dyn EthInterface,
     diamond_proxy_addr: Address,
     abi: &Contract,
 ) -> anyhow::Result<SettlementMode> {
-    let settlement_layer: Address = CallFunctionArgs::new("getSettlementLayer", ())
-        .for_contract(diamond_proxy_addr, abi)
-        .call(eth_client)
-        .await?;
+    let settlement_layer =
+        get_settlement_layer_address(eth_client, diamond_proxy_addr, abi).await?;
 
     let mode = if settlement_layer.is_zero() {
         SettlementMode::SettlesToL1
@@ -117,4 +115,17 @@ pub async fn get_settlement_layer(
     };
 
     Ok(mode)
+}
+
+pub async fn get_settlement_layer_address(
+    eth_client: &dyn EthInterface,
+    diamond_proxy_addr: Address,
+    abi: &Contract,
+) -> anyhow::Result<Address> {
+    let settlement_layer: Address = CallFunctionArgs::new("getSettlementLayer", ())
+        .for_contract(diamond_proxy_addr, abi)
+        .call(eth_client)
+        .await?;
+
+    Ok(settlement_layer)
 }

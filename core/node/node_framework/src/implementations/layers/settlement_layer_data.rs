@@ -1,8 +1,9 @@
 use anyhow::Context;
 use zksync_config::configs::contracts::{chain::L2Contracts, ecosystem::L1SpecificContracts};
 use zksync_contracts::getters_facet_contract;
-use zksync_contracts_loader::{get_settlement_layer, load_sl_contracts};
+use zksync_contracts_loader::{get_settlement_layer_for_l1_call, load_sl_contracts};
 use zksync_eth_client::EthInterface;
+use zksync_gateway_migrator::switch_to_current_settlement_mode;
 use zksync_types::{settlement::SettlementMode, Address, L2ChainId, L2_BRIDGEHUB_ADDRESS};
 use zksync_web3_decl::namespaces::ZksNamespaceClient;
 
@@ -13,6 +14,7 @@ use crate::{
             SettlementLayerContractsResource,
         },
         eth_interface::{EthInterfaceResource, L2InterfaceResource},
+        pools::{MasterPool, PoolResource},
         settlement_layer::{SettlementModeResource, SlChainIdResource},
     },
     wiring_layer::{WiringError, WiringLayer},
@@ -49,6 +51,7 @@ impl SettlementLayerData {
 pub struct Input {
     pub eth_client: EthInterfaceResource,
     pub l2_eth_client: Option<L2InterfaceResource>,
+    pub pool: PoolResource<MasterPool>,
 }
 
 #[derive(Debug, IntoContext)]
@@ -80,7 +83,7 @@ impl WiringLayer for SettlementLayerData {
         )
         .await?
         .context("No diamond proxy deployed for chain id on L1")?;
-        let initial_sl_mode = get_settlement_layer(
+        let initial_sl_mode = get_settlement_layer_for_l1_call(
             &input.eth_client.0,
             sl_l1_contracts.chain_contracts_config.diamond_proxy_addr,
             &getters_facet_contract(),
@@ -95,13 +98,35 @@ impl WiringLayer for SettlementLayerData {
             .await
             .context("Failed to fetch chain id")?;
 
-        let (sl_chain_id, sl_chain_contracts, settlement_mode) = match initial_sl_mode {
+        let pool = input.pool.get().await?;
+
+        let switch = switch_to_current_settlement_mode(
+            initial_sl_mode,
+            input
+                .l2_eth_client
+                .as_ref()
+                .map(|a| a.0.as_ref())
+                .map(|a| Box::new(a) as Box<dyn EthInterface>)
+                .as_deref(),
+            self.l2_chain_id,
+            &mut pool.connection().await.context("Can't connect")?,
+            &getters_facet_contract(),
+        )
+        .await?;
+
+        let final_settlement_mode = if switch {
+            initial_sl_mode
+        } else {
+            match initial_sl_mode {
+                SettlementMode::SettlesToL1 => SettlementMode::Gateway,
+                SettlementMode::Gateway => SettlementMode::SettlesToL1,
+            }
+        };
+
+        let (sl_chain_id, sl_chain_contracts, settlement_mode) = match final_settlement_mode {
             SettlementMode::SettlesToL1 => (eth_chain_id, sl_l1_contracts.clone(), initial_sl_mode),
             SettlementMode::Gateway => {
-                let client = input
-                    .l2_eth_client
-                    .expect("Should be present for gateway settlement mode")
-                    .0;
+                let client = input.l2_eth_client.unwrap().0;
                 let chain_id = client
                     .fetch_chain_id()
                     .await
@@ -116,17 +141,10 @@ impl WiringLayer for SettlementLayerData {
                     self.l2_chain_id,
                     l2_multicall3,
                 )
-                .await?;
-                if let Some(contracts) = sl_contracts {
-                    (chain_id, contracts, initial_sl_mode)
-                } else {
-                    // If chain has not yet been deployed to gateway, continue as SettlesToL1
-                    (
-                        eth_chain_id,
-                        sl_l1_contracts.clone(),
-                        SettlementMode::SettlesToL1,
-                    )
-                }
+                .await?
+                // This unwrap is safe we have already verified it
+                .unwrap();
+                (chain_id, sl_contracts, initial_sl_mode)
             }
         };
 

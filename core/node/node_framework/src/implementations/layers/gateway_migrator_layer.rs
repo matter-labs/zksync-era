@@ -7,6 +7,7 @@ use crate::{
     implementations::resources::{
         contracts::L1ChainContractsResource,
         eth_interface::{EthInterfaceResource, L2InterfaceResource},
+        pools::{MasterPool, PoolResource},
         settlement_layer::SettlementModeResource,
     },
     wiring_layer::{WiringError, WiringLayer},
@@ -26,6 +27,7 @@ pub struct Input {
     gateway_client: Option<L2InterfaceResource>,
     contracts: L1ChainContractsResource,
     settlement_mode_resource: SettlementModeResource,
+    pool: PoolResource<MasterPool>,
 }
 
 #[derive(Debug, IntoContext)]
@@ -53,6 +55,7 @@ impl WiringLayer for GatewayMigratorLayer {
             input.contracts.0.chain_contracts_config.diamond_proxy_addr,
             input.settlement_mode_resource.0,
             self.l2chain_id,
+            input.pool.get().await?,
         );
 
         Ok(Output {
