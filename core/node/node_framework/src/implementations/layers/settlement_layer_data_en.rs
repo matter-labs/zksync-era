@@ -76,7 +76,10 @@ impl WiringLayer for SettlementLayerDataEn {
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
-        let initial_db_sl_mode = get_db_settlement_mode(input.master_pool.get().await?).await?;
+        let chain_id = input.eth_client.0.fetch_chain_id().await.unwrap();
+
+        let initial_db_sl_mode =
+            get_db_settlement_mode(input.master_pool.get().await?, chain_id).await?;
 
         let initial_sl_mode = if let Some(mode) = initial_db_sl_mode {
             mode

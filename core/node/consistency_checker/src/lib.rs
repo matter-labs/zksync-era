@@ -808,16 +808,17 @@ async fn wait_for_l1_batch_with_metadata(
 // Get settlement layer based on ETH tx, all eth txs should be presented on settlement layer. what is the best place for this function?
 pub async fn get_db_settlement_mode(
     db_pool: ConnectionPool<Core>,
+    l1chain_id: SLChainId,
 ) -> anyhow::Result<Option<SettlementMode>> {
-    let is_gateway = db_pool
+    let db_chain_id = db_pool
         .connection()
         .await?
         .eth_sender_dal()
-        .get_settlement_layer_of_last_eth_tx()
+        .get_chain_id_of_last_eth_tx()
         .await?;
 
-    Ok(is_gateway.map(|is_gateway| {
-        if is_gateway {
+    Ok(db_chain_id.map(|chain_id| {
+        if chain_id != l1chain_id.0 {
             SettlementMode::Gateway
         } else {
             SettlementMode::SettlesToL1

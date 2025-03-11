@@ -88,11 +88,11 @@ impl EthSenderDal<'_, '_> {
         Ok(count.try_into().unwrap())
     }
 
-    pub async fn get_settlement_layer_of_last_eth_tx(&mut self) -> DalResult<Option<bool>> {
+    pub async fn get_chain_id_of_last_eth_tx(&mut self) -> DalResult<Option<u64>> {
         let res = sqlx::query!(
             r#"
             SELECT
-                is_gateway
+                chain_id
             FROM
                 eth_txs
             ORDER BY id DESC
@@ -102,7 +102,7 @@ impl EthSenderDal<'_, '_> {
         .instrument("get_settlement_layer_of_last_eth_tx")
         .fetch_optional(self.storage)
         .await?
-        .map(|row| row.is_gateway);
+        .and_then(|row| row.chain_id.map(|a| a as u64));
         Ok(res)
     }
 
