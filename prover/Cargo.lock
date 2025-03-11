@@ -9494,6 +9494,7 @@ name = "zksync_prover_interface"
 version = "26.7.0-non-semver-compat"
 dependencies = [
  "circuit_definitions",
+ "circuit_sequencer_api",
  "fflonk",
  "jsonrpsee",
  "serde",

@@ -12844,6 +12844,7 @@ version = "26.7.0-non-semver-compat"
 dependencies = [
  "bincode",
  "circuit_definitions",
+ "circuit_sequencer_api",
  "fflonk",
  "jsonrpsee",
  "serde",
