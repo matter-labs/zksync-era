@@ -28,7 +28,7 @@ use zksync_node_framework::{
             no_da::NoDAClientWiringLayer, object_store::ObjectStorageClientWiringLayer,
         },
         data_availability_fetcher::DataAvailabilityFetcherLayer,
-        gateway_client::GatewayClientLayer,
+        gateway_client::SettlementLayerClientLayer,
         healtcheck_server::HealthCheckLayer,
         l1_batch_commitment_mode_validation::L1BatchCommitmentModeValidationLayer,
         logs_bloom_backfill::LogsBloomBackfillLayer,
@@ -153,14 +153,16 @@ impl ExternalNodeBuilder {
 
     fn add_settlement_layer_data(mut self) -> anyhow::Result<Self> {
         self.node.add_layer(SettlementLayerDataEn::new(
-            (&self.config).into(),
-            (&self.config).into(),
+            self.config.required.l2_chain_id,
+            self.config.l1_specific_contracts(),
+            self.config.l1_chain_contracts(),
+            self.config.l2_contracts(),
         ));
         Ok(self)
     }
 
     fn add_gateway_client_layer(mut self) -> anyhow::Result<Self> {
-        let query_eth_client_layer = GatewayClientLayer::new(
+        let query_eth_client_layer = SettlementLayerClientLayer::new(
             self.config.required.eth_client_url.clone(),
             self.config.optional.gateway_url.clone(),
         );
@@ -300,7 +302,6 @@ impl ExternalNodeBuilder {
         let layer = ValidateChainIdsLayer::new(
             self.config.required.l1_chain_id,
             self.config.required.l2_chain_id,
-            self.config.required.gateway_chain_id,
         );
         self.node.add_layer(layer);
         Ok(self)
@@ -656,8 +657,8 @@ impl ExternalNodeBuilder {
 
         // Add preconditions for all the components.
         self = self
-            // .add_l1_batch_commitment_mode_validation_layer()?
-            // .add_validate_chain_ids_layer()?
+            .add_l1_batch_commitment_mode_validation_layer()?
+            .add_validate_chain_ids_layer()?
             .add_storage_initialization_layer(LayerKind::Precondition)?;
 
         // Sort the components, so that the components they may depend on each other are added in the correct order.
@@ -720,7 +721,7 @@ impl ExternalNodeBuilder {
                         .add_state_keeper_layer()?
                         .add_consensus_layer()?
                         .add_pruning_layer()?
-                        // .add_consistency_checker_layer()?
+                        .add_consistency_checker_layer()?
                         .add_commitment_generator_layer()?
                         .add_batch_status_updater_layer()?
                         .add_logs_bloom_backfill_layer()?;

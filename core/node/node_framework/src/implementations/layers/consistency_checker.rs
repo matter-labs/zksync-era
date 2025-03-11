@@ -7,6 +7,7 @@ use crate::{
         eth_interface::UniversalClientResource,
         healthcheck::AppHealthCheckResource,
         pools::{MasterPool, PoolResource},
+        settlement_layer::SettlementModeResource,
     },
     service::StopReceiver,
     task::{Task, TaskId},
@@ -24,7 +25,8 @@ pub struct ConsistencyCheckerLayer {
 #[derive(Debug, FromContext)]
 #[context(crate = crate)]
 pub struct Input {
-    pub gateway_client: UniversalClientResource,
+    pub settlement_layer_client: UniversalClientResource,
+    pub settlement_mode: SettlementModeResource,
     pub sl_chain_contracts: SettlementLayerContractsResource,
     pub master_pool: PoolResource<MasterPool>,
     #[context(default)]
@@ -60,15 +62,15 @@ impl WiringLayer for ConsistencyCheckerLayer {
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
-        let gateway_client = input.gateway_client.0;
+        let settlement_layer_client = input.settlement_layer_client.0;
 
         let singleton_pool = input.master_pool.get_singleton().await?;
-
         let consistency_checker = ConsistencyChecker::new(
-            gateway_client.into(),
+            settlement_layer_client.into(),
             self.max_batches_to_recheck,
             singleton_pool,
             self.commitment_mode,
+            input.settlement_mode.0,
         )
         .await
         .map_err(WiringError::Internal)?

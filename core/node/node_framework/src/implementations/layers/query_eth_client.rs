@@ -50,7 +50,6 @@ impl WiringLayer for QueryEthClientLayer {
     }
 
     async fn wire(self, _input: Self::Input) -> Result<Output, WiringError> {
-        // Both `query_client_gateway` and `query_client_l2` use the same URL, but provide different type guarantees.
         Ok(Output {
             query_client_l1: EthInterfaceResource(Box::new(
                 Client::http(self.l1_rpc_url.clone())

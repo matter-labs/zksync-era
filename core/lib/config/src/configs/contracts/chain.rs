@@ -1,7 +1,10 @@
 use serde::Deserialize;
 use zksync_basic_types::{Address, H256};
 
-use crate::configs::contracts::ecosystem::EcosystemContracts;
+use crate::configs::contracts::{
+    ecosystem::{EcosystemCommonContracts, EcosystemContracts, L1SpecificContracts},
+    ChainSpecificContracts,
+};
 
 /// Data about deployed contracts unified l1/l2 contracts and bridges. To Be Deleted
 #[derive(Debug, Deserialize, Clone, PartialEq)]
@@ -34,6 +37,7 @@ pub struct AllContractsConfig {
     pub chain_admin_addr: Address,
     pub l2_da_validator_addr: Option<Address>,
     pub no_da_validium_l1_validator_addr: Option<Address>,
+    pub l2_multicall3_addr: Option<Address>,
 }
 
 impl AllContractsConfig {
@@ -60,6 +64,47 @@ impl AllContractsConfig {
             chain_admin_addr: Address::repeat_byte(0x18),
             l2_da_validator_addr: Some(Address::repeat_byte(0x1a)),
             no_da_validium_l1_validator_addr: Some(Address::repeat_byte(0x1b)),
+            l2_multicall3_addr: Some(Address::repeat_byte(0x1c)),
+        }
+    }
+    pub fn l1_specific_contracts(&self) -> L1SpecificContracts {
+        let ecosystem = self.ecosystem_contracts.as_ref().unwrap();
+        L1SpecificContracts {
+            bytecodes_supplier_addr: ecosystem.l1_bytecodes_supplier_addr,
+            wrapped_base_token_store: ecosystem.l1_wrapped_base_token_store,
+            bridge_hub: Some(ecosystem.bridgehub_proxy_addr),
+            shared_bridge: self.l1_shared_bridge_proxy_addr,
+            erc_20_bridge: self.l1_erc20_bridge_proxy_addr,
+            base_token_address: self.base_token_addr,
+        }
+    }
+    pub fn l2_contracts(&self) -> L2Contracts {
+        L2Contracts {
+            erc20_default_bridge: self.l2_erc20_bridge_addr,
+            shared_bridge_addr: self.l2_shared_bridge_addr,
+            legacy_shared_bridge_addr: self.l2_legacy_shared_bridge_addr,
+            timestamp_asserter_addr: self.l2_timestamp_asserter_addr,
+            da_validator_addr: self.l2_da_validator_addr,
+            testnet_paymaster_addr: self.l2_testnet_paymaster_addr,
+            multicall3: self.l2_multicall3_addr,
+        }
+    }
+
+    pub fn chain_specific_contracts(&self) -> ChainSpecificContracts {
+        let ecosystem = self.ecosystem_contracts.as_ref().unwrap();
+
+        ChainSpecificContracts {
+            ecosystem_contracts: EcosystemCommonContracts {
+                bridgehub_proxy_addr: Some(ecosystem.bridgehub_proxy_addr),
+                state_transition_proxy_addr: ecosystem.state_transition_proxy_addr,
+                server_notifier_addr: ecosystem.server_notifier_addr,
+                multicall3: Some(self.l1_multicall3_addr),
+                validator_timelock_addr: Some(self.validator_timelock_addr),
+            },
+            chain_contracts_config: ChainContracts {
+                diamond_proxy_addr: self.diamond_proxy_addr,
+                chain_admin: Some(self.chain_admin_addr),
+            },
         }
     }
 }
@@ -80,4 +125,5 @@ pub struct L2Contracts {
     pub timestamp_asserter_addr: Option<Address>,
     pub da_validator_addr: Option<Address>,
     pub testnet_paymaster_addr: Option<Address>,
+    pub multicall3: Option<Address>,
 }

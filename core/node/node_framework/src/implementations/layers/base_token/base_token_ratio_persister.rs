@@ -6,10 +6,7 @@ use zksync_types::L1ChainId;
 
 use crate::{
     implementations::resources::{
-        contracts::{
-            L1ChainContractsResource, L1EcosystemContractsResource,
-            SettlementLayerContractsResource,
-        },
+        contracts::{L1ChainContractsResource, L1EcosystemContractsResource},
         eth_interface::EthInterfaceResource,
         l1_tx_params::TxParamsResource,
         pools::{MasterPool, PoolResource},

@@ -1329,6 +1329,8 @@ dependencies = [
  "tokio",
  "zksync_block_reverter",
  "zksync_config",
+ "zksync_contracts",
+ "zksync_contracts_loader",
  "zksync_core_leftovers",
  "zksync_dal",
  "zksync_env_config",
@@ -11305,6 +11307,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_contracts_loader"
+version = "26.5.0-non-semver-compat"
+dependencies = [
+ "anyhow",
+ "zksync_config",
+ "zksync_contracts",
+ "zksync_eth_client",
+ "zksync_types",
+]
+
+[[package]]
 name = "zksync_core_leftovers"
 version = "26.5.0-non-semver-compat"
 dependencies = [
@@ -11722,7 +11735,10 @@ dependencies = [
  "zksync_basic_types",
  "zksync_config",
  "zksync_contracts",
+ "zksync_contracts_loader",
+ "zksync_dal",
  "zksync_eth_client",
+ "zksync_system_constants",
 ]
 
 [[package]]
@@ -12082,6 +12098,7 @@ dependencies = [
  "zksync_consistency_checker",
  "zksync_contract_verification_server",
  "zksync_contracts",
+ "zksync_contracts_loader",
  "zksync_da_client",
  "zksync_da_clients",
  "zksync_da_dispatcher",

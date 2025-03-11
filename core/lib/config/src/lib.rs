@@ -1,9 +1,9 @@
 #![allow(clippy::upper_case_acronyms, clippy::derive_partial_eq_without_eq)]
 
 pub use crate::configs::{
-    contracts::{chain::AllContractsConfig as ContractsConfig, SettlementLayerContracts},
-    ApiConfig, AvailConfig, BaseTokenAdjusterConfig, CelestiaConfig, ContractVerifierConfig,
-    DAClientConfig, DADispatcherConfig, DBConfig, EigenConfig, EthConfig, EthWatchConfig,
+    contracts::chain::AllContractsConfig as ContractsConfig, ApiConfig, AvailConfig,
+    BaseTokenAdjusterConfig, CelestiaConfig, ContractVerifierConfig, DAClientConfig,
+    DADispatcherConfig, DBConfig, EigenConfig, EthConfig, EthWatchConfig,
     ExternalProofIntegrationApiConfig, GasAdjusterConfig, GenesisConfig, ObjectStoreConfig,
     PostgresConfig, SnapshotsCreatorConfig,
 };

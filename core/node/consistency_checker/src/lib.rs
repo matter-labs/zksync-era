@@ -22,6 +22,7 @@ use zksync_types::{
     ethabi,
     ethabi::{ParamType, Token},
     pubdata_da::PubdataSendingMode,
+    settlement::SettlementMode,
     Address, L1BatchNumber, ProtocolVersionId, SLChainId, H256, U256,
 };
 
@@ -134,8 +135,8 @@ impl HandleConsistencyCheckerEvent for ConsistencyCheckerHealthUpdater {
 // (and thus persisted by external nodes). Eventually, we want to go back to bailing on L1 data mismatch;
 // for now, it's only enabled for the unit tests.
 #[derive(Debug)]
+#[allow(dead_code)]
 enum L1DataMismatchBehavior {
-    #[cfg(test)]
     Bail,
     Log,
 }
@@ -363,7 +364,7 @@ pub struct ConsistencyChecker {
     max_batches_to_recheck: u32,
     sleep_interval: Duration,
     chain_data: SLChainAccess,
-    // gateway_chain_data: Option<SLChainAccess>,
+    settlement_mode: SettlementMode,
     event_handler: Box<dyn HandleConsistencyCheckerEvent>,
     l1_data_mismatch_behavior: L1DataMismatchBehavior,
     pool: ConnectionPool<Core>,
@@ -379,6 +380,7 @@ impl ConsistencyChecker {
         max_batches_to_recheck: u32,
         pool: ConnectionPool<Core>,
         commitment_mode: L1BatchCommitmentMode,
+        settlement_mode: SettlementMode,
     ) -> anyhow::Result<Self> {
         let (health_check, health_updater) = ConsistencyCheckerHealthUpdater::new();
         let l1_chain_id = gateway_client.fetch_chain_id().await?;
@@ -388,28 +390,14 @@ impl ConsistencyChecker {
             diamond_proxy_addr: None,
         };
 
-        // let gateway_chain_data = if let Some(client) = gateway_client {
-        //     let gateway_diamond_proxy =
-        //         CallFunctionArgs::new("getZKChain", Token::Uint(l2_chain_id.as_u64().into()))
-        //             .for_contract(L2_BRIDGEHUB_ADDRESS, &bridgehub_contract())
-        //             .call(&client)
-        //             .await?;
-        //     let chain_id = client.fetch_chain_id().await?;
-        //     Some(SLChainAccess {
-        //         client: client.for_component("consistency_checker"),
-        //         chain_id,
-        //         diamond_proxy_addr: Some(gateway_diamond_proxy),
-        //     })
-        // } else {
-        //     None
-        // };
         Ok(Self {
             contract: zksync_contracts::hyperchain_contract(),
             max_batches_to_recheck,
             sleep_interval: Self::DEFAULT_SLEEP_INTERVAL,
             chain_data,
+            settlement_mode,
             event_handler: Box::new(health_updater),
-            l1_data_mismatch_behavior: L1DataMismatchBehavior::Log,
+            l1_data_mismatch_behavior: L1DataMismatchBehavior::Bail,
             pool,
             health_check,
             commitment_mode,
@@ -524,9 +512,7 @@ impl ConsistencyChecker {
         })
         .map_err(CheckError::Validation)?;
 
-        // TODO set properly
-        // let is_gateway =  self.chain_data.chain_id != self.l1_chain_data.chain_id;
-        let is_gateway = false;
+        let is_gateway = self.settlement_mode.is_gateway();
         local
             .verify_commitment(&commitment, is_gateway)
             .map_err(CheckError::Validation)
@@ -751,7 +737,6 @@ impl ConsistencyChecker {
                     self.event_handler
                         .report_inconsistent_batch(batch_number, &err);
                     match &self.l1_data_mismatch_behavior {
-                        #[cfg(test)]
                         L1DataMismatchBehavior::Bail => {
                             let context =
                                 format!("L1 batch #{batch_number} is inconsistent with L1");
@@ -785,16 +770,6 @@ impl ConsistencyChecker {
         tracing::info!("Stop signal received, consistency_checker is shutting down");
         Ok(())
     }
-
-    // fn chain_data_by_id(&self, searched_chain_id: SLChainId) -> Option<&SLChainAccess> {
-    //     if searched_chain_id == self.l1_chain_data.chain_id {
-    //         Some(&self.l1_chain_data)
-    //     } else if Some(searched_chain_id) == self.gateway_chain_data.as_ref().map(|d| d.chain_id) {
-    //         self.gateway_chain_data.as_ref()
-    //     } else {
-    //         None
-    //     }
-    // }
 }
 
 /// Repeatedly polls the DB until there is an L1 batch with metadata. We may not have such a batch initially
@@ -828,4 +803,25 @@ async fn wait_for_l1_batch_with_metadata(
             .await
             .ok();
     }
+}
+
+// Get settlement layer based on ETH tx, all eth txs should be presented on settlement layer. what is the best place for this function?
+pub async fn get_db_settlement_mode(
+    db_pool: ConnectionPool<Core>,
+    l1chain_id: SLChainId,
+) -> anyhow::Result<Option<SettlementMode>> {
+    let db_chain_id = db_pool
+        .connection()
+        .await?
+        .eth_sender_dal()
+        .get_chain_id_of_last_eth_tx()
+        .await?;
+
+    Ok(db_chain_id.map(|chain_id| {
+        if chain_id != l1chain_id.0 {
+            SettlementMode::Gateway
+        } else {
+            SettlementMode::SettlesToL1
+        }
+    }))
 }

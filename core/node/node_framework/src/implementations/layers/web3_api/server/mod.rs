@@ -18,7 +18,10 @@ use crate::{
         },
         resources::{
             circuit_breakers::CircuitBreakersResource,
-            contracts::{L1ChainContractsResource, L1EcosystemContractsResource},
+            contracts::{
+                L1ChainContractsResource, L1EcosystemContractsResource, L2ContractsResource,
+                SettlementLayerContractsResource,
+            },
             eth_interface::EthInterfaceResource,
             healthcheck::AppHealthCheckResource,
             main_node_client::MainNodeClientResource,
@@ -134,8 +137,10 @@ pub struct Input {
     pub app_health: AppHealthCheckResource,
     pub main_node_client: Option<MainNodeClientResource>,
     pub l1_client: EthInterfaceResource,
-    pub contracts_resource: L1ChainContractsResource,
+    pub sl_contracts_resource: SettlementLayerContractsResource,
+    pub l1_contracts_resource: L1ChainContractsResource,
     pub l1_ecosystem_contracts_resource: L1EcosystemContractsResource,
+    pub l2_contracts_resource: L2ContractsResource,
 }
 
 #[derive(Debug, IntoContext)]
@@ -201,10 +206,14 @@ impl WiringLayer for Web3ServerLayer {
         let sync_state = input.sync_state.map(|state| state.0);
         let tree_api_client = input.tree_api_client.map(|client| client.0);
 
-        let contracts = input.contracts_resource.0;
+        let l1_contracts = input.l1_contracts_resource.0;
         let internal_api_config = self
             .internal_api_config_builder
-            .with_contracts(contracts, input.l1_ecosystem_contracts_resource.0)
+            .with_contracts(
+                l1_contracts,
+                input.l1_ecosystem_contracts_resource.0,
+                input.l2_contracts_resource.0,
+            )
             .build();
 
         let sealed_l2_block_handle = SealedL2BlockNumber::default();
@@ -230,7 +239,8 @@ impl WiringLayer for Web3ServerLayer {
                     bridge_address_updater: bridge_addresses_handle.clone(),
                     l1_eth_client: Box::new(input.l1_client.0),
                     bridgehub_addr: internal_api_config
-                        .l1_bridgehub_proxy_addr
+                        .l1_ecosystem_contracts
+                        .bridgehub_proxy_addr
                         .context("Lacking l1 bridgehub proxy address")?,
                     update_interval: self.optional_config.bridge_addresses_refresh_interval,
                     bridgehub_abi: bridgehub_contract(),

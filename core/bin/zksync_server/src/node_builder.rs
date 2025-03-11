@@ -4,10 +4,13 @@
 use anyhow::{bail, Context};
 use zksync_config::{
     configs::{
-        contracts::ecosystem::L1SpecificContracts, da_client::DAClientConfig,
-        secrets::DataAvailabilitySecrets, wallets::Wallets, GeneralConfig, Secrets,
+        contracts::{chain::L2Contracts, ecosystem::L1SpecificContracts},
+        da_client::DAClientConfig,
+        secrets::DataAvailabilitySecrets,
+        wallets::Wallets,
+        GeneralConfig, Secrets,
     },
-    GenesisConfig, SettlementLayerContracts,
+    GenesisConfig,
 };
 use zksync_core_leftovers::Component;
 use zksync_metadata_calculator::MetadataCalculatorConfig;
@@ -34,7 +37,7 @@ use zksync_node_framework::{
         eth_watch::EthWatchLayer,
         external_proof_integration_api::ExternalProofIntegrationApiLayer,
         gas_adjuster::GasAdjusterLayer,
-        gateway_client::GatewayClientLayer,
+        gateway_client::SettlementLayerClientLayer,
         gateway_migrator_layer::GatewayMigratorLayer,
         healtcheck_server::HealthCheckLayer,
         house_keeper::HouseKeeperLayer,
@@ -75,7 +78,7 @@ use zksync_node_framework::{
 use zksync_types::{
     commitment::{L1BatchCommitmentMode, PubdataType},
     pubdata_da::PubdataSendingMode,
-    SHARED_BRIDGE_ETHER_TOKEN_ADDRESS,
+    Address, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS,
 };
 use zksync_vlog::prometheus::PrometheusExporterConfig;
 
@@ -93,8 +96,9 @@ pub struct MainNodeBuilder {
     wallets: Wallets,
     genesis_config: GenesisConfig,
     secrets: Secrets,
-    contracts: SettlementLayerContracts,
     l1_specific_contracts: L1SpecificContracts,
+    l2_contracts: L2Contracts,
+    multicall3: Option<Address>,
 }
 
 impl MainNodeBuilder {
@@ -103,8 +107,9 @@ impl MainNodeBuilder {
         wallets: Wallets,
         genesis_config: GenesisConfig,
         secrets: Secrets,
-        contracts: SettlementLayerContracts,
         l1_specific_contracts: L1SpecificContracts,
+        l2_contracts: L2Contracts,
+        multicall3: Option<Address>,
     ) -> anyhow::Result<Self> {
         Ok(Self {
             node: ZkStackServiceBuilder::new().context("Cannot create ZkStackServiceBuilder")?,
@@ -112,8 +117,9 @@ impl MainNodeBuilder {
             wallets,
             genesis_config,
             secrets,
-            contracts,
             l1_specific_contracts,
+            l2_contracts,
+            multicall3,
         })
     }
 
@@ -192,7 +198,7 @@ impl MainNodeBuilder {
     fn add_gateway_client_layer(mut self) -> anyhow::Result<Self> {
         let eth_config = try_load_config!(self.secrets.l1);
         let query_eth_client_layer =
-            GatewayClientLayer::new(eth_config.l1_rpc_url, eth_config.gateway_rpc_url);
+            SettlementLayerClientLayer::new(eth_config.l1_rpc_url, eth_config.gateway_rpc_url);
         self.node.add_layer(query_eth_client_layer);
         Ok(self)
     }
@@ -313,14 +319,18 @@ impl MainNodeBuilder {
 
     fn add_settlement_mode_data(mut self) -> anyhow::Result<Self> {
         self.node.add_layer(SettlementLayerData::new(
-            self.contracts.clone(),
             self.l1_specific_contracts.clone(),
+            self.l2_contracts.clone(),
+            self.genesis_config.l2_chain_id,
+            self.multicall3,
         ));
         Ok(self)
     }
 
     fn add_gateway_migrator_layer(mut self) -> anyhow::Result<Self> {
-        self.node.add_layer(GatewayMigratorLayer);
+        self.node.add_layer(GatewayMigratorLayer {
+            l2chain_id: self.genesis_config.l2_chain_id,
+        });
         Ok(self)
     }
 
