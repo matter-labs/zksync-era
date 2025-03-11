@@ -217,6 +217,8 @@ pub struct VmExecutionMetrics {
     pub computational_gas_used: u32,
     pub pubdata_published: u32,
     pub circuit_statistic: CircuitStatistic,
+    #[serde(default)]
+    pub is_contract_deployed: bool,
 }
 
 impl VmExecutionMetrics {
@@ -251,6 +253,7 @@ impl ops::Add for VmExecutionMetrics {
             computational_gas_used: self.computational_gas_used + other.computational_gas_used,
             pubdata_published: self.pubdata_published + other.pubdata_published,
             circuit_statistic: self.circuit_statistic + other.circuit_statistic,
+            is_contract_deployed: self.is_contract_deployed || other.is_contract_deployed,
         }
     }
 }

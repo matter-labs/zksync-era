@@ -95,6 +95,16 @@ impl VmEvent {
             })
             .map(|event| event.indexed_topics[1])
     }
+
+    /// Returns `true` if any of the given events is a `ContractDeployed` event.
+    pub fn contains_contract_deployment(events: &[Self]) -> bool {
+        events.iter().any(|event| {
+            // We expect that the first indexed topic is the event signature.
+            event.indexed_topics
+                .get(0)
+                .map_or(false, |&topic| topic == VmEvent::DEPLOY_EVENT_SIGNATURE)
+        })
+    }
 }
 
 /// Refunds produced for the user.
@@ -189,6 +199,8 @@ impl VmExecutionResultAndLogs {
                 len_in_bytes + PUBLISH_BYTECODE_OVERHEAD as usize
             })
             .sum();
+        // Check if any contract was deployed
+        let contract_deployed = VmEvent::contains_contract_deployment(&self.logs.events);
 
         VmExecutionMetrics {
             gas_used: self.statistics.gas_used as usize,
@@ -204,6 +216,7 @@ impl VmExecutionResultAndLogs {
             computational_gas_used: self.statistics.computational_gas_used,
             pubdata_published: self.statistics.pubdata_published,
             circuit_statistic: self.statistics.circuit_statistic,
+            is_contract_deployed: contract_deployed,
         }
     }
 }
