@@ -75,6 +75,7 @@ for CHAIN in "${CHAINS[@]}"; do
   NOMINATOR="${NOMINATOR_MAP[$CHAIN]:-1}"
   DENOMINATOR="${DENOMINATOR_MAP[$CHAIN]:-1}"
   zkstack chain create \
+    --ignore-prerequisites \
     --chain-name "${CHAIN}" \
     --chain-id "${CHAIN_ID}" \
     --prover-mode no-proofs \
@@ -123,7 +124,7 @@ if [[ "${USE_GATEWAY}" == "WITH_GATEWAY" ]]; then
 
   step_info "Run gateway"
   zkstack server --ignore-prerequisites --chain gateway &> "${SERVER_LOGS_DIR}/gateway.log" &
-  zkstack server wait --ignore-prerequisites --verbose --chain gateway
+  zkstack server wait --timeout 300 --ignore-prerequisites --verbose --chain gateway
 
   step_info "Migrate chains to gateway"
   zkstack chain migrate-to-gateway --chain era --gateway-chain-name gateway
