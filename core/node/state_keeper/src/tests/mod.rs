@@ -500,3 +500,27 @@ async fn protocol_upgrade() {
         .run(sealer)
         .await;
 }
+
+/// Checks the next L2 block timestamp is updated upon receiving a transaction
+#[tokio::test]
+async fn l2_block_timestamp_updated_after_first_tx() {
+    let config = StateKeeperConfig {
+        transaction_slots: 2,
+        ..StateKeeperConfig::default()
+    };
+    let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
+    let new_timestamp = 555;
+
+    TestScenario::new()
+        .seal_l2_block_when(|updates| updates.l2_block.executed_transactions.len() == 1)
+        .next_tx("First tx", random_tx(1), successful_exec())
+        .l2_block_sealed("L2 block 1")
+        .update_l2_block_timestamp("Update the next l2 block timestamp", new_timestamp)
+        .next_tx("New tx", random_tx(1), successful_exec())
+        .l2_block_sealed_with("L2 block 2", move |updates| {
+            let actual = updates.l2_block.timestamp;
+            assert_eq!(actual, new_timestamp, "L2 block timestamp must be updated");
+        })
+        .run(sealer)
+        .await;
+}
