@@ -66,7 +66,7 @@ impl StorageLogMetadata {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct WitnessInputMerklePaths {
     // Merkle paths and some auxiliary information for each read / write operation in a block.
-    merkle_paths: Vec<StorageLogMetadata>,
+    pub merkle_paths: Vec<StorageLogMetadata>,
     next_enumeration_index: u64,
 }
 

@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use flate2::{read::GzDecoder, write::GzEncoder, Compression};
 use zksync_config::ObjectStoreConfig;
 use zksync_da_client::{
-    types::{DAError, DispatchResponse, InclusionData},
+    types::{ClientType, DAError, DispatchResponse, InclusionData},
     DataAvailabilityClient,
 };
 use zksync_object_store::{
@@ -86,6 +86,10 @@ impl DataAvailabilityClient for ObjectStoreDAClient {
 
     fn blob_size_limit(&self) -> Option<usize> {
         None
+    }
+
+    fn client_type(&self) -> ClientType {
+        ClientType::ObjectStore
     }
 
     async fn balance(&self) -> Result<u64, DAError> {

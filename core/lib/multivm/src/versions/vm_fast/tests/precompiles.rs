@@ -55,7 +55,7 @@ fn caching_ecrecover_result() {
 
     // Cycle stats should still be produced for the cached call
     let ecrecover_count = exec_result.statistics.circuit_statistic.ecrecover
-        * ProtocolGeometry::V1_5_0
+        * ProtocolGeometry::latest()
             .config()
             .cycles_per_ecrecover_circuit as f32;
     assert!((ecrecover_count - 1.0).abs() < 1e-4, "{ecrecover_count}");

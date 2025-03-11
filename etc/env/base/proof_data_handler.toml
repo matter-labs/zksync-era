@@ -1,8 +1,8 @@
 [proof_data_handler]
 http_port = 3320
 proof_generation_timeout_in_secs = 18000
-api_url = "http://localhost:3324"
-api_poll_duration = 15
+api_url = "ws://localhost:3324"
+batch_readiness_check_interval_in_secs = 15
 retry_connection_interval_in_secs = 5
 subscribe_for_zero_chain_id = true
 tee_proof_generation_timeout_in_secs = 60

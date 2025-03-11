@@ -54,12 +54,3 @@ pub struct CircuitKey<'a> {
     pub circuit_type: &'a str,
     pub aggregation_round: AggregationRound,
 }
-
-/// Storage key for a [`RamPermutationQueueWitness`].
-#[derive(Debug, Clone, Copy)]
-pub struct RamPermutationQueueWitnessKey {
-    pub chain_id: L2ChainId,
-    pub block_number: L1BatchNumber,
-    pub circuit_subsequence_number: usize,
-    pub is_sorted: bool,
-}

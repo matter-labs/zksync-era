@@ -8,11 +8,8 @@ use zksync_basic_types::protocol_version::{
 use zksync_contracts::{BaseSystemContractsHashes, DIAMOND_CUT};
 
 use crate::{
-    abi::{
-        self, ForceDeployment, GatewayUpgradeEncodedInput, ProposedUpgrade,
-        ZkChainSpecificUpgradeData,
-    },
-    ethabi::{self, decode, encode, ParamType, Token},
+    abi::{self, ForceDeployment, GatewayUpgradeEncodedInput, ZkChainSpecificUpgradeData},
+    ethabi::{self, ParamType, Token},
     h256_to_u256, u256_to_h256,
     web3::Log,
     Address, Execute, ExecuteTransactionCommon, Transaction, TransactionType, H256, U256,
@@ -105,7 +102,7 @@ pub trait ProtocolUpgradePreimageOracle: Send + Sync {
 
 /// Some upgrades have chain-dependent calldata that has to be prepared properly.
 async fn prepare_upgrade_call(
-    proposed_upgrade: &ProposedUpgrade,
+    proposed_upgrade: &abi::ProposedUpgrade,
     chain_specific: Option<ZkChainSpecificUpgradeData>,
 ) -> anyhow::Result<Vec<u8>> {
     // No upgrade
@@ -125,14 +122,14 @@ async fn prepare_upgrade_call(
     // The source of truth for the code below is the one that is present in
     // `GatewayUpgrade.sol`.
     let mut encoded_input = GatewayUpgradeEncodedInput::decode(
-        decode(
+        ethabi::decode(
             &[GatewayUpgradeEncodedInput::schema()],
             &proposed_upgrade.post_upgrade_calldata,
         )?[0]
             .clone(),
     )?;
 
-    let gateway_upgrade_calldata = encode(&[
+    let gateway_upgrade_calldata = ethabi::encode(&[
         Token::Address(encoded_input.ctm_deployer),
         Token::Bytes(encoded_input.fixed_force_deployments_data),
         Token::Bytes(chain_specific.context("chain_specific")?.encode_bytes()),
@@ -183,24 +180,13 @@ impl ProtocolUpgrade {
         preimage_oracle: impl ProtocolUpgradePreimageOracle,
         chain_specific: Option<ZkChainSpecificUpgradeData>,
     ) -> anyhow::Result<Self> {
-        let upgrade = if let Ok(upgrade) = ethabi::decode(
-            &[abi::ProposedUpgrade::schema_pre_gateway()],
-            init_calldata.get(4..).context("need >= 4 bytes")?,
-        ) {
-            upgrade
-        } else {
-            ethabi::decode(
-                &[abi::ProposedUpgrade::schema_post_gateway()],
-                init_calldata.get(4..).context("need >= 4 bytes")?,
-            )
-            .context("ethabi::decode()")?
-        };
+        let raw_data = init_calldata.get(4..).context("need >= 4 bytes")?;
+        let mut upgrade =
+            abi::ProposedUpgrade::decode(raw_data).context("ProposedUpgrade::decode()")?;
 
-        let mut upgrade = abi::ProposedUpgrade::decode(upgrade.into_iter().next().unwrap())
-            .context("ProposedUpgrade::decode()")?;
-
-        let bootloader_hash = H256::from_slice(&upgrade.bootloader_hash);
-        let default_account_hash = H256::from_slice(&upgrade.default_account_hash);
+        let bootloader_hash = H256(upgrade.bootloader_hash);
+        let default_account_hash = H256(upgrade.default_account_hash);
+        let evm_emulator_hash = H256(upgrade.evm_emulator_hash);
 
         let version = ProtocolSemanticVersion::try_from_packed(upgrade.new_protocol_version)
             .map_err(|err| anyhow::format_err!("Version is not supported: {err}"))?;
@@ -245,7 +231,8 @@ impl ProtocolUpgrade {
             bootloader_code_hash: (bootloader_hash != H256::zero()).then_some(bootloader_hash),
             default_account_code_hash: (default_account_hash != H256::zero())
                 .then_some(default_account_hash),
-            evm_emulator_code_hash: None, // EVM emulator upgrades are not supported yet
+            evm_emulator_code_hash: (evm_emulator_hash != H256::zero())
+                .then_some(evm_emulator_hash),
             verifier_params: (upgrade.verifier_params != abi::VerifierParams::default())
                 .then_some(upgrade.verifier_params.into()),
             verifier_address: (upgrade.verifier != Address::zero()).then_some(upgrade.verifier),
