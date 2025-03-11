@@ -43,12 +43,12 @@ jobs:
       - name: Generate cache release
         if: ${{ matrix.build-type == 'release' }}
         working-directory: ${{ matrix.workspace }}
-        run: cargo build --release --all-targets
+        run: cargo build --release
 
       - name: Generate cache dev
         if: ${{ matrix.build-type == 'dev' }}
         working-directory: ${{ matrix.workspace }}
-        run: cargo nextest run --no-run --all-targets
+        run: cargo nextest run --no-run
 
 #  cache-regen-full:
 #    runs-on: matterlabs-ci-runner-highmem-long
