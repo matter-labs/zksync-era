@@ -12,7 +12,8 @@ use zksync_types::{
     basic_fri_types::Eip4844Blobs,
     commitment::{serialize_commitments, L1BatchCommitmentMode},
     web3::keccak256,
-    L1BatchNumber, L2ChainId, ProtocolVersionId, H256, STATE_DIFF_HASH_KEY_PRE_GATEWAY,
+    ChainAwareL1BatchNumber, L1BatchNumber, L2ChainId, ProtocolVersionId, H256,
+    STATE_DIFF_HASH_KEY_PRE_GATEWAY,
 };
 
 use crate::metrics::METRICS;
@@ -170,7 +171,10 @@ impl ProofDataProcessor {
                 let blob_url = self
                     .blob_store
                     .put(
-                        (chain_id, l1_batch_number, proof.protocol_version()),
+                        (
+                            ChainAwareL1BatchNumber::new(chain_id, l1_batch_number),
+                            proof.protocol_version(),
+                        ),
                         &*proof,
                     )
                     .await?;

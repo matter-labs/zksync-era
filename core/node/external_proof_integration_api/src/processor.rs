@@ -1,7 +1,8 @@
 use std::sync::Arc;
 
 use zksync_basic_types::{
-    basic_fri_types::Eip4844Blobs, commitment::L1BatchCommitmentMode, L1BatchNumber, L2ChainId,
+    basic_fri_types::Eip4844Blobs, commitment::L1BatchCommitmentMode, ChainAwareL1BatchNumber,
+    L1BatchNumber, L2ChainId,
 };
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_object_store::ObjectStore;
@@ -49,7 +50,10 @@ impl Processor {
     ) -> Result<(), ProcessorError> {
         let expected_proof = self
             .blob_store
-            .get::<L1BatchProofForL1>((self.chain_id, l1_batch_number, proof.protocol_version()))
+            .get::<L1BatchProofForL1>((
+                ChainAwareL1BatchNumber::new(self.chain_id, l1_batch_number),
+                proof.protocol_version(),
+            ))
             .await?;
         proof.verify(expected_proof)?;
         Ok(())

@@ -18,7 +18,7 @@ use zksync_types::{
     pubdata_da::PubdataSendingMode,
     settlement::SettlementMode,
     web3::CallRequest,
-    Address, L1BatchNumber, L2ChainId, ProtocolVersionId, U256,
+    Address, ChainAwareL1BatchNumber, L1BatchNumber, L2ChainId, ProtocolVersionId, U256,
 };
 
 use super::{
@@ -770,7 +770,10 @@ pub async fn load_wrapped_fri_proofs_for_range(
 ) -> Option<L1BatchProofForL1> {
     for version in allowed_versions {
         match blob_store
-            .get::<L1BatchProofForL1>((chain_id, l1_batch_number, *version))
+            .get::<L1BatchProofForL1>((
+                ChainAwareL1BatchNumber::new(chain_id, l1_batch_number),
+                *version,
+            ))
             .await
         {
             Ok(proof) => return Some(proof),
