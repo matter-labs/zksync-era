@@ -24,6 +24,7 @@ async fn request_tee_proof_inputs() {
         api_poll_duration_in_secs: 1,
         proof_generation_timeout_in_secs: 10,
         retry_connection_interval_in_secs: 10,
+        subscribe_for_zero_chain_id: false,
         tee_config: TeeConfig {
             tee_support: true,
             first_tee_processed_batch: L1BatchNumber(0),
@@ -92,6 +93,8 @@ async fn submit_tee_proof() {
         api_url: "".to_string(),
         api_poll_duration_in_secs: 1,
         proof_generation_timeout_in_secs: 10,
+        retry_connection_interval_in_secs: 10,
+        subscribe_for_zero_chain_id: false,
         tee_config: TeeConfig {
             tee_support: true,
             first_tee_processed_batch: L1BatchNumber(0),

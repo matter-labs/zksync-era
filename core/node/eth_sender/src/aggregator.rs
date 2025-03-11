@@ -107,6 +107,7 @@ impl OperationSkippingRestrictions {
 }
 
 impl Aggregator {
+    #[allow(clippy::too_many_arguments)]
     pub async fn new(
         config: SenderConfig,
         blob_store: Arc<dyn ObjectStore>,

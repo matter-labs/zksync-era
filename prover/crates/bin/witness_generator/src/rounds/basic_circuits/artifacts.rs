@@ -48,19 +48,19 @@ impl ArtifactsManager for BasicCircuits {
     ) -> String {
         let aux_output_witness_wrapper =
             AuxOutputWitnessWrapper(artifacts.aux_output_witness.clone());
+
+        let batch_number = ChainAwareL1BatchNumber::new(chain_id, L1BatchNumber(job_id));
+
         if shall_save_to_public_bucket {
             public_blob_store.as_deref()
                 .expect("public_object_store shall not be empty while running with shall_save_to_public_bucket config")
-                .put((chain_id, L1BatchNumber(job_id)), &aux_output_witness_wrapper)
+                .put(batch_number, &aux_output_witness_wrapper)
                 .await
                 .unwrap();
         }
 
         object_store
-            .put(
-                (chain_id, L1BatchNumber(job_id)),
-                &aux_output_witness_wrapper,
-            )
+            .put(batch_number, &aux_output_witness_wrapper)
             .await
             .unwrap();
         let wrapper = SchedulerPartialInputWrapper(artifacts.scheduler_witness);

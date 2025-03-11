@@ -21,7 +21,7 @@ use zksync_prover_keystore::keystore::Keystore;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{
     basic_fri_types::CircuitIdRoundTuple, protocol_version::ProtocolSemanticVersion,
-    prover_dal::GpuProverInstanceStatus,
+    prover_dal::GpuProverInstanceStatus, L2ChainId,
 };
 
 use crate::metrics::METRICS;
@@ -90,7 +90,7 @@ impl WitnessVectorGenerator {
 #[async_trait]
 impl JobProcessor for WitnessVectorGenerator {
     type Job = ProverJob;
-    type JobId = u32;
+    type JobId = (L2ChainId, u32);
     type JobArtifacts = WitnessVectorArtifacts;
 
     const POLLING_INTERVAL_MS: u64 = 15000;
@@ -108,7 +108,7 @@ impl JobProcessor for WitnessVectorGenerator {
         else {
             return Ok(None);
         };
-        Ok(Some((job.job_id, job)))
+        Ok(Some(((job.chain_id, job.job_id), job)))
     }
 
     async fn save_failure(&self, job_id: Self::JobId, _started_at: Instant, error: String) {
@@ -117,7 +117,7 @@ impl JobProcessor for WitnessVectorGenerator {
             .await
             .unwrap()
             .fri_prover_jobs_dal()
-            .save_proof_error(job_id, error)
+            .save_proof_error(job_id.1, job_id.0, error)
             .await;
     }
 
@@ -152,7 +152,8 @@ impl JobProcessor for WitnessVectorGenerator {
         METRICS.gpu_witness_vector_generation_time[&circuit_type].observe(started_at.elapsed());
 
         tracing::info!(
-            "Finished witness vector generation for job: {job_id} in zone: {:?} took: {:?}",
+            "Finished witness vector generation for job: {} in zone: {:?} took: {:?}",
+            job_id.1,
             self.zone,
             started_at.elapsed()
         );
@@ -184,9 +185,16 @@ impl JobProcessor for WitnessVectorGenerator {
                     "Found prover at address {address:?} after {:?}. Sending witness vector job...",
                     now.elapsed()
                 );
-                let result = send_assembly(job_id, &serialized, &address);
-                handle_send_result(&result, job_id, &address, &self.pool, self.zone.to_string())
-                    .await;
+                let result = send_assembly(job_id.1, &serialized, &address);
+                handle_send_result(
+                    &result,
+                    job_id.1,
+                    job_id.0,
+                    &address,
+                    &self.pool,
+                    self.zone.to_string(),
+                )
+                .await;
 
                 if result.is_ok() {
                     METRICS.prover_waiting_time[&circuit_type].observe(now.elapsed());
@@ -200,9 +208,10 @@ impl JobProcessor for WitnessVectorGenerator {
 
                 tracing::warn!(
                     "Could not send witness vector to {address:?}. Prover group {}, zone {}, \
-                         job {job_id}, send attempt {attempts}.",
+                         job {}, send attempt {attempts}.",
                     self.config.specialized_group_id,
                     self.zone,
+                    job_id.1
                 );
                 attempts += 1;
             } else {
@@ -215,7 +224,7 @@ impl JobProcessor for WitnessVectorGenerator {
             }
         }
         tracing::warn!(
-            "Not able to get any free prover instance for sending witness vector for job: {job_id} after {:?}", now.elapsed()
+            "Not able to get any free prover instance for sending witness vector for job: {} after {:?}", job_id.1, now.elapsed()
         );
         Ok(())
     }
@@ -224,7 +233,7 @@ impl JobProcessor for WitnessVectorGenerator {
         self.max_attempts
     }
 
-    async fn get_job_attempts(&self, job_id: &u32) -> anyhow::Result<u32> {
+    async fn get_job_attempts(&self, job_id: &(L2ChainId, u32)) -> anyhow::Result<u32> {
         let mut prover_storage = self
             .pool
             .connection()
@@ -232,7 +241,7 @@ impl JobProcessor for WitnessVectorGenerator {
             .context("failed to acquire DB connection for WitnessVectorGenerator")?;
         prover_storage
             .fri_prover_jobs_dal()
-            .get_prover_job_attempts(*job_id)
+            .get_prover_job_attempts(job_id.1, job_id.0)
             .await
             .map(|attempts| attempts.unwrap_or(0))
             .context("failed to get job attempts for WitnessVectorGenerator")
@@ -242,6 +251,7 @@ impl JobProcessor for WitnessVectorGenerator {
 async fn handle_send_result(
     result: &Result<(Duration, u64), String>,
     job_id: u32,
+    chain_id: L2ChainId,
     address: &SocketAddr,
     pool: &ConnectionPool<Prover>,
     zone: String,
@@ -288,7 +298,7 @@ async fn handle_send_result(
                 .await
                 .unwrap()
                 .fri_prover_jobs_dal()
-                .save_proof_error(job_id, "prover instance unreachable".to_string())
+                .save_proof_error(job_id, chain_id, "prover instance unreachable".to_string())
                 .await;
         }
     }
