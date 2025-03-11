@@ -128,7 +128,7 @@ async fn create_l1_test_watcher(
 async fn create_gateway_test_watcher(
     connection_pool: ConnectionPool<Core>,
 ) -> (EthWatch, MockEthClient, MockEthClient) {
-    create_test_watcher(connection_pool, SettlementMode::SettlesToL1).await
+    create_test_watcher(connection_pool, SettlementMode::Gateway).await
 }
 
 #[test_log::test(tokio::test)]
