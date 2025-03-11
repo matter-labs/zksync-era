@@ -57,6 +57,8 @@ else
   echo "Updating configuration for Custom Token chain..."
 fi
 
+echo "Configuration updated successfully."
+
 # Extract the database name (everything after the last '/')
 SERVER_DB_NAME="${DATABASE_URL##*/}"
 
@@ -66,12 +68,6 @@ SERVER_DB_URL="${DATABASE_URL%/*}"
 if [ -z "$MASTER_URL" ]; then
   echo "Running as zksync master"
 
-  update_config "$CONFIG_PATH/secrets.yaml" "server_url" "$DATABASE_URL"
-  update_config "$CONFIG_PATH/secrets.yaml" "prover_url" "$DATABASE_PROVER_URL"
-  update_config "$CONFIG_PATH/secrets.yaml" "l1_rpc_url" "$ETH_CLIENT_WEB3_URL"
-
-  echo "Configuration updated successfully."
-
   zkstack ecosystem init --deploy-paymaster --deploy-erc20 \
     --deploy-ecosystem --l1-rpc-url=$ETH_CLIENT_WEB3_URL \
     --server-db-url="$SERVER_DB_URL" \
@@ -79,6 +75,8 @@ if [ -z "$MASTER_URL" ]; then
     --ignore-prerequisites --verbose \
     --observability=false \
     --update-submodules=false
+
+  rm -rf /usr/local/share/.cache /contracts/node_modules /node_modules 
 
   # start server
   zkstack server
@@ -97,12 +95,6 @@ else
     --evm-emulator false \
     --update-submodules=false
   
-  update_config "$CONFIG_PATH/secrets.yaml" "server_url" "$DATABASE_URL"
-  update_config "$CONFIG_PATH/secrets.yaml" "prover_url" "$DATABASE_PROVER_URL"
-  update_config "$CONFIG_PATH/secrets.yaml" "l1_rpc_url" "$ETH_CLIENT_WEB3_URL"
-
-  echo "Configuration updated successfully."
-
   zkstack chain init \
     --deploy-paymaster \
     --l1-rpc-url=$ETH_CLIENT_WEB3_URL \
@@ -111,6 +103,8 @@ else
     --chain custom_token \
     --validium-type no-da \
     --update-submodules=false
+  
+  rm -rf /usr/local/share/.cache /contracts/node_modules /node_modules
   # # If running in slave mode - wait for the master to be up and running.
   # echo "Waiting for zksync master to init hyperchain"
   # until curl --fail ${MASTER_HEALTH_URL}; do
