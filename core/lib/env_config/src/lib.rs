@@ -1,4 +1,3 @@
-use anyhow::Context as _;
 use serde::de::DeserializeOwned;
 
 mod api;
@@ -33,7 +32,7 @@ mod test_utils;
 mod vm_runner;
 mod wallets;
 
-mod da_client;
+pub mod da_client;
 mod timestamp_asserter;
 
 pub trait FromEnv: Sized {
@@ -45,5 +44,5 @@ pub trait FromEnv: Sized {
 pub fn envy_load<T: DeserializeOwned>(name: &str, prefix: &str) -> anyhow::Result<T> {
     envy::prefixed(prefix)
         .from_env()
-        .with_context(|| format!("Cannot load config <{name}>"))
+        .map_err(|e| anyhow::anyhow!("Failed to load {} from env: {}", name, e))
 }

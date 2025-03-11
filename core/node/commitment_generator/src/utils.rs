@@ -47,6 +47,7 @@ impl CommitmentComputer for RealCommitmentComputer {
         events_queue: &[LogQuery],
         _protocol_version: ProtocolVersionId,
     ) -> anyhow::Result<H256> {
+        // FIXME: is this OK to process using 0.151.x?
         let commitment = circuit_encodings::commitments::events_queue_commitment_fixed(
             &events_queue
                 .iter()

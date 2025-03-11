@@ -452,9 +452,8 @@ contracts to be deployed.
 
 - `--from-genesis` — Set attester committee to `consensus.genesis_spec.attesters` in general.yaml Mutually exclusive
   with `--from-file`.
-- `--from-file <PATH>` — Set attester committee to committee specified in yaml file at `PATH`.  
-  Mutually exclusive with `--from-genesis`. File format is specified in
-  `zk_inception/src/commands/consensus/proto/mod.proto`. Example:
+- `--from-file <PATH>` — Set attester committee to committee specified in yaml file at `PATH`. Mutually exclusive with
+  `--from-genesis`. File format is specified in `zk_inception/src/commands/consensus/proto/mod.proto`. Example:
 
   ```yaml
   attesters:
@@ -497,16 +496,9 @@ Initialize prover
 - `--bucket-name <BUCKET_NAME>`
 - `--location <LOCATION>`
 - `--project-id <PROJECT_ID>`
-- `--shall-save-to-public-bucket <SHALL_SAVE_TO_PUBLIC_BUCKET>`
 
   Possible values: `true`, `false`
 
-- `--public-store-dir <PUBLIC_STORE_DIR>`
-- `--public-bucket-base-url <PUBLIC_BUCKET_BASE_URL>`
-- `--public-credentials-file <PUBLIC_CREDENTIALS_FILE>`
-- `--public-bucket-name <PUBLIC_BUCKET_NAME>`
-- `--public-location <PUBLIC_LOCATION>`
-- `--public-project-id <PUBLIC_PROJECT_ID>`
 - `--bellman-cuda-dir <BELLMAN_CUDA_DIR>`
 - `--bellman-cuda`
 

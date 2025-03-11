@@ -1,69 +1,123 @@
-//! Load-testing for the Merkle tree implementation.
-//!
-//! Should be compiled with the release profile, otherwise hashing and other ops would be
-//! prohibitively slow.
+//! Load test for the Merkle tree.
 
-use std::{
-    any, thread,
-    time::{Duration, Instant},
-};
+use std::{hint::black_box, ops, time::Instant};
 
-use anyhow::Context as _;
+use anyhow::Context;
 use clap::Parser;
-use rand::{rngs::StdRng, seq::IteratorRandom, SeedableRng};
+use rand::{
+    prelude::{IteratorRandom, StdRng},
+    SeedableRng,
+};
 use tempfile::TempDir;
 use tracing_subscriber::EnvFilter;
-use zksync_crypto_primitives::hasher::blake2::Blake2Hasher;
-use zksync_merkle_tree::{
-    Database, HashTree, MerkleTree, MerkleTreePruner, PatchSet, RocksDBWrapper, TreeEntry,
-    TreeInstruction,
+use zk_os_merkle_tree::{
+    unstable, Database, DefaultTreeParams, DeserializeError, HashTree, MerkleTree, PatchSet,
+    Patched, RocksDBWrapper, TreeEntry, TreeParams,
 };
+use zksync_basic_types::H256;
+use zksync_crypto_primitives::hasher::{blake2::Blake2Hasher, Hasher};
 use zksync_storage::{RocksDB, RocksDBOptions};
-use zksync_types::{AccountTreeId, Address, StorageKey, H256, U256};
 
-use crate::batch::WithBatching;
+#[derive(Debug)]
+struct WithDynHasher;
 
-mod batch;
+impl TreeParams for WithDynHasher {
+    type Hasher = &'static dyn HashTree;
+    const TREE_DEPTH: u8 = <DefaultTreeParams>::TREE_DEPTH;
+    const INTERNAL_NODE_DEPTH: u8 = <DefaultTreeParams>::INTERNAL_NODE_DEPTH;
+}
 
-fn panic_to_error(panic: Box<dyn any::Any + Send>) -> anyhow::Error {
-    let panic_message = if let Some(&panic_string) = panic.downcast_ref::<&'static str>() {
-        panic_string.to_string()
-    } else if let Some(panic_string) = panic.downcast_ref::<String>() {
-        panic_string.to_string()
-    } else {
-        "(unknown panic)".to_string()
-    };
-    anyhow::Error::msg(panic_message)
+pub struct WithBatching<'a> {
+    inner: Patched<&'a mut dyn Database>,
+    batch_size: usize,
+    in_memory_batch_size: usize,
+}
+
+impl<'a> WithBatching<'a> {
+    pub fn new(db: &'a mut dyn Database, batch_size: usize) -> Self {
+        assert!(batch_size > 0, "Batch size must be positive");
+        Self {
+            inner: Patched::new(db),
+            batch_size,
+            in_memory_batch_size: 0,
+        }
+    }
+}
+
+impl Database for WithBatching<'_> {
+    fn indices(
+        &self,
+        version: u64,
+        keys: &[H256],
+    ) -> Result<Vec<unstable::KeyLookup>, DeserializeError> {
+        self.inner.indices(version, keys)
+    }
+
+    fn try_manifest(&self) -> Result<Option<unstable::Manifest>, DeserializeError> {
+        self.inner.try_manifest()
+    }
+
+    fn try_root(&self, version: u64) -> Result<Option<unstable::Root>, DeserializeError> {
+        self.inner.try_root(version)
+    }
+
+    fn try_nodes(
+        &self,
+        keys: &[unstable::NodeKey],
+    ) -> Result<Vec<unstable::Node>, DeserializeError> {
+        self.inner.try_nodes(keys)
+    }
+
+    fn apply_patch(&mut self, patch: PatchSet) -> anyhow::Result<()> {
+        self.inner.apply_patch(patch)?;
+
+        self.in_memory_batch_size += 1;
+        if self.in_memory_batch_size >= self.batch_size {
+            tracing::info!("Flushing changes to underlying DB");
+            self.inner.flush()?;
+            self.in_memory_batch_size = 0;
+        }
+        Ok(())
+    }
+
+    fn truncate(
+        &mut self,
+        manifest: unstable::Manifest,
+        truncated_versions: ops::RangeTo<u64>,
+    ) -> anyhow::Result<()> {
+        self.inner.flush()?;
+        self.inner.truncate(manifest, truncated_versions)
+    }
 }
 
 /// CLI for load-testing for the Merkle tree implementation.
 #[derive(Debug, Parser)]
 #[command(author, version, about, long_about = None)]
 struct Cli {
-    /// Number of commits to perform.
-    #[arg(name = "commits")]
-    commit_count: u64,
-    /// Number of inserts / updates per commit.
+    /// Number of batches to insert into the tree.
+    #[arg(name = "batches")]
+    batch_count: u64,
+    /// Number of inserts per commit.
     #[arg(name = "ops")]
-    writes_per_commit: usize,
+    writes_per_batch: usize,
+    /// Additional number of updates of previously written keys per commit.
+    #[arg(name = "updates", long, default_value = "0")]
+    updates_per_batch: usize,
     /// Generate Merkle proofs for each operation.
     #[arg(name = "proofs", long)]
     proofs: bool,
     /// Additional number of reads of previously written keys per commit.
     #[arg(name = "reads", long, default_value = "0", requires = "proofs")]
-    reads_per_commit: usize,
-    /// Additional number of updates of previously written keys per commit.
-    #[arg(name = "updates", long, default_value = "0")]
-    updates_per_commit: usize,
+    reads_per_batch: usize,
+    /// Interval between flushes to the underlying DB.
+    #[arg(long = "flush-interval")]
+    flush_interval: Option<usize>,
     /// Use a no-op hashing function.
     #[arg(name = "no-hash", long)]
     no_hashing: bool,
     /// Perform testing on in-memory DB rather than RocksDB (i.e., with focus on hashing logic).
     #[arg(long = "in-memory", short = 'M')]
     in_memory: bool,
-    /// Size of batches used.
-    #[arg(long = "batch")]
-    batch_size: Option<usize>,
     /// Block cache capacity for RocksDB in bytes.
     #[arg(long = "block-cache", conflicts_with = "in_memory")]
     block_cache: Option<usize>,
@@ -77,9 +131,6 @@ struct Cli {
     /// Seed to use in the RNG for reproducibility.
     #[arg(long = "rng-seed", default_value = "0")]
     rng_seed: u64,
-    /// Enables tree pruning.
-    #[arg(long = "prune", conflicts_with = "in_memory")]
-    prune: bool,
 }
 
 impl Cli {
@@ -96,7 +147,6 @@ impl Cli {
 
         let (mut mock_db, mut rocksdb);
         let mut _temp_dir = None;
-        let mut pruner_handles = None;
         let mut db: &mut dyn Database = if self.in_memory {
             mock_db = PatchSet::default();
             &mut mock_db
@@ -119,35 +169,30 @@ impl Cli {
                 rocksdb.set_multi_get_chunk_size(chunk_size);
             }
 
-            if self.prune {
-                let (mut pruner, pruner_handle) = MerkleTreePruner::new(rocksdb.clone());
-                pruner.set_poll_interval(Duration::from_secs(10));
-                let pruner_thread = thread::spawn(|| pruner.run());
-                pruner_handles = Some((pruner_handle, pruner_thread));
-            }
             _temp_dir = Some(dir);
             &mut rocksdb
         };
 
         let mut batching_db;
-        if let Some(batch_size) = self.batch_size {
-            batching_db = WithBatching::new(db, batch_size);
+        if let Some(flush_interval) = self.flush_interval {
+            batching_db = WithBatching::new(db, flush_interval);
             db = &mut batching_db;
         }
 
         let hasher: &dyn HashTree = if self.no_hashing { &() } else { &Blake2Hasher };
         let mut rng = StdRng::seed_from_u64(self.rng_seed);
 
-        let mut tree = MerkleTree::with_hasher(db, hasher).context("cannot create tree")?;
+        let mut tree = MerkleTree::<_, WithDynHasher>::with_hasher(db, hasher)
+            .context("cannot create tree")?;
         let mut next_key_idx = 0_u64;
         let mut next_value_idx = 0_u64;
-        for version in 0..self.commit_count {
+        for version in 0..self.batch_count {
             let new_keys: Vec<_> = Self::generate_keys(next_key_idx..)
-                .take(self.writes_per_commit)
+                .take(self.writes_per_batch)
                 .collect();
-            let read_indices = (0..=next_key_idx).choose_multiple(&mut rng, self.reads_per_commit);
             let updated_indices =
-                (0..=next_key_idx).choose_multiple(&mut rng, self.updates_per_commit);
+                (0..next_key_idx).choose_multiple(&mut rng, self.updates_per_batch);
+            let read_indices = (0..next_key_idx).choose_multiple(&mut rng, self.reads_per_batch);
             next_key_idx += new_keys.len() as u64;
 
             next_value_idx += (new_keys.len() + updated_indices.len()) as u64;
@@ -156,39 +201,25 @@ impl Cli {
                 .into_iter()
                 .chain(updated_keys)
                 .zip(next_value_idx..);
-            let kvs = kvs.map(|(key, idx)| {
-                // The assigned leaf indices here are not always correct, but it's OK for load test purposes.
-                TreeEntry::new(key, idx, H256::from_low_u64_be(idx))
+            let kvs = kvs.map(|(key, idx)| TreeEntry {
+                key,
+                value: H256::from_low_u64_be(idx),
             });
+            let kvs = kvs.collect::<Vec<_>>();
 
             tracing::info!("Processing block #{version}");
             let start = Instant::now();
-            let root_hash = if self.proofs {
-                let reads =
-                    Self::generate_keys(read_indices.into_iter()).map(TreeInstruction::Read);
-                let instructions = kvs.map(TreeInstruction::Write).chain(reads).collect();
-                let output = tree
-                    .extend_with_proofs(instructions)
+            let output = if self.proofs {
+                let read_keys: Vec<_> = Self::generate_keys(read_indices.into_iter()).collect();
+                let (output, proof) = tree
+                    .extend_with_proof(&kvs, &read_keys)
                     .context("failed extending tree")?;
-                output.root_hash().context("tree update is empty")?
+                black_box(proof); // Ensure that proof creation isn't optimized away
+                output
             } else {
-                let output = tree
-                    .extend(kvs.collect())
-                    .context("failed extending tree")?;
-                output.root_hash
+                tree.extend(&kvs).context("failed extending tree")?
             };
-
-            if let Some((pruner_handle, _)) = &pruner_handles {
-                if pruner_handle.set_target_retained_version(version).is_err() {
-                    tracing::error!("Pruner unexpectedly stopped");
-                    let (_, pruner_thread) = pruner_handles.unwrap();
-                    pruner_thread
-                        .join()
-                        .map_err(panic_to_error)
-                        .context("pruner thread panicked")??;
-                    return Ok(()); // unreachable
-                }
-            }
+            let root_hash = output.root_hash;
 
             let elapsed = start.elapsed();
             tracing::info!("Processed block #{version} in {elapsed:?}, root hash = {root_hash:?}");
@@ -196,27 +227,18 @@ impl Cli {
 
         tracing::info!("Verifying tree consistency...");
         let start = Instant::now();
-        tree.verify_consistency(self.commit_count - 1, false)
+        tree.verify_consistency(self.batch_count - 1)
             .context("tree consistency check failed")?;
         let elapsed = start.elapsed();
         tracing::info!("Verified tree consistency in {elapsed:?}");
 
-        if let Some((pruner_handle, pruner_thread)) = pruner_handles {
-            drop(pruner_handle);
-            pruner_thread
-                .join()
-                .map_err(panic_to_error)
-                .context("pruner thread panicked")??;
-        }
         Ok(())
     }
 
-    fn generate_keys(key_indexes: impl Iterator<Item = u64>) -> impl Iterator<Item = U256> {
-        let address: Address = "4b3af74f66ab1f0da3f2e4ec7a3cb99baf1af7b2".parse().unwrap();
+    fn generate_keys(key_indexes: impl Iterator<Item = u64>) -> impl Iterator<Item = H256> {
         key_indexes.map(move |idx| {
             let key = H256::from_low_u64_be(idx);
-            let key = StorageKey::new(AccountTreeId::new(address), key);
-            key.hashed_key_u256()
+            Blake2Hasher.hash_bytes(key.as_bytes())
         })
     }
 }

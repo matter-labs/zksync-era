@@ -134,7 +134,7 @@ _arguments "${_arguments_options[@]}" : \
 '-o+[Enable Grafana]' \
 '--observability=[Enable Grafana]' \
 '--update-submodules=[]:UPDATE_SUBMODULES:(true false)' \
-'--validium-type=[Type of the Validium network]:VALIDIUM_TYPE:(no-da avail)' \
+'--validium-type=[Type of the Validium network]:VALIDIUM_TYPE:(no-da avail eigen-da)' \
 '--support-l2-legacy-shared-bridge-test=[]' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--resume[]' \
@@ -295,7 +295,7 @@ _arguments "${_arguments_options[@]}" : \
 '--deploy-paymaster=[]' \
 '--l1-rpc-url=[L1 RPC URL]:L1_RPC_URL:_default' \
 '--update-submodules=[]:UPDATE_SUBMODULES:(true false)' \
-'--validium-type=[Type of the Validium network]:VALIDIUM_TYPE:(no-da avail)' \
+'--validium-type=[Type of the Validium network]:VALIDIUM_TYPE:(no-da avail eigen-da)' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--resume[]' \
 '--zksync[]' \
@@ -1896,13 +1896,6 @@ _arguments "${_arguments_options[@]}" : \
 '--bucket-name=[]:BUCKET_NAME:_default' \
 '--location=[]:LOCATION:_default' \
 '--project-id=[]:PROJECT_ID:_default' \
-'--shall-save-to-public-bucket=[]:SHALL_SAVE_TO_PUBLIC_BUCKET:(true false)' \
-'--public-store-dir=[]:PUBLIC_STORE_DIR:_default' \
-'--public-bucket-base-url=[]:PUBLIC_BUCKET_BASE_URL:_default' \
-'--public-credentials-file=[]:PUBLIC_CREDENTIALS_FILE:_default' \
-'--public-bucket-name=[]:PUBLIC_BUCKET_NAME:_default' \
-'--public-location=[]:PUBLIC_LOCATION:_default' \
-'--public-project-id=[]:PUBLIC_PROJECT_ID:_default' \
 '(--clone)--bellman-cuda-dir=[]:BELLMAN_CUDA_DIR:_default' \
 '--bellman-cuda=[]' \
 '--setup-compressor-key=[]' \
