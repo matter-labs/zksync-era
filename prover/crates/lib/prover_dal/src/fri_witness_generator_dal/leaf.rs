@@ -111,7 +111,7 @@ impl FriLeafWitnessGeneratorDal<'_, '_> {
             chain_id,
             block_number,
             circuit_id: row.circuit_id as u8,
-            prover_job_ids_for_proofs: proof_job_ids.into_iter().map(|ids| ids.1 as u32).collect(),
+            prover_job_ids_for_proofs: proof_job_ids.into_iter().map(|ids| ids.1).collect(),
         })
     }
 

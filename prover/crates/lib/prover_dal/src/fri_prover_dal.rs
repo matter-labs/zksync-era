@@ -624,7 +624,7 @@ impl FriProverDal<'_, '_> {
             VALUES
             ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'queued', NOW(), NOW(), $10)
             ON CONFLICT (
-                l1_batch_number, aggregation_round, circuit_id, depth, sequence_number
+                l1_batch_number, chain_id, aggregation_round, circuit_id, depth, sequence_number
             ) DO
             UPDATE
             SET
@@ -1073,7 +1073,7 @@ impl FriProverDal<'_, '_> {
                 sequence_number ASC;
             "#,
             batch_number.raw_batch_number() as i64,
-            circuit_id as i8,
+            i16::from(circuit_id),
             round as i16,
             i32::from(depth),
             batch_number.raw_chain_id() as i32
