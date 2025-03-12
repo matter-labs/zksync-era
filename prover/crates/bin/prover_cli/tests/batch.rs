@@ -225,12 +225,19 @@ async fn insert_bwg_job(
 ) {
     connection
         .fri_basic_witness_generator_dal()
-        .save_witness_inputs(ChainAwareL1BatchNumber::new(L2ChainId::zero(), batch_number), "", ProtocolSemanticVersion::default())
+        .save_witness_inputs(
+            ChainAwareL1BatchNumber::new(L2ChainId::zero(), batch_number),
+            "",
+            ProtocolSemanticVersion::default(),
+        )
         .await
         .unwrap();
     connection
         .fri_basic_witness_generator_dal()
-        .set_status_for_basic_witness_job(status, ChainAwareL1BatchNumber::new(L2ChainId::zero(), batch_number))
+        .set_status_for_basic_witness_job(
+            status,
+            ChainAwareL1BatchNumber::new(L2ChainId::zero(), batch_number),
+        )
         .await;
 }
 
