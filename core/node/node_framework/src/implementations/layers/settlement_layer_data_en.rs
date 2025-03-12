@@ -4,7 +4,7 @@ use zksync_config::configs::contracts::{
 };
 use zksync_consistency_checker::get_db_settlement_mode;
 use zksync_contracts::getters_facet_contract;
-use zksync_contracts_loader::{get_settlement_layer_for_l1_call, load_settlement_layer_contracts};
+use zksync_contracts_loader::{get_settlement_layer_from_l1, load_settlement_layer_contracts};
 use zksync_eth_client::EthInterface;
 use zksync_types::{settlement::SettlementMode, Address, L2ChainId, L2_BRIDGEHUB_ADDRESS};
 
@@ -87,7 +87,7 @@ impl WiringLayer for SettlementLayerDataEn {
             // If it's the new chain it's safe to check the actual sl onchain,
             // in the worst case scenario chain
             // en will be restarted right after the first batch and fill the database with correct values
-            get_settlement_layer_for_l1_call(
+            get_settlement_layer_from_l1(
                 &input.eth_client.0.as_ref(),
                 self.l1_chain_contracts
                     .chain_contracts_config

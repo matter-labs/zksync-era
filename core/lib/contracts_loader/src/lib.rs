@@ -67,7 +67,7 @@ pub async fn load_settlement_layer_contracts(
 /// This function will return correct settlement mode only if it's called for L1.
 /// Due to implementation details if the settlement layer set to zero,
 /// that means the current layer is settlement layer
-pub async fn get_settlement_layer_for_l1_call(
+pub async fn get_settlement_layer_from_l1(
     eth_client: &dyn EthInterface,
     diamond_proxy_addr: Address,
     abi: &Contract,

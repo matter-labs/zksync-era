@@ -1,7 +1,7 @@
 use anyhow::Context;
 use zksync_config::configs::contracts::{chain::L2Contracts, ecosystem::L1SpecificContracts};
 use zksync_contracts::getters_facet_contract;
-use zksync_contracts_loader::{get_settlement_layer_for_l1_call, load_settlement_layer_contracts};
+use zksync_contracts_loader::{get_settlement_layer_from_l1, load_settlement_layer_contracts};
 use zksync_eth_client::EthInterface;
 use zksync_gateway_migrator::switch_to_current_settlement_mode;
 use zksync_types::{settlement::SettlementMode, Address, L2ChainId, L2_BRIDGEHUB_ADDRESS};
@@ -83,7 +83,7 @@ impl WiringLayer for SettlementLayerData {
         )
         .await?
         .context("No diamond proxy deployed for chain id on L1")?;
-        let initial_sl_mode = get_settlement_layer_for_l1_call(
+        let initial_sl_mode = get_settlement_layer_from_l1(
             &input.eth_client.0,
             sl_l1_contracts.chain_contracts_config.diamond_proxy_addr,
             &getters_facet_contract(),

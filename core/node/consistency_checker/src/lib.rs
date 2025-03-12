@@ -376,17 +376,17 @@ impl ConsistencyChecker {
     const DEFAULT_SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 
     pub async fn new(
-        gateway_client: Box<dyn EthInterface>,
+        sl_client: Box<dyn EthInterface>,
         max_batches_to_recheck: u32,
         pool: ConnectionPool<Core>,
         commitment_mode: L1BatchCommitmentMode,
         settlement_mode: SettlementMode,
     ) -> anyhow::Result<Self> {
         let (health_check, health_updater) = ConsistencyCheckerHealthUpdater::new();
-        let gateway_chain_id = gateway_client.fetch_chain_id().await?;
+        let sl_chain_id = sl_client.fetch_chain_id().await?;
         let chain_data = SLChainAccess {
-            client: gateway_client,
-            chain_id: gateway_chain_id,
+            client: sl_client,
+            chain_id: sl_chain_id,
             diamond_proxy_addr: None,
         };
 

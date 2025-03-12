@@ -4,9 +4,8 @@ use crate::H256;
 
 #[derive(Debug, PartialEq)]
 pub enum GatewayMigrationState {
-    NotStarted,
-    Started,
-    Finalized,
+    InProgress,
+    NotInProgress,
 }
 
 #[derive(Debug, Clone)]

@@ -569,13 +569,14 @@ impl EthTxAggregator {
                     get_priority_tree_start_index(self.eth_client.as_ref()).await?;
                 self.priority_tree_start_index
             };
-        let commit_restriction = if self.gateway_migration_state == GatewayMigrationState::Started {
-            Some("Gateway migration started")
-        } else {
-            self.config
-                .tx_aggregation_only_prove_and_execute
-                .then_some("tx_aggregation_only_prove_and_execute=true")
-        };
+        let commit_restriction =
+            if self.gateway_migration_state == GatewayMigrationState::InProgress {
+                Some("Gateway migration started")
+            } else {
+                self.config
+                    .tx_aggregation_only_prove_and_execute
+                    .then_some("tx_aggregation_only_prove_and_execute=true")
+            };
 
         let mut op_restrictions = OperationSkippingRestrictions {
             commit_restriction,
@@ -950,18 +951,18 @@ async fn gateway_status(
         .map(|a| match sl_layer {
             SettlementMode::SettlesToL1 => {
                 if a.main_topic == to_gateway {
-                    GatewayMigrationState::Started
+                    GatewayMigrationState::InProgress
                 } else {
-                    GatewayMigrationState::Finalized
+                    GatewayMigrationState::NotInProgress
                 }
             }
             SettlementMode::Gateway => {
                 if a.main_topic == from_gateway {
-                    GatewayMigrationState::Started
+                    GatewayMigrationState::InProgress
                 } else {
-                    GatewayMigrationState::Finalized
+                    GatewayMigrationState::NotInProgress
                 }
             }
         })
-        .unwrap_or(GatewayMigrationState::NotStarted)
+        .unwrap_or(GatewayMigrationState::NotInProgress)
 }

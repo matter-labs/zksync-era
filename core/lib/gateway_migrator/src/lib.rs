@@ -5,7 +5,7 @@ use tokio::sync::watch;
 use zksync_basic_types::{ethabi::Contract, settlement::SettlementMode, Address, L2ChainId};
 use zksync_contracts::getters_facet_contract;
 use zksync_contracts_loader::{
-    get_settlement_layer_address, get_settlement_layer_for_l1_call, load_settlement_layer_contracts,
+    get_settlement_layer_address, get_settlement_layer_from_l1, load_settlement_layer_contracts,
 };
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::EthInterface;
@@ -53,7 +53,7 @@ impl GatewayMigrator {
                 tracing::info!("Stop signal received, GatewayMigrator is shutting down");
                 return Ok(());
             }
-            let settlement_mode = get_settlement_layer_for_l1_call(
+            let settlement_mode = get_settlement_layer_from_l1(
                 self.eth_client.as_ref(),
                 self.l1_diamond_proxy_addr,
                 &self.abi,
