@@ -2,7 +2,7 @@ use anyhow::Context as _;
 use clap::Args as ClapArgs;
 use zksync_basic_types::{
     protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch},
-    L1BatchNumber,
+    ChainAwareL1BatchNumber, L1BatchNumber, L2ChainId,
 };
 use zksync_db_connection::connection_pool::ConnectionPool;
 use zksync_prover_dal::{Prover, ProverDal};
@@ -13,6 +13,8 @@ use crate::cli::ProverCLIConfig;
 pub struct Args {
     #[clap(short, long)]
     pub number: L1BatchNumber,
+    #[clap(short, long, default_value_t = 0)]
+    pub chain_id: u64,
     #[clap(short, long)]
     pub version: u16,
     #[clap(short, long)]
@@ -31,9 +33,12 @@ pub async fn run(args: Args, config: ProverCLIConfig) -> anyhow::Result<()> {
 
     let protocol_version_patch = VersionPatch(args.patch);
 
+    let batch_number =
+        ChainAwareL1BatchNumber::new(L2ChainId::new(args.chain_id).unwrap(), args.number);
+
     conn.fri_basic_witness_generator_dal()
         .save_witness_inputs(
-            args.number,
+            batch_number,
             &format!("witness_inputs_{}", args.number.0),
             ProtocolSemanticVersion::new(protocol_version, protocol_version_patch),
         )

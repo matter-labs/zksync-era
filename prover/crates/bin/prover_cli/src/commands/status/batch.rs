@@ -4,6 +4,7 @@ use anyhow::Context as _;
 use circuit_definitions::zkevm_circuits::scheduler::aux::BaseLayerCircuitType;
 use clap::Args as ClapArgs;
 use colored::*;
+use zksync_basic_types::{ChainAwareL1BatchNumber, L2ChainId};
 use zksync_prover_dal::{Connection, ConnectionPool, Prover, ProverDal};
 use zksync_types::{
     basic_fri_types::AggregationRound,
@@ -26,12 +27,14 @@ use crate::{
 pub struct Args {
     #[clap(short = 'n', num_args = 1.., required = true)]
     batches: Vec<L1BatchNumber>,
+    #[clap(short = 'c', num_args = 1.., required = true)]
+    chain_id: u64,
     #[clap(short, long, default_value("false"))]
     verbose: bool,
 }
 
 pub(crate) async fn run(args: Args, config: ProverCLIConfig) -> anyhow::Result<()> {
-    let batches_data = get_batches_data(args.batches, config.db_url).await?;
+    let batches_data = get_batches_data(args.batches, args.chain_id, config.db_url).await?;
 
     for batch_data in batches_data {
         println!(
@@ -66,6 +69,7 @@ pub(crate) async fn run(args: Args, config: ProverCLIConfig) -> anyhow::Result<(
 
 async fn get_batches_data(
     batches: Vec<L1BatchNumber>,
+    chain_id: u64,
     db_url: SensitiveUrl,
 ) -> anyhow::Result<Vec<BatchData>> {
     let prover_connection_pool = ConnectionPool::<Prover>::singleton(db_url)
@@ -80,8 +84,9 @@ async fn get_batches_data(
 
     let mut batches_data = Vec::new();
     for batch in batches {
+        let batch = ChainAwareL1BatchNumber::new(L2ChainId::new(chain_id).unwrap(), batch);
         let current_batch_data = BatchData {
-            batch_number: batch,
+            batch_number: batch.batch_number(),
             basic_witness_generator: StageInfo::BasicWitnessGenerator {
                 witness_generator_job_info: get_proof_basic_witness_generator_into_for_batch(
                     batch, &mut conn,
@@ -135,7 +140,7 @@ async fn get_batches_data(
 }
 
 async fn get_prover_jobs_info_for_batch<'a>(
-    batch_number: L1BatchNumber,
+    batch_number: ChainAwareL1BatchNumber,
     aggregation_round: AggregationRound,
     conn: &mut Connection<'a, Prover>,
 ) -> Vec<ProverJobFriInfo> {
@@ -145,7 +150,7 @@ async fn get_prover_jobs_info_for_batch<'a>(
 }
 
 async fn get_proof_basic_witness_generator_into_for_batch<'a>(
-    batch_number: L1BatchNumber,
+    batch_number: ChainAwareL1BatchNumber,
     conn: &mut Connection<'a, Prover>,
 ) -> Option<BasicWitnessGeneratorJobInfo> {
     conn.fri_basic_witness_generator_dal()
@@ -154,7 +159,7 @@ async fn get_proof_basic_witness_generator_into_for_batch<'a>(
 }
 
 async fn get_proof_leaf_witness_generator_info_for_batch<'a>(
-    batch_number: L1BatchNumber,
+    batch_number: ChainAwareL1BatchNumber,
     conn: &mut Connection<'a, Prover>,
 ) -> Vec<LeafWitnessGeneratorJobInfo> {
     conn.fri_leaf_witness_generator_dal()
@@ -163,7 +168,7 @@ async fn get_proof_leaf_witness_generator_info_for_batch<'a>(
 }
 
 async fn get_proof_node_witness_generator_info_for_batch<'a>(
-    batch_number: L1BatchNumber,
+    batch_number: ChainAwareL1BatchNumber,
     conn: &mut Connection<'a, Prover>,
 ) -> Vec<NodeWitnessGeneratorJobInfo> {
     conn.fri_node_witness_generator_dal()
@@ -172,7 +177,7 @@ async fn get_proof_node_witness_generator_info_for_batch<'a>(
 }
 
 async fn get_proof_recursion_tip_witness_generator_info_for_batch<'a>(
-    batch_number: L1BatchNumber,
+    batch_number: ChainAwareL1BatchNumber,
     conn: &mut Connection<'a, Prover>,
 ) -> Option<RecursionTipWitnessGeneratorJobInfo> {
     conn.fri_recursion_tip_witness_generator_dal()
@@ -181,7 +186,7 @@ async fn get_proof_recursion_tip_witness_generator_info_for_batch<'a>(
 }
 
 async fn get_proof_scheduler_witness_generator_info_for_batch<'a>(
-    batch_number: L1BatchNumber,
+    batch_number: ChainAwareL1BatchNumber,
     conn: &mut Connection<'a, Prover>,
 ) -> Option<SchedulerWitnessGeneratorJobInfo> {
     conn.fri_scheduler_witness_generator_dal()
@@ -190,7 +195,7 @@ async fn get_proof_scheduler_witness_generator_info_for_batch<'a>(
 }
 
 async fn get_proof_compression_job_info_for_batch<'a>(
-    batch_number: L1BatchNumber,
+    batch_number: ChainAwareL1BatchNumber,
     conn: &mut Connection<'a, Prover>,
 ) -> Option<ProofCompressionJobInfo> {
     conn.fri_proof_compressor_dal()

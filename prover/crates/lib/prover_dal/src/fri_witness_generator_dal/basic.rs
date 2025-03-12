@@ -3,7 +3,7 @@ use std::time::Duration;
 use zksync_basic_types::{
     protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch},
     prover_dal::{BasicWitnessGeneratorJobInfo, StuckJobs, WitnessJobStatus},
-    ChainAwareL1BatchNumber, L1BatchNumber, L2ChainId,
+    ChainAwareL1BatchNumber, L2ChainId,
 };
 use zksync_db_connection::{
     connection::Connection,
@@ -236,8 +236,7 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
 
     pub async fn get_basic_witness_generator_job_for_batch(
         &mut self,
-        l1_batch_number: L1BatchNumber,
-        chain_id: L2ChainId,
+        batch_number: ChainAwareL1BatchNumber,
     ) -> Option<BasicWitnessGeneratorJobInfo> {
         sqlx::query!(
             r#"
@@ -249,14 +248,14 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
                 l1_batch_number = $1
                 AND chain_id = $2
             "#,
-            i64::from(l1_batch_number.0),
-            chain_id.as_u64() as i32
+            i64::from(batch_number.raw_batch_number()),
+            batch_number.raw_chain_id() as i32
         )
         .fetch_optional(self.storage.conn())
         .await
         .unwrap()
         .map(|row| BasicWitnessGeneratorJobInfo {
-            l1_batch_number,
+            l1_batch_number: batch_number.batch_number(),
             chain_id: L2ChainId::new(row.chain_id as u64).unwrap(),
             witness_inputs_blob_url: row.witness_inputs_blob_url,
             attempts: row.attempts as u32,

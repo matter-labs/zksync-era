@@ -1,5 +1,6 @@
 use anyhow::Context;
 use clap::Args as ClapArgs;
+use zksync_basic_types::{ChainAwareL1BatchNumber, L2ChainId};
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_types::{basic_fri_types::AggregationRound, prover_dal::StuckJobs, L1BatchNumber};
 
@@ -9,6 +10,8 @@ use crate::cli::ProverCLIConfig;
 pub struct Args {
     #[clap(short, long)]
     batch: L1BatchNumber,
+    #[clap(short, long)]
+    chain_id: u64,
     /// Maximum number of attempts to re-queue a job.
     /// Default value is 10.
     /// NOTE: this argument is temporary and will be deprecated once the `config` command is implemented.
@@ -27,15 +30,18 @@ pub async fn run(args: Args, config: ProverCLIConfig) -> anyhow::Result<()> {
         .await
         .context("failed to acquire a connection")?;
 
+    let batch_number =
+        ChainAwareL1BatchNumber::new(L2ChainId::new(args.chain_id).unwrap(), args.batch);
+
     let stuck_witness_input_jobs = conn
         .fri_basic_witness_generator_dal()
-        .requeue_stuck_witness_inputs_jobs_for_batch(args.batch, args.max_attempts)
+        .requeue_stuck_witness_inputs_jobs_for_batch(batch_number, args.max_attempts)
         .await;
     display_requeued_stuck_jobs(stuck_witness_input_jobs, AggregationRound::BasicCircuits);
 
     let stuck_leaf_aggregations_stuck_jobs = conn
         .fri_witness_generator_dal()
-        .requeue_stuck_leaf_aggregation_jobs_for_batch(args.batch, args.max_attempts)
+        .requeue_stuck_leaf_aggregation_jobs_for_batch(batch_number, args.max_attempts)
         .await;
     display_requeued_stuck_jobs(
         stuck_leaf_aggregations_stuck_jobs,
@@ -44,7 +50,7 @@ pub async fn run(args: Args, config: ProverCLIConfig) -> anyhow::Result<()> {
 
     let stuck_node_aggregations_jobs = conn
         .fri_witness_generator_dal()
-        .requeue_stuck_node_aggregation_jobs_for_batch(args.batch, args.max_attempts)
+        .requeue_stuck_node_aggregation_jobs_for_batch(batch_number, args.max_attempts)
         .await;
     display_requeued_stuck_jobs(
         stuck_node_aggregations_jobs,
@@ -53,19 +59,19 @@ pub async fn run(args: Args, config: ProverCLIConfig) -> anyhow::Result<()> {
 
     let stuck_recursion_tip_job = conn
         .fri_recursion_tip_witness_generator_dal()
-        .requeue_stuck_recursion_tip_jobs_for_batch(args.batch, args.max_attempts)
+        .requeue_stuck_recursion_tip_jobs_for_batch(batch_number, args.max_attempts)
         .await;
     display_requeued_stuck_jobs(stuck_recursion_tip_job, AggregationRound::RecursionTip);
 
     let stuck_scheduler_jobs = conn
         .fri_scheduler_witness_generator_dal()
-        .requeue_stuck_scheduler_jobs_for_batch(args.batch, args.max_attempts)
+        .requeue_stuck_scheduler_jobs_for_batch(batch_number, args.max_attempts)
         .await;
     display_requeued_stuck_jobs(stuck_scheduler_jobs, AggregationRound::Scheduler);
 
     let stuck_proof_compressor_jobs = conn
         .fri_proof_compressor_dal()
-        .requeue_stuck_jobs_for_batch(args.batch, args.max_attempts)
+        .requeue_stuck_jobs_for_batch(batch_number, args.max_attempts)
         .await;
     for stuck_job in stuck_proof_compressor_jobs {
         println!("Re-queuing proof compressor job {stuck_job:?} 🔁",);
@@ -73,7 +79,7 @@ pub async fn run(args: Args, config: ProverCLIConfig) -> anyhow::Result<()> {
 
     let stuck_prover_jobs = conn
         .fri_prover_jobs_dal()
-        .requeue_stuck_jobs_for_batch(args.batch, args.max_attempts)
+        .requeue_stuck_jobs_for_batch(batch_number, args.max_attempts)
         .await;
 
     for stuck_job in stuck_prover_jobs {
