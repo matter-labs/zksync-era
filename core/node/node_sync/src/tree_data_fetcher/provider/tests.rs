@@ -4,12 +4,11 @@ use assert_matches::assert_matches;
 use once_cell::sync::Lazy;
 use test_casing::test_casing;
 use zksync_contracts::bridgehub_contract;
-use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
+use zksync_dal::{ConnectionPool, Core};
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_node_test_utils::create_l2_block;
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 use zksync_types::{
-    aggregated_operations::AggregatedActionType,
     api, ethabi,
     web3::{BlockId, CallRequest},
     L2BlockNumber, ProtocolVersionId,

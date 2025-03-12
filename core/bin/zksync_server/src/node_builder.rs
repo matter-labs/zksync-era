@@ -107,6 +107,7 @@ pub struct MainNodeBuilder {
 }
 
 impl MainNodeBuilder {
+    #![allow(clippy::too_many_arguments)]
     pub fn new(
         configs: GeneralConfig,
         wallets: Wallets,

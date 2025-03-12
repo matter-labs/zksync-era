@@ -87,7 +87,7 @@ pub async fn get_settlement_layer_from_l1(
                 }
             }
         };
-    return Ok(settlement_mode);
+    Ok(settlement_mode)
 }
 
 pub async fn get_settlement_layer_address(
