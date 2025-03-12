@@ -1,7 +1,5 @@
 use zksync_config::configs::contracts::{
-    chain::ChainContracts,
-    ecosystem::{EcosystemCommonContracts, L1SpecificContracts},
-    SettlementLayerSpecificContracts,
+    chain::ChainContracts, ecosystem::EcosystemCommonContracts, SettlementLayerSpecificContracts,
 };
 use zksync_contracts::{bridgehub_contract, state_transition_manager_contract};
 use zksync_eth_client::{CallFunctionArgs, EthInterface};
@@ -66,41 +64,9 @@ pub async fn load_settlement_layer_contracts(
     }))
 }
 
-// Load Contracts specific for l1, from bridgehub contracts
-pub async fn load_l1_specific_contracts(
-    eth_client: &dyn EthInterface,
-    bridgehub_address: Address,
-    l2_chain_id: L2ChainId,
-) -> anyhow::Result<L1SpecificContracts> {
-    let base_token = CallFunctionArgs::new("baseToken", Token::Uint(l2_chain_id.as_u64().into()))
-        .for_contract(bridgehub_address, &bridgehub_contract())
-        .call(eth_client)
-        .await?;
-
-    let shared_bridge = CallFunctionArgs::new("sharedBridge", ())
-        .for_contract(bridgehub_address, &bridgehub_contract())
-        .call(eth_client)
-        .await
-        .map(|a: Address| if a.is_zero() { None } else { Some(a) })?;
-
-    let erc20_bridge = CallFunctionArgs::new("legacyBridge", ())
-        .for_contract(bridgehub_address, &bridgehub_contract())
-        .call(eth_client)
-        .await
-        .map(|a: Address| if a.is_zero() { None } else { Some(a) })?;
-
-    Ok(L1SpecificContracts {
-        bridge_hub: Some(bridgehub_address),
-        shared_bridge,
-        base_token_address: base_token,
-        erc_20_bridge: erc20_bridge,
-        // TODO add support for loading bytecodes_supplier_addr and
-        // wrapped_base_token_store from bridgehub
-        bytecodes_supplier_addr: None,
-        wrapped_base_token_store: None,
-    })
-}
-
+/// This function will return correct settlement mode only if it's called for L1.
+/// Due to implementation details if the settlement layer set to zero,
+/// that means the current layer is settlement layer
 pub async fn get_settlement_layer_for_l1_call(
     eth_client: &dyn EthInterface,
     diamond_proxy_addr: Address,

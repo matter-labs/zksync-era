@@ -241,7 +241,7 @@ impl RemoteENConfig {
     fn mock() -> Self {
         Self {
             l1_bytecodes_supplier_addr: None,
-            l1_bridgehub_proxy_addr: None,
+            l1_bridgehub_proxy_addr: Some(Address::repeat_byte(8)),
             l1_state_transition_proxy_addr: None,
             l1_diamond_proxy_addr: Address::repeat_byte(1),
             l1_erc20_bridge_proxy_addr: Some(Address::repeat_byte(2)),

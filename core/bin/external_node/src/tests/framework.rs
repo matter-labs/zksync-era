@@ -6,10 +6,11 @@ use zksync_node_framework::{
     implementations::{
         layers::{
             main_node_client::MainNodeClientLayer, query_eth_client::QueryEthClientLayer,
-            sigint::SigintHandlerLayer,
+            settlement_layer_client::SettlementLayerClientLayer, sigint::SigintHandlerLayer,
         },
         resources::{
-            eth_interface::EthInterfaceResource, healthcheck::AppHealthCheckResource,
+            eth_interface::{EthInterfaceResource, UniversalClient, UniversalClientResource},
+            healthcheck::AppHealthCheckResource,
             main_node_client::MainNodeClientResource,
         },
     },
@@ -36,8 +37,11 @@ pub(super) fn inject_test_layers(
         .add_layer(AppHealthHijackLayer {
             sender: app_health_sender,
         })
-        .add_layer(MockL1ClientLayer { client: l1_client })
-        .add_layer(MockL2ClientLayer { client: l2_client });
+        .add_layer(MockL1ClientLayer {
+            client: l1_client.clone(),
+        })
+        .add_layer(MockL2ClientLayer { client: l2_client })
+        .add_layer(MockUniversalclientLayer { client: l1_client });
 }
 
 /// A test layer that would stop the node upon request.
@@ -163,5 +167,27 @@ impl WiringLayer for MockL2ClientLayer {
 
     async fn wire(self, _: Self::Input) -> Result<Self::Output, WiringError> {
         Ok(MainNodeClientResource(Box::new(self.client)))
+    }
+}
+
+#[derive(Debug)]
+struct MockUniversalclientLayer {
+    client: MockClient<L1>,
+}
+
+#[async_trait::async_trait]
+impl WiringLayer for MockUniversalclientLayer {
+    type Input = ();
+    type Output = UniversalClientResource;
+
+    fn layer_name(&self) -> &'static str {
+        // We don't care about values, we just want to hijack the layer name.
+        SettlementLayerClientLayer::new("https://example.com".parse().unwrap(), None).layer_name()
+    }
+
+    async fn wire(self, _: Self::Input) -> Result<Self::Output, WiringError> {
+        Ok(UniversalClientResource(UniversalClient::L1(Box::new(
+            self.client,
+        ))))
     }
 }

@@ -81,6 +81,7 @@ impl WiringLayer for ConsistencyCheckerLayer {
                 .chain_contracts_config
                 .diamond_proxy_addr,
         );
+        dbg!(&consistency_checker);
 
         input
             .app_health
