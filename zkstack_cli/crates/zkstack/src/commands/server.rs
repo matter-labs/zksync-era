@@ -11,9 +11,8 @@ use zkstack_cli_config::{
 };
 use zksync_config::configs::gateway::GatewayChainConfig;
 
-use crate::commands::args::BuildServerArgs;
 use crate::{
-    commands::args::{RunServerArgs, ServerArgs, ServerCommand, WaitArgs},
+    commands::args::{BuildServerArgs, RunServerArgs, ServerArgs, ServerCommand, WaitArgs},
     messages::{
         msg_waiting_for_server_success, MSG_BUILDING_SERVER, MSG_CHAIN_NOT_INITIALIZED,
         MSG_FAILED_TO_BUILD_SERVER_ERR, MSG_FAILED_TO_RUN_SERVER_ERR, MSG_STARTING_SERVER,
