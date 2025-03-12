@@ -10,11 +10,7 @@ use zksync_l1_contract_interface::i_executor::methods::{ExecuteBatches, ProveBat
 use zksync_node_fee_model::l1_gas_price::{GasAdjuster, GasAdjusterClient};
 use zksync_node_test_utils::{create_l1_batch, l1_batch_metadata_to_commitment_artifacts};
 use zksync_object_store::MockObjectStore;
-use zksync_types::{
-    aggregated_operations::AggregatedActionType, block::L1BatchHeader,
-    commitment::L1BatchCommitmentMode, eth_sender::EthTx, pubdata_da::PubdataSendingMode,
-    settlement::SettlementMode, Address, L1BatchNumber, ProtocolVersion, ProtocolVersionId, H256,
-};
+use zksync_types::{aggregated_operations::AggregatedActionType, block::L1BatchHeader, commitment::L1BatchCommitmentMode, eth_sender::EthTx, pubdata_da::PubdataSendingMode, settlement::SettlementMode, Address, L1BatchNumber, ProtocolVersion, ProtocolVersionId, H256, L2ChainId};
 
 use crate::{
     abstract_l1_interface::{L1BlockNumbers, OperatorType},
@@ -253,6 +249,7 @@ impl EthSenderTester {
             connection_pool.clone(),
             gateway.clone(),
             SettlementMode::SettlesToL1,
+            L2ChainId::zero(),
         )
         .await
         .unwrap();
