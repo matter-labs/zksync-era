@@ -1,10 +1,24 @@
 name: Build contracts
 
+# ===========================================================================
+#                      Build contracts workflow
+#
+# Builds l1, l2, system and da contracts and uploads them as artifacts.
+# Artifact contains a commit hash of the contracts submodule
+# by which the contracts are identified to be downloaded in PR testing.
+# If no contracts were changed, the workflow is skipped.
+# If contracts were changed, the new version of contracts will be published.
+
+# It also allows manual triggering of the workflow with a specific contracts
+# commit to allow testing of different prebuilt contracts versions.
+# ===========================================================================
+
 # Set proper subset of permissions
 permissions:
   contents: read
   pull-requests: write
 
+# Define the events that triggers the workflow
 on:
   push:
     branches:
@@ -21,20 +35,26 @@ on:
         required: false
         default: manual
 
-
+# Do not cancel runs, put new merges in queue
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
 
-  check-release:
+  # =================================================
+  #   Aux job to check if contracts were changed
+  #
+  # Checks if contracts were changed.
+  # Saves the commit hash of the contracts submodule
+  # if contracts required to be rebuild.
+  # =================================================
+  check-contracts:
     runs-on: ubuntu-latest
     outputs:
       release_required: ${{ steps.changed-files.outputs.any_changed }}
       commit: ${{ steps.contracts-commit.outputs.commit }}
     steps:
-
       - name: Checkout
         uses: actions/checkout@v4
         with:
@@ -50,13 +70,19 @@ jobs:
             contracts/**
 
       - name: Define contracts commit
-#        if: ${{ steps.changed-files.outputs.any_changed == 'true' }}
+        if: ${{ steps.changed-files.outputs.any_changed == 'true' }}
         id: contracts-commit
         run: echo "commit=$(cd contracts && git rev-parse HEAD)" >> "${GITHUB_OUTPUT}"
 
 
-  release-contracts:
-    needs: check-release
+  # ===================================================================
+  #                   Rebuild contracts job
+  #
+  # Rebuilds contracts if they were changed.
+  # Uploads the artifacts with contracts to be downloaded by PR tests.
+  # ===================================================================
+  prebuild-contracts:
+    needs: check-contracts
     runs-on: matterlabs-ci-runner-highmem-long
     if: ${{ needs.check-release.outputs.commit != '' }}
     steps:
@@ -68,6 +94,7 @@ jobs:
       - name: Clean-up contracts
         run: rm -rf contracts
 
+      # Special setup if we need to prebuild contracts for a specific commit
       - name: Checkout contracts
         uses: actions/checkout@v4
         with:

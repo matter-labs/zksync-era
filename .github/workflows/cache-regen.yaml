@@ -1,28 +1,58 @@
 name: Cache regen
 
+# ================================================================================
+#                 Rust Cache regeneration workflow
+#
+# Regenerates Rust cache for all workspaces and build types
+# with each merge to the main branch.
+# All PRs are using the cache from `main` to speed up compilation.
+# Can be also executed manually with capability to clean up old caches.
+#
+# Save cache separately for each workspace and build type
+# to avoid long cache restore times in PRs.
+# Cache size should not exceed 1-1.5GB to be able to restore it in acceptable time
+# =================================================================================
+
 # Set proper subset of permissions
 permissions:
   contents: read
-  pull-requests: write
+  actions: write
 
+# Define the events that triggers the workflow
 on:
+  # Check for regen on each push to main
   push:
     branches:
       - main
+  # Allow manual cache regen if required
   workflow_dispatch:
+    inputs:
+      clean:
+        type: boolean
+        description: 'Whether to clean up old caches.'
+        required: false
+        default: false
+  # Run clean up and full regen once a month
+  schedule:
+    - cron: '0 0 1 * *'
 
-
+# Do not cancel runs, put new merges in queue
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 
 jobs:
 
-  cache-regen-individual:
-    name: Cache ${{ matrix.workspace }}
+  # ==========================================================
+  #             Rust Cache regeneration job
+  #
+  # Regenerates Rust cache for all workspaces and build types
+  # ==========================================================
+  cache-regen:
     runs-on: matterlabs-ci-runner-highmem-long
     strategy:
+      fail-fast: false
       matrix:
         workspace:
           - core
@@ -37,19 +67,39 @@ jobs:
         with:
           submodules: "recursive"
 
+      # Clean old caches if requested or on schedule
+      # to not overload the limited cache storage
+      - name: Clean up cache
+        if: ${{ inputs.clean || github.event_name == 'schedule' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CACHE_KEY: 'v0-rust-${{ matrix.workspace }}-${{ matrix.build-type }}'
+        run: |
+          echo "Cleaning up old caches:"
+          gh cache list --key "${CACHE_KEY}"
+          for CACHE_ID in $(gh cache list --key "${CACHE_KEY}" --json id --jq '.[].id'); do
+            gh cache delete "${CACHE_ID}" || true
+          done
+
+      # Save cache separately for each workspace and build type
+      # to avoid long cache restore times in PRs.
+      # Cache size should not exceed 1-1.5GB to be able to restore it in acceptable time
       - name: Setup runner
+        id: setup
         uses: matter-labs/zksync-ci-common/.github/actions/runner-setup@aba-ci-optimize
         with:
           save_cache: true
           workspace: ${{ matrix.workspace }}
           cache_shared_key: ${{ matrix.build-type }}
 
-      - name: Generate cache release
-        if: ${{ matrix.build-type == 'release' }}
+      # Regenerate cache only if it was not "fully hit"
+      # meaning that all possible crates and dependencies are already cached
+      - name: Generate cache
+        if: ${{ steps.setup.outputs.cache-hit == 'false' }}
         working-directory: ${{ matrix.workspace }}
-        run: cargo build --release
-
-      - name: Generate cache dev
-        if: ${{ matrix.build-type == 'dev' }}
-        working-directory: ${{ matrix.workspace }}
-        run: cargo nextest run --no-run
+        run: |
+          if [[ ${{ matrix.build-type }} == 'release' ]]; then
+            cargo build --release
+          elif [[ ${{ matrix.build-type }} == 'dev' ]]; then 
+            cargo nextest run --no-run
+          fi
