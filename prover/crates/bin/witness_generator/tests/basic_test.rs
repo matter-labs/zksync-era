@@ -12,7 +12,7 @@ use zksync_prover_keystore::keystore::Keystore;
 use zksync_types::{
     basic_fri_types::AggregationRound,
     prover_dal::{LeafAggregationJobMetadata, NodeAggregationJobMetadata},
-    L1BatchNumber,
+    L1BatchNumber, L2ChainId,
 };
 use zksync_witness_generator::{
     rounds::{JobManager, LeafAggregation, NodeAggregation},
@@ -34,6 +34,7 @@ async fn test_leaf_witness_gen() {
     let leaf_aggregation_job_metadata = LeafAggregationJobMetadata {
         id: 1,
         block_number,
+        chain_id: L2ChainId::zero(),
         circuit_id,
         prover_job_ids_for_proofs: vec![4639043, 4639044, 4639045],
     };
@@ -78,6 +79,7 @@ async fn test_leaf_witness_gen() {
 
         let circuit_key = FriCircuitKey {
             block_number,
+            chain_id: L2ChainId::zero(),
             sequence_number: idx,
             circuit_id,
             aggregation_round: AggregationRound::LeafAggregation,
@@ -98,6 +100,7 @@ async fn test_leaf_witness_gen() {
     }
 
     let agg_key = AggregationsKey {
+        chain_id: L2ChainId::zero(),
         block_number,
         circuit_id: get_recursive_layer_circuit_id_for_base_layer(circuit_id),
         depth: 0,
@@ -131,6 +134,7 @@ async fn test_node_witness_gen() {
     let node_aggregation_job_metadata = NodeAggregationJobMetadata {
         id: 1,
         block_number,
+        chain_id: L2ChainId::zero(),
         circuit_id,
         depth: 0,
         prover_job_ids_for_proofs: vec![5211320],
@@ -168,6 +172,7 @@ async fn test_node_witness_gen() {
 
         let circuit_key = FriCircuitKey {
             block_number,
+            chain_id: L2ChainId::zero(),
             sequence_number: idx,
             circuit_id,
             aggregation_round: AggregationRound::NodeAggregation,
@@ -189,6 +194,7 @@ async fn test_node_witness_gen() {
 
     let agg_key = AggregationsKey {
         block_number,
+        chain_id: L2ChainId::zero(),
         circuit_id: get_recursive_layer_circuit_id_for_base_layer(circuit_id),
         depth: 1,
     };
