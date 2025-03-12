@@ -20,4 +20,4 @@ zksync_contracts_loader.workspace = true
 zksync_system_constants.workspace = true
 zksync_dal.workspace = true
 anyhow.workspace = true
-tracing = "0.1.41"
+tracing.workspace = true

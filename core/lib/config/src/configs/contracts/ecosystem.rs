@@ -40,7 +40,7 @@ pub struct L1SpecificContracts {
     pub bridge_hub: Option<Address>,
     pub shared_bridge: Option<Address>,
     pub erc_20_bridge: Option<Address>,
-    pub base_token_address: Option<Address>,
+    pub base_token_address: Address,
 }
 
 // Ecosystem contracts that are presented on all Settlement Layers

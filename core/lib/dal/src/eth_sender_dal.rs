@@ -65,7 +65,7 @@ impl EthSenderDal<'_, '_> {
         Ok(txs.into_iter().map(|tx| tx.into()).collect())
     }
 
-    pub async fn get_non_gateway_inflight_txs_count_for_gateway_migration(
+    pub async fn get_inflight_txs_count_for_gateway_migration(
         &mut self,
         is_gateway: bool,
     ) -> sqlx::Result<usize> {

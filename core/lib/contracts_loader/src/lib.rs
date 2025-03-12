@@ -18,13 +18,13 @@ pub async fn load_settlement_layer_contracts(
     l2_chain_id: L2ChainId,
     multicall3: Option<Address>,
 ) -> anyhow::Result<Option<ChainSpecificContracts>> {
-    let gateway_diamond_proxy: Address =
+    let diamond_proxy: Address =
         CallFunctionArgs::new("getZKChain", Token::Uint(l2_chain_id.as_u64().into()))
             .for_contract(bridgehub_address, &bridgehub_contract())
             .call(sl_client)
             .await?;
 
-    if gateway_diamond_proxy.is_zero() {
+    if diamond_proxy.is_zero() {
         return Ok(None);
     }
 
@@ -43,27 +43,25 @@ pub async fn load_settlement_layer_contracts(
     let validator_timelock_addr = CallFunctionArgs::new("validatorTimelock", ())
         .for_contract(ctm_address, &state_transition_manager_contract())
         .call(sl_client)
-        .await
-        .map(|a: Address| if a.is_zero() { None } else { Some(a) })?;
+        .await?;
 
     let chain_admin =
         CallFunctionArgs::new("getChainAdmin", Token::Uint(l2_chain_id.as_u64().into()))
             .for_contract(ctm_address, &state_transition_manager_contract())
             .call(sl_client)
-            .await
-            .map(|a: Address| if a.is_zero() { None } else { Some(a) })?;
+            .await?;
 
     Ok(Some(ChainSpecificContracts {
         ecosystem_contracts: EcosystemCommonContracts {
             bridgehub_proxy_addr: Some(bridgehub_address),
             state_transition_proxy_addr: Some(ctm_address),
             server_notifier_addr,
-            validator_timelock_addr,
+            validator_timelock_addr: Some(validator_timelock_addr),
             multicall3,
         },
         chain_contracts_config: ChainContracts {
-            diamond_proxy_addr: gateway_diamond_proxy,
-            chain_admin,
+            diamond_proxy_addr: diamond_proxy,
+            chain_admin: Some(chain_admin),
         },
     }))
 }
@@ -77,8 +75,7 @@ pub async fn load_l1_specific_contracts(
     let base_token = CallFunctionArgs::new("baseToken", Token::Uint(l2_chain_id.as_u64().into()))
         .for_contract(bridgehub_address, &bridgehub_contract())
         .call(eth_client)
-        .await
-        .map(|a: Address| if a.is_zero() { None } else { Some(a) })?;
+        .await?;
 
     let shared_bridge = CallFunctionArgs::new("sharedBridge", ())
         .for_contract(bridgehub_address, &bridgehub_contract())

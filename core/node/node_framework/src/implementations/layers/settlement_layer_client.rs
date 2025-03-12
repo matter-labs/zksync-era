@@ -47,7 +47,7 @@ impl WiringLayer for SettlementLayerClientLayer {
     type Output = Output;
 
     fn layer_name(&self) -> &'static str {
-        "gateway_client"
+        "settlement_layer_client"
     }
 
     async fn wire(self, input: Self::Input) -> Result<Output, WiringError> {

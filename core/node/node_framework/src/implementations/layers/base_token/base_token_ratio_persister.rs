@@ -75,11 +75,7 @@ impl WiringLayer for BaseTokenRatioPersisterLayer {
         let master_pool = input.master_pool.get().await?;
 
         let price_api_client = input.price_api_client;
-        let base_token_addr = input
-            .l1ecosystem_contracts_resource
-            .0
-            .base_token_address
-            .expect("base token address is not set");
+        let base_token_addr = input.l1ecosystem_contracts_resource.0.base_token_address;
 
         let l1_behaviour = self
             .wallets_config

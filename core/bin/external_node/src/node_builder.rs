@@ -28,7 +28,6 @@ use zksync_node_framework::{
             no_da::NoDAClientWiringLayer, object_store::ObjectStorageClientWiringLayer,
         },
         data_availability_fetcher::DataAvailabilityFetcherLayer,
-        gateway_client::SettlementLayerClientLayer,
         healtcheck_server::HealthCheckLayer,
         l1_batch_commitment_mode_validation::L1BatchCommitmentModeValidationLayer,
         logs_bloom_backfill::LogsBloomBackfillLayer,
@@ -45,6 +44,7 @@ use zksync_node_framework::{
         pruning::PruningLayer,
         query_eth_client::QueryEthClientLayer,
         reorg_detector::ReorgDetectorLayer,
+        settlement_layer_client::SettlementLayerClientLayer,
         settlement_layer_data_en::SettlementLayerDataEn,
         sigint::SigintHandlerLayer,
         state_keeper::{

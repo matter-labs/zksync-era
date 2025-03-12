@@ -383,10 +383,10 @@ impl ConsistencyChecker {
         settlement_mode: SettlementMode,
     ) -> anyhow::Result<Self> {
         let (health_check, health_updater) = ConsistencyCheckerHealthUpdater::new();
-        let l1_chain_id = gateway_client.fetch_chain_id().await?;
+        let gateway_chain_id = gateway_client.fetch_chain_id().await?;
         let chain_data = SLChainAccess {
             client: gateway_client,
-            chain_id: l1_chain_id,
+            chain_id: gateway_chain_id,
             diamond_proxy_addr: None,
         };
 

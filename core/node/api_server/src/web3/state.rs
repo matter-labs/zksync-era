@@ -26,7 +26,6 @@ use zksync_config::{
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_metadata_calculator::api_server::TreeApiClient;
 use zksync_node_sync::SyncState;
-use zksync_system_constants::ETHEREUM_ADDRESS;
 use zksync_types::{
     api, api::BridgeAddresses, commitment::L1BatchCommitmentMode, l2::L2Tx,
     transaction_request::CallRequest, Address, L1BatchNumber, L1ChainId, L2BlockNumber, L2ChainId,
@@ -102,10 +101,9 @@ impl BlockStartInfo {
     }
 }
 
-/// Configuration values for the API.
-/// This structure is detached from `ZkSyncConfig`, since different node types (main, external, etc.)
-/// may require different configuration layouts.
-/// The intention is to only keep the actually used information here.
+/// Builder for Configuration values for the API.
+/// We need different step by step initialization for Api config builder,
+/// because of different ways for getting configs for en and main node
 #[derive(Debug, Clone)]
 pub struct InternalApiConfigBuilder {
     /// Chain ID of the L1 network. Note, that it may be different from the chain id of the settlement layer.
@@ -194,7 +192,7 @@ impl InternalApiConfigBuilder {
                     .diamond_proxy_addr,
             ),
             l2_testnet_paymaster_addr: l2_contracts.testnet_paymaster_addr,
-            base_token_address: l1_ecosystem_contracts.base_token_address,
+            base_token_address: Some(l1_ecosystem_contracts.base_token_address),
             timestamp_asserter_address: l2_contracts.timestamp_asserter_addr,
             l1_ecosystem_contracts: Some(l1_contracts_config.ecosystem_contracts.clone()),
             l1_wrapped_base_token_store: l1_ecosystem_contracts.wrapped_base_token_store,
@@ -295,11 +293,7 @@ impl InternalApiConfig {
             l2_testnet_paymaster_addr: l2_contracts.testnet_paymaster_addr,
             req_entities_limit: web3_config.req_entities_limit(),
             fee_history_limit: web3_config.fee_history_limit(),
-            base_token_address: Some(
-                l1_ecosystem_contracts
-                    .base_token_address
-                    .unwrap_or(ETHEREUM_ADDRESS),
-            ),
+            base_token_address: Some(l1_ecosystem_contracts.base_token_address),
             filters_disabled: web3_config.filters_disabled,
             dummy_verifier: genesis_config.dummy_verifier,
             l1_batch_commit_data_generator_mode: genesis_config.l1_batch_commit_data_generator_mode,

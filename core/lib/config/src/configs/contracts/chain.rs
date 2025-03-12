@@ -6,7 +6,7 @@ use crate::configs::contracts::{
     ChainSpecificContracts,
 };
 
-/// Data about deployed contracts unified l1/l2 contracts and bridges. To Be Deleted
+/// Data about deployed contracts unified l1/l2 contracts and bridges.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct AllContractsConfig {
     pub governance_addr: Address,
@@ -31,7 +31,7 @@ pub struct AllContractsConfig {
     pub l1_multicall3_addr: Address,
     pub ecosystem_contracts: Option<EcosystemContracts>,
     // Used by the RPC API and by the node builder in wiring the BaseTokenRatioProvider layer.
-    pub base_token_addr: Option<Address>,
+    pub base_token_addr: Address,
     pub l1_base_token_asset_id: Option<H256>,
 
     pub chain_admin_addr: Address,
@@ -58,7 +58,7 @@ impl AllContractsConfig {
             l1_multicall3_addr: Address::repeat_byte(0x12),
             l2_timestamp_asserter_addr: Some(Address::repeat_byte(0x19)),
             governance_addr: Address::repeat_byte(0x13),
-            base_token_addr: Some(Address::repeat_byte(0x14)),
+            base_token_addr: Address::repeat_byte(0x14),
             l1_base_token_asset_id: Some(H256::repeat_byte(0x15)),
             ecosystem_contracts: Some(EcosystemContracts::for_tests()),
             chain_admin_addr: Address::repeat_byte(0x18),
@@ -67,6 +67,7 @@ impl AllContractsConfig {
             l2_multicall3_addr: Some(Address::repeat_byte(0x1c)),
         }
     }
+
     pub fn l1_specific_contracts(&self) -> L1SpecificContracts {
         let ecosystem = self.ecosystem_contracts.as_ref().unwrap();
         L1SpecificContracts {
@@ -78,6 +79,7 @@ impl AllContractsConfig {
             base_token_address: self.base_token_addr,
         }
     }
+
     pub fn l2_contracts(&self) -> L2Contracts {
         L2Contracts {
             erc20_default_bridge: self.l2_erc20_bridge_addr,

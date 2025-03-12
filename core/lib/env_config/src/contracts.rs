@@ -98,7 +98,7 @@ mod tests {
                 )),
                 server_notifier_addr: Some(addr("0xbe8381498ED34E9c2EdB51Ecd778d71B225E26fb")),
             }),
-            base_token_addr: Some(SHARED_BRIDGE_ETHER_TOKEN_ADDRESS),
+            base_token_addr: SHARED_BRIDGE_ETHER_TOKEN_ADDRESS,
             l1_base_token_asset_id: Some(
                 H256::from_str(
                     "0x0000000000000000000000000000000000000001000000000000000000000000",

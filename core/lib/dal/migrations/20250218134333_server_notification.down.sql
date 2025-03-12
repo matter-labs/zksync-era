@@ -1,1 +1,1 @@
-DROP TABLE server_notifications IF EXISTS;
+DROP TABLE IF EXISTS server_notifications;

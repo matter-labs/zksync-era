@@ -656,7 +656,7 @@ impl EthTxManager {
 
         let inflight_count = storage
             .eth_sender_dal()
-            .get_non_gateway_inflight_txs_count_for_gateway_migration(false)
+            .get_inflight_txs_count_for_gateway_migration(false)
             .await
             .unwrap();
         if inflight_count != 0 {

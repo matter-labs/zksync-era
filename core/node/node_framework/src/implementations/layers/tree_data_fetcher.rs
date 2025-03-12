@@ -48,15 +48,15 @@ impl WiringLayer for TreeDataFetcherLayer {
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         let pool = input.master_pool.get().await?;
         let MainNodeClientResource(client) = input.main_node_client;
-        let gateway_client = input.gateway_client.0;
+        let sl_client = input.gateway_client.0;
 
         tracing::warn!(
             "Running tree data fetcher (allows a node to operate w/o a Merkle tree or w/o waiting the tree to catch up). \
              This is an experimental feature; do not use unless you know what you're doing"
         );
         let task = TreeDataFetcher::new(client, pool)
-            .with_l1_data(
-                gateway_client.into(),
+            .with_sl_data(
+                sl_client.into(),
                 input
                     .settlement_layer_contracts_resource
                     .0

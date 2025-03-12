@@ -963,5 +963,5 @@ async fn gateway_status(
                 }
             }
         })
-        .unwrap_or(GatewayMigrationState::Not)
+        .unwrap_or(GatewayMigrationState::NotStarted)
 }

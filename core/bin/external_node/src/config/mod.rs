@@ -134,7 +134,7 @@ pub(crate) struct RemoteENConfig {
     pub l2_timestamp_asserter_addr: Option<Address>,
     pub l1_wrapped_base_token_store: Option<Address>,
     pub l1_server_notifier_addr: Option<Address>,
-    pub base_token_addr: Option<Address>,
+    pub base_token_addr: Address,
     pub l2_multicall3: Option<Address>,
     pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
     pub dummy_verifier: bool,
@@ -223,7 +223,7 @@ impl RemoteENConfig {
             l2_legacy_shared_bridge_addr: bridges.l2_legacy_shared_bridge,
             l1_weth_bridge_addr: bridges.l1_weth_bridge,
             l2_weth_bridge_addr: bridges.l2_weth_bridge,
-            base_token_addr: Some(base_token_addr),
+            base_token_addr,
             l2_multicall3,
             l1_batch_commit_data_generator_mode: genesis
                 .as_ref()
@@ -248,7 +248,7 @@ impl RemoteENConfig {
             l2_erc20_bridge_addr: Some(Address::repeat_byte(3)),
             l2_weth_bridge_addr: None,
             l2_testnet_paymaster_addr: None,
-            base_token_addr: Some(Address::repeat_byte(4)),
+            base_token_addr: Address::repeat_byte(4),
             l1_shared_bridge_proxy_addr: Some(Address::repeat_byte(5)),
             l1_weth_bridge_addr: None,
             l2_shared_bridge_addr: Some(Address::repeat_byte(6)),
@@ -1523,7 +1523,7 @@ impl From<&ExternalNodeConfig> for InternalApiConfigBuilder {
             l2_testnet_paymaster_addr: config.remote.l2_testnet_paymaster_addr,
             req_entities_limit: Some(config.optional.req_entities_limit),
             fee_history_limit: Some(config.optional.fee_history_limit),
-            base_token_address: config.remote.base_token_addr,
+            base_token_address: Some(config.remote.base_token_addr),
             filters_disabled: Some(config.optional.filters_disabled),
             dummy_verifier: config.remote.dummy_verifier,
             l1_batch_commit_data_generator_mode: config.remote.l1_batch_commit_data_generator_mode,
@@ -1553,9 +1553,9 @@ impl From<&ExternalNodeConfig> for TxSenderConfig {
             chain_id: config.required.l2_chain_id,
             // Does not matter for EN.
             whitelisted_tokens_for_aa: Default::default(),
-            timestamp_asserter_params: config.remote.l2_timestamp_asserter_addr.map(|addr| {
+            timestamp_asserter_params: config.remote.l2_timestamp_asserter_addr.map(|address| {
                 TimestampAsserterParams {
-                    address: addr,
+                    address,
                     min_time_till_end: Duration::from_secs(
                         config.optional.timestamp_asserter_min_time_till_end_sec as u64,
                     ),

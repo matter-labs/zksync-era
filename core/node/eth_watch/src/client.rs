@@ -650,14 +650,14 @@ impl ZkSyncExtentionEthClient for EthHttpQueryClient<L2> {
     }
 }
 
-/// Wrapper for L2 client object.
-/// It is used for L2EthClient -> EthClient dyn upcasting coercion:
-///     Arc<dyn L2EthClient> -> L2EthClientW -> Arc<dyn EthClient>
+/// Wrapper for ZkSyncExtention client object.
+/// It is used for ZkSyncExtentionEthClient -> EthClient dyn upcasting coercion:
+///     Arc<dyn ZkSyncExtentionEthClient> -> ZkSyncExtentionEthClientW -> Arc<dyn EthClient>
 #[derive(Debug, Clone)]
-pub struct L2EthClientW(pub Arc<dyn ZkSyncExtentionEthClient>);
+pub struct ZkSyncExtentionEthClientW(pub Arc<dyn ZkSyncExtentionEthClient>);
 
 #[async_trait::async_trait]
-impl EthClient for L2EthClientW {
+impl EthClient for ZkSyncExtentionEthClientW {
     async fn get_events(
         &self,
         from: BlockNumber,

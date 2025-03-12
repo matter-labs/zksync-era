@@ -21,7 +21,7 @@ use self::{
     metrics::METRICS,
 };
 use crate::{
-    client::L2EthClientW,
+    client::ZkSyncExtentionEthClientW,
     event_processors::{
         BatchRootProcessor, DecentralizedUpgradesEventProcessor, EventsSource,
         GatewayMigrationProcessor,
@@ -65,7 +65,7 @@ impl EthWatch {
         let mut storage = pool.connection_tagged("eth_watch").await?;
         let l1_client: Arc<dyn EthClient> = l1_client.into();
         let sl_client: Arc<dyn ZkSyncExtentionEthClient> = sl_client.into();
-        let sl_eth_client = Arc::new(L2EthClientW(sl_client.clone()));
+        let sl_eth_client = Arc::new(ZkSyncExtentionEthClientW(sl_client.clone()));
 
         let state = Self::initialize_state(&mut storage, sl_eth_client.as_ref()).await?;
         tracing::info!("initialized state: {state:?}");

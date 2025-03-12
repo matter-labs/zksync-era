@@ -30,7 +30,6 @@ pub struct GatewayChainConfig {
     pub diamond_proxy_addr: Address,
     pub chain_admin_addr: Address,
     pub gateway_chain_id: SLChainId,
-    pub server_notifier: Option<Address>,
 }
 
 impl GatewayChainConfig {
@@ -47,7 +46,6 @@ impl GatewayChainConfig {
             diamond_proxy_addr,
             chain_admin_addr: l2_chain_admin_addr,
             gateway_chain_id,
-            server_notifier: None,
         }
     }
 
@@ -64,7 +62,6 @@ impl GatewayChainConfig {
             diamond_proxy_addr: contracts.diamond_proxy_addr,
             chain_admin_addr: contracts.chain_admin_addr,
             gateway_chain_id,
-            server_notifier: None,
         }
     }
 }

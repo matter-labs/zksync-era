@@ -89,9 +89,7 @@ pub async fn switch_to_current_settlement_mode(
     // And we can't start with new settlement mode while we have inflight transactions
     let inflight_count = storage
         .eth_sender_dal()
-        .get_non_gateway_inflight_txs_count_for_gateway_migration(
-            !settlement_mode_from_l1.is_gateway(),
-        )
+        .get_inflight_txs_count_for_gateway_migration(!settlement_mode_from_l1.is_gateway())
         .await?;
 
     if inflight_count != 0 {

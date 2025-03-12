@@ -37,7 +37,6 @@ use zksync_node_framework::{
         eth_watch::EthWatchLayer,
         external_proof_integration_api::ExternalProofIntegrationApiLayer,
         gas_adjuster::GasAdjusterLayer,
-        gateway_client::SettlementLayerClientLayer,
         gateway_migrator_layer::GatewayMigratorLayer,
         healtcheck_server::HealthCheckLayer,
         house_keeper::HouseKeeperLayer,
@@ -55,6 +54,7 @@ use zksync_node_framework::{
         prometheus_exporter::PrometheusExporterLayer,
         proof_data_handler::ProofDataHandlerLayer,
         query_eth_client::QueryEthClientLayer,
+        settlement_layer_client::SettlementLayerClientLayer,
         settlement_layer_data::SettlementLayerData,
         sigint::SigintHandlerLayer,
         state_keeper::{
@@ -219,8 +219,7 @@ impl MainNodeBuilder {
 
     fn add_l1_gas_layer(mut self) -> anyhow::Result<Self> {
         // Ensure the BaseTokenRatioProviderResource is inserted if the base token is not ETH.
-        if self.l1_specific_contracts.base_token_address != Some(SHARED_BRIDGE_ETHER_TOKEN_ADDRESS)
-        {
+        if self.l1_specific_contracts.base_token_address != SHARED_BRIDGE_ETHER_TOKEN_ADDRESS {
             let base_token_adjuster_config = try_load_config!(self.configs.base_token_adjuster);
             self.node
                 .add_layer(BaseTokenRatioProviderLayer::new(base_token_adjuster_config));
