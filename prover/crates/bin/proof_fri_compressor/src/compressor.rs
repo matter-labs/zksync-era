@@ -95,7 +95,7 @@ impl JobProcessor for ProofCompressor {
         tracing::info!("Started proof compression for L1 batch: {:?}", batch_number);
         let observer = METRICS.blob_fetch_time.start();
 
-        let fri_proof = FriProofWrapper::conditional_get_from_object_store(&self.blob_store, (batch_number.chain_id(), fri_proof_id)).await.with_context(|| format!("Failed to get fri proof from blob store for batch {}, chain {} with id {fri_proof_id}", batch_number.raw_batch_number(), batch_number.raw_chain_id()))?;
+        let fri_proof = FriProofWrapper::conditional_get_from_object_store(&*self.blob_store, (batch_number.chain_id(), fri_proof_id)).await.with_context(|| format!("Failed to get fri proof from blob store for batch {}, chain {} with id {fri_proof_id}", batch_number.raw_batch_number(), batch_number.raw_chain_id()))?;
 
         observer.observe();
 

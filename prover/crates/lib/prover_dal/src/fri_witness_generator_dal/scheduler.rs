@@ -310,7 +310,7 @@ impl FriSchedulerWitnessGeneratorDal<'_, '_> {
             )
             VALUES
             ($1, $2, $3, $4, 'waiting_for_proofs', NOW(), NOW(), $5)
-            ON CONFLICT (l1_batch_number) DO
+            ON CONFLICT (l1_batch_number, chain_id) DO
             UPDATE
             SET
             updated_at = NOW()

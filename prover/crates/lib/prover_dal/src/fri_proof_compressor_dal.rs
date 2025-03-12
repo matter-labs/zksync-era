@@ -39,7 +39,7 @@ impl FriProofCompressorDal<'_, '_> {
             )
             VALUES
             ($1, $2, $3, $4, NOW(), NOW(), $5, $6)
-            ON CONFLICT (l1_batch_number) DO NOTHING
+            ON CONFLICT (l1_batch_number, chain_id) DO NOTHING
             "#,
             batch_number.raw_batch_number() as i64,
             batch_number.raw_chain_id() as i32,
