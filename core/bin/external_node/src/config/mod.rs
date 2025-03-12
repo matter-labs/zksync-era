@@ -16,7 +16,7 @@ use zksync_config::{
         contracts::{
             chain::{ChainContracts, L2Contracts},
             ecosystem::{EcosystemCommonContracts, L1SpecificContracts},
-            ChainSpecificContracts,
+            SettlementLayerSpecificContracts,
         },
         en_config::ENConfig,
         DataAvailabilitySecrets, GeneralConfig, Secrets,
@@ -1577,8 +1577,8 @@ impl ExternalNodeConfig {
         }
     }
 
-    pub fn l1_chain_contracts(&self) -> ChainSpecificContracts {
-        ChainSpecificContracts {
+    pub fn l1_settelment_contracts(&self) -> SettlementLayerSpecificContracts {
+        SettlementLayerSpecificContracts {
             ecosystem_contracts: EcosystemCommonContracts {
                 bridgehub_proxy_addr: self.remote.l1_bridgehub_proxy_addr,
                 state_transition_proxy_addr: self.remote.l1_state_transition_proxy_addr,

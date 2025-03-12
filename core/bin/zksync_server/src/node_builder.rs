@@ -195,7 +195,7 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
-    fn add_gateway_client_layer(mut self) -> anyhow::Result<Self> {
+    fn add_settlement_layer_client_layer(mut self) -> anyhow::Result<Self> {
         let eth_config = try_load_config!(self.secrets.l1);
         let query_eth_client_layer =
             SettlementLayerClientLayer::new(eth_config.l1_rpc_url, eth_config.gateway_rpc_url);
@@ -722,7 +722,7 @@ impl MainNodeBuilder {
             .add_pools_layer()?
             .add_query_eth_client_layer()?
             .add_settlement_mode_data()?
-            .add_gateway_client_layer()?
+            .add_settlement_layer_client_layer()?
             .add_storage_initialization_layer(LayerKind::Task)?;
 
         Ok(self.node.build())
@@ -740,7 +740,7 @@ impl MainNodeBuilder {
             .add_prometheus_exporter_layer()?
             .add_query_eth_client_layer()?
             .add_settlement_mode_data()?
-            .add_gateway_client_layer()?
+            .add_settlement_layer_client_layer()?
             .add_gateway_migrator_layer()?
             .add_gas_adjuster_layer()?;
 

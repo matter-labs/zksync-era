@@ -1,11 +1,11 @@
 use zksync_config::configs::contracts::{
-    chain::L2Contracts, ecosystem::L1SpecificContracts, ChainSpecificContracts,
+    chain::L2Contracts, ecosystem::L1SpecificContracts, SettlementLayerSpecificContracts,
 };
 
 use crate::Resource;
 
 #[derive(Debug, Clone)]
-pub struct SettlementLayerContractsResource(pub ChainSpecificContracts);
+pub struct SettlementLayerContractsResource(pub SettlementLayerSpecificContracts);
 
 impl Resource for SettlementLayerContractsResource {
     fn name() -> String {
@@ -32,7 +32,7 @@ impl Resource for L1EcosystemContractsResource {
 }
 
 #[derive(Debug, Clone)]
-pub struct L1ChainContractsResource(pub ChainSpecificContracts);
+pub struct L1ChainContractsResource(pub SettlementLayerSpecificContracts);
 
 impl Resource for L1ChainContractsResource {
     fn name() -> String {
@@ -41,7 +41,7 @@ impl Resource for L1ChainContractsResource {
 }
 
 #[derive(Debug, Clone)]
-pub struct GatewayChainContractsResource(pub ChainSpecificContracts);
+pub struct GatewayChainContractsResource(pub SettlementLayerSpecificContracts);
 
 impl Resource for GatewayChainContractsResource {
     fn name() -> String {

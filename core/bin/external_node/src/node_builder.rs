@@ -155,13 +155,13 @@ impl ExternalNodeBuilder {
         self.node.add_layer(SettlementLayerDataEn::new(
             self.config.required.l2_chain_id,
             self.config.l1_specific_contracts(),
-            self.config.l1_chain_contracts(),
+            self.config.l1_settelment_contracts(),
             self.config.l2_contracts(),
         ));
         Ok(self)
     }
 
-    fn add_gateway_client_layer(mut self) -> anyhow::Result<Self> {
+    fn add_settlement_layer_client_layer(mut self) -> anyhow::Result<Self> {
         let query_eth_client_layer = SettlementLayerClientLayer::new(
             self.config.required.eth_client_url.clone(),
             self.config.optional.gateway_url.clone(),
@@ -637,7 +637,7 @@ impl ExternalNodeBuilder {
             .add_main_node_client_layer()?
             .add_query_eth_client_layer()?
             .add_settlement_layer_data()?
-            .add_gateway_client_layer()?
+            .add_settlement_layer_client_layer()?
             .add_reorg_detector_layer()?;
 
         // Add layers that must run only on a single component.

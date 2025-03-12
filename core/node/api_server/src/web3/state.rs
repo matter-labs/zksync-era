@@ -18,7 +18,7 @@ use zksync_config::{
         contracts::{
             chain::L2Contracts,
             ecosystem::{EcosystemCommonContracts, L1SpecificContracts},
-            ChainSpecificContracts,
+            SettlementLayerSpecificContracts,
         },
     },
     GenesisConfig,
@@ -171,7 +171,7 @@ impl InternalApiConfigBuilder {
 
     pub fn with_contracts(
         self,
-        l1_contracts_config: ChainSpecificContracts,
+        l1_contracts_config: SettlementLayerSpecificContracts,
         l1_ecosystem_contracts: L1SpecificContracts,
         l2_contracts: L2Contracts,
     ) -> Self {
@@ -261,7 +261,7 @@ pub struct InternalApiConfig {
 impl InternalApiConfig {
     pub fn new(
         web3_config: &Web3JsonRpcConfig,
-        l1_contracts_config: &ChainSpecificContracts,
+        l1_contracts_config: &SettlementLayerSpecificContracts,
         l1_ecosystem_contracts: &L1SpecificContracts,
         l2_contracts: &L2Contracts,
         genesis_config: &GenesisConfig,

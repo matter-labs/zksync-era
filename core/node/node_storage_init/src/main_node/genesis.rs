@@ -2,7 +2,7 @@ use std::fs::File;
 
 use anyhow::Context as _;
 use tokio::sync::watch;
-use zksync_config::{configs::contracts::ChainSpecificContracts, GenesisConfig};
+use zksync_config::{configs::contracts::SettlementLayerSpecificContracts, GenesisConfig};
 use zksync_dal::{ConnectionPool, Core, CoreDal as _};
 use zksync_node_genesis::GenesisParams;
 use zksync_object_store::bincode;
@@ -13,7 +13,7 @@ use crate::traits::InitializeStorage;
 #[derive(Debug)]
 pub struct MainNodeGenesis {
     pub genesis: GenesisConfig,
-    pub contracts: ChainSpecificContracts,
+    pub contracts: SettlementLayerSpecificContracts,
     pub l1_client: Box<DynClient<L1>>,
     pub pool: ConnectionPool<Core>,
 }

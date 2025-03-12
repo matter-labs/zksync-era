@@ -3,7 +3,7 @@ use zksync_basic_types::{Address, H256};
 
 use crate::configs::contracts::{
     ecosystem::{EcosystemCommonContracts, EcosystemContracts, L1SpecificContracts},
-    ChainSpecificContracts,
+    SettlementLayerSpecificContracts,
 };
 
 /// Data about deployed contracts unified l1/l2 contracts and bridges.
@@ -92,10 +92,10 @@ impl AllContractsConfig {
         }
     }
 
-    pub fn chain_specific_contracts(&self) -> ChainSpecificContracts {
+    pub fn chain_specific_contracts(&self) -> SettlementLayerSpecificContracts {
         let ecosystem = self.ecosystem_contracts.as_ref().unwrap();
 
-        ChainSpecificContracts {
+        SettlementLayerSpecificContracts {
             ecosystem_contracts: EcosystemCommonContracts {
                 bridgehub_proxy_addr: Some(ecosystem.bridgehub_proxy_addr),
                 state_transition_proxy_addr: ecosystem.state_transition_proxy_addr,

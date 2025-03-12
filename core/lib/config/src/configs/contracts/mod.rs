@@ -5,7 +5,7 @@ pub mod ecosystem;
 pub mod gateway;
 
 #[derive(Debug, Clone)]
-pub struct ChainSpecificContracts {
+pub struct SettlementLayerSpecificContracts {
     pub ecosystem_contracts: EcosystemCommonContracts,
     pub chain_contracts_config: ChainContracts,
 }

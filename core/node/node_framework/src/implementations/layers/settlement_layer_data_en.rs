@@ -1,6 +1,6 @@
 use anyhow::Context;
 use zksync_config::configs::contracts::{
-    chain::L2Contracts, ecosystem::L1SpecificContracts, ChainSpecificContracts,
+    chain::L2Contracts, ecosystem::L1SpecificContracts, SettlementLayerSpecificContracts,
 };
 use zksync_consistency_checker::get_db_settlement_mode;
 use zksync_contracts::getters_facet_contract;
@@ -26,7 +26,7 @@ use crate::{
 #[derive(Debug)]
 pub struct SettlementLayerDataEn {
     l1_specific_contracts: L1SpecificContracts,
-    l1_chain_contracts: ChainSpecificContracts,
+    l1_chain_contracts: SettlementLayerSpecificContracts,
     l2_contracts: L2Contracts,
     chain_id: L2ChainId,
 }
@@ -35,7 +35,7 @@ impl SettlementLayerDataEn {
     pub fn new(
         chain_id: L2ChainId,
         l1_specific_contracts: L1SpecificContracts,
-        l1_chain_contracts: ChainSpecificContracts,
+        l1_chain_contracts: SettlementLayerSpecificContracts,
         l2_contracts: L2Contracts,
     ) -> Self {
         Self {

@@ -1,7 +1,7 @@
 use zksync_config::configs::contracts::{
     chain::ChainContracts,
     ecosystem::{EcosystemCommonContracts, L1SpecificContracts},
-    ChainSpecificContracts,
+    SettlementLayerSpecificContracts,
 };
 use zksync_contracts::{bridgehub_contract, state_transition_manager_contract};
 use zksync_eth_client::{CallFunctionArgs, EthInterface};
@@ -17,7 +17,7 @@ pub async fn load_settlement_layer_contracts(
     bridgehub_address: Address,
     l2_chain_id: L2ChainId,
     multicall3: Option<Address>,
-) -> anyhow::Result<Option<ChainSpecificContracts>> {
+) -> anyhow::Result<Option<SettlementLayerSpecificContracts>> {
     let diamond_proxy: Address =
         CallFunctionArgs::new("getZKChain", Token::Uint(l2_chain_id.as_u64().into()))
             .for_contract(bridgehub_address, &bridgehub_contract())
@@ -51,7 +51,7 @@ pub async fn load_settlement_layer_contracts(
             .call(sl_client)
             .await?;
 
-    Ok(Some(ChainSpecificContracts {
+    Ok(Some(SettlementLayerSpecificContracts {
         ecosystem_contracts: EcosystemCommonContracts {
             bridgehub_proxy_addr: Some(bridgehub_address),
             state_transition_proxy_addr: Some(ctm_address),
