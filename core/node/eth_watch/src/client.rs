@@ -90,7 +90,7 @@ const TOO_MANY_RESULTS_ALCHEMY: &str = "response size exceeded";
 const TOO_MANY_RESULTS_RETH: &str = "length limit exceeded";
 const TOO_BIG_RANGE_RETH: &str = "query exceeds max block range";
 const TOO_MANY_RESULTS_CHAINSTACK: &str = "range limit exceeded";
-const REQUEST_REJECTED_503: &str = "Request rejected `503`";
+const REQUEST_REJECTED_503: &str = "503";
 
 /// Implementation of [`EthClient`] based on HTTP JSON-RPC.
 #[derive(Debug, Clone)]
