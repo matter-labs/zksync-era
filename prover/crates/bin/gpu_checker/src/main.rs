@@ -31,8 +31,10 @@ use zksync_prover_keystore::{
     keystore::{Keystore, ProverServiceDataType},
     GoldilocksGpuProverSetupData,
 };
-use zksync_types::{basic_fri_types::AggregationRound, prover_dal::FriProverJobMetadata, L1BatchNumber, L2ChainId};
-use zksync_types::abi::Transaction::L2;
+use zksync_types::{
+    abi::Transaction::L2, basic_fri_types::AggregationRound, prover_dal::FriProverJobMetadata,
+    L1BatchNumber, L2ChainId,
+};
 
 async fn create_witness_vector(
     metadata: FriProverJobMetadata,
