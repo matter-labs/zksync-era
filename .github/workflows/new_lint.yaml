@@ -140,7 +140,6 @@ jobs:
   integration-tests:
     runs-on: matterlabs-ci-runner-ultra-performance
     env:
-      RUN_CONTRACT_VERIFICATION_TEST: false # TODO: enable later
       ZKSYNC_HOME: ${{ github.workspace }}
       L1_RPC_URL: "http://localhost:8545"
       SERVER_DB_URL: "postgres://postgres:notsecurepassword@localhost:5432"
@@ -203,9 +202,11 @@ jobs:
 
       - name: Initialize Contract verifier
         run: |
-          zkstack contract-verifier init --zksolc-version=v1.5.10 --zkvyper-version=v1.5.4 --solc-version=0.8.26 --vyper-version=v0.3.10 --era-vm-solc-version=0.8.26-1.0.1 --only --chain era
-          zkstack contract-verifier run --chain era &> ${{ env.SERVER_LOGS_DIR }}/contract-verifier-rollup.log &
-          zkstack contract-verifier wait --chain era --verbose
+          for chain in era validium custom_token consensus; do
+            zkstack contract-verifier init --zksolc-version=v1.5.10 --zkvyper-version=v1.5.4 --solc-version=0.8.26 --vyper-version=v0.3.10 --era-vm-solc-version=0.8.26-1.0.1 --only --chain "${chain}"
+            zkstack contract-verifier run --chain "${chain}" &> "${SERVER_LOGS_DIR}/contract-verifier-${chain}.log" &
+            zkstack contract-verifier wait --chain "${chain}" --verbose
+          done
 
       - name: Run servers
         run: |
@@ -232,11 +233,15 @@ jobs:
             --ignore-prerequisites --verbose --from-genesis &> ${INTEGRATION_TESTS_LOGS_DIR}/consensus.log
 
       - name: Run integration tests
+        env:
+          RUN_CONTRACT_VERIFICATION_TEST: true
         run: |
           ./bin/run_on_all_chains.sh "zkstack dev test integration --no-deps --ignore-prerequisites" \
             ${CHAINS} ${INTEGRATION_TESTS_LOGS_DIR}
 
       - name: Repeat integration tests on push to main to check for flakiness
+        env:
+          RUN_CONTRACT_VERIFICATION_TEST: true
         if: ${{ github.ref == 'refs/heads/main' }}
         run: |
           for i in {1..10}; do
@@ -289,6 +294,8 @@ jobs:
           done
 
       - name: Run integration tests en
+        env:
+          RUN_CONTRACT_VERIFICATION_TEST: false
         run: |
           ./bin/run_on_all_chains.sh \
             "zkstack dev test integration --no-deps --ignore-prerequisites --external-node" \
