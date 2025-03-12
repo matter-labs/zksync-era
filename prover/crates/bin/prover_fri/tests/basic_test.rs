@@ -37,7 +37,7 @@ async fn prover_and_assert_base_layer(
         .create_store()
         .await?;
     let expected_proof = object_store
-        .get(expected_proof_id)
+        .get((L2ChainId::zero(), expected_proof_id))
         .await
         .context("missing expected proof")?;
 

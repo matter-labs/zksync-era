@@ -192,6 +192,7 @@ pub async fn save_circuit(
     (circuit_id, blob_url)
 }
 
+#[allow(clippy::too_many_arguments)]
 #[tracing::instrument(
     skip_all,
     fields(l1_batch = %block_number)
