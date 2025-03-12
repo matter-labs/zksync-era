@@ -31,9 +31,8 @@ use zksync_prover_keystore::{
     keystore::{Keystore, ProverServiceDataType},
     GoldilocksGpuProverSetupData,
 };
-use zksync_types::{
-    basic_fri_types::AggregationRound, prover_dal::FriProverJobMetadata, L1BatchNumber,
-};
+use zksync_types::{basic_fri_types::AggregationRound, prover_dal::FriProverJobMetadata, L1BatchNumber, L2ChainId};
+use zksync_types::abi::Transaction::L2;
 
 async fn create_witness_vector(
     metadata: FriProverJobMetadata,
@@ -167,6 +166,7 @@ fn get_metadata(path: &Path) -> anyhow::Result<FriProverJobMetadata> {
         depth: caps["depth"].parse()?,
         is_node_final_proof: false,
         pick_time: Instant::now(),
+        chain_id: L2ChainId::zero(),
     })
 }
 
@@ -180,6 +180,7 @@ fn witness_vector_filename(metadata: FriProverJobMetadata) -> String {
         depth,
         is_node_final_proof: _,
         pick_time: _,
+        chain_id: _,
     } = metadata;
     format!("{block_number}_{sequence_number}_{circuit_id}_{aggregation_round:?}_{depth}.witness_vector")
 }
