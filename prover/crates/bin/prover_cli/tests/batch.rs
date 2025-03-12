@@ -1,6 +1,7 @@
 use assert_cmd::Command;
 use circuit_definitions::zkevm_circuits::scheduler::aux::BaseLayerCircuitType;
 use prover_cli::commands::status::utils::Status;
+use zksync_basic_types::{ChainAwareL1BatchNumber, L2ChainId};
 use zksync_prover_dal::{
     fri_witness_generator_dal::FriWitnessJobStatus, Connection, ConnectionPool, Prover, ProverDal,
 };
@@ -160,7 +161,7 @@ async fn insert_prover_job(
     connection
         .fri_prover_jobs_dal()
         .insert_prover_job(
-            batch_number,
+            ChainAwareL1BatchNumber::new(L2ChainId::zero(), batch_number),
             circuit_id as u8,
             0,
             sequence_number,
@@ -224,12 +225,12 @@ async fn insert_bwg_job(
 ) {
     connection
         .fri_basic_witness_generator_dal()
-        .save_witness_inputs(batch_number, "", ProtocolSemanticVersion::default())
+        .save_witness_inputs(ChainAwareL1BatchNumber::new(L2ChainId::zero(), batch_number), "", ProtocolSemanticVersion::default())
         .await
         .unwrap();
     connection
         .fri_basic_witness_generator_dal()
-        .set_status_for_basic_witness_job(status, batch_number)
+        .set_status_for_basic_witness_job(status, ChainAwareL1BatchNumber::new(L2ChainId::zero(), batch_number))
         .await;
 }
 
