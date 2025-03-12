@@ -141,7 +141,10 @@ impl RpcClient {
 
             tracing::info!("Sending proof for batch {:?}", l1_batch_number);
 
-            if let Err(e) = client.submit_proof_generation_data(data).await {
+            if let Err(e) = client
+                .submit_proof_generation_data(self.chain_id, data)
+                .await
+            {
                 tracing::error!(
                     "Failed to submit proof generation data for batch {:?}, unlocking: {}",
                     e,

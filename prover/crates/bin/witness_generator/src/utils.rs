@@ -7,7 +7,9 @@ use circuit_definitions::circuit_definitions::base_layer::ZkSyncBaseLayerCircuit
 use once_cell::sync::Lazy;
 use zkevm_test_harness::boojum::field::goldilocks::GoldilocksField;
 use zksync_multivm::utils::get_used_bootloader_memory_bytes;
-use zksync_object_store::{serialize_using_bincode, Bucket, ObjectStore, StoredObject};
+use zksync_object_store::{
+    serialize_using_bincode, Bucket, ObjectStore, ObjectStoreError, StoredObject,
+};
 use zksync_prover_fri_types::{
     circuit_definitions::{
         boojum::{
@@ -58,6 +60,24 @@ pub struct ClosedFormInputWrapper(
     pub(crate) RecursionQueueSimulator<GoldilocksField>,
 );
 
+impl ClosedFormInputWrapper {
+    pub async fn conditional_get_from_object_store(
+        blob_store: &dyn ObjectStore,
+        key: <Self as StoredObject>::Key<'_>,
+    ) -> Result<Self, ObjectStoreError> {
+        match blob_store.get(key).await {
+            Ok(proof) => Ok(proof),
+            Err(_) => {
+                // If the proof with chain id was not found, we try to fetch the one without chain id
+                let mut zero_chain_id_key = key;
+                zero_chain_id_key.chain_id = L2ChainId::zero();
+
+                blob_store.get(zero_chain_id_key).await
+            }
+        }
+    }
+}
+
 impl StoredObject for ClosedFormInputWrapper {
     const BUCKET: Bucket = Bucket::LeafAggregationWitnessJobsFri;
     type Key<'a> = ClosedFormInputKey;
@@ -68,6 +88,11 @@ impl StoredObject for ClosedFormInputWrapper {
             block_number,
             circuit_id,
         } = key;
+
+        if chain_id.as_u64() == 0 {
+            return format!("closed_form_inputs_{block_number}_{circuit_id}.bin",);
+        }
+
         format!(
             "closed_form_inputs_{}_{block_number}_{circuit_id}.bin",
             chain_id.as_u64()
@@ -79,6 +104,24 @@ impl StoredObject for ClosedFormInputWrapper {
 
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct AggregationWrapper(pub Vec<(u64, RecursionQueueSimulator<GoldilocksField>)>);
+
+impl AggregationWrapper {
+    pub async fn conditional_get_from_object_store(
+        blob_store: &dyn ObjectStore,
+        key: <Self as StoredObject>::Key<'_>,
+    ) -> Result<Self, ObjectStoreError> {
+        match blob_store.get(key).await {
+            Ok(proof) => Ok(proof),
+            Err(_) => {
+                // If the proof with chain id was not found, we try to fetch the one without chain id
+                let mut zero_chain_id_key = key;
+                zero_chain_id_key.chain_id = L2ChainId::zero();
+
+                blob_store.get(zero_chain_id_key).await
+            }
+        }
+    }
+}
 
 impl StoredObject for AggregationWrapper {
     const BUCKET: Bucket = Bucket::NodeAggregationWitnessJobsFri;
@@ -191,7 +234,10 @@ pub async fn load_proofs_for_job_ids(
 ) -> Vec<FriProofWrapper> {
     let mut handles = Vec::with_capacity(job_ids.len());
     for job_id in job_ids {
-        handles.push(object_store.get((chain_id, *job_id)));
+        handles.push(FriProofWrapper::conditional_get_from_object_store(
+            object_store,
+            (chain_id, *job_id),
+        ));
     }
     futures::future::join_all(handles)
         .await

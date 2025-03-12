@@ -10,7 +10,11 @@ use crate::api::{ProofGenerationData, SubmitProofRequest};
 pub trait GatewayRpc {
     /// Submits proof generation data from client to server
     #[method(name = "submit_proof_generation_data")]
-    async fn submit_proof_generation_data(&self, data: ProofGenerationData) -> RpcResult<()>;
+    async fn submit_proof_generation_data(
+        &self,
+        chain_id: L2ChainId,
+        data: ProofGenerationData,
+    ) -> RpcResult<()>;
 
     /// Notifies server that final proof was received, saved successfully and can be marked as `sent_to_server`
     #[method(name = "received_final_proof")]

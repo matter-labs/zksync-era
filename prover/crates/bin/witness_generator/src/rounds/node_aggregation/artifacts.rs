@@ -37,14 +37,10 @@ impl ArtifactsManager for NodeAggregation {
             circuit_id: metadata.circuit_id,
             depth: metadata.depth,
         };
-        let artifacts = object_store.get(key).await.unwrap_or_else(|error| {
-            panic!(
-                "node aggregation job artifacts getting error. Key: {:?}, error: {:?}",
-                key, error
-            )
-        });
 
-        Ok(artifacts)
+        AggregationWrapper::conditional_get_from_object_store(object_store, key)
+            .await
+            .map_err(|e| anyhow::anyhow!(e))
     }
 
     #[tracing::instrument(

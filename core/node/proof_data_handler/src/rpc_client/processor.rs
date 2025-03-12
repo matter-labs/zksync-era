@@ -155,7 +155,6 @@ impl ProofDataProcessor {
 
         Ok(ProofGenerationData {
             l1_batch_number,
-            chain_id: self.chain_id,
             witness_input_data: blob,
             protocol_version: protocol_version.version,
             l1_verifier_config: protocol_version.l1_verifier_config,

@@ -1,10 +1,12 @@
 use std::{sync::Arc, time::Instant};
 
+use anyhow::anyhow;
 use async_trait::async_trait;
 use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::AuxOutputWitnessWrapper;
 use zksync_prover_fri_utils::get_recursive_layer_circuit_id_for_base_layer;
+use zksync_prover_interface::inputs::WitnessInputData;
 use zksync_types::{
     basic_fri_types::AggregationRound, ChainAwareL1BatchNumber, L1BatchNumber, L2ChainId,
 };
@@ -30,7 +32,9 @@ impl ArtifactsManager for BasicCircuits {
         object_store: &dyn ObjectStore,
     ) -> anyhow::Result<Self::InputArtifacts> {
         let batch_number = *metadata;
-        let data = object_store.get(batch_number).await.unwrap();
+        let data = WitnessInputData::conditional_get_from_object_store(object_store, batch_number)
+            .await
+            .map_err(|e| anyhow!(e))?;
         Ok(BasicWitnessGeneratorJob {
             chain_id: batch_number.chain_id(),
             block_number: batch_number.batch_number(),

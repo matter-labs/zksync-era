@@ -34,12 +34,9 @@ impl ArtifactsManager for LeafAggregation {
             circuit_id: metadata.circuit_id,
         };
 
-        let artifacts = object_store
-            .get(key)
+        ClosedFormInputWrapper::conditional_get_from_object_store(object_store, key)
             .await
-            .unwrap_or_else(|_| panic!("leaf aggregation job artifacts missing: {:?}", key));
-
-        Ok(artifacts)
+            .map_err(|e| anyhow::anyhow!(e))
     }
 
     #[tracing::instrument(

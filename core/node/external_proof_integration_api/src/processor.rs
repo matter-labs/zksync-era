@@ -48,13 +48,14 @@ impl Processor {
         l1_batch_number: L1BatchNumber,
         proof: ExternalProof,
     ) -> Result<(), ProcessorError> {
-        let expected_proof = self
-            .blob_store
-            .get::<L1BatchProofForL1>((
+        let expected_proof = L1BatchProofForL1::conditional_get_from_object_store(
+            &*self.blob_store,
+            (
                 ChainAwareL1BatchNumber::new(self.chain_id, l1_batch_number),
                 proof.protocol_version(),
-            ))
-            .await?;
+            ),
+        )
+        .await?;
         proof.verify(expected_proof)?;
         Ok(())
     }
@@ -167,7 +168,6 @@ impl Processor {
 
         Ok(ProofGenerationData {
             l1_batch_number,
-            chain_id: self.chain_id,
             witness_input_data: blob,
             protocol_version: protocol_version.version,
             l1_verifier_config: protocol_version.l1_verifier_config,

@@ -25,9 +25,9 @@ impl ArtifactsManager for Scheduler {
         metadata: &Self::InputMetadata,
         object_store: &dyn ObjectStore,
     ) -> anyhow::Result<Self::InputArtifacts> {
-        let artifacts = object_store.get(*metadata).await?;
-
-        Ok(artifacts)
+        FriProofWrapper::conditional_get_from_object_store(object_store, *metadata)
+            .await
+            .map_err(|e| anyhow::anyhow!(e))
     }
 
     async fn save_to_bucket(

@@ -10,10 +10,13 @@ use circuit_definitions::{
 use fflonk::FflonkProof;
 use serde::{Deserialize, Serialize};
 use serde_with::{hex::Hex, serde_as};
-use zksync_object_store::{serialize_using_bincode, Bucket, StoredObject, _reexports::BoxedError};
+use zksync_object_store::{
+    serialize_using_bincode, Bucket, ObjectStore, ObjectStoreError, StoredObject,
+    _reexports::BoxedError,
+};
 use zksync_types::{
     protocol_version::ProtocolSemanticVersion, tee_types::TeeType, ChainAwareL1BatchNumber,
-    L1BatchNumber,
+    L1BatchNumber, L2ChainId,
 };
 
 /// A "final" ZK proof that can be sent to the L1 contract.
@@ -23,6 +26,27 @@ use zksync_types::{
 pub enum L1BatchProofForL1 {
     Fflonk(FflonkL1BatchProofForL1),
     Plonk(PlonkL1BatchProofForL1),
+}
+
+// Implementation to ensure smooth migration to chain id identifiers
+impl L1BatchProofForL1 {
+    pub async fn conditional_get_from_object_store(
+        blob_store: &dyn ObjectStore,
+        key: <Self as StoredObject>::Key<'_>,
+    ) -> Result<Self, ObjectStoreError> {
+        match blob_store.get(key).await {
+            Ok(proof) => Ok(proof),
+            Err(_) => {
+                // If the proof with chain id was not found, we try to fetch the one without chain id
+                let batch_number = key.0.batch_number();
+                let zero_chain_id_key = (
+                    ChainAwareL1BatchNumber::new(L2ChainId::zero(), batch_number),
+                    key.1,
+                );
+                blob_store.get(zero_chain_id_key).await
+            }
+        }
+    }
 }
 
 impl L1BatchProofForL1 {
@@ -130,6 +154,14 @@ impl StoredObject for L1BatchProofForL1 {
     fn encode_key(key: Self::Key<'_>) -> String {
         let (batch_number, protocol_version) = key;
         let semver_suffix = protocol_version.to_string().replace('.', "_");
+
+        if key.0.raw_chain_id() == 0 {
+            return format!(
+                "l1_batch_proof_{}_{semver_suffix}.bin",
+                batch_number.raw_batch_number(),
+            );
+        }
+
         format!(
             "l1_batch_proof_{}_{}_{semver_suffix}.bin",
             batch_number.raw_chain_id(),

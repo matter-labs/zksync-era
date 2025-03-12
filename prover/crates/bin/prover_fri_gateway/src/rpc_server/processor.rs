@@ -9,6 +9,7 @@ use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_interface::{
     api::{ProofGenerationData, SubmitProofRequest},
+    outputs::L1BatchProofForL1,
     rpc::GatewayRpcServer,
 };
 use zksync_types::{
@@ -75,11 +76,12 @@ impl RpcDataProcessor {
 
         let request = match status {
             ProofCompressionJobStatus::Successful => {
-                let proof = self
-                    .blob_store
-                    .get((batch_number, protocol_version))
-                    .await
-                    .expect("Failed to get compressed snark proof from blob store");
+                let proof = L1BatchProofForL1::conditional_get_from_object_store(
+                    &*self.blob_store,
+                    (batch_number, protocol_version),
+                )
+                .await
+                .expect("Failed to get compressed snark proof from blob store");
                 SubmitProofRequest::Proof(l1_batch_number, Box::new(proof))
             }
             ProofCompressionJobStatus::Skipped => {
@@ -108,17 +110,21 @@ impl RpcDataProcessor {
             .map_err(|e| anyhow::anyhow!(e))
     }
 
-    pub async fn save_proof_gen_data(&self, data: ProofGenerationData) -> anyhow::Result<()> {
+    pub async fn save_proof_gen_data(
+        &self,
+        chain_id: L2ChainId,
+        data: ProofGenerationData,
+    ) -> anyhow::Result<()> {
         tracing::info!(
             "Received proof generation data for batch: {:?}, chain {}",
             data.l1_batch_number,
-            data.chain_id.as_u64(),
+            chain_id.as_u64(),
         );
 
         let store = &*self.blob_store;
         let witness_inputs = store
             .put(
-                ChainAwareL1BatchNumber::new(data.chain_id, data.l1_batch_number),
+                ChainAwareL1BatchNumber::new(chain_id, data.l1_batch_number),
                 &data.witness_input_data,
             )
             .await?;
@@ -132,7 +138,7 @@ impl RpcDataProcessor {
         connection
             .fri_basic_witness_generator_dal()
             .save_witness_inputs(
-                ChainAwareL1BatchNumber::new(data.chain_id, data.l1_batch_number),
+                ChainAwareL1BatchNumber::new(chain_id, data.l1_batch_number),
                 &witness_inputs,
                 data.protocol_version,
             )
@@ -143,10 +149,16 @@ impl RpcDataProcessor {
 
 #[async_trait]
 impl GatewayRpcServer for RpcDataProcessor {
-    async fn submit_proof_generation_data(&self, data: ProofGenerationData) -> RpcResult<()> {
-        self.save_proof_gen_data(data).await.map_err(|err| {
-            ErrorObject::owned(INTERNAL_ERROR_CODE, format!("{err:?}"), None::<()>)
-        })?;
+    async fn submit_proof_generation_data(
+        &self,
+        chain_id: L2ChainId,
+        data: ProofGenerationData,
+    ) -> RpcResult<()> {
+        self.save_proof_gen_data(chain_id, data)
+            .await
+            .map_err(|err| {
+                ErrorObject::owned(INTERNAL_ERROR_CODE, format!("{err:?}"), None::<()>)
+            })?;
         Ok(())
     }
 
