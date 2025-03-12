@@ -3,6 +3,7 @@ use std::time::Duration;
 use jsonrpsee::{async_client::Client, ws_client::WsClientBuilder};
 use tokio::sync::watch;
 use zksync_prover_interface::{api::SubmitProofRequest, rpc::GatewayRpcClient};
+use zksync_types::L2ChainId;
 
 use crate::rpc_client::processor::ProofDataProcessor;
 
@@ -14,6 +15,8 @@ pub struct RpcClient {
     ws_url: String,
     readiness_check_interval: Duration,
     connection_retry_interval: Duration,
+    chain_id: L2ChainId,
+    subscribe_for_zero_chain_id: bool,
 }
 
 impl RpcClient {
@@ -22,27 +25,56 @@ impl RpcClient {
         ws_url: String,
         readiness_check_interval: Duration,
         connection_retry_interval: Duration,
+        chain_id: L2ChainId,
+        subscribe_for_zero_chain_id: bool,
     ) -> Self {
         Self {
             processor,
             ws_url,
             readiness_check_interval,
             connection_retry_interval,
+            chain_id,
+            subscribe_for_zero_chain_id,
         }
     }
 
     pub async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         let proof_data_sender = self.run_and_maintain_proof_data_submitter(stop_receiver.clone());
-        let proof_receiver = self.run_and_maintain_proof_receiver(stop_receiver.clone());
+        let proof_receiver =
+            self.run_and_maintain_proof_receiver(stop_receiver.clone(), self.chain_id);
 
-        tracing::info!("Starting proof data submitter and receiver");
+        tracing::info!(
+            "Starting proof data submitter and receiver for chain id {}",
+            self.chain_id.as_u64()
+        );
 
-        tokio::select! {
-            _ = proof_data_sender => {
-                tracing::info!("Proof data submitter stopped");
+        if self.subscribe_for_zero_chain_id {
+            tracing::info!("Starting receiver for zero chain id");
+
+            let zero_proof_receiver = self.run_and_maintain_proof_receiver(
+                stop_receiver.clone(),
+                L2ChainId::new(0).map_err(|e| anyhow::anyhow!(e))?,
+            );
+
+            tokio::select! {
+                _ = proof_data_sender => {
+                    tracing::info!("Proof data submitter stopped");
+                }
+                _ = proof_receiver => {
+                    tracing::info!("Proof receiver stopped");
+                }
+                _ = zero_proof_receiver => {
+                    tracing::info!("Zero chain id proof receiver stopped");
+                }
             }
-            _ = proof_receiver => {
-                tracing::info!("Proof receiver stopped");
+        } else {
+            tokio::select! {
+                _ = proof_data_sender => {
+                    tracing::info!("Proof data submitter stopped");
+                }
+                _ = proof_receiver => {
+                    tracing::info!("Proof receiver stopped");
+                }
             }
         }
 
@@ -109,7 +141,10 @@ impl RpcClient {
 
             tracing::info!("Sending proof for batch {:?}", l1_batch_number);
 
-            if let Err(e) = client.submit_proof_generation_data(data).await {
+            if let Err(e) = client
+                .submit_proof_generation_data(self.chain_id, data)
+                .await
+            {
                 tracing::error!(
                     "Failed to submit proof generation data for batch {:?}, unlocking: {}",
                     e,
@@ -128,6 +163,7 @@ impl RpcClient {
     async fn run_and_maintain_proof_receiver(
         &self,
         stop_receiver: watch::Receiver<bool>,
+        chain_id: L2ChainId,
     ) -> anyhow::Result<()> {
         loop {
             if *stop_receiver.borrow() {
@@ -152,7 +188,7 @@ impl RpcClient {
             );
 
             if let Err(e) = self
-                .run_proof_receiver(client?, stop_receiver.clone())
+                .run_proof_receiver(client?, stop_receiver.clone(), chain_id)
                 .await
             {
                 tracing::error!("Proof data receiver failed: {}", e);
@@ -164,8 +200,9 @@ impl RpcClient {
         &self,
         client: Client,
         stop_receiver: watch::Receiver<bool>,
+        chain_id: L2ChainId,
     ) -> anyhow::Result<()> {
-        let mut subscription = client.subscribe_for_proofs().await?;
+        let mut subscription = client.subscribe_for_proofs(chain_id).await?;
         loop {
             if *stop_receiver.borrow() {
                 tracing::warn!("Stop signal received, shutting down proof data receiver");
@@ -185,10 +222,16 @@ impl RpcClient {
                 SubmitProofRequest::SkippedProofGeneration(l1_batch_number) => l1_batch_number,
             };
 
-            tracing::info!("Received proof for batch {:?}", l1_batch_number);
+            tracing::info!(
+                "Received proof for batch {:?}, chain id {}",
+                l1_batch_number,
+                chain_id.as_u64()
+            );
 
             self.processor.handle_proof(proof).await?;
-            client.received_final_proof(l1_batch_number).await?
+            client
+                .received_final_proof(chain_id, l1_batch_number)
+                .await?
         }
     }
 }

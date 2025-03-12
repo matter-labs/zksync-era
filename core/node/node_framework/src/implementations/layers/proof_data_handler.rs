@@ -85,6 +85,7 @@ impl WiringLayer for ProofDataHandlerLayer {
             blob_store,
             self.commitment_mode,
             self.proof_data_handler_config.proof_generation_timeout(),
+            self.l2_chain_id,
         );
         let rpc_client = RpcClient::new(
             processor,
@@ -92,6 +93,8 @@ impl WiringLayer for ProofDataHandlerLayer {
             self.proof_data_handler_config
                 .batch_readiness_check_interval(),
             self.proof_data_handler_config.retry_connection_interval(),
+            self.l2_chain_id,
+            self.proof_data_handler_config.subscribe_for_zero_chain_id,
         );
 
         let task = ProofDataHandlerTask::new(api, rpc_client);

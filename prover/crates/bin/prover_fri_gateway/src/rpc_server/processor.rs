@@ -11,7 +11,9 @@ use zksync_prover_interface::{
     api::{ProofGenerationData, SubmitProofRequest},
     rpc::GatewayRpcServer,
 };
-use zksync_types::{prover_dal::ProofCompressionJobStatus, L1BatchNumber};
+use zksync_types::{
+    prover_dal::ProofCompressionJobStatus, ChainAwareL1BatchNumber, L1BatchNumber, L2ChainId,
+};
 
 pub struct RpcDataProcessor {
     pool: ConnectionPool<Prover>,
@@ -23,7 +25,7 @@ impl RpcDataProcessor {
         Self { pool, blob_store }
     }
 
-    pub async fn subscribe(&self, pending: PendingSubscriptionSink) {
+    pub async fn subscribe(&self, chain_id: L2ChainId, pending: PendingSubscriptionSink) {
         let Ok(mut sink) = pending.accept().await else {
             return;
         };
@@ -31,7 +33,7 @@ impl RpcDataProcessor {
         loop {
             tokio::time::sleep(Duration::from_secs(10)).await;
 
-            let (l1_batch_number, request) = match self.next_submit_proof_request().await {
+            let (l1_batch_number, request) = match self.next_submit_proof_request(chain_id).await {
                 Some(data) => data,
                 None => {
                     tracing::info!("No proofs to send, waiting for new ones");
@@ -42,7 +44,11 @@ impl RpcDataProcessor {
             let msg = SubscriptionMessage::from_json(&request).unwrap();
             match sink.try_send(msg) {
                 Ok(_) => {
-                    tracing::info!("Proof for {:?} was sent to client", l1_batch_number);
+                    tracing::info!(
+                        "Proof for chain {}, batch {:?} was sent to client",
+                        chain_id.as_u64(),
+                        l1_batch_number
+                    );
                 }
                 Err(TrySendError::Closed(_)) => break,
                 Err(TrySendError::Full(_)) => {
@@ -52,7 +58,16 @@ impl RpcDataProcessor {
         }
     }
 
-    pub async fn next_submit_proof_request(&self) -> Option<(L1BatchNumber, SubmitProofRequest)> {
+    // TODO: Not 0 chain id is not used until the new identifiers on prover side are implemented
+    pub async fn next_submit_proof_request(
+        &self,
+        chain_id: L2ChainId,
+    ) -> Option<(L1BatchNumber, SubmitProofRequest)> {
+        if chain_id.as_u64() != 0 {
+            tracing::warn!("Chain id is not 0, but it's not supported yet");
+            return None;
+        }
+
         let (l1_batch_number, protocol_version, status) = self
             .pool
             .connection()
@@ -66,7 +81,10 @@ impl RpcDataProcessor {
             ProofCompressionJobStatus::Successful => {
                 let proof = self
                     .blob_store
-                    .get((l1_batch_number, protocol_version))
+                    .get((
+                        ChainAwareL1BatchNumber::new(chain_id, l1_batch_number),
+                        protocol_version,
+                    ))
                     .await
                     .expect("Failed to get compressed snark proof from blob store");
                 SubmitProofRequest::Proof(l1_batch_number, Box::new(proof))
@@ -96,15 +114,25 @@ impl RpcDataProcessor {
             .map_err(|e| anyhow::anyhow!(e))
     }
 
-    pub async fn save_proof_gen_data(&self, data: ProofGenerationData) -> anyhow::Result<()> {
+    pub async fn save_proof_gen_data(
+        &self,
+        chain_id: L2ChainId,
+        data: ProofGenerationData,
+    ) -> anyhow::Result<()> {
         tracing::info!(
-            "Received proof generation data for batch: {:?}",
-            data.l1_batch_number
+            "Received proof generation data for batch: {:?}, chain {:?}",
+            data.l1_batch_number,
+            chain_id.as_u64(),
         );
 
         let store = &*self.blob_store;
+
+        // TODO: we should store the data with original chain id when the functionality on prover side is implemented
+        let batch_number_with_zero_chain_id =
+            ChainAwareL1BatchNumber::new(L2ChainId::new(0).unwrap(), data.l1_batch_number);
+
         let witness_inputs = store
-            .put(data.l1_batch_number, &data.witness_input_data)
+            .put(batch_number_with_zero_chain_id, &data.witness_input_data)
             .await?;
         let mut connection = self.pool.connection().await?;
 
@@ -123,17 +151,28 @@ impl RpcDataProcessor {
 
 #[async_trait]
 impl GatewayRpcServer for RpcDataProcessor {
-    async fn submit_proof_generation_data(&self, data: ProofGenerationData) -> RpcResult<()> {
-        self.save_proof_gen_data(data).await.map_err(|err| {
-            ErrorObject::owned(INTERNAL_ERROR_CODE, format!("{err:?}"), None::<()>)
-        })?;
+    async fn submit_proof_generation_data(
+        &self,
+        chain_id: L2ChainId,
+        data: ProofGenerationData,
+    ) -> RpcResult<()> {
+        self.save_proof_gen_data(chain_id, data)
+            .await
+            .map_err(|err| {
+                ErrorObject::owned(INTERNAL_ERROR_CODE, format!("{err:?}"), None::<()>)
+            })?;
         Ok(())
     }
 
-    async fn received_final_proof(&self, l1_batch_number: L1BatchNumber) -> RpcResult<()> {
+    async fn received_final_proof(
+        &self,
+        chain_id: L2ChainId,
+        l1_batch_number: L1BatchNumber,
+    ) -> RpcResult<()> {
         tracing::info!(
-            "Received confirmation of successfully sent proof for batch {:?}",
-            l1_batch_number
+            "Received confirmation of successfully sent proof for batch {:?}, chain_id: {:?}",
+            l1_batch_number,
+            chain_id,
         );
         self.save_successful_sent_proof(l1_batch_number)
             .await
@@ -143,8 +182,9 @@ impl GatewayRpcServer for RpcDataProcessor {
     async fn subscribe_for_proofs(
         &self,
         subscription_sink: PendingSubscriptionSink,
+        chain_id: L2ChainId,
     ) -> SubscriptionResult {
-        self.subscribe(subscription_sink).await;
+        self.subscribe(chain_id, subscription_sink).await;
         Ok(())
     }
 }

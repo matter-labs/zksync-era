@@ -63,6 +63,7 @@ pub struct ProofDataHandlerConfig {
     pub batch_readiness_check_interval_in_secs: u16,
     pub proof_generation_timeout_in_secs: u16,
     pub retry_connection_interval_in_secs: u16,
+    pub subscribe_for_zero_chain_id: bool,
     #[serde(skip)]
     // ^ Filled in separately in `Self::from_env()`. We cannot use `serde(flatten)` because it
     // doesn't work with `envy`: https://github.com/softprops/envy/issues/26

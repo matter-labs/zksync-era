@@ -119,4 +119,5 @@ message ProofDataHandler {
   optional string api_url = 7; // required; string
   optional uint32 batch_readiness_check_interval_in_secs = 8; // required; s
   optional uint32 retry_connection_interval_in_secs = 9; // required; s
+  optional bool subscribe_for_zero_chain_id = 10; // optional
 }

@@ -18,7 +18,7 @@ use zksync_types::{
     pubdata_da::PubdataSendingMode,
     settlement::SettlementMode,
     web3::CallRequest,
-    Address, L1BatchNumber, ProtocolVersionId, U256,
+    Address, ChainAwareL1BatchNumber, L1BatchNumber, L2ChainId, ProtocolVersionId, U256,
 };
 
 use super::{
@@ -45,6 +45,7 @@ pub struct Aggregator {
     /// means no wait is needed: nonces will still provide the correct ordering of
     /// transactions.
     operate_4844_mode: bool,
+    chain_id: L2ChainId,
     pubdata_da: PubdataSendingMode,
     commitment_mode: L1BatchCommitmentMode,
     priority_merkle_tree: Option<MiniMerkleTree<L1Tx>>,
@@ -106,6 +107,7 @@ impl OperationSkippingRestrictions {
 }
 
 impl Aggregator {
+    #[allow(clippy::too_many_arguments)]
     pub async fn new(
         config: SenderConfig,
         blob_store: Arc<dyn ObjectStore>,
@@ -114,6 +116,7 @@ impl Aggregator {
         pool: ConnectionPool<Core>,
         sl_client: Box<dyn BoundEthInterface>,
         settlement_mode: SettlementMode,
+        chain_id: L2ChainId,
     ) -> anyhow::Result<Self> {
         let pubdata_da = config.pubdata_sending_mode;
 
@@ -198,6 +201,7 @@ impl Aggregator {
             config,
             blob_store,
             operate_4844_mode,
+            chain_id,
             pubdata_da,
             commitment_mode,
             priority_merkle_tree: None,
@@ -537,6 +541,7 @@ impl Aggregator {
         l1_verifier_config: L1VerifierConfig,
         blob_store: &dyn ObjectStore,
         is_4844_mode: bool,
+        chain_id: L2ChainId,
     ) -> Option<ProveBatches> {
         let previous_proven_batch_number = storage
             .blocks_dal()
@@ -594,8 +599,12 @@ impl Aggregator {
             })
             .collect();
 
-        let proof =
-            load_wrapped_fri_proofs_for_range(batch_to_prove, blob_store, &allowed_versions).await;
+        let proof = load_wrapped_fri_proofs_for_range(
+            ChainAwareL1BatchNumber::new(chain_id, batch_to_prove),
+            blob_store,
+            &allowed_versions,
+        )
+        .await;
         let Some(proof) = proof else {
             // The proof for the next L1 batch is not generated yet
             return None;
@@ -674,6 +683,7 @@ impl Aggregator {
                     l1_verifier_config,
                     &*self.blob_store,
                     self.operate_4844_mode,
+                    self.chain_id,
                 )
                 .await
             }
@@ -696,6 +706,7 @@ impl Aggregator {
                     l1_verifier_config,
                     &*self.blob_store,
                     self.operate_4844_mode,
+                    self.chain_id,
                 )
                 .await
                 {
@@ -752,20 +763,33 @@ async fn extract_ready_subrange(
 }
 
 pub async fn load_wrapped_fri_proofs_for_range(
-    l1_batch_number: L1BatchNumber,
+    batch_number: ChainAwareL1BatchNumber,
     blob_store: &dyn ObjectStore,
     allowed_versions: &[ProtocolSemanticVersion],
 ) -> Option<L1BatchProofForL1> {
     for version in allowed_versions {
         match blob_store
-            .get::<L1BatchProofForL1>((l1_batch_number, *version))
+            .get::<L1BatchProofForL1>((batch_number, *version))
             .await
         {
             Ok(proof) => return Some(proof),
-            Err(ObjectStoreError::KeyNotFound(_)) => (), // do nothing, proof is not ready yet
+            Err(ObjectStoreError::KeyNotFound(_)) => {
+                // try to get older version of the proof without chain id
+                return blob_store
+                    .get::<L1BatchProofForL1>((
+                        ChainAwareL1BatchNumber::new(
+                            L2ChainId::new(0).unwrap(),
+                            batch_number.batch_number(),
+                        ),
+                        *version,
+                    ))
+                    .await
+                    .ok();
+            } // do nothing, proof is not ready yet
             Err(err) => panic!(
                 "Failed to load proof for batch {}: {}",
-                l1_batch_number.0, err
+                batch_number.raw_batch_number(),
+                err
             ),
         }
     }

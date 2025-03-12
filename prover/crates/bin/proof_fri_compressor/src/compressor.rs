@@ -19,7 +19,9 @@ use zksync_prover_interface::outputs::{
 };
 use zksync_prover_keystore::keystore::Keystore;
 use zksync_queued_job_processor::JobProcessor;
-use zksync_types::{protocol_version::ProtocolSemanticVersion, L1BatchNumber};
+use zksync_types::{
+    protocol_version::ProtocolSemanticVersion, ChainAwareL1BatchNumber, L1BatchNumber, L2ChainId,
+};
 
 use crate::metrics::METRICS;
 
@@ -178,9 +180,13 @@ impl JobProcessor for ProofCompressor {
         };
 
         let blob_save_started_at = Instant::now();
+
+        // TODO: we should store the data with original chain id when the functionality on prover side is implemented
+        let batch_number = ChainAwareL1BatchNumber::new(L2ChainId::new(0).unwrap(), job_id);
+
         let blob_url = self
             .blob_store
-            .put((job_id, self.protocol_version), &l1_batch_proof)
+            .put((batch_number, self.protocol_version), &l1_batch_proof)
             .await
             .context("Failed to save converted l1_batch_proof")?;
         METRICS

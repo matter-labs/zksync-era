@@ -682,6 +682,7 @@ impl MainNodeBuilder {
         self.node.add_layer(ExternalProofIntegrationApiLayer::new(
             config,
             self.genesis_config.l1_batch_commit_data_generator_mode,
+            self.genesis_config.l2_chain_id,
         ));
 
         Ok(self)
