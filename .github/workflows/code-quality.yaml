@@ -27,11 +27,12 @@ defaults:
 
 jobs:
 
-  # =================================================================
-  #                      Code Quality job
+  # ===============================================
+  #              Code Quality job
   #
-  # Runs formatting and linting of all workspaces, checks databases.
-  # =================================================================
+  # Runs formatting and linting of all workspaces,
+  # checks databases are set up correctly.
+  # ===============================================
   code-quality:
     name: Code quality
     runs-on: matterlabs-ci-runner-highmem-long
