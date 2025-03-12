@@ -51,7 +51,7 @@ pub async fn run(shell: &Shell, args: RustArgs) -> anyhow::Result<()> {
     let _dir_guard = shell.push_dir(link_to_code.join("core"));
 
     logger::info(MSG_USING_CARGO_NEXTEST);
-    let cmd = cmd!(shell, "cargo nextest run");
+    let cmd = cmd!(shell, "cargo nextest run --all-targets");
 
     let cmd = if let Some(options) = args.options {
         Cmd::new(cmd.args(options.split_whitespace())).with_force_run()

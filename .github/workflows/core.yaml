@@ -50,10 +50,10 @@ jobs:
   # =================================================
   #          Unit Tests for Core workspace
   #
-  # Runs cargo nextest in CI environment,
-  # verifies contract hashes, executes vm-benchmarks
+  # Runs cargo nextest in CI environment.
   # =================================================
   unit-tests:
+    name: Unit tests
     runs-on: matterlabs-ci-runner-highmem-long
     steps:
       - name: Checkout
@@ -71,21 +71,17 @@ jobs:
       - name: Setup contracts
         uses: matter-labs/zksync-ci-common/.github/actions/build-contracts@aba-ci-optimize
 
+      - name: Check contracts hashes
+        working-directory: contracts
+        run: yarn install && yarn calculate-hashes:check
+
       # Only reth is required for the unit tests
       # postgres is started automatically by `zkstack dev test rust` step below
       - name: Start services
         run: docker-compose up -d --wait reth
 
-      - name: Check contracts hashes
-        working-directory: contracts
-        run: yarn install && yarn calculate-hashes:check
-
       - name: Rust unit tests
         run: zkstack dev test rust
-
-      - name: Run benchmarks
-        working-directory: core
-        run: cargo test --package vm-benchmark --bench oneshot --bench batch
 
 
   # ==========================================
@@ -95,6 +91,7 @@ jobs:
   # run load tests for old and new VMs.
   # ==========================================
   load-test:
+    name: Load test ${{ matrix.vm_mode }}
     runs-on: matterlabs-ci-runner-high-performance
     strategy:
       fail-fast: false
@@ -176,7 +173,7 @@ jobs:
         run: cat ${SERVER_LOG}
 
   # ==============================================
-  #         Load Tests for Core workspace
+  #     Integration Tests for Core workspace
   #
   # Setup legacy chain, initialize ecosystem and
   # run TS integration tests for multiple chains.

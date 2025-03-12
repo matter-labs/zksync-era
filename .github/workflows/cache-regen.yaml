@@ -100,6 +100,6 @@ jobs:
         run: |
           if [[ ${{ matrix.build-type }} == 'release' ]]; then
             cargo build --release
-          elif [[ ${{ matrix.build-type }} == 'dev' ]]; then 
-            cargo nextest run --no-run
+          elif [[ ${{ matrix.build-type }} == 'dev' ]]; then
+            cargo nextest run --no-run --all-targets
           fi

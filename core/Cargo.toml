@@ -124,7 +124,7 @@ chrono = { version = "0.4", default-features = false }
 clap = "4.2.2"
 codegen = "0.2.0"
 const-decoder = "0.4.0"
-criterion = "0.4.0"
+criterion = "0.5.1"
 ctrlc = "3.1"
 dashmap = "5.5.3"
 derive_more = "1.0.0"
