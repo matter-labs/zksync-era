@@ -1,5 +1,7 @@
 use anyhow::Context;
-use zksync_config::configs::contracts::{chain::L2Contracts, ecosystem::L1SpecificContracts};
+use zksync_config::configs::contracts::{
+    chain::L2Contracts, ecosystem::L1SpecificContracts, SettlementLayerSpecificContracts,
+};
 use zksync_contracts::getters_facet_contract;
 use zksync_contracts_loader::{get_settlement_layer_from_l1, load_settlement_layer_contracts};
 use zksync_eth_client::EthInterface;
@@ -26,6 +28,8 @@ use crate::{
 pub struct SettlementLayerData {
     l2_contracts: L2Contracts,
     l1_specific_contracts: L1SpecificContracts,
+    // This contracts are required as a fallback
+    l1_sl_specific_contracts: Option<SettlementLayerSpecificContracts>,
     l2_chain_id: L2ChainId,
     multicall3: Option<Address>,
 }
@@ -36,10 +40,12 @@ impl SettlementLayerData {
         l2_contracts: L2Contracts,
         l2_chain_id: L2ChainId,
         multicall3: Option<Address>,
+        l1_sl_specific_contracts: Option<SettlementLayerSpecificContracts>,
     ) -> Self {
         Self {
             l2_contracts,
             l1_specific_contracts,
+            l1_sl_specific_contracts,
             l2_chain_id,
             multicall3,
         }
@@ -81,8 +87,12 @@ impl WiringLayer for SettlementLayerData {
             self.l2_chain_id,
             self.multicall3,
         )
-        .await?
-        .context("No diamond proxy deployed for chain id on L1")?;
+        .await
+        // before v26 upgrade not all function for getting addresses are available,
+        // so we need a fallback and we can load the contracts from configs,
+        // it's safe only for l1 contracts
+        .unwrap_or(self.l1_sl_specific_contracts)
+        .expect("No contracts found on l1 or in configs");
         let initial_sl_mode = get_settlement_layer_from_l1(
             &input.eth_client.0,
             sl_l1_contracts.chain_contracts_config.diamond_proxy_addr,

@@ -154,6 +154,7 @@ fn main() -> anyhow::Result<()> {
         secrets,
         contracts_config.l1_specific_contracts(),
         contracts_config.l2_contracts(),
+        Some(contracts_config.chain_specific_contracts()),
         Some(contracts_config.l1_multicall3_addr),
     )?;
 

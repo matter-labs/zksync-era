@@ -1,4 +1,3 @@
-use anyhow::Context;
 use zksync_config::configs::contracts::{
     chain::L2Contracts, ecosystem::L1SpecificContracts, SettlementLayerSpecificContracts,
 };
@@ -115,9 +114,18 @@ impl WiringLayer for SettlementLayerDataEn {
 
         // There is no need to specify multicall3 for external node
         let contracts =
-            load_settlement_layer_contracts(client.as_ref(), bridgehub, self.chain_id, None)
-                .await?
-                .context("No Diamond proxy deployed")?;
+            load_settlement_layer_contracts(client.as_ref(), bridgehub, self.chain_id, None).await;
+        let contracts = match contracts {
+            Ok(Some(contracts)) => contracts,
+            Ok(None) => return Err(anyhow::anyhow!("No contacts deployed to settlement layer"))?,
+            Err(_) => match initial_sl_mode {
+                SettlementMode::SettlesToL1 => self.l1_chain_contracts.clone(),
+                SettlementMode::Gateway => {
+                    return Err(anyhow::anyhow!("No contacts deployed to contracts"))?
+                }
+            },
+        };
+
         Ok(Output {
             contracts: SettlementLayerContractsResource(contracts),
             l1_contracts: L1ChainContractsResource(self.l1_chain_contracts),

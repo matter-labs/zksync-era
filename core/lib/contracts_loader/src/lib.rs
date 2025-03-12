@@ -2,7 +2,7 @@ use zksync_config::configs::contracts::{
     chain::ChainContracts, ecosystem::EcosystemCommonContracts, SettlementLayerSpecificContracts,
 };
 use zksync_contracts::{bridgehub_contract, state_transition_manager_contract};
-use zksync_eth_client::{CallFunctionArgs, EthInterface};
+use zksync_eth_client::{CallFunctionArgs, ContractCallError, EthInterface};
 use zksync_types::{
     ethabi::{Contract, Token},
     settlement::SettlementMode,
@@ -72,23 +72,29 @@ pub async fn get_settlement_layer_from_l1(
     diamond_proxy_addr: Address,
     abi: &Contract,
 ) -> anyhow::Result<SettlementMode> {
-    let settlement_layer =
-        get_settlement_layer_address(eth_client, diamond_proxy_addr, abi).await?;
-
-    let mode = if settlement_layer.is_zero() {
-        SettlementMode::SettlesToL1
-    } else {
-        SettlementMode::Gateway
-    };
-
-    Ok(mode)
+    let settlement_mode =
+        match get_settlement_layer_address(eth_client, diamond_proxy_addr, abi).await {
+            Err(ContractCallError::Function(_)) => {
+                // Pre Gateway upgrade contracts, it's safe to say we are settling the data on L1
+                SettlementMode::SettlesToL1
+            }
+            Err(err) => Err(err)?,
+            Ok(address) => {
+                if address.is_zero() {
+                    SettlementMode::SettlesToL1
+                } else {
+                    SettlementMode::Gateway
+                }
+            }
+        };
+    return Ok(settlement_mode);
 }
 
 pub async fn get_settlement_layer_address(
     eth_client: &dyn EthInterface,
     diamond_proxy_addr: Address,
     abi: &Contract,
-) -> anyhow::Result<Address> {
+) -> Result<Address, ContractCallError> {
     let settlement_layer: Address = CallFunctionArgs::new("getSettlementLayer", ())
         .for_contract(diamond_proxy_addr, abi)
         .call(eth_client)

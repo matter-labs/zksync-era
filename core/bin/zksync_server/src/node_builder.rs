@@ -4,7 +4,9 @@
 use anyhow::{bail, Context};
 use zksync_config::{
     configs::{
-        contracts::{chain::L2Contracts, ecosystem::L1SpecificContracts},
+        contracts::{
+            chain::L2Contracts, ecosystem::L1SpecificContracts, SettlementLayerSpecificContracts,
+        },
         da_client::DAClientConfig,
         secrets::DataAvailabilitySecrets,
         wallets::Wallets,
@@ -97,6 +99,9 @@ pub struct MainNodeBuilder {
     genesis_config: GenesisConfig,
     secrets: Secrets,
     l1_specific_contracts: L1SpecificContracts,
+    // This field is a fallback for situation
+    // if use pre v26 contracts and not all functions are available for loading contracts
+    l1_sl_contracts: Option<SettlementLayerSpecificContracts>,
     l2_contracts: L2Contracts,
     multicall3: Option<Address>,
 }
@@ -109,6 +114,7 @@ impl MainNodeBuilder {
         secrets: Secrets,
         l1_specific_contracts: L1SpecificContracts,
         l2_contracts: L2Contracts,
+        l1_sl_contracts: Option<SettlementLayerSpecificContracts>,
         multicall3: Option<Address>,
     ) -> anyhow::Result<Self> {
         Ok(Self {
@@ -118,6 +124,7 @@ impl MainNodeBuilder {
             genesis_config,
             secrets,
             l1_specific_contracts,
+            l1_sl_contracts,
             l2_contracts,
             multicall3,
         })
@@ -322,6 +329,7 @@ impl MainNodeBuilder {
             self.l2_contracts.clone(),
             self.genesis_config.l2_chain_id,
             self.multicall3,
+            self.l1_sl_contracts.clone(),
         ));
         Ok(self)
     }
