@@ -1,154 +1,194 @@
-name: Lint
+name: Core tests
 
+# ================================================================
+#                  Core Workspace Workflow
+#
+# Runs unit, load and integration tests for the `core` workspace.
+# ================================================================
+
+# Set proper subset of permissions
+permissions:
+  contents: read
+  pull-requests: write
+
+# Define the events that triggers the workflow
 on:
   pull_request:
+    paths:
+      # Workspaces
+      - 'core/**'
+      - 'zkstack_cli/**'
+      # Docker files
+      - 'docker/contract-verifier/**'
+      - 'docker/external-node/**'
+      - 'docker/server/**'
+      # CI scripts
+      - '.github/workflows/core.yaml'
+      # - '.github/workflows/build-core-template.yml'
+      # - '.github/workflows/build-contract-verifier-template.yml'
+      # - '.github/workflows/ci-core-reusable.yml'
+      # - '.github/workflows/ci-core-lint-reusable.yml'
+      # Exclude markdown files
+      - '!**/*.md'
+      - '!**/*.MD'
+  # TODO: merge group cannot be filtered by path
+  # https://github.com/orgs/community/discussions/45899
   merge_group:
 
-
+# Cancel previous runs for PRs if new one is started
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+# Set default shell for all steps
 defaults:
   run:
     shell: 'bash -ex {0}'
 
-
 jobs:
 
-#  unit-tests:
-#    runs-on: matterlabs-ci-runner-highmem-long
-#    steps:
-#      - name: Checkout
-#        uses: actions/checkout@v4
-#        with:
-#          submodules: "recursive"
-#
-#      - name: Setup runner
-#        uses: matter-labs/zksync-ci-common/.github/actions/runner-setup@aba-ci-optimize
-#        with:
-#          workspace: 'core'
-#          cache_shared_key: 'dev'
-#
-#      - name: Build contracts
-#        uses: matter-labs/zksync-ci-common/.github/actions/build-contracts@aba-ci-optimize
-#
-#      - name: Start reth
-#        run: docker-compose up -d --wait reth
-#
-#      - name: Check contracts hashes
-#        working-directory: contracts
-#        run: yarn install && yarn calculate-hashes:check
-#
-#      - name: Rust unit tests
-#        run: zkstack dev test rust
-#
-#      - name: Run benchmarks
-#        working-directory: core
-#        run: cargo test --package vm-benchmark --bench oneshot --bench batch
-#
-#      - name: Show sccache stats
-#        run: sccache --show-stats
+  # =================================================
+  #          Unit Tests for Core workspace
+  #
+  # Runs cargo nextest in CI environment,
+  # verifies contract hashes, executes vm-benchmarks
+  # =================================================
+  unit-tests:
+    runs-on: matterlabs-ci-runner-highmem-long
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: "recursive"
+
+      - name: Setup runner
+        uses: matter-labs/zksync-ci-common/.github/actions/runner-setup@aba-ci-optimize
+        with:
+          workspace: 'core'       # Use core workspace cache setup
+          cache_shared_key: 'dev' # Use `dev` profile cache to significantly speed up the build
+
+      # Download prebuilt contracts version if exists, otherwise build them
+      - name: Setup contracts
+        uses: matter-labs/zksync-ci-common/.github/actions/build-contracts@aba-ci-optimize
+
+      # Only reth is required for the unit tests
+      # postgres is started automatically by `zkstack dev test rust` step below
+      - name: Start services
+        run: docker-compose up -d --wait reth
+
+      - name: Check contracts hashes
+        working-directory: contracts
+        run: yarn install && yarn calculate-hashes:check
+
+      - name: Rust unit tests
+        run: zkstack dev test rust
+
+      - name: Run benchmarks
+        working-directory: core
+        run: cargo test --package vm-benchmark --bench oneshot --bench batch
 
 
-#  load-test:
-#    runs-on: matterlabs-ci-runner-high-performance
-#    strategy:
-#      fail-fast: false
-#      matrix:
-#        vm_mode:
-#          - "old"
-#          - "new"
-#    env:
-#      EXPECTED_TX_COUNT: ${{ matrix.vm_mode == 'new' && 30000 || 16000 }}
-#      ACCOUNTS_AMOUNT: 100
-#      MAX_INFLIGHT_TXS: 10
-#      SYNC_API_REQUESTS_LIMIT: 15
-#      FAIL_FAST: true
-#      SERVER_LOG: server.log
-#    steps:
-#      - name: Checkout
-#        uses: actions/checkout@v4
-#        with:
-#          submodules: "recursive"
-#
-#      - name: Setup runner
-#        uses: matter-labs/zksync-ci-common/.github/actions/runner-setup@aba-ci-optimize
-#        with:
-#          workspace: 'core'
-#          cache_shared_key: 'release'
-#
-#      - name: Build contracts
-#        uses: matter-labs/zksync-ci-common/.github/actions/build-contracts@aba-ci-optimize
-#
-#      - name: Start services
-#        run: docker compose up --wait postgres reth
-#
-#      - name: Create legacy chain
-#        run: |
-#          zkstack chain create \
-#            --chain-name legacy \
-#            --chain-id sequential \
-#            --prover-mode no-proofs \
-#            --wallet-creation localhost \
-#            --l1-batch-commit-data-generator-mode rollup \
-#            --base-token-address 0x0000000000000000000000000000000000000001 \
-#            --base-token-price-nominator 1 \
-#            --base-token-price-denominator 1 \
-#            --set-as-default false \
-#            --ignore-prerequisites \
-#            --legacy-bridge \
-#            --evm-emulator false
-#
-#      - name: Build server
-#        run: zkstack server build --verbose
-#
-#      - name: Init ecosystem
-#        run: |
-#          zkstack ecosystem init \
-#            --ignore-prerequisites \
-#            --dev --skip-contract-compilation-override=true \
-#            --support-l2-legacy-shared-bridge-test=true \
-#            --verbose
-#
-#      - name: Update config
-#        run: |
-#          zkstack dev config-writer \
-#            --ignore-prerequisites \
-#            --path ${{ format('etc/env/file_based/overrides/tests/loadtest-{0}.yaml', matrix.vm_mode) }} \
-#            --chain legacy
-#
-#      - name: Run server
-#        run: |
-#          zkstack server \
-#            --ignore-prerequisites --uring --chain=legacy \
-#            --components api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads \
-#            &>${SERVER_LOG} &
-#
-#      - name: Wait for server to start
-#        run: |
-#          zkstack server wait --chain=legacy \
-#            --timeout 300 --poll-interval 1000
-#
-#      - name: Perform load test
-#        run: zkstack dev test loadtest -v --chain=legacy
-#
-#      - name: Show server logs
-#        if: failure()
-#        run: cat ${SERVER_LOG}
+  # ==========================================
+  #        Load Tests for Core workspace
+  #
+  # Setup legacy chain, initialize ecosystem,
+  # run load tests for old and new VMs.
+  # ==========================================
+  load-test:
+    runs-on: matterlabs-ci-runner-high-performance
+    strategy:
+      fail-fast: false
+      matrix:
+        vm_mode:
+          - "old"
+          - "new"
+    env:
+      EXPECTED_TX_COUNT: ${{ matrix.vm_mode == 'new' && 30000 || 16000 }}
+      ACCOUNTS_AMOUNT: 100
+      MAX_INFLIGHT_TXS: 10
+      SYNC_API_REQUESTS_LIMIT: 15
+      FAIL_FAST: true
+      SERVER_LOG: server.log
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: "recursive"
 
+      - name: Setup runner
+        uses: matter-labs/zksync-ci-common/.github/actions/runner-setup@aba-ci-optimize
+        with:
+          workspace: 'core'           # Use core workspace cache setup
+          cache_shared_key: 'release' # Use `release` profile cache for load tests
+
+      # Download prebuilt contracts version if exists, otherwise build them
+      - name: Build contracts
+        uses: matter-labs/zksync-ci-common/.github/actions/build-contracts@aba-ci-optimize
+
+      - name: Start services
+        run: docker compose up --wait postgres reth
+
+      - name: Create legacy chain
+        run: |
+          zkstack chain create \
+            --chain-name legacy \
+            --chain-id sequential \
+            --prover-mode no-proofs \
+            --wallet-creation localhost \
+            --l1-batch-commit-data-generator-mode rollup \
+            --base-token-address 0x0000000000000000000000000000000000000001 \
+            --base-token-price-nominator 1 \
+            --base-token-price-denominator 1 \
+            --set-as-default false \
+            --ignore-prerequisites \
+            --legacy-bridge \
+            --evm-emulator false
+
+      - name: Build server
+        run: zkstack server build --verbose
+
+      - name: Init ecosystem
+        run: |
+          zkstack ecosystem init \
+            --ignore-prerequisites \
+            --dev --skip-contract-compilation-override=true \
+            --support-l2-legacy-shared-bridge-test=true \
+            --verbose
+
+      - name: Update config
+        run: |
+          zkstack dev config-writer \
+            --ignore-prerequisites \
+            --path ${{ format('etc/env/file_based/overrides/tests/loadtest-{0}.yaml', matrix.vm_mode) }} \
+            --chain legacy
+
+      - name: Run server
+        run: zkstack server --ignore-prerequisites --chain=legacy &>${SERVER_LOG} &
+
+      - name: Wait for server to start
+        run: zkstack server wait --chain=legacy --timeout 300 --poll-interval 1000
+
+      - name: Perform load test
+        run: zkstack dev test loadtest -v --chain=legacy
+
+      - name: Show server logs
+        if: failure()
+        run: cat ${SERVER_LOG}
+
+  # ==============================================
+  #         Load Tests for Core workspace
+  #
+  # Setup legacy chain, initialize ecosystem and
+  # run TS integration tests for multiple chains.
+  # ==============================================
   integration-tests:
     runs-on: matterlabs-ci-runner-ultra-performance
     env:
       ZKSYNC_HOME: ${{ github.workspace }}
       L1_RPC_URL: "http://localhost:8545"
       SERVER_DB_URL: "postgres://postgres:notsecurepassword@localhost:5432"
+      DEFAULT_SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,commitment_generator,da_dispatcher,vm_runner_protective_reads"
     strategy:
-      # ----------------------------------------------
-      # Note, that while the contracts do support gateway chain
-      # in reality it won't exist for quite some time and so
-      # we will test both cases here
-      # ----------------------------------------------
       matrix:
         use_gateway_chain:
           - "WITH_GATEWAY"
@@ -194,16 +234,19 @@ jobs:
           zkstack external-node build --verbose
           zkstack contract-verifier build --verbose
 
-      - name: Initialize chains
+      - name: Init chains
         run: ./.github/scripts/init_chains.sh "${{ matrix.use_gateway_chain }}"
 
       - name: Build test dependencies
         run: zkstack dev test build
 
-      - name: Initialize Contract verifier
+      - name: Init contract verifier
         run: |
           for chain in era validium custom_token consensus; do
-            zkstack contract-verifier init --zksolc-version=v1.5.10 --zkvyper-version=v1.5.4 --solc-version=0.8.26 --vyper-version=v0.3.10 --era-vm-solc-version=0.8.26-1.0.1 --only --chain "${chain}"
+            zkstack contract-verifier init \
+              --zksolc-version=v1.5.10 --solc-version=0.8.26 \
+              --vyper-version=v0.3.10 --zkvyper-version=v1.5.4 \
+              --era-vm-solc-version=0.8.26-1.0.1 --only --chain "${chain}"
             zkstack contract-verifier run --chain "${chain}" &> "${SERVER_LOGS_DIR}/contract-verifier-${chain}.log" &
             zkstack contract-verifier wait --chain "${chain}" --verbose
           done
@@ -216,7 +259,7 @@ jobs:
           for chain in era validium custom_token consensus; do
             log_file="${SERVER_LOGS_DIR}/${chain}.log"
             if [[ "${chain}" == "consensus" ]]; then
-              components="--components=api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads,vm_runner_bwip,vm_playground,da_dispatcher,consensus"
+              components="--components=${DEFAULT_SERVER_COMPONENTS},vm_runner_bwip,vm_playground,consensus"
             else
               components=""
             fi
@@ -236,8 +279,9 @@ jobs:
         env:
           RUN_CONTRACT_VERIFICATION_TEST: true
         run: |
-          ./bin/run_on_all_chains.sh "zkstack dev test integration --no-deps --ignore-prerequisites" \
-            ${CHAINS} ${INTEGRATION_TESTS_LOGS_DIR}
+          ./bin/run_on_all_chains.sh \
+            "zkstack dev test integration --no-deps --ignore-prerequisites" \
+            "${CHAINS}" "${INTEGRATION_TESTS_LOGS_DIR}"
 
       - name: Repeat integration tests on push to main to check for flakiness
         env:
@@ -247,7 +291,8 @@ jobs:
           for i in {1..10}; do
             echo "Iteration $i"
             mkdir -p "${INTEGRATION_TESTS_LOGS_DIR}/${i}"
-            ./bin/run_on_all_chains.sh "zkstack dev test integration --no-deps --ignore-prerequisites" \
+            ./bin/run_on_all_chains.sh \
+              "zkstack dev test integration --no-deps --ignore-prerequisites" \
               "${CHAINS}" "${INTEGRATION_TESTS_LOGS_DIR}/${i}"
           done
 
@@ -370,36 +415,3 @@ jobs:
         with:
           name: logs_${{ matrix.use_gateway_chain }}
           path: logs
-
-
-  #  lint:
-  #    runs-on: matterlabs-ci-runner-highmem-long
-  #    steps:
-  #      - name: Checkout
-  #        uses: actions/checkout@v4
-  #        with:
-  #          submodules: "recursive"
-  #          fetch-depth: '1'
-  #
-  #      - name: Setup runner
-  #        uses: matter-labs/zksync-ci-common/.github/actions/runner-setup@aba-ci-optimize
-  #
-  #      - name: Format
-  #        run: zkstack dev fmt --check
-  #
-  #      - name: Lint
-  #        run: zkstack dev lint --check
-  #
-  #      - name: Show sccache stats
-  #        run: sccache --show-stats
-  #
-  #      - name: Start postgres
-  #        run: docker-compose up -d --wait postgres
-  #
-  #      - name: Check Database
-  #        env:
-  #          PROVER_URL: 'postgres://postgres:notsecurepassword@localhost:5432/zksync_local_prover'
-  #          CORE_URL: 'postgres://postgres:notsecurepassword@localhost:5432/zksync_local'
-  #        run: |
-  #          zkstack dev db setup --prover-url=${{ env.PROVER_URL }} --core-url=${{ env.CORE_URL }}
-  #          zkstack dev database check-sqlx-data --prover-url=${{ env.PROVER_URL }} --core-url=${{ env.CORE_URL }}
