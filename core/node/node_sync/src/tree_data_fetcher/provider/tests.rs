@@ -24,7 +24,6 @@ use crate::tree_data_fetcher::tests::{
 const L1_DIAMOND_PROXY_ADDRESS: Address = Address::repeat_byte(0x22);
 const GATEWAY_DIAMOND_PROXY_ADDRESS: Address = Address::repeat_byte(0x33);
 const L1_CHAIN_ID: u64 = 9;
-const GATEWAY_CHAIN_ID: u64 = 505;
 const ERA_CHAIN_ID: u64 = 270;
 
 static BLOCK_COMMIT_SIGNATURE: Lazy<H256> = Lazy::new(|| {
@@ -270,24 +269,6 @@ fn mock_l1_client(block_number: U64, logs: Vec<web3::Log>, chain_id: SLChainId) 
             )])))
         })
         .build()
-}
-
-pub(super) async fn insert_l1_batch_commit_chain_id(
-    storage: &mut Connection<'_, Core>,
-    number: L1BatchNumber,
-    chain_id: SLChainId,
-) {
-    storage
-        .eth_sender_dal()
-        .insert_bogus_confirmed_eth_tx(
-            number,
-            AggregatedActionType::Commit,
-            H256::from_low_u64_be(number.0 as u64),
-            chrono::Utc::now(),
-            Some(chain_id),
-        )
-        .await
-        .unwrap();
 }
 
 #[tokio::test]

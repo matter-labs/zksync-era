@@ -755,11 +755,11 @@ impl Distribution<configs::EcosystemContracts> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::EcosystemContracts {
         configs::EcosystemContracts {
             bridgehub_proxy_addr: rng.gen(),
-            state_transition_proxy_addr: rng.gen(),
-            transparent_proxy_admin_addr: rng.gen(),
-            l1_bytecodes_supplier_addr: rng.gen(),
-            l1_wrapped_base_token_store: rng.gen(),
-            server_notifier_addr: rng.gen(),
+            state_transition_proxy_addr: self.sample_opt(|| rng.gen()),
+            transparent_proxy_admin_addr: self.sample_opt(|| rng.gen()),
+            l1_bytecodes_supplier_addr: self.sample_opt(|| rng.gen()),
+            l1_wrapped_base_token_store: self.sample_opt(|| rng.gen()),
+            server_notifier_addr: self.sample_opt(|| rng.gen()),
         }
     }
 }

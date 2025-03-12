@@ -161,14 +161,13 @@ impl ProtoRepr for proto::Contracts {
                     "{:?}",
                     ecosystem_contracts.bridgehub_proxy_addr
                 )),
-                state_transition_proxy_addr: Some(format!(
-                    "{:?}",
-                    ecosystem_contracts.state_transition_proxy_addr
-                )),
-                transparent_proxy_admin_addr: Some(format!(
-                    "{:?}",
-                    ecosystem_contracts.transparent_proxy_admin_addr,
-                )),
+                state_transition_proxy_addr: ecosystem_contracts
+                    .state_transition_proxy_addr
+                    .map(|a| format!("{:?}", a)),
+
+                transparent_proxy_admin_addr: ecosystem_contracts
+                    .transparent_proxy_admin_addr
+                    .map(|a| format!("{:?}", a)),
                 l1_bytecodes_supplier_addr: ecosystem_contracts
                     .l1_bytecodes_supplier_addr
                     .map(|x| format!("{:?}", x)),
