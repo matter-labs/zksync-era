@@ -1,0 +1,55 @@
+name: Cache regen
+
+# Set proper subset of permissions
+permissions:
+  contents: read
+  pull-requests: write
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+
+jobs:
+
+  cache-regen-individual:
+    name: Cache ${{ matrix.workspace }}
+    runs-on: matterlabs-ci-runner-highmem-long
+    strategy:
+      matrix:
+        workspace:
+          - core
+          - prover
+          - zkstack_cli
+        build-type:
+          - release
+          - dev
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: "recursive"
+
+      - name: Setup runner
+        uses: matter-labs/zksync-ci-common/.github/actions/runner-setup@aba-ci-optimize
+        with:
+          save_cache: true
+          workspace: ${{ matrix.workspace }}
+          cache_shared_key: ${{ matrix.build-type }}
+
+      - name: Generate cache release
+        if: ${{ matrix.build-type == 'release' }}
+        working-directory: ${{ matrix.workspace }}
+        run: cargo build --release
+
+      - name: Generate cache dev
+        if: ${{ matrix.build-type == 'dev' }}
+        working-directory: ${{ matrix.workspace }}
+        run: cargo nextest run --no-run

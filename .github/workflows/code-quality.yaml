@@ -1,0 +1,63 @@
+name: Code quality
+
+# =================================================================
+#           Code Quality workflow for the whole repository
+#
+# Runs formatting and linting of all workspaces, checks databases.
+# =================================================================
+
+# Set proper subset of permissions
+permissions:
+  contents: read
+
+# Define the events that triggers the workflow
+on:
+  pull_request:
+  merge_group:
+
+# Cancel previous runs for PRs if new one is started
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+# Use bash shell with verbose output
+defaults:
+  run:
+    shell: 'bash -ex {0}'
+
+jobs:
+
+  # =================================================================
+  #                      Code Quality job
+  #
+  # Runs formatting and linting of all workspaces, checks databases.
+  # =================================================================
+  code-quality:
+    name: Code quality
+    runs-on: matterlabs-ci-runner-highmem-long
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: "recursive"
+
+      - name: Setup runner
+        uses: matter-labs/zksync-ci-common/.github/actions/runner-setup@aba-ci-optimize
+        with:
+          workspace: core
+          cache_shared_key: dev
+
+      - name: Format
+        run: zkstack dev fmt --check
+
+      - name: Lint
+        run: zkstack dev lint --check
+
+      - name: Check database
+        env:
+          PROVER_URL: 'postgres://postgres:notsecurepassword@localhost:5432/zksync_local_prover'
+          CORE_URL: 'postgres://postgres:notsecurepassword@localhost:5432/zksync_local'
+        run: |
+          docker-compose up -d --wait postgres
+          zkstack dev db setup --prover-url="${PROVER_URL}" --core-url="${CORE_URL}"
+          zkstack dev database check-sqlx-data --prover-url="${PROVER_URL}" --core-url="${CORE_URL}"

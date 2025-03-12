@@ -1,7 +1,11 @@
 name: Build contracts
 
+# Set proper subset of permissions
+permissions:
+  contents: read
+  pull-requests: write
+
 on:
-#  pull_request:
   push:
     branches:
       - main
@@ -21,9 +25,6 @@ on:
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
-
-env:
-  FOUNDRY_VERSION: 'v0.0.8'
 
 jobs:
 
