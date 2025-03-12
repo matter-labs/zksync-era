@@ -5202,6 +5202,10 @@ _zkstack() {
                     COMPREPLY=($(compgen -W "true false" -- "${cur}"))
                     return 0
                     ;;
+                --skip-contract-compilation-override)
+                    COMPREPLY=($(compgen -W "true false" -- "${cur}"))
+                    return 0
+                    ;;
                 --chain)
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
@@ -7504,7 +7508,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__server__build)
-            opts="-v -h --verbose --chain --ignore-prerequisites --help"
+            opts="-v -h --uring --verbose --chain --ignore-prerequisites --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0

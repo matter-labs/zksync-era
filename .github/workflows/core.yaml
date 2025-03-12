@@ -242,11 +242,11 @@ jobs:
 
       - name: Init contract verifier
         run: |
+          zkstack contract-verifier init \
+            --zksolc-version=v1.5.10 --solc-version=0.8.26 \
+            --vyper-version=v0.3.10 --zkvyper-version=v1.5.4 \
+            --era-vm-solc-version=0.8.26-1.0.1 --only --chain era
           for chain in era validium custom_token consensus; do
-            zkstack contract-verifier init \
-              --zksolc-version=v1.5.10 --solc-version=0.8.26 \
-              --vyper-version=v0.3.10 --zkvyper-version=v1.5.4 \
-              --era-vm-solc-version=0.8.26-1.0.1 --only --chain "${chain}"
             zkstack contract-verifier run --chain "${chain}" &> "${SERVER_LOGS_DIR}/contract-verifier-${chain}.log" &
             zkstack contract-verifier wait --chain "${chain}" --verbose
           done
