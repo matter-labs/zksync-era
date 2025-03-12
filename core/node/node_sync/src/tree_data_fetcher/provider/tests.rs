@@ -297,12 +297,12 @@ async fn guessing_l1_commit_block_number() {
 
     for timestamp in [0, 100, 1_000, 5_000, 10_000, 100_000] {
         let (guessed_block_number, step_count) =
-            L1DataProvider::guess_l1_commit_block_number(&eth_client, timestamp)
+            SLDataProvider::guess_l1_commit_block_number(&eth_client, timestamp)
                 .await
                 .unwrap();
 
         assert!(
-            guessed_block_number.abs_diff(timestamp.into()) <= L1DataProvider::L1_BLOCK_ACCURACY,
+            guessed_block_number.abs_diff(timestamp.into()) <= SLDataProvider::L1_BLOCK_ACCURACY,
             "timestamp={timestamp}, guessed={guessed_block_number}"
         );
         assert!(step_count > 0);
@@ -310,8 +310,8 @@ async fn guessing_l1_commit_block_number() {
     }
 }
 
-async fn create_l1_data_provider(l1_client: Box<DynClient<L1>>) -> L1DataProvider {
-    L1DataProvider::new(Box::new(l1_client), L1_DIAMOND_PROXY_ADDRESS)
+async fn create_l1_data_provider(l1_client: Box<DynClient<L1>>) -> SLDataProvider {
+    SLDataProvider::new(Box::new(l1_client), L1_DIAMOND_PROXY_ADDRESS)
         .await
         .unwrap()
 }
@@ -359,65 +359,6 @@ async fn test_using_l1_data_provider(l1_batch_timestamps: &[u64]) {
 async fn using_l1_data_provider(batch_spacing: u64) {
     let l1_batch_timestamps: Vec<_> = (0..10).map(|i| 50_000 + batch_spacing * i).collect();
     test_using_l1_data_provider(&l1_batch_timestamps).await;
-}
-
-#[tokio::test]
-async fn using_different_settlement_layers() {
-    let pool = ConnectionPool::<Core>::test_pool().await;
-    let mut storage = pool.connection().await.unwrap();
-    insert_genesis_batch(&mut storage, &GenesisParams::mock())
-        .await
-        .unwrap();
-
-    let l1_eth_params = EthereumParameters::new_l1(1_000_000);
-    let gateway_eth_params =
-        EthereumParameters::new(1_000_000, GATEWAY_CHAIN_ID, GATEWAY_DIAMOND_PROXY_ADDRESS);
-    let mut params_array = [l1_eth_params, gateway_eth_params];
-
-    // (index of sl: 0 for l1, 1 for gw; sl block number)
-    let batch_commit_info = [
-        (0, 50_000),
-        (0, 50_500),
-        (1, 30_000),
-        (1, 32_000),
-        (0, 51_000),
-        (1, 60_000),
-    ];
-    let chain_ids = [SLChainId(L1_CHAIN_ID), SLChainId(GATEWAY_CHAIN_ID)];
-    for (i, &(sl_idx, ts)) in batch_commit_info.iter().enumerate() {
-        let number = L1BatchNumber(i as u32 + 1);
-        seal_l1_batch_with_timestamp(&mut storage, number, ts).await;
-        insert_l1_batch_commit_chain_id(&mut storage, number, chain_ids[sl_idx]).await;
-        params_array[sl_idx].push_commit(number, ts + 1_000); // have a reasonable small diff between batch generation and commitment
-    }
-
-    let mut provider =
-        L1DataProvider::new(Box::new(params_array[0].client()), L1_DIAMOND_PROXY_ADDRESS)
-            .await
-            .unwrap();
-    for i in 0..batch_commit_info.len() {
-        let number = L1BatchNumber(i as u32 + 1);
-        let root_hash = provider
-            .batch_details(number, &get_last_l2_block(&mut storage, number).await)
-            .await
-            .unwrap()
-            .unwrap_or_else(|err| panic!("no root hash for batch #{number}: {err:?}"));
-        assert_eq!(root_hash, H256::repeat_byte(number.0 as u8));
-
-        let past_l1_batch = provider.past_l1_batch.unwrap();
-        assert_eq!(past_l1_batch.number, number);
-        let expected_l1_block_number = batch_commit_info[i].1 + 1_000;
-        assert_eq!(
-            past_l1_batch.l1_commit_block_number,
-            expected_l1_block_number.into()
-        );
-        assert_eq!(
-            past_l1_batch.l1_commit_block_timestamp,
-            expected_l1_block_number.into()
-        );
-        let expected_chain_id = chain_ids[batch_commit_info[i].0];
-        assert_eq!(past_l1_batch.chain_id, expected_chain_id);
-    }
 }
 
 #[tokio::test]

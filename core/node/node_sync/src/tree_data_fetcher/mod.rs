@@ -21,7 +21,7 @@ use zksync_web3_decl::{
 
 use self::{
     metrics::{ProcessingStage, TreeDataFetcherMetrics, METRICS},
-    provider::{L1DataProvider, MissingData, TreeDataProvider},
+    provider::{MissingData, SLDataProvider, TreeDataProvider},
 };
 use crate::tree_data_fetcher::provider::CombinedDataProvider;
 
@@ -60,7 +60,7 @@ type TreeDataFetcherResult<T> = Result<T, TreeDataFetcherError>;
 enum TreeDataFetcherHealth {
     Ready {
         #[serde(skip_serializing_if = "Option::is_none")]
-        last_updated_sl_batch: Option<L1BatchNumber>,
+        last_updated_l1_batch: Option<L1BatchNumber>,
     },
     Affected {
         error: String,
@@ -138,8 +138,8 @@ impl TreeDataFetcher {
             "L1 tree data provider is already set up"
         );
 
-        let sl_provider = L1DataProvider::new(sl_client, sl_diamond_proxy_addr).await?;
-        self.data_provider.set_l1(sl_provider);
+        let l1_provider = SLDataProvider::new(sl_client, sl_diamond_proxy_addr).await?;
+        self.data_provider.set_l1(l1_provider);
         self.diamond_proxy_address = Some(sl_diamond_proxy_addr);
         Ok(self)
     }
@@ -154,28 +154,28 @@ impl TreeDataFetcher {
         // Fetch data in a readonly transaction to have a consistent view of the storage
         let mut storage = storage.start_transaction().await?;
 
-        let last_sl_batch = storage.blocks_dal().get_sealed_l1_batch_number().await?;
-        let Some(last_sl_batch) = last_sl_batch else {
+        let last_l1_batch = storage.blocks_dal().get_sealed_l1_batch_number().await?;
+        let Some(last_l1_batch) = last_l1_batch else {
             tracing::debug!("No L1 batches in the database yet; cannot progress");
             return Ok(None);
         };
 
-        let last_sl_batch_with_tree_data = storage
+        let last_l1_batch_with_tree_data = storage
             .blocks_dal()
             .get_last_l1_batch_number_with_tree_data()
             .await?;
-        let sl_batch_to_fetch = if let Some(batch) = last_sl_batch_with_tree_data {
+        let l1_batch_to_fetch = if let Some(batch) = last_l1_batch_with_tree_data {
             batch + 1
         } else {
-            let earliest_sl_batch = storage.blocks_dal().get_earliest_l1_batch_number().await?;
-            let earliest_sl_batch =
-                earliest_sl_batch.context("all L1 batches disappeared from Postgres")?;
-            tracing::debug!("No L1 batches with metadata present in the storage; will fetch the earliest batch #{earliest_sl_batch}");
-            earliest_sl_batch
+            let earliest_l1_batch = storage.blocks_dal().get_earliest_l1_batch_number().await?;
+            let earliest_l1_batch =
+                earliest_l1_batch.context("all L1 batches disappeared from Postgres")?;
+            tracing::debug!("No L1 batches with metadata present in the storage; will fetch the earliest batch #{earliest_l1_batch}");
+            earliest_l1_batch
         };
-        Ok(if sl_batch_to_fetch <= last_sl_batch {
-            let last_l2_block = Self::get_last_l2_block(&mut storage, sl_batch_to_fetch).await?;
-            Some((sl_batch_to_fetch, last_l2_block))
+        Ok(if l1_batch_to_fetch <= last_l1_batch {
+            let last_l2_block = Self::get_last_l2_block(&mut storage, l1_batch_to_fetch).await?;
+            Some((l1_batch_to_fetch, last_l2_block))
         } else {
             None
         })
@@ -198,41 +198,41 @@ impl TreeDataFetcher {
     }
 
     async fn step(&mut self) -> Result<StepOutcome, TreeDataFetcherError> {
-        let Some((sl_batch_to_fetch, last_l2_block_header)) = self.get_batch_to_fetch().await?
+        let Some((l1_batch_to_fetch, last_l2_block_header)) = self.get_batch_to_fetch().await?
         else {
             return Ok(StepOutcome::NoProgress);
         };
 
-        tracing::debug!("Fetching tree data for SL batch #{sl_batch_to_fetch}");
+        tracing::debug!("Fetching tree data for L1 batch #{l1_batch_to_fetch}");
         let stage_latency = self.metrics.stage_latency[&ProcessingStage::Fetch].start();
         let root_hash_result = self
             .data_provider
-            .batch_details(sl_batch_to_fetch, &last_l2_block_header)
+            .batch_details(l1_batch_to_fetch, &last_l2_block_header)
             .await?;
         stage_latency.observe();
         let root_hash = match root_hash_result {
             Ok(root_hash) => {
                 tracing::debug!(
-                    "Received root hash for SL batch #{sl_batch_to_fetch}: {root_hash:?}"
+                    "Received root hash for L1 batch #{l1_batch_to_fetch}: {root_hash:?}"
                 );
                 root_hash
             }
             Err(MissingData::Batch) => {
                 let err = anyhow::anyhow!(
-                    "SL batch #{sl_batch_to_fetch} is sealed locally, but is not present externally, \
+                    "L1 batch #{l1_batch_to_fetch} is sealed locally, but is not present externally, \
                      which is assumed to store batch info indefinitely"
                 );
                 return Err(err.into());
             }
             Err(MissingData::RootHash) => {
                 tracing::debug!(
-                    "SL batch #{sl_batch_to_fetch} does not have root hash computed externally"
+                    "L1 batch #{l1_batch_to_fetch} does not have root hash computed externally"
                 );
                 return Ok(StepOutcome::RemoteHashMissing);
             }
             Err(MissingData::PossibleReorg) => {
                 tracing::debug!(
-                    "SL batch #{sl_batch_to_fetch} potentially diverges from the external source"
+                    "L1 batch #{l1_batch_to_fetch} potentially diverges from the external source"
                 );
                 return Ok(StepOutcome::PossibleReorg);
             }
@@ -242,7 +242,7 @@ impl TreeDataFetcher {
         let mut storage = self.pool.connection_tagged("tree_data_fetcher").await?;
         let rollup_last_leaf_index = storage
             .storage_logs_dedup_dal()
-            .max_enumeration_index_by_l1_batch(sl_batch_to_fetch)
+            .max_enumeration_index_by_l1_batch(l1_batch_to_fetch)
             .await?
             .unwrap_or(0)
             + 1;
@@ -252,16 +252,16 @@ impl TreeDataFetcher {
         };
         storage
             .blocks_dal()
-            .save_l1_batch_tree_data(sl_batch_to_fetch, &tree_data)
+            .save_l1_batch_tree_data(l1_batch_to_fetch, &tree_data)
             .await?;
         stage_latency.observe();
-        tracing::debug!("Updated SL batch #{sl_batch_to_fetch} with tree data: {tree_data:?}");
-        Ok(StepOutcome::UpdatedBatch(sl_batch_to_fetch))
+        tracing::debug!("Updated L1 batch #{l1_batch_to_fetch} with tree data: {tree_data:?}");
+        Ok(StepOutcome::UpdatedBatch(l1_batch_to_fetch))
     }
 
-    fn update_health(&self, last_updated_sl_batch: Option<L1BatchNumber>) {
+    fn update_health(&self, last_updated_l1_batch: Option<L1BatchNumber>) {
         let health = TreeDataFetcherHealth::Ready {
-            last_updated_sl_batch,
+            last_updated_l1_batch,
         };
         self.health_updater.update(health.into());
     }
@@ -272,7 +272,7 @@ impl TreeDataFetcher {
         self.metrics.observe_info(&self);
         self.health_updater
             .update(Health::from(HealthStatus::Ready));
-        let mut last_updated_sl_batch = None;
+        let mut last_updated_l1_batch = None;
 
         while !*stop_receiver.borrow_and_update() {
             let step_outcome = self.step().await;
@@ -282,14 +282,14 @@ impl TreeDataFetcher {
                     #[cfg(test)]
                     self.updates_sender.send(batch_number).ok();
 
-                    last_updated_sl_batch = Some(batch_number);
-                    self.update_health(last_updated_sl_batch);
+                    last_updated_l1_batch = Some(batch_number);
+                    self.update_health(last_updated_l1_batch);
                     false
                 }
                 Ok(StepOutcome::NoProgress | StepOutcome::RemoteHashMissing) => {
                     // Update health status even if no progress was made to timely clear a previously set
                     // "affected" health.
-                    self.update_health(last_updated_sl_batch);
+                    self.update_health(last_updated_l1_batch);
                     true
                 }
                 Ok(StepOutcome::PossibleReorg) => {

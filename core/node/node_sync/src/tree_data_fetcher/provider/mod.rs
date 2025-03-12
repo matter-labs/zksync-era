@@ -112,13 +112,13 @@ struct SLChainAccess {
 /// for the event using binary search, or uses an L1 block number of the `BlockCommit` event for the previously queried L1 batch
 /// (provided it's not too far behind the seal timestamp of the batch).
 #[derive(Debug)]
-pub(super) struct L1DataProvider {
+pub(super) struct SLDataProvider {
     chain_data: SLChainAccess,
     block_commit_signature: H256,
     past_l1_batch: Option<PastL1BatchInfo>,
 }
 
-impl L1DataProvider {
+impl SLDataProvider {
     /// Accuracy when guessing L1 block number by L1 batch timestamp.
     const L1_BLOCK_ACCURACY: U64 = U64([1_000]);
     /// Range of L1 blocks queried via `eth_getLogs`. Should be at least several times greater than
@@ -203,7 +203,7 @@ impl L1DataProvider {
 }
 
 #[async_trait]
-impl TreeDataProvider for L1DataProvider {
+impl TreeDataProvider for SLDataProvider {
     async fn batch_details(
         &mut self,
         number: L1BatchNumber,
@@ -314,10 +314,10 @@ impl TreeDataProvider for L1DataProvider {
     }
 }
 
-/// Data provider combining [`L1DataProvider`] with a fallback provider.
+/// Data provider combining [`SLDataProvider`] with a fallback provider.
 #[derive(Debug)]
 pub(super) struct CombinedDataProvider {
-    l1: Option<L1DataProvider>,
+    l1: Option<SLDataProvider>,
     // Generic to allow for tests.
     rpc: Box<dyn TreeDataProvider>,
 }
@@ -330,7 +330,7 @@ impl CombinedDataProvider {
         }
     }
 
-    pub fn set_l1(&mut self, l1: L1DataProvider) {
+    pub fn set_l1(&mut self, l1: SLDataProvider) {
         self.l1 = Some(l1);
     }
 }
