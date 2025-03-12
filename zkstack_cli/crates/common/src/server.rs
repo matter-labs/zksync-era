@@ -93,7 +93,11 @@ impl Server {
             }
             None => {
                 let uring = uring.unwrap_or_default();
-                format!("{DEFAULT_SERVER_COMMAND} {uring} --")
+                if uring.is_empty() {
+                    format!("{DEFAULT_SERVER_COMMAND} --")
+                } else {
+                    format!("{DEFAULT_SERVER_COMMAND} {uring} --")
+                }
             }
         };
         let mut cmd = Cmd::new(
