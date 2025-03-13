@@ -1,0 +1,62 @@
+name: Build zkstack
+
+# ======================================================
+#              Build zkstack workflow
+#
+# Builds zkstack and uploads it as GH actions artifact.
+# ======================================================
+
+# Set proper subset of permissions
+permissions:
+  contents: read
+  pull-requests: write
+
+# Define the events that triggers the workflow
+on:
+  pull_request: # TODO: Remove after testing
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+# Do not cancel runs, put new merges in queue
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+# Set up defaults
+defaults:
+  run:
+    shell: 'bash -ex {0}'
+
+jobs:
+
+  # ===================================================================
+  #                   Rebuild zkstack job
+  #
+  # Rebuilds zkstack if it was changed.
+  # Uploads zkstack to be downloaded by tests in PRs.
+  # ===================================================================
+  prebuild-zkstack:
+    runs-on: matterlabs-ci-runner-highmem-long
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: "false"
+
+      - name: Setup runner
+        uses: matter-labs/zksync-ci-common/.github/actions/runner-setup@aba-ci-optimize
+        with:
+          workspace: 'zkstack_cli'
+          cache_shared_key: 'release'
+
+      - name: Build zkstack
+        working-directory: zkstack_cli
+        run: cargo build --bin zkstack --release --features gateway
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: zkstack
+          path: ./zkstack_cli/target/release/zkstack
