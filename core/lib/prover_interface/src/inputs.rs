@@ -144,6 +144,7 @@ pub struct VMRunWitnessInputData {
     pub protocol_version: ProtocolVersionId,
     pub bootloader_code: Vec<[u8; 32]>,
     pub default_account_code_hash: U256,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub evm_emulator_code_hash: Option<U256>,
     pub storage_refunds: Vec<u32>,
     pub pubdata_costs: Vec<i32>,
@@ -196,12 +197,11 @@ impl StoredObject for VMRunWitnessInputData {
     }
 
     fn deserialize(bytes: Vec<u8>) -> Result<Self, BoxedError> {
-        zksync_object_store::bincode::deserialize::<VMRunWitnessInputDataLegacy>(&bytes)
-            .map(Into::into)
-            .or_else(|_| {
-                zksync_object_store::bincode::deserialize::<VMRunWitnessInputData>(&bytes)
-                    .map_err(Into::into)
-            })
+        zksync_object_store::bincode::deserialize::<VMRunWitnessInputData>(&bytes).or_else(|_| {
+            zksync_object_store::bincode::deserialize::<VMRunWitnessInputDataLegacy>(&bytes)
+                .map(Into::into)
+                .map_err(Into::into)
+        })
     }
 }
 
@@ -246,12 +246,11 @@ impl StoredObject for WitnessInputData {
     }
 
     fn deserialize(bytes: Vec<u8>) -> Result<Self, BoxedError> {
-        zksync_object_store::bincode::deserialize::<WitnessInputDataLegacy>(&bytes)
-            .map(Into::into)
-            .or_else(|_| {
-                zksync_object_store::bincode::deserialize::<WitnessInputData>(&bytes)
-                    .map_err(Into::into)
-            })
+        zksync_object_store::bincode::deserialize::<WitnessInputData>(&bytes).or_else(|_| {
+            zksync_object_store::bincode::deserialize::<WitnessInputDataLegacy>(&bytes)
+                .map(Into::into)
+                .map_err(Into::into)
+        })
     }
 }
 
