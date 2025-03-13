@@ -569,14 +569,10 @@ impl EthTxAggregator {
                     get_priority_tree_start_index(self.eth_client.as_ref()).await?;
                 self.priority_tree_start_index
             };
-        let commit_restriction =
-            if self.gateway_migration_state == GatewayMigrationState::InProgress {
-                Some("Gateway migration started")
-            } else {
-                self.config
-                    .tx_aggregation_only_prove_and_execute
-                    .then_some("tx_aggregation_only_prove_and_execute=true")
-            };
+        let commit_restriction = self
+            .config
+            .tx_aggregation_only_prove_and_execute
+            .then_some("tx_aggregation_only_prove_and_execute=true");
 
         let mut op_restrictions = OperationSkippingRestrictions {
             commit_restriction,
@@ -590,6 +586,13 @@ impl EthTxAggregator {
         };
         if self.config.tx_aggregation_paused {
             let reason = Some("tx aggregation is paused");
+            op_restrictions.commit_restriction = reason;
+            op_restrictions.prove_restriction = reason;
+            op_restrictions.execute_restriction = reason;
+        }
+
+        if self.gateway_migration_state == GatewayMigrationState::InProgress {
+            let reason = Some("Gateway migration started");
             op_restrictions.commit_restriction = reason;
             op_restrictions.prove_restriction = reason;
             op_restrictions.execute_restriction = reason;
