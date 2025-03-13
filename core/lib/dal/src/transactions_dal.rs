@@ -1752,6 +1752,22 @@ impl TransactionsDal<'_, '_> {
         Ok(rows.len())
     }
 
+    pub async fn get_priority_txs_in_mempool(&mut self) -> DalResult<usize> {
+        let result = sqlx::query!(
+            r#"
+            SELECT COUNT(*) FROM transactions
+            WHERE
+                in_mempool = TRUE AND
+                is_priority = TRUE
+            "#
+        )
+        .instrument("get_l1_txs_in_mempool")
+        .fetch_one(self.storage)
+        .await?;
+
+        Ok(result.count.unwrap_or_default() as usize)
+    }
+
     /// Resets `in_mempool` to `FALSE` for the given transaction hashes.
     pub async fn reset_mempool_status(&mut self, transaction_hashes: &[H256]) -> DalResult<()> {
         // Convert H256 hashes into `&[u8]`
