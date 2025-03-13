@@ -70,16 +70,6 @@ impl Server {
 
         let uring = self.uring.then_some("--features=rocksdb/io-uring");
 
-        let (gateway_config_param, gateway_config_path) =
-            if let Some(gateway_contracts_config_path) = gateway_contracts_config_path {
-                (
-                    Some("--gateway-contracts-config-path"),
-                    Some(gateway_contracts_config_path),
-                )
-            } else {
-                (None, None)
-            };
-
         let server_command = match &self.server_command {
             Some(command) => {
                 // We assume that if the user provides a custom server command,
@@ -100,21 +90,31 @@ impl Server {
                 }
             }
         };
-        let mut cmd = Cmd::new(
-            cmd!(
-                shell,
-                "{server_command}
-                --genesis-path {genesis_path}
-                --wallets-path {wallets_path}
-                --config-path {general_path}
-                --secrets-path {secrets_path}
-                --contracts-config-path {contracts_path}
-                {gateway_config_param...} {gateway_config_path...}
-                "
-            )
-            .args(additional_args)
-            .env_remove("RUSTUP_TOOLCHAIN"),
-        );
+        let mut server_command = server_command.split_ascii_whitespace().collect::<Vec<_>>();
+
+        let (command, args) = server_command.split_at_mut(1);
+
+        let mut cmd = shell
+            .cmd(command[0])
+            .args(args)
+            .arg("--genesis-path")
+            .arg(genesis_path)
+            .arg("--config-path")
+            .arg(general_path)
+            .arg("--wallets-path")
+            .arg(wallets_path)
+            .arg("--secrets-path")
+            .arg(secrets_path)
+            .arg("--contracts-config-path")
+            .arg(contracts_path);
+
+        if let Some(gateway_config_param) = gateway_contracts_config_path {
+            cmd = cmd
+                .arg("--gateway-contracts-config-path")
+                .arg(gateway_config_param)
+        };
+
+        let mut cmd = Cmd::new(cmd.args(additional_args).env_remove("RUSTUP_TOOLCHAIN"));
 
         // If we are running server in normal mode
         // we need to get the output to the console
