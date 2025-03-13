@@ -13,7 +13,7 @@ use tokio::{
 use zksync_config::configs::{DatabaseSecrets, FriProverConfig};
 use zksync_core_leftovers::temp_config_store::{load_database_secrets, load_general_config};
 use zksync_env_config::FromEnv;
-use zksync_object_store::{ObjectStore, ObjectStoreFactory};
+use zksync_object_store::ObjectStoreFactory;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
 use zksync_prover_fri_utils::{
@@ -90,18 +90,6 @@ async fn main() -> anyhow::Result<()> {
         .clone()
         .context("prover object store config")?;
     let object_store_factory = ObjectStoreFactory::new(prover_object_store_config);
-    let public_object_store_config = prover_config
-        .public_object_store
-        .clone()
-        .context("public object store config")?;
-    let public_blob_store = match prover_config.shall_save_to_public_bucket {
-        false => None,
-        true => Some(
-            ObjectStoreFactory::new(public_object_store_config)
-                .create_store()
-                .await?,
-        ),
-    };
     let specialized_group_id = prover_config.specialized_group_id;
 
     let circuit_ids_for_round_to_be_proven = general_config
@@ -136,7 +124,6 @@ async fn main() -> anyhow::Result<()> {
         zone.clone(),
         stop_receiver.clone(),
         object_store_factory,
-        public_blob_store,
         pool,
         circuit_ids_for_round_to_be_proven,
         opt.max_allocation,
@@ -176,7 +163,6 @@ async fn get_prover_tasks(
     _zone: Zone,
     stop_receiver: Receiver<bool>,
     store_factory: ObjectStoreFactory,
-    public_blob_store: Option<Arc<dyn ObjectStore>>,
     pool: ConnectionPool<Prover>,
     circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
     _max_allocation: Option<usize>,
@@ -199,7 +185,6 @@ async fn get_prover_tasks(
         load_setup_data_cache(&keystore, &prover_config).context("load_setup_data_cache()")?;
     let prover = Prover::new(
         store_factory.create_store().await?,
-        public_blob_store,
         prover_config,
         keystore,
         pool,
@@ -217,7 +202,6 @@ async fn get_prover_tasks(
     zone: Zone,
     stop_receiver: Receiver<bool>,
     store_factory: ObjectStoreFactory,
-    public_blob_store: Option<Arc<dyn ObjectStore>>,
     pool: ConnectionPool<Prover>,
     circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
     max_allocation: Option<usize>,
@@ -254,7 +238,6 @@ async fn get_prover_tasks(
     let prover = gpu_prover::Prover::new(
         keystore,
         store_factory.create_store().await?,
-        public_blob_store,
         prover_config.clone(),
         pool.clone(),
         setup_load_mode,
