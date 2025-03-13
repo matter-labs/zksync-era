@@ -13,24 +13,24 @@ permissions:
 
 # Define the events that triggers the workflow
 on:
-  pull_request:
-    paths:
-      # Workspaces
-      - 'core/**'
-      - 'zkstack_cli/**'
-      # Docker files
-      - 'docker/contract-verifier/**'
-      - 'docker/external-node/**'
-      - 'docker/server/**'
-      # CI scripts
-      - '.github/workflows/core.yaml'
-      # - '.github/workflows/build-core-template.yml'
-      # - '.github/workflows/build-contract-verifier-template.yml'
-      # - '.github/workflows/ci-core-reusable.yml'
-      # - '.github/workflows/ci-core-lint-reusable.yml'
-      # Exclude markdown files
-      - '!**/*.md'
-      - '!**/*.MD'
+#  pull_request:
+#    paths:
+#      # Workspaces
+#      - 'core/**'
+#      - 'zkstack_cli/**'
+#      # Docker files
+#      - 'docker/contract-verifier/**'
+#      - 'docker/external-node/**'
+#      - 'docker/server/**'
+#      # CI scripts
+#      - '.github/workflows/core.yaml'
+#      # - '.github/workflows/build-core-template.yml'
+#      # - '.github/workflows/build-contract-verifier-template.yml'
+#      # - '.github/workflows/ci-core-reusable.yml'
+#      # - '.github/workflows/ci-core-lint-reusable.yml'
+#      # Exclude markdown files
+#      - '!**/*.md'
+#      - '!**/*.MD'
   # TODO: merge group cannot be filtered by path
   # https://github.com/orgs/community/discussions/45899
   merge_group:

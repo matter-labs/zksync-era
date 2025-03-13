@@ -29,11 +29,6 @@ on:
         type: string
         description: SHA commit for build
         required: false
-      prefix:
-        type: string
-        description: Prefix for release name
-        required: false
-        default: manual
 
 # Do not cancel runs, put new merges in queue
 concurrency:

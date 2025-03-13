@@ -12,7 +12,7 @@ permissions:
 
 # Define the events that triggers the workflow
 on:
-  pull_request:
+#  pull_request:
   merge_group:
 
 # Cancel previous runs for PRs if new one is started
