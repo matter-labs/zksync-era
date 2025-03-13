@@ -19,8 +19,8 @@ impl ContractDeployAllowListDal<'_, '_> {
             "#,
             address.as_bytes()
         )
-        .instrument("is_address_allowed") // Tag the query for logs / metrics
-        .report_latency() // Measure query latency
+        .instrument("is_address_allowed")
+        .report_latency()
         .fetch_one(self.storage)
         .await?;
 
