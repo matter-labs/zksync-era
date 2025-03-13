@@ -295,6 +295,7 @@ async fn test_http_server(test: impl HttpTest) {
         &contracts_config.l1_specific_contracts(),
         &contracts_config.l2_contracts(),
         &genesis,
+        false,
     );
     api_config.filters_disabled = test.filters_disabled();
     let mut server_builder = TestServerBuilder::new(pool.clone(), api_config)

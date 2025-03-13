@@ -174,6 +174,7 @@ async fn test_ws_server(test: impl WsTest) {
         &contracts_config.l1_specific_contracts(),
         &contracts_config.l2_contracts(),
         &genesis_config,
+        false,
     );
     let mut storage = pool.connection().await.unwrap();
     test.storage_initialization()

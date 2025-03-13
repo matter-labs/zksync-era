@@ -439,7 +439,15 @@ impl MainNodeBuilder {
         };
         let http_port = rpc_config.http_port;
         let internal_config_builder = InternalApiConfigBuilder::from_genesis(&self.genesis_config)
-            .with_web3_config(rpc_config);
+            .with_web3_config(rpc_config)
+            .with_l1_to_l2_txs_paused(
+                self.configs
+                    .mempool_config
+                    .as_ref()
+                    .map(|x| x.l1_to_l2_txs_paused)
+                    .unwrap_or_default(),
+            );
+
         self.node.add_layer(Web3ServerLayer::http(
             http_port,
             internal_config_builder,
@@ -483,7 +491,14 @@ impl MainNodeBuilder {
         };
         let ws_port = rpc_config.ws_port;
         let internal_config_builder = InternalApiConfigBuilder::from_genesis(&self.genesis_config)
-            .with_web3_config(rpc_config);
+            .with_web3_config(rpc_config)
+            .with_l1_to_l2_txs_paused(
+                self.configs
+                    .mempool_config
+                    .as_ref()
+                    .map(|x| x.l1_to_l2_txs_paused)
+                    .unwrap_or_default(),
+            );
 
         self.node.add_layer(Web3ServerLayer::ws(
             ws_port,

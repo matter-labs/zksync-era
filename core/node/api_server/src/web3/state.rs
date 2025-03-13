@@ -128,6 +128,7 @@ pub struct InternalApiConfigBuilder {
     pub l1_bytecodes_supplier_addr: Option<Address>,
     pub l1_wrapped_base_token_store: Option<Address>,
     pub l2_multicall3: Option<Address>,
+    pub l1_to_l2_txs_paused: Option<bool>,
 }
 
 impl InternalApiConfigBuilder {
@@ -154,6 +155,7 @@ impl InternalApiConfigBuilder {
             l1_bytecodes_supplier_addr: None,
             l1_wrapped_base_token_store: None,
             l2_multicall3: None,
+            l1_to_l2_txs_paused: None,
         }
     }
 
@@ -201,6 +203,11 @@ impl InternalApiConfigBuilder {
         }
     }
 
+    pub fn with_l1_to_l2_txs_paused(mut self, l1_to_l2_txs_paused: bool) -> Self {
+        self.l1_to_l2_txs_paused = Some(l1_to_l2_txs_paused);
+        self
+    }
+
     pub fn build(self) -> InternalApiConfig {
         InternalApiConfig {
             l1_chain_id: self.l1_chain_id,
@@ -225,6 +232,7 @@ impl InternalApiConfigBuilder {
             timestamp_asserter_address: self.timestamp_asserter_address,
             l1_wrapped_base_token_store: self.l1_wrapped_base_token_store,
             l2_multicall3: self.l2_multicall3,
+            l1_to_l2_txs_paused: self.l1_to_l2_txs_paused.unwrap(),
         }
     }
 }
@@ -256,6 +264,7 @@ pub struct InternalApiConfig {
     pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
     pub timestamp_asserter_address: Option<Address>,
     pub l2_multicall3: Option<Address>,
+    pub l1_to_l2_txs_paused: bool,
 }
 
 impl InternalApiConfig {
@@ -265,6 +274,7 @@ impl InternalApiConfig {
         l1_ecosystem_contracts: &L1SpecificContracts,
         l2_contracts: &L2Contracts,
         genesis_config: &GenesisConfig,
+        l1_to_l2_txs_paused: bool,
     ) -> Self {
         Self {
             l1_chain_id: genesis_config.l1_chain_id,
@@ -299,6 +309,7 @@ impl InternalApiConfig {
             l1_batch_commit_data_generator_mode: genesis_config.l1_batch_commit_data_generator_mode,
             timestamp_asserter_address: l2_contracts.timestamp_asserter_addr,
             l2_multicall3: l2_contracts.multicall3,
+            l1_to_l2_txs_paused,
         }
     }
 }

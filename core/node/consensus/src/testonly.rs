@@ -606,6 +606,7 @@ impl StateKeeperRunner {
                     &configs::AllContractsConfig::for_tests().l1_specific_contracts(),
                     &configs::AllContractsConfig::for_tests().l2_contracts(),
                     &configs::GenesisConfig::for_tests(),
+                    false,
                 );
                 let mut server = TestServerBuilder::new(self.pool.0.clone(), cfg)
                     .build_http(stop_recv)
@@ -690,6 +691,7 @@ impl StateKeeperRunner {
                     l1_specific,
                     &configs::AllContractsConfig::for_tests().l2_contracts(),
                     &configs::GenesisConfig::for_tests(),
+                    false,
                 );
                 let mut server = TestServerBuilder::new(self.pool.0.clone(), cfg)
                     .build_http(stop_recv)

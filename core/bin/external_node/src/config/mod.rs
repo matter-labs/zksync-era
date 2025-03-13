@@ -1531,6 +1531,9 @@ impl From<&ExternalNodeConfig> for InternalApiConfigBuilder {
             l1_server_notifier_addr: config.remote.l1_server_notifier_addr,
             l1_wrapped_base_token_store: config.remote.l1_wrapped_base_token_store,
             l2_multicall3: config.remote.l2_multicall3,
+            // We do not fetch it from remote to not introduce a dependency on the unstable endpoint.
+            // At the same time, this variable should only be used from the main node during v26 upgrade.
+            l1_to_l2_txs_paused: Some(true),
         }
     }
 }
