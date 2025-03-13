@@ -50,4 +50,5 @@ message Mempool {
   optional bool remove_stuck_txs = 5; // required
   optional uint64 delay_interval = 6; // required; ms
   optional bool skip_unsafe_deposit_checks = 7;
+  optional bool l1_to_l2_txs_paused = 8;
 }
