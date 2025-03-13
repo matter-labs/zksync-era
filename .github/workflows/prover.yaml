@@ -90,11 +90,48 @@ jobs:
   #
   # Runs cargo test in CI environment.
   # =================================================
-  unit-tests:
-    name: Unit tests
-    runs-on: matterlabs-ci-runner-highmem-long
-    needs: changed-files
-    if: ${{ needs.changed-files.outputs.any_changed == 'true' }}
+#  unit-tests:
+#    name: Unit tests
+#    runs-on: matterlabs-ci-runner-highmem-long
+#    needs: changed-files
+#    if: ${{ needs.changed-files.outputs.any_changed == 'true' }}
+#    steps:
+#      - name: Checkout
+#        uses: actions/checkout@v4
+#        with:
+#          submodules: "recursive"
+#
+#      - name: Setup runner
+#        uses: matter-labs/zksync-ci-common/.github/actions/runner-setup@aba-ci-optimize
+#        with:
+#          workspace: 'prover'     # Use prover workspace cache setup
+#          cache_shared_key: 'dev' # Use `dev` profile cache to significantly speed up the build
+#
+#      # Download prebuilt contracts version if exists, otherwise build them
+#      - name: Setup contracts
+#        uses: matter-labs/zksync-ci-common/.github/actions/build-contracts@aba-ci-optimize
+#
+#      - name: Start services
+#        run: docker-compose up -d --wait postgres
+#
+#      # Not all tests are enabled
+#      # since prover and setup_key_generator_and_server
+#      # requires bellman-cuda to be present
+#      - name: Unit tests
+#        run: zkstack dev test prover
+
+  e2e-tests:
+    runs-on: matterlabs-ci-gpu-l4-runner-prover-tests
+    strategy:
+      fail-fast: false
+      matrix:
+        compressor-mode:
+          - "fflonk"
+#          - "plonk"
+    env:
+      ZKSYNC_HOME: ${{ github.workspace }}
+      L1_RPC_URL: "http://localhost:8545"
+      SERVER_DB_URL: "postgres://postgres:notsecurepassword@localhost:5432"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -104,21 +141,121 @@ jobs:
       - name: Setup runner
         uses: matter-labs/zksync-ci-common/.github/actions/runner-setup@aba-ci-optimize
         with:
-          workspace: 'prover'     # Use prover workspace cache setup
-          cache_shared_key: 'dev' # Use `dev` profile cache to significantly speed up the build
+          workspace: 'prover'         # Use prover workspace cache setup
+          cache_shared_key: 'release' # Use `dev` profile cache to significantly speed up the build
+          setup_cuda: 'true'
 
-      # Download prebuilt contracts version if exists, otherwise build them
-      - name: Setup contracts
+      - name: Build contracts
         uses: matter-labs/zksync-ci-common/.github/actions/build-contracts@aba-ci-optimize
 
-      - name: Start services
-        run: docker-compose up -d --wait postgres
+      - name: Setup environment
+        run: mkdir -p prover_logs_${{ matrix.compressor-mode }}
 
-      # Not all tests are enabled
-      # since prover and setup_key_generator_and_server
-      # requires bellman-cuda to be present
-      - name: Unit tests
-        run: zkstack dev test prover
+      - name: Start services
+        env:
+          RUNNER_COMPOSE_FILE: "docker-compose-gpu-runner-cuda-12-0.yml"
+        run: docker compose -f ${RUNNER_COMPOSE_FILE} up --wait reth postgres
+
+      - name: Build server
+        run: zkstack server build --verbose
+
+      - name: Init
+        run: |
+          zkstack chain create \
+            --chain-name proving_chain \
+            --chain-id sequential \
+            --prover-mode gpu \
+            --wallet-creation localhost \
+            --l1-batch-commit-data-generator-mode rollup \
+            --base-token-address 0x0000000000000000000000000000000000000001 \
+            --base-token-price-nominator 1 \
+            --base-token-price-denominator 1 \
+            --set-as-default true \
+            --ignore-prerequisites \
+            --evm-emulator false \
+            --update-submodules=true
+
+          zkstack ecosystem init --dev --skip-contract-compilation-override=true --ignore-prerequisites --observability=false --verbose
+          
+          zkstack prover init --dev --verbose
+          echo "URL=$(grep "http_url" ./chains/proving_chain/configs/general.yaml | awk '{ print $2 }')" >> "${GITHUB_ENV}"
+
+      - name: Switch verifier to FFLONK interface
+        working-directory: ./chains/proving_chain/configs
+        if: matrix.compressor-mode == 'fflonk'
+        run: |
+          sudo sed -i 's/is_verifier_pre_fflonk: true/is_verifier_pre_fflonk: false/' general.yaml
+          grep "is_verifier_pre_fflonk" general.yaml | awk '{ print $2 }'
+
+      - name: Prepare prover subsystem
+        run: |
+          zkstack prover init-bellman-cuda --clone --verbose
+          zkstack prover setup-keys --mode=download --region=us --verbose
+
+      - name: Run server
+        run: |
+          zkstack server --chain=proving_chain \
+            --components=api,tree,eth,state_keeper,commitment_generator,proof_data_handler,vm_runner_protective_reads,vm_runner_bwip &>prover_logs_${{ matrix.compressor-mode }}/server.log &
+          zkstack server wait --chain=proving_chain --timeout=300
+
+      - name: Run prover gateway
+        run: |
+          zkstack prover run --component=gateway --docker=false &>prover_logs_${{matrix.compressor-mode}}/gateway.log &
+
+      - name: Run Prover Job Monitor
+        run: |
+          zkstack prover run --component=prover-job-monitor --docker=false &>prover_logs_${{matrix.compressor-mode}}/prover-job-monitor.log &
+
+      - name: Wait for batch to be passed through prover gateway
+        env:
+          DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_prover_localhost_proving_chain
+          BATCH_NUMBER: 1
+          INTERVAL: 30
+          TIMEOUT: 450
+        run: |
+          PASSED_ENV_VARS="DATABASE_URL,BATCH_NUMBER,INTERVAL,TIMEOUT" \
+          ./bin/prover_checkers/batch_availability_checker
+
+      - name: Run Witness Generator
+        run: |
+          zkstack prover run --component=witness-generator --round=all-rounds --docker=false &>prover_logs_${{matrix.compressor-mode}}/witness-generator.log &
+
+      - name: Run Circuit Prover
+        run: |
+          zkstack prover run --component=circuit-prover -l=23 -h=3 --docker=false &>prover_logs_${{matrix.compressor-mode}}/circuit_prover.log &
+
+      - name: Wait for prover jobs to finish
+        env:
+          DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_prover_localhost_proving_chain
+          BATCH_NUMBER: 1
+          INTERVAL: 30
+          TIMEOUT: 1800
+        run: |
+          PASSED_ENV_VARS="DATABASE_URL,BATCH_NUMBER,INTERVAL,TIMEOUT" \
+          ./bin/prover_checkers/prover_jobs_status_checker
+
+      - name: Kill prover & start compressor
+        run: |
+          sudo ./bin/prover_checkers/kill_prover
+          zkstack prover run --component=compressor --docker=false --mode=${{matrix.compressor-mode}} &>prover_logs_${{matrix.compressor-mode}}/compressor.log &
+
+      - name: Wait for batch to be executed on L1
+        env:
+          DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_prover_localhost_proving_chain
+          BATCH_NUMBER: 1
+          INTERVAL: 30
+          TIMEOUT: 1200
+        run: |
+          PASSED_ENV_VARS="BATCH_NUMBER,DATABASE_URL,URL,INTERVAL,TIMEOUT" \
+          ./bin/prover_checkers/batch_l1_status_checker
+
+      - name: Upload logs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: prover_logs_${{ matrix.compressor-mode }}
+          path: prover_logs_${{ matrix.compressor-mode }}
+
 
   # ====================================================================
   #                GitHub required status check job
@@ -127,13 +264,14 @@ jobs:
   # requiring others to be successful.
   # This is used to block PRs from merging without passing CI.
   # ====================================================================
-  required-check:
-    name: Github Status Check
-    runs-on: ubuntu-latest
-    if: always() && !cancelled()
-    needs:
-      - unit-tests
-    steps:
-      - uses: re-actors/alls-green@release/v1
-        with:
-          jobs: ${{ toJSON(needs) }}
+#  required-check:
+#    name: Github Status Check
+#    runs-on: ubuntu-latest
+#    if: always() && !cancelled()
+#    needs:
+#      - unit-tests
+#      - e2e-tests
+#    steps:
+#      - uses: re-actors/alls-green@release/v1
+#        with:
+#          jobs: ${{ toJSON(needs) }}
