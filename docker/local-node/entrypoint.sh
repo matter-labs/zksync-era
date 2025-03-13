@@ -83,7 +83,7 @@ if [ -z "$MASTER_URL" ]; then
 else
   zkstack chain create \
     --chain-name custom_token \
-    --chain-id 275 \
+    --chain-id sequential \
     --prover-mode no-proofs \
     --wallet-creation localhost \
     --l1-batch-commit-data-generator-mode rollup \
