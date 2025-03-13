@@ -13,22 +13,22 @@ permissions:
 
 # Define the events that triggers the workflow
 on:
-  pull_request:
-    paths:
-      # Workspaces
-      - 'core/**'
-      - 'zkstack_cli/**'
-      # Docker files
-      - 'docker/contract-verifier/**'
-      - 'docker/external-node/**'
-      - 'docker/server/**'
-      # CI scripts
-      - '.github/workflows/core.yaml'
-      - '.github/workflows/build-core-template.yml'              # TODO: check name after refactoring
-      - '.github/workflows/build-contract-verifier-template.yml' # TODO: check name after refactoring
-      # Exclude markdown files
-      - '!**/*.md'
-      - '!**/*.MD'
+#  pull_request:
+#    paths:
+#      # Workspaces
+#      - 'core/**'
+#      - 'zkstack_cli/**'
+#      # Docker files
+#      - 'docker/contract-verifier/**'
+#      - 'docker/external-node/**'
+#      - 'docker/server/**'
+#      # CI scripts
+#      - '.github/workflows/core.yaml'
+#      - '.github/workflows/build-core-template.yml'              # TODO: check name after refactoring
+#      - '.github/workflows/build-contract-verifier-template.yml' # TODO: check name after refactoring
+#      # Exclude markdown files
+#      - '!**/*.md'
+#      - '!**/*.MD'
   merge_group:
 
 # Cancel previous runs for PRs if new one is started
@@ -78,10 +78,6 @@ jobs:
             !**/*.md
             !**/*.MD
 
-      - name: Set outputs
-        run: |
-          echo "any_changed=${{ steps.files.outputs.any_changed }}"
-
 
   # =================================================
   #          Unit Tests for `core` workspace
@@ -118,8 +114,9 @@ jobs:
       - name: Start services
         run: docker-compose up -d --wait reth
 
-      - name: Rust unit tests
+      - name: Unit tests
         run: zkstack dev test rust
+
 
   # ==========================================
   #        Load tests for `core` workspace
@@ -210,6 +207,7 @@ jobs:
       - name: Show server logs
         if: failure()
         run: cat ${SERVER_LOG}
+
 
   # ==============================================
   #    Integration tests for `core` workspace
@@ -453,6 +451,7 @@ jobs:
         with:
           name: logs_${{ matrix.use_gateway_chain }}
           path: logs
+
 
   # ====================================================================
   #                GitHub required status check job

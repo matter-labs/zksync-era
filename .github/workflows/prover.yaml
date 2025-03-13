@@ -1,0 +1,139 @@
+name: Prover tests
+
+# ================================================================
+#               Prover Workspace Testing Workflow
+#
+# Runs unit and e2e tests for the `prover` workspace.
+# ================================================================
+
+# Set proper subset of permissions
+permissions:
+  contents: read
+  pull-requests: write
+
+# Define the events that triggers the workflow
+on:
+  pull_request:
+    paths:
+      # Workspaces
+      - 'prover/**'
+      - 'zkstack_cli/**'
+      - '!prover/CHANGELOG.md'
+      - '!prover/setup-data-cpu-keys.json'
+      - '!prover/setup-data-gpu-keys.json'
+      - '!prover/extract-setup-data-keys.sh'
+      # Docker files
+      - 'docker/prover*/**'
+      - 'docker-compose-runner-nightly.yml'
+      # CI scripts
+      - '.github/workflows/prover.yaml'
+      - '.github/workflows/build-prover-template.yml'            # TODO: check name after refactoring
+      - '.github/workflows/build-witness-generator-template.yml' # TODO: check name after refactoring
+      # Exclude markdown files
+      - '!**/*.md'
+      - '!**/*.MD'
+  merge_group:
+
+# Cancel previous runs for PRs if new one is started
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+# Set default shell for all steps
+defaults:
+  run:
+    shell: 'bash -ex {0}'
+
+jobs:
+
+  # ===============================================================
+  #         Aux job to check changes in `prover` workspace
+  #
+  # Auxiliary job to check if there are any changes in the core
+  # workspace because merge_group cannot be filtered by path.
+  # https://github.com/orgs/community/discussions/45899
+  #
+  # We have to duplicate filters here and on top of the workflow.
+  # ===============================================================
+  changed-files:
+    name: Get changed files
+    runs-on: ubuntu-latest
+    outputs:
+      any_changed: ${{ steps.files.outputs.any_changed }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+          submodules: "false"
+
+      - uses: tj-actions/changed-files@v45
+        id: files
+        with:
+          files: |
+            prover/**
+            zkstack_cli/**
+            !prover/CHANGELOG.md
+            !prover/setup-data-cpu-keys.json
+            !prover/setup-data-gpu-keys.json
+            !prover/extract-setup-data-keys.sh
+            docker/prover*/**
+            docker-compose-runner-nightly.yml
+            .github/workflows/prover.yaml
+            .github/workflows/build-prover-template.yml
+            .github/workflows/build-witness-generator-template.yml
+            !**/*.md
+            !**/*.MD
+
+
+  # =================================================
+  #         Unit Tests for `prover` workspace
+  #
+  # Runs cargo test in CI environment.
+  # =================================================
+  unit-tests:
+    name: Unit tests
+    runs-on: matterlabs-ci-runner-highmem-long
+    needs: changed-files
+    if: ${{ needs.changed-files.outputs.any_changed == 'true' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: "recursive"
+
+      - name: Setup runner
+        uses: matter-labs/zksync-ci-common/.github/actions/runner-setup@aba-ci-optimize
+        with:
+          workspace: 'prover'     # Use prover workspace cache setup
+          cache_shared_key: 'dev' # Use `dev` profile cache to significantly speed up the build
+
+      # Download prebuilt contracts version if exists, otherwise build them
+      - name: Setup contracts
+        uses: matter-labs/zksync-ci-common/.github/actions/build-contracts@aba-ci-optimize
+
+      - name: Start services
+        run: docker-compose up -d --wait postgres
+
+      # Not all tests are enabled
+      # since prover and setup_key_generator_and_server
+      # requires bellman-cuda to be present
+      - name: Unit tests
+        run: zkstack dev test prover
+
+  # ====================================================================
+  #                GitHub required status check job
+  #
+  # Special job that allows some of the jobs to be skipped or failed
+  # requiring others to be successful.
+  # This is used to block PRs from merging without passing CI.
+  # ====================================================================
+  required-check:
+    name: Github Status Check
+    runs-on: ubuntu-latest
+    if: always() && !cancelled()
+    needs:
+      - unit-tests
+    steps:
+      - uses: re-actors/alls-green@release/v1
+        with:
+          jobs: ${{ toJSON(needs) }}
