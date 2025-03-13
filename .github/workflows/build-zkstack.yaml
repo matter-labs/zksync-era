@@ -13,7 +13,6 @@ permissions:
 
 # Define the events that triggers the workflow
 on:
-#  pull_request: # TODO: Remove after testing
   push:
     branches:
       - main
