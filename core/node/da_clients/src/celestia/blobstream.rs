@@ -180,5 +180,6 @@ sol! {
     struct CelestiaZKStackInput {
         AttestationProof attestationProof;
         bytes equivalenceProof;
+        bytes publicValues;
     }
 }

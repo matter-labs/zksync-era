@@ -322,6 +322,7 @@ impl DataAvailabilityClient for CelestiaClient {
         let celestia_zkstack_input = CelestiaZKStackInput {
             attestationProof: attestation_proof,
             equivalenceProof: Bytes::from(proof.bytes()),
+            publicValues: Bytes::from(proof.public_values.to_vec()),
         };
 
         Ok(Some(InclusionData { 
