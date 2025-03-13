@@ -17,7 +17,7 @@ mod tests {
 
     fn expected_config() -> TxSinkConfig {
         TxSinkConfig {
-            allow_list: Some("0x1234567890abcdef".to_string()),
+            use_whitelisted_sink: Some(false),
         }
     }
 
@@ -25,7 +25,7 @@ mod tests {
     fn from_env() {
         let mut lock = MUTEX.lock();
         let config = r#"
-            TX_SINK_ALLOW_LIST="0x1234567890abcdef"
+            use_whitelisted_sink=false
         "#;
         lock.set_env(config);
 

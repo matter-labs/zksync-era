@@ -67,7 +67,7 @@ use zksync_node_framework::{
             tree_api_client::TreeApiClientLayer,
             tx_sender::{PostgresStorageCachesConfig, TxSenderLayer},
             tx_sink::MasterPoolSinkLayer,
-        },
+        },  
     },
     service::{ZkStackService, ZkStackServiceBuilder},
 };
@@ -335,6 +335,7 @@ impl MainNodeBuilder {
     fn add_tx_sender_layer(mut self) -> anyhow::Result<Self> {
         let sk_config = try_load_config!(self.configs.state_keeper_config);
         let rpc_config = try_load_config!(self.configs.api_config).web3_json_rpc;
+        let tx_sink_config = try_load_config!(self.configs.tx_sink_config);
 
         let timestamp_asserter_params = match self.contracts_config.l2_timestamp_asserter_addr {
             Some(address) => {
@@ -361,8 +362,7 @@ impl MainNodeBuilder {
             .clone()
             .unwrap_or_default();
 
-        // On main node we always use master pool sink.
-        self.node.add_layer(MasterPoolSinkLayer);
+        self.node.add_layer(MasterPoolSinkLayer { tx_sink_config });
 
         let layer = TxSenderLayer::new(
             TxSenderConfig::new(

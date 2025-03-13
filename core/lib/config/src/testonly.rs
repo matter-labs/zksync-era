@@ -1205,7 +1205,7 @@ impl Distribution<TimestampAsserterConfig> for EncodeDist {
 impl Distribution<configs::TxSinkConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::TxSinkConfig {
         configs::TxSinkConfig {
-            allow_list: self.sample(rng),
+            use_whitelisted_sink: self.sample(rng),
         }
     }
 }

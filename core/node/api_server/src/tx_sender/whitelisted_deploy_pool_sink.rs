@@ -31,10 +31,6 @@ impl TxSink for WhitelistedDeployPoolSink {
     ) -> Result<L2TxSubmissionResult, SubmitTxError> {
         let initiator = tx.initiator_account();
 
-        tracing::info!(
-            "Processing transaction isContractDeployed: {}",
-            execution_metrics.vm.is_contract_deployed
-        );
         if let Some(contract_address) = tx.execute.contract_address {
             tracing::info!(
                 "Allow List Sink: Tx {:?} with contract address {}",
@@ -43,33 +39,33 @@ impl TxSink for WhitelistedDeployPoolSink {
             );
             // Only enforce the allow-list check if the deployer contract was called
             // and the VM actually deployed a contract.
-            // if contract_address == CONTRACT_DEPLOYER_ADDRESS && execution_metrics.vm.is_contract_deployed {
-            //     let mut connection = self
-            //         .master_pool
-            //         .connection_tagged("api")
-            //         .await
-            //         .map_err(DalError::generalize)?;
+            if contract_address == CONTRACT_DEPLOYER_ADDRESS && execution_metrics.vm.is_contract_deployed {
+                let mut connection = self
+                    .master_pool
+                    .connection_tagged("api")
+                    .await
+                    .map_err(DalError::generalize)?;
 
-            //     let allow_list = connection
-            //         .contracts_deploy_allow_list_dal()
-            //         .get_allow_list()
-            //         .await
-            //         .unwrap();
+                let allow_list = connection
+                    .contracts_deploy_allow_list_dal()
+                    .get_allow_list()
+                    .await
+                    .unwrap();
 
-            //     if allow_list.contains(&initiator) {
-            //         tracing::info!(
-            //             "Whitelisted address {:?} allowed to deploy contract: {:?}",
-            //             initiator,
-            //             tx.hash()
-            //         );
-            //     } else {
-            //         tracing::info!(
-            //             "Blocking contract deployment for non-whitelisted address: {:?}",
-            //             initiator
-            //         );
-            //         return Err(SubmitTxError::SenderInAllowList(initiator));
-            //     }
-            // }
+                if allow_list.contains(&initiator) {
+                    tracing::info!(
+                        "Whitelisted address {:?} allowed to deploy contract: {:?}",
+                        initiator,
+                        tx.hash()
+                    );
+                } else {
+                    tracing::info!(
+                        "Blocking contract deployment for non-whitelisted address: {:?}",
+                        initiator
+                    );
+                    return Err(SubmitTxError::SenderInAllowList(initiator));
+                }
+            }
         }
 
         self.master_pool_sync

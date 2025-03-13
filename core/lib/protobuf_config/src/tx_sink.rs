@@ -7,13 +7,13 @@ impl ProtoRepr for proto::TxSink {
     type Type = configs::tx_sink::TxSinkConfig;
     fn read(&self) -> anyhow::Result<Self::Type> {
         Ok(Self::Type {
-            allow_list: self.allow_list.clone(),
+            use_whitelisted_sink: self.use_whitelisted_sink.clone(),
         })
     }
 
     fn build(this: &Self::Type) -> Self {
         Self {
-            allow_list: this.allow_list.clone(),
+            use_whitelisted_sink: this.use_whitelisted_sink.clone(),
         }
     }
 }

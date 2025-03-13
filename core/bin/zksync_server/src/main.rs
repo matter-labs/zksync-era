@@ -222,7 +222,6 @@ fn load_env_config() -> anyhow::Result<TempConfigStore> {
         gas_adjuster_config: GasAdjusterConfig::from_env().ok(),
         observability: ObservabilityConfig::from_env().ok(),
         snapshot_creator: SnapshotsCreatorConfig::from_env().ok(),
-        tx_sink_config: TxSinkConfig::from_env().ok(),
         da_client_config: DAClientConfig::from_env().ok(),
         da_dispatcher_config: DADispatcherConfig::from_env().ok(),
         protective_reads_writer_config: ProtectiveReadsWriterConfig::from_env().ok(),
@@ -237,5 +236,6 @@ fn load_env_config() -> anyhow::Result<TempConfigStore> {
         experimental_vm_config: ExperimentalVmConfig::from_env().ok(),
         prover_job_monitor_config: None,
         timestamp_asserter_config: TimestampAsserterConfig::from_env().ok(),
+        tx_sink_config: TxSinkConfig::from_env().ok(),
     })
 }
