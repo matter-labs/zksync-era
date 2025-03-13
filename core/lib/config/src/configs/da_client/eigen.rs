@@ -26,6 +26,8 @@ pub struct EigenConfig {
     pub authenticated: bool,
     /// Points source
     pub points_source: PointsSource,
+    /// Custom quorum numbers
+    pub custom_quorum_numbers: Option<Vec<u32>>,
 }
 
 #[derive(Clone, Debug, PartialEq)]

@@ -52,6 +52,7 @@ impl EigenDAClient {
             wait_for_finalization: config.wait_for_finalization,
             authenticated: config.authenticated,
             srs_points_source,
+            custom_quorum_numbers: config.custom_quorum_numbers,
         };
         let private_key = PrivateKey::from_str(secrets.private_key.0.expose_secret())
             .map_err(|e| anyhow::anyhow!("Failed to parse private key: {}", e))?;

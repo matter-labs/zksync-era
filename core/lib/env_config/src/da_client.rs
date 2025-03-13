@@ -71,6 +71,7 @@ pub fn da_client_config_from_env(prefix: &str) -> anyhow::Result<DAClientConfig>
                 )),
                 _ => anyhow::bail!("Unknown Eigen points type"),
             },
+            custom_quorum_numbers: todo!(),
         }),
         OBJECT_STORE_CLIENT_CONFIG_NAME => {
             DAClientConfig::ObjectStore(envy_load("da_object_store", prefix)?)
@@ -304,6 +305,7 @@ mod tests {
             DA_AUTHENTICATED=false
             DA_POINTS_SOURCE="Path"
             DA_POINTS_PATH="resources"
+            DA_CUSTOM_QUORUM_NUMBERS="TODO"
         "#;
         lock.set_env(config);
 
@@ -320,6 +322,7 @@ mod tests {
                 wait_for_finalization: true,
                 authenticated: false,
                 points_source: PointsSource::Path("resources".to_string()),
+                custom_quorum_numbers: None,
             })
         );
     }
