@@ -48,13 +48,13 @@ impl TxSink for WhitelistedDeployPoolSink {
                     .await
                     .map_err(DalError::generalize)?;
 
-                let allow_list = connection
+                let is_allowed = connection
                     .contracts_deploy_allow_list_dal()
-                    .get_allow_list()
+                    .is_address_allowed(&initiator)
                     .await
                     .unwrap();
 
-                if allow_list.contains(&initiator) {
+                if is_allowed {
                     tracing::info!(
                         "Whitelisted address {:?} allowed to deploy contract: {:?}",
                         initiator,

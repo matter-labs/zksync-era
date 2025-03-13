@@ -65,5 +65,5 @@ message GeneralConfig {
     optional prover_job_monitor.ProverJobMonitor prover_job_monitor = 45;
     optional da_client.DataAvailabilityClient da_client = 46;
     optional timestamp_asserter.TimestampAsserter timestamp_asserter = 47;
-    optional config.tx_sink.TxSink tx_sink = 100;
+    optional config.tx_sink.TxSink tx_sink = 48;
 }

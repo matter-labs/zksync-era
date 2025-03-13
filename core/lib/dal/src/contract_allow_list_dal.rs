@@ -9,22 +9,21 @@ pub struct ContractDeployAllowListDal<'a, 'c> {
 }
 
 impl ContractDeployAllowListDal<'_, '_> {
-    /// Returns every address in `contract_deploy_allow_list`, using a prepared statement
-    pub async fn get_allow_list(&mut self) -> DalResult<Vec<Address>> {
-        let rows = sqlx::query!(
+    /// Checks if a given address exists in `contract_deploy_allow_list`
+    pub async fn is_address_allowed(&mut self, address: &Address) -> DalResult<bool> {
+        let exists = sqlx::query_scalar!(
             r#"
-            SELECT address
-            FROM contract_deploy_allow_list
-            "#
+            SELECT EXISTS(
+                SELECT 1 FROM contract_deploy_allow_list WHERE address = $1
+            )
+            "#,
+            address.as_bytes()
         )
-        .instrument("get_allow_list") // Tag the query for logs / metrics
+        .instrument("is_address_allowed") // Tag the query for logs / metrics
         .report_latency() // Measure query latency
-        .fetch_all(self.storage)
+        .fetch_one(self.storage)
         .await?;
 
-        Ok(rows
-            .into_iter()
-            .map(|row| Address::from_slice(&row.address))
-            .collect())
+        Ok(exists.unwrap_or(false))
     }
 }
