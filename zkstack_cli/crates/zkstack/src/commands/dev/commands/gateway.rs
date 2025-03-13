@@ -976,7 +976,7 @@ pub(crate) async fn run(shell: &Shell, args: GatewayUpgradeCalldataArgs) -> anyh
             print_error(e);
             return Ok(());
         }
-        println!("Done.");
+        println!("All the L1->L2 have been paused. We can safely proceed with v26 upgrade.");
     }
 
     let schedule_calldata = set_upgrade_timestamp_calldata(
