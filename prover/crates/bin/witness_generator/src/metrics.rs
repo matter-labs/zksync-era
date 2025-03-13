@@ -16,6 +16,8 @@ pub(crate) struct WitnessGeneratorMetrics {
     pub blob_save_time: Family<StageLabel, Histogram<Duration>>,
 }
 
+// something to trigger prover CI
+
 #[vise::register]
 pub(crate) static WITNESS_GENERATOR_METRICS: vise::Global<WitnessGeneratorMetrics> =
     vise::Global::new();
