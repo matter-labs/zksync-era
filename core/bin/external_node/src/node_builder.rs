@@ -157,6 +157,7 @@ impl ExternalNodeBuilder {
             self.config.l1_specific_contracts(),
             self.config.l1_settelment_contracts(),
             self.config.l2_contracts(),
+            self.config.optional.gateway_url.clone(),
         ));
         Ok(self)
     }
@@ -211,8 +212,6 @@ impl ExternalNodeBuilder {
         let query_eth_client_layer = QueryEthClientLayer::new(
             self.config.required.l1_chain_id,
             self.config.required.eth_client_url.clone(),
-            self.config.required.gateway_chain_id,
-            self.config.optional.gateway_url.clone(),
         );
         self.node.add_layer(query_eth_client_layer);
         Ok(self)

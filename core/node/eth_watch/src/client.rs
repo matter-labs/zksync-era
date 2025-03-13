@@ -600,7 +600,7 @@ impl ZkSyncExtentionEthClient for EthHttpQueryClient<L1> {
         _l1_batch_number: L1BatchNumber,
         _chain_id: L2ChainId,
     ) -> EnrichedClientResult<Option<ChainAggProof>> {
-        //TODO: Implement it using l1 contracts
+        //TODO(EVM-959): Implement it using l1 contracts
         Err(EnrichedClientError::custom(
             "Method is not supported",
             "get_chain_log_proof",
@@ -612,7 +612,7 @@ impl ZkSyncExtentionEthClient for EthHttpQueryClient<L1> {
         _l1_batch_number: L1BatchNumber,
         _l2_chain_id: L2ChainId,
     ) -> Result<Option<H256>, ContractCallError> {
-        //TODO: Implement it using l1 contracts
+        //TODO(EVM-959): Implement it using l1 contracts
         Err(ContractCallError::EthereumGateway(
             EnrichedClientError::custom("Method is not supported", "get_chain_root_l2"),
         ))

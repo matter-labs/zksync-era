@@ -1,12 +1,14 @@
 use zksync_config::configs::contracts::{
     chain::ChainContracts, ecosystem::EcosystemCommonContracts, SettlementLayerSpecificContracts,
 };
-use zksync_contracts::{bridgehub_contract, state_transition_manager_contract};
+use zksync_contracts::{
+    bridgehub_contract, getters_facet_contract, state_transition_manager_contract,
+};
 use zksync_eth_client::{CallFunctionArgs, ContractCallError, EthInterface};
 use zksync_types::{
     ethabi::{Contract, Token},
     settlement::SettlementMode,
-    Address, L2ChainId,
+    Address, L2ChainId, SLChainId, U256,
 };
 
 /// Load contacts specific for each settlement layer, using bridgehub contract
@@ -71,23 +73,30 @@ pub async fn get_settlement_layer_from_l1(
     eth_client: &dyn EthInterface,
     diamond_proxy_addr: Address,
     abi: &Contract,
-) -> anyhow::Result<SettlementMode> {
-    let settlement_mode =
+) -> anyhow::Result<(SettlementMode, SLChainId)> {
+    let (settlement_mode, address) =
         match get_settlement_layer_address(eth_client, diamond_proxy_addr, abi).await {
             Err(ContractCallError::Function(_)) => {
                 // Pre Gateway upgrade contracts, it's safe to say we are settling the data on L1
-                SettlementMode::SettlesToL1
+                (SettlementMode::SettlesToL1, None)
             }
             Err(err) => Err(err)?,
             Ok(address) => {
                 if address.is_zero() {
-                    SettlementMode::SettlesToL1
+                    (SettlementMode::SettlesToL1, None)
                 } else {
-                    SettlementMode::Gateway
+                    (SettlementMode::Gateway, Some(address))
                 }
             }
         };
-    Ok(settlement_mode)
+
+    let chain_id = if let Some(address) = address {
+        get_settlement_layer_chain_id(eth_client, address).await?
+    } else {
+        eth_client.fetch_chain_id().await?
+    };
+
+    Ok((settlement_mode, chain_id))
 }
 
 pub async fn get_settlement_layer_address(
@@ -101,4 +110,17 @@ pub async fn get_settlement_layer_address(
         .await?;
 
     Ok(settlement_layer)
+}
+
+pub async fn get_settlement_layer_chain_id(
+    eth_client: &dyn EthInterface,
+    diamond_proxy_addr: Address,
+) -> Result<SLChainId, ContractCallError> {
+    let abi = getters_facet_contract();
+    let chain_id: U256 = CallFunctionArgs::new("getChainId", ())
+        .for_contract(diamond_proxy_addr, &abi)
+        .call(eth_client)
+        .await?;
+
+    Ok(SLChainId(chain_id.as_u64()))
 }

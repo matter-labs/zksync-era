@@ -53,7 +53,7 @@ impl GatewayMigrator {
                 tracing::info!("Stop signal received, GatewayMigrator is shutting down");
                 return Ok(());
             }
-            let settlement_mode = get_settlement_layer_from_l1(
+            let (settlement_mode, _) = get_settlement_layer_from_l1(
                 self.eth_client.as_ref(),
                 self.l1_diamond_proxy_addr,
                 &self.abi,

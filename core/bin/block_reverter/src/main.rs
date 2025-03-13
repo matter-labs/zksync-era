@@ -247,7 +247,7 @@ async fn main() -> anyhow::Result<()> {
     )
     .await?
     .context("No chain has been deployed")?;
-    let settlement_mode = get_settlement_layer_from_l1(
+    let (settlement_mode, _) = get_settlement_layer_from_l1(
         &eth_client,
         sl_l1_contracts.chain_contracts_config.diamond_proxy_addr,
         &getters_facet_contract(),
