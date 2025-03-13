@@ -67,7 +67,7 @@ use zksync_node_framework::{
             tree_api_client::TreeApiClientLayer,
             tx_sender::{PostgresStorageCachesConfig, TxSenderLayer},
             tx_sink::MasterPoolSinkLayer,
-        },  
+        },
     },
     service::{ZkStackService, ZkStackServiceBuilder},
 };

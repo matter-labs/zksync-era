@@ -39,7 +39,9 @@ impl TxSink for WhitelistedDeployPoolSink {
             );
             // Only enforce the allow-list check if the deployer contract was called
             // and the VM actually deployed a contract.
-            if contract_address == CONTRACT_DEPLOYER_ADDRESS && execution_metrics.vm.is_contract_deployed {
+            if contract_address == CONTRACT_DEPLOYER_ADDRESS
+                && execution_metrics.vm.is_contract_deployed
+            {
                 let mut connection = self
                     .master_pool
                     .connection_tagged("api")
