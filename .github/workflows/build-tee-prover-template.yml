@@ -28,12 +28,12 @@ jobs:
       IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}
     runs-on: [matterlabs-ci-runner-high-performance]
     steps:
-      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         if: ${{ github.event_name == 'workflow_dispatch' }}
         with:
           ref: ${{ github.event.inputs.target_branch }}
 
-      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         if: ${{ github.event_name != 'workflow_dispatch' }}
 
       - uses: cachix/install-nix-action@ba0dd844c9180cbf77aa72a116d6fbc515d0e87b # v27
@@ -45,7 +45,7 @@ jobs:
             sandbox = true
 
       - name: Setup Attic cache
-        uses: ryanccn/attic-action@618a980988d704a7709daeea88526146acd1d45f # v0.2.1
+        uses: ryanccn/attic-action@3354ae812cb672e1381be4c7914204c44db53866 # v0.3.1
         with:
           endpoint: https://attic.teepot.org/
           cache: tee-pot
