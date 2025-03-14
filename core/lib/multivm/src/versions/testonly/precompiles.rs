@@ -14,7 +14,6 @@ pub(crate) fn test_keccak<VM: TestedVm>() {
     let contract = TestContract::precompiles_test().bytecode.to_vec();
     let address = Address::repeat_byte(1);
     let mut vm = VmTesterBuilder::new()
-        .with_empty_in_memory_storage()
         .with_rich_accounts(1)
         .with_bootloader_gas_limit(BATCH_COMPUTATIONAL_GAS_LIMIT)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
@@ -52,7 +51,6 @@ pub(crate) fn test_sha256<VM: TestedVm>() {
     let contract = TestContract::precompiles_test().bytecode.to_vec();
     let address = Address::repeat_byte(1);
     let mut vm = VmTesterBuilder::new()
-        .with_empty_in_memory_storage()
         .with_rich_accounts(1)
         .with_bootloader_gas_limit(BATCH_COMPUTATIONAL_GAS_LIMIT)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
@@ -88,7 +86,6 @@ pub(crate) fn test_sha256<VM: TestedVm>() {
 pub(crate) fn test_ecrecover<VM: TestedVm>() {
     // Execute simple transfer and check that exactly 1 `ecrecover` call was made (it's done during tx validation).
     let mut vm = VmTesterBuilder::new()
-        .with_empty_in_memory_storage()
         .with_rich_accounts(1)
         .with_bootloader_gas_limit(BATCH_COMPUTATIONAL_GAS_LIMIT)
         .with_execution_mode(TxExecutionMode::VerifyExecute)

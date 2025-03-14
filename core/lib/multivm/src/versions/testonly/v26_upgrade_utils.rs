@@ -123,7 +123,6 @@ fn setup_v26_unsafe_deposits_detection<VM: TestedVm>() -> (VmTester<VM>, V26Test
     let l1_token_address = "abacabac00000000000000000000000000000002".parse().unwrap();
 
     let mut vm = VmTesterBuilder::new()
-        .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_custom_contracts(vec![ContractToDeploy::new(
             test_contract.bytecode.to_vec(),

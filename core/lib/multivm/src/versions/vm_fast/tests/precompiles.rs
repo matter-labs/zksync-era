@@ -28,7 +28,6 @@ fn ecrecover() {
 #[test]
 fn caching_ecrecover_result() {
     let mut vm = VmTesterBuilder::new()
-        .with_empty_in_memory_storage()
         .with_rich_accounts(1)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .build::<Vm<_>>();
