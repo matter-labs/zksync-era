@@ -72,13 +72,11 @@ pub fn da_client_config_from_env(prefix: &str) -> anyhow::Result<DAClientConfig>
                 _ => anyhow::bail!("Unknown Eigen points type"),
             },
             custom_quorum_numbers: match env::var(format!("{}CUSTOM_QUORUM_NUMBERS", prefix)) {
-                Ok(numbers) => Some(
-                    numbers
-                        .split(',')
-                        .map(|s| s.parse().map_err(|e: ParseIntError| anyhow::anyhow!(e)))
-                        .collect::<anyhow::Result<Vec<_>>>()?,
-                ),
-                Err(_) => None,
+                Ok(numbers) => numbers
+                    .split(',')
+                    .map(|s| s.parse().map_err(|e: ParseIntError| anyhow::anyhow!(e)))
+                    .collect::<anyhow::Result<Vec<_>>>()?,
+                Err(_) => vec![],
             },
         }),
         OBJECT_STORE_CLIENT_CONFIG_NAME => {
@@ -313,7 +311,7 @@ mod tests {
             DA_AUTHENTICATED=false
             DA_POINTS_SOURCE="Path"
             DA_POINTS_PATH="resources"
-            DA_CUSTOM_QUORUM_NUMBERS="1,2,3"
+            DA_CUSTOM_QUORUM_NUMBERS="2"
         "#;
         lock.set_env(config);
 
@@ -330,7 +328,7 @@ mod tests {
                 wait_for_finalization: true,
                 authenticated: false,
                 points_source: PointsSource::Path("resources".to_string()),
-                custom_quorum_numbers: Some(vec![1, 2, 3]),
+                custom_quorum_numbers: vec![2],
             })
         );
     }
