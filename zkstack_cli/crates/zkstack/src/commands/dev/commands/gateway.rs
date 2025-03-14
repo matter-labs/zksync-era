@@ -78,7 +78,6 @@ pub(crate) struct GatewayUpgradeInfo {
 
 #[derive(Debug, Default)]
 pub struct FetchedChainInfo {
-    l2_legacy_shared_bridge_addr: Address,
     hyperchain_addr: Address,
     base_token_addr: Address,
     chain_admin_addr: Address,
@@ -289,15 +288,7 @@ pub async fn check_chain_readiness(
     l1_rpc_url: String,
     l2_rpc_url: String,
     l2_chain_id: u64,
-    l2_tokens_indexing_block_range: Option<u64>,
 ) -> anyhow::Result<()> {
-    check_token_readiness(
-        l2_rpc_url.clone(),
-        l2_chain_id,
-        l2_tokens_indexing_block_range,
-    )
-    .await?;
-
     let l1_provider = match Provider::<Http>::try_from(&l1_rpc_url) {
         Ok(provider) => provider,
         Err(err) => {
@@ -308,29 +299,7 @@ pub async fn check_chain_readiness(
 
     let l2_client = get_zk_client(&l2_rpc_url, l2_chain_id)?;
 
-    let inflight_txs_count = match l2_client.get_unconfirmed_txs_count().await {
-        Ok(x) => x,
-        Err(e) => {
-            anyhow::bail!("Failed to call `unstable_unconfirmedTxsCount`. Reason: `{}`.\nEnsure that `unstable` namespace is enabled on your server and it runs the latest version", e)
-        }
-    };
-
-    match l2_client.supports_unsafe_deposit_filter().await {
-        Ok(result) => {
-            if !result {
-                anyhow::bail!("The chain does not support unsafe deposit filtering! Please update your server version to the latest one.")
-            }
-        }
-        Err(e) => {
-            anyhow::bail!("Failed to check that the chain supports unsafe deposit filtering: {:#?}. Please update your server version to the latest one.", e);
-        }
-    }
-
     let diamond_proxy_addr = l2_client.get_main_contract().await?;
-
-    if inflight_txs_count != 0 {
-        anyhow::bail!("Chain not ready since there are inflight txs!");
-    }
 
     let zkchain = ZKChainAbi::new(diamond_proxy_addr, l1_client.clone());
     let batches_committed = zkchain.get_total_batches_committed().await?.as_u32();
@@ -366,7 +335,7 @@ async fn verify_correct_l2_wrapped_base_token(
 }
 
 pub async fn fetch_chain_info(
-    upgrade_info: &GatewayUpgradeInfo,
+    upgrade_info: &V27UpgradeInfo,
     args: &GatewayUpgradeArgsInner,
 ) -> anyhow::Result<FetchedChainInfo> {
     // Connect to the L1 Ethereum network
@@ -385,84 +354,13 @@ pub async fn fetch_chain_info(
     if hyperchain_addr == Address::zero() {
         anyhow::bail!("Chain not present in bridgehub");
     }
-    let l1_legacy_bridge =
-        L1SharedBridgeLegacyAbi::new(upgrade_info.l1_legacy_shared_bridge, client.clone());
-
-    let l2_legacy_shared_bridge_addr = l1_legacy_bridge.l_2_bridge_address(chain_id).await?;
-    // Creation of the shared bridge is one of the steps for chain creation,
-    // so it is very weird that a chain does not have it, so we fail here.
-    anyhow::ensure!(
-        l2_legacy_shared_bridge_addr != Address::zero(),
-        "Chain not registered inside the L1 shared bridge!"
-    );
-
-    let l2_wrapped_base_token_store =
-        L2WrappedBaseTokenStoreAbi::new(upgrade_info.l1_wrapped_base_token_store, client.clone());
-
-    let l2_predeployed_wrapped_base_token = l2_wrapped_base_token_store
-        .l_2w_base_token_address(chain_id)
-        .await?;
-
-    // Even in case the user does not want the script to fail due to this issue,
-    // we still display it just in case.
-    if l2_predeployed_wrapped_base_token == Address::zero() && args.dangerous_no_cross_check {
-        println!("\n\nWARNING: the chain does not contain wrapped base token. It is dangerous since the security of it depends on the ecosystem admin\n\n");
-    }
 
     let zkchain = ZKChainAbi::new(hyperchain_addr, client.clone());
 
     let chain_admin_addr = zkchain.get_admin().await?;
     let base_token_addr = zkchain.get_base_token().await?;
 
-    if !args.dangerous_no_cross_check {
-        // Firstly, check that the validators are present in the current timelock
-        let old_timelock =
-            ValidatorTimelockAbi::new(upgrade_info.old_validator_timelock, client.clone());
-
-        if !old_timelock
-            .validators(chain_id, args.validator_addr1)
-            .await?
-        {
-            anyhow::bail!(
-                "{} not validator",
-                hex_address_display(args.validator_addr1)
-            );
-        }
-        if !old_timelock
-            .validators(chain_id, args.validator_addr2)
-            .await?
-        {
-            anyhow::bail!(
-                "{} not validator",
-                hex_address_display(args.validator_addr2)
-            );
-        }
-
-        if l2_predeployed_wrapped_base_token == Address::zero() {
-            anyhow::bail!("the chain does not contain wrapped base token. It is dangerous since the security of it depends on the ecosystem admin");
-        }
-
-        verify_correct_l2_wrapped_base_token(
-            args.l2_rpc_url.clone(),
-            l2_predeployed_wrapped_base_token,
-        )
-        .await?;
-
-        // Secondly, we check that the DA layer corresponds to the current pubdata pricing mode.
-
-        // On L1 it is an enum with 0 meaaning a rollup and 1 meaning a validium.
-        // In the old version, it denoted how the pubdata will be checked. We use it to cross-check the
-        // user's input
-        let pricing_mode = zkchain.get_pubdata_pricing_mode().await?;
-        let pricing_mode_rollup = pricing_mode == U256::zero();
-
-        if args.da_mode.is_rollup() != pricing_mode_rollup {
-            anyhow::bail!("DA mode in consistent with the current system");
-        }
-    }
-
     Ok(FetchedChainInfo {
-        l2_legacy_shared_bridge_addr,
         hyperchain_addr,
         base_token_addr,
         chain_admin_addr,
@@ -559,12 +457,6 @@ impl GatewayUpgradeInfo {
         da_mode: DAMode,
         assign: bool,
     ) {
-        assign_or_print!(
-            contracts_config.l2.legacy_shared_bridge_addr,
-            Some(chain_info.l2_legacy_shared_bridge_addr),
-            assign
-        );
-
         let base_token_id =
             encode_ntv_asset_id(U256::from(self.l1_chain_id), chain_info.base_token_addr);
         assign_or_print!(
@@ -854,24 +746,17 @@ pub struct GatewayUpgradeCalldataArgs {
     chain_id: u64,
     l1_rpc_url: String,
     l2_rpc_url: String,
-    validator_addr1: Address,
-    validator_addr2: Address,
     server_upgrade_timestamp: u64,
-    da_mode: DAMode,
     #[clap(long, default_missing_value = "false")]
     dangerous_no_cross_check: Option<bool>,
     #[clap(long, default_missing_value = "false")]
     force_display_finalization_params: Option<bool>,
-    l2_tokens_indexing_block_range: Option<u64>,
 }
 
 pub struct GatewayUpgradeArgsInner {
     pub chain_id: u64,
     pub l1_rpc_url: String,
     pub l2_rpc_url: String,
-    pub validator_addr1: Address,
-    pub validator_addr2: Address,
-    pub da_mode: DAMode,
     pub dangerous_no_cross_check: bool,
 }
 
@@ -881,47 +766,22 @@ impl From<GatewayUpgradeCalldataArgs> for GatewayUpgradeArgsInner {
             chain_id: value.chain_id,
             l1_rpc_url: value.l1_rpc_url,
             l2_rpc_url: value.l2_rpc_url,
-            validator_addr1: value.validator_addr1,
-            validator_addr2: value.validator_addr2,
-            da_mode: value.da_mode,
             dangerous_no_cross_check: value.dangerous_no_cross_check.unwrap_or_default(),
         }
     }
 }
 
 pub fn get_admin_call_builder(
-    upgrade_info: &GatewayUpgradeInfo,
+    upgrade_info: &V27UpgradeInfo,
     chain_info: &FetchedChainInfo,
-    args: GatewayUpgradeArgsInner,
 ) -> AdminCallBuilder {
     let mut admin_calls_finalize = AdminCallBuilder::new();
-
-    admin_calls_finalize.append_validator(
-        args.chain_id,
-        upgrade_info.new_validator_timelock,
-        args.validator_addr1,
-    );
-    admin_calls_finalize.append_validator(
-        args.chain_id,
-        upgrade_info.new_validator_timelock,
-        args.validator_addr2,
-    );
 
     admin_calls_finalize.append_execute_upgrade(
         chain_info.hyperchain_addr,
         upgrade_info.old_protocol_version,
         upgrade_info.chain_upgrade_diamond_cut.clone(),
     );
-
-    admin_calls_finalize.append_set_da_validator_pair(
-        chain_info.hyperchain_addr,
-        upgrade_info.get_l1_da_validator(args.da_mode),
-        upgrade_info.get_l2_da_validator(args.da_mode),
-    );
-
-    if args.da_mode == DAMode::PermanentRollup {
-        admin_calls_finalize.append_make_permanent_rollup(chain_info.hyperchain_addr);
-    }
 
     admin_calls_finalize
 }
@@ -957,28 +817,31 @@ fn print_error(err: anyhow::Error) {
     println!("If you want to display finalization params anyway, pass `--force-display-finalization-params=true`.");
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct V27UpgradeInfo {
+    // Information about pre-upgrade contracts.
+    l1_chain_id: u32,
+    pub(crate) bridgehub_addr: Address,
+
+    // Information from upgrade
+    chain_upgrade_diamond_cut: Bytes,
+
+    new_protocol_version: u64,
+    old_protocol_version: u64,
+}
+
+impl ZkStackConfig for V27UpgradeInfo {}
+
 pub(crate) async fn run(shell: &Shell, args: GatewayUpgradeCalldataArgs) -> anyhow::Result<()> {
     // 0. Read the GatewayUpgradeInfo
 
-    let upgrade_info = GatewayUpgradeInfo::read(shell, &args.upgrade_description_path)?;
+    let upgrade_info = V27UpgradeInfo::read(shell, &args.upgrade_description_path)?;
 
     // 1. Update all the configs
 
     let chain_info = fetch_chain_info(&upgrade_info, &args.clone().into()).await?;
 
-    upgrade_info.update_contracts_config(&mut Default::default(), &chain_info, args.da_mode, false);
-
     // 2. Generate calldata
-
-    if !args.force_display_finalization_params.unwrap_or_default() {
-        println!("Checking whether L1->L2 transactions are disabled...");
-        if let Err(e) = check_no_l1_txs_absence(&args.l2_rpc_url, args.chain_id).await {
-            print_error(e);
-            return Ok(());
-        }
-        println!("All the L1->L2 have been paused. We can safely proceed with v26 upgrade.");
-    }
-
     let schedule_calldata = set_upgrade_timestamp_calldata(
         upgrade_info.new_protocol_version,
         args.server_upgrade_timestamp,
@@ -998,7 +861,6 @@ pub(crate) async fn run(shell: &Shell, args: GatewayUpgradeCalldataArgs) -> anyh
             args.l1_rpc_url.clone(),
             args.l2_rpc_url.clone(),
             args.chain_id,
-            args.l2_tokens_indexing_block_range,
         )
         .await;
 
@@ -1008,7 +870,7 @@ pub(crate) async fn run(shell: &Shell, args: GatewayUpgradeCalldataArgs) -> anyh
         };
     }
 
-    let admin_calls_finalize = get_admin_call_builder(&upgrade_info, &chain_info, args.into());
+    let admin_calls_finalize = get_admin_call_builder(&upgrade_info, &chain_info);
 
     admin_calls_finalize.display();
 
