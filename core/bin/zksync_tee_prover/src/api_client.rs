@@ -91,6 +91,9 @@ impl TeeApiClient {
         root_hash: H256,
         tee_type: TeeType,
     ) -> Result<(), TeeProverError> {
+        if tee_type == TeeType::None {
+            tracing::info!("Not submitting proof from none TEE.");
+        }
         let request = SubmitTeeProofRequest(Box::new(L1BatchTeeProofForL1 {
             signature: signature.into(),
             pubkey: pubkey.serialize().into(),
