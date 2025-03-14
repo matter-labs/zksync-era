@@ -168,7 +168,8 @@ async fn test_ws_server(test: impl WsTest) {
     let contracts_config = ContractsConfig::for_tests();
     let web3_config = Web3JsonRpcConfig::for_tests();
     let genesis_config = GenesisConfig::for_tests();
-    let api_config = InternalApiConfig::new(&web3_config, &contracts_config, &genesis_config);
+    let api_config =
+        InternalApiConfig::new(&web3_config, &contracts_config, &genesis_config, false);
     let mut storage = pool.connection().await.unwrap();
     test.storage_initialization()
         .prepare_storage(&network_config, &mut storage)
