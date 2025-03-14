@@ -1,7 +1,6 @@
 use anyhow::Context;
-use xshell::{cmd, Shell};
+use xshell::Shell;
 use zkstack_cli_common::{
-    cmd::Cmd,
     config::global_config,
     logger,
     server::{Server, ServerMode},
@@ -13,7 +12,7 @@ use zkstack_cli_config::{
 use zksync_config::configs::gateway::GatewayChainConfig;
 
 use crate::{
-    commands::args::{RunServerArgs, ServerArgs, ServerCommand, WaitArgs},
+    commands::args::{BuildServerArgs, RunServerArgs, ServerArgs, ServerCommand, WaitArgs},
     messages::{
         msg_waiting_for_server_success, MSG_BUILDING_SERVER, MSG_CHAIN_NOT_INITIALIZED,
         MSG_FAILED_TO_BUILD_SERVER_ERR, MSG_FAILED_TO_RUN_SERVER_ERR, MSG_STARTING_SERVER,
@@ -29,19 +28,24 @@ pub async fn run(shell: &Shell, args: ServerArgs) -> anyhow::Result<()> {
 
     match ServerCommand::from(args) {
         ServerCommand::Run(args) => run_server(args, &chain_config, shell),
-        ServerCommand::Build => build_server(&chain_config, shell),
+        ServerCommand::Build(args) => build_server(args, &chain_config, shell),
         ServerCommand::Wait(args) => wait_for_server(args, &chain_config).await,
     }
 }
 
-fn build_server(chain_config: &ChainConfig, shell: &Shell) -> anyhow::Result<()> {
+fn build_server(
+    args: BuildServerArgs,
+    chain_config: &ChainConfig,
+    shell: &Shell,
+) -> anyhow::Result<()> {
     let _dir_guard = shell.push_dir(chain_config.link_to_code.join("core"));
 
     logger::info(MSG_BUILDING_SERVER);
 
-    let mut cmd = Cmd::new(cmd!(shell, "cargo build --release --bin zksync_server"));
-    cmd = cmd.with_force_run();
-    cmd.run().context(MSG_FAILED_TO_BUILD_SERVER_ERR)
+    let server = Server::new(None, None, chain_config.link_to_code.clone(), args.uring);
+    server
+        .build(shell, args.release)
+        .context(MSG_FAILED_TO_BUILD_SERVER_ERR)
 }
 
 fn run_server(

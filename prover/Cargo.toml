@@ -114,3 +114,7 @@ zksync_prover_job_monitor = { version = "19.0.0", path = "crates/bin/prover_job_
 [profile.perf]
 inherits = "release"
 debug = true
+
+# Test profile settings to optimize unit tests compilation and execution time
+[profile.dev.package.zksync_witness_generator]
+opt-level = 3
