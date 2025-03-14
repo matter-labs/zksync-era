@@ -288,17 +288,17 @@ impl DataAvailabilityClient for CelestiaClient {
         let data_root_index: u64 = data_root_inclusion_proof.index
             .parse()
             .map_err(to_non_retriable_da_error)?;
-        let evm_index: Uint<256, 4> = Uint::from_limbs([0,0,0,data_root_index]);
+        let evm_index: Uint<256, 4> = Uint::from_limbs([data_root_index,0,0,0]);
 
         let total: u64 = data_root_inclusion_proof.total
             .parse()
             .map_err(to_non_retriable_da_error)?;
-        let evm_total: Uint<256, 4> = Uint::from_limbs([0,0,0,total]);
+        let evm_total: Uint<256, 4> = Uint::from_limbs([total,0,0,0]);
 
         // Convert proof data into AttestationProof
         let data_root_tuple = DataRootTuple {
             // I think this is correct little endian but we'll see
-            height: Uint::<256, 4>::from_limbs([0, 0, 0, target_height]),
+            height: Uint::<256, 4>::from_limbs([target_height,0,0,0]),
             dataRoot: data_root,
         };
 
