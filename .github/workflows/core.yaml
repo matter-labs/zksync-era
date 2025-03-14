@@ -13,22 +13,22 @@ permissions:
 
 # Define the events that triggers the workflow
 on:
-  pull_request:
-    paths:
-      # Workspaces
-      - 'core/**'
-      - 'zkstack_cli/**'
-      # Docker files
-      - 'docker/contract-verifier/**'
-      - 'docker/external-node/**'
-      - 'docker/server/**'
-      # CI scripts
-      - '.github/workflows/core.yaml'
-      - '.github/workflows/build-core-template.yml'              # TODO: check name after refactoring
-      - '.github/workflows/build-contract-verifier-template.yml' # TODO: check name after refactoring
-      # Exclude markdown files
-      - '!**/*.md'
-      - '!**/*.MD'
+#  pull_request:
+#    paths:
+#      # Workspaces
+#      - 'core/**'
+#      - 'zkstack_cli/**'
+#      # Docker files
+#      - 'docker/contract-verifier/**'
+#      - 'docker/external-node/**'
+#      - 'docker/server/**'
+#      # CI scripts
+#      - '.github/workflows/core.yaml'
+#      - '.github/workflows/build-core-template.yml'              # TODO: check name after refactoring
+#      - '.github/workflows/build-contract-verifier-template.yml' # TODO: check name after refactoring
+#      # Exclude markdown files
+#      - '!**/*.md'
+#      - '!**/*.MD'
   merge_group:
 
 # Cancel previous runs for PRs if new one is started
