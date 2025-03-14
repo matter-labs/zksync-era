@@ -60,6 +60,11 @@ impl RpcClient {
                 return Ok(());
             }
 
+            tracing::info!(
+                "Connecting to the server for proof data submitter by URL: {}",
+                self.ws_url
+            );
+
             let client = WsClientBuilder::default().build(&self.ws_url).await;
             if let Err(e) = client {
                 tracing::error!(
@@ -134,6 +139,11 @@ impl RpcClient {
                 tracing::warn!("Stop signal received, shutting down proof receiver");
                 return Ok(());
             }
+
+            tracing::info!(
+                "Connecting to the server for proof data submitter by URL: {}",
+                self.ws_url
+            );
 
             let client = WsClientBuilder::default().build(&self.ws_url).await;
             if let Err(e) = client {

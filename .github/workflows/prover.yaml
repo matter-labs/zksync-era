@@ -158,8 +158,8 @@ jobs:
           RUNNER_COMPOSE_FILE: "docker-compose-gpu-runner-cuda-12-0.yml"
         run: docker compose -f ${RUNNER_COMPOSE_FILE} up --wait reth postgres
 
-#      - name: Build server
-#        run: zkstack server build --release --verbose
+      - name: Build server
+        run: zkstack server build --uring --release --verbose
 
       - name: Init
         run: |
@@ -177,10 +177,8 @@ jobs:
             --evm-emulator false \
             --update-submodules=true
 
-          # zkstack ecosystem init \
-          #   --server-command './core/target/release/zksync_server' \
-          #   --dev --skip-contract-compilation-override --ignore-prerequisites --verbose
            zkstack ecosystem init \
+             --server-command './core/target/release/zksync_server' \
              --dev --skip-contract-compilation-override --ignore-prerequisites --verbose
           
           zkstack prover init --dev --verbose
@@ -200,7 +198,7 @@ jobs:
 
       - name: Run server
         run: |
-          zkstack server --uring --chain=proving_chain \
+          zkstack server --server-command './core/target/release/zksync_server' --chain=proving_chain \
             --components=api,tree,eth,state_keeper,commitment_generator,proof_data_handler,vm_runner_protective_reads,vm_runner_bwip &>prover_logs_${{ matrix.compressor-mode }}/server.log &
           zkstack server wait --chain=proving_chain --timeout=300
 
