@@ -128,12 +128,13 @@ impl Server {
     }
 
     /// Builds the server.
-    pub fn build(&self, shell: &Shell) -> anyhow::Result<()> {
+    pub fn build(&self, shell: &Shell, release: bool) -> anyhow::Result<()> {
         let _dir_guard = shell.push_dir(self.code_path.join("core"));
         let uring = self.uring.then_some("--features=rocksdb/io-uring");
+        let release = release.then_some("--release");
         Cmd::new(cmd!(
             shell,
-            "cargo build --release --bin zksync_server {uring...}"
+            "cargo build --bin zksync_server {release...} {uring...}"
         ))
         .run()?;
         Ok(())

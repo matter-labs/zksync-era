@@ -271,6 +271,8 @@ pub(super) const MSG_SERVER_ADDITIONAL_ARGS_HELP: &str =
     "Additional arguments that can be passed through the CLI";
 pub(super) const MSG_SERVER_URING_HELP: &str = "Enables uring support for RocksDB";
 
+pub(super) const MSG_SERVER_RELEASE_HELP: &str = "Enables server build in release profile";
+
 /// Accept ownership related messages
 pub(super) const MSG_ACCEPTING_GOVERNANCE_SPINNER: &str = "Accepting governance...";
 

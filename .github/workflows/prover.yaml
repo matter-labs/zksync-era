@@ -13,25 +13,25 @@ permissions:
 
 # Define the events that triggers the workflow
 on:
-  pull_request:
-    paths:
-      # Workspaces
-      - 'prover/**'
-      - 'zkstack_cli/**'
-      - '!prover/CHANGELOG.md'
-      - '!prover/setup-data-cpu-keys.json'
-      - '!prover/setup-data-gpu-keys.json'
-      - '!prover/extract-setup-data-keys.sh'
-      # Docker files
-      - 'docker/prover*/**'
-      - 'docker-compose-runner-nightly.yml'
-      # CI scripts
-      - '.github/workflows/prover.yaml'
-      - '.github/workflows/build-prover-template.yml'            # TODO: check name after refactoring
-      - '.github/workflows/build-witness-generator-template.yml' # TODO: check name after refactoring
-      # Exclude markdown files
-      - '!**/*.md'
-      - '!**/*.MD'
+#  pull_request:
+#    paths:
+#      # Workspaces
+#      - 'prover/**'
+#      - 'zkstack_cli/**'
+#      - '!prover/CHANGELOG.md'
+#      - '!prover/setup-data-cpu-keys.json'
+#      - '!prover/setup-data-gpu-keys.json'
+#      - '!prover/extract-setup-data-keys.sh'
+#      # Docker files
+#      - 'docker/prover*/**'
+#      - 'docker-compose-runner-nightly.yml'
+#      # CI scripts
+#      - '.github/workflows/prover.yaml'
+#      - '.github/workflows/build-prover-template.yml'            # TODO: check name after refactoring
+#      - '.github/workflows/build-witness-generator-template.yml' # TODO: check name after refactoring
+#      # Exclude markdown files
+#      - '!**/*.md'
+#      - '!**/*.MD'
   merge_group:
 
 # Cancel previous runs for PRs if new one is started
@@ -175,7 +175,7 @@ jobs:
             --evm-emulator false \
             --update-submodules=true
 
-          zkstack ecosystem init --dev --skip-contract-compilation-override=true --ignore-prerequisites --observability=false --verbose
+          zkstack ecosystem init --dev --skip-contract-compilation-override --ignore-prerequisites --observability=false --verbose
           
           zkstack prover init --dev --verbose
           echo "URL=$(grep "http_url" ./chains/proving_chain/configs/general.yaml | awk '{ print $2 }')" >> "${GITHUB_ENV}"

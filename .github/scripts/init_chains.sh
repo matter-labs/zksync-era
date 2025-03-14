@@ -20,7 +20,7 @@ step_info "Initialize ecosystem"
 zkstack ecosystem init \
   --l1-rpc-url="${L1_RPC_URL}" \
   --server-db-url="${SERVER_DB_URL}" \
-  --skip-contract-compilation-override=true \
+  --skip-contract-compilation-override \
   --deploy-paymaster --deploy-erc20 \
   --deploy-ecosystem \
   --server-db-name=zksync_server_localhost_era \

@@ -13,22 +13,22 @@ permissions:
 
 # Define the events that triggers the workflow
 on:
-#  pull_request:
-#    paths:
-#      # Workspaces
-#      - 'core/**'
-#      - 'zkstack_cli/**'
-#      # Docker files
-#      - 'docker/contract-verifier/**'
-#      - 'docker/external-node/**'
-#      - 'docker/server/**'
-#      # CI scripts
-#      - '.github/workflows/core.yaml'
-#      - '.github/workflows/build-core-template.yml'              # TODO: check name after refactoring
-#      - '.github/workflows/build-contract-verifier-template.yml' # TODO: check name after refactoring
-#      # Exclude markdown files
-#      - '!**/*.md'
-#      - '!**/*.MD'
+  pull_request:
+    paths:
+      # Workspaces
+      - 'core/**'
+      - 'zkstack_cli/**'
+      # Docker files
+      - 'docker/contract-verifier/**'
+      - 'docker/external-node/**'
+      - 'docker/server/**'
+      # CI scripts
+      - '.github/workflows/core.yaml'
+      - '.github/workflows/build-core-template.yml'              # TODO: check name after refactoring
+      - '.github/workflows/build-contract-verifier-template.yml' # TODO: check name after refactoring
+      # Exclude markdown files
+      - '!**/*.md'
+      - '!**/*.MD'
   merge_group:
 
 # Cancel previous runs for PRs if new one is started
@@ -178,13 +178,14 @@ jobs:
             --evm-emulator false
 
       - name: Build server
-        run: zkstack server build --verbose
+        run: zkstack server build --release --uring --verbose
 
       - name: Init ecosystem
         run: |
           zkstack ecosystem init \
+            --server-command './core/target/release/zksync_server' \
             --ignore-prerequisites \
-            --dev --skip-contract-compilation-override=true \
+            --dev --skip-contract-compilation-override \
             --support-l2-legacy-shared-bridge-test=true \
             --verbose
 
@@ -196,7 +197,10 @@ jobs:
             --chain legacy
 
       - name: Run server
-        run: zkstack server --ignore-prerequisites --chain=legacy &>${SERVER_LOG} &
+        run: |
+          zkstack server run \
+            --server-command './core/target/release/zksync_server' \
+            --ignore-prerequisites --chain=legacy &>${SERVER_LOG} &
 
       - name: Wait for server to start
         run: zkstack server wait --chain=legacy --timeout 300 --poll-interval 1000
@@ -299,7 +303,8 @@ jobs:
             else
               components=""
             fi
-            zkstack server --ignore-prerequisites --chain "${chain}" $components &> "${log_file}" &
+            zkstack server --server-command './core/target/release/zksync_server' \
+              --ignore-prerequisites --chain "${chain}" $components &> "${log_file}" &
           done
           for chain in era validium custom_token consensus; do
             zkstack server wait --timeout 300 --ignore-prerequisites --verbose --chain "${chain}"
@@ -398,7 +403,8 @@ jobs:
           killall -INT zksync_server --wait || true
           # Only start & wait for the gateway server if use_gateway_chain == WITH_GATEWAY
           if [ "${{ matrix.use_gateway_chain }}" == "WITH_GATEWAY" ]; then
-            zkstack server --ignore-prerequisites --chain gateway &> "${SERVER_LOGS_DIR}/gateway.log" &
+            zkstack server --server-command './core/target/release/zksync_server' \
+              --ignore-prerequisites --chain gateway &> "${SERVER_LOGS_DIR}/gateway.log" &
             zkstack server wait --timeout 300 --ignore-prerequisites --verbose --chain gateway
           fi
           # Always run the chain-specific fee tests
@@ -423,7 +429,8 @@ jobs:
           killall -INT zksync_external_node --wait || true
           # Only start & wait for the gateway server if use_gateway_chain == WITH_GATEWAY
           if [ "${{ matrix.use_gateway_chain }}" == "WITH_GATEWAY" ]; then
-            zkstack server --ignore-prerequisites --chain gateway &> ${{ env.SERVER_LOGS_DIR }}/gateway.log &
+            zkstack server --server-command './core/target/release/zksync_server' \
+              --ignore-prerequisites --chain gateway &> ${{ env.SERVER_LOGS_DIR }}/gateway.log &
             zkstack server wait --timeout 300 --ignore-prerequisites --verbose --chain gateway
           fi
           # Always run the chain-specific revert tests
@@ -439,7 +446,8 @@ jobs:
           killall -INT zksync_server --wait || true
           # Only start & wait for the gateway server if use_gateway_chain == WITH_GATEWAY
           if [ "${{ matrix.use_gateway_chain }}" == "WITH_GATEWAY" ]; then
-            zkstack server --ignore-prerequisites --chain gateway &> "${SERVER_LOGS_DIR}/gateway.log" &
+            zkstack server --server-command './core/target/release/zksync_server' \
+              --ignore-prerequisites --chain gateway &> "${SERVER_LOGS_DIR}/gateway.log" &
             zkstack server wait --timeout 300 --ignore-prerequisites --verbose --chain gateway
           fi
           # Always run the upgrade test against era
