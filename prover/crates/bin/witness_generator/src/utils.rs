@@ -7,7 +7,9 @@ use circuit_definitions::circuit_definitions::base_layer::ZkSyncBaseLayerCircuit
 use once_cell::sync::Lazy;
 use zkevm_test_harness::boojum::field::goldilocks::GoldilocksField;
 use zksync_multivm::utils::get_used_bootloader_memory_bytes;
-use zksync_object_store::{serialize_using_bincode, Bucket, ObjectStore, StoredObject};
+use zksync_object_store::{
+    serialize_using_bincode, Bucket, ObjectStore, ObjectStoreError, StoredObject,
+};
 use zksync_prover_fri_types::{
     circuit_definitions::{
         boojum::{
@@ -24,7 +26,9 @@ use zksync_prover_fri_types::{
     keys::{AggregationsKey, ClosedFormInputKey, FriCircuitKey},
     CircuitWrapper, FriProofWrapper,
 };
-use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber, ProtocolVersionId, U256};
+use zksync_types::{
+    basic_fri_types::AggregationRound, L1BatchNumber, L2ChainId, ProtocolVersionId, U256,
+};
 
 // Creates a temporary file with the serialized KZG setup usable by `zkevm_test_harness` functions.
 pub(crate) static KZG_TRUSTED_SETUP_FILE: Lazy<tempfile::NamedTempFile> = Lazy::new(|| {
@@ -56,16 +60,43 @@ pub struct ClosedFormInputWrapper(
     pub(crate) RecursionQueueSimulator<GoldilocksField>,
 );
 
+impl ClosedFormInputWrapper {
+    pub async fn conditional_get_from_object_store(
+        blob_store: &dyn ObjectStore,
+        key: <Self as StoredObject>::Key<'_>,
+    ) -> Result<Self, ObjectStoreError> {
+        match blob_store.get(key).await {
+            Ok(proof) => Ok(proof),
+            Err(_) => {
+                // If the proof with chain id was not found, we try to fetch the one without chain id
+                let mut zero_chain_id_key = key;
+                zero_chain_id_key.chain_id = L2ChainId::zero();
+
+                blob_store.get(zero_chain_id_key).await
+            }
+        }
+    }
+}
+
 impl StoredObject for ClosedFormInputWrapper {
     const BUCKET: Bucket = Bucket::LeafAggregationWitnessJobsFri;
     type Key<'a> = ClosedFormInputKey;
 
     fn encode_key(key: Self::Key<'_>) -> String {
         let ClosedFormInputKey {
+            chain_id,
             block_number,
             circuit_id,
         } = key;
-        format!("closed_form_inputs_{block_number}_{circuit_id}.bin")
+
+        if chain_id.as_u64() == 0 {
+            return format!("closed_form_inputs_{block_number}_{circuit_id}.bin",);
+        }
+
+        format!(
+            "closed_form_inputs_{}_{block_number}_{circuit_id}.bin",
+            chain_id.as_u64()
+        )
     }
 
     serialize_using_bincode!();
@@ -74,17 +105,39 @@ impl StoredObject for ClosedFormInputWrapper {
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct AggregationWrapper(pub Vec<(u64, RecursionQueueSimulator<GoldilocksField>)>);
 
+impl AggregationWrapper {
+    pub async fn conditional_get_from_object_store(
+        blob_store: &dyn ObjectStore,
+        key: <Self as StoredObject>::Key<'_>,
+    ) -> Result<Self, ObjectStoreError> {
+        match blob_store.get(key).await {
+            Ok(proof) => Ok(proof),
+            Err(_) => {
+                // If the proof with chain id was not found, we try to fetch the one without chain id
+                let mut zero_chain_id_key = key;
+                zero_chain_id_key.chain_id = L2ChainId::zero();
+
+                blob_store.get(zero_chain_id_key).await
+            }
+        }
+    }
+}
+
 impl StoredObject for AggregationWrapper {
     const BUCKET: Bucket = Bucket::NodeAggregationWitnessJobsFri;
     type Key<'a> = AggregationsKey;
 
     fn encode_key(key: Self::Key<'_>) -> String {
         let AggregationsKey {
+            chain_id,
             block_number,
             circuit_id,
             depth,
         } = key;
-        format!("aggregations_{block_number}_{circuit_id}_{depth}.bin")
+        format!(
+            "aggregations_{}_{block_number}_{circuit_id}_{depth}.bin",
+            chain_id.as_u64()
+        )
     }
 
     serialize_using_bincode!();
@@ -101,10 +154,10 @@ pub struct SchedulerPartialInputWrapper(
 
 impl StoredObject for SchedulerPartialInputWrapper {
     const BUCKET: Bucket = Bucket::SchedulerWitnessJobsFri;
-    type Key<'a> = L1BatchNumber;
+    type Key<'a> = (L2ChainId, L1BatchNumber);
 
     fn encode_key(key: Self::Key<'_>) -> String {
-        format!("scheduler_witness_{key}.bin")
+        format!("scheduler_witness_{}_{}.bin", key.0.as_u64(), key.1)
     }
 
     serialize_using_bincode!();
@@ -116,12 +169,14 @@ impl StoredObject for SchedulerPartialInputWrapper {
 )]
 pub async fn save_circuit(
     block_number: L1BatchNumber,
+    chain_id: L2ChainId,
     circuit: ZkSyncBaseLayerCircuit,
     sequence_number: usize,
     object_store: Arc<dyn ObjectStore>,
 ) -> (u8, String) {
     let circuit_id = circuit.numeric_circuit_type();
     let circuit_key = FriCircuitKey {
+        chain_id,
         block_number,
         sequence_number,
         circuit_id,
@@ -137,11 +192,13 @@ pub async fn save_circuit(
     (circuit_id, blob_url)
 }
 
+#[allow(clippy::too_many_arguments)]
 #[tracing::instrument(
     skip_all,
     fields(l1_batch = %block_number)
 )]
 pub async fn save_recursive_layer_prover_input_artifacts(
+    chain_id: L2ChainId,
     block_number: L1BatchNumber,
     sequence_number_offset: usize,
     recursive_circuits: Vec<ZkSyncRecursiveLayerCircuit>,
@@ -154,6 +211,7 @@ pub async fn save_recursive_layer_prover_input_artifacts(
     for (sequence_number, circuit) in recursive_circuits.into_iter().enumerate() {
         let circuit_id = base_layer_circuit_id.unwrap_or_else(|| circuit.numeric_circuit_type());
         let circuit_key = FriCircuitKey {
+            chain_id,
             block_number,
             sequence_number: sequence_number_offset + sequence_number,
             circuit_id,
@@ -171,12 +229,16 @@ pub async fn save_recursive_layer_prover_input_artifacts(
 
 #[tracing::instrument(skip_all)]
 pub async fn load_proofs_for_job_ids(
+    chain_id: L2ChainId,
     job_ids: &[u32],
     object_store: &dyn ObjectStore,
 ) -> Vec<FriProofWrapper> {
     let mut handles = Vec::with_capacity(job_ids.len());
     for job_id in job_ids {
-        handles.push(object_store.get(*job_id));
+        handles.push(FriProofWrapper::conditional_get_from_object_store(
+            object_store,
+            (chain_id, *job_id),
+        ));
     }
     futures::future::join_all(handles)
         .await

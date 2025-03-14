@@ -25,6 +25,7 @@ use zksync_prover_fri_types::{
 use zksync_prover_keystore::{keystore::Keystore, utils::get_leaf_vk_params};
 use zksync_types::{
     basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion, L1BatchNumber,
+    L2ChainId,
 };
 
 use crate::{
@@ -42,6 +43,9 @@ pub struct SchedulerArtifacts {
 #[derive(Clone)]
 pub struct SchedulerWitnessGeneratorJob {
     block_number: L1BatchNumber,
+    // todo: should be allowed?
+    #[allow(dead_code)]
+    chain_id: L2ChainId,
     scheduler_witness: SchedulerCircuitInstanceWitness<
         GoldilocksField,
         CircuitGoldilocksPoseidon2Sponge,
@@ -55,6 +59,7 @@ pub struct SchedulerWitnessGeneratorJob {
 
 pub struct SchedulerWitnessJobMetadata {
     pub l1_batch_number: L1BatchNumber,
+    pub chain_id: L2ChainId,
     pub recursion_tip_job_id: u32,
 }
 
@@ -123,7 +128,11 @@ impl JobManager for Scheduler {
         keystore: Keystore,
     ) -> anyhow::Result<Self::Job> {
         let started_at = Instant::now();
-        let wrapper = Self::get_artifacts(&metadata.recursion_tip_job_id, object_store).await?;
+        let wrapper = Self::get_artifacts(
+            &(metadata.chain_id, metadata.recursion_tip_job_id),
+            object_store,
+        )
+        .await?;
         let recursion_tip_proof = match wrapper {
             FriProofWrapper::Base(_) => Err(anyhow::anyhow!(
                 "Expected only recursive proofs for scheduler l1 batch {}, got Base",
@@ -140,8 +149,9 @@ impl JobManager for Scheduler {
                 ZkSyncRecursionLayerStorageType::NodeLayerCircuit as u8,
             )
             .context("get_recursive_layer_vk_for_circuit_type()")?;
-        let SchedulerPartialInputWrapper(mut scheduler_witness) =
-            object_store.get(metadata.l1_batch_number).await?;
+        let SchedulerPartialInputWrapper(mut scheduler_witness) = object_store
+            .get((metadata.chain_id, metadata.l1_batch_number))
+            .await?;
 
         let recursion_tip_vk = keystore
             .load_recursive_layer_verification_key(
@@ -163,6 +173,7 @@ impl JobManager for Scheduler {
 
         Ok(SchedulerWitnessGeneratorJob {
             block_number: metadata.l1_batch_number,
+            chain_id: metadata.chain_id,
             scheduler_witness,
             node_vk,
             leaf_layer_parameters,
@@ -173,9 +184,9 @@ impl JobManager for Scheduler {
     async fn get_metadata(
         connection_pool: ConnectionPool<Prover>,
         protocol_version: ProtocolSemanticVersion,
-    ) -> anyhow::Result<Option<(u32, Self::Metadata)>> {
+    ) -> anyhow::Result<Option<(L2ChainId, u32, Self::Metadata)>> {
         let pod_name = get_current_pod_name();
-        let Some(l1_batch_number) = connection_pool
+        let Some(batch_number) = connection_pool
             .connection()
             .await?
             .fri_scheduler_witness_generator_dal()
@@ -188,17 +199,19 @@ impl JobManager for Scheduler {
             .connection()
             .await?
             .fri_prover_jobs_dal()
-            .get_recursion_tip_proof_job_id(l1_batch_number)
+            .get_recursion_tip_proof_job_id(batch_number)
             .await
             .context(format!(
-                "could not find recursion tip proof for l1 batch {}",
-                l1_batch_number
+                "could not find recursion tip proof for l1 batch {:?}",
+                batch_number
             ))?;
 
         Ok(Some((
-            l1_batch_number.0,
+            batch_number.chain_id(),
+            batch_number.raw_batch_number(),
             SchedulerWitnessJobMetadata {
-                l1_batch_number,
+                chain_id: batch_number.chain_id(),
+                l1_batch_number: batch_number.batch_number(),
                 recursion_tip_job_id,
             },
         )))

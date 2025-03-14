@@ -54,6 +54,7 @@ pub async fn fetch_next_circuit(
     tracing::info!("Started processing prover job: {:?}", prover_job);
 
     let circuit_key = FriCircuitKey {
+        chain_id: prover_job.chain_id,
         block_number: prover_job.block_number,
         sequence_number: prover_job.sequence_number,
         circuit_id: prover_job.circuit_id,
@@ -78,6 +79,7 @@ pub async fn fetch_next_circuit(
         stage: prover_job.aggregation_round.into(),
     };
     Some(ProverJob::new(
+        prover_job.chain_id,
         prover_job.block_number,
         prover_job.id,
         input,

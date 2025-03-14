@@ -13,7 +13,8 @@ use zksync_object_store::MockObjectStore;
 use zksync_types::{
     aggregated_operations::AggregatedActionType, block::L1BatchHeader,
     commitment::L1BatchCommitmentMode, eth_sender::EthTx, pubdata_da::PubdataSendingMode,
-    settlement::SettlementMode, Address, L1BatchNumber, ProtocolVersion, ProtocolVersionId, H256,
+    settlement::SettlementMode, Address, L1BatchNumber, L2ChainId, ProtocolVersion,
+    ProtocolVersionId, H256,
 };
 
 use crate::{
@@ -253,6 +254,7 @@ impl EthSenderTester {
             connection_pool.clone(),
             gateway.clone(),
             SettlementMode::SettlesToL1,
+            L2ChainId::zero(),
         )
         .await
         .unwrap();

@@ -25,7 +25,7 @@ use zksync_prover_fri_types::{
 use zksync_types::{
     basic_fri_types::{AggregationRound, CircuitIdRoundTuple},
     protocol_version::ProtocolSemanticVersion,
-    L1BatchNumber,
+    ChainAwareL1BatchNumber, L1BatchNumber, L2ChainId,
 };
 
 use crate::metrics::METRICS;
@@ -59,6 +59,7 @@ pub struct GpuProverJob {
 #[allow(clippy::too_many_arguments)]
 pub async fn save_proof(
     job_id: u32,
+    chain_id: L2ChainId,
     started_at: Instant,
     artifacts: ProverArtifacts,
     blob_store: &dyn ObjectStore,
@@ -83,7 +84,7 @@ pub async fn save_proof(
                 if shall_save_to_public_bucket {
                     public_blob_store
                         .expect("public_object_store shall not be empty while running with shall_save_to_public_bucket config")
-                        .put(artifacts.block_number.0, &proof)
+                        .put((chain_id, artifacts.block_number.0), &proof)
                         .await
                         .unwrap();
                 }
@@ -94,19 +95,23 @@ pub async fn save_proof(
     };
 
     let blob_save_started_at = Instant::now();
-    let blob_url = blob_store.put(job_id, &proof).await.unwrap();
+    let blob_url = blob_store.put((chain_id, job_id), &proof).await.unwrap();
 
     METRICS.blob_save_time[&circuit_type.to_string()].observe(blob_save_started_at.elapsed());
 
     let mut transaction = connection.start_transaction().await.unwrap();
     transaction
         .fri_prover_jobs_dal()
-        .save_proof(job_id, started_at.elapsed(), &blob_url)
+        .save_proof(job_id, chain_id, started_at.elapsed(), &blob_url)
         .await;
     if is_scheduler_proof {
         transaction
             .fri_proof_compressor_dal()
-            .insert_proof_compression_job(artifacts.block_number, &blob_url, protocol_version)
+            .insert_proof_compression_job(
+                ChainAwareL1BatchNumber::new(chain_id, artifacts.block_number),
+                &blob_url,
+                protocol_version,
+            )
             .await;
     }
     transaction.commit().await.unwrap();

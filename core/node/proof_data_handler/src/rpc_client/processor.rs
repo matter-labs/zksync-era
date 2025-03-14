@@ -12,7 +12,8 @@ use zksync_types::{
     basic_fri_types::Eip4844Blobs,
     commitment::{serialize_commitments, L1BatchCommitmentMode},
     web3::keccak256,
-    L1BatchNumber, ProtocolVersionId, H256, STATE_DIFF_HASH_KEY_PRE_GATEWAY,
+    ChainAwareL1BatchNumber, L1BatchNumber, L2ChainId, ProtocolVersionId, H256,
+    STATE_DIFF_HASH_KEY_PRE_GATEWAY,
 };
 
 use crate::metrics::METRICS;
@@ -23,6 +24,7 @@ pub struct ProofDataProcessor {
     blob_store: Arc<dyn ObjectStore>,
     commitment_mode: L1BatchCommitmentMode,
     proof_generation_timeout: Duration,
+    chain_id: L2ChainId,
 }
 
 impl ProofDataProcessor {
@@ -30,6 +32,7 @@ impl ProofDataProcessor {
         pool: ConnectionPool<Core>,
         blob_store: Arc<dyn ObjectStore>,
         commitment_mode: L1BatchCommitmentMode,
+        chain_id: L2ChainId,
         proof_generation_timeout: Duration,
     ) -> Self {
         Self {
@@ -37,7 +40,12 @@ impl ProofDataProcessor {
             blob_store,
             commitment_mode,
             proof_generation_timeout,
+            chain_id,
         }
+    }
+
+    pub fn chain_id(&self) -> L2ChainId {
+        self.chain_id
     }
 
     #[tracing::instrument(skip_all)]
@@ -153,14 +161,24 @@ impl ProofDataProcessor {
         })
     }
 
-    pub(crate) async fn handle_proof(&self, proof: SubmitProofRequest) -> anyhow::Result<()> {
+    pub(crate) async fn handle_proof(
+        &self,
+        chain_id: L2ChainId,
+        proof: SubmitProofRequest,
+    ) -> anyhow::Result<()> {
         match proof {
             SubmitProofRequest::Proof(l1_batch_number, proof) => {
                 tracing::info!("Received proof for block number: {:?}", l1_batch_number);
 
                 let blob_url = self
                     .blob_store
-                    .put((l1_batch_number, proof.protocol_version()), &*proof)
+                    .put(
+                        (
+                            ChainAwareL1BatchNumber::new(chain_id, l1_batch_number),
+                            proof.protocol_version(),
+                        ),
+                        &*proof,
+                    )
                     .await?;
 
                 let aggregation_coords = proof.aggregation_result_coords();
