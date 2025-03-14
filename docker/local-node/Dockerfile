@@ -84,6 +84,7 @@ COPY --from=builder /usr/local/cargo/bin/rustup /usr/local/bin/rustup
 
 # Copy compiled Rust & Foundry binaries from builder
 COPY --from=builder /usr/local/bin/zkstack /usr/local/bin/zkstack
+# COPY --from=builder /app/core/target/release/zksync_server /usr/local/bin/zksync_server
 COPY --from=builder /app/foundry-zksync/forge /usr/local/bin/forge
 COPY --from=builder /app/foundry-zksync/cast /usr/local/bin/cast
 
@@ -135,8 +136,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   && apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin \
   && rm -rf /var/lib/apt/lists/*
 
+# Build zkstack server
+RUN zkstack server build && cp /core/target/release/zksync_server /zksync_server
+
 # Clean Yarn cache
-RUN rm -rf /usr/local/share/.cache/yarn
+RUN rm -rf /usr/local/share/.cache/yarn /core/target/
 
 # Set project & workspace variables
 ENV COMPOSE_PROJECT_NAME=my_project_name

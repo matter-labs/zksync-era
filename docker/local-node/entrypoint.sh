@@ -74,12 +74,18 @@ if [ -z "$MASTER_URL" ]; then
     --server-db-name="$SERVER_DB_NAME" \
     --ignore-prerequisites --verbose \
     --observability=false \
-    --update-submodules=false
+    --skip-contract-compilation-override \
+    --update-submodules=false \
+    --server-command /zksync_server
 
   rm -rf /usr/local/share/.cache /contracts/node_modules /node_modules 
 
   # start server
-  zkstack server
+  /zksync_server --genesis-path ./chains/era/configs/genesis.yaml \
+    --wallets-path ./chains/era/configs/wallets.yaml \
+    --config-path ./chains/era/configs/general.yaml \
+    --secrets-path ./chains/era/configs/secrets.yaml \
+    --contracts-config-path ./chains/era/configs/contracts.yaml
 else
   zkstack chain create \
     --chain-name custom_token \
@@ -102,7 +108,9 @@ else
     --server-db-name="$SERVER_DB_NAME" \
     --chain custom_token \
     --validium-type no-da \
-    --update-submodules=false
+    --skip-contract-compilation-override \
+    --update-submodules=false \
+    --server-command /zksync_server
   
   rm -rf /usr/local/share/.cache /contracts/node_modules /node_modules
   # # If running in slave mode - wait for the master to be up and running.
@@ -112,5 +120,10 @@ else
   #   sleep 5
   # done
   # start server
-  zkstack server --chain custom_token 
+  /zksync_server --genesis-path /chains/custom_token/configs/genesis.yaml \
+    --wallets-path /chains/custom_token/configs/wallets.yaml \
+    --config-path /chains/custom_token/configs/general.yaml \
+    --secrets-path /chains/custom_token/configs/secrets.yaml \
+    --contracts-config-path /chains/custom_token/configs/contracts.yaml
+
 fi
