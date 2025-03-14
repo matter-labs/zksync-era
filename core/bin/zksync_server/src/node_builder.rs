@@ -588,26 +588,43 @@ impl MainNodeBuilder {
             return Ok(self);
         }
 
-        let secrets = try_load_config!(self.secrets.data_availability);
-        let l1_secrets = try_load_config!(self.secrets.l1);
-        match (da_client_config, secrets) {
-            (DAClientConfig::Avail(config), DataAvailabilitySecrets::Avail(secret)) => {
-                self.node.add_layer(AvailWiringLayer::new(config, secret));
-            }
-
-            (DAClientConfig::Celestia(config), DataAvailabilitySecrets::Celestia(secret)) => {
-                self.node
-                    .add_layer(CelestiaWiringLayer::new(config, secret));
-            }
-
-            (DAClientConfig::Eigen(mut config), DataAvailabilitySecrets::Eigen(secret)) => {
-                if config.eigenda_eth_rpc.is_none() {
-                    config.eigenda_eth_rpc = Some(l1_secrets.l1_rpc_url);
+        match da_client_config {
+            DAClientConfig::Avail(config) => {
+                if let DataAvailabilitySecrets::Avail(secret) =
+                    try_load_config!(self.secrets.data_availability)
+                {
+                    self.node.add_layer(AvailWiringLayer::new(config, secret));
+                } else {
+                    bail!("Missing avail da_secrets")
                 }
-                self.node.add_layer(EigenWiringLayer::new(config, secret));
             }
 
-            (DAClientConfig::ObjectStore(config), _) => {
+            DAClientConfig::Celestia(config) => {
+                if let DataAvailabilitySecrets::Celestia(secret) =
+                    try_load_config!(self.secrets.data_availability)
+                {
+                    self.node
+                        .add_layer(CelestiaWiringLayer::new(config, secret));
+                } else {
+                    bail!("Missing Celestia da_secrets")
+                }
+            }
+
+            DAClientConfig::Eigen(mut config) => {
+                if config.eigenda_eth_rpc.is_none() {
+                    let l1_secrets = try_load_config!(self.secrets.l1);
+                    config.eigenda_eth_rpc = Some(l1_secrets.l1_rpc_url);
+                    if let DataAvailabilitySecrets::Eigen(secret) =
+                        try_load_config!(self.secrets.data_availability)
+                    {
+                        self.node.add_layer(EigenWiringLayer::new(config, secret));
+                    } else {
+                        bail!("Missing Eigen da_secrets")
+                    }
+                }
+            }
+
+            DAClientConfig::ObjectStore(config) => {
                 self.node
                     .add_layer(ObjectStorageClientWiringLayer::new(config));
             }
