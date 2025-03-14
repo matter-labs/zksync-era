@@ -94,10 +94,7 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                     }
                     None => return Err(anyhow::anyhow!("Invalid Eigen DA configuration")),
                 },
-                custom_quorum_numbers: match conf.custom_quorum_numbers.is_empty() {
-                    true => vec![],
-                    false => conf.custom_quorum_numbers.clone(),
-                },
+                custom_quorum_numbers: conf.custom_quorum_numbers.clone(),
             }),
             proto::data_availability_client::Config::ObjectStore(conf) => {
                 ObjectStore(object_store_proto::ObjectStore::read(conf)?)
