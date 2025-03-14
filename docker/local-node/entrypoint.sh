@@ -108,7 +108,6 @@ else
     --server-db-name="$SERVER_DB_NAME" \
     --chain custom_token \
     --validium-type no-da \
-    --skip-contract-compilation-override \
     --update-submodules=false \
     --server-command /zksync_server
   
