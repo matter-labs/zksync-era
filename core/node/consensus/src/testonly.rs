@@ -604,6 +604,7 @@ impl StateKeeperRunner {
                     &configs::api::Web3JsonRpcConfig::for_tests(),
                     &configs::contracts::ContractsConfig::for_tests(),
                     &configs::GenesisConfig::for_tests(),
+                    false,
                 );
                 let mut server = TestServerBuilder::new(self.pool.0.clone(), cfg)
                     .build_http(stop_recv)
@@ -685,6 +686,7 @@ impl StateKeeperRunner {
                     &configs::api::Web3JsonRpcConfig::for_tests(),
                     &configs::contracts::ContractsConfig::for_tests(),
                     &configs::GenesisConfig::for_tests(),
+                    false,
                 );
                 let mut server = TestServerBuilder::new(self.pool.0.clone(), cfg)
                     .build_http(stop_recv)
