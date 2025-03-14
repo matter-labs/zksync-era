@@ -27,7 +27,7 @@ use crate::{
 pub struct Args {
     #[clap(short = 'n', num_args = 1.., required = true)]
     batches: Vec<L1BatchNumber>,
-    #[clap(short = 'c', num_args = 1.., required = true)]
+    #[clap(short, long, default_value_t = 0)]
     chain_id: u64,
     #[clap(short, long, default_value("false"))]
     verbose: bool,

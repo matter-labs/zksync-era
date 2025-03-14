@@ -927,8 +927,8 @@ impl FriProverDal<'_, '_> {
                 AND chain_id = $3
             "#,
             batch_number.raw_batch_number() as i64,
+            aggregation_round as i16,
             batch_number.raw_chain_id() as i32,
-            aggregation_round as i16
         )
         .fetch_all(self.storage.conn())
         .await

@@ -21,13 +21,7 @@ pub struct Args {
     /// Batch number to delete
     #[clap(short, long, required_unless_present = "all", conflicts_with = "all", default_value_t = L1BatchNumber(0))]
     batch: L1BatchNumber,
-    #[clap(
-        short,
-        long,
-        required_unless_present = "all",
-        conflicts_with = "all",
-        default_value_t = 0
-    )]
+    #[clap(short, long, conflicts_with = "all", default_value_t = 0)]
     chain_id: u64,
 }
 

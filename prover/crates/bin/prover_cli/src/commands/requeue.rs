@@ -10,7 +10,7 @@ use crate::cli::ProverCLIConfig;
 pub struct Args {
     #[clap(short, long)]
     batch: L1BatchNumber,
-    #[clap(short, long)]
+    #[clap(short, long, default_value_t = 0)]
     chain_id: u64,
     /// Maximum number of attempts to re-queue a job.
     /// Default value is 10.
