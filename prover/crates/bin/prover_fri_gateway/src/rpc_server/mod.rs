@@ -24,7 +24,7 @@ impl RpcServer {
     }
 
     pub async fn run(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
-        let address = format!("0.0.0.0:{}", self.ws_port);
+        let address = format!("127.0.0.1:{}", self.ws_port);
         let server = Server::builder().build(address.clone()).await?;
         let handle = server.start(self.processor.into_rpc());
         let close_handle = handle.clone();
