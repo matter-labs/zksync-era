@@ -155,7 +155,11 @@ impl Task for StateKeeperTask {
 #[async_trait::async_trait]
 impl Task for AsyncCatchupTask {
     fn kind(&self) -> TaskKind {
-        TaskKind::OneshotTask
+        if self.is_oneshot() {
+            TaskKind::OneshotTask
+        } else {
+            TaskKind::Task
+        }
     }
 
     fn id(&self) -> TaskId {
