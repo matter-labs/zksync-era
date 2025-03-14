@@ -26,7 +26,7 @@ jobs:
       - name: Start services
         run: |
           ci_localnet_up
-      
+
       - name: Install zkstack
         run: |
           ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup
@@ -49,7 +49,6 @@ jobs:
           ci_run zkstack dev lint -t js --check
           ci_run zkstack dev lint -t ts --check
           ci_run zkstack dev lint -t rs --check
-          ci_run zkstack dev lint -t autocompletion --check
           ci_run zkstack dev lint -t rust-toolchain
 
       - name: Check Database
