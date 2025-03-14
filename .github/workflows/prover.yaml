@@ -13,25 +13,25 @@ permissions:
 
 # Define the events that triggers the workflow
 on:
-#  pull_request:
-#    paths:
-#      # Workspaces
-#      - 'prover/**'
-#      - 'zkstack_cli/**'
-#      - '!prover/CHANGELOG.md'
-#      - '!prover/setup-data-cpu-keys.json'
-#      - '!prover/setup-data-gpu-keys.json'
-#      - '!prover/extract-setup-data-keys.sh'
-#      # Docker files
-#      - 'docker/prover*/**'
-#      - 'docker-compose-runner-nightly.yml'
-#      # CI scripts
-#      - '.github/workflows/prover.yaml'
-#      - '.github/workflows/build-prover-template.yml'            # TODO: check name after refactoring
-#      - '.github/workflows/build-witness-generator-template.yml' # TODO: check name after refactoring
-#      # Exclude markdown files
-#      - '!**/*.md'
-#      - '!**/*.MD'
+  pull_request:
+    paths:
+      # Workspaces
+      - 'prover/**'
+      - 'zkstack_cli/**'
+      - '!prover/CHANGELOG.md'
+      - '!prover/setup-data-cpu-keys.json'
+      - '!prover/setup-data-gpu-keys.json'
+      - '!prover/extract-setup-data-keys.sh'
+      # Docker files
+      - 'docker/prover*/**'
+      - 'docker-compose-runner-nightly.yml'
+      # CI scripts
+      - '.github/workflows/prover.yaml'
+      - '.github/workflows/build-prover-template.yml'            # TODO: check name after refactoring
+      - '.github/workflows/build-witness-generator-template.yml' # TODO: check name after refactoring
+      # Exclude markdown files
+      - '!**/*.md'
+      - '!**/*.MD'
   merge_group:
 
 # Cancel previous runs for PRs if new one is started
@@ -122,6 +122,8 @@ jobs:
 
   e2e-tests:
     runs-on: matterlabs-ci-gpu-l4-runner-prover-tests
+    needs: changed-files
+    if: ${{ needs.changed-files.outputs.any_changed == 'true' }}
     strategy:
       fail-fast: false
       matrix:
@@ -156,8 +158,8 @@ jobs:
           RUNNER_COMPOSE_FILE: "docker-compose-gpu-runner-cuda-12-0.yml"
         run: docker compose -f ${RUNNER_COMPOSE_FILE} up --wait reth postgres
 
-      - name: Build server
-        run: zkstack server build --verbose
+#      - name: Build server
+#        run: zkstack server build --release --verbose
 
       - name: Init
         run: |
@@ -175,7 +177,11 @@ jobs:
             --evm-emulator false \
             --update-submodules=true
 
-          zkstack ecosystem init --dev --skip-contract-compilation-override --ignore-prerequisites --observability=false --verbose
+          # zkstack ecosystem init \
+          #   --server-command './core/target/release/zksync_server' \
+          #   --dev --skip-contract-compilation-override --ignore-prerequisites --verbose
+           zkstack ecosystem init \
+             --dev --skip-contract-compilation-override --ignore-prerequisites --verbose
           
           zkstack prover init --dev --verbose
           echo "URL=$(grep "http_url" ./chains/proving_chain/configs/general.yaml | awk '{ print $2 }')" >> "${GITHUB_ENV}"
@@ -194,7 +200,7 @@ jobs:
 
       - name: Run server
         run: |
-          zkstack server --chain=proving_chain \
+          zkstack server --uring --chain=proving_chain \
             --components=api,tree,eth,state_keeper,commitment_generator,proof_data_handler,vm_runner_protective_reads,vm_runner_bwip &>prover_logs_${{ matrix.compressor-mode }}/server.log &
           zkstack server wait --chain=proving_chain --timeout=300
 
@@ -264,14 +270,14 @@ jobs:
   # requiring others to be successful.
   # This is used to block PRs from merging without passing CI.
   # ====================================================================
-#  required-check:
-#    name: Github Status Check
-#    runs-on: ubuntu-latest
-#    if: always() && !cancelled()
-#    needs:
+  required-check:
+    name: Github Status Check
+    runs-on: ubuntu-latest
+    if: always() && !cancelled()
+    needs:
 #      - unit-tests
-#      - e2e-tests
-#    steps:
-#      - uses: re-actors/alls-green@release/v1
-#        with:
-#          jobs: ${{ toJSON(needs) }}
+      - e2e-tests
+    steps:
+      - uses: re-actors/alls-green@release/v1
+        with:
+          jobs: ${{ toJSON(needs) }}
