@@ -595,7 +595,7 @@ impl MainNodeBuilder {
                 {
                     self.node.add_layer(AvailWiringLayer::new(config, secret));
                 } else {
-                    bail!("Missing avail da_secrets")
+                    bail!("Avail client selected, missing Avail in secrets")
                 }
             }
 
@@ -606,7 +606,7 @@ impl MainNodeBuilder {
                     self.node
                         .add_layer(CelestiaWiringLayer::new(config, secret));
                 } else {
-                    bail!("Missing Celestia da_secrets")
+                    bail!("Celestia client selected, missing Celestia in secrets")
                 }
             }
 
@@ -619,7 +619,7 @@ impl MainNodeBuilder {
                     {
                         self.node.add_layer(EigenWiringLayer::new(config, secret));
                     } else {
-                        bail!("Missing Eigen da_secrets")
+                        bail!("Eigen client selected, missing Eigen in secrets")
                     }
                 }
             }
