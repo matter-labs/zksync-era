@@ -5330,7 +5330,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc2f4eb4bc735547cfed7c0a4922cbd04a4655978c09b54f1f7b228750664c34"
 dependencies = [
  "cfg-if",
- "windows-targets 0.48.5",
+ "windows-targets 0.52.6",
 ]
 
 [[package]]
@@ -7721,8 +7721,7 @@ checksum = "48fd7bd8a6377e15ad9d42a8ec25371b94ddc67abe7c8b9127bec79bebaaae18"
 [[package]]
 name = "rust-eigenda-client"
 version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dbab0f16f413e2482d0c8776f51d7fb8cd1f41cf3cee68f2c8ae30c7a7709663"
+source = "git+https://github.com/lambdaclass/eigenda-client-rs.git?branch=custom_quorum_numbers#d043f3d1a48369d8b5effaa9e514fed1e0d74af7"
 dependencies = [
  "ark-bn254",
  "async-trait",
