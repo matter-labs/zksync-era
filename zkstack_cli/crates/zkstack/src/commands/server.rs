@@ -42,8 +42,10 @@ fn build_server(
 
     logger::info(MSG_BUILDING_SERVER);
 
-    let server = Server::new(None, chain_config.link_to_code.clone(), args.uring);
-    server.build(shell).context(MSG_FAILED_TO_BUILD_SERVER_ERR)
+    let server = Server::new(None, None, chain_config.link_to_code.clone(), args.uring);
+    server
+        .build(shell, args.release)
+        .context(MSG_FAILED_TO_BUILD_SERVER_ERR)
 }
 
 fn run_server(
