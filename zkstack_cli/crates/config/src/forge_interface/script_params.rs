@@ -89,6 +89,7 @@ pub const GATEWAY_PREPARATION: ForgeScriptParams = ForgeScriptParams {
 pub const GATEWAY_GOVERNANCE_TX_PATH1: &str =
     "contracts/l1-contracts/script-out/gateway-deploy-governance-txs-1.json";
 
+// For this to work, you have to be in v26 branch of the era-contracts.
 pub const GATEWAY_UPGRADE_ECOSYSTEM_PARAMS: ForgeScriptParams = ForgeScriptParams {
     input: "script-config/gateway-upgrade-ecosystem.toml",
     output: "script-out/gateway-upgrade-ecosystem.toml",
@@ -105,4 +106,11 @@ pub const FINALIZE_UPGRADE_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptParams 
     input: "script-config/gateway-finalize-upgrade.toml",
     output: "script-out/gateway-finalize-upgrade.toml",
     script_path: "deploy-scripts/upgrade/FinalizeUpgrade.s.sol",
+};
+
+// For branch v27 .
+pub const V27_UPGRADE_ECOSYSTEM_PARAMS: ForgeScriptParams = ForgeScriptParams {
+    input: "script-config/upgrade-ecosystem.toml",
+    output: "script-out/upgrade-ecosystem.toml",
+    script_path: "deploy-scripts/upgrade/EcosystemUpgrade.s.sol",
 };

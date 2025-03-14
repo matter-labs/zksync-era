@@ -17,6 +17,7 @@ mod gateway_upgrade;
 pub(crate) mod init;
 pub(crate) mod setup_observability;
 mod utils;
+mod v27_upgrade;
 
 #[derive(Subcommand, Debug)]
 #[allow(clippy::large_enum_variant)]
@@ -39,6 +40,7 @@ pub enum EcosystemCommands {
     /// Gateway version upgrade
     #[cfg(feature = "gateway")]
     GatewayUpgrade(crate::commands::ecosystem::args::gateway_upgrade::GatewayUpgradeArgs),
+    V27Upgrade(crate::commands::ecosystem::args::v27_upgrade::V27UpgradeArgs),
 }
 
 pub(crate) async fn run(shell: &Shell, args: EcosystemCommands) -> anyhow::Result<()> {
@@ -50,5 +52,6 @@ pub(crate) async fn run(shell: &Shell, args: EcosystemCommands) -> anyhow::Resul
         EcosystemCommands::SetupObservability => setup_observability::run(shell),
         #[cfg(feature = "gateway")]
         EcosystemCommands::GatewayUpgrade(args) => gateway_upgrade::run(args, shell).await,
+        EcosystemCommands::V27Upgrade(args) => v27_upgrade::run(args, shell).await,
     }
 }
