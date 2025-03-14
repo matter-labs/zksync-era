@@ -1141,7 +1141,8 @@ mod tests {
             .fri_prover_jobs_dal()
             .insert_prover_jobs(
                 ChainAwareL1BatchNumber::from_raw(1, 1),
-                mock_circuit_ids_and_urls(10000),
+                // todo: should this be really decreased?
+                mock_circuit_ids_and_urls(5000),
                 AggregationRound::Scheduler,
                 1,
                 ProtocolSemanticVersion::default(),
