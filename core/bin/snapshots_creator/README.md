@@ -43,8 +43,9 @@ repository root. The storage location can be configured using the object store c
 filesystem, or Google Cloud Storage (GCS). Beware that for end-to-end testing of snapshot recovery, changes applied to
 the main node configuration must be reflected in the external node configuration.
 
-Creating a snapshot is a part of the [snapshot recovery integration test]. You can run the test using `yarn recovery-test snapshot-recovery-test`.
-It requires the main node to be launched with a command like `zk server --components api,tree,eth,state_keeper,commitment_generator`.
+Creating a snapshot is a part of the [snapshot recovery integration test]. You can run the test using
+`yarn recovery-test snapshot-recovery-test`. It requires the main node to be launched with a command like
+`zk server --components api,tree,eth,state_keeper,commitment_generator`.
 
 ## Snapshots format
 
@@ -58,8 +59,8 @@ Each snapshot consists of three types of data (see [`snapshots.rs`] for exact de
   enumeration index; both are used to restore the contents of the `initial_writes` table. Chunking storage logs is
   motivated by their parallel generation; each chunk corresponds to a distinct non-overlapping range of hashed storage
   keys. (This should be considered an implementation detail for the purposes of snapshot recovery; recovery must not
-  rely on any particular key distribution among chunks.) Stored as gzipped Protobuf messages in an [object store]; each chunk
-  is a separate object.
+  rely on any particular key distribution among chunks.) Stored as gzipped Protobuf messages in an [object store]; each
+  chunk is a separate object.
 - **Factory dependencies:** All bytecodes deployed on L2 at the time the snapshot is made. Stored as a single gzipped
   Protobuf message in an object store.
 
