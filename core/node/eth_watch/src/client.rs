@@ -65,6 +65,8 @@ pub trait EthClient: 'static + fmt::Debug + Send + Sync {
         hashes: Vec<H256>,
     ) -> EnrichedClientResult<Vec<Option<Vec<u8>>>>;
 
+    async fn get_settlement_layer(&self) -> Result<Address, ContractCallError>;
+
     async fn get_chain_gateway_upgrade_info(
         &self,
     ) -> Result<Option<ZkChainSpecificUpgradeData>, ContractCallError>;
@@ -97,7 +99,6 @@ const REQUEST_REJECTED_503: &str = "Request rejected `503`";
 pub struct EthHttpQueryClient<Net: Network> {
     client: Box<DynClient<Net>>,
     diamond_proxy_addr: Address,
-    governance_address: Address,
     new_upgrade_cut_data_signature: H256,
     bytecode_published_signature: H256,
     bytecode_supplier_addr: Option<Address>,
@@ -105,6 +106,7 @@ pub struct EthHttpQueryClient<Net: Network> {
     l1_shared_bridge_addr: Option<Address>,
     // Only present for post-shared bridge chains.
     state_transition_manager_address: Option<Address>,
+    server_notifier_address: Option<Address>,
     chain_admin_address: Option<Address>,
     verifier_contract_abi: Contract,
     getters_facet_contract_abi: Contract,
@@ -128,21 +130,21 @@ where
         l1_shared_bridge_addr: Option<Address>,
         state_transition_manager_address: Option<Address>,
         chain_admin_address: Option<Address>,
-        governance_address: Address,
+        server_notifier_address: Option<Address>,
         confirmations_for_eth_event: Option<u64>,
         l2_chain_id: L2ChainId,
     ) -> Self {
         tracing::debug!(
-            "New eth client, ZKsync addr: {:x}, governance addr: {:?}",
+            "New eth client, ZKsync addr: {:x}, chain_admin_address: {:?}",
             diamond_proxy_addr,
-            governance_address
+            chain_admin_address
         );
         Self {
             client: client.for_component("watch"),
             diamond_proxy_addr,
             state_transition_manager_address,
+            server_notifier_address,
             chain_admin_address,
-            governance_address,
             bytecode_supplier_addr,
             new_upgrade_cut_data_signature: state_transition_manager_contract()
                 .event("NewUpgradeCutData")
@@ -169,9 +171,9 @@ where
     fn get_default_address_list(&self) -> Vec<Address> {
         [
             Some(self.diamond_proxy_addr),
-            Some(self.governance_address),
             self.state_transition_manager_address,
             self.chain_admin_address,
+            self.server_notifier_address,
             Some(L2_MESSAGE_ROOT_ADDRESS),
         ]
         .into_iter()
@@ -535,6 +537,14 @@ where
             base_token_symbol,
         }))
     }
+
+    async fn get_settlement_layer(&self) -> Result<Address, ContractCallError> {
+        let settlement_layer: Address = CallFunctionArgs::new("getSettlementLayer", ())
+            .for_contract(self.diamond_proxy_addr, &self.getters_facet_contract_abi)
+            .call(&self.client)
+            .await?;
+        Ok(settlement_layer)
+    }
 }
 
 /// Encapsulates `eth_getLogs` calls.
@@ -569,7 +579,7 @@ impl GetLogsClient for Box<DynClient<L2>> {
 /// L2 client functionality used by [`EthWatch`](crate::EthWatch) and constituent event processors.
 /// Trait extension for [`EthClient`].
 #[async_trait::async_trait]
-pub trait L2EthClient: EthClient {
+pub trait ZkSyncExtentionEthClient: EthClient {
     async fn get_chain_log_proof(
         &self,
         l1_batch_number: L1BatchNumber,
@@ -584,7 +594,33 @@ pub trait L2EthClient: EthClient {
 }
 
 #[async_trait::async_trait]
-impl L2EthClient for EthHttpQueryClient<L2> {
+impl ZkSyncExtentionEthClient for EthHttpQueryClient<L1> {
+    async fn get_chain_log_proof(
+        &self,
+        _l1_batch_number: L1BatchNumber,
+        _chain_id: L2ChainId,
+    ) -> EnrichedClientResult<Option<ChainAggProof>> {
+        //TODO(EVM-959): Implement it using l1 contracts
+        Err(EnrichedClientError::custom(
+            "Method is not supported",
+            "get_chain_log_proof",
+        ))
+    }
+
+    async fn get_chain_root_l2(
+        &self,
+        _l1_batch_number: L1BatchNumber,
+        _l2_chain_id: L2ChainId,
+    ) -> Result<Option<H256>, ContractCallError> {
+        //TODO(EVM-959): Implement it using l1 contracts
+        Err(ContractCallError::EthereumGateway(
+            EnrichedClientError::custom("Method is not supported", "get_chain_root_l2"),
+        ))
+    }
+}
+
+#[async_trait::async_trait]
+impl ZkSyncExtentionEthClient for EthHttpQueryClient<L2> {
     async fn get_chain_log_proof(
         &self,
         l1_batch_number: L1BatchNumber,
@@ -616,14 +652,14 @@ impl L2EthClient for EthHttpQueryClient<L2> {
     }
 }
 
-/// Wrapper for L2 client object.
-/// It is used for L2EthClient -> EthClient dyn upcasting coercion:
-///     Arc<dyn L2EthClient> -> L2EthClientW -> Arc<dyn EthClient>
+/// Wrapper for ZkSyncExtention client object.
+/// It is used for ZkSyncExtentionEthClient -> EthClient dyn upcasting coercion:
+///     Arc<dyn ZkSyncExtentionEthClient> -> ZkSyncExtentionEthClientW -> Arc<dyn EthClient>
 #[derive(Debug, Clone)]
-pub struct L2EthClientW(pub Arc<dyn L2EthClient>);
+pub struct ZkSyncExtentionEthClientW(pub Arc<dyn ZkSyncExtentionEthClient>);
 
 #[async_trait::async_trait]
-impl EthClient for L2EthClientW {
+impl EthClient for ZkSyncExtentionEthClientW {
     async fn get_events(
         &self,
         from: BlockNumber,
@@ -693,5 +729,9 @@ impl EthClient for L2EthClientW {
         hashes: Vec<H256>,
     ) -> EnrichedClientResult<Vec<Option<Vec<u8>>>> {
         self.0.get_published_preimages(hashes).await
+    }
+
+    async fn get_settlement_layer(&self) -> Result<Address, ContractCallError> {
+        self.0.get_settlement_layer().await
     }
 }

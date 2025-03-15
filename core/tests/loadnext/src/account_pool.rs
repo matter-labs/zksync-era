@@ -107,7 +107,8 @@ impl AccountPool {
         // Perform a health check: check whether ZKsync server is alive.
         let mut server_alive = false;
         for _ in 0usize..3 {
-            if let Ok(Ok(_)) = timeout(Duration::from_secs(3), client.get_main_contract()).await {
+            if let Ok(Ok(_)) = timeout(Duration::from_secs(3), client.get_main_l1_contract()).await
+            {
                 server_alive = true;
                 break;
             }

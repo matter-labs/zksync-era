@@ -630,7 +630,7 @@ impl<Net: SupportedMockSLNetwork + SupportedMockSLNetwork> BoundEthInterface
     }
 
     fn chain_id(&self) -> SLChainId {
-        unimplemented!("Not needed right now")
+        SLChainId(505)
     }
 
     fn sender_account(&self) -> Address {

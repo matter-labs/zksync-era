@@ -249,9 +249,9 @@ impl Distribution<configs::ContractVerifierConfig> for EncodeDist {
     }
 }
 
-impl Distribution<configs::ContractsConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::ContractsConfig {
-        configs::ContractsConfig {
+impl Distribution<configs::AllContractsConfig> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::AllContractsConfig {
+        configs::AllContractsConfig {
             governance_addr: rng.gen(),
             verifier_addr: rng.gen(),
             default_upgrade_addr: rng.gen(),
@@ -268,11 +268,12 @@ impl Distribution<configs::ContractsConfig> for EncodeDist {
             l2_timestamp_asserter_addr: self.sample_opt(|| rng.gen()),
             l1_multicall3_addr: rng.gen(),
             ecosystem_contracts: self.sample(rng),
-            base_token_addr: self.sample_opt(|| rng.gen()),
+            base_token_addr: rng.gen(),
             l1_base_token_asset_id: self.sample_opt(|| rng.gen()),
-            chain_admin_addr: self.sample_opt(|| rng.gen()),
+            chain_admin_addr: rng.gen(),
             l2_da_validator_addr: self.sample_opt(|| rng.gen()),
             no_da_validium_l1_validator_addr: self.sample_opt(|| rng.gen()),
+            l2_multicall3_addr: self.sample_opt(|| rng.gen()),
         }
     }
 }
@@ -442,8 +443,6 @@ impl Distribution<configs::eth_sender::GasAdjusterConfig> for EncodeDist {
             num_samples_for_blob_base_fee_estimate: self.sample(rng),
             internal_pubdata_pricing_multiplier: self.sample(rng),
             max_blob_base_fee: self.sample(rng),
-            // TODO(EVM-676): generate it randomly once this value is used
-            settlement_mode: Default::default(),
         }
     }
 }
@@ -761,10 +760,11 @@ impl Distribution<configs::EcosystemContracts> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::EcosystemContracts {
         configs::EcosystemContracts {
             bridgehub_proxy_addr: rng.gen(),
-            state_transition_proxy_addr: rng.gen(),
-            transparent_proxy_admin_addr: rng.gen(),
-            l1_bytecodes_supplier_addr: rng.gen(),
-            l1_wrapped_base_token_store: rng.gen(),
+            state_transition_proxy_addr: self.sample_opt(|| rng.gen()),
+            transparent_proxy_admin_addr: self.sample_opt(|| rng.gen()),
+            l1_bytecodes_supplier_addr: self.sample_opt(|| rng.gen()),
+            l1_wrapped_base_token_store: self.sample_opt(|| rng.gen()),
+            server_notifier_addr: self.sample_opt(|| rng.gen()),
         }
     }
 }

@@ -1685,6 +1685,8 @@ dependencies = [
  "tokio",
  "zksync_block_reverter",
  "zksync_config",
+ "zksync_contracts",
+ "zksync_contracts_loader",
  "zksync_core_leftovers",
  "zksync_dal",
  "zksync_env_config",
@@ -5330,7 +5332,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc2f4eb4bc735547cfed7c0a4922cbd04a4655978c09b54f1f7b228750664c34"
 dependencies = [
  "cfg-if",
- "windows-targets 0.48.5",
+ "windows-targets 0.52.6",
 ]
 
 [[package]]
@@ -11826,6 +11828,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_contracts_loader"
+version = "26.7.0-non-semver-compat"
+dependencies = [
+ "anyhow",
+ "zksync_config",
+ "zksync_contracts",
+ "zksync_eth_client",
+ "zksync_types",
+]
+
+[[package]]
 name = "zksync_core_leftovers"
 version = "26.7.0-non-semver-compat"
 dependencies = [
@@ -12221,6 +12234,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_gateway_migrator"
+version = "26.7.0-non-semver-compat"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "tokio",
+ "tracing",
+ "zksync_basic_types",
+ "zksync_config",
+ "zksync_contracts",
+ "zksync_contracts_loader",
+ "zksync_dal",
+ "zksync_eth_client",
+ "zksync_system_constants",
+]
+
+[[package]]
 name = "zksync_health_check"
 version = "26.7.0-non-semver-compat"
 dependencies = [
@@ -12578,6 +12608,7 @@ dependencies = [
  "zksync_consistency_checker",
  "zksync_contract_verification_server",
  "zksync_contracts",
+ "zksync_contracts_loader",
  "zksync_da_client",
  "zksync_da_clients",
  "zksync_da_dispatcher",
@@ -12588,6 +12619,7 @@ dependencies = [
  "zksync_eth_watch",
  "zksync_external_price_api",
  "zksync_external_proof_integration_api",
+ "zksync_gateway_migrator",
  "zksync_health_check",
  "zksync_house_keeper",
  "zksync_logs_bloom_backfill",

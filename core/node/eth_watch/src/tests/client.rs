@@ -19,7 +19,7 @@ use zksync_types::{
     SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256, U64,
 };
 
-use crate::client::{EthClient, L2EthClient, RETRY_LIMIT};
+use crate::client::{EthClient, ZkSyncExtentionEthClient, RETRY_LIMIT};
 
 #[derive(Debug)]
 pub struct FakeEthClientData {
@@ -329,10 +329,14 @@ impl EthClient for MockEthClient {
     ) -> Result<Option<H256>, ContractCallError> {
         Ok(Some(H256::zero()))
     }
+
+    async fn get_settlement_layer(&self) -> Result<Address, ContractCallError> {
+        Ok(Address::default())
+    }
 }
 
 #[async_trait::async_trait]
-impl L2EthClient for MockEthClient {
+impl ZkSyncExtentionEthClient for MockEthClient {
     async fn get_chain_log_proof(
         &self,
         l1_batch_number: L1BatchNumber,
