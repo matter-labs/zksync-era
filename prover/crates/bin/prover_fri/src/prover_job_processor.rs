@@ -41,7 +41,6 @@ pub enum SetupLoadMode {
 
 pub struct Prover {
     blob_store: Arc<dyn ObjectStore>,
-    public_blob_store: Option<Arc<dyn ObjectStore>>,
     config: Arc<FriProverConfig>,
     keystore: Keystore,
     prover_connection_pool: ConnectionPool<zksync_prover_dal::Prover>,
@@ -56,7 +55,6 @@ impl Prover {
     #[allow(dead_code, clippy::too_many_arguments)]
     pub fn new(
         blob_store: Arc<dyn ObjectStore>,
-        public_blob_store: Option<Arc<dyn ObjectStore>>,
         config: FriProverConfig,
         keystore: Keystore,
         prover_connection_pool: ConnectionPool<zksync_prover_dal::Prover>,
@@ -66,7 +64,6 @@ impl Prover {
     ) -> Self {
         Prover {
             blob_store,
-            public_blob_store,
             config: Arc::new(config),
             keystore,
             prover_connection_pool,
@@ -252,8 +249,6 @@ impl JobProcessor for Prover {
             started_at,
             artifacts,
             &*self.blob_store,
-            self.public_blob_store.as_deref(),
-            self.config.shall_save_to_public_bucket,
             &mut storage_processor,
             self.protocol_version,
         )

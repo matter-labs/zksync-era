@@ -58,7 +58,6 @@ pub trait JobManager: ArtifactsManager {
 pub struct WitnessGenerator<R> {
     pub config: FriWitnessGeneratorConfig,
     pub object_store: Arc<dyn ObjectStore>,
-    pub public_blob_store: Option<Arc<dyn ObjectStore>>,
     pub connection_pool: ConnectionPool<Prover>,
     pub protocol_version: ProtocolSemanticVersion,
     pub keystore: Keystore,
@@ -72,7 +71,6 @@ where
     pub fn new(
         config: FriWitnessGeneratorConfig,
         object_store: Arc<dyn ObjectStore>,
-        public_blob_store: Option<Arc<dyn ObjectStore>>,
         connection_pool: ConnectionPool<Prover>,
         protocol_version: ProtocolSemanticVersion,
         keystore: Keystore,
@@ -80,7 +78,6 @@ where
         Self {
             config,
             object_store,
-            public_blob_store,
             connection_pool,
             protocol_version,
             keystore,
@@ -157,15 +154,8 @@ where
 
         let blob_save_started_at = Instant::now();
 
-        let blob_urls = R::save_to_bucket(
-            job_id.1,
-            job_id.0,
-            artifacts.clone(),
-            &*self.object_store,
-            self.config.shall_save_to_public_bucket,
-            self.public_blob_store.clone(),
-        )
-        .await;
+        let blob_urls = R::save_to_bucket(job_id.1,
+            job_id.0, artifacts.clone(), &*self.object_store).await;
 
         WITNESS_GENERATOR_METRICS.blob_save_time[&R::ROUND.into()]
             .observe(blob_save_started_at.elapsed());

@@ -170,8 +170,6 @@ impl ProtoRepr for proto::WitnessGenerator {
                 .context("generation_timeout_in_secs")?,
             max_attempts: *required(&self.max_attempts).context("max_attempts")?,
             last_l1_batch_to_process: self.last_l1_batch_to_process,
-            shall_save_to_public_bucket: *required(&self.shall_save_to_public_bucket)
-                .context("shall_save_to_public_bucket")?,
             basic_generation_timeout_in_secs: self
                 .basic_generation_timeout_in_secs
                 .map(|x| x.try_into())
@@ -213,7 +211,6 @@ impl ProtoRepr for proto::WitnessGenerator {
             generation_timeout_in_secs: Some(this.generation_timeout_in_secs.into()),
             max_attempts: Some(this.max_attempts),
             last_l1_batch_to_process: this.last_l1_batch_to_process,
-            shall_save_to_public_bucket: Some(this.shall_save_to_public_bucket),
             basic_generation_timeout_in_secs: this
                 .basic_generation_timeout_in_secs
                 .map(|x| x.into()),
@@ -321,11 +318,6 @@ impl proto::CloudType {
 impl ProtoRepr for proto::Prover {
     type Type = configs::FriProverConfig;
     fn read(&self) -> anyhow::Result<Self::Type> {
-        let public_object_store = if let Some(object_store) = &self.public_object_store {
-            Some(object_store.read()?)
-        } else {
-            None
-        };
         let prover_object_store = if let Some(object_store) = &self.prover_object_store {
             Some(object_store.read()?)
         } else {
@@ -360,9 +352,6 @@ impl ProtoRepr for proto::Prover {
                 .context("zone_read_url")?
                 .clone(),
             availability_check_interval_in_secs: self.availability_check_interval_in_secs,
-            shall_save_to_public_bucket: *required(&self.shall_save_to_public_bucket)
-                .context("shall_save_to_public_bucket")?,
-            public_object_store,
             prover_object_store,
             cloud_type: self
                 .cloud_type
@@ -386,9 +375,7 @@ impl ProtoRepr for proto::Prover {
             witness_vector_receiver_port: Some(this.witness_vector_receiver_port.into()),
             zone_read_url: Some(this.zone_read_url.clone()),
             availability_check_interval_in_secs: this.availability_check_interval_in_secs,
-            shall_save_to_public_bucket: Some(this.shall_save_to_public_bucket),
             prover_object_store: this.prover_object_store.as_ref().map(ProtoRepr::build),
-            public_object_store: this.public_object_store.as_ref().map(ProtoRepr::build),
             cloud_type: Some(proto::CloudType::new(&this.cloud_type).into()),
         }
     }

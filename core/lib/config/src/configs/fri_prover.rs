@@ -38,10 +38,7 @@ pub struct FriProverConfig {
     pub zone_read_url: String,
     pub availability_check_interval_in_secs: Option<u32>,
 
-    // whether to write to public GCS bucket for https://github.com/matter-labs/era-boojum-validator-cli
-    pub shall_save_to_public_bucket: bool,
     pub prover_object_store: Option<ObjectStoreConfig>,
-    pub public_object_store: Option<ObjectStoreConfig>,
     #[serde(default)]
     pub cloud_type: CloudConnectionMode,
 }
