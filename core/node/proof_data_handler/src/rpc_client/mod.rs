@@ -56,7 +56,7 @@ impl RpcClient {
                 L2ChainId::new(0).map_err(|e| anyhow::anyhow!(e))?,
             );
 
-        tokio::select! {
+            tokio::select! {
             _ = proof_data_sender => {
                 tracing::info!("Proof data submitter stopped");
             }
