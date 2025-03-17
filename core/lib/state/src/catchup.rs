@@ -207,7 +207,7 @@ impl AsyncCatchupTask {
         stop_receiver: watch::Receiver<bool>,
         rocksdb: RocksDB<StateKeeperColumnFamily>,
     ) -> anyhow::Result<()> {
-        const SLEEP_INTERVAL: Duration = Duration::from_millis(10);
+        const SLEEP_INTERVAL: Duration = Duration::from_millis(100);
 
         let mut rocksdb_builder = RocksdbStorageBuilder::from_rocksdb(rocksdb);
         let mut connection = self.pool.connection_tagged("state_keeper").await?;

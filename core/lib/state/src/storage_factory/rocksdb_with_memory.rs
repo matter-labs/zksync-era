@@ -1,4 +1,7 @@
-use std::collections::{HashMap, VecDeque};
+use std::{
+    collections::{HashMap, VecDeque},
+    ops::RangeInclusive,
+};
 
 use zksync_types::{L1BatchNumber, StorageKey, StorageValue, H256};
 use zksync_vm_interface::storage::ReadStorage;
@@ -105,8 +108,16 @@ impl BatchDiffs {
     }
 
     /// Pushes the diff.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the batch number of the pushed diff is not sequential.
     pub fn push(&mut self, l1_batch_number: L1BatchNumber, diff: BatchDiff) {
-        if self.first_diff_l1_batch_number.is_none() {
+        if let Some(first_diff_l1_batch_number) = self.first_diff_l1_batch_number {
+            let next_expected_batch_number =
+                first_diff_l1_batch_number + u32::try_from(self.diffs.len()).unwrap();
+            assert_eq!(l1_batch_number, next_expected_batch_number);
+        } else {
             self.first_diff_l1_batch_number = Some(l1_batch_number);
         }
         self.diffs.push_back(diff);
@@ -117,11 +128,10 @@ impl BatchDiffs {
     /// # Panics
     ///
     /// Panics if there is no diff for some element in the range.
-    pub fn range(
-        &self,
-        from_l1_batch: L1BatchNumber,
-        to_l1_batch: L1BatchNumber,
-    ) -> Vec<BatchDiff> {
+    pub fn range(&self, batch_range: RangeInclusive<L1BatchNumber>) -> Vec<BatchDiff> {
+        let from_l1_batch = *batch_range.start();
+        let to_l1_batch = *batch_range.end();
+
         let first_diff_number = self.first_diff_l1_batch_number.expect("empty batch_diffs");
         assert!(from_l1_batch >= first_diff_number);
         assert!((to_l1_batch.0 as usize) < (first_diff_number.0 as usize) + self.diffs.len());
@@ -147,16 +157,16 @@ mod tests {
         let mut diffs = BatchDiffs::new();
 
         diffs.push(L1BatchNumber(1), BatchDiff::default());
-        let res = diffs.range(L1BatchNumber(1), L1BatchNumber(1));
+        let res = diffs.range(L1BatchNumber(1)..=L1BatchNumber(1));
         assert_eq!(res.len(), 1);
 
         diffs.push(L1BatchNumber(2), BatchDiff::default());
         diffs.push(L1BatchNumber(3), BatchDiff::default());
-        let res = diffs.range(L1BatchNumber(1), L1BatchNumber(3));
+        let res = diffs.range(L1BatchNumber(1)..=L1BatchNumber(3));
         assert_eq!(res.len(), 3);
 
         diffs.trim_start(L1BatchNumber(2));
-        let res = diffs.range(L1BatchNumber(2), L1BatchNumber(3));
+        let res = diffs.range(L1BatchNumber(2)..=L1BatchNumber(3));
         assert_eq!(res.len(), 2);
     }
 
@@ -170,6 +180,6 @@ mod tests {
         diffs.push(L1BatchNumber(3), BatchDiff::default());
 
         diffs.trim_start(L1BatchNumber(2));
-        diffs.range(L1BatchNumber(1), L1BatchNumber(3));
+        diffs.range(L1BatchNumber(1)..=L1BatchNumber(3));
     }
 }

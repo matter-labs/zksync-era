@@ -224,10 +224,6 @@ impl RocksdbStorageBuilder {
         }
     }
 
-    pub(crate) fn skip_synchronize(self) -> RocksdbStorage {
-        self.0
-    }
-
     /// Synchronizes this storage with Postgres using the provided connection.
     ///
     /// # Return value
@@ -278,11 +274,16 @@ impl RocksdbStorageBuilder {
     ) -> anyhow::Result<()> {
         self.0.revert(storage, last_l1_batch_to_keep).await
     }
+}
 
-    /// Returns the underlying storage without any checks. Should only be used in test code.
-    #[doc(hidden)]
-    pub fn build_unchecked(self) -> RocksdbStorage {
-        self.0
+impl From<RocksDB<StateKeeperColumnFamily>> for RocksdbStorage {
+    fn from(value: RocksDB<StateKeeperColumnFamily>) -> Self {
+        Self {
+            db: value,
+            pending_patch: PendingPatch::default(),
+            #[cfg(test)]
+            listener: RocksdbStorageEventListener::default(),
+        }
     }
 }
 
