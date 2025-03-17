@@ -3581,9 +3581,11 @@ dependencies = [
  "jsonrpsee-core",
  "jsonrpsee-http-client",
  "jsonrpsee-proc-macros",
+ "jsonrpsee-server",
  "jsonrpsee-types",
  "jsonrpsee-wasm-client",
  "jsonrpsee-ws-client",
+ "tokio",
  "tracing",
 ]
 
@@ -3626,7 +3628,9 @@ dependencies = [
  "http-body 1.0.1",
  "http-body-util",
  "jsonrpsee-types",
+ "parking_lot 0.12.3",
  "pin-project",
+ "rand 0.8.5",
  "rustc-hash 2.1.1",
  "serde",
  "serde_json",
@@ -3673,6 +3677,33 @@ dependencies = [
  "proc-macro2 1.0.92",
  "quote 1.0.37",
  "syn 2.0.90",
+]
+
+[[package]]
+name = "jsonrpsee-server"
+version = "0.24.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "66b7a3df90a1a60c3ed68e7ca63916b53e9afa928e33531e87f61a9c8e9ae87b"
+dependencies = [
+ "futures-util",
+ "http 1.2.0",
+ "http-body 1.0.1",
+ "http-body-util",
+ "hyper 1.5.2",
+ "hyper-util",
+ "jsonrpsee-core",
+ "jsonrpsee-types",
+ "pin-project",
+ "route-recognizer",
+ "serde",
+ "serde_json",
+ "soketto",
+ "thiserror 1.0.69",
+ "tokio",
+ "tokio-stream",
+ "tokio-util",
+ "tower 0.4.13",
+ "tracing",
 ]
 
 [[package]]
@@ -5690,6 +5721,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "route-recognizer"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "afab94fb28594581f62d981211a9a4d53cc8130bbcbbb89a0440d9b8e81a7746"
+
+[[package]]
 name = "rsa"
 version = "0.9.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6542,6 +6579,7 @@ dependencies = [
  "base64 0.22.1",
  "bytes",
  "futures 0.3.31",
+ "http 1.2.0",
  "httparse",
  "log",
  "rand 0.8.5",
@@ -7261,6 +7299,7 @@ dependencies = [
  "futures-core",
  "pin-project-lite",
  "tokio",
+ "tokio-util",
 ]
 
 [[package]]
@@ -9400,10 +9439,10 @@ name = "zksync_prover_fri_gateway"
 version = "19.0.0"
 dependencies = [
  "anyhow",
- "async-trait",
  "clap 4.5.23",
  "ctrlc",
  "futures 0.3.31",
+ "jsonrpsee",
  "log",
  "reqwest 0.12.9",
  "serde",
@@ -9455,7 +9494,9 @@ name = "zksync_prover_interface"
 version = "26.7.0-non-semver-compat"
 dependencies = [
  "circuit_definitions",
+ "circuit_sequencer_api",
  "fflonk",
+ "jsonrpsee",
  "serde",
  "serde_with",
  "zksync_bellman",
