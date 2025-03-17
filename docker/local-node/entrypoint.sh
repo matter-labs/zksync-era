@@ -17,6 +17,9 @@ if [ -z "$ETH_CLIENT_WEB3_URL" ]; then
   exit 1
 fi
 
+# Default chain name if not set
+CHAIN_NAME=${CHAIN_NAME:-custom_token}
+
 # Function to update a key in a YAML file
 update_config() {
   local file="$1"
@@ -53,8 +56,8 @@ if [ -z "$MASTER_URL" ]; then
   CONFIG_PATH="/chains/era/configs"
   echo "Updating configuration for MASTER chain..."
 else
-  CONFIG_PATH="/chains/custom_token/configs"
-  echo "Updating configuration for Custom Token chain..."
+  CONFIG_PATH="/chains/${CHAIN_NAME}/configs"
+  echo "Updating configuration for ${CHAIN_NAME} chain..."
 fi
 
 echo "Configuration updated successfully."
@@ -88,7 +91,7 @@ if [ -z "$MASTER_URL" ]; then
     --contracts-config-path ./chains/era/configs/contracts.yaml
 else
   zkstack chain create \
-    --chain-name custom_token \
+    --chain-name ${CHAIN_NAME} \
     --chain-id sequential \
     --prover-mode no-proofs \
     --wallet-creation localhost \
@@ -106,7 +109,7 @@ else
     --l1-rpc-url=$ETH_CLIENT_WEB3_URL \
     --server-db-url="$SERVER_DB_URL" \
     --server-db-name="$SERVER_DB_NAME" \
-    --chain custom_token \
+    --chain ${CHAIN_NAME} \
     --validium-type no-da \
     --update-submodules=false \
     --server-command /zksync_server
@@ -119,10 +122,10 @@ else
   #   sleep 5
   # done
   # start server
-  /zksync_server --genesis-path /chains/custom_token/configs/genesis.yaml \
-    --wallets-path /chains/custom_token/configs/wallets.yaml \
-    --config-path /chains/custom_token/configs/general.yaml \
-    --secrets-path /chains/custom_token/configs/secrets.yaml \
-    --contracts-config-path /chains/custom_token/configs/contracts.yaml
+  /zksync_server --genesis-path /chains/${CHAIN_NAME}/configs/genesis.yaml \
+    --wallets-path /chains/${CHAIN_NAME}/configs/wallets.yaml \
+    --config-path /chains/${CHAIN_NAME}/configs/general.yaml \
+    --secrets-path /chains/${CHAIN_NAME}/configs/secrets.yaml \
+    --contracts-config-path /chains/${CHAIN_NAME}/configs/contracts.yaml
 
 fi
