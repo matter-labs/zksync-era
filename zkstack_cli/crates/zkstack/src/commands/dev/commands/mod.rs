@@ -22,5 +22,5 @@ pub mod status;
 pub mod test;
 #[cfg(feature = "gateway")]
 pub mod upgrade_utils;
-#[cfg(feature = "gateway")]
+#[cfg(feature = "v27_evm_interpreter")]
 pub mod v27_evm_eq;
