@@ -177,8 +177,8 @@ impl EventProcessor for DecentralizedUpgradesEventProcessor {
         Ok(events.len())
     }
 
-    fn topic1(&self) -> H256 {
-        self.update_upgrade_timestamp_signature
+    fn topic1(&self) -> Option<H256> {
+        Some(self.update_upgrade_timestamp_signature)
     }
 
     fn event_source(&self) -> EventsSource {

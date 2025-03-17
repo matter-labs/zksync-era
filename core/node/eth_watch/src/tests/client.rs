@@ -192,7 +192,7 @@ impl EthClient for MockEthClient {
         &self,
         from: BlockNumber,
         to: BlockNumber,
-        topic1: H256,
+        topic1: Option<H256>,
         topic2: Option<H256>,
         _retries_left: usize,
     ) -> EnrichedClientResult<Vec<Log>> {

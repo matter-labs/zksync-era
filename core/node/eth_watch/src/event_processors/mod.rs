@@ -61,7 +61,7 @@ pub(super) trait EventProcessor: 'static + fmt::Debug + Send + Sync {
     ) -> Result<usize, EventProcessorError>;
 
     /// Relevant topic1 which defines what events to be processed
-    fn topic1(&self) -> H256;
+    fn topic1(&self) -> Option<H256>;
 
     /// Relevant topic2 which defines what events to be processed
     fn topic2(&self) -> Option<H256> {

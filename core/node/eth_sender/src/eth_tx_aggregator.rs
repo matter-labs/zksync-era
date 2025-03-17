@@ -945,7 +945,7 @@ async fn gateway_status(
         .unwrap();
 
     notifications
-        .last()
+        .first()
         .map(|a| match sl_layer {
             SettlementMode::SettlesToL1 => {
                 if a.main_topic == to_gateway {

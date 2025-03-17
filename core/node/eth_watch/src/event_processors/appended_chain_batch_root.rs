@@ -181,8 +181,8 @@ impl EventProcessor for BatchRootProcessor {
         Ok(events_count)
     }
 
-    fn topic1(&self) -> H256 {
-        self.appended_chain_batch_root_signature
+    fn topic1(&self) -> Option<H256> {
+        Some(self.appended_chain_batch_root_signature)
     }
 
     fn topic2(&self) -> Option<H256> {
