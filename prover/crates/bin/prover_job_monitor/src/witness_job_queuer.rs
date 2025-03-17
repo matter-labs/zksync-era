@@ -40,7 +40,6 @@ impl WitnessJobQueuer {
             .fri_node_witness_generator_dal()
             .move_depth_zero_node_aggregation_jobs()
             .await;
-        // todo: wtf is this
         jobs.extend(
             connection
                 .fri_node_witness_generator_dal()
