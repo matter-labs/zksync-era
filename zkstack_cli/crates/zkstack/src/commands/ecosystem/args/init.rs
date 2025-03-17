@@ -13,7 +13,7 @@ use crate::{
         MSG_DEPLOY_ECOSYSTEM_PROMPT, MSG_DEPLOY_ERC20_PROMPT, MSG_DEV_ARG_HELP,
         MSG_L1_RPC_URL_HELP, MSG_L1_RPC_URL_INVALID_ERR, MSG_L1_RPC_URL_PROMPT,
         MSG_NO_PORT_REALLOCATION_HELP, MSG_OBSERVABILITY_HELP, MSG_OBSERVABILITY_PROMPT,
-        MSG_SERVER_DB_NAME_HELP, MSG_SERVER_DB_URL_HELP,
+        MSG_SERVER_COMMAND_HELP, MSG_SERVER_DB_NAME_HELP, MSG_SERVER_DB_URL_HELP,
     },
 };
 
@@ -109,8 +109,10 @@ pub struct EcosystemInitArgs {
     pub validium_args: ValidiumTypeArgs,
     #[clap(long, default_missing_value = "false", num_args = 0..=1)]
     pub support_l2_legacy_shared_bridge_test: Option<bool>,
-    #[clap(long, default_missing_value = "false")]
+    #[clap(long, default_value_t = false)]
     pub skip_contract_compilation_override: bool,
+    #[clap(long, help = MSG_SERVER_COMMAND_HELP)]
+    pub server_command: Option<String>,
 }
 
 impl EcosystemInitArgs {
@@ -120,6 +122,7 @@ impl EcosystemInitArgs {
             server_db_name: self.server_db_name.clone(),
             dev: self.dev,
             dont_drop: self.dont_drop,
+            server_command: self.server_command.clone(),
         }
     }
 

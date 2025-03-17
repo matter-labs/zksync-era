@@ -19,6 +19,7 @@ mod tests {
         FriProverGatewayConfig {
             api_url: "http://private-dns-for-server".to_string(),
             api_poll_duration_secs: 100,
+            ws_port: 123,
             prometheus_listener_port: 3316,
             prometheus_pushgateway_url: "http://127.0.0.1:9091".to_string(),
             prometheus_push_interval_ms: Some(100),
@@ -30,6 +31,7 @@ mod tests {
         let config = r#"
             FRI_PROVER_GATEWAY_API_URL="http://private-dns-for-server"
             FRI_PROVER_GATEWAY_API_POLL_DURATION_SECS="100"
+            FRI_PROVER_GATEWAY_WS_PORT="123"
             FRI_PROVER_GATEWAY_PROMETHEUS_LISTENER_PORT=3316
             FRI_PROVER_GATEWAY_PROMETHEUS_PUSHGATEWAY_URL="http://127.0.0.1:9091"
             FRI_PROVER_GATEWAY_PROMETHEUS_PUSH_INTERVAL_MS=100
