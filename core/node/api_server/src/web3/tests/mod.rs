@@ -17,10 +17,9 @@ use zksync_config::{
     GenesisConfig,
 };
 use zksync_contracts::BaseSystemContracts;
-use zksync_dal::{transactions_dal::L2TxSubmissionResult, Connection, ConnectionPool, CoreDal};
+use zksync_dal::{Connection, ConnectionPool, CoreDal};
 use zksync_multivm::interface::{
-    tracer::ValidationTraces, TransactionExecutionMetrics, TransactionExecutionResult,
-    TxExecutionStatus, VmEvent, VmExecutionMetrics,
+    tracer::ValidationTraces, TransactionExecutionMetrics, TransactionExecutionResult, VmEvent,
 };
 use zksync_node_genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams};
 use zksync_node_test_utils::{
@@ -32,22 +31,20 @@ use zksync_system_constants::{
 };
 use zksync_types::{
     api,
-    block::{pack_block_info, L2BlockHasher, L2BlockHeader},
+    block::{pack_block_info, L2BlockHasher, L2BlockHeader, UnsealedL1BatchHeader},
     bytecode::{
-        testonly::{PROCESSED_EVM_BYTECODE, RAW_EVM_BYTECODE},
+        testonly::{PADDED_EVM_BYTECODE, PROCESSED_EVM_BYTECODE},
         BytecodeHash,
     },
     fee_model::{BatchFeeInput, FeeParams},
-    get_nonce_key,
-    l2::L2Tx,
+    get_deployer_key, get_nonce_key,
     storage::get_code_key,
     system_contracts::get_system_smart_contracts,
     tokens::{TokenInfo, TokenMetadata},
     tx::IncludedTxLocation,
     u256_to_h256,
     utils::{storage_key_for_eth_balance, storage_key_for_standard_token_balance},
-    AccountTreeId, Address, L1BatchNumber, Nonce, ProtocolVersionId, StorageKey, StorageLog, H256,
-    U256, U64,
+    AccountTreeId, Address, L1BatchNumber, Nonce, StorageKey, StorageLog, H256, U256, U64,
 };
 use zksync_vm_executor::oneshot::MockOneshotExecutor;
 use zksync_web3_decl::{
@@ -65,7 +62,11 @@ use zksync_web3_decl::{
 };
 
 use super::*;
-use crate::{tx_sender::SandboxExecutorOptions, web3::testonly::TestServerBuilder};
+use crate::{
+    testonly::{mock_execute_transaction, store_custom_l2_block},
+    tx_sender::SandboxExecutorOptions,
+    web3::testonly::TestServerBuilder,
+};
 
 mod debug;
 mod filters;
@@ -206,30 +207,34 @@ impl StorageInitialization {
     ) -> anyhow::Result<()> {
         match self {
             Self::Genesis { evm_emulator } => {
-                let mut config = GenesisConfig {
+                let config = GenesisConfig {
                     l2_chain_id: network_config.zksync_network_id,
                     ..mock_genesis_config()
                 };
-                let mut base_system_contracts = BaseSystemContracts::load_from_disk();
-                if evm_emulator {
-                    config.evm_emulator_hash = Some(config.default_aa_hash.unwrap());
-                    base_system_contracts.evm_emulator =
-                        Some(base_system_contracts.default_aa.clone());
-                } else {
-                    assert!(config.evm_emulator_hash.is_none());
-                }
+                let base_system_contracts = BaseSystemContracts::load_from_disk();
+                assert!(config.evm_emulator_hash.is_some());
 
                 let params = GenesisParams::from_genesis_config(
                     config,
                     base_system_contracts,
-                    // We cannot load system contracts with EVM emulator yet because these contracts are missing.
-                    // This doesn't matter for tests because the EVM emulator won't be invoked.
-                    get_system_smart_contracts(false),
+                    get_system_smart_contracts(),
                 )
                 .unwrap();
 
                 if storage.blocks_dal().is_genesis_needed().await? {
                     insert_genesis_batch(storage, &params).await?;
+                }
+                if evm_emulator {
+                    // Enable EVM contract deployment in `ContractDeployer` storage.
+                    let contract_types_storage_key = get_deployer_key(H256::from_low_u64_be(1));
+                    let contract_types_log = StorageLog::new_write_log(
+                        contract_types_storage_key,
+                        H256::from_low_u64_be(1),
+                    );
+                    storage
+                        .storage_logs_dal()
+                        .append_storage_logs(L2BlockNumber(0), &[contract_types_log])
+                        .await?;
                 }
             }
             Self::Recovery {
@@ -284,7 +289,7 @@ async fn test_http_server(test: impl HttpTest) {
     let contracts_config = ContractsConfig::for_tests();
     let web3_config = Web3JsonRpcConfig::for_tests();
     let genesis = GenesisConfig::for_tests();
-    let mut api_config = InternalApiConfig::new(&web3_config, &contracts_config, &genesis);
+    let mut api_config = InternalApiConfig::new(&web3_config, &contracts_config, &genesis, false);
     api_config.filters_disabled = test.filters_disabled();
     let mut server_builder = TestServerBuilder::new(pool.clone(), api_config)
         .with_tx_executor(test.transaction_executor())
@@ -326,20 +331,6 @@ fn assert_logs_match(actual_logs: &[api::Log], expected_logs: &[&VmEvent]) {
     }
 }
 
-fn execute_l2_transaction(transaction: L2Tx) -> TransactionExecutionResult {
-    TransactionExecutionResult {
-        hash: transaction.hash(),
-        transaction: transaction.into(),
-        execution_info: VmExecutionMetrics::default(),
-        execution_status: TxExecutionStatus::Success,
-        refunded_gas: 0,
-        operator_suggested_refund: 0,
-        compressed_bytecodes: vec![],
-        call_traces: vec![],
-        revert_reason: None,
-    }
-}
-
 /// Stores L2 block and returns the L2 block header.
 async fn store_l2_block(
     storage: &mut Connection<'_, Core>,
@@ -351,50 +342,16 @@ async fn store_l2_block(
     Ok(header)
 }
 
-async fn store_custom_l2_block(
+async fn open_l1_batch(
     storage: &mut Connection<'_, Core>,
-    header: &L2BlockHeader,
-    transaction_results: &[TransactionExecutionResult],
-) -> anyhow::Result<()> {
-    let number = header.number;
-    for result in transaction_results {
-        let l2_tx = result.transaction.clone().try_into().unwrap();
-        let tx_submission_result = storage
-            .transactions_dal()
-            .insert_transaction_l2(
-                &l2_tx,
-                TransactionExecutionMetrics::default(),
-                ValidationTraces::default(),
-            )
-            .await
-            .unwrap();
-        assert_matches!(tx_submission_result, L2TxSubmissionResult::Added);
-    }
-
-    // Record L2 block info which is read by the VM sandbox logic
-    let l2_block_info_key = StorageKey::new(
-        AccountTreeId::new(SYSTEM_CONTEXT_ADDRESS),
-        SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
-    );
-    let block_info = pack_block_info(number.0.into(), number.0.into());
-    let l2_block_log = StorageLog::new_write_log(l2_block_info_key, u256_to_h256(block_info));
-    storage
-        .storage_logs_dal()
-        .append_storage_logs(number, &[l2_block_log])
-        .await?;
-
-    storage.blocks_dal().insert_l2_block(header).await?;
-    storage
-        .transactions_dal()
-        .mark_txs_as_executed_in_l2_block(
-            number,
-            transaction_results,
-            1.into(),
-            ProtocolVersionId::latest(),
-            false,
-        )
-        .await?;
-    Ok(())
+    number: L1BatchNumber,
+    batch_fee_input: BatchFeeInput,
+) -> anyhow::Result<UnsealedL1BatchHeader> {
+    let mut header = create_l1_batch(number.0);
+    header.batch_fee_input = batch_fee_input;
+    let header = header.to_unsealed_header();
+    storage.blocks_dal().insert_l1_batch(header.clone()).await?;
+    Ok(header)
 }
 
 async fn seal_l1_batch(
@@ -433,7 +390,6 @@ async fn store_events(
     let tx_location = IncludedTxLocation {
         tx_hash: H256::repeat_byte(1),
         tx_index_in_l2_block: 0,
-        tx_initiator_address: Address::repeat_byte(2),
     };
     let events = vec![
         // Matches address, doesn't match topics
@@ -751,7 +707,7 @@ impl HttpTest for TransactionCountTest {
             store_l2_block(
                 &mut storage,
                 l2_block_number,
-                &[execute_l2_transaction(committed_tx)],
+                &[mock_execute_transaction(committed_tx.into())],
             )
             .await?;
             let nonce_log = StorageLog::new_write_log(
@@ -915,8 +871,8 @@ impl HttpTest for TransactionReceiptsTest {
         let tx1 = create_l2_transaction(10, 200);
         let tx2 = create_l2_transaction(10, 200);
         let tx_results = vec![
-            execute_l2_transaction(tx1.clone()),
-            execute_l2_transaction(tx2.clone()),
+            mock_execute_transaction(tx1.clone().into()),
+            mock_execute_transaction(tx2.clone().into()),
         ];
         store_l2_block(&mut storage, l2_block_number, &tx_results).await?;
 
@@ -1171,14 +1127,16 @@ impl GetBytecodeTest {
         at_block: L2BlockNumber,
         address: Address,
     ) -> anyhow::Result<()> {
-        let evm_bytecode_hash = BytecodeHash::for_evm_bytecode(RAW_EVM_BYTECODE).value();
+        let evm_bytecode_hash =
+            BytecodeHash::for_evm_bytecode(PROCESSED_EVM_BYTECODE.len(), PADDED_EVM_BYTECODE)
+                .value();
         let code_log = StorageLog::new_write_log(get_code_key(&address), evm_bytecode_hash);
         connection
             .storage_logs_dal()
             .append_storage_logs(at_block, &[code_log])
             .await?;
 
-        let factory_deps = HashMap::from([(evm_bytecode_hash, RAW_EVM_BYTECODE.to_vec())]);
+        let factory_deps = HashMap::from([(evm_bytecode_hash, PADDED_EVM_BYTECODE.to_vec())]);
         connection
             .factory_deps_dal()
             .insert_factory_deps(at_block, &factory_deps)
@@ -1198,7 +1156,7 @@ impl HttpTest for GetBytecodeTest {
         let mut connection = pool.connection().await?;
         Self::insert_evm_bytecode(&mut connection, L2BlockNumber(0), genesis_evm_address).await?;
 
-        for contract in get_system_smart_contracts(false) {
+        for contract in get_system_smart_contracts() {
             let bytecode = client
                 .get_code(*contract.account_id.address(), None)
                 .await?;
@@ -1313,7 +1271,7 @@ impl HttpTest for FeeHistoryTest {
         .map(U256::from);
 
         let history = client
-            .fee_history(1_000.into(), api::BlockNumber::Latest, vec![])
+            .fee_history(1_000.into(), api::BlockNumber::Latest, Some(vec![]))
             .await?;
         assert_eq!(history.inner.oldest_block, 0.into());
         assert_eq!(
@@ -1346,7 +1304,11 @@ impl HttpTest for FeeHistoryTest {
 
         // Check partial histories: blocks 0..=1
         let history = client
-            .fee_history(1_000.into(), api::BlockNumber::Number(1.into()), vec![])
+            .fee_history(
+                1_000.into(),
+                api::BlockNumber::Number(1.into()),
+                Some(vec![]),
+            )
             .await?;
         assert_eq!(history.inner.oldest_block, 0.into());
         assert_eq!(
@@ -1357,7 +1319,7 @@ impl HttpTest for FeeHistoryTest {
 
         // Blocks 1..=2
         let history = client
-            .fee_history(2.into(), api::BlockNumber::Latest, vec![])
+            .fee_history(2.into(), api::BlockNumber::Latest, Some(vec![]))
             .await?;
         assert_eq!(history.inner.oldest_block, 1.into());
         assert_eq!(
@@ -1368,7 +1330,7 @@ impl HttpTest for FeeHistoryTest {
 
         // Blocks 1..=1
         let history = client
-            .fee_history(1.into(), api::BlockNumber::Number(1.into()), vec![])
+            .fee_history(1.into(), api::BlockNumber::Number(1.into()), Some(vec![]))
             .await?;
         assert_eq!(history.inner.oldest_block, 1.into());
         assert_eq!(history.inner.base_fee_per_gas, [100, 100].map(U256::from));
@@ -1376,7 +1338,11 @@ impl HttpTest for FeeHistoryTest {
 
         // Non-existing newest block.
         let err = client
-            .fee_history(1000.into(), api::BlockNumber::Number(100.into()), vec![])
+            .fee_history(
+                1000.into(),
+                api::BlockNumber::Number(100.into()),
+                Some(vec![]),
+            )
             .await
             .unwrap_err();
         assert_matches!(

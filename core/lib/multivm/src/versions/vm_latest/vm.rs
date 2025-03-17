@@ -1,6 +1,6 @@
 use std::{collections::HashMap, rc::Rc};
 
-use circuit_sequencer_api_1_5_0::sort_storage_access::sort_storage_access_queries;
+use circuit_sequencer_api::sort_storage_access::sort_storage_access_queries;
 use zksync_types::{
     h256_to_u256,
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
@@ -21,10 +21,10 @@ use crate::{
     },
     utils::{bytecode::be_words_to_bytes, events::extract_l2tol1logs_from_l1_messenger},
     vm_latest::{
-        bootloader_state::BootloaderState,
+        bootloader::BootloaderState,
         old_vm::{events::merge_events, history_recorder::HistoryEnabled},
         tracers::{dispatcher::TracerDispatcher, PubdataTracer},
-        types::internals::{new_vm_state, VmSnapshot, ZkSyncVmState},
+        types::{new_vm_state, VmSnapshot, ZkSyncVmState},
     },
     HistoryMode,
 };
@@ -34,7 +34,7 @@ use crate::{
 /// In the first version of the v1.5.0 release, the bootloader memory was too small, so a new
 /// version was released with increased bootloader memory. The version with the small bootloader memory
 /// is available only on internal staging environments.
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq, PartialOrd)]
 pub(crate) enum MultiVmSubversion {
     /// The initial version of v1.5.0, available only on staging environments.
     SmallBootloaderMemory,
@@ -42,24 +42,28 @@ pub(crate) enum MultiVmSubversion {
     IncreasedBootloaderMemory,
     /// VM for post-gateway versions.
     Gateway,
+    EvmEmulator,
 }
 
 impl MultiVmSubversion {
     #[cfg(test)]
     pub(crate) fn latest() -> Self {
-        Self::IncreasedBootloaderMemory
+        Self::EvmEmulator
     }
 }
 
 #[derive(Debug)]
 pub(crate) struct VmVersionIsNotVm150Error;
+
 impl TryFrom<VmVersion> for MultiVmSubversion {
     type Error = VmVersionIsNotVm150Error;
+
     fn try_from(value: VmVersion) -> Result<Self, Self::Error> {
         match value {
             VmVersion::Vm1_5_0SmallBootloaderMemory => Ok(Self::SmallBootloaderMemory),
             VmVersion::Vm1_5_0IncreasedBootloaderMemory => Ok(Self::IncreasedBootloaderMemory),
             VmVersion::VmGateway => Ok(Self::Gateway),
+            VmVersion::VmEvmEmulator => Ok(Self::EvmEmulator),
             _ => Err(VmVersionIsNotVm150Error),
         }
     }
@@ -124,7 +128,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
 
         let storage_log_queries = self.state.storage.get_final_log_queries();
         let deduped_storage_log_queries =
-            sort_storage_access_queries(storage_log_queries.iter().map(|log| &log.log_query)).1;
+            sort_storage_access_queries(storage_log_queries.iter().map(|log| log.log_query)).1;
 
         CurrentExecutionState {
             events,
@@ -249,7 +253,8 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
         storage: StoragePtr<S>,
         subversion: MultiVmSubversion,
     ) -> Self {
-        let (state, bootloader_state) = new_vm_state(storage.clone(), &system_env, &batch_env);
+        let (state, bootloader_state) =
+            new_vm_state(storage.clone(), &system_env, &batch_env, subversion);
         Self {
             bootloader_state,
             state,

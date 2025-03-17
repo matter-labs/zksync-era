@@ -2,10 +2,10 @@ use std::{fmt, future::Future, time::Duration};
 
 use anyhow::Context as _;
 use clap::Parser;
-use common::logger;
 use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
 use tokio::time::MissedTickBehavior;
+use zkstack_cli_common::logger;
 
 use crate::messages::{
     msg_wait_connect_err, msg_wait_non_successful_response, msg_wait_not_healthy,

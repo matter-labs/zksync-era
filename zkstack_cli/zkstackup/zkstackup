@@ -86,6 +86,10 @@ parse_args() {
       shift
       ZKSTACKUP_VERSION=$1
       ;;
+    --cargo-features)
+      shift
+      ZKSTACKUP_FEATURES=$1
+      ;;
     -h | --help)
       usage
       exit 0
@@ -114,10 +118,12 @@ Options:
   -b, --branch <branch>     Git branch to use when installing from a repository. Ignored if --commit or --version is provided.
   -c, --commit <commit>     Git commit hash to use when installing from a repository. Ignored if --branch or --version is provided.
   -v, --version <version>   Git tag to use when installing from a repository. Ignored if --branch or --commit is provided.
+  --cargo-features <cargo-features> One or more features passed to cargo install (e.g., "gateway").
   -h, --help                Show this help message and exit.
 
 Examples:
   $(basename "$0") --repo matter-labs/zksync-era --version 0.1.1
+  $(basename "$0") --local --cargo-features "gateway"
 EOF
 }
 
@@ -143,7 +149,11 @@ install_local() {
 
   for bin in "${BINS[@]}"; do
     say "Installing $bin"
-    ensure cargo install --root $LOCAL_DIR --path ./crates/$bin --force
+    ensure cargo install --root "$LOCAL_DIR" \
+      --path "./crates/$bin" \
+      --force \
+      --locked \
+      ${ZKSTACKUP_FEATURES:+--features "$ZKSTACKUP_FEATURES"}
     chmod +x "$BIN_DIR/$bin"
   done
 }
@@ -161,18 +171,41 @@ install_from_repo() {
     if [ -n "$ZKSTACKUP_COMMIT" ] || [ -n "$ZKSTACKUP_BRANCH" ]; then
       warn "Ignoring --commit and --branch arguments when installing by version"
     fi
-    ensure cargo install --root $LOCAL_DIR --git "https://github.com/$ZKSTACKUP_REPO" --tag "zkstack_cli-v$ZKSTACKUP_VERSION" --locked "${BINS[@]}" --force
+    ensure cargo install --root "$LOCAL_DIR" \
+      --git "https://github.com/$ZKSTACKUP_REPO" \
+      --tag "zkstack_cli-v$ZKSTACKUP_VERSION" \
+      --locked "${BINS[@]}" \
+      --force \
+      ${ZKSTACKUP_FEATURES:+--features "$ZKSTACKUP_FEATURES"}
+
   elif [ -n "$ZKSTACKUP_COMMIT" ]; then
     if [ -n "$ZKSTACKUP_BRANCH" ]; then
       warn "Ignoring --branch argument when installing by commit"
     fi
-    ensure cargo install --root $LOCAL_DIR --git "https://github.com/$ZKSTACKUP_REPO" --rev "$ZKSTACKUP_COMMIT" --locked "${BINS[@]}" --force
+    ensure cargo install --root "$LOCAL_DIR" \
+      --git "https://github.com/$ZKSTACKUP_REPO" \
+      --rev "$ZKSTACKUP_COMMIT" \
+      --locked "${BINS[@]}" \
+      --force \
+      ${ZKSTACKUP_FEATURES:+--features "$ZKSTACKUP_FEATURES"}
+
   elif [ -n "$ZKSTACKUP_BRANCH" ]; then
-    ensure cargo install --root $LOCAL_DIR --git "https://github.com/$ZKSTACKUP_REPO" --branch "$ZKSTACKUP_BRANCH" --locked "${BINS[@]}" --force
+    ensure cargo install --root "$LOCAL_DIR" \
+      --git "https://github.com/$ZKSTACKUP_REPO" \
+      --branch "$ZKSTACKUP_BRANCH" \
+      --locked "${BINS[@]}" \
+      --force \
+      ${ZKSTACKUP_FEATURES:+--features "$ZKSTACKUP_FEATURES"}
+
   else
-    ensure cargo install --root $LOCAL_DIR --git "https://github.com/$ZKSTACKUP_REPO" --locked "${BINS[@]}" --force
+    ensure cargo install --root "$LOCAL_DIR" \
+      --git "https://github.com/$ZKSTACKUP_REPO" \
+      --locked "${BINS[@]}" \
+      --force \
+      ${ZKSTACKUP_FEATURES:+--features "$ZKSTACKUP_FEATURES"}
   fi
 }
+
 
 add_bin_folder_to_path() {
   if [[ ":$PATH:" == *":${BIN_DIR}:"* ]]; then

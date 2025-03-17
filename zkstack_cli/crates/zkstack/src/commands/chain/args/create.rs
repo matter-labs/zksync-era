@@ -2,12 +2,12 @@ use std::{path::PathBuf, str::FromStr};
 
 use anyhow::{bail, Context};
 use clap::{Parser, ValueEnum, ValueHint};
-use common::{Prompt, PromptConfirm, PromptSelect};
-use config::forge_interface::deploy_ecosystem::output::Erc20Token;
 use serde::{Deserialize, Serialize};
 use slugify_rs::slugify;
 use strum::{Display, EnumIter, IntoEnumIterator};
-use types::{BaseToken, L1BatchCommitmentMode, L1Network, ProverMode, WalletCreation};
+use zkstack_cli_common::{Prompt, PromptConfirm, PromptSelect};
+use zkstack_cli_config::forge_interface::deploy_ecosystem::output::Erc20Token;
+use zkstack_cli_types::{BaseToken, L1BatchCommitmentMode, L1Network, ProverMode, WalletCreation};
 use zksync_basic_types::H160;
 
 use crate::{
@@ -70,6 +70,8 @@ pub struct ChainCreateArgs {
     pub(crate) legacy_bridge: bool,
     #[arg(long, help = MSG_EVM_EMULATOR_HELP, default_missing_value = "true", num_args = 0..=1)]
     evm_emulator: Option<bool>,
+    #[clap(long, help = "Whether to update git submodules of repo")]
+    update_submodules: Option<bool>,
 }
 
 impl ChainCreateArgs {
@@ -239,6 +241,7 @@ impl ChainCreateArgs {
             legacy_bridge: self.legacy_bridge,
             evm_emulator,
             link_to_code,
+            update_submodules: self.update_submodules,
         })
     }
 }
@@ -256,6 +259,7 @@ pub struct ChainCreateArgsFinal {
     pub legacy_bridge: bool,
     pub evm_emulator: bool,
     pub link_to_code: String,
+    pub update_submodules: Option<bool>,
 }
 
 #[derive(Debug, Clone, EnumIter, Display, PartialEq, Eq)]

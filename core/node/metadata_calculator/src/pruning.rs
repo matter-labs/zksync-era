@@ -101,8 +101,8 @@ impl MerkleTreePruningTask {
             let pruning_info = storage.pruning_dal().get_pruning_info().await?;
             drop(storage);
 
-            if let Some(l1_batch_number) = pruning_info.last_hard_pruned_l1_batch {
-                let target_retained_l1_batch_number = l1_batch_number + 1;
+            if let Some(pruned) = pruning_info.last_hard_pruned {
+                let target_retained_l1_batch_number = pruned.l1_batch + 1;
                 let target_retained_version = u64::from(target_retained_l1_batch_number.0);
                 let Ok(prev_target_version) =
                     pruner_handle.set_target_retained_version(target_retained_version)
@@ -148,7 +148,7 @@ mod tests {
     use test_casing::test_casing;
     use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
     use zksync_node_test_utils::prepare_recovery_snapshot;
-    use zksync_types::{L1BatchNumber, L2BlockNumber};
+    use zksync_types::{L1BatchNumber, L2BlockNumber, H256};
 
     use super::*;
     use crate::{
@@ -192,6 +192,11 @@ mod tests {
         storage
             .pruning_dal()
             .hard_prune_batches_range(L1BatchNumber(3), L2BlockNumber(3))
+            .await
+            .unwrap();
+        storage
+            .pruning_dal()
+            .insert_hard_pruning_log(L1BatchNumber(3), L2BlockNumber(3), H256::zero())
             .await
             .unwrap();
 
@@ -322,9 +327,10 @@ mod tests {
         // Prune first 3 created batches in Postgres.
         storage
             .pruning_dal()
-            .hard_prune_batches_range(
+            .insert_hard_pruning_log(
                 snapshot_recovery.l1_batch_number + 3,
                 snapshot_recovery.l2_block_number + 3,
+                H256::zero(), // not used
             )
             .await
             .unwrap();

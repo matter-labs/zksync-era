@@ -37,7 +37,7 @@ impl HttpTest for SnapshotBasicsTest {
         store_l2_block(
             &mut storage,
             L2BlockNumber(1),
-            &[execute_l2_transaction(create_l2_transaction(1, 2))],
+            &[mock_execute_transaction(create_l2_transaction(1, 2).into())],
         )
         .await?;
         seal_l1_batch(&mut storage, L1BatchNumber(1)).await?;

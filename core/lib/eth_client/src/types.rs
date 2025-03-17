@@ -124,6 +124,52 @@ impl ContractCall<'_> {
             }
         })
     }
+
+    pub async fn call_with_function<Res: Detokenize>(
+        &self,
+        client: &dyn EthInterface,
+        function: ethabi::Function,
+    ) -> Result<Res, ContractCallError> {
+        let encoded_input = function
+            .encode_input(&self.inner.params)
+            .map_err(|source| ContractCallError::EncodeInput {
+                signature: function.signature(),
+                input: self.inner.params.clone(),
+                source,
+            })?;
+
+        let request = web3::CallRequest {
+            from: self.inner.from,
+            to: Some(self.contract_address),
+            data: Some(Bytes(encoded_input)),
+            // Other options are never set
+            gas: None,
+            gas_price: None,
+            value: None,
+            transaction_type: None,
+            access_list: None,
+            max_fee_per_gas: None,
+            max_priority_fee_per_gas: None,
+        };
+
+        let encoded_output = client
+            .call_contract_function(request, self.inner.block)
+            .await?;
+        let output_tokens = function
+            .decode_output(&encoded_output.0)
+            .map_err(|source| ContractCallError::DecodeOutput {
+                signature: function.signature(),
+                output: encoded_output,
+                source,
+            })?;
+        Res::from_tokens(output_tokens.clone()).map_err(|source| {
+            ContractCallError::DetokenizeOutput {
+                signature: function.signature(),
+                output: output_tokens,
+                source,
+            }
+        })
+    }
 }
 
 /// Contract-related subset of Ethereum client errors.

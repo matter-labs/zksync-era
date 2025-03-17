@@ -1,8 +1,8 @@
-# ZKsync node Troubleshooting
+# Node Troubleshooting
 
-The ZKsync node tries to follow the fail-fast principle: if an anomaly is discovered, instead of attempting state
-recovery, in most cases it will restart. Most of the time it will manifest as crashes, and if it happens once, it
-shouldn't be treated as a problem.
+The Node tries to follow the fail-fast principle: if an anomaly is discovered, instead of attempting state recovery, in
+most cases it will restart. Most of the time it will manifest as crashes, and if it happens once, it shouldn't be
+treated as a problem.
 
 However, if the node enters the crash loop or otherwise behaves unexpectedly, it may indicate either a bug in the
 implementation or a problem with configuration. This section tries to cover common problems.
@@ -22,12 +22,37 @@ will immediately crash.
 Other kinds of panic aren't normally expected. While in most cases, the state will be recovered after a restart, please
 [report][contact_us] such cases to Matter Labs regardless.
 
+[contact_us]: https://zksync.io/contact
+
 ## Genesis Issues
 
-The ZKsync node is supposed to start with an applied DB dump. If you see any genesis-related errors, it probably means
-the ZKsync node was started without an applied dump.
+On Era, a Node is supposed to start with an applied Postgres dump, or
+[recover from a snapshot](07_snapshots_recovery.md) (the latter requires an opt-in by changing the node config; see the
+linked article for details). If you see any genesis-related errors for an Era node without snapshot recovery activated,
+it may mean the Node was started without an applied dump. For other networks, a Node may be able to sync from the
+genesis.
 
-[contact_us]: https://zksync.io/contact
+## RocksDB Issues
+
+When using Docker Compose, Kubernetes or other container orchestrators to run a Node, it is important to follow the
+rules regarding persistent volumes for [RocksDB instances](02_configuration.md#database). Volumes must be attached to a
+specific Node (effectively, to a specific Postgres database). Volumes **must not** be shared across nodes at the same
+time (this may lead to RocksDB corruption), and **must not** be transferred from one node to another.
+
+A symptom of incorrect persistent volume usage is a Node crashing on start with an error like this appearing in the
+logs:
+
+```text
+ERROR zksync_node_framework::service: Task oneshot_runner failed: Oneshot task state_keeper/rocksdb_catchup_task failed
+Caused by:
+    0: Failed to catch up RocksDB to Postgres
+    1: L1 batch number in state keeper cache (5153) is greater than the requested batch number (4652)
+```
+
+(Obviously, L1 batch numbers may differ.)
+
+To fix the issue, allocate an exclusive persistent volume for the Node, ensure that the volume is empty and restart the
+Node.
 
 ## Logs
 
@@ -43,7 +68,7 @@ you don't consider actionable, you may disable logs for a component by tweaking 
 | WARN  | "Following transport error occurred"                  | There was a problem with fetching data from the main node.                                               |
 | WARN  | "Unable to get the gas price"                         | There was a problem with fetching data from the main node.                                               |
 | WARN  | "Consistency checker error"                           | There are problems querying L1, check the Web3 URL you specified in the config.                          |
-| WARN  | "Reorg detected"                                      | Reorg was detected on the main node, the ZKsync node will rollback and restart                           |
+| WARN  | "Reorg detected"                                      | Reorg was detected on the main node, the Node will rollback and restart                                  |
 
 Same as with panics, normally it's only a problem if a WARN+ level log appears many times in a row.
 

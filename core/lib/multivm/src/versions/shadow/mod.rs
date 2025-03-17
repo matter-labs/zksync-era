@@ -18,14 +18,17 @@ use crate::{
     versions::testonly::{
         default_l1_batch, default_system_env, make_address_rich, ContractToDeploy,
     },
-    vm_fast, vm_latest,
+    vm_fast,
+    vm_fast::FastValidationTracer,
+    vm_latest,
     vm_latest::HistoryEnabled,
 };
 
 mod tests;
 
 type ReferenceVm<S = InMemoryStorage> = vm_latest::Vm<StorageView<S>, HistoryEnabled>;
-type ShadowedFastVm<S = InMemoryStorage> = crate::vm_instance::ShadowedFastVm<S>;
+type ShadowedFastVm<S = InMemoryStorage, Tr = ()> =
+    crate::vm_instance::ShadowedFastVm<S, Tr, FastValidationTracer>;
 
 fn hash_block(block_env: L2BlockEnv, tx_hashes: &[H256]) -> H256 {
     let mut hasher = L2BlockHasher::new(
@@ -177,7 +180,7 @@ impl Harness {
         let (compression_result, exec_result) =
             vm.execute_transaction_with_bytecode_compression(deploy_tx.tx.clone(), true);
         compression_result.unwrap();
-        assert!(!exec_result.result.is_failed(), "{:#?}", exec_result);
+        assert!(!exec_result.result.is_failed(), "{exec_result:#?}");
 
         let load_test_tx = self.bob.get_loadnext_transaction(
             deploy_tx.address,
@@ -187,7 +190,7 @@ impl Harness {
         let (compression_result, exec_result) =
             vm.execute_transaction_with_bytecode_compression(load_test_tx.clone(), true);
         compression_result.unwrap();
-        assert!(!exec_result.result.is_failed(), "{:#?}", exec_result);
+        assert!(!exec_result.result.is_failed(), "{exec_result:#?}");
 
         self.new_block(vm, &[deploy_tx.tx.hash(), load_test_tx.hash()]);
     }

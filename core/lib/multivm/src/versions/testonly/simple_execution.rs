@@ -1,14 +1,12 @@
 use assert_matches::assert_matches;
-use zksync_test_contracts::TxType;
+use zksync_test_contracts::{TestContract, TxType};
+use zksync_types::{Execute, H256};
 
-use super::{default_pubdata_builder, tester::VmTesterBuilder, TestedVm};
+use super::{default_pubdata_builder, extract_deploy_events, tester::VmTesterBuilder, TestedVm};
 use crate::interface::{ExecutionResult, InspectExecutionMode, VmInterfaceExt};
 
 pub(crate) fn test_estimate_fee<VM: TestedVm>() {
-    let mut vm_tester = VmTesterBuilder::new()
-        .with_empty_in_memory_storage()
-        .with_rich_accounts(1)
-        .build::<VM>();
+    let mut vm_tester = VmTesterBuilder::new().with_rich_accounts(1).build::<VM>();
 
     vm_tester.deploy_test_contract();
     let account = &mut vm_tester.rich_accounts[0];
@@ -28,10 +26,7 @@ pub(crate) fn test_estimate_fee<VM: TestedVm>() {
 }
 
 pub(crate) fn test_simple_execute<VM: TestedVm>() {
-    let mut vm_tester = VmTesterBuilder::new()
-        .with_empty_in_memory_storage()
-        .with_rich_accounts(1)
-        .build::<VM>();
+    let mut vm_tester = VmTesterBuilder::new().with_rich_accounts(1).build::<VM>();
 
     vm_tester.deploy_test_contract();
 
@@ -74,4 +69,40 @@ pub(crate) fn test_simple_execute<VM: TestedVm>() {
         .finish_batch(default_pubdata_builder())
         .block_tip_execution_result;
     assert_matches!(block_tip.result, ExecutionResult::Success { .. });
+}
+
+// TODO: also test EVM contract addresses once EVM emulator is implemented
+pub(crate) fn test_create2_deployment_address<VM: TestedVm>() {
+    let mut vm_tester = VmTesterBuilder::new().with_rich_accounts(1).build::<VM>();
+    let account = &mut vm_tester.rich_accounts[0];
+
+    let (execute, deploy_params) =
+        Execute::for_create2_deploy(H256::zero(), TestContract::counter().bytecode.to_vec(), &[]);
+    let deploy_tx = account.get_l2_tx_for_execute(execute, None);
+    let expected_address = deploy_params.derive_address(account.address);
+
+    vm_tester.vm.push_transaction(deploy_tx);
+    let res = vm_tester.vm.execute(InspectExecutionMode::OneTx);
+    assert_matches!(res.result, ExecutionResult::Success { .. });
+
+    let deploy_events = extract_deploy_events(&res.logs.events);
+    assert_eq!(deploy_events.len(), 1);
+    assert_eq!(deploy_events[0], (account.address, expected_address));
+
+    // Test with non-trivial salt and constructor args
+    let (execute, deploy_params) = Execute::for_create2_deploy(
+        H256::repeat_byte(1),
+        TestContract::load_test().bytecode.to_vec(),
+        &[ethabi::Token::Uint(100.into())],
+    );
+    let deploy_tx = account.get_l2_tx_for_execute(execute, None);
+    let expected_address = deploy_params.derive_address(account.address);
+
+    vm_tester.vm.push_transaction(deploy_tx);
+    let res = vm_tester.vm.execute(InspectExecutionMode::OneTx);
+    assert_matches!(res.result, ExecutionResult::Success { .. });
+
+    let deploy_events = extract_deploy_events(&res.logs.events);
+    assert_eq!(deploy_events.len(), 1);
+    assert_eq!(deploy_events[0], (account.address, expected_address));
 }

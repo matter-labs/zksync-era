@@ -7,6 +7,8 @@ use ethers::{
 use url::Url;
 use zksync_consensus_roles::attester;
 
+use crate::utils::forge::WalletOwner;
+
 pub(super) const MSG_SETUP_KEYS_DOWNLOAD_SELECTION_PROMPT: &str =
     "Do you want to download the setup keys or generate them?";
 pub(super) const MSG_SETUP_KEYS_REGION_PROMPT: &str =
@@ -70,6 +72,7 @@ pub(super) const MSG_DEPLOY_ECOSYSTEM_PROMPT: &str =
     "Do you want to deploy ecosystem contracts? (Not needed if you already have an existing one)";
 pub(super) const MSG_L1_RPC_URL_PROMPT: &str = "What is the RPC URL of the L1 network?";
 pub(super) const MSG_DEPLOY_PAYMASTER_PROMPT: &str = "Do you want to deploy Paymaster contract?";
+pub(super) const MSG_VALIDIUM_TYPE_PROMPT: &str = "Select the Validium type";
 pub(super) const MSG_DEPLOY_ERC20_PROMPT: &str = "Do you want to deploy some test ERC20s?";
 pub(super) const MSG_ECOSYSTEM_CONTRACTS_PATH_PROMPT: &str = "Provide the path to the ecosystem contracts or keep it empty and you will use ZKsync ecosystem config. \
 For using this config, you need to have governance wallet";
@@ -83,6 +86,7 @@ pub(super) const MSG_CHAIN_INITIALIZED: &str = "Chain initialized successfully";
 pub(super) const MSG_CHAIN_CONFIGS_INITIALIZED: &str = "Chain configs were initialized";
 pub(super) const MSG_CHAIN_OWNERSHIP_TRANSFERRED: &str =
     "Chain ownership was transferred successfully";
+pub(super) const MSG_EVM_EMULATOR_ENABLED: &str = "EVM emulator enabled successfully";
 pub(super) const MSG_CHAIN_REGISTERED: &str = "Chain registraion was successful";
 pub(super) const MSG_DISTRIBUTING_ETH_SPINNER: &str = "Distributing eth...";
 pub(super) const MSG_MINT_BASE_TOKEN_SPINNER: &str =
@@ -94,6 +98,7 @@ pub(super) const MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER: &str =
     "Deploying ecosystem contracts...";
 pub(super) const MSG_REGISTERING_CHAIN_SPINNER: &str = "Registering chain...";
 pub(super) const MSG_ACCEPTING_ADMIN_SPINNER: &str = "Accepting admin...";
+pub(super) const MSG_DA_PAIR_REGISTRATION_SPINNER: &str = "Registering DA pair...";
 pub(super) const MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER: &str =
     "Updating token multiplier setter...";
 pub(super) const MSG_TOKEN_MULTIPLIER_SETTER_UPDATED_TO: &str =
@@ -192,12 +197,11 @@ pub(super) const MSG_EVM_EMULATOR_HASH_MISSING_ERR: &str =
      does not contain EVM emulator hash";
 
 /// Chain genesis related messages
-pub(super) const MSG_L1_SECRETS_MUST_BE_PRESENTED: &str = "L1 secret must be presented";
-pub(super) const MSG_DATABASE_MUST_BE_PRESENTED: &str = "Database secret must be presented";
 pub(super) const MSG_SERVER_DB_URL_HELP: &str = "Server database url without database name";
 pub(super) const MSG_SERVER_DB_NAME_HELP: &str = "Server database name";
 pub(super) const MSG_PROVER_DB_URL_HELP: &str = "Prover database url without database name";
 pub(super) const MSG_PROVER_DB_NAME_HELP: &str = "Prover database name";
+pub(super) const MSG_SERVER_COMMAND_HELP: &str = "Command to run the server binary";
 pub(super) const MSG_USE_DEFAULT_DATABASES_HELP: &str = "Use default database urls and names";
 pub(super) const MSG_GENESIS_COMPLETED: &str = "Genesis completed successfully";
 pub(super) const MSG_STARTING_GENESIS: &str = "Starting genesis process";
@@ -270,6 +274,9 @@ pub(super) const MSG_SERVER_URING_HELP: &str = "Enables uring support for RocksD
 /// Accept ownership related messages
 pub(super) const MSG_ACCEPTING_GOVERNANCE_SPINNER: &str = "Accepting governance...";
 
+/// EVM emulator related messages
+pub(super) const MSG_ENABLING_EVM_EMULATOR: &str = "Enabling EVM emulator...";
+
 /// Containers related messages
 pub(super) const MSG_STARTING_CONTAINERS: &str = "Starting containers";
 pub(super) const MSG_STARTING_DOCKER_CONTAINERS_SPINNER: &str =
@@ -334,7 +341,15 @@ pub(super) fn msg_explorer_chain_not_initialized(chain: &str) -> String {
 }
 
 /// Forge utils related messages
-pub(super) const MSG_DEPLOYER_PK_NOT_SET_ERR: &str = "Deployer private key is not set";
+pub(super) fn msg_wallet_private_key_not_set(wallet_owner: WalletOwner) -> String {
+    format!(
+        "{} private key is not set",
+        match wallet_owner {
+            WalletOwner::Governor => "Governor",
+            WalletOwner::Deployer => "Deployer",
+        }
+    )
+}
 
 pub(super) fn msg_address_doesnt_have_enough_money_prompt(
     address: &H160,
@@ -354,9 +369,6 @@ pub(super) fn msg_preparing_en_config_is_done(path: &Path) -> String {
 
 pub(super) const MSG_EXTERNAL_NODE_CONFIG_NOT_INITIALIZED: &str =
     "External node is not initialized";
-pub(super) const MSG_CONSENSUS_CONFIG_MISSING_ERR: &str = "Consensus config is missing";
-pub(super) const MSG_CONSENSUS_SECRETS_MISSING_ERR: &str = "Consensus secrets config is missing";
-pub(super) const MSG_CONSENSUS_SECRETS_NODE_KEY_MISSING_ERR: &str = "Consensus node key is missing";
 
 pub(super) const MSG_BUILDING_EN: &str = "Building external node";
 pub(super) const MSG_FAILED_TO_BUILD_EN_ERR: &str = "Failed to build external node";
@@ -397,8 +409,6 @@ pub(super) const MSG_PROOF_STORE_GCS_BUCKET_BASE_URL_ERR: &str =
     "Bucket base URL should start with gs://";
 pub(super) const MSG_PROOF_STORE_GCS_CREDENTIALS_FILE_PROMPT: &str =
     "Provide the path to the GCS credentials file:";
-pub(super) const MSG_GENERAL_CONFIG_NOT_FOUND_ERR: &str = "General config not found";
-pub(super) const MSG_PROVER_CONFIG_NOT_FOUND_ERR: &str = "Prover config not found";
 pub(super) const MSG_PROVER_INITIALIZED: &str = "Prover has been initialized successfully";
 pub(super) const MSG_CREATE_GCS_BUCKET_PROMPT: &str = "Do you want to create a new GCS bucket?";
 pub(super) const MSG_CREATE_GCS_BUCKET_PROJECT_ID_PROMPT: &str = "Select the project ID:";
@@ -406,8 +416,6 @@ pub(super) const MSG_CREATE_GCS_BUCKET_PROJECT_ID_NO_PROJECTS_PROMPT: &str =
     "Provide a project ID:";
 pub(super) const MSG_CREATE_GCS_BUCKET_NAME_PROMTP: &str = "What do you want to name the bucket?";
 pub(super) const MSG_CREATE_GCS_BUCKET_LOCATION_PROMPT: &str = "What location do you want to use? Find available locations at https://cloud.google.com/storage/docs/locations";
-pub(super) const MSG_PROOF_COMPRESSOR_CONFIG_NOT_FOUND_ERR: &str =
-    "Proof compressor config not found";
 pub(super) const MSG_DOWNLOADING_SETUP_COMPRESSOR_KEY_SPINNER: &str =
     "Downloading compressor setup key...";
 pub(super) const MSG_DOWNLOAD_SETUP_COMPRESSOR_KEY_PROMPT: &str =
@@ -417,9 +425,7 @@ pub(super) const MSG_INITIALIZE_BELLMAN_CUDA_PROMPT: &str =
 pub(super) const MSG_SETUP_COMPRESSOR_KEY_PATH_PROMPT: &str = "Provide the path to the setup key:";
 pub(super) const MSG_GETTING_GCP_PROJECTS_SPINNER: &str = "Getting GCP projects...";
 pub(super) const MSG_GETTING_PROOF_STORE_CONFIG: &str = "Getting proof store configuration...";
-pub(super) const MSG_GETTING_PUBLIC_STORE_CONFIG: &str = "Getting public store configuration...";
 pub(super) const MSG_CREATING_GCS_BUCKET_SPINNER: &str = "Creating GCS bucket...";
-pub(super) const MSG_SAVE_TO_PUBLIC_BUCKET_PROMPT: &str = "Do you want to save to public bucket?";
 pub(super) const MSG_ROUND_SELECT_PROMPT: &str = "Select the round to run";
 pub(super) const MSG_WITNESS_GENERATOR_ROUND_ERR: &str = "Witness generator round not found";
 pub(super) const MSG_SETUP_KEY_PATH_ERROR: &str = "Failed to get setup key path";
@@ -553,7 +559,6 @@ pub(super) fn msg_updating_chain(chain: &str) -> String {
 pub(super) const MSG_RECEIPT_MISSING: &str = "receipt missing";
 pub(super) const MSG_STATUS_MISSING: &str = "status missing";
 pub(super) const MSG_TRANSACTION_FAILED: &str = "transaction failed";
-pub(super) const MSG_API_CONFIG_MISSING: &str = "api config missing";
 pub(super) const MSG_MULTICALL3_CONTRACT_NOT_CONFIGURED: &str =
     "multicall3 contract not configured";
 pub(super) const MSG_GOVERNOR_PRIVATE_KEY_NOT_SET: &str = "governor private key not set";
@@ -578,3 +583,16 @@ pub(super) fn msg_wait_consensus_registry_started_polling(addr: Address, url: &U
 pub(super) fn msg_consensus_registry_wait_success(addr: Address, code_len: usize) -> String {
     format!("Consensus registry is deployed at {addr:?}: {code_len} bytes")
 }
+
+/// DA clients related messages
+pub(super) const MSG_AVAIL_CLIENT_TYPE_PROMPT: &str = "Avail client type";
+pub(super) const MSG_AVAIL_API_TIMEOUT_MS: &str = "Avail API timeout in milliseconds";
+pub(super) const MSG_AVAIL_API_NODE_URL_PROMPT: &str = "Avail API node URL";
+pub(super) const MSG_AVAIL_APP_ID_PROMPT: &str = "Avail app id";
+pub(super) const MSG_AVAIL_FINALITY_STATE_PROMPT: &str = "Avail finality state";
+pub(super) const MSG_AVAIL_GAS_RELAY_API_URL_PROMPT: &str = "Gas relay API URL";
+pub(super) const MSG_AVAIL_GAS_RELAY_MAX_RETRIES_PROMPT: &str = "Gas relay max retries";
+pub(super) const MSG_AVAIL_BRIDGE_API_URL_PROMPT: &str = "Attestation bridge API URL";
+pub(super) const MSG_AVAIL_SEED_PHRASE_PROMPT: &str = "Seed phrase";
+pub(super) const MSG_AVAIL_GAS_RELAY_API_KEY_PROMPT: &str = "Gas relay API key";
+pub(super) const MSG_INVALID_URL_ERR: &str = "Invalid URL format";

@@ -13,11 +13,13 @@ use zksync_multivm::{
 use zksync_node_test_utils::prepare_recovery_snapshot;
 use zksync_system_constants::KNOWN_CODES_STORAGE_ADDRESS;
 use zksync_types::{
-    block::{BlockGasCount, L2BlockHasher},
+    block::L2BlockHasher,
     bytecode::BytecodeHash,
     commitment::{L1BatchCommitmentMode, PubdataParams},
     fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput},
     l2::L2Tx,
+    protocol_upgrade::ProtocolUpgradeTx,
+    protocol_version::ProtocolSemanticVersion,
     AccountTreeId, Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersion,
     ProtocolVersionId, StorageKey, TransactionTimeRangeConstraint, H256, U256,
 };
@@ -279,9 +281,7 @@ async fn processing_storage_logs_when_sealing_l2_block() {
     l2_block.extend_from_executed_transaction(
         tx,
         execution_result,
-        BlockGasCount::default(),
         VmExecutionMetrics::default(),
-        vec![],
         vec![],
     );
 
@@ -297,9 +297,7 @@ async fn processing_storage_logs_when_sealing_l2_block() {
     l2_block.extend_from_executed_transaction(
         tx,
         execution_result,
-        BlockGasCount::default(),
         VmExecutionMetrics::default(),
-        vec![],
         vec![],
     );
 
@@ -371,9 +369,7 @@ async fn processing_events_when_sealing_l2_block() {
         l2_block.extend_from_executed_transaction(
             tx,
             execution_result,
-            BlockGasCount::default(),
             VmExecutionMetrics::default(),
-            vec![],
             vec![],
         );
     }
@@ -448,7 +444,7 @@ async fn processing_dynamic_factory_deps_when_sealing_l2_block() {
         .map(|byte| {
             let evm_bytecode = vec![byte; 96];
             (
-                BytecodeHash::for_evm_bytecode(&evm_bytecode).value(),
+                BytecodeHash::for_raw_evm_bytecode(&evm_bytecode).value(),
                 evm_bytecode,
             )
         })
@@ -476,9 +472,7 @@ async fn processing_dynamic_factory_deps_when_sealing_l2_block() {
     l2_block.extend_from_executed_transaction(
         tx,
         execution_result,
-        BlockGasCount::default(),
         VmExecutionMetrics::default(),
-        vec![],
         vec![],
     );
 
@@ -570,8 +564,6 @@ async fn l2_block_processing_after_snapshot_recovery(commitment_mode: L1BatchCom
     updates.extend_from_executed_transaction(
         tx.into(),
         create_execution_result([]),
-        vec![],
-        BlockGasCount::default(),
         VmExecutionMetrics::default(),
         vec![],
     );
@@ -851,6 +843,52 @@ async fn test_mempool_with_timestamp_assertion() {
         "rejected: Transaction failed block.timestamp assertion",
         rejected_storage_tx_2.error.unwrap()
     );
+}
+
+#[tokio::test]
+async fn test_batch_params_with_protocol_upgrade_tx() {
+    let connection_pool = ConnectionPool::<Core>::constrained_test_pool(2).await;
+    let tester = Tester::new(L1BatchCommitmentMode::Rollup);
+    // Genesis is needed for proper mempool initialization.
+    tester.genesis(&connection_pool).await;
+
+    let (mut mempool, _) = tester.create_test_mempool_io(connection_pool.clone()).await;
+    let (cursor, _) = mempool.initialize().await.unwrap();
+
+    // Check that new batch params are not returned when there is no tx to process.
+    let new_batch_params = mempool
+        .wait_for_new_batch_params(&cursor, Duration::from_millis(100))
+        .await
+        .unwrap();
+    assert!(new_batch_params.is_none());
+
+    // Insert protocol version with upgrade tx.
+    let protocol_upgrade_tx = ProtocolUpgradeTx {
+        execute: Default::default(),
+        common_data: Default::default(),
+        received_timestamp_ms: 0,
+    };
+    let version = ProtocolVersion {
+        version: ProtocolSemanticVersion {
+            minor: ProtocolVersionId::next(),
+            patch: 0.into(),
+        },
+        tx: Some(protocol_upgrade_tx),
+        ..Default::default()
+    };
+    connection_pool
+        .connection()
+        .await
+        .unwrap()
+        .protocol_versions_dal()
+        .save_protocol_version_with_tx(&version)
+        .await
+        .unwrap();
+    let new_batch_params = mempool
+        .wait_for_new_batch_params(&cursor, Duration::from_millis(100))
+        .await
+        .unwrap();
+    assert!(new_batch_params.is_some());
 }
 
 async fn insert_l2_transaction(storage: &mut Connection<'_, Core>, tx: &L2Tx) {

@@ -4,9 +4,16 @@ use xshell::{cmd, Shell};
 
 use crate::cmd::Cmd;
 
+/// Default command to run the server; will use `cargo` to build it.
+const DEFAULT_SERVER_COMMAND: &str =
+    "cargo run --manifest-path ./core/Cargo.toml --release --bin zksync_server";
+
 /// Allows to perform server operations.
 #[derive(Debug)]
 pub struct Server {
+    /// Command to run the server, could be a path to the binary.
+    /// If not set, the server will be built using cargo.
+    server_command: Option<String>,
     components: Option<Vec<String>>,
     code_path: PathBuf,
     uring: bool,
@@ -21,8 +28,14 @@ pub enum ServerMode {
 
 impl Server {
     /// Creates a new instance of the server.
-    pub fn new(components: Option<Vec<String>>, code_path: PathBuf, uring: bool) -> Self {
+    pub fn new(
+        server_command: Option<String>,
+        components: Option<Vec<String>>,
+        code_path: PathBuf,
+        uring: bool,
+    ) -> Self {
         Self {
+            server_command,
             components,
             code_path,
             uring,
@@ -40,6 +53,7 @@ impl Server {
         general_path: P,
         secrets_path: P,
         contracts_path: P,
+        gateway_contracts_config_path: Option<P>,
         mut additional_args: Vec<String>,
     ) -> anyhow::Result<()>
     where
@@ -56,20 +70,51 @@ impl Server {
 
         let uring = self.uring.then_some("--features=rocksdb/io-uring");
 
-        let mut cmd = Cmd::new(
-            cmd!(
-                shell,
-                "cargo run --release --bin zksync_server {uring...} --
-                --genesis-path {genesis_path}
-                --wallets-path {wallets_path}
-                --config-path {general_path}
-                --secrets-path {secrets_path}
-                --contracts-config-path {contracts_path}
-                "
-            )
-            .args(additional_args)
-            .env_remove("RUSTUP_TOOLCHAIN"),
-        );
+        let server_command = match &self.server_command {
+            Some(command) => {
+                // We assume that if the user provides a custom server command,
+                // they can include any feature flags they need themselves.
+                if uring.is_some() {
+                    return Err(anyhow::anyhow!(
+                        "Cannot use uring with a custom server command"
+                    ));
+                }
+                command.clone()
+            }
+            None => {
+                let uring = uring.unwrap_or_default();
+                if uring.is_empty() {
+                    format!("{DEFAULT_SERVER_COMMAND} --")
+                } else {
+                    format!("{DEFAULT_SERVER_COMMAND} {uring} --")
+                }
+            }
+        };
+        let mut server_command = server_command.split_ascii_whitespace().collect::<Vec<_>>();
+
+        let (command, args) = server_command.split_at_mut(1);
+
+        let mut cmd = shell
+            .cmd(command[0])
+            .args(args)
+            .arg("--genesis-path")
+            .arg(genesis_path)
+            .arg("--config-path")
+            .arg(general_path)
+            .arg("--wallets-path")
+            .arg(wallets_path)
+            .arg("--secrets-path")
+            .arg(secrets_path)
+            .arg("--contracts-config-path")
+            .arg(contracts_path);
+
+        if let Some(gateway_config_param) = gateway_contracts_config_path {
+            cmd = cmd
+                .arg("--gateway-contracts-config-path")
+                .arg(gateway_config_param)
+        };
+
+        let mut cmd = Cmd::new(cmd.args(additional_args).env_remove("RUSTUP_TOOLCHAIN"));
 
         // If we are running server in normal mode
         // we need to get the output to the console
@@ -84,7 +129,7 @@ impl Server {
 
     /// Builds the server.
     pub fn build(&self, shell: &Shell) -> anyhow::Result<()> {
-        let _dir_guard = shell.push_dir(&self.code_path);
+        let _dir_guard = shell.push_dir(self.code_path.join("core"));
         Cmd::new(cmd!(shell, "cargo build --release --bin zksync_server")).run()?;
         Ok(())
     }

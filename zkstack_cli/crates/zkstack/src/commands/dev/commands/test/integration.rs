@@ -1,9 +1,9 @@
 use std::path::PathBuf;
 
 use anyhow::Context;
-use common::{cmd::Cmd, config::global_config, logger};
-use config::EcosystemConfig;
 use xshell::{cmd, Shell};
+use zkstack_cli_common::{cmd::Cmd, config::global_config, logger};
+use zkstack_cli_config::EcosystemConfig;
 
 use super::{
     args::integration::IntegrationArgs,
@@ -43,7 +43,7 @@ pub async fn run(shell: &Shell, args: IntegrationArgs) -> anyhow::Result<()> {
     let test_pattern = args.test_pattern;
     let mut command = cmd!(
         shell,
-        "yarn jest --forceExit --testTimeout 120000 -t {test_pattern...}"
+        "yarn jest --forceExit --testTimeout 350000 -t {test_pattern...}"
     )
     .env("CHAIN_NAME", ecosystem_config.current_chain())
     .env("MASTER_WALLET_PK", wallets.get_test_pk(&chain_config)?);

@@ -1,8 +1,8 @@
 use std::path::Path;
 
-use common::{cmd::Cmd, logger, spinner::Spinner};
-use config::EcosystemConfig;
 use xshell::{cmd, Shell};
+use zkstack_cli_common::{cmd::Cmd, logger, spinner::Spinner};
+use zkstack_cli_config::EcosystemConfig;
 
 use super::args::DatabaseCommonArgs;
 use crate::commands::dev::{
@@ -13,7 +13,7 @@ use crate::commands::dev::{
     },
 };
 
-pub fn run(shell: &Shell, args: DatabaseCommonArgs) -> anyhow::Result<()> {
+pub async fn run(shell: &Shell, args: DatabaseCommonArgs) -> anyhow::Result<()> {
     let args = args.parse();
     if args.selected_dals.none() {
         logger::outro(MSG_NO_DATABASES_SELECTED);
@@ -24,7 +24,7 @@ pub fn run(shell: &Shell, args: DatabaseCommonArgs) -> anyhow::Result<()> {
 
     logger::info(msg_database_info(MSG_DATABASE_SETUP_GERUND));
 
-    let dals = get_dals(shell, &args.selected_dals, &args.urls)?;
+    let dals = get_dals(shell, &args.selected_dals, &args.urls).await?;
     for dal in dals {
         setup_database(shell, &ecosystem_config.link_to_code, dal)?;
     }

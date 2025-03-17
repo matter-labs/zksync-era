@@ -18,6 +18,7 @@ pub use self::{
     fri_prover_gateway::FriProverGatewayConfig,
     fri_witness_generator::FriWitnessGeneratorConfig,
     fri_witness_vector_generator::FriWitnessVectorGeneratorConfig,
+    gateway::{GatewayChainConfig, GatewayConfig},
     general::GeneralConfig,
     genesis::GenesisConfig,
     object_store::ObjectStoreConfig,
@@ -25,7 +26,9 @@ pub use self::{
     proof_data_handler::{ProofDataHandlerConfig, TeeConfig},
     prover_job_monitor::ProverJobMonitorConfig,
     pruning::PruningConfig,
-    secrets::{DataAvailabilitySecrets, DatabaseSecrets, L1Secrets, Secrets},
+    secrets::{
+        ContractVerifierSecrets, DataAvailabilitySecrets, DatabaseSecrets, L1Secrets, Secrets,
+    },
     snapshot_recovery::SnapshotRecoveryConfig,
     snapshots_creator::SnapshotsCreatorConfig,
     utils::PrometheusConfig,
@@ -54,6 +57,7 @@ pub mod fri_prover_gateway;
 pub mod fri_prover_group;
 pub mod fri_witness_generator;
 pub mod fri_witness_vector_generator;
+pub mod gateway;
 mod general;
 pub mod genesis;
 pub mod house_keeper;

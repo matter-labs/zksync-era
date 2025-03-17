@@ -2,27 +2,21 @@ use std::{sync::Arc, time::Instant};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
-use circuit_sequencer_api::proof::FinalProof;
+use proof_compression_gpu::{run_proof_chain, SnarkWrapper, SnarkWrapperProof};
 use tokio::task::JoinHandle;
-#[cfg(feature = "gpu")]
-use wrapper_prover::{Bn256, GPUWrapperConfigs, WrapperProver, DEFAULT_WRAPPER_CONFIG};
-#[cfg(not(feature = "gpu"))]
-use zkevm_test_harness::proof_wrapper_utils::WrapperConfig;
-#[allow(unused_imports)]
-use zkevm_test_harness::proof_wrapper_utils::{get_trusted_setup, wrap_proof};
 use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::{
     circuit_definitions::{
         boojum::field::goldilocks::GoldilocksField,
-        circuit_definitions::recursion_layer::{
-            ZkSyncRecursionLayerProof, ZkSyncRecursionLayerStorageType,
-        },
+        circuit_definitions::recursion_layer::ZkSyncRecursionLayerProof,
         zkevm_circuits::scheduler::block_header::BlockAuxilaryOutputWitness,
     },
     get_current_pod_name, AuxOutputWitnessWrapper, FriProofWrapper,
 };
-use zksync_prover_interface::outputs::L1BatchProofForL1;
+use zksync_prover_interface::outputs::{
+    FflonkL1BatchProofForL1, L1BatchProofForL1, PlonkL1BatchProofForL1,
+};
 use zksync_prover_keystore::keystore::Keystore;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{protocol_version::ProtocolSemanticVersion, L1BatchNumber};
@@ -32,73 +26,29 @@ use crate::metrics::METRICS;
 pub struct ProofCompressor {
     blob_store: Arc<dyn ObjectStore>,
     pool: ConnectionPool<Prover>,
-    compression_mode: u8,
     max_attempts: u32,
     protocol_version: ProtocolSemanticVersion,
     keystore: Keystore,
+    is_fflonk: bool,
 }
 
 impl ProofCompressor {
     pub fn new(
         blob_store: Arc<dyn ObjectStore>,
         pool: ConnectionPool<Prover>,
-        compression_mode: u8,
         max_attempts: u32,
         protocol_version: ProtocolSemanticVersion,
         keystore: Keystore,
+        is_fflonk: bool,
     ) -> Self {
         Self {
             blob_store,
             pool,
-            compression_mode,
             max_attempts,
             protocol_version,
             keystore,
+            is_fflonk,
         }
-    }
-
-    #[tracing::instrument(skip(proof, _compression_mode))]
-    pub fn compress_proof(
-        proof: ZkSyncRecursionLayerProof,
-        _compression_mode: u8,
-        keystore: Keystore,
-    ) -> anyhow::Result<FinalProof> {
-        let scheduler_vk = keystore
-            .load_recursive_layer_verification_key(
-                ZkSyncRecursionLayerStorageType::SchedulerCircuit as u8,
-            )
-            .context("get_recursiver_layer_vk_for_circuit_type()")?;
-
-        #[cfg(feature = "gpu")]
-        let wrapper_proof = {
-            let crs = get_trusted_setup();
-            let wrapper_config = DEFAULT_WRAPPER_CONFIG;
-            let mut prover = WrapperProver::<GPUWrapperConfigs>::new(&crs, wrapper_config).unwrap();
-
-            prover
-                .generate_setup_data(scheduler_vk.into_inner())
-                .unwrap();
-            prover.generate_proofs(proof.into_inner()).unwrap();
-
-            prover.get_wrapper_proof().unwrap()
-        };
-        #[cfg(not(feature = "gpu"))]
-        let wrapper_proof = {
-            let config = WrapperConfig::new(_compression_mode);
-
-            let (wrapper_proof, _) = wrap_proof(proof, scheduler_vk, config);
-            wrapper_proof.into_inner()
-        };
-
-        // (Re)serialization should always succeed.
-        let serialized = bincode::serialize(&wrapper_proof)
-            .expect("Failed to serialize proof with ZkSyncSnarkWrapperCircuit");
-
-        // For sending to L1, we can use the `FinalProof` type, that has a generic circuit inside, that is not used for serialization.
-        // So `FinalProof` and `Proof<Bn256, ZkSyncCircuit<Bn256, VmWitnessOracle<Bn256>>>` are compatible on serialization bytecode level.
-        let final_proof: FinalProof =
-            bincode::deserialize(&serialized).expect("Failed to deserialize final proof");
-        Ok(final_proof)
     }
 
     fn aux_output_witness_to_array(
@@ -120,7 +70,9 @@ impl ProofCompressor {
 impl JobProcessor for ProofCompressor {
     type Job = ZkSyncRecursionLayerProof;
     type JobId = L1BatchNumber;
-    type JobArtifacts = FinalProof;
+
+    type JobArtifacts = SnarkWrapperProof;
+
     const SERVICE_NAME: &'static str = "ProofCompressor";
 
     async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
@@ -174,16 +126,27 @@ impl JobProcessor for ProofCompressor {
         job: ZkSyncRecursionLayerProof,
         _started_at: Instant,
     ) -> JoinHandle<anyhow::Result<Self::JobArtifacts>> {
-        let compression_mode = self.compression_mode;
         let keystore = self.keystore.clone();
-        tokio::task::spawn_blocking(move || Self::compress_proof(job, compression_mode, keystore))
+        let snark_wrapper_mode = if self.is_fflonk {
+            SnarkWrapper::FFfonk
+        } else {
+            SnarkWrapper::Plonk
+        };
+
+        tokio::task::spawn_blocking(move || {
+            Ok(run_proof_chain(
+                snark_wrapper_mode,
+                &keystore,
+                job.into_inner(),
+            ))
+        })
     }
 
     async fn save_result(
         &self,
         job_id: Self::JobId,
         started_at: Instant,
-        artifacts: FinalProof,
+        artifacts: Self::JobArtifacts,
     ) -> anyhow::Result<()> {
         METRICS.compression_time.observe(started_at.elapsed());
         tracing::info!(
@@ -198,11 +161,22 @@ impl JobProcessor for ProofCompressor {
             .context("Failed to get aggregation result coords from blob store")?;
         let aggregation_result_coords =
             Self::aux_output_witness_to_array(aux_output_witness_wrapper.0);
-        let l1_batch_proof = L1BatchProofForL1 {
-            aggregation_result_coords,
-            scheduler_proof: artifacts,
-            protocol_version: self.protocol_version,
+
+        let l1_batch_proof = match artifacts {
+            SnarkWrapperProof::Plonk(proof) => L1BatchProofForL1::Plonk(PlonkL1BatchProofForL1 {
+                aggregation_result_coords,
+                scheduler_proof: proof,
+                protocol_version: self.protocol_version,
+            }),
+            SnarkWrapperProof::FFfonk(proof) => {
+                L1BatchProofForL1::Fflonk(FflonkL1BatchProofForL1 {
+                    aggregation_result_coords,
+                    scheduler_proof: proof,
+                    protocol_version: self.protocol_version,
+                })
+            }
         };
+
         let blob_save_started_at = Instant::now();
         let blob_url = self
             .blob_store

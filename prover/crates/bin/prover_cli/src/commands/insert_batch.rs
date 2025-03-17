@@ -31,13 +31,13 @@ pub async fn run(args: Args, config: ProverCLIConfig) -> anyhow::Result<()> {
 
     let protocol_version_patch = VersionPatch(args.patch);
 
-    conn.fri_witness_generator_dal()
+    conn.fri_basic_witness_generator_dal()
         .save_witness_inputs(
             args.number,
             &format!("witness_inputs_{}", args.number.0),
             ProtocolSemanticVersion::new(protocol_version, protocol_version_patch),
         )
-        .await;
+        .await?;
 
     Ok(())
 }

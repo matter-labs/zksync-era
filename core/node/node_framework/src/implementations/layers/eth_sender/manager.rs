@@ -6,8 +6,12 @@ use zksync_eth_sender::EthTxManager;
 use crate::{
     implementations::resources::{
         circuit_breakers::CircuitBreakersResource,
-        eth_interface::{BoundEthInterfaceForBlobsResource, BoundEthInterfaceResource},
+        eth_interface::{
+            BoundEthInterfaceForBlobsResource, BoundEthInterfaceForL2Resource,
+            BoundEthInterfaceResource,
+        },
         gas_adjuster::GasAdjusterResource,
+        healthcheck::AppHealthCheckResource,
         pools::{MasterPool, PoolResource, ReplicaPool},
     },
     service::StopReceiver,
@@ -45,9 +49,12 @@ pub struct Input {
     pub replica_pool: PoolResource<ReplicaPool>,
     pub eth_client: BoundEthInterfaceResource,
     pub eth_client_blobs: Option<BoundEthInterfaceForBlobsResource>,
+    pub eth_client_gateway: Option<BoundEthInterfaceForL2Resource>,
     pub gas_adjuster: GasAdjusterResource,
     #[context(default)]
     pub circuit_breakers: CircuitBreakersResource,
+    #[context(default)]
+    pub app_health: AppHealthCheckResource,
 }
 
 #[derive(Debug, IntoContext)]
@@ -77,10 +84,9 @@ impl WiringLayer for EthTxManagerLayer {
         let master_pool = input.master_pool.get().await.unwrap();
         let replica_pool = input.replica_pool.get().await.unwrap();
 
-        let settlement_mode = self.eth_sender_config.gas_adjuster.unwrap().settlement_mode;
         let eth_client = input.eth_client.0.clone();
         let eth_client_blobs = input.eth_client_blobs.map(|c| c.0);
-        let l2_client = input.eth_client.0;
+        let l2_client = input.eth_client_gateway.map(|c| c.0);
 
         let config = self.eth_sender_config.sender.context("sender")?;
 
@@ -90,21 +96,9 @@ impl WiringLayer for EthTxManagerLayer {
             master_pool,
             config,
             gas_adjuster,
-            if !settlement_mode.is_gateway() {
-                Some(eth_client)
-            } else {
-                None
-            },
-            if !settlement_mode.is_gateway() {
-                eth_client_blobs
-            } else {
-                None
-            },
-            if settlement_mode.is_gateway() {
-                Some(l2_client)
-            } else {
-                None
-            },
+            Some(eth_client),
+            eth_client_blobs,
+            l2_client,
         );
 
         // Insert circuit breaker.
@@ -113,6 +107,12 @@ impl WiringLayer for EthTxManagerLayer {
             .breakers
             .insert(Box::new(FailedL1TransactionChecker { pool: replica_pool }))
             .await;
+
+        input
+            .app_health
+            .0
+            .insert_component(eth_tx_manager.health_check())
+            .map_err(WiringError::internal)?;
 
         Ok(Output { eth_tx_manager })
     }

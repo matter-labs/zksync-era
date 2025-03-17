@@ -16,6 +16,7 @@ vise.workspace = true
 zksync_multivm.workspace = true
 zksync_types.workspace = true
 zksync_dal.workspace = true
+zksync_health_check.workspace = true
 zksync_state.workspace = true
 zksync_storage.workspace = true
 zksync_mempool.workspace = true
@@ -38,6 +39,7 @@ tracing.workspace = true
 futures.workspace = true
 once_cell.workspace = true
 itertools.workspace = true
+serde.workspace = true
 hex.workspace = true
 
 [dev-dependencies]
@@ -45,6 +47,6 @@ assert_matches.workspace = true
 rand.workspace = true
 tempfile.workspace = true
 test-casing.workspace = true
-
+serde_json.workspace = true
 zksync_eth_client.workspace = true
 zksync_test_contracts.workspace = true

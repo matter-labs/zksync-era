@@ -11,11 +11,12 @@ use zksync_config::{
         },
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
-        BasicWitnessInputProducerConfig, ContractsConfig, DataAvailabilitySecrets, DatabaseSecrets,
-        ExperimentalVmConfig, ExternalPriceApiClientConfig, FriProofCompressorConfig,
-        FriProverConfig, FriProverGatewayConfig, FriWitnessGeneratorConfig,
-        FriWitnessVectorGeneratorConfig, L1Secrets, ObservabilityConfig, PrometheusConfig,
-        ProofDataHandlerConfig, ProtectiveReadsWriterConfig, Secrets,
+        BasicWitnessInputProducerConfig, ContractVerifierSecrets, ContractsConfig,
+        DataAvailabilitySecrets, DatabaseSecrets, ExperimentalVmConfig,
+        ExternalPriceApiClientConfig, FriProofCompressorConfig, FriProverConfig,
+        FriProverGatewayConfig, FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig,
+        L1Secrets, ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig,
+        ProtectiveReadsWriterConfig, Secrets,
     },
     ApiConfig, BaseTokenAdjusterConfig, ContractVerifierConfig, DAClientConfig, DADispatcherConfig,
     DBConfig, EthConfig, EthWatchConfig, ExternalProofIntegrationApiConfig, GasAdjusterConfig,
@@ -56,6 +57,10 @@ struct Cli {
     /// Path to the yaml with contracts. If set, it will be used instead of env vars.
     #[arg(long)]
     contracts_config_path: Option<std::path::PathBuf>,
+    /// Path to the yaml with gateway contracts. Note, that at this moment,
+    /// env-based config is not supported for gateway-related functionality.
+    #[arg(long)]
+    gateway_contracts_config_path: Option<std::path::PathBuf>,
     /// Path to the wallets config. If set, it will be used instead of env vars.
     #[arg(long)]
     wallets_path: Option<std::path::PathBuf>,
@@ -66,6 +71,11 @@ struct Cli {
     /// Now the node framework is used by default and this argument is left for backward compatibility.
     #[arg(long)]
     use_node_framework: bool,
+
+    /// Only compose the node with the provided list of the components and then exit.
+    /// Can be used to catch issues with configuration.
+    #[arg(long, conflicts_with = "genesis")]
+    no_run: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -117,6 +127,7 @@ fn main() -> anyhow::Result<()> {
             database: DatabaseSecrets::from_env().ok(),
             l1: L1Secrets::from_env().ok(),
             data_availability: DataAvailabilitySecrets::from_env().ok(),
+            contract_verifier: ContractVerifierSecrets::from_env().ok(),
         },
     };
 
@@ -124,6 +135,20 @@ fn main() -> anyhow::Result<()> {
         None => ContractsConfig::from_env().context("contracts_config")?,
         Some(path) => read_yaml_repr::<zksync_protobuf_config::proto::contracts::Contracts>(&path)
             .context("failed decoding contracts YAML config")?,
+    };
+
+    // We support only file based config for gateway
+    let gateway_contracts_config = if let Some(gateway_config_path) =
+        opt.gateway_contracts_config_path
+    {
+        let result = read_yaml_repr::<zksync_protobuf_config::proto::gateway::GatewayChainConfig>(
+            &gateway_config_path,
+        )
+        .context("failed decoding contracts YAML config")?;
+
+        Some(result)
+    } else {
+        None
     };
 
     let genesis = match opt.genesis_path {
@@ -136,7 +161,14 @@ fn main() -> anyhow::Result<()> {
         .clone()
         .context("observability config")?;
 
-    let node = MainNodeBuilder::new(configs, wallets, genesis, contracts_config, secrets)?;
+    let node = MainNodeBuilder::new(
+        configs,
+        wallets,
+        genesis,
+        contracts_config,
+        gateway_contracts_config,
+        secrets,
+    )?;
 
     let observability_guard = {
         // Observability initialization should be performed within tokio context.
@@ -150,7 +182,14 @@ fn main() -> anyhow::Result<()> {
         return Ok(());
     }
 
-    node.build(opt.components.0)?.run(observability_guard)?;
+    let node = node.build(opt.components.0)?;
+
+    if opt.no_run {
+        tracing::info!("Node composed successfully; exiting due to --no-run flag");
+        return Ok(());
+    }
+
+    node.run(observability_guard)?;
     Ok(())
 }
 

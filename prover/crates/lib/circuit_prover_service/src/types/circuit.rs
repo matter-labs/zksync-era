@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{alloc::Global, sync::Arc};
 
 use anyhow::Context;
 use shivini::{gpu_proof_config::GpuProofConfig, gpu_prove_from_external_witness_data};
@@ -37,9 +37,7 @@ type Extension = GoldilocksExt2;
 type Proof = CryptoProof<Field, Hasher, Extension>;
 
 /// Hydrated circuit.
-/// Circuits are currently dehydrated for memory and storage reasons.
-/// Circuits are hydrated on the flight where necessary.
-// TODO: This enum will be merged with CircuitWrapper once BWG changes are done.
+// TODO: This enum should be merged with CircuitWrapper.
 #[allow(clippy::large_enum_variant)]
 pub enum Circuit {
     Base(ZkSyncBaseLayerCircuit),
@@ -49,7 +47,7 @@ pub enum Circuit {
 impl Circuit {
     /// Generates proof for given witness vector.
     /// Expects setup_data to match witness vector.
-    pub(crate) fn prove(
+    pub fn prove(
         &self,
         witness_vector: WitnessVec<GoldilocksField>,
         setup_data: Arc<GoldilocksGpuProverSetupData>,
@@ -84,7 +82,7 @@ impl Circuit {
         let span = tracing::info_span!("prove_base_circuit").entered();
         let gpu_proof_config = GpuProofConfig::from_base_layer_circuit(circuit);
         let boojum_proof_config = base_layer_proof_config();
-        let proof = gpu_prove_from_external_witness_data::<Transcript, Hasher, NoPow, _>(
+        let proof = gpu_prove_from_external_witness_data::<Transcript, Hasher, NoPow, Global>(
             &gpu_proof_config,
             &witness_vector,
             boojum_proof_config,
@@ -113,7 +111,7 @@ impl Circuit {
         let span = tracing::info_span!("prove_recursive_circuit").entered();
         let gpu_proof_config = GpuProofConfig::from_recursive_layer_circuit(circuit);
         let boojum_proof_config = recursion_layer_proof_config();
-        let proof = gpu_prove_from_external_witness_data::<Transcript, Hasher, NoPow, _>(
+        let proof = gpu_prove_from_external_witness_data::<Transcript, Hasher, NoPow, Global>(
             &gpu_proof_config,
             &witness_vector,
             boojum_proof_config,
@@ -134,7 +132,7 @@ impl Circuit {
 
     /// Synthesize vector for a given circuit.
     /// Expects finalization hints to match circuit.
-    pub(crate) fn synthesize_vector(
+    pub fn synthesize_vector(
         &self,
         finalization_hints: Arc<FinalizationHintsForProver>,
     ) -> anyhow::Result<WitnessVec<GoldilocksField>> {

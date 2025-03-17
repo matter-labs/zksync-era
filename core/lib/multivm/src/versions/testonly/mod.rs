@@ -15,33 +15,46 @@ use once_cell::sync::Lazy;
 use zksync_contracts::{
     read_bootloader_code, read_zbin_bytecode, BaseSystemContracts, SystemContractCode,
 };
+use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
 use zksync_types::{
-    block::L2BlockHasher, bytecode::BytecodeHash, fee_model::BatchFeeInput, get_code_key,
-    get_is_account_key, h256_to_u256, u256_to_h256, utils::storage_key_for_eth_balance, Address,
-    L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, U256,
-};
-use zksync_vm_interface::{
-    pubdata::PubdataBuilder, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode,
+    block::L2BlockHasher,
+    bytecode::{pad_evm_bytecode, BytecodeHash},
+    fee_model::BatchFeeInput,
+    get_code_key, get_evm_code_hash_key, get_is_account_key, get_known_code_key, h256_to_address,
+    h256_to_u256, u256_to_h256,
+    utils::storage_key_for_eth_balance,
+    web3, Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, H256, U256,
 };
 
-pub(super) use self::tester::{TestedVm, VmTester, VmTesterBuilder};
+pub(super) use self::tester::{
+    validation_params, TestedVm, TestedVmForValidation, TestedVmWithCallTracer,
+    TestedVmWithStorageLimit, VmTester, VmTesterBuilder,
+};
 use crate::{
-    interface::storage::InMemoryStorage, pubdata_builders::RollupPubdataBuilder,
+    interface::{
+        pubdata::PubdataBuilder, storage::InMemoryStorage, L1BatchEnv, L2BlockEnv, SystemEnv,
+        TxExecutionMode, VmEvent,
+    },
+    pubdata_builders::FullPubdataBuilder,
     vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
 
+pub(super) mod account_validation_rules;
 pub(super) mod block_tip;
 pub(super) mod bootloader;
 pub(super) mod bytecode_publishing;
+pub(super) mod call_tracer;
 pub(super) mod circuits;
 pub(super) mod code_oracle;
 pub(super) mod default_aa;
-pub(super) mod evm_emulator;
+pub(super) mod evm;
 pub(super) mod gas_limit;
 pub(super) mod get_used_contracts;
 pub(super) mod is_write_initial;
+pub(super) mod l1_messenger;
 pub(super) mod l1_tx_execution;
 pub(super) mod l2_blocks;
+pub(super) mod mock_evm;
 pub(super) mod nonce_holder;
 pub(super) mod precompiles;
 pub(super) mod refunds;
@@ -54,6 +67,7 @@ mod tester;
 pub(super) mod tracing_execution_error;
 pub(super) mod transfer;
 pub(super) mod upgrade;
+pub(super) mod v26_upgrade_utils;
 
 static BASE_SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> =
     Lazy::new(BaseSystemContracts::load_from_disk);
@@ -119,7 +133,7 @@ pub(super) fn default_l1_batch(number: L1BatchNumber) -> L1BatchEnv {
 }
 
 pub(super) fn default_pubdata_builder() -> Rc<dyn PubdataBuilder> {
-    Rc::new(RollupPubdataBuilder::new(Address::zero()))
+    Rc::new(FullPubdataBuilder::new(Address::zero()))
 }
 
 pub(super) fn make_address_rich(storage: &mut InMemoryStorage, address: Address) {
@@ -175,10 +189,43 @@ impl ContractToDeploy {
         }
     }
 
-    /// Inserts the contracts into the test environment, bypassing the deployer system contract.
-    pub fn insert_all(contracts: &[Self], storage: &mut InMemoryStorage) {
-        for contract in contracts {
-            contract.insert(storage);
+    pub fn insert_evm(&self, storage: &mut InMemoryStorage) {
+        let evm_bytecode_keccak_hash = H256(web3::keccak256(&self.bytecode));
+        let padded_evm_bytecode = pad_evm_bytecode(&self.bytecode);
+        let evm_bytecode_hash =
+            BytecodeHash::for_evm_bytecode(self.bytecode.len(), &padded_evm_bytecode).value();
+
+        // Mark the EVM contract as deployed.
+        storage.set_value(
+            get_known_code_key(&evm_bytecode_hash),
+            H256::from_low_u64_be(1),
+        );
+        storage.set_value(get_code_key(&self.address), evm_bytecode_hash);
+        storage.set_value(
+            get_evm_code_hash_key(evm_bytecode_hash),
+            evm_bytecode_keccak_hash,
+        );
+        storage.store_factory_dep(evm_bytecode_hash, padded_evm_bytecode);
+
+        if self.is_funded {
+            make_address_rich(storage, self.address);
         }
     }
+}
+
+fn extract_deploy_events(events: &[VmEvent]) -> Vec<(Address, Address)> {
+    events
+        .iter()
+        .filter_map(|event| {
+            if event.address == CONTRACT_DEPLOYER_ADDRESS
+                && event.indexed_topics[0] == VmEvent::DEPLOY_EVENT_SIGNATURE
+            {
+                let deployer = h256_to_address(&event.indexed_topics[1]);
+                let deployed_address = h256_to_address(&event.indexed_topics[3]);
+                Some((deployer, deployed_address))
+            } else {
+                None
+            }
+        })
+        .collect()
 }

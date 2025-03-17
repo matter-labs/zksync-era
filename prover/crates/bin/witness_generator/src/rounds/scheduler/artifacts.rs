@@ -32,8 +32,6 @@ impl ArtifactsManager for Scheduler {
         job_id: u32,
         artifacts: Self::OutputArtifacts,
         object_store: &dyn ObjectStore,
-        _shall_save_to_public_bucket: bool,
-        _public_blob_store: Option<std::sync::Arc<dyn ObjectStore>>,
     ) -> String {
         let key = FriCircuitKey {
             block_number: L1BatchNumber(job_id),
@@ -62,7 +60,7 @@ impl ArtifactsManager for Scheduler {
         let mut prover_connection = connection_pool.connection().await?;
         let mut transaction = prover_connection.start_transaction().await?;
         let protocol_version_id = transaction
-            .fri_witness_generator_dal()
+            .fri_basic_witness_generator_dal()
             .protocol_version_for_l1_batch(L1BatchNumber(job_id))
             .await;
         transaction
@@ -80,7 +78,7 @@ impl ArtifactsManager for Scheduler {
             .await;
 
         transaction
-            .fri_witness_generator_dal()
+            .fri_scheduler_witness_generator_dal()
             .mark_scheduler_job_as_successful(L1BatchNumber(job_id), started_at.elapsed())
             .await;
 

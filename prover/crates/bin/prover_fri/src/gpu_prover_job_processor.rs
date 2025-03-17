@@ -1,6 +1,6 @@
 #[cfg(feature = "gpu")]
 pub mod gpu_prover {
-    use std::{collections::HashMap, sync::Arc, time::Instant};
+    use std::{alloc::Global, collections::HashMap, sync::Arc, time::Instant};
 
     use anyhow::Context as _;
     use shivini::{
@@ -58,7 +58,6 @@ pub mod gpu_prover {
     pub struct Prover {
         keystore: Keystore,
         blob_store: Arc<dyn ObjectStore>,
-        public_blob_store: Option<Arc<dyn ObjectStore>>,
         config: Arc<FriProverConfig>,
         prover_connection_pool: ConnectionPool<zksync_prover_dal::Prover>,
         setup_load_mode: SetupLoadMode,
@@ -77,7 +76,6 @@ pub mod gpu_prover {
         pub fn new(
             keystore: Keystore,
             blob_store: Arc<dyn ObjectStore>,
-            public_blob_store: Option<Arc<dyn ObjectStore>>,
             config: FriProverConfig,
             prover_connection_pool: ConnectionPool<zksync_prover_dal::Prover>,
             setup_load_mode: SetupLoadMode,
@@ -98,7 +96,6 @@ pub mod gpu_prover {
             Prover {
                 keystore,
                 blob_store,
-                public_blob_store,
                 config: Arc::new(config),
                 prover_connection_pool,
                 setup_load_mode,
@@ -166,7 +163,6 @@ pub mod gpu_prover {
                     recursion_layer_proof_config(),
                     circuit.numeric_circuit_type(),
                 ),
-                CircuitWrapper::BasePartial(_) => panic!("Invalid CircuitWrapper received"),
             };
 
             let started_at = Instant::now();
@@ -174,7 +170,7 @@ pub mod gpu_prover {
                 DefaultTranscript,
                 DefaultTreeHasher,
                 NoPow,
-                _,
+                Global,
             >(
                 &gpu_proof_config,
                 &witness_vector,
@@ -212,7 +208,6 @@ pub mod gpu_prover {
                 CircuitWrapper::Recursive(_) => FriProofWrapper::Recursive(
                     ZkSyncRecursionLayerProof::from_inner(circuit_id, proof),
                 ),
-                CircuitWrapper::BasePartial(_) => panic!("Received partial base circuit"),
             };
             ProverArtifacts::new(prover_job.block_number, proof_wrapper)
         }
@@ -314,8 +309,6 @@ pub mod gpu_prover {
                 started_at,
                 artifacts,
                 &*self.blob_store,
-                self.public_blob_store.as_deref(),
-                self.config.shall_save_to_public_bucket,
                 &mut storage_processor,
                 self.protocol_version,
             )

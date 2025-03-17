@@ -1,7 +1,9 @@
 use zksync_types::{
-    api::{TeeProof, TransactionExecutionInfo},
+    api::{
+        ChainAggProof, DataAvailabilityDetails, L1ToL2TxsStatus, TeeProof, TransactionExecutionInfo,
+    },
     tee_types::TeeType,
-    L1BatchNumber, H256,
+    L1BatchNumber, L2ChainId, H256,
 };
 use zksync_web3_decl::{
     jsonrpsee::core::{async_trait, RpcResult},
@@ -27,6 +29,41 @@ impl UnstableNamespaceServer for UnstableNamespace {
         tee_type: Option<TeeType>,
     ) -> RpcResult<Vec<TeeProof>> {
         self.get_tee_proofs_impl(l1_batch_number, tee_type)
+            .await
+            .map_err(|err| self.current_method().map_err(err))
+    }
+
+    async fn get_chain_log_proof(
+        &self,
+        l1_batch_number: L1BatchNumber,
+        chain_id: L2ChainId,
+    ) -> RpcResult<Option<ChainAggProof>> {
+        self.get_chain_log_proof_impl(l1_batch_number, chain_id)
+            .await
+            .map_err(|err| self.current_method().map_err(err))
+    }
+
+    async fn get_unconfirmed_txs_count(&self) -> RpcResult<usize> {
+        self.get_unconfirmed_txs_count_impl()
+            .await
+            .map_err(|err| self.current_method().map_err(err))
+    }
+
+    async fn get_data_availability_details(
+        &self,
+        batch: L1BatchNumber,
+    ) -> RpcResult<Option<DataAvailabilityDetails>> {
+        self.get_data_availability_details_impl(batch)
+            .await
+            .map_err(|err| self.current_method().map_err(err))
+    }
+
+    async fn supports_unsafe_deposit_filter(&self) -> RpcResult<bool> {
+        Ok(self.supports_unsafe_deposit_filter_impl())
+    }
+
+    async fn l1_to_l2_txs_status(&self) -> RpcResult<L1ToL2TxsStatus> {
+        self.l1_to_l2_txs_status_impl()
             .await
             .map_err(|err| self.current_method().map_err(err))
     }

@@ -2,22 +2,18 @@ use std::time::Duration;
 
 use anyhow::Context as _;
 use clap::Parser;
-use proof_gen_data_fetcher::ProofGenDataFetcher;
-use proof_submitter::ProofSubmitter;
 use tokio::sync::{oneshot, watch};
-use traits::PeriodicApi as _;
 use zksync_core_leftovers::temp_config_store::{load_database_secrets, load_general_config};
 use zksync_env_config::object_store::ProverObjectStoreConfig;
 use zksync_object_store::ObjectStoreFactory;
 use zksync_prover_dal::{ConnectionPool, Prover};
-use zksync_utils::wait_for_tasks::ManagedTasks;
+use zksync_task_management::ManagedTasks;
 use zksync_vlog::prometheus::PrometheusExporterConfig;
 
-mod client;
+use crate::rpc_server::RpcServer;
+
 mod metrics;
-mod proof_gen_data_fetcher;
-mod proof_submitter;
-mod traits;
+mod rpc_server;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -52,15 +48,10 @@ async fn main() -> anyhow::Result<()> {
     );
     let store_factory = ObjectStoreFactory::new(object_store_config.0);
 
-    let proof_submitter = ProofSubmitter::new(
+    let rpc_server = RpcServer::new(
+        config.ws_port,
         store_factory.create_store().await?,
-        config.api_url.clone(),
         pool.clone(),
-    );
-    let proof_gen_data_fetcher = ProofGenDataFetcher::new(
-        store_factory.create_store().await?,
-        config.api_url.clone(),
-        pool,
     );
 
     let (stop_sender, stop_receiver) = watch::channel(false);
@@ -81,8 +72,7 @@ async fn main() -> anyhow::Result<()> {
             PrometheusExporterConfig::pull(config.prometheus_listener_port)
                 .run(stop_receiver.clone()),
         ),
-        tokio::spawn(proof_gen_data_fetcher.run(config.api_poll_duration(), stop_receiver.clone())),
-        tokio::spawn(proof_submitter.run(config.api_poll_duration(), stop_receiver)),
+        tokio::spawn(rpc_server.run(stop_receiver)),
     ];
 
     let mut tasks = ManagedTasks::new(tasks);

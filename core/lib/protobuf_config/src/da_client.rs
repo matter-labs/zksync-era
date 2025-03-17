@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use anyhow::Context;
 use zksync_config::configs::{
     self,
@@ -5,19 +7,25 @@ use zksync_config::configs::{
         avail::{AvailClientConfig, AvailConfig, AvailDefaultConfig, AvailGasRelayConfig},
         celestia::CelestiaConfig,
         eigen::EigenConfig,
-        DAClientConfig::{Avail, Celestia, Eigen, ObjectStore},
+        DAClientConfig::{Avail, Celestia, Eigen, NoDA, ObjectStore},
     },
 };
 use zksync_protobuf::{required, ProtoRepr};
+use zksync_types::url::SensitiveUrl;
 
-use crate::proto::{da_client as proto, object_store as object_store_proto};
+use crate::{
+    parse_h160,
+    proto::{
+        da_client::{self as proto},
+        object_store as object_store_proto,
+    },
+};
 
 impl ProtoRepr for proto::DataAvailabilityClient {
     type Type = configs::DAClientConfig;
 
     fn read(&self) -> anyhow::Result<Self::Type> {
-        let config = required(&self.config).context("config")?;
-
+        let config = required(&self.config).context("da_client config")?;
         let client = match config {
             proto::data_availability_client::Config::Avail(conf) => Avail(AvailConfig {
                 bridge_api_url: required(&conf.bridge_api_url)
@@ -31,6 +39,7 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                                 .context("api_node_url")?
                                 .clone(),
                             app_id: *required(&full_client_conf.app_id).context("app_id")?,
+                            finality_state: full_client_conf.finality_state.clone(),
                         })
                     }
                     Some(proto::avail_config::Config::GasRelay(gas_relay_conf)) => {
@@ -53,15 +62,43 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                 timeout_ms: *required(&conf.timeout_ms).context("timeout_ms")?,
             }),
             proto::data_availability_client::Config::Eigen(conf) => Eigen(EigenConfig {
-                rpc_node_url: required(&conf.rpc_node_url)
-                    .context("rpc_node_url")?
+                disperser_rpc: required(&conf.disperser_rpc)
+                    .context("disperser_rpc")?
                     .clone(),
-                inclusion_polling_interval_ms: *required(&conf.inclusion_polling_interval_ms)
-                    .context("inclusion_polling_interval_ms")?,
+                settlement_layer_confirmation_depth: *required(
+                    &conf.settlement_layer_confirmation_depth,
+                )
+                .context("settlement_layer_confirmation_depth")?,
+                eigenda_eth_rpc: Some(SensitiveUrl::from_str(
+                    required(&conf.eigenda_eth_rpc).context("eigenda_eth_rpc")?,
+                )?),
+                eigenda_svc_manager_address: required(&conf.eigenda_svc_manager_address)
+                    .and_then(|x| parse_h160(x))
+                    .context("eigenda_svc_manager_address")?,
+                wait_for_finalization: *required(&conf.wait_for_finalization)
+                    .context("wait_for_finalization")?,
+                authenticated: *required(&conf.authenticated).context("authenticated")?,
+                points_source: match conf.points_source.clone() {
+                    Some(proto::eigen_config::PointsSource::PointsSourcePath(
+                        points_source_path,
+                    )) => zksync_config::configs::da_client::eigen::PointsSource::Path(
+                        points_source_path,
+                    ),
+                    Some(proto::eigen_config::PointsSource::PointsSourceUrl(points_source_url)) => {
+                        let g1_url = required(&points_source_url.g1_url).context("g1_url")?;
+                        let g2_url = required(&points_source_url.g2_url).context("g2_url")?;
+                        zksync_config::configs::da_client::eigen::PointsSource::Url((
+                            g1_url.to_owned(),
+                            g2_url.to_owned(),
+                        ))
+                    }
+                    None => return Err(anyhow::anyhow!("Invalid Eigen DA configuration")),
+                },
             }),
             proto::data_availability_client::Config::ObjectStore(conf) => {
                 ObjectStore(object_store_proto::ObjectStore::read(conf)?)
             }
+            proto::data_availability_client::Config::NoDa(_) => NoDA,
         };
 
         Ok(client)
@@ -77,6 +114,7 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                         proto::avail_config::Config::FullClient(proto::AvailClientConfig {
                             api_node_url: Some(conf.api_node_url.clone()),
                             app_id: Some(conf.app_id),
+                            finality_state: conf.finality_state.clone(),
                         }),
                     ),
                     AvailClientConfig::GasRelay(conf) => Some(
@@ -96,12 +134,37 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                 })
             }
             Eigen(config) => proto::data_availability_client::Config::Eigen(proto::EigenConfig {
-                rpc_node_url: Some(config.rpc_node_url.clone()),
-                inclusion_polling_interval_ms: Some(config.inclusion_polling_interval_ms),
+                disperser_rpc: Some(config.disperser_rpc.clone()),
+                settlement_layer_confirmation_depth: Some(
+                    config.settlement_layer_confirmation_depth,
+                ),
+                eigenda_eth_rpc: config
+                    .eigenda_eth_rpc
+                    .as_ref()
+                    .map(|a| a.expose_str().to_string()),
+                eigenda_svc_manager_address: Some(format!(
+                    "{:?}",
+                    config.eigenda_svc_manager_address
+                )),
+                wait_for_finalization: Some(config.wait_for_finalization),
+                authenticated: Some(config.authenticated),
+                points_source: Some(match &config.points_source {
+                    zksync_config::configs::da_client::eigen::PointsSource::Path(path) => {
+                        proto::eigen_config::PointsSource::PointsSourcePath(path.clone())
+                    }
+                    zksync_config::configs::da_client::eigen::PointsSource::Url((
+                        g1_url,
+                        g2_url,
+                    )) => proto::eigen_config::PointsSource::PointsSourceUrl(proto::Url {
+                        g1_url: Some(g1_url.clone()),
+                        g2_url: Some(g2_url.clone()),
+                    }),
+                }),
             }),
             ObjectStore(config) => proto::data_availability_client::Config::ObjectStore(
                 object_store_proto::ObjectStore::build(config),
             ),
+            NoDA => proto::data_availability_client::Config::NoDa(proto::NoDaConfig {}),
         };
 
         Self {

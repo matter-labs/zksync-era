@@ -16,8 +16,8 @@ use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
 use zksync_prover_keystore::keystore::Keystore;
 use zksync_queued_job_processor::JobProcessor;
+use zksync_task_management::ManagedTasks;
 use zksync_types::{basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion};
-use zksync_utils::wait_for_tasks::ManagedTasks;
 use zksync_vlog::prometheus::PrometheusExporterConfig;
 use zksync_witness_generator::{
     metrics::SERVER_METRICS,
@@ -104,7 +104,6 @@ async fn main() -> anyhow::Result<()> {
     let _observability_guard = observability_config.install()?;
 
     let started_at = Instant::now();
-    let use_push_gateway = opt.batch_size.is_some();
 
     let prover_config = general_config.prover_config.context("prover config")?;
     let object_store_config = ProverObjectStoreConfig(
@@ -121,16 +120,27 @@ async fn main() -> anyhow::Result<()> {
     let keystore =
         Keystore::locate().with_setup_path(Some(prover_config.setup_data_path.clone().into()));
 
-    let prometheus_config = general_config.prometheus_config.clone();
+    let prometheus_config = general_config
+        .prometheus_config
+        .context("missing prometheus config")?;
 
-    // If the prometheus listener port is not set in the witness generator config, use the one from the prometheus config.
-    let prometheus_listener_port = if let Some(port) = config.prometheus_listener_port {
-        port
+    let prometheus_exporter_config = if prometheus_config.pushgateway_url.is_some() {
+        let url = prometheus_config
+            .gateway_endpoint()
+            .context("missing prometheus gateway endpoint")?;
+        tracing::info!("Using Prometheus push gateway: {}", url);
+        PrometheusExporterConfig::push(url, prometheus_config.push_interval())
     } else {
-        prometheus_config
-            .clone()
-            .context("prometheus config")?
-            .listener_port
+        let prometheus_listener_port = if let Some(port) = config.prometheus_listener_port {
+            port
+        } else {
+            prometheus_config.listener_port
+        };
+        tracing::info!(
+            "Using Prometheus pull on port: {}",
+            prometheus_listener_port
+        );
+        PrometheusExporterConfig::pull(prometheus_listener_port)
     };
 
     let connection_pool = ConnectionPool::<Prover>::singleton(database_secrets.prover_url()?)
@@ -140,6 +150,7 @@ async fn main() -> anyhow::Result<()> {
     let (stop_sender, stop_receiver) = watch::channel(false);
 
     let protocol_version = PROVER_PROTOCOL_SEMANTIC_VERSION;
+
     ensure_protocol_alignment(&connection_pool, protocol_version, &keystore)
         .await
         .unwrap_or_else(|err| panic!("Protocol alignment check failed: {:?}", err));
@@ -165,20 +176,7 @@ async fn main() -> anyhow::Result<()> {
         }
     };
 
-    let prometheus_config = if use_push_gateway {
-        let prometheus_config = prometheus_config
-            .clone()
-            .context("prometheus config needed when use_push_gateway enabled")?;
-        PrometheusExporterConfig::push(
-            prometheus_config
-                .gateway_endpoint()
-                .context("gateway_endpoint needed when use_push_gateway enabled")?,
-            prometheus_config.push_interval(),
-        )
-    } else {
-        PrometheusExporterConfig::pull(prometheus_listener_port as u16)
-    };
-    let prometheus_task = prometheus_config.run(stop_receiver.clone());
+    let prometheus_task = prometheus_exporter_config.run(stop_receiver.clone());
 
     let mut tasks = Vec::new();
     tasks.push(tokio::spawn(prometheus_task));
@@ -191,26 +189,11 @@ async fn main() -> anyhow::Result<()> {
             &protocol_version
         );
 
-        let public_blob_store = match config.shall_save_to_public_bucket {
-            false => None,
-            true => Some(
-                ObjectStoreFactory::new(
-                    prover_config
-                        .public_object_store
-                        .clone()
-                        .expect("public_object_store"),
-                )
-                .create_store()
-                .await?,
-            ),
-        };
-
         let witness_generator_task = match round {
             AggregationRound::BasicCircuits => {
                 let generator = WitnessGenerator::<BasicCircuits>::new(
                     config.clone(),
                     store_factory.create_store().await?,
-                    public_blob_store,
                     connection_pool.clone(),
                     protocol_version,
                     keystore.clone(),
@@ -221,7 +204,6 @@ async fn main() -> anyhow::Result<()> {
                 let generator = WitnessGenerator::<LeafAggregation>::new(
                     config.clone(),
                     store_factory.create_store().await?,
-                    public_blob_store,
                     connection_pool.clone(),
                     protocol_version,
                     keystore.clone(),
@@ -232,7 +214,6 @@ async fn main() -> anyhow::Result<()> {
                 let generator = WitnessGenerator::<NodeAggregation>::new(
                     config.clone(),
                     store_factory.create_store().await?,
-                    public_blob_store,
                     connection_pool.clone(),
                     protocol_version,
                     keystore.clone(),
@@ -243,7 +224,6 @@ async fn main() -> anyhow::Result<()> {
                 let generator = WitnessGenerator::<RecursionTip>::new(
                     config.clone(),
                     store_factory.create_store().await?,
-                    public_blob_store,
                     connection_pool.clone(),
                     protocol_version,
                     keystore.clone(),
@@ -254,7 +234,6 @@ async fn main() -> anyhow::Result<()> {
                 let generator = WitnessGenerator::<Scheduler>::new(
                     config.clone(),
                     store_factory.create_store().await?,
-                    public_blob_store,
                     connection_pool.clone(),
                     protocol_version,
                     keystore.clone(),

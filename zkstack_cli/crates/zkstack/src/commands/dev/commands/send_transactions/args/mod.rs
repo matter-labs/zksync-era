@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 
 use clap::Parser;
-use common::Prompt;
 use url::Url;
+use zkstack_cli_common::Prompt;
 
 use crate::commands::dev::{
     defaults::LOCAL_RPC_URL,

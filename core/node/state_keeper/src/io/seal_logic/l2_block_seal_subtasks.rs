@@ -496,8 +496,6 @@ mod tests {
             execution_info: Default::default(),
             execution_status: TxExecutionStatus::Success,
             refunded_gas: 0,
-            operator_suggested_refund: 0,
-            compressed_bytecodes: Vec::new(),
             call_traces: Vec::new(),
             revert_reason: None,
         }];
@@ -538,10 +536,10 @@ mod tests {
                 user_l2_to_l1_logs,
                 system_l2_to_l1_logs: Default::default(),
                 new_factory_deps,
-                l1_gas_count: Default::default(),
                 block_execution_metrics: Default::default(),
                 txs_encoding_size: Default::default(),
                 payload_encoding_size: Default::default(),
+                l1_tx_count: 0,
                 timestamp: 1,
                 number: L2BlockNumber(1),
                 prev_block_hash: Default::default(),
@@ -594,14 +592,12 @@ mod tests {
 
         // Check DAL doesn't return tx receipt before block header is saved.
         let mut connection = pool.connection().await.unwrap();
-        let tx_receipt = connection
+        let tx_receipts = connection
             .transactions_web3_dal()
             .get_transaction_receipts(&[tx_hash])
             .await
-            .unwrap()
-            .first()
-            .cloned();
-        assert!(tx_receipt.is_none());
+            .unwrap();
+        assert!(tx_receipts.is_empty(), "{tx_receipts:?}");
 
         // Insert block header.
         let l2_block_header = L2BlockHeader {
@@ -638,7 +634,8 @@ mod tests {
             .get_transaction_receipts(&[tx_hash])
             .await
             .unwrap()
-            .remove(0);
+            .remove(0)
+            .inner;
         assert_eq!(tx_receipt.block_number.as_u32(), 1);
         assert_eq!(tx_receipt.logs.len(), 1);
         assert_eq!(tx_receipt.l2_to_l1_logs.len(), 1);

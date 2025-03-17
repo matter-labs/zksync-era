@@ -15,7 +15,8 @@ use zksync_prover_fri_types::{
     },
     CircuitWrapper, FriProofWrapper,
 };
-use zksync_prover_interface::outputs::L1BatchProofForL1;
+use zksync_prover_interface::{inputs::WitnessInputMerklePaths, outputs::L1BatchProofForL1};
+use zksync_types::{u256_to_h256, H256};
 
 #[derive(ClapArgs)]
 pub struct Args {
@@ -73,7 +74,7 @@ fn pretty_print_scheduler_witness(
 fn pretty_print_circuit_wrapper(circuit: &CircuitWrapper) {
     println!(" == Circuit ==");
     match circuit {
-        CircuitWrapper::Base(circuit) | CircuitWrapper::BasePartial((circuit, _)) => {
+        CircuitWrapper::Base(circuit) => {
             println!(
                 "Type: basic. Id: {:?} ({})",
                 circuit.numeric_circuit_type(),
@@ -95,7 +96,49 @@ fn pretty_print_circuit_wrapper(circuit: &CircuitWrapper) {
                 }
                 ZkSyncBaseLayerCircuit::RAMPermutation(_) => todo!(),
                 ZkSyncBaseLayerCircuit::StorageSorter(_) => todo!(),
-                ZkSyncBaseLayerCircuit::StorageApplication(circuit) => circuit.debug_witness(),
+                ZkSyncBaseLayerCircuit::StorageApplication(circuit) => {
+                    let witness = circuit.clone_witness().unwrap();
+                    println!(
+                        "Initial root hash: {:?}",
+                        H256::from_slice(
+                            &witness.closed_form_input.observable_input.initial_root_hash
+                        )
+                    );
+                    println!(
+                        "Fsm input hash: {:?}",
+                        H256::from_slice(
+                            &witness.closed_form_input.hidden_fsm_input.current_root_hash
+                        )
+                    );
+                    println!(
+                        "Fsm output hash: {:?}",
+                        H256::from_slice(
+                            &witness
+                                .closed_form_input
+                                .hidden_fsm_output
+                                .current_root_hash
+                        )
+                    );
+                    println!(
+                        "Final root hash: {:?}",
+                        H256::from_slice(
+                            &witness.closed_form_input.observable_output.new_root_hash
+                        )
+                    );
+
+                    let storage_queue = witness.storage_queue_witness.elements;
+                    println!("storage queue elements: {:?}", storage_queue.len());
+                    for (i, x) in storage_queue.iter().enumerate() {
+                        println!(
+                            "{}  element: rw:{:?} {:?} {:?} {:?}",
+                            i,
+                            x.0.rw_flag,
+                            x.0.address,
+                            u256_to_h256(x.0.key),
+                            u256_to_h256(x.0.written_value)
+                        );
+                    }
+                }
                 ZkSyncBaseLayerCircuit::EventsSorter(_) => todo!(),
                 ZkSyncBaseLayerCircuit::L1MessagesSorter(_) => todo!(),
                 ZkSyncBaseLayerCircuit::L1MessagesHasher(_) => todo!(),
@@ -171,24 +214,32 @@ fn pretty_print_proof(result: &FriProofWrapper) {
 fn pretty_print_l1_proof(result: &L1BatchProofForL1) {
     println!("{}", "== Snark wrapped L1 proof ==".to_string().bold());
     println!("AUX info:");
+
+    let aggregation_result_coords = result.aggregation_result_coords();
+
     println!(
         "  L1 msg linear hash: 0x{}",
-        hex::encode(result.aggregation_result_coords[0])
+        hex::encode(aggregation_result_coords[0])
     );
     println!(
         "  Rollup_state_diff_for_compression: 0x{}",
-        hex::encode(result.aggregation_result_coords[1])
+        hex::encode(aggregation_result_coords[1])
     );
     println!(
         "  bootloader_heap_initial_content: 0x{}",
-        hex::encode(result.aggregation_result_coords[2])
+        hex::encode(aggregation_result_coords[2])
     );
     println!(
         "  events_queue_state: 0x{}",
-        hex::encode(result.aggregation_result_coords[3])
+        hex::encode(aggregation_result_coords[3])
     );
 
-    println!("Inputs: {:?}", result.scheduler_proof.inputs);
+    let inputs = match result {
+        L1BatchProofForL1::Fflonk(proof) => &proof.scheduler_proof.inputs,
+        L1BatchProofForL1::Plonk(proof) => &proof.scheduler_proof.inputs,
+    };
+
+    println!("Inputs: {:?}", inputs);
     println!("  This proof will pass on L1, if L1 executor computes the block commitment that is matching exactly the Inputs value above");
 }
 
@@ -221,5 +272,29 @@ pub(crate) async fn run(args: Args) -> anyhow::Result<()> {
     } else {
         println!("  NOT a L1BatchProof.");
     }
+
+    let maybe_witness_input: Option<WitnessInputMerklePaths> = bincode::deserialize(&bytes).ok();
+    if let Some(witness_input) = maybe_witness_input {
+        println!("  Parsing file as WitnessInputMerklePaths.");
+        println!(
+            " Next enumeration index: {}",
+            witness_input.next_enumeration_index()
+        );
+        println!("  merkle paths: {:?}", witness_input.merkle_paths.len());
+        let merkle_path = witness_input.merkle_paths[0].clone();
+        println!(
+            "first root hash: {:?}",
+            H256::from_slice(&merkle_path.root_hash)
+        );
+
+        let merkle_path = witness_input.merkle_paths.last().unwrap().clone();
+        println!(
+            "last root hash: {:?}",
+            H256::from_slice(&merkle_path.root_hash)
+        );
+    } else {
+        println!("  NOT a WitnessInputMerklePaths.");
+    }
+
     Ok(())
 }

@@ -4,9 +4,9 @@ use std::{
 };
 
 use anyhow::Context as _;
-use common::logger;
-use config::{ChainConfig, EcosystemConfig};
 use xshell::{cmd, Shell};
+use zkstack_cli_common::logger;
+use zkstack_cli_config::{ChainConfig, EcosystemConfig};
 
 use crate::commands::dev::messages::MSG_CHAIN_NOT_FOUND_ERR;
 
@@ -21,6 +21,7 @@ pub async fn run(shell: &Shell) -> anyhow::Result<()> {
 
     let protocol_version = get_protocol_version(shell, &link_to_prover).await?;
     let snark_wrapper = get_snark_wrapper(&link_to_prover).await?;
+    let fflonk_snark_wrapper = get_fflonk_snark_wrapper(&link_to_prover).await?;
     let prover_url = get_database_url(&chain_config).await?;
 
     logger::info(format!(
@@ -28,10 +29,11 @@ pub async fn run(shell: &Shell) -> anyhow::Result<()> {
 =============================== \n
 Current prover setup information: \n
 Protocol version: {} \n
-Snark wrapper: {} \n
+Snark wrapper: {} \n\
+FFLONK Snark wrapper: {} \n
 Database URL: {}\n
 ===============================",
-        protocol_version, snark_wrapper, prover_url
+        protocol_version, snark_wrapper, fflonk_snark_wrapper, prover_url
     ));
 
     Ok(())
@@ -64,15 +66,25 @@ pub(crate) async fn get_snark_wrapper(link_to_prover: &Path) -> anyhow::Result<S
     Ok(snark_wrapper)
 }
 
+pub(crate) async fn get_fflonk_snark_wrapper(link_to_prover: &Path) -> anyhow::Result<String> {
+    let path = link_to_prover.join("data/keys/commitments.json");
+    let file = fs::File::open(path).expect("Could not find commitments file in zksync-era");
+    let json: serde_json::Value =
+        serde_json::from_reader(file).expect("Could not parse commitments.json");
+
+    let snark_wrapper = json
+        .get("fflonk_snark_wrapper")
+        .expect("Could not find snark_wrapper in commitments.json");
+
+    let mut snark_wrapper = snark_wrapper.to_string();
+    snark_wrapper.pop();
+    snark_wrapper.remove(0);
+
+    Ok(snark_wrapper)
+}
+
 pub(crate) async fn get_database_url(chain: &ChainConfig) -> anyhow::Result<String> {
-    let prover_url = chain
-        .get_secrets_config()?
-        .database
-        .context("Database secrets not found")?
-        .prover_url()?
-        .expose_url()
-        .to_string();
-    Ok(prover_url)
+    chain.get_secrets_config().await?.get("database.prover_url")
 }
 
 pub fn parse_version(version: &str) -> anyhow::Result<(&str, &str)> {

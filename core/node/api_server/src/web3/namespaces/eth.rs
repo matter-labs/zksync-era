@@ -6,7 +6,7 @@ use zksync_types::{
         state_override::StateOverride, BlockId, BlockNumber, FeeHistory, GetLogsFilter,
         Transaction, TransactionId, TransactionReceipt, TransactionVariant,
     },
-    bytecode::{trim_padded_evm_bytecode, BytecodeMarker},
+    bytecode::{trim_padded_evm_bytecode, BytecodeHash, BytecodeMarker},
     l2::{L2Tx, TransactionType},
     transaction_request::CallRequest,
     u256_to_h256,
@@ -22,7 +22,7 @@ use zksync_web3_decl::{
 use crate::{
     execution_sandbox::BlockArgs,
     tx_sender::BinarySearchKind,
-    utils::open_readonly_transaction,
+    utils::{fill_transaction_receipts, open_readonly_transaction},
     web3::{backend_jsonrpsee::MethodTracer, metrics::API_METRICS, state::RpcState, TypedFilter},
 };
 
@@ -372,12 +372,12 @@ impl EthNamespace {
         };
         self.set_block_diff(block_number); // only report block diff for existing L2 blocks
 
-        let mut receipts = storage
+        let receipts = storage
             .transactions_web3_dal()
             .get_transaction_receipts(&block.transactions)
             .await
             .with_context(|| format!("get_transaction_receipts({block_number})"))?;
-        receipts.sort_unstable_by_key(|receipt| receipt.transaction_index);
+        let receipts = fill_transaction_receipts(&mut storage, receipts).await?;
         Ok(Some(receipts))
     }
 
@@ -404,14 +404,22 @@ impl EthNamespace {
         // Check if the bytecode is an EVM bytecode, and if so, pre-process it correspondingly.
         let marker = BytecodeMarker::new(contract_code.bytecode_hash);
         let prepared_bytecode = if marker == Some(BytecodeMarker::Evm) {
-            trim_padded_evm_bytecode(&contract_code.bytecode)
-                .with_context(|| {
+            trim_padded_evm_bytecode(
+                BytecodeHash::try_from(contract_code.bytecode_hash).with_context(|| {
                     format!(
-                        "malformed EVM bytecode at address {address:?}, hash = {:?}",
+                        "Invalid bytecode hash at address {address:?}: {:?}",
                         contract_code.bytecode_hash
                     )
-                })?
-                .to_vec()
+                })?,
+                &contract_code.bytecode,
+            )
+            .with_context(|| {
+                format!(
+                    "malformed EVM bytecode at address {address:?}, hash = {:?}",
+                    contract_code.bytecode_hash
+                )
+            })?
+            .to_vec()
         } else {
             contract_code.bytecode
         };
@@ -546,6 +554,7 @@ impl EthNamespace {
             .get_transaction_receipts(&[hash])
             .await
             .context("get_transaction_receipts")?;
+        let receipts = fill_transaction_receipts(&mut storage, receipts).await?;
         Ok(receipts.into_iter().next())
     }
 
