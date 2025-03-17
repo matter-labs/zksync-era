@@ -38,4 +38,4 @@ zksync_vlog.workspace = true
 
 [dev-dependencies]
 hex.workspace = true
-http.workspace = true
+serde_json.workspace = true

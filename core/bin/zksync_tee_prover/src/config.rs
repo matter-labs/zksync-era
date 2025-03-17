@@ -1,6 +1,6 @@
-use std::{fmt::Debug, path::PathBuf, time::Duration};
+use std::{path::PathBuf, time::Duration};
 
-use anyhow::{Context as _, Result};
+use anyhow::Context as _;
 use secp256k1::SecretKey;
 use serde::Deserialize;
 use url::Url;
@@ -9,7 +9,7 @@ use zksync_config::configs::{ObservabilityConfig, PrometheusConfig};
 use zksync_env_config::FromEnv;
 
 /// Configuration for the TEE prover.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone)]
 pub(crate) struct TeeProverConfig {
     /// Signing parameters passed via environment
     pub sig_conf: TeeProverSigConfig,
@@ -107,7 +107,7 @@ impl FromEnv for TeeProverSigConfig {
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug)]
 pub(crate) struct AppConfig {
     pub observability: ObservabilityConfig,
     pub prometheus: PrometheusConfig,
@@ -125,7 +125,7 @@ pub(crate) struct MetaConfig {
 }
 
 impl AppConfig {
-    pub(crate) async fn try_new() -> Result<Self> {
+    pub(crate) async fn try_new() -> anyhow::Result<Self> {
         let sig_conf = TeeProverSigConfig::from_env().context("TeeProverSigConfig::from_env()")?;
 
         if std::env::var_os("GOOGLE_METADATA").is_some() {
@@ -168,9 +168,6 @@ impl AppConfig {
 
 #[cfg(test)]
 mod tests {
-    use http::response::Builder;
-    use reqwest::Response;
-
     use crate::config::MetaConfig;
 
     #[tokio::test]
@@ -208,9 +205,6 @@ mod tests {
             "max_backoff_sec" : 128
           }
         }"#;
-
-        // Build a mock response
-        let mock_response = Response::from(Builder::new().status(200).body(mock_data).unwrap());
-        let _meta_config = mock_response.json::<MetaConfig>().await.unwrap();
+        let _meta_config: MetaConfig = serde_json::from_str(mock_data).unwrap();
     }
 }
