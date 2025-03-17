@@ -330,7 +330,7 @@ impl CombinedDataProvider {
         }
     }
 
-    pub fn set_l1(&mut self, l1: SLDataProvider) {
+    pub fn set_sl(&mut self, l1: SLDataProvider) {
         self.l1 = Some(l1);
     }
 }

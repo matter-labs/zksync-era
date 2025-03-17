@@ -7,10 +7,7 @@ use tokio::{
     io::{self, AsyncReadExt},
 };
 use zksync_block_reverter::{
-    eth_client::{
-        clients::{Client, PKSigningClient, L1},
-        EthInterface,
-    },
+    eth_client::clients::{Client, PKSigningClient, L1},
     BlockReverter, BlockReverterEthConfig, NodeRole,
 };
 use zksync_config::{
@@ -247,7 +244,7 @@ async fn main() -> anyhow::Result<()> {
     )
     .await?
     .context("No chain has been deployed")?;
-    let (settlement_mode, _) = get_settlement_layer_from_l1(
+    let (settlement_mode, chain_id) = get_settlement_layer_from_l1(
         &eth_client,
         sl_l1_contracts.chain_contracts_config.diamond_proxy_addr,
         &getters_facet_contract(),
@@ -333,15 +330,11 @@ async fn main() -> anyhow::Result<()> {
             };
 
             let priority_fee_per_gas = priority_fee_per_gas.unwrap_or(default_priority_fee_per_gas);
-            let l1_chain_id = client
-                .fetch_chain_id()
-                .await
-                .context("cannot fetch Ethereum chain ID")?;
             let sl_client = PKSigningClient::new_raw(
                 reverter_private_key,
                 sl_diamond_proxy,
                 priority_fee_per_gas,
-                l1_chain_id,
+                chain_id,
                 Box::new(client),
             );
 

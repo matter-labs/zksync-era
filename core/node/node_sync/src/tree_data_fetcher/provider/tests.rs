@@ -396,7 +396,7 @@ async fn combined_data_provider_errors() {
     main_node_client.insert_batch(L1BatchNumber(2), H256::repeat_byte(2));
     let mut provider = CombinedDataProvider::new(main_node_client);
     let l1_provider = create_l1_data_provider(Box::new(eth_params.client())).await;
-    provider.set_l1(l1_provider);
+    provider.set_sl(l1_provider);
 
     // L1 batch #1 should be obtained from L1
     let root_hash = provider

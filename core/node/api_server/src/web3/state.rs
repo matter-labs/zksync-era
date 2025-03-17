@@ -183,7 +183,7 @@ impl InternalApiConfigBuilder {
                 l2_erc20_default_bridge: l2_contracts.erc20_default_bridge,
                 l1_shared_default_bridge: l1_ecosystem_contracts.shared_bridge,
                 l2_shared_default_bridge: l2_contracts.shared_bridge_addr,
-                // WETH bridge is not available
+                // WETH bridge is not available, but SDK doesn't work correctly with none
                 l1_weth_bridge: Some(Address::zero()),
                 l2_weth_bridge: Some(Address::zero()),
                 l2_legacy_shared_bridge: l2_contracts.legacy_shared_bridge_addr,
@@ -289,9 +289,9 @@ impl InternalApiConfig {
                 l2_erc20_default_bridge: l2_contracts.erc20_default_bridge,
                 l1_shared_default_bridge: l1_ecosystem_contracts.shared_bridge,
                 l2_shared_default_bridge: l2_contracts.shared_bridge_addr,
-                // WETH bridge is not available
-                l1_weth_bridge: None,
-                l2_weth_bridge: None,
+                // WETH bridge is not available, but SDK doesn't work correctly with none
+                l1_weth_bridge: Some(Address::zero()),
+                l2_weth_bridge: Some(Address::zero()),
                 l2_legacy_shared_bridge: l2_contracts.legacy_shared_bridge_addr,
             },
             l1_ecosystem_contracts: l1_contracts_config.ecosystem_contracts.clone(),

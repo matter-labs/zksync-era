@@ -73,7 +73,7 @@ pub struct Output {
     l1_contracts: L1ChainContractsResource,
     sl_chain_id: SlChainIdResource,
     l2_contracts: L2ContractsResource,
-    pub l2_eth_client: Option<L2InterfaceResource>,
+    l2_eth_client: Option<L2InterfaceResource>,
 }
 
 #[async_trait::async_trait]
@@ -126,6 +126,13 @@ impl WiringLayer for SettlementLayerData {
                 L2InterfaceResource(Box::new(builder.build()))
             });
 
+        let bridgehub = match initial_sl_mode {
+            SettlementMode::SettlesToL1 => {
+                self.l1_specific_contracts.bridge_hub.expect("must exist")
+            }
+            SettlementMode::Gateway => L2_BRIDGEHUB_ADDRESS,
+        };
+
         let switch = switch_to_current_settlement_mode(
             initial_sl_mode,
             l2_eth_client
@@ -135,6 +142,7 @@ impl WiringLayer for SettlementLayerData {
                 .as_deref(),
             self.l2_chain_id,
             &mut pool.connection().await.context("Can't connect")?,
+            bridgehub,
             &getters_facet_contract(),
         )
         .await?;

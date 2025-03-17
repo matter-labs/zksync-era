@@ -138,8 +138,8 @@ impl TreeDataFetcher {
             "L1 tree data provider is already set up"
         );
 
-        let l1_provider = SLDataProvider::new(sl_client, sl_diamond_proxy_addr).await?;
-        self.data_provider.set_l1(l1_provider);
+        let sl_provider = SLDataProvider::new(sl_client, sl_diamond_proxy_addr).await?;
+        self.data_provider.set_sl(sl_provider);
         self.diamond_proxy_address = Some(sl_diamond_proxy_addr);
         Ok(self)
     }

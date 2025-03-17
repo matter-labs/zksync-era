@@ -37,8 +37,8 @@ pub struct Input {
     pub price_api_client: PriceAPIClientResource,
     pub eth_client: EthInterfaceResource,
     pub tx_params: TxParamsResource,
-    pub contracts_resource: L1ChainContractsResource,
-    pub l1ecosystem_contracts_resource: L1EcosystemContractsResource,
+    pub l1_contracts_resource: L1ChainContractsResource,
+    pub l1_ecosystem_contracts_resource: L1EcosystemContractsResource,
 }
 
 #[derive(Debug, IntoContext)]
@@ -75,7 +75,7 @@ impl WiringLayer for BaseTokenRatioPersisterLayer {
         let master_pool = input.master_pool.get().await?;
 
         let price_api_client = input.price_api_client;
-        let base_token_addr = input.l1ecosystem_contracts_resource.0.base_token_address;
+        let base_token_addr = input.l1_ecosystem_contracts_resource.0.base_token_address;
 
         let l1_behaviour = self
             .wallets_config
@@ -88,7 +88,7 @@ impl WiringLayer for BaseTokenRatioPersisterLayer {
                 let signing_client = PKSigningClient::new_raw(
                     tms_private_key.clone(),
                     input
-                        .contracts_resource
+                        .l1_contracts_resource
                         .0
                         .chain_contracts_config
                         .diamond_proxy_addr,
@@ -105,18 +105,15 @@ impl WiringLayer for BaseTokenRatioPersisterLayer {
                         chain_admin_contract: chain_admin_contract(),
                         getters_facet_contract: getters_facet_contract(),
                         diamond_proxy_contract_address: input
-                            .contracts_resource
+                            .l1_contracts_resource
                             .0
                             .chain_contracts_config
                             .diamond_proxy_addr,
-                        chain_admin_contract_address: Some(
-                            input
-                                .contracts_resource
-                                .0
-                                .chain_contracts_config
-                                .chain_admin
-                                .expect("Should be presented"),
-                        ),
+                        chain_admin_contract_address: input
+                            .l1_contracts_resource
+                            .0
+                            .chain_contracts_config
+                            .chain_admin,
                         config: self.config.clone(),
                     },
                     last_persisted_l1_ratio: None,

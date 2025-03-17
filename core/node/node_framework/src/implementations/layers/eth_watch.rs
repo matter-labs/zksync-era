@@ -1,4 +1,7 @@
-use zksync_config::EthWatchConfig;
+use zksync_config::{
+    configs::contracts::{ecosystem::L1SpecificContracts, SettlementLayerSpecificContracts},
+    EthWatchConfig,
+};
 use zksync_eth_watch::{EthHttpQueryClient, EthWatch, GetLogsClient, ZkSyncExtentionEthClient};
 use zksync_types::L2ChainId;
 use zksync_web3_decl::client::{DynClient, Network};
@@ -59,30 +62,23 @@ impl EthWatchLayer {
     fn create_client<Net: Network>(
         &self,
         client: Box<DynClient<Net>>,
-        contracts_resource: &SettlementLayerContractsResource,
-        l1_ecosystem_contracts_resource: &L1EcosystemContractsResource,
+        contracts_resource: &SettlementLayerSpecificContracts,
+        l1_ecosystem_contracts_resource: &L1SpecificContracts,
     ) -> EthHttpQueryClient<Net>
     where
         Box<DynClient<Net>>: GetLogsClient,
     {
         EthHttpQueryClient::new(
             client,
+            contracts_resource.chain_contracts_config.diamond_proxy_addr,
+            l1_ecosystem_contracts_resource.bytecodes_supplier_addr,
+            l1_ecosystem_contracts_resource.wrapped_base_token_store,
+            l1_ecosystem_contracts_resource.shared_bridge,
             contracts_resource
-                .0
-                .chain_contracts_config
-                .diamond_proxy_addr,
-            l1_ecosystem_contracts_resource.0.bytecodes_supplier_addr,
-            l1_ecosystem_contracts_resource.0.wrapped_base_token_store,
-            l1_ecosystem_contracts_resource.0.shared_bridge,
-            contracts_resource
-                .0
                 .ecosystem_contracts
                 .state_transition_proxy_addr,
-            contracts_resource.0.chain_contracts_config.chain_admin,
-            contracts_resource
-                .0
-                .ecosystem_contracts
-                .server_notifier_addr,
+            contracts_resource.chain_contracts_config.chain_admin,
+            contracts_resource.ecosystem_contracts.server_notifier_addr,
             self.eth_watch_config.confirmations_for_eth_event,
             self.chain_id,
         )
@@ -111,47 +107,22 @@ impl WiringLayer for EthWatchLayer {
                 .diamond_proxy_addr
         );
 
-        let l1_client = EthHttpQueryClient::new(
+        let l1_client = self.create_client(
             client,
-            input
-                .l1_contracts
-                .0
-                .chain_contracts_config
-                .diamond_proxy_addr,
-            input
-                .l1ecosystem_contracts_resource
-                .0
-                .bytecodes_supplier_addr,
-            input
-                .l1ecosystem_contracts_resource
-                .0
-                .wrapped_base_token_store,
-            input.l1ecosystem_contracts_resource.0.shared_bridge,
-            input
-                .l1_contracts
-                .0
-                .ecosystem_contracts
-                .state_transition_proxy_addr,
-            input.l1_contracts.0.chain_contracts_config.chain_admin,
-            input
-                .l1_contracts
-                .0
-                .ecosystem_contracts
-                .server_notifier_addr,
-            self.eth_watch_config.confirmations_for_eth_event,
-            self.chain_id,
+            &input.l1_contracts.0,
+            &input.l1ecosystem_contracts_resource.0,
         );
 
         let sl_l2_client: Box<dyn ZkSyncExtentionEthClient> = match input.client.0 {
             UniversalClient::L1(client) => Box::new(self.create_client(
                 client,
-                &input.contracts_resource,
-                &input.l1ecosystem_contracts_resource,
+                &input.contracts_resource.0,
+                &input.l1ecosystem_contracts_resource.0,
             )),
             UniversalClient::L2(client) => Box::new(self.create_client(
                 client,
-                &input.contracts_resource,
-                &input.l1ecosystem_contracts_resource,
+                &input.contracts_resource.0,
+                &input.l1ecosystem_contracts_resource.0,
             )),
         };
 

@@ -27,10 +27,6 @@ enum PubdataSendingMode {
   RELAYED_L2_CALLDATA = 3;
 }
 
-enum SettlementMode {
-  SettlesToL1 = 0;
-  Gateway = 1;
-}
 
 message Sender {
   reserved 1; reserved "aggregated_proof_sizes";

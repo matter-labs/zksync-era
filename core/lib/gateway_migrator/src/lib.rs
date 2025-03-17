@@ -19,6 +19,7 @@ pub struct GatewayMigrator {
     eth_client: Box<dyn EthInterface>,
     gateway_client: Option<Box<dyn EthInterface>>,
     l1_diamond_proxy_addr: Address,
+    l1_bridge_hub_address: Address,
     settlement_mode: SettlementMode,
     l2chain_id: L2ChainId,
     abi: Contract,
@@ -32,6 +33,7 @@ impl GatewayMigrator {
         l1_diamond_proxy_addr: Address,
         initial_settlement_mode: SettlementMode,
         l2chain_id: L2ChainId,
+        l1_bridge_hub_address: Address,
         pool: ConnectionPool<Core>,
     ) -> Self {
         let abi = getters_facet_contract();
@@ -39,6 +41,7 @@ impl GatewayMigrator {
             eth_client,
             gateway_client,
             l1_diamond_proxy_addr,
+            l1_bridge_hub_address,
             settlement_mode: initial_settlement_mode,
             l2chain_id,
             abi,
@@ -59,13 +62,17 @@ impl GatewayMigrator {
                 &self.abi,
             )
             .await?;
-
+            let bridgehub_address = match settlement_mode {
+                SettlementMode::SettlesToL1 => self.l1_bridge_hub_address,
+                SettlementMode::Gateway => L2_BRIDGEHUB_ADDRESS,
+            };
             if settlement_mode != self.settlement_mode
                 && switch_to_current_settlement_mode(
                     settlement_mode,
                     gateway_client.clone().as_deref(),
                     self.l2chain_id,
                     &mut self.pool.connection().await?,
+                    bridgehub_address,
                     &self.abi,
                 )
                 .await?
@@ -82,6 +89,7 @@ pub async fn switch_to_current_settlement_mode(
     gateway_client: Option<&dyn EthInterface>,
     l2chain_id: L2ChainId,
     storage: &mut Connection<'_, Core>,
+    bridge_hub_address: Address,
     abi: &Contract,
 ) -> anyhow::Result<bool> {
     // Check how many transaction from the opposite settlement mode we have.
@@ -96,34 +104,29 @@ pub async fn switch_to_current_settlement_mode(
         return Ok(false);
     }
 
-    let res = match settlement_mode_from_l1 {
-        // We got the settlement mode from l1 initially, it's safe to switch to this settlement mode
-        SettlementMode::SettlesToL1 => true,
-        SettlementMode::Gateway => {
-            // Load chain contracts from gateway
-            let gateway_client = gateway_client.unwrap();
+    // Load chain contracts from gateway
+    let gateway_client = gateway_client.unwrap();
 
-            let sl_contracts = load_settlement_layer_contracts(
-                gateway_client,
-                L2_BRIDGEHUB_ADDRESS,
-                l2chain_id,
-                None,
-            )
+    let sl_contracts =
+        load_settlement_layer_contracts(gateway_client, bridge_hub_address, l2chain_id, None)
             .await?;
-            // Wait until the contracts are deployed on l2
-            if let Some(contracts) = sl_contracts {
-                let settlement_layer_address = get_settlement_layer_address(
-                    gateway_client,
-                    contracts.chain_contracts_config.diamond_proxy_addr,
-                    abi,
-                )
-                .await?;
-                // When we settle to the current chain, settlement mode should zero
-                settlement_layer_address.is_zero()
-            } else {
-                false
-            }
-        }
+    // Deploying contracts on gateway are going through l1->l2 communication,
+    // even though the settlement layer has changed on l1.
+    // Gateway should process l1->l2 transaction.
+    // Even though when we switched from gateway to l1,
+    // we don't need to wait for contracts deployment,
+    // we have to wait for l2->l1 communication to be finalized
+    let res = if let Some(contracts) = sl_contracts {
+        let settlement_layer_address = get_settlement_layer_address(
+            gateway_client,
+            contracts.chain_contracts_config.diamond_proxy_addr,
+            abi,
+        )
+        .await?;
+        // When we settle to the current chain, settlement mode should zero
+        settlement_layer_address.is_zero()
+    } else {
+        false
     };
     Ok(res)
 }

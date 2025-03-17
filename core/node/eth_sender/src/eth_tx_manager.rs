@@ -650,13 +650,9 @@ impl EthTxManager {
         &mut self,
         storage: &mut Connection<'_, Core>,
     ) {
-        if !self.sl_mode.is_gateway() {
-            return;
-        }
-
         let inflight_count = storage
             .eth_sender_dal()
-            .get_inflight_txs_count_for_gateway_migration(false)
+            .get_inflight_txs_count_for_gateway_migration(!self.sl_mode.is_gateway())
             .await
             .unwrap();
         if inflight_count != 0 {

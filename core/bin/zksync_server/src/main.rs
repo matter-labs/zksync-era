@@ -57,10 +57,6 @@ struct Cli {
     /// Path to the yaml with contracts. If set, it will be used instead of env vars.
     #[arg(long)]
     contracts_config_path: Option<std::path::PathBuf>,
-    /// Path to the yaml with gateway contracts. Note, that at this moment,
-    /// env-based config is not supported for gateway-related functionality.
-    #[arg(long)]
-    gateway_contracts_config_path: Option<std::path::PathBuf>,
     /// Path to the wallets config. If set, it will be used instead of env vars.
     #[arg(long)]
     wallets_path: Option<std::path::PathBuf>,
@@ -179,7 +175,7 @@ fn main() -> anyhow::Result<()> {
 
     let result = node.run(observability_guard);
     if find_gateway_update_error(&result) {
-        println!("Gateway has changed")
+        tracing::warn!("Gateway has changed")
     };
     Ok(())
 }

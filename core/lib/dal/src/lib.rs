@@ -50,6 +50,7 @@ pub mod proof_generation_dal;
 pub mod protocol_versions_dal;
 pub mod protocol_versions_web3_dal;
 pub mod pruning_dal;
+mod server_notifier;
 pub mod snapshot_recovery_dal;
 pub mod snapshots_creator_dal;
 pub mod snapshots_dal;
@@ -65,7 +66,6 @@ pub mod transactions_dal;
 pub mod transactions_web3_dal;
 pub mod vm_runner_dal;
 
-mod server_notifier;
 #[cfg(test)]
 mod tests;
 
