@@ -124,7 +124,7 @@ async fn verify_next_batch_new_version(
         )
     })?;
     anyhow::ensure!(
-        protocol_version >= ProtocolVersionId::gateway_upgrade(),
+        protocol_version >= ProtocolVersionId::Version27,
         "THe block does not yet contain the gateway upgrade"
     );
 
