@@ -90,7 +90,7 @@ generating an insertion proof for each batch.
 
 ```shell
 RUST_LOG=debug cargo run --release \
-  -p zk_os_merkle_tree --example loadtest -- \
+  -p zk_os_merkle_tree --example loadtest_zk_os_merkle_tree -- \
   --updates=16000 --chunk-size=500 --proofs 1000 4000
 ```
 

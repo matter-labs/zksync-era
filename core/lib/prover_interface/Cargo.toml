@@ -20,9 +20,9 @@ circuit_definitions.workspace = true
 fflonk.workspace = true
 bellman.workspace = true
 circuit_sequencer_api.workspace = true
+jsonrpsee = { workspace = true, features = ["ws-client", "server", "macros", "client-ws-transport-tls"]}
 
 serde.workspace = true
-strum = { workspace = true, features = ["derive"] }
 serde_with = { workspace = true, features = ["base64", "hex"] }
 
 [dev-dependencies]

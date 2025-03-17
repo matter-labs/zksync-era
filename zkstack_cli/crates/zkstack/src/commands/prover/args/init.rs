@@ -23,11 +23,10 @@ use crate::{
         MSG_CREATE_GCS_BUCKET_PROJECT_ID_NO_PROJECTS_PROMPT,
         MSG_CREATE_GCS_BUCKET_PROJECT_ID_PROMPT, MSG_CREATE_GCS_BUCKET_PROMPT,
         MSG_DOWNLOAD_SETUP_COMPRESSOR_KEY_PROMPT, MSG_GETTING_PROOF_STORE_CONFIG,
-        MSG_GETTING_PUBLIC_STORE_CONFIG, MSG_INITIALIZE_BELLMAN_CUDA_PROMPT,
-        MSG_PROOF_STORE_CONFIG_PROMPT, MSG_PROOF_STORE_DIR_PROMPT,
-        MSG_PROOF_STORE_GCS_BUCKET_BASE_URL_ERR, MSG_PROOF_STORE_GCS_BUCKET_BASE_URL_PROMPT,
-        MSG_PROOF_STORE_GCS_CREDENTIALS_FILE_PROMPT, MSG_PROVER_DB_NAME_HELP,
-        MSG_PROVER_DB_URL_HELP, MSG_SAVE_TO_PUBLIC_BUCKET_PROMPT, MSG_SETUP_KEYS_PROMPT,
+        MSG_INITIALIZE_BELLMAN_CUDA_PROMPT, MSG_PROOF_STORE_CONFIG_PROMPT,
+        MSG_PROOF_STORE_DIR_PROMPT, MSG_PROOF_STORE_GCS_BUCKET_BASE_URL_ERR,
+        MSG_PROOF_STORE_GCS_BUCKET_BASE_URL_PROMPT, MSG_PROOF_STORE_GCS_CREDENTIALS_FILE_PROMPT,
+        MSG_PROVER_DB_NAME_HELP, MSG_PROVER_DB_URL_HELP, MSG_SETUP_KEYS_PROMPT,
         MSG_USE_DEFAULT_DATABASES_HELP,
     },
 };
@@ -44,16 +43,6 @@ pub struct ProverInitArgs {
     pub proof_store_gcs_config: ProofStorageGCSTmp,
     #[clap(flatten)]
     pub create_gcs_bucket_config: ProofStorageGCSCreateBucketTmp,
-
-    // Public store object
-    #[clap(long)]
-    pub shall_save_to_public_bucket: Option<bool>,
-    #[clap(long)]
-    pub public_store_dir: Option<String>,
-    #[clap(flatten)]
-    pub public_store_gcs_config: PublicStorageGCSTmp,
-    #[clap(flatten)]
-    pub public_create_gcs_bucket_config: PublicStorageGCSCreateBucketTmp,
 
     // Bellman cuda
     #[clap(flatten)]
@@ -120,24 +109,6 @@ pub struct ProofStorageGCSCreateBucketTmp {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Parser, Default)]
-pub struct PublicStorageGCSTmp {
-    #[clap(long)]
-    pub public_bucket_base_url: Option<String>,
-    #[clap(long)]
-    pub public_credentials_file: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Parser, Default)]
-pub struct PublicStorageGCSCreateBucketTmp {
-    #[clap(long)]
-    pub public_bucket_name: Option<String>,
-    #[clap(long)]
-    pub public_location: Option<String>,
-    #[clap(long)]
-    pub public_project_id: Option<String>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, Parser, Default)]
 pub struct SetupCompressorKeyConfigTmp {
     #[clap(long)]
     pub download_key: Option<bool>,
@@ -181,7 +152,6 @@ pub struct ProverDatabaseConfig {
 #[derive(Debug, Clone)]
 pub struct ProverInitArgsFinal {
     pub proof_store: ProofStorageConfig,
-    pub public_store: Option<ProofStorageConfig>,
     pub compressor_key_args: Option<CompressorKeysArgs>,
     pub setup_keys: Option<SetupKeysArgs>,
     pub bellman_cuda_config: Option<InitBellmanCudaArgs>,
@@ -197,7 +167,6 @@ impl ProverInitArgs {
         chain_config: &ChainConfig,
     ) -> anyhow::Result<ProverInitArgsFinal> {
         let proof_store = self.fill_proof_storage_values_with_prompt(shell)?;
-        let public_store = self.fill_public_storage_values_with_prompt(shell)?;
         let compressor_key_args =
             self.fill_setup_compressor_key_values_with_prompt(default_compressor_key_path);
         let bellman_cuda_config = self.fill_bellman_cuda_values_with_prompt();
@@ -207,7 +176,6 @@ impl ProverInitArgs {
 
         Ok(ProverInitArgsFinal {
             proof_store,
-            public_store,
             compressor_key_args,
             setup_keys,
             bellman_cuda_config,
@@ -266,80 +234,6 @@ impl ProverInitArgs {
                     self.proof_store_gcs_config.bucket_base_url.clone(),
                     self.proof_store_gcs_config.credentials_file.clone(),
                 ))
-            }
-        }
-    }
-
-    fn fill_public_storage_values_with_prompt(
-        &self,
-        shell: &Shell,
-    ) -> anyhow::Result<Option<ProofStorageConfig>> {
-        logger::info(MSG_GETTING_PUBLIC_STORE_CONFIG);
-
-        if self.dev {
-            return Ok(None);
-        }
-
-        let shall_save_to_public_bucket = self
-            .shall_save_to_public_bucket
-            .unwrap_or_else(|| PromptConfirm::new(MSG_SAVE_TO_PUBLIC_BUCKET_PROMPT).ask());
-
-        if !shall_save_to_public_bucket {
-            return Ok(None);
-        }
-
-        if self.public_store_dir.is_some() {
-            return Ok(Some(
-                self.handle_file_backed_config(self.public_store_dir.clone()),
-            ));
-        }
-
-        if self.partial_gcs_config_provided(
-            self.public_store_gcs_config.public_bucket_base_url.clone(),
-            self.public_store_gcs_config.public_credentials_file.clone(),
-        ) {
-            return Ok(Some(self.ask_gcs_config(
-                self.public_store_gcs_config.public_bucket_base_url.clone(),
-                self.public_store_gcs_config.public_credentials_file.clone(),
-            )));
-        }
-
-        if self.partial_create_gcs_bucket_config_provided(
-            self.public_create_gcs_bucket_config
-                .public_bucket_name
-                .clone(),
-            self.public_create_gcs_bucket_config.public_location.clone(),
-            self.public_create_gcs_bucket_config
-                .public_project_id
-                .clone(),
-        ) {
-            let project_ids = get_project_ids(shell)?;
-            return Ok(Some(
-                self.handle_create_gcs_bucket(
-                    project_ids,
-                    self.public_create_gcs_bucket_config
-                        .public_project_id
-                        .clone(),
-                    self.public_create_gcs_bucket_config
-                        .public_bucket_name
-                        .clone(),
-                    self.public_create_gcs_bucket_config.public_location.clone(),
-                    self.public_store_gcs_config.public_credentials_file.clone(),
-                ),
-            ));
-        }
-
-        match PromptSelect::new(MSG_PROOF_STORE_CONFIG_PROMPT, ProofStoreConfig::iter()).ask() {
-            ProofStoreConfig::Local => Ok(Some(
-                self.handle_file_backed_config(self.public_store_dir.clone()),
-            )),
-            ProofStoreConfig::GCS => {
-                let project_ids = get_project_ids(shell)?;
-                Ok(Some(self.handle_gcs_config(
-                    project_ids,
-                    self.public_store_gcs_config.public_bucket_base_url.clone(),
-                    self.public_store_gcs_config.public_credentials_file.clone(),
-                )))
             }
         }
     }

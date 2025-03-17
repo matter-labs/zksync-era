@@ -11,7 +11,6 @@ use crate::{
 /// from hardcoded expected value.
 pub(crate) fn test_circuits<VM: TestedVm>() {
     let mut vm = VmTesterBuilder::new()
-        .with_empty_in_memory_storage()
         .with_rich_accounts(1)
         .with_bootloader_gas_limit(BATCH_COMPUTATIONAL_GAS_LIMIT)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
@@ -38,7 +37,7 @@ pub(crate) fn test_circuits<VM: TestedVm>() {
         0.13982475,
         1.6666666,
         0.003154238,
-        0.9247803,
+        1.0797892,
         0.00058723404,
         0.0034893616,
         0.00076709175,

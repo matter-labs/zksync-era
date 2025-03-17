@@ -41,6 +41,7 @@ pub struct MempoolFetcher {
     sync_batch_size: usize,
     stuck_tx_timeout: Option<Duration>,
     skip_unsafe_deposit_checks: bool,
+    l1_to_l2_txs_paused: bool,
     #[cfg(test)]
     transaction_hashes_sender: mpsc::UnboundedSender<Vec<H256>>,
 }
@@ -59,6 +60,7 @@ impl MempoolFetcher {
             sync_batch_size: config.sync_batch_size,
             stuck_tx_timeout: config.remove_stuck_txs.then(|| config.stuck_tx_timeout()),
             skip_unsafe_deposit_checks: config.skip_unsafe_deposit_checks,
+            l1_to_l2_txs_paused: config.l1_to_l2_txs_paused,
             #[cfg(test)]
             transaction_hashes_sender: mpsc::unbounded_channel().0,
         }
@@ -129,7 +131,7 @@ impl MempoolFetcher {
                     &mempool_info.purged_accounts,
                     gas_per_pubdata,
                     fee_per_gas,
-                    true,
+                    !self.l1_to_l2_txs_paused,
                     self.sync_batch_size,
                 )
                 .await
@@ -254,6 +256,7 @@ mod tests {
         remove_stuck_txs: false,
         delay_interval: 10,
         skip_unsafe_deposit_checks: false,
+        l1_to_l2_txs_paused: false,
     };
 
     #[tokio::test]
