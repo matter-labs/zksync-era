@@ -449,7 +449,10 @@ impl EthTxAggregator {
         if chain_protocol_version_id < ProtocolVersionId::gateway_upgrade() {
             self.config_timelock_contract_address
         } else {
-            assert!(chain_protocol_version_id <= stm_protocol_version_id, "Chain upgraded before STM");
+            assert!(
+                chain_protocol_version_id <= stm_protocol_version_id,
+                "Chain upgraded before STM"
+            );
 
             stm_validator_timelock_address
         }
