@@ -9,6 +9,7 @@ pub(crate) enum RequestProcessorError {
     GeneralError(String),
     ObjectStore(ObjectStoreError),
     Dal(DalError),
+    NoContent(String),
 }
 
 impl From<DalError> for RequestProcessorError {
@@ -40,6 +41,10 @@ impl IntoResponse for RequestProcessorError {
                     StatusCode::BAD_GATEWAY,
                     "Failed fetching/saving from db".to_owned(),
                 )
+            }
+            Self::NoContent(err) => {
+                tracing::error!("Expected content, received none: {:?}", err);
+                (StatusCode::NO_CONTENT, "No content".to_owned())
             }
         };
         (status_code, message).into_response()

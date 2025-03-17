@@ -48,7 +48,7 @@ pub async fn init_configs(
     chain_config: &ChainConfig,
 ) -> anyhow::Result<ContractsConfig> {
     // Port scanner should run before copying configs to avoid marking initial ports as assigned
-    let mut ecosystem_ports = EcosystemPortsScanner::scan(shell)?;
+    let mut ecosystem_ports = EcosystemPortsScanner::scan(shell, Some(&chain_config.name))?;
     copy_configs(shell, &ecosystem_config.link_to_code, &chain_config.configs)?;
 
     if !init_args.no_port_reallocation {
@@ -61,11 +61,15 @@ pub async fn init_configs(
 
     let general_config = chain_config.get_general_config().await?;
     let prover_data_handler_url = general_config.proof_data_handler_url()?;
+    let prover_gateway_ws_url = general_config.prover_gateway_ws_url()?;
 
     let consensus_keys = generate_consensus_keys();
     let mut general_config = general_config.patched();
     if let Some(url) = prover_data_handler_url {
         general_config.set_prover_gateway_url(url)?;
+    }
+    if let Some(url) = prover_gateway_ws_url {
+        general_config.set_proof_data_handler_url(url)?;
     }
     set_genesis_specs(&mut general_config, chain_config, &consensus_keys)?;
 

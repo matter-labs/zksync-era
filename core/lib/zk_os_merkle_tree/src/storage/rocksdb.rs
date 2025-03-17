@@ -9,6 +9,7 @@ use zksync_storage::{db::NamedColumnFamily, rocksdb, rocksdb::DBPinnableSlice, R
 
 use crate::{
     errors::{DeserializeContext, DeserializeErrorKind},
+    metrics::METRICS,
     storage::{InsertedKeyEntry, PartialPatchSet, PatchSet},
     types::{InternalNode, KeyLookup, Leaf, Manifest, Node, NodeKey, Root},
     Database, DeserializeError,
@@ -147,35 +148,35 @@ impl RocksDBWrapper {
     }
 
     fn lookup_key(&self, key: H256, version: u64) -> Result<KeyLookup, DeserializeError> {
-        let (next_key, next_entry) = self
+        let (next_key, next_idx) = self
             .db
             .from_iterator_cf(MerkleTreeColumnFamily::KeyIndices, key.as_bytes()..)
             .find_map(|(key, raw_entry)| {
                 let entry = InsertedKeyEntry::deserialize(&raw_entry)
                     .map_err(|err| err.with_context(DeserializeContext::KeyIndex(key.clone())))
                     .unwrap();
-                (entry.inserted_at <= version).then(|| (H256::from_slice(&key), entry))
+                (entry.inserted_at <= version).then(|| (H256::from_slice(&key), entry.index))
             })
-            .expect("guards must be inserted into a tree on initialization");
+            .unwrap_or_else(|| (H256::repeat_byte(0xff), 1));
 
         if next_key == key {
-            return Ok(KeyLookup::Existing(next_entry.index));
+            return Ok(KeyLookup::Existing(next_idx));
         }
 
-        let (prev_key, prev_entry) = self
+        let (prev_key, prev_idx) = self
             .db
             .to_iterator_cf(MerkleTreeColumnFamily::KeyIndices, ..=key.as_bytes())
             .find_map(|(key, raw_entry)| {
                 let entry = InsertedKeyEntry::deserialize(&raw_entry)
                     .map_err(|err| err.with_context(DeserializeContext::KeyIndex(key.clone())))
                     .unwrap();
-                (entry.inserted_at <= version).then(|| (H256::from_slice(&key), entry))
+                (entry.inserted_at <= version).then(|| (H256::from_slice(&key), entry.index))
             })
-            .expect("guards must be inserted into a tree on initialization");
+            .unwrap_or_else(|| (H256::zero(), 0));
 
         Ok(KeyLookup::Missing {
-            prev_key_and_index: (prev_key, prev_entry.index),
-            next_key_and_index: (next_key, next_entry.index),
+            prev_key_and_index: (prev_key, prev_idx),
+            next_key_and_index: (next_key, next_idx),
         })
     }
 
@@ -246,6 +247,7 @@ impl Database for RocksDBWrapper {
         let mut node_bytes = Vec::with_capacity(128);
         // ^ 128 looks somewhat reasonable as node capacity
 
+        let copied_hashes = patch.copied_hashes_count();
         let new_leaves = patch.sorted_new_leaves.len();
         let total_leaves: usize = patch
             .patches_by_version
@@ -310,11 +312,20 @@ impl Database for RocksDBWrapper {
             }
         }
 
+        METRICS
+            .apply_patch_key_lookup_entries_count
+            .observe(new_leaves);
+        METRICS.apply_patch_leaves_count.observe(total_leaves);
+        METRICS
+            .apply_patch_internal_nodes_count
+            .observe(total_internal_nodes);
+        METRICS.apply_patch_copied_hashes.observe(copied_hashes);
         tracing::debug!(
             total_size = write_batch.size_in_bytes(),
             new_leaves,
             total_leaves,
             total_internal_nodes,
+            copied_hashes,
             "writing to RocksDB"
         );
 

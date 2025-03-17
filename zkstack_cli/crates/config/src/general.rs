@@ -20,7 +20,6 @@ pub struct RocksDbs {
 }
 
 pub struct FileArtifacts {
-    pub public_object_store: PathBuf,
     pub prover_object_store: PathBuf,
     pub snapshot: PathBuf,
     pub core_object_store: PathBuf,
@@ -30,7 +29,6 @@ impl FileArtifacts {
     /// Currently all artifacts are stored in one path, but we keep an opportunity to update this paths
     pub fn new(path: PathBuf) -> Self {
         Self {
-            public_object_store: path.clone(),
             prover_object_store: path.clone(),
             snapshot: path.clone(),
             core_object_store: path.clone(),
@@ -92,6 +90,11 @@ impl GeneralConfig {
         Ok(port.map(|port| format!("http://127.0.0.1:{port}")))
     }
 
+    pub fn prover_gateway_ws_url(&self) -> anyhow::Result<Option<String>> {
+        let port = self.0.get_opt::<u16>("prover_gateway.ws_port")?;
+        Ok(port.map(|port| format!("ws://127.0.0.1:{port}")))
+    }
+
     pub fn da_client_type(&self) -> Option<&str> {
         self.0.get_raw("da_client").and_then(|val| {
             let val = val.as_mapping()?;
@@ -149,11 +152,6 @@ impl GeneralConfigPatch {
         )?;
         set_file_backed_path_if_selected(
             &mut self.0,
-            "prover.public_object_store",
-            &file_artifacts.public_object_store,
-        )?;
-        set_file_backed_path_if_selected(
-            &mut self.0,
             "snapshot_creator.object_store",
             &file_artifacts.snapshot,
         )?;
@@ -198,6 +196,10 @@ impl GeneralConfigPatch {
 
     pub fn set_prover_gateway_url(&mut self, url: String) -> anyhow::Result<()> {
         self.0.insert("prover_gateway.api_url", url)
+    }
+
+    pub fn set_proof_data_handler_url(&mut self, url: String) -> anyhow::Result<()> {
+        self.0.insert("data_handler.api_url", url)
     }
 
     pub fn proof_compressor_setup_download_url(&self) -> anyhow::Result<String> {

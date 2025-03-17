@@ -53,6 +53,7 @@ impl From<U64> for U64Number {
 // `Signature`, `keccak256`: from `web3::signing`
 
 /// A struct that represents the components of a secp256k1 signature.
+#[derive(Debug)]
 pub struct Signature {
     /// V component in Electrum format with chain-id replay protection.
     pub v: u64,

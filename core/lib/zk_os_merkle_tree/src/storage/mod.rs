@@ -1,7 +1,7 @@
 use std::{
     cmp,
     collections::{BTreeMap, HashMap},
-    ops,
+    ops, slice,
 };
 
 use zksync_basic_types::H256;
@@ -140,26 +140,47 @@ pub struct PatchSet {
 }
 
 impl PatchSet {
+    fn is_new_version(&self, version: u64) -> bool {
+        version >= self.manifest.version_count // this patch truncates `version`
+            || self.patches_by_version.contains_key(&version)
+    }
+
     fn index(&self, version: u64, key: &H256) -> KeyLookup {
-        let (next_key, next_entry) = self
+        let (next_key, next_idx) = self
             .sorted_new_leaves
             .range(key..)
             .find(|(_, entry)| entry.inserted_at <= version)
-            .expect("guards must be inserted into a tree on initialization");
-        if next_key == key {
-            return KeyLookup::Existing(next_entry.index);
+            .map(|(key, entry)| (*key, entry.index))
+            // Default to the max guard even if it's not present in the patch set. This is important
+            // for using `PatchSet` inside `Patched`.
+            .unwrap_or_else(|| (H256::repeat_byte(0xff), 1));
+        if next_key == *key {
+            return KeyLookup::Existing(next_idx);
         }
 
-        let (prev_key, prev_entry) = self
+        let (prev_key, prev_idx) = self
             .sorted_new_leaves
             .range(..key)
             .rev()
             .find(|(_, entry)| entry.inserted_at <= version)
-            .expect("guards must be inserted into a tree on initialization");
+            .map(|(key, entry)| (*key, entry.index))
+            .unwrap_or_else(|| (H256::zero(), 0));
         KeyLookup::Missing {
-            prev_key_and_index: (*prev_key, prev_entry.index),
-            next_key_and_index: (*next_key, next_entry.index),
+            prev_key_and_index: (prev_key, prev_idx),
+            next_key_and_index: (next_key, next_idx),
         }
+    }
+
+    fn copied_hashes_count(&self) -> usize {
+        let copied_hashes = self.patches_by_version.iter().map(|(&version, patch)| {
+            let copied_hashes = patch
+                .internal
+                .iter()
+                .flat_map(HashMap::values)
+                .map(|node| node.children.iter().filter(|r| r.version < version).count());
+            copied_hashes.sum::<usize>()
+        });
+        copied_hashes.sum()
     }
 
     #[cfg(test)]
@@ -237,6 +258,186 @@ impl Database for PatchSet {
             .retain(|_, entry| entry.inserted_at < new_version_count);
 
         self.manifest = manifest;
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub struct Patched<DB> {
+    inner: DB,
+    patch: Option<PatchSet>,
+}
+
+impl<DB: Database> Patched<DB> {
+    pub fn new(inner: DB) -> Self {
+        Self { inner, patch: None }
+    }
+
+    /// Returns `Ok(None)` if the patch is not responsible for the requested version.
+    fn lookup_patch(&self, key: &NodeKey) -> Result<Option<Node>, DeserializeError> {
+        let Some(patch) = &self.patch else {
+            return Ok(None);
+        };
+
+        Ok(if patch.is_new_version(key.version) {
+            patch.try_nodes(slice::from_ref(key))?.into_iter().next()
+        } else {
+            None
+        })
+    }
+
+    /// Flushes changes from RAM to the wrapped database.
+    ///
+    /// # Errors
+    ///
+    /// Proxies database I/O errors.
+    pub fn flush(&mut self) -> anyhow::Result<()> {
+        if let Some(patch) = self.patch.take() {
+            self.inner.apply_patch(patch)?;
+        }
+        Ok(())
+    }
+
+    /// Forgets about changes held in RAM.
+    pub fn reset(&mut self) {
+        self.patch = None;
+    }
+
+    /// Returns the wrapped database.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the database contains uncommitted changes. Call [`Self::flush()`]
+    /// or [`Self::reset()`] beforehand to avoid this panic.
+    pub fn into_inner(self) -> DB {
+        assert!(
+            self.patch.is_none(),
+            "The `Patched` database contains uncommitted changes"
+        );
+        self.inner
+    }
+}
+
+impl<DB: Database> Database for Patched<DB> {
+    fn indices(&self, version: u64, keys: &[H256]) -> Result<Vec<KeyLookup>, DeserializeError> {
+        let Some(patch) = &self.patch else {
+            return self.inner.indices(version, keys);
+        };
+        if !patch.is_new_version(version) {
+            return self.inner.indices(version, keys);
+        }
+
+        let patch_lookup = patch.indices(version, keys)?;
+        let db_keys = keys.iter().zip(&patch_lookup).filter_map(|(key, lookup)| {
+            if matches!(lookup, KeyLookup::Existing(_)) {
+                // The key is present in the patch; not necessary to request it from the DB.
+                None
+            } else {
+                Some(*key)
+            }
+        });
+        let db_keys: Vec<_> = db_keys.collect();
+        let mut db_lookup = self.inner.indices(version, &db_keys)?.into_iter();
+
+        let merged = patch_lookup.into_iter().map(|from_patch| match from_patch {
+            lookup @ KeyLookup::Existing(_) => lookup,
+            KeyLookup::Missing {
+                prev_key_and_index: patch_prev,
+                next_key_and_index: patch_next,
+            } => {
+                match db_lookup.next().unwrap() {
+                    // Exact match in the database, no need to merge
+                    lookup @ KeyLookup::Existing(_) => lookup,
+                    KeyLookup::Missing {
+                        prev_key_and_index: db_prev,
+                        next_key_and_index: db_next,
+                    } => KeyLookup::Missing {
+                        // Using `min` / `max` work because `(prev|next)_key_and_index` have key as the first element.
+                        prev_key_and_index: patch_prev.max(db_prev),
+                        next_key_and_index: patch_next.min(db_next),
+                    },
+                }
+            }
+        });
+        Ok(merged.collect())
+    }
+
+    fn try_manifest(&self) -> Result<Option<Manifest>, DeserializeError> {
+        if let Some(patch) = &self.patch {
+            Ok(Some(patch.manifest.clone()))
+        } else {
+            self.inner.try_manifest()
+        }
+    }
+
+    fn try_root(&self, version: u64) -> Result<Option<Root>, DeserializeError> {
+        if let Some(patch) = &self.patch {
+            if patch.is_new_version(version) {
+                return patch.try_root(version);
+            }
+        }
+        self.inner.try_root(version)
+    }
+
+    fn try_nodes(&self, keys: &[NodeKey]) -> Result<Vec<Node>, DeserializeError> {
+        if self.patch.is_none() {
+            return self.inner.try_nodes(keys);
+        }
+
+        let mut is_in_patch = vec![false; keys.len()];
+        let mut patch_nodes = vec![];
+        for (key, is_in_patch) in keys.iter().zip(&mut is_in_patch) {
+            if let Some(patch_node) = self.lookup_patch(key)? {
+                *is_in_patch = true;
+                patch_nodes.push(patch_node);
+            }
+        }
+
+        let db_keys: Vec<_> = keys
+            .iter()
+            .zip(&is_in_patch)
+            .filter_map(|(key, is_in_patch)| (!is_in_patch).then_some(*key))
+            .collect();
+        let mut db_nodes = self.inner.try_nodes(&db_keys)?.into_iter();
+        let mut patch_nodes = patch_nodes.into_iter();
+
+        let all_nodes = is_in_patch.into_iter().map(|is_in_patch| {
+            if is_in_patch {
+                patch_nodes.next().unwrap()
+            } else {
+                db_nodes.next().unwrap()
+            }
+        });
+        Ok(all_nodes.collect())
+    }
+
+    fn apply_patch(&mut self, patch: PatchSet) -> anyhow::Result<()> {
+        if let Some(existing_patch) = &mut self.patch {
+            existing_patch.apply_patch(patch)?;
+        } else {
+            self.patch = Some(patch);
+        }
+        Ok(())
+    }
+
+    fn truncate(
+        &mut self,
+        manifest: Manifest,
+        truncated_versions: ops::RangeTo<u64>,
+    ) -> anyhow::Result<()> {
+        let Some(patch) = &mut self.patch else {
+            return self.inner.truncate(manifest, truncated_versions);
+        };
+        patch.truncate(manifest.clone(), truncated_versions)?;
+
+        // If the patch set is fully truncated, we want to flush truncation to the underlying DB since it won't be applied
+        // in the following flushes.
+        if patch.patches_by_version.is_empty() {
+            assert!(patch.sorted_new_leaves.is_empty());
+
+            self.patch = None;
+            self.inner.truncate(manifest, truncated_versions)?;
+        }
         Ok(())
     }
 }

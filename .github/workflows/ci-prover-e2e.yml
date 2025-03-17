@@ -37,27 +37,8 @@ jobs:
           ci_run sccache --start-server
           ci_run git config --global --add safe.directory "*"
 
-      - name: Checkout DualVerifier commit
-        working-directory: ./contracts
-        if: matrix.compressor-mode == 'fflonk'
-        run: |
-          git fetch
-          # Checkout the commit with the DualVerifier contract to test FFLONK interface
-          git checkout bcdd1cb05e8f4d9ec2dd41e2cc668cdfe30ee535
-          git submodule update --init --recursive
-          git rev-parse HEAD
-
       - name: Install yq
         run: sudo wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/local/bin/yq && sudo chmod a+x /usr/local/bin/yq
-
-      - name: Set new genesis for fflonk 
-        # Note, that while `Verifier` is not explicitly a part of the genesis state,
-        # it affects it indirectly as it is a part of the repo.
-        working-directory: ./etc/env/file_based
-        if: matrix.compressor-mode == 'fflonk'
-        run: |
-          yq -e -i '.genesis_root = "0xf15e1f51b54d18843eb6ff18532921165b3393910b489a7b58933220363d9204"' genesis.yaml
-          yq -e -i '.genesis_batch_commitment = "0xabfaad1553b5325624826db5b57de11b6be33285b9e0324665cce50d7f179a63"' genesis.yaml
 
       - name: Init
         run: |
@@ -78,9 +59,9 @@ jobs:
             --set-as-default true \
             --ignore-prerequisites \
             --evm-emulator false \
-            --update-submodules=${{matrix.compressor-mode == 'plonk'}}
+            --update-submodules=true
 
-          ci_run zkstack ecosystem init --dev --update-submodules=${{matrix.compressor-mode == 'plonk'}} --verbose
+          ci_run zkstack ecosystem init --dev --update-submodules=true --verbose
 
           ci_run zkstack prover init --dev --verbose
           WEB3_HTTP_URL=$(yq -e '.api.web3_json_rpc.http_url' < ./chains/proving_chain/configs/general.yaml)

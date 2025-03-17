@@ -189,26 +189,11 @@ async fn main() -> anyhow::Result<()> {
             &protocol_version
         );
 
-        let public_blob_store = match config.shall_save_to_public_bucket {
-            false => None,
-            true => Some(
-                ObjectStoreFactory::new(
-                    prover_config
-                        .public_object_store
-                        .clone()
-                        .expect("public_object_store"),
-                )
-                .create_store()
-                .await?,
-            ),
-        };
-
         let witness_generator_task = match round {
             AggregationRound::BasicCircuits => {
                 let generator = WitnessGenerator::<BasicCircuits>::new(
                     config.clone(),
                     store_factory.create_store().await?,
-                    public_blob_store,
                     connection_pool.clone(),
                     protocol_version,
                     keystore.clone(),
@@ -219,7 +204,6 @@ async fn main() -> anyhow::Result<()> {
                 let generator = WitnessGenerator::<LeafAggregation>::new(
                     config.clone(),
                     store_factory.create_store().await?,
-                    public_blob_store,
                     connection_pool.clone(),
                     protocol_version,
                     keystore.clone(),
@@ -230,7 +214,6 @@ async fn main() -> anyhow::Result<()> {
                 let generator = WitnessGenerator::<NodeAggregation>::new(
                     config.clone(),
                     store_factory.create_store().await?,
-                    public_blob_store,
                     connection_pool.clone(),
                     protocol_version,
                     keystore.clone(),
@@ -241,7 +224,6 @@ async fn main() -> anyhow::Result<()> {
                 let generator = WitnessGenerator::<RecursionTip>::new(
                     config.clone(),
                     store_factory.create_store().await?,
-                    public_blob_store,
                     connection_pool.clone(),
                     protocol_version,
                     keystore.clone(),
@@ -252,7 +234,6 @@ async fn main() -> anyhow::Result<()> {
                 let generator = WitnessGenerator::<Scheduler>::new(
                     config.clone(),
                     store_factory.create_store().await?,
-                    public_blob_store,
                     connection_pool.clone(),
                     protocol_version,
                     keystore.clone(),

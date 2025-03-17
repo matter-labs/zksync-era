@@ -205,6 +205,8 @@ pub struct MempoolConfig {
     pub remove_stuck_txs: bool,
     pub delay_interval: u64,
     #[serde(default)]
+    pub l1_to_l2_txs_paused: bool,
+    #[serde(default)]
     pub skip_unsafe_deposit_checks: bool,
 }
 
