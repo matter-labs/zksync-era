@@ -128,7 +128,7 @@ impl BatchDiffs {
     /// # Panics
     ///
     /// Panics if there is no diff for some element in the range.
-    pub fn range(&self, batch_range: RangeInclusive<L1BatchNumber>) -> Vec<BatchDiff> {
+    pub(crate) fn range(&self, batch_range: RangeInclusive<L1BatchNumber>) -> Vec<BatchDiff> {
         let from_l1_batch = *batch_range.start();
         let to_l1_batch = *batch_range.end();
 
@@ -136,13 +136,11 @@ impl BatchDiffs {
         assert!(from_l1_batch >= first_diff_number);
         assert!((to_l1_batch.0 as usize) < (first_diff_number.0 as usize) + self.diffs.len());
 
-        let to_skip = from_l1_batch.0 - first_diff_number.0;
-        let to_take = to_l1_batch.0 - from_l1_batch.0 + 1;
+        let relative_start_index = (from_l1_batch.0 - first_diff_number.0) as usize;
+        let relative_end_index = (to_l1_batch.0 - first_diff_number.0) as usize;
 
         self.diffs
-            .iter()
-            .skip(to_skip as usize)
-            .take(to_take as usize)
+            .range(relative_start_index..=relative_end_index)
             .cloned()
             .collect()
     }

@@ -210,14 +210,15 @@ impl KeepUpdatedTask {
         const SLEEP_INTERVAL: Duration = Duration::from_millis(100);
 
         let db: RocksDB<StateKeeperColumnFamily> = tokio::select! {
-            res = self.db.wait_for(Option::is_some) => match res {
+            res = self.db.wait_for(Option::is_some) => if let Ok(db) = res {
                 // `unwrap()` is safe by construction
-                Ok(db) => db.clone().unwrap(),
-                // Interrupted
-                Err(_) => return Ok(()),
+                db.clone().unwrap()
+            } else {
+                tracing::info!("Stop signal received, shutting down rocksdb updater task");
+                return Ok(());
             },
             _ = stop_receiver.changed() => {
-                // Interrupted
+                tracing::info!("Stop signal received, shutting down rocksdb updater task");
                 return Ok(());
             }
         };
@@ -236,6 +237,7 @@ impl KeepUpdatedTask {
                     return Err(err).context("Failed to catch up RocksDB to Postgres")
                 }
             }
+            drop(connection);
 
             tokio::time::sleep(SLEEP_INTERVAL).await;
         }
