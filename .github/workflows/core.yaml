@@ -63,7 +63,7 @@ jobs:
           fetch-depth: 2
           submodules: "false"
 
-      - uses: tj-actions/changed-files@v45
+      - uses: tj-actions/changed-files@2f7c5bfce28377bc069a65ba478de0a74aa0ca32 # v46.0.1
         id: files
         with:
           files: |

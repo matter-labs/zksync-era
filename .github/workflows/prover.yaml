@@ -13,25 +13,25 @@ permissions:
 
 # Define the events that triggers the workflow
 on:
-#  pull_request:
-#    paths:
-#      # Workspaces
-#      - 'prover/**'
-#      - 'zkstack_cli/**'
-#      - '!prover/CHANGELOG.md'
-#      - '!prover/setup-data-cpu-keys.json'
-#      - '!prover/setup-data-gpu-keys.json'
-#      - '!prover/extract-setup-data-keys.sh'
-#      # Docker files
-#      - 'docker/prover*/**'
-#      - 'docker-compose-runner-nightly.yml'
-#      # CI scripts
-#      - '.github/workflows/prover.yaml'
-#      - '.github/workflows/build-prover-template.yml'            # TODO: check name after refactoring
-#      - '.github/workflows/build-witness-generator-template.yml' # TODO: check name after refactoring
-#      # Exclude markdown files
-#      - '!**/*.md'
-#      - '!**/*.MD'
+  pull_request:
+    paths:
+      # Workspaces
+      - 'prover/**'
+      - 'zkstack_cli/**'
+      - '!prover/CHANGELOG.md'
+      - '!prover/setup-data-cpu-keys.json'
+      - '!prover/setup-data-gpu-keys.json'
+      - '!prover/extract-setup-data-keys.sh'
+      # Docker files
+      - 'docker/prover*/**'
+      - 'docker-compose-runner-nightly.yml'
+      # CI scripts
+      - '.github/workflows/prover.yaml'
+      - '.github/workflows/build-prover-template.yml'            # TODO: check name after refactoring
+      - '.github/workflows/build-witness-generator-template.yml' # TODO: check name after refactoring
+      # Exclude markdown files
+      - '!**/*.md'
+      - '!**/*.MD'
   merge_group:
 
 # Cancel previous runs for PRs if new one is started
@@ -66,7 +66,7 @@ jobs:
           fetch-depth: 2
           submodules: "false"
 
-      - uses: tj-actions/changed-files@v45
+      - uses: tj-actions/changed-files@2f7c5bfce28377bc069a65ba478de0a74aa0ca32 # v46.0.1
         id: files
         with:
           files: |
@@ -129,7 +129,7 @@ jobs:
       matrix:
         compressor-mode:
           - "fflonk"
-#          - "plonk"
+          - "plonk"
     env:
       ZKSYNC_HOME: ${{ github.workspace }}
       L1_RPC_URL: "http://localhost:8545"

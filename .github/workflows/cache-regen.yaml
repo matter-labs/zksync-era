@@ -35,6 +35,8 @@ on:
   # Run clean up and full regen once a month
   schedule:
     - cron: '0 0 1 * *'
+#  pull_request: # TODO: remove after testing
+
 
 # Do not cancel runs, put new merges in queue
 concurrency:
