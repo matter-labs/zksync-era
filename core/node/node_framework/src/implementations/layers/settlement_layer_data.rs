@@ -126,20 +126,17 @@ impl WiringLayer for SettlementLayerData {
                 L2InterfaceResource(Box::new(builder.build()))
             });
 
-        let bridgehub = match initial_sl_mode {
-            SettlementMode::SettlesToL1 => {
-                self.l1_specific_contracts.bridge_hub.expect("must exist")
-            }
-            SettlementMode::Gateway => L2_BRIDGEHUB_ADDRESS,
+        let (bridgehub, sl_client): (_, &dyn EthInterface) = match initial_sl_mode {
+            SettlementMode::SettlesToL1 => (
+                self.l1_specific_contracts.bridge_hub.expect("must exist"),
+                &input.eth_client.0,
+            ),
+            SettlementMode::Gateway => (L2_BRIDGEHUB_ADDRESS, &l2_eth_client.as_ref().unwrap().0),
         };
 
         let switch = switch_to_current_settlement_mode(
             initial_sl_mode,
-            l2_eth_client
-                .as_ref()
-                .map(|a| a.0.as_ref())
-                .map(|a| Box::new(a) as Box<dyn EthInterface>)
-                .as_deref(),
+            sl_client,
             self.l2_chain_id,
             &mut pool.connection().await.context("Can't connect")?,
             bridgehub,

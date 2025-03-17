@@ -62,14 +62,17 @@ impl GatewayMigrator {
                 &self.abi,
             )
             .await?;
-            let bridgehub_address = match settlement_mode {
-                SettlementMode::SettlesToL1 => self.l1_bridge_hub_address,
-                SettlementMode::Gateway => L2_BRIDGEHUB_ADDRESS,
+            let sl = gateway_client.clone();
+            let (bridgehub_address, client) = match settlement_mode {
+                SettlementMode::SettlesToL1 => {
+                    (self.l1_bridge_hub_address, self.eth_client.as_ref())
+                }
+                SettlementMode::Gateway => (L2_BRIDGEHUB_ADDRESS, sl.as_ref().unwrap().as_ref()),
             };
             if settlement_mode != self.settlement_mode
                 && switch_to_current_settlement_mode(
                     settlement_mode,
-                    gateway_client.clone().as_deref(),
+                    client,
                     self.l2chain_id,
                     &mut self.pool.connection().await?,
                     bridgehub_address,
@@ -86,7 +89,7 @@ impl GatewayMigrator {
 
 pub async fn switch_to_current_settlement_mode(
     settlement_mode_from_l1: SettlementMode,
-    gateway_client: Option<&dyn EthInterface>,
+    sl_client: &dyn EthInterface,
     l2chain_id: L2ChainId,
     storage: &mut Connection<'_, Core>,
     bridge_hub_address: Address,
@@ -104,12 +107,9 @@ pub async fn switch_to_current_settlement_mode(
         return Ok(false);
     }
 
-    // Load chain contracts from gateway
-    let gateway_client = gateway_client.unwrap();
-
+    // Load chain contracts from sl
     let sl_contracts =
-        load_settlement_layer_contracts(gateway_client, bridge_hub_address, l2chain_id, None)
-            .await?;
+        load_settlement_layer_contracts(sl_client, bridge_hub_address, l2chain_id, None).await?;
     // Deploying contracts on gateway are going through l1->l2 communication,
     // even though the settlement layer has changed on l1.
     // Gateway should process l1->l2 transaction.
@@ -118,7 +118,7 @@ pub async fn switch_to_current_settlement_mode(
     // we have to wait for l2->l1 communication to be finalized
     let res = if let Some(contracts) = sl_contracts {
         let settlement_layer_address = get_settlement_layer_address(
-            gateway_client,
+            sl_client,
             contracts.chain_contracts_config.diamond_proxy_addr,
             abi,
         )

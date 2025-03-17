@@ -60,11 +60,6 @@ pub struct EthTxAggregator {
     aggregator: Aggregator,
     eth_client: Box<dyn BoundEthInterface>,
     config: SenderConfig,
-    // The validator timelock address provided in the config.
-    // If the contracts have the same protocol version as the state transition manager, the validator timelock
-    // from the state transition manager will be used.
-    // The address provided from the config is only used when there is a discrepancy between the two.
-    // TODO(EVM-932): always fetch the validator timelock from L1, but it requires a protocol change.
     config_timelock_contract_address: Address,
     l1_multicall3_address: Address,
     pub(super) state_transition_chain_contract: Address,

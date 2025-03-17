@@ -46,23 +46,23 @@ impl EthTxManager {
         pool: ConnectionPool<Core>,
         config: SenderConfig,
         gas_adjuster: Arc<dyn TxParamsProvider>,
-        ethereum_gateway: Option<Box<dyn BoundEthInterface>>,
-        ethereum_gateway_blobs: Option<Box<dyn BoundEthInterface>>,
-        l2_gateway: Option<Box<dyn BoundEthInterface>>,
+        ethereum_client: Option<Box<dyn BoundEthInterface>>,
+        ethereum_client_blobs: Option<Box<dyn BoundEthInterface>>,
+        l2_client: Option<Box<dyn BoundEthInterface>>,
         sl_mode: SettlementMode,
     ) -> Self {
-        let ethereum_gateway = ethereum_gateway.map(|eth| eth.for_component("eth_tx_manager"));
-        let ethereum_gateway_blobs =
-            ethereum_gateway_blobs.map(|eth| eth.for_component("eth_tx_manager"));
+        let ethereum_client = ethereum_client.map(|eth| eth.for_component("eth_tx_manager"));
+        let ethereum_client_blobs =
+            ethereum_client_blobs.map(|eth| eth.for_component("eth_tx_manager"));
         let fees_oracle = GasAdjusterFeesOracle {
             gas_adjuster,
             max_acceptable_priority_fee_in_gwei: config.max_acceptable_priority_fee_in_gwei,
             time_in_mempool_in_l1_blocks_cap: config.time_in_mempool_in_l1_blocks_cap,
         };
         let l1_interface = Box::new(RealL1Interface {
-            ethereum_gateway,
-            ethereum_gateway_blobs,
-            l2_gateway,
+            ethereum_client,
+            ethereum_client_blobs,
+            l2_client,
             wait_confirmations: config.wait_confirmations,
         });
         tracing::info!(
