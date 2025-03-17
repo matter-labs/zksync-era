@@ -20,3 +20,7 @@ pub mod snapshot;
 pub(crate) mod sql_fmt;
 pub mod status;
 pub mod test;
+#[cfg(feature = "gateway")]
+pub mod upgrade_utils;
+#[cfg(feature = "gateway")]
+pub mod v27_evm_eq;
