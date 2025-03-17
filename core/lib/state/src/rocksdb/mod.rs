@@ -114,7 +114,7 @@ impl StateValue {
 
 /// Error emitted when [`RocksdbStorage`] is being updated.
 #[derive(Debug)]
-enum RocksdbSyncError {
+pub(crate) enum RocksdbSyncError {
     Internal(anyhow::Error),
     Interrupted,
 }
@@ -240,9 +240,14 @@ impl RocksdbStorageBuilder {
         stop_receiver: &watch::Receiver<bool>,
         to_l1_batch_number: Option<L1BatchNumber>,
     ) -> anyhow::Result<Option<RocksdbStorage>> {
-        self.update_from_postgres(storage, stop_receiver, to_l1_batch_number)
+        match self
+            .update_from_postgres(storage, stop_receiver, to_l1_batch_number)
             .await
-            .map(|s| s.map(|()| self.0))
+        {
+            Ok(()) => Ok(Some(self.0)),
+            Err(RocksdbSyncError::Interrupted) => Ok(None),
+            Err(RocksdbSyncError::Internal(err)) => Err(err),
+        }
     }
 
     pub(crate) async fn update_from_postgres(
@@ -250,16 +255,10 @@ impl RocksdbStorageBuilder {
         storage: &mut Connection<'_, Core>,
         stop_receiver: &watch::Receiver<bool>,
         to_l1_batch_number: Option<L1BatchNumber>,
-    ) -> anyhow::Result<Option<()>> {
-        let inner = &mut self.0;
-        match inner
+    ) -> anyhow::Result<(), RocksdbSyncError> {
+        self.0
             .update_from_postgres(storage, stop_receiver, to_l1_batch_number)
             .await
-        {
-            Ok(()) => Ok(Some(())),
-            Err(RocksdbSyncError::Interrupted) => Ok(None),
-            Err(RocksdbSyncError::Internal(err)) => Err(err),
-        }
     }
 
     /// Reverts the state to a previous L1 batch number.
