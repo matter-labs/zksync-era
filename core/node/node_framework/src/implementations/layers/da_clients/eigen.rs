@@ -1,8 +1,8 @@
-use std::sync::Arc;
+use std::{error::Error, sync::Arc};
 
 use zksync_config::{configs::da_client::eigen::EigenSecrets, EigenConfig};
 use zksync_da_client::DataAvailabilityClient;
-use zksync_da_clients::eigen::{EigenClient, GetBlobData};
+use zksync_da_clients::eigen::{BlobProvider, EigenDAClient};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_node_framework_derive::FromContext;
 
@@ -52,7 +52,7 @@ impl WiringLayer for EigenWiringLayer {
         let master_pool = input.master_pool.get().await?;
         let get_blob_from_db = GetBlobFromDB { pool: master_pool };
         let client: Box<dyn DataAvailabilityClient> = Box::new(
-            EigenClient::new(self.config, self.secrets, Arc::new(get_blob_from_db)).await?,
+            EigenDAClient::new(self.config, self.secrets, Arc::new(get_blob_from_db)).await?,
         );
 
         Ok(Self::Output {
@@ -67,8 +67,8 @@ pub struct GetBlobFromDB {
 }
 
 #[async_trait::async_trait]
-impl GetBlobData for GetBlobFromDB {
-    async fn get_blob_data(&self, input: &str) -> anyhow::Result<Option<Vec<u8>>> {
+impl BlobProvider for GetBlobFromDB {
+    async fn get_blob(&self, input: &str) -> Result<Option<Vec<u8>>, Box<dyn Error + Send + Sync>> {
         let mut conn = self.pool.connection_tagged("eigen_client").await?;
         let batch = conn
             .data_availability_dal()

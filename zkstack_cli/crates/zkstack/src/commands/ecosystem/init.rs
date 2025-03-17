@@ -111,8 +111,8 @@ async fn init_ecosystem(
     initial_deployment_config: &InitialDeploymentConfig,
 ) -> anyhow::Result<ContractsConfig> {
     let spinner = Spinner::new(MSG_INTALLING_DEPS_SPINNER);
-    install_yarn_dependencies(shell, &ecosystem_config.link_to_code)?;
     if !init_args.skip_contract_compilation_override {
+        install_yarn_dependencies(shell, &ecosystem_config.link_to_code)?;
         build_da_contracts(shell, &ecosystem_config.link_to_code)?;
         build_l1_contracts(shell.clone(), ecosystem_config.link_to_code.clone())?;
         build_system_contracts(shell.clone(), ecosystem_config.link_to_code.clone())?;
@@ -392,6 +392,7 @@ async fn init_chains(
             update_submodules: init_args.update_submodules,
             dev: final_init_args.dev,
             validium_args: final_init_args.validium_args.clone(),
+            server_command: genesis_args.server_command.clone(),
         };
         let final_chain_init_args = chain_init_args.fill_values_with_prompt(&chain_config);
 

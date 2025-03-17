@@ -14,7 +14,7 @@ use crate::{
     messages::{
         MSG_DEPLOY_PAYMASTER_PROMPT, MSG_DEV_ARG_HELP, MSG_L1_RPC_URL_HELP,
         MSG_L1_RPC_URL_INVALID_ERR, MSG_L1_RPC_URL_PROMPT, MSG_NO_PORT_REALLOCATION_HELP,
-        MSG_SERVER_DB_NAME_HELP, MSG_SERVER_DB_URL_HELP,
+        MSG_SERVER_COMMAND_HELP, MSG_SERVER_DB_NAME_HELP, MSG_SERVER_DB_URL_HELP,
     },
 };
 
@@ -45,6 +45,8 @@ pub struct InitArgs {
     pub dev: bool,
     #[clap(flatten)]
     pub validium_args: da_configs::ValidiumTypeArgs,
+    #[clap(long, help = MSG_SERVER_COMMAND_HELP)]
+    pub server_command: Option<String>,
 }
 
 impl InitArgs {
@@ -54,6 +56,7 @@ impl InitArgs {
             server_db_name: self.server_db_name.clone(),
             dev: self.dev,
             dont_drop: self.dont_drop,
+            server_command: self.server_command.clone(),
         }
     }
 
