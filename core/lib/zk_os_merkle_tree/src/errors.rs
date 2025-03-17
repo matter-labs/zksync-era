@@ -36,6 +36,8 @@ pub(crate) enum DeserializeErrorKind {
         #[source]
         err: Box<dyn error::Error + Send + Sync>,
     },
+    #[error("storage backend error: {0}")]
+    Backend(#[source] anyhow::Error),
 }
 
 #[derive(Debug)]
