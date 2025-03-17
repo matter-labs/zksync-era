@@ -62,8 +62,6 @@ pub async fn save_proof(
     started_at: Instant,
     artifacts: ProverArtifacts,
     blob_store: &dyn ObjectStore,
-    public_blob_store: Option<&dyn ObjectStore>,
-    shall_save_to_public_bucket: bool,
     connection: &mut Connection<'_, Prover>,
     protocol_version: ProtocolSemanticVersion,
 ) {
@@ -80,13 +78,6 @@ pub async fn save_proof(
         FriProofWrapper::Base(base) => (base.numeric_circuit_type(), false),
         FriProofWrapper::Recursive(recursive_circuit) => match recursive_circuit {
             ZkSyncRecursionLayerProof::SchedulerCircuit(_) => {
-                if shall_save_to_public_bucket {
-                    public_blob_store
-                        .expect("public_object_store shall not be empty while running with shall_save_to_public_bucket config")
-                        .put(artifacts.block_number.0, &proof)
-                        .await
-                        .unwrap();
-                }
                 (recursive_circuit.numeric_circuit_type(), true)
             }
             _ => (recursive_circuit.numeric_circuit_type(), false),
@@ -128,7 +119,6 @@ pub fn verify_proof(
             verify_recursion_layer_proof::<NoPow>(recursive_circuit, proof, vk),
             recursive_circuit.numeric_circuit_type(),
         ),
-        CircuitWrapper::BasePartial(_) => panic!("Invalid CircuitWrapper received"),
     };
 
     METRICS.proof_verification_time[&circuit_id.to_string()].observe(started_at.elapsed());

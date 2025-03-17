@@ -1,6 +1,6 @@
 //! Persistent ZK OS Merkle tree.
 
-use std::{fmt, time::Instant};
+use std::fmt;
 
 use anyhow::Context as _;
 use zksync_basic_types::H256;
@@ -9,11 +9,12 @@ pub use zksync_crypto_primitives::hasher::blake2::Blake2Hasher;
 pub use self::{
     errors::DeserializeError,
     hasher::HashTree,
-    storage::{Database, MerkleTreeColumnFamily, PatchSet, RocksDBWrapper},
+    storage::{Database, MerkleTreeColumnFamily, PatchSet, Patched, RocksDBWrapper},
     types::{BatchOutput, TreeEntry},
 };
 use crate::{
     hasher::BatchTreeProof,
+    metrics::{BatchProofStage, LoadStage, MerkleTreeInfo, METRICS},
     storage::{TreeUpdate, WorkingPatchSet},
     types::MAX_TREE_DEPTH,
 };
@@ -21,10 +22,19 @@ use crate::{
 mod consistency;
 mod errors;
 mod hasher;
+mod metrics;
 mod storage;
 #[cfg(test)]
 mod tests;
 mod types;
+
+/// Unstable types that should not be used unless you know what you're doing (e.g., implementing
+/// `Database` trait for a custom type). There are no guarantees whatsoever that APIs / structure of
+/// these types will remain stable.
+#[doc(hidden)]
+pub mod unstable {
+    pub use crate::types::{KeyLookup, Manifest, Node, NodeKey, Root};
+}
 
 /// Marker trait for tree parameters.
 pub trait TreeParams: fmt::Debug + Send + Sync {
@@ -93,9 +103,18 @@ impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
     /// do not match those of the tree loaded from the database.
     pub fn with_hasher(db: DB, hasher: P::Hasher) -> anyhow::Result<Self> {
         let maybe_manifest = db.try_manifest().context("failed reading tree manifest")?;
-        if let Some(manifest) = maybe_manifest {
+        if let Some(manifest) = &maybe_manifest {
             manifest.tags.ensure_consistency::<P>(&hasher)?;
         }
+
+        let info = MerkleTreeInfo {
+            hasher: hasher.name(),
+            depth: P::TREE_DEPTH.into(),
+            internal_node_depth: P::INTERNAL_NODE_DEPTH.into(),
+        };
+        tracing::debug!(?info, manifest = ?maybe_manifest, "initialized Merkle tree");
+        METRICS.info.set(info).ok();
+
         Ok(Self { db, hasher })
     }
 
@@ -127,6 +146,17 @@ impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
         self.root_hash(version)
     }
 
+    /// Creates a batch proof for `keys` at the specified tree version.
+    ///
+    /// # Errors
+    ///
+    /// - Returns an error if the version doesn't exist.
+    /// - Proxies database errors.
+    pub fn prove(&self, version: u64, keys: &[H256]) -> anyhow::Result<BatchTreeProof> {
+        let (patch, mut update) = self.create_patch(version, &[], keys)?;
+        Ok(patch.create_batch_proof(&self.hasher, vec![], update.take_read_operations()))
+    }
+
     /// Extends this tree by creating its new version.
     ///
     /// All keys in the provided entries must be distinct.
@@ -139,7 +169,7 @@ impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
     ///
     /// Proxies database I/O errors.
     pub fn extend(&mut self, entries: &[TreeEntry]) -> anyhow::Result<BatchOutput> {
-        let (output, _) = self.extend_inner(entries, false)?;
+        let (output, _) = self.extend_inner(entries, None)?;
         Ok(output)
     }
 
@@ -147,16 +177,16 @@ impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
     fn extend_inner(
         &mut self,
         entries: &[TreeEntry],
-        with_proof: bool,
+        read_keys: Option<&[H256]>,
     ) -> anyhow::Result<(BatchOutput, Option<BatchTreeProof>)> {
         let latest_version = self
             .latest_version()
             .context("failed getting latest version")?;
         tracing::Span::current().record("latest_version", latest_version);
 
-        let started_at = Instant::now();
+        let load_nodes_latency = METRICS.load_nodes_latency[&LoadStage::Total].start();
         let (mut patch, mut update) = if let Some(version) = latest_version {
-            self.create_patch(version, entries)
+            self.create_patch(version, entries, read_keys.unwrap_or_default())
                 .context("failed loading tree data")?
         } else {
             (
@@ -164,19 +194,44 @@ impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
                 TreeUpdate::for_empty_tree(entries)?,
             )
         };
+        let elapsed = load_nodes_latency.observe();
+        METRICS.batch_inserts_count.observe(update.inserts.len());
+        METRICS.batch_updates_count.observe(update.updates.len());
+        METRICS.loaded_leaves.observe(patch.loaded_leaves_count());
+        METRICS
+            .loaded_internal_nodes
+            .observe(patch.loaded_internal_nodes_count());
+        if let Some(keys) = read_keys {
+            METRICS
+                .batch_reads_count
+                .observe(keys.len() - update.missing_reads_count);
+            METRICS
+                .batch_missing_reads_count
+                .observe(update.missing_reads_count);
+        }
+
         tracing::debug!(
-            elapsed = ?started_at.elapsed(),
+            ?elapsed,
             inserts = update.inserts.len(),
             updates = update.updates.len(),
-            loaded_internal_nodes = patch.total_internal_nodes(),
+            reads = read_keys.map(|keys| keys.len() - update.missing_reads_count),
+            missing_reads = read_keys.is_some().then_some(update.missing_reads_count),
+            loaded_internal_nodes = patch.loaded_internal_nodes_count(),
             "loaded tree data"
         );
 
-        let proof = if with_proof {
-            let started_at = Instant::now();
-            let proof = patch.create_batch_proof(&self.hasher, update.take_operations());
+        let proof = if read_keys.is_some() {
+            let proof_latency = METRICS.batch_proof_latency[&BatchProofStage::Total].start();
+            let proof = patch.create_batch_proof(
+                &self.hasher,
+                update.take_operations(),
+                update.take_read_operations(),
+            );
+            let elapsed = proof_latency.observe();
+            METRICS.proof_hashes_count.observe(proof.hashes.len());
+
             tracing::debug!(
-                elapsed = ?started_at.elapsed(),
+                ?elapsed,
                 proof.leaves.len = proof.sorted_leaves.len(),
                 proof.hashes.len = proof.hashes.len(),
                 "created batch proof"
@@ -186,27 +241,34 @@ impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
             None
         };
 
-        let started_at = Instant::now();
+        let extend_patch_latency = METRICS.extend_patch_latency.start();
         let update = patch.update(update);
-        tracing::debug!(elapsed = ?started_at.elapsed(), "updated tree structure");
+        let elapsed = extend_patch_latency.observe();
+        tracing::debug!(?elapsed, "updated tree structure");
 
-        let started_at = Instant::now();
+        let finalize_latency = METRICS.finalize_patch_latency.start();
         let (patch, output) = patch.finalize(&self.hasher, update);
-        tracing::debug!(elapsed = ?started_at.elapsed(), "hashed tree");
+        let elapsed = finalize_latency.observe();
+        tracing::debug!(?elapsed, "hashed tree");
 
-        let started_at = Instant::now();
+        let apply_patch_latency = METRICS.apply_patch_latency.start();
         self.db
             .apply_patch(patch)
             .context("failed persisting tree changes")?;
-        tracing::debug!(elapsed = ?started_at.elapsed(), "persisted tree");
+        let elapsed = apply_patch_latency.observe();
+        tracing::debug!(?elapsed, "persisted tree");
+
+        METRICS.leaf_count.set(output.leaf_count);
         Ok((output, proof))
     }
 
+    /// Same as [Self::extend()`], but also provides a Merkle proof of the update.
     pub fn extend_with_proof(
         &mut self,
         entries: &[TreeEntry],
+        read_keys: &[H256],
     ) -> anyhow::Result<(BatchOutput, BatchTreeProof)> {
-        let (output, proof) = self.extend_inner(entries, true)?;
+        let (output, proof) = self.extend_inner(entries, Some(read_keys))?;
         Ok((output, proof.unwrap()))
     }
 

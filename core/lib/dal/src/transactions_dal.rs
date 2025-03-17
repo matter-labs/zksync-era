@@ -1770,6 +1770,52 @@ impl TransactionsDal<'_, '_> {
         Ok(rows.len())
     }
 
+    pub async fn get_priority_txs_in_mempool(&mut self) -> DalResult<usize> {
+        let result = sqlx::query!(
+            r#"
+            SELECT COUNT(*) FROM transactions
+            WHERE
+                in_mempool = TRUE AND
+                is_priority = TRUE
+            "#
+        )
+        .instrument("get_l1_txs_in_mempool")
+        .fetch_one(self.storage)
+        .await?;
+
+        Ok(result.count.unwrap_or_default() as usize)
+    }
+
+    /// Resets `in_mempool` to `FALSE` for the given transaction hashes.
+    pub async fn reset_mempool_status(&mut self, transaction_hashes: &[H256]) -> DalResult<()> {
+        // Convert H256 hashes into `&[u8]`
+        let hashes: Vec<_> = transaction_hashes.iter().map(H256::as_bytes).collect();
+
+        // Execute the UPDATE query
+        let result = sqlx::query!(
+            r#"
+            UPDATE transactions
+            SET
+                in_mempool = FALSE
+            WHERE
+                hash = ANY($1)
+            "#,
+            &hashes as &[&[u8]]
+        )
+        .instrument("reset_mempool_status")
+        .with_arg("transaction_hashes.len", &hashes.len())
+        .execute(self.storage)
+        .await?;
+
+        // Log debug information about how many rows were affected
+        tracing::debug!(
+            "Updated {} transactions to in_mempool = false; provided hashes: {transaction_hashes:?}",
+            result.rows_affected()
+        );
+
+        Ok(())
+    }
+
     /// Fetches new updates for mempool. Returns new transactions and current nonces for related accounts;
     /// the latter are only used to bootstrap mempool for given account.
     pub async fn sync_mempool(
@@ -1778,6 +1824,7 @@ impl TransactionsDal<'_, '_> {
         purged_accounts: &[(Address, NonceKey)],
         gas_per_pubdata: u32,
         fee_per_gas: u64,
+        allow_l1_txs: bool,
         limit: usize,
     ) -> DalResult<Vec<(Transaction, TransactionTimeRangeConstraint)>> {
         let (stashed_addresses, nonce_keys): (Vec<_>, Vec<_>) = stashed_accounts
@@ -1866,9 +1913,13 @@ impl TransactionsDal<'_, '_> {
                                 AND in_mempool = FALSE
                                 AND error IS NULL
                                 AND (
-                                    is_priority = TRUE
+                                    (
+                                        is_priority = TRUE
+                                        AND $5 = TRUE
+                                    )
                                     OR (
-                                        max_fee_per_gas >= $2
+                                        is_priority = FALSE
+                                        AND max_fee_per_gas >= $2
                                         AND gas_per_pubdata_limit >= $3
                                     )
                                 )
@@ -1891,12 +1942,14 @@ impl TransactionsDal<'_, '_> {
             limit as i32,
             BigDecimal::from(fee_per_gas),
             BigDecimal::from(gas_per_pubdata),
-            i32::from(PROTOCOL_UPGRADE_TX_TYPE)
+            i32::from(PROTOCOL_UPGRADE_TX_TYPE),
+            allow_l1_txs
         )
         .instrument("sync_mempool")
         .with_arg("fee_per_gas", &fee_per_gas)
         .with_arg("gas_per_pubdata", &gas_per_pubdata)
         .with_arg("limit", &limit)
+        .with_arg("allow_l1_txs", &allow_l1_txs)
         .fetch_all(self.storage)
         .await?;
 

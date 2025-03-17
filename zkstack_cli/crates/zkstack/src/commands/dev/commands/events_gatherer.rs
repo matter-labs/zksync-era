@@ -144,13 +144,15 @@ pub(crate) async fn get_logs_for_events(
             // Sleep for 1 second before each JSON-RPC request to avoid hitting rate limits
             sleep(Duration::from_secs(1)).await;
 
-            let logs = match provider.get_logs(&filter).await {
-                Ok(ls) => ls,
-                Err(e) => {
-                    eprintln!(
-                        "Failed to fetch logs for event signature {event_sig} at {contract_address:?}: {e}"
-                    );
-                    continue;
+            let logs = loop {
+                match provider.get_logs(&filter).await {
+                    Ok(ls) => break ls,
+                    Err(e) => {
+                        eprintln!(
+                            "Failed to fetch logs for event signature {event_sig} at {contract_address:?}: {e}"
+                        );
+                        continue;
+                    }
                 }
             };
 

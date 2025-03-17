@@ -71,6 +71,11 @@ struct Cli {
     /// Now the node framework is used by default and this argument is left for backward compatibility.
     #[arg(long)]
     use_node_framework: bool,
+
+    /// Only compose the node with the provided list of the components and then exit.
+    /// Can be used to catch issues with configuration.
+    #[arg(long, conflicts_with = "genesis")]
+    no_run: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -177,7 +182,14 @@ fn main() -> anyhow::Result<()> {
         return Ok(());
     }
 
-    node.build(opt.components.0)?.run(observability_guard)?;
+    let node = node.build(opt.components.0)?;
+
+    if opt.no_run {
+        tracing::info!("Node composed successfully; exiting due to --no-run flag");
+        return Ok(());
+    }
+
+    node.run(observability_guard)?;
     Ok(())
 }
 

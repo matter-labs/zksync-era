@@ -282,6 +282,7 @@ basic_type!(
 
 basic_type!(
     /// ZKsync nonce value (lower 64 bits)
+    #[derive(Default)]
     NonceValue,
     u64
 );

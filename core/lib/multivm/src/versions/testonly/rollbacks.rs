@@ -15,7 +15,6 @@ use crate::interface::{storage::ReadStorage, ExecutionResult, TxExecutionMode, V
 
 pub(crate) fn test_vm_rollbacks<VM: TestedVm>() {
     let mut vm = VmTesterBuilder::new()
-        .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_rich_accounts(1)
         .build::<VM>();
@@ -81,7 +80,6 @@ pub(crate) fn test_vm_rollbacks<VM: TestedVm>() {
 
 pub(crate) fn test_vm_loadnext_rollbacks<VM: TestedVm>() {
     let mut vm = VmTesterBuilder::new()
-        .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_rich_accounts(1)
         .build::<VM>();
@@ -180,7 +178,6 @@ pub(crate) fn test_rollback_in_call_mode<VM: TestedVm>() {
     let counter_address = Address::repeat_byte(1);
 
     let mut vm = VmTesterBuilder::new()
-        .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::EthCall)
         .with_custom_contracts(vec![ContractToDeploy::new(
             counter_bytecode,

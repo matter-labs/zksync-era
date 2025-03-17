@@ -9,7 +9,6 @@ pub(crate) fn test_dummy_bootloader<VM: TestedVm>() {
     base_system_contracts.bootloader = get_bootloader("dummy");
 
     let mut vm = VmTesterBuilder::new()
-        .with_empty_in_memory_storage()
         .with_base_system_smart_contracts(base_system_contracts)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .build::<VM>();
@@ -27,7 +26,6 @@ pub(crate) fn test_bootloader_out_of_gas<VM: TestedVm>() {
     base_system_contracts.bootloader = get_bootloader("dummy");
 
     let mut vm = VmTesterBuilder::new()
-        .with_empty_in_memory_storage()
         .with_base_system_smart_contracts(base_system_contracts)
         .with_bootloader_gas_limit(10)
         .with_execution_mode(TxExecutionMode::VerifyExecute)

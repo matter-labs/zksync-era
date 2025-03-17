@@ -13,12 +13,13 @@ use zksync_types::{
     l1::L1Tx,
     protocol_upgrade::ProtocolUpgradeTx,
     u256_to_h256,
+    utils::encode_ntv_asset_id,
     web3::{contract::Tokenizable, BlockNumber},
     Address, L1BatchNumber, L2ChainId, ProtocolUpgrade, SLChainId, Transaction, H256,
     SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256, U64,
 };
 
-use crate::client::{encode_ntv_asset_id, EthClient, L2EthClient, RETRY_LIMIT};
+use crate::client::{EthClient, L2EthClient, RETRY_LIMIT};
 
 #[derive(Debug)]
 pub struct FakeEthClientData {
@@ -501,6 +502,7 @@ fn upgrade_into_diamond_cut(upgrade: ProtocolUpgrade) -> Token {
         factory_deps,
         bootloader_hash: upgrade.bootloader_code_hash.unwrap_or_default().into(),
         default_account_hash: upgrade.default_account_code_hash.unwrap_or_default().into(),
+        evm_emulator_hash: upgrade.evm_emulator_code_hash.unwrap_or_default().into(),
         verifier: upgrade.verifier_address.unwrap_or_default(),
         verifier_params: upgrade.verifier_params.unwrap_or_default().into(),
         l1_contracts_upgrade_calldata: vec![],

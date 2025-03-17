@@ -36,7 +36,7 @@ impl Default for MockOneshotExecutor {
                 panic!("Unexpected call with data {:?}", tx.execute.calldata());
             }),
             tx_responses: Box::new(|tx, _| {
-                panic!("Unexpect transaction call: {tx:?}");
+                panic!("Unexpected transaction call: {tx:?}");
             }),
             tx_validation_traces_responses: Box::new(|_, _| ValidationTraces::default()),
         }
