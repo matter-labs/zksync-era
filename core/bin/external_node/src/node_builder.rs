@@ -352,10 +352,9 @@ impl ExternalNodeBuilder {
             return Ok(self);
         }
 
-        let da_client_secrets = da_client_secrets.context("DA client secrets are missing")?;
         match da_client_config {
             DAClientConfig::Avail(config) => {
-                if let DataAvailabilitySecrets::Avail(secret) = da_client_secrets {
+                if let Some(DataAvailabilitySecrets::Avail(secret)) = da_client_secrets {
                     self.node.add_layer(AvailWiringLayer::new(config, secret));
                 } else {
                     bail!("Avail client selected, missing Avail in secrets")
@@ -363,7 +362,7 @@ impl ExternalNodeBuilder {
             }
 
             DAClientConfig::Celestia(config) => {
-                if let DataAvailabilitySecrets::Celestia(secret) = da_client_secrets {
+                if let Some(DataAvailabilitySecrets::Celestia(secret)) = da_client_secrets {
                     self.node
                         .add_layer(CelestiaWiringLayer::new(config, secret));
                 } else {
@@ -372,12 +371,10 @@ impl ExternalNodeBuilder {
             }
 
             DAClientConfig::Eigen(config) => {
-                if config.eigenda_eth_rpc.is_none() {
-                    if let DataAvailabilitySecrets::Eigen(secret) = da_client_secrets {
-                        self.node.add_layer(EigenWiringLayer::new(config, secret));
-                    } else {
-                        bail!("Eigen client selected, missing Eigen in secrets")
-                    }
+                if let Some(DataAvailabilitySecrets::Eigen(secret)) = da_client_secrets {
+                    self.node.add_layer(EigenWiringLayer::new(config, secret));
+                } else {
+                    bail!("Eigen client selected, missing Eigen in secrets")
                 }
             }
 
