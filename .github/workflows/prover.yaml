@@ -13,25 +13,25 @@ permissions:
 
 # Define the events that triggers the workflow
 on:
-  pull_request:
-    paths:
-      # Workspaces
-      - 'prover/**'
-      - 'zkstack_cli/**'
-      - '!prover/CHANGELOG.md'
-      - '!prover/setup-data-cpu-keys.json'
-      - '!prover/setup-data-gpu-keys.json'
-      - '!prover/extract-setup-data-keys.sh'
-      # Docker files
-      - 'docker/prover*/**'
-      - 'docker-compose-runner-nightly.yml'
-      # CI scripts
-      - '.github/workflows/prover.yaml'
-      - '.github/workflows/build-prover-template.yml'            # TODO: check name after refactoring
-      - '.github/workflows/build-witness-generator-template.yml' # TODO: check name after refactoring
-      # Exclude markdown files
-      - '!**/*.md'
-      - '!**/*.MD'
+#  pull_request:
+#    paths:
+#      # Workspaces
+#      - 'prover/**'
+#      - 'zkstack_cli/**'
+#      - '!prover/CHANGELOG.md'
+#      - '!prover/setup-data-cpu-keys.json'
+#      - '!prover/setup-data-gpu-keys.json'
+#      - '!prover/extract-setup-data-keys.sh'
+#      # Docker files
+#      - 'docker/prover*/**'
+#      - 'docker-compose-runner-nightly.yml'
+#      # CI scripts
+#      - '.github/workflows/prover.yaml'
+#      - '.github/workflows/build-prover-template.yml'            # TODO: check name after refactoring
+#      - '.github/workflows/build-witness-generator-template.yml' # TODO: check name after refactoring
+#      # Exclude markdown files
+#      - '!**/*.md'
+#      - '!**/*.MD'
   merge_group:
 
 # Cancel previous runs for PRs if new one is started
