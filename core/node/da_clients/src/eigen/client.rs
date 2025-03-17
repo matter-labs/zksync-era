@@ -44,16 +44,16 @@ impl EigenDAClient {
             PointsSource::Url(url) => SrsPointsSource::Url(url),
         };
 
-        let eigen_config = rust_eigenda_client::config::EigenConfig {
-            disperser_rpc: config.disperser_rpc,
-            settlement_layer_confirmation_depth: config.settlement_layer_confirmation_depth,
+        let eigen_config = rust_eigenda_client::config::EigenConfig::new(
+            config.disperser_rpc,
             eth_rpc_url,
-            eigenda_svc_manager_address: config.eigenda_svc_manager_address,
-            wait_for_finalization: config.wait_for_finalization,
-            authenticated: config.authenticated,
+            config.settlement_layer_confirmation_depth,
+            config.eigenda_svc_manager_address,
+            config.wait_for_finalization,
+            config.authenticated,
             srs_points_source,
-            custom_quorum_numbers: config.custom_quorum_numbers,
-        };
+            config.custom_quorum_numbers,
+        )?;
         let private_key = PrivateKey::from_str(secrets.private_key.0.expose_secret())
             .map_err(|e| anyhow::anyhow!("Failed to parse private key: {}", e))?;
         let eigen_secrets = rust_eigenda_client::config::EigenSecrets { private_key };
