@@ -640,6 +640,7 @@ async fn no_governance_stage_3(
 
     let DBNames { server_name, .. } = generate_db_names(&chain_config);
     let args = GenesisArgsFinal {
+        server_command: init_args.server_command.clone(),
         server_db: DatabaseConfig::new(DATABASE_SERVER_URL.clone(), server_name),
         dont_drop: false,
     };

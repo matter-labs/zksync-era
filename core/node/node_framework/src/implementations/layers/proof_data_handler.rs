@@ -1,8 +1,7 @@
-use std::sync::Arc;
-
 use zksync_config::configs::ProofDataHandlerConfig;
-use zksync_dal::{ConnectionPool, Core};
-use zksync_object_store::ObjectStore;
+use zksync_proof_data_handler::{
+    ProofDataProcessor, RequestProcessor, RpcClient, TeeProofDataHandler,
+};
 use zksync_types::{commitment::L1BatchCommitmentMode, L2ChainId};
 
 use crate::{
@@ -35,7 +34,7 @@ pub struct Input {
 #[context(crate = crate)]
 pub struct Output {
     #[context(task)]
-    pub task: ProofDataHandlerTask,
+    task: ProofDataHandlerTask,
 }
 
 impl ProofDataHandlerLayer {
@@ -65,25 +64,74 @@ impl WiringLayer for ProofDataHandlerLayer {
         let main_pool = input.master_pool.get().await?;
         let blob_store = input.object_store.0;
 
-        let task = ProofDataHandlerTask {
-            proof_data_handler_config: self.proof_data_handler_config,
-            blob_store,
-            main_pool,
-            commitment_mode: self.commitment_mode,
-            l2_chain_id: self.l2_chain_id,
+        let processor = RequestProcessor::new(
+            blob_store.clone(),
+            main_pool.clone(),
+            self.proof_data_handler_config.clone(),
+            self.l2_chain_id,
+        );
+
+        let api = if self.proof_data_handler_config.tee_config.tee_support {
+            Some(TeeProofDataHandler::new(
+                processor,
+                self.proof_data_handler_config.http_port,
+            ))
+        } else {
+            None
         };
+
+        let processor = ProofDataProcessor::new(
+            main_pool.clone(),
+            blob_store,
+            self.commitment_mode,
+            self.proof_data_handler_config.proof_generation_timeout(),
+        );
+        let rpc_client = RpcClient::new(
+            processor,
+            self.proof_data_handler_config.clone().api_url,
+            self.proof_data_handler_config
+                .batch_readiness_check_interval(),
+            self.proof_data_handler_config.retry_connection_interval(),
+        );
+
+        let task = ProofDataHandlerTask::new(api, rpc_client);
 
         Ok(Output { task })
     }
 }
 
 #[derive(Debug)]
-pub struct ProofDataHandlerTask {
-    proof_data_handler_config: ProofDataHandlerConfig,
-    blob_store: Arc<dyn ObjectStore>,
-    main_pool: ConnectionPool<Core>,
-    commitment_mode: L1BatchCommitmentMode,
-    l2_chain_id: L2ChainId,
+struct ProofDataHandlerTask {
+    tee_api: Option<TeeProofDataHandler>,
+    rpc_client: RpcClient,
+}
+
+impl ProofDataHandlerTask {
+    pub fn new(tee_api: Option<TeeProofDataHandler>, rpc_client: RpcClient) -> Self {
+        Self {
+            tee_api,
+            rpc_client,
+        }
+    }
+
+    async fn run(self, stop_receiver: StopReceiver) -> anyhow::Result<()> {
+        let rpc_client = self.rpc_client;
+
+        if let Some(tee_api) = self.tee_api {
+            tokio::select! {
+                _ = tee_api.run(stop_receiver.0.clone()) => {
+                    tracing::info!("Proof data handler API stopped");
+                }
+                _ = rpc_client.run(stop_receiver.0.clone()) => {
+                    tracing::info!("Rpc client stopped");
+                }
+            }
+        } else {
+            rpc_client.run(stop_receiver.0.clone()).await?;
+        }
+
+        Ok(())
+    }
 }
 
 #[async_trait::async_trait]
@@ -93,14 +141,6 @@ impl Task for ProofDataHandlerTask {
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        zksync_proof_data_handler::run_server(
-            self.proof_data_handler_config,
-            self.blob_store,
-            self.main_pool,
-            self.commitment_mode,
-            self.l2_chain_id,
-            stop_receiver.0,
-        )
-        .await
+        (*self).run(stop_receiver).await
     }
 }
