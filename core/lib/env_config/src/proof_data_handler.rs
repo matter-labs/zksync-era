@@ -4,18 +4,12 @@ use crate::{envy_load, FromEnv};
 
 impl FromEnv for ProofDataHandlerConfig {
     fn from_env() -> anyhow::Result<Self> {
-        Ok(Self {
-            tee_config: envy_load("proof_data_handler.tee", "PROOF_DATA_HANDLER_")?,
-            ..envy_load("proof_data_handler", "PROOF_DATA_HANDLER_")?
-        })
+        envy_load("proof_data_handler", "PROOF_DATA_HANDLER_")
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use zksync_basic_types::L1BatchNumber;
-    use zksync_config::configs::TeeConfig;
-
     use super::*;
     use crate::test_utils::EnvMutex;
 
@@ -28,12 +22,6 @@ mod tests {
             batch_readiness_check_interval_in_secs: 123,
             proof_generation_timeout_in_secs: 18000,
             retry_connection_interval_in_secs: 123,
-            tee_config: TeeConfig {
-                tee_support: true,
-                first_tee_processed_batch: L1BatchNumber(1337),
-                tee_proof_generation_timeout_in_secs: 600,
-                tee_batch_permanently_ignored_timeout_in_hours: 240,
-            },
         }
     }
 
@@ -45,10 +33,6 @@ mod tests {
             PROOF_DATA_HANDLER_BATCH_READINESS_CHECK_INTERVAL_IN_SECS="123"
             PROOF_DATA_HANDLER_RETRY_CONNECTION_INTERVAL_IN_SECS="123"
             PROOF_DATA_HANDLER_API_URL="2342"
-            PROOF_DATA_HANDLER_TEE_SUPPORT="true"
-            PROOF_DATA_HANDLER_FIRST_TEE_PROCESSED_BATCH="1337"
-            PROOF_DATA_HANDLER_TEE_PROOF_GENERATION_TIMEOUT_IN_SECS="600"
-            PROOF_DATA_HANDLER_TEE_BATCH_PERMANENTLY_IGNORED_TIMEOUT_IN_HOURS="240"
         "#;
         let mut lock = MUTEX.lock();
         lock.set_env(config);

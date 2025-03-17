@@ -27,9 +27,7 @@ impl RequestProcessor {
         tracing::info!("Received request for proof generation data: {:?}", request);
 
         let batch_ignored_timeout = Duration::from_std(
-            self.config
-                .tee_config
-                .tee_batch_permanently_ignored_timeout(),
+            self.config.tee_batch_permanently_ignored_timeout(),
         )
         .map_err(|err| {
             RequestProcessorError::GeneralError(format!(
@@ -37,7 +35,7 @@ impl RequestProcessor {
                 err
             ))
         })?;
-        let min_batch_number = self.config.tee_config.first_tee_processed_batch;
+        let min_batch_number = self.config.first_processed_batch;
 
         loop {
             let Some(locked_batch) = self
@@ -156,7 +154,7 @@ impl RequestProcessor {
             .tee_proof_generation_dal()
             .lock_batch_for_proving(
                 tee_type,
-                self.config.tee_config.tee_proof_generation_timeout(),
+                self.config.tee_proof_generation_timeout(),
                 min_batch_number,
             )
             .await

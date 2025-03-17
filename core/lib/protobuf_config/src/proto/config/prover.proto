@@ -40,7 +40,7 @@ message Prover {
   optional uint32 availability_check_interval_in_secs = 21; // optional; s
   optional config.object_store.ObjectStore prover_object_store = 23;
   optional CloudType cloud_type = 24; // optional
-  reserved 5, 6, 9, 13, 22; reserved "base_layer_circuit_ids_to_be_verified", "recursive_layer_circuit_ids_to_be_verified", "witness_vector_generator_thread_count", "shall_save_to_public_bucket","public_object_store";
+  reserved 5, 6, 9, 13, 22; reserved "base_layer_circuit_ids_to_be_verified", "recursive_layer_circuit_ids_to_be_verified", "witness_vector_generator_thread_count", "shall_save_to_public_bucket", "public_object_store";
 }
 
 
@@ -116,4 +116,12 @@ message ProofDataHandler {
   optional string api_url = 7; // required; string
   optional uint32 batch_readiness_check_interval_in_secs = 8; // required; s
   optional uint32 retry_connection_interval_in_secs = 9; // required; s
+}
+
+message TeeProofDataHandler {
+  optional string api_url = 1; // required; string
+  optional uint32 http_port = 2; // required; u16
+  optional uint64 first_processed_batch = 3; // optional
+  optional uint32 proof_generation_timeout_in_secs = 4; // optional
+  optional uint32 batch_permanently_ignored_timeout_in_hours = 5; // optional
 }

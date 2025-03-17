@@ -8,7 +8,7 @@ use axum::{
     Json, Router,
 };
 use tokio::sync::watch;
-use zksync_config::configs::ProofDataHandlerConfig;
+use zksync_config::configs::TeeProofDataHandlerConfig;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStore;
 use zksync_prover_interface::api::{
@@ -115,7 +115,7 @@ impl TeeProofDataHandler {
 pub struct RequestProcessor {
     blob_store: Arc<dyn ObjectStore>,
     pool: ConnectionPool<Core>,
-    config: ProofDataHandlerConfig,
+    config: TeeProofDataHandlerConfig,
     l2_chain_id: L2ChainId,
 }
 
@@ -123,7 +123,7 @@ impl RequestProcessor {
     pub fn new(
         blob_store: Arc<dyn ObjectStore>,
         pool: ConnectionPool<Core>,
-        config: ProofDataHandlerConfig,
+        config: TeeProofDataHandlerConfig,
         l2_chain_id: L2ChainId,
     ) -> Self {
         Self {

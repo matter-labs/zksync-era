@@ -12608,6 +12608,7 @@ dependencies = [
  "zksync_state",
  "zksync_state_keeper",
  "zksync_storage",
+ "zksync_tee_proof_data_handler",
  "zksync_types",
  "zksync_utils",
  "zksync_vlog",
@@ -13073,6 +13074,32 @@ dependencies = [
  "tracing",
  "zksync_utils",
  "zksync_vlog",
+]
+
+[[package]]
+name = "zksync_tee_proof_data_handler"
+version = "26.7.0-non-semver-compat"
+dependencies = [
+ "anyhow",
+ "axum 0.7.9",
+ "chrono",
+ "hyper 1.5.1",
+ "jsonrpsee",
+ "reqwest 0.12.9",
+ "serde_json",
+ "tokio",
+ "tower 0.4.13",
+ "tower-http 0.5.2",
+ "tracing",
+ "vise",
+ "zksync_config",
+ "zksync_contracts",
+ "zksync_dal",
+ "zksync_multivm",
+ "zksync_object_store",
+ "zksync_prover_interface",
+ "zksync_types",
+ "zksync_vm_executor",
 ]
 
 [[package]]
