@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize};
 use crate::{
     commands::args::WaitArgs,
     messages::{
-        MSG_SERVER_ADDITIONAL_ARGS_HELP, MSG_SERVER_COMPONENTS_HELP, MSG_SERVER_GENESIS_HELP,
-        MSG_SERVER_URING_HELP,
+        MSG_SERVER_ADDITIONAL_ARGS_HELP, MSG_SERVER_COMMAND_HELP, MSG_SERVER_COMPONENTS_HELP,
+        MSG_SERVER_GENESIS_HELP, MSG_SERVER_URING_HELP,
     },
 };
 
@@ -50,4 +50,6 @@ pub struct RunServerArgs {
     additional_args: Vec<String>,
     #[clap(help = MSG_SERVER_URING_HELP, long, default_missing_value = "true")]
     pub uring: bool,
+    #[clap(long, help = MSG_SERVER_COMMAND_HELP)]
+    pub server_command: Option<String>,
 }

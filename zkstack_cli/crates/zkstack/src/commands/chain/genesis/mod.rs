@@ -40,7 +40,7 @@ pub struct GenesisCommand {
 pub(crate) async fn run(args: GenesisCommand, shell: &Shell) -> anyhow::Result<()> {
     match args.command {
         Some(GenesisSubcommands::InitDatabase(args)) => database::run(*args, shell).await,
-        Some(GenesisSubcommands::Server) => server::run(shell).await,
+        Some(GenesisSubcommands::Server) => server::run(args.args.server_command, shell).await,
         None => run_genesis(args.args, shell).await,
     }
 }
@@ -85,7 +85,7 @@ pub async fn genesis(
     spinner.finish();
 
     let spinner = Spinner::new(MSG_STARTING_GENESIS_SPINNER);
-    run_server_genesis(config, shell)?;
+    run_server_genesis(args.server_command, config, shell)?;
     spinner.finish();
 
     Ok(())
