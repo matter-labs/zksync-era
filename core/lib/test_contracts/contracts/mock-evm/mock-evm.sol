@@ -95,6 +95,22 @@ contract MockContractDeployer {
         return newAddress;
     }
 
+    uint256 private constant EVM_HASHES_PREFIX = 1 << 254;
+
+    function _setEvmCodeHash(address _address, bytes32 _hash) internal {
+        assembly {
+            let slot := or(EVM_HASHES_PREFIX, _address)
+            sstore(slot, _hash)
+        }
+    }
+
+    function evmCodeHash(address _address) external returns (bytes32 _evmBytecodeHash) {
+        assembly {
+            let slot := or(EVM_HASHES_PREFIX, _address)
+            _evmBytecodeHash := sload(slot)
+        }
+    }
+
     bytes32 constant CREATE2_PREFIX = keccak256("zksyncCreate2");
 
     /// Mocks `create2` with real counterpart semantics, other than bytecode passed in `_input`.
