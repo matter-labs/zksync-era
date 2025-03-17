@@ -350,16 +350,38 @@ impl ConsensusDal<'_, '_> {
                 deny_unknown_fields: true,
             };
 
-            // versioned_certificate is never null, use it directly
-            let cert = d.proto_fmt(&row.versioned_certificate)?;
-            let last = match cert {
-                BlockCertificate::V1(qc) => Last::FinalV1(qc),
-                BlockCertificate::V2(qc) => Last::FinalV2(qc),
-            };
-            return Ok(BlockStoreState {
-                first,
-                last: Some(last),
-            });
+            // First try to use versioned_certificate
+            let cert = row
+                .versioned_certificate
+                .as_ref()
+                .map(|cert| d.proto_fmt(cert))
+                .transpose()?;
+
+            if let Some(cert) = cert {
+                let last = match cert {
+                    BlockCertificate::V1(qc) => Last::FinalV1(qc),
+                    BlockCertificate::V2(qc) => Last::FinalV2(qc),
+                };
+                return Ok(BlockStoreState {
+                    first,
+                    last: Some(last),
+                });
+            }
+
+            // If versioned_certificate is None, try to use certificate
+            // This is for backward compatibility
+            let qc = row
+                .certificate
+                .as_ref()
+                .map(|cert| d.proto_fmt(cert))
+                .transpose()?;
+
+            if let Some(qc) = qc {
+                return Ok(BlockStoreState {
+                    first,
+                    last: Some(Last::FinalV1(qc)),
+                });
+            }
         }
 
         // Otherwise it is [first block, min(genesis.first_block-1,last block)].
@@ -368,6 +390,7 @@ impl ConsensusDal<'_, '_> {
             .await
             .context("next_block()")?
             .min(cfg.genesis.first_block);
+
         Ok(BlockStoreState {
             first,
             // unwrap is ok, because `next > first >= 0`.
@@ -403,12 +426,18 @@ impl ConsensusDal<'_, '_> {
             return Ok(None);
         };
 
-        Ok(Some(
-            zksync_protobuf::serde::Deserialize {
-                deny_unknown_fields: true,
-            }
-            .proto_fmt(&row.versioned_certificate)?,
-        ))
+        let cert = row
+            .versioned_certificate
+            .as_ref()
+            .map(|cert| {
+                zksync_protobuf::serde::Deserialize {
+                    deny_unknown_fields: true,
+                }
+                .proto_fmt(cert)
+            })
+            .transpose()?;
+
+        Ok(cert)
     }
 
     /// Fetches the attester certificate for the L1 batch with the given `batch_number`.
