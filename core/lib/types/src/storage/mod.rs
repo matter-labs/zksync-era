@@ -3,7 +3,7 @@ use core::fmt::Debug;
 use blake2::{Blake2s256, Digest};
 pub use log::*;
 use serde::{Deserialize, Serialize};
-use zksync_basic_types::{web3::keccak256_concat, L2ChainId};
+use zksync_basic_types::{u256_to_h256, web3::keccak256_concat, L2ChainId};
 pub use zksync_system_constants::*;
 
 use crate::{address_to_h256, AccountTreeId, Address, H160, H256, U256};
@@ -62,9 +62,7 @@ pub fn get_address_mapping_key(address: &Address, position: H256) -> H256 {
 }
 
 fn get_uint_mapping_key(value: U256, position: H256) -> H256 {
-    H256(keccak256(
-        &[u256_to_h256(value).as_bytes(), position.as_bytes()].concat(),
-    ))
+    keccak256_concat(u256_to_h256(value), position)
 }
 
 pub fn get_nonce_key(account: &Address) -> StorageKey {
