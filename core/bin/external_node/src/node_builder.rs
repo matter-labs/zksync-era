@@ -353,21 +353,35 @@ impl ExternalNodeBuilder {
         }
 
         let da_client_secrets = da_client_secrets.context("DA client secrets are missing")?;
-        match (da_client_config, da_client_secrets) {
-            (DAClientConfig::Avail(config), DataAvailabilitySecrets::Avail(secret)) => {
-                self.node.add_layer(AvailWiringLayer::new(config, secret));
+        match da_client_config {
+            DAClientConfig::Avail(config) => {
+                if let DataAvailabilitySecrets::Avail(secret) = da_client_secrets {
+                    self.node.add_layer(AvailWiringLayer::new(config, secret));
+                } else {
+                    bail!("Avail client selected, missing Avail in secrets")
+                }
             }
 
-            (DAClientConfig::Celestia(config), DataAvailabilitySecrets::Celestia(secret)) => {
-                self.node
-                    .add_layer(CelestiaWiringLayer::new(config, secret));
+            DAClientConfig::Celestia(config) => {
+                if let DataAvailabilitySecrets::Celestia(secret) = da_client_secrets {
+                    self.node
+                        .add_layer(CelestiaWiringLayer::new(config, secret));
+                } else {
+                    bail!("Celestia client selected, missing Celestia in secrets")
+                }
             }
 
-            (DAClientConfig::Eigen(config), DataAvailabilitySecrets::Eigen(secret)) => {
-                self.node.add_layer(EigenWiringLayer::new(config, secret));
+            DAClientConfig::Eigen(config) => {
+                if config.eigenda_eth_rpc.is_none() {
+                    if let DataAvailabilitySecrets::Eigen(secret) = da_client_secrets {
+                        self.node.add_layer(EigenWiringLayer::new(config, secret));
+                    } else {
+                        bail!("Eigen client selected, missing Eigen in secrets")
+                    }
+                }
             }
 
-            (DAClientConfig::ObjectStore(config), _) => {
+            DAClientConfig::ObjectStore(config) => {
                 self.node
                     .add_layer(ObjectStorageClientWiringLayer::new(config));
             }
