@@ -119,6 +119,8 @@ impl ContractsConfig {
                 .deployed_addresses
                 .eigenda_l1_validator_addr,
         );
+        self.l1.eigenda_registry_addr =
+            Some(deploy_l1_output.deployed_addresses.eigenda_registry_addr);
         self.l1.chain_admin_addr = deploy_l1_output.deployed_addresses.chain_admin;
     }
 
@@ -263,6 +265,9 @@ pub struct L1Contracts {
     // `Option` to be able to parse configs from pre-gateway protocol version.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub transaction_filterer_addr: Option<Address>,
+    // `Option` to be able to parse configs from previous protocol version
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub eigenda_registry_addr: Option<Address>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
