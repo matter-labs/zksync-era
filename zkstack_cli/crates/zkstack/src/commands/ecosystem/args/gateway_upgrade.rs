@@ -9,7 +9,10 @@ use zkstack_cli_types::L1Network;
 
 use crate::{
     defaults::LOCAL_RPC_URL,
-    messages::{MSG_L1_RPC_URL_HELP, MSG_L1_RPC_URL_INVALID_ERR, MSG_L1_RPC_URL_PROMPT},
+    messages::{
+        MSG_L1_RPC_URL_HELP, MSG_L1_RPC_URL_INVALID_ERR, MSG_L1_RPC_URL_PROMPT,
+        MSG_SERVER_COMMAND_HELP,
+    },
 };
 
 #[derive(
@@ -44,6 +47,8 @@ pub struct GatewayUpgradeArgs {
     pub ecosystem_contracts_path: Option<PathBuf>,
     #[clap(long, help = MSG_L1_RPC_URL_HELP)]
     pub l1_rpc_url: Option<String>,
+    #[clap(long, help = MSG_SERVER_COMMAND_HELP)]
+    pub server_command: Option<String>,
 }
 
 impl GatewayUpgradeArgs {
@@ -73,6 +78,7 @@ impl GatewayUpgradeArgs {
             ecosystem_upgrade_stage: self.ecosystem_upgrade_stage,
             ecosystem_contracts_path: self.ecosystem_contracts_path,
             l1_rpc_url,
+            server_command: self.server_command,
         }
     }
 }
@@ -89,4 +95,6 @@ pub struct GatewayUpgradeArgsFinal {
     pub ecosystem_contracts_path: Option<PathBuf>,
     #[clap(long, help = MSG_L1_RPC_URL_HELP)]
     pub l1_rpc_url: String,
+    #[clap(long, help = MSG_SERVER_COMMAND_HELP)]
+    pub server_command: Option<String>,
 }

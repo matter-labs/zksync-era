@@ -15,22 +15,31 @@ use crate::messages::{
     MSG_STARTING_GENESIS_SPINNER,
 };
 
-pub async fn run(shell: &Shell) -> anyhow::Result<()> {
+pub async fn run(server_command: Option<String>, shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
     let chain_config = ecosystem_config
         .load_current_chain()
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
 
     let spinner = Spinner::new(MSG_STARTING_GENESIS_SPINNER);
-    run_server_genesis(&chain_config, shell)?;
+    run_server_genesis(server_command, &chain_config, shell)?;
     spinner.finish();
     logger::outro(MSG_GENESIS_COMPLETED);
 
     Ok(())
 }
 
-pub fn run_server_genesis(chain_config: &ChainConfig, shell: &Shell) -> anyhow::Result<()> {
-    let server = Server::new(None, chain_config.link_to_code.clone(), false);
+pub fn run_server_genesis(
+    server_command: Option<String>,
+    chain_config: &ChainConfig,
+    shell: &Shell,
+) -> anyhow::Result<()> {
+    let server = Server::new(
+        server_command,
+        None,
+        chain_config.link_to_code.clone(),
+        false,
+    );
     server
         .run(
             shell,
