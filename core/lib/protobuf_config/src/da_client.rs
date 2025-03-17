@@ -165,6 +165,7 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                         g2_url: Some(g2_url.clone()),
                     }),
                 }),
+                // We need to cast as u32 because proto doesn't support u8
                 custom_quorum_numbers: config
                     .custom_quorum_numbers
                     .iter()
