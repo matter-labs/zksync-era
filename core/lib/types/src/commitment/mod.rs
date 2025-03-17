@@ -389,7 +389,7 @@ impl L1BatchAuxiliaryOutput {
                 // kl todo separate by version.
                 let local_root = MiniMerkleTree::new_with_empty_leaf_hash(
                     merkle_tree_leaves,
-                    Some(l2_to_l1_logs_tree_size(common_input.protocol_version)), // currently we don't have fixed sized tree in the L1Messenger. kl todo
+                    Some(l2_to_l1_logs_tree_size(common_input.protocol_version)),
                     H256::from_str(
                         "72abee45b59e344af8a6e520241c4744aff26ed411f4c4b00f8af09adada43ba",
                     )

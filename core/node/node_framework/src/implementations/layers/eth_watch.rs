@@ -121,33 +121,33 @@ impl WiringLayer for EthWatchLayer {
         );
         // println!("l1_message_root_address 2: {:?}", self.contracts_config.l1_message_root_address);
 
-        let sl_l2_client: Option<Box<dyn L2EthClient>> =
-            // kl todo GATEWAY is disabled for now
-            if let Some(gateway_client) = None::<L2InterfaceResource> { //input.gateway_client {
-                let contracts_config: GatewayChainConfig = self.gateway_chain_config.clone().unwrap();
-                Some(Box::new(EthHttpQueryClient::new(
-                    gateway_client.0,
-                    contracts_config.diamond_proxy_addr,
-                    // Only present on L1.
-                    None,
-                    // Only present on L1.
-                    None,
-                    // Only present on L1.
-                    None,
-                    Some(L2_MESSAGE_ROOT_ADDRESS),
-                    Some(contracts_config.state_transition_proxy_addr),
-                    contracts_config.chain_admin_addr,
-                    contracts_config.governance_addr,
-                    self.eth_watch_config.confirmations_for_eth_event,
-                    self.chain_id,
-                    false
-                )))
-            } else {
-                None
-            };
+        let sl_l2_client: Option<Box<dyn L2EthClient>> = if let Some(gateway_client) =
+            input.gateway_client
+        {
+            let contracts_config: GatewayChainConfig = self.gateway_chain_config.clone().unwrap();
+            Some(Box::new(EthHttpQueryClient::new(
+                gateway_client.0,
+                contracts_config.diamond_proxy_addr,
+                // Only present on L1.
+                None,
+                // Only present on L1.
+                None,
+                // Only present on L1.
+                None,
+                Some(L2_MESSAGE_ROOT_ADDRESS),
+                Some(contracts_config.state_transition_proxy_addr),
+                contracts_config.chain_admin_addr,
+                contracts_config.governance_addr,
+                self.eth_watch_config.confirmations_for_eth_event,
+                self.chain_id,
+                false,
+            )))
+        } else {
+            None
+        };
 
         let dependency_l2_chain_clients: Option<Vec<Box<dyn L2EthClient>>> =
-            if let Some(dependency_chain_client) = input.dependency_chain_clients {
+            if let Some(dependency_chain_client) = input.dependency_chain_clients.clone() {
                 let mut clients: Vec<Box<dyn L2EthClient>> = Vec::new();
                 // let contracts_config: GatewayChainConfig = self.gateway_chain_config.unwrap();
                 let dependency_chain_clients = vec![dependency_chain_client];
@@ -172,7 +172,11 @@ impl WiringLayer for EthWatchLayer {
             } else {
                 None
             };
-
+        println!(
+            "dependency_l2_chain_clients: {:?}",
+            input.dependency_chain_clients
+        );
+        println!("sl_l2_client: {:?}", sl_l2_client);
         let eth_watch = EthWatch::new(
             &chain_admin_contract(),
             Box::new(l1_client),

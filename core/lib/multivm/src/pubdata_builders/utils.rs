@@ -31,7 +31,7 @@ pub(crate) fn build_logs_root(
     // kl todo separate by version?
     MiniMerkleTree::new_with_empty_leaf_hash(
         logs,
-        None,
+        Some(l2_to_l1_logs_tree_size),
         H256::from_str("72abee45b59e344af8a6e520241c4744aff26ed411f4c4b00f8af09adada43ba").unwrap(),
     )
     .merkle_root()

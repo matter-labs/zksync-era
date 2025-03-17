@@ -371,7 +371,7 @@ impl ZksNamespace {
             .unwrap_or_else(ProtocolVersionId::last_potentially_undefined);
         let tree_size = l2_to_l1_logs_tree_size(protocol_version);
         // println!("kl toodo merkle tree leaves: {:?}", merkle_tree_leaves);
-        let (local_root, proof) = MiniMerkleTree::new(merkle_tree_leaves, None) //, Some(tree_size))
+        let (local_root, proof) = MiniMerkleTree::new(merkle_tree_leaves, Some(tree_size))
             .merkle_root_and_path(l1_log_index);
 
         if protocol_version.is_pre_gateway() {

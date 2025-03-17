@@ -107,6 +107,7 @@ async fn create_test_watcher(
         &chain_admin_contract(),
         Box::new(l1_client.clone()),
         sl_l2_client,
+        None,
         connection_pool,
         std::time::Duration::from_nanos(1),
         L2ChainId::default(),
@@ -212,6 +213,7 @@ async fn test_normal_operation_upgrade_timestamp() {
     let mut watcher = EthWatch::new(
         &chain_admin_contract(),
         Box::new(client.clone()),
+        None,
         None,
         connection_pool.clone(),
         std::time::Duration::from_nanos(1),
