@@ -58,7 +58,7 @@ The order of the files here only roughly represents the order of reading. A lot 
   - [ZKsync fee model](./l2_system_contracts/zksync_fee_model.md)
 <!-- - Upgrade history
   - [Gateway upgrade diff](./upgrade_history/gateway_upgrade/gateway_diff_review.md)
-  - [Gateway upgrade process](./upgrade_history/gateway_upgrade/upgrade_process.md) -->
+  - [Gateway upgrade process](./upgrade_history/gateway_upgrade/upgrade_process_no_gateway_chain.md) -->
 
 ![Reading order](./img/reading_order.png)
 

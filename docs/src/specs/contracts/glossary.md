@@ -14,6 +14,8 @@
 - **assetId** - unique 32 bytes used to identify different assets in the AssetRouter.
 - **Settlement Layer** - the layer where a chains settles its batches. Can be L1 or Gateway.
 
+Some terms are inherited from the wider [Ethereum ecosystem](https://github.com/ethereum/L2-interop/blob/main/NOMENCLATURE.md). 
+
 List of contracts and abbreviations:
 - Chain Manager Contracts
   - Bridgehub

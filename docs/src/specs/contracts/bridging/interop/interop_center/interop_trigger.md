@@ -1,16 +1,16 @@
-# Interop Transactions
+# Interop Trigger and Interop Transactions
 [back to readme](../../../README.md)
 
 ## Basics
 
 The **InteropTrigger** sits at the top of our interop stack, acting as the “delivery” mechanism for **Interop
-Bundles**. 
+Bundles**. The **InteropTrigger** together with its bundles is called an **InteropTransaction**.
 
 Think of it like a car that picks up our "hitchhiker" bundles and carries them to their destination.
 
 ![interoptx.png](../img/level_trigger.png)
 
-**Note:** Interop Triggers aren’t the only way to execute a bundle. Once an interop bundle is created on the source
+**Note:** Interop Transactions aren’t the only way to execute a bundle. Once an interop bundle is created on the source
 chain, users can simply send a regular transaction on the destination chain to execute it.
 
 However, this approach can be inconvenient as it requires users to have funds on the destination chain to cover gas fees
@@ -18,7 +18,7 @@ and to configure the necessary network settings (like the RPC address).
 
 **InteropTriggers** simplify this process by handling everything from the source chain. They allow you to select
 which **interopBundle** to execute, specify gas details (such as gas amount and gas price), and determine who will cover
-the gas costs. This can be achieved using tokens on the source chain or through a paymaster. The **InteropTrigger** together with its bundles is called an **InteropTransaction**.
+the gas costs. This can be achieved using tokens on the source chain or through a paymaster.
 
 The inteorp transaction will "automatically" execute. It will be picked up by the InteropSwitch component and sent to the destination chain.
 

@@ -688,7 +688,7 @@ Usually an upgrade is performed by calling the `forceDeployOnAddresses` function
 
 For cases like this `ComplexUpgrader` contract has been created. The assumption is that the implementation of the upgrade is predeployed and the `ComplexUpgrader` would delegatecall to it.
 
-> Note, that while `ComplexUpgrader` existed even in the previous upgrade, it lacked `forceDeployAndUpgrade` function. This caused some serious limitations. More on how the gateway upgrade process will look like can be read [here](../../upgrade_history/gateway_upgrade/upgrade_process.md).
+> Note, that while `ComplexUpgrader` existed even in the previous upgrade, it lacked `forceDeployAndUpgrade` function. This caused some serious limitations. More on how the gateway upgrade process will look like can be read [here](../../upgrade_history/gateway_upgrade/upgrade_process_no_gateway_chain.md).
 
 ### Predeployed contracts
 

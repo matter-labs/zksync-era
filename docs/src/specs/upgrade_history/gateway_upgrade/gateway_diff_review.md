@@ -134,4 +134,4 @@ cases will be handled by `Native Token Vaults`, which are handling all of the st
 
 ## Upgrade process in detail
 
-You can read more about the upgrade process itself [here](./upgrade_process.md).
+You can read more about the upgrade process itself [here](./upgrade_process_no_gateway_chain.md).

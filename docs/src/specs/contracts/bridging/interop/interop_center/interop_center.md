@@ -182,3 +182,12 @@ The `requestInterop` allows multiple calls to be started, with versatility for p
     This has to be known beforehand, as the funds in the interop call belong to the user.
     This is because we cannot guarantee atomicity of interop txs (just the atomicity of calls in a bundle on the destination chain)
     So contracts cannot send their own value, only stamp the value that belongs to the user.
+
+## Interop options: 
+
+- l1->l2 priority txs only from L1, to any chain. 
+- l2->l2 interop txs only from L2, only between chains settling on Gateway. Enforced by message root importing for users and asset tracker component for chains. 
+- l2->l1 txs. Use L1Messenger to send any message. Use InteropCenter to send single call txs without base token, or base token withdrawals. 
+- l1->l2 interop txs. Might be possible to send in the future, disabled for now for simplicity.
+
+There were some other considerations when designing the InteropCenter. Namely, we allow a similar interface for single call txs as L1->L2 priority txs already use requestInteropSingleCall, requestInteropSingleDirectCall. Secondly, we want to move bridging related functions from the Bridghub to the InteropCenter. Due to size constraints on the Bridghub, the simplest solution is to route legacy txs through the InteropCenter. Thirdly, 

@@ -73,7 +73,7 @@ compute the Keccak hash of the string above and use this as the address.)
 One way to think about it is this: You (as account `0x5bFF1...` on chain A) can send a call to a contract on a
 destination chain, and for that contract, it will appear as if the call came locally from the address
 `keccak(0x5bFF1 || A)`. This means you are effectively "controlling" such an account address on **every ZK Chain** by
-sending interop messages from the `0x5bFF1...` account on chain A.
+sending interop messages from the `0x5bFF1...` account on chain A. See the exact aliasing logic [here](../interop_handler.md#account-aliasing).
 
 ![msgdotsender.png](../img/aliased_account.png)
 
