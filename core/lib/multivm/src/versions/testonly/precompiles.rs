@@ -14,7 +14,6 @@ pub(crate) fn test_keccak<VM: TestedVm>() {
     let contract = TestContract::precompiles_test().bytecode.to_vec();
     let address = Address::repeat_byte(1);
     let mut vm = VmTesterBuilder::new()
-        .with_empty_in_memory_storage()
         .with_rich_accounts(1)
         .with_bootloader_gas_limit(BATCH_COMPUTATIONAL_GAS_LIMIT)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
@@ -41,7 +40,7 @@ pub(crate) fn test_keccak<VM: TestedVm>() {
     assert!(!exec_result.result.is_failed(), "{exec_result:#?}");
 
     let keccak_count = exec_result.statistics.circuit_statistic.keccak256
-        * ProtocolGeometry::V1_5_0
+        * ProtocolGeometry::latest()
             .config()
             .cycles_per_keccak256_circuit as f32;
     assert!(keccak_count >= 1000.0, "{keccak_count}");
@@ -52,7 +51,6 @@ pub(crate) fn test_sha256<VM: TestedVm>() {
     let contract = TestContract::precompiles_test().bytecode.to_vec();
     let address = Address::repeat_byte(1);
     let mut vm = VmTesterBuilder::new()
-        .with_empty_in_memory_storage()
         .with_rich_accounts(1)
         .with_bootloader_gas_limit(BATCH_COMPUTATIONAL_GAS_LIMIT)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
@@ -79,14 +77,15 @@ pub(crate) fn test_sha256<VM: TestedVm>() {
     assert!(!exec_result.result.is_failed(), "{exec_result:#?}");
 
     let sha_count = exec_result.statistics.circuit_statistic.sha256
-        * ProtocolGeometry::V1_5_0.config().cycles_per_sha256_circuit as f32;
+        * ProtocolGeometry::latest()
+            .config()
+            .cycles_per_sha256_circuit as f32;
     assert!(sha_count >= 1000.0, "{sha_count}");
 }
 
 pub(crate) fn test_ecrecover<VM: TestedVm>() {
     // Execute simple transfer and check that exactly 1 `ecrecover` call was made (it's done during tx validation).
     let mut vm = VmTesterBuilder::new()
-        .with_empty_in_memory_storage()
         .with_rich_accounts(1)
         .with_bootloader_gas_limit(BATCH_COMPUTATIONAL_GAS_LIMIT)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
@@ -108,7 +107,7 @@ pub(crate) fn test_ecrecover<VM: TestedVm>() {
     assert!(!exec_result.result.is_failed(), "{exec_result:#?}");
 
     let ecrecover_count = exec_result.statistics.circuit_statistic.ecrecover
-        * ProtocolGeometry::V1_5_0
+        * ProtocolGeometry::latest()
             .config()
             .cycles_per_ecrecover_circuit as f32;
     assert!((ecrecover_count - 1.0).abs() < 1e-4, "{ecrecover_count}");

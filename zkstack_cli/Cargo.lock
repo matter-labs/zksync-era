@@ -6599,7 +6599,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_basic_types"
-version = "26.4.0-non-semver-compat"
+version = "26.7.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "chrono",
@@ -6639,7 +6639,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_config"
-version = "26.4.0-non-semver-compat"
+version = "26.7.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "rand",
@@ -6708,7 +6708,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_contracts"
-version = "26.4.0-non-semver-compat"
+version = "26.7.0-non-semver-compat"
 dependencies = [
  "envy",
  "hex",
@@ -6721,7 +6721,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_crypto_primitives"
-version = "26.4.0-non-semver-compat"
+version = "26.7.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "blake2",
@@ -6737,7 +6737,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_da_client"
-version = "26.4.0-non-semver-compat"
+version = "26.7.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6746,7 +6746,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_eth_client"
-version = "26.4.0-non-semver-compat"
+version = "26.7.0-non-semver-compat"
 dependencies = [
  "async-trait",
  "jsonrpsee",
@@ -6763,7 +6763,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_eth_signer"
-version = "26.4.0-non-semver-compat"
+version = "26.7.0-non-semver-compat"
 dependencies = [
  "async-trait",
  "rlp",
@@ -6774,7 +6774,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_mini_merkle_tree"
-version = "26.4.0-non-semver-compat"
+version = "26.7.0-non-semver-compat"
 dependencies = [
  "once_cell",
  "zksync_basic_types",
@@ -6821,7 +6821,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_system_constants"
-version = "26.4.0-non-semver-compat"
+version = "26.7.0-non-semver-compat"
 dependencies = [
  "once_cell",
  "zksync_basic_types",
@@ -6829,7 +6829,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_types"
-version = "26.4.0-non-semver-compat"
+version = "26.7.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6855,7 +6855,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_utils"
-version = "26.4.0-non-semver-compat"
+version = "26.7.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "once_cell",
@@ -6865,7 +6865,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_web3_decl"
-version = "26.4.0-non-semver-compat"
+version = "26.7.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
