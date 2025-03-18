@@ -8,8 +8,8 @@ let
   src = fetchFromGitHub {
     owner = "matter-labs";
     repo = "foundry-zksync";
-    tag = "0.2.0-zksync.0.0.2";
-    hash = "sha256-SEIpt/kQSuYbR0w/DFeXXLMlT7YLP6T7tDDuRioUWlA=";
+    tag = "foundry-zksync-v0.0.11";
+    hash = "sha256-NSVzqv4UsAfW6i4b+Rj7ccFM66fbGlpsTJ1qPIgn8F0=";
   };
 
   toolchain = pkgs.rust-bin.fromRustupToolchainFile "${src}/rust-toolchain";
