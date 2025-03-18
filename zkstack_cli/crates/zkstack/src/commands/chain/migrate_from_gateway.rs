@@ -31,7 +31,7 @@ use zksync_types::L2ChainId;
 use zksync_web3_decl::client::{Client, L2};
 
 use crate::{
-    accept_ownership::{make_permanent_rollup, set_da_validator_pair},
+    accept_ownership::set_da_validator_pair,
     commands::chain::init::get_l1_da_validator,
     messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_DA_PAIR_REGISTRATION_SPINNER},
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},

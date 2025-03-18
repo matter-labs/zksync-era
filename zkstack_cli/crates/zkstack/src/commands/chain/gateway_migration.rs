@@ -434,7 +434,10 @@ pub(crate) async fn notify_server(
         .await?
         .get::<String>("l1.l1_rpc_url")?;
     let contracts = chain_config.get_contracts_config()?;
-    let server_notifier = contracts.ecosystem_contracts.server_notifier_addr.unwrap();
+    let server_notifier = contracts
+        .ecosystem_contracts
+        .server_notifier_proxy_addr
+        .unwrap();
     let chain_admin = contracts.l1.chain_admin_addr;
     let restrictions = contracts
         .l1
