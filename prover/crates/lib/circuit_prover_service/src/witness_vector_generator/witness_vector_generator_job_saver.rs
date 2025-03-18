@@ -94,7 +94,7 @@ impl JobSaver for WitnessVectorGeneratorJobSaver {
                     .await
                     .context("failed to get db connection")?
                     .fri_prover_jobs_dal()
-                    .save_proof_error(metadata.id, metadata.batch_id.chain_id, err.to_string())
+                    .save_proof_error(metadata.id, metadata.batch_id.chain_id(), err.to_string())
                     .await;
                 tracing::info!(
                     "Finished saving failure for witness vector generator job {}, on {:?}, for circuit {}, at round {} in {:?}",

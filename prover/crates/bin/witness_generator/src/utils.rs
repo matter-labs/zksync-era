@@ -152,7 +152,7 @@ impl StoredObject for SchedulerPartialInputWrapper {
 
 #[tracing::instrument(
     skip_all,
-    fields(l1_batch = %batch_id.batch_number, circuit_id = %circuit.numeric_circuit_type())
+    fields(l1_batch = %batch_id, circuit_id = %circuit.numeric_circuit_type())
 )]
 pub async fn save_circuit(
     batch_id: ChainAwareL1BatchNumber,
@@ -180,7 +180,7 @@ pub async fn save_circuit(
 #[allow(clippy::too_many_arguments)]
 #[tracing::instrument(
     skip_all,
-    fields(l1_batch = %batch_id.batch_number)
+    fields(l1_batch = %batch_id)
 )]
 pub async fn save_recursive_layer_prover_input_artifacts(
     batch_id: ChainAwareL1BatchNumber,

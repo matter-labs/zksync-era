@@ -140,7 +140,7 @@ impl JobManager for RecursionTip {
             .final_node_proof_job_ids
             .clone()
             .into_iter()
-            .map(|(circuit, id)| (circuit, id, metadata.batch_id.chain_id))
+            .map(|(circuit, id)| (circuit, id, metadata.batch_id.chain_id()))
             .collect::<Vec<(u8, u32, L2ChainId)>>();
         let recursion_tip_proofs = Self::get_artifacts(&job_ids, object_store).await?;
         WITNESS_GENERATOR_METRICS.blob_fetch_time[&AggregationRound::RecursionTip.into()]

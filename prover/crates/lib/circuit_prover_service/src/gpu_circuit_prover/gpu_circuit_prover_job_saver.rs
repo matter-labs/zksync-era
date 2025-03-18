@@ -68,7 +68,7 @@ impl JobSaver for GpuCircuitProverJobSaver {
 
                 let blob_url = self
                     .object_store
-                    .put((metadata.batch_id.chain_id, metadata.id), &proof_wrapper)
+                    .put((metadata.batch_id.chain_id(), metadata.id), &proof_wrapper)
                     .await
                     .context("failed to upload to object store")?;
 
@@ -80,7 +80,7 @@ impl JobSaver for GpuCircuitProverJobSaver {
                     .fri_prover_jobs_dal()
                     .save_proof(
                         metadata.id,
-                        metadata.batch_id.chain_id,
+                        metadata.batch_id.chain_id(),
                         metadata.pick_time.elapsed(),
                         &blob_url,
                     )
@@ -108,7 +108,7 @@ impl JobSaver for GpuCircuitProverJobSaver {
                     .await
                     .context("failed to get db connection")?
                     .fri_prover_jobs_dal()
-                    .save_proof_error(metadata.id, metadata.batch_id.chain_id, error_message)
+                    .save_proof_error(metadata.id, metadata.batch_id.chain_id(), error_message)
                     .await;
             }
         };

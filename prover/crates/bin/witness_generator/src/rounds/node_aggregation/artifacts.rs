@@ -24,7 +24,7 @@ impl ArtifactsManager for NodeAggregation {
 
     #[tracing::instrument(
         skip_all,
-        fields(l1_batch = % metadata.batch_id.batch_number, circuit_id = % metadata.circuit_id)
+        fields(l1_batch = % metadata.batch_id, circuit_id = % metadata.circuit_id)
     )]
     async fn get_artifacts(
         metadata: &Self::InputMetadata,
@@ -44,7 +44,7 @@ impl ArtifactsManager for NodeAggregation {
 
     #[tracing::instrument(
         skip_all,
-        fields(l1_batch = %artifacts.batch_id.batch_number, circuit_id = %artifacts.circuit_id)
+        fields(l1_batch = %artifacts.batch_id, circuit_id = %artifacts.circuit_id)
     )]
     async fn save_to_bucket(
         _job_id: u32,

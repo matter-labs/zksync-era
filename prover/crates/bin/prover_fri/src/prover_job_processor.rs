@@ -203,7 +203,7 @@ impl JobProcessor for Prover {
             return Ok(None);
         };
         Ok(Some((
-            (prover_job.batch_id.chain_id, prover_job.job_id),
+            (prover_job.batch_id.chain_id(), prover_job.job_id),
             prover_job,
         )))
     }

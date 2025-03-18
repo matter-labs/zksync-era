@@ -67,7 +67,7 @@ impl JobManager for NodeAggregation {
 
     #[tracing::instrument(
         skip_all,
-        fields(l1_batch = % job.batch_id.batch_number, circuit_id = % job.circuit_id)
+        fields(l1_batch = % job.batch_id, circuit_id = % job.circuit_id)
     )]
     async fn process_job(
         job: NodeAggregationWitnessGeneratorJob,
@@ -123,7 +123,7 @@ impl JobManager for NodeAggregation {
                     .expect("failed to get permit to process queues chunk");
 
                 let proofs = load_proofs_for_job_ids(
-                    job.batch_id.chain_id,
+                    job.batch_id.chain_id(),
                     &proofs_ids_for_chunk,
                     &*object_store,
                 )
@@ -204,7 +204,7 @@ impl JobManager for NodeAggregation {
 
     #[tracing::instrument(
         skip_all,
-        fields(l1_batch = % metadata.batch_id.batch_number, chain = % metadata.batch_id.raw_chain_id(), circuit_id = % metadata.circuit_id)
+        fields(l1_batch = % metadata.batch_id.batch_number(), chain = % metadata.batch_id.raw_chain_id(), circuit_id = % metadata.circuit_id)
     )]
     async fn prepare_job(
         metadata: Self::Metadata,
@@ -258,6 +258,6 @@ impl JobManager for NodeAggregation {
             return Ok(None);
         };
 
-        Ok(Some((metadata.batch_id.chain_id, metadata.id, metadata)))
+        Ok(Some((metadata.batch_id.chain_id(), metadata.id, metadata)))
     }
 }

@@ -105,7 +105,7 @@ impl JobProcessor for WitnessVectorGenerator {
         else {
             return Ok(None);
         };
-        Ok(Some(((job.batch_id.chain_id, job.job_id), job)))
+        Ok(Some(((job.batch_id.chain_id(), job.job_id), job)))
     }
 
     async fn save_failure(&self, job_id: Self::JobId, _started_at: Instant, error: String) {

@@ -40,7 +40,7 @@ impl ArtifactsManager for LeafAggregation {
 
     #[tracing::instrument(
         skip_all,
-        fields(chain = %artifacts.batch_id.raw_chain_id(), l1_batch = %artifacts.batch_id.batch_number, circuit_id = %artifacts.circuit_id)
+        fields(l1_batch = % artifacts.batch_id, circuit_id = %artifacts.circuit_id)
     )]
     async fn save_to_bucket(
         _job_id: u32,
@@ -138,7 +138,7 @@ impl ArtifactsManager for LeafAggregation {
             .fri_leaf_witness_generator_dal()
             .mark_leaf_aggregation_as_successful(
                 job_id,
-                artifacts.batch_id.chain_id,
+                artifacts.batch_id.chain_id(),
                 started_at.elapsed(),
             )
             .await;
