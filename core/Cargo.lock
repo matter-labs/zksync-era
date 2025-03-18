@@ -3756,6 +3756,8 @@ dependencies = [
 [[package]]
 name = "eq-common"
 version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4fc4950c1265191efc6cd4924c281b87f7fe4911cbe8a5b4fa9376895327cc95"
 dependencies = [
  "alloy",
  "alloy-primitives",
@@ -3775,6 +3777,8 @@ dependencies = [
 [[package]]
 name = "eq-sdk"
 version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d9ff98df2d419aafb398cfa56694cce6fabff2d3a84a1b6ca4f6c9bdefd9e5c9"
 dependencies = [
  "base64 0.22.1",
  "celestia-types",
@@ -5978,7 +5982,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc2f4eb4bc735547cfed7c0a4922cbd04a4655978c09b54f1f7b228750664c34"
 dependencies = [
  "cfg-if",
- "windows-targets 0.48.5",
+ "windows-targets 0.52.6",
 ]
 
 [[package]]
@@ -13678,7 +13682,7 @@ dependencies = [
  "async-trait",
  "backon",
  "base58",
- "base64 0.13.1",
+ "base64 0.22.1",
  "bech32",
  "bincode",
  "bip39",

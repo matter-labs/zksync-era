@@ -46,9 +46,8 @@ backon.workspace = true
 url.workspace = true
 
 # Celestia dependencies
-eq-sdk = { path = "../../../../eq-service/sdk", package = "eq-sdk" }
-# eq-common = { workspace = true, features = ["grpc"] }
-eq-common = { path = "../../../../eq-service/common", features = ["grpc"]}
+eq-sdk = { workspace = true }
+eq-common = { workspace = true, features = ["grpc"] }
 base64.workspace = true
 http.workspace = true
 bincode.workspace = true
