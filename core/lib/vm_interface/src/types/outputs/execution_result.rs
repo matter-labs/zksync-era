@@ -200,8 +200,10 @@ impl VmExecutionResultAndLogs {
                 len_in_bytes + PUBLISH_BYTECODE_OVERHEAD as usize
             })
             .sum();
-        // Check if any contract was deployed
-        let contract_deployed = VmEvent::contains_contract_deployment(&self.logs.events);
+
+        // Count how many contracts were deployed
+        let contract_deployment_count =
+            VmEvent::extract_bytecodes_marked_as_known(&self.logs.events).count();
 
         VmExecutionMetrics {
             gas_used: self.statistics.gas_used as usize,
@@ -217,7 +219,7 @@ impl VmExecutionResultAndLogs {
             computational_gas_used: self.statistics.computational_gas_used,
             pubdata_published: self.statistics.pubdata_published,
             circuit_statistic: self.statistics.circuit_statistic,
-            is_contract_deployed: contract_deployed,
+            contract_deployment_count: contract_deployment_count,
         }
     }
 }

@@ -17,7 +17,7 @@ mod tests {
 
     fn expected_config() -> TxSinkConfig {
         TxSinkConfig {
-            use_whitelisted_sink: Some(false),
+            deployment_allowlist_sink: true,
         }
     }
 
@@ -25,7 +25,7 @@ mod tests {
     fn from_env() {
         let mut lock = MUTEX.lock();
         let config = r#"
-            use_whitelisted_sink=false
+            deployment_allowlist_sink=true
         "#;
         lock.set_env(config);
 

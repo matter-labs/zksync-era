@@ -70,7 +70,7 @@ pub enum SubmitTxError {
     #[error("transaction failed block.timestamp assertion")]
     FailedBlockTimestampAssertion,
     #[error("sender address {0} is in allow list")]
-    SenderInAllowList(Address),
+    SenderNotInAllowList(Address),
 }
 
 impl SubmitTxError {
@@ -101,7 +101,7 @@ impl SubmitTxError {
             Self::ProxyError(_) => "proxy-error",
             Self::Internal(_) => "internal",
             Self::FailedBlockTimestampAssertion => "failed-block-timestamp-assertion",
-            Self::SenderInAllowList(_) => "sender-in-allow-list",
+            Self::SenderNotInAllowList(_) => "sender-not-allow-list",
         }
     }
 

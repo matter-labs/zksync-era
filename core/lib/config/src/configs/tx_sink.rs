@@ -2,5 +2,6 @@ use serde::Deserialize;
 
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct TxSinkConfig {
-    pub use_whitelisted_sink: Option<bool>,
+    #[serde(default)]
+    pub deployment_allowlist_sink: bool,
 }

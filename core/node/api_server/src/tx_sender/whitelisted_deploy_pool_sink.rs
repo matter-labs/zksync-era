@@ -1,6 +1,6 @@
 use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool, Core, CoreDal, DalError};
 use zksync_multivm::interface::{tracer::ValidationTraces, TransactionExecutionMetrics};
-use zksync_types::{l2::L2Tx, CONTRACT_DEPLOYER_ADDRESS};
+use zksync_types::l2::L2Tx;
 
 use super::{tx_sink::TxSink, SubmitTxError};
 use crate::tx_sender::master_pool_sink::MasterPoolSink;
@@ -8,14 +8,14 @@ use crate::tx_sender::master_pool_sink::MasterPoolSink;
 /// Wrapper for the master DB pool that allows submitting transactions to the mempool.
 #[derive(Debug)]
 pub struct WhitelistedDeployPoolSink {
-    master_pool_sync: MasterPoolSink,
+    master_pool_sink: MasterPoolSink,
     master_pool: ConnectionPool<Core>,
 }
 
 impl WhitelistedDeployPoolSink {
-    pub fn new(master_pool_sync: MasterPoolSink, master_pool: ConnectionPool<Core>) -> Self {
+    pub fn new(master_pool_sink: MasterPoolSink, master_pool: ConnectionPool<Core>) -> Self {
         Self {
-            master_pool_sync,
+            master_pool_sink,
             master_pool,
         }
     }
@@ -39,9 +39,7 @@ impl TxSink for WhitelistedDeployPoolSink {
             );
             // Only enforce the allow-list check if the deployer contract was called
             // and the VM actually deployed a contract.
-            if contract_address == CONTRACT_DEPLOYER_ADDRESS
-                && execution_metrics.vm.is_contract_deployed
-            {
+            if execution_metrics.vm.contract_deployment_count > 0 {
                 let mut connection = self
                     .master_pool
                     .connection_tagged("api")
@@ -52,10 +50,10 @@ impl TxSink for WhitelistedDeployPoolSink {
                     .contracts_deploy_allow_list_dal()
                     .is_address_allowed(&initiator)
                     .await
-                    .unwrap();
+                    .map_err(DalError::generalize)?;
 
                 if is_allowed {
-                    tracing::info!(
+                    tracing::debug!(
                         "Whitelisted address {:?} allowed to deploy contract: {:?}",
                         initiator,
                         tx.hash()
@@ -65,12 +63,12 @@ impl TxSink for WhitelistedDeployPoolSink {
                         "Blocking contract deployment for non-whitelisted address: {:?}",
                         initiator
                     );
-                    return Err(SubmitTxError::SenderInAllowList(initiator));
+                    return Err(SubmitTxError::SenderNotInAllowList(initiator));
                 }
             }
         }
 
-        self.master_pool_sync
+        self.master_pool_sink
             .submit_tx(tx, execution_metrics, validation_traces)
             .await
     }
