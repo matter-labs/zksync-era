@@ -206,7 +206,7 @@ impl FriSchedulerWitnessGeneratorDal<'_, '_> {
 
     pub async fn get_scheduler_witness_generator_jobs_for_batch(
         &mut self,
-        batch_number: ChainAwareL1BatchNumber,
+        batch_id: ChainAwareL1BatchNumber,
     ) -> Option<SchedulerWitnessGeneratorJobInfo> {
         sqlx::query!(
             r#"
@@ -218,15 +218,14 @@ impl FriSchedulerWitnessGeneratorDal<'_, '_> {
                 l1_batch_number = $1
                 AND chain_id = $2
             "#,
-            batch_number.raw_batch_number() as i64,
-            batch_number.raw_chain_id() as i32,
+            batch_id.raw_batch_number() as i64,
+            batch_id.raw_chain_id() as i32,
         )
         .fetch_optional(self.storage.conn())
         .await
         .unwrap()
         .map(|row| SchedulerWitnessGeneratorJobInfo {
-            l1_batch_number: batch_number.batch_number(),
-            chain_id: batch_number.chain_id(),
+            batch_id,
             scheduler_partial_input_blob_url: row.scheduler_partial_input_blob_url.clone(),
             status: WitnessJobStatus::from_str(&row.status).unwrap(),
             processing_started_at: row.processing_started_at,

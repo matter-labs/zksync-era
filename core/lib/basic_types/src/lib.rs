@@ -12,6 +12,7 @@ use std::{
     ops::{Add, Deref, DerefMut, Sub},
     str::FromStr,
 };
+use std::fmt::Debug;
 
 use anyhow::Context as _;
 pub use ethabi::{
@@ -148,10 +149,21 @@ impl<'de> Deserialize<'de> for L2ChainId {
     }
 }
 
-#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
+#[derive(Copy, Clone, Serialize, Deserialize)]
 pub struct ChainAwareL1BatchNumber {
-    chain_id: L2ChainId,
-    batch_number: L1BatchNumber,
+    pub chain_id: L2ChainId,
+    pub batch_number: L1BatchNumber,
+}
+
+impl Debug for ChainAwareL1BatchNumber {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "ChainAwareL1BatchNumber(chain_id: {}, batch_number: {})",
+            self.chain_id.as_u64(),
+            self.batch_number.0
+        )
+    }
 }
 
 impl L2ChainId {
@@ -166,6 +178,8 @@ impl L2ChainId {
         Ok(L2ChainId(number))
     }
 
+    /// Method for creating a zero L2ChainId, which is used during transition period to prover cluster,
+    /// when we don't have a chain id yet.
     pub fn zero() -> Self {
         Self(0)
     }

@@ -41,8 +41,7 @@ pub struct BasicCircuitArtifacts {
 
 #[derive(Clone)]
 pub struct BasicWitnessGeneratorJob {
-    pub(super) chain_id: L2ChainId,
-    pub(super) block_number: L1BatchNumber,
+    pub(super) batch_id: ChainAwareL1BatchNumber,
     pub(super) data: WitnessInputData,
 }
 
@@ -74,8 +73,7 @@ impl JobManager for BasicCircuits {
         started_at: Instant,
     ) -> anyhow::Result<BasicCircuitArtifacts> {
         let BasicWitnessGeneratorJob {
-            chain_id,
-            block_number,
+            batch_id,
             data: job,
         } = job;
 
@@ -87,8 +85,7 @@ impl JobManager for BasicCircuits {
         );
 
         let (circuit_urls, queue_urls, scheduler_witness, aux_output_witness) = generate_witness(
-            block_number,
-            chain_id,
+            batch_id,
             object_store,
             job,
             max_circuits_in_flight,

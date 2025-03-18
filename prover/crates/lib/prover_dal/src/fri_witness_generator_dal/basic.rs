@@ -236,7 +236,7 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
 
     pub async fn get_basic_witness_generator_job_for_batch(
         &mut self,
-        batch_number: ChainAwareL1BatchNumber,
+        batch_id: ChainAwareL1BatchNumber,
     ) -> Option<BasicWitnessGeneratorJobInfo> {
         sqlx::query!(
             r#"
@@ -248,15 +248,14 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
                 l1_batch_number = $1
                 AND chain_id = $2
             "#,
-            i64::from(batch_number.raw_batch_number()),
-            batch_number.raw_chain_id() as i32
+            batch_id.raw_batch_number() as i64,
+            batch_id.raw_chain_id() as i32
         )
         .fetch_optional(self.storage.conn())
         .await
         .unwrap()
         .map(|row| BasicWitnessGeneratorJobInfo {
-            l1_batch_number: batch_number.batch_number(),
-            chain_id: L2ChainId::new(row.chain_id as u64).unwrap(),
+            batch_id,
             witness_inputs_blob_url: row.witness_inputs_blob_url,
             attempts: row.attempts as u32,
             status: row.status.parse::<WitnessJobStatus>().unwrap(),

@@ -39,10 +39,7 @@ use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::{get_current_pod_name, keys::ClosedFormInputKey};
 use zksync_prover_keystore::{keystore::Keystore, utils::get_leaf_vk_params};
-use zksync_types::{
-    basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion, L1BatchNumber,
-    L2ChainId,
-};
+use zksync_types::{basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion, L1BatchNumber, L2ChainId, ChainAwareL1BatchNumber};
 
 use crate::{
     artifacts::ArtifactsManager, metrics::WITNESS_GENERATOR_METRICS, rounds::JobManager,
@@ -68,8 +65,7 @@ pub struct RecursionTipArtifacts {
 }
 
 pub struct RecursionTipJobMetadata {
-    pub l1_batch_number: L1BatchNumber,
-    pub chain_id: L2ChainId,
+    pub batch_id: ChainAwareL1BatchNumber,
     pub final_node_proof_job_ids: Vec<(u8, u32)>,
 }
 
@@ -160,8 +156,7 @@ impl JobManager for RecursionTip {
         let mut recursion_queues = vec![];
         for circuit_id in BaseLayerCircuitType::as_iter_u8() {
             let key = ClosedFormInputKey {
-                chain_id: metadata.chain_id,
-                block_number: metadata.l1_batch_number,
+                batch_id: metadata.batch_id
                 circuit_id,
             };
             let ClosedFormInputWrapper(_, recursion_queue) =

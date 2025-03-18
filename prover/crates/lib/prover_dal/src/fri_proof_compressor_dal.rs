@@ -386,7 +386,7 @@ impl FriProofCompressorDal<'_, '_> {
 
     pub async fn get_proof_compression_job_for_batch(
         &mut self,
-        batch_number: ChainAwareL1BatchNumber,
+        batch_id: ChainAwareL1BatchNumber,
     ) -> Option<ProofCompressionJobInfo> {
         sqlx::query!(
             r#"
@@ -398,15 +398,14 @@ impl FriProofCompressorDal<'_, '_> {
                 l1_batch_number = $1
                 AND chain_id = $2
             "#,
-            batch_number.raw_batch_number() as i64,
-            batch_number.raw_chain_id() as i32,
+            batch_id.raw_batch_number() as i64,
+            batch_id.raw_chain_id() as i32,
         )
         .fetch_optional(self.storage.conn())
         .await
         .unwrap()
         .map(|row| ProofCompressionJobInfo {
-            l1_batch_number: batch_number.batch_number(),
-            chain_id: batch_number.chain_id(),
+            batch_id,
             attempts: row.attempts as u32,
             status: ProofCompressionJobStatus::from_str(&row.status).unwrap(),
             fri_proof_blob_url: row.fri_proof_blob_url,

@@ -25,15 +25,14 @@ impl ArtifactsManager for NodeAggregation {
 
     #[tracing::instrument(
         skip_all,
-        fields(l1_batch = % metadata.block_number, circuit_id = % metadata.circuit_id)
+        fields(l1_batch = % metadata.batch_id.batch_number, circuit_id = % metadata.circuit_id)
     )]
     async fn get_artifacts(
         metadata: &Self::InputMetadata,
         object_store: &dyn ObjectStore,
     ) -> anyhow::Result<Self::InputArtifacts> {
         let key = AggregationsKey {
-            chain_id: metadata.chain_id,
-            block_number: metadata.block_number,
+            batch_id: metadata.batch_id,
             circuit_id: metadata.circuit_id,
             depth: metadata.depth,
         };
@@ -55,8 +54,7 @@ impl ArtifactsManager for NodeAggregation {
     ) -> AggregationBlobUrls {
         let started_at = Instant::now();
         let key = AggregationsKey {
-            chain_id: artifacts.chain_id,
-            block_number: artifacts.block_number,
+            batch_id: artifacts.batch_id,
             circuit_id: artifacts.circuit_id,
             depth: artifacts.depth,
         };

@@ -13,7 +13,7 @@ use zksync_basic_types::{
     basic_fri_types::AggregationRound,
     protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch},
     prover_dal::{JobCountStatistics, ProofGenerationTime, StuckJobs},
-    ChainAwareL1BatchNumber, L1BatchNumber, L2ChainId,
+    ChainAwareL1BatchNumber, L2ChainId,
 };
 use zksync_db_connection::{connection::Connection, utils::naive_time_from_pg_interval};
 
@@ -372,8 +372,9 @@ impl FriWitnessGeneratorDal<'_, '_> {
         .await?
         .into_iter()
         .map(|row| ProofGenerationTime {
-            l1_batch_number: L1BatchNumber(row.l1_batch_number as u32),
-            chain_id: L2ChainId::new(row.chain_id as u64).unwrap(),
+            batch_id: ChainAwareL1BatchNumber::from_raw(row.chain_id as u64,
+                row.l1_batch_number as u32,
+                ),
             time_taken: naive_time_from_pg_interval(
                 row.time_taken.expect("time_taken must be present"),
             ),

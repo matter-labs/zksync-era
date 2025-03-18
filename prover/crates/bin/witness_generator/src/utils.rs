@@ -26,9 +26,7 @@ use zksync_prover_fri_types::{
     keys::{AggregationsKey, ClosedFormInputKey, FriCircuitKey},
     CircuitWrapper, FriProofWrapper,
 };
-use zksync_types::{
-    basic_fri_types::AggregationRound, L1BatchNumber, L2ChainId, ProtocolVersionId, U256,
-};
+use zksync_types::{basic_fri_types::AggregationRound, ChainAwareL1BatchNumber, L1BatchNumber, L2ChainId, ProtocolVersionId, U256};
 
 // Creates a temporary file with the serialized KZG setup usable by `zkevm_test_harness` functions.
 pub(crate) static KZG_TRUSTED_SETUP_FILE: Lazy<tempfile::NamedTempFile> = Lazy::new(|| {
@@ -70,7 +68,7 @@ impl ClosedFormInputWrapper {
             Err(_) => {
                 // If the proof with chain id was not found, we try to fetch the one without chain id
                 let mut zero_chain_id_key = key;
-                zero_chain_id_key.chain_id = L2ChainId::zero();
+                zero_chain_id_key.batch_id.chain_id = L2ChainId::zero();
 
                 blob_store.get(zero_chain_id_key).await
             }
@@ -84,18 +82,18 @@ impl StoredObject for ClosedFormInputWrapper {
 
     fn encode_key(key: Self::Key<'_>) -> String {
         let ClosedFormInputKey {
-            chain_id,
-            block_number,
+            batch_id,
             circuit_id,
         } = key;
 
-        if chain_id.as_u64() == 0 {
-            return format!("closed_form_inputs_{block_number}_{circuit_id}.bin",);
+        if batch_id.raw_chain_id() == 0 {
+            return format!("closed_form_inputs_{}_{circuit_id}.bin", batch_id.raw_batch_number());
         }
 
         format!(
-            "closed_form_inputs_{}_{block_number}_{circuit_id}.bin",
-            chain_id.as_u64()
+            "closed_form_inputs_{}_{}_{circuit_id}.bin",
+            batch_id.raw_chain_id(),
+            batch_id.raw_batch_number(),
         )
     }
 
@@ -115,7 +113,7 @@ impl AggregationWrapper {
             Err(_) => {
                 // If the proof with chain id was not found, we try to fetch the one without chain id
                 let mut zero_chain_id_key = key;
-                zero_chain_id_key.chain_id = L2ChainId::zero();
+                zero_chain_id_key.batch_id.chain_id = L2ChainId::zero();
 
                 blob_store.get(zero_chain_id_key).await
             }
@@ -129,14 +127,13 @@ impl StoredObject for AggregationWrapper {
 
     fn encode_key(key: Self::Key<'_>) -> String {
         let AggregationsKey {
-            chain_id,
-            block_number,
+            batch_id,
             circuit_id,
             depth,
         } = key;
         format!(
             "aggregations_{}_{block_number}_{circuit_id}_{depth}.bin",
-            chain_id.as_u64()
+            batch_id.raw_chain_id()
         )
     }
 
@@ -165,19 +162,17 @@ impl StoredObject for SchedulerPartialInputWrapper {
 
 #[tracing::instrument(
     skip_all,
-    fields(l1_batch = %block_number, circuit_id = %circuit.numeric_circuit_type())
+    fields(l1_batch = %batch_id.batch_number, circuit_id = %circuit.numeric_circuit_type())
 )]
 pub async fn save_circuit(
-    block_number: L1BatchNumber,
-    chain_id: L2ChainId,
+    batch_id: ChainAwareL1BatchNumber,
     circuit: ZkSyncBaseLayerCircuit,
     sequence_number: usize,
     object_store: Arc<dyn ObjectStore>,
 ) -> (u8, String) {
     let circuit_id = circuit.numeric_circuit_type();
     let circuit_key = FriCircuitKey {
-        chain_id,
-        block_number,
+        batch_id,
         sequence_number,
         circuit_id,
         aggregation_round: AggregationRound::BasicCircuits,
@@ -195,11 +190,10 @@ pub async fn save_circuit(
 #[allow(clippy::too_many_arguments)]
 #[tracing::instrument(
     skip_all,
-    fields(l1_batch = %block_number)
+    fields(l1_batch = %batch_id.batch_number)
 )]
 pub async fn save_recursive_layer_prover_input_artifacts(
-    chain_id: L2ChainId,
-    block_number: L1BatchNumber,
+    batch_id: ChainAwareL1BatchNumber,
     sequence_number_offset: usize,
     recursive_circuits: Vec<ZkSyncRecursiveLayerCircuit>,
     aggregation_round: AggregationRound,
@@ -211,8 +205,7 @@ pub async fn save_recursive_layer_prover_input_artifacts(
     for (sequence_number, circuit) in recursive_circuits.into_iter().enumerate() {
         let circuit_id = base_layer_circuit_id.unwrap_or_else(|| circuit.numeric_circuit_type());
         let circuit_key = FriCircuitKey {
-            chain_id,
-            block_number,
+            batch_id,
             sequence_number: sequence_number_offset + sequence_number,
             circuit_id,
             aggregation_round,

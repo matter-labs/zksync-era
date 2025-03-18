@@ -21,10 +21,7 @@ use zksync_prover_fri_types::{
     get_current_pod_name, FriProofWrapper,
 };
 use zksync_prover_keystore::{keystore::Keystore, utils::get_leaf_vk_params};
-use zksync_types::{
-    basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion,
-    prover_dal::NodeAggregationJobMetadata, L1BatchNumber, L2ChainId,
-};
+use zksync_types::{basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion, prover_dal::NodeAggregationJobMetadata, L1BatchNumber, L2ChainId, ChainAwareL1BatchNumber};
 
 use crate::{
     artifacts::ArtifactsManager,
@@ -37,8 +34,7 @@ mod artifacts;
 #[derive(Clone)]
 pub struct NodeAggregationArtifacts {
     circuit_id: u8,
-    block_number: L1BatchNumber,
-    chain_id: L2ChainId,
+    batch_id: ChainAwareL1BatchNumber,
     depth: u16,
     pub next_aggregations: Vec<(u64, RecursionQueueSimulator<GoldilocksField>)>,
     pub recursive_circuit_ids_and_urls: Vec<(u8, String)>,
@@ -47,8 +43,7 @@ pub struct NodeAggregationArtifacts {
 #[derive(Clone)]
 pub struct NodeAggregationWitnessGeneratorJob {
     circuit_id: u8,
-    block_number: L1BatchNumber,
-    chain_id: L2ChainId,
+    batch_id: ChainAwareL1BatchNumber,
     depth: u16,
     aggregations: Vec<(u64, RecursionQueueSimulator<GoldilocksField>)>,
     proofs_ids: Vec<u32>,
@@ -206,7 +201,7 @@ impl JobManager for NodeAggregation {
 
     #[tracing::instrument(
         skip_all,
-        fields(l1_batch = % metadata.block_number, circuit_id = % metadata.circuit_id)
+        fields(l1_batch = % metadata.batch_id.batch_number, chain = % metadata.batch_id.raw_chain_id(), circuit_id = % metadata.circuit_id)
     )]
     async fn prepare_job(
         metadata: Self::Metadata,
@@ -234,8 +229,7 @@ impl JobManager for NodeAggregation {
 
         Ok(NodeAggregationWitnessGeneratorJob {
             circuit_id: metadata.circuit_id,
-            block_number: metadata.block_number,
-            chain_id: metadata.chain_id,
+            batch_id: metadata.batch_id,
             depth: metadata.depth,
             aggregations: artifacts.0,
             proofs_ids: metadata.prover_job_ids_for_proofs,
@@ -261,6 +255,6 @@ impl JobManager for NodeAggregation {
             return Ok(None);
         };
 
-        Ok(Some((metadata.chain_id, metadata.id, metadata)))
+        Ok(Some((metadata.batch_id.chain_id, metadata.id, metadata)))
     }
 }

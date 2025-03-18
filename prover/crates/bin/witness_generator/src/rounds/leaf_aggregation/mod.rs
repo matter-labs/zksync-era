@@ -24,10 +24,7 @@ use zksync_prover_fri_types::{
     get_current_pod_name, FriProofWrapper,
 };
 use zksync_prover_keystore::keystore::Keystore;
-use zksync_types::{
-    basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion,
-    prover_dal::LeafAggregationJobMetadata, L1BatchNumber, L2ChainId,
-};
+use zksync_types::{basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion, prover_dal::LeafAggregationJobMetadata, L1BatchNumber, L2ChainId, ChainAwareL1BatchNumber};
 
 use crate::{
     artifacts::ArtifactsManager,
@@ -43,8 +40,7 @@ mod artifacts;
 
 pub struct LeafAggregationWitnessGeneratorJob {
     pub(crate) circuit_id: u8,
-    pub(crate) chain_id: L2ChainId,
-    pub(crate) block_number: L1BatchNumber,
+    pub(crate) batch_id: ChainAwareL1BatchNumber,
     pub(crate) closed_form_inputs: ClosedFormInputWrapper,
     pub(crate) proofs_ids: Vec<u32>,
     pub(crate) base_vk: ZkSyncBaseLayerVerificationKey,
@@ -153,8 +149,7 @@ impl JobManager for LeafAggregation {
                 );
 
                 save_recursive_layer_prover_input_artifacts(
-                    job.chain_id,
-                    job.block_number,
+                    job.batch_id,
                     circuit_idx,
                     vec![circuit],
                     AggregationRound::LeafAggregation,
@@ -197,7 +192,7 @@ impl JobManager for LeafAggregation {
 
     #[tracing::instrument(
         skip_all,
-        fields(l1_batch = %metadata.block_number, circuit_id = %metadata.circuit_id)
+        fields(l1_batch = %metadata.batch_id.batch_number, circuit_id = %metadata.circuit_id)
     )]
     async fn prepare_job(
         metadata: LeafAggregationJobMetadata,
@@ -229,8 +224,7 @@ impl JobManager for LeafAggregation {
 
         Ok(LeafAggregationWitnessGeneratorJob {
             circuit_id: metadata.circuit_id,
-            chain_id: metadata.chain_id,
-            block_number: metadata.block_number,
+            batch_id: metadata.batch_id,
             closed_form_inputs: closed_form_input,
             proofs_ids: metadata.prover_job_ids_for_proofs,
             base_vk,
@@ -252,6 +246,6 @@ impl JobManager for LeafAggregation {
         else {
             return Ok(None);
         };
-        Ok(Some((metadata.chain_id, metadata.id, metadata)))
+        Ok(Some((metadata.batch_id.chain_id, metadata.id, metadata)))
     }
 }

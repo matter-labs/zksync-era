@@ -37,8 +37,7 @@ impl ArtifactsManager for Scheduler {
         object_store: &dyn ObjectStore,
     ) -> String {
         let key = FriCircuitKey {
-            chain_id,
-            block_number: L1BatchNumber(job_id),
+            batch_id: ChainAwareL1BatchNumber::new(chain_id, L1BatchNumber(job_id)),
             circuit_id: 1,
             sequence_number: 0,
             depth: 0,

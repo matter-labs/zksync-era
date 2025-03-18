@@ -29,8 +29,7 @@ impl ArtifactsManager for LeafAggregation {
         object_store: &dyn ObjectStore,
     ) -> anyhow::Result<Self::InputArtifacts> {
         let key = ClosedFormInputKey {
-            chain_id: metadata.chain_id,
-            block_number: metadata.block_number,
+            batch_id: metadata.batch_id,
             circuit_id: metadata.circuit_id,
         };
 
@@ -51,8 +50,7 @@ impl ArtifactsManager for LeafAggregation {
     ) -> AggregationBlobUrls {
         let started_at = Instant::now();
         let key = AggregationsKey {
-            chain_id: artifacts.chain_id,
-            block_number: artifacts.block_number,
+            batch_id: ChainAwareL1BatchNumber::new(artifacts.chain_id, artifacts.block_number),
             circuit_id: get_recursive_layer_circuit_id_for_base_layer(artifacts.circuit_id),
             depth: 0,
         };
