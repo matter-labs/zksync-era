@@ -11,7 +11,7 @@ use url::Url;
 
 use crate::{
     agent::{ScaleRequest, ScaleResponse},
-    cluster_types::{Cluster, Clusters},
+    cluster_types::{Cluster, ClusterName, Clusters},
     http_client::HttpClient,
     task_wiring::Task,
 };
@@ -62,7 +62,10 @@ impl Watcher {
         }
     }
 
-    pub async fn send_scale(&self, requests: HashMap<String, ScaleRequest>) -> anyhow::Result<()> {
+    pub async fn send_scale(
+        &self,
+        requests: HashMap<ClusterName, ScaleRequest>,
+    ) -> anyhow::Result<()> {
         let id_requests: HashMap<usize, ScaleRequest>;
         {
             // Convert cluster names into ids. Holding the data lock.
@@ -191,10 +194,13 @@ impl Task for Watcher {
                 .into_iter()
                 .map(|h| async move {
                     let (i, res) = h??;
-                    let c = res?;
+                    let cluster = res?;
                     let mut guard = self.data.lock().await;
-                    guard.clusters.agent_ids.insert(c.name.clone(), i);
-                    guard.clusters.clusters.insert(c.name.clone(), c);
+                    guard.clusters.agent_ids.insert(cluster.name.clone(), i);
+                    guard
+                        .clusters
+                        .clusters
+                        .insert(cluster.name.clone(), cluster);
                     guard.is_ready[i] = true;
                     Ok(())
                 })
