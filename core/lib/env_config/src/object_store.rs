@@ -8,17 +8,6 @@ impl FromEnv for ObjectStoreConfig {
     }
 }
 
-/// Wrapper for `ObjectStoreConfig` that allows loading object store config using `PUBLIC_` prefix.
-#[derive(Debug)]
-pub struct PublicObjectStoreConfig(pub ObjectStoreConfig);
-
-impl FromEnv for PublicObjectStoreConfig {
-    fn from_env() -> anyhow::Result<Self> {
-        let config = envy_load("public_object_store", "PUBLIC_OBJECT_STORE_")?;
-        Ok(Self(config))
-    }
-}
-
 /// Wrapper for `ObjectStoreConfig` that allows loading object store config using `PROVER_` prefix.
 #[derive(Debug)]
 pub struct ProverObjectStoreConfig(pub ObjectStoreConfig);
@@ -88,25 +77,6 @@ mod tests {
             actual.mode,
             ObjectStoreMode::FileBacked {
                 file_backed_base_path: "artifacts".to_owned(),
-            }
-        );
-    }
-
-    #[test]
-    fn public_bucket_config_from_env() {
-        let mut lock = MUTEX.lock();
-        let config = r#"
-            PUBLIC_OBJECT_STORE_BUCKET_BASE_URL="/public_base_url"
-            PUBLIC_OBJECT_STORE_MODE="GCSAnonymousReadOnly"
-            PUBLIC_OBJECT_STORE_MAX_RETRIES="3"
-        "#;
-        lock.set_env(config);
-        let actual = PublicObjectStoreConfig::from_env().unwrap().0;
-        assert_eq!(actual.max_retries, 3);
-        assert_eq!(
-            actual.mode,
-            ObjectStoreMode::GCSAnonymousReadOnly {
-                bucket_base_url: "/public_base_url".to_owned(),
             }
         );
     }

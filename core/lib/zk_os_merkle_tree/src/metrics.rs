@@ -15,6 +15,8 @@ const NODE_COUNT_BUCKETS: Buckets = Buckets::values(&[
 pub(crate) enum LoadStage {
     Total,
     KeyLookup,
+    KeyLookupGets,
+    KeyLookupIteration,
     TreeNodes,
 }
 

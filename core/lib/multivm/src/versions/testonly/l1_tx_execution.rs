@@ -37,7 +37,6 @@ pub(crate) fn test_l1_tx_execution<VM: TestedVm>() {
     let basic_initial_writes = 5;
 
     let mut vm = VmTesterBuilder::new()
-        .with_empty_in_memory_storage()
         .with_base_system_smart_contracts(BASE_SYSTEM_CONTRACTS.clone())
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_rich_accounts(1)
@@ -145,7 +144,6 @@ pub(crate) fn test_l1_tx_execution_high_gas_limit<VM: TestedVm>() {
     // however, they might pass during the transition period to the new fee model, so we check that we can safely process those.
 
     let mut vm = VmTesterBuilder::new()
-        .with_empty_in_memory_storage()
         .with_base_system_smart_contracts(BASE_SYSTEM_CONTRACTS.clone())
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_rich_accounts(1)
@@ -190,7 +188,6 @@ pub(crate) fn test_l1_tx_execution_gas_estimation_with_low_gas<VM: TestedVm>() {
     let counter_contract = TestContract::counter().bytecode.to_vec();
     let counter_address = Address::repeat_byte(0x11);
     let mut vm = VmTesterBuilder::new()
-        .with_empty_in_memory_storage()
         .with_base_system_smart_contracts(BASE_SYSTEM_CONTRACTS.clone())
         .with_execution_mode(TxExecutionMode::EstimateFee)
         .with_custom_contracts(vec![ContractToDeploy::new(
