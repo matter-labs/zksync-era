@@ -180,7 +180,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
 
     pub async fn delete_witness_generator_data_for_batch(
         &mut self,
-        batch_number: ChainAwareL1BatchNumber,
+        batch_id: ChainAwareL1BatchNumber,
         aggregation_round: AggregationRound,
     ) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
         sqlx::query(
@@ -193,8 +193,8 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 AND chain_id = {chain_id}
             "#,
                 table = Self::input_table_name_for(aggregation_round),
-                l1_batch_number = batch_number.raw_batch_number(),
-                chain_id = batch_number.raw_chain_id(),
+                l1_batch_number = batch_id.raw_batch_number(),
+                chain_id = batch_id.raw_chain_id(),
             )
             .as_str(),
         )
@@ -204,24 +204,18 @@ impl FriWitnessGeneratorDal<'_, '_> {
 
     pub async fn delete_batch_data(
         &mut self,
-        batch_number: ChainAwareL1BatchNumber,
+        batch_id: ChainAwareL1BatchNumber,
     ) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
-        self.delete_witness_generator_data_for_batch(batch_number, AggregationRound::BasicCircuits)
+        self.delete_witness_generator_data_for_batch(batch_id, AggregationRound::BasicCircuits)
             .await?;
-        self.delete_witness_generator_data_for_batch(
-            batch_number,
-            AggregationRound::LeafAggregation,
-        )
-        .await?;
-        self.delete_witness_generator_data_for_batch(
-            batch_number,
-            AggregationRound::NodeAggregation,
-        )
-        .await?;
+        self.delete_witness_generator_data_for_batch(batch_id, AggregationRound::LeafAggregation)
+            .await?;
+        self.delete_witness_generator_data_for_batch(batch_id, AggregationRound::NodeAggregation)
+            .await?;
         // TODO: THIS LOOKS SUS
         self.delete_witness_generator_data(AggregationRound::RecursionTip)
             .await?;
-        self.delete_witness_generator_data_for_batch(batch_number, AggregationRound::Scheduler)
+        self.delete_witness_generator_data_for_batch(batch_id, AggregationRound::Scheduler)
             .await
     }
 
@@ -258,12 +252,12 @@ impl FriWitnessGeneratorDal<'_, '_> {
 
     pub async fn requeue_stuck_leaf_aggregation_jobs_for_batch(
         &mut self,
-        batch_number: ChainAwareL1BatchNumber,
+        batch_id: ChainAwareL1BatchNumber,
         max_attempts: u32,
     ) -> Vec<StuckJobs> {
         self.requeue_stuck_jobs_for_batch_in_aggregation_round(
             AggregationRound::LeafAggregation,
-            batch_number,
+            batch_id,
             max_attempts,
         )
         .await
@@ -271,12 +265,12 @@ impl FriWitnessGeneratorDal<'_, '_> {
 
     pub async fn requeue_stuck_node_aggregation_jobs_for_batch(
         &mut self,
-        batch_number: ChainAwareL1BatchNumber,
+        batch_id: ChainAwareL1BatchNumber,
         max_attempts: u32,
     ) -> Vec<StuckJobs> {
         self.requeue_stuck_jobs_for_batch_in_aggregation_round(
             AggregationRound::NodeAggregation,
-            batch_number,
+            batch_id,
             max_attempts,
         )
         .await
@@ -285,7 +279,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
     async fn requeue_stuck_jobs_for_batch_in_aggregation_round(
         &mut self,
         aggregation_round: AggregationRound,
-        batch_number: ChainAwareL1BatchNumber,
+        batch_id: ChainAwareL1BatchNumber,
         max_attempts: u32,
     ) -> Vec<StuckJobs> {
         let table_name = Self::input_table_name_for(aggregation_round);
@@ -312,8 +306,8 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 picked_by
             "#,
             table_name,
-            batch_number.raw_batch_number() as i64,
-            batch_number.raw_chain_id() as i32,
+            batch_id.raw_batch_number() as i64,
+            batch_id.raw_chain_id() as i32,
             max_attempts,
             job_id_table_name
         );

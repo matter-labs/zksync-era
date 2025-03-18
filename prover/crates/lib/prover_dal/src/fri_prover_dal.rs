@@ -38,7 +38,7 @@ impl FriProverDal<'_, '_> {
 
     pub async fn insert_prover_jobs(
         &mut self,
-        batch_number: ChainAwareL1BatchNumber,
+        batch_id: ChainAwareL1BatchNumber,
         circuit_ids_and_urls: Vec<(u8, String)>,
         aggregation_round: AggregationRound,
         depth: u16,
@@ -77,8 +77,8 @@ impl FriProverDal<'_, '_> {
             query_builder.push_values(
                 chunk.iter().enumerate(),
                 |mut row, (i, (circuit_id, circuit_blob_url))| {
-                    row.push_bind(batch_number.raw_batch_number() as i64)
-                        .push_bind(batch_number.raw_chain_id() as i32)
+                    row.push_bind(batch_id.raw_batch_number() as i64)
+                        .push_bind(batch_id.raw_chain_id() as i32)
                         .push_bind(*circuit_id as i16)
                         .push_bind(circuit_blob_url)
                         .push_bind(aggregation_round as i64)
@@ -604,7 +604,7 @@ impl FriProverDal<'_, '_> {
     #[allow(clippy::too_many_arguments)]
     pub async fn insert_prover_job(
         &mut self,
-        batch_number: ChainAwareL1BatchNumber,
+        batch_id: ChainAwareL1BatchNumber,
         circuit_id: u8,
         depth: u16,
         sequence_number: usize,
@@ -812,7 +812,7 @@ impl FriProverDal<'_, '_> {
 
     pub async fn get_scheduler_proof_job_id(
         &mut self,
-        batch_number: ChainAwareL1BatchNumber,
+        batch_id: ChainAwareL1BatchNumber,
     ) -> Option<u32> {
         sqlx::query!(
             r#"
@@ -826,8 +826,8 @@ impl FriProverDal<'_, '_> {
                 AND status = 'successful'
                 AND aggregation_round = $3
             "#,
-            batch_number.raw_batch_number() as i64,
-            batch_number.raw_chain_id() as i32,
+            batch_id.raw_batch_number() as i64,
+            batch_id.raw_chain_id() as i32,
             AggregationRound::Scheduler as i16,
         )
         .fetch_optional(self.storage.conn())
@@ -838,7 +838,7 @@ impl FriProverDal<'_, '_> {
 
     pub async fn get_recursion_tip_proof_job_id(
         &mut self,
-        batch_number: ChainAwareL1BatchNumber,
+        batch_id: ChainAwareL1BatchNumber,
     ) -> Option<u32> {
         sqlx::query!(
             r#"
@@ -852,8 +852,8 @@ impl FriProverDal<'_, '_> {
                 AND status = 'successful'
                 AND aggregation_round = $3
             "#,
-            batch_number.raw_batch_number() as i64,
-            batch_number.raw_chain_id() as i32,
+            batch_id.raw_batch_number() as i64,
+            batch_id.raw_chain_id() as i32,
             AggregationRound::RecursionTip as i16,
         )
         .fetch_optional(self.storage.conn())
@@ -892,7 +892,7 @@ impl FriProverDal<'_, '_> {
 
     pub async fn get_final_node_proof_job_ids_for(
         &mut self,
-        batch_number: ChainAwareL1BatchNumber,
+        batch_id: ChainAwareL1BatchNumber,
     ) -> Vec<(u8, u32)> {
         sqlx::query!(
             r#"
@@ -909,8 +909,8 @@ impl FriProverDal<'_, '_> {
             ORDER BY
                 circuit_id ASC
             "#,
-            batch_number.raw_batch_number() as i64,
-            batch_number.raw_chain_id() as i32
+            batch_id.raw_batch_number() as i64,
+            batch_id.raw_chain_id() as i32
         )
         .fetch_all(self.storage.conn())
         .await
@@ -971,7 +971,7 @@ impl FriProverDal<'_, '_> {
 
     pub async fn delete_prover_jobs_fri_batch_data(
         &mut self,
-        batch_number: ChainAwareL1BatchNumber,
+        batch_id: ChainAwareL1BatchNumber,
     ) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
         sqlx::query!(
             r#"
@@ -980,8 +980,8 @@ impl FriProverDal<'_, '_> {
                 l1_batch_number = $1
                 AND chain_id = $2
             "#,
-            batch_number.raw_batch_number() as i64,
-            batch_number.raw_chain_id() as i32
+            batch_id.raw_batch_number() as i64,
+            batch_id.raw_chain_id() as i32
         )
         .execute(self.storage.conn())
         .await
@@ -989,9 +989,9 @@ impl FriProverDal<'_, '_> {
 
     pub async fn delete_batch_data(
         &mut self,
-        batch_number: ChainAwareL1BatchNumber,
+        batch_id: ChainAwareL1BatchNumber,
     ) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
-        self.delete_prover_jobs_fri_batch_data(batch_number).await
+        self.delete_prover_jobs_fri_batch_data(batch_id).await
     }
 
     pub async fn delete_prover_jobs_fri(&mut self) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
@@ -1010,7 +1010,7 @@ impl FriProverDal<'_, '_> {
 
     pub async fn requeue_stuck_jobs_for_batch(
         &mut self,
-        batch_number: ChainAwareL1BatchNumber,
+        batch_id: ChainAwareL1BatchNumber,
         max_attempts: u32,
     ) -> Vec<StuckJobs> {
         {
@@ -1041,8 +1041,8 @@ impl FriProverDal<'_, '_> {
                 error,
                 picked_by
                 "#,
-                batch_number.raw_batch_number() as i64,
-                batch_number.raw_chain_id() as i32,
+                batch_id.raw_batch_number() as i64,
+                batch_id.raw_chain_id() as i32,
                 max_attempts as i32,
             )
             .fetch_all(self.storage.conn())
@@ -1064,7 +1064,7 @@ impl FriProverDal<'_, '_> {
 
     pub async fn prover_job_ids_for(
         &mut self,
-        batch_number: ChainAwareL1BatchNumber,
+        batch_id: ChainAwareL1BatchNumber,
         circuit_id: u8,
         round: AggregationRound,
         depth: u16,
@@ -1086,11 +1086,11 @@ impl FriProverDal<'_, '_> {
             ORDER BY
                 sequence_number ASC;
             "#,
-            batch_number.raw_batch_number() as i64,
+            batch_id.raw_batch_number() as i64,
             i16::from(circuit_id),
             round as i16,
             i32::from(depth),
-            batch_number.raw_chain_id() as i32
+            batch_id.raw_chain_id() as i32
         )
         .fetch_all(self.storage.conn())
         .await

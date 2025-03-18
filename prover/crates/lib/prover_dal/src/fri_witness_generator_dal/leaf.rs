@@ -257,7 +257,7 @@ impl FriLeafWitnessGeneratorDal<'_, '_> {
 
     pub async fn insert_leaf_aggregation_jobs(
         &mut self,
-        batch_number: ChainAwareL1BatchNumber,
+        batch_id: ChainAwareL1BatchNumber,
         protocol_version: ProtocolSemanticVersion,
         circuit_id: u8,
         closed_form_inputs_url: String,
@@ -285,8 +285,8 @@ impl FriLeafWitnessGeneratorDal<'_, '_> {
             SET
             updated_at = NOW()
             "#,
-            batch_number.raw_batch_number() as i64,
-            batch_number.raw_chain_id() as i32,
+            batch_id.raw_batch_number() as i64,
+            batch_id.raw_chain_id() as i32,
             i16::from(circuit_id),
             closed_form_inputs_url,
             number_of_basic_circuits as i32,

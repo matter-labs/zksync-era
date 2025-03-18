@@ -20,7 +20,7 @@ pub struct FriProofCompressorDal<'a, 'c> {
 impl FriProofCompressorDal<'_, '_> {
     pub async fn insert_proof_compression_job(
         &mut self,
-        batch_number: ChainAwareL1BatchNumber,
+        batch_id: ChainAwareL1BatchNumber,
         fri_proof_blob_url: &str,
         protocol_version: ProtocolSemanticVersion,
     ) {
@@ -41,8 +41,8 @@ impl FriProofCompressorDal<'_, '_> {
             ($1, $2, $3, $4, NOW(), NOW(), $5, $6)
             ON CONFLICT (l1_batch_number, chain_id) DO NOTHING
             "#,
-            batch_number.raw_batch_number() as i64,
-            batch_number.raw_chain_id() as i32,
+            batch_id.raw_batch_number() as i64,
+            batch_id.raw_chain_id() as i32,
             fri_proof_blob_url,
             ProofCompressionJobStatus::Queued.to_string(),
             protocol_version.minor as i32,
@@ -106,7 +106,7 @@ impl FriProofCompressorDal<'_, '_> {
 
     pub async fn get_proof_compression_job_attempts(
         &mut self,
-        batch_number: ChainAwareL1BatchNumber,
+        batch_id: ChainAwareL1BatchNumber,
     ) -> sqlx::Result<Option<u32>> {
         let attempts = sqlx::query!(
             r#"
@@ -118,8 +118,8 @@ impl FriProofCompressorDal<'_, '_> {
                 l1_batch_number = $1
                 AND chain_id = $2
             "#,
-            batch_number.raw_batch_number() as i64,
-            batch_number.raw_chain_id() as i32
+            batch_id.raw_batch_number() as i64,
+            batch_id.raw_chain_id() as i32
         )
         .fetch_optional(self.storage.conn())
         .await?
@@ -130,7 +130,7 @@ impl FriProofCompressorDal<'_, '_> {
 
     pub async fn mark_proof_compression_job_successful(
         &mut self,
-        batch_number: ChainAwareL1BatchNumber,
+        batch_id: ChainAwareL1BatchNumber,
         time_taken: Duration,
         l1_proof_blob_url: &str,
     ) {
@@ -160,7 +160,7 @@ impl FriProofCompressorDal<'_, '_> {
     pub async fn mark_proof_compression_job_failed(
         &mut self,
         error: &str,
-        batch_number: ChainAwareL1BatchNumber,
+        batch_id: ChainAwareL1BatchNumber,
     ) {
         sqlx::query!(
             r#"
@@ -177,8 +177,8 @@ impl FriProofCompressorDal<'_, '_> {
             "#,
             ProofCompressionJobStatus::Failed.to_string(),
             error,
-            batch_number.raw_batch_number() as i64,
-            batch_number.raw_chain_id() as i32,
+            batch_id.raw_batch_number() as i64,
+            batch_id.raw_chain_id() as i32,
             ProofCompressionJobStatus::Successful.to_string(),
             ProofCompressionJobStatus::SentToServer.to_string(),
         )
@@ -241,7 +241,7 @@ impl FriProofCompressorDal<'_, '_> {
 
     pub async fn mark_proof_sent_to_server(
         &mut self,
-        batch_number: ChainAwareL1BatchNumber,
+        batch_id: ChainAwareL1BatchNumber,
     ) -> DalResult<()> {
         sqlx::query!(
             r#"
@@ -254,8 +254,8 @@ impl FriProofCompressorDal<'_, '_> {
                 AND chain_id = $3
             "#,
             ProofCompressionJobStatus::SentToServer.to_string(),
-            batch_number.raw_batch_number() as i64,
-            batch_number.raw_chain_id() as i32
+            batch_id.raw_batch_number() as i64,
+            batch_id.raw_chain_id() as i32
         )
         .instrument("mark_proof_sent_to_server")
         .execute(self.storage)
@@ -421,7 +421,7 @@ impl FriProofCompressorDal<'_, '_> {
 
     pub async fn delete_batch_data(
         &mut self,
-        batch_number: ChainAwareL1BatchNumber,
+        batch_id: ChainAwareL1BatchNumber,
     ) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
         sqlx::query!(
             r#"
@@ -430,8 +430,8 @@ impl FriProofCompressorDal<'_, '_> {
                 l1_batch_number = $1
                 AND chain_id = $2
             "#,
-            batch_number.raw_batch_number() as i64,
-            batch_number.raw_chain_id() as i32,
+            batch_id.raw_batch_number() as i64,
+            batch_id.raw_chain_id() as i32,
         )
         .execute(self.storage.conn())
         .await
@@ -449,7 +449,7 @@ impl FriProofCompressorDal<'_, '_> {
 
     pub async fn requeue_stuck_jobs_for_batch(
         &mut self,
-        batch_number: ChainAwareL1BatchNumber,
+        batch_id: ChainAwareL1BatchNumber,
         max_attempts: u32,
     ) -> Vec<StuckJobs> {
         {
@@ -477,8 +477,8 @@ impl FriProofCompressorDal<'_, '_> {
                 error,
                 picked_by
                 "#,
-                batch_number.raw_batch_number() as i64,
-                batch_number.raw_chain_id() as i32,
+                batch_id.raw_batch_number() as i64,
+                batch_id.raw_chain_id() as i32,
                 max_attempts as i32,
             )
             .fetch_all(self.storage.conn())
@@ -486,8 +486,8 @@ impl FriProofCompressorDal<'_, '_> {
             .unwrap()
             .into_iter()
             .map(|row| StuckJobs {
-                id: batch_number.batch_number().0 as u64,
-                chain_id: batch_number.chain_id(),
+                id: batch_id.batch_number().0 as u64,
+                chain_id: batch_id.chain_id(),
                 status: row.status,
                 attempts: row.attempts as u64,
                 circuit_id: None,

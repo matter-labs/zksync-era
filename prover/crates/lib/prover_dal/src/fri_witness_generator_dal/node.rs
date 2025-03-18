@@ -23,7 +23,7 @@ pub struct FriNodeWitnessGeneratorDal<'a, 'c> {
 impl FriNodeWitnessGeneratorDal<'_, '_> {
     pub async fn update_node_aggregation_jobs_url(
         &mut self,
-        batch_number: ChainAwareL1BatchNumber,
+        batch_id: ChainAwareL1BatchNumber,
         circuit_id: u8,
         number_of_dependent_jobs: usize,
         depth: u16,
@@ -43,11 +43,11 @@ impl FriNodeWitnessGeneratorDal<'_, '_> {
                 AND chain_id = $6
             "#,
             url,
-            batch_number.raw_batch_number() as i64,
+            batch_id.raw_batch_number() as i64,
             i16::from(circuit_id),
             i32::from(depth),
             number_of_dependent_jobs as i32,
-            batch_number.raw_chain_id() as i32,
+            batch_id.raw_chain_id() as i32,
         )
         .execute(self.storage.conn())
         .await
@@ -150,7 +150,7 @@ impl FriNodeWitnessGeneratorDal<'_, '_> {
 
     pub async fn insert_node_aggregation_jobs(
         &mut self,
-        batch_number: ChainAwareL1BatchNumber,
+        batch_id: ChainAwareL1BatchNumber,
         circuit_id: u8,
         number_of_dependent_jobs: Option<i32>,
         depth: u16,
@@ -180,8 +180,8 @@ impl FriNodeWitnessGeneratorDal<'_, '_> {
             SET
             updated_at = NOW()
             "#,
-            batch_number.raw_batch_number() as i64,
-            batch_number.raw_chain_id() as i32,
+            batch_id.raw_batch_number() as i64,
+            batch_id.raw_chain_id() as i32,
             i16::from(circuit_id),
             i32::from(depth),
             aggregations_url,

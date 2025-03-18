@@ -60,7 +60,7 @@ impl FriSchedulerWitnessGeneratorDal<'_, '_> {
         .collect()
     }
 
-    pub async fn mark_scheduler_jobs_as_queued(&mut self, batch_number: ChainAwareL1BatchNumber) {
+    pub async fn mark_scheduler_jobs_as_queued(&mut self, batch_id: ChainAwareL1BatchNumber) {
         sqlx::query!(
             r#"
             UPDATE scheduler_witness_jobs_fri
@@ -72,8 +72,8 @@ impl FriSchedulerWitnessGeneratorDal<'_, '_> {
                 AND status != 'successful'
                 AND status != 'in_progress'
             "#,
-            batch_number.raw_batch_number() as i64,
-            batch_number.raw_chain_id() as i32,
+            batch_id.raw_batch_number() as i64,
+            batch_id.raw_chain_id() as i32,
         )
         .execute(self.storage.conn())
         .await
@@ -181,7 +181,7 @@ impl FriSchedulerWitnessGeneratorDal<'_, '_> {
 
     pub async fn mark_scheduler_job_as_successful(
         &mut self,
-        batch_number: ChainAwareL1BatchNumber,
+        batch_id: ChainAwareL1BatchNumber,
         time_taken: Duration,
     ) {
         sqlx::query!(
@@ -241,7 +241,7 @@ impl FriSchedulerWitnessGeneratorDal<'_, '_> {
 
     pub async fn requeue_stuck_scheduler_jobs_for_batch(
         &mut self,
-        batch_number: ChainAwareL1BatchNumber,
+        batch_id: ChainAwareL1BatchNumber,
         max_attempts: u32,
     ) -> Vec<StuckJobs> {
         sqlx::query!(
@@ -268,8 +268,8 @@ impl FriSchedulerWitnessGeneratorDal<'_, '_> {
             error,
             picked_by
             "#,
-            batch_number.raw_batch_number() as i64,
-            batch_number.raw_chain_id() as i32,
+            batch_id.raw_batch_number() as i64,
+            batch_id.raw_chain_id() as i32,
             max_attempts as i64
         )
         .fetch_all(self.storage.conn())
@@ -290,7 +290,7 @@ impl FriSchedulerWitnessGeneratorDal<'_, '_> {
 
     pub async fn insert_scheduler_aggregation_jobs(
         &mut self,
-        batch_number: ChainAwareL1BatchNumber,
+        batch_id: ChainAwareL1BatchNumber,
         scheduler_partial_input_blob_url: &str,
         protocol_version: ProtocolSemanticVersion,
     ) {
@@ -314,8 +314,8 @@ impl FriSchedulerWitnessGeneratorDal<'_, '_> {
             SET
             updated_at = NOW()
             "#,
-            batch_number.raw_batch_number() as i64,
-            batch_number.raw_chain_id() as i32,
+            batch_id.raw_batch_number() as i64,
+            batch_id.raw_chain_id() as i32,
             scheduler_partial_input_blob_url,
             protocol_version.minor as i32,
             protocol_version.patch.0 as i32,
