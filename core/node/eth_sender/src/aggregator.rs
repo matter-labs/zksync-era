@@ -110,8 +110,13 @@ impl Aggregator {
         pool: ConnectionPool<Core>,
         settlement_mode: SettlementMode,
     ) -> anyhow::Result<Self> {
-        let pubdata_da = config.pubdata_sending_mode;
+        let mut pubdata_da = config.pubdata_sending_mode;
 
+        if (pubdata_da == PubdataSendingMode::Blobs || pubdata_da == PubdataSendingMode::Calldata)
+            && settlement_mode.is_gateway()
+        {
+            pubdata_da = PubdataSendingMode::RelayedL2Calldata
+        }
         let operate_4844_mode: bool =
             custom_commit_sender_addr.is_some() && !settlement_mode.is_gateway();
 

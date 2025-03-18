@@ -418,7 +418,8 @@ jobs:
       - name: Migrate chains to gateway
         if: matrix.use_gateway_chain == 'WITH_GATEWAY'
         run: |
-          ci_run zkstack chain migrate-to-gateway --chain era --gateway-chain-name gateway
+          
+          ci_run zkstack dev test gateway-migration --direction to  --chain era
           ci_run zkstack chain migrate-to-gateway --chain validium --gateway-chain-name gateway
           ci_run zkstack chain migrate-to-gateway --chain custom_token --gateway-chain-name gateway
           ci_run zkstack chain migrate-to-gateway --chain consensus --gateway-chain-name gateway
@@ -426,12 +427,12 @@ jobs:
       - name: Migrate back era
         if: matrix.use_gateway_chain == 'WITH_GATEWAY'
         run: |
-          ci_run zkstack chain migrate-from-gateway --chain era --gateway-chain-name gateway
+          ci_run zkstack dev test gateway-migration --direction from --chain era
 
       - name: Migrate to gateway again
         if: matrix.use_gateway_chain == 'WITH_GATEWAY'
         run: |
-          ci_run zkstack chain migrate-to-gateway --chain era --gateway-chain-name gateway
+          ci_run zkstack dev test gateway-migration --direction to --chain era
 
       - name: Build test dependencies
         run: |
