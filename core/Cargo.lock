@@ -3755,9 +3755,9 @@ dependencies = [
 
 [[package]]
 name = "eq-common"
-version = "0.1.2"
+version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4fc4950c1265191efc6cd4924c281b87f7fe4911cbe8a5b4fa9376895327cc95"
+checksum = "aa3ce73bf8c88c79bada4e8af36711799bf7fc39a17c8348aac38eb38d310ddd"
 dependencies = [
  "alloy",
  "alloy-primitives",
@@ -3776,9 +3776,9 @@ dependencies = [
 
 [[package]]
 name = "eq-sdk"
-version = "0.1.2"
+version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d9ff98df2d419aafb398cfa56694cce6fabff2d3a84a1b6ca4f6c9bdefd9e5c9"
+checksum = "742f55bd3f4f3ac721cd57b6cb9530bb73d8088c4d5020e1f0849eae77b7efdd"
 dependencies = [
  "base64 0.22.1",
  "celestia-types",
@@ -13690,7 +13690,6 @@ dependencies = [
  "blake2b_simd",
  "bytes",
  "celestia-types",
- "eq-common",
  "eq-sdk",
  "flate2",
  "futures 0.3.31",
