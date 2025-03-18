@@ -11,13 +11,13 @@ use alloy_primitives::{Bytes, FixedBytes, Uint};
 use alloy_sol_types::{SolType, SolValue};
 use async_trait::async_trait;
 use celestia_types::{nmt::Namespace, AppVersion, Blob, Height};
-use eq_common::KeccakInclusionToDataRootProofOutput;
 use eq_sdk::{
     get_keccak_inclusion_response::{
         ResponseValue as InclusionResponseValue, Status as InclusionResponseStatus,
     },
     types::BlobId,
     EqClient,
+    KeccakInclusionToDataRootProofOutput,
 };
 use sp1_sdk::SP1ProofWithPublicValues;
 use subxt_signer::ExposeSecret;
