@@ -107,6 +107,11 @@ impl<H: HistoryMode> PrecompilesProcessor for PrecompilesProcessorWithHistory<H>
                     )
                     .0
                 }
+                // FIXME
+                PrecompileAddress::Modexp => todo!(),
+                PrecompileAddress::ECAdd => todo!(),
+                PrecompileAddress::ECMul => todo!(),
+                PrecompileAddress::ECPairing => todo!(),
             };
 
             self.precompile_cycles_history

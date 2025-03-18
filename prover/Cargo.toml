@@ -67,11 +67,20 @@ url = "2.5.2"
 vise = "0.2.0"
 jsonrpsee = "0.24"
 
-circuit_definitions = "=0.151.3"
-circuit_sequencer_api = "=0.151.3"
-zkevm_test_harness = "=0.151.3"
-fflonk = "=0.31.0"
-franklin-crypto = "=0.31.0"
+#circuit_definitions = "=0.151.3"
+#circuit_sequencer_api = "=0.151.3"
+#zkevm_test_harness = "=0.151.3"
+circuit_definitions = { git = "https://github.com/matter-labs/zksync-protocol.git", branch = "feature/ec_precompiles", package = "circuit_definitions" }
+zkevm_test_harness = { git = "https://github.com/matter-labs/zksync-protocol.git", branch = "feature/ec_precompiles", package = "zkevm_test_harness" }
+circuit_sequencer_api = { git = "https://github.com/matter-labs/zksync-protocol.git", branch = "feature/ec_precompiles", package = "circuit_definitions" }
+
+
+
+#fflonk = "=0.31.0"
+fflonk = { git = "https://github.com/matter-labs/zksync-crypto.git", branch = "feature/ec_precompiles", package = "fflonk" }
+#franklin-crypto = "=0.31.0"
+franklin-crypto = { git = "https://github.com/matter-labs/zksync-crypto.git", branch = "feature/ec_precompiles", package = "franklin-crypto" }
+
 
 # GPU proving dependencies
 proof-compression-gpu = { package = "proof-compression", version = "=0.153.1" }
