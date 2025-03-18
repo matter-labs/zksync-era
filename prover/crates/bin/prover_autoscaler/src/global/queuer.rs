@@ -1,4 +1,4 @@
-use std::{collections::HashMap, ops::Deref};
+use std::collections::HashMap;
 
 use anyhow::{Context, Ok};
 use reqwest::Method;
@@ -6,14 +6,7 @@ use zksync_prover_job_monitor::autoscaler_queue_reporter::{QueueReport, Versione
 
 use crate::{config::QueueReportFields, http_client::HttpClient};
 
-pub struct Queue(HashMap<(String, QueueReportFields), usize>);
-
-impl Deref for Queue {
-    type Target = HashMap<(String, QueueReportFields), usize>;
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
+pub type Queue = HashMap<(String, QueueReportFields), usize>;
 
 #[derive(Default)]
 pub struct Queuer {
@@ -56,18 +49,16 @@ impl Queuer {
             .json::<Vec<VersionedQueueReport>>()
             .await
             .context("Failed to read response as json")?;
-        Ok(Queue(
-            response
-                .iter()
-                .flat_map(|versioned_report| {
-                    jobs.iter().map(move |j| {
-                        (
-                            (versioned_report.version.to_string(), *j),
-                            target_to_queue(*j, &versioned_report.report),
-                        )
-                    })
+        Ok(response
+            .iter()
+            .flat_map(|versioned_report| {
+                jobs.iter().map(move |j| {
+                    (
+                        (versioned_report.version.to_string(), *j),
+                        target_to_queue(*j, &versioned_report.report),
+                    )
                 })
-                .collect::<HashMap<_, _>>(),
-        ))
+            })
+            .collect::<HashMap<_, _>>())
     }
 }

@@ -93,7 +93,7 @@ fn is_namespace_running(namespace: &NamespaceName, clusters: &Clusters) -> bool 
             |d| d.running + d.desired, // If there is something running or expected to run, we
                                        // should re-evaluate the namespace.
         )
-        .sum::<i32>()
+        .sum::<usize>()
         > 0
 }
 
@@ -105,7 +105,7 @@ impl Task for Manager {
         let mut scale_requests: HashMap<ClusterName, ScaleRequest> = HashMap::new();
         {
             let guard = self.watcher.data.lock().await; // Keeping the lock during all calls of run() for
-                                                        // consitency.
+                                                        // consistency.
             if let Err(err) = watcher::check_is_ready(&guard.is_ready) {
                 AUTOSCALER_METRICS.clusters_not_ready.inc();
                 tracing::warn!("Skipping Manager run: {}", err);

@@ -134,8 +134,8 @@ impl Watcher {
                             .entry(d.name_any().into())
                             .or_insert(Deployment::default());
                         let nums = d.status.clone().unwrap_or_default();
-                        dep.running = nums.available_replicas.unwrap_or_default();
-                        dep.desired = nums.replicas.unwrap_or_default();
+                        dep.running = nums.available_replicas.unwrap_or_default() as usize;
+                        dep.desired = nums.replicas.unwrap_or_default() as usize;
 
                         tracing::info!(
                             "Got deployment: {}, size: {}/{} un {}",

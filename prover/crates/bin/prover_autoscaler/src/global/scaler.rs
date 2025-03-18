@@ -320,7 +320,7 @@ impl<K: Key> Scaler<K> {
                             )
                         },
                         |deployment| {
-                            if deployment.desired != replicas as i32 {
+                            if deployment.desired != replicas {
                                 requests
                                     .entry(cluster.clone())
                                     .or_default()

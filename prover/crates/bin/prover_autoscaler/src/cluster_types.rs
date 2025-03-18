@@ -29,8 +29,8 @@ pub struct Pod {
 }
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Deployment {
-    pub running: i32,
-    pub desired: i32,
+    pub running: usize,
+    pub desired: usize,
 }
 
 fn ordered_map<S, K: Ord + Serialize, V: Serialize>(
