@@ -106,11 +106,7 @@ impl JobManager for BasicCircuits {
         object_store: &dyn ObjectStore,
         _keystore: Keystore,
     ) -> anyhow::Result<Self::Job> {
-        tracing::info!(
-            "Processing FRI basic witness-gen for chain {} block {}",
-            metadata.raw_chain_id(),
-            metadata.raw_batch_number()
-        );
+        tracing::info!("Processing FRI basic witness-gen for {:?}", metadata);
         let started_at = Instant::now();
         let job = Self::get_artifacts(&metadata, object_store).await?;
 

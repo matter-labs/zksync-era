@@ -78,7 +78,7 @@ impl JobProcessor for ProofCompressor {
     async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
         let mut conn = self.pool.connection().await.unwrap();
         let pod_name = get_current_pod_name();
-        let Some(batch_number) = conn
+        let Some(batch_id) = conn
             .fri_proof_compressor_dal()
             .get_next_proof_compression_job(&pod_name, self.protocol_version)
             .await
@@ -87,15 +87,25 @@ impl JobProcessor for ProofCompressor {
         };
         let Some(fri_proof_id) = conn
             .fri_prover_jobs_dal()
-            .get_scheduler_proof_job_id(batch_number)
+            .get_scheduler_proof_job_id(batch_id)
             .await
         else {
             anyhow::bail!("Scheduler proof is missing from database for batch {batch_number:?}");
         };
-        tracing::info!("Started proof compression for L1 batch: {:?}", batch_number);
+        tracing::info!("Started proof compression for L1 batch: {:?}", batch_id);
         let observer = METRICS.blob_fetch_time.start();
 
-        let fri_proof = FriProofWrapper::conditional_get_from_object_store(&*self.blob_store, (batch_number.chain_id(), fri_proof_id)).await.with_context(|| format!("Failed to get fri proof from blob store for batch {}, chain {} with id {fri_proof_id}", batch_number.raw_batch_number(), batch_number.raw_chain_id()))?;
+        let fri_proof = FriProofWrapper::conditional_get_from_object_store(
+            &*self.blob_store,
+            (batch_id.chain_id(), fri_proof_id),
+        )
+        .await
+        .with_context(|| {
+            format!(
+                "Failed to get fri proof from blob store for {:?} with id {fri_proof_id}",
+                batch_id
+            )
+        })?;
 
         observer.observe();
 
@@ -103,7 +113,7 @@ impl JobProcessor for ProofCompressor {
             FriProofWrapper::Base(_) => anyhow::bail!("Must be a scheduler proof not base layer"),
             FriProofWrapper::Recursive(proof) => proof,
         };
-        Ok(Some((batch_number, scheduler_proof)))
+        Ok(Some((batch_id, scheduler_proof)))
     }
 
     async fn save_failure(&self, job_id: Self::JobId, _started_at: Instant, error: String) {

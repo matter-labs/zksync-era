@@ -18,11 +18,10 @@ impl WitnessJobQueuer {
             .move_leaf_aggregation_jobs_from_waiting_to_queued()
             .await;
         let len = l1_batch_numbers.len();
-        for (batch_number, circuit_id) in l1_batch_numbers {
+        for (batch_id, circuit_id) in l1_batch_numbers {
             tracing::info!(
-                "Marked leaf job for l1_batch {}, chain id {} and circuit_id {} as queued.",
-                batch_number.raw_batch_number(),
-                batch_number.raw_chain_id(),
+                "Marked leaf job for {:?} and circuit_id {} as queued.",
+                batch_id,
                 circuit_id
             );
         }
