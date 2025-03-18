@@ -36,6 +36,7 @@ message CelestiaConfig {
   optional string namespace = 3;
   optional string chain_id = 4;
   optional uint64 timeout_ms = 5;
+  optional string tm_rpc_url = 6;
 }
 
 message Url {

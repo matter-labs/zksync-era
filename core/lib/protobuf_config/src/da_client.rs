@@ -62,6 +62,7 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                 namespace: required(&conf.namespace).context("namespace")?.clone(),
                 chain_id: required(&conf.chain_id).context("chain_id")?.clone(),
                 timeout_ms: *required(&conf.timeout_ms).context("timeout_ms")?,
+                tm_rpc_url: required(&conf.tm_rpc_url).context("tm_rpc_url")?.clone(),
             }),
             proto::data_availability_client::Config::Eigen(conf) => Eigen(EigenConfig {
                 disperser_rpc: required(&conf.disperser_rpc)
@@ -134,6 +135,7 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                     namespace: Some(config.namespace.clone()),
                     chain_id: Some(config.chain_id.clone()),
                     timeout_ms: Some(config.timeout_ms),
+                    tm_rpc_url: Some(config.tm_rpc_url.clone()),
                 })
             }
             Eigen(config) => proto::data_availability_client::Config::Eigen(proto::EigenConfig {

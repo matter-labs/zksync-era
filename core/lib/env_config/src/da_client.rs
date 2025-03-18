@@ -259,6 +259,7 @@ mod tests {
         namespace: &str,
         chain_id: &str,
         timeout_ms: u64,
+        tm_rpc_url: &str,
     ) -> DAClientConfig {
         DAClientConfig::Celestia(CelestiaConfig {
             api_node_url: api_node_url.to_string(),
@@ -266,6 +267,7 @@ mod tests {
             namespace: namespace.to_string(),
             chain_id: chain_id.to_string(),
             timeout_ms,
+            tm_rpc_url: tm_rpc_url.to_string(),
         })
     }
 
@@ -278,6 +280,7 @@ mod tests {
             DA_NAMESPACE="0x1234567890abcdef"
             DA_CHAIN_ID="mocha-4"
             DA_TIMEOUT_MS="7000"
+            DA_TM_RPC_URL="http://localhost:9090"
         "#;
         lock.set_env(config);
 
@@ -289,7 +292,8 @@ mod tests {
                 "localhost:54321",
                 "0x1234567890abcdef",
                 "mocha-4",
-                7000
+                7000,
+                "http://localhost:9090"
             )
         );
     }
