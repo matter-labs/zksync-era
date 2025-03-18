@@ -8,7 +8,10 @@ use zksync_prover_interface::{
     inputs::{StorageLogMetadata, WitnessInputMerklePaths},
     outputs::{FflonkL1BatchProofForL1, L1BatchProofForL1, L1BatchTeeProofForL1},
 };
-use zksync_types::{protocol_version::ProtocolSemanticVersion, tee_types::TeeType, L1BatchNumber, ProtocolVersionId, ChainAwareL1BatchNumber, L2ChainId};
+use zksync_types::{
+    protocol_version::ProtocolSemanticVersion, tee_types::TeeType, ChainAwareL1BatchNumber,
+    L1BatchNumber, L2ChainId, ProtocolVersionId,
+};
 
 /// Tests compatibility of the `PrepareBasicCircuitsJob` serialization to the previously used
 /// one.
