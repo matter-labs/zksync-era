@@ -57,12 +57,12 @@ impl RpcClient {
             );
 
             tokio::select! {
-            _ = proof_data_sender => {
-                tracing::info!("Proof data submitter stopped");
-            }
-            _ = proof_receiver => {
-                tracing::info!("Proof receiver stopped");
-            }
+                _ = proof_data_sender => {
+                    tracing::info!("Proof data submitter stopped");
+                }
+                _ = proof_receiver => {
+                    tracing::info!("Proof receiver stopped");
+                }
                 _ = zero_proof_receiver => {
                     tracing::info!("Zero chain id proof receiver stopped");
                 }
