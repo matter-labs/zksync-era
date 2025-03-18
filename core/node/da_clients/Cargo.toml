@@ -38,7 +38,8 @@ serde_json.workspace = true
 hex.workspace = true
 blake2b_simd.workspace = true
 parity-scale-codec = { workspace = true, features = ["derive"] }
-subxt-signer = { workspace = true, features = ["sr25519", "native"] }
+subxt-signer = { workspace = true, features = ["sr25519"] }
+bip39.workspace = true
 jsonrpsee = { workspace = true, features = ["ws-client"] }
 reqwest = { workspace = true }
 bytes = { workspace = true }
@@ -62,4 +63,4 @@ pbjson-types.workspace = true
 zksync_web3_decl.workspace = true
 zksync_eth_client.workspace = true
 # Eigen dependencies
-tokio-stream.workspace = true
+rust-eigenda-client.workspace = true

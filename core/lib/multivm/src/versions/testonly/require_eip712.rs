@@ -3,7 +3,7 @@ use zksync_eth_signer::TransactionParameters;
 use zksync_test_contracts::{Account, TestContract};
 use zksync_types::{
     fee::Fee, l2::L2Tx, transaction_request::TransactionRequest, Address, Eip712Domain, Execute,
-    L2ChainId, Nonce, Transaction, U256,
+    L2ChainId, Transaction, U256,
 };
 
 use super::{tester::VmTesterBuilder, ContractToDeploy, TestedVm};
@@ -22,7 +22,6 @@ pub(crate) fn test_require_eip712<VM: TestedVm>() {
 
     let bytecode = TestContract::many_owners().bytecode.to_vec();
     let mut vm = VmTesterBuilder::new()
-        .with_empty_in_memory_storage()
         .with_custom_contracts(vec![
             ContractToDeploy::account(bytecode, aa_address).funded()
         ])
@@ -97,9 +96,8 @@ pub(crate) fn test_require_eip712<VM: TestedVm>() {
     );
 
     // Now send the 'classic' EIP712 transaction
-
     let transaction: Transaction =
-        make_aa_transaction(aa_address, beneficiary_address, &private_account).into();
+        make_aa_transaction(aa_address, beneficiary_address, &mut private_account, None).into();
     vm.vm.push_transaction(transaction);
     vm.vm.execute(InspectExecutionMode::OneTx);
 
@@ -116,20 +114,18 @@ pub(crate) fn test_require_eip712<VM: TestedVm>() {
 pub(crate) fn make_aa_transaction(
     aa_address: Address,
     beneficiary_address: Address,
-    private_account: &Account,
+    private_account: &mut Account,
+    fee: Option<Fee>,
 ) -> L2Tx {
     let chain_id: u32 = 270;
 
+    let nonce = private_account.nonce;
+    private_account.nonce += 1;
     let tx_712 = L2Tx::new(
         Some(beneficiary_address),
         vec![],
-        Nonce(1),
-        Fee {
-            gas_limit: U256::from(1000000000),
-            max_fee_per_gas: U256::from(1000000000),
-            max_priority_fee_per_gas: U256::from(1000000000),
-            gas_per_pubdata_limit: U256::from(1000000000),
-        },
+        nonce,
+        fee.unwrap_or_else(Account::default_fee),
         aa_address,
         U256::from(28374938),
         vec![],

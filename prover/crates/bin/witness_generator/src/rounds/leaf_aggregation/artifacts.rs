@@ -46,8 +46,6 @@ impl ArtifactsManager for LeafAggregation {
         _job_id: u32,
         artifacts: Self::OutputArtifacts,
         object_store: &dyn ObjectStore,
-        _shall_save_to_public_bucket: bool,
-        _public_blob_store: Option<std::sync::Arc<dyn ObjectStore>>,
     ) -> AggregationBlobUrls {
         let started_at = Instant::now();
         let key = AggregationsKey {
@@ -91,7 +89,7 @@ impl ArtifactsManager for LeafAggregation {
         let mut transaction = prover_connection.start_transaction().await.unwrap();
         let number_of_dependent_jobs = blob_urls.circuit_ids_and_urls.len();
         let protocol_version_id = transaction
-            .fri_witness_generator_dal()
+            .fri_basic_witness_generator_dal()
             .protocol_version_for_l1_batch(artifacts.block_number)
             .await;
         tracing::info!(
@@ -118,7 +116,7 @@ impl ArtifactsManager for LeafAggregation {
             artifacts.circuit_id,
         );
         transaction
-            .fri_witness_generator_dal()
+            .fri_node_witness_generator_dal()
             .update_node_aggregation_jobs_url(
                 artifacts.block_number,
                 get_recursive_layer_circuit_id_for_base_layer(artifacts.circuit_id),
@@ -134,7 +132,7 @@ impl ArtifactsManager for LeafAggregation {
             artifacts.circuit_id,
         );
         transaction
-            .fri_witness_generator_dal()
+            .fri_leaf_witness_generator_dal()
             .mark_leaf_aggregation_as_successful(job_id, started_at.elapsed())
             .await;
 

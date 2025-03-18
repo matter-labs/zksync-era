@@ -443,10 +443,18 @@ impl EthTxAggregator {
         stm_protocol_version_id: ProtocolVersionId,
         stm_validator_timelock_address: Address,
     ) -> Address {
-        if chain_protocol_version_id == stm_protocol_version_id {
-            stm_validator_timelock_address
-        } else {
+        // For chains before v26 (gateway) we use the timelock address from config.
+        // After that, the timelock address can be fetched from STM as it is the valid one
+        // for versions starting from v26 and is not expected to change in the near future.
+        if chain_protocol_version_id < ProtocolVersionId::gateway_upgrade() {
             self.config_timelock_contract_address
+        } else {
+            assert!(
+                chain_protocol_version_id <= stm_protocol_version_id,
+                "Chain upgraded before STM"
+            );
+
+            stm_validator_timelock_address
         }
     }
 
@@ -824,14 +832,19 @@ impl EthTxAggregator {
             .unwrap_or(0);
         // Between server starts we can execute some txs using operator account or remove some txs from the database
         // At the start we have to consider this fact and get the max nonce.
-        Ok(if from_addr.is_none() {
-            db_nonce.max(self.base_nonce)
+        let l1_nonce = if from_addr.is_none() {
+            self.base_nonce
         } else {
-            db_nonce.max(
-                self.base_nonce_custom_commit_sender
-                    .expect("custom base nonce is expected to be initialized; qed"),
-            )
-        })
+            self.base_nonce_custom_commit_sender
+                .expect("custom base nonce is expected to be initialized; qed")
+        };
+        tracing::info!(
+            "Next nonce from db: {}, nonce from L1: {} for address: {:?}",
+            db_nonce,
+            l1_nonce,
+            from_addr
+        );
+        Ok(db_nonce.max(l1_nonce))
     }
 
     /// Returns the health check for eth tx aggregator.

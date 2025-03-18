@@ -71,8 +71,22 @@ jobs:
         run: |
           ci_run zkstack dev contracts
 
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18.18.0
+
+      - name: Install yarn
+        run: |
+          npm install -g yarn
+
+      - name: Check contracts hashes
+        working-directory: contracts
+        run: |
+          yarn calculate-hashes:check
+
       - name: Download compilers for contract verifier tests
-        run: ci_run zkstack contract-verifier init --zksolc-version=v1.5.3 --zkvyper-version=v1.5.4 --solc-version=0.8.26 --vyper-version=v0.3.10 --era-vm-solc-version=0.8.26-1.0.1 --only --chain era
+        run: ci_run zkstack contract-verifier init --zksolc-version=v1.5.10 --zkvyper-version=v1.5.4 --solc-version=0.8.26 --vyper-version=v0.3.10 --era-vm-solc-version=0.8.26-1.0.1 --only --chain era
 
       - name: Rust unit tests
         run: |
@@ -129,7 +143,7 @@ jobs:
         run: |
           ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup || true
           ci_run zkstackup -g --local --cargo-features gateway
-  
+
 
       - name: Create and initialize legacy chain
         run: |
@@ -431,7 +445,7 @@ jobs:
 
       - name: Initialize Contract verifier
         run: |
-          ci_run zkstack contract-verifier init --zksolc-version=v1.5.3 --zkvyper-version=v1.5.4 --solc-version=0.8.26 --vyper-version=v0.3.10 --era-vm-solc-version=0.8.26-1.0.1 --only --chain era
+          ci_run zkstack contract-verifier init --zksolc-version=v1.5.10 --zkvyper-version=v1.5.4 --solc-version=0.8.26 --vyper-version=v0.3.10 --era-vm-solc-version=0.8.26-1.0.1 --only --chain era
           ci_run zkstack contract-verifier run --chain era &> ${{ env.SERVER_LOGS_DIR }}/contract-verifier-rollup.log &
           ci_run zkstack contract-verifier wait --chain era --verbose
 
@@ -463,7 +477,7 @@ jobs:
           ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --no-deps --ignore-prerequisites" ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}
 
       - name: Repeat integration tests on push to main to check for flakiness
-        if: ${{ (steps.condition.outputs.should_run == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+        if: ${{ (github.ref == 'refs/heads/main') }}
         run: |
           for i in {1..10}; do
             echo "Iteration $i"
@@ -502,7 +516,7 @@ jobs:
       - name: Run external nodes
         run: |
           ci_run zkstack external-node run --ignore-prerequisites --chain era &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/rollup.log &
-          ci_run zkstack external-node run --ignore-prerequisites --chain validium &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/validium.log &
+          ci_run zkstack external-node run --ignore-prerequisites --chain validium --components all,da_fetcher &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/validium.log &
           ci_run zkstack external-node run --ignore-prerequisites --chain custom_token &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/custom_token.log &
           ci_run zkstack external-node run --ignore-prerequisites --chain consensus --enable-consensus &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/consensus.log &
 
@@ -516,7 +530,7 @@ jobs:
           ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --no-deps --ignore-prerequisites --external-node" ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}
 
       - name: Repeat integration tests en on push to main to check for flakiness
-        if: ${{ (steps.condition.outputs.should_run == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+        if: ${{ (github.ref == 'refs/heads/main') }}
         run: |
           for i in {1..10}; do
             echo "Iteration $i"
@@ -538,7 +552,7 @@ jobs:
           ci_run ./bin/run_on_all_chains.sh "zkstack dev test fees --no-deps --no-kill" ${{ env.CHAINS }} ${{ env.FEES_LOGS_DIR }}
 
       - name: Repeat fee projection tests on push to main to check for flakiness
-        if: ${{ (steps.condition.outputs.should_run == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+        if: ${{ (github.ref == 'refs/heads/main') }}
         run: |
           for i in {1..10}; do
             echo "Iteration $i"

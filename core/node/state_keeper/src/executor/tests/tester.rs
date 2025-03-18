@@ -18,7 +18,7 @@ use zksync_multivm::{
     vm_latest::constants::INITIAL_STORAGE_WRITE_PUBDATA_BYTES,
 };
 use zksync_node_genesis::create_genesis_l1_batch;
-use zksync_node_test_utils::{recover, Snapshot};
+use zksync_node_test_utils::{default_l1_batch_env, default_system_env, recover, Snapshot};
 use zksync_state::{OwnedStorage, ReadStorageFactory, RocksdbStorageOptions};
 use zksync_test_contracts::{
     Account, DeployContractsTx, LoadnextContractExecutionParams, TestContract, TxType,
@@ -43,7 +43,6 @@ use zksync_vm_executor::batch::{MainBatchExecutorFactory, TraceCalls};
 use super::{read_storage_factory::RocksdbStorageFactory, StorageType};
 use crate::{
     testonly::{self, apply_genesis_logs, BASE_SYSTEM_CONTRACTS},
-    tests::{default_l1_batch_env, default_system_env},
     AsyncRocksdbCache,
 };
 
@@ -286,7 +285,7 @@ impl Tester {
                     patch: 0.into(),
                 },
                 &BASE_SYSTEM_CONTRACTS,
-                &get_system_smart_contracts(false),
+                &get_system_smart_contracts(),
                 Default::default(),
             )
             .await

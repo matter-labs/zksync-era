@@ -16,6 +16,11 @@ pub(super) const MSG_CONFIG_WRITER_ABOUT: &str = "Overwrite general config";
 #[cfg(feature = "gateway")]
 pub(super) const MSG_GATEWAY_UPGRADE_CALLDATA: &str =
     "Gateway upgrade checker and calldata generator";
+#[cfg(feature = "gateway")]
+pub(super) const MSG_GATEWAY_FINALIZE: &str = "Gateway upgrade post-stage2 finalization";
+
+#[cfg(feature = "gateway")]
+pub(super) const MSG_GATEWAY_REGISTER_L2_TOKENS: &str = "Gateway register legacy tokens on L2";
 
 pub(super) const MSG_SUBCOMMAND_FMT_ABOUT: &str = "Format code";
 

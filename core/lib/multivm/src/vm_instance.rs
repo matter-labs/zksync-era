@@ -13,7 +13,7 @@ use crate::{
         VmMemoryMetrics,
     },
     tracers::TracerDispatcher,
-    vm_fast::{self, interface::Tracer, FastVmVersion},
+    vm_fast::{self, interface::Tracer, FastValidationTracer, FastVmVersion},
     vm_latest::{self, HistoryEnabled},
 };
 
@@ -216,6 +216,15 @@ impl<S: ReadStorage, H: HistoryMode> LegacyVmInstance<S, H> {
                 );
                 Self::Vm1_5_0(vm)
             }
+            VmVersion::VmEvmEmulator => {
+                let vm = vm_latest::Vm::new_with_subversion(
+                    l1_batch_env,
+                    system_env,
+                    storage_view,
+                    vm_latest::MultiVmSubversion::EvmEmulator,
+                );
+                Self::Vm1_5_0(vm)
+            }
         }
     }
 
@@ -234,7 +243,7 @@ pub type ShadowedFastVm<S, Tr, Val> = ShadowVm<
 
 /// Fast VM variants.
 #[derive(Debug)]
-pub enum FastVmInstance<S: ReadStorage, Tr = (), Val = ()> {
+pub enum FastVmInstance<S: ReadStorage, Tr = (), Val = FastValidationTracer> {
     /// Fast VM running in isolation.
     Fast(vm_fast::Vm<ImmutableStorageView<S>, Tr, Val>),
     /// Fast VM shadowed by the latest legacy VM.
@@ -344,6 +353,17 @@ where
         storage_view: StoragePtr<StorageView<S>>,
     ) -> Self {
         Self::Shadowed(ShadowedFastVm::new(l1_batch_env, system_env, storage_view))
+    }
+
+    pub fn skip_signature_verification(&mut self) {
+        match self {
+            Self::Fast(vm) => vm.skip_signature_verification(),
+            Self::Shadowed(vm) => {
+                if let Some(shadow_vm) = vm.shadow_mut() {
+                    shadow_vm.skip_signature_verification();
+                }
+            }
+        }
     }
 }
 

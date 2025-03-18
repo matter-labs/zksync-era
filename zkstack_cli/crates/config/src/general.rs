@@ -16,7 +16,6 @@ pub struct RocksDbs {
 }
 
 pub struct FileArtifacts {
-    pub public_object_store: PathBuf,
     pub prover_object_store: PathBuf,
     pub snapshot: PathBuf,
     pub core_object_store: PathBuf,
@@ -26,7 +25,6 @@ impl FileArtifacts {
     /// Currently all artifacts are stored in one path, but we keep an opportunity to update this paths
     pub fn new(path: PathBuf) -> Self {
         Self {
-            public_object_store: path.clone(),
             prover_object_store: path.clone(),
             snapshot: path.clone(),
             core_object_store: path.clone(),
@@ -59,11 +57,6 @@ pub fn set_file_artifacts(
     )?;
     set_file_backed_path_if_selected(
         config,
-        "prover.public_object_store",
-        &file_artifacts.public_object_store,
-    )?;
-    set_file_backed_path_if_selected(
-        config,
         "snapshot_creator.object_store",
         &file_artifacts.snapshot,
     )?;
@@ -71,6 +64,11 @@ pub fn set_file_artifacts(
         config,
         "snapshot_recovery.object_store",
         &file_artifacts.snapshot,
+    )?;
+    set_file_backed_path_if_selected(
+        config,
+        "core_object_store",
+        &file_artifacts.core_object_store,
     )?;
     Ok(())
 }

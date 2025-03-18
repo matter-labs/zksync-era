@@ -1,7 +1,6 @@
 use std::num::NonZeroUsize;
 
 use rand::{distributions::Distribution, Rng};
-use secrecy::Secret;
 use zksync_basic_types::{
     basic_fri_types::CircuitIdRoundTuple,
     commitment::L1BatchCommitmentMode,
@@ -233,6 +232,8 @@ impl Distribution<configs::chain::MempoolConfig> for EncodeDist {
             stuck_tx_timeout: self.sample(rng),
             remove_stuck_txs: self.sample(rng),
             delay_interval: self.sample(rng),
+            skip_unsafe_deposit_checks: self.sample(rng),
+            l1_to_l2_txs_paused: self.sample(rng),
         }
     }
 }
@@ -243,6 +244,7 @@ impl Distribution<configs::ContractVerifierConfig> for EncodeDist {
             compilation_timeout: self.sample(rng),
             prometheus_port: self.sample(rng),
             port: self.sample(rng),
+            etherscan_api_url: self.sample(rng),
         }
     }
 }
@@ -270,6 +272,7 @@ impl Distribution<configs::ContractsConfig> for EncodeDist {
             l1_base_token_asset_id: self.sample_opt(|| rng.gen()),
             chain_admin_addr: self.sample_opt(|| rng.gen()),
             l2_da_validator_addr: self.sample_opt(|| rng.gen()),
+            no_da_validium_l1_validator_addr: self.sample_opt(|| rng.gen()),
         }
     }
 }
@@ -466,8 +469,6 @@ impl Distribution<configs::FriProofCompressorConfig> for EncodeDist {
             universal_setup_path: self.sample(rng),
             universal_setup_download_url: self.sample(rng),
             verify_wrapper_proof: self.sample(rng),
-            universal_fflonk_setup_path: self.sample(rng),
-            universal_fflonk_setup_download_url: self.sample(rng),
         }
     }
 }
@@ -504,10 +505,8 @@ impl Distribution<configs::FriProverConfig> for EncodeDist {
             queue_capacity: self.sample(rng),
             witness_vector_receiver_port: self.sample(rng),
             zone_read_url: self.sample(rng),
-            shall_save_to_public_bucket: self.sample(rng),
             availability_check_interval_in_secs: self.sample(rng),
             prover_object_store: self.sample(rng),
-            public_object_store: self.sample(rng),
             cloud_type: self.sample(rng),
         }
     }
@@ -518,6 +517,7 @@ impl Distribution<configs::FriProverGatewayConfig> for EncodeDist {
         configs::FriProverGatewayConfig {
             api_url: self.sample(rng),
             api_poll_duration_secs: self.sample(rng),
+            ws_port: self.sample(rng),
             prometheus_listener_port: self.sample(rng),
             prometheus_pushgateway_url: self.sample(rng),
             prometheus_push_interval_ms: self.sample(rng),
@@ -615,7 +615,6 @@ impl Distribution<configs::FriWitnessGeneratorConfig> for EncodeDist {
             scheduler_generation_timeout_in_secs: self.sample(rng),
             max_attempts: self.sample(rng),
             last_l1_batch_to_process: self.sample(rng),
-            shall_save_to_public_bucket: self.sample(rng),
             prometheus_listener_port: self.sample(rng),
             max_circuits_in_flight: self.sample(rng),
         }
@@ -679,7 +678,10 @@ impl Distribution<configs::ProofDataHandlerConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::ProofDataHandlerConfig {
         configs::ProofDataHandlerConfig {
             http_port: self.sample(rng),
+            api_url: self.sample(rng),
+            batch_readiness_check_interval_in_secs: self.sample(rng),
             proof_generation_timeout_in_secs: self.sample(rng),
+            retry_connection_interval_in_secs: self.sample(rng),
             tee_config: configs::TeeConfig {
                 tee_support: self.sample(rng),
                 first_tee_processed_batch: L1BatchNumber(rng.gen()),
@@ -883,6 +885,7 @@ impl Distribution<configs::secrets::Secrets> for EncodeDist {
             database: self.sample_opt(|| self.sample(rng)),
             l1: self.sample_opt(|| self.sample(rng)),
             data_availability: self.sample_opt(|| self.sample(rng)),
+            contract_verifier: self.sample_opt(|| self.sample(rng)),
         }
     }
 }
@@ -968,8 +971,8 @@ impl Distribution<configs::da_client::DAClientConfig> for EncodeDist {
 impl Distribution<configs::secrets::DataAvailabilitySecrets> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::secrets::DataAvailabilitySecrets {
         configs::secrets::DataAvailabilitySecrets::Avail(configs::da_client::avail::AvailSecrets {
-            seed_phrase: Some(SeedPhrase(Secret::new(self.sample(rng)))),
-            gas_relay_api_key: Some(APIKey(Secret::new(self.sample(rng)))),
+            seed_phrase: Some(<SeedPhrase as From<String>>::from(self.sample(rng))),
+            gas_relay_api_key: Some(<APIKey as From<String>>::from(self.sample(rng))),
         })
     }
 }
@@ -981,6 +984,7 @@ impl Distribution<configs::da_dispatcher::DADispatcherConfig> for EncodeDist {
             max_rows_to_dispatch: self.sample(rng),
             max_retries: self.sample(rng),
             use_dummy_inclusion_data: self.sample(rng),
+            inclusion_verification_transition_enabled: self.sample(rng),
         }
     }
 }
@@ -1198,6 +1202,14 @@ impl Distribution<TimestampAsserterConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> TimestampAsserterConfig {
         TimestampAsserterConfig {
             min_time_till_end_sec: self.sample(rng),
+        }
+    }
+}
+
+impl Distribution<configs::secrets::ContractVerifierSecrets> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::secrets::ContractVerifierSecrets {
+        configs::secrets::ContractVerifierSecrets {
+            etherscan_api_key: Some(<APIKey as From<String>>::from(self.sample(rng))),
         }
     }
 }

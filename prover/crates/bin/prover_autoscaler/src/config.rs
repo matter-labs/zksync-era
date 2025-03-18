@@ -1,11 +1,15 @@
-use std::{collections::HashMap, path::PathBuf, time::Duration};
+use std::{collections::HashMap, hash::Hash, path::PathBuf, time::Duration};
 
 use anyhow::Context;
 use serde::Deserialize;
 use strum::Display;
 use strum_macros::EnumString;
-use vise::EncodeLabelValue;
 use zksync_config::configs::ObservabilityConfig;
+
+use crate::{
+    cluster_types::{ClusterName, DeploymentName, NamespaceName},
+    key::{GpuKey, NoKey},
+};
 
 /// Config used for running ProverAutoscaler (both Scaler and Agent).
 #[derive(Debug, Clone, PartialEq, Deserialize)]
@@ -29,13 +33,13 @@ pub struct ProverAutoscalerAgentConfig {
     pub http_port: u16,
     /// List of namespaces to watch.
     #[serde(default = "ProverAutoscalerAgentConfig::default_namespaces")]
-    pub namespaces: Vec<String>,
+    pub namespaces: Vec<NamespaceName>,
     /// If dry-run enabled don't do any k8s updates, just report success.
     #[serde(default = "ProverAutoscalerAgentConfig::default_dry_run")]
     pub dry_run: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct ProverAutoscalerScalerConfig {
     /// Port for prometheus metrics connection.
     pub prometheus_port: u16,
@@ -49,21 +53,14 @@ pub struct ProverAutoscalerScalerConfig {
     /// In production should be "http://prover-job-monitor.stage2.svc.cluster.local:3074/queue_report".
     #[serde(default = "ProverAutoscalerScalerConfig::default_prover_job_monitor_url")]
     pub prover_job_monitor_url: String,
-    /// List of ProverAutoscaler Agents to get cluster data from.
+    /// List of ProverAutoscaler Agent base URLs to get cluster data from.
     pub agents: Vec<String>,
     /// Mapping of namespaces to protocol versions.
-    pub protocol_versions: HashMap<String, String>,
+    pub protocol_versions: HashMap<NamespaceName, String>,
     /// Default priorities, which cluster to prefer when there is no other information.
-    pub cluster_priorities: HashMap<String, u32>,
+    pub cluster_priorities: HashMap<ClusterName, u32>,
     /// Prover speed per GPU. Used to calculate desired number of provers for queue size.
-    pub prover_speed: HashMap<Gpu, u32>,
-    /// Maximum number of provers which can be run per cluster/GPU.
-    pub max_provers: HashMap<String, HashMap<Gpu, u32>>,
-    /// Minimum number of provers globally.
-    #[serde(default)]
-    pub min_provers: u32,
-    /// Name of primary namespace, all min numbers are applied to it.
-    pub apply_min_to_namespace: Option<String>,
+    pub apply_min_to_namespace: Option<NamespaceName>,
     /// Duration after which pending pod considered long pending.
     #[serde(
         with = "humantime_serde",
@@ -75,36 +72,6 @@ pub struct ProverAutoscalerScalerConfig {
     /// If dry-run enabled don't send any scale requests.
     #[serde(default)]
     pub dry_run: bool,
-}
-
-#[derive(
-    Default,
-    Debug,
-    Display,
-    Hash,
-    PartialEq,
-    Eq,
-    Clone,
-    Copy,
-    Ord,
-    PartialOrd,
-    EnumString,
-    EncodeLabelValue,
-    Deserialize,
-)]
-pub enum Gpu {
-    #[default]
-    Unknown,
-    #[strum(ascii_case_insensitive)]
-    L4,
-    #[strum(ascii_case_insensitive)]
-    T4,
-    #[strum(ascii_case_insensitive)]
-    V100,
-    #[strum(ascii_case_insensitive)]
-    P100,
-    #[strum(ascii_case_insensitive)]
-    A100,
 }
 
 // TODO: generate this enum by QueueReport from https://github.com/matter-labs/zksync-era/blob/main/prover/crates/bin/prover_job_monitor/src/autoscaler_queue_reporter.rs#L23
@@ -129,20 +96,53 @@ pub enum QueueReportFields {
     prover_jobs,
 }
 
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(untagged)]
+pub enum ScalarOrMap {
+    Scalar(usize),
+    Map(HashMap<GpuKey, usize>),
+}
+impl ScalarOrMap {
+    pub fn into_map_nokey(&self) -> HashMap<NoKey, usize> {
+        match self {
+            ScalarOrMap::Scalar(x) => [(NoKey::default(), *x)].into(),
+            ScalarOrMap::Map(m) => panic!("Passed GpuKey in NoKey context! {:?}", m),
+        }
+    }
+
+    pub fn into_map_gpukey(&self) -> HashMap<GpuKey, usize> {
+        match self {
+            ScalarOrMap::Scalar(x) => [(GpuKey::default(), *x)].into(),
+            ScalarOrMap::Map(m) => m.clone(),
+        }
+    }
+}
+
+#[derive(Debug, Default, Display, Clone, Copy, PartialEq, EnumString, Deserialize)]
+pub enum ScalerTargetType {
+    #[default]
+    #[serde(alias = "simple")]
+    Simple,
+    #[serde(alias = "gpu", alias = "GPU")]
+    Gpu,
+}
+
 /// ScalerTarget can be configured to autoscale any of services for which queue is reported by
-/// prover-job-monitor, except of provers. Provers need special treatment due to GPU requirement.
-#[derive(Debug, Clone, PartialEq, Deserialize, Default)]
+/// prover-job-monitor.
+#[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct ScalerTarget {
+    #[serde(default)]
+    pub scaler_target_type: ScalerTargetType,
     pub queue_report_field: QueueReportFields,
-    pub deployment: String,
+    pub deployment: DeploymentName,
     /// Min replicas globally.
     #[serde(default)]
     pub min_replicas: usize,
     /// Max replicas per cluster.
-    pub max_replicas: HashMap<String, usize>,
+    pub max_replicas: HashMap<ClusterName, ScalarOrMap>,
     /// The queue will be divided by the speed and rounded up to get number of replicas.
     #[serde(default = "ScalerTarget::default_speed")]
-    pub speed: usize,
+    pub speed: ScalarOrMap,
 }
 
 impl ProverAutoscalerConfig {
@@ -153,8 +153,8 @@ impl ProverAutoscalerConfig {
 }
 
 impl ProverAutoscalerAgentConfig {
-    pub fn default_namespaces() -> Vec<String> {
-        vec!["prover-blue".to_string(), "prover-red".to_string()]
+    pub fn default_namespaces() -> Vec<NamespaceName> {
+        vec!["prover-blue".into(), "prover-red".into()]
     }
 
     pub fn default_dry_run() -> bool {
@@ -180,8 +180,8 @@ impl ProverAutoscalerScalerConfig {
 }
 
 impl ScalerTarget {
-    pub fn default_speed() -> usize {
-        1
+    pub fn default_speed() -> ScalarOrMap {
+        ScalarOrMap::Scalar(1)
     }
 }
 

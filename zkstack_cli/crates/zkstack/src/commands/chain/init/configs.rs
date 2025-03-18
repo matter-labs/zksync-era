@@ -49,7 +49,7 @@ pub async fn init_configs(
     chain_config: &ChainConfig,
 ) -> anyhow::Result<ContractsConfig> {
     // Port scanner should run before copying configs to avoid marking initial ports as assigned
-    let mut ecosystem_ports = EcosystemPortsScanner::scan(shell)?;
+    let mut ecosystem_ports = EcosystemPortsScanner::scan(shell, Some(&chain_config.name))?;
     copy_configs(shell, &ecosystem_config.link_to_code, &chain_config.configs)?;
 
     if !init_args.no_port_reallocation {
@@ -68,11 +68,18 @@ pub async fn init_configs(
         general_config.insert("prover_gateway.api_url", format!("http://127.0.0.1:{port}"))?;
     }
 
+    let prover_gateway_port = general_config
+        .base()
+        .get_opt::<u16>("prover_gateway.ws_port")?;
+    if let Some(port) = prover_gateway_port {
+        general_config.insert("data_handler.api_url", format!("ws://127.0.0.1:{port}"))?;
+    }
+
     let consensus_keys = generate_consensus_keys();
     set_genesis_specs(&mut general_config, chain_config, &consensus_keys)?;
 
     match &init_args.validium_config {
-        None | Some(ValidiumType::NoDA) => {
+        None | Some(ValidiumType::NoDA) | Some(ValidiumType::EigenDA) => {
             general_config.remove("da_client");
         }
         Some(ValidiumType::Avail((avail_config, _))) => {
@@ -103,7 +110,7 @@ pub async fn init_configs(
     set_l1_rpc_url(&mut secrets, init_args.l1_rpc_url.clone())?;
     set_consensus_secrets(&mut secrets, &consensus_keys)?;
     match &init_args.validium_config {
-        None | Some(ValidiumType::NoDA) => { /* Do nothing */ }
+        None | Some(ValidiumType::NoDA) | Some(ValidiumType::EigenDA) => { /* Do nothing */ }
         Some(ValidiumType::Avail((_, avail_secrets))) => {
             secrets.insert_yaml("da.avail", avail_secrets)?;
         }
