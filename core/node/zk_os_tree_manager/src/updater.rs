@@ -1,12 +1,15 @@
-use std::{future, time::Duration};
+use std::{
+    future, ops,
+    time::{Duration, Instant},
+};
 
 use anyhow::Context;
 use futures::FutureExt;
 use tokio::sync::watch;
 use zksync_dal::{helpers::wait_for_l1_batch, Connection, ConnectionPool, Core, CoreDal};
-use zksync_types::L1BatchNumber;
+use zksync_types::{block::L1BatchTreeData, L1BatchNumber};
 
-use crate::helpers::AsyncMerkleTree;
+use crate::{batch::L1BatchWithLogs, helpers::AsyncMerkleTree};
 
 #[derive(Debug)]
 pub(crate) struct TreeUpdater {
@@ -22,14 +25,144 @@ impl TreeUpdater {
         }
     }
 
+    async fn process_l1_batch(
+        &mut self,
+        l1_batch: L1BatchWithLogs,
+    ) -> anyhow::Result<((), L1BatchTreeData)> {
+        // FIXME let compute_latency = METRICS.start_stage(TreeUpdateStage::Compute);
+        let metadata = self.tree.process_l1_batch(l1_batch).await?;
+        // compute_latency.observe();
+        Ok(((), metadata))
+    }
+
+    #[tracing::instrument(name = "TreeUpdater::step", skip(self, pool))]
+    async fn step(
+        &mut self,
+        pool: &ConnectionPool<Core>,
+        next_l1_batch_to_process: &mut L1BatchNumber,
+    ) -> anyhow::Result<()> {
+        let mut storage = pool.connection_tagged("tree_updater").await?;
+        let Some(last_sealed_l1_batch) = storage
+            .blocks_dal()
+            .get_sealed_l1_batch_number()
+            .await
+            .context("failed loading sealed L1 batch number")?
+        else {
+            tracing::trace!("No L1 batches to seal: Postgres storage is empty");
+            return Ok(());
+        };
+        drop(storage);
+
+        let last_requested_l1_batch =
+            *next_l1_batch_to_process + (self.max_l1_batches_per_iter as u32 - 1);
+        let last_requested_l1_batch = last_requested_l1_batch.min(last_sealed_l1_batch);
+        let l1_batch_numbers = *next_l1_batch_to_process..=last_requested_l1_batch;
+        if l1_batch_numbers.is_empty() {
+            tracing::trace!(
+                "No L1 batches to process: batch numbers range to be loaded {l1_batch_numbers:?} is empty"
+            );
+        } else {
+            tracing::info!("Updating Merkle tree with L1 batches #{l1_batch_numbers:?}");
+            *next_l1_batch_to_process = self
+                .process_multiple_batches(pool, l1_batch_numbers)
+                .await?;
+        }
+        Ok(())
+    }
+
+    /// Processes a range of L1 batches with a single flushing of the tree updates to RocksDB at the end.
+    /// This allows to save on RocksDB I/O ops.
+    ///
+    /// Returns the number of the next L1 batch to be processed by the tree.
+    ///
+    /// # Implementation details
+    ///
+    /// We load L1 batch data from Postgres in parallel with updating the tree. (Naturally, we need to load
+    /// the first L1 batch data beforehand.) This allows saving some time if we actually process
+    /// multiple L1 batches at once (e.g., during the initial tree syncing), and if loading data from Postgres
+    /// is slow for whatever reason.
+    async fn process_multiple_batches(
+        &mut self,
+        pool: &ConnectionPool<Core>,
+        l1_batch_numbers: ops::RangeInclusive<L1BatchNumber>,
+    ) -> anyhow::Result<L1BatchNumber> {
+        let _start = Instant::now();
+        tracing::info!("Processing L1 batches #{l1_batch_numbers:?}");
+        let mut storage = pool.connection_tagged("tree_updater").await?;
+        let first_l1_batch_number = *l1_batch_numbers.start();
+        let last_l1_batch_number = *l1_batch_numbers.end();
+        let mut l1_batch_data = L1BatchWithLogs::new(&mut storage, first_l1_batch_number)
+            .await
+            .with_context(|| {
+                format!("failed fetching tree input for L1 batch #{first_l1_batch_number}")
+            })?;
+        drop(storage);
+
+        let l1_batch_numbers =
+            (first_l1_batch_number.0..=last_l1_batch_number.0).map(L1BatchNumber);
+        let mut total_logs = 0;
+        let mut updated_headers = vec![];
+        for l1_batch_number in l1_batch_numbers {
+            let mut storage = pool.connection_tagged("tree_updater").await?;
+            let Some(current_l1_batch_data) = l1_batch_data else {
+                // TODO: ensure that l1_batch_number is not pruned
+                return Ok(l1_batch_number);
+            };
+            total_logs += current_l1_batch_data.tree_logs.len();
+
+            let process_l1_batch_task = self.process_l1_batch(current_l1_batch_data);
+            let load_next_l1_batch_task = async {
+                if l1_batch_number < last_l1_batch_number {
+                    let next_l1_batch_number = l1_batch_number + 1;
+                    let batch_result =
+                        L1BatchWithLogs::new(&mut storage, next_l1_batch_number).await;
+                    // Drop storage at the earliest possible moment so that it doesn't block logic running concurrently,
+                    // such as tree pruning.
+                    drop(storage);
+                    batch_result.with_context(|| {
+                        format!("failed fetching tree input for L1 batch #{next_l1_batch_number}")
+                    })
+                } else {
+                    Ok(None) // Don't need to load the next L1 batch after the last one we're processing.
+                }
+            };
+            let ((header, tree_data), next_l1_batch_data) =
+                futures::future::try_join(process_l1_batch_task, load_next_l1_batch_task).await?;
+
+            // FIXME let save_postgres_latency = METRICS.start_stage(TreeUpdateStage::SavePostgres);
+
+            let mut storage = pool.connection_tagged("tree_updater").await?;
+            storage
+                .blocks_dal()
+                .save_l1_batch_tree_data(l1_batch_number, &tree_data)
+                .await?;
+            // ^ Note that `save_l1_batch_tree_data()` will not blindly overwrite changes if L1 batch
+            // metadata already exists; instead, it'll check that the old and new metadata match.
+            // That is, if we run multiple tree instances, we'll get metadata correspondence
+            // right away without having to implement dedicated code.
+            drop(storage);
+            // save_postgres_latency.observe();
+            tracing::info!("Updated metadata for L1 batch #{l1_batch_number} in Postgres");
+
+            updated_headers.push(header);
+            l1_batch_data = next_l1_batch_data;
+        }
+
+        // FIXME let save_rocksdb_latency = METRICS.start_stage(TreeUpdateStage::SaveRocksdb);
+        self.tree.save().await?;
+        // save_rocksdb_latency.observe();
+        // MetadataCalculator::update_metrics(&updated_headers, total_logs, start);
+
+        Ok(last_l1_batch_number + 1)
+    }
+
     pub(crate) async fn loop_updating_tree(
         mut self,
         delay_interval: Duration,
         pool: &ConnectionPool<Core>,
         mut stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<()> {
-        let tree = &mut self.tree;
-        let mut next_l1_batch_to_process = tree.next_l1_batch_number().await?;
+        let mut next_l1_batch_to_process = self.tree.next_l1_batch_number().await?;
         tracing::info!(
             "Initialized metadata calculator with {max_l1_batches_per_iter} max L1 batches per iteration. \
              Next L1 batch for Merkle tree: {next_l1_batch_to_process}",

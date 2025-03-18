@@ -12,6 +12,18 @@ use crate::{
 };
 
 #[test]
+fn empty_tree_hash_is_correct() {
+    let expected_root_hash: H256 =
+        "0x8a41011d351813c31088367deecc9b70677ecf15ffc24ee450045cdeaf447f63"
+            .parse()
+            .unwrap();
+    assert_eq!(
+        MerkleTree::<PatchSet>::empty_tree_hash(),
+        expected_root_hash
+    );
+}
+
+#[test]
 fn tree_depth_mismatch() {
     let mut db = PatchSet::default();
     db.manifest_mut().version_count = 1;

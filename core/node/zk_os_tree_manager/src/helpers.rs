@@ -36,7 +36,7 @@ impl AsyncTreeReader {
                     self.inner.root_info(version)?
                 } else {
                     // No versions in the tree yet.
-                    Some((MerkleTree::empty_tree_hash(), 0))
+                    Some((PatchedMerkleTree::empty_tree_hash(), 0))
                 };
 
                 let Some((root_hash, leaf_count)) = root_info else {
@@ -63,15 +63,11 @@ impl AsyncTreeReader {
         .unwrap()
     }
 
-    #[cfg(test)]
-    pub async fn verify_consistency(self, l1_batch_number: L1BatchNumber) -> anyhow::Result<()> {
-        tokio::task::spawn_blocking(move || self.inner.verify_consistency(l1_batch_number.0.into()))
-            .await
-            .context("tree consistency verification panicked")?
-            .map_err(Into::into)
-    }
-
-    pub async fn prove(self, version: u64, keys: Vec<H256>) -> anyhow::Result<BatchTreeProof> {
+    pub(crate) async fn prove(
+        self,
+        version: u64,
+        keys: Vec<H256>,
+    ) -> anyhow::Result<BatchTreeProof> {
         tokio::task::spawn_blocking(move || self.inner.prove(version, &keys))
             .await
             .context("getting proof panicked")?
@@ -173,7 +169,7 @@ impl AsyncMerkleTree {
         Ok(output)
     }
 
-    async fn try_invoke_tree<T, F>(&mut self, f: F) -> anyhow::Result<T>
+    pub(crate) async fn try_invoke_tree<T, F>(&mut self, f: F) -> anyhow::Result<T>
     where
         T: 'static + Send,
         F: FnOnce(&mut PatchedMerkleTree) -> anyhow::Result<T> + 'static + Send,

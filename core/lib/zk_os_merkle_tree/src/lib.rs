@@ -16,7 +16,7 @@ pub use self::{
 use crate::{
     metrics::{BatchProofStage, LoadStage, MerkleTreeInfo, METRICS},
     storage::{TreeUpdate, WorkingPatchSet},
-    types::MAX_TREE_DEPTH,
+    types::{Leaf, MAX_TREE_DEPTH},
 };
 
 mod consistency;
@@ -99,6 +99,23 @@ impl<DB: Database> MerkleTree<DB> {
     /// Errors in the same situations as [`Self::with_hasher()`].
     pub fn new(db: DB) -> anyhow::Result<Self> {
         Self::with_hasher(db, Blake2Hasher)
+    }
+}
+
+impl<DB: Database, P: TreeParams> MerkleTree<DB, P>
+where
+    P::Hasher: Default,
+{
+    /// Returns the hash of the empty tree.
+    pub fn empty_tree_hash() -> H256 {
+        let hasher = P::Hasher::default();
+        let min_guard_hash = hasher.hash_leaf(&Leaf::MIN_GUARD);
+        let max_guard_hash = hasher.hash_leaf(&Leaf::MAX_GUARD);
+        let mut hash = hasher.hash_branch(&min_guard_hash, &max_guard_hash);
+        for depth in 1..P::TREE_DEPTH {
+            hash = hasher.hash_branch(&hash, &hasher.empty_subtree_hash(depth));
+        }
+        hash
     }
 }
 
