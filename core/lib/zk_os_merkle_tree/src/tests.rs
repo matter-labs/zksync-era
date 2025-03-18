@@ -32,13 +32,13 @@ fn tree_internal_node_depth_mismatch() {
     let mut db = PatchSet::default();
     db.manifest_mut().version_count = 1;
     db.manifest_mut().tags = TreeTags {
-        internal_node_depth: 3,
+        internal_node_depth: 2,
         ..TreeTags::for_params::<DefaultTreeParams>(&Blake2Hasher)
     };
 
     let err = MerkleTree::new(db).unwrap_err().to_string();
     assert!(
-        err.contains("Unexpected internal node depth: expected 4, got 3"),
+        err.contains("Unexpected internal node depth: expected 3, got 2"),
         "{err}"
     );
 }

@@ -233,6 +233,7 @@ impl Distribution<configs::chain::MempoolConfig> for EncodeDist {
             remove_stuck_txs: self.sample(rng),
             delay_interval: self.sample(rng),
             skip_unsafe_deposit_checks: self.sample(rng),
+            l1_to_l2_txs_paused: self.sample(rng),
         }
     }
 }
@@ -516,6 +517,7 @@ impl Distribution<configs::FriProverGatewayConfig> for EncodeDist {
         configs::FriProverGatewayConfig {
             api_url: self.sample(rng),
             api_poll_duration_secs: self.sample(rng),
+            ws_port: self.sample(rng),
             prometheus_listener_port: self.sample(rng),
             prometheus_pushgateway_url: self.sample(rng),
             prometheus_push_interval_ms: self.sample(rng),
@@ -676,7 +678,10 @@ impl Distribution<configs::ProofDataHandlerConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::ProofDataHandlerConfig {
         configs::ProofDataHandlerConfig {
             http_port: self.sample(rng),
+            api_url: self.sample(rng),
+            batch_readiness_check_interval_in_secs: self.sample(rng),
             proof_generation_timeout_in_secs: self.sample(rng),
+            retry_connection_interval_in_secs: self.sample(rng),
             tee_config: configs::TeeConfig {
                 tee_support: self.sample(rng),
                 first_tee_processed_batch: L1BatchNumber(rng.gen()),

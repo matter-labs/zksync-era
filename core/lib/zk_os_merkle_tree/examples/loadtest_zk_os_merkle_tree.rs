@@ -11,12 +11,12 @@ use rand::{
 use tempfile::TempDir;
 use tracing_subscriber::EnvFilter;
 use zk_os_merkle_tree::{
-    unstable, Database, DefaultTreeParams, DeserializeError, HashTree, MerkleTree, PatchSet,
-    Patched, RocksDBWrapper, TreeEntry, TreeParams,
+    unstable, Database, DefaultTreeParams, DeserializeError, HashTree, MerkleTree,
+    MerkleTreeColumnFamily, PatchSet, Patched, RocksDBWrapper, TreeEntry, TreeParams,
 };
 use zksync_basic_types::H256;
 use zksync_crypto_primitives::hasher::{blake2::Blake2Hasher, Hasher};
-use zksync_storage::{RocksDB, RocksDBOptions};
+use zksync_storage::{db::NamedColumnFamily, RocksDB, RocksDBOptions};
 
 #[derive(Debug)]
 struct WithDynHasher;
@@ -145,7 +145,8 @@ impl Cli {
         Self::init_logging();
         tracing::info!("Launched with options: {self:?}");
 
-        let (mut mock_db, mut rocksdb);
+        let mut mock_db;
+        let mut rocksdb = None;
         let mut _temp_dir = None;
         let mut db: &mut dyn Database = if self.in_memory {
             mock_db = PatchSet::default();
@@ -163,14 +164,15 @@ impl Cli {
             };
             let db =
                 RocksDB::with_options(dir.path(), db_options).context("failed creating RocksDB")?;
-            rocksdb = RocksDBWrapper::from(db);
+            let mut db = RocksDBWrapper::from(db);
 
             if let Some(chunk_size) = self.chunk_size {
-                rocksdb.set_multi_get_chunk_size(chunk_size);
+                db.set_multi_get_chunk_size(chunk_size);
             }
 
             _temp_dir = Some(dir);
-            &mut rocksdb
+            rocksdb = Some(db);
+            rocksdb.as_mut().unwrap()
         };
 
         let mut batching_db;
@@ -231,6 +233,13 @@ impl Cli {
             .context("tree consistency check failed")?;
         let elapsed = start.elapsed();
         tracing::info!("Verified tree consistency in {elapsed:?}");
+
+        if let Some(db) = rocksdb {
+            let db = db.into_inner();
+            for cf in MerkleTreeColumnFamily::ALL {
+                tracing::info!(?cf, size = ?db.size_stats(*cf), "estimated DB size");
+            }
+        }
 
         Ok(())
     }

@@ -19,7 +19,6 @@ pub(crate) fn test_default_aa_interaction<VM: TestedVm>() {
     // In this test, we aim to test whether a simple account interaction (without any fee logic)
     // will work. The account will try to deploy a simple contract from integration tests.
     let mut vm = VmTesterBuilder::new()
-        .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_rich_accounts(1)
         .build::<VM>();
@@ -40,7 +39,8 @@ pub(crate) fn test_default_aa_interaction<VM: TestedVm>() {
     let batch_result = vm.vm.finish_batch(default_pubdata_builder());
     assert!(
         !batch_result.block_tip_execution_result.result.is_failed(),
-        "Batch tip execution wasn't successful"
+        "Batch tip execution wasn't successful: {:#?}",
+        batch_result.block_tip_execution_result
     );
 
     vm.vm.get_current_execution_state();
@@ -71,7 +71,6 @@ pub(crate) fn test_default_aa_interaction<VM: TestedVm>() {
 
 pub(crate) fn test_permissive_aa_works<VM: TestedVm>() {
     let builder = VmTesterBuilder::new()
-        .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_rich_accounts(2);
     let aa_address = builder.rich_account(0).address();

@@ -926,6 +926,37 @@ pub fn get_admin_call_builder(
     admin_calls_finalize
 }
 
+async fn check_no_l1_txs_absence(l2_rpc_url: &str, l2_chain_id: u64) -> anyhow::Result<()> {
+    let client = get_zk_client(l2_rpc_url, l2_chain_id)?;
+
+    let status = match client.l1_to_l2_txs_status().await {
+        Ok(x) => x,
+        Err(e) => {
+            anyhow::bail!("Failed to query the status for L1->L2 transactions. The error {:#?}. Please ensure that you run the correct server version and `unstable` namespace is enabled.", e)
+        }
+    };
+
+    anyhow::ensure!(
+        status.l1_to_l2_txs_paused,
+        "L1->L2 transactions have not been paused"
+    );
+    anyhow::ensure!(
+        status.l1_to_l2_txs_in_mempool == 0,
+        "There are still L1->L2 transactions present in the mempool"
+    );
+
+    Ok(())
+}
+
+fn print_error(err: anyhow::Error) {
+    println!(
+        "Chain is not ready to finalize the upgrade due to the reason:\n{:#?}",
+        err
+    );
+    println!("Once the chain is ready, you can re-run this command to obtain the calls to finalize the upgrade");
+    println!("If you want to display finalization params anyway, pass `--force-display-finalization-params=true`.");
+}
+
 pub(crate) async fn run(shell: &Shell, args: GatewayUpgradeCalldataArgs) -> anyhow::Result<()> {
     // 0. Read the GatewayUpgradeInfo
 
@@ -938,6 +969,15 @@ pub(crate) async fn run(shell: &Shell, args: GatewayUpgradeCalldataArgs) -> anyh
     upgrade_info.update_contracts_config(&mut Default::default(), &chain_info, args.da_mode, false);
 
     // 2. Generate calldata
+
+    if !args.force_display_finalization_params.unwrap_or_default() {
+        println!("Checking whether L1->L2 transactions are disabled...");
+        if let Err(e) = check_no_l1_txs_absence(&args.l2_rpc_url, args.chain_id).await {
+            print_error(e);
+            return Ok(());
+        }
+        println!("All the L1->L2 have been paused. We can safely proceed with v26 upgrade.");
+    }
 
     let schedule_calldata = set_upgrade_timestamp_calldata(
         upgrade_info.new_protocol_version,
@@ -963,12 +1003,7 @@ pub(crate) async fn run(shell: &Shell, args: GatewayUpgradeCalldataArgs) -> anyh
         .await;
 
         if let Err(err) = chain_readiness {
-            println!(
-                "Chain is not ready to finalize the upgrade due to the reason:\n{:#?}",
-                err
-            );
-            println!("Once the chain is ready, you can re-run this command to obtain the calls to finalize the upgrade");
-            println!("If you want to display finalization params anyway, pass `--force-display-finalization-params=true`.");
+            print_error(err);
             return Ok(());
         };
     }
