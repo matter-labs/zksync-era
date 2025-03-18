@@ -151,8 +151,8 @@ impl<'de> Deserialize<'de> for L2ChainId {
 
 #[derive(Copy, Clone, Serialize, Deserialize)]
 pub struct ChainAwareL1BatchNumber {
-    pub chain_id: L2ChainId,
-    pub batch_number: L1BatchNumber,
+    chain_id: L2ChainId,
+    batch_number: L1BatchNumber,
 }
 
 impl Debug for ChainAwareL1BatchNumber {

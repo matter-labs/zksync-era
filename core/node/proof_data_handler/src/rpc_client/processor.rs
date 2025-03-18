@@ -7,6 +7,7 @@ use zksync_prover_interface::{
     inputs::{
         L1BatchMetadataHashes, VMRunWitnessInputData, WitnessInputData, WitnessInputMerklePaths,
     },
+    outputs::FinalProofKeyBySubsystem,
 };
 use zksync_types::{
     basic_fri_types::Eip4844Blobs,
@@ -165,12 +166,18 @@ impl ProofDataProcessor {
             SubmitProofRequest::Proof(batch_id, proof) => {
                 tracing::info!(
                     "Received proof for block number: {:?}",
-                    batch_id.batch_number
+                    batch_id.batch_number()
                 );
 
                 let blob_url = self
                     .blob_store
-                    .put((batch_id, proof.protocol_version()), &*proof)
+                    .put(
+                        FinalProofKeyBySubsystem::Core(
+                            batch_id.batch_number(),
+                            proof.protocol_version(),
+                        ),
+                        &*proof,
+                    )
                     .await?;
 
                 let aggregation_coords = proof.aggregation_result_coords();
@@ -185,7 +192,7 @@ impl ProofDataProcessor {
 
                 let l1_batch = storage
                     .blocks_dal()
-                    .get_l1_batch_metadata(batch_id.batch_number)
+                    .get_l1_batch_metadata(batch_id.batch_number())
                     .await
                     .unwrap()
                     .expect("Proved block without metadata");
@@ -249,7 +256,7 @@ impl ProofDataProcessor {
 
                 storage
                     .proof_generation_dal()
-                    .save_proof_artifacts_metadata(batch_id.batch_number, &blob_url)
+                    .save_proof_artifacts_metadata(batch_id.batch_number(), &blob_url)
                     .await?;
             }
             SubmitProofRequest::SkippedProofGeneration(batch_id) => {
@@ -259,7 +266,7 @@ impl ProofDataProcessor {
                     .await
                     .unwrap()
                     .proof_generation_dal()
-                    .mark_proof_generation_job_as_skipped(batch_id.batch_number)
+                    .mark_proof_generation_job_as_skipped(batch_id.batch_number())
                     .await?;
             }
         }

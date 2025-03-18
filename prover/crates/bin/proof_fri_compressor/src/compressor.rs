@@ -15,7 +15,7 @@ use zksync_prover_fri_types::{
     get_current_pod_name, AuxOutputWitnessWrapper, FriProofWrapper,
 };
 use zksync_prover_interface::outputs::{
-    FflonkL1BatchProofForL1, L1BatchProofForL1, PlonkL1BatchProofForL1,
+    FflonkL1BatchProofForL1, FinalProofKeyBySubsystem, L1BatchProofForL1, PlonkL1BatchProofForL1,
 };
 use zksync_prover_keystore::keystore::Keystore;
 use zksync_queued_job_processor::JobProcessor;
@@ -187,7 +187,10 @@ impl JobProcessor for ProofCompressor {
         let blob_save_started_at = Instant::now();
         let blob_url = self
             .blob_store
-            .put((job_id, self.protocol_version), &l1_batch_proof)
+            .put(
+                FinalProofKeyBySubsystem::Prover(job_id, self.protocol_version),
+                &l1_batch_proof,
+            )
             .await
             .context("Failed to save converted l1_batch_proof")?;
         METRICS

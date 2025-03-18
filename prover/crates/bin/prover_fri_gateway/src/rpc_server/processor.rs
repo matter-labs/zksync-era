@@ -9,7 +9,7 @@ use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_interface::{
     api::{ProofGenerationData, SubmitProofRequest},
-    outputs::L1BatchProofForL1,
+    outputs::{FinalProofKeyBySubsystem, L1BatchProofForL1},
     rpc::GatewayRpcServer,
 };
 use zksync_types::{
@@ -78,7 +78,10 @@ impl RpcDataProcessor {
             ProofCompressionJobStatus::Successful => {
                 let proof = self
                     .blob_store
-                    .get::<L1BatchProofForL1>((batch_id, protocol_version))
+                    .get::<L1BatchProofForL1>(FinalProofKeyBySubsystem::Prover(
+                        batch_id,
+                        protocol_version,
+                    ))
                     .await
                     .expect("Failed to get compressed snark proof from blob store");
                 SubmitProofRequest::Proof(batch_id, Box::new(proof))

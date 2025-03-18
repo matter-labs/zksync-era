@@ -1,8 +1,7 @@
 use std::sync::Arc;
 
 use zksync_basic_types::{
-    basic_fri_types::Eip4844Blobs, commitment::L1BatchCommitmentMode, ChainAwareL1BatchNumber,
-    L1BatchNumber, L2ChainId,
+    basic_fri_types::Eip4844Blobs, commitment::L1BatchCommitmentMode, L1BatchNumber,
 };
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_object_store::ObjectStore;
@@ -11,7 +10,7 @@ use zksync_prover_interface::{
     inputs::{
         L1BatchMetadataHashes, VMRunWitnessInputData, WitnessInputData, WitnessInputMerklePaths,
     },
-    outputs::L1BatchProofForL1,
+    outputs::{FinalProofKeyBySubsystem, L1BatchProofForL1},
 };
 
 use crate::{
@@ -25,7 +24,6 @@ pub struct Processor {
     blob_store: Arc<dyn ObjectStore>,
     pool: ConnectionPool<Core>,
     commitment_mode: L1BatchCommitmentMode,
-    chain_id: L2ChainId,
 }
 
 impl Processor {
@@ -33,13 +31,11 @@ impl Processor {
         blob_store: Arc<dyn ObjectStore>,
         pool: ConnectionPool<Core>,
         commitment_mode: L1BatchCommitmentMode,
-        chain_id: L2ChainId,
     ) -> Self {
         Self {
             blob_store,
             pool,
             commitment_mode,
-            chain_id,
         }
     }
 
@@ -50,8 +46,8 @@ impl Processor {
     ) -> Result<(), ProcessorError> {
         let expected_proof = self
             .blob_store
-            .get::<L1BatchProofForL1>((
-                ChainAwareL1BatchNumber::new(self.chain_id, l1_batch_number),
+            .get::<L1BatchProofForL1>(FinalProofKeyBySubsystem::Core(
+                l1_batch_number,
                 proof.protocol_version(),
             ))
             .await?;

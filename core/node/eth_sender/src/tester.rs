@@ -254,7 +254,6 @@ impl EthSenderTester {
             connection_pool.clone(),
             gateway.clone(),
             SettlementMode::SettlesToL1,
-            L2ChainId::zero(),
         )
         .await
         .unwrap();
