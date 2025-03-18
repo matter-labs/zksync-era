@@ -6,7 +6,10 @@ use strum::Display;
 use strum_macros::EnumString;
 use zksync_config::configs::ObservabilityConfig;
 
-use crate::key::{GpuKey, NoKey};
+use crate::{
+    cluster_types::{ClusterName, DeploymentName, NamespaceName},
+    key::{GpuKey, NoKey},
+};
 
 /// Config used for running ProverAutoscaler (both Scaler and Agent).
 #[derive(Debug, Clone, PartialEq, Deserialize)]
@@ -30,7 +33,7 @@ pub struct ProverAutoscalerAgentConfig {
     pub http_port: u16,
     /// List of namespaces to watch.
     #[serde(default = "ProverAutoscalerAgentConfig::default_namespaces")]
-    pub namespaces: Vec<String>,
+    pub namespaces: Vec<NamespaceName>,
     /// If dry-run enabled don't do any k8s updates, just report success.
     #[serde(default = "ProverAutoscalerAgentConfig::default_dry_run")]
     pub dry_run: bool,
@@ -50,14 +53,14 @@ pub struct ProverAutoscalerScalerConfig {
     /// In production should be "http://prover-job-monitor.stage2.svc.cluster.local:3074/queue_report".
     #[serde(default = "ProverAutoscalerScalerConfig::default_prover_job_monitor_url")]
     pub prover_job_monitor_url: String,
-    /// List of ProverAutoscaler Agents to get cluster data from.
+    /// List of ProverAutoscaler Agent base URLs to get cluster data from.
     pub agents: Vec<String>,
     /// Mapping of namespaces to protocol versions.
-    pub protocol_versions: HashMap<String, String>,
+    pub protocol_versions: HashMap<NamespaceName, String>,
     /// Default priorities, which cluster to prefer when there is no other information.
-    pub cluster_priorities: HashMap<String, u32>,
+    pub cluster_priorities: HashMap<ClusterName, u32>,
     /// Prover speed per GPU. Used to calculate desired number of provers for queue size.
-    pub apply_min_to_namespace: Option<String>,
+    pub apply_min_to_namespace: Option<NamespaceName>,
     /// Duration after which pending pod considered long pending.
     #[serde(
         with = "humantime_serde",
@@ -131,12 +134,12 @@ pub struct ScalerTarget {
     #[serde(default)]
     pub scaler_target_type: ScalerTargetType,
     pub queue_report_field: QueueReportFields,
-    pub deployment: String,
+    pub deployment: DeploymentName,
     /// Min replicas globally.
     #[serde(default)]
     pub min_replicas: usize,
     /// Max replicas per cluster.
-    pub max_replicas: HashMap<String, ScalarOrMap>,
+    pub max_replicas: HashMap<ClusterName, ScalarOrMap>,
     /// The queue will be divided by the speed and rounded up to get number of replicas.
     #[serde(default = "ScalerTarget::default_speed")]
     pub speed: ScalarOrMap,
@@ -150,8 +153,8 @@ impl ProverAutoscalerConfig {
 }
 
 impl ProverAutoscalerAgentConfig {
-    pub fn default_namespaces() -> Vec<String> {
-        vec!["prover-blue".to_string(), "prover-red".to_string()]
+    pub fn default_namespaces() -> Vec<NamespaceName> {
+        vec!["prover-blue".into(), "prover-red".into()]
     }
 
     pub fn default_dry_run() -> bool {

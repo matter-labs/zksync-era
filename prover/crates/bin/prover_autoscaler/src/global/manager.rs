@@ -7,7 +7,7 @@ use super::{
 };
 use crate::{
     agent::ScaleRequest,
-    cluster_types::Clusters,
+    cluster_types::{ClusterName, Clusters, NamespaceName},
     config::{ProverAutoscalerScalerConfig, QueueReportFields, ScalerTargetType},
     key::{GpuKey, NoKey},
     metrics::AUTOSCALER_METRICS,
@@ -15,8 +15,8 @@ use crate::{
 };
 
 pub struct Manager {
-    /// namespace to Protocol Version configuration.
-    namespaces: HashMap<String, String>,
+    /// Namespace to Protocol Version configuration.
+    namespaces: HashMap<NamespaceName, String>,
     watcher: watcher::Watcher,
     queuer: queuer::Queuer,
 
@@ -82,7 +82,7 @@ impl Manager {
 }
 
 /// is_namespace_running returns true if there are some pods running in it.
-fn is_namespace_running(namespace: &str, clusters: &Clusters) -> bool {
+fn is_namespace_running(namespace: &NamespaceName, clusters: &Clusters) -> bool {
     clusters
         .clusters
         .values()
@@ -102,7 +102,7 @@ impl Task for Manager {
     async fn invoke(&self) -> anyhow::Result<()> {
         let queue = self.queuer.get_queue(&self.jobs).await.unwrap();
 
-        let mut scale_requests: HashMap<String, ScaleRequest> = HashMap::new();
+        let mut scale_requests: HashMap<ClusterName, ScaleRequest> = HashMap::new();
         {
             let guard = self.watcher.data.lock().await; // Keeping the lock during all calls of run() for
                                                         // consitency.

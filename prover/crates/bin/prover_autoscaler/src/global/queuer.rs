@@ -6,10 +6,10 @@ use zksync_prover_job_monitor::autoscaler_queue_reporter::{QueueReport, Versione
 
 use crate::{config::QueueReportFields, http_client::HttpClient};
 
-pub struct Queue(HashMap<(String, QueueReportFields), u64>);
+pub struct Queue(HashMap<(String, QueueReportFields), usize>);
 
 impl Deref for Queue {
-    type Target = HashMap<(String, QueueReportFields), u64>;
+    type Target = HashMap<(String, QueueReportFields), usize>;
     fn deref(&self) -> &Self::Target {
         &self.0
     }
@@ -21,8 +21,8 @@ pub struct Queuer {
     pub prover_job_monitor_url: String,
 }
 
-fn target_to_queue(target: QueueReportFields, report: &QueueReport) -> u64 {
-    let res = match target {
+fn target_to_queue(target: QueueReportFields, report: &QueueReport) -> usize {
+    match target {
         QueueReportFields::basic_witness_jobs => report.basic_witness_jobs.all(),
         QueueReportFields::leaf_witness_jobs => report.leaf_witness_jobs.all(),
         QueueReportFields::node_witness_jobs => report.node_witness_jobs.all(),
@@ -30,8 +30,7 @@ fn target_to_queue(target: QueueReportFields, report: &QueueReport) -> u64 {
         QueueReportFields::scheduler_witness_jobs => report.scheduler_witness_jobs.all(),
         QueueReportFields::proof_compressor_jobs => report.proof_compressor_jobs.all(),
         QueueReportFields::prover_jobs => report.prover_jobs.all(),
-    };
-    res as u64
+    }
 }
 
 impl Queuer {

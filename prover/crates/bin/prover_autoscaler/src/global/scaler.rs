@@ -5,7 +5,7 @@ use debug_map_sorted::SortedOutputExt;
 
 use crate::{
     agent::{ScaleDeploymentRequest, ScaleRequest},
-    cluster_types::{Cluster, Clusters, PodStatus},
+    cluster_types::{Cluster, ClusterName, Clusters, DeploymentName, NamespaceName, PodStatus},
     config::QueueReportFields,
     key::{Gpu, Key},
     metrics::{JobLabels, AUTOSCALER_METRICS},
@@ -15,13 +15,13 @@ const DEFAULT_SPEED: usize = 500;
 
 #[derive(Debug, Eq, Hash, PartialEq)]
 pub struct PoolKey<K: Eq + Hash + Copy> {
-    pub cluster: String,
+    pub cluster: ClusterName,
     pub key: K,
 }
 
 #[derive(Default, Debug, PartialEq, Eq)]
 struct Pool<K: Eq + Hash + Copy> {
-    name: String,
+    name: ClusterName,
     key: K,
     pods: HashMap<PodStatus, usize>, // TODO: consider using i64 everywhere to avoid type casts.
     scale_errors: usize,
@@ -44,12 +44,12 @@ impl<K: Eq + Hash + Copy> Pool<K> {
 #[derive(Debug)]
 pub struct Scaler<K> {
     pub queue_report_field: QueueReportFields,
-    pub deployment: String,
+    pub deployment: DeploymentName,
     /// Cluster usage priority when there is no other strong signal. Smaller value is used first.
-    cluster_priorities: HashMap<String, u32>,
-    apply_min_to_namespace: Option<String>,
+    cluster_priorities: HashMap<ClusterName, u32>,
+    apply_min_to_namespace: Option<NamespaceName>,
     min_replicas: usize,
-    max_replicas: HashMap<String, HashMap<K, usize>>,
+    max_replicas: HashMap<ClusterName, HashMap<K, usize>>,
     // TODO Add default speed for default K
     speed: HashMap<K, usize>,
     long_pending_duration: chrono::Duration,
@@ -59,12 +59,12 @@ impl<K: Key> Scaler<K> {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         queue_report_field: QueueReportFields,
-        deployment: String,
+        deployment: DeploymentName,
         min_replicas: usize,
-        max_replicas: HashMap<String, HashMap<K, usize>>,
+        max_replicas: HashMap<ClusterName, HashMap<K, usize>>,
         speed: HashMap<K, usize>,
-        cluster_priorities: HashMap<String, u32>,
-        apply_min_to_namespace: Option<String>,
+        cluster_priorities: HashMap<ClusterName, u32>,
+        apply_min_to_namespace: Option<NamespaceName>,
         long_pending_duration: chrono::Duration,
     ) -> Self {
         Self {
@@ -79,7 +79,7 @@ impl<K: Key> Scaler<K> {
         }
     }
 
-    fn convert_to_pool(&self, namespace: &str, cluster: &Cluster) -> Vec<Pool<K>> {
+    fn convert_to_pool(&self, namespace: &NamespaceName, cluster: &Cluster) -> Vec<Pool<K>> {
         let Some(namespace_value) = &cluster.namespaces.get(namespace) else {
             // No namespace in config, ignoring.
             return vec![];
@@ -88,7 +88,7 @@ impl<K: Key> Scaler<K> {
         let mut pool_map = HashMap::new(); // <key, Pool>
         for deployment in namespace_value.deployments.keys() {
             // Processing only selected deployment(s).
-            let Some(key) = K::new(&self.deployment, deployment) else {
+            let Some(key) = K::new(self.deployment.to_str(), deployment) else {
                 continue;
             };
             let e = pool_map.entry(key).or_insert(Pool {
@@ -119,7 +119,7 @@ impl<K: Key> Scaler<K> {
             .count();
 
         for (pod, pod_value) in namespace_value.pods.iter() {
-            let Some(key) = K::new(&self.deployment, pod) else {
+            let Some(key) = K::new(self.deployment.to_str(), &(pod.clone().into())) else {
                 continue;
             };
             let pool = pool_map.entry(key).or_insert(Pool {
@@ -150,7 +150,7 @@ impl<K: Key> Scaler<K> {
         pool_map.into_values().collect()
     }
 
-    fn sorted_clusters(&self, namespace: &str, clusters: &Clusters) -> Vec<Pool<K>> {
+    fn sorted_clusters(&self, namespace: &NamespaceName, clusters: &Clusters) -> Vec<Pool<K>> {
         let mut pools: Vec<Pool<K>> = clusters
             .clusters
             .values()
@@ -202,8 +202,8 @@ impl<K: Key> Scaler<K> {
 
     pub fn calculate(
         &self,
-        namespace: &str,
-        queue: u64,
+        namespace: &NamespaceName,
+        queue: usize,
         clusters: &Clusters,
     ) -> HashMap<PoolKey<K>, usize> {
         let sorted_clusters = self.sorted_clusters(namespace, clusters);
@@ -215,11 +215,11 @@ impl<K: Key> Scaler<K> {
 
         // Increase queue size, if it's too small, to make sure that required min_replicas are
         // running.
-        let queue: usize = if self.apply_min_to_namespace.as_deref() == Some(namespace) {
-            self.normalize_queue(K::default(), queue as usize)
+        let queue: usize = if self.apply_min_to_namespace == Some(namespace.clone()) {
+            self.normalize_queue(K::default(), queue)
                 .max(self.pods_to_speed(K::default(), self.min_replicas))
         } else {
-            queue as usize
+            queue
         };
 
         let mut total: i64 = 0;
@@ -263,7 +263,7 @@ impl<K: Key> Scaler<K> {
             let replicas = pods.entry(cluster.to_key()).or_default();
             if cluster.max_pool_size < *replicas {
                 let excess = *replicas - cluster.max_pool_size;
-                total -= excess as i64 * self.speed(cluster.key) as i64;
+                total -= (excess * self.speed(cluster.key)) as i64;
                 *replicas -= excess;
             }
         }
@@ -297,14 +297,14 @@ impl<K: Key> Scaler<K> {
 
     pub fn diff(
         &self,
-        namespace: &str,
+        namespace: &NamespaceName,
         pods: HashMap<PoolKey<K>, usize>,
         clusters: &Clusters,
-        requests: &mut HashMap<String, ScaleRequest>,
+        requests: &mut HashMap<ClusterName, ScaleRequest>,
     ) {
         pods.into_iter()
             .for_each(|(PoolKey { cluster, key }, replicas)| {
-                let deployment_name = key.to_deployment(&self.deployment);
+                let deployment_name = key.to_deployment(self.deployment.to_str());
                 clusters
                     .clusters
                     .get(&cluster)
@@ -326,9 +326,9 @@ impl<K: Key> Scaler<K> {
                                     .or_default()
                                     .deployments
                                     .push(ScaleDeploymentRequest {
-                                        namespace: namespace.into(),
+                                        namespace: namespace.clone(),
                                         name: deployment_name.clone(),
-                                        size: replicas as i32,
+                                        size: replicas,
                                     });
                             }
                         },
@@ -338,19 +338,19 @@ impl<K: Key> Scaler<K> {
 }
 
 pub trait ScalerTrait {
-    fn deployment(&self) -> String;
+    fn deployment(&self) -> DeploymentName;
     fn queue_report_field(&self) -> QueueReportFields;
     fn run(
         &self,
-        namespace: &str,
-        queue: u64,
+        namespace: &NamespaceName,
+        queue: usize,
         clusters: &Clusters,
-        requests: &mut HashMap<String, ScaleRequest>,
+        requests: &mut HashMap<ClusterName, ScaleRequest>,
     );
 }
 
 impl<K: Key> ScalerTrait for Scaler<K> {
-    fn deployment(&self) -> String {
+    fn deployment(&self) -> DeploymentName {
         self.deployment.clone()
     }
     fn queue_report_field(&self) -> QueueReportFields {
@@ -359,29 +359,29 @@ impl<K: Key> ScalerTrait for Scaler<K> {
 
     fn run(
         &self,
-        namespace: &str,
-        queue: u64,
+        namespace: &NamespaceName,
+        queue: usize,
         clusters: &Clusters,
-        requests: &mut HashMap<String, ScaleRequest>,
+        requests: &mut HashMap<ClusterName, ScaleRequest>,
     ) {
         let replicas = self.calculate(namespace, queue, clusters);
         for (k, num) in &replicas {
             let labels = JobLabels {
                 job: self.deployment.clone(),
                 target_cluster: k.cluster.clone(),
-                target_namespace: namespace.into(),
+                target_namespace: namespace.clone(),
                 gpu: match k.key.gpu() {
                     Some(gpu) => gpu,
                     None => Gpu::Unknown,
                 },
             };
-            AUTOSCALER_METRICS.jobs[&labels].set(*num as u64);
+            AUTOSCALER_METRICS.jobs[&labels].set(*num);
 
             if self.queue_report_field == QueueReportFields::prover_jobs {
                 // TODO: Remove after migration to jobs metric.
                 AUTOSCALER_METRICS.provers
-                    [&(k.cluster.clone(), namespace.into(), k.key.gpu().unwrap())]
-                    .set(*num as u64);
+                    [&(k.cluster.clone(), namespace.clone(), k.key.gpu().unwrap())]
+                    .set(*num);
             }
         }
         self.diff(namespace, replicas, clusters, requests);
@@ -416,7 +416,7 @@ mod tests {
 
         assert_eq!(
             scaler.calculate(
-                "prover",
+                &"prover".into(),
                 1499,
                 &Clusters {
                     clusters: [(
@@ -461,7 +461,7 @@ mod tests {
         );
         assert_eq!(
             scaler.calculate(
-                "prover",
+                &"prover".into(),
                 499,
                 &Clusters {
                     clusters: [
@@ -558,7 +558,7 @@ mod tests {
 
         assert_eq!(
             scaler.calculate(
-                "prover",
+                &"prover".into(),
                 10,
                 &Clusters {
                     clusters: [
@@ -624,7 +624,7 @@ mod tests {
         );
         assert_eq!(
             scaler.calculate(
-                "prover",
+                &"prover".into(),
                 0,
                 &Clusters {
                     clusters: [
@@ -757,7 +757,7 @@ mod tests {
 
         assert_eq!(
             scaler.calculate(
-                "prover",
+                &"prover".into(),
                 1400,
                 &Clusters {
                     clusters: [
@@ -877,7 +877,7 @@ mod tests {
 
         assert_eq!(
             scaler.calculate(
-                "prover",
+                &"prover".into(),
                 24,
                 &Clusters {
                     clusters: [(
@@ -945,7 +945,7 @@ mod tests {
         );
         assert_eq!(
             scaler.calculate(
-                "prover",
+                &"prover".into(),
                 9,
                 &Clusters {
                     clusters: [
