@@ -7720,9 +7720,9 @@ checksum = "48fd7bd8a6377e15ad9d42a8ec25371b94ddc67abe7c8b9127bec79bebaaae18"
 
 [[package]]
 name = "rust-eigenda-client"
-version = "0.1.2"
+version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b6dc27cbee126950d96ea85f2b86fd4b0bba6a1c3fb80948c1bc11cc23fa3ece"
+checksum = "2fcf945c2fb8bdc0133a621cc9697d4ae033fe6b48943854ba29943aa64d5455"
 dependencies = [
  "ark-bn254",
  "async-trait",
