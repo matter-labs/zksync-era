@@ -335,7 +335,6 @@ impl MainNodeBuilder {
     fn add_tx_sender_layer(mut self) -> anyhow::Result<Self> {
         let sk_config = try_load_config!(self.configs.state_keeper_config);
         let rpc_config = try_load_config!(self.configs.api_config).web3_json_rpc;
-        let tx_sink_config = try_load_config!(self.configs.tx_sink_config);
 
         let timestamp_asserter_params = match self.contracts_config.l2_timestamp_asserter_addr {
             Some(address) => {
@@ -363,7 +362,9 @@ impl MainNodeBuilder {
             .unwrap_or_default();
 
         // On main node we always use master pool sink.
-        self.node.add_layer(MasterPoolSinkLayer { tx_sink_config });
+        self.node.add_layer(MasterPoolSinkLayer {
+            tx_sink_config: self.configs.tx_sink_config.clone().unwrap_or_default(),
+        });
 
         let layer = TxSenderLayer::new(
             TxSenderConfig::new(

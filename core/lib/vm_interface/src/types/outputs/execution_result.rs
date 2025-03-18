@@ -96,15 +96,17 @@ impl VmEvent {
             .map(|event| event.indexed_topics[1])
     }
 
-    /// Returns `true` if any of the given events is a `ContractDeployed` event.
-    pub fn contains_contract_deployment(events: &[Self]) -> bool {
-        events.iter().any(|event| {
-            // We expect that the first indexed topic is the event signature.
-            event
-                .indexed_topics
-                .get(0)
-                .map_or(false, |&topic| topic == VmEvent::DEPLOY_EVENT_SIGNATURE)
-        })
+    /// Returns the number of `ContractDeployed` events in the given list of events.
+    pub fn count_contract_deployments(events: &[Self]) -> usize {
+        events
+            .iter()
+            .filter(|event| {
+                event
+                    .indexed_topics
+                    .get(0)
+                    .map_or(false, |&topic| topic == VmEvent::DEPLOY_EVENT_SIGNATURE)
+            })
+            .count()
     }
 }
 
@@ -202,8 +204,7 @@ impl VmExecutionResultAndLogs {
             .sum();
 
         // Count how many contracts were deployed
-        let contract_deployment_count =
-            VmEvent::extract_bytecodes_marked_as_known(&self.logs.events).count();
+        let contract_deployment_count = VmEvent::count_contract_deployments(&self.logs.events);
 
         VmExecutionMetrics {
             gas_used: self.statistics.gas_used as usize,
