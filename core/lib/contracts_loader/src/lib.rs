@@ -18,6 +18,33 @@ pub async fn load_settlement_layer_contracts(
     l2_chain_id: L2ChainId,
     multicall3: Option<Address>,
 ) -> anyhow::Result<Option<SettlementLayerSpecificContracts>> {
+    let result = load_settlement_layer_contracts_pure_error(
+        sl_client,
+        bridgehub_address,
+        l2_chain_id,
+        multicall3,
+    )
+    .await;
+    match result {
+        Err(ContractCallError::EthereumGateway(err)) => {
+            if err.to_string().contains("execution reverted") {
+                // Pre Gateway upgrade contracts, it's safe to return None, it will be handled later
+                Ok(None)
+            } else {
+                Err(err)?
+            }
+        }
+        Err(err) => Err(err)?,
+        Ok(contracts) => Ok(contracts),
+    }
+}
+
+async fn load_settlement_layer_contracts_pure_error(
+    sl_client: &dyn EthInterface,
+    bridgehub_address: Address,
+    l2_chain_id: L2ChainId,
+    multicall3: Option<Address>,
+) -> Result<Option<SettlementLayerSpecificContracts>, ContractCallError> {
     let diamond_proxy: Address =
         CallFunctionArgs::new("getZKChain", Token::Uint(l2_chain_id.as_u64().into()))
             .for_contract(bridgehub_address, &bridgehub_contract())
@@ -76,9 +103,13 @@ pub async fn get_settlement_layer_from_l1(
 ) -> anyhow::Result<(SettlementMode, SLChainId)> {
     let (settlement_mode, address) =
         match get_settlement_layer_address(eth_client, diamond_proxy_addr, abi).await {
-            Err(ContractCallError::Function(_)) => {
-                // Pre Gateway upgrade contracts, it's safe to say we are settling the data on L1
-                (SettlementMode::SettlesToL1, None)
+            Err(ContractCallError::EthereumGateway(err)) => {
+                if err.to_string().contains("execution reverted: revert: F") {
+                    // Pre Gateway upgrade contracts, it's safe to say we are settling the data on L1
+                    (SettlementMode::SettlesToL1, None)
+                } else {
+                    Err(err)?
+                }
             }
             Err(err) => Err(err)?,
             Ok(address) => {

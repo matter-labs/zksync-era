@@ -126,7 +126,12 @@ pub async fn switch_to_current_settlement_mode(
         // When we settle to the current chain, settlement mode should zero
         settlement_layer_address.is_zero()
     } else {
-        false
+        match settlement_mode_from_l1 {
+            // if we want to settle to l1, but no contracts deployed, that means it's pre gateway upgrade and we need to settle to l1
+            SettlementMode::SettlesToL1 => true,
+            // if we want to settle to gateway, but no contracts deployed, that means the migration has not been completed yet. We need to continue settle to L1
+            SettlementMode::Gateway => false,
+        }
     };
     Ok(res)
 }

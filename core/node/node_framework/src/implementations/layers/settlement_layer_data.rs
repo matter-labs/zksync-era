@@ -92,26 +92,18 @@ impl WiringLayer for SettlementLayerData {
             self.l2_chain_id,
             self.multicall3,
         )
-        .await
+        .await?
         // before v26 upgrade not all function for getting addresses are available,
         // so we need a fallback and we can load the contracts from configs,
         // it's safe only for l1 contracts
-        .unwrap_or(self.l1_sl_specific_contracts)
-        .expect("No contracts found on l1 or in configs");
+        .unwrap_or(self.l1_sl_specific_contracts.unwrap());
+
         let (initial_sl_mode, sl_chain_id) = get_settlement_layer_from_l1(
             &input.eth_client.0,
             sl_l1_contracts.chain_contracts_config.diamond_proxy_addr,
             &getters_facet_contract(),
         )
         .await?;
-
-        let eth_chain_id = input
-            .eth_client
-            .0
-            .as_ref()
-            .fetch_chain_id()
-            .await
-            .context("Failed to fetch chain id")?;
 
         let pool = input.pool.get().await?;
 
@@ -153,14 +145,10 @@ impl WiringLayer for SettlementLayerData {
             }
         };
 
-        let (sl_chain_id, sl_chain_contracts, settlement_mode) = match final_settlement_mode {
-            SettlementMode::SettlesToL1 => (eth_chain_id, sl_l1_contracts.clone(), initial_sl_mode),
+        let (sl_chain_contracts, settlement_mode) = match final_settlement_mode {
+            SettlementMode::SettlesToL1 => (sl_l1_contracts.clone(), initial_sl_mode),
             SettlementMode::Gateway => {
                 let client = l2_eth_client.clone().unwrap().0;
-                let chain_id = client
-                    .fetch_chain_id()
-                    .await
-                    .context("Failed to fetch chain id")?;
                 let l2_multicall3 = client
                     .get_l2_multicall3()
                     .await
@@ -172,9 +160,10 @@ impl WiringLayer for SettlementLayerData {
                     l2_multicall3,
                 )
                 .await?
-                // This unwrap is safe we have already verified it
+                // This unwrap is safe we have already verified it. Or it is supposed to be gateway,
+                // but no gateway has been deployed
                 .unwrap();
-                (chain_id, sl_contracts, initial_sl_mode)
+                (sl_contracts, initial_sl_mode)
             }
         };
 

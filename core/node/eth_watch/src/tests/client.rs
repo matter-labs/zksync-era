@@ -216,7 +216,7 @@ impl EthClient for MockEthClient {
         Ok(logs
             .into_iter()
             .filter(|log| {
-                log.topics.first() == Some(&topic1)
+                log.topics.first() == topic1.as_ref()
                     && (topic2.is_none() || log.topics.get(1) == topic2.as_ref())
             })
             .collect())
@@ -262,10 +262,12 @@ impl EthClient for MockEthClient {
             .get_events(
                 U64::from(from_block).into(),
                 U64::from(to_block).into(),
-                state_transition_manager_contract()
-                    .event("NewUpgradeCutData")
-                    .unwrap()
-                    .signature(),
+                Some(
+                    state_transition_manager_contract()
+                        .event("NewUpgradeCutData")
+                        .unwrap()
+                        .signature(),
+                ),
                 Some(packed_version),
                 RETRY_LIMIT,
             )
