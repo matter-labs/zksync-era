@@ -8,12 +8,12 @@ pub use zksync_crypto_primitives::hasher::blake2::Blake2Hasher;
 
 pub use self::{
     errors::DeserializeError,
-    hasher::HashTree,
+    hasher::{BatchTreeProof, HashTree},
+    reader::MerkleTreeReader,
     storage::{Database, MerkleTreeColumnFamily, PatchSet, Patched, RocksDBWrapper},
     types::{BatchOutput, TreeEntry},
 };
 use crate::{
-    hasher::BatchTreeProof,
     metrics::{BatchProofStage, LoadStage, MerkleTreeInfo, METRICS},
     storage::{TreeUpdate, WorkingPatchSet},
     types::MAX_TREE_DEPTH,
@@ -23,6 +23,7 @@ mod consistency;
 mod errors;
 mod hasher;
 mod metrics;
+mod reader;
 mod storage;
 #[cfg(test)]
 mod tests;
@@ -33,7 +34,7 @@ mod types;
 /// these types will remain stable.
 #[doc(hidden)]
 pub mod unstable {
-    pub use crate::types::{KeyLookup, Manifest, Node, NodeKey, Root};
+    pub use crate::types::{KeyLookup, Manifest, Node, NodeKey, RawNode, Root};
 }
 
 /// Marker trait for tree parameters.
@@ -125,6 +126,11 @@ impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
         Ok(Self { db, hasher })
     }
 
+    /// Returns a reference to the database.
+    pub fn db(&self) -> &DB {
+        &self.db
+    }
+
     /// Returns the root hash of a tree at the specified `version`, or `None` if the version
     /// was not written yet.
     pub fn root_hash(&self, version: u64) -> anyhow::Result<Option<H256>> {
@@ -132,6 +138,15 @@ impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
             return Ok(None);
         };
         Ok(Some(root.hash::<P>(&self.hasher)))
+    }
+
+    /// Returns the root hash and leaf count at the specified version.
+    pub fn root_info(&self, version: u64) -> anyhow::Result<Option<(H256, u64)>> {
+        let Some(root) = self.db.try_root(version)? else {
+            return Ok(None);
+        };
+        let root_hash = root.hash::<P>(&self.hasher);
+        Ok(Some((root_hash, root.leaf_count)))
     }
 
     /// Returns the latest version of the tree present in the database, or `None` if
@@ -289,5 +304,12 @@ impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
             self.db.truncate(manifest, ..current_version_count)?;
         }
         Ok(())
+    }
+}
+
+impl<DB: Database, P: TreeParams> MerkleTree<Patched<DB>, P> {
+    /// Flushes changes to the underlying storage.
+    pub fn flush(&mut self) -> anyhow::Result<()> {
+        self.db.flush()
     }
 }

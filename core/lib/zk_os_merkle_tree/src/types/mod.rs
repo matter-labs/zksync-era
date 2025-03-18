@@ -107,6 +107,17 @@ impl From<Leaf> for Node {
     }
 }
 
+/// Raw node fetched from a database.
+#[derive(Debug)]
+pub struct RawNode {
+    /// Bytes for a serialized node.
+    pub raw: Vec<u8>,
+    /// Leaf if a node can be deserialized into it.
+    pub leaf: Option<Leaf>,
+    /// Internal node if a node can be deserialized into it.
+    pub internal: Option<InternalNode>,
+}
+
 /// Result of a key lookup in the tree.
 ///
 /// Either a leaf with this key is already present in the tree, or there are neighbor leaves, which need to be updated during insertion

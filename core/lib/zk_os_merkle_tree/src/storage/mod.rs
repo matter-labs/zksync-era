@@ -303,6 +303,11 @@ impl<DB: Database> Patched<DB> {
         self.patch = None;
     }
 
+    /// Returns a reference to the underlying database. It is unsound to modify the database using this reference.
+    pub fn inner(&self) -> &DB {
+        &self.inner
+    }
+
     /// Returns the wrapped database.
     ///
     /// # Panics
