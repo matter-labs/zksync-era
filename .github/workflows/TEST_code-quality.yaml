@@ -54,6 +54,14 @@ jobs:
       - name: Lint
         run: zkstack dev lint --check
 
+      # Download prebuilt contracts version if exists, otherwise build them
+      - name: Setup contracts
+        uses: matter-labs/zksync-ci-common/.github/actions/build-contracts@aba-ci-optimize
+
+      - name: Check contracts hashes
+        working-directory: contracts
+        run: yarn install && yarn calculate-hashes:check
+
       - name: Check database
         env:
           PROVER_URL: 'postgres://postgres:notsecurepassword@localhost:5432/zksync_local_prover'

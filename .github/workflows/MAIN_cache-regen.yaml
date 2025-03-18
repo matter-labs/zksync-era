@@ -35,7 +35,7 @@ on:
   # Run clean up and full regen once a month
   schedule:
     - cron: '0 0 1 * *'
-#  pull_request: # TODO: remove after testing
+  pull_request: # TODO: remove after testing
 
 
 # Do not cancel runs, put new merges in queue
@@ -63,6 +63,7 @@ jobs:
         build-type:
           - release
           - dev
+          - bench
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -72,7 +73,7 @@ jobs:
       # Clean old caches if requested or on schedule
       # to not overload the limited cache storage
       - name: Clean up cache
-        if: ${{ inputs.clean || github.event_name == 'schedule' }}
+#        if: ${{ inputs.clean || github.event_name == 'schedule' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CACHE_KEY: 'v0-rust-${{ matrix.workspace }}-${{ matrix.build-type }}'
@@ -100,8 +101,4 @@ jobs:
         if: ${{ steps.setup.outputs.cache-hit == 'false' }}
         working-directory: ${{ matrix.workspace }}
         run: |
-          if [[ ${{ matrix.build-type }} == 'release' ]]; then
-            cargo build --release
-          elif [[ ${{ matrix.build-type }} == 'dev' ]]; then
-            cargo nextest run --no-run --all-targets
-          fi
+          cargo build --all-targets --profile ${{ matrix.build-type }}

@@ -29,6 +29,7 @@ on:
         type: string
         description: SHA commit for build
         required: false
+#  pull_request: # TODO: remove after testing
 
 # Do not cancel runs, put new merges in queue
 concurrency:
@@ -58,7 +59,7 @@ jobs:
 
       - name: Check contracts changes
         id: changed-files
-        uses: tj-actions/changed-files@v45
+        uses: tj-actions/changed-files@2f7c5bfce28377bc069a65ba478de0a74aa0ca32 # v46.0.1
         with:
           files: |
             contracts

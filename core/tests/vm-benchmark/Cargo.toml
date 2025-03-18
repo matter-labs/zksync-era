@@ -31,8 +31,6 @@ harness = false
 name = "batch"
 harness = false
 
-# Temporary disable instructions benchmark
-# as it is not supported by nextext
-#[[bench]]
-#name = "instructions"
-#harness = false
+[[bench]]
+name = "instructions"
+harness = false
