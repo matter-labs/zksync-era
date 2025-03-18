@@ -20,6 +20,15 @@ pub enum BlockCertificate {
     V2(validator::v2::CommitQC),
 }
 
+impl BlockCertificate {
+    pub fn number(&self) -> validator::BlockNumber {
+        match self {
+            Self::V1(qc) => qc.message.proposal.number,
+            Self::V2(qc) => qc.message.proposal.number,
+        }
+    }
+}
+
 /// Block metadata.
 #[derive(Debug, PartialEq, Clone)]
 pub struct BlockMetadata {

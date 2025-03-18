@@ -6,6 +6,7 @@ use zksync_concurrency::{ctx, error::Wrap as _, scope, sync, time};
 use zksync_consensus_bft::PayloadManager;
 use zksync_consensus_roles::validator;
 use zksync_consensus_storage::{self as storage};
+use zksync_dal::consensus::BlockCertificate;
 use zksync_dal::consensus_dal::{self, Payload};
 use zksync_node_sync::fetcher::{FetchedBlock, FetchedTransaction};
 use zksync_types::L2BlockNumber;
@@ -60,7 +61,7 @@ pub(crate) struct Store {
     /// Action queue to fetch/store L2 block payloads
     block_payloads: Arc<sync::Mutex<Option<PayloadQueue>>>,
     /// L2 block QCs received from consensus
-    block_certificates: ctx::channel::UnboundedSender<validator::CommitQC>,
+    block_certificates: ctx::channel::UnboundedSender<BlockCertificate>,
     /// Range of L2 blocks for which we have a QC persisted.
     blocks_persisted: sync::watch::Receiver<storage::BlockStoreState>,
     /// Main node client. None if this node is the main node.
@@ -73,7 +74,7 @@ struct PersistedBlockState(sync::watch::Sender<storage::BlockStoreState>);
 pub struct StoreRunner {
     pool: ConnectionPool,
     blocks_persisted: PersistedBlockState,
-    block_certificates: ctx::channel::UnboundedReceiver<validator::CommitQC>,
+    block_certificates: ctx::channel::UnboundedReceiver<BlockCertificate>,
 }
 
 impl Store {
@@ -159,18 +160,21 @@ impl PersistedBlockState {
     /// Checks if the given certificate should be eventually persisted.
     /// Only certificates block store state is a range of blocks for which we already have
     /// certificates and we need certs only for the later ones.
-    fn should_be_persisted(&self, cert: &validator::CommitQC) -> bool {
-        self.0.borrow().next() <= cert.header().number
+    fn should_be_persisted(&self, cert: &BlockCertificate) -> bool {
+        self.0.borrow().next() <= cert.number()
     }
 
     /// Appends the `cert` to `persisted` range.
-    #[tracing::instrument(skip_all, fields(batch_number = %cert.message.proposal.number))]
-    fn advance(&self, cert: validator::CommitQC) {
+    #[tracing::instrument(skip_all, fields(batch_number = %cert.number()))]
+    fn advance(&self, cert: BlockCertificate) {
         self.0.send_if_modified(|p| {
-            if p.next() != cert.header().number {
+            if p.next() != cert.number() {
                 return false;
             }
-            p.last = Some(storage::Last::Final(cert));
+            p.last = Some(match cert {
+                BlockCertificate::V1(qc) => storage::Last::FinalV1(qc),
+                BlockCertificate::V2(qc) => storage::Last::FinalV2(qc),
+            });
             true
         });
     }
@@ -216,7 +220,7 @@ impl StoreRunner {
             async fn insert_block_certificates_iteration(
                 ctx: &ctx::Ctx,
                 pool: &ConnectionPool,
-                block_certificates: &mut ctx::channel::UnboundedReceiver<validator::CommitQC>,
+                block_certificates: &mut ctx::channel::UnboundedReceiver<BlockCertificate>,
                 blocks_persisted: &PersistedBlockState,
             ) -> ctx::Result<()> {
                 const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(50);
@@ -355,7 +359,14 @@ impl storage::PersistentBlockStore for Store {
     async fn queue_next_block(&self, ctx: &ctx::Ctx, block: validator::Block) -> ctx::Result<()> {
         let mut payloads = sync::lock(ctx, &self.block_payloads).await?.into_async();
         let (p, j) = match &block {
-            validator::Block::Final(block) => (&block.payload, Some(&block.justification)),
+            validator::Block::FinalV1(block) => (
+                &block.payload,
+                Some(BlockCertificate::V1(block.justification.clone())),
+            ),
+            validator::Block::FinalV2(block) => (
+                &block.payload,
+                Some(BlockCertificate::V2(block.justification.clone())),
+            ),
             validator::Block::PreGenesis(block) => (&block.payload, None),
         };
         if let Some(payloads) = &mut *payloads {
@@ -364,8 +375,8 @@ impl storage::PersistentBlockStore for Store {
                 .await
                 .context("payloads.send()")?;
         }
-        if let Some(justification) = j {
-            self.block_certificates.send(justification.clone());
+        if let Some(certificate) = j {
+            self.block_certificates.send(certificate);
         }
         Ok(())
     }

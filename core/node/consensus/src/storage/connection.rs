@@ -3,7 +3,8 @@ use zksync_concurrency::{ctx, error::Wrap as _, time};
 use zksync_consensus_roles::{attester, attester::BatchNumber, validator};
 use zksync_consensus_storage as storage;
 use zksync_dal::{
-    consensus_dal::{AttestationStatus, BlockCertificate, BlockMetadata, GlobalConfig, Payload},
+    consensus::BlockCertificate,
+    consensus_dal::{AttestationStatus, BlockMetadata, GlobalConfig, Payload},
     Core, CoreDal, DalError,
 };
 use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
@@ -308,13 +309,13 @@ impl<'a> Connection<'a> {
             // Create the appropriate block variant based on the certificate type
             match justification {
                 BlockCertificate::V1(commit_qc) => {
-                    return Ok(Some(validator::Block::V1(validator::v1::FinalBlock {
+                    return Ok(Some(validator::Block::FinalV1(validator::v1::FinalBlock {
                         payload: payload.encode(),
                         justification: commit_qc,
                     })));
                 }
                 BlockCertificate::V2(commit_qc) => {
-                    return Ok(Some(validator::Block::V2(validator::v2::FinalBlock {
+                    return Ok(Some(validator::Block::FinalV2(validator::v2::FinalBlock {
                         payload: payload.encode(),
                         justification: commit_qc,
                     })));
