@@ -1,0 +1,25 @@
+[package]
+name = "zk_os_tree_manager"
+description = "ZK OS tree manager node component"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+zksync_types.workspace = true
+zksync_dal.workspace = true
+zksync_health_check.workspace = true
+zksync_storage.workspace = true
+zk_os_merkle_tree.workspace = true
+
+anyhow.workspace = true
+futures.workspace = true
+once_cell.workspace = true
+serde.workspace = true
+tokio = { workspace = true, features = ["time"] }
+tracing.workspace = true
