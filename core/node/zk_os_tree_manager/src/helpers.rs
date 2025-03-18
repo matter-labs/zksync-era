@@ -4,7 +4,7 @@ use zk_os_merkle_tree::{
     unstable, BatchTreeProof, MerkleTree, MerkleTreeColumnFamily, MerkleTreeReader, Patched,
     RocksDBWrapper,
 };
-use zksync_storage::{RocksDB, RocksDBOptions, WeakRocksDB};
+use zksync_storage::{RocksDB, RocksDBOptions, StalledWritesRetries, WeakRocksDB};
 use zksync_types::{block::L1BatchTreeData, L1BatchNumber, H256};
 
 use crate::{health::MerkleTreeInfo, TreeManagerConfig};
@@ -258,8 +258,11 @@ fn create_db_sync(config: &TreeManagerConfig) -> anyhow::Result<RocksDBWrapper> 
         RocksDBOptions {
             block_cache_capacity: Some(block_cache_capacity),
             include_indices_and_filters_in_block_cache,
+            large_memtable_capacity: Some(TreeManagerConfig::MEMTABLE_CAPACITY),
+            stalled_writes_retries: StalledWritesRetries::new(
+                TreeManagerConfig::STALLED_WRITES_TIMEOUT,
+            ),
             max_open_files,
-            ..RocksDBOptions::default()
         },
     )?;
     if cfg!(test) {

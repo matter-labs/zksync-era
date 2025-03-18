@@ -15,6 +15,7 @@ zksync_types.workspace = true
 zksync_dal.workspace = true
 zksync_health_check.workspace = true
 zksync_storage.workspace = true
+zksync_shared_metrics.workspace = true
 zk_os_merkle_tree.workspace = true
 
 anyhow.workspace = true

@@ -11303,6 +11303,7 @@ dependencies = [
  "zk_os_merkle_tree",
  "zksync_dal",
  "zksync_health_check",
+ "zksync_shared_metrics",
  "zksync_storage",
  "zksync_types",
 ]

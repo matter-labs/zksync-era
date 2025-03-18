@@ -8,6 +8,7 @@ use anyhow::Context;
 use tokio::sync::watch;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_health_check::{CheckHealth, HealthUpdater, ReactiveHealthCheck};
+use zksync_shared_metrics::tree::{ConfigLabels, ModeLabel, METRICS};
 
 pub use self::helpers::LazyAsyncTreeReader;
 use crate::{
@@ -44,6 +45,23 @@ pub struct TreeManagerConfig {
     pub include_indices_and_filters_in_block_cache: bool,
 }
 
+impl TreeManagerConfig {
+    const MEMTABLE_CAPACITY: usize = 256 << 20;
+    const STALLED_WRITES_TIMEOUT: Duration = Duration::from_secs(30);
+
+    fn as_labels(&self) -> ConfigLabels {
+        ConfigLabels {
+            mode: ModeLabel::Lightweight,
+            delay_interval: self.delay_interval.into(),
+            max_l1_batches_per_iter: self.max_l1_batches_per_iter.get(),
+            multi_get_chunk_size: self.multi_get_chunk_size,
+            block_cache_capacity: self.block_cache_capacity,
+            memtable_capacity: Self::MEMTABLE_CAPACITY,
+            stalled_writes_timeout: Self::STALLED_WRITES_TIMEOUT.into(),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct TreeManager {
     config: TreeManagerConfig,
@@ -54,6 +72,14 @@ pub struct TreeManager {
 
 impl TreeManager {
     pub fn new(config: TreeManagerConfig, pool: ConnectionPool<Core>) -> Self {
+        if let Err(err) = METRICS.info.set(config.as_labels()) {
+            tracing::warn!(
+                "Cannot set config {:?}; it's already set to {:?}",
+                err.into_inner(),
+                METRICS.info.get()
+            );
+        }
+
         let (_, health_updater) = ReactiveHealthCheck::new("tree");
         Self {
             config,
