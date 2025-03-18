@@ -9,36 +9,44 @@ use crate::{
 };
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct GatewayEcosystemUpgradeInput {
+pub struct V27EcosystemUpgradeInput {
     pub era_chain_id: L2ChainId,
     pub owner_address: Address,
     pub testnet_verifier: bool,
-    pub contracts: GatewayUpgradeContractsConfig,
-    pub tokens: GatewayUpgradeTokensConfig,
+    pub support_l2_legacy_shared_bridge_test: bool,
+    pub old_protocol_version: u64,
+
+    pub contracts: V27UpgradeContractsConfig,
+    pub tokens: V27UpgradeTokensConfig,
     pub governance_upgrade_timer_initial_delay: u64,
 }
 
-impl ZkStackConfig for GatewayEcosystemUpgradeInput {}
+impl ZkStackConfig for V27EcosystemUpgradeInput {}
 
-impl GatewayEcosystemUpgradeInput {
+const PREVIOUS_PROTOCOL_VERSION: u64 = 26 << 32;
+const LATEST_PROTOCOL_VERSION: u64 = 27 << 32;
+
+impl V27EcosystemUpgradeInput {
     pub fn new(
         new_genesis_input: &GenesisInput,
         current_contracts_config: &ContractsConfig,
         // It is expected to not change between the versions
         initial_deployment_config: &InitialDeploymentConfig,
         era_chain_id: L2ChainId,
-        era_diamond_proxy: Address,
         testnet_verifier: bool,
     ) -> Self {
         Self {
             era_chain_id,
             testnet_verifier,
             owner_address: current_contracts_config.l1.governance_addr,
+            // FIXME
+            support_l2_legacy_shared_bridge_test: false,
+            old_protocol_version: PREVIOUS_PROTOCOL_VERSION,
             // TODO: for local testing, even 0 is fine - but before prod, we should load it from some configuration.
             governance_upgrade_timer_initial_delay: 0,
-            contracts: GatewayUpgradeContractsConfig {
-                create2_factory_addr: initial_deployment_config.create2_factory_addr,
-                create2_factory_salt: initial_deployment_config.create2_factory_salt,
+            contracts: V27UpgradeContractsConfig {
+                create2_factory_addr: current_contracts_config.create2_factory_addr,
+                create2_factory_salt: current_contracts_config.create2_factory_salt,
                 governance_min_delay: initial_deployment_config.governance_min_delay,
                 max_number_of_chains: initial_deployment_config.max_number_of_chains,
                 diamond_init_batch_overhead_l1_gas: initial_deployment_config
@@ -72,20 +80,23 @@ impl GatewayEcosystemUpgradeInput {
                 bridgehub_proxy_address: current_contracts_config
                     .ecosystem_contracts
                     .bridgehub_proxy_addr,
-                old_shared_bridge_proxy_address: current_contracts_config.bridges.shared.l1_address,
-                state_transition_manager_address: current_contracts_config
-                    .ecosystem_contracts
-                    .state_transition_proxy_addr,
                 transparent_proxy_admin: current_contracts_config
                     .ecosystem_contracts
                     .transparent_proxy_admin_addr,
-                era_diamond_proxy,
-                legacy_erc20_bridge_address: current_contracts_config.bridges.erc20.l1_address,
-                old_validator_timelock: current_contracts_config
+                l1_bytecodes_supplier_addr: current_contracts_config
                     .ecosystem_contracts
-                    .validator_timelock_addr,
+                    .l1_bytecodes_supplier_addr
+                    .unwrap(),
+                // For local setup - the governance addr is the 'upgrade handler / owner'
+                protocol_upgrade_handler_proxy_address: current_contracts_config.l1.governance_addr,
+                // FIXME
+                governance_security_council_address: Address::zero(),
+
+                protocol_upgrade_handler_impl_address: Address::zero(),
+
+                latest_protocol_version: LATEST_PROTOCOL_VERSION,
             },
-            tokens: GatewayUpgradeTokensConfig {
+            tokens: V27UpgradeTokensConfig {
                 token_weth_address: initial_deployment_config.token_weth_address,
             },
         }
@@ -93,12 +104,11 @@ impl GatewayEcosystemUpgradeInput {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct GatewayUpgradeContractsConfig {
+pub struct V27UpgradeContractsConfig {
     pub governance_min_delay: u64,
     pub max_number_of_chains: u64,
     pub create2_factory_salt: H256,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub create2_factory_addr: Option<Address>,
+    pub create2_factory_addr: Address,
     pub validator_timelock_execution_delay: u64,
     pub genesis_root: H256,
     pub genesis_rollup_leaf_index: u64,
@@ -118,15 +128,17 @@ pub struct GatewayUpgradeContractsConfig {
     pub evm_emulator_hash: H256,
 
     pub bridgehub_proxy_address: Address,
-    pub old_shared_bridge_proxy_address: Address,
-    pub state_transition_manager_address: Address,
     pub transparent_proxy_admin: Address,
-    pub era_diamond_proxy: Address,
-    pub legacy_erc20_bridge_address: Address,
-    pub old_validator_timelock: Address,
+
+    pub governance_security_council_address: Address,
+    pub latest_protocol_version: u64,
+    pub l1_bytecodes_supplier_addr: Address,
+
+    pub protocol_upgrade_handler_proxy_address: Address,
+    pub protocol_upgrade_handler_impl_address: Address,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct GatewayUpgradeTokensConfig {
+pub struct V27UpgradeTokensConfig {
     pub token_weth_address: Address,
 }
