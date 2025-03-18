@@ -1,0 +1,529 @@
+#!/usr/bin/env bash
+set -eo pipefail
+
+# NOTE: if you make modifications to this script, please increment the version number.
+# Major / minor: incremented for each stable release of Foundry.
+# Patch: incremented for each change between stable releases.
+FOUNDRYUP_INSTALLER_VERSION="1.0.1"
+
+BASE_DIR=${XDG_CONFIG_HOME:-$HOME}
+FOUNDRY_DIR=${FOUNDRY_DIR:-"$BASE_DIR/.foundry"}
+FOUNDRY_VERSIONS_DIR="$FOUNDRY_DIR/versions"
+FOUNDRY_BIN_DIR="$FOUNDRY_DIR/bin"
+FOUNDRY_MAN_DIR="$FOUNDRY_DIR/share/man/man1"
+FOUNDRY_BIN_URL="https://raw.githubusercontent.com/foundry-rs/foundry/master/foundryup/foundryup"
+FOUNDRY_BIN_PATH="$FOUNDRY_BIN_DIR/foundryup"
+
+FOUNDRYUP_JOBS=""
+
+BINS=(forge cast)
+
+export RUSTFLAGS="${RUSTFLAGS:--C target-cpu=native}"
+
+main() {
+  need_cmd git
+  need_cmd curl
+
+  while [[ -n $1 ]]; do
+    case $1 in
+      --)               shift; break;;
+
+      -v|--version)     shift; version;;
+      -U|--update)      shift; update;;
+      -r|--repo)        shift; FOUNDRYUP_REPO=$1;;
+      -b|--branch)      shift; FOUNDRYUP_BRANCH=$1;;
+      -i|--install)     shift; FOUNDRYUP_VERSION=$1;;
+      -l|--list)        shift; list;;
+      -u|--use)         shift; FOUNDRYUP_VERSION=$1; use;;
+      -p|--path)        shift; FOUNDRYUP_LOCAL_REPO=$1;;
+      -P|--pr)          shift; FOUNDRYUP_PR=$1;;
+      -C|--commit)      shift; FOUNDRYUP_COMMIT=$1;;
+      -j|--jobs)        shift; FOUNDRYUP_JOBS=$1;;
+      --arch)           shift; FOUNDRYUP_ARCH=$1;;
+      --platform)       shift; FOUNDRYUP_PLATFORM=$1;;
+      -h|--help)
+        usage
+        exit 0
+        ;;
+      *)
+        warn "unknown option: $1"
+        usage
+        exit 1
+    esac; shift
+  done
+
+  CARGO_BUILD_ARGS=(--release)
+
+  if [ -n "$FOUNDRYUP_JOBS" ]; then
+    CARGO_BUILD_ARGS+=(--jobs "$FOUNDRYUP_JOBS")
+  fi
+
+  # Print the banner after successfully parsing args
+  banner
+
+  if [ -n "$FOUNDRYUP_PR" ]; then
+    if [ -z "$FOUNDRYUP_BRANCH" ]; then
+      FOUNDRYUP_BRANCH="refs/pull/$FOUNDRYUP_PR/head"
+    else
+      err "can't use --pr and --branch at the same time"
+    fi
+  fi
+
+  check_bins_in_use
+
+  # Installs foundry from a local repository if --path parameter is provided
+  if [[ -n "$FOUNDRYUP_LOCAL_REPO" ]]; then
+    need_cmd cargo
+
+    # Ignore branches/versions as we do not want to modify local git state
+    if [ -n "$FOUNDRYUP_REPO" ] || [ -n "$FOUNDRYUP_BRANCH" ] || [ -n "$FOUNDRYUP_VERSION" ]; then
+      warn "--branch, --install, --use, and --repo arguments are ignored during local install"
+    fi
+
+    # Enter local repo and build
+    say "installing from $FOUNDRYUP_LOCAL_REPO"
+    cd "$FOUNDRYUP_LOCAL_REPO"
+    ensure cargo build --bins "${CARGO_BUILD_ARGS[@]}"
+
+    for bin in "${BINS[@]}"; do
+      # Remove prior installations if they exist
+      rm -f "$FOUNDRY_BIN_DIR/$bin"
+      # Symlink from local repo binaries to bin dir
+      ensure ln -s "$PWD/target/release/$bin" "$FOUNDRY_BIN_DIR/$bin"
+    done
+
+    say "done"
+    exit 0
+  fi
+
+  FOUNDRYUP_REPO=${FOUNDRYUP_REPO:-matter-labs/foundry-zksync}
+
+  # Install by downloading binaries
+  if [[ "$FOUNDRYUP_REPO" == "matter-labs/foundry-zksync" && -z "$FOUNDRYUP_BRANCH" && -z "$FOUNDRYUP_COMMIT" ]]; then
+    # If --version not specified, fetch the latest release tag from GitHub
+   if [ -z "$FOUNDRYUP_VERSION" ]; then
+    # No --version passed -> Use the "latest" semantic-release tag
+    LATEST_TAG=$(curl -s https://api.github.com/repos/${FOUNDRYUP_REPO}/releases/latest | \
+                 sed -n 's/.*"tag_name": "\([^"]*\)".*/\1/p')
+    if [ -z "$LATEST_TAG" ]; then
+      err "could not fetch the latest release tag for $FOUNDRYUP_REPO!"
+    fi
+    FOUNDRYUP_TAG="$LATEST_TAG"
+
+  else
+    # --version was specified; check if it's nightly or a numeric version, etc.
+    if [[ "$FOUNDRYUP_VERSION" == "nightly" ]]; then
+      say "Installing the nightly build"
+      FOUNDRYUP_TAG="nightly"
+    elif [[ "$FOUNDRYUP_VERSION" =~ ^foundry-zksync-v ]]; then
+      # user passed full "foundry-zksync-v0.0.4"
+      FOUNDRYUP_TAG="$FOUNDRYUP_VERSION"
+    elif [[ "$FOUNDRYUP_VERSION" =~ ^v ]]; then
+      # user passed "v0.0.4"
+      FOUNDRYUP_TAG="foundry-zksync-$FOUNDRYUP_VERSION"
+    else
+      # user passed "0.0.4"
+      FOUNDRYUP_TAG="foundry-zksync-v$FOUNDRYUP_VERSION"
+    fi
+
+    say "installing foundry-zksync ($FOUNDRYUP_TAG)"
+  fi
+
+    uname_s=$(uname -s)
+    PLATFORM=$(tolower "${FOUNDRYUP_PLATFORM:-$uname_s}")
+    EXT="tar.gz"
+    case $PLATFORM in
+      linux) ;;
+      darwin|mac*)
+        PLATFORM="darwin"
+        ;;
+      mingw*|win*)
+        EXT="zip"
+        PLATFORM="win32"
+        ;;
+      *)
+        err "unsupported platform: $PLATFORM"
+        ;;
+    esac
+
+    uname_m=$(uname -m)
+    ARCHITECTURE=$(tolower "${FOUNDRYUP_ARCH:-$uname_m}")
+    if [ "${ARCHITECTURE}" = "x86_64" ]; then
+      # Redirect stderr to /dev/null to avoid printing errors if non Rosetta.
+      if [ "$(sysctl -n sysctl.proc_translated 2>/dev/null)" = "1" ]; then
+        ARCHITECTURE="arm64" # Rosetta.
+      else
+        ARCHITECTURE="amd64" # Intel.
+      fi
+    elif [ "${ARCHITECTURE}" = "arm64" ] ||[ "${ARCHITECTURE}" = "aarch64" ] ; then
+      ARCHITECTURE="arm64" # Arm.
+    else
+      ARCHITECTURE="amd64" # Amd.
+    fi
+
+    # Compute the URL of the release tarball in the Foundry repository.
+    ARCHIVE_TAG=$(echo "$FOUNDRYUP_TAG" | tr '-' '_')
+    RELEASE_URL="https://github.com/${FOUNDRYUP_REPO}/releases/download/${FOUNDRYUP_TAG}/"
+    BIN_ARCHIVE_URL="${RELEASE_URL}${ARCHIVE_TAG}_${PLATFORM}_${ARCHITECTURE}.$EXT"
+    MAN_TAG=$(echo "$FOUNDRYUP_TAG" | sed 's/^foundry-zksync-//')
+    MAN_TARBALL_URL="${RELEASE_URL}foundry_zksync_man_${MAN_TAG}.tar.gz"
+    
+    # Download and extract the binaries archive
+    say "downloading latest forge, and cast"
+    if [ "$PLATFORM" = "win32" ]; then
+      tmp="$(mktemp -d 2>/dev/null || echo ".")/foundry-zksync.zip"
+      ensure download "$BIN_ARCHIVE_URL" "$tmp"
+      ensure unzip "$tmp" -d "$FOUNDRY_VERSIONS_DIR/$FOUNDRYUP_TAG"
+      rm -f "$tmp"
+    else
+      ensure mkdir -p "$FOUNDRY_VERSIONS_DIR/$ARCHIVE_TAG"
+      ensure download "$BIN_ARCHIVE_URL" | ensure tar -xzC "$FOUNDRY_VERSIONS_DIR/$ARCHIVE_TAG"
+    fi
+
+    # Optionally download the manuals
+    if check_cmd tar; then
+      say "downloading manpages"
+      mkdir -p "$FOUNDRY_MAN_DIR"
+      download "$MAN_TARBALL_URL" | tar -xzC "$FOUNDRY_MAN_DIR"
+    else
+      say 'skipping manpage download: missing "tar"'
+    fi
+
+    for bin in "${BINS[@]}"; do
+      bin_path="$FOUNDRY_BIN_DIR/$bin"
+      cp $FOUNDRY_VERSIONS_DIR/$ARCHIVE_TAG/$bin $bin_path
+
+      # Print installed msg
+      say "installed - $(ensure "$bin_path" --version)"
+
+      # Check if the default path of the binary is not in FOUNDRY_BIN_DIR
+      which_path="$(command -v "$bin" || true)"
+      if [ -n "$which_path" ] && [ "$which_path" != "$bin_path" ]; then
+        warn ""
+        cat 1>&2 <<EOF
+There are multiple binaries with the name '$bin' present in your 'PATH'.
+This may be the result of installing '$bin' using another method,
+like Cargo or other package managers.
+You may need to run 'rm $which_path' or move '$FOUNDRY_BIN_DIR'
+in your 'PATH' to allow the newly installed version to take precedence!
+
+EOF
+      fi
+    done
+
+    # Begin anvil-zksync installation
+    say "downloading latest anvil-zksync"
+
+    uname_str="$(uname)"
+    case "$uname_str" in
+        "Linux")
+            os="unknown-linux-gnu"
+            # Note: If `lscpu` isn't guaranteed to be available, 
+            # you may want to fallback to `uname -m`
+            arch=$(lscpu | awk '/Architecture:/{print $2}')
+            ;;
+        "Darwin")
+            os="apple-darwin"
+            arch=$(arch)
+            if [[ "$arch" == "i386" ]]; then
+              # Rosetta reports as i386, but we treat it as x86_64
+              arch="x86_64"
+            fi
+            ;;
+        *)
+            err "anvil-zksync only supports Linux and MacOS! Detected OS: $uname_str"
+            ;;
+    esac
+
+    # Normalize architecture
+    case "$arch" in
+        "x86_64")
+            architecture="x86_64"
+            ;;
+        "arm64"|"aarch64")
+            architecture="aarch64"
+            ;;
+        *)
+            err "Unsupported architecture '$arch' detected!"
+            ;;
+    esac
+
+    TARGET="${architecture}-${os}"
+    
+    if [ "$PLATFORM" = "linux" ] || [ "$PLATFORM" = "darwin" ]; then
+      ANVIL_REPO="matter-labs/anvil-zksync"
+
+      ANVIL_TAG=$(curl -s https://api.github.com/repos/$ANVIL_REPO/releases/latest | sed -n 's/.*"tag_name": "\([^"]*\)".*/\1/p')
+
+      if [ -z "$ANVIL_TAG" ]; then
+        err "failed to get latest tag for anvil-zksync"
+      fi
+
+      ANVIL_BIN_NAME="anvil-zksync-${ANVIL_TAG}-${TARGET}.${EXT}"
+
+      ANVIL_BIN_URL="https://github.com/$ANVIL_REPO/releases/download/$ANVIL_TAG/$ANVIL_BIN_NAME"
+
+      ANVIL_BIN_PATH="$FOUNDRY_BIN_DIR/anvil-zksync"
+
+      ensure download "$ANVIL_BIN_URL" | ensure tar -xzC "$FOUNDRY_BIN_DIR"
+
+      chmod +x "$ANVIL_BIN_PATH"
+
+      say "installed - $(ensure "$ANVIL_BIN_PATH" --version)"
+    else
+      warn "anvil-zksync is not supported on your platform ($TARGET). Skipping anvil-zksync installation."
+    fi
+
+    say "done!"
+
+  # Install by cloning the repo with the provided branch/tag
+  else
+    need_cmd cargo
+    FOUNDRYUP_BRANCH=${FOUNDRYUP_BRANCH:-main}
+    REPO_PATH="$FOUNDRY_DIR/$FOUNDRYUP_REPO"
+    AUTHOR="$(echo "$FOUNDRYUP_REPO" | cut -d'/' -f1 -)"
+
+    # If repo path does not exist, grab the author from the repo, make a directory in .foundry, cd to it and clone.
+    if [ ! -d "$REPO_PATH" ]; then
+      ensure mkdir -p "$FOUNDRY_DIR/$AUTHOR"
+      cd "$FOUNDRY_DIR/$AUTHOR"
+      ensure git clone "https://github.com/$FOUNDRYUP_REPO"
+    fi
+
+    # Force checkout, discarding any local changes
+    cd "$REPO_PATH"
+    ensure git fetch origin "${FOUNDRYUP_BRANCH}:remotes/origin/${FOUNDRYUP_BRANCH}"
+    ensure git checkout "origin/${FOUNDRYUP_BRANCH}"
+
+    # Create custom version based on the install method, e.g.:
+    # - foundry-rs-commit-c22c4cc96b0535cd989ee94b79da1b19d236b8db
+    # - foundry-rs-pr-1
+    # - foundry-rs-branch-chore-bump-forge-std
+    if [ -n "$FOUNDRYUP_COMMIT" ]; then
+      # If set, checkout specific commit from branch
+      ensure git checkout "$FOUNDRYUP_COMMIT"
+      FOUNDRYUP_VERSION=$AUTHOR-commit-$FOUNDRYUP_COMMIT
+    elif [ -n "$FOUNDRYUP_PR" ]; then
+     FOUNDRYUP_VERSION=$AUTHOR-pr-$FOUNDRYUP_PR
+    else
+      if [ -n "$FOUNDRYUP_BRANCH" ]; then
+        NORMALIZED_BRANCH="$(echo "$FOUNDRYUP_BRANCH" | tr / -)"
+        FOUNDRYUP_VERSION=$AUTHOR-branch-$NORMALIZED_BRANCH
+      fi
+    fi
+    say "installing version $FOUNDRYUP_VERSION"
+
+    # Build the repo.
+    ensure cargo build --bins "${CARGO_BUILD_ARGS[@]}"
+    # Create foundry custom version directory.
+    ensure mkdir -p "$FOUNDRY_VERSIONS_DIR/$FOUNDRYUP_VERSION"
+    for bin in "${BINS[@]}"; do
+      for try_path in target/release/$bin target/release/$bin.exe; do
+        if [ -f "$try_path" ]; then
+          mv -f "$try_path" "$FOUNDRY_VERSIONS_DIR/$FOUNDRYUP_VERSION"
+        fi
+      done
+    done
+
+    # Use newly built version.
+    use
+
+    # If help2man is installed, use it to add Foundry man pages.
+    if check_cmd help2man; then
+      for bin in "${BINS[@]}"; do
+        help2man -N "$FOUNDRY_BIN_DIR/$bin" > "$FOUNDRY_MAN_DIR/$bin.1"
+      done
+    fi
+
+    say "done"
+  fi
+}
+
+usage() {
+  cat 1>&2 <<EOF
+The installer for Foundry-zksync.
+
+Update or revert to a specific Foundry-zksync version with ease.
+
+By default, the latest stable version is installed from built binaries.
+
+USAGE:
+    foundryup-zksync <OPTIONS>
+
+OPTIONS:
+    -h, --help      Print help information
+    -v, --version   Print the version of foundryup
+    -U, --update    Update foundryup to the latest version
+    -i, --install   Install a specific version from built binaries
+    -l, --list      List versions installed from built binaries
+    -u, --use       Use a specific installed version from built binaries
+    -b, --branch    Build and install a specific branch
+    -P, --pr        Build and install a specific Pull Request
+    -C, --commit    Build and install a specific commit
+    -r, --repo      Build and install from a remote GitHub repo (uses default branch if no other options are set)
+    -p, --path      Build and install a local repository
+    -j, --jobs      Number of CPUs to use for building Foundry (default: all CPUs)
+    --arch          Install a specific architecture (supports amd64 and arm64)
+    --platform      Install a specific platform (supports win32, linux, and darwin)
+EOF
+}
+
+version() {
+  say "$FOUNDRYUP_INSTALLER_VERSION"
+  exit 0
+}
+
+update() {
+  say "updating foundryup..."
+
+  # Download to a temporary file first
+  tmp_file="$(mktemp)"
+  ensure download "$FOUNDRY_BIN_URL" "$tmp_file"
+
+  # Replace the current foundryup with the downloaded file
+  ensure mv "$tmp_file" "$FOUNDRY_BIN_PATH"
+  ensure chmod +x "$FOUNDRY_BIN_PATH"
+
+  say "successfully updated foundryup"
+  exit 0
+}
+
+list() {
+  if [ -d "$FOUNDRY_VERSIONS_DIR" ]; then
+    for VERSION in $FOUNDRY_VERSIONS_DIR/*; do
+      say "${VERSION##*/}"
+      for bin in "${BINS[@]}"; do
+        bin_path="$VERSION/$bin"
+        say "- $(ensure "$bin_path" -V)"
+      done
+      printf "\n"
+    done
+  else
+    for bin in "${BINS[@]}"; do
+      bin_path="$FOUNDRY_BIN_DIR/$bin"
+      say "- $(ensure "$bin_path" -V)"
+    done
+  fi
+  exit 0
+}
+
+use() {
+  [ -z "$FOUNDRYUP_VERSION" ] && err "no version provided"
+  FOUNDRY_VERSION_DIR="$FOUNDRY_VERSIONS_DIR/$FOUNDRYUP_VERSION"
+  if [ -d "$FOUNDRY_VERSION_DIR" ]; then
+
+    check_bins_in_use
+
+    for bin in "${BINS[@]}"; do
+      bin_path="$FOUNDRY_BIN_DIR/$bin"
+      cp "$FOUNDRY_VERSION_DIR/$bin" "$bin_path"
+      # Print usage msg
+      say "use - $(ensure "$bin_path" -V)"
+
+      # Check if the default path of the binary is not in FOUNDRY_BIN_DIR
+      which_path="$(command -v "$bin" || true)"
+      if [ -n "$which_path" ] && [ "$which_path" != "$bin_path" ]; then
+        warn ""
+        cat 1>&2 <<EOF
+There are multiple binaries with the name '$bin' present in your 'PATH'.
+This may be the result of installing '$bin' using another method,
+like Cargo or other package managers.
+You may need to run 'rm $which_path' or move '$FOUNDRY_BIN_DIR'
+in your 'PATH' to allow the newly installed version to take precedence!
+
+EOF
+      fi
+    done
+    exit 0
+  else
+    err "version $FOUNDRYUP_VERSION not installed"
+  fi
+}
+
+say() {
+  printf "foundryup-zksync: %s\n" "$1"
+}
+
+warn() {
+  say "warning: ${1}" >&2
+}
+
+err() {
+  say "$1" >&2
+  exit 1
+}
+
+tolower() {
+  echo "$1" | awk '{print tolower($0)}'
+}
+
+need_cmd() {
+  if ! check_cmd "$1"; then
+    err "need '$1' (command not found)"
+  fi
+}
+
+check_cmd() {
+  command -v "$1" &>/dev/null
+}
+
+check_bins_in_use() {
+  if check_cmd pgrep; then
+    for bin in "${BINS[@]}"; do
+      if pgrep -x "$bin" >/dev/null; then
+        err "Error: '$bin' is currently running. Please stop the process and try again."
+      fi
+    done
+  else
+    warn "Make sure no foundry process is running during the install process!"
+  fi
+}
+
+# Run a command that should never fail. If the command fails execution
+# will immediately terminate with an error showing the failing command.
+ensure() {
+  if ! "$@"; then err "command failed: $*"; fi
+}
+
+# Downloads $1 into $2 or stdout
+download() {
+  if [ -n "$2" ]; then
+    # output into $2
+    if check_cmd curl; then
+      curl -#o "$2" -L "$1"
+    else
+      wget --show-progress -qO "$2" "$1"
+    fi
+  else
+    # output to stdout
+    if check_cmd curl; then
+      curl -#L "$1"
+    else
+      wget --show-progress -qO- "$1"
+    fi
+  fi
+}
+
+# Banner Function for Foundry
+banner() {
+  printf '
+
+.xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx
+
+ ╔═╗ ╔═╗ ╦ ╦ ╔╗╔ ╔╦╗ ╦═╗ ╦ ╦         Portable and modular toolkit
+ ╠╣  ║ ║ ║ ║ ║║║  ║║ ╠╦╝ ╚╦╝    for ZKsync Application Development
+ ╚   ╚═╝ ╚═╝ ╝╚╝ ═╩╝ ╩╚═  ╩                 written in Rust.
+
+.xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx
+
+Fork of    : https://github.com/foundry-rs/
+Repo       : https://github.com/matter-labs/foundry-zksync/
+Book       : https://foundry-book.zksync.io/
+
+.xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx.xOx
+
+'
+
+}
+
+main "$@"

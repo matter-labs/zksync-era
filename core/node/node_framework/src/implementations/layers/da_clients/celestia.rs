@@ -1,7 +1,6 @@
 use zksync_config::{configs::da_client::celestia::CelestiaSecrets, CelestiaConfig};
 use zksync_da_client::DataAvailabilityClient;
 use zksync_da_clients::celestia::CelestiaClient;
-use zksync_eth_watch::EthHttpQueryClient;
 
 use crate::{
     implementations::resources::{

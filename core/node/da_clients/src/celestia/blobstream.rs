@@ -3,18 +3,18 @@
     It is used to get the data root inclusion proof for a given height.
 */
 #![allow(dead_code)]
-use reqwest::{Client, Error as ReqwestError};
-use zksync_basic_types::ethabi::decode;
-use zksync_basic_types::{H256, U256};
-use zksync_eth_client::{
-    EthInterface,
-    clients::{DynClient, L1},
-};
-use zksync_basic_types::web3::{Log, BlockNumber, FilterBuilder, CallRequest, BlockId};
-use zksync_basic_types::ethabi::{Contract, Event, ParamType};
-use serde::Deserialize;
 use alloy_sol_types::sol;
-use zksync_basic_types::H160;
+use reqwest::{Client, Error as ReqwestError};
+use serde::Deserialize;
+use zksync_basic_types::{
+    ethabi::{decode, Contract, Event, ParamType},
+    web3::{BlockId, BlockNumber, CallRequest, FilterBuilder, Log},
+    H160, H256, U256,
+};
+use zksync_eth_client::{
+    clients::{DynClient, L1},
+    EthInterface,
+};
 pub struct TendermintRPCClient {
     url: String,
 }
@@ -24,7 +24,12 @@ impl TendermintRPCClient {
         TendermintRPCClient { url }
     }
 
-    pub async fn get_data_root_inclusion_proof(&self, height: u64, start: u64, end: u64) -> Result<String, ReqwestError>{
+    pub async fn get_data_root_inclusion_proof(
+        &self,
+        height: u64,
+        start: u64,
+        end: u64,
+    ) -> Result<String, ReqwestError> {
         let client = Client::new();
         let url = format!("{}/data_root_inclusion_proof", self.url);
         client
@@ -39,15 +44,39 @@ impl TendermintRPCClient {
 }
 
 // Get the latest block relayed to Blobstream
-pub async fn get_latest_blobstream_relayed_height(client: &Box<DynClient<L1>>, contract: &Contract) -> U256 {
+pub async fn get_latest_blobstream_relayed_height(
+    client: &Box<DynClient<L1>>,
+    contract: &Contract,
+) -> U256 {
     let request = CallRequest {
-        to: Some("0xF0c6429ebAB2e7DC6e05DaFB61128bE21f13cb1e".parse().unwrap()),
-        data: Some(contract.function("latestBlock").unwrap().encode_input(&[]).unwrap().into()),
+        to: Some(
+            "0xF0c6429ebAB2e7DC6e05DaFB61128bE21f13cb1e"
+                .parse()
+                .unwrap(),
+        ),
+        data: Some(
+            contract
+                .function("latestBlock")
+                .unwrap()
+                .encode_input(&[])
+                .unwrap()
+                .into(),
+        ),
         ..Default::default()
     };
-    let block_num = client.block_number().await.expect("Could not get block number");
-    let result = client.call_contract_function(request, Some(BlockId::Number(block_num.into()))).await.unwrap().0;
-    decode(&[ParamType::Uint(256)], &result).unwrap()[0].clone().into_uint().unwrap()
+    let block_num = client
+        .block_number()
+        .await
+        .expect("Could not get block number");
+    let result = client
+        .call_contract_function(request, Some(BlockId::Number(block_num.into())))
+        .await
+        .unwrap()
+        .0;
+    decode(&[ParamType::Uint(256)], &result).unwrap()[0]
+        .clone()
+        .into_uint()
+        .unwrap()
 }
 
 // Search for the BlobStream update event that includes the target height
@@ -68,29 +97,39 @@ pub async fn find_block_range(
         _ => return Err("Invalid block number".into()),
     };
 
-    for multiplier in 1..=1000 {  // Limited to 1000 pages
+    for multiplier in 1..=1000 {
+        // Limited to 1000 pages
         let page_end = page_start - 500 * multiplier;
         let filter = FilterBuilder::default()
             .from_block(BlockNumber::Number(page_end))
             .to_block(BlockNumber::Number(page_start))
             .address(vec![contract_address])
-            .topics(Some(vec![blobstream_update_event.signature()]), None, None, None)
+            .topics(
+                Some(vec![blobstream_update_event.signature()]),
+                None,
+                None,
+                None,
+            )
             .build();
 
         let logs = client.logs(&filter).await?;
-        
+
         if let Some(log) = logs.iter().find(|log| {
             let commitment = DataCommitmentStored::from_log(log);
-            commitment.start_block.as_u64() <= target_height && 
-            commitment.end_block.as_u64() > target_height
+            commitment.start_block.as_u64() <= target_height
+                && commitment.end_block.as_u64() > target_height
         }) {
             let commitment = DataCommitmentStored::from_log(log);
-            return Ok(Some((commitment.start_block, commitment.end_block, commitment.proof_nonce)));
+            return Ok(Some((
+                commitment.start_block,
+                commitment.end_block,
+                commitment.proof_nonce,
+            )));
         }
 
         page_start = page_end;
     }
-    
+
     Err("No matching block range found after 1000 pages".into())
 }
 
@@ -105,14 +144,13 @@ pub struct DataCommitmentStored {
 impl DataCommitmentStored {
     pub fn from_log(log: &Log) -> Self {
         DataCommitmentStored {
-            proof_nonce: decode(&[ParamType::Uint(256)], &log.data.0)
-                .unwrap()[0]
+            proof_nonce: decode(&[ParamType::Uint(256)], &log.data.0).unwrap()[0]
                 .clone()
                 .into_uint()
                 .unwrap(),
-            start_block: U256::from_big_endian(&log.topics[1].as_bytes()),
-            end_block: U256::from_big_endian(&log.topics[2].as_bytes()),
-            data_commitment: H256::from_slice(&log.topics[3].as_bytes()),
+            start_block: U256::from_big_endian(log.topics[1].as_bytes()),
+            end_block: U256::from_big_endian(log.topics[2].as_bytes()),
+            data_commitment: H256::from_slice(log.topics[3].as_bytes()),
         }
     }
 }
