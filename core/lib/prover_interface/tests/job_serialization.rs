@@ -104,7 +104,10 @@ fn test_proof_request_serialization() {
     let encoded_obj = serde_json::to_string(&proof).unwrap();
     let encoded_json = r#"{
         "Proof": [
-            1,
+            {
+                "chain_id": 0,
+                "batch_number": 1
+            },
             {
                 "aggregation_result_coords": [
                     [
