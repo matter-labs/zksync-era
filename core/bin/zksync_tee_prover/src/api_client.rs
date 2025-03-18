@@ -93,6 +93,7 @@ impl TeeApiClient {
     ) -> Result<(), TeeProverError> {
         if tee_type == TeeType::None {
             tracing::info!("Not submitting proof from none TEE.");
+            return Ok(());
         }
         let request = SubmitTeeProofRequest(Box::new(L1BatchTeeProofForL1 {
             signature: signature.into(),
