@@ -8,11 +8,11 @@
 use std::{
     convert::{Infallible, TryFrom, TryInto},
     fmt,
+    fmt::{Debug, Display},
     num::ParseIntError,
     ops::{Add, Deref, DerefMut, Sub},
     str::FromStr,
 };
-use std::fmt::Debug;
 
 use anyhow::Context as _;
 pub use ethabi::{
@@ -156,6 +156,17 @@ pub struct ChainAwareL1BatchNumber {
 }
 
 impl Debug for ChainAwareL1BatchNumber {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "ChainAwareL1BatchNumber(chain_id: {}, batch_number: {})",
+            self.chain_id.as_u64(),
+            self.batch_number.0
+        )
+    }
+}
+
+impl Display for ChainAwareL1BatchNumber {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,

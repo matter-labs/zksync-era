@@ -38,14 +38,14 @@ pub type Ext = GoldilocksExt2;
 pub type SharedWitnessVectorQueue = Arc<Mutex<FixedSizeQueue<GpuProverJob>>>;
 
 pub struct ProverArtifacts {
-    block_number: L1BatchNumber,
+    batch_id: ChainAwareL1BatchNumber,
     pub proof_wrapper: FriProofWrapper,
 }
 
 impl ProverArtifacts {
-    pub fn new(block_number: L1BatchNumber, proof_wrapper: FriProofWrapper) -> Self {
+    pub fn new(batch_id: ChainAwareL1BatchNumber, proof_wrapper: FriProofWrapper) -> Self {
         Self {
-            block_number,
+            batch_id,
             proof_wrapper,
         }
     }
@@ -98,11 +98,7 @@ pub async fn save_proof(
     if is_scheduler_proof {
         transaction
             .fri_proof_compressor_dal()
-            .insert_proof_compression_job(
-                ChainAwareL1BatchNumber::new(chain_id, artifacts.block_number),
-                &blob_url,
-                protocol_version,
-            )
+            .insert_proof_compression_job(artifacts.batch_id, &blob_url, protocol_version)
             .await;
     }
     transaction.commit().await.unwrap();

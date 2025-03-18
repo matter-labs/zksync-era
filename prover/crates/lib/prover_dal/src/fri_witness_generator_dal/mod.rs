@@ -372,9 +372,10 @@ impl FriWitnessGeneratorDal<'_, '_> {
         .await?
         .into_iter()
         .map(|row| ProofGenerationTime {
-            batch_id: ChainAwareL1BatchNumber::from_raw(row.chain_id as u64,
+            batch_id: ChainAwareL1BatchNumber::from_raw(
+                row.chain_id as u64,
                 row.l1_batch_number as u32,
-                ),
+            ),
             time_taken: naive_time_from_pg_interval(
                 row.time_taken.expect("time_taken must be present"),
             ),

@@ -24,7 +24,10 @@ use zksync_prover_fri_types::{
     get_current_pod_name, FriProofWrapper,
 };
 use zksync_prover_keystore::keystore::Keystore;
-use zksync_types::{basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion, prover_dal::LeafAggregationJobMetadata, L1BatchNumber, L2ChainId, ChainAwareL1BatchNumber};
+use zksync_types::{
+    basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion,
+    prover_dal::LeafAggregationJobMetadata, ChainAwareL1BatchNumber, L2ChainId,
+};
 
 use crate::{
     artifacts::ArtifactsManager,
@@ -50,8 +53,7 @@ pub struct LeafAggregationWitnessGeneratorJob {
 #[derive(Clone)]
 pub struct LeafAggregationArtifacts {
     circuit_id: u8,
-    pub chain_id: L2ChainId,
-    block_number: L1BatchNumber,
+    pub batch_id: ChainAwareL1BatchNumber,
     pub aggregations: Vec<(u64, RecursionQueueSimulator<GoldilocksField>)>,
     pub circuit_ids_and_urls: Vec<(u8, String)>,
     #[allow(dead_code)]
@@ -70,7 +72,7 @@ impl JobManager for LeafAggregation {
 
     #[tracing::instrument(
         skip_all,
-        fields(l1_batch = %job.block_number, circuit_id = %job.circuit_id)
+        fields(l1_batch = %job.batch_id.batch_number, circuit_id = %job.circuit_id)
     )]
     async fn process_job(
         job: LeafAggregationWitnessGeneratorJob,
@@ -79,9 +81,9 @@ impl JobManager for LeafAggregation {
         started_at: Instant,
     ) -> anyhow::Result<LeafAggregationArtifacts> {
         tracing::info!(
-            "Starting witness generation of type {:?} for block {} with circuit {}",
+            "Starting witness generation of type {:?} for {:?} with circuit {}",
             AggregationRound::LeafAggregation,
-            job.block_number.0,
+            job.batch_id,
             job.circuit_id,
         );
         let circuit_id = job.circuit_id;
@@ -124,17 +126,20 @@ impl JobManager for LeafAggregation {
                     .await
                     .expect("failed to get permit to process queues chunk");
 
-                let proofs =
-                    load_proofs_for_job_ids(job.chain_id, &proofs_ids_for_queue, &*object_store)
-                        .await;
+                let proofs = load_proofs_for_job_ids(
+                    job.batch_id.chain_id,
+                    &proofs_ids_for_queue,
+                    &*object_store,
+                )
+                .await;
                 let base_proofs = proofs
                     .into_iter()
                     .map(|wrapper| match wrapper {
                         FriProofWrapper::Base(base_proof) => base_proof,
                         FriProofWrapper::Recursive(_) => {
                             panic!(
-                                "Expected only base proofs for leaf agg {} {}",
-                                job.circuit_id, job.block_number
+                                "Expected only base proofs for leaf agg {} {:?}",
+                                job.circuit_id, job.batch_id
                             );
                         }
                     })
@@ -174,16 +179,15 @@ impl JobManager for LeafAggregation {
             .observe(started_at.elapsed());
 
         tracing::info!(
-            "Leaf witness generation for block {} with circuit id {}: is complete in {:?}.",
-            job.block_number.0,
+            "Leaf witness generation for {:?} with circuit id {}: is complete in {:?}.",
+            job.batch_id,
             circuit_id,
             started_at.elapsed(),
         );
 
         Ok(LeafAggregationArtifacts {
             circuit_id,
-            chain_id: job.chain_id,
-            block_number: job.block_number,
+            batch_id: job.batch_id,
             aggregations,
             circuit_ids_and_urls,
             closed_form_inputs: job.closed_form_inputs.0,

@@ -2,7 +2,7 @@ use std::fs;
 
 use zksync_prover_fri_types::{CircuitWrapper, ProverJob, ProverServiceDataKey, ProvingStage};
 use zksync_prover_keystore::keystore::Keystore;
-use zksync_types::{L1BatchNumber, L2ChainId};
+use zksync_types::{ChainAwareL1BatchNumber, L1BatchNumber, L2ChainId};
 use zksync_witness_vector_generator::generator::WitnessVectorGenerator;
 
 #[test]
@@ -17,11 +17,10 @@ fn test_generate_witness_vector() {
         stage: ProvingStage::BasicCircuits,
     };
     let job = ProverJob {
-        block_number: L1BatchNumber(1),
+        batch_id: ChainAwareL1BatchNumber::new(L2ChainId::zero(), L1BatchNumber(1)),
         job_id: 1,
         circuit_wrapper,
         setup_data_key: key,
-        chain_id: L2ChainId::zero(),
     };
     let vector = WitnessVectorGenerator::generate_witness_vector(job, &Keystore::locate()).unwrap();
     assert!(!vector.witness_vector.all_values.is_empty());

@@ -5,7 +5,10 @@ use chrono::{DateTime, Duration, NaiveDateTime, NaiveTime, Utc};
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
 
-use crate::{basic_fri_types::AggregationRound, protocol_version::ProtocolVersionId, L1BatchNumber, L2ChainId, ChainAwareL1BatchNumber};
+use crate::{
+    basic_fri_types::AggregationRound, protocol_version::ProtocolVersionId,
+    ChainAwareL1BatchNumber, L1BatchNumber, L2ChainId,
+};
 
 #[derive(Debug, Clone, Copy)]
 pub struct FriProverJobMetadata {

@@ -15,7 +15,7 @@ use zksync_prover_interface::inputs::WitnessInputData;
 use zksync_prover_keystore::keystore::Keystore;
 use zksync_types::{
     basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion,
-    ChainAwareL1BatchNumber, L1BatchNumber, L2ChainId,
+    ChainAwareL1BatchNumber, L2ChainId,
 };
 
 use crate::{
@@ -78,25 +78,18 @@ impl JobManager for BasicCircuits {
         } = job;
 
         tracing::info!(
-            "Starting witness generation of type {:?} for chain {} block {}",
+            "Starting witness generation of type {:?} for {:?}",
             AggregationRound::BasicCircuits,
-            chain_id.as_u64(),
-            block_number.0
+            batch_id
         );
 
-        let (circuit_urls, queue_urls, scheduler_witness, aux_output_witness) = generate_witness(
-            batch_id,
-            object_store,
-            job,
-            max_circuits_in_flight,
-        )
-        .await;
+        let (circuit_urls, queue_urls, scheduler_witness, aux_output_witness) =
+            generate_witness(batch_id, object_store, job, max_circuits_in_flight).await;
         WITNESS_GENERATOR_METRICS.witness_generation_time[&AggregationRound::BasicCircuits.into()]
             .observe(started_at.elapsed());
         tracing::info!(
-            "Witness generation for chain {} block {} is complete in {:?}",
-            chain_id.as_u64(),
-            block_number.0,
+            "Witness generation for {:?} is complete in {:?}",
+            batch_id,
             started_at.elapsed()
         );
 

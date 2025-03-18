@@ -25,9 +25,7 @@ use zksync_prover_dal::{Connection, Prover, ProverDal};
 use zksync_prover_fri_types::keys::ClosedFormInputKey;
 use zksync_prover_interface::inputs::WitnessInputData;
 use zksync_system_constants::BOOTLOADER_ADDRESS;
-use zksync_types::{
-    protocol_version::ProtocolSemanticVersion, ChainAwareL1BatchNumber, L1BatchNumber, L2ChainId,
-};
+use zksync_types::{protocol_version::ProtocolSemanticVersion, ChainAwareL1BatchNumber};
 
 use crate::{
     precalculated_merkle_paths_provider::PrecalculatedMerklePathsProvider,
@@ -39,7 +37,7 @@ use crate::{
     witness::WitnessStorage,
 };
 
-#[tracing::instrument(skip_all, fields(l1_batch = %block_number))]
+#[tracing::instrument(skip_all, fields(l1_batch = %batch_id))]
 pub(super) async fn generate_witness(
     batch_id: ChainAwareL1BatchNumber,
     object_store: Arc<dyn ObjectStore>,
@@ -244,7 +242,7 @@ pub(super) async fn generate_witness(
     )
 }
 
-#[tracing::instrument(skip_all, fields(l1_batch = %block_number, circuit_id = %circuit_id))]
+#[tracing::instrument(skip_all, fields(l1_batch = %batch_id, circuit_id = %circuit_id))]
 async fn save_recursion_queue(
     batch_id: ChainAwareL1BatchNumber,
     circuit_id: u8,

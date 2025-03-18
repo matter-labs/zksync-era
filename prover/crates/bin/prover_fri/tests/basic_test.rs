@@ -12,7 +12,9 @@ use zksync_prover_fri_types::{
 use zksync_prover_keystore::{
     keystore::Keystore, setup_data_generator::generate_setup_data_common,
 };
-use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber, L2ChainId};
+use zksync_types::{
+    basic_fri_types::AggregationRound, ChainAwareL1BatchNumber, L1BatchNumber, L2ChainId,
+};
 
 fn compare_serialized<T: Serialize>(expected: &T, actual: &T) {
     let serialized_expected = bincode::serialize(expected).unwrap();
@@ -43,12 +45,11 @@ async fn prover_and_assert_base_layer(
 
     let aggregation_round = AggregationRound::BasicCircuits;
     let blob_key = FriCircuitKey {
-        block_number,
+        batch_id: ChainAwareL1BatchNumber::new(L2ChainId::zero(), block_number),
         circuit_id,
         sequence_number,
         depth: 0,
         aggregation_round,
-        chain_id: L2ChainId::zero(),
     };
     let circuit_wrapper = object_store
         .get(blob_key)
@@ -67,8 +68,7 @@ async fn prover_and_assert_base_layer(
     let setup_data = Arc::new(circuit_setup_data.into());
     let setup_key = ProverServiceDataKey::new(circuit_id, aggregation_round.into());
     let prover_job = ProverJob::new(
-        L2ChainId::zero(),
-        block_number,
+        ChainAwareL1BatchNumber::new(L2ChainId::zero(), block_number),
         expected_proof_id,
         circuit_wrapper,
         setup_key,

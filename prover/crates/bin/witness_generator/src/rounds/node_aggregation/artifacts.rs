@@ -5,8 +5,7 @@ use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::keys::AggregationsKey;
 use zksync_types::{
-    basic_fri_types::AggregationRound, prover_dal::NodeAggregationJobMetadata,
-    ChainAwareL1BatchNumber, L2ChainId,
+    basic_fri_types::AggregationRound, prover_dal::NodeAggregationJobMetadata, L2ChainId,
 };
 
 use crate::{
@@ -44,7 +43,7 @@ impl ArtifactsManager for NodeAggregation {
 
     #[tracing::instrument(
         skip_all,
-        fields(l1_batch = %artifacts.block_number, circuit_id = %artifacts.circuit_id)
+        fields(l1_batch = %artifacts.batch_id.batch_number, circuit_id = %artifacts.circuit_id)
     )]
     async fn save_to_bucket(
         _job_id: u32,
@@ -88,18 +87,16 @@ impl ArtifactsManager for NodeAggregation {
         let mut transaction = prover_connection.start_transaction().await.unwrap();
         let dependent_jobs = blob_urls.circuit_ids_and_urls.len();
 
-        let batch_number = ChainAwareL1BatchNumber::new(artifacts.chain_id, artifacts.block_number);
-
         let protocol_version_id = transaction
             .fri_basic_witness_generator_dal()
-            .protocol_version_for_l1_batch_and_chain(batch_number)
+            .protocol_version_for_l1_batch_and_chain(artifacts.batch_id)
             .await;
         match artifacts.next_aggregations.len() > 1 {
             true => {
                 transaction
                     .fri_prover_jobs_dal()
                     .insert_prover_jobs(
-                        batch_number,
+                        artifacts.batch_id,
                         blob_urls.circuit_ids_and_urls,
                         AggregationRound::NodeAggregation,
                         artifacts.depth,
@@ -109,7 +106,7 @@ impl ArtifactsManager for NodeAggregation {
                 transaction
                     .fri_node_witness_generator_dal()
                     .insert_node_aggregation_jobs(
-                        batch_number,
+                        artifacts.batch_id,
                         artifacts.circuit_id,
                         Some(dependent_jobs as i32),
                         artifacts.depth,
@@ -123,7 +120,7 @@ impl ArtifactsManager for NodeAggregation {
                 transaction
                     .fri_prover_jobs_dal()
                     .insert_prover_job(
-                        batch_number,
+                        artifacts.batch_id,
                         artifacts.circuit_id,
                         artifacts.depth,
                         0,

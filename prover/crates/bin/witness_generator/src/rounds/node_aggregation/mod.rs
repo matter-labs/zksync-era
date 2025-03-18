@@ -21,7 +21,10 @@ use zksync_prover_fri_types::{
     get_current_pod_name, FriProofWrapper,
 };
 use zksync_prover_keystore::{keystore::Keystore, utils::get_leaf_vk_params};
-use zksync_types::{basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion, prover_dal::NodeAggregationJobMetadata, L1BatchNumber, L2ChainId, ChainAwareL1BatchNumber};
+use zksync_types::{
+    basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion,
+    prover_dal::NodeAggregationJobMetadata, ChainAwareL1BatchNumber, L2ChainId,
+};
 
 use crate::{
     artifacts::ArtifactsManager,
@@ -64,7 +67,7 @@ impl JobManager for NodeAggregation {
 
     #[tracing::instrument(
         skip_all,
-        fields(l1_batch = % job.block_number, circuit_id = % job.circuit_id)
+        fields(l1_batch = % job.batch_id.batch_number, circuit_id = % job.circuit_id)
     )]
     async fn process_job(
         job: NodeAggregationWitnessGeneratorJob,
@@ -74,10 +77,9 @@ impl JobManager for NodeAggregation {
     ) -> anyhow::Result<NodeAggregationArtifacts> {
         let node_vk_commitment = compute_node_vk_commitment(job.node_vk.clone());
         tracing::info!(
-            "Starting witness generation of type {:?} for block {} chain {} circuit id {} depth {}",
+            "Starting witness generation of type {:?} for {:?} circuit id {} depth {}",
             AggregationRound::NodeAggregation,
-            job.block_number.0,
-            job.chain_id.as_u64(),
+            job.batch_id,
             job.circuit_id,
             job.depth
         );
@@ -120,16 +122,19 @@ impl JobManager for NodeAggregation {
                     .await
                     .expect("failed to get permit to process queues chunk");
 
-                let proofs =
-                    load_proofs_for_job_ids(job.chain_id, &proofs_ids_for_chunk, &*object_store)
-                        .await;
+                let proofs = load_proofs_for_job_ids(
+                    job.batch_id.chain_id,
+                    &proofs_ids_for_chunk,
+                    &*object_store,
+                )
+                .await;
                 let mut recursive_proofs = vec![];
                 for wrapper in proofs {
                     match wrapper {
                         FriProofWrapper::Base(_) => {
                             panic!(
-                                "Expected only recursive proofs for node agg {} {}",
-                                job.circuit_id, job.block_number
+                                "Expected only recursive proofs for node agg {} {:?}",
+                                job.circuit_id, job.batch_id
                             );
                         }
                         FriProofWrapper::Recursive(recursive_proof) => {
@@ -147,8 +152,7 @@ impl JobManager for NodeAggregation {
                 );
 
                 let recursive_circuit_id_and_url = save_recursive_layer_prover_input_artifacts(
-                    job.chain_id,
-                    job.block_number,
+                    job.batch_id,
                     circuit_idx,
                     vec![recursive_circuit],
                     AggregationRound::NodeAggregation,
@@ -181,8 +185,8 @@ impl JobManager for NodeAggregation {
             .observe(started_at.elapsed());
 
         tracing::info!(
-            "Node witness generation for block {} with circuit id {} at depth {} with {} next_aggregations jobs completed in {:?}.",
-            job.block_number.0,
+            "Node witness generation for {:?} with circuit id {} at depth {} with {} next_aggregations jobs completed in {:?}.",
+            job.batch_id,
             job.circuit_id,
             job.depth,
             next_aggregations.len(),
@@ -191,8 +195,7 @@ impl JobManager for NodeAggregation {
 
         Ok(NodeAggregationArtifacts {
             circuit_id: job.circuit_id,
-            block_number: job.block_number,
-            chain_id: job.chain_id,
+            batch_id: job.batch_id,
             depth: job.depth + 1,
             next_aggregations,
             recursive_circuit_ids_and_urls,

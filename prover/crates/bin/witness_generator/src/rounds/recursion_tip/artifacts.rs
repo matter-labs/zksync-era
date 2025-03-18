@@ -20,7 +20,7 @@ use crate::{
 
 #[async_trait]
 impl ArtifactsManager for RecursionTip {
-    type InputMetadata = Vec<(u8, L1BatchNumber, L2ChainId)>;
+    type InputMetadata = Vec<(u8, u32, L2ChainId)>;
     type InputArtifacts = Vec<ZkSyncRecursionProof>;
     type OutputArtifacts = RecursionTipArtifacts;
     type BlobUrls = String;
@@ -30,7 +30,7 @@ impl ArtifactsManager for RecursionTip {
     /// In this scenario, we still need to pass a proof, but it won't be taken into account during proving.
     /// For this scenario, we use an empty_proof, but any proof would suffice.
     async fn get_artifacts(
-        metadata: &Vec<(u8, L1BatchNumber, L2ChainId)>,
+        metadata: &Vec<(u8, u32, L2ChainId)>,
         object_store: &dyn ObjectStore,
     ) -> anyhow::Result<Vec<ZkSyncRecursionProof>> {
         let job_mapping: HashMap<u8, (L2ChainId, u32)> = metadata
@@ -39,7 +39,7 @@ impl ArtifactsManager for RecursionTip {
             .map(|(leaf_circuit_id, job_id, chain_id)| {
                 (
                     ZkSyncRecursionLayerStorageType::from_leaf_u8_to_basic_u8(leaf_circuit_id),
-                    (chain_id, job_id.0),
+                    (chain_id, job_id),
                 )
             })
             .collect();

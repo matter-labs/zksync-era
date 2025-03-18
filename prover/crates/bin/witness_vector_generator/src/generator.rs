@@ -63,7 +63,7 @@ impl WitnessVectorGenerator {
 
     #[tracing::instrument(
         skip_all,
-        fields(l1_batch = %job.block_number)
+        fields(l1_batch = %job.batch_id)
     )]
     pub fn generate_witness_vector(
         job: ProverJob,
@@ -105,7 +105,7 @@ impl JobProcessor for WitnessVectorGenerator {
         else {
             return Ok(None);
         };
-        Ok(Some(((job.chain_id, job.job_id), job)))
+        Ok(Some(((job.batch_id.chain_id, job.job_id), job)))
     }
 
     async fn save_failure(&self, job_id: Self::JobId, _started_at: Instant, error: String) {
@@ -126,8 +126,7 @@ impl JobProcessor for WitnessVectorGenerator {
     ) -> JoinHandle<anyhow::Result<Self::JobArtifacts>> {
         let keystore = self.keystore.clone();
         tokio::task::spawn_blocking(move || {
-            let block_number = job.block_number;
-            let _span = tracing::info_span!("witness_vector_generator", %block_number).entered();
+            let _span = tracing::info_span!("witness_vector_generator", %job.batch_id).entered();
             Self::generate_witness_vector(job, &keystore)
         })
     }
@@ -135,7 +134,7 @@ impl JobProcessor for WitnessVectorGenerator {
     #[tracing::instrument(
         name = "WitnessVectorGenerator::save_result",
         skip_all,
-        fields(l1_batch = %artifacts.prover_job.block_number)
+        fields(l1_batch = %artifacts.prover_job.batch_id)
     )]
     async fn save_result(
         &self,

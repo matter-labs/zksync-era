@@ -31,15 +31,11 @@ impl ArtifactsManager for BasicCircuits {
         metadata: &Self::InputMetadata,
         object_store: &dyn ObjectStore,
     ) -> anyhow::Result<Self::InputArtifacts> {
-        let batch_number = *metadata;
-        let data = WitnessInputData::conditional_get_from_object_store(object_store, batch_number)
+        let batch_id = *metadata;
+        let data = WitnessInputData::conditional_get_from_object_store(object_store, batch_id)
             .await
             .map_err(|e| anyhow!(e))?;
-        Ok(BasicWitnessGeneratorJob {
-            chain_id: batch_number.chain_id(),
-            block_number: batch_number.batch_number(),
-            data,
-        })
+        Ok(BasicWitnessGeneratorJob { batch_id, data })
     }
 
     async fn save_to_bucket(

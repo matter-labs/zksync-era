@@ -175,10 +175,7 @@ pub struct ProverArtifacts {
 }
 
 impl ProverArtifacts {
-    pub fn new(
-        batch_id: ChainAwareL1BatchNumber,
-        proof_wrapper: FriProofWrapper,
-    ) -> Self {
+    pub fn new(batch_id: ChainAwareL1BatchNumber, proof_wrapper: FriProofWrapper) -> Self {
         Self {
             batch_id,
             proof_wrapper,

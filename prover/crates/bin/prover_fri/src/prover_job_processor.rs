@@ -110,7 +110,7 @@ impl Prover {
                 Self::prove_recursive_layer(job.job_id, recursive_circuit, config, setup_data)
             }
         };
-        ProverArtifacts::new(job.block_number, proof)
+        ProverArtifacts::new(job.batch_id, proof)
     }
 
     fn prove_recursive_layer(
@@ -202,7 +202,10 @@ impl JobProcessor for Prover {
         else {
             return Ok(None);
         };
-        Ok(Some(((prover_job.chain_id, prover_job.job_id), prover_job)))
+        Ok(Some((
+            (prover_job.batch_id.chain_id, prover_job.job_id),
+            prover_job,
+        )))
     }
 
     async fn save_failure(&self, job_id: Self::JobId, _started_at: Instant, error: String) {
@@ -224,8 +227,7 @@ impl JobProcessor for Prover {
         let config = Arc::clone(&self.config);
         let setup_data = self.get_setup_data(job.setup_data_key);
         tokio::task::spawn_blocking(move || {
-            let block_number = job.block_number;
-            let _span = tracing::info_span!("cpu_prove", %block_number).entered();
+            let _span = tracing::info_span!("cpu_prove", %job.batch_id).entered();
             Ok(Self::prove(
                 job,
                 config,

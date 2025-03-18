@@ -26,7 +26,10 @@ use zksync_prover_fri_types::{
     keys::{AggregationsKey, ClosedFormInputKey, FriCircuitKey},
     CircuitWrapper, FriProofWrapper,
 };
-use zksync_types::{basic_fri_types::AggregationRound, ChainAwareL1BatchNumber, L1BatchNumber, L2ChainId, ProtocolVersionId, U256};
+use zksync_types::{
+    basic_fri_types::AggregationRound, ChainAwareL1BatchNumber, L1BatchNumber, L2ChainId,
+    ProtocolVersionId, U256,
+};
 
 // Creates a temporary file with the serialized KZG setup usable by `zkevm_test_harness` functions.
 pub(crate) static KZG_TRUSTED_SETUP_FILE: Lazy<tempfile::NamedTempFile> = Lazy::new(|| {
@@ -87,7 +90,10 @@ impl StoredObject for ClosedFormInputWrapper {
         } = key;
 
         if batch_id.raw_chain_id() == 0 {
-            return format!("closed_form_inputs_{}_{circuit_id}.bin", batch_id.raw_batch_number());
+            return format!(
+                "closed_form_inputs_{}_{circuit_id}.bin",
+                batch_id.raw_batch_number()
+            );
         }
 
         format!(
@@ -131,9 +137,20 @@ impl StoredObject for AggregationWrapper {
             circuit_id,
             depth,
         } = key;
+
+        if batch_id.raw_chain_id() == 0 {
+            return format!(
+                "aggregations_{}_{}_{}.bin",
+                batch_id.raw_batch_number(),
+                circuit_id,
+                depth
+            );
+        }
+
         format!(
-            "aggregations_{}_{block_number}_{circuit_id}_{depth}.bin",
-            batch_id.raw_chain_id()
+            "aggregations_{}_{}_{circuit_id}_{depth}.bin",
+            batch_id.raw_chain_id(),
+            batch_id.raw_batch_number(),
         )
     }
 

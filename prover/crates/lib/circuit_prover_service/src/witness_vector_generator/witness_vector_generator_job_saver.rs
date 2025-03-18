@@ -44,7 +44,7 @@ impl JobSaver for WitnessVectorGeneratorJobSaver {
     #[tracing::instrument(
         name = "witness_vector_generator_save_job",
         skip_all,
-        fields(l1_batch = % data.1.block_number)
+        fields(l1_batch = % data.1.batch_id)
     )]
     async fn save_job_result(
         &self,
@@ -58,10 +58,9 @@ impl JobSaver for WitnessVectorGeneratorJobSaver {
         match result {
             Ok(payload) => {
                 tracing::info!(
-                    "Started transferring witness vector generator job {}, on batch {}, chain {}, for circuit {}, at round {}",
+                    "Started transferring witness vector generator job {}, on {:?}, for circuit {}, at round {}",
                     metadata.id,
-                    metadata.block_number,
-                    metadata.chain_id.as_u64(),
+                    metadata.batch_id,
                     metadata.circuit_id,
                     metadata.aggregation_round
                 );
@@ -70,10 +69,9 @@ impl JobSaver for WitnessVectorGeneratorJobSaver {
                     return Ok(());
                 }
                 tracing::info!(
-                    "Finished transferring witness vector generator job {}, on batch {}, chain {}, for circuit {}, at round {} in {:?}",
+                    "Finished transferring witness vector generator job {}, on {:?}, for circuit {}, at round {} in {:?}",
                     metadata.id,
-                    metadata.block_number,
-                    metadata.chain_id.as_u64(),
+                    metadata.batch_id,
                     metadata.circuit_id,
                     metadata.aggregation_round,
                     start_time.elapsed()
@@ -85,10 +83,9 @@ impl JobSaver for WitnessVectorGeneratorJobSaver {
             Err(err) => {
                 tracing::error!("Witness vector generation failed: {:?}", err);
                 tracing::info!(
-                    "Started saving failure for witness vector generator job {}, on batch {}, chain {}, for circuit {}, at round {}",
+                    "Started saving failure for witness vector generator job {}, on {:?}, for circuit {}, at round {}",
                     metadata.id,
-                    metadata.block_number,
-                    metadata.chain_id.as_u64(),
+                    metadata.batch_id,
                     metadata.circuit_id,
                     metadata.aggregation_round
                 );
@@ -97,13 +94,12 @@ impl JobSaver for WitnessVectorGeneratorJobSaver {
                     .await
                     .context("failed to get db connection")?
                     .fri_prover_jobs_dal()
-                    .save_proof_error(metadata.id, metadata.chain_id, err.to_string())
+                    .save_proof_error(metadata.id, metadata.batch_id.chain_id, err.to_string())
                     .await;
                 tracing::info!(
-                    "Finished saving failure for witness vector generator job {}, on batch {}, chain {}, for circuit {}, at round {} in {:?}",
+                    "Finished saving failure for witness vector generator job {}, on {:?}, for circuit {}, at round {} in {:?}",
                     metadata.id,
-                    metadata.block_number,
-                    metadata.chain_id.as_u64(),
+                    metadata.batch_id,
                     metadata.circuit_id,
                     metadata.aggregation_round,
                     start_time.elapsed()
