@@ -1,4 +1,4 @@
-use std::{env, sync::Arc, time::Instant};
+use std::{env, time::Instant};
 
 pub use circuit_definitions;
 use circuit_definitions::{
@@ -13,9 +13,7 @@ use circuit_definitions::{
         aux::BaseLayerCircuitType, block_header::BlockAuxilaryOutputWitness,
     },
 };
-use zksync_object_store::{
-    serialize_using_bincode, Bucket, ObjectStore, ObjectStoreError, StoredObject,
-};
+use zksync_object_store::{serialize_using_bincode, Bucket, StoredObject};
 use zksync_types::{
     basic_fri_types::AggregationRound,
     protocol_version::{ProtocolSemanticVersion, VersionPatch},
@@ -44,24 +42,6 @@ pub enum CircuitWrapper {
     Recursive(ZkSyncRecursiveLayerCircuit),
 }
 
-impl CircuitWrapper {
-    pub async fn conditional_get_from_object_store(
-        blob_store: &Arc<dyn ObjectStore>,
-        key: <Self as StoredObject>::Key<'_>,
-    ) -> Result<Self, ObjectStoreError> {
-        match blob_store.get(key).await {
-            Ok(proof) => Ok(proof),
-            Err(_) => {
-                // If the proof with chain id was not found, we try to fetch the one without chain id
-                let mut zero_chain_id_key = key;
-                zero_chain_id_key.batch_id.chain_id = L2ChainId::zero();
-
-                blob_store.get(zero_chain_id_key).await
-            }
-        }
-    }
-}
-
 impl StoredObject for CircuitWrapper {
     const BUCKET: Bucket = Bucket::ProverJobsFri;
     type Key<'a> = FriCircuitKey;
@@ -75,19 +55,26 @@ impl StoredObject for CircuitWrapper {
             depth,
         } = key;
 
-        if batch_id.raw_chain_id() == 0 {
-            return format!(
-                "{}_{}_{sequence_number}_{circuit_id}_{aggregation_round:?}_{depth}.bin",
-                batch_id.raw_chain_id(),
-                batch_id.raw_batch_number(),
-            );
-        }
-
         format!(
             "{}_{}_{sequence_number}_{circuit_id}_{aggregation_round:?}_{depth}.bin",
             batch_id.raw_chain_id(),
             batch_id.raw_batch_number(),
         )
+    }
+
+    fn fallback_key(key: <Self as StoredObject>::Key<'_>) -> Option<String> {
+        let FriCircuitKey {
+            batch_id,
+            sequence_number,
+            circuit_id,
+            aggregation_round,
+            depth,
+        } = key;
+
+        Some(format!(
+            "{}_{sequence_number}_{circuit_id}_{aggregation_round:?}_{depth}.bin",
+            batch_id.raw_batch_number(),
+        ))
     }
 
     serialize_using_bincode!();
@@ -99,31 +86,16 @@ pub enum FriProofWrapper {
     Recursive(ZkSyncRecursionLayerProof),
 }
 
-impl FriProofWrapper {
-    pub async fn conditional_get_from_object_store(
-        blob_store: &dyn ObjectStore,
-        key: <Self as StoredObject>::Key<'_>,
-    ) -> Result<Self, ObjectStoreError> {
-        match blob_store.get(key).await {
-            Ok(proof) => Ok(proof),
-            Err(_) => {
-                // If the proof with chain id was not found, we try to fetch the one without chain id
-                blob_store.get((L2ChainId::zero(), key.1)).await
-            }
-        }
-    }
-}
-
 impl StoredObject for FriProofWrapper {
     const BUCKET: Bucket = Bucket::ProofsFri;
     type Key<'a> = (L2ChainId, u32);
 
     fn encode_key(key: Self::Key<'_>) -> String {
-        if key.0.as_u64() == 0 {
-            return format!("proof_{}.bin", key.1);
-        }
-
         format!("proof_{}_{}.bin", key.0.as_u64(), key.1)
+    }
+
+    fn fallback_key(key: Self::Key<'_>) -> Option<String> {
+        Some(format!("proof_{}.bin", key.1))
     }
 
     serialize_using_bincode!();
@@ -374,37 +346,20 @@ impl ProverServiceDataKey {
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct AuxOutputWitnessWrapper(pub BlockAuxilaryOutputWitness<GoldilocksField>);
 
-impl AuxOutputWitnessWrapper {
-    pub async fn conditional_get_from_object_store(
-        blob_store: &Arc<dyn ObjectStore>,
-        key: <Self as StoredObject>::Key<'_>,
-    ) -> Result<Self, ObjectStoreError> {
-        match blob_store.get(key).await {
-            Ok(proof) => Ok(proof),
-            Err(_) => {
-                // If the proof with chain id was not found, we try to fetch the one without chain id
-                let zero_chain_id_key =
-                    ChainAwareL1BatchNumber::new(L2ChainId::zero(), key.batch_number());
-                blob_store.get(zero_chain_id_key).await
-            }
-        }
-    }
-}
-
 impl StoredObject for AuxOutputWitnessWrapper {
     const BUCKET: Bucket = Bucket::SchedulerWitnessJobsFri;
     type Key<'a> = ChainAwareL1BatchNumber;
 
     fn encode_key(key: Self::Key<'_>) -> String {
-        if key.raw_chain_id() == 0 {
-            return format!("aux_output_witness_{}.bin", key.raw_batch_number());
-        }
-
         format!(
             "aux_output_witness_{}_{}.bin",
             key.raw_chain_id(),
             key.raw_batch_number()
         )
+    }
+
+    fn fallback_key(key: Self::Key<'_>) -> Option<String> {
+        Some(format!("aux_output_witness_{}.bin", key.raw_batch_number()))
     }
 
     serialize_using_bincode!();

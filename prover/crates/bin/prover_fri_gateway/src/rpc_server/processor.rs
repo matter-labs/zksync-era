@@ -72,16 +72,15 @@ impl RpcDataProcessor {
             .get_least_proven_block_not_sent_to_server(chain_id)
             .await?;
 
-        let batch_number = ChainAwareL1BatchNumber::new(chain_id, l1_batch_number);
+        let batch_id = ChainAwareL1BatchNumber::new(chain_id, l1_batch_number);
 
         let request = match status {
             ProofCompressionJobStatus::Successful => {
-                let proof = L1BatchProofForL1::conditional_get_from_object_store(
-                    &*self.blob_store,
-                    (batch_number, protocol_version),
-                )
-                .await
-                .expect("Failed to get compressed snark proof from blob store");
+                let proof = self
+                    .blob_store
+                    .get::<L1BatchProofForL1>((batch_id, protocol_version))
+                    .await
+                    .expect("Failed to get compressed snark proof from blob store");
                 SubmitProofRequest::Proof(l1_batch_number, Box::new(proof))
             }
             ProofCompressionJobStatus::Skipped => {

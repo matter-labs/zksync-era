@@ -36,7 +36,8 @@ impl ArtifactsManager for NodeAggregation {
             depth: metadata.depth,
         };
 
-        AggregationWrapper::conditional_get_from_object_store(object_store, key)
+        object_store
+            .get::<AggregationWrapper>(key)
             .await
             .map_err(|e| anyhow::anyhow!(e))
     }

@@ -147,8 +147,8 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
                 AND chain_id = $3
             "#,
             duration_to_naive_time(time_taken),
-            batch_number.raw_batch_number() as i32,
-            batch_number.raw_chain_id() as i32
+            batch_id.raw_batch_number() as i32,
+            batch_id.raw_chain_id() as i32
         )
         .execute(self.storage.conn())
         .await

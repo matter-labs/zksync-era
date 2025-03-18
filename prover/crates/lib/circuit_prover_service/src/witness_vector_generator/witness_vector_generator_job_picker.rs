@@ -64,10 +64,11 @@ impl<ML: WitnessVectorMetadataLoader> JobPicker for WitnessVectorGeneratorJobPic
             Some(metadata) => metadata,
         };
 
-        let circuit_wrapper =
-            CircuitWrapper::conditional_get_from_object_store(&self.object_store, metadata.into())
-                .await
-                .context("failed to get circuit_wrapper from object store")?;
+        let circuit_wrapper = self
+            .object_store
+            .get::<CircuitWrapper>(metadata.into())
+            .await
+            .context("failed to get circuit_wrapper from object store")?;
         let circuit = match circuit_wrapper {
             CircuitWrapper::Base(circuit) => Circuit::Base(circuit),
             CircuitWrapper::Recursive(circuit) => Circuit::Recursive(circuit),

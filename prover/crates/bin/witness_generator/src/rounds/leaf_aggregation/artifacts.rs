@@ -32,7 +32,8 @@ impl ArtifactsManager for LeafAggregation {
             circuit_id: metadata.circuit_id,
         };
 
-        ClosedFormInputWrapper::conditional_get_from_object_store(object_store, key)
+        object_store
+            .get::<ClosedFormInputWrapper>(key)
             .await
             .map_err(|e| anyhow::anyhow!(e))
     }

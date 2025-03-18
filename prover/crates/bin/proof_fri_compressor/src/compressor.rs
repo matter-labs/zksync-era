@@ -90,22 +90,21 @@ impl JobProcessor for ProofCompressor {
             .get_scheduler_proof_job_id(batch_id)
             .await
         else {
-            anyhow::bail!("Scheduler proof is missing from database for batch {batch_number:?}");
+            anyhow::bail!("Scheduler proof is missing from database for batch {batch_id:?}");
         };
         tracing::info!("Started proof compression for L1 batch: {:?}", batch_id);
         let observer = METRICS.blob_fetch_time.start();
 
-        let fri_proof = FriProofWrapper::conditional_get_from_object_store(
-            &*self.blob_store,
-            (batch_id.chain_id(), fri_proof_id),
-        )
-        .await
-        .with_context(|| {
-            format!(
-                "Failed to get fri proof from blob store for {:?} with id {fri_proof_id}",
-                batch_id
-            )
-        })?;
+        let fri_proof = self
+            .blob_store
+            .get::<FriProofWrapper>((batch_id.chain_id(), fri_proof_id))
+            .await
+            .with_context(|| {
+                format!(
+                    "Failed to get fri proof from blob store for {:?} with id {fri_proof_id}",
+                    batch_id
+                )
+            })?;
 
         observer.observe();
 
@@ -162,10 +161,11 @@ impl JobProcessor for ProofCompressor {
             started_at.elapsed()
         );
 
-        let aux_output_witness_wrapper: AuxOutputWitnessWrapper =
-            AuxOutputWitnessWrapper::conditional_get_from_object_store(&self.blob_store, job_id)
-                .await
-                .context("Failed to get aggregation result coords from blob store")?;
+        let aux_output_witness_wrapper: AuxOutputWitnessWrapper = self
+            .blob_store
+            .get(job_id)
+            .await
+            .context("Failed to get aggregation result coords from blob store")?;
         let aggregation_result_coords =
             Self::aux_output_witness_to_array(aux_output_witness_wrapper.0);
 

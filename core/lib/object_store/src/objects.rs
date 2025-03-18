@@ -26,6 +26,10 @@ pub trait StoredObject: Sized {
     /// Encodes the object key to a string.
     fn encode_key(key: Self::Key<'_>) -> String;
 
+    fn fallback_key(_key: Self::Key<'_>) -> Option<String> {
+        None
+    }
+
     /// Serializes a value to a blob.
     ///
     /// # Errors
@@ -133,11 +137,22 @@ impl dyn ObjectStore + '_ {
         fields(key) // Will be recorded within the function.
     )]
     pub async fn get<V: StoredObject>(&self, key: V::Key<'_>) -> Result<V, ObjectStoreError> {
-        let key = V::encode_key(key);
+        let encoded_key = V::encode_key(key);
         // Record the key for tracing.
-        tracing::Span::current().record("key", key.as_str());
-        let bytes = self.get_raw(V::BUCKET, &key).await?;
-        V::deserialize(bytes).map_err(ObjectStoreError::Serialization)
+        tracing::Span::current().record("key", encoded_key.as_str());
+        let bytes = self.get_raw(V::BUCKET, &encoded_key).await;
+
+        match bytes {
+            Ok(bytes) => V::deserialize(bytes).map_err(ObjectStoreError::Serialization),
+            Err(e) => {
+                if let Some(fallback_key) = V::fallback_key(key) {
+                    let bytes = self.get_raw(V::BUCKET, &fallback_key).await?;
+                    V::deserialize(bytes).map_err(ObjectStoreError::Serialization)
+                } else {
+                    Err(e)
+                }
+            }
+        }
     }
 
     /// Fetches the value for the given encoded key if it exists.

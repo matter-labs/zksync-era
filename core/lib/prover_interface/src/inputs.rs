@@ -2,13 +2,10 @@ use std::{collections::HashMap, convert::TryInto, fmt::Debug};
 
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, Bytes};
-use zksync_object_store::{
-    _reexports::BoxedError, serialize_using_bincode, Bucket, ObjectStore, ObjectStoreError,
-    StoredObject,
-};
+use zksync_object_store::{_reexports::BoxedError, serialize_using_bincode, Bucket, StoredObject};
 use zksync_types::{
     basic_fri_types::Eip4844Blobs, block::L2BlockExecutionData, commitment::PubdataParams,
-    witness_block_state::WitnessStorageState, ChainAwareL1BatchNumber, L1BatchNumber, L2ChainId,
+    witness_block_state::WitnessStorageState, ChainAwareL1BatchNumber, L1BatchNumber,
     ProtocolVersionId, H256, U256,
 };
 use zksync_vm_interface::{L1BatchEnv, SystemEnv};
@@ -217,23 +214,6 @@ pub struct WitnessInputData {
     pub eip_4844_blobs: Eip4844Blobs,
 }
 
-impl WitnessInputData {
-    pub async fn conditional_get_from_object_store(
-        blob_store: &dyn ObjectStore,
-        key: <Self as StoredObject>::Key<'_>,
-    ) -> Result<Self, ObjectStoreError> {
-        match blob_store.get(key).await {
-            Ok(proof) => Ok(proof),
-            Err(_) => {
-                // If the proof with chain id was not found, we try to fetch the one without chain id
-                let batch_number = key.batch_number();
-                let key = ChainAwareL1BatchNumber::new(L2ChainId::zero(), batch_number);
-                blob_store.get(key).await
-            }
-        }
-    }
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WitnessInputDataLegacy {
     pub vm_run_data: VMRunWitnessInputDataLegacy,
@@ -259,15 +239,15 @@ impl StoredObject for WitnessInputData {
     type Key<'a> = ChainAwareL1BatchNumber;
 
     fn encode_key(key: Self::Key<'_>) -> String {
-        if key.raw_chain_id() == 0 {
-            return format!("witness_inputs_{}.bin", key.raw_batch_number());
-        }
-
         format!(
             "witness_inputs_{}_{}.bin",
             key.raw_chain_id(),
             key.raw_batch_number()
         )
+    }
+
+    fn fallback_key(key: Self::Key<'_>) -> Option<String> {
+        Some(format!("witness_inputs_{}.bin", key.raw_batch_number()))
     }
 
     fn serialize(&self) -> Result<Vec<u8>, BoxedError> {

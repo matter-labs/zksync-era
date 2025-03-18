@@ -160,9 +160,7 @@ impl JobManager for RecursionTip {
                 batch_id: metadata.batch_id,
                 circuit_id,
             };
-            let ClosedFormInputWrapper(_, recursion_queue) =
-                ClosedFormInputWrapper::conditional_get_from_object_store(object_store, key)
-                    .await?;
+            let ClosedFormInputWrapper(_, recursion_queue) = object_store.get(key).await?;
             recursion_queues.push((circuit_id, recursion_queue));
         }
 

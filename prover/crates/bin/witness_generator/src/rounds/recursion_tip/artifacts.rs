@@ -49,12 +49,10 @@ impl ArtifactsManager for RecursionTip {
         let mut proofs = Vec::new();
         for circuit_id in BaseLayerCircuitType::as_iter_u8() {
             if job_mapping.contains_key(&circuit_id) {
-                let fri_proof_wrapper = FriProofWrapper::conditional_get_from_object_store(
-                    object_store,
-                    *job_mapping.get(&circuit_id).unwrap(),
-                )
-                .await
-                .map_err(|e| anyhow::anyhow!(e))?;
+                let fri_proof_wrapper = object_store
+                    .get::<FriProofWrapper>(*job_mapping.get(&circuit_id).unwrap())
+                    .await
+                    .map_err(|e| anyhow::anyhow!(e))?;
                 match fri_proof_wrapper {
                     FriProofWrapper::Base(_) => {
                         return Err(anyhow::anyhow!(

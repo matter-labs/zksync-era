@@ -645,8 +645,8 @@ impl FriProverDal<'_, '_> {
             SET
             updated_at = NOW()
             "#,
-            batch_number.raw_batch_number() as i64,
-            batch_number.raw_chain_id() as i32,
+            batch_id.raw_batch_number() as i64,
+            batch_id.raw_chain_id() as i32,
             i16::from(circuit_id),
             circuit_blob_url,
             aggregation_round as i64,

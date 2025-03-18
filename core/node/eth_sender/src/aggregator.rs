@@ -770,14 +770,12 @@ pub async fn load_wrapped_fri_proofs_for_range(
     allowed_versions: &[ProtocolSemanticVersion],
 ) -> Option<L1BatchProofForL1> {
     for version in allowed_versions {
-        match L1BatchProofForL1::conditional_get_from_object_store(
-            blob_store,
-            (
+        match blob_store
+            .get::<L1BatchProofForL1>((
                 ChainAwareL1BatchNumber::new(chain_id, l1_batch_number),
                 *version,
-            ),
-        )
-        .await
+            ))
+            .await
         {
             Ok(proof) => return Some(proof),
             Err(ObjectStoreError::KeyNotFound(_)) => (),

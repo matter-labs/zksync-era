@@ -25,7 +25,8 @@ impl ArtifactsManager for Scheduler {
         metadata: &Self::InputMetadata,
         object_store: &dyn ObjectStore,
     ) -> anyhow::Result<Self::InputArtifacts> {
-        FriProofWrapper::conditional_get_from_object_store(object_store, *metadata)
+        object_store
+            .get(*metadata)
             .await
             .map_err(|e| anyhow::anyhow!(e))
     }

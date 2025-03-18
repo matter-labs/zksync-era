@@ -32,7 +32,8 @@ impl ArtifactsManager for BasicCircuits {
         object_store: &dyn ObjectStore,
     ) -> anyhow::Result<Self::InputArtifacts> {
         let batch_id = *metadata;
-        let data = WitnessInputData::conditional_get_from_object_store(object_store, batch_id)
+        let data = object_store
+            .get::<WitnessInputData>(batch_id)
             .await
             .map_err(|e| anyhow!(e))?;
         Ok(BasicWitnessGeneratorJob { batch_id, data })
