@@ -778,7 +778,7 @@ pub async fn load_wrapped_fri_proofs_for_range(
             .await
         {
             Ok(proof) => return Some(proof),
-            Err(ObjectStoreError::KeyNotFound(_)) => () // do nothing, proof is not ready yet,
+            Err(ObjectStoreError::KeyNotFound(_)) => (), // do nothing, proof is not ready yet,
             Err(err) => panic!(
                 "Failed to load proof for batch {}: {}",
                 l1_batch_number.0, err

@@ -12,8 +12,7 @@ use zksync_types::{
     basic_fri_types::Eip4844Blobs,
     commitment::{serialize_commitments, L1BatchCommitmentMode},
     web3::keccak256,
-    ChainAwareL1BatchNumber, L1BatchNumber, L2ChainId, ProtocolVersionId, H256,
-    STATE_DIFF_HASH_KEY_PRE_GATEWAY,
+    L1BatchNumber, L2ChainId, ProtocolVersionId, H256, STATE_DIFF_HASH_KEY_PRE_GATEWAY,
 };
 
 use crate::metrics::METRICS;
@@ -161,24 +160,17 @@ impl ProofDataProcessor {
         })
     }
 
-    pub(crate) async fn handle_proof(
-        &self,
-        chain_id: L2ChainId,
-        proof: SubmitProofRequest,
-    ) -> anyhow::Result<()> {
+    pub(crate) async fn handle_proof(&self, proof: SubmitProofRequest) -> anyhow::Result<()> {
         match proof {
-            SubmitProofRequest::Proof(l1_batch_number, proof) => {
-                tracing::info!("Received proof for block number: {:?}", l1_batch_number);
+            SubmitProofRequest::Proof(batch_id, proof) => {
+                tracing::info!(
+                    "Received proof for block number: {:?}",
+                    batch_id.batch_number
+                );
 
                 let blob_url = self
                     .blob_store
-                    .put(
-                        (
-                            ChainAwareL1BatchNumber::new(chain_id, l1_batch_number),
-                            proof.protocol_version(),
-                        ),
-                        &*proof,
-                    )
+                    .put((batch_id, proof.protocol_version()), &*proof)
                     .await?;
 
                 let aggregation_coords = proof.aggregation_result_coords();
@@ -193,7 +185,7 @@ impl ProofDataProcessor {
 
                 let l1_batch = storage
                     .blocks_dal()
-                    .get_l1_batch_metadata(l1_batch_number)
+                    .get_l1_batch_metadata(batch_id.batch_number)
                     .await
                     .unwrap()
                     .expect("Proved block without metadata");
@@ -257,17 +249,17 @@ impl ProofDataProcessor {
 
                 storage
                     .proof_generation_dal()
-                    .save_proof_artifacts_metadata(l1_batch_number, &blob_url)
+                    .save_proof_artifacts_metadata(batch_id.batch_number, &blob_url)
                     .await?;
             }
-            SubmitProofRequest::SkippedProofGeneration(l1_batch_number) => {
-                tracing::info!("Skipped proof for block number: {:?}", l1_batch_number);
+            SubmitProofRequest::SkippedProofGeneration(batch_id) => {
+                tracing::info!("Skipped proof for block number: {:?}", batch_id);
                 self.pool
                     .connection()
                     .await
                     .unwrap()
                     .proof_generation_dal()
-                    .mark_proof_generation_job_as_skipped(l1_batch_number)
+                    .mark_proof_generation_job_as_skipped(batch_id.batch_number)
                     .await?;
             }
         }

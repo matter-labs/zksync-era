@@ -7,6 +7,7 @@ use zksync_prover_dal::{ConnectionPool, Prover};
 use zksync_prover_interface::rpc::GatewayRpcServer;
 
 use crate::rpc_server::processor::RpcDataProcessor;
+mod processor;
 
 pub struct RpcServer {
     pub(crate) processor: RpcDataProcessor,
@@ -46,4 +47,3 @@ impl RpcServer {
         Ok(())
     }
 }
-mod processor;

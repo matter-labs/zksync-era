@@ -217,21 +217,15 @@ impl RpcClient {
                 }
             };
 
-            let l1_batch_number = match proof {
-                SubmitProofRequest::Proof(l1_batch_number, _) => l1_batch_number,
-                SubmitProofRequest::SkippedProofGeneration(l1_batch_number) => l1_batch_number,
+            let batch_id = match proof {
+                SubmitProofRequest::Proof(batch_id, _) => batch_id,
+                SubmitProofRequest::SkippedProofGeneration(batch_id) => batch_id,
             };
 
-            tracing::info!(
-                "Received proof for batch {:?}, chain id {}",
-                l1_batch_number,
-                chain_id.as_u64()
-            );
+            tracing::info!("Received proof for {:?}", batch_id);
 
-            self.processor.handle_proof(chain_id, proof).await?;
-            client
-                .received_final_proof(chain_id, l1_batch_number)
-                .await?
+            self.processor.handle_proof(proof).await?;
+            client.received_final_proof(batch_id).await?
         }
     }
 }

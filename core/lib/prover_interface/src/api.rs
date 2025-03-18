@@ -6,7 +6,7 @@ use serde_with::{hex::Hex, serde_as};
 use zksync_types::{
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     tee_types::TeeType,
-    L1BatchNumber,
+    ChainAwareL1BatchNumber, L1BatchNumber,
 };
 
 use crate::{
@@ -58,9 +58,9 @@ pub struct TeeProofGenerationDataRequest {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum SubmitProofRequest {
-    Proof(L1BatchNumber, Box<L1BatchProofForL1>),
+    Proof(ChainAwareL1BatchNumber, Box<L1BatchProofForL1>),
     // The proof generation was skipped due to sampling
-    SkippedProofGeneration(L1BatchNumber),
+    SkippedProofGeneration(ChainAwareL1BatchNumber),
 }
 
 #[derive(Debug, Serialize, Deserialize)]

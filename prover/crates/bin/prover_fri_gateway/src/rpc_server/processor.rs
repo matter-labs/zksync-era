@@ -81,10 +81,10 @@ impl RpcDataProcessor {
                     .get::<L1BatchProofForL1>((batch_id, protocol_version))
                     .await
                     .expect("Failed to get compressed snark proof from blob store");
-                SubmitProofRequest::Proof(l1_batch_number, Box::new(proof))
+                SubmitProofRequest::Proof(batch_id, Box::new(proof))
             }
             ProofCompressionJobStatus::Skipped => {
-                SubmitProofRequest::SkippedProofGeneration(l1_batch_number)
+                SubmitProofRequest::SkippedProofGeneration(batch_id)
             }
             _ => panic!(
                 "Trying to send proof that are not successful status: {:?}",
@@ -97,14 +97,13 @@ impl RpcDataProcessor {
 
     pub async fn save_successful_sent_proof(
         &self,
-        chain_id: L2ChainId,
-        l1_batch_number: L1BatchNumber,
+        batch_id: ChainAwareL1BatchNumber,
     ) -> anyhow::Result<()> {
         self.pool
             .connection()
             .await?
             .fri_proof_compressor_dal()
-            .mark_proof_sent_to_server(ChainAwareL1BatchNumber::new(chain_id, l1_batch_number))
+            .mark_proof_sent_to_server(batch_id)
             .await
             .map_err(|e| anyhow::anyhow!(e))
     }
@@ -161,17 +160,12 @@ impl GatewayRpcServer for RpcDataProcessor {
         Ok(())
     }
 
-    async fn received_final_proof(
-        &self,
-        chain_id: L2ChainId,
-        l1_batch_number: L1BatchNumber,
-    ) -> RpcResult<()> {
+    async fn received_final_proof(&self, batch_id: ChainAwareL1BatchNumber) -> RpcResult<()> {
         tracing::info!(
-            "Received confirmation of successfully sent proof for batch {:?}, chain id {:?}",
-            l1_batch_number,
-            chain_id.as_u64(),
+            "Received confirmation of successfully sent proof for {:?}",
+            batch_id
         );
-        self.save_successful_sent_proof(chain_id, l1_batch_number)
+        self.save_successful_sent_proof(batch_id)
             .await
             .map_err(|err| ErrorObject::owned(INTERNAL_ERROR_CODE, format!("{err:?}"), None::<()>))
     }
