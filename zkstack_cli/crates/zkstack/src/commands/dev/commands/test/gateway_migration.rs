@@ -8,7 +8,7 @@ use crate::commands::dev::{
     messages::{MSG_GATEWAY_UPGRADE_TEST_RUN_INFO, MSG_GATEWAY_UPGRADE_TEST_RUN_SUCCESS},
 };
 
-const GATEWAY_SWITCH_TESTS_PATH: &str = "core/tests/gateway-switch-test";
+const GATEWAY_SWITCH_TESTS_PATH: &str = "core/tests/gateway-migration-test";
 
 pub fn run(shell: &Shell, args: GatewayMigrationArgs) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
@@ -24,7 +24,7 @@ pub fn run(shell: &Shell, args: GatewayMigrationArgs) -> anyhow::Result<()> {
         install_and_build_dependencies(shell, &ecosystem_config)?;
     }
 
-    run_test(shell, &ecosystem_config, args.direction)?;
+    run_test(shell, &ecosystem_config, args.direction, args.gateway_chain)?;
     logger::outro(MSG_GATEWAY_UPGRADE_TEST_RUN_SUCCESS);
 
     Ok(())
@@ -34,11 +34,15 @@ fn run_test(
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
     direction: MigrationDirection,
+    gateway_chain: Option<String>,
 ) -> anyhow::Result<()> {
     Spinner::new(MSG_GATEWAY_UPGRADE_TEST_RUN_INFO).freeze();
-    let cmd = Cmd::new(cmd!(shell, "yarn mocha tests/migration.test.ts"))
+    let mut cmd = Cmd::new(cmd!(shell, "yarn mocha tests/migration.test.ts"))
         .env("CHAIN_NAME", ecosystem_config.current_chain())
         .env("DIRECTION", format!("{:?}", direction));
+    if let Some(chain) = gateway_chain {
+        cmd = cmd.env("GATEWAY_CHAIN", chain);
+    }
     cmd.with_force_run().run()?;
 
     Ok(())

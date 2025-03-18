@@ -1,5 +1,5 @@
 {
-  "name": "upgrade-test",
+  "name": "gateway_migration_test",
   "version": "1.0.0",
   "license": "MIT",
   "mocha": {

@@ -15,4 +15,6 @@ pub struct GatewayMigrationArgs {
     pub no_deps: bool,
     #[clap(short, long)]
     pub direction: MigrationDirection,
+    #[clap(short, long)]
+    pub gateway_chain: Option<String>,
 }

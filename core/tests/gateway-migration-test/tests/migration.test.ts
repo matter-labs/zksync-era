@@ -35,12 +35,6 @@ interface GatewayInfo {
     l2DiamondProxyAddress: string;
 }
 
-interface Call {
-    target: string;
-    value: BigNumberish;
-    data: BytesLike;
-}
-
 describe('Migration From/To gateway test', function () {
     // Utility wallets for facilitating testing
     let tester: Tester;
@@ -49,6 +43,7 @@ describe('Migration From/To gateway test', function () {
     // The diamond proxy contract on the settlement layer.
     let l1MainContract: ethers.Contract;
 
+    let gatewayChain: string;
     let logs: fs.FileHandle;
     let direction: string;
     let ethProviderAddress: string | undefined;
@@ -62,6 +57,12 @@ describe('Migration From/To gateway test', function () {
             direction = 'TO';
         } else {
             direction = process.env.DIRECTION;
+        }
+
+        if (process.env.GATEWAY_CHAIN === undefined) {
+            gatewayChain = 'gateway';
+        } else {
+            gatewayChain = process.env.GATEWAY_CHAIN;
         }
 
         if (!fileConfig.loadFromFile) {
@@ -169,11 +170,11 @@ describe('Migration From/To gateway test', function () {
 
         if (direction == 'TO') {
             await utils.spawn(
-                `zkstack chain migrate-to-gateway --chain ${fileConfig.chain} --gateway-chain-name gateway`
+                `zkstack chain migrate-to-gateway --chain ${fileConfig.chain} --gateway-chain-name ${gatewayChain}`
             );
         } else {
             await utils.spawn(
-                `zkstack chain migrate-from-gateway --chain ${fileConfig.chain} --gateway-chain-name gateway`
+                `zkstack chain migrate-from-gateway --chain ${fileConfig.chain} --gateway-chain-name ${gatewayChain}`
             );
         }
         await mainNodeSpawner.mainNode?.waitForShutdown();
