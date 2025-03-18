@@ -39,7 +39,7 @@ fn run_test(
     Spinner::new(MSG_GATEWAY_UPGRADE_TEST_RUN_INFO).freeze();
     let mut cmd = Cmd::new(cmd!(shell, "yarn mocha tests/migration.test.ts"))
         .env("CHAIN_NAME", ecosystem_config.current_chain())
-        .env("DIRECTION", format!("{:?}", direction));
+        .env("DIRECTION", format!("{:?}", direction).to_ascii_uppercase());
     if let Some(chain) = gateway_chain {
         cmd = cmd.env("GATEWAY_CHAIN", chain);
     }

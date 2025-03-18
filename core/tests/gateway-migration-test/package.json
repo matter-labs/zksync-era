@@ -12,9 +12,6 @@
       "mocha-steps"
     ]
   },
-  "scripts": {
-    "upgrade-test": "zk f mocha tests/upgrade.test.ts"
-  },
   "devDependencies": {
     "@types/chai": "^4.2.21",
     "@types/mocha": "^8.2.3",

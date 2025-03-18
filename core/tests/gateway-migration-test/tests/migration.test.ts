@@ -5,10 +5,8 @@ import * as ethers from 'ethers';
 import { expect } from 'chai';
 import fs from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
-import { BytesLike } from '@ethersproject/bytes';
-import { BigNumberish, ZeroAddress } from 'ethers';
+import { ZeroAddress } from 'ethers';
 import { loadConfig, shouldLoadConfigFromFile } from 'utils/build/file-configs';
-import { Contracts, initContracts } from './utils';
 import path from 'path';
 import { logsTestPath } from 'utils/build/logs';
 
@@ -18,8 +16,6 @@ async function logsPath(name: string): Promise<string> {
 
 const pathToHome = path.join(__dirname, '../../../..');
 const fileConfig = shouldLoadConfigFromFile();
-
-const contracts: Contracts = initContracts(pathToHome, fileConfig.loadFromFile);
 
 const ZK_CHAIN_INTERFACE = JSON.parse(
     readFileSync(pathToHome + '/contracts/l1-contracts/out/IZKChain.sol/IZKChain.json').toString()

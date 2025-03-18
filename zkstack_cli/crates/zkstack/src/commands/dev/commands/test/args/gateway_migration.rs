@@ -5,8 +5,8 @@ use crate::commands::dev::messages::MSG_NO_DEPS_HELP;
 
 #[derive(Debug, Clone, clap::ValueEnum, Serialize, Deserialize)]
 pub enum MigrationDirection {
-    FROM,
-    TO,
+    From,
+    To,
 }
 
 #[derive(Debug, Parser)]
