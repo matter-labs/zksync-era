@@ -16,8 +16,6 @@ use zksync_metadata_calculator::{
     MerkleTreeReaderConfig, MetadataCalculatorConfig, MetadataCalculatorRecoveryConfig,
 };
 use zksync_node_api_server::web3::{state::InternalApiConfigBuilder, Namespace};
-use zksync_node_framework::implementations::layers::settlement_layer_data;
-use zksync_node_framework::implementations::layers::settlement_layer_data::SettlementLayerData;
 use zksync_node_framework::{
     implementations::layers::{
         batch_status_updater::BatchStatusUpdaterLayer,
@@ -47,6 +45,8 @@ use zksync_node_framework::{
         query_eth_client::QueryEthClientLayer,
         reorg_detector::ReorgDetectorLayer,
         settlement_layer_client::SettlementLayerClientLayer,
+        settlement_layer_data,
+        settlement_layer_data::SettlementLayerData,
         sigint::SigintHandlerLayer,
         state_keeper::{
             external_io::ExternalIOLayer, main_batch_executor::MainBatchExecutorLayer,

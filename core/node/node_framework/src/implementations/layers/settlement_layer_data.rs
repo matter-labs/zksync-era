@@ -1,17 +1,18 @@
 use anyhow::Context;
-use zksync_config::configs::contracts::{
-    chain::L2Contracts, ecosystem::L1SpecificContracts, SettlementLayerSpecificContracts,
+use zksync_config::configs::{
+    contracts::{
+        chain::L2Contracts, ecosystem::L1SpecificContracts, SettlementLayerSpecificContracts,
+    },
+    eth_sender::SenderConfig,
 };
-use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_consistency_checker::get_db_settlement_mode;
 use zksync_contracts::getters_facet_contract;
 use zksync_contracts_loader::{get_settlement_layer_from_l1, load_settlement_layer_contracts};
 use zksync_eth_client::EthInterface;
 use zksync_gateway_migrator::switch_to_current_settlement_mode;
-use zksync_types::pubdata_da::PubdataSendingMode;
 use zksync_types::{
-    settlement::SettlementMode, url::SensitiveUrl, Address, L2ChainId, SLChainId,
-    L2_BRIDGEHUB_ADDRESS,
+    pubdata_da::PubdataSendingMode, settlement::SettlementMode, url::SensitiveUrl, Address,
+    L2ChainId, SLChainId, L2_BRIDGEHUB_ADDRESS,
 };
 use zksync_web3_decl::{client::Client, namespaces::ZksNamespaceClient};
 

@@ -20,7 +20,6 @@ use zksync_node_api_server::{
     tx_sender::TxSenderConfig,
     web3::{state::InternalApiConfigBuilder, Namespace},
 };
-use zksync_node_framework::implementations::layers::settlement_layer_data::MainNodeConfig;
 use zksync_node_framework::{
     implementations::layers::{
         base_token::{
@@ -58,7 +57,7 @@ use zksync_node_framework::{
         proof_data_handler::ProofDataHandlerLayer,
         query_eth_client::QueryEthClientLayer,
         settlement_layer_client::SettlementLayerClientLayer,
-        settlement_layer_data::SettlementLayerData,
+        settlement_layer_data::{MainNodeConfig, SettlementLayerData},
         sigint::SigintHandlerLayer,
         state_keeper::{
             main_batch_executor::MainBatchExecutorLayer, mempool_io::MempoolIOLayer,

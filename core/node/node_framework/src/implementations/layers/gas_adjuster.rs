@@ -1,8 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::Context;
-use zksync_config::configs::eth_sender::SenderConfig;
-use zksync_config::{GasAdjusterConfig, GenesisConfig};
+use zksync_config::{configs::eth_sender::SenderConfig, GasAdjusterConfig, GenesisConfig};
 use zksync_node_fee_model::l1_gas_price::GasAdjuster;
 
 use crate::{

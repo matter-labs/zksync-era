@@ -1,7 +1,6 @@
 use zksync_circuit_breaker::l1_txs::FailedL1TransactionChecker;
 use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_eth_sender::EthTxManager;
-use zksync_types::pubdata_da::PubdataSendingMode;
 
 use crate::{
     implementations::resources::{
@@ -83,23 +82,11 @@ impl WiringLayer for EthTxManagerLayer {
         let eth_client_blobs = input.eth_client_blobs.map(|c| c.0);
         let l2_client = input.eth_client_gateway.map(|c| c.0);
 
-        let mut config = input.sender_config;
-
-        if input.sl_mode.0.is_gateway() {
-            config.max_aggregated_tx_gas = 4294967295;
-            config.max_eth_tx_data_size = 550_000;
-            if config.pubdata_sending_mode == PubdataSendingMode::Blobs
-                || config.pubdata_sending_mode == PubdataSendingMode::Calldata
-            {
-                config.pubdata_sending_mode = PubdataSendingMode::RelayedL2Calldata
-            }
-        }
-
         let gas_adjuster = input.gas_adjuster.0;
 
         let eth_tx_manager = EthTxManager::new(
             master_pool,
-            config,
+            input.sender_config,
             gas_adjuster,
             Some(eth_client),
             eth_client_blobs,
