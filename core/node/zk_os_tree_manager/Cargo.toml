@@ -28,6 +28,7 @@ serde_json.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["time"] }
 tracing.workspace = true
+vise.workspace = true
 
 [dev-dependencies]
 zksync_node_genesis.workspace = true

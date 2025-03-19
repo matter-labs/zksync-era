@@ -11307,6 +11307,7 @@ dependencies = [
  "thiserror 1.0.69",
  "tokio",
  "tracing",
+ "vise",
  "zk_os_merkle_tree",
  "zksync_dal",
  "zksync_health_check",

@@ -22,9 +22,11 @@ use zk_os_merkle_tree::{unstable, unstable::NodeKey, BatchTreeProof, TreeOperati
 use zksync_types::{web3, L1BatchNumber, H256};
 
 pub use self::client::{TreeApiClient, TreeApiError, TreeApiHttpClient};
+use self::metrics::{MerkleTreeApiMethod, API_METRICS};
 use crate::{health::MerkleTreeInfo, helpers::AsyncTreeReader};
 
 mod client;
+mod metrics;
 
 #[derive(Debug, Serialize, Deserialize)]
 struct TreeProofRequest {
@@ -255,9 +257,9 @@ impl AsyncTreeReader {
     async fn info_handler(
         State(this): State<Self>,
     ) -> Result<Json<MerkleTreeInfo>, ApiServerError> {
-        //let latency = API_METRICS.latency[&MerkleTreeApiMethod::Info].start();
+        let latency = API_METRICS.latency[&MerkleTreeApiMethod::Info].start();
         let info = this.info().await?;
-        //latency.observe();
+        latency.observe();
         Ok(Json(info))
     }
 
@@ -287,14 +289,14 @@ impl AsyncTreeReader {
         State(this): State<Self>,
         Json(request): Json<TreeProofRequest>,
     ) -> Result<Json<TreeProofResponse>, ApiServerError> {
-        //let latency = API_METRICS.latency[&MerkleTreeApiMethod::GetProofs].start();
+        let latency = API_METRICS.latency[&MerkleTreeApiMethod::GetProof].start();
         let proof = this
             .get_proofs_inner(request.l1_batch_number, request.hashed_keys)
             .await?;
         let response = TreeProofResponse {
             proof: proof.into(),
         };
-        //latency.observe();
+        latency.observe();
         Ok(Json(response))
     }
 
@@ -302,7 +304,7 @@ impl AsyncTreeReader {
         State(this): State<Self>,
         Json(request): Json<TreeNodesRequest>,
     ) -> Result<Json<TreeNodesResponse>, ApiServerError> {
-        //let latency = API_METRICS.latency[&MerkleTreeApiMethod::GetNodes].start();
+        let latency = API_METRICS.latency[&MerkleTreeApiMethod::GetNodes].start();
         let keys: Vec<_> = request.keys.iter().map(|key| key.0).collect();
         let nodes = this.clone().raw_nodes(keys).await?;
         let nodes = request
@@ -312,7 +314,7 @@ impl AsyncTreeReader {
             .filter_map(|(key, node)| Some((key, node?.into())))
             .collect();
         let response = TreeNodesResponse { nodes };
-        //latency.observe();
+        latency.observe();
         Ok(Json(response))
     }
 
