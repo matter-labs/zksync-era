@@ -220,7 +220,7 @@ impl VmExecutionResultAndLogs {
             computational_gas_used: self.statistics.computational_gas_used,
             pubdata_published: self.statistics.pubdata_published,
             circuit_statistic: self.statistics.circuit_statistic,
-            contract_deployment_count: contract_deployment_count,
+            contract_deployment_count,
         }
     }
 }

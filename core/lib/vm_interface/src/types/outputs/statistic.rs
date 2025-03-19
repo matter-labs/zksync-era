@@ -217,7 +217,6 @@ pub struct VmExecutionMetrics {
     pub computational_gas_used: u32,
     pub pubdata_published: u32,
     pub circuit_statistic: CircuitStatistic,
-    #[serde(default)]
     pub contract_deployment_count: usize,
 }
 

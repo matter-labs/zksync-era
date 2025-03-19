@@ -3,5 +3,5 @@ syntax = "proto3";
 package zksync.config.tx_sink;
 
 message TxSink {
-  optional bool deployment_allowlist_sink = 1;
+  optional bool use_deployment_allowlist_sink = 1;
 }
