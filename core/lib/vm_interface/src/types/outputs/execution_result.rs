@@ -10,7 +10,8 @@ use zksync_types::{
     ethabi,
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
     zk_evm_types::FarCallOpcode,
-    Address, L1BatchNumber, StorageLogWithPreviousValue, Transaction, H256, U256,
+    Address, L1BatchNumber, StorageLogWithPreviousValue, Transaction, CONTRACT_DEPLOYER_ADDRESS,
+    H256, U256,
 };
 
 use crate::{
@@ -105,6 +106,7 @@ impl VmEvent {
                     .indexed_topics
                     .get(0)
                     .map_or(false, |&topic| topic == VmEvent::DEPLOY_EVENT_SIGNATURE)
+                    && event.address == CONTRACT_DEPLOYER_ADDRESS
             })
             .count()
     }
