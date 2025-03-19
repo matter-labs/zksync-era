@@ -81,14 +81,70 @@ if [ -z "$MASTER_URL" ]; then
     --update-submodules=false \
     --server-command /zksync_server
 
+  if [ "$GATEWAY" = "true" ]; then
+    echo "Setting up gateway chain"
+
+    zkstack chain create \
+      --chain-name gateway \
+      --chain-id 505 \
+      --prover-mode no-proofs \
+      --wallet-creation localhost \
+      --l1-batch-commit-data-generator-mode rollup \
+      --base-token-address 0x0000000000000000000000000000000000000001 \
+      --base-token-price-nominator 1 \
+      --base-token-price-denominator 1 \
+      --set-as-default false \
+      --ignore-prerequisites \
+      --update-submodules=false \
+      --evm-emulator false
+    
+    zkstack chain init \
+      --deploy-paymaster \
+      --l1-rpc-url=http://localhost:8545 \
+      --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
+      --server-db-name=zksync_server_localhost_gateway \
+      --chain gateway \
+      --update-submodules=false \
+      --server-command /zksync_server \
+      --validium-type no-da
+
+    zkstack chain convert-to-gateway --chain gateway --ignore-prerequisites
+  fi
+  
   rm -rf /usr/local/share/.cache /contracts/node_modules /node_modules 
 
-  # start server
-  /zksync_server --genesis-path ./chains/era/configs/genesis.yaml \
-    --wallets-path ./chains/era/configs/wallets.yaml \
-    --config-path ./chains/era/configs/general.yaml \
-    --secrets-path ./chains/era/configs/secrets.yaml \
-    --contracts-config-path ./chains/era/configs/contracts.yaml
+  if [ "$GATEWAY" = "true" ]; then
+    echo "Migrating era chain to gateway and starting servers..."
+    
+    mkdir server_logs
+
+    # start server gateway
+    /zksync_server --genesis-path ./chains/gateway/configs/genesis.yaml \
+      --wallets-path ./chains/gateway/configs/wallets.yaml \
+      --config-path ./chains/gateway/configs/general.yaml \
+      --secrets-path ./chains/gateway/configs/secrets.yaml \
+      --contracts-config-path ./chains/gateway/configs/contracts.yaml \
+      &>server_logs/gateway.log &
+
+    zkstack chain migrate-to-gateway --chain era --gateway-chain-name gateway
+
+    # start era server
+    /zksync_server --genesis-path ./chains/era/configs/genesis.yaml \
+      --wallets-path ./chains/era/configs/wallets.yaml \
+      --config-path ./chains/era/configs/general.yaml \
+      --secrets-path ./chains/era/configs/secrets.yaml \
+      --contracts-config-path ./chains/era/configs/contracts.yaml \
+      --gateway-contracts-config-path ./chains/era/configs/gateway_chain.yaml
+  else
+    echo "Skipping gateway conversion."
+
+    # start era server
+    /zksync_server --genesis-path ./chains/era/configs/genesis.yaml \
+      --wallets-path ./chains/era/configs/wallets.yaml \
+      --config-path ./chains/era/configs/general.yaml \
+      --secrets-path ./chains/era/configs/secrets.yaml \
+      --contracts-config-path ./chains/era/configs/contracts.yaml
+  fi
 else
   zkstack chain create \
     --chain-name ${CHAIN_NAME} \
@@ -114,18 +170,34 @@ else
     --update-submodules=false \
     --server-command /zksync_server
   
+  if [ "$GATEWAY" = "true" ]; then
+    echo "Migrating custom base token chaino on top of gateway chain"
+    zkstack chain migrate-to-gateway --chain ${CHAIN_NAME} --gateway-chain-name gateway
+  fi
+  
   rm -rf /usr/local/share/.cache /contracts/node_modules /node_modules
-  # # If running in slave mode - wait for the master to be up and running.
-  # echo "Waiting for zksync master to init hyperchain"
-  # until curl --fail ${MASTER_HEALTH_URL}; do
-  #   echo >&2 "Master zksync not ready yet, sleeping"
-  #   sleep 5
-  # done
-  # start server
-  /zksync_server --genesis-path /chains/${CHAIN_NAME}/configs/genesis.yaml \
-    --wallets-path /chains/${CHAIN_NAME}/configs/wallets.yaml \
-    --config-path /chains/${CHAIN_NAME}/configs/general.yaml \
-    --secrets-path /chains/${CHAIN_NAME}/configs/secrets.yaml \
-    --contracts-config-path /chains/${CHAIN_NAME}/configs/contracts.yaml
 
+  # If running in slave mode - wait for the master to be up and running.
+  echo "Waiting for zksync master to init hyperchain"
+  until curl --fail ${MASTER_HEALTH_URL}; do
+    echo >&2 "Master zksync not ready yet, sleeping"
+    sleep 5
+  done
+
+  if [ "$GATEWAY" = "true" ]; then
+     # start server
+    /zksync_server --genesis-path /chains/${CHAIN_NAME}/configs/genesis.yaml \
+      --wallets-path /chains/${CHAIN_NAME}/configs/wallets.yaml \
+      --config-path /chains/${CHAIN_NAME}/configs/general.yaml \
+      --secrets-path /chains/${CHAIN_NAME}/configs/secrets.yaml \
+      --contracts-config-path /chains/${CHAIN_NAME}/configs/contracts.yaml \
+      --gateway-contracts-config-path ./chains/era/configs/gateway_chain.yaml
+  else
+     # start server
+    /zksync_server --genesis-path /chains/${CHAIN_NAME}/configs/genesis.yaml \
+      --wallets-path /chains/${CHAIN_NAME}/configs/wallets.yaml \
+      --config-path /chains/${CHAIN_NAME}/configs/general.yaml \
+      --secrets-path /chains/${CHAIN_NAME}/configs/secrets.yaml \
+      --contracts-config-path /chains/${CHAIN_NAME}/configs/contracts.yaml
+  fi
 fi
