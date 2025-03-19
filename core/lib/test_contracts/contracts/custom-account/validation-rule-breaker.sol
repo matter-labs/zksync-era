@@ -14,6 +14,7 @@ contract ValidationRuleBreaker is IAccount {
 
     uint public typeOfRuleBreak;
     address public trustedAddress;
+    MockToken public mockToken;
 
     function setTypeOfRuleBreak(uint32 _typeOfRuleBreak) external {
         typeOfRuleBreak = _typeOfRuleBreak;
@@ -49,6 +50,25 @@ contract ValidationRuleBreaker is IAccount {
             } catch Panic(uint) {
                 // Swallow the error
             }
+        } else if (typeOfRuleBreak == 7) {
+            // Read storage of another contract via mapping. This should succeed.
+            require(mockToken.getBalance(address(this)) == 0);
+            require(mockToken.getAllowance(address(this), address(0x800a)) == 0);
+            require(mockToken.getAllowance(address(0x10203), address(this)) == 0);
+            (uint256 depositCount, uint256 withdrawalCount) = mockToken.getStats(address(this));
+            require(depositCount == 0 && withdrawalCount == 0);
+            // Offset 100 is acceptable
+            require(mockToken.readAfterStats(address(this), 100) == 0);
+        } else if (typeOfRuleBreak == 8) {
+            // Disallowed read from a layered mapping.
+            require(mockToken.getAllowance(address(0x10203), address(0x30201)) == 0);
+        } else if (typeOfRuleBreak == 9) {
+            // Disallowed read from a mapping with an offset
+            (uint256 depositCount, uint256 withdrawalCount) = mockToken.getStats(address(0x10203));
+            require(depositCount == 0 && withdrawalCount == 0);
+        } else if (typeOfRuleBreak == 10) {
+            // Offset 1000 is too large to be recognized as belonging to an allowed mapping entry.
+            require(mockToken.readAfterStats(address(this), 1000) == 0);
         }
 
         _validateTransaction(_suggestedSignedTxHash, _transaction);
@@ -154,4 +174,40 @@ contract ValidationRuleBreaker is IAccount {
     }
 
     receive() external payable {}
+}
+
+contract MockToken {
+    // Simple mapping.
+    mapping(address => uint256) balances;
+    // Layered mapping.
+    mapping(address => mapping(address => uint256)) allowances;
+
+    struct AccountStats {
+        uint256 depositCount;
+        uint256 withdrawalCount;
+    }
+
+    // Mapping with values occupying >1 slot.
+    mapping(address => AccountStats) stats;
+
+    function getBalance(address _address) external returns (uint256) {
+        return balances[_address];
+    }
+
+    function getAllowance(address _address, address _recipient) external returns (uint256) {
+        return allowances[_address][_recipient];
+    }
+
+    function getStats(address _address) external returns (uint256 depositCount, uint256 withdrawalCount) {
+        AccountStats storage accountStats = stats[_address];
+        depositCount = accountStats.depositCount;
+        withdrawalCount = accountStats.withdrawalCount;
+    }
+
+    function readAfterStats(address _address, uint256 _offset) external returns (uint256 result) {
+        AccountStats storage accountStats = stats[_address];
+        assembly {
+            result := sload(add(accountStats.slot, _offset))
+        }
+    }
 }
