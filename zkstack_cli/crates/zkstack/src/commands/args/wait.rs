@@ -92,13 +92,14 @@ impl WaitArgs {
 
             let response = match client.get(url).send().await {
                 Ok(response) => response,
-                Err(err) if err.is_connect() || err.is_timeout() => {
+                // Err(err) if err.is_connect() || err.is_timeout() => {
+                //     continue;
+                // }
+                Err(_err) => {
                     continue;
-                }
-                Err(err) => {
-                    return Err(
-                        anyhow::Error::new(err).context(msg_wait_connect_err(&component, url))
-                    )
+                    // return Err(
+                    //     anyhow::Error::new(err).context(msg_wait_connect_err(&component, url))
+                    // )
                 }
             };
 
