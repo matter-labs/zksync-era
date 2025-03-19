@@ -44,6 +44,7 @@ eigen:
   points_source_url:
     g1_url: https://github.com/Layr-Labs/eigenda-proxy/raw/2fd70b99ef5bf137d7bbca3461cf9e1f2c899451/resources/g1.point
     g2_url: https://github.com/Layr-Labs/eigenda-proxy/raw/2fd70b99ef5bf137d7bbca3461cf9e1f2c899451/resources/g2.point.powerOf2
+  # custom_quorum_numbers: 2,3 # uncomment to use other quorums besides defaults
 ```
 
 If using `authenticated` dispersal, you also need to modify `etc/env/file_based/secrets.yaml` to include the private key
