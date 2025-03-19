@@ -9,6 +9,8 @@ use tokio::sync::watch;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_health_check::{CheckHealth, HealthUpdater, ReactiveHealthCheck};
 use zksync_shared_metrics::tree::{ConfigLabels, ModeLabel, METRICS};
+#[cfg(test)]
+use zksync_types::L1BatchNumber;
 
 pub use self::helpers::LazyAsyncTreeReader;
 use crate::{
@@ -21,6 +23,8 @@ pub mod api;
 mod batch;
 mod health;
 mod helpers;
+#[cfg(test)]
+mod tests;
 mod updater;
 
 /// Configuration of [`TreeManager`].
@@ -69,6 +73,8 @@ pub struct TreeManager {
     pool: ConnectionPool<Core>,
     health_updater: HealthUpdater,
     tree_reader: watch::Sender<Option<AsyncTreeReader>>,
+    #[cfg(test)]
+    next_l1_batch_sender: watch::Sender<L1BatchNumber>,
 }
 
 impl TreeManager {
@@ -87,6 +93,8 @@ impl TreeManager {
             pool,
             health_updater,
             tree_reader: watch::channel(None).0,
+            #[cfg(test)]
+            next_l1_batch_sender: watch::channel(L1BatchNumber(0)).0,
         }
     }
 
@@ -98,6 +106,11 @@ impl TreeManager {
     /// Returns a reference to the tree reader.
     pub fn tree_reader(&self) -> LazyAsyncTreeReader {
         LazyAsyncTreeReader(self.tree_reader.subscribe())
+    }
+
+    #[cfg(test)]
+    fn subscribe_to_l1_batches(&self) -> watch::Receiver<L1BatchNumber> {
+        self.next_l1_batch_sender.subscribe()
     }
 
     async fn create_tree(&self) -> anyhow::Result<AsyncMerkleTree> {
@@ -135,7 +148,12 @@ impl TreeManager {
         self.health_updater
             .update(MerkleTreeHealth::MainLoop(tree_info).into());
 
-        let updater = TreeUpdater::new(tree, self.config.max_l1_batches_per_iter.get());
+        let updater = TreeUpdater {
+            tree,
+            max_l1_batches_per_iter: self.config.max_l1_batches_per_iter.get(),
+            #[cfg(test)]
+            next_l1_batch_sender: self.next_l1_batch_sender,
+        };
         updater
             .loop_updating_tree(self.config.delay_interval, &self.pool, stop_receiver)
             .await

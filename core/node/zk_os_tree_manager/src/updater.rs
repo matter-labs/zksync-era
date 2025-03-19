@@ -17,18 +17,13 @@ use crate::{batch::L1BatchWithLogs, helpers::AsyncMerkleTree};
 
 #[derive(Debug)]
 pub(crate) struct TreeUpdater {
-    tree: AsyncMerkleTree,
-    max_l1_batches_per_iter: usize,
+    pub(crate) tree: AsyncMerkleTree,
+    pub(crate) max_l1_batches_per_iter: usize,
+    #[cfg(test)]
+    pub(crate) next_l1_batch_sender: watch::Sender<L1BatchNumber>,
 }
 
 impl TreeUpdater {
-    pub(crate) fn new(tree: AsyncMerkleTree, max_l1_batches_per_iter: usize) -> Self {
-        Self {
-            tree,
-            max_l1_batches_per_iter,
-        }
-    }
-
     async fn process_l1_batch(
         &mut self,
         l1_batch: L1BatchWithLogs,
@@ -168,6 +163,10 @@ impl TreeUpdater {
         mut stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<()> {
         let mut next_l1_batch_to_process = self.tree.next_l1_batch_number().await?;
+        #[cfg(test)]
+        self.next_l1_batch_sender
+            .send_replace(next_l1_batch_to_process);
+
         tracing::info!(
             "Initialized metadata calculator with {max_l1_batches_per_iter} max L1 batches per iteration. \
              Next L1 batch for Merkle tree: {next_l1_batch_to_process}",
@@ -189,6 +188,10 @@ impl TreeUpdater {
                 );
                 tokio::time::sleep(delay_interval).left_future()
             } else {
+                #[cfg(test)]
+                self.next_l1_batch_sender
+                    .send_replace(next_l1_batch_to_process);
+
                 tracing::trace!(
                     "Metadata calculator (next L1 batch: #{next_l1_batch_to_process}) made progress from #{snapshot}"
                 );

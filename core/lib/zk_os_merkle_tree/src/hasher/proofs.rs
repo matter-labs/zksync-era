@@ -9,8 +9,7 @@ use zksync_basic_types::H256;
 use crate::{types::Leaf, BatchOutput, HashTree, TreeEntry};
 
 /// Operation on a Merkle tree entry used in [`BatchTreeProof`].
-#[derive(Debug, Clone, Copy)]
-#[cfg_attr(test, derive(PartialEq))]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum TreeOperation {
     /// Operation hitting an existing entry (i.e., an update or read).
     Hit { index: u64 },

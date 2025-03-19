@@ -16,12 +16,6 @@ pub struct AsyncTreeReader {
 }
 
 impl AsyncTreeReader {
-    pub(crate) fn new(db: RocksDBWrapper) -> anyhow::Result<Self> {
-        Ok(Self {
-            inner: MerkleTreeReader::new(db)?,
-        })
-    }
-
     pub(crate) fn downgrade(&self) -> WeakAsyncTreeReader {
         WeakAsyncTreeReader {
             db: self.inner.db().clone().into_inner().downgrade(),
