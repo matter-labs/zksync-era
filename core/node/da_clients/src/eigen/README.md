@@ -15,7 +15,7 @@ da_dispatcher:
 ```
 
 The client can be set up by modifying the field `da_client` of the file `etc/env/file_based/overrides/validium.yaml`.
-This are the fields that can be modified:
+These are the fields that can be modified:
 
 - `disperser_rpc` (string): URL of the EigenDA Disperser RPC server.
 - `settlement_layer_confirmation_depth` (unsigned number): Block height needed to reach in order to consider the blob
