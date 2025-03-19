@@ -46,7 +46,20 @@ pub enum DetectedMetadata {
     /// keccak256 metadata (only for EraVM)
     Keccak256,
     /// CBOR metadata
-    Cbor,
+    Cbor {
+        /// Length of metadata in the bytecode, including encoded length of CBOR and padding.
+        full_length: usize,
+    },
+}
+
+impl DetectedMetadata {
+    /// Returns full length (in bytes) of metadata in the bytecode.
+    pub fn length(self) -> usize {
+        match self {
+            DetectedMetadata::Keccak256 => 32,
+            DetectedMetadata::Cbor { full_length } => full_length,
+        }
+    }
 }
 
 /// Possible values for the metadata hashes structure.
@@ -76,15 +89,19 @@ impl ContractIdentifier {
         // Try to detect metadata.
         // CBOR takes precedence (since keccak doesn't have direct markers, so it's partially a
         // fallback).
-        let (detected_metadata, bytecode_without_metadata_keccak256) =
-            if let Some(hash) = Self::detect_cbor_metadata(bytecode_marker, bytecode) {
-                (Some(DetectedMetadata::Cbor), hash)
-            } else if let Some(hash) = Self::detect_keccak_metadata(bytecode_marker, bytecode) {
-                (Some(DetectedMetadata::Keccak256), hash)
-            } else {
-                // Fallback
-                (None, bytecode_keccak256)
-            };
+        let (detected_metadata, bytecode_without_metadata_keccak256) = if let Some((
+            full_length,
+            hash,
+        )) =
+            Self::detect_cbor_metadata(bytecode_marker, bytecode)
+        {
+            (Some(DetectedMetadata::Cbor { full_length }), hash)
+        } else if let Some(hash) = Self::detect_keccak_metadata(bytecode_marker, bytecode) {
+            (Some(DetectedMetadata::Keccak256), hash)
+        } else {
+            // Fallback
+            (None, bytecode_keccak256)
+        };
 
         Self {
             bytecode_marker,
@@ -110,7 +127,10 @@ impl ContractIdentifier {
     }
 
     /// Will try to detect CBOR metadata.
-    fn detect_cbor_metadata(bytecode_marker: BytecodeMarker, bytecode: &[u8]) -> Option<H256> {
+    fn detect_cbor_metadata(
+        bytecode_marker: BytecodeMarker,
+        bytecode: &[u8],
+    ) -> Option<(usize, H256)> {
         let length = bytecode.len();
 
         // Last two bytes is the length of the metadata in big endian.
@@ -148,7 +168,7 @@ impl ContractIdentifier {
             }
         };
         let hash = H256(keccak256(bytecode_without_metadata));
-        Some(hash)
+        Some((full_metadata_length, hash))
     }
 
     /// Adds one word to the metadata length and check if it's a padding word.
@@ -173,10 +193,8 @@ impl ContractIdentifier {
     }
 
     /// Checks the kind of match between identifier and other bytecode.
-    pub fn matches(&self, other: &[u8]) -> Match {
-        let other_identifier = Self::from_bytecode(self.bytecode_marker, other);
-
-        if self.bytecode_keccak256 == other_identifier.bytecode_keccak256 {
+    pub fn matches(&self, other: &Self) -> Match {
+        if self.bytecode_keccak256 == other.bytecode_keccak256 {
             return Match::Full;
         }
 
@@ -185,13 +203,16 @@ impl ContractIdentifier {
         // and presence in another, or different kinds of metadata. This is OK: partial
         // match is needed mostly when you cannot reproduce the original metadata, but one always
         // can submit the contract with the same metadata kind.
-        if self.bytecode_without_metadata_keccak256
-            == other_identifier.bytecode_without_metadata_keccak256
-        {
+        if self.bytecode_without_metadata_keccak256 == other.bytecode_without_metadata_keccak256 {
             return Match::Partial;
         }
 
         Match::None
+    }
+
+    /// Returns the length of the metadata in the bytecode.
+    pub fn metadata_length(&self) -> usize {
+        self.detected_metadata.map_or(0, DetectedMetadata::length)
     }
 }
 
@@ -217,7 +238,7 @@ mod tests {
         );
         assert_eq!(
             identifier.detected_metadata,
-            Some(DetectedMetadata::Cbor),
+            Some(DetectedMetadata::Cbor { full_length: 44 }),
             "Incorrect detected metadata"
         );
         assert_eq!(
@@ -242,7 +263,7 @@ mod tests {
         );
         assert_eq!(
             identifier.detected_metadata,
-            Some(DetectedMetadata::Cbor),
+            Some(DetectedMetadata::Cbor { full_length: 44 }),
             "Incorrect detected metadata"
         );
         assert_eq!(
@@ -384,7 +405,9 @@ mod tests {
             );
             assert_eq!(
                 identifier.detected_metadata,
-                Some(DetectedMetadata::Cbor),
+                Some(DetectedMetadata::Cbor {
+                    full_length: full_metadata_len
+                }),
                 "{label}: Incorrect detected metadata"
             );
             assert_eq!(

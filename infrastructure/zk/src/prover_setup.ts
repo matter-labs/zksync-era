@@ -110,10 +110,8 @@ async function setupArtifactsMode() {
         const currentEnv = env.get();
         const path = `${process.env.ZKSYNC_HOME}/etc/hyperchains/artifacts/${currentEnv}/`;
         env.modify('OBJECT_STORE_MODE', 'FileBacked', process.env.ENV_FILE!);
-        env.modify('PUBLIC_OBJECT_STORE_MODE', 'FileBacked', process.env.ENV_FILE!);
         env.modify('PROVER_OBJECT_STORE_MODE', 'FileBacked', process.env.ENV_FILE!);
         env.modify('OBJECT_STORE_FILE_BACKED_BASE_PATH', path, process.env.ENV_FILE!);
-        env.modify('PUBLIC_OBJECT_STORE_FILE_BACKED_BASE_PATH', path, process.env.ENV_FILE!);
         env.modify('PROVER_OBJECT_STORE_FILE_BACKED_BASE_PATH', path, process.env.ENV_FILE!);
         return;
     }
@@ -147,10 +145,8 @@ async function setupArtifactsMode() {
         const folder: any = await enquirer.prompt(folderQuestion);
 
         env.modify('OBJECT_STORE_MODE', 'FileBacked', process.env.ENV_FILE!);
-        env.modify('PUBLIC_OBJECT_STORE_MODE', 'FileBacked', process.env.ENV_FILE!);
         env.modify('PROVER_OBJECT_STORE_MODE', 'FileBacked', process.env.ENV_FILE!);
         env.modify('OBJECT_STORE_FILE_BACKED_BASE_PATH', folder.path, process.env.ENV_FILE!);
-        env.modify('PUBLIC_OBJECT_STORE_FILE_BACKED_BASE_PATH', folder.path, process.env.ENV_FILE!);
         env.modify('PROVER_OBJECT_STORE_FILE_BACKED_BASE_PATH', folder.path, process.env.ENV_FILE!);
     } else {
         const gcpQuestions: BasePromptOptions[] = [
@@ -171,11 +167,8 @@ async function setupArtifactsMode() {
         const gcp: any = await enquirer.prompt(gcpQuestions);
 
         env.modify('OBJECT_STORE_MODE', 'GCSWithCredentialFile', process.env.ENV_FILE!);
-        env.modify('PUBLIC_OBJECT_STORE_MODE', 'GCSWithCredentialFile', process.env.ENV_FILE!);
         env.modify('PROVER_OBJECT_STORE_MODE', 'GCSWithCredentialFile', process.env.ENV_FILE!);
         env.modify('OBJECT_STORE_GCS_CREDENTIAL_FILE_PATH', gcp.gcpPath, process.env.ENV_FILE!);
-        env.modify('PUBLIC_OBJECT_STORE_GCS_CREDENTIAL_FILE_PATH', gcp.gcpPath, process.env.ENV_FILE!);
-        env.modify('PUBLIC_OBJECT_STORE_BUCKET_BASE_URL', gcp.bucket, process.env.ENV_FILE!);
         env.modify('PROVER_OBJECT_STORE_BUCKET_BASE_URL', gcp.bucket, process.env.ENV_FILE!);
     }
 }

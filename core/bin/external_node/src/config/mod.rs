@@ -1498,6 +1498,9 @@ impl From<&ExternalNodeConfig> for InternalApiConfig {
             dummy_verifier: config.remote.dummy_verifier,
             l1_batch_commit_data_generator_mode: config.remote.l1_batch_commit_data_generator_mode,
             timestamp_asserter_address: config.remote.l2_timestamp_asserter_addr,
+            // We do not fetch it from remote to not introduce a dependency on the unstable endpoint.
+            // At the same time, this variable should only be used from the main node during v26 upgrade.
+            l1_to_l2_txs_paused: true,
         }
     }
 }
