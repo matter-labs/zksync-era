@@ -100,6 +100,31 @@ impl TreeApiHttpClient {
             proofs_url: format!("{url_base}/proofs"),
         }
     }
+
+    #[cfg(test)]
+    pub async fn post<R>(
+        &self,
+        url: &str,
+        request: &impl serde::Serialize,
+    ) -> Result<R, TreeApiError>
+    where
+        R: serde::de::DeserializeOwned,
+    {
+        let response = self
+            .inner
+            .post(format!("{}{url}", self.info_url))
+            .json(request)
+            .send()
+            .await
+            .map_err(|err| TreeApiError::for_request(err, "raw nodes"))?;
+        let response = response
+            .error_for_status()
+            .context("Requesting tree info returned non-OK response")?;
+        Ok(response
+            .json()
+            .await
+            .context("Failed deserializing tree info")?)
+    }
 }
 
 #[async_trait]

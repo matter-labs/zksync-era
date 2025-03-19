@@ -18,7 +18,7 @@ use axum::{
 };
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use tokio::sync::watch;
-use zk_os_merkle_tree::{unstable, unstable::NodeKey, BatchTreeProof, TreeOperation};
+use zk_os_merkle_tree::{unstable, BatchTreeProof, TreeOperation};
 use zksync_types::{web3, L1BatchNumber, H256};
 
 pub use self::client::{TreeApiClient, TreeApiError, TreeApiHttpClient};
@@ -27,6 +27,8 @@ use crate::{health::MerkleTreeInfo, helpers::AsyncTreeReader};
 
 mod client;
 mod metrics;
+#[cfg(test)]
+mod tests;
 
 #[derive(Debug, Serialize, Deserialize)]
 struct TreeProofRequest {
@@ -98,7 +100,13 @@ struct TreeProofResponse {
 }
 
 #[derive(Debug, PartialEq, Eq, Hash)]
-struct SerdeNodeKey(NodeKey);
+struct SerdeNodeKey(unstable::NodeKey);
+
+impl From<unstable::NodeKey> for SerdeNodeKey {
+    fn from(key: unstable::NodeKey) -> Self {
+        Self(key)
+    }
+}
 
 impl Serialize for SerdeNodeKey {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
@@ -156,17 +164,17 @@ impl From<ApiLeaf> for unstable::Leaf {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct ApiChildRef {
     hash: H256,
     version: u64,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(transparent)]
 struct ApiInternalNode(Vec<ApiChildRef>);
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct ApiRawNode {
     raw: web3::Bytes,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -190,12 +198,12 @@ impl From<unstable::RawNode> for ApiRawNode {
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct TreeNodesRequest {
     keys: Vec<SerdeNodeKey>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct TreeNodesResponse {
     nodes: HashMap<SerdeNodeKey, ApiRawNode>,
 }

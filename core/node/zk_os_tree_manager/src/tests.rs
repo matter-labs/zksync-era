@@ -20,7 +20,7 @@ use zksync_types::{L1BatchNumber, StorageLog, H256};
 use super::*;
 use crate::{batch::L1BatchWithLogs, health::MerkleTreeInfo};
 
-async fn setup_tree_manager(db_path: &Path, pool: ConnectionPool<Core>) -> TreeManager {
+pub(crate) async fn setup_tree_manager(db_path: &Path, pool: ConnectionPool<Core>) -> TreeManager {
     let mut conn = pool.connection().await.unwrap();
     if conn.blocks_dal().is_genesis_needed().await.unwrap() {
         // Insert the max tree guard, so that leaf indices are assigned correctly for further keys.
