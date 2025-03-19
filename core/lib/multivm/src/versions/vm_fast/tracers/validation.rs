@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{BTreeSet, HashSet};
 
 use zk_evm_1_3_1::address_to_u256;
 use zksync_types::{
@@ -100,7 +100,7 @@ pub struct FullValidationTracer {
     validation_gas_limit: u32,
     add_return_value_to_allowed_slots: bool,
 
-    slots_obtained_via_keccak: HashSet<U256>,
+    slots_obtained_via_keccak: BTreeSet<U256>,
     trusted_addresses: HashSet<Address>,
 
     user_address: Address,
@@ -273,6 +273,8 @@ impl Tracer for FullValidationTracer {
 }
 
 impl FullValidationTracer {
+    const MAX_ALLOWED_SLOT_OFFSET: u32 = 127;
+
     pub fn new(params: ValidationParams, l1_batch_timestamp: u64) -> Self {
         let ValidationParams {
             user_address,
@@ -305,7 +307,6 @@ impl FullValidationTracer {
         address == self.user_address
         // allow reading slot <own address>
         || slot == address_to_u256(&self.user_address)
-        || self.slots_obtained_via_keccak.contains(&slot)
         // some storage locations are always allowed
         || self.trusted_addresses.contains(&address)
         || self.trusted_storage.contains(&(address, slot))
@@ -318,6 +319,11 @@ impl FullValidationTracer {
         || address == SYSTEM_CONTEXT_ADDRESS && slot == U256::zero()
         // allow reading code hashes of existing contracts
         || address == ACCOUNT_CODE_STORAGE_ADDRESS && !value.is_zero()
+        // Allow mapping-based slots, accounting for the fact that the mapped data can occupy >1 slot.
+        || {
+            let min_slot = slot.saturating_sub(Self::MAX_ALLOWED_SLOT_OFFSET.into());
+            self.slots_obtained_via_keccak.range(min_slot..=slot).next().is_some()
+        }
         // allow TimestampAsserter to do its job
         || self.timestamp_asserter_params.as_ref()
             .map(|p| p.address == caller)
