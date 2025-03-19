@@ -360,7 +360,7 @@ impl SystemContractsRepo {
                         "zkout/{name}.yul/contracts-preprocessed/{directory}/{name}.yul.json",
                     )),
                     self.root.join(format!(
-                      "zkout/{name}.yul/contracts-preprocessed/{name}.yul.json",
+                        "zkout/{name}.yul/contracts-preprocessed/{name}.yul.json",
                     )),
                     self.root
                         .join(format!("zkout/{name}.yul/{object_name}.json",)),
@@ -674,7 +674,7 @@ impl BaseSystemContracts {
 
     pub fn estimate_gas_interop() -> Self {
         let bootloader_bytecode = read_bootloader_code("fee_estimate");
-        BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
+        BaseSystemContracts::load_with_bootloader(bootloader_bytecode, true)
     }
 
     pub fn hashes(&self) -> BaseSystemContractsHashes {

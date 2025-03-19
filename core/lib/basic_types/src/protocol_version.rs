@@ -127,7 +127,7 @@ impl ProtocolVersionId {
             ProtocolVersionId::Version26 => VmVersion::VmGateway,
             ProtocolVersionId::Version27 => VmVersion::VmEvmEmulator,
             ProtocolVersionId::Version28 => VmVersion::VmInterop,
-            
+
             // Speculative VM version for the next protocol version to be used in the upgrade integration test etc.
             ProtocolVersionId::Version29 => VmVersion::VmInterop,
         }
