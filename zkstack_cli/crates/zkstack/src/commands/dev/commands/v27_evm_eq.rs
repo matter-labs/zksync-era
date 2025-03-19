@@ -125,7 +125,7 @@ async fn verify_next_batch_new_version(
     })?;
     anyhow::ensure!(
         protocol_version >= ProtocolVersionId::Version27,
-        "THe block does not yet contain the gateway upgrade"
+        "THe block does not yet contain the v27 (EVM Interpreter) upgrade"
     );
 
     Ok(())
@@ -136,7 +136,9 @@ pub(crate) async fn check_l2_ntv_existence(l2_client: &Box<DynClient<L2>>) -> an
         .get_code(L2_NATIVE_TOKEN_VAULT_ADDRESS, None)
         .await?;
     if l2_ntv_code.0.is_empty() {
-        anyhow::bail!("Gateway upgrade has not yet been completed on the server side");
+        anyhow::bail!(
+            "v27 (EVM Interpreter) upgrade has not yet been completed on the server side"
+        );
     }
 
     Ok(())
