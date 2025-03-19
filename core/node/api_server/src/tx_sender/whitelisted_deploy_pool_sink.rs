@@ -37,7 +37,7 @@ impl TxSink for WhitelistedDeployPoolSink {
                 .master_pool
                 .connection_tagged("api")
                 .await
-                .map_err(DalError::generalize)?; // Removed `mut`, not needed
+                .map_err(DalError::generalize)?;
 
             let is_allowed = connection
                 .contracts_deploy_allow_list_dal()
