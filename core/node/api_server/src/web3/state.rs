@@ -447,10 +447,10 @@ impl RpcState {
         let from = call_request.from.unwrap_or_default();
         let address_historical_nonce = connection
             .storage_web3_dal()
-            .get_address_historical_nonce(from, latest_block_number)
+            .get_address_historical_nonce(from, latest_block_number, None)
             .await
             .map_err(DalError::generalize)?;
-        call_request.nonce = Some(address_historical_nonce);
+        call_request.nonce = Some(address_historical_nonce.0);
         Ok(())
     }
 }

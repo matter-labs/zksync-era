@@ -10,9 +10,8 @@ use zksync_types::{
     l2::{L2Tx, TransactionType},
     transaction_request::CallRequest,
     u256_to_h256,
-    utils::decompose_full_nonce,
     web3::{self, Bytes, SyncInfo, SyncState},
-    AccountTreeId, L2BlockNumber, Nonce, StorageKey, H256, L2_BASE_TOKEN_ADDRESS, U256,
+    AccountTreeId, L2BlockNumber, StorageKey, H256, L2_BASE_TOKEN_ADDRESS, U256,
 };
 use zksync_web3_decl::{
     error::Web3Error,
@@ -464,36 +463,30 @@ impl EthNamespace {
 
         let block_number = self.state.resolve_block(&mut connection, block_id).await?;
         self.set_block_diff(block_number);
-        let full_nonce = connection
+        let mut account_nonce = connection
             .storage_web3_dal()
-            .get_address_historical_nonce(address, block_number)
+            .get_address_historical_nonce(address, block_number, None)
             .await
             .map_err(DalError::generalize)?;
-
-        // TODO (SMA-1612): currently account nonce is returning always, but later we will
-        //  return account nonce for account abstraction and deployment nonce for non account abstraction.
-        //  Strip off deployer nonce part.
-        let (mut account_nonce, _) = decompose_full_nonce(full_nonce);
 
         if matches!(block_id, BlockId::Number(BlockNumber::Pending)) {
             account_nonce = if let Some(account_nonce) = self
                 .state
                 .tx_sink()
-                .lookup_pending_nonce(address, Nonce(account_nonce))
+                .lookup_pending_nonce(address, account_nonce)
                 .await?
             {
-                account_nonce.0
+                account_nonce
             } else {
                 // No nonce hint in the sink: get pending nonces from the mempool
                 connection
                     .transactions_web3_dal()
-                    .next_nonce_by_initiator_account(address, Nonce(account_nonce))
+                    .next_nonce_by_initiator_account(address, account_nonce)
                     .await
                     .map_err(DalError::generalize)?
-                    .0
             };
         }
-        Ok(account_nonce)
+        Ok(account_nonce.0)
     }
 
     pub async fn get_transaction_impl(

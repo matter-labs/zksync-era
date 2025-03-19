@@ -6,9 +6,9 @@ use zksync_db_connection::{
     instrument::{InstrumentExt, Instrumented},
 };
 use zksync_types::{
-    get_code_key, get_nonce_key, h256_to_u256,
+    get_code_key, get_keyed_nonce_key, get_nonce_key, h256_to_u256,
     utils::{decompose_full_nonce, storage_key_for_standard_token_balance},
-    AccountTreeId, Address, L1BatchNumber, L2BlockNumber, Nonce, StorageKey,
+    AccountTreeId, Address, L1BatchNumber, L2BlockNumber, Nonce, NonceKey, StorageKey,
     FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H256, U256,
 };
 
@@ -31,13 +31,24 @@ impl StorageWeb3Dal<'_, '_> {
         &mut self,
         address: Address,
         block_number: L2BlockNumber,
-    ) -> DalResult<U256> {
-        let nonce_key = get_nonce_key(&address);
+        nonce_key: Option<NonceKey>,
+    ) -> DalResult<Nonce> {
+        let nonce_key = nonce_key.unwrap_or_default();
+        let nonce_storage_key = if nonce_key.0 == 0.into() {
+            get_nonce_key(&address)
+        } else {
+            get_keyed_nonce_key(&address, nonce_key.0)
+        };
         let nonce_value = self
-            .get_historical_value_unchecked(nonce_key.hashed_key(), block_number)
+            .get_historical_value_unchecked(nonce_storage_key.hashed_key(), block_number)
             .await?;
-        let full_nonce = h256_to_u256(nonce_value);
-        Ok(decompose_full_nonce(full_nonce).0)
+        let nonce_value = if nonce_key.0 == 0.into() {
+            decompose_full_nonce(h256_to_u256(nonce_value)).0
+        } else {
+            h256_to_u256(nonce_value)
+        };
+
+        Ok(Nonce::combine(nonce_key, nonce_value.as_u64().into()))
     }
 
     /// Returns the current *stored* nonces (i.e., w/o accounting for pending transactions) for the specified accounts.
