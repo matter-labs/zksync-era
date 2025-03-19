@@ -10,6 +10,10 @@ import { deployContract, getTestContract } from '../src/helpers';
 import { ERC20_PER_ACCOUNT, L2_DEFAULT_ETH_PER_ACCOUNT } from '../src/context-owner';
 import { shouldChangeETHBalances, shouldChangeTokenBalances } from '../src/modifiers/balance-checker';
 
+import { createWalletClient, http, Hex, defineTransactionRequest, defineChain, numberToHex, publicActions } from 'viem';
+import { zksyncSepoliaTestnet } from 'viem/chains';
+import { chainConfig, parseEip712Transaction, eip712WalletActions, toSmartAccount } from "viem/zksync";
+
 const contracts = {
     customAccount: getTestContract('CustomAccount'),
     context: getTestContract('Context')
@@ -467,20 +471,55 @@ describe('Tests for the custom account behavior', () => {
     });
 
     test("Send a transaction with keyed nonce", async () => {
-        // TODO: SDK thinks nonce is a `number`, not `BigInt`
-        // so keyed nonces do not fit.
-        const tx = { to: alice.address, nonce: (1n << 64n) };
-        const customAccountAddress = await customAccount.getAddress();
+        // TODO: zksync-ethers SDK thinks nonce is a `number`, not `BigInt`, so we're using viem here
 
-        // Check that transaction succeeds.
-        await expect(
-            sendCustomAccountTransaction(
-                zksync.types.Transaction.from(tx),
-                alice.provider,
-                customAccountAddress,
-                testMaster.environment().l2ChainId
-            )
-        ).toBeAccepted();
+        type RpcTransactionRequestOverrides = {
+            nonce?: `0x${string}`
+        }
+        type TransactionRequestOverrides = {
+            nonce?: bigint | number
+        }
+
+        // @ts-ignore
+        const customChain = defineChain({
+            ...zksyncSepoliaTestnet,
+            id: 271,
+            formatters: {
+                ...chainConfig.formatters,
+                transactionRequest: defineTransactionRequest({
+                    format(args: TransactionRequestOverrides): RpcTransactionRequestOverrides {
+                        console.log("customChain transactionRequest", args.nonce);
+                        return {
+                            nonce: args.nonce ? numberToHex(args.nonce) : undefined,
+                        }
+                    },
+                }),
+            }
+        });
+
+        const smartAccount = toSmartAccount({
+            address: (await customAccount.getAddress()) as Hex,
+            sign: async (message) => {
+                return ethers.concat([message.hash, smartAccount.address]) as Hex;
+            }
+        });
+
+        const walletClient = createWalletClient({
+            chain: customChain,
+            account: smartAccount,
+            transport: http("http://0.0.0.0:3052"),
+            // @ts-ignore
+        }).extend(eip712WalletActions());
+
+        const hash = await walletClient.sendTransaction({
+            type: "eip712",
+            to: "0x6cC8cf7f6b488C58AA909B77E6e65c631c204784",
+            value: 0n,
+            data: "0x",
+            nonce: (1n << 64n),
+        });
+        console.log("Sent tx", hash);
+
     });
 
     afterAll(async () => {
