@@ -29,6 +29,13 @@ pub struct IntermediateHash {
     pub location: (u8, u64),
 }
 
+#[cfg(not(test))]
+impl From<H256> for IntermediateHash {
+    fn from(value: H256) -> Self {
+        Self { value }
+    }
+}
+
 /// Partial view of the Merkle tree returned from [`BatchTreeProof::verify()`].
 #[derive(Debug)]
 pub struct MerkleTreeView {

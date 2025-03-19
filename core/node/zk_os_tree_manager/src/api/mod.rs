@@ -21,10 +21,13 @@ use tokio::sync::watch;
 use zk_os_merkle_tree::{unstable, unstable::NodeKey, BatchTreeProof, TreeOperation};
 use zksync_types::{web3, L1BatchNumber, H256};
 
+pub use self::client::{TreeApiClient, TreeApiError, TreeApiHttpClient};
 use crate::{health::MerkleTreeInfo, helpers::AsyncTreeReader};
 
+mod client;
+
 #[derive(Debug, Serialize, Deserialize)]
-struct TreeProofsRequest {
+struct TreeProofRequest {
     l1_batch_number: L1BatchNumber,
     hashed_keys: Vec<H256>,
 }
@@ -65,8 +68,30 @@ impl From<BatchTreeProof> for ApiBatchTreeProof {
     }
 }
 
+impl From<ApiBatchTreeProof> for BatchTreeProof {
+    fn from(api: ApiBatchTreeProof) -> Self {
+        Self {
+            operations: vec![],
+            read_operations: api
+                .operations
+                .into_iter()
+                .map(|op| match op {
+                    ApiTreeOperation::Hit { index } => TreeOperation::Hit { index },
+                    ApiTreeOperation::Miss { prev_index } => TreeOperation::Miss { prev_index },
+                })
+                .collect(),
+            sorted_leaves: api
+                .sorted_leaves
+                .into_iter()
+                .map(|(idx, leaf)| (idx, leaf.into()))
+                .collect(),
+            hashes: api.hashes.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
-struct TreeProofsResponse {
+struct TreeProofResponse {
     proof: ApiBatchTreeProof,
 }
 
@@ -114,6 +139,17 @@ impl From<unstable::Leaf> for ApiLeaf {
             value: leaf.value,
             prev_index: leaf.prev_index,
             next_index: leaf.next_index,
+        }
+    }
+}
+
+impl From<ApiLeaf> for unstable::Leaf {
+    fn from(api: ApiLeaf) -> Self {
+        Self {
+            key: api.key,
+            value: api.value,
+            prev_index: api.prev_index,
+            next_index: api.next_index,
         }
     }
 }
@@ -176,11 +212,16 @@ enum ApiServerError {
 }
 
 // Loosely conforms to HTTP Problem Details RFC: <https://datatracker.ietf.org/doc/html/rfc7807>
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct Problem {
-    r#type: &'static str,
-    title: &'static str,
+    r#type: String,
+    title: String,
     detail: String,
+}
+
+impl Problem {
+    const NO_TREE_VERSION_TYPE: &'static str = "/errors#l1-batch-not-found";
+    const INTERNAL_TYPE: &'static str = "/errors#internal";
 }
 
 const PROBLEM_CONTENT_TYPE: &str = "application/problem+json";
@@ -191,8 +232,8 @@ impl IntoResponse for ApiServerError {
         match self {
             Self::NoTreeVersion { .. } => {
                 let body = Problem {
-                    r#type: "/errors#l1-batch-not-found",
-                    title: "L1 batch not found",
+                    r#type: Problem::NO_TREE_VERSION_TYPE.to_owned(),
+                    title: "L1 batch not found".to_owned(),
                     detail: self.to_string(),
                 };
                 (StatusCode::NOT_FOUND, headers, Json(body)).into_response()
@@ -200,8 +241,8 @@ impl IntoResponse for ApiServerError {
             Self::Internal(err) => {
                 tracing::warn!("Internal server error: {err:#}");
                 let body = Problem {
-                    r#type: "/errors#internal",
-                    title: "Internal server error",
+                    r#type: Problem::INTERNAL_TYPE.to_owned(),
+                    title: "Internal server error".to_owned(),
                     detail: "Error details are logged".to_owned(),
                 };
                 (StatusCode::INTERNAL_SERVER_ERROR, headers, Json(body)).into_response()
@@ -244,13 +285,13 @@ impl AsyncTreeReader {
 
     async fn get_proofs_handler(
         State(this): State<Self>,
-        Json(request): Json<TreeProofsRequest>,
-    ) -> Result<Json<TreeProofsResponse>, ApiServerError> {
+        Json(request): Json<TreeProofRequest>,
+    ) -> Result<Json<TreeProofResponse>, ApiServerError> {
         //let latency = API_METRICS.latency[&MerkleTreeApiMethod::GetProofs].start();
         let proof = this
             .get_proofs_inner(request.l1_batch_number, request.hashed_keys)
             .await?;
-        let response = TreeProofsResponse {
+        let response = TreeProofResponse {
             proof: proof.into(),
         };
         //latency.observe();
