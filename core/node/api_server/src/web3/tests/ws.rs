@@ -170,7 +170,7 @@ async fn test_ws_server(test: impl WsTest) {
     let genesis_config = GenesisConfig::for_tests();
     let api_config = InternalApiConfig::new(
         &web3_config,
-        &contracts_config.chain_specific_contracts(),
+        &contracts_config.settlement_layer_specific_contracts(),
         &contracts_config.l1_specific_contracts(),
         &contracts_config.l2_contracts(),
         &genesis_config,

@@ -238,12 +238,17 @@ async fn main() -> anyhow::Result<()> {
 
     let sl_l1_contracts = load_settlement_layer_contracts(
         &eth_client,
-        contracts.ecosystem_contracts.unwrap().bridgehub_proxy_addr,
+        contracts
+            .ecosystem_contracts
+            .as_ref()
+            .unwrap()
+            .bridgehub_proxy_addr,
         zksync_network_id,
         None,
     )
     .await?
-    .context("No chain has been deployed")?;
+    // If None has been returned, use the contracts from configs
+    .unwrap_or(contracts.settlement_layer_specific_contracts());
     let (settlement_mode, chain_id) = get_settlement_layer_from_l1(
         &eth_client,
         sl_l1_contracts.chain_contracts_config.diamond_proxy_addr,

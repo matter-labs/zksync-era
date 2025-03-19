@@ -3,7 +3,7 @@ use zksync_node_sync::tree_data_fetcher::TreeDataFetcher;
 use crate::{
     implementations::resources::{
         contracts::SettlementLayerContractsResource,
-        eth_interface::UniversalClientResource,
+        eth_interface::SettlementLayerClientResource,
         healthcheck::AppHealthCheckResource,
         main_node_client::MainNodeClientResource,
         pools::{MasterPool, PoolResource},
@@ -23,7 +23,7 @@ pub struct TreeDataFetcherLayer;
 pub struct Input {
     pub master_pool: PoolResource<MasterPool>,
     pub main_node_client: MainNodeClientResource,
-    pub gateway_client: UniversalClientResource,
+    pub gateway_client: SettlementLayerClientResource,
     pub settlement_layer_contracts_resource: SettlementLayerContractsResource,
     #[context(default)]
     pub app_health: AppHealthCheckResource,

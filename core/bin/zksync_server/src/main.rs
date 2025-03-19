@@ -150,7 +150,7 @@ fn main() -> anyhow::Result<()> {
         secrets,
         contracts_config.l1_specific_contracts(),
         contracts_config.l2_contracts(),
-        Some(contracts_config.chain_specific_contracts()),
+        Some(contracts_config.settlement_layer_specific_contracts()),
         Some(contracts_config.l1_multicall3_addr),
     )?;
 
@@ -175,9 +175,9 @@ fn main() -> anyhow::Result<()> {
 
     let result = node.run(observability_guard);
     if find_gateway_update_error(&result) {
-        tracing::warn!("Gateway has changed")
+        tracing::warn!("Settlement layer has changed")
     };
-    Ok(())
+    Ok(result?)
 }
 
 fn find_gateway_update_error(zkstack_result: &Result<(), ZkStackServiceError>) -> bool {

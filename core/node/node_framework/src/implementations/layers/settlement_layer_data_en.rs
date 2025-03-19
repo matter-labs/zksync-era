@@ -106,12 +106,16 @@ impl WiringLayer for SettlementLayerDataEn {
             .gateway_rpc_url
             .map(|url| Client::http(url).context("Client::new()"))
             .transpose()?
-            .map(|mut builder| {
-                if initial_sl_mode.is_gateway() {
-                    builder = builder.for_network(L2ChainId::new(chain_id.0).unwrap().into());
-                }
-                L2InterfaceResource(Box::new(builder.build()))
-            });
+            .and_then(|builder| {
+                initial_sl_mode.is_gateway().then(|| {
+                    Some(L2InterfaceResource(Box::new(
+                        builder
+                            .for_network(L2ChainId::new(chain_id.0).unwrap().into())
+                            .build(),
+                    )))
+                })
+            })
+            .flatten();
 
         let (client, bridgehub): (Box<dyn EthInterface>, Address) = match initial_sl_mode {
             SettlementMode::SettlesToL1 => (

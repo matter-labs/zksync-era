@@ -159,7 +159,10 @@ pub(super) fn mock_eth_client(
         } else if call.to == Some(bridgehub_addres) {
             let call_signature = &call.data.as_ref().unwrap().0[..4];
             let contract = zksync_contracts::bridgehub_contract();
-            let get_zk_chains = contract.function("getZKChain").unwrap().short_signature();
+            let get_zk_chains = contract
+                .function("getHyperchain")
+                .unwrap()
+                .short_signature();
             let chain_type_manager_sig = contract
                 .function("chainTypeManager")
                 .unwrap()

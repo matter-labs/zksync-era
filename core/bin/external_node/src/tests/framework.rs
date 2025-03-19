@@ -9,7 +9,7 @@ use zksync_node_framework::{
             settlement_layer_client::SettlementLayerClientLayer, sigint::SigintHandlerLayer,
         },
         resources::{
-            eth_interface::{EthInterfaceResource, UniversalClient, UniversalClientResource},
+            eth_interface::{EthInterfaceResource, SettlementLayerClientResource, UniversalClient},
             healthcheck::AppHealthCheckResource,
             main_node_client::MainNodeClientResource,
         },
@@ -172,7 +172,7 @@ struct MockUniversalclientLayer {
 #[async_trait::async_trait]
 impl WiringLayer for MockUniversalclientLayer {
     type Input = ();
-    type Output = UniversalClientResource;
+    type Output = SettlementLayerClientResource;
 
     fn layer_name(&self) -> &'static str {
         // We don't care about values, we just want to hijack the layer name.
@@ -180,8 +180,8 @@ impl WiringLayer for MockUniversalclientLayer {
     }
 
     async fn wire(self, _: Self::Input) -> Result<Self::Output, WiringError> {
-        Ok(UniversalClientResource(UniversalClient::L1(Box::new(
-            self.client,
-        ))))
+        Ok(SettlementLayerClientResource(UniversalClient::L1(
+            Box::new(self.client),
+        )))
     }
 }

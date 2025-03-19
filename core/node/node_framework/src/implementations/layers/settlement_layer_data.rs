@@ -111,12 +111,16 @@ impl WiringLayer for SettlementLayerData {
             .gateway_rpc_url
             .map(|url| Client::http(url).context("Client::new()"))
             .transpose()?
-            .map(|mut builder| {
-                if initial_sl_mode.is_gateway() {
-                    builder = builder.for_network(L2ChainId::new(sl_chain_id.0).unwrap().into());
-                }
-                L2InterfaceResource(Box::new(builder.build()))
-            });
+            .and_then(|builder| {
+                initial_sl_mode.is_gateway().then(|| {
+                    Some(L2InterfaceResource(Box::new(
+                        builder
+                            .for_network(L2ChainId::new(sl_chain_id.0).unwrap().into())
+                            .build(),
+                    )))
+                })
+            })
+            .flatten();
 
         let (bridgehub, sl_client): (_, &dyn EthInterface) = match initial_sl_mode {
             SettlementMode::SettlesToL1 => (
@@ -145,15 +149,16 @@ impl WiringLayer for SettlementLayerData {
             }
         };
 
-        let (sl_chain_contracts, settlement_mode) = match final_settlement_mode {
-            SettlementMode::SettlesToL1 => (sl_l1_contracts.clone(), initial_sl_mode),
+        let sl_chain_contracts = match final_settlement_mode {
+            SettlementMode::SettlesToL1 => sl_l1_contracts.clone(),
             SettlementMode::Gateway => {
                 let client = l2_eth_client.clone().unwrap().0;
                 let l2_multicall3 = client
                     .get_l2_multicall3()
                     .await
                     .context("Failed to fecth multicall3")?;
-                let sl_contracts = load_settlement_layer_contracts(
+
+                load_settlement_layer_contracts(
                     &client,
                     L2_BRIDGEHUB_ADDRESS,
                     self.l2_chain_id,
@@ -162,13 +167,12 @@ impl WiringLayer for SettlementLayerData {
                 .await?
                 // This unwrap is safe we have already verified it. Or it is supposed to be gateway,
                 // but no gateway has been deployed
-                .unwrap();
-                (sl_contracts, initial_sl_mode)
+                .unwrap()
             }
         };
 
         Ok(Output {
-            initial_settlement_mode: SettlementModeResource(settlement_mode),
+            initial_settlement_mode: SettlementModeResource(final_settlement_mode),
             contracts: SettlementLayerContractsResource(sl_chain_contracts),
             l1_ecosystem_contracts: L1EcosystemContractsResource(
                 self.l1_specific_contracts.clone(),

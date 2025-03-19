@@ -29,11 +29,11 @@ impl From<UniversalClient> for Box<dyn EthInterface> {
 }
 
 #[derive(Debug, Clone)]
-pub struct UniversalClientResource(pub UniversalClient);
+pub struct SettlementLayerClientResource(pub UniversalClient);
 
-impl Resource for UniversalClientResource {
+impl Resource for SettlementLayerClientResource {
     fn name() -> String {
-        "common/universal_client_gateway".into()
+        "common/settlement_layer_client".into()
     }
 }
 

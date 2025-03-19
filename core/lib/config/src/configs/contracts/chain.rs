@@ -92,7 +92,7 @@ impl AllContractsConfig {
         }
     }
 
-    pub fn chain_specific_contracts(&self) -> SettlementLayerSpecificContracts {
+    pub fn settlement_layer_specific_contracts(&self) -> SettlementLayerSpecificContracts {
         let ecosystem = self.ecosystem_contracts.as_ref().unwrap();
 
         SettlementLayerSpecificContracts {

@@ -12,7 +12,7 @@ use crate::{
             L1ChainContractsResource, L1EcosystemContractsResource,
             SettlementLayerContractsResource,
         },
-        eth_interface::{EthInterfaceResource, UniversalClient, UniversalClientResource},
+        eth_interface::{EthInterfaceResource, SettlementLayerClientResource, UniversalClient},
         pools::{MasterPool, PoolResource},
         settlement_layer::SettlementModeResource,
     },
@@ -40,7 +40,7 @@ pub struct Input {
     pub l1ecosystem_contracts_resource: L1EcosystemContractsResource,
     pub master_pool: PoolResource<MasterPool>,
     pub eth_client: EthInterfaceResource,
-    pub client: UniversalClientResource,
+    pub client: SettlementLayerClientResource,
     pub settlement_mode: SettlementModeResource,
 }
 

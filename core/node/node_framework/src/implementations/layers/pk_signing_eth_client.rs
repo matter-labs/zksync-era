@@ -7,8 +7,8 @@ use crate::{
         contracts::{L1ChainContractsResource, SettlementLayerContractsResource},
         eth_interface::{
             BoundEthInterfaceForBlobsResource, BoundEthInterfaceForL2Resource,
-            BoundEthInterfaceResource, EthInterfaceResource, UniversalClient,
-            UniversalClientResource,
+            BoundEthInterfaceResource, EthInterfaceResource, SettlementLayerClientResource,
+            UniversalClient,
         },
     },
     wiring_layer::{WiringError, WiringLayer},
@@ -28,7 +28,7 @@ pub struct Input {
     pub eth_client: EthInterfaceResource,
     pub contracts: SettlementLayerContractsResource,
     pub l1_contracts: L1ChainContractsResource,
-    pub gateway_client: UniversalClientResource,
+    pub gateway_client: SettlementLayerClientResource,
 }
 
 #[derive(Debug, IntoContext)]

@@ -155,7 +155,7 @@ async fn get_protocol_version(
     eth_client: &dyn EthInterface,
 ) -> anyhow::Result<ProtocolSemanticVersion> {
     let packed_protocol_version: U256 = CallFunctionArgs::new("getProtocolVersion", ())
-        .for_contract(diamond_proxy_addr, &abi)
+        .for_contract(diamond_proxy_addr, abi)
         .call(eth_client)
         .await?;
 

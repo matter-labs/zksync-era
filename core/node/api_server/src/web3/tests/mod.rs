@@ -291,7 +291,7 @@ async fn test_http_server(test: impl HttpTest) {
     let genesis = GenesisConfig::for_tests();
     let mut api_config = InternalApiConfig::new(
         &web3_config,
-        &contracts_config.chain_specific_contracts(),
+        &contracts_config.settlement_layer_specific_contracts(),
         &contracts_config.l1_specific_contracts(),
         &contracts_config.l2_contracts(),
         &genesis,
