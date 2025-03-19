@@ -368,19 +368,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     gateway_chain_config.save_with_base_path(shell, chain_config.configs.clone())?;
 
     let mut general_config = chain_config.get_general_config().await?.patched();
-    general_config.insert_yaml("eth.gas_adjuster.settlement_mode", SettlementMode::Gateway)?;
 
-    if is_rollup {
-        // For rollups, new type of commitment should be used, but not for validium.
-        // `PubdataSendingMode` has differing `serde` and file-based config serializations, hence
-        // we supply a raw string value.
-        general_config.insert("eth.sender.pubdata_sending_mode", "RELAYED_L2_CALLDATA")?;
-    }
-    general_config.insert("eth.sender.wait_confirmations", 0)?;
-    // TODO(EVM-925): the number below may not always work, especially for large prices on
-    // top of Gateway. This field would have to be either not used on GW or transformed into u64.
-    general_config.insert("eth.sender.max_aggregated_tx_gas", 4294967295_u64)?;
-    general_config.insert("eth.sender.max_eth_tx_data_size", 550_000)?;
     general_config.save().await?;
 
     Ok(())

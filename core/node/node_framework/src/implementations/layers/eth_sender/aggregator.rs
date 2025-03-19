@@ -3,7 +3,7 @@ use zksync_circuit_breaker::l1_txs::FailedL1TransactionChecker;
 use zksync_config::configs::eth_sender::EthConfig;
 use zksync_eth_client::BoundEthInterface;
 use zksync_eth_sender::{Aggregator, EthTxAggregator};
-use zksync_types::{commitment::L1BatchCommitmentMode, L2ChainId};
+use zksync_types::{commitment::L1BatchCommitmentMode, pubdata_da::PubdataSendingMode, L2ChainId};
 
 use crate::{
     implementations::resources::{
@@ -148,7 +148,17 @@ impl WiringLayer for EthTxAggregatorLayer {
             .as_deref()
             .map(BoundEthInterface::sender_account);
 
-        let config = self.eth_sender_config.sender.context("sender")?;
+        let mut config = self.eth_sender_config.sender.context("sender")?;
+        // Set special config for gateway.
+        if input.settlement_mode.0.is_gateway() {
+            config.max_aggregated_tx_gas = 4294967295;
+            config.max_eth_tx_data_size = 550_000;
+            if config.pubdata_sending_mode == PubdataSendingMode::Blobs
+                || config.pubdata_sending_mode == PubdataSendingMode::Calldata
+            {
+                config.pubdata_sending_mode = PubdataSendingMode::RelayedL2Calldata
+            }
+        }
         let aggregator = Aggregator::new(
             config.clone(),
             object_store,
