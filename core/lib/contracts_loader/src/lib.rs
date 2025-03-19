@@ -2,11 +2,13 @@ use zksync_config::configs::contracts::{
     chain::ChainContracts, ecosystem::EcosystemCommonContracts, SettlementLayerSpecificContracts,
 };
 use zksync_contracts::{
-    bridgehub_contract, getters_facet_contract, state_transition_manager_contract,
+    bridgehub_contract, getters_facet_contract, hyperchain_contract,
+    state_transition_manager_contract,
 };
 use zksync_eth_client::{CallFunctionArgs, ContractCallError, EthInterface};
 use zksync_types::{
     ethabi::{Contract, Token},
+    protocol_version::ProtocolSemanticVersion,
     settlement::SettlementMode,
     Address, L2ChainId, SLChainId, U256,
 };
@@ -24,19 +26,8 @@ pub async fn load_settlement_layer_contracts(
         l2_chain_id,
         multicall3,
     )
-    .await;
-    match result {
-        Err(ContractCallError::EthereumGateway(err)) => {
-            if err.to_string().contains("execution reverted") {
-                // Pre Gateway upgrade contracts, it's safe to return None, it will be handled later
-                Ok(None)
-            } else {
-                Err(err)?
-            }
-        }
-        Err(err) => Err(err)?,
-        Ok(contracts) => Ok(contracts),
-    }
+    .await?;
+    Ok(result)
 }
 
 async fn load_settlement_layer_contracts_pure_error(
@@ -44,14 +35,22 @@ async fn load_settlement_layer_contracts_pure_error(
     bridgehub_address: Address,
     l2_chain_id: L2ChainId,
     multicall3: Option<Address>,
-) -> Result<Option<SettlementLayerSpecificContracts>, ContractCallError> {
+) -> anyhow::Result<Option<SettlementLayerSpecificContracts>> {
     let diamond_proxy: Address =
-        CallFunctionArgs::new("getZKChain", Token::Uint(l2_chain_id.as_u64().into()))
+        CallFunctionArgs::new("getHyperchain", Token::Uint(l2_chain_id.as_u64().into()))
             .for_contract(bridgehub_address, &bridgehub_contract())
             .call(sl_client)
             .await?;
 
     if diamond_proxy.is_zero() {
+        return Ok(None);
+    }
+
+    if !get_protocol_version(diamond_proxy, &hyperchain_contract(), sl_client)
+        .await?
+        .minor
+        .is_post_gateway()
+    {
         return Ok(None);
     }
 
@@ -101,28 +100,15 @@ pub async fn get_settlement_layer_from_l1(
     diamond_proxy_addr: Address,
     abi: &Contract,
 ) -> anyhow::Result<(SettlementMode, SLChainId)> {
-    let (settlement_mode, address) =
-        match get_settlement_layer_address(eth_client, diamond_proxy_addr, abi).await {
-            Err(ContractCallError::EthereumGateway(err)) => {
-                if err.to_string().contains("execution reverted: revert: F") {
-                    // Pre Gateway upgrade contracts, it's safe to say we are settling the data on L1
-                    (SettlementMode::SettlesToL1, None)
-                } else {
-                    Err(err)?
-                }
-            }
-            Err(err) => Err(err)?,
-            Ok(address) => {
-                if address.is_zero() {
-                    (SettlementMode::SettlesToL1, None)
-                } else {
-                    (SettlementMode::Gateway, Some(address))
-                }
-            }
-        };
+    let address = get_settlement_layer_address(eth_client, diamond_proxy_addr, abi).await?;
+    let (settlement_mode, address) = if address.is_zero() {
+        (SettlementMode::SettlesToL1, None)
+    } else {
+        (SettlementMode::Gateway, Some(address))
+    };
 
     let chain_id = if let Some(address) = address {
-        get_settlement_layer_chain_id(eth_client, address).await?
+        get_diamond_proxy_chain_id(eth_client, address).await?
     } else {
         eth_client.fetch_chain_id().await?
     };
@@ -134,7 +120,14 @@ pub async fn get_settlement_layer_address(
     eth_client: &dyn EthInterface,
     diamond_proxy_addr: Address,
     abi: &Contract,
-) -> Result<Address, ContractCallError> {
+) -> anyhow::Result<Address> {
+    if !get_protocol_version(diamond_proxy_addr, abi, eth_client)
+        .await?
+        .minor
+        .is_post_gateway()
+    {
+        return Ok(Address::zero());
+    }
     let settlement_layer: Address = CallFunctionArgs::new("getSettlementLayer", ())
         .for_contract(diamond_proxy_addr, abi)
         .call(eth_client)
@@ -143,7 +136,7 @@ pub async fn get_settlement_layer_address(
     Ok(settlement_layer)
 }
 
-pub async fn get_settlement_layer_chain_id(
+async fn get_diamond_proxy_chain_id(
     eth_client: &dyn EthInterface,
     diamond_proxy_addr: Address,
 ) -> Result<SLChainId, ContractCallError> {
@@ -154,4 +147,19 @@ pub async fn get_settlement_layer_chain_id(
         .await?;
 
     Ok(SLChainId(chain_id.as_u64()))
+}
+
+async fn get_protocol_version(
+    diamond_proxy_addr: Address,
+    abi: &Contract,
+    eth_client: &dyn EthInterface,
+) -> anyhow::Result<ProtocolSemanticVersion> {
+    let packed_protocol_version: U256 = CallFunctionArgs::new("getProtocolVersion", ())
+        .for_contract(diamond_proxy_addr, &abi)
+        .call(eth_client)
+        .await?;
+
+    let protocol_version = ProtocolSemanticVersion::try_from_packed(packed_protocol_version)
+        .map_err(|err| anyhow::format_err!("Failed to unpack semver: {err}"))?;
+    Ok(protocol_version)
 }
