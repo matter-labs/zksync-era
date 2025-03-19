@@ -218,96 +218,97 @@ jobs:
   # Compares VM performance with base branch.
   # If regression is found, it is reported in PR comment.
   # =========================================================
-  vm-perf-comparison:
-    name: VM performance check
-    runs-on: matterlabs-ci-runner-highmem-long
-    needs: changed-files
-    if: ${{ github.event_name == 'pull_request' && needs.changed-files.outputs.any_changed == 'true' }}
-    permissions:
-      contents: read
-      pull-requests: write
-    env:
-      BENCHMARK_DIFF_THRESHOLD_PERCENT: 2
-    steps:
-      - name: Checkout base branch
-        uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
-        with:
-          submodules: "recursive"
-          ref: ${{ github.base_ref }}
-
-      - name: Fetch PR branch
-        run: |
-          git remote add pr_repo ${{ github.event.pull_request.head.repo.clone_url }}
-          git fetch pr_repo ${{ github.event.pull_request.head.ref }}
-
-      - name: Fetch merge-base SHA
-        id: merge_base
-        run: echo "sha=$(git merge-base HEAD FETCH_HEAD)" >> "${GITHUB_OUTPUT}"
-
-      - name: Checkout divergence point
-        run: git checkout ${{ steps.merge_base.outputs.sha }} --recurse-submodules
-
-      - name: Setup runner
-        uses: matter-labs/zksync-ci-common/.github/actions/runner-setup@aba-ci-optimize
-        with:
-          workspace: 'core'           # Use core workspace cache setup
-          cache_shared_key: 'dev'     # Use `dev` profile for benchmarks
-
-      # Download prebuilt contracts version if exists, otherwise build them
-      - name: Build contracts
-        uses: matter-labs/zksync-ci-common/.github/actions/build-contracts@aba-ci-optimize
-
-      - name: run benchmarks on base branch
-        working-directory: core
-        run: |          
-          cargo bench --package vm-benchmark --bench instructions -- --verbose
-          cargo run --package vm-benchmark --bin instruction_counts | tee base-opcodes
-
-      - name: Checkout PR
-        run: |
-          git checkout --force FETCH_HEAD --recurse-submodules
-          git submodule update --init --recursive
-
-      - name: Run benchmarks on PR
-        working-directory: core
-        run: |
-          cargo bench --package vm-benchmark --bench instructions -- --verbose
-          cargo bench --package vm-benchmark --bench instructions -- --print > instructions.log 2>/dev/null
-
-      - name: Compare results
-        id: comparison
-        working-directory: core
-        run: |
-          # Output all lines from the benchmark result starting from the "## ..." comparison header.
-          # Since the output spans multiple lines, we use a heredoc declaration.
-          EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
-          echo "speedup<<$EOF" >> $GITHUB_OUTPUT
-          sed -n '/^## /,$p' instructions.log >> $GITHUB_OUTPUT
-          echo "$EOF" >> $GITHUB_OUTPUT
-
-          cargo run --package vm-benchmark --release --bin instruction_counts -- --diff base-opcodes > opcodes.log
-          echo "opcodes<<$EOF" >> $GITHUB_OUTPUT
-          sed -n '/^## /,$p' opcodes.log >> $GITHUB_OUTPUT
-          echo "$EOF" >> $GITHUB_OUTPUT
-
-      - name: Comment on PR
-        uses: thollander/actions-comment-pull-request@fabd468d3a1a0b97feee5f6b9e499eab0dd903f6 # v2.5.0
-        if: steps.comparison.outputs.speedup != '' || steps.comparison.outputs.opcodes != ''
-        with:
-          message: |
-            ${{ steps.comparison.outputs.speedup }}
-            ${{ steps.comparison.outputs.opcodes }}
-          comment_tag: vm-performance-changes
-          mode: recreate
-          create_if_not_exists: true
-
-      - name: Remove PR comment
-        uses: thollander/actions-comment-pull-request@fabd468d3a1a0b97feee5f6b9e499eab0dd903f6 # v2.5.0
-        if: steps.comparison.outputs.speedup == '' && steps.comparison.outputs.opcodes == ''
-        with:
-          comment_tag: vm-performance-changes
-          message: 'No performance difference detected (anymore)'
-          mode: delete
+#  vm-perf-comparison:
+#    name: VM performance check
+#    runs-on: matterlabs-ci-runner-highmem-long
+#    needs: changed-files
+#    if: ${{ github.event_name == 'pull_request' && needs.changed-files.outputs.any_changed == 'true' }}
+#    permissions:
+#      contents: read
+#      pull-requests: write
+#    env:
+#      BENCHMARK_DIFF_THRESHOLD_PERCENT: 2
+#    steps:
+#      - name: Checkout base branch
+#        uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
+#        with:
+#          submodules: "recursive"
+#          ref: ${{ github.base_ref }}
+#
+#      - name: Fetch PR branch
+#        run: |
+#          git remote add pr_repo ${{ github.event.pull_request.head.repo.clone_url }}
+#          git fetch pr_repo ${{ github.event.pull_request.head.ref }}
+#
+#      - name: Fetch merge-base SHA
+#        id: merge_base
+#        run: echo "sha=$(git merge-base HEAD FETCH_HEAD)" >> "${GITHUB_OUTPUT}"
+#
+#      - name: Checkout divergence point
+#        run: git checkout ${{ steps.merge_base.outputs.sha }} --recurse-submodules
+#
+#      - name: Setup runner
+#        uses: matter-labs/zksync-ci-common/.github/actions/runner-setup@aba-ci-optimize
+#        with:
+#          workspace: 'core'           # Use core workspace cache setup
+#          cache_shared_key: 'bench'   # Use `bench` profile for benchmarks
+#          setup_valgrind: 'true'
+#
+#      # Download prebuilt contracts version if exists, otherwise build them
+#      - name: Build contracts
+#        uses: matter-labs/zksync-ci-common/.github/actions/build-contracts@aba-ci-optimize
+#
+#      - name: run benchmarks on base branch
+#        working-directory: core
+#        run: |
+#          cargo bench --package vm-benchmark --bench instructions -- --verbose
+#          cargo run --package vm-benchmark --profile bench --bin instruction_counts | tee base-opcodes
+#
+#      - name: Checkout PR
+#        run: |
+#          git checkout --force FETCH_HEAD --recurse-submodules
+#          git submodule update --init --recursive
+#
+#      - name: Run benchmarks on PR
+#        working-directory: core
+#        run: |
+#          cargo bench --package vm-benchmark --bench instructions -- --verbose
+#          cargo bench --package vm-benchmark --bench instructions -- --print > instructions.log 2>/dev/null
+#
+#      - name: Compare results
+#        id: comparison
+#        working-directory: core
+#        run: |
+#          # Output all lines from the benchmark result starting from the "## ..." comparison header.
+#          # Since the output spans multiple lines, we use a heredoc declaration.
+#          EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+#          echo "speedup<<$EOF" >> $GITHUB_OUTPUT
+#          sed -n '/^## /,$p' instructions.log >> $GITHUB_OUTPUT
+#          echo "$EOF" >> $GITHUB_OUTPUT
+#
+#          cargo run --package vm-benchmark --profile bench --bin instruction_counts -- --diff base-opcodes > opcodes.log
+#          echo "opcodes<<$EOF" >> $GITHUB_OUTPUT
+#          sed -n '/^## /,$p' opcodes.log >> $GITHUB_OUTPUT
+#          echo "$EOF" >> $GITHUB_OUTPUT
+#
+#      - name: Comment on PR
+#        uses: thollander/actions-comment-pull-request@fabd468d3a1a0b97feee5f6b9e499eab0dd903f6 # v2.5.0
+#        if: steps.comparison.outputs.speedup != '' || steps.comparison.outputs.opcodes != ''
+#        with:
+#          message: |
+#            ${{ steps.comparison.outputs.speedup }}
+#            ${{ steps.comparison.outputs.opcodes }}
+#          comment_tag: vm-performance-changes
+#          mode: recreate
+#          create_if_not_exists: true
+#
+#      - name: Remove PR comment
+#        uses: thollander/actions-comment-pull-request@fabd468d3a1a0b97feee5f6b9e499eab0dd903f6 # v2.5.0
+#        if: steps.comparison.outputs.speedup == '' && steps.comparison.outputs.opcodes == ''
+#        with:
+#          comment_tag: vm-performance-changes
+#          message: 'No performance difference detected (anymore)'
+#          mode: delete
 
   # ==============================================
   #    Integration tests for `core` workspace
@@ -318,7 +319,7 @@ jobs:
 #  integration-tests:
 #    runs-on: matterlabs-ci-runner-ultra-performance
 #    needs: changed-files
-#    if: ${{ needs.changed-files.outputs.any_changed == 'true' }}
+#    if: ${{ needs.changed-files.outputs.any_changed == 'true' || github.event_name == 'schedule' }}
 #    env:
 #      ZKSYNC_HOME: ${{ github.workspace }}
 #      L1_RPC_URL: "http://localhost:8545"

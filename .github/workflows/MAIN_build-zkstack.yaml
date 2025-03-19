@@ -13,7 +13,7 @@ permissions:
 
 # Define the events that triggers the workflow
 on:
-  pull_request: # TODO: remove after testing
+#  pull_request: # TODO: remove after testing
   push:
     branches:
       - main
@@ -38,7 +38,13 @@ jobs:
   # Uploads zkstack to be downloaded by tests in PRs.
   # ===================================================================
   prebuild-zkstack:
-    runs-on: matterlabs-ci-runner-highmem-long
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: matterlabs-ci-runner-high-performance
+          - runner: matterlabs-ci-runner-arm
+    runs-on: ${{ matrix.runner }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -50,6 +56,7 @@ jobs:
         with:
           workspace: 'zkstack_cli'
           cache_shared_key: 'release'
+          install_zkstack: 'false'
 
       - name: Build zkstack
         working-directory: zkstack_cli
@@ -58,5 +65,5 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: zkstack
+          name: zkstack-${{ runner.arch }}
           path: ./zkstack_cli/target/release/zkstack
