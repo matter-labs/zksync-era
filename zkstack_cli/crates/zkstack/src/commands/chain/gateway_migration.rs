@@ -25,7 +25,7 @@ use zkstack_cli_config::{
     ChainConfig, EcosystemConfig,
 };
 use zkstack_cli_types::L1BatchCommitmentMode;
-use zksync_basic_types::{settlement::SettlementMode, Address, H256, U256, U64};
+use zksync_basic_types::{Address, H256, U256, U64};
 use zksync_config::configs::gateway::GatewayChainConfig;
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 
@@ -366,10 +366,6 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         gateway_chain_id.into(),
     );
     gateway_chain_config.save_with_base_path(shell, chain_config.configs.clone())?;
-
-    let mut general_config = chain_config.get_general_config().await?.patched();
-
-    general_config.save().await?;
 
     Ok(())
 }
