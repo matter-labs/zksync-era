@@ -30,7 +30,7 @@ export const ARTIFACTS_PATH = '../../../contracts/l1-contracts/out/';
 export const SYSTEM_ARTIFACTS_PATH = '../../../contracts/system-contracts/zkout/';
 
 export const INTEROP_TRIGGER_ABI =
-    'tuple(uint256 destinationChainId, address from, address recipient,bytes32 feeBundleHash, bytes32 executionBundleHash, tuple(uint256 gasLimit, uint256 gasPerPubdataByteLimit, address refundRecipient) gasFields)';
+    'tuple(uint256 destinationChainId, address from, address recipient,bytes32 feeBundleHash, bytes32 executionBundleHash, tuple(uint256 gasLimit, uint256 gasPerPubdataByteLimit, address refundRecipient, address paymaster, bytes paymasterInput) gasFields)';
 
 export const INTEROP_CALL_ABI = 'tuple(address to, address from, uint256 value, bytes data)';
 export const INTEROP_BUNDLE_ABI =

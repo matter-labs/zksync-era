@@ -284,7 +284,9 @@ describe('Interop checks', () => {
             {
                 gasLimit: 30000000,
                 gasPerPubdataByteLimit: 1000,
-                refundRecipient: interop1_wallet.address
+                refundRecipient: interop1_wallet.address,
+                paymaster: ethers.ZeroAddress,
+                paymasterInput: '0x'
             }
         );
 
@@ -497,7 +499,9 @@ describe('Interop checks', () => {
             {
                 gasLimit: 30000000,
                 gasPerPubdataByteLimit: 1000,
-                refundRecipient: interop1_wallet.address
+                refundRecipient: interop1_wallet.address,
+                paymaster: ethers.ZeroAddress,
+                paymasterInput: '0x'
             }
         );
 
@@ -677,7 +681,9 @@ describe('Interop checks', () => {
             {
                 gasLimit: 30000000,
                 gasPerPubdataByteLimit: 1000,
-                refundRecipient: interop1_wallet.address
+                refundRecipient: interop1_wallet.address,
+                paymaster: ethers.ZeroAddress,
+                paymasterInput: '0x'
             }
         );
 
@@ -881,6 +887,8 @@ describe('Interop checks', () => {
         gasLimit: number;
         gasPerPubdataByteLimit: number;
         refundRecipient: string;
+        paymaster: string;
+        paymasterInput: string;
     }
 
     /**
@@ -899,6 +907,7 @@ describe('Interop checks', () => {
         const input = [
             // destinationChainId:
             (await interop2_provider.getNetwork()).chainId.toString(),
+            L2_STANDARD_TRIGGER_ACCOUNT_ADDRESS,
             // feePaymentCallStarters:
             feePaymentCallStarters,
             // executionCallStarters:
@@ -907,7 +916,9 @@ describe('Interop checks', () => {
             {
                 gasLimit: 600000000,
                 gasPerPubdataByteLimit: REQUIRED_L2_GAS_PRICE_PER_PUBDATA,
-                refundRecipient: interop1_wallet.address
+                refundRecipient: interop1_wallet.address,
+                paymaster: ethers.ZeroAddress,
+                paymasterInput: ''
             }
             // refundRecipient: interop1_wallet.address
         ];
@@ -1052,46 +1063,42 @@ describe('Interop checks', () => {
         const fromFormatted = `0x${xl2Input.from.toString(16).padStart(40, '0')}`;
         // const toFormatted = `0x${xl2Input.to.toString(16).padStart(40, '0')}`;
 
-        const txData = ethers.AbiCoder.defaultAbiCoder().encode(['bytes', 'bytes'], [rawData_fee, rawData_execution]);
+        const txData = ethers.AbiCoder.defaultAbiCoder().encode(
+            ['bytes', 'bytes'],
+            [rawData_execution, proof_execution]
+        );
         // Construct the interop transaction
         const nonce = await receiver_chain_provider.getTransactionCount(xl2Input.from);
         const feeData = await receiver_chain_provider.getFeeData();
         let interopTx = {
-            // type: INTEROP_TX_TYPE,
-            from: xl2Input.from, //L2_STANDARD_TRIGGER_ACCOUNT_ADDRESS, kl todo
+            from: L2_STANDARD_TRIGGER_ACCOUNT_ADDRESS, // kl todo
             to: L2_INTEROP_HANDLER_ADDRESS,
             chainId: (await receiver_chain_provider.getNetwork()).chainId.toString(),
             data: txData,
             nonce: nonce,
             customData: {
-                // paymasterParams: { paymaster: ethers.ZeroAddress, paymasterInput: '0x' },
-                // merkleProof: proof1,
-                // fullFee: '0xf000000000000000',
-                // toMint:
-                //     (xl2Input.reserved[0].toString(16).length % 2 == 0 ? '0x' : '0x0') +
-                //     xl2Input.reserved[0].toString(16),
-                // refundRecipient: await interop1_wallet.getAddress()
-                customSignature: ''
+                paymasterParams: {
+                    paymaster: triggerData.gasFields.paymaster,
+                    paymasterInput: triggerData.gasFields.paymasterInput
+                },
+                customSignature: '',
+                gasPerPubdata: triggerData.gasFields.gasPerPubdataByteLimit
             },
             maxFeePerGas: feeData.maxFeePerGas,
             maxPriorityFeePerGas: feeData.maxPriorityFeePerGas,
-            gasLimit: 30000000,
+            gasLimit: triggerData.gasFields.gasLimit,
             value: 0
         };
 
-        const custom_sig = ethers.AbiCoder.defaultAbiCoder().encode(['bytes', 'bytes'], [proof_fee, proof_execution]);
+        const custom_sig = ethers.AbiCoder.defaultAbiCoder().encode(
+            ['bytes', 'bytes', 'address', 'bytes'],
+            [rawData_fee, proof_fee, triggerData.gasFields.refundRecipient, proof_trigger]
+        );
         // console.log('interopTx', interopTx, 'sig', custom_sig);
-        // const sig = ethers.AbiCoder.defaultAbiCoder().encode(['bytes', 'bytes'], )
-        // const sig = ethers.Signature.from({
-        //     v: 27,
-        //     r: '0x0000000000000000000000000000000000000000000000000000000000000000',
-        //     s: '0x0000000000000000000000000000000000000000000000000000000000000000'
-        // });
         interopTx.customData.customSignature = custom_sig;
         const hexTx = zksync.utils.serializeEip712(interopTx);
-        // console.log("interopTx fail", xl2Input.unimplemented[0])
-        const receiverChainId = (await receiver_chain_provider.getNetwork()).chainId;
-        const interop1ChainId = (await interop1_provider.getNetwork()).chainId;
+        // const receiverChainId = (await receiver_chain_provider.getNetwork()).chainId;
+        // const interop1ChainId = (await interop1_provider.getNetwork()).chainId;
         // console.log("kl tod inteorp tx", interopTx)
         // console.log(`Broadcasting interop tx to ${receiverChainId === interop1ChainId ? 'Interop1' : 'Interop2'}`);
         const broadcastTx = await receiver_chain_provider.broadcastTransaction(hexTx);

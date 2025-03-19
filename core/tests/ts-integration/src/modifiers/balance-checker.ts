@@ -14,7 +14,8 @@ import {
     ArtifactBridgeHub,
     ArtifactL1AssetRouter,
     ArtifactNativeTokenVault,
-    L2_ASSET_TRACKER_ADDRESS
+    L2_ASSET_TRACKER_ADDRESS,
+    ArtifactInteropCenter
 } from '../constants';
 import { RetryProvider } from '../retry-provider';
 
@@ -350,7 +351,7 @@ async function getChainBalance(
     ignoreUndeployedToken?: boolean
 ): Promise<bigint> {
     const provider = l1 ? wallet.providerL1! : wallet.provider;
-    // kl todo get from env or something. 
+    // kl todo get from env or something.
     const gwProvider = new RetryProvider({ url: 'http://localhost:3052', timeout: 1200 * 1000 }, undefined);
     const bridgehub = new ethers.Contract(
         await (await wallet.getBridgehubContract()).getAddress(),
@@ -360,7 +361,12 @@ async function getChainBalance(
     // console.log('bridgehub', await bridgehub.getAddress());
     // console.log('interface', bridgehub.interface);
     const bridgehubL1 = await bridgehub.L1_CHAIN_ID;
-    const assetTrackerAddress = await bridgehub.assetTracker();
+    const interopCenter = new zksync.Contract(
+        await bridgehub.interopCenter(),
+        ArtifactInteropCenter.abi,
+        wallet.providerL1!
+    );
+    const assetTrackerAddress = await interopCenter.assetTracker();
     // console.log('assetTrackerAddress', assetTrackerAddress);
     const assetRouter = new zksync.Contract(
         await bridgehub.assetRouter(),
@@ -380,7 +386,6 @@ async function getChainBalance(
     // console.log('balance', l1 ? 'l1' : 'l2', balance);
     if (balance == 0n && l1) {
         balance = await gwAssetTracker.chainBalance((await wallet.provider.getNetwork()).chainId, assetId);
-        // console.log('balance gw', balance);
     }
     return balance;
 }

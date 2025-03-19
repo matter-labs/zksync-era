@@ -233,7 +233,7 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 40] = [
         ContractLanguage::Sol,
     ),
     (
-        "../../l1-contracts/zkout/",
+        "",
         "InteropAccount",
         INTEROP_ACCOUNT_ADDRESS,
         ContractLanguage::Sol,
@@ -252,7 +252,7 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 40] = [
     ),
     (
         "",
-        "DefaultAccount",
+        "StandardTriggerAccount",
         L2_STANDARD_TRIGGER_ACCOUNT_ADDRESS,
         ContractLanguage::Sol,
     ),
