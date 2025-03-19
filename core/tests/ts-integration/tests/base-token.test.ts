@@ -9,6 +9,7 @@ import { Token } from '../src/types';
 import * as zksync from 'zksync-ethers-interop-support';
 import * as ethers from 'ethers';
 import { scaledGasPrice, waitForL2ToL1LogProof } from '../src/helpers';
+import { IL2NativeTokenVault__factory } from 'zksync-ethers/build/typechain';
 
 const SECONDS = 2000;
 jest.setTimeout(100 * SECONDS);
@@ -180,6 +181,39 @@ describe('base ERC20 contract checks', () => {
 
         expect(finalL1Balance).toEqual(initialL1Balance + amount);
         expect(finalL2Balance + amount + fee).toEqual(initialL2Balance);
+    });
+
+    test('Wrapped base token metadata', async () => {
+        // This test is intended only to be run against newly created chains.
+        if (!testMaster.isLocalHost()) {
+            return;
+        }
+
+        let name;
+        let symbol;
+
+        if (isETHBasedChain) {
+            name = 'Ether';
+            symbol = 'ETH';
+        } else {
+            const contract = new ethers.Contract(baseTokenDetails.l1Address, zksync.utils.IERC20, alice.ethWallet());
+            name = await contract.name();
+            symbol = await contract.symbol();
+        }
+
+        const expectedWrappedBaseTokenName = `Wrapped ${name}`;
+        const expectedWrappedBaseTokenSymbol = `W${symbol}`;
+
+        const l2NativeTokenVault = IL2NativeTokenVault__factory.connect(
+            zksync.utils.L2_NATIVE_TOKEN_VAULT_ADDRESS,
+            alice
+        );
+        const wethToken = await l2NativeTokenVault.WETH_TOKEN();
+
+        const wrappedBaseToken = new ethers.Contract(wethToken, zksync.utils.IERC20, alice);
+
+        expect(expectedWrappedBaseTokenName).toEqual(await wrappedBaseToken.name());
+        expect(expectedWrappedBaseTokenSymbol).toEqual(await wrappedBaseToken.symbol());
     });
 
     afterAll(async () => {

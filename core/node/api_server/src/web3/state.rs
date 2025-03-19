@@ -122,6 +122,7 @@ pub struct InternalApiConfig {
     pub dummy_verifier: bool,
     pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
     pub timestamp_asserter_address: Option<Address>,
+    pub l1_to_l2_txs_paused: bool,
 }
 
 impl InternalApiConfig {
@@ -129,6 +130,7 @@ impl InternalApiConfig {
         web3_config: &Web3JsonRpcConfig,
         contracts_config: &ContractsConfig,
         genesis_config: &GenesisConfig,
+        l1_to_l2_txs_paused: bool,
     ) -> Self {
         Self {
             l1_chain_id: genesis_config.l1_chain_id,
@@ -188,6 +190,7 @@ impl InternalApiConfig {
             dummy_verifier: genesis_config.dummy_verifier,
             l1_batch_commit_data_generator_mode: genesis_config.l1_batch_commit_data_generator_mode,
             timestamp_asserter_address: contracts_config.l2_timestamp_asserter_addr,
+            l1_to_l2_txs_paused,
         }
     }
 }

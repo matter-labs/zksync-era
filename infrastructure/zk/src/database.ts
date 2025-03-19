@@ -136,7 +136,7 @@ export async function setupForDal(dalPath: DalPath, dbUrl: string, shouldCheck: 
     if (shouldCheck) {
         // Dont't do this preparation for local (docker) setup - as it requires full cargo compilation.
         await utils.spawn(
-            `cargo sqlx prepare --check --database-url ${dbUrl} -- --tests || cargo sqlx prepare --database-url ${dbUrl} -- --tests`
+            `cargo sqlx prepare --check --database-url ${dbUrl} -- --tests --locked || cargo sqlx prepare --database-url ${dbUrl} -- --tests --locked`
         );
     }
 
@@ -173,7 +173,7 @@ async function prepareSqlxDataForDal(dalPath: DalPath, dbUrl: string, check: boo
     if (check) {
         check_string = '--check';
     }
-    await utils.spawn(`cargo sqlx prepare ${check_string} --database-url ${dbUrl} -- --tests`);
+    await utils.spawn(`cargo sqlx prepare ${check_string} --database-url ${dbUrl} -- --tests --locked`);
     process.chdir(process.env.ZKSYNC_HOME as string);
 }
 

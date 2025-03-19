@@ -8,6 +8,7 @@ use tokio::{
 };
 use zksync_prover_autoscaler::{
     agent,
+    cluster_types::ClusterName,
     config::{config_from_yaml, ProverAutoscalerConfig},
     global::{manager::Manager, queuer::Queuer, watcher},
     http_client::HttpClient,
@@ -46,7 +47,7 @@ struct Opt {
     job: AutoscalerType,
     /// Name of the cluster Agent is watching.
     #[structopt(long)]
-    cluster_name: Option<String>,
+    cluster_name: Option<ClusterName>,
     /// Path to the configuration file.
     #[structopt(long)]
     config_path: std::path::PathBuf,

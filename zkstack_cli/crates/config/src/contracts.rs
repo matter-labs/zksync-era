@@ -119,6 +119,11 @@ impl ContractsConfig {
                 .avail_l1_da_validator_addr,
         );
         self.l1.chain_admin_addr = deploy_l1_output.deployed_addresses.chain_admin;
+        self.ecosystem_contracts.server_notifier_proxy_addr = Some(
+            deploy_l1_output
+                .deployed_addresses
+                .server_notifier_proxy_addr,
+        );
     }
 
     pub fn set_chain_contracts(&mut self, register_chain_output: &RegisterChainOutput) {
@@ -208,6 +213,8 @@ pub struct EcosystemContracts {
     // `Option` to be able to parse configs from pre-gateway protocol version.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub l1_wrapped_base_token_store: Option<Address>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub server_notifier_proxy_addr: Option<Address>,
 }
 
 impl ZkStackConfig for EcosystemContracts {}

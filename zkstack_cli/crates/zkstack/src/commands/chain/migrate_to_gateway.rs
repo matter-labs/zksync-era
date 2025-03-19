@@ -399,7 +399,7 @@ async fn await_for_tx_to_complete(
     if receipt.status == Some(U64::from(1)) {
         println!("Transaction completed successfully!");
     } else {
-        panic!("Transaction failed!");
+        panic!("Transaction failed! Receipt: {:?}", receipt);
     }
 
     Ok(())

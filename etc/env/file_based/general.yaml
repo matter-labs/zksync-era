@@ -41,7 +41,7 @@ api:
     estimate_gas_scale_factor: 1.3
     estimate_gas_acceptable_overestimation: 5000
     max_tx_size: 1000000
-    api_namespaces: [ en,eth,net,web3,zks,pubsub,debug,unstable ]
+    api_namespaces: [en, eth, net, web3, zks, pubsub, debug, unstable]
 state_keeper:
   transaction_slots: 8192
   max_allowed_l2_tx_gas_limit: 15000000000
@@ -118,7 +118,6 @@ eth:
     confirmations_for_eth_event: 0
     eth_node_poll_interval: 300
 
-
 snapshot_creator:
   object_store:
     file_backed:
@@ -127,13 +126,8 @@ snapshot_creator:
   concurrent_queries_count: 25
   storage_logs_chunk_size: 1000000
 
-
 prover:
   prover_object_store:
-    file_backed:
-      file_backed_base_path: artifacts
-    max_retries: 10
-  public_object_store:
     file_backed:
       file_backed_base_path: artifacts
     max_retries: 10
@@ -147,12 +141,10 @@ prover:
   witness_vector_receiver_port: 3316
   availability_check_interval_in_secs: 10000
   zone_read_url: http://metadata.google.internal/computeMetadata/v1/instance/zone
-  shall_save_to_public_bucket: true
   cloud_type: LOCAL
 witness_generator:
   generation_timeout_in_secs: 900
   max_attempts: 10
-  shall_save_to_public_bucket: true
   prometheus_listener_port: 3116
   max_circuits_in_flight: 500
 witness_vector_generator:
@@ -166,12 +158,15 @@ witness_vector_generator:
 data_handler:
   http_port: 3320
   proof_generation_timeout_in_secs: 18000
+  api_url: ws://127.0.0.1:3324
+  batch_readiness_check_interval_in_secs: 15
+  retry_connection_interval_in_secs: 5
   tee_proof_generation_timeout_in_secs: 60
   tee_batch_permanently_ignored_timeout_in_hours: 240
   tee_support: true
 prover_gateway:
-  api_url: http://127.0.0.1:3320
   api_poll_duration_secs: 15
+  ws_port: 3324
   prometheus_listener_port: 3310
   prometheus_pushgateway_url: http://127.0.0.1:9091
   prometheus_push_interval_ms: 100
@@ -288,7 +283,6 @@ prover_job_monitor:
   witness_job_queuer_run_interval_ms: 10000
   http_port: 3074
 
-
 base_token_adjuster:
   price_polling_interval_ms: 30000
   price_cache_update_interval_ms: 2000
@@ -299,7 +293,6 @@ external_price_api_client:
   client_timeout_ms: 10000
   forced_numerator: 314
   forced_denominator: 1000
-
 
 house_keeper:
   l1_batch_metrics_reporting_interval_ms: 10000

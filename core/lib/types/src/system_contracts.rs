@@ -10,6 +10,8 @@ use zksync_system_constants::{
     L2_MESSAGE_ROOT_ADDRESS, L2_MESSAGE_ROOT_STORAGE_ADDRESS, L2_MESSAGE_VERIFICATION_ADDRESS,
     L2_NATIVE_TOKEN_VAULT_ADDRESS, L2_STANDARD_TRIGGER_ACCOUNT_ADDRESS, L2_WRAPPED_BASE_TOKEN_IMPL,
     PUBDATA_CHUNK_PUBLISHER_ADDRESS, SECP256R1_VERIFY_PRECOMPILE_ADDRESS, SLOAD_CONTRACT_ADDRESS,
+    EVM_HASHES_STORAGE_ADDRESS,
+    EVM_PREDEPLOYS_MANAGER_ADDRESS, IDENTITY_ADDRESS,
 };
 
 use crate::{
@@ -127,6 +129,12 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 40] = [
         ContractLanguage::Yul,
     ),
     (
+        "precompiles/",
+        "Identity",
+        IDENTITY_ADDRESS,
+        ContractLanguage::Yul,
+    ),
+    (
         "",
         "SystemContext",
         SYSTEM_CONTEXT_ADDRESS,
@@ -156,6 +164,18 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 40] = [
         "EvmGasManager",
         EVM_GAS_MANAGER_ADDRESS,
         ContractLanguage::Yul,
+    ),
+    (
+        "",
+        "EvmPredeploysManager",
+        EVM_PREDEPLOYS_MANAGER_ADDRESS,
+        ContractLanguage::Sol,
+    ),
+    (
+        "",
+        "EvmHashesStorage",
+        EVM_HASHES_STORAGE_ADDRESS,
+        ContractLanguage::Sol,
     ),
     // For now, only zero address and the bootloader address have empty bytecode at the init
     // In the future, we might want to set all of the system contracts this way.
@@ -265,44 +285,24 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 40] = [
 ];
 
 /// Gets default set of system contracts, based on Cargo workspace location.
-pub fn get_system_smart_contracts(use_evm_emulator: bool) -> Vec<DeployedContract> {
+pub fn get_system_smart_contracts() -> Vec<DeployedContract> {
     SYSTEM_CONTRACT_LIST
         .iter()
-        .filter_map(|(path, name, address, contract_lang)| {
-            if *name == "EvmGasManager" && !use_evm_emulator {
-                None
-            } else {
-                Some(DeployedContract {
-                    account_id: AccountTreeId::new(*address),
-                    bytecode: read_sys_contract_bytecode(path, name, contract_lang.clone()),
-                })
-            }
+        .map(|(path, name, address, contract_lang)| DeployedContract {
+            account_id: AccountTreeId::new(*address),
+            bytecode: read_sys_contract_bytecode(path, name, contract_lang.clone()),
         })
         .collect()
 }
 
 /// Loads system contracts from a given directory.
-pub fn get_system_smart_contracts_from_dir(
-    path: PathBuf,
-    use_evm_emulator: bool,
-) -> Vec<DeployedContract> {
+pub fn get_system_smart_contracts_from_dir(path: PathBuf) -> Vec<DeployedContract> {
     let repo = SystemContractsRepo { root: path };
     SYSTEM_CONTRACT_LIST
         .iter()
-        .filter_map(|(path, name, address, contract_lang)| {
-            if *name == "EvmGasManager" && !use_evm_emulator {
-                None
-            } else {
-                Some(DeployedContract {
-                    account_id: AccountTreeId::new(*address),
-                    bytecode: repo.read_sys_contract_bytecode(
-                        path,
-                        name,
-                        None,
-                        contract_lang.clone(),
-                    ),
-                })
-            }
+        .map(|(path, name, address, contract_lang)| DeployedContract {
+            account_id: AccountTreeId::new(*address),
+            bytecode: repo.read_sys_contract_bytecode(path, name, None, contract_lang.clone()),
         })
         .collect::<Vec<_>>()
 }

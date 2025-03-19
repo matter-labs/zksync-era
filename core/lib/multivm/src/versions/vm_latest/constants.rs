@@ -23,8 +23,9 @@ pub(crate) const MAX_BASE_LAYER_CIRCUITS: usize = 34100;
 pub(crate) const fn get_used_bootloader_memory_bytes(subversion: MultiVmSubversion) -> usize {
     match subversion {
         MultiVmSubversion::SmallBootloaderMemory => 59_000_000,
-        MultiVmSubversion::IncreasedBootloaderMemory => 63_800_000,
-        MultiVmSubversion::Gateway => 63_800_000,
+        MultiVmSubversion::IncreasedBootloaderMemory
+        | MultiVmSubversion::Gateway
+        | MultiVmSubversion::EvmEmulator => 63_800_000,
     }
 }
 
@@ -67,7 +68,7 @@ pub(crate) const fn get_max_new_factory_deps(subversion: MultiVmSubversion) -> u
             32
         }
         // With gateway upgrade we increased max number of factory dependencies
-        MultiVmSubversion::Gateway => 64,
+        MultiVmSubversion::Gateway | MultiVmSubversion::EvmEmulator => 64,
     }
 }
 

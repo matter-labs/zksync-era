@@ -125,8 +125,10 @@ impl ProtocolVersionId {
             ProtocolVersionId::Version24 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
             ProtocolVersionId::Version25 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
             ProtocolVersionId::Version26 => VmVersion::VmGateway,
-            ProtocolVersionId::Version27 => VmVersion::VmGateway,
+            ProtocolVersionId::Version27 => VmVersion::VmEvmEmulator,
             ProtocolVersionId::Version28 => VmVersion::VmInterop,
+            
+            // Speculative VM version for the next protocol version to be used in the upgrade integration test etc.
             ProtocolVersionId::Version29 => VmVersion::VmInterop,
         }
     }
@@ -157,9 +159,13 @@ impl ProtocolVersionId {
         self < &Self::Version27
     }
 
+    pub fn is_post_fflonk(&self) -> bool {
+        self >= &Self::Version27
+    }
+
     pub fn is_pre_interop(&self) -> bool {
         // note fflonk version has not been merged yet
-        self < &Self::Version27
+        self < &Self::Version28
     }
 
     pub fn is_1_4_0(&self) -> bool {
@@ -306,8 +312,10 @@ impl From<ProtocolVersionId> for VmVersion {
             ProtocolVersionId::Version24 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
             ProtocolVersionId::Version25 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
             ProtocolVersionId::Version26 => VmVersion::VmGateway,
-            ProtocolVersionId::Version27 => VmVersion::VmGateway,
+            ProtocolVersionId::Version27 => VmVersion::VmEvmEmulator,
             ProtocolVersionId::Version28 => VmVersion::VmInterop,
+
+            // Speculative VM version for the next protocol version to be used in the upgrade integration test etc.
             ProtocolVersionId::Version29 => VmVersion::VmInterop,
         }
     }

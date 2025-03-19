@@ -220,12 +220,21 @@ impl<S: ReadStorage, H: HistoryMode> LegacyVmInstance<S, H> {
                 );
                 Self::Vm1_5_0(vm)
             }
+            VmVersion::VmEvmEmulator => {
+                let vm = vm_latest::Vm::new_with_subversion(
+                    l1_batch_env,
+                    system_env,
+                    storage_view,
+                    vm_latest::MultiVmSubversion::EvmEmulator,
+                );
+                Self::Vm1_5_0(vm)
+            }
             VmVersion::VmInterop => {
                 let vm = vm_latest::Vm::new_with_subversion(
                     l1_batch_env,
                     system_env,
                     storage_view,
-                    vm_latest::MultiVmSubversion::Gateway,
+                    vm_latest::MultiVmSubversion::EvmEmulator,
                 );
                 Self::Vm1_5_0(vm)
             }

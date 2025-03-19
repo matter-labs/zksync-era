@@ -17,13 +17,14 @@ pub enum VmVersion {
     Vm1_5_0SmallBootloaderMemory,
     Vm1_5_0IncreasedBootloaderMemory,
     VmGateway,
+    VmEvmEmulator,
     VmInterop,
 }
 
 impl VmVersion {
     /// Returns the latest supported VM version.
     pub const fn latest() -> VmVersion {
-        Self::VmGateway
+        Self::VmEvmEmulator
     }
 }
 

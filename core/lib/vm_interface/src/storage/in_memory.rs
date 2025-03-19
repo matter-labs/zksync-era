@@ -29,7 +29,7 @@ impl InMemoryStorage {
 
     /// Constructs a storage that contains system smart contracts (with a given chain id).
     pub fn with_system_contracts_and_chain_id(chain_id: L2ChainId) -> Self {
-        Self::with_custom_system_contracts_and_chain_id(chain_id, get_system_smart_contracts(false))
+        Self::with_custom_system_contracts_and_chain_id(chain_id, get_system_smart_contracts())
     }
 
     /// Constructs a storage that contains custom system contracts (provided in a vector).
