@@ -5,6 +5,8 @@ use std::fmt;
 use async_trait::async_trait;
 use types::{DAError, DispatchResponse, InclusionData};
 
+use crate::types::ClientType;
+
 /// Trait that defines the interface for the data availability layer clients.
 #[async_trait]
 pub trait DataAvailabilityClient: Sync + Send + fmt::Debug {
@@ -24,6 +26,10 @@ pub trait DataAvailabilityClient: Sync + Send + fmt::Debug {
     /// Returns the maximum size of the blob (in bytes) that can be dispatched. None means no limit.
     fn blob_size_limit(&self) -> Option<usize>;
 
+    /// Returns the name of the client implementation.
+    fn client_type(&self) -> ClientType;
+
+    /// Returns the balance of the operator account.
     async fn balance(&self) -> Result<u64, DAError>;
 }
 

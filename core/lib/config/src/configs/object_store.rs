@@ -37,6 +37,17 @@ pub enum ObjectStoreMode {
         bucket_base_url: String,
         gcs_credential_file_path: String,
     },
+    S3AnonymousReadOnly {
+        bucket_base_url: String,
+        endpoint: Option<String>,
+        region: Option<String>,
+    },
+    S3WithCredentialFile {
+        bucket_base_url: String,
+        s3_credential_file_path: String,
+        endpoint: Option<String>,
+        region: Option<String>,
+    },
     FileBacked {
         file_backed_base_path: String,
     },

@@ -10,7 +10,9 @@ use zksync_types::{
     debug_flat_call::{Action, CallResult, CallTraceMeta, DebugCallFlat, ResultDebugCallFlat},
     l2::L2Tx,
     transaction_request::CallRequest,
-    web3, H256, U256,
+    web3,
+    zk_evm_types::FarCallOpcode,
+    H256, U256,
 };
 use zksync_web3_decl::error::Web3Error;
 
@@ -70,7 +72,9 @@ impl DebugNamespace {
                 .collect()
         };
         let debug_type = match call.r#type {
-            CallType::Call(_) => DebugCallType::Call,
+            CallType::Call(FarCallOpcode::Normal) => DebugCallType::Call,
+            CallType::Call(FarCallOpcode::Mimic) => DebugCallType::Call,
+            CallType::Call(FarCallOpcode::Delegate) => DebugCallType::DelegateCall,
             CallType::Create => DebugCallType::Create,
             CallType::NearCall => unreachable!("We have to filter our near calls before"),
         };
@@ -98,7 +102,9 @@ impl DebugNamespace {
     ) {
         let subtraces = call.calls.len();
         let debug_type = match call.r#type {
-            CallType::Call(_) => DebugCallType::Call,
+            CallType::Call(FarCallOpcode::Normal) => DebugCallType::Call,
+            CallType::Call(FarCallOpcode::Mimic) => DebugCallType::Call,
+            CallType::Call(FarCallOpcode::Delegate) => DebugCallType::DelegateCall,
             CallType::Create => DebugCallType::Create,
             CallType::NearCall => unreachable!("We have to filter our near calls before"),
         };

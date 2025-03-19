@@ -1,0 +1,248 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE transactions\n            SET\n                in_mempool = TRUE\n            FROM\n                (\n                    SELECT\n                        hash\n                    FROM\n                        (\n                            SELECT\n                                hash\n                            FROM\n                                transactions\n                            WHERE\n                                miniblock_number IS NULL\n                                AND in_mempool = FALSE\n                                AND error IS NULL\n                                AND (\n                                    (\n                                        is_priority = TRUE\n                                        AND $5 = TRUE\n                                    )\n                                    OR (\n                                        is_priority = FALSE\n                                        AND max_fee_per_gas >= $2\n                                        AND gas_per_pubdata_limit >= $3\n                                    )\n                                )\n                                AND tx_format != $4\n                            ORDER BY\n                                is_priority DESC,\n                                priority_op_id,\n                                received_at\n                            LIMIT\n                                $1\n                        ) AS subquery1\n                    ORDER BY\n                        hash\n                ) AS subquery2\n            WHERE\n                transactions.hash = subquery2.hash\n            RETURNING\n            transactions.*\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "hash",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 1,
+        "name": "is_priority",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 2,
+        "name": "full_fee",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 3,
+        "name": "layer_2_tip_fee",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 4,
+        "name": "initiator_address",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 5,
+        "name": "nonce",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 6,
+        "name": "signature",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 7,
+        "name": "input",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 8,
+        "name": "data",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 9,
+        "name": "received_at",
+        "type_info": "Timestamp"
+      },
+      {
+        "ordinal": 10,
+        "name": "priority_op_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 11,
+        "name": "l1_batch_number",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 12,
+        "name": "index_in_block",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 13,
+        "name": "error",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 14,
+        "name": "gas_limit",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 15,
+        "name": "gas_per_storage_limit",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 16,
+        "name": "gas_per_pubdata_limit",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 17,
+        "name": "tx_format",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 18,
+        "name": "created_at",
+        "type_info": "Timestamp"
+      },
+      {
+        "ordinal": 19,
+        "name": "updated_at",
+        "type_info": "Timestamp"
+      },
+      {
+        "ordinal": 20,
+        "name": "execution_info",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 21,
+        "name": "contract_address",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 22,
+        "name": "in_mempool",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 23,
+        "name": "l1_block_number",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 24,
+        "name": "value",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 25,
+        "name": "paymaster",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 26,
+        "name": "paymaster_input",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 27,
+        "name": "max_fee_per_gas",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 28,
+        "name": "max_priority_fee_per_gas",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 29,
+        "name": "effective_gas_price",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 30,
+        "name": "miniblock_number",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 31,
+        "name": "l1_batch_tx_index",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 32,
+        "name": "refunded_gas",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 33,
+        "name": "l1_tx_mint",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 34,
+        "name": "l1_tx_refund_recipient",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 35,
+        "name": "upgrade_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 36,
+        "name": "timestamp_asserter_range_start",
+        "type_info": "Timestamp"
+      },
+      {
+        "ordinal": 37,
+        "name": "timestamp_asserter_range_end",
+        "type_info": "Timestamp"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Numeric",
+        "Numeric",
+        "Int4",
+        "Bool"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false,
+      true,
+      false,
+      true,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "31e5854e0f6837320cd8247fb01b1f8a91a014b6f8e3a391b7f090d762f94786"
+}
