@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::watch;
 
 use crate::{
-    cluster_types::Cluster,
+    cluster_types::{Cluster, DeploymentName, NamespaceName},
     k8s::{Scaler, Watcher},
 };
 
@@ -86,9 +86,9 @@ async fn get_cluster(State(app): State<App>) -> Result<Json<Cluster>, AppError> 
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct ScaleDeploymentRequest {
-    pub namespace: String,
-    pub name: String,
-    pub size: i32,
+    pub namespace: NamespaceName,
+    pub name: DeploymentName,
+    pub size: usize,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
