@@ -11295,9 +11295,11 @@ name = "zk_os_tree_manager"
 version = "26.7.0-non-semver-compat"
 dependencies = [
  "anyhow",
+ "axum 0.7.9",
  "futures 0.3.31",
  "once_cell",
  "serde",
+ "thiserror 1.0.69",
  "tokio",
  "tracing",
  "zk_os_merkle_tree",

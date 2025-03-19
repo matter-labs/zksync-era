@@ -17,6 +17,7 @@ use crate::{
     updater::TreeUpdater,
 };
 
+pub mod api;
 mod batch;
 mod health;
 mod helpers;

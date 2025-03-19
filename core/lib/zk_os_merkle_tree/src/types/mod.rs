@@ -1,5 +1,6 @@
-use std::fmt;
+use std::{fmt, str::FromStr};
 
+use anyhow::Context;
 use zksync_basic_types::H256;
 use zksync_crypto_primitives::hasher::blake2::Blake2Hasher;
 
@@ -70,6 +71,11 @@ impl InternalNode {
         }
     }
 
+    #[doc(hidden)] // Too low-level; used in the API server
+    pub fn child_refs(&self) -> impl Iterator<Item = (H256, u64)> + '_ {
+        self.children.iter().map(|r| (r.hash, r.version))
+    }
+
     /// Panics if the index doesn't exist.
     pub(crate) fn child_ref(&self, index: usize) -> &ChildRef {
         &self.children[index]
@@ -133,7 +139,7 @@ pub enum KeyLookup {
 }
 
 /// Unique key for a versioned tree node.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct NodeKey {
     /// Tree version.
     pub(crate) version: u64,
@@ -156,7 +162,7 @@ impl fmt::Display for NodeKey {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             formatter,
-            "{}:{}nibs:{}",
+            "{}:{}:{}",
             self.version, self.nibble_count, self.index_on_level
         )
     }
@@ -165,6 +171,25 @@ impl fmt::Display for NodeKey {
 impl fmt::Debug for NodeKey {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(self, formatter)
+    }
+}
+
+impl FromStr for NodeKey {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let parts: Vec<_> = s.split(':').collect();
+        let [version, nibble_count, index_on_level] = parts.as_slice() else {
+            anyhow::bail!("expected ':'-delimited string like 42:3:12");
+        };
+        let version = version.parse().context("incorrect version")?;
+        let nibble_count = nibble_count.parse().context("incorrect nibble count")?;
+        let index_on_level = index_on_level.parse().context("incorrect index on level")?;
+        Ok(Self {
+            version,
+            nibble_count,
+            index_on_level,
+        })
     }
 }
 

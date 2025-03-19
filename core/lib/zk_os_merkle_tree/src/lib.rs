@@ -8,7 +8,7 @@ pub use zksync_crypto_primitives::hasher::blake2::Blake2Hasher;
 
 pub use self::{
     errors::DeserializeError,
-    hasher::{BatchTreeProof, HashTree},
+    hasher::{BatchTreeProof, HashTree, TreeOperation},
     reader::MerkleTreeReader,
     storage::{Database, MerkleTreeColumnFamily, PatchSet, Patched, RocksDBWrapper},
     types::{BatchOutput, TreeEntry},
@@ -34,7 +34,7 @@ mod types;
 /// these types will remain stable.
 #[doc(hidden)]
 pub mod unstable {
-    pub use crate::types::{KeyLookup, Manifest, Node, NodeKey, RawNode, Root};
+    pub use crate::types::{KeyLookup, Leaf, Manifest, Node, NodeKey, RawNode, Root};
 }
 
 /// Marker trait for tree parameters.

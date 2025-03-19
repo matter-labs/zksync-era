@@ -19,8 +19,10 @@ zksync_shared_metrics.workspace = true
 zk_os_merkle_tree.workspace = true
 
 anyhow.workspace = true
+axum.workspace = true
 futures.workspace = true
 once_cell.workspace = true
 serde.workspace = true
+thiserror.workspace = true
 tokio = { workspace = true, features = ["time"] }
 tracing.workspace = true
