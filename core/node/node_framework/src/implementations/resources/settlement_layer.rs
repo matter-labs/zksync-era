@@ -1,3 +1,4 @@
+use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_types::{settlement::SettlementMode, SLChainId};
 
 use crate::Resource;
@@ -17,5 +18,11 @@ impl Resource for SettlementModeResource {
 impl Resource for SlChainIdResource {
     fn name() -> String {
         "common/sl_chain_id".into()
+    }
+}
+
+impl Resource for SenderConfig {
+    fn name() -> String {
+        "common/eth_sender_config".into()
     }
 }

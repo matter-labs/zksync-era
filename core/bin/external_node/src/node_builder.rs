@@ -16,6 +16,8 @@ use zksync_metadata_calculator::{
     MerkleTreeReaderConfig, MetadataCalculatorConfig, MetadataCalculatorRecoveryConfig,
 };
 use zksync_node_api_server::web3::{state::InternalApiConfigBuilder, Namespace};
+use zksync_node_framework::implementations::layers::settlement_layer_data;
+use zksync_node_framework::implementations::layers::settlement_layer_data::SettlementLayerData;
 use zksync_node_framework::{
     implementations::layers::{
         batch_status_updater::BatchStatusUpdaterLayer,
@@ -45,7 +47,6 @@ use zksync_node_framework::{
         query_eth_client::QueryEthClientLayer,
         reorg_detector::ReorgDetectorLayer,
         settlement_layer_client::SettlementLayerClientLayer,
-        settlement_layer_data_en::SettlementLayerDataEn,
         sigint::SigintHandlerLayer,
         state_keeper::{
             external_io::ExternalIOLayer, main_batch_executor::MainBatchExecutorLayer,
@@ -152,12 +153,14 @@ impl ExternalNodeBuilder {
     }
 
     fn add_settlement_layer_data(mut self) -> anyhow::Result<Self> {
-        self.node.add_layer(SettlementLayerDataEn::new(
-            self.config.required.l2_chain_id,
-            self.config.l1_specific_contracts(),
-            self.config.l1_settelment_contracts(),
-            self.config.l2_contracts(),
-            self.config.optional.gateway_url.clone(),
+        self.node.add_layer(SettlementLayerData::new(
+            settlement_layer_data::ENConfig::new(
+                self.config.required.l2_chain_id,
+                self.config.l1_specific_contracts(),
+                self.config.l1_settelment_contracts(),
+                self.config.l2_contracts(),
+                self.config.optional.gateway_url.clone(),
+            ),
         ));
         Ok(self)
     }

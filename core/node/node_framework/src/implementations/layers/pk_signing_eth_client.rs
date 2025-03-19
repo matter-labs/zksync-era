@@ -1,5 +1,4 @@
-use anyhow::Context as _;
-use zksync_config::{configs::wallets, EthConfig};
+use zksync_config::{configs::wallets, GasAdjusterConfig};
 use zksync_eth_client::{clients::PKSigningClient, EthInterface};
 
 use crate::{
@@ -18,7 +17,7 @@ use crate::{
 /// Wiring layer for [`PKSigningClient`].
 #[derive(Debug)]
 pub struct PKSigningEthClientLayer {
-    eth_sender_config: EthConfig,
+    gas_adjuster_config: GasAdjusterConfig,
     wallets: wallets::EthSender,
 }
 
@@ -41,9 +40,9 @@ pub struct Output {
 }
 
 impl PKSigningEthClientLayer {
-    pub fn new(eth_sender_config: EthConfig, wallets: wallets::EthSender) -> Self {
+    pub fn new(gas_adjuster_config: GasAdjusterConfig, wallets: wallets::EthSender) -> Self {
         Self {
-            eth_sender_config,
+            gas_adjuster_config,
             wallets,
         }
     }
@@ -60,11 +59,7 @@ impl WiringLayer for PKSigningEthClientLayer {
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         let private_key = self.wallets.operator.private_key();
-        let gas_adjuster_config = self
-            .eth_sender_config
-            .gas_adjuster
-            .as_ref()
-            .context("gas_adjuster config is missing")?;
+        let gas_adjuster_config = &self.gas_adjuster_config;
         let EthInterfaceResource(query_client) = input.eth_client;
 
         let l1_chain_id = query_client

@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
 use anyhow::Context;
+use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_config::{GasAdjusterConfig, GenesisConfig};
 use zksync_node_fee_model::l1_gas_price::GasAdjuster;
-use zksync_types::pubdata_da::PubdataSendingMode;
 
 use crate::{
     implementations::resources::{
@@ -22,13 +22,14 @@ use crate::{
 pub struct GasAdjusterLayer {
     gas_adjuster_config: GasAdjusterConfig,
     genesis_config: GenesisConfig,
-    pubdata_sending_mode: PubdataSendingMode,
+    // pubdata_sending_mode: PubdataSendingMode,
 }
 
 #[derive(Debug, FromContext)]
 #[context(crate = crate)]
 pub struct Input {
     pub client: SettlementLayerClientResource,
+    pub sender_config: SenderConfig,
 }
 
 #[derive(Debug, IntoContext)]
@@ -41,15 +42,10 @@ pub struct Output {
 }
 
 impl GasAdjusterLayer {
-    pub fn new(
-        gas_adjuster_config: GasAdjusterConfig,
-        genesis_config: GenesisConfig,
-        pubdata_sending_mode: PubdataSendingMode,
-    ) -> Self {
+    pub fn new(gas_adjuster_config: GasAdjusterConfig, genesis_config: GenesisConfig) -> Self {
         Self {
             gas_adjuster_config,
             genesis_config,
-            pubdata_sending_mode,
         }
     }
 }
@@ -72,7 +68,7 @@ impl WiringLayer for GasAdjusterLayer {
         let adjuster = GasAdjuster::new(
             client,
             self.gas_adjuster_config,
-            self.pubdata_sending_mode,
+            input.sender_config.pubdata_sending_mode,
             self.genesis_config.l1_batch_commit_data_generator_mode,
         )
         .await

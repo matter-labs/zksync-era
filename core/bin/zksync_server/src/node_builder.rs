@@ -20,6 +20,7 @@ use zksync_node_api_server::{
     tx_sender::TxSenderConfig,
     web3::{state::InternalApiConfigBuilder, Namespace},
 };
+use zksync_node_framework::implementations::layers::settlement_layer_data::MainNodeConfig;
 use zksync_node_framework::{
     implementations::layers::{
         base_token::{
@@ -182,10 +183,13 @@ impl MainNodeBuilder {
     }
 
     fn add_pk_signing_client_layer(mut self) -> anyhow::Result<Self> {
-        let eth_config = try_load_config!(self.configs.eth);
+        let gas_adjuster = try_load_config!(self.configs.eth)
+            .gas_adjuster
+            .context("Gas adjuster")?;
+
         let wallets = try_load_config!(self.wallets.eth_sender);
         self.node
-            .add_layer(PKSigningEthClientLayer::new(eth_config, wallets));
+            .add_layer(PKSigningEthClientLayer::new(gas_adjuster, wallets));
         Ok(self)
     }
 
@@ -210,12 +214,8 @@ impl MainNodeBuilder {
         let gas_adjuster_config = try_load_config!(self.configs.eth)
             .gas_adjuster
             .context("Gas adjuster")?;
-        let eth_sender_config = try_load_config!(self.configs.eth);
-        let gas_adjuster_layer = GasAdjusterLayer::new(
-            gas_adjuster_config,
-            self.genesis_config.clone(),
-            try_load_config!(eth_sender_config.sender).pubdata_sending_mode,
-        );
+        let gas_adjuster_layer =
+            GasAdjusterLayer::new(gas_adjuster_config, self.genesis_config.clone());
         self.node.add_layer(gas_adjuster_layer);
         Ok(self)
     }
@@ -320,17 +320,19 @@ impl MainNodeBuilder {
     }
 
     fn add_settlement_mode_data(mut self) -> anyhow::Result<Self> {
-        self.node.add_layer(SettlementLayerData::new(
-            self.l1_specific_contracts.clone(),
-            self.l2_contracts.clone(),
-            self.genesis_config.l2_chain_id,
-            self.multicall3,
-            self.l1_sl_contracts.clone(),
-            self.secrets
-                .l1
-                .as_ref()
-                .and_then(|a| a.gateway_rpc_url.clone()),
-        ));
+        self.node
+            .add_layer(SettlementLayerData::new(MainNodeConfig::new(
+                self.l1_specific_contracts.clone(),
+                self.l2_contracts.clone(),
+                self.genesis_config.l2_chain_id,
+                self.multicall3,
+                self.l1_sl_contracts.clone(),
+                self.secrets
+                    .l1
+                    .as_ref()
+                    .and_then(|a| a.gateway_rpc_url.clone()),
+                try_load_config!(try_load_config!(self.configs.eth).sender),
+            )));
         Ok(self)
     }
 
@@ -509,18 +511,13 @@ impl MainNodeBuilder {
     }
 
     fn add_eth_tx_manager_layer(mut self) -> anyhow::Result<Self> {
-        let eth_sender_config = try_load_config!(self.configs.eth);
-
-        self.node
-            .add_layer(EthTxManagerLayer::new(eth_sender_config));
+        self.node.add_layer(EthTxManagerLayer);
 
         Ok(self)
     }
 
     fn add_eth_tx_aggregator_layer(mut self) -> anyhow::Result<Self> {
-        let eth_sender_config = try_load_config!(self.configs.eth);
         self.node.add_layer(EthTxAggregatorLayer::new(
-            eth_sender_config,
             self.genesis_config.l2_chain_id,
             self.genesis_config.l1_batch_commit_data_generator_mode,
         ));
