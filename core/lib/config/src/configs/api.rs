@@ -224,6 +224,8 @@ pub struct Web3JsonRpcConfig {
     /// (hundreds or thousands RPS).
     #[serde(default)]
     pub extended_api_tracing: bool,
+    #[serde(default)]
+    pub deployment_allowlist_sink: bool,
 }
 
 impl Web3JsonRpcConfig {
@@ -264,6 +266,7 @@ impl Web3JsonRpcConfig {
             whitelisted_tokens_for_aa: vec![],
             api_namespaces: None,
             extended_api_tracing: false,
+            deployment_allowlist_sink: false,
         }
     }
 

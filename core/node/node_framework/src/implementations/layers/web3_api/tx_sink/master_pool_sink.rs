@@ -1,4 +1,3 @@
-use zksync_config::configs::TxSinkConfig;
 use zksync_node_api_server::tx_sender::{
     master_pool_sink::MasterPoolSink, whitelisted_deploy_pool_sink::WhitelistedDeployPoolSink,
 };
@@ -14,7 +13,7 @@ use crate::{
 
 /// Wiring layer for [`MasterPoolSink`], [`TxSink`](zksync_node_api_server::tx_sender::tx_sink::TxSink) implementation.
 pub struct MasterPoolSinkLayer {
-    pub tx_sink_config: TxSinkConfig,
+    pub deployment_allowlist_sink: bool,
 }
 
 #[derive(Debug, FromContext)]
@@ -41,7 +40,7 @@ impl WiringLayer for MasterPoolSinkLayer {
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         let pool = input.master_pool.get().await?;
 
-        let tx_sink = if self.tx_sink_config.deployment_allowlist_sink {
+        let tx_sink = if self.deployment_allowlist_sink {
             WhitelistedDeployPoolSink::new(MasterPoolSink::new(pool.clone()), pool).into()
         } else {
             MasterPoolSink::new(pool).into()

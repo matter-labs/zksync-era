@@ -37,7 +37,6 @@ mod snapshots_creator;
 #[cfg(test)]
 mod tests;
 mod timestamp_asserter;
-mod tx_sink;
 mod utils;
 mod vm_runner;
 mod wallets;

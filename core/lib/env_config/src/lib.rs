@@ -18,7 +18,6 @@ pub mod object_store;
 mod observability;
 mod proof_data_handler;
 mod snapshots_creator;
-mod tx_sink;
 mod utils;
 
 mod base_token_adjuster;

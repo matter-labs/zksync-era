@@ -13,7 +13,6 @@ use crate::{
         prover_job_monitor::ProverJobMonitorConfig,
         pruning::PruningConfig,
         snapshot_recovery::SnapshotRecoveryConfig,
-        tx_sink::TxSinkConfig,
         vm_runner::{BasicWitnessInputProducerConfig, ProtectiveReadsWriterConfig},
         CommitmentGeneratorConfig, ExperimentalVmConfig, ExternalPriceApiClientConfig,
         FriProofCompressorConfig, FriProverConfig, FriProverGatewayConfig,
@@ -61,5 +60,4 @@ pub struct GeneralConfig {
     pub experimental_vm_config: Option<ExperimentalVmConfig>,
     pub prover_job_monitor_config: Option<ProverJobMonitorConfig>,
     pub timestamp_asserter_config: Option<TimestampAsserterConfig>,
-    pub tx_sink_config: Option<TxSinkConfig>,
 }
