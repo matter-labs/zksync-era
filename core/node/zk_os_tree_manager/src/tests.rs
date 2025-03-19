@@ -2,6 +2,7 @@
 
 use std::{collections::HashMap, path::Path, sync::Arc};
 
+use assert_matches::assert_matches;
 use tempfile::TempDir;
 use test_casing::test_casing;
 use tokio::sync::Barrier;
@@ -9,6 +10,7 @@ use zk_os_merkle_tree::{
     BatchOutput, Blake2Hasher, DefaultTreeParams, MerkleTree, PatchSet, TreeOperation, TreeParams,
 };
 use zksync_dal::{Connection, CoreDal};
+use zksync_health_check::HealthStatus;
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_node_test_utils::{
     create_l1_batch, create_l2_block, generate_storage_logs, insert_initial_writes_for_batch,
@@ -23,7 +25,7 @@ async fn setup_tree_manager(db_path: &Path, pool: ConnectionPool<Core>) -> TreeM
     if conn.blocks_dal().is_genesis_needed().await.unwrap() {
         // Insert the max tree guard, so that leaf indices are assigned correctly for further keys.
         // The min guard is not inserted because `insert_initial_writes()` starts enum indices from 1.
-        // FIXME: move to `insert_genesis_batch()`, probably (also genesis batch root hash computations)
+        // TODO: move to `insert_genesis_batch()` (also make genesis batch root hash computations dependent on the tree type)
         conn.storage_logs_dedup_dal()
             .insert_initial_writes(L1BatchNumber(0), &[H256::repeat_byte(0xff)])
             .await
@@ -190,6 +192,12 @@ async fn basic_workflow(start_after_batch: bool) {
     let temp_dir = TempDir::new().expect("failed to get temporary directory for RocksDB");
 
     let tree_manager = setup_tree_manager(temp_dir.path(), pool.clone()).await;
+    let health_check = tree_manager.tree_health_check();
+    assert_matches!(
+        health_check.check_health().await.status(),
+        HealthStatus::NotReady
+    );
+
     let tree_reader = tree_manager.tree_reader();
     let mut batches_subscriber = tree_manager.subscribe_to_l1_batches();
     let (stop_sender, stop_receiver) = watch::channel(false);
@@ -217,6 +225,13 @@ async fn basic_workflow(start_after_batch: bool) {
         .wait_for(|&batch| batch == L1BatchNumber(2))
         .await
         .unwrap();
+    let health = health_check.check_health().await;
+    assert_matches!(health.status(), HealthStatus::Ready);
+    assert!(
+        health.details().unwrap()["root_hash"].is_string(),
+        "{health:?}"
+    );
+
     let tree_reader = tree_reader.wait().await.unwrap();
     let tree_info = tree_reader.clone().info().await.unwrap();
     assert_eq!(tree_info.next_version, 2);
@@ -238,4 +253,45 @@ async fn basic_workflow(start_after_batch: bool) {
 
     stop_sender.send_replace(true);
     manager_task.await.unwrap().unwrap();
+    assert_matches!(
+        health_check.check_health().await.status(),
+        HealthStatus::ShutDown
+    );
+}
+
+#[test_casing(2, [false, true])]
+#[tokio::test]
+async fn workflow_with_multiple_batches(sleep_between_batches: bool) {
+    const BATCH_COUNT: usize = 5;
+
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let temp_dir = TempDir::new().expect("failed to get temporary directory for RocksDB");
+
+    let tree_manager = setup_tree_manager(temp_dir.path(), pool.clone()).await;
+    let tree_reader = tree_manager.tree_reader();
+    let mut batches_subscriber = tree_manager.subscribe_to_l1_batches();
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    tokio::spawn(tree_manager.run(stop_receiver));
+
+    let mut conn = pool.connection().await.unwrap();
+    let all_storage_logs = generate_storage_logs(100..200);
+    for storage_logs in all_storage_logs.chunks(all_storage_logs.len() / BATCH_COUNT) {
+        insert_l1_batch(&mut conn, storage_logs).await;
+        if sleep_between_batches {
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+    }
+
+    batches_subscriber
+        .wait_for(|&batch| batch == L1BatchNumber(BATCH_COUNT as u32) + 1)
+        .await
+        .unwrap();
+
+    let tree_reader = tree_reader.wait().await.unwrap();
+    let tree_info = tree_reader.clone().info().await.unwrap();
+    assert_eq!(tree_info.next_version, BATCH_COUNT as u64 + 1);
+    let expected_tree_hash = expected_tree_hash(&mut conn).await;
+    assert_eq!(tree_info.root_hash, expected_tree_hash);
+
+    assert_leaf_indices(&mut conn, tree_reader, &tree_info).await;
 }
