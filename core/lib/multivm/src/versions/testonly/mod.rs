@@ -9,18 +9,24 @@
 //! - Tests use [`VmTester`] built using [`VmTesterBuilder`] to create a VM instance. This allows to set up storage for the VM,
 //!   custom [`SystemEnv`] / [`L1BatchEnv`], deployed contracts, pre-funded accounts etc.
 
-use std::{collections::HashSet, rc::Rc};
+use std::{collections::HashSet, fs, path::Path, rc::Rc};
 
 use once_cell::sync::Lazy;
 use zksync_contracts::{
     read_bootloader_code, read_zbin_bytecode, BaseSystemContracts, SystemContractCode,
 };
-use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
+use zksync_system_constants::{
+    CONTRACT_DEPLOYER_ADDRESS, TRUSTED_ADDRESS_SLOTS, TRUSTED_TOKEN_SLOTS,
+};
 use zksync_types::{
-    block::L2BlockHasher, bytecode::BytecodeHash, fee_model::BatchFeeInput, get_code_key,
-    get_is_account_key, h256_to_address, h256_to_u256, u256_to_h256,
-    utils::storage_key_for_eth_balance, Address, L1BatchNumber, L2BlockNumber, L2ChainId,
-    ProtocolVersionId, U256,
+    block::L2BlockHasher,
+    bytecode::{pad_evm_bytecode, BytecodeHash},
+    fee_model::BatchFeeInput,
+    get_code_key, get_evm_code_hash_key, get_is_account_key, get_known_code_key, h256_to_address,
+    h256_to_u256, u256_to_h256,
+    utils::storage_key_for_eth_balance,
+    web3, Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256,
+    U256,
 };
 
 pub(super) use self::tester::{
@@ -29,8 +35,12 @@ pub(super) use self::tester::{
 };
 use crate::{
     interface::{
-        pubdata::PubdataBuilder, storage::InMemoryStorage, L1BatchEnv, L2BlockEnv, SystemEnv,
-        TxExecutionMode, VmEvent,
+        pubdata::PubdataBuilder,
+        storage::{InMemoryStorage, StorageSnapshot, StorageView},
+        tracer::ValidationParams,
+        utils::VmDump,
+        InspectExecutionMode, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmEvent,
+        VmExecutionResultAndLogs, VmFactory,
     },
     pubdata_builders::FullPubdataBuilder,
     vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
@@ -44,13 +54,14 @@ pub(super) mod call_tracer;
 pub(super) mod circuits;
 pub(super) mod code_oracle;
 pub(super) mod default_aa;
-pub(super) mod evm_emulator;
+pub(super) mod evm;
 pub(super) mod gas_limit;
 pub(super) mod get_used_contracts;
 pub(super) mod is_write_initial;
 pub(super) mod l1_messenger;
 pub(super) mod l1_tx_execution;
 pub(super) mod l2_blocks;
+pub(super) mod mock_evm;
 pub(super) mod nonce_holder;
 pub(super) mod precompiles;
 pub(super) mod refunds;
@@ -76,6 +87,59 @@ pub(crate) fn read_max_depth_contract() -> Vec<u8> {
     read_zbin_bytecode(
         "core/tests/ts-integration/contracts/zkasm/artifacts/deep_stak.zkasm/deep_stak.zkasm.zbin",
     )
+}
+
+pub(crate) fn load_vm_dump(name: &str) -> VmDump {
+    // We rely on the fact that unit tests are executed from the crate directory.
+    let path = Path::new("tests/vm_dumps").join(format!("{name}.json"));
+    let raw = fs::read_to_string(path).unwrap_or_else(|err| {
+        panic!("Failed reading VM dump `{name}`: {err}");
+    });
+    serde_json::from_str(&raw).unwrap_or_else(|err| {
+        panic!("Failed deserializing VM dump `{name}`: {err}");
+    })
+}
+
+pub(crate) fn inspect_oneshot_dump<VM>(
+    dump: VmDump,
+    tracer: &mut VM::TracerDispatcher,
+) -> VmExecutionResultAndLogs
+where
+    VM: VmFactory<StorageView<StorageSnapshot>>,
+{
+    let storage = StorageView::new(dump.storage).to_rc_ptr();
+
+    assert_eq!(dump.l2_blocks.len(), 1);
+    let transactions = dump.l2_blocks.into_iter().next().unwrap().txs;
+    assert_eq!(transactions.len(), 1);
+    let transaction = transactions.into_iter().next().unwrap();
+
+    let mut vm = VM::new(dump.l1_batch_env, dump.system_env, storage);
+    vm.push_transaction(transaction);
+    vm.inspect(tracer, InspectExecutionMode::OneTx)
+}
+
+pub(crate) fn mock_validation_params(
+    tx: &Transaction,
+    accessed_tokens: &[Address],
+) -> ValidationParams {
+    let trusted_slots = accessed_tokens
+        .iter()
+        .flat_map(|&addr| TRUSTED_TOKEN_SLOTS.iter().map(move |&slot| (addr, slot)))
+        .collect();
+    let trusted_address_slots = accessed_tokens
+        .iter()
+        .flat_map(|&addr| TRUSTED_ADDRESS_SLOTS.iter().map(move |&slot| (addr, slot)))
+        .collect();
+    ValidationParams {
+        user_address: tx.initiator_account(),
+        paymaster_address: tx.payer(),
+        trusted_slots,
+        trusted_addresses: Default::default(),
+        trusted_address_slots,
+        computational_gas_limit: u32::MAX,
+        timestamp_asserter_params: None,
+    }
 }
 
 pub(crate) fn get_bootloader(test: &str) -> SystemContractCode {
@@ -185,10 +249,26 @@ impl ContractToDeploy {
         }
     }
 
-    /// Inserts the contracts into the test environment, bypassing the deployer system contract.
-    pub fn insert_all(contracts: &[Self], storage: &mut InMemoryStorage) {
-        for contract in contracts {
-            contract.insert(storage);
+    pub fn insert_evm(&self, storage: &mut InMemoryStorage) {
+        let evm_bytecode_keccak_hash = H256(web3::keccak256(&self.bytecode));
+        let padded_evm_bytecode = pad_evm_bytecode(&self.bytecode);
+        let evm_bytecode_hash =
+            BytecodeHash::for_evm_bytecode(self.bytecode.len(), &padded_evm_bytecode).value();
+
+        // Mark the EVM contract as deployed.
+        storage.set_value(
+            get_known_code_key(&evm_bytecode_hash),
+            H256::from_low_u64_be(1),
+        );
+        storage.set_value(get_code_key(&self.address), evm_bytecode_hash);
+        storage.set_value(
+            get_evm_code_hash_key(evm_bytecode_hash),
+            evm_bytecode_keccak_hash,
+        );
+        storage.store_factory_dep(evm_bytecode_hash, padded_evm_bytecode);
+
+        if self.is_funded {
+            make_address_rich(storage, self.address);
         }
     }
 }

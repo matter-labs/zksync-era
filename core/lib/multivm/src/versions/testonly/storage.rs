@@ -18,7 +18,6 @@ fn test_storage<VM: TestedVm>(first_tx_calldata: Vec<u8>, second_tx_calldata: Ve
     // In this test, we aim to test whether a simple account interaction (without any fee logic)
     // will work. The account will try to deploy a simple contract from integration tests.
     let mut vm = VmTesterBuilder::new()
-        .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_rich_accounts(1)
         .with_custom_contracts(vec![ContractToDeploy::new(bytecode, test_contract_address)])
@@ -119,7 +118,6 @@ pub(crate) fn test_limiting_storage_writes<VM: TestedVmWithStorageLimit>(should_
     let test_address = Address::repeat_byte(1);
 
     let mut vm: VmTester<VM> = VmTesterBuilder::new()
-        .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_rich_accounts(1)
         .with_custom_contracts(vec![ContractToDeploy::new(bytecode, test_address)])

@@ -200,3 +200,103 @@ Ensure that the necessary containers have been started and are functioning corre
 ```bash
 zkstack containers
 ```
+
+### `zkstack dev lint --check -t contracts` fails
+
+#### Problem
+
+```
+zkstack dev lint --check -t contracts                                                                                                                                                                                                                                 138ms  13:13:01
+
+┌   ZK Stack CLI
+│
+●  Running linters for targets: [".contracts"]
+│
+◒  Running contracts linter..                                                                                                                                                                                                                                                                                    │
+■  Command failed to run
+│
+■    Status:
+│      exit status: 2
+│    Stdout:
+│      yarn run v1.22.22
+│      $ yarn lint:md && yarn lint:sol && yarn lint:ts && yarn prettier:check
+│      $ markdownlint "**/*.md"
+│      $ solhint "**/*.sol"
+│      A new version of Solhint is available: 5.0.5
+│      Please consider updating your Solhint package.
+│
+│      system-contracts/contracts/ContractDeployer.sol
+│      171:27 warning Avoid to use tx.origin avoid-tx-origin
+│
+│      ✖ 1 problem (0 errors, 1 warning)
+│
+│      $ eslint .
+│      info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this command.
+│      info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this command.
+│
+│
+│    Stderr:
+│
+│      Oops! Something went wrong! :(
+│
+│      ESLint: 8.57.0
+│
+│      EslintPluginImportResolveError: typescript with invalid interface loaded as resolver
+│      Occurred while linting /home/evl/code/zksync-era/contracts/system-contracts/scripts/utils.ts:19
+│      Rule: "import/default"
+│      at requireResolver (/home/evl/code/zksync-era/node_modules/eslint-module-utils/resolve.js:204:17)
+│      at fullResolve (/home/evl/code/zksync-era/node_modules/eslint-module-utils/resolve.js:141:22)
+│      at Function.relative (/home/evl/code/zksync-era/node_modules/eslint-module-utils/resolve.js:158:10)
+│      at remotePath (/home/evl/code/zksync-era/contracts/node_modules/eslint-plugin-import/lib/ExportMap.js:811:381)
+│      at captureDependency (/home/evl/code/zksync-era/contracts/node_modules/eslint-plugin-import/lib/ExportMap.js:817:463)
+│      at captureDependencyWithSpecifiers
+│      (/home/evl/code/zksync-era/contracts/node_modules/eslint-plugin-import/lib/ExportMap.js:817:144)
+│      at /home/evl/code/zksync-era/contracts/node_modules/eslint-plugin-import/lib/ExportMap.js:822:42
+│      at Array.forEach (<anonymous>)
+│      at ExportMap.parse (/home/evl/code/zksync-era/contracts/node_modules/eslint-plugin-import/lib/ExportMap.js:821:427)
+│      at ExportMap.for (/home/evl/code/zksync-era/contracts/node_modules/eslint-plugin-import/lib/ExportMap.js:807:201)
+│      error Command failed with exit code 2.
+│      error Command failed with exit code 2.
+│
+│
+■  Command failed to run: yarn --cwd contracts lint:check
+│
+│  Oops! Something went wrong! :(
+│
+│  ESLint: 8.57.0
+│
+│  EslintPluginImportResolveError: typescript with invalid interface loaded as resolver
+│  Occurred while linting /home/evl/code/zksync-era/contracts/system-contracts/scripts/utils.ts:19
+│  Rule: "import/default"
+│      at requireResolver (/home/evl/code/zksync-era/node_modules/eslint-module-utils/resolve.js:204:17)
+│      at fullResolve (/home/evl/code/zksync-era/node_modules/eslint-module-utils/resolve.js:141:22)
+│      at Function.relative (/home/evl/code/zksync-era/node_modules/eslint-module-utils/resolve.js:158:10)
+│      at remotePath (/home/evl/code/zksync-era/contracts/node_modules/eslint-plugin-import/lib/ExportMap.js:811:381)
+│      at captureDependency (/home/evl/code/zksync-era/contracts/node_modules/eslint-plugin-import/lib/ExportMap.js:817:463)
+│      at captureDependencyWithSpecifiers (/home/evl/code/zksync-era/contracts/node_modules/eslint-plugin-import/lib/ExportMap.js:817:144)
+│      at /home/evl/code/zksync-era/contracts/node_modules/eslint-plugin-import/lib/ExportMap.js:822:42
+│      at Array.forEach (<anonymous>)
+│      at ExportMap.parse (/home/evl/code/zksync-era/contracts/node_modules/eslint-plugin-import/lib/ExportMap.js:821:427)
+│      at ExportMap.for (/home/evl/code/zksync-era/contracts/node_modules/eslint-plugin-import/lib/ExportMap.js:807:201)
+│  error Command failed with exit code 2.
+│  error Command failed with exit code 2.
+│
+│
+▲    0: Command failed to run: yarn --cwd contracts lint:check
+│
+└  Failed to run command
+```
+
+#### Description
+
+`npm` setup is nested within our codebase. Contracts has it & so does the core codebase. The 2 can be incompatible,
+therefore running `yarn install` in core ends up with a set of dependencies, with `yarn install` in contracts having a
+different set of dependencies.
+
+#### Solution
+
+```
+cd contracts && yarn install
+```
+
+> NOTE: This may cause integration tests to fail in core. If so, run `yarn install` inside core repo.
