@@ -38,6 +38,7 @@ pub struct DeployL1DeployedAddressesOutput {
     pub avail_l1_da_validator_addr: Address,
     pub l1_rollup_da_manager: Address,
     pub native_token_vault_addr: Address,
+    pub server_notifier_proxy_addr: Address,
 }
 
 impl ZkStackConfig for DeployL1Output {}
