@@ -493,7 +493,7 @@ fn evm_create2_address(
     Address::from_slice(&hash_digest[12..])
 }
 
-pub(crate) fn test_create2_deployment<VM: TestedVm>() {
+pub(crate) fn test_create2_deployment_in_evm<VM: TestedVm>() {
     let mut vm: VmTester<VM> = prepare_tester_with_real_emulator().0.build::<VM>();
     let account = &mut vm.rich_accounts[0];
     let test_fn = TestEvmContract::evm_tester().function("testCreate2Deployment");
@@ -530,6 +530,49 @@ pub(crate) fn test_create2_deployment<VM: TestedVm>() {
             .execute_transaction_with_bytecode_compression(test_tx, true);
         assert!(!vm_result.result.is_failed(), "{vm_result:?}");
     }
+}
+
+pub(crate) fn test_reusing_create_address_in_evm<VM: TestedVm>() {
+    let mut vm: VmTester<VM> = prepare_tester_with_real_emulator().0.build::<VM>();
+    let account = &mut vm.rich_accounts[0];
+    let expected_address = deployed_address_evm_create(EVM_ADDRESS, 0.into());
+    let test_fn = TestEvmContract::evm_tester().function("testReusingCreateAddress");
+    let test_tx = account.get_l2_tx_for_execute(
+        Execute {
+            contract_address: Some(EVM_ADDRESS),
+            calldata: test_fn
+                .encode_input(&[Token::Address(expected_address)])
+                .unwrap(),
+            value: 0.into(),
+            factory_deps: vec![],
+        },
+        None,
+    );
+
+    let (_, vm_result) = vm
+        .vm
+        .execute_transaction_with_bytecode_compression(test_tx, true);
+    assert!(!vm_result.result.is_failed(), "{vm_result:#?}");
+}
+
+pub(crate) fn test_reusing_create2_salt_in_evm<VM: TestedVm>() {
+    let mut vm: VmTester<VM> = prepare_tester_with_real_emulator().0.build::<VM>();
+    let account = &mut vm.rich_accounts[0];
+    let test_fn = TestEvmContract::evm_tester().function("testReusingCreate2Salt");
+    let test_tx = account.get_l2_tx_for_execute(
+        Execute {
+            contract_address: Some(EVM_ADDRESS),
+            calldata: test_fn.encode_input(&[]).unwrap(),
+            value: 0.into(),
+            factory_deps: vec![],
+        },
+        None,
+    );
+
+    let (_, vm_result) = vm
+        .vm
+        .execute_transaction_with_bytecode_compression(test_tx, true);
+    assert!(!vm_result.result.is_failed(), "{vm_result:#?}");
 }
 
 pub(crate) fn test_deployment_with_partial_reverts<VM: TestedVm>() {
@@ -873,5 +916,3 @@ pub(crate) fn test_calling_ecrecover_precompile<VM: TestedVm>() {
     // There's another `ecrecover` call in the default AA tx validation logic
     assert_eq!(ecrecover_count.round(), 2.0);
 }
-
-// FIXME: test create2 with the same salt

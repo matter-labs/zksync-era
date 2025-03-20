@@ -243,6 +243,57 @@ contract EvmEmulationTest is IGasTester {
         require(address(newCounter) == _expectedAddress, "address");
     }
 
+    // Gas passed to failed CREATE calls. Since all available gas is burned in the failed call, we don't want
+    // to use the default 63/64 of all gas.
+    uint private constant CREATE_GAS = 1000000;
+
+    function testReusingCreateAddress(address _expectedAddress) external validEvmCall {
+        require(gasleft() > 2 * CREATE_GAS, "too few gas");
+
+        try this.deployThenRevert{gas: CREATE_GAS}(true) {
+            revert("expected revert");
+        } catch Error(string memory reason) {
+            require(keccak256(bytes(reason)) == keccak256("requested revert"), "unexpected error");
+        }
+        address deployedAddress = this.deployThenRevert(false);
+        require(deployedAddress == _expectedAddress, "deployedAddress");
+    }
+
+    function deployThenRevert(bool _shouldRevert) external validEvmCall returns (address newAddress) {
+        newAddress = address(new Counter(0));
+        require(!_shouldRevert, "requested revert");
+    }
+
+    function testReusingCreate2Salt() external validEvmCall {
+        require(gasleft() > 3 * CREATE_GAS, "too few gas");
+
+        this.deploy2ThenRevert(bytes32(0), false);
+        try this.deploy2ThenRevert{gas: CREATE_GAS}(bytes32(0), false) {
+            revert("expected revert");
+        } catch {
+            // failed as expected
+        }
+
+        try this.deploy2ThenRevert{gas: CREATE_GAS}(hex"01", true) {
+            revert("expected revert");
+        } catch Error(string memory reason) {
+            require(keccak256(bytes(reason)) == keccak256("requested revert"), "unexpected error");
+        }
+        // This should succeed because the previous deployment was reverted
+        this.deploy2ThenRevert(hex"01", false);
+    }
+
+    function deploy2ThenRevert(
+        bytes32 _salt,
+        bool _shouldRevert
+    ) external validEvmCall returns (address newAddress) {
+        newAddress = address(new Counter{salt: _salt}(0));
+        require(newAddress.code.length > 0, "code length");
+        require(newAddress.codehash != bytes32(0), "code hash");
+
+        require(!_shouldRevert, "requested revert");
+    }
+
     ICounter counter;
 
     function testDeploymentAndCall(bytes32 _expectedCodeHash) external validEvmCall {
@@ -318,7 +369,7 @@ contract EvmEmulationTest is IGasTester {
         bool[] calldata _shouldRevert
     ) external validEvmCall {
         for (uint i = 0; i < _shouldRevert.length; i++) {
-            try this.deployThenRevert(
+            try this.deploy2ThenRevert(
                 bytes32(i),
                 _shouldRevert[i]
             ) returns(address newAddress) {
@@ -330,17 +381,6 @@ contract EvmEmulationTest is IGasTester {
                 require(keccak256(bytes(reason)) == keccak256("requested revert"), "unexpected error");
             }
         }
-    }
-
-    function deployThenRevert(
-        bytes32 _salt,
-        bool _shouldRevert
-    ) external validEvmCall returns (address newAddress) {
-        newAddress = address(new Counter{salt: _salt}(0));
-        require(newAddress.code.length > 0, "code length");
-        require(newAddress.codehash != bytes32(0), "code hash");
-
-        require(!_shouldRevert, "requested revert");
     }
 
     function testEvents() external validEvmCall {
