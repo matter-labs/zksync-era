@@ -18,9 +18,8 @@ use crate::{
     consts::{DEFAULT_CREDENTIALS_FILE, DEFAULT_PROOF_STORE_DIR},
     defaults::{generate_db_names, DBNames, DATABASE_PROVER_URL},
     messages::{
-        msg_prover_db_name_prompt, msg_prover_db_url_prompt, MSG_CLOUD_TYPE_PROMPT,
-        MSG_CREATE_GCS_BUCKET_LOCATION_PROMPT, MSG_CREATE_GCS_BUCKET_NAME_PROMTP,
-        MSG_CREATE_GCS_BUCKET_PROJECT_ID_NO_PROJECTS_PROMPT,
+        msg_prover_db_name_prompt, msg_prover_db_url_prompt, MSG_CREATE_GCS_BUCKET_LOCATION_PROMPT,
+        MSG_CREATE_GCS_BUCKET_NAME_PROMTP, MSG_CREATE_GCS_BUCKET_PROJECT_ID_NO_PROJECTS_PROMPT,
         MSG_CREATE_GCS_BUCKET_PROJECT_ID_PROMPT, MSG_CREATE_GCS_BUCKET_PROMPT,
         MSG_DOWNLOAD_SETUP_COMPRESSOR_KEY_PROMPT, MSG_GETTING_PROOF_STORE_CONFIG,
         MSG_INITIALIZE_BELLMAN_CUDA_PROMPT, MSG_PROOF_STORE_CONFIG_PROMPT,
@@ -70,9 +69,6 @@ pub struct ProverInitArgs {
     pub use_default: Option<bool>,
     #[clap(long, short, action)]
     pub dont_drop: Option<bool>,
-
-    #[clap(long)]
-    cloud_type: Option<InternalCloudConnectionMode>,
 }
 
 #[derive(Debug, Clone, ValueEnum, EnumIter, strum::Display, PartialEq, Eq)]
@@ -80,14 +76,6 @@ pub struct ProverInitArgs {
 enum ProofStoreConfig {
     Local,
     GCS,
-}
-
-#[derive(Debug, Clone, ValueEnum, EnumIter, strum::Display, PartialEq, Eq, Serialize)]
-#[allow(clippy::upper_case_acronyms)]
-pub enum InternalCloudConnectionMode {
-    GCP,
-    #[serde(rename = "LOCAL")] // match name in file-based configs
-    Local,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Parser, Default)]
@@ -155,7 +143,6 @@ pub struct ProverInitArgsFinal {
     pub compressor_key_args: Option<CompressorKeysArgs>,
     pub setup_keys: Option<SetupKeysArgs>,
     pub bellman_cuda_config: Option<InitBellmanCudaArgs>,
-    pub cloud_type: InternalCloudConnectionMode,
     pub database_config: Option<ProverDatabaseConfig>,
 }
 
@@ -170,7 +157,6 @@ impl ProverInitArgs {
         let compressor_key_args =
             self.fill_setup_compressor_key_values_with_prompt(default_compressor_key_path);
         let bellman_cuda_config = self.fill_bellman_cuda_values_with_prompt();
-        let cloud_type = self.get_cloud_type_with_prompt();
         let database_config = self.fill_database_values_with_prompt(chain_config);
         let setup_keys = self.fill_setup_keys_values_with_prompt();
 
@@ -179,7 +165,6 @@ impl ProverInitArgs {
             compressor_key_args,
             setup_keys,
             bellman_cuda_config,
-            cloud_type,
             database_config,
         })
     }
@@ -395,20 +380,6 @@ impl ProverInitArgs {
         } else {
             None
         }
-    }
-
-    fn get_cloud_type_with_prompt(&self) -> InternalCloudConnectionMode {
-        if self.dev {
-            return InternalCloudConnectionMode::Local;
-        }
-
-        self.cloud_type.clone().unwrap_or_else(|| {
-            PromptSelect::new(
-                MSG_CLOUD_TYPE_PROMPT,
-                InternalCloudConnectionMode::iter().rev(),
-            )
-            .ask()
-        })
     }
 
     fn fill_database_values_with_prompt(

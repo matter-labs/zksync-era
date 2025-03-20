@@ -49,7 +49,7 @@ pub fn prepare_sqlx_data(
     ));
     Cmd::new(cmd!(
         shell,
-        "cargo sqlx prepare --database-url {url} -- --tests"
+        "cargo sqlx prepare --database-url {url} -- --tests --locked"
     ))
     .run()?;
     spinner.finish();

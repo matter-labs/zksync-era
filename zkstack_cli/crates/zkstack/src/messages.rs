@@ -387,17 +387,12 @@ pub(super) const MSG_RUNNING_PROVER_GATEWAY: &str = "Running gateway";
 pub(super) const MSG_RUNNING_PROVER_JOB_MONITOR_ERR: &str = "Failed to run prover job monitor";
 pub(super) const MSG_RUNNING_PROVER_JOB_MONITOR: &str = "Running prover job monitor";
 pub(super) const MSG_RUNNING_WITNESS_GENERATOR: &str = "Running witness generator";
-pub(super) const MSG_RUNNING_WITNESS_VECTOR_GENERATOR: &str = "Running witness vector generator";
-pub(super) const MSG_RUNNING_PROVER: &str = "Running prover";
 pub(super) const MSG_RUNNING_CIRCUIT_PROVER: &str = "Running circuit prover";
 pub(super) const MSG_RUNNING_COMPRESSOR: &str = "Running compressor";
 pub(super) const MSG_RUN_COMPONENT_PROMPT: &str = "What component do you want to run?";
 pub(super) const MSG_RUNNING_PROVER_GATEWAY_ERR: &str = "Failed to run prover gateway";
 pub(super) const MSG_RUNNING_WITNESS_GENERATOR_ERR: &str = "Failed to run witness generator";
-pub(super) const MSG_RUNNING_WITNESS_VECTOR_GENERATOR_ERR: &str =
-    "Failed to run witness vector generator";
 pub(super) const MSG_RUNNING_COMPRESSOR_ERR: &str = "Failed to run compressor";
-pub(super) const MSG_RUNNING_PROVER_ERR: &str = "Failed to run prover";
 pub(super) const MSG_RUNNING_CIRCUIT_PROVER_ERR: &str = "Failed to run circuit prover";
 pub(super) const MSG_PROOF_STORE_CONFIG_PROMPT: &str =
     "Select where you would like to store the proofs";
@@ -440,8 +435,6 @@ pub(super) const MSG_BELLMAN_CUDA_ORIGIN_SELECT: &str =
     "Select the origin of bellman-cuda repository";
 pub(super) const MSG_BELLMAN_CUDA_SELECTION_CLONE: &str = "Clone for me (recommended)";
 pub(super) const MSG_BELLMAN_CUDA_SELECTION_PATH: &str = "I have the code already";
-pub(super) const MSG_CLOUD_TYPE_PROMPT: &str = "Select the cloud connection mode:";
-pub(super) const MSG_THREADS_PROMPT: &str = "Provide the number of threads:";
 pub(super) const MSG_SETUP_KEYS_PROMPT: &str = "Do you want to setup keys?";
 
 pub(super) fn msg_bucket_created(bucket_name: &str) -> String {

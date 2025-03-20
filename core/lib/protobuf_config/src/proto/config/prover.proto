@@ -32,39 +32,15 @@ message Prover {
   optional uint32 prometheus_port = 2; // required; u16
   optional uint32 max_attempts = 3; // required
   optional uint32 generation_timeout_in_secs = 4; // required; s
-  optional SetupLoadMode setup_load_mode = 7; // required
-  optional uint32 specialized_group_id = 8; // required; u8
-  optional uint64 queue_capacity = 10; // required
-  optional uint32 witness_vector_receiver_port = 11; // required; u16
-  optional string zone_read_url = 12; // required
-  optional uint32 availability_check_interval_in_secs = 21; // optional; s
   optional config.object_store.ObjectStore prover_object_store = 23;
-  optional CloudType cloud_type = 24; // optional
-  reserved 5, 6, 9, 13, 22; reserved "base_layer_circuit_ids_to_be_verified", "recursive_layer_circuit_ids_to_be_verified", "witness_vector_generator_thread_count", "shall_save_to_public_bucket","public_object_store";
+  reserved 5, 6, 7, 8, 9, 10, 11, 12, 13, 21, 22, 24;
+  reserved "base_layer_circuit_ids_to_be_verified", "recursive_layer_circuit_ids_to_be_verified", "setup_load_mode", "specialized_group_id", "witness_vector_generator_thread_count", "queue_capacity", "witness_vector_receiver_port", "zone_read_url", "shall_save_to_public_bucket", "availability_check_interval_in_secs", "public_object_store", "cloud_type";
 }
 
 
 message CircuitIdRoundTuple {
   optional uint32 circuit_id = 1; // required; u8
   optional uint32 aggregation_round = 2; // required; u8
-}
-
-message ProverGroup {
-  repeated CircuitIdRoundTuple group_0 = 1;
-  repeated CircuitIdRoundTuple group_1 = 2;
-  repeated CircuitIdRoundTuple group_2 = 3;
-  repeated CircuitIdRoundTuple group_3 = 4;
-  repeated CircuitIdRoundTuple group_4 = 5;
-  repeated CircuitIdRoundTuple group_5 = 6;
-  repeated CircuitIdRoundTuple group_6 = 7;
-  repeated CircuitIdRoundTuple group_7 = 8;
-  repeated CircuitIdRoundTuple group_8 = 9;
-  repeated CircuitIdRoundTuple group_9 = 10;
-  repeated CircuitIdRoundTuple group_10 = 11;
-  repeated CircuitIdRoundTuple group_11 = 12;
-  repeated CircuitIdRoundTuple group_12 = 13;
-  repeated CircuitIdRoundTuple group_13 = 14;
-  repeated CircuitIdRoundTuple group_14 = 15;
 }
 
 message ProverGateway {
@@ -94,17 +70,6 @@ message WitnessGenerator {
   reserved 3, 4, 6, 7;
   reserved "dump_arguments_for_blocks", "force_process_block", "blocks_proving_percentage", "shall_save_to_public_bucket";
 }
-
-message WitnessVectorGenerator {
-  optional uint32 max_prover_reservation_duration_in_secs = 1; // required; s
-  optional uint32 prover_instance_wait_timeout_in_secs = 2; // required; s
-  optional uint32 prover_instance_poll_time_in_milli_secs = 3; // required; ms
-  optional uint32 prometheus_listener_port = 4; // required; u16
-  optional string prometheus_pushgateway_url = 5; // required
-  optional uint64 prometheus_push_interval_ms = 6; // optional; ms
-  optional uint32 specialized_group_id = 7; // required; u8
-}
-
 
 message ProofDataHandler {
   optional uint32 http_port = 1; // required; u16
