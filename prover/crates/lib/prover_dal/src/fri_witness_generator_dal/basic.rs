@@ -77,8 +77,7 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
                         AND protocol_version = $1
                         AND protocol_version_patch = $3
                     ORDER BY
-                        priority DESC,
-                        created_at ASC
+                        l1_batch_number ASC
                     LIMIT
                         1
                     FOR UPDATE
@@ -155,8 +154,7 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
             SET
                 status = 'queued',
                 updated_at = NOW(),
-                processing_started_at = NOW(),
-                priority = priority + 1
+                processing_started_at = NOW()
             WHERE
                 (
                     status = 'in_progress'
@@ -262,8 +260,7 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
             SET
                 status = 'queued',
                 updated_at = NOW(),
-                processing_started_at = NOW(),
-                priority = priority + 1
+                processing_started_at = NOW()
             WHERE
                 l1_batch_number = $1
                 AND attempts >= $2
@@ -294,22 +291,5 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
             picked_by: row.picked_by,
         })
         .collect()
-    }
-
-    pub async fn check_reached_max_attempts(&mut self, max_attempts: u32) -> usize {
-        sqlx::query_scalar!(
-            r#"
-            SELECT COUNT(*)
-            FROM witness_inputs_fri
-            WHERE
-                attempts >= $1
-                AND status <> 'successful'
-            "#,
-            max_attempts as i64
-        )
-        .fetch_one(self.storage.conn())
-        .await
-        .unwrap()
-        .unwrap_or(0) as usize
     }
 }

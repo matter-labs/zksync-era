@@ -65,8 +65,8 @@ impl FriLeafWitnessGeneratorDal<'_, '_> {
                         AND protocol_version = $1
                         AND protocol_version_patch = $2
                     ORDER BY
-                        priority DESC,
-                        created_at ASC
+                        l1_batch_number ASC,
+                        id ASC
                     LIMIT
                         1
                     FOR UPDATE
@@ -155,8 +155,7 @@ impl FriLeafWitnessGeneratorDal<'_, '_> {
             SET
                 status = 'queued',
                 updated_at = NOW(),
-                processing_started_at = NOW(),
-                attempts = attempts + 1
+                processing_started_at = NOW()
             WHERE
                 (
                     status = 'in_progress'
@@ -270,22 +269,5 @@ impl FriLeafWitnessGeneratorDal<'_, '_> {
         .execute(self.storage.conn())
         .await
         .unwrap();
-    }
-
-    pub async fn check_reached_max_attempts(&mut self, max_attempts: u32) -> usize {
-        sqlx::query_scalar!(
-            r#"
-            SELECT COUNT(*)
-            FROM leaf_aggregation_witness_jobs_fri
-            WHERE
-                attempts >= $1
-                AND status <> 'successful'
-            "#,
-            max_attempts as i64
-        )
-        .fetch_one(self.storage.conn())
-        .await
-        .unwrap()
-        .unwrap_or(0) as usize
     }
 }

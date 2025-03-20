@@ -76,8 +76,7 @@ impl FriProofCompressorDal<'_, '_> {
                         AND protocol_version = $4
                         AND protocol_version_patch = $5
                     ORDER BY
-                        priority DESC,
-                        created_at ASC
+                        l1_batch_number ASC
                     LIMIT
                         1
                     FOR UPDATE
@@ -317,8 +316,7 @@ impl FriProofCompressorDal<'_, '_> {
                 SET
                     status = 'queued',
                     updated_at = NOW(),
-                    processing_started_at = NOW(),
-                    priority = priority + 1
+                    processing_started_at = NOW()
                 WHERE
                     (
                         status = 'in_progress'
@@ -428,8 +426,7 @@ impl FriProofCompressorDal<'_, '_> {
                     error = 'Manually requeued',
                     attempts = 2,
                     updated_at = NOW(),
-                    processing_started_at = NOW(),
-                    priority = priority + 1
+                    processing_started_at = NOW()
                 WHERE
                     l1_batch_number = $1
                     AND attempts >= $2
@@ -460,23 +457,5 @@ impl FriProofCompressorDal<'_, '_> {
             })
             .collect()
         }
-    }
-
-    pub async fn check_reached_max_attempts(&mut self, max_attempts: u32) -> usize {
-        sqlx::query_scalar!(
-            r#"
-            SELECT COUNT(*)
-            FROM proof_compression_jobs_fri
-            WHERE
-                attempts >= $1
-                AND status <> 'successful'
-                AND status <> 'sent_to_server'
-            "#,
-            max_attempts as i64
-        )
-        .fetch_one(self.storage.conn())
-        .await
-        .unwrap()
-        .unwrap_or(0) as usize
     }
 }

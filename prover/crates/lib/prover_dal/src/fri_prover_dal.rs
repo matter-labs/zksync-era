@@ -145,8 +145,7 @@ impl FriProverDal<'_, '_> {
                         AND protocol_version_patch = $2
                         AND aggregation_round = $4
                     ORDER BY
-                        priority DESC,
-                        created_at ASC,
+                        l1_batch_number ASC,
                         circuit_id ASC,
                         id ASC
                     LIMIT
@@ -223,10 +222,10 @@ impl FriProverDal<'_, '_> {
                         AND protocol_version_patch = $2
                         AND aggregation_round != $4
                     ORDER BY
-                        priority DESC,
-                        created_at ASC,
+                        l1_batch_number ASC,
                         aggregation_round ASC,
-                        circuit_id ASC
+                        circuit_id ASC,
+                        id ASC
                     LIMIT
                         1
                     FOR UPDATE
@@ -287,9 +286,9 @@ impl FriProverDal<'_, '_> {
                         AND protocol_version = $1
                         AND protocol_version_patch = $2
                     ORDER BY
-                        priority DESC,
-                        created_at ASC,
-                        aggregation_round DESC
+                        aggregation_round DESC,
+                        l1_batch_number ASC,
+                        id ASC
                     LIMIT
                         1
                     FOR UPDATE
@@ -369,15 +368,15 @@ impl FriProverDal<'_, '_> {
                             AND pj.circuit_id = tuple.circuit_id
                             AND pj.aggregation_round = tuple.round
                         ORDER BY
-                            pj.priority DESC,
-                            pj.created_at ASC
+                            pj.l1_batch_number ASC,
+                            pj.id ASC
                         LIMIT
                             1
                     ) AS pj ON TRUE
                     ORDER BY
-                        pj.priority DESC,
-                        pj.created_at ASC,
-                        pj.aggregation_round DESC
+                        pj.l1_batch_number ASC,
+                        pj.aggregation_round DESC,
+                        pj.id ASC
                     LIMIT
                         1
                     FOR UPDATE
@@ -517,8 +516,7 @@ impl FriProverDal<'_, '_> {
                 SET
                     status = 'queued',
                     updated_at = NOW(),
-                    processing_started_at = NOW(),
-                    priority = priority + 1
+                    processing_started_at = NOW()
                 WHERE
                     id IN (
                         SELECT
@@ -963,8 +961,7 @@ impl FriProverDal<'_, '_> {
                     error = 'Manually requeued',
                     attempts = 2,
                     updated_at = NOW(),
-                    processing_started_at = NOW(),
-                    priority = priority + 1
+                    processing_started_at = NOW()
                 WHERE
                     l1_batch_number = $1
                     AND attempts >= $2
@@ -1070,17 +1067,15 @@ mod tests {
     async fn test_insert_prover_jobs() {
         let pool = ConnectionPool::<Prover>::prover_test_pool().await;
         let mut conn = pool.connection().await.unwrap();
-        let mut transaction = conn.start_transaction().await.unwrap();
 
-        transaction
-            .fri_protocol_versions_dal()
+        conn.fri_protocol_versions_dal()
             .save_prover_protocol_version(
                 ProtocolSemanticVersion::default(),
                 L1VerifierConfig::default(),
             )
             .await;
-        transaction
-            .fri_prover_jobs_dal()
+
+        conn.fri_prover_jobs_dal()
             .insert_prover_jobs(
                 L1BatchNumber(1),
                 mock_circuit_ids_and_urls(10000),
@@ -1089,7 +1084,5 @@ mod tests {
                 ProtocolSemanticVersion::default(),
             )
             .await;
-
-        transaction.commit().await.unwrap();
     }
 }
