@@ -144,8 +144,7 @@ impl FriProverDal<'_, '_> {
                         AND protocol_version_patch = $2
                         AND aggregation_round = $4
                     ORDER BY
-                        priority DESC,
-                        created_at ASC,
+                        l1_batch_number ASC,
                         circuit_id ASC,
                         id ASC
                     LIMIT
@@ -222,10 +221,10 @@ impl FriProverDal<'_, '_> {
                         AND protocol_version_patch = $2
                         AND aggregation_round != $4
                     ORDER BY
-                        priority DESC,
-                        created_at ASC,
+                        l1_batch_number ASC,
                         aggregation_round ASC,
-                        circuit_id ASC
+                        circuit_id ASC,
+                        id ASC
                     LIMIT
                         1
                     FOR UPDATE
@@ -345,8 +344,7 @@ impl FriProverDal<'_, '_> {
                 SET
                     status = 'queued',
                     updated_at = NOW(),
-                    processing_started_at = NOW(),
-                    priority = priority + 1
+                    processing_started_at = NOW()
                 WHERE
                     id IN (
                         SELECT
@@ -791,8 +789,7 @@ impl FriProverDal<'_, '_> {
                     error = 'Manually requeued',
                     attempts = 2,
                     updated_at = NOW(),
-                    processing_started_at = NOW(),
-                    priority = priority + 1
+                    processing_started_at = NOW()
                 WHERE
                     l1_batch_number = $1
                     AND attempts >= $2

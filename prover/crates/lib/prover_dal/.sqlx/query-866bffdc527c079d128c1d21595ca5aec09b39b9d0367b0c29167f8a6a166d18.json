@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            UPDATE recursion_tip_witness_jobs_fri\n            SET\n                status = 'queued',\n                updated_at = NOW(),\n                processing_started_at = NOW(),\n                priority = priority + 1\n            WHERE\n                l1_batch_number = $1\n                AND attempts >= $2\n                AND (\n                    status = 'in_progress'\n                    OR status = 'failed'\n                )\n            RETURNING\n            l1_batch_number,\n            status,\n            attempts,\n            error,\n            picked_by\n            ",
+  "query": "\n            UPDATE recursion_tip_witness_jobs_fri\n            SET\n                status = 'queued',\n                updated_at = NOW(),\n                processing_started_at = NOW()\n            WHERE\n                l1_batch_number = $1\n                AND attempts >= $2\n                AND (\n                    status = 'in_progress'\n                    OR status = 'failed'\n                )\n            RETURNING\n            l1_batch_number,\n            status,\n            attempts,\n            error,\n            picked_by\n            ",
   "describe": {
     "columns": [
       {
@@ -43,5 +43,5 @@
       true
     ]
   },
-  "hash": "984f8d4f24f3493e1e3bda1fe9270224164d1d136d339d736776770e91731a2d"
+  "hash": "866bffdc527c079d128c1d21595ca5aec09b39b9d0367b0c29167f8a6a166d18"
 }
