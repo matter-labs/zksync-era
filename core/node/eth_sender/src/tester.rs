@@ -294,7 +294,6 @@ impl EthSenderTester {
             Some(gateway.clone()),
             Some(gateway_blobs.clone()),
             None,
-            SettlementMode::SettlesToL1,
         );
 
         let connection_pool_clone = connection_pool.clone();
@@ -334,7 +333,6 @@ impl EthSenderTester {
             None,
             None,
             Some(self.l2_gateway.clone()),
-            SettlementMode::Gateway,
         );
         self.is_l2 = true;
         tracing::info!("Switched eth-sender tester to use Gateway!");

@@ -91,7 +91,6 @@ impl WiringLayer for EthTxManagerLayer {
             Some(eth_client),
             eth_client_blobs,
             l2_client,
-            input.sl_mode.0,
         );
 
         // Insert circuit breaker.
