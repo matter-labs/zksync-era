@@ -49,7 +49,6 @@ impl MainNodeConfig {
         multicall3: Option<Address>,
         l1_sl_specific_contracts: Option<SettlementLayerSpecificContracts>,
         gateway_rpc_url: Option<SensitiveUrl>,
-
         eth_sender_config: SenderConfig,
     ) -> Self {
         Self {
@@ -237,7 +236,12 @@ impl WiringLayer for SettlementLayerData<ENConfig> {
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
-        let chain_id = input.eth_client.0.fetch_chain_id().await.unwrap();
+        let chain_id = input
+            .eth_client
+            .0
+            .fetch_chain_id()
+            .await
+            .context("Problem with fetching chain id")?;
 
         let initial_db_sl_mode = get_db_settlement_mode(input.pool.get().await?, chain_id).await?;
 

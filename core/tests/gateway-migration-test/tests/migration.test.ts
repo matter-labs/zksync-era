@@ -49,17 +49,8 @@ describe('Migration From/To gateway test', function () {
 
     before('Create test wallet', async () => {
         logs = await fs.open(await logsPath('migration.log'), 'a');
-        if (process.env.DIRECTION === undefined) {
-            direction = 'TO';
-        } else {
-            direction = process.env.DIRECTION;
-        }
-
-        if (process.env.GATEWAY_CHAIN === undefined) {
-            gatewayChain = 'gateway';
-        } else {
-            gatewayChain = process.env.GATEWAY_CHAIN;
-        }
+        direction = process.env.DIRECTION || 'TO';
+        gatewayChain = process.env.GATEWAY_CHAIN || 'gateway';
 
         if (!fileConfig.loadFromFile) {
             throw new Error('Non file based not supported');
@@ -179,9 +170,9 @@ describe('Migration From/To gateway test', function () {
                 ZK_CHAIN_INTERFACE,
                 gatewayInfo?.gatewayProvider
             );
-            let slAddressSl = await slMainContract.getSettlementLayer();
+            let slAddressGW = await slMainContract.getSettlementLayer();
             expect(slAddressl1 != ZeroAddress);
-            expect(slAddressSl == ZeroAddress);
+            expect(slAddressGW == ZeroAddress);
         } else {
             let slAddressl1 = await l1MainContract.getSettlementLayer();
             expect(slAddressl1 == ZeroAddress);

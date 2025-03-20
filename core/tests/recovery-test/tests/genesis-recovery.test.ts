@@ -135,7 +135,6 @@ describe('genesis recovery', () => {
 
         while (!treeFetcherSucceeded || !reorgDetectorSucceeded || !consistencyCheckerSucceeded) {
             await sleep(1000);
-            console.log(treeFetcherSucceeded, reorgDetectorSucceeded, consistencyCheckerSucceeded);
             const health = await getExternalNodeHealth(extNodeHealthUrl);
             if (health === null) {
                 // We do switch from l1 to gateway through restart for correctly handling it
