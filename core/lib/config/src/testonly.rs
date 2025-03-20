@@ -267,13 +267,18 @@ impl Distribution<configs::AllContractsConfig> for EncodeDist {
             l2_testnet_paymaster_addr: self.sample_opt(|| rng.gen()),
             l2_timestamp_asserter_addr: self.sample_opt(|| rng.gen()),
             l1_multicall3_addr: rng.gen(),
-            ecosystem_contracts: self.sample(rng),
+            bridgehub_proxy_addr: rng.gen(),
+            state_transition_proxy_addr: self.sample_opt(|| rng.gen()),
+            transparent_proxy_admin_addr: self.sample_opt(|| rng.gen()),
+            l1_bytecodes_supplier_addr: self.sample_opt(|| rng.gen()),
+            l1_wrapped_base_token_store: self.sample_opt(|| rng.gen()),
             base_token_addr: rng.gen(),
             l1_base_token_asset_id: self.sample_opt(|| rng.gen()),
             chain_admin_addr: rng.gen(),
             l2_da_validator_addr: self.sample_opt(|| rng.gen()),
             no_da_validium_l1_validator_addr: self.sample_opt(|| rng.gen()),
             l2_multicall3_addr: self.sample_opt(|| rng.gen()),
+            server_notifier_addr: None,
         }
     }
 }
@@ -752,19 +757,6 @@ impl Distribution<configs::GenesisConfig> for EncodeDist {
                 _ => L1BatchCommitmentMode::Validium,
             },
             custom_genesis_state_path: None,
-        }
-    }
-}
-
-impl Distribution<configs::EcosystemContracts> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::EcosystemContracts {
-        configs::EcosystemContracts {
-            bridgehub_proxy_addr: rng.gen(),
-            state_transition_proxy_addr: self.sample_opt(|| rng.gen()),
-            transparent_proxy_admin_addr: self.sample_opt(|| rng.gen()),
-            l1_bytecodes_supplier_addr: self.sample_opt(|| rng.gen()),
-            l1_wrapped_base_token_store: self.sample_opt(|| rng.gen()),
-            server_notifier_addr: self.sample_opt(|| rng.gen()),
         }
     }
 }

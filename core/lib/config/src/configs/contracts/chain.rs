@@ -2,7 +2,7 @@ use serde::Deserialize;
 use zksync_basic_types::{Address, H256};
 
 use crate::configs::contracts::{
-    ecosystem::{EcosystemCommonContracts, EcosystemContracts, L1SpecificContracts},
+    ecosystem::{EcosystemCommonContracts, L1SpecificContracts},
     SettlementLayerSpecificContracts,
 };
 
@@ -29,7 +29,15 @@ pub struct AllContractsConfig {
     pub l2_testnet_paymaster_addr: Option<Address>,
     pub l2_timestamp_asserter_addr: Option<Address>,
     pub l1_multicall3_addr: Address,
-    pub ecosystem_contracts: Option<EcosystemContracts>,
+    pub bridgehub_proxy_addr: Address,
+    pub state_transition_proxy_addr: Option<Address>,
+    pub transparent_proxy_admin_addr: Option<Address>,
+    pub l1_bytecodes_supplier_addr: Option<Address>,
+    // Note that on the contract side of things this contract is called `L2WrappedBaseTokenStore`,
+    // while on the server side for consistency with the conventions, where the prefix denotes
+    // the location of the contracts we call it `l1_wrapped_base_token_store`
+    pub l1_wrapped_base_token_store: Option<Address>,
+    pub server_notifier_addr: Option<Address>,
     // Used by the RPC API and by the node builder in wiring the BaseTokenRatioProvider layer.
     pub base_token_addr: Address,
     pub l1_base_token_asset_id: Option<H256>,
@@ -60,7 +68,12 @@ impl AllContractsConfig {
             governance_addr: Address::repeat_byte(0x13),
             base_token_addr: Address::repeat_byte(0x14),
             l1_base_token_asset_id: Some(H256::repeat_byte(0x15)),
-            ecosystem_contracts: Some(EcosystemContracts::for_tests()),
+            bridgehub_proxy_addr: Address::repeat_byte(0x14),
+            state_transition_proxy_addr: Some(Address::repeat_byte(0x15)),
+            transparent_proxy_admin_addr: Some(Address::repeat_byte(0x15)),
+            l1_bytecodes_supplier_addr: Some(Address::repeat_byte(0x16)),
+            l1_wrapped_base_token_store: Some(Address::repeat_byte(0x17)),
+            server_notifier_addr: Some(Address::repeat_byte(0x18)),
             chain_admin_addr: Address::repeat_byte(0x18),
             l2_da_validator_addr: Some(Address::repeat_byte(0x1a)),
             no_da_validium_l1_validator_addr: Some(Address::repeat_byte(0x1b)),
@@ -69,11 +82,10 @@ impl AllContractsConfig {
     }
 
     pub fn l1_specific_contracts(&self) -> L1SpecificContracts {
-        let ecosystem = self.ecosystem_contracts.as_ref().unwrap();
         L1SpecificContracts {
-            bytecodes_supplier_addr: ecosystem.l1_bytecodes_supplier_addr,
-            wrapped_base_token_store: ecosystem.l1_wrapped_base_token_store,
-            bridge_hub: Some(ecosystem.bridgehub_proxy_addr),
+            bytecodes_supplier_addr: self.l1_bytecodes_supplier_addr,
+            wrapped_base_token_store: self.l1_wrapped_base_token_store,
+            bridge_hub: Some(self.bridgehub_proxy_addr),
             shared_bridge: self.l1_shared_bridge_proxy_addr,
             erc_20_bridge: self.l1_erc20_bridge_proxy_addr,
             base_token_address: self.base_token_addr,
@@ -93,13 +105,11 @@ impl AllContractsConfig {
     }
 
     pub fn settlement_layer_specific_contracts(&self) -> SettlementLayerSpecificContracts {
-        let ecosystem = self.ecosystem_contracts.as_ref().unwrap();
-
         SettlementLayerSpecificContracts {
             ecosystem_contracts: EcosystemCommonContracts {
-                bridgehub_proxy_addr: Some(ecosystem.bridgehub_proxy_addr),
-                state_transition_proxy_addr: ecosystem.state_transition_proxy_addr,
-                server_notifier_addr: ecosystem.server_notifier_addr,
+                bridgehub_proxy_addr: Some(self.bridgehub_proxy_addr),
+                state_transition_proxy_addr: self.state_transition_proxy_addr,
+                server_notifier_addr: self.server_notifier_addr,
                 multicall3: Some(self.l1_multicall3_addr),
                 validator_timelock_addr: Some(self.validator_timelock_addr),
             },

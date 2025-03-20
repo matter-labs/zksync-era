@@ -238,11 +238,7 @@ async fn main() -> anyhow::Result<()> {
 
     let sl_l1_contracts = load_settlement_layer_contracts(
         &eth_client,
-        contracts
-            .ecosystem_contracts
-            .as_ref()
-            .unwrap()
-            .bridgehub_proxy_addr,
+        contracts.bridgehub_proxy_addr,
         zksync_network_id,
         None,
     )
