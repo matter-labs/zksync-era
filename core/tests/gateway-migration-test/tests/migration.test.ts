@@ -147,6 +147,11 @@ describe('Migration From/To gateway test', function () {
         // Trying to send a transaction from the same address again
         await checkedRandomTransfer(alice, 1n);
 
+        // Theoretically, if L1 is really slow at this part, it could lead to a situation
+        // where there is an inflight transaction before the migration is complete.
+        // If you encounter an error, such as a failed transaction, after the migration,
+        // this area might be worth revisiting to wait for unconfirmed transactions on the server.
+
         if (direction == 'TO') {
             await utils.spawn(
                 `zkstack chain migrate-to-gateway --chain ${fileConfig.chain} --gateway-chain-name ${gatewayChain}`
