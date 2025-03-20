@@ -50,12 +50,12 @@ impl FriRecursionTipWitnessGeneratorDal<'_, '_> {
             "#,
             AggregationRound::NodeAggregation as i64,
         )
-            .fetch_all(self.storage.conn())
-            .await
-            .unwrap()
-            .into_iter()
-            .map(|row| (row.l1_batch_number as u64))
-            .collect()
+        .fetch_all(self.storage.conn())
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|row| (row.l1_batch_number as u64))
+        .collect()
     }
 
     pub async fn requeue_stuck_recursion_tip_jobs(
@@ -91,19 +91,19 @@ impl FriRecursionTipWitnessGeneratorDal<'_, '_> {
             &processing_timeout,
             max_attempts as i32,
         )
-            .fetch_all(self.storage.conn())
-            .await
-            .unwrap()
-            .into_iter()
-            .map(|row| StuckJobs {
-                id: row.l1_batch_number as u64,
-                status: row.status,
-                attempts: row.attempts as u64,
-                circuit_id: None,
-                error: row.error,
-                picked_by: row.picked_by,
-            })
-            .collect()
+        .fetch_all(self.storage.conn())
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|row| StuckJobs {
+            id: row.l1_batch_number as u64,
+            status: row.status,
+            attempts: row.attempts as u64,
+            circuit_id: None,
+            error: row.error,
+            picked_by: row.picked_by,
+        })
+        .collect()
     }
 
     pub async fn get_next_recursion_tip_witness_job(
@@ -145,15 +145,15 @@ impl FriRecursionTipWitnessGeneratorDal<'_, '_> {
             protocol_version.patch.0 as i32,
             picked_by,
         )
-            .fetch_optional(self.storage.conn())
-            .await
-            .unwrap()
-            .map(|row| {
-                (
-                    L1BatchNumber(row.l1_batch_number as u32),
-                    row.number_of_final_node_jobs,
-                )
-            })
+        .fetch_optional(self.storage.conn())
+        .await
+        .unwrap()
+        .map(|row| {
+            (
+                L1BatchNumber(row.l1_batch_number as u32),
+                row.number_of_final_node_jobs,
+            )
+        })
     }
 
     pub async fn mark_recursion_tip_job_as_successful(
@@ -174,9 +174,9 @@ impl FriRecursionTipWitnessGeneratorDal<'_, '_> {
             duration_to_naive_time(time_taken),
             l1_batch_number.0 as i64
         )
-            .execute(self.storage.conn())
-            .await
-            .unwrap();
+        .execute(self.storage.conn())
+        .await
+        .unwrap();
     }
 
     pub async fn get_recursion_tip_witness_generator_jobs_for_batch(
@@ -194,22 +194,22 @@ impl FriRecursionTipWitnessGeneratorDal<'_, '_> {
             "#,
             i64::from(l1_batch_number.0)
         )
-            .fetch_optional(self.storage.conn())
-            .await
-            .unwrap()
-            .map(|row| RecursionTipWitnessGeneratorJobInfo {
-                l1_batch_number,
-                status: WitnessJobStatus::from_str(&row.status).unwrap(),
-                attempts: row.attempts as u32,
-                processing_started_at: row.processing_started_at,
-                time_taken: row.time_taken,
-                error: row.error.clone(),
-                created_at: row.created_at,
-                updated_at: row.updated_at,
-                number_of_final_node_jobs: row.number_of_final_node_jobs,
-                protocol_version: row.protocol_version,
-                picked_by: row.picked_by.clone(),
-            })
+        .fetch_optional(self.storage.conn())
+        .await
+        .unwrap()
+        .map(|row| RecursionTipWitnessGeneratorJobInfo {
+            l1_batch_number,
+            status: WitnessJobStatus::from_str(&row.status).unwrap(),
+            attempts: row.attempts as u32,
+            processing_started_at: row.processing_started_at,
+            time_taken: row.time_taken,
+            error: row.error.clone(),
+            created_at: row.created_at,
+            updated_at: row.updated_at,
+            number_of_final_node_jobs: row.number_of_final_node_jobs,
+            protocol_version: row.protocol_version,
+            picked_by: row.picked_by.clone(),
+        })
     }
 
     pub async fn requeue_stuck_recursion_tip_jobs_for_batch(
@@ -241,19 +241,19 @@ impl FriRecursionTipWitnessGeneratorDal<'_, '_> {
             i64::from(block_number.0),
             max_attempts as i64
         )
-            .fetch_all(self.storage.conn())
-            .await
-            .unwrap()
-            .into_iter()
-            .map(|row| StuckJobs {
-                id: row.l1_batch_number as u64,
-                status: row.status,
-                attempts: row.attempts as u64,
-                circuit_id: None,
-                error: row.error,
-                picked_by: row.picked_by,
-            })
-            .collect()
+        .fetch_all(self.storage.conn())
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|row| StuckJobs {
+            id: row.l1_batch_number as u64,
+            status: row.status,
+            attempts: row.attempts as u64,
+            circuit_id: None,
+            error: row.error,
+            picked_by: row.picked_by,
+        })
+        .collect()
     }
 
     pub async fn insert_recursion_tip_aggregation_jobs(
@@ -286,8 +286,8 @@ impl FriRecursionTipWitnessGeneratorDal<'_, '_> {
             protocol_version.minor as i32,
             protocol_version.patch.0 as i32,
         )
-            .execute(self.storage.conn())
-            .await
-            .unwrap();
+        .execute(self.storage.conn())
+        .await
+        .unwrap();
     }
 }
