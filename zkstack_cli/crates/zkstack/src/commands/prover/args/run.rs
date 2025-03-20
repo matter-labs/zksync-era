@@ -10,15 +10,12 @@ use zkstack_cli_config::ChainConfig;
 use crate::{
     consts::{
         CIRCUIT_PROVER_BINARY_NAME, CIRCUIT_PROVER_DOCKER_IMAGE, COMPRESSOR_BINARY_NAME,
-        COMPRESSOR_DOCKER_IMAGE, PROVER_BINARY_NAME, PROVER_DOCKER_IMAGE,
-        PROVER_GATEWAY_BINARY_NAME, PROVER_GATEWAY_DOCKER_IMAGE, PROVER_JOB_MONITOR_BINARY_NAME,
-        PROVER_JOB_MONITOR_DOCKER_IMAGE, WITNESS_GENERATOR_BINARY_NAME,
-        WITNESS_GENERATOR_DOCKER_IMAGE, WITNESS_VECTOR_GENERATOR_BINARY_NAME,
-        WITNESS_VECTOR_GENERATOR_DOCKER_IMAGE,
+        COMPRESSOR_DOCKER_IMAGE, PROVER_GATEWAY_BINARY_NAME, PROVER_GATEWAY_DOCKER_IMAGE,
+        PROVER_JOB_MONITOR_BINARY_NAME, PROVER_JOB_MONITOR_DOCKER_IMAGE,
+        WITNESS_GENERATOR_BINARY_NAME, WITNESS_GENERATOR_DOCKER_IMAGE,
     },
     messages::{
-        MSG_ROUND_SELECT_PROMPT, MSG_RUN_COMPONENT_PROMPT, MSG_THREADS_PROMPT,
-        MSG_WITNESS_GENERATOR_ROUND_ERR,
+        MSG_ROUND_SELECT_PROMPT, MSG_RUN_COMPONENT_PROMPT, MSG_WITNESS_GENERATOR_ROUND_ERR,
     },
 };
 
@@ -28,10 +25,6 @@ pub struct ProverRunArgs {
     pub component: Option<ProverComponent>,
     #[clap(flatten)]
     pub witness_generator_args: WitnessGeneratorArgs,
-    #[clap(flatten)]
-    pub witness_vector_generator_args: WitnessVectorGeneratorArgs,
-    #[clap(flatten)]
-    pub fri_prover_args: FriProverRunArgs,
     #[clap(flatten)]
     pub circuit_prover_args: CircuitProverArgs,
     #[clap(flatten)]
@@ -50,10 +43,6 @@ pub enum ProverComponent {
     Gateway,
     #[strum(to_string = "Witness generator")]
     WitnessGenerator,
-    #[strum(to_string = "Witness vector generator")]
-    WitnessVectorGenerator,
-    #[strum(to_string = "Prover")]
-    Prover,
     #[strum(to_string = "CircuitProver")]
     CircuitProver,
     #[strum(to_string = "Compressor")]
@@ -67,8 +56,6 @@ impl ProverComponent {
         match self {
             Self::Gateway => PROVER_GATEWAY_DOCKER_IMAGE,
             Self::WitnessGenerator => WITNESS_GENERATOR_DOCKER_IMAGE,
-            Self::WitnessVectorGenerator => WITNESS_VECTOR_GENERATOR_DOCKER_IMAGE,
-            Self::Prover => PROVER_DOCKER_IMAGE,
             Self::CircuitProver => CIRCUIT_PROVER_DOCKER_IMAGE,
             Self::Compressor => COMPRESSOR_DOCKER_IMAGE,
             Self::ProverJobMonitor => PROVER_JOB_MONITOR_DOCKER_IMAGE,
@@ -79,8 +66,6 @@ impl ProverComponent {
         match self {
             Self::Gateway => PROVER_GATEWAY_BINARY_NAME,
             Self::WitnessGenerator => WITNESS_GENERATOR_BINARY_NAME,
-            Self::WitnessVectorGenerator => WITNESS_VECTOR_GENERATOR_BINARY_NAME,
-            Self::Prover => PROVER_BINARY_NAME,
             Self::CircuitProver => CIRCUIT_PROVER_BINARY_NAME,
             Self::Compressor => COMPRESSOR_BINARY_NAME,
             Self::ProverJobMonitor => PROVER_JOB_MONITOR_BINARY_NAME,
@@ -90,14 +75,8 @@ impl ProverComponent {
     pub fn get_application_args(&self, in_docker: bool) -> anyhow::Result<Vec<String>> {
         let mut application_args = vec![];
 
-        if (self == &Self::Prover || self == &Self::Compressor || self == &Self::CircuitProver)
-            && in_docker
-        {
+        if (self == &Self::Compressor || self == &Self::CircuitProver) && in_docker {
             application_args.push("--gpus=all".to_string());
-        }
-
-        if self == &Self::Prover {
-            application_args.push("--features=gpu".to_string());
         }
 
         Ok(application_args)
@@ -160,25 +139,11 @@ impl ProverComponent {
                     .to_string(),
                 );
             }
-            Self::WitnessVectorGenerator => {
-                additional_args.push(format!(
-                    "--threads={}",
-                    args.witness_vector_generator_args.threads.unwrap_or(1)
-                ));
-            }
-            Self::Prover => {
-                if args.fri_prover_args.max_allocation.is_some() {
-                    additional_args.push(format!(
-                        "--max-allocation={}",
-                        args.fri_prover_args.max_allocation.unwrap()
-                    ));
-                };
-            }
             Self::CircuitProver => {
                 if args.circuit_prover_args.max_allocation.is_some() {
                     additional_args.push(format!(
                         "--max-allocation={}",
-                        args.fri_prover_args.max_allocation.unwrap()
+                        args.circuit_prover_args.max_allocation.unwrap()
                     ));
                 };
                 if args.circuit_prover_args.light_wvg_count.is_some() {
@@ -226,28 +191,6 @@ pub enum WitnessGeneratorRound {
     RecursionTip,
     #[strum(to_string = "Scheduler")]
     Scheduler,
-}
-
-#[derive(Debug, Clone, Parser, Default)]
-pub struct WitnessVectorGeneratorArgs {
-    #[clap(long)]
-    pub threads: Option<usize>,
-}
-
-impl WitnessVectorGeneratorArgs {
-    fn fill_values_with_prompt(&self, component: ProverComponent) -> anyhow::Result<Self> {
-        if component != ProverComponent::WitnessVectorGenerator {
-            return Ok(Self::default());
-        }
-
-        let threads = self
-            .threads
-            .unwrap_or_else(|| Prompt::new(MSG_THREADS_PROMPT).default("1").ask());
-
-        Ok(Self {
-            threads: Some(threads),
-        })
-    }
 }
 
 #[derive(Debug, Clone, Parser, Default)]
@@ -330,10 +273,6 @@ impl ProverRunArgs {
             .witness_generator_args
             .fill_values_with_prompt(component)?;
 
-        let witness_vector_generator_args = self
-            .witness_vector_generator_args
-            .fill_values_with_prompt(component)?;
-
         let circuit_prover_args = self
             .circuit_prover_args
             .fill_values_with_prompt(component)?;
@@ -349,8 +288,6 @@ impl ProverRunArgs {
         Ok(ProverRunArgs {
             component: Some(component),
             witness_generator_args,
-            witness_vector_generator_args,
-            fri_prover_args: self.fri_prover_args,
             circuit_prover_args,
             compressor_args: self.compressor_args,
             docker: Some(docker),
