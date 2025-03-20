@@ -49,16 +49,18 @@ impl ProtoRepr for proto::Eth {
     type Type = configs::eth_sender::EthConfig;
 
     fn read(&self) -> anyhow::Result<Self::Type> {
-        Ok(Self::Type {
-            sender: read_optional_repr(&self.sender),
-            gas_adjuster: read_optional_repr(&self.gas_adjuster),
-            watcher: read_optional_repr(&self.watcher),
-        })
+        Ok(Self::Type::new(
+            read_optional_repr(&self.sender),
+            read_optional_repr(&self.gas_adjuster),
+            read_optional_repr(&self.watcher),
+        ))
     }
 
     fn build(this: &Self::Type) -> Self {
         Self {
-            sender: this.sender.as_ref().map(ProtoRepr::build),
+            sender: this
+                .get_eth_sender_config_for_sender_layer_data_layer()
+                .map(ProtoRepr::build),
             gas_adjuster: this.gas_adjuster.as_ref().map(ProtoRepr::build),
             watcher: this.watcher.as_ref().map(ProtoRepr::build),
         }

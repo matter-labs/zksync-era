@@ -151,7 +151,11 @@ impl EthSenderTester {
             };
         let aggregator_config = SenderConfig {
             pubdata_sending_mode,
-            ..eth_sender_config.clone().sender.unwrap()
+            ..eth_sender_config
+                .clone()
+                .get_eth_sender_config_for_sender_layer_data_layer()
+                .cloned()
+                .unwrap()
         };
 
         let history: Vec<_> = history
@@ -240,7 +244,9 @@ impl EthSenderTester {
             .unwrap(),
         );
 
-        let eth_sender = eth_sender_config.sender.clone().unwrap();
+        let eth_sender = eth_sender_config
+            .get_eth_sender_config_for_sender_layer_data_layer()
+            .unwrap();
 
         let custom_commit_sender_addr =
             if aggregator_operate_4844_mode && commitment_mode == L1BatchCommitmentMode::Rollup {
@@ -320,7 +326,10 @@ impl EthSenderTester {
     pub fn switch_to_using_gateway(&mut self) {
         self.manager = EthTxManager::new(
             self.conn.clone(),
-            EthConfig::for_tests().sender.unwrap(),
+            EthConfig::for_tests()
+                .get_eth_sender_config_for_sender_layer_data_layer()
+                .cloned()
+                .unwrap(),
             self.gas_adjuster.clone(),
             None,
             None,

@@ -57,7 +57,7 @@ use zksync_node_framework::{
         proof_data_handler::ProofDataHandlerLayer,
         query_eth_client::QueryEthClientLayer,
         settlement_layer_client::SettlementLayerClientLayer,
-        settlement_layer_data::SettlementLayerData,
+        settlement_layer_data::{MainNodeConfig, SettlementLayerData},
         sigint::SigintHandlerLayer,
         state_keeper::{
             main_batch_executor::MainBatchExecutorLayer, mempool_io::MempoolIOLayer,
@@ -182,10 +182,13 @@ impl MainNodeBuilder {
     }
 
     fn add_pk_signing_client_layer(mut self) -> anyhow::Result<Self> {
-        let eth_config = try_load_config!(self.configs.eth);
+        let gas_adjuster = try_load_config!(self.configs.eth)
+            .gas_adjuster
+            .context("Gas adjuster")?;
+
         let wallets = try_load_config!(self.wallets.eth_sender);
         self.node
-            .add_layer(PKSigningEthClientLayer::new(eth_config, wallets));
+            .add_layer(PKSigningEthClientLayer::new(gas_adjuster, wallets));
         Ok(self)
     }
 
@@ -210,12 +213,8 @@ impl MainNodeBuilder {
         let gas_adjuster_config = try_load_config!(self.configs.eth)
             .gas_adjuster
             .context("Gas adjuster")?;
-        let eth_sender_config = try_load_config!(self.configs.eth);
-        let gas_adjuster_layer = GasAdjusterLayer::new(
-            gas_adjuster_config,
-            self.genesis_config.clone(),
-            try_load_config!(eth_sender_config.sender).pubdata_sending_mode,
-        );
+        let gas_adjuster_layer =
+            GasAdjusterLayer::new(gas_adjuster_config, self.genesis_config.clone());
         self.node.add_layer(gas_adjuster_layer);
         Ok(self)
     }
@@ -320,17 +319,22 @@ impl MainNodeBuilder {
     }
 
     fn add_settlement_mode_data(mut self) -> anyhow::Result<Self> {
-        self.node.add_layer(SettlementLayerData::new(
-            self.l1_specific_contracts.clone(),
-            self.l2_contracts.clone(),
-            self.genesis_config.l2_chain_id,
-            self.multicall3,
-            self.l1_sl_contracts.clone(),
-            self.secrets
-                .l1
-                .as_ref()
-                .and_then(|a| a.gateway_rpc_url.clone()),
-        ));
+        self.node
+            .add_layer(SettlementLayerData::new(MainNodeConfig::new(
+                self.l1_specific_contracts.clone(),
+                self.l2_contracts.clone(),
+                self.genesis_config.l2_chain_id,
+                self.multicall3,
+                self.l1_sl_contracts.clone(),
+                self.secrets
+                    .l1
+                    .as_ref()
+                    .and_then(|a| a.gateway_rpc_url.clone()),
+                try_load_config!(self.configs.eth)
+                    .get_eth_sender_config_for_sender_layer_data_layer()
+                    .context("No eth sender config")?
+                    .clone(),
+            )));
         Ok(self)
     }
 
@@ -509,18 +513,13 @@ impl MainNodeBuilder {
     }
 
     fn add_eth_tx_manager_layer(mut self) -> anyhow::Result<Self> {
-        let eth_sender_config = try_load_config!(self.configs.eth);
-
-        self.node
-            .add_layer(EthTxManagerLayer::new(eth_sender_config));
+        self.node.add_layer(EthTxManagerLayer);
 
         Ok(self)
     }
 
     fn add_eth_tx_aggregator_layer(mut self) -> anyhow::Result<Self> {
-        let eth_sender_config = try_load_config!(self.configs.eth);
         self.node.add_layer(EthTxAggregatorLayer::new(
-            eth_sender_config,
             self.genesis_config.l2_chain_id,
             self.genesis_config.l1_batch_commit_data_generator_mode,
         ));
@@ -578,7 +577,10 @@ impl MainNodeBuilder {
 
     fn add_da_client_layer(mut self) -> anyhow::Result<Self> {
         let eth_sender_config = try_load_config!(self.configs.eth);
-        if let Some(sender_config) = eth_sender_config.sender {
+        // It's safe to use it temporary here. Preferably to move it to proper wiring layer
+        if let Some(sender_config) =
+            eth_sender_config.get_eth_sender_config_for_sender_layer_data_layer()
+        {
             if sender_config.pubdata_sending_mode != PubdataSendingMode::Custom {
                 tracing::warn!("DA dispatcher is enabled, but the pubdata sending mode is not `Custom`. DA client will not be started.");
                 return Ok(self);
@@ -627,7 +629,10 @@ impl MainNodeBuilder {
 
     fn add_da_dispatcher_layer(mut self) -> anyhow::Result<Self> {
         let eth_sender_config = try_load_config!(self.configs.eth);
-        if let Some(sender_config) = eth_sender_config.sender {
+        // It's safe to use it temporary here. Preferably to move it to proper wiring layer
+        if let Some(sender_config) =
+            eth_sender_config.get_eth_sender_config_for_sender_layer_data_layer()
+        {
             if sender_config.pubdata_sending_mode != PubdataSendingMode::Custom {
                 tracing::warn!("DA dispatcher is enabled, but the pubdata sending mode is not `Custom`. DA dispatcher will not be started.");
                 return Ok(self);

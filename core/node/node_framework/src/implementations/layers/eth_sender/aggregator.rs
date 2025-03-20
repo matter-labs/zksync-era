@@ -1,6 +1,6 @@
 use anyhow::Context;
 use zksync_circuit_breaker::l1_txs::FailedL1TransactionChecker;
-use zksync_config::configs::eth_sender::EthConfig;
+use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_eth_client::BoundEthInterface;
 use zksync_eth_sender::{Aggregator, EthTxAggregator};
 use zksync_types::{commitment::L1BatchCommitmentMode, L2ChainId};
@@ -44,7 +44,6 @@ use crate::{
 /// - `EthTxAggregator`
 #[derive(Debug)]
 pub struct EthTxAggregatorLayer {
-    eth_sender_config: EthConfig,
     zksync_network_id: L2ChainId,
     l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
 }
@@ -59,6 +58,7 @@ pub struct Input {
     pub eth_client_gateway: Option<BoundEthInterfaceForL2Resource>,
     pub object_store: ObjectStoreResource,
     pub settlement_mode: SettlementModeResource,
+    pub sender_config: SenderConfig,
     #[context(default)]
     pub circuit_breakers: CircuitBreakersResource,
     #[context(default)]
@@ -75,12 +75,10 @@ pub struct Output {
 
 impl EthTxAggregatorLayer {
     pub fn new(
-        eth_sender_config: EthConfig,
         zksync_network_id: L2ChainId,
         l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
     ) -> Self {
         Self {
-            eth_sender_config,
             zksync_network_id,
             l1_batch_commit_data_generator_mode,
         }
@@ -148,7 +146,7 @@ impl WiringLayer for EthTxAggregatorLayer {
             .as_deref()
             .map(BoundEthInterface::sender_account);
 
-        let config = self.eth_sender_config.sender.context("sender")?;
+        let config = input.sender_config;
         let aggregator = Aggregator::new(
             config.clone(),
             object_store,

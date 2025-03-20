@@ -45,7 +45,8 @@ use zksync_node_framework::{
         query_eth_client::QueryEthClientLayer,
         reorg_detector::ReorgDetectorLayer,
         settlement_layer_client::SettlementLayerClientLayer,
-        settlement_layer_data_en::SettlementLayerDataEn,
+        settlement_layer_data,
+        settlement_layer_data::SettlementLayerData,
         sigint::SigintHandlerLayer,
         state_keeper::{
             external_io::ExternalIOLayer, main_batch_executor::MainBatchExecutorLayer,
@@ -152,12 +153,14 @@ impl ExternalNodeBuilder {
     }
 
     fn add_settlement_layer_data(mut self) -> anyhow::Result<Self> {
-        self.node.add_layer(SettlementLayerDataEn::new(
-            self.config.required.l2_chain_id,
-            self.config.l1_specific_contracts(),
-            self.config.l1_settelment_contracts(),
-            self.config.l2_contracts(),
-            self.config.optional.gateway_url.clone(),
+        self.node.add_layer(SettlementLayerData::new(
+            settlement_layer_data::ENConfig::new(
+                self.config.required.l2_chain_id,
+                self.config.l1_specific_contracts(),
+                self.config.l1_settelment_contracts(),
+                self.config.l2_contracts(),
+                self.config.optional.gateway_url.clone(),
+            ),
         ));
         Ok(self)
     }

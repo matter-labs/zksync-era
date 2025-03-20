@@ -110,8 +110,6 @@ impl Aggregator {
         pool: ConnectionPool<Core>,
         settlement_mode: SettlementMode,
     ) -> anyhow::Result<Self> {
-        let pubdata_da = config.pubdata_sending_mode;
-
         let operate_4844_mode: bool =
             custom_commit_sender_addr.is_some() && !settlement_mode.is_gateway();
 
@@ -190,10 +188,10 @@ impl Aggregator {
                 limit: 1,
             })],
             execute_criteria,
+            pubdata_da: config.pubdata_sending_mode,
             config,
             blob_store,
             operate_4844_mode,
-            pubdata_da,
             commitment_mode,
             priority_merkle_tree: None,
             pool,

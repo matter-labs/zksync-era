@@ -323,7 +323,7 @@ async fn main() -> anyhow::Result<()> {
             } else {
                 #[allow(deprecated)]
                 eth_sender
-                    .sender
+                    .get_eth_sender_config_for_sender_layer_data_layer()
                     .context("eth_sender_config")?
                     .private_key()
                     .context("eth_sender_config.private_key")?
