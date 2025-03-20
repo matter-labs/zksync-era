@@ -167,20 +167,21 @@ describe('Migration From/To gateway test', function () {
     });
 
     step('Check the settlement layer on l1 and gateway', async () => {
+        let gatewayInfo = getGatewayInfo(pathToHome, fileConfig.chain!);
+        let slMainContract = new ethers.Contract(
+            gatewayInfo?.l2DiamondProxyAddress!,
+            ZK_CHAIN_INTERFACE,
+            gatewayInfo?.gatewayProvider
+        );
+        let slAddressl1 = await l1MainContract.getSettlementLayer();
+        let slAddressGW = await slMainContract.getSettlementLayer();
         if (direction == 'TO') {
-            let gatewayInfo = getGatewayInfo(pathToHome, fileConfig.chain!);
-            let slAddressl1 = await l1MainContract.getSettlementLayer();
-            let slMainContract = new ethers.Contract(
-                gatewayInfo?.l2DiamondProxyAddress!,
-                ZK_CHAIN_INTERFACE,
-                gatewayInfo?.gatewayProvider
-            );
-            let slAddressGW = await slMainContract.getSettlementLayer();
             expect(slAddressl1 != ZeroAddress);
             expect(slAddressGW == ZeroAddress);
         } else {
             let slAddressl1 = await l1MainContract.getSettlementLayer();
             expect(slAddressl1 == ZeroAddress);
+            expect(slAddressGW != ZeroAddress);
         }
     });
 
