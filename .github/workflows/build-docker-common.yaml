@@ -109,6 +109,11 @@ jobs:
         id: build
         with:
           context: .
+          build-args: |
+            SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage
+            SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com
+            SCCACHE_GCS_RW_MODE=READ_WRITE
+            RUSTC_WRAPPER=sccache
           file: ${{ inputs.dockerfile }}
           platforms: linux/${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -126,7 +131,7 @@ jobs:
       - name: Upload digest
         uses: actions/upload-artifact@v4
         with:
-          name: digests-${{ matrix.platform }}
+          name: digests-${{ inputs.image }}-${{ matrix.platform }}
           path: ${{ runner.temp }}/digests/*
           if-no-files-found: error
           retention-days: 1
@@ -139,7 +144,7 @@ jobs:
 #        uses: actions/download-artifact@v4
 #        with:
 #          path: ${{ runner.temp }}/digests
-#          pattern: digests-*
+#          pattern: digests-${{ inputs.image }}*
 #          merge-multiple: true
 #
 #      - name: Log in to Docker Hub

@@ -6,16 +6,39 @@ on:
 
 jobs:
 
+  # Selectively clean up untagged ghcr.io core images cache
+#  clean-up-untagged-cache:
+#    name: Clean up untagged ghcr.io cache
+#    runs-on: ubuntu-latest
+#    permissions:
+#      contents: read
+#      packages: write
+#    matrix:
+#      component:
+#        - server-v2
+#        - external-node
+#        - snapshots-creator
+#    env:
+#      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#      API_URL: '/orgs/matter-labs/packages/container/${{ matrix.component }}/versions'
+#    steps:
+#      - name: Clean up cache
+#        run: |
+#          for ID in $(gh api ${API_URL} --jq '.[] | select(.metadata.container.tags == []) | .id'); do
+#            gh api --method DELETE "${API_URL}/${ID}"
+#          done
+
   build-images:
     name: Core docker images
     secrets: inherit
     strategy:
+      fail-fast: false
       matrix:
         component:
           - server-v2
-#          - external-node
-#          - snapshots-creator
-    uses: matter-labs/zksync-era/.github/workflows/REUSED_build-docker-common.yaml@aba-ci-optimize
+          - external-node
+          - snapshots-creator
+    uses: matter-labs/zksync-era/.github/workflows/build-docker-common.yaml@aba-ci-optimize
     with:
       image: ${{ matrix.component }}
       dockerfile: docker/${{ matrix.component }}/Dockerfile

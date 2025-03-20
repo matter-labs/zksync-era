@@ -24,8 +24,8 @@ ENV SCCACHE_GCS_RW_MODE=${SCCACHE_GCS_RW_MODE}
 ENV RUSTC_WRAPPER=${RUSTC_WRAPPER}
 
 # Build application
-COPY ./core .
-RUN cargo build --release --features=rocksdb/io-uring \
+COPY . .
+RUN cargo build --manifest-path ./core/Cargo.toml --release --features=rocksdb/io-uring \
     --bin zksync_server --bin block_reverter --bin merkle_tree_consistency_checker
 
 FROM ghcr.io/matter-labs/zksync-runtime-base:latest
@@ -37,9 +37,9 @@ EXPOSE 3000
 EXPOSE 3031
 EXPOSE 3030
 
-COPY --from=builder /usr/src/zksync/target/release/zksync_server /usr/bin
-COPY --from=builder /usr/src/zksync/target/release/block_reverter /usr/bin
-COPY --from=builder /usr/src/zksync/target/release/merkle_tree_consistency_checker /usr/bin
+COPY --from=builder /usr/src/zksync/core/target/release/zksync_server /usr/bin
+COPY --from=builder /usr/src/zksync/core/target/release/block_reverter /usr/bin
+COPY --from=builder /usr/src/zksync/core/target/release/merkle_tree_consistency_checker /usr/bin
 COPY contracts/system-contracts/zkout/ /contracts/system-contracts/zkout/
 COPY contracts/l1-contracts/out/ /contracts/l1-contracts/out/
 COPY contracts/l1-contracts/zkout/ /contracts/l1-contracts/zkout/
