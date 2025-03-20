@@ -66,7 +66,6 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
         "prover.prover_object_store",
         &proof_object_store_config,
     )?;
-    general_config.insert_yaml("prover.cloud_type", args.cloud_type)?;
     general_config.save().await?;
 
     if let Some(args) = args.bellman_cuda_config {

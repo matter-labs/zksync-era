@@ -1,5 +1,7 @@
+#[macro_use]
+mod macros;
 pub mod agent;
-pub(crate) mod cluster_types;
+pub mod cluster_types;
 pub mod config;
 pub mod global;
 pub mod http_client;

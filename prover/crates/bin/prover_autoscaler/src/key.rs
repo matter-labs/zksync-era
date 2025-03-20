@@ -5,6 +5,8 @@ use strum::Display;
 use strum_macros::EnumString;
 use vise::EncodeLabelValue;
 
+use crate::cluster_types::DeploymentName;
+
 #[derive(
     Default,
     Debug,
@@ -43,9 +45,9 @@ impl Gpu {
 
 pub trait Key: Eq + Ord + Hash + Copy + Debug + Default {
     /// Convert correct Deployment name into a Key. Also works for Pods.
-    fn new(deployment_prefix: &str, deployment: &str) -> Option<Self>;
+    fn new(deployment_prefix: &str, deployment: &DeploymentName) -> Option<Self>;
     /// to_deployment converts Key to corresponding deployment name.
-    fn to_deployment(&self, deployment_prefix: &str) -> String {
+    fn to_deployment(&self, deployment_prefix: &str) -> DeploymentName {
         deployment_prefix.into()
     }
     /// Return Gpu if available in the Key.
@@ -59,12 +61,12 @@ pub struct GpuKey(pub Gpu);
 
 impl Key for GpuKey {
     /// Convert correct Deployment name into a Key. Also works for Pods.
-    fn new(deployment_prefix: &str, deployment: &str) -> Option<Self> {
-        if !deployment.starts_with(deployment_prefix) {
+    fn new(deployment_prefix: &str, deployment: &DeploymentName) -> Option<Self> {
+        if !deployment.to_str().starts_with(deployment_prefix) {
             return None;
         }
         // Cut out the prefix. Leaving only GPU part and possible RelicaSet/Pod suffixes.
-        let substr = &deployment[deployment_prefix.len()..];
+        let substr = &deployment.to_str()[deployment_prefix.len()..];
 
         // Remove leading '-'.
         let substr = substr.trim_start_matches('-');
@@ -80,7 +82,7 @@ impl Key for GpuKey {
     }
 
     /// to_deployment converts Key to corresponding deployment name.
-    fn to_deployment(&self, deployment_prefix: &str) -> String {
+    fn to_deployment(&self, deployment_prefix: &str) -> DeploymentName {
         match self.0 {
             Gpu::Unknown => "".into(),
             Gpu::L4 => deployment_prefix.into(),
@@ -88,7 +90,8 @@ impl Key for GpuKey {
                 "{}-{}",
                 deployment_prefix,
                 self.0.to_string().to_lowercase()
-            ),
+            )
+            .into(),
         }
     }
 
@@ -103,8 +106,8 @@ pub struct NoKey();
 
 impl Key for NoKey {
     /// Convert correct Deployment name into a Key. Also works for Pods.
-    fn new(deployment_prefix: &str, deployment: &str) -> Option<Self> {
-        if !deployment.starts_with(deployment_prefix) {
+    fn new(deployment_prefix: &str, deployment: &DeploymentName) -> Option<Self> {
+        if !deployment.to_str().starts_with(deployment_prefix) {
             return None;
         }
 
@@ -119,27 +122,36 @@ mod tests {
     #[tracing_test::traced_test]
     #[test]
     fn test_gpukey_new() {
-        assert_eq!(GpuKey::new("circuit-prover-gpu", "circuit-prover"), None);
         assert_eq!(
-            GpuKey::new("circuit-prover-gpu", "circuit-prover-d6898ff8f-gtz28"),
+            GpuKey::new("circuit-prover-gpu", &"circuit-prover".into()),
             None
         );
         assert_eq!(
-            GpuKey::new("circuit-prover-gpu", "circuit-prover-gpu"),
+            GpuKey::new(
+                "circuit-prover-gpu",
+                &"circuit-prover-d6898ff8f-gtz28".into()
+            ),
+            None
+        );
+        assert_eq!(
+            GpuKey::new("circuit-prover-gpu", &"circuit-prover-gpu".into()),
             Some(GpuKey(Gpu::L4))
         );
         assert_eq!(
-            GpuKey::new("circuit-prover-gpu", "circuit-prover-gpu-t4"),
+            GpuKey::new("circuit-prover-gpu", &"circuit-prover-gpu-t4".into()),
             Some(GpuKey(Gpu::T4))
         );
         assert_eq!(
-            GpuKey::new("circuit-prover-gpu", "circuit-prover-gpu-d6898ff8f-gtz28"),
+            GpuKey::new(
+                "circuit-prover-gpu",
+                &"circuit-prover-gpu-d6898ff8f-gtz28".into()
+            ),
             Some(GpuKey(Gpu::L4))
         );
         assert_eq!(
             GpuKey::new(
                 "circuit-prover-gpu",
-                "circuit-prover-gpu-t4-d6898ff8f-gtz28"
+                &"circuit-prover-gpu-t4-d6898ff8f-gtz28".into()
             ),
             Some(GpuKey(Gpu::T4))
         );
@@ -148,14 +160,17 @@ mod tests {
     #[tracing_test::traced_test]
     #[test]
     fn test_gpukey_to_deployment() {
-        assert_eq!(GpuKey(Gpu::Unknown).to_deployment("circuit-prover-gpu"), "");
+        assert_eq!(
+            GpuKey(Gpu::Unknown).to_deployment("circuit-prover-gpu"),
+            "".into()
+        );
         assert_eq!(
             GpuKey(Gpu::L4).to_deployment("circuit-prover-gpu"),
-            "circuit-prover-gpu"
+            "circuit-prover-gpu".into()
         );
         assert_eq!(
             GpuKey(Gpu::T4).to_deployment("circuit-prover-gpu"),
-            "circuit-prover-gpu-t4"
+            "circuit-prover-gpu-t4".into()
         );
     }
 }

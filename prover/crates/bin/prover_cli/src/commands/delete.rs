@@ -56,10 +56,6 @@ pub async fn run(args: Args, config: ProverCLIConfig) -> anyhow::Result<()> {
 }
 
 async fn delete_prover_db(mut conn: Connection<'_, Prover>) -> anyhow::Result<()> {
-    conn.fri_gpu_prover_queue_dal()
-        .delete()
-        .await
-        .context("failed to delete gpu prover queue")?;
     conn.fri_prover_jobs_dal()
         .delete()
         .await

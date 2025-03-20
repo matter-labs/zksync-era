@@ -38,17 +38,24 @@ pub mod unstable {
 
 /// Marker trait for tree parameters.
 pub trait TreeParams: fmt::Debug + Send + Sync {
+    /// Hasher used by the tree.
     type Hasher: HashTree;
 
+    /// Total tree depth. E.g., 64 means that a tree can accommodate up to `1 << 64` leaves (including guards).
     const TREE_DEPTH: u8;
+    /// Depth of internal nodes in the tree. E.g., 3 means that an internal node has up to `1 << 3 = 8` children
+    /// (i.e., radix-8 amortization). This parameter is an implementation detail; for an outside observer (e.g., for proofs),
+    /// the tree is always binary.
     const INTERNAL_NODE_DEPTH: u8;
 }
 
+/// Returns the number of nibbles in [`NodeKey`](types::NodeKey)s for leaves.
 #[inline(always)]
-pub(crate) fn leaf_nibbles<P: TreeParams>() -> u8 {
+pub(crate) const fn leaf_nibbles<P: TreeParams>() -> u8 {
     P::TREE_DEPTH.div_ceil(P::INTERNAL_NODE_DEPTH)
 }
 
+/// Returns the max number of nibbles  in [`NodeKey`](types::NodeKey)s for internal nodes.
 #[inline(always)]
 pub(crate) const fn max_nibbles_for_internal_node<P: TreeParams>() -> u8 {
     P::TREE_DEPTH.div_ceil(P::INTERNAL_NODE_DEPTH) - 1
@@ -59,9 +66,9 @@ pub(crate) const fn max_node_children<P: TreeParams>() -> u8 {
     1 << P::INTERNAL_NODE_DEPTH
 }
 
-// TODO: internal node depth 3 looks slightly better from the I/O overhead & performance perspective
+/// Default Merkle tree parameters that should balance its performance and I/O requirements.
 #[derive(Debug)]
-pub struct DefaultTreeParams<const TREE_DEPTH: u8 = 64, const INTERNAL_NODE_DEPTH: u8 = 4>(());
+pub struct DefaultTreeParams<const TREE_DEPTH: u8 = 64, const INTERNAL_NODE_DEPTH: u8 = 3>(());
 
 impl<const TREE_DEPTH: u8, const INTERNAL_NODE_DEPTH: u8> TreeParams
     for DefaultTreeParams<TREE_DEPTH, INTERNAL_NODE_DEPTH>

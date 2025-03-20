@@ -73,7 +73,6 @@ impl InternalNode {
                 .extend(iter::repeat(H256::zero()).take(full_level_len - level_hashes.len()));
             full_level_len /= 2;
         });
-        assert_eq!(hashes.0.len(), capacity);
         hashes
     }
 }
@@ -154,7 +153,8 @@ mod tests {
     #[test]
     fn constructing_internal_hashes() {
         let nodes = HashMap::from([(0, InternalNode::new(16, 0)), (1, InternalNode::new(7, 0))]);
-        let internal_hashes = InternalHashes::new::<DefaultTreeParams>(&nodes, &Blake2Hasher, 0);
+        let internal_hashes =
+            InternalHashes::new::<DefaultTreeParams<64, 4>>(&nodes, &Blake2Hasher, 0);
 
         assert_eq!(internal_hashes.level_offsets, [0, 8, 12]);
 

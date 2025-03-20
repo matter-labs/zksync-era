@@ -1,4 +1,4 @@
-use std::{collections::HashMap, ops::Deref};
+use std::collections::HashMap;
 
 use anyhow::{Context, Ok};
 use reqwest::Method;
@@ -6,14 +6,7 @@ use zksync_prover_job_monitor::autoscaler_queue_reporter::{QueueReport, Versione
 
 use crate::{config::QueueReportFields, http_client::HttpClient};
 
-pub struct Queue(HashMap<(String, QueueReportFields), u64>);
-
-impl Deref for Queue {
-    type Target = HashMap<(String, QueueReportFields), u64>;
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
+pub type Queue = HashMap<(String, QueueReportFields), usize>;
 
 #[derive(Default)]
 pub struct Queuer {
@@ -21,8 +14,8 @@ pub struct Queuer {
     pub prover_job_monitor_url: String,
 }
 
-fn target_to_queue(target: QueueReportFields, report: &QueueReport) -> u64 {
-    let res = match target {
+fn target_to_queue(target: QueueReportFields, report: &QueueReport) -> usize {
+    match target {
         QueueReportFields::basic_witness_jobs => report.basic_witness_jobs.all(),
         QueueReportFields::leaf_witness_jobs => report.leaf_witness_jobs.all(),
         QueueReportFields::node_witness_jobs => report.node_witness_jobs.all(),
@@ -30,8 +23,7 @@ fn target_to_queue(target: QueueReportFields, report: &QueueReport) -> u64 {
         QueueReportFields::scheduler_witness_jobs => report.scheduler_witness_jobs.all(),
         QueueReportFields::proof_compressor_jobs => report.proof_compressor_jobs.all(),
         QueueReportFields::prover_jobs => report.prover_jobs.all(),
-    };
-    res as u64
+    }
 }
 
 impl Queuer {
@@ -57,18 +49,16 @@ impl Queuer {
             .json::<Vec<VersionedQueueReport>>()
             .await
             .context("Failed to read response as json")?;
-        Ok(Queue(
-            response
-                .iter()
-                .flat_map(|versioned_report| {
-                    jobs.iter().map(move |j| {
-                        (
-                            (versioned_report.version.to_string(), *j),
-                            target_to_queue(*j, &versioned_report.report),
-                        )
-                    })
+        Ok(response
+            .iter()
+            .flat_map(|versioned_report| {
+                jobs.iter().map(move |j| {
+                    (
+                        (versioned_report.version.to_string(), *j),
+                        target_to_queue(*j, &versioned_report.report),
+                    )
                 })
-                .collect::<HashMap<_, _>>(),
-        ))
+            })
+            .collect::<HashMap<_, _>>())
     }
 }

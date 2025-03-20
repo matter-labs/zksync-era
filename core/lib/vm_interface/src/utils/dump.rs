@@ -22,7 +22,7 @@ fn create_storage_snapshot<S: ReadStorage>(
         .into_iter()
         .map(|(key, value)| {
             let enum_index = storage.get_enumeration_index(&key);
-            let value_and_index = enum_index.map(|idx| (value, idx));
+            let value_and_index = compress_value_and_index(value, enum_index);
             (key.hashed_key(), value_and_index)
         })
         .collect();
@@ -35,8 +35,9 @@ fn create_storage_snapshot<S: ReadStorage>(
             continue;
         }
 
+        let value = storage.read_value(&key);
         let enum_index = storage.get_enumeration_index(&key);
-        let value_and_index = enum_index.map(|idx| (storage.read_value(&key), idx));
+        let value_and_index = compress_value_and_index(value, enum_index);
         storage_slots.insert(hashed_key, value_and_index);
     }
 
@@ -46,6 +47,17 @@ fn create_storage_snapshot<S: ReadStorage>(
         .collect();
 
     StorageSnapshot::new(storage_slots, factory_deps)
+}
+
+/// Compresses a value + enum index into an `Option<_>` so that it's more efficiently serializable.
+fn compress_value_and_index(value: H256, enum_index: Option<u64>) -> Option<(H256, u64)> {
+    match (value, enum_index) {
+        (value, Some(idx)) => Some((value, idx)),
+        (value, None) if value.is_zero() => None,
+        // There may be non-zero values w/o an assigned enum index if the VM execution
+        // starts in the middle of an L1 batch. We mark such values with an enum index 0, which is not a legal value.
+        (value, None) => Some((value, 0)),
+    }
 }
 
 /// VM dump allowing to re-run the VM on the same inputs. Can be (de)serialized.
