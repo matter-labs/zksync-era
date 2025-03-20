@@ -276,7 +276,7 @@ async fn call_forge(
             forge_args.clone(),
         )
         .with_ffi()
-        .with_rpc_url(secrets.get("l1.l1_rpc_url")?);
+        .with_rpc_url(secrets.l1_rpc_url()?);
     if with_broadcast {
         forge = forge.with_broadcast();
     }

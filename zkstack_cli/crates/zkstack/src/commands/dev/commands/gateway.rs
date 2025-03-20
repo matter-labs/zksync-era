@@ -16,14 +16,15 @@ use zkstack_cli_config::{
     traits::{ReadConfig, ZkStackConfig},
     ContractsConfig,
 };
-use zksync_contracts::{chain_admin_contract, hyperchain_contract, DIAMOND_CUT};
-use zksync_types::{
+use zksync_basic_types::{
     address_to_h256, ethabi, h256_to_address,
+    protocol_version::ProtocolVersionId,
     url::SensitiveUrl,
     web3::{keccak256, Bytes},
-    Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, CONTRACT_DEPLOYER_ADDRESS,
-    H256, L2_NATIVE_TOKEN_VAULT_ADDRESS, U256,
+    Address, L1BatchNumber, L2BlockNumber, L2ChainId, H256, U256,
 };
+use zksync_contracts::{chain_admin_contract, hyperchain_contract, DIAMOND_CUT};
+use zksync_system_constants::{CONTRACT_DEPLOYER_ADDRESS, L2_NATIVE_TOKEN_VAULT_ADDRESS};
 use zksync_web3_decl::{
     client::{Client, DynClient, L2},
     namespaces::{EthNamespaceClient, UnstableNamespaceClient, ZksNamespaceClient},
@@ -174,7 +175,7 @@ async fn verify_next_batch_new_version(
     Ok(())
 }
 
-pub(crate) async fn check_l2_ntv_existence(l2_client: &Box<DynClient<L2>>) -> anyhow::Result<()> {
+pub(crate) async fn check_l2_ntv_existence(l2_client: &DynClient<L2>) -> anyhow::Result<()> {
     let l2_ntv_code = l2_client
         .get_code(L2_NATIVE_TOKEN_VAULT_ADDRESS, None)
         .await?;
@@ -185,8 +186,8 @@ pub(crate) async fn check_l2_ntv_existence(l2_client: &Box<DynClient<L2>>) -> an
     Ok(())
 }
 
-const L2_TOKENS_CACHE: &'static str = "l2-tokens-cache.json";
-const CONTRACT_DEPLOYED_EVENT: &'static str = "ContractDeployed(address,bytes32,address)";
+const L2_TOKENS_CACHE: &str = "l2-tokens-cache.json";
+const CONTRACT_DEPLOYED_EVENT: &str = "ContractDeployed(address,bytes32,address)";
 
 /// Returns a list of tokens that can be deployed via the L2 legacy shared bridge.
 /// Note that it is a *superset* of all bridged tokens. Some of the deployed contracts
@@ -202,7 +203,7 @@ pub async fn get_deployed_by_bridge(
     // Each legacy bridged token is deployed via the legacy shared bridge.
     let total_logs_for_bridged_tokens = get_logs_for_events(
         0,
-        &L2_TOKENS_CACHE,
+        L2_TOKENS_CACHE,
         l2_rpc_url,
         block_range,
         &[(
@@ -250,7 +251,7 @@ pub async fn check_token_readiness(
 ) -> anyhow::Result<()> {
     let l2_client = get_zk_client(&l2_rpc_url, l2_chain_id)?;
 
-    check_l2_ntv_existence(&l2_client).await?;
+    check_l2_ntv_existence(l2_client.as_ref()).await?;
 
     let provider = get_ethers_provider(&l2_rpc_url)?;
 

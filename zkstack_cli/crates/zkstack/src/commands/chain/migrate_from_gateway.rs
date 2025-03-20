@@ -21,12 +21,14 @@ use zkstack_cli_config::{
         gateway_preparation::{input::GatewayPreparationConfig, output::GatewayPreparationOutput},
         script_params::GATEWAY_PREPARATION,
     },
-    traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
-    EcosystemConfig,
+    traits::{ReadConfig, SaveConfig},
+    EcosystemConfig, EthSenderLimits,
 };
 use zkstack_cli_types::L1BatchCommitmentMode;
-use zksync_basic_types::{settlement::SettlementMode, H256, U256, U64};
-use zksync_types::L2ChainId;
+use zksync_basic_types::{
+    pubdata_da::PubdataSendingMode, settlement::SettlementMode, L2ChainId, SLChainId, H256, U256,
+    U64,
+};
 use zksync_web3_decl::client::{Client, L2};
 
 use crate::{
@@ -71,15 +73,12 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
         .get_gateway_config()
         .context("Gateway config not present")?;
 
-    let l1_url = chain_config
-        .get_secrets_config()
-        .await?
-        .get::<String>("l1.l1_rpc_url")?;
+    let l1_url = chain_config.get_secrets_config().await?.l1_rpc_url()?;
 
     let genesis_config = chain_config.get_genesis_config().await?;
 
     let is_rollup = matches!(
-        genesis_config.get("l1_batch_commit_data_generator_mode")?,
+        genesis_config.l1_batch_commitment_mode()?,
         L1BatchCommitmentMode::Rollup
     );
 
@@ -92,8 +91,8 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
     )?;
     preparation_config.save(shell, preparation_config_path)?;
 
-    let chain_contracts_config = chain_config.get_contracts_config().unwrap();
-    let mut gateway_chain_chain_config = chain_config.get_gateway_chain_config().unwrap();
+    let chain_contracts_config = chain_config.get_contracts_config()?;
+    let gateway_chain_chain_config = chain_config.get_gateway_chain_config().await?;
     let chain_admin_addr = chain_contracts_config.l1.chain_admin_addr;
     let chain_access_control_restriction =
         chain_contracts_config.l1.access_control_restriction_addr;
@@ -108,9 +107,7 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
                 (
                     chain_admin_addr,
                     chain_access_control_restriction.context("chain_access_control_restriction")?,
-                    gateway_chain_chain_config
-                        .chain_admin_addr
-                        .context("l2 chain admin missing")?,
+                    gateway_chain_chain_config.chain_admin_addr()?,
                     U256::from(chain_config.chain_id.as_u64()),
                 ),
             )
@@ -122,7 +119,7 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
     .await?;
 
     let general_config = gateway_chain_config.get_general_config().await?;
-    let l2_rpc_url = general_config.get::<String>("api.web3_json_rpc.http_url")?;
+    let l2_rpc_url = general_config.l2_http_url()?;
     let gateway_provider = Provider::<Http>::try_from(&l2_rpc_url)?;
 
     let client: Client<L2> = Client::http(l2_rpc_url.parse().context("invalid L2 RPC URL")?)?
@@ -164,25 +161,23 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
     )
     .await?;
 
-    gateway_chain_chain_config.gateway_chain_id = 0u64.into();
-    gateway_chain_chain_config.save_with_base_path(shell, chain_config.configs.clone())?;
+    let mut gateway_chain_chain_config = gateway_chain_chain_config.patched();
+    gateway_chain_chain_config.set_gateway_chain_id(SLChainId(0))?;
+    gateway_chain_chain_config.save().await?;
 
     let mut general_config = chain_config.get_general_config().await?.patched();
-    general_config.insert_yaml(
-        "eth.gas_adjuster.settlement_mode",
-        SettlementMode::SettlesToL1,
-    )?;
+    general_config.set_settlement_mode(SettlementMode::SettlesToL1)?;
     if is_rollup {
-        // `PubdataSendingMode` has differing `serde` and file-based config serializations, hence
-        // we supply a raw string value.
-        general_config.insert("eth.sender.pubdata_sending_mode", "BLOBS")?;
+        general_config.set_pubdata_sending_mode(PubdataSendingMode::Blobs)?;
     }
-    general_config.insert("eth.sender.wait_confirmations", 0)?;
+    general_config.set_eth_sender_confirmations(0)?;
 
     // Undoing what was changed during migration to gateway.
     // TODO(EVM-925): maybe remove this logic.
-    general_config.insert("eth.sender.max_aggregated_tx_gas", 15000000)?;
-    general_config.insert("eth.sender.max_eth_tx_data_size", 120_000)?;
+    general_config.set_eth_sender_limits(EthSenderLimits {
+        max_aggregated_tx_gas: 15_000_000,
+        max_eth_tx_data_size: 120_000,
+    })?;
     general_config.save().await?;
     Ok(())
 }

@@ -28,12 +28,9 @@ use zkstack_cli_types::L1BatchCommitmentMode;
 use zksync_basic_types::{Address, U256};
 
 use crate::{
-    commands::dev::commands::{
-        events_gatherer::DEFAULT_BLOCK_RANGE,
-        gateway::{
-            check_chain_readiness, fetch_chain_info, get_admin_call_builder,
-            set_upgrade_timestamp_calldata, DAMode, GatewayUpgradeArgsInner, GatewayUpgradeInfo,
-        },
+    commands::dev::commands::gateway::{
+        check_chain_readiness, fetch_chain_info, get_admin_call_builder,
+        set_upgrade_timestamp_calldata, DAMode, GatewayUpgradeArgsInner, GatewayUpgradeInfo,
     },
     messages::MSG_CHAIN_NOT_INITIALIZED,
     utils::forge::{fill_forge_private_key, WalletOwner},
@@ -98,10 +95,7 @@ pub async fn run(args: GatewayUpgradeArgs, shell: &Shell) -> anyhow::Result<()> 
         .load_chain(chain_name)
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
 
-    let l1_url = chain_config
-        .get_secrets_config()
-        .await?
-        .get("l1.l1_rpc_url")?;
+    let l1_url = chain_config.get_secrets_config().await?.l1_rpc_url()?;
 
     match args.chain_upgrade_stage {
         GatewayChainUpgradeStage::PrepareStage1 => {
@@ -145,8 +139,7 @@ async fn prepare_stage1(
         gateway_ecosystem_preparation_output,
     );
 
-    let commitment_mode =
-        genesis_config.get::<L1BatchCommitmentMode>("l1_batch_commit_data_generator_mode")?;
+    let commitment_mode = genesis_config.l1_batch_commitment_mode()?;
     let da_mode = match commitment_mode {
         L1BatchCommitmentMode::Rollup => DAMode::PermanentRollup,
         L1BatchCommitmentMode::Validium => DAMode::Validium,
@@ -157,7 +150,7 @@ async fn prepare_stage1(
         &GatewayUpgradeArgsInner {
             chain_id: chain_config.chain_id.as_u64(),
             l1_rpc_url: l1_url,
-            l2_rpc_url: general_config.get("api.web3_json_rpc.http_url")?,
+            l2_rpc_url: general_config.l2_http_url()?,
             validator_addr1: chain_config.get_wallets_config()?.operator.address,
             validator_addr2: chain_config.get_wallets_config()?.blob_operator.address,
             da_mode,
@@ -266,7 +259,7 @@ async fn finalize_stage1(
     println!("Checking chain readiness...");
     check_chain_readiness(
         l1_url.clone(),
-        general_config.get("api.web3_json_rpc.http_url")?,
+        general_config.l2_http_url()?,
         chain_config.chain_id.as_u64(),
         None,
     )
@@ -277,8 +270,7 @@ async fn finalize_stage1(
     let gateway_ecosystem_preparation_output =
         GatewayEcosystemUpgradeOutput::read_with_base_path(shell, &ecosystem_config.config)?;
 
-    let commitment_mode =
-        genesis_config.get::<L1BatchCommitmentMode>("l1_batch_commit_data_generator_mode")?;
+    let commitment_mode = genesis_config.l1_batch_commitment_mode()?;
     let da_mode = match commitment_mode {
         L1BatchCommitmentMode::Rollup => DAMode::PermanentRollup,
         L1BatchCommitmentMode::Validium => DAMode::Validium,
@@ -291,7 +283,7 @@ async fn finalize_stage1(
     let args = GatewayUpgradeArgsInner {
         chain_id: chain_config.chain_id.as_u64(),
         l1_rpc_url: l1_url.clone(),
-        l2_rpc_url: general_config.get("api.web3_json_rpc.http_url")?,
+        l2_rpc_url: general_config.l2_http_url()?,
         validator_addr1: chain_config.get_wallets_config()?.operator.address,
         validator_addr2: chain_config.get_wallets_config()?.blob_operator.address,
         da_mode,
