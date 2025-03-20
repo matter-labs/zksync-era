@@ -355,6 +355,11 @@ mod evm {
     }
 
     #[test]
+    fn real_emulator_create2_deployment() {
+        test_create2_deployment::<super::ShadowedFastVm>();
+    }
+
+    #[test]
     fn deployment_with_partial_reverts() {
         test_deployment_with_partial_reverts::<super::ShadowedFastVm>();
     }
