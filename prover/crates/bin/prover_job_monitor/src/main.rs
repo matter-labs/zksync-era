@@ -7,16 +7,15 @@ use tokio::{
     task::JoinHandle,
 };
 use zksync_config::configs::{
-    fri_prover_group::FriProverGroupConfig, FriProofCompressorConfig, FriProverConfig,
-    FriWitnessGeneratorConfig, ProverJobMonitorConfig,
+    FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig, ProverJobMonitorConfig,
 };
 use zksync_core_leftovers::temp_config_store::{load_database_secrets, load_general_config};
 use zksync_prover_dal::{ConnectionPool, Prover};
 use zksync_prover_job_monitor::{
-    archiver::{GpuProverArchiver, ProverJobsArchiver},
     attempts_reporter::ProverJobAttemptsReporter,
     autoscaler_queue_reporter::get_queue_reporter_router,
     job_requeuer::{ProofCompressorJobRequeuer, ProverJobRequeuer, WitnessGeneratorJobRequeuer},
+    prover_jobs_archiver::ProverJobsArchiver,
     queue_reporter::{
         ProofCompressorQueueReporter, ProverQueueReporter, WitnessGeneratorQueueReporter,
     },
@@ -58,9 +57,6 @@ async fn main() -> anyhow::Result<()> {
     let witness_generator_config = general_config
         .witness_generator_config
         .context("witness_generator_config")?;
-    let prover_group_config = general_config
-        .prover_group_config
-        .context("fri_prover_group_config")?;
     let exporter_config = PrometheusExporterConfig::pull(prover_job_monitor_config.prometheus_port);
 
     let (stop_signal_sender, stop_signal_receiver) = oneshot::channel();
@@ -94,7 +90,6 @@ async fn main() -> anyhow::Result<()> {
         proof_compressor_config,
         prover_config,
         witness_generator_config,
-        prover_group_config,
         stop_receiver.clone(),
     )?);
     let mut tasks = ManagedTasks::new(tasks);
@@ -138,20 +133,11 @@ fn get_tasks(
     proof_compressor_config: FriProofCompressorConfig,
     prover_config: FriProverConfig,
     witness_generator_config: FriWitnessGeneratorConfig,
-    prover_group_config: FriProverGroupConfig,
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<Vec<JoinHandle<anyhow::Result<()>>>> {
     let mut task_runner = TaskRunner::new(connection_pool);
 
     // archivers
-    let gpu_prover_archiver =
-        GpuProverArchiver::new(prover_job_monitor_config.archive_gpu_prover_duration());
-    task_runner.add(
-        "GpuProverArchiver",
-        prover_job_monitor_config.gpu_prover_archiver_run_interval(),
-        gpu_prover_archiver,
-    );
-
     let prover_jobs_archiver =
         ProverJobsArchiver::new(prover_job_monitor_config.archive_prover_jobs_duration());
     task_runner.add(
@@ -199,7 +185,7 @@ fn get_tasks(
         proof_compressor_queue_reporter,
     );
 
-    let prover_queue_reporter = ProverQueueReporter::new(prover_group_config);
+    let prover_queue_reporter = ProverQueueReporter;
     task_runner.add(
         "ProverQueueReporter",
         prover_job_monitor_config.prover_queue_reporter_run_interval(),
