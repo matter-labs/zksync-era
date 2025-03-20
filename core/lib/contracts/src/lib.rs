@@ -587,7 +587,7 @@ impl BaseSystemContracts {
     pub fn playground_interop() -> Self {
         let bootloader_bytecode: Vec<u8> = read_bootloader_code("playground_batch");
         // kl todo once contracts are stabilized move to etc/multivm
-        BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
+        BaseSystemContracts::load_with_bootloader(bootloader_bytecode, true)
     }
 
     pub fn estimate_gas_pre_virtual_blocks() -> Self {

@@ -34,7 +34,7 @@ export const INTEROP_TRIGGER_ABI =
 
 export const INTEROP_CALL_ABI = 'tuple(address to, address from, uint256 value, bytes data)';
 export const INTEROP_BUNDLE_ABI =
-    'tuple(uint256 destinationChainId, tuple(address to, address from, uint256 value, bytes data)[] calls, address[] executionAddresses, address cancellationAddress)';
+    'tuple(uint256 destinationChainId, tuple(address to, address from, uint256 value, bytes data)[] calls, address executionAddress)';
 
 export const MESSAGE_INCLUSION_PROOF_ABI =
     'tuple(uint256 chainId, uint256 l1BatchNumber, uint256 l2MessageIndex, tuple(uint16 txNumberInBatch, address sender, bytes data) message, bytes32[] proof)';

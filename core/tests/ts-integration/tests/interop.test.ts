@@ -2,7 +2,7 @@
  * This suite contains tests checking interop behavior.
  */
 
-import { TestMaster } from '../src/index';
+import { TestMaster } from '../src';
 import { Token } from '../src/types';
 
 import * as zksync from 'zksync-ethers-interop-support';
@@ -918,7 +918,7 @@ describe('Interop checks', () => {
                 gasPerPubdataByteLimit: REQUIRED_L2_GAS_PRICE_PER_PUBDATA,
                 refundRecipient: interop1_wallet.address,
                 paymaster: ethers.ZeroAddress,
-                paymasterInput: ''
+                paymasterInput: '0x'
             }
             // refundRecipient: interop1_wallet.address
         ];

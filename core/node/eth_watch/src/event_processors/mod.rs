@@ -12,7 +12,6 @@ pub(crate) use self::{
 
 mod appended_chain_batch_root;
 mod decentralized_upgrades;
-mod l1_appended_chain_batch_root;
 mod message_root;
 mod priority_ops;
 
@@ -72,6 +71,7 @@ pub(super) trait EventProcessor: 'static + fmt::Debug + Send + Sync {
 
     fn event_source(&self) -> EventsSource;
 
+    // This has  to be unique for each processor
     fn event_type(&self) -> EventType;
 
     /// Whether processor expect events only from finalized blocks.

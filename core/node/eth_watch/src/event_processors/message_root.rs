@@ -143,7 +143,7 @@ impl EventProcessor for MessageRootProcessor {
     }
 
     fn event_type(&self) -> EventType {
-        EventType::ChainBatchRoot
+        EventType::MessageRoot
     }
 
     fn only_finalized_block(&self) -> bool {

@@ -52,16 +52,11 @@ export async function getInteropBundleData(
         });
     }
 
-    let executionAddresses = [];
-    for (let i = 0; i < decodedRequest[0][2].length; i++) {
-        executionAddresses.push(decodedRequest[0][2][i]);
-    }
 
     const xl2Input = {
         destinationChainId: decodedRequest[0][0],
         calls: calls,
-        executionAddresses: executionAddresses,
-        cancellationAddress: decodedRequest[0][3]
+        executionAddress: decodedRequest[0][2],
     };
     // console.log("response.proof", proof_fee)
     const rawData = ethers.AbiCoder.defaultAbiCoder().encode([INTEROP_BUNDLE_ABI], [xl2Input]);
@@ -140,7 +135,9 @@ export async function getInteropTriggerData(
         gasFields: {
             gasLimit: decodedRequest[0][5][0],
             gasPerPubdataByteLimit: decodedRequest[0][5][1],
-            refundRecipient: decodedRequest[0][5][2]
+            refundRecipient: decodedRequest[0][5][2],
+            paymaster: decodedRequest[0][5][3],
+            paymasterInput: decodedRequest[0][5][4]
         }
     };
     // console.log("output", output)
