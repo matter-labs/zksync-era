@@ -12,10 +12,7 @@ use crate::interface::{
 };
 
 pub(crate) fn test_estimate_fee<VM: TestedVm>() {
-    let mut vm_tester = VmTesterBuilder::new()
-        .with_empty_in_memory_storage()
-        .with_rich_accounts(1)
-        .build::<VM>();
+    let mut vm_tester = VmTesterBuilder::new().with_rich_accounts(1).build::<VM>();
 
     vm_tester.deploy_test_contract();
     let account = &mut vm_tester.rich_accounts[0];
@@ -35,10 +32,7 @@ pub(crate) fn test_estimate_fee<VM: TestedVm>() {
 }
 
 pub(crate) fn test_simple_execute<VM: TestedVm>() {
-    let mut vm_tester = VmTesterBuilder::new()
-        .with_empty_in_memory_storage()
-        .with_rich_accounts(1)
-        .build::<VM>();
+    let mut vm_tester = VmTesterBuilder::new().with_rich_accounts(1).build::<VM>();
 
     vm_tester.deploy_test_contract();
 
@@ -85,10 +79,7 @@ pub(crate) fn test_simple_execute<VM: TestedVm>() {
 
 // TODO: also test EVM contract addresses once EVM emulator is implemented
 pub(crate) fn test_create2_deployment_address<VM: TestedVm>() {
-    let mut vm_tester = VmTesterBuilder::new()
-        .with_empty_in_memory_storage()
-        .with_rich_accounts(1)
-        .build::<VM>();
+    let mut vm_tester = VmTesterBuilder::new().with_rich_accounts(1).build::<VM>();
     let account = &mut vm_tester.rich_accounts[0];
 
     let (execute, deploy_params) =

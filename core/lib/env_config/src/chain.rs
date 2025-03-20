@@ -172,6 +172,8 @@ mod tests {
             stuck_tx_timeout: 10,
             remove_stuck_txs: true,
             delay_interval: 100,
+            skip_unsafe_deposit_checks: false,
+            l1_to_l2_txs_paused: true,
         }
     }
 
@@ -185,6 +187,7 @@ mod tests {
             CHAIN_MEMPOOL_REMOVE_STUCK_TXS="true"
             CHAIN_MEMPOOL_DELAY_INTERVAL="100"
             CHAIN_MEMPOOL_CAPACITY="1000000"
+            CHAIN_MEMPOOL_L1_TO_L2_TXS_PAUSED="true"
         "#;
         lock.set_env(config);
 

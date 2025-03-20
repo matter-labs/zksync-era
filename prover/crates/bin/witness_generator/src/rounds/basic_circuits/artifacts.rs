@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::Instant};
+use std::time::Instant;
 
 use async_trait::async_trait;
 use zksync_object_store::ObjectStore;
@@ -39,18 +39,9 @@ impl ArtifactsManager for BasicCircuits {
         job_id: u32,
         artifacts: Self::OutputArtifacts,
         object_store: &dyn ObjectStore,
-        shall_save_to_public_bucket: bool,
-        public_blob_store: Option<Arc<dyn ObjectStore>>,
     ) -> String {
         let aux_output_witness_wrapper =
             AuxOutputWitnessWrapper(artifacts.aux_output_witness.clone());
-        if shall_save_to_public_bucket {
-            public_blob_store.as_deref()
-                .expect("public_object_store shall not be empty while running with shall_save_to_public_bucket config")
-                .put(L1BatchNumber(job_id), &aux_output_witness_wrapper)
-                .await
-                .unwrap();
-        }
 
         object_store
             .put(L1BatchNumber(job_id), &aux_output_witness_wrapper)

@@ -604,7 +604,7 @@ async fn using_real_compiler_in_verifier(bytecode_kind: BytecodeMarker, toolchai
         (BytecodeMarker::Evm, Toolchain::Solidity) => {
             assert_matches!(
                 identifier.detected_metadata,
-                Some(DetectedMetadata::Cbor),
+                Some(DetectedMetadata::Cbor { .. }),
                 "Cbor metadata for EVM Solidity by default"
             );
         }
@@ -645,6 +645,7 @@ async fn using_real_compiler_in_verifier(bytecode_kind: BytecodeMarker, toolchai
         Duration::from_secs(60),
         pool.clone(),
         Arc::new(compiler_resolver),
+        false,
     )
     .await
     .unwrap();
@@ -747,23 +748,29 @@ async fn using_zksolc_partial_match(use_cbor: bool) {
     );
 
     assert_eq!(
-        identifier_for_request.matches(output_for_storage.deployed_bytecode()),
+        identifier_for_request.matches(&ContractIdentifier::from_bytecode(
+            BytecodeMarker::EraVm,
+            output_for_storage.deployed_bytecode()
+        )),
         Match::Partial,
         "must be a partial match (1)"
     );
     assert_eq!(
-        identifier_for_storage.matches(output_for_request.deployed_bytecode()),
+        identifier_for_storage.matches(&ContractIdentifier::from_bytecode(
+            BytecodeMarker::EraVm,
+            output_for_request.deployed_bytecode()
+        )),
         Match::Partial,
         "must be a partial match (2)"
     );
     if use_cbor {
         assert_matches!(
             identifier_for_request.detected_metadata,
-            Some(DetectedMetadata::Cbor)
+            Some(DetectedMetadata::Cbor { .. })
         );
         assert_matches!(
             identifier_for_storage.detected_metadata,
-            Some(DetectedMetadata::Cbor)
+            Some(DetectedMetadata::Cbor { .. })
         );
     } else {
         assert_matches!(
@@ -796,6 +803,7 @@ async fn using_zksolc_partial_match(use_cbor: bool) {
         Duration::from_secs(60),
         pool.clone(),
         Arc::new(compiler_resolver),
+        false,
     )
     .await
     .unwrap();
@@ -847,6 +855,7 @@ async fn compilation_errors(bytecode_kind: BytecodeMarker) {
         Duration::from_secs(60),
         pool.clone(),
         Arc::new(compiler_resolver),
+        false,
     )
     .await
     .unwrap();

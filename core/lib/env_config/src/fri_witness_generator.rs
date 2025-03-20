@@ -25,7 +25,6 @@ mod tests {
             scheduler_generation_timeout_in_secs: Some(900u16),
             max_attempts: 4,
             last_l1_batch_to_process: None,
-            shall_save_to_public_bucket: true,
             prometheus_listener_port: Some(3333u16),
             max_circuits_in_flight: 500,
         }
@@ -42,7 +41,6 @@ mod tests {
             FRI_WITNESS_RECURSION_TIP_GENERATION_TIMEOUT_IN_SECS=700
             FRI_WITNESS_SCHEDULER_GENERATION_TIMEOUT_IN_SECS=900
             FRI_WITNESS_MAX_ATTEMPTS=4
-            FRI_WITNESS_SHALL_SAVE_TO_PUBLIC_BUCKET=true
             FRI_WITNESS_PROMETHEUS_LISTENER_PORT=3333
             FRI_WITNESS_MAX_CIRCUITS_IN_FLIGHT=500
         "#;
@@ -65,7 +63,6 @@ mod tests {
             FRI_WITNESS_BASIC_GENERATION_TIMEOUT_IN_SECS=100
             FRI_WITNESS_SCHEDULER_GENERATION_TIMEOUT_IN_SECS=200
             FRI_WITNESS_MAX_ATTEMPTS=4
-            FRI_WITNESS_SHALL_SAVE_TO_PUBLIC_BUCKET=true
         "#;
         lock.set_env(config);
 

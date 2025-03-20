@@ -153,7 +153,7 @@ pub struct VerificationIncomingRequest {
 
 /// Settings for EVM verification, used only if
 /// `SourceCodeData` is `SolSingleFile`.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct VerificationEvmSettings {
     #[serde(default, skip_serializing_if = "Option::is_none")]

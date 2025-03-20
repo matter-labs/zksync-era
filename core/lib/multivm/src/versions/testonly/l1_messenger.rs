@@ -73,7 +73,6 @@ pub(crate) fn test_rollup_da_output_hash_match<VM: TestedVm>() {
 
     let l2_da_validator_address = Address::repeat_byte(0x12);
     let mut vm = VmTesterBuilder::new()
-        .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_rich_accounts(1)
         .with_custom_contracts(vec![ContractToDeploy {
