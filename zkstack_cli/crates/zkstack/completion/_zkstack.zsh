@@ -136,6 +136,7 @@ _arguments "${_arguments_options[@]}" : \
 '--update-submodules=[]:UPDATE_SUBMODULES:(true false)' \
 '--validium-type=[Type of the Validium network]:VALIDIUM_TYPE:(no-da avail eigen-da)' \
 '--support-l2-legacy-shared-bridge-test=[]' \
+'--server-command=[Command to run the server binary]:SERVER_COMMAND:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--resume[]' \
 '--zksync[]' \
@@ -296,6 +297,7 @@ _arguments "${_arguments_options[@]}" : \
 '--l1-rpc-url=[L1 RPC URL]:L1_RPC_URL:_default' \
 '--update-submodules=[]:UPDATE_SUBMODULES:(true false)' \
 '--validium-type=[Type of the Validium network]:VALIDIUM_TYPE:(no-da avail eigen-da)' \
+'--server-command=[Command to run the server binary]:SERVER_COMMAND:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--resume[]' \
 '--zksync[]' \
@@ -322,6 +324,7 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 '--server-db-url=[Server database url without database name]:SERVER_DB_URL:_default' \
 '--server-db-name=[Server database name]:SERVER_DB_NAME:_default' \
+'--server-command=[Command to run the server binary]:SERVER_COMMAND:_default' \
 '--l1-rpc-url=[L1 RPC URL]:L1_RPC_URL:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '-d[Use default database urls and names]' \
@@ -368,6 +371,7 @@ esac
 _arguments "${_arguments_options[@]}" : \
 '--server-db-url=[Server database url without database name]:SERVER_DB_URL:_default' \
 '--server-db-name=[Server database name]:SERVER_DB_NAME:_default' \
+'--server-command=[Command to run the server binary]:SERVER_COMMAND:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '-d[Use default database urls and names]' \
 '--dev[Use default database urls and names]' \
@@ -392,6 +396,7 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 '--server-db-url=[Server database url without database name]:SERVER_DB_URL:_default' \
 '--server-db-name=[Server database name]:SERVER_DB_NAME:_default' \
+'--server-command=[Command to run the server binary]:SERVER_COMMAND:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '-d[Use default database urls and names]' \
 '--dev[Use default database urls and names]' \
@@ -1896,13 +1901,6 @@ _arguments "${_arguments_options[@]}" : \
 '--bucket-name=[]:BUCKET_NAME:_default' \
 '--location=[]:LOCATION:_default' \
 '--project-id=[]:PROJECT_ID:_default' \
-'--shall-save-to-public-bucket=[]:SHALL_SAVE_TO_PUBLIC_BUCKET:(true false)' \
-'--public-store-dir=[]:PUBLIC_STORE_DIR:_default' \
-'--public-bucket-base-url=[]:PUBLIC_BUCKET_BASE_URL:_default' \
-'--public-credentials-file=[]:PUBLIC_CREDENTIALS_FILE:_default' \
-'--public-bucket-name=[]:PUBLIC_BUCKET_NAME:_default' \
-'--public-location=[]:PUBLIC_LOCATION:_default' \
-'--public-project-id=[]:PUBLIC_PROJECT_ID:_default' \
 '(--clone)--bellman-cuda-dir=[]:BELLMAN_CUDA_DIR:_default' \
 '--bellman-cuda=[]' \
 '--setup-compressor-key=[]' \
@@ -1917,7 +1915,6 @@ _arguments "${_arguments_options[@]}" : \
 '--use-default=[Use default database urls and names]:USE_DEFAULT:(true false)' \
 '-d+[]:DONT_DROP:(true false)' \
 '--dont-drop=[]:DONT_DROP:(true false)' \
-'--cloud-type=[]:CLOUD_TYPE:(gcp local)' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--dev[]' \
 '(--bellman-cuda-dir)--clone[]' \
@@ -2035,6 +2032,7 @@ _arguments "${_arguments_options[@]}" : \
 '*--components=[Components of server to run]:COMPONENTS:_default' \
 '*-a+[Additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
 '*--additional-args=[Additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
+'--server-command=[Command to run the server binary]:SERVER_COMMAND:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--genesis[Run server in genesis mode]' \
 '--uring[Enables uring support for RocksDB]' \
@@ -2068,6 +2066,7 @@ _arguments "${_arguments_options[@]}" : \
 '*--components=[Components of server to run]:COMPONENTS:_default' \
 '*-a+[Additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
 '*--additional-args=[Additional arguments that can be passed through the CLI]:ADDITIONAL_ARGS:_default' \
+'--server-command=[Command to run the server binary]:SERVER_COMMAND:_default' \
 '--chain=[Chain to use]:CHAIN:_default' \
 '--genesis[Run server in genesis mode]' \
 '--uring[Enables uring support for RocksDB]' \
