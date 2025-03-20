@@ -56,7 +56,7 @@ export async function getInteropBundleData(
     const xl2Input = {
         destinationChainId: decodedRequest[0][0],
         calls: calls,
-        executionAddress: decodedRequest[0][2],
+        executionAddress: decodedRequest[0][2]
     };
     // console.log("response.proof", proof_fee)
     const rawData = ethers.AbiCoder.defaultAbiCoder().encode([INTEROP_BUNDLE_ABI], [xl2Input]);
