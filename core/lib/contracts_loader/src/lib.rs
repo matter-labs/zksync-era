@@ -49,7 +49,7 @@ async fn load_settlement_layer_contracts_pure_error(
     if !get_protocol_version(diamond_proxy, &hyperchain_contract(), sl_client)
         .await?
         .minor
-        .is_post_gateway()
+        .is_post_evm_emulator()
     {
         return Ok(None);
     }
@@ -124,7 +124,7 @@ pub async fn get_settlement_layer_address(
     if !get_protocol_version(diamond_proxy_addr, abi, eth_client)
         .await?
         .minor
-        .is_post_gateway()
+        .is_post_evm_emulator()
     {
         return Ok(Address::zero());
     }

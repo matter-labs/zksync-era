@@ -153,6 +153,10 @@ impl ProtocolVersionId {
         self >= &Self::gateway_upgrade()
     }
 
+    pub fn is_post_evm_emulator(&self) -> bool {
+        self >= &Self::evm_emulator_upgrade()
+    }
+
     pub fn is_pre_fflonk(&self) -> bool {
         self < &Self::Version27
     }
@@ -199,6 +203,9 @@ impl ProtocolVersionId {
 
     pub const fn gateway_upgrade() -> Self {
         ProtocolVersionId::Version26
+    }
+    pub const fn evm_emulator_upgrade() -> Self {
+        ProtocolVersionId::Version27
     }
 }
 
