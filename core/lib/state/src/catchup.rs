@@ -326,13 +326,15 @@ mod tests {
         let builder = RocksdbStorageBuilder::from_rocksdb(rocksdb);
         let started_at = Instant::now();
         loop {
-            assert!(started_at.elapsed() <= Duration::from_secs(10), "Timeout waiting for catch up");
+            assert!(
+                started_at.elapsed() <= Duration::from_secs(10),
+                "Timeout waiting for catch up"
+            );
 
             if builder.l1_batch_number().await == Some(L1BatchNumber(3)) {
                 break;
-            } else {
-                tokio::time::sleep(Duration::from_millis(10)).await;
             }
+            tokio::time::sleep(Duration::from_millis(10)).await;
         }
     }
 

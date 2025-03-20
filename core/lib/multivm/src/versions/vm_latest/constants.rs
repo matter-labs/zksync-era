@@ -201,6 +201,7 @@ pub const BATCH_COMPUTATIONAL_GAS_LIMIT: u32 =
 
 /// The maximal number of gas that is supposed to be spent in a batch. This value is displayed in the system context as well
 /// as the API for each batch.
+///
 /// Using any number that fits into `i64` is fine with regard to any popular eth node implementation, but we also desire to use
 /// values that fit into safe JS numbers just in case for compatibility.
 pub const BATCH_GAS_LIMIT: u64 = 1 << 50;
