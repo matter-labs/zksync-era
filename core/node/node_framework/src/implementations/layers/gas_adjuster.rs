@@ -21,7 +21,6 @@ use crate::{
 pub struct GasAdjusterLayer {
     gas_adjuster_config: GasAdjusterConfig,
     genesis_config: GenesisConfig,
-    // pubdata_sending_mode: PubdataSendingMode,
 }
 
 #[derive(Debug, FromContext)]

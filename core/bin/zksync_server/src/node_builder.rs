@@ -330,7 +330,10 @@ impl MainNodeBuilder {
                     .l1
                     .as_ref()
                     .and_then(|a| a.gateway_rpc_url.clone()),
-                try_load_config!(try_load_config!(self.configs.eth).sender),
+                try_load_config!(self.configs.eth)
+                    .get_eth_sender_config_for_sender_layer_data_layer()
+                    .context("No eth sender config")?
+                    .clone(),
             )));
         Ok(self)
     }
@@ -574,7 +577,10 @@ impl MainNodeBuilder {
 
     fn add_da_client_layer(mut self) -> anyhow::Result<Self> {
         let eth_sender_config = try_load_config!(self.configs.eth);
-        if let Some(sender_config) = eth_sender_config.sender {
+        // It's safe to use it temporary here. Preferably to move it to proper wiring layer
+        if let Some(sender_config) =
+            eth_sender_config.get_eth_sender_config_for_sender_layer_data_layer()
+        {
             if sender_config.pubdata_sending_mode != PubdataSendingMode::Custom {
                 tracing::warn!("DA dispatcher is enabled, but the pubdata sending mode is not `Custom`. DA client will not be started.");
                 return Ok(self);
@@ -623,7 +629,10 @@ impl MainNodeBuilder {
 
     fn add_da_dispatcher_layer(mut self) -> anyhow::Result<Self> {
         let eth_sender_config = try_load_config!(self.configs.eth);
-        if let Some(sender_config) = eth_sender_config.sender {
+        // It's safe to use it temporary here. Preferably to move it to proper wiring layer
+        if let Some(sender_config) =
+            eth_sender_config.get_eth_sender_config_for_sender_layer_data_layer()
+        {
             if sender_config.pubdata_sending_mode != PubdataSendingMode::Custom {
                 tracing::warn!("DA dispatcher is enabled, but the pubdata sending mode is not `Custom`. DA dispatcher will not be started.");
                 return Ok(self);

@@ -372,11 +372,7 @@ impl Distribution<configs::database::PostgresConfig> for EncodeDist {
 
 impl Distribution<configs::EthConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::EthConfig {
-        configs::EthConfig {
-            sender: self.sample(rng),
-            gas_adjuster: self.sample(rng),
-            watcher: self.sample(rng),
-        }
+        configs::EthConfig::new(self.sample(rng), self.sample(rng), self.sample(rng))
     }
 }
 

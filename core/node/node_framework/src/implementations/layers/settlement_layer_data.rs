@@ -318,6 +318,8 @@ fn get_l2_client(
         .flatten())
 }
 
+// Gateway has different rules for pubdata and gas space.
+// We need to adjust it accordingly.
 fn adjust_eth_sender_config(
     mut config: SenderConfig,
     settlement_mode: SettlementMode,
@@ -325,10 +327,22 @@ fn adjust_eth_sender_config(
     if settlement_mode.is_gateway() {
         config.max_aggregated_tx_gas = 4294967295;
         config.max_eth_tx_data_size = 550_000;
+        tracing::warn!(
+            "Settling to Gateway requires to adjust ETH sender configs: \
+               max_aggregated_tx_gas = {}, max_eth_tx_data_size = {}",
+            config.max_aggregated_tx_gas,
+            config.max_eth_tx_data_size
+        );
         if config.pubdata_sending_mode == PubdataSendingMode::Blobs
             || config.pubdata_sending_mode == PubdataSendingMode::Calldata
         {
-            config.pubdata_sending_mode = PubdataSendingMode::RelayedL2Calldata
+            tracing::warn!(
+                "Settling to Gateway requires to adjust Pub Data Sending Mode: \
+                    changed from {:?} to {:?} ",
+                &config.pubdata_sending_mode,
+                PubdataSendingMode::RelayedL2Calldata
+            );
+            config.pubdata_sending_mode = PubdataSendingMode::RelayedL2Calldata;
         }
     }
     config

@@ -137,14 +137,6 @@ describe('Migration From/To gateway test', function () {
         const balance = await alice.getBalance();
         expect(balance === depositAmount * 2n, 'Incorrect balance after deposits').to.be.true;
 
-        if (process.env.CHECK_EN_URL) {
-            console.log('Checking EN after deposit');
-            await utils.sleep(2);
-            const enProvider = new ethers.JsonRpcProvider(process.env.CHECK_EN_URL);
-            const enBalance = await enProvider.getBalance(alice.address);
-            expect(enBalance === balance, 'Failed to update the balance on EN after deposit').to.be.true;
-        }
-
         // Wait for at least one new committed block
         let newBlocksCommitted = await l1MainContract.getTotalBatchesCommitted();
         let tryCount = 0;

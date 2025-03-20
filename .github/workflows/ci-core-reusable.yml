@@ -422,7 +422,6 @@ jobs:
       - name: Migrate chains to gateway
         if: matrix.use_gateway_chain == 'WITH_GATEWAY'
         run: |
-          
           ci_run zkstack dev test gateway-migration --direction to  --chain era --no-deps
           ci_run zkstack chain migrate-to-gateway --chain validium --gateway-chain-name gateway
           ci_run zkstack chain migrate-to-gateway --chain custom_token --gateway-chain-name gateway
