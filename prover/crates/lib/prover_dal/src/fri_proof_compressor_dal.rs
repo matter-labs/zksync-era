@@ -458,4 +458,22 @@ impl FriProofCompressorDal<'_, '_> {
             .collect()
         }
     }
+
+    pub async fn check_reached_max_attempts(&mut self, max_attempts: u32) -> usize {
+        sqlx::query_scalar!(
+            r#"
+            SELECT COUNT(*)
+            FROM proof_compression_jobs_fri
+            WHERE
+                attempts >= $1
+                AND status <> 'successful'
+                AND status <> 'sent_to_server'
+            "#,
+            max_attempts as i64
+        )
+        .fetch_one(self.storage.conn())
+        .await
+        .unwrap()
+        .unwrap_or(0) as usize
+    }
 }
