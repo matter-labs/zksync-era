@@ -33,11 +33,11 @@ impl ProtoRepr for proto::Contracts {
                 .map(|x| parse_h160(x))
                 .transpose()
                 .context("transparent_proxy_admin_addr")?,
-            l1_bytecodes_supplier_addr: ecosystem_contracts
+            l1_bytecode_supplier_addr: ecosystem_contracts
                 .l1_bytecodes_supplier_addr
                 .as_ref()
                 .map(|x| parse_h160(x).expect("Invalid address")),
-            l1_wrapped_base_token_store: ecosystem_contracts
+            l1_wrapped_base_token_store_addr: ecosystem_contracts
                 .l1_wrapped_base_token_store
                 .as_ref()
                 .map(|x| parse_h160(x).expect("Invalid address")),
@@ -154,9 +154,9 @@ impl ProtoRepr for proto::Contracts {
             transparent_proxy_admin_addr: this
                 .transparent_proxy_admin_addr
                 .map(|a| format!("{:?}", a)),
-            l1_bytecodes_supplier_addr: this.l1_bytecodes_supplier_addr.map(|x| format!("{:?}", x)),
+            l1_bytecodes_supplier_addr: this.l1_bytecode_supplier_addr.map(|x| format!("{:?}", x)),
             l1_wrapped_base_token_store: this
-                .l1_wrapped_base_token_store
+                .l1_wrapped_base_token_store_addr
                 .map(|x| format!("{:?}", x)),
             server_notifier_addr: this.server_notifier_addr.map(|x| format!("{:?}", x)),
         };

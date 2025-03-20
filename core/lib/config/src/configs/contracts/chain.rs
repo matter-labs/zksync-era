@@ -32,11 +32,11 @@ pub struct AllContractsConfig {
     pub bridgehub_proxy_addr: Address,
     pub state_transition_proxy_addr: Option<Address>,
     pub transparent_proxy_admin_addr: Option<Address>,
-    pub l1_bytecodes_supplier_addr: Option<Address>,
+    pub l1_bytecode_supplier_addr: Option<Address>,
     // Note that on the contract side of things this contract is called `L2WrappedBaseTokenStore`,
     // while on the server side for consistency with the conventions, where the prefix denotes
     // the location of the contracts we call it `l1_wrapped_base_token_store`
-    pub l1_wrapped_base_token_store: Option<Address>,
+    pub l1_wrapped_base_token_store_addr: Option<Address>,
     pub server_notifier_addr: Option<Address>,
     // Used by the RPC API and by the node builder in wiring the BaseTokenRatioProvider layer.
     pub base_token_addr: Address,
@@ -71,8 +71,8 @@ impl AllContractsConfig {
             bridgehub_proxy_addr: Address::repeat_byte(0x14),
             state_transition_proxy_addr: Some(Address::repeat_byte(0x15)),
             transparent_proxy_admin_addr: Some(Address::repeat_byte(0x15)),
-            l1_bytecodes_supplier_addr: Some(Address::repeat_byte(0x16)),
-            l1_wrapped_base_token_store: Some(Address::repeat_byte(0x17)),
+            l1_bytecode_supplier_addr: Some(Address::repeat_byte(0x16)),
+            l1_wrapped_base_token_store_addr: Some(Address::repeat_byte(0x17)),
             server_notifier_addr: Some(Address::repeat_byte(0x18)),
             chain_admin_addr: Address::repeat_byte(0x18),
             l2_da_validator_addr: Some(Address::repeat_byte(0x1a)),
@@ -83,8 +83,8 @@ impl AllContractsConfig {
 
     pub fn l1_specific_contracts(&self) -> L1SpecificContracts {
         L1SpecificContracts {
-            bytecodes_supplier_addr: self.l1_bytecodes_supplier_addr,
-            wrapped_base_token_store: self.l1_wrapped_base_token_store,
+            bytecodes_supplier_addr: self.l1_bytecode_supplier_addr,
+            wrapped_base_token_store: self.l1_wrapped_base_token_store_addr,
             bridge_hub: Some(self.bridgehub_proxy_addr),
             shared_bridge: self.l1_shared_bridge_proxy_addr,
             erc_20_bridge: self.l1_erc20_bridge_proxy_addr,
