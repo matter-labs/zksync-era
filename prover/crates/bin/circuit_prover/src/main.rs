@@ -105,11 +105,10 @@ async fn main() -> anyhow::Result<()> {
         cancellation_token.clone(),
     );
 
+    //NOTE: All jobs are considered "light". Heavy WVGs are reserved for future optimizations.
     let light_wvg_runner = builder.light_wvg_runner(opt.light_wvg_count);
-    let heavy_wvg_runner = builder.heavy_wvg_runner(opt.heavy_wvg_count);
 
     tasks.extend(light_wvg_runner.run());
-    tasks.extend(heavy_wvg_runner.run());
 
     // necessary as it has a connection_pool which will keep 1 connection active by default
     drop(builder);
@@ -125,7 +124,7 @@ async fn main() -> anyhow::Result<()> {
 
     tasks.extend(circuit_prover_runner.run());
 
-    let mut tasks = ManagedTasks::new(tasks);
+    let mut tasks = ManagedTasks::new(tasks).allow_tasks_to_finish();
     tokio::select! {
         _ = tasks.wait_single() => {},
         result = tokio::signal::ctrl_c() => {
@@ -141,14 +140,13 @@ async fn main() -> anyhow::Result<()> {
         }
     }
     let shutdown_time = Instant::now();
-    tasks.complete(GRACEFUL_SHUTDOWN_DURATION).await;
-    PROVER_BINARY_METRICS
-        .shutdown_time
-        .observe(shutdown_time.elapsed());
-    PROVER_BINARY_METRICS.run_time.observe(start_time.elapsed());
     metrics_stop_sender
         .send(true)
         .context("failed to stop metrics")?;
+    tracing::info!("Metrics stopped.");
+    tasks.complete(GRACEFUL_SHUTDOWN_DURATION).await;
+    tracing::info!("Tasks completed in {:?}.", shutdown_time.elapsed());
+
     Ok(())
 }
 /// Loads configs necessary for proving.

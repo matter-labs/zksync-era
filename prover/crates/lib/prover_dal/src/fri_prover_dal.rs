@@ -194,9 +194,8 @@ impl FriProverDal<'_, '_> {
     /// - pick the same type of circuit for as long as possible, this maximizes GPU cache reuse
     ///
     /// Most of this function is similar to `get_heavy_job()`.
-    /// The 2 differ in the type of jobs they will load. Node jobs are heavy in resource utilization.
     ///
-    /// NOTE: This function retrieves all jobs but nodes.
+    /// NOTE: All jobs are considered "light". `get_heavy_job()` is reserved for future optimizations.
     pub async fn get_light_job(
         &mut self,
         protocol_version: ProtocolSemanticVersion,
@@ -221,7 +220,6 @@ impl FriProverDal<'_, '_> {
                         status = 'queued'
                         AND protocol_version = $1
                         AND protocol_version_patch = $2
-                        AND aggregation_round != $4
                     ORDER BY
                         priority DESC,
                         created_at ASC,
@@ -244,7 +242,6 @@ impl FriProverDal<'_, '_> {
             protocol_version.minor as i32,
             protocol_version.patch.0 as i32,
             picked_by,
-            AggregationRound::NodeAggregation as i64
         )
         .fetch_optional(self.storage.conn())
         .await
