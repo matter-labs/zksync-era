@@ -56,6 +56,7 @@ impl Error {
 }
 
 /// State keeper represents a logic layer of L1 batch / L2 block processing flow.
+///
 /// It's responsible for taking all the data from the `StateKeeperIO`, feeding it into `BatchExecutor` objects
 /// and calling `SealManager` to decide whether an L2 block or L1 batch should be sealed.
 ///

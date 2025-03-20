@@ -39,6 +39,7 @@ pub fn read_yaml_repr<T: ProtoRepr>(path: &PathBuf) -> anyhow::Result<T::Type> {
 
 // TODO (QIT-22): This structure is going to be removed when components will be responsible for their own configs.
 /// A temporary config store allowing to pass deserialized configs from `zksync_server` to `zksync_core`.
+///
 /// All the configs are optional, since for some component combination it is not needed to pass all the configs.
 #[derive(Debug, PartialEq, Default)]
 pub struct TempConfigStore {

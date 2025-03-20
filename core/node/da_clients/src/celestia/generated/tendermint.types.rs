@@ -25,6 +25,7 @@ impl ::prost::Name for Blob {
     }
 }
 /// BlobTx wraps an encoded sdk.Tx with a second field to contain blobs of data.
+///
 /// The raw bytes of the blobs are not signed over, instead we verify each blob
 /// using the relevant MsgPayForBlobs that is signed over in the encoded sdk.Tx.
 #[derive(Clone, PartialEq, ::prost::Message)]

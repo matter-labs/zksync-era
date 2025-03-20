@@ -38,6 +38,7 @@ pub const MIN_PAYMASTER_BALANCE: u128 = 10u128.pow(18) * 50;
 pub const TARGET_PAYMASTER_BALANCE: u128 = 10u128.pow(18) * 60;
 
 /// Min allowance for estimating the price for the paymaster transaction.
+///
 /// It should be roughly equal (or maybe a bit higher) than the actual used tokens in the transaction for the most precise
 /// estimations. Note, however that is must not be higher than the ERC20 balance of the account.
 pub const MIN_ALLOWANCE_FOR_PAYMASTER_ESTIMATE: u128 = 10u128.pow(18);

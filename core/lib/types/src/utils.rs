@@ -35,6 +35,7 @@ pub fn display_timestamp(timestamp: u64) -> impl fmt::Display {
 }
 
 /// Transforms the *full* account nonce into an *account* nonce.
+///
 /// Full nonce is a composite one: it includes both account nonce (number of transactions
 /// initiated by the account) and deployer nonce (number of smart contracts deployed by the
 /// account).

@@ -82,6 +82,7 @@ pub trait IntoVm1_4_2IntegrationTracer<S: WriteStorage, H: HistoryMode> {
 }
 
 /// Into tracers for old VM versions.
+///
 /// Even though number of tracers is limited, we still need to have this trait to be able to convert
 /// tracers to old VM tracers.
 /// Unfortunately we can't implement this trait for `T`, because specialization is not stable yet.
