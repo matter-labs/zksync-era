@@ -68,6 +68,8 @@ SERVER_DB_NAME="${DATABASE_URL##*/}"
 # Extract the database URL without the database name
 SERVER_DB_URL="${DATABASE_URL%/*}"
 
+GATEWAY_SERVER_DB_URL="zksync_server_localhost_gateway"
+
 if [ -z "$MASTER_URL" ]; then
   echo "Running as zksync master"
 
@@ -100,9 +102,9 @@ if [ -z "$MASTER_URL" ]; then
     
     zkstack chain init \
       --deploy-paymaster \
-      --l1-rpc-url=http://localhost:8545 \
-      --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-      --server-db-name=zksync_server_localhost_gateway \
+      --l1-rpc-url=$ETH_CLIENT_WEB3_URL \
+      --server-db-url="$SERVER_DB_URL" \
+      --server-db-name="$GATEWAY_SERVER_DB_URL" \
       --chain gateway \
       --update-submodules=false \
       --server-command /zksync_server \
