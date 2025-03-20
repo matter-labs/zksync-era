@@ -7,6 +7,7 @@ use k8s_openapi::api;
 use kube::{
     api::{Api, ResourceExt},
     runtime::{watcher, WatchStreamExt},
+    Resource,
 };
 use reqwest::{
     header::{HeaderMap, HeaderValue},
@@ -172,8 +173,12 @@ impl Watcher {
                         }
                         pod.status = phase;
 
-                        if pod.status == "Succeeded" || pod.status == "Failed" {
+                        if p.meta().deletion_timestamp.is_some()
+                            || pod.status == "Succeeded"
+                            || pod.status == "Failed"
+                        {
                             // Cleaning up list of pods.
+                            tracing::debug!("Remove pod: {}", &p.name_any());
                             v.pods.remove(&p.name_any());
                         }
 

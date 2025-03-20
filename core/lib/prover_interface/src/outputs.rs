@@ -129,34 +129,18 @@ pub enum FinalProofKeyBySubsystem {
     Prover(ChainAwareL1BatchNumber, ProtocolSemanticVersion),
 }
 
-impl FinalProofKeyBySubsystem {
-    pub fn protocol_version(&self) -> ProtocolSemanticVersion {
-        match self {
-            FinalProofKeyBySubsystem::Core(_, version) => *version,
-            FinalProofKeyBySubsystem::Prover(_, version) => *version,
-        }
-    }
-
-    pub fn batch_number(&self) -> L1BatchNumber {
-        match self {
-            FinalProofKeyBySubsystem::Core(batch_number, _) => *batch_number,
-            FinalProofKeyBySubsystem::Prover(batch_id, _) => batch_id.batch_number(),
-        }
-    }
-}
-
 impl StoredObject for L1BatchProofForL1 {
     const BUCKET: Bucket = Bucket::ProofsFri;
     type Key<'a> = FinalProofKeyBySubsystem;
 
     fn encode_key(key: Self::Key<'_>) -> String {
-        let semver_suffix = key.protocol_version().to_string().replace('.', "_");
-
         match key {
-            FinalProofKeyBySubsystem::Core(batch_number, _) => {
+            FinalProofKeyBySubsystem::Core(batch_number, protocol_version) => {
+                let semver_suffix = protocol_version.to_string().replace('.', "_");
                 format!("l1_batch_proof_{}_{semver_suffix}.bin", batch_number.0)
             }
-            FinalProofKeyBySubsystem::Prover(batch_id, _) => {
+            FinalProofKeyBySubsystem::Prover(batch_id, protocol_version) => {
+                let semver_suffix = protocol_version.to_string().replace('.', "_");
                 format!(
                     "l1_batch_proof_{}_{}_{semver_suffix}.bin",
                     batch_id.raw_chain_id(),
@@ -167,8 +151,16 @@ impl StoredObject for L1BatchProofForL1 {
     }
 
     fn fallback_key(key: Self::Key<'_>) -> Option<String> {
-        let semver_suffix = key.protocol_version().to_string().replace('.', "_");
-        let batch_number = key.batch_number();
+        let (batch_number, protocol_version) = match key {
+            FinalProofKeyBySubsystem::Core(batch_number, protocol_version) => {
+                (batch_number, protocol_version)
+            }
+            FinalProofKeyBySubsystem::Prover(batch_id, protocol_version) => {
+                (batch_id.batch_number(), protocol_version)
+            }
+        };
+
+        let semver_suffix = protocol_version.to_string().replace('.', "_");
 
         Some(format!(
             "l1_batch_proof_{}_{}.bin",

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            UPDATE scheduler_witness_jobs_fri\n            SET\n                status = 'in_progress',\n                attempts = attempts + 1,\n                updated_at = NOW(),\n                processing_started_at = NOW(),\n                picked_by = $2\n            WHERE\n                (l1_batch_number, chain_id) = (\n                    SELECT\n                        l1_batch_number,\n                        chain_id\n                    FROM\n                        scheduler_witness_jobs_fri\n                    WHERE\n                        status = 'queued'\n                        AND protocol_version = $1\n                        AND protocol_version_patch = $3\n                    ORDER BY\n                        priority DESC,\n                        created_at ASC\n                    LIMIT\n                        1\n                    FOR UPDATE\n                    SKIP LOCKED\n                )\n            RETURNING\n            scheduler_witness_jobs_fri.*\n            ",
+  "query": "\n            UPDATE scheduler_witness_jobs_fri\n            SET\n                status = 'in_progress',\n                attempts = attempts + 1,\n                updated_at = NOW(),\n                processing_started_at = NOW(),\n                picked_by = $2\n            WHERE\n                (l1_batch_number, chain_id) = (\n                    SELECT\n                        l1_batch_number,\n                        chain_id\n                    FROM\n                        scheduler_witness_jobs_fri\n                    WHERE\n                        status = 'queued'\n                        AND protocol_version = $1\n                        AND protocol_version_patch = $3\n                    ORDER BY\n                        l1_batch_number ASC\n                    LIMIT\n                        1\n                    FOR UPDATE\n                    SKIP LOCKED\n                )\n            RETURNING\n            scheduler_witness_jobs_fri.*\n            ",
   "describe": {
     "columns": [
       {
@@ -98,5 +98,5 @@
       false
     ]
   },
-  "hash": "a98cdf6d25e6deb679cad15807c87f57a667a685b7331f0355cadb204674d303"
+  "hash": "9bf002122adaeecb9739316814121dd34901a9d4087bdd6d6ecebb010e5ffd16"
 }

@@ -26,6 +26,8 @@ pub trait StoredObject: Sized {
     /// Encodes the object key to a string.
     fn encode_key(key: Self::Key<'_>) -> String;
 
+    /// Encodes the object key to an alternative string that will be used if fetching the object
+    /// with original key fails.
     fn fallback_key(_key: Self::Key<'_>) -> Option<String> {
         None
     }

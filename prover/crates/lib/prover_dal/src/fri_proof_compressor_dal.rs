@@ -79,8 +79,7 @@ impl FriProofCompressorDal<'_, '_> {
                         AND protocol_version = $4
                         AND protocol_version_patch = $5
                     ORDER BY
-                        priority DESC,
-                        created_at ASC
+                        l1_batch_number ASC
                     LIMIT
                         1
                     FOR UPDATE
@@ -344,8 +343,7 @@ impl FriProofCompressorDal<'_, '_> {
                 SET
                     status = 'queued',
                     updated_at = NOW(),
-                    processing_started_at = NOW(),
-                    priority = priority + 1
+                    processing_started_at = NOW()
                 WHERE
                     (
                         status = 'in_progress'
@@ -461,8 +459,7 @@ impl FriProofCompressorDal<'_, '_> {
                     error = 'Manually requeued',
                     attempts = 2,
                     updated_at = NOW(),
-                    processing_started_at = NOW(),
-                    priority = priority + 1
+                    processing_started_at = NOW()
                 WHERE
                     l1_batch_number = $1
                     AND chain_id = $2

@@ -1,0 +1,30 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE witness_inputs_fri\n            SET\n                status = 'in_progress',\n                attempts = attempts + 1,\n                updated_at = NOW(),\n                processing_started_at = NOW(),\n                picked_by = $2\n            WHERE\n                l1_batch_number = (\n                    SELECT\n                        l1_batch_number\n                    FROM\n                        witness_inputs_fri\n                    WHERE\n                        status = 'queued'\n                        AND protocol_version = $1\n                        AND protocol_version_patch = $3\n                    ORDER BY\n                        l1_batch_number ASC\n                    LIMIT\n                        1\n                    FOR UPDATE\n                    SKIP LOCKED\n                )\n            RETURNING\n            witness_inputs_fri.chain_id,\n            witness_inputs_fri.l1_batch_number\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "chain_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "l1_batch_number",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Text",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "3530a53d4b115e9ee9b152851253f3a5449a335eb9c912b95086a0b271791b8f"
+}
