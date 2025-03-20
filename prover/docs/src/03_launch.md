@@ -58,25 +58,18 @@ zkstack prover run --component=witness-generator --round=all-rounds
 `--all_rounds` means that witness generator will produce witnesses of all kinds. You can run a witness generator for
 each round separately, but it's mostly useful in production environments.
 
-### Witness vector generator
+### Circuit Prover
 
 ```bash
-zkstack prover run --component=witness-vector-generator --threads 10
+zkstack prover run --component=circuit-prover -l 15 -h 1
 ```
 
-WVG prepares inputs for prover, and it's a single-threaded time-consuming operation. You may run several jobs by
-changing the `threads` parameter. The exact amount of WVGs needed to "feed" one prover depends on CPU/GPU specs, but a
-ballpark estimate (useful for local development) is 10 WVGs per prover.
+Circuit prover takes outputs from witness generators and produces proofs out of it. As part of the process, there's
+vector generation and GPU proving. Vector Generation is single-threaded time-consuming operation. You may run multiple
+jobs by changing `-l` and `-h` parameters. The exact amount depends strictly on your CPU/GPU specs, but a ballpark
+estimate (useful for local development) is 15 light & 1 heavy.
 
-> NOTE: The WVG thread typically uses approximately 10GB of RAM.
-
-### Prover
-
-```bash
-zkstack prover run --component=prover
-```
-
-Prover can prove any kinds of circuits, so you only need a single instance.
+> NOTE: The light threads typically uses approximately 2GB of RAM, with heavy ~10GB of RAM.
 
 ### Prover job monitor
 
