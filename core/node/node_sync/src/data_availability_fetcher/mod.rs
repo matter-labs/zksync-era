@@ -178,7 +178,7 @@ impl DataAvailabilityFetcher {
             return Ok(StepOutcome::NoInclusionDataFromMainNode);
         };
 
-        // to handle Stage 0 -> Stage 1 Validium migration
+        // to handle Validiums that doesn't have inclusion verification
         let inclusion_data = if expected_inclusion_data.is_empty() {
             InclusionData::default()
         } else {
