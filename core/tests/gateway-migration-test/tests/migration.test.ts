@@ -258,21 +258,17 @@ export function getGatewayInfo(pathToHome: string, chain: string): GatewayInfo |
         return null;
     }
 
-    if (gatewayChainConfig.gateway_chain_id) {
-        const secretsConfig = loadConfig({
-            pathToHome,
-            chain,
-            config: 'secrets.yaml'
-        });
+    const secretsConfig = loadConfig({
+        pathToHome,
+        chain,
+        config: 'secrets.yaml'
+    });
 
-        return {
-            gatewayChainId: gatewayChainConfig.gateway_chain_id,
-            gatewayProvider: new zksync.Provider(secretsConfig.l1.gateway_rpc_url),
-            gatewayCTM: gatewayChainConfig.state_transition_proxy_addr,
-            l2ChainAdmin: gatewayChainConfig.chain_admin_addr,
-            l2DiamondProxyAddress: gatewayChainConfig.diamond_proxy_addr
-        };
-    }
-
-    return null;
+    return {
+        gatewayChainId: gatewayChainConfig.gateway_chain_id,
+        gatewayProvider: new zksync.Provider(secretsConfig.l1.gateway_rpc_url),
+        gatewayCTM: gatewayChainConfig.state_transition_proxy_addr,
+        l2ChainAdmin: gatewayChainConfig.chain_admin_addr,
+        l2DiamondProxyAddress: gatewayChainConfig.diamond_proxy_addr
+    };
 }
