@@ -287,9 +287,7 @@ impl DataAvailabilityClient for CelestiaClient {
         let target_height: u64 = blob_id_struct.height.into();
         tracing::debug!("Checking blobstream for height: {}", target_height);
 
-        let blobstream_contract_address = "0xF0c6429ebAB2e7DC6e05DaFB61128bE21f13cb1e"
-            .parse()
-            .map_err(to_non_retriable_da_error)?;
+        let blobstream_contract_address = H160::from_str(self.config.blobstream_contract_address.clone().as_str()).map_err(to_non_retriable_da_error)?;
 
         // Call find_block_range
         // This function will return None until the relayed height is relayed to blobstream
