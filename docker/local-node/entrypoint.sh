@@ -174,6 +174,7 @@ else
   
   if [ "$GATEWAY" = "true" ]; then
     echo "Migrating custom base token chaino on top of gateway chain"
+    find ./chains -type f -exec sed -i 's|http://127.0.0.1:3150|'"${GATEWAY_URL}"'|g' {} +
     zkstack chain migrate-to-gateway --chain ${CHAIN_NAME} --gateway-chain-name gateway
   fi
   
