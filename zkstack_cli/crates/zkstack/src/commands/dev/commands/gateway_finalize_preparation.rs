@@ -1,13 +1,19 @@
-use std::{collections::HashSet, str::FromStr, sync::Arc, time::Duration};
+use std::{
+    collections::{HashMap, HashSet},
+    str::FromStr,
+    sync::Arc,
+    time::Duration,
+};
 
 use clap::{Parser, ValueEnum};
 use ethers::{
-    abi::{encode, parse_abi, Token},
+    abi::parse_abi,
     contract::{abigen, BaseContract},
     providers::{Http, Middleware, Provider},
     utils::hex,
 };
 use lazy_static::lazy_static;
+use serde::{Deserialize, Serialize};
 use tokio::time::sleep;
 use xshell::Shell;
 use zkstack_cli_config::traits::ReadConfig;
@@ -36,7 +42,8 @@ pub async fn get_list_of_tokens(
     // The additional legacy bridge address.
     legacy_bridge_addr: Address,
     base_tokens: Vec<Address>,
-) -> Vec<Address> {
+    era_chain_id: u64,
+) -> HashMap<Address, HashSet<U256>> {
     const BRIDGEHUB_EVENT: &'static str =
         "BridgehubDepositInitiated(uint256,bytes32,address,address,address,uint256)";
     const LEGACY_BRIDGE_EVENT: &'static str =
@@ -55,17 +62,17 @@ pub async fn get_list_of_tokens(
     .await;
 
     // We'll use a HashSet for tracking tokens to avoid duplicates easily
-    let mut discovered_tokens: HashSet<Address> = Default::default();
+    let mut discovered_tokens: HashMap<Address, HashSet<U256>> = Default::default();
 
     // Ensure that all base tokens are marked as discovered.
     for base_token in base_tokens {
-        discovered_tokens.insert(base_token);
+        discovered_tokens.insert(base_token, Default::default());
     }
 
-    discovered_tokens.insert(SHARED_BRIDGE_ETHER_TOKEN_ADDRESS);
+    discovered_tokens.insert(SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, Default::default());
 
     for log in queried_logs {
-        if log.address == bridge_addr {
+        let (token, chain_id) = if log.address == bridge_addr {
             // The event is:
             // BridgehubDepositInitiated(uint256 chainId, bytes32 txDataHash, address from,
             //                           address to, address l1Token, uint256 amount)
@@ -79,7 +86,10 @@ pub async fn get_list_of_tokens(
             }
             let l1_token_bytes = &raw_data[32..64];
             let l1_token_addr = Address::from_slice(&l1_token_bytes[12..32]); // last 20 bytes
-            discovered_tokens.insert(l1_token_addr);
+
+            let chain_id = h256_to_u256(log.topics[1]);
+
+            (l1_token_addr, chain_id)
         } else if log.address == legacy_bridge_addr {
             // The event layout is:
             //   event DepositInitiated(
@@ -100,14 +110,22 @@ pub async fn get_list_of_tokens(
             // l1Token is the first 32 bytes
             let l1_token_bytes = &raw_data[0..32];
             let l1_token_addr = Address::from_slice(&l1_token_bytes[12..32]);
-            discovered_tokens.insert(l1_token_addr);
+
+            (l1_token_addr, era_chain_id.into())
         } else {
             panic!("Unexpected address");
+        };
+
+        if !discovered_tokens.contains_key(&token) {
+            discovered_tokens.insert(token, Default::default());
         }
+
+        let chains = discovered_tokens.get_mut(&token).unwrap();
+        chains.insert(chain_id);
     }
 
     // Convert our HashSet to a Vec for the final result
-    discovered_tokens.into_iter().collect()
+    discovered_tokens
 }
 
 abigen!(
@@ -121,7 +139,7 @@ abigen!(
 abigen!(
     LegacyBridgehubAbi,
     r"[
-    function chainTypeManager(uint256)(address)
+    function stateTransitionManager(uint256)(address)
     function baseToken(uint256)(address)
 ]"
 );
@@ -169,7 +187,7 @@ async fn get_chains_info(
 
     let bridgehub = LegacyBridgehubAbi::new(bridgehub_addr, provider.clone());
     let stm_address = bridgehub
-        .chain_type_manager(U256::from(era_chain_id))
+        .state_transition_manager(U256::from(era_chain_id))
         .call()
         .await
         .unwrap();
@@ -228,7 +246,7 @@ async fn get_legacy_bridge(bridge_addr: Address, l1_rpc_url: &str) -> Address {
 lazy_static! {
     static ref FINALIZE_UPGRADE: BaseContract = BaseContract::from(
         parse_abi(&[
-            "function finalizeInit(address aggregator, address bridgehub,address payable l1NativeTokenVault,address[] calldata tokens,uint256[] calldata chains) external",
+            "function finalizeInit(tuple(address,address,address,address[],uint256[],address[],uint256[]))",
         ])
         .unwrap(),
     );
@@ -254,10 +272,24 @@ pub(crate) async fn run(shell: &Shell, args: GatewayFinalizePreparationArgs) -> 
         upgrade_info.l1_legacy_shared_bridge,
         get_legacy_bridge(upgrade_info.l1_legacy_shared_bridge, &args.l1_rpc_url).await,
         base_tokens,
+        args.era_chain_id,
     )
     .await;
 
     // Now, since we have the list of tokens and chains, we need to register those.
+
+    let tokens_addresses: Vec<_> = tokens.keys().cloned().collect();
+
+    // This is less type safe, but it allows for easier code for encoding calldata to the
+    // `FinalizeUpgrade` script, so we do that here.
+    let mut pair_token = vec![];
+    let mut pair_chain_id = vec![];
+    for (token, chains) in tokens {
+        for chain in chains {
+            pair_token.push(token);
+            pair_chain_id.push(chain);
+        }
+    }
 
     let calldata = FINALIZE_UPGRADE
         .encode(
@@ -266,8 +298,10 @@ pub(crate) async fn run(shell: &Shell, args: GatewayFinalizePreparationArgs) -> 
                 args.multicall_with_gas_addr,
                 upgrade_info.bridgehub_addr,
                 upgrade_info.native_token_vault_addr,
-                tokens,
+                tokens_addresses,
                 chain_ids,
+                pair_token,
+                pair_chain_id,
             ),
         )
         .unwrap();
