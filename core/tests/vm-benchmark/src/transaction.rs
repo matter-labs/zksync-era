@@ -23,7 +23,7 @@ pub fn get_deploy_tx_with_gas_limit(code: &[u8], gas_limit: u32, nonce: u32) -> 
     salt.0[28..32].copy_from_slice(&nonce.to_be_bytes());
     let execute = Execute::for_deploy(salt, code.to_vec(), &[]);
     let mut account = Account::new(PRIVATE_KEY.clone());
-    account.nonce = Nonce(nonce);
+    account.nonce = Nonce(nonce.into());
     account.get_l2_tx_for_execute(execute, Some(tx_fee(gas_limit)))
 }
 
@@ -42,7 +42,7 @@ pub fn get_transfer_tx(nonce: u32) -> Transaction {
     let mut signed = L2Tx::new_signed(
         Some(PRIVATE_KEY.address()),
         vec![], // calldata
-        Nonce(nonce),
+        Nonce(nonce.into()),
         tx_fee(1_000_000),
         1_000_000_000.into(), // value
         L2ChainId::from(270),
@@ -68,7 +68,7 @@ pub fn get_erc20_transfer_tx(nonce: u32) -> Transaction {
     let mut signed = L2Tx::new_signed(
         Some(*LOAD_TEST_CONTRACT_ADDRESS),
         calldata,
-        Nonce(nonce),
+        Nonce(nonce.into()),
         tx_fee(1_000_000),
         0.into(), // value
         L2ChainId::from(270),
@@ -119,7 +119,7 @@ pub fn get_load_test_tx(nonce: u32, gas_limit: u32, params: LoadTestParams) -> T
     let mut signed = L2Tx::new_signed(
         Some(*LOAD_TEST_CONTRACT_ADDRESS),
         calldata,
-        Nonce(nonce),
+        Nonce(nonce.into()),
         tx_fee(gas_limit),
         U256::zero(),
         L2ChainId::from(270),

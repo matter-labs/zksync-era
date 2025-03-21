@@ -93,7 +93,7 @@ pub(super) fn get_l2_tx(
     L2Tx::new_signed(
         Some(contract_address),
         vec![],
-        Nonce(0),
+        Nonce(0.into()),
         Fee {
             gas_limit: U256::from(10000000u32),
             max_fee_per_gas: U256::from(BIG_BASE_FEE),

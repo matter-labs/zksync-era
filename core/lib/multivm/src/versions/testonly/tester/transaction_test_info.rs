@@ -1,4 +1,4 @@
-use zksync_types::{ExecuteTransactionCommon, Nonce, Transaction, H160};
+use zksync_types::{u256_to_h256, ExecuteTransactionCommon, Nonce, Transaction, H160};
 
 use super::{TestedVm, VmTester};
 use crate::{
@@ -63,11 +63,9 @@ impl From<TxModifier> for ExpectedError {
             }
             TxModifier::WrongNonce(expected, actual) => {
                 let function_selector = vec![98, 106, 222, 48];
-                let expected_nonce_bytes = expected.0.to_be_bytes().to_vec();
-                let actual_nonce_bytes = actual.0.to_be_bytes().to_vec();
-                // padding is 28 because an address takes up 4 bytes and we need it to fill a 32 byte field
-                let nonce_padding = vec![0u8; 28];
-                let data = [function_selector.clone(), nonce_padding.clone(), expected_nonce_bytes, nonce_padding.clone(), actual_nonce_bytes].concat();
+                let expected_nonce_bytes = u256_to_h256(expected.0).as_bytes().to_vec();
+                let actual_nonce_bytes = u256_to_h256(actual.0).as_bytes().to_vec();
+                let data = [function_selector.clone(), expected_nonce_bytes, actual_nonce_bytes].concat();
                 Halt::ValidationFailed(VmRevertReason::Unknown {
                     function_selector,
                     data
@@ -78,9 +76,7 @@ impl From<TxModifier> for ExpectedError {
                 let addr = addr.as_bytes().to_vec();
                 // padding is 12 because an address takes up 20 bytes and we need it to fill a 32 byte field
                 let addr_padding = vec![0u8; 12];
-                // padding is 28 because an address takes up 4 bytes and we need it to fill a 32 byte field
-                let nonce_padding = vec![0u8; 28];
-                let data = [function_selector.clone(), addr_padding, addr, nonce_padding, nonce.0.to_be_bytes().to_vec()].concat();
+                let data = [function_selector.clone(), addr_padding, addr, u256_to_h256(nonce.0).as_bytes().to_vec()].concat();
                 Halt::ValidationFailed(VmRevertReason::Unknown {
                     function_selector,
                     data,

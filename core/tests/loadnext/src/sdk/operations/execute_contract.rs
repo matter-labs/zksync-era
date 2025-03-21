@@ -57,7 +57,7 @@ where
 
         let nonce = match self.nonce {
             Some(nonce) => nonce,
-            None => Nonce(self.wallet.get_nonce().await?),
+            None => Nonce(self.wallet.get_nonce().await?.into()),
         };
 
         self.wallet
@@ -146,7 +146,7 @@ where
         let execute = L2Tx::new(
             Some(contract_address),
             calldata,
-            Nonce(0),
+            Nonce(0.into()),
             Default::default(),
             self.wallet.address(),
             self.value.unwrap_or_default(),

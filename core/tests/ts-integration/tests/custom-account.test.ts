@@ -10,6 +10,10 @@ import { deployContract, getTestContract } from '../src/helpers';
 import { ERC20_PER_ACCOUNT, L2_DEFAULT_ETH_PER_ACCOUNT } from '../src/context-owner';
 import { shouldChangeETHBalances, shouldChangeTokenBalances } from '../src/modifiers/balance-checker';
 
+import { createWalletClient, http, Hex, defineTransactionRequest, defineChain, numberToHex, publicActions } from 'viem';
+import { zksyncSepoliaTestnet } from 'viem/chains';
+import { chainConfig, eip712WalletActions, toSmartAccount } from "viem/zksync";
+
 const contracts = {
     customAccount: getTestContract('CustomAccount'),
     context: getTestContract('Context')
@@ -464,6 +468,47 @@ describe('Tests for the custom account behavior', () => {
             expect(receipt).toBeNull();
             await zksync.utils.sleep(1000);
         }
+    });
+
+    test("Send a transaction with keyed nonce", async () => {
+        // zksync-ethers SDK thinks nonce is a `number`, not `bigint`, so we're using viem here
+        const customChain = defineChain({
+            ...zksyncSepoliaTestnet,
+            id: 271,
+            formatters: {
+                ...chainConfig.formatters,
+                transactionRequest: defineTransactionRequest({
+                    format(args: { nonce?: bigint | number }): { nonce?: Hex } {
+                        return {
+                            nonce: args.nonce ? numberToHex(args.nonce) : undefined,
+                        }
+                    },
+                }),
+            }
+        });
+
+        const smartAccount = toSmartAccount({
+            address: (await customAccount.getAddress()) as Hex,
+            sign: async (message) => {
+                return ethers.concat([message.hash, smartAccount.address]) as Hex;
+            }
+        });
+
+        const walletClient = createWalletClient({
+            chain: customChain,
+            account: smartAccount,
+            transport: http(testMaster.environment().l2NodeUrl),
+        })
+            .extend(eip712WalletActions())
+            .extend(publicActions);
+
+        const hash = await walletClient.sendTransaction({
+            type: "eip712",
+            to: alice.address,
+            nonce: (1n << 64n),
+        });
+        const receipt = await walletClient.waitForTransactionReceipt({ hash });
+        expect(receipt.status).toEqual('success');
     });
 
     afterAll(async () => {

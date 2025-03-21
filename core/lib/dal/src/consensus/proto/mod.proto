@@ -86,7 +86,7 @@ message L1TxCommonData {
 }
 
 message L2TxCommonData {
-  optional uint32 nonce = 1; // required
+  optional bytes nonce = 1; // required; U256
   optional bytes gas_limit = 2; // required; U256
   optional bytes max_fee_per_gas = 3; // required; U256
   optional bytes max_priority_fee_per_gas = 4; // required; U256

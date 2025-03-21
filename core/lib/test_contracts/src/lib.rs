@@ -45,8 +45,8 @@ impl Account {
         Self {
             private_key,
             address,
-            nonce: Nonce(0),
-            deploy_nonce: Nonce(0),
+            nonce: Nonce(0.into()),
+            deploy_nonce: Nonce(0.into()),
         }
     }
 

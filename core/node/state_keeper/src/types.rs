@@ -5,7 +5,9 @@ use std::{
 
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_mempool::{L2TxFilter, MempoolInfo, MempoolStore};
-use zksync_types::{Address, Nonce, PriorityOpId, Transaction, TransactionTimeRangeConstraint};
+use zksync_types::{
+    Address, NonceKey, NonceValue, PriorityOpId, Transaction, TransactionTimeRangeConstraint,
+};
 
 use super::metrics::StateKeeperGauges;
 
@@ -29,7 +31,7 @@ impl MempoolGuard {
     pub fn insert(
         &mut self,
         transactions: Vec<(Transaction, TransactionTimeRangeConstraint)>,
-        nonces: HashMap<Address, Nonce>,
+        nonces: HashMap<(Address, NonceKey), NonceValue>,
     ) {
         self.0
             .lock()
@@ -41,7 +43,7 @@ impl MempoolGuard {
     pub fn insert_without_constraint(
         &mut self,
         transactions: Vec<Transaction>,
-        nonces: HashMap<Address, Nonce>,
+        nonces: HashMap<(Address, NonceKey), NonceValue>,
     ) {
         self.insert(
             transactions

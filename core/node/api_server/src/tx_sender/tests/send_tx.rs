@@ -83,14 +83,14 @@ async fn nonce_validation_errors() {
 
     tx_sender.validate_account_nonce(&tx).await.unwrap();
     // There should be some leeway with the nonce validation.
-    tx.common_data.nonce = Nonce(1);
+    tx.common_data.nonce = Nonce(1.into());
     tx_sender.validate_account_nonce(&tx).await.unwrap();
 
-    tx.common_data.nonce = Nonce(10_000);
+    tx.common_data.nonce = Nonce(10_000.into());
     let err = tx_sender.validate_account_nonce(&tx).await.unwrap_err();
     assert_matches!(
         err,
-        SubmitTxError::NonceIsTooHigh(from, _, actual) if actual == 10_000 && from == 0
+        SubmitTxError::NonceIsTooHigh(from, _, actual) if actual == 10_000.into() && from == 0.into()
     );
 
     let mut storage = pool.connection().await.unwrap();
@@ -106,14 +106,14 @@ async fn nonce_validation_errors() {
     let err = tx_sender.validate_account_nonce(&tx).await.unwrap_err();
     assert_matches!(
         err,
-        SubmitTxError::NonceIsTooHigh(from, _, actual) if actual == 10_000 && from == 42
+        SubmitTxError::NonceIsTooHigh(from, _, actual) if actual == 10_000.into() && from == 42.into()
     );
 
-    tx.common_data.nonce = Nonce(5);
+    tx.common_data.nonce = Nonce(5.into());
     let err = tx_sender.validate_account_nonce(&tx).await.unwrap_err();
     assert_matches!(
         err,
-        SubmitTxError::NonceIsTooLow(from, _, actual) if actual == 5 && from == 42
+        SubmitTxError::NonceIsTooLow(from, _, actual) if actual == 5.into() && from == 42.into()
     );
 }
 
