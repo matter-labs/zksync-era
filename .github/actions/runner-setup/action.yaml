@@ -1,0 +1,168 @@
+name: 'Setup runner'
+
+description: 'Setup self-hosted runner for zksync workflows execution.'
+
+inputs:
+  foundry_version:
+    description: 'Version of foundry-zksync to use.'
+    required: false
+    default: 'nightly-27360d4c8d12beddbb730dae07ad33a206b38f4b'
+  node_version:
+    description: 'Version of Node.js to use.'
+    required: false
+    default: '20'
+  enable_cache:
+    description: 'Whether to enable cache.'
+    required: false
+    default: 'true'
+  workspace:
+    description: 'Workspace to cache.'
+    required: false
+    default: ''
+  save_cache:
+    description: 'Whether to save cache.'
+    required: false
+    default: 'false'
+  cache_shared_key:
+    description: 'Shared key for cache.'
+    required: false
+    default: ''
+  yarn_install:
+    description: 'Whether to run yarn install.'
+    required: false
+    default: 'true'
+  setup_cuda:
+    description: 'Whether to enable CUDA.'
+    required: false
+    default: 'false'
+outputs:
+  cache-hit:
+    description: 'Whether cache hit.'
+    value: ${{ steps.rust-cache.outputs.cache-hit }}
+
+
+runs:
+  using: composite
+  steps:
+
+    - name: Update path
+      shell: 'bash -ex {0}'
+      run: mkdir -p bin && echo $(pwd)/bin >> ${GITHUB_PATH}
+
+    - name: Install linux packages
+      shell: 'bash -ex {0}'
+      run: |
+        sudo apt update
+        sudo apt-get install --yes \
+          libclang-dev \
+          liburing-dev \
+          psmisc
+
+    - name: Install Rust toolchain
+      uses: moonrepo/setup-rust@v1
+      env:
+        # To fix rate limiting issues with GitHub API
+        GITHUB_TOKEN: ${{ github.token }}
+      with:
+        components: 'rustfmt,clippy'
+        bins: 'sqlx-cli,cargo-nextest,sccache'
+        cache: false
+
+    - name: Install mold linker
+      uses: rui314/setup-mold@v1
+
+    - name: Rust cache workspace
+      if: ${{ inputs.workspace != '' && inputs.enable_cache == 'true' }}
+      uses: Swatinem/rust-cache@v2
+      id: rust-cache
+      with:
+        workspaces: |
+          ${{ inputs.workspace }} -> target
+        shared-key: "${{ format('{0}-{1}', inputs.workspace, inputs.cache_shared_key) }}"
+        cache-all-crates: true
+        save-if: ${{ inputs.save_cache == 'true' }}
+
+    - name: Setup cloud cache
+      shell: 'bash -ex {0}'
+      run: |
+        echo SCCACHE_CACHE_SIZE=50g >> "${GITHUB_ENV}"
+        echo SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage >> "${GITHUB_ENV}"
+        echo SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com >> "${GITHUB_ENV}"
+        echo SCCACHE_GCS_RW_MODE=READ_WRITE >> "${GITHUB_ENV}"
+        echo RUSTC_WRAPPER=sccache >> "${GITHUB_ENV}"
+        if [[ ${{ inputs.setup_cuda }} == 'false' ]]; then
+          echo ZKSYNC_USE_CUDA_STUBS=true >> "${GITHUB_ENV}"
+        fi
+
+    - name: Set Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node_version }}
+
+    - name: Yarn install
+      shell: 'bash -ex {0}'
+      run: npm install -g yarn
+
+    - name: Yarn install
+      if: ${{ inputs.yarn_install == 'true' }}
+      shell: 'bash -ex {0}'
+      run: yarn install
+
+    - name: Install zkstack
+      uses: matter-labs/zksync-ci-common/.github/actions/install-zkstack@aba-ci-optimize
+
+    - name: Install forge
+      shell: 'bash -ex {0}'
+      env:
+        FORGE_DOWNLOAD_URL: 'https://github.com/matter-labs/foundry-zksync/releases/download/${{ inputs.foundry_version }}'
+        FORGE_FILENAME: 'foundry_nightly_linux_amd64.tar.gz'
+      working-directory: bin
+      run: curl -L ${FORGE_DOWNLOAD_URL}/${FORGE_FILENAME} --output ${FORGE_FILENAME} && tar -xzf ${FORGE_FILENAME}
+
+    - name: Setup CUDA
+      shell: 'bash -ex {0}'
+      if: ${{ inputs.setup_cuda == 'true' }}
+      run: |
+        sudo apt-get install -y --no-install-recommends \
+          gnupg2 curl ca-certificates
+
+        curl -fsSLO https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.0-1_all.deb
+        sudo dpkg -i cuda-keyring_1.0-1_all.deb
+        sudo apt-get update
+
+        sudo apt-get install -y --no-install-recommends \
+          cuda-cudart-12-2=12.2.140-1 \
+          cuda-compat-12-2 \
+          cuda-libraries-12-2=12.2.2-1 \
+          libnpp-12-2=12.2.1.4-1 \
+          cuda-nvtx-12-2=12.2.140-1 \
+          libcusparse-12-2=12.1.2.141-1 \
+          libcublas-12-2=12.2.5.6-1 \
+          libnccl2=2.19.3-1+cuda12.2
+
+        sudo apt-mark hold libcublas-12-2 libnccl2
+
+        sudo apt-get install -y --no-install-recommends \
+          libtinfo5 libncursesw5 \
+          cuda-cudart-dev-12-2=12.2.140-1 \
+          cuda-command-line-tools-12-2=12.2.2-1 \
+          cuda-minimal-build-12-2=12.2.2-1 \
+          cuda-libraries-dev-12-2=12.2.2-1 \
+          cuda-nvml-dev-12-2=12.2.140-1 \
+          cuda-nvprof-12-2=12.2.142-1 \
+          libnpp-dev-12-2=12.2.1.4-1 \
+          libcusparse-dev-12-2=12.1.2.141-1 \
+          libcublas-dev-12-2=12.2.5.6-1 \
+          libnccl-dev=2.19.3-1+cuda12.2 \
+          cuda-nsight-compute-12-2=12.2.2-1
+
+        sudo apt-mark hold libcublas-dev-12-2 libnccl-dev
+
+        echo "LIBRARY_PATH=/usr/local/cuda/lib64/stubs" >> "${GITHUB_ENV}"
+
+        wget -c https://github.com/Kitware/CMake/releases/download/v3.24.3/cmake-3.24.3-linux-x86_64.sh
+        chmod +x cmake-3.24.3-linux-x86_64.sh
+        sudo ./cmake-3.24.3-linux-x86_64.sh --skip-license --prefix=/usr/local
+
+        which cmake
+        cmake --version

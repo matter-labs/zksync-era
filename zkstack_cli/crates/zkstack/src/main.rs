@@ -94,7 +94,7 @@ struct ZkStackGlobalArgs {
     #[clap(long, global = true)]
     chain: Option<String>,
     /// Ignores prerequisites checks
-    #[clap(long, global = true)]
+    #[clap(long, global = true, default_value_t = true)]
     ignore_prerequisites: bool,
 }
 

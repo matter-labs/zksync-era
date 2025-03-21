@@ -1,8 +1,18 @@
-# Will work locally only after prior contracts build
+# syntax=docker/dockerfile:experimental
+FROM ghcr.io/matter-labs/zksync-build-base:latest AS chef
+RUN cargo install cargo-chef --locked --version 0.1.70
+WORKDIR /usr/src/zksync
 
-FROM ghcr.io/matter-labs/zksync-build-base:latest AS builder
+FROM chef AS planner
+COPY ./core .
+RUN cargo chef prepare --recipe-path recipe.json
 
-# set of args for use of sccache
+FROM chef AS builder
+COPY --from=planner /usr/src/zksync/recipe.json recipe.json
+# Build dependencies - this is the caching Docker layer
+RUN cargo chef cook --release --recipe-path recipe.json
+
+# Set of args for use of sccache
 ARG SCCACHE_GCS_BUCKET=""
 ARG SCCACHE_GCS_SERVICE_ACCOUNT=""
 ARG SCCACHE_GCS_RW_MODE=""
@@ -13,9 +23,10 @@ ENV SCCACHE_GCS_SERVICE_ACCOUNT=${SCCACHE_GCS_SERVICE_ACCOUNT}
 ENV SCCACHE_GCS_RW_MODE=${SCCACHE_GCS_RW_MODE}
 ENV RUSTC_WRAPPER=${RUSTC_WRAPPER}
 
-WORKDIR /usr/src/zksync
+# Build application
 COPY . .
-RUN cargo build --manifest-path ./core/Cargo.toml --release --bin zksync_external_node --bin block_reverter
+RUN cargo build --manifest-path ./core/Cargo.toml --release \
+    --bin zksync_external_node --bin block_reverter
 
 FROM ghcr.io/matter-labs/zksync-runtime-base:latest
 

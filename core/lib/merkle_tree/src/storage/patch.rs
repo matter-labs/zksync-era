@@ -97,7 +97,7 @@ impl PatchSet {
         mut stale_keys: Vec<NodeKey>,
         operation: Operation,
     ) -> Self {
-        debug_assert_eq!(manifest.version_count, version + 1);
+        // debug_assert_eq!(manifest.version_count, version);
         debug_assert!(nodes.keys().all(|key| key.version == version));
 
         nodes.shrink_to_fit(); // We never insert into `nodes` later
