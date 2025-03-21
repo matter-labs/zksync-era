@@ -119,6 +119,13 @@ where
     vm.inspect(tracer, InspectExecutionMode::OneTx)
 }
 
+pub(crate) fn execute_oneshot_dump<VM>(dump: VmDump) -> VmExecutionResultAndLogs
+where
+    VM: VmFactory<StorageView<StorageSnapshot>>,
+{
+    inspect_oneshot_dump::<VM>(dump, &mut <VM::TracerDispatcher>::default())
+}
+
 pub(crate) fn mock_validation_params(
     tx: &Transaction,
     accessed_tokens: &[Address],
