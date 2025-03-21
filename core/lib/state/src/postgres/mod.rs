@@ -8,7 +8,7 @@ use anyhow::Context as _;
 use backon::{BlockingRetryable, ConstantBuilder};
 use tokio::{runtime::Handle, sync::watch};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_types::{L1BatchNumber, L2BlockNumber, StorageKey, StorageValue, H256};
+use zksync_types::{L1BatchNumber, L2BlockNumber, SLChainId, StorageKey, StorageValue, H256};
 use zksync_vm_interface::storage::ReadStorage;
 
 use self::metrics::{Method, ValuesUpdateStage, CACHE_METRICS, STORAGE_METRICS};
@@ -672,5 +672,13 @@ impl ReadStorage for PostgresStorage<'_> {
             dal.get_enumeration_index_in_l1_batch(hashed_key, self.l1_batch_number_for_l2_block),
         );
         value.expect("failed getting enumeration index for key")
+    }
+
+    fn get_message_root(
+        &mut self,
+        _chain_id: SLChainId,
+        _block_number: L2BlockNumber,
+    ) -> Option<H256> {
+        None // kl todo
     }
 }

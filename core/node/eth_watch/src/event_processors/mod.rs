@@ -7,11 +7,12 @@ use zksync_types::{api::Log, H256};
 pub(crate) use self::{
     appended_chain_batch_root::BatchRootProcessor,
     decentralized_upgrades::DecentralizedUpgradesEventProcessor,
-    priority_ops::PriorityOpsEventProcessor,
+    message_root::MessageRootProcessor, priority_ops::PriorityOpsEventProcessor,
 };
 
 mod appended_chain_batch_root;
 mod decentralized_upgrades;
+mod message_root;
 mod priority_ops;
 
 /// Errors issued by an [`EventProcessor`].
@@ -32,10 +33,11 @@ pub(super) enum EventProcessorError {
     Internal(#[from] anyhow::Error),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub(super) enum EventsSource {
     L1,
     SL,
+    Dependency,
 }
 
 impl EventProcessorError {
@@ -69,10 +71,15 @@ pub(super) trait EventProcessor: 'static + fmt::Debug + Send + Sync {
 
     fn event_source(&self) -> EventsSource;
 
+    // This has  to be unique for each processor
     fn event_type(&self) -> EventType;
 
     /// Whether processor expect events only from finalized blocks.
     fn only_finalized_block(&self) -> bool {
         false
+    }
+
+    fn dependency_chain_number(&self) -> Option<usize> {
+        None
     }
 }

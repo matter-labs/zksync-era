@@ -17,6 +17,8 @@ pub struct QueryEthClientLayer {
     l1_rpc_url: SensitiveUrl,
     gateway_chain_id: Option<SLChainId>,
     gateway_rpc_url: Option<SensitiveUrl>,
+    dependency_chain_id: Option<SLChainId>,
+    dependency_chain_rpc_url: Option<SensitiveUrl>,
 }
 
 impl QueryEthClientLayer {
@@ -25,12 +27,16 @@ impl QueryEthClientLayer {
         l1_rpc_url: SensitiveUrl,
         gateway_chain_id: Option<SLChainId>,
         gateway_rpc_url: Option<SensitiveUrl>,
+        dependency_chain_id: Option<SLChainId>,
+        dependency_chain_rpc_url: Option<SensitiveUrl>,
     ) -> Self {
         Self {
             l1_chain_id,
             l1_rpc_url,
             gateway_chain_id,
             gateway_rpc_url,
+            dependency_chain_id,
+            dependency_chain_rpc_url,
         }
     }
 }
@@ -41,6 +47,7 @@ pub struct Output {
     query_client_l1: EthInterfaceResource,
     query_client_l2: Option<L2InterfaceResource>,
     query_client_gateway: Option<GatewayEthInterfaceResource>,
+    query_client_dependency: Option<L2InterfaceResource>,
 }
 
 #[async_trait::async_trait]
@@ -79,6 +86,21 @@ impl WiringLayer for QueryEthClientLayer {
                 }
 
                 Some(GatewayEthInterfaceResource(Box::new(builder.build())))
+            } else {
+                None
+            },
+            query_client_dependency: if let Some(dependency_chain_rpc_url) =
+                self.dependency_chain_rpc_url
+            {
+                let mut builder =
+                    Client::http(dependency_chain_rpc_url).context("Client::new()")?;
+                if let Some(gateway_chain_id) = self.dependency_chain_id {
+                    // kl todo wrong chainId
+                    builder =
+                        builder.for_network(L2ChainId::try_from(gateway_chain_id.0).unwrap().into())
+                }
+
+                Some(L2InterfaceResource(Box::new(builder.build())))
             } else {
                 None
             },

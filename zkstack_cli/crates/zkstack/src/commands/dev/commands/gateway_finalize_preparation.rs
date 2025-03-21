@@ -113,8 +113,8 @@ pub async fn get_list_of_tokens(
 abigen!(
     LegacyStateTransitionManagerAbi,
     r"[
-    function getAllHyperchainChainIDs()(uint256[])
-    function getHyperchain(uint256 _chainId) public view returns (address)
+    function getAllZKChainChainIDs()(uint256[])
+    function getZKChain(uint256 _chainId) public view returns (address)
 ]"
 );
 
@@ -185,7 +185,7 @@ async fn get_chains_info(
     let mut addresses = vec![];
     for chain in chain_ids.iter() {
         sleep(Duration::from_secs(1)).await;
-        let chain = stm.get_hyperchain(*chain).call().await.unwrap();
+        let chain = stm.get_zk_chain(*chain).call().await.unwrap();
 
         let base_token = ask_storage(provider.clone(), chain, u256_to_h256(U256::from(43))).await;
 
