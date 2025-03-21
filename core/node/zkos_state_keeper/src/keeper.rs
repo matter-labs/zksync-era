@@ -48,7 +48,7 @@ use crate::{
     io::{BlockParams, OutputHandler, StateKeeperIO},
     millis_since_epoch,
     state_keeper_storage::ZkOsAsyncRocksdbCache,
-    updates::UpdatesManager,
+    updates::{FinishedBlock, UpdatesManager},
 };
 
 const POLL_WAIT_DURATION: Duration = Duration::from_millis(100);
@@ -257,13 +257,21 @@ impl ZkosStateKeeper {
             }
 
             updates_manager.extend(executed_transactions, result.clone());
+            let (initial_writes, next_enum_index) = self.initial_writes(&updates_manager).await?;
 
-            self.push_block_storage_diff(result, &mut updates_manager)
-                .await?;
+            self.push_block_storage_diff(
+                result,
+                &updates_manager,
+                initial_writes.clone(),
+                next_enum_index,
+            )
+            .await;
 
-            self.output_handler
-                .handle_block(Arc::new(updates_manager))
-                .await?;
+            let finished_block = FinishedBlock {
+                inner: updates_manager,
+                initial_writes,
+            };
+            self.output_handler.handle_block(&finished_block).await?;
 
             cursor = IoCursor {
                 next_l2_block: cursor.next_l2_block + 1,
@@ -372,11 +380,45 @@ impl ZkosStateKeeper {
         Ok(())
     }
 
+    async fn initial_writes(
+        &self,
+        updates_manager: &UpdatesManager,
+    ) -> anyhow::Result<(Vec<H256>, u64)> {
+        let mut connection = self.pool.connection_tagged("state_keeper").await?;
+
+        let initial_writes: Vec<_> = {
+            let deduplicated_writes_hashed_keys_iter = updates_manager
+                .storage_logs
+                .iter()
+                .map(|log| log.key.hashed_key());
+            let deduplicated_writes_hashed_keys: Vec<_> =
+                deduplicated_writes_hashed_keys_iter.clone().collect();
+            let non_initial_writes = connection
+                .storage_logs_dedup_dal()
+                .filter_written_slots(&deduplicated_writes_hashed_keys)
+                .await?;
+            deduplicated_writes_hashed_keys_iter
+                .filter(|hashed_key| !non_initial_writes.contains(hashed_key))
+                .collect()
+        };
+        let next_enum_index = connection
+            .storage_logs_dedup_dal()
+            .max_enumeration_index_by_l1_batch(updates_manager.l1_batch_number - 1)
+            .await
+            .map_err(DalError::generalize)?
+            .unwrap_or(0)
+            + 1;
+
+        Ok((initial_writes, next_enum_index))
+    }
+
     async fn push_block_storage_diff(
         &mut self,
         batch_output: BatchOutput,
-        updates_manager: &mut UpdatesManager,
-    ) -> Result<(), Error> {
+        updates_manager: &UpdatesManager,
+        initial_writes: Vec<H256>,
+        next_enum_index: u64,
+    ) {
         let state_diff = batch_output
             .storage_writes
             .into_iter()
@@ -388,25 +430,11 @@ impl ZkosStateKeeper {
             .map(|(hash, bytecode)| (bytes32_to_h256(hash), bytecode))
             .collect();
 
-        let mut connection = self
-            .pool
-            .connection_tagged("state_keeper")
-            .await
-            .map_err(DalError::generalize)?;
-        let initial_writes = updates_manager.get_initial_writes(&mut connection).await?;
-        let mut next_index = connection
-            .storage_logs_dedup_dal()
-            .max_enumeration_index_by_l1_batch(updates_manager.l1_batch_number - 1)
-            .await
-            .map_err(DalError::generalize)?
-            .unwrap_or(0)
-            + 1;
         let enum_index_diff = initial_writes
             .iter()
             .enumerate()
-            .map(|(i, key)| (*key, next_index + i as u64))
+            .map(|(i, key)| (*key, next_enum_index + i as u64))
             .collect();
-        updates_manager.initial_writes = Some((initial_writes, next_index));
 
         let diff = BatchDiff {
             state_diff,
@@ -416,8 +444,6 @@ impl ZkosStateKeeper {
         self.storage_factory
             .push_batch_diff(updates_manager.l1_batch_number, diff)
             .await;
-
-        Ok(())
     }
 
     fn is_canceled(&self) -> bool {

@@ -12,7 +12,7 @@ use crate::{
     io::{
         seal_logic::l2_block_seal_subtasks::L2BlockSealProcess, IoCursor, StateKeeperOutputHandler,
     },
-    updates::{L2BlockSealCommand, UpdatesManager},
+    updates::{BlockSealCommand, FinishedBlock, UpdatesManager},
 };
 
 /// Canonical [`StateKeeperOutputHandler`] implementation that queues storing of L2 blocks and L1 batches to Postgres.
@@ -59,50 +59,15 @@ impl StateKeeperPersistence {
         self
     }
 
-    async fn submit_l2_block_data(&mut self, block_data_command: L2BlockSealCommand) {
-        let l2_block_number = block_data_command.l2_block_number;
-        tracing::info!(
-            "Enqueuing sealing command for L2 block #{l2_block_number} with #{} txs (L1 batch #{})",
-            block_data_command.executed_transactions.len(),
-            block_data_command.l1_batch_number
-        );
-
-        let start = Instant::now();
-        let (completion_sender, completion_receiver) = oneshot::channel();
-        self.latest_completion_receiver = Some(completion_receiver);
-        let command = Completable {
-            command: PersistenceCommand::BlockData(block_data_command),
-            completion_sender,
-        };
-        self.commands_sender
-            .send(command)
-            .await
-            .expect(Self::SHUTDOWN_MSG);
-
-        let elapsed = start.elapsed();
-        let queue_capacity = self.commands_sender.capacity();
-        tracing::info!(
-            "Enqueued sealing command for L2 block #{l2_block_number} (took {elapsed:?}; \
-             available queue capacity: {queue_capacity})"
-        );
-
-        if self.is_sync {
-            self.wait_for_all_commands().await;
-        } else {
-            // L2_BLOCK_METRICS.seal_queue_capacity.set(queue_capacity);
-            // L2_BLOCK_METRICS.seal_queue_latency[&L2BlockQueueStage::Submit].observe(elapsed);
-        }
-    }
-
-    async fn submit_block(&mut self, updates_manager: Arc<UpdatesManager>) {
-        let l1_batch_number = updates_manager.l1_batch_number;
+    async fn submit_block(&mut self, command: BlockSealCommand) {
+        let l1_batch_number = command.inner.l1_batch_number;
         tracing::info!("Enqueuing sealing command for L1 batch #{l1_batch_number}");
 
         let start = Instant::now();
         let (completion_sender, completion_receiver) = oneshot::channel();
         self.latest_completion_receiver = Some(completion_receiver);
         let command = Completable {
-            command: PersistenceCommand::BlockSeal(updates_manager),
+            command: PersistenceCommand::BlockSeal(command),
             completion_sender,
         };
         self.commands_sender
@@ -196,10 +161,13 @@ impl StateKeeperOutputHandler for StateKeeperPersistence {
         Ok(())
     }
 
-    async fn handle_block(&mut self, updates_manager: Arc<UpdatesManager>) -> anyhow::Result<()> {
-        let command = updates_manager.seal_l2_block_command(self.pre_insert_txs);
-        self.submit_l2_block_data(command).await;
-        self.submit_block(updates_manager).await;
+    async fn handle_block(&mut self, finished_block: &FinishedBlock) -> anyhow::Result<()> {
+        let command = BlockSealCommand {
+            inner: finished_block.inner.clone(),
+            initial_writes: finished_block.initial_writes.clone(),
+            pre_insert_txs: self.pre_insert_txs,
+        };
+        self.submit_block(command).await;
         Ok(())
     }
 }
@@ -214,8 +182,7 @@ struct Completable<T> {
 #[derive(Debug)]
 pub enum PersistenceCommand {
     OpenBatch(UnsealedL1BatchHeader),
-    BlockData(L2BlockSealCommand),
-    BlockSeal(Arc<UpdatesManager>),
+    BlockSeal(BlockSealCommand),
 }
 
 impl PersistenceCommand {
@@ -225,11 +192,8 @@ impl PersistenceCommand {
                 let mut conn = pool.connection_tagged("zk_os_state_keeper").await?;
                 conn.blocks_dal().insert_l1_batch(header).await?;
             }
-            PersistenceCommand::BlockData(command) => {
+            PersistenceCommand::BlockSeal(command) => {
                 command.seal(pool).await?;
-            }
-            PersistenceCommand::BlockSeal(updates_manager) => {
-                updates_manager.seal_l1_batch(pool).await?;
             }
         }
 

@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_types::L2BlockNumber;
 
-use crate::updates::L2BlockSealCommand;
+use crate::updates::BlockSealCommand;
 
 /// Helper struct that encapsulates parallel l2 block sealing logic.
 #[derive(Debug)]
@@ -25,11 +25,10 @@ impl L2BlockSealProcess {
     }
 
     pub async fn run_subtasks(
-        command: &L2BlockSealCommand,
-        pool: ConnectionPool<Core>,
+        command: &BlockSealCommand,
+        pool: &ConnectionPool<Core>,
     ) -> anyhow::Result<()> {
         let subtasks = Self::all_subtasks();
-        let pool = &pool;
 
         let handles = subtasks.into_iter().map(|subtask| {
             let subtask_name = subtask.name();
@@ -69,7 +68,7 @@ pub trait L2BlockSealSubtask: Send + Sync + 'static {
     /// Runs seal process.
     async fn run(
         self: Box<Self>,
-        command: &L2BlockSealCommand,
+        command: &BlockSealCommand,
         connection: &mut Connection<'_, Core>,
     ) -> anyhow::Result<()>;
 
@@ -92,16 +91,16 @@ impl L2BlockSealSubtask for MarkTransactionsInL2BlockSubtask {
 
     async fn run(
         self: Box<Self>,
-        command: &L2BlockSealCommand,
+        command: &BlockSealCommand,
         connection: &mut Connection<'_, Core>,
     ) -> anyhow::Result<()> {
         connection
             .transactions_dal()
             .mark_txs_as_executed_in_l2_block(
-                command.l2_block_number,
-                &command.executed_transactions,
-                command.base_fee_per_gas.into(),
-                command.protocol_version,
+                command.inner.l2_block_number,
+                &command.inner.executed_transactions,
+                command.inner.base_fee_per_gas.into(),
+                command.inner.protocol_version,
                 command.pre_insert_txs,
             )
             .await?;
@@ -133,14 +132,14 @@ impl L2BlockSealSubtask for InsertStorageLogsSubtask {
 
     async fn run(
         self: Box<Self>,
-        command: &L2BlockSealCommand,
+        command: &BlockSealCommand,
         connection: &mut Connection<'_, Core>,
     ) -> anyhow::Result<()> {
         let write_logs = command.extract_deduplicated_write_logs();
 
         connection
             .storage_logs_dal()
-            .insert_storage_logs(command.l2_block_number, &write_logs)
+            .insert_storage_logs(command.inner.l2_block_number, &write_logs)
             .await?;
 
         Ok(())
@@ -170,13 +169,16 @@ impl L2BlockSealSubtask for InsertFactoryDepsSubtask {
 
     async fn run(
         self: Box<Self>,
-        command: &L2BlockSealCommand,
+        command: &BlockSealCommand,
         connection: &mut Connection<'_, Core>,
     ) -> anyhow::Result<()> {
-        if !command.new_factory_deps.is_empty() {
+        if !command.inner.new_factory_deps.is_empty() {
             connection
                 .factory_deps_dal()
-                .insert_factory_deps(command.l2_block_number, &command.new_factory_deps)
+                .insert_factory_deps(
+                    command.inner.l2_block_number,
+                    &command.inner.new_factory_deps,
+                )
                 .await?;
         }
 
@@ -207,7 +209,7 @@ impl L2BlockSealSubtask for InsertEventsSubtask {
 
     async fn run(
         self: Box<Self>,
-        command: &L2BlockSealCommand,
+        command: &BlockSealCommand,
         connection: &mut Connection<'_, Core>,
     ) -> anyhow::Result<()> {
         let l2_block_events = command.extract_events();
@@ -216,7 +218,7 @@ impl L2BlockSealSubtask for InsertEventsSubtask {
 
         connection
             .events_dal()
-            .save_events(command.l2_block_number, &l2_block_events)
+            .save_events(command.inner.l2_block_number, &l2_block_events)
             .await?;
         Ok(())
     }
@@ -245,7 +247,7 @@ impl L2BlockSealSubtask for InsertL2ToL1LogsSubtask {
 
     async fn run(
         self: Box<Self>,
-        command: &L2BlockSealCommand,
+        command: &BlockSealCommand,
         connection: &mut Connection<'_, Core>,
     ) -> anyhow::Result<()> {
         let user_l2_to_l1_logs = command.extract_user_l2_to_l1_logs();
@@ -257,7 +259,7 @@ impl L2BlockSealSubtask for InsertL2ToL1LogsSubtask {
         if !user_l2_to_l1_logs.is_empty() {
             connection
                 .events_dal()
-                .save_user_l2_to_l1_logs(command.l2_block_number, &user_l2_to_l1_logs)
+                .save_user_l2_to_l1_logs(command.inner.l2_block_number, &user_l2_to_l1_logs)
                 .await?;
         }
         Ok(())

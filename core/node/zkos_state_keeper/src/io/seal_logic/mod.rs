@@ -23,31 +23,130 @@ use zksync_vm_interface::{TransactionExecutionResult, VmEvent};
 
 use crate::{
     io::seal_logic::l2_block_seal_subtasks::L2BlockSealProcess,
-    updates::{L2BlockSealCommand, UpdatesManager},
+    updates::{BlockSealCommand, UpdatesManager},
 };
 
 pub mod l2_block_seal_subtasks;
 
-impl L2BlockSealCommand {
+impl BlockSealCommand {
     /// Seals an L2 block with the given number.
     pub async fn seal(&self, pool: ConnectionPool<Core>) -> anyhow::Result<()> {
         let started_at = Instant::now();
         self.ensure_valid_l2_block()
             .context("L2 block is invalid")?;
 
-        let (l1_tx_count, l2_tx_count) = l1_l2_tx_count(&self.executed_transactions);
+        let (l1_tx_count, l2_tx_count) = l1_l2_tx_count(&self.inner.executed_transactions);
         tracing::info!(
             "Sealing L2 block {l2_block_number} with timestamp {ts} (L1 batch {l1_batch_number}) \
              with {total_tx_count} ({l2_tx_count} L2 + {l1_tx_count} L1) txs, {event_count} events",
-            l2_block_number = self.l2_block_number,
-            l1_batch_number = self.l1_batch_number,
-            ts = display_timestamp(self.timestamp),
+            l2_block_number = self.inner.l2_block_number,
+            l1_batch_number = self.inner.l1_batch_number,
+            ts = display_timestamp(self.inner.timestamp),
             total_tx_count = l1_tx_count + l2_tx_count,
-            event_count = self.events.len()
+            event_count = self.inner.events.len()
         );
 
         // Run sub-tasks in parallel.
-        L2BlockSealProcess::run_subtasks(self, pool).await?;
+        L2BlockSealProcess::run_subtasks(self, &pool).await?;
+
+        // Synchronous part.
+        let mut connection = pool.connection_tagged("state_keeper").await?;
+        let mut transaction = connection.start_transaction().await?;
+
+        let events_iter = self.inner.events.iter().flat_map(|event| {
+            event
+                .indexed_topics
+                .iter()
+                .map(|topic| BloomInput::Raw(topic.as_bytes()))
+                .chain([BloomInput::Raw(event.address.as_bytes())])
+        });
+        let logs_bloom = build_bloom(events_iter);
+
+        // Seal l2 block header and l1 block header within the same DB transaction.
+        let l2_block_header = L2BlockHeader {
+            number: self.inner.l2_block_number,
+            timestamp: self.inner.timestamp,
+            hash: H256::zero(), // ?
+            l1_tx_count: l1_tx_count as u16,
+            l2_tx_count: l2_tx_count as u16,
+            fee_account_address: self.inner.fee_account_address,
+            base_fee_per_gas: self.inner.base_fee_per_gas,
+            batch_fee_input: self.inner.batch_fee_input,
+            base_system_contracts_hashes: Default::default(), // ??
+            protocol_version: Some(self.inner.protocol_version),
+            gas_per_pubdata_limit: u64::MAX, // TODO: remove
+            virtual_blocks: 1,
+            gas_limit: self.inner.gas_limit,
+            logs_bloom,
+            pubdata_params: Default::default(), // ???
+        };
+
+        transaction
+            .blocks_dal()
+            .insert_l2_block(&l2_block_header)
+            .await?;
+
+        tracing::info!(
+            "Sealing L1 batch {current_l1_batch_number} with timestamp {ts}, {total_tx_count} \
+             ({l2_tx_count} L2 + {l1_tx_count} L1) txs, {l2_to_l1_log_count} l2_l1_logs, \
+             {event_count} events",
+            ts = display_timestamp(self.inner.timestamp),
+            total_tx_count = l1_tx_count + l2_tx_count,
+            l2_to_l1_log_count = self.inner.user_l2_to_l1_logs.len(),
+            event_count = self.inner.events.len(),
+            current_l1_batch_number = self.inner.l1_batch_number
+        );
+
+        let l1_batch = L1BatchHeader {
+            number: self.inner.l1_batch_number,
+            timestamp: self.inner.timestamp,
+            priority_ops_onchain_data: vec![],
+            l1_tx_count: 0, // TODO: l1_tx_count as u16
+            l2_tx_count: l2_tx_count as u16,
+            l2_to_l1_logs: self.inner.user_l2_to_l1_logs.clone(),
+            l2_to_l1_messages: vec![],
+            bloom: Default::default(),
+            used_contract_hashes: vec![],
+            base_system_contracts_hashes: Default::default(),
+            protocol_version: Some(self.inner.protocol_version),
+            system_logs: vec![],
+            pubdata_input: None,
+            fee_address: self.inner.fee_account_address,
+            batch_fee_input: self.inner.batch_fee_input,
+        };
+
+        let final_bootloader_memory = vec![];
+
+        transaction
+            .blocks_dal()
+            .mark_l1_batch_as_sealed(
+                &l1_batch,
+                &final_bootloader_memory,
+                &[],
+                &[],
+                Default::default(),
+            )
+            .await?;
+
+        transaction
+            .blocks_dal()
+            .mark_l2_blocks_as_executed_in_l1_batch(self.inner.l1_batch_number)
+            .await?;
+
+        transaction
+            .transactions_dal()
+            .mark_txs_as_executed_in_l1_batch(
+                self.inner.l1_batch_number,
+                &self.inner.executed_transactions,
+            )
+            .await?;
+
+        transaction
+            .storage_logs_dedup_dal()
+            .insert_initial_writes(self.inner.l1_batch_number, &self.initial_writes)
+            .await?;
+
+        transaction.commit().await?;
 
         Ok(())
     }
@@ -55,15 +154,13 @@ impl L2BlockSealCommand {
     /// Performs several sanity checks to make sure that the L2 block is valid.
     fn ensure_valid_l2_block(&self) -> anyhow::Result<()> {
         anyhow::ensure!(
-            !self.executed_transactions.is_empty(),
+            !self.inner.executed_transactions.is_empty(),
             "non-fictive L2 block must have at least one transaction"
         );
 
-        let first_tx_index = self.first_tx_index;
-        let next_tx_index = first_tx_index + self.executed_transactions.len();
-        let tx_index_range = first_tx_index..next_tx_index;
+        let tx_index_range = 0..self.inner.executed_transactions.len();
 
-        for event in &self.events {
+        for event in &self.inner.events {
             let tx_index = event.location.1 as usize;
             anyhow::ensure!(
                 tx_index_range.contains(&tx_index),
@@ -74,16 +171,16 @@ impl L2BlockSealCommand {
     }
 
     fn extract_deduplicated_write_logs(&self) -> Vec<StorageLog> {
-        self.storage_logs.clone()
+        self.inner.storage_logs.clone()
     }
 
     fn transaction_hash(&self, index: usize) -> H256 {
-        let tx_result = &self.executed_transactions[index - self.first_tx_index];
+        let tx_result = &self.inner.executed_transactions[index];
         tx_result.hash
     }
 
     fn extract_events(&self) -> Vec<(IncludedTxLocation, Vec<&VmEvent>)> {
-        self.group_by_tx_location(&self.events, |event| event.location.1)
+        self.group_by_tx_location(&self.inner.events, |event| event.location.1)
     }
 
     fn group_by_tx_location<'a, T>(
@@ -97,7 +194,7 @@ impl L2BlockSealCommand {
 
             let location = IncludedTxLocation {
                 tx_hash,
-                tx_index_in_l2_block: tx_index - self.first_tx_index as u32,
+                tx_index_in_l2_block: tx_index,
             };
             (location, entries.collect())
         });
@@ -105,7 +202,7 @@ impl L2BlockSealCommand {
     }
 
     fn extract_user_l2_to_l1_logs(&self) -> Vec<(IncludedTxLocation, Vec<&UserL2ToL1Log>)> {
-        self.group_by_tx_location(&self.user_l2_to_l1_logs, |log| {
+        self.group_by_tx_location(&self.inner.user_l2_to_l1_logs, |log| {
             u32::from(log.0.tx_number_in_block)
         })
     }
@@ -137,109 +234,4 @@ fn log_query_write_read_counts<'a>(logs: impl Iterator<Item = &'a StorageLog>) -
         }
     }
     (writes_count, reads_count)
-}
-
-impl UpdatesManager {
-    /// Persists an L1 batch in the storage.
-    pub async fn seal_l1_batch(&self, pool: ConnectionPool<Core>) -> anyhow::Result<()> {
-        let (l1_tx_count, l2_tx_count) = l1_l2_tx_count(&self.executed_transactions);
-
-        let mut connection = pool.connection_tagged("state_keeper").await?;
-        let mut transaction = connection.start_transaction().await?;
-
-        let events_iter = self.events.iter().flat_map(|event| {
-            event
-                .indexed_topics
-                .iter()
-                .map(|topic| BloomInput::Raw(topic.as_bytes()))
-                .chain([BloomInput::Raw(event.address.as_bytes())])
-        });
-        let logs_bloom = build_bloom(events_iter);
-
-        // Seal l2 block header and l1 block header within the same DB transaction.
-        let l2_block_header = L2BlockHeader {
-            number: self.l2_block_number,
-            timestamp: self.timestamp,
-            hash: H256::zero(), // ?
-            l1_tx_count: l1_tx_count as u16,
-            l2_tx_count: l2_tx_count as u16,
-            fee_account_address: self.fee_account_address,
-            base_fee_per_gas: self.base_fee_per_gas,
-            batch_fee_input: self.batch_fee_input,
-            base_system_contracts_hashes: Default::default(), // ??
-            protocol_version: Some(self.protocol_version),
-            gas_per_pubdata_limit: u64::MAX, // TODO: remove
-            virtual_blocks: 1,
-            gas_limit: self.gas_limit,
-            logs_bloom,
-            pubdata_params: Default::default(), // ???
-        };
-
-        transaction
-            .blocks_dal()
-            .insert_l2_block(&l2_block_header)
-            .await?;
-
-        tracing::info!(
-            "Sealing L1 batch {current_l1_batch_number} with timestamp {ts}, {total_tx_count} \
-             ({l2_tx_count} L2 + {l1_tx_count} L1) txs, {l2_to_l1_log_count} l2_l1_logs, \
-             {event_count} events",
-            ts = display_timestamp(self.timestamp),
-            total_tx_count = l1_tx_count + l2_tx_count,
-            l2_to_l1_log_count = self.user_l2_to_l1_logs.len(),
-            event_count = self.events.len(),
-            current_l1_batch_number = self.l1_batch_number
-        );
-
-        let l1_batch = L1BatchHeader {
-            number: self.l1_batch_number,
-            timestamp: self.timestamp,
-            priority_ops_onchain_data: vec![],
-            l1_tx_count: 0, // TODO: l1_tx_count as u16
-            l2_tx_count: l2_tx_count as u16,
-            l2_to_l1_logs: self.user_l2_to_l1_logs.clone(),
-            l2_to_l1_messages: vec![],
-            bloom: Default::default(),
-            used_contract_hashes: vec![],
-            base_system_contracts_hashes: Default::default(),
-            protocol_version: Some(self.protocol_version),
-            system_logs: vec![],
-            pubdata_input: None,
-            fee_address: self.fee_account_address,
-            batch_fee_input: self.batch_fee_input,
-        };
-
-        let final_bootloader_memory = vec![];
-
-        transaction
-            .blocks_dal()
-            .mark_l1_batch_as_sealed(
-                &l1_batch,
-                &final_bootloader_memory,
-                &[],
-                &[],
-                Default::default(),
-            )
-            .await?;
-
-        transaction
-            .blocks_dal()
-            .mark_l2_blocks_as_executed_in_l1_batch(self.l1_batch_number)
-            .await?;
-
-        transaction
-            .transactions_dal()
-            .mark_txs_as_executed_in_l1_batch(self.l1_batch_number, &self.executed_transactions)
-            .await?;
-
-        let initial_writes = self.get_initial_writes(&mut transaction).await?;
-        transaction
-            .storage_logs_dedup_dal()
-            .insert_initial_writes(self.l1_batch_number, &initial_writes)
-            .await?;
-
-        transaction.commit().await?;
-
-        Ok(())
-    }
 }

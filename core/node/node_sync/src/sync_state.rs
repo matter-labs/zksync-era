@@ -15,8 +15,7 @@ use zksync_web3_decl::{
     namespaces::EthNamespaceClient,
 };
 use zksync_zkos_state_keeper::{
-    io::StateKeeperOutputHandler as ZkOsStateKeeperOutputHandler,
-    UpdatesManager as ZkOsUpdatesManager,
+    io::StateKeeperOutputHandler as ZkOsStateKeeperOutputHandler, FinishedBlock,
 };
 
 /// `SyncState` is a structure that holds the state of the syncing process.
@@ -146,11 +145,8 @@ impl ZkOsStateKeeperOutputHandler for SyncState {
         Ok(())
     }
 
-    async fn handle_block(
-        &mut self,
-        updates_manager: Arc<ZkOsUpdatesManager>,
-    ) -> anyhow::Result<()> {
-        let sealed_block_number = updates_manager.l2_block_number;
+    async fn handle_block(&mut self, finished_block: &FinishedBlock) -> anyhow::Result<()> {
+        let sealed_block_number = finished_block.inner.l2_block_number;
         self.set_local_block(sealed_block_number);
         Ok(())
     }

@@ -5,7 +5,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 pub use self::{
     io::{mempool::MempoolIO, OutputHandler, StateKeeperIO, StateKeeperPersistence},
     keeper::ZkosStateKeeper,
-    updates::UpdatesManager,
+    updates::{FinishedBlock, UpdatesManager},
 };
 
 pub mod io;

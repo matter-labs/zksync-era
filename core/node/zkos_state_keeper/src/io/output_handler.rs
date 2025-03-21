@@ -1,16 +1,16 @@
 //! Handling outputs produced by the state keeper.
 
-use std::{fmt, sync::Arc};
+use std::fmt;
 
 use anyhow::Context as _;
 use async_trait::async_trait;
 use zksync_types::block::UnsealedL1BatchHeader;
 
-use crate::{io::IoCursor, updates::UpdatesManager};
+use crate::{io::IoCursor, updates::FinishedBlock};
 
 /// Handler for state keeper outputs (L2 blocks and L1 batches).
 #[async_trait]
-pub trait StateKeeperOutputHandler: 'static + Send + fmt::Debug {
+pub trait StateKeeperOutputHandler: 'static + Send + Sync + fmt::Debug {
     /// Initializes this handler. This method will be called on state keeper initialization before any other calls.
     /// The default implementation does nothing.
     async fn initialize(&mut self, _cursor: &IoCursor) -> anyhow::Result<()> {
@@ -23,7 +23,7 @@ pub trait StateKeeperOutputHandler: 'static + Send + fmt::Debug {
     }
 
     /// Handles an L1 batch produced by the state keeper.
-    async fn handle_block(&mut self, updates_manager: Arc<UpdatesManager>) -> anyhow::Result<()>;
+    async fn handle_block(&mut self, updates_manager: &FinishedBlock) -> anyhow::Result<()>;
 }
 
 /// Compound output handler plugged into the state keeper.
@@ -88,20 +88,20 @@ impl OutputHandler {
     #[tracing::instrument(
         name = "OutputHandler::handle_l2_block"
         skip_all,
-        fields(l2_block = %updates_manager.l2_block_number)
+        fields(l2_block = %finished_block.inner.l2_block_number)
     )]
     pub(crate) async fn handle_block(
         &mut self,
-        updates_manager: Arc<UpdatesManager>,
+        finished_block: &FinishedBlock,
     ) -> anyhow::Result<()> {
         for handler in &mut self.inner {
             handler
-                .handle_block(updates_manager.clone())
+                .handle_block(finished_block)
                 .await
                 .with_context(|| {
                     format!(
                         "failed handling block {:?} on handler {handler:?}",
-                        updates_manager
+                        finished_block
                     )
                 })?;
         }
