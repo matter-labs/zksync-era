@@ -16,10 +16,10 @@ use zksync_config::configs::{
 use zksync_dal::{ConnectionPool, Core};
 use zksync_health_check::{CheckHealth, HealthUpdater, ReactiveHealthCheck};
 use zksync_object_store::ObjectStore;
+use zksync_shared_metrics::tree::METRICS;
 
 use self::{
     helpers::{create_db, Delayer, GenericAsyncTree, MerkleTreeHealth, MerkleTreeHealthCheck},
-    metrics::{ConfigLabels, METRICS},
     pruning::PruningHandles,
     updater::TreeUpdater,
 };
@@ -147,7 +147,7 @@ impl MetadataCalculator {
         object_store: Option<Arc<dyn ObjectStore>>,
         pool: ConnectionPool<Core>,
     ) -> anyhow::Result<Self> {
-        if let Err(err) = METRICS.info.set(ConfigLabels::new(&config)) {
+        if let Err(err) = METRICS.info.set(config.as_labels()) {
             tracing::warn!(
                 "Cannot set config {:?}; it's already set to {:?}",
                 err.into_inner(),

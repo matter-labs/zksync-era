@@ -8,7 +8,7 @@ use std::{
 use anyhow::Context as _;
 use zksync_basic_types::H256;
 
-use super::{Database, InsertedKeyEntry, PartialPatchSet, PatchSet};
+use super::{AsEntry, Database, InsertedKeyEntry, PartialPatchSet, PatchSet};
 use crate::{
     errors::{DeserializeContext, DeserializeErrorKind},
     hasher::{BatchTreeProof, IntermediateHash, InternalHashes, TreeOperation},
@@ -35,7 +35,7 @@ pub(crate) struct TreeUpdate {
 }
 
 impl TreeUpdate {
-    pub(crate) fn for_empty_tree(entries: &[TreeEntry]) -> anyhow::Result<Self> {
+    pub(crate) fn for_empty_tree<E: AsEntry>(entries: &[E]) -> anyhow::Result<Self> {
         let mut sorted_new_leaves = BTreeMap::from([
             (
                 H256::zero(),
@@ -52,15 +52,18 @@ impl TreeUpdate {
                 },
             ),
         ]);
-        sorted_new_leaves.extend(entries.iter().enumerate().map(|(i, entry)| {
-            (
-                entry.key,
+
+        for (i, entry) in entries.iter().enumerate() {
+            let index = i as u64 + 2;
+            entry.check_index(index)?;
+            sorted_new_leaves.insert(
+                entry.as_entry().key,
                 InsertedKeyEntry {
-                    index: i as u64 + 2,
+                    index,
                     inserted_at: 0,
                 },
-            )
-        }));
+            );
+        }
 
         anyhow::ensure!(
             sorted_new_leaves.len() == entries.len() + 2,
@@ -70,7 +73,7 @@ impl TreeUpdate {
         let mut inserts = Vec::with_capacity(entries.len() + 2);
         for entry in [&TreeEntry::MIN_GUARD, &TreeEntry::MAX_GUARD]
             .into_iter()
-            .chain(entries)
+            .chain(entries.iter().map(E::as_entry))
         {
             let prev_index = match sorted_new_leaves.range(..entry.key).next_back() {
                 Some((_, prev_entry)) => prev_entry.index,
@@ -545,10 +548,10 @@ impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
         skip(self, entries, read_keys),
         fields(entries.len = entries.len(), read_keys.len = read_keys.len())
     )]
-    pub(crate) fn create_patch(
+    pub(crate) fn create_patch<E: AsEntry>(
         &self,
         latest_version: u64,
-        entries: &[TreeEntry],
+        entries: &[E],
         read_keys: &[H256],
     ) -> anyhow::Result<(WorkingPatchSet<P>, TreeUpdate)> {
         let root = self.db.try_root(latest_version)?.ok_or_else(|| {
@@ -557,7 +560,7 @@ impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
         })?;
         let touched_keys: Vec<_> = entries
             .iter()
-            .map(|entry| entry.key)
+            .map(|entry| entry.as_entry().key)
             .chain(read_keys.iter().copied())
             .collect();
 
@@ -576,14 +579,16 @@ impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
         for (lookup, entry) in lookup.iter().zip(entries) {
             match lookup {
                 KeyLookup::Existing(idx) => {
+                    entry.check_index(*idx)?;
                     distinct_indices.insert(*idx);
                 }
                 KeyLookup::Missing {
                     prev_key_and_index,
                     next_key_and_index,
                 } => {
+                    entry.check_index(new_index)?;
                     sorted_new_leaves.insert(
-                        entry.key,
+                        entry.as_entry().key,
                         InsertedKeyEntry {
                             index: new_index,
                             inserted_at: latest_version + 1,
@@ -647,6 +652,7 @@ impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
         let mut inserts = Vec::with_capacity(sorted_new_leaves.len());
         let mut operations = Vec::with_capacity(entries.len());
         for (entry, lookup) in entries.iter().zip(&lookup) {
+            let entry = entry.as_entry();
             match lookup {
                 &KeyLookup::Existing(idx) => {
                     updates.push((idx, entry.value));

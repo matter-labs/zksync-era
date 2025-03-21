@@ -7,7 +7,7 @@ use crate::{leaf_nibbles, DefaultTreeParams, MerkleTree, TreeEntry, TreeParams};
 
 #[test]
 fn creating_min_update_for_empty_tree() {
-    let update = TreeUpdate::for_empty_tree(&[]).unwrap();
+    let update = TreeUpdate::for_empty_tree::<TreeEntry>(&[]).unwrap();
     assert_eq!(update.version, 0);
     assert!(update.updates.is_empty());
 
@@ -119,7 +119,7 @@ fn test_creating_empty_tree<P: TreeParams<Hasher = Blake2Hasher>>() {
     }
 
     let mut patch = WorkingPatchSet::<P>::empty();
-    let final_update = patch.update(TreeUpdate::for_empty_tree(&[]).unwrap());
+    let final_update = patch.update(TreeUpdate::for_empty_tree::<TreeEntry>(&[]).unwrap());
     assert_eq!(final_update.version, 0);
 
     {
@@ -212,7 +212,7 @@ where
     }
 
     let mut patch = WorkingPatchSet::<P>::empty();
-    let final_update = patch.update(TreeUpdate::for_empty_tree(&[]).unwrap());
+    let final_update = patch.update(TreeUpdate::for_empty_tree::<TreeEntry>(&[]).unwrap());
     let (patch, ..) = patch.finalize(&Blake2Hasher, final_update);
 
     let merkle_tree = MerkleTree::<_, P>::with_hasher(patch, Blake2Hasher).unwrap();
@@ -301,7 +301,7 @@ where
     }
 
     let mut patch = WorkingPatchSet::<P>::empty();
-    let final_update = patch.update(TreeUpdate::for_empty_tree(&[]).unwrap());
+    let final_update = patch.update(TreeUpdate::for_empty_tree::<TreeEntry>(&[]).unwrap());
     let (patch, ..) = patch.finalize(&Blake2Hasher, final_update);
 
     let mut merkle_tree = MerkleTree::<_, P>::with_hasher(patch, Blake2Hasher).unwrap();
@@ -444,7 +444,9 @@ fn patch_is_reduced_for_readonly_workload() {
         .unwrap();
 
     let read_keys = [H256::repeat_byte(1), H256::repeat_byte(2)];
-    let (mut patch, update) = merkle_tree.create_patch(0, &[], &read_keys).unwrap();
+    let (mut patch, update) = merkle_tree
+        .create_patch::<TreeEntry>(0, &[], &read_keys)
+        .unwrap();
     assert_eq!(update.inserts, []);
     assert_eq!(update.updates, []);
     assert_eq!(update.missing_reads_count, 1);
