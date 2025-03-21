@@ -1,8 +1,8 @@
 use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
-use zksync_contracts::BaseSystemContractsHashes;
+use zksync_contracts::{server_notifier_contract, BaseSystemContractsHashes};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_eth_client::{BoundEthInterface, CallFunctionArgs, ContractCallError};
+use zksync_eth_client::{BoundEthInterface, CallFunctionArgs, ContractCallError, EthInterface};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_l1_contract_interface::{
     i_executor::{
@@ -21,8 +21,9 @@ use zksync_types::{
     l2_to_l1_log::UserL2ToL1Log,
     protocol_version::{L1VerifierConfig, PACKED_SEMVER_MINOR_MASK},
     pubdata_da::PubdataSendingMode,
+    server_notification::GatewayMigrationState,
     settlement::SettlementMode,
-    web3::{contract::Error as Web3ContractError, BlockNumber},
+    web3::{contract::Error as Web3ContractError, BlockNumber, CallRequest},
     Address, L2ChainId, ProtocolVersionId, SLChainId, H256, U256,
 };
 
@@ -59,11 +60,6 @@ pub struct EthTxAggregator {
     aggregator: Aggregator,
     eth_client: Box<dyn BoundEthInterface>,
     config: SenderConfig,
-    // The validator timelock address provided in the config.
-    // If the contracts have the same protocol version as the state transition manager, the validator timelock
-    // from the state transition manager will be used.
-    // The address provided from the config is only used when there is a discrepancy between the two.
-    // TODO(EVM-932): always fetch the validator timelock from L1, but it requires a protocol change.
     config_timelock_contract_address: Address,
     l1_multicall3_address: Address,
     pub(super) state_transition_chain_contract: Address,
@@ -78,9 +74,11 @@ pub struct EthTxAggregator {
     /// address.
     custom_commit_sender_addr: Option<Address>,
     pool: ConnectionPool<Core>,
-    settlement_mode: SettlementMode,
+    gateway_migration_state: GatewayMigrationState,
     sl_chain_id: SLChainId,
     health_updater: HealthUpdater,
+    priority_tree_start_index: Option<usize>,
+    settlement_mode: SettlementMode,
 }
 
 struct TxData {
@@ -121,6 +119,8 @@ impl EthTxAggregator {
             None => None,
         };
 
+        let gateway_migration_state =
+            gateway_status(&mut pool.connection().await.unwrap(), &settlement_mode).await;
         let sl_chain_id = (*eth_client).as_ref().fetch_chain_id().await.unwrap();
 
         Self {
@@ -137,9 +137,11 @@ impl EthTxAggregator {
             rollup_chain_id,
             custom_commit_sender_addr,
             pool,
-            settlement_mode,
+            gateway_migration_state,
             sl_chain_id,
             health_updater: ReactiveHealthCheck::new("eth_tx_aggregator").1,
+            priority_tree_start_index: None,
+            settlement_mode,
         }
     }
 
@@ -530,6 +532,7 @@ impl EthTxAggregator {
         &mut self,
         storage: &mut Connection<'_, Core>,
     ) -> Result<(), EthSenderError> {
+        self.gateway_migration_state = gateway_status(storage, &self.settlement_mode).await;
         let MulticallData {
             base_system_contracts_hashes,
             verifier_address,
@@ -561,11 +564,21 @@ impl EthTxAggregator {
             fflonk_snark_wrapper_vk_hash,
         };
 
+        let priority_tree_start_index =
+            if let Some(priority_tree_start_index) = self.priority_tree_start_index {
+                Some(priority_tree_start_index)
+            } else {
+                self.priority_tree_start_index =
+                    get_priority_tree_start_index(self.eth_client.as_ref()).await?;
+                self.priority_tree_start_index
+            };
+        let commit_restriction = self
+            .config
+            .tx_aggregation_only_prove_and_execute
+            .then_some("tx_aggregation_only_prove_and_execute=true");
+
         let mut op_restrictions = OperationSkippingRestrictions {
-            commit_restriction: self
-                .config
-                .tx_aggregation_only_prove_and_execute
-                .then_some("tx_aggregation_only_prove_and_execute=true"),
+            commit_restriction,
             prove_restriction: None,
             execute_restriction: Self::is_pending_gateway_upgrade(
                 storage,
@@ -581,6 +594,13 @@ impl EthTxAggregator {
             op_restrictions.execute_restriction = reason;
         }
 
+        if self.gateway_migration_state == GatewayMigrationState::InProgress {
+            let reason = Some("Gateway migration started");
+            op_restrictions.commit_restriction = reason;
+            op_restrictions.prove_restriction = reason;
+            op_restrictions.execute_restriction = reason;
+        }
+
         if let Some(agg_op) = self
             .aggregator
             .get_next_ready_operation(
@@ -589,6 +609,7 @@ impl EthTxAggregator {
                 chain_protocol_version_id,
                 l1_verifier_config,
                 op_restrictions,
+                priority_tree_start_index,
             )
             .await?
         {
@@ -851,4 +872,103 @@ impl EthTxAggregator {
     pub fn health_check(&self) -> ReactiveHealthCheck {
         self.health_updater.subscribe()
     }
+}
+
+async fn query_contract(
+    l1_client: &dyn BoundEthInterface,
+    method_name: &str,
+    params: &[Token],
+) -> Result<Token, EthSenderError> {
+    let data = l1_client
+        .contract()
+        .function(method_name)
+        .unwrap()
+        .encode_input(params)
+        .unwrap();
+
+    let eth_interface: &dyn EthInterface = AsRef::<dyn EthInterface>::as_ref(l1_client);
+
+    let result = eth_interface
+        .call_contract_function(
+            CallRequest {
+                data: Some(data.into()),
+                to: Some(l1_client.contract_addr()),
+                ..CallRequest::default()
+            },
+            None,
+        )
+        .await?;
+    Ok(l1_client
+        .contract()
+        .function(method_name)
+        .unwrap()
+        .decode_output(&result.0)
+        .unwrap()[0]
+        .clone())
+}
+
+async fn get_priority_tree_start_index(
+    l1_client: &dyn BoundEthInterface,
+) -> Result<Option<usize>, EthSenderError> {
+    let packed_semver = query_contract(l1_client, "getProtocolVersion", &[])
+        .await?
+        .into_uint()
+        .unwrap();
+
+    // We always expect the provided version to be correct, so we panic if it is not
+    let version = ProtocolVersionId::try_from_packed_semver(packed_semver).unwrap();
+
+    // For pre-gateway versions the index is not supported.
+    if version.is_pre_gateway() {
+        return Ok(None);
+    }
+
+    let priority_tree_start_index = query_contract(l1_client, "getPriorityTreeStartIndex", &[])
+        .await?
+        .into_uint()
+        .unwrap();
+
+    Ok(Some(priority_tree_start_index.as_usize()))
+}
+
+async fn gateway_status(
+    storage: &mut Connection<'_, Core>,
+    sl_layer: &SettlementMode,
+) -> GatewayMigrationState {
+    let to_gateway = server_notifier_contract()
+        .event("MigrateToGateway")
+        .unwrap()
+        .signature();
+    let from_gateway = server_notifier_contract()
+        .event("MigrateFromGateway")
+        .unwrap()
+        .signature();
+
+    let topics = vec![to_gateway, from_gateway];
+
+    let notifications = storage
+        .server_notifications_dal()
+        .notifications_by_topics(topics)
+        .await
+        .unwrap();
+
+    notifications
+        .first()
+        .map(|a| match sl_layer {
+            SettlementMode::SettlesToL1 => {
+                if a.main_topic == to_gateway {
+                    GatewayMigrationState::InProgress
+                } else {
+                    GatewayMigrationState::NotInProgress
+                }
+            }
+            SettlementMode::Gateway => {
+                if a.main_topic == from_gateway {
+                    GatewayMigrationState::InProgress
+                } else {
+                    GatewayMigrationState::NotInProgress
+                }
+            }
+        })
+        .unwrap_or(GatewayMigrationState::NotInProgress)
 }

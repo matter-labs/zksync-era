@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use anyhow::Context as _;
 use serde::Deserialize;
-use zksync_basic_types::{pubdata_da::PubdataSendingMode, settlement::SettlementMode, H256};
+use zksync_basic_types::{pubdata_da::PubdataSendingMode, H256};
 use zksync_crypto_primitives::K256PrivateKey;
 
 use crate::EthWatchConfig;
@@ -11,13 +11,24 @@ use crate::EthWatchConfig;
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct EthConfig {
     /// Options related to the Ethereum sender directly.
-    pub sender: Option<SenderConfig>,
+    sender: Option<SenderConfig>,
     /// Options related to the `GasAdjuster` submodule.
     pub gas_adjuster: Option<GasAdjusterConfig>,
     pub watcher: Option<EthWatchConfig>,
 }
 
 impl EthConfig {
+    pub fn new(
+        sender: Option<SenderConfig>,
+        gas_adjuster: Option<GasAdjusterConfig>,
+        watcher: Option<EthWatchConfig>,
+    ) -> Self {
+        Self {
+            sender,
+            gas_adjuster,
+            watcher,
+        }
+    }
     /// Creates a mock configuration object suitable for unit tests.
     /// Values inside match the config used for localhost development.
     pub fn for_tests() -> Self {
@@ -57,13 +68,18 @@ impl EthConfig {
                 num_samples_for_blob_base_fee_estimate: 10,
                 internal_pubdata_pricing_multiplier: 1.0,
                 max_blob_base_fee: None,
-                settlement_mode: Default::default(),
             }),
             watcher: Some(EthWatchConfig {
                 confirmations_for_eth_event: None,
                 eth_node_poll_interval: 0,
             }),
         }
+    }
+
+    // We need to modify the values inside this config. Please use this method with ultra caution,
+    // that this could be non consistent with other codebase
+    pub fn get_eth_sender_config_for_sender_layer_data_layer(&self) -> Option<&SenderConfig> {
+        self.sender.as_ref()
     }
 }
 
@@ -206,10 +222,6 @@ pub struct GasAdjusterConfig {
     pub internal_pubdata_pricing_multiplier: f64,
     /// Max blob base fee that is allowed to be used.
     pub max_blob_base_fee: Option<u64>,
-    /// Whether the gas adjuster should require that the L2 node is used as a settlement layer.
-    /// It offers a runtime check for correctly provided values.
-    #[serde(default)]
-    pub settlement_mode: SettlementMode,
 }
 
 impl GasAdjusterConfig {

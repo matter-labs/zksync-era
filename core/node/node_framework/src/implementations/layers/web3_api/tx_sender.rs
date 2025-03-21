@@ -1,9 +1,10 @@
 use std::{sync::Arc, time::Duration};
 
 use tokio::sync::RwLock;
+use zksync_config::configs::chain::TimestampAsserterConfig;
 use zksync_node_api_server::{
     execution_sandbox::{VmConcurrencyBarrier, VmConcurrencyLimiter},
-    tx_sender::{SandboxExecutorOptions, TxSenderBuilder, TxSenderConfig},
+    tx_sender::{SandboxExecutorOptions, TimestampAsserterParams, TxSenderBuilder, TxSenderConfig},
 };
 use zksync_state::{PostgresStorageCaches, PostgresStorageCachesTask};
 use zksync_types::{vm::FastVmMode, AccountTreeId, Address};
@@ -15,6 +16,7 @@ use zksync_web3_decl::{
 
 use crate::{
     implementations::resources::{
+        contracts::{L2ContractsResource, SettlementLayerContractsResource},
         fee_input::ApiFeeInputResource,
         main_node_client::MainNodeClientResource,
         pools::{PoolResource, ReplicaPool},
@@ -56,11 +58,12 @@ pub struct PostgresStorageCachesConfig {
 /// - `WhitelistedTokensForAaUpdateTask` (optional)
 #[derive(Debug)]
 pub struct TxSenderLayer {
-    tx_sender_config: TxSenderConfig,
     postgres_storage_caches_config: PostgresStorageCachesConfig,
     max_vm_concurrency: usize,
     whitelisted_tokens_for_aa_cache: bool,
     vm_mode: FastVmMode,
+    timestamp_asserter_config: Option<TimestampAsserterConfig>,
+    tx_sender_config: TxSenderConfig,
 }
 
 #[derive(Debug, FromContext)]
@@ -71,6 +74,8 @@ pub struct Input {
     pub fee_input: ApiFeeInputResource,
     pub main_node_client: Option<MainNodeClientResource>,
     pub sealer: Option<ConditionalSealerResource>,
+    pub contracts_resource: SettlementLayerContractsResource,
+    pub l2_contracts_resource: L2ContractsResource,
 }
 
 #[derive(Debug, IntoContext)]
@@ -87,16 +92,18 @@ pub struct Output {
 
 impl TxSenderLayer {
     pub fn new(
-        tx_sender_config: TxSenderConfig,
         postgres_storage_caches_config: PostgresStorageCachesConfig,
         max_vm_concurrency: usize,
+        tx_sender_config: TxSenderConfig,
+        timestamp_asserter_config: Option<TimestampAsserterConfig>,
     ) -> Self {
         Self {
-            tx_sender_config,
             postgres_storage_caches_config,
             max_vm_concurrency,
             whitelisted_tokens_for_aa_cache: false,
             vm_mode: FastVmMode::Old,
+            timestamp_asserter_config,
+            tx_sender_config,
         }
     }
 
@@ -132,6 +139,22 @@ impl WiringLayer for TxSenderLayer {
         let sealer = input.sealer.map(|s| s.0);
         let fee_input = input.fee_input.0;
 
+        let config = match input.l2_contracts_resource.0.timestamp_asserter_addr {
+            Some(address) => {
+                let timestamp_asserter_config =
+                    self.timestamp_asserter_config.expect("Should be presented");
+
+                self.tx_sender_config
+                    .with_timestamp_asserter_params(TimestampAsserterParams {
+                        address,
+                        min_time_till_end: Duration::from_secs(
+                            timestamp_asserter_config.min_time_till_end_sec.into(),
+                        ),
+                    })
+            }
+            None => self.tx_sender_config,
+        };
+
         // Initialize Postgres caches.
         let factory_deps_capacity = self.postgres_storage_caches_config.factory_deps_cache_size;
         let initial_writes_capacity = self
@@ -158,7 +181,7 @@ impl WiringLayer for TxSenderLayer {
             VmConcurrencyLimiter::new(self.max_vm_concurrency);
 
         // TODO (BFT-138): Allow to dynamically reload API contracts
-        let config = self.tx_sender_config;
+
         let mut executor_options = SandboxExecutorOptions::new(
             config.chain_id,
             AccountTreeId::new(config.fee_account_addr),

@@ -5,6 +5,8 @@ use clap::{command, Subcommand};
 pub(crate) use create::create_chain_inner;
 use xshell::Shell;
 
+#[cfg(feature = "gateway")]
+use crate::commands::chain::gateway_migration::MigrationDirection;
 use crate::commands::chain::{
     args::create::ChainCreateArgs, deploy_l2_contracts::Deploy2ContractsOption,
     genesis::GenesisCommand, init::ChainInitCommand,
@@ -21,13 +23,13 @@ pub mod deploy_l2_contracts;
 pub mod deploy_paymaster;
 mod enable_evm_emulator;
 #[cfg(feature = "gateway")]
+mod gateway_migration;
+#[cfg(feature = "gateway")]
 mod gateway_upgrade;
 pub mod genesis;
 pub mod init;
 #[cfg(feature = "gateway")]
 mod migrate_from_gateway;
-#[cfg(feature = "gateway")]
-mod migrate_to_gateway;
 pub mod register_chain;
 mod set_token_multiplier_setter;
 mod setup_legacy_bridge;
@@ -79,7 +81,7 @@ pub enum ChainCommands {
     ConvertToGateway(ForgeScriptArgs),
     /// Migrate chain to gateway
     #[cfg(feature = "gateway")]
-    MigrateToGateway(migrate_to_gateway::MigrateToGatewayArgs),
+    MigrateToGateway(gateway_migration::MigrateToGatewayArgs),
     /// Migrate chain from gateway
     #[cfg(feature = "gateway")]
     MigrateFromGateway(migrate_from_gateway::MigrateFromGatewayArgs),
@@ -88,6 +90,10 @@ pub enum ChainCommands {
     GatewayUpgrade(gateway_upgrade::GatewayUpgradeArgs),
     /// Enable EVM emulation on chain (Not supported yet)
     EnableEvmEmulator(ForgeScriptArgs),
+    #[cfg(feature = "gateway")]
+    NotifyAboutToGatewayUpdate(ForgeScriptArgs),
+    #[cfg(feature = "gateway")]
+    NotifyAboutFromGatewayUpdate(ForgeScriptArgs),
 }
 
 pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()> {
@@ -120,11 +126,19 @@ pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()
         #[cfg(feature = "gateway")]
         ChainCommands::ConvertToGateway(args) => convert_to_gateway::run(args, shell).await,
         #[cfg(feature = "gateway")]
-        ChainCommands::MigrateToGateway(args) => migrate_to_gateway::run(args, shell).await,
+        ChainCommands::MigrateToGateway(args) => gateway_migration::run(args, shell).await,
         #[cfg(feature = "gateway")]
         ChainCommands::MigrateFromGateway(args) => migrate_from_gateway::run(args, shell).await,
         #[cfg(feature = "gateway")]
         ChainCommands::GatewayUpgrade(args) => gateway_upgrade::run(args, shell).await,
+        #[cfg(feature = "gateway")]
+        ChainCommands::NotifyAboutToGatewayUpdate(args) => {
+            gateway_migration::notify_server(args, shell, MigrationDirection::ToGateway).await
+        }
+        #[cfg(feature = "gateway")]
+        ChainCommands::NotifyAboutFromGatewayUpdate(args) => {
+            gateway_migration::notify_server(args, shell, MigrationDirection::FromGateway).await
+        }
         ChainCommands::EnableEvmEmulator(args) => enable_evm_emulator::run(args, shell).await,
     }
 }

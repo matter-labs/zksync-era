@@ -1,8 +1,12 @@
 #[cfg_attr(not(feature = "server"), allow(unused_imports))]
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
-use zksync_config::{configs::EcosystemContracts, GenesisConfig};
-use zksync_types::{api::en, tokens::TokenInfo, Address, L2BlockNumber};
+use zksync_config::GenesisConfig;
+use zksync_types::{
+    api::{en, EcosystemContracts},
+    tokens::TokenInfo,
+    Address, L2BlockNumber,
+};
 
 use crate::client::{ForWeb3Network, L2};
 

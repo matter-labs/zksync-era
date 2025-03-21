@@ -93,6 +93,7 @@ pub(super) const MSG_INTEGRATION_TESTS_ABOUT: &str = "Run integration tests";
 pub(super) const MSG_REVERT_TEST_ABOUT: &str = "Run revert tests";
 pub(super) const MSG_RECOVERY_TEST_ABOUT: &str = "Run recovery tests";
 pub(super) const MSG_UPGRADE_TEST_ABOUT: &str = "Run upgrade tests";
+pub(super) const MSG_GATEWAY_TEST_ABOUT: &str = "Run gateway tests";
 pub(super) const MSG_RUST_TEST_ABOUT: &str = "Run unit-tests, accepts optional cargo test flags";
 pub(super) const MSG_TEST_RUST_OPTIONS_HELP: &str = "Cargo test flags";
 pub(super) const MSG_BUILD_ABOUT: &str = "Build all test dependencies";
@@ -157,6 +158,11 @@ pub(super) const MSG_REVERT_TEST_RUN_SUCCESS: &str = "Revert and restart test ra
 // Recovery tests related messages
 pub(super) const MSG_RECOVERY_TEST_RUN_INFO: &str = "Running recovery test";
 pub(super) const MSG_RECOVERY_TEST_RUN_SUCCESS: &str = "Recovery test ran successfully";
+
+// Migration test related messages
+pub(super) const MSG_GATEWAY_UPGRADE_TEST_RUN_INFO: &str = "Running gateway migration test";
+pub(super) const MSG_GATEWAY_UPGRADE_TEST_RUN_SUCCESS: &str =
+    "Gateway migration test ran successfully";
 
 // Upgrade tests related messages
 pub(super) const MSG_UPGRADE_TEST_RUN_INFO: &str = "Running upgrade test";

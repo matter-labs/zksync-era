@@ -10,21 +10,22 @@ use zksync_config::{
             StateKeeperConfig, TimestampAsserterConfig,
         },
         house_keeper::HouseKeeperConfig,
-        BasicWitnessInputProducerConfig, ContractVerifierSecrets, ContractsConfig,
-        DataAvailabilitySecrets, DatabaseSecrets, ExperimentalVmConfig,
-        ExternalPriceApiClientConfig, FriProofCompressorConfig, FriProverConfig,
-        FriProverGatewayConfig, FriWitnessGeneratorConfig, L1Secrets, ObservabilityConfig,
-        PrometheusConfig, ProofDataHandlerConfig, ProtectiveReadsWriterConfig, Secrets,
+        BasicWitnessInputProducerConfig, ContractVerifierSecrets, DataAvailabilitySecrets,
+        DatabaseSecrets, ExperimentalVmConfig, ExternalPriceApiClientConfig,
+        FriProofCompressorConfig, FriProverConfig, FriProverGatewayConfig,
+        FriWitnessGeneratorConfig, L1Secrets, ObservabilityConfig, PrometheusConfig,
+        ProofDataHandlerConfig, ProtectiveReadsWriterConfig, Secrets,
     },
-    ApiConfig, BaseTokenAdjusterConfig, ContractVerifierConfig, DAClientConfig, DADispatcherConfig,
-    DBConfig, EthConfig, EthWatchConfig, ExternalProofIntegrationApiConfig, GasAdjusterConfig,
-    GenesisConfig, ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
+    ApiConfig, BaseTokenAdjusterConfig, ContractVerifierConfig, ContractsConfig, DAClientConfig,
+    DADispatcherConfig, DBConfig, EthConfig, EthWatchConfig, ExternalProofIntegrationApiConfig,
+    GasAdjusterConfig, GenesisConfig, ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
 };
 use zksync_core_leftovers::{
     temp_config_store::{read_yaml_repr, TempConfigStore},
     Component, Components,
 };
 use zksync_env_config::FromEnv;
+use zksync_node_framework::service::{TaskError, ZkStackServiceError};
 
 use crate::node_builder::MainNodeBuilder;
 
@@ -55,10 +56,6 @@ struct Cli {
     /// Path to the yaml with contracts. If set, it will be used instead of env vars.
     #[arg(long)]
     contracts_config_path: Option<std::path::PathBuf>,
-    /// Path to the yaml with gateway contracts. Note, that at this moment,
-    /// env-based config is not supported for gateway-related functionality.
-    #[arg(long)]
-    gateway_contracts_config_path: Option<std::path::PathBuf>,
     /// Path to the wallets config. If set, it will be used instead of env vars.
     #[arg(long)]
     wallets_path: Option<std::path::PathBuf>,
@@ -135,20 +132,6 @@ fn main() -> anyhow::Result<()> {
             .context("failed decoding contracts YAML config")?,
     };
 
-    // We support only file based config for gateway
-    let gateway_contracts_config = if let Some(gateway_config_path) =
-        opt.gateway_contracts_config_path
-    {
-        let result = read_yaml_repr::<zksync_protobuf_config::proto::gateway::GatewayChainConfig>(
-            &gateway_config_path,
-        )
-        .context("failed decoding contracts YAML config")?;
-
-        Some(result)
-    } else {
-        None
-    };
-
     let genesis = match opt.genesis_path {
         None => GenesisConfig::from_env().context("Genesis config")?,
         Some(path) => read_yaml_repr::<zksync_protobuf_config::proto::genesis::Genesis>(&path)
@@ -163,9 +146,11 @@ fn main() -> anyhow::Result<()> {
         configs,
         wallets,
         genesis,
-        contracts_config,
-        gateway_contracts_config,
         secrets,
+        contracts_config.l1_specific_contracts(),
+        contracts_config.l2_contracts(),
+        Some(contracts_config.settlement_layer_specific_contracts()),
+        Some(contracts_config.l1_multicall3_addr),
     )?;
 
     let observability_guard = {
@@ -187,8 +172,26 @@ fn main() -> anyhow::Result<()> {
         return Ok(());
     }
 
-    node.run(observability_guard)?;
-    Ok(())
+    let result = node.run(observability_guard);
+    if find_gateway_update_error(&result) {
+        tracing::warn!("Settlement layer has changed")
+    };
+    Ok(result?)
+}
+
+fn find_gateway_update_error(zkstack_result: &Result<(), ZkStackServiceError>) -> bool {
+    if let Err(ZkStackServiceError::Task(tasks)) = zkstack_result {
+        for task in &tasks.0 {
+            if let TaskError::TaskFailed(task, err) = task {
+                if task.contains("gateway_migrator")
+                    && err.to_string().contains("Settlement layer changed")
+                {
+                    return true;
+                }
+            }
+        }
+    }
+    false
 }
 
 fn load_env_config() -> anyhow::Result<TempConfigStore> {

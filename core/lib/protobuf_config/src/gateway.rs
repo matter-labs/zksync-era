@@ -10,12 +10,18 @@ impl ProtoRepr for proto::GatewayChainConfig {
 
     fn read(&self) -> anyhow::Result<Self::Type> {
         Ok(Self::Type {
-            state_transition_proxy_addr: required(&self.state_transition_proxy_addr)
-                .and_then(|x| parse_h160(x))
+            state_transition_proxy_addr: self
+                .state_transition_proxy_addr
+                .as_ref()
+                .map(|x| parse_h160(x))
+                .transpose()
                 .context("state_transition_proxy_addr")?,
 
-            validator_timelock_addr: required(&self.validator_timelock_addr)
-                .and_then(|x| parse_h160(x))
+            validator_timelock_addr: self
+                .validator_timelock_addr
+                .as_ref()
+                .map(|x| parse_h160(x))
+                .transpose()
                 .context("validator_timelock_addr")?,
 
             multicall3_addr: required(&self.multicall3_addr)
@@ -26,15 +32,10 @@ impl ProtoRepr for proto::GatewayChainConfig {
                 .and_then(|x| parse_h160(x))
                 .context("diamond_proxy_addr")?,
 
-            chain_admin_addr: self
-                .chain_admin_addr
-                .as_ref()
-                .map(|x| parse_h160(x))
-                .transpose()?,
-
-            governance_addr: required(&self.governance_addr)
+            chain_admin_addr: required(&self.chain_admin_addr)
                 .and_then(|x| parse_h160(x))
-                .context("governance_addr")?,
+                .context("chain_admin_addr")?,
+
             gateway_chain_id: required(&self.gateway_chain_id)
                 .map(|x| SLChainId(*x))
                 .context("gateway_chain_id")?,
@@ -47,8 +48,7 @@ impl ProtoRepr for proto::GatewayChainConfig {
             validator_timelock_addr: Some(format!("{:?}", this.validator_timelock_addr)),
             multicall3_addr: Some(format!("{:?}", this.multicall3_addr)),
             diamond_proxy_addr: Some(format!("{:?}", this.diamond_proxy_addr)),
-            chain_admin_addr: this.chain_admin_addr.map(|x| format!("{:?}", x)),
-            governance_addr: Some(format!("{:?}", this.governance_addr)),
+            chain_admin_addr: Some(format!("{:?}", this.chain_admin_addr)),
             gateway_chain_id: Some(this.gateway_chain_id.0),
         }
     }

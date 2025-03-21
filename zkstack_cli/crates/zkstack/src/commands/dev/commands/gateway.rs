@@ -326,7 +326,7 @@ pub async fn check_chain_readiness(
         }
     }
 
-    let diamond_proxy_addr = l2_client.get_main_contract().await?;
+    let diamond_proxy_addr = l2_client.get_main_l1_contract().await?;
 
     if inflight_txs_count != 0 {
         anyhow::bail!("Chain not ready since there are inflight txs!");

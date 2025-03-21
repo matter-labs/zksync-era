@@ -1,7 +1,7 @@
 use anyhow::Context as _;
 use zksync_config::configs::{self};
 use zksync_protobuf::{required, ProtoRepr};
-use zksync_types::{pubdata_da::PubdataSendingMode, settlement::SettlementMode};
+use zksync_types::pubdata_da::PubdataSendingMode;
 
 use crate::{proto::eth as proto, read_optional_repr};
 
@@ -45,38 +45,22 @@ impl proto::PubdataSendingMode {
     }
 }
 
-impl proto::SettlementMode {
-    fn new(x: &SettlementMode) -> Self {
-        use SettlementMode as From;
-        match x {
-            From::SettlesToL1 => Self::SettlesToL1,
-            From::Gateway => Self::Gateway,
-        }
-    }
-
-    fn parse(&self) -> SettlementMode {
-        use SettlementMode as To;
-        match self {
-            Self::SettlesToL1 => To::SettlesToL1,
-            Self::Gateway => To::Gateway,
-        }
-    }
-}
-
 impl ProtoRepr for proto::Eth {
     type Type = configs::eth_sender::EthConfig;
 
     fn read(&self) -> anyhow::Result<Self::Type> {
-        Ok(Self::Type {
-            sender: read_optional_repr(&self.sender),
-            gas_adjuster: read_optional_repr(&self.gas_adjuster),
-            watcher: read_optional_repr(&self.watcher),
-        })
+        Ok(Self::Type::new(
+            read_optional_repr(&self.sender),
+            read_optional_repr(&self.gas_adjuster),
+            read_optional_repr(&self.watcher),
+        ))
     }
 
     fn build(this: &Self::Type) -> Self {
         Self {
-            sender: this.sender.as_ref().map(ProtoRepr::build),
+            sender: this
+                .get_eth_sender_config_for_sender_layer_data_layer()
+                .map(ProtoRepr::build),
             gas_adjuster: this.gas_adjuster.as_ref().map(ProtoRepr::build),
             watcher: this.watcher.as_ref().map(ProtoRepr::build),
         }
@@ -191,12 +175,6 @@ impl ProtoRepr for proto::GasAdjuster {
             )
             .context("internal_pubdata_pricing_multiplier")?,
             max_blob_base_fee: self.max_blob_base_fee,
-            settlement_mode: self
-                .settlement_mode
-                .map(proto::SettlementMode::try_from)
-                .transpose()?
-                .map(|x| x.parse())
-                .unwrap_or_default(),
         })
     }
 
@@ -218,7 +196,6 @@ impl ProtoRepr for proto::GasAdjuster {
             ),
             internal_pubdata_pricing_multiplier: Some(this.internal_pubdata_pricing_multiplier),
             max_blob_base_fee: this.max_blob_base_fee,
-            settlement_mode: Some(proto::SettlementMode::new(&this.settlement_mode).into()),
         }
     }
 }

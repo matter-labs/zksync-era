@@ -49,7 +49,6 @@ pub fn run_server_genesis(
             chain_config.configs.join(GENERAL_FILE),
             chain_config.configs.join(SECRETS_FILE),
             ContractsConfig::get_path_with_base_path(&chain_config.configs),
-            None,
             vec![],
         )
         .context(MSG_FAILED_TO_RUN_SERVER_ERR)

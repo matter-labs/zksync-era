@@ -13,6 +13,7 @@ use xshell::Shell;
 use zkstack_cli_common::{
     config::global_config,
     forge::{Forge, ForgeScriptArgs},
+    spinner::Spinner,
     wallets::Wallet,
     zks_provider::ZKSProvider,
 };
@@ -21,16 +22,17 @@ use zkstack_cli_config::{
         gateway_preparation::{input::GatewayPreparationConfig, output::GatewayPreparationOutput},
         script_params::GATEWAY_PREPARATION,
     },
-    traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
+    traits::{ReadConfig, SaveConfig},
     EcosystemConfig,
 };
-use zkstack_cli_types::L1BatchCommitmentMode;
-use zksync_basic_types::{settlement::SettlementMode, H256, U256, U64};
+use zksync_basic_types::{H256, U256, U64};
 use zksync_types::L2ChainId;
 use zksync_web3_decl::client::{Client, L2};
 
 use crate::{
-    messages::MSG_CHAIN_NOT_INITIALIZED,
+    accept_ownership::set_da_validator_pair,
+    commands::chain::init::get_l1_da_validator,
+    messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_DA_PAIR_REGISTRATION_SPINNER},
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
 
@@ -76,13 +78,6 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
         .await?
         .get::<String>("l1.l1_rpc_url")?;
 
-    let genesis_config = chain_config.get_genesis_config().await?;
-
-    let is_rollup = matches!(
-        genesis_config.get("l1_batch_commit_data_generator_mode")?,
-        L1BatchCommitmentMode::Rollup
-    );
-
     let preparation_config_path = GATEWAY_PREPARATION.input(&ecosystem_config.link_to_code);
     let preparation_config = GatewayPreparationConfig::new(
         &gateway_chain_config,
@@ -93,7 +88,7 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
     preparation_config.save(shell, preparation_config_path)?;
 
     let chain_contracts_config = chain_config.get_contracts_config().unwrap();
-    let mut gateway_chain_chain_config = chain_config.get_gateway_chain_config().unwrap();
+    let gateway_chain_chain_config = chain_config.get_gateway_chain_config().unwrap();
     let chain_admin_addr = chain_contracts_config.l1.chain_admin_addr;
     let chain_access_control_restriction =
         chain_contracts_config.l1.access_control_restriction_addr;
@@ -108,9 +103,7 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
                 (
                     chain_admin_addr,
                     chain_access_control_restriction.context("chain_access_control_restriction")?,
-                    gateway_chain_chain_config
-                        .chain_admin_addr
-                        .context("l2 chain admin missing")?,
+                    gateway_chain_chain_config.chain_admin_addr,
                     U256::from(chain_config.chain_id.as_u64()),
                 ),
             )
@@ -143,7 +136,7 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
 
     call_script(
         shell,
-        args.forge_args,
+        args.forge_args.clone(),
         &GATEWAY_PREPARATION_INTERFACE
             .encode(
                 "finishMigrateChainFromGateway",
@@ -164,26 +157,27 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
     )
     .await?;
 
-    gateway_chain_chain_config.gateway_chain_id = 0u64.into();
-    gateway_chain_chain_config.save_with_base_path(shell, chain_config.configs.clone())?;
+    let l1_da_validator_addr = get_l1_da_validator(&chain_config)
+        .await
+        .context("l1_da_validator_addr")?;
 
-    let mut general_config = chain_config.get_general_config().await?.patched();
-    general_config.insert_yaml(
-        "eth.gas_adjuster.settlement_mode",
-        SettlementMode::SettlesToL1,
-    )?;
-    if is_rollup {
-        // `PubdataSendingMode` has differing `serde` and file-based config serializations, hence
-        // we supply a raw string value.
-        general_config.insert("eth.sender.pubdata_sending_mode", "BLOBS")?;
-    }
-    general_config.insert("eth.sender.wait_confirmations", 0)?;
-
-    // Undoing what was changed during migration to gateway.
-    // TODO(EVM-925): maybe remove this logic.
-    general_config.insert("eth.sender.max_aggregated_tx_gas", 15000000)?;
-    general_config.insert("eth.sender.max_eth_tx_data_size", 120_000)?;
-    general_config.save().await?;
+    let spinner = Spinner::new(MSG_DA_PAIR_REGISTRATION_SPINNER);
+    set_da_validator_pair(
+        shell,
+        &ecosystem_config,
+        chain_contracts_config.l1.chain_admin_addr,
+        &chain_config.get_wallets_config()?.governor,
+        chain_contracts_config.l1.diamond_proxy_addr,
+        l1_da_validator_addr,
+        chain_contracts_config
+            .l2
+            .da_validator_addr
+            .context("da_validator_addr")?,
+        &args.forge_args,
+        l1_url.clone(),
+    )
+    .await?;
+    spinner.finish();
     Ok(())
 }
 

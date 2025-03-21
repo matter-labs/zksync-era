@@ -8,9 +8,8 @@ use tokio::time::MissedTickBehavior;
 use zkstack_cli_common::logger;
 
 use crate::messages::{
-    msg_wait_connect_err, msg_wait_non_successful_response, msg_wait_not_healthy,
-    msg_wait_starting_polling, msg_wait_timeout, MSG_WAIT_POLL_INTERVAL_HELP,
-    MSG_WAIT_TIMEOUT_HELP,
+    msg_wait_non_successful_response, msg_wait_not_healthy, msg_wait_starting_polling,
+    msg_wait_timeout, MSG_WAIT_POLL_INTERVAL_HELP, MSG_WAIT_TIMEOUT_HELP,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -92,13 +91,8 @@ impl WaitArgs {
 
             let response = match client.get(url).send().await {
                 Ok(response) => response,
-                Err(err) if err.is_connect() || err.is_timeout() => {
+                Err(_) => {
                     continue;
-                }
-                Err(err) => {
-                    return Err(
-                        anyhow::Error::new(err).context(msg_wait_connect_err(&component, url))
-                    )
                 }
             };
 

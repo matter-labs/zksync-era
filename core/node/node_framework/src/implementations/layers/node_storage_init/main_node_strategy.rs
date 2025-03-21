@@ -1,11 +1,12 @@
 use std::sync::Arc;
 
-use zksync_config::{ContractsConfig, GenesisConfig};
+use zksync_config::GenesisConfig;
 use zksync_node_storage_init::{main_node::MainNodeGenesis, NodeInitializationStrategy};
 
 use super::NodeInitializationStrategyResource;
 use crate::{
     implementations::resources::{
+        contracts::SettlementLayerContractsResource,
         eth_interface::EthInterfaceResource,
         pools::{MasterPool, PoolResource},
     },
@@ -17,7 +18,6 @@ use crate::{
 #[derive(Debug)]
 pub struct MainNodeInitStrategyLayer {
     pub genesis: GenesisConfig,
-    pub contracts: ContractsConfig,
 }
 
 #[derive(Debug, FromContext)]
@@ -25,6 +25,7 @@ pub struct MainNodeInitStrategyLayer {
 pub struct Input {
     pub master_pool: PoolResource<MasterPool>,
     pub eth_interface: EthInterfaceResource,
+    pub contracts_resource: SettlementLayerContractsResource,
 }
 
 #[derive(Debug, IntoContext)]
@@ -46,7 +47,7 @@ impl WiringLayer for MainNodeInitStrategyLayer {
         let pool = input.master_pool.get().await?;
         let EthInterfaceResource(l1_client) = input.eth_interface;
         let genesis = Arc::new(MainNodeGenesis {
-            contracts: self.contracts,
+            contracts: input.contracts_resource.0,
             genesis: self.genesis,
             l1_client,
             pool,

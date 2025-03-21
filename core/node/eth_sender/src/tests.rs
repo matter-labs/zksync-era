@@ -509,33 +509,6 @@ async fn transactions_are_not_resent_on_the_same_block() {
     tester.assert_just_sent_tx_count_equals(0).await;
 }
 
-#[should_panic(
-    expected = "eth-sender was switched to gateway, but there are still 1 pre-gateway transactions in-flight!"
-)]
-#[test_log::test(tokio::test)]
-async fn switching_to_gateway_while_some_transactions_were_in_flight_should_cause_panic() {
-    let mut tester = EthSenderTester::new(
-        ConnectionPool::<Core>::test_pool().await,
-        vec![100; 100],
-        true,
-        true,
-        L1BatchCommitmentMode::Rollup,
-    )
-    .await;
-
-    let _genesis_l1_batch = TestL1Batch::sealed(&mut tester).await;
-    let first_l1_batch = TestL1Batch::sealed(&mut tester).await;
-
-    first_l1_batch.save_commit_tx(&mut tester).await;
-    tester.run_eth_sender_tx_manager_iteration().await;
-
-    // sanity check
-    tester.assert_inflight_txs_count_equals(1).await;
-
-    tester.switch_to_using_gateway();
-    tester.run_eth_sender_tx_manager_iteration().await;
-}
-
 #[test_log::test(tokio::test)]
 async fn switching_to_gateway_works_for_most_basic_scenario() {
     let mut tester = EthSenderTester::new(

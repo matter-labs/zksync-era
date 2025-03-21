@@ -137,6 +137,18 @@ describe('genesis recovery', () => {
             await sleep(1000);
             const health = await getExternalNodeHealth(extNodeHealthUrl);
             if (health === null) {
+                // We do switch from l1 to gateway through restart for correctly handling it
+                // we must restart the node manually
+                if (externalNodeProcess.exitCode() != null) {
+                    externalNodeProcess = await NodeProcess.spawn(
+                        externalNodeEnv,
+                        await logsPath('external-node.log'),
+                        pathToHome,
+                        NodeComponents.WITH_TREE_FETCHER_AND_NO_TREE,
+                        fileConfig.loadFromFile,
+                        fileConfig.chain
+                    );
+                }
                 continue;
             }
 
@@ -168,7 +180,6 @@ describe('genesis recovery', () => {
                 if (status === 'ready' && details !== undefined) {
                     console.log('Received consistency checker health details', details);
                     if (details.first_checked_batch !== undefined && details.last_checked_batch !== undefined) {
-                        expect(details.first_checked_batch).to.equal(1);
                         consistencyCheckerSucceeded = details.last_checked_batch >= CATCH_UP_BATCH_COUNT;
                     }
                 }

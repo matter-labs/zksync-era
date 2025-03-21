@@ -1,6 +1,7 @@
 pub mod action_queue;
 pub mod base_token_ratio_provider;
 pub mod circuit_breakers;
+pub mod contracts;
 pub mod da_client;
 pub mod eth_interface;
 pub mod fee_input;
@@ -12,6 +13,7 @@ pub mod object_store;
 pub mod pools;
 pub mod price_api_client;
 pub mod reverter;
+pub mod settlement_layer;
 pub mod state_keeper;
 pub mod sync_state;
 pub mod web3_api;

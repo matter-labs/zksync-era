@@ -19,7 +19,7 @@ use zksync_types::{
     SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256, U64,
 };
 
-use crate::client::{EthClient, L2EthClient, RETRY_LIMIT};
+use crate::client::{EthClient, ZkSyncExtentionEthClient, RETRY_LIMIT};
 
 #[derive(Debug)]
 pub struct FakeEthClientData {
@@ -192,7 +192,7 @@ impl EthClient for MockEthClient {
         &self,
         from: BlockNumber,
         to: BlockNumber,
-        topic1: H256,
+        topic1: Option<H256>,
         topic2: Option<H256>,
         _retries_left: usize,
     ) -> EnrichedClientResult<Vec<Log>> {
@@ -216,7 +216,7 @@ impl EthClient for MockEthClient {
         Ok(logs
             .into_iter()
             .filter(|log| {
-                log.topics.first() == Some(&topic1)
+                log.topics.first() == topic1.as_ref()
                     && (topic2.is_none() || log.topics.get(1) == topic2.as_ref())
             })
             .collect())
@@ -262,10 +262,12 @@ impl EthClient for MockEthClient {
             .get_events(
                 U64::from(from_block).into(),
                 U64::from(to_block).into(),
-                state_transition_manager_contract()
-                    .event("NewUpgradeCutData")
-                    .unwrap()
-                    .signature(),
+                Some(
+                    state_transition_manager_contract()
+                        .event("NewUpgradeCutData")
+                        .unwrap()
+                        .signature(),
+                ),
                 Some(packed_version),
                 RETRY_LIMIT,
             )
@@ -329,10 +331,14 @@ impl EthClient for MockEthClient {
     ) -> Result<Option<H256>, ContractCallError> {
         Ok(Some(H256::zero()))
     }
+
+    async fn get_settlement_layer(&self) -> Result<Address, ContractCallError> {
+        Ok(Address::default())
+    }
 }
 
 #[async_trait::async_trait]
-impl L2EthClient for MockEthClient {
+impl ZkSyncExtentionEthClient for MockEthClient {
     async fn get_chain_log_proof(
         &self,
         l1_batch_number: L1BatchNumber,

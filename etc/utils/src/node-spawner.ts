@@ -81,8 +81,7 @@ export class Node<TYPE extends NodeType> {
         }
     }
 
-    public async killAndWaitForShutdown() {
-        await this.terminate();
+    public async waitForShutdown() {
         // Wait until it's really stopped.
         let iter = 0;
         while (iter < 30) {
@@ -99,6 +98,12 @@ export class Node<TYPE extends NodeType> {
         // It's going to panic anyway, since the server is a singleton entity, so better to exit early.
         throw new Error(`${this.type} didn't stop after a kill request`);
     }
+
+    public async killAndWaitForShutdown() {
+        await this.terminate();
+        // Wait until it's really stopped.
+        await this.waitForShutdown();
+    }
 }
 
 interface MainNodeOptions {
@@ -111,6 +116,7 @@ interface MainNodeOptions {
     baseTokenPricePollingIntervalMs?: number;
     baseTokenAdjusterL1UpdateDeviationPercentage?: number;
 }
+
 export class NodeSpawner {
     private readonly generalConfigPath: string | undefined;
     private readonly originalConfig: string | undefined;
