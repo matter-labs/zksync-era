@@ -352,35 +352,27 @@ impl ExternalNodeBuilder {
             return Ok(self);
         }
 
-        match da_client_config {
-            DAClientConfig::Avail(config) => {
-                if let Some(DataAvailabilitySecrets::Avail(secret)) = da_client_secrets {
-                    self.node.add_layer(AvailWiringLayer::new(config, secret));
-                } else {
-                    bail!("Avail client selected, missing Avail in secrets")
-                }
-            }
+        if let DAClientConfig::ObjectStore(config) = da_client_config {
+            self.node
+                .add_layer(ObjectStorageClientWiringLayer::new(config));
+            return Ok(self);
+        }
 
-            DAClientConfig::Celestia(config) => {
-                if let Some(DataAvailabilitySecrets::Celestia(secret)) = da_client_secrets {
-                    self.node
-                        .add_layer(CelestiaWiringLayer::new(config, secret));
-                } else {
-                    bail!("Celestia client selected, missing Celestia in secrets")
-                }
+        let da_client_secrets = da_client_secrets.context("DA client secrets are missing")?;
+        match (da_client_config, da_client_secrets) {
+            (DAClientConfig::Avail(config), DataAvailabilitySecrets::Avail(secret)) => {
+                self.node.add_layer(AvailWiringLayer::new(config, secret));
             }
-
-            DAClientConfig::Eigen(config) => {
-                if let Some(DataAvailabilitySecrets::Eigen(secret)) = da_client_secrets {
-                    self.node.add_layer(EigenWiringLayer::new(config, secret));
-                } else {
-                    bail!("Eigen client selected, missing Eigen in secrets")
-                }
-            }
-
-            DAClientConfig::ObjectStore(config) => {
+            (DAClientConfig::Celestia(config), DataAvailabilitySecrets::Celestia(secret)) => {
                 self.node
-                    .add_layer(ObjectStorageClientWiringLayer::new(config));
+                    .add_layer(CelestiaWiringLayer::new(config, secret));
+            }
+            (DAClientConfig::Eigen(mut config), DataAvailabilitySecrets::Eigen(secret)) => {
+                if config.eigenda_eth_rpc.is_none() {
+                    config.eigenda_eth_rpc = Some(self.config.required.eth_client_url.clone());
+                }
+
+                self.node.add_layer(EigenWiringLayer::new(config, secret));
             }
             _ => bail!("invalid pair of da_client and da_secrets"),
         }
