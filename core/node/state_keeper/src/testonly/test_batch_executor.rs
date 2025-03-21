@@ -277,6 +277,7 @@ pub(crate) fn successful_exec_with_log() -> BatchTransactionExecutionResult {
         }),
         compression_result: Ok(()),
         call_traces: vec![],
+        tracer_output: (),
     }
 }
 
@@ -288,6 +289,7 @@ pub(crate) fn rejected_exec(reason: Halt) -> BatchTransactionExecutionResult {
         })),
         compression_result: Ok(()),
         call_traces: vec![],
+        tracer_output: (),
     }
 }
 
@@ -393,6 +395,7 @@ impl TestBatchExecutorBuilder {
                         tx_result: result.tx_result.clone(),
                         compression_result: Ok(()),
                         call_traces: result.call_traces.clone(),
+                        tracer_output: (),
                     };
 
                     if let Some(txs) = batch_txs.get_mut(&tx.hash()) {

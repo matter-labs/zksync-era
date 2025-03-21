@@ -13,7 +13,7 @@ use crate::{
 };
 
 /// Factory of [`BatchExecutor`]s.
-pub trait BatchExecutorFactory<S: Send + 'static>: 'static + Send + fmt::Debug {
+pub trait BatchExecutorFactory<S: Send + 'static, TrOut = ()>: 'static + Send + fmt::Debug {
     /// Initializes an executor for a batch with the specified params and using the provided storage.
     fn init_batch(
         &mut self,
@@ -21,7 +21,7 @@ pub trait BatchExecutorFactory<S: Send + 'static>: 'static + Send + fmt::Debug {
         l1_batch_params: L1BatchEnv,
         system_env: SystemEnv,
         pubdata_params: PubdataParams,
-    ) -> Box<dyn BatchExecutor<S>>;
+    ) -> Box<dyn BatchExecutor<S, TrOut>>;
 }
 
 /// Handle for executing a single L1 batch.
@@ -29,12 +29,12 @@ pub trait BatchExecutorFactory<S: Send + 'static>: 'static + Send + fmt::Debug {
 /// The handle is parametric by the transaction execution output in order to be able to represent different
 /// levels of abstraction.
 #[async_trait]
-pub trait BatchExecutor<S>: 'static + Send + fmt::Debug {
+pub trait BatchExecutor<S, TrOut = ()>: 'static + Send + fmt::Debug {
     /// Executes a transaction.
     async fn execute_tx(
         &mut self,
         tx: Transaction,
-    ) -> anyhow::Result<BatchTransactionExecutionResult>;
+    ) -> anyhow::Result<BatchTransactionExecutionResult<TrOut>>;
 
     /// Rolls back the last executed transaction.
     async fn rollback_last_tx(&mut self) -> anyhow::Result<()>;

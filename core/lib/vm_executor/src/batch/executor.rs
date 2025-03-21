@@ -1,7 +1,8 @@
-use std::{error::Error as StdError, sync::Arc};
-
 use anyhow::Context as _;
 use async_trait::async_trait;
+use std::fmt::Debug;
+use std::marker::PhantomData;
+use std::{error::Error as StdError, sync::Arc};
 use tokio::{
     sync::{mpsc, oneshot},
     task::JoinHandle,
@@ -50,25 +51,27 @@ impl<S> HandleOrError<S> {
 
 /// "Main" [`BatchExecutor`] implementation instantiating a VM in a blocking Tokio thread.
 #[derive(Debug)]
-pub struct MainBatchExecutor<S> {
+pub struct MainBatchExecutor<S, TrOut> {
     handle: HandleOrError<S>,
-    commands: mpsc::Sender<Command>,
+    commands: mpsc::Sender<Command<TrOut>>,
+    _phantom: PhantomData<TrOut>,
 }
 
-impl<S: ReadStorage> MainBatchExecutor<S> {
+impl<S: ReadStorage, TrOut> MainBatchExecutor<S, TrOut> {
     pub(super) fn new(
         handle: JoinHandle<anyhow::Result<StorageView<S>>>,
-        commands: mpsc::Sender<Command>,
+        commands: mpsc::Sender<Command<TrOut>>,
     ) -> Self {
         Self {
             handle: HandleOrError::Handle(handle),
             commands,
+            _phantom: Default::default(),
         }
     }
 }
 
 #[async_trait]
-impl<S> BatchExecutor<S> for MainBatchExecutor<S>
+impl<S, TrOut: Debug + Send + 'static> BatchExecutor<S, TrOut> for MainBatchExecutor<S, TrOut>
 where
     S: ReadStorage + Send + 'static,
 {
@@ -76,7 +79,7 @@ where
     async fn execute_tx(
         &mut self,
         tx: Transaction,
-    ) -> anyhow::Result<BatchTransactionExecutionResult> {
+    ) -> anyhow::Result<BatchTransactionExecutionResult<TrOut>> {
         let tx_gas_limit = tx.gas_limit().as_u64();
 
         let (response_sender, response_receiver) = oneshot::channel();
@@ -194,10 +197,10 @@ where
 }
 
 #[derive(Debug)]
-pub(super) enum Command {
+pub(super) enum Command<TrOut> {
     ExecuteTx(
         Box<Transaction>,
-        oneshot::Sender<BatchTransactionExecutionResult>,
+        oneshot::Sender<BatchTransactionExecutionResult<TrOut>>,
     ),
     StartNextL2Block(L2BlockEnv, oneshot::Sender<()>),
     RollbackLastTx(oneshot::Sender<()>),
