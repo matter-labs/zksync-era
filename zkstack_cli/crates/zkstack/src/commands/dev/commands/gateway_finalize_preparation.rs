@@ -252,6 +252,13 @@ lazy_static! {
     );
 }
 
+#[derive(Serialize)]
+struct JSONOutput {
+    chains: Vec<U256>,
+    tokens: Vec<Address>,
+    pairs: Vec<(U256, Address)>,
+}
+
 pub(crate) async fn run(shell: &Shell, args: GatewayFinalizePreparationArgs) -> anyhow::Result<()> {
     let upgrade_info = GatewayUpgradeInfo::read(shell, &args.upgrade_description_path)?;
 
@@ -265,18 +272,25 @@ pub(crate) async fn run(shell: &Shell, args: GatewayFinalizePreparationArgs) -> 
 
     println!("Obtaining bridged tokens info...");
 
-    let tokens = get_list_of_tokens(
+    let mut tokens = get_list_of_tokens(
         args.block_to_start_with,
         CACHE_PATH,
         &args.l1_rpc_url,
         upgrade_info.l1_legacy_shared_bridge,
         get_legacy_bridge(upgrade_info.l1_legacy_shared_bridge, &args.l1_rpc_url).await,
-        base_tokens,
+        base_tokens.clone(),
         args.era_chain_id,
     )
     .await;
 
     // Now, since we have the list of tokens and chains, we need to register those.
+    for (chain_id, base_token) in chain_ids.iter().zip(&base_tokens) {
+        if !tokens.contains_key(base_token) {
+            tokens.insert(*base_token, Default::default());
+        }
+
+        tokens.get_mut(base_token).unwrap().insert(*chain_id);
+    }
 
     let tokens_addresses: Vec<_> = tokens.keys().cloned().collect();
 
@@ -298,15 +312,25 @@ pub(crate) async fn run(shell: &Shell, args: GatewayFinalizePreparationArgs) -> 
                 args.multicall_with_gas_addr,
                 upgrade_info.bridgehub_addr,
                 upgrade_info.native_token_vault_addr,
-                tokens_addresses,
-                chain_ids,
-                pair_token,
-                pair_chain_id,
+                tokens_addresses.clone(),
+                chain_ids.clone(),
+                pair_token.clone(),
+                pair_chain_id.clone(),
             ),
         )
         .unwrap();
 
     println!("data: {}", hex::encode(&calldata.0));
+
+    println!(
+        "encoded data: {}",
+        serde_json::to_string(&JSONOutput {
+            chains: chain_ids,
+            tokens: tokens_addresses,
+            pairs: pair_chain_id.into_iter().zip(pair_token).collect()
+        })
+        .unwrap()
+    );
 
     Ok(())
 }
