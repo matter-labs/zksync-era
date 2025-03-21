@@ -94,6 +94,16 @@ impl TestContract {
         &CONTRACT
     }
 
+    /// Returns a counter factory contract.
+    pub fn counter_factory() -> &'static Self {
+        static CONTRACT: Lazy<TestContract> = Lazy::new(|| {
+            let mut contract = TestContract::new(raw::counter::CounterFactory);
+            contract.dependencies = vec![TestContract::new(raw::counter::Counter)];
+            contract
+        });
+        &CONTRACT
+    }
+
     /// Returns a contract used in load testing that emulates various kinds of expensive operations
     /// (storage reads / writes, hashing, recursion via far calls etc.).
     pub fn load_test() -> &'static Self {

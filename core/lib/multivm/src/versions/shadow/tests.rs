@@ -355,6 +355,21 @@ mod evm {
     }
 
     #[test]
+    fn real_emulator_create2_deployment() {
+        test_create2_deployment_in_evm::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn reusing_create_address() {
+        test_reusing_create_address_in_evm::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn reusing_create2_salt() {
+        test_reusing_create2_salt_in_evm::<super::ShadowedFastVm>();
+    }
+
+    #[test]
     fn deployment_with_partial_reverts() {
         test_deployment_with_partial_reverts::<super::ShadowedFastVm>();
     }
@@ -637,6 +652,16 @@ mod simple_execution {
     #[test]
     fn create2_deployment_address() {
         test_create2_deployment_address::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn reusing_create_address() {
+        test_reusing_create_address::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn reusing_create2_salt() {
+        test_reusing_create2_salt::<super::ShadowedFastVm>();
     }
 }
 
