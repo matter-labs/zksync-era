@@ -1,6 +1,8 @@
 use clap::Subcommand;
 use commands::status::args::StatusArgs;
 use messages::MSG_STATUS_ABOUT;
+#[cfg(feature = "v27_evm_interpreter")]
+use messages::MSG_V27_EVM_INTERPRETER_UPGRADE;
 #[cfg(feature = "gateway")]
 use messages::{
     MSG_GATEWAY_FINALIZE, MSG_GATEWAY_REGISTER_L2_TOKENS, MSG_GATEWAY_UPGRADE_CALLDATA,
@@ -62,6 +64,9 @@ pub enum DevCommands {
     #[cfg(feature = "gateway")]
     #[command(about = MSG_GATEWAY_REGISTER_L2_TOKENS)]
     GatewayL2TokenRegistration(commands::gateway_register_l2_tokens::GatewayRegisterL2TokensArgs),
+    #[cfg(feature = "v27_evm_interpreter")]
+    #[command(about = MSG_V27_EVM_INTERPRETER_UPGRADE)]
+    V27EvmInterpreterUpgradeCalldata(commands::v27_evm_eq::V27EvmInterpreterCalldataArgs),
 }
 
 pub async fn run(shell: &Shell, args: DevCommands) -> anyhow::Result<()> {
@@ -89,6 +94,10 @@ pub async fn run(shell: &Shell, args: DevCommands) -> anyhow::Result<()> {
         #[cfg(feature = "gateway")]
         DevCommands::GatewayL2TokenRegistration(args) => {
             commands::gateway_register_l2_tokens::run(args).await?
+        }
+        #[cfg(feature = "v27_evm_interpreter")]
+        DevCommands::V27EvmInterpreterUpgradeCalldata(args) => {
+            commands::v27_evm_eq::run(shell, args).await?
         }
     }
     Ok(())
