@@ -10,7 +10,7 @@ pub(crate) use self::patch::{TreeUpdate, WorkingPatchSet};
 pub use self::rocksdb::{MerkleTreeColumnFamily, RocksDBWrapper};
 use crate::{
     errors::{DeserializeContext, DeserializeError, DeserializeErrorKind},
-    types::{InternalNode, KeyLookup, Leaf, Manifest, Node, NodeKey, Root},
+    types::{InternalNode, KeyLookup, Leaf, Manifest, Node, NodeKey, Root, TreeEntry},
 };
 
 mod patch;
@@ -18,6 +18,38 @@ mod rocksdb;
 mod serialization;
 #[cfg(test)]
 mod tests;
+
+/// [`TreeEntry`] generalization allowing to check leaf index assignment when loading data from the tree.
+pub(crate) trait AsEntry {
+    fn as_entry(&self) -> &TreeEntry;
+
+    fn check_index(&self, index: u64) -> anyhow::Result<()>;
+}
+
+impl AsEntry for TreeEntry {
+    fn as_entry(&self) -> &TreeEntry {
+        self
+    }
+
+    fn check_index(&self, _index: u64) -> anyhow::Result<()> {
+        Ok(())
+    }
+}
+
+impl AsEntry for (u64, TreeEntry) {
+    fn as_entry(&self) -> &TreeEntry {
+        &self.1
+    }
+
+    fn check_index(&self, index: u64) -> anyhow::Result<()> {
+        let (ref_index, entry) = self;
+        anyhow::ensure!(
+            index == *ref_index,
+            "Unexpected index for {entry:?}: reference is {ref_index}, but tree implies {index}",
+        );
+        Ok(())
+    }
+}
 
 /// Generic database functionality. Its main implementation is [`RocksDB`].
 pub trait Database: Send + Sync {

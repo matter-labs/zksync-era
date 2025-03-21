@@ -182,6 +182,58 @@ fn comparing_tree_hash_with_updates() {
     test_comparing_tree_hash_with_updates(PatchSet::default());
 }
 
+#[test]
+fn extending_tree_with_reference_indices() {
+    const RNG_SEED: u64 = 42;
+
+    let mut rng = StdRng::seed_from_u64(RNG_SEED);
+    let mut tree = MerkleTree::new(PatchSet::default()).unwrap();
+
+    let nodes = (0_u64..100).map(|i| {
+        (
+            i + 2,
+            TreeEntry {
+                key: H256(rng.gen()),
+                value: H256(rng.gen()),
+            },
+        )
+    });
+    let inserts: Vec<_> = nodes.collect();
+    tree.extend_with_reference(&inserts).unwrap();
+
+    let mut updates = inserts;
+    for update in &mut updates {
+        update.1.value = H256(rng.gen());
+    }
+    updates.shuffle(&mut rng);
+
+    tree.extend_with_reference(&updates).unwrap();
+    assert_eq!(tree.latest_version().unwrap(), Some(1));
+    let latest_info = tree.root_info(1).unwrap().expect("no info");
+
+    // Check incorrect index handling
+    let err = tree
+        .extend_with_reference(&[(0, TreeEntry::MAX_GUARD)])
+        .unwrap_err();
+    let err = format!("{err:#}");
+    assert!(err.contains("Unexpected index"), "{err}");
+    assert_eq!(tree.latest_version().unwrap(), Some(1));
+    let new_latest_info = tree.root_info(1).unwrap().expect("no info");
+    assert_eq!(new_latest_info, latest_info);
+
+    let err = tree
+        .extend_with_reference(&[(
+            0,
+            TreeEntry {
+                key: H256(rng.gen()),
+                value: H256::zero(),
+            },
+        )])
+        .unwrap_err();
+    let err = format!("{err:#}");
+    assert!(err.contains("Unexpected index"), "{err}");
+}
+
 fn test_extending_tree_with_proof(db: impl Database, inserts_count: usize, updates_count: usize) {
     const RNG_SEED: u64 = 42;
 

@@ -15,7 +15,7 @@ pub use self::{
 };
 use crate::{
     metrics::{BatchProofStage, LoadStage, MerkleTreeInfo, METRICS},
-    storage::{TreeUpdate, WorkingPatchSet},
+    storage::{AsEntry, TreeUpdate, WorkingPatchSet},
     types::{Leaf, MAX_TREE_DEPTH},
 };
 
@@ -192,7 +192,7 @@ impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
     /// - Returns an error if the version doesn't exist.
     /// - Proxies database errors.
     pub fn prove(&self, version: u64, keys: &[H256]) -> anyhow::Result<BatchTreeProof> {
-        let (patch, mut update) = self.create_patch(version, &[], keys)?;
+        let (patch, mut update) = self.create_patch::<TreeEntry>(version, &[], keys)?;
         Ok(patch.create_batch_proof(&self.hasher, vec![], update.take_read_operations()))
     }
 
@@ -212,10 +212,22 @@ impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
         Ok(output)
     }
 
+    /// Same as [`Self::extend()`], but with a cross-check for the leaf indices of `entries`.
+    ///
+    /// `reference_indices` must have the same length as `entries`. Note that because indices are *only* used for cross-checking,
+    /// entries (more specifically, new insertions) must still be correctly ordered!
+    pub fn extend_with_reference(
+        &mut self,
+        entries: &[(u64, TreeEntry)],
+    ) -> anyhow::Result<BatchOutput> {
+        let (output, _) = self.extend_inner(entries, None)?;
+        Ok(output)
+    }
+
     #[tracing::instrument(level = "debug", name = "extend", skip_all, fields(latest_version))]
     fn extend_inner(
         &mut self,
-        entries: &[TreeEntry],
+        entries: &[impl AsEntry],
         read_keys: Option<&[H256]>,
     ) -> anyhow::Result<(BatchOutput, Option<BatchTreeProof>)> {
         let latest_version = self
