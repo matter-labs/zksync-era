@@ -15,6 +15,8 @@ use zksync_eth_client::{
     clients::{DynClient, L1},
     EthInterface,
 };
+use zksync_da_client::types::DAError;
+use crate::utils::{to_non_retriable_da_error, to_retriable_da_error};
 pub struct TendermintRPCClient {
     url: String,
     client: Client,
@@ -51,7 +53,7 @@ pub async fn get_latest_blobstream_relayed_height(
     client: &Box<DynClient<L1>>,
     contract: &Contract,
     contract_address: H160,
-) -> U256 {
+) -> Result<U256, DAError> {
     let request = CallRequest {
         to: Some(contract_address),
         data: Some(
@@ -67,16 +69,16 @@ pub async fn get_latest_blobstream_relayed_height(
     let block_num = client
         .block_number()
         .await
-        .expect("Could not get block number");
+        .map_err(to_retriable_da_error)?;
     let result = client
         .call_contract_function(request, Some(BlockId::Number(block_num.into())))
         .await
-        .unwrap()
+        .map_err(to_retriable_da_error)?
         .0;
     decode(&[ParamType::Uint(256)], &result).unwrap()[0]
         .clone()
         .into_uint()
-        .unwrap()
+        .ok_or_else(|| to_non_retriable_da_error("Could not decode block number"))
 }
 
 // Search for the BlobStream update event that includes the target height
