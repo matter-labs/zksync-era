@@ -338,6 +338,10 @@ pub struct BatchTransactionExecutionResult<TrOut = Vec<Call>> {
     pub compression_result: Result<(), BytecodeCompressionError>,
     /// Call traces (if requested; otherwise, empty).
     pub call_traces: Vec<Call>,
+    /// Output saved by batch tracer.
+    // Defaults to `Vec<Call>` to keep compatibility with the rest of the codebase. `Vec<Call>` is a
+    // special case - `BatchVm` will save call traces into `call_traces` instead and this field will
+    // be empty.
     pub tracer_output: TrOut,
 }
 
