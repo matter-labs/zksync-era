@@ -5,6 +5,7 @@ use zksync_prover_dal::{Connection, Prover, ProverDal};
 use crate::{metrics::PROVER_JOB_MONITOR_METRICS, task_wiring::Task};
 
 /// `ProverJobsArchiver` is a task that archives old finalized prover job.
+///
 /// The task will archive the `successful` prover jobs that have been done for a certain amount of time.
 /// Note: This component speeds up provers, in their absence, queries would slow down due to state growth.
 #[derive(Debug)]

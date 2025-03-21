@@ -57,7 +57,7 @@ pub async fn run_main_node(
             .wrap("global_config()")?
             .context("global_config() disappeared")?;
         if global_config.genesis.leader_selection
-            != validator::LeaderSelectionMode::Sticky(validator_key.public())
+            != validator::v1::LeaderSelectionMode::Sticky(validator_key.public())
         {
             return Err(anyhow::format_err!(
                 "unsupported leader selection mode - main node has to be the leader"

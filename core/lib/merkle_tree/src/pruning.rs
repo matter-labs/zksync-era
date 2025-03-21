@@ -53,7 +53,9 @@ impl MerkleTreePrunerHandle {
 }
 
 /// Component responsible for Merkle tree pruning, i.e. removing nodes not referenced by new versions
-/// of the tree. A pruner should be instantiated using a [`Clone`] of the tree database, possibly
+/// of the tree.
+///
+/// A pruner should be instantiated using a [`Clone`] of the tree database, possibly
 /// configured and then [`run()`](Self::run()) on its own thread. [`MerkleTreePrunerHandle`] provides
 /// a way to gracefully shut down the pruner.
 ///

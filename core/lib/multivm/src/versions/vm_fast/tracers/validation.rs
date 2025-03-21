@@ -69,7 +69,9 @@ impl ValidationTracer for FastValidationTracer {
 }
 
 /// Account abstraction exposes a chain to denial of service attacks because someone who fails to
-/// authenticate does not pay for the failed transaction. Otherwise, people could empty other's
+/// authenticate does not pay for the failed transaction.
+///
+/// Otherwise, people could empty other's
 /// wallets for free!
 ///
 /// If some address repeatedly posts transactions that validate during preliminary checks but fail

@@ -6,6 +6,7 @@ mod resource_id;
 mod unique;
 
 /// A trait for anything that can be stored (and retrieved) as a resource.
+///
 /// Typically, the type that implements this trait also should implement `Clone`
 /// since the same resource may be requested by several tasks and thus it would be an additional
 /// bound on most methods that work with [`Resource`].

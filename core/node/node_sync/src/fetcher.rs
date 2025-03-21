@@ -13,6 +13,7 @@ use super::{
 };
 
 /// Same as [`zksync_types::Transaction`], just with additional guarantees that the "received at" timestamp was set locally.
+///
 /// We cannot transfer `Transaction`s without these timestamps, because this would break backward compatibility.
 #[derive(Debug, Clone)]
 pub struct FetchedTransaction(zksync_types::Transaction);

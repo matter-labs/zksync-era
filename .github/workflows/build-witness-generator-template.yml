@@ -53,7 +53,7 @@ jobs:
       - name: setup rust
         uses: actions-rust-lang/setup-rust-toolchain@1fbea72663f6d4c03efaab13560c8a24cfd2a7cc # v1.9.0
         with:
-          toolchain: nightly-2024-08-01
+          toolchain: nightly-2024-09-01
 
       - name: Prepare sccache-cache env vars
         shell: bash

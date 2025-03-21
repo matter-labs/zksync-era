@@ -52,6 +52,7 @@ pub struct GatewayUpgradeArgs {
 }
 
 impl GatewayUpgradeArgs {
+    #[allow(dead_code)]
     pub fn fill_values_with_prompt(
         self,
         l1_network: L1Network,

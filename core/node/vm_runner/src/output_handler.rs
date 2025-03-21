@@ -76,8 +76,9 @@ pub trait OutputHandlerFactory: fmt::Debug + Send + Sync {
     ) -> anyhow::Result<Box<dyn OutputHandler>>;
 }
 
-/// A delegator factory that requires an underlying factory `F` that does the actual work, however
-/// this struct is orchestrated such that any output handler it produces has a non-blocking
+/// A delegator factory that requires an underlying factory `F` that does the actual work.
+///
+/// This struct is orchestrated such that any output handler it produces has a non-blocking
 /// `handle_l1_batch` implementation (where the heaviest work is expected to happen).
 ///
 /// Once the asynchronous work done in `handle_l1_batch` finishes it is also guaranteed to mark the

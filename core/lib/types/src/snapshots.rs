@@ -301,9 +301,11 @@ impl SnapshotRecoveryStatus {
     }
 }
 
-/// Returns a chunk of `hashed_keys` with 0-based index `chunk_id` among `count`. Chunks do not intersect and jointly cover
-/// the entire `hashed_key` space. If `hashed_key`s are uniformly distributed (which is the case), the returned ranges
-/// are expected to contain the same number of entries.
+/// Returns a chunk of `hashed_keys` with 0-based index `chunk_id` among `count`.
+///
+/// Chunks do not intersect and jointly cover the entire `hashed_key` space. If `hashed_key`s
+/// are uniformly distributed (which is the case), the returned ranges are expected to contain
+/// the same number of entries.
 ///
 /// Used by multiple components during snapshot creation and recovery.
 ///

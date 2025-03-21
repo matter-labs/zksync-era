@@ -195,8 +195,10 @@ pub enum FeeModelConfig {
     V2(FeeModelConfigV2),
 }
 
-/// Config params for the first version of the fee model. Here, the pubdata price is pegged to the L1 gas price and
-/// neither fair L2 gas price nor the pubdata price include the overhead for closing the batch
+/// Config params for the first version of the fee model.
+///
+/// Here, the pubdata price is pegged to the L1 gas price and neither fair L2 gas price
+/// nor the pubdata price include the overhead for closing the batch.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct FeeModelConfigV1 {
     /// The minimal acceptable L2 gas price, i.e. the price that should include the cost of computation/proving as well

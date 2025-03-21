@@ -6,6 +6,14 @@ import "zksync/roles/validator.proto";
 import "zksync/roles/attester.proto";
 import "zksync/roles/node.proto";
 
+message BlockCertificate {
+  // required
+  oneof t {
+    roles.validator.CommitQC v1 = 1;
+    roles.validator.CommitQCV2 v2 = 2;
+  }
+}
+
 message BlockMetadata {
   optional roles.validator.PayloadHash payload_hash = 1; // required
 }

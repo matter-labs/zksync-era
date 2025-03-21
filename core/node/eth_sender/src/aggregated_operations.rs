@@ -58,11 +58,13 @@ impl AggregatedOperation {
         }
     }
 
+    #[allow(dead_code)]
     pub fn is_prove_or_execute(&self) -> bool {
         self.get_action_type() == AggregatedActionType::PublishProofOnchain
             || self.get_action_type() == AggregatedActionType::Execute
     }
 
+    #[allow(dead_code)]
     pub fn is_execute(&self) -> bool {
         self.get_action_type() == AggregatedActionType::Execute
     }

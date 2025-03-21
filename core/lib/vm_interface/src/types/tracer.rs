@@ -121,6 +121,7 @@ pub enum ValidationError {
 }
 
 /// Traces the validation of a transaction, providing visibility into the aspects the transaction interacts with.
+///
 /// For instance, the `timestamp_asserter_range` represent the range within which the transaction might make
 /// assertions on `block.timestamp`. This information is crucial for the caller, as expired transactions should
 /// be excluded from the mempool.

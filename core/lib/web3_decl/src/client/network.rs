@@ -59,7 +59,9 @@ impl From<L2ChainId> for L2 {
     }
 }
 
-/// Associates a type with a particular type of RPC networks, such as Ethereum or ZKsync Era. RPC traits created using `jsonrpsee::rpc`
+/// Associates a type with a particular type of RPC networks.
+///
+/// RPC networks can be, for example, Ethereum or ZKsync Era. RPC traits created using `jsonrpsee::rpc`
 /// can use `ForNetwork` as a client boundary to restrict which implementations can call their methods.
 pub trait ForWeb3Network {
     /// Network that the type is associated with.

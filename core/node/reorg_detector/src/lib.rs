@@ -226,6 +226,7 @@ impl HandleReorgDetectorEvent for HealthUpdater {
 }
 
 /// This is a component that is responsible for detecting the batch re-orgs.
+///
 /// Batch re-org is a rare event of manual intervention, when the node operator
 /// decides to revert some of the not yet finalized batches for some reason
 /// (e.g. inability to generate a proof), and then potentially

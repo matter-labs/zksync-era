@@ -39,6 +39,7 @@ use crate::{
 };
 
 /// Mempool-based sequencer for the state keeper.
+///
 /// Receives transactions from the database through the mempool filtering logic.
 /// Decides which batch parameters should be used for the new batch.
 /// This is an IO for the main server application.

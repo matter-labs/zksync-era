@@ -16,6 +16,7 @@ pub(crate) mod events;
 
 /// Allows to convert `LogQuery` between two different versions, even if they don't provide
 /// direct conversion between each other.
+///
 /// It transforms the input query to the `LogQuery` from `zksync_types` (for which most of the
 /// `zk_evm` versions provide conversion) and then converts it to the target version.
 pub fn glue_log_query<L, R>(l: L) -> R

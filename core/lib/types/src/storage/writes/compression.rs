@@ -168,9 +168,11 @@ fn metadata_byte(output_size: usize, operation_id: usize) -> u8 {
     ((output_size << 3) | operation_id) as u8
 }
 
-/// For a given previous value and new value, try each compression strategy selecting the most
-/// efficient one. Using that strategy, generate the extended compression (metadata byte and compressed value).
-/// If none are found then use the full 32 byte new value with the metadata byte being `0x00`
+/// Compresses storage values using the most efficient compression strategy.
+///
+/// For a given previous value and new value, tries each compression strategy selecting the most
+/// efficient one. Using that strategy, generates the extended compression (metadata byte and compressed value).
+/// If none are found then uses the full 32 byte new value with the metadata byte being `0x00`.
 pub fn compress_with_best_strategy(prev_value: U256, new_value: U256) -> Vec<u8> {
     let compressors = default_passes(prev_value, new_value);
 

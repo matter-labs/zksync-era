@@ -56,6 +56,7 @@ impl Error {
 }
 
 /// State keeper represents a logic layer of L1 batch / L2 block processing flow.
+///
 /// It's responsible for taking all the data from the `StateKeeperIO`, feeding it into `BatchExecutor` objects
 /// and calling `SealManager` to decide whether an L2 block or L1 batch should be sealed.
 ///
@@ -94,7 +95,6 @@ impl ZkSyncStateKeeper {
 
     pub async fn run(mut self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         match self.run_inner(stop_receiver).await {
-            Ok(_) => unreachable!(),
             Err(Error::Fatal(err)) => Err(err).context("state_keeper failed"),
             Err(Error::Canceled) => {
                 tracing::info!("Stop signal received, state keeper is shutting down");

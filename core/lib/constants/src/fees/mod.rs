@@ -41,6 +41,7 @@ pub const L1_GAS_PER_PUBDATA_BYTE: u32 = 17;
 pub const GUARANTEED_PUBDATA_IN_TX: u32 = 100000;
 
 /// The amount of overhead that is paid when the bytecode is published onchain.
+///
 /// It comes from the 64 bytes of additional two words for the bytecode length and offset in the ABI-encoding
 /// of the commitment. The other "36" bytes are mostly an approximation of the amount of gas it takes
 /// to properly hash it and compare with the corresponding L2->L1 message.

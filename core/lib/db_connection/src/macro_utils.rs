@@ -21,11 +21,12 @@ macro_rules! writeln_str {
     }};
 }
 
-/// Interpolates the provided DB query consisting of several or comma-separated parts, each of parts being a string literal
-/// or `_`. `_` parts are substituted with the provided variables in the order of appearance.
+/// Interpolates the provided DB query with string literals and variable substitutions.
 ///
-/// We use tail recursion and accumulate (possibly substituted) parts in an accumulator. This is because `query_as!` would not
-/// work otherwise; its input must be fully expanded.
+/// Each part of the query can be either a string literal or `_`. Parts marked with `_` are substituted
+/// with the provided variables in the order of appearance. We use tail recursion and accumulate
+/// (possibly substituted) parts in an accumulator because `query_as!` would not work otherwise;
+/// its input must be fully expanded.
 #[macro_export]
 macro_rules! interpolate_query {
     // Terminal clause: we have a final substitution.
