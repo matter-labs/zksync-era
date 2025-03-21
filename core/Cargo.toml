@@ -115,7 +115,7 @@ aws-runtime = "1.5.5"
 aws-sdk-s3 = "1.76.0"
 axum = "0.7.5"
 backon = "0.4.4"
-base64 = "*"
+base64 = "0.22.1"
 bigdecimal = "0.4.5"
 bincode = "1"
 bip39 = "2.1.0"
@@ -226,7 +226,7 @@ subxt-signer = { version = "0.39.0", default-features = false }
 # Celestia
 alloy-sol-types = "*"
 alloy-primitives = "*"
-sp1-sdk = {version="4.0.0"}
+sp1-sdk = "4.0.0"
 celestia-types = "0.10"
 bech32 = "0.11.0"
 ripemd = "0.1.3"

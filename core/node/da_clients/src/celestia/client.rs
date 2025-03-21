@@ -23,6 +23,7 @@ use sp1_sdk::SP1ProofWithPublicValues;
 use subxt_signer::ExposeSecret;
 use tonic::transport::Endpoint;
 use zksync_basic_types::{
+    H160,
     ethabi::{Contract, Event},
     web3::BlockNumber,
 };
@@ -83,7 +84,7 @@ impl CelestiaClient {
             })?
             .clone();
 
-        let celestia_grpc_channel = Endpoint::from_str(config.api_node_url.clone().as_str())?
+        let celestia_grpc_channel = Endpoint::from_str(config.celestia_app_grpc_url.clone().as_str())?
             .timeout(time::Duration::from_millis(config.timeout_ms))
             .connect()
             .await?;
@@ -93,7 +94,7 @@ impl CelestiaClient {
             RawCelestiaClient::new(celestia_grpc_channel, private_key, config.chain_id.clone())
                 .expect("could not create Celestia client");
 
-        let eq_service_grpc_channel = Endpoint::from_str(config.eq_service_url.clone().as_str())?
+        let eq_service_grpc_channel = Endpoint::from_str(config.eq_service_grpc_url.clone().as_str())?
             .timeout(time::Duration::from_millis(config.timeout_ms))
             .connect()
             .await?;
@@ -275,7 +276,7 @@ impl DataAvailabilityClient for CelestiaClient {
             .map_err(to_retriable_da_error)?;
 
         let latest_blobstream_height =
-            get_latest_blobstream_relayed_height(&self.eth_client, &self.blobstream_contract).await;
+            get_latest_blobstream_relayed_height(&self.eth_client, &self.blobstream_contract, H160::from_str(self.config.blobstream_contract_address.clone().as_str()).map_err(to_non_retriable_da_error)?).await;
         tracing::debug!("Latest blobstream block: {}", latest_blobstream_height);
 
         tracing::debug!("Parsing blob id: {}", blob_id);
@@ -313,7 +314,7 @@ impl DataAvailabilityClient for CelestiaClient {
             }
         };
 
-        let tm_rpc_client = TendermintRPCClient::new(self.config.tm_rpc_url.clone());
+        let tm_rpc_client = TendermintRPCClient::new(self.config.celestia_core_tendermint_rpc_url.clone());
         let data_root_inclusion_proof_string = tm_rpc_client
             .get_data_root_inclusion_proof(target_height, from.as_u64(), to.as_u64())
             .await
@@ -401,7 +402,7 @@ impl DataAvailabilityClient for CelestiaClient {
 impl Debug for CelestiaClient {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("CelestiaClient")
-            .field("config.api_node_url", &self.config.api_node_url)
+            .field("config.celestia_app_grpc_url", &self.config.celestia_app_grpc_url)
             .field("config.namespace", &self.config.namespace)
             .finish()
     }

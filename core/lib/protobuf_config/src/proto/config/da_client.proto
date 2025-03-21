@@ -32,11 +32,12 @@ message AvailGasRelayConfig {
 
 message CelestiaConfig {
   optional string api_node_url = 1;
-  optional string eq_service_url = 2;
-  optional string namespace = 3;
-  optional string chain_id = 4;
-  optional uint64 timeout_ms = 5;
-  optional string tm_rpc_url = 6;
+  optional string namespace = 2;
+  optional string chain_id = 3;
+  optional uint64 timeout_ms = 4;
+  optional string eq_service_grpc_url = 5;
+  optional string celestia_core_tendermint_rpc_url = 6;
+  optional string blobstream_contract_address = 7;
 }
 
 message Url {

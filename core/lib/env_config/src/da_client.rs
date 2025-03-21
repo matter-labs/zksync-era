@@ -255,7 +255,7 @@ mod tests {
 
     fn expected_celestia_da_layer_config(
         api_node_url: &str,
-        eq_service_url: &str,
+        eq_service_grpc_url: &str,
         namespace: &str,
         chain_id: &str,
         timeout_ms: u64,
@@ -263,11 +263,12 @@ mod tests {
     ) -> DAClientConfig {
         DAClientConfig::Celestia(CelestiaConfig {
             api_node_url: api_node_url.to_string(),
-            eq_service_url: eq_service_url.to_string(),
+            eq_service_grpc_url: eq_service_grpc_url.to_string(),
             namespace: namespace.to_string(),
             chain_id: chain_id.to_string(),
             timeout_ms,
-            tm_rpc_url: tm_rpc_url.to_string(),
+            celestia_core_tendermint_rpc_url: tm_rpc_url.to_string(),
+            blobstream_contract_address: "0x0000000000000000000000000000000000000123".to_string(),
         })
     }
 

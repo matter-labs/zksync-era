@@ -17,11 +17,15 @@ use zksync_eth_client::{
 };
 pub struct TendermintRPCClient {
     url: String,
+    client: Client,
 }
 
 impl TendermintRPCClient {
     pub fn new(url: String) -> Self {
-        TendermintRPCClient { url }
+        TendermintRPCClient { 
+            url, 
+            client: Client::new(),
+        }
     }
 
     pub async fn get_data_root_inclusion_proof(
@@ -30,9 +34,8 @@ impl TendermintRPCClient {
         start: u64,
         end: u64,
     ) -> Result<String, ReqwestError> {
-        let client = Client::new();
         let url = format!("{}/data_root_inclusion_proof", self.url);
-        client
+        self.client
             .get(url)
             .query(&[("height", height), ("start", start), ("end", end)])
             .send()
@@ -47,13 +50,10 @@ impl TendermintRPCClient {
 pub async fn get_latest_blobstream_relayed_height(
     client: &Box<DynClient<L1>>,
     contract: &Contract,
+    contract_address: H160,
 ) -> U256 {
     let request = CallRequest {
-        to: Some(
-            "0xF0c6429ebAB2e7DC6e05DaFB61128bE21f13cb1e"
-                .parse()
-                .unwrap(),
-        ),
+        to: Some(contract_address),
         data: Some(
             contract
                 .function("latestBlock")

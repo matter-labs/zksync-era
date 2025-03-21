@@ -2347,7 +2347,8 @@ dependencies = [
 [[package]]
 name = "celestia-proto"
 version = "0.7.0"
-source = "git+https://github.com/eigerco/lumina.git#c0dd5e227ef4d231a9a6261062edcb5a94995f0c"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4429b21a37997c08390d6f8fc325d29b8e72f3dca39f7acfe48d639e2f82a553"
 dependencies = [
  "bytes",
  "prost 0.13.4",
@@ -2361,8 +2362,9 @@ dependencies = [
 
 [[package]]
 name = "celestia-types"
-version = "0.10.0"
-source = "git+https://github.com/eigerco/lumina.git#c0dd5e227ef4d231a9a6261062edcb5a94995f0c"
+version = "0.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "18e0fa0f7432d59891db755b883f4a70d5f0fa42b63a6b9c0a440563d59dfa39"
 dependencies = [
  "base64 0.22.1",
  "bech32",
