@@ -4,7 +4,7 @@ use std::{collections::HashMap, iter};
 
 use assert_matches::assert_matches;
 use zk_evm_1_5_0::zkevm_opcode_defs::decoding::{EncodingModeProduction, VmEncodingMode};
-use zksync_contracts::{eth_contract, load_contract, read_bytecode};
+use zksync_contracts::{load_contract, read_bytecode};
 use zksync_dal::{
     transactions_dal::L2TxSubmissionResult, Connection, ConnectionPool, Core, CoreDal,
 };
@@ -19,8 +19,9 @@ use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_node_test_utils::{create_l2_block, default_l1_batch_env, default_system_env};
 use zksync_state::PostgresStorage;
 use zksync_system_constants::{
-    CONTRACT_DEPLOYER_ADDRESS, L2_BASE_TOKEN_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
-    SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
+    CONTRACT_DEPLOYER_ADDRESS, L2_BASE_TOKEN_ADDRESS, NONCE_HOLDER_ADDRESS,
+    REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, SYSTEM_CONTEXT_ADDRESS,
+    SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
 };
 use zksync_test_contracts::{Account, LoadnextContractExecutionParams, TestContract};
 use zksync_types::{
@@ -30,7 +31,7 @@ use zksync_types::{
     bytecode::BytecodeHash,
     commitment::PubdataParams,
     ethabi,
-    ethabi::Token,
+    ethabi::{ParamType, Token},
     fee::Fee,
     fee_model::FeeParams,
     l1::L1Tx,
@@ -119,6 +120,11 @@ impl StateBuilder {
 
     pub fn with_balance(mut self, address: Address, balance: U256) -> Self {
         self.inner.entry(address).or_default().balance = Some(balance);
+        self
+    }
+
+    pub fn with_nonce(mut self, address: Address, nonce: U256) -> Self {
+        self.inner.entry(address).or_default().nonce = Some(nonce);
         self
     }
 
@@ -277,6 +283,8 @@ pub(crate) trait TestAccount {
 
     fn query_base_token_balance(&self) -> CallRequest;
 
+    fn query_min_nonce(&self, address: Address) -> CallRequest;
+
     fn create_transfer_with_fee(&mut self, to: Address, value: U256, fee: Fee) -> L2Tx;
 
     fn create_load_test_tx(&mut self, params: LoadnextContractExecutionParams) -> L2Tx;
@@ -314,7 +322,7 @@ impl TestAccount for Account {
     }
 
     fn query_base_token_balance(&self) -> CallRequest {
-        let data = eth_contract()
+        let data = zksync_contracts::eth_contract()
             .function("balanceOf")
             .expect("No `balanceOf` function in contract")
             .encode_input(&[Token::Uint(address_to_u256(&self.address()))])
@@ -322,6 +330,18 @@ impl TestAccount for Account {
         CallRequest {
             from: Some(self.address()),
             to: Some(L2_BASE_TOKEN_ADDRESS),
+            data: Some(data.into()),
+            ..CallRequest::default()
+        }
+    }
+
+    fn query_min_nonce(&self, address: Address) -> CallRequest {
+        let signature = ethabi::short_signature("getMinNonce", &[ParamType::Address]);
+        let mut data = signature.to_vec();
+        data.extend_from_slice(&ethabi::encode(&[Token::Address(address)]));
+        CallRequest {
+            from: Some(self.address()),
+            to: Some(NONCE_HOLDER_ADDRESS),
             data: Some(data.into()),
             ..CallRequest::default()
         }
