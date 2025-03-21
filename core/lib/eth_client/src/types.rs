@@ -225,6 +225,9 @@ pub enum SigningError {
     /// EIP4844 transaction lacks `blob_versioned_hashes` field
     #[error("EIP4844 transaction lacks blob_versioned_hashes field")]
     Eip4844MissingBlobVersionedHashes,
+    /// EIP4844 transaction lacks `blob_versioned_hashes` field
+    #[error("EIP712 transaction has wrong chain id")]
+    WrongL2Chain,
 }
 
 /// Raw transaction bytes.
