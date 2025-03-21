@@ -54,6 +54,7 @@ impl EthTxManager {
             gas_adjuster,
             max_acceptable_priority_fee_in_gwei: config.max_acceptable_priority_fee_in_gwei,
             time_in_mempool_in_l1_blocks_cap: config.time_in_mempool_in_l1_blocks_cap,
+            max_gas_limit: config.max_aggregated_tx_gas as u64,
         };
         let l1_interface = Box::new(RealL1Interface {
             ethereum_gateway,
@@ -131,7 +132,8 @@ impl EthTxManager {
             base_fee_per_gas,
             priority_fee_per_gas,
             blob_base_fee_per_gas,
-            pubdata_price: _,
+            max_gas_per_pubdata_price,
+            gas_limit,
         } = self.fees_oracle.calculate_fees(
             &previous_sent_tx,
             time_in_mempool_in_l1_blocks,
@@ -198,8 +200,9 @@ impl EthTxManager {
                 base_fee_per_gas,
                 priority_fee_per_gas,
                 blob_gas_price,
-                self.config.max_aggregated_tx_gas.into(),
+                gas_limit.into(),
                 operator_type,
+                max_gas_per_pubdata_price.map(Into::into),
             )
             .await;
 
