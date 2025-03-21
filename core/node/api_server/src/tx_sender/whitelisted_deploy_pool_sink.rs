@@ -39,23 +39,36 @@ impl TxSink for WhitelistedDeployPoolSink {
                 .await
                 .map_err(DalError::generalize)?;
 
-            let is_allowed = connection
+            // Check if initiator is allowed
+            let initiator_allowed = connection
                 .contracts_deploy_allow_list_dal()
                 .is_address_allowed(&initiator)
                 .await
                 .map_err(DalError::generalize)?;
 
-            if !is_allowed {
+            // Check if the contract address is allowed
+            let contract_address_allowed = match tx.execute.contract_address {
+                Some(addr) => connection
+                    .contracts_deploy_allow_list_dal()
+                    .is_address_allowed(&addr)
+                    .await
+                    .map_err(DalError::generalize)?,
+                None => false,
+            };
+
+            if !initiator_allowed && !contract_address_allowed {
                 tracing::info!(
-                    "Blocking contract deployment for non-whitelisted address: {:?}",
-                    initiator
+                    "Blocking contract deployment. Neither initiator {:?} nor contract address {:?} is whitelisted.",
+                    initiator,
+                    tx.execute.contract_address
                 );
                 return Err(SubmitTxError::SenderNotInAllowList(initiator));
             }
 
             tracing::debug!(
-                "Whitelisted address {:?} allowed to deploy contract: {:?}",
+                "Contract deployment allowed. Initiator: {:?}, Contract: {:?}, Tx hash: {:?}",
                 initiator,
+                tx.execute.contract_address,
                 tx.hash()
             );
         }
