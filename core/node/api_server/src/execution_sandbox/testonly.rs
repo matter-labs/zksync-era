@@ -22,7 +22,7 @@ pub(crate) async fn apply_state_overrides(
         .await
         .unwrap();
     let state_with_overrides =
-        tokio::task::spawn_blocking(move || apply_state_override(state, &state_override))
+        tokio::task::spawn_blocking(|| apply_state_override(state, state_override))
             .await
             .unwrap();
     let (state, overrides) = state_with_overrides.into_parts();

@@ -205,7 +205,7 @@ impl SandboxExecutor {
             .await?;
 
         let storage = if let Some(state_override) = state_override {
-            tokio::task::spawn_blocking(move || apply_state_override(storage, &state_override))
+            tokio::task::spawn_blocking(|| apply_state_override(storage, state_override))
                 .await
                 .context("applying state override failed")?
         } else {
