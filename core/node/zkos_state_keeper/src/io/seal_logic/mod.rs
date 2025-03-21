@@ -28,69 +28,11 @@ use crate::{
 
 pub mod l2_block_seal_subtasks;
 
-#[derive(Debug)]
-pub enum SealStrategy<'pool> {
-    Sequential(Connection<'pool, Core>),
-    Parallel(&'pool ConnectionPool<Core>),
-}
-
-// As opposed to `Cow` from `std`; a union of an owned type and a mutable ref to it
-enum Goat<'a, T> {
-    Owned(T),
-    Borrowed(&'a mut T),
-}
-
-impl<T> ops::Deref for Goat<'_, T> {
-    type Target = T;
-
-    fn deref(&self) -> &Self::Target {
-        match self {
-            Self::Owned(value) => value,
-            Self::Borrowed(value) => value,
-        }
-    }
-}
-
-impl<T> ops::DerefMut for Goat<'_, T> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        match self {
-            Self::Owned(value) => value,
-            Self::Borrowed(value) => value,
-        }
-    }
-}
-
-impl<'pool> SealStrategy<'pool> {
-    async fn connection(&mut self) -> anyhow::Result<Goat<'_, Connection<'pool, Core>>> {
-        Ok(match self {
-            Self::Parallel(pool) => Goat::Owned(pool.connection_tagged("state_keeper").await?),
-            Self::Sequential(conn) => Goat::Borrowed(conn),
-        })
-    }
-}
-
 impl L2BlockSealCommand {
-    pub async fn seal(&self, pool: ConnectionPool<Core>) -> anyhow::Result<()> {
-        let l2_block_number = self.l2_block_number;
-        self.seal_inner(&mut SealStrategy::Parallel(&pool), false)
-            .await
-            .with_context(|| format!("failed sealing L2 block #{l2_block_number}"))
-    }
-
     /// Seals an L2 block with the given number.
-    ///
-    /// If `is_fictive` flag is set to true, then it is assumed that we should seal a fictive L2 block
-    /// with no transactions in it. It is needed because there might be some storage logs / events
-    /// that are created after the last processed tx in the L1 batch: after the last transaction is processed,
-    /// the bootloader enters the "tip" phase in which it can still generate events (e.g.,
-    /// one for sending fees to the operator).
-    async fn seal_inner(
-        &self,
-        strategy: &mut SealStrategy<'_>,
-        is_fictive: bool,
-    ) -> anyhow::Result<()> {
+    pub async fn seal(&self, pool: ConnectionPool<Core>) -> anyhow::Result<()> {
         let started_at = Instant::now();
-        self.ensure_valid_l2_block(is_fictive)
+        self.ensure_valid_l2_block()
             .context("L2 block is invalid")?;
 
         let (l1_tx_count, l2_tx_count) = l1_l2_tx_count(&self.executed_transactions);
@@ -105,32 +47,21 @@ impl L2BlockSealCommand {
         );
 
         // Run sub-tasks in parallel.
-        L2BlockSealProcess::run_subtasks(self, strategy).await?;
+        L2BlockSealProcess::run_subtasks(self, pool).await?;
 
         Ok(())
     }
 
     /// Performs several sanity checks to make sure that the L2 block is valid.
-    fn ensure_valid_l2_block(&self, is_fictive: bool) -> anyhow::Result<()> {
-        if is_fictive {
-            anyhow::ensure!(
-                self.executed_transactions.is_empty(),
-                "fictive L2 block must not have transactions"
-            );
-        } else {
-            anyhow::ensure!(
-                !self.executed_transactions.is_empty(),
-                "non-fictive L2 block must have at least one transaction"
-            );
-        }
+    fn ensure_valid_l2_block(&self) -> anyhow::Result<()> {
+        anyhow::ensure!(
+            !self.executed_transactions.is_empty(),
+            "non-fictive L2 block must have at least one transaction"
+        );
 
         let first_tx_index = self.first_tx_index;
         let next_tx_index = first_tx_index + self.executed_transactions.len();
-        let tx_index_range = if is_fictive {
-            next_tx_index..(next_tx_index + 1)
-        } else {
-            first_tx_index..next_tx_index
-        };
+        let tx_index_range = first_tx_index..next_tx_index;
 
         for event in &self.events {
             let tx_index = event.location.1 as usize;

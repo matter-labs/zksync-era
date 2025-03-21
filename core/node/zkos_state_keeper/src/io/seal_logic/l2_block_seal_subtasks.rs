@@ -1,9 +1,9 @@
 use anyhow::Context;
 use async_trait::async_trait;
-use zksync_dal::{Connection, Core, CoreDal};
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_types::L2BlockNumber;
 
-use crate::{io::seal_logic::SealStrategy, updates::L2BlockSealCommand};
+use crate::updates::L2BlockSealCommand;
 
 /// Helper struct that encapsulates parallel l2 block sealing logic.
 #[derive(Debug)]
@@ -26,34 +26,22 @@ impl L2BlockSealProcess {
 
     pub async fn run_subtasks(
         command: &L2BlockSealCommand,
-        strategy: &mut SealStrategy<'_>,
+        pool: ConnectionPool<Core>,
     ) -> anyhow::Result<()> {
         let subtasks = Self::all_subtasks();
-        match strategy {
-            SealStrategy::Sequential(connection) => {
-                for subtask in subtasks {
-                    let subtask_name = subtask.name();
-                    subtask
-                        .run(command, connection)
-                        .await
-                        .context(subtask_name)?;
-                }
+        let pool = &pool;
+
+        let handles = subtasks.into_iter().map(|subtask| {
+            let subtask_name = subtask.name();
+            async move {
+                let mut connection = pool.connection_tagged("state_keeper").await?;
+                subtask
+                    .run(command, &mut connection)
+                    .await
+                    .context(subtask_name)
             }
-            SealStrategy::Parallel(pool) => {
-                let pool = &*pool;
-                let handles = subtasks.into_iter().map(|subtask| {
-                    let subtask_name = subtask.name();
-                    async move {
-                        let mut connection = pool.connection_tagged("state_keeper").await?;
-                        subtask
-                            .run(command, &mut connection)
-                            .await
-                            .context(subtask_name)
-                    }
-                });
-                futures::future::try_join_all(handles).await?;
-            }
-        }
+        });
+        futures::future::try_join_all(handles).await?;
 
         Ok(())
     }
