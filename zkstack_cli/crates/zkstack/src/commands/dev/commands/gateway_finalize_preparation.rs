@@ -246,7 +246,7 @@ async fn get_legacy_bridge(bridge_addr: Address, l1_rpc_url: &str) -> Address {
 lazy_static! {
     static ref FINALIZE_UPGRADE: BaseContract = BaseContract::from(
         parse_abi(&[
-            "function finalizeInit(tuple(address,address,address,address[],uint256[],address[],uint256[]))",
+            "function finalizeInit(address,address,address,address[],uint256[],address[],uint256[])",
         ])
         .unwrap(),
     );
