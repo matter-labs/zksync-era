@@ -8,17 +8,17 @@ use zksync_multivm::{
         executor::{BatchExecutor, BatchExecutorFactory},
         pubdata::PubdataBuilder,
         storage::{ReadStorage, StoragePtr, StorageView, StorageViewStats},
-        utils::{DivergenceHandler, ShadowMut},
+        utils::{CheckDivergence, DivergenceHandler, ShadowMut},
         BatchTransactionExecutionResult, Call, ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv,
         L2BlockEnv, SystemEnv, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
     },
     is_supported_by_fast_vm,
     pubdata_builders::pubdata_params_to_builder,
-    tracers::CallTracer,
+    tracers::{CallTracer, TracerDispatcher},
     vm_fast,
     vm_fast::FastValidationTracer,
     vm_latest::HistoryEnabled,
-    FastVmInstance, LegacyVmInstance, MultiVmTracer,
+    FastVmInstance, HistoryMode, LegacyVmInstance, MultiVmTracer,
 };
 use zksync_types::{commitment::PubdataParams, vm::FastVmMode, Transaction};
 
@@ -49,20 +49,52 @@ impl CallTracingTracer for vm_fast::CallTracer {
 ///
 /// All members of this trait are implementation details.
 pub trait BatchTracer: fmt::Debug + 'static + Send + Sealed {
-    /// True if call tracing is enabled. Used by legacy VMs which enable / disable call tracing dynamically.
-    #[doc(hidden)]
-    const TRACE_CALLS: bool;
+    /// Human-readable name used to identify this batch tracer.
+    const NAME: &'static str;
+    /// Tracer's output.
+    type Output: CheckDivergence + Default + fmt::Debug + Send + 'static;
+    /// Tracer state for the legacy VM.
+    type LegacyState: Send + 'static;
     /// Tracer for the fast VM.
-    #[doc(hidden)]
-    type Fast: CallTracingTracer;
+    type FastTracer: vm_fast::interface::Tracer + Default;
+
+    /// Initializes legacy tracer dispatcher along with the state that will hold tracing output
+    /// after execution finishes.
+    fn init_legacy<S: ReadStorage, H: HistoryMode>(
+    ) -> (TracerDispatcher<StorageView<S>, H>, Self::LegacyState);
+
+    /// Transforms legacy state into expected output type. This method must only be called after
+    /// VM execution has finished.
+    fn legacy_into_output(legacy_state: Self::LegacyState) -> Self::Output;
+
+    /// Transforms fast tracer into expected output type. This method must only be called after
+    /// VM execution has finished.
+    fn fast_into_output(fast_tracer: Self::FastTracer) -> Self::Output;
 }
 
 impl Sealed for () {}
 
 /// No-op implementation that doesn't trace anything.
 impl BatchTracer for () {
-    const TRACE_CALLS: bool = false;
-    type Fast = ();
+    const NAME: &'static str = "no_traces";
+    // For now, we pretend that no-op batch tracer saves call traces to avoid too many changes in
+    // the codebase.
+    type Output = Vec<Call>;
+    type LegacyState = ();
+    type FastTracer = ();
+
+    fn init_legacy<S: ReadStorage, H: HistoryMode>(
+    ) -> (TracerDispatcher<StorageView<S>, H>, Self::LegacyState) {
+        (vec![].into(), ())
+    }
+
+    fn legacy_into_output(_legacy_state: Self::LegacyState) -> Self::Output {
+        vec![]
+    }
+
+    fn fast_into_output(_fast_tracer: Self::FastTracer) -> Self::Output {
+        vec![]
+    }
 }
 
 /// [`BatchTracer`] implementation tracing calls (returned in [`BatchTransactionExecutionResult`]s).
@@ -72,8 +104,30 @@ pub struct TraceCalls(());
 impl Sealed for TraceCalls {}
 
 impl BatchTracer for TraceCalls {
-    const TRACE_CALLS: bool = true;
-    type Fast = vm_fast::CallTracer;
+    const NAME: &'static str = "call_traces";
+    type Output = Vec<Call>;
+    type LegacyState = Arc<OnceCell<Vec<Call>>>;
+    type FastTracer = vm_fast::CallTracer;
+
+    fn init_legacy<S: ReadStorage, H: HistoryMode>(
+    ) -> (TracerDispatcher<StorageView<S>, H>, Self::LegacyState) {
+        let legacy_tracer_result = Arc::new(OnceCell::default());
+        (
+            vec![CallTracer::new(legacy_tracer_result.clone()).into_tracer_pointer()].into(),
+            legacy_tracer_result,
+        )
+    }
+
+    fn legacy_into_output(legacy_state: Self::LegacyState) -> Self::Output {
+        Arc::try_unwrap(legacy_state)
+            .expect("failed extracting call traces")
+            .take()
+            .unwrap_or_default()
+    }
+
+    fn fast_into_output(fast_tracer: Self::FastTracer) -> Self::Output {
+        fast_tracer.into_traces()
+    }
 }
 
 /// The default implementation of [`BatchExecutorFactory`].
@@ -138,7 +192,7 @@ impl<Tr: BatchTracer> MainBatchExecutorFactory<Tr> {
     }
 }
 
-impl<S: ReadStorage + Send + 'static, Tr: BatchTracer> BatchExecutorFactory<S>
+impl<S: ReadStorage + Send + 'static, Tr: BatchTracer> BatchExecutorFactory<S, Tr::Output>
     for MainBatchExecutorFactory<Tr>
 {
     fn init_batch(
@@ -147,7 +201,7 @@ impl<S: ReadStorage + Send + 'static, Tr: BatchTracer> BatchExecutorFactory<S>
         l1_batch_params: L1BatchEnv,
         system_env: SystemEnv,
         pubdata_params: PubdataParams,
-    ) -> Box<dyn BatchExecutor<S>> {
+    ) -> Box<dyn BatchExecutor<S, Tr::Output>> {
         // Since we process `BatchExecutor` commands one-by-one (the next command is never enqueued
         // until a previous command is processed), capacity 1 is enough for the commands channel.
         let (commands_sender, commands_receiver) = mpsc::channel(1);
@@ -177,7 +231,7 @@ impl<S: ReadStorage + Send + 'static, Tr: BatchTracer> BatchExecutorFactory<S>
 #[derive(Debug)]
 enum BatchVm<S: ReadStorage, Tr: BatchTracer> {
     Legacy(LegacyVmInstance<S, HistoryEnabled>),
-    Fast(FastVmInstance<S, Tr::Fast>),
+    Fast(FastVmInstance<S, Tr::FastTracer>),
 }
 
 macro_rules! dispatch_batch_vm {
@@ -239,15 +293,10 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
         &mut self,
         tx: Transaction,
         with_compression: bool,
-    ) -> BatchTransactionExecutionResult {
-        let legacy_tracer_result = Arc::new(OnceCell::default());
-        let legacy_tracer = if Tr::TRACE_CALLS {
-            vec![CallTracer::new(legacy_tracer_result.clone()).into_tracer_pointer()]
-        } else {
-            vec![]
-        };
-        let mut legacy_tracer = legacy_tracer.into();
-        let mut fast_traces = vec![];
+    ) -> BatchTransactionExecutionResult<Tr::Output> {
+        let (mut legacy_tracer, legacy_tracer_state) = Tr::init_legacy::<S, HistoryEnabled>();
+        let fast_tracer = Tr::FastTracer::default();
+        let mut fast_output = Tr::Output::default();
 
         let (compression_result, tx_result) = match self {
             Self::Legacy(vm) => vm.inspect_transaction_with_bytecode_compression(
@@ -258,40 +307,47 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
             Self::Fast(vm) => {
                 let mut tracer = (
                     legacy_tracer.into(),
-                    (Tr::Fast::default(), FastValidationTracer::default()),
+                    (fast_tracer, FastValidationTracer::default()),
                 );
                 let res = vm.inspect_transaction_with_bytecode_compression(
                     &mut tracer,
                     tx,
                     with_compression,
                 );
-                let (_, (call_tracer, _)) = tracer;
-                fast_traces = call_tracer.into_traces();
+                let (_, (fast_tracer, _)) = tracer;
+                fast_output = Tr::fast_into_output(fast_tracer);
                 res
             }
         };
 
         let compressed_bytecodes = compression_result.map(drop);
-        let legacy_traces = Arc::try_unwrap(legacy_tracer_result)
-            .expect("failed extracting call traces")
-            .take()
-            .unwrap_or_default();
-        let call_traces = match self {
-            Self::Legacy(_) => legacy_traces,
-            Self::Fast(FastVmInstance::Fast(_)) => fast_traces,
+        let legacy_output = Tr::legacy_into_output(legacy_tracer_state);
+        let mut tracer_output = match self {
+            Self::Legacy(_) => legacy_output,
+            Self::Fast(FastVmInstance::Fast(_)) => fast_output,
             Self::Fast(FastVmInstance::Shadowed(vm)) => {
-                vm.get_custom_mut("call_traces", |r| match r {
-                    ShadowMut::Main(_) => legacy_traces.as_slice(),
-                    ShadowMut::Shadow(_) => fast_traces.as_slice(),
+                vm.get_custom_mut(Tr::NAME, |r| match r {
+                    ShadowMut::Main(_) => &legacy_output,
+                    ShadowMut::Shadow(_) => &fast_output,
                 });
-                fast_traces
+                fast_output
             }
+        };
+        // Call traces are a special case for now - we have to save them into `BatchTransactionExecutionResult::call_traces`.
+        // To avoid unnecessary cloning `tracer_output` is left empty.
+        let call_traces = if let Some(tracer_output) =
+            (&mut tracer_output as &mut dyn std::any::Any).downcast_mut::<Vec<Call>>()
+        {
+            std::mem::take(tracer_output)
+        } else {
+            vec![]
         };
 
         BatchTransactionExecutionResult {
             tx_result: Box::new(tx_result),
             compression_result: compressed_bytecodes,
             call_traces,
+            tracer_output,
         }
     }
 }
@@ -303,13 +359,13 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
 /// One `CommandReceiver` can execute exactly one batch, so once the batch is sealed, a new `CommandReceiver` object must
 /// be constructed.
 #[derive(Debug)]
-struct CommandReceiver<S, Tr> {
+struct CommandReceiver<S, Tr: BatchTracer> {
     optional_bytecode_compression: bool,
     fast_vm_mode: FastVmMode,
     observe_storage_metrics: bool,
     skip_signature_verification: bool,
     divergence_handler: Option<DivergenceHandler>,
-    commands: mpsc::Receiver<Command>,
+    commands: mpsc::Receiver<Command<Tr::Output>>,
     _storage: PhantomData<S>,
     _tracer: PhantomData<Tr>,
 }
@@ -408,7 +464,7 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
         &self,
         transaction: Transaction,
         vm: &mut BatchVm<S, Tr>,
-    ) -> anyhow::Result<(BatchTransactionExecutionResult, Duration)> {
+    ) -> anyhow::Result<(BatchTransactionExecutionResult<Tr::Output>, Duration)> {
         // Executing a next transaction means that a previous transaction was either rolled back (in which case its snapshot
         // was already removed), or that we build on top of it (in which case, it can be removed now).
         vm.pop_snapshot_no_rollback();
@@ -456,7 +512,7 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
         &self,
         tx: &Transaction,
         vm: &mut BatchVm<S, Tr>,
-    ) -> anyhow::Result<BatchTransactionExecutionResult> {
+    ) -> anyhow::Result<BatchTransactionExecutionResult<Tr::Output>> {
         // Note, that the space where we can put the calldata for compressing transactions
         // is limited and the transactions do not pay for taking it.
         // In order to not let the accounts spam the space of compressed bytecodes with bytecodes
@@ -472,6 +528,7 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
                 tx_result: res.tx_result,
                 compression_result: Ok(()),
                 call_traces: res.call_traces,
+                tracer_output: res.tracer_output,
             });
         }
 
@@ -487,6 +544,7 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
             tx_result: res.tx_result,
             compression_result: Ok(()),
             call_traces: res.call_traces,
+            tracer_output: res.tracer_output,
         })
     }
 
@@ -496,13 +554,14 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
         &self,
         tx: &Transaction,
         vm: &mut BatchVm<S, Tr>,
-    ) -> anyhow::Result<BatchTransactionExecutionResult> {
+    ) -> anyhow::Result<BatchTransactionExecutionResult<Tr::Output>> {
         let res = vm.inspect_transaction(tx.clone(), true);
         if res.compression_result.is_ok() {
             Ok(BatchTransactionExecutionResult {
                 tx_result: res.tx_result,
                 compression_result: Ok(()),
                 call_traces: res.call_traces,
+                tracer_output: res.tracer_output,
             })
         } else {
             // Transaction failed to publish bytecodes, we reject it so initiator doesn't pay fee.
@@ -514,6 +573,7 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
                 tx_result,
                 compression_result: Ok(()),
                 call_traces: vec![],
+                tracer_output: res.tracer_output,
             })
         }
     }

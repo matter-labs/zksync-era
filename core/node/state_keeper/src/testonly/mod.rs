@@ -32,6 +32,7 @@ pub(crate) fn successful_exec() -> BatchTransactionExecutionResult {
         tx_result: Box::new(VmExecutionResultAndLogs::mock_success()),
         compression_result: Ok(()),
         call_traces: vec![],
+        tracer_output: vec![],
     }
 }
 
