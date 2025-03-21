@@ -150,7 +150,7 @@ impl ZkOsStateKeeperOutputHandler for SyncState {
         &mut self,
         updates_manager: Arc<ZkOsUpdatesManager>,
     ) -> anyhow::Result<()> {
-        let sealed_block_number = updates_manager.l2_block.number;
+        let sealed_block_number = updates_manager.l2_block_number;
         self.set_local_block(sealed_block_number);
         Ok(())
     }

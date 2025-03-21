@@ -256,7 +256,7 @@ impl ZkosStateKeeper {
                 );
             }
 
-            updates_manager.extend_with_block_result(executed_transactions, result.clone());
+            updates_manager.extend(executed_transactions, result.clone());
 
             self.push_block_storage_diff(result, &mut updates_manager)
                 .await?;

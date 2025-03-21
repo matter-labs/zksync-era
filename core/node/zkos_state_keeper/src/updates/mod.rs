@@ -19,13 +19,21 @@ use zksync_zkos_vm_runner::zkos_conversions::{
 #[derive(Debug)]
 pub struct UpdatesManager {
     pub l1_batch_number: L1BatchNumber,
-    timestamp: u64,
+    pub l2_block_number: L2BlockNumber,
+    pub timestamp: u64,
     pub fee_account_address: Address,
     pub batch_fee_input: BatchFeeInput,
     pub base_fee_per_gas: u64,
-    protocol_version: ProtocolVersionId,
-    pub l2_block: L2BlockUpdates,
+    pub protocol_version: ProtocolVersionId,
     pub gas_limit: u64,
+
+    pub executed_transactions: Vec<TransactionExecutionResult>,
+    pub events: Vec<VmEvent>,
+    pub storage_logs: Vec<StorageLog>,
+    pub user_l2_to_l1_logs: Vec<UserL2ToL1Log>, // TODO: not filled currently
+    pub new_factory_deps: HashMap<H256, Vec<u8>>,
+    pub payload_encoding_size: usize,
+
     pub initial_writes: Option<(Vec<H256>, u64)>,
 }
 
@@ -38,32 +46,95 @@ pub struct L2BlockUpdates {
     pub storage_logs: Vec<StorageLog>,
     pub user_l2_to_l1_logs: Vec<UserL2ToL1Log>, // TODO: not filled currently
     pub new_factory_deps: HashMap<H256, Vec<u8>>,
-    pub block_execution_metrics: VmExecutionMetrics, // TODO: is needed?
-    pub txs_encoding_size: usize,                    // TODO: is needed?
     pub payload_encoding_size: usize,
-    pub l1_tx_count: usize,    // TODO: is needed?
-    pub prev_block_hash: H256, // TODO: is needed?
 }
 
-impl L2BlockUpdates {
-    pub fn new(l1_batch_number: L1BatchNumber, number: L2BlockNumber) -> Self {
+impl UpdatesManager {
+    pub fn new(
+        l1_batch_number: L1BatchNumber,
+        l2_block_number: L2BlockNumber,
+        timestamp: u64,
+        fee_account_address: Address,
+        batch_fee_input: BatchFeeInput,
+        base_fee_per_gas: u64,
+        protocol_version: ProtocolVersionId,
+        gas_limit: u64,
+    ) -> Self {
         Self {
             l1_batch_number,
-            number,
+            l2_block_number,
+            timestamp,
+            fee_account_address,
+            batch_fee_input,
+            base_fee_per_gas,
+            protocol_version,
+            gas_limit,
             executed_transactions: Vec::new(),
             events: Vec::new(),
             storage_logs: Vec::new(),
             user_l2_to_l1_logs: Vec::new(),
             new_factory_deps: HashMap::new(),
-            block_execution_metrics: Default::default(),
-            txs_encoding_size: 0,
             payload_encoding_size: 0,
-            l1_tx_count: 0,
-            prev_block_hash: H256::zero(),
+            initial_writes: None,
         }
     }
 
-    pub fn extend_from_executed_transaction(
+    pub(crate) fn io_cursor(&self) -> IoCursor {
+        IoCursor {
+            next_l2_block: self.l2_block_number + 1,
+            prev_l2_block_hash: H256::zero(),
+            prev_l2_block_timestamp: self.timestamp,
+            l1_batch: self.l1_batch_number,
+        }
+    }
+
+    pub(crate) fn seal_l2_block_command(&self, pre_insert_txs: bool) -> L2BlockSealCommand {
+        L2BlockSealCommand {
+            l1_batch_number: self.l1_batch_number,
+            l2_block_number: self.l2_block_number,
+            first_tx_index: 0,
+            fee_account_address: self.fee_account_address,
+            fee_input: self.batch_fee_input,
+            base_fee_per_gas: self.base_fee_per_gas,
+            protocol_version: self.protocol_version,
+            pre_insert_txs,
+            timestamp: self.timestamp,
+            gas_limit: self.gas_limit,
+
+            executed_transactions: self.executed_transactions.clone(),
+            events: self.events.clone(),
+            storage_logs: self.storage_logs.clone(),
+            user_l2_to_l1_logs: self.user_l2_to_l1_logs.clone(),
+            new_factory_deps: self.new_factory_deps.clone(),
+        }
+    }
+
+    pub fn extend(&mut self, executed_transactions: Vec<Transaction>, batch_output: BatchOutput) {
+        let mut next_index_in_batch_output = 0;
+        for tx in executed_transactions {
+            let tx_output = loop {
+                let tx_output = if let Some(tx_result) = batch_output
+                    .tx_results
+                    .get(next_index_in_batch_output)
+                    .cloned()
+                {
+                    tx_result.ok()
+                } else {
+                    panic!("No tx result for #{next_index_in_batch_output}");
+                };
+
+                next_index_in_batch_output += 1;
+                if let Some(tx_output) = tx_output {
+                    break tx_output;
+                }
+            };
+
+            self.extend_from_executed_transaction(tx, tx_output);
+        }
+        self.extend_from_batch_output(batch_output);
+    }
+
+    fn extend_from_executed_transaction(
         &mut self,
         transaction: Transaction,
         zkos_output: TxOutput,
@@ -72,9 +143,6 @@ impl L2BlockUpdates {
             zksync_dal::consensus::proto::Transaction,
         >(&transaction)
         .len();
-        if transaction.is_l1() {
-            self.l1_tx_count += 1;
-        }
 
         let location = (
             self.l1_batch_number,
@@ -108,7 +176,7 @@ impl L2BlockUpdates {
         self.executed_transactions.push(executed_transaction);
     }
 
-    pub fn extend_from_block_output(&mut self, batch_output: BatchOutput) {
+    fn extend_from_batch_output(&mut self, batch_output: BatchOutput) {
         let factory_deps: HashMap<H256, Vec<u8>> = batch_output
             .published_preimages
             .into_iter()
@@ -130,93 +198,6 @@ impl L2BlockUpdates {
             .collect();
         self.storage_logs = storage_logs;
     }
-}
-
-impl UpdatesManager {
-    pub fn new(
-        l1_batch_number: L1BatchNumber,
-        l2_block_number: L2BlockNumber,
-        timestamp: u64,
-        fee_account_address: Address,
-        batch_fee_input: BatchFeeInput,
-        base_fee_per_gas: u64,
-        protocol_version: ProtocolVersionId,
-        gas_limit: u64,
-    ) -> Self {
-        Self {
-            l1_batch_number,
-            timestamp,
-            fee_account_address,
-            batch_fee_input,
-            base_fee_per_gas,
-            protocol_version,
-            gas_limit,
-            l2_block: L2BlockUpdates::new(l1_batch_number, l2_block_number),
-            initial_writes: None,
-        }
-    }
-
-    pub(crate) fn timestamp(&self) -> u64 {
-        self.timestamp
-    }
-
-    pub(crate) fn io_cursor(&self) -> IoCursor {
-        IoCursor {
-            next_l2_block: self.l2_block.number + 1,
-            prev_l2_block_hash: H256::zero(),
-            prev_l2_block_timestamp: self.timestamp,
-            l1_batch: self.l1_batch_number,
-        }
-    }
-
-    pub(crate) fn seal_l2_block_command(&self, pre_insert_txs: bool) -> L2BlockSealCommand {
-        L2BlockSealCommand {
-            l1_batch_number: self.l1_batch_number,
-            l2_block: self.l2_block.clone(),
-            first_tx_index: 0,
-            fee_account_address: self.fee_account_address,
-            fee_input: self.batch_fee_input,
-            base_fee_per_gas: self.base_fee_per_gas,
-            protocol_version: self.protocol_version,
-            pre_insert_txs,
-            timestamp: self.timestamp,
-            gas_limit: self.gas_limit,
-        }
-    }
-
-    pub fn protocol_version(&self) -> ProtocolVersionId {
-        self.protocol_version
-    }
-
-    pub fn extend_with_block_result(
-        &mut self,
-        executed_transactions: Vec<Transaction>,
-        block_result: BatchOutput,
-    ) {
-        let mut next_index_in_batch_output = 0;
-        for tx in executed_transactions {
-            let tx_output = loop {
-                let tx_output = if let Some(tx_result) = block_result
-                    .tx_results
-                    .get(next_index_in_batch_output)
-                    .cloned()
-                {
-                    tx_result.ok()
-                } else {
-                    panic!("No tx result for #{next_index_in_batch_output}");
-                };
-
-                next_index_in_batch_output += 1;
-                if let Some(tx_output) = tx_output {
-                    break tx_output;
-                }
-            };
-
-            self.l2_block
-                .extend_from_executed_transaction(tx, tx_output);
-        }
-        self.l2_block.extend_from_block_output(block_result);
-    }
 
     pub async fn get_initial_writes(
         &self,
@@ -227,11 +208,8 @@ impl UpdatesManager {
         }
 
         let initial_writes: Vec<_> = {
-            let deduplicated_writes_hashed_keys_iter = self
-                .l2_block
-                .storage_logs
-                .iter()
-                .map(|log| log.key.hashed_key());
+            let deduplicated_writes_hashed_keys_iter =
+                self.storage_logs.iter().map(|log| log.key.hashed_key());
             let deduplicated_writes_hashed_keys: Vec<_> =
                 deduplicated_writes_hashed_keys_iter.clone().collect();
             let non_initial_writes = connection
@@ -251,7 +229,9 @@ impl UpdatesManager {
 #[derive(Debug)]
 pub struct L2BlockSealCommand {
     pub l1_batch_number: L1BatchNumber,
-    pub l2_block: L2BlockUpdates,
+    pub l2_block_number: L2BlockNumber,
+
+    // pub l2_block: L2BlockUpdates,
     pub first_tx_index: usize,
     pub fee_account_address: Address,
     pub fee_input: BatchFeeInput,
@@ -263,4 +243,10 @@ pub struct L2BlockSealCommand {
     pub pre_insert_txs: bool,
     pub timestamp: u64,
     pub gas_limit: u64,
+
+    pub executed_transactions: Vec<TransactionExecutionResult>,
+    pub events: Vec<VmEvent>,
+    pub storage_logs: Vec<StorageLog>,
+    pub user_l2_to_l1_logs: Vec<UserL2ToL1Log>,
+    pub new_factory_deps: HashMap<H256, Vec<u8>>,
 }

@@ -88,7 +88,7 @@ impl OutputHandler {
     #[tracing::instrument(
         name = "OutputHandler::handle_l2_block"
         skip_all,
-        fields(l2_block = %updates_manager.l2_block.number)
+        fields(l2_block = %updates_manager.l2_block_number)
     )]
     pub(crate) async fn handle_block(
         &mut self,
@@ -100,8 +100,8 @@ impl OutputHandler {
                 .await
                 .with_context(|| {
                     format!(
-                        "failed handling L2 block {:?} on handler {handler:?}",
-                        updates_manager.l2_block
+                        "failed handling block {:?} on handler {handler:?}",
+                        updates_manager
                     )
                 })?;
         }

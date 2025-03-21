@@ -60,10 +60,10 @@ impl StateKeeperPersistence {
     }
 
     async fn submit_l2_block_data(&mut self, block_data_command: L2BlockSealCommand) {
-        let l2_block_number = block_data_command.l2_block.number;
+        let l2_block_number = block_data_command.l2_block_number;
         tracing::info!(
             "Enqueuing sealing command for L2 block #{l2_block_number} with #{} txs (L1 batch #{})",
-            block_data_command.l2_block.executed_transactions.len(),
+            block_data_command.executed_transactions.len(),
             block_data_command.l1_batch_number
         );
 
