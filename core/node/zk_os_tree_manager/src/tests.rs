@@ -94,7 +94,10 @@ async fn expected_tree_hash(conn: &mut Connection<'_, Core>) -> H256 {
             .await
             .unwrap()
             .expect("no L1 batch");
-        root_hash = in_memory_tree.extend(&logs.tree_logs).unwrap().root_hash;
+        root_hash = in_memory_tree
+            .extend_with_reference(&logs.tree_logs)
+            .unwrap()
+            .root_hash;
     }
     root_hash
 }

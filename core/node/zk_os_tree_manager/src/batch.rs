@@ -16,7 +16,7 @@ use crate::helpers::AsyncMerkleTree;
 pub(crate) struct L1BatchWithLogs {
     pub(crate) stats: L1BatchStatistics,
     /// Updated / inserted tree entries. Insertions must be sorted to align with index assignment.
-    pub(crate) tree_logs: Vec<TreeEntry>,
+    pub(crate) tree_logs: Vec<(u64, TreeEntry)>,
 }
 
 impl L1BatchWithLogs {
@@ -64,10 +64,13 @@ impl L1BatchWithLogs {
             let writes = tree_writes.into_iter().map(|tree_write| {
                 let storage_key =
                     StorageKey::new(AccountTreeId::new(tree_write.address), tree_write.key);
-                TreeEntry {
-                    key: storage_key.hashed_key(),
-                    value: tree_write.value,
-                }
+                (
+                    tree_write.leaf_index,
+                    TreeEntry {
+                        key: storage_key.hashed_key(),
+                        value: tree_write.value,
+                    },
+                )
             });
             writes.collect()
         } else {
@@ -109,7 +112,7 @@ impl L1BatchWithLogs {
     async fn extract_logs_from_db(
         connection: &mut Connection<'_, Core>,
         l1_batch_number: L1BatchNumber,
-    ) -> anyhow::Result<Vec<TreeEntry>> {
+    ) -> anyhow::Result<Vec<(u64, TreeEntry)>> {
         let touched_slots_latency = METRICS.start_load_stage(LoadChangesStage::LoadTouchedSlots);
         let touched_slots = connection
             .storage_logs_dal()
@@ -134,20 +137,23 @@ impl L1BatchWithLogs {
             if let Some(&(initial_write_batch_for_key, leaf_index)) =
                 l1_batches_for_initial_writes.get(&storage_key.hashed_key())
             {
-                // Filter out logs that correspond to deduplicated writes.
-                if initial_write_batch_for_key <= l1_batch_number {
-                    tree_logs.insert(
-                        leaf_index,
-                        TreeEntry {
-                            key: storage_key.hashed_key(),
-                            value,
-                        },
-                    );
-                }
+                anyhow::ensure!(
+                    initial_write_batch_for_key <= l1_batch_number,
+                    "Storage invariant broken: {storage_key:?} has initial write batch {initial_write_batch_for_key} \
+                     greater than the batch in which it's written ({l1_batch_number})"
+                );
+
+                tree_logs.insert(
+                    leaf_index,
+                    TreeEntry {
+                        key: storage_key.hashed_key(),
+                        value,
+                    },
+                );
             }
         }
 
-        Ok(tree_logs.into_values().collect())
+        Ok(tree_logs.into_iter().collect())
     }
 }
 
@@ -157,7 +163,7 @@ impl AsyncMerkleTree {
         batch: L1BatchWithLogs,
     ) -> anyhow::Result<L1BatchTreeData> {
         self.try_invoke_tree(move |tree| {
-            let output = tree.extend(&batch.tree_logs)?;
+            let output = tree.extend_with_reference(&batch.tree_logs)?;
             Ok(L1BatchTreeData {
                 hash: output.root_hash,
                 rollup_last_leaf_index: output.leaf_count + 1,
