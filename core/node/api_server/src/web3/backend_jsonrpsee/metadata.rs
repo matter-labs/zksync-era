@@ -3,12 +3,15 @@
 use std::{cell::RefCell, mem, sync::Arc, time::Instant};
 
 use thread_local::ThreadLocal;
-use zksync_types::api;
+use zksync_types::{api, api::state_override::StateOverride};
 use zksync_web3_decl::{error::Web3Error, jsonrpsee::MethodResponse};
 
 #[cfg(test)]
 use super::testonly::RecordedMethodCalls;
-use crate::web3::metrics::{ObservedRpcParams, API_METRICS};
+use crate::{
+    execution_sandbox::SANDBOX_METRICS,
+    web3::metrics::{ObservedRpcParams, API_METRICS},
+};
 
 /// Metadata assigned to a JSON-RPC method call.
 #[derive(Debug, Clone)]
@@ -82,6 +85,14 @@ impl MethodTracer {
         let cell = self.inner.get_or_default();
         if let Some(metadata) = &mut *cell.borrow_mut() {
             metadata.block_diff = Some(block_diff);
+        }
+    }
+
+    /// Observes state override metrics.
+    pub fn observe_state_override(&self, state_override: Option<&StateOverride>) {
+        let cell = self.inner.get_or_default();
+        if let (Some(metadata), Some(state_override)) = (&*cell.borrow(), state_override) {
+            SANDBOX_METRICS.observe_override_metrics(metadata.name, state_override);
         }
     }
 

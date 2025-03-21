@@ -466,7 +466,7 @@ mod tests {
             .unwrap();
         StateBuilder::default()
             .with_balance(alice.address(), u64::MAX.into())
-            .apply(&mut storage)
+            .apply(storage)
             .await;
 
         let deploy_execute = Execute {
@@ -508,6 +508,7 @@ mod tests {
         persist_block_with_transactions(&pool, txs).await;
 
         // Check the account type helper.
+        let mut storage = pool.connection().await.unwrap();
         let account_types = get_account_types(
             &mut storage,
             [alice.address, account_addr].into_iter(),

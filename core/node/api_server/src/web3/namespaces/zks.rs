@@ -60,6 +60,9 @@ impl ZksNamespace {
         request: CallRequest,
         state_override: Option<StateOverride>,
     ) -> Result<Fee, Web3Error> {
+        self.current_method()
+            .observe_state_override(state_override.as_ref());
+
         let mut request_with_gas_per_pubdata_overridden = request;
         self.state
             .set_nonce_for_call_request(&mut request_with_gas_per_pubdata_overridden)
@@ -91,6 +94,9 @@ impl ZksNamespace {
         request: CallRequest,
         state_override: Option<StateOverride>,
     ) -> Result<U256, Web3Error> {
+        self.current_method()
+            .observe_state_override(state_override.as_ref());
+
         let mut request_with_gas_per_pubdata_overridden = request;
         // When we're estimating fee, we are trying to deduce values related to fee, so we should
         // not consider provided ones.
@@ -121,6 +127,9 @@ impl ZksNamespace {
         block_args: BlockArgs,
         state_override: Option<StateOverride>,
     ) -> Result<Fee, Web3Error> {
+        self.current_method()
+            .observe_state_override(state_override.as_ref());
+
         let scale_factor = self.state.api_config.estimate_gas_scale_factor;
         let acceptable_overestimation =
             self.state.api_config.estimate_gas_acceptable_overestimation;

@@ -266,3 +266,32 @@ async fn limiting_storage_access_during_call(vm_mode: FastVmMode) {
         .unwrap_err();
     assert_matches!(err, SubmitTxError::ExecutionReverted(msg, _) if msg.contains("limit reached"));
 }
+
+#[tokio::test]
+async fn overriding_account_nonce() {
+    let alice = Account::random();
+    let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
+    let tx_sender = create_real_tx_sender(pool).await;
+
+    // Check the base case (no overrides).
+    let output = test_call(
+        &tx_sender,
+        StateOverride::default(),
+        alice.query_min_nonce(alice.address),
+    )
+    .await
+    .unwrap();
+    assert_eq!(decode_u256_output(&output), 0.into());
+
+    let state_override = StateBuilder::default()
+        .with_nonce(alice.address, 23.into())
+        .build();
+    let output = test_call(
+        &tx_sender,
+        state_override,
+        alice.query_min_nonce(alice.address),
+    )
+    .await
+    .unwrap();
+    assert_eq!(decode_u256_output(&output), 23.into());
+}

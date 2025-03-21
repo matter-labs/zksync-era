@@ -493,7 +493,7 @@ impl<'a> PostgresStorage<'a> {
         mut connection: Connection<'a, Core>,
         block_number: L2BlockNumber,
         consider_new_l1_batch: bool,
-    ) -> anyhow::Result<PostgresStorage<'a>> {
+    ) -> anyhow::Result<Self> {
         let resolved = connection
             .storage_web3_dal()
             .resolve_l1_batch_number_of_l2_block(block_number)
@@ -535,6 +535,11 @@ impl<'a> PostgresStorage<'a> {
 
     fn values_cache(&self) -> Option<&ValuesCache> {
         Some(&self.caches.as_ref()?.values.as_ref()?.cache)
+    }
+
+    /// Returns the wrapped connection.
+    pub fn into_inner(self) -> Connection<'a, Core> {
+        self.connection
     }
 }
 

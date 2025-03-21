@@ -33,9 +33,8 @@ async fn submitting_tx_requires_one_connection() {
     // Manually set sufficient balance for the tx initiator.
     StateBuilder::default()
         .with_balance(tx.initiator_account(), u64::MAX.into())
-        .apply(&mut storage)
+        .apply(storage)
         .await;
-    drop(storage);
 
     let mut tx_executor = MockOneshotExecutor::default();
     tx_executor.set_tx_responses(move |received_tx, _| {
@@ -137,9 +136,8 @@ async fn fee_validation_errors() {
 
     StateBuilder::default()
         .with_balance(tx.initiator_account(), u64::MAX.into())
-        .apply(&mut storage)
+        .apply(storage)
         .await;
-    drop(storage);
 
     // Sanity check: validation should succeed with reasonable fee params.
     tx_sender
@@ -193,12 +191,11 @@ async fn sending_transfer() {
     let mut alice = Account::random();
 
     // Manually set sufficient balance for the tx initiator.
-    let mut storage = tx_sender.acquire_replica_connection().await.unwrap();
+    let storage = tx_sender.acquire_replica_connection().await.unwrap();
     StateBuilder::default()
         .with_balance(alice.address(), u64::MAX.into())
-        .apply(&mut storage)
+        .apply(storage)
         .await;
-    drop(storage);
 
     let transfer = alice.create_transfer(1_000_000_000.into());
     let vm_result = tx_sender.submit_tx(transfer, block_args).await.unwrap();
@@ -230,12 +227,11 @@ async fn sending_transfer_with_incorrect_signature() {
     let mut alice = Account::random();
     let transfer_value = 1_000_000_000.into();
 
-    let mut storage = tx_sender.acquire_replica_connection().await.unwrap();
+    let storage = tx_sender.acquire_replica_connection().await.unwrap();
     StateBuilder::default()
         .with_balance(alice.address(), u64::MAX.into())
-        .apply(&mut storage)
+        .apply(storage)
         .await;
-    drop(storage);
 
     let mut transfer = alice.create_transfer(transfer_value);
     transfer.execute.value = transfer_value / 2; // This should invalidate tx signature
@@ -251,13 +247,12 @@ async fn sending_load_test_transaction(tx_params: LoadnextContractExecutionParam
     let block_args = pending_block_args(&tx_sender).await;
     let mut alice = Account::random();
 
-    let mut storage = tx_sender.acquire_replica_connection().await.unwrap();
+    let storage = tx_sender.acquire_replica_connection().await.unwrap();
     StateBuilder::default()
         .with_load_test_contract()
         .with_balance(alice.address(), u64::MAX.into())
-        .apply(&mut storage)
+        .apply(storage)
         .await;
-    drop(storage);
 
     let tx = alice.create_load_test_tx(tx_params);
     let vm_result = tx_sender.submit_tx(tx, block_args).await.unwrap();
@@ -271,13 +266,12 @@ async fn sending_reverting_transaction() {
     let block_args = pending_block_args(&tx_sender).await;
     let mut alice = Account::random();
 
-    let mut storage = tx_sender.acquire_replica_connection().await.unwrap();
+    let storage = tx_sender.acquire_replica_connection().await.unwrap();
     StateBuilder::default()
         .with_counter_contract(0)
         .with_balance(alice.address(), u64::MAX.into())
-        .apply(&mut storage)
+        .apply(storage)
         .await;
-    drop(storage);
 
     let tx = alice.create_counter_tx(1.into(), true);
     let vm_result = tx_sender.submit_tx(tx, block_args).await.unwrap();
@@ -294,13 +288,12 @@ async fn sending_transaction_out_of_gas() {
     let block_args = pending_block_args(&tx_sender).await;
     let mut alice = Account::random();
 
-    let mut storage = tx_sender.acquire_replica_connection().await.unwrap();
+    let storage = tx_sender.acquire_replica_connection().await.unwrap();
     StateBuilder::default()
         .with_infinite_loop_contract()
         .with_balance(alice.address(), u64::MAX.into())
-        .apply(&mut storage)
+        .apply(storage)
         .await;
-    drop(storage);
 
     let tx = alice.create_infinite_loop_tx();
     let vm_result = tx_sender.submit_tx(tx, block_args).await.unwrap();
@@ -328,9 +321,8 @@ async fn submit_tx_with_validation_traces(actual_range: Range<u64>, expected_ran
     // Manually set sufficient balance for the tx initiator.
     StateBuilder::default()
         .with_balance(tx.initiator_account(), u64::MAX.into())
-        .apply(&mut storage)
+        .apply(storage)
         .await;
-    drop(storage);
 
     let mut tx_executor = MockOneshotExecutor::default();
     tx_executor.set_tx_responses(move |received_tx, _| {

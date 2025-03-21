@@ -1,9 +1,13 @@
 use std::time::Duration;
 
 use vise::{
-    Buckets, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, LatencyObserver, Metrics,
+    Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, LatencyObserver,
+    Metrics,
 };
-use zksync_types::H256;
+use zksync_types::{
+    api::state_override::{OverrideState, StateOverride},
+    H256,
+};
 
 use crate::utils::ReportFilter;
 
@@ -75,6 +79,27 @@ impl Drop for SubmitTxLatencyObserver<'_> {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue)]
+#[metrics(rename_all = "snake_case")]
+enum OverrideKind {
+    Code,
+    Nonce,
+    Balance,
+    StorageSlot,
+}
+
+impl OverrideKind {
+    fn for_method(self, method: &'static str) -> StateOverrideLabels {
+        StateOverrideLabels { method, kind: self }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet)]
+struct StateOverrideLabels {
+    method: &'static str,
+    kind: OverrideKind,
+}
+
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "api_web3")]
 pub(crate) struct SandboxMetrics {
@@ -96,6 +121,8 @@ pub(crate) struct SandboxMetrics {
     /// is (as expected) greater than the final gas estimate.
     #[metrics(buckets = Buckets::linear(-0.05..=0.15, 0.01))]
     pub estimate_gas_optimistic_gas_limit_relative_diff: Histogram<f64>,
+    /// Statistics on state overrides.
+    state_overrides: Family<StateOverrideLabels, Counter>,
 }
 
 impl SandboxMetrics {
@@ -108,6 +135,27 @@ impl SandboxMetrics {
             inner: Some(self.submit_tx[&stage].start()),
             tx_hash,
             stage,
+        }
+    }
+
+    pub fn observe_override_metrics(&self, method: &'static str, state_overrides: &StateOverride) {
+        for (_, account_override) in state_overrides.iter() {
+            if account_override.code.is_some() {
+                self.state_overrides[&OverrideKind::Code.for_method(method)].inc();
+            }
+            if account_override.nonce.is_some() {
+                self.state_overrides[&OverrideKind::Nonce.for_method(method)].inc();
+            }
+            if account_override.balance.is_some() {
+                self.state_overrides[&OverrideKind::Balance.for_method(method)].inc();
+            }
+            if let Some(state) = &account_override.state {
+                let slot_count = match state {
+                    OverrideState::State(slots) | OverrideState::StateDiff(slots) => slots.len(),
+                };
+                self.state_overrides[&OverrideKind::StorageSlot.for_method(method)]
+                    .inc_by(slot_count as u64);
+            }
         }
     }
 }

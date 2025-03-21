@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{hash_map, HashMap};
 
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use zksync_basic_types::{bytecode::BytecodeHash, web3::Bytes, H256, U256};
@@ -31,6 +31,15 @@ impl StateOverride {
     /// Iterates over all account overrides.
     pub fn iter(&self) -> impl Iterator<Item = (&Address, &OverrideAccount)> + '_ {
         self.0.iter()
+    }
+}
+
+impl IntoIterator for StateOverride {
+    type Item = (Address, OverrideAccount);
+    type IntoIter = hash_map::IntoIter<Address, OverrideAccount>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
     }
 }
 
