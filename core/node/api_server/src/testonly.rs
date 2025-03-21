@@ -33,7 +33,6 @@ use zksync_types::{
     ethabi::Token,
     fee::Fee,
     fee_model::FeeParams,
-    get_code_key, get_known_code_key,
     l1::L1Tx,
     l2::L2Tx,
     transaction_request::{CallRequest, Eip712Meta},
@@ -44,6 +43,8 @@ use zksync_types::{
     StorageLog, Transaction, EIP_712_TX_TYPE, H256, U256,
 };
 use zksync_vm_executor::{batch::MainBatchExecutorFactory, interface::BatchExecutorFactory};
+
+use crate::execution_sandbox::testonly::apply_state_overrides;
 
 const MULTICALL3_CONTRACT_PATH: &str =
     "contracts/l2-contracts/zkout/Multicall3.sol/Multicall3.json";
@@ -169,50 +170,8 @@ impl StateBuilder {
     }
 
     /// Applies these state overrides to Postgres storage, which is assumed to be empty (other than genesis data).
-    pub async fn apply(self, connection: &mut Connection<'_, Core>) {
-        let mut storage_logs = vec![];
-        let mut factory_deps = HashMap::new();
-        for (address, account) in self.inner {
-            if let Some(balance) = account.balance {
-                let balance_key = storage_key_for_eth_balance(&address);
-                storage_logs.push(StorageLog::new_write_log(
-                    balance_key,
-                    u256_to_h256(balance),
-                ));
-            }
-            if let Some(code) = account.code {
-                let code_hash = code.hash();
-                storage_logs.extend([
-                    StorageLog::new_write_log(get_code_key(&address), code_hash),
-                    StorageLog::new_write_log(
-                        get_known_code_key(&code_hash),
-                        H256::from_low_u64_be(1),
-                    ),
-                ]);
-                factory_deps.insert(code_hash, code.into_bytes());
-            }
-            if let Some(state) = account.state {
-                let state_slots = match state {
-                    OverrideState::State(slots) | OverrideState::StateDiff(slots) => slots,
-                };
-                let state_logs = state_slots.into_iter().map(|(key, value)| {
-                    let key = StorageKey::new(AccountTreeId::new(address), key);
-                    StorageLog::new_write_log(key, value)
-                });
-                storage_logs.extend(state_logs);
-            }
-        }
-
-        connection
-            .storage_logs_dal()
-            .append_storage_logs(L2BlockNumber(0), &storage_logs)
-            .await
-            .unwrap();
-        connection
-            .factory_deps_dal()
-            .insert_factory_deps(L2BlockNumber(0), &factory_deps)
-            .await
-            .unwrap();
+    pub async fn apply(self, connection: Connection<'static, Core>) {
+        apply_state_overrides(connection, StateOverride::new(self.inner)).await;
     }
 }
 
