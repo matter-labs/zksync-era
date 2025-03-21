@@ -8,12 +8,14 @@ use zksync_types::{commitment::PubdataParams, l2::L2Tx, Transaction};
 use crate::{
     storage::{ReadStorage, StorageView},
     tracer::{ValidationError, ValidationParams, ValidationTraces},
-    BatchTransactionExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv, OneshotEnv,
+    BatchTransactionExecutionResult, Call, FinishedL1Batch, L1BatchEnv, L2BlockEnv, OneshotEnv,
     OneshotTracingParams, OneshotTransactionExecutionResult, SystemEnv, TxExecutionArgs,
 };
 
 /// Factory of [`BatchExecutor`]s.
-pub trait BatchExecutorFactory<S: Send + 'static, TrOut = ()>: 'static + Send + fmt::Debug {
+pub trait BatchExecutorFactory<S: Send + 'static, TrOut = Vec<Call>>:
+    'static + Send + fmt::Debug
+{
     /// Initializes an executor for a batch with the specified params and using the provided storage.
     fn init_batch(
         &mut self,
@@ -29,7 +31,7 @@ pub trait BatchExecutorFactory<S: Send + 'static, TrOut = ()>: 'static + Send + 
 /// The handle is parametric by the transaction execution output in order to be able to represent different
 /// levels of abstraction.
 #[async_trait]
-pub trait BatchExecutor<S, TrOut = ()>: 'static + Send + fmt::Debug {
+pub trait BatchExecutor<S, TrOut = Vec<Call>>: 'static + Send + fmt::Debug {
     /// Executes a transaction.
     async fn execute_tx(
         &mut self,
