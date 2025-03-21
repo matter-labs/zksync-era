@@ -17,59 +17,31 @@ if [ -z "$ETH_CLIENT_WEB3_URL" ]; then
   exit 1
 fi
 
-# Updates the value in the .toml config or .env file.
+# Default chain name if not set
+CHAIN_NAME=${CHAIN_NAME:-custom_token}
+
+# Function to update a key in a YAML file
 update_config() {
-  # Assigning arguments to readable variable names
   local file="$1"
-  local parameter="$2"
+  local key="$2"
   local new_value="$3"
-  local pattern_toml="^${parameter} =.*$"
-  local pattern_env="^${parameter}=.*$"
 
-  # Check if the parameter exists in the file
-  if grep -q "$pattern_toml" "$file"; then
-    # The parameter exists in the .toml file, so replace its value
-    sed -i "s!$pattern_toml!${parameter} = \"$new_value\"!" "$file"
-    echo "Update successful for $parameter in $file."
-  elif grep -q "$pattern_env" "$file"; then
-    # The parameter exists in the .env file, so replace its value
-    sed -i "s!$pattern_env!${parameter}=$new_value!" "$file"
-    echo "Update successful for $parameter in $file."
+  # Escape special characters for sed
+  local escaped_key=$(echo "$key" | sed 's/\./\\./g')
+  local pattern="^\\s*${escaped_key}:.*$"
+
+  # Check if the key exists in the file
+  if grep -qE "$pattern" "$file"; then
+    # Update the existing key
+    sed -i "s|$pattern|${key}: $new_value|" "$file"
+    echo "Updated '$key' in $file."
   else
-    # The parameter does not exist in the file, output error message and return non-zero status
-    echo "Error: '$parameter' not found in $file."
-    return 1 # Return with an error status
+    # Append the key if it doesn't exist
+    echo "$key: $new_value" >> "$file"
+    echo "Added '$key' to $file."
   fi
 }
 
-# Reads the value of the parameter from the .toml config or .env file.
-read_value_from_config() {
-  local file="$1"
-  local parameter="$2"
-  local pattern_toml="^${parameter} =.*$"
-  local pattern_env="^${parameter}=.*$"
-  local res=""
-
-  # Check if the parameter exists in the file
-  if grep -q "$pattern_toml" "$file"; then
-    # The parameter exists in the .toml file, so extract its value
-    res=$(grep "$pattern_toml" "$file" | sed "s/${parameter} = //; s/\"//g")
-  elif grep -q "$pattern_env" "$file"; then
-    # The parameter exists in the .env file, so extract its value
-    res=$(grep "$pattern_env" "$file" | sed "s/${parameter}=//; s/\"//g")
-  else
-    # The parameter does not exist in the file, output error message and return non-zero status
-    echo "Error: '$parameter' not found in $file."
-    return 1 # Return with an error status
-  fi
-
-  if [ -z "$res" ]; then
-    echo "ERROR: $parameter is not set in $file."
-    exit 1
-  fi
-
-  echo $res
-}
 
 # wait till db service is ready
 until psql ${DATABASE_URL%/*} -c '\q'; do
@@ -77,118 +49,158 @@ until psql ${DATABASE_URL%/*} -c '\q'; do
   sleep 5
 done
 
+echo "Initialing local environment"
+
+# Determine the correct config path based on MASTER_URL
+if [ -z "$MASTER_URL" ]; then
+  CONFIG_PATH="/chains/era/configs"
+  echo "Updating configuration for MASTER chain..."
+else
+  CONFIG_PATH="/chains/${CHAIN_NAME}/configs"
+  echo "Updating configuration for ${CHAIN_NAME} chain..."
+fi
+
+echo "Configuration updated successfully."
+
+# Extract the database name (everything after the last '/')
+SERVER_DB_NAME="${DATABASE_URL##*/}"
+
+# Extract the database URL without the database name
+SERVER_DB_URL="${DATABASE_URL%/*}"
+
+GATEWAY_SERVER_DB_URL="zksync_server_localhost_gateway"
+
 if [ -z "$MASTER_URL" ]; then
   echo "Running as zksync master"
+
+  zkstack ecosystem init --deploy-paymaster --deploy-erc20 \
+    --deploy-ecosystem --l1-rpc-url=$ETH_CLIENT_WEB3_URL \
+    --server-db-url="$SERVER_DB_URL" \
+    --server-db-name="$SERVER_DB_NAME" \
+    --ignore-prerequisites --verbose \
+    --observability=false \
+    --skip-contract-compilation-override \
+    --update-submodules=false \
+    --server-command /zksync_server
+
+  if [ "$GATEWAY" = "true" ]; then
+    echo "Setting up gateway chain"
+
+    zkstack chain create \
+      --chain-name gateway \
+      --chain-id 505 \
+      --prover-mode no-proofs \
+      --wallet-creation localhost \
+      --l1-batch-commit-data-generator-mode rollup \
+      --base-token-address 0x0000000000000000000000000000000000000001 \
+      --base-token-price-nominator 1 \
+      --base-token-price-denominator 1 \
+      --set-as-default false \
+      --ignore-prerequisites \
+      --update-submodules=false \
+      --evm-emulator false
+    
+    zkstack chain init \
+      --deploy-paymaster \
+      --l1-rpc-url=$ETH_CLIENT_WEB3_URL \
+      --server-db-url="$SERVER_DB_URL" \
+      --server-db-name="$GATEWAY_SERVER_DB_URL" \
+      --chain gateway \
+      --update-submodules=false \
+      --server-command /zksync_server \
+      --validium-type no-da
+
+    zkstack chain convert-to-gateway --chain gateway --ignore-prerequisites
+  fi
+  
+  rm -rf /usr/local/share/.cache /contracts/node_modules /node_modules 
+
+  if [ "$GATEWAY" = "true" ]; then
+    echo "Migrating era chain to gateway and starting servers..."
+    
+    mkdir server_logs
+
+    # start server gateway
+    /zksync_server --genesis-path ./chains/gateway/configs/genesis.yaml \
+      --wallets-path ./chains/gateway/configs/wallets.yaml \
+      --config-path ./chains/gateway/configs/general.yaml \
+      --secrets-path ./chains/gateway/configs/secrets.yaml \
+      --contracts-config-path ./chains/gateway/configs/contracts.yaml \
+      &>server_logs/gateway.log &
+
+    zkstack chain migrate-to-gateway --chain era --gateway-chain-name gateway
+
+    # start era server
+    /zksync_server --genesis-path ./chains/era/configs/genesis.yaml \
+      --wallets-path ./chains/era/configs/wallets.yaml \
+      --config-path ./chains/era/configs/general.yaml \
+      --secrets-path ./chains/era/configs/secrets.yaml \
+      --contracts-config-path ./chains/era/configs/contracts.yaml \
+      --gateway-contracts-config-path ./chains/era/configs/gateway_chain.yaml
+  else
+    echo "Skipping gateway conversion."
+
+    # start era server
+    /zksync_server --genesis-path ./chains/era/configs/genesis.yaml \
+      --wallets-path ./chains/era/configs/wallets.yaml \
+      --config-path ./chains/era/configs/general.yaml \
+      --secrets-path ./chains/era/configs/secrets.yaml \
+      --contracts-config-path ./chains/era/configs/contracts.yaml
+  fi
 else
+  zkstack chain create \
+    --chain-name ${CHAIN_NAME} \
+    --chain-id sequential \
+    --prover-mode no-proofs \
+    --wallet-creation localhost \
+    --l1-batch-commit-data-generator-mode rollup \
+    --base-token-address ${CUSTOM_TOKEN_ADDRESS} \
+    --base-token-price-nominator 314 \
+    --base-token-price-denominator 1000 \
+    --set-as-default false \
+    --ignore-prerequisites \
+    --evm-emulator false \
+    --update-submodules=false
+  
+  zkstack chain init \
+    --deploy-paymaster \
+    --l1-rpc-url=$ETH_CLIENT_WEB3_URL \
+    --server-db-url="$SERVER_DB_URL" \
+    --server-db-name="$SERVER_DB_NAME" \
+    --chain ${CHAIN_NAME} \
+    --validium-type no-da \
+    --update-submodules=false \
+    --server-command /zksync_server
+  
+  if [ "$GATEWAY" = "true" ]; then
+    echo "Migrating custom base token chain on top of gateway chain"
+    find ./chains -type f -exec sed -i 's|http://127.0.0.1:3150|'"${GATEWAY_URL}"'|g' {} +
+    zkstack chain migrate-to-gateway --chain ${CHAIN_NAME} --gateway-chain-name gateway
+  fi
+  
+  rm -rf /usr/local/share/.cache /contracts/node_modules /node_modules
+
   # If running in slave mode - wait for the master to be up and running.
   echo "Waiting for zksync master to init hyperchain"
   until curl --fail ${MASTER_HEALTH_URL}; do
     echo >&2 "Master zksync not ready yet, sleeping"
     sleep 5
   done
-fi
 
-if [ -n "$LEGACY_BRIDGE_TESTING" ]; then
-  if [ -z "$MASTER_URL" ]; then
-    echo "Running in legacy bridge testing mode"
+  if [ "$GATEWAY" = "true" ]; then
+     # start server
+    /zksync_server --genesis-path /chains/${CHAIN_NAME}/configs/genesis.yaml \
+      --wallets-path /chains/${CHAIN_NAME}/configs/wallets.yaml \
+      --config-path /chains/${CHAIN_NAME}/configs/general.yaml \
+      --secrets-path /chains/${CHAIN_NAME}/configs/secrets.yaml \
+      --contracts-config-path /chains/${CHAIN_NAME}/configs/contracts.yaml \
+      --gateway-contracts-config-path ./chains/era/configs/gateway_chain.yaml
   else
-    # LEGACY_BRIDGE_TESTING flag is for the master only
-    unset LEGACY_BRIDGE_TESTING
+     # start server
+    /zksync_server --genesis-path /chains/${CHAIN_NAME}/configs/genesis.yaml \
+      --wallets-path /chains/${CHAIN_NAME}/configs/wallets.yaml \
+      --config-path /chains/${CHAIN_NAME}/configs/general.yaml \
+      --secrets-path /chains/${CHAIN_NAME}/configs/secrets.yaml \
+      --contracts-config-path /chains/${CHAIN_NAME}/configs/contracts.yaml
   fi
 fi
-
-# Normally, the /etc/env and /var/lib/zksync/data should be mapped to volumes
-# so that they are persisted between docker restarts - which would allow even faster starts.
-
-# We use the existance of this init file to decide whether to restart or not.
-INIT_FILE="/var/lib/zksync/data/INIT_COMPLETED.remove_to_reset"
-
-if [ -f "$INIT_FILE" ]; then
-  echo "Initialization was done in the past - simply starting server"
-else
-  echo "Initialing local environment"
-
-  mkdir -p /var/lib/zksync/data
-
-  update_config "/etc/env/base/private.toml" "database_url" "$DATABASE_URL"
-  update_config "/etc/env/base/private.toml" "database_prover_url" "$DATABASE_PROVER_URL"
-  update_config "/etc/env/base/eth_client.toml" "web3_url" "$ETH_CLIENT_WEB3_URL"
-  # Put database in a special /var/lib directory so that it is persisted between docker runs.
-  update_config "/etc/env/base/database.toml" "path" "/var/lib/zksync/data"
-  update_config "/etc/env/base/database.toml" "state_keeper_db_path" "/var/lib/zksync/data/state_keeper"
-  update_config "/etc/env/base/database.toml" "backup_path" "/var/lib/zksync/data/backups"
-
-  if [ -n "$LEGACY_BRIDGE_TESTING" ]; then
-    # making era chain id same as current chain id for legacy bridge testing
-    chain_eth_zksync_network_id=$(read_value_from_config "/etc/env/base/chain.toml" "zksync_network_id")
-    update_config "/etc/env/base/contracts.toml" "ERA_CHAIN_ID" "$chain_eth_zksync_network_id"
-  fi
-
-  if [ -z "$MASTER_URL" ]; then
-    echo "Starting with hyperchain"
-  else
-    # Updates all the stuff (from the '/etc/master_env') - it assumes that it is mapped via docker compose.
-    zk f yarn --cwd /infrastructure/local-setup-preparation join
-  fi
-
-  zk config compile
-
-  zk db reset
-
-  # Perform initialization (things needed to be done only if you're running in the master mode)
-  if [ -z "$MASTER_URL" ]; then
-    zk contract deploy-verifier
-    zk run deploy-erc20 dev # (created etc/tokens/localhost)
-
-    ## init bridgehub state transition
-    zk contract deploy # (deploy L1)
-    zk contract initialize-governance
-    zk contract initialize-validator
-  fi
-
-
-  if [ -z "$CUSTOM_BASE_TOKEN" ]; then
-    echo "Starting chain with ETH as gas token"
-
-    if [ -z "$VALIDIUM_MODE" ]; then
-      ## init hyperchain in rollup mode
-      zk contract register-hyperchain
-    else
-      zk contract register-hyperchain --deployment-mode 1
-    fi
-  else
-    echo "Starting chain with custom gas token $CUSTOM_BASE_TOKEN"
-    zk contract register-hyperchain --base-token-name $CUSTOM_BASE_TOKEN
-  fi
-  
-  
-  zk f zksync_server --genesis
-
-  deploy_l2_args=""
-  if [ -n "$LEGACY_BRIDGE_TESTING" ]; then
-    # setting the flag for legacy bridge testing
-    deploy_l2_args="--local-legacy-bridge-testing"
-  fi
-
-  zk contract deploy-l2-through-l1 $deploy_l2_args
-
-  if [ -z "$MASTER_URL" ]; then
-    zk f yarn --cwd /infrastructure/local-setup-preparation start
-  fi
-
-  if [ -n "$LEGACY_BRIDGE_TESTING" ]; then
-    # making era address same as current address for legacy bridge testing
-    contracts_diamond_proxy_addr=$(read_value_from_config "/etc/env/target/dev.env" "CONTRACTS_DIAMOND_PROXY_ADDR")
-    update_config "/etc/env/target/dev.env" "CONTRACTS_ERA_DIAMOND_PROXY_ADDR" "$contracts_diamond_proxy_addr"
-
-    # setup-legacy-bridge-era waits for the server to be ready, so starting it in the background
-    zk contract setup-legacy-bridge-era &
-  fi
-
-  # Create init file.
-  echo "System initialized. Please remove this file if you want to reset the system" >$INIT_FILE
-
-fi
-
-# start server
-zk f zksync_server
