@@ -331,7 +331,7 @@ impl Call {
 
 /// Mid-level transaction execution output returned by a [batch executor](crate::executor::BatchExecutor).
 #[derive(Debug)]
-pub struct BatchTransactionExecutionResult<TrOut = ()> {
+pub struct BatchTransactionExecutionResult<TrOut = Vec<Call>> {
     /// VM result.
     pub tx_result: Box<VmExecutionResultAndLogs>,
     /// Compressed bytecodes used by the transaction.

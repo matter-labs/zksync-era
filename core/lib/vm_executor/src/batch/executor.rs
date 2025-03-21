@@ -1,8 +1,7 @@
+use std::{error::Error as StdError, fmt::Debug, marker::PhantomData, sync::Arc};
+
 use anyhow::Context as _;
 use async_trait::async_trait;
-use std::fmt::Debug;
-use std::marker::PhantomData;
-use std::{error::Error as StdError, sync::Arc};
 use tokio::{
     sync::{mpsc, oneshot},
     task::JoinHandle,
