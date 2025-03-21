@@ -66,18 +66,18 @@ url = "2.5.2"
 vise = "0.2.0"
 jsonrpsee = "0.24"
 
-circuit_definitions = "=0.151.3"
-circuit_sequencer_api = "=0.151.3"
-zkevm_test_harness = "=0.151.3"
+circuit_definitions = "=0.151.4"
+circuit_sequencer_api = "=0.151.4"
+zkevm_test_harness = "=0.151.4"
 fflonk = "=0.31.0"
 franklin-crypto = "=0.31.0"
 
 # GPU proving dependencies
-proof-compression-gpu = { package = "proof-compression", version = "=0.153.1" }
-fflonk-gpu = { package = "fflonk-cuda", version = "=0.153.1" }
-wrapper_prover = { package = "zksync-wrapper-prover", version = "=0.153.1" }
-shivini = "=0.153.1"
-boojum-cuda = "=0.153.1"
+proof-compression-gpu = { package = "proof-compression", version = "=0.153.2" }
+fflonk-gpu = { package = "fflonk-cuda", version = "=0.153.2" }
+wrapper_prover = { package = "zksync-wrapper-prover", version = "=0.153.2" }
+shivini = "=0.153.2"
+boojum-cuda = "=0.153.2"
 
 # Core workspace dependencies
 zksync_multivm = { path = "../core/lib/multivm" }
