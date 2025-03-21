@@ -113,6 +113,7 @@ where
             tx_result: Box::new(self.mock_inspect(&env, args)),
             compression_result: Ok(()),
             call_traces: vec![],
+            tracer_output: (),
         })
     }
 }
