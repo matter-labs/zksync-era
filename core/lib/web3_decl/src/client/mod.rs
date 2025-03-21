@@ -41,6 +41,7 @@ pub use self::{
     network::{ForWeb3Network, Network, TaggedClient, L1, L2},
     shared::Shared,
 };
+use crate::client::metrics::{ClientLabels, INFO_METRICS};
 
 mod boxed;
 mod metrics;
@@ -175,11 +176,7 @@ impl<Net: Network, C: ClientBase> Client<Net, C> {
         let network_label = self.network.metric_label();
         let stats = match rate_limit_result {
             Err(_) => {
-                self.metrics.observe_rate_limit_timeout(
-                    &network_label,
-                    self.component_name,
-                    origin,
-                );
+                self.metrics.observe_rate_limit_timeout(origin);
                 tracing::warn!(
                     network = network_label,
                     component = self.component_name,
@@ -195,12 +192,7 @@ impl<Net: Network, C: ClientBase> Client<Net, C> {
             Ok(stats) => stats,
         };
 
-        self.metrics.observe_rate_limit_latency(
-            &network_label,
-            self.component_name,
-            origin,
-            &stats,
-        );
+        self.metrics.observe_rate_limit_latency(origin, &stats);
         tracing::debug!(
             network = network_label,
             component = self.component_name,
@@ -220,8 +212,12 @@ impl<Net: Network, C: ClientBase> Client<Net, C> {
     ) -> Result<T, Error> {
         if let Err(err) = &call_result {
             let network_label = self.network.metric_label();
-            self.metrics
-                .observe_error(&network_label, self.component_name, origin, err);
+            let span = tracing::warn_span!(
+                "observe_error",
+                network = network_label,
+                component = self.component_name
+            );
+            span.in_scope(|| self.metrics.observe_error(origin, err));
         }
         call_result
     }
@@ -242,6 +238,10 @@ impl<Net: Network, C: ClientBase> ForWeb3Network for Client<Net, C> {
 impl<Net: Network, C: ClientBase> TaggedClient for Client<Net, C> {
     fn set_component(&mut self, component_name: &'static str) {
         self.component_name = component_name;
+        self.metrics = &METRICS[&ClientLabels {
+            network: self.network.metric_label(),
+            component: component_name,
+        }];
     }
 }
 
@@ -386,7 +386,7 @@ impl<Net: Network, C: ClientBase> ClientBuilder<Net, C> {
                 self.client,
                 self.rate_limit
             );
-            METRICS.observe_config(self.network.metric_label(), &rate_limit);
+            INFO_METRICS.observe_config(self.network.metric_label(), &rate_limit);
         }
 
         Client {
@@ -394,7 +394,10 @@ impl<Net: Network, C: ClientBase> ClientBuilder<Net, C> {
             url: self.url,
             rate_limit,
             component_name: "",
-            metrics: &METRICS,
+            metrics: &METRICS[&ClientLabels {
+                network: self.network.metric_label(),
+                component: "",
+            }],
             network: self.network,
         }
     }

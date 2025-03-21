@@ -24,7 +24,7 @@ use crate::{
     connection::{Connection, ConnectionTags, DbMarker},
     connection_pool::ConnectionPool,
     error::{DalError, DalRequestError, DalResult},
-    metrics::REQUEST_METRICS,
+    metrics::{RequestLabels, RequestMetrics, REQUEST_METRICS},
     utils::InternalMarker,
 };
 
@@ -183,6 +183,7 @@ impl ActiveCopy<'_> {
 #[derive(Debug, Clone)]
 struct InstrumentedData<'a> {
     name: &'static str,
+    metrics: vise::LazyItem<'static, RequestLabels, RequestMetrics>,
     location: &'static Location<'static>,
     args: QueryArgs<'a>,
     report_latency: bool,
@@ -193,6 +194,7 @@ impl<'a> InstrumentedData<'a> {
     fn new(name: &'static str, location: &'static Location<'static>) -> Self {
         Self {
             name,
+            metrics: REQUEST_METRICS.get_lazy(name.into()),
             location,
             args: QueryArgs::default(),
             report_latency: false,
@@ -203,6 +205,7 @@ impl<'a> InstrumentedData<'a> {
     fn observe_error(&self, err: &dyn fmt::Display) {
         let InstrumentedData {
             name,
+            metrics,
             location,
             args,
             ..
@@ -212,7 +215,7 @@ impl<'a> InstrumentedData<'a> {
             file = location.file(),
             line = location.line()
         );
-        REQUEST_METRICS.request_error[name].inc();
+        metrics.request_error.inc();
     }
 
     async fn fetch<R>(
@@ -222,6 +225,7 @@ impl<'a> InstrumentedData<'a> {
     ) -> DalResult<R> {
         let Self {
             name,
+            metrics,
             location,
             args,
             report_latency,
@@ -245,7 +249,7 @@ impl<'a> InstrumentedData<'a> {
                         file = location.file(),
                         line = location.line()
                     );
-                    REQUEST_METRICS.request_slow[&name].inc();
+                    metrics.request_slow.inc();
                     is_slow = true;
                 }
                 query_future.await
@@ -254,7 +258,7 @@ impl<'a> InstrumentedData<'a> {
 
         let elapsed = started_at.elapsed();
         if report_latency {
-            REQUEST_METRICS.request[&name].observe(elapsed);
+            metrics.request.observe(elapsed);
         }
 
         let connection_tags_display = ConnectionTags::display(connection_tags);
@@ -264,7 +268,7 @@ impl<'a> InstrumentedData<'a> {
                 file = location.file(),
                 line = location.line()
             );
-            REQUEST_METRICS.request_error[&name].inc();
+            metrics.request_error.inc();
         } else if is_slow {
             tracing::info!(
                 "Slow query {name}{args} called at {file}:{line} [{connection_tags_display}] has finished after {elapsed:?}",

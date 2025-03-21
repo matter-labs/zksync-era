@@ -2,26 +2,36 @@ use std::{thread, time::Duration};
 
 use vise::{
     Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Histogram, LabeledFamily,
-    LatencyObserver, Metrics, Unit,
+    LatencyObserver, Metrics, MetricsFamily, Unit,
 };
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet)]
+pub(crate) struct RequestLabels {
+    method: &'static str,
+}
+
+impl From<&'static str> for RequestLabels {
+    fn from(method: &'static str) -> Self {
+        Self { method }
+    }
+}
 
 /// Request-related DB metrics.
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "sql")]
 pub(crate) struct RequestMetrics {
     /// Latency of a DB request.
-    #[metrics(buckets = Buckets::LATENCIES, labels = ["method"])]
-    pub request: LabeledFamily<&'static str, Histogram<Duration>>,
+    #[metrics(buckets = Buckets::LATENCIES)]
+    pub request: Histogram<Duration>,
     /// Counter of slow DB requests.
-    #[metrics(labels = ["method"])]
-    pub request_slow: LabeledFamily<&'static str, Counter>,
+    pub request_slow: Counter,
     /// Counter of errored DB requests.
-    #[metrics(labels = ["method"])]
-    pub request_error: LabeledFamily<&'static str, Counter>,
+    pub request_error: Counter,
 }
 
 #[vise::register]
-pub(crate) static REQUEST_METRICS: vise::Global<RequestMetrics> = vise::Global::new();
+pub(crate) static REQUEST_METRICS: MetricsFamily<RequestLabels, RequestMetrics> =
+    MetricsFamily::new();
 
 /// Reporter of latency for DAL methods consisting of multiple DB queries. If there's a single query,
 /// use `.instrument().report_latency()` on it instead.
@@ -32,7 +42,7 @@ pub struct MethodLatency(Option<LatencyObserver<'static>>);
 
 impl MethodLatency {
     pub fn new(name: &'static str) -> Self {
-        Self(Some(REQUEST_METRICS.request[&name].start()))
+        Self(Some(REQUEST_METRICS[&name.into()].request.start()))
     }
 }
 
