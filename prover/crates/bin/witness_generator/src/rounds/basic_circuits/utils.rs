@@ -25,7 +25,7 @@ use zksync_prover_dal::{Connection, Prover, ProverDal};
 use zksync_prover_fri_types::keys::ClosedFormInputKey;
 use zksync_prover_interface::inputs::WitnessInputData;
 use zksync_system_constants::BOOTLOADER_ADDRESS;
-use zksync_types::{protocol_version::ProtocolSemanticVersion, L1BatchNumber};
+use zksync_types::{protocol_version::ProtocolSemanticVersion, ChainAwareL1BatchNumber};
 
 use crate::{
     precalculated_merkle_paths_provider::PrecalculatedMerklePathsProvider,
@@ -37,9 +37,9 @@ use crate::{
     witness::WitnessStorage,
 };
 
-#[tracing::instrument(skip_all, fields(l1_batch = %block_number))]
+#[tracing::instrument(skip_all, fields(l1_batch = %batch_id))]
 pub(super) async fn generate_witness(
-    block_number: L1BatchNumber,
+    batch_id: ChainAwareL1BatchNumber,
     object_store: Arc<dyn ObjectStore>,
     input: WitnessInputData,
     max_circuits_in_flight: usize,
@@ -168,7 +168,7 @@ pub(super) async fn generate_witness(
 
             save_circuit_handles.push(tokio::task::spawn(async move {
                 let (circuit_id, circuit_url) =
-                    save_circuit(block_number, circuit, sequence, object_store).await;
+                    save_circuit(batch_id, circuit, sequence, object_store).await;
                 drop(permit);
                 (circuit_id, circuit_url)
             }));
@@ -191,7 +191,7 @@ pub(super) async fn generate_witness(
         {
             let object_store = object_store.clone();
             save_queue_handles.push(tokio::task::spawn(save_recursion_queue(
-                block_number,
+                batch_id,
                 circuit_id,
                 queue,
                 inputs,
@@ -242,16 +242,16 @@ pub(super) async fn generate_witness(
     )
 }
 
-#[tracing::instrument(skip_all, fields(l1_batch = %block_number, circuit_id = %circuit_id))]
+#[tracing::instrument(skip_all, fields(l1_batch = %batch_id, circuit_id = %circuit_id))]
 async fn save_recursion_queue(
-    block_number: L1BatchNumber,
+    batch_id: ChainAwareL1BatchNumber,
     circuit_id: u8,
     recursion_queue_simulator: RecursionQueueSimulator<GoldilocksField>,
     closed_form_inputs: Vec<ClosedFormInputCompactFormWitness<GoldilocksField>>,
     object_store: Arc<dyn ObjectStore>,
 ) -> (u8, String, usize) {
     let key = ClosedFormInputKey {
-        block_number,
+        batch_id,
         circuit_id,
     };
     let basic_circuit_count = closed_form_inputs.len();
@@ -266,7 +266,7 @@ async fn save_recursion_queue(
 
 pub(crate) async fn create_aggregation_jobs(
     connection: &mut Connection<'_, Prover>,
-    block_number: L1BatchNumber,
+    batch_id: ChainAwareL1BatchNumber,
     closed_form_inputs_and_urls: &Vec<(u8, String, usize)>,
     scheduler_partial_input_blob_url: &str,
     base_layer_to_recursive_layer_circuit_id: fn(u8) -> u8,
@@ -278,7 +278,7 @@ pub(crate) async fn create_aggregation_jobs(
         connection
             .fri_leaf_witness_generator_dal()
             .insert_leaf_aggregation_jobs(
-                block_number,
+                batch_id,
                 protocol_version,
                 *circuit_id,
                 closed_form_inputs_url.clone(),
@@ -289,7 +289,7 @@ pub(crate) async fn create_aggregation_jobs(
         connection
             .fri_node_witness_generator_dal()
             .insert_node_aggregation_jobs(
-                block_number,
+                batch_id,
                 base_layer_to_recursive_layer_circuit_id(*circuit_id),
                 None,
                 0,
@@ -302,7 +302,7 @@ pub(crate) async fn create_aggregation_jobs(
     connection
         .fri_recursion_tip_witness_generator_dal()
         .insert_recursion_tip_aggregation_jobs(
-            block_number,
+            batch_id,
             closed_form_inputs_and_urls,
             protocol_version,
         )
@@ -311,7 +311,7 @@ pub(crate) async fn create_aggregation_jobs(
     connection
         .fri_scheduler_witness_generator_dal()
         .insert_scheduler_aggregation_jobs(
-            block_number,
+            batch_id,
             scheduler_partial_input_blob_url,
             protocol_version,
         )

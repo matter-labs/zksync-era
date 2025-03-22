@@ -10,7 +10,7 @@ use zksync_prover_interface::{
     inputs::{
         L1BatchMetadataHashes, VMRunWitnessInputData, WitnessInputData, WitnessInputMerklePaths,
     },
-    outputs::L1BatchProofForL1,
+    outputs::{FinalProofKeyBySubsystem, L1BatchProofForL1},
 };
 
 use crate::{
@@ -46,7 +46,10 @@ impl Processor {
     ) -> Result<(), ProcessorError> {
         let expected_proof = self
             .blob_store
-            .get::<L1BatchProofForL1>((l1_batch_number, proof.protocol_version()))
+            .get::<L1BatchProofForL1>(FinalProofKeyBySubsystem::Core(
+                l1_batch_number,
+                proof.protocol_version(),
+            ))
             .await?;
         proof.verify(expected_proof)?;
         Ok(())

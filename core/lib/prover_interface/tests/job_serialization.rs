@@ -9,7 +9,8 @@ use zksync_prover_interface::{
     outputs::{FflonkL1BatchProofForL1, L1BatchProofForL1, L1BatchTeeProofForL1},
 };
 use zksync_types::{
-    protocol_version::ProtocolSemanticVersion, tee_types::TeeType, L1BatchNumber, ProtocolVersionId,
+    protocol_version::ProtocolSemanticVersion, tee_types::TeeType, ChainAwareL1BatchNumber,
+    L1BatchNumber, L2ChainId, ProtocolVersionId,
 };
 
 /// Tests compatibility of the `PrepareBasicCircuitsJob` serialization to the previously used
@@ -90,7 +91,7 @@ async fn test_final_proof_deserialization() {
 #[test]
 fn test_proof_request_serialization() {
     let proof = SubmitProofRequest::Proof(
-        L1BatchNumber(1),
+        ChainAwareL1BatchNumber::new(L2ChainId::zero(), L1BatchNumber(1)),
         Box::new(L1BatchProofForL1::Fflonk(FflonkL1BatchProofForL1 {
             aggregation_result_coords: [[0; 32]; 4],
             scheduler_proof: FflonkProof::empty(),
@@ -103,7 +104,10 @@ fn test_proof_request_serialization() {
     let encoded_obj = serde_json::to_string(&proof).unwrap();
     let encoded_json = r#"{
         "Proof": [
-            1,
+            {
+                "chain_id": 0,
+                "batch_number": 1
+            },
             {
                 "aggregation_result_coords": [
                     [

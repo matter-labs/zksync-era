@@ -11,7 +11,10 @@ use fflonk::FflonkProof;
 use serde::{Deserialize, Serialize};
 use serde_with::{hex::Hex, serde_as};
 use zksync_object_store::{serialize_using_bincode, Bucket, StoredObject, _reexports::BoxedError};
-use zksync_types::{protocol_version::ProtocolSemanticVersion, tee_types::TeeType, L1BatchNumber};
+use zksync_types::{
+    protocol_version::ProtocolSemanticVersion, tee_types::TeeType, ChainAwareL1BatchNumber,
+    L1BatchNumber,
+};
 
 /// A "final" ZK proof that can be sent to the L1 contract.
 #[derive(Clone, Serialize, Deserialize)]
@@ -120,14 +123,49 @@ impl fmt::Debug for L1BatchTeeProofForL1 {
     }
 }
 
+#[derive(Copy, Clone)]
+pub enum FinalProofKeyBySubsystem {
+    Core(L1BatchNumber, ProtocolSemanticVersion),
+    Prover(ChainAwareL1BatchNumber, ProtocolSemanticVersion),
+}
+
 impl StoredObject for L1BatchProofForL1 {
     const BUCKET: Bucket = Bucket::ProofsFri;
-    type Key<'a> = (L1BatchNumber, ProtocolSemanticVersion);
+    type Key<'a> = FinalProofKeyBySubsystem;
 
     fn encode_key(key: Self::Key<'_>) -> String {
-        let (l1_batch_number, protocol_version) = key;
+        match key {
+            FinalProofKeyBySubsystem::Core(batch_number, protocol_version) => {
+                let semver_suffix = protocol_version.to_string().replace('.', "_");
+                format!("l1_batch_proof_{}_{semver_suffix}.bin", batch_number.0)
+            }
+            FinalProofKeyBySubsystem::Prover(batch_id, protocol_version) => {
+                let semver_suffix = protocol_version.to_string().replace('.', "_");
+                format!(
+                    "l1_batch_proof_{}_{}_{semver_suffix}.bin",
+                    batch_id.raw_chain_id(),
+                    batch_id.raw_batch_number(),
+                )
+            }
+        }
+    }
+
+    fn fallback_key(key: Self::Key<'_>) -> Option<String> {
+        let (batch_number, protocol_version) = match key {
+            FinalProofKeyBySubsystem::Core(batch_number, protocol_version) => {
+                (batch_number, protocol_version)
+            }
+            FinalProofKeyBySubsystem::Prover(batch_id, protocol_version) => {
+                (batch_id.batch_number(), protocol_version)
+            }
+        };
+
         let semver_suffix = protocol_version.to_string().replace('.', "_");
-        format!("l1_batch_proof_{l1_batch_number}_{semver_suffix}.bin")
+
+        Some(format!(
+            "l1_batch_proof_{}_{}.bin",
+            batch_number.0, semver_suffix
+        ))
     }
 
     fn serialize(&self) -> Result<Vec<u8>, BoxedError> {

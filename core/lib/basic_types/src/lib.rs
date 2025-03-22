@@ -8,6 +8,7 @@
 use std::{
     convert::{Infallible, TryFrom, TryInto},
     fmt,
+    fmt::{Debug, Display},
     num::ParseIntError,
     ops::{Add, Deref, DerefMut, Sub},
     str::FromStr,
@@ -148,6 +149,34 @@ impl<'de> Deserialize<'de> for L2ChainId {
     }
 }
 
+#[derive(Copy, Clone, Serialize, Deserialize)]
+pub struct ChainAwareL1BatchNumber {
+    chain_id: L2ChainId,
+    batch_number: L1BatchNumber,
+}
+
+impl Debug for ChainAwareL1BatchNumber {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "ChainAwareL1BatchNumber(chain_id: {}, batch_number: {})",
+            self.chain_id.as_u64(),
+            self.batch_number.0
+        )
+    }
+}
+
+impl Display for ChainAwareL1BatchNumber {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "ChainAwareL1BatchNumber(chain_id: {}, batch_number: {})",
+            self.chain_id.as_u64(),
+            self.batch_number.0
+        )
+    }
+}
+
 impl L2ChainId {
     pub fn new(number: u64) -> Result<Self, String> {
         if number > L2ChainId::max().0 {
@@ -158,6 +187,12 @@ impl L2ChainId {
             ));
         }
         Ok(L2ChainId(number))
+    }
+
+    /// Method for creating a zero L2ChainId, which is used during transition period to prover cluster,
+    /// when we don't have a chain id yet.
+    pub fn zero() -> Self {
+        Self(0)
     }
 }
 
@@ -213,6 +248,38 @@ impl From<u32> for L2ChainId {
     fn from(value: u32) -> Self {
         // Max value is guaranteed bigger than u32
         Self(u64::from(value))
+    }
+}
+
+impl ChainAwareL1BatchNumber {
+    pub fn new(chain_id: L2ChainId, batch_number: L1BatchNumber) -> Self {
+        Self {
+            chain_id,
+            batch_number,
+        }
+    }
+
+    pub fn from_raw(chain_id: u64, batch_number: u32) -> Self {
+        Self {
+            chain_id: L2ChainId::new(chain_id).expect("Invalid chain ID"),
+            batch_number: L1BatchNumber(batch_number),
+        }
+    }
+
+    pub fn chain_id(&self) -> L2ChainId {
+        self.chain_id
+    }
+
+    pub fn batch_number(&self) -> L1BatchNumber {
+        self.batch_number
+    }
+
+    pub fn raw_chain_id(&self) -> u64 {
+        self.chain_id.as_u64()
+    }
+
+    pub fn raw_batch_number(&self) -> u32 {
+        self.batch_number.0
     }
 }
 

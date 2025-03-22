@@ -24,6 +24,7 @@ impl ProtoRepr for proto::ProofDataHandler {
             )
             .and_then(|x| Ok((*x).try_into()?))
             .context("api_poll_duration_in_secs")?,
+            subscribe_for_zero_chain_id: self.subscribe_for_zero_chain_id.unwrap_or(false),
             tee_config: configs::TeeConfig {
                 tee_support: self
                     .tee_support
@@ -57,6 +58,7 @@ impl ProtoRepr for proto::ProofDataHandler {
             ),
             retry_connection_interval_in_secs: Some(this.retry_connection_interval_in_secs.into()),
             proof_generation_timeout_in_secs: Some(this.proof_generation_timeout_in_secs.into()),
+            subscribe_for_zero_chain_id: Some(this.subscribe_for_zero_chain_id),
             tee_support: Some(this.tee_config.tee_support),
             first_tee_processed_batch: Some(this.tee_config.first_tee_processed_batch.0 as u64),
             tee_proof_generation_timeout_in_secs: Some(

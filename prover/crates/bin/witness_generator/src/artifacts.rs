@@ -3,6 +3,7 @@ use std::time::Instant;
 use async_trait::async_trait;
 use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover};
+use zksync_types::L2ChainId;
 
 #[derive(Debug)]
 pub struct AggregationBlobUrls {
@@ -24,6 +25,7 @@ pub trait ArtifactsManager {
 
     async fn save_to_bucket(
         job_id: u32,
+        chain_id: L2ChainId,
         artifacts: Self::OutputArtifacts,
         object_store: &dyn ObjectStore,
     ) -> Self::BlobUrls;
@@ -31,6 +33,7 @@ pub trait ArtifactsManager {
     async fn save_to_database(
         connection_pool: &ConnectionPool<Prover>,
         job_id: u32,
+        chain_id: L2ChainId,
         started_at: Instant,
         blob_urls: Self::BlobUrls,
         artifacts: Self::OutputArtifacts,

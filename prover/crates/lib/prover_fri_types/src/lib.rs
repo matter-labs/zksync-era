@@ -17,7 +17,7 @@ use zksync_object_store::{serialize_using_bincode, Bucket, StoredObject};
 use zksync_types::{
     basic_fri_types::AggregationRound,
     protocol_version::{ProtocolSemanticVersion, VersionPatch},
-    L1BatchNumber, ProtocolVersionId,
+    ChainAwareL1BatchNumber, L2ChainId, ProtocolVersionId,
 };
 
 use crate::keys::FriCircuitKey;
@@ -47,13 +47,33 @@ impl StoredObject for CircuitWrapper {
 
     fn encode_key(key: Self::Key<'_>) -> String {
         let FriCircuitKey {
-            block_number,
+            batch_id,
             sequence_number,
             circuit_id,
             aggregation_round,
             depth,
         } = key;
-        format!("{block_number}_{sequence_number}_{circuit_id}_{aggregation_round:?}_{depth}.bin")
+
+        format!(
+            "{}_{}_{sequence_number}_{circuit_id}_{aggregation_round:?}_{depth}.bin",
+            batch_id.raw_chain_id(),
+            batch_id.raw_batch_number(),
+        )
+    }
+
+    fn fallback_key(key: <Self as StoredObject>::Key<'_>) -> Option<String> {
+        let FriCircuitKey {
+            batch_id,
+            sequence_number,
+            circuit_id,
+            aggregation_round,
+            depth,
+        } = key;
+
+        Some(format!(
+            "{}_{sequence_number}_{circuit_id}_{aggregation_round:?}_{depth}.bin",
+            batch_id.raw_batch_number(),
+        ))
     }
 
     serialize_using_bincode!();
@@ -67,10 +87,14 @@ pub enum FriProofWrapper {
 
 impl StoredObject for FriProofWrapper {
     const BUCKET: Bucket = Bucket::ProofsFri;
-    type Key<'a> = u32;
+    type Key<'a> = (L2ChainId, u32);
 
     fn encode_key(key: Self::Key<'_>) -> String {
-        format!("proof_{key}.bin")
+        format!("proof_{}_{}.bin", key.0.as_u64(), key.1)
+    }
+
+    fn fallback_key(key: Self::Key<'_>) -> Option<String> {
+        Some(format!("proof_{}.bin", key.1))
     }
 
     serialize_using_bincode!();
@@ -245,10 +269,18 @@ pub struct AuxOutputWitnessWrapper(pub BlockAuxilaryOutputWitness<GoldilocksFiel
 
 impl StoredObject for AuxOutputWitnessWrapper {
     const BUCKET: Bucket = Bucket::SchedulerWitnessJobsFri;
-    type Key<'a> = L1BatchNumber;
+    type Key<'a> = ChainAwareL1BatchNumber;
 
     fn encode_key(key: Self::Key<'_>) -> String {
-        format!("aux_output_witness_{key}.bin")
+        format!(
+            "aux_output_witness_{}_{}.bin",
+            key.raw_chain_id(),
+            key.raw_batch_number()
+        )
+    }
+
+    fn fallback_key(key: Self::Key<'_>) -> Option<String> {
+        Some(format!("aux_output_witness_{}.bin", key.raw_batch_number()))
     }
 
     serialize_using_bincode!();

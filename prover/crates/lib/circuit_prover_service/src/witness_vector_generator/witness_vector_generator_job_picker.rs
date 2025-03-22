@@ -66,7 +66,7 @@ impl<ML: WitnessVectorMetadataLoader> JobPicker for WitnessVectorGeneratorJobPic
 
         let circuit_wrapper = self
             .object_store
-            .get(metadata.into())
+            .get::<CircuitWrapper>(metadata.into())
             .await
             .context("failed to get circuit_wrapper from object store")?;
         let circuit = match circuit_wrapper {
@@ -90,9 +90,9 @@ impl<ML: WitnessVectorMetadataLoader> JobPicker for WitnessVectorGeneratorJobPic
             finalization_hints,
         };
         tracing::info!(
-            "Finished picking witness vector generator job {}, on batch {}, for circuit {}, at round {} in {:?}",
+            "Finished picking witness vector generator job {}, on {:?}, for circuit {}, at round {} in {:?}",
             metadata.id,
-            metadata.block_number,
+            metadata.batch_id,
             metadata.circuit_id,
             metadata.aggregation_round,
             start_time.elapsed()

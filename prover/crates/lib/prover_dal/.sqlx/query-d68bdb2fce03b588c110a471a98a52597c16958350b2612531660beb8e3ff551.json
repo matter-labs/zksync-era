@@ -1,0 +1,59 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                UPDATE prover_jobs_fri\n                SET\n                    status = 'queued',\n                    updated_at = NOW(),\n                    processing_started_at = NOW()\n                WHERE\n                    (id, chain_id) IN (\n                        SELECT\n                            id,\n                            chain_id\n                        FROM\n                            prover_jobs_fri\n                        WHERE\n                            (\n                                status IN ('in_progress', 'in_gpu_proof')\n                                AND processing_started_at <= NOW() - $1::INTERVAL\n                                AND attempts < $2\n                            )\n                            OR (\n                                status = 'failed'\n                                AND attempts < $2\n                            )\n                        FOR UPDATE\n                        SKIP LOCKED\n                    )\n                RETURNING\n                id,\n                chain_id,\n                status,\n                attempts,\n                circuit_id,\n                error,\n                picked_by\n                ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "chain_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "status",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "attempts",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 4,
+        "name": "circuit_id",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 5,
+        "name": "error",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "picked_by",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Interval",
+        "Int2"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "d68bdb2fce03b588c110a471a98a52597c16958350b2612531660beb8e3ff551"
+}
