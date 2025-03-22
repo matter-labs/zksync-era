@@ -24,14 +24,14 @@ jobs:
       all: ${{ steps.changed-files.outputs.all_any_changed }}
     steps:
 
-      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           fetch-depth: 2
           submodules: "recursive"
 
       - name: Get changed files
         id: changed-files
-        uses: tj-actions/changed-files@fea790cb660e33aef4bdf07304e28fedd77dfa13 # v39
+        uses: tj-actions/changed-files@48566bbcc22ceb7c5809ebdd27377309f2c3de8c # v39
         with:
           files_yaml: |
             prover:
