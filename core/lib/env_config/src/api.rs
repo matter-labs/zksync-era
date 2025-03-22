@@ -97,6 +97,7 @@ mod tests {
                 ],
                 api_namespaces: Some(vec!["debug".to_string()]),
                 extended_api_tracing: true,
+                deployment_allowlist_sink: true,
             },
             prometheus: PrometheusConfig {
                 listener_port: 3312,
@@ -129,6 +130,7 @@ mod tests {
             API_WEB3_JSON_RPC_GAS_PRICE_SCALE_FACTOR=1.2
             API_WEB3_JSON_RPC_API_NAMESPACES=debug
             API_WEB3_JSON_RPC_EXTENDED_API_TRACING=true
+            API_WEB3_JSON_RPC_DEPLOYMENT_ALLOWLIST_SINK=true
             API_WEB3_JSON_RPC_WHITELISTED_TOKENS_FOR_AA="0x0000000000000000000000000000000000000001,0x0000000000000000000000000000000000000002"
             API_WEB3_JSON_RPC_ESTIMATE_GAS_SCALE_FACTOR=1.0
             API_WEB3_JSON_RPC_ESTIMATE_GAS_ACCEPTABLE_OVERESTIMATION=1000

@@ -51,6 +51,7 @@ mod result;
 #[cfg(test)]
 pub(crate) mod tests;
 pub mod tx_sink;
+pub mod whitelisted_deploy_pool_sink;
 
 pub async fn build_tx_sender(
     tx_sender_config: &TxSenderConfig,
