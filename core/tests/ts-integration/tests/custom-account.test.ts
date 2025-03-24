@@ -474,14 +474,12 @@ describe('Tests for the custom account behavior', () => {
         // zksync-ethers SDK thinks nonce is a `number`, not `bigint`, so we're using viem here
         const customChain = defineChain({
             ...zksyncSepoliaTestnet,
-            id: 271,
+            id: Number(testMaster.environment().l2ChainId),
             formatters: {
                 ...chainConfig.formatters,
                 transactionRequest: defineTransactionRequest({
                     format(args: { nonce?: bigint | number }): { nonce?: Hex } {
-                        return {
-                            nonce: args.nonce ? numberToHex(args.nonce) : undefined,
-                        }
+                        return { nonce: args.nonce ? numberToHex(args.nonce) : undefined };
                     },
                 }),
             }
@@ -502,13 +500,29 @@ describe('Tests for the custom account behavior', () => {
             .extend(eip712WalletActions())
             .extend(publicActions);
 
-        const hash = await walletClient.sendTransaction({
-            type: "eip712",
-            to: alice.address,
-            nonce: (1n << 64n),
-        });
-        const receipt = await walletClient.waitForTransactionReceipt({ hash });
-        expect(receipt.status).toEqual('success');
+        const combineNonce = (key: bigint, value: bigint) => (key << 64n) + value;
+        const nonceKey = 123456789n;
+        const NUM_TRANSFERS = 2n;
+
+        for (let i = 0n; i < NUM_TRANSFERS; i++) {
+            const hash = await walletClient.sendTransaction({
+                type: "eip712",
+                to: alice.address,
+                value: TRANSFER_AMOUNT,
+                nonce: combineNonce(nonceKey, i),
+            });
+            const receipt = await walletClient.waitForTransactionReceipt({ hash });
+            expect(receipt.status).toEqual('success');
+        }
+
+        const nonceHolder = new ethers.Contract(
+            '0x0000000000000000000000000000000000008003',
+            ['function getKeyedNonce(address, uint192) view returns (uint256)'],
+            alice.provider
+        );
+        const keyedNonce: bigint = await nonceHolder.getKeyedNonce(smartAccount.address, nonceKey);
+        // NOTE: jest support for BigInts is still in alpha: https://github.com/jestjs/jest/issues/11617
+        expect(keyedNonce.toString()).toEqual(combineNonce(nonceKey, NUM_TRANSFERS).toString());
     });
 
     afterAll(async () => {
