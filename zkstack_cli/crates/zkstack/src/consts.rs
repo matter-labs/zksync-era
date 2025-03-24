@@ -19,16 +19,12 @@ pub const PORTAL_DOCKER_IMAGE: &str = "matterlabs/dapp-portal";
 
 pub const PROVER_GATEWAY_DOCKER_IMAGE: &str = "matterlabs/prover-fri-gateway";
 pub const WITNESS_GENERATOR_DOCKER_IMAGE: &str = "matterlabs/witness-generator";
-pub const WITNESS_VECTOR_GENERATOR_DOCKER_IMAGE: &str = "matterlabs/witness-vector-generator";
-pub const PROVER_DOCKER_IMAGE: &str = "matterlabs/prover-gpu-fri";
 pub const CIRCUIT_PROVER_DOCKER_IMAGE: &str = "matterlabs/circuit-prover-gpu";
 pub const COMPRESSOR_DOCKER_IMAGE: &str = "matterlabs/proof-fri-gpu-compressor";
 pub const PROVER_JOB_MONITOR_DOCKER_IMAGE: &str = "matterlabs/prover-job-monitor";
 
 pub const PROVER_GATEWAY_BINARY_NAME: &str = "zksync_prover_fri_gateway";
 pub const WITNESS_GENERATOR_BINARY_NAME: &str = "zksync_witness_generator";
-pub const WITNESS_VECTOR_GENERATOR_BINARY_NAME: &str = "zksync_witness_vector_generator";
-pub const PROVER_BINARY_NAME: &str = "zksync_prover_fri";
 pub const CIRCUIT_PROVER_BINARY_NAME: &str = "zksync_circuit_prover";
 pub const COMPRESSOR_BINARY_NAME: &str = "zksync_proof_fri_compressor";
 pub const PROVER_JOB_MONITOR_BINARY_NAME: &str = "zksync_prover_job_monitor";

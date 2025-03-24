@@ -1,8 +1,12 @@
 use assert_matches::assert_matches;
+use ethabi::Token;
 use zksync_test_contracts::{TestContract, TxType};
-use zksync_types::{Execute, H256};
+use zksync_types::{utils::deployed_address_create, Address, Execute, H256};
 
-use super::{default_pubdata_builder, extract_deploy_events, tester::VmTesterBuilder, TestedVm};
+use super::{
+    default_pubdata_builder, extract_deploy_events, tester::VmTesterBuilder, ContractToDeploy,
+    TestedVm,
+};
 use crate::interface::{ExecutionResult, InspectExecutionMode, VmInterfaceExt};
 
 pub(crate) fn test_estimate_fee<VM: TestedVm>() {
@@ -71,7 +75,6 @@ pub(crate) fn test_simple_execute<VM: TestedVm>() {
     assert_matches!(block_tip.result, ExecutionResult::Success { .. });
 }
 
-// TODO: also test EVM contract addresses once EVM emulator is implemented
 pub(crate) fn test_create2_deployment_address<VM: TestedVm>() {
     let mut vm_tester = VmTesterBuilder::new().with_rich_accounts(1).build::<VM>();
     let account = &mut vm_tester.rich_accounts[0];
@@ -105,4 +108,63 @@ pub(crate) fn test_create2_deployment_address<VM: TestedVm>() {
     let deploy_events = extract_deploy_events(&res.logs.events);
     assert_eq!(deploy_events.len(), 1);
     assert_eq!(deploy_events[0], (account.address, expected_address));
+}
+
+pub(crate) fn test_reusing_create_address<VM: TestedVm>() {
+    let factory_bytecode = TestContract::counter_factory().bytecode.to_vec();
+    let factory_address = Address::repeat_byte(1);
+    let mut vm_tester = VmTesterBuilder::new()
+        .with_rich_accounts(1)
+        .with_custom_contracts(vec![ContractToDeploy::new(
+            factory_bytecode,
+            factory_address,
+        )])
+        .build::<VM>();
+    let account = &mut vm_tester.rich_accounts[0];
+
+    let test_fn = TestContract::counter_factory().function("testReusingCreateAddress");
+    let expected_address = deployed_address_create(factory_address, 0.into());
+    let test_tx = account.get_l2_tx_for_execute(
+        Execute {
+            contract_address: Some(factory_address),
+            calldata: test_fn
+                .encode_input(&[Token::Address(expected_address)])
+                .unwrap(),
+            value: 0.into(),
+            factory_deps: TestContract::counter_factory().factory_deps(),
+        },
+        None,
+    );
+
+    vm_tester.vm.push_transaction(test_tx);
+    let res = vm_tester.vm.execute(InspectExecutionMode::OneTx);
+    assert_matches!(res.result, ExecutionResult::Success { .. });
+}
+
+pub(crate) fn test_reusing_create2_salt<VM: TestedVm>() {
+    let factory_bytecode = TestContract::counter_factory().bytecode.to_vec();
+    let factory_address = Address::repeat_byte(1);
+    let mut vm_tester = VmTesterBuilder::new()
+        .with_rich_accounts(1)
+        .with_custom_contracts(vec![ContractToDeploy::new(
+            factory_bytecode,
+            factory_address,
+        )])
+        .build::<VM>();
+    let account = &mut vm_tester.rich_accounts[0];
+
+    let test_fn = TestContract::counter_factory().function("testReusingCreate2Salt");
+    let test_tx = account.get_l2_tx_for_execute(
+        Execute {
+            contract_address: Some(factory_address),
+            calldata: test_fn.encode_input(&[]).unwrap(),
+            value: 0.into(),
+            factory_deps: TestContract::counter_factory().factory_deps(),
+        },
+        None,
+    );
+
+    vm_tester.vm.push_transaction(test_tx);
+    let res = vm_tester.vm.execute(InspectExecutionMode::OneTx);
+    assert_matches!(res.result, ExecutionResult::Success { .. });
 }

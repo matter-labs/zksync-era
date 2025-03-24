@@ -354,24 +354,27 @@ impl ExternalNodeBuilder {
             return Ok(self);
         }
 
+        if let DAClientConfig::ObjectStore(config) = da_client_config {
+            self.node
+                .add_layer(ObjectStorageClientWiringLayer::new(config));
+            return Ok(self);
+        }
+
         let da_client_secrets = da_client_secrets.context("DA client secrets are missing")?;
         match (da_client_config, da_client_secrets) {
             (DAClientConfig::Avail(config), DataAvailabilitySecrets::Avail(secret)) => {
                 self.node.add_layer(AvailWiringLayer::new(config, secret));
             }
-
             (DAClientConfig::Celestia(config), DataAvailabilitySecrets::Celestia(secret)) => {
                 self.node
                     .add_layer(CelestiaWiringLayer::new(config, secret));
             }
+            (DAClientConfig::Eigen(mut config), DataAvailabilitySecrets::Eigen(secret)) => {
+                if config.eigenda_eth_rpc.is_none() {
+                    config.eigenda_eth_rpc = Some(self.config.required.eth_client_url.clone());
+                }
 
-            (DAClientConfig::Eigen(config), DataAvailabilitySecrets::Eigen(secret)) => {
                 self.node.add_layer(EigenWiringLayer::new(config, secret));
-            }
-
-            (DAClientConfig::ObjectStore(config), _) => {
-                self.node
-                    .add_layer(ObjectStorageClientWiringLayer::new(config));
             }
             _ => bail!("invalid pair of da_client and da_secrets"),
         }

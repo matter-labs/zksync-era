@@ -473,26 +473,6 @@ impl Distribution<configs::FriProofCompressorConfig> for EncodeDist {
     }
 }
 
-impl Distribution<configs::fri_prover::SetupLoadMode> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::fri_prover::SetupLoadMode {
-        type T = configs::fri_prover::SetupLoadMode;
-        match rng.gen_range(0..2) {
-            0 => T::FromDisk,
-            _ => T::FromMemory,
-        }
-    }
-}
-
-impl Distribution<configs::fri_prover::CloudConnectionMode> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::fri_prover::CloudConnectionMode {
-        type T = configs::fri_prover::CloudConnectionMode;
-        match rng.gen_range(0..1) {
-            0 => T::GCP,
-            _ => T::Local,
-        }
-    }
-}
-
 impl Distribution<configs::FriProverConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::FriProverConfig {
         configs::FriProverConfig {
@@ -500,14 +480,7 @@ impl Distribution<configs::FriProverConfig> for EncodeDist {
             prometheus_port: self.sample(rng),
             max_attempts: self.sample(rng),
             generation_timeout_in_secs: self.sample(rng),
-            setup_load_mode: self.sample(rng),
-            specialized_group_id: self.sample(rng),
-            queue_capacity: self.sample(rng),
-            witness_vector_receiver_port: self.sample(rng),
-            zone_read_url: self.sample(rng),
-            availability_check_interval_in_secs: self.sample(rng),
             prover_object_store: self.sample(rng),
-            cloud_type: self.sample(rng),
         }
     }
 }
@@ -534,76 +507,6 @@ impl Sample for CircuitIdRoundTuple {
     }
 }
 
-impl Distribution<configs::fri_prover_group::FriProverGroupConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(
-        &self,
-        rng: &mut R,
-    ) -> configs::fri_prover_group::FriProverGroupConfig {
-        configs::fri_prover_group::FriProverGroupConfig {
-            group_0: self
-                .sample_range(rng)
-                .map(|_| Sample::sample(rng))
-                .collect(),
-            group_1: self
-                .sample_range(rng)
-                .map(|_| Sample::sample(rng))
-                .collect(),
-            group_2: self
-                .sample_range(rng)
-                .map(|_| Sample::sample(rng))
-                .collect(),
-            group_3: self
-                .sample_range(rng)
-                .map(|_| Sample::sample(rng))
-                .collect(),
-            group_4: self
-                .sample_range(rng)
-                .map(|_| Sample::sample(rng))
-                .collect(),
-            group_5: self
-                .sample_range(rng)
-                .map(|_| Sample::sample(rng))
-                .collect(),
-            group_6: self
-                .sample_range(rng)
-                .map(|_| Sample::sample(rng))
-                .collect(),
-            group_7: self
-                .sample_range(rng)
-                .map(|_| Sample::sample(rng))
-                .collect(),
-            group_8: self
-                .sample_range(rng)
-                .map(|_| Sample::sample(rng))
-                .collect(),
-            group_9: self
-                .sample_range(rng)
-                .map(|_| Sample::sample(rng))
-                .collect(),
-            group_10: self
-                .sample_range(rng)
-                .map(|_| Sample::sample(rng))
-                .collect(),
-            group_11: self
-                .sample_range(rng)
-                .map(|_| Sample::sample(rng))
-                .collect(),
-            group_12: self
-                .sample_range(rng)
-                .map(|_| Sample::sample(rng))
-                .collect(),
-            group_13: self
-                .sample_range(rng)
-                .map(|_| Sample::sample(rng))
-                .collect(),
-            group_14: self
-                .sample_range(rng)
-                .map(|_| Sample::sample(rng))
-                .collect(),
-        }
-    }
-}
-
 impl Distribution<configs::FriWitnessGeneratorConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::FriWitnessGeneratorConfig {
         configs::FriWitnessGeneratorConfig {
@@ -617,20 +520,6 @@ impl Distribution<configs::FriWitnessGeneratorConfig> for EncodeDist {
             last_l1_batch_to_process: self.sample(rng),
             prometheus_listener_port: self.sample(rng),
             max_circuits_in_flight: self.sample(rng),
-        }
-    }
-}
-
-impl Distribution<configs::FriWitnessVectorGeneratorConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::FriWitnessVectorGeneratorConfig {
-        configs::FriWitnessVectorGeneratorConfig {
-            max_prover_reservation_duration_in_secs: self.sample(rng),
-            prover_instance_wait_timeout_in_secs: self.sample(rng),
-            prover_instance_poll_time_in_milli_secs: self.sample(rng),
-            prometheus_listener_port: self.sample(rng),
-            prometheus_pushgateway_url: self.sample(rng),
-            prometheus_push_interval_ms: self.sample(rng),
-            specialized_group_id: self.sample(rng),
         }
     }
 }
@@ -1175,8 +1064,6 @@ impl Distribution<configs::GeneralConfig> for EncodeDist {
             proof_compressor_config: self.sample(rng),
             prover_config: self.sample(rng),
             prover_gateway: self.sample(rng),
-            witness_vector_generator: self.sample(rng),
-            prover_group_config: self.sample(rng),
             witness_generator_config: self.sample(rng),
             prometheus_config: self.sample(rng),
             proof_data_handler_config: self.sample(rng),
