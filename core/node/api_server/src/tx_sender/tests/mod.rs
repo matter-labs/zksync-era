@@ -64,7 +64,10 @@ async fn getting_nonce_for_account() {
     let tx_executor = SandboxExecutor::mock(tx_executor).await;
     let (tx_sender, _) = create_test_tx_sender(pool.clone(), l2_chain_id, tx_executor).await;
 
-    let nonce = tx_sender.get_expected_nonce(test_address, Default::default()).await.unwrap();
+    let nonce = tx_sender
+        .get_expected_nonce(test_address, Default::default())
+        .await
+        .unwrap();
     assert_eq!(nonce, Nonce(123.into()));
 
     // Insert another L2 block with a new nonce log.
@@ -83,10 +86,16 @@ async fn getting_nonce_for_account() {
         .await
         .unwrap();
 
-    let nonce = tx_sender.get_expected_nonce(test_address, Default::default()).await.unwrap();
+    let nonce = tx_sender
+        .get_expected_nonce(test_address, Default::default())
+        .await
+        .unwrap();
     assert_eq!(nonce, Nonce(321.into()));
     let missing_address = Address::repeat_byte(0xff);
-    let nonce = tx_sender.get_expected_nonce(missing_address, Default::default()).await.unwrap();
+    let nonce = tx_sender
+        .get_expected_nonce(missing_address, Default::default())
+        .await
+        .unwrap();
     assert_eq!(nonce, Nonce(0.into()));
 }
 
@@ -130,12 +139,21 @@ async fn getting_nonce_for_account_after_snapshot_recovery() {
         .await
         .unwrap();
 
-    let nonce = tx_sender.get_expected_nonce(test_address, Default::default()).await.unwrap();
+    let nonce = tx_sender
+        .get_expected_nonce(test_address, Default::default())
+        .await
+        .unwrap();
     assert_eq!(nonce, Nonce(321.into()));
-    let nonce = tx_sender.get_expected_nonce(other_address, Default::default()).await.unwrap();
+    let nonce = tx_sender
+        .get_expected_nonce(other_address, Default::default())
+        .await
+        .unwrap();
     assert_eq!(nonce, Nonce(25.into()));
     let missing_address = Address::repeat_byte(0xff);
-    let nonce = tx_sender.get_expected_nonce(missing_address, Default::default()).await.unwrap();
+    let nonce = tx_sender
+        .get_expected_nonce(missing_address, Default::default())
+        .await
+        .unwrap();
     assert_eq!(nonce, Nonce(0.into()));
 }
 

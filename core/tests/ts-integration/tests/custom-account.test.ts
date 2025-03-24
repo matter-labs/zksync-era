@@ -12,7 +12,7 @@ import { shouldChangeETHBalances, shouldChangeTokenBalances } from '../src/modif
 
 import { createWalletClient, http, Hex, defineTransactionRequest, defineChain, numberToHex, publicActions } from 'viem';
 import { zksyncSepoliaTestnet } from 'viem/chains';
-import { chainConfig, eip712WalletActions, toSmartAccount } from "viem/zksync";
+import { chainConfig, eip712WalletActions, toSmartAccount } from 'viem/zksync';
 
 const contracts = {
     customAccount: getTestContract('CustomAccount'),
@@ -470,7 +470,7 @@ describe('Tests for the custom account behavior', () => {
         }
     });
 
-    test("Send a transaction with keyed nonce", async () => {
+    test('Send a transaction with keyed nonce', async () => {
         // zksync-ethers SDK thinks nonce is a `number`, not `bigint`, so we're using viem here
         const customChain = defineChain({
             ...zksyncSepoliaTestnet,
@@ -480,8 +480,8 @@ describe('Tests for the custom account behavior', () => {
                 transactionRequest: defineTransactionRequest({
                     format(args: { nonce?: bigint | number }): { nonce?: Hex } {
                         return { nonce: args.nonce ? numberToHex(args.nonce) : undefined };
-                    },
-                }),
+                    }
+                })
             }
         });
 
@@ -495,7 +495,7 @@ describe('Tests for the custom account behavior', () => {
         const walletClient = createWalletClient({
             chain: customChain,
             account: smartAccount,
-            transport: http(testMaster.environment().l2NodeUrl),
+            transport: http(testMaster.environment().l2NodeUrl)
         })
             .extend(eip712WalletActions())
             .extend(publicActions);
@@ -506,10 +506,10 @@ describe('Tests for the custom account behavior', () => {
 
         for (let i = 0n; i < NUM_TRANSFERS; i++) {
             const hash = await walletClient.sendTransaction({
-                type: "eip712",
+                type: 'eip712',
                 to: alice.address,
                 value: TRANSFER_AMOUNT,
-                nonce: combineNonce(nonceKey, i),
+                nonce: combineNonce(nonceKey, i)
             });
             const receipt = await walletClient.waitForTransactionReceipt({ hash });
             expect(receipt.status).toEqual('success');
