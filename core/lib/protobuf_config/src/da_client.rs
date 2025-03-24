@@ -63,6 +63,8 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                 timeout_ms: *required(&conf.timeout_ms).context("timeout_ms")?,
                 celestia_core_tendermint_rpc_url: required(&conf.celestia_core_tendermint_rpc_url).context("celestia_core_tendermint_rpc_url")?.clone(),
                 blobstream_contract_address: required(&conf.blobstream_contract_address).context("blobstream_contract_address")?.clone(),
+                num_pages: *required(&conf.num_pages).context("num_pages")?,
+                page_size: *required(&conf.page_size).context("page_size")?,
             }),
             proto::data_availability_client::Config::Eigen(conf) => Eigen(EigenConfig {
                 disperser_rpc: required(&conf.disperser_rpc)
@@ -137,6 +139,8 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                     timeout_ms: Some(config.timeout_ms),
                     celestia_core_tendermint_rpc_url: Some(config.celestia_core_tendermint_rpc_url.clone()),
                     blobstream_contract_address: Some(config.blobstream_contract_address.clone()),
+                    num_pages: Some(config.num_pages),
+                    page_size: Some(config.page_size),
                 })
             }
             Eigen(config) => proto::data_availability_client::Config::Eigen(proto::EigenConfig {

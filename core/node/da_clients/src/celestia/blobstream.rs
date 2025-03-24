@@ -89,6 +89,8 @@ pub async fn find_block_range(
     eth_block_num: BlockNumber,
     blobstream_update_event: &Event,
     contract_address: H160,
+    num_pages: u64,
+    page_size: u64,
 ) -> Result<Option<(U256, U256, U256)>, Box<dyn std::error::Error>> {
     if target_height >= latest_block.as_u64() {
         return Ok(None);
@@ -99,9 +101,9 @@ pub async fn find_block_range(
         _ => return Err("Invalid block number".into()),
     };
 
-    for multiplier in 1..=1000 {
+    for multiplier in 1..=num_pages {
         // Limited to 1000 pages
-        let page_end = page_start - 500 * multiplier;
+        let page_end = page_start - page_size * multiplier;
         let filter = FilterBuilder::default()
             .from_block(BlockNumber::Number(page_end))
             .to_block(BlockNumber::Number(page_start))
@@ -132,7 +134,7 @@ pub async fn find_block_range(
         page_start = page_end;
     }
 
-    Err("No matching block range found after 1000 pages".into())
+    Err(format!("No matching block range found after {} pages", num_pages).into())
 }
 
 // The BlobStream contract event

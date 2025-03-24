@@ -298,6 +298,8 @@ impl DataAvailabilityClient for CelestiaClient {
             BlockNumber::Number(eth_current_height),
             &self.blobstream_update_event,
             blobstream_contract_address,
+            self.config.num_pages,
+            self.config.page_size,
         )
         .await
         .map_err(|e| to_retriable_da_error(anyhow::anyhow!("Failed to find block range: {}", e)))?
