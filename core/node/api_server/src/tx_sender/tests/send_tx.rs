@@ -268,7 +268,7 @@ async fn sending_reverting_transaction() {
 
     let storage = tx_sender.acquire_replica_connection().await.unwrap();
     StateBuilder::default()
-        .with_counter_contract(0)
+        .with_counter_contract(None)
         .with_balance(alice.address(), u64::MAX.into())
         .apply(storage)
         .await;

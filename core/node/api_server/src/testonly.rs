@@ -82,7 +82,7 @@ impl StateBuilder {
     pub(crate) const LOAD_TEST_ADDRESS: Address = Address::repeat_byte(1);
     pub(crate) const EXPENSIVE_CONTRACT_ADDRESS: Address = Address::repeat_byte(2);
     pub(crate) const PRECOMPILES_CONTRACT_ADDRESS: Address = Address::repeat_byte(3);
-    const COUNTER_CONTRACT_ADDRESS: Address = Address::repeat_byte(4);
+    pub(crate) const COUNTER_CONTRACT_ADDRESS: Address = Address::repeat_byte(4);
     const INFINITE_LOOP_CONTRACT_ADDRESS: Address = Address::repeat_byte(5);
     const MULTICALL3_ADDRESS: Address = Address::repeat_byte(6);
 
@@ -129,6 +129,18 @@ impl StateBuilder {
         self
     }
 
+    pub fn with_storage_slot(mut self, address: Address, slot: H256, value: H256) -> Self {
+        let account_entry = self.inner.entry(address).or_default();
+        let state = account_entry
+            .state
+            .get_or_insert_with(|| OverrideState::State(HashMap::new()));
+        let state = match state {
+            OverrideState::State(state) | OverrideState::StateDiff(state) => state,
+        };
+        state.insert(slot, value);
+        self
+    }
+
     pub fn with_expensive_contract(self) -> Self {
         self.with_contract(
             Self::EXPENSIVE_CONTRACT_ADDRESS,
@@ -143,21 +155,25 @@ impl StateBuilder {
         )
     }
 
-    pub fn with_counter_contract(self, initial_value: u64) -> Self {
+    pub fn with_counter_contract(self, initial_value: Option<u64>) -> Self {
         self.with_generic_counter_contract(BytecodeMarker::EraVm, initial_value)
     }
 
-    pub fn with_evm_counter_contract(self, initial_value: u64) -> Self {
+    pub fn with_evm_counter_contract(self, initial_value: Option<u64>) -> Self {
         self.with_generic_counter_contract(BytecodeMarker::Evm, initial_value)
     }
 
-    fn with_generic_counter_contract(self, kind: BytecodeMarker, initial_value: u64) -> Self {
+    pub(crate) fn with_generic_counter_contract(
+        self,
+        kind: BytecodeMarker,
+        initial_value: Option<u64>,
+    ) -> Self {
         let bytecode = match kind {
             BytecodeMarker::EraVm => TestContract::counter().bytecode,
             BytecodeMarker::Evm => TestEvmContract::counter().deployed_bytecode,
         };
         let mut this = self.with_contract(Self::COUNTER_CONTRACT_ADDRESS, bytecode.to_vec());
-        if initial_value != 0 {
+        if let Some(initial_value) = initial_value {
             let state = HashMap::from([(H256::zero(), H256::from_low_u64_be(initial_value))]);
             this.inner
                 .get_mut(&Self::COUNTER_CONTRACT_ADDRESS)
@@ -704,15 +720,18 @@ mod tests {
             TestContract::precompiles_test(),
         ];
         for contract in era_contracts {
-            assert_eq!(BytecodeMarker::detect(contract.bytecode), BytecodeMarker::EraVm);
+            assert_eq!(
+                BytecodeMarker::detect(contract.bytecode),
+                BytecodeMarker::EraVm
+            );
         }
 
-        let evm_contracts = [
-            TestEvmContract::counter(),
-            TestEvmContract::evm_tester(),
-        ];
+        let evm_contracts = [TestEvmContract::counter(), TestEvmContract::evm_tester()];
         for contract in evm_contracts {
-            assert_eq!(BytecodeMarker::detect(contract.deployed_bytecode), BytecodeMarker::Evm);
+            assert_eq!(
+                BytecodeMarker::detect(contract.deployed_bytecode),
+                BytecodeMarker::Evm
+            );
         }
     }
 
