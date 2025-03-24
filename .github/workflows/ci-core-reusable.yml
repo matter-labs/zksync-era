@@ -91,9 +91,10 @@ jobs:
       - name: Rust unit tests
         run: |
           ci_run zkstack dev test rust
-          # Benchmarks are not tested by `cargo nextest` unless specified explicitly, and even then `criterion` harness is incompatible
-          # with how `cargo nextest` runs tests. Thus, we run criterion-based benchmark tests manually.
-          ci_run cargo test --manifest-path ./core/Cargo.toml --release -p vm-benchmark --bench oneshot --bench batch
+
+      - name: Run tests until it fails
+        run: |
+          ./untilfail.sh ci_run zkstack dev test rust --options "-p zksync_state"
 
   loadtest:
     runs-on: [ matterlabs-ci-runner-high-performance ]
