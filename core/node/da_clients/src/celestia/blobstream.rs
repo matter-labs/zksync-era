@@ -118,16 +118,19 @@ pub async fn find_block_range(
 
         let logs = client.logs(&filter).await?;
 
-        if let Some(log) = logs.iter().find(|log| {
+        if let Some(log) = logs.iter().find_map(|log| {
             let commitment = DataCommitmentStored::from_log(log);
-            commitment.start_block.as_u64() <= target_height
-                && commitment.end_block.as_u64() > target_height
+            if commitment.start_block.as_u64() <= target_height 
+                && commitment.end_block.as_u64() > target_height {
+                Some(commitment)
+            } else {
+                None
+            }
         }) {
-            let commitment = DataCommitmentStored::from_log(log);
             return Ok(Some((
-                commitment.start_block,
-                commitment.end_block,
-                commitment.proof_nonce,
+                log.start_block,
+                log.end_block,
+                log.proof_nonce,
             )));
         }
 
