@@ -579,8 +579,8 @@ fn deploy_eravm_counter<VM: TestedVm>(
     // Sanity check: account nonces must match ones in the storage
     let full_nonce = vm.vm.read_storage(get_nonce_key(&account.address));
     let (min_nonce, deploy_nonce) = decompose_full_nonce(full_nonce);
-    assert_eq!(min_nonce.as_u32(), account.nonce.0);
-    assert_eq!(deploy_nonce.as_u32(), account.deploy_nonce.0);
+    assert_eq!(min_nonce, account.nonce.0);
+    assert_eq!(deploy_nonce, account.deploy_nonce.0);
 
     let deploy_tx = account.get_deploy_tx(
         bytecode,
