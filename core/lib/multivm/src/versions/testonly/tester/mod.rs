@@ -46,7 +46,7 @@ impl<VM: TestedVm> VmTester<VM> {
         let contract = TestContract::counter().bytecode;
         let account = &mut self.rich_accounts[0];
         let tx = account.get_deploy_tx(contract, None, TxType::L2).tx;
-        let nonce = tx.nonce().unwrap().0.into();
+        let nonce = tx.nonce().unwrap().0;
         self.vm.push_transaction(tx);
         self.vm.execute(InspectExecutionMode::OneTx);
         let deployed_address = deployed_address_create(account.address, nonce);

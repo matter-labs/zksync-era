@@ -45,8 +45,8 @@ impl Account {
         Self {
             private_key,
             address,
-            nonce: Nonce(0),
-            deploy_nonce: Nonce(0),
+            nonce: Nonce(0.into()),
+            deploy_nonce: Nonce(0.into()),
         }
     }
 
@@ -114,7 +114,7 @@ impl Account {
         };
 
         let tx_request = TransactionRequest {
-            nonce: self.nonce.0.into(),
+            nonce: self.nonce.0,
             from: Some(self.address),
             to: None,
             value: 0.into(),
@@ -174,7 +174,7 @@ impl Account {
             TxType::L1 { serial_id } => self.get_l1_tx(execute, serial_id),
         };
 
-        let address = deployed_address_create(self.address, self.deploy_nonce.0.into());
+        let address = deployed_address_create(self.address, self.deploy_nonce.0);
         self.deploy_nonce += 1;
         DeployContractsTx {
             tx,
