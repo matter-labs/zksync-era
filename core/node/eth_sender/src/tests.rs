@@ -1,6 +1,12 @@
 use assert_matches::assert_matches;
 use test_casing::{test_casing, Product};
+use zksync_contracts::hyperchain_contract;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
+use zksync_eth_client::{
+    clients::{DynClient, SigningClient, L1},
+    BoundEthInterface, Options,
+};
+use zksync_eth_signer::{EthereumSigner, PrivateKeySigner, SignerError, TransactionParameters};
 use zksync_l1_contract_interface::{
     i_executor::methods::ExecuteBatches, multicall3::Multicall3Call, Tokenizable,
 };
@@ -11,14 +17,17 @@ use zksync_types::{
     commitment::{
         L1BatchCommitmentMode, L1BatchMetaParameters, L1BatchMetadata, L1BatchWithMetadata,
     },
+    eth_sender::{EthTx, EthTxBlobSidecar},
     ethabi::{self, Token},
     helpers::unix_timestamp_ms,
     web3::{self, contract::Error},
-    Address, ProtocolVersionId, H256,
+    Address, K256PrivateKey, L1ChainId, ProtocolVersionId, SLChainId, EIP_1559_TX_TYPE,
+    EIP_4844_TX_TYPE, EIP_712_TX_TYPE, H256, U256,
 };
+use zksync_web3_decl::client::{MockClient, MockClientBuilder, Network, L2};
 
 use crate::{
-    abstract_l1_interface::OperatorType,
+    abstract_l1_interface::{AbstractL1Interface, OperatorType, RealL1Interface},
     aggregated_operations::AggregatedOperation,
     tester::{
         EthSenderTester, TestL1Batch, STATE_TRANSITION_CONTRACT_ADDRESS,
@@ -895,4 +904,60 @@ async fn get_multicall_data(commitment_mode: L1BatchCommitmentMode) {
     assert_eq!(data.base_system_contracts_hashes.evm_emulator, None);
     assert_eq!(data.verifier_address, Address::repeat_byte(5));
     assert_eq!(data.chain_protocol_version_id, ProtocolVersionId::latest());
+}
+
+#[test_log::test(tokio::test)]
+// Tests the encoding of the `EIP712` transaction to
+// network format defined by the `EIP`. That is, a signed transaction
+// itself and the sidecar containing the blobs.
+async fn test_signing_eip712_tx() {
+    let mut tester = EthSenderTester::new(
+        ConnectionPool::<Core>::test_pool().await,
+        vec![100; 100],
+        false,
+        true,
+        L1BatchCommitmentMode::Rollup,
+    )
+    .await;
+
+    let private_key = "27593fea79697e947890ecbecce7901b0008345e5d7259710d0dd5e500d040be"
+        .parse()
+        .unwrap();
+    let private_key = K256PrivateKey::from_bytes(private_key).unwrap();
+
+    let signer = PrivateKeySigner::new(private_key);
+    let l1_chain_id = L1ChainId(10);
+    let client = MockClient::builder(l1_chain_id.into()).build();
+    let client = Box::new(client) as Box<DynClient<L1>>;
+    let sign_client = Box::new(SigningClient::new(
+        client,
+        hyperchain_contract(),
+        Address::random(),
+        signer,
+        Address::zero(),
+        U256::one(),
+        SLChainId(l1_chain_id.0),
+    )) as Box<dyn BoundEthInterface>;
+    let l1_interface = RealL1Interface {
+        ethereum_gateway: None,
+        ethereum_gateway_blobs: None,
+        l2_gateway: Some(sign_client),
+        wait_confirmations: Some(10),
+    };
+
+    let header = tester.seal_l1_batch().await;
+    let header = tester.seal_l1_batch().await;
+    let eth_tx = tester.save_commit_tx(header.number).await;
+    let tx = l1_interface
+        .sign_tx(
+            &eth_tx,
+            0,
+            0,
+            None,
+            Default::default(),
+            OperatorType::Gateway,
+            Some(1.into()),
+        )
+        .await;
+    dbg!(tx);
 }

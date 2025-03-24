@@ -155,6 +155,7 @@ impl TestTemplate {
             "TEST_DATABASE_URL must be set. Normally, this is done by the 'zk' tool. \
             Make sure that you are running the tests with 'zk test rust' command or equivalent.",
         )?;
+        println!("db_url {}", &db_url);
         Ok(Self(db_url.parse()?))
     }
 

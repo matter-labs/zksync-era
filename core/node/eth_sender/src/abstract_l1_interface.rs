@@ -223,7 +223,13 @@ impl AbstractL1Interface for RealL1Interface {
                     opt.max_fee_per_gas = Some(U256::from(base_fee_per_gas + priority_fee_per_gas));
                     opt.max_priority_fee_per_gas = Some(U256::from(priority_fee_per_gas));
                     opt.nonce = Some(tx.nonce.0.into());
-                    opt.transaction_type = Some(EIP_1559_TX_TYPE.into());
+                    if let Some(max_gas_per_pubdata) = max_gas_per_pubdata {
+                        assert!(tx.is_gateway);
+                        opt.max_gas_per_pubdata = Some(max_gas_per_pubdata);
+                        opt.transaction_type = Some(EIP_712_TX_TYPE.into());
+                    } else {
+                        opt.transaction_type = Some(EIP_1559_TX_TYPE.into());
+                    }
                     if tx.blob_sidecar.is_some() {
                         opt.transaction_type = Some(EIP_4844_TX_TYPE.into());
                         opt.max_fee_per_blob_gas = blob_gas_price;
@@ -234,12 +240,6 @@ impl AbstractL1Interface for RealL1Interface {
                                 .map(|blob| H256::from_slice(&blob.versioned_hash))
                                 .collect(),
                         });
-                    }
-                    if let Some(max_gas_per_pubdata) = max_gas_per_pubdata {
-                        opt.max_gas_per_pubdata = Some(max_gas_per_pubdata);
-                        opt.transaction_type = Some(EIP_712_TX_TYPE.into());
-                    } else {
-                        opt.transaction_type = Some(EIP_1559_TX_TYPE.into());
                     }
                 }),
             )

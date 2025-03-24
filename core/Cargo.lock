@@ -12049,6 +12049,7 @@ dependencies = [
  "zksync_contracts",
  "zksync_dal",
  "zksync_eth_client",
+ "zksync_eth_signer",
  "zksync_health_check",
  "zksync_l1_contract_interface",
  "zksync_mini_merkle_tree",
@@ -12058,6 +12059,7 @@ dependencies = [
  "zksync_prover_interface",
  "zksync_shared_metrics",
  "zksync_types",
+ "zksync_web3_decl",
 ]
 
 [[package]]

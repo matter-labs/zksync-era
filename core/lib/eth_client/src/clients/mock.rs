@@ -659,10 +659,16 @@ impl<Net: SupportedMockSLNetwork + SupportedMockSLNetwork> BoundEthInterface
 #[cfg(test)]
 mod tests {
     use assert_matches::assert_matches;
-    use zksync_types::{commitment::L1BatchCommitmentMode, ProtocolVersionId};
+    use zksync_contracts::hyperchain_contract;
+    use zksync_eth_signer::PrivateKeySigner;
+    use zksync_types::{
+        commitment::L1BatchCommitmentMode, eth_sender::EthTxBlobSidecar, K256PrivateKey, L1ChainId,
+        ProtocolVersionId, EIP_1559_TX_TYPE, EIP_712_TX_TYPE,
+    };
+    use zksync_web3_decl::client::DynClient;
 
     use super::*;
-    use crate::{CallFunctionArgs, EthFeeInterface, EthInterface};
+    use crate::{clients::SigningClient, CallFunctionArgs, EthFeeInterface, EthInterface};
 
     fn base_fees(block: u64, blob: u64, pubdata_price: u64) -> BaseFees {
         BaseFees {
