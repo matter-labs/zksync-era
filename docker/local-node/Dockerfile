@@ -41,7 +41,7 @@ ENV RUSTFLAGS="-C target-cpu=generic"
 RUN rustup default stable
 
 # Build zkstackup binary
-RUN cargo install --git https://github.com/matter-labs/zksync-era.git --rev 81abd841f6e061e3bdb1245754871e73b83ba7d8 --locked zkstack --force --root /usr/local
+RUN cargo install --git https://github.com/matter-labs/zksync-era.git --rev 81abd841f6e061e3bdb1245754871e73b83ba7d8 --locked zkstack --force --root /usr/local --features gateway
 
 RUN rustup default nightly-2024-08-01-x86_64-unknown-linux-gnu
 
@@ -146,10 +146,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   && rm -rf /var/lib/apt/lists/*
 
 # Install cmake & other dependencies
-RUN apt-get update && apt-get install -y cmake
+RUN apt-get update && apt-get install -y cmake build-essential clang pkg-config libssl-dev
 
 # Build zkstack server
-ENV RUSTFLAGS="-C target-feature=-avx512f,-avx512vl"
+# ENV RUSTFLAGS="-C target-feature=-avx512f,-avx512vl"
+ENV CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1
+ENV CARGO_PROFILE_RELEASE_LTO="fat"
+ENV RUSTFLAGS="-C target-cpu=x86-64"
 RUN zkstack server build && cp /core/target/release/zksync_server /zksync_server
 
 # Clean Yarn cache
