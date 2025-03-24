@@ -351,20 +351,16 @@ impl ConsensusDal<'_, '_> {
             };
 
             // First try to use versioned_certificate
-            let cert = row
+            let cert: Option<BlockCertificate> = row
                 .versioned_certificate
                 .as_ref()
                 .map(|cert| d.proto_fmt(cert))
                 .transpose()?;
 
             if let Some(cert) = cert {
-                let last = match cert {
-                    BlockCertificate::V1(qc) => Last::FinalV1(qc),
-                    BlockCertificate::V2(qc) => Last::FinalV2(qc),
-                };
                 return Ok(BlockStoreState {
                     first,
-                    last: Some(last),
+                    last: Some(cert.into()),
                 });
             }
 
@@ -559,10 +555,8 @@ impl ConsensusDal<'_, '_> {
         use InsertCertificateError as E;
 
         // Extract block number and payload hash based on certificate variant
-        let (block_number, payload_hash) = match cert {
-            BlockCertificate::V1(qc) => (qc.message.proposal.number, qc.message.proposal.payload),
-            BlockCertificate::V2(qc) => (qc.message.proposal.number, qc.message.proposal.payload),
-        };
+        let block_number = cert.number();
+        let payload_hash = cert.payload_hash();
 
         let want_payload = self
             .block_payload(block_number)
