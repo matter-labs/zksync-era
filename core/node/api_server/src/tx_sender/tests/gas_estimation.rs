@@ -562,3 +562,14 @@ async fn estimating_gas_for_evm_counter() {
     // At the time of writing the test, `eravm_gas_limit` is ~130k and `evm_gas_limit` is ~245k.
     assert!(eravm_gas_limit < evm_gas_limit);
 }
+
+#[tokio::test]
+async fn estimating_gas_for_evm_deployment() {
+    let mut alice = Account::random();
+    let tx = alice.create_evm_counter_deployment(42.into());
+    let state_override = StateBuilder::default().enable_evm_deployments().build();
+    let evm_gas_limit = test_estimating_gas(state_override, tx, 0).await;
+
+    // At the time of writing the test, `evm_gas_limit` is ~926k.
+    assert!((100_000..10_000_000).contains(&evm_gas_limit));
+}

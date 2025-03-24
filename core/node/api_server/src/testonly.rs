@@ -141,6 +141,15 @@ impl StateBuilder {
         self
     }
 
+    pub fn enable_evm_deployments(self) -> Self {
+        let allowed_contract_types_slot = H256::from_low_u64_be(1);
+        self.with_storage_slot(
+            CONTRACT_DEPLOYER_ADDRESS,
+            allowed_contract_types_slot,
+            H256::from_low_u64_be(1),
+        )
+    }
+
     pub fn with_expensive_contract(self) -> Self {
         self.with_contract(
             Self::EXPENSIVE_CONTRACT_ADDRESS,
@@ -245,7 +254,7 @@ impl From<CallRequest> for Call3Value {
 impl From<L2Tx> for Call3Value {
     fn from(tx: L2Tx) -> Self {
         Self {
-            target: tx.recipient_account().unwrap(),
+            target: tx.recipient_account().unwrap_or_default(),
             allow_failure: false,
             value: tx.execute.value,
             calldata: tx.execute.calldata,
@@ -332,6 +341,8 @@ pub(crate) trait TestAccount {
     fn multicall_with_value(&self, value: U256, calls: &[Call3Value]) -> CallRequest;
 
     fn create2_account(&mut self, bytecode: Vec<u8>) -> (L2Tx, Address);
+
+    fn create_evm_counter_deployment(&mut self, initial_value: U256) -> L2Tx;
 }
 
 impl TestAccount for Account {
@@ -549,6 +560,14 @@ impl TestAccount for Account {
             .try_into()
             .unwrap();
         (deploy_tx, deployed_address)
+    }
+
+    fn create_evm_counter_deployment(&mut self, initial_value: U256) -> L2Tx {
+        self.get_evm_deploy_tx(
+            TestEvmContract::counter().init_bytecode.to_vec(),
+            &TestEvmContract::counter().abi,
+            &[Token::Uint(initial_value)],
+        )
     }
 }
 
