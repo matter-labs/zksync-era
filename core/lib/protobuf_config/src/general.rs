@@ -18,8 +18,6 @@ impl ProtoRepr for proto::GeneralConfig {
             proof_compressor_config: read_optional_repr(&self.proof_compressor),
             prover_config: read_optional_repr(&self.prover),
             prover_gateway: read_optional_repr(&self.prover_gateway),
-            witness_vector_generator: read_optional_repr(&self.witness_vector_generator),
-            prover_group_config: read_optional_repr(&self.prover_group),
             prometheus_config: read_optional_repr(&self.prometheus),
             proof_data_handler_config: read_optional_repr(&self.data_handler),
             witness_generator_config: read_optional_repr(&self.witness_generator),
@@ -64,10 +62,8 @@ impl ProtoRepr for proto::GeneralConfig {
             house_keeper: this.house_keeper_config.as_ref().map(ProtoRepr::build),
             proof_compressor: this.proof_compressor_config.as_ref().map(ProtoRepr::build),
             prover: this.prover_config.as_ref().map(ProtoRepr::build),
-            prover_group: this.prover_group_config.as_ref().map(ProtoRepr::build),
             witness_generator: this.witness_generator_config.as_ref().map(ProtoRepr::build),
             prover_gateway: this.prover_gateway.as_ref().map(ProtoRepr::build),
-            witness_vector_generator: this.witness_vector_generator.as_ref().map(ProtoRepr::build),
             prometheus: this.prometheus_config.as_ref().map(ProtoRepr::build),
             data_handler: this
                 .proof_data_handler_config

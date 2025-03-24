@@ -42,10 +42,8 @@ message GeneralConfig {
     optional database.DB db = 20;
     optional eth.ETH eth = 22;
     optional prover.WitnessGenerator witness_generator = 24;
-    optional prover.WitnessVectorGenerator witness_vector_generator = 25;
     optional prover.ProofCompressor proof_compressor = 27;
     optional prover.ProofDataHandler data_handler = 28;
-    optional prover.ProverGroup prover_group = 29;
     optional prover.ProverGateway prover_gateway = 30;
     optional snapshot_creator.SnapshotsCreator snapshot_creator = 31;
     optional observability.Observability observability = 32;
@@ -64,4 +62,7 @@ message GeneralConfig {
     optional prover_job_monitor.ProverJobMonitor prover_job_monitor = 45;
     optional da_client.DataAvailabilityClient da_client = 46;
     optional timestamp_asserter.TimestampAsserter timestamp_asserter = 47;
+
+    reserved 25, 29;
+    reserved "witness_vector_generator", "prover_group";
 }

@@ -632,15 +632,9 @@ impl ContractVerifier {
         match verification_result {
             Ok((info, identifier)) => {
                 let mut transaction = storage.start_transaction().await?;
-                transaction
-                    .contract_verification_dal()
-                    .save_verification_info(
-                        info,
-                        identifier.bytecode_keccak256,
-                        identifier.bytecode_without_metadata_keccak256,
-                    )
-                    .await?;
-                if self.etherscan_verifier_enabled {
+                if self.etherscan_verifier_enabled
+                    && etherscan::is_supported_verification_request(&info.request)
+                {
                     tracing::debug!(
                         "Created etherscan verification request with id = {request_id}"
                     );
@@ -649,6 +643,16 @@ impl ContractVerifier {
                         .add_verification_request(request_id)
                         .await?;
                 }
+
+                transaction
+                    .contract_verification_dal()
+                    .save_verification_info(
+                        info,
+                        identifier.bytecode_keccak256,
+                        identifier.bytecode_without_metadata_keccak256,
+                    )
+                    .await?;
+
                 transaction.commit().await?;
                 tracing::info!("Successfully processed request with id = {request_id}");
 
