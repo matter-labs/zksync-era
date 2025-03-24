@@ -18,6 +18,7 @@ use zksync_web3_decl::error::Web3Error;
 
 use crate::{
     execution_sandbox::SandboxAction,
+    tx_sender::SubmitTxError,
     web3::{backend_jsonrpsee::MethodTracer, state::RpcState},
 };
 
@@ -327,7 +328,8 @@ impl DebugNamespace {
                 &block_args,
                 None,
             )
-            .await?;
+            .await
+            .map_err(SubmitTxError::from)?;
 
         let (output, revert_reason) = match result.result {
             ExecutionResult::Success { output, .. } => (output, None),

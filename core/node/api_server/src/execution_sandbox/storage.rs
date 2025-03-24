@@ -16,6 +16,7 @@ pub(super) fn apply_state_override<S: ReadStorage>(
     state_override: StateOverride,
 ) -> StorageWithOverrides<S> {
     let mut storage = StorageWithOverrides::new(storage);
+
     for (account, overrides) in state_override {
         if let Some(balance) = overrides.balance {
             let balance_key = storage_key_for_eth_balance(&account);
@@ -37,7 +38,7 @@ pub(super) fn apply_state_override<S: ReadStorage>(
             let (code_hash, prepared_code) = match bytecode_kind {
                 BytecodeMarker::EraVm => (BytecodeHash::for_bytecode(&code.0).value(), code.0),
                 BytecodeMarker::Evm => {
-                    // FIXME: Check whether the deployment of EVM bytecodes is enabled?
+                    // For better usability, we allow overriding EVM bytecodes even if EVM contract deployment is not enabled for the chain.
                     let versioned_hash = BytecodeHash::for_raw_evm_bytecode(&code.0).value();
                     let evm_bytecode_hash_key = get_evm_code_hash_key(versioned_hash);
                     storage.set_value(evm_bytecode_hash_key, H256(web3::keccak256(&code.0)));
