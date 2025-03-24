@@ -6,9 +6,10 @@
 use alloy_sol_types::sol;
 use reqwest::{Client, Error as ReqwestError};
 use serde::Deserialize;
-use zksync_basic_types::{
-    ethabi::{decode, Contract, Event, ParamType},
-    web3::{BlockId, BlockNumber, CallRequest, FilterBuilder, Log},
+
+use zksync_types::{
+    ethabi::{decode, Contract, Event, ParamType, FixedBytes, Token},
+    web3::{BlockId, BlockNumber, CallRequest, FilterBuilder, Log, contract::Tokenize},
     H160, H256, U256,
 };
 use zksync_eth_client::{
@@ -194,7 +195,62 @@ where
         .collect()
 }
 
-sol! {
+pub struct DataRootTuple {
+    height: U256,
+    // trying ethabi::FixedBytes instead of H256 to match the blobstream contract
+    data_root: FixedBytes,
+}
+
+impl Tokenize for DataRootTuple {
+    fn into_tokens(self) -> Vec<Token> {
+        vec![
+            Token::Uint(self.height),
+            Token::FixedBytes(self.data_root),
+        ]
+    }
+}
+
+pub struct AttestationProof {
+    tuple_root_nonce: U256,
+    tuple: DataRootTuple,
+    proof: BinaryMerkleProof,
+}
+impl Tokenize for AttestationProof {
+    fn into_tokens(self) -> Vec<Token> {
+        vec![
+            Token::Uint(self.tuple_root_nonce),
+            self.tuple.into_tokens(),
+            self.proof.into_tokens(),
+        ]
+    }
+}
+
+pub struct BinaryMerkleProof {
+    // List of side nodes to verify and calculate tree.
+    side_nodes: Vec<FixedBytes>,
+    // The key of the leaf to verify.
+    key: U256,
+    // The number of leaves in the tree
+    num_leaves: U256,
+}
+
+impl Tokenize for BinaryMerkleProof {
+    fn into_tokens(self) -> Vec<Token> {    
+        vec![
+            Token::FixedBytes(self.side_nodes),
+            Token::Uint(self.key),
+            Token::Uint(self.num_leaves),
+        ]
+    }
+}
+
+pub struct CelestiaZKStackInput {
+    attestation_proof: AttestationProof,
+    equivalence_proof: FixedBytes,
+    public_values: FixedBytes,
+}
+
+/*sol! {
     struct DataRootTuple {
         // Celestia block height the data root was included in.
         // Genesis block is height = 0.
@@ -228,3 +284,4 @@ sol! {
         bytes publicValues;
     }
 }
+*/
