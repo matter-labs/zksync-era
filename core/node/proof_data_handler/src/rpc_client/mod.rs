@@ -16,6 +16,7 @@ pub struct RpcClient {
     readiness_check_interval: Duration,
     connection_retry_interval: Duration,
     chain_id: L2ChainId,
+    // todo: Remove after the transition period
     subscribe_for_zero_chain_id: bool,
 }
 
@@ -48,6 +49,7 @@ impl RpcClient {
             self.chain_id.as_u64()
         );
 
+        // TODO: remove after transition period
         if self.subscribe_for_zero_chain_id {
             tracing::info!("Starting receiver for zero chain id");
 
