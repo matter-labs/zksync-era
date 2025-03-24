@@ -195,3 +195,13 @@ You must provide:
   - Your Etherscan API key, either by passing it as an argument or setting `ETHERSCAN_API_KEY`
 
 For more information check [Foundry's documentation](https://book.getfoundry.sh/reference/forge/forge-verify-contract).
+
+## How to generate the `genesis.yaml` file
+
+To generate the [`genesis.yaml`](../../../etc/env/file_based/genesis.yaml) file checkout to the desired `zksync-era` branch, [build `zkstack`](#installing-the-local-zk-stack-cli) from it, [configure ecosystem](#configure-ecosystem) and run the following command:
+
+```shell
+zkstack dev generate-genesis
+```
+
+Which runs the [`genesis_generator`](../../../core/bin/genesis_generator) package under the hood and generates the genesis file.
