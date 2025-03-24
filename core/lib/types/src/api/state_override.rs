@@ -1,12 +1,9 @@
 use std::collections::{hash_map, HashMap};
 
-use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
-use zksync_basic_types::{bytecode::BytecodeHash, web3::Bytes, H256, U256};
+use serde::{de, Deserialize, Deserializer, Serialize};
+use zksync_basic_types::{web3::Bytes, H256, U256};
 
-use crate::{
-    bytecode::{validate_bytecode, InvalidBytecodeError},
-    Address,
-};
+use crate::Address;
 
 /// Collection of overridden accounts.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -43,47 +40,6 @@ impl IntoIterator for StateOverride {
     }
 }
 
-/// Serialized bytecode representation.
-#[derive(Debug, Clone, PartialEq)]
-pub struct Bytecode(Bytes);
-
-impl Bytecode {
-    pub fn new(bytes: Vec<u8>) -> Result<Self, InvalidBytecodeError> {
-        validate_bytecode(&bytes)?;
-        Ok(Self(Bytes(bytes)))
-    }
-
-    /// Returns the canonical hash of this bytecode.
-    pub fn hash(&self) -> H256 {
-        BytecodeHash::for_bytecode(&self.0 .0).value()
-    }
-
-    /// Converts this bytecode into bytes.
-    pub fn into_bytes(self) -> Vec<u8> {
-        self.0 .0
-    }
-}
-
-impl AsRef<[u8]> for Bytecode {
-    fn as_ref(&self) -> &[u8] {
-        &self.0 .0
-    }
-}
-
-impl Serialize for Bytecode {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        self.0.serialize(serializer)
-    }
-}
-
-impl<'de> Deserialize<'de> for Bytecode {
-    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        let bytes = Bytes::deserialize(deserializer)?;
-        validate_bytecode(&bytes.0).map_err(de::Error::custom)?;
-        Ok(Self(bytes))
-    }
-}
-
 /// Account override for `eth_estimateGas`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[cfg_attr(test, derive(PartialEq))]
@@ -91,7 +47,7 @@ impl<'de> Deserialize<'de> for Bytecode {
 pub struct OverrideAccount {
     pub balance: Option<U256>,
     pub nonce: Option<U256>,
-    pub code: Option<Bytecode>,
+    pub code: Option<Bytes>,
     #[serde(flatten, deserialize_with = "state_deserializer")]
     pub state: Option<OverrideState>,
 }
@@ -131,37 +87,6 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn deserializing_bytecode() {
-        let bytecode_str = "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
-        let json = serde_json::Value::String(bytecode_str.to_owned());
-        let bytecode: Bytecode = serde_json::from_value(json).unwrap();
-        assert_ne!(bytecode.hash(), H256::zero());
-        let bytecode = bytecode.into_bytes();
-        assert_eq!(bytecode.len(), 32);
-        assert_eq!(bytecode[0], 0x01);
-        assert_eq!(bytecode[31], 0xef);
-    }
-
-    #[test]
-    fn deserializing_invalid_bytecode() {
-        let invalid_bytecodes = [
-            "1234",   // not 0x-prefixed
-            "0x1234", // length not divisible by 32
-            "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\
-             0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef", // even number of words
-        ];
-        for bytecode_str in invalid_bytecodes {
-            let json = serde_json::Value::String(bytecode_str.to_owned());
-            serde_json::from_value::<Bytecode>(json).unwrap_err();
-        }
-
-        let long_bytecode = String::from("0x")
-            + &"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef".repeat(65_537);
-        let json = serde_json::Value::String(long_bytecode);
-        serde_json::from_value::<Bytecode>(json).unwrap_err();
-    }
 
     #[test]
     fn deserializing_state_override() {

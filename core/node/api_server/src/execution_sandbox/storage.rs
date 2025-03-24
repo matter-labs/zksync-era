@@ -3,6 +3,7 @@
 use zksync_multivm::interface::storage::{ReadStorage, StorageWithOverrides};
 use zksync_types::{
     api::state_override::{OverrideState, StateOverride},
+    bytecode::BytecodeHash,
     get_code_key, get_known_code_key, get_nonce_key, h256_to_u256, u256_to_h256,
     utils::{decompose_full_nonce, nonces_to_full_nonce, storage_key_for_eth_balance},
     AccountTreeId, StorageKey, H256,
@@ -30,11 +31,12 @@ pub(super) fn apply_state_override<S: ReadStorage>(
 
         if let Some(code) = overrides.code {
             let code_key = get_code_key(&account);
-            let code_hash = code.hash();
+            // FIXME: don't panic here
+            let code_hash = BytecodeHash::for_bytecode(&code.0).value();
             storage.set_value(code_key, code_hash);
             let known_code_key = get_known_code_key(&code_hash);
             storage.set_value(known_code_key, H256::from_low_u64_be(1));
-            storage.store_factory_dep(code_hash, code.into_bytes());
+            storage.store_factory_dep(code_hash, code.0);
         }
 
         match overrides.state {
@@ -62,10 +64,7 @@ mod tests {
     use std::collections::HashMap;
 
     use zksync_multivm::interface::storage::InMemoryStorage;
-    use zksync_types::{
-        api::state_override::{Bytecode, OverrideAccount},
-        Address,
-    };
+    use zksync_types::{api::state_override::OverrideAccount, web3, Address};
 
     use super::*;
 
@@ -89,7 +88,7 @@ mod tests {
             (
                 Address::repeat_byte(3),
                 OverrideAccount {
-                    code: Some(Bytecode::new((0..32).collect()).unwrap()),
+                    code: Some(web3::Bytes((0..32).collect())),
                     ..OverrideAccount::default()
                 },
             ),

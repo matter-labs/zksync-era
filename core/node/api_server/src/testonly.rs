@@ -26,7 +26,7 @@ use zksync_system_constants::{
 use zksync_test_contracts::{Account, LoadnextContractExecutionParams, TestContract};
 use zksync_types::{
     address_to_u256,
-    api::state_override::{Bytecode, OverrideAccount, OverrideState, StateOverride},
+    api::state_override::{OverrideAccount, OverrideState, StateOverride},
     block::{pack_block_info, L2BlockHeader},
     bytecode::BytecodeHash,
     commitment::PubdataParams,
@@ -88,7 +88,7 @@ impl StateBuilder {
         self.inner.insert(
             address,
             OverrideAccount {
-                code: Some(Bytecode::new(bytecode).unwrap()),
+                code: Some(bytecode.into()),
                 ..OverrideAccount::default()
             },
         );
@@ -97,10 +97,9 @@ impl StateBuilder {
 
     pub fn inflate_bytecode(mut self, address: Address, nop_count: usize) -> Self {
         let account_override = self.inner.get_mut(&address).expect("no contract");
-        let bytecode = account_override.code.take().expect("no code override");
-        let mut bytecode = bytecode.into_bytes();
+        let mut bytecode = account_override.code.take().expect("no code override").0;
         inflate_bytecode(&mut bytecode, nop_count);
-        account_override.code = Some(Bytecode::new(bytecode).unwrap());
+        account_override.code = Some(bytecode.into());
         self
     }
 
@@ -110,7 +109,7 @@ impl StateBuilder {
         self.inner.insert(
             Self::LOAD_TEST_ADDRESS,
             OverrideAccount {
-                code: Some(Bytecode::new(TestContract::load_test().bytecode.to_vec()).unwrap()),
+                code: Some(TestContract::load_test().bytecode.to_vec().into()),
                 state: Some(OverrideState::State(state)),
                 ..OverrideAccount::default()
             },
