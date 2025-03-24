@@ -410,7 +410,7 @@ impl ConsensusDal<'_, '_> {
         let Some(row) = sqlx::query!(
             r#"
             SELECT
-                versioned_certificate
+                certificate, versioned_certificate
             FROM
                 miniblocks_consensus
             WHERE
@@ -426,18 +426,34 @@ impl ConsensusDal<'_, '_> {
             return Ok(None);
         };
 
+        let d = zksync_protobuf::serde::Deserialize {
+            deny_unknown_fields: true,
+        };
+
+        // First try to use versioned_certificate
         let cert = row
             .versioned_certificate
             .as_ref()
-            .map(|cert| {
-                zksync_protobuf::serde::Deserialize {
-                    deny_unknown_fields: true,
-                }
-                .proto_fmt(cert)
-            })
+            .map(|cert| d.proto_fmt(cert))
             .transpose()?;
 
-        Ok(cert)
+        if cert.is_some() {
+            return Ok(cert);
+        }
+
+        // If versioned_certificate is None, try to use certificate
+        // This is for backward compatibility
+        let qc = row
+            .certificate
+            .as_ref()
+            .map(|cert| d.proto_fmt(cert))
+            .transpose()?;
+
+        if qc.is_some() {
+            return Ok(qc);
+        }
+
+        Ok(None)
     }
 
     /// Fetches the attester certificate for the L1 batch with the given `batch_number`.
