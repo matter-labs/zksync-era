@@ -2,13 +2,15 @@ use zksync_dal::DalError;
 
 #[derive(Debug, thiserror::Error)]
 pub(super) enum EtherscanError {
-    #[error(transparent)]
+    #[error("Error while sending an HTTP request")]
     Reqwest(#[from] reqwest::Error),
     #[error("Failed to deserialize content: {error}\n{content}")]
     Serde {
         error: serde_json::Error,
         content: String,
     },
+    #[error("Contract bytecode is not available")]
+    ContractBytecodeNotAvailable,
     #[error("Contract source code not verified")]
     ContractNotVerified,
     #[error("Contract source code already verified")]
