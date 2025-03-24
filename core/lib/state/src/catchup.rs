@@ -323,7 +323,6 @@ mod tests {
         let mut transaction = conn.start_transaction().await.unwrap();
         create_l1_batch(&mut transaction, L1BatchNumber(2), &storage_logs).await;
         transaction.commit().await.unwrap();
-        drop(transaction);
         drop(conn);
 
         let rocksdb = rocksdb_cell.get().unwrap();
