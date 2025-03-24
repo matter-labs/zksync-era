@@ -331,14 +331,14 @@ impl EthClient for MockEthClient {
     ) -> Result<Option<H256>, ContractCallError> {
         Ok(Some(H256::zero()))
     }
-
-    async fn get_settlement_layer(&self) -> Result<Address, ContractCallError> {
-        Ok(Address::default())
-    }
 }
 
 #[async_trait::async_trait]
 impl ZkSyncExtentionEthClient for MockEthClient {
+    fn into_base(self: Arc<Self>) -> Arc<dyn EthClient> {
+        self
+    }
+
     async fn get_chain_log_proof(
         &self,
         l1_batch_number: L1BatchNumber,

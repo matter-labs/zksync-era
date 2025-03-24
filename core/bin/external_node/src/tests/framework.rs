@@ -41,7 +41,7 @@ pub(super) fn inject_test_layers(
             client: l1_client.clone(),
         })
         .add_layer(MockL2ClientLayer { client: l2_client })
-        .add_layer(MockUniversalclientLayer { client: l1_client });
+        .add_layer(MockSettlementLayerClientLayer { client: l1_client });
 }
 
 /// A test layer that would stop the node upon request.
@@ -165,12 +165,12 @@ impl WiringLayer for MockL2ClientLayer {
 }
 
 #[derive(Debug)]
-struct MockUniversalclientLayer {
+struct MockSettlementLayerClientLayer {
     client: MockClient<L1>,
 }
 
 #[async_trait::async_trait]
-impl WiringLayer for MockUniversalclientLayer {
+impl WiringLayer for MockSettlementLayerClientLayer {
     type Input = ();
     type Output = SettlementLayerClientResource;
 

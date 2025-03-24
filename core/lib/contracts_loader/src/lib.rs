@@ -9,28 +9,12 @@ use zksync_eth_client::{CallFunctionArgs, ContractCallError, EthInterface};
 use zksync_types::{
     ethabi::{Contract, Token},
     protocol_version::ProtocolSemanticVersion,
-    settlement::SettlementMode,
+    settlement::SettlementLayer,
     Address, L2ChainId, SLChainId, U256,
 };
 
 /// Load contacts specific for each settlement layer, using bridgehub contract
 pub async fn load_settlement_layer_contracts(
-    sl_client: &dyn EthInterface,
-    bridgehub_address: Address,
-    l2_chain_id: L2ChainId,
-    multicall3: Option<Address>,
-) -> anyhow::Result<Option<SettlementLayerSpecificContracts>> {
-    let result = load_settlement_layer_contracts_pure_error(
-        sl_client,
-        bridgehub_address,
-        l2_chain_id,
-        multicall3,
-    )
-    .await?;
-    Ok(result)
-}
-
-async fn load_settlement_layer_contracts_pure_error(
     sl_client: &dyn EthInterface,
     bridgehub_address: Address,
     l2_chain_id: L2ChainId,
@@ -49,7 +33,7 @@ async fn load_settlement_layer_contracts_pure_error(
     if !get_protocol_version(diamond_proxy, &hyperchain_contract(), sl_client)
         .await?
         .minor
-        .is_post_evm_emulator()
+        .is_post_fflonk()
     {
         return Ok(None);
     }
@@ -93,27 +77,23 @@ async fn load_settlement_layer_contracts_pure_error(
 }
 
 /// This function will return correct settlement mode only if it's called for L1.
-/// Due to implementation details if the settlement layer set to zero,
-/// that means the current layer is settlement layer
 pub async fn get_settlement_layer_from_l1(
     eth_client: &dyn EthInterface,
     diamond_proxy_addr: Address,
     abi: &Contract,
-) -> anyhow::Result<(SettlementMode, SLChainId)> {
+) -> anyhow::Result<SettlementLayer> {
     let address = get_settlement_layer_address(eth_client, diamond_proxy_addr, abi).await?;
-    let (settlement_mode, address) = if address.is_zero() {
-        (SettlementMode::SettlesToL1, None)
+    // Due to implementation details if the settlement layer set to zero,
+    // that means the current layer is settlement layer
+    let settlement_mode = if address.is_zero() {
+        let chain_id = eth_client.fetch_chain_id().await?;
+        SettlementLayer::L1(chain_id)
     } else {
-        (SettlementMode::Gateway, Some(address))
+        let chain_id = get_diamond_proxy_chain_id(eth_client, address).await?;
+        SettlementLayer::Gateway(chain_id)
     };
 
-    let chain_id = if let Some(address) = address {
-        get_diamond_proxy_chain_id(eth_client, address).await?
-    } else {
-        eth_client.fetch_chain_id().await?
-    };
-
-    Ok((settlement_mode, chain_id))
+    Ok(settlement_mode)
 }
 
 pub async fn get_settlement_layer_address(
@@ -124,7 +104,7 @@ pub async fn get_settlement_layer_address(
     if !get_protocol_version(diamond_proxy_addr, abi, eth_client)
         .await?
         .minor
-        .is_post_evm_emulator()
+        .is_post_fflonk()
     {
         return Ok(Address::zero());
     }

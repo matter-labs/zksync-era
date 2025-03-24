@@ -24,7 +24,7 @@ use zksync_dal::{ConnectionPool, Core};
 use zksync_env_config::{object_store::SnapshotsObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
 use zksync_protobuf_config::proto;
-use zksync_types::{settlement::SettlementMode, Address, L1BatchNumber, L2_BRIDGEHUB_ADDRESS};
+use zksync_types::{settlement::SettlementLayer, Address, L1BatchNumber, L2_BRIDGEHUB_ADDRESS};
 
 #[derive(Debug, Parser)]
 #[command(author = "Matter Labs", version, about = "Block revert utility", long_about = None)]
@@ -232,32 +232,36 @@ async fn main() -> anyhow::Result<()> {
         }
     };
 
-    let eth_client: Client<L1> = Client::http(l1_secrets.l1_rpc_url)
+    let l1_client: Client<L1> = Client::http(l1_secrets.l1_rpc_url)
         .context("Ethereum client")?
         .build();
 
     let sl_l1_contracts = load_settlement_layer_contracts(
-        &eth_client,
+        &l1_client,
         contracts.bridgehub_proxy_addr,
         zksync_network_id,
         None,
     )
     .await?
     // If None has been returned, use the contracts from configs
-    .unwrap_or(contracts.settlement_layer_specific_contracts());
-    let (settlement_mode, chain_id) = get_settlement_layer_from_l1(
-        &eth_client,
+    .unwrap_or_else(|| contracts.settlement_layer_specific_contracts());
+    let settlement_mode = get_settlement_layer_from_l1(
+        &l1_client,
         sl_l1_contracts.chain_contracts_config.diamond_proxy_addr,
         &getters_facet_contract(),
     )
     .await?;
 
-    let (client, contracts) = match settlement_mode {
-        SettlementMode::SettlesToL1 => (eth_client, sl_l1_contracts),
-        SettlementMode::Gateway => {
-            let gateway_client: Client<L1> = Client::http(l1_secrets.gateway_rpc_url.unwrap())
-                .context("Gateway client")?
-                .build();
+    let (client, contracts, chain_id) = match settlement_mode {
+        SettlementLayer::L1(chain_id) => (l1_client, sl_l1_contracts, chain_id),
+        SettlementLayer::Gateway(chain_id) => {
+            let gateway_client: Client<L1> = Client::http(
+                l1_secrets
+                    .gateway_rpc_url
+                    .context("Gateway url is not presented in config")?,
+            )
+            .context("Gateway client")?
+            .build();
 
             let sl_contracts = load_settlement_layer_contracts(
                 &gateway_client,
@@ -267,7 +271,7 @@ async fn main() -> anyhow::Result<()> {
             )
             .await?
             .context("No chain has been deployed")?;
-            (gateway_client, sl_contracts)
+            (gateway_client, sl_contracts, chain_id)
         }
     };
 

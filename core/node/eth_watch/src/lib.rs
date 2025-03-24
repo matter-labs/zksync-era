@@ -10,7 +10,7 @@ use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_system_constants::PRIORITY_EXPIRATION;
 use zksync_types::{
-    protocol_version::ProtocolSemanticVersion, settlement::SettlementMode,
+    protocol_version::ProtocolSemanticVersion, settlement::SettlementLayer,
     web3::BlockNumber as Web3BlockNumber, L1BatchNumber, L2ChainId, PriorityOpId,
 };
 
@@ -20,12 +20,9 @@ use self::{
     event_processors::{EventProcessor, EventProcessorError, PriorityOpsEventProcessor},
     metrics::METRICS,
 };
-use crate::{
-    client::ZkSyncExtentionEthClientW,
-    event_processors::{
-        BatchRootProcessor, DecentralizedUpgradesEventProcessor, EventsSource,
-        GatewayMigrationProcessor,
-    },
+use crate::event_processors::{
+    BatchRootProcessor, DecentralizedUpgradesEventProcessor, EventsSource,
+    GatewayMigrationProcessor,
 };
 
 mod client;
@@ -57,7 +54,7 @@ impl EthWatch {
     pub async fn new(
         l1_client: Box<dyn EthClient>,
         sl_client: Box<dyn ZkSyncExtentionEthClient>,
-        sl_layer: SettlementMode,
+        sl_layer: SettlementLayer,
         pool: ConnectionPool<Core>,
         poll_interval: Duration,
         chain_id: L2ChainId,
@@ -65,7 +62,7 @@ impl EthWatch {
         let mut storage = pool.connection_tagged("eth_watch").await?;
         let l1_client: Arc<dyn EthClient> = l1_client.into();
         let sl_client: Arc<dyn ZkSyncExtentionEthClient> = sl_client.into();
-        let sl_eth_client = Arc::new(ZkSyncExtentionEthClientW(sl_client.clone()));
+        let sl_eth_client = sl_client.clone().into_base();
 
         let state = Self::initialize_state(&mut storage, sl_eth_client.as_ref()).await?;
         tracing::info!("initialized state: {state:?}");

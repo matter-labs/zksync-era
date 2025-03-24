@@ -15,7 +15,6 @@ impl ServerNotificationsDal<'_, '_> {
         l1_block_number: L1BlockNumber,
         value: serde_json::Value,
     ) -> DalResult<()> {
-        let mut db_transaction = self.storage.start_transaction().await?;
         sqlx::query!(
             r#"
             INSERT INTO
@@ -33,11 +32,9 @@ impl ServerNotificationsDal<'_, '_> {
             l1_block_number.0 as i32,
             value
         )
-        .instrument("save_protocol_version#minor")
-        .execute(&mut db_transaction)
+        .instrument("save_notification")
+        .execute(self.storage)
         .await?;
-
-        db_transaction.commit().await?;
 
         Ok(())
     }
@@ -45,7 +42,7 @@ impl ServerNotificationsDal<'_, '_> {
     pub async fn notifications_by_topics(
         &mut self,
         topics: Vec<H256>,
-    ) -> sqlx::Result<Vec<ServerNotification>> {
+    ) -> DalResult<Vec<ServerNotification>> {
         let topics: Vec<Vec<u8>> = topics.into_iter().map(|a| a.as_bytes().to_vec()).collect();
 
         let rows = sqlx::query!(
@@ -61,7 +58,8 @@ impl ServerNotificationsDal<'_, '_> {
             "#,
             &topics
         )
-        .fetch_all(self.storage.conn())
+        .instrument("notifications_by_topics")
+        .fetch_all(self.storage)
         .await?
         .into_iter()
         .map(|a| ServerNotification {

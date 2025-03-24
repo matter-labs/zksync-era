@@ -1,12 +1,12 @@
 use anyhow::Context;
 use zksync_node_framework_derive::FromContext;
-use zksync_types::{settlement::SettlementMode, url::SensitiveUrl, L2ChainId};
+use zksync_types::{settlement::SettlementLayer, url::SensitiveUrl, L1ChainId, L2ChainId};
 use zksync_web3_decl::client::Client;
 
 use crate::{
     implementations::resources::{
         eth_interface::{SettlementLayerClientResource, UniversalClient},
-        settlement_layer::{SettlementModeResource, SlChainIdResource},
+        settlement_layer::SettlementModeResource,
     },
     wiring_layer::{WiringError, WiringLayer},
     IntoContext,
@@ -32,7 +32,6 @@ impl SettlementLayerClientLayer {
 #[context(crate = crate)]
 pub struct Input {
     initial_settlement_mode: SettlementModeResource,
-    sl_chain_id_resource: SlChainIdResource,
 }
 
 #[derive(Debug, IntoContext)]
@@ -53,19 +52,15 @@ impl WiringLayer for SettlementLayerClientLayer {
     async fn wire(self, input: Self::Input) -> Result<Output, WiringError> {
         Ok(Output {
             settlement_layer_client: match input.initial_settlement_mode.0 {
-                SettlementMode::SettlesToL1 => {
+                SettlementLayer::L1(chain_id) => {
                     let mut builder = Client::http(self.l1_rpc_url).context("Client::new()")?;
-                    builder = builder.for_network(input.sl_chain_id_resource.0.into());
+                    builder = builder.for_network(L1ChainId(chain_id.0).into());
                     SettlementLayerClientResource(UniversalClient::L1(Box::new(builder.build())))
                 }
-                SettlementMode::Gateway => {
+                SettlementLayer::Gateway(chain_id) => {
                     let mut builder =
                         Client::http(self.gateway_rpc_url.unwrap()).context("Client::new()")?;
-                    builder = builder.for_network(
-                        L2ChainId::new(input.sl_chain_id_resource.0 .0)
-                            .unwrap()
-                            .into(),
-                    );
+                    builder = builder.for_network(L2ChainId::new(chain_id.0).unwrap().into());
                     SettlementLayerClientResource(UniversalClient::L2(Box::new(builder.build())))
                 }
             },

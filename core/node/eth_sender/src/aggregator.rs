@@ -15,7 +15,7 @@ use zksync_types::{
     l1::L1Tx,
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     pubdata_da::PubdataSendingMode,
-    settlement::SettlementMode,
+    settlement::SettlementLayer,
     Address, L1BatchNumber, ProtocolVersionId,
 };
 
@@ -108,7 +108,7 @@ impl Aggregator {
         custom_commit_sender_addr: Option<Address>,
         commitment_mode: L1BatchCommitmentMode,
         pool: ConnectionPool<Core>,
-        settlement_mode: SettlementMode,
+        settlement_mode: SettlementLayer,
     ) -> anyhow::Result<Self> {
         let operate_4844_mode: bool =
             custom_commit_sender_addr.is_some() && !settlement_mode.is_gateway();
@@ -148,8 +148,8 @@ impl Aggregator {
         };
 
         // It only makes sense to aggregate commit operation when validium chain settles to L1.
-        let commit_criteria: Vec<Box<dyn L1BatchPublishCriterion>> = if settlement_mode
-            == SettlementMode::SettlesToL1
+        let commit_criteria: Vec<Box<dyn L1BatchPublishCriterion>> = if !settlement_mode
+            .is_gateway()
             && commitment_mode == L1BatchCommitmentMode::Validium
         {
             vec![

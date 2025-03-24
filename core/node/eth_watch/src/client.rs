@@ -65,8 +65,6 @@ pub trait EthClient: 'static + fmt::Debug + Send + Sync {
         hashes: Vec<H256>,
     ) -> EnrichedClientResult<Vec<Option<Vec<u8>>>>;
 
-    async fn get_settlement_layer(&self) -> Result<Address, ContractCallError>;
-
     async fn get_chain_gateway_upgrade_info(
         &self,
     ) -> Result<Option<ZkChainSpecificUpgradeData>, ContractCallError>;
@@ -537,14 +535,6 @@ where
             base_token_symbol,
         }))
     }
-
-    async fn get_settlement_layer(&self) -> Result<Address, ContractCallError> {
-        let settlement_layer: Address = CallFunctionArgs::new("getSettlementLayer", ())
-            .for_contract(self.diamond_proxy_addr, &self.getters_facet_contract_abi)
-            .call(&self.client)
-            .await?;
-        Ok(settlement_layer)
-    }
 }
 
 /// Encapsulates `eth_getLogs` calls.
@@ -580,6 +570,8 @@ impl GetLogsClient for Box<DynClient<L2>> {
 /// Trait extension for [`EthClient`].
 #[async_trait::async_trait]
 pub trait ZkSyncExtentionEthClient: EthClient {
+    fn into_base(self: Arc<Self>) -> Arc<dyn EthClient>;
+
     async fn get_chain_log_proof(
         &self,
         l1_batch_number: L1BatchNumber,
@@ -595,6 +587,10 @@ pub trait ZkSyncExtentionEthClient: EthClient {
 
 #[async_trait::async_trait]
 impl ZkSyncExtentionEthClient for EthHttpQueryClient<L1> {
+    fn into_base(self: Arc<Self>) -> Arc<dyn EthClient> {
+        self
+    }
+
     async fn get_chain_log_proof(
         &self,
         _l1_batch_number: L1BatchNumber,
@@ -621,6 +617,10 @@ impl ZkSyncExtentionEthClient for EthHttpQueryClient<L1> {
 
 #[async_trait::async_trait]
 impl ZkSyncExtentionEthClient for EthHttpQueryClient<L2> {
+    fn into_base(self: Arc<Self>) -> Arc<dyn EthClient> {
+        self
+    }
+
     async fn get_chain_log_proof(
         &self,
         l1_batch_number: L1BatchNumber,
@@ -649,89 +649,5 @@ impl ZkSyncExtentionEthClient for EthHttpQueryClient<L2> {
         } else {
             Ok(None)
         }
-    }
-}
-
-/// Wrapper for ZkSyncExtention client object.
-/// It is used for ZkSyncExtentionEthClient -> EthClient dyn upcasting coercion:
-///     Arc<dyn ZkSyncExtentionEthClient> -> ZkSyncExtentionEthClientW -> Arc<dyn EthClient>
-#[derive(Debug, Clone)]
-pub struct ZkSyncExtentionEthClientW(pub Arc<dyn ZkSyncExtentionEthClient>);
-
-#[async_trait::async_trait]
-impl EthClient for ZkSyncExtentionEthClientW {
-    async fn get_events(
-        &self,
-        from: BlockNumber,
-        to: BlockNumber,
-        topic1: Option<H256>,
-        topic2: Option<H256>,
-        retries_left: usize,
-    ) -> EnrichedClientResult<Vec<Log>> {
-        self.0
-            .get_events(from, to, topic1, topic2, retries_left)
-            .await
-    }
-
-    async fn confirmed_block_number(&self) -> EnrichedClientResult<u64> {
-        self.0.confirmed_block_number().await
-    }
-
-    async fn finalized_block_number(&self) -> EnrichedClientResult<u64> {
-        self.0.finalized_block_number().await
-    }
-
-    async fn get_total_priority_txs(&self) -> Result<u64, ContractCallError> {
-        self.0.get_total_priority_txs().await
-    }
-
-    async fn scheduler_vk_hash(
-        &self,
-        verifier_address: Address,
-    ) -> Result<H256, ContractCallError> {
-        self.0.scheduler_vk_hash(verifier_address).await
-    }
-
-    async fn fflonk_scheduler_vk_hash(
-        &self,
-        verifier_address: Address,
-    ) -> Result<Option<H256>, ContractCallError> {
-        self.0.fflonk_scheduler_vk_hash(verifier_address).await
-    }
-
-    async fn diamond_cut_by_version(
-        &self,
-        packed_version: H256,
-    ) -> EnrichedClientResult<Option<Vec<u8>>> {
-        self.0.diamond_cut_by_version(packed_version).await
-    }
-
-    async fn chain_id(&self) -> EnrichedClientResult<SLChainId> {
-        self.0.chain_id().await
-    }
-
-    async fn get_chain_root(
-        &self,
-        block_number: U64,
-        l2_chain_id: L2ChainId,
-    ) -> Result<H256, ContractCallError> {
-        self.0.get_chain_root(block_number, l2_chain_id).await
-    }
-
-    async fn get_chain_gateway_upgrade_info(
-        &self,
-    ) -> Result<Option<ZkChainSpecificUpgradeData>, ContractCallError> {
-        self.0.get_chain_gateway_upgrade_info().await
-    }
-
-    async fn get_published_preimages(
-        &self,
-        hashes: Vec<H256>,
-    ) -> EnrichedClientResult<Vec<Option<Vec<u8>>>> {
-        self.0.get_published_preimages(hashes).await
-    }
-
-    async fn get_settlement_layer(&self) -> Result<Address, ContractCallError> {
-        self.0.get_settlement_layer().await
     }
 }

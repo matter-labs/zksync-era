@@ -16,7 +16,8 @@ use zksync_object_store::MockObjectStore;
 use zksync_types::{
     aggregated_operations::AggregatedActionType, block::L1BatchHeader,
     commitment::L1BatchCommitmentMode, eth_sender::EthTx, pubdata_da::PubdataSendingMode,
-    settlement::SettlementMode, Address, L1BatchNumber, ProtocolVersion, ProtocolVersionId, H256,
+    settlement::SettlementLayer, Address, L1BatchNumber, ProtocolVersion, ProtocolVersionId,
+    SLChainId, H256,
 };
 
 use crate::{
@@ -187,6 +188,7 @@ impl EthSenderTester {
         gateway.advance_block_number(Self::WAIT_CONFIRMATIONS);
         let gateway = Box::new(gateway);
 
+        let chain_id = SLChainId(505);
         let l2_gateway: MockSettlementLayer = MockSettlementLayer::builder()
             .with_fee_history(
                 std::iter::repeat_with(|| BaseFees {
@@ -261,7 +263,7 @@ impl EthSenderTester {
             custom_commit_sender_addr,
             commitment_mode,
             connection_pool.clone(),
-            SettlementMode::SettlesToL1,
+            SettlementLayer::L1(chain_id),
         )
         .await
         .unwrap();
@@ -283,7 +285,7 @@ impl EthSenderTester {
             STATE_TRANSITION_CONTRACT_ADDRESS,
             Default::default(),
             custom_commit_sender_addr,
-            SettlementMode::SettlesToL1,
+            SettlementLayer::L1(chain_id),
         )
         .await;
 

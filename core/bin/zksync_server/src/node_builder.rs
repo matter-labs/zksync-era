@@ -203,9 +203,9 @@ impl MainNodeBuilder {
 
     fn add_settlement_layer_client_layer(mut self) -> anyhow::Result<Self> {
         let eth_config = try_load_config!(self.secrets.l1);
-        let query_eth_client_layer =
+        let settlement_layer_client_layer =
             SettlementLayerClientLayer::new(eth_config.l1_rpc_url, eth_config.gateway_rpc_url);
-        self.node.add_layer(query_eth_client_layer);
+        self.node.add_layer(settlement_layer_client_layer);
         Ok(self)
     }
 

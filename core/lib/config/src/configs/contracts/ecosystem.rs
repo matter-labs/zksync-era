@@ -1,7 +1,6 @@
-// External uses
 use zksync_basic_types::Address;
 
-// Ecosystem contracts that are specific only for L1
+/// Ecosystem contracts that are specific only for L1
 #[derive(Debug, Clone)]
 pub struct L1SpecificContracts {
     pub bytecodes_supplier_addr: Option<Address>,
@@ -15,7 +14,7 @@ pub struct L1SpecificContracts {
     pub base_token_address: Address,
 }
 
-// Ecosystem contracts that are presented on all Settlement Layers
+/// Ecosystem contracts that are presented on all Settlement Layers
 #[derive(Debug, Clone)]
 pub struct EcosystemCommonContracts {
     pub bridgehub_proxy_addr: Option<Address>,

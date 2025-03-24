@@ -11,12 +11,12 @@ use zksync_types::{
     l2_to_l1_log::BatchAndChainMerklePath,
     protocol_upgrade::{ProtocolUpgradeTx, ProtocolUpgradeTxCommonData},
     protocol_version::ProtocolSemanticVersion,
-    settlement::SettlementMode,
+    settlement::SettlementLayer,
     Address, Execute, L1BatchNumber, L1TxCommonData, L2ChainId, PriorityOpId, ProtocolUpgrade,
     ProtocolVersion, ProtocolVersionId, SLChainId, Transaction, H256, U256,
 };
 
-use crate::{tests::client::MockEthClient, EthWatch, ZkSyncExtentionEthClient};
+use crate::{tests::client::MockEthClient, EthWatch};
 
 mod client;
 
@@ -94,18 +94,13 @@ fn build_upgrade_tx(id: ProtocolVersionId) -> ProtocolUpgradeTx {
 
 async fn create_test_watcher(
     connection_pool: ConnectionPool<Core>,
-    settlement_mode: SettlementMode,
+    settlement_mode: SettlementLayer,
 ) -> (EthWatch, MockEthClient, MockEthClient) {
     let l1_client = MockEthClient::new(SLChainId(42));
-    let sl_client = MockEthClient::new(SL_CHAIN_ID);
-    let sl_l2_client: Box<dyn ZkSyncExtentionEthClient> = if settlement_mode.is_gateway() {
-        Box::new(sl_client.clone())
-    } else {
-        Box::new(l1_client.clone())
-    };
+    let sl_client = MockEthClient::new(settlement_mode.chain_id());
     let watcher = EthWatch::new(
         Box::new(l1_client.clone()),
-        sl_l2_client,
+        Box::new(sl_client.clone()),
         settlement_mode,
         connection_pool,
         std::time::Duration::from_nanos(1),
@@ -121,14 +116,14 @@ async fn create_l1_test_watcher(
     connection_pool: ConnectionPool<Core>,
 ) -> (EthWatch, MockEthClient) {
     let (watcher, l1_client, _) =
-        create_test_watcher(connection_pool, SettlementMode::SettlesToL1).await;
+        create_test_watcher(connection_pool, SettlementLayer::L1(SLChainId(42))).await;
     (watcher, l1_client)
 }
 
 async fn create_gateway_test_watcher(
     connection_pool: ConnectionPool<Core>,
 ) -> (EthWatch, MockEthClient, MockEthClient) {
-    create_test_watcher(connection_pool, SettlementMode::Gateway).await
+    create_test_watcher(connection_pool, SettlementLayer::Gateway(SL_CHAIN_ID)).await
 }
 
 #[test_log::test(tokio::test)]
@@ -213,7 +208,7 @@ async fn test_normal_operation_upgrade_timestamp() {
     let mut watcher = EthWatch::new(
         Box::new(client.clone()),
         Box::new(client.clone()),
-        SettlementMode::SettlesToL1,
+        SettlementLayer::L1(SL_CHAIN_ID),
         connection_pool.clone(),
         std::time::Duration::from_nanos(1),
         L2ChainId::default(),

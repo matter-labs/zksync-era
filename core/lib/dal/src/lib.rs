@@ -20,7 +20,7 @@ use crate::{
     events_web3_dal::EventsWeb3Dal, factory_deps_dal::FactoryDepsDal,
     proof_generation_dal::ProofGenerationDal, protocol_versions_dal::ProtocolVersionsDal,
     protocol_versions_web3_dal::ProtocolVersionsWeb3Dal, pruning_dal::PruningDal,
-    server_notifier::ServerNotificationsDal, snapshot_recovery_dal::SnapshotRecoveryDal,
+    server_notifications::ServerNotificationsDal, snapshot_recovery_dal::SnapshotRecoveryDal,
     snapshots_creator_dal::SnapshotsCreatorDal, snapshots_dal::SnapshotsDal,
     storage_logs_dal::StorageLogsDal, storage_logs_dedup_dal::StorageLogsDedupDal,
     storage_web3_dal::StorageWeb3Dal, sync_dal::SyncDal, system_dal::SystemDal,
@@ -50,7 +50,7 @@ pub mod proof_generation_dal;
 pub mod protocol_versions_dal;
 pub mod protocol_versions_web3_dal;
 pub mod pruning_dal;
-mod server_notifier;
+mod server_notifications;
 pub mod snapshot_recovery_dal;
 pub mod snapshots_creator_dal;
 pub mod snapshots_dal;

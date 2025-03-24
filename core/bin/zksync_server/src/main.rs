@@ -25,7 +25,6 @@ use zksync_core_leftovers::{
     Component, Components,
 };
 use zksync_env_config::FromEnv;
-use zksync_node_framework::service::{TaskError, ZkStackServiceError};
 
 use crate::node_builder::MainNodeBuilder;
 
@@ -149,6 +148,9 @@ fn main() -> anyhow::Result<()> {
         secrets,
         contracts_config.l1_specific_contracts(),
         contracts_config.l2_contracts(),
+        // Now we always pass the settlement layer contracts. After V27 upgrade,
+        // it'd be possible to get rid of settlement_layer_specific_contracts in our configs.
+        // For easier refactoring in the future. We can mark it as Optional
         Some(contracts_config.settlement_layer_specific_contracts()),
         Some(contracts_config.l1_multicall3_addr),
     )?;
@@ -172,26 +174,8 @@ fn main() -> anyhow::Result<()> {
         return Ok(());
     }
 
-    let result = node.run(observability_guard);
-    if find_gateway_update_error(&result) {
-        tracing::warn!("Settlement layer has changed")
-    };
-    Ok(result?)
-}
-
-fn find_gateway_update_error(zkstack_result: &Result<(), ZkStackServiceError>) -> bool {
-    if let Err(ZkStackServiceError::Task(tasks)) = zkstack_result {
-        for task in &tasks.0 {
-            if let TaskError::TaskFailed(task, err) = task {
-                if task.contains("gateway_migrator")
-                    && err.to_string().contains("Settlement layer changed")
-                {
-                    return true;
-                }
-            }
-        }
-    }
-    false
+    node.run(observability_guard)?;
+    Ok(())
 }
 
 fn load_env_config() -> anyhow::Result<TempConfigStore> {

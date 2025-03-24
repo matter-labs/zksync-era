@@ -16,7 +16,7 @@ use zksync_storage::RocksDB;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     ethabi::Token,
-    settlement::SettlementMode,
+    settlement::SettlementLayer,
     snapshots::{
         SnapshotFactoryDependencies, SnapshotMetadata, SnapshotStorageLogsChunk,
         SnapshotStorageLogsStorageKey,
@@ -41,7 +41,7 @@ pub struct BlockReverterEthConfig {
     sl_validator_timelock_addr: H160,
     default_priority_fee_per_gas: u64,
     hyperchain_id: L2ChainId,
-    settlement_mode: SettlementMode,
+    settlement_mode: SettlementLayer,
 }
 
 impl BlockReverterEthConfig {
@@ -50,7 +50,7 @@ impl BlockReverterEthConfig {
         sl_diamond_proxy_addr: Address,
         sl_validator_timelock_addr: Address,
         hyperchain_id: L2ChainId,
-        settlement_mode: SettlementMode,
+        settlement_mode: SettlementLayer,
     ) -> anyhow::Result<Self> {
         Ok(Self {
             sl_diamond_proxy_addr,

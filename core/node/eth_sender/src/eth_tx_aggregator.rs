@@ -22,7 +22,7 @@ use zksync_types::{
     protocol_version::{L1VerifierConfig, PACKED_SEMVER_MINOR_MASK},
     pubdata_da::PubdataSendingMode,
     server_notification::GatewayMigrationState,
-    settlement::SettlementMode,
+    settlement::SettlementLayer,
     web3::{contract::Error as Web3ContractError, BlockNumber, CallRequest},
     Address, L2ChainId, ProtocolVersionId, SLChainId, H256, U256,
 };
@@ -78,7 +78,7 @@ pub struct EthTxAggregator {
     sl_chain_id: SLChainId,
     health_updater: HealthUpdater,
     priority_tree_start_index: Option<usize>,
-    settlement_mode: SettlementMode,
+    settlement_mode: SettlementLayer,
 }
 
 struct TxData {
@@ -101,7 +101,7 @@ impl EthTxAggregator {
         state_transition_chain_contract: Address,
         rollup_chain_id: L2ChainId,
         custom_commit_sender_addr: Option<Address>,
-        settlement_mode: SettlementMode,
+        settlement_mode: SettlementLayer,
     ) -> Self {
         let eth_client = eth_client.for_component("eth_tx_aggregator");
         let functions = ZkSyncFunctions::default();
@@ -933,7 +933,7 @@ async fn get_priority_tree_start_index(
 
 async fn gateway_status(
     storage: &mut Connection<'_, Core>,
-    sl_layer: &SettlementMode,
+    sl_layer: &SettlementLayer,
 ) -> GatewayMigrationState {
     let to_gateway = server_notifier_contract()
         .event("MigrateToGateway")
@@ -955,14 +955,14 @@ async fn gateway_status(
     notifications
         .first()
         .map(|a| match sl_layer {
-            SettlementMode::SettlesToL1 => {
+            SettlementLayer::L1(_) => {
                 if a.main_topic == to_gateway {
                     GatewayMigrationState::InProgress
                 } else {
                     GatewayMigrationState::NotInProgress
                 }
             }
-            SettlementMode::Gateway => {
+            SettlementLayer::Gateway(_) => {
                 if a.main_topic == from_gateway {
                     GatewayMigrationState::InProgress
                 } else {

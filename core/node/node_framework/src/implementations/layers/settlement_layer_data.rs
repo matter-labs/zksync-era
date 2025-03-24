@@ -11,7 +11,7 @@ use zksync_contracts_loader::{get_settlement_layer_from_l1, load_settlement_laye
 use zksync_eth_client::EthInterface;
 use zksync_gateway_migrator::switch_to_current_settlement_mode;
 use zksync_types::{
-    pubdata_da::PubdataSendingMode, settlement::SettlementMode, url::SensitiveUrl, Address,
+    pubdata_da::PubdataSendingMode, settlement::SettlementLayer, url::SensitiveUrl, Address,
     L2ChainId, SLChainId, L2_BRIDGEHUB_ADDRESS,
 };
 use zksync_web3_decl::{client::Client, namespaces::ZksNamespaceClient};
@@ -24,7 +24,7 @@ use crate::{
         },
         eth_interface::{EthInterfaceResource, L2InterfaceResource},
         pools::{MasterPool, PoolResource},
-        settlement_layer::{SettlementModeResource, SlChainIdResource},
+        settlement_layer::SettlementModeResource,
     },
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
@@ -89,7 +89,6 @@ pub struct Output {
     contracts: SettlementLayerContractsResource,
     l1_ecosystem_contracts: L1EcosystemContractsResource,
     l1_contracts: L1ChainContractsResource,
-    sl_chain_id: SlChainIdResource,
     l2_contracts: L2ContractsResource,
     l2_eth_client: Option<L2InterfaceResource>,
     eth_sender_config: Option<SenderConfig>,
@@ -117,7 +116,7 @@ impl WiringLayer for SettlementLayerData<MainNodeConfig> {
         // it's safe only for l1 contracts
         .unwrap_or(self.config.l1_sl_specific_contracts.unwrap());
 
-        let (initial_sl_mode, sl_chain_id) = get_settlement_layer_from_l1(
+        let initial_sl_mode = get_settlement_layer_from_l1(
             &input.eth_client.0,
             sl_l1_contracts.chain_contracts_config.diamond_proxy_addr,
             &getters_facet_contract(),
@@ -126,18 +125,19 @@ impl WiringLayer for SettlementLayerData<MainNodeConfig> {
 
         let pool = input.pool.get().await?;
 
-        let l2_eth_client =
-            get_l2_client(self.config.gateway_rpc_url, initial_sl_mode, sl_chain_id)?;
+        let l2_eth_client = get_l2_client(self.config.gateway_rpc_url, initial_sl_mode)?;
 
         let (bridgehub, sl_client): (_, &dyn EthInterface) = match initial_sl_mode {
-            SettlementMode::SettlesToL1 => (
+            SettlementLayer::L1(_) => (
                 self.config
                     .l1_specific_contracts
                     .bridge_hub
                     .expect("must exist"),
                 &input.eth_client.0,
             ),
-            SettlementMode::Gateway => (L2_BRIDGEHUB_ADDRESS, &l2_eth_client.as_ref().unwrap().0),
+            SettlementLayer::Gateway(_) => {
+                (L2_BRIDGEHUB_ADDRESS, &l2_eth_client.as_ref().unwrap().0)
+            }
         };
 
         let switch = switch_to_current_settlement_mode(
@@ -154,14 +154,15 @@ impl WiringLayer for SettlementLayerData<MainNodeConfig> {
             initial_sl_mode
         } else {
             match initial_sl_mode {
-                SettlementMode::SettlesToL1 => SettlementMode::Gateway,
-                SettlementMode::Gateway => SettlementMode::SettlesToL1,
+                // TODO set proper chain id
+                SettlementLayer::L1(_) => SettlementLayer::Gateway(SLChainId(0)),
+                SettlementLayer::Gateway(_) => SettlementLayer::L1(SLChainId(0)),
             }
         };
 
         let sl_chain_contracts = match final_settlement_mode {
-            SettlementMode::SettlesToL1 => sl_l1_contracts.clone(),
-            SettlementMode::Gateway => {
+            SettlementLayer::L1(_) => sl_l1_contracts.clone(),
+            SettlementLayer::Gateway(_) => {
                 let client = l2_eth_client.clone().unwrap().0;
                 let l2_multicall3 = client
                     .get_l2_multicall3()
@@ -189,7 +190,6 @@ impl WiringLayer for SettlementLayerData<MainNodeConfig> {
             ),
             l2_contracts: L2ContractsResource(self.config.l2_contracts),
             l1_contracts: L1ChainContractsResource(sl_l1_contracts),
-            sl_chain_id: SlChainIdResource(sl_chain_id),
             l2_eth_client,
             eth_sender_config: Some(adjust_eth_sender_config(
                 self.config.eth_sender_config,
@@ -245,8 +245,8 @@ impl WiringLayer for SettlementLayerData<ENConfig> {
 
         let initial_db_sl_mode = get_db_settlement_mode(input.pool.get().await?, chain_id).await?;
 
-        let (initial_sl_mode, chain_id) = if let Some(mode) = initial_db_sl_mode {
-            (mode, chain_id)
+        let initial_sl_mode = if let Some(mode) = initial_db_sl_mode {
+            mode
         } else {
             // If it's the new chain it's safe to check the actual sl onchain,
             // in the worst case scenario chain
@@ -262,10 +262,10 @@ impl WiringLayer for SettlementLayerData<ENConfig> {
             .await?
         };
 
-        let l2_eth_client = get_l2_client(self.config.gateway_rpc_url, initial_sl_mode, chain_id)?;
+        let l2_eth_client = get_l2_client(self.config.gateway_rpc_url, initial_sl_mode)?;
 
         let (client, bridgehub): (&dyn EthInterface, Address) = match initial_sl_mode {
-            SettlementMode::SettlesToL1 => (
+            SettlementLayer::L1(_) => (
                 &input.eth_client.0,
                 self.config
                     .l1_chain_contracts
@@ -273,7 +273,9 @@ impl WiringLayer for SettlementLayerData<ENConfig> {
                     .bridgehub_proxy_addr
                     .unwrap(),
             ),
-            SettlementMode::Gateway => (&l2_eth_client.as_ref().unwrap().0, L2_BRIDGEHUB_ADDRESS),
+            SettlementLayer::Gateway(_) => {
+                (&l2_eth_client.as_ref().unwrap().0, L2_BRIDGEHUB_ADDRESS)
+            }
         };
 
         // There is no need to specify multicall3 for external node
@@ -282,8 +284,8 @@ impl WiringLayer for SettlementLayerData<ENConfig> {
         let contracts = match contracts {
             Some(contracts) => contracts,
             None => match initial_sl_mode {
-                SettlementMode::SettlesToL1 => self.config.l1_chain_contracts.clone(),
-                SettlementMode::Gateway => {
+                SettlementLayer::L1(_) => self.config.l1_chain_contracts.clone(),
+                SettlementLayer::Gateway(_) => {
                     return Err(anyhow::anyhow!("No contacts deployed to contracts"))?
                 }
             },
@@ -295,7 +297,6 @@ impl WiringLayer for SettlementLayerData<ENConfig> {
             l1_ecosystem_contracts: L1EcosystemContractsResource(self.config.l1_specific_contracts),
             l2_contracts: L2ContractsResource(self.config.l2_contracts),
             initial_settlement_mode: SettlementModeResource(initial_sl_mode),
-            sl_chain_id: SlChainIdResource(chain_id),
             l2_eth_client,
             eth_sender_config: None,
         })
@@ -304,29 +305,29 @@ impl WiringLayer for SettlementLayerData<ENConfig> {
 
 fn get_l2_client(
     gateway_rpc_url: Option<SensitiveUrl>,
-    initial_sl_mode: SettlementMode,
-    chain_id: SLChainId,
+    initial_sl_mode: SettlementLayer,
 ) -> anyhow::Result<Option<L2InterfaceResource>> {
     Ok(gateway_rpc_url
         .map(|url| Client::http(url).context("Client::new()"))
         .transpose()?
         .and_then(|builder| {
-            initial_sl_mode.is_gateway().then(|| {
+            if let SettlementLayer::Gateway(chain_id) = initial_sl_mode {
                 Some(L2InterfaceResource(Box::new(
                     builder
                         .for_network(L2ChainId::new(chain_id.0).unwrap().into())
                         .build(),
                 )))
-            })
-        })
-        .flatten())
+            } else {
+                None
+            }
+        }))
 }
 
 // Gateway has different rules for pubdata and gas space.
 // We need to adjust it accordingly.
 fn adjust_eth_sender_config(
     mut config: SenderConfig,
-    settlement_mode: SettlementMode,
+    settlement_mode: SettlementLayer,
 ) -> SenderConfig {
     if settlement_mode.is_gateway() {
         config.max_aggregated_tx_gas = 4294967295;

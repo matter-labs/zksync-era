@@ -22,7 +22,7 @@ use zksync_types::{
     ethabi,
     ethabi::{ParamType, Token},
     pubdata_da::PubdataSendingMode,
-    settlement::SettlementMode,
+    settlement::SettlementLayer,
     Address, L1BatchNumber, ProtocolVersionId, SLChainId, H256, U256,
 };
 
@@ -364,7 +364,7 @@ pub struct ConsistencyChecker {
     max_batches_to_recheck: u32,
     sleep_interval: Duration,
     chain_data: SLChainAccess,
-    settlement_mode: SettlementMode,
+    settlement_mode: SettlementLayer,
     event_handler: Box<dyn HandleConsistencyCheckerEvent>,
     l1_data_mismatch_behavior: L1DataMismatchBehavior,
     pool: ConnectionPool<Core>,
@@ -380,7 +380,7 @@ impl ConsistencyChecker {
         max_batches_to_recheck: u32,
         pool: ConnectionPool<Core>,
         commitment_mode: L1BatchCommitmentMode,
-        settlement_mode: SettlementMode,
+        settlement_mode: SettlementLayer,
     ) -> anyhow::Result<Self> {
         let (health_check, health_updater) = ConsistencyCheckerHealthUpdater::new();
         let sl_chain_id = sl_client.fetch_chain_id().await?;
@@ -805,11 +805,11 @@ async fn wait_for_l1_batch_with_metadata(
     }
 }
 
-// Get settlement layer based on ETH tx, all eth txs should be presented on settlement layer. what is the best place for this function?
+// Get settlement layer based on ETH tx in the database.
 pub async fn get_db_settlement_mode(
     db_pool: ConnectionPool<Core>,
     l1chain_id: SLChainId,
-) -> anyhow::Result<Option<SettlementMode>> {
+) -> anyhow::Result<Option<SettlementLayer>> {
     let db_chain_id = db_pool
         .connection()
         .await?
@@ -819,9 +819,9 @@ pub async fn get_db_settlement_mode(
 
     Ok(db_chain_id.map(|chain_id| {
         if chain_id != l1chain_id.0 {
-            SettlementMode::Gateway
+            SettlementLayer::Gateway(SLChainId(chain_id))
         } else {
-            SettlementMode::SettlesToL1
+            SettlementLayer::L1(SLChainId(chain_id))
         }
     }))
 }

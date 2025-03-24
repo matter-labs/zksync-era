@@ -53,12 +53,15 @@ impl GatewayChainConfig {
         contracts: AllContractsConfig,
         gateway_chain_id: SLChainId,
     ) -> Self {
+        let sl_contracts = contracts.settlement_layer_specific_contracts();
         Self {
-            state_transition_proxy_addr: contracts.state_transition_proxy_addr,
-            validator_timelock_addr: Some(contracts.validator_timelock_addr),
-            multicall3_addr: contracts.l1_multicall3_addr,
-            diamond_proxy_addr: contracts.diamond_proxy_addr,
-            chain_admin_addr: contracts.chain_admin_addr,
+            state_transition_proxy_addr: sl_contracts
+                .ecosystem_contracts
+                .state_transition_proxy_addr,
+            validator_timelock_addr: sl_contracts.ecosystem_contracts.validator_timelock_addr,
+            multicall3_addr: sl_contracts.ecosystem_contracts.multicall3.unwrap(),
+            diamond_proxy_addr: sl_contracts.chain_contracts_config.diamond_proxy_addr,
+            chain_admin_addr: sl_contracts.chain_contracts_config.chain_admin.unwrap(),
             gateway_chain_id,
         }
     }
