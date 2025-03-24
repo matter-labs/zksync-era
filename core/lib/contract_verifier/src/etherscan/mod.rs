@@ -76,6 +76,12 @@ fn get_api_error_retry_policy(api_error: &EtherscanError) -> ApiErrorRetryPolicy
                 pause_duration: Duration::from_secs(5),
             }
         }
+        EtherscanError::ContractBytecodeNotAvailable => {
+            // This error happens when the contract is not yet indexed by Etherscan.
+            ApiErrorRetryPolicy::Retryable {
+                pause_duration: Duration::from_secs(60), // 1 min
+            }
+        }
         EtherscanError::Reqwest(_) => {
             // Most likely the error is caused by the network issue of some sort. But if the request error is caused by
             // the constructed payload, we can't afford to retry indefinitely, so we number of attempts is limited.
