@@ -23,12 +23,14 @@ use zksync_system_constants::{
     REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, SYSTEM_CONTEXT_ADDRESS,
     SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
 };
-use zksync_test_contracts::{Account, LoadnextContractExecutionParams, TestContract};
+use zksync_test_contracts::{
+    Account, LoadnextContractExecutionParams, TestContract, TestEvmContract,
+};
 use zksync_types::{
     address_to_u256,
     api::state_override::{OverrideAccount, OverrideState, StateOverride},
     block::{pack_block_info, L2BlockHeader},
-    bytecode::BytecodeHash,
+    bytecode::{BytecodeHash, BytecodeMarker},
     commitment::PubdataParams,
     ethabi,
     ethabi::{ParamType, Token},
@@ -142,10 +144,19 @@ impl StateBuilder {
     }
 
     pub fn with_counter_contract(self, initial_value: u64) -> Self {
-        let mut this = self.with_contract(
-            Self::COUNTER_CONTRACT_ADDRESS,
-            TestContract::counter().bytecode.to_vec(),
-        );
+        self.with_generic_counter_contract(BytecodeMarker::EraVm, initial_value)
+    }
+
+    pub fn with_evm_counter_contract(self, initial_value: u64) -> Self {
+        self.with_generic_counter_contract(BytecodeMarker::Evm, initial_value)
+    }
+
+    fn with_generic_counter_contract(self, kind: BytecodeMarker, initial_value: u64) -> Self {
+        let bytecode = match kind {
+            BytecodeMarker::EraVm => TestContract::counter().bytecode,
+            BytecodeMarker::Evm => TestEvmContract::counter().deployed_bytecode,
+        };
+        let mut this = self.with_contract(Self::COUNTER_CONTRACT_ADDRESS, bytecode.to_vec());
         if initial_value != 0 {
             let state = HashMap::from([(H256::zero(), H256::from_low_u64_be(initial_value))]);
             this.inner
@@ -682,6 +693,28 @@ mod tests {
     use zksync_test_contracts::TxType;
 
     use super::*;
+
+    #[test]
+    fn bytecode_kind_is_correctly_detected_for_test_contracts() {
+        let era_contracts = [
+            TestContract::counter(),
+            TestContract::load_test(),
+            TestContract::infinite_loop(),
+            TestContract::expensive(),
+            TestContract::precompiles_test(),
+        ];
+        for contract in era_contracts {
+            assert_eq!(BytecodeMarker::detect(contract.bytecode), BytecodeMarker::EraVm);
+        }
+
+        let evm_contracts = [
+            TestEvmContract::counter(),
+            TestEvmContract::evm_tester(),
+        ];
+        for contract in evm_contracts {
+            assert_eq!(BytecodeMarker::detect(contract.deployed_bytecode), BytecodeMarker::Evm);
+        }
+    }
 
     #[tokio::test]
     async fn persisting_block_with_transactions_works() {

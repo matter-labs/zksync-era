@@ -295,3 +295,19 @@ async fn overriding_account_nonce() {
     .unwrap();
     assert_eq!(decode_u256_output(&output), 23.into());
 }
+
+#[tokio::test]
+async fn overriding_evm_bytecode() {
+    let alice = Account::random();
+    let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
+    let tx_sender = create_real_tx_sender(pool).await;
+
+    let state_override = StateBuilder::default()
+        .with_evm_counter_contract(42)
+        .build();
+    let output = test_call(&tx_sender, state_override, alice.query_counter_value())
+        .await
+        .unwrap();
+
+    assert_eq!(decode_u256_output(&output), 42.into());
+}

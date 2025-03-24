@@ -3,10 +3,11 @@
 use zksync_multivm::interface::storage::{ReadStorage, StorageWithOverrides};
 use zksync_types::{
     api::state_override::{OverrideState, StateOverride},
-    bytecode::BytecodeHash,
-    get_code_key, get_known_code_key, get_nonce_key, h256_to_u256, u256_to_h256,
+    bytecode::{pad_evm_bytecode, BytecodeHash, BytecodeMarker},
+    get_code_key, get_evm_code_hash_key, get_known_code_key, get_nonce_key, h256_to_u256,
+    u256_to_h256,
     utils::{decompose_full_nonce, nonces_to_full_nonce, storage_key_for_eth_balance},
-    AccountTreeId, StorageKey, H256,
+    web3, AccountTreeId, StorageKey, H256,
 };
 
 /// This method is blocking.
@@ -30,13 +31,24 @@ pub(super) fn apply_state_override<S: ReadStorage>(
         }
 
         if let Some(code) = overrides.code {
+            let bytecode_kind = BytecodeMarker::detect(&code.0);
             let code_key = get_code_key(&account);
-            // FIXME: don't panic here
-            let code_hash = BytecodeHash::for_bytecode(&code.0).value();
+
+            let (code_hash, prepared_code) = match bytecode_kind {
+                BytecodeMarker::EraVm => (BytecodeHash::for_bytecode(&code.0).value(), code.0),
+                BytecodeMarker::Evm => {
+                    // FIXME: Check whether the deployment of EVM bytecodes is enabled?
+                    let versioned_hash = BytecodeHash::for_raw_evm_bytecode(&code.0).value();
+                    let evm_bytecode_hash_key = get_evm_code_hash_key(versioned_hash);
+                    storage.set_value(evm_bytecode_hash_key, H256(web3::keccak256(&code.0)));
+                    (versioned_hash, pad_evm_bytecode(&code.0))
+                }
+            };
+
             storage.set_value(code_key, code_hash);
             let known_code_key = get_known_code_key(&code_hash);
             storage.set_value(known_code_key, H256::from_low_u64_be(1));
-            storage.store_factory_dep(code_hash, code.0);
+            storage.store_factory_dep(code_hash, prepared_code);
         }
 
         match overrides.state {
