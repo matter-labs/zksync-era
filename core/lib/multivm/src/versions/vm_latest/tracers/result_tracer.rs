@@ -159,15 +159,12 @@ impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for ResultTracer<S> {
         if matches!(hook, Some(VmHook::PostResult)) {
             let vm_hook_params = get_vm_hook_params(memory, self.subversion);
             let success = vm_hook_params[0];
-            let returndata = self
-                .far_call_tracker
-                .get_latest_returndata()
-                .map(|ptr| read_pointer(memory, ptr))
-                .unwrap_or_default();
+            let return_ptr = FatPointer::from_u256(vm_hook_params[1]);
+            let returndata = read_pointer(memory, return_ptr);
             if success == U256::zero() {
                 self.result = Some(Result::Error {
                     // Tx has reverted, without bootloader error, we can simply parse the revert reason
-                    error_reason: (VmRevertReason::from(returndata.as_slice())),
+                    error_reason: VmRevertReason::from(returndata.as_slice()),
                 });
             } else {
                 self.result = Some(Result::Success {

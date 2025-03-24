@@ -327,7 +327,7 @@ mod tests {
         let started_at = Instant::now();
         loop {
             assert!(
-                started_at.elapsed() <= Duration::from_secs(10),
+                started_at.elapsed() < Duration::from_secs(10),
                 "Timeout waiting for catch up"
             );
 

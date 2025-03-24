@@ -476,15 +476,6 @@ pub(crate) fn test_era_vm_deployment_after_evm_deployment<VM: TestedVm>() {
     deploy_eravm_counter(&mut vm, proxy_counter_bytecode, counter_address);
 }
 
-/// Also checks `CREATE2` address computation.
-pub(crate) fn test_deployment_with_partial_reverts<VM: TestedVm>() {
-    for seed in [1, 10, 100, 1_000] {
-        println!("Testing with RNG seed {seed}");
-        let mut rng = StdRng::seed_from_u64(seed);
-        test_deployment_with_partial_reverts_and_rng::<VM>(&mut rng);
-    }
-}
-
 fn evm_create2_address(
     sender: Address,
     salt: H256,
@@ -500,6 +491,96 @@ fn evm_create2_address(
     buffer.extend_from_slice(&web3::keccak256(&creation_bytecode_and_args));
     let hash_digest = web3::keccak256(&buffer);
     Address::from_slice(&hash_digest[12..])
+}
+
+pub(crate) fn test_create2_deployment_in_evm<VM: TestedVm>() {
+    let mut vm: VmTester<VM> = prepare_tester_with_real_emulator().0.build::<VM>();
+    let account = &mut vm.rich_accounts[0];
+    let test_fn = TestEvmContract::evm_tester().function("testCreate2Deployment");
+
+    let mut rng = StdRng::seed_from_u64(123);
+    for _ in 0..10 {
+        let salt = H256(rng.gen());
+        let constructor_arg = U256(rng.gen());
+        let expected_address = evm_create2_address(
+            EVM_ADDRESS,
+            salt,
+            TestEvmContract::counter().init_bytecode,
+            &[Token::Uint(constructor_arg)],
+        );
+
+        let test_tx = account.get_l2_tx_for_execute(
+            Execute {
+                contract_address: Some(EVM_ADDRESS),
+                calldata: test_fn
+                    .encode_input(&[
+                        Token::FixedBytes(salt.as_bytes().to_vec()),
+                        Token::Uint(constructor_arg),
+                        Token::Address(expected_address),
+                    ])
+                    .unwrap(),
+                value: 0.into(),
+                factory_deps: vec![],
+            },
+            None,
+        );
+
+        let (_, vm_result) = vm
+            .vm
+            .execute_transaction_with_bytecode_compression(test_tx, true);
+        assert!(!vm_result.result.is_failed(), "{vm_result:?}");
+    }
+}
+
+pub(crate) fn test_reusing_create_address_in_evm<VM: TestedVm>() {
+    let mut vm: VmTester<VM> = prepare_tester_with_real_emulator().0.build::<VM>();
+    let account = &mut vm.rich_accounts[0];
+    let expected_address = deployed_address_evm_create(EVM_ADDRESS, 0.into());
+    let test_fn = TestEvmContract::evm_tester().function("testReusingCreateAddress");
+    let test_tx = account.get_l2_tx_for_execute(
+        Execute {
+            contract_address: Some(EVM_ADDRESS),
+            calldata: test_fn
+                .encode_input(&[Token::Address(expected_address)])
+                .unwrap(),
+            value: 0.into(),
+            factory_deps: vec![],
+        },
+        None,
+    );
+
+    let (_, vm_result) = vm
+        .vm
+        .execute_transaction_with_bytecode_compression(test_tx, true);
+    assert!(!vm_result.result.is_failed(), "{vm_result:#?}");
+}
+
+pub(crate) fn test_reusing_create2_salt_in_evm<VM: TestedVm>() {
+    let mut vm: VmTester<VM> = prepare_tester_with_real_emulator().0.build::<VM>();
+    let account = &mut vm.rich_accounts[0];
+    let test_fn = TestEvmContract::evm_tester().function("testReusingCreate2Salt");
+    let test_tx = account.get_l2_tx_for_execute(
+        Execute {
+            contract_address: Some(EVM_ADDRESS),
+            calldata: test_fn.encode_input(&[]).unwrap(),
+            value: 0.into(),
+            factory_deps: vec![],
+        },
+        None,
+    );
+
+    let (_, vm_result) = vm
+        .vm
+        .execute_transaction_with_bytecode_compression(test_tx, true);
+    assert!(!vm_result.result.is_failed(), "{vm_result:#?}");
+}
+
+pub(crate) fn test_deployment_with_partial_reverts<VM: TestedVm>() {
+    for seed in [1, 10, 100, 1_000] {
+        println!("Testing with RNG seed {seed}");
+        let mut rng = StdRng::seed_from_u64(seed);
+        test_deployment_with_partial_reverts_and_rng::<VM>(&mut rng);
+    }
 }
 
 fn test_deployment_with_partial_reverts_and_rng<VM: TestedVm>(rng: &mut impl Rng) {
@@ -835,5 +916,3 @@ pub(crate) fn test_calling_ecrecover_precompile<VM: TestedVm>() {
     // There's another `ecrecover` call in the default AA tx validation logic
     assert_eq!(ecrecover_count.round(), 2.0);
 }
-
-// FIXME: test create2 with the same salt
