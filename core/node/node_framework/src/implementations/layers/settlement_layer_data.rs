@@ -7,7 +7,9 @@ use zksync_config::configs::{
 };
 use zksync_consistency_checker::get_db_settlement_mode;
 use zksync_contracts::getters_facet_contract;
-use zksync_contracts_loader::{get_settlement_layer_from_l1, load_settlement_layer_contracts};
+use zksync_eth_client::contracts_loader::{
+    get_settlement_layer_from_l1, load_settlement_layer_contracts,
+};
 use zksync_eth_client::EthInterface;
 use zksync_gateway_migrator::switch_to_current_settlement_mode;
 use zksync_types::{

@@ -1,3 +1,4 @@
+use crate::{CallFunctionArgs, ContractCallError, EthInterface};
 use zksync_config::configs::contracts::{
     chain::ChainContracts, ecosystem::EcosystemCommonContracts, SettlementLayerSpecificContracts,
 };
@@ -5,7 +6,6 @@ use zksync_contracts::{
     bridgehub_contract, getters_facet_contract, hyperchain_contract,
     state_transition_manager_contract,
 };
-use zksync_eth_client::{CallFunctionArgs, ContractCallError, EthInterface};
 use zksync_types::{
     ethabi::{Contract, Token},
     protocol_version::ProtocolSemanticVersion,

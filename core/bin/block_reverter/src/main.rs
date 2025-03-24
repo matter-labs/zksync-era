@@ -6,6 +6,9 @@ use tokio::{
     fs,
     io::{self, AsyncReadExt},
 };
+use zksync_block_reverter::eth_client::contracts_loader::{
+    get_settlement_layer_from_l1, load_settlement_layer_contracts,
+};
 use zksync_block_reverter::{
     eth_client::clients::{Client, PKSigningClient, L1},
     BlockReverter, BlockReverterEthConfig, NodeRole,
@@ -18,7 +21,6 @@ use zksync_config::{
     ContractsConfig, DBConfig, EthConfig, GenesisConfig, PostgresConfig,
 };
 use zksync_contracts::getters_facet_contract;
-use zksync_contracts_loader::{get_settlement_layer_from_l1, load_settlement_layer_contracts};
 use zksync_core_leftovers::temp_config_store::read_yaml_repr;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_env_config::{object_store::SnapshotsObjectStoreConfig, FromEnv};
