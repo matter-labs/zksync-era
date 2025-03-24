@@ -4,10 +4,13 @@ use zksync_test_contracts::{TestContract, TxType};
 use zksync_types::{utils::deployed_address_create, Address, Execute, H256};
 
 use super::{
-    default_pubdata_builder, extract_deploy_events, tester::VmTesterBuilder, ContractToDeploy,
-    TestedVm,
+    default_pubdata_builder, execute_oneshot_dump, extract_deploy_events, load_vm_dump,
+    tester::VmTesterBuilder, ContractToDeploy, TestedVm,
 };
-use crate::interface::{ExecutionResult, InspectExecutionMode, VmInterfaceExt};
+use crate::interface::{
+    storage::{StorageSnapshot, StorageView},
+    ExecutionResult, InspectExecutionMode, VmFactory, VmInterfaceExt, VmRevertReason,
+};
 
 pub(crate) fn test_estimate_fee<VM: TestedVm>() {
     let mut vm_tester = VmTesterBuilder::new().with_rich_accounts(1).build::<VM>();
@@ -167,4 +170,18 @@ pub(crate) fn test_reusing_create2_salt<VM: TestedVm>() {
     vm_tester.vm.push_transaction(test_tx);
     let res = vm_tester.vm.execute(InspectExecutionMode::OneTx);
     assert_matches!(res.result, ExecutionResult::Success { .. });
+}
+
+pub(crate) fn test_transfer_to_self_with_low_gas_limit<VM>()
+where
+    VM: VmFactory<StorageView<StorageSnapshot>>,
+{
+    let dump = load_vm_dump("estimate_fee_for_transfer_to_self");
+    let result = execute_oneshot_dump::<VM>(dump);
+    assert_eq!(
+        result.result,
+        ExecutionResult::Revert {
+            output: VmRevertReason::from(&[] as &[u8]),
+        }
+    );
 }
