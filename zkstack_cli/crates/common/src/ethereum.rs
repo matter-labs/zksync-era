@@ -6,7 +6,7 @@ use ethers::{
     middleware::MiddlewareBuilder,
     prelude::{Http, LocalWallet, Provider, Signer, SignerMiddleware},
     providers::Middleware,
-    types::{Address, TransactionRequest},
+    types::{Address, TransactionRequest, U256},
 };
 use zkstack_cli_types::TokenInfo;
 
@@ -110,7 +110,9 @@ pub async fn mint_token(
         let call = call.send().await;
         match call {
             // It's safe to set such low number of confirmations and low interval for localhost
-            Ok(call) => pending_txs.push(call.confirmations(3).interval(Duration::from_millis(30))),
+            Ok(call) => {
+                pending_txs.push(call.confirmations(10).interval(Duration::from_millis(300)))
+            }
             Err(e) => logger::error(format!("Minting is not successful {e}")),
         }
     }
