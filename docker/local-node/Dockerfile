@@ -152,7 +152,9 @@ RUN apt-get update && apt-get install -y cmake build-essential clang pkg-config 
 # ENV RUSTFLAGS="-C target-feature=-avx512f,-avx512vl"
 ENV CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1
 ENV CARGO_PROFILE_RELEASE_LTO="fat"
-ENV RUSTFLAGS="-C target-cpu=x86-64"
+ENV RUSTFLAGS="-C target-cpu=generic -C target-feature=-avx512f,-avx512vl,-avx2,-sse4.2"
+ENV CARGO_INCREMENTAL=0
+
 RUN zkstack server build && cp /core/target/release/zksync_server /zksync_server
 
 # Clean Yarn cache

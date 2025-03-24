@@ -97,7 +97,12 @@ pub async fn mint_token(
 
     let mut pending_calls = vec![];
     for address in addresses {
-        pending_calls.push(contract.mint(address, amount.into()));
+        let call = contract
+            .mint(address, amount.into())
+            .gas(500_000) // Set Gas Limit
+            .gas_price(U256::from(20_000_000_000u64)); // Set Gas Price (e.g., 20 Gwei)
+
+        pending_calls.push(call);
     }
 
     let mut pending_txs = vec![];
