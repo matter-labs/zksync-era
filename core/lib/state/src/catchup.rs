@@ -226,6 +226,8 @@ impl KeepUpdatedTask {
         let mut rocksdb_builder = RocksdbStorageBuilder::from_rocksdb(db);
 
         loop {
+            tracing::info!("KeepUpdatedTask is running");
+
             let mut connection = self.pool.connection_tagged("rocksdb_updater_task").await?;
             match rocksdb_builder
                 .update_from_postgres(&mut connection, &stop_receiver, None)
@@ -313,7 +315,7 @@ mod tests {
         let keep_updated_task = rocksdb_cell.keep_updated(pool.clone());
         let (_stop_sender, stop_receiver) = watch::channel(false);
         let catchup_task_handle = tokio::spawn(catchup_task.run(stop_receiver.clone()));
-        let _keep_updated_task_handle = tokio::spawn(keep_updated_task.run(stop_receiver));
+        let keep_updated_task_handle = tokio::spawn(keep_updated_task.run(stop_receiver));
         catchup_task_handle.await.unwrap().unwrap();
 
         let storage_logs = gen_storage_logs(40..50);
@@ -327,6 +329,9 @@ mod tests {
         let started_at = Instant::now();
         loop {
             if started_at.elapsed() > Duration::from_secs(10) {
+                let x =
+                    tokio::time::timeout(Duration::from_secs(1), keep_updated_task_handle).await;
+                x.unwrap().unwrap().unwrap();
                 panic!("Timeout waiting for catch up");
             }
 
