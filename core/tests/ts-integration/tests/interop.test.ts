@@ -576,7 +576,7 @@ describe('Interop checks', () => {
         // console.log(`Transaction({
         //     txType: ${interopTx.customData ? 113 : 0},
         //     from: uint256(uint160(${interopTx.from})),
-        //     to: uint256(uint160(${interopTx.to})), 
+        //     to: uint256(uint160(${interopTx.to})),
         //     gasLimit: ${interopTx.gasLimit},
         //     gasPerPubdataByteLimit: ${interopTx.customData?.gasPerPubdata || 0},
         //     maxFeePerGas: ${interopTx.maxFeePerGas || 0},
@@ -591,7 +591,7 @@ describe('Interop checks', () => {
         //     paymasterInput: "${interopTx.customData?.paymasterParams?.paymasterInput || ''}",
         //     reservedDynamic: ""
         // });`);
-        
+
         // console.log("interopTx", interopTx)
         const hexTx = zksync.utils.serializeEip712(interopTx);
         // const receiverChainId = (await receiver_chain_provider.getNetwork()).chainId;
