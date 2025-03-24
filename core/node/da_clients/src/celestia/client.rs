@@ -7,8 +7,6 @@ use std::{
     time,
 };
 
-use alloy_primitives::{Bytes, FixedBytes, Uint};
-use alloy_sol_types::{SolType, SolValue};
 use async_trait::async_trait;
 use celestia_types::{nmt::Namespace, AppVersion, Blob, Height};
 use eq_sdk::{
@@ -22,7 +20,7 @@ use eq_sdk::{
 use sp1_sdk::SP1ProofWithPublicValues;
 use subxt_signer::ExposeSecret;
 use tonic::transport::Endpoint;
-use zksync_basic_types::{
+use zksync_types::{
     H160,
     ethabi::{Contract, Event},
     web3::BlockNumber,
@@ -346,8 +344,8 @@ impl DataAvailabilityClient for CelestiaClient {
         // Convert proof data into AttestationProof
         let data_root_tuple = DataRootTuple {
             // I think this is correct little endian but we'll see
-            height: Uint::<256, 4>::from_limbs([target_height, 0, 0, 0]),
-            dataRoot: data_root,
+            height: U256::from(target_height),
+            data_root: data_root,
         };
 
         let side_nodes: Vec<FixedBytes<32>> = data_root_inclusion_proof

@@ -13678,8 +13678,6 @@ dependencies = [
 name = "zksync_da_clients"
 version = "26.7.0-non-semver-compat"
 dependencies = [
- "alloy-primitives",
- "alloy-sol-types",
  "anyhow",
  "async-trait",
  "backon",
