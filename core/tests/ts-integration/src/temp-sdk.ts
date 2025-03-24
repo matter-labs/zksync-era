@@ -45,13 +45,14 @@ export async function getInteropBundleData(
     let calls = [];
     for (let i = 0; i < decodedRequest[0][1].length; i++) {
         calls.push({
-            to: decodedRequest[0][1][i][0],
-            from: decodedRequest[0][1][i][1],
-            value: decodedRequest[0][1][i][2],
-            data: decodedRequest[0][1][i][3]
+            directCall: decodedRequest[0][1][i][0],
+            to: decodedRequest[0][1][i][1],
+            from: decodedRequest[0][1][i][2],
+            value: decodedRequest[0][1][i][3],
+            data: decodedRequest[0][1][i][4]
         });
     }
-
+    // console.log(decodedRequest);
 
     const xl2Input = {
         destinationChainId: decodedRequest[0][0],

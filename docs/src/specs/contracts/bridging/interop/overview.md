@@ -5,6 +5,8 @@
 
 ![Interop](../img/hyperbridging.png)
 
+![Interop](../img/interop_contracts.png)
+
 This document describes a standard asset bridging scenario using proof-based interop. Other [finality](./forms_of_finality.md) options and interop [interface](./interop_center/overview.md) options are available. The interop process consists of seven main steps:
 
 1. **Initiating the Transaction on the Sending Chain**

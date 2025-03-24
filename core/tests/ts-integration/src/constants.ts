@@ -32,9 +32,9 @@ export const SYSTEM_ARTIFACTS_PATH = '../../../contracts/system-contracts/zkout/
 export const INTEROP_TRIGGER_ABI =
     'tuple(uint256 destinationChainId, address from, address recipient,bytes32 feeBundleHash, bytes32 executionBundleHash, tuple(uint256 gasLimit, uint256 gasPerPubdataByteLimit, address refundRecipient, address paymaster, bytes paymasterInput) gasFields)';
 
-export const INTEROP_CALL_ABI = 'tuple(address to, address from, uint256 value, bytes data)';
+export const INTEROP_CALL_ABI = 'tuple(bool directCall, address to, address from, uint256 value, bytes data)';
 export const INTEROP_BUNDLE_ABI =
-    'tuple(uint256 destinationChainId, tuple(address to, address from, uint256 value, bytes data)[] calls, address executionAddress)';
+    'tuple(uint256 destinationChainId, tuple(bool directCall, address to, address from, uint256 value, bytes data)[] calls, address executionAddress)';
 
 export const MESSAGE_INCLUSION_PROOF_ABI =
     'tuple(uint256 chainId, uint256 l1BatchNumber, uint256 l2MessageIndex, tuple(uint16 txNumberInBatch, address sender, bytes data) message, bytes32[] proof)';
