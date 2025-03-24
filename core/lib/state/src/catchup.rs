@@ -319,7 +319,10 @@ mod tests {
         let storage_logs = gen_storage_logs(40..50);
         let mut conn = pool.connection().await.unwrap();
         create_l2_block(&mut conn, L2BlockNumber(2), storage_logs.clone()).await;
-        create_l1_batch(&mut conn, L1BatchNumber(2), &storage_logs).await;
+        // Batch info should be inserted atomically.
+        let mut transaction = conn.start_transaction().await.unwrap();
+        create_l1_batch(&mut transaction, L1BatchNumber(2), &storage_logs).await;
+        drop(transaction);
         drop(conn);
 
         let rocksdb = rocksdb_cell.get().unwrap();
