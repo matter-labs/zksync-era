@@ -313,7 +313,7 @@ mod tests {
         let keep_updated_task = rocksdb_cell.keep_updated(pool.clone());
         let (_stop_sender, stop_receiver) = watch::channel(false);
         let catchup_task_handle = tokio::spawn(catchup_task.run(stop_receiver.clone()));
-        let _keep_updated_task_handle = tokio::spawn(keep_updated_task.run(stop_receiver));
+        let keep_updated_task_handle = tokio::spawn(keep_updated_task.run(stop_receiver));
         catchup_task_handle.await.unwrap().unwrap();
 
         let storage_logs = gen_storage_logs(40..50);
@@ -327,7 +327,14 @@ mod tests {
         let started_at = Instant::now();
         loop {
             if started_at.elapsed() > Duration::from_secs(10) {
-                panic!("Timeout waiting for catch up");
+                match tokio::time::timeout(Duration::from_millis(1), keep_updated_task_handle).await
+                {
+                    Ok(join_result) => {
+                        let task_result = join_result.unwrap();
+                        panic!("KeepUpdated task finished: {task_result:?}");
+                    }
+                    _ => panic!("Timeout waiting for catch up"),
+                }
             }
 
             if builder.l1_batch_number().await == Some(L1BatchNumber(3)) {
