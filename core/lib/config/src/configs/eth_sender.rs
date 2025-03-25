@@ -62,7 +62,7 @@ impl EthConfig {
             watcher: Some(EthWatchConfig {
                 confirmations_for_eth_event: None,
                 eth_node_poll_interval: 0,
-                priotity_tx_expiration_blocks: 50000,
+                priority_tx_expiration_blocks: 50000,
             }),
         }
     }

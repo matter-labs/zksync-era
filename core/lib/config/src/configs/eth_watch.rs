@@ -12,8 +12,8 @@ pub struct EthWatchConfig {
     /// Value in milliseconds.
     pub eth_node_poll_interval: u64,
     /// How many L1 blocks to look back for the priority operations.
-    #[serde(default = "EthWatchConfig::default_priotity_tx_expiration_blocks")]
-    pub priotity_tx_expiration_blocks: u64,
+    #[serde(default = "EthWatchConfig::default_priority_tx_expiration_blocks")]
+    pub priority_tx_expiration_blocks: u64,
 }
 
 impl EthWatchConfig {
@@ -22,7 +22,7 @@ impl EthWatchConfig {
         Duration::from_millis(self.eth_node_poll_interval)
     }
 
-    pub fn default_priotity_tx_expiration_blocks() -> u64 {
+    pub fn default_priority_tx_expiration_blocks() -> u64 {
         zksync_system_constants::PRIORITY_EXPIRATION
     }
 }

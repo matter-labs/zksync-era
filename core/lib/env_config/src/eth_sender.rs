@@ -95,7 +95,7 @@ mod tests {
                 watcher: Some(EthWatchConfig {
                     confirmations_for_eth_event: Some(0),
                     eth_node_poll_interval: 300,
-                    priotity_tx_expiration_blocks: 50_000,
+                    priority_tx_expiration_blocks: 50000,
                 }),
             },
             L1Secrets {
@@ -143,6 +143,7 @@ mod tests {
             ETH_SENDER_SENDER_is_verifier_pre_fflonk="true"
             ETH_WATCH_CONFIRMATIONS_FOR_ETH_EVENT="0"
             ETH_WATCH_ETH_NODE_POLL_INTERVAL="300"
+            ETH_WATCH_PRIORITY_TX_EXPIRATION_BLOCKS="50000"
             ETH_CLIENT_WEB3_URL="http://127.0.0.1:8545"
             ETH_CLIENT_GATEWAY_WEB3_URL="http://127.0.0.1:8547"
 
