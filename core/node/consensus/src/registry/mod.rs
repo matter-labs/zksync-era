@@ -1,7 +1,7 @@
 use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _};
 use zksync_consensus_crypto::ByteFmt;
-use zksync_consensus_roles::attester;
+use zksync_consensus_roles::validator;
 
 use crate::{storage::ConnectionPool, vm::VM};
 
@@ -11,17 +11,33 @@ pub(crate) mod testonly;
 #[cfg(test)]
 mod tests;
 
-fn decode_attester_key(k: &abi::Secp256k1PublicKey) -> anyhow::Result<attester::PublicKey> {
+fn decode_validator_key(k: &abi::BLS12_381PublicKey) -> anyhow::Result<validator::PublicKey> {
     let mut x = vec![];
-    x.extend(k.tag);
-    x.extend(k.x);
+    x.extend(k.a);
+    x.extend(k.b);
+    x.extend(k.c);
     ByteFmt::decode(&x)
 }
 
-fn decode_weighted_attester(a: &abi::Attester) -> anyhow::Result<attester::WeightedAttester> {
-    Ok(attester::WeightedAttester {
-        weight: a.weight.into(),
-        key: decode_attester_key(&a.pub_key).context("key")?,
+fn decode_validator_pop(
+    pop: &abi::BLS12_381Signature,
+) -> anyhow::Result<validator::ProofOfPossession> {
+    let mut bytes = vec![];
+    bytes.extend(pop.a);
+    bytes.extend(pop.b);
+    ByteFmt::decode(&bytes).context("decode proof of possession")
+}
+
+fn decode_weighted_validator(v: &abi::Validator) -> anyhow::Result<validator::WeightedValidator> {
+    let key = decode_validator_key(&v.pub_key).context("key")?;
+
+    let pop = decode_validator_pop(&v.proof_of_possession).context("proof of possession")?;
+
+    pop.verify(&key).context("verify proof of possession")?;
+
+    Ok(validator::WeightedValidator {
+        weight: v.weight.into(),
+        key,
     })
 }
 
