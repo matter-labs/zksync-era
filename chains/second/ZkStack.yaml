@@ -1,8 +1,8 @@
 id: 2
 name: second
-chain_id: 505
+chain_id: 260
 prover_version: NoProofs
-configs: /Users/kalmanlajko/programming/zksync/zksync-era/./chains/second/configs/
+configs: ./chains/second/configs/
 rocks_db_path: ./chains/second/db/
 external_node_config_path: null
 artifacts_path: ./chains/second/artifacts/
