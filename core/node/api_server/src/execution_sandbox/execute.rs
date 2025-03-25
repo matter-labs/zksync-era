@@ -180,12 +180,16 @@ impl SandboxExecutor {
             let rt_handle = Handle::current();
             let store = options.vm_dump_store.clone();
             let vm_divergence_counter_for_handler = vm_divergence_counter.clone();
+            let last_dump_timestamp = Mutex::new(None);
+
             executor.set_divergence_handler(DivergenceHandler::new(move |_, vm_dump| {
                 vm_divergence_counter_for_handler.fetch_add(1, Ordering::Relaxed);
                 if let Some(store) = &store {
-                    if let Err(err) =
-                        rt_handle.block_on(Self::dump_vm_state(store.as_ref(), vm_dump))
-                    {
+                    if let Err(err) = rt_handle.block_on(Self::dump_vm_state(
+                        &last_dump_timestamp,
+                        store.as_ref(),
+                        vm_dump,
+                    )) {
                         tracing::error!("Saving VM dump failed: {err:#}");
                     }
                 }
@@ -212,22 +216,25 @@ impl SandboxExecutor {
         self.vm_divergence_counter.clone()
     }
 
-    async fn dump_vm_state(store: &dyn ObjectStore, vm_dump: VmDump) -> anyhow::Result<()> {
+    async fn dump_vm_state(
+        last_dump_timestamp: &Mutex<Option<Instant>>,
+        store: &dyn ObjectStore,
+        vm_dump: VmDump,
+    ) -> anyhow::Result<()> {
         /// Minimum interval between VM dumps.
         const DUMP_INTERVAL: Duration = Duration::from_secs(10);
-        static LAST_DUMPED_AT: Mutex<Option<Instant>> = Mutex::const_new(None);
 
-        let mut last_dumped_at = LAST_DUMPED_AT.lock().await;
+        let mut last_dump_timestamp = last_dump_timestamp.lock().await;
         let now = Instant::now();
-        let should_dump = last_dumped_at.map_or(true, |ts| {
+        let should_dump = last_dump_timestamp.map_or(true, |ts| {
             now.checked_duration_since(ts)
                 .is_some_and(|elapsed| elapsed >= DUMP_INTERVAL)
         });
         if !should_dump {
             return Ok(());
         }
-        *last_dumped_at = Some(now);
-        drop(last_dumped_at); // We don't need to hold a lock any longer, in particular across the `await` point below
+        *last_dump_timestamp = Some(now);
+        drop(last_dump_timestamp); // We don't need to hold a lock any longer, in particular across the `await` point below
 
         let ts = SystemTime::UNIX_EPOCH
             .elapsed()

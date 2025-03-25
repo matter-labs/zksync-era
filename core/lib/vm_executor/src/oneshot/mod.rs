@@ -94,7 +94,8 @@ impl MainOneshotExecutor {
         self.fast_vm_mode = fast_vm_mode;
     }
 
-    /// Causes the VM to panic on divergence whenever it executes in the shadow mode. By default, a divergence is logged on `ERROR` level.
+    /// Sets the handler called when a VM divergence is detected. Regardless of the handler, the divergence error(s)
+    /// will be logged on the `ERROR` level.
     pub fn set_divergence_handler(&mut self, handler: DivergenceHandler) {
         self.vm_divergence_handler = handler;
     }
