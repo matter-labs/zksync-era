@@ -93,7 +93,7 @@ export interface Params {
     l1?: boolean;
     l1ToL2?: boolean;
     ignoreUndeployedToken?: boolean;
-    checkChainBalance?: boolean; 
+    checkChainBalance?: boolean;
 }
 
 /**
@@ -102,7 +102,7 @@ export interface Params {
  */
 interface PopulatedBalanceChange extends BalanceChange {
     initialBalance: bigint;
-    initialChainBalance: bigint; 
+    initialChainBalance: bigint;
 }
 
 /**
