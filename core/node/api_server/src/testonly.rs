@@ -28,7 +28,7 @@ use zksync_test_contracts::{
 };
 use zksync_types::{
     address_to_u256,
-    api::state_override::{OverrideAccount, OverrideState, StateOverride},
+    api::state_override::{BytecodeOverride, OverrideAccount, OverrideState, StateOverride},
     block::{pack_block_info, L2BlockHeader},
     bytecode::{BytecodeHash, BytecodeMarker},
     commitment::PubdataParams,
@@ -90,7 +90,7 @@ impl StateBuilder {
         self.inner.insert(
             address,
             OverrideAccount {
-                code: Some(bytecode.into()),
+                code: Some(BytecodeOverride::Unspecified(bytecode.into())),
                 ..OverrideAccount::default()
             },
         );
@@ -99,19 +99,22 @@ impl StateBuilder {
 
     pub fn inflate_bytecode(mut self, address: Address, nop_count: usize) -> Self {
         let account_override = self.inner.get_mut(&address).expect("no contract");
-        let mut bytecode = account_override.code.take().expect("no code override").0;
-        inflate_bytecode(&mut bytecode, nop_count);
-        account_override.code = Some(bytecode.into());
+        let code_override = account_override.code.as_mut().expect("no code override");
+        let BytecodeOverride::Unspecified(code) = code_override else {
+            panic!("unexpected bytecode override: {code_override:?}");
+        };
+        inflate_bytecode(&mut code.0, nop_count);
         self
     }
 
     pub fn with_load_test_contract(mut self) -> Self {
+        let code = TestContract::load_test().bytecode.to_vec();
         // Set the array length in the load test contract to 100, so that reads don't fail.
         let state = HashMap::from([(H256::zero(), H256::from_low_u64_be(100))]);
         self.inner.insert(
             Self::LOAD_TEST_ADDRESS,
             OverrideAccount {
-                code: Some(TestContract::load_test().bytecode.to_vec().into()),
+                code: Some(BytecodeOverride::Unspecified(code.into())),
                 state: Some(OverrideState::State(state)),
                 ..OverrideAccount::default()
             },

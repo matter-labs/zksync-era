@@ -13,6 +13,7 @@
 use std::iter;
 
 use anyhow::Context as _;
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use crate::{H256, U256};
@@ -148,12 +149,14 @@ impl TryFrom<H256> for BytecodeHash {
 }
 
 /// Bytecode marker encoded in the first byte of the bytecode hash.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[repr(u8)]
 pub enum BytecodeMarker {
     /// EraVM bytecode marker (1).
+    #[serde(rename = "EraVM")]
     EraVm = 1,
     /// EVM bytecode marker (2).
+    #[serde(rename = "EVM")]
     Evm = 2,
 }
 

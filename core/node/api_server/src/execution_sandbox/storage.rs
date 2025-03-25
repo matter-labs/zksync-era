@@ -2,7 +2,7 @@
 
 use zksync_multivm::interface::storage::{ReadStorage, StorageWithOverrides};
 use zksync_types::{
-    api::state_override::{OverrideState, StateOverride},
+    api::state_override::{BytecodeOverride, OverrideState, StateOverride},
     bytecode::{pad_evm_bytecode, BytecodeHash, BytecodeMarker},
     get_code_key, get_evm_code_hash_key, get_known_code_key, get_nonce_key, h256_to_u256,
     u256_to_h256,
@@ -32,7 +32,11 @@ pub(super) fn apply_state_override<S: ReadStorage>(
         }
 
         if let Some(code) = overrides.code {
-            let bytecode_kind = BytecodeMarker::detect(&code.0);
+            let (bytecode_kind, code) = match code {
+                BytecodeOverride::Unspecified(code) => (BytecodeMarker::detect(&code.0), code),
+                BytecodeOverride::EraVm(code) => (BytecodeMarker::EraVm, code),
+                BytecodeOverride::Evm(code) => (BytecodeMarker::Evm, code),
+            };
             let code_key = get_code_key(&account);
 
             let (code_hash, prepared_code) = match bytecode_kind {
@@ -101,7 +105,7 @@ mod tests {
             (
                 Address::repeat_byte(3),
                 OverrideAccount {
-                    code: Some(web3::Bytes((0..32).collect())),
+                    code: Some(BytecodeOverride::EraVm(web3::Bytes((0..32).collect()))),
                     ..OverrideAccount::default()
                 },
             ),

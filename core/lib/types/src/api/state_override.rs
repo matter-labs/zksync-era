@@ -1,7 +1,11 @@
-use std::collections::{hash_map, HashMap};
+use std::{
+    borrow::Cow,
+    collections::{hash_map, HashMap},
+    fmt,
+};
 
-use serde::{de, Deserialize, Deserializer, Serialize};
-use zksync_basic_types::{web3::Bytes, H256, U256};
+use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
+use zksync_basic_types::{bytecode::validate_bytecode, web3::Bytes, H256, U256};
 
 use crate::Address;
 
@@ -40,14 +44,94 @@ impl IntoIterator for StateOverride {
     }
 }
 
-/// Account override for `eth_estimateGas`.
+#[derive(Debug, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
+pub enum BytecodeOverride {
+    EraVm(Bytes),
+    Evm(Bytes),
+    Unspecified(Bytes),
+}
+
+impl AsRef<[u8]> for BytecodeOverride {
+    fn as_ref(&self) -> &[u8] {
+        let bytes = match self {
+            Self::EraVm(bytes) | Self::Evm(bytes) | Self::Unspecified(bytes) => bytes,
+        };
+        &bytes.0
+    }
+}
+
+// We need a separate type (vs using `#[serde(untagged)]` on the `Unspecified` variant) to make error messages more comprehensive.
+#[derive(Debug, Serialize, Deserialize)]
+enum SerdeBytecodeOverride<'a> {
+    #[serde(rename = "eravm")]
+    EraVm(#[serde(deserialize_with = "deserialize_eravm_bytecode")] Cow<'a, Bytes>),
+    #[serde(rename = "evm")]
+    Evm(Cow<'a, Bytes>),
+}
+
+fn deserialize_eravm_bytecode<'de, D: Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Cow<'static, Bytes>, D::Error> {
+    let raw_bytecode = Bytes::deserialize(deserializer)?;
+    if let Err(err) = validate_bytecode(&raw_bytecode.0) {
+        return Err(de::Error::custom(format!("invalid EraVM bytecode: {err}")));
+    }
+    Ok(Cow::Owned(raw_bytecode))
+}
+
+impl Serialize for BytecodeOverride {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let serde = match self {
+            Self::Unspecified(bytes) => return bytes.serialize(serializer),
+            Self::Evm(bytes) => SerdeBytecodeOverride::Evm(Cow::Borrowed(bytes)),
+            Self::EraVm(bytes) => SerdeBytecodeOverride::EraVm(Cow::Borrowed(bytes)),
+        };
+        serde.serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for BytecodeOverride {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        // **Important:** This visitor only works for human-readable deserializers (e.g., JSON).
+        struct BytesOrMapVisitor;
+
+        impl<'v> de::Visitor<'v> for BytesOrMapVisitor {
+            type Value = BytecodeOverride;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+                formatter
+                    .write_str("possibly tagged hex string, like \"0x00\" or { \"evm\": \"0xfe\" }")
+            }
+
+            fn visit_str<E: de::Error>(self, value: &str) -> Result<BytecodeOverride, E> {
+                let deserializer = de::value::StrDeserializer::new(value);
+                Bytes::deserialize(deserializer).map(BytecodeOverride::Unspecified)
+            }
+
+            fn visit_map<A: de::MapAccess<'v>>(self, data: A) -> Result<Self::Value, A::Error> {
+                let deserializer = de::value::MapAccessDeserializer::new(data);
+                Ok(match SerdeBytecodeOverride::deserialize(deserializer)? {
+                    SerdeBytecodeOverride::Evm(bytes) => BytecodeOverride::Evm(bytes.into_owned()),
+                    SerdeBytecodeOverride::EraVm(bytes) => {
+                        BytecodeOverride::EraVm(bytes.into_owned())
+                    }
+                })
+            }
+        }
+
+        deserializer.deserialize_any(BytesOrMapVisitor)
+    }
+}
+
+/// Account override for `eth_call`, `eth_estimateGas` and other VM-invoking methods.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[cfg_attr(test, derive(PartialEq))]
 #[serde(rename_all = "camelCase")]
 pub struct OverrideAccount {
     pub balance: Option<U256>,
     pub nonce: Option<U256>,
-    pub code: Option<Bytes>,
+    pub code: Option<BytecodeOverride>,
     #[serde(flatten, deserialize_with = "state_deserializer")]
     pub state: Option<OverrideState>,
 }
@@ -89,11 +173,46 @@ mod tests {
     use super::*;
 
     #[test]
+    fn deserializing_bytecode_override() {
+        let json = serde_json::json!("0x00");
+        let bytecode: BytecodeOverride = serde_json::from_value(json.clone()).unwrap();
+        assert_eq!(bytecode, BytecodeOverride::Unspecified(Bytes(vec![0])));
+        assert_eq!(serde_json::to_value(&bytecode).unwrap(), json);
+
+        let json = serde_json::json!({ "evm": "0xfe" });
+        let bytecode: BytecodeOverride = serde_json::from_value(json.clone()).unwrap();
+        assert_eq!(bytecode, BytecodeOverride::Evm(Bytes(vec![0xfe])));
+        assert_eq!(serde_json::to_value(&bytecode).unwrap(), json);
+
+        let json = serde_json::json!({ "eravm": "0xfe" });
+        let err = serde_json::from_value::<BytecodeOverride>(json)
+            .unwrap_err()
+            .to_string();
+        assert!(
+            err.contains("invalid EraVM bytecode") && err.contains("not divisible by 32"),
+            "{err}"
+        );
+
+        let json = serde_json::json!({ "what": "0xfe" });
+        let err = serde_json::from_value::<BytecodeOverride>(json)
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("unknown variant"), "{err}");
+
+        let json = serde_json::json!("what");
+        let err = serde_json::from_value::<BytecodeOverride>(json)
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("expected 0x prefix"));
+    }
+
+    #[test]
     fn deserializing_state_override() {
         let json = serde_json::json!({
             "0x0123456789abcdef0123456789abcdef01234567": {
                 "balance": "0x123",
                 "nonce": "0x1",
+                "code": "0x00",
             },
             "0x123456789abcdef0123456789abcdef012345678": {
                 "stateDiff": {
@@ -101,7 +220,8 @@ mod tests {
                         "0x0000000000000000000000000000000000000000000000000000000000000001",
                     "0x0000000000000000000000000000000000000000000000000000000000000001":
                         "0x0000000000000000000000000000000000000000000000000000000000000002",
-                }
+                },
+                "code": { "evm": "0xfe" },
             }
         });
 
@@ -117,6 +237,7 @@ mod tests {
             OverrideAccount {
                 balance: Some(0x123.into()),
                 nonce: Some(1.into()),
+                code: Some(BytecodeOverride::Unspecified(Bytes(vec![0]))),
                 ..OverrideAccount::default()
             }
         );
@@ -132,6 +253,7 @@ mod tests {
                     (H256::from_low_u64_be(0), H256::from_low_u64_be(1)),
                     (H256::from_low_u64_be(1), H256::from_low_u64_be(2)),
                 ]))),
+                code: Some(BytecodeOverride::Evm(Bytes(vec![0xfe]))),
                 ..OverrideAccount::default()
             }
         );

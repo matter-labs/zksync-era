@@ -232,8 +232,8 @@ async fn initial_estimate_for_code_oracle_tx() {
         .get(&StateBuilder::PRECOMPILES_CONTRACT_ADDRESS)
         .unwrap();
     let contract_bytecode = contract_override.code.as_ref().unwrap();
-    let contract_bytecode_hash = BytecodeHash::for_bytecode(&contract_bytecode.0).value();
-    let contract_keccak_hash = H256(keccak256(&contract_bytecode.0));
+    let contract_bytecode_hash = BytecodeHash::for_bytecode(contract_bytecode.as_ref()).value();
+    let contract_keccak_hash = H256(keccak256(contract_bytecode.as_ref()));
 
     // Test contracts that are already decommitted when requested from the precompiles test contract.
     let genesis_params = GenesisParams::mock();
@@ -283,8 +283,8 @@ async fn initial_estimate_with_large_free_bytecode() {
         .get(&StateBuilder::PRECOMPILES_CONTRACT_ADDRESS)
         .unwrap();
     let contract_bytecode = contract_override.code.as_ref().unwrap();
-    let contract_bytecode_hash = BytecodeHash::for_bytecode(&contract_bytecode.0).value();
-    let contract_keccak_hash = H256(keccak256(&contract_bytecode.0));
+    let contract_bytecode_hash = BytecodeHash::for_bytecode(contract_bytecode.as_ref()).value();
+    let contract_keccak_hash = H256(keccak256(contract_bytecode.as_ref()));
 
     // Ask the test contract to decommit itself. This should refund the decommit costs, but it will be charged at first.
     let tx = alice.create_code_oracle_tx(contract_bytecode_hash, contract_keccak_hash);
