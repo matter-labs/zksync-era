@@ -1,75 +1,73 @@
-//! Tree updater trait and its implementations.
+use std::{
+    future, ops,
+    time::{Duration, Instant},
+};
 
-use std::{ops, sync::Arc, time::Instant};
-
-use anyhow::Context as _;
-use futures::{future, FutureExt};
+use anyhow::Context;
+use futures::FutureExt;
 use tokio::sync::watch;
-use zksync_config::configs::database::MerkleTreeMode;
 use zksync_dal::{helpers::wait_for_l1_batch, Connection, ConnectionPool, Core, CoreDal};
-use zksync_merkle_tree::domain::TreeMetadata;
-use zksync_object_store::ObjectStore;
 use zksync_shared_metrics::tree::{update_tree_metrics, TreeUpdateStage, METRICS};
 use zksync_types::{
     block::{L1BatchStatistics, L1BatchTreeData},
     L1BatchNumber,
 };
 
-use super::helpers::{AsyncTree, Delayer, L1BatchWithLogs};
+use crate::{batch::L1BatchWithLogs, helpers::AsyncMerkleTree};
 
 #[derive(Debug)]
-pub(super) struct TreeUpdater {
-    tree: AsyncTree,
-    max_l1_batches_per_iter: usize,
-    object_store: Option<Arc<dyn ObjectStore>>,
-    sealed_batches_have_protective_reads: bool,
+pub(crate) struct TreeUpdater {
+    pub(crate) tree: AsyncMerkleTree,
+    pub(crate) max_l1_batches_per_iter: usize,
+    #[cfg(test)]
+    pub(crate) next_l1_batch_sender: watch::Sender<L1BatchNumber>,
 }
 
 impl TreeUpdater {
-    pub fn new(
-        tree: AsyncTree,
-        max_l1_batches_per_iter: usize,
-        object_store: Option<Arc<dyn ObjectStore>>,
-        sealed_batches_have_protective_reads: bool,
-    ) -> Self {
-        Self {
-            tree,
-            max_l1_batches_per_iter,
-            object_store,
-            sealed_batches_have_protective_reads,
-        }
-    }
-
     async fn process_l1_batch(
         &mut self,
         l1_batch: L1BatchWithLogs,
-    ) -> anyhow::Result<(L1BatchStatistics, TreeMetadata, Option<String>)> {
+    ) -> anyhow::Result<(L1BatchStatistics, L1BatchTreeData)> {
         let compute_latency = METRICS.start_stage(TreeUpdateStage::Compute);
-        let l1_batch_stats = l1_batch.stats;
-        let l1_batch_number = l1_batch_stats.number;
-        let mut metadata = self.tree.process_l1_batch(l1_batch).await?;
+        let batch_stats = l1_batch.stats;
+        let metadata = self.tree.process_l1_batch(l1_batch).await?;
         compute_latency.observe();
+        Ok((batch_stats, metadata))
+    }
 
-        let witness_input = metadata.witness.take();
-        let object_key = if let Some(object_store) = &self.object_store {
-            let witness_input =
-                witness_input.context("no witness input provided by tree; this is a bug")?;
-            let save_witnesses_latency = METRICS.start_stage(TreeUpdateStage::SaveGcs);
-            let object_key = object_store
-                .put(l1_batch_number, &witness_input)
-                .await
-                .context("cannot save witness input to object store")?;
-            save_witnesses_latency.observe();
-
-            tracing::info!(
-                "Saved witnesses for L1 batch #{l1_batch_number} to object storage at `{object_key}`"
-            );
-            Some(object_key)
-        } else {
-            None
+    #[tracing::instrument(name = "TreeUpdater::step", skip(self, pool))]
+    async fn step(
+        &mut self,
+        pool: &ConnectionPool<Core>,
+        next_l1_batch_to_process: &mut L1BatchNumber,
+    ) -> anyhow::Result<()> {
+        let mut storage = pool.connection_tagged("tree_updater").await?;
+        let Some(last_sealed_l1_batch) = storage
+            .blocks_dal()
+            .get_sealed_l1_batch_number()
+            .await
+            .context("failed loading sealed L1 batch number")?
+        else {
+            tracing::trace!("No L1 batches to seal: Postgres storage is empty");
+            return Ok(());
         };
+        drop(storage);
 
-        Ok((l1_batch_stats, metadata, object_key))
+        let last_requested_l1_batch =
+            *next_l1_batch_to_process + (self.max_l1_batches_per_iter as u32 - 1);
+        let last_requested_l1_batch = last_requested_l1_batch.min(last_sealed_l1_batch);
+        let l1_batch_numbers = *next_l1_batch_to_process..=last_requested_l1_batch;
+        if l1_batch_numbers.is_empty() {
+            tracing::trace!(
+                "No L1 batches to process: batch numbers range to be loaded {l1_batch_numbers:?} is empty"
+            );
+        } else {
+            tracing::info!("Updating Merkle tree with L1 batches #{l1_batch_numbers:?}");
+            *next_l1_batch_to_process = self
+                .process_multiple_batches(pool, l1_batch_numbers)
+                .await?;
+        }
+        Ok(())
     }
 
     /// Processes a range of L1 batches with a single flushing of the tree updates to RocksDB at the end.
@@ -86,39 +84,38 @@ impl TreeUpdater {
     async fn process_multiple_batches(
         &mut self,
         pool: &ConnectionPool<Core>,
-        l1_batch_numbers: ops::RangeInclusive<u32>,
+        l1_batch_numbers: ops::RangeInclusive<L1BatchNumber>,
     ) -> anyhow::Result<L1BatchNumber> {
-        let tree_mode = self.tree.mode();
         let start = Instant::now();
-        tracing::info!("Processing L1 batches #{l1_batch_numbers:?} in {tree_mode:?} mode");
-        let mut storage = pool.connection_tagged("metadata_calculator").await?;
-        let first_l1_batch_number = L1BatchNumber(*l1_batch_numbers.start());
-        let last_l1_batch_number = L1BatchNumber(*l1_batch_numbers.end());
-        let mut l1_batch_data =
-            L1BatchWithLogs::new(&mut storage, first_l1_batch_number, tree_mode)
-                .await
-                .with_context(|| {
-                    format!("failed fetching tree input for L1 batch #{first_l1_batch_number}")
-                })?;
+        tracing::info!("Processing L1 batches #{l1_batch_numbers:?}");
+        let mut storage = pool.connection_tagged("tree_updater").await?;
+        let first_l1_batch_number = *l1_batch_numbers.start();
+        let last_l1_batch_number = *l1_batch_numbers.end();
+        let mut l1_batch_data = L1BatchWithLogs::new(&mut storage, first_l1_batch_number)
+            .await
+            .with_context(|| {
+                format!("failed fetching tree input for L1 batch #{first_l1_batch_number}")
+            })?;
         drop(storage);
 
+        let l1_batch_numbers =
+            (first_l1_batch_number.0..=last_l1_batch_number.0).map(L1BatchNumber);
         let mut total_logs = 0;
         let mut updated_batch_stats = vec![];
         for l1_batch_number in l1_batch_numbers {
-            let mut storage = pool.connection_tagged("metadata_calculator").await?;
-            let l1_batch_number = L1BatchNumber(l1_batch_number);
+            let mut storage = pool.connection_tagged("tree_updater").await?;
             let Some(current_l1_batch_data) = l1_batch_data else {
-                Self::ensure_not_pruned(&mut storage, l1_batch_number).await?;
+                // TODO: ensure that l1_batch_number is not pruned
                 return Ok(l1_batch_number);
             };
-            total_logs += current_l1_batch_data.storage_logs.len();
+            total_logs += current_l1_batch_data.tree_logs.len();
 
             let process_l1_batch_task = self.process_l1_batch(current_l1_batch_data);
             let load_next_l1_batch_task = async {
                 if l1_batch_number < last_l1_batch_number {
                     let next_l1_batch_number = l1_batch_number + 1;
                     let batch_result =
-                        L1BatchWithLogs::new(&mut storage, next_l1_batch_number, tree_mode).await;
+                        L1BatchWithLogs::new(&mut storage, next_l1_batch_number).await;
                     // Drop storage at the earliest possible moment so that it doesn't block logic running concurrently,
                     // such as tree pruning.
                     drop(storage);
@@ -129,16 +126,12 @@ impl TreeUpdater {
                     Ok(None) // Don't need to load the next L1 batch after the last one we're processing.
                 }
             };
-            let ((batch_stats, metadata, object_key), next_l1_batch_data) =
-                future::try_join(process_l1_batch_task, load_next_l1_batch_task).await?;
+            let ((batch_stats, tree_data), next_l1_batch_data) =
+                futures::future::try_join(process_l1_batch_task, load_next_l1_batch_task).await?;
 
             let save_postgres_latency = METRICS.start_stage(TreeUpdateStage::SavePostgres);
-            let tree_data = L1BatchTreeData {
-                hash: metadata.root_hash,
-                rollup_last_leaf_index: metadata.rollup_last_leaf_index,
-            };
 
-            let mut storage = pool.connection_tagged("metadata_calculator").await?;
+            let mut storage = pool.connection_tagged("tree_updater").await?;
             storage
                 .blocks_dal()
                 .save_l1_batch_tree_data(l1_batch_number, &tree_data)
@@ -147,18 +140,6 @@ impl TreeUpdater {
             // metadata already exists; instead, it'll check that the old and new metadata match.
             // That is, if we run multiple tree instances, we'll get metadata correspondence
             // right away without having to implement dedicated code.
-
-            if let Some(object_key) = &object_key {
-                // Save the proof generation details to Postgres
-                storage
-                    .proof_generation_dal()
-                    .insert_proof_generation_details(l1_batch_number)
-                    .await?;
-                storage
-                    .proof_generation_dal()
-                    .save_merkle_paths_artifacts_metadata(l1_batch_number, object_key)
-                    .await?;
-            }
             drop(storage);
             save_postgres_latency.observe();
             tracing::info!("Updated metadata for L1 batch #{l1_batch_number} in Postgres");
@@ -175,81 +156,21 @@ impl TreeUpdater {
         Ok(last_l1_batch_number + 1)
     }
 
-    /// Checks whether the requested L1 batch was pruned. Right now, the tree cannot recover from this situation,
-    /// so we exit with an error if this happens.
-    async fn ensure_not_pruned(
-        storage: &mut Connection<'_, Core>,
-        l1_batch_number: L1BatchNumber,
-    ) -> anyhow::Result<()> {
-        let pruning_info = storage.pruning_dal().get_pruning_info().await?;
-        anyhow::ensure!(
-            pruning_info.last_soft_pruned.map_or(true, |info| info.l1_batch < l1_batch_number),
-            "L1 batch #{l1_batch_number}, next to be processed by the tree, is pruned; the tree cannot continue operating"
-        );
-        Ok(())
-    }
-
-    #[tracing::instrument(name = "TreeUpdater::step", skip(self, pool))]
-    async fn step(
-        &mut self,
-        pool: &ConnectionPool<Core>,
-        next_l1_batch_to_process: &mut L1BatchNumber,
-    ) -> anyhow::Result<()> {
-        let mut storage = pool.connection_tagged("metadata_calculator").await?;
-        let last_l1_batch_with_protective_reads = if self.tree.mode() == MerkleTreeMode::Lightweight
-            || self.sealed_batches_have_protective_reads
-        {
-            let Some(last_sealed_l1_batch) = storage
-                .blocks_dal()
-                .get_sealed_l1_batch_number()
-                .await
-                .context("failed loading sealed L1 batch number")?
-            else {
-                tracing::trace!("No L1 batches to seal: Postgres storage is empty");
-                return Ok(());
-            };
-            last_sealed_l1_batch
-        } else {
-            storage
-                .vm_runner_dal()
-                .get_protective_reads_latest_processed_batch()
-                .await
-                .context("failed loading latest L1 batch number with protective reads")?
-                .unwrap_or_default()
-        };
-        drop(storage);
-
-        let last_requested_l1_batch =
-            next_l1_batch_to_process.0 + self.max_l1_batches_per_iter as u32 - 1;
-        let last_requested_l1_batch =
-            last_requested_l1_batch.min(last_l1_batch_with_protective_reads.0);
-        let l1_batch_numbers = next_l1_batch_to_process.0..=last_requested_l1_batch;
-        if l1_batch_numbers.is_empty() {
-            tracing::trace!(
-                "No L1 batches to process: batch numbers range to be loaded {l1_batch_numbers:?} is empty"
-            );
-        } else {
-            tracing::info!("Updating Merkle tree with L1 batches #{l1_batch_numbers:?}");
-            *next_l1_batch_to_process = self
-                .process_multiple_batches(pool, l1_batch_numbers)
-                .await?;
-        }
-        Ok(())
-    }
-
-    /// The processing loop for this updater.
-    pub async fn loop_updating_tree(
+    pub(crate) async fn loop_updating_tree(
         mut self,
-        delayer: Delayer,
+        delay_interval: Duration,
         pool: &ConnectionPool<Core>,
         mut stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<()> {
-        let tree = &mut self.tree;
-        let mut next_l1_batch_to_process = tree.next_l1_batch_number();
+        let mut next_l1_batch_to_process = self.tree.next_l1_batch_number().await?;
+        #[cfg(test)]
+        self.next_l1_batch_sender
+            .send_replace(next_l1_batch_to_process);
+
         tracing::info!(
-            "Initialized metadata calculator with {max_batches_per_iter} max L1 batches per iteration. \
+            "Initialized metadata calculator with {max_l1_batches_per_iter} max L1 batches per iteration. \
              Next L1 batch for Merkle tree: {next_l1_batch_to_process}",
-            max_batches_per_iter = self.max_l1_batches_per_iter
+            max_l1_batches_per_iter = self.max_l1_batches_per_iter
         );
 
         loop {
@@ -262,11 +183,15 @@ impl TreeUpdater {
             self.step(pool, &mut next_l1_batch_to_process).await?;
             let delay = if snapshot == *next_l1_batch_to_process {
                 tracing::trace!(
-                    "Metadata calculator (next L1 batch: #{next_l1_batch_to_process}) \
-                     didn't make any progress; delaying it using {delayer:?}"
+                    "Tree updater (next L1 batch: #{next_l1_batch_to_process}) \
+                     didn't make any progress; delaying it using {delay_interval:?}"
                 );
-                delayer.wait(&self.tree).left_future()
+                tokio::time::sleep(delay_interval).left_future()
             } else {
+                #[cfg(test)]
+                self.next_l1_batch_sender
+                    .send_replace(next_l1_batch_to_process);
+
                 tracing::trace!(
                     "Metadata calculator (next L1 batch: #{next_l1_batch_to_process}) made progress from #{snapshot}"
                 );
@@ -287,21 +212,21 @@ impl TreeUpdater {
     }
 }
 
-impl AsyncTree {
+impl AsyncMerkleTree {
     async fn ensure_genesis(
         &mut self,
         storage: &mut Connection<'_, Core>,
         earliest_l1_batch: L1BatchNumber,
     ) -> anyhow::Result<()> {
-        if !self.is_empty() {
+        if !self.is_empty().await? {
             return Ok(());
         }
 
         anyhow::ensure!(
             earliest_l1_batch == L1BatchNumber(0),
-            "Non-zero earliest L1 batch #{earliest_l1_batch} is not supported without previous tree recovery"
+            "Non-zero earliest L1 batch #{earliest_l1_batch} is not supported, and tree recovery isn't supported either"
         );
-        let batch = L1BatchWithLogs::new(storage, earliest_l1_batch, self.mode())
+        let batch = L1BatchWithLogs::new(storage, earliest_l1_batch)
             .await
             .with_context(|| {
                 format!("failed fetching tree input for L1 batch #{earliest_l1_batch}")
@@ -317,7 +242,7 @@ impl AsyncTree {
         &mut self,
         pool: &ConnectionPool<Core>,
     ) -> anyhow::Result<()> {
-        let Some(last_tree_l1_batch) = self.next_l1_batch_number().checked_sub(1) else {
+        let Some(last_tree_l1_batch) = self.next_l1_batch_number().await?.checked_sub(1) else {
             // No L1 batches in the tree means no divergence.
             return Ok(());
         };
@@ -337,6 +262,7 @@ impl AsyncTree {
         tracing::debug!("Last l1 batch in tree #{last_tree_l1_batch} has diverging data in tree and Postgres; searching for the last common L1 batch");
         let min_tree_l1_batch = self
             .min_l1_batch_number()
+            .await?
             .context("tree shouldn't be empty at this point")?;
         anyhow::ensure!(
             min_tree_l1_batch <= last_tree_l1_batch,
@@ -364,13 +290,13 @@ impl AsyncTree {
         let last_common_l1_batch_number = L1BatchNumber(left);
         tracing::info!("Found last common L1 batch between tree and Postgres: #{last_common_l1_batch_number}; will revert tree to it");
 
-        self.roll_back_logs(last_common_l1_batch_number)?;
+        self.roll_back_logs(last_common_l1_batch_number).await?;
         self.save().await?;
         Ok(())
     }
 
     async fn l1_batch_matches(
-        &self,
+        &mut self,
         storage: &mut Connection<'_, Core>,
         l1_batch: L1BatchNumber,
     ) -> anyhow::Result<bool> {
@@ -379,7 +305,7 @@ impl AsyncTree {
             return Ok(true);
         }
 
-        let Some(tree_data) = self.data_for_l1_batch(l1_batch) else {
+        let Some(tree_data) = self.data_for_l1_batch(l1_batch).await? else {
             // Corner case: the L1 batch was pruned in the tree.
             return Ok(true);
         };
@@ -406,23 +332,23 @@ impl AsyncTree {
     /// This will wait for at least one L1 batch to appear in Postgres if necessary.
     pub(crate) async fn ensure_consistency(
         &mut self,
-        delayer: &Delayer,
+        delay_interval: Duration,
         pool: &ConnectionPool<Core>,
         stop_receiver: &mut watch::Receiver<bool>,
     ) -> anyhow::Result<()> {
         let Some(earliest_l1_batch) =
-            wait_for_l1_batch(pool, delayer.delay_interval(), stop_receiver).await?
+            wait_for_l1_batch(pool, delay_interval, stop_receiver).await?
         else {
             return Ok(()); // Stop signal received
         };
-        let mut storage = pool.connection_tagged("metadata_calculator").await?;
+        let mut storage = pool.connection_tagged("tree_updater").await?;
 
         self.ensure_genesis(&mut storage, earliest_l1_batch).await?;
-        let next_l1_batch_to_process = self.next_l1_batch_number();
+        let next_l1_batch_to_process = self.next_l1_batch_number().await?;
 
         let current_db_batch = storage
-            .vm_runner_dal()
-            .get_protective_reads_latest_processed_batch()
+            .blocks_dal()
+            .get_sealed_l1_batch_number()
             .await?
             .unwrap_or_default();
         let last_l1_batch_with_tree_data = storage
@@ -450,7 +376,7 @@ impl AsyncTree {
                      ({last_l1_batch_with_tree_data}); this may be a result of restoring Postgres from a snapshot. \
                      Truncating Merkle tree versions so that this mismatch is fixed..."
                 );
-                self.roll_back_logs(last_l1_batch_with_tree_data)?;
+                self.roll_back_logs(last_l1_batch_with_tree_data).await?;
                 self.save().await?;
                 tracing::info!("Truncated Merkle tree to L1 batch #{next_l1_batch_to_process}");
             }
