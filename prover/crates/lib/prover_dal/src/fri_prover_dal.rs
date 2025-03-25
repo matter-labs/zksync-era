@@ -117,7 +117,7 @@ impl FriProverDal<'_, '_> {
     /// Most of this function is similar to `get_light_job()`.
     /// The 2 differ in the type of jobs they will load. Some Basic jobs are heavy in resource utilization.
     ///
-    /// NOTE: This function retrieves only Basic 2,4,8,9,11,12 jobs.
+    /// NOTE: This function retrieves only Basic 2,4,8,9,10,11,12 jobs.
     pub async fn get_heavy_job(
         &mut self,
         protocol_version: ProtocolSemanticVersion,
@@ -148,6 +148,7 @@ impl FriProverDal<'_, '_> {
                             OR circuit_id = 4
                             OR circuit_id = 8
                             OR circuit_id = 9
+                            OR circuit_id = 10
                             OR circuit_id = 11
                             OR circuit_id = 12
                         )
@@ -201,7 +202,7 @@ impl FriProverDal<'_, '_> {
     ///
     /// Most of this function is similar to `get_heavy_job()`.
     ///
-    /// NOTE: This function retrieves all job but Basic 2,4,8,9,11,12.
+    /// NOTE: This function retrieves all job but Basic 2,4,8,9,10,11,12.
     pub async fn get_light_job(
         &mut self,
         protocol_version: ProtocolSemanticVersion,
@@ -230,6 +231,7 @@ impl FriProverDal<'_, '_> {
                         AND NOT (aggregation_round = $4 AND circuit_id = 4)
                         AND NOT (aggregation_round = $4 AND circuit_id = 8)
                         AND NOT (aggregation_round = $4 AND circuit_id = 9)
+                        AND NOT (aggregation_round = $4 AND circuit_id = 10)
                         AND NOT (aggregation_round = $4 AND circuit_id = 11)
                         AND NOT (aggregation_round = $4 AND circuit_id = 12)
                     ORDER BY
