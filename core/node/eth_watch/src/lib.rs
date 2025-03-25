@@ -45,7 +45,6 @@ struct EthWatchState {
 pub struct EthWatch {
     l1_client: Arc<dyn EthClient>,
     sl_client: Arc<dyn EthClient>,
-    dependency_l2_chain_clients: Option<Vec<Arc<dyn EthClient>>>,
     poll_interval: Duration,
     event_processors: Vec<Box<dyn EventProcessor>>,
     pool: ConnectionPool<Core>,
@@ -57,7 +56,6 @@ impl EthWatch {
         chain_admin_contract: &Contract,
         l1_client: Box<dyn EthClient>,
         sl_l2_client: Option<Box<dyn L2EthClient>>,
-        dependency_l2_chain_clients: Option<Vec<Box<dyn L2EthClient>>>,
         pool: ConnectionPool<Core>,
         poll_interval: Duration,
         chain_id: L2ChainId,
@@ -65,28 +63,14 @@ impl EthWatch {
         let mut storage = pool.connection_tagged("eth_watch").await?;
         let l1_client: Arc<dyn EthClient> = l1_client.into();
         let sl_l2_client: Option<Arc<dyn L2EthClient>> = sl_l2_client.map(Into::into);
-        let dependency_l2_chain_clients: Option<Vec<Arc<dyn L2EthClient>>> =
-            dependency_l2_chain_clients
-                .map(|clients| clients.into_iter().map(|client| client.into()).collect());
         let sl_client: Arc<dyn EthClient> = if let Some(sl_l2_client) = sl_l2_client.clone() {
             Arc::new(L2EthClientW(sl_l2_client))
         } else {
             l1_client.clone()
         };
-        let dependency_chain_clients =
-            if let Some(dependency_l2_chain_clients) = dependency_l2_chain_clients.clone() {
-                Some(
-                    dependency_l2_chain_clients
-                        .into_iter()
-                        .map(|client| Arc::new(L2EthClientW(client)) as Arc<dyn EthClient>)
-                        .collect::<Vec<Arc<dyn EthClient>>>(),
-                )
-            } else {
-                None
-            };
-        // println!("dependency_chain_clients: {:?}", dependency_chain_clients);
+
         let state = Self::initialize_state(&mut storage, sl_client.as_ref()).await?;
-        // tracing::info!("initialized state: {state:?}");
+        tracing::info!("initialized state: {state:?}");
         drop(storage);
 
         let priority_ops_processor =
@@ -124,16 +108,10 @@ impl EthWatch {
             event_processors.push(Box::new(batch_root_processor));
             event_processors.push(Box::new(sl_message_root_processor));
         }
-        // println!("dependency_chain_clients chain_id {:?}", dependency_chain_clients.clone().as_ref().unwrap()[0].chain_id().await);
-        if let Some(_) = dependency_l2_chain_clients.clone() {
-            let dependency_message_root_processor =
-                MessageRootProcessor::new(EventsSource::Dependency, Some(0), None);
-            event_processors.push(Box::new(dependency_message_root_processor));
-        }
+
         Ok(Self {
             l1_client,
             sl_client,
-            dependency_l2_chain_clients: dependency_chain_clients,
             poll_interval,
             event_processors,
             pool,
@@ -221,10 +199,6 @@ impl EthWatch {
             let client = match processor.event_source() {
                 EventsSource::L1 => self.l1_client.as_ref(),
                 EventsSource::SL => self.sl_client.as_ref(),
-                // EventsSource::Dependency => self.sl_client.as_ref(),
-                EventsSource::Dependency => self.dependency_l2_chain_clients.as_ref().unwrap()
-                    [processor.dependency_chain_number().unwrap()]
-                .as_ref(),
             };
             let chain_id = client.chain_id().await?;
             let to_block = if processor.only_finalized_block() {

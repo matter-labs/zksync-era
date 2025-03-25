@@ -33,11 +33,10 @@ pub(super) enum EventProcessorError {
     Internal(#[from] anyhow::Error),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone)]
 pub(super) enum EventsSource {
     L1,
     SL,
-    Dependency,
 }
 
 impl EventProcessorError {
@@ -77,9 +76,5 @@ pub(super) trait EventProcessor: 'static + fmt::Debug + Send + Sync {
     /// Whether processor expect events only from finalized blocks.
     fn only_finalized_block(&self) -> bool {
         false
-    }
-
-    fn dependency_chain_number(&self) -> Option<usize> {
-        None
     }
 }

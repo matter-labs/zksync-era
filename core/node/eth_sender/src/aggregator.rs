@@ -215,7 +215,6 @@ impl Aggregator {
         protocol_version_id: ProtocolVersionId,
         l1_verifier_config: L1VerifierConfig,
         restrictions: OperationSkippingRestrictions,
-        is_gateway: bool,
     ) -> Result<Option<AggregatedOperation>, EthSenderError> {
         let Some(last_sealed_l1_batch_number) = storage
             .blocks_dal()
@@ -231,7 +230,6 @@ impl Aggregator {
                 storage,
                 self.config.max_aggregated_blocks_to_execute as usize,
                 last_sealed_l1_batch_number,
-                is_gateway,
             )
             .await?,
         ) {
@@ -349,7 +347,6 @@ impl Aggregator {
         storage: &mut Connection<'_, Core>,
         limit: usize,
         last_sealed_l1_batch: L1BatchNumber,
-        is_gateway: bool,
     ) -> Result<Option<ExecuteBatches>, EthSenderError> {
         let max_l1_batch_timestamp_millis = self
             .config
@@ -379,18 +376,12 @@ impl Aggregator {
             return Ok(Some(ExecuteBatches {
                 l1_batches,
                 priority_ops_proofs: vec![Default::default(); length],
-                logs: vec![],
-                messages: vec![],
-                message_roots: vec![],
             }));
         };
 
         let priority_merkle_tree = self.get_or_init_tree(priority_tree_start_index).await;
 
         let mut priority_ops_proofs = vec![];
-        let mut all_logs = vec![];
-        let mut all_messages = vec![];
-        let mut all_message_roots = vec![];
         for batch in &l1_batches {
             let first_priority_op_id_option = storage
                 .blocks_dal()
@@ -430,39 +421,11 @@ impl Aggregator {
             } else {
                 priority_ops_proofs.push(Default::default());
             }
-            if is_gateway {
-                let logs = storage
-                    .blocks_web3_dal()
-                    .get_l2_to_l1_logs(batch.header.number)
-                    .await
-                    .map_err(|e| EthSenderError::Dal(e))?;
-                let messages = storage
-                    .blocks_web3_dal()
-                    .get_l2_to_l1_messages(batch.header.number)
-                    .await
-                    .map_err(|e| EthSenderError::Dal(e))?;
-                // let filtered_logs = logs.into_iter().filter(|log| !log.is_service).map(|log| UserL2ToL1Log(log)).collect();
-                let message_root = storage
-                    .blocks_dal()
-                    .get_message_root(batch.header.number)
-                    .await
-                    .unwrap();
-                all_logs.push(
-                    logs.clone()
-                        .into_iter()
-                        .map(|log| UserL2ToL1Log(log))
-                        .collect(),
-                );
-                all_messages.push(messages);
-                all_message_roots.push(message_root);
-            }
         }
+
         Ok(Some(ExecuteBatches {
             l1_batches,
             priority_ops_proofs,
-            logs: all_logs,
-            messages: all_messages,
-            message_roots: all_message_roots,
         }))
     }
 

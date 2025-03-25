@@ -149,10 +149,6 @@ impl EventProcessor for MessageRootProcessor {
     fn only_finalized_block(&self) -> bool {
         true
     }
-
-    fn dependency_chain_number(&self) -> Option<usize> {
-        self.dependency_chain_number
-    }
 }
 
 impl MessageRootProcessor {}

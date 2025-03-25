@@ -59,17 +59,6 @@ impl L2ToL1Log {
         res.extend(self.value.as_bytes());
         res
     }
-
-    pub fn into_token(self) -> Token {
-        Token::Tuple(vec![
-            Token::Uint(self.shard_id.into()),
-            Token::Bool(self.is_service.into()),
-            Token::Uint(self.tx_number_in_block.into()),
-            Token::Address(self.sender),
-            Token::FixedBytes(self.key.as_bytes().to_vec()),
-            Token::FixedBytes(self.value.as_bytes().to_vec()),
-        ])
-    }
 }
 
 /// Returns the number of items in the Merkle tree built from L2-to-L1 logs

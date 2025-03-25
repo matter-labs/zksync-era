@@ -86,14 +86,6 @@ pub trait ZksNamespace {
         index: Option<usize>,
     ) -> RpcResult<Option<L2ToL1LogProof>>;
 
-    #[method(name = "getL2ToL1LogProofPrecommit")]
-    async fn get_l2_to_l1_log_proof_precommit(
-        &self,
-        tx_hash: H256,
-        index: Option<usize>,
-        l2_message_index: Option<usize>,
-    ) -> RpcResult<Option<L2ToL1LogProof>>;
-
     #[method(name = "getL2ToL1LogProofUntilChainId")]
     async fn get_l2_to_l1_log_proof_until_chain_id(
         &self,

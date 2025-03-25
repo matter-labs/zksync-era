@@ -23,7 +23,6 @@ use zksync_state_keeper::{
     seal_criteria::{ConditionalSealer, NoopSealer, SealData},
     SequencerSealer,
 };
-use zksync_system_constants::L2_INTEROP_HANDLER_ADDRESS;
 use zksync_types::{
     api::state_override::StateOverride,
     fee_model::BatchFeeInput,
@@ -559,9 +558,6 @@ impl TxSender {
         let paymaster = tx.common_data.paymaster_params.paymaster;
         // The paymaster is expected to pay for the tx; whatever balance the user has, we don't care.
         if paymaster != Address::default() {
-            return Ok(());
-        }
-        if tx.execute.contract_address == Some(L2_INTEROP_HANDLER_ADDRESS) {
             return Ok(());
         }
 

@@ -2886,35 +2886,6 @@ impl BlocksDal<'_, '_> {
         Ok(results.into_iter().map(L::from).collect())
     }
 
-    pub(crate) async fn get_l2_to_l1_messages_for_batch(
-        &mut self,
-        l1_batch_number: L1BatchNumber,
-    ) -> DalResult<Vec<Vec<u8>>> {
-        let results = sqlx::query_as!(
-            L2ToL1Messages,
-            r#"
-            SELECT
-                l2_to_l1_messages
-            FROM
-                l1_batches
-            WHERE
-                number = $1
-            "#,
-            i64::from(l1_batch_number.0)
-        )
-        .instrument("get_l2_to_l1_messages_by_number")
-        .with_arg("l1_batch_number", &l1_batch_number)
-        .fetch_all(self.storage)
-        .await?;
-
-        let messages = results
-            .into_iter()
-            .flat_map(|record| record.l2_to_l1_messages)
-            .collect::<Vec<Vec<u8>>>();
-
-        Ok(messages)
-    }
-
     pub async fn get_message_root(&mut self, l1_batch_number: L1BatchNumber) -> DalResult<H256> {
         let row = sqlx::query!(
             r#"
