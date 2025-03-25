@@ -1,5 +1,6 @@
 use std::{str::FromStr, sync::Arc};
 
+use ethabi::{encode, ParamType, Token};
 use rust_eigenda_client::{
     client::BlobProvider,
     config::{PrivateKey, SrsPointsSource},
@@ -7,6 +8,7 @@ use rust_eigenda_client::{
 };
 use subxt_signer::ExposeSecret;
 use url::Url;
+use zksync_basic_types::web3::CallRequest;
 use zksync_config::{
     configs::da_client::eigen::{EigenSecrets, PointsSource},
     EigenConfig,
@@ -15,14 +17,11 @@ use zksync_da_client::{
     types::{ClientType, DAError, DispatchResponse, InclusionData},
     DataAvailabilityClient,
 };
+use zksync_eth_client::EthInterface;
 use zksync_types::Address;
 use zksync_web3_decl::client::{Client, DynClient, L1};
-use ethabi::{encode, ParamType, Token};
-use zksync_basic_types::web3::CallRequest;
-use zksync_eth_client::EthInterface;
 
-use crate::utils::to_retriable_da_error;
-use crate::utils::to_non_retriable_da_error;
+use crate::utils::{to_non_retriable_da_error, to_retriable_da_error};
 
 // We can't implement DataAvailabilityClient for an outside struct, so it is needed to defined this intermediate struct
 #[derive(Debug, Clone)]
@@ -40,7 +39,8 @@ impl EigenDAClient {
     ) -> anyhow::Result<Self> {
         let url = Url::from_str(
             config
-                .eigenda_eth_rpc.clone()
+                .eigenda_eth_rpc
+                .clone()
                 .ok_or(anyhow::anyhow!("Eigenda eth rpc url is not set"))?
                 .expose_str(),
         )
@@ -68,14 +68,22 @@ impl EigenDAClient {
             .await
             .map_err(|e| anyhow::anyhow!("Eigen client Error: {:?}", e))?;
 
-        let query_client: Client<L1> = Client::http(config
-            .eigenda_eth_rpc
-            .ok_or(anyhow::anyhow!("Eigenda eth rpc url is not set"))?)
-            .map_err(|e| anyhow::anyhow!("Query client Error: {:?}", e))?
-            .build();
+        let query_client: Client<L1> = Client::http(
+            config
+                .eigenda_eth_rpc
+                .ok_or(anyhow::anyhow!("Eigenda eth rpc url is not set"))?,
+        )
+        .map_err(|e| anyhow::anyhow!("Query client Error: {:?}", e))?
+        .build();
         let query_client = Box::new(query_client) as Box<DynClient<L1>>;
-        let eigenda_registry_addr: Address = "bD0B5e68cD574Ab656eA7868b2429e4f451a6D94".to_string().parse()?;
-        Ok(Self { client, query_client, eigenda_registry_addr })
+        let eigenda_registry_addr: Address = "bD0B5e68cD574Ab656eA7868b2429e4f451a6D94"
+            .to_string()
+            .parse()?;
+        Ok(Self {
+            client,
+            query_client,
+            eigenda_registry_addr,
+        })
     }
 }
 
@@ -83,8 +91,7 @@ impl EigenDAClient {
     async fn check_finished_batches(&self, inclusion_data: &Vec<u8>) -> Result<bool, DAError> {
         let mut data = vec![];
         let func_selector =
-            ethabi::short_signature("finishedBatches", &[ParamType::Bytes])
-                .to_vec();
+            ethabi::short_signature("finishedBatches", &[ParamType::Bytes]).to_vec();
         data.extend_from_slice(&func_selector);
         let inclusion_data = encode(&[Token::Bytes(inclusion_data.clone())]);
         data.extend_from_slice(&inclusion_data);
@@ -94,19 +101,28 @@ impl EigenDAClient {
             ..Default::default()
         };
 
-        let block_id = self.query_client.block_number().await.map_err(to_retriable_da_error)?;
-        let res = self.query_client.as_ref().call_contract_function(call_request, Some(block_id.into())).await.map_err(to_retriable_da_error)?;
+        let block_id = self
+            .query_client
+            .block_number()
+            .await
+            .map_err(to_retriable_da_error)?;
+        let res = self
+            .query_client
+            .as_ref()
+            .call_contract_function(call_request, Some(block_id.into()))
+            .await
+            .map_err(to_retriable_da_error)?;
         match hex::encode(res.0).as_str() {
             "00000000000000000000000000000000" => Ok(false),
             "00000000000000000000000000000001" => Ok(true),
-            _ => Err(anyhow::anyhow!("Invalid response from finishedBatches")).map_err(to_non_retriable_da_error),
+            _ => Err(anyhow::anyhow!("Invalid response from finishedBatches"))
+                .map_err(to_non_retriable_da_error),
         }
     }
     async fn check_verified_batches(&self, inclusion_data: &Vec<u8>) -> Result<bool, DAError> {
         let mut data = vec![];
         let func_selector =
-            ethabi::short_signature("verifiedBatches", &[ParamType::Bytes])
-                .to_vec();
+            ethabi::short_signature("verifiedBatches", &[ParamType::Bytes]).to_vec();
         data.extend_from_slice(&func_selector);
         let inclusion_data = encode(&[Token::Bytes(inclusion_data.clone())]);
         data.extend_from_slice(&inclusion_data);
@@ -116,15 +132,28 @@ impl EigenDAClient {
             ..Default::default()
         };
 
-        let block_id = self.query_client.block_number().await.map_err(to_retriable_da_error)?;
-        let res = self.query_client.as_ref().call_contract_function(call_request, Some(block_id.into())).await.map_err(to_retriable_da_error)?;
+        let block_id = self
+            .query_client
+            .block_number()
+            .await
+            .map_err(to_retriable_da_error)?;
+        let res = self
+            .query_client
+            .as_ref()
+            .call_contract_function(call_request, Some(block_id.into()))
+            .await
+            .map_err(to_retriable_da_error)?;
         match hex::encode(res.0).as_str() {
             "00000000000000000000000000000000" => Ok(false),
             "00000000000000000000000000000001" => Ok(true),
-            _ => Err(anyhow::anyhow!("Invalid response from verifiedBatches")).map_err(to_non_retriable_da_error),
+            _ => Err(anyhow::anyhow!("Invalid response from verifiedBatches"))
+                .map_err(to_non_retriable_da_error),
         }
     }
-    async fn check_inclusion_data_verification(&self, inclusion_data: &Vec<u8>) -> Result<Option<bool>, DAError> {
+    async fn check_inclusion_data_verification(
+        &self,
+        inclusion_data: &Vec<u8>,
+    ) -> Result<Option<bool>, DAError> {
         let finished = self.check_finished_batches(inclusion_data).await?;
         if !finished {
             return Ok(None);
@@ -157,13 +186,17 @@ impl DataAvailabilityClient for EigenDAClient {
             .await
             .map_err(to_retriable_da_error)?;
         if let Some(inclusion_data) = inclusion_data {
-            if let Some(verified) = self.check_inclusion_data_verification(&inclusion_data).await? {
+            if let Some(verified) = self
+                .check_inclusion_data_verification(&inclusion_data)
+                .await?
+            {
                 if verified {
                     Ok(Some(InclusionData {
                         data: inclusion_data,
                     }))
                 } else {
-                    Err(anyhow::anyhow!("Inclusion data is not verified")).map_err(to_non_retriable_da_error)
+                    Err(anyhow::anyhow!("Inclusion data is not verified"))
+                        .map_err(to_non_retriable_da_error)
                 }
             } else {
                 Ok(None)
