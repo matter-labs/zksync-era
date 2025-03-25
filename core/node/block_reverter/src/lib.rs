@@ -41,7 +41,7 @@ pub struct BlockReverterEthConfig {
     sl_validator_timelock_addr: H160,
     default_priority_fee_per_gas: u64,
     hyperchain_id: L2ChainId,
-    settlement_mode: SettlementLayer,
+    settlement_layer: SettlementLayer,
 }
 
 impl BlockReverterEthConfig {
@@ -50,7 +50,7 @@ impl BlockReverterEthConfig {
         sl_diamond_proxy_addr: Address,
         sl_validator_timelock_addr: Address,
         hyperchain_id: L2ChainId,
-        settlement_mode: SettlementLayer,
+        settlement_layer: SettlementLayer,
     ) -> anyhow::Result<Self> {
         Ok(Self {
             sl_diamond_proxy_addr,
@@ -61,7 +61,7 @@ impl BlockReverterEthConfig {
                 .context("gas adjuster")?
                 .default_priority_fee_per_gas,
             hyperchain_id,
-            settlement_mode,
+            settlement_layer,
         })
     }
 }
@@ -507,7 +507,7 @@ impl BlockReverter {
             ])
             .context("failed encoding `revertBatchesSharedBridge` input")?;
 
-        let gas = if eth_config.settlement_mode.is_gateway() {
+        let gas = if eth_config.settlement_layer.is_gateway() {
             GATEWAY_DEFAULT_GAS
         } else {
             L1_DEFAULT_GAS

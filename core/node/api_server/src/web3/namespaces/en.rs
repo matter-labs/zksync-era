@@ -162,7 +162,8 @@ impl EnNamespace {
                 .api_config
                 .l1_ecosystem_contracts
                 .state_transition_proxy_addr,
-            transparent_proxy_admin_addr: None,
+            // Return backward compatible zero address.Meanwhile this value is useless for external users
+            transparent_proxy_admin_addr: Some(Address::zero()),
             l1_bytecodes_supplier_addr: self.state.api_config.l1_bytecodes_supplier_addr,
             l1_wrapped_base_token_store: self.state.api_config.l1_wrapped_base_token_store,
             server_notifier_addr: self

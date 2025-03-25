@@ -108,13 +108,13 @@ impl Aggregator {
         custom_commit_sender_addr: Option<Address>,
         commitment_mode: L1BatchCommitmentMode,
         pool: ConnectionPool<Core>,
-        settlement_mode: SettlementLayer,
+        settlement_layer: SettlementLayer,
     ) -> anyhow::Result<Self> {
         let operate_4844_mode: bool =
-            custom_commit_sender_addr.is_some() && !settlement_mode.is_gateway();
+            custom_commit_sender_addr.is_some() && !settlement_layer.is_gateway();
 
         // We do not have a reliable lower bound for gas needed to execute batches on gateway so we do not aggregate.
-        let execute_criteria: Vec<Box<dyn L1BatchPublishCriterion>> = if settlement_mode
+        let execute_criteria: Vec<Box<dyn L1BatchPublishCriterion>> = if settlement_layer
             .is_gateway()
         {
             if config.max_aggregated_blocks_to_execute > 1 {
@@ -148,38 +148,37 @@ impl Aggregator {
         };
 
         // It only makes sense to aggregate commit operation when validium chain settles to L1.
-        let commit_criteria: Vec<Box<dyn L1BatchPublishCriterion>> = if !settlement_mode
-            .is_gateway()
-            && commitment_mode == L1BatchCommitmentMode::Validium
-        {
-            vec![
-                Box::from(NumberCriterion {
-                    op: AggregatedActionType::Commit,
-                    limit: config.max_aggregated_blocks_to_commit,
-                }),
-                Box::from(TimestampDeadlineCriterion {
-                    op: AggregatedActionType::Commit,
-                    deadline_seconds: config.aggregated_block_commit_deadline,
-                    max_allowed_lag: Some(config.timestamp_criteria_max_allowed_lag),
-                }),
-                Box::from(L1GasCriterion::new(
-                    config.max_aggregated_tx_gas,
-                    GasCriterionKind::CommitValidium,
-                )),
-            ]
-        } else {
-            if config.max_aggregated_blocks_to_commit > 1 {
-                tracing::warn!(
-                    "config.max_aggregated_blocks_to_commit is set to {} but \
+        let commit_criteria: Vec<Box<dyn L1BatchPublishCriterion>> =
+            if !settlement_layer.is_gateway() && commitment_mode == L1BatchCommitmentMode::Validium
+            {
+                vec![
+                    Box::from(NumberCriterion {
+                        op: AggregatedActionType::Commit,
+                        limit: config.max_aggregated_blocks_to_commit,
+                    }),
+                    Box::from(TimestampDeadlineCriterion {
+                        op: AggregatedActionType::Commit,
+                        deadline_seconds: config.aggregated_block_commit_deadline,
+                        max_allowed_lag: Some(config.timestamp_criteria_max_allowed_lag),
+                    }),
+                    Box::from(L1GasCriterion::new(
+                        config.max_aggregated_tx_gas,
+                        GasCriterionKind::CommitValidium,
+                    )),
+                ]
+            } else {
+                if config.max_aggregated_blocks_to_commit > 1 {
+                    tracing::warn!(
+                        "config.max_aggregated_blocks_to_commit is set to {} but \
                     aggregator does not support aggregating commit operations anymore",
-                    config.max_aggregated_blocks_to_commit
-                );
-            }
-            vec![Box::from(NumberCriterion {
-                op: AggregatedActionType::Commit,
-                limit: 1,
-            })]
-        };
+                        config.max_aggregated_blocks_to_commit
+                    );
+                }
+                vec![Box::from(NumberCriterion {
+                    op: AggregatedActionType::Commit,
+                    limit: 1,
+                })]
+            };
 
         Ok(Self {
             commit_criteria,

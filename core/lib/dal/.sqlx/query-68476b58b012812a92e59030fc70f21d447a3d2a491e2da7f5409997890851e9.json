@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                *\n            FROM\n                server_notifications\n            WHERE\n                main_topic IN (SELECT unnest($1::bytea []))\n            ORDER BY\n                id DESC\n            ",
+  "query": "\n            SELECT\n                *\n            FROM\n                server_notifications\n            WHERE\n                main_topic IN (SELECT unnest($1::bytea []))\n            ORDER BY\n                id DESC\n            LIMIT 1\n            ",
   "describe": {
     "columns": [
       {
@@ -42,5 +42,5 @@
       false
     ]
   },
-  "hash": "88e27f09c1cbae0f8acf7f2f8480f7bcf66fbe66fe3631932c724404d2cb1514"
+  "hash": "68476b58b012812a92e59030fc70f21d447a3d2a491e2da7f5409997890851e9"
 }

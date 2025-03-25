@@ -94,14 +94,14 @@ fn build_upgrade_tx(id: ProtocolVersionId) -> ProtocolUpgradeTx {
 
 async fn create_test_watcher(
     connection_pool: ConnectionPool<Core>,
-    settlement_mode: SettlementLayer,
+    settlement_layer: SettlementLayer,
 ) -> (EthWatch, MockEthClient, MockEthClient) {
     let l1_client = MockEthClient::new(SLChainId(42));
-    let sl_client = MockEthClient::new(settlement_mode.chain_id());
+    let sl_client = MockEthClient::new(settlement_layer.chain_id());
     let watcher = EthWatch::new(
         Box::new(l1_client.clone()),
         Box::new(sl_client.clone()),
-        settlement_mode,
+        settlement_layer,
         connection_pool,
         std::time::Duration::from_nanos(1),
         L2ChainId::default(),

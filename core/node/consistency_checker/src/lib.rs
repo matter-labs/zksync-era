@@ -364,7 +364,7 @@ pub struct ConsistencyChecker {
     max_batches_to_recheck: u32,
     sleep_interval: Duration,
     chain_data: SLChainAccess,
-    settlement_mode: SettlementLayer,
+    settlement_layer: SettlementLayer,
     event_handler: Box<dyn HandleConsistencyCheckerEvent>,
     l1_data_mismatch_behavior: L1DataMismatchBehavior,
     pool: ConnectionPool<Core>,
@@ -380,7 +380,7 @@ impl ConsistencyChecker {
         max_batches_to_recheck: u32,
         pool: ConnectionPool<Core>,
         commitment_mode: L1BatchCommitmentMode,
-        settlement_mode: SettlementLayer,
+        settlement_layer: SettlementLayer,
     ) -> anyhow::Result<Self> {
         let (health_check, health_updater) = ConsistencyCheckerHealthUpdater::new();
         let sl_chain_id = sl_client.fetch_chain_id().await?;
@@ -395,7 +395,7 @@ impl ConsistencyChecker {
             max_batches_to_recheck,
             sleep_interval: Self::DEFAULT_SLEEP_INTERVAL,
             chain_data,
-            settlement_mode,
+            settlement_layer,
             event_handler: Box::new(health_updater),
             l1_data_mismatch_behavior: L1DataMismatchBehavior::Bail,
             pool,
@@ -512,7 +512,7 @@ impl ConsistencyChecker {
         })
         .map_err(CheckError::Validation)?;
 
-        let is_gateway = self.settlement_mode.is_gateway();
+        let is_gateway = self.settlement_layer.is_gateway();
         local
             .verify_commitment(&commitment, is_gateway)
             .map_err(CheckError::Validation)

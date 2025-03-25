@@ -14,7 +14,7 @@ use zksync_eth_client::{
 use zksync_gateway_migrator::switch_to_current_settlement_mode;
 use zksync_types::{
     pubdata_da::PubdataSendingMode, settlement::SettlementLayer, url::SensitiveUrl, Address,
-    L2ChainId, SLChainId, L2_BRIDGEHUB_ADDRESS,
+    L2ChainId, L2_BRIDGEHUB_ADDRESS,
 };
 use zksync_web3_decl::{client::Client, namespaces::ZksNamespaceClient};
 
@@ -156,9 +156,25 @@ impl WiringLayer for SettlementLayerData<MainNodeConfig> {
             initial_sl_mode
         } else {
             match initial_sl_mode {
-                // TODO set proper chain id
-                SettlementLayer::L1(_) => SettlementLayer::Gateway(SLChainId(0)),
-                SettlementLayer::Gateway(_) => SettlementLayer::L1(SLChainId(0)),
+                SettlementLayer::L1(_) => {
+                    let chain_id = l2_eth_client
+                        .as_ref()
+                        .unwrap()
+                        .0
+                        .fetch_chain_id()
+                        .await
+                        .context("Unable to fetch chain id")?;
+                    SettlementLayer::Gateway(chain_id)
+                }
+                SettlementLayer::Gateway(_) => {
+                    let chain_id = input
+                        .eth_client
+                        .0
+                        .fetch_chain_id()
+                        .await
+                        .context("Unable to fetch chain id")?;
+                    SettlementLayer::L1(chain_id)
+                }
             }
         };
 
@@ -329,9 +345,9 @@ fn get_l2_client(
 // We need to adjust it accordingly.
 fn adjust_eth_sender_config(
     mut config: SenderConfig,
-    settlement_mode: SettlementLayer,
+    settlement_layer: SettlementLayer,
 ) -> SenderConfig {
-    if settlement_mode.is_gateway() {
+    if settlement_layer.is_gateway() {
         config.max_aggregated_tx_gas = 4294967295;
         config.max_eth_tx_data_size = 550_000;
         tracing::warn!(

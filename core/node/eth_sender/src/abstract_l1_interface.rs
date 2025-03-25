@@ -96,7 +96,7 @@ pub(super) trait AbstractL1Interface: 'static + Sync + Send + fmt::Debug {
 pub(super) struct RealL1Interface {
     pub ethereum_client: Option<Box<dyn BoundEthInterface>>,
     pub ethereum_client_blobs: Option<Box<dyn BoundEthInterface>>,
-    pub l2_client: Option<Box<dyn BoundEthInterface>>,
+    pub sl_client: Option<Box<dyn BoundEthInterface>>,
     pub wait_confirmations: Option<u64>,
 }
 
@@ -105,7 +105,7 @@ impl RealL1Interface {
         match operator_type {
             OperatorType::NonBlob => self.ethereum_client.as_deref().unwrap().as_ref(),
             OperatorType::Blob => self.ethereum_client_blobs.as_deref().unwrap().as_ref(),
-            OperatorType::Gateway => self.l2_client.as_deref().unwrap().as_ref(),
+            OperatorType::Gateway => self.sl_client.as_deref().unwrap().as_ref(),
         }
     }
 
@@ -113,7 +113,7 @@ impl RealL1Interface {
         match operator_type {
             OperatorType::NonBlob => self.ethereum_client.as_deref().unwrap(),
             OperatorType::Blob => self.ethereum_client_blobs.as_deref().unwrap(),
-            OperatorType::Gateway => self.l2_client.as_deref().unwrap(),
+            OperatorType::Gateway => self.sl_client.as_deref().unwrap(),
         }
     }
 }
@@ -122,7 +122,7 @@ impl RealL1Interface {
 impl AbstractL1Interface for RealL1Interface {
     fn supported_operator_types(&self) -> Vec<OperatorType> {
         let mut result = vec![];
-        if self.l2_client.is_some() {
+        if self.sl_client.is_some() {
             result.push(OperatorType::Gateway);
         }
         if self.ethereum_client_blobs.is_some() {

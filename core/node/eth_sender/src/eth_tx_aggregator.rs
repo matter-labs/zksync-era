@@ -1,6 +1,6 @@
 use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
-use zksync_contracts::{server_notifier_contract, BaseSystemContractsHashes};
+use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{BoundEthInterface, CallFunctionArgs, ContractCallError, EthInterface};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
@@ -21,7 +21,6 @@ use zksync_types::{
     l2_to_l1_log::UserL2ToL1Log,
     protocol_version::{L1VerifierConfig, PACKED_SEMVER_MINOR_MASK},
     pubdata_da::PubdataSendingMode,
-    server_notification::GatewayMigrationState,
     settlement::SettlementLayer,
     web3::{contract::Error as Web3ContractError, BlockNumber, CallRequest},
     Address, L2ChainId, ProtocolVersionId, SLChainId, H256, U256,
@@ -36,6 +35,12 @@ use crate::{
     zksync_functions::ZkSyncFunctions,
     Aggregator, EthSenderError,
 };
+
+#[derive(Debug, PartialEq)]
+pub enum GatewayMigrationState {
+    InProgress,
+    NotInProgress,
+}
 
 /// Data queried from L1 using multicall contract.
 #[derive(Debug)]
@@ -74,11 +79,10 @@ pub struct EthTxAggregator {
     /// address.
     custom_commit_sender_addr: Option<Address>,
     pool: ConnectionPool<Core>,
-    gateway_migration_state: GatewayMigrationState,
     sl_chain_id: SLChainId,
     health_updater: HealthUpdater,
     priority_tree_start_index: Option<usize>,
-    settlement_mode: SettlementLayer,
+    settlement_layer: SettlementLayer,
 }
 
 struct TxData {
@@ -101,7 +105,7 @@ impl EthTxAggregator {
         state_transition_chain_contract: Address,
         rollup_chain_id: L2ChainId,
         custom_commit_sender_addr: Option<Address>,
-        settlement_mode: SettlementLayer,
+        settlement_layer: SettlementLayer,
     ) -> Self {
         let eth_client = eth_client.for_component("eth_tx_aggregator");
         let functions = ZkSyncFunctions::default();
@@ -119,8 +123,6 @@ impl EthTxAggregator {
             None => None,
         };
 
-        let gateway_migration_state =
-            gateway_status(&mut pool.connection().await.unwrap(), &settlement_mode).await;
         let sl_chain_id = (*eth_client).as_ref().fetch_chain_id().await.unwrap();
 
         Self {
@@ -137,11 +139,10 @@ impl EthTxAggregator {
             rollup_chain_id,
             custom_commit_sender_addr,
             pool,
-            gateway_migration_state,
             sl_chain_id,
             health_updater: ReactiveHealthCheck::new("eth_tx_aggregator").1,
             priority_tree_start_index: None,
-            settlement_mode,
+            settlement_layer,
         }
     }
 
@@ -532,7 +533,7 @@ impl EthTxAggregator {
         &mut self,
         storage: &mut Connection<'_, Core>,
     ) -> Result<(), EthSenderError> {
-        self.gateway_migration_state = gateway_status(storage, &self.settlement_mode).await;
+        let gateway_migration_state = self.gateway_status(storage).await;
         let MulticallData {
             base_system_contracts_hashes,
             verifier_address,
@@ -594,7 +595,7 @@ impl EthTxAggregator {
             op_restrictions.execute_restriction = reason;
         }
 
-        if self.gateway_migration_state == GatewayMigrationState::InProgress {
+        if gateway_migration_state == GatewayMigrationState::InProgress {
             let reason = Some("Gateway migration started");
             op_restrictions.commit_restriction = reason;
             op_restrictions.prove_restriction = reason;
@@ -613,7 +614,7 @@ impl EthTxAggregator {
             )
             .await?
         {
-            let is_gateway = self.settlement_mode.is_gateway();
+            let is_gateway = self.settlement_layer.is_gateway();
             let tx = self
                 .save_eth_tx(
                     storage,
@@ -844,7 +845,7 @@ impl EthTxAggregator {
         storage: &mut Connection<'_, Core>,
         from_addr: Option<Address>,
     ) -> Result<u64, EthSenderError> {
-        let is_gateway = self.settlement_mode.is_gateway();
+        let is_gateway = self.settlement_layer.is_gateway();
         let db_nonce = storage
             .eth_sender_dal()
             .get_next_nonce(from_addr, is_gateway)
@@ -871,6 +872,48 @@ impl EthTxAggregator {
     /// Returns the health check for eth tx aggregator.
     pub fn health_check(&self) -> ReactiveHealthCheck {
         self.health_updater.subscribe()
+    }
+
+    async fn gateway_status(&self, storage: &mut Connection<'_, Core>) -> GatewayMigrationState {
+        let to_gateway = self
+            .functions
+            .server_notifier_contract
+            .event("MigrateToGateway")
+            .unwrap()
+            .signature();
+        let from_gateway = self
+            .functions
+            .server_notifier_contract
+            .event("MigrateFromGateway")
+            .unwrap()
+            .signature();
+
+        let topics = vec![to_gateway, from_gateway];
+
+        let notifications = storage
+            .server_notifications_dal()
+            .get_last_notification_by_topics(topics)
+            .await
+            .unwrap();
+
+        notifications
+            .map(|a| match self.settlement_layer {
+                SettlementLayer::L1(_) => {
+                    if a.main_topic == to_gateway {
+                        GatewayMigrationState::InProgress
+                    } else {
+                        GatewayMigrationState::NotInProgress
+                    }
+                }
+                SettlementLayer::Gateway(_) => {
+                    if a.main_topic == from_gateway {
+                        GatewayMigrationState::InProgress
+                    } else {
+                        GatewayMigrationState::NotInProgress
+                    }
+                }
+            })
+            .unwrap_or(GatewayMigrationState::NotInProgress)
     }
 }
 
@@ -929,46 +972,4 @@ async fn get_priority_tree_start_index(
         .unwrap();
 
     Ok(Some(priority_tree_start_index.as_usize()))
-}
-
-async fn gateway_status(
-    storage: &mut Connection<'_, Core>,
-    sl_layer: &SettlementLayer,
-) -> GatewayMigrationState {
-    let to_gateway = server_notifier_contract()
-        .event("MigrateToGateway")
-        .unwrap()
-        .signature();
-    let from_gateway = server_notifier_contract()
-        .event("MigrateFromGateway")
-        .unwrap()
-        .signature();
-
-    let topics = vec![to_gateway, from_gateway];
-
-    let notifications = storage
-        .server_notifications_dal()
-        .notifications_by_topics(topics)
-        .await
-        .unwrap();
-
-    notifications
-        .first()
-        .map(|a| match sl_layer {
-            SettlementLayer::L1(_) => {
-                if a.main_topic == to_gateway {
-                    GatewayMigrationState::InProgress
-                } else {
-                    GatewayMigrationState::NotInProgress
-                }
-            }
-            SettlementLayer::Gateway(_) => {
-                if a.main_topic == from_gateway {
-                    GatewayMigrationState::InProgress
-                } else {
-                    GatewayMigrationState::NotInProgress
-                }
-            }
-        })
-        .unwrap_or(GatewayMigrationState::NotInProgress)
 }

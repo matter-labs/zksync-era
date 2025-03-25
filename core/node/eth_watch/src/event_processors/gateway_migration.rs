@@ -41,7 +41,6 @@ impl EventProcessor for GatewayMigrationProcessor {
                 .save_notification(
                     *event.topics.first().unwrap(),
                     L1BlockNumber(event.block_number.unwrap().as_u32()),
-                    Default::default(),
                 )
                 .await
                 .unwrap();

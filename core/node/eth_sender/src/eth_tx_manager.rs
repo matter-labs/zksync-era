@@ -58,7 +58,7 @@ impl EthTxManager {
         let l1_interface = Box::new(RealL1Interface {
             ethereum_client,
             ethereum_client_blobs,
-            l2_client,
+            sl_client: l2_client,
             wait_confirmations: config.wait_confirmations,
         });
         tracing::info!(
