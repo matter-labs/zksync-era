@@ -118,10 +118,11 @@ RUN mkdir -p /etc/env/l1-inits /etc/env/l2-inits
 RUN yarn global add ts-node typescript
 
 # Install and build Node.js dependencies (production-only)
-RUN cd /contracts/da-contracts && NODE_ENV=production yarn install && yarn build:foundry && cd /
-RUN cd /contracts/l1-contracts && NODE_ENV=production yarn install --frozen-lockfile --ignore-optional && yarn build:foundry && cd /
-RUN cd /contracts/l2-contracts && NODE_ENV=production yarn install && yarn build:foundry && cd /
-RUN cd /contracts/system-contracts && yarn install && yarn build:foundry && cd /
+RUN yarn cache clean
+RUN cd /contracts/da-contracts && NODE_ENV=production yarn install --no-cache && yarn build:foundry && cd /
+RUN cd /contracts/l1-contracts && NODE_ENV=production yarn install --frozen-lockfile --ignore-optional --no-cache && yarn build:foundry && cd /
+RUN cd /contracts/l2-contracts && NODE_ENV=production yarn install --no-cache && yarn build:foundry && cd /
+RUN cd /contracts/system-contracts && yarn install --no-cache && yarn build:foundry && cd /
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     lsb-release \
