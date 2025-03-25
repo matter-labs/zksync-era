@@ -51,7 +51,7 @@ impl ServerNotificationsDal<'_, '_> {
             WHERE
                 main_topic IN (SELECT unnest($1::bytea []))
             ORDER BY
-                id DESC
+                l1_block_number DESC
             LIMIT 1
             "#,
             &topics
