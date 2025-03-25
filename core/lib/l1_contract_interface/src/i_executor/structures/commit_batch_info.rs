@@ -284,9 +284,7 @@ impl Tokenizable for CommitBatchInfo<'_> {
                 // Here we're not pushing any pubdata on purpose; no pubdata is sent in Validium mode.
                 (
                     L1BatchCommitmentMode::Validium,
-                    PubdataSendingMode::Calldata
-                    | PubdataSendingMode::RelayedL2Calldata
-                    | PubdataSendingMode::Blobs,
+                    PubdataSendingMode::Calldata | PubdataSendingMode::RelayedL2Calldata,
                 ) => state_diff_hash.0.into(),
                 (L1BatchCommitmentMode::Rollup, PubdataSendingMode::Custom) => {
                     panic!("Custom pubdata DA is incompatible with Rollup mode")
@@ -341,7 +339,12 @@ impl Tokenizable for CommitBatchInfo<'_> {
                         .chain(blob_commitments)
                         .collect()
                 }
-                (L1BatchCommitmentMode::Rollup, PubdataSendingMode::Blobs) => {
+                // L1BatchCommitmentMode::Validium + PubdataSendingMode::Blobs are only used during
+                // the Rollup -> Validium transition.
+                (
+                    L1BatchCommitmentMode::Rollup | L1BatchCommitmentMode::Validium,
+                    PubdataSendingMode::Blobs,
+                ) => {
                     let pubdata = self.pubdata_input();
 
                     let header =

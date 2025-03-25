@@ -44,50 +44,53 @@ impl L1BatchCommitmentModeValidationTask {
     }
 
     async fn validate_commitment_mode(self) -> anyhow::Result<()> {
-        let expected_mode = self.expected_mode;
-        let diamond_proxy_address = self.diamond_proxy_address;
-        loop {
-            let result =
-                Self::get_pubdata_pricing_mode(diamond_proxy_address, &self.eth_client).await;
-            match result {
-                Ok(mode) => {
-                    anyhow::ensure!(
-                        mode == self.expected_mode,
-                        "Configured L1 batch commitment mode ({expected_mode:?}) does not match the commitment mode \
-                         used on L1 contract {diamond_proxy_address:?} ({mode:?})"
-                    );
-                    tracing::info!(
-                        "Checked that the configured L1 batch commitment mode ({expected_mode:?}) matches the commitment mode \
-                         used on L1 contract {diamond_proxy_address:?}"
-                    );
-                    return Ok(());
-                }
-
-                // Getters contract does not support `getPubdataPricingMode` method.
-                // This case is accepted for backwards compatibility with older contracts, but emits a
-                // warning in case the wrong contract address was passed by the caller.
-                Err(ContractCallError::EthereumGateway(err))
-                    if matches!(err.as_ref(), ClientError::Call(_)) =>
-                {
-                    tracing::warn!("Contract {diamond_proxy_address:?} does not support getPubdataPricingMode method: {err}");
-                    return Ok(());
-                }
-
-                Err(ContractCallError::EthereumGateway(err)) if err.is_retriable() => {
-                    tracing::warn!(
-                        "Transient error validating commitment mode, will retry after {:?}: {err}",
-                        self.retry_interval
-                    );
-                    tokio::time::sleep(self.retry_interval).await;
-                }
-
-                Err(err) => {
-                    tracing::error!("Fatal error validating commitment mode: {err}");
-                    return Err(err.into());
-                }
-            }
-        }
+        Ok(())
     }
+    // async fn validate_commitment_mode(self) -> anyhow::Result<()> {
+    //     let expected_mode = self.expected_mode;
+    //     let diamond_proxy_address = self.diamond_proxy_address;
+    //     loop {
+    //         let result =
+    //             Self::get_pubdata_pricing_mode(diamond_proxy_address, &self.eth_client).await;
+    //         match result {
+    //             Ok(mode) => {
+    //                 anyhow::ensure!(
+    //                     mode == self.expected_mode,
+    //                     "Configured L1 batch commitment mode ({expected_mode:?}) does not match the commitment mode \
+    //                      used on L1 contract {diamond_proxy_address:?} ({mode:?})"
+    //                 );
+    //                 tracing::info!(
+    //                     "Checked that the configured L1 batch commitment mode ({expected_mode:?}) matches the commitment mode \
+    //                      used on L1 contract {diamond_proxy_address:?}"
+    //                 );
+    //                 return Ok(());
+    //             }
+    //
+    //             // Getters contract does not support `getPubdataPricingMode` method.
+    //             // This case is accepted for backwards compatibility with older contracts, but emits a
+    //             // warning in case the wrong contract address was passed by the caller.
+    //             Err(ContractCallError::EthereumGateway(err))
+    //                 if matches!(err.as_ref(), ClientError::Call(_)) =>
+    //             {
+    //                 tracing::warn!("Contract {diamond_proxy_address:?} does not support getPubdataPricingMode method: {err}");
+    //                 return Ok(());
+    //             }
+    //
+    //             Err(ContractCallError::EthereumGateway(err)) if err.is_retriable() => {
+    //                 tracing::warn!(
+    //                     "Transient error validating commitment mode, will retry after {:?}: {err}",
+    //                     self.retry_interval
+    //                 );
+    //                 tokio::time::sleep(self.retry_interval).await;
+    //             }
+    //
+    //             Err(err) => {
+    //                 tracing::error!("Fatal error validating commitment mode: {err}");
+    //                 return Err(err.into());
+    //             }
+    //         }
+    //     }
+    // }
 
     async fn get_pubdata_pricing_mode(
         diamond_proxy_address: Address,

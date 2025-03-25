@@ -453,13 +453,17 @@ impl Aggregator {
                 .await
                 .unwrap()
         } else {
+            let is_da_inclusion_data_needed = self.commitment_mode
+                == L1BatchCommitmentMode::Validium
+                && self.pubdata_da == PubdataSendingMode::Custom;
+
             blocks_dal
                 .get_ready_for_commit_l1_batches(
                     limit,
                     base_system_contracts_hashes.bootloader,
                     base_system_contracts_hashes.default_aa,
                     protocol_version_id,
-                    self.commitment_mode != L1BatchCommitmentMode::Rollup,
+                    is_da_inclusion_data_needed,
                 )
                 .await
                 .unwrap()
