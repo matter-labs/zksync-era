@@ -136,7 +136,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   && apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin \
   && rm -rf /var/lib/apt/lists/*
 
+# Install cmake & other dependencies
+RUN apt-get update && apt-get install -y cmake build-essential clang pkg-config libssl-dev
+
 # Build zkstack server
+# ENV RUSTFLAGS="-C target-feature=-avx512f,-avx512vl"
+ENV CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1
+ENV CARGO_PROFILE_RELEASE_LTO="fat"
+ENV RUSTFLAGS="-C target-cpu=generic -C target-feature=-avx512f,-avx512vl,-avx2,-sse4.2"
+ENV CARGO_INCREMENTAL=0
+
 RUN zkstack server build && cp /core/target/release/zksync_server /zksync_server
 
 # Clean Yarn cache
