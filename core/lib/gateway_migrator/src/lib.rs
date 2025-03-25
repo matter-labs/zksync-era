@@ -5,10 +5,12 @@ use tokio::sync::watch;
 use zksync_basic_types::{ethabi::Contract, settlement::SettlementLayer, Address, L2ChainId};
 use zksync_contracts::getters_facet_contract;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_eth_client::contracts_loader::{
-    get_settlement_layer_address, get_settlement_layer_from_l1, load_settlement_layer_contracts,
+use zksync_eth_client::{
+    contracts_loader::{
+        get_settlement_layer_address, get_settlement_layer_from_l1, load_settlement_layer_contracts,
+    },
+    EthInterface,
 };
-use zksync_eth_client::EthInterface;
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 
 /// Gateway Migrator component

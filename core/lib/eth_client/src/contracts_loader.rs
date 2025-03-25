@@ -1,4 +1,3 @@
-use crate::{CallFunctionArgs, ContractCallError, EthInterface};
 use zksync_config::configs::contracts::{
     chain::ChainContracts, ecosystem::EcosystemCommonContracts, SettlementLayerSpecificContracts,
 };
@@ -12,6 +11,8 @@ use zksync_types::{
     settlement::SettlementLayer,
     Address, L2ChainId, SLChainId, U256,
 };
+
+use crate::{CallFunctionArgs, ContractCallError, EthInterface};
 
 /// Load contacts specific for each settlement layer, using bridgehub contract
 pub async fn load_settlement_layer_contracts(

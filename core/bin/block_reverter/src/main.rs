@@ -6,11 +6,11 @@ use tokio::{
     fs,
     io::{self, AsyncReadExt},
 };
-use zksync_block_reverter::eth_client::contracts_loader::{
-    get_settlement_layer_from_l1, load_settlement_layer_contracts,
-};
 use zksync_block_reverter::{
-    eth_client::clients::{Client, PKSigningClient, L1},
+    eth_client::{
+        clients::{Client, PKSigningClient, L1},
+        contracts_loader::{get_settlement_layer_from_l1, load_settlement_layer_contracts},
+    },
     BlockReverter, BlockReverterEthConfig, NodeRole,
 };
 use zksync_config::{
@@ -245,7 +245,7 @@ async fn main() -> anyhow::Result<()> {
         None,
     )
     .await?
-    // If None has been returned, use the contracts from configs
+    // If None has been returned, in case of pre v27 upgrade, use the contracts from configs
     .unwrap_or_else(|| contracts.settlement_layer_specific_contracts());
     let settlement_mode = get_settlement_layer_from_l1(
         &l1_client,

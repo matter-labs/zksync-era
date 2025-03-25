@@ -93,9 +93,13 @@ impl AllContractsConfig {
     }
 
     pub fn l2_contracts(&self) -> L2Contracts {
+        let bridge_address = self
+            .l2_erc20_bridge_addr
+            .or(self.l2_shared_bridge_addr)
+            .expect("One of the l2 bridges should be presented");
         L2Contracts {
-            erc20_default_bridge: self.l2_erc20_bridge_addr,
-            shared_bridge_addr: self.l2_shared_bridge_addr,
+            erc20_default_bridge: bridge_address,
+            shared_bridge_addr: bridge_address,
             legacy_shared_bridge_addr: self.l2_legacy_shared_bridge_addr,
             timestamp_asserter_addr: self.l2_timestamp_asserter_addr,
             da_validator_addr: self.l2_da_validator_addr,
@@ -131,8 +135,8 @@ pub struct ChainContracts {
 // Contracts deployed to the l2
 #[derive(Debug, Clone)]
 pub struct L2Contracts {
-    pub erc20_default_bridge: Option<Address>,
-    pub shared_bridge_addr: Option<Address>,
+    pub erc20_default_bridge: Address,
+    pub shared_bridge_addr: Address,
     pub legacy_shared_bridge_addr: Option<Address>,
     pub timestamp_asserter_addr: Option<Address>,
     pub da_validator_addr: Option<Address>,

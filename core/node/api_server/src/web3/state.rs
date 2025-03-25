@@ -180,9 +180,9 @@ impl InternalApiConfigBuilder {
         InternalApiConfigBuilder {
             bridge_addresses: Some(BridgeAddresses {
                 l1_erc20_default_bridge: l1_ecosystem_contracts.erc_20_bridge,
-                l2_erc20_default_bridge: l2_contracts.erc20_default_bridge,
+                l2_erc20_default_bridge: Some(l2_contracts.erc20_default_bridge),
                 l1_shared_default_bridge: l1_ecosystem_contracts.shared_bridge,
-                l2_shared_default_bridge: l2_contracts.shared_bridge_addr,
+                l2_shared_default_bridge: Some(l2_contracts.shared_bridge_addr),
                 // WETH bridge is not available, but SDK doesn't work correctly with none
                 l1_weth_bridge: Some(Address::zero()),
                 l2_weth_bridge: Some(Address::zero()),
@@ -286,9 +286,9 @@ impl InternalApiConfig {
             estimate_gas_optimize_search: web3_config.estimate_gas_optimize_search,
             bridge_addresses: api::BridgeAddresses {
                 l1_erc20_default_bridge: l1_ecosystem_contracts.erc_20_bridge,
-                l2_erc20_default_bridge: l2_contracts.erc20_default_bridge,
+                l2_erc20_default_bridge: Some(l2_contracts.erc20_default_bridge),
                 l1_shared_default_bridge: l1_ecosystem_contracts.shared_bridge,
-                l2_shared_default_bridge: l2_contracts.shared_bridge_addr,
+                l2_shared_default_bridge: Some(l2_contracts.shared_bridge_addr),
                 // WETH bridge is not available, but SDK doesn't work correctly with none
                 l1_weth_bridge: Some(Address::zero()),
                 l2_weth_bridge: Some(Address::zero()),

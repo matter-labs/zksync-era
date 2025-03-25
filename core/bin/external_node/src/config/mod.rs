@@ -122,12 +122,12 @@ pub(crate) struct RemoteENConfig {
     pub l1_shared_bridge_proxy_addr: Option<Address>,
     /// Contract address that serves as a shared bridge on L2.
     /// It is expected that `L2SharedBridge` is used before gateway upgrade, and `L2AssetRouter` is used after.
-    pub l2_shared_bridge_addr: Option<Address>,
+    pub l2_shared_bridge_addr: Address,
     /// Address of `L2SharedBridge` that was used before gateway upgrade.
     /// `None` if chain genesis used post-gateway protocol version.
     pub l2_legacy_shared_bridge_addr: Option<Address>,
     pub l1_erc20_bridge_proxy_addr: Option<Address>,
-    pub l2_erc20_bridge_addr: Option<Address>,
+    pub l2_erc20_bridge_addr: Address,
     pub l1_weth_bridge_addr: Option<Address>,
     pub l2_weth_bridge_addr: Option<Address>,
     pub l2_testnet_paymaster_addr: Option<Address>,
@@ -181,8 +181,6 @@ impl RemoteENConfig {
         )
         .await?;
 
-        // These two config variables should always have the same value.
-        // TODO(EVM-578): double check and potentially forbid both of them being `None`.
         let l2_erc20_default_bridge = bridges
             .l2_erc20_default_bridge
             .or(bridges.l2_shared_default_bridge);
@@ -217,9 +215,9 @@ impl RemoteENConfig {
             l1_diamond_proxy_addr,
             l2_testnet_paymaster_addr,
             l1_erc20_bridge_proxy_addr: bridges.l1_erc20_default_bridge,
-            l2_erc20_bridge_addr: l2_erc20_default_bridge,
+            l2_erc20_bridge_addr: l2_erc20_default_bridge.unwrap(),
             l1_shared_bridge_proxy_addr: bridges.l1_shared_default_bridge,
-            l2_shared_bridge_addr: l2_erc20_shared_bridge,
+            l2_shared_bridge_addr: l2_erc20_shared_bridge.unwrap(),
             l2_legacy_shared_bridge_addr: bridges.l2_legacy_shared_bridge,
             l1_weth_bridge_addr: bridges.l1_weth_bridge,
             l2_weth_bridge_addr: bridges.l2_weth_bridge,
@@ -1503,9 +1501,9 @@ impl From<&ExternalNodeConfig> for InternalApiConfigBuilder {
             estimate_gas_optimize_search: Some(config.optional.estimate_gas_optimize_search),
             bridge_addresses: Some(BridgeAddresses {
                 l1_erc20_default_bridge: config.remote.l1_erc20_bridge_proxy_addr,
-                l2_erc20_default_bridge: config.remote.l2_erc20_bridge_addr,
+                l2_erc20_default_bridge: Some(config.remote.l2_erc20_bridge_addr),
                 l1_shared_default_bridge: config.remote.l1_shared_bridge_proxy_addr,
-                l2_shared_default_bridge: config.remote.l2_shared_bridge_addr,
+                l2_shared_default_bridge: Some(config.remote.l2_shared_bridge_addr),
                 l2_legacy_shared_bridge: config.remote.l2_legacy_shared_bridge_addr,
                 l1_weth_bridge: config.remote.l1_weth_bridge_addr,
                 l2_weth_bridge: config.remote.l2_weth_bridge_addr,

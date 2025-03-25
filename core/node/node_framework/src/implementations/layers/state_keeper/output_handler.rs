@@ -105,11 +105,7 @@ impl WiringLayer for OutputHandlerLayer {
             .await
             .context("Get master pool")?;
 
-        let l2_shared_bridge_addr = input
-            .l2_contracts_resource
-            .0
-            .shared_bridge_addr
-            .context("Missing `l2_shared_bridge_addr`")?;
+        let l2_shared_bridge_addr = input.l2_contracts_resource.0.shared_bridge_addr;
         let l2_legacy_shared_bridge_addr = if l2_shared_bridge_addr == L2_ASSET_ROUTER_ADDRESS {
             // System has migrated to `L2_ASSET_ROUTER_ADDRESS`, use legacy shared bridge address from main node.
             input.l2_contracts_resource.0.legacy_shared_bridge_addr
