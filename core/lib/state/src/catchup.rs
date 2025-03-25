@@ -318,9 +318,9 @@ mod tests {
 
         let storage_logs = gen_storage_logs(40..50);
         let mut conn = pool.connection().await.unwrap();
-        create_l2_block(&mut conn, L2BlockNumber(2), storage_logs.clone()).await;
         // Batch info should be inserted atomically.
         let mut transaction = conn.start_transaction().await.unwrap();
+        create_l2_block(&mut transaction, L2BlockNumber(2), storage_logs.clone()).await;
         create_l1_batch(&mut transaction, L1BatchNumber(2), &storage_logs).await;
         transaction.commit().await.unwrap();
         drop(conn);
@@ -330,20 +330,21 @@ mod tests {
         let started_at = Instant::now();
         loop {
             if started_at.elapsed() > Duration::from_secs(10) {
-                match tokio::time::timeout(Duration::from_millis(1), keep_updated_task_handle).await
-                {
-                    Ok(join_result) => {
-                        let task_result = join_result.unwrap();
-                        panic!("KeepUpdated task finished: {task_result:?}");
-                    }
-                    _ => panic!("Timeout waiting for catch up"),
-                }
-            }
-
-            if builder.l1_batch_number().await == Some(L1BatchNumber(3)) {
                 break;
             }
+            if builder.l1_batch_number().await == Some(L1BatchNumber(3)) {
+                return;
+            }
             tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+
+        if keep_updated_task_handle.is_finished() {
+            panic!(
+                "KeepUpdated task finished: {:?}",
+                keep_updated_task_handle.await
+            );
+        } else {
+            panic!("Timeout waiting for catch up");
         }
     }
 
