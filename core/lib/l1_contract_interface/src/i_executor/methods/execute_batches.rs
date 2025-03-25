@@ -17,7 +17,7 @@ pub struct ExecuteBatches {
     pub priority_ops_proofs: Vec<PriorityOpsMerkleProof>,
     pub logs: Vec<Vec<UserL2ToL1Log>>,
     pub messages: Vec<Vec<Vec<u8>>>,
-    pub message_roots: Vec<H256>,
+    pub message_roots: Vec<H256>, //
 }
 
 impl ExecuteBatches {
@@ -36,7 +36,7 @@ impl ExecuteBatches {
                     .collect(),
             )]
         } else if internal_protocol_version.is_pre_interop()
-            && chain_protocol_version.is_pre_interop()
+            && chain_protocol_version.is_pre_interop() //
         {
             let encoded_data = encode(&[
                 Token::Array(
@@ -105,7 +105,7 @@ impl ExecuteBatches {
             ]);
             let execute_data = [[SUPPORTED_ENCODING_VERSION].to_vec(), encoded_data]
                 .concat()
-                .to_vec();
+                .to_vec(); //
 
             vec![
                 Token::Uint(self.l1_batches[0].header.number.0.into()),

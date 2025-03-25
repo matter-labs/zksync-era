@@ -215,7 +215,7 @@ impl Aggregator {
         protocol_version_id: ProtocolVersionId,
         l1_verifier_config: L1VerifierConfig,
         restrictions: OperationSkippingRestrictions,
-        is_gateway: bool,
+        is_gateway: bool, //
     ) -> Result<Option<AggregatedOperation>, EthSenderError> {
         let Some(last_sealed_l1_batch_number) = storage
             .blocks_dal()
@@ -231,7 +231,7 @@ impl Aggregator {
                 storage,
                 self.config.max_aggregated_blocks_to_execute as usize,
                 last_sealed_l1_batch_number,
-                is_gateway,
+                is_gateway, //
             )
             .await?,
         ) {
@@ -381,7 +381,7 @@ impl Aggregator {
                 priority_ops_proofs: vec![Default::default(); length],
                 logs: vec![],
                 messages: vec![],
-                message_roots: vec![],
+                message_roots: vec![], //
             }));
         };
 
@@ -390,7 +390,7 @@ impl Aggregator {
         let mut priority_ops_proofs = vec![];
         let mut all_logs = vec![];
         let mut all_messages = vec![];
-        let mut all_message_roots = vec![];
+        let mut all_message_roots = vec![]; //
         for batch in &l1_batches {
             let first_priority_op_id_option = storage
                 .blocks_dal()
@@ -456,13 +456,13 @@ impl Aggregator {
                 all_messages.push(messages);
                 all_message_roots.push(message_root);
             }
-        }
+        } //
         Ok(Some(ExecuteBatches {
             l1_batches,
             priority_ops_proofs,
             logs: all_logs,
             messages: all_messages,
-            message_roots: all_message_roots,
+            message_roots: all_message_roots, //
         }))
     }
 

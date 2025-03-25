@@ -45,7 +45,7 @@ struct EthWatchState {
 pub struct EthWatch {
     l1_client: Arc<dyn EthClient>,
     sl_client: Arc<dyn EthClient>,
-    dependency_l2_chain_clients: Option<Vec<Arc<dyn EthClient>>>,
+    dependency_l2_chain_clients: Option<Vec<Arc<dyn EthClient>>>, //
     poll_interval: Duration,
     event_processors: Vec<Box<dyn EventProcessor>>,
     pool: ConnectionPool<Core>,
@@ -57,7 +57,7 @@ impl EthWatch {
         chain_admin_contract: &Contract,
         l1_client: Box<dyn EthClient>,
         sl_l2_client: Option<Box<dyn L2EthClient>>,
-        dependency_l2_chain_clients: Option<Vec<Box<dyn L2EthClient>>>,
+        dependency_l2_chain_clients: Option<Vec<Box<dyn L2EthClient>>>, //
         pool: ConnectionPool<Core>,
         poll_interval: Duration,
         chain_id: L2ChainId,
@@ -67,7 +67,7 @@ impl EthWatch {
         let sl_l2_client: Option<Arc<dyn L2EthClient>> = sl_l2_client.map(Into::into);
         let dependency_l2_chain_clients: Option<Vec<Arc<dyn L2EthClient>>> =
             dependency_l2_chain_clients
-                .map(|clients| clients.into_iter().map(|client| client.into()).collect());
+                .map(|clients| clients.into_iter().map(|client| client.into()).collect()); //
         let sl_client: Arc<dyn EthClient> = if let Some(sl_l2_client) = sl_l2_client.clone() {
             Arc::new(L2EthClientW(sl_l2_client))
         } else {
@@ -83,7 +83,7 @@ impl EthWatch {
                 )
             } else {
                 None
-            };
+            }; //
         // println!("dependency_chain_clients: {:?}", dependency_chain_clients);
         let state = Self::initialize_state(&mut storage, sl_client.as_ref()).await?;
         // tracing::info!("initialized state: {state:?}");
@@ -128,12 +128,12 @@ impl EthWatch {
         if let Some(_) = dependency_l2_chain_clients.clone() {
             let dependency_message_root_processor =
                 MessageRootProcessor::new(EventsSource::Dependency, Some(0), None);
-            event_processors.push(Box::new(dependency_message_root_processor));
+            event_processors.push(Box::new(dependency_message_root_processor)); //
         }
         Ok(Self {
             l1_client,
             sl_client,
-            dependency_l2_chain_clients: dependency_chain_clients,
+            dependency_l2_chain_clients: dependency_chain_clients, //
             poll_interval,
             event_processors,
             pool,
@@ -224,7 +224,7 @@ impl EthWatch {
                 // EventsSource::Dependency => self.sl_client.as_ref(),
                 EventsSource::Dependency => self.dependency_l2_chain_clients.as_ref().unwrap()
                     [processor.dependency_chain_number().unwrap()]
-                .as_ref(),
+                .as_ref(), //
             };
             let chain_id = client.chain_id().await?;
             let to_block = if processor.only_finalized_block() {

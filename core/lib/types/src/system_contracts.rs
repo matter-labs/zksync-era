@@ -250,7 +250,7 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 43] = [
         "InteropCenter",
         L2_INTEROP_CENTER_ADDRESS,
         ContractLanguage::Sol,
-    ),
+    ), //
     (
         "",
         "InteropAccount",
@@ -280,7 +280,7 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 43] = [
         "AssetTracker",
         L2_ASSET_TRACKER_ADDRESS,
         ContractLanguage::Sol,
-    ),
+    ), //
 ];
 
 /// Gets default set of system contracts, based on Cargo workspace location.

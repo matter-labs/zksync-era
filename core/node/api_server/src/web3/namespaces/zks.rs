@@ -338,7 +338,7 @@ impl ZksNamespace {
         index_in_filtered_logs: usize,
         log_filter: impl Fn(&L2ToL1Log) -> bool,
         proof_until_chain_id: Option<U64>,
-        precommit_log_index: Option<usize>,
+        precommit_log_index: Option<usize>, //
     ) -> Result<Option<L2ToL1LogProof>, Web3Error> {
         let all_l1_logs_in_batch = storage
             .blocks_web3_dal()
@@ -358,7 +358,7 @@ impl ZksNamespace {
             if l1_log_index > precommit_log_index {
                 return Ok(None);
             }
-        }
+        } //
 
         let Some(batch_with_metadata) = storage
             .blocks_dal()
@@ -372,7 +372,7 @@ impl ZksNamespace {
         let merkle_tree_leaves = all_l1_logs_in_batch.iter().map(L2ToL1Log::to_bytes);
         // let merkle_tree_leaves = all_l1_logs_in_batch[..precommit_log_index.unwrap_or(all_l1_logs_in_batch.len())]
         // .iter()
-        // .map(L2ToL1Log::to_bytes);
+        // .map(L2ToL1Log::to_bytes); //
 
         let protocol_version = batch_with_metadata
             .header
@@ -459,7 +459,7 @@ impl ZksNamespace {
         tx_hash: H256,
         index: Option<usize>,
         proof_until_chain_id: Option<U64>,
-        precommit_log_index: Option<usize>,
+        precommit_log_index: Option<usize>, //
     ) -> Result<Option<L2ToL1LogProof>, Web3Error> {
         if let Some(handler) = &self.state.l2_l1_log_proof_handler {
             if let Some(proof_until_chain_id) = proof_until_chain_id {
@@ -475,7 +475,7 @@ impl ZksNamespace {
             }
             return handler
                 .get_l2_to_l1_log_proof_precommit(tx_hash, index, precommit_log_index)
-                .rpc_context("get_l2_to_l1_log_proof_precommit")
+                .rpc_context("get_l2_to_l1_log_proof_precommit") //
                 .await
                 .map_err(Into::into);
         }

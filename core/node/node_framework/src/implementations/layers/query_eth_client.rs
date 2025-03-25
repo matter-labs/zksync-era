@@ -18,7 +18,7 @@ pub struct QueryEthClientLayer {
     gateway_chain_id: Option<SLChainId>,
     gateway_rpc_url: Option<SensitiveUrl>,
     dependency_chain_id: Option<SLChainId>,
-    dependency_chain_rpc_url: Option<SensitiveUrl>,
+    dependency_chain_rpc_url: Option<SensitiveUrl>, //
 }
 
 impl QueryEthClientLayer {
@@ -28,7 +28,7 @@ impl QueryEthClientLayer {
         gateway_chain_id: Option<SLChainId>,
         gateway_rpc_url: Option<SensitiveUrl>,
         dependency_chain_id: Option<SLChainId>,
-        dependency_chain_rpc_url: Option<SensitiveUrl>,
+        dependency_chain_rpc_url: Option<SensitiveUrl>, //
     ) -> Self {
         Self {
             l1_chain_id,
@@ -36,7 +36,7 @@ impl QueryEthClientLayer {
             gateway_chain_id,
             gateway_rpc_url,
             dependency_chain_id,
-            dependency_chain_rpc_url,
+            dependency_chain_rpc_url, //
         }
     }
 }
@@ -47,7 +47,7 @@ pub struct Output {
     query_client_l1: EthInterfaceResource,
     query_client_l2: Option<L2InterfaceResource>,
     query_client_gateway: Option<GatewayEthInterfaceResource>,
-    query_client_dependency: Option<L2InterfaceResource>,
+    query_client_dependency: Option<L2InterfaceResource>, //
 }
 
 #[async_trait::async_trait]
@@ -101,7 +101,7 @@ impl WiringLayer for QueryEthClientLayer {
                 }
 
                 Some(L2InterfaceResource(Box::new(builder.build())))
-            } else {
+            } else { //
                 None
             },
         })

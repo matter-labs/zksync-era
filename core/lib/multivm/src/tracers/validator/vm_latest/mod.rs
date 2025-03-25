@@ -152,7 +152,7 @@ impl<H: HistoryMode> ValidationTracer<H> {
                 let called_address = u256_to_address(&call_destination_value);
 
                 if !self.is_allowed_storage_read(storage.clone(), this_address, key, msg_sender) {
-                    println!("called_address: {:?}", called_address);
+                    println!("called_address : {:?}", called_address);
                     if called_address == L2_INTEROP_HANDLER_ADDRESS {
                     } else {
                         return Err(ViolatedValidationRule::TouchedDisallowedStorageSlots(

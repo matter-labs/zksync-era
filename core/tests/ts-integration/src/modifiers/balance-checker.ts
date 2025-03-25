@@ -18,6 +18,7 @@ import {
     ArtifactInteropCenter
 } from '../constants';
 import { RetryProvider } from '../retry-provider';
+// checkout whole file before merge
 
 /**
  * Modifier that ensures that fee was taken from the wallet for a transaction.
@@ -92,7 +93,7 @@ export interface Params {
     l1?: boolean;
     l1ToL2?: boolean;
     ignoreUndeployedToken?: boolean;
-    checkChainBalance?: boolean;
+    checkChainBalance?: boolean; 
 }
 
 /**
@@ -101,7 +102,7 @@ export interface Params {
  */
 interface PopulatedBalanceChange extends BalanceChange {
     initialBalance: bigint;
-    initialChainBalance: bigint;
+    initialChainBalance: bigint; 
 }
 
 /**

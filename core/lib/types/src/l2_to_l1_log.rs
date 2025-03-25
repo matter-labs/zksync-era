@@ -68,7 +68,7 @@ impl L2ToL1Log {
             Token::Address(self.sender),
             Token::FixedBytes(self.key.as_bytes().to_vec()),
             Token::FixedBytes(self.value.as_bytes().to_vec()),
-        ])
+        ]) //
     }
 }
 

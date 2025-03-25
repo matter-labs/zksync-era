@@ -18,7 +18,7 @@ pub struct L1Secrets {
     pub l1_rpc_url: SensitiveUrl,
     pub gateway_rpc_url: Option<SensitiveUrl>,
     pub dependency_chain_rpc_url: Option<SensitiveUrl>,
-    pub dependency_chain_id: Option<SLChainId>,
+    pub dependency_chain_id: Option<SLChainId>, //
 }
 
 #[derive(Debug, Clone, PartialEq)]

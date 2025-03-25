@@ -101,7 +101,7 @@ impl ProtoRepr for proto::L1Secrets {
                 .map(|url| SensitiveUrl::from_str(&url))
                 .transpose()
                 .context("dependency_chain_rpc_url")?,
-            dependency_chain_id: self.dependency_chain_id.as_ref().map(|id| SLChainId(*id)),
+            dependency_chain_id: self.dependency_chain_id.as_ref().map(|id| SLChainId(*id)), //
         })
     }
 
@@ -116,7 +116,7 @@ impl ProtoRepr for proto::L1Secrets {
                 .dependency_chain_rpc_url
                 .as_ref()
                 .map(|url| url.expose_url().to_string()),
-            dependency_chain_id: this.dependency_chain_id.as_ref().map(|id| id.0),
+            dependency_chain_id: this.dependency_chain_id.as_ref().map(|id| id.0), //
         }
     }
 }

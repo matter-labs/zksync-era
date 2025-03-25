@@ -152,7 +152,7 @@ impl EventProcessor for MessageRootProcessor {
 
     fn dependency_chain_number(&self) -> Option<usize> {
         self.dependency_chain_number
-    }
+    } //
 }
 
 impl MessageRootProcessor {}

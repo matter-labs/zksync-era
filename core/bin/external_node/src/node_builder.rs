@@ -193,7 +193,7 @@ impl ExternalNodeBuilder {
             self.config.required.gateway_chain_id,
             self.config.optional.gateway_url.clone(),
             None,
-            None, // kl todo add dependency chains here
+            None, // kl todo add dependency chains here.
         );
         self.node.add_layer(query_eth_client_layer);
         Ok(self)

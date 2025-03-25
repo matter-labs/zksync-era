@@ -755,7 +755,7 @@ impl Distribution<configs::secrets::L1Secrets> for EncodeDist {
             dependency_chain_rpc_url: Some(
                 format!("localhost:{}", rng.gen::<u16>()).parse().unwrap(),
             ),
-            dependency_chain_id: Some(SLChainId(rng.gen())),
+            dependency_chain_id: Some(SLChainId(rng.gen())), //
         }
     }
 }

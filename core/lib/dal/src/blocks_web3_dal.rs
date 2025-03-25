@@ -452,7 +452,7 @@ impl BlocksWeb3Dal<'_, '_> {
             .blocks_dal()
             .get_l2_to_l1_messages_for_batch(l1_batch_number)
             .await
-    }
+    } //
 
     pub async fn get_message_root(&mut self, l1_batch_number: L1BatchNumber) -> DalResult<H256> {
         self.storage

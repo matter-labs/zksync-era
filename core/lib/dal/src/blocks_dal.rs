@@ -47,7 +47,7 @@ pub struct BlocksDal<'a, 'c> {
 
 pub struct L2ToL1Messages {
     l2_to_l1_messages: Vec<Vec<u8>>,
-}
+} //
 
 impl BlocksDal<'_, '_> {
     pub async fn get_consistency_checker_last_processed_l1_batch(
@@ -2913,7 +2913,7 @@ impl BlocksDal<'_, '_> {
             .collect::<Vec<Vec<u8>>>();
 
         Ok(messages)
-    }
+    } //
 
     pub async fn get_message_root(&mut self, l1_batch_number: L1BatchNumber) -> DalResult<H256> {
         let row = sqlx::query!(

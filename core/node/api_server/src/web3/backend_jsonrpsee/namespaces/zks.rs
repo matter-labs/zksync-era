@@ -110,7 +110,7 @@ impl ZksNamespaceServer for ZksNamespace {
         self.get_l2_to_l1_log_proof_impl(tx_hash, index, None, l2_message_index)
             .await
             .map_err(|err| self.current_method().map_err(err))
-    }
+    } //
 
     async fn get_l2_to_l1_log_proof_until_chain_id(
         &self,
