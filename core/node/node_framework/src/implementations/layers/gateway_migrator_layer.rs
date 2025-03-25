@@ -52,16 +52,10 @@ impl WiringLayer for GatewayMigratorLayer {
             input
                 .gateway_client
                 .map(|a| Box::new(a.0) as Box<dyn EthInterface>),
-            input.contracts.0.chain_contracts_config.diamond_proxy_addr,
             input.settlement_mode_resource.0,
             self.l2chain_id,
-            input
-                .contracts
-                .0
-                .ecosystem_contracts
-                .bridgehub_proxy_addr
-                .expect("bridgehub_proxy_addr"),
             input.pool.get().await?,
+            input.contracts.0,
         );
 
         Ok(Output {

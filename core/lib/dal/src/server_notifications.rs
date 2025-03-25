@@ -38,9 +38,9 @@ impl ServerNotificationsDal<'_, '_> {
 
     pub async fn get_last_notification_by_topics(
         &mut self,
-        topics: Vec<H256>,
+        topics: &[H256],
     ) -> DalResult<Option<ServerNotification>> {
-        let topics: Vec<Vec<u8>> = topics.into_iter().map(|a| a.as_bytes().to_vec()).collect();
+        let topics: Vec<Vec<u8>> = topics.iter().map(|a| a.as_bytes().to_vec()).collect();
 
         let rows = sqlx::query!(
             r#"
@@ -56,7 +56,7 @@ impl ServerNotificationsDal<'_, '_> {
             "#,
             &topics
         )
-        .instrument("notifications_by_topics")
+        .instrument("get_last_notification_by_topics")
         .fetch_optional(self.storage)
         .await?
         .map(|a| ServerNotification {

@@ -888,11 +888,9 @@ impl EthTxAggregator {
             .unwrap()
             .signature();
 
-        let topics = vec![to_gateway, from_gateway];
-
         let notifications = storage
             .server_notifications_dal()
-            .get_last_notification_by_topics(topics)
+            .get_last_notification_by_topics(&[to_gateway, from_gateway])
             .await
             .unwrap();
 
