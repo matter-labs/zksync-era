@@ -1,5 +1,4 @@
 use async_trait::async_trait;
-use zksync_config::configs::fri_prover_group::FriProverGroupConfig;
 use zksync_prover_dal::{Connection, Prover, ProverDal};
 use zksync_types::{basic_fri_types::CircuitIdRoundTuple, prover_dal::JobCountStatistics};
 
@@ -8,15 +7,7 @@ use crate::{metrics::FRI_PROVER_METRICS, task_wiring::Task};
 /// `ProverQueueReporter` is a task that reports prover jobs status.
 /// Note: these values will be used for auto-scaling provers and Witness Vector Generators.
 #[derive(Debug)]
-pub struct ProverQueueReporter {
-    config: FriProverGroupConfig,
-}
-
-impl ProverQueueReporter {
-    pub fn new(config: FriProverGroupConfig) -> Self {
-        Self { config }
-    }
-}
+pub struct ProverQueueReporter;
 
 #[async_trait]
 impl Task for ProverQueueReporter {
@@ -36,19 +27,11 @@ impl Task for ProverQueueReporter {
                     queued,
                     in_progress,
                 } = stat;
-                let group_id = self
-                    .config
-                    .get_group_id_for_circuit_id_and_aggregation_round(
-                        circuit_id,
-                        aggregation_round,
-                    )
-                    .unwrap_or(u8::MAX);
 
                 FRI_PROVER_METRICS.report_prover_jobs(
                     "queued",
                     circuit_id,
                     aggregation_round,
-                    group_id,
                     protocol_semantic_version,
                     queued as u64,
                 );
@@ -57,7 +40,6 @@ impl Task for ProverQueueReporter {
                     "in_progress",
                     circuit_id,
                     aggregation_round,
-                    group_id,
                     protocol_semantic_version,
                     in_progress as u64,
                 )
