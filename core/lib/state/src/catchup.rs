@@ -313,28 +313,38 @@ mod tests {
         let keep_updated_task = rocksdb_cell.keep_updated(pool.clone());
         let (_stop_sender, stop_receiver) = watch::channel(false);
         let catchup_task_handle = tokio::spawn(catchup_task.run(stop_receiver.clone()));
-        let _keep_updated_task_handle = tokio::spawn(keep_updated_task.run(stop_receiver));
+        let keep_updated_task_handle = tokio::spawn(keep_updated_task.run(stop_receiver));
         catchup_task_handle.await.unwrap().unwrap();
 
         let storage_logs = gen_storage_logs(40..50);
         let mut conn = pool.connection().await.unwrap();
-        create_l2_block(&mut conn, L2BlockNumber(2), storage_logs.clone()).await;
-        create_l1_batch(&mut conn, L1BatchNumber(2), &storage_logs).await;
+        // Batch info should be inserted atomically.
+        let mut transaction = conn.start_transaction().await.unwrap();
+        create_l2_block(&mut transaction, L2BlockNumber(2), storage_logs.clone()).await;
+        create_l1_batch(&mut transaction, L1BatchNumber(2), &storage_logs).await;
+        transaction.commit().await.unwrap();
         drop(conn);
 
         let rocksdb = rocksdb_cell.get().unwrap();
         let builder = RocksdbStorageBuilder::from_rocksdb(rocksdb);
         let started_at = Instant::now();
         loop {
-            assert!(
-                started_at.elapsed() < Duration::from_secs(10),
-                "Timeout waiting for catch up"
-            );
-
-            if builder.l1_batch_number().await == Some(L1BatchNumber(3)) {
+            if started_at.elapsed() > Duration::from_secs(10) {
                 break;
             }
+            if builder.l1_batch_number().await == Some(L1BatchNumber(3)) {
+                return;
+            }
             tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+
+        if keep_updated_task_handle.is_finished() {
+            panic!(
+                "KeepUpdated task finished: {:?}",
+                keep_updated_task_handle.await
+            );
+        } else {
+            panic!("Timeout waiting for catch up");
         }
     }
 
