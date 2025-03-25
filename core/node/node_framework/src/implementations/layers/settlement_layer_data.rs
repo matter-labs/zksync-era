@@ -18,7 +18,10 @@ use zksync_types::{
     pubdata_da::PubdataSendingMode, settlement::SettlementLayer, url::SensitiveUrl, Address,
     L2ChainId, L2_BRIDGEHUB_ADDRESS,
 };
-use zksync_web3_decl::{client::Client, namespaces::ZksNamespaceClient};
+use zksync_web3_decl::{
+    client::{Client, L2},
+    namespaces::ZksNamespaceClient,
+};
 
 use crate::{
     implementations::resources::{
@@ -122,7 +125,7 @@ impl WiringLayer for SettlementLayerData<MainNodeConfig> {
 
         let pool = input.pool.get().await?;
 
-        let l2_eth_client = get_l2_client(self.config.gateway_rpc_url)?;
+        let l2_eth_client = get_l2_client(self.config.gateway_rpc_url).await?;
         let gateway_client: Option<Arc<dyn EthInterface>> = l2_eth_client
             .clone()
             .map(|a| Arc::new(a.0) as Arc<dyn EthInterface>);
@@ -239,7 +242,7 @@ impl WiringLayer for SettlementLayerData<ENConfig> {
             .await?
         };
 
-        let l2_eth_client = get_l2_client(self.config.gateway_rpc_url)?;
+        let l2_eth_client = get_l2_client(self.config.gateway_rpc_url).await?;
 
         let (client, bridgehub): (&dyn EthInterface, Address) = match initial_sl_mode {
             SettlementLayer::L1(_) => (
@@ -280,13 +283,22 @@ impl WiringLayer for SettlementLayerData<ENConfig> {
     }
 }
 
-fn get_l2_client(
+async fn get_l2_client(
     gateway_rpc_url: Option<SensitiveUrl>,
 ) -> anyhow::Result<Option<L2InterfaceResource>> {
-    Ok(gateway_rpc_url
-        .map(|url| Client::http(url).context("Client::new()"))
-        .transpose()?
-        .map(|builder| L2InterfaceResource(Box::new(builder.build()))))
+    let res = if let Some(url) = gateway_rpc_url {
+        let client: Client<L2> = Client::http(url.clone()).context("Client::new()")?.build();
+        let chain_id = client.fetch_chain_id().await?;
+        Some(L2InterfaceResource(Box::new(
+            Client::http(url)
+                .context("Client::new()")?
+                .for_network(L2ChainId::new(chain_id.0).unwrap().into())
+                .build(),
+        )))
+    } else {
+        None
+    };
+    Ok(res)
 }
 
 // Gateway has different rules for pubdata and gas space.
