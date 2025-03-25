@@ -94,13 +94,6 @@ struct PastL1BatchInfo {
     chain_id: SLChainId,
 }
 
-#[derive(Debug)]
-struct SLChainAccess {
-    client: Box<dyn EthInterface>,
-    chain_id: SLChainId,
-    diamond_proxy_addr: Address,
-}
-
 /// Provider of tree data loading it from L1 `BlockCommit` events emitted by the diamond proxy contract.
 /// Should be used together with an L2 provider because L1 data can be missing for latest batches,
 /// and the provider implementation uses assumptions that can break in some corner cases.
@@ -113,7 +106,9 @@ struct SLChainAccess {
 /// (provided it's not too far behind the seal timestamp of the batch).
 #[derive(Debug)]
 pub(super) struct SLDataProvider {
-    chain_data: SLChainAccess,
+    client: Box<dyn EthInterface>,
+    chain_id: SLChainId,
+    diamond_proxy_addr: Address,
     block_commit_signature: H256,
     past_l1_batch: Option<PastL1BatchInfo>,
 }
@@ -130,17 +125,14 @@ impl SLDataProvider {
         l1_diamond_proxy_addr: Address,
     ) -> anyhow::Result<Self> {
         let l1_chain_id = l1_client.fetch_chain_id().await?;
-        let chain_data = SLChainAccess {
-            client: l1_client,
-            chain_id: l1_chain_id,
-            diamond_proxy_addr: l1_diamond_proxy_addr,
-        };
         let block_commit_signature = zksync_contracts::hyperchain_contract()
             .event("BlockCommit")
             .context("missing `BlockCommit` event")?
             .signature();
         Ok(Self {
-            chain_data,
+            client: l1_client,
+            chain_id: l1_chain_id,
+            diamond_proxy_addr: l1_diamond_proxy_addr,
             block_commit_signature,
             past_l1_batch: None,
         })
@@ -215,7 +207,7 @@ impl TreeDataProvider for SLDataProvider {
                 info.number < number,
                 "`batch_details()` must be called with monotonically increasing numbers"
             );
-            if info.chain_id != self.chain_data.chain_id {
+            if info.chain_id != self.chain_id {
                 return None;
             }
             let threshold_timestamp = info.l1_commit_block_timestamp + Self::L1_BLOCK_RANGE.as_u64() / 2;
@@ -236,7 +228,7 @@ impl TreeDataProvider for SLDataProvider {
             Some(number) => number,
             None => {
                 let (approximate_block, steps) = Self::guess_l1_commit_block_number(
-                    self.chain_data.client.as_ref(),
+                    self.client.as_ref(),
                     l1_batch_seal_timestamp,
                 )
                 .await?;
@@ -254,7 +246,7 @@ impl TreeDataProvider for SLDataProvider {
 
         let number_topic = H256::from_low_u64_be(number.0.into());
         let filter = web3::FilterBuilder::default()
-            .address(vec![self.chain_data.diamond_proxy_addr])
+            .address(vec![self.diamond_proxy_addr])
             .from_block(web3::BlockNumber::Number(from_block))
             .to_block(web3::BlockNumber::Number(from_block + Self::L1_BLOCK_RANGE))
             .topics(
@@ -264,7 +256,7 @@ impl TreeDataProvider for SLDataProvider {
                 None,
             )
             .build();
-        let mut logs = self.chain_data.client.logs(&filter).await?;
+        let mut logs = self.client.logs(&filter).await?;
         logs.retain(|log| !log.is_removed() && log.block_number.is_some());
 
         match logs.as_slice() {
@@ -285,11 +277,7 @@ impl TreeDataProvider for SLDataProvider {
                      {diff} block(s) after the `from` block from the filter"
                 );
 
-                let l1_commit_block = self
-                    .chain_data
-                    .client
-                    .block(l1_commit_block_number.into())
-                    .await?;
+                let l1_commit_block = self.client.block(l1_commit_block_number.into()).await?;
                 let l1_commit_block = l1_commit_block.ok_or_else(|| {
                     let err = "Block disappeared from L1 RPC provider";
                     EnrichedClientError::new(ClientError::Custom(err.into()), "batch_details")
@@ -299,7 +287,7 @@ impl TreeDataProvider for SLDataProvider {
                     number,
                     l1_commit_block_number,
                     l1_commit_block_timestamp: l1_commit_block.timestamp,
-                    chain_id: self.chain_data.chain_id,
+                    chain_id: self.chain_id,
                 });
                 Ok(Ok(root_hash))
             }

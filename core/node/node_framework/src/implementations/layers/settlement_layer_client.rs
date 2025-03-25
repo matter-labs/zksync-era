@@ -5,7 +5,7 @@ use zksync_web3_decl::client::Client;
 
 use crate::{
     implementations::resources::{
-        eth_interface::{SettlementLayerClientResource, UniversalClient},
+        eth_interface::{SettlementLayerClient, SettlementLayerClientResource},
         settlement_layer::SettlementModeResource,
     },
     wiring_layer::{WiringError, WiringLayer},
@@ -55,13 +55,17 @@ impl WiringLayer for SettlementLayerClientLayer {
                 SettlementLayer::L1(chain_id) => {
                     let mut builder = Client::http(self.l1_rpc_url).context("Client::new()")?;
                     builder = builder.for_network(L1ChainId(chain_id.0).into());
-                    SettlementLayerClientResource(UniversalClient::L1(Box::new(builder.build())))
+                    SettlementLayerClientResource(SettlementLayerClient::L1(Box::new(
+                        builder.build(),
+                    )))
                 }
                 SettlementLayer::Gateway(chain_id) => {
                     let mut builder =
                         Client::http(self.gateway_rpc_url.unwrap()).context("Client::new()")?;
                     builder = builder.for_network(L2ChainId::new(chain_id.0).unwrap().into());
-                    SettlementLayerClientResource(UniversalClient::L2(Box::new(builder.build())))
+                    SettlementLayerClientResource(SettlementLayerClient::L2(Box::new(
+                        builder.build(),
+                    )))
                 }
             },
         })

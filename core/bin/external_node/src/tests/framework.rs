@@ -9,7 +9,9 @@ use zksync_node_framework::{
             settlement_layer_client::SettlementLayerClientLayer, sigint::SigintHandlerLayer,
         },
         resources::{
-            eth_interface::{EthInterfaceResource, SettlementLayerClientResource, UniversalClient},
+            eth_interface::{
+                EthInterfaceResource, SettlementLayerClient, SettlementLayerClientResource,
+            },
             healthcheck::AppHealthCheckResource,
             main_node_client::MainNodeClientResource,
         },
@@ -180,7 +182,7 @@ impl WiringLayer for MockSettlementLayerClientLayer {
     }
 
     async fn wire(self, _: Self::Input) -> Result<Self::Output, WiringError> {
-        Ok(SettlementLayerClientResource(UniversalClient::L1(
+        Ok(SettlementLayerClientResource(SettlementLayerClient::L1(
             Box::new(self.client),
         )))
     }

@@ -6,8 +6,8 @@ use crate::{
         contracts::{L1ChainContractsResource, SettlementLayerContractsResource},
         eth_interface::{
             BoundEthInterfaceForBlobsResource, BoundEthInterfaceForL2Resource,
-            BoundEthInterfaceResource, EthInterfaceResource, SettlementLayerClientResource,
-            UniversalClient,
+            BoundEthInterfaceResource, EthInterfaceResource, SettlementLayerClient,
+            SettlementLayerClientResource,
         },
     },
     wiring_layer::{WiringError, WiringLayer},
@@ -96,7 +96,7 @@ impl WiringLayer for PKSigningEthClientLayer {
         });
 
         let signing_client_for_l2_gateway = match input.gateway_client.0 {
-            UniversalClient::L2(gateway_client) => {
+            SettlementLayerClient::L2(gateway_client) => {
                 let private_key = self.wallets.operator.private_key();
                 let chain_id = gateway_client
                     .fetch_chain_id()
@@ -113,7 +113,7 @@ impl WiringLayer for PKSigningEthClientLayer {
                     signing_client_for_blobs,
                 )))
             }
-            UniversalClient::L1(_) => None,
+            SettlementLayerClient::L1(_) => None,
         };
 
         Ok(Output {

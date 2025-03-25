@@ -6,7 +6,7 @@ use zksync_node_fee_model::l1_gas_price::GasAdjuster;
 
 use crate::{
     implementations::resources::{
-        eth_interface::{SettlementLayerClientResource, UniversalClient},
+        eth_interface::{SettlementLayerClient, SettlementLayerClientResource},
         gas_adjuster::GasAdjusterResource,
     },
     service::StopReceiver,
@@ -59,8 +59,8 @@ impl WiringLayer for GasAdjusterLayer {
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         let client = match input.client.0 {
-            UniversalClient::L1(client) => client.into(),
-            UniversalClient::L2(client) => client.into(),
+            SettlementLayerClient::L1(client) => client.into(),
+            SettlementLayerClient::L2(client) => client.into(),
         };
 
         let adjuster = GasAdjuster::new(

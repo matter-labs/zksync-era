@@ -12,7 +12,9 @@ use crate::{
             L1ChainContractsResource, L1EcosystemContractsResource,
             SettlementLayerContractsResource,
         },
-        eth_interface::{EthInterfaceResource, SettlementLayerClientResource, UniversalClient},
+        eth_interface::{
+            EthInterfaceResource, SettlementLayerClient, SettlementLayerClientResource,
+        },
         pools::{MasterPool, PoolResource},
         settlement_layer::SettlementModeResource,
     },
@@ -114,12 +116,12 @@ impl WiringLayer for EthWatchLayer {
         );
 
         let sl_l2_client: Box<dyn ZkSyncExtentionEthClient> = match input.client.0 {
-            UniversalClient::L1(client) => Box::new(self.create_client(
+            SettlementLayerClient::L1(client) => Box::new(self.create_client(
                 client,
                 &input.contracts_resource.0,
                 &input.l1ecosystem_contracts_resource.0,
             )),
-            UniversalClient::L2(client) => Box::new(self.create_client(
+            SettlementLayerClient::L2(client) => Box::new(self.create_client(
                 client,
                 &input.contracts_resource.0,
                 &input.l1ecosystem_contracts_resource.0,

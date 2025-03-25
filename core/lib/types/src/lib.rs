@@ -55,7 +55,6 @@ pub mod eth_sender;
 pub mod helpers;
 #[cfg(feature = "protobuf")]
 pub mod proto;
-pub mod server_notification;
 pub mod transaction_request;
 pub mod utils;
 

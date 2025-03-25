@@ -14,22 +14,22 @@ impl Resource for EthInterfaceResource {
 }
 
 #[derive(Debug, Clone)]
-pub enum UniversalClient {
+pub enum SettlementLayerClient {
     L1(Box<DynClient<L1>>),
     L2(Box<DynClient<L2>>),
 }
 
-impl From<UniversalClient> for Box<dyn EthInterface> {
-    fn from(value: UniversalClient) -> Self {
+impl From<SettlementLayerClient> for Box<dyn EthInterface> {
+    fn from(value: SettlementLayerClient) -> Self {
         match value {
-            UniversalClient::L1(client) => Box::new(client),
-            UniversalClient::L2(client) => Box::new(client),
+            SettlementLayerClient::L1(client) => Box::new(client),
+            SettlementLayerClient::L2(client) => Box::new(client),
         }
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct SettlementLayerClientResource(pub UniversalClient);
+pub struct SettlementLayerClientResource(pub SettlementLayerClient);
 
 impl Resource for SettlementLayerClientResource {
     fn name() -> String {
