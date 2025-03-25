@@ -149,7 +149,7 @@ impl FriProverDal<'_, '_> {
                             OR circuit_id = 8
                             OR circuit_id = 9
                             OR circuit_id = 11
-                            OR circuit_id = 12    
+                            OR circuit_id = 12
                         )
                     ORDER BY
                         l1_batch_number ASC,
