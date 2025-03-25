@@ -6,7 +6,7 @@ use ethers::{
     middleware::MiddlewareBuilder,
     prelude::{Http, LocalWallet, Provider, Signer, SignerMiddleware},
     providers::Middleware,
-    types::{Address, TransactionRequest},
+    types::{Address, TransactionRequest, U256},
 };
 use zkstack_cli_types::TokenInfo;
 

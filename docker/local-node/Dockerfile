@@ -34,18 +34,9 @@ COPY zkstack_cli /app/zkstack_cli
 COPY rust-toolchain /app/
 COPY core /app/core
 
-# Avoid CPU-specific instructions
-ENV RUSTFLAGS="-C target-cpu=generic"
-
-# Set stable toolchain (avoid nightly quirks)
-RUN rustup default stable
-
 # Build zkstackup binary
-RUN cargo install --git https://github.com/matter-labs/zksync-era.git --rev 634ff6a62e74b68ace1fd5dec40a5d77f77dcebf --locked zkstack --force --root /usr/local --features gateway
-
-RUN rustup default nightly-2024-08-01-x86_64-unknown-linux-gnu
-
-RUN which zkstack
+RUN ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup \
+    && zkstackup -g --local --cargo-features gateway
 
 # Build Foundry for zkSync
 RUN mkdir ./foundry-zksync \
@@ -145,16 +136,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   && apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin \
   && rm -rf /var/lib/apt/lists/*
 
-# Install cmake & other dependencies
-RUN apt-get update && apt-get install -y cmake build-essential clang pkg-config libssl-dev
-
 # Build zkstack server
-# ENV RUSTFLAGS="-C target-feature=-avx512f,-avx512vl"
-ENV CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1
-ENV CARGO_PROFILE_RELEASE_LTO="fat"
-ENV RUSTFLAGS="-C target-cpu=generic -C target-feature=-avx512f,-avx512vl,-avx2,-sse4.2"
-ENV CARGO_INCREMENTAL=0
-
 RUN zkstack server build && cp /core/target/release/zksync_server /zksync_server
 
 # Clean Yarn cache
