@@ -12,7 +12,7 @@ pub struct EthWatchConfig {
     /// Value in milliseconds.
     pub eth_node_poll_interval: u64,
     /// How many L1 blocks to look back for the priority operations.
-    #[serde(default = "EthWatchConfig::default_state_keeper_db_block_cache_capacity_mb")]
+    #[serde(default = "EthWatchConfig::default_priotity_tx_expiration_blocks")]
     pub priotity_tx_expiration_blocks: u64,
 }
 
