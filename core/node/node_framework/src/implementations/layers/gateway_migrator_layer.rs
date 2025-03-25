@@ -77,6 +77,7 @@ impl Task for GatewayMigrator {
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        self.run_inner(stop_receiver.0).await
+        (*self).run(stop_receiver.0).await?;
+        Ok(())
     }
 }

@@ -51,7 +51,7 @@ impl GatewayMigrator {
         }
     }
 
-    pub async fn run_inner(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+    pub async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         let gateway_client: Option<Arc<dyn EthInterface>> = self.gateway_client.map(|a| a.into());
         loop {
             if *stop_receiver.borrow() {

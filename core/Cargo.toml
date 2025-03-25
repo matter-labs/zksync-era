@@ -40,6 +40,7 @@ members = [
   "node/external_proof_integration_api",
   "node/logs_bloom_backfill",
   "node/da_clients",
+  "node/gateway_migrator",
   # Libraries
   "lib/db_connection",
   "lib/zksync_core_leftovers",
@@ -79,7 +80,6 @@ members = [
   "lib/task_management",
   "lib/zk_os_merkle_tree",
   "lib/test_contracts",
-  "lib/gateway_migrator",
   # Test infrastructure
   "tests/loadnext",
   "tests/vm-benchmark",
@@ -334,4 +334,4 @@ zksync_contract_verification_server = { version = "26.7.0-non-semver-compat", pa
 zksync_node_api_server = { version = "26.7.0-non-semver-compat", path = "node/api_server" }
 zksync_base_token_adjuster = { version = "26.7.0-non-semver-compat", path = "node/base_token_adjuster" }
 zksync_logs_bloom_backfill = { version = "26.7.0-non-semver-compat", path = "node/logs_bloom_backfill" }
-zksync_gateway_migrator = { version = "26.7.0-non-semver-compat", path = "lib/gateway_migrator" }
+zksync_gateway_migrator = { version = "26.7.0-non-semver-compat", path = "node/gateway_migrator" }
