@@ -3,7 +3,10 @@ use std::collections::HashSet;
 use zksync_crypto_primitives::hasher::blake2::Blake2Hasher;
 
 use super::*;
-use crate::{leaf_nibbles, DefaultTreeParams, MerkleTree, TreeEntry, TreeParams};
+use crate::{
+    leaf_nibbles, storage::patch::InsertedLeaf, DefaultTreeParams, MerkleTree, TreeEntry,
+    TreeParams,
+};
 
 #[test]
 fn creating_min_update_for_empty_tree() {
@@ -12,8 +15,8 @@ fn creating_min_update_for_empty_tree() {
     assert!(update.updates.is_empty());
 
     assert_eq!(update.inserts.len(), 2);
-    assert_eq!(update.inserts[0], Leaf::MIN_GUARD);
-    assert_eq!(update.inserts[1], Leaf::MAX_GUARD);
+    assert_eq!(update.inserts[0].leaf, Leaf::MIN_GUARD);
+    assert_eq!(update.inserts[1].leaf, Leaf::MAX_GUARD);
 
     assert_eq!(update.sorted_new_leaves.len(), 2);
     assert_eq!(
@@ -50,37 +53,31 @@ fn creating_non_empty_update_for_empty_tree() {
 
     assert_eq!(update.inserts.len(), 4);
     assert_eq!(
-        update.inserts[0],
+        update.inserts[0].leaf,
         Leaf {
             next_index: 3,
             ..Leaf::MIN_GUARD
         }
     );
+    assert_eq!(update.inserts[1].leaf, Leaf::MAX_GUARD);
     assert_eq!(
-        update.inserts[1],
-        Leaf {
-            prev_index: 2,
-            ..Leaf::MAX_GUARD
-        }
-    );
-    assert_eq!(
-        update.inserts[2],
+        update.inserts[2].leaf,
         Leaf {
             key: H256::repeat_byte(2),
             value: H256::from_low_u64_be(1),
-            prev_index: 3,
             next_index: 1,
         }
     );
+    assert_eq!(update.inserts[2].prev_index, None);
     assert_eq!(
-        update.inserts[3],
+        update.inserts[3].leaf,
         Leaf {
             key: H256::repeat_byte(1),
             value: H256::from_low_u64_be(2),
-            prev_index: 0,
             next_index: 2,
         }
     );
+    assert_eq!(update.inserts[3].prev_index, None);
 
     assert_eq!(update.sorted_new_leaves.len(), 4);
     assert_eq!(
@@ -230,8 +227,8 @@ where
 
     assert!(update.updates.is_empty());
     assert_eq!(update.inserts.len(), 1);
-    assert_eq!(update.inserts[0].prev_index, 0);
-    assert_eq!(update.inserts[0].next_index, 1);
+    assert_eq!(update.inserts[0].prev_index, Some(0));
+    assert_eq!(update.inserts[0].leaf.next_index, 1);
     assert_eq!(update.sorted_new_leaves.len(), 1);
     assert_eq!(
         update.sorted_new_leaves[&new_entry.key],
@@ -252,19 +249,12 @@ where
                 ..Leaf::MIN_GUARD
             }
         );
-        assert_eq!(
-            patch.leaves[&1],
-            Leaf {
-                prev_index: 2,
-                ..Leaf::MAX_GUARD
-            }
-        );
+        assert_eq!(patch.leaves[&1], Leaf::MAX_GUARD);
         assert_eq!(
             patch.leaves[&2],
             Leaf {
                 key: new_entry.key,
                 value: new_entry.value,
-                prev_index: 0,
                 next_index: 1,
             }
         );
@@ -398,11 +388,13 @@ where
 
     assert_eq!(
         update.inserts,
-        [Leaf {
-            key: second_entry.key,
-            value: second_entry.value,
-            prev_index: 2,
-            next_index: 1,
+        [InsertedLeaf {
+            prev_index: Some(2),
+            leaf: Leaf {
+                key: second_entry.key,
+                value: second_entry.value,
+                next_index: 1,
+            },
         }]
     );
     assert_eq!(update.updates, [(2, updated_entry.value)]);
@@ -506,7 +498,6 @@ fn patch_is_reduced_for_mixed_workload() {
     let expected_leaf = Leaf {
         key: H256::repeat_byte(1),
         value: H256::zero(),
-        prev_index: 0,
         next_index: 1,
     };
     assert_eq!(patch.inner().leaves, HashMap::from([(2, expected_leaf)]));
@@ -606,7 +597,6 @@ fn using_patched_database() {
     let new_leaf = Leaf {
         key: new_entry.key,
         value: new_entry.value,
-        prev_index: 0,
         next_index: 1,
     };
     assert_eq!(

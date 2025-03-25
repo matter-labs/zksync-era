@@ -189,7 +189,6 @@ impl BatchTreeProof {
                         Leaf {
                             key: entry.key,
                             value: entry.value,
-                            prev_index,
                             next_index,
                         },
                     );
@@ -198,9 +197,6 @@ impl BatchTreeProof {
                     // in this case, prev / next index will be set correctly once the leaf is created.
                     if let Some(prev_leaf) = self.sorted_leaves.get_mut(&prev_index) {
                         prev_leaf.next_index = this_index;
-                    }
-                    if let Some(next_leaf) = self.sorted_leaves.get_mut(&next_index) {
-                        next_leaf.prev_index = this_index;
                     }
                 }
             }
@@ -248,7 +244,6 @@ impl BatchTreeProof {
                 let old_next_leaf = self.sorted_leaves.get(&old_next_index).with_context(|| {
                     format!("old next leaf {old_next_index} for {key:?} is not proven")
                 })?;
-                anyhow::ensure!(old_next_leaf.prev_index == prev_index);
                 anyhow::ensure!(*key < old_next_leaf.key);
             }
         }
@@ -278,44 +273,25 @@ impl BatchTreeProof {
             "There are entries with duplicate keys"
         );
 
-        let mut min_leaf_index = 1;
-        let mut max_leaf_index = 0;
-        let sorted_leaves = entries.iter().enumerate().map(|(i, entry)| {
-            let this_index = i as u64 + 2;
-
+        let sorted_leaves = entries.iter().map(|entry| {
             // The key itself is guaranteed to be the first yielded item, hence `skip(1)`.
             let mut it = index_by_key.range(entry.key..).skip(1);
-            let next_index = it.next().map(|(_, idx)| *idx).unwrap_or_else(|| {
-                max_leaf_index = this_index;
-                1
-            });
-            let prev_index = index_by_key
-                .range(..entry.key)
-                .map(|(_, idx)| *idx)
-                .next_back()
-                .unwrap_or_else(|| {
-                    min_leaf_index = this_index;
-                    0
-                });
+            let next_index = it.next().map(|(_, idx)| *idx).unwrap_or(1);
 
             Leaf {
                 key: entry.key,
                 value: entry.value,
-                prev_index,
                 next_index,
             }
         });
         let sorted_leaves: Vec<_> = sorted_leaves.collect();
 
+        let min_leaf_index = index_by_key.values().next().copied().unwrap_or(1);
         let min_guard = Leaf {
             next_index: min_leaf_index,
             ..Leaf::MIN_GUARD
         };
-        let max_guard = Leaf {
-            prev_index: max_leaf_index,
-            ..Leaf::MAX_GUARD
-        };
-        let leaves_with_guards = [(0, &min_guard), (1, &max_guard)]
+        let leaves_with_guards = [(0, &min_guard), (1, &Leaf::MAX_GUARD)]
             .into_iter()
             .chain((2..).zip(&sorted_leaves));
 

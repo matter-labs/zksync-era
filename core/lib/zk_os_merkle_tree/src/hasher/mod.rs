@@ -72,11 +72,10 @@ impl HashTree for Blake2Hasher {
     }
 
     fn hash_leaf(&self, leaf: &Leaf) -> H256 {
-        let mut hashed_bytes = [0; 2 * 32 + 2 * 8];
+        let mut hashed_bytes = [0; 2 * 32 + 8];
         hashed_bytes[..32].copy_from_slice(leaf.key.as_bytes());
         hashed_bytes[32..64].copy_from_slice(leaf.value.as_bytes());
-        hashed_bytes[64..72].copy_from_slice(&leaf.prev_index.to_le_bytes());
-        hashed_bytes[72..].copy_from_slice(&leaf.next_index.to_le_bytes());
+        hashed_bytes[64..].copy_from_slice(&leaf.next_index.to_le_bytes());
         self.hash_bytes(&hashed_bytes)
     }
 
