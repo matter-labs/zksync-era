@@ -116,7 +116,7 @@ async fn create_l1_test_watcher(
     connection_pool: ConnectionPool<Core>,
 ) -> (EthWatch, MockEthClient) {
     let (watcher, l1_client, _) =
-        create_test_watcher(connection_pool, SettlementLayer::L1(SLChainId(42))).await;
+        create_test_watcher(connection_pool, SettlementLayer::L1(SL_CHAIN_ID)).await;
     (watcher, l1_client)
 }
 

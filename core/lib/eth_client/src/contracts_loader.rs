@@ -14,6 +14,19 @@ use zksync_types::{
 
 use crate::{CallFunctionArgs, ContractCallError, EthInterface};
 
+pub async fn get_diamond_proxy_contract(
+    sl_client: &dyn EthInterface,
+    bridgehub_address: Address,
+    l2_chain_id: L2ChainId,
+) -> anyhow::Result<Address> {
+    Ok(
+        CallFunctionArgs::new("getHyperchain", Token::Uint(l2_chain_id.as_u64().into()))
+            .for_contract(bridgehub_address, &bridgehub_contract())
+            .call(sl_client)
+            .await?,
+    )
+}
+
 /// Load contacts specific for each settlement layer, using bridgehub contract
 pub async fn load_settlement_layer_contracts(
     sl_client: &dyn EthInterface,
@@ -21,11 +34,8 @@ pub async fn load_settlement_layer_contracts(
     l2_chain_id: L2ChainId,
     multicall3: Option<Address>,
 ) -> anyhow::Result<Option<SettlementLayerSpecificContracts>> {
-    let diamond_proxy: Address =
-        CallFunctionArgs::new("getHyperchain", Token::Uint(l2_chain_id.as_u64().into()))
-            .for_contract(bridgehub_address, &bridgehub_contract())
-            .call(sl_client)
-            .await?;
+    let diamond_proxy =
+        get_diamond_proxy_contract(sl_client, bridgehub_address, l2_chain_id).await?;
 
     if diamond_proxy.is_zero() {
         return Ok(None);

@@ -13,12 +13,12 @@ use zksync_eth_client::{
     contracts_loader::{get_settlement_layer_from_l1, load_settlement_layer_contracts},
     EthInterface,
 };
-use zksync_gateway_migrator::current_settlement_mode;
+use zksync_gateway_migrator::current_settlement_layer;
 use zksync_types::{
     pubdata_da::PubdataSendingMode, settlement::SettlementLayer, url::SensitiveUrl, Address,
     L2ChainId, L2_BRIDGEHUB_ADDRESS,
 };
-use zksync_web3_decl::client::Client;
+use zksync_web3_decl::{client::Client, namespaces::ZksNamespaceClient};
 
 use crate::{
     implementations::resources::{
@@ -127,7 +127,7 @@ impl WiringLayer for SettlementLayerData<MainNodeConfig> {
             .clone()
             .map(|a| Arc::new(a.0) as Arc<dyn EthInterface>);
 
-        let (final_settlement_mode, sl_chain_contracts) = current_settlement_mode(
+        let final_settlement_mode = current_settlement_layer(
             &input.eth_client.0,
             gateway_client,
             &sl_l1_contracts,
@@ -136,6 +136,28 @@ impl WiringLayer for SettlementLayerData<MainNodeConfig> {
             &getters_facet_contract(),
         )
         .await?;
+
+        let sl_chain_contracts = match final_settlement_mode {
+            SettlementLayer::L1(_) => sl_l1_contracts.clone(),
+            SettlementLayer::Gateway(_) => {
+                let client = l2_eth_client.clone().unwrap().0;
+                let l2_multicall3 = client
+                    .get_l2_multicall3()
+                    .await
+                    .context("Failed to fecth multicall3")?;
+
+                load_settlement_layer_contracts(
+                    &client,
+                    L2_BRIDGEHUB_ADDRESS,
+                    self.config.l2_chain_id,
+                    l2_multicall3,
+                )
+                .await?
+                // This unwrap is safe we have already verified it. Or it is supposed to be gateway,
+                // but no gateway has been deployed
+                .unwrap()
+            }
+        };
 
         Ok(Output {
             initial_settlement_mode: SettlementModeResource(final_settlement_mode),

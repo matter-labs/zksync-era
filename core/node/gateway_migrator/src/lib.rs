@@ -8,7 +8,7 @@ use zksync_contracts::getters_facet_contract;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{
     contracts_loader::{
-        get_settlement_layer_address, get_settlement_layer_from_l1, load_settlement_layer_contracts,
+        get_diamond_proxy_contract, get_settlement_layer_address, get_settlement_layer_from_l1,
     },
     EthInterface,
 };
@@ -57,7 +57,7 @@ impl GatewayMigrator {
                 return Ok(());
             }
             if self.settlement_layer
-                != current_settlement_mode(
+                != current_settlement_layer(
                     self.eth_client.as_ref(),
                     gateway_client.clone(),
                     &self.l1_settlement_layer_specific_contracts,
@@ -66,7 +66,6 @@ impl GatewayMigrator {
                     &self.abi,
                 )
                 .await?
-                .0
             {
                 bail!("Settlement layer changed")
             }
@@ -75,16 +74,15 @@ impl GatewayMigrator {
     }
 }
 
-// Return true if it's safe to switch to settlement_layer_from_l1.
-// Return false if we still need the previous settlement layer
-pub async fn current_settlement_mode(
+// Return current settlement layer.
+pub async fn current_settlement_layer(
     l1_client: &dyn EthInterface,
-    sl_client: Option<Arc<dyn EthInterface>>,
+    gateway_client: Option<Arc<dyn EthInterface>>,
     sl_l1_contracts: &SettlementLayerSpecificContracts,
     l2chain_id: L2ChainId,
     storage: &mut Connection<'_, Core>,
     abi: &Contract,
-) -> anyhow::Result<(SettlementLayer, SettlementLayerSpecificContracts)> {
+) -> anyhow::Result<SettlementLayer> {
     let initial_sl_mode = get_settlement_layer_from_l1(
         l1_client,
         sl_l1_contracts.chain_contracts_config.diamond_proxy_addr,
@@ -108,29 +106,24 @@ pub async fn current_settlement_mode(
                 .bridgehub_proxy_addr
                 .unwrap(),
         ),
-        SettlementLayer::Gateway(_) => (sl_client.as_deref().unwrap(), L2_BRIDGEHUB_ADDRESS),
+        SettlementLayer::Gateway(_) => (gateway_client.as_deref().unwrap(), L2_BRIDGEHUB_ADDRESS),
     };
 
     let switch = if inflight_count != 0 {
         false
     } else {
         // Load chain contracts from sl
-        let sl_contracts =
-            load_settlement_layer_contracts(sl_client, bridge_hub_address, l2chain_id, None)
-                .await?;
+        let diamond_proxy_addr =
+            get_diamond_proxy_contract(sl_client, bridge_hub_address, l2chain_id).await?;
         // Deploying contracts on gateway are going through l1->l2 communication,
         // even though the settlement layer has changed on l1.
         // Gateway should process l1->l2 transaction.
         // Even though when we switched from gateway to l1,
         // we don't need to wait for contracts deployment,
         // we have to wait for l2->l1 communication to be finalized
-        if let Some(contracts) = sl_contracts {
-            let settlement_layer_address = get_settlement_layer_address(
-                sl_client,
-                contracts.chain_contracts_config.diamond_proxy_addr,
-                abi,
-            )
-            .await?;
+        if !diamond_proxy_addr.is_zero() {
+            let settlement_layer_address =
+                get_settlement_layer_address(sl_client, diamond_proxy_addr, abi).await?;
             // When we settle to the current chain, settlement mode should zero
             settlement_layer_address.is_zero()
         } else {
@@ -148,7 +141,9 @@ pub async fn current_settlement_mode(
     } else {
         match initial_sl_mode {
             SettlementLayer::L1(_) => {
-                let chain_id = sl_client
+                let chain_id = gateway_client
+                    .as_deref()
+                    .unwrap()
                     .fetch_chain_id()
                     .await
                     .context("Unable to fetch chain id")?;
@@ -164,13 +159,5 @@ pub async fn current_settlement_mode(
         }
     };
 
-    let contracts = match &final_settlement_mode {
-        SettlementLayer::L1(_) => sl_l1_contracts.clone(),
-        SettlementLayer::Gateway(_) => {
-            load_settlement_layer_contracts(sl_client, bridge_hub_address, l2chain_id, None)
-                .await?
-                .unwrap()
-        }
-    };
-    Ok((final_settlement_mode, contracts))
+    Ok(final_settlement_mode)
 }
