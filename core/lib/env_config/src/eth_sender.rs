@@ -110,7 +110,7 @@ mod tests {
                 dependency_chain_rpc_url: Some(
                     "http://127.0.0.1:8547".to_string().parse().unwrap(),
                 ),
-                dependency_chain_id: Some(SLChainId(271)), 
+                dependency_chain_id: Some(SLChainId(271)),
             },
         )
     }
