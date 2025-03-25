@@ -12,7 +12,12 @@ import * as ethers from 'ethers';
 import { scaledGasPrice, waitForL2ToL1LogProof } from '../src/helpers';
 import { L2_DEFAULT_ETH_PER_ACCOUNT } from '../src/context-owner';
 
-import { L2_MESSAGE_VERIFICATION_ADDRESS, ArtifactL2MessageVerification, ArtifactMessageRootStorage, L2_MESSAGE_ROOT_STORAGE_ADDRESS } from '../src/constants';
+import {
+    L2_MESSAGE_VERIFICATION_ADDRESS,
+    ArtifactL2MessageVerification,
+    ArtifactMessageRootStorage,
+    L2_MESSAGE_ROOT_STORAGE_ADDRESS
+} from '../src/constants';
 
 describe('L1 ERC20 contract checks', () => {
     let testMaster: TestMaster;
@@ -215,7 +220,10 @@ describe('L1 ERC20 contract checks', () => {
                 ArtifactMessageRootStorage.abi,
                 alice.provider
             );
-            const msgRoots = await message_root_storage.msgRoots((await alice.provider.getNetwork()).chainId, params.l1BatchNumber);
+            const msgRoots = await message_root_storage.msgRoots(
+                (await alice.provider.getNetwork()).chainId,
+                params.l1BatchNumber
+            );
             // console.log('msgRoots', msgRoots);
             if (msgRoots !== ethers.ZeroHash) {
                 break;

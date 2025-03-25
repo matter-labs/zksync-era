@@ -37,4 +37,3 @@ export const ArtifactL2MessageVerification = readContract(`${ARTIFACTS_PATH}`, '
 export const ArtifactNativeTokenVault = readContract(`${ARTIFACTS_PATH}`, 'L2NativeTokenVault');
 export const ArtifactMintableERC20 = readContract('../../../contracts/l1-contracts/zkout/', 'TestnetERC20Token');
 export const ArtifactL1AssetRouter = readContract(`${ARTIFACTS_PATH}`, 'L1AssetRouter');
-
