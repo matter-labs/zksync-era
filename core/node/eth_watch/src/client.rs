@@ -187,7 +187,7 @@ where
         if self.dependency_l2_chain {
             addresses.push(L1_MESSENGER_ADDRESS);
         } //
-        addresses 
+        addresses
     }
 
     #[async_recursion::async_recursion]

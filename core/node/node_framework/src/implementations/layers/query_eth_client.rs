@@ -101,7 +101,8 @@ impl WiringLayer for QueryEthClientLayer {
                 }
 
                 Some(L2InterfaceResource(Box::new(builder.build())))
-            } else { //
+            } else {
+                //
                 None
             },
         })
