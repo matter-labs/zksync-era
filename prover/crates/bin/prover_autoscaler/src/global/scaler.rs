@@ -398,7 +398,7 @@ mod tests {
 
     #[tracing_test::traced_test]
     #[test]
-    fn test_run() {
+    fn test_calculate() {
         let scaler = Scaler::<GpuKey>::new(
             QueueReportFields::prover_jobs,
             "circuit-prover-gpu".into(),
@@ -540,7 +540,7 @@ mod tests {
 
     #[tracing_test::traced_test]
     #[test]
-    fn test_run_min_provers() {
+    fn test_calculate_min_provers() {
         let scaler = Scaler::new(
             QueueReportFields::prover_jobs,
             "circuit-prover-gpu".into(),
@@ -739,7 +739,7 @@ mod tests {
 
     #[tracing_test::traced_test]
     #[test]
-    fn test_run_need_move() {
+    fn test_calculate_need_move() {
         let scaler = Scaler::new(
             QueueReportFields::prover_jobs,
             "circuit-prover-gpu".into(),
@@ -859,7 +859,7 @@ mod tests {
 
     #[tracing_test::traced_test]
     #[test]
-    fn test_run_nokey() {
+    fn test_calculate_nokey() {
         let scaler = Scaler::<NoKey>::new(
             QueueReportFields::prover_jobs,
             "some-deployment".into(),

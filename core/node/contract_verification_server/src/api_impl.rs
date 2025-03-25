@@ -153,7 +153,9 @@ impl RestApi {
             // System contracts can be force deployed during an upgrade, so it should be possible
             // to re-verify them.
             let is_system = match &verification_info.request.req.source_code_data {
-                SourceCodeData::SolSingleFile(_) => verification_info.request.req.is_system,
+                SourceCodeData::SolSingleFile(_) | SourceCodeData::YulSingleFile(_) => {
+                    verification_info.request.req.is_system
+                }
                 SourceCodeData::StandardJsonInput(input) => input
                     .get("settings")
                     .and_then(|s| s.get("isSystem").or_else(|| s.get("enableEraVMExtensions")))

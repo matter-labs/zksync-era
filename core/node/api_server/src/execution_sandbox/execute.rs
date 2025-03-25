@@ -204,8 +204,15 @@ impl SandboxExecutor {
             .prepare_env_and_storage(connection, block_args, &action)
             .await?;
 
-        let state_override = state_override.unwrap_or_default();
-        let storage = apply_state_override(storage, &state_override);
+        let storage = if let Some(state_override) = state_override {
+            tokio::task::spawn_blocking(|| apply_state_override(storage, state_override))
+                .await
+                .context("applying state override failed")?
+        } else {
+            // Do not spawn a new thread in the most frequent case.
+            StorageWithOverrides::new(storage)
+        };
+
         let (execution_args, tracing_params) = action.into_parts();
         self.engine
             .execute_in_sandbox(storage, env, execution_args, tracing_params)
