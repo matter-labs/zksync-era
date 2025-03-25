@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use anyhow::Context;
 use zksync_config::configs::{
     contracts::{
@@ -126,13 +124,13 @@ impl WiringLayer for SettlementLayerData<MainNodeConfig> {
         let pool = input.pool.get().await?;
 
         let l2_eth_client = get_l2_client(self.config.gateway_rpc_url).await?;
-        let gateway_client: Option<Arc<dyn EthInterface>> = l2_eth_client
-            .clone()
-            .map(|a| Arc::new(a.0) as Arc<dyn EthInterface>);
 
         let final_settlement_mode = current_settlement_layer(
             &input.eth_client.0,
-            gateway_client,
+            l2_eth_client
+                .clone()
+                .map(|a| Box::new(a.0) as Box<dyn EthInterface>)
+                .as_deref(),
             &sl_l1_contracts,
             self.config.l2_chain_id,
             &mut pool.connection().await.context("Can't connect")?,

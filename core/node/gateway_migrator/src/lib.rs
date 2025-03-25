@@ -59,7 +59,7 @@ impl GatewayMigrator {
             if self.settlement_layer
                 != current_settlement_layer(
                     self.eth_client.as_ref(),
-                    gateway_client.clone(),
+                    gateway_client.clone().as_deref(),
                     &self.l1_settlement_layer_specific_contracts,
                     self.l2chain_id,
                     &mut self.pool.connection().await?,
@@ -77,7 +77,7 @@ impl GatewayMigrator {
 // Return current settlement layer.
 pub async fn current_settlement_layer(
     l1_client: &dyn EthInterface,
-    gateway_client: Option<Arc<dyn EthInterface>>,
+    gateway_client: Option<&dyn EthInterface>,
     sl_l1_contracts: &SettlementLayerSpecificContracts,
     l2chain_id: L2ChainId,
     storage: &mut Connection<'_, Core>,
@@ -106,7 +106,7 @@ pub async fn current_settlement_layer(
                 .bridgehub_proxy_addr
                 .unwrap(),
         ),
-        SettlementLayer::Gateway(_) => (gateway_client.as_deref().unwrap(), L2_BRIDGEHUB_ADDRESS),
+        SettlementLayer::Gateway(_) => (gateway_client.unwrap(), L2_BRIDGEHUB_ADDRESS),
     };
 
     let switch = if inflight_count != 0 {
@@ -142,7 +142,6 @@ pub async fn current_settlement_layer(
         match initial_sl_mode {
             SettlementLayer::L1(_) => {
                 let chain_id = gateway_client
-                    .as_deref()
                     .unwrap()
                     .fetch_chain_id()
                     .await

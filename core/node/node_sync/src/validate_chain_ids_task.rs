@@ -38,10 +38,7 @@ impl ValidateChainIdsTask {
         }
     }
 
-    async fn check_client(
-        client: Box<dyn EthInterface>,
-        expected: SLChainId,
-    ) -> anyhow::Result<()> {
+    async fn check_client(client: Box<DynClient<L1>>, expected: SLChainId) -> anyhow::Result<()> {
         loop {
             match client.fetch_chain_id().await {
                 Ok(chain_id) => {
@@ -138,8 +135,7 @@ impl ValidateChainIdsTask {
 
     /// Runs the task once, exiting either when all the checks are performed or when the stop signal is received.
     pub async fn run_once(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
-        let l1_client_check =
-            Self::check_client(Box::new(self.l1_client), self.l1_chain_id.0.into());
+        let l1_client_check = Self::check_client(self.l1_client, self.l1_chain_id.0.into());
         let main_node_l1_check =
             Self::check_l1_chain_using_main_node(self.main_node_client.clone(), self.l1_chain_id);
         let main_node_l2_check =
@@ -158,8 +154,7 @@ impl ValidateChainIdsTask {
     pub async fn run(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         // Since check futures are fused, they are safe to poll after getting resolved; they will never resolve again,
         // so we'll just wait for another check or a stop signal.
-        let l1_client_check =
-            Self::check_client(Box::new(self.l1_client), self.l1_chain_id.0.into()).fuse();
+        let l1_client_check = Self::check_client(self.l1_client, self.l1_chain_id.0.into()).fuse();
         let main_node_l1_check =
             Self::check_l1_chain_using_main_node(self.main_node_client.clone(), self.l1_chain_id)
                 .fuse();
