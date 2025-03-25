@@ -115,9 +115,9 @@ impl FriProverDal<'_, '_> {
     /// - pick the same type of circuit for as long as possible, this maximizes GPU cache reuse
     ///
     /// Most of this function is similar to `get_light_job()`.
-    /// The 2 differ in the type of jobs they will load. Node jobs are heavy in resource utilization.
+    /// The 2 differ in the type of jobs they will load. Some Basic jobs are heavy in resource utilization.
     ///
-    /// NOTE: This function retrieves only node jobs.
+    /// NOTE: This function retrieves only Basic 2,4,8,9,11,12 jobs.
     pub async fn get_heavy_job(
         &mut self,
         protocol_version: ProtocolSemanticVersion,
@@ -143,6 +143,14 @@ impl FriProverDal<'_, '_> {
                         AND protocol_version = $1
                         AND protocol_version_patch = $2
                         AND aggregation_round = $4
+                        AND (
+                            circuit_id = 2
+                            OR circuit_id = 4
+                            OR circuit_id = 8
+                            OR circuit_id = 9
+                            OR circuit_id = 11
+                            OR circuit_id = 12    
+                        )
                     ORDER BY
                         l1_batch_number ASC,
                         circuit_id ASC,
@@ -164,7 +172,7 @@ impl FriProverDal<'_, '_> {
             protocol_version.minor as i32,
             protocol_version.patch.0 as i32,
             picked_by,
-            AggregationRound::NodeAggregation as i64,
+            AggregationRound::BasicCircuits as i64,
         )
         .fetch_optional(self.storage.conn())
         .await
@@ -193,7 +201,7 @@ impl FriProverDal<'_, '_> {
     ///
     /// Most of this function is similar to `get_heavy_job()`.
     ///
-    /// NOTE: All jobs are considered "light". `get_heavy_job()` is reserved for future optimizations.
+    /// NOTE: This function retrieves all job but Basic 2,4,8,9,11,12.
     pub async fn get_light_job(
         &mut self,
         protocol_version: ProtocolSemanticVersion,
@@ -218,6 +226,12 @@ impl FriProverDal<'_, '_> {
                         status = 'queued'
                         AND protocol_version = $1
                         AND protocol_version_patch = $2
+                        AND NOT (aggregation_round = $4 AND circuit_id = 2)
+                        AND NOT (aggregation_round = $4 AND circuit_id = 4)
+                        AND NOT (aggregation_round = $4 AND circuit_id = 8)
+                        AND NOT (aggregation_round = $4 AND circuit_id = 9)
+                        AND NOT (aggregation_round = $4 AND circuit_id = 11)
+                        AND NOT (aggregation_round = $4 AND circuit_id = 12)
                     ORDER BY
                         l1_batch_number ASC,
                         aggregation_round ASC,
@@ -240,6 +254,7 @@ impl FriProverDal<'_, '_> {
             protocol_version.minor as i32,
             protocol_version.patch.0 as i32,
             picked_by,
+            AggregationRound::BasicCircuits as i64,
         )
         .fetch_optional(self.storage.conn())
         .await

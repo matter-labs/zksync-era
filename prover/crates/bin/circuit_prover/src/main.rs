@@ -105,10 +105,11 @@ async fn main() -> anyhow::Result<()> {
         cancellation_token.clone(),
     );
 
-    //NOTE: All jobs are considered "light". Heavy WVGs are reserved for future optimizations.
     let light_wvg_runner = builder.light_wvg_runner(opt.light_wvg_count);
+    let heavy_wvg_runner = builder.heavy_wvg_runner(opt.heavy_wvg_count);
 
     tasks.extend(light_wvg_runner.run());
+    tasks.extend(heavy_wvg_runner.run());
 
     // necessary as it has a connection_pool which will keep 1 connection active by default
     drop(builder);
