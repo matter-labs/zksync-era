@@ -41,7 +41,7 @@ ENV RUSTFLAGS="-C target-cpu=generic"
 RUN rustup default stable
 
 # Build zkstackup binary
-RUN cargo install --git https://github.com/matter-labs/zksync-era.git --rev 81abd841f6e061e3bdb1245754871e73b83ba7d8 --locked zkstack --force --root /usr/local --features gateway
+RUN cargo install --git https://github.com/matter-labs/zksync-era.git --rev 634ff6a62e74b68ace1fd5dec40a5d77f77dcebf --locked zkstack --force --root /usr/local --features gateway
 
 RUN rustup default nightly-2024-08-01-x86_64-unknown-linux-gnu
 
