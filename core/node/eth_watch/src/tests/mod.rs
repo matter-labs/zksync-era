@@ -110,6 +110,7 @@ async fn create_test_watcher(
         connection_pool,
         std::time::Duration::from_nanos(1),
         L2ChainId::default(),
+        50_000,
     )
     .await
     .unwrap();
@@ -216,6 +217,7 @@ async fn test_normal_operation_upgrade_timestamp() {
         connection_pool.clone(),
         std::time::Duration::from_nanos(1),
         L2ChainId::default(),
+        50_000,
     )
     .await
     .unwrap();

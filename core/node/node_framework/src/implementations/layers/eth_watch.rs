@@ -142,6 +142,7 @@ impl WiringLayer for EthWatchLayer {
             main_pool,
             self.eth_watch_config.poll_interval(),
             self.chain_id,
+            self.eth_watch_config.priotity_tx_expiration_blocks,
         )
         .await?;
 

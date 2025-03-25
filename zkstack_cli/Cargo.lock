@@ -6651,6 +6651,7 @@ dependencies = [
  "zksync_concurrency",
  "zksync_consensus_utils",
  "zksync_crypto_primitives",
+ "zksync_system_constants",
 ]
 
 [[package]]
