@@ -110,7 +110,7 @@ mod tests {
                 dependency_chain_rpc_url: Some(
                     "http://127.0.0.1:8547".to_string().parse().unwrap(),
                 ),
-                dependency_chain_id: Some(SLChainId(271)), //
+                dependency_chain_id: Some(SLChainId(271)), 
             },
         )
     }
@@ -157,8 +157,7 @@ mod tests {
             ETH_CLIENT_GATEWAY_WEB3_URL="http://127.0.0.1:8547"
             ETH_CLIENT_DEPENDENCY_CHAIN_WEB3_URL="http://127.0.0.1:8547"
             ETH_CLIENT_DEPENDENCY_CHAIN_ID="271"
-            MERGE_CONFLICT_KL_TODO=""
-
+            
         "#;
         lock.set_env(config);
 
