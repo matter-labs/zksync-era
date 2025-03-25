@@ -113,8 +113,8 @@ impl EigenDAClient {
             .await
             .map_err(to_retriable_da_error)?;
         match hex::encode(res.0).as_str() {
-            "00000000000000000000000000000000" => Ok(false),
-            "00000000000000000000000000000001" => Ok(true),
+            "0000000000000000000000000000000000000000000000000000000000000000" => Ok(false),
+            "0000000000000000000000000000000000000000000000000000000000000001" => Ok(true),
             _ => Err(anyhow::anyhow!("Invalid response from finishedBatches"))
                 .map_err(to_non_retriable_da_error),
         }
@@ -144,8 +144,8 @@ impl EigenDAClient {
             .await
             .map_err(to_retriable_da_error)?;
         match hex::encode(res.0).as_str() {
-            "00000000000000000000000000000000" => Ok(false),
-            "00000000000000000000000000000001" => Ok(true),
+            "0000000000000000000000000000000000000000000000000000000000000000" => Ok(false),
+            "0000000000000000000000000000000000000000000000000000000000000001" => Ok(true),
             _ => Err(anyhow::anyhow!("Invalid response from verifiedBatches"))
                 .map_err(to_non_retriable_da_error),
         }
