@@ -85,6 +85,7 @@ impl EthWatch {
                 None
             }; //
                // println!("dependency_chain_clients: {:?}", dependency_chain_clients);
+
         let state = Self::initialize_state(&mut storage, sl_client.as_ref()).await?;
         // tracing::info!("initialized state: {state:?}");
         drop(storage);

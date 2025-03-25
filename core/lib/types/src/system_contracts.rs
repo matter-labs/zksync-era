@@ -240,24 +240,6 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 43] = [
         ContractLanguage::Sol,
     ),
     (
-        "../../l1-contracts/zkout/",
-        "InteropHandler",
-        L2_INTEROP_HANDLER_ADDRESS,
-        ContractLanguage::Sol,
-    ),
-    (
-        "../../l1-contracts/zkout/",
-        "InteropCenter",
-        L2_INTEROP_CENTER_ADDRESS,
-        ContractLanguage::Sol,
-    ), //
-    (
-        "",
-        "InteropAccount",
-        INTEROP_ACCOUNT_ADDRESS,
-        ContractLanguage::Sol,
-    ),
-    (
         "",
         "L2MessageRootStorage",
         L2_MESSAGE_ROOT_STORAGE_ADDRESS,
@@ -270,8 +252,25 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 43] = [
         ContractLanguage::Sol,
     ),
     (
+        "../../l1-contracts/zkout/",
+        "InteropHandler",
+        L2_INTEROP_HANDLER_ADDRESS,
+        ContractLanguage::Sol,
+    ),
+    (
+        "../../l1-contracts/zkout/",
+        "InteropCenter",
+        L2_INTEROP_CENTER_ADDRESS,
+        ContractLanguage::Sol,
+    ),
+    (
         "",
-        "StandardTriggerAccount",
+        "InteropAccount",
+        INTEROP_ACCOUNT_ADDRESS,
+        ContractLanguage::Sol,
+    ),
+    (
+        "",
         L2_STANDARD_TRIGGER_ACCOUNT_ADDRESS,
         ContractLanguage::Sol,
     ),

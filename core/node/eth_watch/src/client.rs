@@ -134,7 +134,7 @@ where
         governance_address: Address,
         confirmations_for_eth_event: Option<u64>,
         l2_chain_id: L2ChainId,
-        dependency_l2_chain: bool, //
+        dependency_l2_chain: bool,
     ) -> Self {
         tracing::debug!(
             "New eth client, ZKsync addr: {:x}, governance addr: {:?}",
