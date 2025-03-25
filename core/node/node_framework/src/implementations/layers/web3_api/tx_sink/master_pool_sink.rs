@@ -1,5 +1,9 @@
+use std::time::Duration;
+
+use zksync_config::configs::api::Web3JsonRpcConfig;
 use zksync_node_api_server::tx_sender::{
-    master_pool_sink::MasterPoolSink, whitelisted_deploy_pool_sink::WhitelistedDeployPoolSink,
+    allow_list_service::AllowListService, master_pool_sink::MasterPoolSink,
+    whitelisted_deploy_pool_sink::WhitelistedDeployPoolSink,
 };
 
 use crate::{
@@ -13,7 +17,7 @@ use crate::{
 
 /// Wiring layer for [`MasterPoolSink`], [`TxSink`](zksync_node_api_server::tx_sender::tx_sink::TxSink) implementation.
 pub struct MasterPoolSinkLayer {
-    pub deployment_allowlist_sink: bool,
+    pub rpc_config: Web3JsonRpcConfig,
 }
 
 #[derive(Debug, FromContext)]
@@ -39,11 +43,16 @@ impl WiringLayer for MasterPoolSinkLayer {
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         let pool = input.master_pool.get().await?;
+        let master_pool_sink = MasterPoolSink::new(pool.clone());
 
-        let tx_sink = if self.deployment_allowlist_sink {
-            WhitelistedDeployPoolSink::new(MasterPoolSink::new(pool.clone()), pool).into()
+        let tx_sink = if self.rpc_config.deployment_allowlist_sink {
+            let allowlist_service = AllowListService::new(
+                self.rpc_config.http_file_url.unwrap_or_default(),
+                Duration::from_secs(self.rpc_config.refresh_interval_secs.unwrap_or_default()),
+            );
+            WhitelistedDeployPoolSink::new(master_pool_sink, allowlist_service).into()
         } else {
-            MasterPoolSink::new(pool).into()
+            master_pool_sink.into()
         };
 
         Ok(Output { tx_sink })

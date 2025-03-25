@@ -226,6 +226,8 @@ pub struct Web3JsonRpcConfig {
     pub extended_api_tracing: bool,
     #[serde(default)]
     pub deployment_allowlist_sink: bool,
+    pub http_file_url: Option<String>,
+    pub refresh_interval_secs: Option<u64>,
 }
 
 impl Web3JsonRpcConfig {
@@ -267,6 +269,8 @@ impl Web3JsonRpcConfig {
             api_namespaces: None,
             extended_api_tracing: false,
             deployment_allowlist_sink: false,
+            http_file_url: None,
+            refresh_interval_secs: None,
         }
     }
 

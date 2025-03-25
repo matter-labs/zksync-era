@@ -152,6 +152,8 @@ impl ProtoRepr for proto::Web3JsonRpc {
             extended_api_tracing: self.extended_api_tracing.unwrap_or_default(),
             api_namespaces,
             deployment_allowlist_sink: self.deployment_allowlist_sink.unwrap_or_default(),
+            http_file_url: self.http_file_url.clone(),
+            refresh_interval_secs: self.refresh_interval_secs,
         })
     }
 
@@ -219,6 +221,8 @@ impl ProtoRepr for proto::Web3JsonRpc {
             extended_api_tracing: Some(this.extended_api_tracing),
             api_namespaces: this.api_namespaces.clone().unwrap_or_default(),
             deployment_allowlist_sink: Some(this.deployment_allowlist_sink),
+            http_file_url: this.http_file_url.clone(),
+            refresh_interval_secs: this.refresh_interval_secs,
         }
     }
 }

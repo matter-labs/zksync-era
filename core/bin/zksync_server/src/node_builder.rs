@@ -363,7 +363,7 @@ impl MainNodeBuilder {
 
         // On main node we always use master pool sink.
         self.node.add_layer(MasterPoolSinkLayer {
-            deployment_allowlist_sink: rpc_config.deployment_allowlist_sink,
+            rpc_config: rpc_config.clone(),
         });
 
         let layer = TxSenderLayer::new(
