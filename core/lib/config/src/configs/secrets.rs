@@ -1,5 +1,5 @@
 use anyhow::Context;
-use zksync_basic_types::{secrets::APIKey, url::SensitiveUrl};
+use zksync_basic_types::{secrets::APIKey, url::SensitiveUrl, SLChainId};
 
 use crate::configs::{
     consensus::ConsensusSecrets,

@@ -271,6 +271,7 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 43] = [
     ),
     (
         "",
+        "StandardTriggerAccount",
         L2_STANDARD_TRIGGER_ACCOUNT_ADDRESS,
         ContractLanguage::Sol,
     ),
