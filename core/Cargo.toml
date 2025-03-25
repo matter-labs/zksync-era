@@ -254,16 +254,16 @@ bellman = { package = "zksync_bellman", version = "=0.31.0" }
 zksync_vm2 = "=0.3.0"
 
 # Consensus dependencies.
-zksync_concurrency = "=0.8.0"
-zksync_consensus_bft = "=0.8.0"
-zksync_consensus_crypto = "=0.8.0"
-zksync_consensus_executor = "=0.8.0"
-zksync_consensus_network = "=0.8.0"
-zksync_consensus_roles = "=0.8.0"
-zksync_consensus_storage = "=0.8.0"
-zksync_consensus_utils = "=0.8.0"
-zksync_protobuf = "=0.8.0"
-zksync_protobuf_build = "=0.8.0"
+zksync_concurrency = "=0.9.0"
+zksync_consensus_bft = "=0.9.0"
+zksync_consensus_crypto = "=0.9.0"
+zksync_consensus_executor = "=0.9.0"
+zksync_consensus_network = "=0.9.0"
+zksync_consensus_roles = "=0.9.0"
+zksync_consensus_storage = "=0.9.0"
+zksync_consensus_utils = "=0.9.0"
+zksync_protobuf = "=0.9.0"
+zksync_protobuf_build = "=0.9.0"
 
 # "Local" dependencies
 zksync_multivm = { version = "27.0.0-non-semver-compat", path = "lib/multivm" }

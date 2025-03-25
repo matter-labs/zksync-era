@@ -55,8 +55,9 @@ impl From<Box<DynClient<L2>>> for GasAdjusterClient {
     }
 }
 
-/// This component keeps track of the median `base_fee` from the last `max_base_fee_samples` blocks
-/// and of the median `blob_base_fee` from the last `max_blob_base_fee_sample` blocks.
+/// This component keeps track of the median `base_fee` from the last `max_base_fee_samples` blocks.
+///
+/// It also tracks the median `blob_base_fee` from the last `max_blob_base_fee_sample` blocks.
 /// It is used to adjust the base_fee of transactions sent to L1.
 #[derive(Debug)]
 pub struct GasAdjuster {
