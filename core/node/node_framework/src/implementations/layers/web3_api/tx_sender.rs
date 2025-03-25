@@ -17,6 +17,7 @@ use crate::{
     implementations::resources::{
         fee_input::ApiFeeInputResource,
         main_node_client::MainNodeClientResource,
+        object_store::ObjectStoreResource,
         pools::{PoolResource, ReplicaPool},
         state_keeper::ConditionalSealerResource,
         web3_api::{TxSenderResource, TxSinkResource},
@@ -71,6 +72,7 @@ pub struct Input {
     pub fee_input: ApiFeeInputResource,
     pub main_node_client: Option<MainNodeClientResource>,
     pub sealer: Option<ConditionalSealerResource>,
+    pub core_object_store: Option<ObjectStoreResource>,
 }
 
 #[derive(Debug, IntoContext)]
@@ -166,6 +168,10 @@ impl WiringLayer for TxSenderLayer {
         )
         .await?;
         executor_options.set_fast_vm_mode(self.vm_mode);
+
+        if let Some(store) = input.core_object_store {
+            executor_options.set_vm_dump_object_store(store.0);
+        }
 
         // Build `TxSender`.
         let mut tx_sender = TxSenderBuilder::new(config, replica_pool, tx_sink);

@@ -18,6 +18,7 @@ use zksync_multivm::{
     },
 };
 use zksync_node_fee_model::{ApiFeeInputProvider, BatchFeeModelInputProvider};
+use zksync_object_store::ObjectStore;
 use zksync_state::PostgresStorageCaches;
 use zksync_state_keeper::{
     seal_criteria::{ConditionalSealer, NoopSealer, SealData},
@@ -94,6 +95,7 @@ pub async fn build_tx_sender(
 #[derive(Debug)]
 pub struct SandboxExecutorOptions {
     pub(crate) fast_vm_mode: FastVmMode,
+    pub(crate) vm_dump_store: Option<Arc<dyn ObjectStore>>,
     /// Env parameters to be used when estimating gas.
     pub(crate) estimate_gas: OneshotEnvParameters<EstimateGas>,
     /// Env parameters to be used when performing `eth_call` requests.
@@ -120,6 +122,7 @@ impl SandboxExecutorOptions {
 
         Ok(Self {
             fast_vm_mode: FastVmMode::Old,
+            vm_dump_store: None,
             estimate_gas: OneshotEnvParameters::new(
                 Arc::new(estimate_gas_contracts),
                 chain_id,
@@ -138,6 +141,10 @@ impl SandboxExecutorOptions {
     /// Sets the fast VM mode used by this executor.
     pub fn set_fast_vm_mode(&mut self, fast_vm_mode: FastVmMode) {
         self.fast_vm_mode = fast_vm_mode;
+    }
+
+    pub fn set_vm_dump_object_store(&mut self, store: Arc<dyn ObjectStore>) {
+        self.vm_dump_store = Some(store);
     }
 
     pub(crate) async fn mock() -> Self {
