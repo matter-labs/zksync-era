@@ -100,11 +100,10 @@ impl BootloaderState {
 
     pub(crate) fn start_new_l2_block(&mut self, l2_block: L2BlockEnv) {
         let last_block = self.last_l2_block();
-        // kl todo I think the message root messes this up.
-        // assert!(
-        //     !last_block.txs.is_empty(),
-        //     "Can not create new miniblocks on top of empty ones"
-        // );
+        assert!(
+            !last_block.txs.is_empty(),
+            "Can not create new miniblocks on top of empty ones"
+        );
         assert_next_block(&last_block.l2_block(), &l2_block);
         self.push_l2_block(l2_block);
     }
