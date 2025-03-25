@@ -2,6 +2,10 @@
 
 use std::{
     fmt,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
     time::{Duration, Instant, SystemTime},
 };
 
@@ -23,7 +27,8 @@ use zksync_multivm::{
 use zksync_object_store::{Bucket, ObjectStore};
 use zksync_state::{PostgresStorage, PostgresStorageCaches};
 use zksync_types::{
-    api::state_override::StateOverride, fee_model::BatchFeeInput, l2::L2Tx, StorageLog, Transaction,
+    api::state_override::StateOverride, fee_model::BatchFeeInput, l2::L2Tx, vm::FastVmMode,
+    StorageLog, Transaction,
 };
 use zksync_vm_executor::oneshot::{MainOneshotExecutor, MockOneshotExecutor};
 
@@ -152,6 +157,7 @@ pub(crate) struct SandboxExecutor {
     pub(super) options: SandboxExecutorOptions,
     storage_caches: Option<PostgresStorageCaches>,
     pub(super) timestamp_asserter_params: Option<TimestampAsserterParams>,
+    vm_divergence_counter: Arc<AtomicUsize>,
 }
 
 impl SandboxExecutor {
@@ -164,16 +170,24 @@ impl SandboxExecutor {
         let mut executor = MainOneshotExecutor::new(missed_storage_invocation_limit);
         executor.set_fast_vm_mode(options.fast_vm_mode);
 
+        let vm_divergence_counter = Arc::<AtomicUsize>::default();
         if cfg!(test) {
             // Panic on divergence in order to fail the running test.
             executor.set_divergence_handler(DivergenceHandler::new(|err, _| {
                 panic!("{err}");
             }));
-        } else if let Some(store) = options.vm_dump_store.clone() {
+        } else {
             let rt_handle = Handle::current();
+            let store = options.vm_dump_store.clone();
+            let vm_divergence_counter_for_handler = vm_divergence_counter.clone();
             executor.set_divergence_handler(DivergenceHandler::new(move |_, vm_dump| {
-                if let Err(err) = rt_handle.block_on(Self::dump_vm_state(store.as_ref(), vm_dump)) {
-                    tracing::error!("Saving VM dump failed: {err:#}");
+                vm_divergence_counter_for_handler.fetch_add(1, Ordering::Relaxed);
+                if let Some(store) = &store {
+                    if let Err(err) =
+                        rt_handle.block_on(Self::dump_vm_state(store.as_ref(), vm_dump))
+                    {
+                        tracing::error!("Saving VM dump failed: {err:#}");
+                    }
                 }
             }));
         }
@@ -186,7 +200,16 @@ impl SandboxExecutor {
             options,
             storage_caches: Some(caches),
             timestamp_asserter_params,
+            vm_divergence_counter,
         }
+    }
+
+    pub(crate) fn vm_mode(&self) -> FastVmMode {
+        self.options.fast_vm_mode
+    }
+
+    pub(crate) fn vm_divergence_counter(&self) -> Arc<AtomicUsize> {
+        self.vm_divergence_counter.clone()
     }
 
     async fn dump_vm_state(store: &dyn ObjectStore, vm_dump: VmDump) -> anyhow::Result<()> {
@@ -236,6 +259,7 @@ impl SandboxExecutor {
             options,
             storage_caches: None,
             timestamp_asserter_params: None,
+            vm_divergence_counter: Arc::default(),
         }
     }
 

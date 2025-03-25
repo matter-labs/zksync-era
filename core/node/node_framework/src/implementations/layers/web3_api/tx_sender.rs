@@ -16,6 +16,7 @@ use zksync_web3_decl::{
 use crate::{
     implementations::resources::{
         fee_input::ApiFeeInputResource,
+        healthcheck::AppHealthCheckResource,
         main_node_client::MainNodeClientResource,
         object_store::ObjectStoreResource,
         pools::{PoolResource, ReplicaPool},
@@ -67,6 +68,7 @@ pub struct TxSenderLayer {
 #[derive(Debug, FromContext)]
 #[context(crate = crate)]
 pub struct Input {
+    pub app_health: AppHealthCheckResource,
     pub tx_sink: TxSinkResource,
     pub replica_pool: PoolResource<ReplicaPool>,
     pub fee_input: ApiFeeInputResource,
@@ -204,6 +206,11 @@ impl WiringLayer for TxSenderLayer {
             executor_options,
             storage_caches,
         );
+        input
+            .app_health
+            .0
+            .insert_custom_component(Arc::new(tx_sender.health_check()))
+            .map_err(WiringError::internal)?;
 
         Ok(Output {
             tx_sender: tx_sender.into(),

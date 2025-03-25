@@ -1,13 +1,22 @@
 //! Helper module to submit transactions into the ZKsync Network.
 
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
+    time::Duration,
+};
 
 use anyhow::Context as _;
+use async_trait::async_trait;
+use serde::Serialize;
 use tokio::sync::RwLock;
 use zksync_config::configs::{api::Web3JsonRpcConfig, chain::StateKeeperConfig};
 use zksync_dal::{
     transactions_dal::L2TxSubmissionResult, Connection, ConnectionPool, Core, CoreDal,
 };
+use zksync_health_check::{CheckHealth, Health, HealthStatus};
 use zksync_multivm::{
     interface::{
         tracer::TimestampAsserterParams as TracerTimestampAsserterParams, OneshotTracingParams,
@@ -298,6 +307,53 @@ pub struct TxSenderInner {
     pub(super) executor: SandboxExecutor,
 }
 
+/// Health check details for [`TxSender`].
+#[derive(Debug, Serialize)]
+struct TxSenderHealthDetails {
+    vm_mode: FastVmMode,
+    #[serde(skip_serializing_if = "TxSenderHealthDetails::is_zero")]
+    vm_divergences: usize,
+}
+
+impl TxSenderHealthDetails {
+    fn is_zero(value: &usize) -> bool {
+        *value == 0
+    }
+}
+
+impl From<TxSenderHealthDetails> for Health {
+    fn from(details: TxSenderHealthDetails) -> Self {
+        let status = if details.vm_divergences > 0 {
+            HealthStatus::Affected
+        } else {
+            HealthStatus::Ready
+        };
+        Health::from(status).with_details(details)
+    }
+}
+
+/// Health check for [`TxSender`].
+#[derive(Debug)]
+struct TxSenderHealthCheck {
+    vm_mode: FastVmMode,
+    vm_divergence_counter: Arc<AtomicUsize>,
+}
+
+#[async_trait]
+impl CheckHealth for TxSenderHealthCheck {
+    fn name(&self) -> &'static str {
+        "tx_sender"
+    }
+
+    async fn check_health(&self) -> Health {
+        let details = TxSenderHealthDetails {
+            vm_mode: self.vm_mode,
+            vm_divergences: self.vm_divergence_counter.load(Ordering::Relaxed),
+        };
+        details.into()
+    }
+}
+
 #[derive(Clone)]
 pub struct TxSender(pub(super) Arc<TxSenderInner>);
 
@@ -308,6 +364,13 @@ impl std::fmt::Debug for TxSender {
 }
 
 impl TxSender {
+    pub fn health_check(&self) -> impl CheckHealth {
+        TxSenderHealthCheck {
+            vm_mode: self.0.executor.vm_mode(),
+            vm_divergence_counter: self.0.executor.vm_divergence_counter(),
+        }
+    }
+
     pub(crate) fn vm_concurrency_limiter(&self) -> Arc<VmConcurrencyLimiter> {
         Arc::clone(&self.0.vm_concurrency_limiter)
     }
