@@ -11291,6 +11291,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "zk_os_tree_manager"
+version = "27.0.0-non-semver-compat"
+dependencies = [
+ "anyhow",
+ "assert_matches",
+ "axum 0.7.9",
+ "futures 0.3.31",
+ "once_cell",
+ "reqwest 0.12.9",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "test-casing",
+ "thiserror 1.0.69",
+ "tokio",
+ "tracing",
+ "vise",
+ "zk_os_merkle_tree",
+ "zksync_dal",
+ "zksync_health_check",
+ "zksync_node_genesis",
+ "zksync_node_test_utils",
+ "zksync_shared_metrics",
+ "zksync_storage",
+ "zksync_types",
+]
+
+[[package]]
 name = "zkevm_circuits"
 version = "0.151.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
