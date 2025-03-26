@@ -76,6 +76,7 @@ pub(super) trait AbstractL1Interface: 'static + Sync + Send + fmt::Debug {
         operator_type: OperatorType,
     ) -> Result<Option<OperatorNonce>, EthSenderError>;
 
+    #[allow(clippy::too_many_arguments)]
     async fn sign_tx(
         &self,
         tx: &EthTx,

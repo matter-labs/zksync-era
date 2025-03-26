@@ -4,27 +4,27 @@ use zksync_contracts::hyperchain_contract;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{
     clients::{DynClient, SigningClient, L1},
-    BoundEthInterface, Options,
+    BoundEthInterface,
 };
-use zksync_eth_signer::{EthereumSigner, PrivateKeySigner, SignerError, TransactionParameters};
+use zksync_eth_signer::PrivateKeySigner;
 use zksync_l1_contract_interface::{
     i_executor::methods::ExecuteBatches, multicall3::Multicall3Call, Tokenizable,
 };
 use zksync_node_test_utils::create_l1_batch;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
+    api::TransactionRequest,
     block::L1BatchHeader,
     commitment::{
         L1BatchCommitmentMode, L1BatchMetaParameters, L1BatchMetadata, L1BatchWithMetadata,
     },
-    eth_sender::{EthTx, EthTxBlobSidecar},
     ethabi::{self, Token},
     helpers::unix_timestamp_ms,
+    settlement::SettlementMode,
     web3::{self, contract::Error},
-    Address, K256PrivateKey, L1ChainId, ProtocolVersionId, SLChainId, EIP_1559_TX_TYPE,
-    EIP_4844_TX_TYPE, EIP_712_TX_TYPE, H256, U256,
+    Address, K256PrivateKey, L1ChainId, L2ChainId, ProtocolVersionId, SLChainId, H256, U256,
 };
-use zksync_web3_decl::client::{MockClient, MockClientBuilder, Network, L2};
+use zksync_web3_decl::client::MockClient;
 
 use crate::{
     abstract_l1_interface::{AbstractL1Interface, OperatorType, RealL1Interface},
@@ -184,6 +184,7 @@ async fn confirm_many(
         false,
         aggregator_operate_4844_mode,
         commitment_mode,
+        SettlementMode::SettlesToL1,
     )
     .await;
 
@@ -228,6 +229,7 @@ async fn resend_each_block(commitment_mode: L1BatchCommitmentMode) -> anyhow::Re
         false,
         true,
         commitment_mode,
+        SettlementMode::SettlesToL1,
     )
     .await;
 
@@ -356,6 +358,7 @@ async fn dont_resend_already_mined(commitment_mode: L1BatchCommitmentMode) -> an
         false,
         true,
         commitment_mode,
+        SettlementMode::SettlesToL1,
     )
     .await;
 
@@ -400,6 +403,7 @@ async fn three_scenarios(commitment_mode: L1BatchCommitmentMode) -> anyhow::Resu
         false,
         true,
         commitment_mode,
+        SettlementMode::SettlesToL1,
     )
     .await;
 
@@ -444,6 +448,7 @@ async fn failed_eth_tx(commitment_mode: L1BatchCommitmentMode) {
         false,
         true,
         commitment_mode,
+        SettlementMode::SettlesToL1,
     )
     .await;
 
@@ -466,6 +471,7 @@ async fn blob_transactions_are_resent_independently_of_non_blob_txs() {
         true,
         true,
         L1BatchCommitmentMode::Rollup,
+        SettlementMode::SettlesToL1,
     )
     .await;
 
@@ -498,6 +504,7 @@ async fn transactions_are_not_resent_on_the_same_block() {
         true,
         true,
         L1BatchCommitmentMode::Rollup,
+        SettlementMode::SettlesToL1,
     )
     .await;
 
@@ -529,6 +536,7 @@ async fn switching_to_gateway_while_some_transactions_were_in_flight_should_caus
         true,
         true,
         L1BatchCommitmentMode::Rollup,
+        SettlementMode::SettlesToL1,
     )
     .await;
 
@@ -553,6 +561,7 @@ async fn switching_to_gateway_works_for_most_basic_scenario() {
         true,
         true,
         L1BatchCommitmentMode::Rollup,
+        SettlementMode::SettlesToL1,
     )
     .await;
 
@@ -590,6 +599,7 @@ async fn correct_order_for_confirmations(
         true,
         true,
         commitment_mode,
+        SettlementMode::SettlesToL1,
     )
     .await;
 
@@ -637,6 +647,7 @@ async fn skipped_l1_batch_at_the_start(
         true,
         true,
         commitment_mode,
+        SettlementMode::SettlesToL1,
     )
     .await;
 
@@ -696,6 +707,7 @@ async fn skipped_l1_batch_in_the_middle(
         true,
         true,
         commitment_mode,
+        SettlementMode::SettlesToL1,
     )
     .await;
 
@@ -751,6 +763,7 @@ async fn parsing_multicall_data(with_evm_emulator: bool) {
         false,
         true,
         L1BatchCommitmentMode::Rollup,
+        SettlementMode::SettlesToL1,
     )
     .await;
 
@@ -822,6 +835,7 @@ async fn parsing_multicall_data_errors() {
         false,
         true,
         L1BatchCommitmentMode::Rollup,
+        SettlementMode::SettlesToL1,
     )
     .await;
 
@@ -889,6 +903,7 @@ async fn get_multicall_data(commitment_mode: L1BatchCommitmentMode) {
         false,
         true,
         commitment_mode,
+        SettlementMode::SettlesToL1,
     )
     .await;
 
@@ -915,8 +930,9 @@ async fn test_signing_eip712_tx() {
         ConnectionPool::<Core>::test_pool().await,
         vec![100; 100],
         false,
-        true,
+        false,
         L1BatchCommitmentMode::Rollup,
+        SettlementMode::Gateway,
     )
     .await;
 
@@ -926,8 +942,8 @@ async fn test_signing_eip712_tx() {
     let private_key = K256PrivateKey::from_bytes(private_key).unwrap();
 
     let signer = PrivateKeySigner::new(private_key);
-    let l1_chain_id = L1ChainId(10);
-    let client = MockClient::builder(l1_chain_id.into()).build();
+    let chain_id = 10;
+    let client = MockClient::builder(L1ChainId(chain_id).into()).build();
     let client = Box::new(client) as Box<DynClient<L1>>;
     let sign_client = Box::new(SigningClient::new(
         client,
@@ -936,7 +952,7 @@ async fn test_signing_eip712_tx() {
         signer,
         Address::zero(),
         U256::one(),
-        SLChainId(l1_chain_id.0),
+        SLChainId(chain_id),
     )) as Box<dyn BoundEthInterface>;
     let l1_interface = RealL1Interface {
         ethereum_gateway: None,
@@ -945,9 +961,10 @@ async fn test_signing_eip712_tx() {
         wait_confirmations: Some(10),
     };
 
-    let header = tester.seal_l1_batch().await;
+    tester.seal_l1_batch().await;
     let header = tester.seal_l1_batch().await;
     let eth_tx = tester.save_commit_tx(header.number).await;
+
     let tx = l1_interface
         .sign_tx(
             &eth_tx,
@@ -959,5 +976,7 @@ async fn test_signing_eip712_tx() {
             Some(1.into()),
         )
         .await;
-    dbg!(tx);
+    let (_tx_req, _tx_hash) =
+        TransactionRequest::from_bytes(tx.raw_tx.as_ref(), L2ChainId::new(chain_id).unwrap())
+            .unwrap();
 }

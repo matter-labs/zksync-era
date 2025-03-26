@@ -25,8 +25,6 @@ zksync_prover_interface.workspace = true
 zksync_shared_metrics.workspace = true
 zksync_node_fee_model.workspace = true
 zksync_mini_merkle_tree.workspace = true
-zksync_web3_decl.workspace = true
-zksync_eth_signer.workspace = true
 
 tokio = { workspace = true, features = ["time"] }
 anyhow.workspace = true
@@ -40,3 +38,5 @@ test-casing.workspace = true
 zksync_node_test_utils.workspace = true
 assert_matches.workspace = true
 test-log.workspace = true
+zksync_web3_decl.workspace = true
+zksync_eth_signer.workspace = true

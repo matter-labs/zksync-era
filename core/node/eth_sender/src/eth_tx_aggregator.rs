@@ -788,7 +788,7 @@ impl EthTxAggregator {
             _ => None,
         };
 
-        let eth_tx = transaction
+        let mut eth_tx = transaction
             .eth_sender_dal()
             .save_eth_tx(
                 nonce,
@@ -808,7 +808,7 @@ impl EthTxAggregator {
             .set_chain_id(eth_tx.id, self.sl_chain_id.0)
             .await
             .unwrap();
-
+        eth_tx.chain_id = Some(self.sl_chain_id);
         transaction
             .blocks_dal()
             .set_eth_tx_id(l1_batch_number_range, eth_tx.id, op_type)

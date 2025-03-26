@@ -47,6 +47,8 @@ impl PKSigningClient {
 /// This is an emergency value, which will not be used normally.
 const FALLBACK_GAS_LIMIT: u64 = 3_000_000;
 
+const MAX_GAS_PER_PUBDATA_BYTE: u64 = 50_000;
+
 /// HTTP-based client, instantiated for a certain account. This client is capable of signing transactions.
 #[derive(Clone)]
 pub struct SigningClient<S: EthereumSigner> {
@@ -110,6 +112,7 @@ impl<S: EthereumSigner> BoundEthInterface for SigningClient<S> {
         self.inner.sender_account
     }
 
+    #[allow(clippy::too_many_arguments)]
     async fn sign_prepared_tx_for_addr(
         &self,
         data: Vec<u8>,
@@ -172,7 +175,7 @@ impl<S: EthereumSigner> BoundEthInterface for SigningClient<S> {
             )
             .await?
         } else {
-            self.sign_ethereum_tx(
+            self.sign_ethereum_compatible_tx(
                 data,
                 contract_addr,
                 options,
@@ -235,7 +238,8 @@ impl<S: EthereumSigner> SigningClient<S> {
         }
     }
 
-    async fn sign_ethereum_tx(
+    #[allow(clippy::too_many_arguments)]
+    async fn sign_ethereum_compatible_tx(
         &self,
         data: Vec<u8>,
         contract_addr: H160,
@@ -268,6 +272,7 @@ impl<S: EthereumSigner> SigningClient<S> {
         Ok(signed_tx)
     }
 
+    #[allow(clippy::too_many_arguments)]
     async fn sign_eip712_tx(
         &self,
         data: Vec<u8>,
@@ -285,6 +290,14 @@ impl<S: EthereumSigner> SigningClient<S> {
                 .try_into()
                 .map_err(|_| SigningError::WrongL2Chain)?,
         );
+        let max_gas_per_pubdata = options.max_gas_per_pubdata.unwrap_or_else(|| {
+            // Verbosity level is set to `error`, since we expect all the transactions to have
+            // a set limit, but don't want to crаsh the application if for some reason in some
+            // place limit was not set.
+            tracing::error!("No max_gas_per_pubdata set for transaction, using the default limit: {MAX_GAS_PER_PUBDATA_BYTE}");
+            U256::from(MAX_GAS_PER_PUBDATA_BYTE)
+        });
+
         let tx = L2Tx::new(
             Some(contract_addr),
             data,
@@ -293,21 +306,18 @@ impl<S: EthereumSigner> SigningClient<S> {
                 gas_limit: gas,
                 max_fee_per_gas,
                 max_priority_fee_per_gas,
-                gas_per_pubdata_limit: options.max_gas_per_pubdata.unwrap_or_default(),
+                gas_per_pubdata_limit: max_gas_per_pubdata,
             },
             self.inner.eth_signer.get_address().await?,
             options.value.unwrap_or_default(),
             options.factory_deps.unwrap_or_default(),
             options.paymaster_params.unwrap_or_default(),
         );
-        let transaction_request: TransactionRequest = tx.into();
-        let signature = self
-            .inner
-            .eth_signer
-            .sign_typed_data(&domain, &transaction_request)
-            .await?;
-        transaction_request
-            .get_signed_bytes(&signature)
+
+        let mut req: TransactionRequest = tx.into();
+        req.chain_id = Some(self.inner.chain_id.0);
+        let signature = self.inner.eth_signer.sign_typed_data(&domain, &req).await?;
+        req.get_signed_bytes(&signature)
             .map_err(|err| SigningError::Signer(SignerError::SigningFailed(err.to_string())))
     }
 }

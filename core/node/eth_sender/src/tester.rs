@@ -124,7 +124,7 @@ pub(crate) struct EthSenderTester {
     next_l1_batch_number_to_prove: L1BatchNumber,
     next_l1_batch_number_to_execute: L1BatchNumber,
     tx_sent_in_last_iteration_count: usize,
-    pub is_l2: bool,
+    pub settlement_mode: SettlementMode,
 }
 
 impl EthSenderTester {
@@ -137,6 +137,7 @@ impl EthSenderTester {
         non_ordering_confirmations: bool,
         aggregator_operate_4844_mode: bool,
         commitment_mode: L1BatchCommitmentMode,
+        settlement_mode: SettlementMode,
     ) -> Self {
         let eth_sender_config = EthConfig::for_tests();
         let contracts_config = ContractsConfig::for_tests();
@@ -252,7 +253,7 @@ impl EthSenderTester {
             commitment_mode,
             connection_pool.clone(),
             gateway.clone(),
-            SettlementMode::SettlesToL1,
+            settlement_mode,
         )
         .await
         .unwrap();
@@ -274,7 +275,7 @@ impl EthSenderTester {
             STATE_TRANSITION_CONTRACT_ADDRESS,
             Default::default(),
             custom_commit_sender_addr,
-            SettlementMode::SettlesToL1,
+            settlement_mode,
         )
         .await;
 
@@ -309,7 +310,7 @@ impl EthSenderTester {
             next_l1_batch_number_to_execute: L1BatchNumber(1),
             next_l1_batch_number_to_prove: L1BatchNumber(1),
             tx_sent_in_last_iteration_count: 0,
-            is_l2: false,
+            settlement_mode,
         }
     }
 
@@ -322,7 +323,7 @@ impl EthSenderTester {
             None,
             Some(self.l2_gateway.clone()),
         );
-        self.is_l2 = true;
+        self.settlement_mode = SettlementMode::Gateway;
         tracing::info!("Switched eth-sender tester to use Gateway!");
     }
 
@@ -390,7 +391,7 @@ impl EthSenderTester {
             .get_last_sent_eth_tx_hash(l1_batch_number, operation_type)
             .await
             .unwrap();
-        if !self.is_l2 {
+        if !self.settlement_mode.is_gateway() {
             let (gateway, other) = if tx.blob_base_fee_per_gas.is_some() {
                 (self.gateway_blobs.as_ref(), self.gateway.as_ref())
             } else {
@@ -526,7 +527,7 @@ impl EthSenderTester {
                 &aggregated_operation,
                 Address::random(),
                 ProtocolVersionId::latest(),
-                self.is_l2,
+                self.settlement_mode.is_gateway(),
             )
             .await
             .unwrap()
@@ -551,7 +552,7 @@ impl EthSenderTester {
     }
 
     pub async fn confirm_tx(&mut self, hash: H256, is_blob: bool) {
-        if !self.is_l2 {
+        if !self.settlement_mode.is_gateway() {
             let (gateway, other) = if is_blob {
                 (self.gateway_blobs.as_ref(), self.gateway.as_ref())
             } else {
@@ -607,7 +608,7 @@ impl EthSenderTester {
     }
 
     pub async fn assert_inflight_txs_count_equals(&mut self, value: usize) {
-        let inflight_count = if !self.is_l2 {
+        let inflight_count = if !self.settlement_mode.is_gateway() {
             //sanity check
             assert!(self.manager.operator_address(OperatorType::Blob).is_some());
             self.storage()

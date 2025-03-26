@@ -376,7 +376,6 @@ mod tests {
     };
 
     use super::*;
-    use crate::clients::SigningClient;
 
     #[tokio::test]
     // Tests the encoding of the `EIP_4844_TX_TYPE` transaction to
