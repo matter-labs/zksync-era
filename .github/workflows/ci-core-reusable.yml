@@ -83,6 +83,20 @@ jobs:
         run: |
           ci_run zkstack dev contracts
 
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18.18.0
+
+      - name: Install yarn
+        run: |
+          npm install -g yarn
+
+      - name: Check contracts hashes
+        working-directory: contracts
+        run: |
+          yarn calculate-hashes:check
+
       - name: Download compilers for contract verifier tests
         run: ci_run zkstack contract-verifier init --zksolc-version=v1.5.10 --zkvyper-version=v1.5.4 --solc-version=0.8.26 --vyper-version=v0.3.10 --era-vm-solc-version=0.8.26-1.0.1 --only --chain era
 
@@ -141,7 +155,7 @@ jobs:
         run: |
           ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup || true
           ci_run zkstackup -g --local --cargo-features gateway
-  
+
 
       - name: Create and initialize legacy chain
         run: |

@@ -51,13 +51,14 @@ mod call_tracer;
 mod circuits;
 mod code_oracle;
 mod constants;
-mod evm_emulator;
+mod evm;
 mod gas_limit;
 mod get_used_contracts;
 mod is_write_initial;
 mod l1_messenger;
 mod l1_tx_execution;
 mod l2_blocks;
+mod mock_evm;
 mod nonce_holder;
 mod precompiles;
 mod prestate_tracer;
@@ -70,6 +71,7 @@ mod storage;
 mod tracing_execution_error;
 mod transfer;
 mod upgrade;
+mod v26_upgrade_utils;
 
 type TestedLatestVm = Vm<StorageView<InMemoryStorage>, HistoryEnabled>;
 

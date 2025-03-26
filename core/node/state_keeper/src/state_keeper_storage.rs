@@ -26,7 +26,7 @@ impl AsyncRocksdbCache {
         state_keeper_db_path: String,
         state_keeper_db_options: RocksdbStorageOptions,
     ) -> (Self, AsyncCatchupTask) {
-        let (task, rocksdb_cell) = AsyncCatchupTask::new(pool.clone(), state_keeper_db_path, false);
+        let (task, rocksdb_cell) = AsyncCatchupTask::new(pool.clone(), state_keeper_db_path);
         (
             Self { pool, rocksdb_cell },
             task.with_db_options(state_keeper_db_options),

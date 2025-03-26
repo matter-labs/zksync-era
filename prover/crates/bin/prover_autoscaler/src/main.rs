@@ -8,8 +8,9 @@ use tokio::{
 };
 use zksync_prover_autoscaler::{
     agent,
+    cluster_types::ClusterName,
     config::{config_from_yaml, ProverAutoscalerConfig},
-    global::{self},
+    global::{manager::Manager, queuer::Queuer, watcher},
     http_client::HttpClient,
     k8s::{Scaler, Watcher},
     task_wiring::TaskRunner,
@@ -46,7 +47,7 @@ struct Opt {
     job: AutoscalerType,
     /// Name of the cluster Agent is watching.
     #[structopt(long)]
-    cluster_name: Option<String>,
+    cluster_name: Option<ClusterName>,
     /// Path to the configuration file.
     #[structopt(long)]
     config_path: std::path::PathBuf,
@@ -109,17 +110,14 @@ async fn main() -> anyhow::Result<()> {
             let interval = scaler_config.scaler_run_interval;
             let exporter_config = PrometheusExporterConfig::pull(scaler_config.prometheus_port);
             tasks.push(tokio::spawn(exporter_config.run(stop_receiver.clone())));
-            let watcher = global::watcher::Watcher::new(
+            let watcher = watcher::Watcher::new(
                 http_client.clone(),
                 scaler_config.agents.clone(),
                 scaler_config.dry_run,
             );
-            let queuer = global::queuer::Queuer::new(
-                http_client,
-                scaler_config.prover_job_monitor_url.clone(),
-            );
-            let scaler = global::scaler::Scaler::new(watcher.clone(), queuer, scaler_config);
-            tasks.extend(get_tasks(watcher, scaler, interval, stop_receiver)?);
+            let queuer = Queuer::new(http_client, scaler_config.prover_job_monitor_url.clone());
+            let manager = Manager::new(watcher.clone(), queuer, scaler_config);
+            tasks.extend(get_tasks(watcher, manager, interval, stop_receiver)?);
         }
     }
 
@@ -140,15 +138,15 @@ async fn main() -> anyhow::Result<()> {
 }
 
 fn get_tasks(
-    watcher: global::watcher::Watcher,
-    scaler: global::scaler::Scaler,
+    watcher: watcher::Watcher,
+    manager: Manager,
     interval: Duration,
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<Vec<JoinHandle<anyhow::Result<()>>>> {
     let mut task_runner = TaskRunner::default();
 
     task_runner.add("Watcher", interval, watcher);
-    task_runner.add("Scaler", interval, scaler);
+    task_runner.add("Scaler", interval, manager);
 
     Ok(task_runner.spawn(stop_receiver))
 }

@@ -114,7 +114,7 @@ impl StateValue {
 
 /// Error emitted when [`RocksdbStorage`] is being updated.
 #[derive(Debug)]
-enum RocksdbSyncError {
+pub(crate) enum RocksdbSyncError {
     Internal(anyhow::Error),
     Interrupted,
 }
@@ -235,41 +235,30 @@ impl RocksdbStorageBuilder {
     /// - Errors if the local L1 batch number is greater than the last sealed L1 batch number
     ///   in Postgres.
     pub async fn synchronize(
-        self,
+        mut self,
         storage: &mut Connection<'_, Core>,
         stop_receiver: &watch::Receiver<bool>,
         to_l1_batch_number: Option<L1BatchNumber>,
     ) -> anyhow::Result<Option<RocksdbStorage>> {
-        let mut inner = self.0;
-        match inner
+        match self
             .update_from_postgres(storage, stop_receiver, to_l1_batch_number)
             .await
         {
-            Ok(()) => Ok(Some(inner)),
+            Ok(()) => Ok(Some(self.0)),
             Err(RocksdbSyncError::Interrupted) => Ok(None),
             Err(RocksdbSyncError::Internal(err)) => Err(err),
         }
     }
 
-    pub fn skip_synchronize(self) -> RocksdbStorage {
-        self.0
-    }
-
-    pub async fn update_from_postgres(
+    pub(crate) async fn update_from_postgres(
         &mut self,
         storage: &mut Connection<'_, Core>,
         stop_receiver: &watch::Receiver<bool>,
         to_l1_batch_number: Option<L1BatchNumber>,
-    ) -> anyhow::Result<Option<()>> {
-        let mut inner = &mut self.0;
-        match inner
+    ) -> anyhow::Result<(), RocksdbSyncError> {
+        self.0
             .update_from_postgres(storage, stop_receiver, to_l1_batch_number)
             .await
-        {
-            Ok(()) => Ok(Some(())),
-            Err(RocksdbSyncError::Interrupted) => Ok(None),
-            Err(RocksdbSyncError::Internal(err)) => Err(err),
-        }
     }
 
     /// Reverts the state to a previous L1 batch number.
@@ -284,11 +273,16 @@ impl RocksdbStorageBuilder {
     ) -> anyhow::Result<()> {
         self.0.revert(storage, last_l1_batch_to_keep).await
     }
+}
 
-    /// Returns the underlying storage without any checks. Should only be used in test code.
-    #[doc(hidden)]
-    pub fn build_unchecked(self) -> RocksdbStorage {
-        self.0
+impl From<RocksDB<StateKeeperColumnFamily>> for RocksdbStorage {
+    fn from(value: RocksDB<StateKeeperColumnFamily>) -> Self {
+        Self {
+            db: value,
+            pending_patch: PendingPatch::default(),
+            #[cfg(test)]
+            listener: RocksdbStorageEventListener::default(),
+        }
     }
 }
 

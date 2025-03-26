@@ -7,6 +7,8 @@ use zksync_basic_types::{
 };
 use zksync_db_connection::{
     connection::Connection,
+    error::DalResult,
+    instrument::InstrumentExt,
     utils::{duration_to_naive_time, pg_interval_from_duration},
 };
 
@@ -23,7 +25,7 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
         block_number: L1BatchNumber,
         witness_inputs_blob_url: &str,
         protocol_version: ProtocolSemanticVersion,
-    ) {
+    ) -> DalResult<()> {
         sqlx::query!(
             r#"
             INSERT INTO
@@ -45,9 +47,10 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
             protocol_version.minor as i32,
             protocol_version.patch.0 as i32,
         )
-        .fetch_optional(self.storage.conn())
-        .await
-        .unwrap();
+        .instrument("save_witness_inputs")
+        .execute(self.storage)
+        .await?;
+        Ok(())
     }
 
     /// Gets the next job to be executed. Returns the batch number and its corresponding blobs.
@@ -291,5 +294,22 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
             picked_by: row.picked_by,
         })
         .collect()
+    }
+
+    pub async fn check_reached_max_attempts(&mut self, max_attempts: u32) -> usize {
+        sqlx::query_scalar!(
+            r#"
+            SELECT COUNT(*)
+            FROM witness_inputs_fri
+            WHERE
+                attempts >= $1
+                AND status <> 'successful'
+            "#,
+            max_attempts as i64
+        )
+        .fetch_one(self.storage.conn())
+        .await
+        .unwrap()
+        .unwrap_or(0) as usize
     }
 }

@@ -37,7 +37,7 @@ pub async fn run(args: Args, config: ProverCLIConfig) -> anyhow::Result<()> {
             &format!("witness_inputs_{}", args.number.0),
             ProtocolSemanticVersion::new(protocol_version, protocol_version_patch),
         )
-        .await;
+        .await?;
 
     Ok(())
 }

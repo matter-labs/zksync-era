@@ -9,13 +9,12 @@ use zksync_config::{
             CircuitBreakerConfig, MempoolConfig, NetworkConfig, OperationsManagerConfig,
             StateKeeperConfig, TimestampAsserterConfig,
         },
-        fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
-        BasicWitnessInputProducerConfig, ContractsConfig, DataAvailabilitySecrets, DatabaseSecrets,
-        ExperimentalVmConfig, ExternalPriceApiClientConfig, FriProofCompressorConfig,
-        FriProverConfig, FriProverGatewayConfig, FriWitnessGeneratorConfig,
-        FriWitnessVectorGeneratorConfig, L1Secrets, ObservabilityConfig, PrometheusConfig,
-        ProofDataHandlerConfig, ProtectiveReadsWriterConfig, Secrets,
+        BasicWitnessInputProducerConfig, ContractVerifierSecrets, ContractsConfig,
+        DataAvailabilitySecrets, DatabaseSecrets, ExperimentalVmConfig,
+        ExternalPriceApiClientConfig, FriProofCompressorConfig, FriProverConfig,
+        FriProverGatewayConfig, FriWitnessGeneratorConfig, L1Secrets, ObservabilityConfig,
+        PrometheusConfig, ProofDataHandlerConfig, ProtectiveReadsWriterConfig, Secrets,
     },
     ApiConfig, BaseTokenAdjusterConfig, ContractVerifierConfig, DAClientConfig, DADispatcherConfig,
     DBConfig, EthConfig, EthWatchConfig, ExternalProofIntegrationApiConfig, GasAdjusterConfig,
@@ -67,6 +66,11 @@ struct Cli {
     /// Now the node framework is used by default and this argument is left for backward compatibility.
     #[arg(long)]
     use_node_framework: bool,
+
+    /// Only compose the node with the provided list of the components and then exit.
+    /// Can be used to catch issues with configuration.
+    #[arg(long, conflicts_with = "genesis")]
+    no_run: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -119,6 +123,7 @@ fn main() -> anyhow::Result<()> {
             database: DatabaseSecrets::from_env().ok(),
             l1: L1Secrets::from_env().ok(),
             data_availability: DataAvailabilitySecrets::from_env().ok(),
+            contract_verifier: ContractVerifierSecrets::from_env().ok(),
         },
     };
 
@@ -173,7 +178,14 @@ fn main() -> anyhow::Result<()> {
         return Ok(());
     }
 
-    node.build(opt.components.0)?.run(observability_guard)?;
+    let node = node.build(opt.components.0)?;
+
+    if opt.no_run {
+        tracing::info!("Node composed successfully; exiting due to --no-run flag");
+        return Ok(());
+    }
+
+    node.run(observability_guard)?;
     Ok(())
 }
 
@@ -192,9 +204,7 @@ fn load_env_config() -> anyhow::Result<TempConfigStore> {
         house_keeper_config: HouseKeeperConfig::from_env().ok(),
         fri_proof_compressor_config: FriProofCompressorConfig::from_env().ok(),
         fri_prover_config: FriProverConfig::from_env().ok(),
-        fri_prover_group_config: FriProverGroupConfig::from_env().ok(),
         fri_prover_gateway_config: FriProverGatewayConfig::from_env().ok(),
-        fri_witness_vector_generator: FriWitnessVectorGeneratorConfig::from_env().ok(),
         fri_witness_generator_config: FriWitnessGeneratorConfig::from_env().ok(),
         prometheus_config: PrometheusConfig::from_env().ok(),
         proof_data_handler_config: ProofDataHandlerConfig::from_env().ok(),

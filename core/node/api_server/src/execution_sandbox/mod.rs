@@ -25,6 +25,8 @@ mod error;
 mod execute;
 mod storage;
 #[cfg(test)]
+pub(crate) mod testonly;
+#[cfg(test)]
 mod tests;
 mod validate;
 mod vm_metrics;

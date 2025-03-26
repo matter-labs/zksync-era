@@ -271,7 +271,7 @@ impl<Io: VmRunnerIo> StorageSyncTask<Io> {
         let target_l1_batch_number = io.latest_processed_batch(&mut conn).await?;
         drop(conn);
 
-        let (catchup_task, rocksdb_cell) = AsyncCatchupTask::new(pool.clone(), rocksdb_path, false);
+        let (catchup_task, rocksdb_cell) = AsyncCatchupTask::new(pool.clone(), rocksdb_path);
         Ok(Self {
             pool,
             l1_batch_params_provider,

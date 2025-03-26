@@ -34,6 +34,7 @@ use crate::{
 
 mod compilers;
 pub mod error;
+pub mod etherscan;
 mod metrics;
 mod resolver;
 #[cfg(test)]
@@ -117,6 +118,7 @@ pub struct ContractVerifier {
     contract_deployer: Contract,
     connection_pool: ConnectionPool<Core>,
     compiler_resolver: Arc<dyn CompilerResolver>,
+    etherscan_verifier_enabled: bool,
 }
 
 impl ContractVerifier {
@@ -124,6 +126,7 @@ impl ContractVerifier {
     pub async fn new(
         compilation_timeout: Duration,
         connection_pool: ConnectionPool<Core>,
+        etherscan_verifier_enabled: bool,
     ) -> anyhow::Result<Self> {
         let env_resolver = Arc::<EnvCompilerResolver>::default();
         let gh_resolver = Arc::new(GitHubCompilerResolver::new().await?);
@@ -138,13 +141,20 @@ impl ContractVerifier {
             tracing::warn!("GitHub resolver was disabled via DISABLE_GITHUB_RESOLVER env variable")
         }
 
-        Self::with_resolver(compilation_timeout, connection_pool, Arc::new(resolver)).await
+        Self::with_resolver(
+            compilation_timeout,
+            connection_pool,
+            Arc::new(resolver),
+            etherscan_verifier_enabled,
+        )
+        .await
     }
 
     async fn with_resolver(
         compilation_timeout: Duration,
         connection_pool: ConnectionPool<Core>,
         compiler_resolver: Arc<dyn CompilerResolver>,
+        etherscan_verifier_enabled: bool,
     ) -> anyhow::Result<Self> {
         Self::sync_compiler_versions(compiler_resolver.as_ref(), &connection_pool).await?;
         Ok(Self {
@@ -152,6 +162,7 @@ impl ContractVerifier {
             contract_deployer: zksync_contracts::deployer_contract(),
             connection_pool,
             compiler_resolver,
+            etherscan_verifier_enabled,
         })
     }
 
@@ -248,17 +259,8 @@ impl ContractVerifier {
         let bytecode_marker = BytecodeMarker::new(deployed_contract.bytecode_hash)
             .context("unknown bytecode kind")?;
         let artifacts = self.compile(request.req.clone(), bytecode_marker).await?;
-        let identifier =
+        let compiled_identifier =
             ContractIdentifier::from_bytecode(bytecode_marker, artifacts.deployed_bytecode());
-        let constructor_args = match bytecode_marker {
-            BytecodeMarker::EraVm => self
-                .decode_era_vm_constructor_args(&deployed_contract, request.req.contract_address)?,
-            BytecodeMarker::Evm => Self::decode_evm_constructor_args(
-                request.id,
-                &deployed_contract,
-                &artifacts.bytecode,
-            )?,
-        };
 
         let deployed_bytecode = match bytecode_marker {
             BytecodeMarker::EraVm => deployed_contract.bytecode.as_slice(),
@@ -269,10 +271,24 @@ impl ContractVerifier {
             )
             .context("invalid stored EVM bytecode")?,
         };
+        let deployed_identifier =
+            ContractIdentifier::from_bytecode(bytecode_marker, deployed_bytecode);
+
+        let constructor_args = match bytecode_marker {
+            BytecodeMarker::EraVm => self
+                .decode_era_vm_constructor_args(&deployed_contract, request.req.contract_address)?,
+            BytecodeMarker::Evm => Self::decode_evm_constructor_args(
+                request.id,
+                &deployed_contract,
+                &artifacts.bytecode,
+                &compiled_identifier,
+                &deployed_identifier,
+            )?,
+        };
 
         let mut verification_problems = Vec::new();
 
-        match identifier.matches(deployed_bytecode) {
+        match compiled_identifier.matches(&deployed_identifier) {
             Match::Full => {}
             Match::Partial => {
                 tracing::trace!(
@@ -324,7 +340,7 @@ impl ContractVerifier {
             verified_at,
             verification_problems,
         };
-        Ok((info, identifier))
+        Ok((info, compiled_identifier))
     }
 
     async fn compile_zksolc(
@@ -545,7 +561,37 @@ impl ContractVerifier {
         request_id: usize,
         contract: &DeployedContractData,
         creation_bytecode: &[u8],
+        compiled_identifier: &ContractIdentifier,
+        deployed_identifier: &ContractIdentifier,
     ) -> Result<ConstructorArgs, ContractVerifierError> {
+        fn extract_arguments<'a>(
+            calldata: &'a [u8],
+            creation_bytecode: &'a [u8],
+            compiled_identifier: &ContractIdentifier,
+            deployed_identifier: &ContractIdentifier,
+        ) -> Result<&'a [u8], &'static str> {
+            if creation_bytecode.len() < compiled_identifier.metadata_length() {
+                // This shouldn't normally happen, since we calculated contract identifier based on this code.
+                return Err("Creation bytecode doesn't fit metadata");
+            }
+            let creation_bytecode_without_metadata = &creation_bytecode
+                [..creation_bytecode.len() - compiled_identifier.metadata_length()];
+
+            // Ensure equivalence of the creation bytecode (which can be different from the deployed bytecode).
+            // Note that metadata hash may still be different; this is checked by other part of the code.
+            let constructor_args_with_metadata = calldata
+                .strip_prefix(creation_bytecode_without_metadata)
+                .ok_or("Creation bytecode is different")?;
+
+            // Skip metadata to get to the constructor arguments.
+            // Note that deployed contract may have different metadata, so we use another
+            // identifier here.
+            if constructor_args_with_metadata.len() < deployed_identifier.metadata_length() {
+                return Err("Calldata doesn't fit metadata");
+            }
+            Ok(&constructor_args_with_metadata[deployed_identifier.metadata_length()..])
+        }
+
         let Some(calldata) = &contract.calldata else {
             return Ok(ConstructorArgs::Ignore);
         };
@@ -554,16 +600,23 @@ impl ContractVerifier {
             return Ok(ConstructorArgs::Ignore);
         }
 
-        let args = calldata.strip_prefix(creation_bytecode).ok_or_else(|| {
-            tracing::info!(
-                request_id,
-                calldata = hex::encode(calldata),
-                compiled = hex::encode(creation_bytecode),
-                "Creation bytecode mismatch"
-            );
-            ContractVerifierError::CreationBytecodeMismatch
-        })?;
-        Ok(ConstructorArgs::Check(args.to_vec()))
+        match extract_arguments(
+            calldata,
+            creation_bytecode,
+            compiled_identifier,
+            deployed_identifier,
+        ) {
+            Ok(args) => Ok(ConstructorArgs::Check(args.to_vec())),
+            Err(err) => {
+                tracing::info!(
+                    request_id,
+                    calldata = hex::encode(calldata),
+                    compiled = hex::encode(creation_bytecode),
+                    "Creation bytecode mismatch: {err}"
+                );
+                Err(ContractVerifierError::CreationBytecodeMismatch)
+            }
+        }
     }
 
     #[tracing::instrument(level = "debug", skip_all, err, fields(id = request_id))]
@@ -578,7 +631,20 @@ impl ContractVerifier {
             .await?;
         match verification_result {
             Ok((info, identifier)) => {
-                storage
+                let mut transaction = storage.start_transaction().await?;
+                if self.etherscan_verifier_enabled
+                    && etherscan::is_supported_verification_request(&info.request)
+                {
+                    tracing::debug!(
+                        "Created etherscan verification request with id = {request_id}"
+                    );
+                    transaction
+                        .etherscan_verification_dal()
+                        .add_verification_request(request_id)
+                        .await?;
+                }
+
+                transaction
                     .contract_verification_dal()
                     .save_verification_info(
                         info,
@@ -586,7 +652,11 @@ impl ContractVerifier {
                         identifier.bytecode_without_metadata_keccak256,
                     )
                     .await?;
+
+                transaction.commit().await?;
                 tracing::info!("Successfully processed request with id = {request_id}");
+
+                API_CONTRACT_VERIFIER_METRICS.successful_verifications[&Self::SERVICE_NAME].inc();
             }
             Err(error) => {
                 let error_message = match &error {
@@ -608,6 +678,8 @@ impl ContractVerifier {
                     .save_verification_error(request_id, &error_message, &compilation_errors, None)
                     .await?;
                 tracing::info!("Request with id = {request_id} was failed");
+
+                API_CONTRACT_VERIFIER_METRICS.failed_verifications[&Self::SERVICE_NAME].inc();
             }
         }
         Ok(())

@@ -1,4 +1,4 @@
-use std::{collections::HashSet, fmt, ops::DerefMut, sync::Arc};
+use std::{cmp::Ordering, collections::HashSet, fmt, sync::Arc};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
@@ -124,52 +124,50 @@ impl CommonStorage<'static> {
         Ok(Some(rocksdb.into()))
     }
 
-    /// Returns a [`ReadStorage`] implementation backed by [`RocksDBWithMemory`]
-    ///     and result of [`RocksdbStorage::l1_batch_number`].
+    /// Returns a [`ReadStorage`] implementation backed by [`RocksDBWithMemory`].
     /// RocksDB isn't caught up, instead batch diffs are used to fill the gap.
-    /// Note, as long as `RocksDBWithMemory` objects are held for `l1_batch_number >= X`,
-    /// than it's ok if RocksDB is caught up in parallel for L1 batch number up to X
+    /// Note, as long as `RocksDBWithMemory` objects are held only for `l1_batch_number >= X`,
+    /// then it's ok if RocksDB is caught up in parallel for L1 batch number up to X
     /// because affected storage diff will be read from memory anyway.
     ///
     /// # Errors
     ///
     /// Propagates RocksDB errors.
-    pub async fn rocksdb_with_storage(
-        rocksdb: RocksDB<StateKeeperColumnFamily>,
+    pub async fn rocksdb_with_memory(
+        rocksdb: RocksdbStorage,
         batch_diffs: &BatchDiffs,
         l1_batch_number: L1BatchNumber,
-    ) -> anyhow::Result<Option<(Self, L1BatchNumber)>> {
-        tracing::debug!("Catching up RocksDB synchronously");
-        let rocksdb_builder = RocksdbStorageBuilder::from_rocksdb(rocksdb);
-
-        let rocksdb = rocksdb_builder.skip_synchronize();
+    ) -> anyhow::Result<Self> {
         let rocksdb_l1_batch_number = rocksdb
             .l1_batch_number()
             .await
-            .ok_or_else(|| anyhow::anyhow!("No L1 batches available in Postgres"))?;
+            .context("Rocksdb storage is not initialized")?;
 
-        if l1_batch_number + 1 == rocksdb_l1_batch_number {
-            tracing::debug!(%rocksdb_l1_batch_number, "Using RocksDB-based storage");
-            Ok(Some((rocksdb.into(), rocksdb_l1_batch_number)))
-        } else if l1_batch_number + 1 > rocksdb_l1_batch_number {
-            let effective_storage_l1_batch_number = l1_batch_number + 1;
-            tracing::debug!(
-                %rocksdb_l1_batch_number, %effective_storage_l1_batch_number,
-                "Using RocksDBWithMemory-based storage",
-            );
+        match (l1_batch_number + 1).cmp(&rocksdb_l1_batch_number) {
+            Ordering::Equal => {
+                tracing::debug!(%rocksdb_l1_batch_number, "Using RocksDB-based storage");
+                Ok(rocksdb.into())
+            }
+            Ordering::Greater => {
+                let effective_storage_l1_batch_number = l1_batch_number + 1;
+                tracing::debug!(
+                    %rocksdb_l1_batch_number, %effective_storage_l1_batch_number,
+                    "Using RocksDBWithMemory-based storage",
+                );
 
-            let storage = RocksdbWithMemory {
-                rocksdb,
-                batch_diffs: batch_diffs.range(rocksdb_l1_batch_number, l1_batch_number),
-            };
+                let storage = RocksdbWithMemory {
+                    rocksdb,
+                    batch_diffs: batch_diffs.range(rocksdb_l1_batch_number..=l1_batch_number),
+                };
 
-            Ok(Some((storage.into(), rocksdb_l1_batch_number)))
-        } else {
-            anyhow::bail!(
-                "RocksDB synchronized to L1 batch #{} while #{} was expected",
-                rocksdb_l1_batch_number,
-                l1_batch_number + 1
-            );
+                Ok(storage.into())
+            }
+            Ordering::Less => {
+                anyhow::bail!(
+                    "RocksDB's L1 batch is #{}, cannot make storage for #{l1_batch_number}",
+                    rocksdb_l1_batch_number - 1
+                );
+            }
         }
     }
 
@@ -431,6 +429,82 @@ impl PreimageSource for ArcOwnedStorage {
                 }
             }
             _ => unimplemented!("unexpected storage {:?}", self.0),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use assert_matches::assert_matches;
+    use tempfile::TempDir;
+    use zksync_types::L2BlockNumber;
+
+    use super::*;
+    use crate::{
+        test_utils::{create_l1_batch, create_l2_block, gen_storage_logs, prepare_postgres},
+        AsyncCatchupTask,
+    };
+
+    #[tokio::test]
+    async fn rocksdb_with_memory_creation() {
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
+        prepare_postgres(&mut conn).await;
+        let storage_logs = gen_storage_logs(20..40);
+        create_l2_block(&mut conn, L2BlockNumber(1), storage_logs.clone()).await;
+        create_l1_batch(&mut conn, L1BatchNumber(1), &storage_logs).await;
+        drop(conn);
+
+        let temp_dir = TempDir::new().unwrap();
+        let (task, rocksdb_cell) =
+            AsyncCatchupTask::new(pool.clone(), temp_dir.path().to_str().unwrap().to_owned());
+        let (_stop_sender, stop_receiver) = watch::channel(false);
+        let task_handle = tokio::spawn(task.run(stop_receiver));
+        task_handle.await.unwrap().unwrap();
+
+        let rocksdb: RocksdbStorage = rocksdb_cell.wait().await.unwrap().into();
+        let l1_batch_number = rocksdb.l1_batch_number().await;
+        assert_eq!(l1_batch_number, Some(L1BatchNumber(2)));
+
+        // Check scenario when memory part is not required.
+        let storage = CommonStorage::rocksdb_with_memory(
+            rocksdb.clone(),
+            &BatchDiffs::new(),
+            L1BatchNumber(1),
+        )
+        .await
+        .unwrap();
+        assert_matches!(storage, CommonStorage::Rocksdb(_));
+
+        // Check scenario when rocksdb is ahead of requested batch.
+        let error = CommonStorage::rocksdb_with_memory(
+            rocksdb.clone(),
+            &BatchDiffs::new(),
+            L1BatchNumber(0),
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(
+            error.to_string(),
+            "RocksDB's L1 batch is #1, cannot make storage for #0".to_string()
+        );
+
+        // Check scenario when memory part is required.
+        let mut batch_diffs = BatchDiffs::new();
+        batch_diffs.push(L1BatchNumber(1), BatchDiff::default());
+        batch_diffs.push(L1BatchNumber(2), BatchDiff::default());
+        batch_diffs.push(L1BatchNumber(3), BatchDiff::default());
+        batch_diffs.push(L1BatchNumber(4), BatchDiff::default());
+
+        let storage =
+            CommonStorage::rocksdb_with_memory(rocksdb.clone(), &batch_diffs, L1BatchNumber(3))
+                .await
+                .unwrap();
+        if let CommonStorage::RocksdbWithMemory(rocksdb_with_memory) = storage {
+            // There should be two diffs, for batches #2 and #3.
+            assert_eq!(rocksdb_with_memory.batch_diffs.len(), 2);
+        } else {
+            panic!("Got unexpected storage type {storage:?}")
         }
     }
 }

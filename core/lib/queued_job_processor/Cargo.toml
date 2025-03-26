@@ -14,7 +14,7 @@ categories.workspace = true
 [dependencies]
 anyhow.workspace = true
 async-trait.workspace = true
-tokio = { workspace = true, features = ["time"] }
+tokio = { workspace = true, features = ["sync", "time"] }
 tracing.workspace = true
 
 zksync_utils.workspace = true

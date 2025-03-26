@@ -9,8 +9,7 @@ use std::{
 use sqlx::QueryBuilder;
 use zksync_basic_types::{
     basic_fri_types::{
-        AggregationRound, CircuitIdRoundTuple, CircuitProverStatsEntry,
-        ProtocolVersionedCircuitProverStats,
+        AggregationRound, CircuitProverStatsEntry, ProtocolVersionedCircuitProverStats,
     },
     protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch},
     prover_dal::{
@@ -261,158 +260,6 @@ impl FriProverDal<'_, '_> {
         })
     }
 
-    pub async fn get_next_job(
-        &mut self,
-        protocol_version: ProtocolSemanticVersion,
-        picked_by: &str,
-    ) -> Option<FriProverJobMetadata> {
-        sqlx::query!(
-            r#"
-            UPDATE prover_jobs_fri
-            SET
-                status = 'in_progress',
-                attempts = attempts + 1,
-                updated_at = NOW(),
-                processing_started_at = NOW(),
-                picked_by = $3
-            WHERE
-                id = (
-                    SELECT
-                        id
-                    FROM
-                        prover_jobs_fri
-                    WHERE
-                        status = 'queued'
-                        AND protocol_version = $1
-                        AND protocol_version_patch = $2
-                    ORDER BY
-                        aggregation_round DESC,
-                        l1_batch_number ASC,
-                        id ASC
-                    LIMIT
-                        1
-                    FOR UPDATE
-                    SKIP LOCKED
-                )
-            RETURNING
-            prover_jobs_fri.id,
-            prover_jobs_fri.l1_batch_number,
-            prover_jobs_fri.circuit_id,
-            prover_jobs_fri.aggregation_round,
-            prover_jobs_fri.sequence_number,
-            prover_jobs_fri.depth,
-            prover_jobs_fri.is_node_final_proof
-            "#,
-            protocol_version.minor as i32,
-            protocol_version.patch.0 as i32,
-            picked_by,
-        )
-        .fetch_optional(self.storage.conn())
-        .await
-        .unwrap()
-        .map(|row| FriProverJobMetadata {
-            id: row.id as u32,
-            block_number: L1BatchNumber(row.l1_batch_number as u32),
-            circuit_id: row.circuit_id as u8,
-            aggregation_round: AggregationRound::try_from(i32::from(row.aggregation_round))
-                .unwrap(),
-            sequence_number: row.sequence_number as usize,
-            depth: row.depth as u16,
-            is_node_final_proof: row.is_node_final_proof,
-            pick_time: Instant::now(),
-        })
-    }
-    pub async fn get_next_job_for_circuit_id_round(
-        &mut self,
-        circuits_to_pick: &[CircuitIdRoundTuple],
-        protocol_version: ProtocolSemanticVersion,
-        picked_by: &str,
-    ) -> Option<FriProverJobMetadata> {
-        let circuit_ids: Vec<_> = circuits_to_pick
-            .iter()
-            .map(|tuple| i16::from(tuple.circuit_id))
-            .collect();
-        let aggregation_rounds: Vec<_> = circuits_to_pick
-            .iter()
-            .map(|tuple| i16::from(tuple.aggregation_round))
-            .collect();
-        sqlx::query!(
-            r#"
-            UPDATE prover_jobs_fri
-            SET
-                status = 'in_progress',
-                attempts = attempts + 1,
-                processing_started_at = NOW(),
-                updated_at = NOW(),
-                picked_by = $5
-            WHERE
-                id = (
-                    SELECT
-                        pj.id
-                    FROM
-                        (
-                            SELECT
-                                *
-                            FROM
-                                UNNEST($1::SMALLINT [], $2::SMALLINT [])
-                        ) AS tuple (circuit_id, round)
-                    JOIN LATERAL (
-                        SELECT
-                            *
-                        FROM
-                            prover_jobs_fri AS pj
-                        WHERE
-                            pj.status = 'queued'
-                            AND pj.protocol_version = $3
-                            AND pj.protocol_version_patch = $4
-                            AND pj.circuit_id = tuple.circuit_id
-                            AND pj.aggregation_round = tuple.round
-                        ORDER BY
-                            pj.l1_batch_number ASC,
-                            pj.id ASC
-                        LIMIT
-                            1
-                    ) AS pj ON TRUE
-                    ORDER BY
-                        pj.l1_batch_number ASC,
-                        pj.aggregation_round DESC,
-                        pj.id ASC
-                    LIMIT
-                        1
-                    FOR UPDATE
-                    SKIP LOCKED
-                )
-            RETURNING
-            prover_jobs_fri.id,
-            prover_jobs_fri.l1_batch_number,
-            prover_jobs_fri.circuit_id,
-            prover_jobs_fri.aggregation_round,
-            prover_jobs_fri.sequence_number,
-            prover_jobs_fri.depth,
-            prover_jobs_fri.is_node_final_proof
-            "#,
-            &circuit_ids[..],
-            &aggregation_rounds[..],
-            protocol_version.minor as i32,
-            protocol_version.patch.0 as i32,
-            picked_by,
-        )
-        .fetch_optional(self.storage.conn())
-        .await
-        .unwrap()
-        .map(|row| FriProverJobMetadata {
-            id: row.id as u32,
-            block_number: L1BatchNumber(row.l1_batch_number as u32),
-            circuit_id: row.circuit_id as u8,
-            aggregation_round: AggregationRound::try_from(i32::from(row.aggregation_round))
-                .unwrap(),
-            sequence_number: row.sequence_number as usize,
-            depth: row.depth as u16,
-            is_node_final_proof: row.is_node_final_proof,
-            pick_time: Instant::now(),
-        })
-    }
-
     pub async fn save_proof_error(&mut self, id: u32, error: String) {
         {
             sqlx::query!(
@@ -433,25 +280,6 @@ impl FriProverDal<'_, '_> {
             .await
             .unwrap();
         }
-    }
-
-    pub async fn get_prover_job_attempts(&mut self, id: u32) -> sqlx::Result<Option<u32>> {
-        let attempts = sqlx::query!(
-            r#"
-            SELECT
-                attempts
-            FROM
-                prover_jobs_fri
-            WHERE
-                id = $1
-            "#,
-            i64::from(id)
-        )
-        .fetch_optional(self.storage.conn())
-        .await?
-        .map(|row| row.attempts as u32);
-
-        Ok(attempts)
     }
 
     pub async fn save_proof(
@@ -1030,6 +858,23 @@ impl FriProverDal<'_, '_> {
         .map(|row| row.id as u32)
         .collect::<_>()
     }
+
+    pub async fn check_reached_max_attempts(&mut self, max_attempts: u32) -> usize {
+        sqlx::query_scalar!(
+            r#"
+            SELECT COUNT(*)
+            FROM prover_jobs_fri
+            WHERE
+                attempts >= $1
+                AND status <> 'successful'
+            "#,
+            max_attempts as i64
+        )
+        .fetch_one(self.storage.conn())
+        .await
+        .unwrap()
+        .unwrap_or(0) as usize
+    }
 }
 
 #[cfg(test)]
@@ -1050,15 +895,18 @@ mod tests {
     async fn test_insert_prover_jobs() {
         let pool = ConnectionPool::<Prover>::prover_test_pool().await;
         let mut conn = pool.connection().await.unwrap();
+        let mut transaction = conn.start_transaction().await.unwrap();
 
-        conn.fri_protocol_versions_dal()
+        transaction
+            .fri_protocol_versions_dal()
             .save_prover_protocol_version(
                 ProtocolSemanticVersion::default(),
                 L1VerifierConfig::default(),
             )
-            .await;
-
-        conn.fri_prover_jobs_dal()
+            .await
+            .unwrap();
+        transaction
+            .fri_prover_jobs_dal()
             .insert_prover_jobs(
                 L1BatchNumber(1),
                 mock_circuit_ids_and_urls(10000),
@@ -1067,5 +915,7 @@ mod tests {
                 ProtocolSemanticVersion::default(),
             )
             .await;
+
+        transaction.commit().await.unwrap();
     }
 }

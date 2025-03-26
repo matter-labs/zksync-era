@@ -14,10 +14,11 @@ use zksync_system_constants::L2_MESSAGE_ROOT_ADDRESS;
 use zksync_types::{
     abi::ZkChainSpecificUpgradeData,
     api::{ChainAggProof, Log},
-    ethabi::{self, decode, encode, Contract, ParamType},
-    web3::{keccak256, BlockId, BlockNumber, Filter, FilterBuilder},
-    Address, L1BatchNumber, L2ChainId, SLChainId, H256, L2_NATIVE_TOKEN_VAULT_ADDRESS,
-    SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256, U64,
+    ethabi::{decode, Contract, ParamType},
+    utils::encode_ntv_asset_id,
+    web3::{BlockId, BlockNumber, Filter, FilterBuilder},
+    Address, L1BatchNumber, L2ChainId, SLChainId, H256, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256,
+    U64,
 };
 use zksync_web3_decl::{
     client::{Network, L2},
@@ -89,6 +90,7 @@ const TOO_MANY_RESULTS_ALCHEMY: &str = "response size exceeded";
 const TOO_MANY_RESULTS_RETH: &str = "length limit exceeded";
 const TOO_BIG_RANGE_RETH: &str = "query exceeds max block range";
 const TOO_MANY_RESULTS_CHAINSTACK: &str = "range limit exceeded";
+const REQUEST_REJECTED_503: &str = "Request rejected `503`";
 
 /// Implementation of [`EthClient`] based on HTTP JSON-RPC.
 #[derive(Debug, Clone)]
@@ -221,6 +223,7 @@ where
                 || err_message.contains(TOO_MANY_RESULTS_RETH)
                 || err_message.contains(TOO_BIG_RANGE_RETH)
                 || err_message.contains(TOO_MANY_RESULTS_CHAINSTACK)
+                || err_message.contains(REQUEST_REJECTED_503)
             {
                 // get the numeric block ids
                 let from_number = match from {
@@ -691,14 +694,4 @@ impl EthClient for L2EthClientW {
     ) -> EnrichedClientResult<Vec<Option<Vec<u8>>>> {
         self.0.get_published_preimages(hashes).await
     }
-}
-
-pub(crate) fn encode_ntv_asset_id(l1_chain_id: U256, addr: Address) -> H256 {
-    let encoded_data = encode(&[
-        ethabi::Token::Uint(l1_chain_id),
-        ethabi::Token::Address(L2_NATIVE_TOKEN_VAULT_ADDRESS),
-        ethabi::Token::Address(addr),
-    ]);
-
-    H256(keccak256(&encoded_data))
 }

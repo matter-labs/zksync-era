@@ -30,3 +30,14 @@ jobs:
       publish-to-crates-io: true                            # Enable publishing to crates.io
       upgrade-dependencies: true                            # Upgrade cross-workspace dependencies
       version-suffix: 'non-semver-compat'                   # Version suffix for the crates.io release
+      workspace-dirs: 'core prover zkstack_cli'             # List of additional workspace directories to update Cargo.lock
+      dependencies: 'clang libclang-dev'                    # Additional Linux dependencies to install
+
+  # Trigger workflow to publish zkstack binaries
+  release-zkstack-cli-bins:
+    if: ${{ fromJSON(needs.release-please.outputs.all).zkstack_cli--release_created == 'true' }}
+    needs: release-please
+    uses: ./.github/workflows/release-zkstack-bins.yml
+    with:
+      tag: ${{ fromJSON(needs.release-please.outputs.all).zkstack_cli--tag_name }}
+    secrets: inherit

@@ -8,7 +8,7 @@ use zksync_basic_types::{
     },
     L1BatchNumber,
 };
-use zksync_db_connection::connection::Connection;
+use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
 
 use crate::{duration_to_naive_time, pg_interval_from_duration, Prover};
 
@@ -220,7 +220,10 @@ impl FriProofCompressorDal<'_, '_> {
         }
     }
 
-    pub async fn mark_proof_sent_to_server(&mut self, block_number: L1BatchNumber) {
+    pub async fn mark_proof_sent_to_server(
+        &mut self,
+        block_number: L1BatchNumber,
+    ) -> DalResult<()> {
         sqlx::query!(
             r#"
             UPDATE proof_compression_jobs_fri
@@ -233,9 +236,10 @@ impl FriProofCompressorDal<'_, '_> {
             ProofCompressionJobStatus::SentToServer.to_string(),
             i64::from(block_number.0)
         )
-        .execute(self.storage.conn())
-        .await
-        .unwrap();
+        .instrument("mark_proof_sent_to_server")
+        .execute(self.storage)
+        .await?;
+        Ok(())
     }
 
     pub async fn get_jobs_stats(&mut self) -> HashMap<ProtocolSemanticVersion, JobCountStatistics> {
@@ -457,5 +461,23 @@ impl FriProofCompressorDal<'_, '_> {
             })
             .collect()
         }
+    }
+
+    pub async fn check_reached_max_attempts(&mut self, max_attempts: u32) -> usize {
+        sqlx::query_scalar!(
+            r#"
+            SELECT COUNT(*)
+            FROM proof_compression_jobs_fri
+            WHERE
+                attempts >= $1
+                AND status <> 'successful'
+                AND status <> 'sent_to_server'
+            "#,
+            max_attempts as i64
+        )
+        .fetch_one(self.storage.conn())
+        .await
+        .unwrap()
+        .unwrap_or(0) as usize
     }
 }

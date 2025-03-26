@@ -123,12 +123,13 @@ impl ContractVerificationDal<'_, '_> {
                 constructor_arguments,
                 is_system,
                 force_evmla,
+                evm_specific,
                 status,
                 created_at,
                 updated_at
             )
             VALUES
-            ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'queued', NOW(), NOW())
+            ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'queued', NOW(), NOW())
             RETURNING
             id
             "#,
@@ -143,6 +144,7 @@ impl ContractVerificationDal<'_, '_> {
             query.constructor_arguments.0.as_slice(),
             query.is_system,
             query.force_evmla,
+            serde_json::to_value(&query.evm_specific).unwrap(),
         )
         .instrument("add_contract_verification_request")
         .with_arg("address", &query.contract_address)
@@ -203,7 +205,8 @@ impl ContractVerificationDal<'_, '_> {
             optimizer_mode,
             constructor_arguments,
             is_system,
-            force_evmla
+            force_evmla,
+            evm_specific
             "#,
             &processing_timeout
         )
@@ -537,7 +540,8 @@ impl ContractVerificationDal<'_, '_> {
                 optimizer_mode,
                 constructor_arguments,
                 is_system,
-                force_evmla
+                force_evmla,
+                evm_specific
             FROM
                 contract_verification_requests
             WHERE
@@ -630,26 +634,44 @@ impl ContractVerificationDal<'_, '_> {
         .flatten())
     }
 
+    /// Returns verification info for the contract.
+    /// Tries to find the full bytecode match first. If it's not found, tries to find the partial match for the
+    /// bytecode without metadata.
     pub async fn get_partial_match_verification_info(
         &mut self,
         bytecode_keccak256: H256,
         bytecode_without_metadata_keccak256: H256,
     ) -> DalResult<Option<(VerificationInfo, H256, H256)>> {
+        // Use double select so the full match by bytecode_keccak256 is checked first.
+        // Second query is for the partial match by bytecode_without_metadata_keccak256.
+        // Aliases for the columns are needed to properly work with the UNION. Otherwise, the types will be of type
+        // Option<T> instead of T. It's a known sqlx issue reported here: https://github.com/launchbadge/sqlx/issues/1266
         sqlx::query!(
             r#"
-            SELECT
-                verification_info,
-                bytecode_keccak256,
-                bytecode_without_metadata_keccak256
-            FROM
-                contract_verification_info_v2
-            WHERE
-                bytecode_keccak256 = $1
-                OR
-                (
-                    bytecode_without_metadata_keccak256 IS NOT null
-                    AND bytecode_without_metadata_keccak256 = $2
-                )
+            (
+                SELECT
+                    verification_info AS "verification_info!",
+                    bytecode_keccak256 AS "bytecode_keccak256!",
+                    bytecode_without_metadata_keccak256 AS "bytecode_without_metadata_keccak256!"
+                FROM
+                    contract_verification_info_v2
+                WHERE
+                    bytecode_keccak256 = $1
+                LIMIT 1
+            )
+            UNION ALL
+            (
+                SELECT
+                    verification_info AS "verification_info!",
+                    bytecode_keccak256 AS "bytecode_keccak256!",
+                    bytecode_without_metadata_keccak256 AS "bytecode_without_metadata_keccak256!"
+                FROM
+                    contract_verification_info_v2
+                WHERE
+                    bytecode_without_metadata_keccak256 = $2
+                LIMIT 1
+            )
+            LIMIT 1;
             "#,
             bytecode_keccak256.as_bytes(),
             bytecode_without_metadata_keccak256.as_bytes()
@@ -770,8 +792,10 @@ impl ContractVerificationDal<'_, '_> {
                     hex::encode(ids[idx].bytecode_without_metadata_keccak256);
                 let verification_info = verification_infos[idx].replace('"', r#""""#);
 
+                // Note: when using CSV format, you shouldn't escape backslashes, as they are not treated as escape characters.
+                // If you will use `\\` here, it will be treated as a string instead of bytea.
                 let row = format!(
-                    r#"\\x{initial_contract_addr},\\x{bytecode_keccak256},\\x{bytecode_without_metadata_keccak256},"{verification_info}",{created_at},{updated_at}"#,
+                    r#"\x{initial_contract_addr},\x{bytecode_keccak256},\x{bytecode_without_metadata_keccak256},"{verification_info}",{created_at},{updated_at}"#,
                     initial_contract_addr = address,
                     bytecode_keccak256 = bytecode_keccak256,
                     bytecode_without_metadata_keccak256 = bytecode_without_metadata_keccak256,
@@ -808,25 +832,24 @@ impl ContractVerificationDal<'_, '_> {
 
         // Sanity check.
         tracing::info!("All the rows are migrated, verifying the migration");
-        let count_unequal = sqlx::query!(
+        let row = sqlx::query!(
             r#"
             SELECT
-                COUNT(*)
+                COUNT(*) AS count_equal,
+                (SELECT COUNT(*) FROM contracts_verification_info) AS count_v1
             FROM
                 contract_verification_info_v2 v2
             JOIN contracts_verification_info v1 ON initial_contract_addr = address
-            WHERE v1.verification_info::text != v2.verification_info::text
+            WHERE v1.verification_info::text = v2.verification_info::text
             "#,
         )
         .instrument("is_verification_info_migration_performed")
         .fetch_one(&mut transaction)
-        .await?
-        .count
-        .unwrap();
-        if count_unequal > 0 {
+        .await?;
+        let (count_equal, count_v1) = (row.count_equal.unwrap(), row.count_v1.unwrap());
+        if count_equal != count_v1 {
             anyhow::bail!(
-                "Migration failed: {} rows have different data in the new table",
-                count_unequal
+                "Migration failed: v1 table has {count_v1} rows, but only {count_equal} matched after migration",
             );
         }
 
@@ -935,6 +958,7 @@ mod tests {
             constructor_arguments: web3::Bytes(b"test".to_vec()),
             is_system: false,
             force_evmla: true,
+            evm_specific: Default::default(),
         };
 
         let pool = ConnectionPool::<Core>::test_pool().await;

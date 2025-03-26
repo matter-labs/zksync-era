@@ -73,10 +73,13 @@ fn parse_standard_json_output(
 ) -> Result<CompilationArtifacts, ContractVerifierError> {
     if let Some(errors) = output.get("errors") {
         let errors = errors.as_array().unwrap().clone();
-        if errors
-            .iter()
-            .any(|err| err["severity"].as_str() == Some("error"))
-        {
+        if errors.iter().any(|err| {
+            err["severity"].as_str() == Some("error")
+                && !err["message"]
+                    .as_str()
+                    .map(is_suppressable_error)
+                    .unwrap_or(false)
+        }) {
             let error_messages = errors
                 .into_iter()
                 .filter_map(|err| {
@@ -140,4 +143,12 @@ fn parse_standard_json_output(
         deployed_bytecode,
         abi,
     })
+}
+
+fn is_suppressable_error(message: &str) -> bool {
+    // `zksolc` can produce warnings with `Error` severity that can be suppressed.
+    // We want to filter out such messages.
+    // All of them mention `suppressedErrors` in the message, which is a custom
+    // `zksolc` configuration, so we use it as a marker.
+    message.contains("suppressedErrors")
 }

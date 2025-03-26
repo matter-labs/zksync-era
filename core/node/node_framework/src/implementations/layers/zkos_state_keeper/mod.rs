@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use zksync_node_framework_derive::{FromContext, IntoContext};
-use zksync_state::{AsyncCatchupTask, ReadStorageFactory, RocksdbStorageOptions};
+use zksync_state::{AsyncCatchupTask, KeepUpdatedTask, ReadStorageFactory, RocksdbStorageOptions};
 use zksync_state_keeper::seal_criteria::ConditionalSealer;
 use zksync_storage::RocksDB;
 use zksync_vm_executor::interface::BatchExecutorFactory;
@@ -17,6 +17,7 @@ use crate::{
         state_keeper::{ZkOsOutputHandlerResource, ZkOsStateKeeperIOResource},
     },
     service::ShutdownHook,
+    task::TaskKind,
     StopReceiver, Task, TaskId, WiringError, WiringLayer,
 };
 
@@ -46,6 +47,8 @@ pub struct Output {
     pub state_keeper: ZkOsStateKeeperTask,
     #[context(task)]
     pub rocksdb_catchup: AsyncCatchupTask,
+    #[context(task)]
+    pub rocksdb_keep_updated: KeepUpdatedTask,
     pub rocksdb_termination_hook: ShutdownHook,
 }
 
@@ -90,11 +93,10 @@ impl WiringLayer for ZkOsStateKeeperLayer {
             .take()
             .context("HandleStateKeeperOutput was provided but taken by another task")?;
 
-        let (storage_factory, rocksdb_catchup) = ZkOsAsyncRocksdbCache::new(
+        let (storage_factory, rocksdb_catchup, rocksdb_keep_updated) = ZkOsAsyncRocksdbCache::new(
             master_pool.get_custom(2).await?,
             self.state_keeper_db_path,
             self.rocksdb_options,
-            true,
         );
 
         let state_keeper = ZkOsStateKeeperTask {
@@ -114,6 +116,7 @@ impl WiringLayer for ZkOsStateKeeperLayer {
         Ok(Output {
             state_keeper,
             rocksdb_catchup,
+            rocksdb_keep_updated,
             rocksdb_termination_hook,
         })
     }
@@ -134,5 +137,16 @@ impl Task for ZkOsStateKeeperTask {
             self.storage_factory,
         );
         state_keeper.run().await
+    }
+}
+
+#[async_trait::async_trait]
+impl Task for KeepUpdatedTask {
+    fn id(&self) -> TaskId {
+        "state_keeper/rocksdb_keep_updated_task".into()
+    }
+
+    async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
+        (*self).run(stop_receiver.0).await
     }
 }

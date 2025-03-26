@@ -51,6 +51,7 @@ fn run_server(
 ) -> anyhow::Result<()> {
     logger::info(MSG_STARTING_SERVER);
     let server = Server::new(
+        args.server_command,
         args.components.clone(),
         chain_config.link_to_code.clone(),
         args.uring,

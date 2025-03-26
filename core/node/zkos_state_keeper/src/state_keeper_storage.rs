@@ -3,8 +3,8 @@ use async_trait::async_trait;
 use tokio::sync::{watch, Mutex};
 use zksync_dal::{ConnectionPool, Core};
 use zksync_state::{
-    AsyncCatchupTask, BatchDiff, BatchDiffs, OwnedStorage, ReadStorageFactory, RocksdbCell,
-    RocksdbStorageOptions,
+    AsyncCatchupTask, BatchDiff, BatchDiffs, KeepUpdatedTask, OwnedStorage, ReadStorageFactory,
+    RocksdbCell, RocksdbStorage, RocksdbStorageOptions,
 };
 use zksync_types::L1BatchNumber;
 
@@ -25,17 +25,18 @@ impl ZkOsAsyncRocksdbCache {
         pool: ConnectionPool<Core>,
         state_keeper_db_path: String,
         state_keeper_db_options: RocksdbStorageOptions,
-        catchup_indefinitely: bool,
-    ) -> (Self, AsyncCatchupTask) {
-        let (task, rocksdb_cell) =
-            AsyncCatchupTask::new(pool.clone(), state_keeper_db_path, catchup_indefinitely);
+    ) -> (Self, AsyncCatchupTask, KeepUpdatedTask) {
+        let (catchup_task, rocksdb_cell) =
+            AsyncCatchupTask::new(pool.clone(), state_keeper_db_path);
+        let keep_updated_task = rocksdb_cell.keep_updated(pool.clone());
         (
             Self {
                 pool,
                 rocksdb_cell,
                 batch_diffs: Mutex::new(BatchDiffs::new()),
             },
-            task.with_db_options(state_keeper_db_options),
+            catchup_task.with_db_options(state_keeper_db_options),
+            keep_updated_task,
         )
     }
 
@@ -71,16 +72,16 @@ impl ReadStorageFactory for ZkOsAsyncRocksdbCache {
 
         if let Some(rocksdb) = rocksdb {
             let mut batch_diffs_lock = self.batch_diffs.lock().await;
-            let Some((storage, rocksdb_l1_batch_number)) = OwnedStorage::rocksdb_with_storage(
-                rocksdb.clone(),
-                &batch_diffs_lock,
-                l1_batch_number,
-            )
-            .await
-            .context("Failed accessing RocksDB storage")?
-            else {
-                return Ok(None);
-            };
+            let rocksdb: RocksdbStorage = rocksdb.clone().into();
+            let rocksdb_l1_batch_number = rocksdb
+                .l1_batch_number()
+                .await
+                .context("Rocksdb storage is not initialized")?;
+
+            let storage =
+                OwnedStorage::rocksdb_with_memory(rocksdb, &batch_diffs_lock, l1_batch_number)
+                    .await
+                    .context("Failed accessing RocksDB storage")?;
 
             batch_diffs_lock.trim_start(rocksdb_l1_batch_number);
 

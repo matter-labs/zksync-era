@@ -10,8 +10,8 @@ use zksync_types::{
     api,
     block::{unpack_block_info, L2BlockHasher},
     fee_model::BatchFeeInput,
-    h256_to_u256, AccountTreeId, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey, H256,
-    SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
+    get_deployer_key, h256_to_u256, AccountTreeId, L1BatchNumber, L2BlockNumber, ProtocolVersionId,
+    StorageKey, H256, SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
     SYSTEM_CONTEXT_CURRENT_TX_ROLLING_HASH_POSITION, ZKPORTER_IS_AVAILABLE,
 };
 
@@ -138,12 +138,9 @@ impl BlockInfo {
         let protocol_version = l2_block_header
             .protocol_version
             .unwrap_or(ProtocolVersionId::last_potentially_undefined());
-        // We cannot use the EVM emulator mentioned in the block as is because of batch vs playground settings etc.
-        // Instead, we just check whether EVM emulation in general is enabled for a block, and store this binary flag for further use.
-        let use_evm_emulator = l2_block_header
-            .base_system_contracts_hashes
-            .evm_emulator
-            .is_some();
+
+        let use_evm_emulator =
+            Self::is_evm_emulation_enabled(connection, state_l2_block_number).await?;
         Ok(ResolvedBlockInfo {
             state_l2_block_number,
             state_l2_block_hash: l2_block_header.hash,
@@ -152,6 +149,32 @@ impl BlockInfo {
             protocol_version,
             use_evm_emulator,
             is_pending: self.is_pending_l2_block(),
+        })
+    }
+
+    // Whether the EVM emulation is enabled is determined by a value inside `ContractDeployer`.
+    async fn is_evm_emulation_enabled(
+        connection: &mut Connection<'_, Core>,
+        at_block: L2BlockNumber,
+    ) -> anyhow::Result<bool> {
+        let allowed_contract_types_hashed_key =
+            get_deployer_key(H256::from_low_u64_be(1)).hashed_key();
+        let storage_values = connection
+            .storage_logs_dal()
+            .get_storage_values(&[allowed_contract_types_hashed_key], at_block)
+            .await?;
+        let allowed_contract_types = storage_values
+            .get(&allowed_contract_types_hashed_key)
+            .copied()
+            .flatten()
+            .unwrap_or_default();
+        Ok(match allowed_contract_types {
+            val if val.is_zero() => false,
+            val if val == H256::from_low_u64_be(1) => true,
+            _ => {
+                tracing::warn!(?allowed_contract_types, %at_block, "Unknown allowed contract types in ContractDeployer storage");
+                false
+            }
         })
     }
 }
