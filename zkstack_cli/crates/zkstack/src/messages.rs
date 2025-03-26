@@ -107,7 +107,10 @@ pub(super) const MSG_RECREATE_ROCKS_DB_ERRROR: &str = "Failed to create rocks db
 pub(super) const MSG_ERA_OBSERVABILITY_ALREADY_SETUP: &str = "Era observability already setup";
 pub(super) const MSG_DOWNLOADING_ERA_OBSERVABILITY_SPINNER: &str =
     "Downloading era observability...";
-
+pub(super) const MSG_SETTING_PUBDATA_PRICING_MODE: &str = "Setting pubdata pricing mode...";
+pub(super) const MSG_PUBDATA_PRICING_MODE_SET_TO: &str = "Pubdata pricing mode set to";
+pub(super) const MSG_SETTING_DA_VALIDATOR_PAIR: &str = "Setting da validator pair...";
+pub(super) const MSG_DA_VALIDATOR_PAIR_SET_TO: &str = "DA validator pair set to";
 pub(super) fn msg_ecosystem_no_found_preexisting_contract(chains: &str) -> String {
     format!("Not found preexisting ecosystem Contracts with chains {chains}")
 }
