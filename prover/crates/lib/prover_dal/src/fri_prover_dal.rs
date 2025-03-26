@@ -146,7 +146,7 @@ impl FriProverDal<'_, '_> {
                         AND protocol_version = $1
                         AND protocol_version_patch = $2
                         AND aggregation_round = $4
-                        AND circuit_id = ANY ($5)
+                        AND circuit_id = ANY($5)
                     ORDER BY
                         l1_batch_number ASC,
                         circuit_id ASC,
@@ -223,7 +223,7 @@ impl FriProverDal<'_, '_> {
                         status = 'queued'
                         AND protocol_version = $1
                         AND protocol_version_patch = $2
-                        AND NOT (aggregation_round = $4 AND circuit_id = ANY ($5))
+                        AND NOT (aggregation_round = $4 AND circuit_id = ANY($5))
                     ORDER BY
                         l1_batch_number ASC,
                         aggregation_round ASC,
