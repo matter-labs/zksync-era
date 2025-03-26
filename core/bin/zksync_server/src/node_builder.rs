@@ -18,7 +18,7 @@ use zksync_core_leftovers::Component;
 use zksync_metadata_calculator::MetadataCalculatorConfig;
 use zksync_node_api_server::{
     tx_sender::TxSenderConfig,
-    web3::{state::InternalApiConfigBuilder, Namespace},
+    web3::{state::InternalApiConfigBase, Namespace},
 };
 use zksync_node_framework::{
     implementations::layers::{
@@ -442,8 +442,7 @@ impl MainNodeBuilder {
             ..Default::default()
         };
         let http_port = rpc_config.http_port;
-        let internal_config_builder = InternalApiConfigBuilder::from_genesis(&self.genesis_config)
-            .with_web3_config(rpc_config)
+        let internal_config_builder = InternalApiConfigBase::new(&self.genesis_config, &rpc_config)
             .with_l1_to_l2_txs_paused(
                 self.configs
                     .mempool_config
@@ -494,8 +493,7 @@ impl MainNodeBuilder {
             ..Default::default()
         };
         let ws_port = rpc_config.ws_port;
-        let internal_config_builder = InternalApiConfigBuilder::from_genesis(&self.genesis_config)
-            .with_web3_config(rpc_config)
+        let internal_config_builder = InternalApiConfigBase::new(&self.genesis_config, &rpc_config)
             .with_l1_to_l2_txs_paused(
                 self.configs
                     .mempool_config

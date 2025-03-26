@@ -7,7 +7,7 @@ use zksync_circuit_breaker::replication_lag::ReplicationLagChecker;
 use zksync_config::configs::api::MaxResponseSize;
 use zksync_contracts::{bridgehub_contract, l1_asset_router_contract};
 use zksync_node_api_server::web3::{
-    state::{BridgeAddressesHandle, InternalApiConfigBuilder, SealedL2BlockNumber},
+    state::{BridgeAddressesHandle, InternalApiConfig, InternalApiConfigBase, SealedL2BlockNumber},
     ApiBuilder, ApiServer, Namespace,
 };
 
@@ -120,7 +120,7 @@ pub struct Web3ServerLayer {
     transport: Transport,
     port: u16,
     optional_config: Web3ServerOptionalConfig,
-    internal_api_config_builder: InternalApiConfigBuilder,
+    internal_api_config_base: InternalApiConfigBase,
 }
 
 #[derive(Debug, FromContext)]
@@ -159,27 +159,27 @@ pub struct Output {
 impl Web3ServerLayer {
     pub fn http(
         port: u16,
-        internal_api_config_builder: InternalApiConfigBuilder,
+        internal_api_config_base: InternalApiConfigBase,
         optional_config: Web3ServerOptionalConfig,
     ) -> Self {
         Self {
             transport: Transport::Http,
             port,
             optional_config,
-            internal_api_config_builder,
+            internal_api_config_base,
         }
     }
 
     pub fn ws(
         port: u16,
-        internal_api_config_builder: InternalApiConfigBuilder,
+        internal_api_config_base: InternalApiConfigBase,
         optional_config: Web3ServerOptionalConfig,
     ) -> Self {
         Self {
             transport: Transport::Ws,
             port,
             optional_config,
-            internal_api_config_builder,
+            internal_api_config_base,
         }
     }
 }
@@ -207,15 +207,12 @@ impl WiringLayer for Web3ServerLayer {
         let tree_api_client = input.tree_api_client.map(|client| client.0);
 
         let l1_contracts = input.l1_contracts_resource.0;
-        let internal_api_config = self
-            .internal_api_config_builder
-            .with_contracts(
-                l1_contracts,
-                input.l1_ecosystem_contracts_resource.0,
-                input.l2_contracts_resource.0,
-            )
-            .build();
-
+        let internal_api_config = InternalApiConfig::from_base_and_contracts(
+            self.internal_api_config_base,
+            &l1_contracts,
+            &input.l1_ecosystem_contracts_resource.0,
+            &input.l2_contracts_resource.0,
+        );
         let sealed_l2_block_handle = SealedL2BlockNumber::default();
         let bridge_addresses_handle =
             BridgeAddressesHandle::new(internal_api_config.bridge_addresses.clone());

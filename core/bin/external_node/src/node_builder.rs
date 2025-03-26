@@ -15,7 +15,7 @@ use zksync_config::{
 use zksync_metadata_calculator::{
     MerkleTreeReaderConfig, MetadataCalculatorConfig, MetadataCalculatorRecoveryConfig,
 };
-use zksync_node_api_server::web3::{state::InternalApiConfigBuilder, Namespace};
+use zksync_node_api_server::web3::{state::InternalApiConfigBase, Namespace};
 use zksync_node_framework::{
     implementations::layers::{
         batch_status_updater::BatchStatusUpdaterLayer,
@@ -547,11 +547,11 @@ impl ExternalNodeBuilder {
 
     fn add_http_web3_api_layer(mut self) -> anyhow::Result<Self> {
         let optional_config = self.web3_api_optional_config();
-        let internal_api_config_builder: InternalApiConfigBuilder = (&self.config).into();
+        let internal_api_config_base: InternalApiConfigBase = (&self.config).into();
 
         self.node.add_layer(Web3ServerLayer::http(
             self.config.required.http_port,
-            internal_api_config_builder,
+            internal_api_config_base,
             optional_config,
         ));
 
@@ -561,11 +561,11 @@ impl ExternalNodeBuilder {
     fn add_ws_web3_api_layer(mut self) -> anyhow::Result<Self> {
         // TODO: Support websocket requests per minute limit
         let optional_config = self.web3_api_optional_config();
-        let internal_api_config_builder: InternalApiConfigBuilder = (&self.config).into();
+        let internal_api_config_base: InternalApiConfigBase = (&self.config).into();
 
         self.node.add_layer(Web3ServerLayer::ws(
             self.config.required.ws_port,
-            internal_api_config_builder,
+            internal_api_config_base,
             optional_config,
         ));
 

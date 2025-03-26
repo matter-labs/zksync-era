@@ -27,9 +27,8 @@ use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_metadata_calculator::api_server::TreeApiClient;
 use zksync_node_sync::SyncState;
 use zksync_types::{
-    api, api::BridgeAddresses, commitment::L1BatchCommitmentMode, l2::L2Tx,
-    transaction_request::CallRequest, Address, L1BatchNumber, L1ChainId, L2BlockNumber, L2ChainId,
-    H256, U256, U64,
+    api, commitment::L1BatchCommitmentMode, l2::L2Tx, transaction_request::CallRequest, Address,
+    L1BatchNumber, L1ChainId, L2BlockNumber, L2ChainId, H256, U256, U64,
 };
 use zksync_web3_decl::{
     client::{DynClient, L2},
@@ -105,135 +104,44 @@ impl BlockStartInfo {
 /// We need different step by step initialization for Api config builder,
 /// because of different ways for getting configs for en and main node
 #[derive(Debug, Clone)]
-pub struct InternalApiConfigBuilder {
+pub struct InternalApiConfigBase {
     /// Chain ID of the L1 network. Note, that it may be different from the chain id of the settlement layer.
     pub l1_chain_id: L1ChainId,
     pub l2_chain_id: L2ChainId,
     pub dummy_verifier: bool,
     pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
-    pub max_tx_size: Option<usize>,
-    pub estimate_gas_scale_factor: Option<f64>,
-    pub estimate_gas_acceptable_overestimation: Option<u32>,
-    pub estimate_gas_optimize_search: Option<bool>,
-    pub bridge_addresses: Option<BridgeAddresses>,
-    pub l1_diamond_proxy_addr: Option<Address>,
-    pub l2_testnet_paymaster_addr: Option<Address>,
-    pub base_token_address: Option<Address>,
-    pub timestamp_asserter_address: Option<Address>,
-    pub l1_server_notifier_addr: Option<Address>,
-    pub req_entities_limit: Option<usize>,
-    pub fee_history_limit: Option<u64>,
-    pub filters_disabled: Option<bool>,
-    pub l1_ecosystem_contracts: Option<EcosystemCommonContracts>,
-    pub l1_bytecodes_supplier_addr: Option<Address>,
-    pub l1_wrapped_base_token_store: Option<Address>,
-    pub l2_multicall3: Option<Address>,
-    pub l1_to_l2_txs_paused: Option<bool>,
+    pub max_tx_size: usize,
+    pub estimate_gas_scale_factor: f64,
+    pub estimate_gas_acceptable_overestimation: u32,
+    pub estimate_gas_optimize_search: bool,
+    pub req_entities_limit: usize,
+    pub fee_history_limit: u64,
+    pub filters_disabled: bool,
+    pub l1_to_l2_txs_paused: bool,
 }
 
-impl InternalApiConfigBuilder {
-    pub fn from_genesis(genesis: &GenesisConfig) -> Self {
+impl InternalApiConfigBase {
+    pub fn new(genesis: &GenesisConfig, web3_config: &Web3JsonRpcConfig) -> Self {
         Self {
             l1_chain_id: genesis.l1_chain_id,
             l2_chain_id: genesis.l2_chain_id,
             dummy_verifier: genesis.dummy_verifier,
             l1_batch_commit_data_generator_mode: genesis.l1_batch_commit_data_generator_mode,
-            max_tx_size: None,
-            estimate_gas_scale_factor: None,
-            estimate_gas_acceptable_overestimation: None,
-            estimate_gas_optimize_search: None,
-            bridge_addresses: None,
-            l1_diamond_proxy_addr: None,
-            l2_testnet_paymaster_addr: None,
-            req_entities_limit: None,
-            fee_history_limit: None,
-            base_token_address: None,
-            filters_disabled: None,
-            l1_ecosystem_contracts: None,
-            timestamp_asserter_address: None,
-            l1_server_notifier_addr: None,
-            l1_bytecodes_supplier_addr: None,
-            l1_wrapped_base_token_store: None,
-            l2_multicall3: None,
-            l1_to_l2_txs_paused: None,
-        }
-    }
-
-    pub fn with_web3_config(mut self, web3_config: Web3JsonRpcConfig) -> Self {
-        self.max_tx_size = Some(web3_config.max_tx_size);
-        self.estimate_gas_scale_factor = Some(web3_config.estimate_gas_scale_factor);
-        self.estimate_gas_acceptable_overestimation =
-            Some(web3_config.estimate_gas_acceptable_overestimation);
-        self.estimate_gas_optimize_search = Some(web3_config.estimate_gas_optimize_search);
-        self.req_entities_limit = Some(web3_config.req_entities_limit());
-        self.fee_history_limit = Some(web3_config.fee_history_limit());
-        self.filters_disabled = Some(web3_config.filters_disabled);
-        self
-    }
-
-    pub fn with_contracts(
-        self,
-        l1_contracts_config: SettlementLayerSpecificContracts,
-        l1_ecosystem_contracts: L1SpecificContracts,
-        l2_contracts: L2Contracts,
-    ) -> Self {
-        InternalApiConfigBuilder {
-            bridge_addresses: Some(BridgeAddresses {
-                l1_erc20_default_bridge: l1_ecosystem_contracts.erc_20_bridge,
-                l2_erc20_default_bridge: Some(l2_contracts.erc20_default_bridge),
-                l1_shared_default_bridge: l1_ecosystem_contracts.shared_bridge,
-                l2_shared_default_bridge: Some(l2_contracts.shared_bridge_addr),
-                // WETH bridge is not available, but SDK doesn't work correctly with none
-                l1_weth_bridge: Some(Address::zero()),
-                l2_weth_bridge: Some(Address::zero()),
-                l2_legacy_shared_bridge: l2_contracts.legacy_shared_bridge_addr,
-            }),
-            l1_diamond_proxy_addr: Some(
-                l1_contracts_config
-                    .chain_contracts_config
-                    .diamond_proxy_addr,
-            ),
-            l2_testnet_paymaster_addr: l2_contracts.testnet_paymaster_addr,
-            base_token_address: Some(l1_ecosystem_contracts.base_token_address),
-            timestamp_asserter_address: l2_contracts.timestamp_asserter_addr,
-            l1_ecosystem_contracts: Some(l1_contracts_config.ecosystem_contracts.clone()),
-            l1_wrapped_base_token_store: l1_ecosystem_contracts.wrapped_base_token_store,
-            l2_multicall3: l2_contracts.multicall3,
-            ..self
+            max_tx_size: web3_config.max_tx_size,
+            estimate_gas_scale_factor: web3_config.estimate_gas_scale_factor,
+            estimate_gas_acceptable_overestimation: web3_config
+                .estimate_gas_acceptable_overestimation,
+            estimate_gas_optimize_search: web3_config.estimate_gas_optimize_search,
+            req_entities_limit: web3_config.req_entities_limit(),
+            fee_history_limit: web3_config.fee_history_limit(),
+            filters_disabled: web3_config.filters_disabled,
+            l1_to_l2_txs_paused: false,
         }
     }
 
     pub fn with_l1_to_l2_txs_paused(mut self, l1_to_l2_txs_paused: bool) -> Self {
-        self.l1_to_l2_txs_paused = Some(l1_to_l2_txs_paused);
+        self.l1_to_l2_txs_paused = l1_to_l2_txs_paused;
         self
-    }
-
-    pub fn build(self) -> InternalApiConfig {
-        InternalApiConfig {
-            l1_chain_id: self.l1_chain_id,
-            l2_chain_id: self.l2_chain_id,
-            max_tx_size: self.max_tx_size.unwrap(),
-            estimate_gas_scale_factor: self.estimate_gas_scale_factor.unwrap(),
-            estimate_gas_acceptable_overestimation: self
-                .estimate_gas_acceptable_overestimation
-                .unwrap(),
-            estimate_gas_optimize_search: self.estimate_gas_optimize_search.unwrap(),
-            bridge_addresses: self.bridge_addresses.unwrap(),
-            l1_ecosystem_contracts: self.l1_ecosystem_contracts.unwrap(),
-            l1_bytecodes_supplier_addr: self.l1_bytecodes_supplier_addr,
-            l2_testnet_paymaster_addr: self.l2_testnet_paymaster_addr,
-            base_token_address: self.base_token_address,
-            l1_diamond_proxy_addr: self.l1_diamond_proxy_addr.unwrap(),
-            req_entities_limit: self.req_entities_limit.unwrap(),
-            fee_history_limit: self.fee_history_limit.unwrap(),
-            filters_disabled: self.filters_disabled.unwrap(),
-            dummy_verifier: self.dummy_verifier,
-            l1_batch_commit_data_generator_mode: self.l1_batch_commit_data_generator_mode,
-            timestamp_asserter_address: self.timestamp_asserter_address,
-            l1_wrapped_base_token_store: self.l1_wrapped_base_token_store,
-            l2_multicall3: self.l2_multicall3,
-            l1_to_l2_txs_paused: self.l1_to_l2_txs_paused.unwrap(),
-        }
     }
 }
 
@@ -268,22 +176,19 @@ pub struct InternalApiConfig {
 }
 
 impl InternalApiConfig {
-    pub fn new(
-        web3_config: &Web3JsonRpcConfig,
+    pub fn from_base_and_contracts(
+        base: InternalApiConfigBase,
         l1_contracts_config: &SettlementLayerSpecificContracts,
         l1_ecosystem_contracts: &L1SpecificContracts,
         l2_contracts: &L2Contracts,
-        genesis_config: &GenesisConfig,
-        l1_to_l2_txs_paused: bool,
     ) -> Self {
         Self {
-            l1_chain_id: genesis_config.l1_chain_id,
-            l2_chain_id: genesis_config.l2_chain_id,
-            max_tx_size: web3_config.max_tx_size,
-            estimate_gas_scale_factor: web3_config.estimate_gas_scale_factor,
-            estimate_gas_acceptable_overestimation: web3_config
-                .estimate_gas_acceptable_overestimation,
-            estimate_gas_optimize_search: web3_config.estimate_gas_optimize_search,
+            l1_chain_id: base.l1_chain_id,
+            l2_chain_id: base.l2_chain_id,
+            max_tx_size: base.max_tx_size,
+            estimate_gas_scale_factor: base.estimate_gas_scale_factor,
+            estimate_gas_acceptable_overestimation: base.estimate_gas_acceptable_overestimation,
+            estimate_gas_optimize_search: base.estimate_gas_optimize_search,
             bridge_addresses: api::BridgeAddresses {
                 l1_erc20_default_bridge: l1_ecosystem_contracts.erc_20_bridge,
                 l2_erc20_default_bridge: Some(l2_contracts.erc20_default_bridge),
@@ -301,16 +206,34 @@ impl InternalApiConfig {
                 .chain_contracts_config
                 .diamond_proxy_addr,
             l2_testnet_paymaster_addr: l2_contracts.testnet_paymaster_addr,
-            req_entities_limit: web3_config.req_entities_limit(),
-            fee_history_limit: web3_config.fee_history_limit(),
+            req_entities_limit: base.req_entities_limit,
+            fee_history_limit: base.fee_history_limit,
             base_token_address: Some(l1_ecosystem_contracts.base_token_address),
-            filters_disabled: web3_config.filters_disabled,
-            dummy_verifier: genesis_config.dummy_verifier,
-            l1_batch_commit_data_generator_mode: genesis_config.l1_batch_commit_data_generator_mode,
+            filters_disabled: base.filters_disabled,
+            dummy_verifier: base.dummy_verifier,
+            l1_batch_commit_data_generator_mode: base.l1_batch_commit_data_generator_mode,
             timestamp_asserter_address: l2_contracts.timestamp_asserter_addr,
             l2_multicall3: l2_contracts.multicall3,
-            l1_to_l2_txs_paused,
+            l1_to_l2_txs_paused: base.l1_to_l2_txs_paused,
         }
+    }
+
+    pub fn new(
+        web3_config: &Web3JsonRpcConfig,
+        l1_contracts_config: &SettlementLayerSpecificContracts,
+        l1_ecosystem_contracts: &L1SpecificContracts,
+        l2_contracts: &L2Contracts,
+        genesis_config: &GenesisConfig,
+        l1_to_l2_txs_paused: bool,
+    ) -> Self {
+        let base = InternalApiConfigBase::new(genesis_config, web3_config)
+            .with_l1_to_l2_txs_paused(l1_to_l2_txs_paused);
+        Self::from_base_and_contracts(
+            base,
+            l1_contracts_config,
+            l1_ecosystem_contracts,
+            l2_contracts,
+        )
     }
 }
 

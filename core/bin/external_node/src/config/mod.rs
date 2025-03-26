@@ -32,13 +32,13 @@ use zksync_env_config::da_client::{da_client_config_from_env, da_client_secrets_
 use zksync_metadata_calculator::MetadataCalculatorRecoveryConfig;
 use zksync_node_api_server::{
     tx_sender::{TimestampAsserterParams, TxSenderConfig},
-    web3::{state::InternalApiConfigBuilder, Namespace},
+    web3::{state::InternalApiConfigBase, Namespace},
 };
 use zksync_protobuf_config::proto;
 use zksync_snapshots_applier::SnapshotsApplierConfig;
 use zksync_types::{
-    api::BridgeAddresses, commitment::L1BatchCommitmentMode, url::SensitiveUrl, Address,
-    L1BatchNumber, L1ChainId, L2ChainId, SLChainId, ETHEREUM_ADDRESS,
+    commitment::L1BatchCommitmentMode, url::SensitiveUrl, Address, L1BatchNumber, L1ChainId,
+    L2ChainId, SLChainId, ETHEREUM_ADDRESS,
 };
 use zksync_web3_decl::{
     client::{DynClient, L2},
@@ -125,8 +125,6 @@ pub(crate) struct RemoteENConfig {
     pub l2_legacy_shared_bridge_addr: Option<Address>,
     pub l1_erc20_bridge_proxy_addr: Option<Address>,
     pub l2_erc20_bridge_addr: Address,
-    pub l1_weth_bridge_addr: Option<Address>,
-    pub l2_weth_bridge_addr: Option<Address>,
     pub l2_testnet_paymaster_addr: Option<Address>,
     pub l2_timestamp_asserter_addr: Option<Address>,
     pub l1_wrapped_base_token_store: Option<Address>,
@@ -214,8 +212,6 @@ impl RemoteENConfig {
             l1_shared_bridge_proxy_addr: bridges.l1_shared_default_bridge,
             l2_shared_bridge_addr: l2_erc20_shared_bridge,
             l2_legacy_shared_bridge_addr: bridges.l2_legacy_shared_bridge,
-            l1_weth_bridge_addr: bridges.l1_weth_bridge,
-            l2_weth_bridge_addr: bridges.l2_weth_bridge,
             base_token_addr,
             l2_multicall3,
             l1_batch_commit_data_generator_mode: genesis
@@ -239,11 +235,9 @@ impl RemoteENConfig {
             l1_diamond_proxy_addr: Address::repeat_byte(1),
             l1_erc20_bridge_proxy_addr: Some(Address::repeat_byte(2)),
             l2_erc20_bridge_addr: Address::repeat_byte(3),
-            l2_weth_bridge_addr: None,
             l2_testnet_paymaster_addr: None,
             base_token_addr: Address::repeat_byte(4),
             l1_shared_bridge_proxy_addr: Some(Address::repeat_byte(5)),
-            l1_weth_bridge_addr: None,
             l2_shared_bridge_addr: Address::repeat_byte(6),
             l2_legacy_shared_bridge_addr: Some(Address::repeat_byte(7)),
             l1_batch_commit_data_generator_mode: L1BatchCommitmentMode::Rollup,
@@ -1483,50 +1477,23 @@ impl ExternalNodeConfig {
     }
 }
 
-impl From<&ExternalNodeConfig> for InternalApiConfigBuilder {
+impl From<&ExternalNodeConfig> for InternalApiConfigBase {
     fn from(config: &ExternalNodeConfig) -> Self {
         Self {
             l1_chain_id: config.required.l1_chain_id,
             l2_chain_id: config.required.l2_chain_id,
-            max_tx_size: Some(config.optional.max_tx_size_bytes),
-            estimate_gas_scale_factor: Some(config.optional.estimate_gas_scale_factor),
-            estimate_gas_acceptable_overestimation: Some(
-                config.optional.estimate_gas_acceptable_overestimation,
-            ),
-            estimate_gas_optimize_search: Some(config.optional.estimate_gas_optimize_search),
-            bridge_addresses: Some(BridgeAddresses {
-                l1_erc20_default_bridge: config.remote.l1_erc20_bridge_proxy_addr,
-                l2_erc20_default_bridge: Some(config.remote.l2_erc20_bridge_addr),
-                l1_shared_default_bridge: config.remote.l1_shared_bridge_proxy_addr,
-                l2_shared_default_bridge: Some(config.remote.l2_shared_bridge_addr),
-                l2_legacy_shared_bridge: config.remote.l2_legacy_shared_bridge_addr,
-                l1_weth_bridge: config.remote.l1_weth_bridge_addr,
-                l2_weth_bridge: config.remote.l2_weth_bridge_addr,
-            }),
-            l1_bytecodes_supplier_addr: config.remote.l1_bytecodes_supplier_addr,
-            l1_diamond_proxy_addr: Some(config.l1_diamond_proxy_address()),
-            l1_ecosystem_contracts: Some(EcosystemCommonContracts {
-                bridgehub_proxy_addr: config.remote.l1_bridgehub_proxy_addr,
-                state_transition_proxy_addr: config.remote.l1_state_transition_proxy_addr,
-                server_notifier_addr: config.remote.l1_server_notifier_addr,
-                multicall3: None,
-                validator_timelock_addr: None,
-            }),
-
-            l2_testnet_paymaster_addr: config.remote.l2_testnet_paymaster_addr,
-            req_entities_limit: Some(config.optional.req_entities_limit),
-            fee_history_limit: Some(config.optional.fee_history_limit),
-            base_token_address: Some(config.remote.base_token_addr),
-            filters_disabled: Some(config.optional.filters_disabled),
+            max_tx_size: config.optional.max_tx_size_bytes,
+            estimate_gas_scale_factor: config.optional.estimate_gas_scale_factor,
+            estimate_gas_acceptable_overestimation: config
+                .optional
+                .estimate_gas_acceptable_overestimation,
+            estimate_gas_optimize_search: config.optional.estimate_gas_optimize_search,
+            req_entities_limit: config.optional.req_entities_limit,
+            fee_history_limit: config.optional.fee_history_limit,
+            filters_disabled: config.optional.filters_disabled,
             dummy_verifier: config.remote.dummy_verifier,
             l1_batch_commit_data_generator_mode: config.remote.l1_batch_commit_data_generator_mode,
-            timestamp_asserter_address: config.remote.l2_timestamp_asserter_addr,
-            l1_server_notifier_addr: config.remote.l1_server_notifier_addr,
-            l1_wrapped_base_token_store: config.remote.l1_wrapped_base_token_store,
-            l2_multicall3: config.remote.l2_multicall3,
-            // We do not fetch it from remote to not introduce a dependency on the unstable endpoint.
-            // At the same time, this variable should only be used from the main node during v26 upgrade.
-            l1_to_l2_txs_paused: Some(true),
+            l1_to_l2_txs_paused: false,
         }
     }
 }
@@ -1584,7 +1551,7 @@ impl ExternalNodeConfig {
                 validator_timelock_addr: None,
             },
             chain_contracts_config: ChainContracts {
-                diamond_proxy_addr: self.remote.l1_diamond_proxy_addr,
+                diamond_proxy_addr: self.l1_diamond_proxy_address(),
                 // We don't need chain admin for external node
                 chain_admin: None,
             },
