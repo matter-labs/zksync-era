@@ -125,7 +125,7 @@ async fn main() -> anyhow::Result<()> {
 
     tasks.extend(circuit_prover_runner.run());
 
-    let mut tasks = ManagedTasks::new(tasks).allow_tasks_to_finish();
+    let mut tasks = ManagedTasks::new(tasks);
     tokio::select! {
         _ = tasks.wait_single() => {},
         result = tokio::signal::ctrl_c() => {
@@ -141,12 +141,14 @@ async fn main() -> anyhow::Result<()> {
         }
     }
     let shutdown_time = Instant::now();
+    tasks.complete(GRACEFUL_SHUTDOWN_DURATION).await;
+    PROVER_BINARY_METRICS
+        .shutdown_time
+        .observe(shutdown_time.elapsed());
+    PROVER_BINARY_METRICS.run_time.observe(start_time.elapsed());
     metrics_stop_sender
         .send(true)
         .context("failed to stop metrics")?;
-    tracing::info!("Metrics stopped.");
-    tasks.complete(GRACEFUL_SHUTDOWN_DURATION).await;
-    tracing::info!("Tasks completed in {:?}.", shutdown_time.elapsed());
     Ok(())
 }
 /// Loads configs necessary for proving.
