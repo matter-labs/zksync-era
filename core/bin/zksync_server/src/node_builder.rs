@@ -320,21 +320,22 @@ impl MainNodeBuilder {
 
     fn add_settlement_mode_data(mut self) -> anyhow::Result<Self> {
         self.node
-            .add_layer(SettlementLayerData::new(MainNodeConfig::new(
-                self.l1_specific_contracts.clone(),
-                self.l2_contracts.clone(),
-                self.genesis_config.l2_chain_id,
-                self.multicall3,
-                self.l1_sl_contracts.clone(),
-                self.secrets
+            .add_layer(SettlementLayerData::new(MainNodeConfig {
+                l2_contracts: self.l2_contracts.clone(),
+                l1_specific_contracts: self.l1_specific_contracts.clone(),
+                l1_sl_specific_contracts: self.l1_sl_contracts.clone(),
+                l2_chain_id: self.genesis_config.l2_chain_id,
+                multicall3: self.multicall3,
+                gateway_rpc_url: self
+                    .secrets
                     .l1
                     .as_ref()
                     .and_then(|a| a.gateway_rpc_url.clone()),
-                try_load_config!(self.configs.eth)
+                eth_sender_config: try_load_config!(self.configs.eth)
                     .get_eth_sender_config_for_sender_layer_data_layer()
                     .context("No eth sender config")?
                     .clone(),
-            )));
+            }));
         Ok(self)
     }
 

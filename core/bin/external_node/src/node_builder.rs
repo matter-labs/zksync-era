@@ -153,15 +153,14 @@ impl ExternalNodeBuilder {
     }
 
     fn add_settlement_layer_data(mut self) -> anyhow::Result<Self> {
-        self.node.add_layer(SettlementLayerData::new(
-            settlement_layer_data::ENConfig::new(
-                self.config.required.l2_chain_id,
-                self.config.l1_specific_contracts(),
-                self.config.l1_settelment_contracts(),
-                self.config.l2_contracts(),
-                self.config.optional.gateway_url.clone(),
-            ),
-        ));
+        self.node
+            .add_layer(SettlementLayerData::new(settlement_layer_data::ENConfig {
+                l1_specific_contracts: self.config.l1_specific_contracts(),
+                l1_chain_contracts: self.config.l1_settelment_contracts(),
+                l2_contracts: self.config.l2_contracts(),
+                chain_id: self.config.required.l2_chain_id,
+                gateway_rpc_url: self.config.optional.gateway_url.clone(),
+            }));
         Ok(self)
     }
 

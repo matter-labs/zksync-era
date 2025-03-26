@@ -106,15 +106,12 @@ impl ConfigurationSource for Environment {
 }
 
 /// This part of the external node config is fetched directly from the main node.
-#[derive(Debug, Deserialize)]
+#[derive(Debug)]
 pub(crate) struct RemoteENConfig {
     pub l1_bytecodes_supplier_addr: Option<Address>,
-    #[serde(alias = "bridgehub_proxy_addr")]
     pub l1_bridgehub_proxy_addr: Option<Address>,
-    #[serde(alias = "state_transition_proxy_addr")]
     pub l1_state_transition_proxy_addr: Option<Address>,
     /// Should not be accessed directly. Use [`ExternalNodeConfig::l1_diamond_proxy_address`] instead.
-    #[serde(alias = "diamond_proxy_addr")]
     l1_diamond_proxy_addr: Address,
     // While on L1 shared bridge and legacy bridge are different contracts with different addresses,
     // the `l2_erc20_bridge_addr` and `l2_shared_bridge_addr` are basically the same contract, but with
@@ -183,17 +180,15 @@ impl RemoteENConfig {
 
         let l2_erc20_default_bridge = bridges
             .l2_erc20_default_bridge
-            .or(bridges.l2_shared_default_bridge);
+            .or(bridges.l2_shared_default_bridge)
+            .unwrap();
         let l2_erc20_shared_bridge = bridges
             .l2_shared_default_bridge
-            .or(bridges.l2_erc20_default_bridge);
+            .or(bridges.l2_erc20_default_bridge)
+            .unwrap();
 
-        if let (Some(legacy_addr), Some(shared_addr)) =
-            (l2_erc20_default_bridge, l2_erc20_shared_bridge)
-        {
-            if legacy_addr != shared_addr {
-                panic!("L2 erc20 bridge address and L2 shared bridge address are different.");
-            }
+        if l2_erc20_default_bridge != l2_erc20_shared_bridge {
+            panic!("L2 erc20 bridge address and L2 shared bridge address are different.");
         }
 
         Ok(Self {
@@ -215,9 +210,9 @@ impl RemoteENConfig {
             l1_diamond_proxy_addr,
             l2_testnet_paymaster_addr,
             l1_erc20_bridge_proxy_addr: bridges.l1_erc20_default_bridge,
-            l2_erc20_bridge_addr: l2_erc20_default_bridge.unwrap(),
+            l2_erc20_bridge_addr: l2_erc20_default_bridge,
             l1_shared_bridge_proxy_addr: bridges.l1_shared_default_bridge,
-            l2_shared_bridge_addr: l2_erc20_shared_bridge.unwrap(),
+            l2_shared_bridge_addr: l2_erc20_shared_bridge,
             l2_legacy_shared_bridge_addr: bridges.l2_legacy_shared_bridge,
             l1_weth_bridge_addr: bridges.l1_weth_bridge,
             l2_weth_bridge_addr: bridges.l2_weth_bridge,

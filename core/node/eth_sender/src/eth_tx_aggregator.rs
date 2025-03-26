@@ -888,13 +888,13 @@ impl EthTxAggregator {
             .unwrap()
             .signature();
 
-        let notifications = storage
+        let notification = storage
             .server_notifications_dal()
             .get_last_notification_by_topics(&[to_gateway, from_gateway])
             .await
             .unwrap();
 
-        notifications
+        notification
             .map(|a| match self.settlement_layer {
                 SettlementLayer::L1(_) => {
                     if a.main_topic == to_gateway {

@@ -5,8 +5,9 @@ use zksync_config::configs::{
     },
     eth_sender::SenderConfig,
 };
-use zksync_consistency_checker::get_db_settlement_mode;
 use zksync_contracts::getters_facet_contract;
+use zksync_dal::{Core, CoreDal};
+use zksync_db_connection::connection::Connection;
 use zksync_eth_client::{
     contracts_loader::{get_settlement_layer_from_l1, load_settlement_layer_contracts},
     EthInterface,
@@ -14,7 +15,7 @@ use zksync_eth_client::{
 use zksync_gateway_migrator::current_settlement_layer;
 use zksync_types::{
     pubdata_da::PubdataSendingMode, settlement::SettlementLayer, url::SensitiveUrl, Address,
-    L2ChainId, L2_BRIDGEHUB_ADDRESS,
+    L2ChainId, SLChainId, L2_BRIDGEHUB_ADDRESS,
 };
 use zksync_web3_decl::{
     client::{Client, L2},
@@ -36,36 +37,14 @@ use crate::{
 };
 
 pub struct MainNodeConfig {
-    l2_contracts: L2Contracts,
-    l1_specific_contracts: L1SpecificContracts,
+    pub l2_contracts: L2Contracts,
+    pub l1_specific_contracts: L1SpecificContracts,
     // This contracts are required as a fallback
-    l1_sl_specific_contracts: Option<SettlementLayerSpecificContracts>,
-    l2_chain_id: L2ChainId,
-    multicall3: Option<Address>,
-    gateway_rpc_url: Option<SensitiveUrl>,
-    eth_sender_config: SenderConfig,
-}
-
-impl MainNodeConfig {
-    pub fn new(
-        l1_specific_contracts: L1SpecificContracts,
-        l2_contracts: L2Contracts,
-        l2_chain_id: L2ChainId,
-        multicall3: Option<Address>,
-        l1_sl_specific_contracts: Option<SettlementLayerSpecificContracts>,
-        gateway_rpc_url: Option<SensitiveUrl>,
-        eth_sender_config: SenderConfig,
-    ) -> Self {
-        Self {
-            l2_contracts,
-            l1_specific_contracts,
-            l1_sl_specific_contracts,
-            l2_chain_id,
-            multicall3,
-            gateway_rpc_url,
-            eth_sender_config,
-        }
-    }
+    pub l1_sl_specific_contracts: Option<SettlementLayerSpecificContracts>,
+    pub l2_chain_id: L2ChainId,
+    pub multicall3: Option<Address>,
+    pub gateway_rpc_url: Option<SensitiveUrl>,
+    pub eth_sender_config: SenderConfig,
 }
 
 /// Wiring layer for [`SettlementLayerData`].
@@ -127,10 +106,7 @@ impl WiringLayer for SettlementLayerData<MainNodeConfig> {
 
         let final_settlement_mode = current_settlement_layer(
             &input.eth_client.0,
-            l2_eth_client
-                .clone()
-                .map(|a| Box::new(a.0) as Box<dyn EthInterface>)
-                .as_deref(),
+            l2_eth_client.as_ref().map(|a| &a.0 as &dyn EthInterface),
             &sl_l1_contracts,
             self.config.l2_chain_id,
             &mut pool.connection().await.context("Can't connect")?,
@@ -179,29 +155,11 @@ impl WiringLayer for SettlementLayerData<MainNodeConfig> {
 
 #[derive(Debug)]
 pub struct ENConfig {
-    l1_specific_contracts: L1SpecificContracts,
-    l1_chain_contracts: SettlementLayerSpecificContracts,
-    l2_contracts: L2Contracts,
-    chain_id: L2ChainId,
-    gateway_rpc_url: Option<SensitiveUrl>,
-}
-
-impl ENConfig {
-    pub fn new(
-        chain_id: L2ChainId,
-        l1_specific_contracts: L1SpecificContracts,
-        l1_chain_contracts: SettlementLayerSpecificContracts,
-        l2_contracts: L2Contracts,
-        gateway_rpc_url: Option<SensitiveUrl>,
-    ) -> Self {
-        Self {
-            l1_specific_contracts,
-            l1_chain_contracts,
-            l2_contracts,
-            chain_id,
-            gateway_rpc_url,
-        }
-    }
+    pub l1_specific_contracts: L1SpecificContracts,
+    pub l1_chain_contracts: SettlementLayerSpecificContracts,
+    pub l2_contracts: L2Contracts,
+    pub chain_id: L2ChainId,
+    pub gateway_rpc_url: Option<SensitiveUrl>,
 }
 
 #[async_trait::async_trait]
@@ -221,7 +179,17 @@ impl WiringLayer for SettlementLayerData<ENConfig> {
             .await
             .context("Problem with fetching chain id")?;
 
-        let initial_db_sl_mode = get_db_settlement_mode(input.pool.get().await?, chain_id).await?;
+        let initial_db_sl_mode = get_db_settlement_mode(
+            &mut input
+                .pool
+                .get()
+                .await?
+                .connection()
+                .await
+                .context("failed getting pool connection")?,
+            chain_id,
+        )
+        .await?;
 
         let initial_sl_mode = if let Some(mode) = initial_db_sl_mode {
             mode
@@ -327,4 +295,23 @@ fn adjust_eth_sender_config(
         }
     }
     config
+}
+
+// Get settlement layer based on ETH tx in the database.
+async fn get_db_settlement_mode(
+    connection: &mut Connection<'_, Core>,
+    l1chain_id: SLChainId,
+) -> anyhow::Result<Option<SettlementLayer>> {
+    let db_chain_id = connection
+        .eth_sender_dal()
+        .get_chain_id_of_last_eth_tx()
+        .await?;
+
+    Ok(db_chain_id.map(|chain_id| {
+        if chain_id != l1chain_id.0 {
+            SettlementLayer::Gateway(SLChainId(chain_id))
+        } else {
+            SettlementLayer::L1(SLChainId(chain_id))
+        }
+    }))
 }

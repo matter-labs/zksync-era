@@ -804,24 +804,3 @@ async fn wait_for_l1_batch_with_metadata(
             .ok();
     }
 }
-
-// Get settlement layer based on ETH tx in the database.
-pub async fn get_db_settlement_mode(
-    db_pool: ConnectionPool<Core>,
-    l1chain_id: SLChainId,
-) -> anyhow::Result<Option<SettlementLayer>> {
-    let db_chain_id = db_pool
-        .connection()
-        .await?
-        .eth_sender_dal()
-        .get_chain_id_of_last_eth_tx()
-        .await?;
-
-    Ok(db_chain_id.map(|chain_id| {
-        if chain_id != l1chain_id.0 {
-            SettlementLayer::Gateway(SLChainId(chain_id))
-        } else {
-            SettlementLayer::L1(SLChainId(chain_id))
-        }
-    }))
-}

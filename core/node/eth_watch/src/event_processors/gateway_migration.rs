@@ -1,4 +1,5 @@
 use anyhow::Context as _;
+use zksync_contracts::server_notifier_contract;
 use zksync_dal::{eth_watcher_dal::EventType, Connection, Core, CoreDal};
 use zksync_types::{api::Log, L1BlockNumber, L2ChainId, H256, U256};
 
@@ -7,11 +8,21 @@ use crate::event_processors::{EventProcessor, EventProcessorError, EventsSource}
 #[derive(Debug)]
 pub struct GatewayMigrationProcessor {
     l2chain_id: L2ChainId,
+    possible_main_topics: Vec<H256>,
 }
 
 impl GatewayMigrationProcessor {
     pub fn new(l2chain_id: L2ChainId) -> Self {
-        Self { l2chain_id }
+        let contract = server_notifier_contract();
+        let topics = vec![
+            contract.event("MigrateToGateway").unwrap().signature(),
+            contract.event("MigrateFromGateway").unwrap().signature(),
+        ];
+
+        Self {
+            l2chain_id,
+            possible_main_topics: topics,
+        }
     }
 }
 
@@ -23,6 +34,11 @@ impl EventProcessor for GatewayMigrationProcessor {
         events: Vec<Log>,
     ) -> Result<usize, EventProcessorError> {
         for event in &events {
+            let main_topic = event.topics.first().copied().context("missing topic 0")?;
+            if !self.possible_main_topics.contains(&main_topic) {
+                continue;
+            }
+
             let chain_id = U256::from_big_endian(
                 event
                     .topics

@@ -49,7 +49,7 @@ impl ServerNotificationsDal<'_, '_> {
             FROM
                 server_notifications
             WHERE
-                main_topic IN (SELECT unnest($1::bytea []))
+                main_topic = ANY($1)
             ORDER BY
                 l1_block_number DESC
             LIMIT 1

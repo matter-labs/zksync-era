@@ -16,8 +16,7 @@ impl SettlementLayer {
     }
     pub fn chain_id(&self) -> SLChainId {
         match self {
-            SettlementLayer::L1(chain_id) => *chain_id,
-            SettlementLayer::Gateway(chain_id) => *chain_id,
+            Self::L1(chain_id) | Self::Gateway(chain_id) => *chain_id,
         }
     }
 }
