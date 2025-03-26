@@ -15,11 +15,11 @@ use zksync_prover_fri_types::{
     get_current_pod_name, AuxOutputWitnessWrapper, FriProofWrapper,
 };
 use zksync_prover_interface::outputs::{
-    FflonkL1BatchProofForL1, L1BatchProofForL1, PlonkL1BatchProofForL1,
+    FflonkL1BatchProofForL1, FinalProofKeyBySubsystem, L1BatchProofForL1, PlonkL1BatchProofForL1,
 };
 use zksync_prover_keystore::keystore::Keystore;
 use zksync_queued_job_processor::JobProcessor;
-use zksync_types::{protocol_version::ProtocolSemanticVersion, L1BatchNumber};
+use zksync_types::{protocol_version::ProtocolSemanticVersion, ChainAwareL1BatchNumber};
 
 use crate::metrics::METRICS;
 
@@ -69,7 +69,7 @@ impl ProofCompressor {
 #[async_trait]
 impl JobProcessor for ProofCompressor {
     type Job = ZkSyncRecursionLayerProof;
-    type JobId = L1BatchNumber;
+    type JobId = ChainAwareL1BatchNumber;
 
     type JobArtifacts = SnarkWrapperProof;
 
@@ -78,7 +78,7 @@ impl JobProcessor for ProofCompressor {
     async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
         let mut conn = self.pool.connection().await.unwrap();
         let pod_name = get_current_pod_name();
-        let Some(l1_batch_number) = conn
+        let Some(batch_id) = conn
             .fri_proof_compressor_dal()
             .get_next_proof_compression_job(&pod_name, self.protocol_version)
             .await
@@ -87,19 +87,24 @@ impl JobProcessor for ProofCompressor {
         };
         let Some(fri_proof_id) = conn
             .fri_prover_jobs_dal()
-            .get_scheduler_proof_job_id(l1_batch_number)
+            .get_scheduler_proof_job_id(batch_id)
             .await
         else {
-            anyhow::bail!("Scheduler proof is missing from database for batch {l1_batch_number}");
+            anyhow::bail!("Scheduler proof is missing from database for batch {batch_id:?}");
         };
-        tracing::info!(
-            "Started proof compression for L1 batch: {:?}",
-            l1_batch_number
-        );
+        tracing::info!("Started proof compression for L1 batch: {:?}", batch_id);
         let observer = METRICS.blob_fetch_time.start();
 
-        let fri_proof: FriProofWrapper = self.blob_store.get(fri_proof_id)
-            .await.with_context(|| format!("Failed to get fri proof from blob store for {l1_batch_number} with id {fri_proof_id}"))?;
+        let fri_proof = self
+            .blob_store
+            .get::<FriProofWrapper>((batch_id.chain_id(), fri_proof_id))
+            .await
+            .with_context(|| {
+                format!(
+                    "Failed to get fri proof from blob store for {:?} with id {fri_proof_id}",
+                    batch_id
+                )
+            })?;
 
         observer.observe();
 
@@ -107,7 +112,7 @@ impl JobProcessor for ProofCompressor {
             FriProofWrapper::Base(_) => anyhow::bail!("Must be a scheduler proof not base layer"),
             FriProofWrapper::Recursive(proof) => proof,
         };
-        Ok(Some((l1_batch_number, scheduler_proof)))
+        Ok(Some((batch_id, scheduler_proof)))
     }
 
     async fn save_failure(&self, job_id: Self::JobId, _started_at: Instant, error: String) {
@@ -122,7 +127,7 @@ impl JobProcessor for ProofCompressor {
 
     async fn process_job(
         &self,
-        _job_id: &L1BatchNumber,
+        _job_id: &ChainAwareL1BatchNumber,
         job: ZkSyncRecursionLayerProof,
         _started_at: Instant,
     ) -> JoinHandle<anyhow::Result<Self::JobArtifacts>> {
@@ -150,7 +155,9 @@ impl JobProcessor for ProofCompressor {
     ) -> anyhow::Result<()> {
         METRICS.compression_time.observe(started_at.elapsed());
         tracing::info!(
-            "Finished fri proof compression for job: {job_id} took: {:?}",
+            "Finished fri proof compression for job with id {}, chain {} took: {:?}",
+            job_id.raw_batch_number(),
+            job_id.raw_chain_id(),
             started_at.elapsed()
         );
 
@@ -180,7 +187,10 @@ impl JobProcessor for ProofCompressor {
         let blob_save_started_at = Instant::now();
         let blob_url = self
             .blob_store
-            .put((job_id, self.protocol_version), &l1_batch_proof)
+            .put(
+                FinalProofKeyBySubsystem::Prover(job_id, self.protocol_version),
+                &l1_batch_proof,
+            )
             .await
             .context("Failed to save converted l1_batch_proof")?;
         METRICS
@@ -201,7 +211,7 @@ impl JobProcessor for ProofCompressor {
         self.max_attempts
     }
 
-    async fn get_job_attempts(&self, job_id: &L1BatchNumber) -> anyhow::Result<u32> {
+    async fn get_job_attempts(&self, job_id: &ChainAwareL1BatchNumber) -> anyhow::Result<u32> {
         let mut prover_storage = self
             .pool
             .connection()

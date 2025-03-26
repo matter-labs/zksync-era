@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                circuit_id,\n                id\n            FROM\n                prover_jobs_fri\n            WHERE\n                l1_batch_number = $1\n                AND chain_id = $2\n                AND is_node_final_proof = TRUE\n                AND status = 'successful'\n            ORDER BY\n                circuit_id ASC\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "circuit_id",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 1,
+        "name": "id",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "821f308ebb20c978ce4cb210e8f8a3a4efb59242fe8bd9856bc5e374a6ea5713"
+}

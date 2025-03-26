@@ -7,7 +7,7 @@ use zksync_eth_client::{BoundEthInterface, EthInterface};
 use zksync_l1_contract_interface::i_executor::methods::{ExecuteBatches, ProveBatches};
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_object_store::{ObjectStore, ObjectStoreError};
-use zksync_prover_interface::outputs::L1BatchProofForL1;
+use zksync_prover_interface::outputs::{FinalProofKeyBySubsystem, L1BatchProofForL1};
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     commitment::{L1BatchCommitmentMode, L1BatchWithMetadata, PriorityOpsMerkleProof},
@@ -106,6 +106,7 @@ impl OperationSkippingRestrictions {
 }
 
 impl Aggregator {
+    #[allow(clippy::too_many_arguments)]
     pub async fn new(
         config: SenderConfig,
         blob_store: Arc<dyn ObjectStore>,
@@ -758,11 +759,11 @@ pub async fn load_wrapped_fri_proofs_for_range(
 ) -> Option<L1BatchProofForL1> {
     for version in allowed_versions {
         match blob_store
-            .get::<L1BatchProofForL1>((l1_batch_number, *version))
+            .get::<L1BatchProofForL1>(FinalProofKeyBySubsystem::Core(l1_batch_number, *version))
             .await
         {
             Ok(proof) => return Some(proof),
-            Err(ObjectStoreError::KeyNotFound(_)) => (), // do nothing, proof is not ready yet
+            Err(ObjectStoreError::KeyNotFound(_)) => (), // do nothing, proof is not ready yet,
             Err(err) => panic!(
                 "Failed to load proof for batch {}: {}",
                 l1_batch_number.0, err

@@ -32,7 +32,8 @@ use zksync_prover_keystore::{
     GoldilocksGpuProverSetupData,
 };
 use zksync_types::{
-    basic_fri_types::AggregationRound, prover_dal::FriProverJobMetadata, L1BatchNumber,
+    basic_fri_types::AggregationRound, prover_dal::FriProverJobMetadata, ChainAwareL1BatchNumber,
+    L1BatchNumber, L2ChainId,
 };
 
 async fn create_witness_vector(
@@ -69,9 +70,9 @@ async fn create_witness_vector(
         .clone();
 
     tracing::info!(
-            "Finished picking witness vector generator job {}, on batch {}, for circuit {}, at round {} in {:?}",
+            "Finished picking witness vector generator job {}, on {:?}, for circuit {}, at round {} in {:?}",
             metadata.id,
-            metadata.block_number,
+            metadata.batch_id,
             metadata.circuit_id,
             metadata.aggregation_round,
             start_time.elapsed()
@@ -160,7 +161,10 @@ fn get_metadata(path: &Path) -> anyhow::Result<FriProverJobMetadata> {
     // Expected file like prover_jobs_fri/10330_48_1_BasicCircuits_0.bin.
     Ok(FriProverJobMetadata {
         id: 1,
-        block_number: L1BatchNumber(caps["block"].parse()?),
+        batch_id: ChainAwareL1BatchNumber::new(
+            L2ChainId::zero(),
+            L1BatchNumber(caps["block"].parse()?),
+        ),
         circuit_id: caps["circuit"].parse()?,
         aggregation_round: AggregationRound::BasicCircuits,
         sequence_number: caps["sequence"].parse()?,
@@ -173,7 +177,7 @@ fn get_metadata(path: &Path) -> anyhow::Result<FriProverJobMetadata> {
 fn witness_vector_filename(metadata: FriProverJobMetadata) -> String {
     let FriProverJobMetadata {
         id: _,
-        block_number,
+        batch_id,
         sequence_number,
         circuit_id,
         aggregation_round,
@@ -181,7 +185,10 @@ fn witness_vector_filename(metadata: FriProverJobMetadata) -> String {
         is_node_final_proof: _,
         pick_time: _,
     } = metadata;
-    format!("{block_number}_{sequence_number}_{circuit_id}_{aggregation_round:?}_{depth}.witness_vector")
+    format!(
+        "{}_{sequence_number}_{circuit_id}_{aggregation_round:?}_{depth}.witness_vector",
+        batch_id.raw_batch_number()
+    )
 }
 
 fn get_setup_data_path() -> PathBuf {

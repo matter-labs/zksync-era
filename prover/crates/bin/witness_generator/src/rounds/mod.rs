@@ -23,7 +23,7 @@ pub use leaf_aggregation::LeafAggregation;
 pub use node_aggregation::NodeAggregation;
 pub use recursion_tip::RecursionTip;
 pub use scheduler::Scheduler;
-use zksync_types::basic_fri_types::AggregationRound;
+use zksync_types::{basic_fri_types::AggregationRound, L2ChainId};
 
 use crate::metrics::WITNESS_GENERATOR_METRICS;
 
@@ -51,7 +51,7 @@ pub trait JobManager: ArtifactsManager {
     async fn get_metadata(
         connection_pool: ConnectionPool<Prover>,
         protocol_version: ProtocolSemanticVersion,
-    ) -> anyhow::Result<Option<(u32, Self::Metadata)>>;
+    ) -> anyhow::Result<Option<(L2ChainId, u32, Self::Metadata)>>;
 }
 
 #[derive(Debug)]
@@ -92,20 +92,25 @@ where
     R: JobManager + ArtifactsManager + Send + Sync,
 {
     type Job = R::Job;
-    type JobId = u32;
+    type JobId = (L2ChainId, u32);
     type JobArtifacts = R::OutputArtifacts;
 
     const SERVICE_NAME: &'static str = R::SERVICE_NAME;
 
     async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
-        if let Some((id, metadata)) =
+        if let Some((chain_id, job_id, metadata)) =
             R::get_metadata(self.connection_pool.clone(), self.protocol_version)
                 .await
                 .context("get_metadata()")?
         {
-            tracing::info!("Processing {:?} job {:?}", R::ROUND, id);
+            tracing::info!(
+                "Processing {:?} job {:?} for chain {}",
+                R::ROUND,
+                job_id,
+                chain_id.as_u64()
+            );
             Ok(Some((
-                id,
+                (chain_id, job_id),
                 R::prepare_job(metadata, &*self.object_store, self.keystore.clone())
                     .await
                     .context("prepare_job()")?,
@@ -121,7 +126,7 @@ where
             .await
             .unwrap()
             .fri_witness_generator_dal()
-            .mark_witness_job_failed(&error, job_id, R::ROUND)
+            .mark_witness_job_failed(&error, job_id.1, job_id.0, R::ROUND)
             .await;
     }
 
@@ -138,7 +143,7 @@ where
         })
     }
 
-    #[tracing::instrument(skip_all, fields(job_id = %job_id))]
+    #[tracing::instrument(skip_all, fields(job_id = %job_id.1))]
     async fn save_result(
         &self,
         job_id: Self::JobId,
@@ -149,7 +154,8 @@ where
 
         let blob_save_started_at = Instant::now();
 
-        let blob_urls = R::save_to_bucket(job_id, artifacts.clone(), &*self.object_store).await;
+        let blob_urls =
+            R::save_to_bucket(job_id.1, job_id.0, artifacts.clone(), &*self.object_store).await;
 
         WITNESS_GENERATOR_METRICS.blob_save_time[&R::ROUND.into()]
             .observe(blob_save_started_at.elapsed());
@@ -157,7 +163,8 @@ where
         tracing::info!("Saved {:?} artifacts for job {:?}", R::ROUND, job_id);
         R::save_to_database(
             &self.connection_pool,
-            job_id,
+            job_id.1,
+            job_id.0,
             started_at,
             blob_urls,
             artifacts,
@@ -178,9 +185,12 @@ where
             "failed to acquire DB connection for {:?}",
             R::ROUND
         ))?;
+
+        let (chain_id, l1_batch_number) = *job_id;
+
         prover_storage
             .fri_witness_generator_dal()
-            .get_witness_job_attempts(*job_id, R::ROUND)
+            .get_witness_job_attempts(l1_batch_number, chain_id, R::ROUND)
             .await
             .map(|attempts| attempts.unwrap_or(0))
             .context(format!("failed to get job attempts for {:?}", R::ROUND))
