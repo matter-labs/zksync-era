@@ -36,7 +36,7 @@ async fn test_attester_committee() {
         // If the registry contract address is not specified,
         // then an empty committee should be returned.
         let got = registry
-            .attester_committee_for(ctx, None, attester::BatchNumber(10))
+            .get_pending_validator_committee(ctx, None, attester::BatchNumber(10))
             .await
             .unwrap();
         assert!(got.is_none());
@@ -83,7 +83,7 @@ async fn test_attester_committee() {
         assert_eq!(
             Some(committee),
             registry
-                .attester_committee_for(ctx, Some(registry_addr), batch + 1)
+                .get_pending_validator_committee(ctx, Some(registry_addr), batch + 1)
                 .await
                 .unwrap()
         );

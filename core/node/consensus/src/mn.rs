@@ -149,7 +149,7 @@ async fn run_attestation_controller(
             .await?;
         let hash = consensus_dal::batch_hash(&info);
         let Some(committee) = registry
-            .attester_committee_for(ctx, registry_addr, status.next_batch_to_attest)
+            .get_pending_validator_committee(ctx, registry_addr, status.next_batch_to_attest)
             .await
             .wrap("attester_committee_for()")?
         else {

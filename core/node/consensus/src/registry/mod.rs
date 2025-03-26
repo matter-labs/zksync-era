@@ -57,19 +57,14 @@ impl Registry {
         }
     }
 
-    /// Attester committee for the given batch.
-    /// It reads committee from the contract.
-    /// Falls back to empty committee.
-    pub async fn attester_committee_for(
+    /// It tries to get a pending validator committee from the consensus registry contract.
+    /// Returns `None` if there's no pending committee.
+    pub async fn get_pending_validator_committee(
         &self,
         ctx: &ctx::Ctx,
         address: Option<Address>,
-        attested_batch: attester::BatchNumber,
-    ) -> ctx::Result<Option<attester::Committee>> {
-        let Some(batch_defining_committee) = attested_batch.prev() else {
-            // Batch 0 doesn't need attestation.
-            return Ok(None);
-        };
+        sealed_block_number: validator::BlockNumber,
+    ) -> ctx::Result<Option<validator::Committee>> {
         let Some(address) = address else {
             return Ok(None);
         };
@@ -77,18 +72,18 @@ impl Registry {
             .vm
             .call(
                 ctx,
-                batch_defining_committee,
+                sealed_block_number,
                 address,
-                self.contract.call(abi::GetAttesterCommittee),
+                self.contract.call(abi::GetPendingValidatorCommittee),
             )
             .await
             .wrap("vm.call()")?;
-        let mut attesters = vec![];
+        let mut validators = vec![];
         for a in raw {
-            attesters.push(decode_weighted_attester(&a).context("decode_weighted_attester()")?);
+            validators.push(decode_weighted_validator(&a).context("decode_weighted_validator()")?);
         }
         Ok(Some(
-            attester::Committee::new(attesters.into_iter()).context("Committee::new()")?,
+            validator::Committee::new(validators.into_iter()).context("Committee::new()")?,
         ))
     }
 }

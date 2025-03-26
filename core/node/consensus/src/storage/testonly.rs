@@ -236,7 +236,7 @@ impl ConnectionPool {
                 .wrap("batch_certificate")?
                 .context("cert missing")?;
             let committee = registry
-                .attester_committee_for(ctx, registry_addr, i)
+                .get_pending_validator_committee(ctx, registry_addr, i)
                 .await
                 .context("attester_committee_for()")?
                 .context("committee not specified")?;
