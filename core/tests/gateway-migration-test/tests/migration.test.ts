@@ -50,6 +50,7 @@ describe('Migration From/To gateway test', function () {
     before('Create test wallet', async () => {
         logs = await fs.open(await logsPath('migration.log'), 'a');
         direction = process.env.DIRECTION || 'TO';
+        console.log(`Start Migration ${direction} gateway`);
         gatewayChain = process.env.GATEWAY_CHAIN || 'gateway';
 
         if (!fileConfig.loadFromFile) {
@@ -138,7 +139,7 @@ describe('Migration From/To gateway test', function () {
         }
     });
 
-    step('Migrate to chain gateway', async () => {
+    step('Migrate to/from gateway', async () => {
         if (direction == 'TO') {
             await utils.spawn(`zkstack chain notify-about-to-gateway-update --chain ${fileConfig.chain}`);
         } else {

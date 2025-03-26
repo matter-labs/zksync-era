@@ -4,7 +4,7 @@ use zkstack_cli_config::EcosystemConfig;
 
 use super::utils::install_and_build_dependencies;
 use crate::commands::dev::{
-    commands::test::args::gateway_migration::{GatewayMigrationArgs, MigrationDirection},
+    commands::test::args::gateway_migration::GatewayMigrationArgs,
     messages::{MSG_GATEWAY_UPGRADE_TEST_RUN_INFO, MSG_GATEWAY_UPGRADE_TEST_RUN_SUCCESS},
 };
 
@@ -24,7 +24,12 @@ pub fn run(shell: &Shell, args: GatewayMigrationArgs) -> anyhow::Result<()> {
         install_and_build_dependencies(shell, &ecosystem_config)?;
     }
 
-    run_test(shell, &ecosystem_config, args.direction, args.gateway_chain)?;
+    run_test(
+        shell,
+        &ecosystem_config,
+        args.direction.to_gateway,
+        args.gateway_chain,
+    )?;
     logger::outro(MSG_GATEWAY_UPGRADE_TEST_RUN_SUCCESS);
 
     Ok(())
@@ -33,13 +38,14 @@ pub fn run(shell: &Shell, args: GatewayMigrationArgs) -> anyhow::Result<()> {
 fn run_test(
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
-    direction: MigrationDirection,
+    to_gateway: bool,
     gateway_chain: Option<String>,
 ) -> anyhow::Result<()> {
     Spinner::new(MSG_GATEWAY_UPGRADE_TEST_RUN_INFO).freeze();
+    let direction = if to_gateway { "TO" } else { "FROM" };
     let mut cmd = Cmd::new(cmd!(shell, "yarn mocha tests/migration.test.ts"))
         .env("CHAIN_NAME", ecosystem_config.current_chain())
-        .env("DIRECTION", format!("{:?}", direction).to_ascii_uppercase());
+        .env("DIRECTION", direction);
     if let Some(chain) = gateway_chain {
         cmd = cmd.env("GATEWAY_CHAIN", chain);
     }
