@@ -14,7 +14,7 @@ use crate::{
 #[test]
 fn empty_tree_hash_is_correct() {
     let expected_root_hash: H256 =
-        "0x8a41011d351813c31088367deecc9b70677ecf15ffc24ee450045cdeaf447f63"
+        "0x90a83ead2ba2194fbbb0f7cd2a017e36cfb4891513546d943a7282c2844d4b6b"
             .parse()
             .unwrap();
     assert_eq!(

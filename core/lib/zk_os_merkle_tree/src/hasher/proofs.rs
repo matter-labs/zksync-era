@@ -381,7 +381,7 @@ mod tests {
             .root_hash;
         assert_eq!(
             hash,
-            "0x8a41011d351813c31088367deecc9b70677ecf15ffc24ee450045cdeaf447f63"
+            "0x90a83ead2ba2194fbbb0f7cd2a017e36cfb4891513546d943a7282c2844d4b6b"
                 .parse()
                 .unwrap()
         );
@@ -396,7 +396,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             tree_view.root_hash,
-            "0x91a1688c802dc607125d0b5e5ab4d95d89a4a4fb8cca71a122db6076cb70f8f3"
+            "0x08da20879eebed16fbd14e50b427bb97c8737aa860e6519877757e238df83a15"
                 .parse()
                 .unwrap()
         );
@@ -413,7 +413,7 @@ mod tests {
 
         let empty_tree_output = BatchOutput {
             leaf_count: 2,
-            root_hash: "0x8a41011d351813c31088367deecc9b70677ecf15ffc24ee450045cdeaf447f63"
+            root_hash: "0x90a83ead2ba2194fbbb0f7cd2a017e36cfb4891513546d943a7282c2844d4b6b"
                 .parse()
                 .unwrap(),
         };
@@ -432,7 +432,7 @@ mod tests {
 
         assert_eq!(
             tree_view.root_hash,
-            "0x91a1688c802dc607125d0b5e5ab4d95d89a4a4fb8cca71a122db6076cb70f8f3"
+            "0x08da20879eebed16fbd14e50b427bb97c8737aa860e6519877757e238df83a15"
                 .parse()
                 .unwrap()
         );
@@ -449,7 +449,7 @@ mod tests {
 
         let empty_tree_output = BatchOutput {
             leaf_count: 2,
-            root_hash: "0x8a41011d351813c31088367deecc9b70677ecf15ffc24ee450045cdeaf447f63"
+            root_hash: "0x90a83ead2ba2194fbbb0f7cd2a017e36cfb4891513546d943a7282c2844d4b6b"
                 .parse()
                 .unwrap(),
         };
@@ -478,7 +478,7 @@ mod tests {
 
         let empty_tree_output = BatchOutput {
             leaf_count: 2,
-            root_hash: "0x8a41011d351813c31088367deecc9b70677ecf15ffc24ee450045cdeaf447f63"
+            root_hash: "0x90a83ead2ba2194fbbb0f7cd2a017e36cfb4891513546d943a7282c2844d4b6b"
                 .parse()
                 .unwrap(),
         };
@@ -497,7 +497,7 @@ mod tests {
 
         assert_eq!(
             tree_view.root_hash,
-            "0x91a1688c802dc607125d0b5e5ab4d95d89a4a4fb8cca71a122db6076cb70f8f3"
+            "0x08da20879eebed16fbd14e50b427bb97c8737aa860e6519877757e238df83a15"
                 .parse()
                 .unwrap()
         );
