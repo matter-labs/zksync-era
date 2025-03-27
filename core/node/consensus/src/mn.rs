@@ -148,7 +148,7 @@ async fn run_attestation_controller(
             .wait_for_batch_info(ctx, status.next_batch_to_attest, POLL_INTERVAL)
             .await?;
         let hash = consensus_dal::batch_hash(&info);
-        let Some(committee) = registry
+        let Some((committee, commit_block)) = registry
             .get_pending_validator_committee(ctx, registry_addr, status.next_batch_to_attest)
             .await
             .wrap("attester_committee_for()")?
@@ -165,7 +165,7 @@ async fn run_attestation_controller(
             .await
             .wrap("upsert_attester_committee()")?;
         tracing::info!(
-            "attesting batch {:?} with hash {hash:?}",
+            "attesting batch {:?} with hash {hash:?}, commit_block: {commit_block:?}",
             status.next_batch_to_attest
         );
         attestation

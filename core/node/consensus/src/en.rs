@@ -241,7 +241,7 @@ impl EN {
                     .await
                     .wrap("wait_for_batch_info()")?,
             );
-            let Some(committee) = registry
+            let Some((committee, commit_block)) = registry
                 .get_pending_validator_committee(
                     ctx,
                     cfg.registry_address.map(registry::Address::new),
@@ -263,7 +263,7 @@ impl EN {
                 .await
                 .wrap("upsert_attester_committee()")?;
             tracing::info!(
-                "attesting batch {:?} with hash {hash:?}",
+                "attesting batch {:?} with hash {hash:?}, commit_block: {commit_block:?}",
                 status.next_batch_to_attest
             );
             attestation

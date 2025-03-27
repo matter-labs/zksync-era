@@ -1,6 +1,6 @@
 use rand::Rng as _;
 use zksync_concurrency::{ctx, scope, time};
-use zksync_consensus_roles::attester;
+use zksync_consensus_roles::validator;
 use zksync_test_contracts::Account;
 use zksync_types::ProtocolVersionId;
 
@@ -14,15 +14,20 @@ const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(500);
 fn test_consensus_registry_abi() {
     zksync_concurrency::testonly::abort_on_panic();
     let c = abi::ConsensusRegistry::load();
-    c.call(abi::GetAttesterCommittee).test().unwrap();
     c.call(abi::Add::default()).test().unwrap();
     c.call(abi::Initialize::default()).test().unwrap();
-    c.call(abi::CommitAttesterCommittee).test().unwrap();
+    c.call(abi::CommitValidatorCommittee).test().unwrap();
+    c.call(abi::GetValidatorCommittee).test().unwrap();
+    c.call(abi::GetNextValidatorCommittee).test().unwrap();
+    c.call(abi::SetCommitteeActivationDelay::default())
+        .test()
+        .unwrap();
+    c.call(abi::ValidatorsCommitBlock).test().unwrap();
     c.call(abi::Owner).test().unwrap();
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn test_attester_committee() {
+async fn test_pending_validator_committee() {
     zksync_concurrency::testonly::abort_on_panic();
     let ctx = &ctx::test_root(&ctx::RealClock);
     let rng = &mut ctx.rng();
@@ -36,7 +41,7 @@ async fn test_attester_committee() {
         // If the registry contract address is not specified,
         // then an empty committee should be returned.
         let got = registry
-            .get_pending_validator_committee(ctx, None, attester::BatchNumber(10))
+            .get_pending_validator_committee(ctx, None, validator::BlockNumber(10))
             .await
             .unwrap();
         assert!(got.is_none());
@@ -46,7 +51,7 @@ async fn test_attester_committee() {
 
         // Deploy registry contract and initialize it.
         let committee =
-            attester::Committee::new((0..5).map(|_| testonly::gen_attester(rng))).unwrap();
+            validator::Committee::new((0..5).map(|_| testonly::gen_validator(rng))).unwrap();
         let (registry_addr, tx) = registry.deploy(account);
         let mut txs = vec![tx];
         let account_addr = account.address();
@@ -55,21 +60,23 @@ async fn test_attester_committee() {
             registry_addr,
             registry.initialize(account_addr),
         ));
-        // Add attesters.
-        for a in committee.iter() {
+
+        // Add validators.
+        for v in committee.iter() {
             txs.push(testonly::make_tx(
                 account,
                 registry_addr,
                 registry
-                    .add(rng.gen(), testonly::gen_validator(rng), a.clone())
+                    .add(rng.gen(), testonly::gen_validator(rng))
                     .unwrap(),
             ));
         }
+
         // Commit the update.
         txs.push(testonly::make_tx(
             account,
             registry_addr,
-            registry.commit_attester_committee(),
+            registry.commit_validator_committee(),
         ));
 
         node.push_block(&txs).await;
@@ -78,15 +85,18 @@ async fn test_attester_committee() {
             .await
             .wrap("wait_for_batch_info()")?;
 
-        // Read the attester committee using the vm.
-        let batch = attester::BatchNumber(node.last_batch().0);
-        assert_eq!(
-            Some(committee),
-            registry
-                .get_pending_validator_committee(ctx, Some(registry_addr), batch + 1)
-                .await
-                .unwrap()
-        );
+        // Read the validator committee using the vm.
+        let block_num = node.last_block();
+
+        // Check the committee and commit block number
+        let (actual_committee, commit_block) = registry
+            .get_pending_validator_committee(ctx, Some(registry_addr), block_num)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(committee, actual_committee);
+        assert_eq!(block_num, commit_block);
+
         Ok(())
     })
     .await

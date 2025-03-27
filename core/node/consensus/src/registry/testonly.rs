@@ -28,14 +28,6 @@ pub(crate) struct WeightedValidator {
     pop: validator::ProofOfPossession,
 }
 
-fn encode_attester_key(k: &attester::PublicKey) -> abi::Secp256k1PublicKey {
-    let b: [u8; 33] = ByteFmt::encode(k).try_into().unwrap();
-    abi::Secp256k1PublicKey {
-        tag: b[0..1].try_into().unwrap(),
-        x: b[1..33].try_into().unwrap(),
-    }
-}
-
 fn encode_validator_key(k: &validator::PublicKey) -> abi::BLS12_381PublicKey {
     let b: [u8; 96] = ByteFmt::encode(k).try_into().unwrap();
     abi::BLS12_381PublicKey {
@@ -62,13 +54,6 @@ pub(crate) fn gen_validator(rng: &mut impl Rng) -> WeightedValidator {
     }
 }
 
-pub(crate) fn gen_attester(rng: &mut impl Rng) -> attester::WeightedAttester {
-    attester::WeightedAttester {
-        key: rng.gen(),
-        weight: rng.gen_range(1..100),
-    }
-}
-
 impl Registry {
     pub(crate) fn deploy(&self, account: &mut Account) -> (Address, Transaction) {
         let tx = account.get_deploy_tx(
@@ -83,7 +68,6 @@ impl Registry {
         &self,
         node_owner: ethabi::Address,
         validator: WeightedValidator,
-        attester: attester::WeightedAttester,
     ) -> anyhow::Result<crate::abi::Call<abi::Add>> {
         Ok(self.contract.call(abi::Add {
             node_owner,
@@ -94,12 +78,6 @@ impl Registry {
                 .context("overflow")
                 .context("validator_weight")?,
             validator_pop: encode_validator_pop(&validator.pop),
-            attester_pub_key: encode_attester_key(&attester.key),
-            attester_weight: attester
-                .weight
-                .try_into()
-                .context("overflow")
-                .context("attester_weight")?,
         }))
     }
 
@@ -110,9 +88,9 @@ impl Registry {
         self.contract.call(abi::Initialize { initial_owner })
     }
 
-    pub(crate) fn commit_attester_committee(
+    pub(crate) fn commit_validator_committee(
         &self,
-    ) -> crate::abi::Call<abi::CommitAttesterCommittee> {
-        self.contract.call(abi::CommitAttesterCommittee)
+    ) -> crate::abi::Call<abi::CommitValidatorCommittee> {
+        self.contract.call(abi::CommitValidatorCommittee)
     }
 }
