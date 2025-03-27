@@ -65,8 +65,8 @@ impl FriLeafWitnessGeneratorDal<'_, '_> {
                         AND protocol_version = $1
                         AND protocol_version_patch = $2
                     ORDER BY
-                        l1_batch_number ASC,
-                        id ASC
+                        priority DESC,
+                        batch_created_at ASC
                     LIMIT
                         1
                     FOR UPDATE
@@ -155,7 +155,8 @@ impl FriLeafWitnessGeneratorDal<'_, '_> {
             SET
                 status = 'queued',
                 updated_at = NOW(),
-                processing_started_at = NOW()
+                processing_started_at = NOW(),
+                priority = priority + 1
             WHERE
                 (
                     status = 'in_progress'
@@ -237,6 +238,7 @@ impl FriLeafWitnessGeneratorDal<'_, '_> {
         circuit_id: u8,
         closed_form_inputs_url: String,
         number_of_basic_circuits: usize,
+        batch_created_at: sqlx::types::chrono::NaiveDateTime,
     ) {
         sqlx::query!(
             r#"
@@ -250,10 +252,11 @@ impl FriLeafWitnessGeneratorDal<'_, '_> {
                 status,
                 created_at,
                 updated_at,
+                batch_created_at,
                 protocol_version_patch
             )
             VALUES
-            ($1, $2, $3, $4, $5, 'waiting_for_proofs', NOW(), NOW(), $6)
+            ($1, $2, $3, $4, $5, 'waiting_for_proofs', NOW(), NOW(), $6, $7)
             ON CONFLICT (l1_batch_number, circuit_id) DO
             UPDATE
             SET
@@ -264,6 +267,7 @@ impl FriLeafWitnessGeneratorDal<'_, '_> {
             closed_form_inputs_url,
             number_of_basic_circuits as i32,
             protocol_version.minor as i32,
+            batch_created_at,
             protocol_version.patch.0 as i32,
         )
         .execute(self.storage.conn())

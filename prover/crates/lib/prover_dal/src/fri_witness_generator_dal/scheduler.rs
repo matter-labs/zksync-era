@@ -82,7 +82,8 @@ impl FriSchedulerWitnessGeneratorDal<'_, '_> {
             SET
                 status = 'queued',
                 updated_at = NOW(),
-                processing_started_at = NOW()
+                processing_started_at = NOW(),
+                priority = priority + 1
             WHERE
                 (
                     status = 'in_progress'
@@ -143,7 +144,8 @@ impl FriSchedulerWitnessGeneratorDal<'_, '_> {
                         AND protocol_version = $1
                         AND protocol_version_patch = $3
                     ORDER BY
-                        l1_batch_number ASC
+                        priority DESC,
+                        batch_created_at ASC
                     LIMIT
                         1
                     FOR UPDATE
@@ -229,7 +231,8 @@ impl FriSchedulerWitnessGeneratorDal<'_, '_> {
             SET
                 status = 'queued',
                 updated_at = NOW(),
-                processing_started_at = NOW()
+                processing_started_at = NOW(),
+                priority = priority + 1
             WHERE
                 l1_batch_number = $1
                 AND attempts >= $2
@@ -267,6 +270,7 @@ impl FriSchedulerWitnessGeneratorDal<'_, '_> {
         block_number: L1BatchNumber,
         scheduler_partial_input_blob_url: &str,
         protocol_version: ProtocolSemanticVersion,
+        batch_created_at: sqlx::types::chrono::NaiveDateTime
     ) {
         sqlx::query!(
             r#"
@@ -278,10 +282,11 @@ impl FriSchedulerWitnessGeneratorDal<'_, '_> {
                 status,
                 created_at,
                 updated_at,
+                batch_created_at,
                 protocol_version_patch
             )
             VALUES
-            ($1, $2, $3, 'waiting_for_proofs', NOW(), NOW(), $4)
+            ($1, $2, $3, 'waiting_for_proofs', NOW(), NOW(), $4, $5)
             ON CONFLICT (l1_batch_number) DO
             UPDATE
             SET
@@ -290,6 +295,7 @@ impl FriSchedulerWitnessGeneratorDal<'_, '_> {
             i64::from(block_number.0),
             scheduler_partial_input_blob_url,
             protocol_version.minor as i32,
+            batch_created_at,
             protocol_version.patch.0 as i32,
         )
         .execute(self.storage.conn())

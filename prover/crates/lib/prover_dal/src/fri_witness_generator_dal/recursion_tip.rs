@@ -70,7 +70,8 @@ impl FriRecursionTipWitnessGeneratorDal<'_, '_> {
             SET
                 status = 'queued',
                 updated_at = NOW(),
-                processing_started_at = NOW()
+                processing_started_at = NOW(),
+                priority = priority + 1
             WHERE
                 (
                     status = 'in_progress'
@@ -131,7 +132,8 @@ impl FriRecursionTipWitnessGeneratorDal<'_, '_> {
                         AND protocol_version = $1
                         AND protocol_version_patch = $2
                     ORDER BY
-                        l1_batch_number ASC
+                        priority DESC,
+                        batch_created_at ASC
                     LIMIT
                         1
                     FOR UPDATE
@@ -223,7 +225,8 @@ impl FriRecursionTipWitnessGeneratorDal<'_, '_> {
             SET
                 status = 'queued',
                 updated_at = NOW(),
-                processing_started_at = NOW()
+                processing_started_at = NOW(),
+                priority = priority + 1
             WHERE
                 l1_batch_number = $1
                 AND attempts >= $2
@@ -261,6 +264,7 @@ impl FriRecursionTipWitnessGeneratorDal<'_, '_> {
         block_number: L1BatchNumber,
         closed_form_inputs_and_urls: &[(u8, String, usize)],
         protocol_version: ProtocolSemanticVersion,
+        batch_created_at: sqlx::types::chrono::NaiveDateTime,
     ) {
         sqlx::query!(
             r#"
@@ -272,10 +276,11 @@ impl FriRecursionTipWitnessGeneratorDal<'_, '_> {
                 protocol_version,
                 created_at,
                 updated_at,
+                batch_created_at,
                 protocol_version_patch
             )
             VALUES
-            ($1, 'waiting_for_proofs', $2, $3, NOW(), NOW(), $4)
+            ($1, 'waiting_for_proofs', $2, $3, NOW(), NOW(), $4, $5)
             ON CONFLICT (l1_batch_number) DO
             UPDATE
             SET
@@ -284,6 +289,7 @@ impl FriRecursionTipWitnessGeneratorDal<'_, '_> {
             block_number.0 as i64,
             closed_form_inputs_and_urls.len() as i32,
             protocol_version.minor as i32,
+            batch_created_at,
             protocol_version.patch.0 as i32,
         )
         .execute(self.storage.conn())

@@ -77,7 +77,8 @@ impl FriNodeWitnessGeneratorDal<'_, '_> {
                         AND protocol_version = $1
                         AND protocol_version_patch = $2
                     ORDER BY
-                        l1_batch_number ASC,
+                        priority DESC,
+                        batch_created_at ASC,
                         depth ASC,
                         id ASC
                     LIMIT
@@ -146,6 +147,7 @@ impl FriNodeWitnessGeneratorDal<'_, '_> {
         depth: u16,
         aggregations_url: &str,
         protocol_version: ProtocolSemanticVersion,
+        batch_created_at: sqlx::types::chrono::NaiveDateTime,
     ) {
         sqlx::query!(
             r#"
@@ -160,10 +162,11 @@ impl FriNodeWitnessGeneratorDal<'_, '_> {
                 status,
                 created_at,
                 updated_at,
+                batch_created_at,
                 protocol_version_patch
             )
             VALUES
-            ($1, $2, $3, $4, $5, $6, 'waiting_for_proofs', NOW(), NOW(), $7)
+            ($1, $2, $3, $4, $5, $6, 'waiting_for_proofs', NOW(), NOW(), $7, $8)
             ON CONFLICT (l1_batch_number, circuit_id, depth) DO
             UPDATE
             SET
@@ -175,6 +178,7 @@ impl FriNodeWitnessGeneratorDal<'_, '_> {
             aggregations_url,
             number_of_dependent_jobs,
             protocol_version.minor as i32,
+            batch_created_at,
             protocol_version.patch.0 as i32,
         )
         .fetch_optional(self.storage.conn())
@@ -285,7 +289,8 @@ impl FriNodeWitnessGeneratorDal<'_, '_> {
             SET
                 status = 'queued',
                 updated_at = NOW(),
-                processing_started_at = NOW()
+                processing_started_at = NOW(),
+                priority = priority + 1
             WHERE
                 (
                     status = 'in_progress'

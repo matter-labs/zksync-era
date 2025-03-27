@@ -33,11 +33,12 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
                 protocol_version,
                 status,
                 created_at,
+                batch_created_at,
                 updated_at,
                 protocol_version_patch
             )
             VALUES
-            ($1, $2, $3, 'queued', NOW(), NOW(), $4)
+            ($1, $2, $3, 'queued', NOW(), NOW(), NOW(), $4)
             ON CONFLICT (l1_batch_number) DO NOTHING
             "#,
             i64::from(block_number.0),
@@ -77,7 +78,8 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
                         AND protocol_version = $1
                         AND protocol_version_patch = $3
                     ORDER BY
-                        l1_batch_number ASC
+                        priority DESC,
+                        batch_created_at ASC
                     LIMIT
                         1
                     FOR UPDATE
@@ -154,7 +156,8 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
             SET
                 status = 'queued',
                 updated_at = NOW(),
-                processing_started_at = NOW()
+                processing_started_at = NOW(),
+                priority = priority + 1
             WHERE
                 (
                     status = 'in_progress'
@@ -260,7 +263,8 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
             SET
                 status = 'queued',
                 updated_at = NOW(),
-                processing_started_at = NOW()
+                processing_started_at = NOW(),
+                priority = priority + 1
             WHERE
                 l1_batch_number = $1
                 AND attempts >= $2

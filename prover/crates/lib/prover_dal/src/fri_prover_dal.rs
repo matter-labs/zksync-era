@@ -42,6 +42,7 @@ impl FriProverDal<'_, '_> {
         aggregation_round: AggregationRound,
         depth: u16,
         protocol_version_id: ProtocolSemanticVersion,
+        batch_created_at: sqlx::types::chrono::NaiveDateTime,
     ) {
         let _latency = MethodLatency::new("save_fri_prover_jobs");
         if circuit_ids_and_urls.is_empty() {
@@ -67,6 +68,7 @@ impl FriProverDal<'_, '_> {
                     status,
                     created_at,
                     updated_at,
+                    batch_created_at,
                     protocol_version_patch
                 )
                 "#,
@@ -86,6 +88,7 @@ impl FriProverDal<'_, '_> {
                         .push_bind("queued") // status
                         .push("NOW()") // created_at
                         .push("NOW()") // updated_at
+                        .push_bind(batch_created_at)
                         .push_bind(protocol_version_id.patch.0 as i32);
                 },
             );
@@ -144,7 +147,8 @@ impl FriProverDal<'_, '_> {
                         AND protocol_version_patch = $2
                         AND aggregation_round = $4
                     ORDER BY
-                        l1_batch_number ASC,
+                        priority DESC,
+                        batch_created_at ASC,
                         circuit_id ASC,
                         id ASC
                     LIMIT
@@ -221,7 +225,8 @@ impl FriProverDal<'_, '_> {
                         AND protocol_version_patch = $2
                         AND aggregation_round != $4
                     ORDER BY
-                        l1_batch_number ASC,
+                        priority DESC,
+                        batch_created_at ASC,
                         aggregation_round ASC,
                         circuit_id ASC,
                         id ASC
@@ -344,7 +349,8 @@ impl FriProverDal<'_, '_> {
                 SET
                     status = 'queued',
                     updated_at = NOW(),
-                    processing_started_at = NOW()
+                    processing_started_at = NOW(),
+                    priority = priority + 1
                 WHERE
                     id IN (
                         SELECT
@@ -402,6 +408,7 @@ impl FriProverDal<'_, '_> {
         circuit_blob_url: &str,
         is_node_final_proof: bool,
         protocol_version: ProtocolSemanticVersion,
+        batch_created_at: sqlx::types::chrono::NaiveDateTime,
     ) {
         sqlx::query!(
             r#"
@@ -418,10 +425,11 @@ impl FriProverDal<'_, '_> {
                 status,
                 created_at,
                 updated_at,
+                batch_created_at,
                 protocol_version_patch
             )
             VALUES
-            ($1, $2, $3, $4, $5, $6, $7, $8, 'queued', NOW(), NOW(), $9)
+            ($1, $2, $3, $4, $5, $6, $7, $8, 'queued', NOW(), NOW(), $9, $10)
             ON CONFLICT (
                 l1_batch_number, aggregation_round, circuit_id, depth, sequence_number
             ) DO
@@ -437,6 +445,7 @@ impl FriProverDal<'_, '_> {
             i32::from(depth),
             is_node_final_proof,
             protocol_version.minor as i32,
+            batch_created_at,
             protocol_version.patch.0 as i32,
         )
         .execute(self.storage.conn())
@@ -879,6 +888,7 @@ impl FriProverDal<'_, '_> {
 
 #[cfg(test)]
 mod tests {
+    use sqlx::types::chrono::NaiveDateTime;
     use zksync_basic_types::protocol_version::L1VerifierConfig;
     use zksync_db_connection::connection_pool::ConnectionPool;
 
@@ -912,6 +922,7 @@ mod tests {
                 AggregationRound::Scheduler,
                 1,
                 ProtocolSemanticVersion::default(),
+                NaiveDateTime::default(),
             )
             .await;
 
