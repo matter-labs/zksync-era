@@ -225,9 +225,8 @@ pub struct Web3JsonRpcConfig {
     #[serde(default)]
     pub extended_api_tracing: bool,
     #[serde(default)]
-    pub deployment_allowlist_sink: bool,
-    pub http_file_url: Option<String>,
-    pub refresh_interval_secs: Option<u64>,
+    /// Configuration options for the deployment allow list
+    pub deployment_allowlist: Option<DeploymentAllowlist>,
 }
 
 impl Web3JsonRpcConfig {
@@ -268,9 +267,7 @@ impl Web3JsonRpcConfig {
             whitelisted_tokens_for_aa: vec![],
             api_namespaces: None,
             extended_api_tracing: false,
-            deployment_allowlist_sink: false,
-            http_file_url: None,
-            refresh_interval_secs: None,
+            deployment_allowlist: None,
         }
     }
 
@@ -415,6 +412,40 @@ impl MerkleTreeApiConfig {
     }
 }
 
+#[derive(Debug, Deserialize, Clone, PartialEq)]
+pub struct DeploymentAllowlist {
+    /// If `Some(url)`, allowlisting is enabled. If `None`, it's disabled.
+    /// If the `String` is empty, treat it as invalid and effectively disable.
+    http_file_url: Option<String>,
+    /// Private field for the refresh interval (in seconds).
+    refresh_interval_secs: Option<u64>,
+}
+
+impl DeploymentAllowlist {
+    /// Create a new `DeploymentAllowlist` instance.
+    pub fn new(http_file_url: Option<String>, refresh_interval_secs: Option<u64>) -> Self {
+        Self {
+            http_file_url,
+            refresh_interval_secs,
+        }
+    }
+
+    /// Returns `true` if deployment allowlisting is enabled.
+    pub fn is_enabled(&self) -> bool {
+        self.http_file_url().is_some()
+    }
+
+    /// Returns the allowlist file URL, if present and non-empty.
+    pub fn http_file_url(&self) -> Option<&str> {
+        self.http_file_url.as_deref().filter(|s| !s.is_empty())
+    }
+
+    /// Returns the refresh interval used to reload the allowlist.
+    /// Defaults to 5 minutes if not set.
+    pub fn refresh_interval(&self) -> Duration {
+        Duration::from_secs(self.refresh_interval_secs.unwrap_or(300))
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;

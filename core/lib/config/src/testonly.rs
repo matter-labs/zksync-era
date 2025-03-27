@@ -115,9 +115,7 @@ impl Distribution<configs::api::Web3JsonRpcConfig> for EncodeDist {
             api_namespaces: self
                 .sample_opt(|| self.sample_range(rng).map(|_| self.sample(rng)).collect()),
             extended_api_tracing: self.sample(rng),
-            deployment_allowlist_sink: self.sample(rng),
-            http_file_url: self.sample(rng),
-            refresh_interval_secs: self.sample(rng),
+            deployment_allowlist: None,
         }
     }
 }

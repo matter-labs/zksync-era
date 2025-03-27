@@ -10,8 +10,7 @@ use zksync_types::{
     ethabi,
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
     zk_evm_types::FarCallOpcode,
-    Address, L1BatchNumber, StorageLogWithPreviousValue, Transaction, CONTRACT_DEPLOYER_ADDRESS,
-    H256, U256,
+    Address, L1BatchNumber, StorageLogWithPreviousValue, Transaction, H256, U256,
 };
 
 use crate::{
@@ -95,20 +94,6 @@ impl VmEvent {
                     && event.indexed_topics[0] == Self::PUBLISHED_BYTECODE_SIGNATURE
             })
             .map(|event| event.indexed_topics[1])
-    }
-
-    /// Returns the number of `ContractDeployed` events in the given list of events.
-    pub fn count_contract_deployments(events: &[Self]) -> usize {
-        events
-            .iter()
-            .filter(|event| {
-                event
-                    .indexed_topics
-                    .get(0)
-                    .map_or(false, |&topic| topic == VmEvent::DEPLOY_EVENT_SIGNATURE)
-                    && event.address == CONTRACT_DEPLOYER_ADDRESS
-            })
-            .count()
     }
 }
 
@@ -205,9 +190,6 @@ impl VmExecutionResultAndLogs {
             })
             .sum();
 
-        // Count how many contracts were deployed
-        let contract_deployment_count = VmEvent::count_contract_deployments(&self.logs.events);
-
         VmExecutionMetrics {
             gas_used: self.statistics.gas_used as usize,
             published_bytecode_bytes,
@@ -222,7 +204,6 @@ impl VmExecutionResultAndLogs {
             computational_gas_used: self.statistics.computational_gas_used,
             pubdata_published: self.statistics.pubdata_published,
             circuit_statistic: self.statistics.circuit_statistic,
-            contract_deployment_count,
         }
     }
 }

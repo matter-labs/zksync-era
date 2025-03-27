@@ -1,6 +1,4 @@
-use std::time::Duration;
-
-use zksync_config::configs::api::Web3JsonRpcConfig;
+use zksync_config::configs::api::DeploymentAllowlist;
 use zksync_node_api_server::tx_sender::{
     allow_list_service::AllowListService, master_pool_sink::MasterPoolSink,
     whitelisted_deploy_pool_sink::WhitelistedDeployPoolSink,
@@ -17,7 +15,7 @@ use crate::{
 
 /// Wiring layer for [`MasterPoolSink`], [`TxSink`](zksync_node_api_server::tx_sender::tx_sink::TxSink) implementation.
 pub struct MasterPoolSinkLayer {
-    pub rpc_config: Web3JsonRpcConfig,
+    pub deployment_allowlist: Option<DeploymentAllowlist>,
 }
 
 #[derive(Debug, FromContext)]
@@ -45,14 +43,20 @@ impl WiringLayer for MasterPoolSinkLayer {
         let pool = input.master_pool.get().await?;
         let master_pool_sink = MasterPoolSink::new(pool.clone());
 
-        let tx_sink = if self.rpc_config.deployment_allowlist_sink {
-            let allowlist_service = AllowListService::new(
-                self.rpc_config.http_file_url.unwrap_or_default(),
-                Duration::from_secs(self.rpc_config.refresh_interval_secs.unwrap_or_default()),
-            );
-            WhitelistedDeployPoolSink::new(master_pool_sink, allowlist_service).into()
-        } else {
-            master_pool_sink.into()
+        // Decide whether to create a WhitelistedDeployPoolSink or just use the MasterPoolSink.
+        let tx_sink = match self.deployment_allowlist {
+            Some(ref allowlist_cfg) => {
+                if let Some(url) = allowlist_cfg.http_file_url() {
+                    let allowlist_service = AllowListService::new(
+                        url.to_string(),
+                        allowlist_cfg.refresh_interval(),
+                    );
+                    WhitelistedDeployPoolSink::new(master_pool_sink, allowlist_service).into()
+                } else {
+                    master_pool_sink.into()
+                }
+            }
+            None => master_pool_sink.into(),
         };
 
         Ok(Output { tx_sink })

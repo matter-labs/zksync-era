@@ -389,7 +389,7 @@ impl TxSender {
         let submission_res_handle = self
             .0
             .tx_sink
-            .submit_tx(&tx, execution_output.metrics, validation_traces)
+            .submit_tx(&tx, &execution_output, validation_traces)
             .await?;
 
         match submission_res_handle {
