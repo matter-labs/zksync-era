@@ -48,7 +48,7 @@ pub struct MerkleTreeView {
 ///
 /// # How it's verified
 ///
-/// Assumes that the tree before insertion is correctly constructed (in particular, leaves are correctly linked via prev / next index).
+/// Assumes that the tree before insertion is correctly constructed (in particular, leaves are correctly linked via next index).
 /// Given that, proof verification is as follows:
 ///
 /// 1. Check that all necessary leaves are present in `sorted_leaves`, and their keys match inserted / updated entries.
