@@ -225,7 +225,6 @@ describe('L1 ERC20 contract checks', () => {
         //     ' -r localhost:3052'
         // );
 
-
         await delay(10000);
         await (
             await alice.transfer({
