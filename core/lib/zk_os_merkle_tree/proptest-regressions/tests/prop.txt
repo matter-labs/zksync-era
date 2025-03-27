@@ -1,7 +1,0 @@
-# Seeds for failure cases proptest has generated in the past. It is
-# automatically read and these particular cases re-run before any
-# novel cases are generated.
-#
-# It is recommended to check this file in to source control so that
-# everyone who runs the test benefits from these saved cases.
-cc 4b7ceeaf8edf61f443969778844bbd0f5e42a80a8bbcf190a7724b0f0a902bef # shrinks to prev_entries = [TreeEntry { key: 0x0000000000000000000000000000000000000000000000000000000000000000, value: 0x0000000000000000000000000000000000000000000000000000000000000000 }], inserts = [], missing_reads = []

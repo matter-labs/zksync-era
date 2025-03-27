@@ -338,7 +338,7 @@ impl BatchTreeProof {
                     i += 1;
                     let lhs = hashes.next().context("ran out of hashes")?;
                     #[cfg(test)]
-                    assert_eq!(lhs.location, (depth, current_idx - 1));
+                    anyhow::ensure!(lhs.location == (depth, current_idx - 1));
 
                     hasher.hash_branch(&lhs.value, &current_hash)
                 } else if let Some((_, next_hash)) = node_hashes
@@ -355,7 +355,7 @@ impl BatchTreeProof {
                     } else {
                         let rhs = hashes.next().context("ran out of hashes")?;
                         #[cfg(test)]
-                        assert_eq!(rhs.location, (depth, current_idx + 1));
+                        anyhow::ensure!(rhs.location == (depth, current_idx + 1));
                         rhs.value
                     };
                     hasher.hash_branch(&current_hash, &rhs)
