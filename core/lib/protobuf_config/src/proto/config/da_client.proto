@@ -53,6 +53,7 @@ message EigenConfig {
     string points_source_path = 9;
     Url points_source_url = 10;
   }
+  optional string eigenda_registry_addr = 11;
   reserved 1,2;
   reserved "rpc_node_url","inclusion_polling_interval_ms";
 }

@@ -94,6 +94,9 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                     }
                     None => return Err(anyhow::anyhow!("Invalid Eigen DA configuration")),
                 },
+                eigenda_registry_addr: required(&conf.eigenda_registry_addr)
+                    .and_then(|x| parse_h160(x))
+                    .context("eigenda_registry_addr")?,
             }),
             proto::data_availability_client::Config::ObjectStore(conf) => {
                 ObjectStore(object_store_proto::ObjectStore::read(conf)?)
@@ -160,6 +163,7 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                         g2_url: Some(g2_url.clone()),
                     }),
                 }),
+                eigenda_registry_addr: Some(format!("{:?}", config.eigenda_registry_addr)),
             }),
             ObjectStore(config) => proto::data_availability_client::Config::ObjectStore(
                 object_store_proto::ObjectStore::build(config),

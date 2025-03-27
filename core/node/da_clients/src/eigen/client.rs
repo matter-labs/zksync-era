@@ -76,13 +76,10 @@ impl EigenDAClient {
         .map_err(|e| anyhow::anyhow!("Query client Error: {:?}", e))?
         .build();
         let query_client = Box::new(query_client) as Box<DynClient<L1>>;
-        let eigenda_registry_addr: Address = "bD0B5e68cD574Ab656eA7868b2429e4f451a6D94" //todo: add to config
-            .to_string()
-            .parse()?;
         Ok(Self {
             client,
             query_client,
-            eigenda_registry_addr,
+            eigenda_registry_addr: config.eigenda_registry_addr,
         })
     }
 }
