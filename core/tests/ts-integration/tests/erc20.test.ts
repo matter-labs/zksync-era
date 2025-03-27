@@ -220,6 +220,7 @@ describe('L1 ERC20 contract checks', () => {
         //     params.l1BatchNumber,
         //     ' -r localhost:3052'
         // );
+        
 
         await delay(10000);
         await (
