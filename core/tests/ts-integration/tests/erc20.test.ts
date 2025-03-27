@@ -204,7 +204,11 @@ describe('L1 ERC20 contract checks', () => {
         // todo use the same chain, for simplicity.
         // For this we have to import proof until GW's message root, not until chain's chainBatchRoot.
         // this has to be allowed from the server.
-        let interop2_provider = new RetryProvider({ url: 'http://localhost:3150', timeout: 1200 * 1000 }, undefined, testMaster.reporter)
+        let interop2_provider = new RetryProvider(
+            { url: 'http://localhost:3150', timeout: 1200 * 1000 },
+            undefined,
+            testMaster.reporter
+        );
         const l2MessageVerification = new zksync.Contract(
             L2_MESSAGE_VERIFICATION_ADDRESS,
             ArtifactL2MessageVerification.abi,
