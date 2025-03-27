@@ -20,7 +20,7 @@ Runners related to synthesizing Witness Vector (the CPU heavy part of circuit pr
 Witness Vector Generators have big gaps in resource utilization and execution times. This difference can be seen at basic level. Few basic proofs are heavier (>2.5GB RAM & > 16s), whilst the rest are rather light.
 (>2.5GB RAM or >16s), whilst all others are rather light.
 
-This implementation is such that we run multiple light WVG jobs, with a small amount of heavy WVG jobs in order to keep
+In current implementation we run multiple light WVG jobs and a small amount of heavy WVG jobs in order to keep
 good balance between maintaining optimal RAM usage and providing maximum throughput. As such, `MetadataLoader`
 abstraction was introduced to force loading lighter and heavier jobs. Heavier picker will try to prioritize heavy
 circuits. If none are available, it falls back to light jobs in order to maximize usage.
