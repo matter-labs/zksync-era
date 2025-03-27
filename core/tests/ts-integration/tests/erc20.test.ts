@@ -16,7 +16,8 @@ import {
     L2_MESSAGE_VERIFICATION_ADDRESS,
     ArtifactL2MessageVerification,
     ArtifactMessageRootStorage,
-    L2_MESSAGE_ROOT_STORAGE_ADDRESS
+    L2_MESSAGE_ROOT_STORAGE_ADDRESS,
+    ETH_ADDRESS_IN_CONTRACTS
 } from '../src/constants';
 import { RetryProvider } from '../src/retry-provider';
 
@@ -203,15 +204,17 @@ describe('L1 ERC20 contract checks', () => {
         // todo use the same chain, for simplicity.
         // For this we have to import proof until GW's message root, not until chain's chainBatchRoot.
         // this has to be allowed from the server.
+        let interop2_provider = new RetryProvider({ url: 'http://localhost:3150', timeout: 1200 * 1000 }, undefined, testMaster.reporter)
         const l2MessageVerification = new zksync.Contract(
             L2_MESSAGE_VERIFICATION_ADDRESS,
             ArtifactL2MessageVerification.abi,
-            new RetryProvider({ url: 'http://localhost:3150', timeout: 1200 * 1000 }, undefined, testMaster.reporter)
+            interop2_provider
         );
         // console.log('l2MessageVerification', ArtifactL2MessageVerification.abi);
         const GATEWAY_CHAIN_ID = 506;
         const params = await alice.getFinalizeWithdrawalParams(withdrawalHash, undefined, undefined, GATEWAY_CHAIN_ID);
         console.log('withdrawalHash', withdrawalHash);
+        let alice2Wallet = new zksync.Wallet(alice.privateKey, interop2_provider, testMaster.mainAccount().providerL1);
         // console.log(
         //     'cast call ',
         //     L2_MESSAGE_ROOT_STORAGE_ADDRESS,
@@ -220,11 +223,11 @@ describe('L1 ERC20 contract checks', () => {
         //     params.l1BatchNumber,
         //     ' -r localhost:3052'
         // );
-        
 
         await delay(10000);
         await (
-            await alice.transfer({
+            await alice2Wallet.deposit({
+                token: ETH_ADDRESS_IN_CONTRACTS,
                 to: alice.address,
                 amount: 1
             })
@@ -252,16 +255,16 @@ describe('L1 ERC20 contract checks', () => {
             { txNumberInBatch: params.l2TxNumberInBlock, sender: params.sender, data: params.message },
             params.proof
         );
-        console.log(
-            'l2MessageVerification',
-            l2MessageVerification.interface.encodeFunctionData('proveL2MessageInclusionShared', [
-                (await alice.provider.getNetwork()).chainId,
-                params.l1BatchNumber,
-                params.l2MessageIndex,
-                { txNumberInBatch: params.l2TxNumberInBlock, sender: params.sender, data: params.message },
-                params.proof
-            ])
-        );
+        // console.log(
+        //     'l2MessageVerification',
+        //     l2MessageVerification.interface.encodeFunctionData('proveL2MessageInclusionShared', [
+        //         (await alice.provider.getNetwork()).chainId,
+        //         params.l1BatchNumber,
+        //         params.l2MessageIndex,
+        //         { txNumberInBatch: params.l2TxNumberInBlock, sender: params.sender, data: params.message },
+        //         params.proof
+        //     ])
+        // );
         // console.log(
         //     'cast call ',
         //     L2_MESSAGE_VERIFICATION_ADDRESS,
@@ -273,7 +276,7 @@ describe('L1 ERC20 contract checks', () => {
         //     params.proof,
         //     "-r localhost:3050"
         // );
-        console.log('included', included);
+        // console.log('included', included);
         expect(included).toBe(true);
     });
 
