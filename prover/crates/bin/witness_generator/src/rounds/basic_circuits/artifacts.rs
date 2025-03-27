@@ -83,7 +83,8 @@ impl ArtifactsManager for BasicCircuits {
                 0,
                 protocol_version_id,
             )
-            .await;
+            .await
+            .map_err(|e| anyhow::anyhow!(e))?;
 
         create_aggregation_jobs(
             &mut transaction,
@@ -99,7 +100,8 @@ impl ArtifactsManager for BasicCircuits {
         transaction
             .fri_basic_witness_generator_dal()
             .mark_witness_job_as_successful(L1BatchNumber(job_id), started_at.elapsed())
-            .await;
+            .await
+            .map_err(|e| anyhow::anyhow!(e))?;
         transaction
             .commit()
             .await

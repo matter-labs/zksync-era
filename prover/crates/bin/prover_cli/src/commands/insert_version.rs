@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use anyhow::Context as _;
+use anyhow::{anyhow, Context as _};
 use clap::Args as ClapArgs;
 use zksync_basic_types::{
     protocol_version::{
@@ -54,7 +54,8 @@ pub async fn run(args: Args, config: ProverCLIConfig) -> anyhow::Result<()> {
                 fflonk_snark_wrapper_vk_hash: Some(fflonk_snark_wrapper_vk_hash),
             },
         )
-        .await;
+        .await
+        .map_err(|e| anyhow!(e))?;
 
     Ok(())
 }

@@ -8,7 +8,7 @@ use zksync_basic_types::{
     },
     L1BatchNumber,
 };
-use zksync_db_connection::connection::Connection;
+use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
 
 use crate::{duration_to_naive_time, pg_interval_from_duration, Prover};
 
@@ -23,7 +23,7 @@ impl FriProofCompressorDal<'_, '_> {
         block_number: L1BatchNumber,
         fri_proof_blob_url: &str,
         protocol_version: ProtocolSemanticVersion,
-    ) {
+    ) -> DalResult<()> {
         sqlx::query!(
             r#"
             INSERT INTO
@@ -46,9 +46,11 @@ impl FriProofCompressorDal<'_, '_> {
             protocol_version.minor as i32,
             protocol_version.patch.0 as i32
         )
-        .fetch_optional(self.storage.conn())
-        .await
-        .unwrap();
+        .instrument("insert_proof_compression_job")
+        .execute(self.storage)
+        .await?;
+
+        Ok(())
     }
 
     pub async fn get_next_proof_compression_job(
@@ -124,7 +126,7 @@ impl FriProofCompressorDal<'_, '_> {
         block_number: L1BatchNumber,
         time_taken: Duration,
         l1_proof_blob_url: &str,
-    ) {
+    ) -> DalResult<()> {
         sqlx::query!(
             r#"
             UPDATE proof_compression_jobs_fri
@@ -141,16 +143,18 @@ impl FriProofCompressorDal<'_, '_> {
             l1_proof_blob_url,
             i64::from(block_number.0)
         )
-        .execute(self.storage.conn())
-        .await
-        .unwrap();
+        .instrument("mark_proof_compression_job_successful")
+        .execute(self.storage)
+        .await?;
+
+        Ok(())
     }
 
     pub async fn mark_proof_compression_job_failed(
         &mut self,
         error: &str,
         block_number: L1BatchNumber,
-    ) {
+    ) -> DalResult<()> {
         sqlx::query!(
             r#"
             UPDATE proof_compression_jobs_fri
@@ -169,9 +173,11 @@ impl FriProofCompressorDal<'_, '_> {
             ProofCompressionJobStatus::Successful.to_string(),
             ProofCompressionJobStatus::SentToServer.to_string(),
         )
-        .execute(self.storage.conn())
-        .await
-        .unwrap();
+        .instrument("mark_proof_compression_job_failed")
+        .execute(self.storage)
+        .await?;
+
+        Ok(())
     }
 
     pub async fn get_least_proven_block_not_sent_to_server(
@@ -220,7 +226,10 @@ impl FriProofCompressorDal<'_, '_> {
         }
     }
 
-    pub async fn mark_proof_sent_to_server(&mut self, block_number: L1BatchNumber) {
+    pub async fn mark_proof_sent_to_server(
+        &mut self,
+        block_number: L1BatchNumber,
+    ) -> DalResult<()> {
         sqlx::query!(
             r#"
             UPDATE proof_compression_jobs_fri
@@ -233,9 +242,11 @@ impl FriProofCompressorDal<'_, '_> {
             ProofCompressionJobStatus::SentToServer.to_string(),
             i64::from(block_number.0)
         )
-        .execute(self.storage.conn())
-        .await
-        .unwrap();
+        .instrument("mark_proof_sent_to_server")
+        .execute(self.storage)
+        .await?;
+
+        Ok(())
     }
 
     pub async fn get_jobs_stats(&mut self) -> HashMap<ProtocolSemanticVersion, JobCountStatistics> {

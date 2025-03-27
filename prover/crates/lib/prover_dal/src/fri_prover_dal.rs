@@ -18,7 +18,7 @@ use zksync_basic_types::{
     L1BatchNumber,
 };
 use zksync_db_connection::{
-    connection::Connection, instrument::InstrumentExt, metrics::MethodLatency,
+    connection::Connection, error::DalResult, instrument::InstrumentExt, metrics::MethodLatency,
 };
 
 use crate::{duration_to_naive_time, pg_interval_from_duration, Prover};
@@ -42,10 +42,10 @@ impl FriProverDal<'_, '_> {
         aggregation_round: AggregationRound,
         depth: u16,
         protocol_version_id: ProtocolSemanticVersion,
-    ) {
+    ) -> DalResult<()> {
         let _latency = MethodLatency::new("save_fri_prover_jobs");
         if circuit_ids_and_urls.is_empty() {
-            return;
+            return Ok(());
         }
 
         for (chunk_index, chunk) in circuit_ids_and_urls
@@ -101,8 +101,13 @@ impl FriProverDal<'_, '_> {
 
             // Execute the built query
             let query = query_builder.build();
-            query.execute(self.storage.conn()).await.unwrap();
+            query
+                .instrument("insert_prover_jobs")
+                .execute(self.storage)
+                .await?;
         }
+
+        Ok(())
     }
 
     /// Retrieves the next prover job to be proven. Called by WVGs.
@@ -260,26 +265,25 @@ impl FriProverDal<'_, '_> {
         })
     }
 
-    pub async fn save_proof_error(&mut self, id: u32, error: String) {
-        {
-            sqlx::query!(
-                r#"
-                UPDATE prover_jobs_fri
-                SET
-                    status = 'failed',
-                    error = $1,
-                    updated_at = NOW()
-                WHERE
-                    id = $2
-                    AND status != 'successful'
-                "#,
-                error,
-                i64::from(id)
-            )
-            .execute(self.storage.conn())
-            .await
-            .unwrap();
-        }
+    pub async fn save_proof_error(&mut self, id: u32, error: String) -> DalResult<()> {
+        sqlx::query!(
+            r#"
+            UPDATE prover_jobs_fri
+            SET
+                status = 'failed',
+                error = $1,
+                updated_at = NOW()
+            WHERE
+                id = $2
+                AND status != 'successful'
+            "#,
+            error,
+            i64::from(id)
+        )
+        .instrument("save_fri_proof_error")
+        .execute(self.storage)
+        .await?;
+        Ok(())
     }
 
     pub async fn save_proof(
@@ -402,7 +406,7 @@ impl FriProverDal<'_, '_> {
         circuit_blob_url: &str,
         is_node_final_proof: bool,
         protocol_version: ProtocolSemanticVersion,
-    ) {
+    ) -> DalResult<()> {
         sqlx::query!(
             r#"
             INSERT INTO
@@ -439,9 +443,11 @@ impl FriProverDal<'_, '_> {
             protocol_version.minor as i32,
             protocol_version.patch.0 as i32,
         )
-        .execute(self.storage.conn())
-        .await
-        .unwrap();
+        .instrument("insert_prover_job")
+        .execute(self.storage)
+        .await?;
+
+        Ok(())
     }
 
     pub async fn get_prover_jobs_stats(&mut self) -> ProtocolVersionedCircuitProverStats {
@@ -903,7 +909,8 @@ mod tests {
                 ProtocolSemanticVersion::default(),
                 L1VerifierConfig::default(),
             )
-            .await;
+            .await
+            .unwrap();
         transaction
             .fri_prover_jobs_dal()
             .insert_prover_jobs(
@@ -913,7 +920,8 @@ mod tests {
                 1,
                 ProtocolSemanticVersion::default(),
             )
-            .await;
+            .await
+            .unwrap();
 
         transaction.commit().await.unwrap();
     }

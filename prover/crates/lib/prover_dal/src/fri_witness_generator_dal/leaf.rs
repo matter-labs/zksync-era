@@ -10,6 +10,8 @@ use zksync_basic_types::{
 };
 use zksync_db_connection::{
     connection::Connection,
+    error::DalResult,
+    instrument::InstrumentExt,
     utils::{duration_to_naive_time, pg_interval_from_duration},
 };
 
@@ -21,7 +23,11 @@ pub struct FriLeafWitnessGeneratorDal<'a, 'c> {
 }
 
 impl FriLeafWitnessGeneratorDal<'_, '_> {
-    pub async fn mark_leaf_aggregation_as_successful(&mut self, id: u32, time_taken: Duration) {
+    pub async fn mark_leaf_aggregation_as_successful(
+        &mut self,
+        id: u32,
+        time_taken: Duration,
+    ) -> DalResult<()> {
         sqlx::query!(
             r#"
             UPDATE leaf_aggregation_witness_jobs_fri
@@ -35,9 +41,11 @@ impl FriLeafWitnessGeneratorDal<'_, '_> {
             duration_to_naive_time(time_taken),
             i64::from(id)
         )
-        .execute(self.storage.conn())
-        .await
-        .unwrap();
+        .instrument("mark_leaf_aggregation_as_successful")
+        .execute(self.storage)
+        .await?;
+
+        Ok(())
     }
 
     pub async fn get_next_leaf_aggregation_job(
@@ -237,7 +245,7 @@ impl FriLeafWitnessGeneratorDal<'_, '_> {
         circuit_id: u8,
         closed_form_inputs_url: String,
         number_of_basic_circuits: usize,
-    ) {
+    ) -> DalResult<()> {
         sqlx::query!(
             r#"
             INSERT INTO
@@ -266,9 +274,11 @@ impl FriLeafWitnessGeneratorDal<'_, '_> {
             protocol_version.minor as i32,
             protocol_version.patch.0 as i32,
         )
-        .execute(self.storage.conn())
-        .await
-        .unwrap();
+        .instrument("insert_leaf_aggregation_jobs")
+        .execute(self.storage)
+        .await?;
+
+        Ok(())
     }
 
     pub async fn check_reached_max_attempts(&mut self, max_attempts: u32) -> usize {

@@ -85,7 +85,8 @@ async fn pli_status_of_non_existing_batch_succeeds() {
             ProtocolSemanticVersion::default(),
             L1VerifierConfig::default(),
         )
-        .await;
+        .await
+        .unwrap();
 
     Command::cargo_bin("prover_cli")
         .unwrap()
@@ -110,7 +111,8 @@ async fn pli_status_of_multiple_non_existing_batch_succeeds() {
             ProtocolSemanticVersion::default(),
             L1VerifierConfig::default(),
         )
-        .await;
+        .await
+        .unwrap();
 
     Command::cargo_bin("prover_cli")
         .unwrap()
@@ -154,7 +156,7 @@ async fn insert_prover_job(
     batch_number: L1BatchNumber,
     sequence_number: usize,
     connection: &mut Connection<'_, Prover>,
-) {
+) -> anyhow::Result<()> {
     connection
         .fri_prover_jobs_dal()
         .insert_prover_job(
@@ -167,7 +169,8 @@ async fn insert_prover_job(
             false,
             ProtocolSemanticVersion::default(),
         )
-        .await;
+        .await
+        .map_err(|e| anyhow::anyhow!(e))?;
     connection
         .cli_test_dal()
         .update_prover_job(
@@ -178,6 +181,8 @@ async fn insert_prover_job(
             sequence_number,
         )
         .await;
+
+    Ok(())
 }
 
 async fn update_attempts_prover_job(
@@ -219,15 +224,18 @@ async fn insert_bwg_job(
     status: FriWitnessJobStatus,
     batch_number: L1BatchNumber,
     connection: &mut Connection<'_, Prover>,
-) {
+) -> anyhow::Result<()> {
     connection
         .fri_basic_witness_generator_dal()
         .save_witness_inputs(batch_number, "", ProtocolSemanticVersion::default())
-        .await;
+        .await
+        .map_err(|e| anyhow::anyhow!(e))?;
     connection
         .fri_basic_witness_generator_dal()
         .set_status_for_basic_witness_job(status, batch_number)
-        .await;
+        .await
+        .map_err(|e| anyhow::anyhow!(e))?;
+    Ok(())
 }
 
 async fn insert_lwg_job(
@@ -392,7 +400,9 @@ impl Scenario {
 #[allow(clippy::too_many_arguments)]
 async fn load_scenario(scenario: Scenario, connection: &mut Connection<'_, Prover>) {
     if let Some(status) = scenario.bwg_status {
-        insert_bwg_job(status, scenario.batch_number, connection).await;
+        insert_bwg_job(status, scenario.batch_number, connection)
+            .await
+            .unwrap();
     }
     if let Some(jobs) = scenario.agg_0_prover_jobs_status {
         for (status, circuit_id, sequence_number) in jobs.into_iter() {
@@ -404,7 +414,8 @@ async fn load_scenario(scenario: Scenario, connection: &mut Connection<'_, Prove
                 sequence_number,
                 connection,
             )
-            .await;
+            .await
+            .unwrap();
         }
     }
     if let Some(jobs) = scenario.lwg_status {
@@ -422,7 +433,8 @@ async fn load_scenario(scenario: Scenario, connection: &mut Connection<'_, Prove
                 sequence_number,
                 connection,
             )
-            .await;
+            .await
+            .unwrap();
         }
     }
     if let Some(jobs) = scenario.nwg_status {
@@ -440,7 +452,8 @@ async fn load_scenario(scenario: Scenario, connection: &mut Connection<'_, Prove
                 sequence_number,
                 connection,
             )
-            .await;
+            .await
+            .unwrap();
         }
     }
     if let Some(status) = scenario.rt_status {
@@ -525,7 +538,8 @@ async fn pli_status_complete() {
             ProtocolSemanticVersion::default(),
             L1VerifierConfig::default(),
         )
-        .await;
+        .await
+        .unwrap();
 
     let batch_0 = L1BatchNumber(0);
 
@@ -924,7 +938,8 @@ async fn pli_status_complete_verbose() {
             ProtocolSemanticVersion::default(),
             L1VerifierConfig::default(),
         )
-        .await;
+        .await
+        .unwrap();
 
     let batch_0 = L1BatchNumber(0);
 
@@ -1386,7 +1401,8 @@ async fn pli_status_stuck_job() {
             ProtocolSemanticVersion::default(),
             L1VerifierConfig::default(),
         )
-        .await;
+        .await
+        .unwrap();
 
     let batch_0 = L1BatchNumber(0);
 

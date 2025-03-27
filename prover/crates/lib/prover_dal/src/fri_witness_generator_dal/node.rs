@@ -10,6 +10,8 @@ use zksync_basic_types::{
 };
 use zksync_db_connection::{
     connection::Connection,
+    error::DalResult,
+    instrument::InstrumentExt,
     utils::{duration_to_naive_time, pg_interval_from_duration},
 };
 
@@ -28,7 +30,7 @@ impl FriNodeWitnessGeneratorDal<'_, '_> {
         number_of_dependent_jobs: usize,
         depth: u16,
         url: String,
-    ) {
+    ) -> DalResult<()> {
         sqlx::query!(
             r#"
             UPDATE node_aggregation_witness_jobs_fri
@@ -47,9 +49,11 @@ impl FriNodeWitnessGeneratorDal<'_, '_> {
             i32::from(depth),
             number_of_dependent_jobs as i32,
         )
-        .execute(self.storage.conn())
-        .await
-        .unwrap();
+        .instrument("update_node_aggregation_jobs_url")
+        .execute(self.storage)
+        .await?;
+
+        Ok(())
     }
 
     pub async fn get_next_node_aggregation_job(
@@ -119,7 +123,11 @@ impl FriNodeWitnessGeneratorDal<'_, '_> {
         })
     }
 
-    pub async fn mark_node_aggregation_as_successful(&mut self, id: u32, time_taken: Duration) {
+    pub async fn mark_node_aggregation_as_successful(
+        &mut self,
+        id: u32,
+        time_taken: Duration,
+    ) -> DalResult<()> {
         sqlx::query!(
             r#"
             UPDATE node_aggregation_witness_jobs_fri
@@ -133,9 +141,11 @@ impl FriNodeWitnessGeneratorDal<'_, '_> {
             duration_to_naive_time(time_taken),
             i64::from(id)
         )
-        .execute(self.storage.conn())
-        .await
-        .unwrap();
+        .instrument("mark_node_aggregation_as_successful")
+        .execute(self.storage)
+        .await?;
+
+        Ok(())
     }
 
     pub async fn insert_node_aggregation_jobs(
@@ -146,7 +156,7 @@ impl FriNodeWitnessGeneratorDal<'_, '_> {
         depth: u16,
         aggregations_url: &str,
         protocol_version: ProtocolSemanticVersion,
-    ) {
+    ) -> DalResult<()> {
         sqlx::query!(
             r#"
             INSERT INTO
@@ -177,9 +187,11 @@ impl FriNodeWitnessGeneratorDal<'_, '_> {
             protocol_version.minor as i32,
             protocol_version.patch.0 as i32,
         )
-        .fetch_optional(self.storage.conn())
-        .await
-        .unwrap();
+        .instrument("insert_node_aggregation_jobs")
+        .execute(self.storage)
+        .await?;
+
+        Ok(())
     }
 
     pub async fn move_depth_zero_node_aggregation_jobs(&mut self) -> Vec<(i64, u8, u16)> {

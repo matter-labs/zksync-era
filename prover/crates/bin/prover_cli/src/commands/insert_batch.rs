@@ -1,4 +1,4 @@
-use anyhow::Context as _;
+use anyhow::{anyhow, Context as _};
 use clap::Args as ClapArgs;
 use zksync_basic_types::{
     protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch},
@@ -37,7 +37,8 @@ pub async fn run(args: Args, config: ProverCLIConfig) -> anyhow::Result<()> {
             &format!("witness_inputs_{}", args.number.0),
             ProtocolSemanticVersion::new(protocol_version, protocol_version_patch),
         )
-        .await;
+        .await
+        .map_err(|e| anyhow!(e))?;
 
     Ok(())
 }

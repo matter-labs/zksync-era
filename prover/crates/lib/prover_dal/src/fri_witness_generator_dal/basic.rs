@@ -7,6 +7,8 @@ use zksync_basic_types::{
 };
 use zksync_db_connection::{
     connection::Connection,
+    error::DalResult,
+    instrument::InstrumentExt,
     utils::{duration_to_naive_time, pg_interval_from_duration},
 };
 
@@ -23,7 +25,7 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
         block_number: L1BatchNumber,
         witness_inputs_blob_url: &str,
         protocol_version: ProtocolSemanticVersion,
-    ) {
+    ) -> DalResult<()> {
         sqlx::query!(
             r#"
             INSERT INTO
@@ -45,9 +47,11 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
             protocol_version.minor as i32,
             protocol_version.patch.0 as i32,
         )
-        .fetch_optional(self.storage.conn())
-        .await
-        .unwrap();
+        .instrument("save_witness_inputs")
+        .execute(self.storage)
+        .await?;
+
+        Ok(())
     }
 
     /// Gets the next job to be executed. Returns the batch number and its corresponding blobs.
@@ -100,7 +104,7 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
         &mut self,
         status: FriWitnessJobStatus,
         block_number: L1BatchNumber,
-    ) {
+    ) -> DalResult<()> {
         sqlx::query!(
             r#"
             UPDATE witness_inputs_fri
@@ -114,16 +118,18 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
             status.to_string(),
             i64::from(block_number.0)
         )
-        .execute(self.storage.conn())
-        .await
-        .unwrap();
+        .instrument("set_status_for_basic_witness_job")
+        .execute(self.storage)
+        .await?;
+
+        Ok(())
     }
 
     pub async fn mark_witness_job_as_successful(
         &mut self,
         block_number: L1BatchNumber,
         time_taken: Duration,
-    ) {
+    ) -> DalResult<()> {
         sqlx::query!(
             r#"
             UPDATE witness_inputs_fri
@@ -137,9 +143,11 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
             duration_to_naive_time(time_taken),
             i64::from(block_number.0)
         )
-        .execute(self.storage.conn())
-        .await
-        .unwrap();
+        .instrument("mark_witness_job_as_successful")
+        .execute(self.storage)
+        .await?;
+
+        Ok(())
     }
 
     pub async fn requeue_stuck_basic_jobs(

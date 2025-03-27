@@ -75,12 +75,14 @@ impl ArtifactsManager for Scheduler {
                 false,
                 protocol_version_id,
             )
-            .await;
+            .await
+            .map_err(|e| anyhow::anyhow!(e))?;
 
         transaction
             .fri_scheduler_witness_generator_dal()
             .mark_scheduler_job_as_successful(L1BatchNumber(job_id), started_at.elapsed())
-            .await;
+            .await
+            .map_err(|e| anyhow::anyhow!(e))?;
 
         transaction.commit().await?;
         Ok(())
