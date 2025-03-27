@@ -17,7 +17,7 @@ The rest of the codebase simply covers the internals of creating a runner, which
 Runners related to synthesizing Witness Vector (the CPU heavy part of circuit proving). They are tied to
 `prover_jobs_fri` table and operate over `ProverJobsFri` object storage bucket.
 
-Witness Vector Generators have big gaps in resource usages and execution times. Some basic proofs are the heavy jobs
+Witness Vector Generators have big gaps in resource utilization and execution times. This difference can be seen at basic level. Few basic proofs are heavier (>2.5GB RAM & > 16s), whilst the rest are rather light.
 (>2.5GB RAM or >16s), whilst all others are rather light.
 
 This implementation is such that we run multiple light WVG jobs, with a small amount of heavy WVG jobs in order to keep
