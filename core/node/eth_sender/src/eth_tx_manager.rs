@@ -542,6 +542,7 @@ impl EthTxManager {
         let pool = self.pool.clone();
 
         loop {
+            tokio::time::sleep(self.config.tx_poll_period()).await;
             let mut storage = pool.connection_tagged("eth_sender").await.unwrap();
 
             if *stop_receiver.borrow() {
@@ -552,11 +553,21 @@ impl EthTxManager {
             let l1_block_numbers = self
                 .l1_interface
                 .get_l1_block_numbers(operator_to_track)
-                .await?;
-            METRICS.track_block_numbers(&l1_block_numbers);
+                .await;
+
+            if let Err(ref error) = l1_block_numbers {
+                // Web3 API request failures can cause this,
+                // and anything more important is already properly reported.
+                tracing::warn!("eth_sender error {:?}", error);
+                if error.is_retriable() {
+                    METRICS.l1_transient_errors.inc();
+                    continue;
+                }
+            }
+
+            METRICS.track_block_numbers(&l1_block_numbers?);
 
             self.loop_iteration(&mut storage).await;
-            tokio::time::sleep(self.config.tx_poll_period()).await;
         }
         Ok(())
     }
