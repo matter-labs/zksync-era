@@ -270,7 +270,7 @@ impl FriSchedulerWitnessGeneratorDal<'_, '_> {
         block_number: L1BatchNumber,
         scheduler_partial_input_blob_url: &str,
         protocol_version: ProtocolSemanticVersion,
-        batch_created_at: sqlx::types::chrono::NaiveDateTime
+        batch_created_at: sqlx::types::chrono::NaiveDateTime,
     ) {
         sqlx::query!(
             r#"
