@@ -52,29 +52,6 @@ impl ConnectionPool {
             ctx.sleep(POLL_INTERVAL).await?;
         }
     }
-
-    /// Waits for the `number` L1 batch hash.
-    #[tracing::instrument(skip_all)]
-    pub async fn wait_for_batch_info(
-        &self,
-        ctx: &ctx::Ctx,
-        number: attester::BatchNumber,
-        interval: time::Duration,
-    ) -> ctx::Result<StoredBatchInfo> {
-        loop {
-            if let Some(info) = self
-                .connection(ctx)
-                .await
-                .wrap("connection()")?
-                .batch_info(ctx, number)
-                .await
-                .with_wrap(|| format!("batch_info({number})"))?
-            {
-                return Ok(info);
-            }
-            ctx.sleep(interval).await?;
-        }
-    }
 }
 
 /// Context-aware `zksync_dal::Connection<Core>` wrapper.
@@ -108,14 +85,6 @@ impl<'a> Connection<'a> {
             .wait(self.0.consensus_dal().block_payload(number))
             .await?
             .map_err(DalError::generalize)?)
-    }
-
-    pub async fn batch_info(
-        &mut self,
-        ctx: &ctx::Ctx,
-        n: attester::BatchNumber,
-    ) -> ctx::Result<Option<StoredBatchInfo>> {
-        Ok(ctx.wait(self.0.consensus_dal().batch_info(n)).await??)
     }
 
     /// Wrapper for `consensus_dal().block_metadata()`.
