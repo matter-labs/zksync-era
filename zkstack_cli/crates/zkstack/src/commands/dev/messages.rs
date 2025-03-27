@@ -22,6 +22,10 @@ pub(super) const MSG_GATEWAY_FINALIZE: &str = "Gateway upgrade post-stage2 final
 #[cfg(feature = "gateway")]
 pub(super) const MSG_GATEWAY_REGISTER_L2_TOKENS: &str = "Gateway register legacy tokens on L2";
 
+#[cfg(feature = "v27_evm_interpreter")]
+pub(super) const MSG_V27_EVM_INTERPRETER_UPGRADE: &str =
+    "EVM Interpreter (v27) upgrade checker and calldata generator";
+
 pub(super) const MSG_SUBCOMMAND_FMT_ABOUT: &str = "Format code";
 
 pub(super) const MSG_SUBCOMMAND_SNAPSHOTS_CREATOR_ABOUT: &str = "Snapshots creator";
