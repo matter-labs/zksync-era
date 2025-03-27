@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO\n            server_notifications (\n                main_topic,\n                l1_block_number,\n                created_at\n            )\n            VALUES\n            ($1, $2, NOW())\n            ON CONFLICT DO NOTHING\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Bytea",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f410ead5b7fc5d39110cc61d59b409b30be99be6d72d127ef3f09a9f4c205e09"
+}

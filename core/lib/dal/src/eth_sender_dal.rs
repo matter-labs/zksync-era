@@ -65,8 +65,9 @@ impl EthSenderDal<'_, '_> {
         Ok(txs.into_iter().map(|tx| tx.into()).collect())
     }
 
-    pub async fn get_non_gateway_inflight_txs_count_for_gateway_migration(
+    pub async fn get_inflight_txs_count_for_gateway_migration(
         &mut self,
+        is_gateway: bool,
     ) -> sqlx::Result<usize> {
         let count = sqlx::query!(
             r#"
@@ -76,14 +77,33 @@ impl EthSenderDal<'_, '_> {
                 eth_txs
             WHERE
                 confirmed_eth_tx_history_id IS NULL
-                AND is_gateway = FALSE
-            "#
+                AND is_gateway = $1
+            "#,
+            is_gateway
         )
         .fetch_one(self.storage.conn())
         .await?
         .count
         .unwrap();
         Ok(count.try_into().unwrap())
+    }
+
+    pub async fn get_chain_id_of_last_eth_tx(&mut self) -> DalResult<Option<u64>> {
+        let res = sqlx::query!(
+            r#"
+            SELECT
+                chain_id
+            FROM
+                eth_txs
+            ORDER BY id DESC
+            LIMIT 1
+            "#,
+        )
+        .instrument("get_settlement_layer_of_last_eth_tx")
+        .fetch_optional(self.storage)
+        .await?
+        .and_then(|row| row.chain_id.map(|a| a as u64));
+        Ok(res)
     }
 
     pub async fn get_unconfirmed_txs_count(&mut self) -> DalResult<usize> {
@@ -445,27 +465,6 @@ impl EthSenderDal<'_, '_> {
         .execute(self.storage.conn())
         .await?;
         Ok(())
-    }
-
-    pub async fn get_batch_commit_chain_id(
-        &mut self,
-        batch_number: L1BatchNumber,
-    ) -> DalResult<Option<SLChainId>> {
-        let row = sqlx::query!(
-            r#"
-            SELECT eth_txs.chain_id
-            FROM l1_batches
-            JOIN eth_txs ON eth_txs.id = l1_batches.eth_commit_tx_id
-            WHERE
-                number = $1
-            "#,
-            i64::from(batch_number.0),
-        )
-        .instrument("get_batch_commit_chain_id")
-        .with_arg("batch_number", &batch_number)
-        .fetch_optional(self.storage)
-        .await?;
-        Ok(row.and_then(|r| r.chain_id).map(|id| SLChainId(id as u64)))
     }
 
     pub async fn get_batch_execute_chain_id(
