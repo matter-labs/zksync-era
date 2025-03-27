@@ -4,7 +4,7 @@ pub use self::{
     base_token_adjuster::BaseTokenAdjusterConfig,
     commitment_generator::CommitmentGeneratorConfig,
     contract_verifier::ContractVerifierConfig,
-    contracts::{ContractsConfig, EcosystemContracts},
+    contracts::{chain::AllContractsConfig, gateway},
     da_client::{avail::AvailConfig, celestia::CelestiaConfig, eigen::EigenConfig, DAClientConfig},
     da_dispatcher::DADispatcherConfig,
     database::{DBConfig, PostgresConfig},
@@ -17,7 +17,6 @@ pub use self::{
     fri_prover::FriProverConfig,
     fri_prover_gateway::FriProverGatewayConfig,
     fri_witness_generator::FriWitnessGeneratorConfig,
-    gateway::{GatewayChainConfig, GatewayConfig},
     general::GeneralConfig,
     genesis::GenesisConfig,
     object_store::ObjectStoreConfig,
@@ -54,7 +53,6 @@ pub mod fri_proof_compressor;
 pub mod fri_prover;
 pub mod fri_prover_gateway;
 pub mod fri_witness_generator;
-pub mod gateway;
 mod general;
 pub mod genesis;
 pub mod house_keeper;

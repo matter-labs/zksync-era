@@ -1,7 +1,7 @@
 use ethers::utils::hex;
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::{web3::Bytes, Address};
-use zksync_config::configs::GatewayConfig;
+use zksync_config::configs::contracts::gateway::GatewayConfig;
 
 use crate::{traits::ZkStackConfig, ChainConfig, ContractsConfig};
 

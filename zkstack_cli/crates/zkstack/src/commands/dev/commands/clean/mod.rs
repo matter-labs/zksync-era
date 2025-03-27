@@ -57,8 +57,20 @@ pub fn contracts(shell: &Shell, ecosystem_config: &EcosystemConfig) -> anyhow::R
         .remove_path(path_to_foundry.join("out"))
         .context("out")?;
     shell
+        .remove_path(path_to_foundry.join("zkout"))
+        .context("zkout")?;
+    shell
         .remove_path(path_to_foundry.join("typechain"))
         .context("typechain")?;
+    shell
+        .remove_path(contracts_path.join("da-contracts/cache-forge"))
+        .context("l2-contracts/cache-forge")?;
+    shell
+        .remove_path(contracts_path.join("da-contracts/out"))
+        .context("l2-contracts/out")?;
+    shell
+        .remove_path(contracts_path.join("da-contracts/zkout"))
+        .context("l2-contracts/zkout")?;
     shell
         .remove_path(contracts_path.join("l2-contracts/cache-forge"))
         .context("l2-contracts/cache-forge")?;

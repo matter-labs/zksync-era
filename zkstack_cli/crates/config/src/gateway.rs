@@ -1,5 +1,5 @@
 use ethers::utils::hex;
-use zksync_config::configs::{gateway::GatewayChainConfig, GatewayConfig};
+use zksync_config::configs::{contracts::gateway::GatewayConfig, gateway::GatewayChainConfig};
 
 use crate::{
     forge_interface::deploy_gateway_ctm::output::DeployGatewayCTMOutput,
