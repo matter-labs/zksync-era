@@ -420,7 +420,7 @@ impl ZkosStateKeeper {
             .max_enumeration_index_by_l1_batch(updates_manager.l1_batch_number - 1)
             .await
             .map_err(DalError::generalize)?
-            .unwrap_or(0)
+            .context("missing enum index in DB")?
             + 1;
 
         Ok((initial_writes, next_enum_index))
