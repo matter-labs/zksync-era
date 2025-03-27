@@ -22,7 +22,7 @@ Witness Vector Generators have big gaps in resource utilization and execution ti
 
 In current implementation we run multiple light WVG jobs and a small amount of heavy WVG jobs in order to keep
 good balance between maintaining optimal RAM usage and providing maximum throughput. `MetadataLoader`
-abstraction was introduced to force loading lighter and heavier jobs. Heavier picker will try to prioritize heavy
+abstraction was introduced to control loading lighter and heavier jobs at runtime. Heavier picker will try to prioritize heavy
 circuits. If none are available, it falls back to light jobs in order to maximize usage.
 
 ### Job Picker
