@@ -17,17 +17,13 @@ The rest of the codebase simply covers the internals of creating a runner, which
 Runners related to synthesizing Witness Vector (the CPU heavy part of circuit proving). They are tied to
 `prover_jobs_fri` table and operate over `ProverJobsFri` object storage bucket.
 
-Witness Vector Generators have big gaps in resource usages. Node proofs are the heavy jobs (~9GB RAM), whilst all others
-are rather light (~2GB RAM).
+Witness Vector Generators have big gaps in resource usages and execution times. Some basic proofs are the heavy jobs
+(>2.5GB RAM or >16s), whilst all others are rather light.
 
-There are 2 ways to deal with this:
-
-1. run RAM left over / 9 which will result in RAM under utilization but simplify implementation
-2. run multiple light WVG jobs, with a small amount of heavy WVG jobs.
-
-This implementation favors number 2. As such, `MetadataLoader` abstraction was introduced to force loading lighter and
-heavier jobs. Heavier picker will try to prioritize nodes. If none are available, it falls back to light jobs in order
-to maximize usage.
+This implementation is such that we run multiple light WVG jobs, with a small amount of heavy WVG jobs in order to keep
+good balance between maintaining optimal RAM usage and providing maximum throughput. As such, `MetadataLoader`
+abstraction was introduced to force loading lighter and heavier jobs. Heavier picker will try to prioritize heavy
+circuits. If none are available, it falls back to light jobs in order to maximize usage.
 
 ### Job Picker
 
