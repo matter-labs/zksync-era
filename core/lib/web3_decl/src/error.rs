@@ -49,6 +49,7 @@ pub enum Web3Error {
     #[error("Internal error")]
     InternalError(#[from] anyhow::Error),
 }
+const SERVER_IS_SHUTTING_DOWN_ERROR: i32 = 3;
 
 /// Client RPC error with additional details: the method name and arguments of the called method.
 ///
@@ -66,8 +67,10 @@ pub fn is_retriable(err: &ClientError) -> bool {
         ClientError::Transport(_) | ClientError::RequestTimeout => true,
         ClientError::Call(err) => {
             // At least some RPC providers use "internal error" in case of the server being overloaded
+
             err.code() == ErrorCode::ServerIsBusy.code()
                 || err.code() == ErrorCode::InternalError.code()
+                || err.code() == SERVER_IS_SHUTTING_DOWN_ERROR
         }
         _ => false,
     }
