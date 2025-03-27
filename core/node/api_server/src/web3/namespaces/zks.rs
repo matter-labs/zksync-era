@@ -330,6 +330,11 @@ impl ZksNamespace {
     //     todo!() // kl todo
     // }
 
+    // kl todo figure out levels, we need to serve message roots to:
+    // chainBatchRoot of chain for precommit based
+    // gw's MessageRoot,
+    // gw's chainBatchRoot.
+    // maybe L1's MessageRoot.
     async fn get_l2_to_l1_log_proof_inner(
         &self,
         storage: &mut Connection<'_, Core>,
