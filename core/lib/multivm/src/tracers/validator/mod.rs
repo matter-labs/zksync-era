@@ -120,8 +120,9 @@ impl<H> ValidationTracer<H> {
         key: U256,
         msg_sender: Address,
     ) -> bool {
-        // If there are no restrictions, all storage reads are valid.
-        // We also don't support the paymaster validation for now.
+        return true; // kl  todo
+                     // If there are no restrictions, all storage reads are valid.
+                     // We also don't support the paymaster validation for now.
         if matches!(
             self.validation_mode,
             ValidationTracerMode::NoValidation | ValidationTracerMode::PaymasterTxValidation

@@ -33,10 +33,11 @@ pub(super) enum EventProcessorError {
     Internal(#[from] anyhow::Error),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq)] //
 pub(super) enum EventsSource {
     L1,
     SL,
+    Dependency, //
 }
 
 impl EventProcessorError {
@@ -77,4 +78,8 @@ pub(super) trait EventProcessor: 'static + fmt::Debug + Send + Sync {
     fn only_finalized_block(&self) -> bool {
         false
     }
+
+    fn dependency_chain_number(&self) -> Option<usize> {
+        None
+    } //
 }
