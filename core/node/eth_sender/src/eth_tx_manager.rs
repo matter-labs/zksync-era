@@ -24,7 +24,8 @@ use crate::{
     metrics::TransactionType,
 };
 
-/// The component is responsible for managing sending eth_txs attempts:
+/// The component is responsible for managing sending eth_txs attempts.
+///
 /// Based on eth_tx queue the component generates new attempt with the minimum possible fee,
 /// save it to the database, and send it to Ethereum.
 /// Based on eth_tx_history queue the component can mark txs as stuck and create the new attempt

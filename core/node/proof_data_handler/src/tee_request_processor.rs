@@ -1,10 +1,13 @@
-use axum::Json;
-use chrono::{Duration, Utc};
+use std::sync::Arc;
+
+use axum::{extract::Path, Json};
+use chrono::{Duration as ChronoDuration, Utc};
+use zksync_config::configs::ProofDataHandlerConfig;
 use zksync_dal::{
     tee_proof_generation_dal::{LockedBatch, TeeProofGenerationJobStatus},
-    CoreDal,
+    ConnectionPool, Core, CoreDal,
 };
-use zksync_object_store::ObjectStoreError;
+use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_prover_interface::{
     api::{
         RegisterTeeAttestationRequest, RegisterTeeAttestationResponse, SubmitProofResponse,
@@ -14,19 +17,41 @@ use zksync_prover_interface::{
         TeeVerifierInput, V1TeeVerifierInput, VMRunWitnessInputData, WitnessInputMerklePaths,
     },
 };
-use zksync_types::{tee_types::TeeType, L1BatchNumber};
+use zksync_types::{tee_types::TeeType, L1BatchNumber, L2ChainId};
 use zksync_vm_executor::storage::L1BatchParamsProvider;
 
-use crate::{errors::RequestProcessorError, metrics::METRICS, tee_proof_api::RequestProcessor};
+use crate::{errors::RequestProcessorError, metrics::METRICS};
 
-impl RequestProcessor {
-    pub(crate) async fn get_tee_proof_generation_data(
+#[derive(Clone)]
+pub(crate) struct TeeRequestProcessor {
+    blob_store: Arc<dyn ObjectStore>,
+    pool: ConnectionPool<Core>,
+    config: ProofDataHandlerConfig,
+    l2_chain_id: L2ChainId,
+}
+
+impl TeeRequestProcessor {
+    pub(crate) fn new(
+        blob_store: Arc<dyn ObjectStore>,
+        pool: ConnectionPool<Core>,
+        config: ProofDataHandlerConfig,
+        l2_chain_id: L2ChainId,
+    ) -> Self {
+        Self {
+            blob_store,
+            pool,
+            config,
+            l2_chain_id,
+        }
+    }
+
+    pub(crate) async fn get_proof_generation_data(
         &self,
-        request: TeeProofGenerationDataRequest,
-    ) -> Result<Json<Option<TeeProofGenerationDataResponse>>, RequestProcessorError> {
+        request: Json<TeeProofGenerationDataRequest>,
+    ) -> Result<Option<Json<TeeProofGenerationDataResponse>>, RequestProcessorError> {
         tracing::info!("Received request for proof generation data: {:?}", request);
 
-        let batch_ignored_timeout = Duration::from_std(
+        let batch_ignored_timeout = ChronoDuration::from_std(
             self.config
                 .tee_config
                 .tee_batch_permanently_ignored_timeout(),
@@ -41,10 +66,10 @@ impl RequestProcessor {
 
         loop {
             let Some(locked_batch) = self
-                .lock_batch_for_tee_proving(request.tee_type, min_batch_number)
+                .lock_batch_for_proving(request.tee_type, min_batch_number)
                 .await?
             else {
-                break Ok(Json(None)); // no job available
+                break Ok(None); // no job available
             };
             let batch_number = locked_batch.l1_batch_number;
 
@@ -53,7 +78,7 @@ impl RequestProcessor {
                 .await
             {
                 Ok(input) => {
-                    break Ok(Json(Some(TeeProofGenerationDataResponse(Box::new(input)))));
+                    break Ok(Some(Json(TeeProofGenerationDataResponse(Box::new(input)))));
                 }
                 Err(RequestProcessorError::ObjectStore(ObjectStoreError::KeyNotFound(_))) => {
                     let duration = Utc::now().signed_duration_since(locked_batch.created_at);
@@ -62,7 +87,7 @@ impl RequestProcessor {
                     } else {
                         TeeProofGenerationJobStatus::Failed
                     };
-                    self.unlock_tee_batch(batch_number, request.tee_type, status)
+                    self.unlock_batch(batch_number, request.tee_type, status)
                         .await?;
                     tracing::warn!(
                         "Assigned status {} to batch {} created at {}",
@@ -72,7 +97,7 @@ impl RequestProcessor {
                     );
                 }
                 Err(err) => {
-                    self.unlock_tee_batch(
+                    self.unlock_batch(
                         batch_number,
                         request.tee_type,
                         TeeProofGenerationJobStatus::Failed,
@@ -145,7 +170,7 @@ impl RequestProcessor {
         }))
     }
 
-    async fn lock_batch_for_tee_proving(
+    async fn lock_batch_for_proving(
         &self,
         tee_type: TeeType,
         min_batch_number: L1BatchNumber,
@@ -163,7 +188,7 @@ impl RequestProcessor {
             .map_err(RequestProcessorError::Dal)
     }
 
-    async fn unlock_tee_batch(
+    async fn unlock_batch(
         &self,
         l1_batch_number: L1BatchNumber,
         tee_type: TeeType,
@@ -178,11 +203,12 @@ impl RequestProcessor {
         Ok(())
     }
 
-    pub(crate) async fn submit_tee_proof(
+    pub(crate) async fn submit_proof(
         &self,
-        l1_batch_number: L1BatchNumber,
-        proof: SubmitTeeProofRequest,
+        Path(l1_batch_number): Path<u32>,
+        Json(proof): Json<SubmitTeeProofRequest>,
     ) -> Result<Json<SubmitProofResponse>, RequestProcessorError> {
+        let l1_batch_number = L1BatchNumber(l1_batch_number);
         let mut connection = self.pool.connection_tagged("tee_request_processor").await?;
         let mut dal = connection.tee_proof_generation_dal();
 
@@ -221,7 +247,7 @@ impl RequestProcessor {
 
     pub(crate) async fn register_tee_attestation(
         &self,
-        payload: RegisterTeeAttestationRequest,
+        Json(payload): Json<RegisterTeeAttestationRequest>,
     ) -> Result<Json<RegisterTeeAttestationResponse>, RequestProcessorError> {
         tracing::info!("Received attestation: {:?}", payload);
 

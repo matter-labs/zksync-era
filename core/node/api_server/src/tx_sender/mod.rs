@@ -232,6 +232,7 @@ impl TxSenderBuilder {
 }
 
 /// Internal static `TxSender` configuration.
+///
 /// This structure is detached from `ZkSyncConfig`, since different node types (main, external, etc)
 /// may require different configuration layouts.
 /// The intention is to only keep the actually used information here.

@@ -6,7 +6,6 @@ use serde::Deserialize;
 pub struct FriProverGatewayConfig {
     pub api_url: String,
     pub api_poll_duration_secs: u16,
-    pub ws_port: u16,
 
     /// Configurations for prometheus
     pub prometheus_listener_port: u16,
