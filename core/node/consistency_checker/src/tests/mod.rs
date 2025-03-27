@@ -110,7 +110,6 @@ pub(crate) async fn create_mock_checker(
         chain_data,
         settlement_layer: SettlementLayer::L1(chain_id),
         event_handler: Box::new(health_updater),
-        l1_data_mismatch_behavior: L1DataMismatchBehavior::Bail,
         pool,
         commitment_mode,
         health_check,

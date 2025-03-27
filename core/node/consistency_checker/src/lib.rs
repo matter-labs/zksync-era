@@ -130,17 +130,6 @@ impl HandleConsistencyCheckerEvent for ConsistencyCheckerHealthUpdater {
     }
 }
 
-/// Consistency checker behavior when L1 commit data divergence is detected.
-// This is a temporary workaround for a bug that sometimes leads to incorrect L1 batch data returned by the server
-// (and thus persisted by external nodes). Eventually, we want to go back to bailing on L1 data mismatch;
-// for now, it's only enabled for the unit tests.
-#[derive(Debug)]
-#[allow(dead_code)]
-enum L1DataMismatchBehavior {
-    Bail,
-    Log,
-}
-
 /// L1 commit data loaded from Postgres.
 #[derive(Debug)]
 struct LocalL1BatchCommitData {
@@ -366,7 +355,6 @@ pub struct ConsistencyChecker {
     chain_data: SLChainAccess,
     settlement_layer: SettlementLayer,
     event_handler: Box<dyn HandleConsistencyCheckerEvent>,
-    l1_data_mismatch_behavior: L1DataMismatchBehavior,
     pool: ConnectionPool<Core>,
     health_check: ReactiveHealthCheck,
     commitment_mode: L1BatchCommitmentMode,
@@ -397,7 +385,6 @@ impl ConsistencyChecker {
             chain_data,
             settlement_layer,
             event_handler: Box::new(health_updater),
-            l1_data_mismatch_behavior: L1DataMismatchBehavior::Bail,
             pool,
             health_check,
             commitment_mode,
@@ -736,16 +723,8 @@ impl ConsistencyChecker {
                 Err(CheckError::Validation(err)) => {
                     self.event_handler
                         .report_inconsistent_batch(batch_number, &err);
-                    match &self.l1_data_mismatch_behavior {
-                        L1DataMismatchBehavior::Bail => {
-                            let context =
-                                format!("L1 batch #{batch_number} is inconsistent with L1");
-                            return Err(err.context(context));
-                        }
-                        L1DataMismatchBehavior::Log => {
-                            batch_number += 1; // We don't want to infinitely loop failing the check on the same batch
-                        }
-                    }
+                    let context = format!("L1 batch #{batch_number} is inconsistent with L1");
+                    return Err(err.context(context));
                 }
                 Err(err) if err.is_retriable() => {
                     tracing::warn!(
