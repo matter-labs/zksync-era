@@ -932,8 +932,7 @@ mod tests {
                 ProtocolSemanticVersion::default(),
                 L1VerifierConfig::default(),
             )
-            .await
-            .unwrap();
+            .await;
         transaction
             .fri_prover_jobs_dal()
             .insert_prover_jobs(

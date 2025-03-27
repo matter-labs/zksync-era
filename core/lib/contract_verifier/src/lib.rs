@@ -291,7 +291,7 @@ impl ContractVerifier {
         match compiled_identifier.matches(&deployed_identifier) {
             Match::Full => {}
             Match::Partial => {
-                tracing::trace!(
+                tracing::info!(
                     request_id = request.id,
                     deployed = hex::encode(deployed_bytecode),
                     compiled = hex::encode(artifacts.deployed_bytecode()),
@@ -300,7 +300,7 @@ impl ContractVerifier {
                 verification_problems.push(VerificationProblem::IncorrectMetadata);
             }
             Match::None => {
-                tracing::trace!(
+                tracing::info!(
                     request_id = request.id,
                     deployed = hex::encode(deployed_bytecode),
                     compiled = hex::encode(artifacts.deployed_bytecode()),
@@ -314,7 +314,7 @@ impl ContractVerifier {
             ConstructorArgs::Check(args) => {
                 let provided_constructor_args = &request.req.constructor_arguments.0;
                 if *provided_constructor_args != args {
-                    tracing::trace!(
+                    tracing::info!(
                         "Constructor args mismatch, deployed: 0x{}, provided in request: 0x{}",
                         hex::encode(&args),
                         hex::encode(provided_constructor_args)

@@ -51,7 +51,8 @@ pub struct MulticallData {
     pub stm_protocol_version_id: ProtocolVersionId,
 }
 
-/// The component is responsible for aggregating l1 batches into eth_txs:
+/// The component is responsible for aggregating l1 batches into eth_txs.
+///
 /// Such as CommitBlocks, PublishProofBlocksOnchain and ExecuteBlock
 /// These eth_txs will be used as a queue for generating signed txs and send them later
 #[derive(Debug)]

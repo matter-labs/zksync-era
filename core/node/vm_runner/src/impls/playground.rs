@@ -79,7 +79,9 @@ enum VmPlaygroundStorage {
     },
 }
 
-/// Virtual machine playground. Does not persist anything in Postgres; instead, keeps an L1 batch cursor as a plain text file in the RocksDB directory
+/// Virtual machine playground.
+///
+/// Does not persist anything in Postgres; instead, keeps an L1 batch cursor as a plain text file in the RocksDB directory
 /// (so that the playground doesn't repeatedly process same batches after a restart).
 ///
 /// If the RocksDB directory is not specified, the playground works in the ephemeral mode: it takes all inputs from Postgres, doesn't maintain cache

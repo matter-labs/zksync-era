@@ -44,6 +44,7 @@ impl dyn BatchFeeModelInputProvider {
 }
 
 /// The struct that represents the batch fee input provider to be used in the main node of the server.
+///
 /// This struct gets the L1 gas price directly from the provider rather than from another node, as is the
 /// case with the external node.
 #[derive(Debug)]
