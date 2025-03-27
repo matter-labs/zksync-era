@@ -12796,8 +12796,6 @@ dependencies = [
  "axum 0.7.9",
  "chrono",
  "hyper 1.5.1",
- "jsonrpsee",
- "reqwest 0.12.9",
  "serde_json",
  "tokio",
  "tower 0.4.13",
@@ -12878,9 +12876,7 @@ version = "27.0.0-non-semver-compat"
 dependencies = [
  "bincode",
  "circuit_definitions",
- "circuit_sequencer_api",
  "fflonk",
- "jsonrpsee",
  "serde",
  "serde_json",
  "serde_with",
