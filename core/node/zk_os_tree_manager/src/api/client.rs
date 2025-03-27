@@ -4,9 +4,9 @@ use std::fmt;
 
 use anyhow::Context;
 use axum::http::header;
-use zk_os_merkle_tree::BatchTreeProof;
 use zksync_health_check::{async_trait, CheckHealth, Health, HealthStatus};
 use zksync_types::{L1BatchNumber, H256};
+use zksync_zk_os_merkle_tree::BatchTreeProof;
 
 use super::{Problem, TreeProofRequest, TreeProofResponse, PROBLEM_CONTENT_TYPE};
 use crate::{health::MerkleTreeInfo, LazyAsyncTreeReader};

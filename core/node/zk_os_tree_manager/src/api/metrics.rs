@@ -14,7 +14,7 @@ pub(super) enum MerkleTreeApiMethod {
 
 /// Metrics for Merkle tree API server.
 #[derive(Debug, Metrics)]
-#[metrics(prefix = "server_merkle_tree_api")]
+#[metrics(prefix = "server_zk_os_merkle_tree_api")]
 pub(super) struct MerkleTreeApiMetrics {
     /// Server latency of the Merkle tree API methods.
     #[metrics(buckets = Buckets::LATENCIES, unit = Unit::Seconds)]

@@ -146,7 +146,15 @@ impl ZkosStateKeeper {
         // Self::fund_dev_wallets_if_needed(&mut connection, cursor.next_l2_block).await;
         // drop(connection);
 
+        tracing::info!(
+            "State root before `initialize_in_memory_storages`: {:?}",
+            self.tree.storage_tree.root()
+        );
         self.initialize_in_memory_storages().await?;
+        tracing::info!(
+            "State root after `initialize_in_memory_storages`: {:?}",
+            self.tree.storage_tree.root()
+        );
 
         while !self.is_canceled() {
             let (block_params, unsealed_header) =
@@ -248,6 +256,12 @@ impl ZkosStateKeeper {
                     .storage_tree
                     .insert(&storage_write.key, &storage_write.value);
             }
+
+            let root = self.tree.storage_tree.root();
+            tracing::info!(
+                "Batch #{} state hash from in-memory tree is {root:?}",
+                cursor.l1_batch
+            );
 
             for (hash, preimage) in result.published_preimages.iter() {
                 self.preimage_source.inner.insert(

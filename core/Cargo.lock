@@ -11492,54 +11492,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "zk_os_merkle_tree"
-version = "27.0.0-non-semver-compat"
-dependencies = [
- "anyhow",
- "clap 4.5.23",
- "leb128",
- "once_cell",
- "rand 0.8.5",
- "rayon",
- "tempfile",
- "thiserror 1.0.69",
- "tracing",
- "tracing-subscriber",
- "vise",
- "zksync_basic_types",
- "zksync_crypto_primitives",
- "zksync_storage",
-]
-
-[[package]]
-name = "zk_os_tree_manager"
-version = "27.0.0-non-semver-compat"
-dependencies = [
- "anyhow",
- "assert_matches",
- "axum 0.7.9",
- "futures 0.3.31",
- "once_cell",
- "reqwest 0.12.9",
- "serde",
- "serde_json",
- "tempfile",
- "test-casing",
- "thiserror 1.0.69",
- "tokio",
- "tracing",
- "vise",
- "zk_os_merkle_tree",
- "zksync_dal",
- "zksync_health_check",
- "zksync_node_genesis",
- "zksync_node_test_utils",
- "zksync_shared_metrics",
- "zksync_storage",
- "zksync_types",
-]
-
-[[package]]
 name = "zkevm_circuits"
 version = "0.151.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -12870,6 +12822,7 @@ dependencies = [
  "zksync_vm_executor",
  "zksync_vm_runner",
  "zksync_web3_decl",
+ "zksync_zk_os_tree_manager",
  "zksync_zkos_state_keeper",
 ]
 
@@ -12901,6 +12854,7 @@ dependencies = [
  "zksync_multivm",
  "zksync_system_constants",
  "zksync_types",
+ "zksync_zk_os_merkle_tree",
 ]
 
 [[package]]
@@ -13182,6 +13136,7 @@ dependencies = [
  "zksync_storage",
  "zksync_types",
  "zksync_vlog",
+ "zksync_zk_os_tree_manager",
 ]
 
 [[package]]
@@ -13582,6 +13537,54 @@ dependencies = [
  "vise",
  "zksync_config",
  "zksync_types",
+]
+
+[[package]]
+name = "zksync_zk_os_merkle_tree"
+version = "27.0.0-non-semver-compat"
+dependencies = [
+ "anyhow",
+ "clap 4.5.23",
+ "leb128",
+ "once_cell",
+ "rand 0.8.5",
+ "rayon",
+ "tempfile",
+ "thiserror 1.0.69",
+ "tracing",
+ "tracing-subscriber",
+ "vise",
+ "zksync_basic_types",
+ "zksync_crypto_primitives",
+ "zksync_storage",
+]
+
+[[package]]
+name = "zksync_zk_os_tree_manager"
+version = "27.0.0-non-semver-compat"
+dependencies = [
+ "anyhow",
+ "assert_matches",
+ "axum 0.7.9",
+ "futures 0.3.31",
+ "once_cell",
+ "reqwest 0.12.9",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "test-casing",
+ "thiserror 1.0.69",
+ "tokio",
+ "tracing",
+ "vise",
+ "zksync_dal",
+ "zksync_health_check",
+ "zksync_node_genesis",
+ "zksync_node_test_utils",
+ "zksync_shared_metrics",
+ "zksync_storage",
+ "zksync_types",
+ "zksync_zk_os_merkle_tree",
 ]
 
 [[package]]

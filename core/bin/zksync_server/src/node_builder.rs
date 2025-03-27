@@ -68,6 +68,7 @@ use zksync_node_framework::{
             tx_sender::{PostgresStorageCachesConfig, TxSenderLayer},
             tx_sink::MasterPoolSinkLayer,
         },
+        zk_os_tree_manager::ZkOsTreeManagerLayer,
         zkos_state_keeper::{
             mempool_io::MempoolIOLayer as ZkOsMempoolIOLayer, output_handler::OutputHandlerLayer,
             ZkOsStateKeeperLayer,
@@ -82,6 +83,7 @@ use zksync_types::{
     SHARED_BRIDGE_ETHER_TOKEN_ADDRESS,
 };
 use zksync_vlog::prometheus::PrometheusExporterConfig;
+use zksync_zk_os_tree_manager::TreeManagerConfig;
 
 /// Macro that looks into a path to fetch an optional config,
 /// and clones it into a variable.
@@ -252,6 +254,31 @@ impl MainNodeBuilder {
             &state_keeper_env_config,
         );
         let mut layer = MetadataCalculatorLayer::new(metadata_calculator_config);
+        if with_tree_api {
+            let merkle_tree_api_config = try_load_config!(self.configs.api_config).merkle_tree;
+            layer = layer.with_tree_api_config(merkle_tree_api_config);
+        }
+        self.node.add_layer(layer);
+        Ok(self)
+    }
+
+    fn add_tree_manager_layer(mut self, with_tree_api: bool) -> anyhow::Result<Self> {
+        let merkle_tree_env_config = try_load_config!(self.configs.db_config).merkle_tree;
+        let operations_manager_env_config =
+            try_load_config!(self.configs.operations_manager_config);
+        let tree_manager_config = TreeManagerConfig {
+            db_path: merkle_tree_env_config.path.clone().into(),
+            max_open_files: None,
+            delay_interval: operations_manager_env_config.delay_interval(),
+            max_l1_batches_per_iter: merkle_tree_env_config
+                .max_l1_batches_per_iter
+                .try_into()
+                .unwrap(),
+            multi_get_chunk_size: merkle_tree_env_config.multi_get_chunk_size,
+            block_cache_capacity: merkle_tree_env_config.block_cache_size(),
+            include_indices_and_filters_in_block_cache: false,
+        };
+        let mut layer = ZkOsTreeManagerLayer::new(tree_manager_config);
         if with_tree_api {
             let merkle_tree_api_config = try_load_config!(self.configs.api_config).merkle_tree;
             layer = layer.with_tree_api_config(merkle_tree_api_config);
@@ -795,9 +822,9 @@ impl MainNodeBuilder {
                     self = self.add_contract_verification_api_layer()?;
                 }
                 Component::Tree => {
-                    anyhow::bail!("Tree component is not supposed for Zk Os");
+                    // anyhow::bail!("Tree component is not supposed for Zk Os");
                     let with_tree_api = components.contains(&Component::TreeApi);
-                    self = self.add_metadata_calculator_layer(with_tree_api)?;
+                    self = self.add_tree_manager_layer(with_tree_api)?;
                 }
                 Component::TreeApi => {
                     unreachable!("Tree component is not supposed for Zk Os");

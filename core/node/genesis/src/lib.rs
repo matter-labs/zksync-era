@@ -196,7 +196,8 @@ pub fn make_genesis_batch_params(
     base_system_contract_hashes: BaseSystemContractsHashes,
     protocol_version: ProtocolVersionId,
 ) -> (GenesisBatchParams, L1BatchCommitment) {
-    let metadata = ZkSyncTree::process_genesis_batch(&[]);
+    // Tree will insert guard leaves automatically, they don't need to be passed here.
+    let metadata = zksync_zk_os_merkle_tree::process_genesis_batch(&[]);
     let root_hash = metadata.root_hash;
     let rollup_last_leaf_index = metadata.leaf_count + 1;
 
@@ -244,17 +245,8 @@ pub async fn insert_genesis_batch_with_custom_state(
                     .collect(),
             ),
             None => (
-                get_storage_logs(&genesis_params.system_contracts),
-                genesis_params
-                    .system_contracts
-                    .iter()
-                    .map(|c| {
-                        (
-                            BytecodeHash::for_bytecode(&c.bytecode).value(),
-                            c.bytecode.clone(),
-                        )
-                    })
-                    .collect(),
+                Default::default(), // No storage logs for zk os
+                Default::default(), // No factory deps for zk os
             ),
         };
 
@@ -433,6 +425,21 @@ pub async fn ensure_genesis_state(
             .ok_or(GenesisError::MalformedConfig(
                 "expected_rollup_last_leaf_index",
             ))?;
+
+    if expected_root_hash != root_hash {
+        return Err(GenesisError::RootHash(expected_root_hash, root_hash));
+    }
+
+    if expected_commitment != commitment {
+        return Err(GenesisError::Commitment(expected_commitment, commitment));
+    }
+
+    if expected_rollup_last_leaf_index != rollup_last_leaf_index {
+        return Err(GenesisError::LeafIndexes(
+            expected_rollup_last_leaf_index,
+            rollup_last_leaf_index,
+        ));
+    }
 
     tracing::info!("genesis is complete");
     transaction.commit().await?;

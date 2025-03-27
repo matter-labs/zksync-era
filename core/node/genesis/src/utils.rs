@@ -201,13 +201,10 @@ pub(super) async fn insert_deduplicated_writes_and_protective_reads(
         )
         .await?;
 
-    let written_storage_keys: Vec<_> = deduplicated_writes
-        .iter()
-        .map(|log| {
-            StorageKey::new(AccountTreeId::new(log.address), u256_to_h256(log.key)).hashed_key()
-        })
-        .collect();
-
+    let mut written_storage_keys = vec![H256::zero(), H256::repeat_byte(0xff)];
+    written_storage_keys.extend(deduplicated_writes.iter().map(|log| {
+        StorageKey::new(AccountTreeId::new(log.address), u256_to_h256(log.key)).hashed_key()
+    }));
     transaction
         .storage_logs_dedup_dal()
         .insert_initial_writes(L1BatchNumber(0), &written_storage_keys)

@@ -317,7 +317,7 @@ zksync_web3_decl = { version = "27.0.0-non-semver-compat", path = "lib/web3_decl
 zksync_crypto_primitives = { version = "27.0.0-non-semver-compat", path = "lib/crypto_primitives" }
 zksync_external_price_api = { version = "27.0.0-non-semver-compat", path = "lib/external_price_api" }
 zksync_task_management = { version = "27.0.0-non-semver-compat", path = "lib/task_management" }
-zk_os_merkle_tree = { version = "27.0.0-non-semver-compat", path = "lib/zk_os_merkle_tree" }
+zksync_zk_os_merkle_tree = { version = "27.0.0-non-semver-compat", path = "lib/zk_os_merkle_tree" }
 
 # Framework and components
 zksync_node_framework = { version = "27.0.0-non-semver-compat", path = "node/node_framework" }
@@ -350,6 +350,7 @@ zksync_base_token_adjuster = { version = "27.0.0-non-semver-compat", path = "nod
 zksync_logs_bloom_backfill = { version = "27.0.0-non-semver-compat", path = "node/logs_bloom_backfill" }
 zksync_zkos_state_keeper = { version = "27.0.0-non-semver-compat", path = "node/zkos_state_keeper" }
 zksync_zkos_vm_runner = { version = "27.0.0-non-semver-compat", path = "node/zkos_vm_runner" }
+zksync_zk_os_tree_manager = { version = "27.0.0-non-semver-compat", path = "node/zk_os_tree_manager" }
 
 [patch.crates-io]
 ark-ff = { git = "https://github.com/arkworks-rs/algebra.git" }

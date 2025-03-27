@@ -4,8 +4,8 @@ use std::net::Ipv4Addr;
 
 use assert_matches::assert_matches;
 use tempfile::TempDir;
-use zk_os_merkle_tree::{BatchOutput, Blake2Hasher, DefaultTreeParams, TreeParams};
 use zksync_dal::{ConnectionPool, Core};
+use zksync_zk_os_merkle_tree::{BatchOutput, Blake2Hasher, DefaultTreeParams, TreeParams};
 
 use super::*;
 use crate::tests::setup_tree_manager;

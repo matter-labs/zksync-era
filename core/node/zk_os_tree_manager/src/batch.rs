@@ -1,14 +1,14 @@
 use std::{collections::BTreeMap, time::Duration};
 
 use anyhow::Context;
-use zk_os_merkle_tree::TreeEntry;
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_shared_metrics::tree::{LoadChangesStage, TreeUpdateStage, METRICS};
 use zksync_types::{
     block::{L1BatchStatistics, L1BatchTreeData},
     writes::TreeWrite,
-    AccountTreeId, L1BatchNumber, StorageKey,
+    AccountTreeId, L1BatchNumber, StorageKey, H256,
 };
+use zksync_zk_os_merkle_tree::TreeEntry;
 
 use crate::helpers::AsyncMerkleTree;
 
@@ -64,10 +64,15 @@ impl L1BatchWithLogs {
             let writes = tree_writes.into_iter().map(|tree_write| {
                 let storage_key =
                     StorageKey::new(AccountTreeId::new(tree_write.address), tree_write.key);
+                let reversed_hashed_key = {
+                    let mut hashed_key = storage_key.hashed_key().0;
+                    hashed_key.reverse();
+                    H256(hashed_key)
+                };
                 (
                     tree_write.leaf_index,
                     TreeEntry {
-                        key: storage_key.hashed_key(),
+                        key: reversed_hashed_key,
                         value: tree_write.value,
                     },
                 )
@@ -143,10 +148,15 @@ impl L1BatchWithLogs {
                      greater than the batch in which it's written ({l1_batch_number})"
                 );
 
+                let reversed_hashed_key = {
+                    let mut hashed_key = storage_key.hashed_key().0;
+                    hashed_key.reverse();
+                    H256(hashed_key)
+                };
                 tree_logs.insert(
                     leaf_index,
                     TreeEntry {
-                        key: storage_key.hashed_key(),
+                        key: reversed_hashed_key,
                         value,
                     },
                 );

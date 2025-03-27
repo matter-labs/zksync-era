@@ -19,6 +19,7 @@ zksync_config.workspace = true
 zksync_contracts.workspace = true
 zksync_eth_client.workspace = true
 zksync_merkle_tree.workspace = true
+zksync_zk_os_merkle_tree.workspace = true
 zksync_system_constants.workspace = true
 
 tokio = { workspace = true, features = ["time"] }

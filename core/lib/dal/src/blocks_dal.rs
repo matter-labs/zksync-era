@@ -2013,7 +2013,7 @@ impl BlocksDal<'_, '_> {
             WHERE
                 eth_commit_tx_id IS NULL
                 AND number != 0
-                AND is_sealed
+                AND hash IS NOT NULL
             ORDER BY
                 number
             LIMIT
