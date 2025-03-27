@@ -264,7 +264,6 @@ impl FriRecursionTipWitnessGeneratorDal<'_, '_> {
         block_number: L1BatchNumber,
         closed_form_inputs_and_urls: &[(u8, String, usize)],
         protocol_version: ProtocolSemanticVersion,
-        batch_created_at: sqlx::types::chrono::NaiveDateTime,
     ) {
         sqlx::query!(
             r#"
@@ -280,7 +279,11 @@ impl FriRecursionTipWitnessGeneratorDal<'_, '_> {
                 protocol_version_patch
             )
             VALUES
-            ($1, 'waiting_for_proofs', $2, $3, NOW(), NOW(), $4, $5)
+            ($1, 'waiting_for_proofs', $2, $3, NOW(), NOW(), (
+                SELECT batch_created_at
+                FROM witness_inputs_fri
+                WHERE l1_batch_number = $1
+            ), $4)
             ON CONFLICT (l1_batch_number) DO
             UPDATE
             SET
@@ -289,7 +292,6 @@ impl FriRecursionTipWitnessGeneratorDal<'_, '_> {
             block_number.0 as i64,
             closed_form_inputs_and_urls.len() as i32,
             protocol_version.minor as i32,
-            batch_created_at,
             protocol_version.patch.0 as i32,
         )
         .execute(self.storage.conn())

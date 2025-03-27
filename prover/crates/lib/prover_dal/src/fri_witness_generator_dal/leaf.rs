@@ -238,7 +238,6 @@ impl FriLeafWitnessGeneratorDal<'_, '_> {
         circuit_id: u8,
         closed_form_inputs_url: String,
         number_of_basic_circuits: usize,
-        batch_created_at: sqlx::types::chrono::NaiveDateTime,
     ) {
         sqlx::query!(
             r#"
@@ -256,7 +255,22 @@ impl FriLeafWitnessGeneratorDal<'_, '_> {
                 protocol_version_patch
             )
             VALUES
-            ($1, $2, $3, $4, $5, 'waiting_for_proofs', NOW(), NOW(), $6, $7)
+            (
+                $1,
+                $2,
+                $3,
+                $4,
+                $5,
+                'waiting_for_proofs',
+                NOW(),
+                NOW(),
+                (
+                    SELECT batch_created_at
+                    FROM witness_inputs_fri
+                    WHERE l1_batch_number = $1
+                ),
+                $6
+            )
             ON CONFLICT (l1_batch_number, circuit_id) DO
             UPDATE
             SET
@@ -267,7 +281,6 @@ impl FriLeafWitnessGeneratorDal<'_, '_> {
             closed_form_inputs_url,
             number_of_basic_circuits as i32,
             protocol_version.minor as i32,
-            batch_created_at,
             protocol_version.patch.0 as i32,
         )
         .execute(self.storage.conn())

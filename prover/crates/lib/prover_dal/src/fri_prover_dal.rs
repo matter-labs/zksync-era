@@ -42,7 +42,6 @@ impl FriProverDal<'_, '_> {
         aggregation_round: AggregationRound,
         depth: u16,
         protocol_version_id: ProtocolSemanticVersion,
-        batch_created_at: sqlx::types::chrono::NaiveDateTime,
     ) {
         let _latency = MethodLatency::new("save_fri_prover_jobs");
         if circuit_ids_and_urls.is_empty() {
@@ -88,7 +87,14 @@ impl FriProverDal<'_, '_> {
                         .push_bind("queued") // status
                         .push("NOW()") // created_at
                         .push("NOW()") // updated_at
-                        .push_bind(batch_created_at)
+                        .push(
+                            r#"
+                        (
+                            SELECT batch_created_at
+                            FROM witness_inputs_fri
+                            WHERE l1_batch_number = $1
+                        )"#,
+                        )
                         .push_bind(protocol_version_id.patch.0 as i32);
                 },
             );
@@ -408,7 +414,6 @@ impl FriProverDal<'_, '_> {
         circuit_blob_url: &str,
         is_node_final_proof: bool,
         protocol_version: ProtocolSemanticVersion,
-        batch_created_at: sqlx::types::chrono::NaiveDateTime,
     ) {
         sqlx::query!(
             r#"
@@ -429,7 +434,11 @@ impl FriProverDal<'_, '_> {
                 protocol_version_patch
             )
             VALUES
-            ($1, $2, $3, $4, $5, $6, $7, $8, 'queued', NOW(), NOW(), $9, $10)
+            ($1, $2, $3, $4, $5, $6, $7, $8, 'queued', NOW(), NOW(), (
+                SELECT batch_created_at
+                FROM witness_inputs_fri
+                WHERE l1_batch_number = $1
+            ), $9)
             ON CONFLICT (
                 l1_batch_number, aggregation_round, circuit_id, depth, sequence_number
             ) DO
@@ -445,7 +454,6 @@ impl FriProverDal<'_, '_> {
             i32::from(depth),
             is_node_final_proof,
             protocol_version.minor as i32,
-            batch_created_at,
             protocol_version.patch.0 as i32,
         )
         .execute(self.storage.conn())
@@ -888,7 +896,6 @@ impl FriProverDal<'_, '_> {
 
 #[cfg(test)]
 mod tests {
-    use sqlx::types::chrono::NaiveDateTime;
     use zksync_basic_types::protocol_version::L1VerifierConfig;
     use zksync_db_connection::connection_pool::ConnectionPool;
 
@@ -922,7 +929,6 @@ mod tests {
                 AggregationRound::Scheduler,
                 1,
                 ProtocolSemanticVersion::default(),
-                NaiveDateTime::default(),
             )
             .await;
 

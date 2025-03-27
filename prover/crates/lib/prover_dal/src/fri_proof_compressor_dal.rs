@@ -23,7 +23,6 @@ impl FriProofCompressorDal<'_, '_> {
         block_number: L1BatchNumber,
         fri_proof_blob_url: &str,
         protocol_version: ProtocolSemanticVersion,
-        batch_created_at: sqlx::types::chrono::NaiveDateTime,
     ) {
         sqlx::query!(
             r#"
@@ -39,13 +38,16 @@ impl FriProofCompressorDal<'_, '_> {
                 protocol_version_patch
             )
             VALUES
-            ($1, $2, $3, NOW(), NOW(), $4, $5, $6)
+            ($1, $2, $3, NOW(), NOW(), (
+                SELECT batch_created_at
+                FROM witness_inputs_fri
+                WHERE l1_batch_number = $1
+            ), $4, $5)
             ON CONFLICT (l1_batch_number) DO NOTHING
             "#,
             i64::from(block_number.0),
             fri_proof_blob_url,
             ProofCompressionJobStatus::Queued.to_string(),
-            batch_created_at,
             protocol_version.minor as i32,
             protocol_version.patch.0 as i32
         )

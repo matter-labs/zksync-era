@@ -147,7 +147,6 @@ impl FriNodeWitnessGeneratorDal<'_, '_> {
         depth: u16,
         aggregations_url: &str,
         protocol_version: ProtocolSemanticVersion,
-        batch_created_at: sqlx::types::chrono::NaiveDateTime,
     ) {
         sqlx::query!(
             r#"
@@ -166,7 +165,11 @@ impl FriNodeWitnessGeneratorDal<'_, '_> {
                 protocol_version_patch
             )
             VALUES
-            ($1, $2, $3, $4, $5, $6, 'waiting_for_proofs', NOW(), NOW(), $7, $8)
+            ($1, $2, $3, $4, $5, $6, 'waiting_for_proofs', NOW(), NOW(), (
+                SELECT batch_created_at
+                FROM witness_inputs_fri
+                WHERE l1_batch_number = $1
+            ), $7)
             ON CONFLICT (l1_batch_number, circuit_id, depth) DO
             UPDATE
             SET
@@ -178,7 +181,6 @@ impl FriNodeWitnessGeneratorDal<'_, '_> {
             aggregations_url,
             number_of_dependent_jobs,
             protocol_version.minor as i32,
-            batch_created_at,
             protocol_version.patch.0 as i32,
         )
         .fetch_optional(self.storage.conn())
