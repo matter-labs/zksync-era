@@ -89,6 +89,7 @@ pub async fn migrate_l2_tokens(
 
     let mut total_tokens_registered = 0;
     let mut total_tokens_stuck = 0;
+    let mut total_legacy_tokens = 0;
 
     let mut stuck_tokens = vec![];
 
@@ -115,6 +116,7 @@ pub async fn migrate_l2_tokens(
                 anyhow::bail!("Transaction failed or was dropped.");
             }
             total_tokens_registered += 1;
+            total_legacy_tokens += 1;
         } else if l1_address != Address::zero() {
             let origin_chain_id = l2_native_token_vault
                 .origin_chain_id(current_asset_id)
@@ -124,11 +126,15 @@ pub async fn migrate_l2_tokens(
                 stuck_tokens.push(token);
                 total_tokens_stuck += 1;
             }
+
+            total_legacy_tokens += 1;
         }
     }
 
     println!(
-        "Overall {} tokens were registered and {} were found temporarily stuck until v27",
+        "Chain contains {} legacy tokens in total. Out of those: {} tokens were migrated before, {} tokens have just been migrated and {} were found temporarily stuck until v27",
+        total_legacy_tokens,
+        total_legacy_tokens - total_tokens_registered - stuck_tokens.len(),
         total_tokens_registered,
         stuck_tokens.len()
     );
