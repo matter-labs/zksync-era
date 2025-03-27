@@ -23,31 +23,33 @@ use zksync_db_connection::{
 
 use crate::{duration_to_naive_time, pg_interval_from_duration, Prover};
 
-///    Among the zoo of circuits each circuit type has its own peak RAM utilization,
-///    average execution time and proportional share. Here we pay attention to
-///    the most resource/time consuming circuits.
+/// Among the zoo of circuits each circuit type has its own peak RAM utilization,
+/// average execution time and proportional share. Here we pay attention to
+/// the most resource/time consuming circuits.
 ///
-///    For example:
-///    basic_1 - 1.7GB RAM, 13s execution time, 74.5% share
-///    basic_2 - 3.43GB RAM, 22s execution time, 0.03% share
-///    basic_4 - 3.02GB RAM, 16s execution time, 0.15% share
-///    basic_8 - 3.51GB RAM, 30s execution time, 2.5% share
-///    basic_9 - 3.47GB RAM, 30s execution time, 0.14% share
-///    basic_10 - 1.44GB RAM, 24s execution time, 6.62% share
-///    basic_11 - 2.89GB RAM, 19s execution time, 0.03% share
-///    basic_12 - 2.88GB RAM, 16s execution time, 0.01% share
-///    leaves - 2.24GB RAM, 7s execution time, 3.05% share
-///    nodes - 2.18GB RAM, 12s execution time, 0.19% share
-///    The goal is to provide maximum throughput for the prover (1 completed jobs per 1s)
-///    whilst the total RAM usage is under 60GB. (generic hardware available internally)
-///    We consider the following basic circuits as heavy jobs: [2, 4, 8, 9, 10, 11, 12]
-///    Given the parameters of light/heavy jobs are -l=13, -h=3, we can garantee that:
-///    1) For the basic circuits all the heavy jobs will be completed before the light jobs.
-///    2) We provide optimal throughput for the prover.
-///    3) We keep the total RAM usage under 60GB.
-///    The total RAM usage will be:
-///    21.8GB (setup) + 1.7GB * 13 + 3.51GB * 3 = 54.43GB - for basic circuits
-///    21.8GB (setup) + 2.24GB * 16 = 57.64GB - for leaves
+/// For example:
+/// basic_1 - 1.7GB RAM, 13s execution time, 74.5% share
+/// basic_2 - 3.43GB RAM, 22s execution time, 0.03% share
+/// basic_4 - 3.02GB RAM, 16s execution time, 0.15% share
+/// basic_8 - 3.51GB RAM, 30s execution time, 2.5% share
+/// basic_9 - 3.47GB RAM, 30s execution time, 0.14% share
+/// basic_10 - 1.44GB RAM, 24s execution time, 6.62% share
+/// basic_11 - 2.89GB RAM, 19s execution time, 0.03% share
+/// basic_12 - 2.88GB RAM, 16s execution time, 0.01% share
+/// leaves - 2.24GB RAM, 7s execution time, 3.05% share
+/// nodes - 2.18GB RAM, 12s execution time, 0.19% share
+///
+/// The goal is to provide maximum throughput for the prover (1 completed jobs per 1s)
+/// whilst the total RAM usage is under 60GB. (generic hardware available internally)
+/// We consider the following basic circuits as heavy jobs: [2, 4, 8, 9, 10, 11, 12]
+/// Given the parameters of light/heavy jobs are -l=13, -h=3, we can garantee that:
+/// 1) For the basic circuits all the heavy jobs will be completed before the light jobs.
+/// 2) We provide optimal throughput for the prover.
+/// 3) We keep the total RAM usage under 60GB.
+///
+/// The total RAM usage will be:
+/// 21.8GB (setup) + 1.7GB * 13 + 3.51GB * 3 = 54.43GB - for basic circuits
+/// 21.8GB (setup) + 2.24GB * 16 = 57.64GB - for leaves
 pub const HEAVY_BASIC_CIRCUIT_IDS: [i16; 7] = [2, 4, 8, 9, 10, 11, 12];
 
 #[derive(Debug)]
