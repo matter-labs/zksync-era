@@ -29,7 +29,7 @@ use zksync_types::{
     AccountTreeId, Address, Bloom, L1BatchNumber, L1ChainId, L2BlockNumber, L2ChainId,
     ProtocolVersion, ProtocolVersionId, StorageKey, StorageLog, H256, U256,
 };
-
+use zksync_zk_os_merkle_tree::TreeEntry;
 use crate::utils::{
     add_eth_token, get_deduped_log_queries, get_storage_logs,
     insert_base_system_contracts_to_factory_deps, insert_deduplicated_writes_and_protective_reads,
@@ -192,12 +192,29 @@ pub fn mock_genesis_config() -> GenesisConfig {
 }
 
 pub fn make_genesis_batch_params(
-    _deduped_log_queries: Vec<LogQuery>,
+    deduped_log_queries: Vec<LogQuery>,
     base_system_contract_hashes: BaseSystemContractsHashes,
     protocol_version: ProtocolVersionId,
 ) -> (GenesisBatchParams, L1BatchCommitment) {
+    let tree_entries = deduped_log_queries
+        .into_iter()
+        .filter(|log_query| log_query.rw_flag) // only writes
+        .map(|log| {
+            let storage_key = StorageKey::new(AccountTreeId::new(log.address), u256_to_h256(log.key));
+            let reversed_hashed_key = {
+                let mut hashed_key = storage_key.hashed_key().0;
+                hashed_key.reverse();
+                H256(hashed_key)
+            };
+            TreeEntry {
+                key: reversed_hashed_key,
+                value: u256_to_h256(log.written_value)
+            }
+        })
+        .collect::<Vec<_>>();
+
     // Tree will insert guard leaves automatically, they don't need to be passed here.
-    let metadata = zksync_zk_os_merkle_tree::process_genesis_batch(&[]);
+    let metadata = zksync_zk_os_merkle_tree::process_genesis_batch(&tree_entries);
     let root_hash = metadata.root_hash;
     let rollup_last_leaf_index = metadata.leaf_count + 1;
 

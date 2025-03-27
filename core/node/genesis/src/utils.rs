@@ -201,6 +201,7 @@ pub(super) async fn insert_deduplicated_writes_and_protective_reads(
         )
         .await?;
 
+    // Guard leaves must be inserted. Note, that they will only be present in `initial_writes` but not in `storage_logs` table.
     let mut written_storage_keys = vec![H256::zero(), H256::repeat_byte(0xff)];
     written_storage_keys.extend(deduplicated_writes.iter().map(|log| {
         StorageKey::new(AccountTreeId::new(log.address), u256_to_h256(log.key)).hashed_key()
