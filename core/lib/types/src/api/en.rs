@@ -7,6 +7,7 @@ use zksync_contracts::BaseSystemContractsHashes;
 use crate::ProtocolVersionId;
 
 /// Representation of the L2 block, as needed for the EN synchronization.
+///
 /// This structure has several fields that describe *L1 batch* rather than
 /// *L2 block*, thus they are the same for all the L2 blocks in the batch.
 ///

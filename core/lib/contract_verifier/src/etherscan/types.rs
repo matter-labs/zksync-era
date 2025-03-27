@@ -171,6 +171,9 @@ impl RawEtherscanResponse {
                 if result_lower.contains("pending") {
                     return EtherscanError::VerificationPending;
                 }
+                if result_lower.contains("unable to locate contractcode") {
+                    return EtherscanError::ContractBytecodeNotAvailable;
+                }
                 // There is a number of daily limit in between the checked values. I don't want to rely on the exact
                 // number as it is a subject to change.
                 if result_lower.starts_with("daily limit")
@@ -462,7 +465,7 @@ mod tests {
             (
                 RawEtherscanResponse {
                     status: "0".to_string(),
-                    message: "Error".to_string(),
+                    message: "NOTOK".to_string(),
                     result: serde_json::Value::String(
                         "Contract source code not verified".to_string(),
                     ),
@@ -472,7 +475,7 @@ mod tests {
             (
                 RawEtherscanResponse {
                     status: "0".to_string(),
-                    message: "Error".to_string(),
+                    message: "NOTOK".to_string(),
                     result: serde_json::Value::String(
                         "Contract source code already verified".to_string(),
                     ),
@@ -482,7 +485,7 @@ mod tests {
             (
                 RawEtherscanResponse {
                     status: "0".to_string(),
-                    message: "Error".to_string(),
+                    message: "NOTOK".to_string(),
                     result: serde_json::Value::String("Already Verified".to_string()),
                 },
                 EtherscanError::ContractAlreadyVerified,
@@ -490,7 +493,7 @@ mod tests {
             (
                 RawEtherscanResponse {
                     status: "0".to_string(),
-                    message: "Error".to_string(),
+                    message: "NOTOK".to_string(),
                     result: serde_json::Value::String("Pending in queue".to_string()),
                 },
                 EtherscanError::VerificationPending,
@@ -498,7 +501,15 @@ mod tests {
             (
                 RawEtherscanResponse {
                     status: "0".to_string(),
-                    message: "Error".to_string(),
+                    message: "NOTOK".to_string(),
+                    result: serde_json::Value::String("Unable to locate ContractCode at 0x0000000000000000000000000000000000000000".to_string()),
+                },
+                EtherscanError::ContractBytecodeNotAvailable,
+            ),
+            (
+                RawEtherscanResponse {
+                    status: "0".to_string(),
+                    message: "NOTOK".to_string(),
                     result: serde_json::Value::String(
                         "Daily limit of 100 source code submissions reached".to_string(),
                     ),
@@ -508,7 +519,7 @@ mod tests {
             (
                 RawEtherscanResponse {
                     status: "0".to_string(),
-                    message: "Error".to_string(),
+                    message: "NOTOK".to_string(),
                     result: serde_json::Value::String("Max rate limit reached".to_string()),
                 },
                 EtherscanError::RateLimitExceeded,
@@ -516,7 +527,7 @@ mod tests {
             (
                 RawEtherscanResponse {
                     status: "0".to_string(),
-                    message: "Error".to_string(),
+                    message: "NOTOK".to_string(),
                     result: serde_json::Value::String("Invalid API Key".to_string()),
                 },
                 EtherscanError::InvalidApiKey,
@@ -524,7 +535,7 @@ mod tests {
             (
                 RawEtherscanResponse {
                     status: "0".to_string(),
-                    message: "Error".to_string(),
+                    message: "NOTOK".to_string(),
                     result: serde_json::Value::String("Missing/Invalid API Key".to_string()),
                 },
                 EtherscanError::InvalidApiKey,
@@ -532,11 +543,11 @@ mod tests {
             (
                 RawEtherscanResponse {
                     status: "0".to_string(),
-                    message: "Error".to_string(),
+                    message: "NOTOK".to_string(),
                     result: serde_json::Value::String("Unknown error".to_string()),
                 },
                 EtherscanError::ErrorResponse {
-                    message: "Error".to_string(),
+                    message: "NOTOK".to_string(),
                     result: "Unknown error".to_string(),
                 },
             ),
@@ -553,6 +564,10 @@ mod tests {
                 (
                     EtherscanError::DailyVerificationRequestsLimitExceeded,
                     EtherscanError::DailyVerificationRequestsLimitExceeded,
+                ) => {}
+                (
+                    EtherscanError::ContractBytecodeNotAvailable,
+                    EtherscanError::ContractBytecodeNotAvailable,
                 ) => {}
                 (EtherscanError::RateLimitExceeded, EtherscanError::RateLimitExceeded) => {}
                 (EtherscanError::InvalidApiKey, EtherscanError::InvalidApiKey) => {}

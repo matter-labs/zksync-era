@@ -4,7 +4,7 @@ use std::{collections::HashMap, iter};
 
 use assert_matches::assert_matches;
 use zk_evm_1_5_0::zkevm_opcode_defs::decoding::{EncodingModeProduction, VmEncodingMode};
-use zksync_contracts::{eth_contract, load_contract, read_bytecode};
+use zksync_contracts::{load_contract, read_bytecode};
 use zksync_dal::{
     transactions_dal::L2TxSubmissionResult, Connection, ConnectionPool, Core, CoreDal,
 };
@@ -19,8 +19,9 @@ use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_node_test_utils::{create_l2_block, default_l1_batch_env, default_system_env};
 use zksync_state::PostgresStorage;
 use zksync_system_constants::{
-    CONTRACT_DEPLOYER_ADDRESS, L2_BASE_TOKEN_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
-    SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
+    CONTRACT_DEPLOYER_ADDRESS, L2_BASE_TOKEN_ADDRESS, NONCE_HOLDER_ADDRESS,
+    REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, SYSTEM_CONTEXT_ADDRESS,
+    SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
 };
 use zksync_test_contracts::{Account, LoadnextContractExecutionParams, TestContract};
 use zksync_types::{
@@ -30,10 +31,9 @@ use zksync_types::{
     bytecode::BytecodeHash,
     commitment::PubdataParams,
     ethabi,
-    ethabi::Token,
+    ethabi::{ParamType, Token},
     fee::Fee,
     fee_model::FeeParams,
-    get_code_key, get_known_code_key,
     l1::L1Tx,
     l2::L2Tx,
     transaction_request::{CallRequest, Eip712Meta},
@@ -44,6 +44,8 @@ use zksync_types::{
     StorageLog, Transaction, EIP_712_TX_TYPE, H256, U256,
 };
 use zksync_vm_executor::{batch::MainBatchExecutorFactory, interface::BatchExecutorFactory};
+
+use crate::execution_sandbox::testonly::apply_state_overrides;
 
 const MULTICALL3_CONTRACT_PATH: &str =
     "contracts/l2-contracts/zkout/Multicall3.sol/Multicall3.json";
@@ -121,6 +123,11 @@ impl StateBuilder {
         self
     }
 
+    pub fn with_nonce(mut self, address: Address, nonce: U256) -> Self {
+        self.inner.entry(address).or_default().nonce = Some(nonce);
+        self
+    }
+
     pub fn with_expensive_contract(self) -> Self {
         self.with_contract(
             Self::EXPENSIVE_CONTRACT_ADDRESS,
@@ -169,50 +176,8 @@ impl StateBuilder {
     }
 
     /// Applies these state overrides to Postgres storage, which is assumed to be empty (other than genesis data).
-    pub async fn apply(self, connection: &mut Connection<'_, Core>) {
-        let mut storage_logs = vec![];
-        let mut factory_deps = HashMap::new();
-        for (address, account) in self.inner {
-            if let Some(balance) = account.balance {
-                let balance_key = storage_key_for_eth_balance(&address);
-                storage_logs.push(StorageLog::new_write_log(
-                    balance_key,
-                    u256_to_h256(balance),
-                ));
-            }
-            if let Some(code) = account.code {
-                let code_hash = code.hash();
-                storage_logs.extend([
-                    StorageLog::new_write_log(get_code_key(&address), code_hash),
-                    StorageLog::new_write_log(
-                        get_known_code_key(&code_hash),
-                        H256::from_low_u64_be(1),
-                    ),
-                ]);
-                factory_deps.insert(code_hash, code.into_bytes());
-            }
-            if let Some(state) = account.state {
-                let state_slots = match state {
-                    OverrideState::State(slots) | OverrideState::StateDiff(slots) => slots,
-                };
-                let state_logs = state_slots.into_iter().map(|(key, value)| {
-                    let key = StorageKey::new(AccountTreeId::new(address), key);
-                    StorageLog::new_write_log(key, value)
-                });
-                storage_logs.extend(state_logs);
-            }
-        }
-
-        connection
-            .storage_logs_dal()
-            .append_storage_logs(L2BlockNumber(0), &storage_logs)
-            .await
-            .unwrap();
-        connection
-            .factory_deps_dal()
-            .insert_factory_deps(L2BlockNumber(0), &factory_deps)
-            .await
-            .unwrap();
+    pub async fn apply(self, connection: Connection<'static, Core>) {
+        apply_state_overrides(connection, StateOverride::new(self.inner)).await;
     }
 }
 
@@ -318,6 +283,8 @@ pub(crate) trait TestAccount {
 
     fn query_base_token_balance(&self) -> CallRequest;
 
+    fn query_min_nonce(&self, address: Address) -> CallRequest;
+
     fn create_transfer_with_fee(&mut self, to: Address, value: U256, fee: Fee) -> L2Tx;
 
     fn create_load_test_tx(&mut self, params: LoadnextContractExecutionParams) -> L2Tx;
@@ -355,7 +322,7 @@ impl TestAccount for Account {
     }
 
     fn query_base_token_balance(&self) -> CallRequest {
-        let data = eth_contract()
+        let data = zksync_contracts::eth_contract()
             .function("balanceOf")
             .expect("No `balanceOf` function in contract")
             .encode_input(&[Token::Uint(address_to_u256(&self.address()))])
@@ -363,6 +330,18 @@ impl TestAccount for Account {
         CallRequest {
             from: Some(self.address()),
             to: Some(L2_BASE_TOKEN_ADDRESS),
+            data: Some(data.into()),
+            ..CallRequest::default()
+        }
+    }
+
+    fn query_min_nonce(&self, address: Address) -> CallRequest {
+        let signature = ethabi::short_signature("getMinNonce", &[ParamType::Address]);
+        let mut data = signature.to_vec();
+        data.extend_from_slice(&ethabi::encode(&[Token::Address(address)]));
+        CallRequest {
+            from: Some(self.address()),
+            to: Some(NONCE_HOLDER_ADDRESS),
             data: Some(data.into()),
             ..CallRequest::default()
         }
