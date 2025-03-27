@@ -86,6 +86,30 @@ fn flip_bit(hash: &mut H256, bit: u8) {
     hash.as_bytes_mut()[usize::from(byte)] ^= 1 << shift_in_byte;
 }
 
+fn test_read_proof(
+    tree: &mut MerkleTree<PatchSet>,
+    prev_writes: &[TreeEntry],
+    reads: &[H256],
+) -> Result<(), TestCaseError> {
+    // Necessary for proof fields to be non-empty
+    assert!(!prev_writes.is_empty());
+    assert!(!reads.is_empty());
+
+    let output = tree.extend(prev_writes).unwrap();
+    let version = tree.latest_version().unwrap().expect("no versions");
+    let proof = tree.prove(version, reads).unwrap();
+
+    let verify_result = proof.verify_reads(
+        &Blake2Hasher,
+        <DefaultTreeParams>::TREE_DEPTH,
+        output,
+        reads,
+    );
+    let tree_view = verify_result.map_err(|err| TestCaseError::fail(format!("{err:#}")))?;
+    prop_assert_eq!(tree_view.root_hash, output.root_hash);
+    Ok(())
+}
+
 #[derive(Debug)]
 enum LeafMutation {
     FlipKeyBit(u8),
@@ -271,19 +295,6 @@ proptest! {
     }
 
     #[test]
-    fn mutating_read_proof(
-        prev_entries in gen_writes(1..=MAX_ENTRIES),
-        read_indices in proptest::collection::vec(any::<Index>(), 1..=MAX_ENTRIES),
-        missing_reads in gen_reads(),
-        mutation in ProofMutation::gen(),
-    ) {
-        let mut tree = MerkleTree::new(PatchSet::default()).unwrap();
-        let mut all_reads = missing_reads;
-        merge_reads(&mut all_reads, &prev_entries, read_indices);
-        test_proof_mutation(&mut tree, &prev_entries, &all_reads, mutation)?;
-    }
-
-    #[test]
     fn verifying_update_proof_for_filled_tree(
         prev_entries in gen_writes(1..=MAX_ENTRIES),
         inserts in gen_writes(0..=MAX_ENTRIES),
@@ -310,5 +321,30 @@ proptest! {
         let mut all_reads = missing_reads;
         merge_reads(&mut all_reads, &prev_entries, read_indices);
         test_update(&mut tree, &all_writes, &all_reads)?;
+    }
+
+    #[test]
+    fn verifying_read_proof(
+        prev_entries in gen_writes(1..=MAX_ENTRIES),
+        read_indices in proptest::collection::vec(any::<Index>(), 1..=MAX_ENTRIES),
+        missing_reads in gen_reads(),
+    ) {
+        let mut tree = MerkleTree::new(PatchSet::default()).unwrap();
+        let mut all_reads = missing_reads;
+        merge_reads(&mut all_reads, &prev_entries, read_indices);
+        test_read_proof(&mut tree, &prev_entries, &all_reads)?;
+    }
+
+    #[test]
+    fn mutating_read_proof(
+        prev_entries in gen_writes(1..=MAX_ENTRIES),
+        read_indices in proptest::collection::vec(any::<Index>(), 1..=MAX_ENTRIES),
+        missing_reads in gen_reads(),
+        mutation in ProofMutation::gen(),
+    ) {
+        let mut tree = MerkleTree::new(PatchSet::default()).unwrap();
+        let mut all_reads = missing_reads;
+        merge_reads(&mut all_reads, &prev_entries, read_indices);
+        test_proof_mutation(&mut tree, &prev_entries, &all_reads, mutation)?;
     }
 }
