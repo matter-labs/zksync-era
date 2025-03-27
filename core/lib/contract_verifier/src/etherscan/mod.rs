@@ -33,6 +33,7 @@ enum ApiErrorRetryPolicy {
 }
 
 /// Returns true if the verification request is supported by the Etherscan verifier, otherwise false.
+///
 /// Currently, the verifier supports only Solidity single file and standard JSON input source code data formats.
 pub fn is_supported_verification_request(request: &VerificationRequest) -> bool {
     matches!(
@@ -74,6 +75,12 @@ fn get_api_error_retry_policy(api_error: &EtherscanError) -> ApiErrorRetryPolicy
             // second limit, we can pause for 5 sec.
             ApiErrorRetryPolicy::IndefinitelyRetryable {
                 pause_duration: Duration::from_secs(5),
+            }
+        }
+        EtherscanError::ContractBytecodeNotAvailable => {
+            // This error happens when the contract is not yet indexed by Etherscan.
+            ApiErrorRetryPolicy::Retryable {
+                pause_duration: Duration::from_secs(60), // 1 min
             }
         }
         EtherscanError::Reqwest(_) => {

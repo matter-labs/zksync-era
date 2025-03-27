@@ -84,6 +84,7 @@ pub struct BaseFees {
 }
 
 /// Common Web3 interface, as seen by the core applications.
+///
 /// Encapsulates the raw Web3 interaction, providing a high-level interface. Acts as an extension
 /// trait implemented for L1 / Ethereum [clients](zksync_web3_decl::client::Client).
 ///
