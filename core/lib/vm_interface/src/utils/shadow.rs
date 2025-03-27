@@ -323,10 +323,10 @@ impl<'a> StrictCall<'a> {
     }
 }
 
-impl CheckDivergence for [Call] {
+impl CheckDivergence for Vec<Call> {
     fn check_divergence(&self, other: &Self) -> DivergenceErrors {
-        let this = StrictCall::flatten(self);
-        let other = StrictCall::flatten(other);
+        let this = StrictCall::flatten(self.as_slice());
+        let other = StrictCall::flatten(other.as_slice());
         let mut errors = DivergenceErrors::new();
 
         errors.check_match("call_traces", &this, &other);

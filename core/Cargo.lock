@@ -12640,6 +12640,7 @@ dependencies = [
  "zksync_utils",
  "zksync_vlog",
  "zksync_vm_executor",
+ "zksync_vm_interface",
  "zksync_vm_runner",
  "zksync_web3_decl",
 ]

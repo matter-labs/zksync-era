@@ -294,6 +294,7 @@ impl<S: ReadStorage> Vm<S, StorageInvocationsTracer<StorageView<S>>, FastValidat
             tx_result: Box::new(tx_result),
             compression_result: compression_result.map(drop),
             call_traces: Arc::make_mut(&mut calls_result).take().unwrap_or_default(),
+            tracer_output: vec![],
         }
     }
 

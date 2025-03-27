@@ -331,16 +331,21 @@ impl Call {
 
 /// Mid-level transaction execution output returned by a [batch executor](crate::executor::BatchExecutor).
 #[derive(Debug)]
-pub struct BatchTransactionExecutionResult {
+pub struct BatchTransactionExecutionResult<TrOut = Vec<Call>> {
     /// VM result.
     pub tx_result: Box<VmExecutionResultAndLogs>,
     /// Compressed bytecodes used by the transaction.
     pub compression_result: Result<(), BytecodeCompressionError>,
     /// Call traces (if requested; otherwise, empty).
     pub call_traces: Vec<Call>,
+    /// Output saved by batch tracer.
+    // Defaults to `Vec<Call>` to keep compatibility with the rest of the codebase. `Vec<Call>` is a
+    // special case - `BatchVm` will save call traces into `call_traces` instead and this field will
+    // be empty.
+    pub tracer_output: TrOut,
 }
 
-impl BatchTransactionExecutionResult {
+impl<TrOut> BatchTransactionExecutionResult<TrOut> {
     pub fn was_halted(&self) -> bool {
         matches!(self.tx_result.result, ExecutionResult::Halt { .. })
     }

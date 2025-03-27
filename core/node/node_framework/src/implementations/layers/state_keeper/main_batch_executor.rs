@@ -1,5 +1,6 @@
 use zksync_types::vm::FastVmMode;
 use zksync_vm_executor::batch::{BatchTracer, MainBatchExecutorFactory, TraceCalls};
+use zksync_vm_interface::Call;
 
 use crate::{
     implementations::resources::state_keeper::BatchExecutorResource,
@@ -28,7 +29,7 @@ impl MainBatchExecutorLayer {
         self
     }
 
-    fn create_executor<Tr: BatchTracer>(&self) -> BatchExecutorResource {
+    fn create_executor<Tr: BatchTracer<Output = Vec<Call>>>(&self) -> BatchExecutorResource {
         let mut executor = MainBatchExecutorFactory::<Tr>::new(self.optional_bytecode_compression);
         executor.set_fast_vm_mode(self.fast_vm_mode);
         executor.into()
