@@ -88,68 +88,49 @@ impl EigenDAClient {
 }
 
 impl EigenDAClient {
+    async fn check_mapping(
+        &self,
+        inclusion_data: &Vec<u8>,
+        mapping: &str,
+    ) -> Result<bool, DAError> {
+        let mut data = vec![];
+        let func_selector = ethabi::short_signature(mapping, &[ParamType::Bytes]).to_vec();
+        data.extend_from_slice(&func_selector);
+        let inclusion_data = encode(&[Token::Bytes(inclusion_data.clone())]);
+        data.extend_from_slice(&inclusion_data);
+        let call_request = CallRequest {
+            to: Some(self.eigenda_registry_addr),
+            data: Some(zksync_basic_types::web3::Bytes(data)),
+            ..Default::default()
+        };
+
+        let block_id = self
+            .query_client
+            .block_number()
+            .await
+            .map_err(to_retriable_da_error)?;
+        let res = self
+            .query_client
+            .as_ref()
+            .call_contract_function(call_request, Some(block_id.into()))
+            .await
+            .map_err(to_retriable_da_error)?;
+        match hex::encode(res.0).as_str() {
+            "0000000000000000000000000000000000000000000000000000000000000000" => Ok(false),
+            "0000000000000000000000000000000000000000000000000000000000000001" => Ok(true),
+            _ => Err(anyhow::anyhow!("Invalid response from {}", mapping))
+                .map_err(to_non_retriable_da_error),
+        }
+    }
+
     async fn check_finished_batches(&self, inclusion_data: &Vec<u8>) -> Result<bool, DAError> {
-        let mut data = vec![];
-        let func_selector =
-            ethabi::short_signature("finishedBatches", &[ParamType::Bytes]).to_vec();
-        data.extend_from_slice(&func_selector);
-        let inclusion_data = encode(&[Token::Bytes(inclusion_data.clone())]);
-        data.extend_from_slice(&inclusion_data);
-        let call_request = CallRequest {
-            to: Some(self.eigenda_registry_addr),
-            data: Some(zksync_basic_types::web3::Bytes(data)),
-            ..Default::default()
-        };
-
-        let block_id = self
-            .query_client
-            .block_number()
-            .await
-            .map_err(to_retriable_da_error)?;
-        let res = self
-            .query_client
-            .as_ref()
-            .call_contract_function(call_request, Some(block_id.into()))
-            .await
-            .map_err(to_retriable_da_error)?;
-        match hex::encode(res.0).as_str() {
-            "0000000000000000000000000000000000000000000000000000000000000000" => Ok(false),
-            "0000000000000000000000000000000000000000000000000000000000000001" => Ok(true),
-            _ => Err(anyhow::anyhow!("Invalid response from finishedBatches"))
-                .map_err(to_non_retriable_da_error),
-        }
+        self.check_mapping(inclusion_data, "finishedBatches").await
     }
+
     async fn check_verified_batches(&self, inclusion_data: &Vec<u8>) -> Result<bool, DAError> {
-        let mut data = vec![];
-        let func_selector =
-            ethabi::short_signature("verifiedBatches", &[ParamType::Bytes]).to_vec();
-        data.extend_from_slice(&func_selector);
-        let inclusion_data = encode(&[Token::Bytes(inclusion_data.clone())]);
-        data.extend_from_slice(&inclusion_data);
-        let call_request = CallRequest {
-            to: Some(self.eigenda_registry_addr),
-            data: Some(zksync_basic_types::web3::Bytes(data)),
-            ..Default::default()
-        };
-
-        let block_id = self
-            .query_client
-            .block_number()
-            .await
-            .map_err(to_retriable_da_error)?;
-        let res = self
-            .query_client
-            .as_ref()
-            .call_contract_function(call_request, Some(block_id.into()))
-            .await
-            .map_err(to_retriable_da_error)?;
-        match hex::encode(res.0).as_str() {
-            "0000000000000000000000000000000000000000000000000000000000000000" => Ok(false),
-            "0000000000000000000000000000000000000000000000000000000000000001" => Ok(true),
-            _ => Err(anyhow::anyhow!("Invalid response from verifiedBatches"))
-                .map_err(to_non_retriable_da_error),
-        }
+        self.check_mapping(inclusion_data, "verifiedBatches").await
     }
+
     async fn check_inclusion_data_verification(
         &self,
         inclusion_data: &Vec<u8>,
