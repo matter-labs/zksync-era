@@ -7,12 +7,12 @@ use crate::event_processors::{EventProcessor, EventProcessorError, EventsSource}
 
 #[derive(Debug)]
 pub struct GatewayMigrationProcessor {
-    l2chain_id: L2ChainId,
+    l2_chain_id: L2ChainId,
     possible_main_topics: Vec<H256>,
 }
 
 impl GatewayMigrationProcessor {
-    pub fn new(l2chain_id: L2ChainId) -> Self {
+    pub fn new(l2_chain_id: L2ChainId) -> Self {
         let contract = server_notifier_contract();
         let topics = vec![
             contract.event("MigrateToGateway").unwrap().signature(),
@@ -20,7 +20,7 @@ impl GatewayMigrationProcessor {
         ];
 
         Self {
-            l2chain_id,
+            l2_chain_id,
             possible_main_topics: topics,
         }
     }
@@ -48,7 +48,7 @@ impl EventProcessor for GatewayMigrationProcessor {
                     .as_bytes(),
             );
 
-            if L2ChainId::from(chain_id.as_u32()) != self.l2chain_id {
+            if L2ChainId::from(chain_id.as_u32()) != self.l2_chain_id {
                 continue;
             }
 
@@ -69,7 +69,7 @@ impl EventProcessor for GatewayMigrationProcessor {
     }
 
     fn topic2(&self) -> Option<H256> {
-        Some(H256::from_low_u64_be(self.l2chain_id.as_u64()))
+        Some(H256::from_low_u64_be(self.l2_chain_id.as_u64()))
     }
 
     fn event_source(&self) -> EventsSource {

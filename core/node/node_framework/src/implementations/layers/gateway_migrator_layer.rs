@@ -17,7 +17,7 @@ use crate::{
 /// Wiring layer for [`GatewayMigrator`].
 #[derive(Debug)]
 pub struct GatewayMigratorLayer {
-    pub l2chain_id: L2ChainId,
+    pub l2_chain_id: L2ChainId,
 }
 
 #[derive(Debug, FromContext)]
@@ -53,7 +53,7 @@ impl WiringLayer for GatewayMigratorLayer {
                 .gateway_client
                 .map(|a| Box::new(a.0) as Box<dyn EthInterface>),
             input.settlement_mode_resource.0,
-            self.l2chain_id,
+            self.l2_chain_id,
             input.pool.get().await?,
             input.contracts.0,
         );

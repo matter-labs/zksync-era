@@ -341,7 +341,7 @@ impl MainNodeBuilder {
 
     fn add_gateway_migrator_layer(mut self) -> anyhow::Result<Self> {
         self.node.add_layer(GatewayMigratorLayer {
-            l2chain_id: self.genesis_config.l2_chain_id,
+            l2_chain_id: self.genesis_config.l2_chain_id,
         });
         Ok(self)
     }
@@ -442,7 +442,7 @@ impl MainNodeBuilder {
             ..Default::default()
         };
         let http_port = rpc_config.http_port;
-        let internal_config_builder = InternalApiConfigBase::new(&self.genesis_config, &rpc_config)
+        let internal_config_base = InternalApiConfigBase::new(&self.genesis_config, &rpc_config)
             .with_l1_to_l2_txs_paused(
                 self.configs
                     .mempool_config
@@ -453,7 +453,7 @@ impl MainNodeBuilder {
 
         self.node.add_layer(Web3ServerLayer::http(
             http_port,
-            internal_config_builder,
+            internal_config_base,
             optional_config,
         ));
 
@@ -493,7 +493,7 @@ impl MainNodeBuilder {
             ..Default::default()
         };
         let ws_port = rpc_config.ws_port;
-        let internal_config_builder = InternalApiConfigBase::new(&self.genesis_config, &rpc_config)
+        let internal_config_base = InternalApiConfigBase::new(&self.genesis_config, &rpc_config)
             .with_l1_to_l2_txs_paused(
                 self.configs
                     .mempool_config
@@ -504,7 +504,7 @@ impl MainNodeBuilder {
 
         self.node.add_layer(Web3ServerLayer::ws(
             ws_port,
-            internal_config_builder,
+            internal_config_base,
             optional_config,
         ));
 

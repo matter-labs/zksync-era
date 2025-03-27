@@ -40,7 +40,7 @@ impl ServerNotificationsDal<'_, '_> {
         &mut self,
         topics: &[H256],
     ) -> DalResult<Option<ServerNotification>> {
-        let topics: Vec<Vec<u8>> = topics.iter().map(|a| a.as_bytes().to_vec()).collect();
+        let topics: Vec<&[u8]> = topics.iter().map(H256::as_bytes).collect();
 
         let rows = sqlx::query!(
             r#"
@@ -54,7 +54,7 @@ impl ServerNotificationsDal<'_, '_> {
                 l1_block_number DESC
             LIMIT 1
             "#,
-            &topics
+            &topics as &[&[u8]]
         )
         .instrument("get_last_notification_by_topics")
         .fetch_optional(self.storage)

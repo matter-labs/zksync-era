@@ -84,14 +84,11 @@ impl WiringLayer for BaseTokenRatioPersisterLayer {
                 let tms_private_key = token_multiplier_setter.wallet.private_key();
                 let tms_address = token_multiplier_setter.wallet.address();
                 let EthInterfaceResource(query_client) = input.eth_client;
+                let contracts = input.l1_contracts_resource.0.chain_contracts_config;
 
                 let signing_client = PKSigningClient::new_raw(
                     tms_private_key.clone(),
-                    input
-                        .l1_contracts_resource
-                        .0
-                        .chain_contracts_config
-                        .diamond_proxy_addr,
+                    contracts.diamond_proxy_addr,
                     self.config.default_priority_fee_per_gas,
                     #[allow(clippy::useless_conversion)]
                     self.l1_chain_id.into(),
@@ -104,16 +101,8 @@ impl WiringLayer for BaseTokenRatioPersisterLayer {
                         token_multiplier_setter_account_address: tms_address,
                         chain_admin_contract: chain_admin_contract(),
                         getters_facet_contract: getters_facet_contract(),
-                        diamond_proxy_contract_address: input
-                            .l1_contracts_resource
-                            .0
-                            .chain_contracts_config
-                            .diamond_proxy_addr,
-                        chain_admin_contract_address: input
-                            .l1_contracts_resource
-                            .0
-                            .chain_contracts_config
-                            .chain_admin,
+                        diamond_proxy_contract_address: contracts.diamond_proxy_addr,
+                        chain_admin_contract_address: contracts.chain_admin,
                         config: self.config.clone(),
                     },
                     last_persisted_l1_ratio: None,
