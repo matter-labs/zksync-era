@@ -5,7 +5,6 @@ use zkstack_cli_config::{
     copy_configs, set_l1_rpc_url, traits::SaveConfigWithBasePath, update_from_chain_config,
     ChainConfig, ContractsConfig, EcosystemConfig,
 };
-use zksync_basic_types::L2ChainId;
 use zksync_types::Address;
 
 use crate::{
