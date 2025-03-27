@@ -1,5 +1,7 @@
 # Introduction
 
+[back to readme](../SUMMARY.md)
+
 The goal of the ZK Stack is to power the internet of value. Value needs to be secured, and only blockchains are able
 provide the level of security that the internet needs. The ZK Stack can be used to launch zero-knowledge rollups, which
 are extra secure blockchains.
@@ -13,7 +15,7 @@ node to verify all transactions, the state of the rollup can be easily checked b
 the proof.
 
 These external validators of a rollup can be other rollups. This means we can connect rollups trustlessly, and create a
-network of rollups. This network is called the ZK Chain ecosystem.
+network of rollups. This network is called the Elastic Network.
 
 These specs will provide a high level overview of the zkEVM and a full specification of its more technical components,
-such as the prover, compiler, and the VM itself. We also specify the foundations of the ZK Chain ecosystem.
+such as the prover, compiler, and the VM itself. We also specify the foundations of the Elastic Network.
