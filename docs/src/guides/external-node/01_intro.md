@@ -129,10 +129,10 @@ calls and transactions.
 This namespace is disabled by default and can be configured via setting `EN_API_NAMESPACES` as described in the
 [example config](prepared_configs/mainnet-config.env).
 
-> [!NOTE]
->
-> The traces will only start being generated for blocks synced after the debug namespace is enabled, they will not be
-> backfilled! The only way to get traces for historical blocks is to fully re-sync the node
+```admonish note
+The traces will only start being generated for blocks synced after the debug namespace is enabled, they will not be
+backfilled! The only way to get traces for historical blocks is to fully re-sync the node
+```
 
 Available methods:
 

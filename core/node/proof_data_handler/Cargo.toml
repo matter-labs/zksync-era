@@ -24,9 +24,6 @@ axum.workspace = true
 tokio.workspace = true
 tower-http = { workspace = true, features = ["compression-zstd", "decompression-zstd"] }
 tracing.workspace = true
-reqwest.workspace = true
-tower.workspace = true
-jsonrpsee = { workspace = true, features = ["async-client", "ws-client", "macros", "client-ws-transport-tls"]}
 
 [dev-dependencies]
 hyper.workspace = true

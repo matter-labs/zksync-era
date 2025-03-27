@@ -3592,11 +3592,9 @@ dependencies = [
  "jsonrpsee-core",
  "jsonrpsee-http-client",
  "jsonrpsee-proc-macros",
- "jsonrpsee-server",
  "jsonrpsee-types",
  "jsonrpsee-wasm-client",
  "jsonrpsee-ws-client",
- "tokio",
  "tracing",
 ]
 
@@ -3639,9 +3637,7 @@ dependencies = [
  "http-body 1.0.1",
  "http-body-util",
  "jsonrpsee-types",
- "parking_lot 0.12.3",
  "pin-project",
- "rand 0.8.5",
  "rustc-hash 2.1.1",
  "serde",
  "serde_json",
@@ -3688,33 +3684,6 @@ dependencies = [
  "proc-macro2 1.0.92",
  "quote 1.0.37",
  "syn 2.0.90",
-]
-
-[[package]]
-name = "jsonrpsee-server"
-version = "0.24.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "66b7a3df90a1a60c3ed68e7ca63916b53e9afa928e33531e87f61a9c8e9ae87b"
-dependencies = [
- "futures-util",
- "http 1.2.0",
- "http-body 1.0.1",
- "http-body-util",
- "hyper 1.5.2",
- "hyper-util",
- "jsonrpsee-core",
- "jsonrpsee-types",
- "pin-project",
- "route-recognizer",
- "serde",
- "serde_json",
- "soketto",
- "thiserror 1.0.69",
- "tokio",
- "tokio-stream",
- "tokio-util",
- "tower 0.4.13",
- "tracing",
 ]
 
 [[package]]
@@ -5695,12 +5664,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "route-recognizer"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "afab94fb28594581f62d981211a9a4d53cc8130bbcbbb89a0440d9b8e81a7746"
-
-[[package]]
 name = "rsa"
 version = "0.9.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6553,7 +6516,6 @@ dependencies = [
  "base64 0.22.1",
  "bytes",
  "futures 0.3.31",
- "http 1.2.0",
  "httparse",
  "log",
  "rand 0.8.5",
@@ -7273,7 +7235,6 @@ dependencies = [
  "futures-core",
  "pin-project-lite",
  "tokio",
- "tokio-util",
 ]
 
 [[package]]
@@ -8715,7 +8676,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_basic_types"
-version = "27.0.0-non-semver-compat"
+version = "27.1.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "chrono",
@@ -8828,7 +8789,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_config"
-version = "27.0.0-non-semver-compat"
+version = "27.1.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "rand 0.8.5",
@@ -8919,7 +8880,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_contracts"
-version = "27.0.0-non-semver-compat"
+version = "27.1.0-non-semver-compat"
 dependencies = [
  "envy",
  "hex",
@@ -8932,7 +8893,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_core_leftovers"
-version = "27.0.0-non-semver-compat"
+version = "27.1.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "ctrlc",
@@ -8946,7 +8907,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_crypto_primitives"
-version = "27.0.0-non-semver-compat"
+version = "27.1.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "blake2 0.10.6",
@@ -8974,7 +8935,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_da_client"
-version = "27.0.0-non-semver-compat"
+version = "27.1.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8983,7 +8944,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_dal"
-version = "27.0.0-non-semver-compat"
+version = "27.1.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "bigdecimal",
@@ -9019,7 +8980,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_db_connection"
-version = "27.0.0-non-semver-compat"
+version = "27.1.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "rand 0.8.5",
@@ -9035,7 +8996,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_env_config"
-version = "27.0.0-non-semver-compat"
+version = "27.1.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "envy",
@@ -9046,7 +9007,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_eth_client"
-version = "27.0.0-non-semver-compat"
+version = "27.1.0-non-semver-compat"
 dependencies = [
  "async-trait",
  "jsonrpsee",
@@ -9063,7 +9024,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_eth_signer"
-version = "27.0.0-non-semver-compat"
+version = "27.1.0-non-semver-compat"
 dependencies = [
  "async-trait",
  "rlp",
@@ -9152,7 +9113,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_l1_contract_interface"
-version = "27.0.0-non-semver-compat"
+version = "27.1.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "circuit_definitions",
@@ -9169,7 +9130,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_mini_merkle_tree"
-version = "27.0.0-non-semver-compat"
+version = "27.1.0-non-semver-compat"
 dependencies = [
  "once_cell",
  "zksync_basic_types",
@@ -9178,7 +9139,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_multivm"
-version = "27.0.0-non-semver-compat"
+version = "27.1.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "circuit_sequencer_api",
@@ -9204,7 +9165,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_object_store"
-version = "27.0.0-non-semver-compat"
+version = "27.1.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -9318,7 +9279,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_protobuf_config"
-version = "27.0.0-non-semver-compat"
+version = "27.1.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "hex",
@@ -9389,10 +9350,10 @@ name = "zksync_prover_fri_gateway"
 version = "19.0.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "clap 4.5.23",
  "ctrlc",
  "futures 0.3.31",
- "jsonrpsee",
  "log",
  "reqwest 0.12.9",
  "serde",
@@ -9441,12 +9402,10 @@ dependencies = [
 
 [[package]]
 name = "zksync_prover_interface"
-version = "27.0.0-non-semver-compat"
+version = "27.1.0-non-semver-compat"
 dependencies = [
  "circuit_definitions",
- "circuit_sequencer_api",
  "fflonk",
- "jsonrpsee",
  "serde",
  "serde_with",
  "zksync_bellman",
@@ -9522,7 +9481,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_queued_job_processor"
-version = "27.0.0-non-semver-compat"
+version = "27.1.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -9551,7 +9510,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_system_constants"
-version = "27.0.0-non-semver-compat"
+version = "27.1.0-non-semver-compat"
 dependencies = [
  "once_cell",
  "zksync_basic_types",
@@ -9559,7 +9518,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_task_management"
-version = "27.0.0-non-semver-compat"
+version = "27.1.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "futures 0.3.31",
@@ -9571,7 +9530,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_types"
-version = "27.0.0-non-semver-compat"
+version = "27.1.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -9601,7 +9560,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_utils"
-version = "27.0.0-non-semver-compat"
+version = "27.1.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "once_cell",
@@ -9635,7 +9594,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_vlog"
-version = "27.0.0-non-semver-compat"
+version = "27.1.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "chrono",
@@ -9682,7 +9641,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_vm_interface"
-version = "27.0.0-non-semver-compat"
+version = "27.1.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -9698,7 +9657,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_web3_decl"
-version = "27.0.0-non-semver-compat"
+version = "27.1.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
