@@ -29,6 +29,7 @@ use super::{
 };
 
 /// ExternalIO is the IO abstraction for the state keeper that is used in the external node.
+///
 /// It receives a sequence of actions from the fetcher via the action queue and propagates it
 /// into the state keeper.
 ///

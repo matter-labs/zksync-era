@@ -82,7 +82,7 @@ impl EN {
                     loop {
                         if let Ok(new) = self.fetch_global_config(ctx).await {
                             // We verify the transition here to work around the situation
-                            // where `consenus_global_config()` RPC fails randomly and fallback
+                            // where `consensus_global_config()` RPC fails randomly and fallback
                             // to `consensus_genesis()` RPC activates.
                             if new != old
                                 && consensus_dal::verify_config_transition(&old, &new).is_ok()

@@ -49,6 +49,7 @@
   - [Pruning](guides/external-node/08_pruning.md)
   - [Treeless Mode](guides/external-node/09_treeless_mode.md)
   - [Decentralization](guides/external-node/10_decentralization.md)
+  - [Setup for other chains](guides/external-node/11_setup_for_other_chains.md)
 
 # Specs
 
