@@ -206,11 +206,7 @@ describe('L1 ERC20 contract checks', () => {
         const l2MessageVerification = new zksync.Contract(
             L2_MESSAGE_VERIFICATION_ADDRESS,
             ArtifactL2MessageVerification.abi,
-            new RetryProvider(
-                { url: 'http://localhost:3150', timeout: 1200 * 1000 },
-                undefined,
-                testMaster.reporter
-            )
+            new RetryProvider({ url: 'http://localhost:3150', timeout: 1200 * 1000 }, undefined, testMaster.reporter)
         );
         // console.log('l2MessageVerification', ArtifactL2MessageVerification.abi);
         const GATEWAY_CHAIN_ID = 506;
