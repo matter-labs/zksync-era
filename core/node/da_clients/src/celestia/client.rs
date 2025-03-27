@@ -23,7 +23,7 @@ use tonic::transport::Endpoint;
 use zksync_types::{
     H160,
     ethabi,
-    ethabi::{Contract, Event, FixedBytes, Uint, Bytes},
+    ethabi::{Contract, Event, FixedBytes, Uint, Bytes, Token},
     web3::{BlockNumber, contract::Tokenize},
 };
 use zksync_config::configs::da_client::celestia::{CelestiaConfig, CelestiaSecrets};
@@ -370,7 +370,7 @@ impl DataAvailabilityClient for CelestiaClient {
         };
 
         Ok(Some(InclusionData {
-            data: ethabi::encode(&celestia_zkstack_input.into_tokens()),
+            data: ethabi::encode(&[Token::Tuple(celestia_zkstack_input.into_tokens())]),
         }))
     }
 
