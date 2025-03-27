@@ -30,6 +30,7 @@ use zksync_types::{
     ProtocolVersion, ProtocolVersionId, StorageKey, StorageLog, H256, U256,
 };
 use zksync_zk_os_merkle_tree::TreeEntry;
+
 use crate::utils::{
     add_eth_token, get_deduped_log_queries, get_storage_logs,
     insert_base_system_contracts_to_factory_deps, insert_deduplicated_writes_and_protective_reads,
@@ -200,7 +201,8 @@ pub fn make_genesis_batch_params(
         .into_iter()
         .filter(|log_query| log_query.rw_flag) // only writes
         .map(|log| {
-            let storage_key = StorageKey::new(AccountTreeId::new(log.address), u256_to_h256(log.key));
+            let storage_key =
+                StorageKey::new(AccountTreeId::new(log.address), u256_to_h256(log.key));
             let reversed_hashed_key = {
                 let mut hashed_key = storage_key.hashed_key().0;
                 hashed_key.reverse();
@@ -208,7 +210,7 @@ pub fn make_genesis_batch_params(
             };
             TreeEntry {
                 key: reversed_hashed_key,
-                value: u256_to_h256(log.written_value)
+                value: u256_to_h256(log.written_value),
             }
         })
         .collect::<Vec<_>>();
