@@ -39,7 +39,7 @@ use crate::{duration_to_naive_time, pg_interval_from_duration, Prover};
 ///    leaves - 2.24GB RAM, 7s execution time, 3.05% share
 ///    nodes - 2.18GB RAM, 12s execution time, 0.19% share
 ///    The goal is to provide maximum throughput for the prover (1 completed jobs per 1s)
-///    whilst the total RAM usage is under 60GB.
+///    whilst the total RAM usage is under 60GB. (generic hardware available internally)
 ///    We consider the following basic circuits as heavy jobs: [2, 4, 8, 9, 10, 11, 12]
 ///    Given the parameters of light/heavy jobs are -l=13, -h=3, we can garantee that:
 ///    1) For the basic circuits all the heavy jobs will be completed before the light jobs.
