@@ -22,8 +22,9 @@ use subxt_signer::ExposeSecret;
 use tonic::transport::Endpoint;
 use zksync_types::{
     H160,
-    ethabi::{Contract, Event},
-    web3::BlockNumber,
+    ethabi,
+    ethabi::{Contract, Event, FixedBytes, Uint, Bytes},
+    web3::{BlockNumber, contract::Tokenize},
 };
 use zksync_config::configs::da_client::celestia::{CelestiaConfig, CelestiaSecrets};
 use zksync_da_client::{
@@ -58,7 +59,7 @@ pub struct CelestiaClient {
     blobstream_update_event: Event,
     blobstream_contract: Contract,
     equivalence_proof_cache:
-        Arc<Mutex<HashMap<String, (FixedBytes<32>, FixedBytes<32>, SP1ProofWithPublicValues)>>>,
+        Arc<Mutex<HashMap<String, (FixedBytes, FixedBytes, SP1ProofWithPublicValues)>>>,
     //blobstream_range_cache: Arc<Mutex<HashMap<u64, (U256, U256, U256)>>>,
 }
 
@@ -111,7 +112,7 @@ impl CelestiaClient {
     async fn get_proof_data(
         &self,
         blob_id: &str,
-    ) -> Result<Option<(FixedBytes<32>, FixedBytes<32>, SP1ProofWithPublicValues)>, DAError> {
+    ) -> Result<Option<(FixedBytes, FixedBytes, SP1ProofWithPublicValues)>, DAError> {
         tracing::debug!("Parsing blob id: {}", blob_id);
         let blob_id_struct = blob_id
             .parse::<BlobId>()
@@ -161,16 +162,15 @@ impl CelestiaClient {
 
         let proof: SP1ProofWithPublicValues = bincode::deserialize(&proof_data).unwrap();
         let public_values_bytes = proof.public_values.to_vec();
-        let (keccak_hash, data_root) =
-            KeccakInclusionToDataRootProofOutput::abi_decode(&public_values_bytes, true)
-                .map_err(to_non_retriable_da_error)?;
+        //let (keccak_hash, data_root) = 
+        let proof_outputs = KeccakInclusionToDataRootProofOutput::from_bytes(&public_values_bytes).map_err(to_non_retriable_da_error)?;
         tracing::debug!(
             "Decoded public values from SP1 proof {:?} {:?}",
-            keccak_hash,
-            data_root
+            proof_outputs.keccak_hash,
+            proof_outputs.data_root
         );
 
-        Ok(Some((keccak_hash, data_root, proof)))
+        Ok(Some((FixedBytes::from(proof_outputs.keccak_hash), FixedBytes::from(proof_outputs.data_root), proof)))
     }
 }
 
@@ -333,47 +333,44 @@ impl DataAvailabilityClient for CelestiaClient {
             .index
             .parse()
             .map_err(to_non_retriable_da_error)?;
-        let evm_index: Uint<256, 4> = Uint::from_limbs([data_root_index, 0, 0, 0]);
+
+        let evm_index = Uint::from(data_root_index);
 
         let total: u64 = data_root_inclusion_proof
             .total
             .parse()
             .map_err(to_non_retriable_da_error)?;
-        let evm_total: Uint<256, 4> = Uint::from_limbs([total, 0, 0, 0]);
+        let evm_total = Uint::from(total);
 
         // Convert proof data into AttestationProof
         let data_root_tuple = DataRootTuple {
             // I think this is correct little endian but we'll see
-            height: U256::from(target_height),
+            height: Uint::from(target_height),
             data_root: data_root,
         };
 
-        let side_nodes: Vec<FixedBytes<32>> = data_root_inclusion_proof
-            .aunts
-            .iter()
-            .map(|aunt| FixedBytes::<32>::from_slice(aunt))
-            .collect();
+        let side_nodes: Vec<FixedBytes> = data_root_inclusion_proof.aunts;
 
         let binary_merkle_proof = BinaryMerkleProof {
-            sideNodes: side_nodes,
+            side_nodes: side_nodes,
             key: evm_index,
-            numLeaves: evm_total,
+            num_leaves: evm_total,
         };
 
         let attestation_proof = AttestationProof {
-            tupleRootNonce: Uint::<256, 4>::from_limbs(proof_nonce.0),
+            tuple_root_nonce: proof_nonce,
             tuple: data_root_tuple,
             proof: binary_merkle_proof,
         };
 
         let celestia_zkstack_input = CelestiaZKStackInput {
-            attestationProof: attestation_proof,
-            equivalenceProof: Bytes::from(proof.bytes()),
-            publicValues: Bytes::from(proof.public_values.to_vec()),
+            attestation_proof: attestation_proof,
+            equivalence_proof: Bytes::from(proof.bytes()),
+            public_values: Bytes::from(proof.public_values.to_vec()),
         };
 
         Ok(Some(InclusionData {
-            data: celestia_zkstack_input.abi_encode(),
+            data: ethabi::encode(&celestia_zkstack_input.into_tokens()),
         }))
     }
 

@@ -3,7 +3,6 @@
     It is used to get the data root inclusion proof for a given height.
 */
 #![allow(dead_code)]
-use alloy_sol_types::sol;
 use reqwest::{Client, Error as ReqwestError};
 use serde::Deserialize;
 
@@ -246,16 +245,16 @@ impl Tokenize for BinaryMerkleProof {
 
 pub struct CelestiaZKStackInput {
     pub attestation_proof: AttestationProof,
-    pub equivalence_proof: FixedBytes,
-    pub public_values: FixedBytes,
+    pub equivalence_proof: Vec<u8>,
+    pub public_values: Vec<u8>,
 }
 
 impl Tokenize for CelestiaZKStackInput {
     fn into_tokens(self) -> Vec<Token> {
         vec![
             Token::Tuple(self.attestation_proof.into_tokens()),
-            Token::FixedBytes(self.equivalence_proof),
-            Token::FixedBytes(self.public_values),
+            Token::Bytes(self.equivalence_proof),
+            Token::Bytes(self.public_values),
         ]
     }
 }
