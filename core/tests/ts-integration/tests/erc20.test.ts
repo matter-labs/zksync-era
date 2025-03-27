@@ -15,8 +15,6 @@ import { L2_DEFAULT_ETH_PER_ACCOUNT } from '../src/context-owner';
 import {
     L2_MESSAGE_VERIFICATION_ADDRESS,
     ArtifactL2MessageVerification,
-    ArtifactMessageRootStorage,
-    L2_MESSAGE_ROOT_STORAGE_ADDRESS,
     ETH_ADDRESS_IN_CONTRACTS
 } from '../src/constants';
 import { RetryProvider } from '../src/retry-provider';

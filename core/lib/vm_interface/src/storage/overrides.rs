@@ -79,8 +79,8 @@ impl<S: ReadStorage + fmt::Debug> ReadStorage for StorageWithOverrides<S> {
 
     fn get_message_root(
         &mut self,
-        chain_id: SLChainId,
-        block_number: L2BlockNumber,
+        _chain_id: SLChainId,
+        _block_number: L2BlockNumber,
     ) -> Option<H256> {
         None // kl todo
     }
