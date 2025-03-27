@@ -33,6 +33,7 @@ enum ApiErrorRetryPolicy {
 }
 
 /// Returns true if the verification request is supported by the Etherscan verifier, otherwise false.
+///
 /// Currently, the verifier supports only Solidity single file and standard JSON input source code data formats.
 pub fn is_supported_verification_request(request: &VerificationRequest) -> bool {
     matches!(

@@ -9,6 +9,7 @@ use crate::vm_1_3_2::history_recorder::{HistoryEnabled, HistoryMode, HistoryReco
 
 /// Wrap of DefaultPrecompilesProcessor that store queue
 /// of timestamp when precompiles are called to be executed.
+///
 /// Number of precompiles per block is strictly limited,
 /// saving timestamps allows us to check the exact number
 /// of log queries, that were used during the tx execution.

@@ -311,6 +311,7 @@ impl WiringLayer for Web3ServerLayer {
 }
 
 /// Wrapper for the Web3 API.
+///
 /// Internal design note: API infrastructure was already established and consists of a dynamic set of tasks,
 /// and it proven to work well enough. It doesn't seem to be reasonable to refactor it to expose raw futures instead
 /// of tokio tasks, since it'll require a lot of effort. So instead, we spawn all the tasks in this wrapper,

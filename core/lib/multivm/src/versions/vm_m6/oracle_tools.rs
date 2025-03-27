@@ -14,6 +14,7 @@ use crate::vm_m6::{
 };
 
 /// zkEVM requires a bunch of objects implementing given traits to work.
+///
 /// For example: Storage, Memory, PrecompilerProcessor etc
 /// (you can find all these traits in zk_evm crate -> src/abstractions/mod.rs)
 /// For each of these traits, we have a local implementation (for example StorageOracle)

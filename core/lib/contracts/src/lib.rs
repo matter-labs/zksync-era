@@ -311,8 +311,9 @@ pub fn read_sys_contract_bytecode(directory: &str, name: &str, lang: ContractLan
 static DEFAULT_SYSTEM_CONTRACTS_REPO: Lazy<SystemContractsRepo> =
     Lazy::new(SystemContractsRepo::default);
 
-/// Structure representing a system contract repository - that allows
-/// fetching contracts that are located there.
+/// Structure representing a system contract repository.
+///
+/// It allows to fetch contracts that are located there.
 /// As most of the static methods in this file, is loading data based on the Cargo workspace location.
 pub struct SystemContractsRepo {
     // Path to the root of the system contracts repository.

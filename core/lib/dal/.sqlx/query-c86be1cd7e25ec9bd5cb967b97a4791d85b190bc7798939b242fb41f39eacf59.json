@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                certificate, versioned_certificate\n            FROM\n                miniblocks_consensus\n            WHERE\n                number = $1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "certificate",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 1,
+        "name": "versioned_certificate",
+        "type_info": "Jsonb"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      true,
+      true
+    ]
+  },
+  "hash": "c86be1cd7e25ec9bd5cb967b97a4791d85b190bc7798939b242fb41f39eacf59"
+}
