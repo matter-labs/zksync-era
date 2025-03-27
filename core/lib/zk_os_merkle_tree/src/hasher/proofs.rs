@@ -116,6 +116,14 @@ impl BatchTreeProof {
             anyhow::ensure!(*max_idx < prev_output.leaf_count, "Index is too large");
         }
 
+        if self.operations.is_empty() && self.read_operations.is_empty() {
+            // Degenerate case: there are no operations to be proven.
+            return Ok(MerkleTreeView {
+                root_hash: prev_output.root_hash,
+                read_entries: HashMap::new(),
+            });
+        }
+
         let mut read_entries = HashMap::with_capacity(read_keys.len());
         for (&operation, read_key) in self.read_operations.iter().zip(read_keys) {
             self.verify_operation(&prev_output, operation, read_key)

@@ -11,6 +11,8 @@ use crate::{
     types::{Leaf, TreeTags},
 };
 
+mod prop;
+
 #[test]
 fn empty_tree_hash_is_correct() {
     let expected_root_hash: H256 =
