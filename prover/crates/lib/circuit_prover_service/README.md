@@ -21,7 +21,7 @@ Witness Vector Generators have big gaps in resource utilization and execution ti
 (>2.5GB RAM or >16s), whilst all others are rather light.
 
 In current implementation we run multiple light WVG jobs and a small amount of heavy WVG jobs in order to keep
-good balance between maintaining optimal RAM usage and providing maximum throughput. As such, `MetadataLoader`
+good balance between maintaining optimal RAM usage and providing maximum throughput. `MetadataLoader`
 abstraction was introduced to force loading lighter and heavier jobs. Heavier picker will try to prioritize heavy
 circuits. If none are available, it falls back to light jobs in order to maximize usage.
 
