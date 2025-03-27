@@ -47,10 +47,8 @@ impl WiringLayer for MasterPoolSinkLayer {
         let tx_sink = match self.deployment_allowlist {
             Some(ref allowlist_cfg) => {
                 if let Some(url) = allowlist_cfg.http_file_url() {
-                    let allowlist_service = AllowListService::new(
-                        url.to_string(),
-                        allowlist_cfg.refresh_interval(),
-                    );
+                    let allowlist_service =
+                        AllowListService::new(url.to_string(), allowlist_cfg.refresh_interval());
                     WhitelistedDeployPoolSink::new(master_pool_sink, allowlist_service).into()
                 } else {
                     master_pool_sink.into()

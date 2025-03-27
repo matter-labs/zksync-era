@@ -70,7 +70,7 @@ pub enum SubmitTxError {
     #[error("transaction failed block.timestamp assertion")]
     FailedBlockTimestampAssertion,
     #[error("contract deployer address {0} is not in the allow list")]
-    DeployerNotInAllowList(Address)
+    DeployerNotInAllowList(Address),
 }
 
 impl SubmitTxError {
