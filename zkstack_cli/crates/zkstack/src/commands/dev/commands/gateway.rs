@@ -185,7 +185,6 @@ pub(crate) async fn check_l2_ntv_existence(l2_client: &Box<DynClient<L2>>) -> an
     Ok(())
 }
 
-const L2_TOKENS_CACHE: &'static str = "l2-tokens-cache.json";
 const CONTRACT_DEPLOYED_EVENT: &'static str = "ContractDeployed(address,bytes32,address)";
 
 /// Returns a list of tokens that can be deployed via the L2 legacy shared bridge.
@@ -194,15 +193,17 @@ const CONTRACT_DEPLOYED_EVENT: &'static str = "ContractDeployed(address,bytes32,
 pub async fn get_deployed_by_bridge(
     l2_rpc_url: &str,
     l2_shared_bridge_address: Address,
+    l2_chain_id: u64,
     block_range: u64,
 ) -> anyhow::Result<Vec<Address>> {
     println!(
         "Retrieving L2 bridged tokens... If done for the first time, it may take a few minutes"
     );
+    let l2_tokens_cache = &format!("l2-tokens-cache-{l2_chain_id}.json");
     // Each legacy bridged token is deployed via the legacy shared bridge.
     let total_logs_for_bridged_tokens = get_logs_for_events(
         0,
-        &L2_TOKENS_CACHE,
+        l2_tokens_cache,
         l2_rpc_url,
         block_range,
         &[(
@@ -265,6 +266,7 @@ pub async fn check_token_readiness(
     let all_tokens = get_deployed_by_bridge(
         &l2_rpc_url,
         l2_legacy_shared_bridge_addr,
+        l2_chain_id,
         l2_tokens_indexing_block_range.unwrap_or(DEFAULT_BLOCK_RANGE),
     )
     .await?;
