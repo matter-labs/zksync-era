@@ -1,10 +1,5 @@
-use sqlx::types::chrono::Utc;
-use zksync_db_connection::{
-    connection::Connection,
-    error::DalResult,
-    instrument::{CopyStatement, InstrumentExt},
-    write_str, writeln_str,
-};
+use sqlx::QueryBuilder;
+use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
 use zksync_types::{tokens::TokenInfo, Address, L2BlockNumber};
 
 use crate::{Core, CoreDal};
@@ -17,33 +12,38 @@ pub struct TokensDal<'a, 'c> {
 impl TokensDal<'_, '_> {
     pub async fn add_tokens(&mut self, tokens: &[TokenInfo]) -> DalResult<()> {
         let tokens_len = tokens.len();
-        let copy = CopyStatement::new(
-            "COPY tokens (l1_address, l2_address, name, symbol, decimals, well_known, created_at, updated_at)
-             FROM STDIN WITH (DELIMITER '|')",
-        )
-        .instrument("add_tokens")
-        .with_arg("tokens.len", &tokens_len)
-        .start(self.storage)
-        .await?;
-
-        let mut buffer = String::new();
-        let now = Utc::now().naive_utc().to_string();
-        for token_info in tokens {
-            write_str!(
-                &mut buffer,
-                "\\\\x{:x}|\\\\x{:x}|",
-                token_info.l1_address,
-                token_info.l2_address
-            );
-            writeln_str!(
-                &mut buffer,
-                "{}|{}|{}|FALSE|{now}|{now}",
-                token_info.metadata.name,
-                token_info.metadata.symbol,
-                token_info.metadata.decimals
-            );
-        }
-        copy.send(buffer.as_bytes()).await
+        let mut builder = QueryBuilder::new(
+            r#"
+            INSERT INTO
+            tokens (
+                l1_address,
+                l2_address,
+                name,
+                symbol,
+                decimals,
+                well_known,
+                created_at,
+                updated_at
+            )
+            "#,
+        );
+        builder.push_values(tokens, |mut b, token| {
+            b.push_bind(token.l1_address.as_bytes())
+                .push_bind(token.l2_address.as_bytes())
+                .push_bind(&token.metadata.name)
+                .push_bind(&token.metadata.symbol)
+                .push_bind(i32::from(token.metadata.decimals))
+                .push("FALSE")
+                .push("NOW()")
+                .push("NOW()");
+        });
+        builder
+            .build()
+            .instrument("add_tokens")
+            .with_arg("tokens.len", &tokens_len)
+            .execute(self.storage)
+            .await?;
+        Ok(())
     }
 
     pub async fn mark_token_as_well_known(&mut self, l1_address: Address) -> DalResult<()> {
@@ -377,5 +377,31 @@ mod tests {
                 .unwrap(),
             []
         );
+    }
+
+    fn problematic_token_info() -> TokenInfo {
+        TokenInfo {
+            l1_address: Address::repeat_byte(1),
+            l2_address: Address::repeat_byte(2),
+            metadata: TokenMetadata {
+                name: "T|est".to_string(),
+                symbol: "T|ST".to_string(),
+                decimals: 10,
+            },
+        }
+    }
+
+    #[tokio::test]
+    async fn adding_problematic_tokens() {
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut storage = pool.connection().await.unwrap();
+        storage
+            .protocol_versions_dal()
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
+
+        let tokens = [problematic_token_info()];
+        storage.tokens_dal().add_tokens(&tokens).await.unwrap();
     }
 }
