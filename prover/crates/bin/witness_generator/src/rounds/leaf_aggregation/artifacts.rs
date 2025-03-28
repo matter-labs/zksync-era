@@ -108,7 +108,8 @@ impl ArtifactsManager for LeafAggregation {
                 0,
                 protocol_version_id,
             )
-            .await;
+            .await
+            .map_err(|e| anyhow::anyhow!(e))?;
         tracing::info!(
             "Updating node aggregation jobs url for job_id {}, block {} with circuit id {}",
             job_id,
@@ -124,7 +125,8 @@ impl ArtifactsManager for LeafAggregation {
                 0,
                 blob_urls.aggregation_urls,
             )
-            .await;
+            .await
+            .map_err(|e| anyhow::anyhow!(e))?;
         tracing::info!(
             "Marking leaf aggregation job as successful for job id {}, block {} with circuit id {}",
             job_id,
@@ -134,7 +136,8 @@ impl ArtifactsManager for LeafAggregation {
         transaction
             .fri_leaf_witness_generator_dal()
             .mark_leaf_aggregation_as_successful(job_id, started_at.elapsed())
-            .await;
+            .await
+            .map_err(|e| anyhow::anyhow!(e))?;
 
         tracing::info!(
             "Committing transaction for job_id {}, block {} with circuit id {}",
