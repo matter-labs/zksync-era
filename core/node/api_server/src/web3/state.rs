@@ -45,6 +45,7 @@ use super::{
 use crate::{
     execution_sandbox::{BlockArgs, BlockArgsError, BlockStartInfo},
     tx_sender::{tx_sink::TxSink, TxSender},
+    web3::metrics::FilterMetrics,
 };
 
 #[derive(Debug)]
@@ -510,6 +511,7 @@ pub(crate) struct Filters(LruCache<U256, InstalledFilter>);
 #[derive(Debug)]
 struct InstalledFilter {
     pub filter: TypedFilter,
+    metrics: &'static FilterMetrics,
     _guard: GaugeGuard,
     created_at: Instant,
     last_request: Instant,
@@ -518,9 +520,11 @@ struct InstalledFilter {
 
 impl InstalledFilter {
     pub fn new(filter: TypedFilter) -> Self {
-        let guard = FILTER_METRICS.filter_count[&FilterType::from(&filter)].inc_guard(1);
+        let metrics = &FILTER_METRICS[&FilterType::from(&filter)];
+        let guard = metrics.filter_count.inc_guard(1);
         Self {
             filter,
+            metrics,
             _guard: guard,
             created_at: Instant::now(),
             last_request: Instant::now(),
@@ -535,17 +539,18 @@ impl InstalledFilter {
         self.last_request = now;
         self.request_count += 1;
 
-        let filter_type = FilterType::from(&self.filter);
-        FILTER_METRICS.request_frequency[&filter_type].observe(now - previous_request_timestamp);
+        self.metrics
+            .request_frequency
+            .observe(now - previous_request_timestamp);
     }
 }
 
 impl Drop for InstalledFilter {
     fn drop(&mut self) {
-        let filter_type = FilterType::from(&self.filter);
-
-        FILTER_METRICS.request_count[&filter_type].observe(self.request_count);
-        FILTER_METRICS.filter_lifetime[&filter_type].observe(self.created_at.elapsed());
+        self.metrics.request_count.observe(self.request_count);
+        self.metrics
+            .filter_lifetime
+            .observe(self.created_at.elapsed());
     }
 }
 

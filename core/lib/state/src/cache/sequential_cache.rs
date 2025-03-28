@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-use crate::cache::metrics::{Method, RequestOutcome, SequentialCacheConfig, METRICS};
+use crate::cache::metrics::{CacheMetrics, Method, RequestOutcome, SequentialCacheConfig, METRICS};
 
 /// A generic cache structure for storing key-value pairs in sequential order.
 ///
@@ -15,7 +15,7 @@ use crate::cache::metrics::{Method, RequestOutcome, SequentialCacheConfig, METRI
 /// V: Type of the value associated with each key. Example: Transaction's hash.
 #[derive(Debug, Clone)]
 pub struct SequentialCache<K, V> {
-    name: &'static str,
+    metrics: &'static CacheMetrics,
     data: VecDeque<(K, V)>,
     capacity: usize,
 }
@@ -33,16 +33,17 @@ impl<K: Ord + Copy, V: Clone> SequentialCache<K, V> {
             capacity: capacity as u64,
         };
         tracing::info!("Configured sequential cache `{name}` with capacity {capacity} items");
-        if let Err(err) = METRICS.sequential_info[&name].set(config) {
+        let metrics = &METRICS[&name.into()];
+        if let Err(err) = metrics.sequential_info.set(config) {
             tracing::warn!(
                 "Sequential cache `{name}` was already created with config {:?}; new config: {:?}",
-                METRICS.sequential_info[&name].get(),
+                metrics.sequential_info.get(),
                 err.into_inner()
             );
         }
 
         SequentialCache {
-            name,
+            metrics,
             data: VecDeque::with_capacity(capacity),
             capacity,
         }
@@ -56,7 +57,7 @@ impl<K: Ord + Copy, V: Clone> SequentialCache<K, V> {
     /// Returns an error when keys order is incorrect (a smaller key is inserted after a larger one).
     pub fn insert(&mut self, items: Vec<(K, V)>) -> anyhow::Result<()> {
         for (key, value) in items {
-            let latency = METRICS.latency[&(self.name, Method::Insert)].start();
+            let latency = self.metrics.latency[&Method::Insert].start();
             anyhow::ensure!(
                 Some(key) >= self.get_last_key(),
                 "Keys must be inserted in sequential order"
@@ -79,7 +80,7 @@ impl<K: Ord + Copy, V: Clone> SequentialCache<K, V> {
     ///     with the cache tail starting from the requested key - but not including it.
     ///     Can be empty if the requested key is the largest in the cache.
     pub fn query(&self, after: K) -> Option<Vec<(K, V)>> {
-        let latency = METRICS.latency[&(self.name, Method::Get)].start();
+        let latency = self.metrics.latency[&Method::Get].start();
         let result = match self.data.partition_point(|&(key, _)| key <= after) {
             // All the cache elements are greater than the key provided - cannot use the cache
             0 => None,
@@ -89,7 +90,7 @@ impl<K: Ord + Copy, V: Clone> SequentialCache<K, V> {
             pos => Some(self.data.range(pos..).cloned().collect()),
         };
         latency.observe();
-        METRICS.requests[&(self.name, RequestOutcome::from_hit(result.is_some()))].inc();
+        self.metrics.requests[&RequestOutcome::from_hit(result.is_some())].inc();
         result
     }
 
@@ -100,7 +101,7 @@ impl<K: Ord + Copy, V: Clone> SequentialCache<K, V> {
 
     /// Reports the number of entries to Prometheus.
     fn report_size(&self) {
-        METRICS.len[&self.name].set(self.data.len() as u64);
+        self.metrics.len.set(self.data.len() as u64);
     }
 }
 
