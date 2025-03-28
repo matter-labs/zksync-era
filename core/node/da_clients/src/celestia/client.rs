@@ -69,9 +69,9 @@ impl CelestiaClient {
         secrets: CelestiaSecrets,
         eth_client: Box<DynClient<L1>>,
     ) -> anyhow::Result<Self> {
-        let contract_file = File::open("blobstream.json").map_err(to_non_retriable_da_error)?;
-        let blobstream_contract =
-            Contract::load(contract_file).map_err(to_non_retriable_da_error)?;
+        let contract_bytes = include_bytes!("blobstream.json");
+        let blobstream_contract = Contract::load(contract_bytes.as_ref())
+            .map_err(to_non_retriable_da_error)?;
         let blobstream_update_event = blobstream_contract
             .events_by_name("DataCommitmentStored")
             .map_err(to_non_retriable_da_error)?
