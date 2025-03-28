@@ -378,4 +378,30 @@ mod tests {
             []
         );
     }
+
+    fn problematic_token_info() -> TokenInfo {
+        TokenInfo {
+            l1_address: Address::repeat_byte(1),
+            l2_address: Address::repeat_byte(2),
+            metadata: TokenMetadata {
+                name: "T|est".to_string(),
+                symbol: "T|ST".to_string(),
+                decimals: 10,
+            },
+        }
+    }
+
+    #[tokio::test]
+    async fn adding_problematic_tokens() {
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut storage = pool.connection().await.unwrap();
+        storage
+            .protocol_versions_dal()
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
+
+        let tokens = [problematic_token_info()];
+        storage.tokens_dal().add_tokens(&tokens).await.unwrap();
+    }
 }
