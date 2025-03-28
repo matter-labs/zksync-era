@@ -1,4 +1,4 @@
-use sqlx::{types::chrono::Utc, QueryBuilder};
+use sqlx::QueryBuilder;
 use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
 use zksync_types::{tokens::TokenInfo, Address, L2BlockNumber};
 
@@ -12,7 +12,6 @@ pub struct TokensDal<'a, 'c> {
 impl TokensDal<'_, '_> {
     pub async fn add_tokens(&mut self, tokens: &[TokenInfo]) -> DalResult<()> {
         let tokens_len = tokens.len();
-        let now = Utc::now().naive_utc().to_string();
         let mut builder = QueryBuilder::new(
             r#"
             INSERT INTO
@@ -35,8 +34,8 @@ impl TokensDal<'_, '_> {
                 .push_bind(&token.metadata.symbol)
                 .push_bind(token.metadata.decimals as i32)
                 .push("FALSE")
-                .push_bind(&now)
-                .push_bind(&now);
+                .push("NOW()")
+                .push("NOW()");
         });
         builder
             .build()
