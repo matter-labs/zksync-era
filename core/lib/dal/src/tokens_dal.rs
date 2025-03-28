@@ -32,7 +32,7 @@ impl TokensDal<'_, '_> {
                 .push_bind(token.l2_address.as_bytes())
                 .push_bind(&token.metadata.name)
                 .push_bind(&token.metadata.symbol)
-                .push_bind(token.metadata.decimals as i32)
+                .push_bind(i32::from(token.metadata.decimals))
                 .push("FALSE")
                 .push("NOW()")
                 .push("NOW()");
