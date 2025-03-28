@@ -18,6 +18,14 @@ use crate::{
     BatchOutput, DeserializeError, HashTree, MerkleTree, TreeEntry, TreeParams,
 };
 
+#[derive(Debug)]
+#[cfg_attr(test, derive(PartialEq))]
+pub(crate) struct InsertedLeaf {
+    pub(super) leaf: Leaf,
+    /// Prev index before the batch insertion. `None` if the prev leaf is inserted in the same batch.
+    pub(super) prev_index: Option<u64>,
+}
+
 /// Information about an atomic tree update.
 #[must_use = "Should be applied to a `PartialPatchSet`"]
 #[derive(Debug)]
@@ -25,7 +33,8 @@ pub(crate) struct TreeUpdate {
     pub(super) version: u64,
     pub(super) sorted_new_leaves: BTreeMap<H256, InsertedKeyEntry>,
     pub(crate) updates: Vec<(u64, H256)>,
-    pub(crate) inserts: Vec<Leaf>,
+    /// Inserted leaves together with an index of the previous leaf (which also may be among the inserted leaves).
+    pub(crate) inserts: Vec<InsertedLeaf>,
     operations: Vec<TreeOperation>,
     read_operations: Vec<TreeOperation>,
     /// Indices of leaves that are loaded just for a batch proof for read operations. These leaves
@@ -75,14 +84,6 @@ impl TreeUpdate {
             .into_iter()
             .chain(entries.iter().map(E::as_entry))
         {
-            let prev_index = match sorted_new_leaves.range(..entry.key).next_back() {
-                Some((_, prev_entry)) => prev_entry.index,
-                None => {
-                    assert_eq!(entry.key, H256::zero());
-                    0
-                }
-            };
-
             let next_range = (ops::Bound::Excluded(entry.key), ops::Bound::Unbounded);
             let next_index = match sorted_new_leaves.range(next_range).next() {
                 Some((_, next_entry)) => next_entry.index,
@@ -92,11 +93,14 @@ impl TreeUpdate {
                 }
             };
 
-            inserts.push(Leaf {
+            let leaf = Leaf {
                 key: entry.key,
                 value: entry.value,
-                prev_index,
                 next_index,
+            };
+            inserts.push(InsertedLeaf {
+                leaf,
+                prev_index: None,
             });
         }
 
@@ -426,22 +430,15 @@ impl<P: TreeParams> WorkingPatchSet<P> {
             // Cannot underflow because `update.inserts.len() >= 1`
             let new_indexes = first_new_idx..=(first_new_idx + update.inserts.len() as u64 - 1);
 
-            // Update prev / next index pointers for neighbors.
+            // Update the next index pointer for the neighbor.
             for (idx, new_leaf) in new_indexes.clone().zip(&update.inserts) {
-                // Prev / next leaf may also be new, in which case, we'll insert it with the correct prev / next pointers,
-                // so we don't need to do anything here.
-                let prev_idx = new_leaf.prev_index;
-                if let Some(prev_leaf) = this.leaves.get_mut(&prev_idx) {
-                    prev_leaf.next_index = idx;
-                }
-
-                let next_idx = new_leaf.next_index;
-                if let Some(next_leaf) = this.leaves.get_mut(&next_idx) {
-                    next_leaf.prev_index = idx;
+                if let Some(prev_idx) = new_leaf.prev_index {
+                    this.leaves.get_mut(&prev_idx).unwrap().next_index = idx;
                 }
             }
 
-            this.leaves.extend(new_indexes.clone().zip(update.inserts));
+            let inserts = update.inserts.into_iter().map(|leaf| leaf.leaf);
+            this.leaves.extend(new_indexes.clone().zip(inserts));
             this.leaf_count = *new_indexes.end() + 1;
 
             // Add / update internal nodes.
@@ -664,14 +661,15 @@ impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
                     next_key_and_index,
                 } => {
                     // Adjust previous / next indices according to the data inserted in the same batch.
-                    let mut prev_index = prev_key_and_index.1;
+                    let prev_index = prev_key_and_index.1;
                     operations.push(TreeOperation::Miss { prev_index });
 
-                    if let Some((&local_prev_key, inserted)) =
+                    let mut prev_index = Some(prev_index);
+                    if let Some((&local_prev_key, _)) =
                         sorted_new_leaves.range(..entry.key).next_back()
                     {
                         if local_prev_key > prev_key_and_index.0 {
-                            prev_index = inserted.index;
+                            prev_index = None;
                         }
                     }
 
@@ -685,12 +683,12 @@ impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
                         }
                     }
 
-                    inserts.push(Leaf {
+                    let leaf = Leaf {
                         key: entry.key,
                         value: entry.value,
-                        prev_index,
                         next_index,
-                    });
+                    };
+                    inserts.push(InsertedLeaf { leaf, prev_index });
                 }
             }
         }

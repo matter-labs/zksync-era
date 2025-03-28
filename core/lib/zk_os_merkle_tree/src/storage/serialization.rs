@@ -36,8 +36,6 @@ impl Leaf {
         let value = H256::from_slice(&buffer[HASH_SIZE..2 * HASH_SIZE]);
 
         buffer = &buffer[2 * HASH_SIZE..];
-        let prev_index =
-            leb128::read::unsigned(&mut buffer).map_err(DeserializeErrorKind::Leb128)?;
         let next_index =
             leb128::read::unsigned(&mut buffer).map_err(DeserializeErrorKind::Leb128)?;
         if !buffer.is_empty() {
@@ -46,7 +44,6 @@ impl Leaf {
         Ok(Self {
             key,
             value,
-            prev_index,
             next_index,
         })
     }
@@ -54,7 +51,6 @@ impl Leaf {
     pub(super) fn serialize(&self, buffer: &mut Vec<u8>) {
         buffer.extend_from_slice(self.key.as_bytes());
         buffer.extend_from_slice(self.value.as_bytes());
-        leb128::write::unsigned(buffer, self.prev_index).unwrap();
         leb128::write::unsigned(buffer, self.next_index).unwrap();
     }
 }
