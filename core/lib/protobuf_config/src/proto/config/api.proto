@@ -42,12 +42,17 @@ message Web3JsonRpc {
   optional bool extended_api_tracing = 33; // optional, default false
   optional bool estimate_gas_optimize_search = 34; // optional, default false
   optional uint32 latest_values_max_block_lag = 35; // optional
+  optional DeploymentAllowlist deployment_allowlist = 36;
 
   reserved 15; reserved "l1_to_l2_transactions_compatibility_mode";
   reserved 11; reserved "request_timeout";
   reserved 12; reserved "account_pks";
 }
 
+message DeploymentAllowlist {
+  optional string http_file_url = 1;
+  optional uint64 refresh_interval_secs = 2;
+}
 
 
 message HealthCheck {

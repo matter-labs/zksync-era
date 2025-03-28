@@ -44,6 +44,7 @@ use crate::execution_sandbox::{
     VmConcurrencyBarrier, VmConcurrencyLimiter, SANDBOX_METRICS,
 };
 
+pub mod allow_list_service;
 mod gas_estimation;
 pub mod master_pool_sink;
 pub mod proxy;
@@ -51,6 +52,7 @@ mod result;
 #[cfg(test)]
 pub(crate) mod tests;
 pub mod tx_sink;
+pub mod whitelisted_deploy_pool_sink;
 
 pub async fn build_tx_sender(
     tx_sender_config: &TxSenderConfig,
@@ -395,7 +397,7 @@ impl TxSender {
         let submission_res_handle = self
             .0
             .tx_sink
-            .submit_tx(&tx, execution_output.metrics, validation_traces)
+            .submit_tx(&tx, &execution_output, validation_traces)
             .await?;
 
         match submission_res_handle {
