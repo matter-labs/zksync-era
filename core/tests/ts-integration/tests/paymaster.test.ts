@@ -2,8 +2,10 @@
  * This suite contains tests checking the behavior of paymasters -- entities that can cover fees for users.
  */
 import { TestMaster } from '../src';
-import * as zksync from 'zksync-ethers';
-import { Provider, Wallet, utils, Contract } from 'zksync-ethers';
+// import * as zksync from 'zksync-ethers';
+import * as zksync from 'zksync-ethers-interop-support';
+// import { Provider, Wallet, utils, Contract } from 'zksync-ethers';
+import { Provider, Wallet, utils, Contract } from 'zksync-ethers-interop-support';
 import * as ethers from 'ethers';
 import { deployContract, getTestContract } from '../src/helpers';
 import { L2_DEFAULT_ETH_PER_ACCOUNT } from '../src/context-owner';

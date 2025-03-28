@@ -103,6 +103,7 @@ pub struct EthHttpQueryClient<Net: Network> {
     bytecode_supplier_addr: Option<Address>,
     wrapped_base_token_store: Option<Address>,
     l1_shared_bridge_addr: Option<Address>,
+    l1_message_root_address: Option<Address>,
     // Only present for post-shared bridge chains.
     state_transition_manager_address: Option<Address>,
     chain_admin_address: Option<Address>,
@@ -126,6 +127,7 @@ where
         bytecode_supplier_addr: Option<Address>,
         wrapped_base_token_store: Option<Address>,
         l1_shared_bridge_addr: Option<Address>,
+        l1_message_root_address: Option<Address>,
         state_transition_manager_address: Option<Address>,
         chain_admin_address: Option<Address>,
         governance_address: Address,
@@ -162,21 +164,22 @@ where
             confirmations_for_eth_event,
             wrapped_base_token_store,
             l1_shared_bridge_addr,
+            l1_message_root_address,
             l2_chain_id,
         }
     }
 
     fn get_default_address_list(&self) -> Vec<Address> {
-        [
+        // println!("get_default_address_list: {:?}", self.l1_message_root_address);
+        let addresses = [
             Some(self.diamond_proxy_addr),
             Some(self.governance_address),
             self.state_transition_manager_address,
             self.chain_admin_address,
             Some(L2_MESSAGE_ROOT_ADDRESS),
-        ]
-        .into_iter()
-        .flatten()
-        .collect()
+            self.l1_message_root_address,
+        ];
+        addresses.into_iter().flatten().collect()
     }
 
     #[async_recursion::async_recursion]

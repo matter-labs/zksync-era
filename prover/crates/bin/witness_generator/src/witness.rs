@@ -1,5 +1,8 @@
 use zksync_multivm::interface::storage::ReadStorage;
-use zksync_types::{witness_block_state::WitnessStorageState, StorageKey, StorageValue, H256};
+use zksync_types::{
+    witness_block_state::WitnessStorageState, L2BlockNumber, SLChainId, StorageKey, StorageValue,
+    H256,
+};
 
 /// [`ReadStorage`] implementation backed by binary serialized [`WitnessHashBlockState`].
 /// Note that `load_factory_deps` is not used.
@@ -39,5 +42,17 @@ impl ReadStorage for WitnessStorage {
 
     fn get_enumeration_index(&mut self, _key: &StorageKey) -> Option<u64> {
         unreachable!("Enumeration index should not be used in the witness storage")
+    }
+
+    fn get_message_root(
+        &mut self,
+        _chain_id: SLChainId,
+        _block_number: L2BlockNumber,
+    ) -> Option<H256> {
+        // self.storage
+        //     .blocks_dal()
+        //     .get_message_root(l1_batch_number)
+        //     .await
+        None
     }
 }

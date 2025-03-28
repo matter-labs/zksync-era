@@ -96,7 +96,18 @@ impl ZksNamespaceServer for ZksNamespace {
         tx_hash: H256,
         index: Option<usize>,
     ) -> RpcResult<Option<L2ToL1LogProof>> {
-        self.get_l2_to_l1_log_proof_impl(tx_hash, index)
+        self.get_l2_to_l1_log_proof_impl(tx_hash, index, None)
+            .await
+            .map_err(|err| self.current_method().map_err(err))
+    }
+
+    async fn get_l2_to_l1_log_proof_until_chain_id(
+        &self,
+        tx_hash: H256,
+        index: Option<usize>,
+        chain_id: Option<U64>,
+    ) -> RpcResult<Option<L2ToL1LogProof>> {
+        self.get_l2_to_l1_log_proof_impl(tx_hash, index, chain_id)
             .await
             .map_err(|err| self.current_method().map_err(err))
     }
