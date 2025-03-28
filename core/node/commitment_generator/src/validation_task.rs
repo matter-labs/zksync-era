@@ -65,11 +65,11 @@ impl L1BatchCommitmentModeValidationTask {
                 // This case is accepted for backwards compatibility with older contracts, but emits a
                 // warning in case the wrong contract address was passed by the caller.
                 Err(ContractCallError::EthereumGateway(err))
-                if matches!(err.as_ref(), ClientError::Call(_)) =>
-                    {
-                        tracing::warn!("Contract {diamond_proxy_address:?} does not support getPubdataPricingMode method: {err}");
-                        return Ok(());
-                    }
+                    if matches!(err.as_ref(), ClientError::Call(_)) =>
+                {
+                    tracing::warn!("Contract {diamond_proxy_address:?} does not support getPubdataPricingMode method: {err}");
+                    return Ok(());
+                }
 
                 Err(ContractCallError::EthereumGateway(err)) if err.is_retriable() => {
                     tracing::warn!(
