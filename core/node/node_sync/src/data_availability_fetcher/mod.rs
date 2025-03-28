@@ -178,21 +178,21 @@ impl DataAvailabilityFetcher {
             return Ok(StepOutcome::NoInclusionDataFromMainNode);
         };
 
-        let inclusion_data = match pubdata_type {
-            PubdataType::NoDA => InclusionData::default(), // to handle Stage 0 -> Stage 1 Validium migration
-            _ => {
-                let inclusion_data_from_rpc = self
-                    .da_client
-                    .get_inclusion_data(da_details.blob_id.as_str())
-                    .await
-                    .map_err(|err| {
-                        to_retriable_error(anyhow::anyhow!("Error fetching inclusion data: {err}"))
-                    })?;
+        // to handle Validiums that doesn't have inclusion verification
+        let inclusion_data = if expected_inclusion_data.is_empty() {
+            InclusionData::default()
+        } else {
+            let inclusion_data_from_rpc = self
+                .da_client
+                .get_inclusion_data(da_details.blob_id.as_str())
+                .await
+                .map_err(|err| {
+                    to_retriable_error(anyhow::anyhow!("Error fetching inclusion data: {err}"))
+                })?;
 
-                match inclusion_data_from_rpc {
-                    Some(data) => data,
-                    None => return Ok(StepOutcome::UnableToFetchInclusionData),
-                }
+            match inclusion_data_from_rpc {
+                Some(data) => data,
+                None => return Ok(StepOutcome::UnableToFetchInclusionData),
             }
         };
 
@@ -222,7 +222,7 @@ impl DataAvailabilityFetcher {
                 da_details.blob_id.as_str(),
                 da_details.sent_at.naive_utc(),
                 pubdata_type,
-                Some(inclusion_data.data.as_slice()),
+                Some(expected_inclusion_data.as_slice()),
                 da_details.l2_da_validator,
             )
             .await

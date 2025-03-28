@@ -69,9 +69,12 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                     &conf.settlement_layer_confirmation_depth,
                 )
                 .context("settlement_layer_confirmation_depth")?,
-                eigenda_eth_rpc: Some(SensitiveUrl::from_str(
-                    required(&conf.eigenda_eth_rpc).context("eigenda_eth_rpc")?,
-                )?),
+                eigenda_eth_rpc: conf
+                    .eigenda_eth_rpc
+                    .clone()
+                    .map(|x| SensitiveUrl::from_str(&x).context("eigenda_eth_rpc"))
+                    .transpose()
+                    .context("eigenda_eth_rpc")?,
                 eigenda_svc_manager_address: required(&conf.eigenda_svc_manager_address)
                     .and_then(|x| parse_h160(x))
                     .context("eigenda_svc_manager_address")?,

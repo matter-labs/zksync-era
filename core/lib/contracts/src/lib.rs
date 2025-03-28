@@ -57,6 +57,10 @@ const CHAIN_ADMIN_CONTRACT_FILE: (&str, &str) = (
     "governance",
     "IChainAdminOwnable.sol/IChainAdminOwnable.json",
 );
+
+const SERVER_NOTIFIER_CONTRACT_FILE: (&str, &str) =
+    ("governance", "ServerNotifier.sol/ServerNotifier.json");
+
 const GETTERS_FACET_CONTRACT_FILE: (&str, &str) = (
     "state-transition/chain-interfaces",
     "IGetters.sol/IGetters.json",
@@ -167,6 +171,10 @@ pub fn chain_admin_contract() -> Contract {
     load_contract_for_both_compilers(CHAIN_ADMIN_CONTRACT_FILE)
 }
 
+pub fn server_notifier_contract() -> Contract {
+    load_contract_for_both_compilers(SERVER_NOTIFIER_CONTRACT_FILE)
+}
+
 pub fn getters_facet_contract() -> Contract {
     load_contract_for_both_compilers(GETTERS_FACET_CONTRACT_FILE)
 }
@@ -270,16 +278,26 @@ pub fn read_bytecode_from_path(
 ) -> Option<Vec<u8>> {
     let artifact = read_file_to_json_value(&artifact_path)?;
 
-    let bytecode = if let Some(bytecode) = artifact["bytecode"].as_str() {
-        bytecode
-            .strip_prefix("0x")
-            .unwrap_or_else(|| panic!("Bytecode in {:?} is not hex", artifact_path))
-    } else {
-        artifact["bytecode"]["object"]
-            .as_str()
-            .unwrap_or_else(|| panic!("Bytecode not found in {:?}", artifact_path))
-    };
+    let bytecode = artifact["bytecode"]
+        .as_str()
+        .or_else(|| artifact["bytecode"]["object"].as_str())
+        .unwrap_or_else(|| panic!("Bytecode not found in {:?}", artifact_path));
+    // Strip an optional `0x` prefix.
+    let bytecode = bytecode.strip_prefix("0x").unwrap_or(bytecode);
+    Some(
+        hex::decode(bytecode)
+            .unwrap_or_else(|err| panic!("Can't decode bytecode in {:?}: {}", artifact_path, err)),
+    )
+}
 
+pub fn read_deployed_bytecode_from_path(artifact_path: &Path) -> Option<Vec<u8>> {
+    let artifact = read_file_to_json_value(artifact_path)?;
+    let bytecode = artifact["deployedBytecode"]
+        .as_str()
+        .or_else(|| artifact["deployedBytecode"]["object"].as_str())
+        .unwrap_or_else(|| panic!("Deployed bytecode not found in {:?}", artifact_path));
+    // Strip an optional `0x` prefix.
+    let bytecode = bytecode.strip_prefix("0x").unwrap_or(bytecode);
     Some(
         hex::decode(bytecode)
             .unwrap_or_else(|err| panic!("Can't decode bytecode in {:?}: {}", artifact_path, err)),
@@ -293,8 +311,9 @@ pub fn read_sys_contract_bytecode(directory: &str, name: &str, lang: ContractLan
 static DEFAULT_SYSTEM_CONTRACTS_REPO: Lazy<SystemContractsRepo> =
     Lazy::new(SystemContractsRepo::default);
 
-/// Structure representing a system contract repository - that allows
-/// fetching contracts that are located there.
+/// Structure representing a system contract repository.
+///
+/// It allows to fetch contracts that are located there.
 /// As most of the static methods in this file, is loading data based on the Cargo workspace location.
 pub struct SystemContractsRepo {
     // Path to the root of the system contracts repository.

@@ -9,8 +9,7 @@ use std::{
 use sqlx::QueryBuilder;
 use zksync_basic_types::{
     basic_fri_types::{
-        AggregationRound, CircuitIdRoundTuple, CircuitProverStatsEntry,
-        ProtocolVersionedCircuitProverStats,
+        AggregationRound, CircuitProverStatsEntry, ProtocolVersionedCircuitProverStats,
     },
     protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch},
     prover_dal::{
@@ -23,6 +22,35 @@ use zksync_db_connection::{
 };
 
 use crate::{duration_to_naive_time, pg_interval_from_duration, Prover};
+
+/// Among the zoo of circuits each circuit type has its own peak RAM utilization,
+/// average execution time and proportional share. Here we pay attention to
+/// the most resource/time consuming circuits.
+///
+/// For example:
+/// basic_1 - 1.7GB RAM, 13s execution time, 74.5% share
+/// basic_2 - 3.43GB RAM, 22s execution time, 0.03% share
+/// basic_4 - 3.02GB RAM, 16s execution time, 0.15% share
+/// basic_8 - 3.51GB RAM, 30s execution time, 2.5% share
+/// basic_9 - 3.47GB RAM, 30s execution time, 0.14% share
+/// basic_10 - 1.44GB RAM, 24s execution time, 6.62% share
+/// basic_11 - 2.89GB RAM, 19s execution time, 0.03% share
+/// basic_12 - 2.88GB RAM, 16s execution time, 0.01% share
+/// leaves - 2.24GB RAM, 7s execution time, 3.05% share
+/// nodes - 2.18GB RAM, 12s execution time, 0.19% share
+///
+/// The goal is to provide maximum throughput for the prover (1 completed jobs per 1s)
+/// whilst the total RAM usage is under 60GB. (generic hardware available internally)
+/// We consider the following basic circuits as heavy jobs: [2, 4, 8, 9, 10, 11, 12]
+/// Given the parameters of light/heavy jobs are -l=13, -h=3, we can garantee that:
+/// 1) For the basic circuits all the heavy jobs will be completed before the light jobs.
+/// 2) We provide optimal throughput for the prover.
+/// 3) We keep the total RAM usage under 60GB.
+///
+/// The total RAM usage will be:
+/// 21.8GB (setup) + 1.7GB * 13 + 3.51GB * 3 = 54.43GB - for basic circuits
+/// 21.8GB (setup) + 2.24GB * 16 = 57.64GB - for leaves
+pub const HEAVY_BASIC_CIRCUIT_IDS: [i16; 7] = [2, 4, 8, 9, 10, 11, 12];
 
 #[derive(Debug)]
 pub struct FriProverDal<'a, 'c> {
@@ -116,9 +144,9 @@ impl FriProverDal<'_, '_> {
     /// - pick the same type of circuit for as long as possible, this maximizes GPU cache reuse
     ///
     /// Most of this function is similar to `get_light_job()`.
-    /// The 2 differ in the type of jobs they will load. Node jobs are heavy in resource utilization.
+    /// The 2 differ in the type of jobs they will load. Some Basic jobs are heavy in resource utilization.
     ///
-    /// NOTE: This function retrieves only node jobs.
+    /// NOTE: This function retrieves only HEAVY_BASIC_CIRCUIT_IDS jobs.
     pub async fn get_heavy_job(
         &mut self,
         protocol_version: ProtocolSemanticVersion,
@@ -144,9 +172,9 @@ impl FriProverDal<'_, '_> {
                         AND protocol_version = $1
                         AND protocol_version_patch = $2
                         AND aggregation_round = $4
+                        AND circuit_id = ANY($5)
                     ORDER BY
-                        priority DESC,
-                        created_at ASC,
+                        l1_batch_number ASC,
                         circuit_id ASC,
                         id ASC
                     LIMIT
@@ -166,7 +194,8 @@ impl FriProverDal<'_, '_> {
             protocol_version.minor as i32,
             protocol_version.patch.0 as i32,
             picked_by,
-            AggregationRound::NodeAggregation as i64,
+            AggregationRound::BasicCircuits as i64,
+            &HEAVY_BASIC_CIRCUIT_IDS[..],
         )
         .fetch_optional(self.storage.conn())
         .await
@@ -194,9 +223,8 @@ impl FriProverDal<'_, '_> {
     /// - pick the same type of circuit for as long as possible, this maximizes GPU cache reuse
     ///
     /// Most of this function is similar to `get_heavy_job()`.
-    /// The 2 differ in the type of jobs they will load. Node jobs are heavy in resource utilization.
     ///
-    /// NOTE: This function retrieves all jobs but nodes.
+    /// NOTE: This function retrieves all job but HEAVY_BASIC_CIRCUIT_IDS.
     pub async fn get_light_job(
         &mut self,
         protocol_version: ProtocolSemanticVersion,
@@ -221,12 +249,12 @@ impl FriProverDal<'_, '_> {
                         status = 'queued'
                         AND protocol_version = $1
                         AND protocol_version_patch = $2
-                        AND aggregation_round != $4
+                        AND NOT (aggregation_round = $4 AND circuit_id = ANY($5))
                     ORDER BY
-                        priority DESC,
-                        created_at ASC,
+                        l1_batch_number ASC,
                         aggregation_round ASC,
-                        circuit_id ASC
+                        circuit_id ASC,
+                        id ASC
                     LIMIT
                         1
                     FOR UPDATE
@@ -244,163 +272,12 @@ impl FriProverDal<'_, '_> {
             protocol_version.minor as i32,
             protocol_version.patch.0 as i32,
             picked_by,
-            AggregationRound::NodeAggregation as i64
+            AggregationRound::BasicCircuits as i64,
+            &HEAVY_BASIC_CIRCUIT_IDS[..],
         )
         .fetch_optional(self.storage.conn())
         .await
         .expect("failed to get prover job")
-        .map(|row| FriProverJobMetadata {
-            id: row.id as u32,
-            block_number: L1BatchNumber(row.l1_batch_number as u32),
-            circuit_id: row.circuit_id as u8,
-            aggregation_round: AggregationRound::try_from(i32::from(row.aggregation_round))
-                .unwrap(),
-            sequence_number: row.sequence_number as usize,
-            depth: row.depth as u16,
-            is_node_final_proof: row.is_node_final_proof,
-            pick_time: Instant::now(),
-        })
-    }
-
-    pub async fn get_next_job(
-        &mut self,
-        protocol_version: ProtocolSemanticVersion,
-        picked_by: &str,
-    ) -> Option<FriProverJobMetadata> {
-        sqlx::query!(
-            r#"
-            UPDATE prover_jobs_fri
-            SET
-                status = 'in_progress',
-                attempts = attempts + 1,
-                updated_at = NOW(),
-                processing_started_at = NOW(),
-                picked_by = $3
-            WHERE
-                id = (
-                    SELECT
-                        id
-                    FROM
-                        prover_jobs_fri
-                    WHERE
-                        status = 'queued'
-                        AND protocol_version = $1
-                        AND protocol_version_patch = $2
-                    ORDER BY
-                        priority DESC,
-                        created_at ASC,
-                        aggregation_round DESC
-                    LIMIT
-                        1
-                    FOR UPDATE
-                    SKIP LOCKED
-                )
-            RETURNING
-            prover_jobs_fri.id,
-            prover_jobs_fri.l1_batch_number,
-            prover_jobs_fri.circuit_id,
-            prover_jobs_fri.aggregation_round,
-            prover_jobs_fri.sequence_number,
-            prover_jobs_fri.depth,
-            prover_jobs_fri.is_node_final_proof
-            "#,
-            protocol_version.minor as i32,
-            protocol_version.patch.0 as i32,
-            picked_by,
-        )
-        .fetch_optional(self.storage.conn())
-        .await
-        .unwrap()
-        .map(|row| FriProverJobMetadata {
-            id: row.id as u32,
-            block_number: L1BatchNumber(row.l1_batch_number as u32),
-            circuit_id: row.circuit_id as u8,
-            aggregation_round: AggregationRound::try_from(i32::from(row.aggregation_round))
-                .unwrap(),
-            sequence_number: row.sequence_number as usize,
-            depth: row.depth as u16,
-            is_node_final_proof: row.is_node_final_proof,
-            pick_time: Instant::now(),
-        })
-    }
-    pub async fn get_next_job_for_circuit_id_round(
-        &mut self,
-        circuits_to_pick: &[CircuitIdRoundTuple],
-        protocol_version: ProtocolSemanticVersion,
-        picked_by: &str,
-    ) -> Option<FriProverJobMetadata> {
-        let circuit_ids: Vec<_> = circuits_to_pick
-            .iter()
-            .map(|tuple| i16::from(tuple.circuit_id))
-            .collect();
-        let aggregation_rounds: Vec<_> = circuits_to_pick
-            .iter()
-            .map(|tuple| i16::from(tuple.aggregation_round))
-            .collect();
-        sqlx::query!(
-            r#"
-            UPDATE prover_jobs_fri
-            SET
-                status = 'in_progress',
-                attempts = attempts + 1,
-                processing_started_at = NOW(),
-                updated_at = NOW(),
-                picked_by = $5
-            WHERE
-                id = (
-                    SELECT
-                        pj.id
-                    FROM
-                        (
-                            SELECT
-                                *
-                            FROM
-                                UNNEST($1::SMALLINT [], $2::SMALLINT [])
-                        ) AS tuple (circuit_id, round)
-                    JOIN LATERAL (
-                        SELECT
-                            *
-                        FROM
-                            prover_jobs_fri AS pj
-                        WHERE
-                            pj.status = 'queued'
-                            AND pj.protocol_version = $3
-                            AND pj.protocol_version_patch = $4
-                            AND pj.circuit_id = tuple.circuit_id
-                            AND pj.aggregation_round = tuple.round
-                        ORDER BY
-                            pj.priority DESC,
-                            pj.created_at ASC
-                        LIMIT
-                            1
-                    ) AS pj ON TRUE
-                    ORDER BY
-                        pj.priority DESC,
-                        pj.created_at ASC,
-                        pj.aggregation_round DESC
-                    LIMIT
-                        1
-                    FOR UPDATE
-                    SKIP LOCKED
-                )
-            RETURNING
-            prover_jobs_fri.id,
-            prover_jobs_fri.l1_batch_number,
-            prover_jobs_fri.circuit_id,
-            prover_jobs_fri.aggregation_round,
-            prover_jobs_fri.sequence_number,
-            prover_jobs_fri.depth,
-            prover_jobs_fri.is_node_final_proof
-            "#,
-            &circuit_ids[..],
-            &aggregation_rounds[..],
-            protocol_version.minor as i32,
-            protocol_version.patch.0 as i32,
-            picked_by,
-        )
-        .fetch_optional(self.storage.conn())
-        .await
-        .unwrap()
         .map(|row| FriProverJobMetadata {
             id: row.id as u32,
             block_number: L1BatchNumber(row.l1_batch_number as u32),
@@ -434,25 +311,6 @@ impl FriProverDal<'_, '_> {
             .await
             .unwrap();
         }
-    }
-
-    pub async fn get_prover_job_attempts(&mut self, id: u32) -> sqlx::Result<Option<u32>> {
-        let attempts = sqlx::query!(
-            r#"
-            SELECT
-                attempts
-            FROM
-                prover_jobs_fri
-            WHERE
-                id = $1
-            "#,
-            i64::from(id)
-        )
-        .fetch_optional(self.storage.conn())
-        .await?
-        .map(|row| row.attempts as u32);
-
-        Ok(attempts)
     }
 
     pub async fn save_proof(
@@ -517,8 +375,7 @@ impl FriProverDal<'_, '_> {
                 SET
                     status = 'queued',
                     updated_at = NOW(),
-                    processing_started_at = NOW(),
-                    priority = priority + 1
+                    processing_started_at = NOW()
                 WHERE
                     id IN (
                         SELECT
@@ -963,8 +820,7 @@ impl FriProverDal<'_, '_> {
                     error = 'Manually requeued',
                     attempts = 2,
                     updated_at = NOW(),
-                    processing_started_at = NOW(),
-                    priority = priority + 1
+                    processing_started_at = NOW()
                 WHERE
                     l1_batch_number = $1
                     AND attempts >= $2
