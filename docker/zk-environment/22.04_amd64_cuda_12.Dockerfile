@@ -76,7 +76,7 @@ RUN echo "deb http://packages.cloud.google.com/apt cloud-sdk main" > /etc/apt/so
     gcloud config set metrics/environment github_docker_image
 
 RUN wget -c -O - https://sh.rustup.rs | bash -s -- -y
-RUN rustup install nightly-2024-08-01
+RUN rustup install nightly-2024-09-01
 RUN rustup default stable
 RUN cargo install --version=0.8.0 sqlx-cli
 RUN cargo install cargo-nextest

@@ -20,10 +20,11 @@ const STATE_DIFF_RECORD_SIZE: usize = 156;
 // 2 * 136 - the size that allows for two keccak rounds.
 pub const PADDED_ENCODED_STORAGE_DIFF_LEN_BYTES: usize = 272;
 
-/// In vm there are two types of writes Initial and Repeated. After the first write to the key,
-/// we assign an index to it and in the future we should use index instead of full key.
-/// It allows us to compress the data, as the full key would use 32 bytes, and the index can be
-/// represented only as BYTES_PER_ENUMERATION_INDEX bytes
+/// In VM there are two types of storage writes: Initial and Repeated.
+///
+/// After the first write to the key, we assign an index to it and in the future we should use
+/// index instead of full key. It allows us to compress the data, as the full key would use 32 bytes,
+/// and the index can be represented only as BYTES_PER_ENUMERATION_INDEX bytes.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 #[cfg_attr(test, derive(Serialize, Deserialize))]
 pub struct InitialStorageWrite {

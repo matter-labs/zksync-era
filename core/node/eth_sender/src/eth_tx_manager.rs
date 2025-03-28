@@ -24,7 +24,8 @@ use crate::{
     metrics::TransactionType,
 };
 
-/// The component is responsible for managing sending eth_txs attempts:
+/// The component is responsible for managing sending eth_txs attempts.
+///
 /// Based on eth_tx queue the component generates new attempt with the minimum possible fee,
 /// save it to the database, and send it to Ethereum.
 /// Based on eth_tx_history queue the component can mark txs as stuck and create the new attempt
@@ -43,22 +44,22 @@ impl EthTxManager {
         pool: ConnectionPool<Core>,
         config: SenderConfig,
         gas_adjuster: Arc<dyn TxParamsProvider>,
-        ethereum_gateway: Option<Box<dyn BoundEthInterface>>,
-        ethereum_gateway_blobs: Option<Box<dyn BoundEthInterface>>,
-        l2_gateway: Option<Box<dyn BoundEthInterface>>,
+        ethereum_client: Option<Box<dyn BoundEthInterface>>,
+        ethereum_client_blobs: Option<Box<dyn BoundEthInterface>>,
+        l2_client: Option<Box<dyn BoundEthInterface>>,
     ) -> Self {
-        let ethereum_gateway = ethereum_gateway.map(|eth| eth.for_component("eth_tx_manager"));
-        let ethereum_gateway_blobs =
-            ethereum_gateway_blobs.map(|eth| eth.for_component("eth_tx_manager"));
+        let ethereum_client = ethereum_client.map(|eth| eth.for_component("eth_tx_manager"));
+        let ethereum_client_blobs =
+            ethereum_client_blobs.map(|eth| eth.for_component("eth_tx_manager"));
         let fees_oracle = GasAdjusterFeesOracle {
             gas_adjuster,
             max_acceptable_priority_fee_in_gwei: config.max_acceptable_priority_fee_in_gwei,
             time_in_mempool_in_l1_blocks_cap: config.time_in_mempool_in_l1_blocks_cap,
         };
         let l1_interface = Box::new(RealL1Interface {
-            ethereum_gateway,
-            ethereum_gateway_blobs,
-            l2_gateway,
+            ethereum_client,
+            ethereum_client_blobs,
+            sl_client: l2_client,
             wait_confirmations: config.wait_confirmations,
         });
         tracing::info!(
@@ -641,33 +642,8 @@ impl EthTxManager {
         Ok(())
     }
 
-    pub async fn assert_there_are_no_pre_gateway_txs_with_gateway_enabled(
-        &mut self,
-        storage: &mut Connection<'_, Core>,
-    ) {
-        if !self
-            .l1_interface
-            .supported_operator_types()
-            .contains(&OperatorType::Gateway)
-        {
-            return;
-        }
-
-        let inflight_count = storage
-            .eth_sender_dal()
-            .get_non_gateway_inflight_txs_count_for_gateway_migration()
-            .await
-            .unwrap();
-        if inflight_count != 0 {
-            panic!("eth-sender was switched to gateway, but there are still {inflight_count} pre-gateway transactions in-flight!")
-        }
-    }
-
     #[tracing::instrument(skip_all, name = "EthTxManager::loop_iteration")]
     pub async fn loop_iteration(&mut self, storage: &mut Connection<'_, Core>) {
-        self.assert_there_are_no_pre_gateway_txs_with_gateway_enabled(storage)
-            .await;
-
         // We can treat blob and non-blob operators independently as they have different nonces and
         // aggregator makes sure that corresponding Commit transaction is confirmed before creating
         // a PublishProof transaction

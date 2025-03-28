@@ -5,7 +5,10 @@ use zksync_config::{
     ContractsConfig, EthConfig, GasAdjusterConfig,
 };
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_eth_client::{clients::MockSettlementLayer, BaseFees, BoundEthInterface};
+use zksync_eth_client::{
+    clients::{DynClient, MockSettlementLayer, L1},
+    BaseFees, BoundEthInterface,
+};
 use zksync_l1_contract_interface::i_executor::methods::{ExecuteBatches, ProveBatches};
 use zksync_node_fee_model::l1_gas_price::{GasAdjuster, GasAdjusterClient};
 use zksync_node_test_utils::{create_l1_batch, l1_batch_metadata_to_commitment_artifacts};
@@ -13,7 +16,8 @@ use zksync_object_store::MockObjectStore;
 use zksync_types::{
     aggregated_operations::AggregatedActionType, block::L1BatchHeader,
     commitment::L1BatchCommitmentMode, eth_sender::EthTx, pubdata_da::PubdataSendingMode,
-    settlement::SettlementMode, Address, L1BatchNumber, ProtocolVersion, ProtocolVersionId, H256,
+    settlement::SettlementLayer, Address, L1BatchNumber, ProtocolVersion, ProtocolVersionId,
+    SLChainId, H256,
 };
 
 use crate::{
@@ -148,7 +152,11 @@ impl EthSenderTester {
             };
         let aggregator_config = SenderConfig {
             pubdata_sending_mode,
-            ..eth_sender_config.clone().sender.unwrap()
+            ..eth_sender_config
+                .clone()
+                .get_eth_sender_config_for_sender_layer_data_layer()
+                .cloned()
+                .unwrap()
         };
 
         let history: Vec<_> = history
@@ -180,6 +188,7 @@ impl EthSenderTester {
         gateway.advance_block_number(Self::WAIT_CONFIRMATIONS);
         let gateway = Box::new(gateway);
 
+        let chain_id = SLChainId(505);
         let l2_gateway: MockSettlementLayer = MockSettlementLayer::builder()
             .with_fee_history(
                 std::iter::repeat_with(|| BaseFees {
@@ -220,9 +229,10 @@ impl EthSenderTester {
         gateway_blobs.advance_block_number(Self::WAIT_CONFIRMATIONS);
         let gateway_blobs = Box::new(gateway_blobs);
 
+        let client: Box<DynClient<L1>> = Box::new(gateway.clone().into_client());
         let gas_adjuster = Arc::new(
             GasAdjuster::new(
-                GasAdjusterClient::from_l1(Box::new(gateway.clone().into_client())),
+                GasAdjusterClient::from(client),
                 GasAdjusterConfig {
                     max_base_fee_samples: Self::MAX_BASE_FEE_SAMPLES,
                     pricing_formula_parameter_a: 3.0,
@@ -236,7 +246,9 @@ impl EthSenderTester {
             .unwrap(),
         );
 
-        let eth_sender = eth_sender_config.sender.clone().unwrap();
+        let eth_sender = eth_sender_config
+            .get_eth_sender_config_for_sender_layer_data_layer()
+            .unwrap();
 
         let custom_commit_sender_addr =
             if aggregator_operate_4844_mode && commitment_mode == L1BatchCommitmentMode::Rollup {
@@ -251,8 +263,7 @@ impl EthSenderTester {
             custom_commit_sender_addr,
             commitment_mode,
             connection_pool.clone(),
-            gateway.clone(),
-            SettlementMode::SettlesToL1,
+            SettlementLayer::L1(chain_id),
         )
         .await
         .unwrap();
@@ -274,7 +285,7 @@ impl EthSenderTester {
             STATE_TRANSITION_CONTRACT_ADDRESS,
             Default::default(),
             custom_commit_sender_addr,
-            SettlementMode::SettlesToL1,
+            SettlementLayer::L1(chain_id),
         )
         .await;
 
@@ -316,7 +327,10 @@ impl EthSenderTester {
     pub fn switch_to_using_gateway(&mut self) {
         self.manager = EthTxManager::new(
             self.conn.clone(),
-            EthConfig::for_tests().sender.unwrap(),
+            EthConfig::for_tests()
+                .get_eth_sender_config_for_sender_layer_data_layer()
+                .cloned()
+                .unwrap(),
             self.gas_adjuster.clone(),
             None,
             None,

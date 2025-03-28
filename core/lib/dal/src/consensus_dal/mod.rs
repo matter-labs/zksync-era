@@ -11,7 +11,7 @@ use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
 use zksync_types::{L1BatchNumber, L2BlockNumber};
 
 pub use crate::consensus::{proto, AttestationStatus, BlockMetadata, GlobalConfig, Payload};
-use crate::{Core, CoreDal};
+use crate::{consensus::BlockCertificate, Core, CoreDal};
 
 #[cfg(test)]
 mod tests;
@@ -80,14 +80,9 @@ pub enum InsertCertificateError {
 impl ConsensusDal<'_, '_> {
     /// Fetch consensus global config.
     pub async fn global_config(&mut self) -> anyhow::Result<Option<GlobalConfig>> {
-        // global_config contains a superset of genesis information.
-        // genesis column is deprecated and will be removed once the main node
-        // is fully upgraded.
-        // For now we keep the information between both columns in sync.
         let Some(row) = sqlx::query!(
             r#"
             SELECT
-                genesis,
                 global_config
             FROM
                 consensus_replica_state
@@ -106,14 +101,6 @@ impl ConsensusDal<'_, '_> {
         };
         if let Some(global_config) = row.global_config {
             return Ok(Some(d.proto_fmt(&global_config).context("global_config")?));
-        }
-        if let Some(genesis) = row.genesis {
-            let genesis: validator::Genesis = d.proto_fmt(&genesis).context("genesis")?;
-            return Ok(Some(GlobalConfig {
-                genesis,
-                registry_address: None,
-                seed_peers: [].into(),
-            }));
         }
         Ok(None)
     }
@@ -156,9 +143,6 @@ impl ConsensusDal<'_, '_> {
 
         // Reset the consensus state.
         let s = zksync_protobuf::serde::Serialize;
-        let genesis = s
-            .proto_fmt(&want.genesis, serde_json::value::Serializer)
-            .unwrap();
         let global_config = s.proto_fmt(want, serde_json::value::Serializer).unwrap();
         let state = s
             .proto_fmt(&ReplicaState::default(), serde_json::value::Serializer)
@@ -190,12 +174,11 @@ impl ConsensusDal<'_, '_> {
         sqlx::query!(
             r#"
             INSERT INTO
-            consensus_replica_state (fake_key, global_config, genesis, state)
+            consensus_replica_state (fake_key, global_config, state)
             VALUES
-            (TRUE, $1, $2, $3)
+            (TRUE, $1, $2)
             "#,
             global_config,
-            genesis,
             state,
         )
         .instrument("try_update_global_config#INSERT INTO consensus_replica_state")
@@ -344,10 +327,12 @@ impl ConsensusDal<'_, '_> {
 
         // If there is a cert in storage, then the block range visible to consensus
         // is [first block, block of last cert].
+        // Also tries to fetch the last cert from the old column
+        // This is a temporary solution to support the transition to the new column.
         if let Some(row) = sqlx::query!(
             r#"
             SELECT
-                certificate
+                certificate, versioned_certificate
             FROM
                 miniblocks_consensus
             ORDER BY
@@ -361,15 +346,38 @@ impl ConsensusDal<'_, '_> {
         .fetch_optional(self.storage)
         .await?
         {
-            return Ok(BlockStoreState {
-                first,
-                last: Some(Last::Final(
-                    zksync_protobuf::serde::Deserialize {
-                        deny_unknown_fields: true,
-                    }
-                    .proto_fmt(row.certificate)?,
-                )),
-            });
+            let d = zksync_protobuf::serde::Deserialize {
+                deny_unknown_fields: true,
+            };
+
+            // First try to use versioned_certificate
+            let cert: Option<BlockCertificate> = row
+                .versioned_certificate
+                .as_ref()
+                .map(|cert| d.proto_fmt(cert))
+                .transpose()?;
+
+            if let Some(cert) = cert {
+                return Ok(BlockStoreState {
+                    first,
+                    last: Some(cert.into()),
+                });
+            }
+
+            // If versioned_certificate is None, try to use certificate
+            // This is for backward compatibility
+            let qc = row
+                .certificate
+                .as_ref()
+                .map(|cert| d.proto_fmt(cert))
+                .transpose()?;
+
+            if let Some(qc) = qc {
+                return Ok(BlockStoreState {
+                    first,
+                    last: Some(Last::FinalV1(qc)),
+                });
+            }
         }
 
         // Otherwise it is [first block, min(genesis.first_block-1,last block)].
@@ -378,6 +386,7 @@ impl ConsensusDal<'_, '_> {
             .await
             .context("next_block()")?
             .min(cfg.genesis.first_block);
+
         Ok(BlockStoreState {
             first,
             // unwrap is ok, because `next > first >= 0`.
@@ -393,11 +402,11 @@ impl ConsensusDal<'_, '_> {
     pub async fn block_certificate(
         &mut self,
         block_number: validator::BlockNumber,
-    ) -> anyhow::Result<Option<validator::CommitQC>> {
+    ) -> anyhow::Result<Option<BlockCertificate>> {
         let Some(row) = sqlx::query!(
             r#"
             SELECT
-                certificate
+                certificate, versioned_certificate
             FROM
                 miniblocks_consensus
             WHERE
@@ -412,12 +421,35 @@ impl ConsensusDal<'_, '_> {
         else {
             return Ok(None);
         };
-        Ok(Some(
-            zksync_protobuf::serde::Deserialize {
-                deny_unknown_fields: true,
-            }
-            .proto_fmt(row.certificate)?,
-        ))
+
+        let d = zksync_protobuf::serde::Deserialize {
+            deny_unknown_fields: true,
+        };
+
+        // First try to use versioned_certificate
+        let cert = row
+            .versioned_certificate
+            .as_ref()
+            .map(|cert| d.proto_fmt(cert))
+            .transpose()?;
+
+        if cert.is_some() {
+            return Ok(cert);
+        }
+
+        // If versioned_certificate is None, try to use certificate
+        // This is for backward compatibility
+        let qc = row
+            .certificate
+            .as_ref()
+            .map(|cert| d.proto_fmt(cert))
+            .transpose()?;
+
+        if qc.is_some() {
+            return Ok(qc);
+        }
+
+        Ok(None)
     }
 
     /// Fetches the attester certificate for the L1 batch with the given `batch_number`.
@@ -518,25 +550,31 @@ impl ConsensusDal<'_, '_> {
     /// Fails if certificate doesn't match the stored block.
     pub async fn insert_block_certificate(
         &mut self,
-        cert: &validator::CommitQC,
+        cert: &BlockCertificate,
     ) -> Result<(), InsertCertificateError> {
         use InsertCertificateError as E;
-        let header = &cert.message.proposal;
+
+        // Extract block number and payload hash based on certificate variant
+        let block_number = cert.number();
+        let payload_hash = cert.payload_hash();
+
         let want_payload = self
-            .block_payload(cert.message.proposal.number)
+            .block_payload(block_number)
             .await?
             .ok_or(E::MissingPayload)?;
-        if header.payload != want_payload.encode().hash() {
+
+        if payload_hash != want_payload.encode().hash() {
             return Err(E::PayloadMismatch(want_payload));
         }
+
         sqlx::query!(
             r#"
             INSERT INTO
-            miniblocks_consensus (number, certificate)
+            miniblocks_consensus (number, versioned_certificate)
             VALUES
             ($1, $2)
             "#,
-            i64::try_from(header.number.0).context("overflow")?,
+            i64::try_from(block_number.0).context("overflow")?,
             zksync_protobuf::serde::Serialize
                 .proto_fmt(cert, serde_json::value::Serializer)
                 .unwrap(),
@@ -545,6 +583,7 @@ impl ConsensusDal<'_, '_> {
         .report_latency()
         .execute(self.storage)
         .await?;
+
         Ok(())
     }
 
