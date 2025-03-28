@@ -1,7 +1,5 @@
 # Overview - Deposits and Withdrawals
 
-[back to readme](../../../README.md)
-
 The zkEVM supports general message passing for L1<->L2 communication. Proofs are settled on L1, so core of this process
 is the L2->L1 message passing process. L1->L2 messages are recorded on L1 inside a priority queue, the sequencer picks
 it up from here and executes it in the zkEVM. The zkEVM sends an L2->L1 message of the L1 transactions that it

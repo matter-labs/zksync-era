@@ -1,7 +1,5 @@
 # Priority Queue to Merkle Tree
 
-[back to readme](../../README.md)
-
 ## Overview of the current implementation
 
 Priority queue is a data structure in Era contracts that is used to handle L1->L2 priority operations. It supports the following:
@@ -23,7 +21,7 @@ of which we only care about the canonical hash.
 
 ### Inserting new operations
 
-The queue is implemented as a [library](../../../../../../contracts/l1-contracts/contracts/state-transition/libraries/PriorityQueue.sol#L22).
+The queue is implemented as a [library](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/l1-contracts/contracts/state-transition/libraries/PriorityQueue.sol#L22).
 For each incoming priority operation, we simply `pushBack` its hash, expiration and layer2Tip.
 
 ### Checking validity

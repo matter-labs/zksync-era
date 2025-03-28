@@ -1,5 +1,4 @@
-# Handling L1→L2 ops
-[back to readme](../../../README.md)
+# Handling L1→L2 operations
 
 The transactions on ZKsync can be initiated not only on L2, but also on L1. There are two types of transactions that can
 be initiated on L1:
@@ -20,7 +19,7 @@ between system and user logs.
 ### Initiation
 
 A new priority operation can be appended by calling the
-[bridgehubRequestL2Transaction](../../../../../../../contracts/l1-contracts/contracts/state-transition/chain-deps/facets/Mailbox.sol#L69)
+[bridgehubRequestL2Transaction](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/l1-contracts/contracts/state-transition/chain-deps/facets/Mailbox.sol#L69)
 method on L1. This method will perform several checks for the transaction, making sure that it is processable and
 provides enough fee to compensate the operator for this transaction. Then, this transaction will be
 [appended](https://github.com/code-423n4/2023-10-zksync/blob/ef99273a8fdb19f5912ca38ba46d6bd02071363d/code/contracts/ethereum/contracts/zksync/facets/Mailbox.sol#L369C1-L369C1)

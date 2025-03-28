@@ -1,7 +1,5 @@
 # Chain Type Manager (CTM)
 
-[back to readme](../README.md)
-
 > If someone is already familiar with the [previous version](https://github.com/code-423n4/2024-03-zksync) of ZKsync architecture, this contract was previously known as "State Transition Manager (CTM)".
 
 Currently bridging between different zk rollups requires the funds to pass through L1. This is slow & expensive.
@@ -41,7 +39,7 @@ The exact process of deploying & registering a ST can be [read here](./chain_gen
 | executing upgrades                      | By admin of ST | While exclusively CTM governance can set the content of the upgrade, STs will typically be able to choose suitable time for them to actually execute it. In the current release, STs will have to follow our upgrades.                                                                                                                                |
 | settlement layer                        | By admin of ST | The admin of the chain can enact migrations to other settlement layers.                                                                                                                                                                                                                                                                               |
 
-> Note, that if we take a look at the access control for the corresponding functions inside the [AdminFacet](../../../../../contracts/l1-contracts/contracts/state-transition/chain-deps/facets/Admin.sol), the may see that a lot of methods from above that are marked as "By admin of ST" could be in theory amended by the ChainTypeManager. However, this sort of action requires approval from decentralized governance. Also, in case of an urgent high risk situation, the decentralized governance might force upgrade the contract via CTM.
+> Note, that if we take a look at the access control for the corresponding functions inside the [AdminFacet](https://github.com/matter-labs/era-contracts/tree/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/l1-contracts/contracts/state-transition/chain-deps/facets/Admin.sol), the may see that a lot of methods from above that are marked as "By admin of ST" could be in theory amended by the ChainTypeManager. However, this sort of action requires approval from decentralized governance. Also, in case of an urgent high risk situation, the decentralized governance might force upgrade the contract via CTM.
 
 ## Upgradability in the current release
 

@@ -1,7 +1,5 @@
 # Nested L3→L1 messages tree design for Gateway
 
-[back to readme](../README.md)
-
 ## Introduction
 
 This document assumes that the reader is already aware of how [L2→L1 logs](../settlement_contracts/priority_queue/l1_l2_communication/l2_to_l1.md) are aggregated into the [MessageRoot](../bridging/interop/message_root.md) and what the [Gateway](../gateway/overview.md) is. To reduce interactions with L1, the Gateway gathers all the `ChainBatch` roots from all the chains into the tree with following structure (note that this is the same MessageRoot contract that is used for interop):

@@ -1,7 +1,5 @@
 # AssetRouters (L1/L2) and NativeTokenVault
 
-[back to readme](../../README.md)
-
 <!-- ## Asset router as the main asset bridging entrypoint
 
 The main entry for passing value between chains is the AssetRouter, it is responsible for facilitating bridging between multiple asset types. To read more in detail on how it works, please refer to custom [asset bridging documentation](./asset_router_and_ntv/overview.md).
