@@ -16,7 +16,8 @@ pub(crate) struct EthFees {
     pub(crate) priority_fee_per_gas: u64,
     pub(crate) blob_base_fee_per_gas: Option<u64>,
     #[allow(dead_code)]
-    pub(crate) pubdata_price: Option<u64>,
+    pub(crate) max_gas_per_pubdata_price: Option<u64>,
+    pub(crate) gas_limit: u64,
 }
 
 pub(crate) trait EthFeesOracle: 'static + Sync + Send + fmt::Debug {
@@ -33,6 +34,7 @@ pub(crate) struct GasAdjusterFeesOracle {
     pub gas_adjuster: Arc<dyn TxParamsProvider>,
     pub max_acceptable_priority_fee_in_gwei: u64,
     pub time_in_mempool_in_l1_blocks_cap: u32,
+    pub max_gas_limit: u64,
 }
 
 impl GasAdjusterFeesOracle {
@@ -67,14 +69,16 @@ impl GasAdjusterFeesOracle {
                     previous_sent_tx.blob_base_fee_per_gas.map(|v| v * 2),
                     blob_base_fee_per_gas,
                 ),
-                pubdata_price: None,
+                max_gas_per_pubdata_price: None,
+                gas_limit: self.max_gas_limit,
             });
         }
         Ok(EthFees {
             base_fee_per_gas,
             priority_fee_per_gas,
             blob_base_fee_per_gas,
-            pubdata_price: None,
+            max_gas_per_pubdata_price: None,
+            gas_limit: self.max_gas_limit,
         })
     }
 
@@ -130,7 +134,8 @@ impl GasAdjusterFeesOracle {
             base_fee_per_gas,
             blob_base_fee_per_gas: None,
             priority_fee_per_gas,
-            pubdata_price: None,
+            max_gas_per_pubdata_price: None,
+            gas_limit: self.max_gas_limit,
         })
     }
 
