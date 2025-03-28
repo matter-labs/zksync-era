@@ -53,10 +53,10 @@ pub struct Options {
     pub blob_versioned_hashes: Option<Vec<H256>>,
     /// Blob sidecar
     pub blob_tx_sidecar: Option<EthTxBlobSidecar>,
-    // EIP  712 params
+    // EIP 712 params
     // Max Gas per pubdata
     pub max_gas_per_pubdata: Option<U256>,
-    // Factory Deps
+    // Factory deps
     pub factory_deps: Option<Vec<Vec<u8>>>,
     // Paymaster params
     pub paymaster_params: Option<PaymasterParams>,
