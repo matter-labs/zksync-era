@@ -15,8 +15,6 @@ check_fmt () {
     fi
 }
 
-check_fmt
-
-cd prover/
-
-check_fmt
+( cd core/ && check_fmt )
+( cd prover/ && check_fmt )
+( cd zkstack_cli/ && check_fmt )

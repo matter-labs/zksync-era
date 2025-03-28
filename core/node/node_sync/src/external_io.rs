@@ -358,6 +358,8 @@ impl StateKeeperIO for ExternalIO {
         }
     }
 
+    fn update_next_l2_block_timestamp(&mut self, _block_timestamp: &mut u64) {}
+
     async fn wait_for_next_tx(
         &mut self,
         max_wait: Duration,

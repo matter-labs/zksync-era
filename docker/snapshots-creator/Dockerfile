@@ -15,13 +15,13 @@ ENV RUSTC_WRAPPER=${RUSTC_WRAPPER}
 WORKDIR /usr/src/zksync
 COPY . .
 
-RUN cargo build --release --bin snapshots_creator
+RUN cargo build --manifest-path ./core/Cargo.toml --release --bin snapshots_creator
 
 FROM ghcr.io/matter-labs/zksync-runtime-base:latest
 
 RUN apt-get update && apt-get install -y liburing-dev && \
     rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /usr/src/zksync/target/release/snapshots_creator /usr/bin
+COPY --from=builder /usr/src/zksync/core/target/release/snapshots_creator /usr/bin
 
 ENTRYPOINT ["snapshots_creator"]

@@ -184,4 +184,9 @@ impl ProverJobMonitorConfig {
     pub fn default_witness_job_queuer_run_interval_ms() -> u64 {
         10_000
     }
+
+    /// Default attempts reporter run interval -- 10 seconds
+    pub fn default_attempts_reporter_run_interval_ms() -> u64 {
+        10_000
+    }
 }

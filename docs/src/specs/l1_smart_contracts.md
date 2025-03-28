@@ -184,7 +184,7 @@ fee-on-transfer tokens or other custom logic for handling user balances.
 
 The owner of the L1ERC20Bridge is the Governance contract.
 
-### L1SharedBridge
+### L1AssetRouter
 
 The main bridge implementation handles transfers Ether, ERC20 tokens and of WETH tokens between the two domains. It is
 designed to streamline and enhance the user experience for bridging WETH tokens by minimizing the number of transactions

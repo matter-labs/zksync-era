@@ -2,12 +2,14 @@ use std::{fmt::Debug, sync::Arc, time::Duration};
 
 use anyhow::anyhow;
 use async_trait::async_trait;
+use http::StatusCode;
 use jsonrpsee::ws_client::WsClientBuilder;
 use serde::{Deserialize, Serialize};
 use subxt_signer::ExposeSecret;
+use url::Url;
 use zksync_config::configs::da_client::avail::{AvailClientConfig, AvailConfig, AvailSecrets};
 use zksync_da_client::{
-    types::{DAError, DispatchResponse, InclusionData},
+    types::{ClientType, DAError, DispatchResponse, InclusionData},
     DataAvailabilityClient,
 };
 use zksync_types::{
@@ -40,13 +42,37 @@ pub struct AvailClient {
 pub struct BridgeAPIResponse {
     blob_root: Option<H256>,
     bridge_root: Option<H256>,
+    #[serde(deserialize_with = "deserialize_u256_from_integer")]
     data_root_index: Option<U256>,
     data_root_proof: Option<Vec<H256>>,
     leaf: Option<H256>,
+    #[serde(deserialize_with = "deserialize_u256_from_integer")]
     leaf_index: Option<U256>,
     leaf_proof: Option<Vec<H256>>,
     range_hash: Option<H256>,
     error: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum U256Value {
+    Number(u64),
+    String(String),
+}
+
+fn deserialize_u256_from_integer<'de, D>(deserializer: D) -> Result<Option<U256>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::de::Error;
+
+    match Option::<U256Value>::deserialize(deserializer)? {
+        Some(U256Value::Number(num)) => Ok(Some(U256::from(num))),
+        Some(U256Value::String(s)) => U256::from_str_radix(s.strip_prefix("0x").unwrap_or(&s), 16)
+            .map(Some)
+            .map_err(|e| D::Error::custom(format!("failed to parse hex string: {}", e))),
+        None => Ok(None),
+    }
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -120,7 +146,7 @@ impl AvailClient {
                 let seed_phrase = secrets
                     .seed_phrase
                     .ok_or_else(|| anyhow::anyhow!("Seed phrase is missing"))?;
-                // these unwraps are safe because we validate in protobuf config
+
                 let sdk_client = RawAvailClient::new(
                     conf.app_id,
                     seed_phrase.0.expose_secret(),
@@ -191,37 +217,57 @@ impl DataAvailabilityClient for AvailClient {
             error: anyhow!("Invalid blob ID format"),
             is_retriable: false,
         })?;
-        let url = format!(
-            "{}/eth/proof/{}?index={}",
-            self.config.bridge_api_url, block_hash, tx_idx
-        );
+        let url = Url::parse(&self.config.bridge_api_url)
+            .map_err(|_| DAError {
+                error: anyhow!("Invalid URL"),
+                is_retriable: false,
+            })?
+            .join(format!("/eth/proof/{}?index={}", block_hash, tx_idx).as_str())
+            .map_err(|_| DAError {
+                error: anyhow!("Unable to join to URL"),
+                is_retriable: false,
+            })?;
 
         let response = self
             .api_client
-            .get(&url)
+            .get(url)
             .timeout(Duration::from_millis(self.config.timeout_ms as u64))
             .send()
             .await
             .map_err(to_retriable_da_error)?;
+
+        // 404 means that the blob is not included in the bridge yet
+        if response.status() == StatusCode::NOT_FOUND {
+            return Ok(None);
+        }
 
         let bridge_api_data = response
             .json::<BridgeAPIResponse>()
             .await
             .map_err(to_retriable_da_error)?;
 
-        let attestation_data: MerkleProofInput = MerkleProofInput {
-            data_root_proof: bridge_api_data.data_root_proof.unwrap(),
-            leaf_proof: bridge_api_data.leaf_proof.unwrap(),
-            range_hash: bridge_api_data.range_hash.unwrap(),
-            data_root_index: bridge_api_data.data_root_index.unwrap(),
-            blob_root: bridge_api_data.blob_root.unwrap(),
-            bridge_root: bridge_api_data.bridge_root.unwrap(),
-            leaf: bridge_api_data.leaf.unwrap(),
-            leaf_index: bridge_api_data.leaf_index.unwrap(),
-        };
-        Ok(Some(InclusionData {
-            data: ethabi::encode(&attestation_data.into_tokens()),
-        }))
+        tracing::info!("Bridge API Response: {:?}", bridge_api_data);
+
+        // Check if there's an error in the response
+        if let Some(err) = bridge_api_data.error {
+            tracing::info!(
+                "Bridge API returned error: {:?}. Data might not be available yet.",
+                err
+            );
+            return Ok(None);
+        }
+
+        match bridge_response_to_merkle_proof_input(bridge_api_data) {
+            Some(attestation_data) => Ok(Some(InclusionData {
+                data: ethabi::encode(&attestation_data.into_tokens()),
+            })),
+            None => {
+                tracing::info!(
+                    "Bridge API response missing required fields. Data might not be available yet."
+                );
+                Ok(None)
+            }
+        }
     }
 
     fn clone_boxed(&self) -> Box<dyn DataAvailabilityClient> {
@@ -231,4 +277,46 @@ impl DataAvailabilityClient for AvailClient {
     fn blob_size_limit(&self) -> Option<usize> {
         Some(RawAvailClient::MAX_BLOB_SIZE)
     }
+
+    fn client_type(&self) -> ClientType {
+        ClientType::Avail
+    }
+
+    async fn balance(&self) -> Result<u64, DAError> {
+        match self.sdk_client.as_ref() {
+            AvailClientMode::Default(client) => {
+                let AvailClientConfig::FullClient(default_config) = &self.config.config else {
+                    unreachable!(); // validated in protobuf config
+                };
+
+                let ws_client = WsClientBuilder::default()
+                    .build(default_config.api_node_url.clone().as_str())
+                    .await
+                    .map_err(to_non_retriable_da_error)?;
+
+                Ok(client
+                    .balance(&ws_client)
+                    .await
+                    .map_err(to_non_retriable_da_error)?)
+            }
+            AvailClientMode::GasRelay(_) => {
+                Ok(0) // TODO: implement balance for gas relay (PE-304)
+            }
+        }
+    }
+}
+
+fn bridge_response_to_merkle_proof_input(
+    bridge_api_response: BridgeAPIResponse,
+) -> Option<MerkleProofInput> {
+    Some(MerkleProofInput {
+        data_root_proof: bridge_api_response.data_root_proof?,
+        leaf_proof: bridge_api_response.leaf_proof?,
+        range_hash: bridge_api_response.range_hash?,
+        data_root_index: bridge_api_response.data_root_index?,
+        blob_root: bridge_api_response.blob_root?,
+        bridge_root: bridge_api_response.bridge_root?,
+        leaf: bridge_api_response.leaf?,
+        leaf_index: bridge_api_response.leaf_index?,
+    })
 }

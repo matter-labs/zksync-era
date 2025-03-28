@@ -5,7 +5,7 @@ use std::{
 
 use tokio::sync::RwLock;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
-use zksync_types::contract_verification_api::CompilerVersions;
+use zksync_types::contract_verification::api::CompilerVersions;
 
 /// Compiler versions supported by the contract verifier.
 #[derive(Debug, Clone)]

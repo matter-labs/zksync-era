@@ -246,7 +246,7 @@ impl JobManager for NodeAggregation {
         let Some(metadata) = connection_pool
             .connection()
             .await?
-            .fri_witness_generator_dal()
+            .fri_node_witness_generator_dal()
             .get_next_node_aggregation_job(protocol_version, &pod_name)
             .await
         else {

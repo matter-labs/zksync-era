@@ -28,7 +28,7 @@ pub enum ExternalNodeCommands {
 
 pub async fn run(shell: &Shell, commands: ExternalNodeCommands) -> anyhow::Result<()> {
     match commands {
-        ExternalNodeCommands::Configs(args) => prepare_configs::run(shell, args),
+        ExternalNodeCommands::Configs(args) => prepare_configs::run(shell, args).await,
         ExternalNodeCommands::Init => init::run(shell).await,
         ExternalNodeCommands::Build => build::build(shell).await,
         ExternalNodeCommands::Run(args) => run::run(shell, args).await,

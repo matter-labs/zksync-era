@@ -8,7 +8,14 @@
 import { TestMaster } from '../src';
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
-import { bigIntMax, deployContract, getTestContract, scaledGasPrice, waitForNewL1Batch } from '../src/helpers';
+import {
+    bigIntMax,
+    deployContract,
+    getTestContract,
+    scaledGasPrice,
+    waitForL2ToL1LogProof,
+    waitForNewL1Batch
+} from '../src/helpers';
 import { L1_MESSENGER, L1_MESSENGER_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_LIMIT } from 'zksync-ethers/build/utils';
 
 const contracts = {
@@ -135,6 +142,7 @@ describe('Tests for L1 behavior', () => {
         const l2ToL1LogIndex = receipt.l2ToL1Logs.findIndex(
             (log: zksync.types.L2ToL1Log) => log.sender == L1_MESSENGER_ADDRESS
         );
+        await waitForL2ToL1LogProof(alice, receipt.blockNumber, tx.hash);
         const msgProof = await alice.provider.getLogProof(tx.hash, l2ToL1LogIndex);
         expect(msgProof).toBeTruthy();
 

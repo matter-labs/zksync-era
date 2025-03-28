@@ -6,7 +6,7 @@ use crate::{
     interface::{storage::WriteStorage, L1BatchEnv, VmEvent},
     vm_latest::{
         old_vm::{events::merge_events, history_recorder::HistoryMode},
-        types::internals::ZkSyncVmState,
+        types::ZkSyncVmState,
     },
 };
 

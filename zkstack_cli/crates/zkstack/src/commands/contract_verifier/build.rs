@@ -13,7 +13,7 @@ pub(crate) async fn build(shell: &Shell) -> anyhow::Result<()> {
     let chain = ecosystem
         .load_current_chain()
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;
-    let _dir_guard = shell.push_dir(&chain.link_to_code);
+    let _dir_guard = shell.push_dir(chain.link_to_code.join("core"));
 
     logger::info(MSG_BUILDING_CONTRACT_VERIFIER);
 

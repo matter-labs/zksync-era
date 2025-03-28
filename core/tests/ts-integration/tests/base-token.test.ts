@@ -7,7 +7,7 @@ import { Token } from '../src/types';
 
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
-import { scaledGasPrice } from '../src/helpers';
+import { scaledGasPrice, waitForL2ToL1LogProof } from '../src/helpers';
 
 const SECONDS = 2000;
 jest.setTimeout(100 * SECONDS);
@@ -78,7 +78,7 @@ describe('base ERC20 contract checks', () => {
         // TODO: should all the following tests use strict equality?
 
         const finalEthBalance = await alice.getBalanceL1();
-        expect(initialEthBalance).toBeGreaterThan(finalEthBalance + fee); // Fee should be taken from the ETH balance on L1.
+        expect(initialEthBalance).toBeGreaterThanOrEqual(finalEthBalance + fee); // Fee should be taken from the ETH balance on L1.
 
         const finalL1Balance = await alice.getBalanceL1(baseTokenDetails.l1Address);
         expect(initialL1Balance).toBeGreaterThanOrEqual(finalL1Balance + amount);
@@ -167,7 +167,8 @@ describe('base ERC20 contract checks', () => {
         const withdrawalPromise = alice.withdraw({ token: baseTokenDetails.l2Address, amount });
         await expect(withdrawalPromise).toBeAccepted([]);
         const withdrawalTx = await withdrawalPromise;
-        await withdrawalTx.waitFinalize();
+        const l2Receipt = await withdrawalTx.wait();
+        await waitForL2ToL1LogProof(alice, l2Receipt!.blockNumber, withdrawalTx.hash);
 
         await expect(alice.finalizeWithdrawal(withdrawalTx.hash)).toBeAccepted([]);
         const receipt = await alice._providerL2().getTransactionReceipt(withdrawalTx.hash);

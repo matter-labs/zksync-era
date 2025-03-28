@@ -1,5 +1,5 @@
 use anyhow::Context;
-use zksync_basic_types::url::SensitiveUrl;
+use zksync_basic_types::{secrets::APIKey, url::SensitiveUrl};
 
 use crate::configs::{
     consensus::ConsensusSecrets,
@@ -27,11 +27,19 @@ pub enum DataAvailabilitySecrets {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct ContractVerifierSecrets {
+    /// Etherscan API key that is used for contract verification in Etherscan.
+    /// If not set, the Etherscan verification is disabled.
+    pub etherscan_api_key: Option<APIKey>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct Secrets {
     pub consensus: Option<ConsensusSecrets>,
     pub database: Option<DatabaseSecrets>,
     pub l1: Option<L1Secrets>,
     pub data_availability: Option<DataAvailabilitySecrets>,
+    pub contract_verifier: Option<ContractVerifierSecrets>,
 }
 
 impl DatabaseSecrets {

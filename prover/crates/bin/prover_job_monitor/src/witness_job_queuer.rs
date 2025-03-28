@@ -13,7 +13,7 @@ impl WitnessJobQueuer {
     /// The trigger condition is all prover jobs on round 0 for a given circuit, per batch, have been completed.
     async fn queue_leaf_jobs(&self, connection: &mut Connection<'_, Prover>) {
         let l1_batch_numbers = connection
-            .fri_witness_generator_dal()
+            .fri_leaf_witness_generator_dal()
             .move_leaf_aggregation_jobs_from_waiting_to_queued()
             .await;
         let len = l1_batch_numbers.len();
@@ -35,12 +35,12 @@ impl WitnessJobQueuer {
         connection: &mut Connection<'_, Prover>,
     ) -> Vec<(i64, u8, u16)> {
         let mut jobs = connection
-            .fri_witness_generator_dal()
+            .fri_node_witness_generator_dal()
             .move_depth_zero_node_aggregation_jobs()
             .await;
         jobs.extend(
             connection
-                .fri_witness_generator_dal()
+                .fri_node_witness_generator_dal()
                 .move_depth_non_zero_node_aggregation_jobs()
                 .await,
         );
@@ -71,7 +71,7 @@ impl WitnessJobQueuer {
     /// The trigger condition is all final node proving jobs for the batch have been completed.
     async fn queue_recursion_tip_jobs(&self, connection: &mut Connection<'_, Prover>) {
         let l1_batch_numbers = connection
-            .fri_witness_generator_dal()
+            .fri_recursion_tip_witness_generator_dal()
             .move_recursion_tip_jobs_from_waiting_to_queued()
             .await;
         for l1_batch_number in &l1_batch_numbers {
@@ -89,7 +89,7 @@ impl WitnessJobQueuer {
     /// The trigger condition is the recursion tip proving job for the batch has been completed.
     async fn queue_scheduler_jobs(&self, connection: &mut Connection<'_, Prover>) {
         let l1_batch_numbers = connection
-            .fri_witness_generator_dal()
+            .fri_scheduler_witness_generator_dal()
             .move_scheduler_jobs_from_waiting_to_queued()
             .await;
         for l1_batch_number in &l1_batch_numbers {

@@ -12,8 +12,7 @@ impl ZkStackConfig for TimestampAsserterOutput {}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InitializeBridgeOutput {
-    pub l2_shared_bridge_implementation: Address,
-    pub l2_shared_bridge_proxy: Address,
+    pub l2_da_validator_address: Address,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -3,7 +3,7 @@ use std::{collections::HashMap, path::PathBuf, process::Stdio};
 use anyhow::Context;
 use tokio::io::AsyncWriteExt;
 use zksync_queued_job_processor::async_trait;
-use zksync_types::contract_verification_api::{
+use zksync_types::contract_verification::api::{
     CompilationArtifacts, SourceCodeData, VerificationIncomingRequest,
 };
 
@@ -45,7 +45,7 @@ impl Solc {
                     content: source_code,
                 };
                 let sources = HashMap::from([(file_name.clone(), source)]);
-                let settings = Settings {
+                let mut settings = Settings {
                     output_selection: Some(default_output_selection),
                     other: serde_json::json!({
                         "optimizer": {
@@ -53,6 +53,12 @@ impl Solc {
                         },
                     }),
                 };
+                if let Some(runs) = req.evm_specific.optimizer_runs {
+                    settings.other["optimizer"]["runs"] = serde_json::json!(runs);
+                }
+                if let Some(evm_version) = req.evm_specific.evm_version {
+                    settings.other["evmVersion"] = serde_json::json!(evm_version);
+                }
 
                 StandardJson {
                     language: "Solidity".to_owned(),

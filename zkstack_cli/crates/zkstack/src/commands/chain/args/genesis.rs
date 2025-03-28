@@ -56,18 +56,16 @@ impl GenesisArgs {
         }
     }
 
-    pub fn fill_values_with_secrets(
+    pub async fn fill_values_with_secrets(
         mut self,
         chain_config: &ChainConfig,
     ) -> anyhow::Result<GenesisArgsFinal> {
-        let secrets = chain_config.get_secrets_config()?;
-        let database = secrets
-            .database
-            .context("Database secrets must be present")?;
+        let secrets = chain_config.get_secrets_config().await?;
+        let server_url = secrets.get_opt::<Url>("database.server_url")?;
 
-        let (server_db_url, server_db_name) = if let Some(db_full_url) = database.server_url {
-            let db_config = DatabaseConfig::from_url(db_full_url.expose_url())
-                .context("Invalid server database URL")?;
+        let (server_db_url, server_db_name) = if let Some(db_full_url) = &server_url {
+            let db_config =
+                DatabaseConfig::from_url(db_full_url).context("Invalid server database URL")?;
             (Some(db_config.url), Some(db_config.name))
         } else {
             (None, None)

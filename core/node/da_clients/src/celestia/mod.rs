@@ -24,6 +24,16 @@ pub mod cosmos {
         pub mod v1beta1 {
             include!("generated/cosmos.base.v1beta1.rs");
         }
+
+        pub mod query {
+            include!("generated/cosmos.base.query.v1beta1.rs");
+        }
+    }
+
+    pub mod bank {
+        pub mod v1beta1 {
+            include!("generated/cosmos.bank.v1beta1.rs");
+        }
     }
 
     pub mod tx {

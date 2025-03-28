@@ -16,6 +16,7 @@ use crate::registry;
 
 impl Connection<'_> {
     /// Wrapper for `consensus_dal().batch_of_block()`.
+    #[allow(dead_code)]
     pub async fn batch_of_block(
         &mut self,
         ctx: &ctx::Ctx,
@@ -27,6 +28,7 @@ impl Connection<'_> {
     }
 
     /// Wrapper for `consensus_dal().last_batch_certificate_number()`.
+    #[allow(dead_code)]
     pub async fn last_batch_certificate_number(
         &mut self,
         ctx: &ctx::Ctx,
@@ -37,6 +39,7 @@ impl Connection<'_> {
     }
 
     /// Wrapper for `consensus_dal().batch_certificate()`.
+    #[allow(dead_code)]
     pub async fn batch_certificate(
         &mut self,
         ctx: &ctx::Ctx,
@@ -187,6 +190,7 @@ impl ConnectionPool {
         Ok(blocks)
     }
 
+    #[allow(dead_code)]
     pub async fn wait_for_batch_certificates_and_verify(
         &self,
         ctx: &ctx::Ctx,
@@ -217,7 +221,7 @@ impl ConnectionPool {
             .await
             .wrap("batch_of_block()")?
             .context("batch of first_block is missing")?;
-        let registry = registry::Registry::new(cfg.genesis.clone(), self.clone()).await;
+        let registry = registry::Registry::new(self.clone()).await;
         for i in first.0..want_last.0 {
             let i = attester::BatchNumber(i);
             let cert = conn

@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                (SELECT COUNT(*) FROM contracts_verification_info) AS count_v1,\n                (SELECT COUNT(*) FROM contract_verification_info_v2) AS count_v2\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count_v1",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "count_v2",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null,
+      null
+    ]
+  },
+  "hash": "668cf72b78c6071340143ba9498046b7820e39b63ed4f98bcaa3b3f305cbe576"
+}

@@ -1,0 +1,41 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO\n            transactions (\n                hash,\n                is_priority,\n                initiator_address,\n                nonce,\n                signature,\n                gas_limit,\n                max_fee_per_gas,\n                max_priority_fee_per_gas,\n                gas_per_pubdata_limit,\n                input,\n                data,\n                tx_format,\n                contract_address,\n                value,\n                paymaster,\n                paymaster_input,\n                execution_info,\n                received_at,\n                timestamp_asserter_range_start,\n                timestamp_asserter_range_end,\n                created_at,\n                updated_at\n            )\n            VALUES\n            (\n                $1,\n                FALSE,\n                $2,\n                $3,\n                $4,\n                $5,\n                $6,\n                $7,\n                $8,\n                $9,\n                $10,\n                $11,\n                $12,\n                $13,\n                $14,\n                $15,\n                JSONB_BUILD_OBJECT(\n                    'gas_used',\n                    $16::BIGINT,\n                    'storage_writes',\n                    $17::INT,\n                    'contracts_used',\n                    $18::INT\n                ),\n                NOW(),\n                $19,\n                $20,\n                NOW(),\n                NOW()\n            )\n            ON CONFLICT (initiator_address, nonce) DO\n            UPDATE\n            SET\n            hash = $1,\n            signature = $4,\n            gas_limit = $5,\n            max_fee_per_gas = $6,\n            max_priority_fee_per_gas = $7,\n            gas_per_pubdata_limit = $8,\n            input = $9,\n            data = $10,\n            tx_format = $11,\n            contract_address = $12,\n            value = $13,\n            paymaster = $14,\n            paymaster_input = $15,\n            execution_info\n            = JSONB_BUILD_OBJECT(\n                'gas_used',\n                $16::BIGINT,\n                'storage_writes',\n                $17::INT,\n                'contracts_used',\n                $18::INT\n            ),\n            in_mempool = FALSE,\n            received_at = NOW(),\n            timestamp_asserter_range_start = $19,\n            timestamp_asserter_range_end = $20,\n            created_at = NOW(),\n            updated_at = NOW(),\n            error = NULL\n            WHERE\n            transactions.is_priority = FALSE\n            AND transactions.miniblock_number IS NULL\n            RETURNING\n            (\n                SELECT\n                    hash\n                FROM\n                    transactions\n                WHERE\n                    transactions.initiator_address = $2\n                    AND transactions.nonce = $3\n            ) IS NOT NULL AS \"is_replaced!\"\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "is_replaced!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bytea",
+        "Bytea",
+        "Int8",
+        "Bytea",
+        "Numeric",
+        "Numeric",
+        "Numeric",
+        "Numeric",
+        "Bytea",
+        "Jsonb",
+        "Int4",
+        "Bytea",
+        "Numeric",
+        "Bytea",
+        "Bytea",
+        "Int8",
+        "Int4",
+        "Int4",
+        "Timestamp",
+        "Timestamp"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "bc8cad0e22db998530645dd8cbc906dac131c296354ac643ebff9b059000cf03"
+}

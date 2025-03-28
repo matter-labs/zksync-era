@@ -69,8 +69,7 @@ impl OperationSkippingRestrictions {
     ) -> bool {
         if let Some(reason) = reason {
             tracing::info!(
-                "Skipping sending commit operation of type {} for batches {}-{} \
-            since {}",
+                "Skipping sending operation of type {} for batches {}-{} since {}",
                 agg_op.get_action_type(),
                 agg_op.l1_batch_range().start(),
                 agg_op.l1_batch_range().end(),
@@ -95,13 +94,13 @@ impl OperationSkippingRestrictions {
 
     fn filter_prove_op(&self, prove_op: Option<ProveBatches>) -> Option<AggregatedOperation> {
         let op = AggregatedOperation::PublishProofOnchain(prove_op?);
-        self.check_for_continuation(&op, self.commit_restriction)
+        self.check_for_continuation(&op, self.prove_restriction)
             .then_some(op)
     }
 
     fn filter_execute_op(&self, execute_op: Option<ExecuteBatches>) -> Option<AggregatedOperation> {
         let op = AggregatedOperation::Execute(execute_op?);
-        self.check_for_continuation(&op, self.commit_restriction)
+        self.check_for_continuation(&op, self.execute_restriction)
             .then_some(op)
     }
 }

@@ -70,7 +70,7 @@ impl EcosystemCreateArgs {
             link_to_code,
             wallet_creation: chain.wallet_creation,
             wallet_path: chain.wallet_path.clone(),
-            chain_args: chain,
+            chain_args: chain.clone(),
             start_containers,
             update_submodules: self.update_submodules,
         })

@@ -24,7 +24,6 @@ mini-moka.workspace = true
 tokio = { workspace = true, features = ["rt"] }
 tracing.workspace = true
 itertools.workspace = true
-chrono.workspace = true
 once_cell.workspace = true
 backon.workspace = true
 

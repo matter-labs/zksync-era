@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                call_trace,\n                transactions.error AS tx_error\n            FROM\n                call_traces\n            INNER JOIN transactions ON tx_hash = transactions.hash\n            WHERE\n                tx_hash = $1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "call_trace",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 1,
+        "name": "tx_error",
+        "type_info": "Varchar"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bytea"
+      ]
+    },
+    "nullable": [
+      false,
+      true
+    ]
+  },
+  "hash": "fd68afd6eb8890f01fe646339951d1184afcb08d2bdf310a3fd3fb5b47d4d947"
+}

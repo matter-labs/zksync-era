@@ -176,20 +176,22 @@ impl JobManager for RecursionTip {
             queue_set[index] = take_sponge_like_queue_state_from_simulator(recursion_queue);
         }
 
+        const EXPECTED_RECURSION_TIP_LEAVES: usize = 16;
+
         let leaf_vk_commits = get_leaf_vk_params(&keystore).context("get_leaf_vk_params()")?;
         assert_eq!(
             leaf_vk_commits.len(),
-            16,
+            EXPECTED_RECURSION_TIP_LEAVES,
             "expected 16 leaf vk commits, which corresponds to the numebr of circuits, got {}",
             leaf_vk_commits.len()
         );
-        let leaf_layer_parameters: [RecursionLeafParametersWitness<GoldilocksField>; 16] =
-            leaf_vk_commits
-                .iter()
-                .map(|el| el.1.clone())
-                .collect::<Vec<_>>()
-                .try_into()
-                .unwrap();
+        let leaf_layer_parameters: [RecursionLeafParametersWitness<GoldilocksField>;
+            EXPECTED_RECURSION_TIP_LEAVES] = leaf_vk_commits
+            .iter()
+            .map(|el| el.1.clone())
+            .collect::<Vec<_>>()
+            .try_into()
+            .unwrap();
 
         let input = RecursionTipInputWitness {
             leaf_layer_parameters,
@@ -222,7 +224,7 @@ impl JobManager for RecursionTip {
         let Some((l1_batch_number, number_of_final_node_jobs)) = connection_pool
             .connection()
             .await?
-            .fri_witness_generator_dal()
+            .fri_recursion_tip_witness_generator_dal()
             .get_next_recursion_tip_witness_job(protocol_version, &pod_name)
             .await
         else {

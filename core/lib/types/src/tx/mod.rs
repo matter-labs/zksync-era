@@ -4,7 +4,7 @@
 //! it makes more sense to define the contents of each transaction chain-agnostic, and extent this data
 //! with metadata (such as fees and/or signatures) for L1 and L2 separately.
 
-use zksync_basic_types::{Address, H256};
+use zksync_basic_types::H256;
 
 pub use self::execute::Execute;
 
@@ -15,5 +15,4 @@ pub use zksync_crypto_primitives as primitives;
 pub struct IncludedTxLocation {
     pub tx_hash: H256,
     pub tx_index_in_l2_block: u32,
-    pub tx_initiator_address: Address,
 }

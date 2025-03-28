@@ -54,7 +54,18 @@ function compileBinaries() {
     console.log('compiling binaries');
     run(
         'cargo',
-        ['build', '--release', '--bin', 'zksync_external_node', '--bin', 'zksync_server', '--bin', 'block_reverter'],
+        [
+            'build',
+            '--manifest-path',
+            './core/Cargo.toml',
+            '--release',
+            '--bin',
+            'zksync_external_node',
+            '--bin',
+            'zksync_server',
+            '--bin',
+            'block_reverter'
+        ],
         { cwd: process.env.ZKSYNC_HOME }
     );
 }

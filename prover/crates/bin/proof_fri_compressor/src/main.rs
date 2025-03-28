@@ -1,7 +1,7 @@
 #![allow(incomplete_features)] // We have to use generic const exprs.
 #![feature(generic_const_exprs)]
 
-use std::{env, time::Duration};
+use std::time::Duration;
 
 use anyhow::Context as _;
 use clap::Parser;
@@ -14,7 +14,7 @@ use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
 use zksync_prover_keystore::keystore::Keystore;
 use zksync_queued_job_processor::JobProcessor;
-use zksync_utils::wait_for_tasks::ManagedTasks;
+use zksync_task_management::ManagedTasks;
 use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 use crate::{
@@ -96,7 +96,6 @@ async fn main() -> anyhow::Result<()> {
     let proof_compressor = ProofCompressor::new(
         blob_store,
         pool,
-        config.compression_mode,
         config.max_attempts,
         protocol_version,
         keystore,
@@ -114,7 +113,7 @@ async fn main() -> anyhow::Result<()> {
     })
     .expect("Error setting Ctrl+C handler"); // Setting handler should always succeed.
 
-    setup_crs_keys(&config, is_fflonk);
+    setup_crs_keys(&config);
 
     tracing::info!("Starting proof compressor");
 
@@ -139,20 +138,10 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn setup_crs_keys(config: &FriProofCompressorConfig, is_fflonk: bool) {
-    if is_fflonk {
-        download_initial_setup_keys_if_not_present(
-            &config.universal_fflonk_setup_path,
-            &config.universal_fflonk_setup_download_url,
-        );
-
-        env::set_var("COMPACT_CRS_FILE", &config.universal_fflonk_setup_path);
-        return;
-    }
-
+fn setup_crs_keys(config: &FriProofCompressorConfig) {
     download_initial_setup_keys_if_not_present(
         &config.universal_setup_path,
         &config.universal_setup_download_url,
     );
-    env::set_var("CRS_FILE", &config.universal_setup_path);
+    std::env::set_var("COMPACT_CRS_FILE", &config.universal_setup_path);
 }

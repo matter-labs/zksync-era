@@ -4,7 +4,6 @@ use anyhow::Context as _;
 use tracing::Instrument;
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_multivm::interface::{
-    executor::TransactionValidator,
     storage::StorageWithOverrides,
     tracer::{
         TimestampAsserterParams, ValidationError as RawValidationError, ValidationParams,
@@ -64,6 +63,7 @@ impl SandboxExecutor {
 
         let stage_latency = SANDBOX_METRICS.sandbox[&SandboxStage::Validation].start();
         let validation_result = self
+            .engine
             .validate_transaction(storage, env, tx, validation_params)
             .instrument(tracing::debug_span!("validation"))
             .await?;

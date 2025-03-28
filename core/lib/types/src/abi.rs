@@ -531,7 +531,7 @@ impl GatewayUpgradeEncodedInput {
 pub struct ZkChainSpecificUpgradeData {
     pub base_token_asset_id: H256,
     pub l2_legacy_shared_bridge: Address,
-    pub predeployed_l2_weth_address: Address,
+    pub l2_predeployed_wrapped_base_token: Address,
     pub base_token_l1_address: Address,
     pub base_token_name: String,
     pub base_token_symbol: String,
@@ -551,7 +551,7 @@ impl ZkChainSpecificUpgradeData {
             l2_legacy_shared_bridge: l2_legacy_shared_bridge?,
             // Note, that some chains may not contain previous deployment of L2 wrapped base
             // token. For those, zero address is used.
-            predeployed_l2_weth_address: predeployed_l2_weth_address.unwrap_or_default(),
+            l2_predeployed_wrapped_base_token: predeployed_l2_weth_address.unwrap_or_default(),
             base_token_l1_address: base_token_l1_address?,
             base_token_name: base_token_name?,
             base_token_symbol: base_token_symbol?,
@@ -572,7 +572,7 @@ impl ZkChainSpecificUpgradeData {
         Token::Tuple(vec![
             Token::FixedBytes(self.base_token_asset_id.0.to_vec()),
             Token::Address(self.l2_legacy_shared_bridge),
-            Token::Address(self.predeployed_l2_weth_address),
+            Token::Address(self.l2_predeployed_wrapped_base_token),
             Token::Address(self.base_token_l1_address),
             Token::String(self.base_token_name.clone()),
             Token::String(self.base_token_symbol.clone()),

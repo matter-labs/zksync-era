@@ -1,5 +1,6 @@
-//! Generates rust code from protobufs.
 fn main() {
+    //! Generates rust code from protobufs.
+    #[cfg(feature = "protobuf")]
     zksync_protobuf_build::Config {
         input_root: "src/proto".into(),
         proto_root: "zksync/types".into(),

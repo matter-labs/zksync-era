@@ -2,7 +2,7 @@
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use zksync_types::{
-    api::{ChainAggProof, TeeProof, TransactionExecutionInfo},
+    api::{ChainAggProof, DataAvailabilityDetails, TeeProof, TransactionExecutionInfo},
     tee_types::TeeType,
     L1BatchNumber, L2ChainId, H256,
 };
@@ -38,4 +38,16 @@ pub trait UnstableNamespace {
         l1_batch_number: L1BatchNumber,
         chain_id: L2ChainId,
     ) -> RpcResult<Option<ChainAggProof>>;
+
+    #[method(name = "unconfirmedTxsCount")]
+    async fn get_unconfirmed_txs_count(&self) -> RpcResult<usize>;
+
+    #[method(name = "getDataAvailabilityDetails")]
+    async fn get_data_availability_details(
+        &self,
+        batch: L1BatchNumber,
+    ) -> RpcResult<Option<DataAvailabilityDetails>>;
+
+    #[method(name = "supportsUnsafeDepositFilter")]
+    async fn supports_unsafe_deposit_filter(&self) -> RpcResult<bool>;
 }

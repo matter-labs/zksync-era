@@ -576,7 +576,7 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
         // Note that while the history is preserved, the inner parts are fully cleared out.
         // TODO(X): potentially optimize this function by allowing rollbacks only at the bounds of transactions.
 
-        let current_active_keys = self.transient_storage.drain_inner();
+        let current_active_keys = self.transient_storage.clone_vec();
         for (key, current_value) in current_active_keys {
             self.write_transient_storage_value(ReducedTstoreLogQuery {
                 // We currently only support rollup shard id

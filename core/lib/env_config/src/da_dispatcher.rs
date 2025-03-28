@@ -27,6 +27,7 @@ mod tests {
             max_rows_to_dispatch: Some(rows_limit),
             max_retries: Some(max_retries),
             use_dummy_inclusion_data: Some(true),
+            inclusion_verification_transition_enabled: None,
         }
     }
 

@@ -624,6 +624,7 @@ fn mini_fuzz_values_cache_inner(
                     .block_on(values_cache.update(
                         cache_valid_for,
                         L2BlockNumber(latest_block_number),
+                        Duration::ZERO,
                         &mut connection,
                     ))
                     .unwrap();

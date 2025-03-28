@@ -15,10 +15,10 @@ use crate::{
     tracers::dynamic::vm_1_5_0::DynTracer,
     utils::CircuitCycleStatistic,
     vm_latest::{
-        bootloader_state::BootloaderState,
+        bootloader::BootloaderState,
         old_vm::{history_recorder::HistoryMode, memory::SimpleMemory},
         tracers::traits::VmTracer,
-        types::internals::ZkSyncVmState,
+        types::ZkSyncVmState,
     },
 };
 

@@ -21,10 +21,11 @@ use zksync_multivm::{
     zk_evm_latest::ethereum_types::Address,
 };
 use zksync_object_store::ObjectStore;
+use zksync_prover_dal::{Connection, Prover, ProverDal};
 use zksync_prover_fri_types::keys::ClosedFormInputKey;
 use zksync_prover_interface::inputs::WitnessInputData;
 use zksync_system_constants::BOOTLOADER_ADDRESS;
-use zksync_types::L1BatchNumber;
+use zksync_types::{protocol_version::ProtocolSemanticVersion, L1BatchNumber};
 
 use crate::{
     precalculated_merkle_paths_provider::PrecalculatedMerklePathsProvider,
@@ -261,4 +262,60 @@ async fn save_recursion_queue(
     let wrapper = ClosedFormInputWrapper(closed_form_inputs, recursion_queue_simulator);
     let blob_url = object_store.put(key, &wrapper).await.unwrap();
     (circuit_id, blob_url, basic_circuit_count)
+}
+
+pub(crate) async fn create_aggregation_jobs(
+    connection: &mut Connection<'_, Prover>,
+    block_number: L1BatchNumber,
+    closed_form_inputs_and_urls: &Vec<(u8, String, usize)>,
+    scheduler_partial_input_blob_url: &str,
+    base_layer_to_recursive_layer_circuit_id: fn(u8) -> u8,
+    protocol_version: ProtocolSemanticVersion,
+) -> anyhow::Result<()> {
+    for (circuit_id, closed_form_inputs_url, number_of_basic_circuits) in
+        closed_form_inputs_and_urls
+    {
+        connection
+            .fri_leaf_witness_generator_dal()
+            .insert_leaf_aggregation_jobs(
+                block_number,
+                protocol_version,
+                *circuit_id,
+                closed_form_inputs_url.clone(),
+                *number_of_basic_circuits,
+            )
+            .await;
+
+        connection
+            .fri_node_witness_generator_dal()
+            .insert_node_aggregation_jobs(
+                block_number,
+                base_layer_to_recursive_layer_circuit_id(*circuit_id),
+                None,
+                0,
+                "",
+                protocol_version,
+            )
+            .await;
+    }
+
+    connection
+        .fri_recursion_tip_witness_generator_dal()
+        .insert_recursion_tip_aggregation_jobs(
+            block_number,
+            closed_form_inputs_and_urls,
+            protocol_version,
+        )
+        .await;
+
+    connection
+        .fri_scheduler_witness_generator_dal()
+        .insert_scheduler_aggregation_jobs(
+            block_number,
+            scheduler_partial_input_blob_url,
+            protocol_version,
+        )
+        .await;
+
+    Ok(())
 }

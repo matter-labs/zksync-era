@@ -236,6 +236,7 @@ async fn resend_each_block(commitment_mode: L1BatchCommitmentMode) -> anyhow::Re
             &mut tester.conn.connection().await.unwrap(),
             &get_dummy_operation(0),
             Address::random(),
+            ProtocolVersionId::latest(),
             false,
         )
         .await?;

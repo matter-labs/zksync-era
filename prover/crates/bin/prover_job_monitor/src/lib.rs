@@ -1,4 +1,5 @@
 pub mod archiver;
+pub mod attempts_reporter;
 pub mod autoscaler_queue_reporter;
 pub mod job_requeuer;
 pub(crate) mod metrics;

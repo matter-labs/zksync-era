@@ -10,18 +10,17 @@ use tokio::sync::watch;
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_multivm::{
     interface::{
-        Halt, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionLogs,
-        VmExecutionResultAndLogs, VmExecutionStatistics,
+        Halt, SystemEnv, TxExecutionMode, VmExecutionLogs, VmExecutionResultAndLogs,
+        VmExecutionStatistics,
     },
     vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
-use zksync_node_test_utils::create_l2_transaction;
+use zksync_node_test_utils::{create_l2_transaction, default_l1_batch_env, default_system_env};
 use zksync_types::{
     block::{L2BlockExecutionData, L2BlockHasher},
-    fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput},
     u256_to_h256, AccountTreeId, Address, L1BatchNumber, L2BlockNumber, L2ChainId,
     ProtocolVersionId, StorageKey, StorageLog, StorageLogKind, StorageLogWithPreviousValue,
-    Transaction, H256, U256, ZKPORTER_IS_AVAILABLE,
+    Transaction, H256, U256,
 };
 
 use crate::{
@@ -62,43 +61,6 @@ pub(crate) fn pending_batch_data(pending_l2_blocks: Vec<L2BlockExecutionData>) -
         },
         pubdata_params: Default::default(),
         pending_l2_blocks,
-    }
-}
-
-pub(super) fn default_system_env() -> SystemEnv {
-    SystemEnv {
-        zk_porter_available: ZKPORTER_IS_AVAILABLE,
-        version: ProtocolVersionId::latest(),
-        base_system_smart_contracts: BASE_SYSTEM_CONTRACTS.clone(),
-        bootloader_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
-        execution_mode: TxExecutionMode::VerifyExecute,
-        default_validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
-        chain_id: L2ChainId::from(270),
-    }
-}
-
-pub(super) fn default_l1_batch_env(
-    number: u32,
-    timestamp: u64,
-    fee_account: Address,
-) -> L1BatchEnv {
-    L1BatchEnv {
-        previous_batch_hash: None,
-        number: L1BatchNumber(number),
-        timestamp,
-        fee_account,
-        enforced_base_fee: None,
-        first_l2_block: L2BlockEnv {
-            number,
-            timestamp,
-            prev_block_hash: L2BlockHasher::legacy_hash(L2BlockNumber(number - 1)),
-            max_virtual_blocks_to_create: 1,
-        },
-        fee_input: BatchFeeInput::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
-            fair_l2_gas_price: 1,
-            fair_pubdata_price: 1,
-            l1_gas_price: 1,
-        }),
     }
 }
 
@@ -365,7 +327,7 @@ async fn load_upgrade_tx() {
 
     // TODO: add one more test case for the shared bridge after it's integrated.
     // If we are processing the 1st batch while using the shared bridge,
-    // we should load the upgrade transaction -- that's the `SetChainIdUpgrade`.
+    // we should load the upgrade transaction -- that's the `GenesisUpgrade`.
 }
 
 /// Unconditionally seal the batch without triggering specific criteria.
@@ -535,6 +497,30 @@ async fn protocol_upgrade() {
         .next_tx("Fourth tx", random_tx(4), successful_exec())
         .l2_block_sealed("L2 block 4")
         .batch_sealed("Batch 2")
+        .run(sealer)
+        .await;
+}
+
+/// Checks the next L2 block timestamp is updated upon receiving a transaction
+#[tokio::test]
+async fn l2_block_timestamp_updated_after_first_tx() {
+    let config = StateKeeperConfig {
+        transaction_slots: 2,
+        ..StateKeeperConfig::default()
+    };
+    let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
+    let new_timestamp = 555;
+
+    TestScenario::new()
+        .seal_l2_block_when(|updates| updates.l2_block.executed_transactions.len() == 1)
+        .next_tx("First tx", random_tx(1), successful_exec())
+        .l2_block_sealed("L2 block 1")
+        .update_l2_block_timestamp("Update the next l2 block timestamp", new_timestamp)
+        .next_tx("New tx", random_tx(1), successful_exec())
+        .l2_block_sealed_with("L2 block 2", move |updates| {
+            let actual = updates.l2_block.timestamp;
+            assert_eq!(actual, new_timestamp, "L2 block timestamp must be updated");
+        })
         .run(sealer)
         .await;
 }

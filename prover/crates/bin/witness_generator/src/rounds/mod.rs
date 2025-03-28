@@ -173,6 +173,9 @@ where
             artifacts,
         )
         .await?;
+
+        tracing::info!("Saved {:?} to database for job {:?}", R::ROUND, job_id);
+
         Ok(())
     }
 

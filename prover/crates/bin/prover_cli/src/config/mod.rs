@@ -6,7 +6,7 @@ pub fn get_envfile() -> anyhow::Result<PathBuf> {
     if let Ok(envfile) = std::env::var("PLI__CONFIG") {
         return Ok(envfile.into());
     }
-    Ok(Workspace::locate().core().join("etc/pliconfig"))
+    Ok(Workspace::locate().root().join("etc/pliconfig"))
 }
 
 pub fn load_envfile(path: impl AsRef<std::path::Path>) -> anyhow::Result<()> {

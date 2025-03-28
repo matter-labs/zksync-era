@@ -29,7 +29,7 @@ pub const ZKSYNC_ERA_GIT_REPO: &str = "https://github.com/matter-labs/zksync-era
 /// Name of the docker-compose file inside zksync repository
 pub const DOCKER_COMPOSE_FILE: &str = "docker-compose.yml";
 /// Path to the config file with mnemonic for localhost wallets
-pub(crate) const CONFIGS_PATH: &str = "etc/env/file_based";
+pub const CONFIGS_PATH: &str = "etc/env/file_based";
 /// Path to the docker-compose file for grafana
 pub const ERA_OBSERVABILITY_COMPOSE_FILE: &str = "era-observability/docker-compose.yml";
 /// Path to era observability repository
@@ -67,10 +67,10 @@ pub const DEFAULT_EXPLORER_API_PORT: u16 = 3002;
 /// Default port for the explorer data fetcher service
 pub const DEFAULT_EXPLORER_DATA_FETCHER_PORT: u16 = 3040;
 
-pub const EXPLORER_API_DOCKER_IMAGE: &str = "matterlabs/block-explorer-api:v2.50.8";
+pub const EXPLORER_API_DOCKER_IMAGE: &str = "matterlabs/block-explorer-api:v2.62.0";
 pub const EXPLORER_DATA_FETCHER_DOCKER_IMAGE: &str =
-    "matterlabs/block-explorer-data-fetcher:v2.50.8";
-pub const EXPLORER_WORKER_DOCKER_IMAGE: &str = "matterlabs/block-explorer-worker:v2.50.8";
+    "matterlabs/block-explorer-data-fetcher:v2.62.0";
+pub const EXPLORER_WORKER_DOCKER_IMAGE: &str = "matterlabs/block-explorer-worker:v2.62.0";
 
 /// Interval (in milliseconds) for polling new batches to process in explorer app
 pub const EXPLORER_BATCHES_PROCESSING_POLLING_INTERVAL: u64 = 1000;

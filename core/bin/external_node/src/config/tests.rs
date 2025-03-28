@@ -82,7 +82,9 @@ fn parsing_optional_config_from_empty_env() {
         Duration::from_millis(100)
     );
     assert_eq!(config.max_nonce_ahead, 50);
-    assert_eq!(config.estimate_gas_scale_factor, 1.2);
+    assert_eq!(config.estimate_gas_scale_factor, 1.3);
+    assert_eq!(config.gas_price_scale_factor, 1.5);
+    assert_eq!(config.estimate_gas_acceptable_overestimation, 5000);
     assert_eq!(config.vm_concurrency_limit, 2_048);
     assert_eq!(config.factory_deps_cache_size(), 128 * BYTES_IN_MEGABYTE);
     assert_eq!(config.latest_values_cache_size(), 128 * BYTES_IN_MEGABYTE);

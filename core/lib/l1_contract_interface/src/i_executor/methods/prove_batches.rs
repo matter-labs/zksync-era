@@ -58,8 +58,10 @@ impl ProveBatches {
                 }
             };
 
+            let should_use_fflonk = !is_verifier_pre_fflonk || !protocol_version.is_pre_fflonk();
+
             if protocol_version.is_pre_gateway() {
-                let proof_input = if !is_verifier_pre_fflonk || !protocol_version.is_pre_fflonk() {
+                let proof_input = if should_use_fflonk {
                     Token::Tuple(vec![
                         Token::Array(vec![verifier_type.into_token()]),
                         Token::Array(proof.into_iter().map(Token::Uint).collect()),
@@ -73,7 +75,17 @@ impl ProveBatches {
 
                 vec![prev_l1_batch_info, batches_arg, proof_input]
             } else {
-                let proof_input = Token::Array(proof.into_iter().map(Token::Uint).collect());
+                let proof_input = if should_use_fflonk {
+                    Token::Array(
+                        vec![verifier_type]
+                            .into_iter()
+                            .chain(proof)
+                            .map(Token::Uint)
+                            .collect(),
+                    )
+                } else {
+                    Token::Array(proof.into_iter().map(Token::Uint).collect())
+                };
 
                 let encoded_data = encode(&[prev_l1_batch_info, batches_arg, proof_input]);
                 let prove_data = [[SUPPORTED_ENCODING_VERSION].to_vec(), encoded_data]

@@ -118,7 +118,7 @@ async fn run_attestation_controller(
     attestation: Arc<attestation::Controller>,
 ) -> ctx::Result<()> {
     const POLL_INTERVAL: time::Duration = time::Duration::seconds(5);
-    let registry = registry::Registry::new(cfg.genesis, pool.clone()).await;
+    let registry = registry::Registry::new(pool.clone()).await;
     let registry_addr = cfg.registry_address.map(registry::Address::new);
     let mut next = attester::BatchNumber(0);
     loop {

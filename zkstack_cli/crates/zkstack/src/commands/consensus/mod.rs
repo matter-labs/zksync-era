@@ -3,7 +3,6 @@ use std::{borrow::Borrow, collections::HashMap, path::PathBuf, sync::Arc};
 /// Consensus registry contract operations.
 /// Includes code duplicated from `zksync_node_consensus::registry::abi`.
 use anyhow::Context as _;
-use conv::*;
 use ethers::{
     abi::Detokenize,
     contract::{FunctionCall, Multicall},
@@ -16,15 +15,11 @@ use tokio::time::MissedTickBehavior;
 use xshell::Shell;
 use zkstack_cli_common::{config::global_config, logger, wallets::Wallet};
 use zkstack_cli_config::EcosystemConfig;
+use zksync_basic_types::L2ChainId;
 use zksync_consensus_crypto::ByteFmt;
 use zksync_consensus_roles::{attester, validator};
 
-use crate::{commands::args::WaitArgs, messages, utils::consensus::parse_attester_committee};
-
-mod conv;
-mod proto;
-#[cfg(test)]
-mod tests;
+use crate::{commands::args::WaitArgs, messages, utils::consensus::read_attester_committee_yaml};
 
 #[allow(warnings)]
 mod abi {
@@ -99,17 +94,20 @@ pub enum Command {
 
 /// Collection of sent transactions.
 #[derive(Default)]
-pub struct TxSet(Vec<(H256, &'static str)>);
+struct TxSet(Vec<(H256, String)>);
 
 impl TxSet {
     /// Sends a transactions and stores the transaction hash.
-    pub async fn send<M: 'static + Middleware, B: Borrow<M>, D: Detokenize>(
+    async fn send<M: 'static + Middleware, B: Borrow<M>, D: Detokenize>(
         &mut self,
-        name: &'static str,
+        name: String,
         call: FunctionCall<B, M, D>,
     ) -> anyhow::Result<()> {
-        let h = call.send().await.context(name)?.tx_hash();
-        self.0.push((h, name));
+        let hash = call.send().await.with_context(|| name.clone())?.tx_hash();
+        if global_config().verbose {
+            logger::debug(format!("Sent transaction {name}: {hash:?}"));
+        }
+        self.0.push((hash, name));
         Ok(())
     }
 
@@ -146,19 +144,14 @@ fn print_attesters(committee: &attester::Committee) {
 struct Setup {
     chain: zkstack_cli_config::ChainConfig,
     contracts: zkstack_cli_config::ContractsConfig,
-    general: zkstack_cli_config::GeneralConfig,
-    genesis: zkstack_cli_config::GenesisConfig,
+    l2_chain_id: L2ChainId,
+    l2_http_url: String,
+    genesis_attesters: attester::Committee,
 }
 
 impl Setup {
     fn provider(&self) -> anyhow::Result<Provider<Http>> {
-        let l2_url = &self
-            .general
-            .api_config
-            .as_ref()
-            .context(messages::MSG_API_CONFIG_MISSING)?
-            .web3_json_rpc
-            .http_url;
+        let l2_url = &self.l2_http_url;
         Provider::try_from(l2_url).with_context(|| format!("Provider::try_from({l2_url})"))
     }
 
@@ -173,7 +166,7 @@ impl Setup {
                     .multicall3
                     .context(messages::MSG_MULTICALL3_CONTRACT_NOT_CONFIGURED)?,
             ),
-            Some(self.genesis.l2_chain_id.as_u64()),
+            Some(self.l2_chain_id.as_u64()),
         )?)
     }
 
@@ -186,7 +179,7 @@ impl Setup {
     }
 
     fn signer(&self, wallet: LocalWallet) -> anyhow::Result<Arc<impl Middleware>> {
-        let wallet = wallet.with_chain_id(self.genesis.l2_chain_id.as_u64());
+        let wallet = wallet.with_chain_id(self.l2_chain_id.as_u64());
         let provider = self.provider().context("provider()")?;
         let signer = SignerMiddleware::new(provider, wallet.clone());
         // Allows us to send next transaction without waiting for the previous to complete.
@@ -194,7 +187,7 @@ impl Setup {
         Ok(Arc::new(signer))
     }
 
-    fn new(shell: &Shell) -> anyhow::Result<Self> {
+    async fn new(shell: &Shell) -> anyhow::Result<Self> {
         let ecosystem_config =
             EcosystemConfig::from_file(shell).context("EcosystemConfig::from_file()")?;
         let chain = ecosystem_config
@@ -203,13 +196,29 @@ impl Setup {
         let contracts = chain
             .get_contracts_config()
             .context("get_contracts_config()")?;
-        let genesis = chain.get_genesis_config().context("get_genesis_config()")?;
-        let general = chain.get_general_config().context("get_general_config()")?;
+        let l2_chain_id = chain
+            .get_genesis_config()
+            .await
+            .context("get_genesis_config()")?
+            .get("l2_chain_id")?;
+
+        let general = chain
+            .get_general_config()
+            .await
+            .context("get_general_config()")?;
+        // We're getting a parent path here, since we need object input with the `attesters` array
+        let genesis_attesters = general
+            .get_raw("consensus.genesis_spec")
+            .context(messages::MSG_CONSENSUS_GENESIS_SPEC_ATTESTERS_MISSING_IN_GENERAL_YAML)?
+            .clone();
+        let genesis_attesters = read_attester_committee_yaml(genesis_attesters)?;
+
         Ok(Self {
             chain,
             contracts,
-            general,
-            genesis,
+            l2_chain_id,
+            l2_http_url: general.get("api.web3_json_rpc.http_url")?,
+            genesis_attesters,
         })
     }
 
@@ -260,26 +269,10 @@ impl Setup {
         // Fetch the desired state.
         if let Some(path) = &opts.from_file {
             let yaml = std::fs::read_to_string(path).context("read_to_string()")?;
-            let file: SetAttesterCommitteeFile = zksync_protobuf::serde::Deserialize {
-                deny_unknown_fields: true,
-            }
-            .proto_fmt_from_yaml(&yaml)
-            .context("proto_fmt_from_yaml()")?;
-            return Ok(file.attesters);
+            let yaml = serde_yaml::from_str(&yaml).context("parse YAML")?;
+            return read_attester_committee_yaml(yaml);
         }
-        let attesters = (|| {
-            Some(
-                &self
-                    .general
-                    .consensus_config
-                    .as_ref()?
-                    .genesis_spec
-                    .as_ref()?
-                    .attesters,
-            )
-        })()
-        .context(messages::MSG_CONSENSUS_GENESIS_SPEC_ATTESTERS_MISSING_IN_GENERAL_YAML)?;
-        parse_attester_committee(attesters).context("parse_attester_committee()")
+        Ok(self.genesis_attesters.clone())
     }
 
     async fn wait_for_registry_contract_inner(
@@ -335,9 +328,21 @@ impl Setup {
     }
 
     async fn set_attester_committee(&self, want: &attester::Committee) -> anyhow::Result<()> {
+        if global_config().verbose {
+            logger::debug(format!("Setting attester committee: {want:?}"));
+        }
+
         let provider = self.provider().context("provider()")?;
         let block_id = self.last_block(&provider).await.context("last_block()")?;
+        if global_config().verbose {
+            logger::debug(format!("Fetched latest L2 block: {block_id:?}"));
+        }
+
         let governor = self.governor().context("governor()")?;
+        if global_config().verbose {
+            logger::debug(format!("Using governor: {:?}", governor.address));
+        }
+
         let signer = self.signer(
             governor
                 .private_key
@@ -348,6 +353,13 @@ impl Setup {
             .consensus_registry(signer.clone())
             .context("consensus_registry()")?;
         let mut multicall = self.multicall(signer).context("multicall()")?;
+        if global_config().verbose {
+            logger::debug(format!(
+                "Using consensus registry at {:?}, multicall at {:?}",
+                consensus_registry.address(),
+                multicall.contract.address()
+            ));
+        }
 
         let owner = consensus_registry.owner().call().await.context("owner()")?;
         if owner != governor.address {
@@ -368,6 +380,11 @@ impl Setup {
             .try_into()
             .ok()
             .context("num_nodes() overflow")?;
+        if global_config().verbose {
+            logger::debug(format!(
+                "Fetched number of nodes from consensus registry: {n}"
+            ));
+        }
 
         multicall.block = Some(block_id);
         let node_owners: Vec<Address> = multicall
@@ -379,6 +396,12 @@ impl Setup {
             .await
             .context("node_owners()")?;
         multicall.clear_calls();
+        if global_config().verbose {
+            logger::debug(format!(
+                "Fetched node owners from consensus registry: {node_owners:?}"
+            ));
+        }
+
         let nodes: Vec<abi::NodesReturn> = multicall
             .add_calls(
                 false,
@@ -390,6 +413,11 @@ impl Setup {
             .await
             .context("nodes()")?;
         multicall.clear_calls();
+        if global_config().verbose {
+            logger::debug(format!(
+                "Fetched node info from consensus registry: {nodes:?}"
+            ));
+        }
 
         // Update the state.
         let mut txs = TxSet::default();
@@ -398,15 +426,21 @@ impl Setup {
             if node.attester_latest.removed {
                 continue;
             }
+
+            let node_owner = node_owners[i];
             let got = attester::WeightedAttester {
                 key: decode_attester_key(&node.attester_latest.pub_key)
                     .context("decode_attester_key()")?,
                 weight: node.attester_latest.weight.into(),
             };
+
             if let Some(weight) = to_insert.remove(&got.key) {
                 if weight != got.weight {
                     txs.send(
-                        "changed_attester_weight",
+                        format!(
+                            "change_attester_weight({node_owner:?}, {} -> {weight})",
+                            got.weight
+                        ),
                         consensus_registry.change_attester_weight(
                             node_owners[i],
                             weight.try_into().context("weight overflow")?,
@@ -415,18 +449,24 @@ impl Setup {
                     .await?;
                 }
                 if !node.attester_latest.active {
-                    txs.send("activate", consensus_registry.activate(node_owners[i]))
-                        .await?;
+                    txs.send(
+                        format!("activate({node_owner:?})"),
+                        consensus_registry.activate(node_owner),
+                    )
+                    .await?;
                 }
             } else {
-                txs.send("remove", consensus_registry.remove(node_owners[i]))
-                    .await?;
+                txs.send(
+                    format!("remove({node_owner:?})"),
+                    consensus_registry.remove(node_owner),
+                )
+                .await?;
             }
         }
         for (key, weight) in to_insert {
             let vk = validator::SecretKey::generate();
             txs.send(
-                "add",
+                format!("add({key:?}, {weight})"),
                 consensus_registry.add(
                     Address::random(),
                     /*validator_weight=*/ 1,
@@ -439,7 +479,7 @@ impl Setup {
             .await?;
         }
         txs.send(
-            "commit_attester_committee",
+            "commit_attester_committee".to_owned(),
             consensus_registry.commit_attester_committee(),
         )
         .await?;
@@ -450,7 +490,7 @@ impl Setup {
 
 impl Command {
     pub(crate) async fn run(self, shell: &Shell) -> anyhow::Result<()> {
-        let setup = Setup::new(shell).context("Setup::new()")?;
+        let setup = Setup::new(shell).await?;
         match self {
             Self::SetAttesterCommittee(opts) => {
                 let want = setup

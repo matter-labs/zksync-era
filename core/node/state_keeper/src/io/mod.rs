@@ -135,6 +135,9 @@ pub trait StateKeeperIO: 'static + Send + Sync + fmt::Debug + IoSealCriteria {
         max_wait: Duration,
     ) -> anyhow::Result<Option<L2BlockParams>>;
 
+    /// Update the next block params timestamp
+    fn update_next_l2_block_timestamp(&mut self, block_timestamp: &mut u64);
+
     /// Blocks for up to `max_wait` until the next transaction is available for execution.
     /// Returns `None` if no transaction became available until the timeout.
     async fn wait_for_next_tx(

@@ -27,3 +27,4 @@ sqlx = { workspace = true, features = [
     "migrate",
     "ipnetwork",
 ] }
+tokio = { workspace = true, features = ["rt"] }

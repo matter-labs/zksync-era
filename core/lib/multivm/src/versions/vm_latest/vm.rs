@@ -21,10 +21,10 @@ use crate::{
     },
     utils::{bytecode::be_words_to_bytes, events::extract_l2tol1logs_from_l1_messenger},
     vm_latest::{
-        bootloader_state::BootloaderState,
+        bootloader::BootloaderState,
         old_vm::{events::merge_events, history_recorder::HistoryEnabled},
         tracers::{dispatcher::TracerDispatcher, PubdataTracer},
-        types::internals::{new_vm_state, VmSnapshot, ZkSyncVmState},
+        types::{new_vm_state, VmSnapshot, ZkSyncVmState},
     },
     HistoryMode,
 };
@@ -47,7 +47,7 @@ pub(crate) enum MultiVmSubversion {
 impl MultiVmSubversion {
     #[cfg(test)]
     pub(crate) fn latest() -> Self {
-        Self::IncreasedBootloaderMemory
+        Self::Gateway
     }
 }
 

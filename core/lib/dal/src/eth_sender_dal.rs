@@ -86,6 +86,25 @@ impl EthSenderDal<'_, '_> {
         Ok(count.try_into().unwrap())
     }
 
+    pub async fn get_unconfirmed_txs_count(&mut self) -> DalResult<usize> {
+        let count = sqlx::query!(
+            r#"
+            SELECT
+                COUNT(*)
+            FROM
+                eth_txs
+            WHERE
+                confirmed_eth_tx_history_id IS NULL
+            "#
+        )
+        .instrument("get_unconfirmed_txs_count")
+        .fetch_one(self.storage)
+        .await?
+        .count
+        .unwrap();
+        Ok(count.try_into().unwrap())
+    }
+
     pub async fn get_eth_l1_batches(&mut self) -> sqlx::Result<L1BatchEthSenderStats> {
         struct EthTxRow {
             number: i64,

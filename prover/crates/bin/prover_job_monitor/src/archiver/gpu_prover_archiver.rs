@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use zksync_prover_dal::{Connection, Prover, ProverDal};
 
-use crate::{metrics::HOUSE_KEEPER_METRICS, task_wiring::Task};
+use crate::{metrics::PROVER_JOB_MONITOR_METRICS, task_wiring::Task};
 
 /// `GpuProverArchiver` is a task that archives old fri GPU provers.
 /// The task will archive the `dead` prover records that have not been updated for a certain amount of time.
@@ -31,7 +31,7 @@ impl Task for GpuProverArchiver {
         if archived_provers > 0 {
             tracing::info!("Archived {:?} gpu provers", archived_provers);
         }
-        HOUSE_KEEPER_METRICS
+        PROVER_JOB_MONITOR_METRICS
             .gpu_prover_archived
             .inc_by(archived_provers as u64);
         Ok(())

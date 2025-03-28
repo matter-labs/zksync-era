@@ -6,10 +6,16 @@ pub use zksync_db_connection::{
 };
 
 use crate::{
-    cli_test_dal::CliTestDal, fri_gpu_prover_queue_dal::FriGpuProverQueueDal,
+    cli_test_dal::CliTestDal,
+    fri_gpu_prover_queue_dal::FriGpuProverQueueDal,
     fri_proof_compressor_dal::FriProofCompressorDal,
-    fri_protocol_versions_dal::FriProtocolVersionsDal, fri_prover_dal::FriProverDal,
-    fri_witness_generator_dal::FriWitnessGeneratorDal,
+    fri_protocol_versions_dal::FriProtocolVersionsDal,
+    fri_prover_dal::FriProverDal,
+    fri_witness_generator_dal::{
+        basic::FriBasicWitnessGeneratorDal, leaf::FriLeafWitnessGeneratorDal,
+        node::FriNodeWitnessGeneratorDal, recursion_tip::FriRecursionTipWitnessGeneratorDal,
+        scheduler::FriSchedulerWitnessGeneratorDal, FriWitnessGeneratorDal,
+    },
 };
 
 pub mod cli_test_dal;
@@ -34,6 +40,18 @@ where
 
     fn fri_witness_generator_dal(&mut self) -> FriWitnessGeneratorDal<'_, 'a>;
 
+    fn fri_basic_witness_generator_dal(&mut self) -> FriBasicWitnessGeneratorDal<'_, 'a>;
+
+    fn fri_leaf_witness_generator_dal(&mut self) -> FriLeafWitnessGeneratorDal<'_, 'a>;
+
+    fn fri_node_witness_generator_dal(&mut self) -> FriNodeWitnessGeneratorDal<'_, 'a>;
+
+    fn fri_recursion_tip_witness_generator_dal(
+        &mut self,
+    ) -> FriRecursionTipWitnessGeneratorDal<'_, 'a>;
+
+    fn fri_scheduler_witness_generator_dal(&mut self) -> FriSchedulerWitnessGeneratorDal<'_, 'a>;
+
     fn fri_prover_jobs_dal(&mut self) -> FriProverDal<'_, 'a>;
 
     fn fri_gpu_prover_queue_dal(&mut self) -> FriGpuProverQueueDal<'_, 'a>;
@@ -52,8 +70,33 @@ impl DbMarker for Prover {}
 impl private::Sealed for Connection<'_, Prover> {}
 
 impl<'a> ProverDal<'a> for Connection<'a, Prover> {
+    fn cli_test_dal(&mut self) -> CliTestDal<'_, 'a> {
+        CliTestDal { storage: self }
+    }
+
     fn fri_witness_generator_dal(&mut self) -> FriWitnessGeneratorDal<'_, 'a> {
         FriWitnessGeneratorDal { storage: self }
+    }
+
+    fn fri_basic_witness_generator_dal(&mut self) -> FriBasicWitnessGeneratorDal<'_, 'a> {
+        FriBasicWitnessGeneratorDal { storage: self }
+    }
+
+    fn fri_leaf_witness_generator_dal(&mut self) -> FriLeafWitnessGeneratorDal<'_, 'a> {
+        FriLeafWitnessGeneratorDal { storage: self }
+    }
+
+    fn fri_node_witness_generator_dal(&mut self) -> FriNodeWitnessGeneratorDal<'_, 'a> {
+        FriNodeWitnessGeneratorDal { storage: self }
+    }
+    fn fri_recursion_tip_witness_generator_dal(
+        &mut self,
+    ) -> FriRecursionTipWitnessGeneratorDal<'_, 'a> {
+        FriRecursionTipWitnessGeneratorDal { storage: self }
+    }
+
+    fn fri_scheduler_witness_generator_dal(&mut self) -> FriSchedulerWitnessGeneratorDal<'_, 'a> {
+        FriSchedulerWitnessGeneratorDal { storage: self }
     }
 
     fn fri_prover_jobs_dal(&mut self) -> FriProverDal<'_, 'a> {
@@ -70,8 +113,5 @@ impl<'a> ProverDal<'a> for Connection<'a, Prover> {
 
     fn fri_proof_compressor_dal(&mut self) -> FriProofCompressorDal<'_, 'a> {
         FriProofCompressorDal { storage: self }
-    }
-    fn cli_test_dal(&mut self) -> CliTestDal<'_, 'a> {
-        CliTestDal { storage: self }
     }
 }

@@ -168,6 +168,14 @@ impl BytecodeMarker {
     }
 }
 
+/// Removes padding from the bytecode, if necessary.
+pub fn trim_bytecode(bytecode_hash: BytecodeHash, raw: &[u8]) -> anyhow::Result<&[u8]> {
+    match bytecode_hash.marker() {
+        BytecodeMarker::EraVm => Ok(raw),
+        BytecodeMarker::Evm => trim_padded_evm_bytecode(bytecode_hash, raw),
+    }
+}
+
 /// Removes padding from an EVM bytecode, returning the original EVM bytecode.
 pub fn trim_padded_evm_bytecode(bytecode_hash: BytecodeHash, raw: &[u8]) -> anyhow::Result<&[u8]> {
     if bytecode_hash.marker() != BytecodeMarker::Evm {

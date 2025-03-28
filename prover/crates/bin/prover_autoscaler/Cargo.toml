@@ -11,7 +11,7 @@ categories.workspace = true
 
 [dependencies]
 zksync_vlog.workspace = true
-zksync_utils.workspace = true
+zksync_task_management.workspace = true
 zksync_config = { workspace = true, features = ["observability_ext"] }
 zksync_prover_job_monitor.workspace = true
 

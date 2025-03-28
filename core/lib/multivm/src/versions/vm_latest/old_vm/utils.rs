@@ -10,7 +10,7 @@ use zksync_types::{Address, U256};
 
 use crate::{
     interface::storage::WriteStorage,
-    vm_latest::{old_vm::memory::SimpleMemory, types::internals::ZkSyncVmState, HistoryMode},
+    vm_latest::{old_vm::memory::SimpleMemory, types::ZkSyncVmState, HistoryMode},
 };
 
 #[derive(Debug, Clone)]

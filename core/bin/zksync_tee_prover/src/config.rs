@@ -3,8 +3,8 @@ use std::{path::PathBuf, time::Duration};
 use secp256k1::SecretKey;
 use serde::Deserialize;
 use url::Url;
+use zksync_basic_types::tee_types::TeeType;
 use zksync_env_config::FromEnv;
-use zksync_types::tee_types::TeeType;
 
 /// Configuration for the TEE prover.
 #[derive(Debug, Clone, Deserialize)]
@@ -19,13 +19,17 @@ pub(crate) struct TeeProverConfig {
     pub api_url: Url,
     /// Number of retries for retriable errors before giving up on recovery (i.e., returning an error
     /// from [`Self::run()`]).
+    #[serde(default = "TeeProverConfig::default_max_retries")]
     pub max_retries: usize,
     /// Initial back-off interval when retrying recovery on a retriable error. Each subsequent retry interval
     /// will be multiplied by [`Self.retry_backoff_multiplier`].
+    #[serde(default = "TeeProverConfig::default_initial_retry_backoff_sec")]
     pub initial_retry_backoff_sec: u64,
     /// Multiplier for the back-off interval when retrying recovery on a retriable error.
+    #[serde(default = "TeeProverConfig::default_retry_backoff_multiplier")]
     pub retry_backoff_multiplier: f32,
     /// Maximum back-off interval when retrying recovery on a retriable error.
+    #[serde(default = "TeeProverConfig::default_max_backoff_sec")]
     pub max_backoff_sec: u64,
 }
 
@@ -36,6 +40,22 @@ impl TeeProverConfig {
 
     pub fn max_backoff(&self) -> Duration {
         Duration::from_secs(self.max_backoff_sec)
+    }
+
+    pub const fn default_max_retries() -> usize {
+        10
+    }
+
+    pub const fn default_initial_retry_backoff_sec() -> u64 {
+        1
+    }
+
+    pub const fn default_retry_backoff_multiplier() -> f32 {
+        2.0
+    }
+
+    pub const fn default_max_backoff_sec() -> u64 {
+        128
     }
 }
 

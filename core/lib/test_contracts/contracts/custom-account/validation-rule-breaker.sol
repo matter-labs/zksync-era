@@ -12,12 +12,8 @@ import "./interfaces/IAccount.sol";
 contract ValidationRuleBreaker is IAccount {
     using TransactionHelper for Transaction;
 
-    uint32 public typeOfRuleBreak;
-    address public trustedAddress = address(0x800a);
-
-    constructor() {
-        typeOfRuleBreak = 0;
-    }
+    uint public typeOfRuleBreak;
+    address public trustedAddress;
 
     function setTypeOfRuleBreak(uint32 _typeOfRuleBreak) external {
         typeOfRuleBreak = _typeOfRuleBreak;
@@ -41,21 +37,33 @@ contract ValidationRuleBreaker is IAccount {
         } else if (typeOfRuleBreak == 3) {
             // This should succeed because a trustedAddress is marked as a slot that grants access to the address it contains
             require(trustedAddress == address(0x800a));
-            require(BOOTLOADER_FORMAL_ADDRESS.balance != 0);
+            require(BOOTLOADER_FORMAL_ADDRESS.balance == 0);
         } else if (typeOfRuleBreak == 4) {
             // This should still fail; EIP-4337 defines out of gas as an immediate failure
-            address(this).call(
-                abi.encodeWithSignature("_runOutOfGasButCatchThePanic()")
-            );
+            address(this).call(abi.encodeWithSignature("_runOutOfGasRecursively()"));
+        } else if (typeOfRuleBreak == 5) {
+            runOutOfGasPlain();
+        } else if (typeOfRuleBreak == 6) {
+            try this.runOutOfGasPlain() {
+                revert("Should've run out of gas");
+            } catch Panic(uint) {
+                // Swallow the error
+            }
         }
 
         _validateTransaction(_suggestedSignedTxHash, _transaction);
     }
 
-    function _runOutOfGasButCatchThePanic() external {
-        address(this).call(
-            abi.encodeWithSignature("_runOutOfGasButCatchThePanic()")
-        );
+    function _runOutOfGasRecursively() external {
+        address(this).call(abi.encodeWithSignature("_runOutOfGasRecursively()"));
+    }
+
+    /// Runs out of gas w/o recursion.
+    function runOutOfGasPlain() public {
+        bytes32 value = 0x0000000000000000000000000000000000000000000000000000000000000001;
+        while (value != bytes32(0)) {
+            value = keccak256(abi.encode(value));
+        }
     }
 
     function _validateTransaction(

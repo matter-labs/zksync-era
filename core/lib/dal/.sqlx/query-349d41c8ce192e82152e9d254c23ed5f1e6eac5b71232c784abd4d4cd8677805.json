@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO\n            contract_verification_info_v2 (\n                initial_contract_addr,\n                bytecode_keccak256,\n                bytecode_without_metadata_keccak256,\n                verification_info\n            )\n            VALUES\n            ($1, $2, $3, $4)\n            ON CONFLICT (initial_contract_addr) DO\n            UPDATE\n            SET\n            bytecode_keccak256 = $2,\n            bytecode_without_metadata_keccak256 = $3,\n            verification_info = $4\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Bytea",
+        "Bytea",
+        "Bytea",
+        "Jsonb"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "349d41c8ce192e82152e9d254c23ed5f1e6eac5b71232c784abd4d4cd8677805"
+}

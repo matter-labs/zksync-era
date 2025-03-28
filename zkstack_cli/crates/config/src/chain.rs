@@ -7,19 +7,20 @@ use serde::{Deserialize, Serialize, Serializer};
 use xshell::Shell;
 use zkstack_cli_types::{BaseToken, L1BatchCommitmentMode, L1Network, ProverMode, WalletCreation};
 use zksync_basic_types::L2ChainId;
-use zksync_config::configs::{GatewayChainConfig, GatewayConfig};
+use zksync_config::configs::{gateway::GatewayChainConfig, GatewayConfig};
 
 use crate::{
     consts::{
-        CONFIG_NAME, CONTRACTS_FILE, EN_CONFIG_FILE, GENERAL_FILE, GENESIS_FILE,
+        CONFIG_NAME, CONTRACTS_FILE, EN_CONFIG_FILE, GATEWAY_FILE, GENERAL_FILE, GENESIS_FILE,
         L1_CONTRACTS_FOUNDRY, SECRETS_FILE, WALLETS_FILE,
     },
     create_localhost_wallets,
+    raw::RawConfig,
     traits::{
         FileConfigWithDefaultName, ReadConfig, ReadConfigWithBasePath, SaveConfig,
         SaveConfigWithBasePath, ZkStackConfig,
     },
-    ContractsConfig, GeneralConfig, GenesisConfig, SecretsConfig, WalletsConfig,
+    ContractsConfig, WalletsConfig,
 };
 
 /// Chain configuration file. This file is created in the chain
@@ -67,6 +68,13 @@ pub struct ChainConfig {
     pub evm_emulator: bool,
 }
 
+#[derive(Debug, Clone)]
+pub enum DAValidatorType {
+    Rollup = 0,
+    NoDA = 1,
+    Avail = 2,
+}
+
 impl Serialize for ChainConfig {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -81,12 +89,12 @@ impl ChainConfig {
         self.shell.get().expect("Not initialized")
     }
 
-    pub fn get_genesis_config(&self) -> anyhow::Result<GenesisConfig> {
-        GenesisConfig::read_with_base_path(self.get_shell(), &self.configs)
+    pub async fn get_genesis_config(&self) -> anyhow::Result<RawConfig> {
+        RawConfig::read(self.get_shell(), self.path_to_genesis_config()).await
     }
 
-    pub fn get_general_config(&self) -> anyhow::Result<GeneralConfig> {
-        GeneralConfig::read_with_base_path(self.get_shell(), &self.configs)
+    pub async fn get_general_config(&self) -> anyhow::Result<RawConfig> {
+        RawConfig::read(self.get_shell(), self.path_to_general_config()).await
     }
 
     pub fn get_wallets_config(&self) -> anyhow::Result<WalletsConfig> {
@@ -101,12 +109,13 @@ impl ChainConfig {
         }
         anyhow::bail!("Wallets configs has not been found");
     }
+
     pub fn get_contracts_config(&self) -> anyhow::Result<ContractsConfig> {
         ContractsConfig::read_with_base_path(self.get_shell(), &self.configs)
     }
 
-    pub fn get_secrets_config(&self) -> anyhow::Result<SecretsConfig> {
-        SecretsConfig::read_with_base_path(self.get_shell(), &self.configs)
+    pub async fn get_secrets_config(&self) -> anyhow::Result<RawConfig> {
+        RawConfig::read(self.get_shell(), self.path_to_secrets_config()).await
     }
 
     pub fn get_gateway_config(&self) -> anyhow::Result<GatewayConfig> {
@@ -137,8 +146,8 @@ impl ChainConfig {
         self.configs.join(SECRETS_FILE)
     }
 
-    pub fn save_general_config(&self, general_config: &GeneralConfig) -> anyhow::Result<()> {
-        general_config.save_with_base_path(self.get_shell(), &self.configs)
+    pub fn path_to_gateway_config(&self) -> PathBuf {
+        self.configs.join(GATEWAY_FILE)
     }
 
     pub fn path_to_l1_foundry(&self) -> PathBuf {

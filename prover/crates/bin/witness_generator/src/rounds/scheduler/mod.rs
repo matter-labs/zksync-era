@@ -178,7 +178,7 @@ impl JobManager for Scheduler {
         let Some(l1_batch_number) = connection_pool
             .connection()
             .await?
-            .fri_witness_generator_dal()
+            .fri_scheduler_witness_generator_dal()
             .get_next_scheduler_witness_job(protocol_version, &pod_name)
             .await
         else {

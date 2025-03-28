@@ -29,7 +29,7 @@ describe('Debug methods', () => {
     test('Should not fail for infinity recursion', async () => {
         const bytecodePath = `${
             testMaster.environment().pathToHome
-        }/core/tests/ts-integration/contracts/zkasm/artifacts/deep_stak.zkasm/zkasm/deep_stak.zkasm.zbin`;
+        }/core/tests/ts-integration/contracts/zkasm/artifacts/deep_stak.zkasm/deep_stak.zkasm/deep_stak.zkasm.zbin`;
         const bytecode = fs.readFileSync(bytecodePath, 'utf-8');
 
         const contractFactory = new zksync.ContractFactory([], bytecode, testMaster.mainAccount());

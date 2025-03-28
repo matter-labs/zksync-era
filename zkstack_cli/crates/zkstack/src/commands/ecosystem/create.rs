@@ -27,19 +27,19 @@ use crate::{
     utils::link_to_code::resolve_link_to_code,
 };
 
-pub fn run(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
+pub async fn run(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
     match EcosystemConfig::from_file(shell) {
         Ok(_) => bail!(MSG_ECOSYSTEM_ALREADY_EXISTS_ERR),
         Err(EcosystemConfigFromFileError::InvalidConfig { .. }) => {
             bail!(MSG_ECOSYSTEM_CONFIG_INVALID_ERR)
         }
-        Err(EcosystemConfigFromFileError::NotExists { .. }) => create(args, shell)?,
+        Err(EcosystemConfigFromFileError::NotExists { .. }) => create(args, shell).await?,
     };
 
     Ok(())
 }
 
-fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
+async fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
     let args = args
         .fill_values_with_prompt(shell)
         .context(MSG_ARGS_VALIDATOR_ERR)?;
@@ -96,7 +96,7 @@ fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
     spinner.finish();
 
     let spinner = Spinner::new(MSG_CREATING_DEFAULT_CHAIN_SPINNER);
-    create_chain_inner(chain_config, &ecosystem_config, shell)?;
+    create_chain_inner(chain_config, &ecosystem_config, shell).await?;
     spinner.finish();
 
     if args.start_containers {

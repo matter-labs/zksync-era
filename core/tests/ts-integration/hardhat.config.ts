@@ -4,7 +4,7 @@ import '@matterlabs/hardhat-zksync-vyper';
 
 export default {
     zksolc: {
-        version: '1.5.3',
+        version: '1.5.10',
         compilerSource: 'binary',
         settings: {
             enableEraVMExtensions: true

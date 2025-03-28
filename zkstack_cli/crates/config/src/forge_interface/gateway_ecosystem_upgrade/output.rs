@@ -1,4 +1,3 @@
-/// TODO(EVM-927): Note that the contents of this file are not useable without Gateway contracts.
 use ethers::types::{Address, H256};
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::web3::Bytes;
@@ -19,6 +18,10 @@ pub struct GatewayEcosystemUpgradeOutput {
 
     pub contracts_config: GatewayEcosystemUpgradeContractsOutput,
     pub deployed_addresses: GatewayEcosystemUpgradeDeployedAddresses,
+    /// List of transactions that were executed during the upgrade.
+    /// This is added later by the zkstack and not present in the toml file that solidity creates.
+    #[serde(default)]
+    pub transactions: Vec<String>,
 }
 
 impl FileConfigWithDefaultName for GatewayEcosystemUpgradeOutput {
@@ -45,6 +48,12 @@ pub struct GatewayEcosystemUpgradeContractsOutput {
     pub recursion_circuits_set_vks_hash: H256,
     pub recursion_leaf_level_vk_hash: H256,
     pub recursion_node_level_vk_hash: H256,
+
+    pub new_protocol_version: u64,
+    pub old_protocol_version: u64,
+
+    pub old_validator_timelock: Address,
+    pub l1_legacy_shared_bridge: Address,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]

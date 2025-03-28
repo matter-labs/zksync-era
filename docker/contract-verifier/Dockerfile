@@ -17,7 +17,7 @@ ENV RUSTC_WRAPPER=${RUSTC_WRAPPER}
 WORKDIR /usr/src/zksync
 COPY . .
 
-RUN cargo build --release --bin zksync_contract_verifier
+RUN cargo build --manifest-path ./core/Cargo.toml --release --bin zksync_contract_verifier
 
 FROM ghcr.io/matter-labs/zksync-runtime-base:latest
 
@@ -96,7 +96,7 @@ RUN mkdir -p /etc/vyper-bin/0.4.0 \
     && mv vyper0.4.0 /etc/vyper-bin/0.4.0/vyper \
     && chmod +x /etc/vyper-bin/0.4.0/vyper
 
-COPY --from=builder /usr/src/zksync/target/release/zksync_contract_verifier /usr/bin/
+COPY --from=builder /usr/src/zksync/core/target/release/zksync_contract_verifier /usr/bin/
 COPY contracts/system-contracts/zkout/ /contracts/system-contracts/zkout/
 
 # CMD tail -f /dev/null

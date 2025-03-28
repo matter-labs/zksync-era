@@ -234,7 +234,6 @@ impl ConsensusDal<'_, '_> {
 
                 protocol_version: old.genesis.protocol_version,
                 validators: old.genesis.validators.clone(),
-                attesters: old.genesis.attesters.clone(),
                 leader_selection: old.genesis.leader_selection.clone(),
             }
             .with_hash(),

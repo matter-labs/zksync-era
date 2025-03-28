@@ -20,7 +20,8 @@ use vm_benchmark::{
     criterion::{is_test_mode, BenchmarkGroup, BenchmarkId, CriterionExt, MeteredTime},
     get_deploy_tx_with_gas_limit, get_erc20_deploy_tx, get_erc20_transfer_tx,
     get_heavy_load_test_tx, get_load_test_deploy_tx, get_load_test_tx, get_realistic_load_test_tx,
-    get_transfer_tx, BenchmarkingVm, BenchmarkingVmFactory, Bytecode, Fast, Legacy, LoadTestParams,
+    get_transfer_tx, BenchmarkingVm, BenchmarkingVmFactory, Bytecode, Fast, FastNoSignatures,
+    FastWithStorageLimit, Legacy, LoadTestParams,
 };
 use zksync_types::Transaction;
 
@@ -197,6 +198,8 @@ criterion_group!(
         .with_measurement(MeteredTime::new("fill_bootloader"));
     targets = bench_fill_bootloader::<Fast, false>,
         bench_fill_bootloader::<Fast, true>,
+        bench_fill_bootloader::<FastNoSignatures, false>,
+        bench_fill_bootloader::<FastWithStorageLimit, false>,
         bench_fill_bootloader::<Legacy, false>
 );
 criterion_main!(benches);

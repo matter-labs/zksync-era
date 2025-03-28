@@ -67,8 +67,8 @@ async fn restart_batch(
         .delete_witness_generator_data_for_batch(batch_number, AggregationRound::Scheduler)
         .await
         .context("failed to restart batch: fri_witness_generator_dal()")?;
-    conn.fri_witness_generator_dal()
-        .mark_witness_job(FriWitnessJobStatus::Queued, batch_number)
+    conn.fri_basic_witness_generator_dal()
+        .set_status_for_basic_witness_job(FriWitnessJobStatus::Queued, batch_number)
         .await;
     Ok(())
 }

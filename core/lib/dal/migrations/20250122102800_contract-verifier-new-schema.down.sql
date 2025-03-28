@@ -1,0 +1,3 @@
+DROP INDEX IF EXISTS contract_verification_info_v2_bytecode_keccak256_idx;
+DROP INDEX IF EXISTS contract_verification_info_v2_bytecode_without_metadata_keccak256_idx;
+DROP TABLE IF EXISTS contract_verification_info_v2;

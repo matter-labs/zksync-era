@@ -19,7 +19,7 @@ use crate::{
     },
     tracers::dynamic::vm_1_5_0::DynTracer,
     utils::bytecode::bytes_to_be_words,
-    vm_latest::{BootloaderState, HistoryMode, SimpleMemory, ZkSyncVmState},
+    vm_latest::{bootloader::BootloaderState, HistoryMode, SimpleMemory, ZkSyncVmState},
 };
 
 /// Tracer responsible for collecting information about EVM deploys and providing those

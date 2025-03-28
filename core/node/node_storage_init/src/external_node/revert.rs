@@ -34,6 +34,12 @@ impl RevertStorage for ExternalNodeReverter {
         Ok(())
     }
 
+    async fn is_reorg_needed(&self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<bool> {
+        ReorgDetector::new(self.client.clone(), self.pool.clone())
+            .check_reorg_presence(stop_receiver)
+            .await
+    }
+
     async fn last_correct_batch_for_reorg(
         &self,
         stop_receiver: watch::Receiver<bool>,

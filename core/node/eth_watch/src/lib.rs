@@ -6,14 +6,12 @@ use std::{sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use tokio::sync::watch;
-use zksync_config::ContractsConfig;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_system_constants::PRIORITY_EXPIRATION;
 use zksync_types::{
-    abi::ZkChainSpecificUpgradeData, ethabi::Contract, protocol_version::ProtocolSemanticVersion,
-    tokens::TokenMetadata, web3::BlockNumber as Web3BlockNumber, L1BatchNumber, L2ChainId,
-    PriorityOpId,
+    ethabi::Contract, protocol_version::ProtocolSemanticVersion,
+    web3::BlockNumber as Web3BlockNumber, L1BatchNumber, L2ChainId, PriorityOpId,
 };
 
 pub use self::client::{EthClient, EthHttpQueryClient, L2EthClient};
@@ -58,7 +56,6 @@ impl EthWatch {
         sl_l2_client: Option<Box<dyn L2EthClient>>,
         pool: ConnectionPool<Core>,
         poll_interval: Duration,
-        contracts_config: &ContractsConfig,
         chain_id: L2ChainId,
     ) -> anyhow::Result<Self> {
         let mut storage = pool.connection_tagged("eth_watch").await?;
@@ -79,7 +76,6 @@ impl EthWatch {
         let decentralized_upgrades_processor = DecentralizedUpgradesEventProcessor::new(
             state.last_seen_protocol_version,
             chain_admin_contract,
-            get_chain_specific_upgrade_params(&l1_client, contracts_config).await?,
             sl_client.clone(),
             l1_client.clone(),
         );
@@ -154,11 +150,13 @@ impl EthWatch {
                 _ = timer.tick() => { /* continue iterations */ }
                 _ = stop_receiver.changed() => break,
             }
-            METRICS.eth_poll.inc();
 
             let mut storage = pool.connection_tagged("eth_watch").await?;
             match self.loop_iteration(&mut storage).await {
-                Ok(()) => { /* everything went fine */ }
+                Ok(()) => {
+                    /* everything went fine */
+                    METRICS.eth_poll.inc();
+                }
                 Err(EventProcessorError::Internal(err)) => {
                     tracing::error!("Internal error processing new blocks: {err:?}");
                     return Err(err);
@@ -245,20 +243,4 @@ impl EthWatch {
         }
         Ok(())
     }
-}
-
-async fn get_chain_specific_upgrade_params(
-    l1_client: &Arc<dyn EthClient>,
-    contracts_config: &ContractsConfig,
-) -> anyhow::Result<Option<ZkChainSpecificUpgradeData>> {
-    let TokenMetadata { name, symbol, .. } = l1_client.get_base_token_metadata().await?;
-
-    Ok(ZkChainSpecificUpgradeData::from_partial_components(
-        contracts_config.l1_base_token_asset_id,
-        contracts_config.l2_legacy_shared_bridge_addr,
-        contracts_config.l2_predeployed_wrapped_base_token_address,
-        contracts_config.base_token_addr,
-        Some(name),
-        Some(symbol),
-    ))
 }

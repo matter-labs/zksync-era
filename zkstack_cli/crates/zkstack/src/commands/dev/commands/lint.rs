@@ -70,12 +70,12 @@ pub fn run(shell: &Shell, args: LintArgs) -> anyhow::Result<()> {
 fn lint_rs(shell: &Shell, ecosystem: &EcosystemConfig, check: bool) -> anyhow::Result<()> {
     let spinner = Spinner::new(&msg_running_linter_for_extension_spinner(&Target::Rs));
 
-    let link_to_code = &ecosystem.link_to_code;
+    let link_to_core = &ecosystem.link_to_code.join("core");
     let lint_to_prover = &ecosystem.link_to_code.join("prover");
     let link_to_zkstack = &ecosystem.link_to_code.join("zkstack_cli");
 
     spinner.freeze();
-    for path in [link_to_code, lint_to_prover, link_to_zkstack] {
+    for path in [link_to_core, lint_to_prover, link_to_zkstack] {
         let _dir_guard = shell.push_dir(path);
         let mut cmd = cmd!(shell, "cargo clippy");
         let mut common_args = vec!["--locked", "--", "-D", "warnings"];

@@ -20,11 +20,12 @@ keys/setup
 !prover/
 !yarn.lock
 !package.json
-!Cargo.lock
-!Cargo.toml
+!core/Cargo.lock
+!core/Cargo.toml
 !contracts/
 !setup_2\^26.key
 !setup_2\^24.key
+!setup_compact.key
 # It's required to remove .git from contracts,
 # otherwise yarn tries to use .git parent directory that
 # doesn't exist.

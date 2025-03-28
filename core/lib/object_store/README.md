@@ -15,3 +15,25 @@ Besides the lower-level storage abstraction, the crate provides high-level types
 objects. Prefer using these methods whenever possible.
 
 [configuration]: ../config
+
+## S3
+
+S3 implementation can be used to access different storages. Here is list of recommended values.
+
+### GCS
+
+See [details](https://cloud.google.com/storage/docs/authentication/managing-hmackeys)
+
+- Endpoint: `https://storage.googleapis.com`
+- Region: `us` or `auto`
+- Access Key ID: Access key
+- Secret Access Key: Corresponding secret
+
+### R2
+
+See [details](https://developers.cloudflare.com/r2/api/s3/tokens/)
+
+- Endpoint: `https://<ACCOUNT_ID>.r2.cloudflarestorage.com`
+- Region: `auto` or `us-east-1`
+- Access Key ID: The id of the API token
+- Secret Access Key: The SHA-256 hash of the API token value

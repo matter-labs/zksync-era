@@ -53,7 +53,6 @@ impl EventsDal<'_, '_> {
                     miniblock_number, tx_hash, tx_index_in_block, address,
                     event_index_in_block, event_index_in_tx,
                     topic1, topic2, topic3, topic4, value,
-                    tx_initiator_address,
                     created_at, updated_at
                 )
                 FROM STDIN WITH (DELIMITER '|')",
@@ -71,7 +70,6 @@ impl EventsDal<'_, '_> {
             let IncludedTxLocation {
                 tx_hash,
                 tx_index_in_l2_block,
-                tx_initiator_address,
             } = tx_location;
 
             for (event_index_in_tx, event) in events.iter().enumerate() {
@@ -91,7 +89,7 @@ impl EventsDal<'_, '_> {
                 );
                 writeln_str!(
                     &mut buffer,
-                    r"\\x{value}|\\x{tx_initiator_address:x}|{now}|{now}",
+                    r"\\x{value}|{now}|{now}",
                     value = hex::encode(&event.value)
                 );
 
@@ -148,7 +146,6 @@ impl EventsDal<'_, '_> {
             let IncludedTxLocation {
                 tx_hash,
                 tx_index_in_l2_block,
-                ..
             } = tx_location;
 
             for (log_index_in_tx, log) in logs.iter().enumerate() {
@@ -496,13 +493,11 @@ mod tests {
         let first_location = IncludedTxLocation {
             tx_hash: H256([1; 32]),
             tx_index_in_l2_block: 0,
-            tx_initiator_address: Address::default(),
         };
         let first_events = [create_vm_event(0, 0), create_vm_event(1, 4)];
         let second_location = IncludedTxLocation {
             tx_hash: H256([2; 32]),
             tx_index_in_l2_block: 1,
-            tx_initiator_address: Address::default(),
         };
         let second_events = vec![
             create_vm_event(2, 2),
@@ -566,13 +561,11 @@ mod tests {
         let first_location = IncludedTxLocation {
             tx_hash: H256([1; 32]),
             tx_index_in_l2_block: 0,
-            tx_initiator_address: Address::default(),
         };
         let first_logs = vec![create_l2_to_l1_log(0, 0), create_l2_to_l1_log(0, 1)];
         let second_location = IncludedTxLocation {
             tx_hash: H256([2; 32]),
             tx_index_in_l2_block: 1,
-            tx_initiator_address: Address::default(),
         };
         let second_logs = vec![
             create_l2_to_l1_log(1, 2),

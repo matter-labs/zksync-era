@@ -25,9 +25,6 @@ pub struct FriProofCompressorConfig {
 
     // Whether to verify wrapper proof or not.
     pub verify_wrapper_proof: bool,
-
-    pub universal_fflonk_setup_path: String,
-    pub universal_fflonk_setup_download_url: String,
 }
 
 impl FriProofCompressorConfig {

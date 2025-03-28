@@ -10,6 +10,7 @@ use crate::{
     mirror::MirroringObjectStore,
     raw::{ObjectStore, ObjectStoreError},
     retries::StoreWithRetries,
+    s3::{S3Store, S3StoreAuthMode},
 };
 
 /// Factory of [`ObjectStore`]s that caches the store instance once it's created. Used mainly for legacy reasons.
@@ -92,6 +93,42 @@ impl ObjectStoreFactory {
                     GoogleCloudStore::new(
                         GoogleCloudStoreAuthMode::Anonymous,
                         bucket_base_url.clone(),
+                    )
+                })
+                .await?;
+                Self::wrap_mirroring(store, config.local_mirror_path.as_ref()).await
+            }
+
+            ObjectStoreMode::S3WithCredentialFile {
+                bucket_base_url,
+                s3_credential_file_path,
+                endpoint,
+                region,
+            } => {
+                let store = StoreWithRetries::try_new(config.max_retries, || {
+                    S3Store::new(
+                        S3StoreAuthMode::AuthenticatedWithCredentialFile(
+                            s3_credential_file_path.clone(),
+                        ),
+                        bucket_base_url.clone(),
+                        endpoint.clone(),
+                        region.clone(),
+                    )
+                })
+                .await?;
+                Self::wrap_mirroring(store, config.local_mirror_path.as_ref()).await
+            }
+            ObjectStoreMode::S3AnonymousReadOnly {
+                bucket_base_url,
+                endpoint,
+                region,
+            } => {
+                let store = StoreWithRetries::try_new(config.max_retries, || {
+                    S3Store::new(
+                        S3StoreAuthMode::Anonymous,
+                        bucket_base_url.clone(),
+                        endpoint.clone(),
+                        region.clone(),
                     )
                 })
                 .await?;

@@ -32,7 +32,7 @@ async fn create(shell: &Shell) -> anyhow::Result<()> {
 
     logger::info(MSG_RUNNING_SNAPSHOT_CREATOR);
 
-    let mut cmd = Cmd::new(cmd!(shell, "cargo run --bin snapshots_creator --release -- --config-path={config_path} --secrets-path={secrets_path}"))
+    let mut cmd = Cmd::new(cmd!(shell, "cargo run --manifest-path ./core/Cargo.toml --bin snapshots_creator --release -- --config-path={config_path} --secrets-path={secrets_path}"))
         .env("RUST_LOG", "snapshots_creator=debug");
 
     cmd = cmd.with_force_run();

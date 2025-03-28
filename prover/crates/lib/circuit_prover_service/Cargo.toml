@@ -13,7 +13,7 @@ categories.workspace = true
 [dependencies]
 zksync_prover_job_processor.workspace = true
 zksync_prover_fri_types.workspace = true
-zksync_prover_keystore.workspace = true
+zksync_prover_keystore = { workspace = true, features = ["gpu-light"] }
 zksync_prover_dal.workspace = true
 zksync_types.workspace = true
 zksync_object_store.workspace = true
@@ -24,8 +24,6 @@ tokio = { workspace = true, features = ["macros", "time"] }
 tokio-util.workspace = true
 tracing.workspace = true
 
-shivini = { workspace = true, features = [
-    "circuit_definitions",
-] }
+shivini = { workspace = true, features = ["circuit_definitions"] }
 zkevm_test_harness.workspace = true
 vise.workspace = true

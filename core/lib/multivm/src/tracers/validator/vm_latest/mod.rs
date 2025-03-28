@@ -22,8 +22,8 @@ use crate::{
         },
     },
     vm_latest::{
-        tracers::utils::{computational_gas_price, get_calldata_page_via_abi, VmHook},
-        BootloaderState, SimpleMemory, VmTracer, ZkSyncVmState,
+        tracers::utils::{computational_gas_price, get_calldata_page_via_abi},
+        BootloaderState, SimpleMemory, VmHook, VmTracer, ZkSyncVmState,
     },
     HistoryMode,
 };
@@ -205,25 +205,25 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H::Vm1_5_0>>
         let hook = VmHook::from_opcode_memory(&state, &data, self.vm_version.try_into().unwrap());
         let current_mode = self.validation_mode;
         match (current_mode, hook) {
-            (ValidationTracerMode::NoValidation, VmHook::AccountValidationEntered) => {
+            (ValidationTracerMode::NoValidation, Some(VmHook::AccountValidationEntered)) => {
                 // Account validation can be entered when there is no prior validation (i.e. "nested" validations are not allowed)
                 self.validation_mode = ValidationTracerMode::UserTxValidation;
             }
-            (ValidationTracerMode::NoValidation, VmHook::PaymasterValidationEntered) => {
+            (ValidationTracerMode::NoValidation, Some(VmHook::PaymasterValidationEntered)) => {
                 // Paymaster validation can be entered when there is no prior validation (i.e. "nested" validations are not allowed)
                 self.validation_mode = ValidationTracerMode::PaymasterTxValidation;
             }
-            (_, VmHook::AccountValidationEntered | VmHook::PaymasterValidationEntered) => {
+            (_, Some(VmHook::AccountValidationEntered | VmHook::PaymasterValidationEntered)) => {
                 panic!(
                     "Unallowed transition inside the validation tracer. Mode: {:#?}, hook: {:#?}",
                     self.validation_mode, hook
                 );
             }
-            (_, VmHook::NoValidationEntered) => {
+            (_, Some(VmHook::ValidationExited)) => {
                 // Validation can be always turned off
                 self.validation_mode = ValidationTracerMode::NoValidation;
             }
-            (_, VmHook::ValidationStepEndeded) => {
+            (_, Some(VmHook::ValidationStepEnded)) => {
                 // The validation step has ended.
                 self.should_stop_execution = true;
             }

@@ -7,7 +7,6 @@ use crate::{
     accept_ownership::accept_admin,
     messages::{
         MSG_ACCEPTING_ADMIN_SPINNER, MSG_CHAIN_NOT_INITIALIZED, MSG_CHAIN_OWNERSHIP_TRANSFERRED,
-        MSG_L1_SECRETS_MUST_BE_PRESENTED,
     },
 };
 
@@ -17,13 +16,8 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         .load_current_chain()
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
     let contracts = chain_config.get_contracts_config()?;
-    let secrets = chain_config.get_secrets_config()?;
-    let l1_rpc_url = secrets
-        .l1
-        .context(MSG_L1_SECRETS_MUST_BE_PRESENTED)?
-        .l1_rpc_url
-        .expose_str()
-        .to_string();
+    let secrets = chain_config.get_secrets_config().await?;
+    let l1_rpc_url = secrets.get("l1.l1_rpc_url")?;
 
     let spinner = Spinner::new(MSG_ACCEPTING_ADMIN_SPINNER);
     accept_admin(
@@ -33,7 +27,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         &chain_config.get_wallets_config()?.governor,
         contracts.l1.diamond_proxy_addr,
         &args,
-        l1_rpc_url.clone(),
+        l1_rpc_url,
     )
     .await?;
     spinner.finish();

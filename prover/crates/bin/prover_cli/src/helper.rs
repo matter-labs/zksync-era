@@ -24,7 +24,7 @@ fn read_file_to_json_value(path: &PathBuf) -> serde_json::Value {
 }
 
 fn load_contract_if_present(path: &str) -> Contract {
-    let path = Workspace::locate().core().join(path);
+    let path = Workspace::locate().root().join(path);
     path.exists()
         .then(|| {
             serde_json::from_value(read_file_to_json_value(&path)["abi"].take()).unwrap_or_else(

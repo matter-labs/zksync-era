@@ -37,9 +37,24 @@ message CelestiaConfig {
   optional uint64 timeout_ms = 4;
 }
 
+message Url {
+  optional string g1_url = 1;
+  optional string g2_url = 2;
+}
+
 message EigenConfig {
-  optional string rpc_node_url = 1;
-  optional uint64 inclusion_polling_interval_ms = 2;
+  optional string disperser_rpc = 3;
+  optional uint32 settlement_layer_confirmation_depth = 4;
+  optional string eigenda_eth_rpc = 5;
+  optional string eigenda_svc_manager_address = 6;
+  optional bool wait_for_finalization = 7;
+  optional bool authenticated = 8;
+  oneof points_source {
+    string points_source_path = 9;
+    Url points_source_url = 10;
+  }
+  reserved 1,2;
+  reserved "rpc_node_url","inclusion_polling_interval_ms";
 }
 
 message NoDAConfig {}

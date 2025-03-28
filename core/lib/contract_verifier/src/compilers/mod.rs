@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use anyhow::Context as _;
 use serde::{Deserialize, Serialize};
-use zksync_types::contract_verification_api::CompilationArtifacts;
+use zksync_types::contract_verification::api::CompilationArtifacts;
 
 pub(crate) use self::{
     solc::{Solc, SolcInput},

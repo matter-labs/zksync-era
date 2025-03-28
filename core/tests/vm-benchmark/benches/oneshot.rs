@@ -4,7 +4,8 @@ use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use vm_benchmark::{
     criterion::{BenchmarkGroup, CriterionExt, MeteredTime},
     get_heavy_load_test_tx, get_load_test_deploy_tx, get_load_test_tx, get_realistic_load_test_tx,
-    BenchmarkingVm, BenchmarkingVmFactory, Fast, Legacy, LoadTestParams, BYTECODES,
+    BenchmarkingVm, BenchmarkingVmFactory, Fast, FastNoSignatures, Legacy, LoadTestParams,
+    BYTECODES,
 };
 use zksync_types::Transaction;
 
@@ -83,9 +84,11 @@ criterion_group!(
         .with_measurement(MeteredTime::new("criterion"));
     targets = benches_in_folder::<Fast, false>,
         benches_in_folder::<Fast, true>,
+        benches_in_folder::<FastNoSignatures, false>,
         benches_in_folder::<Legacy, false>,
         benches_in_folder::<Legacy, true>,
         bench_load_test::<Fast>,
+        bench_load_test::<FastNoSignatures>,
         bench_load_test::<Legacy>
 );
 criterion_main!(benches);

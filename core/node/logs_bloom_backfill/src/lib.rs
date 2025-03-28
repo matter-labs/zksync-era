@@ -174,7 +174,6 @@ mod tests {
                     IncludedTxLocation {
                         tx_hash: Default::default(),
                         tx_index_in_l2_block: 0,
-                        tx_initiator_address: Default::default(),
                     },
                     events_vec,
                 )],

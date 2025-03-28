@@ -118,7 +118,11 @@ impl NodeStorageInitializer {
                     recovery.initialize_storage(stop_receiver.clone()).await?;
                 } else {
                     anyhow::bail!(
-                        "Snapshot recovery should be performed, but the strategy is not provided"
+                        "Snapshot recovery should be performed, but the strategy is not provided. \
+                        In most of the cases this error means that the node was first started \
+                        with snapshots recovery enabled, but then it was disabled. \
+                        To get rid of this error and have the node sync from genesis \
+                        please clear the Node's database"
                     );
                 }
             }
@@ -182,10 +186,7 @@ impl NodeStorageInitializer {
     ) -> anyhow::Result<bool> {
         // May be `true` if stop signal is received, but the node will shut down without launching any tasks anyway.
         let initialized = if let Some(reverter) = &self.strategy.block_reverter {
-            reverter
-                .last_correct_batch_for_reorg(stop_receiver)
-                .await?
-                .is_none()
+            !reverter.is_reorg_needed(stop_receiver).await?
         } else {
             true
         };

@@ -10,12 +10,12 @@ use crate::commands::dev::{
     messages::{msg_database_new_migration_loading, MSG_DATABASE_NEW_MIGRATION_SUCCESS},
 };
 
-pub fn run(shell: &Shell, args: DatabaseNewMigrationArgs) -> anyhow::Result<()> {
+pub async fn run(shell: &Shell, args: DatabaseNewMigrationArgs) -> anyhow::Result<()> {
     let args = args.fill_values_with_prompt();
 
     let dal = match args.selected_database {
-        SelectedDatabase::Core => get_core_dal(shell, None)?,
-        SelectedDatabase::Prover => get_prover_dal(shell, None)?,
+        SelectedDatabase::Core => get_core_dal(shell, None).await?,
+        SelectedDatabase::Prover => get_prover_dal(shell, None).await?,
     };
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
 

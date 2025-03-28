@@ -30,7 +30,7 @@ pub mod queue;
 pub const MAX_COMPRESSION_CIRCUITS: u8 = 5;
 
 // THESE VALUES SHOULD BE UPDATED ON ANY PROTOCOL UPGRADE OF PROVERS
-pub const PROVER_PROTOCOL_VERSION: ProtocolVersionId = ProtocolVersionId::Version25;
+pub const PROVER_PROTOCOL_VERSION: ProtocolVersionId = ProtocolVersionId::Version26;
 pub const PROVER_PROTOCOL_PATCH: VersionPatch = VersionPatch(0);
 pub const PROVER_PROTOCOL_SEMANTIC_VERSION: ProtocolSemanticVersion = ProtocolSemanticVersion {
     minor: PROVER_PROTOCOL_VERSION,
@@ -294,12 +294,6 @@ impl ProverServiceDataKey {
         for numeric_circuit in ZkSyncRecursionLayerStorageType::as_iter_u8() {
             results.push(ProverServiceDataKey::new_recursive(numeric_circuit))
         }
-
-        for numeric_circuit in 1..MAX_COMPRESSION_CIRCUITS {
-            results.push(ProverServiceDataKey::new_compression(numeric_circuit));
-        }
-        results.push(ProverServiceDataKey::new_compression_wrapper(5));
-
         results
     }
 
@@ -309,12 +303,6 @@ impl ProverServiceDataKey {
             circuit_id: 1,
             stage: ProvingStage::Snark,
         }
-    }
-
-    pub fn all() -> Vec<ProverServiceDataKey> {
-        let mut keys = Self::all_boojum();
-        keys.push(Self::snark());
-        keys
     }
 
     pub fn is_base_layer(&self) -> bool {

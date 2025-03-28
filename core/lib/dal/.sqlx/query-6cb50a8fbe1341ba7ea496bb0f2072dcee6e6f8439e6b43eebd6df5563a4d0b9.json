@@ -1,0 +1,35 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                verification_info,\n                bytecode_keccak256,\n                bytecode_without_metadata_keccak256\n            FROM\n                contract_verification_info_v2\n            WHERE\n                bytecode_keccak256 = $1\n                OR\n                (\n                    bytecode_without_metadata_keccak256 IS NOT null\n                    AND bytecode_without_metadata_keccak256 = $2\n                )\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "verification_info",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 1,
+        "name": "bytecode_keccak256",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 2,
+        "name": "bytecode_without_metadata_keccak256",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bytea",
+        "Bytea"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "6cb50a8fbe1341ba7ea496bb0f2072dcee6e6f8439e6b43eebd6df5563a4d0b9"
+}

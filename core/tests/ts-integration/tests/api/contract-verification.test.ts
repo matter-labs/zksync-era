@@ -10,7 +10,7 @@ import { NodeMode } from '../../src/types';
 // Regular expression to match ISO dates.
 const DATE_REGEX = /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{6})?/;
 
-const ZKSOLC_VERSION = 'v1.5.3';
+const ZKSOLC_VERSION = 'v1.5.10';
 const SOLC_VERSION = '0.8.26';
 const ZK_VM_SOLC_VERSION = 'zkVM-0.8.26-1.0.1';
 

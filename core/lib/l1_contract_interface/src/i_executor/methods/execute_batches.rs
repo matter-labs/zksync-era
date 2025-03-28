@@ -1,11 +1,12 @@
 use zksync_types::{
     commitment::{L1BatchWithMetadata, PriorityOpsMerkleProof},
     ethabi::{encode, Token},
+    ProtocolVersionId,
 };
 
 use crate::{
     i_executor::structures::{StoredBatchInfo, SUPPORTED_ENCODING_VERSION},
-    Tokenizable, Tokenize,
+    Tokenizable,
 };
 
 /// Input required to encode `executeBatches` call.
@@ -15,11 +16,15 @@ pub struct ExecuteBatches {
     pub priority_ops_proofs: Vec<PriorityOpsMerkleProof>,
 }
 
-impl Tokenize for &ExecuteBatches {
-    fn into_tokens(self) -> Vec<Token> {
-        let protocol_version = self.l1_batches[0].header.protocol_version.unwrap();
+impl ExecuteBatches {
+    // The encodings of `ExecuteBatches` operations are different depending on the protocol version
+    // of the underlying chain.
+    // However, we can send batches with older protocol versions just by changing the encoding.
+    // This makes the migration simpler.
+    pub fn encode_for_eth_tx(&self, chain_protocol_version: ProtocolVersionId) -> Vec<Token> {
+        let internal_protocol_version = self.l1_batches[0].header.protocol_version.unwrap();
 
-        if protocol_version.is_pre_gateway() {
+        if internal_protocol_version.is_pre_gateway() && chain_protocol_version.is_pre_gateway() {
             vec![Token::Array(
                 self.l1_batches
                     .iter()
