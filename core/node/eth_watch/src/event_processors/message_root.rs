@@ -14,16 +14,11 @@ use crate::{
 pub struct MessageRootProcessor {
     appended_message_root_signature: H256,
     event_source: EventsSource,
-    pub dependency_chain_number: Option<usize>,
     pub sl_l2_client: Option<Arc<dyn L2EthClient>>,
 }
 
 impl MessageRootProcessor {
-    pub fn new(
-        event_source: EventsSource,
-        dependency_chain_number: Option<usize>,
-        sl_l2_client: Option<Arc<dyn L2EthClient>>,
-    ) -> Self {
+    pub fn new(event_source: EventsSource, sl_l2_client: Option<Arc<dyn L2EthClient>>) -> Self {
         Self {
             appended_message_root_signature: ethabi::long_signature(
                 "NewMessageRoot",
@@ -34,9 +29,8 @@ impl MessageRootProcessor {
                     ethabi::ParamType::Array(Box::new(ethabi::ParamType::FixedBytes(32))),
                 ],
             ),
-            event_source: event_source,
-            dependency_chain_number: dependency_chain_number,
-            sl_l2_client: sl_l2_client,
+            event_source,
+            sl_l2_client,
         }
     }
 }

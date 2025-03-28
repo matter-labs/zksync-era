@@ -1,5 +1,5 @@
 use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
-use zksync_types::{h256_to_u256, message_root::MessageRoot, L1BatchNumber, SLChainId, H256, U256};
+use zksync_types::{h256_to_u256, message_root::MessageRoot, L1BatchNumber, SLChainId, H256};
 
 use crate::Core;
 
@@ -36,7 +36,7 @@ impl MessageRootDal<'_, '_> {
             DO UPDATE SET message_root_sides = excluded.message_root_sides;
             "#,
             chain_id.0 as i64,
-            number.0 as i64,
+            i64::from(number.0),
             &sides
         )
         .instrument("set_message_root")

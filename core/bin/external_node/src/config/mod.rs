@@ -222,8 +222,7 @@ impl RemoteENConfig {
             l2_timestamp_asserter_addr: timestamp_asserter_address,
             l1_message_root_proxy_addr: ecosystem_contracts
                 .as_ref()
-                .map(|a| a.message_root_proxy_addr)
-                .flatten(),
+                .and_then(|a| a.message_root_proxy_addr),
         })
     }
 

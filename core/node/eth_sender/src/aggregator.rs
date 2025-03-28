@@ -14,12 +14,11 @@ use zksync_types::{
     hasher::keccak::KeccakHasher,
     helpers::unix_timestamp_ms,
     l1::L1Tx,
-    l2_to_l1_log::UserL2ToL1Log,
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     pubdata_da::PubdataSendingMode,
     settlement::SettlementMode,
     web3::CallRequest,
-    Address, L1BatchNumber, ProtocolVersionId, H256, U256,
+    Address, L1BatchNumber, ProtocolVersionId, U256,
 };
 
 use super::{

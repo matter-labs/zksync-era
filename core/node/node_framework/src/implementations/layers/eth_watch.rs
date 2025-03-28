@@ -3,7 +3,7 @@ use zksync_config::{configs::gateway::GatewayChainConfig, ContractsConfig, EthWa
 use zksync_contracts::chain_admin_contract;
 use zksync_eth_watch::{EthHttpQueryClient, EthWatch, L2EthClient};
 use zksync_system_constants::L2_MESSAGE_ROOT_ADDRESS;
-use zksync_types::{settlement::SettlementMode, L2ChainId, SLChainId};
+use zksync_types::{settlement::SettlementMode, L2ChainId};
 
 use crate::{
     implementations::resources::{

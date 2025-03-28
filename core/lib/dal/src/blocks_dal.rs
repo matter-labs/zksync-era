@@ -45,10 +45,6 @@ pub struct BlocksDal<'a, 'c> {
     pub(crate) storage: &'a mut Connection<'c, Core>,
 }
 
-pub struct L2ToL1Messages {
-    l2_to_l1_messages: Vec<Vec<u8>>,
-}
-
 impl BlocksDal<'_, '_> {
     pub async fn get_consistency_checker_last_processed_l1_batch(
         &mut self,

@@ -319,7 +319,7 @@ impl ZkSyncStateKeeper {
         self.io
             .load_latest_message_root()
             .await
-            .with_context(|| format!("failed loading message root"))
+            .with_context(|| "failed loading message root".to_string())
     }
 
     #[tracing::instrument(
