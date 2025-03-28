@@ -1,10 +1,5 @@
-use sqlx::types::chrono::Utc;
-use zksync_db_connection::{
-    connection::Connection,
-    error::DalResult,
-    instrument::{CopyStatement, InstrumentExt},
-    write_str, writeln_str,
-};
+use sqlx::{types::chrono::Utc, QueryBuilder};
+use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
 use zksync_types::{tokens::TokenInfo, Address, L2BlockNumber};
 
 use crate::{Core, CoreDal};
@@ -17,33 +12,39 @@ pub struct TokensDal<'a, 'c> {
 impl TokensDal<'_, '_> {
     pub async fn add_tokens(&mut self, tokens: &[TokenInfo]) -> DalResult<()> {
         let tokens_len = tokens.len();
-        let copy = CopyStatement::new(
-            "COPY tokens (l1_address, l2_address, name, symbol, decimals, well_known, created_at, updated_at)
-             FROM STDIN WITH (DELIMITER '|')",
-        )
-        .instrument("add_tokens")
-        .with_arg("tokens.len", &tokens_len)
-        .start(self.storage)
-        .await?;
-
-        let mut buffer = String::new();
         let now = Utc::now().naive_utc().to_string();
-        for token_info in tokens {
-            write_str!(
-                &mut buffer,
-                "\\\\x{:x}|\\\\x{:x}|",
-                token_info.l1_address,
-                token_info.l2_address
-            );
-            writeln_str!(
-                &mut buffer,
-                "{}|{}|{}|FALSE|{now}|{now}",
-                token_info.metadata.name,
-                token_info.metadata.symbol,
-                token_info.metadata.decimals
-            );
-        }
-        copy.send(buffer.as_bytes()).await
+        let mut builder = QueryBuilder::new(
+            r#"
+            INSERT INTO
+            tokens (
+                l1_address,
+                l2_address,
+                name,
+                symbol,
+                decimals,
+                well_known,
+                created_at,
+                updated_at
+            )
+            "#,
+        );
+        builder.push_values(tokens, |mut b, token| {
+            b.push_bind(token.l1_address.as_bytes())
+                .push_bind(token.l2_address.as_bytes())
+                .push_bind(&token.metadata.name)
+                .push_bind(&token.metadata.symbol)
+                .push_bind(token.metadata.decimals as i32)
+                .push("FALSE")
+                .push_bind(&now)
+                .push_bind(&now);
+        });
+        builder
+            .build()
+            .instrument("add_tokens")
+            .with_arg("tokens.len", &tokens_len)
+            .execute(self.storage)
+            .await?;
+        Ok(())
     }
 
     pub async fn mark_token_as_well_known(&mut self, l1_address: Address) -> DalResult<()> {
