@@ -48,8 +48,9 @@ pub enum Web3Error {
     TreeApiUnavailable,
     #[error("Internal error")]
     InternalError(#[from] anyhow::Error),
+    #[error("Server is shutting down")]
+    ServerShuttingDown,
 }
-const SERVER_IS_SHUTTING_DOWN_ERROR: i32 = 3;
 
 /// Client RPC error with additional details: the method name and arguments of the called method.
 ///
@@ -70,7 +71,6 @@ pub fn is_retriable(err: &ClientError) -> bool {
 
             err.code() == ErrorCode::ServerIsBusy.code()
                 || err.code() == ErrorCode::InternalError.code()
-                || err.code() == SERVER_IS_SHUTTING_DOWN_ERROR
         }
         _ => false,
     }
