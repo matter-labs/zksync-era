@@ -35,11 +35,13 @@ impl TokensDal<'_, '_> {
                 token_info.l1_address,
                 token_info.l2_address
             );
+            let name = token_info.metadata.name.replace("|", "/");
+            let symbol = token_info.metadata.symbol.replace("|", "/");
             writeln_str!(
                 &mut buffer,
                 "{}|{}|{}|FALSE|{now}|{now}",
-                token_info.metadata.name,
-                token_info.metadata.symbol,
+                name,
+                symbol,
                 token_info.metadata.decimals
             );
         }
