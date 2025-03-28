@@ -40,7 +40,7 @@ pub(crate) fn test_evm_deployment_tx<VM: TestedVm>() {
         &TestEvmContract::counter().abi,
         &[Token::Uint(initial_counter)],
     );
-    vm.vm.push_transaction(tx);
+    vm.vm.push_transaction(tx.into());
 
     let result = vm.vm.execute(InspectExecutionMode::OneTx);
     assert!(!result.result.is_failed(), "{result:#?}");
