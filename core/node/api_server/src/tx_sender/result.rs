@@ -18,7 +18,7 @@ pub enum SubmitTxError {
     IncorrectTx(#[from] TxCheckError),
     #[error("insufficient funds for gas + value. balance: {0}, fee: {1}, value: {2}")]
     NotEnoughBalanceForFeeValue(U256, U256, U256),
-    #[error("execution reverted{}{}" , if .0.is_empty() { "" } else { ": " }, .0)]
+    #[error("execution reverted{}{}", if.0.is_empty() { "" } else { ": " }, .0)]
     ExecutionReverted(String, Vec<u8>),
     #[error("exceeds block gas limit")]
     GasLimitIsTooBig,
@@ -43,7 +43,7 @@ pub enum SubmitTxError {
     #[error("max priority fee per gas higher than max fee per gas")]
     MaxPriorityFeeGreaterThanMaxFee,
     #[error(
-        "virtual machine entered unexpected state. please contact developers and provide transaction details \
+    "virtual machine entered unexpected state. please contact developers and provide transaction details \
         that caused this error. Error description: {0}"
     )]
     UnexpectedVMBehavior(String),

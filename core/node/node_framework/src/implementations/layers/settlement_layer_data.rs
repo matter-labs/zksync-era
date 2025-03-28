@@ -112,7 +112,8 @@ impl WiringLayer for SettlementLayerData<MainNodeConfig> {
             &mut pool.connection().await.context("Can't connect")?,
             &getters_facet_contract(),
         )
-        .await?;
+        .await
+        .context("Error occured while getting current SL mode")?;
 
         let sl_chain_contracts = match final_settlement_mode {
             SettlementLayer::L1(_) => sl_l1_contracts.clone(),
@@ -205,7 +206,8 @@ impl WiringLayer for SettlementLayerData<ENConfig> {
                     .diamond_proxy_addr,
                 &getters_facet_contract(),
             )
-            .await?
+            .await
+            .context("Error occured while getting current SL mode")?
         };
 
         let l2_eth_client = get_l2_client(self.config.gateway_rpc_url).await?;

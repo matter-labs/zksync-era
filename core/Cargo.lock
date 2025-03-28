@@ -12274,6 +12274,7 @@ version = "27.1.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
+ "thiserror 1.0.69",
  "tokio",
  "tracing",
  "zksync_basic_types",
