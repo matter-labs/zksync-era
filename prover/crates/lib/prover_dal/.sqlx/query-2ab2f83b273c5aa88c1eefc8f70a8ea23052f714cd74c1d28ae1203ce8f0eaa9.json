@@ -72,6 +72,11 @@
         "ordinal": 13,
         "name": "priority",
         "type_info": "Int4"
+      },
+      {
+        "ordinal": 14,
+        "name": "batch_created_at",
+        "type_info": "Timestamp"
       }
     ],
     "parameters": {
@@ -92,6 +97,7 @@
       true,
       true,
       true,
+      false,
       false,
       false
     ]
