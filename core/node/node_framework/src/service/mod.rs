@@ -1,6 +1,5 @@
 use std::{collections::HashMap, time::Duration};
 
-use error::TaskError;
 use futures::future::Fuse;
 use tokio::{runtime::Runtime, sync::watch, task::JoinHandle};
 use zksync_utils::panic_extractor::try_extract_panic_message;
@@ -9,7 +8,7 @@ use zksync_vlog::ObservabilityGuard;
 pub use self::{
     context::ServiceContext,
     context_traits::{FromContext, IntoContext},
-    error::ZkStackServiceError,
+    error::{TaskError, ZkStackServiceError},
     shutdown_hook::ShutdownHook,
     stop_receiver::StopReceiver,
 };

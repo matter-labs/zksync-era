@@ -21,11 +21,12 @@ zksync_web3_decl.workspace = true
 thiserror.workspace = true
 async-trait.workspace = true
 jsonrpsee = { workspace = true, features = [
-    "client",
-    "macros",
+  "client",
+  "macros",
 ] }
 tracing.workspace = true
 rlp.workspace = true
+anyhow.workspace = true
 
 [dev-dependencies]
 assert_matches.workspace = true

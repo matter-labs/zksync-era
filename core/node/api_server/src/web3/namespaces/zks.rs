@@ -150,10 +150,13 @@ impl ZksNamespace {
     }
 
     pub fn get_bridgehub_contract_impl(&self) -> Option<Address> {
-        self.state.api_config.l1_bridgehub_proxy_addr
+        self.state
+            .api_config
+            .l1_ecosystem_contracts
+            .bridgehub_proxy_addr
     }
 
-    pub fn get_main_contract_impl(&self) -> Address {
+    pub fn get_main_l1_contract_impl(&self) -> Address {
         self.state.api_config.l1_diamond_proxy_addr
     }
 
@@ -679,6 +682,10 @@ impl ZksNamespace {
             .api_config
             .base_token_address
             .ok_or(Web3Error::MethodNotImplemented)
+    }
+
+    pub fn get_l2_multicall3_impl(&self) -> Result<Option<Address>, Web3Error> {
+        Ok(self.state.api_config.l2_multicall3)
     }
 
     #[tracing::instrument(skip(self))]

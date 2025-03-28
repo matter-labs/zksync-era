@@ -1,10 +1,7 @@
 use std::time::Duration;
 
 use tokio::sync::watch;
-use zksync_eth_client::{
-    clients::{DynClient, L1},
-    CallFunctionArgs, ClientError, ContractCallError, EthInterface,
-};
+use zksync_eth_client::{CallFunctionArgs, ClientError, ContractCallError, EthInterface};
 use zksync_types::{commitment::L1BatchCommitmentMode, Address};
 
 /// Managed task that asynchronously validates that the commitment mode (rollup or validium) from the node config
@@ -13,7 +10,7 @@ use zksync_types::{commitment::L1BatchCommitmentMode, Address};
 pub struct L1BatchCommitmentModeValidationTask {
     diamond_proxy_address: Address,
     expected_mode: L1BatchCommitmentMode,
-    eth_client: Box<DynClient<L1>>,
+    eth_client: Box<dyn EthInterface>,
     retry_interval: Duration,
     exit_on_success: bool,
 }
@@ -25,12 +22,12 @@ impl L1BatchCommitmentModeValidationTask {
     pub fn new(
         diamond_proxy_address: Address,
         expected_mode: L1BatchCommitmentMode,
-        eth_client: Box<DynClient<L1>>,
+        eth_client: Box<dyn EthInterface>,
     ) -> Self {
         Self {
             diamond_proxy_address,
             expected_mode,
-            eth_client: eth_client.for_component("commitment_mode_validation"),
+            eth_client,
             retry_interval: Self::DEFAULT_RETRY_INTERVAL,
             exit_on_success: false,
         }
@@ -44,53 +41,51 @@ impl L1BatchCommitmentModeValidationTask {
     }
 
     async fn validate_commitment_mode(self) -> anyhow::Result<()> {
-        Ok(())
+        let expected_mode = self.expected_mode;
+        let diamond_proxy_address = self.diamond_proxy_address;
+        loop {
+            let result =
+                Self::get_pubdata_pricing_mode(diamond_proxy_address, self.eth_client.as_ref())
+                    .await;
+            match result {
+                Ok(mode) => {
+                    anyhow::ensure!(
+                        mode == self.expected_mode,
+                        "Configured L1 batch commitment mode ({expected_mode:?}) does not match the commitment mode \
+                         used on L1 contract {diamond_proxy_address:?} ({mode:?})"
+                    );
+                    tracing::info!(
+                        "Checked that the configured L1 batch commitment mode ({expected_mode:?}) matches the commitment mode \
+                         used on L1 contract {diamond_proxy_address:?}"
+                    );
+                    return Ok(());
+                }
+
+                // Getters contract does not support `getPubdataPricingMode` method.
+                // This case is accepted for backwards compatibility with older contracts, but emits a
+                // warning in case the wrong contract address was passed by the caller.
+                Err(ContractCallError::EthereumGateway(err))
+                if matches!(err.as_ref(), ClientError::Call(_)) =>
+                    {
+                        tracing::warn!("Contract {diamond_proxy_address:?} does not support getPubdataPricingMode method: {err}");
+                        return Ok(());
+                    }
+
+                Err(ContractCallError::EthereumGateway(err)) if err.is_retriable() => {
+                    tracing::warn!(
+                        "Transient error validating commitment mode, will retry after {:?}: {err}",
+                        self.retry_interval
+                    );
+                    tokio::time::sleep(self.retry_interval).await;
+                }
+
+                Err(err) => {
+                    tracing::error!("Fatal error validating commitment mode: {err}");
+                    return Err(err.into());
+                }
+            }
+        }
     }
-    // async fn validate_commitment_mode(self) -> anyhow::Result<()> {
-    //     let expected_mode = self.expected_mode;
-    //     let diamond_proxy_address = self.diamond_proxy_address;
-    //     loop {
-    //         let result =
-    //             Self::get_pubdata_pricing_mode(diamond_proxy_address, &self.eth_client).await;
-    //         match result {
-    //             Ok(mode) => {
-    //                 anyhow::ensure!(
-    //                     mode == self.expected_mode,
-    //                     "Configured L1 batch commitment mode ({expected_mode:?}) does not match the commitment mode \
-    //                      used on L1 contract {diamond_proxy_address:?} ({mode:?})"
-    //                 );
-    //                 tracing::info!(
-    //                     "Checked that the configured L1 batch commitment mode ({expected_mode:?}) matches the commitment mode \
-    //                      used on L1 contract {diamond_proxy_address:?}"
-    //                 );
-    //                 return Ok(());
-    //             }
-    //
-    //             // Getters contract does not support `getPubdataPricingMode` method.
-    //             // This case is accepted for backwards compatibility with older contracts, but emits a
-    //             // warning in case the wrong contract address was passed by the caller.
-    //             Err(ContractCallError::EthereumGateway(err))
-    //                 if matches!(err.as_ref(), ClientError::Call(_)) =>
-    //             {
-    //                 tracing::warn!("Contract {diamond_proxy_address:?} does not support getPubdataPricingMode method: {err}");
-    //                 return Ok(());
-    //             }
-    //
-    //             Err(ContractCallError::EthereumGateway(err)) if err.is_retriable() => {
-    //                 tracing::warn!(
-    //                     "Transient error validating commitment mode, will retry after {:?}: {err}",
-    //                     self.retry_interval
-    //                 );
-    //                 tokio::time::sleep(self.retry_interval).await;
-    //             }
-    //
-    //             Err(err) => {
-    //                 tracing::error!("Fatal error validating commitment mode: {err}");
-    //                 return Err(err.into());
-    //             }
-    //         }
-    //     }
-    // }
 
     async fn get_pubdata_pricing_mode(
         diamond_proxy_address: Address,
@@ -130,7 +125,7 @@ mod tests {
     use zksync_eth_client::clients::MockSettlementLayer;
     use zksync_types::{ethabi, U256};
     use zksync_web3_decl::{
-        client::MockClient,
+        client::{MockClient, L1},
         jsonrpsee::{core::BoxError, types::ErrorObject},
     };
 
