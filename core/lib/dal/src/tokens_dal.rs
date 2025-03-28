@@ -11,6 +11,10 @@ pub struct TokensDal<'a, 'c> {
 
 impl TokensDal<'_, '_> {
     pub async fn add_tokens(&mut self, tokens: &[TokenInfo]) -> DalResult<()> {
+        if tokens.is_empty() {
+            // sqlx query builder produces invalid SQL request when no values are provided
+            return Ok(());
+        }
         let tokens_len = tokens.len();
         let mut builder = QueryBuilder::new(
             r#"
