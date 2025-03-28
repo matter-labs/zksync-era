@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use anyhow::bail;
+use anyhow::{bail, Context};
 use tokio::sync::watch;
 use zksync_basic_types::{ethabi::Contract, settlement::SettlementLayer, L2ChainId};
 use zksync_config::configs::contracts::SettlementLayerSpecificContracts;
@@ -13,6 +13,14 @@ use zksync_eth_client::{
     ContractCallError, EthInterface,
 };
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
+
+#[derive(Debug, thiserror::Error)]
+pub enum GatewayMigratorError {
+    #[error("ContractCall Error: {0}")]
+    ContractCall(#[from] ContractCallError),
+    #[error("Error: {0}")]
+    Internal(#[from] anyhow::Error),
+}
 
 /// Gateway Migrator component
 /// Component checks the current settlement layer and once it changed and it safe to exit
@@ -61,23 +69,26 @@ impl GatewayMigrator {
                 gateway_client,
                 &self.l1_settlement_layer_specific_contracts,
                 self.l2_chain_id,
-                &mut self.pool.connection().await?,
+                &mut self.pool.connection_tagged("gateway_migrator").await?,
                 &self.getters_facet_abi,
             )
             .await;
+
             match current_settlement_layer {
                 Ok(current_settlement_layer) => {
                     if self.settlement_layer != current_settlement_layer {
                         bail!("Settlement layer changed")
                     }
                 }
-                Err(ContractCallError::EthereumGateway(err)) => {
-                    if !err.is_retriable() {
-                        tracing::error!("Failed to fetch data from sl {}", &err);
-                        return Err(err)?;
-                    }
+                Err(GatewayMigratorError::ContractCall(ContractCallError::EthereumGateway(
+                    err,
+                ))) if err.is_retriable() => {
+                    tracing::info!("Transient error fetching data from SL: {err}");
                 }
-                Err(err) => Err(err)?,
+                Err(err) => {
+                    tracing::error!("Failed to fetch data from SL: {err}");
+                    return Err(err.into());
+                }
             }
 
             tokio::time::sleep(Duration::from_secs(1)).await;
@@ -93,7 +104,7 @@ pub async fn current_settlement_layer(
     l2_chain_id: L2ChainId,
     storage: &mut Connection<'_, Core>,
     abi: &Contract,
-) -> Result<SettlementLayer, ContractCallError> {
+) -> Result<SettlementLayer, GatewayMigratorError> {
     let settlement_mode_from_l1 = get_settlement_layer_from_l1(
         l1_client,
         sl_l1_contracts.chain_contracts_config.diamond_proxy_addr,
@@ -108,7 +119,7 @@ pub async fn current_settlement_layer(
         .eth_sender_dal()
         .get_inflight_txs_count_for_gateway_migration(!settlement_mode_from_l1.is_gateway())
         .await
-        .unwrap();
+        .context("Failed to get txs count")?;
 
     let use_settlement_mode_from_l1 = if inflight_count != 0 {
         false
@@ -154,11 +165,18 @@ pub async fn current_settlement_layer(
         // If it's impossible to use settlement_mode_from_l1 server have to use the opposite settlement_layer
         match settlement_mode_from_l1 {
             SettlementLayer::L1(_) => {
-                let chain_id = gateway_client.unwrap().fetch_chain_id().await?;
+                let chain_id = gateway_client
+                    .unwrap()
+                    .fetch_chain_id()
+                    .await
+                    .map_err(ContractCallError::from)?;
                 SettlementLayer::Gateway(chain_id)
             }
             SettlementLayer::Gateway(_) => {
-                let chain_id = l1_client.fetch_chain_id().await?;
+                let chain_id = l1_client
+                    .fetch_chain_id()
+                    .await
+                    .map_err(ContractCallError::from)?;
                 SettlementLayer::L1(chain_id)
             }
         }
