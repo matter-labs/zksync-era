@@ -23,7 +23,7 @@ jobs:
 
       - name: Get all test, doc and src files that have changed
         id: changed-files-yaml
-        uses: tj-actions/changed-files@fea790cb660e33aef4bdf07304e28fedd77dfa13 # v39
+        uses: tj-actions/changed-files@2f7c5bfce28377bc069a65ba478de0a74aa0ca32 # v46.0.1
         with:
           files_yaml: |
             # TODO: make it more granular, as already implemented in CI workflow
