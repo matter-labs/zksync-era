@@ -10,6 +10,12 @@ pub struct TokensDal<'a, 'c> {
 }
 
 impl TokensDal<'_, '_> {
+    // Postgres does not allow insertion of \0x00 characters so we transform user input that might
+    // contain that character.
+    fn remove_null_chr(s: &str) -> String {
+        s.replace('\0', " ")
+    }
+
     pub async fn add_tokens(&mut self, tokens: &[TokenInfo]) -> DalResult<()> {
         if tokens.is_empty() {
             // sqlx query builder produces invalid SQL request when no values are provided
@@ -34,8 +40,8 @@ impl TokensDal<'_, '_> {
         builder.push_values(tokens, |mut b, token| {
             b.push_bind(token.l1_address.as_bytes())
                 .push_bind(token.l2_address.as_bytes())
-                .push_bind(&token.metadata.name)
-                .push_bind(&token.metadata.symbol)
+                .push_bind(Self::remove_null_chr(&token.metadata.name))
+                .push_bind(Self::remove_null_chr(&token.metadata.symbol))
                 .push_bind(i32::from(token.metadata.decimals))
                 .push("FALSE")
                 .push("NOW()")
@@ -406,6 +412,32 @@ mod tests {
             .unwrap();
 
         let tokens = [problematic_token_info()];
+        storage.tokens_dal().add_tokens(&tokens).await.unwrap();
+    }
+
+    fn problematic_token_info_null_chr() -> TokenInfo {
+        TokenInfo {
+            l1_address: Address::repeat_byte(1),
+            l2_address: Address::repeat_byte(2),
+            metadata: TokenMetadata {
+                name: "\0Test".to_string(),
+                symbol: "\0TST".to_string(),
+                decimals: 10,
+            },
+        }
+    }
+
+    #[tokio::test]
+    async fn adding_problematic_tokens_null_chr() {
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut storage = pool.connection().await.unwrap();
+        storage
+            .protocol_versions_dal()
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
+
+        let tokens = [problematic_token_info_null_chr()];
         storage.tokens_dal().add_tokens(&tokens).await.unwrap();
     }
 }
