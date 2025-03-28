@@ -52,29 +52,6 @@ impl ConnectionPool {
             ctx.sleep(POLL_INTERVAL).await?;
         }
     }
-
-    /// Waits for the `number` L1 batch hash.
-    #[tracing::instrument(skip_all)]
-    pub async fn wait_for_batch_info(
-        &self,
-        ctx: &ctx::Ctx,
-        number: attester::BatchNumber,
-        interval: time::Duration,
-    ) -> ctx::Result<StoredBatchInfo> {
-        loop {
-            if let Some(info) = self
-                .connection(ctx)
-                .await
-                .wrap("connection()")?
-                .batch_info(ctx, number)
-                .await
-                .with_wrap(|| format!("batch_info({number})"))?
-            {
-                return Ok(info);
-            }
-            ctx.sleep(interval).await?;
-        }
-    }
 }
 
 /// Context-aware `zksync_dal::Connection<Core>` wrapper.
@@ -108,14 +85,6 @@ impl<'a> Connection<'a> {
             .wait(self.0.consensus_dal().block_payload(number))
             .await?
             .map_err(DalError::generalize)?)
-    }
-
-    pub async fn batch_info(
-        &mut self,
-        ctx: &ctx::Ctx,
-        n: attester::BatchNumber,
-    ) -> ctx::Result<Option<StoredBatchInfo>> {
-        Ok(ctx.wait(self.0.consensus_dal().batch_info(n)).await??)
     }
 
     /// Wrapper for `consensus_dal().block_metadata()`.
@@ -335,26 +304,6 @@ impl<'a> Connection<'a> {
         )))
     }
 
-    /// Wrapper for `blocks_dal().get_l2_block_range_of_l1_batch()`.
-    pub async fn get_l2_block_range_of_l1_batch(
-        &mut self,
-        ctx: &ctx::Ctx,
-        number: attester::BatchNumber,
-    ) -> ctx::Result<Option<(validator::BlockNumber, validator::BlockNumber)>> {
-        let number = L1BatchNumber(number.0.try_into().context("number")?);
-
-        let range = ctx
-            .wait(self.0.blocks_dal().get_l2_block_range_of_l1_batch(number))
-            .await?
-            .context("get_l2_block_range_of_l1_batch()")?;
-
-        Ok(range.map(|(min, max)| {
-            let min = validator::BlockNumber(min.0 as u64);
-            let max = validator::BlockNumber(max.0 as u64);
-            (min, max)
-        }))
-    }
-
     /// Wrapper for `consensus_dal().attestation_status()`.
     pub async fn attestation_status(
         &mut self,
@@ -366,19 +315,16 @@ impl<'a> Connection<'a> {
             .context("attestation_status()")?)
     }
 
-    /// Constructs `BlockArgs` for the last block of the batch.
+    /// Constructs `BlockArgs` for the given block number.
     pub async fn vm_block_info(
         &mut self,
         ctx: &ctx::Ctx,
-        batch: attester::BatchNumber,
+        number: validator::BlockNumber,
     ) -> ctx::Result<(ResolvedBlockInfo, BatchFeeInput)> {
-        let (_, block) = self
-            .get_l2_block_range_of_l1_batch(ctx, batch)
-            .await
-            .wrap("get_l2_block_range_of_l1_batch()")?
-            .context("batch not sealed")?;
-        // `unwrap()` is safe: the block range is returned as `L2BlockNumber`s
-        let block = L2BlockNumber(u32::try_from(block.0).unwrap());
+        let block = L2BlockNumber(
+            u32::try_from(number.0)
+                .context("overflow when converting validator::BlockNumber to L2BlockNumber")?,
+        );
         let block_info = ctx
             .wait(BlockInfo::for_existing_block(&mut self.0, block))
             .await?

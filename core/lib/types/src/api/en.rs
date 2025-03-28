@@ -54,13 +54,6 @@ pub struct SyncBlock {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConsensusGlobalConfig(pub serde_json::Value);
 
-/// [DEPRECATED] Genesis served by the main node to the external nodes.
-/// This type is deprecated since ConsensusGlobalConfig also contains genesis and is extensible.
-///
-/// The wrapped JSON value corresponds to `zksync_consensus_roles::validator::Genesis`.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ConsensusGenesis(pub serde_json::Value);
-
 /// AttestationStatus maintained by the main node.
 /// Used for testing L1 batch signing by consensus attesters.
 ///

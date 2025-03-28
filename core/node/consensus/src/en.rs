@@ -241,8 +241,8 @@ impl EN {
                     .await
                     .wrap("wait_for_batch_info()")?,
             );
-            let Some(committee) = registry
-                .attester_committee_for(
+            let Some((committee, commit_block)) = registry
+                .get_pending_validator_committee(
                     ctx,
                     cfg.registry_address.map(registry::Address::new),
                     status.next_batch_to_attest,
@@ -263,7 +263,7 @@ impl EN {
                 .await
                 .wrap("upsert_attester_committee()")?;
             tracing::info!(
-                "attesting batch {:?} with hash {hash:?}",
+                "attesting batch {:?} with hash {hash:?}, commit_block: {commit_block:?}",
                 status.next_batch_to_attest
             );
             attestation
@@ -352,7 +352,7 @@ impl EN {
             .wait(self.client.attestation_status())
             .await?
             .context("attestation_status()")?
-            .context("main node is not runnign consensus component")?;
+            .context("main node is not running consensus component")?;
         Ok(zksync_protobuf::serde::Deserialize {
             deny_unknown_fields: false,
         }
