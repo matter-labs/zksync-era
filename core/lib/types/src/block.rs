@@ -27,12 +27,24 @@ impl DeployedContract {
     }
 }
 
-/// Holder for l1 batches data, used in eth sender metrics
+/// Holder for l1 batches data.
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct L1BatchStatistics {
     pub number: L1BatchNumber,
     pub timestamp: u64,
     pub l2_tx_count: u32,
     pub l1_tx_count: u32,
+}
+
+impl From<L1BatchHeader> for L1BatchStatistics {
+    fn from(header: L1BatchHeader) -> Self {
+        Self {
+            number: header.number,
+            timestamp: header.timestamp,
+            l1_tx_count: header.l1_tx_count.into(),
+            l2_tx_count: header.l2_tx_count.into(),
+        }
+    }
 }
 
 /// Holder for the block metadata that is not available from transactions themselves.

@@ -3,6 +3,7 @@ use std::collections::VecDeque;
 use crate::cache::metrics::{CacheMetrics, Method, RequestOutcome, SequentialCacheConfig, METRICS};
 
 /// A generic cache structure for storing key-value pairs in sequential order.
+///
 /// It allows for non-unique keys and supports efficient retrieval of values based on a key
 /// threshold. The cache maintains a specified maximum capacity, removing the oldest entries
 /// as new ones are added.

@@ -11,7 +11,7 @@ mathjax-support = true
 git-repository-url = "https://github.com/matter-labs/zksync-era/tree/main/prover/docs"
 edit-url-template = "https://github.com/matter-labs/zksync-era/tree/main/prover/docs/{path}"
 additional-js = ["js/version-box.js", "js/mermaid-init.js"]
-additional-css = ["css/version-box.css"]
+additional-css = ["css/version-box.css", "css/mdbook-admonish.css"]
 
 [output.html.playground]
 editable = true
@@ -30,3 +30,9 @@ heading-split-level = 2
 
 [preprocessor.mermaid]
 command = "mdbook-mermaid"
+
+[preprocessor.admonish]
+command = "mdbook-admonish"
+assets_version = "3.0.3" # do not edit: managed by `mdbook-admonish install`
+
+[output.linkcheck]

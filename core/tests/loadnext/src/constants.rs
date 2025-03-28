@@ -8,12 +8,16 @@ pub const ETH_CONFIRMATION_TIMEOUT: Duration = Duration::from_secs(300);
 /// any frequently than once in 10 seconds.
 pub const ETH_POLLING_INTERVAL: Duration = Duration::from_secs(10);
 
-/// Loadtest assumes that blocks on the server will be created relatively quickly (without timeouts set in hours),
-/// but nonetheless we want to provide some buffer in case we'll spam the server with way too many transactions
+/// Loadtest assumes that blocks on the server will be created relatively quickly (without timeouts set in hours).
+///
+/// Nonetheless we want to provide some buffer in case we'll spam the server with way too many transactions
 /// and some tx will have to wait in the mempool for a while.
 pub const COMMIT_TIMEOUT: Duration = Duration::from_secs(600);
-/// We don't want to overload the server with too many requests; given the fact that blocks are expected to be created
-/// every couple of seconds, chosen value seems to be adequate to provide the result in one or two calls at average.
+
+/// We don't want to overload the server with too many requests.
+///
+/// Given the fact that blocks are expected to be created every couple of seconds,
+/// chosen value seems to be adequate to provide the result in one or two calls at average.
 pub const POLLING_INTERVAL: ops::Range<Duration> = Duration::from_secs(2)..Duration::from_secs(3);
 
 pub const MAX_OUTSTANDING_NONCE: usize = 20;
@@ -38,6 +42,7 @@ pub const MIN_PAYMASTER_BALANCE: u128 = 10u128.pow(18) * 50;
 pub const TARGET_PAYMASTER_BALANCE: u128 = 10u128.pow(18) * 60;
 
 /// Min allowance for estimating the price for the paymaster transaction.
+///
 /// It should be roughly equal (or maybe a bit higher) than the actual used tokens in the transaction for the most precise
 /// estimations. Note, however that is must not be higher than the ERC20 balance of the account.
 pub const MIN_ALLOWANCE_FOR_PAYMASTER_ESTIMATE: u128 = 10u128.pow(18);

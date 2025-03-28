@@ -10,8 +10,9 @@ Install prerequisites: see
 
 ## Build docker files
 
-You may build all images with [Makefile](../../docker/Makefile) located in [docker](../../docker) directory in this
-repository
+You may build all images with [Makefile](https://github.com/matter-labs/zksync-era/blob/main/docker/Makefile)
+located in [docker](https://github.com/matter-labs/zksync-era/blob/main/docker) directory in this
+repository.
 
 > All commands should be run from the root directory of the repository
 

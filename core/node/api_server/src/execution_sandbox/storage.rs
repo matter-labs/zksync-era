@@ -11,43 +11,43 @@ use zksync_types::{
 /// This method is blocking.
 pub(super) fn apply_state_override<S: ReadStorage>(
     storage: S,
-    state_override: &StateOverride,
+    state_override: StateOverride,
 ) -> StorageWithOverrides<S> {
     let mut storage = StorageWithOverrides::new(storage);
-    for (account, overrides) in state_override.iter() {
+    for (account, overrides) in state_override {
         if let Some(balance) = overrides.balance {
-            let balance_key = storage_key_for_eth_balance(account);
+            let balance_key = storage_key_for_eth_balance(&account);
             storage.set_value(balance_key, u256_to_h256(balance));
         }
 
         if let Some(nonce) = overrides.nonce {
-            let nonce_key = get_nonce_key(account);
+            let nonce_key = get_nonce_key(&account);
             let full_nonce = storage.read_value(&nonce_key);
             let (_, deployment_nonce) = decompose_full_nonce(h256_to_u256(full_nonce));
             let new_full_nonce = u256_to_h256(nonces_to_full_nonce(nonce, deployment_nonce));
             storage.set_value(nonce_key, new_full_nonce);
         }
 
-        if let Some(code) = &overrides.code {
-            let code_key = get_code_key(account);
+        if let Some(code) = overrides.code {
+            let code_key = get_code_key(&account);
             let code_hash = code.hash();
             storage.set_value(code_key, code_hash);
             let known_code_key = get_known_code_key(&code_hash);
             storage.set_value(known_code_key, H256::from_low_u64_be(1));
-            storage.store_factory_dep(code_hash, code.clone().into_bytes());
+            storage.store_factory_dep(code_hash, code.into_bytes());
         }
 
-        match &overrides.state {
+        match overrides.state {
             Some(OverrideState::State(state)) => {
-                let account = AccountTreeId::new(*account);
-                for (&key, &value) in state {
+                let account = AccountTreeId::new(account);
+                for (key, value) in state {
                     storage.set_value(StorageKey::new(account, key), value);
                 }
                 storage.insert_erased_account(account);
             }
             Some(OverrideState::StateDiff(state_diff)) => {
-                let account = AccountTreeId::new(*account);
-                for (&key, &value) in state_diff {
+                let account = AccountTreeId::new(account);
+                for (key, value) in state_diff {
                     storage.set_value(StorageKey::new(account, key), value);
                 }
             }
@@ -123,7 +123,7 @@ mod tests {
         storage.set_value(retained_key, H256::repeat_byte(0xfe));
         let erased_key = StorageKey::new(AccountTreeId::new(Address::repeat_byte(5)), H256::zero());
         storage.set_value(erased_key, H256::repeat_byte(1));
-        let mut storage = apply_state_override(storage, &overrides);
+        let mut storage = apply_state_override(storage, overrides);
 
         let balance = storage.read_value(&storage_key_for_eth_balance(&Address::repeat_byte(1)));
         assert_eq!(balance, H256::from_low_u64_be(1));

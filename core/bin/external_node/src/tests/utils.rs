@@ -125,7 +125,11 @@ pub(super) fn expected_health_components(components: &ComponentsToRun) -> Vec<&'
     output
 }
 
-pub(super) fn mock_eth_client(diamond_proxy_addr: Address) -> MockClient<L1> {
+pub(super) fn mock_eth_client(
+    diamond_proxy_addr: Address,
+    bridgehub_addres: Address,
+) -> MockClient<L1> {
+    let chain_type_manager = Address::repeat_byte(16);
     let mock = MockSettlementLayer::builder().with_call_handler(move |call, _| {
         tracing::info!("L1 call: {call:?}");
         if call.to == Some(diamond_proxy_addr) {
@@ -140,14 +144,43 @@ pub(super) fn mock_eth_client(diamond_proxy_addr: Address) -> MockClient<L1> {
                 .function("getProtocolVersion")
                 .unwrap()
                 .short_signature();
+            let settlement_layer_sig = contract
+                .function("getSettlementLayer")
+                .unwrap()
+                .short_signature();
             match call_signature {
                 sig if sig == pricing_mode_sig => {
                     return ethabi::Token::Uint(0.into()); // "rollup" mode encoding
                 }
                 sig if sig == protocol_version_sig => return ethabi::Token::Uint(packed_semver),
+                sig if sig == settlement_layer_sig => return ethabi::Token::Uint(0.into()),
                 _ => { /* unknown call; panic below */ }
             }
+        } else if call.to == Some(bridgehub_addres) {
+            let call_signature = &call.data.as_ref().unwrap().0[..4];
+            let contract = zksync_contracts::bridgehub_contract();
+            let get_zk_chains = contract
+                .function("getHyperchain")
+                .unwrap()
+                .short_signature();
+            let chain_type_manager_sig = contract
+                .function("chainTypeManager")
+                .unwrap()
+                .short_signature();
+
+            match call_signature {
+                sig if sig == get_zk_chains => {
+                    return ethabi::Token::Address(diamond_proxy_addr);
+                }
+                sig if sig == chain_type_manager_sig => {
+                    return ethabi::Token::Address(chain_type_manager);
+                }
+                _ => {}
+            }
+        } else if call.to == Some(chain_type_manager) {
+            return ethabi::Token::Address(Address::random());
         }
+
         panic!("Unexpected L1 call: {call:?}");
     });
     mock.build().into_client()

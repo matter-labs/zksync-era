@@ -44,6 +44,7 @@ impl dyn BatchFeeModelInputProvider {
 }
 
 /// The struct that represents the batch fee input provider to be used in the main node of the server.
+///
 /// This struct gets the L1 gas price directly from the provider rather than from another node, as is the
 /// case with the external node.
 #[derive(Debug)]
@@ -181,6 +182,7 @@ mod tests {
         pubdata_da::PubdataSendingMode,
         U256,
     };
+    use zksync_web3_decl::client::{DynClient, L2};
 
     use super::*;
 
@@ -383,8 +385,10 @@ mod tests {
             ..Default::default()
         };
 
+        let client: Box<DynClient<L2>> = Box::new(mock.clone().into_client());
+
         GasAdjuster::new(
-            GasAdjusterClient::from_l1(Box::new(mock.into_client())),
+            GasAdjusterClient::from(client),
             gas_adjuster_config,
             PubdataSendingMode::Blobs,
             L1BatchCommitmentMode::Rollup,

@@ -1,9 +1,9 @@
 # Running the Node
 
-> [!NOTE]
->
-> If you want to just run ZKSync node with recommended default setting, please see the [quick start](00_quick_start.md)
-> page.
+```admonish note
+If you want to just run ZKSync node with recommended default setting, please see the [quick start](00_quick_start.md)
+page.
+```
 
 This section assumes that you have prepared a configuration file as described on the
 [previous page](02_configuration.md).
@@ -50,8 +50,6 @@ You can also refer to
 [Node configuration management blueprint](https://github.com/matter-labs/zksync-era/blob/main/docs/src/guides/external-node/00_quick_start.md#advanced-setup)
 for advanced DB instance configurations.
 
-[host_docker_internal](https://docs.docker.com/desktop/networking/#i-want-to-connect-from-a-container-to-a-service-on-the-host)
-
 ## Running
 
 Assuming you have the Node Docker image, an env file with the prepared configuration, and you have restored your DB with
@@ -84,3 +82,6 @@ If you've been running the Node for some time and are going to redeploy it using
 
 Monitoring the node behavior and analyzing the state it's in is covered in the
 [observability section](04_observability.md).
+
+[host_docker_internal]:
+  https://docs.docker.com/desktop/networking/#i-want-to-connect-from-a-container-to-a-service-on-the-host
