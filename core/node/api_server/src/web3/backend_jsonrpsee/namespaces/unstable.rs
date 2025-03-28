@@ -1,5 +1,5 @@
 use zksync_types::{
-    api::{ChainAggProof, TeeProof, TransactionExecutionInfo},
+    api::{ChainAggProof, DataAvailabilityDetails, TeeProof, TransactionExecutionInfo},
     tee_types::TeeType,
     L1BatchNumber, L2ChainId, H256,
 };
@@ -39,5 +39,24 @@ impl UnstableNamespaceServer for UnstableNamespace {
         self.get_chain_log_proof_impl(l1_batch_number, chain_id)
             .await
             .map_err(|err| self.current_method().map_err(err))
+    }
+
+    async fn get_unconfirmed_txs_count(&self) -> RpcResult<usize> {
+        self.get_unconfirmed_txs_count_impl()
+            .await
+            .map_err(|err| self.current_method().map_err(err))
+    }
+
+    async fn get_data_availability_details(
+        &self,
+        batch: L1BatchNumber,
+    ) -> RpcResult<Option<DataAvailabilityDetails>> {
+        self.get_data_availability_details_impl(batch)
+            .await
+            .map_err(|err| self.current_method().map_err(err))
+    }
+
+    async fn supports_unsafe_deposit_filter(&self) -> RpcResult<bool> {
+        Ok(self.supports_unsafe_deposit_filter_impl())
     }
 }

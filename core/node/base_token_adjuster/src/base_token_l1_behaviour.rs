@@ -151,6 +151,7 @@ impl BaseTokenL1Behaviour {
         };
     }
 
+    // TODO(EVM-924): this logic supports only `ChainAdminOwnable`.
     async fn do_update_l1(
         &self,
         l1_params: &UpdateOnL1Params,

@@ -49,7 +49,7 @@ pub enum Circuit {
 impl Circuit {
     /// Generates proof for given witness vector.
     /// Expects setup_data to match witness vector.
-    pub(crate) fn prove(
+    pub fn prove(
         &self,
         witness_vector: WitnessVec<GoldilocksField>,
         setup_data: Arc<GoldilocksGpuProverSetupData>,
@@ -134,7 +134,7 @@ impl Circuit {
 
     /// Synthesize vector for a given circuit.
     /// Expects finalization hints to match circuit.
-    pub(crate) fn synthesize_vector(
+    pub fn synthesize_vector(
         &self,
         finalization_hints: Arc<FinalizationHintsForProver>,
     ) -> anyhow::Result<WitnessVec<GoldilocksField>> {

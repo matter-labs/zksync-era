@@ -21,11 +21,11 @@ use zksync_prover_fri_utils::{
     region_fetcher::{RegionFetcher, Zone},
 };
 use zksync_queued_job_processor::JobProcessor;
+use zksync_task_management::ManagedTasks;
 use zksync_types::{
     basic_fri_types::CircuitIdRoundTuple,
     prover_dal::{GpuProverInstanceStatus, SocketAddress},
 };
-use zksync_utils::wait_for_tasks::ManagedTasks;
 use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 mod gpu_prover_availability_checker;

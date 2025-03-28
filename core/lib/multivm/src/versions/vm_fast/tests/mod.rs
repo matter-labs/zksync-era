@@ -4,25 +4,30 @@ use zksync_types::{
     h256_to_u256, l2::L2Tx, writes::StateDiffRecord, StorageKey, Transaction, H160, H256, U256,
 };
 use zksync_vm2::interface::{Event, HeapId, StateInterface, Tracer};
-use zksync_vm_interface::{
-    pubdata::{PubdataBuilder, PubdataInput},
-    storage::ReadStorage,
-    tracer::ViolatedValidationRule,
-    CurrentExecutionState, InspectExecutionMode, L2BlockEnv, VmExecutionMode,
-    VmExecutionResultAndLogs, VmInterface,
-};
 
 use super::{FullValidationTracer, ValidationTracer, Vm};
 use crate::{
-    interface::storage::{ImmutableStorageView, InMemoryStorage},
-    versions::testonly::{validation_params, TestedVm, TestedVmForValidation},
-    vm_fast::tracers::WithBuiltinTracers,
+    interface::{
+        pubdata::{PubdataBuilder, PubdataInput},
+        storage::{ImmutableStorageView, InMemoryStorage, ReadStorage, StorageView},
+        tracer::ViolatedValidationRule,
+        Call, CurrentExecutionState, InspectExecutionMode, L2BlockEnv, VmExecutionMode,
+        VmExecutionResultAndLogs, VmInterface,
+    },
+    versions::testonly::{
+        validation_params, TestedVm, TestedVmForValidation, TestedVmWithCallTracer,
+        TestedVmWithStorageLimit,
+    },
+    vm_fast::{
+        tracers::WithBuiltinTracers, CallTracer, FastValidationTracer, StorageInvocationsTracer,
+    },
 };
 
 mod account_validation_rules;
 mod block_tip;
 mod bootloader;
 mod bytecode_publishing;
+mod call_tracer;
 mod circuits;
 mod code_oracle;
 mod default_aa;
@@ -180,12 +185,37 @@ where
     }
 }
 
-impl TestedVmForValidation for Vm<ImmutableStorageView<InMemoryStorage>, (), FullValidationTracer> {
-    fn run_validation(&mut self, tx: L2Tx, timestamp: u64) -> Option<ViolatedValidationRule> {
+impl TestedVmForValidation for TestedFastVm<(), FullValidationTracer> {
+    fn run_validation(
+        &mut self,
+        tx: L2Tx,
+        timestamp: u64,
+    ) -> (VmExecutionResultAndLogs, Option<ViolatedValidationRule>) {
         let validation_params = validation_params(&tx, &self.system_env);
         self.push_transaction(tx.into());
         let mut tracer = ((), FullValidationTracer::new(validation_params, timestamp));
-        self.inspect(&mut tracer, InspectExecutionMode::OneTx);
-        tracer.1.validation_error()
+        let result = self.inspect(&mut tracer, InspectExecutionMode::OneTx);
+        (result, tracer.1.validation_error())
+    }
+}
+
+impl TestedVmWithCallTracer for TestedFastVm<CallTracer, FastValidationTracer> {
+    fn inspect_with_call_tracer(&mut self) -> (VmExecutionResultAndLogs, Vec<Call>) {
+        let mut tracer = (CallTracer::default(), FastValidationTracer::default());
+        let result = self.inspect(&mut tracer, InspectExecutionMode::OneTx);
+        (result, tracer.0.into_result())
+    }
+}
+
+type TestStorageLimiter = StorageInvocationsTracer<StorageView<InMemoryStorage>>;
+
+impl TestedVmWithStorageLimit for TestedFastVm<TestStorageLimiter, FastValidationTracer> {
+    fn execute_with_storage_limit(&mut self, limit: usize) -> VmExecutionResultAndLogs {
+        let storage = self.world.storage.to_rc_ptr();
+        let mut tracer = (
+            StorageInvocationsTracer::new(storage, limit),
+            FastValidationTracer::default(),
+        );
+        self.inspect(&mut tracer, InspectExecutionMode::OneTx)
     }
 }

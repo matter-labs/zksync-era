@@ -835,10 +835,21 @@ impl BlocksDal<'_, '_> {
                 l1_gas_price,
                 l2_fair_gas_price,
                 fair_pubdata_price
-            FROM
-                l1_batches
-            WHERE
-                NOT is_sealed
+            FROM (
+                SELECT
+                    number,
+                    timestamp,
+                    protocol_version,
+                    fee_address,
+                    l1_gas_price,
+                    l2_fair_gas_price,
+                    fair_pubdata_price,
+                    is_sealed
+                FROM l1_batches
+                ORDER BY number DESC
+                LIMIT 1
+            ) AS u
+            WHERE NOT is_sealed
             "#,
         )
         .instrument("get_unsealed_l1_batch")
@@ -3223,7 +3234,6 @@ mod tests {
         let first_location = IncludedTxLocation {
             tx_hash: H256([1; 32]),
             tx_index_in_l2_block: 0,
-            tx_initiator_address: Address::repeat_byte(2),
         };
         let first_logs = [create_l2_to_l1_log(0, 0)];
 

@@ -8,7 +8,7 @@ use zksync_vm2::interface::{
     CallframeInterface, CallingMode, GlobalStateInterface, Opcode, OpcodeType, ShouldStop, Tracer,
 };
 
-use crate::vm_fast::utils::read_fat_pointer;
+use crate::vm_fast::utils::read_raw_fat_pointer;
 
 /// Container for dynamic bytecodes added by [`EvmDeployTracer`].
 #[derive(Debug, Clone, Default)]
@@ -54,7 +54,7 @@ impl EvmDeployTracer {
             return;
         }
 
-        let data = read_fat_pointer(state, state.read_register(1).0);
+        let data = read_raw_fat_pointer(state, state.read_register(1).0);
         if data.len() < 4 {
             return;
         }

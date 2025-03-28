@@ -27,8 +27,8 @@ jobs:
 
       - name: Download FFLONK key and setup data
         run: |
-          gsutil -m rsync -r gs://matterlabs-setup-data-us/${{ inputs.setup_keys_id }} docker/proof-fri-gpu-compressor-gar
-          gsutil -m cp -r gs://matterlabs-setup-keys-us/setup-keys/setup_fflonk_compact.key docker/proof-fri-gpu-compressor-gar
+          gsutil -m rsync -x "setup_(basic|leaf|node|recursion_tip|scheduler)" -r gs://matterlabs-setup-data-us/${{ inputs.setup_keys_id }} docker/proof-fri-gpu-compressor-gar
+          gsutil -m cp -r gs://matterlabs-setup-keys-us/setup-keys/setup_compact.key docker/proof-fri-gpu-compressor-gar
 
       - name: Login to us-central1 GAR
         run: |
@@ -58,13 +58,13 @@ jobs:
           tags: |
             us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/proof-fri-gpu-compressor-gar:2.0-${{ inputs.protocol_version }}-${{ inputs.image_tag_suffix }}
 
-      - name: Build and push prover-gpu-fri-gar to Asia GAR
+      - name: Build and push proof-fri-gpu-compressor-gar to Asia GAR
         run: |
           docker buildx imagetools create \
             --tag asia-docker.pkg.dev/matterlabs-infra/matterlabs-docker/proof-fri-gpu-compressor-gar:2.0-${{ inputs.protocol_version }}-${{ inputs.image_tag_suffix }} \
             us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/proof-fri-gpu-compressor-gar:2.0-${{ inputs.protocol_version }}-${{ inputs.image_tag_suffix }}
 
-      - name: Build and push prover-gpu-fri-gar to Europe GAR
+      - name: Build and push proof-fri-gpu-compressor-gar to Europe GAR
         run: |
           docker buildx imagetools create \
             --tag europe-docker.pkg.dev/matterlabs-infra/matterlabs-docker/proof-fri-gpu-compressor-gar:2.0-${{ inputs.protocol_version }}-${{ inputs.image_tag_suffix }} \

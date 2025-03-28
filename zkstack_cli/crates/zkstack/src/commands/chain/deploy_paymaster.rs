@@ -11,7 +11,7 @@ use zkstack_cli_config::{
 };
 
 use crate::{
-    messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_L1_SECRETS_MUST_BE_PRESENTED},
+    messages::MSG_CHAIN_NOT_INITIALIZED,
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
 
@@ -39,19 +39,12 @@ pub async fn deploy_paymaster(
         shell,
         DEPLOY_PAYMASTER_SCRIPT_PARAMS.input(&chain_config.link_to_code),
     )?;
-    let secrets = chain_config.get_secrets_config()?;
+    let secrets = chain_config.get_secrets_config().await?;
 
     let mut forge = Forge::new(&foundry_contracts_path)
         .script(&DEPLOY_PAYMASTER_SCRIPT_PARAMS.script(), forge_args.clone())
         .with_ffi()
-        .with_rpc_url(
-            secrets
-                .l1
-                .context(MSG_L1_SECRETS_MUST_BE_PRESENTED)?
-                .l1_rpc_url
-                .expose_str()
-                .to_string(),
-        );
+        .with_rpc_url(secrets.get("l1.l1_rpc_url")?);
 
     if let Some(address) = sender {
         forge = forge.with_sender(address);

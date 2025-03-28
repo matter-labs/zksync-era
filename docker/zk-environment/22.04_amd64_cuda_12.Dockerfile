@@ -82,7 +82,7 @@ RUN cargo install --version=0.8.0 sqlx-cli
 RUN cargo install cargo-nextest
 
 RUN git clone https://github.com/matter-labs/foundry-zksync
-RUN cd foundry-zksync && cargo build --release --bins
+RUN cd foundry-zksync && git reset --hard 27360d4c8d12beddbb730dae07ad33a206b38f4b && cargo build --release --bins
 RUN mv ./foundry-zksync/target/release/forge /usr/local/cargo/bin/
 RUN mv ./foundry-zksync/target/release/cast /usr/local/cargo/bin/
 
@@ -127,8 +127,8 @@ ENV NV_CUDA_COMPAT_PACKAGE cuda-compat-12-2
 # curl purging is removed, it's required in next steps
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gnupg2 curl ca-certificates && \
-    wget -c -O - https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/${NVARCH}/3bf863cc.pub | apt-key add - && \
-    echo "deb https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/${NVARCH} /" > /etc/apt/sources.list.d/cuda.list && \
+    curl -fsSLO https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/${NVARCH}/cuda-keyring_1.0-1_all.deb && \
+    dpkg -i cuda-keyring_1.0-1_all.deb && \
     rm -rf /var/lib/apt/lists/*
 
 ENV CUDA_VERSION 12.2.2

@@ -1,4 +1,3 @@
-/// TODO(EVM-927): Note that the contents of this file are not useable without Gateway contracts.
 use anyhow::Context;
 use ethers::{abi::parse_abi, contract::BaseContract, types::Bytes, utils::hex};
 use lazy_static::lazy_static;
@@ -10,19 +9,19 @@ use zkstack_cli_common::{
 };
 use zkstack_cli_config::{
     forge_interface::{
-        deploy_ecosystem::input::InitialDeploymentConfig,
+        deploy_ecosystem::input::{GenesisInput, InitialDeploymentConfig},
         deploy_gateway_ctm::{input::DeployGatewayCTMInput, output::DeployGatewayCTMOutput},
         gateway_preparation::{input::GatewayPreparationConfig, output::GatewayPreparationOutput},
         script_params::{DEPLOY_GATEWAY_CTM, GATEWAY_GOVERNANCE_TX_PATH1, GATEWAY_PREPARATION},
     },
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
-    ChainConfig, EcosystemConfig, GenesisConfig,
+    ChainConfig, EcosystemConfig,
 };
 use zksync_basic_types::H256;
 use zksync_config::configs::GatewayConfig;
 
 use crate::{
-    messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_L1_SECRETS_MUST_BE_PRESENTED},
+    messages::MSG_CHAIN_NOT_INITIALIZED,
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
 
@@ -49,25 +48,19 @@ lazy_static! {
     );
 }
 
-#[allow(unused)]
 pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
-    // TODO(EVM-927): this function does not work without the Gateway contracts.
-    anyhow::bail!("Gateway upgrade not supported yet!");
-
     let chain_name = global_config().chain_name.clone();
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
     let chain_config = ecosystem_config
         .load_chain(chain_name)
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
     let l1_url = chain_config
-        .get_secrets_config()?
-        .l1
-        .context(MSG_L1_SECRETS_MUST_BE_PRESENTED)?
-        .l1_rpc_url
-        .expose_str()
-        .to_string();
+        .get_secrets_config()
+        .await?
+        .get::<String>("l1.l1_rpc_url")?;
     let mut chain_contracts_config = chain_config.get_contracts_config()?;
-    let chain_genesis_config = chain_config.get_genesis_config()?;
+    let chain_genesis_config = chain_config.get_genesis_config().await?;
+    let genesis_input = GenesisInput::new(&chain_genesis_config)?;
 
     // Firstly, deploying gateway contracts
     let gateway_config = calculate_gateway_ctm(
@@ -75,7 +68,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         args.clone(),
         &ecosystem_config,
         &chain_config,
-        &chain_genesis_config,
+        &genesis_input,
         &ecosystem_config.get_initial_deployment_config().unwrap(),
         l1_url.clone(),
     )
@@ -152,7 +145,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         args,
         &ecosystem_config,
         &chain_config,
-        &chain_genesis_config,
+        &genesis_input,
         &ecosystem_config.get_initial_deployment_config().unwrap(),
         l1_url,
     )
@@ -163,13 +156,13 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn calculate_gateway_ctm(
+pub async fn calculate_gateway_ctm(
     shell: &Shell,
     forge_args: ForgeScriptArgs,
     config: &EcosystemConfig,
     chain_config: &ChainConfig,
-    chain_genesis_config: &GenesisConfig,
-    initial_deployemnt_config: &InitialDeploymentConfig,
+    genesis_input: &GenesisInput,
+    initial_deployment_config: &InitialDeploymentConfig,
     l1_rpc_url: String,
 ) -> anyhow::Result<GatewayConfig> {
     let contracts_config = chain_config.get_contracts_config()?;
@@ -178,9 +171,9 @@ async fn calculate_gateway_ctm(
     let deploy_config = DeployGatewayCTMInput::new(
         chain_config,
         config,
-        chain_genesis_config,
+        genesis_input,
         &contracts_config,
-        initial_deployemnt_config,
+        initial_deployment_config,
     );
     deploy_config.save(shell, deploy_config_path)?;
 
@@ -214,25 +207,24 @@ async fn calculate_gateway_ctm(
     Ok(gateway_config)
 }
 
-async fn deploy_gateway_ctm(
+pub async fn deploy_gateway_ctm(
     shell: &Shell,
     forge_args: ForgeScriptArgs,
     config: &EcosystemConfig,
     chain_config: &ChainConfig,
-    chain_genesis_config: &GenesisConfig,
-    initial_deployemnt_config: &InitialDeploymentConfig,
+    genesis_input: &GenesisInput,
+    initial_deployment_config: &InitialDeploymentConfig,
     l1_rpc_url: String,
 ) -> anyhow::Result<()> {
     let contracts_config = chain_config.get_contracts_config()?;
-    // let contracts_config = config.get_contracts_config()?;
     let deploy_config_path = DEPLOY_GATEWAY_CTM.input(&config.link_to_code);
 
     let deploy_config = DeployGatewayCTMInput::new(
         chain_config,
         config,
-        chain_genesis_config,
+        genesis_input,
         &contracts_config,
-        initial_deployemnt_config,
+        initial_deployment_config,
     );
     deploy_config.save(shell, deploy_config_path)?;
 
@@ -259,7 +251,7 @@ async fn deploy_gateway_ctm(
     Ok(())
 }
 
-async fn gateway_governance_whitelisting(
+pub async fn gateway_governance_whitelisting(
     shell: &Shell,
     forge_args: ForgeScriptArgs,
     config: &EcosystemConfig,
@@ -397,7 +389,7 @@ async fn gateway_governance_whitelisting(
 }
 
 #[allow(clippy::too_many_arguments)]
-async fn call_script(
+pub async fn call_script(
     shell: &Shell,
     forge_args: ForgeScriptArgs,
     data: &Bytes,

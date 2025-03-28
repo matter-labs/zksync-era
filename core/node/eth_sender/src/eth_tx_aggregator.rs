@@ -594,6 +594,7 @@ impl EthTxAggregator {
                         stm_protocol_version_id,
                         stm_validator_timelock_address,
                     ),
+                    chain_protocol_version_id,
                     is_gateway,
                 )
                 .await?;
@@ -642,7 +643,11 @@ impl EthTxAggregator {
             .await;
     }
 
-    fn encode_aggregated_op(&self, op: &AggregatedOperation) -> TxData {
+    fn encode_aggregated_op(
+        &self,
+        op: &AggregatedOperation,
+        chain_protocol_version_id: ProtocolVersionId,
+    ) -> TxData {
         let mut args = vec![Token::Uint(self.rollup_chain_id.as_u64().into())];
         let is_op_pre_gateway = op.protocol_version().is_pre_gateway();
 
@@ -686,8 +691,9 @@ impl EthTxAggregator {
                 (calldata, None)
             }
             AggregatedOperation::Execute(op) => {
-                args.extend(op.into_tokens());
-                let encoding_fn = if is_op_pre_gateway {
+                args.extend(op.encode_for_eth_tx(chain_protocol_version_id));
+                let encoding_fn = if is_op_pre_gateway && chain_protocol_version_id.is_pre_gateway()
+                {
                     &self.functions.post_shared_bridge_execute
                 } else {
                     &self.functions.post_gateway_execute
@@ -743,6 +749,7 @@ impl EthTxAggregator {
         storage: &mut Connection<'_, Core>,
         aggregated_op: &AggregatedOperation,
         timelock_contract_address: Address,
+        chain_protocol_version_id: ProtocolVersionId,
         is_gateway: bool,
     ) -> Result<EthTx, EthSenderError> {
         let mut transaction = storage.start_transaction().await.unwrap();
@@ -755,7 +762,8 @@ impl EthTxAggregator {
             (_, _) => None,
         };
         let nonce = self.get_next_nonce(&mut transaction, sender_addr).await?;
-        let encoded_aggregated_op = self.encode_aggregated_op(aggregated_op);
+        let encoded_aggregated_op =
+            self.encode_aggregated_op(aggregated_op, chain_protocol_version_id);
         let l1_batch_number_range = aggregated_op.l1_batch_range();
 
         let eth_tx_predicted_gas = match (op_type, is_gateway, self.aggregator.mode()) {
@@ -816,14 +824,19 @@ impl EthTxAggregator {
             .unwrap_or(0);
         // Between server starts we can execute some txs using operator account or remove some txs from the database
         // At the start we have to consider this fact and get the max nonce.
-        Ok(if from_addr.is_none() {
-            db_nonce.max(self.base_nonce)
+        let l1_nonce = if from_addr.is_none() {
+            self.base_nonce
         } else {
-            db_nonce.max(
-                self.base_nonce_custom_commit_sender
-                    .expect("custom base nonce is expected to be initialized; qed"),
-            )
-        })
+            self.base_nonce_custom_commit_sender
+                .expect("custom base nonce is expected to be initialized; qed")
+        };
+        tracing::info!(
+            "Next nonce from db: {}, nonce from L1: {} for address: {:?}",
+            db_nonce,
+            l1_nonce,
+            from_addr
+        );
+        Ok(db_nonce.max(l1_nonce))
     }
 
     /// Returns the health check for eth tx aggregator.

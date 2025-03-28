@@ -236,6 +236,7 @@ basic_type!(
 
 basic_type!(
     /// ZKsync account nonce.
+    #[derive(Default)]
     Nonce,
     u32
 );

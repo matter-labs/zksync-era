@@ -113,13 +113,13 @@ pub fn adjust_pubdata_price_for_tx(
 ) -> BatchFeeInput {
     // If no max base fee was provided, we just use the maximal one for convenience.
     let max_base_fee = max_base_fee.unwrap_or(U256::MAX);
-    let desired_gas_per_pubdata =
+    let bounded_tx_gas_per_pubdata_limit =
         tx_gas_per_pubdata_limit.min(get_max_gas_per_pubdata_byte(vm_version).into());
 
     let (current_base_fee, current_gas_per_pubdata) =
         derive_base_fee_and_gas_per_pubdata(batch_fee_input, vm_version);
 
-    if U256::from(current_gas_per_pubdata) <= desired_gas_per_pubdata
+    if U256::from(current_gas_per_pubdata) <= bounded_tx_gas_per_pubdata_limit
         && U256::from(current_base_fee) <= max_base_fee
     {
         // gas per pubdata is already smaller than or equal to `tx_gas_per_pubdata_limit`.
@@ -138,8 +138,9 @@ pub fn adjust_pubdata_price_for_tx(
             // `gasPerPubdata = ceil(17 * l1gasprice / fair_l2_gas_price)`
             // `gasPerPubdata <= 17 * l1gasprice / fair_l2_gas_price + 1`
             // `fair_l2_gas_price(gasPerPubdata - 1) / 17 <= l1gasprice`
-            let new_l1_gas_price =
-                fair_l2_gas_price * (desired_gas_per_pubdata - U256::from(1u32)) / U256::from(17);
+            let new_l1_gas_price = fair_l2_gas_price
+                * bounded_tx_gas_per_pubdata_limit.saturating_sub(U256::from(1u32))
+                / U256::from(17);
 
             BatchFeeInput::L1Pegged(L1PeggedBatchFeeModelInput {
                 l1_gas_price: new_l1_gas_price.as_u64(),
@@ -154,11 +155,14 @@ pub fn adjust_pubdata_price_for_tx(
                 current_l2_fair_gas_price
             };
 
+            // We want to adjust gas per pubdata to be min(bounded_tx_gas_per_pubdata_limit, current_gas_per_pubdata).
+            let desired_gas_per_pubdata =
+                bounded_tx_gas_per_pubdata_limit.min(U256::from(current_gas_per_pubdata));
             // `gasPerPubdata = ceil(fair_pubdata_price / fair_l2_gas_price)`
             // `gasPerPubdata <= fair_pubdata_price / fair_l2_gas_price + 1`
             // `fair_l2_gas_price(gasPerPubdata - 1) <= fair_pubdata_price`
             let new_fair_pubdata_price =
-                fair_l2_gas_price * (desired_gas_per_pubdata - U256::from(1u32));
+                fair_l2_gas_price * desired_gas_per_pubdata.saturating_sub(U256::from(1u32));
 
             BatchFeeInput::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
                 fair_pubdata_price: new_fair_pubdata_price.as_u64(),
@@ -574,4 +578,8 @@ pub(crate) struct CircuitCycleStatistic {
     pub sha256_cycles: u32,
     pub secp256k1_verify_cycles: u32,
     pub transient_storage_checker_cycles: u32,
+    pub modexp_cycles: u32,
+    pub ecadd_cycles: u32,
+    pub ecmul_cycles: u32,
+    pub ecpairing_cycles: u32,
 }

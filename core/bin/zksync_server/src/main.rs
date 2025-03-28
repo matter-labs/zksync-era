@@ -11,11 +11,12 @@ use zksync_config::{
         },
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
-        BasicWitnessInputProducerConfig, ContractsConfig, DataAvailabilitySecrets, DatabaseSecrets,
-        ExperimentalVmConfig, ExternalPriceApiClientConfig, FriProofCompressorConfig,
-        FriProverConfig, FriProverGatewayConfig, FriWitnessGeneratorConfig,
-        FriWitnessVectorGeneratorConfig, L1Secrets, ObservabilityConfig, PrometheusConfig,
-        ProofDataHandlerConfig, ProtectiveReadsWriterConfig, Secrets,
+        BasicWitnessInputProducerConfig, ContractVerifierSecrets, ContractsConfig,
+        DataAvailabilitySecrets, DatabaseSecrets, ExperimentalVmConfig,
+        ExternalPriceApiClientConfig, FriProofCompressorConfig, FriProverConfig,
+        FriProverGatewayConfig, FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig,
+        L1Secrets, ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig,
+        ProtectiveReadsWriterConfig, Secrets,
     },
     ApiConfig, BaseTokenAdjusterConfig, ContractVerifierConfig, DAClientConfig, DADispatcherConfig,
     DBConfig, EthConfig, EthWatchConfig, ExternalProofIntegrationApiConfig, GasAdjusterConfig,
@@ -70,6 +71,11 @@ struct Cli {
     /// Now the node framework is used by default and this argument is left for backward compatibility.
     #[arg(long)]
     use_node_framework: bool,
+
+    /// Only compose the node with the provided list of the components and then exit.
+    /// Can be used to catch issues with configuration.
+    #[arg(long, conflicts_with = "genesis")]
+    no_run: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -121,6 +127,7 @@ fn main() -> anyhow::Result<()> {
             database: DatabaseSecrets::from_env().ok(),
             l1: L1Secrets::from_env().ok(),
             data_availability: DataAvailabilitySecrets::from_env().ok(),
+            contract_verifier: ContractVerifierSecrets::from_env().ok(),
         },
     };
 
@@ -175,7 +182,14 @@ fn main() -> anyhow::Result<()> {
         return Ok(());
     }
 
-    node.build(opt.components.0)?.run(observability_guard)?;
+    let node = node.build(opt.components.0)?;
+
+    if opt.no_run {
+        tracing::info!("Node composed successfully; exiting due to --no-run flag");
+        return Ok(());
+    }
+
+    node.run(observability_guard)?;
     Ok(())
 }
 

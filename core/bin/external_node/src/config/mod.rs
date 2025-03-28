@@ -14,15 +14,16 @@ use zksync_config::{
         api::{MaxResponseSize, MaxResponseSizeOverrides},
         consensus::{ConsensusConfig, ConsensusSecrets},
         en_config::ENConfig,
-        GeneralConfig, Secrets,
+        DataAvailabilitySecrets, GeneralConfig, Secrets,
     },
-    ObjectStoreConfig,
+    DAClientConfig, ObjectStoreConfig,
 };
 use zksync_consensus_crypto::TextFmt;
 use zksync_consensus_roles as roles;
 use zksync_core_leftovers::temp_config_store::read_yaml_repr;
 #[cfg(test)]
 use zksync_dal::{ConnectionPool, Core};
+use zksync_env_config::da_client::{da_client_config_from_env, da_client_secrets_from_env};
 use zksync_metadata_calculator::MetadataCalculatorRecoveryConfig;
 use zksync_node_api_server::{
     tx_sender::{TimestampAsserterParams, TxSenderConfig},
@@ -128,6 +129,7 @@ pub(crate) struct RemoteENConfig {
     pub l2_weth_bridge_addr: Option<Address>,
     pub l2_testnet_paymaster_addr: Option<Address>,
     pub l2_timestamp_asserter_addr: Option<Address>,
+    pub l1_wrapped_base_token_store: Option<Address>,
     pub base_token_addr: Address,
     pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
     pub dummy_verifier: bool,
@@ -195,6 +197,9 @@ impl RemoteENConfig {
             l1_bytecodes_supplier_addr: ecosystem_contracts
                 .as_ref()
                 .and_then(|a| a.l1_bytecodes_supplier_addr),
+            l1_wrapped_base_token_store: ecosystem_contracts
+                .as_ref()
+                .and_then(|a| a.l1_wrapped_base_token_store),
             l1_diamond_proxy_addr,
             l2_testnet_paymaster_addr,
             l1_erc20_bridge_proxy_addr: bridges.l1_erc20_default_bridge,
@@ -235,6 +240,7 @@ impl RemoteENConfig {
             l2_shared_bridge_addr: Some(Address::repeat_byte(6)),
             l2_legacy_shared_bridge_addr: Some(Address::repeat_byte(7)),
             l1_batch_commit_data_generator_mode: L1BatchCommitmentMode::Rollup,
+            l1_wrapped_base_token_store: None,
             dummy_verifier: true,
             l2_timestamp_asserter_addr: None,
         }
@@ -755,7 +761,7 @@ impl OptionalENConfig {
     }
 
     const fn default_req_entities_limit() -> usize {
-        1_024
+        10_000
     }
 
     const fn default_max_tx_size_bytes() -> usize {
@@ -767,15 +773,15 @@ impl OptionalENConfig {
     }
 
     const fn default_estimate_gas_scale_factor() -> f64 {
-        1.2
+        1.3
     }
 
     const fn default_estimate_gas_acceptable_overestimation() -> u32 {
-        1_000
+        5_000
     }
 
     const fn default_gas_price_scale_factor() -> f64 {
-        1.2
+        1.5
     }
 
     const fn default_max_nonce_ahead() -> u32 {
@@ -1300,6 +1306,7 @@ pub(crate) struct ExternalNodeConfig<R = RemoteENConfig> {
     pub consensus_secrets: Option<ConsensusSecrets>,
     pub api_component: ApiComponentConfig,
     pub tree_component: TreeComponentConfig,
+    pub data_availability: (Option<DAClientConfig>, Option<DataAvailabilitySecrets>),
     pub remote: R,
 }
 
@@ -1323,6 +1330,10 @@ impl ExternalNodeConfig<()> {
                 .context("could not load external node config (tree component params)")?,
             consensus_secrets: read_consensus_secrets()
                 .context("config::read_consensus_secrets()")?,
+            data_availability: (
+                da_client_config_from_env("EN_DA_").ok(),
+                da_client_secrets_from_env("EN_DA_").ok(),
+            ),
             remote: (),
         })
     }
@@ -1375,6 +1386,10 @@ impl ExternalNodeConfig<()> {
 
         let api_component = ApiComponentConfig::from_configs(&general_config);
         let tree_component = TreeComponentConfig::from_configs(&general_config);
+        let data_availability = (
+            general_config.da_client_config,
+            secrets_config.data_availability,
+        );
 
         Ok(Self {
             required,
@@ -1386,6 +1401,7 @@ impl ExternalNodeConfig<()> {
             api_component,
             tree_component,
             consensus_secrets,
+            data_availability,
             remote: (),
         })
     }
@@ -1421,6 +1437,7 @@ impl ExternalNodeConfig<()> {
             tree_component: self.tree_component,
             api_component: self.api_component,
             consensus_secrets: self.consensus_secrets,
+            data_availability: self.data_availability,
             remote,
         })
     }
@@ -1442,6 +1459,7 @@ impl ExternalNodeConfig {
                 tree_api_remote_url: None,
             },
             tree_component: TreeComponentConfig { api_port: None },
+            data_availability: (None, None),
         }
     }
 
@@ -1477,6 +1495,7 @@ impl From<&ExternalNodeConfig> for InternalApiConfig {
                 l2_weth_bridge: config.remote.l2_weth_bridge_addr,
             },
             l1_bytecodes_supplier_addr: config.remote.l1_bytecodes_supplier_addr,
+            l1_wrapped_base_token_store: config.remote.l1_wrapped_base_token_store,
             l1_bridgehub_proxy_addr: config.remote.l1_bridgehub_proxy_addr,
             l1_state_transition_proxy_addr: config.remote.l1_state_transition_proxy_addr,
             l1_transparent_proxy_admin_addr: config.remote.l1_transparent_proxy_admin_addr,
