@@ -15,8 +15,6 @@ pub(crate) const MAX_TREE_DEPTH: u8 = 64;
 pub struct Leaf {
     pub key: H256,
     pub value: H256,
-    /// 0-based index of a leaf with the lexicographically previous key.
-    pub prev_index: u64,
     /// 0-based index of a leaf with the lexicographically next key.
     pub next_index: u64,
 }
@@ -26,7 +24,6 @@ impl Leaf {
     pub const MIN_GUARD: Self = Self {
         key: H256::zero(),
         value: H256::zero(),
-        prev_index: 0,
         next_index: 1,
     };
 
@@ -34,7 +31,7 @@ impl Leaf {
     pub const MAX_GUARD: Self = Self {
         key: H256::repeat_byte(0xff),
         value: H256::zero(),
-        prev_index: 0,
+        // Circular pointer to self; never updated.
         next_index: 1,
     };
 }

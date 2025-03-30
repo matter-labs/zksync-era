@@ -182,6 +182,7 @@ mod tests {
         pubdata_da::PubdataSendingMode,
         U256,
     };
+    use zksync_web3_decl::client::{DynClient, L2};
 
     use super::*;
 
@@ -384,8 +385,10 @@ mod tests {
             ..Default::default()
         };
 
+        let client: Box<DynClient<L2>> = Box::new(mock.clone().into_client());
+
         GasAdjuster::new(
-            GasAdjusterClient::from_l1(Box::new(mock.into_client())),
+            GasAdjusterClient::from(client),
             gas_adjuster_config,
             PubdataSendingMode::Blobs,
             L1BatchCommitmentMode::Rollup,
