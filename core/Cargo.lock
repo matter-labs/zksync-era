@@ -12627,6 +12627,7 @@ dependencies = [
  "ctrlc",
  "futures 0.3.31",
  "pin-project-lite",
+ "reqwest 0.12.9",
  "semver 1.0.23",
  "serde",
  "thiserror 1.0.69",

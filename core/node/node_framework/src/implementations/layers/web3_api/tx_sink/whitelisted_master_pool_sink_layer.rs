@@ -154,7 +154,7 @@ impl Task for AllowListTask {
 
                             if *lock != new_list {
                                 *lock = new_list;
-                                tracing::info!("Allowlist updated. {} entries loaded.", lock.len());
+                                tracing::debug!("Allowlist updated. {} entries loaded.", lock.len());
                             } else {
                                 tracing::debug!("Allowlist unchanged (same content).");
                             }

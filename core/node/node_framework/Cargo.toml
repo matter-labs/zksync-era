@@ -68,7 +68,7 @@ serde.workspace = true
 tokio = { workspace = true, features = ["rt"] }
 ctrlc.workspace = true
 semver.workspace = true
-reqwest = { version = "0.11", features = ["json", "rustls-tls"] }
+reqwest.workspace = true
 
 [dev-dependencies]
 assert_matches.workspace = true
