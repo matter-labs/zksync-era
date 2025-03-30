@@ -56,7 +56,7 @@ impl WiringLayer for WhitelistedMasterPoolSinkLayer {
 
         let shared_allowlist = SharedAllowList::new();
 
-        let task = AllowListTask::new(
+        let allow_list_task = AllowListTask::new(
             self.deployment_allowlist
                 .http_file_url()
                 .expect("DeploymentAllowlist must contain a URL")
@@ -69,7 +69,7 @@ impl WiringLayer for WhitelistedMasterPoolSinkLayer {
 
         Ok(Output {
             tx_sink,
-            allow_list_task: task,
+            allow_list_task,
         })
     }
 }
