@@ -90,6 +90,7 @@ struct WhitelistResponse {
 }
 
 impl AllowListTask {
+    const REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
     pub fn new(url: String, refresh_interval: Duration, allowlist: SharedAllowList) -> Self {
         Self {
             url,
@@ -105,7 +106,7 @@ impl AllowListTask {
         let response = self
             .client
             .get(&self.url)
-            .timeout(Duration::from_secs(5))
+            .timeout(Self::REQUEST_TIMEOUT)
             .header("If-None-Match", etag_header.unwrap_or_default())
             .send()
             .await?;

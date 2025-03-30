@@ -383,7 +383,7 @@ impl MainNodeBuilder {
 
         // On main node we always use master pool sink.
         match deployment_allowlist.clone() {
-            Some(cfg) if cfg.http_file_url().is_some() => {
+            Some(cfg) if cfg.is_enabled() => {
                 self.node.add_layer(WhitelistedMasterPoolSinkLayer {
                     deployment_allowlist: cfg,
                 });
