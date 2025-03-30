@@ -5,7 +5,7 @@ use zksync_types::{h256_to_address, l2::L2Tx, CONTRACT_DEPLOYER_ADDRESS};
 use crate::{
     execution_sandbox::SandboxExecutionOutput,
     tx_sender::{
-        allow_list_service::AllowListService, master_pool_sink::MasterPoolSink, tx_sink::TxSink,
+        master_pool_sink::MasterPoolSink, shared_allow_list::SharedAllowList, tx_sink::TxSink,
         SubmitTxError,
     },
 };
@@ -15,14 +15,14 @@ use crate::{
 #[derive(Debug)]
 pub struct WhitelistedDeployPoolSink {
     master_pool_sink: MasterPoolSink,
-    allowlist_service: AllowListService,
+    shared_allow_list: SharedAllowList,
 }
 
 impl WhitelistedDeployPoolSink {
-    pub fn new(master_pool_sink: MasterPoolSink, allowlist_service: AllowListService) -> Self {
+    pub fn new(master_pool_sink: MasterPoolSink, shared_allow_list: SharedAllowList) -> Self {
         Self {
             master_pool_sink,
-            allowlist_service,
+            shared_allow_list,
         }
     }
 }
@@ -52,7 +52,7 @@ impl TxSink for WhitelistedDeployPoolSink {
 
         for deployer_address in deployer_addresses {
             if !self
-                .allowlist_service
+                .shared_allow_list
                 .is_address_allowed(&deployer_address)
                 .await
             {

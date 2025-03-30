@@ -54,7 +54,6 @@ tower.workspace = true
 strum = { workspace = true, features = ["derive"] }
 tower-http = { workspace = true, features = ["cors", "metrics"] }
 lru.workspace = true
-reqwest = { version = "0.11", features = ["json", "rustls-tls"] }
 
 [dev-dependencies]
 zk_evm_1_5_0.workspace = true

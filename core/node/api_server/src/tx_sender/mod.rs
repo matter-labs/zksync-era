@@ -44,11 +44,11 @@ use crate::execution_sandbox::{
     VmConcurrencyBarrier, VmConcurrencyLimiter, SANDBOX_METRICS,
 };
 
-pub mod allow_list_service;
 mod gas_estimation;
 pub mod master_pool_sink;
 pub mod proxy;
 mod result;
+pub mod shared_allow_list;
 #[cfg(test)]
 pub(crate) mod tests;
 pub mod tx_sink;

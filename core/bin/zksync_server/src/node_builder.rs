@@ -66,7 +66,10 @@ use zksync_node_framework::{
             server::{Web3ServerLayer, Web3ServerOptionalConfig},
             tree_api_client::TreeApiClientLayer,
             tx_sender::{PostgresStorageCachesConfig, TxSenderLayer},
-            tx_sink::MasterPoolSinkLayer,
+            tx_sink::{
+                whitelisted_master_pool_sink_layer::WhitelistedMasterPoolSinkLayer,
+                MasterPoolSinkLayer,
+            },
         },
     },
     service::{ZkStackService, ZkStackServiceBuilder},
@@ -363,9 +366,16 @@ impl MainNodeBuilder {
             .unwrap_or_default();
 
         // On main node we always use master pool sink.
-        self.node.add_layer(MasterPoolSinkLayer {
-            deployment_allowlist,
-        });
+        match deployment_allowlist.clone() {
+            Some(cfg) if cfg.http_file_url().is_some() => {
+                self.node.add_layer(WhitelistedMasterPoolSinkLayer {
+                    deployment_allowlist: cfg,
+                });
+            }
+            _ => {
+                self.node.add_layer(MasterPoolSinkLayer);
+            }
+        }
 
         let layer = TxSenderLayer::new(
             TxSenderConfig::new(
