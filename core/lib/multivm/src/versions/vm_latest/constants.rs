@@ -25,7 +25,8 @@ pub(crate) const fn get_used_bootloader_memory_bytes(subversion: MultiVmSubversi
         MultiVmSubversion::SmallBootloaderMemory => 59_000_000,
         MultiVmSubversion::IncreasedBootloaderMemory
         | MultiVmSubversion::Gateway
-        | MultiVmSubversion::EvmEmulator => 63_800_000,
+        | MultiVmSubversion::EvmEmulator
+        | MultiVmSubversion::EcPrecompiles => 63_800_000,
     }
 }
 
@@ -66,7 +67,9 @@ pub(crate) const fn get_max_new_factory_deps(subversion: MultiVmSubversion) -> u
             32
         }
         // With gateway upgrade we increased max number of factory dependencies
-        MultiVmSubversion::Gateway | MultiVmSubversion::EvmEmulator => 64,
+        MultiVmSubversion::Gateway
+        | MultiVmSubversion::EvmEmulator
+        | MultiVmSubversion::EcPrecompiles => 64,
     }
 }
 

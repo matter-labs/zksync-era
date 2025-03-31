@@ -18,6 +18,7 @@ pub enum VmVersion {
     Vm1_5_0IncreasedBootloaderMemory,
     VmGateway,
     VmEvmEmulator,
+    VmEcPrecompiles,
 }
 
 impl VmVersion {
