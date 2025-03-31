@@ -87,13 +87,13 @@ impl EigenDAClient {
 impl EigenDAClient {
     async fn check_mapping(
         &self,
-        inclusion_data: &Vec<u8>,
+        inclusion_data: &[u8],
         mapping: &str,
     ) -> Result<bool, DAError> {
         let mut data = vec![];
         let func_selector = ethabi::short_signature(mapping, &[ParamType::Bytes]).to_vec();
         data.extend_from_slice(&func_selector);
-        let inclusion_data = encode(&[Token::Bytes(inclusion_data.clone())]);
+        let inclusion_data = encode(&[Token::Bytes(inclusion_data.to_owned())]);
         data.extend_from_slice(&inclusion_data);
         let call_request = CallRequest {
             to: Some(self.eigenda_registry_addr),
@@ -120,17 +120,17 @@ impl EigenDAClient {
         }
     }
 
-    async fn check_finished_batches(&self, inclusion_data: &Vec<u8>) -> Result<bool, DAError> {
+    async fn check_finished_batches(&self, inclusion_data: &[u8]) -> Result<bool, DAError> {
         self.check_mapping(inclusion_data, "finishedBatches").await
     }
 
-    async fn check_verified_batches(&self, inclusion_data: &Vec<u8>) -> Result<bool, DAError> {
+    async fn check_verified_batches(&self, inclusion_data: &[u8]) -> Result<bool, DAError> {
         self.check_mapping(inclusion_data, "verifiedBatches").await
     }
 
     async fn check_inclusion_data_verification(
         &self,
-        inclusion_data: &Vec<u8>,
+        inclusion_data: &[u8],
     ) -> Result<Option<bool>, DAError> {
         let finished = self.check_finished_batches(inclusion_data).await?;
         if !finished {
