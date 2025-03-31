@@ -7,7 +7,7 @@ use zksync_types::{
     aggregated_operations::{
         AggregatedActionType, L1_BATCH_EXECUTE_BASE_COST, L1_OPERATION_EXECUTE_COST,
     },
-    commitment::L1BatchWithMetadata,
+    commitment::{L1BatchCommitmentMode, L1BatchWithMetadata},
     L1BatchNumber,
 };
 
@@ -156,6 +156,11 @@ impl L1GasCriterion {
     /// It's applicable iff SL is Ethereum.
     pub const L1_BATCH_COMMIT_BASE_COST: u32 = 31_000;
 
+    /// All gas cost of processing `PROVE` operation per batch.
+    /// It's applicable iff SL is Ethereum.
+    /// 2x more than a real cost
+    pub const L1_BATCH_PROOF_GAS_COST_ETHEREUM: u32 = 1_000_000;
+
     pub fn new(gas_limit: u32, kind: GasCriterionKind) -> L1GasCriterion {
         L1GasCriterion { gas_limit, kind }
     }
@@ -163,6 +168,7 @@ impl L1GasCriterion {
     pub async fn total_execute_gas_amount(
         storage: &mut Connection<'_, Core>,
         batch_numbers: ops::RangeInclusive<L1BatchNumber>,
+        is_gateway: bool,
     ) -> u32 {
         let mut total = Self::AGGR_L1_BATCH_EXECUTE_BASE_COST;
 
@@ -173,12 +179,25 @@ impl L1GasCriterion {
         total
     }
 
-    pub fn total_validium_commit_gas_amount(
+    pub fn total_proof_gas_amount(is_gateway: bool) -> u32 {
+        L1GasCriterion::L1_BATCH_PROOF_GAS_COST_ETHEREUM
+    }
+
+    pub fn total_commit_gas_amount(
         batch_numbers: ops::RangeInclusive<L1BatchNumber>,
+        is_gateway: bool,
+        batch_commitment_mode: L1BatchCommitmentMode,
+        calldata_size: usize,
     ) -> u32 {
-        Self::AGGR_L1_BATCH_COMMIT_BASE_COST
+        let base_cost = Self::AGGR_L1_BATCH_COMMIT_BASE_COST
             + (batch_numbers.end().0 - batch_numbers.start().0 + 1)
-                * Self::L1_BATCH_COMMIT_BASE_COST
+                * Self::L1_BATCH_COMMIT_BASE_COST;
+        match batch_commitment_mode {
+            L1BatchCommitmentMode::Rollup => {
+                base_cost + calldata_size as u32 * Self::L1_BATCH_COMMIT_BASE_COST
+            }
+            L1BatchCommitmentMode::Validium => base_cost,
+        }
     }
 
     async fn get_execute_gas_amount(
