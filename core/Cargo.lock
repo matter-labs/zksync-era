@@ -2178,7 +2178,7 @@ source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=feature/
 dependencies = [
  "derivative",
  "serde",
- "zk_evm 0.151.4",
+ "zk_evm 0.151.3",
  "zkevm_circuits",
 ]
 
@@ -11547,7 +11547,7 @@ dependencies = [
  "serde",
  "serde_json",
  "static_assertions",
- "zk_evm_abstractions 0.151.4",
+ "zk_evm_abstractions 0.151.3",
 ]
 
 [[package]]
@@ -11598,7 +11598,7 @@ dependencies = [
  "num_enum 0.6.1",
  "serde",
  "static_assertions",
- "zkevm_opcode_defs 0.151.4",
+ "zkevm_opcode_defs 0.151.3",
 ]
 
 [[package]]
@@ -11631,7 +11631,7 @@ dependencies = [
  "axum 0.7.9",
  "futures 0.3.31",
  "once_cell",
- "reqwest 0.12.9",
+ "reqwest 0.12.14",
  "serde",
  "serde_json",
  "tempfile",
@@ -11889,7 +11889,7 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
- "zk_evm 0.151.4",
+ "zk_evm 0.151.3",
  "zksync_contracts",
  "zksync_dal",
  "zksync_eth_client",
@@ -12841,7 +12841,7 @@ dependencies = [
  "zk_evm 0.133.0",
  "zk_evm 0.140.0",
  "zk_evm 0.141.0",
- "zk_evm 0.151.4",
+ "zk_evm 0.151.3",
  "zksync_contracts",
  "zksync_eth_signer",
  "zksync_mini_merkle_tree",
@@ -12881,7 +12881,7 @@ dependencies = [
  "tower-http 0.5.2",
  "tracing",
  "vise",
- "zk_evm 0.151.4",
+ "zk_evm 0.151.3",
  "zksync_config",
  "zksync_consensus_roles",
  "zksync_contracts",
@@ -13218,7 +13218,7 @@ dependencies = [
  "anyhow",
  "axum 0.7.9",
  "chrono",
- "hyper 1.5.1",
+ "hyper 1.6.0",
  "serde_json",
  "tokio",
  "tower 0.4.13",
