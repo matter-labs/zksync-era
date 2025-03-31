@@ -217,7 +217,7 @@ pub async fn check_chain_readiness(
 
     let l2_client = get_zk_client(&l2_rpc_url, l2_chain_id)?;
 
-    let diamond_proxy_addr = l2_client.get_main_contract().await?;
+    let diamond_proxy_addr = l2_client.get_main_l1_contract().await?;
 
     let zkchain = ZKChainAbi::new(diamond_proxy_addr, l1_client.clone());
     let batches_committed = zkchain.get_total_batches_committed().await?.as_u32();
