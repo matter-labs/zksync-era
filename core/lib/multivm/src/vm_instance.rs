@@ -1,6 +1,6 @@
 use std::{mem, rc::Rc};
 
-use zksync_types::{vm::VmVersion, ProtocolVersionId, Transaction};
+use zksync_types::{message_root::MessageRoot, vm::VmVersion, ProtocolVersionId, Transaction};
 use zksync_vm_interface::{pubdata::PubdataBuilder, InspectExecutionMode};
 
 use crate::{
@@ -71,6 +71,10 @@ impl<S: ReadStorage, H: HistoryMode> VmInterface for LegacyVmInstance<S, H> {
 
     fn start_new_l2_block(&mut self, l2_block_env: L2BlockEnv) {
         dispatch_legacy_vm!(self.start_new_l2_block(l2_block_env))
+    }
+
+    fn insert_message_root(&mut self, msg_root: MessageRoot) {
+        dispatch_legacy_vm!(self.insert_message_root(msg_root))
     }
 
     /// Inspect transaction with optional bytecode compression.
@@ -225,6 +229,15 @@ impl<S: ReadStorage, H: HistoryMode> LegacyVmInstance<S, H> {
                 );
                 Self::Vm1_5_0(vm)
             }
+            VmVersion::VmInterop => {
+                let vm = vm_latest::Vm::new_with_subversion(
+                    l1_batch_env,
+                    system_env,
+                    storage_view,
+                    vm_latest::MultiVmSubversion::EvmEmulator,
+                );
+                Self::Vm1_5_0(vm)
+            }
         }
     }
 
@@ -287,6 +300,10 @@ where
 
     fn start_new_l2_block(&mut self, l2_block_env: L2BlockEnv) {
         dispatch_fast_vm!(self.start_new_l2_block(l2_block_env));
+    }
+
+    fn insert_message_root(&mut self, msg_root: MessageRoot) {
+        dispatch_fast_vm!(self.insert_message_root(msg_root));
     }
 
     fn inspect_transaction_with_bytecode_compression(

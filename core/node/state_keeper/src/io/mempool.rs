@@ -16,6 +16,7 @@ use zksync_node_fee_model::BatchFeeModelInputProvider;
 use zksync_types::{
     block::UnsealedL1BatchHeader,
     commitment::{PubdataParams, PubdataType},
+    message_root::MessageRoot,
     protocol_upgrade::ProtocolUpgradeTx,
     utils::display_timestamp,
     Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256, U256,
@@ -427,6 +428,15 @@ impl StateKeeperIO for MempoolIO {
         storage
             .protocol_versions_dal()
             .get_protocol_upgrade_tx(version_id)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn load_latest_message_root(&self) -> anyhow::Result<Option<Vec<MessageRoot>>> {
+        let mut storage = self.pool.connection_tagged("state_keeper").await?;
+        storage
+            .message_root_dal()
+            .get_latest_message_root()
             .await
             .map_err(Into::into)
     }

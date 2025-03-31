@@ -2,6 +2,7 @@ use anyhow::Context;
 use zksync_config::{configs::gateway::GatewayChainConfig, ContractsConfig, EthWatchConfig};
 use zksync_contracts::chain_admin_contract;
 use zksync_eth_watch::{EthHttpQueryClient, EthWatch, L2EthClient};
+use zksync_system_constants::L2_MESSAGE_ROOT_ADDRESS;
 use zksync_types::{settlement::SettlementMode, L2ChainId};
 
 use crate::{
@@ -71,6 +72,7 @@ impl WiringLayer for EthWatchLayer {
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
+        // println!("input in wiring: {:?}", input);
         let main_pool = input.master_pool.get().await?;
         let client = input.eth_client.0;
 
@@ -90,7 +92,6 @@ impl WiringLayer for EthWatchLayer {
             "Diamond proxy address settlement_layer: {:#?}",
             sl_diamond_proxy_addr
         );
-
         let l1_client = EthHttpQueryClient::new(
             client,
             self.contracts_config.diamond_proxy_addr,
@@ -106,34 +107,41 @@ impl WiringLayer for EthWatchLayer {
             self.contracts_config
                 .ecosystem_contracts
                 .as_ref()
+                .and_then(|a| a.message_root_proxy_addr),
+            self.contracts_config
+                .ecosystem_contracts
+                .as_ref()
                 .map(|a| a.state_transition_proxy_addr),
             self.contracts_config.chain_admin_addr,
             self.contracts_config.governance_addr,
             self.eth_watch_config.confirmations_for_eth_event,
             self.chain_id,
         );
+        // println!("l1_message_root_address 2: {:?}", self.contracts_config.l1_message_root_address);
 
-        let sl_l2_client: Option<Box<dyn L2EthClient>> =
-            if let Some(gateway_client) = input.gateway_client {
-                let contracts_config = self.gateway_chain_config.unwrap();
-                Some(Box::new(EthHttpQueryClient::new(
-                    gateway_client.0,
-                    contracts_config.diamond_proxy_addr,
-                    // Only present on L1.
-                    None,
-                    // Only present on L1.
-                    None,
-                    // Only present on L1.
-                    None,
-                    Some(contracts_config.state_transition_proxy_addr),
-                    contracts_config.chain_admin_addr,
-                    contracts_config.governance_addr,
-                    self.eth_watch_config.confirmations_for_eth_event,
-                    self.chain_id,
-                )))
-            } else {
-                None
-            };
+        let sl_l2_client: Option<Box<dyn L2EthClient>> = if let Some(gateway_client) =
+            input.gateway_client
+        {
+            let contracts_config: GatewayChainConfig = self.gateway_chain_config.clone().unwrap();
+            Some(Box::new(EthHttpQueryClient::new(
+                gateway_client.0,
+                contracts_config.diamond_proxy_addr,
+                // Only present on L1.
+                None,
+                // Only present on L1.
+                None,
+                // Only present on L1.
+                None,
+                Some(L2_MESSAGE_ROOT_ADDRESS),
+                Some(contracts_config.state_transition_proxy_addr),
+                contracts_config.chain_admin_addr,
+                contracts_config.governance_addr,
+                self.eth_watch_config.confirmations_for_eth_event,
+                self.chain_id,
+            )))
+        } else {
+            None
+        };
 
         let eth_watch = EthWatch::new(
             &chain_admin_contract(),

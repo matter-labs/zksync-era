@@ -6,7 +6,7 @@
 //! required for the rollup to execute L1 batches, it's needed for the proof generation and the Ethereum
 //! transactions, thus the calculations are done separately and asynchronously.
 
-use std::{collections::HashMap, convert::TryFrom};
+use std::{collections::HashMap, convert::TryFrom, str::FromStr};
 
 use serde::{Deserialize, Serialize};
 pub use zksync_basic_types::commitment::{L1BatchCommitmentMode, PubdataParams, PubdataType};
@@ -386,9 +386,14 @@ impl L1BatchAuxiliaryOutput {
                 let merkle_tree_leaves = l2_l1_logs_compressed
                     .chunks(UserL2ToL1Log::SERIALIZED_SIZE)
                     .map(|chunk| <[u8; UserL2ToL1Log::SERIALIZED_SIZE]>::try_from(chunk).unwrap());
-                let local_root = MiniMerkleTree::new(
+                // kl todo separate by version.
+                let local_root = MiniMerkleTree::new_with_empty_leaf_hash(
                     merkle_tree_leaves,
                     Some(l2_to_l1_logs_tree_size(common_input.protocol_version)),
+                    H256::from_str(
+                        "72abee45b59e344af8a6e520241c4744aff26ed411f4c4b00f8af09adada43ba",
+                    )
+                    .unwrap(), // kl todo
                 )
                 .merkle_root();
                 let l2_l1_logs_merkle_root = if common_input.protocol_version.is_pre_gateway() {

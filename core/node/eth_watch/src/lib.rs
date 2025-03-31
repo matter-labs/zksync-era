@@ -17,7 +17,9 @@ use zksync_types::{
 pub use self::client::{EthClient, EthHttpQueryClient, L2EthClient};
 use self::{
     client::{L2EthClientW, RETRY_LIMIT},
-    event_processors::{EventProcessor, EventProcessorError, PriorityOpsEventProcessor},
+    event_processors::{
+        EventProcessor, EventProcessorError, MessageRootProcessor, PriorityOpsEventProcessor,
+    },
     metrics::METRICS,
 };
 use crate::event_processors::{
@@ -79,19 +81,34 @@ impl EthWatch {
             sl_client.clone(),
             l1_client.clone(),
         );
+        let l1_message_root_processor = MessageRootProcessor::new(EventsSource::L1, None);
+        // let
+        // let batch_root_processor = L1BatchRootProcessor::new(
+        //     state.chain_batch_root_number_lower_bound,
+        //     state.batch_merkle_tree,
+        //     chain_id,
+        //     l1_client,
+        // );
         let mut event_processors: Vec<Box<dyn EventProcessor>> = vec![
             Box::new(priority_ops_processor),
             Box::new(decentralized_upgrades_processor),
+            Box::new(l1_message_root_processor),
+            // Box::new(batch_root_processor), // kl todo,
+            // Box::new()
         ];
         if let Some(sl_l2_client) = sl_l2_client {
             let batch_root_processor = BatchRootProcessor::new(
                 state.chain_batch_root_number_lower_bound,
                 state.batch_merkle_tree,
                 chain_id,
-                sl_l2_client,
+                sl_l2_client.clone(),
             );
+            let sl_message_root_processor =
+                MessageRootProcessor::new(EventsSource::SL, Some(sl_l2_client));
             event_processors.push(Box::new(batch_root_processor));
+            event_processors.push(Box::new(sl_message_root_processor));
         }
+
         Ok(Self {
             l1_client,
             sl_client,

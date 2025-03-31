@@ -8,7 +8,8 @@ use std::{
 };
 
 use zksync_types::{
-    Address, StorageKey, StorageLog, StorageLogWithPreviousValue, Transaction, U256,
+    message_root::MessageRoot, Address, StorageKey, StorageLog, StorageLogWithPreviousValue,
+    Transaction, U256,
 };
 
 use super::dump::{DumpingVm, VmDump};
@@ -555,6 +556,13 @@ where
         if let Some(shadow) = self.shadow.get_mut() {
             shadow.vm.start_new_l2_block(l2_block_env);
         }
+    }
+
+    fn insert_message_root(&mut self, _msg_root: MessageRoot) {
+        // self.main.insert_message_root(msg_root);
+        // if let Some(shadow) = self.shadow.get_mut() {
+        // shadow.vm.insert_message_root(msg_root);
+        // }
     }
 
     fn inspect_transaction_with_bytecode_compression(
