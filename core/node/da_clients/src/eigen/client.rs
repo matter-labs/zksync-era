@@ -85,11 +85,7 @@ impl EigenDAClient {
 }
 
 impl EigenDAClient {
-    async fn check_mapping(
-        &self,
-        inclusion_data: &[u8],
-        mapping: &str,
-    ) -> Result<bool, DAError> {
+    async fn check_mapping(&self, inclusion_data: &[u8], mapping: &str) -> Result<bool, DAError> {
         let mut data = vec![];
         let func_selector = ethabi::short_signature(mapping, &[ParamType::Bytes]).to_vec();
         data.extend_from_slice(&func_selector);
