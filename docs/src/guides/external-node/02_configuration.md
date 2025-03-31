@@ -51,7 +51,10 @@ There are variables that allow you to fine-tune the limits of the RPC servers, s
 entries or the limit for the accepted transaction size. Provided files contain sane defaults that are recommended for
 use, but these can be edited, e.g. to make the Node more/less restrictive.
 
-**Some common API limits config:**
+**Some common API limits config:**\
+`EN_MAX_RESPONSE_BODY_SIZE_MB` (default 10 i.e. 10MB) controls max size of a single response. Hitting the limit will result
+in errors similar to:\
+`Response is too big (...)`
 
 - `EN_MAX_RESPONSE_BODY_SIZE_MB` (default is 10 i.e. 10MB) controls max size of a single response. Hitting the limit
   will result in errors similar to: "Response is too big (...)".

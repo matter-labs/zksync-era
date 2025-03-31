@@ -257,12 +257,12 @@ TODO
 |               |                | `-rt, --recursion-tip`            | 🏗️         |
 |               |                | `-s, --scheduler`                 | 🏗️         |
 |               |                | `-c, --compressor`                | 🏗️         |
-|               |                | `-f, --failed`                    | 🏗         |
+|               |                | `-f, --failed`                    | 🏗          |
 | `delete`      |                | `-n <BATCH_NUMBER>`               | ✅️️       |
 |               |                | `-a, --all`                       | ️️✅️️️️️️ |
 | `requeue`     |                | `—b, --batch <BATCH_NUMBER>`      | ✅️        |
 |               |                | `-a, --all`                       | ✅️️       |
-| `config`      |                | `--db-url <DB_URL>`               | 🏗         |
+| `config`      |                | `--db-url <DB_URL>`               | 🏗          |
 | `debug-proof` |                | `--file <FILE>`                   | ✅️        |
 | `file-info`   |                | `--file-path <FILE_PATH>`         | ✅️        |
 | `stats`       |                | `--period <PERIOD>`               | ✅️        |
