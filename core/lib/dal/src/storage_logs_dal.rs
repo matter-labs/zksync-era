@@ -761,6 +761,35 @@ impl StorageLogsDal<'_, '_> {
         });
         Ok(rows.collect())
     }
+
+    /// Returns `true` iff the number of logs for the specified L2 blocks is in the provided range.
+    pub async fn check_storage_log_count(
+        &mut self,
+        l2_block_number: L2BlockNumber,
+        count_to_check: ops::RangeFrom<u32>,
+    ) -> anyhow::Result<bool> {
+        let Some(offset) = count_to_check.start.checked_sub(1) else {
+            return Ok(true); // There are always `0..` logs
+        };
+
+        let row = sqlx::query_scalar!(
+            r#"
+                SELECT TRUE
+                FROM storage_logs
+                WHERE miniblock_number <= $1
+                LIMIT 1 OFFSET $2
+            "#,
+            i64::from(l2_block_number.0),
+            i64::from(offset)
+        )
+        .instrument("check_storage_log_count")
+        .with_arg("l2_block_number", &l2_block_number)
+        .with_arg("offset", &offset)
+        .fetch_optional(self.storage)
+        .await?;
+
+        Ok(row.is_some())
+    }
 }
 
 #[cfg(test)]
@@ -814,6 +843,33 @@ mod tests {
         let log = StorageLog::new_write_log(first_key, H256::repeat_byte(1));
         let other_log = StorageLog::new_write_log(second_key, H256::repeat_byte(2));
         insert_l2_block(&mut conn, 1, vec![log, other_log]).await;
+
+        // Check for `L2BlockNumber(0)` at which no logs are inserted.
+        for count in [1, 2, 3, 4, 10, 100_000, u32::MAX] {
+            println!("count = {count}");
+            assert!(!conn
+                .storage_logs_dal()
+                .check_storage_log_count(L2BlockNumber(0), count..)
+                .await
+                .unwrap());
+        }
+
+        for satisfying_count in [0, 1, 2] {
+            println!("count = {satisfying_count}");
+            assert!(conn
+                .storage_logs_dal()
+                .check_storage_log_count(L2BlockNumber(1), satisfying_count..)
+                .await
+                .unwrap());
+        }
+        for larger_count in [3, 4, 10, 100_000, u32::MAX] {
+            println!("count = {larger_count}");
+            assert!(!conn
+                .storage_logs_dal()
+                .check_storage_log_count(L2BlockNumber(1), larger_count..)
+                .await
+                .unwrap());
+        }
 
         let touched_slots = conn
             .storage_logs_dal()
