@@ -65,8 +65,6 @@ jobs:
     uses: ./.github/workflows/build-tee-prover-template.yml
     if: contains(github.ref_name, 'core')
     secrets:
-      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
-      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
       ATTIC_TOKEN: ${{ secrets.ATTIC_TOKEN }}
     with:
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}

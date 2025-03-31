@@ -11,7 +11,10 @@ use tokio::sync::watch;
 use types::EtherscanVerificationRequest;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_types::{
-    contract_verification::{api::VerificationRequest, etherscan::EtherscanVerification},
+    contract_verification::{
+        api::{SourceCodeData, VerificationRequest},
+        etherscan::EtherscanVerification,
+    },
     secrets::APIKey,
 };
 
@@ -27,6 +30,16 @@ enum ApiErrorRetryPolicy {
     NotRetryable,
     Retryable { pause_duration: Duration },
     IndefinitelyRetryable { pause_duration: Duration },
+}
+
+/// Returns true if the verification request is supported by the Etherscan verifier, otherwise false.
+///
+/// Currently, the verifier supports only Solidity single file and standard JSON input source code data formats.
+pub fn is_supported_verification_request(request: &VerificationRequest) -> bool {
+    matches!(
+        request.req.source_code_data,
+        SourceCodeData::SolSingleFile(_) | SourceCodeData::StandardJsonInput(_)
+    )
 }
 
 fn get_api_error_retry_policy(api_error: &EtherscanError) -> ApiErrorRetryPolicy {
@@ -62,6 +75,12 @@ fn get_api_error_retry_policy(api_error: &EtherscanError) -> ApiErrorRetryPolicy
             // second limit, we can pause for 5 sec.
             ApiErrorRetryPolicy::IndefinitelyRetryable {
                 pause_duration: Duration::from_secs(5),
+            }
+        }
+        EtherscanError::ContractBytecodeNotAvailable => {
+            // This error happens when the contract is not yet indexed by Etherscan.
+            ApiErrorRetryPolicy::Retryable {
+                pause_duration: Duration::from_secs(60), // 1 min
             }
         }
         EtherscanError::Reqwest(_) => {
@@ -441,5 +460,61 @@ impl EtherscanVerifier {
                 .await
                 .ok();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json;
+    use zksync_types::{
+        contract_verification::api::{
+            CompilerVersions, SourceCodeData, VerificationEvmSettings, VerificationIncomingRequest,
+        },
+        web3::Bytes,
+        Address,
+    };
+
+    use super::*;
+
+    fn create_test_request(source_code_data: SourceCodeData) -> VerificationRequest {
+        VerificationRequest {
+            id: 1,
+            req: VerificationIncomingRequest {
+                contract_address: Address::default(),
+                contract_name: "MyContract".to_string(),
+                source_code_data,
+                compiler_versions: CompilerVersions::Solc {
+                    compiler_zksolc_version: None,
+                    compiler_solc_version: "0.8.16".to_string(),
+                },
+                optimization_used: true,
+                optimizer_mode: Some("3".to_string()),
+                constructor_arguments: Bytes::from(vec![0xde, 0xad, 0xbe, 0xef]),
+                is_system: true,
+                force_evmla: true,
+                evm_specific: VerificationEvmSettings {
+                    evm_version: Some("evm version".to_string()),
+                    optimizer_runs: Some(200),
+                },
+            },
+        }
+    }
+
+    #[test]
+    fn test_supported_verification_requests() {
+        let request = create_test_request(SourceCodeData::SolSingleFile(
+            "contract Test {}".to_string(),
+        ));
+        assert!(is_supported_verification_request(&request));
+
+        let request =
+            create_test_request(SourceCodeData::StandardJsonInput(serde_json::Map::new()));
+        assert!(is_supported_verification_request(&request));
+    }
+
+    #[test]
+    fn test_unsupported_verification_requests() {
+        let request = create_test_request(SourceCodeData::YulSingleFile("code".to_string()));
+        assert!(!is_supported_verification_request(&request));
     }
 }

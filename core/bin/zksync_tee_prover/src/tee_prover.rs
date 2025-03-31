@@ -44,7 +44,7 @@ impl WiringLayer for TeeProverLayer {
     }
 
     async fn wire(self, _input: Self::Input) -> Result<Self::Output, WiringError> {
-        let api_url = self.config.api_url.clone();
+        let api_url = self.config.prover_api.api_url.clone();
         let tee_prover = TeeProver {
             config: self.config,
             api_client: TeeApiClient::new(api_url),
@@ -69,7 +69,7 @@ impl fmt::Debug for TeeProver {
 impl TeeProver {
     /// Signs the message in Ethereum-compatible format for on-chain verification.
     pub fn sign_message(&self, message: &H256) -> Result<Signature, TeeProverError> {
-        let private_key: K256PrivateKey = self.config.signing_key.into();
+        let private_key: K256PrivateKey = self.config.sig_conf.signing_key.into();
         let signature =
             sign(&private_key, message).map_err(|e| TeeProverError::Verification(e.into()))?;
         Ok(signature)
@@ -101,7 +101,7 @@ impl TeeProver {
     }
 
     async fn step(&self, public_key: &PublicKey) -> Result<Option<L1BatchNumber>, TeeProverError> {
-        match self.api_client.get_job(self.config.tee_type).await {
+        match self.api_client.get_job(self.config.sig_conf.tee_type).await {
             Ok(Some(job)) => {
                 let (signature, batch_number, root_hash) = self.verify(job)?;
                 self.api_client
@@ -110,7 +110,7 @@ impl TeeProver {
                         signature.into_electrum(),
                         public_key,
                         root_hash,
-                        self.config.tee_type,
+                        self.config.sig_conf.tee_type,
                     )
                     .await?;
                 Ok(Some(batch_number))
@@ -133,9 +133,14 @@ impl Task for TeeProver {
     async fn run(self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
         tracing::info!("Starting the task {}", self.id());
 
-        let config = &self.config;
-        let attestation_quote_bytes = std::fs::read(&config.attestation_quote_file_path)?;
-        let public_key = config.signing_key.public_key(&Secp256k1::new());
+        let config = &self.config.prover_api;
+        let attestation_quote_bytes =
+            std::fs::read(&self.config.sig_conf.attestation_quote_file_path)?;
+        let public_key = self
+            .config
+            .sig_conf
+            .signing_key
+            .public_key(&Secp256k1::new());
         self.api_client
             .register_attestation(attestation_quote_bytes, &public_key)
             .await?;
@@ -198,6 +203,7 @@ mod tests {
     use zksync_crypto_primitives::{public_to_address, recover};
 
     use super::*;
+    use crate::config::{TeeProverApiConfig, TeeProverSigConfig};
 
     #[test]
     fn test_recover() {
@@ -207,14 +213,18 @@ mod tests {
         )
         .unwrap();
         let tee_prover_config = TeeProverConfig {
-            signing_key,
-            attestation_quote_file_path: PathBuf::from("/tmp/mock"),
-            tee_type: TeeType::Sgx,
-            api_url: Url::parse("http://mock").unwrap(),
-            max_retries: TeeProverConfig::default_max_retries(),
-            initial_retry_backoff_sec: TeeProverConfig::default_initial_retry_backoff_sec(),
-            retry_backoff_multiplier: TeeProverConfig::default_retry_backoff_multiplier(),
-            max_backoff_sec: TeeProverConfig::default_max_backoff_sec(),
+            sig_conf: TeeProverSigConfig {
+                signing_key,
+                attestation_quote_file_path: PathBuf::from("/tmp/mock"),
+                tee_type: TeeType::Sgx,
+            },
+            prover_api: TeeProverApiConfig {
+                api_url: Url::parse("http://mock").unwrap(),
+                max_retries: TeeProverApiConfig::default_max_retries(),
+                initial_retry_backoff_sec: TeeProverApiConfig::default_initial_retry_backoff_sec(),
+                retry_backoff_multiplier: TeeProverApiConfig::default_retry_backoff_multiplier(),
+                max_backoff_sec: TeeProverApiConfig::default_max_backoff_sec(),
+            },
         };
         let tee_prover = TeeProver {
             config: tee_prover_config,

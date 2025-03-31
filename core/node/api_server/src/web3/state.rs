@@ -13,7 +13,14 @@ use lru::LruCache;
 use tokio::sync::{Mutex, RwLock};
 use vise::GaugeGuard;
 use zksync_config::{
-    configs::{api::Web3JsonRpcConfig, ContractsConfig},
+    configs::{
+        api::Web3JsonRpcConfig,
+        contracts::{
+            chain::L2Contracts,
+            ecosystem::{EcosystemCommonContracts, L1SpecificContracts},
+            SettlementLayerSpecificContracts,
+        },
+    },
     GenesisConfig,
 };
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
@@ -93,7 +100,53 @@ impl BlockStartInfo {
     }
 }
 
+/// Builder for Configuration values for the API.
+/// We need different step by step initialization for Api config builder,
+/// because of different ways for getting configs for en and main node
+#[derive(Debug, Clone)]
+pub struct InternalApiConfigBase {
+    /// Chain ID of the L1 network. Note, that it may be different from the chain id of the settlement layer.
+    pub l1_chain_id: L1ChainId,
+    pub l2_chain_id: L2ChainId,
+    pub dummy_verifier: bool,
+    pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
+    pub max_tx_size: usize,
+    pub estimate_gas_scale_factor: f64,
+    pub estimate_gas_acceptable_overestimation: u32,
+    pub estimate_gas_optimize_search: bool,
+    pub req_entities_limit: usize,
+    pub fee_history_limit: u64,
+    pub filters_disabled: bool,
+    pub l1_to_l2_txs_paused: bool,
+}
+
+impl InternalApiConfigBase {
+    pub fn new(genesis: &GenesisConfig, web3_config: &Web3JsonRpcConfig) -> Self {
+        Self {
+            l1_chain_id: genesis.l1_chain_id,
+            l2_chain_id: genesis.l2_chain_id,
+            dummy_verifier: genesis.dummy_verifier,
+            l1_batch_commit_data_generator_mode: genesis.l1_batch_commit_data_generator_mode,
+            max_tx_size: web3_config.max_tx_size,
+            estimate_gas_scale_factor: web3_config.estimate_gas_scale_factor,
+            estimate_gas_acceptable_overestimation: web3_config
+                .estimate_gas_acceptable_overestimation,
+            estimate_gas_optimize_search: web3_config.estimate_gas_optimize_search,
+            req_entities_limit: web3_config.req_entities_limit(),
+            fee_history_limit: web3_config.fee_history_limit(),
+            filters_disabled: web3_config.filters_disabled,
+            l1_to_l2_txs_paused: false,
+        }
+    }
+
+    pub fn with_l1_to_l2_txs_paused(mut self, l1_to_l2_txs_paused: bool) -> Self {
+        self.l1_to_l2_txs_paused = l1_to_l2_txs_paused;
+        self
+    }
+}
+
 /// Configuration values for the API.
+///
 /// This structure is detached from `ZkSyncConfig`, since different node types (main, external, etc.)
 /// may require different configuration layouts.
 /// The intention is to only keep the actually used information here.
@@ -107,11 +160,9 @@ pub struct InternalApiConfig {
     pub estimate_gas_acceptable_overestimation: u32,
     pub estimate_gas_optimize_search: bool,
     pub bridge_addresses: api::BridgeAddresses,
+    pub l1_ecosystem_contracts: EcosystemCommonContracts,
     pub l1_bytecodes_supplier_addr: Option<Address>,
     pub l1_wrapped_base_token_store: Option<Address>,
-    pub l1_bridgehub_proxy_addr: Option<Address>,
-    pub l1_state_transition_proxy_addr: Option<Address>,
-    pub l1_transparent_proxy_admin_addr: Option<Address>,
     pub l1_diamond_proxy_addr: Address,
     pub l2_testnet_paymaster_addr: Option<Address>,
     pub req_entities_limit: usize,
@@ -121,72 +172,69 @@ pub struct InternalApiConfig {
     pub dummy_verifier: bool,
     pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
     pub timestamp_asserter_address: Option<Address>,
+    pub l2_multicall3: Option<Address>,
     pub l1_to_l2_txs_paused: bool,
 }
 
 impl InternalApiConfig {
+    pub fn from_base_and_contracts(
+        base: InternalApiConfigBase,
+        l1_contracts_config: &SettlementLayerSpecificContracts,
+        l1_ecosystem_contracts: &L1SpecificContracts,
+        l2_contracts: &L2Contracts,
+    ) -> Self {
+        Self {
+            l1_chain_id: base.l1_chain_id,
+            l2_chain_id: base.l2_chain_id,
+            max_tx_size: base.max_tx_size,
+            estimate_gas_scale_factor: base.estimate_gas_scale_factor,
+            estimate_gas_acceptable_overestimation: base.estimate_gas_acceptable_overestimation,
+            estimate_gas_optimize_search: base.estimate_gas_optimize_search,
+            bridge_addresses: api::BridgeAddresses {
+                l1_erc20_default_bridge: l1_ecosystem_contracts.erc_20_bridge,
+                l2_erc20_default_bridge: Some(l2_contracts.erc20_default_bridge),
+                l1_shared_default_bridge: l1_ecosystem_contracts.shared_bridge,
+                l2_shared_default_bridge: Some(l2_contracts.shared_bridge_addr),
+                // WETH bridge is not available, but SDK doesn't work correctly with none
+                l1_weth_bridge: Some(Address::zero()),
+                l2_weth_bridge: Some(Address::zero()),
+                l2_legacy_shared_bridge: l2_contracts.legacy_shared_bridge_addr,
+            },
+            l1_ecosystem_contracts: l1_contracts_config.ecosystem_contracts.clone(),
+            l1_bytecodes_supplier_addr: l1_ecosystem_contracts.bytecodes_supplier_addr,
+            l1_wrapped_base_token_store: l1_ecosystem_contracts.wrapped_base_token_store,
+            l1_diamond_proxy_addr: l1_contracts_config
+                .chain_contracts_config
+                .diamond_proxy_addr,
+            l2_testnet_paymaster_addr: l2_contracts.testnet_paymaster_addr,
+            req_entities_limit: base.req_entities_limit,
+            fee_history_limit: base.fee_history_limit,
+            base_token_address: Some(l1_ecosystem_contracts.base_token_address),
+            filters_disabled: base.filters_disabled,
+            dummy_verifier: base.dummy_verifier,
+            l1_batch_commit_data_generator_mode: base.l1_batch_commit_data_generator_mode,
+            timestamp_asserter_address: l2_contracts.timestamp_asserter_addr,
+            l2_multicall3: l2_contracts.multicall3,
+            l1_to_l2_txs_paused: base.l1_to_l2_txs_paused,
+        }
+    }
+
     pub fn new(
         web3_config: &Web3JsonRpcConfig,
-        contracts_config: &ContractsConfig,
+        l1_contracts_config: &SettlementLayerSpecificContracts,
+        l1_ecosystem_contracts: &L1SpecificContracts,
+        l2_contracts: &L2Contracts,
         genesis_config: &GenesisConfig,
         l1_to_l2_txs_paused: bool,
     ) -> Self {
-        Self {
-            l1_chain_id: genesis_config.l1_chain_id,
-            l2_chain_id: genesis_config.l2_chain_id,
-            max_tx_size: web3_config.max_tx_size,
-            estimate_gas_scale_factor: web3_config.estimate_gas_scale_factor,
-            estimate_gas_acceptable_overestimation: web3_config
-                .estimate_gas_acceptable_overestimation,
-            estimate_gas_optimize_search: web3_config.estimate_gas_optimize_search,
-            bridge_addresses: api::BridgeAddresses {
-                l1_erc20_default_bridge: contracts_config.l1_erc20_bridge_proxy_addr,
-                l2_erc20_default_bridge: contracts_config.l2_erc20_bridge_addr,
-                l1_shared_default_bridge: contracts_config.l1_shared_bridge_proxy_addr,
-                l2_shared_default_bridge: contracts_config.l2_shared_bridge_addr,
-                l1_weth_bridge: Some(
-                    contracts_config
-                        .l1_weth_bridge_proxy_addr
-                        .unwrap_or_default(),
-                ),
-                l2_weth_bridge: Some(
-                    contracts_config
-                        .l1_weth_bridge_proxy_addr
-                        .unwrap_or_default(),
-                ),
-                l2_legacy_shared_bridge: contracts_config.l2_legacy_shared_bridge_addr,
-            },
-            l1_bridgehub_proxy_addr: contracts_config
-                .ecosystem_contracts
-                .as_ref()
-                .map(|a| a.bridgehub_proxy_addr),
-            l1_state_transition_proxy_addr: contracts_config
-                .ecosystem_contracts
-                .as_ref()
-                .map(|a| a.state_transition_proxy_addr),
-            l1_transparent_proxy_admin_addr: contracts_config
-                .ecosystem_contracts
-                .as_ref()
-                .map(|a| a.transparent_proxy_admin_addr),
-            l1_bytecodes_supplier_addr: contracts_config
-                .ecosystem_contracts
-                .as_ref()
-                .and_then(|a| a.l1_bytecodes_supplier_addr),
-            l1_wrapped_base_token_store: contracts_config
-                .ecosystem_contracts
-                .as_ref()
-                .and_then(|a| a.l1_wrapped_base_token_store),
-            l1_diamond_proxy_addr: contracts_config.diamond_proxy_addr,
-            l2_testnet_paymaster_addr: contracts_config.l2_testnet_paymaster_addr,
-            req_entities_limit: web3_config.req_entities_limit(),
-            fee_history_limit: web3_config.fee_history_limit(),
-            base_token_address: contracts_config.base_token_addr,
-            filters_disabled: web3_config.filters_disabled,
-            dummy_verifier: genesis_config.dummy_verifier,
-            l1_batch_commit_data_generator_mode: genesis_config.l1_batch_commit_data_generator_mode,
-            timestamp_asserter_address: contracts_config.l2_timestamp_asserter_addr,
-            l1_to_l2_txs_paused,
-        }
+        let base = InternalApiConfigBase::new(genesis_config, web3_config)
+            .with_l1_to_l2_txs_paused(l1_to_l2_txs_paused);
+        Self::from_base_and_contracts(
+            base,
+            l1_contracts_config,
+            l1_ecosystem_contracts,
+            l2_contracts,
+        )
     }
 }
 

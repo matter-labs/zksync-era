@@ -7,7 +7,6 @@ pub use zksync_db_connection::{
 
 use crate::{
     cli_test_dal::CliTestDal,
-    fri_gpu_prover_queue_dal::FriGpuProverQueueDal,
     fri_proof_compressor_dal::FriProofCompressorDal,
     fri_protocol_versions_dal::FriProtocolVersionsDal,
     fri_prover_dal::FriProverDal,
@@ -19,7 +18,6 @@ use crate::{
 };
 
 pub mod cli_test_dal;
-pub mod fri_gpu_prover_queue_dal;
 pub mod fri_proof_compressor_dal;
 pub mod fri_protocol_versions_dal;
 pub mod fri_prover_dal;
@@ -53,8 +51,6 @@ where
     fn fri_scheduler_witness_generator_dal(&mut self) -> FriSchedulerWitnessGeneratorDal<'_, 'a>;
 
     fn fri_prover_jobs_dal(&mut self) -> FriProverDal<'_, 'a>;
-
-    fn fri_gpu_prover_queue_dal(&mut self) -> FriGpuProverQueueDal<'_, 'a>;
 
     fn fri_protocol_versions_dal(&mut self) -> FriProtocolVersionsDal<'_, 'a>;
 
@@ -101,10 +97,6 @@ impl<'a> ProverDal<'a> for Connection<'a, Prover> {
 
     fn fri_prover_jobs_dal(&mut self) -> FriProverDal<'_, 'a> {
         FriProverDal { storage: self }
-    }
-
-    fn fri_gpu_prover_queue_dal(&mut self) -> FriGpuProverQueueDal<'_, 'a> {
-        FriGpuProverQueueDal { storage: self }
     }
 
     fn fri_protocol_versions_dal(&mut self) -> FriProtocolVersionsDal<'_, 'a> {

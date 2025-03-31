@@ -12,13 +12,7 @@ impl FromEnv for FriProverConfig {
 
 #[cfg(test)]
 mod tests {
-    use zksync_config::{
-        configs::{
-            fri_prover::{CloudConnectionMode, SetupLoadMode},
-            object_store::ObjectStoreMode,
-        },
-        ObjectStoreConfig,
-    };
+    use zksync_config::{configs::object_store::ObjectStoreMode, ObjectStoreConfig};
 
     use super::*;
     use crate::test_utils::EnvMutex;
@@ -31,12 +25,6 @@ mod tests {
             prometheus_port: 3315,
             max_attempts: 10,
             generation_timeout_in_secs: 300,
-            setup_load_mode: SetupLoadMode::FromDisk,
-            specialized_group_id: 10,
-            queue_capacity: 10,
-            witness_vector_receiver_port: 3316,
-            zone_read_url: "http://metadata.google.internal/computeMetadata/v1/instance/zone"
-                .to_string(),
             prover_object_store: Some(ObjectStoreConfig {
                 mode: ObjectStoreMode::GCSWithCredentialFile {
                     bucket_base_url: "/base/url".to_owned(),
@@ -45,8 +33,6 @@ mod tests {
                 max_retries: 5,
                 local_mirror_path: None,
             }),
-            availability_check_interval_in_secs: Some(1_800),
-            cloud_type: CloudConnectionMode::GCP,
         }
     }
 
@@ -58,16 +44,9 @@ mod tests {
             FRI_PROVER_PROMETHEUS_PORT="3315"
             FRI_PROVER_MAX_ATTEMPTS="10"
             FRI_PROVER_GENERATION_TIMEOUT_IN_SECS="300"
-            FRI_PROVER_SETUP_LOAD_MODE="FromDisk"
-            FRI_PROVER_SPECIALIZED_GROUP_ID="10"
-            FRI_PROVER_QUEUE_CAPACITY="10"
-            FRI_PROVER_WITNESS_VECTOR_RECEIVER_PORT="3316"
-            FRI_PROVER_ZONE_READ_URL="http://metadata.google.internal/computeMetadata/v1/instance/zone"
-            FRI_PROVER_AVAILABILITY_CHECK_INTERVAL_IN_SECS="1800"
             PROVER_OBJECT_STORE_BUCKET_BASE_URL="/base/url"
             PROVER_OBJECT_STORE_MODE="GCSWithCredentialFile"
             PROVER_OBJECT_STORE_GCS_CREDENTIAL_FILE_PATH="/path/to/credentials1.json"
-            PROVER_OBJECT_STORE_MAX_RETRIES="5"
         "#;
         lock.set_env(config);
 
