@@ -480,24 +480,40 @@ impl FriProverDal<'_, '_> {
             sqlx::query!(
                 r#"
                 SELECT
-                    COUNT(*) AS "count!",
+                    COALESCE(SUM(CASE WHEN status = 'queued' THEN 1 ELSE 0 END), 0) AS "count!",
                     circuit_id AS "circuit_id!",
                     aggregation_round AS "aggregation_round!",
-                    status AS "status!",
+                    'queued' AS "status!",
                     protocol_version AS "protocol_version!",
-                    protocol_version_patch AS "protocol_version_patch!"
+                    protocol_version_patch  AS "protocol_version_patch!"
                 FROM
                     prover_jobs_fri
                 WHERE
-                    (
-                        status = 'queued'
-                        OR status = 'in_progress'
-                    )
-                    AND protocol_version IS NOT NULL
+                    protocol_version IS NOT NULL
                 GROUP BY
                     circuit_id,
                     aggregation_round,
-                    status,
+                    "status!",
+                    protocol_version,
+                    protocol_version_patch
+
+                UNION ALL
+
+                SELECT
+                    SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) AS "count!",
+                    circuit_id AS "circuit_id!",
+                    aggregation_round AS "aggregation_round!",
+                    'in_progress' AS "status!",
+                    protocol_version AS "protocol_version!",
+                    protocol_version_patch  AS "protocol_version_patch!"
+                FROM
+                    prover_jobs_fri
+                WHERE
+                    protocol_version IS NOT NULL
+                GROUP BY
+                    circuit_id,
+                    aggregation_round,
+                    "status!",
                     protocol_version,
                     protocol_version_patch
                 "#
