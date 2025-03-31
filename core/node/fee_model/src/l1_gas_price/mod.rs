@@ -34,8 +34,5 @@ pub trait TxParamsProvider: fmt::Debug + 'static + Send + Sync {
     fn get_blob_tx_priority_fee(&self) -> u64;
 
     /// Returns the recommended `max_fee_per_gas` value for gateway transactions.
-    fn get_gateway_tx_base_fee(&self) -> u64;
-
-    /// Returns the recommended `max_fee_per_gas` value for gateway transactions.
-    fn get_gateway_tx_pubdata_price(&self) -> u64;
+    fn get_gateway_tx_pubdata_price(&self, time_in_mempool_in_l1_blocks: u32) -> u64;
 }
