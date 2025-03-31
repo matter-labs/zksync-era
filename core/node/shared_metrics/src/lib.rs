@@ -9,6 +9,7 @@ use zksync_dal::transactions_dal::L2TxSubmissionResult;
 use zksync_types::aggregated_operations::AggregatedActionType;
 
 pub mod metadata;
+pub mod tree;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "stage", rename_all = "snake_case")]

@@ -52,11 +52,11 @@ be pruned after it has been executed on Ethereum.
 
 Pruning can be disabled or enabled and the data retention period can be freely changed during the node lifetime.
 
-> [!WARNING]
->
-> Pruning should be disabled when recovering the Merkle tree (e.g., if a node ran in
-> [the treeless mode](09_treeless_mode.md) before, or if its tree needs a reset for whatever reason). Otherwise, tree
-> recovery will with almost definitely result in an error, or worse, in a corrupted tree.
+```admonish warning
+Pruning should be disabled when recovering the Merkle tree (e.g., if a node ran in
+[the treeless mode](09_treeless_mode.md) before, or if its tree needs a reset for whatever reason). Otherwise, tree
+recovery will with almost definitely result in an error, or worse, in a corrupted tree.
+```
 
 ## Storage requirements for pruned nodes
 
@@ -65,11 +65,11 @@ The storage requirements depend on how long you configure to retain the data, bu
 - **40GB + ~5GB/day of retained data** of disk space needed on machine that runs the node
 - **300GB + ~15GB/day of retained data** of disk space for Postgres
 
-> [!NOTE]
->
-> When pruning an existing archival node, Postgres will be unable to reclaim disk space automatically. To reclaim disk
-> space, you need to manually run `VACUUM FULL`, which requires an `ACCESS EXCLUSIVE` lock. You can read more about it
-> in [Postgres docs](https://www.postgresql.org/docs/current/sql-vacuum.html).
+```admonish note
+When pruning an existing archival node, Postgres will be unable to reclaim disk space automatically. To reclaim disk
+space, you need to manually run `VACUUM FULL`, which requires an `ACCESS EXCLUSIVE` lock. You can read more about it
+in [Postgres docs](https://www.postgresql.org/docs/current/sql-vacuum.html).
+```
 
 ## Monitoring pruning
 
