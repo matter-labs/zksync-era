@@ -18,13 +18,11 @@ pub async fn get_diamond_proxy_contract(
     sl_client: &dyn EthInterface,
     bridgehub_address: Address,
     l2_chain_id: L2ChainId,
-) -> anyhow::Result<Address> {
-    Ok(
-        CallFunctionArgs::new("getHyperchain", Token::Uint(l2_chain_id.as_u64().into()))
-            .for_contract(bridgehub_address, &bridgehub_contract())
-            .call(sl_client)
-            .await?,
-    )
+) -> Result<Address, ContractCallError> {
+    CallFunctionArgs::new("getHyperchain", Token::Uint(l2_chain_id.as_u64().into()))
+        .for_contract(bridgehub_address, &bridgehub_contract())
+        .call(sl_client)
+        .await
 }
 
 /// Load contacts specific for each settlement layer, using bridgehub contract
@@ -41,10 +39,12 @@ pub async fn load_settlement_layer_contracts(
         return Ok(None);
     }
 
-    if !get_protocol_version(diamond_proxy, &hyperchain_contract(), sl_client)
-        .await?
-        .minor
-        .is_post_fflonk()
+    if !ProtocolSemanticVersion::try_from_packed(
+        get_protocol_version(diamond_proxy, &hyperchain_contract(), sl_client).await?,
+    )
+    .map_err(|err| anyhow::format_err!("Failed to unpack semver: {err}"))?
+    .minor
+    .is_post_fflonk()
     {
         return Ok(None);
     }
@@ -92,7 +92,7 @@ pub async fn get_settlement_layer_from_l1(
     eth_client: &dyn EthInterface,
     diamond_proxy_addr: Address,
     abi: &Contract,
-) -> anyhow::Result<SettlementLayer> {
+) -> Result<SettlementLayer, ContractCallError> {
     let address = get_settlement_layer_address(eth_client, diamond_proxy_addr, abi).await?;
     // Due to implementation details if the settlement layer set to zero,
     // that means the current layer is settlement layer
@@ -111,11 +111,14 @@ pub async fn get_settlement_layer_address(
     eth_client: &dyn EthInterface,
     diamond_proxy_addr: Address,
     abi: &Contract,
-) -> anyhow::Result<Address> {
-    if !get_protocol_version(diamond_proxy_addr, abi, eth_client)
-        .await?
-        .minor
-        .is_post_fflonk()
+) -> Result<Address, ContractCallError> {
+    if !ProtocolSemanticVersion::try_from_packed(
+        get_protocol_version(diamond_proxy_addr, &hyperchain_contract(), eth_client).await?,
+    )
+    // It's safe to unwrap it, because we have the same mechanism on l1
+    .unwrap()
+    .minor
+    .is_post_fflonk()
     {
         return Ok(Address::zero());
     }
@@ -144,13 +147,9 @@ async fn get_protocol_version(
     diamond_proxy_addr: Address,
     abi: &Contract,
     eth_client: &dyn EthInterface,
-) -> anyhow::Result<ProtocolSemanticVersion> {
-    let packed_protocol_version: U256 = CallFunctionArgs::new("getProtocolVersion", ())
+) -> Result<U256, ContractCallError> {
+    CallFunctionArgs::new("getProtocolVersion", ())
         .for_contract(diamond_proxy_addr, abi)
         .call(eth_client)
-        .await?;
-
-    let protocol_version = ProtocolSemanticVersion::try_from_packed(packed_protocol_version)
-        .map_err(|err| anyhow::format_err!("Failed to unpack semver: {err}"))?;
-    Ok(protocol_version)
+        .await
 }
