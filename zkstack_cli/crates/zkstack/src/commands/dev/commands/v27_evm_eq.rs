@@ -131,65 +131,6 @@ async fn verify_next_batch_new_version(
     Ok(())
 }
 
-pub(crate) async fn check_l2_ntv_existence(l2_client: &Box<DynClient<L2>>) -> anyhow::Result<()> {
-    let l2_ntv_code = l2_client
-        .get_code(L2_NATIVE_TOKEN_VAULT_ADDRESS, None)
-        .await?;
-    if l2_ntv_code.0.is_empty() {
-        anyhow::bail!(
-            "v27 (EVM Interpreter) upgrade has not yet been completed on the server side"
-        );
-    }
-
-    Ok(())
-}
-
-const L2_TOKENS_CACHE: &'static str = "l2-tokens-cache.json";
-const CONTRACT_DEPLOYED_EVENT: &'static str = "ContractDeployed(address,bytes32,address)";
-
-/// Returns a list of tokens that can be deployed via the L2 legacy shared bridge.
-/// Note that it is a *superset* of all bridged tokens. Some of the deployed contracts
-/// are not tokens. The caller will have to double check for each individual token that it is correct.
-pub async fn get_deployed_by_bridge(
-    l2_rpc_url: &str,
-    l2_shared_bridge_address: Address,
-    block_range: u64,
-) -> anyhow::Result<Vec<Address>> {
-    println!(
-        "Retrieving L2 bridged tokens... If done for the first time, it may take a few minutes"
-    );
-    // Each legacy bridged token is deployed via the legacy shared bridge.
-    let total_logs_for_bridged_tokens = get_logs_for_events(
-        0,
-        &L2_TOKENS_CACHE,
-        l2_rpc_url,
-        block_range,
-        &[(
-            CONTRACT_DEPLOYER_ADDRESS,
-            CONTRACT_DEPLOYED_EVENT,
-            Some(address_to_h256(&l2_shared_bridge_address)),
-        )],
-    )
-    .await;
-    println!("Done!");
-
-    Ok(total_logs_for_bridged_tokens
-        .into_iter()
-        .map(|log| h256_to_address(&log.topics[3]))
-        .collect())
-}
-
-pub(crate) fn get_ethers_provider(url: &str) -> anyhow::Result<Arc<Provider<Http>>> {
-    let provider = match Provider::<Http>::try_from(url) {
-        Ok(provider) => provider,
-        Err(err) => {
-            anyhow::bail!("Connection error: {:#?}", err);
-        }
-    };
-
-    Ok(Arc::new(provider))
-}
-
 pub(crate) fn get_zk_client(url: &str, l2_chain_id: u64) -> anyhow::Result<Box<DynClient<L2>>> {
     let l2_client = Client::http(SensitiveUrl::from_str(url).unwrap())
         .context("failed creating JSON-RPC client for main node")?
@@ -225,29 +166,6 @@ pub async fn check_chain_readiness(
 
     verify_next_batch_new_version(batches_committed, l2_client.as_ref()).await?;
     verify_next_batch_new_version(batches_verified, l2_client.as_ref()).await?;
-
-    Ok(())
-}
-
-async fn verify_correct_l2_wrapped_base_token(
-    l2_rpc_url: String,
-    addr: Address,
-) -> anyhow::Result<()> {
-    // Connect to the L1 Ethereum network
-    let l2_provider = match Provider::<Http>::try_from(&l2_rpc_url) {
-        Ok(provider) => provider,
-        Err(err) => {
-            anyhow::bail!("Connection error: {:#?}", err);
-        }
-    };
-
-    let code = l2_provider.get_code(addr, None).await?;
-
-    if code.len() == 0 {
-        anyhow::bail!("L2 wrapped base token code can not be empty");
-    }
-
-    // TODO(EVM-939): also verify that the code is correct.
 
     Ok(())
 }
