@@ -1,0 +1,23 @@
+[package]
+name = "zksync_gateway_migrator"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+zksync_eth_client.workspace = true
+zksync_basic_types.workspace = true
+tokio.workspace = true
+async-trait.workspace = true
+zksync_contracts.workspace = true
+zksync_config.workspace = true
+zksync_system_constants.workspace = true
+zksync_dal.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+thiserror.workspace = true

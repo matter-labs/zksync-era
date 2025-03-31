@@ -126,7 +126,7 @@ impl TempConfigStore {
     #[allow(deprecated)]
     pub fn wallets(&self) -> Wallets {
         let eth_sender = self.eth_sender_config.as_ref().and_then(|config| {
-            let sender = config.sender.as_ref()?;
+            let sender = config.get_eth_sender_config_for_sender_layer_data_layer()?;
             let operator_private_key = sender.private_key().ok()??;
             let operator = Wallet::new(operator_private_key);
             let blob_operator = sender

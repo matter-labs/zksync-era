@@ -6750,6 +6750,7 @@ dependencies = [
 name = "zksync_eth_client"
 version = "27.1.0-non-semver-compat"
 dependencies = [
+ "anyhow",
  "async-trait",
  "jsonrpsee",
  "rlp",
