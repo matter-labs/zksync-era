@@ -10,13 +10,18 @@ use zksync_config::configs::{
     chain::{OperationsManagerConfig, StateKeeperConfig},
     database::{MerkleTreeConfig, MerkleTreeMode},
 };
-use zksync_dal::CoreDal;
+use zksync_dal::{
+    custom_genesis_export_dal::{GenesisState, StorageLogRow},
+    CoreDal,
+};
 use zksync_health_check::{CheckHealth, HealthStatus, ReactiveHealthCheck};
 use zksync_merkle_tree::{domain::ZkSyncTree, recovery::PersistenceThreadHandle, TreeInstruction};
-use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
+use zksync_node_genesis::{
+    insert_genesis_batch, insert_genesis_batch_with_custom_state, GenesisParams,
+};
 use zksync_node_test_utils::prepare_recovery_snapshot;
 use zksync_storage::RocksDB;
-use zksync_types::L1BatchNumber;
+use zksync_types::{L1BatchNumber, StorageLog};
 
 use super::*;
 use crate::{
@@ -606,4 +611,70 @@ async fn pruning_during_recovery_is_detected() {
     tokio::task::spawn_blocking(RocksDB::await_rocksdb_termination)
         .await
         .unwrap();
+}
+
+async fn insert_large_genesis(storage: &mut Connection<'_, Core>) -> Vec<StorageLog> {
+    let log_count = InitParameters::MIN_STORAGE_LOGS_FOR_GENESIS_RECOVERY * 2;
+    let genesis_logs = gen_storage_logs(100..(log_count + 100), 1).pop().unwrap();
+    let genesis_state = GenesisState {
+        storage_logs: genesis_logs
+            .iter()
+            .map(|log| StorageLogRow {
+                address: log.key.address().0,
+                key: log.key.key().0,
+                value: log.value.0,
+            })
+            .collect(),
+        factory_deps: vec![], // Not necessary for tests
+    };
+    insert_genesis_batch_with_custom_state(storage, &GenesisParams::mock(), Some(genesis_state))
+        .await
+        .unwrap();
+    genesis_logs
+}
+
+#[tokio::test]
+async fn init_params_for_large_genesis_state() {
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let genesis_logs = insert_large_genesis(&mut pool.connection().await.unwrap()).await;
+
+    let config = MetadataCalculatorRecoveryConfig::default();
+    let init_params = InitParameters::new(&pool, &config)
+        .await
+        .unwrap()
+        .expect("no init params");
+    assert_eq!(init_params.l1_batch, L1BatchNumber(0));
+    assert_eq!(init_params.l2_block, L2BlockNumber(0));
+    assert_eq!(init_params.log_count, genesis_logs.len() as u64);
+    assert!(init_params.expected_root_hash.is_some());
+}
+
+#[tokio::test]
+async fn entire_workflow_with_large_genesis_state() {
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut genesis_logs = insert_large_genesis(&mut pool.connection().await.unwrap()).await;
+    let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
+
+    let config = mock_config(temp_dir.path());
+    let calculator = MetadataCalculator::new(config, None, pool).await.unwrap();
+    let tree_reader = calculator.tree_reader();
+
+    let (stop_sender, stop_receiver) = watch::channel(false);
+    let calculator_task = tokio::spawn(calculator.run(stop_receiver));
+    let tree_reader = tree_reader.wait().await.unwrap();
+    let tree_info = tree_reader.info().await;
+    assert_eq!(tree_info.leaf_count, genesis_logs.len() as u64);
+
+    genesis_logs.sort_unstable_by_key(|log| log.key);
+    let tree_instructions: Vec<_> = genesis_logs
+        .into_iter()
+        .enumerate()
+        .map(|(i, log)| TreeInstruction::write(log.key.hashed_key_u256(), i as u64 + 1, log.value))
+        .collect();
+    let expected_genesis_root_hash =
+        ZkSyncTree::process_genesis_batch(&tree_instructions).root_hash;
+    assert_eq!(tree_info.root_hash, expected_genesis_root_hash);
+
+    stop_sender.send_replace(true);
+    calculator_task.await.unwrap().unwrap();
 }

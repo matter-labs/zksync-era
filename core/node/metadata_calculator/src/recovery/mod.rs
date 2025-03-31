@@ -119,6 +119,14 @@ struct InitParameters {
 }
 
 impl InitParameters {
+    /// Minimum number of storage logs in the genesis state to initiate recovery.
+    const MIN_STORAGE_LOGS_FOR_GENESIS_RECOVERY: u32 = if cfg!(test) {
+        // Select the smaller threshold for tests, but make it large enough so that it's not triggered by unrelated tests.
+        1_000
+    } else {
+        100_000
+    };
+
     async fn new(
         pool: &ConnectionPool<Core>,
         config: &MetadataCalculatorRecoveryConfig,
@@ -156,7 +164,22 @@ impl InitParameters {
                 l1_batch = pruned.l1_batch;
                 expected_root_hash = pruned.l1_batch_root_hash;
             }
-            (None, None) => return Ok(None),
+            (None, None) => {
+                // Check whether we need recovery for the genesis state. This could be necessary if the genesis state
+                // for the chain is very large (order of millions of entries).
+                let is_genesis_recovery_needed =
+                    Self::is_genesis_recovery_needed(&mut storage).await?;
+                if is_genesis_recovery_needed {
+                    l2_block = L2BlockNumber(0);
+                    l1_batch = L1BatchNumber(0);
+                    expected_root_hash = storage
+                        .blocks_dal()
+                        .get_l1_batch_state_root(l1_batch)
+                        .await?;
+                } else {
+                    return Ok(None);
+                }
+            }
         };
 
         let log_count = storage
@@ -171,6 +194,26 @@ impl InitParameters {
             log_count,
             desired_chunk_size: config.desired_chunk_size,
         }))
+    }
+
+    #[tracing::instrument(level = "debug", skip_all)]
+    async fn is_genesis_recovery_needed(
+        storage: &mut Connection<'_, Core>,
+    ) -> anyhow::Result<bool> {
+        let sealed_l1_batch = storage.blocks_dal().get_sealed_l1_batch_number().await?;
+        if sealed_l1_batch != Some(L1BatchNumber(0)) {
+            tracing::debug!(?sealed_l1_batch, "Latest sealed L1 batch mismatch");
+            return Ok(false);
+        }
+
+        // We get the full log count later, but for now do a faster query to understand the approximate amount.
+        storage
+            .storage_logs_dal()
+            .check_storage_log_count(
+                L2BlockNumber(0),
+                Self::MIN_STORAGE_LOGS_FOR_GENESIS_RECOVERY..,
+            )
+            .await
     }
 
     fn chunk_count(&self) -> u64 {
@@ -401,6 +444,7 @@ impl AsyncTreeRecovery {
         pool: &ConnectionPool<Core>,
         stop_receiver: &watch::Receiver<bool>,
     ) -> anyhow::Result<bool> {
+        dbg!(&key_chunk);
         let acquire_connection_latency =
             RECOVERY_METRICS.chunk_latency[&ChunkRecoveryStage::AcquireConnection].start();
         let mut storage = pool.connection_tagged("metadata_calculator").await?;
@@ -420,6 +464,7 @@ impl AsyncTreeRecovery {
         drop(storage);
 
         let entries_latency = entries_latency.observe();
+        dbg!(all_entries.len());
         tracing::debug!(
             "Loaded {} entries for chunk {key_chunk:?} in {entries_latency:?}",
             all_entries.len()
