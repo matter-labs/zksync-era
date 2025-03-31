@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt::Debug, hash::Hash, str::FromStr};
+use std::{collections::HashMap, fmt::Debug, hash::Hash, str::FromStr, sync::Arc};
 
 use chrono::Utc;
 use debug_map_sorted::SortedOutputExt;
@@ -41,41 +41,44 @@ impl<K: Eq + Hash + Copy> Pool<K> {
     }
 }
 
+#[derive(Debug, Default)]
+pub struct ScalerConfig {
+    /// Cluster usage priority when there is no other strong signal. Smaller value is used first.
+    pub cluster_priorities: HashMap<ClusterName, u32>,
+    pub apply_min_to_namespace: Option<NamespaceName>,
+    pub long_pending_duration: chrono::Duration,
+    pub scale_errors_duration: chrono::Duration,
+    pub need_to_move_duration: chrono::Duration,
+}
+
 #[derive(Debug)]
 pub struct Scaler<K> {
     pub queue_report_field: QueueReportFields,
     pub deployment: DeploymentName,
-    /// Cluster usage priority when there is no other strong signal. Smaller value is used first.
-    cluster_priorities: HashMap<ClusterName, u32>,
-    apply_min_to_namespace: Option<NamespaceName>,
     min_replicas: usize,
     max_replicas: HashMap<ClusterName, HashMap<K, usize>>,
     // TODO Add default speed for default K
     speed: HashMap<K, usize>,
-    long_pending_duration: chrono::Duration,
+
+    config: Arc<ScalerConfig>,
 }
 
 impl<K: Key> Scaler<K> {
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
         queue_report_field: QueueReportFields,
         deployment: DeploymentName,
         min_replicas: usize,
         max_replicas: HashMap<ClusterName, HashMap<K, usize>>,
         speed: HashMap<K, usize>,
-        cluster_priorities: HashMap<ClusterName, u32>,
-        apply_min_to_namespace: Option<NamespaceName>,
-        long_pending_duration: chrono::Duration,
+        config: Arc<ScalerConfig>,
     ) -> Self {
         Self {
             queue_report_field,
             deployment,
-            cluster_priorities,
-            apply_min_to_namespace,
             min_replicas,
             max_replicas,
             speed,
-            long_pending_duration,
+            config,
         }
     }
 
@@ -103,7 +106,7 @@ impl<K: Key> Scaler<K> {
                 scale_errors: namespace_value
                     .scale_errors
                     .iter()
-                    .filter(|v| v.time > Utc::now() - chrono::Duration::hours(1)) // TODO Move the duration into config.
+                    .filter(|v| v.time > Utc::now() - self.config.scale_errors_duration)
                     .count(),
                 ..Default::default()
             });
@@ -112,10 +115,10 @@ impl<K: Key> Scaler<K> {
             e.pods.insert(PodStatus::Running, 0);
         }
 
-        let recent_scale_errors = namespace_value
+        let need_to_move_errors = namespace_value
             .scale_errors
             .iter()
-            .filter(|v| v.time > Utc::now() - chrono::Duration::minutes(4)) // TODO Move the duration into config. This should be at least x2 or run interval.
+            .filter(|v| v.time > Utc::now() - self.config.need_to_move_duration)
             .count();
 
         for (pod, pod_value) in namespace_value.pods.iter() {
@@ -130,9 +133,9 @@ impl<K: Key> Scaler<K> {
             });
             let mut status = PodStatus::from_str(&pod_value.status).unwrap_or_default();
             if status == PodStatus::Pending {
-                if pod_value.changed < Utc::now() - self.long_pending_duration {
+                if pod_value.changed < Utc::now() - self.config.long_pending_duration {
                     status = PodStatus::LongPending;
-                } else if recent_scale_errors > 0 {
+                } else if need_to_move_errors > 0 {
                     status = PodStatus::NeedToMove;
                 }
             }
@@ -170,10 +173,16 @@ impl<K: Key> Scaler<K> {
                 ) // Sort by long Pending pods.
                 .then(a.scale_errors.cmp(&b.scale_errors)) // Sort by scale_errors in the cluster.
                 .then(
-                    self.cluster_priorities
+                    self.config
+                        .cluster_priorities
                         .get(&a.name)
                         .unwrap_or(&u32::MAX)
-                        .cmp(self.cluster_priorities.get(&b.name).unwrap_or(&u32::MAX)),
+                        .cmp(
+                            self.config
+                                .cluster_priorities
+                                .get(&b.name)
+                                .unwrap_or(&u32::MAX),
+                        ),
                 ) // Sort by priority.
                 .then(b.max_pool_size.cmp(&a.max_pool_size)) // Reverse sort by cluster size.
         });
@@ -215,7 +224,7 @@ impl<K: Key> Scaler<K> {
 
         // Increase queue size, if it's too small, to make sure that required min_replicas are
         // running.
-        let queue: usize = if self.apply_min_to_namespace == Some(namespace.clone()) {
+        let queue: usize = if self.config.apply_min_to_namespace == Some(namespace.clone()) {
             self.normalize_queue(K::default(), queue)
                 .max(self.pods_to_speed(K::default(), self.min_replicas))
         } else {
@@ -399,6 +408,14 @@ mod tests {
     #[tracing_test::traced_test]
     #[test]
     fn test_calculate() {
+        let config = Arc::new(ScalerConfig {
+            cluster_priorities: [("foo".into(), 0), ("bar".into(), 10)].into(),
+            apply_min_to_namespace: Some("prover-other".into()),
+            long_pending_duration: chrono::Duration::seconds(600),
+            scale_errors_duration: chrono::Duration::seconds(3600),
+            need_to_move_duration: chrono::Duration::seconds(4 * 60),
+        });
+
         let scaler = Scaler::<GpuKey>::new(
             QueueReportFields::prover_jobs,
             "circuit-prover-gpu".into(),
@@ -409,9 +426,7 @@ mod tests {
             ]
             .into(),
             [(GpuKey(Gpu::L4), 500), (GpuKey(Gpu::T4), 100)].into(),
-            [("foo".into(), 0), ("bar".into(), 10)].into(),
-            Some("prover-other".into()),
-            chrono::Duration::seconds(600),
+            config,
         );
 
         assert_eq!(
@@ -541,6 +556,14 @@ mod tests {
     #[tracing_test::traced_test]
     #[test]
     fn test_calculate_min_provers() {
+        let config = Arc::new(ScalerConfig {
+            cluster_priorities: [("foo".into(), 0), ("bar".into(), 10)].into(),
+            apply_min_to_namespace: Some("prover".into()),
+            long_pending_duration: chrono::Duration::seconds(600),
+            scale_errors_duration: chrono::Duration::seconds(3600),
+            need_to_move_duration: chrono::Duration::seconds(4 * 60),
+        });
+
         let scaler = Scaler::new(
             QueueReportFields::prover_jobs,
             "circuit-prover-gpu".into(),
@@ -551,9 +574,7 @@ mod tests {
             ]
             .into(),
             [(GpuKey(Gpu::L4), 500), (GpuKey(Gpu::T4), 100)].into(),
-            [("foo".into(), 0), ("bar".into(), 10)].into(),
-            Some("prover".into()),
-            chrono::Duration::seconds(600),
+            config,
         );
 
         assert_eq!(
@@ -740,6 +761,14 @@ mod tests {
     #[tracing_test::traced_test]
     #[test]
     fn test_calculate_need_move() {
+        let config = Arc::new(ScalerConfig {
+            cluster_priorities: [("foo".into(), 0), ("bar".into(), 10)].into(),
+            apply_min_to_namespace: Some("prover".into()),
+            long_pending_duration: chrono::Duration::seconds(600),
+            scale_errors_duration: chrono::Duration::seconds(3600),
+            need_to_move_duration: chrono::Duration::seconds(4 * 60),
+        });
+
         let scaler = Scaler::new(
             QueueReportFields::prover_jobs,
             "circuit-prover-gpu".into(),
@@ -750,9 +779,7 @@ mod tests {
             ]
             .into(),
             [(GpuKey(Gpu::L4), 500), (GpuKey(Gpu::T4), 100)].into(),
-            [("foo".into(), 0), ("bar".into(), 10)].into(),
-            Some("prover".into()),
-            chrono::Duration::seconds(600),
+            config,
         );
 
         assert_eq!(
@@ -860,6 +887,14 @@ mod tests {
     #[tracing_test::traced_test]
     #[test]
     fn test_calculate_nokey() {
+        let config = Arc::new(ScalerConfig {
+            cluster_priorities: [("foo".into(), 0), ("bar".into(), 10)].into(),
+            apply_min_to_namespace: None,
+            long_pending_duration: chrono::Duration::seconds(600),
+            scale_errors_duration: chrono::Duration::seconds(3600),
+            need_to_move_duration: chrono::Duration::seconds(4 * 60),
+        });
+
         let scaler = Scaler::<NoKey>::new(
             QueueReportFields::prover_jobs,
             "some-deployment".into(),
@@ -870,9 +905,7 @@ mod tests {
             ]
             .into(),
             [(NoKey(), 10)].into(),
-            [("foo".into(), 0), ("bar".into(), 10)].into(),
-            None,
-            chrono::Duration::seconds(600),
+            config,
         );
 
         assert_eq!(
@@ -1025,15 +1058,21 @@ mod tests {
     #[tracing_test::traced_test]
     #[test]
     fn test_convert_to_pool() {
+        let config = Arc::new(ScalerConfig {
+            cluster_priorities: [("foo".into(), 0), ("bar".into(), 10)].into(),
+            apply_min_to_namespace: Some("prover".into()),
+            long_pending_duration: chrono::Duration::seconds(600),
+            scale_errors_duration: chrono::Duration::seconds(3600),
+            need_to_move_duration: chrono::Duration::seconds(4 * 60),
+        });
+
         let scaler = Scaler::new(
             QueueReportFields::prover_jobs,
             "circuit-prover-gpu".into(),
             2,
             [("foo".into(), [(GpuKey(Gpu::L4), 100)].into())].into(),
             [(GpuKey(Gpu::L4), 500)].into(),
-            [("foo".into(), 0), ("bar".into(), 10)].into(),
-            Some("prover".into()),
-            chrono::Duration::minutes(10),
+            config,
         );
 
         let cluster = &Cluster {

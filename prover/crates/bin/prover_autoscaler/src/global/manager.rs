@@ -1,8 +1,8 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use super::{
     queuer,
-    scaler::{Scaler, ScalerTrait},
+    scaler::{Scaler, ScalerConfig, ScalerTrait},
     watcher,
 };
 use crate::{
@@ -40,6 +40,21 @@ impl Manager {
 
         let mut scalers: Vec<Box<dyn ScalerTrait + Sync + Send>> = Vec::default();
         let mut jobs = Vec::default();
+
+        let scaler_config = Arc::new(ScalerConfig {
+            cluster_priorities: config.cluster_priorities,
+            apply_min_to_namespace: config.apply_min_to_namespace,
+            long_pending_duration: chrono::Duration::seconds(
+                config.long_pending_duration.as_secs() as i64,
+            ),
+            scale_errors_duration: chrono::Duration::seconds(
+                config.scale_errors_duration.as_secs() as i64,
+            ),
+            need_to_move_duration: chrono::Duration::seconds(
+                config.need_to_move_duration.as_secs() as i64,
+            ),
+        });
+
         for c in &config.scaler_targets {
             jobs.push(c.queue_report_field);
             match c.scaler_target_type {
@@ -52,9 +67,7 @@ impl Manager {
                         .map(|(k, v)| (k.clone(), v.into_map_gpukey()))
                         .collect(),
                     c.speed.into_map_gpukey(),
-                    config.cluster_priorities.clone(),
-                    config.apply_min_to_namespace.clone(),
-                    chrono::Duration::seconds(config.long_pending_duration.as_secs() as i64),
+                    scaler_config.clone(),
                 ))),
                 ScalerTargetType::Simple => scalers.push(Box::new(Scaler::<NoKey>::new(
                     c.queue_report_field,
@@ -65,9 +78,7 @@ impl Manager {
                         .map(|(k, v)| (k.clone(), v.into_map_nokey()))
                         .collect(),
                     c.speed.into_map_nokey(),
-                    config.cluster_priorities.clone(),
-                    config.apply_min_to_namespace.clone(),
-                    chrono::Duration::seconds(config.long_pending_duration.as_secs() as i64),
+                    scaler_config.clone(),
                 ))),
             };
         }

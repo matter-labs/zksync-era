@@ -67,6 +67,18 @@ pub struct ProverAutoscalerScalerConfig {
         default = "ProverAutoscalerScalerConfig::default_long_pending_duration"
     )]
     pub long_pending_duration: Duration,
+    /// Duration of scaler errors during which Autoscaler includes scale errors into calculation.
+    #[serde(
+        with = "humantime_serde",
+        default = "ProverAutoscalerScalerConfig::default_scale_errors_duration"
+    )]
+    pub scale_errors_duration: Duration,
+    /// Duration of scaler errors during which Autoscaler force moves pods to different cluster.
+    #[serde(
+        with = "humantime_serde",
+        default = "ProverAutoscalerScalerConfig::default_need_to_move_duration"
+    )]
+    pub need_to_move_duration: Duration,
     /// List of simple autoscaler targets.
     pub scaler_targets: Vec<ScalerTarget>,
     /// If dry-run enabled don't send any scale requests.
@@ -176,6 +188,16 @@ impl ProverAutoscalerScalerConfig {
     /// Default long_pending_duration -- 10m
     pub fn default_long_pending_duration() -> Duration {
         Duration::from_secs(600)
+    }
+
+    /// Default long_pending_duration -- 1h
+    pub fn default_scale_errors_duration() -> Duration {
+        Duration::from_secs(3600)
+    }
+
+    /// Default long_pending_duration -- 4m
+    pub fn default_need_to_move_duration() -> Duration {
+        Duration::from_secs(4 * 60)
     }
 }
 
