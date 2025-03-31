@@ -103,7 +103,7 @@ impl<K: Key> Scaler<K> {
                 scale_errors: namespace_value
                     .scale_errors
                     .iter()
-                    .filter(|v| v.time < Utc::now() - chrono::Duration::hours(1)) // TODO Move the duration into config.
+                    .filter(|v| v.time > Utc::now() - chrono::Duration::hours(1)) // TODO Move the duration into config.
                     .count(),
                 ..Default::default()
             });
@@ -115,7 +115,7 @@ impl<K: Key> Scaler<K> {
         let recent_scale_errors = namespace_value
             .scale_errors
             .iter()
-            .filter(|v| v.time < Utc::now() - chrono::Duration::minutes(4)) // TODO Move the duration into config. This should be at least x2 or run interval.
+            .filter(|v| v.time > Utc::now() - chrono::Duration::minutes(4)) // TODO Move the duration into config. This should be at least x2 or run interval.
             .count();
 
         for (pod, pod_value) in namespace_value.pods.iter() {
@@ -806,7 +806,7 @@ mod tests {
                                         scale_errors: vec![ScaleEvent {
                                             name: "circuit-prover-gpu-7c5f8fc747-gmtc2.123456"
                                                 .into(),
-                                            time: Utc::now() - chrono::Duration::hours(1)
+                                            time: Utc::now() - chrono::Duration::minutes(3)
                                         }],
                                     },
                                 )]
@@ -1019,6 +1019,77 @@ mod tests {
             ]
             .into(),
             "Preserve running"
+        );
+    }
+
+    #[tracing_test::traced_test]
+    #[test]
+    fn test_convert_to_pool() {
+        let scaler = Scaler::new(
+            QueueReportFields::prover_jobs,
+            "circuit-prover-gpu".into(),
+            2,
+            [("foo".into(), [(GpuKey(Gpu::L4), 100)].into())].into(),
+            [(GpuKey(Gpu::L4), 500)].into(),
+            [("foo".into(), 0), ("bar".into(), 10)].into(),
+            Some("prover".into()),
+            chrono::Duration::minutes(10),
+        );
+
+        let cluster = &Cluster {
+            name: "foo".into(),
+            namespaces: [(
+                "prover".into(),
+                Namespace {
+                    deployments: [("circuit-prover-gpu".into(), Deployment::default())].into(),
+                    pods: [
+                        (
+                            "circuit-prover-gpu-7c5f8fc747-gmtcr".into(),
+                            Pod {
+                                status: "Running".into(),
+                                ..Default::default()
+                            },
+                        ),
+                        (
+                            "circuit-prover-gpu-7c5f8fc747-12345".into(),
+                            Pod {
+                                status: "Pending".into(),
+                                changed: Utc::now() - chrono::Duration::minutes(15),
+                                ..Default::default()
+                            },
+                        ),
+                        (
+                            "circuit-prover-gpu-7c5f8fc747-12346".into(),
+                            Pod {
+                                status: "Pending".into(),
+                                changed: Utc::now() - chrono::Duration::minutes(2),
+                                ..Default::default()
+                            },
+                        ),
+                    ]
+                    .into(),
+                    scale_errors: vec![ScaleEvent {
+                        name: "".into(),
+                        time: Utc::now() - chrono::Duration::minutes(1),
+                    }],
+                },
+            )]
+            .into(),
+        };
+        assert_eq!(
+            scaler.convert_to_pool(&"prover".into(), cluster),
+            vec![Pool {
+                name: "foo".into(),
+                key: GpuKey(Gpu::L4),
+                pods: [
+                    (PodStatus::NeedToMove, 1),
+                    (PodStatus::LongPending, 1),
+                    (PodStatus::Running, 1)
+                ]
+                .into(),
+                scale_errors: 1,
+                max_pool_size: 100,
+            }]
         );
     }
 }

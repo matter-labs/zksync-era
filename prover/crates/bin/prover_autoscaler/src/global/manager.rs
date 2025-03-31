@@ -7,7 +7,7 @@ use super::{
 };
 use crate::{
     agent::ScaleRequest,
-    cluster_types::{ClusterName, Clusters, NamespaceName},
+    cluster_types::{ClusterName, NamespaceName},
     config::{ProverAutoscalerScalerConfig, QueueReportFields, ScalerTargetType},
     key::{GpuKey, NoKey},
     metrics::AUTOSCALER_METRICS,
@@ -81,22 +81,6 @@ impl Manager {
     }
 }
 
-/// is_namespace_running returns true if there are some pods running in it.
-fn is_namespace_running(namespace: &NamespaceName, clusters: &Clusters) -> bool {
-    clusters
-        .clusters
-        .values()
-        .flat_map(|v| v.namespaces.iter())
-        .filter_map(|(k, v)| if k == namespace { Some(v) } else { None })
-        .flat_map(|v| v.deployments.values())
-        .map(
-            |d| d.running + d.desired, // If there is something running or expected to run, we
-                                       // should re-evaluate the namespace.
-        )
-        .sum::<usize>()
-        > 0
-}
-
 #[async_trait::async_trait]
 impl Task for Manager {
     async fn invoke(&self) -> anyhow::Result<()> {
@@ -123,9 +107,7 @@ impl Task for Manager {
                         "Running eval for namespace {ns}, PPV {ppv}, scaler {} found queue {q}",
                         scaler.deployment()
                     );
-                    if q > 0 || is_namespace_running(ns, &guard.clusters) {
-                        scaler.run(ns, q, &guard.clusters, &mut scale_requests);
-                    }
+                    scaler.run(ns, q, &guard.clusters, &mut scale_requests);
                 }
             }
         } // Unlock self.watcher.data.
