@@ -444,7 +444,6 @@ impl AsyncTreeRecovery {
         pool: &ConnectionPool<Core>,
         stop_receiver: &watch::Receiver<bool>,
     ) -> anyhow::Result<bool> {
-        dbg!(&key_chunk);
         let acquire_connection_latency =
             RECOVERY_METRICS.chunk_latency[&ChunkRecoveryStage::AcquireConnection].start();
         let mut storage = pool.connection_tagged("metadata_calculator").await?;
@@ -464,7 +463,6 @@ impl AsyncTreeRecovery {
         drop(storage);
 
         let entries_latency = entries_latency.observe();
-        dbg!(all_entries.len());
         tracing::debug!(
             "Loaded {} entries for chunk {key_chunk:?} in {entries_latency:?}",
             all_entries.len()
