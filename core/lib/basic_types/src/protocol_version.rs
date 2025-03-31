@@ -21,6 +21,7 @@ pub const PACKED_SEMVER_MINOR_OFFSET: u32 = 32;
 pub const PACKED_SEMVER_MINOR_MASK: u32 = 0xFFFF;
 
 /// `ProtocolVersionId` is a unique identifier of the protocol version.
+///
 /// Note, that it is an identifier of the `minor` semver version of the protocol, with
 /// the `major` version being `0`. Also, the protocol version on the contracts may contain
 /// potential minor versions, that may have different contract behavior (e.g. Verifier), but it should not

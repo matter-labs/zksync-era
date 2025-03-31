@@ -9,8 +9,7 @@ use zksync_basic_types::H256;
 use crate::{types::Leaf, BatchOutput, HashTree, TreeEntry};
 
 /// Operation on a Merkle tree entry used in [`BatchTreeProof`].
-#[derive(Debug, Clone, Copy)]
-#[cfg_attr(test, derive(PartialEq))]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum TreeOperation {
     /// Operation hitting an existing entry (i.e., an update or read).
     Hit { index: u64 },
@@ -29,6 +28,13 @@ pub struct IntermediateHash {
     pub location: (u8, u64),
 }
 
+#[cfg(not(test))]
+impl From<H256> for IntermediateHash {
+    fn from(value: H256) -> Self {
+        Self { value }
+    }
+}
+
 /// Partial view of the Merkle tree returned from [`BatchTreeProof::verify()`].
 #[derive(Debug)]
 pub struct MerkleTreeView {
@@ -42,7 +48,7 @@ pub struct MerkleTreeView {
 ///
 /// # How it's verified
 ///
-/// Assumes that the tree before insertion is correctly constructed (in particular, leaves are correctly linked via prev / next index).
+/// Assumes that the tree before insertion is correctly constructed (in particular, leaves are correctly linked via next index).
 /// Given that, proof verification is as follows:
 ///
 /// 1. Check that all necessary leaves are present in `sorted_leaves`, and their keys match inserted / updated entries.
@@ -108,6 +114,14 @@ impl BatchTreeProof {
         );
         if let Some((max_idx, _)) = self.sorted_leaves.iter().next_back() {
             anyhow::ensure!(*max_idx < prev_output.leaf_count, "Index is too large");
+        }
+
+        if self.operations.is_empty() && self.read_operations.is_empty() {
+            // Degenerate case: there are no operations to be proven.
+            return Ok(MerkleTreeView {
+                root_hash: prev_output.root_hash,
+                read_entries: HashMap::new(),
+            });
         }
 
         let mut read_entries = HashMap::with_capacity(read_keys.len());
@@ -183,7 +197,6 @@ impl BatchTreeProof {
                         Leaf {
                             key: entry.key,
                             value: entry.value,
-                            prev_index,
                             next_index,
                         },
                     );
@@ -192,9 +205,6 @@ impl BatchTreeProof {
                     // in this case, prev / next index will be set correctly once the leaf is created.
                     if let Some(prev_leaf) = self.sorted_leaves.get_mut(&prev_index) {
                         prev_leaf.next_index = this_index;
-                    }
-                    if let Some(next_leaf) = self.sorted_leaves.get_mut(&next_index) {
-                        next_leaf.prev_index = this_index;
                     }
                 }
             }
@@ -242,7 +252,6 @@ impl BatchTreeProof {
                 let old_next_leaf = self.sorted_leaves.get(&old_next_index).with_context(|| {
                     format!("old next leaf {old_next_index} for {key:?} is not proven")
                 })?;
-                anyhow::ensure!(old_next_leaf.prev_index == prev_index);
                 anyhow::ensure!(*key < old_next_leaf.key);
             }
         }
@@ -272,44 +281,25 @@ impl BatchTreeProof {
             "There are entries with duplicate keys"
         );
 
-        let mut min_leaf_index = 1;
-        let mut max_leaf_index = 0;
-        let sorted_leaves = entries.iter().enumerate().map(|(i, entry)| {
-            let this_index = i as u64 + 2;
-
+        let sorted_leaves = entries.iter().map(|entry| {
             // The key itself is guaranteed to be the first yielded item, hence `skip(1)`.
             let mut it = index_by_key.range(entry.key..).skip(1);
-            let next_index = it.next().map(|(_, idx)| *idx).unwrap_or_else(|| {
-                max_leaf_index = this_index;
-                1
-            });
-            let prev_index = index_by_key
-                .range(..entry.key)
-                .map(|(_, idx)| *idx)
-                .next_back()
-                .unwrap_or_else(|| {
-                    min_leaf_index = this_index;
-                    0
-                });
+            let next_index = it.next().map(|(_, idx)| *idx).unwrap_or(1);
 
             Leaf {
                 key: entry.key,
                 value: entry.value,
-                prev_index,
                 next_index,
             }
         });
         let sorted_leaves: Vec<_> = sorted_leaves.collect();
 
+        let min_leaf_index = index_by_key.values().next().copied().unwrap_or(1);
         let min_guard = Leaf {
             next_index: min_leaf_index,
             ..Leaf::MIN_GUARD
         };
-        let max_guard = Leaf {
-            prev_index: max_leaf_index,
-            ..Leaf::MAX_GUARD
-        };
-        let leaves_with_guards = [(0, &min_guard), (1, &max_guard)]
+        let leaves_with_guards = [(0, &min_guard), (1, &Leaf::MAX_GUARD)]
             .into_iter()
             .chain((2..).zip(&sorted_leaves));
 
@@ -348,7 +338,7 @@ impl BatchTreeProof {
                     i += 1;
                     let lhs = hashes.next().context("ran out of hashes")?;
                     #[cfg(test)]
-                    assert_eq!(lhs.location, (depth, current_idx - 1));
+                    anyhow::ensure!(lhs.location == (depth, current_idx - 1));
 
                     hasher.hash_branch(&lhs.value, &current_hash)
                 } else if let Some((_, next_hash)) = node_hashes
@@ -365,7 +355,7 @@ impl BatchTreeProof {
                     } else {
                         let rhs = hashes.next().context("ran out of hashes")?;
                         #[cfg(test)]
-                        assert_eq!(rhs.location, (depth, current_idx + 1));
+                        anyhow::ensure!(rhs.location == (depth, current_idx + 1));
                         rhs.value
                     };
                     hasher.hash_branch(&current_hash, &rhs)
@@ -399,7 +389,7 @@ mod tests {
             .root_hash;
         assert_eq!(
             hash,
-            "0x8a41011d351813c31088367deecc9b70677ecf15ffc24ee450045cdeaf447f63"
+            "0x90a83ead2ba2194fbbb0f7cd2a017e36cfb4891513546d943a7282c2844d4b6b"
                 .parse()
                 .unwrap()
         );
@@ -414,7 +404,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             tree_view.root_hash,
-            "0x91a1688c802dc607125d0b5e5ab4d95d89a4a4fb8cca71a122db6076cb70f8f3"
+            "0x08da20879eebed16fbd14e50b427bb97c8737aa860e6519877757e238df83a15"
                 .parse()
                 .unwrap()
         );
@@ -431,7 +421,7 @@ mod tests {
 
         let empty_tree_output = BatchOutput {
             leaf_count: 2,
-            root_hash: "0x8a41011d351813c31088367deecc9b70677ecf15ffc24ee450045cdeaf447f63"
+            root_hash: "0x90a83ead2ba2194fbbb0f7cd2a017e36cfb4891513546d943a7282c2844d4b6b"
                 .parse()
                 .unwrap(),
         };
@@ -450,7 +440,7 @@ mod tests {
 
         assert_eq!(
             tree_view.root_hash,
-            "0x91a1688c802dc607125d0b5e5ab4d95d89a4a4fb8cca71a122db6076cb70f8f3"
+            "0x08da20879eebed16fbd14e50b427bb97c8737aa860e6519877757e238df83a15"
                 .parse()
                 .unwrap()
         );
@@ -467,7 +457,7 @@ mod tests {
 
         let empty_tree_output = BatchOutput {
             leaf_count: 2,
-            root_hash: "0x8a41011d351813c31088367deecc9b70677ecf15ffc24ee450045cdeaf447f63"
+            root_hash: "0x90a83ead2ba2194fbbb0f7cd2a017e36cfb4891513546d943a7282c2844d4b6b"
                 .parse()
                 .unwrap(),
         };
@@ -496,7 +486,7 @@ mod tests {
 
         let empty_tree_output = BatchOutput {
             leaf_count: 2,
-            root_hash: "0x8a41011d351813c31088367deecc9b70677ecf15ffc24ee450045cdeaf447f63"
+            root_hash: "0x90a83ead2ba2194fbbb0f7cd2a017e36cfb4891513546d943a7282c2844d4b6b"
                 .parse()
                 .unwrap(),
         };
@@ -515,7 +505,7 @@ mod tests {
 
         assert_eq!(
             tree_view.root_hash,
-            "0x91a1688c802dc607125d0b5e5ab4d95d89a4a4fb8cca71a122db6076cb70f8f3"
+            "0x08da20879eebed16fbd14e50b427bb97c8737aa860e6519877757e238df83a15"
                 .parse()
                 .unwrap()
         );

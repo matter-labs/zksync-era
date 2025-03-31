@@ -169,6 +169,7 @@ const INITIAL_BASE_PAGE: u32 = 8;
 pub const BOOTLOADER_HEAP_PAGE: u32 = heap_page_from_base(MemoryPage(INITIAL_BASE_PAGE)).0;
 
 /// VM Hooks are used for communication between bootloader and tracers.
+///
 /// The 'type' / 'opcode' is put into VM_HOOK_POSITION slot,
 /// and VM_HOOKS_PARAMS_COUNT parameters (each 32 bytes) are put in the slots before.
 /// So the layout looks like this:
@@ -182,6 +183,7 @@ pub(crate) const fn get_vm_hook_params_start_position(subversion: MultiVmSubvers
 }
 
 /// Method that provides the start position of the vm hook in the memory for the latest version of v1.5.0.
+///
 /// This method is used only in `test_infra` in the bootloader tests and that's why it should be exposed.
 pub const fn get_vm_hook_start_position_latest() -> u32 {
     get_vm_hook_params_start_position(MultiVmSubversion::IncreasedBootloaderMemory)
@@ -193,6 +195,7 @@ pub(crate) const fn get_result_success_first_slot(subversion: MultiVmSubversion)
 }
 
 /// How many gas bootloader is allowed to spend within one block.
+///
 /// Note that this value doesn't correspond to the gas limit of any particular transaction
 /// (except for the fact that, of course, gas limit for each transaction should be <= `BLOCK_GAS_LIMIT`).
 
@@ -201,6 +204,7 @@ pub const BATCH_COMPUTATIONAL_GAS_LIMIT: u32 =
 
 /// The maximal number of gas that is supposed to be spent in a batch. This value is displayed in the system context as well
 /// as the API for each batch.
+///
 /// Using any number that fits into `i64` is fine with regard to any popular eth node implementation, but we also desire to use
 /// values that fit into safe JS numbers just in case for compatibility.
 pub const BATCH_GAS_LIMIT: u64 = 1 << 50;

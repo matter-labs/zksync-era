@@ -45,7 +45,7 @@
             inherit (appliedOverlay.zksync-era) zksync tee_prover zkstack foundry-zksync;
             default = appliedOverlay.zksync-era.tee_prover;
           } // (pkgs.lib.optionalAttrs (pkgs.stdenv.hostPlatform.isx86_64 && pkgs.stdenv.hostPlatform.isLinux) {
-            inherit (appliedOverlay.zksync-era) container-tee-prover-azure container-tee-prover-dcap;
+            inherit (appliedOverlay.zksync-era) container-tee-prover-azure container-tee-prover-dcap container-tee-prover-tdx;
           });
 
           devShells = {

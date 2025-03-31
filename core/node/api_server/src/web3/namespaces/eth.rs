@@ -62,6 +62,8 @@ impl EthNamespace {
     ) -> Result<Bytes, Web3Error> {
         let block_id = block_id.unwrap_or(BlockId::Number(BlockNumber::Pending));
         self.current_method().set_block_id(block_id);
+        self.current_method()
+            .observe_state_override(state_override.as_ref());
 
         let mut connection = self.state.acquire_connection().await?;
         let block_args = self
@@ -100,6 +102,9 @@ impl EthNamespace {
         _block: Option<BlockNumber>,
         state_override: Option<StateOverride>,
     ) -> Result<U256, Web3Error> {
+        self.current_method()
+            .observe_state_override(state_override.as_ref());
+
         let mut request_with_gas_per_pubdata_overridden = request;
         self.state
             .set_nonce_for_call_request(&mut request_with_gas_per_pubdata_overridden)

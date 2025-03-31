@@ -3,17 +3,20 @@ use std::collections::HashSet;
 use zksync_crypto_primitives::hasher::blake2::Blake2Hasher;
 
 use super::*;
-use crate::{leaf_nibbles, DefaultTreeParams, MerkleTree, TreeEntry, TreeParams};
+use crate::{
+    leaf_nibbles, storage::patch::InsertedLeaf, DefaultTreeParams, MerkleTree, TreeEntry,
+    TreeParams,
+};
 
 #[test]
 fn creating_min_update_for_empty_tree() {
-    let update = TreeUpdate::for_empty_tree(&[]).unwrap();
+    let update = TreeUpdate::for_empty_tree::<TreeEntry>(&[]).unwrap();
     assert_eq!(update.version, 0);
     assert!(update.updates.is_empty());
 
     assert_eq!(update.inserts.len(), 2);
-    assert_eq!(update.inserts[0], Leaf::MIN_GUARD);
-    assert_eq!(update.inserts[1], Leaf::MAX_GUARD);
+    assert_eq!(update.inserts[0].leaf, Leaf::MIN_GUARD);
+    assert_eq!(update.inserts[1].leaf, Leaf::MAX_GUARD);
 
     assert_eq!(update.sorted_new_leaves.len(), 2);
     assert_eq!(
@@ -50,37 +53,31 @@ fn creating_non_empty_update_for_empty_tree() {
 
     assert_eq!(update.inserts.len(), 4);
     assert_eq!(
-        update.inserts[0],
+        update.inserts[0].leaf,
         Leaf {
             next_index: 3,
             ..Leaf::MIN_GUARD
         }
     );
+    assert_eq!(update.inserts[1].leaf, Leaf::MAX_GUARD);
     assert_eq!(
-        update.inserts[1],
-        Leaf {
-            prev_index: 2,
-            ..Leaf::MAX_GUARD
-        }
-    );
-    assert_eq!(
-        update.inserts[2],
+        update.inserts[2].leaf,
         Leaf {
             key: H256::repeat_byte(2),
             value: H256::from_low_u64_be(1),
-            prev_index: 3,
             next_index: 1,
         }
     );
+    assert_eq!(update.inserts[2].prev_index, None);
     assert_eq!(
-        update.inserts[3],
+        update.inserts[3].leaf,
         Leaf {
             key: H256::repeat_byte(1),
             value: H256::from_low_u64_be(2),
-            prev_index: 0,
             next_index: 2,
         }
     );
+    assert_eq!(update.inserts[3].prev_index, None);
 
     assert_eq!(update.sorted_new_leaves.len(), 4);
     assert_eq!(
@@ -119,7 +116,7 @@ fn test_creating_empty_tree<P: TreeParams<Hasher = Blake2Hasher>>() {
     }
 
     let mut patch = WorkingPatchSet::<P>::empty();
-    let final_update = patch.update(TreeUpdate::for_empty_tree(&[]).unwrap());
+    let final_update = patch.update(TreeUpdate::for_empty_tree::<TreeEntry>(&[]).unwrap());
     assert_eq!(final_update.version, 0);
 
     {
@@ -148,7 +145,7 @@ fn test_creating_empty_tree<P: TreeParams<Hasher = Blake2Hasher>>() {
 
     assert_eq!(root.root_node.children.len(), 1);
     let expected_root_hash: H256 =
-        "0x8a41011d351813c31088367deecc9b70677ecf15ffc24ee450045cdeaf447f63"
+        "0x90a83ead2ba2194fbbb0f7cd2a017e36cfb4891513546d943a7282c2844d4b6b"
             .parse()
             .unwrap();
     assert_eq!(root.hash::<P>(&Blake2Hasher), expected_root_hash);
@@ -187,7 +184,7 @@ where
     assert_eq!(root.leaf_count, 3);
 
     let expected_root_hash: H256 =
-        "0x91a1688c802dc607125d0b5e5ab4d95d89a4a4fb8cca71a122db6076cb70f8f3"
+        "0x08da20879eebed16fbd14e50b427bb97c8737aa860e6519877757e238df83a15"
             .parse()
             .unwrap();
     assert_eq!(root.hash::<P>(&Blake2Hasher), expected_root_hash);
@@ -212,7 +209,7 @@ where
     }
 
     let mut patch = WorkingPatchSet::<P>::empty();
-    let final_update = patch.update(TreeUpdate::for_empty_tree(&[]).unwrap());
+    let final_update = patch.update(TreeUpdate::for_empty_tree::<TreeEntry>(&[]).unwrap());
     let (patch, ..) = patch.finalize(&Blake2Hasher, final_update);
 
     let merkle_tree = MerkleTree::<_, P>::with_hasher(patch, Blake2Hasher).unwrap();
@@ -230,8 +227,8 @@ where
 
     assert!(update.updates.is_empty());
     assert_eq!(update.inserts.len(), 1);
-    assert_eq!(update.inserts[0].prev_index, 0);
-    assert_eq!(update.inserts[0].next_index, 1);
+    assert_eq!(update.inserts[0].prev_index, Some(0));
+    assert_eq!(update.inserts[0].leaf.next_index, 1);
     assert_eq!(update.sorted_new_leaves.len(), 1);
     assert_eq!(
         update.sorted_new_leaves[&new_entry.key],
@@ -252,19 +249,12 @@ where
                 ..Leaf::MIN_GUARD
             }
         );
-        assert_eq!(
-            patch.leaves[&1],
-            Leaf {
-                prev_index: 2,
-                ..Leaf::MAX_GUARD
-            }
-        );
+        assert_eq!(patch.leaves[&1], Leaf::MAX_GUARD);
         assert_eq!(
             patch.leaves[&2],
             Leaf {
                 key: new_entry.key,
                 value: new_entry.value,
-                prev_index: 0,
                 next_index: 1,
             }
         );
@@ -276,7 +266,7 @@ where
     assert_eq!(new_patch.patches_by_version.len(), 1);
     let root = new_patch.patches_by_version[&1].root();
     let expected_root_hash: H256 =
-        "0x91a1688c802dc607125d0b5e5ab4d95d89a4a4fb8cca71a122db6076cb70f8f3"
+        "0x08da20879eebed16fbd14e50b427bb97c8737aa860e6519877757e238df83a15"
             .parse()
             .unwrap();
     assert_eq!(root.hash::<P>(&Blake2Hasher), expected_root_hash);
@@ -301,7 +291,7 @@ where
     }
 
     let mut patch = WorkingPatchSet::<P>::empty();
-    let final_update = patch.update(TreeUpdate::for_empty_tree(&[]).unwrap());
+    let final_update = patch.update(TreeUpdate::for_empty_tree::<TreeEntry>(&[]).unwrap());
     let (patch, ..) = patch.finalize(&Blake2Hasher, final_update);
 
     let mut merkle_tree = MerkleTree::<_, P>::with_hasher(patch, Blake2Hasher).unwrap();
@@ -323,7 +313,7 @@ where
     merkle_tree.db.apply_patch(new_patch).unwrap();
 
     let expected_root_hash: H256 =
-        "0x20881c4aa37e3be665cc078db2727f0fc821bc5d9f09f053bb9a93ebd2799fcf"
+        "0xf227612db17b44a5c9a2ebd0e4ff2dbe91aa05f3198d09f0bcfd6ef16c1d28c8"
             .parse()
             .unwrap();
     assert_eq!(merkle_tree.root_hash(1).unwrap(), Some(expected_root_hash));
@@ -352,7 +342,7 @@ where
     merkle_tree.db.apply_patch(new_patch).unwrap();
 
     let expected_root_hash: H256 =
-        "0x4b6bd61930a8dee1bc412d8a38780f098137be9edbf29c078546b7492748d251"
+        "0x81a600569c2cda27c7ae4773255acc70ac318a49404fa1035a7734a3aaa82589"
             .parse()
             .unwrap();
     assert_eq!(merkle_tree.root_hash(2).unwrap(), Some(expected_root_hash));
@@ -398,11 +388,13 @@ where
 
     assert_eq!(
         update.inserts,
-        [Leaf {
-            key: second_entry.key,
-            value: second_entry.value,
-            prev_index: 2,
-            next_index: 1,
+        [InsertedLeaf {
+            prev_index: Some(2),
+            leaf: Leaf {
+                key: second_entry.key,
+                value: second_entry.value,
+                next_index: 1,
+            },
         }]
     );
     assert_eq!(update.updates, [(2, updated_entry.value)]);
@@ -417,7 +409,7 @@ where
     merkle_tree.db.apply_patch(new_patch).unwrap();
 
     let expected_root_hash: H256 =
-        "0x4b6bd61930a8dee1bc412d8a38780f098137be9edbf29c078546b7492748d251"
+        "0x81a600569c2cda27c7ae4773255acc70ac318a49404fa1035a7734a3aaa82589"
             .parse()
             .unwrap();
     assert_eq!(merkle_tree.root_hash(1).unwrap(), Some(expected_root_hash));
@@ -444,7 +436,9 @@ fn patch_is_reduced_for_readonly_workload() {
         .unwrap();
 
     let read_keys = [H256::repeat_byte(1), H256::repeat_byte(2)];
-    let (mut patch, update) = merkle_tree.create_patch(0, &[], &read_keys).unwrap();
+    let (mut patch, update) = merkle_tree
+        .create_patch::<TreeEntry>(0, &[], &read_keys)
+        .unwrap();
     assert_eq!(update.inserts, []);
     assert_eq!(update.updates, []);
     assert_eq!(update.missing_reads_count, 1);
@@ -504,7 +498,6 @@ fn patch_is_reduced_for_mixed_workload() {
     let expected_leaf = Leaf {
         key: H256::repeat_byte(1),
         value: H256::zero(),
-        prev_index: 0,
         next_index: 1,
     };
     assert_eq!(patch.inner().leaves, HashMap::from([(2, expected_leaf)]));
@@ -604,7 +597,6 @@ fn using_patched_database() {
     let new_leaf = Leaf {
         key: new_entry.key,
         value: new_entry.value,
-        prev_index: 0,
         next_index: 1,
     };
     assert_eq!(
