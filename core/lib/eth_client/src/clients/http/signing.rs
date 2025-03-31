@@ -112,7 +112,6 @@ impl<S: EthereumSigner, Net: Network> BoundEthInterface for SigningClient<S, Net
         self.inner.sender_account
     }
 
-    #[allow(clippy::too_many_arguments)]
     async fn sign_prepared_tx_for_addr(
         &self,
         data: Vec<u8>,

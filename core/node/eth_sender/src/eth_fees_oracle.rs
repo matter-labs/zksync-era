@@ -15,7 +15,6 @@ pub(crate) struct EthFees {
     pub(crate) base_fee_per_gas: u64,
     pub(crate) priority_fee_per_gas: u64,
     pub(crate) blob_base_fee_per_gas: Option<u64>,
-    #[allow(dead_code)]
     pub(crate) max_gas_per_pubdata_price: Option<u64>,
     pub(crate) gas_limit: u64,
 }
