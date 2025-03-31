@@ -678,3 +678,47 @@ async fn entire_workflow_with_large_genesis_state() {
     stop_sender.send_replace(true);
     calculator_task.await.unwrap().unwrap();
 }
+
+#[tokio::test]
+async fn fault_tolerance_for_large_genesis_state() {
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    insert_large_genesis(&mut pool.connection().await.unwrap()).await;
+    let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
+
+    let config = MetadataCalculatorRecoveryConfig::default();
+    let (tree, _) = create_tree_recovery(temp_dir.path(), L1BatchNumber(0), &config).await;
+    let (stop_sender, stop_receiver) = watch::channel(false);
+
+    // Process 3 chunks and stop.
+    let recovered_chunk_count = 3;
+    let recovery_options = RecoveryOptions {
+        chunk_count: 10,
+        concurrency_limit: 1,
+        events: Box::new(TestEventListener::new(recovered_chunk_count, stop_sender)),
+    };
+    let init_params = InitParameters::new(&pool, &config)
+        .await
+        .unwrap()
+        .expect("no init params");
+    assert!(tree
+        .recover(init_params, recovery_options, &pool, &stop_receiver)
+        .await
+        .unwrap()
+        .is_none());
+
+    // Restart recovery and process the remaining chunks
+    let (tree, _) = create_tree_recovery(temp_dir.path(), L1BatchNumber(0), &config).await;
+    let (stop_sender, stop_receiver) = watch::channel(false);
+    let recovery_options = RecoveryOptions {
+        chunk_count: 10,
+        concurrency_limit: 1,
+        events: Box::new(
+            TestEventListener::new(u64::MAX, stop_sender)
+                .expect_recovered_chunks(recovered_chunk_count),
+        ),
+    };
+    tree.recover(init_params, recovery_options, &pool, &stop_receiver)
+        .await
+        .unwrap()
+        .expect("Tree recovery unexpectedly aborted");
+}
