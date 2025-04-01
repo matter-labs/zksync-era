@@ -86,6 +86,9 @@ impl EigenDAClient {
 }
 
 impl EigenDAClient {
+    /// This function checks a mapping with form
+    /// `mapping(bytes) -> bool` in the EigenDA registry contract.
+    /// The name of the mapping is passed as a parameter.
     async fn check_mapping(&self, inclusion_data: &[u8], mapping: &str) -> Result<bool, DAError> {
         let mut data = vec![];
         let func_selector = ethabi::short_signature(mapping, &[ParamType::Bytes]).to_vec();
