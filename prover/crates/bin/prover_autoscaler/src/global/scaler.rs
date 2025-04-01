@@ -405,17 +405,19 @@ mod tests {
         key::{Gpu, GpuKey, NoKey},
     };
 
-    #[tracing_test::traced_test]
-    #[test]
-    fn test_calculate() {
-        let config = Arc::new(ScalerConfig {
+    fn scaler_config(apply_min_to_namespace: &str) -> Arc<ScalerConfig> {
+        Arc::new(ScalerConfig {
             cluster_priorities: [("foo".into(), 0), ("bar".into(), 10)].into(),
-            apply_min_to_namespace: Some("prover-other".into()),
+            apply_min_to_namespace: Some(apply_min_to_namespace.into()),
             long_pending_duration: chrono::Duration::seconds(600),
             scale_errors_duration: chrono::Duration::seconds(3600),
             need_to_move_duration: chrono::Duration::seconds(4 * 60),
-        });
+        })
+    }
 
+    #[tracing_test::traced_test]
+    #[test]
+    fn test_calculate() {
         let scaler = Scaler::<GpuKey>::new(
             QueueReportFields::prover_jobs,
             "circuit-prover-gpu".into(),
@@ -426,7 +428,7 @@ mod tests {
             ]
             .into(),
             [(GpuKey(Gpu::L4), 500), (GpuKey(Gpu::T4), 100)].into(),
-            config,
+            scaler_config("prover-other"),
         );
 
         assert_eq!(
@@ -556,14 +558,6 @@ mod tests {
     #[tracing_test::traced_test]
     #[test]
     fn test_calculate_min_provers() {
-        let config = Arc::new(ScalerConfig {
-            cluster_priorities: [("foo".into(), 0), ("bar".into(), 10)].into(),
-            apply_min_to_namespace: Some("prover".into()),
-            long_pending_duration: chrono::Duration::seconds(600),
-            scale_errors_duration: chrono::Duration::seconds(3600),
-            need_to_move_duration: chrono::Duration::seconds(4 * 60),
-        });
-
         let scaler = Scaler::new(
             QueueReportFields::prover_jobs,
             "circuit-prover-gpu".into(),
@@ -574,7 +568,7 @@ mod tests {
             ]
             .into(),
             [(GpuKey(Gpu::L4), 500), (GpuKey(Gpu::T4), 100)].into(),
-            config,
+            scaler_config("prover"),
         );
 
         assert_eq!(
@@ -761,14 +755,6 @@ mod tests {
     #[tracing_test::traced_test]
     #[test]
     fn test_calculate_need_move() {
-        let config = Arc::new(ScalerConfig {
-            cluster_priorities: [("foo".into(), 0), ("bar".into(), 10)].into(),
-            apply_min_to_namespace: Some("prover".into()),
-            long_pending_duration: chrono::Duration::seconds(600),
-            scale_errors_duration: chrono::Duration::seconds(3600),
-            need_to_move_duration: chrono::Duration::seconds(4 * 60),
-        });
-
         let scaler = Scaler::new(
             QueueReportFields::prover_jobs,
             "circuit-prover-gpu".into(),
@@ -779,7 +765,7 @@ mod tests {
             ]
             .into(),
             [(GpuKey(Gpu::L4), 500), (GpuKey(Gpu::T4), 100)].into(),
-            config,
+            scaler_config("prover"),
         );
 
         assert_eq!(
@@ -887,14 +873,6 @@ mod tests {
     #[tracing_test::traced_test]
     #[test]
     fn test_calculate_nokey() {
-        let config = Arc::new(ScalerConfig {
-            cluster_priorities: [("foo".into(), 0), ("bar".into(), 10)].into(),
-            apply_min_to_namespace: None,
-            long_pending_duration: chrono::Duration::seconds(600),
-            scale_errors_duration: chrono::Duration::seconds(3600),
-            need_to_move_duration: chrono::Duration::seconds(4 * 60),
-        });
-
         let scaler = Scaler::<NoKey>::new(
             QueueReportFields::prover_jobs,
             "some-deployment".into(),
@@ -905,7 +883,7 @@ mod tests {
             ]
             .into(),
             [(NoKey(), 10)].into(),
-            config,
+            scaler_config(""),
         );
 
         assert_eq!(
@@ -1058,21 +1036,13 @@ mod tests {
     #[tracing_test::traced_test]
     #[test]
     fn test_convert_to_pool() {
-        let config = Arc::new(ScalerConfig {
-            cluster_priorities: [("foo".into(), 0), ("bar".into(), 10)].into(),
-            apply_min_to_namespace: Some("prover".into()),
-            long_pending_duration: chrono::Duration::seconds(600),
-            scale_errors_duration: chrono::Duration::seconds(3600),
-            need_to_move_duration: chrono::Duration::seconds(4 * 60),
-        });
-
         let scaler = Scaler::new(
             QueueReportFields::prover_jobs,
             "circuit-prover-gpu".into(),
             2,
             [("foo".into(), [(GpuKey(Gpu::L4), 100)].into())].into(),
             [(GpuKey(Gpu::L4), 500)].into(),
-            config,
+            scaler_config("prover"),
         );
 
         let cluster = &Cluster {
