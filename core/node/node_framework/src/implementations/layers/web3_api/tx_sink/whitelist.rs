@@ -1,9 +1,8 @@
 use async_trait::async_trait;
-use tokio::time::interval;
 use zksync_config::configs::api::DeploymentAllowlist;
 use zksync_node_api_server::tx_sender::{
     master_pool_sink::MasterPoolSink,
-    whitelist::{AllowListTask, SharedAllowList, WhitelistedDeployPoolSink},
+    whitelist::{AllowListTask, WhitelistedDeployPoolSink},
 };
 
 use crate::{
@@ -49,18 +48,10 @@ impl WiringLayer for WhitelistedMasterPoolSinkLayer {
         let pool = input.master_pool.get().await?;
         let master_pool_sink = MasterPoolSink::new(pool);
 
-        let shared_allowlist = SharedAllowList::new();
+        let allow_list_task = AllowListTask::from_config(self.deployment_allowlist);
 
-        let allow_list_task = AllowListTask::new(
-            self.deployment_allowlist
-                .http_file_url()
-                .expect("DeploymentAllowlist must contain a URL")
-                .to_string(),
-            self.deployment_allowlist.refresh_interval(),
-            shared_allowlist.clone(),
-        );
-
-        let tx_sink = WhitelistedDeployPoolSink::new(master_pool_sink, shared_allowlist).into();
+        let tx_sink =
+            WhitelistedDeployPoolSink::new(master_pool_sink, allow_list_task.clone()).into();
 
         Ok(Output {
             tx_sink,
@@ -80,44 +71,26 @@ impl Task for AllowListTask {
     }
 
     async fn run(self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        let mut ticker = interval(self.refresh_interval());
+        let mut etag: Option<String> = None;
 
-        loop {
-            tokio::select! {
-                _ = ticker.tick() => {
-                    if *stop_receiver.0.borrow_and_update() {
-                        tracing::info!("AllowListTask received shutdown signal");
-                        break;
-                    }
+        while !*stop_receiver.0.borrow_and_update() {
+            match self.fetch(etag.as_deref()).await {
+                Ok(Some((new_list, new_etag))) => {
+                    let allowlist = self.allowlist();
+                    let mut lock = allowlist.write().await;
 
-                    match self.fetch().await {
-                        Ok(Some(new_list)) => {
-                            let writer = self.allowlist().writer();
-                            let mut lock = writer.write().await;
-
-                            if *lock != new_list {
-                                *lock = new_list;
-                                tracing::debug!("Allowlist updated. {} entries loaded.", lock.len());
-                            } else {
-                                tracing::debug!("Allowlist unchanged (same content).");
-                            }
-                        }
-                        Ok(None) => {
-                            // ETag said "not modified"
-                        }
-                        Err(err) => {
-                            tracing::warn!("Failed to refresh allowlist: {}", err);
-                        }
-                    }
+                    *lock = new_list;
+                    etag = new_etag;
+                    tracing::debug!("Allowlist updated. {} entries loaded.", lock.len());
                 }
-
-                _ = stop_receiver.0.changed() => {
-                    if *stop_receiver.0.borrow() {
-                        tracing::info!("AllowListTask received shutdown signal (alt path)");
-                        break;
-                    }
+                Ok(None) => {
+                    tracing::debug!("Allowlist not updated (ETag matched).");
+                }
+                Err(err) => {
+                    tracing::warn!("Failed to refresh allowlist: {}", err);
                 }
             }
+            let _ = tokio::time::timeout(self.refresh_interval(), stop_receiver.0.changed()).await;
         }
 
         Ok(())

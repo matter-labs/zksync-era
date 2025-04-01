@@ -3,9 +3,10 @@ use std::{collections::HashSet, sync::Arc, time::Duration};
 use reqwest::Client;
 use serde::Deserialize;
 use tokio::sync::RwLock;
+use zksync_config::configs::api::DeploymentAllowlist;
 use zksync_dal::transactions_dal::L2TxSubmissionResult;
 use zksync_multivm::interface::{tracer::ValidationTraces, VmEvent};
-use zksync_types::{h256_to_address, l2::L2Tx, Address, CONTRACT_DEPLOYER_ADDRESS};
+use zksync_types::{h256_to_address, l2::L2Tx, Address, CONTRACT_DEPLOYER_ADDRESS, H160};
 
 use crate::{
     execution_sandbox::SandboxExecutionOutput,
@@ -17,14 +18,14 @@ use crate::{
 #[derive(Debug)]
 pub struct WhitelistedDeployPoolSink {
     master_pool_sink: MasterPoolSink,
-    shared_allow_list: SharedAllowList,
+    allow_list_task: AllowListTask,
 }
 
 impl WhitelistedDeployPoolSink {
-    pub fn new(master_pool_sink: MasterPoolSink, shared_allow_list: SharedAllowList) -> Self {
+    pub fn new(master_pool_sink: MasterPoolSink, allow_list_task: AllowListTask) -> Self {
         Self {
             master_pool_sink,
-            shared_allow_list,
+            allow_list_task,
         }
     }
 }
@@ -54,7 +55,7 @@ impl TxSink for WhitelistedDeployPoolSink {
 
         for deployer_address in deployer_addresses {
             if !self
-                .shared_allow_list
+                .allow_list_task
                 .is_address_allowed(&deployer_address)
                 .await
             {
@@ -74,72 +75,57 @@ impl TxSink for WhitelistedDeployPoolSink {
     }
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct SharedAllowList {
-    inner: Arc<RwLock<HashSet<Address>>>,
-}
-
-impl SharedAllowList {
-    pub fn new() -> Self {
-        Self {
-            inner: Arc::new(RwLock::new(HashSet::new())),
-        }
-    }
-    /// Returns the internal writer, useful for updating from node_framework
-    pub fn writer(&self) -> Arc<RwLock<HashSet<Address>>> {
-        Arc::clone(&self.inner)
-    }
-
-    /// Checks if the given address is in the allowlist
-    pub async fn is_address_allowed(&self, address: &Address) -> bool {
-        self.inner.read().await.contains(address)
-    }
-}
-
 #[derive(Debug, Deserialize)]
 struct WhitelistResponse {
     addresses: Vec<Address>,
 }
 
 /// Task that periodically fetches and updates the allowlist from a remote HTTP source.
-#[derive(Debug)]
+#[derive(Debug, Default, Clone)]
 pub struct AllowListTask {
     url: String,
     refresh_interval: Duration,
-    allowlist: SharedAllowList,
+    allowlist: Arc<RwLock<HashSet<Address>>>,
     client: Client,
-    etag: tokio::sync::Mutex<Option<String>>,
 }
 
 impl AllowListTask {
     const REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
-    pub fn new(url: String, refresh_interval: Duration, allowlist: SharedAllowList) -> Self {
+    pub fn from_config(deployment_allowlist: DeploymentAllowlist) -> Self {
         Self {
-            url,
-            refresh_interval,
-            allowlist,
+            url: deployment_allowlist
+                .http_file_url()
+                .expect("DeploymentAllowlist must contain a URL")
+                .to_string(),
+            refresh_interval: deployment_allowlist.refresh_interval(),
+            allowlist: Arc::new(RwLock::new(HashSet::new())),
             client: Client::new(),
-            etag: tokio::sync::Mutex::new(None),
         }
-    }
-
-    pub fn allowlist(&self) -> &SharedAllowList {
-        &self.allowlist
     }
 
     pub fn refresh_interval(&self) -> Duration {
         self.refresh_interval
     }
 
-    pub async fn fetch(&self) -> anyhow::Result<Option<HashSet<Address>>> {
-        let etag_header = self.etag.lock().await.clone();
-        let response = self
-            .client
-            .get(&self.url)
-            .timeout(Self::REQUEST_TIMEOUT)
-            .header("If-None-Match", etag_header.unwrap_or_default())
-            .send()
-            .await?;
+    pub fn allowlist(&self) -> Arc<RwLock<HashSet<Address>>> {
+        Arc::clone(&self.allowlist)
+    }
+
+    pub async fn is_address_allowed(&self, address: &Address) -> bool {
+        self.allowlist.read().await.contains(address)
+    }
+
+    pub async fn fetch(
+        &self,
+        current_etag: Option<&str>,
+    ) -> anyhow::Result<Option<(HashSet<Address>, Option<String>)>> {
+        let mut request = self.client.get(&self.url).timeout(Self::REQUEST_TIMEOUT);
+
+        if let Some(etag) = current_etag {
+            request = request.header("If-None-Match", etag);
+        }
+
+        let response = request.send().await?;
 
         if response.status() == reqwest::StatusCode::NOT_MODIFIED {
             tracing::debug!("Allowlist unchanged (304 Not Modified)");
@@ -148,11 +134,16 @@ impl AllowListTask {
 
         let response = response.error_for_status()?;
 
-        if let Some(etag) = response.headers().get("ETag") {
-            *self.etag.lock().await = Some(etag.to_str()?.to_string());
-        }
-
+        let new_etag = match response.headers().get("ETag") {
+            Some(value) => match value.to_str() {
+                Ok(s) => Some(s.to_string()),
+                Err(_) => None,
+            },
+            None => None,
+        };
         let list = response.json::<WhitelistResponse>().await?;
-        Ok(Some(list.addresses.into_iter().collect()))
+        let addresses: HashSet<H160> = list.addresses.into_iter().collect();
+
+        Ok(Some((addresses, new_etag)))
     }
 }
