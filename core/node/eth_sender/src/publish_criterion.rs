@@ -26,6 +26,7 @@ pub trait L1BatchPublishCriterion: fmt::Debug + Send + Sync {
         storage: &mut Connection<'_, Core>,
         consecutive_l1_batches: &[L1BatchWithMetadata],
         last_sealed_l1_batch: L1BatchNumber,
+        is_gateway: bool,
     ) -> Option<L1BatchNumber>;
 }
 
@@ -47,6 +48,7 @@ impl L1BatchPublishCriterion for NumberCriterion {
         _storage: &mut Connection<'_, Core>,
         consecutive_l1_batches: &[L1BatchWithMetadata],
         _last_sealed_l1_batch: L1BatchNumber,
+        _is_gateway: bool,
     ) -> Option<L1BatchNumber> {
         let mut batch_numbers = consecutive_l1_batches
             .iter()
@@ -93,6 +95,7 @@ impl L1BatchPublishCriterion for TimestampDeadlineCriterion {
         _storage: &mut Connection<'_, Core>,
         consecutive_l1_batches: &[L1BatchWithMetadata],
         last_sealed_l1_batch: L1BatchNumber,
+        _is_gateway: bool,
     ) -> Option<L1BatchNumber> {
         let first_l1_batch = consecutive_l1_batches.iter().next()?;
         let last_l1_batch_number = consecutive_l1_batches.iter().last()?.header.number.0;
@@ -211,10 +214,10 @@ impl L1BatchPublishCriterion for L1GasCriterion {
         storage: &mut Connection<'_, Core>,
         consecutive_l1_batches: &[L1BatchWithMetadata],
         _last_sealed_l1_batch: L1BatchNumber,
+        is_gateway: bool,
     ) -> Option<L1BatchNumber> {
-        // TODO propogate gateway value
-        let execute_costs = GasConsts::execute_costs(false);
-        let commit_costs = GasConsts::commit_costs(false);
+        let execute_costs = GasConsts::execute_costs(is_gateway);
+        let commit_costs = GasConsts::commit_costs(is_gateway);
 
         let aggr_cost = match self.kind {
             GasCriterionKind::Execute => execute_costs.base,
@@ -297,22 +300,42 @@ impl GasConsts {
     const L1_BATCH_PROOF_GAS_COST_ETHEREUM: u32 = 500_000;
 
     fn commit_costs(is_gateway: bool) -> CommitGasConsts {
-        CommitGasConsts {
-            base: Self::L1_BATCH_COMMIT_BASE_COST,
-            per_batch: Self::AGGR_L1_BATCH_COMMIT_BASE_COST,
-            per_pubdata_byte: L1_GAS_PER_PUBDATA_BYTE,
+        if is_gateway {
+            CommitGasConsts {
+                base: Self::L1_BATCH_COMMIT_BASE_COST,
+                per_batch: Self::AGGR_L1_BATCH_COMMIT_BASE_COST,
+                per_pubdata_byte: L1_GAS_PER_PUBDATA_BYTE,
+            }
+        } else {
+            CommitGasConsts {
+                base: Self::L1_BATCH_COMMIT_BASE_COST,
+                per_batch: Self::AGGR_L1_BATCH_COMMIT_BASE_COST,
+                per_pubdata_byte: L1_GAS_PER_PUBDATA_BYTE,
+            }
         }
     }
 
     fn proof_costs(is_gateway: bool) -> u32 {
-        Self::L1_BATCH_PROOF_GAS_COST_ETHEREUM
+        if is_gateway {
+            Self::L1_BATCH_PROOF_GAS_COST_ETHEREUM
+        } else {
+            Self::L1_BATCH_PROOF_GAS_COST_ETHEREUM
+        }
     }
 
     fn execute_costs(is_gateway: bool) -> ExecuteCosts {
-        ExecuteCosts {
-            base: Self::AGGR_L1_BATCH_EXECUTE_BASE_COST,
-            per_batch: L1_BATCH_EXECUTE_BASE_COST,
-            per_l1_l2_tx: L1_OPERATION_EXECUTE_COST,
+        if is_gateway {
+            ExecuteCosts {
+                base: Self::AGGR_L1_BATCH_EXECUTE_BASE_COST,
+                per_batch: L1_BATCH_EXECUTE_BASE_COST,
+                per_l1_l2_tx: L1_OPERATION_EXECUTE_COST,
+            }
+        } else {
+            ExecuteCosts {
+                base: Self::AGGR_L1_BATCH_EXECUTE_BASE_COST,
+                per_batch: L1_BATCH_EXECUTE_BASE_COST,
+                per_l1_l2_tx: L1_OPERATION_EXECUTE_COST,
+            }
         }
     }
 }
