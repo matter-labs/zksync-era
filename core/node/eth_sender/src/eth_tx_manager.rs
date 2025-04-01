@@ -1,3 +1,4 @@
+use std::ops::Mul;
 use std::{
     sync::Arc,
     time::{Duration, SystemTime},
@@ -155,8 +156,8 @@ impl EthTxManager {
         };
 
         // Gas limit saved in predicted gas_cost, doesn't include gas_limit for pubdata usage.
-        let mut gas_limit = if let Some(gas_limit) = tx.predicted_gas_cost {
-            (gas_limit * 2).into()
+        let mut gas_limit: U256 = if let Some(gas_limit) = tx.predicted_gas_cost {
+            gas_limit.into()
         } else {
             self.config.max_aggregated_tx_gas.into()
         };
@@ -230,6 +231,7 @@ impl EthTxManager {
                 .observe(priority_fee_per_gas);
         }
 
+        gas_limit = gas_limit.mul(2);
         let mut signed_tx = self
             .l1_interface
             .sign_tx(
@@ -542,15 +544,6 @@ impl EthTxManager {
             .track_eth_tx_metrics(storage, BlockL1Stage::Mined, tx)
             .await;
 
-        if let Some(predicted_gas_cost) = tx.predicted_gas_cost {
-            if gas_used > U256::from(predicted_gas_cost) {
-                tracing::error!(
-                    "Predicted gas {predicted_gas_cost} lower than used gas {gas_used} for tx {:?} {}",
-                    tx.tx_type,
-                    tx.id
-                );
-            }
-        }
         tracing::info!(
             "eth_tx {} with hash {tx_hash:?} for {} is confirmed. Gas spent: {gas_used:?}",
             tx.id,
