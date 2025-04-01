@@ -144,50 +144,6 @@ impl EthTxManager {
 
         let operator_type = self.operator_type(tx);
 
-        if let Some(previous_sent_tx) = previous_sent_tx {
-            METRICS.transaction_resent.inc();
-            tracing::info!(
-                "Resending {operator_type:?} tx {} (nonce {}) \
-                at block {current_block} with \
-                base_fee_per_gas {base_fee_per_gas:?}, \
-                priority_fee_per_gas {priority_fee_per_gas:?}, \
-                blob_fee_per_gas {blob_base_fee_per_gas:?}, \
-                max_gas_per_pubdata_price {max_gas_per_pubdata_price:?}, \
-                previously sent with \
-                base_fee_per_gas {:?}, \
-                priority_fee_per_gas {:?}, \
-                blob_fee_per_gas {:?}, \
-                max_gas_per_pubdata_price {:?}, \
-                ",
-                tx.id,
-                tx.nonce,
-                previous_sent_tx.base_fee_per_gas,
-                previous_sent_tx.priority_fee_per_gas,
-                previous_sent_tx.blob_base_fee_per_gas,
-                previous_sent_tx.max_gas_per_pubdata
-            );
-        } else {
-            tracing::info!(
-                "Sending {operator_type:?} tx {} (nonce {}) \
-                at block {current_block} with \
-                base_fee_per_gas {base_fee_per_gas:?}, \
-                priority_fee_per_gas {priority_fee_per_gas:?}, \
-                blob_fee_per_gas {blob_base_fee_per_gas:?}",
-                tx.id,
-                tx.nonce
-            );
-        }
-
-        if let Some(blob_base_fee_per_gas) = blob_base_fee_per_gas {
-            METRICS.used_blob_fee_per_gas[&TransactionType::Blob].observe(blob_base_fee_per_gas);
-            METRICS.used_base_fee_per_gas[&TransactionType::Blob].observe(base_fee_per_gas);
-            METRICS.used_priority_fee_per_gas[&TransactionType::Blob].observe(priority_fee_per_gas);
-        } else {
-            METRICS.used_base_fee_per_gas[&TransactionType::Regular].observe(base_fee_per_gas);
-            METRICS.used_priority_fee_per_gas[&TransactionType::Regular]
-                .observe(priority_fee_per_gas);
-        }
-
         let blob_gas_price = if tx.blob_sidecar.is_some() {
             Some(
                 blob_base_fee_per_gas
@@ -224,6 +180,54 @@ impl EthTxManager {
                     }
                 }
             }
+        }
+
+        if let Some(previous_sent_tx) = previous_sent_tx {
+            METRICS.transaction_resent.inc();
+            tracing::info!(
+                "Resending {operator_type:?} tx {} (nonce {}) \
+                at block {current_block} with \
+                base_fee_per_gas {base_fee_per_gas:?}, \
+                priority_fee_per_gas {priority_fee_per_gas:?}, \
+                blob_fee_per_gas {blob_base_fee_per_gas:?}, \
+                max_gas_per_pubdata_price {max_gas_per_pubdata_price:?}, \
+                previously sent with \
+                base_fee_per_gas {:?}, \
+                priority_fee_per_gas {:?}, \
+                blob_fee_per_gas {:?}, \
+                max_gas_per_pubdata_price {:?}, \
+                gas_limit {gas_limit:?}, \
+                ",
+                tx.id,
+                tx.nonce,
+                previous_sent_tx.base_fee_per_gas,
+                previous_sent_tx.priority_fee_per_gas,
+                previous_sent_tx.blob_base_fee_per_gas,
+                previous_sent_tx.max_gas_per_pubdata,
+            );
+        } else {
+            tracing::info!(
+                "Sending {operator_type:?} tx {} (nonce {}) \
+                at block {current_block} with \
+                base_fee_per_gas {base_fee_per_gas:?}, \
+                priority_fee_per_gas {priority_fee_per_gas:?}, \
+                blob_fee_per_gas {blob_base_fee_per_gas:?},\
+                max_gas_per_pubdata_price {max_gas_per_pubdata_price:?},\
+                gas_limit {gas_limit:?}, \
+                ",
+                tx.id,
+                tx.nonce
+            );
+        }
+
+        if let Some(blob_base_fee_per_gas) = blob_base_fee_per_gas {
+            METRICS.used_blob_fee_per_gas[&TransactionType::Blob].observe(blob_base_fee_per_gas);
+            METRICS.used_base_fee_per_gas[&TransactionType::Blob].observe(base_fee_per_gas);
+            METRICS.used_priority_fee_per_gas[&TransactionType::Blob].observe(priority_fee_per_gas);
+        } else {
+            METRICS.used_base_fee_per_gas[&TransactionType::Regular].observe(base_fee_per_gas);
+            METRICS.used_priority_fee_per_gas[&TransactionType::Regular]
+                .observe(priority_fee_per_gas);
         }
 
         let mut signed_tx = self
