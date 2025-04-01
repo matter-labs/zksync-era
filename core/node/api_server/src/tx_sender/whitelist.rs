@@ -98,8 +98,7 @@ impl AllowListTask {
                 .expect("DeploymentAllowlist must contain a URL")
                 .to_string(),
             refresh_interval: deployment_allowlist.refresh_interval(),
-            allowlist: Arc::new(RwLock::new(HashSet::new())),
-            client: Client::new(),
+            ..Default::default()
         }
     }
 
