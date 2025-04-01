@@ -1,13 +1,11 @@
-
 use async_trait::async_trait;
-
-
 use tokio::time::interval;
 use zksync_config::configs::api::DeploymentAllowlist;
 use zksync_node_api_server::tx_sender::{
     master_pool_sink::MasterPoolSink,
     whitelist::{AllowListTask, SharedAllowList, WhitelistedDeployPoolSink},
 };
+
 use crate::{
     implementations::resources::{
         pools::{MasterPool, PoolResource},
@@ -70,7 +68,6 @@ impl WiringLayer for WhitelistedMasterPoolSinkLayer {
         })
     }
 }
-
 
 #[async_trait]
 impl Task for AllowListTask {

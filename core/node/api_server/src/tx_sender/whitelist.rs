@@ -9,10 +9,7 @@ use zksync_types::{h256_to_address, l2::L2Tx, Address, CONTRACT_DEPLOYER_ADDRESS
 
 use crate::{
     execution_sandbox::SandboxExecutionOutput,
-    tx_sender::{
-        master_pool_sink::MasterPoolSink, tx_sink::TxSink,
-        SubmitTxError,
-    },
+    tx_sender::{master_pool_sink::MasterPoolSink, tx_sink::TxSink, SubmitTxError},
 };
 
 /// Wrapper that submits transactions to the mempool and enforces contract deployment allow-list
@@ -103,7 +100,6 @@ impl SharedAllowList {
 struct WhitelistResponse {
     addresses: Vec<Address>,
 }
-
 
 /// Task that periodically fetches and updates the allowlist from a remote HTTP source.
 #[derive(Debug)]

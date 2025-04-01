@@ -72,9 +72,7 @@ use zksync_node_framework::{
             server::{Web3ServerLayer, Web3ServerOptionalConfig},
             tree_api_client::TreeApiClientLayer,
             tx_sender::{PostgresStorageCachesConfig, TxSenderLayer},
-            tx_sink::{
-                whitelist::WhitelistedMasterPoolSinkLayer, MasterPoolSinkLayer
-            },
+            tx_sink::{whitelist::WhitelistedMasterPoolSinkLayer, MasterPoolSinkLayer},
         },
     },
     service::{ZkStackService, ZkStackServiceBuilder},

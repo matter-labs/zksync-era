@@ -16,10 +16,14 @@ use zksync_crypto_primitives::K256PrivateKey;
 
 use crate::{
     configs::{
-        self, api::DeploymentAllowlist, chain::TimestampAsserterConfig, da_client::{
+        self,
+        api::DeploymentAllowlist,
+        chain::TimestampAsserterConfig,
+        da_client::{
             avail::{AvailClientConfig, AvailDefaultConfig},
             DAClientConfig::Avail,
-        }, external_price_api_client::ForcedPriceClientConfig
+        },
+        external_price_api_client::ForcedPriceClientConfig,
     },
     AvailConfig,
 };
