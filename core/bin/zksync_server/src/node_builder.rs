@@ -73,8 +73,7 @@ use zksync_node_framework::{
             tree_api_client::TreeApiClientLayer,
             tx_sender::{PostgresStorageCachesConfig, TxSenderLayer},
             tx_sink::{
-                whitelisted_master_pool_sink_layer::WhitelistedMasterPoolSinkLayer,
-                MasterPoolSinkLayer,
+                whitelist::WhitelistedMasterPoolSinkLayer, MasterPoolSinkLayer
             },
         },
     },
@@ -382,15 +381,12 @@ impl MainNodeBuilder {
             .unwrap_or_default();
 
         // On main node we always use master pool sink.
-        match deployment_allowlist.clone() {
-            Some(cfg) if cfg.is_enabled() => {
-                self.node.add_layer(WhitelistedMasterPoolSinkLayer {
-                    deployment_allowlist: cfg,
-                });
-            }
-            _ => {
-                self.node.add_layer(MasterPoolSinkLayer);
-            }
+        if deployment_allowlist.is_enabled() {
+            self.node.add_layer(WhitelistedMasterPoolSinkLayer {
+                deployment_allowlist: deployment_allowlist.clone(),
+            });
+        } else {
+            self.node.add_layer(MasterPoolSinkLayer);
         }
 
         let layer = TxSenderLayer::new(

@@ -226,7 +226,7 @@ pub struct Web3JsonRpcConfig {
     pub extended_api_tracing: bool,
     /// Configuration options for the deployment allow list
     #[serde(default)]
-    pub deployment_allowlist: Option<DeploymentAllowlist>,
+    pub deployment_allowlist: DeploymentAllowlist,
 }
 
 impl Web3JsonRpcConfig {
@@ -267,7 +267,7 @@ impl Web3JsonRpcConfig {
             whitelisted_tokens_for_aa: vec![],
             api_namespaces: None,
             extended_api_tracing: false,
-            deployment_allowlist: None,
+            deployment_allowlist: DeploymentAllowlist::default(),
         }
     }
 
@@ -446,6 +446,16 @@ impl DeploymentAllowlist {
         Duration::from_secs(self.refresh_interval_secs.unwrap_or(300))
     }
 }
+
+impl Default for DeploymentAllowlist {
+    fn default() -> Self {
+        Self {
+            http_file_url: None,
+            refresh_interval_secs: None,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

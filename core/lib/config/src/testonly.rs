@@ -16,13 +16,10 @@ use zksync_crypto_primitives::K256PrivateKey;
 
 use crate::{
     configs::{
-        self,
-        chain::TimestampAsserterConfig,
-        da_client::{
+        self, api::DeploymentAllowlist, chain::TimestampAsserterConfig, da_client::{
             avail::{AvailClientConfig, AvailDefaultConfig},
             DAClientConfig::Avail,
-        },
-        external_price_api_client::ForcedPriceClientConfig,
+        }, external_price_api_client::ForcedPriceClientConfig
     },
     AvailConfig,
 };
@@ -115,7 +112,7 @@ impl Distribution<configs::api::Web3JsonRpcConfig> for EncodeDist {
             api_namespaces: self
                 .sample_opt(|| self.sample_range(rng).map(|_| self.sample(rng)).collect()),
             extended_api_tracing: self.sample(rng),
-            deployment_allowlist: None,
+            deployment_allowlist: DeploymentAllowlist::default(),
         }
     }
 }

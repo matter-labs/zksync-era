@@ -48,11 +48,10 @@ mod gas_estimation;
 pub mod master_pool_sink;
 pub mod proxy;
 mod result;
-pub mod shared_allow_list;
 #[cfg(test)]
 pub(crate) mod tests;
 pub mod tx_sink;
-pub mod whitelisted_deploy_pool_sink;
+pub mod whitelist;
 
 pub async fn build_tx_sender(
     tx_sender_config: &TxSenderConfig,

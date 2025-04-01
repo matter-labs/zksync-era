@@ -1,16 +1,13 @@
-use std::{collections::HashSet, time::Duration};
 
 use async_trait::async_trait;
-use reqwest::Client;
-use serde::Deserialize;
+
+
 use tokio::time::interval;
 use zksync_config::configs::api::DeploymentAllowlist;
 use zksync_node_api_server::tx_sender::{
-    master_pool_sink::MasterPoolSink, shared_allow_list::SharedAllowList,
-    whitelisted_deploy_pool_sink::WhitelistedDeployPoolSink,
+    master_pool_sink::MasterPoolSink,
+    whitelist::{AllowListTask, SharedAllowList, WhitelistedDeployPoolSink},
 };
-use zksync_types::Address;
-
 use crate::{
     implementations::resources::{
         pools::{MasterPool, PoolResource},
@@ -74,58 +71,6 @@ impl WiringLayer for WhitelistedMasterPoolSinkLayer {
     }
 }
 
-/// Task that periodically fetches and updates the allowlist from a remote HTTP source.
-#[derive(Debug)]
-pub struct AllowListTask {
-    url: String,
-    refresh_interval: Duration,
-    allowlist: SharedAllowList,
-    client: Client,
-    etag: tokio::sync::Mutex<Option<String>>,
-}
-
-#[derive(Debug, Deserialize)]
-struct WhitelistResponse {
-    addresses: Vec<Address>,
-}
-
-impl AllowListTask {
-    const REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
-    pub fn new(url: String, refresh_interval: Duration, allowlist: SharedAllowList) -> Self {
-        Self {
-            url,
-            refresh_interval,
-            allowlist,
-            client: Client::new(),
-            etag: tokio::sync::Mutex::new(None),
-        }
-    }
-
-    async fn fetch(&self) -> anyhow::Result<Option<HashSet<Address>>> {
-        let etag_header = self.etag.lock().await.clone();
-        let response = self
-            .client
-            .get(&self.url)
-            .timeout(Self::REQUEST_TIMEOUT)
-            .header("If-None-Match", etag_header.unwrap_or_default())
-            .send()
-            .await?;
-
-        if response.status() == reqwest::StatusCode::NOT_MODIFIED {
-            tracing::debug!("Allowlist unchanged (304 Not Modified)");
-            return Ok(None);
-        }
-
-        let response = response.error_for_status()?;
-
-        if let Some(etag) = response.headers().get("ETag") {
-            *self.etag.lock().await = Some(etag.to_str()?.to_string());
-        }
-
-        let list = response.json::<WhitelistResponse>().await?;
-        Ok(Some(list.addresses.into_iter().collect()))
-    }
-}
 
 #[async_trait]
 impl Task for AllowListTask {
@@ -138,7 +83,7 @@ impl Task for AllowListTask {
     }
 
     async fn run(self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        let mut ticker = interval(self.refresh_interval);
+        let mut ticker = interval(self.refresh_interval());
 
         loop {
             tokio::select! {
@@ -150,7 +95,7 @@ impl Task for AllowListTask {
 
                     match self.fetch().await {
                         Ok(Some(new_list)) => {
-                            let writer = self.allowlist.writer();
+                            let writer = self.allowlist().writer();
                             let mut lock = writer.write().await;
 
                             if *lock != new_list {

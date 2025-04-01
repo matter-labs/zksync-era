@@ -61,10 +61,6 @@ impl ProtoRepr for proto::Web3JsonRpc {
         } else {
             Some(self.api_namespaces.clone())
         };
-        let deployment_allowlist = match &self.deployment_allowlist {
-            Some(proto_allowlist) => Some(proto_allowlist.read()?),
-            None => None,
-        };
 
         Ok(Self::Type {
             http_port: required(&self.http_port)
@@ -156,7 +152,7 @@ impl ProtoRepr for proto::Web3JsonRpc {
                 .context("whitelisted_tokens_for_aa")?,
             extended_api_tracing: self.extended_api_tracing.unwrap_or_default(),
             api_namespaces,
-            deployment_allowlist,
+            deployment_allowlist: read_required_repr(&self.deployment_allowlist).context("deployment_allowlist")?,
         })
     }
 
@@ -223,10 +219,7 @@ impl ProtoRepr for proto::Web3JsonRpc {
                 .collect(),
             extended_api_tracing: Some(this.extended_api_tracing),
             api_namespaces: this.api_namespaces.clone().unwrap_or_default(),
-            deployment_allowlist: this
-                .deployment_allowlist
-                .as_ref()
-                .map(proto::DeploymentAllowlist::build),
+            deployment_allowlist: Some(proto::DeploymentAllowlist::build(&this.deployment_allowlist)),
         }
     }
 }

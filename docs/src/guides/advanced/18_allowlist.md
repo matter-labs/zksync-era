@@ -2,31 +2,24 @@
 
 This module restricts contract deployments on zkSync Era to a predefined list of approved addresses.
 
-It consists of:
-
-- `SharedAllowList`: in-memory, async-safe address set.
-- `AllowListTask`: periodically fetches the list from a remote URL.
-- `WhitelistedDeployPoolSink`: enforces the list during L2 transaction submission.
-
----
-
 ## Configuration
 
 Configure via `api.web3_json_rpc.deployment_allowlist` in your node's YAML:
 
-```api:
-  web3_json_rpc:
+```YAML
+api:
+  web3_json_rpc:fit
     deployment_allowlist:
       http_file_url: "https://example.com/allowlist.json"
       refresh_interval_secs: 60
 ```
 
 - `http_file_url` (required): HTTP(S) URL to the allowlist JSON.
-- `refresh_interval_secs` (optional): Refresh interval in seconds (default: 60).
+- `refresh_interval_secs` (optional): Refresh interval in seconds (default: 300).
 
 To disable, set:
 
-```
+```YAML
 api:
   web3_json_rpc:
     deployment_allowlist: {}
@@ -36,9 +29,9 @@ api:
 
 ## Allowlist Format
 
-The JSON file must contain:
+The JSON served at the specified URL file must contain:
 
-```
+```JSON
 {
   "addresses": [
     "0x1234...abcd",
@@ -47,7 +40,6 @@ The JSON file must contain:
 }
 ```
 
-- Addresses must be checksummed.
 - Served as `application/json`.
 - ETag headers supported (optional).
 

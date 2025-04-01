@@ -68,7 +68,6 @@ serde.workspace = true
 tokio = { workspace = true, features = ["rt"] }
 ctrlc.workspace = true
 semver.workspace = true
-reqwest.workspace = true
 
 [dev-dependencies]
 assert_matches.workspace = true
