@@ -222,7 +222,7 @@ impl SandboxExecutor {
         vm_dump: VmDump,
     ) -> anyhow::Result<()> {
         /// Minimum interval between VM dumps.
-        const DUMP_INTERVAL: Duration = Duration::from_secs(10);
+        const DUMP_INTERVAL: Duration = Duration::from_secs(600); // 10 minutes
 
         let mut last_dump_timestamp = last_dump_timestamp.lock().await;
         let now = Instant::now();
