@@ -64,15 +64,10 @@ impl L1BatchWithLogs {
             let writes = tree_writes.into_iter().map(|tree_write| {
                 let storage_key =
                     StorageKey::new(AccountTreeId::new(tree_write.address), tree_write.key);
-                let reversed_hashed_key = {
-                    let mut hashed_key = storage_key.hashed_key().0;
-                    hashed_key.reverse();
-                    H256(hashed_key)
-                };
                 (
                     tree_write.leaf_index,
                     TreeEntry {
-                        key: reversed_hashed_key,
+                        key: storage_key.hashed_key(),
                         value: tree_write.value,
                     },
                 )
@@ -148,15 +143,10 @@ impl L1BatchWithLogs {
                      greater than the batch in which it's written ({l1_batch_number})"
                 );
 
-                let reversed_hashed_key = {
-                    let mut hashed_key = storage_key.hashed_key().0;
-                    hashed_key.reverse();
-                    H256(hashed_key)
-                };
                 tree_logs.insert(
                     leaf_index,
                     TreeEntry {
-                        key: reversed_hashed_key,
+                        key: storage_key.hashed_key(),
                         value,
                     },
                 );

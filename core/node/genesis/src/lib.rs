@@ -203,13 +203,8 @@ pub fn make_genesis_batch_params(
         .map(|log| {
             let storage_key =
                 StorageKey::new(AccountTreeId::new(log.address), u256_to_h256(log.key));
-            let reversed_hashed_key = {
-                let mut hashed_key = storage_key.hashed_key().0;
-                hashed_key.reverse();
-                H256(hashed_key)
-            };
             TreeEntry {
-                key: reversed_hashed_key,
+                key: storage_key.hashed_key(),
                 value: u256_to_h256(log.written_value),
             }
         })
