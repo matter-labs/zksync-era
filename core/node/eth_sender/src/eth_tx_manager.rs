@@ -200,6 +200,7 @@ impl EthTxManager {
         } else {
             self.config.max_aggregated_tx_gas.into()
         };
+
         let mut signed_tx = self
             .l1_interface
             .sign_tx(
@@ -231,6 +232,7 @@ impl EthTxManager {
                 signed_tx.hash,
                 signed_tx.raw_tx.as_ref(),
                 current_block.0,
+                Some(gas_limit.as_u64()),
             )
             .await
             .unwrap()

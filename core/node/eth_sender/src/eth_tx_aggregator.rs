@@ -1,5 +1,3 @@
-use std::ops::Not;
-
 use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_contracts::BaseSystemContractsHashes;
@@ -811,11 +809,9 @@ impl EthTxAggregator {
             AggregatedActionType::PublishProofOnchain => {
                 L1GasCriterion::total_proof_gas_amount(is_gateway)
             }
-            AggregatedActionType::Commit => L1GasCriterion::total_commit_gas_amount(
+            AggregatedActionType::Commit => L1GasCriterion::total_commit_validium_gas_amount(
                 l1_batch_number_range.clone(),
                 is_gateway,
-                self.aggregator.mode(),
-                encoded_aggregated_op.calldata.len(),
             ),
         };
 
@@ -826,8 +822,7 @@ impl EthTxAggregator {
                 encoded_aggregated_op.calldata,
                 op_type,
                 timelock_contract_address,
-                // TODO fix is_gateway
-                is_gateway.not().then_some(eth_tx_predicted_gas),
+                Some(eth_tx_predicted_gas),
                 sender_addr,
                 encoded_aggregated_op.sidecar,
                 is_gateway,

@@ -7,8 +7,8 @@ use zksync_types::{
     aggregated_operations::{
         AggregatedActionType, L1_BATCH_EXECUTE_BASE_COST, L1_OPERATION_EXECUTE_COST,
     },
-    commitment::{L1BatchCommitmentMode, L1BatchWithMetadata},
-    L1BatchNumber, L1_GAS_PER_PUBDATA_BYTE,
+    commitment::L1BatchWithMetadata,
+    L1BatchNumber,
 };
 
 use super::metrics::METRICS;
@@ -170,21 +170,12 @@ impl L1GasCriterion {
         GasConsts::proof_costs(is_gateway)
     }
 
-    pub fn total_commit_gas_amount(
+    pub fn total_commit_validium_gas_amount(
         batch_numbers: ops::RangeInclusive<L1BatchNumber>,
         is_gateway: bool,
-        batch_commitment_mode: L1BatchCommitmentMode,
-        calldata_size_bytes: usize,
     ) -> u32 {
         let costs = GasConsts::commit_costs(is_gateway);
-        let base_cost =
-            costs.base + (batch_numbers.end().0 - batch_numbers.start().0 + 1) * costs.per_batch;
-        match batch_commitment_mode {
-            L1BatchCommitmentMode::Rollup => {
-                base_cost + calldata_size_bytes as u32 * costs.per_pubdata_byte
-            }
-            L1BatchCommitmentMode::Validium => base_cost,
-        }
+        costs.base + (batch_numbers.end().0 - batch_numbers.start().0 + 1) * costs.per_batch
     }
 
     async fn get_execute_gas_amount(
@@ -273,7 +264,6 @@ struct GasConsts;
 struct CommitGasConsts {
     base: u32,
     per_batch: u32,
-    per_pubdata_byte: u32,
 }
 
 struct ExecuteCosts {
@@ -304,13 +294,11 @@ impl GasConsts {
             CommitGasConsts {
                 base: Self::L1_BATCH_COMMIT_BASE_COST,
                 per_batch: Self::AGGR_L1_BATCH_COMMIT_BASE_COST,
-                per_pubdata_byte: L1_GAS_PER_PUBDATA_BYTE,
             }
         } else {
             CommitGasConsts {
                 base: Self::L1_BATCH_COMMIT_BASE_COST,
                 per_batch: Self::AGGR_L1_BATCH_COMMIT_BASE_COST,
-                per_pubdata_byte: L1_GAS_PER_PUBDATA_BYTE,
             }
         }
     }

@@ -70,6 +70,11 @@
       },
       {
         "ordinal": 13,
+        "name": "predicted_gas_limit",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 14,
         "name": "blob_sidecar",
         "type_info": "Bytea"
       }
@@ -87,6 +92,7 @@
       false,
       false,
       false,
+      true,
       true,
       true,
       true,
