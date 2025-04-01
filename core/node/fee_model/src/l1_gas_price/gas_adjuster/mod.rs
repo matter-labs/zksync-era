@@ -343,7 +343,7 @@ impl TxParamsProvider for GasAdjuster {
         self.get_priority_fee() * 2
     }
 
-    fn get_gateway_tx_pubdata_price(&self, time_in_mempool_in_l1_blocks: u32) -> u64 {
+    fn get_gateway_l2_pubdata_price(&self, time_in_mempool_in_l1_blocks: u32) -> u64 {
         let median = self.l2_pubdata_price_statistics.median().as_u64();
         METRICS.median_l2_pubdata_price.set(median);
         self.calculate_price_with_formula(time_in_mempool_in_l1_blocks, median)
