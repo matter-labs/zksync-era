@@ -102,7 +102,7 @@ impl Account {
         init_bytecode: Vec<u8>,
         contract: &ethabi::Contract,
         args: &[Token],
-    ) -> Transaction {
+    ) -> L2Tx {
         let fee = Self::default_fee();
         let input = if let Some(constructor) = contract.constructor() {
             constructor
@@ -136,7 +136,7 @@ impl Account {
         let (req, hash) = TransactionRequest::from_bytes_unverified(&raw).unwrap();
         let mut tx = L2Tx::from_request(req, usize::MAX, true).unwrap();
         tx.set_input(raw, hash);
-        tx.into()
+        tx
     }
 
     pub fn default_fee() -> Fee {

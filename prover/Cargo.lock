@@ -4975,9 +4975,9 @@ dependencies = [
 
 [[package]]
 name = "prometheus-client"
-version = "0.22.3"
+version = "0.23.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "504ee9ff529add891127c4827eb481bd69dc0ebc72e9a682e187db4caa60c3ca"
+checksum = "cf41c1a7c32ed72abe5082fb19505b969095c12da9f5732a4bc9878757fd087c"
 dependencies = [
  "dtoa",
  "itoa",
@@ -5154,7 +5154,7 @@ dependencies = [
 
 [[package]]
 name = "prover_cli"
-version = "19.0.0"
+version = "20.0.0"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -5187,7 +5187,7 @@ dependencies = [
 
 [[package]]
 name = "prover_version"
-version = "19.0.0"
+version = "20.0.0"
 dependencies = [
  "zksync_prover_fri_types",
 ]
@@ -7730,8 +7730,7 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 [[package]]
 name = "vise"
 version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "90ade36f3548b1524396f4de7b36f4f210c8a01dfab568eb2bff466af64eb6e5"
+source = "git+https://github.com/matter-labs/vise.git?rev=51669f42f60c50b3a521662a4ecd71212a303299#51669f42f60c50b3a521662a4ecd71212a303299"
 dependencies = [
  "compile-fmt",
  "ctor",
@@ -7744,10 +7743,11 @@ dependencies = [
 [[package]]
 name = "vise-exporter"
 version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "671d3b894d5d0849f0a597f56bf071f42d4f2a1cbcf2f78ca21f870ab7c0cc2b"
+source = "git+https://github.com/matter-labs/vise.git?rev=51669f42f60c50b3a521662a4ecd71212a303299#51669f42f60c50b3a521662a4ecd71212a303299"
 dependencies = [
- "hyper 0.14.32",
+ "http-body-util",
+ "hyper 1.5.2",
+ "hyper-util",
  "once_cell",
  "tokio",
  "tracing",
@@ -7757,8 +7757,7 @@ dependencies = [
 [[package]]
 name = "vise-macros"
 version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6a511871dc5de990a3b2a0e715facfbc5da848c0c0395597a1415029fb7c250a"
+source = "git+https://github.com/matter-labs/vise.git?rev=51669f42f60c50b3a521662a4ecd71212a303299#51669f42f60c50b3a521662a4ecd71212a303299"
 dependencies = [
  "proc-macro2 1.0.92",
  "quote 1.0.37",
@@ -8720,7 +8719,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_circuit_prover"
-version = "19.0.0"
+version = "20.0.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8750,7 +8749,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_circuit_prover_service"
-version = "19.0.0"
+version = "20.0.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -9064,7 +9063,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_gpu_checker"
-version = "19.0.0"
+version = "20.0.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -9205,7 +9204,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_proof_fri_compressor"
-version = "19.0.0"
+version = "20.0.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -9300,7 +9299,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_prover_autoscaler"
-version = "19.0.0"
+version = "20.0.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -9337,7 +9336,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_prover_dal"
-version = "19.0.0"
+version = "20.0.0"
 dependencies = [
  "sqlx",
  "strum",
@@ -9348,7 +9347,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_prover_fri_gateway"
-version = "19.0.0"
+version = "20.0.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -9374,7 +9373,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_prover_fri_types"
-version = "19.0.0"
+version = "20.0.0"
 dependencies = [
  "circuit_definitions",
  "serde",
@@ -9384,7 +9383,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_prover_fri_utils"
-version = "19.0.0"
+version = "20.0.0"
 dependencies = [
  "anyhow",
  "regex",
@@ -9417,7 +9416,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_prover_job_monitor"
-version = "19.0.0"
+version = "20.0.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -9439,7 +9438,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_prover_job_processor"
-version = "19.0.0"
+version = "20.0.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -9454,7 +9453,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_prover_keystore"
-version = "19.0.0"
+version = "20.0.0"
 dependencies = [
  "anyhow",
  "bincode",
@@ -9571,7 +9570,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_vk_setup_data_generator_server_fri"
-version = "19.0.0"
+version = "20.0.0"
 dependencies = [
  "anyhow",
  "bincode",
@@ -9679,7 +9678,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_witness_generator"
-version = "19.0.0"
+version = "20.0.0"
 dependencies = [
  "anyhow",
  "async-trait",

@@ -5,30 +5,25 @@ use std::time::Duration;
 use jsonrpsee::{core::client, http_client::transport};
 use vise::{
     Buckets, Counter, DurationAsSecs, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Info,
-    LabeledFamily, Metrics, Unit,
+    LabeledFamily, Metrics, MetricsFamily, Unit,
 };
 
 use super::{AcquireStats, CallOrigin, SharedRateLimit};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, EncodeLabelSet)]
-pub(super) struct RequestLabels {
+pub(super) struct ClientLabels {
     pub network: String,
     pub component: &'static str,
-    pub method: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, EncodeLabelSet)]
 pub(super) struct RpcErrorLabels {
-    pub network: String,
-    pub component: &'static str,
     pub method: String,
     pub code: i32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, EncodeLabelSet)]
 pub(super) struct HttpErrorLabels {
-    pub network: String,
-    pub component: &'static str,
     pub method: String,
     pub status: Option<u16>,
 }
@@ -43,8 +38,6 @@ pub(super) enum CallErrorKind {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, EncodeLabelSet)]
 pub(super) struct GenericErrorLabels {
-    network: String,
-    component: &'static str,
     method: String,
     kind: CallErrorKind,
 }
@@ -58,24 +51,13 @@ struct L2ClientConfigLabels {
 
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "l2_client")]
-pub(super) struct L2ClientMetrics {
+pub(super) struct L2ClientInfoMetrics {
     /// Client configuration.
     #[metrics(labels = ["network"])]
     info: LabeledFamily<String, Info<L2ClientConfigLabels>>,
-    /// Number of requests timed out in the rate-limiting logic.
-    pub rate_limit_timeout: Family<RequestLabels, Counter>,
-    /// Latency of rate-limiting logic for rate-limited requests.
-    #[metrics(buckets = Buckets::LATENCIES, unit = Unit::Seconds)]
-    pub rate_limit_latency: Family<RequestLabels, Histogram<Duration>>,
-    /// Number of calls that resulted in an RPC-level error.
-    pub rpc_errors: Family<RpcErrorLabels, Counter>,
-    /// Number of calls that resulted in an HTTP-level error.
-    pub http_errors: Family<HttpErrorLabels, Counter>,
-    /// Number of calls that resulted in a generic / internal error.
-    pub generic_errors: Family<GenericErrorLabels, Counter>,
 }
 
-impl L2ClientMetrics {
+impl L2ClientInfoMetrics {
     pub fn observe_config(&self, network: String, rate_limit: &SharedRateLimit) {
         let config_labels = L2ClientConfigLabels {
             rate_limit: rate_limit.rate_limit,
@@ -90,74 +72,59 @@ impl L2ClientMetrics {
             );
         }
     }
+}
 
-    pub fn observe_rate_limit_latency(
-        &self,
-        network: &str,
-        component: &'static str,
-        origin: CallOrigin<'_>,
-        stats: &AcquireStats,
-    ) {
+#[vise::register]
+pub(super) static INFO_METRICS: vise::Global<L2ClientInfoMetrics> = vise::Global::new();
+
+#[derive(Debug, Metrics)]
+#[metrics(prefix = "l2_client")]
+pub(super) struct L2ClientMetrics {
+    /// Number of requests timed out in the rate-limiting logic.
+    #[metrics(labels = ["method"])]
+    pub rate_limit_timeout: LabeledFamily<String, Counter>,
+    /// Latency of rate-limiting logic for rate-limited requests.
+    #[metrics(buckets = Buckets::LATENCIES, unit = Unit::Seconds, labels = ["method"])]
+    pub rate_limit_latency: LabeledFamily<String, Histogram<Duration>>,
+    /// Number of calls that resulted in an RPC-level error.
+    pub rpc_errors: Family<RpcErrorLabels, Counter>,
+    /// Number of calls that resulted in an HTTP-level error.
+    pub http_errors: Family<HttpErrorLabels, Counter>,
+    /// Number of calls that resulted in a generic / internal error.
+    pub generic_errors: Family<GenericErrorLabels, Counter>,
+}
+
+impl L2ClientMetrics {
+    pub fn observe_rate_limit_latency(&self, origin: CallOrigin<'_>, stats: &AcquireStats) {
         for method in origin.distinct_method_names() {
-            let request_labels = RequestLabels {
-                network: network.to_owned(),
-                component,
-                method: method.to_owned(),
-            };
-            self.rate_limit_latency[&request_labels].observe(stats.total_sleep_time);
+            self.rate_limit_latency[&method.to_owned()].observe(stats.total_sleep_time);
         }
     }
 
-    pub fn observe_rate_limit_timeout(
-        &self,
-        network: &str,
-        component: &'static str,
-        origin: CallOrigin<'_>,
-    ) {
+    pub fn observe_rate_limit_timeout(&self, origin: CallOrigin<'_>) {
         for method in origin.distinct_method_names() {
-            let request_labels = RequestLabels {
-                network: network.to_owned(),
-                component,
-                method: method.to_owned(),
-            };
-            self.rate_limit_timeout[&request_labels].inc();
+            self.rate_limit_timeout[&method.to_owned()].inc();
         }
     }
 
-    pub fn observe_error(
-        &self,
-        network: &str,
-        component: &'static str,
-        origin: CallOrigin<'_>,
-        err: &client::Error,
-    ) {
+    pub fn observe_error(&self, origin: CallOrigin<'_>, err: &client::Error) {
         for method in origin.distinct_method_names() {
-            self.observe_error_inner(network.to_owned(), component, method, err);
+            self.observe_error_inner(method, err);
         }
     }
 
-    fn observe_error_inner(
-        &self,
-        network: String,
-        component: &'static str,
-        method: &str,
-        err: &client::Error,
-    ) {
+    fn observe_error_inner(&self, method: &str, err: &client::Error) {
         let kind = match err {
             client::Error::Call(err) => {
                 let labels = RpcErrorLabels {
-                    network,
-                    component,
                     method: method.to_owned(),
                     code: err.code(),
                 };
                 if self.rpc_errors[&labels].inc() == 0 {
                     tracing::warn!(
-                        network = labels.network,
-                        component,
                         method,
                         code = err.code(),
-                        "Request `{method}` from component `{component}` failed with RPC error: {err}"
+                        "Request `{method}` failed with RPC error: {err}"
                     );
                 }
                 return;
@@ -171,18 +138,14 @@ impl L2ClientMetrics {
                         _ => None,
                     });
                 let labels = HttpErrorLabels {
-                    network,
-                    component,
                     method: method.to_owned(),
                     status,
                 };
                 if self.http_errors[&labels].inc() == 0 {
                     tracing::warn!(
-                        network = labels.network,
-                        component,
                         method,
                         status,
-                        "Request `{method}` from component `{component}` failed with HTTP error (response status: {status:?}): {err}"
+                        "Request `{method}` failed with HTTP error (response status: {status:?}): {err}"
                     );
                 }
                 return;
@@ -193,21 +156,17 @@ impl L2ClientMetrics {
         };
 
         let labels = GenericErrorLabels {
-            network,
-            component,
             method: method.to_owned(),
             kind,
         };
         if self.generic_errors[&labels].inc() == 0 {
             tracing::warn!(
-                network = labels.network,
-                component,
                 method,
-                "Request `{method}` from component `{component}` failed with generic error: {err}",
+                "Request `{method}` failed with generic error: {err}",
             );
         }
     }
 }
 
 #[vise::register]
-pub(super) static METRICS: vise::Global<L2ClientMetrics> = vise::Global::new();
+pub(super) static METRICS: MetricsFamily<ClientLabels, L2ClientMetrics> = MetricsFamily::new();
