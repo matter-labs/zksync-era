@@ -8,6 +8,8 @@ use zksync_basic_types::{
 };
 use zksync_db_connection::{
     connection::Connection,
+    error::DalResult,
+    instrument::InstrumentExt,
     utils::{duration_to_naive_time, pg_interval_from_duration},
 };
 
@@ -160,7 +162,7 @@ impl FriRecursionTipWitnessGeneratorDal<'_, '_> {
         &mut self,
         l1_batch_number: L1BatchNumber,
         time_taken: Duration,
-    ) {
+    ) -> DalResult<()> {
         sqlx::query!(
             r#"
             UPDATE recursion_tip_witness_jobs_fri
@@ -174,9 +176,11 @@ impl FriRecursionTipWitnessGeneratorDal<'_, '_> {
             duration_to_naive_time(time_taken),
             l1_batch_number.0 as i64
         )
-        .execute(self.storage.conn())
-        .await
-        .unwrap();
+        .instrument("mark_recursion_tip_job_as_successful")
+        .execute(self.storage)
+        .await?;
+
+        Ok(())
     }
 
     pub async fn get_recursion_tip_witness_generator_jobs_for_batch(
@@ -261,7 +265,7 @@ impl FriRecursionTipWitnessGeneratorDal<'_, '_> {
         block_number: L1BatchNumber,
         closed_form_inputs_and_urls: &[(u8, String, usize)],
         protocol_version: ProtocolSemanticVersion,
-    ) {
+    ) -> DalResult<()> {
         sqlx::query!(
             r#"
             INSERT INTO
@@ -286,9 +290,11 @@ impl FriRecursionTipWitnessGeneratorDal<'_, '_> {
             protocol_version.minor as i32,
             protocol_version.patch.0 as i32,
         )
-        .execute(self.storage.conn())
-        .await
-        .unwrap();
+        .instrument("insert_recursion_tip_aggregation_jobs")
+        .execute(self.storage)
+        .await?;
+
+        Ok(())
     }
 
     pub async fn check_reached_max_attempts(&mut self, max_attempts: u32) -> usize {

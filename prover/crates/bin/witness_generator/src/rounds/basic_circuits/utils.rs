@@ -284,7 +284,8 @@ pub(crate) async fn create_aggregation_jobs(
                 closed_form_inputs_url.clone(),
                 *number_of_basic_circuits,
             )
-            .await;
+            .await
+            .map_err(|e| anyhow::anyhow!(e))?;
 
         connection
             .fri_node_witness_generator_dal()
@@ -296,7 +297,8 @@ pub(crate) async fn create_aggregation_jobs(
                 "",
                 protocol_version,
             )
-            .await;
+            .await
+            .map_err(|e| anyhow::anyhow!(e))?;
     }
 
     connection
@@ -306,7 +308,8 @@ pub(crate) async fn create_aggregation_jobs(
             closed_form_inputs_and_urls,
             protocol_version,
         )
-        .await;
+        .await
+        .map_err(|e| anyhow::anyhow!(e))?;
 
     connection
         .fri_scheduler_witness_generator_dal()
@@ -315,7 +318,8 @@ pub(crate) async fn create_aggregation_jobs(
             scheduler_partial_input_blob_url,
             protocol_version,
         )
-        .await;
+        .await
+        .map_err(|e| anyhow::anyhow!(e))?;
 
     Ok(())
 }

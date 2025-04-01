@@ -8,6 +8,8 @@ use zksync_basic_types::{
 };
 use zksync_db_connection::{
     connection::Connection,
+    error::DalResult,
+    instrument::InstrumentExt,
     utils::{duration_to_naive_time, pg_interval_from_duration},
 };
 
@@ -52,7 +54,7 @@ impl FriSchedulerWitnessGeneratorDal<'_, '_> {
         .collect()
     }
 
-    pub async fn mark_scheduler_jobs_as_queued(&mut self, l1_batch_number: i64) {
+    pub async fn mark_scheduler_jobs_as_queued(&mut self, l1_batch_number: i64) -> DalResult<()> {
         sqlx::query!(
             r#"
             UPDATE scheduler_witness_jobs_fri
@@ -65,9 +67,11 @@ impl FriSchedulerWitnessGeneratorDal<'_, '_> {
             "#,
             l1_batch_number
         )
-        .execute(self.storage.conn())
-        .await
-        .unwrap();
+        .instrument("mark_scheduler_jobs_as_queued")
+        .execute(self.storage)
+        .await?;
+
+        Ok(())
     }
 
     pub async fn requeue_stuck_scheduler_jobs(
@@ -166,7 +170,7 @@ impl FriSchedulerWitnessGeneratorDal<'_, '_> {
         &mut self,
         block_number: L1BatchNumber,
         time_taken: Duration,
-    ) {
+    ) -> DalResult<()> {
         sqlx::query!(
             r#"
             UPDATE scheduler_witness_jobs_fri
@@ -180,9 +184,11 @@ impl FriSchedulerWitnessGeneratorDal<'_, '_> {
             duration_to_naive_time(time_taken),
             i64::from(block_number.0)
         )
-        .execute(self.storage.conn())
-        .await
-        .unwrap();
+        .instrument("mark_scheduler_job_as_successful")
+        .execute(self.storage)
+        .await?;
+
+        Ok(())
     }
 
     pub async fn get_scheduler_witness_generator_jobs_for_batch(
@@ -267,7 +273,7 @@ impl FriSchedulerWitnessGeneratorDal<'_, '_> {
         block_number: L1BatchNumber,
         scheduler_partial_input_blob_url: &str,
         protocol_version: ProtocolSemanticVersion,
-    ) {
+    ) -> DalResult<()> {
         sqlx::query!(
             r#"
             INSERT INTO
@@ -292,9 +298,11 @@ impl FriSchedulerWitnessGeneratorDal<'_, '_> {
             protocol_version.minor as i32,
             protocol_version.patch.0 as i32,
         )
-        .execute(self.storage.conn())
-        .await
-        .unwrap();
+        .instrument("insert_scheduler_aggregation_jobs")
+        .execute(self.storage)
+        .await?;
+
+        Ok(())
     }
 
     pub async fn check_reached_max_attempts(&mut self, max_attempts: u32) -> usize {
