@@ -353,7 +353,7 @@ impl EthSenderDal<'_, '_> {
                 sent_at
             )
             VALUES
-            ($1, $2, $3, $4, $5, NOW(), NOW(), $6, $7, $8,$9, NOW())
+            ($1, $2, $3, $4, $5, NOW(), NOW(), $6, $7, $8, $9, NOW())
             ON CONFLICT (tx_hash) DO NOTHING
             RETURNING
             id

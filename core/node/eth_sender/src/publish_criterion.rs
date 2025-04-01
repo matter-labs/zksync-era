@@ -170,6 +170,9 @@ impl L1GasCriterion {
         GasConsts::proof_costs(is_gateway)
     }
 
+    // Return the gas limit for the Validium part of commit.
+    // Gas limit for DA part will be adjusted later in eth_tx_manager,
+    // when the pubdata price will be known
     pub fn total_commit_validium_gas_amount(
         batch_numbers: ops::RangeInclusive<L1BatchNumber>,
         is_gateway: bool,
