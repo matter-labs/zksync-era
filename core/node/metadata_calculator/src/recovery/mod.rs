@@ -26,7 +26,9 @@
 //! after recovery matches one in the Postgres snapshot etc.
 
 use std::{
-    fmt, ops,
+    fmt,
+    num::NonZeroU32,
+    ops,
     sync::atomic::{AtomicU64, Ordering},
     time::Instant,
 };
@@ -211,9 +213,10 @@ impl InitParameters {
             .storage_logs_dal()
             .check_storage_log_count(
                 L2BlockNumber(0),
-                Self::MIN_STORAGE_LOGS_FOR_GENESIS_RECOVERY..,
+                NonZeroU32::new(Self::MIN_STORAGE_LOGS_FOR_GENESIS_RECOVERY).unwrap(),
             )
             .await
+            .map_err(Into::into)
     }
 
     fn chunk_count(&self) -> u64 {

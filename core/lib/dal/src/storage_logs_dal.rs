@@ -1,4 +1,4 @@
-use std::{collections::HashMap, ops, time::Instant};
+use std::{collections::HashMap, num::NonZeroU32, ops, time::Instant};
 
 use sqlx::types::chrono::Utc;
 use zksync_db_connection::{
@@ -762,15 +762,13 @@ impl StorageLogsDal<'_, '_> {
         Ok(rows.collect())
     }
 
-    /// Returns `true` iff the number of logs for the specified L2 blocks is in the provided range.
+    /// Returns `true` if the number of logs at the specified L2 block is greater or equal to `min_count`.
     pub async fn check_storage_log_count(
         &mut self,
         l2_block_number: L2BlockNumber,
-        count_to_check: ops::RangeFrom<u32>,
-    ) -> anyhow::Result<bool> {
-        let Some(offset) = count_to_check.start.checked_sub(1) else {
-            return Ok(true); // There are always `0..` logs
-        };
+        min_count: NonZeroU32,
+    ) -> DalResult<bool> {
+        let offset = min_count.get() - 1; // Cannot underflow
 
         let row = sqlx::query_scalar!(
             r#"
@@ -849,16 +847,19 @@ mod tests {
             println!("count = {count}");
             assert!(!conn
                 .storage_logs_dal()
-                .check_storage_log_count(L2BlockNumber(0), count..)
+                .check_storage_log_count(L2BlockNumber(0), NonZeroU32::new(count).unwrap())
                 .await
                 .unwrap());
         }
 
-        for satisfying_count in [0, 1, 2] {
+        for satisfying_count in [1, 2] {
             println!("count = {satisfying_count}");
             assert!(conn
                 .storage_logs_dal()
-                .check_storage_log_count(L2BlockNumber(1), satisfying_count..)
+                .check_storage_log_count(
+                    L2BlockNumber(1),
+                    NonZeroU32::new(satisfying_count).unwrap()
+                )
                 .await
                 .unwrap());
         }
@@ -866,7 +867,7 @@ mod tests {
             println!("count = {larger_count}");
             assert!(!conn
                 .storage_logs_dal()
-                .check_storage_log_count(L2BlockNumber(1), larger_count..)
+                .check_storage_log_count(L2BlockNumber(1), NonZeroU32::new(larger_count).unwrap())
                 .await
                 .unwrap());
         }

@@ -1,6 +1,6 @@
 //! Logic for [`RocksdbStorage`] related to snapshot recovery.
 
-use std::ops;
+use std::{num::NonZeroU32, ops};
 
 use anyhow::Context as _;
 use tokio::sync::watch;
@@ -82,9 +82,10 @@ impl InitParameters {
             .storage_logs_dal()
             .check_storage_log_count(
                 L2BlockNumber(0),
-                Self::MIN_STORAGE_LOGS_FOR_GENESIS_RECOVERY..,
+                NonZeroU32::new(Self::MIN_STORAGE_LOGS_FOR_GENESIS_RECOVERY).unwrap(),
             )
             .await
+            .map_err(Into::into)
     }
 }
 
