@@ -12,7 +12,10 @@ use zksync_eth_client::{
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_node_fee_model::l1_gas_price::TxParamsProvider;
 use zksync_shared_metrics::BlockL1Stage;
-use zksync_types::{eth_sender::EthTx, Address, L1BlockNumber, H256, U256};
+use zksync_types::{
+    aggregated_operations::AggregatedActionType, eth_sender::EthTx, Address, L1BlockNumber, H256,
+    L1_GAS_PER_PUBDATA_BYTE, U256,
+};
 
 use super::{metrics::METRICS, EthSenderError};
 use crate::{
@@ -195,11 +198,33 @@ impl EthTxManager {
             None
         };
 
-        let gas_limit = if let Some(gas_limit) = tx.predicted_gas_cost {
+        // Gas limit saved in predicted gas_cost, doesn't include gas_limit for pubdata usage.
+        let mut gas_limit = if let Some(gas_limit) = tx.predicted_gas_cost {
             (gas_limit * 2).into()
         } else {
             self.config.max_aggregated_tx_gas.into()
         };
+
+        // Adjust gas limit based ob pubdata cost. Commit is the only pubdata intensive part
+        if tx.tx_type == AggregatedActionType::Commit {
+            match operator_type {
+                OperatorType::Blob => {
+                    // Do nothing the pubdata intensive part is on separate gateway
+                }
+                OperatorType::NonBlob => {
+                    // Settlement mode is L1.
+                    gas_limit += (L1_GAS_PER_PUBDATA_BYTE * tx.raw_tx.len() as u32).into()
+                }
+                OperatorType::Gateway => {
+                    // Settlement mode is Gateway.
+                    if let Some(max_gas_per_pubdata_price) = max_gas_per_pubdata_price {
+                        gas_limit += (max_gas_per_pubdata_price * tx.raw_tx.len() as u64).into()
+                    } else {
+                        gas_limit = self.config.max_aggregated_tx_gas.into();
+                    }
+                }
+            }
+        }
 
         let mut signed_tx = self
             .l1_interface
