@@ -16,6 +16,7 @@ abigen!(
     function assetId(address)(bytes32)
     function setLegacyTokenAssetId(address _l2TokenAddress) public
     function L2_LEGACY_SHARED_BRIDGE()(address)
+    function originChainId(bytes32)(uint256)
 ]"
 );
 
@@ -55,9 +56,16 @@ pub async fn migrate_l2_tokens(
     let all_tokens = get_deployed_by_bridge(
         &l2_rpc_url,
         l2_legacy_shared_bridge_addr,
+        l2_chain_id,
         l2_tokens_indexing_block_range.unwrap_or(DEFAULT_BLOCK_RANGE),
     )
     .await?;
+
+    let mut total_tokens_registered = 0;
+    let mut total_tokens_stuck = 0;
+    let mut total_legacy_tokens = 0;
+
+    let mut stuck_tokens = vec![];
 
     for token in all_tokens {
         let current_asset_id = l2_native_token_vault.asset_id(token).await?;
@@ -81,8 +89,30 @@ pub async fn migrate_l2_tokens(
             } else {
                 anyhow::bail!("Transaction failed or was dropped.");
             }
+            total_tokens_registered += 1;
+            total_legacy_tokens += 1;
+        } else if l1_address != Address::zero() {
+            let origin_chain_id = l2_native_token_vault
+                .origin_chain_id(current_asset_id)
+                .await?;
+
+            if origin_chain_id == U256::zero() {
+                stuck_tokens.push(token);
+                total_tokens_stuck += 1;
+            }
+
+            total_legacy_tokens += 1;
         }
     }
+
+    println!(
+        "Chain contains {} legacy tokens in total. Out of those: {} tokens were migrated before, {} tokens have just been migrated and {} were found temporarily stuck until v27",
+        total_legacy_tokens,
+        total_legacy_tokens - total_tokens_registered - stuck_tokens.len(),
+        total_tokens_registered,
+        stuck_tokens.len()
+    );
+    println!("Stuck tokens: {:#?}", stuck_tokens);
 
     Ok(())
 }
