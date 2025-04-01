@@ -338,3 +338,7 @@ zksync_node_api_server = { version = "27.1.0-non-semver-compat", path = "node/ap
 zksync_base_token_adjuster = { version = "27.1.0-non-semver-compat", path = "node/base_token_adjuster" }
 zksync_logs_bloom_backfill = { version = "27.1.0-non-semver-compat", path = "node/logs_bloom_backfill" }
 zksync_gateway_migrator = { version = "27.1.0-non-semver-compat", path = "node/gateway_migrator" }
+
+[patch.crates-io]
+vise = { git = "https://github.com/matter-labs/vise.git", rev = "51669f42f60c50b3a521662a4ecd71212a303299" }
+vise-exporter = { git = "https://github.com/matter-labs/vise.git", rev = "51669f42f60c50b3a521662a4ecd71212a303299" }
