@@ -1,4 +1,4 @@
-use zksync_eth_client::BoundEthInterface;
+use zksync_eth_client::{BoundEthInterface, EthInterface};
 use zksync_web3_decl::client::{DynClient, L1, L2};
 
 use crate::resource::Resource;
@@ -14,11 +14,26 @@ impl Resource for EthInterfaceResource {
 }
 
 #[derive(Debug, Clone)]
-pub struct GatewayEthInterfaceResource(pub Box<DynClient<L1>>);
+pub enum SettlementLayerClient {
+    L1(Box<DynClient<L1>>),
+    L2(Box<DynClient<L2>>),
+}
 
-impl Resource for GatewayEthInterfaceResource {
+impl From<SettlementLayerClient> for Box<dyn EthInterface> {
+    fn from(value: SettlementLayerClient) -> Self {
+        match value {
+            SettlementLayerClient::L1(client) => Box::new(client),
+            SettlementLayerClient::L2(client) => Box::new(client),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct SettlementLayerClientResource(pub SettlementLayerClient);
+
+impl Resource for SettlementLayerClientResource {
     fn name() -> String {
-        "common/gateway_eth_interface".into()
+        "common/settlement_layer_client".into()
     }
 }
 

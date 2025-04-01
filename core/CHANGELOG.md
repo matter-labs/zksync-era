@@ -1,5 +1,22 @@
 # Changelog
 
+## [27.1.0](https://github.com/matter-labs/zksync-era/compare/core-v27.0.0...core-v27.1.0) (2025-03-27)
+
+
+### Features
+
+* **consensus:** Add consensus protocol versioning ([#3720](https://github.com/matter-labs/zksync-era/issues/3720)) ([d1b4308](https://github.com/matter-labs/zksync-era/commit/d1b4308ff82da11515d8080c8e83f67c0f1812eb))
+* **zkos:** Implement ZK OS tree manager ([#3730](https://github.com/matter-labs/zksync-era/issues/3730)) ([efc0007](https://github.com/matter-labs/zksync-era/commit/efc00076f8211f261825c41625c3ec9bd4f0905a))
+
+
+### Bug Fixes
+
+* **api:** Fix panic applying nonce override ([#3748](https://github.com/matter-labs/zksync-era/issues/3748)) ([944059b](https://github.com/matter-labs/zksync-era/commit/944059b0cb2911debc3253a3066c4ce855b5196b))
+* **contract_verifier:** order deploy events in `get_contract_info_for_verification` ([#3766](https://github.com/matter-labs/zksync-era/issues/3766)) ([6e3c031](https://github.com/matter-labs/zksync-era/commit/6e3c031e8663614a4272f09c84bd385c7e9852dd))
+* make proof data handler backwards compatible ([#3767](https://github.com/matter-labs/zksync-era/issues/3767)) ([bdbbaaa](https://github.com/matter-labs/zksync-era/commit/bdbbaaa4974399afec2394e0ffea9f9f6876e1e2))
+* **proof_data_handler:** update save_proof_artifacts_metadata UPDATE ([#3758](https://github.com/matter-labs/zksync-era/issues/3758)) ([ed4926f](https://github.com/matter-labs/zksync-era/commit/ed4926f4cd0705ad6f1ed57ff5ee2c8c79af4987))
+* **vm:** Fix VM divergence in revert data ([#3570](https://github.com/matter-labs/zksync-era/issues/3570)) ([b82e2e4](https://github.com/matter-labs/zksync-era/commit/b82e2e47cd8a53a02e8122c03b003893d300e604))
+
 ## [27.0.0](https://github.com/matter-labs/zksync-era/compare/core-v26.7.0...core-v27.0.0) (2025-03-21)
 
 

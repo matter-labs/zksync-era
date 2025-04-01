@@ -9,7 +9,10 @@ use zksync_config::{
 };
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
-use zksync_eth_client::{clients::MockSettlementLayer, BaseFees};
+use zksync_eth_client::{
+    clients::{DynClient, MockSettlementLayer, L1},
+    BaseFees,
+};
 use zksync_multivm::{
     interface::{
         tracer::ValidationTraces, TransactionExecutionMetrics, TransactionExecutionResult,
@@ -82,11 +85,12 @@ impl Tester {
             num_samples_for_blob_base_fee_estimate: 10,
             internal_pubdata_pricing_multiplier: 1.0,
             max_blob_base_fee: None,
-            settlement_mode: Default::default(),
         };
 
+        let client: Box<DynClient<L1>> = Box::new(eth_client.into_client());
+
         GasAdjuster::new(
-            GasAdjusterClient::from_l1(Box::new(eth_client.into_client())),
+            GasAdjusterClient::from(client),
             gas_adjuster_config,
             PubdataSendingMode::Calldata,
             self.commitment_mode,
