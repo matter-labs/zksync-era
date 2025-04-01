@@ -20,3 +20,4 @@ zksync_system_constants.workspace = true
 zksync_dal.workspace = true
 anyhow.workspace = true
 tracing.workspace = true
+thiserror.workspace = true
