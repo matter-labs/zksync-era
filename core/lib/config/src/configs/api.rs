@@ -224,8 +224,8 @@ pub struct Web3JsonRpcConfig {
     /// (hundreds or thousands RPS).
     #[serde(default)]
     pub extended_api_tracing: bool,
-    #[serde(default)]
     /// Configuration options for the deployment allow list
+    #[serde(default)]
     pub deployment_allowlist: Option<DeploymentAllowlist>,
 }
 
