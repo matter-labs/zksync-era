@@ -196,7 +196,7 @@ impl EthTxManager {
         };
 
         let gas_limit = if let Some(gas_limit) = tx.predicted_gas_cost {
-            gas_limit.into()
+            (gas_limit * 2).into()
         } else {
             self.config.max_aggregated_tx_gas.into()
         };

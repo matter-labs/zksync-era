@@ -1,3 +1,5 @@
+use std::ops::Not;
+
 use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_contracts::BaseSystemContractsHashes;
@@ -824,7 +826,8 @@ impl EthTxAggregator {
                 encoded_aggregated_op.calldata,
                 op_type,
                 timelock_contract_address,
-                Some(eth_tx_predicted_gas),
+                // TODO fix is_gateway
+                is_gateway.not().then_some(eth_tx_predicted_gas),
                 sender_addr,
                 encoded_aggregated_op.sidecar,
                 is_gateway,
