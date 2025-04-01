@@ -1,4 +1,4 @@
-use std::{env, str::FromStr};
+use std::{env, num::ParseIntError, str::FromStr};
 
 use anyhow::Context;
 use zksync_basic_types::{url::SensitiveUrl, H160};
@@ -70,6 +70,13 @@ pub fn da_client_config_from_env(prefix: &str) -> anyhow::Result<DAClientConfig>
                     env::var(format!("{}POINTS_LINK_G2", prefix))?,
                 )),
                 _ => anyhow::bail!("Unknown Eigen points type"),
+            },
+            custom_quorum_numbers: match env::var(format!("{}CUSTOM_QUORUM_NUMBERS", prefix)) {
+                Ok(numbers) => numbers
+                    .split(',')
+                    .map(|s| s.parse().map_err(|e: ParseIntError| anyhow::anyhow!(e)))
+                    .collect::<anyhow::Result<Vec<_>>>()?,
+                Err(_) => vec![],
             },
             eigenda_registry_addr: H160::from_str(&env::var(format!(
                 "{}EIGENDA_REGISTRY_ADDR",
@@ -308,6 +315,7 @@ mod tests {
             DA_AUTHENTICATED=false
             DA_POINTS_SOURCE="Path"
             DA_POINTS_PATH="resources"
+            DA_CUSTOM_QUORUM_NUMBERS="2"
             DA_EIGENDA_REGISTRY_ADDR="0x0000000000000000000000000000000000001234"
         "#;
         lock.set_env(config);
@@ -325,6 +333,7 @@ mod tests {
                 wait_for_finalization: true,
                 authenticated: false,
                 points_source: PointsSource::Path("resources".to_string()),
+                custom_quorum_numbers: vec![2],
                 eigenda_registry_addr: "0x0000000000000000000000000000000000001234"
                     .parse()
                     .unwrap(),

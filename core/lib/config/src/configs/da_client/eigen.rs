@@ -26,6 +26,8 @@ pub struct EigenConfig {
     pub authenticated: bool,
     /// Points source
     pub points_source: PointsSource,
+    /// Custom quorum numbers
+    pub custom_quorum_numbers: Vec<u8>,
     /// Address of the eigenDA registry contract
     pub eigenda_registry_addr: Address,
 }

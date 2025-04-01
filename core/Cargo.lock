@@ -1524,7 +1524,16 @@ version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0700ddab506f33b20a03b13996eccd309a48e5ff77d0d95926aa0210fb4e95f1"
 dependencies = [
- "bit-vec",
+ "bit-vec 0.6.3",
+]
+
+[[package]]
+name = "bit-set"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "08807e080ed7f9d5433fa9b275196cfc35414f66a0c79d864dc51a0d825231a3"
+dependencies = [
+ "bit-vec 0.8.0",
 ]
 
 [[package]]
@@ -1535,6 +1544,12 @@ checksum = "349f9b6a179ed607305526ca489b34ad0a41aed5f7980fa90eb03160b69598fb"
 dependencies = [
  "serde",
 ]
+
+[[package]]
+name = "bit-vec"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5e764a1d40d510daf35e07be9eb06e75770908c27d411ee6c92109c9840eaaf7"
 
 [[package]]
 name = "bitcoin-internals"
@@ -3718,7 +3733,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8663eb93bf4ebbed63fe9eda79683ad6db0e59dede3bf95f7a7f7b870f9473f1"
 dependencies = [
  "arr_macro",
- "bit-vec",
+ "bit-vec 0.6.3",
  "blake2 0.9.2",
  "blake2-rfc_bellman_edition",
  "blake2s_simd",
@@ -5256,7 +5271,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "55cb077ad656299f160924eb2912aa147d7339ea7d69e1b5517326fdcec3c1ca"
 dependencies = [
  "ascii-canvas",
- "bit-set",
+ "bit-set 0.5.3",
  "ena",
  "itertools 0.11.0",
  "lalrpop-util",
@@ -6897,9 +6912,9 @@ dependencies = [
 
 [[package]]
 name = "prometheus-client"
-version = "0.22.3"
+version = "0.23.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "504ee9ff529add891127c4827eb481bd69dc0ebc72e9a682e187db4caa60c3ca"
+checksum = "cf41c1a7c32ed72abe5082fb19505b969095c12da9f5732a4bc9878757fd087c"
 dependencies = [
  "dtoa",
  "itoa",
@@ -6920,12 +6935,12 @@ dependencies = [
 
 [[package]]
 name = "proptest"
-version = "1.5.0"
+version = "1.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b4c2511913b88df1637da85cc8d96ec8e43a3f8bb8ccb71ee1ac240d6f3df58d"
+checksum = "14cae93065090804185d3b75f0bf93b8eeda30c7a9b4a33d3bdb3988d6229e50"
 dependencies = [
- "bit-set",
- "bit-vec",
+ "bit-set 0.8.0",
+ "bit-vec 0.8.0",
  "bitflags 2.6.0",
  "lazy_static",
  "num-traits",
@@ -7721,9 +7736,9 @@ checksum = "48fd7bd8a6377e15ad9d42a8ec25371b94ddc67abe7c8b9127bec79bebaaae18"
 
 [[package]]
 name = "rust-eigenda-client"
-version = "0.1.1"
+version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dbab0f16f413e2482d0c8776f51d7fb8cd1f41cf3cee68f2c8ae30c7a7709663"
+checksum = "2fcf945c2fb8bdc0133a621cc9697d4ae033fe6b48943854ba29943aa64d5455"
 dependencies = [
  "ark-bn254",
  "async-trait",
@@ -10485,8 +10500,7 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 [[package]]
 name = "vise"
 version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "90ade36f3548b1524396f4de7b36f4f210c8a01dfab568eb2bff466af64eb6e5"
+source = "git+https://github.com/matter-labs/vise.git?rev=51669f42f60c50b3a521662a4ecd71212a303299#51669f42f60c50b3a521662a4ecd71212a303299"
 dependencies = [
  "compile-fmt",
  "ctor",
@@ -10499,10 +10513,11 @@ dependencies = [
 [[package]]
 name = "vise-exporter"
 version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "671d3b894d5d0849f0a597f56bf071f42d4f2a1cbcf2f78ca21f870ab7c0cc2b"
+source = "git+https://github.com/matter-labs/vise.git?rev=51669f42f60c50b3a521662a4ecd71212a303299#51669f42f60c50b3a521662a4ecd71212a303299"
 dependencies = [
- "hyper 0.14.31",
+ "http-body-util",
+ "hyper 1.5.1",
+ "hyper-util",
  "once_cell",
  "tokio",
  "tracing",
@@ -10512,8 +10527,7 @@ dependencies = [
 [[package]]
 name = "vise-macros"
 version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6a511871dc5de990a3b2a0e715facfbc5da848c0c0395597a1415029fb7c250a"
+source = "git+https://github.com/matter-labs/vise.git?rev=51669f42f60c50b3a521662a4ecd71212a303299#51669f42f60c50b3a521662a4ecd71212a303299"
 dependencies = [
  "proc-macro2 1.0.92",
  "quote 1.0.37",
@@ -11279,6 +11293,7 @@ dependencies = [
  "clap 4.5.23",
  "leb128",
  "once_cell",
+ "proptest",
  "rand 0.8.5",
  "rayon",
  "tempfile",
@@ -11466,7 +11481,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d0c48d04dd04eceedd4d1ced200b227ddb0795335151e7d80a0cbd0dd62e9872"
 dependencies = [
  "arrayvec 0.7.6",
- "bit-vec",
+ "bit-vec 0.6.3",
  "blake2s_simd",
  "byteorder",
  "cfg-if",
@@ -11694,7 +11709,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "04274a561025e3925bf3b05ae2e97721df22c5b12acb6e40298fdc4ea723e8a3"
 dependencies = [
  "anyhow",
- "bit-vec",
+ "bit-vec 0.6.3",
  "hex",
  "num-bigint 0.4.6",
  "prost 0.12.6",
@@ -12261,6 +12276,7 @@ version = "27.1.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
+ "thiserror 1.0.69",
  "tokio",
  "tracing",
  "zksync_basic_types",
@@ -12843,7 +12859,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a7bff1b75f45f575f12d6de8e5fd425130894ca271383ae1ff715e24ac998147"
 dependencies = [
  "anyhow",
- "bit-vec",
+ "bit-vec 0.6.3",
  "once_cell",
  "prost 0.12.6",
  "prost-reflect 0.12.0",
