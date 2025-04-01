@@ -77,7 +77,8 @@ impl FriNodeWitnessGeneratorDal<'_, '_> {
                         AND protocol_version = $1
                         AND protocol_version_patch = $2
                     ORDER BY
-                        l1_batch_number ASC,
+                        priority DESC,
+                        batch_created_at ASC,
                         depth ASC,
                         id ASC
                     LIMIT
@@ -160,10 +161,15 @@ impl FriNodeWitnessGeneratorDal<'_, '_> {
                 status,
                 created_at,
                 updated_at,
+                batch_created_at,
                 protocol_version_patch
             )
             VALUES
-            ($1, $2, $3, $4, $5, $6, 'waiting_for_proofs', NOW(), NOW(), $7)
+            ($1, $2, $3, $4, $5, $6, 'waiting_for_proofs', NOW(), NOW(), (
+                SELECT batch_created_at
+                FROM witness_inputs_fri
+                WHERE l1_batch_number = $1
+            ), $7)
             ON CONFLICT (l1_batch_number, circuit_id, depth) DO
             UPDATE
             SET
@@ -285,7 +291,8 @@ impl FriNodeWitnessGeneratorDal<'_, '_> {
             SET
                 status = 'queued',
                 updated_at = NOW(),
-                processing_started_at = NOW()
+                processing_started_at = NOW(),
+                priority = priority + 1
             WHERE
                 (
                     status = 'in_progress'

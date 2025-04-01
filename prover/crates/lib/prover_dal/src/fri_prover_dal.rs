@@ -96,6 +96,7 @@ impl FriProverDal<'_, '_> {
                     status,
                     created_at,
                     updated_at,
+                    batch_created_at,
                     protocol_version_patch
                 )
                 "#,
@@ -115,6 +116,14 @@ impl FriProverDal<'_, '_> {
                         .push_bind("queued") // status
                         .push("NOW()") // created_at
                         .push("NOW()") // updated_at
+                        .push(
+                            r#"
+                        (
+                            SELECT batch_created_at
+                            FROM witness_inputs_fri
+                            WHERE l1_batch_number = $1
+                        )"#,
+                        )
                         .push_bind(protocol_version_id.patch.0 as i32);
                 },
             );
@@ -174,7 +183,8 @@ impl FriProverDal<'_, '_> {
                         AND aggregation_round = $4
                         AND circuit_id = ANY($5)
                     ORDER BY
-                        l1_batch_number ASC,
+                        priority DESC,
+                        batch_created_at ASC,
                         circuit_id ASC,
                         id ASC
                     LIMIT
@@ -251,7 +261,8 @@ impl FriProverDal<'_, '_> {
                         AND protocol_version_patch = $2
                         AND NOT (aggregation_round = $4 AND circuit_id = ANY($5))
                     ORDER BY
-                        l1_batch_number ASC,
+                        priority DESC,
+                        batch_created_at ASC,
                         aggregation_round ASC,
                         circuit_id ASC,
                         id ASC
@@ -375,7 +386,8 @@ impl FriProverDal<'_, '_> {
                 SET
                     status = 'queued',
                     updated_at = NOW(),
-                    processing_started_at = NOW()
+                    processing_started_at = NOW(),
+                    priority = priority + 1
                 WHERE
                     id IN (
                         SELECT
@@ -449,10 +461,15 @@ impl FriProverDal<'_, '_> {
                 status,
                 created_at,
                 updated_at,
+                batch_created_at,
                 protocol_version_patch
             )
             VALUES
-            ($1, $2, $3, $4, $5, $6, $7, $8, 'queued', NOW(), NOW(), $9)
+            ($1, $2, $3, $4, $5, $6, $7, $8, 'queued', NOW(), NOW(), (
+                SELECT batch_created_at
+                FROM witness_inputs_fri
+                WHERE l1_batch_number = $1
+            ), $9)
             ON CONFLICT (
                 l1_batch_number, aggregation_round, circuit_id, depth, sequence_number
             ) DO
@@ -934,6 +951,10 @@ mod tests {
                 ProtocolSemanticVersion::default(),
                 L1VerifierConfig::default(),
             )
+            .await;
+        transaction
+            .fri_basic_witness_generator_dal()
+            .save_witness_inputs(L1BatchNumber(1), "", ProtocolSemanticVersion::default())
             .await;
         transaction
             .fri_prover_jobs_dal()
