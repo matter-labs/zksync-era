@@ -3,7 +3,6 @@ syntax = "proto3";
 package zksync.dal;
 
 import "zksync/roles/validator.proto";
-import "zksync/roles/attester.proto";
 import "zksync/roles/node.proto";
 
 message BlockCertificate {
@@ -138,8 +137,8 @@ message PaymasterParams {
   optional bytes paymaster_input = 2; // required
 }
 
-message AttesterCommittee {
-  repeated roles.attester.WeightedAttester members = 1; // required
+message ValidatorCommittee {
+  repeated roles.validator.WeightedValidator members = 1; // required
 }
 
 message NodeAddr {

@@ -1,7 +1,7 @@
 //! Protobuf conversion functions.
 use anyhow::{anyhow, Context as _};
 use zksync_concurrency::net;
-use zksync_consensus_roles::{attester, node};
+use zksync_consensus_roles::{node, validator};
 use zksync_protobuf::{read_optional_repr, read_required, required, ProtoFmt, ProtoRepr};
 use zksync_types::{
     abi,
@@ -572,15 +572,15 @@ impl ProtoRepr for proto::Transaction {
     }
 }
 
-impl ProtoRepr for proto::AttesterCommittee {
-    type Type = attester::Committee;
+impl ProtoRepr for proto::ValidatorCommittee {
+    type Type = validator::Committee;
 
     fn read(&self) -> anyhow::Result<Self::Type> {
         let members: Vec<_> = self
             .members
             .iter()
             .enumerate()
-            .map(|(i, m)| attester::WeightedAttester::read(m).context(i))
+            .map(|(i, m)| validator::WeightedValidator::read(m).context(i))
             .collect::<Result<_, _>>()
             .context("members")?;
         Self::Type::new(members)

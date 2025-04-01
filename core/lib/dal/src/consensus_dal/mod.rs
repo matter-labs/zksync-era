@@ -587,32 +587,26 @@ impl ConsensusDal<'_, '_> {
         Ok(())
     }
 
-    /// Persist the attester committee for the given batch.
-    pub async fn upsert_attester_committee(
+    /// Persist the validator committee that will be active at the given block.
+    pub async fn insert_validator_committee(
         &mut self,
-        number: attester::BatchNumber,
-        committee: &attester::Committee,
+        number: validator::BlockNumber,
+        committee: &validator::Committee,
     ) -> anyhow::Result<()> {
         let committee = zksync_protobuf::serde::Serialize
-            .proto_repr::<proto::AttesterCommittee, _>(committee, serde_json::value::Serializer)
+            .proto_repr::<proto::ValidatorCommittee, _>(committee, serde_json::value::Serializer)
             .unwrap();
         sqlx::query!(
             r#"
             INSERT INTO
-            l1_batches_consensus_committees (l1_batch_number, attesters, updated_at)
+            consensus_committees (active_at_block, validators)
             VALUES
-            ($1, $2, NOW())
-            ON CONFLICT (l1_batch_number) DO
-            UPDATE
-            SET
-            l1_batch_number = $1,
-            attesters = $2,
-            updated_at = NOW()
+            ($1, $2)
             "#,
             i64::try_from(number.0).context("overflow")?,
             committee
         )
-        .instrument("upsert_attester_committee")
+        .instrument("insert_validator_committee")
         .report_latency()
         .execute(self.storage)
         .await?;
