@@ -327,6 +327,7 @@ impl EthSenderDal<'_, '_> {
         tx_hash: H256,
         raw_signed_tx: &[u8],
         sent_at_block: u32,
+        predicted_gas_limit: Option<u64>,
     ) -> anyhow::Result<Option<u32>> {
         let priority_fee_per_gas =
             i64::try_from(priority_fee_per_gas).context("Can't convert u64 to i64")?;
@@ -347,11 +348,12 @@ impl EthSenderDal<'_, '_> {
                 updated_at,
                 blob_base_fee_per_gas,
                 max_gas_per_pubdata,
+                predicted_gas_limit,
                 sent_at_block,
                 sent_at
             )
             VALUES
-            ($1, $2, $3, $4, $5, NOW(), NOW(), $6, $7, $8, NOW())
+            ($1, $2, $3, $4, $5, NOW(), NOW(), $6, $7, $8,$9, NOW())
             ON CONFLICT (tx_hash) DO NOTHING
             RETURNING
             id
@@ -363,6 +365,7 @@ impl EthSenderDal<'_, '_> {
             raw_signed_tx,
             blob_base_fee_per_gas.map(|v| v as i64),
             max_gas_per_pubdata.map(|v| v as i64),
+            predicted_gas_limit.map(|v| v as i64),
             sent_at_block as i32
         )
         .fetch_optional(self.storage.conn())
