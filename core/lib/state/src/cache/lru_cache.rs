@@ -1,14 +1,14 @@
 use std::hash::Hash;
 
 use crate::cache::{
-    metrics::{LruCacheConfig, Method, RequestOutcome, METRICS},
+    metrics::{CacheMetrics, LruCacheConfig, Method, RequestOutcome, METRICS},
     CacheValue, MokaBase,
 };
 
 /// Cache implementation that uses LRU eviction policy.
 #[derive(Debug, Clone)]
 pub struct LruCache<K: Eq + Hash, V> {
-    name: &'static str,
+    metrics: &'static CacheMetrics,
     cache: Option<MokaBase<K, V>>,
 }
 
@@ -24,10 +24,11 @@ where
     /// Panics if an invalid cache capacity is provided.
     pub fn new(name: &'static str, capacity: u64) -> Self {
         tracing::info!("Configured LRU cache `{name}` with capacity {capacity}B");
-        if let Err(err) = METRICS.lru_info[&name].set(LruCacheConfig { capacity }) {
+        let metrics = &METRICS[&name.into()];
+        if let Err(err) = metrics.lru_info.set(LruCacheConfig { capacity }) {
             tracing::warn!(
                 "LRU cache `{name}` was already created with config {:?}; new config: {:?}",
-                METRICS.lru_info[&name].get(),
+                metrics.lru_info.get(),
                 err.into_inner()
             );
         }
@@ -43,7 +44,7 @@ where
             )
         };
 
-        Self { name, cache }
+        Self { metrics, cache }
     }
 
     /// Returns the capacity of this cache in bytes.
@@ -55,7 +56,7 @@ where
 
     /// Gets an entry and pulls it to the front if it exists.
     pub fn get(&self, key: &K) -> Option<V> {
-        let latency = METRICS.latency[&(self.name, Method::Get)].start();
+        let latency = self.metrics.latency[&Method::Get].start();
         let entry = self.cache.as_ref()?.get(key);
         // ^ We intentionally don't report metrics if there's no real cache.
 
@@ -65,14 +66,14 @@ where
         } else {
             RequestOutcome::Miss
         };
-        METRICS.requests[&(self.name, request_outcome)].inc();
+        self.metrics.requests[&request_outcome].inc();
 
         entry
     }
 
     /// Pushes an entry and performs LRU cache operations.
     pub fn insert(&self, key: K, value: V) {
-        let latency = METRICS.latency[&(self.name, Method::Insert)].start();
+        let latency = self.metrics.latency[&Method::Insert].start();
         let Some(cache) = self.cache.as_ref() else {
             return;
         };
@@ -85,8 +86,8 @@ where
 
     pub(crate) fn report_size(&self) {
         if let Some(cache) = &self.cache {
-            METRICS.len[&self.name].set(cache.entry_count());
-            METRICS.used_memory[&self.name].set(cache.weighted_size());
+            self.metrics.len.set(cache.entry_count());
+            self.metrics.used_memory.set(cache.weighted_size());
         }
     }
 

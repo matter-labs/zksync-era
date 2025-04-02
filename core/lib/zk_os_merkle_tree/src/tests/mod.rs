@@ -11,10 +11,12 @@ use crate::{
     types::{Leaf, TreeTags},
 };
 
+mod prop;
+
 #[test]
 fn empty_tree_hash_is_correct() {
     let expected_root_hash: H256 =
-        "0x8a41011d351813c31088367deecc9b70677ecf15ffc24ee450045cdeaf447f63"
+        "0x90a83ead2ba2194fbbb0f7cd2a017e36cfb4891513546d943a7282c2844d4b6b"
             .parse()
             .unwrap();
     assert_eq!(
@@ -63,24 +65,16 @@ fn naive_hash_tree(entries: &[TreeEntry]) -> H256 {
             .enumerate()
             .map(|(i, entry)| (entry.key, i as u64 + 2)),
     );
-    let prev_indices: Vec<_> = [0].into_iter().chain(indices.values().copied()).collect();
     let next_indices: Vec<_> = indices.values().skip(1).copied().chain([1]).collect();
-    let prev_and_next_indices: HashMap<_, _> = indices
-        .into_keys()
-        .zip(prev_indices.into_iter().zip(next_indices))
-        .collect();
+    let next_indices: HashMap<_, _> = indices.into_keys().zip(next_indices).collect();
 
     let leaves = [&TreeEntry::MIN_GUARD, &TreeEntry::MAX_GUARD]
         .into_iter()
         .chain(entries)
-        .map(|entry| {
-            let (prev_index, next_index) = prev_and_next_indices[&entry.key];
-            Leaf {
-                key: entry.key,
-                value: entry.value,
-                prev_index,
-                next_index,
-            }
+        .map(|entry| Leaf {
+            key: entry.key,
+            value: entry.value,
+            next_index: next_indices[&entry.key],
         });
 
     let mut hashes: Vec<_> = leaves.map(|leaf| Blake2Hasher.hash_leaf(&leaf)).collect();
