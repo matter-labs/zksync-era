@@ -163,6 +163,7 @@ opentelemetry-semantic-conventions = "0.16.0"
 opentelemetry-appender-tracing = "0.5"
 pin-project-lite = "0.2.13"
 pretty_assertions = "1"
+proptest = "1.6.0"
 prost = "0.12.6"
 rand = "0.8"
 rayon = "1.3.1"
@@ -235,22 +236,22 @@ pbjson-types = "0.6.0"
 eq-sdk = "0.1.4"
 
 # Eigen
-rust-eigenda-client = "0.1.1"
+rust-eigenda-client = "0.1.3"
 
 # Here and below:
 # We *always* pin the latest version of protocol to disallow accidental changes in the execution logic.
 # However, for the historical version of protocol crates, we have lax requirements. Otherwise,
 # Bumping a crypto dependency like `boojum` would require us to republish all the historical packages.
-circuit_encodings = "=0.151.3"
-circuit_sequencer_api = "=0.151.3"
-circuit_definitions = "=0.151.3"
+circuit_encodings = "=0.151.4"
+circuit_sequencer_api = "=0.151.4"
+circuit_definitions = "=0.151.4"
 crypto_codegen = { package = "zksync_solidity_vk_codegen", version = "=0.31.0" }
-kzg = { package = "zksync_kzg", version = "=0.151.3" }
+kzg = { package = "zksync_kzg", version = "=0.151.4" }
 zk_evm_1_3_1 = { package = "zk_evm", version = "0.131.0-rc.2" }
 zk_evm_1_3_3 = { package = "zk_evm", version = "0.133" }
 zk_evm_1_4_0 = { package = "zk_evm", version = "0.140" }
 zk_evm_1_4_1 = { package = "zk_evm", version = "0.141" }
-zk_evm_1_5_0 = { package = "zk_evm", version = "=0.151.3" }
+zk_evm_1_5_0 = { package = "zk_evm", version = "=0.151.4" }
 fflonk = "=0.31.0"
 bellman = { package = "zksync_bellman", version = "=0.31.0" }
 
@@ -340,3 +341,7 @@ zksync_node_api_server = { version = "27.1.0-non-semver-compat", path = "node/ap
 zksync_base_token_adjuster = { version = "27.1.0-non-semver-compat", path = "node/base_token_adjuster" }
 zksync_logs_bloom_backfill = { version = "27.1.0-non-semver-compat", path = "node/logs_bloom_backfill" }
 zksync_gateway_migrator = { version = "27.1.0-non-semver-compat", path = "node/gateway_migrator" }
+
+[patch.crates-io]
+vise = { git = "https://github.com/matter-labs/vise.git", rev = "51669f42f60c50b3a521662a4ecd71212a303299" }
+vise-exporter = { git = "https://github.com/matter-labs/vise.git", rev = "51669f42f60c50b3a521662a4ecd71212a303299" }
