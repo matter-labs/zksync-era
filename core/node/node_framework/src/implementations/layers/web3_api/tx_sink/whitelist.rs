@@ -51,7 +51,7 @@ impl WiringLayer for WhitelistedMasterPoolSinkLayer {
         let allow_list_task = AllowListTask::from_config(self.deployment_allowlist);
 
         let tx_sink =
-            WhitelistedDeployPoolSink::new(master_pool_sink, allow_list_task.clone()).into();
+            WhitelistedDeployPoolSink::new(master_pool_sink, allow_list_task.shared()).into();
 
         Ok(Output {
             tx_sink,
@@ -70,29 +70,7 @@ impl Task for AllowListTask {
         TaskKind::UnconstrainedTask
     }
 
-    async fn run(self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        let mut etag: Option<String> = None;
-
-        while !*stop_receiver.0.borrow_and_update() {
-            match self.fetch(etag.as_deref()).await {
-                Ok(Some((new_list, new_etag))) => {
-                    let allowlist = self.allowlist();
-                    let mut lock = allowlist.write().await;
-
-                    *lock = new_list;
-                    etag = new_etag;
-                    tracing::debug!("Allowlist updated. {} entries loaded.", lock.len());
-                }
-                Ok(None) => {
-                    tracing::debug!("Allowlist not updated (ETag matched).");
-                }
-                Err(err) => {
-                    tracing::warn!("Failed to refresh allowlist: {}", err);
-                }
-            }
-            let _ = tokio::time::timeout(self.refresh_interval(), stop_receiver.0.changed()).await;
-        }
-
-        Ok(())
+    async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
+        (*self).run(stop_receiver.0).await
     }
 }

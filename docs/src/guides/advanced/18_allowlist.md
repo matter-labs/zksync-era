@@ -8,7 +8,7 @@ Configure via `api.web3_json_rpc.deployment_allowlist` in your node's YAML:
 
 ```YAML
 api:
-  web3_json_rpc:fit
+  web3_json_rpc:
     deployment_allowlist:
       http_file_url: "https://example.com/allowlist.json"
       refresh_interval_secs: 60

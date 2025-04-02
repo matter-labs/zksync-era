@@ -2,7 +2,7 @@ use std::{collections::HashSet, sync::Arc, time::Duration};
 
 use reqwest::Client;
 use serde::Deserialize;
-use tokio::sync::RwLock;
+use tokio::sync::{watch, RwLock};
 use zksync_config::configs::api::DeploymentAllowlist;
 use zksync_dal::transactions_dal::L2TxSubmissionResult;
 use zksync_multivm::interface::{tracer::ValidationTraces, VmEvent};
@@ -18,14 +18,14 @@ use crate::{
 #[derive(Debug)]
 pub struct WhitelistedDeployPoolSink {
     master_pool_sink: MasterPoolSink,
-    allow_list_task: AllowListTask,
+    shared_allow_list: SharedAllowList,
 }
 
 impl WhitelistedDeployPoolSink {
-    pub fn new(master_pool_sink: MasterPoolSink, allow_list_task: AllowListTask) -> Self {
+    pub fn new(master_pool_sink: MasterPoolSink, shared_allow_list: SharedAllowList) -> Self {
         Self {
             master_pool_sink,
-            allow_list_task,
+            shared_allow_list,
         }
     }
 }
@@ -55,7 +55,7 @@ impl TxSink for WhitelistedDeployPoolSink {
 
         for deployer_address in deployer_addresses {
             if !self
-                .allow_list_task
+                .shared_allow_list
                 .is_address_allowed(&deployer_address)
                 .await
             {
@@ -80,12 +80,27 @@ struct WhitelistResponse {
     addresses: Vec<Address>,
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct SharedAllowList {
+    inner: Arc<RwLock<HashSet<Address>>>,
+}
+
+impl SharedAllowList {
+    pub fn writer(&self) -> Arc<RwLock<HashSet<Address>>> {
+        Arc::clone(&self.inner)
+    }
+
+    pub async fn is_address_allowed(&self, address: &Address) -> bool {
+        self.inner.read().await.contains(address)
+    }
+}
+
 /// Task that periodically fetches and updates the allowlist from a remote HTTP source.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 pub struct AllowListTask {
     url: String,
     refresh_interval: Duration,
-    allowlist: Arc<RwLock<HashSet<Address>>>,
+    allowlist: SharedAllowList,
     client: Client,
 }
 
@@ -98,7 +113,8 @@ impl AllowListTask {
                 .expect("DeploymentAllowlist must contain a URL")
                 .to_string(),
             refresh_interval: deployment_allowlist.refresh_interval(),
-            ..Default::default()
+            allowlist: SharedAllowList::default(),
+            client: Client::new(),
         }
     }
 
@@ -106,12 +122,8 @@ impl AllowListTask {
         self.refresh_interval
     }
 
-    pub fn allowlist(&self) -> Arc<RwLock<HashSet<Address>>> {
-        Arc::clone(&self.allowlist)
-    }
-
-    pub async fn is_address_allowed(&self, address: &Address) -> bool {
-        self.allowlist.read().await.contains(address)
+    pub fn shared(&self) -> SharedAllowList {
+        self.allowlist.clone()
     }
 
     pub async fn fetch(
@@ -144,5 +156,33 @@ impl AllowListTask {
         let addresses: HashSet<H160> = list.addresses.into_iter().collect();
 
         Ok(Some((addresses, new_etag)))
+    }
+
+    pub async fn run(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        let mut etag: Option<String> = None;
+
+        while !*stop_receiver.borrow_and_update() {
+            match self.fetch(etag.as_deref()).await {
+                Ok(Some((new_list, new_etag))) => {
+                    let writer = self.allowlist.writer();
+                    let mut lock = writer.write().await;
+
+                    *lock = new_list;
+                    etag = new_etag;
+                    tracing::debug!("Allowlist updated. {} entries loaded.", lock.len());
+                }
+                Ok(None) => {
+                    tracing::debug!("Allowlist not updated (ETag matched).");
+                }
+                Err(err) => {
+                    tracing::warn!("Failed to refresh allowlist: {}", err);
+                }
+            }
+            let _ = tokio::time::timeout(self.refresh_interval(), stop_receiver.changed()).await;
+        }
+
+        tracing::info!("received a stop signal; allow list task is shut down");
+
+        Ok(())
     }
 }

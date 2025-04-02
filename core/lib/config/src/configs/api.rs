@@ -412,7 +412,7 @@ impl MerkleTreeApiConfig {
     }
 }
 
-#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[derive(Default, Debug, Deserialize, Clone, PartialEq)]
 pub struct DeploymentAllowlist {
     /// If `Some(url)`, allowlisting is enabled. If `None`, it's disabled.
     /// If the `String` is empty, treat it as invalid and effectively disable.
@@ -444,15 +444,6 @@ impl DeploymentAllowlist {
     /// Defaults to 5 minutes if not set.
     pub fn refresh_interval(&self) -> Duration {
         Duration::from_secs(self.refresh_interval_secs.unwrap_or(300))
-    }
-}
-
-impl Default for DeploymentAllowlist {
-    fn default() -> Self {
-        Self {
-            http_file_url: None,
-            refresh_interval_secs: None,
-        }
     }
 }
 

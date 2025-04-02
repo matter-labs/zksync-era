@@ -153,7 +153,7 @@ impl ProtoRepr for proto::Web3JsonRpc {
             extended_api_tracing: self.extended_api_tracing.unwrap_or_default(),
             api_namespaces,
             deployment_allowlist: read_required_repr(&self.deployment_allowlist)
-                .context("deployment_allowlist")?,
+                .unwrap_or_default(),
         })
     }
 
