@@ -480,7 +480,7 @@ impl FriProverDal<'_, '_> {
             sqlx::query!(
                 r#"
                 SELECT
-                    COALESCE(SUM(CASE WHEN status = 'queued' THEN 1 ELSE 0 END), 0) AS "count!",
+                    SUM(CASE WHEN status = 'queued' THEN 1 ELSE 0 END) AS "count!",
                     circuit_id AS "circuit_id!",
                     aggregation_round AS "aggregation_round!",
                     'queued' AS "status!",
