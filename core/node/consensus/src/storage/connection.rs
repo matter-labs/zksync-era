@@ -1,16 +1,15 @@
 use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, time};
-use zksync_consensus_roles::{attester, attester::BatchNumber, validator};
+use zksync_consensus_roles::validator;
 use zksync_consensus_storage as storage;
 use zksync_dal::{
     consensus::BlockCertificate,
-    consensus_dal::{AttestationStatus, BlockMetadata, GlobalConfig, Payload},
+    consensus_dal::{BlockMetadata, GlobalConfig, Payload},
     Core, CoreDal, DalError,
 };
-use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
 use zksync_node_sync::{fetcher::IoCursorExt as _, ActionQueueSender, SyncState};
 use zksync_state_keeper::io::common::IoCursor;
-use zksync_types::{fee_model::BatchFeeInput, L1BatchNumber, L2BlockNumber};
+use zksync_types::{fee_model::BatchFeeInput, L2BlockNumber};
 use zksync_vm_executor::oneshot::{BlockInfo, ResolvedBlockInfo};
 
 use super::PayloadQueue;
@@ -52,29 +51,6 @@ impl ConnectionPool {
             ctx.sleep(POLL_INTERVAL).await?;
         }
     }
-
-    /// Waits for the `number` L1 batch hash.
-    #[tracing::instrument(skip_all)]
-    pub async fn wait_for_batch_info(
-        &self,
-        ctx: &ctx::Ctx,
-        number: attester::BatchNumber,
-        interval: time::Duration,
-    ) -> ctx::Result<StoredBatchInfo> {
-        loop {
-            if let Some(info) = self
-                .connection(ctx)
-                .await
-                .wrap("connection()")?
-                .batch_info(ctx, number)
-                .await
-                .with_wrap(|| format!("batch_info({number})"))?
-            {
-                return Ok(info);
-            }
-            ctx.sleep(interval).await?;
-        }
-    }
 }
 
 /// Context-aware `zksync_dal::Connection<Core>` wrapper.
@@ -110,14 +86,6 @@ impl<'a> Connection<'a> {
             .map_err(DalError::generalize)?)
     }
 
-    pub async fn batch_info(
-        &mut self,
-        ctx: &ctx::Ctx,
-        n: attester::BatchNumber,
-    ) -> ctx::Result<Option<StoredBatchInfo>> {
-        Ok(ctx.wait(self.0.consensus_dal().batch_info(n)).await??)
-    }
-
     /// Wrapper for `consensus_dal().block_metadata()`.
     pub async fn block_metadata(
         &mut self,
@@ -151,30 +119,17 @@ impl<'a> Connection<'a> {
             .await??)
     }
 
-    /// Wrapper for `consensus_dal().insert_batch_certificate()`,
-    /// which additionally verifies that the batch hash matches the stored batch.
-    #[tracing::instrument(skip_all, fields(l1_batch = %cert.message.number))]
-    pub async fn insert_batch_certificate(
+    /// Wrapper for `consensus_dal().insert_validator_committee()`.
+    pub async fn insert_validator_committee(
         &mut self,
         ctx: &ctx::Ctx,
-        cert: &attester::BatchQC,
-    ) -> ctx::Result<()> {
-        Ok(ctx
-            .wait(self.0.consensus_dal().insert_batch_certificate(cert))
-            .await??)
-    }
-
-    /// Wrapper for `consensus_dal().upsert_attester_committee()`.
-    pub async fn upsert_attester_committee(
-        &mut self,
-        ctx: &ctx::Ctx,
-        number: BatchNumber,
-        committee: &attester::Committee,
+        number: validator::BlockNumber,
+        committee: &validator::Committee,
     ) -> ctx::Result<()> {
         ctx.wait(
             self.0
                 .consensus_dal()
-                .upsert_attester_committee(number, committee),
+                .insert_validator_committee(number, committee),
         )
         .await??;
         Ok(())
@@ -333,17 +288,6 @@ impl<'a> Connection<'a> {
                 justification: validator::Justification(vec![]),
             },
         )))
-    }
-
-    /// Wrapper for `consensus_dal().attestation_status()`.
-    pub async fn attestation_status(
-        &mut self,
-        ctx: &ctx::Ctx,
-    ) -> ctx::Result<Option<AttestationStatus>> {
-        Ok(ctx
-            .wait(self.0.consensus_dal().attestation_status())
-            .await?
-            .context("attestation_status()")?)
     }
 
     /// Constructs `BlockArgs` for the given block number.
