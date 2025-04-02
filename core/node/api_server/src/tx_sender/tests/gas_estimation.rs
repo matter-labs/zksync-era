@@ -78,7 +78,7 @@ async fn initial_estimate_for_load_test_transaction(tx_params: LoadnextContractE
 #[tokio::test]
 async fn initial_gas_estimate_for_l1_transaction() {
     let alice = Account::random();
-    let state_override = StateBuilder::default().with_counter_contract(0).build();
+    let state_override = StateBuilder::default().with_counter_contract(None).build();
     let tx = alice.create_l1_counter_tx(1.into(), false);
 
     let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
@@ -232,7 +232,7 @@ async fn initial_estimate_for_code_oracle_tx() {
         .get(&StateBuilder::PRECOMPILES_CONTRACT_ADDRESS)
         .unwrap();
     let contract_bytecode = contract_override.code.as_ref().unwrap();
-    let contract_bytecode_hash = contract_bytecode.hash();
+    let contract_bytecode_hash = BytecodeHash::for_bytecode(contract_bytecode.as_ref()).value();
     let contract_keccak_hash = H256(keccak256(contract_bytecode.as_ref()));
 
     // Test contracts that are already decommitted when requested from the precompiles test contract.
@@ -283,7 +283,7 @@ async fn initial_estimate_with_large_free_bytecode() {
         .get(&StateBuilder::PRECOMPILES_CONTRACT_ADDRESS)
         .unwrap();
     let contract_bytecode = contract_override.code.as_ref().unwrap();
-    let contract_bytecode_hash = contract_bytecode.hash();
+    let contract_bytecode_hash = BytecodeHash::for_bytecode(contract_bytecode.as_ref()).value();
     let contract_keccak_hash = H256(keccak256(contract_bytecode.as_ref()));
 
     // Ask the test contract to decommit itself. This should refund the decommit costs, but it will be charged at first.
@@ -294,7 +294,7 @@ async fn initial_estimate_with_large_free_bytecode() {
 #[tokio::test]
 async fn revert_during_initial_estimate() {
     let mut alice = Account::random();
-    let state_override = StateBuilder::default().with_counter_contract(0).build();
+    let state_override = StateBuilder::default().with_counter_contract(None).build();
 
     let tx = alice.create_counter_tx(1.into(), true);
     let err = test_initial_estimate_error(state_override, tx).await;
@@ -350,7 +350,7 @@ async fn test_estimating_gas(
     state_override: StateOverride,
     tx: impl Into<Transaction>,
     acceptable_overestimation: u64,
-) {
+) -> u64 {
     let tx = tx.into();
     let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let tx_sender = create_real_tx_sender(pool).await;
@@ -393,6 +393,8 @@ async fn test_estimating_gas(
         diff <= acceptable_overestimation,
         "full={gas_limit_after_full_search}, optimized={gas_limit_after_optimized_search}"
     );
+
+    gas_limit_after_full_search
 }
 
 #[test_casing(3, [0, 100, 1_000])]
@@ -413,7 +415,7 @@ async fn estimating_gas_for_transfer(acceptable_overestimation: u64) {
 #[tokio::test]
 async fn estimating_gas_for_l1_transaction() {
     let alice = Account::random();
-    let state_override = StateBuilder::default().with_counter_contract(0).build();
+    let state_override = StateBuilder::default().with_counter_contract(None).build();
     let tx = alice.create_l1_counter_tx(1.into(), false);
 
     test_estimating_gas(state_override, tx, 0).await;
@@ -463,7 +465,7 @@ async fn estimating_gas_for_code_oracle_tx() {
 #[tokio::test]
 async fn estimating_gas_for_reverting_tx() {
     let mut alice = Account::random();
-    let state_override = StateBuilder::default().with_counter_contract(0).build();
+    let state_override = StateBuilder::default().with_counter_contract(None).build();
 
     let tx = alice.create_counter_tx(1.into(), true);
     let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
@@ -543,4 +545,31 @@ async fn limiting_storage_access_during_gas_estimation(vm_mode: FastVmMode) {
         .await
         .unwrap_err();
     assert_matches!(err, SubmitTxError::ExecutionReverted(msg, _) if msg.contains("limit reached"));
+}
+
+#[tokio::test]
+async fn estimating_gas_for_evm_counter() {
+    let mut alice = Account::random();
+    let tx = alice.create_counter_tx(23.into(), false);
+
+    let state_override = StateBuilder::default().with_counter_contract(None).build();
+    let eravm_gas_limit = test_estimating_gas(state_override, tx.clone(), 0).await;
+    let state_override = StateBuilder::default()
+        .with_evm_counter_contract(None)
+        .build();
+    let evm_gas_limit = test_estimating_gas(state_override, tx, 0).await;
+
+    // At the time of writing the test, `eravm_gas_limit` is ~130k and `evm_gas_limit` is ~245k.
+    assert!(eravm_gas_limit < evm_gas_limit);
+}
+
+#[tokio::test]
+async fn estimating_gas_for_evm_deployment() {
+    let mut alice = Account::random();
+    let tx = alice.create_evm_counter_deployment(42.into());
+    let state_override = StateBuilder::default().enable_evm_deployments().build();
+    let evm_gas_limit = test_estimating_gas(state_override, tx, 0).await;
+
+    // At the time of writing the test, `evm_gas_limit` is ~926k.
+    assert!((100_000..10_000_000).contains(&evm_gas_limit));
 }
