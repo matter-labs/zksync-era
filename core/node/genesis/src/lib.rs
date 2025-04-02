@@ -34,7 +34,8 @@ use zksync_zk_os_merkle_tree::TreeEntry;
 use crate::utils::{
     add_eth_token, get_deduped_log_queries, get_storage_logs,
     insert_base_system_contracts_to_factory_deps, insert_deduplicated_writes_and_protective_reads,
-    insert_factory_deps, insert_storage_logs, save_genesis_l1_batch_metadata,
+    insert_factory_deps, insert_storage_logs, process_genesis_batch_in_tree,
+    save_genesis_l1_batch_metadata,
 };
 
 #[cfg(test)]
@@ -211,7 +212,7 @@ pub fn make_genesis_batch_params(
         .collect::<Vec<_>>();
 
     // Tree will insert guard leaves automatically, they don't need to be passed here.
-    let metadata = zksync_zk_os_merkle_tree::process_genesis_batch(&tree_entries);
+    let metadata = process_genesis_batch_in_tree(&tree_entries);
     let root_hash = metadata.root_hash;
     let rollup_last_leaf_index = metadata.leaf_count + 1;
 
