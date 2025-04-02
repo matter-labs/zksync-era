@@ -16,11 +16,6 @@ use crate::{consensus::BlockCertificate, Core, CoreDal};
 #[cfg(test)]
 mod tests;
 
-/// Hash of the batch.
-pub fn batch_hash(info: &StoredBatchInfo) -> attester::BatchHash {
-    attester::BatchHash(Keccak256::from_bytes(info.hash().0))
-}
-
 /// Verifies that the transition from `old` to `new` is admissible.
 pub fn verify_config_transition(old: &GlobalConfig, new: &GlobalConfig) -> anyhow::Result<()> {
     anyhow::ensure!(
@@ -452,37 +447,6 @@ impl ConsensusDal<'_, '_> {
         Ok(None)
     }
 
-    /// Fetches the attester certificate for the L1 batch with the given `batch_number`.
-    pub async fn batch_certificate(
-        &mut self,
-        batch_number: attester::BatchNumber,
-    ) -> anyhow::Result<Option<attester::BatchQC>> {
-        let Some(row) = sqlx::query!(
-            r#"
-            SELECT
-                certificate
-            FROM
-                l1_batches_consensus
-            WHERE
-                l1_batch_number = $1
-            "#,
-            i64::try_from(batch_number.0)?
-        )
-        .instrument("batch_certificate")
-        .report_latency()
-        .fetch_optional(self.storage)
-        .await?
-        else {
-            return Ok(None);
-        };
-        Ok(Some(
-            zksync_protobuf::serde::Deserialize {
-                deny_unknown_fields: true,
-            }
-            .proto_fmt(row.certificate)?,
-        ))
-    }
-
     /// Fetches a range of L2 blocks from storage and converts them to `Payload`s.
     pub async fn block_payloads(
         &mut self,
@@ -590,7 +554,7 @@ impl ConsensusDal<'_, '_> {
     /// Persist the validator committee that will be active at the given block.
     pub async fn insert_validator_committee(
         &mut self,
-        number: validator::BlockNumber,
+        block_number: validator::BlockNumber,
         committee: &validator::Committee,
     ) -> anyhow::Result<()> {
         let committee = zksync_protobuf::serde::Serialize
@@ -603,7 +567,7 @@ impl ConsensusDal<'_, '_> {
             VALUES
             ($1, $2)
             "#,
-            i64::try_from(number.0).context("overflow")?,
+            i64::try_from(block_number.0).context("overflow")?,
             committee
         )
         .instrument("insert_validator_committee")
@@ -613,23 +577,26 @@ impl ConsensusDal<'_, '_> {
         Ok(())
     }
 
-    /// Fetches the attester committee for the L1 batch with the given number.
-    pub async fn attester_committee(
+    /// Fetches the validator committee for the L2 block with the given number.
+    pub async fn get_validator_committee(
         &mut self,
-        n: attester::BatchNumber,
-    ) -> anyhow::Result<Option<attester::Committee>> {
+        block_number: validator::BlockNumber,
+    ) -> anyhow::Result<Option<validator::Committee>> {
         let Some(row) = sqlx::query!(
             r#"
             SELECT
-                attesters
+                validators
             FROM
-                l1_batches_consensus_committees
+                consensus_committees
             WHERE
-                l1_batch_number = $1
+                active_at_block <= $1
+            ORDER BY
+                active_at_block DESC
+            LIMIT 1
             "#,
-            i64::try_from(n.0)?
+            i64::try_from(block_number.0)?
         )
-        .instrument("attester_committee")
+        .instrument("validator_committee")
         .report_latency()
         .fetch_optional(self.storage)
         .await?
@@ -640,184 +607,7 @@ impl ConsensusDal<'_, '_> {
             zksync_protobuf::serde::Deserialize {
                 deny_unknown_fields: true,
             }
-            .proto_repr::<proto::AttesterCommittee, _>(row.attesters)?,
+            .proto_repr::<proto::ValidatorCommittee, _>(row.validators)?,
         ))
-    }
-
-    /// Fetches the L1 batch info for the given number.
-    pub async fn batch_info(
-        &mut self,
-        number: attester::BatchNumber,
-    ) -> anyhow::Result<Option<StoredBatchInfo>> {
-        let n = L1BatchNumber(number.0.try_into().context("overflow")?);
-        Ok(self
-            .storage
-            .blocks_dal()
-            .get_l1_batch_metadata(n)
-            .await
-            .context("get_l1_batch_metadata()")?
-            .map(|x| StoredBatchInfo::from(&x)))
-    }
-
-    /// Inserts a certificate for the L1 batch.
-    /// Noop if a certificate for the same L1 batch is already present.
-    /// Verification against previously stored attester committee is performed.
-    /// Batch hash verification is performed.
-    pub async fn insert_batch_certificate(
-        &mut self,
-        cert: &attester::BatchQC,
-    ) -> anyhow::Result<()> {
-        let cfg = self
-            .global_config()
-            .await
-            .context("global_config()")?
-            .context("genesis is missing")?;
-        let committee = self
-            .attester_committee(cert.message.number)
-            .await
-            .context("attester_committee()")?
-            .context("attester committee is missing")?;
-        let hash = batch_hash(
-            &self
-                .batch_info(cert.message.number)
-                .await
-                .context("batch()")?
-                .context("batch is missing")?,
-        );
-        anyhow::ensure!(cert.message.hash == hash, "hash mismatch");
-        cert.verify(cfg.genesis.hash(), &committee)
-            .context("cert.verify()")?;
-        sqlx::query!(
-            r#"
-            INSERT INTO
-            l1_batches_consensus (l1_batch_number, certificate, updated_at, created_at)
-            VALUES
-            ($1, $2, NOW(), NOW())
-            "#,
-            i64::try_from(cert.message.number.0).context("overflow")?,
-            // Unwrap is ok, because serialization should always succeed.
-            zksync_protobuf::serde::Serialize
-                .proto_fmt(cert, serde_json::value::Serializer)
-                .unwrap(),
-        )
-        .instrument("insert_batch_certificate")
-        .report_latency()
-        .execute(self.storage)
-        .await?;
-        Ok(())
-    }
-
-    /// Gets a number of the last L1 batch that was inserted. It might have gaps before it,
-    /// depending on the order in which votes have been collected over gossip by consensus.
-    pub async fn last_batch_certificate_number(
-        &mut self,
-    ) -> anyhow::Result<Option<attester::BatchNumber>> {
-        let Some(row) = sqlx::query!(
-            r#"
-            SELECT
-                l1_batch_number
-            FROM
-                l1_batches_consensus
-            ORDER BY
-                l1_batch_number DESC
-            LIMIT
-                1
-            "#
-        )
-        .instrument("last_batch_certificate_number")
-        .report_latency()
-        .fetch_optional(self.storage)
-        .await?
-        else {
-            return Ok(None);
-        };
-
-        Ok(Some(attester::BatchNumber(
-            row.l1_batch_number.try_into().context("overflow")?,
-        )))
-    }
-
-    /// Number of L1 batch that the L2 block belongs to.
-    /// None if the L2 block doesn't exist.
-    pub async fn batch_of_block(
-        &mut self,
-        block: validator::BlockNumber,
-    ) -> anyhow::Result<Option<attester::BatchNumber>> {
-        let Some(row) = sqlx::query!(
-            r#"
-            SELECT
-                COALESCE(
-                    miniblocks.l1_batch_number,
-                    (
-                        SELECT
-                            (MAX(number) + 1)
-                        FROM
-                            l1_batches
-                        WHERE
-                            is_sealed
-                    ),
-                    (
-                        SELECT
-                            MAX(l1_batch_number) + 1
-                        FROM
-                            snapshot_recovery
-                    )
-                ) AS "l1_batch_number!"
-            FROM
-                miniblocks
-            WHERE
-                number = $1
-            "#,
-            i64::try_from(block.0).context("overflow")?,
-        )
-        .instrument("batch_of_block")
-        .report_latency()
-        .fetch_optional(self.storage)
-        .await?
-        else {
-            return Ok(None);
-        };
-        Ok(Some(attester::BatchNumber(
-            row.l1_batch_number.try_into().context("overflow")?,
-        )))
-    }
-
-    /// Global attestation status.
-    /// Includes the next batch that the attesters should vote for.
-    /// None iff the consensus genesis is missing (i.e. consensus wasn't enabled) or
-    /// L2 block with number `genesis.first_block` doesn't exist yet.
-    ///
-    /// This is a main node only query.
-    /// ENs should call the attestation_status RPC of the main node.
-    pub async fn attestation_status(&mut self) -> anyhow::Result<Option<AttestationStatus>> {
-        let Some(cfg) = self.global_config().await.context("genesis()")? else {
-            return Ok(None);
-        };
-        let Some(next_batch_to_attest) = async {
-            // First batch that we don't have a certificate for.
-            if let Some(last) = self
-                .last_batch_certificate_number()
-                .await
-                .context("last_batch_certificate_number()")?
-            {
-                return Ok(Some(last + 1));
-            }
-            // Otherwise start with the batch containing the first block of the fork.
-            self.batch_of_block(cfg.genesis.first_block)
-                .await
-                .context("batch_of_block()")
-        }
-        .await?
-        else {
-            tracing::info!(%cfg.genesis.first_block, "genesis block not found");
-            return Ok(None);
-        };
-        Ok(Some(AttestationStatus {
-            genesis: cfg.genesis.hash(),
-            // We never attest batch 0 for technical reasons:
-            // * it is not supported to read state before batch 0.
-            // * the registry contract needs to be deployed before we can start operating on it
-            next_batch_to_attest: next_batch_to_attest.max(attester::BatchNumber(1)),
-        }))
     }
 }

@@ -107,25 +107,6 @@ impl ProtoFmt for GlobalConfig {
         }
     }
 }
-impl ProtoFmt for AttestationStatus {
-    type Proto = proto::AttestationStatus;
-
-    fn read(r: &Self::Proto) -> anyhow::Result<Self> {
-        Ok(Self {
-            genesis: read_required(&r.genesis).context("genesis")?,
-            next_batch_to_attest: attester::BatchNumber(
-                *required(&r.next_batch_to_attest).context("next_batch_to_attest")?,
-            ),
-        })
-    }
-
-    fn build(&self) -> Self::Proto {
-        Self::Proto {
-            genesis: Some(self.genesis.build()),
-            next_batch_to_attest: Some(self.next_batch_to_attest.0),
-        }
-    }
-}
 
 impl ProtoRepr for proto::PubdataParams {
     type Type = PubdataParams;

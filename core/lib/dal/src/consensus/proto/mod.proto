@@ -152,11 +152,6 @@ message GlobalConfig {
   repeated NodeAddr seed_peers = 3;
 }
 
-message AttestationStatus {
-  optional roles.validator.GenesisHash genesis = 1; // required
-  optional uint64 next_batch_to_attest = 2; // required
-}
-
 enum PubdataType {
   Rollup = 0;
   NoDA = 1;
