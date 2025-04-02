@@ -155,10 +155,11 @@ agent_config:
 - `apply_min_to_namespace` specifies current primary namespace to run min number of provers in it.
 - `long_pending_duration` is time after a pending pod considered long pending and will be relocated to different
   cluster. Default: 10m.
-- `scale_errors_duration` is duration of scale errors during which Autoscaler includes scale errors into calculation.
-  Default: 1h.
-- `need_to_move_duration` is duration of scale errors during which Autoscaler force moves pods to a different cluster.
-  Should be at least x2 of `scaler_run_interval`. Default: 4m.
+- `scale_errors_duration` defines the time window for including scale errors in Autoscaler calculations. Clusters will
+  be sorted by number of the errors. It should be between 20m and 2h. Default: 1h.
+- `need_to_move_duration` defines the time window for which Autoscaler forces pending pod migration due to scale errors.
+  This prevents pending pods from indefinitely waiting for nodes in a busy cluster. Should be at least x2 of
+  `scaler_run_interval`. Default: 4m.
 - `scaler_targets` subsection is a list of non-GPU targets:
   - `scaler_target_type` specifies the type, possible options: `Simple` (default) and `Gpu`.
   - `queue_report_field` is name of corresponding queue report section. See example for possible options.

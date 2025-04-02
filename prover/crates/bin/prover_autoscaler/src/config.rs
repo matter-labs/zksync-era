@@ -67,13 +67,13 @@ pub struct ProverAutoscalerScalerConfig {
         default = "ProverAutoscalerScalerConfig::default_long_pending_duration"
     )]
     pub long_pending_duration: Duration,
-    /// Duration of scale errors during which Autoscaler includes scale errors into calculation.
+    /// Time window for including scale errors in Autoscaler calculations. Clusters will be sorted by number of the errors.
     #[serde(
         with = "humantime_serde",
         default = "ProverAutoscalerScalerConfig::default_scale_errors_duration"
     )]
     pub scale_errors_duration: Duration,
-    /// Duration of scale errors during which Autoscaler force moves pods to a different cluster.
+    /// Time window for which Autoscaler forces pending pod migration due to scale errors.
     #[serde(
         with = "humantime_serde",
         default = "ProverAutoscalerScalerConfig::default_need_to_move_duration"
