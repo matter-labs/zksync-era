@@ -6,7 +6,7 @@ use zksync_multivm::interface::{L1BatchEnv, SystemEnv};
 use zksync_types::{
     block::L2BlockExecutionData, commitment::PubdataParams, fee_model::BatchFeeInput,
     message_root::MessageRoot, protocol_upgrade::ProtocolUpgradeTx, Address, L1BatchNumber,
-    L2ChainId, ProtocolVersionId, Transaction, H256,
+    L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256,
 };
 use zksync_vm_executor::storage::l1_batch_params;
 
@@ -168,7 +168,15 @@ pub trait StateKeeperIO: 'static + Send + Sync + fmt::Debug + IoSealCriteria {
     ) -> anyhow::Result<Option<ProtocolUpgradeTx>>;
 
     /// Loads the latest message root.
-    async fn load_latest_message_root(&self) -> anyhow::Result<Option<Vec<MessageRoot>>>;
+    async fn load_latest_message_root(
+        &self,
+        processed_block_number: L2BlockNumber,
+    ) -> anyhow::Result<Option<Vec<MessageRoot>>>;
+
+    async fn mark_msg_root_as_processed(&self,
+        msg_root: MessageRoot,
+        processed_block_number: L2BlockNumber,
+    ) -> anyhow::Result<()>;
     /// Loads state hash for the L1 batch with the specified number. The batch is guaranteed to be present
     /// in the storage.
     async fn load_batch_state_hash(&self, number: L1BatchNumber) -> anyhow::Result<H256>;

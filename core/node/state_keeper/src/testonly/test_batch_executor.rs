@@ -828,8 +828,19 @@ impl StateKeeperIO for TestIO {
         Ok(self.protocol_upgrade_txs.get(&version_id).cloned())
     }
 
-    async fn load_latest_message_root(&self) -> anyhow::Result<Option<Vec<MessageRoot>>> {
+    async fn load_latest_message_root(
+        &self,
+        _processed_block_number: L2BlockNumber,
+    ) -> anyhow::Result<Option<Vec<MessageRoot>>> {
         Ok(None)
+    }
+
+    async fn mark_msg_root_as_processed(
+        &self,
+        _msg_root: MessageRoot,
+        _processed_block_number: L2BlockNumber,
+    ) -> anyhow::Result<()> {
+        Ok(())
     }
 
     async fn load_batch_state_hash(&self, _l1_batch_number: L1BatchNumber) -> anyhow::Result<H256> {

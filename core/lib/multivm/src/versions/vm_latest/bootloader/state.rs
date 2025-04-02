@@ -109,6 +109,9 @@ impl BootloaderState {
     }
 
     pub(crate) fn insert_message_root(&mut self, msg_root: MessageRoot) {
+        println!("insert_message_root 0 {:?}", self.last_l2_block());
+        println!("insert_message_root 1 {:?}", self.l2_blocks);
+        println!("insert_message_root 2 {:?}", msg_root);
         self.msg_roots.push(msg_root);
     }
 
@@ -154,7 +157,10 @@ impl BootloaderState {
             self.last_l2_block().txs.is_empty(),
             self.subversion,
         );
+        println!("apply_message_root {:?}", self.last_l2_block());
+        println!("apply_message_root 0 {:?}", self.msg_roots);
         for (msg_root_offset, msg_root) in self.msg_roots.iter().enumerate() {
+            println!("apply_message_root 1 {:?}", msg_root);
             apply_message_root(&mut memory, msg_root_offset, msg_root, self.subversion)
         }
         self.compressed_bytecodes_encoding += compressed_bytecode_size;

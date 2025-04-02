@@ -432,11 +432,27 @@ impl StateKeeperIO for MempoolIO {
             .map_err(Into::into)
     }
 
-    async fn load_latest_message_root(&self) -> anyhow::Result<Option<Vec<MessageRoot>>> {
+    async fn load_latest_message_root(
+        &self,
+        processed_block_number: L2BlockNumber,
+    ) -> anyhow::Result<Option<Vec<MessageRoot>>> {
         let mut storage = self.pool.connection_tagged("state_keeper").await?;
         storage
             .message_root_dal()
-            .get_latest_message_root()
+            .get_latest_message_root(processed_block_number)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn mark_msg_root_as_processed(
+        &self,
+        msg_root: MessageRoot,
+        processed_block_number: L2BlockNumber,
+    ) -> anyhow::Result<()> {
+        let mut storage = self.pool.connection_tagged("state_keeper").await?;
+        storage
+            .message_root_dal()
+            .mark_msg_root_as_processed(msg_root, processed_block_number)
             .await
             .map_err(Into::into)
     }

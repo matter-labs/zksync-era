@@ -20,8 +20,8 @@ use zksync_state::{OwnedStorage, ReadStorageFactory};
 use zksync_types::{
     block::L2BlockExecutionData, commitment::PubdataParams, l2::TransactionType,
     message_root::MessageRoot, protocol_upgrade::ProtocolUpgradeTx,
-    protocol_version::ProtocolVersionId, utils::display_timestamp, L1BatchNumber, L2ChainId,
-    Transaction,
+    protocol_version::ProtocolVersionId, utils::display_timestamp, L1BatchNumber, L2BlockNumber,
+    L2ChainId, Transaction,
 };
 
 use crate::{
@@ -315,9 +315,23 @@ impl ZkSyncStateKeeper {
             .with_context(|| format!("failed loading upgrade transaction for {protocol_version:?}"))
     }
 
-    async fn load_latest_message_root(&mut self) -> anyhow::Result<Option<Vec<MessageRoot>>> {
+    async fn load_latest_message_root(
+        &mut self,
+        processed_block_number: L2BlockNumber,
+    ) -> anyhow::Result<Option<Vec<MessageRoot>>> {
         self.io
-            .load_latest_message_root()
+            .load_latest_message_root(processed_block_number)
+            .await
+            .with_context(|| "failed loading message root".to_string())
+    }
+
+    async fn mark_msg_root_as_processed(
+        &mut self,
+        msg_root: MessageRoot,
+        processed_block_number: L2BlockNumber,
+    ) -> anyhow::Result<()> {
+        self.io
+            .mark_msg_root_as_processed(msg_root, processed_block_number)
             .await
             .with_context(|| "failed loading message root".to_string())
     }
@@ -611,7 +625,9 @@ impl ZkSyncStateKeeper {
 
                 return Ok(());
             }
-            let message_roots = self.load_latest_message_root().await?;
+            let message_roots = self
+                .load_latest_message_root(updates_manager.l2_block.number)
+                .await?;
 
             if !updates_manager.has_next_block_params()
                 && self.io.should_seal_l2_block(updates_manager)
@@ -635,7 +651,10 @@ impl ZkSyncStateKeeper {
                     if L2ChainId::from(message_root.chain_id) == self.io.chain_id() {
                         continue;
                     }
-                    batch_executor.insert_message_root(message_root).await?;
+                    batch_executor.insert_message_root(message_root.clone()).await?;
+                    self
+                    .mark_msg_root_as_processed(message_root, updates_manager.l2_block.number)
+                    .await?;
                 }
             }
 

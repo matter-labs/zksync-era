@@ -356,6 +356,7 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
             match cmd {
                 Command::ExecuteTx(tx, resp) => {
                     let tx_hash = tx.hash();
+                    println!("command execute_tx {:?}", tx_hash);
                     let (result, latency) = self.execute_tx(*tx, &mut vm).with_context(|| {
                         format!("fatal error executing transaction {tx_hash:?}")
                     })?;
@@ -383,6 +384,7 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
                     }
                 }
                 Command::InsertMessageRoot(msg_root, resp) => {
+                    println!("command insert_message_root {:?}", msg_root);
                     vm.insert_message_root(msg_root);
                     if resp.send(()).is_err() {
                         break;

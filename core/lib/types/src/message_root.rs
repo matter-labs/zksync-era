@@ -1,4 +1,4 @@
-use crate::U256;
+use crate::{ethabi::Token, u256_to_h256, U256};
 
 #[derive(Debug, Clone)]
 pub struct MessageRoot {
@@ -14,5 +14,18 @@ impl MessageRoot {
             block_number,
             sides,
         }
+    }
+
+    pub fn into_token(self) -> Token {
+        Token::Tuple(vec![
+            Token::Uint(self.chain_id.into()),
+            Token::Uint(self.block_number.into()),
+            Token::Array(
+                self.sides
+                    .iter()
+                    .map(|hash| Token::FixedBytes(u256_to_h256(*hash).as_bytes().to_vec()))
+                    .collect(),
+            ),
+        ]) //
     }
 }

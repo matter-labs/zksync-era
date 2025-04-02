@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                number\n            FROM miniblocks\n            WHERE l1_batch_number = $1\n            ORDER BY number ASC\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "number",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "c7567b8ba83c624808a7f3b069f7c978b499fd8f8ae9916522a8565afb4ae29f"
+}

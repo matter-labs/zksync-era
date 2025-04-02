@@ -18,7 +18,7 @@ use zksync_types::{
     pubdata_da::PubdataSendingMode,
     settlement::SettlementMode,
     web3::CallRequest,
-    Address, L1BatchNumber, ProtocolVersionId, U256,
+    Address, L1BatchNumber, ProtocolVersionId, U256, message_root::MessageRoot
 };
 
 use super::{
@@ -367,6 +367,17 @@ impl Aggregator {
             return Ok(None);
         };
 
+        let mut dependency_roots: Vec<Vec<MessageRoot>> = vec![];
+        for batch in &l1_batches {
+            let message_roots = storage
+            .message_root_dal()
+            .get_dependency_roots_batch(batch.header.number)
+            .await
+            .unwrap();
+
+            dependency_roots.push(message_roots);
+        }
+
         let Some(priority_tree_start_index) = self.get_or_init_priority_tree_start_index().await?
         else {
             // The index is not yet applicable to the current system, so we
@@ -375,6 +386,7 @@ impl Aggregator {
             return Ok(Some(ExecuteBatches {
                 l1_batches,
                 priority_ops_proofs: vec![Default::default(); length],
+                dependency_roots: dependency_roots,
             }));
         };
 
@@ -422,9 +434,15 @@ impl Aggregator {
             }
         }
 
+        // if dependency_roots.len() = 0 {
+        //     dependency_roots = vec![vec![]; l1_batches.len()];
+        // }
+        println!("execute batches case 2");
+
         Ok(Some(ExecuteBatches {
             l1_batches,
             priority_ops_proofs,
+            dependency_roots,
         }))
     }
 
