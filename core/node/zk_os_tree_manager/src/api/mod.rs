@@ -18,8 +18,8 @@ use axum::{
 };
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use tokio::sync::watch;
-use zk_os_merkle_tree::{unstable, BatchTreeProof, TreeOperation};
 use zksync_types::{web3, L1BatchNumber, H256};
+use zksync_zk_os_merkle_tree::{unstable, BatchTreeProof, TreeOperation};
 
 pub use self::client::{TreeApiClient, TreeApiError, TreeApiHttpClient};
 use self::metrics::{MerkleTreeApiMethod, API_METRICS};

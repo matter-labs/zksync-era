@@ -1,14 +1,14 @@
 use std::{collections::BTreeMap, time::Duration};
 
 use anyhow::Context;
-use zk_os_merkle_tree::TreeEntry;
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_shared_metrics::tree::{LoadChangesStage, TreeUpdateStage, METRICS};
 use zksync_types::{
     block::{L1BatchStatistics, L1BatchTreeData},
     writes::TreeWrite,
-    AccountTreeId, L1BatchNumber, StorageKey,
+    AccountTreeId, L1BatchNumber, StorageKey, H256,
 };
+use zksync_zk_os_merkle_tree::TreeEntry;
 
 use crate::helpers::AsyncMerkleTree;
 

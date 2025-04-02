@@ -5,6 +5,7 @@ use zksync_node_api_server::{
     tx_sender::{tx_sink::TxSink, TxSender},
     web3::mempool_cache::MempoolCache,
 };
+use zksync_zk_os_tree_manager::api::TreeApiClient as ZkOsTreeApiClient;
 
 use crate::resource::Resource;
 
@@ -51,6 +52,22 @@ impl Resource for TreeApiClientResource {
 }
 
 impl<T: TreeApiClient> From<Arc<T>> for TreeApiClientResource {
+    fn from(client: Arc<T>) -> Self {
+        Self(client)
+    }
+}
+
+/// A resource that provides [`ZkOsTreeApiClient`] implementation to the service.
+#[derive(Debug, Clone)]
+pub struct ZkOsTreeApiClientResource(pub Arc<dyn ZkOsTreeApiClient>);
+
+impl Resource for ZkOsTreeApiClientResource {
+    fn name() -> String {
+        "api/zk_os_tree_api_client".into()
+    }
+}
+
+impl<T: ZkOsTreeApiClient> From<Arc<T>> for ZkOsTreeApiClientResource {
     fn from(client: Arc<T>) -> Self {
         Self(client)
     }

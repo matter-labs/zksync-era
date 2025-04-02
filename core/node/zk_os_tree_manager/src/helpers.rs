@@ -1,11 +1,11 @@
 use anyhow::Context as _;
 use tokio::sync::watch;
-use zk_os_merkle_tree::{
+use zksync_storage::{RocksDB, RocksDBOptions, StalledWritesRetries, WeakRocksDB};
+use zksync_types::{block::L1BatchTreeData, L1BatchNumber, H256};
+use zksync_zk_os_merkle_tree::{
     unstable, BatchTreeProof, MerkleTree, MerkleTreeColumnFamily, MerkleTreeReader, Patched,
     RocksDBWrapper,
 };
-use zksync_storage::{RocksDB, RocksDBOptions, StalledWritesRetries, WeakRocksDB};
-use zksync_types::{block::L1BatchTreeData, L1BatchNumber, H256};
 
 use crate::{health::MerkleTreeInfo, TreeManagerConfig};
 
@@ -115,7 +115,7 @@ impl LazyAsyncTreeReader {
 
 type PatchedMerkleTree = MerkleTree<Patched<RocksDBWrapper>>;
 
-/// Wrapper around the "main" tree implementation used by [`MetadataCalculator`].
+/// Wrapper around the "main" tree implementation used by [`TreeManager`].
 ///
 /// Async methods provided by this wrapper are not cancel-safe!
 #[derive(Debug)]

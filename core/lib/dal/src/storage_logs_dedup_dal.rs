@@ -85,8 +85,8 @@ impl StorageLogsDedupDal<'_, '_> {
     ) -> DalResult<()> {
         let hashed_keys: Vec<_> = written_hashed_keys.iter().map(H256::as_bytes).collect();
 
-        let last_index = self.max_enumeration_index().await?.unwrap_or(0);
-        let indices: Vec<_> = ((last_index + 1)..=(last_index + hashed_keys.len() as u64))
+        let next_index = self.max_enumeration_index().await?.map_or(0, |i| i + 1);
+        let indices: Vec<_> = (next_index..(next_index + hashed_keys.len() as u64))
             .map(|x| x as i64)
             .collect();
 

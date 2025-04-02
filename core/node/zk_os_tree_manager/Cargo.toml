@@ -1,5 +1,5 @@
 [package]
-name = "zk_os_tree_manager"
+name = "zksync_zk_os_tree_manager"
 description = "ZK OS tree manager node component"
 version.workspace = true
 edition.workspace = true
@@ -16,7 +16,7 @@ zksync_dal.workspace = true
 zksync_health_check.workspace = true
 zksync_storage.workspace = true
 zksync_shared_metrics.workspace = true
-zk_os_merkle_tree.workspace = true
+zksync_zk_os_merkle_tree.workspace = true
 
 anyhow.workspace = true
 axum.workspace = true

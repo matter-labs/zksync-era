@@ -1741,7 +1741,7 @@ dependencies = [
  "blake2 0.10.6",
  "k256 0.13.4",
  "modexp",
- "p256",
+ "p256 0.13.2",
  "ripemd",
  "sha2 0.10.8",
  "sha3 0.10.8",
@@ -10120,7 +10120,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_zkos_vm_runner"
-version = "26.2.1-non-semver-compat"
+version = "27.0.0-non-semver-compat"
 dependencies = [
  "basic_system",
  "forward_system",

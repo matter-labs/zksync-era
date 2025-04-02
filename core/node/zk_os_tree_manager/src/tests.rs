@@ -6,9 +6,6 @@ use assert_matches::assert_matches;
 use tempfile::TempDir;
 use test_casing::test_casing;
 use tokio::sync::Barrier;
-use zk_os_merkle_tree::{
-    BatchOutput, Blake2Hasher, DefaultTreeParams, MerkleTree, PatchSet, TreeOperation, TreeParams,
-};
 use zksync_dal::{Connection, CoreDal};
 use zksync_health_check::HealthStatus;
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
@@ -16,6 +13,9 @@ use zksync_node_test_utils::{
     create_l1_batch, create_l2_block, generate_storage_logs, insert_initial_writes_for_batch,
 };
 use zksync_types::{L1BatchNumber, StorageLog, H256};
+use zksync_zk_os_merkle_tree::{
+    BatchOutput, Blake2Hasher, DefaultTreeParams, MerkleTree, PatchSet, TreeOperation, TreeParams,
+};
 
 use super::*;
 use crate::{batch::L1BatchWithLogs, health::MerkleTreeInfo};

@@ -1,5 +1,5 @@
 [package]
-name = "zk_os_merkle_tree"
+name = "zksync_zk_os_merkle_tree"
 description = "Persistent ZK OS Merkle tree"
 version.workspace = true
 edition.workspace = true
