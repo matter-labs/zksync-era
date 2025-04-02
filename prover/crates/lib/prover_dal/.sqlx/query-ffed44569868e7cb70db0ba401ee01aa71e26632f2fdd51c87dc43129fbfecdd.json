@@ -1,0 +1,50 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                SELECT\n                    SUM(CASE WHEN status = 'queued' THEN 1 ELSE 0 END) AS \"count!\",\n                    circuit_id AS \"circuit_id!\",\n                    aggregation_round AS \"aggregation_round!\",\n                    'queued' AS \"status!\",\n                    protocol_version AS \"protocol_version!\",\n                    protocol_version_patch  AS \"protocol_version_patch!\"\n                FROM\n                    prover_jobs_fri\n                WHERE\n                    protocol_version IS NOT NULL\n                GROUP BY\n                    circuit_id,\n                    aggregation_round,\n                    \"status!\",\n                    protocol_version,\n                    protocol_version_patch\n\n                UNION ALL\n\n                SELECT\n                    SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) AS \"count!\",\n                    circuit_id AS \"circuit_id!\",\n                    aggregation_round AS \"aggregation_round!\",\n                    'in_progress' AS \"status!\",\n                    protocol_version AS \"protocol_version!\",\n                    protocol_version_patch  AS \"protocol_version_patch!\"\n                FROM\n                    prover_jobs_fri\n                WHERE\n                    protocol_version IS NOT NULL\n                GROUP BY\n                    circuit_id,\n                    aggregation_round,\n                    \"status!\",\n                    protocol_version,\n                    protocol_version_patch\n                ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "circuit_id!",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 2,
+        "name": "aggregation_round!",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 3,
+        "name": "status!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "protocol_version!",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 5,
+        "name": "protocol_version_patch!",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "ffed44569868e7cb70db0ba401ee01aa71e26632f2fdd51c87dc43129fbfecdd"
+}
