@@ -829,7 +829,9 @@ impl StateKeeperIO for TestIO {
     }
 }
 
-/// Storage factory that produces empty VM storage for any batch. Should only be used with a mock batch executor
+/// Storage factory that produces empty VM storage for any batch.
+///
+/// Should only be used with a mock batch executor
 /// that doesn't read from the storage. Prefer using `ConnectionPool` as a factory if it's available.
 #[derive(Debug)]
 pub struct MockReadStorageFactory;

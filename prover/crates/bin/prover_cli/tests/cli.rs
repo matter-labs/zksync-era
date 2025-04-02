@@ -31,8 +31,7 @@ async fn pli_config_succeeds() {
             ProtocolSemanticVersion::default(),
             L1VerifierConfig::default(),
         )
-        .await
-        .unwrap();
+        .await;
 
     Command::cargo_bin("prover_cli")
         .unwrap()
