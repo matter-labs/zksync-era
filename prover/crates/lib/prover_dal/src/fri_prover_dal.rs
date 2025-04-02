@@ -485,7 +485,7 @@ impl FriProverDal<'_, '_> {
                     aggregation_round AS "aggregation_round!",
                     'queued' AS "status!",
                     protocol_version AS "protocol_version!",
-                    protocol_version_patch  AS "protocol_version_patch!"
+                    protocol_version_patch AS "protocol_version_patch!"
                 FROM
                     prover_jobs_fri
                 WHERE
@@ -496,16 +496,16 @@ impl FriProverDal<'_, '_> {
                     "status!",
                     protocol_version,
                     protocol_version_patch
-
+                
                 UNION ALL
-
+                
                 SELECT
                     SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) AS "count!",
                     circuit_id AS "circuit_id!",
                     aggregation_round AS "aggregation_round!",
                     'in_progress' AS "status!",
                     protocol_version AS "protocol_version!",
-                    protocol_version_patch  AS "protocol_version_patch!"
+                    protocol_version_patch AS "protocol_version_patch!"
                 FROM
                     prover_jobs_fri
                 WHERE
