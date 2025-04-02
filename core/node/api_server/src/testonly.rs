@@ -4,7 +4,7 @@ use std::{collections::HashMap, iter};
 
 use assert_matches::assert_matches;
 use zk_evm_1_5_0::zkevm_opcode_defs::decoding::{EncodingModeProduction, VmEncodingMode};
-use zksync_contracts::{eth_contract, load_contract, read_bytecode};
+use zksync_contracts::{load_contract, read_bytecode};
 use zksync_dal::{
     transactions_dal::L2TxSubmissionResult, Connection, ConnectionPool, Core, CoreDal,
 };
@@ -19,21 +19,23 @@ use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_node_test_utils::{create_l2_block, default_l1_batch_env, default_system_env};
 use zksync_state::PostgresStorage;
 use zksync_system_constants::{
-    CONTRACT_DEPLOYER_ADDRESS, L2_BASE_TOKEN_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
-    SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
+    CONTRACT_DEPLOYER_ADDRESS, L2_BASE_TOKEN_ADDRESS, NONCE_HOLDER_ADDRESS,
+    REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, SYSTEM_CONTEXT_ADDRESS,
+    SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
 };
-use zksync_test_contracts::{Account, LoadnextContractExecutionParams, TestContract};
+use zksync_test_contracts::{
+    Account, LoadnextContractExecutionParams, TestContract, TestEvmContract,
+};
 use zksync_types::{
     address_to_u256,
-    api::state_override::{Bytecode, OverrideAccount, OverrideState, StateOverride},
+    api::state_override::{BytecodeOverride, OverrideAccount, OverrideState, StateOverride},
     block::{pack_block_info, L2BlockHeader},
-    bytecode::BytecodeHash,
+    bytecode::{BytecodeHash, BytecodeMarker},
     commitment::PubdataParams,
     ethabi,
-    ethabi::Token,
+    ethabi::{ParamType, Token},
     fee::Fee,
     fee_model::FeeParams,
-    get_code_key, get_known_code_key,
     l1::L1Tx,
     l2::L2Tx,
     transaction_request::{CallRequest, Eip712Meta},
@@ -44,6 +46,8 @@ use zksync_types::{
     StorageLog, Transaction, EIP_712_TX_TYPE, H256, U256,
 };
 use zksync_vm_executor::{batch::MainBatchExecutorFactory, interface::BatchExecutorFactory};
+
+use crate::execution_sandbox::testonly::apply_state_overrides;
 
 const MULTICALL3_CONTRACT_PATH: &str =
     "contracts/l2-contracts/zkout/Multicall3.sol/Multicall3.json";
@@ -78,7 +82,7 @@ impl StateBuilder {
     pub(crate) const LOAD_TEST_ADDRESS: Address = Address::repeat_byte(1);
     pub(crate) const EXPENSIVE_CONTRACT_ADDRESS: Address = Address::repeat_byte(2);
     pub(crate) const PRECOMPILES_CONTRACT_ADDRESS: Address = Address::repeat_byte(3);
-    const COUNTER_CONTRACT_ADDRESS: Address = Address::repeat_byte(4);
+    pub(crate) const COUNTER_CONTRACT_ADDRESS: Address = Address::repeat_byte(4);
     const INFINITE_LOOP_CONTRACT_ADDRESS: Address = Address::repeat_byte(5);
     const MULTICALL3_ADDRESS: Address = Address::repeat_byte(6);
 
@@ -86,7 +90,7 @@ impl StateBuilder {
         self.inner.insert(
             address,
             OverrideAccount {
-                code: Some(Bytecode::new(bytecode).unwrap()),
+                code: Some(BytecodeOverride::Unspecified(bytecode.into())),
                 ..OverrideAccount::default()
             },
         );
@@ -95,20 +99,22 @@ impl StateBuilder {
 
     pub fn inflate_bytecode(mut self, address: Address, nop_count: usize) -> Self {
         let account_override = self.inner.get_mut(&address).expect("no contract");
-        let bytecode = account_override.code.take().expect("no code override");
-        let mut bytecode = bytecode.into_bytes();
-        inflate_bytecode(&mut bytecode, nop_count);
-        account_override.code = Some(Bytecode::new(bytecode).unwrap());
+        let code_override = account_override.code.as_mut().expect("no code override");
+        let BytecodeOverride::Unspecified(code) = code_override else {
+            panic!("unexpected bytecode override: {code_override:?}");
+        };
+        inflate_bytecode(&mut code.0, nop_count);
         self
     }
 
     pub fn with_load_test_contract(mut self) -> Self {
+        let code = TestContract::load_test().bytecode.to_vec();
         // Set the array length in the load test contract to 100, so that reads don't fail.
         let state = HashMap::from([(H256::zero(), H256::from_low_u64_be(100))]);
         self.inner.insert(
             Self::LOAD_TEST_ADDRESS,
             OverrideAccount {
-                code: Some(Bytecode::new(TestContract::load_test().bytecode.to_vec()).unwrap()),
+                code: Some(BytecodeOverride::Unspecified(code.into())),
                 state: Some(OverrideState::State(state)),
                 ..OverrideAccount::default()
             },
@@ -119,6 +125,32 @@ impl StateBuilder {
     pub fn with_balance(mut self, address: Address, balance: U256) -> Self {
         self.inner.entry(address).or_default().balance = Some(balance);
         self
+    }
+
+    pub fn with_nonce(mut self, address: Address, nonce: U256) -> Self {
+        self.inner.entry(address).or_default().nonce = Some(nonce);
+        self
+    }
+
+    pub fn with_storage_slot(mut self, address: Address, slot: H256, value: H256) -> Self {
+        let account_entry = self.inner.entry(address).or_default();
+        let state = account_entry
+            .state
+            .get_or_insert_with(|| OverrideState::State(HashMap::new()));
+        let state = match state {
+            OverrideState::State(state) | OverrideState::StateDiff(state) => state,
+        };
+        state.insert(slot, value);
+        self
+    }
+
+    pub fn enable_evm_deployments(self) -> Self {
+        let allowed_contract_types_slot = H256::from_low_u64_be(1);
+        self.with_storage_slot(
+            CONTRACT_DEPLOYER_ADDRESS,
+            allowed_contract_types_slot,
+            H256::from_low_u64_be(1),
+        )
     }
 
     pub fn with_expensive_contract(self) -> Self {
@@ -135,12 +167,25 @@ impl StateBuilder {
         )
     }
 
-    pub fn with_counter_contract(self, initial_value: u64) -> Self {
-        let mut this = self.with_contract(
-            Self::COUNTER_CONTRACT_ADDRESS,
-            TestContract::counter().bytecode.to_vec(),
-        );
-        if initial_value != 0 {
+    pub fn with_counter_contract(self, initial_value: Option<u64>) -> Self {
+        self.with_generic_counter_contract(BytecodeMarker::EraVm, initial_value)
+    }
+
+    pub fn with_evm_counter_contract(self, initial_value: Option<u64>) -> Self {
+        self.with_generic_counter_contract(BytecodeMarker::Evm, initial_value)
+    }
+
+    pub(crate) fn with_generic_counter_contract(
+        self,
+        kind: BytecodeMarker,
+        initial_value: Option<u64>,
+    ) -> Self {
+        let bytecode = match kind {
+            BytecodeMarker::EraVm => TestContract::counter().bytecode,
+            BytecodeMarker::Evm => TestEvmContract::counter().deployed_bytecode,
+        };
+        let mut this = self.with_contract(Self::COUNTER_CONTRACT_ADDRESS, bytecode.to_vec());
+        if let Some(initial_value) = initial_value {
             let state = HashMap::from([(H256::zero(), H256::from_low_u64_be(initial_value))]);
             this.inner
                 .get_mut(&Self::COUNTER_CONTRACT_ADDRESS)
@@ -169,50 +214,8 @@ impl StateBuilder {
     }
 
     /// Applies these state overrides to Postgres storage, which is assumed to be empty (other than genesis data).
-    pub async fn apply(self, connection: &mut Connection<'_, Core>) {
-        let mut storage_logs = vec![];
-        let mut factory_deps = HashMap::new();
-        for (address, account) in self.inner {
-            if let Some(balance) = account.balance {
-                let balance_key = storage_key_for_eth_balance(&address);
-                storage_logs.push(StorageLog::new_write_log(
-                    balance_key,
-                    u256_to_h256(balance),
-                ));
-            }
-            if let Some(code) = account.code {
-                let code_hash = code.hash();
-                storage_logs.extend([
-                    StorageLog::new_write_log(get_code_key(&address), code_hash),
-                    StorageLog::new_write_log(
-                        get_known_code_key(&code_hash),
-                        H256::from_low_u64_be(1),
-                    ),
-                ]);
-                factory_deps.insert(code_hash, code.into_bytes());
-            }
-            if let Some(state) = account.state {
-                let state_slots = match state {
-                    OverrideState::State(slots) | OverrideState::StateDiff(slots) => slots,
-                };
-                let state_logs = state_slots.into_iter().map(|(key, value)| {
-                    let key = StorageKey::new(AccountTreeId::new(address), key);
-                    StorageLog::new_write_log(key, value)
-                });
-                storage_logs.extend(state_logs);
-            }
-        }
-
-        connection
-            .storage_logs_dal()
-            .append_storage_logs(L2BlockNumber(0), &storage_logs)
-            .await
-            .unwrap();
-        connection
-            .factory_deps_dal()
-            .insert_factory_deps(L2BlockNumber(0), &factory_deps)
-            .await
-            .unwrap();
+    pub async fn apply(self, connection: Connection<'static, Core>) {
+        apply_state_overrides(connection, StateOverride::new(self.inner)).await;
     }
 }
 
@@ -254,7 +257,7 @@ impl From<CallRequest> for Call3Value {
 impl From<L2Tx> for Call3Value {
     fn from(tx: L2Tx) -> Self {
         Self {
-            target: tx.recipient_account().unwrap(),
+            target: tx.recipient_account().unwrap_or_default(),
             allow_failure: false,
             value: tx.execute.value,
             calldata: tx.execute.calldata,
@@ -318,6 +321,8 @@ pub(crate) trait TestAccount {
 
     fn query_base_token_balance(&self) -> CallRequest;
 
+    fn query_min_nonce(&self, address: Address) -> CallRequest;
+
     fn create_transfer_with_fee(&mut self, to: Address, value: U256, fee: Fee) -> L2Tx;
 
     fn create_load_test_tx(&mut self, params: LoadnextContractExecutionParams) -> L2Tx;
@@ -339,6 +344,8 @@ pub(crate) trait TestAccount {
     fn multicall_with_value(&self, value: U256, calls: &[Call3Value]) -> CallRequest;
 
     fn create2_account(&mut self, bytecode: Vec<u8>) -> (L2Tx, Address);
+
+    fn create_evm_counter_deployment(&mut self, initial_value: U256) -> L2Tx;
 }
 
 impl TestAccount for Account {
@@ -355,7 +362,7 @@ impl TestAccount for Account {
     }
 
     fn query_base_token_balance(&self) -> CallRequest {
-        let data = eth_contract()
+        let data = zksync_contracts::eth_contract()
             .function("balanceOf")
             .expect("No `balanceOf` function in contract")
             .encode_input(&[Token::Uint(address_to_u256(&self.address()))])
@@ -363,6 +370,18 @@ impl TestAccount for Account {
         CallRequest {
             from: Some(self.address()),
             to: Some(L2_BASE_TOKEN_ADDRESS),
+            data: Some(data.into()),
+            ..CallRequest::default()
+        }
+    }
+
+    fn query_min_nonce(&self, address: Address) -> CallRequest {
+        let signature = ethabi::short_signature("getMinNonce", &[ParamType::Address]);
+        let mut data = signature.to_vec();
+        data.extend_from_slice(&ethabi::encode(&[Token::Address(address)]));
+        CallRequest {
+            from: Some(self.address()),
+            to: Some(NONCE_HOLDER_ADDRESS),
             data: Some(data.into()),
             ..CallRequest::default()
         }
@@ -545,6 +564,14 @@ impl TestAccount for Account {
             .unwrap();
         (deploy_tx, deployed_address)
     }
+
+    fn create_evm_counter_deployment(&mut self, initial_value: U256) -> L2Tx {
+        self.get_evm_deploy_tx(
+            TestEvmContract::counter().init_bytecode.to_vec(),
+            &TestEvmContract::counter().abi,
+            &[Token::Uint(initial_value)],
+        )
+    }
 }
 
 pub(crate) fn mock_execute_transaction(transaction: Transaction) -> TransactionExecutionResult {
@@ -704,6 +731,31 @@ mod tests {
     use zksync_test_contracts::TxType;
 
     use super::*;
+
+    #[test]
+    fn bytecode_kind_is_correctly_detected_for_test_contracts() {
+        let era_contracts = [
+            TestContract::counter(),
+            TestContract::load_test(),
+            TestContract::infinite_loop(),
+            TestContract::expensive(),
+            TestContract::precompiles_test(),
+        ];
+        for contract in era_contracts {
+            assert_eq!(
+                BytecodeMarker::detect(contract.bytecode),
+                BytecodeMarker::EraVm
+            );
+        }
+
+        let evm_contracts = [TestEvmContract::counter(), TestEvmContract::evm_tester()];
+        for contract in evm_contracts {
+            assert_eq!(
+                BytecodeMarker::detect(contract.deployed_bytecode),
+                BytecodeMarker::Evm
+            );
+        }
+    }
 
     #[tokio::test]
     async fn persisting_block_with_transactions_works() {

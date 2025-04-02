@@ -149,27 +149,31 @@ impl EnNamespace {
     }
 
     #[tracing::instrument(skip(self))]
-    pub async fn get_ecosystem_contracts_impl(&self) -> Result<EcosystemContractsDto, Web3Error> {
-        Ok(self
-            .state
-            .api_config
-            .l1_bridgehub_proxy_addr
-            .map(|bridgehub_proxy_addr| EcosystemContractsDto {
-                bridgehub_proxy_addr,
-                state_transition_proxy_addr: self
-                    .state
-                    .api_config
-                    .l1_state_transition_proxy_addr
-                    .unwrap(),
-                transparent_proxy_admin_addr: self
-                    .state
-                    .api_config
-                    .l1_transparent_proxy_admin_addr
-                    .unwrap(),
-                l1_bytecodes_supplier_addr: self.state.api_config.l1_bytecodes_supplier_addr,
-                l1_wrapped_base_token_store: self.state.api_config.l1_wrapped_base_token_store,
-            })
-            .context("Shared bridge doesn't supported")?)
+    pub async fn get_l1_ecosystem_contracts_impl(
+        &self,
+    ) -> Result<EcosystemContractsDto, Web3Error> {
+        Ok(EcosystemContractsDto {
+            bridgehub_proxy_addr: self
+                .state
+                .api_config
+                .l1_ecosystem_contracts
+                .bridgehub_proxy_addr
+                .unwrap(),
+            state_transition_proxy_addr: self
+                .state
+                .api_config
+                .l1_ecosystem_contracts
+                .state_transition_proxy_addr,
+            // Return backward compatible zero address. Meanwhile, this value is useless for external users.
+            transparent_proxy_admin_addr: Address::zero(),
+            l1_bytecodes_supplier_addr: self.state.api_config.l1_bytecodes_supplier_addr,
+            l1_wrapped_base_token_store: self.state.api_config.l1_wrapped_base_token_store,
+            server_notifier_addr: self
+                .state
+                .api_config
+                .l1_ecosystem_contracts
+                .server_notifier_addr,
+        })
     }
 
     #[tracing::instrument(skip(self))]

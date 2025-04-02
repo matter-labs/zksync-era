@@ -109,8 +109,8 @@ impl EventProcessor for PriorityOpsEventProcessor {
         Ok(skipped_ops + ops_to_insert.len())
     }
 
-    fn topic1(&self) -> H256 {
-        self.new_priority_request_signature
+    fn topic1(&self) -> Option<H256> {
+        Some(self.new_priority_request_signature)
     }
 
     fn event_source(&self) -> EventsSource {

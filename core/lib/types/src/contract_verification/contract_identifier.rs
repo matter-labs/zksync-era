@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use crate::{bytecode::BytecodeMarker, web3::keccak256, H256};
 
 /// An identifier of the contract bytecode.
+///
 /// This identifier can be used to detect different contracts that share the same sources,
 /// even if they differ in bytecode verbatim (e.g. if the contract metadata is different).
 ///

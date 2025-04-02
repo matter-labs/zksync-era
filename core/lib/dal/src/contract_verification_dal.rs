@@ -383,6 +383,7 @@ impl ContractVerificationDal<'_, '_> {
                         address = $1
                         AND topic1 = $2
                         AND topic4 = $3
+                    ORDER BY miniblock_number DESC, event_index_in_block DESC
                     LIMIT
                         1
                 ) deploy_event
@@ -634,26 +635,44 @@ impl ContractVerificationDal<'_, '_> {
         .flatten())
     }
 
+    /// Returns verification info for the contract.
+    /// Tries to find the full bytecode match first. If it's not found, tries to find the partial match for the
+    /// bytecode without metadata.
     pub async fn get_partial_match_verification_info(
         &mut self,
         bytecode_keccak256: H256,
         bytecode_without_metadata_keccak256: H256,
     ) -> DalResult<Option<(VerificationInfo, H256, H256)>> {
+        // Use double select so the full match by bytecode_keccak256 is checked first.
+        // Second query is for the partial match by bytecode_without_metadata_keccak256.
+        // Aliases for the columns are needed to properly work with the UNION. Otherwise, the types will be of type
+        // Option<T> instead of T. It's a known sqlx issue reported here: https://github.com/launchbadge/sqlx/issues/1266
         sqlx::query!(
             r#"
-            SELECT
-                verification_info,
-                bytecode_keccak256,
-                bytecode_without_metadata_keccak256
-            FROM
-                contract_verification_info_v2
-            WHERE
-                bytecode_keccak256 = $1
-                OR
-                (
-                    bytecode_without_metadata_keccak256 IS NOT null
-                    AND bytecode_without_metadata_keccak256 = $2
-                )
+            (
+                SELECT
+                    verification_info AS "verification_info!",
+                    bytecode_keccak256 AS "bytecode_keccak256!",
+                    bytecode_without_metadata_keccak256 AS "bytecode_without_metadata_keccak256!"
+                FROM
+                    contract_verification_info_v2
+                WHERE
+                    bytecode_keccak256 = $1
+                LIMIT 1
+            )
+            UNION ALL
+            (
+                SELECT
+                    verification_info AS "verification_info!",
+                    bytecode_keccak256 AS "bytecode_keccak256!",
+                    bytecode_without_metadata_keccak256 AS "bytecode_without_metadata_keccak256!"
+                FROM
+                    contract_verification_info_v2
+                WHERE
+                    bytecode_without_metadata_keccak256 = $2
+                LIMIT 1
+            )
+            LIMIT 1;
             "#,
             bytecode_keccak256.as_bytes(),
             bytecode_without_metadata_keccak256.as_bytes()

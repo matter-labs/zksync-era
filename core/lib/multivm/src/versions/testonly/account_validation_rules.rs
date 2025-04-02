@@ -22,6 +22,10 @@ enum TestCase {
     RecursiveOutOfGas = 4,
     PlainOutOfGas = 5,
     PlainOutOfGasWithCatch = 6,
+    ReadFromMappings = 7,
+    DisallowedReadFromLayeredMapping = 8,
+    DisallowedReadFromMappingWithOffset = 9,
+    ReadFromMappingWithLargeOffset = 10,
 }
 
 /// Checks that every limitation imposed on account validation results in an appropriate error.
@@ -72,6 +76,30 @@ pub(crate) fn test_account_validation_rules<VM: TestedVm + TestedVmForValidation
             Some(ViolatedValidationRule::TookTooManyComputationalGas(_))
         );
     }
+
+    let (result, violated_rule) = test_rule::<VM>(u32::MAX, TestCase::ReadFromMappings);
+    assert!(!result.result.is_failed(), "{result:#?}");
+    assert_matches!(violated_rule, None);
+
+    for test_case in [
+        TestCase::DisallowedReadFromLayeredMapping,
+        TestCase::DisallowedReadFromMappingWithOffset,
+        TestCase::ReadFromMappingWithLargeOffset,
+    ] {
+        println!("Testing case: {test_case:?}");
+
+        let (result, violated_rule) = test_rule::<VM>(u32::MAX, test_case);
+        assert_matches!(
+            &result.result,
+            ExecutionResult::Halt {
+                reason: Halt::TracerCustom(_)
+            }
+        );
+        assert_matches!(
+            violated_rule,
+            Some(ViolatedValidationRule::TouchedDisallowedStorageSlots(_, _))
+        );
+    }
 }
 
 fn test_rule<VM: TestedVmForValidation>(
@@ -94,14 +122,31 @@ fn test_rule<VM: TestedVmForValidation>(
     );
 
     let bytecode = TestContract::validation_test().bytecode.to_vec();
+    let mut contracts = vec![ContractToDeploy::account(bytecode, aa_address).funded()];
+
+    if matches!(
+        test_case,
+        TestCase::ReadFromMappings
+            | TestCase::DisallowedReadFromLayeredMapping
+            | TestCase::DisallowedReadFromMappingWithOffset
+            | TestCase::ReadFromMappingWithLargeOffset
+    ) {
+        let token_address = Address::repeat_byte(0x23);
+        let bytecode = TestContract::validation_test_mock_token().bytecode.to_vec();
+        contracts.push(ContractToDeploy::new(bytecode, token_address));
+        // Set the mock token address in the AA contract.
+        storage_with_rule_break_set.set_value(
+            StorageKey::new(AccountTreeId::new(aa_address), H256::from_low_u64_be(2)),
+            address_to_h256(&token_address),
+        );
+    }
+
     let mut vm = VmTesterBuilder::new()
         .with_system_env(SystemEnv {
             default_validation_computational_gas_limit: validation_gas_limit,
             ..default_system_env()
         })
-        .with_custom_contracts(vec![
-            ContractToDeploy::account(bytecode, aa_address).funded()
-        ])
+        .with_custom_contracts(contracts)
         .with_storage(storage_with_rule_break_set)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_rich_accounts(1)

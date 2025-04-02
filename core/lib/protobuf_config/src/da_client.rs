@@ -69,9 +69,12 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                     &conf.settlement_layer_confirmation_depth,
                 )
                 .context("settlement_layer_confirmation_depth")?,
-                eigenda_eth_rpc: Some(SensitiveUrl::from_str(
-                    required(&conf.eigenda_eth_rpc).context("eigenda_eth_rpc")?,
-                )?),
+                eigenda_eth_rpc: conf
+                    .eigenda_eth_rpc
+                    .clone()
+                    .map(|x| SensitiveUrl::from_str(&x).context("eigenda_eth_rpc"))
+                    .transpose()
+                    .context("eigenda_eth_rpc")?,
                 eigenda_svc_manager_address: required(&conf.eigenda_svc_manager_address)
                     .and_then(|x| parse_h160(x))
                     .context("eigenda_svc_manager_address")?,
@@ -94,6 +97,11 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                     }
                     None => return Err(anyhow::anyhow!("Invalid Eigen DA configuration")),
                 },
+                custom_quorum_numbers: conf
+                    .custom_quorum_numbers
+                    .iter()
+                    .map(|x| u8::try_from(*x).context("custom_quorum_numbers"))
+                    .collect::<anyhow::Result<Vec<u8>>>()?,
             }),
             proto::data_availability_client::Config::ObjectStore(conf) => {
                 ObjectStore(object_store_proto::ObjectStore::read(conf)?)
@@ -160,6 +168,12 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                         g2_url: Some(g2_url.clone()),
                     }),
                 }),
+                // We need to cast as u32 because proto doesn't support u8
+                custom_quorum_numbers: config
+                    .custom_quorum_numbers
+                    .iter()
+                    .map(|x| *x as u32)
+                    .collect(),
             }),
             ObjectStore(config) => proto::data_availability_client::Config::ObjectStore(
                 object_store_proto::ObjectStore::build(config),

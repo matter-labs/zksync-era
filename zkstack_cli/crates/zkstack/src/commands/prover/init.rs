@@ -61,7 +61,6 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
     }
 
     general_config.set_prover_object_store(&proof_object_store_config)?;
-    general_config.set_prover_cloud_type(args.cloud_type.into())?;
     general_config.save().await?;
 
     if let Some(args) = args.bellman_cuda_config {

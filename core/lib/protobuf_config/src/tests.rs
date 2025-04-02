@@ -31,9 +31,7 @@ fn test_encoding() {
     test_encode_all_formats::<ReprConv<proto::prover::ProofCompressor>>(rng);
     test_encode_all_formats::<ReprConv<proto::prover::Prover>>(rng);
     test_encode_all_formats::<ReprConv<proto::prover::ProverGateway>>(rng);
-    test_encode_all_formats::<ReprConv<proto::prover::ProverGroup>>(rng);
     test_encode_all_formats::<ReprConv<proto::prover::WitnessGenerator>>(rng);
-    test_encode_all_formats::<ReprConv<proto::prover::WitnessVectorGenerator>>(rng);
     test_encode_all_formats::<ReprConv<proto::house_keeper::HouseKeeper>>(rng);
     test_encode_all_formats::<ReprConv<proto::object_store::ObjectStore>>(rng);
     test_encode_all_formats::<ReprConv<proto::prover::ProofDataHandler>>(rng);

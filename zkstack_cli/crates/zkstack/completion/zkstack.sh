@@ -1620,7 +1620,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__chain__genesis)
-            opts="-d -d -v -h --server-db-url --server-db-name --dev --dont-drop --verbose --chain --ignore-prerequisites --help init-database server help"
+            opts="-d -d -v -h --server-db-url --server-db-name --dev --dont-drop --server-command --verbose --chain --ignore-prerequisites --help init-database server help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1631,6 +1631,10 @@ _zkstack() {
                     return 0
                     ;;
                 --server-db-name)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --server-command)
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
@@ -1702,7 +1706,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__chain__genesis__init__database)
-            opts="-d -d -v -h --server-db-url --server-db-name --dev --dont-drop --verbose --chain --ignore-prerequisites --help"
+            opts="-d -d -v -h --server-db-url --server-db-name --dev --dont-drop --server-command --verbose --chain --ignore-prerequisites --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1713,6 +1717,10 @@ _zkstack() {
                     return 0
                     ;;
                 --server-db-name)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --server-command)
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
@@ -2012,7 +2020,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__chain__init)
-            opts="-a -d -v -h --verify --verifier --verifier-url --verifier-api-key --resume --zksync --additional-args --server-db-url --server-db-name --dont-drop --deploy-paymaster --l1-rpc-url --no-port-reallocation --update-submodules --dev --validium-type --verbose --chain --ignore-prerequisites --help configs help"
+            opts="-a -d -v -h --verify --verifier --verifier-url --verifier-api-key --resume --zksync --additional-args --server-db-url --server-db-name --dont-drop --deploy-paymaster --l1-rpc-url --no-port-reallocation --update-submodules --dev --validium-type --server-command --verbose --chain --ignore-prerequisites --help configs help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -2066,6 +2074,10 @@ _zkstack() {
                     COMPREPLY=($(compgen -W "no-da avail eigen-da" -- "${cur}"))
                     return 0
                     ;;
+                --server-command)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
                 --chain)
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
@@ -2078,7 +2090,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__chain__init__configs)
-            opts="-d -d -v -h --server-db-url --server-db-name --dev --dont-drop --l1-rpc-url --no-port-reallocation --verbose --chain --ignore-prerequisites --help"
+            opts="-d -d -v -h --server-db-url --server-db-name --dev --dont-drop --server-command --l1-rpc-url --no-port-reallocation --verbose --chain --ignore-prerequisites --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -2089,6 +2101,10 @@ _zkstack() {
                     return 0
                     ;;
                 --server-db-name)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --server-command)
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
@@ -5124,7 +5140,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__ecosystem__init)
-            opts="-a -d -o -v -h --deploy-erc20 --deploy-ecosystem --ecosystem-contracts-path --l1-rpc-url --verify --verifier --verifier-url --verifier-api-key --resume --zksync --additional-args --deploy-paymaster --server-db-url --server-db-name --dont-drop --ecosystem-only --dev --observability --no-port-reallocation --update-submodules --validium-type --support-l2-legacy-shared-bridge-test --skip-contract-compilation-override --verbose --chain --ignore-prerequisites --help"
+            opts="-a -d -o -v -h --deploy-erc20 --deploy-ecosystem --ecosystem-contracts-path --l1-rpc-url --verify --verifier --verifier-url --verifier-api-key --resume --zksync --additional-args --deploy-paymaster --server-db-url --server-db-name --dont-drop --ecosystem-only --dev --observability --no-port-reallocation --update-submodules --validium-type --support-l2-legacy-shared-bridge-test --skip-contract-compilation-override --server-command --verbose --chain --ignore-prerequisites --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -5200,6 +5216,10 @@ _zkstack() {
                     ;;
                 --support-l2-legacy-shared-bridge-test)
                     COMPREPLY=($(compgen -W "true false" -- "${cur}"))
+                    return 0
+                    ;;
+                --server-command)
+                    COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
                 --chain)
@@ -7226,7 +7246,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__prover__init)
-            opts="-u -d -v -h --dev --proof-store-dir --bucket-base-url --credentials-file --bucket-name --location --project-id --shall-save-to-public-bucket --public-store-dir --public-bucket-base-url --public-credentials-file --public-bucket-name --public-location --public-project-id --clone --bellman-cuda-dir --bellman-cuda --setup-compressor-key --path --region --mode --setup-keys --setup-database --prover-db-url --prover-db-name --use-default --dont-drop --cloud-type --verbose --chain --ignore-prerequisites --help"
+            opts="-u -d -v -h --dev --proof-store-dir --bucket-base-url --credentials-file --bucket-name --location --project-id --clone --bellman-cuda-dir --bellman-cuda --setup-compressor-key --path --region --mode --setup-keys --setup-database --prover-db-url --prover-db-name --use-default --dont-drop --verbose --chain --ignore-prerequisites --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -7253,34 +7273,6 @@ _zkstack() {
                     return 0
                     ;;
                 --project-id)
-                    COMPREPLY=($(compgen -f "${cur}"))
-                    return 0
-                    ;;
-                --shall-save-to-public-bucket)
-                    COMPREPLY=($(compgen -W "true false" -- "${cur}"))
-                    return 0
-                    ;;
-                --public-store-dir)
-                    COMPREPLY=($(compgen -f "${cur}"))
-                    return 0
-                    ;;
-                --public-bucket-base-url)
-                    COMPREPLY=($(compgen -f "${cur}"))
-                    return 0
-                    ;;
-                --public-credentials-file)
-                    COMPREPLY=($(compgen -f "${cur}"))
-                    return 0
-                    ;;
-                --public-bucket-name)
-                    COMPREPLY=($(compgen -f "${cur}"))
-                    return 0
-                    ;;
-                --public-location)
-                    COMPREPLY=($(compgen -f "${cur}"))
-                    return 0
-                    ;;
-                --public-project-id)
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
@@ -7338,10 +7330,6 @@ _zkstack() {
                     ;;
                 -d)
                     COMPREPLY=($(compgen -W "true false" -- "${cur}"))
-                    return 0
-                    ;;
-                --cloud-type)
-                    COMPREPLY=($(compgen -W "gcp local" -- "${cur}"))
                     return 0
                     ;;
                 --chain)
@@ -7474,7 +7462,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__server)
-            opts="-a -v -h --components --genesis --additional-args --uring --verbose --chain --ignore-prerequisites --help build run wait help"
+            opts="-a -v -h --components --genesis --additional-args --uring --server-command --verbose --chain --ignore-prerequisites --help build run wait help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -7489,6 +7477,10 @@ _zkstack() {
                     return 0
                     ;;
                 -a)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --server-command)
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
@@ -7592,7 +7584,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__server__run)
-            opts="-a -v -h --components --genesis --additional-args --uring --verbose --chain --ignore-prerequisites --help"
+            opts="-a -v -h --components --genesis --additional-args --uring --server-command --verbose --chain --ignore-prerequisites --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -7607,6 +7599,10 @@ _zkstack() {
                     return 0
                     ;;
                 -a)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --server-command)
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;

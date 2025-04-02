@@ -7,8 +7,6 @@ use zksync_basic_types::{
 };
 use zksync_db_connection::{
     connection::Connection,
-    error::DalResult,
-    instrument::InstrumentExt,
     utils::{duration_to_naive_time, pg_interval_from_duration},
 };
 
@@ -25,7 +23,7 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
         block_number: L1BatchNumber,
         witness_inputs_blob_url: &str,
         protocol_version: ProtocolSemanticVersion,
-    ) -> DalResult<()> {
+    ) {
         sqlx::query!(
             r#"
             INSERT INTO
@@ -47,10 +45,9 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
             protocol_version.minor as i32,
             protocol_version.patch.0 as i32,
         )
-        .instrument("save_witness_inputs")
-        .execute(self.storage)
-        .await?;
-        Ok(())
+        .fetch_optional(self.storage.conn())
+        .await
+        .unwrap();
     }
 
     /// Gets the next job to be executed. Returns the batch number and its corresponding blobs.
@@ -80,8 +77,7 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
                         AND protocol_version = $1
                         AND protocol_version_patch = $3
                     ORDER BY
-                        priority DESC,
-                        created_at ASC
+                        l1_batch_number ASC
                     LIMIT
                         1
                     FOR UPDATE
@@ -158,8 +154,7 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
             SET
                 status = 'queued',
                 updated_at = NOW(),
-                processing_started_at = NOW(),
-                priority = priority + 1
+                processing_started_at = NOW()
             WHERE
                 (
                     status = 'in_progress'
@@ -265,8 +260,7 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
             SET
                 status = 'queued',
                 updated_at = NOW(),
-                processing_started_at = NOW(),
-                priority = priority + 1
+                processing_started_at = NOW()
             WHERE
                 l1_batch_number = $1
                 AND attempts >= $2

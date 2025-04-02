@@ -306,10 +306,11 @@ pub enum PubSubResult {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EcosystemContractsDto {
     pub bridgehub_proxy_addr: Address,
-    pub state_transition_proxy_addr: Address,
+    pub state_transition_proxy_addr: Option<Address>,
     pub transparent_proxy_admin_addr: Address,
     pub l1_bytecodes_supplier_addr: Option<Address>,
     pub l1_wrapped_base_token_store: Option<Address>,
+    pub server_notifier_addr: Option<Address>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

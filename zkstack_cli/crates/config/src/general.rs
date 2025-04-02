@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use serde::Serialize;
 use xshell::Shell;
 use zkstack_cli_common::yaml::merge_yaml;
-use zksync_basic_types::{pubdata_da::PubdataSendingMode, settlement::SettlementMode};
+use zksync_basic_types::pubdata_da::PubdataSendingMode;
 
 use crate::{
     consensus::{ConsensusConfigPatch, ConsensusGenesisSpecs},
@@ -215,10 +215,6 @@ impl GeneralConfigPatch {
 
     pub fn set_prover_setup_path(&mut self, path: &Path) -> anyhow::Result<()> {
         self.0.insert_path("prover.setup_data_path", path)
-    }
-
-    pub fn set_settlement_mode(&mut self, mode: SettlementMode) -> anyhow::Result<()> {
-        self.0.insert_yaml("eth.gas_adjuster.settlement_mode", mode)
     }
 
     pub fn set_pubdata_sending_mode(&mut self, mode: PubdataSendingMode) -> anyhow::Result<()> {

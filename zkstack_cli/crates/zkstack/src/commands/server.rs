@@ -10,7 +10,6 @@ use zkstack_cli_config::{
     traits::FileConfigWithDefaultName, ChainConfig, ContractsConfig, EcosystemConfig,
     WalletsConfig, GENERAL_FILE, GENESIS_FILE, SECRETS_FILE,
 };
-use zksync_basic_types::SLChainId;
 
 use crate::{
     commands::args::{RunServerArgs, ServerArgs, ServerCommand, WaitArgs},
@@ -63,17 +62,6 @@ async fn run_server(
         ServerMode::Normal
     };
 
-    let gateway_config = chain_config.get_gateway_chain_config().await.ok();
-    let mut gateway_contracts = None;
-    if let Some(gateway_config) = &gateway_config {
-        let gateway_chain_id: SLChainId = gateway_config.gateway_chain_id()?;
-        gateway_contracts = if gateway_chain_id != SLChainId(0) {
-            Some(chain_config.path_to_gateway_chain_config())
-        } else {
-            None
-        };
-    }
-
     server
         .run(
             shell,
@@ -83,7 +71,6 @@ async fn run_server(
             chain_config.configs.join(GENERAL_FILE),
             chain_config.configs.join(SECRETS_FILE),
             ContractsConfig::get_path_with_base_path(&chain_config.configs),
-            gateway_contracts,
             vec![],
         )
         .context(MSG_FAILED_TO_RUN_SERVER_ERR)

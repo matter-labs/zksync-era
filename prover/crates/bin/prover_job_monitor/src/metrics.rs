@@ -64,7 +64,6 @@ pub(crate) struct ProverJobsLabels {
     pub r#type: &'static str,
     pub circuit_id: String,
     pub aggregation_round: String,
-    pub prover_group_id: String,
     pub protocol_version: String,
 }
 
@@ -86,7 +85,6 @@ impl FriProverMetrics {
         r#type: &'static str,
         circuit_id: u8,
         aggregation_round: u8,
-        prover_group_id: u8,
         protocol_version: ProtocolSemanticVersion,
         amount: u64,
     ) {
@@ -94,7 +92,6 @@ impl FriProverMetrics {
             r#type,
             circuit_id: circuit_id.to_string(),
             aggregation_round: aggregation_round.to_string(),
-            prover_group_id: prover_group_id.to_string(),
             protocol_version: protocol_version.to_string(),
         }]
             .set(amount);

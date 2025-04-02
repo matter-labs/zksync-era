@@ -8,15 +8,14 @@ use zksync_config::{
             CircuitBreakerConfig, MempoolConfig, OperationsManagerConfig, StateKeeperConfig,
             TimestampAsserterConfig,
         },
-        fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
         vm_runner::BasicWitnessInputProducerConfig,
         wallets::{AddressWallet, EthSender, StateKeeper, TokenMultiplierSetter, Wallet, Wallets},
         CommitmentGeneratorConfig, DatabaseSecrets, ExperimentalVmConfig,
         ExternalPriceApiClientConfig, FriProofCompressorConfig, FriProverConfig,
-        FriProverGatewayConfig, FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig,
-        GeneralConfig, ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig,
-        ProtectiveReadsWriterConfig, ProverJobMonitorConfig, PruningConfig, SnapshotRecoveryConfig,
+        FriProverGatewayConfig, FriWitnessGeneratorConfig, GeneralConfig, ObservabilityConfig,
+        PrometheusConfig, ProofDataHandlerConfig, ProtectiveReadsWriterConfig,
+        ProverJobMonitorConfig, PruningConfig, SnapshotRecoveryConfig,
     },
     ApiConfig, BaseTokenAdjusterConfig, ContractVerifierConfig, DAClientConfig, DADispatcherConfig,
     DBConfig, EthConfig, EthWatchConfig, ExternalProofIntegrationApiConfig, GasAdjusterConfig,
@@ -39,6 +38,7 @@ pub fn read_yaml_repr<T: ProtoRepr>(path: &PathBuf) -> anyhow::Result<T::Type> {
 
 // TODO (QIT-22): This structure is going to be removed when components will be responsible for their own configs.
 /// A temporary config store allowing to pass deserialized configs from `zksync_server` to `zksync_core`.
+///
 /// All the configs are optional, since for some component combination it is not needed to pass all the configs.
 #[derive(Debug, PartialEq, Default)]
 pub struct TempConfigStore {
@@ -54,9 +54,7 @@ pub struct TempConfigStore {
     pub house_keeper_config: Option<HouseKeeperConfig>,
     pub fri_proof_compressor_config: Option<FriProofCompressorConfig>,
     pub fri_prover_config: Option<FriProverConfig>,
-    pub fri_prover_group_config: Option<FriProverGroupConfig>,
     pub fri_prover_gateway_config: Option<FriProverGatewayConfig>,
-    pub fri_witness_vector_generator: Option<FriWitnessVectorGeneratorConfig>,
     pub fri_witness_generator_config: Option<FriWitnessGeneratorConfig>,
     pub prometheus_config: Option<PrometheusConfig>,
     pub proof_data_handler_config: Option<ProofDataHandlerConfig>,
@@ -97,8 +95,6 @@ impl TempConfigStore {
             proof_compressor_config: self.fri_proof_compressor_config.clone(),
             prover_config: self.fri_prover_config.clone(),
             prover_gateway: self.fri_prover_gateway_config.clone(),
-            witness_vector_generator: self.fri_witness_vector_generator.clone(),
-            prover_group_config: self.fri_prover_group_config.clone(),
             witness_generator_config: self.fri_witness_generator_config.clone(),
             prometheus_config: self.prometheus_config.clone(),
             proof_data_handler_config: self.proof_data_handler_config.clone(),
@@ -129,7 +125,7 @@ impl TempConfigStore {
     #[allow(deprecated)]
     pub fn wallets(&self) -> Wallets {
         let eth_sender = self.eth_sender_config.as_ref().and_then(|config| {
-            let sender = config.sender.as_ref()?;
+            let sender = config.get_eth_sender_config_for_sender_layer_data_layer()?;
             let operator_private_key = sender.private_key().ok()??;
             let operator = Wallet::new(operator_private_key);
             let blob_operator = sender
@@ -177,9 +173,7 @@ fn load_env_config() -> anyhow::Result<TempConfigStore> {
         house_keeper_config: HouseKeeperConfig::from_env().ok(),
         fri_proof_compressor_config: FriProofCompressorConfig::from_env().ok(),
         fri_prover_config: FriProverConfig::from_env().ok(),
-        fri_prover_group_config: FriProverGroupConfig::from_env().ok(),
         fri_prover_gateway_config: FriProverGatewayConfig::from_env().ok(),
-        fri_witness_vector_generator: FriWitnessVectorGeneratorConfig::from_env().ok(),
         fri_witness_generator_config: FriWitnessGeneratorConfig::from_env().ok(),
         prometheus_config: PrometheusConfig::from_env().ok(),
         proof_data_handler_config: ProofDataHandlerConfig::from_env().ok(),
