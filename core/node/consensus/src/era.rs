@@ -70,3 +70,57 @@ pub async fn run_external_node(
     tracing::info!("Consensus actor stopped");
     res
 }
+
+/// Periodically fetches the pending validator committee for the last certified block
+/// and persists it in the database.
+async fn validator_committee_monitor(
+    ctx: &ctx::Ctx,
+    pool: &ConnectionPool,
+    cfg: consensus_dal::GlobalConfig,
+) -> ctx::Result<()> {
+    const POLL_INTERVAL: time::Duration = time::Duration::seconds(5);
+    let registry = registry::Registry::new(pool.clone()).await;
+
+    loop {
+        // Get the last/current block number that was certified.
+        let last_block_certificate_number = pool
+            .connection(ctx)
+            .await
+            .wrap("connection()")?
+            .last_block_certificate_number()
+            .await
+            .wrap("last_block_certificate_number()")?
+            .ok_or_else(|| anyhow::anyhow!("no block certificates found"))?;
+
+        // Get the pending validator committee for the last certified block. There might
+        // not be a pending committee if there was no changes to the validator set. In this case
+        // we don't do anything.
+        let Some((committee, commit_block)) = registry
+            .get_pending_validator_committee(
+                ctx,
+                cfg.registry_address.map(registry::Address::new),
+                last_block_certificate_number,
+            )
+            .await
+            .wrap("pending_validator_committee()")?
+        else {
+            tracing::info!("no pending validator committee");
+            ctx.sleep(POLL_INTERVAL).await?;
+            continue;
+        };
+
+        // Persist the pending committee.
+        self.pool
+            .connection(ctx)
+            .await
+            .wrap("connection")?
+            .insert_validator_committee(ctx, last_block_certificate_number, &committee)
+            .await
+            .wrap("insert_validator_committee()")?;
+        tracing::info!(
+                "persisted pending validator committee at block {last_block_certificate_number:?} for activation at block {commit_block:?}"
+            );
+
+        ctx.sleep(POLL_INTERVAL).await?;
+    }
+}

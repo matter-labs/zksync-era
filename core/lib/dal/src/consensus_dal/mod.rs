@@ -447,6 +447,36 @@ impl ConsensusDal<'_, '_> {
         Ok(None)
     }
 
+    /// Gets a number of the last L2 block that was certified. It might have gaps before it,
+    /// depending on the order in which certificates have been collected.
+    pub async fn last_block_certificate_number(
+        &mut self,
+    ) -> anyhow::Result<Option<validator::BlockNumber>> {
+        let Some(row) = sqlx::query!(
+            r#"
+            SELECT
+                number
+            FROM
+                miniblocks_consensus
+            ORDER BY
+                number DESC
+            LIMIT
+                1
+            "#
+        )
+        .instrument("last_block_certificate_number")
+        .report_latency()
+        .fetch_optional(self.storage)
+        .await?
+        else {
+            return Ok(None);
+        };
+
+        Ok(Some(validator::BlockNumber(
+            row.number.try_into().context("overflow")?,
+        )))
+    }
+
     /// Fetches a range of L2 blocks from storage and converts them to `Payload`s.
     pub async fn block_payloads(
         &mut self,
