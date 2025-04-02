@@ -312,6 +312,7 @@ where
     let factory_deps = SnapshotFactoryDependencies {
         factory_deps: vec![SnapshotFactoryDependency {
             bytecode: Bytes::from(factory_dep_bytes),
+            hash: None, // FIXME: also test `Some(_)`
         }],
     };
     object_store

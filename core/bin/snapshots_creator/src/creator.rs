@@ -209,10 +209,13 @@ impl SnapshotCreator {
             METRICS.factory_deps_processing_duration[&FactoryDepsStage::SaveToGcs].start();
         let factory_deps = factory_deps
             .into_iter()
-            .map(|(_, bytecode)| SnapshotFactoryDependency {
-                bytecode: bytecode.into(),
+            .map(|(hash, bytecode)| {
+                Ok(SnapshotFactoryDependency {
+                    bytecode: bytecode.into(),
+                    hash: Some(hash),
+                })
             })
-            .collect();
+            .collect::<anyhow::Result<_>>()?;
         let factory_deps = SnapshotFactoryDependencies { factory_deps };
         let filename = self
             .blob_store
