@@ -22,7 +22,8 @@ impl Task for ProverQueueReporter {
             .get_prover_jobs_stats()
             .await;
 
-        let mut prover_jobs_metric: HashMap<_, _> = FRI_PROVER_METRICS.prover_jobs.to_entries();
+        let mut prover_jobs_metric: HashMap<_, _> =
+            FRI_PROVER_METRICS.prover_jobs.to_entries().collect();
         for (protocol_semantic_version, circuit_prover_stats) in stats {
             for (tuple, stat) in circuit_prover_stats {
                 let CircuitIdRoundTuple {
