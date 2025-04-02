@@ -1,5 +1,5 @@
-use std::ops::Mul;
 use std::{
+    ops::Mul,
     sync::Arc,
     time::{Duration, SystemTime},
 };
