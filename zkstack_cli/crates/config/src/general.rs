@@ -90,11 +90,6 @@ impl GeneralConfig {
         Ok(port.map(|port| format!("http://127.0.0.1:{port}")))
     }
 
-    pub fn prover_gateway_ws_url(&self) -> anyhow::Result<Option<String>> {
-        let port = self.0.get_opt::<u16>("prover_gateway.ws_port")?;
-        Ok(port.map(|port| format!("ws://127.0.0.1:{port}")))
-    }
-
     pub fn da_client_type(&self) -> Option<&str> {
         self.0.get_raw("da_client").and_then(|val| {
             let val = val.as_mapping()?;

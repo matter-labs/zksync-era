@@ -13,7 +13,6 @@ use crate::{
 };
 
 /// Config that is only stored for the gateway chain.
-// FIXME: double-check
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct GatewayConfig {
     pub state_transition_proxy_addr: Address,

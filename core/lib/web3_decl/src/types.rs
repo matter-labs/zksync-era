@@ -335,7 +335,6 @@ pub struct GenesisConfigDto {
     pub fee_account: Address,
     pub dummy_verifier: bool,
     pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
-    // FIXME: is removing `custom_genesis_state_path` OK? (never set or read)
 }
 
 #[cfg(test)]
