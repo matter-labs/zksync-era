@@ -279,6 +279,9 @@ impl GasConsts {
     /// Base gas cost of processing aggregated `Execute` operation.
     /// It's applicable iff SL is Ethereum.
     const AGGR_L1_BATCH_EXECUTE_BASE_COST: u32 = 90_000;
+    /// Base gas cost of processing aggregated `Execute` operation.
+    /// It's applicable if SL is  Gateway.
+    const AGGR_GATEWAT_BATCH_EXECUTE_BASE_COST: u32 = 300_000;
 
     /// Base gas cost of processing aggregated `Commit` operation.
     /// It's applicable if SL is Ethereum.
@@ -290,7 +293,7 @@ impl GasConsts {
 
     /// Additional gas cost of processing `Commit` operation per batch.
     /// It's applicable if SL is Gateway.
-    const AGGR_GATEWAY_BATCH_COMMIT_BASE_COST: u32 = 90_000;
+    const AGGR_GATEWAY_BATCH_COMMIT_BASE_COST: u32 = 150_000;
 
     /// Additional gas cost of processing `Commit` operation per batch.
     /// It's applicable if SL is Gateway.
@@ -300,7 +303,9 @@ impl GasConsts {
     /// It's applicable if SL is Ethereum.
     const L1_BATCH_PROOF_GAS_COST_ETHEREUM: u32 = 500_000;
 
-    const GATEWAY_BATCH_EXECUTION_COST: u32 = 150_000;
+    const GATEWAY_BATCH_EXECUTION_COST: u32 = 100_000;
+    const GATEWAY_L1_OPERATION_COST: u32 = 4_000;
+
     fn commit_costs(is_gateway: bool) -> CommitGasConsts {
         if is_gateway {
             CommitGasConsts {
@@ -326,9 +331,9 @@ impl GasConsts {
     fn execute_costs(is_gateway: bool) -> ExecuteCosts {
         if is_gateway {
             ExecuteCosts {
-                base: Self::AGGR_L1_BATCH_EXECUTE_BASE_COST,
+                base: Self::AGGR_GATEWAT_BATCH_EXECUTE_BASE_COST,
                 per_batch: Self::GATEWAY_BATCH_EXECUTION_COST,
-                per_l1_l2_tx: L1_OPERATION_EXECUTE_COST * 2,
+                per_l1_l2_tx: Self::GATEWAY_L1_OPERATION_COST,
             }
         } else {
             ExecuteCosts {
