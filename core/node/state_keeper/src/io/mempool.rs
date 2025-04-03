@@ -176,6 +176,7 @@ impl StateKeeperIO for MempoolIO {
                     timestamp: unsealed_storage_batch.timestamp,
                     // This value is effectively ignored by the protocol.
                     virtual_blocks: 1,
+                    msg_roots: vec![],
                 },
                 pubdata_params: self.pubdata_params(protocol_version)?,
             }));
@@ -262,6 +263,7 @@ impl StateKeeperIO for MempoolIO {
                     timestamp,
                     // This value is effectively ignored by the protocol.
                     virtual_blocks: 1,
+                    msg_roots: vec![],
                 },
                 pubdata_params: self.pubdata_params(protocol_version)?,
             }));
@@ -289,6 +291,7 @@ impl StateKeeperIO for MempoolIO {
             timestamp,
             // This value is effectively ignored by the protocol.
             virtual_blocks: 1,
+            msg_roots: vec![],
         }))
     }
 

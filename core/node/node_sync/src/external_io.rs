@@ -477,7 +477,11 @@ impl StateKeeperIO for ExternalIO {
         Ok(None)
     }
 
-    async fn mark_msg_root_as_processed(&self, _msg_root: MessageRoot, _processed_block_number: L2BlockNumber) -> anyhow::Result<()> {
+    async fn mark_msg_root_as_processed(
+        &self,
+        _msg_root: MessageRoot,
+        _processed_block_number: L2BlockNumber,
+    ) -> anyhow::Result<()> {
         Ok(())
     }
 

@@ -11,7 +11,7 @@ use zksync_types::{
     block::L2BlockHasher,
     bytecode::BytecodeHash,
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
-    L2BlockNumber, ProtocolVersionId, StorageLogWithPreviousValue, Transaction, H256, MessageRoot,
+    L2BlockNumber, MessageRoot, ProtocolVersionId, StorageLogWithPreviousValue, Transaction, H256,
 };
 
 use crate::metrics::KEEPER_METRICS;

@@ -61,7 +61,19 @@ impl ExecuteBatches {
             ]
         } else {
             println!("dependency_roots: {:?}", self.dependency_roots);
-            println!("dependency_roots tokenized: {:?}", Token::Array(self.dependency_roots.iter().map(|roots| { Token::Array(roots.iter().map(|root| root.clone().into_token()).collect()) }).collect()));
+            println!(
+                "dependency_roots tokenized: {:?}",
+                Token::Array(
+                    self.dependency_roots
+                        .iter()
+                        .map(|roots| {
+                            Token::Array(
+                                roots.iter().map(|root| root.clone().into_token()).collect(),
+                            )
+                        })
+                        .collect()
+                )
+            );
             let encoded_data = encode(&[
                 Token::Array(
                     self.l1_batches

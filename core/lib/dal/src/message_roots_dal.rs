@@ -67,36 +67,44 @@ impl MessageRootDal<'_, '_> {
                 WHERE number = $1
                 LIMIT 1
             ),
+            
             max_l1_batch AS (
                 SELECT MAX(number) AS number
                 FROM l1_batches
             ),
-            Ranked AS (
+            
+            ranked AS (
                 SELECT
-                    mr.Message_Root_Sides,
-                    mr.Chain_Id,
-                    mr.Dependency_Block_Number,
-                    ROW_NUMBER() OVER (PARTITION BY mr.Chain_Id ORDER BY mr.Dependency_Block_Number DESC) AS Rn
-                FROM Message_Roots mr
+                    mr.message_root_sides,
+                    mr.chain_id,
+                    mr.dependency_block_number,
+                    ROW_NUMBER()
+                        OVER (
+                            PARTITION BY mr.chain_id
+                            ORDER BY mr.dependency_block_number DESC
+                        )
+                    AS rn
+                FROM message_roots mr
                 CROSS JOIN l1_batch lb
                 WHERE
-                    mr.PROCESSED_BLOCK_NUMBER IS NULL
-                    OR mr.PROCESSED_BLOCK_NUMBER = $1
+                    mr.processed_block_number IS NULL
+                    OR mr.processed_block_number = $1
                     OR EXISTS (
                         SELECT 1
                         FROM miniblocks mb
-                        WHERE mb.number = mr.PROCESSED_BLOCK_NUMBER
-                        AND (
-                            mb.l1_batch_number = lb.l1_batch_number
-                            OR mb.l1_batch_number = (SELECT number FROM max_l1_batch)
-                        )
+                        WHERE
+                            mb.number = mr.processed_block_number
+                            AND (
+                                mb.l1_batch_number = lb.l1_batch_number
+                                OR mb.l1_batch_number = (SELECT number FROM max_l1_batch)
+                            )
                     )
             )
             
-            SELECT Message_Root_Sides, Chain_Id, Dependency_Block_Number
-            FROM Ranked
-            WHERE Rn <= 5
-            ORDER BY Chain_Id, Dependency_Block_Number DESC;
+            SELECT message_root_sides, chain_id, dependency_block_number
+            FROM ranked
+            WHERE rn <= 5
+            ORDER BY chain_id, dependency_block_number DESC;
             "#,
             processed_block_number.0 as i64
         )
@@ -151,27 +159,35 @@ impl MessageRootDal<'_, '_> {
                 WHERE number = $1
                 LIMIT 1
             ),
-            Ranked AS (
+            
+            ranked AS (
                 SELECT
-                    mr.Message_Root_Sides,
-                    mr.Chain_Id,
-                    mr.Dependency_Block_Number,
-                    ROW_NUMBER() OVER (PARTITION BY mr.Chain_Id ORDER BY mr.Dependency_Block_Number DESC) AS Rn
-                FROM Message_Roots mr
+                    mr.message_root_sides,
+                    mr.chain_id,
+                    mr.dependency_block_number,
+                    ROW_NUMBER()
+                        OVER (
+                            PARTITION BY mr.chain_id
+                            ORDER BY mr.dependency_block_number DESC
+                        )
+                    AS rn
+                FROM message_roots mr
                 CROSS JOIN l1_batch lb
                 WHERE
-                    mr.PROCESSED_BLOCK_NUMBER = $1
+                    mr.processed_block_number = $1
                     OR EXISTS (
                         SELECT 1
                         FROM miniblocks mb
-                        WHERE mb.number = mr.PROCESSED_BLOCK_NUMBER
-                        AND mb.l1_batch_number = lb.l1_batch_number
+                        WHERE
+                            mb.number = mr.processed_block_number
+                            AND mb.l1_batch_number = lb.l1_batch_number
                     )
             )
-            SELECT Message_Root_Sides, Chain_Id, Dependency_Block_Number
-            FROM Ranked
-            WHERE Rn <= 5
-            ORDER BY Chain_Id, Dependency_Block_Number DESC;
+            
+            SELECT message_root_sides, chain_id, dependency_block_number
+            FROM ranked
+            WHERE rn <= 5
+            ORDER BY chain_id, dependency_block_number DESC;
             "#,
             processed_block_number.0 as i64
         )
@@ -212,7 +228,10 @@ impl MessageRootDal<'_, '_> {
             r#"
             UPDATE MESSAGE_ROOTS
             SET PROCESSED_BLOCK_NUMBER = $1
-            WHERE CHAIN_ID = $2 AND DEPENDENCY_BLOCK_NUMBER = $3 AND PROCESSED_BLOCK_NUMBER IS NULL
+            WHERE
+                CHAIN_ID = $2
+                AND DEPENDENCY_BLOCK_NUMBER = $3
+                AND PROCESSED_BLOCK_NUMBER IS NULL
             "#,
             processed_block_number.0 as i64,
             msg_root.chain_id as i64,

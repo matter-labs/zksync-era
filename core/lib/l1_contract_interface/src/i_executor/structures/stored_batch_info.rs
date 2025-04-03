@@ -72,8 +72,21 @@ impl From<&L1BatchWithMetadata> for StoredBatchInfo {
             dependency_roots_rolling_hash: if x.header.system_logs.is_empty() {
                 H256::zero()
             } else {
-                println!("case 5 {:?}", x.header.system_logs.iter().find(|log| log.0.key == MESSAGE_ROOT_ROLLING_HASH_KEY).unwrap());
-                x.header.system_logs.iter().find(|log| log.0.key == MESSAGE_ROOT_ROLLING_HASH_KEY).unwrap().0.value
+                println!(
+                    "case 5 {:?}",
+                    x.header
+                        .system_logs
+                        .iter()
+                        .find(|log| log.0.key == MESSAGE_ROOT_ROLLING_HASH_KEY)
+                        .unwrap()
+                );
+                x.header
+                    .system_logs
+                    .iter()
+                    .find(|log| log.0.key == MESSAGE_ROOT_ROLLING_HASH_KEY)
+                    .unwrap()
+                    .0
+                    .value
             },
             l2_logs_tree_root: x.metadata.l2_l1_merkle_root,
             timestamp: x.header.timestamp.into(),

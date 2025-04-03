@@ -8,7 +8,7 @@ use crate::{
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
     priority_op_onchain_data::PriorityOpOnchainData,
     web3::{keccak256, keccak256_concat},
-    AccountTreeId, L1BatchNumber, L2BlockNumber, ProtocolVersionId, Transaction, MessageRoot,
+    AccountTreeId, L1BatchNumber, L2BlockNumber, MessageRoot, ProtocolVersionId, Transaction,
 };
 
 /// Represents a successfully deployed smart contract.

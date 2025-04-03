@@ -81,7 +81,8 @@ impl EthWatch {
             sl_client.clone(),
             l1_client.clone(),
         );
-        let l1_message_root_processor = MessageRootProcessor::new(EventsSource::L1, chain_id, sl_l2_client.clone()).await;
+        let l1_message_root_processor =
+            MessageRootProcessor::new(EventsSource::L1, chain_id, sl_l2_client.clone()).await;
         // let
         // let batch_root_processor = L1BatchRootProcessor::new(
         //     state.chain_batch_root_number_lower_bound,

@@ -14,11 +14,12 @@ use zksync_types::{
     hasher::keccak::KeccakHasher,
     helpers::unix_timestamp_ms,
     l1::L1Tx,
+    message_root::MessageRoot,
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     pubdata_da::PubdataSendingMode,
     settlement::SettlementMode,
     web3::CallRequest,
-    Address, L1BatchNumber, ProtocolVersionId, U256, message_root::MessageRoot
+    Address, L1BatchNumber, ProtocolVersionId, U256,
 };
 
 use super::{
@@ -370,10 +371,10 @@ impl Aggregator {
         let mut dependency_roots: Vec<Vec<MessageRoot>> = vec![];
         for batch in &l1_batches {
             let message_roots = storage
-            .message_root_dal()
-            .get_dependency_roots_batch(batch.header.number)
-            .await
-            .unwrap();
+                .message_root_dal()
+                .get_dependency_roots_batch(batch.header.number)
+                .await
+                .unwrap();
 
             dependency_roots.push(message_roots);
         }

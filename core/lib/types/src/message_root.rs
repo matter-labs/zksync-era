@@ -1,5 +1,6 @@
-use crate::{ethabi::Token, u256_to_h256, U256};
 use serde::{Deserialize, Serialize};
+
+use crate::{ethabi::Token, u256_to_h256, U256};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MessageRoot {

@@ -44,7 +44,7 @@ pub struct PendingBatchData {
     pub(crate) pending_l2_blocks: Vec<L2BlockExecutionData>,
 }
 
-#[derive(Debug, Copy, Clone, Default, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct L2BlockParams {
     /// The timestamp of the L2 block.
     pub timestamp: u64,
@@ -57,6 +57,7 @@ pub struct L2BlockParams {
     /// once the virtual blocks' number reaches the L2 block number, they will never be allowed to exceed those, i.e.
     /// any "excess" created blocks will be ignored.
     pub virtual_blocks: u32,
+    pub msg_roots: Vec<MessageRoot>,
 }
 
 /// Parameters for a new L1 batch returned by [`StateKeeperIO::wait_for_new_batch_params()`].
@@ -173,7 +174,8 @@ pub trait StateKeeperIO: 'static + Send + Sync + fmt::Debug + IoSealCriteria {
         processed_block_number: L2BlockNumber,
     ) -> anyhow::Result<Option<Vec<MessageRoot>>>;
 
-    async fn mark_msg_root_as_processed(&self,
+    async fn mark_msg_root_as_processed(
+        &self,
         msg_root: MessageRoot,
         processed_block_number: L2BlockNumber,
     ) -> anyhow::Result<()>;

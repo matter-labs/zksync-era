@@ -512,6 +512,10 @@ impl ZkSyncStateKeeper {
                     L2BlockParams {
                         timestamp: l2_block.timestamp,
                         virtual_blocks: l2_block.virtual_blocks,
+                        msg_roots: self
+                            .load_latest_message_root(l2_block.number)
+                            .await?
+                            .unwrap_or(vec![]),
                     },
                 );
                 Self::start_next_l2_block(updates_manager, batch_executor).await?;
@@ -631,16 +635,20 @@ impl ZkSyncStateKeeper {
             let message_roots = self
                 .load_latest_message_root(updates_manager.l2_block.number)
                 .await?;
-            println!("message_roots in keeper 0 {:?}", updates_manager.l2_block.number);
+            println!(
+                "message_roots in keeper 0 {:?}",
+                updates_manager.l2_block.number
+            );
             println!("message_roots in keeper 1 {:?}", message_roots);
             if message_roots.is_some() {
                 for message_root in message_roots.unwrap() {
                     if L2ChainId::from(message_root.chain_id) == self.io.chain_id() {
                         continue;
                     }
-                    batch_executor.insert_message_root(message_root.clone()).await?;
-                    self
-                        .mark_msg_root_as_processed(message_root, updates_manager.l2_block.number)
+                    batch_executor
+                        .insert_message_root(message_root.clone())
+                        .await?;
+                    self.mark_msg_root_as_processed(message_root, updates_manager.l2_block.number)
                         .await?;
                 }
             }
