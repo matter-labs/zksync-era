@@ -31,6 +31,19 @@ pub fn get_test_data() -> V26TestData {
     }
 }
 
+pub fn get_test_data_second_option() -> V26TestData {
+    V26TestData {
+        l1_chain_id: 1.into(),
+        l1_shared_bridge_address: "abacabac00000000000000000000000000000001".parse().unwrap(),
+        l1_token_address: "abacabac00000000000000000000000000000002".parse().unwrap(),
+        l2_token_address: "0x4232e8c0f0754d8fa56f5eab7516dfd533638849".parse().unwrap(),
+        l2_legacy_shared_bridge_address: "d316600b6009f94ab776e97f1fc985bc18b4e535"
+            .parse()
+            .unwrap(),
+        l1_aliased_shared_bridge: "bcbdabac00000000000000000000000000001112".parse().unwrap(),
+    }
+}
+
 fn empty_erc20_metadata() -> Vec<u8> {
     ethabi::encode(&[
         Token::Bytes(vec![]),

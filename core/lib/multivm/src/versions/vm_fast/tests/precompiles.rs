@@ -4,7 +4,7 @@ use zksync_types::Execute;
 use crate::{
     interface::{InspectExecutionMode, TxExecutionMode, VmInterface, VmInterfaceExt},
     versions::testonly::{
-        precompiles::{test_ecrecover, test_keccak, test_sha256},
+        precompiles::{test_ecrecover, test_keccak, test_sha256, test_ecadd},
         VmTesterBuilder,
     },
     vm_fast::Vm,
@@ -23,6 +23,11 @@ fn sha256() {
 #[test]
 fn ecrecover() {
     test_ecrecover::<Vm<_>>();
+}
+
+#[test]
+fn ecadd() {
+    test_ecadd::<Vm<_>>();
 }
 
 #[test]

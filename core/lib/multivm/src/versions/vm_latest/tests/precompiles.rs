@@ -1,5 +1,5 @@
 use crate::{
-    versions::testonly::precompiles::{test_ecrecover, test_keccak, test_sha256},
+    versions::testonly::precompiles::{test_ecrecover, test_keccak, test_sha256, test_ecadd},
     vm_latest::{HistoryEnabled, Vm},
 };
 
@@ -16,4 +16,9 @@ fn sha256() {
 #[test]
 fn ecrecover() {
     test_ecrecover::<Vm<_, HistoryEnabled>>();
+}
+
+#[test]
+fn ecadd() {
+    test_ecadd::<Vm<_, HistoryEnabled>>();
 }

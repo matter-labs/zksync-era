@@ -17,7 +17,7 @@ use zksync_vm_interface::{
 use super::{TestedVm, VmTester};
 use crate::{
     versions::testonly::{tester::TransactionTestInfo, ContractToDeploy, VmTesterBuilder},
-    vm_latest::utils::v26_upgrade::{encode_legacy_finalize_deposit, get_test_data, V26TestData},
+    vm_latest::utils::v26_upgrade::{encode_legacy_finalize_deposit, get_test_data, get_test_data_second_option, V26TestData},
 };
 
 const SIMPLE_TEST_RESULT_JSON: &str = include_str!("./v26_utils_outputs/simple-test.json");
@@ -202,7 +202,7 @@ fn remove_irrelevant_keys(mut logs: HashMap<StorageKey, H256>) -> HashMap<Storag
 
 pub(crate) fn test_trivial_test_storage_logs<VM: TestedVm>() {
     // let (vm, test_data) = setup_v26_unsafe_deposits_detection::<VM>();
-    // assert_eq!(test_data, get_test_data());
+    // assert_eq!(test_data, get_test_data_second_option());
 
     // let storage_ptr = vm.storage.clone();
     // let borrowed = storage_ptr.borrow();

@@ -112,3 +112,41 @@ pub(crate) fn test_ecrecover<VM: TestedVm>() {
             .cycles_per_ecrecover_circuit as f32;
     assert!((ecrecover_count - 1.0).abs() < 1e-4, "{ecrecover_count}");
 }
+
+pub(crate) fn test_ecadd<VM: TestedVm>() {
+    // Execute simple transfer and check that exactly 1 `ecrecover` call was made (it's done during tx validation).
+    let mut vm = VmTesterBuilder::new()
+        .with_rich_accounts(1)
+        .with_bootloader_gas_limit(BATCH_COMPUTATIONAL_GAS_LIMIT)
+        .with_execution_mode(TxExecutionMode::VerifyExecute)
+        .build::<VM>();
+    
+    // calldata for `doEcAdd()`, assuming the wrapper method in the contract is implemented like `function doEcAdd() public { ... }`
+    // You may need to generate the correct selector + inputs depending on how you wrote your wrapper.
+    // Here's a placeholder for calling doEcAdd()
+    let ecadd_calldata = "0000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000002";
+    let address = Address::from_low_u64_be(6);
+
+    let account = &mut vm.rich_accounts[0];
+    let tx = account.get_l2_tx_for_execute(
+        Execute {
+            contract_address: Some(address),
+            calldata: hex::decode(ecadd_calldata).unwrap(),
+            value: 0.into(),
+            factory_deps: vec![],
+        },
+        None,
+    );
+    vm.vm.push_transaction(tx);
+
+    let exec_result = vm.vm.execute(InspectExecutionMode::OneTx);
+    assert!(!exec_result.result.is_failed(), "{exec_result:#?}");
+
+    let ecadd_count = exec_result.statistics.circuit_statistic.ecadd
+        * ProtocolGeometry::latest()
+            .config()
+            .cycles_per_ecadd_circuit as f32;
+    println!("{:?}", exec_result);
+    println!("{:?}", ecadd_count);
+    assert!(ecadd_count >= 0.001, "{ecadd_count}");
+}
