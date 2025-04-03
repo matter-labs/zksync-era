@@ -807,7 +807,7 @@ impl<'a> SnapshotsApplier<'a> {
                     let bytecode_hash = if let Some(hash) = dep.hash {
                         // Sanity-check the bytecode hash.
                         let parsed_hash = BytecodeHash::try_from(hash)
-                            .with_context(|| format!("unsupported marker in bytecode hash {hash:?}"))?;
+                            .with_context(|| format!("for bytecode hash {hash:?}"))?;
                         let restored_hash = match parsed_hash.marker() {
                             BytecodeMarker::EraVm => BytecodeHash::for_bytecode(&dep.bytecode.0),
                             BytecodeMarker::Evm => BytecodeHash::for_evm_bytecode(
@@ -817,7 +817,7 @@ impl<'a> SnapshotsApplier<'a> {
                         };
                         anyhow::ensure!(
                             parsed_hash == restored_hash,
-                            "Restored bytecode hash {restored_hash:?} doesn't match hash from the snapshot {parsed_hash:?}"
+                            "restored bytecode hash {restored_hash:?} doesn't match hash from the snapshot {parsed_hash:?}"
                         );
 
                         hash
