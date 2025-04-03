@@ -8,9 +8,8 @@ use serde::{Deserialize, Serialize};
 use subxt_signer::ExposeSecret;
 use url::Url;
 use zksync_config::configs::da_client::avail::{AvailClientConfig, AvailConfig, AvailSecrets};
-use zksync_da_client::types::FinalityResponse;
 use zksync_da_client::{
-    types::{ClientType, DAError, DispatchResponse, InclusionData},
+    types::{ClientType, DAError, DispatchResponse, FinalityResponse, InclusionData},
     DataAvailabilityClient,
 };
 use zksync_types::{

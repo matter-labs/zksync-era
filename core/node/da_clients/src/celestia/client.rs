@@ -5,20 +5,20 @@ use std::{
     time,
 };
 
-use crate::{
-    celestia::sdk::{BlobTxHash, RawCelestiaClient},
-    utils::to_non_retriable_da_error,
-};
 use async_trait::async_trait;
 use celestia_types::{blob::Commitment, nmt::Namespace, Blob};
 use serde::{Deserialize, Serialize};
 use subxt_signer::ExposeSecret;
 use tonic::transport::Endpoint;
 use zksync_config::configs::da_client::celestia::{CelestiaConfig, CelestiaSecrets};
-use zksync_da_client::types::FinalityResponse;
 use zksync_da_client::{
-    types::{ClientType, DAError, DispatchResponse, InclusionData},
+    types::{ClientType, DAError, DispatchResponse, FinalityResponse, InclusionData},
     DataAvailabilityClient,
+};
+
+use crate::{
+    celestia::sdk::{BlobTxHash, RawCelestiaClient},
+    utils::to_non_retriable_da_error,
 };
 
 /// An implementation of the `DataAvailabilityClient` trait that interacts with the Avail network.

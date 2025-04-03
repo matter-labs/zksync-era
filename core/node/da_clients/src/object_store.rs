@@ -6,9 +6,8 @@ use std::{
 use async_trait::async_trait;
 use flate2::{read::GzDecoder, write::GzEncoder, Compression};
 use zksync_config::ObjectStoreConfig;
-use zksync_da_client::types::FinalityResponse;
 use zksync_da_client::{
-    types::{ClientType, DAError, DispatchResponse, InclusionData},
+    types::{ClientType, DAError, DispatchResponse, FinalityResponse, InclusionData},
     DataAvailabilityClient,
 };
 use zksync_object_store::{

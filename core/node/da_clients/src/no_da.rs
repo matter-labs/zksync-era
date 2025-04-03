@@ -1,7 +1,6 @@
 use async_trait::async_trait;
-use zksync_da_client::types::FinalityResponse;
 use zksync_da_client::{
-    types::{ClientType, DAError, DispatchResponse, InclusionData},
+    types::{ClientType, DAError, DispatchResponse, FinalityResponse, InclusionData},
     DataAvailabilityClient,
 };
 

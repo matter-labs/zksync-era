@@ -1,6 +1,5 @@
 use std::{str::FromStr, sync::Arc};
 
-use crate::utils::to_retriable_da_error;
 use rust_eigenda_client::{
     client::BlobProvider,
     config::{PrivateKey, SrsPointsSource},
@@ -12,11 +11,12 @@ use zksync_config::{
     configs::da_client::eigen::{EigenSecrets, PointsSource},
     EigenConfig,
 };
-use zksync_da_client::types::FinalityResponse;
 use zksync_da_client::{
-    types::{ClientType, DAError, DispatchResponse, InclusionData},
+    types::{ClientType, DAError, DispatchResponse, FinalityResponse, InclusionData},
     DataAvailabilityClient,
 };
+
+use crate::utils::to_retriable_da_error;
 
 // We can't implement DataAvailabilityClient for an outside struct, so it is needed to defined this intermediate struct
 #[derive(Debug, Clone)]
