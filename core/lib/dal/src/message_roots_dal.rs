@@ -67,6 +67,10 @@ impl MessageRootDal<'_, '_> {
                 WHERE number = $1
                 LIMIT 1
             ),
+            max_l1_batch AS (
+                SELECT MAX(number) AS number
+                FROM l1_batches
+            ),
             Ranked AS (
                 SELECT
                     mr.Message_Root_Sides,
@@ -82,7 +86,10 @@ impl MessageRootDal<'_, '_> {
                         SELECT 1
                         FROM miniblocks mb
                         WHERE mb.number = mr.PROCESSED_BLOCK_NUMBER
-                        AND mb.l1_batch_number = lb.l1_batch_number
+                        AND (
+                            mb.l1_batch_number = lb.l1_batch_number
+                            OR mb.l1_batch_number = (SELECT number FROM max_l1_batch)
+                        )
                     )
             )
             
@@ -106,6 +113,7 @@ impl MessageRootDal<'_, '_> {
         //         WHERE number = $1
         //     )
         // )
+        //
 
         let result: Vec<MessageRoot> = records
             .into_iter()
@@ -122,6 +130,71 @@ impl MessageRootDal<'_, '_> {
             .collect();
 
         println!("get_latest_message_root {:?}", result);
+        println!("for processed block number {:?}", processed_block_number);
+        if result.is_empty() {
+            return Ok(None);
+        }
+        Ok(Some(result))
+    }
+
+    pub async fn get_latest_message_root_not_null(
+        &mut self,
+        processed_block_number: L2BlockNumber,
+    ) -> DalResult<Option<Vec<MessageRoot>>> {
+        // kl todo currently this is very inefficient, we insert all the message roots multiple times.
+        // At least record which  ones we have inserted already.
+        let records = sqlx::query!(
+            r#"
+            WITH l1_batch AS (
+                SELECT l1_batch_number
+                FROM miniblocks
+                WHERE number = $1
+                LIMIT 1
+            ),
+            Ranked AS (
+                SELECT
+                    mr.Message_Root_Sides,
+                    mr.Chain_Id,
+                    mr.Dependency_Block_Number,
+                    ROW_NUMBER() OVER (PARTITION BY mr.Chain_Id ORDER BY mr.Dependency_Block_Number DESC) AS Rn
+                FROM Message_Roots mr
+                CROSS JOIN l1_batch lb
+                WHERE
+                    mr.PROCESSED_BLOCK_NUMBER = $1
+                    OR EXISTS (
+                        SELECT 1
+                        FROM miniblocks mb
+                        WHERE mb.number = mr.PROCESSED_BLOCK_NUMBER
+                        AND mb.l1_batch_number = lb.l1_batch_number
+                    )
+            )
+            SELECT Message_Root_Sides, Chain_Id, Dependency_Block_Number
+            FROM Ranked
+            WHERE Rn <= 5
+            ORDER BY Chain_Id, Dependency_Block_Number DESC;
+            "#,
+            processed_block_number.0 as i64
+        )
+        .instrument("get_latest_message_root_not_null")
+        .with_arg("processed_block_number", &processed_block_number)
+        .fetch_all(self.storage)
+        .await?;
+
+        let result: Vec<MessageRoot> = records
+            .into_iter()
+            .map(|record| {
+                let block_number = record.dependency_block_number as u32;
+                let root = record
+                    .message_root_sides
+                    .iter()
+                    .map(|side| h256_to_u256(H256::from_slice(side)))
+                    .collect::<Vec<_>>();
+
+                MessageRoot::new(record.chain_id as u32, block_number, root)
+            })
+            .collect();
+
+        println!("get_latest_message_root 2 {:?}", result);
         println!("for processed block number {:?}", processed_block_number);
         if result.is_empty() {
             return Ok(None);

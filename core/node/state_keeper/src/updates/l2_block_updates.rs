@@ -11,7 +11,7 @@ use zksync_types::{
     block::L2BlockHasher,
     bytecode::BytecodeHash,
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
-    L2BlockNumber, ProtocolVersionId, StorageLogWithPreviousValue, Transaction, H256,
+    L2BlockNumber, ProtocolVersionId, StorageLogWithPreviousValue, Transaction, H256, MessageRoot,
 };
 
 use crate::metrics::KEEPER_METRICS;
@@ -33,6 +33,7 @@ pub struct L2BlockUpdates {
     pub prev_block_hash: H256,
     pub virtual_blocks: u32,
     pub protocol_version: ProtocolVersionId,
+    pub msg_roots: Vec<MessageRoot>,
 }
 
 impl L2BlockUpdates {
@@ -59,6 +60,7 @@ impl L2BlockUpdates {
             prev_block_hash,
             virtual_blocks,
             protocol_version,
+            msg_roots: vec![],
         }
     }
 
@@ -177,6 +179,7 @@ impl L2BlockUpdates {
             timestamp: self.timestamp,
             prev_block_hash: self.prev_block_hash,
             max_virtual_blocks_to_create: self.virtual_blocks,
+            msg_roots: self.msg_roots.clone(),
         }
     }
 }

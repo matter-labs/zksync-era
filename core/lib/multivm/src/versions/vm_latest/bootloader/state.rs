@@ -57,8 +57,6 @@ pub struct BootloaderState {
     protocol_version: ProtocolVersionId,
     /// Protocol subversion
     subversion: MultiVmSubversion,
-    /// Message roots
-    msg_roots: Vec<MessageRoot>,
 }
 
 impl BootloaderState {
@@ -74,7 +72,6 @@ impl BootloaderState {
             tx_to_execute: 0,
             compressed_bytecodes_encoding: 0,
             l2_blocks: vec![l2_block],
-            msg_roots: vec![],
             initial_memory,
             execution_mode,
             free_tx_offset: 0,
@@ -109,10 +106,9 @@ impl BootloaderState {
     }
 
     pub(crate) fn insert_message_root(&mut self, msg_root: MessageRoot) {
-        println!("insert_message_root 0 {:?}", self.last_l2_block());
-        println!("insert_message_root 1 {:?}", self.l2_blocks);
-        println!("insert_message_root 2 {:?}", msg_root);
-        self.msg_roots.push(msg_root);
+
+        // self.msg_roots.push(msg_root);
+        self.last_mut_l2_block().msg_roots.push(msg_root);
     }
 
     /// This method bypass sanity checks and should be used carefully.
@@ -157,11 +153,13 @@ impl BootloaderState {
             self.last_l2_block().txs.is_empty(),
             self.subversion,
         );
-        println!("apply_message_root {:?}", self.last_l2_block());
-        println!("apply_message_root 0 {:?}", self.msg_roots);
-        for (msg_root_offset, msg_root) in self.msg_roots.iter().enumerate() {
-            println!("apply_message_root 1 {:?}", msg_root);
-            apply_message_root(&mut memory, msg_root_offset, msg_root, self.subversion)
+
+        for block in self.l2_blocks.iter() {
+            println!("apply_message_root 1 {:?}", block.msg_roots);
+            for (msg_root_offset, msg_root) in block.msg_roots.iter().enumerate() {
+                println!("apply_message_root 2 {:?}", msg_root);
+                apply_message_root(&mut memory, msg_root_offset, msg_root, self.subversion)
+            }
         }
         self.compressed_bytecodes_encoding += compressed_bytecode_size;
         self.free_tx_offset = tx_offset + bootloader_tx.encoded_len();
@@ -223,13 +221,15 @@ impl BootloaderState {
             }
         }
 
-        for (msg_root_offset, msg_root) in self.msg_roots.iter().enumerate() {
-            apply_message_root(
-                &mut initial_memory,
-                msg_root_offset,
-                msg_root,
-                self.subversion,
-            );
+        for block in self.l2_blocks.iter() {
+            for (msg_root_offset, msg_root) in block.msg_roots.iter().enumerate() {
+                apply_message_root(
+                    &mut initial_memory,
+                    msg_root_offset,
+                    msg_root,
+                    self.subversion,
+                );
+            }
         }
 
         let pubdata_information = self
@@ -298,6 +298,7 @@ impl BootloaderState {
                 number: block.number + 1,
                 prev_block_hash: block.get_hash(),
                 max_virtual_blocks_to_create: 1,
+                msg_roots: block.msg_roots.clone(),
             });
         }
         self.last_l2_block()

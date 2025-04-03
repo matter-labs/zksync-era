@@ -3,7 +3,7 @@
 use std::fmt;
 
 use async_trait::async_trait;
-use zksync_types::{commitment::PubdataParams, l2::L2Tx, message_root::MessageRoot, Transaction};
+use zksync_types::{commitment::PubdataParams, l2::L2Tx, MessageRoot, Transaction};
 
 use crate::{
     storage::{ReadStorage, StorageView},

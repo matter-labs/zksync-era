@@ -1,6 +1,7 @@
 use crate::{ethabi::Token, u256_to_h256, U256};
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MessageRoot {
     pub chain_id: u32,
     pub block_number: u32,
@@ -27,5 +28,13 @@ impl MessageRoot {
                     .collect(),
             ),
         ]) //
+    }
+
+    pub fn clone(&self) -> Self {
+        Self {
+            chain_id: self.chain_id,
+            block_number: self.block_number,
+            sides: self.sides.clone(),
+        }
     }
 }
