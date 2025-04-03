@@ -1211,7 +1211,7 @@ dependencies = [
 [[package]]
 name = "circuit_definitions"
 version = "0.151.3"
-source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=feature/ec_precompiles#030b6f7163e153e2ee686fb6f1931648ede1bb9d"
+source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=feature/ec_precompiles#644a6f3137e3e76a640ace2edf592ec7529b666e"
 dependencies = [
  "circuit_encodings",
  "crossbeam",
@@ -1224,7 +1224,7 @@ dependencies = [
 [[package]]
 name = "circuit_encodings"
 version = "0.151.3"
-source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=feature/ec_precompiles#030b6f7163e153e2ee686fb6f1931648ede1bb9d"
+source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=feature/ec_precompiles#644a6f3137e3e76a640ace2edf592ec7529b666e"
 dependencies = [
  "derivative",
  "serde",
@@ -1235,7 +1235,7 @@ dependencies = [
 [[package]]
 name = "circuit_sequencer_api"
 version = "0.151.3"
-source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=feature/ec_precompiles#030b6f7163e153e2ee686fb6f1931648ede1bb9d"
+source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=feature/ec_precompiles#644a6f3137e3e76a640ace2edf592ec7529b666e"
 dependencies = [
  "derivative",
  "rayon",
@@ -1341,7 +1341,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "117725a109d387c937a1533ce01b450cbde6b88abceea8473c4d7a85853cda3c"
 dependencies = [
  "lazy_static",
- "windows-sys 0.52.0",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]
@@ -2149,7 +2149,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "33d852cb9b869c2a9b3df2f71a3074817f01e1844f839a144f5fcef059a4eb5d"
 dependencies = [
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -3966,7 +3966,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc2f4eb4bc735547cfed7c0a4922cbd04a4655978c09b54f1f7b228750664c34"
 dependencies = [
  "cfg-if",
- "windows-targets 0.52.6",
+ "windows-targets 0.48.5",
 ]
 
 [[package]]
@@ -5810,7 +5810,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.4.15",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -5823,7 +5823,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.9.3",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -5933,7 +5933,7 @@ dependencies = [
  "security-framework 3.2.0",
  "security-framework-sys",
  "webpki-root-certs",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -7046,7 +7046,7 @@ dependencies = [
  "getrandom 0.3.2",
  "once_cell",
  "rustix 1.0.5",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -8046,7 +8046,7 @@ version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf221c93e13a30d793f7645a0e7762c55d169dbb0a49671918a2319d289b10bb"
 dependencies = [
- "windows-sys 0.52.0",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]
@@ -8643,7 +8643,7 @@ dependencies = [
 [[package]]
 name = "zk_evm"
 version = "0.151.3"
-source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=feature/ec_precompiles#030b6f7163e153e2ee686fb6f1931648ede1bb9d"
+source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=feature/ec_precompiles#644a6f3137e3e76a640ace2edf592ec7529b666e"
 dependencies = [
  "anyhow",
  "lazy_static",
@@ -8696,7 +8696,7 @@ dependencies = [
 [[package]]
 name = "zk_evm_abstractions"
 version = "0.151.3"
-source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=feature/ec_precompiles#030b6f7163e153e2ee686fb6f1931648ede1bb9d"
+source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=feature/ec_precompiles#644a6f3137e3e76a640ace2edf592ec7529b666e"
 dependencies = [
  "anyhow",
  "num_enum 0.6.1",
@@ -8708,7 +8708,7 @@ dependencies = [
 [[package]]
 name = "zkevm-assembly"
 version = "0.151.3"
-source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=feature/ec_precompiles#030b6f7163e153e2ee686fb6f1931648ede1bb9d"
+source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=feature/ec_precompiles#644a6f3137e3e76a640ace2edf592ec7529b666e"
 dependencies = [
  "env_logger 0.9.3",
  "hex",
@@ -8727,7 +8727,7 @@ dependencies = [
 [[package]]
 name = "zkevm_circuits"
 version = "0.151.3"
-source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=feature/ec_precompiles#030b6f7163e153e2ee686fb6f1931648ede1bb9d"
+source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=feature/ec_precompiles#644a6f3137e3e76a640ace2edf592ec7529b666e"
 dependencies = [
  "arrayvec 0.7.6",
  "boojum",
@@ -8807,7 +8807,7 @@ dependencies = [
 [[package]]
 name = "zkevm_opcode_defs"
 version = "0.151.3"
-source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=feature/ec_precompiles#030b6f7163e153e2ee686fb6f1931648ede1bb9d"
+source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=feature/ec_precompiles#644a6f3137e3e76a640ace2edf592ec7529b666e"
 dependencies = [
  "bitflags 2.9.0",
  "blake2 0.10.6",
@@ -8824,7 +8824,7 @@ dependencies = [
 [[package]]
 name = "zkevm_test_harness"
 version = "0.151.3"
-source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=feature/ec_precompiles#030b6f7163e153e2ee686fb6f1931648ede1bb9d"
+source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=feature/ec_precompiles#644a6f3137e3e76a640ace2edf592ec7529b666e"
 dependencies = [
  "bincode",
  "circuit_definitions",
@@ -9371,7 +9371,7 @@ dependencies = [
 [[package]]
 name = "zksync_kzg"
 version = "0.151.3"
-source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=feature/ec_precompiles#030b6f7163e153e2ee686fb6f1931648ede1bb9d"
+source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=feature/ec_precompiles#644a6f3137e3e76a640ace2edf592ec7529b666e"
 dependencies = [
  "boojum",
  "derivative",
