@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{env, path::PathBuf};
 
 use anyhow::Context as _;
 use clap::{Parser, Subcommand};
@@ -15,8 +15,8 @@ use zksync_block_reverter::{
 };
 use zksync_config::{
     configs::{
-        chain::NetworkConfig, wallets::Wallets, BasicWitnessInputProducerConfig, DatabaseSecrets,
-        GeneralConfig, L1Secrets, ObservabilityConfig, ProtectiveReadsWriterConfig,
+        wallets::Wallets, BasicWitnessInputProducerConfig, DatabaseSecrets, GeneralConfig,
+        L1Secrets, ObservabilityConfig, ProtectiveReadsWriterConfig,
     },
     ContractsConfig, DBConfig, EthConfig, GenesisConfig, PostgresConfig,
 };
@@ -228,9 +228,11 @@ async fn main() -> anyhow::Result<()> {
     let zksync_network_id = match &genesis_config {
         Some(genesis_config) => genesis_config.l2_chain_id,
         None => {
-            NetworkConfig::from_env()
-                .context("NetworkConfig::from_env()")?
-                .zksync_network_id
+            let raw_var = env::var("CHAIN_ETH_ZKSYNC_NETWORK_ID")
+                .context("`CHAIN_ETH_ZKSYNC_NETWORK_ID` env var is missing or is not UTF-8")?;
+            raw_var.parse().map_err(|err| {
+                anyhow::anyhow!("`CHAIN_ETH_ZKSYNC_NETWORK_ID` env var has incorrect value: {err}")
+            })?
         }
     };
 
