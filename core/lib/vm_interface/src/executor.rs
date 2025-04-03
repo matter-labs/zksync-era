@@ -42,8 +42,8 @@ pub trait BatchExecutor<S>: 'static + Send + fmt::Debug {
     /// Starts a next L2 block with the specified params.
     async fn start_next_l2_block(&mut self, env: L2BlockEnv) -> anyhow::Result<()>;
 
-    /// Inserts a message root into the VM.
-    async fn insert_message_root(&mut self, msg_root: MessageRoot) -> anyhow::Result<()>;
+    // /// Inserts a message root into the VM.
+    // async fn insert_message_root(&mut self, msg_root: MessageRoot) -> anyhow::Result<()>;
 
     /// Finished the current L1 batch.
     async fn finish_batch(self: Box<Self>) -> anyhow::Result<(FinishedL1Batch, StorageView<S>)>;

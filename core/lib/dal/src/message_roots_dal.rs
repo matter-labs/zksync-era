@@ -121,7 +121,6 @@ impl MessageRootDal<'_, '_> {
         //         WHERE number = $1
         //     )
         // )
-        //
 
         let result: Vec<MessageRoot> = records
             .into_iter()
@@ -139,6 +138,9 @@ impl MessageRootDal<'_, '_> {
 
         println!("get_latest_message_root {:?}", result);
         println!("for processed block number {:?}", processed_block_number);
+        for msg_root in result.clone() {
+            self.mark_msg_root_as_processed(msg_root, processed_block_number).await?;
+        }
         if result.is_empty() {
             return Ok(None);
         }

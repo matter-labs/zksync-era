@@ -196,9 +196,9 @@ impl<S: ReadStorage, Vm: VmTrackingContracts> VmInterface for DumpingVm<S, Vm> {
         self.inner.start_new_l2_block(l2_block_env);
     }
 
-    fn insert_message_root(&mut self, msg_root: MessageRoot) {
-        self.inner.insert_message_root(msg_root);
-    }
+    // fn insert_message_root(&mut self, msg_root: MessageRoot) {
+    //     self.inner.insert_message_root(msg_root);
+    // }
 
     fn inspect_transaction_with_bytecode_compression(
         &mut self,

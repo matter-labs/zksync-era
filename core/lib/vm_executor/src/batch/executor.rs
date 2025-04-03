@@ -166,26 +166,26 @@ where
         Ok(())
     }
 
-    #[tracing::instrument(skip_all)]
-    async fn insert_message_root(&mut self, msg_root: MessageRoot) -> anyhow::Result<()> {
-        let (response_sender, response_receiver) = oneshot::channel();
-        let send_failed = self
-            .commands
-            .send(Command::InsertMessageRoot(msg_root, response_sender))
-            .await
-            .is_err();
-        if send_failed {
-            return Err(self.handle.wait_for_error().await);
-        }
-        let latency = EXECUTOR_METRICS.batch_executor_command_response_time
-            [&ExecutorCommand::InsertMessageRoot]
-            .start();
-        if response_receiver.await.is_err() {
-            return Err(self.handle.wait_for_error().await);
-        }
-        latency.observe();
-        Ok(())
-    }
+    // #[tracing::instrument(skip_all)]
+    // async fn insert_message_root(&mut self, msg_root: MessageRoot) -> anyhow::Result<()> {
+    //     let (response_sender, response_receiver) = oneshot::channel();
+    //     let send_failed = self
+    //         .commands
+    //         .send(Command::InsertMessageRoot(msg_root, response_sender))
+    //         .await
+    //         .is_err();
+    //     if send_failed {
+    //         return Err(self.handle.wait_for_error().await);
+    //     }
+    //     let latency = EXECUTOR_METRICS.batch_executor_command_response_time
+    //         [&ExecutorCommand::InsertMessageRoot]
+    //         .start();
+    //     if response_receiver.await.is_err() {
+    //         return Err(self.handle.wait_for_error().await);
+    //     }
+    //     latency.observe();
+    //     Ok(())
+    // }
 
     #[tracing::instrument(skip_all)]
     async fn finish_batch(
@@ -221,7 +221,7 @@ pub(super) enum Command {
         oneshot::Sender<BatchTransactionExecutionResult>,
     ),
     StartNextL2Block(L2BlockEnv, oneshot::Sender<()>),
-    InsertMessageRoot(MessageRoot, oneshot::Sender<()>),
+    // InsertMessageRoot(MessageRoot, oneshot::Sender<()>),
     RollbackLastTx(oneshot::Sender<()>),
     FinishBatch(oneshot::Sender<FinishedL1Batch>),
 }

@@ -221,9 +221,9 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
         dispatch_batch_vm!(self.start_new_l2_block(l2_block));
     }
 
-    fn insert_message_root(&mut self, msg_root: MessageRoot) {
-        dispatch_batch_vm!(self.insert_message_root(msg_root));
-    }
+    // fn insert_message_root(&mut self, msg_root: MessageRoot) {
+    //     dispatch_batch_vm!(self.insert_message_root(msg_root));
+    // }
 
     fn finish_batch(&mut self, pubdata_builder: Rc<dyn PubdataBuilder>) -> FinishedL1Batch {
         dispatch_batch_vm!(self.finish_batch(pubdata_builder))
@@ -383,13 +383,13 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
                         break;
                     }
                 }
-                Command::InsertMessageRoot(msg_root, resp) => {
-                    println!("command insert_message_root {:?}", msg_root);
-                    vm.insert_message_root(msg_root);
-                    if resp.send(()).is_err() {
-                        break;
-                    }
-                }
+                // Command::InsertMessageRoot(msg_root, resp) => {
+                //     println!("command  insert_message_root {:?}", msg_root);
+                //     vm.insert_message_root(msg_root);
+                //     if resp.send(()).is_err() {
+                //         break;
+                //     }
+                // }
                 Command::FinishBatch(resp) => {
                     let vm_block_result = self.finish_batch(&mut vm, pubdata_builder)?;
                     if resp.send(vm_block_result).is_err() {

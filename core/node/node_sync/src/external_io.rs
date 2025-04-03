@@ -469,12 +469,11 @@ impl StateKeeperIO for ExternalIO {
 
     async fn load_latest_message_root(
         &self,
-        _processed_block_number: L2BlockNumber,
+        processed_block_number: L2BlockNumber,
     ) -> anyhow::Result<Option<Vec<MessageRoot>>> {
-        // let mut storage = self.pool.connection_tagged("sync_layer").await?;
-        // let message_root = storage.message_roots_dal().get_latest_message_root().await?;
-        // Ok(message_root)
-        Ok(None)
+        let mut storage = self.pool.connection_tagged("sync_layer").await?;
+        let message_root = storage.message_root_dal().get_latest_message_root(processed_block_number).await?;
+        Ok(message_root)
     }
 
     async fn mark_msg_root_as_processed(

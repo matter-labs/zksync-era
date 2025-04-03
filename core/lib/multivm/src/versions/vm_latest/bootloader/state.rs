@@ -105,10 +105,14 @@ impl BootloaderState {
         self.push_l2_block(l2_block);
     }
 
-    pub(crate) fn insert_message_root(&mut self, msg_root: MessageRoot) {
-        // self.msg_roots.push(msg_root);
-        self.last_mut_l2_block().msg_roots.push(msg_root);
-    }
+    // pub(crate) fn insert_message_root(&mut self, msg_root: MessageRoot) {
+
+    //     println!("insert_message_root  0 {:?}", self.last_l2_block());
+    //     println!("insert_message_root  1 {:?}", self.l2_blocks);
+    //     println!("insert_message_root  2 {:?}", msg_root);
+    //     // self.msg_roots.push(msg_root);
+    //     self.last_mut_l2_block().msg_roots.push(msg_root);
+    // }
 
     /// This method bypass sanity checks and should be used carefully.
     pub(crate) fn push_l2_block(&mut self, l2_block: L2BlockEnv) {

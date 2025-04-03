@@ -97,18 +97,18 @@ impl VmRunner {
             .await?;
 
         let latency = METRICS.run_vm_time.start();
-        println!("insert msg roots in process.rs");
-        for l2_block in &batch_data.l2_blocks {
-            for msg_root in &l2_block.msg_roots {
-                let msg_root_clone = msg_root.clone();
-                batch_executor
-                    .insert_message_root(msg_root.clone())
-                    .await
-                    .with_context(|| {
-                        format!("failed inserting {msg_root_clone:?} in batch executor")
-                    })?;
-            }
-        }
+        // println!("insert msg roots in process.rs");
+        // for l2_block in &batch_data.l2_blocks {
+        //     for msg_root in &l2_block.msg_roots {
+        //         let msg_root_clone = msg_root.clone();
+        //         batch_executor
+        //             .insert_message_root(msg_root.clone())
+        //             .await
+        //             .with_context(|| {
+        //                 format!("failed inserting {msg_root_clone:?} in batch executor")
+        //             })?;
+        //     }
+        // }
 
         for (i, l2_block) in batch_data.l2_blocks.into_iter().enumerate() {
             let block_env = L2BlockEnv::from_l2_block_data(&l2_block);
