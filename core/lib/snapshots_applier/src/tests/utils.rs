@@ -12,6 +12,7 @@ use zksync_object_store::{Bucket, MockObjectStore, ObjectStore, ObjectStoreError
 use zksync_types::{
     api,
     block::L2BlockHeader,
+    bytecode::{BytecodeHash, BytecodeMarker},
     snapshots::{
         SnapshotFactoryDependencies, SnapshotFactoryDependency, SnapshotHeader,
         SnapshotRecoveryStatus, SnapshotStorageLog, SnapshotStorageLogsChunk,
@@ -230,6 +231,24 @@ fn l1_batch_details(number: L1BatchNumber, root_hash: H256) -> api::L1BatchDetai
     }
 }
 
+pub(super) fn mock_factory_deps(kind: Option<BytecodeMarker>) -> SnapshotFactoryDependencies {
+    // This works both as an EraVM and EVM bytecode.
+    let factory_dep_bytes: Vec<u8> = (0..32).collect();
+
+    SnapshotFactoryDependencies {
+        factory_deps: vec![SnapshotFactoryDependency {
+            hash: kind.map(|kind| {
+                let hash = match kind {
+                    BytecodeMarker::EraVm => BytecodeHash::for_bytecode(&factory_dep_bytes),
+                    BytecodeMarker::Evm => BytecodeHash::for_evm_bytecode(23, &factory_dep_bytes),
+                };
+                hash.value()
+            }),
+            bytecode: Bytes::from(factory_dep_bytes),
+        }],
+    }
+}
+
 pub(super) fn random_storage_logs<K: SnapshotLogKey>(
     l1_batch_number: L1BatchNumber,
     count: u64,
@@ -300,6 +319,7 @@ pub(super) fn mock_snapshot_header(
 
 pub(super) async fn prepare_clients<K>(
     status: &SnapshotRecoveryStatus,
+    factory_deps: &SnapshotFactoryDependencies,
     logs: &[SnapshotStorageLog<K>],
 ) -> (Arc<dyn ObjectStore>, MockMainNodeClient)
 where
@@ -308,14 +328,8 @@ where
 {
     let object_store = MockObjectStore::arc();
     let mut client = MockMainNodeClient::default();
-    let factory_dep_bytes: Vec<u8> = (0..32).collect();
-    let factory_deps = SnapshotFactoryDependencies {
-        factory_deps: vec![SnapshotFactoryDependency {
-            bytecode: Bytes::from(factory_dep_bytes),
-        }],
-    };
     object_store
-        .put(status.l1_batch_number, &factory_deps)
+        .put(status.l1_batch_number, factory_deps)
         .await
         .unwrap();
 

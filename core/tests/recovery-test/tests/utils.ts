@@ -45,3 +45,7 @@ function setPropertyInGeneralConfig(pathToHome: string, fileConfig: any, propert
 
     fs.writeFileSync(generalConfigPath, newGeneralConfig, 'utf8');
 }
+
+export function readContract(path: string, fileName: string) {
+    return JSON.parse(fs.readFileSync(`${path}/${fileName}.sol/${fileName}.json`, { encoding: 'utf-8' }));
+}
