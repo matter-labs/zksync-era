@@ -583,7 +583,7 @@ mod precompiles {
     fn ecrecover() {
         test_ecrecover::<super::ShadowedFastVm>();
     }
-    
+
     #[test]
     fn ecadd() {
         test_ecadd::<super::ShadowedFastVm>();

@@ -120,7 +120,7 @@ pub(crate) fn test_ecadd<VM: TestedVm>() {
         .with_bootloader_gas_limit(BATCH_COMPUTATIONAL_GAS_LIMIT)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .build::<VM>();
-    
+
     // calldata for `doEcAdd()`, assuming the wrapper method in the contract is implemented like `function doEcAdd() public { ... }`
     // You may need to generate the correct selector + inputs depending on how you wrote your wrapper.
     // Here's a placeholder for calling doEcAdd()
@@ -143,9 +143,7 @@ pub(crate) fn test_ecadd<VM: TestedVm>() {
     assert!(!exec_result.result.is_failed(), "{exec_result:#?}");
 
     let ecadd_count = exec_result.statistics.circuit_statistic.ecadd
-        * ProtocolGeometry::latest()
-            .config()
-            .cycles_per_ecadd_circuit as f32;
+        * ProtocolGeometry::latest().config().cycles_per_ecadd_circuit as f32;
     println!("{:?}", exec_result);
     println!("{:?}", ecadd_count);
     assert!(ecadd_count >= 0.001, "{ecadd_count}");

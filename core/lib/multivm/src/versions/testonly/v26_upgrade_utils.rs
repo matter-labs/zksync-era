@@ -17,7 +17,9 @@ use zksync_vm_interface::{
 use super::{TestedVm, VmTester};
 use crate::{
     versions::testonly::{tester::TransactionTestInfo, ContractToDeploy, VmTesterBuilder},
-    vm_latest::utils::v26_upgrade::{encode_legacy_finalize_deposit, get_test_data, get_test_data_second_option, V26TestData},
+    vm_latest::utils::v26_upgrade::{
+        encode_legacy_finalize_deposit, get_test_data, get_test_data_second_option, V26TestData,
+    },
 };
 
 const SIMPLE_TEST_RESULT_JSON: &str = include_str!("./v26_utils_outputs/simple-test.json");
