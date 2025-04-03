@@ -8,7 +8,7 @@ pub const AVAIL_FULL_CLIENT_NAME: &str = "FullClient";
 
 pub const IN_BLOCK_FINALITY_STATE: &str = "inBlock";
 pub const FINALIZED_FINALITY_STATE: &str = "finalized";
-pub const DEFAULT_DISPATCH_TIMEOUT_MS: u64 = 120_000; // 2 minutes
+pub const DEFAULT_DISPATCH_TIMEOUT_MS: u64 = 180_000; // 3 minutes
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "avail_client")]
