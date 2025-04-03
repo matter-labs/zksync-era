@@ -440,8 +440,6 @@ jobs:
           ci_run zkstack server --ignore-prerequisites --chain gateway &> ${{ env.SERVER_LOGS_DIR }}/gateway.log &
           ci_run zkstack server wait --ignore-prerequisites --verbose --chain gateway
 
-
-
       - name: Build tested binaries
         run: |
           ci_run zkstack server build
@@ -509,6 +507,11 @@ jobs:
           ci_run zkstack external-node configs --db-url=postgres://postgres:notsecurepassword@localhost:5432 \
           --db-name=zksync_en_localhost_era_consensus --l1-rpc-url=http://localhost:8545 $GATEWAY_RPC_URL --chain consensus
           ci_run zkstack external-node init --ignore-prerequisites --chain consensus
+
+      - name: Enable EVM emulator for some chains
+        run: |
+          ci_run zkstack chain enable-evm-emulator --chain era
+          ci_run zkstack chain enable-evm-emulator --chain validium
 
       - name: Run recovery tests (from snapshot)
         run: |
