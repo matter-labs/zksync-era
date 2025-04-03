@@ -20,7 +20,8 @@ import {
     setDataRetentionSec,
     setRemovalDelaySec,
     setSnapshotRecovery,
-    setTreeRecoveryParallelPersistenceBuffer
+    setTreeRecoveryParallelPersistenceBuffer,
+    readContract
 } from './utils';
 import { loadConfig, shouldLoadConfigFromFile } from 'utils/build/file-configs';
 import { logsTestPath } from 'utils/build/logs';
@@ -37,10 +38,20 @@ interface GetSnapshotResponse {
     readonly miniblockNumber: number;
     readonly l1BatchNumber: number;
     readonly storageLogsChunks: Array<StorageLogChunkMetadata>;
+    readonly factoryDepsFilepath: string;
 }
 
 interface StorageLogChunkMetadata {
     readonly filepath: string;
+}
+
+interface FactoryDependencies {
+    readonly factoryDeps: Array<FactoryDependency>;
+}
+
+interface FactoryDependency {
+    readonly bytecode: Buffer;
+    readonly hash?: Buffer;
 }
 
 interface StorageLogChunk {
@@ -106,6 +117,8 @@ describe('snapshot recovery', () => {
     let externalNodeProcess: NodeProcess;
 
     let fundedWallet: FundedWallet;
+    let erc20Abi: ethers.InterfaceAbi;
+    let erc20Address: string | undefined = undefined;
 
     let apiWeb3JsonRpcHttpUrl: string;
     let ethRpcUrl: string;
@@ -184,6 +197,39 @@ describe('snapshot recovery', () => {
         return output as TokenInfo[];
     }
 
+    step('deploy EVM bytecode if allowed', async () => {
+        const systemContractsPath = '../../../contracts/system-contracts/zkout';
+        const contractDeployerAbi = readContract(systemContractsPath, 'ContractDeployer').abi;
+        const contractDeployer = new zksync.Contract(
+            '0x0000000000000000000000000000000000008006',
+            contractDeployerAbi,
+            mainNode
+        );
+        const allowedBytecodeTypes = await contractDeployer.allowedBytecodeTypesToDeploy();
+        console.log('Allowed bytecode types', allowedBytecodeTypes);
+
+        if (allowedBytecodeTypes === 1n) {
+            console.log('Deploying EVM contract...');
+            const l1ContractsPath = '../../../contracts/l1-contracts/out';
+            const erc20Contract = readContract(l1ContractsPath, 'ERC20');
+            erc20Abi = erc20Contract.abi;
+            const erc20Factory = new ethers.ContractFactory(erc20Abi, erc20Contract.bytecode, fundedWallet.wallet);
+            const erc20 = await (await erc20Factory.deploy('test', 'TEST')).waitForDeployment();
+            erc20Address = await erc20.getAddress();
+            console.log('Deployed EVM contract', erc20Address);
+
+            const symbol = await erc20.getFunction('symbol').staticCall();
+            expect(symbol).to.equal('TEST');
+
+            // Ensure that the contract is included into the snapshot. The first call may seal the batch with the deployment transaction,
+            // and we need one more batch.
+            await fundedWallet.generateL1Batch();
+            await fundedWallet.generateL1Batch();
+        } else {
+            console.log('EVM contracts are disabled');
+        }
+    });
+
     step('create snapshot', async () => {
         await createSnapshot(fileConfig.loadFromFile);
     });
@@ -201,7 +247,24 @@ describe('snapshot recovery', () => {
 
         const protoPath = path.join(homeDir, 'core/lib/types/src/proto/mod.proto');
         const root = await protobuf.load(protoPath);
+        const SnapshotFactoryDependencies = root.lookupType('zksync.types.SnapshotFactoryDependencies');
         const SnapshotStorageLogsChunk = root.lookupType('zksync.types.SnapshotStorageLogsChunk');
+
+        const factoryDepsPath = path.join(homeDir, snapshotMetadata.factoryDepsFilepath);
+        console.log('Checking factory deps', factoryDepsPath);
+        const output = SnapshotFactoryDependencies.decode(
+            await decompressGzip(factoryDepsPath)
+        ) as any as FactoryDependencies;
+        expect(output.factoryDeps.length).to.be.greaterThan(0);
+        let solidityBytecodeCount = 0;
+        for (const dep of output.factoryDeps) {
+            expect(dep.hash).to.have.length(32);
+            if (dep.bytecode[0] === 0x60 && dep.bytecode[1] === 0x80) {
+                console.log('Discovered Solidity bytecode', dep.hash);
+                solidityBytecodeCount++;
+            }
+        }
+        expect(solidityBytecodeCount).to.be.greaterThan(0);
 
         expect(snapshotMetadata.l1BatchNumber).to.equal(l1BatchNumber);
         for (const chunkMetadata of snapshotMetadata.storageLogsChunks) {
@@ -343,6 +406,17 @@ describe('snapshot recovery', () => {
         mainNodeTokens.sort(compareFn);
 
         expect(mainNodeTokens).to.deep.equal(externalNodeTokens);
+    });
+
+    step('check EVM contract', async () => {
+        if (erc20Address === undefined) {
+            console.log('EVM contracts are disabled; skipping');
+            return;
+        }
+        console.log('Checking EVM contract', erc20Address);
+        const erc20 = new ethers.Contract(erc20Address, erc20Abi, externalNode);
+        const symbol = await erc20.getFunction('symbol').staticCall();
+        expect(symbol).to.equal('TEST');
     });
 
     step('restart EN', async () => {
