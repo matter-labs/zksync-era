@@ -32,10 +32,6 @@ impl ProtoRepr for proto::GatewayChainConfig {
                 .and_then(|x| parse_h160(x))
                 .context("diamond_proxy_addr")?,
 
-            chain_admin_addr: required(&self.chain_admin_addr)
-                .and_then(|x| parse_h160(x))
-                .context("chain_admin_addr")?,
-
             gateway_chain_id: required(&self.gateway_chain_id)
                 .map(|x| SLChainId(*x))
                 .context("gateway_chain_id")?,
@@ -48,7 +44,6 @@ impl ProtoRepr for proto::GatewayChainConfig {
             validator_timelock_addr: Some(format!("{:?}", this.validator_timelock_addr)),
             multicall3_addr: Some(format!("{:?}", this.multicall3_addr)),
             diamond_proxy_addr: Some(format!("{:?}", this.diamond_proxy_addr)),
-            chain_admin_addr: Some(format!("{:?}", this.chain_admin_addr)),
             gateway_chain_id: Some(this.gateway_chain_id.0),
         }
     }
