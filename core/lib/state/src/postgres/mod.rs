@@ -9,7 +9,7 @@ use std::{
 use anyhow::Context as _;
 use backon::{BlockingRetryable, ConstantBuilder};
 use tokio::{runtime::Handle, sync::watch};
-use zk_ee::{system::system_io_oracle::PreimageType, utils::Bytes32};
+use zk_ee::utils::Bytes32;
 use zk_os_forward_system::run::{
     PreimageSource as ZkOsPreimageSource, ReadStorage as ZkOsReadStorage,
 };
@@ -584,7 +584,7 @@ impl ZkOsReadStorage for PostgresStorageForZkOs {
 }
 
 impl ZkOsPreimageSource for PostgresStorageForZkOs {
-    fn get_preimage(&mut self, preimage_type: PreimageType, hash: Bytes32) -> Option<Vec<u8>> {
+    fn get_preimage(&mut self, hash: Bytes32) -> Option<Vec<u8>> {
         let hash = bytes32_to_h256(hash);
 
         let mut borrow = self.inner.borrow_mut();

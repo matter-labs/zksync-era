@@ -144,7 +144,7 @@ impl UpdatesManager {
         let factory_deps: HashMap<H256, Vec<u8>> = batch_output
             .published_preimages
             .into_iter()
-            .map(|(hash, bytecode)| (bytes32_to_h256(hash), bytecode))
+            .map(|(hash, bytecode, _)| (bytes32_to_h256(hash), bytecode))
             .collect();
         self.new_factory_deps = factory_deps;
 

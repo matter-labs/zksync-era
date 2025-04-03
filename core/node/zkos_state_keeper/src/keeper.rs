@@ -13,16 +13,9 @@ use tokio::{
 };
 use tracing::info_span;
 use zk_ee::{
-    common_structs::derive_flat_storage_key,
-    system::{system_io_oracle::PreimageType, ExecutionEnvironmentType},
-    utils::Bytes32,
+    common_structs::derive_flat_storage_key, system::ExecutionEnvironmentType, utils::Bytes32,
 };
-use zk_os_basic_system::{
-    basic_io_implementer::{
-        address_into_special_storage_key, io_implementer::NOMINAL_TOKEN_BALANCE_STORAGE_ADDRESS,
-    },
-    basic_system::simple_growable_storage::TestingTree,
-};
+use zk_os_basic_system::system_implementation::io::TestingTree;
 use zk_os_forward_system::run::{
     result_keeper::TxProcessingOutputOwned,
     run_batch,
@@ -263,11 +256,8 @@ impl ZkosStateKeeper {
                 cursor.l1_batch
             );
 
-            for (hash, preimage) in result.published_preimages.iter() {
-                self.preimage_source.inner.insert(
-                    (PreimageType::Bytecode(ExecutionEnvironmentType::EVM), *hash),
-                    preimage.clone(),
-                );
+            for (hash, preimage, _) in result.published_preimages.iter() {
+                self.preimage_source.inner.insert(*hash, preimage.clone());
             }
 
             updates_manager.extend(executed_transactions, result.clone());
@@ -295,54 +285,6 @@ impl ZkosStateKeeper {
             };
         }
         Ok(())
-    }
-
-    // Funds dev wallets with some ETH for testing
-    // only funds wallets that were not funded before
-    // wallets can be added to this list without regenesis
-    async fn fund_dev_wallets_if_needed(
-        connection: &mut Connection<'_, Core>,
-        pending_block_number: L2BlockNumber,
-    ) {
-        for address in &[
-            "0x27FBEc0B5D2A2B89f77e4D3648bBBBCF11784bdE",
-            "0x2eF0972bd8AFc29d63b2412508ce5e20219b9A8c",
-            "0xBC989fDe9e54cAd2aB4392Af6dF60f04873A033A",
-        ] {
-            let address = B160::from_str(address).unwrap();
-            let key = address_into_special_storage_key(&address);
-            let balance = bytes32_to_h256(Bytes32::from_u256_be(
-                U256::from_str("1700000000000000000").unwrap(),
-            ));
-            let flat_key = bytes32_to_h256(derive_flat_storage_key(
-                &NOMINAL_TOKEN_BALANCE_STORAGE_ADDRESS,
-                &key,
-            ));
-
-            let r = connection
-                .storage_logs_dal()
-                .get_storage_values(&[flat_key], pending_block_number)
-                .await
-                .expect("Failed to get storage values for initial balances");
-            if r.get(&flat_key).cloned().unwrap_or_default().is_some() {
-                tracing::info!("Wallet {:?} already funded", address);
-                continue;
-            }
-            tracing::info!("Funding wallet {:?}", address);
-
-            let logs = [SnapshotStorageLog {
-                key: flat_key,
-                value: balance,
-                l1_batch_number_of_initial_write: Default::default(),
-                enumeration_index: 0,
-            }];
-
-            connection
-                .storage_logs_dal()
-                .insert_storage_logs_from_snapshot(L2BlockNumber(0), &logs)
-                .await
-                .expect("Failed to insert storage logs for initial balances");
-        }
     }
 
     async fn initialize_in_memory_storages(&mut self) -> anyhow::Result<()> {
@@ -381,13 +323,9 @@ impl ZkosStateKeeper {
         tracing::info!("Recovering preimages...");
 
         for (hash, value) in preimages {
-            self.preimage_source.inner.insert(
-                (
-                    PreimageType::Bytecode(ExecutionEnvironmentType::EVM),
-                    h256_to_bytes32(hash),
-                ),
-                value,
-            );
+            self.preimage_source
+                .inner
+                .insert(h256_to_bytes32(hash), value);
         }
 
         tracing::info!("Preimage recovery complete");
@@ -441,7 +379,7 @@ impl ZkosStateKeeper {
         let factory_dep_diff = batch_output
             .published_preimages
             .into_iter()
-            .map(|(hash, bytecode)| (bytes32_to_h256(hash), bytecode))
+            .map(|(hash, bytecode, _)| (bytes32_to_h256(hash), bytecode))
             .collect();
 
         let enum_index_diff = initial_writes
