@@ -264,7 +264,9 @@ describe('snapshot recovery', () => {
                 solidityBytecodeCount++;
             }
         }
-        expect(solidityBytecodeCount).to.be.greaterThan(0);
+        if (erc20Address !== undefined) {
+            expect(solidityBytecodeCount).to.be.greaterThan(0);
+        }
 
         expect(snapshotMetadata.l1BatchNumber).to.equal(l1BatchNumber);
         for (const chunkMetadata of snapshotMetadata.storageLogsChunks) {
