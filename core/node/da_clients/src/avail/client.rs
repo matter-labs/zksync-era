@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use subxt_signer::ExposeSecret;
 use url::Url;
 use zksync_config::configs::da_client::avail::{AvailClientConfig, AvailConfig, AvailSecrets};
+use zksync_da_client::types::FinalityResponse;
 use zksync_da_client::{
     types::{ClientType, DAError, DispatchResponse, InclusionData},
     DataAvailabilityClient,
@@ -203,10 +204,20 @@ impl DataAvailabilityClient for AvailClient {
                     .await
                     .map_err(to_retriable_da_error)?;
                 Ok(DispatchResponse {
-                    blob_id: format!("{:x}:{}", block_hash, extrinsic_index),
+                    request_id: format!("{:x}:{}", block_hash, extrinsic_index),
                 })
             }
         }
+    }
+
+    async fn ensure_finality(
+        &self,
+        dispatch_request_id: String,
+    ) -> Result<Option<FinalityResponse>, DAError> {
+        // TODO: return a quick confirmation in `dispatch_blob` and await here
+        Ok(Some(FinalityResponse {
+            blob_id: dispatch_request_id,
+        }))
     }
 
     async fn get_inclusion_data(

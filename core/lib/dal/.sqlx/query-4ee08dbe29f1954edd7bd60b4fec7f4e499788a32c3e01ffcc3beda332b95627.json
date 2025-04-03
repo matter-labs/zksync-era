@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                blob_id,\n                client_type,\n                inclusion_data,\n                sent_at,\n                l2_da_validator_address\n            FROM\n                data_availability\n            WHERE\n                l1_batch_number = $1\n            ",
+  "query": "\n            SELECT\n                blob_id,\n                client_type,\n                inclusion_data,\n                sent_at,\n                l2_da_validator_address\n            FROM\n                data_availability\n            WHERE\n                l1_batch_number = $1\n                AND blob_id IS NOT NULL\n            ",
   "describe": {
     "columns": [
       {
@@ -35,12 +35,12 @@
       ]
     },
     "nullable": [
-      false,
+      true,
       true,
       true,
       false,
       true
     ]
   },
-  "hash": "5abbf93bf4cc3671ad91d65d0c29dd0c5ee702bfd3dd82d0f54ed73509b83411"
+  "hash": "4ee08dbe29f1954edd7bd60b4fec7f4e499788a32c3e01ffcc3beda332b95627"
 }

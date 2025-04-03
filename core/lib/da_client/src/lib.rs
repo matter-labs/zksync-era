@@ -5,7 +5,7 @@ use std::fmt;
 use async_trait::async_trait;
 use types::{DAError, DispatchResponse, InclusionData};
 
-use crate::types::ClientType;
+use crate::types::{ClientType, FinalityResponse};
 
 /// Trait that defines the interface for the data availability layer clients.
 #[async_trait]
@@ -16,6 +16,12 @@ pub trait DataAvailabilityClient: Sync + Send + fmt::Debug {
         batch_number: u32,
         data: Vec<u8>,
     ) -> Result<DispatchResponse, DAError>;
+
+    /// Ensures the finality of a blob.
+    async fn ensure_finality(
+        &self,
+        dispatch_request_id: String,
+    ) -> Result<Option<FinalityResponse>, DAError>;
 
     /// Fetches the inclusion data for a given blob_id.
     async fn get_inclusion_data(&self, blob_id: &str) -> Result<Option<InclusionData>, DAError>;

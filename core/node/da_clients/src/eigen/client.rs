@@ -1,5 +1,6 @@
 use std::{str::FromStr, sync::Arc};
 
+use crate::utils::to_retriable_da_error;
 use rust_eigenda_client::{
     client::BlobProvider,
     config::{PrivateKey, SrsPointsSource},
@@ -11,12 +12,11 @@ use zksync_config::{
     configs::da_client::eigen::{EigenSecrets, PointsSource},
     EigenConfig,
 };
+use zksync_da_client::types::FinalityResponse;
 use zksync_da_client::{
     types::{ClientType, DAError, DispatchResponse, InclusionData},
     DataAvailabilityClient,
 };
-
-use crate::utils::to_retriable_da_error;
 
 // We can't implement DataAvailabilityClient for an outside struct, so it is needed to defined this intermediate struct
 #[derive(Debug, Clone)]
@@ -78,6 +78,16 @@ impl DataAvailabilityClient for EigenDAClient {
             .map_err(to_retriable_da_error)?;
 
         Ok(DispatchResponse::from(blob_id))
+    }
+
+    async fn ensure_finality(
+        &self,
+        dispatch_request_id: String,
+    ) -> Result<Option<FinalityResponse>, DAError> {
+        // TODO: return a quick confirmation in `dispatch_blob` and await here
+        Ok(Some(FinalityResponse {
+            blob_id: dispatch_request_id,
+        }))
     }
 
     async fn get_inclusion_data(&self, blob_id: &str) -> Result<Option<InclusionData>, DAError> {
