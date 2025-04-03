@@ -151,6 +151,7 @@ impl AvailClient {
                     conf.app_id,
                     seed_phrase.0.expose_secret(),
                     conf.finality_state()?,
+                    conf.dispatch_timeout(),
                 )
                 .await?;
 
@@ -198,12 +199,12 @@ impl DataAvailabilityClient for AvailClient {
                 Ok(DispatchResponse::from(format!("{}:{}", block_hash, tx_id)))
             }
             AvailClientMode::GasRelay(client) => {
-                let (block_hash, extrinsic_index) = client
+                let submission_id = client
                     .post_data(data)
                     .await
                     .map_err(to_retriable_da_error)?;
                 Ok(DispatchResponse {
-                    request_id: format!("{:x}:{}", block_hash, extrinsic_index),
+                    request_id: submission_id,
                 })
             }
         }
@@ -213,10 +214,24 @@ impl DataAvailabilityClient for AvailClient {
         &self,
         dispatch_request_id: String,
     ) -> Result<Option<FinalityResponse>, DAError> {
-        // TODO: return a quick confirmation in `dispatch_blob` and await here
-        Ok(Some(FinalityResponse {
-            blob_id: dispatch_request_id,
-        }))
+        Ok(match self.sdk_client.as_ref() {
+            AvailClientMode::Default(_) => Some(FinalityResponse {
+                blob_id: dispatch_request_id,
+            }),
+            AvailClientMode::GasRelay(client) => {
+                let Some((block_hash, extrinsic_index)) = client
+                    .check_finality(dispatch_request_id)
+                    .await
+                    .map_err(to_retriable_da_error)?
+                else {
+                    return Ok(None);
+                };
+
+                Some(FinalityResponse {
+                    blob_id: format!("{:x}:{}", block_hash, extrinsic_index),
+                })
+            }
+        })
     }
 
     async fn get_inclusion_data(

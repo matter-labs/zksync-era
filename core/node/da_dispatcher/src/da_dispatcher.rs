@@ -226,16 +226,10 @@ impl DataAvailabilityDispatcher {
         };
 
         // TODO: add metrics for finality latency
-        let finality_response = retry(
-            self.config.max_retries(),
-            blob.l1_batch_number,
-            "finality check",
-            || {
-                self.client
-                    .ensure_finality(blob.dispatch_request_id.clone())
-            },
-        )
-        .await;
+        let finality_response = self
+            .client
+            .ensure_finality(blob.dispatch_request_id.clone())
+            .await;
 
         match finality_response {
             Ok(None) => {
