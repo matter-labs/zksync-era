@@ -262,15 +262,20 @@ mod tests {
 
     fn expected_celestia_da_layer_config(
         api_node_url: &str,
+        eq_service_grpc_url: &str,
         namespace: &str,
         chain_id: &str,
         timeout_ms: u64,
+        tm_rpc_url: &str,
     ) -> DAClientConfig {
         DAClientConfig::Celestia(CelestiaConfig {
             api_node_url: api_node_url.to_string(),
+            eq_service_grpc_url: eq_service_grpc_url.to_string(),
             namespace: namespace.to_string(),
             chain_id: chain_id.to_string(),
             timeout_ms,
+            celestia_core_tendermint_rpc_url: tm_rpc_url.to_string(),
+            blobstream_contract_address: "0x0000000000000000000000000000000000000123".to_string(),
         })
     }
 
@@ -283,6 +288,7 @@ mod tests {
             DA_NAMESPACE="0x1234567890abcdef"
             DA_CHAIN_ID="mocha-4"
             DA_TIMEOUT_MS="7000"
+            DA_TM_RPC_URL="http://localhost:9090"
         "#;
         lock.set_env(config);
 
@@ -291,9 +297,11 @@ mod tests {
             actual,
             expected_celestia_da_layer_config(
                 "localhost:12345",
+                "localhost:54321",
                 "0x1234567890abcdef",
                 "mocha-4",
-                7000
+                7000,
+                "http://localhost:9090"
             )
         );
     }
