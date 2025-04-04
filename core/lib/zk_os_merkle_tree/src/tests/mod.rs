@@ -527,9 +527,85 @@ fn read_proofs() {
 }
 
 mod rocksdb {
+    use serde::{Deserialize, Serialize};
+    use serde_with::{hex::Hex, serde_as};
     use tempfile::TempDir;
+    use zksync_storage::RocksDB;
 
     use super::*;
+
+    type KeyValuePair = (Box<[u8]>, Box<[u8]>);
+
+    #[serde_as]
+    #[derive(Debug, Serialize, Deserialize)]
+    struct DatabaseSnapshot {
+        #[serde_as(as = "BTreeMap<Hex, Hex>")]
+        key_indices: Vec<KeyValuePair>,
+        #[serde_as(as = "BTreeMap<Hex, Hex>")]
+        tree: Vec<KeyValuePair>,
+    }
+
+    impl DatabaseSnapshot {
+        fn new(raw_db: &RocksDB<MerkleTreeColumnFamily>) -> Self {
+            let cf = MerkleTreeColumnFamily::KeyIndices;
+            let key_indices: Vec<_> = raw_db.prefix_iterator_cf(cf, &[]).collect();
+            assert!(!key_indices.is_empty());
+            let cf = MerkleTreeColumnFamily::Tree;
+            let tree: Vec<_> = raw_db.prefix_iterator_cf(cf, &[]).collect();
+            assert!(!tree.is_empty());
+            Self { key_indices, tree }
+        }
+    }
+
+    #[test]
+    fn snapshot_for_empty_tree() {
+        let temp_dir = TempDir::new().unwrap();
+        let db = RocksDBWrapper::new(temp_dir.path()).unwrap();
+        let mut tree = MerkleTree::new(db).unwrap();
+        tree.extend(&[]).unwrap();
+
+        let raw_db = tree.db.into_inner();
+        insta::assert_yaml_snapshot!("empty-snapshot", DatabaseSnapshot::new(&raw_db));
+    }
+
+    #[test]
+    fn snapshot_for_incremental_tree() {
+        const RNG_SEED: u64 = 123_321;
+
+        let temp_dir = TempDir::new().unwrap();
+        let db = RocksDBWrapper::new(temp_dir.path()).unwrap();
+        let mut rng = StdRng::seed_from_u64(RNG_SEED);
+        let mut tree = MerkleTree::new(db).unwrap();
+        let all_entries: Vec<_> = (0..50)
+            .map(|_| TreeEntry {
+                key: H256(rng.gen()),
+                value: H256(rng.gen()),
+            })
+            .collect();
+        let mut existing_entry_count = 0;
+        while existing_entry_count < all_entries.len() {
+            let new_entry_count = rng.gen_range(0..=(all_entries.len() - existing_entry_count));
+            let mut new_entries = all_entries
+                [existing_entry_count..(existing_entry_count + new_entry_count)]
+                .to_vec();
+
+            let updated_count = rng.gen_range(0..=existing_entry_count);
+            let updated_entries = all_entries[..existing_entry_count]
+                .choose_multiple(&mut rng, updated_count)
+                .map(|entry| TreeEntry {
+                    value: H256(rng.gen()),
+                    ..*entry
+                });
+            new_entries.extend(updated_entries);
+            new_entries.shuffle(&mut rng);
+
+            tree.extend(&new_entries).unwrap();
+            existing_entry_count += new_entry_count;
+        }
+
+        let raw_db = tree.db.into_inner();
+        insta::assert_yaml_snapshot!("incremental-snapshot", DatabaseSnapshot::new(&raw_db));
+    }
 
     #[test]
     fn comparing_tree_hash_against_naive_impl() {
