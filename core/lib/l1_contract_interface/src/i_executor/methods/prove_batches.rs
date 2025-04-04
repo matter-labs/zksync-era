@@ -8,7 +8,7 @@ use fflonk::{
     },
     FflonkProof,
 };
-use zksync_prover_interface::outputs::L1BatchProofForL1;
+use zksync_prover_interface::outputs::{L1BatchProofForL1, TypedL1BatchProofForL1};
 use zksync_types::{
     commitment::L1BatchWithMetadata,
     ethabi::{encode, Token},
@@ -45,14 +45,14 @@ impl ProveBatches {
             assert_eq!(self.proofs.len(), 1);
             assert_eq!(self.l1_batches.len(), 1);
 
-            let (verifier_type, proof) = match self.proofs.first().unwrap() {
-                L1BatchProofForL1::Fflonk(proof) => {
+            let (verifier_type, proof) = match self.proofs.first().unwrap().inner() {
+                TypedL1BatchProofForL1::Fflonk(proof) => {
                     let scheduler_proof = proof.scheduler_proof.clone();
 
                     let (_, serialized_proof) = serialize_fflonk_proof(&scheduler_proof);
                     (U256::from(0), serialized_proof)
                 }
-                L1BatchProofForL1::Plonk(proof) => {
+                TypedL1BatchProofForL1::Plonk(proof) => {
                     let (_, serialized_proof) = serialize_proof(&proof.scheduler_proof);
                     (U256::from(1), serialized_proof)
                 }

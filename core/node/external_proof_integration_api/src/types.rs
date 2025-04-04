@@ -4,7 +4,12 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use zksync_basic_types::protocol_version::ProtocolSemanticVersion;
-use zksync_prover_interface::{api::ProofGenerationData, outputs::L1BatchProofForL1};
+use zksync_object_store::StoredObject;
+use zksync_prover_interface::{
+    api::ProofGenerationData,
+    outputs::{L1BatchProofForL1, TypedL1BatchProofForL1},
+    Bincode,
+};
 
 use crate::error::{FileError, ProcessorError};
 
@@ -26,7 +31,7 @@ impl IntoResponse for ProofGenerationDataResponse {
             (
                 header::CONTENT_DISPOSITION,
                 &format!(
-                    "attachment; filename=\"witness_inputs_{}.bin\"",
+                    "attachment; filename=\"witness_inputs_{}.cbor\"",
                     l1_batch_number.0
                 ),
             ),
@@ -49,10 +54,10 @@ impl ExternalProof {
         self.protocol_version
     }
 
-    pub fn verify(&self, correct: L1BatchProofForL1) -> Result<(), ProcessorError> {
+    pub fn verify(&self, correct: TypedL1BatchProofForL1) -> Result<(), ProcessorError> {
         let protocol_version = match correct.clone() {
-            L1BatchProofForL1::Fflonk(proof) => proof.protocol_version,
-            L1BatchProofForL1::Plonk(proof) => proof.protocol_version,
+            TypedL1BatchProofForL1::Fflonk(proof) => proof.protocol_version,
+            TypedL1BatchProofForL1::Plonk(proof) => proof.protocol_version,
         };
 
         if protocol_version != self.protocol_version {
@@ -100,11 +105,18 @@ impl<S: Send + Sync> FromRequest<S> for ExternalProof {
 
     async fn from_request(req: Request, state: &S) -> Result<Self, Self::Rejection> {
         let serialized_proof = Self::extract_from_multipart(req, state).await?;
-        let proof: L1BatchProofForL1 = bincode::deserialize(&serialized_proof)?;
+        let proof: L1BatchProofForL1 = <L1BatchProofForL1 as StoredObject>::deserialize(
+            serialized_proof.clone(),
+        )
+        .or_else(|_| {
+            <L1BatchProofForL1<Bincode> as StoredObject>::deserialize(serialized_proof.clone())
+                .map(Into::into)
+                .map_err(|_| ProcessorError::InvalidProof)
+        })?;
 
-        let protocol_version = match proof {
-            L1BatchProofForL1::Fflonk(proof) => proof.protocol_version,
-            L1BatchProofForL1::Plonk(proof) => proof.protocol_version,
+        let protocol_version = match proof.inner() {
+            TypedL1BatchProofForL1::Fflonk(proof) => proof.protocol_version,
+            TypedL1BatchProofForL1::Plonk(proof) => proof.protocol_version,
         };
 
         Ok(Self {

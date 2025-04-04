@@ -3,7 +3,11 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
-use zksync_prover_interface::api::{SubmitProofRequest, SubmitProofResponse};
+use zksync_prover_interface::{
+    api::{SubmitProofRequest, SubmitProofResponse},
+    outputs::L1BatchProofForL1,
+    Bincode,
+};
 use zksync_types::{prover_dal::ProofCompressionJobStatus, L1BatchNumber};
 
 use crate::{client::ProverApiClient, traits::PeriodicApi};
@@ -42,12 +46,22 @@ impl ProofSubmitter {
 
         let request = match status {
             ProofCompressionJobStatus::Successful => {
-                let proof = self
+                let proof: L1BatchProofForL1 = match self
                     .0
                     .blob_store
                     .get((l1_batch_number, protocol_version))
                     .await
-                    .expect("Failed to get compressed snark proof from blob store");
+                {
+                    Ok(proof) => proof,
+                    Err(_) => self
+                        .0
+                        .blob_store
+                        .get::<L1BatchProofForL1<Bincode>>((l1_batch_number, protocol_version))
+                        .await
+                        .map(Into::into)
+                        .expect("Failed to get proof from blob store"),
+                };
+
                 SubmitProofRequest::Proof(Box::new(proof))
             }
             ProofCompressionJobStatus::Skipped => SubmitProofRequest::SkippedProofGeneration,
