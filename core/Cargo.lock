@@ -1804,6 +1804,7 @@ dependencies = [
 [[package]]
 name = "boojum"
 version = "0.32.0"
+source = "git+https://github.com/matter-labs/zksync-crypto?branch=main#9e7c307bc97fb7c68d7453cf5bfb5c9a732364fc"
 dependencies = [
  "arrayvec 0.7.6",
  "bincode",
@@ -2216,6 +2217,7 @@ dependencies = [
 [[package]]
 name = "circuit_definitions"
 version = "0.151.5"
+source = "git+https://github.com/matter-labs/zksync-protocol?branch=debug-compilation-error#37dc323263ae9c30f3ebf91bca637d0b4988df74"
 dependencies = [
  "circuit_encodings",
  "crossbeam",
@@ -2228,6 +2230,7 @@ dependencies = [
 [[package]]
 name = "circuit_encodings"
 version = "0.151.5"
+source = "git+https://github.com/matter-labs/zksync-protocol?branch=debug-compilation-error#37dc323263ae9c30f3ebf91bca637d0b4988df74"
 dependencies = [
  "derivative",
  "serde",
@@ -2238,6 +2241,7 @@ dependencies = [
 [[package]]
 name = "circuit_sequencer_api"
 version = "0.151.5"
+source = "git+https://github.com/matter-labs/zksync-protocol?branch=debug-compilation-error#37dc323263ae9c30f3ebf91bca637d0b4988df74"
 dependencies = [
  "derivative",
  "rayon",
@@ -3528,6 +3532,7 @@ dependencies = [
 [[package]]
 name = "fflonk"
 version = "0.32.0"
+source = "git+https://github.com/matter-labs/zksync-crypto?branch=main#9e7c307bc97fb7c68d7453cf5bfb5c9a732364fc"
 dependencies = [
  "bincode",
  "byteorder",
@@ -3838,6 +3843,7 @@ dependencies = [
 [[package]]
 name = "franklin-crypto"
 version = "0.32.0"
+source = "git+https://github.com/matter-labs/zksync-crypto?branch=main#9e7c307bc97fb7c68d7453cf5bfb5c9a732364fc"
 dependencies = [
  "arr_macro",
  "bit-vec 0.6.3",
@@ -7675,6 +7681,7 @@ dependencies = [
 [[package]]
 name = "rescue_poseidon"
 version = "0.32.0"
+source = "git+https://github.com/matter-labs/zksync-crypto?branch=main#9e7c307bc97fb7c68d7453cf5bfb5c9a732364fc"
 dependencies = [
  "addchain",
  "arrayvec 0.7.6",
@@ -8971,6 +8978,7 @@ dependencies = [
 [[package]]
 name = "snark_wrapper"
 version = "0.32.0"
+source = "git+https://github.com/matter-labs/zksync-crypto?branch=main#9e7c307bc97fb7c68d7453cf5bfb5c9a732364fc"
 dependencies = [
  "derivative",
  "rand 0.4.6",
@@ -11365,6 +11373,7 @@ dependencies = [
 [[package]]
 name = "zk_evm"
 version = "0.151.5"
+source = "git+https://github.com/matter-labs/zksync-protocol?branch=debug-compilation-error#37dc323263ae9c30f3ebf91bca637d0b4988df74"
 dependencies = [
  "anyhow",
  "lazy_static",
@@ -11417,6 +11426,7 @@ dependencies = [
 [[package]]
 name = "zk_evm_abstractions"
 version = "0.151.5"
+source = "git+https://github.com/matter-labs/zksync-protocol?branch=debug-compilation-error#37dc323263ae9c30f3ebf91bca637d0b4988df74"
 dependencies = [
  "anyhow",
  "num_enum 0.6.1",
@@ -11428,6 +11438,7 @@ dependencies = [
 [[package]]
 name = "zkevm_circuits"
 version = "0.151.5"
+source = "git+https://github.com/matter-labs/zksync-protocol?branch=debug-compilation-error#37dc323263ae9c30f3ebf91bca637d0b4988df74"
 dependencies = [
  "arrayvec 0.7.6",
  "boojum",
@@ -11505,6 +11516,7 @@ dependencies = [
 [[package]]
 name = "zkevm_opcode_defs"
 version = "0.151.5"
+source = "git+https://github.com/matter-labs/zksync-protocol?branch=debug-compilation-error#37dc323263ae9c30f3ebf91bca637d0b4988df74"
 dependencies = [
  "bitflags 2.6.0",
  "blake2 0.10.6",
@@ -11564,6 +11576,7 @@ dependencies = [
 [[package]]
 name = "zksync_bellman"
 version = "0.32.0"
+source = "git+https://github.com/matter-labs/zksync-crypto?branch=main#9e7c307bc97fb7c68d7453cf5bfb5c9a732364fc"
 dependencies = [
  "arrayvec 0.7.6",
  "bit-vec 0.6.3",
@@ -11987,6 +12000,7 @@ dependencies = [
 [[package]]
 name = "zksync_cs_derive"
 version = "0.32.0"
+source = "git+https://github.com/matter-labs/zksync-crypto?branch=main#9e7c307bc97fb7c68d7453cf5bfb5c9a732364fc"
 dependencies = [
  "proc-macro-error",
  "proc-macro2 1.0.92",
@@ -12326,6 +12340,7 @@ dependencies = [
 [[package]]
 name = "zksync_ff"
 version = "0.32.0"
+source = "git+https://github.com/matter-labs/zksync-crypto?branch=main#9e7c307bc97fb7c68d7453cf5bfb5c9a732364fc"
 dependencies = [
  "byteorder",
  "hex",
@@ -12337,6 +12352,7 @@ dependencies = [
 [[package]]
 name = "zksync_ff_derive"
 version = "0.32.0"
+source = "git+https://github.com/matter-labs/zksync-crypto?branch=main#9e7c307bc97fb7c68d7453cf5bfb5c9a732364fc"
 dependencies = [
  "num-bigint 0.4.6",
  "num-integer",
@@ -12397,6 +12413,7 @@ dependencies = [
 [[package]]
 name = "zksync_kzg"
 version = "0.151.5"
+source = "git+https://github.com/matter-labs/zksync-protocol?branch=debug-compilation-error#37dc323263ae9c30f3ebf91bca637d0b4988df74"
 dependencies = [
  "boojum",
  "derivative",
@@ -12903,6 +12920,7 @@ dependencies = [
 [[package]]
 name = "zksync_pairing"
 version = "0.32.0"
+source = "git+https://github.com/matter-labs/zksync-crypto?branch=main#9e7c307bc97fb7c68d7453cf5bfb5c9a732364fc"
 dependencies = [
  "byteorder",
  "cfg-if",
@@ -13111,6 +13129,7 @@ dependencies = [
 [[package]]
 name = "zksync_solidity_vk_codegen"
 version = "0.32.0"
+source = "git+https://github.com/matter-labs/zksync-crypto?branch=main#9e7c307bc97fb7c68d7453cf5bfb5c9a732364fc"
 dependencies = [
  "ethereum-types",
  "franklin-crypto",
