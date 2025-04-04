@@ -1,7 +1,10 @@
+use std::collections::HashMap;
+
 use anyhow::Context;
 use async_trait::async_trait;
+use zk_os_basic_system::system_implementation::io::ACCOUNT_PROPERTIES_STORAGE_ADDRESS;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_types::L2BlockNumber;
+use zksync_types::{h256_to_address, L2BlockNumber};
 
 use crate::updates::BlockSealCommand;
 
@@ -17,6 +20,7 @@ impl L2BlockSealProcess {
             Box::new(InsertFactoryDepsSubtask),
             Box::new(InsertEventsSubtask),
             Box::new(InsertL2ToL1LogsSubtask),
+            Box::new(InsertAccountPropertiesSubtask),
         ]
     }
 
@@ -273,6 +277,59 @@ impl L2BlockSealSubtask for InsertL2ToL1LogsSubtask {
         storage
             .events_dal()
             .roll_back_l2_to_l1_logs(last_sealed_l2_block)
+            .await?;
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub(super) struct InsertAccountPropertiesSubtask;
+
+#[async_trait]
+impl L2BlockSealSubtask for InsertAccountPropertiesSubtask {
+    fn name(&self) -> &'static str {
+        "insert_account_properties"
+    }
+
+    async fn run(
+        self: Box<Self>,
+        command: &BlockSealCommand,
+        connection: &mut Connection<'_, Core>,
+    ) -> anyhow::Result<()> {
+        let mut new_properties: HashMap<_, _> =
+            command.inner.new_account_data.clone().into_iter().collect();
+        let mut to_insert = Vec::new();
+        for log in &command.inner.storage_logs {
+            if log.key.address().0 == ACCOUNT_PROPERTIES_STORAGE_ADDRESS.to_be_bytes() {
+                if let Some(properties) = new_properties.remove(&log.value) {
+                    let account_address = h256_to_address(log.key.key());
+                    to_insert.push((account_address, properties));
+                }
+            }
+        }
+
+        if !new_properties.is_empty() {
+            anyhow::bail!("could not map account properties to addresses");
+        }
+
+        if !to_insert.is_empty() {
+            connection
+                .account_properies_dal()
+                .insert_account_properties(command.inner.l2_block_number, &to_insert)
+                .await?;
+        }
+
+        Ok(())
+    }
+
+    async fn rollback(
+        &self,
+        storage: &mut Connection<'_, Core>,
+        last_sealed_l2_block: L2BlockNumber,
+    ) -> anyhow::Result<()> {
+        storage
+            .account_properies_dal()
+            .roll_back_properties(last_sealed_l2_block)
             .await?;
         Ok(())
     }

@@ -1,13 +1,9 @@
 use ruint::aliases::B160;
 use zk_ee::{
     common_structs::derive_flat_storage_key,
-    system::{
-        reference_implementations::storage_format::account_code::PackedPartialAccountData,
-        system_io_oracle::PreimageType, ExecutionEnvironmentType, EVM_CODE_VERSION,
-    },
+    system::{ExecutionEnvironmentType, EVM_CODE_VERSION},
     utils::Bytes32,
 };
-use zk_os_basic_system::basic_io_implementer::address_into_special_storage_key;
 use zk_os_forward_system::run::{
     test_impl::{InMemoryPreimageSource, InMemoryTree},
     Log,

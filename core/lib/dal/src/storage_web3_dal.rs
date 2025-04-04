@@ -11,7 +11,6 @@ use zksync_types::{
     AccountTreeId, Address, L1BatchNumber, L2BlockNumber, Nonce, StorageKey,
     FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H256, U256,
 };
-use zksync_zkos_vm_runner::zkos_nonce_flat_key;
 
 use crate::{models::storage_block::ResolvedL1BatchForL2Block, Core, CoreDal};
 
@@ -33,9 +32,9 @@ impl StorageWeb3Dal<'_, '_> {
         address: Address,
         block_number: L2BlockNumber,
     ) -> DalResult<U256> {
-        let nonce_key = zkos_nonce_flat_key(address);
+        let nonce_key = get_nonce_key(&address);
         let nonce_value = self
-            .get_historical_value_unchecked(nonce_key, block_number)
+            .get_historical_value_unchecked(nonce_key.hashed_key(), block_number)
             .await?;
         let full_nonce = h256_to_u256(nonce_value);
         Ok(decompose_full_nonce(full_nonce).0)

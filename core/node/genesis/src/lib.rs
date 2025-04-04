@@ -108,11 +108,7 @@ impl GenesisParams {
             default_aa: config
                 .default_aa_hash
                 .ok_or(GenesisError::MalformedConfig("default_aa_hash"))?,
-            evm_emulator: Some(
-                config
-                    .evm_emulator_hash
-                    .ok_or(GenesisError::MalformedConfig("evm_emulator_hash"))?,
-            ),
+            evm_emulator: config.evm_emulator_hash,
         };
         if base_system_contracts_hashes != base_system_contracts.hashes() {
             return Err(GenesisError::BaseSystemContractsHashes(Box::new(

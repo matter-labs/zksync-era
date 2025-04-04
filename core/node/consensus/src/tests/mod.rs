@@ -160,7 +160,7 @@ async fn test_validator_block_store(version: ProtocolVersionId) {
                 .wrap(i)?
                 .with_context(|| format!("payload for {i:?} not found"))?
                 .encode();
-            setup.push_block(payload);
+            setup.push_block_v1(payload);
         }
         Ok(setup.blocks.clone())
     })

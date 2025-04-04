@@ -3,7 +3,7 @@ use std::{cmp::Ordering, collections::HashSet, fmt, sync::Arc};
 use anyhow::Context as _;
 use async_trait::async_trait;
 use tokio::{runtime::Handle, sync::watch};
-use zk_ee::{system::system_io_oracle::PreimageType, utils::Bytes32};
+use zk_ee::utils::Bytes32;
 use zk_os_forward_system::run::{
     LeafProof, PreimageSource, ReadStorage as ReadStorageZkOs, ReadStorageTree,
 };
@@ -406,13 +406,13 @@ impl ReadStorageTree for ArcOwnedStorage {
         panic!("merkle_proof")
     }
 
-    fn neighbours_tree_indexes(&mut self, _key: Bytes32) -> (u64, u64) {
-        panic!("neighbours_tree_indexes")
+    fn prev_tree_index(&mut self, _key: Bytes32) -> u64 {
+        panic!("prev_tree_index")
     }
 }
 
 impl PreimageSource for ArcOwnedStorage {
-    fn get_preimage(&mut self, _preimage_type: PreimageType, hash: Bytes32) -> Option<Vec<u8>> {
+    fn get_preimage(&mut self, hash: Bytes32) -> Option<Vec<u8>> {
         match self.0.as_ref() {
             CommonStorage::Rocksdb(rocksdb) => {
                 rocksdb.load_factory_dep_inner(bytes32_to_h256(hash))
@@ -451,7 +451,7 @@ mod tests {
         let mut conn = pool.connection().await.unwrap();
         prepare_postgres(&mut conn).await;
         let storage_logs = gen_storage_logs(20..40);
-        create_l2_block(&mut conn, L2BlockNumber(1), storage_logs.clone()).await;
+        create_l2_block(&mut conn, L2BlockNumber(1), &storage_logs).await;
         create_l1_batch(&mut conn, L1BatchNumber(1), &storage_logs).await;
         drop(conn);
 

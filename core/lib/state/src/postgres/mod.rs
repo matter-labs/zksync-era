@@ -9,7 +9,7 @@ use std::{
 use anyhow::Context as _;
 use backon::{BlockingRetryable, ConstantBuilder};
 use tokio::{runtime::Handle, sync::watch};
-use zk_ee::{system::system_io_oracle::PreimageType, utils::Bytes32};
+use zk_ee::utils::Bytes32;
 use zk_os_forward_system::run::{
     PreimageSource as ZkOsPreimageSource, ReadStorage as ZkOsReadStorage,
 };
@@ -584,17 +584,37 @@ impl ZkOsReadStorage for PostgresStorageForZkOs {
 }
 
 impl ZkOsPreimageSource for PostgresStorageForZkOs {
-    fn get_preimage(&mut self, preimage_type: PreimageType, hash: Bytes32) -> Option<Vec<u8>> {
+    fn get_preimage(&mut self, hash: Bytes32) -> Option<Vec<u8>> {
         let hash = bytes32_to_h256(hash);
 
         let mut borrow = self.inner.borrow_mut();
         let handle = borrow.rt_handle.clone();
-        let mut dal = borrow.connection.factory_deps_dal();
-        let value: Option<Vec<u8>> = handle
-            .block_on(dal.get_sealed_factory_dep(hash))
-            .expect("Failed executing `get_sealed_factory_dep`");
 
-        value
+        if let Some(value) = handle
+            .block_on(
+                borrow
+                    .connection
+                    .factory_deps_dal()
+                    .get_sealed_factory_dep(hash),
+            )
+            .expect("Failed executing `get_sealed_factory_dep`")
+        {
+            return Some(value);
+        }
+
+        if let Some(value) = handle
+            .block_on(
+                borrow
+                    .connection
+                    .account_properies_dal()
+                    .account_properties_by_hash(hash),
+            )
+            .expect("Failed executing `get_sealed_factory_dep`")
+        {
+            return Some(value.encode().to_vec());
+        }
+
+        None
     }
 }
 

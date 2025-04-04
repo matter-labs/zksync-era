@@ -1,0 +1,64 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                versioning_data,\n                nonce,\n                observable_bytecode_hash,\n                bytecode_hash,\n                nominal_token_balance,\n                bytecode_len,\n                artifacts_len,\n                observable_bytecode_len\n            FROM\n                account_properties\n            WHERE\n                preimage_hash = $1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "versioning_data",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 1,
+        "name": "nonce",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 2,
+        "name": "observable_bytecode_hash",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 3,
+        "name": "bytecode_hash",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 4,
+        "name": "nominal_token_balance",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 5,
+        "name": "bytecode_len",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 6,
+        "name": "artifacts_len",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 7,
+        "name": "observable_bytecode_len",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bytea"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "b672aba27614e147b7bffd7ff7d5bb5e450f3748b21477abb6fde58e12bdeb0b"
+}

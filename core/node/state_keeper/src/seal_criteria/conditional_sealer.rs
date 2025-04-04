@@ -150,6 +150,7 @@ impl SequencerSealer {
 }
 
 /// Implementation of [`ConditionalSealer`] that never seals the batch.
+///
 /// Can be used in contexts where, for example, state keeper configuration is not available,
 /// or the decision to seal batch is taken by some other component.
 #[derive(Debug)]
