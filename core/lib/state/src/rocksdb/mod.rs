@@ -407,7 +407,18 @@ impl RocksdbStorage {
                 .get_l1_batch_factory_deps(current_l1_batch_number)
                 .await
                 .map_err(DalError::generalize)?;
+
             for (hash, bytecode) in factory_deps {
+                self.store_factory_dep(hash, bytecode);
+            }
+
+            let account_properties = storage
+                .account_properies_dal()
+                .get_l1_batch_account_properties(current_l1_batch_number)
+                .await
+                .map_err(DalError::generalize)?;
+
+            for (hash, bytecode) in account_properties {
                 self.store_factory_dep(hash, bytecode);
             }
 

@@ -21,13 +21,13 @@ use zksync_web3_decl::{
     error::Web3Error,
     types::{Address, Block, Filter, FilterChanges, Log, U64},
 };
-#[cfg(feature = "zkos")]
-use {
-    ruint::aliases::B160, zk_ee::common_structs::derive_flat_storage_key,
-    zk_os_basic_system::basic_io_implementer::address_into_special_storage_key,
-    zk_os_basic_system::basic_io_implementer::io_implementer::NOMINAL_TOKEN_BALANCE_STORAGE_ADDRESS,
-};
 
+// #[cfg(feature = "zkos")]
+// use {
+//     ruint::aliases::B160, zk_ee::common_structs::derive_flat_storage_key,
+//     zk_os_basic_system::basic_io_implementer::address_into_special_storage_key,
+//     zk_os_basic_system::basic_io_implementer::io_implementer::NOMINAL_TOKEN_BALANCE_STORAGE_ADDRESS,
+// };
 use crate::{
     execution_sandbox::BlockArgs,
     tx_sender::BinarySearchKind,
@@ -191,19 +191,11 @@ impl EthNamespace {
 
         #[cfg(feature = "zkos")]
         let balance = {
-            let address = B160::from_be_bytes(address.to_fixed_bytes());
-            let key = address_into_special_storage_key(&address);
-            let flat_key = derive_flat_storage_key(&NOMINAL_TOKEN_BALANCE_STORAGE_ADDRESS, &key);
-            let storage_hashed_key = H256::from_slice(&flat_key.as_u8_array());
-
-            let mut balances = connection
-                .storage_web3_dal()
-                .get_values(&[storage_hashed_key])
+            connection
+                .account_properies_dal()
+                .get_balance(address, Some(block_number))
                 .await
-                .map_err(DalError::generalize)?;
-
-            let balance = balances.remove(&storage_hashed_key).unwrap_or_default();
-            h256_to_u256(balance)
+                .map_err(DalError::generalize)?
         };
 
         #[cfg(not(feature = "zkos"))]
@@ -502,16 +494,27 @@ impl EthNamespace {
 
         let block_number = self.state.resolve_block(&mut connection, block_id).await?;
         self.set_block_diff(block_number);
-        let full_nonce = connection
-            .storage_web3_dal()
-            .get_address_historical_nonce(address, block_number)
-            .await
-            .map_err(DalError::generalize)?;
 
-        // TODO (SMA-1612): currently account nonce is returning always, but later we will
-        //  return account nonce for account abstraction and deployment nonce for non account abstraction.
-        //  Strip off deployer nonce part.
-        let (mut account_nonce, _) = decompose_full_nonce(full_nonce);
+        #[cfg(not(feature = "zkos"))]
+        let mut account_nonce = {
+            let full_nonce = connection
+                .storage_web3_dal()
+                .get_address_historical_nonce(address, block_number)
+                .await
+                .map_err(DalError::generalize)?;
+            // Strip off deployer nonce part.
+            decompose_full_nonce(full_nonce).0
+        };
+
+        #[cfg(feature = "zkos")]
+        let mut account_nonce = {
+            let nonce = connection
+                .account_properies_dal()
+                .get_nonce(address, Some(block_number))
+                .await
+                .map_err(DalError::generalize)?;
+            U256::from(nonce)
+        };
 
         if matches!(block_id, BlockId::Number(BlockNumber::Pending)) {
             let account_nonce_u64 = u64::try_from(account_nonce)

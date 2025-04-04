@@ -1,13 +1,17 @@
 use std::collections::HashMap;
 
+use itertools::{Either, Itertools};
+use zk_ee::common_structs::PreimageType;
+use zk_os_basic_system::system_implementation::io::AccountProperties as BoojumAccountProperties;
 use zk_os_forward_system::run::{BatchOutput, ExecutionResult, TxOutput};
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_state_keeper::io::IoCursor;
 use zksync_types::{
+    boojum_os::AccountProperties,
     fee_model::BatchFeeInput,
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
     AccountTreeId, Address, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey,
-    StorageLog, StorageLogKind, StorageLogWithPreviousValue, Transaction, H256,
+    StorageLog, StorageLogKind, StorageLogWithPreviousValue, Transaction, H256, U256,
 };
 use zksync_vm_interface::{
     TransactionExecutionResult, TxExecutionStatus, VmEvent, VmExecutionMetrics, VmRevertReason,
@@ -32,6 +36,7 @@ pub struct UpdatesManager {
     pub storage_logs: Vec<StorageLog>,
     pub user_l2_to_l1_logs: Vec<UserL2ToL1Log>, // TODO: not filled currently
     pub new_factory_deps: HashMap<H256, Vec<u8>>,
+    pub new_account_data: Vec<(H256, AccountProperties)>,
     pub payload_encoding_size: usize,
 }
 
@@ -60,6 +65,7 @@ impl UpdatesManager {
             storage_logs: Vec::new(),
             user_l2_to_l1_logs: Vec::new(),
             new_factory_deps: HashMap::new(),
+            new_account_data: Vec::new(),
             payload_encoding_size: 0,
         }
     }
@@ -141,12 +147,25 @@ impl UpdatesManager {
     }
 
     fn extend_from_batch_output(&mut self, batch_output: BatchOutput) {
-        let factory_deps: HashMap<H256, Vec<u8>> = batch_output
+        let (factory_deps, account_data): (Vec<_>, Vec<_>) = batch_output
             .published_preimages
             .into_iter()
-            .map(|(hash, bytecode, _)| (bytes32_to_h256(hash), bytecode))
-            .collect();
-        self.new_factory_deps = factory_deps;
+            .partition_map(|(hash, preimage, preimage_type)| match preimage_type {
+                PreimageType::Bytecode => Either::Left((bytes32_to_h256(hash), preimage)),
+                PreimageType::AccountData => Either::Right((
+                    bytes32_to_h256(hash),
+                    convert_boojum_account_properties(
+                        BoojumAccountProperties::decode(
+                            preimage
+                                .try_into()
+                                .expect("Preimage should be exactly 124 bytes"),
+                        )
+                        .expect("Failed to decode account properties"),
+                    ),
+                )),
+            });
+        self.new_factory_deps = factory_deps.into_iter().collect();
+        self.new_account_data = account_data;
 
         let storage_logs = batch_output
             .storage_writes
@@ -178,4 +197,17 @@ pub struct BlockSealCommand {
     /// Should be set to `true` for EN's IO as EN doesn't store transactions in DB
     /// before they are included into L2 blocks.
     pub pre_insert_txs: bool,
+}
+
+fn convert_boojum_account_properties(p: BoojumAccountProperties) -> AccountProperties {
+    AccountProperties {
+        versioning_data: p.versioning_data.into_u64(),
+        nonce: p.nonce,
+        observable_bytecode_hash: bytes32_to_h256(p.observable_bytecode_hash),
+        bytecode_hash: bytes32_to_h256(p.bytecode_hash),
+        nominal_token_balance: U256::from_big_endian(&p.nominal_token_balance.to_be_bytes::<32>()),
+        bytecode_len: p.bytecode_len,
+        artifacts_len: p.artifacts_len,
+        observable_bytecode_len: p.observable_bytecode_len,
+    }
 }

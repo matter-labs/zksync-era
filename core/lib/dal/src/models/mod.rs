@@ -5,6 +5,7 @@ use zksync_db_connection::error::SqlxContext;
 use zksync_types::{ProtocolVersionId, U256};
 
 mod call;
+pub mod storage_account_properties;
 pub mod storage_base_token_ratio;
 pub(crate) mod storage_data_availability;
 pub mod storage_eth_tx;

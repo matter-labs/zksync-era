@@ -37,12 +37,6 @@ use zksync_types::{
 use zksync_vm_executor::oneshot::{
     CallOrExecute, EstimateGas, MultiVmBaseSystemContracts, OneshotEnvParameters,
 };
-#[cfg(feature = "zkos")]
-use {
-    ruint::aliases::B160, zk_ee::common_structs::derive_flat_storage_key,
-    zk_os_basic_system::basic_io_implementer::address_into_special_storage_key,
-    zk_os_basic_system::basic_io_implementer::io_implementer::NOMINAL_TOKEN_BALANCE_STORAGE_ADDRESS,
-};
 
 pub(super) use self::{gas_estimation::BinarySearchKind, result::SubmitTxError};
 use self::{master_pool_sink::MasterPoolSink, result::ApiCallResult, tx_sink::TxSink};
@@ -552,6 +546,7 @@ impl TxSender {
             .await?
             .context("no L2 blocks in storage")?;
 
+        #[cfg(not(feature = "zkos"))]
         let nonce = storage
             .storage_web3_dal()
             .get_address_historical_nonce(initiator_account, latest_block_number)
@@ -559,6 +554,16 @@ impl TxSender {
             .with_context(|| {
                 format!("failed getting nonce for address {initiator_account:?} at L2 block #{latest_block_number}")
             })?;
+
+        #[cfg(feature = "zkos")]
+        let nonce = storage
+            .account_properies_dal()
+            .get_nonce(initiator_account, Some(latest_block_number))
+            .await
+            .with_context(|| {
+                format!("failed getting nonce for address {initiator_account:?} at L2 block #{latest_block_number}")
+            })?;
+
         let nonce = u32::try_from(nonce)
             .map_err(|err| anyhow::anyhow!("failed converting nonce to u32: {err}"))?;
         Ok(Nonce(nonce))
@@ -604,22 +609,12 @@ impl TxSender {
 
         #[cfg(feature = "zkos")]
         {
-            let address = B160::from_be_bytes(initiator_address.to_fixed_bytes());
-            let key = address_into_special_storage_key(&address);
-            let flat_key = derive_flat_storage_key(&NOMINAL_TOKEN_BALANCE_STORAGE_ADDRESS, &key);
-            let storage_hashed_key = H256::from_slice(&flat_key.as_u8_array());
-
-            let mut balances = self
-                .acquire_replica_connection()
+            self.acquire_replica_connection()
                 .await?
-                .storage_web3_dal()
-                .get_values(&[storage_hashed_key])
+                .account_properies_dal()
+                .get_balance(*initiator_address, None)
                 .await
-                .map_err(DalError::generalize)?;
-
-            let balance = balances.remove(&storage_hashed_key).unwrap_or_default();
-
-            Ok(h256_to_u256(balance))
+                .map_err(DalError::generalize)
         }
     }
 

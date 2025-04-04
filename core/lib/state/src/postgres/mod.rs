@@ -589,12 +589,32 @@ impl ZkOsPreimageSource for PostgresStorageForZkOs {
 
         let mut borrow = self.inner.borrow_mut();
         let handle = borrow.rt_handle.clone();
-        let mut dal = borrow.connection.factory_deps_dal();
-        let value: Option<Vec<u8>> = handle
-            .block_on(dal.get_sealed_factory_dep(hash))
-            .expect("Failed executing `get_sealed_factory_dep`");
 
-        value
+        if let Some(value) = handle
+            .block_on(
+                borrow
+                    .connection
+                    .factory_deps_dal()
+                    .get_sealed_factory_dep(hash),
+            )
+            .expect("Failed executing `get_sealed_factory_dep`")
+        {
+            return Some(value);
+        }
+
+        if let Some(value) = handle
+            .block_on(
+                borrow
+                    .connection
+                    .account_properies_dal()
+                    .account_properties_by_hash(hash),
+            )
+            .expect("Failed executing `get_sealed_factory_dep`")
+        {
+            return Some(value.encode().to_vec());
+        }
+
+        None
     }
 }
 

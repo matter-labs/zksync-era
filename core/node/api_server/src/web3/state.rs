@@ -445,11 +445,22 @@ impl RpcState {
         let latest_block_number = self.resolve_block(&mut connection, latest_block_id).await?;
 
         let from = call_request.from.unwrap_or_default();
+
+        #[cfg(not(feature = "zkos"))]
         let address_historical_nonce = connection
             .storage_web3_dal()
             .get_address_historical_nonce(from, latest_block_number)
             .await
             .map_err(DalError::generalize)?;
+
+        #[cfg(feature = "zkos")]
+        let address_historical_nonce = connection
+            .account_properies_dal()
+            .get_nonce(from, Some(latest_block_number))
+            .await
+            .map_err(DalError::generalize)?
+            .into();
+
         call_request.nonce = Some(address_historical_nonce);
         Ok(())
     }

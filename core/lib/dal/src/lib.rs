@@ -12,8 +12,9 @@ pub use zksync_db_connection::{
 };
 
 use crate::{
-    base_token_dal::BaseTokenDal, blocks_dal::BlocksDal, blocks_web3_dal::BlocksWeb3Dal,
-    consensus_dal::ConsensusDal, contract_verification_dal::ContractVerificationDal,
+    account_properties_dal::AccountPropertiesDal, base_token_dal::BaseTokenDal,
+    blocks_dal::BlocksDal, blocks_web3_dal::BlocksWeb3Dal, consensus_dal::ConsensusDal,
+    contract_verification_dal::ContractVerificationDal,
     custom_genesis_export_dal::CustomGenesisExportDal, data_availability_dal::DataAvailabilityDal,
     eth_sender_dal::EthSenderDal, eth_watcher_dal::EthWatcherDal,
     etherscan_verification_dal::EtherscanVerificationDal, events_dal::EventsDal,
@@ -28,6 +29,7 @@ use crate::{
     transactions_web3_dal::TransactionsWeb3Dal, vm_runner_dal::VmRunnerDal,
 };
 
+pub mod account_properties_dal;
 pub mod base_token_dal;
 pub mod blocks_dal;
 pub mod blocks_web3_dal;
@@ -139,6 +141,8 @@ where
     fn eth_watcher_dal(&mut self) -> EthWatcherDal<'_, 'a>;
 
     fn custom_genesis_export_dal(&mut self) -> CustomGenesisExportDal<'_, 'a>;
+
+    fn account_properies_dal(&mut self) -> AccountPropertiesDal<'_, 'a>;
 }
 
 #[derive(Clone, Debug)]
@@ -272,5 +276,9 @@ impl<'a> CoreDal<'a> for Connection<'a, Core> {
 
     fn custom_genesis_export_dal(&mut self) -> CustomGenesisExportDal<'_, 'a> {
         CustomGenesisExportDal { storage: self }
+    }
+
+    fn account_properies_dal(&mut self) -> AccountPropertiesDal<'_, 'a> {
+        AccountPropertiesDal { storage: self }
     }
 }
