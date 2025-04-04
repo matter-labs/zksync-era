@@ -72,7 +72,7 @@ use zksync_node_framework::{
             server::{Web3ServerLayer, Web3ServerOptionalConfig},
             tree_api_client::TreeApiClientLayer,
             tx_sender::{PostgresStorageCachesConfig, TxSenderLayer},
-            tx_sink::MasterPoolSinkLayer,
+            tx_sink::{whitelist::WhitelistedMasterPoolSinkLayer, MasterPoolSinkLayer},
         },
     },
     service::{ZkStackService, ZkStackServiceBuilder},
@@ -364,6 +364,7 @@ impl MainNodeBuilder {
     fn add_tx_sender_layer(mut self) -> anyhow::Result<Self> {
         let sk_config = try_load_config!(self.configs.state_keeper_config);
         let rpc_config = try_load_config!(self.configs.api_config).web3_json_rpc;
+        let deployment_allowlist = rpc_config.deployment_allowlist.clone();
 
         let postgres_storage_caches_config = PostgresStorageCachesConfig {
             factory_deps_cache_size: rpc_config.factory_deps_cache_size() as u64,
@@ -378,7 +379,13 @@ impl MainNodeBuilder {
             .unwrap_or_default();
 
         // On main node we always use master pool sink.
-        self.node.add_layer(MasterPoolSinkLayer);
+        if deployment_allowlist.is_enabled() {
+            self.node.add_layer(WhitelistedMasterPoolSinkLayer {
+                deployment_allowlist: deployment_allowlist.clone(),
+            });
+        } else {
+            self.node.add_layer(MasterPoolSinkLayer);
+        }
 
         let layer = TxSenderLayer::new(
             postgres_storage_caches_config,
