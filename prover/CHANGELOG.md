@@ -1,5 +1,12 @@
 # Changelog
 
+## [20.1.1](https://github.com/matter-labs/zksync-era/compare/prover-v20.1.0...prover-v20.1.1) (2025-04-04)
+
+
+### Bug Fixes
+
+* **prover:** Replace Histogram with Gauge for startup_time/run_time/shutdown_time metrics ([#3793](https://github.com/matter-labs/zksync-era/issues/3793)) ([0bd6dc9](https://github.com/matter-labs/zksync-era/commit/0bd6dc9433bd5121c7dd583efde43f296c73fc63))
+
 ## [20.1.0](https://github.com/matter-labs/zksync-era/compare/prover-v20.0.0...prover-v20.1.0) (2025-04-02)
 
 
