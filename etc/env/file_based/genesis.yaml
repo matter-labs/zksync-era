@@ -1,7 +1,7 @@
 genesis_root: 0xf1f8c422eb245edfbfc3a23d3ab3ef712c81c8077ba22444f26a581e27e65df7
 genesis_rollup_leaf_index: 76
 genesis_batch_commitment: 0xb4a9ebf2afb9ae6678c8bd4a3b12ad21d1d5a0050f619f8c3be9cf1a136c3a8d
-genesis_protocol_version: 27
+genesis_protocol_version: 28
 default_aa_hash: 0x010005f75d0c14b6da8400e091a9f5a895b693fc44d028c6d2f29e57d8b137d3
 bootloader_hash: 0x0100085f9382a7928dd83bfc529121827b5f29f18b9aa10d18aa68e1be7ddc35
 l1_chain_id: 9
@@ -11,6 +11,6 @@ prover:
   dummy_verifier: true
   snark_wrapper_vk_hash: 0xe2693b041a4eae0f1b8947a3d752570fec611dd44d37511dbd104d62bd898609
   fflonk_snark_wrapper_vk_hash: 0xbf0d46733786b8620e65777a7ec89971f6d438951cef725c3b235a6f63370836
-genesis_protocol_semantic_version: 0.27.0
+genesis_protocol_semantic_version: 0.28.0
 evm_emulator_hash: 0x01000d417fc3c32f3bb837e09637cfa15303d685e44d1a5f1a04a3a3ea298fe4
 l1_batch_commit_data_generator_mode: Rollup

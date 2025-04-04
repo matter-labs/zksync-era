@@ -65,7 +65,7 @@ state_keeper:
   fee_model_version: V2
   validation_computational_gas_limit: 300000
   save_call_traces: true
-  max_circuits_per_batch: 31100
+  max_circuits_per_batch: 27000
   protective_reads_persistence_enabled: false
 mempool:
   delay_interval: 100
