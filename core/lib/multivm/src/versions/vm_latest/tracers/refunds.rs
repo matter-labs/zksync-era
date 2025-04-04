@@ -13,7 +13,7 @@ use crate::{
         tracer::TracerExecutionStatus,
         L1BatchEnv, Refunds,
     },
-    tracers::dynamic::vm_1_5_0::DynTracer,
+    tracers::dynamic::vm_1_5_2::DynTracer,
     vm_latest::{
         bootloader::BootloaderState,
         constants::{get_operator_refunds_offset, BOOTLOADER_HEAP_PAGE, TX_GAS_LIMIT_OFFSET},
