@@ -12,6 +12,7 @@ use zksync_prover_interface::{
     inputs::{
         L1BatchMetadataHashes, VMRunWitnessInputData, WitnessInputData, WitnessInputMerklePaths,
     },
+    Bincode,
 };
 use zksync_types::{
     basic_fri_types::Eip4844Blobs,
@@ -111,16 +112,26 @@ impl RequestProcessor {
         &self,
         l1_batch_number: L1BatchNumber,
     ) -> Result<ProofGenerationData, RequestProcessorError> {
-        let vm_run_data: VMRunWitnessInputData = self
-            .blob_store
-            .get(l1_batch_number)
-            .await
-            .map_err(RequestProcessorError::ObjectStore)?;
-        let merkle_paths: WitnessInputMerklePaths = self
-            .blob_store
-            .get(l1_batch_number)
-            .await
-            .map_err(RequestProcessorError::ObjectStore)?;
+        let vm_run_data: VMRunWitnessInputData = match self.blob_store.get(l1_batch_number).await {
+            Ok(data) => data,
+            Err(_) => self
+                .blob_store
+                .get::<VMRunWitnessInputData<Bincode>>(l1_batch_number)
+                .await
+                .map(Into::into)
+                .map_err(RequestProcessorError::ObjectStore)?,
+        };
+
+        let merkle_paths: WitnessInputMerklePaths = match self.blob_store.get(l1_batch_number).await
+        {
+            Ok(data) => data,
+            Err(_) => self
+                .blob_store
+                .get::<WitnessInputMerklePaths<Bincode>>(l1_batch_number)
+                .await
+                .map(Into::into)
+                .map_err(RequestProcessorError::ObjectStore)?,
+        };
 
         // Acquire connection after interacting with GCP, to avoid holding the connection for too long.
         let mut conn = self

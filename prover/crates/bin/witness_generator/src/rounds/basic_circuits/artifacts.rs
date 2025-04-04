@@ -5,6 +5,7 @@ use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::AuxOutputWitnessWrapper;
 use zksync_prover_fri_utils::get_recursive_layer_circuit_id_for_base_layer;
+use zksync_prover_interface::inputs::WitnessInputData;
 use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber};
 
 use crate::{
@@ -28,7 +29,15 @@ impl ArtifactsManager for BasicCircuits {
         object_store: &dyn ObjectStore,
     ) -> anyhow::Result<Self::InputArtifacts> {
         let l1_batch_number = *metadata;
-        let data = object_store.get(l1_batch_number).await.unwrap();
+        let data: WitnessInputData = match object_store.get(l1_batch_number).await {
+            Ok(data) => data,
+            Err(err) => object_store
+                .get::<WitnessInputData<Bincode>>(l1_batch_number)
+                .await
+                .map(Into::into)
+                .map_err(|e| anyhow::anyhow!(e))?,
+        };
+
         Ok(BasicWitnessGeneratorJob {
             block_number: l1_batch_number,
             data,

@@ -6,7 +6,10 @@ use zksync_object_store::{Bucket, MockObjectStore, StoredObject};
 use zksync_prover_interface::{
     api::{SubmitProofRequest, SubmitTeeProofRequest},
     inputs::{StorageLogMetadata, WitnessInputMerklePaths},
-    outputs::{FflonkL1BatchProofForL1, L1BatchProofForL1, L1BatchTeeProofForL1},
+    outputs::{
+        FflonkL1BatchProofForL1, L1BatchProofForL1, L1BatchTeeProofForL1, TypedL1BatchProofForL1,
+    },
+    Bincode,
 };
 use zksync_types::{
     protocol_version::ProtocolSemanticVersion, tee_types::TeeType, L1BatchNumber, ProtocolVersionId,
@@ -77,11 +80,11 @@ async fn test_final_proof_deserialization() {
         .await
         .unwrap();
 
-    let results: L1BatchProofForL1 = StoredObject::deserialize(proof).unwrap();
+    let results: L1BatchProofForL1<Bincode> = StoredObject::deserialize(proof).unwrap();
 
-    let coords = match results {
-        L1BatchProofForL1::Fflonk(proof) => proof.aggregation_result_coords,
-        L1BatchProofForL1::Plonk(proof) => proof.aggregation_result_coords,
+    let coords = match results.inner() {
+        TypedL1BatchProofForL1::Fflonk(proof) => proof.aggregation_result_coords,
+        TypedL1BatchProofForL1::Plonk(proof) => proof.aggregation_result_coords,
     };
 
     assert_eq!(coords[0][0], 0);
@@ -89,7 +92,7 @@ async fn test_final_proof_deserialization() {
 
 #[test]
 fn test_proof_request_serialization() {
-    let proof = SubmitProofRequest::Proof(Box::new(L1BatchProofForL1::Fflonk(
+    let proof = SubmitProofRequest::Proof(Box::new(L1BatchProofForL1::new_fflonk(
         FflonkL1BatchProofForL1 {
             aggregation_result_coords: [[0; 32]; 4],
             scheduler_proof: FflonkProof::empty(),
@@ -102,7 +105,8 @@ fn test_proof_request_serialization() {
     let encoded_obj = serde_json::to_string(&proof).unwrap();
     let encoded_json = r#"{
         "Proof": {
-            "aggregation_result_coords": [
+            "inner": {
+                "aggregation_result_coords": [
                     [
                         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
                     ],
@@ -158,18 +162,19 @@ fn test_proof_request_serialization() {
                 },
                 "protocol_version": "0.25.10"
             }
+        }
     }"#;
     let decoded_obj: SubmitProofRequest = serde_json::from_str(&encoded_obj).unwrap();
     let decoded_json: SubmitProofRequest = serde_json::from_str(encoded_json).unwrap();
     match (decoded_obj, decoded_json) {
         (SubmitProofRequest::Proof(decoded_obj), SubmitProofRequest::Proof(decoded_json)) => {
-            let obj_coords = match *decoded_obj {
-                L1BatchProofForL1::Fflonk(obj) => obj.aggregation_result_coords,
-                L1BatchProofForL1::Plonk(obj) => obj.aggregation_result_coords,
+            let obj_coords = match (*decoded_obj).inner() {
+                TypedL1BatchProofForL1::Fflonk(obj) => obj.aggregation_result_coords,
+                TypedL1BatchProofForL1::Plonk(obj) => obj.aggregation_result_coords,
             };
-            let json_coords = match *decoded_json {
-                L1BatchProofForL1::Fflonk(obj) => obj.aggregation_result_coords,
-                L1BatchProofForL1::Plonk(obj) => obj.aggregation_result_coords,
+            let json_coords = match (*decoded_json).inner() {
+                TypedL1BatchProofForL1::Fflonk(obj) => obj.aggregation_result_coords,
+                TypedL1BatchProofForL1::Plonk(obj) => obj.aggregation_result_coords,
             };
 
             assert_eq!(obj_coords, json_coords);

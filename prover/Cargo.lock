@@ -9404,6 +9404,7 @@ dependencies = [
 name = "zksync_prover_interface"
 version = "27.1.0-non-semver-compat"
 dependencies = [
+ "ciborium",
  "circuit_definitions",
  "fflonk",
  "serde",

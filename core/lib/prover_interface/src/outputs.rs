@@ -13,27 +13,63 @@ use serde_with::{hex::Hex, serde_as};
 use zksync_object_store::{serialize_using_bincode, Bucket, StoredObject, _reexports::BoxedError};
 use zksync_types::{protocol_version::ProtocolSemanticVersion, tee_types::TeeType, L1BatchNumber};
 
+use crate::{FormatMarker, CBOR};
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct L1BatchProofForL1<FM: FormatMarker = CBOR> {
+    pub(crate) inner: TypedL1BatchProofForL1,
+    #[serde(skip)]
+    pub(crate) _marker: std::marker::PhantomData<FM>,
+}
+
+impl<FM: FormatMarker> L1BatchProofForL1<FM> {
+    pub fn new(inner: TypedL1BatchProofForL1) -> Self {
+        Self {
+            inner,
+            _marker: std::marker::PhantomData,
+        }
+    }
+
+    pub fn new_fflonk(proof: FflonkL1BatchProofForL1) -> Self {
+        Self {
+            inner: TypedL1BatchProofForL1::Fflonk(proof),
+            _marker: std::marker::PhantomData,
+        }
+    }
+
+    pub fn new_plonk(proof: PlonkL1BatchProofForL1) -> Self {
+        Self {
+            inner: TypedL1BatchProofForL1::Plonk(proof),
+            _marker: std::marker::PhantomData,
+        }
+    }
+
+    pub fn inner(&self) -> TypedL1BatchProofForL1 {
+        self.inner.clone()
+    }
+}
+
 /// A "final" ZK proof that can be sent to the L1 contract.
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 #[allow(clippy::large_enum_variant)]
-pub enum L1BatchProofForL1 {
+pub enum TypedL1BatchProofForL1 {
     Fflonk(FflonkL1BatchProofForL1),
     Plonk(PlonkL1BatchProofForL1),
 }
 
 impl L1BatchProofForL1 {
     pub fn protocol_version(&self) -> ProtocolSemanticVersion {
-        match self {
-            L1BatchProofForL1::Fflonk(proof) => proof.protocol_version,
-            L1BatchProofForL1::Plonk(proof) => proof.protocol_version,
+        match &self.inner {
+            TypedL1BatchProofForL1::Fflonk(proof) => proof.protocol_version,
+            TypedL1BatchProofForL1::Plonk(proof) => proof.protocol_version,
         }
     }
 
     pub fn aggregation_result_coords(&self) -> [[u8; 32]; 4] {
-        match self {
-            L1BatchProofForL1::Fflonk(proof) => proof.aggregation_result_coords,
-            L1BatchProofForL1::Plonk(proof) => proof.aggregation_result_coords,
+        match &self.inner {
+            TypedL1BatchProofForL1::Fflonk(proof) => proof.aggregation_result_coords,
+            TypedL1BatchProofForL1::Plonk(proof) => proof.aggregation_result_coords,
         }
     }
 }
@@ -47,9 +83,12 @@ pub struct FflonkL1BatchProofForL1 {
 
 // Implementation created to allow conversion from FflonkL1BatchProofForL1(which is old L1BatchProofForL1)
 // to L1BatchProofForL1 to avoid compatibility problems with serialization/deserialization
-impl From<FflonkL1BatchProofForL1> for L1BatchProofForL1 {
+impl<FM: FormatMarker> From<FflonkL1BatchProofForL1> for L1BatchProofForL1<FM> {
     fn from(proof: FflonkL1BatchProofForL1) -> Self {
-        L1BatchProofForL1::Fflonk(proof)
+        Self {
+            inner: TypedL1BatchProofForL1::Fflonk(proof),
+            _marker: std::marker::PhantomData,
+        }
     }
 }
 
@@ -62,9 +101,12 @@ pub struct PlonkL1BatchProofForL1 {
 
 // Implementation created to allow conversion from PlonkL1BatchProofForL1(which is old L1BatchProofForL1)
 // to L1BatchProofForL1 to avoid compatibility problems with serialization/deserialization
-impl From<PlonkL1BatchProofForL1> for L1BatchProofForL1 {
+impl<FM: FormatMarker> From<PlonkL1BatchProofForL1> for L1BatchProofForL1<FM> {
     fn from(proof: PlonkL1BatchProofForL1) -> Self {
-        L1BatchProofForL1::Plonk(proof)
+        Self {
+            inner: TypedL1BatchProofForL1::Plonk(proof),
+            _marker: std::marker::PhantomData,
+        }
     }
 }
 
@@ -127,20 +169,21 @@ impl StoredObject for L1BatchProofForL1 {
     fn encode_key(key: Self::Key<'_>) -> String {
         let (l1_batch_number, protocol_version) = key;
         let semver_suffix = protocol_version.to_string().replace('.', "_");
-        format!("l1_batch_proof_{l1_batch_number}_{semver_suffix}.bin")
+        format!("l1_batch_proof_{l1_batch_number}_{semver_suffix}.cbor")
     }
 
     fn serialize(&self) -> Result<Vec<u8>, BoxedError> {
-        zksync_object_store::bincode::serialize(self).map_err(From::from)
+        let mut buf = Vec::new();
+        ciborium::into_writer(self, &mut buf).map_err(|e| {
+            BoxedError::from(format!("Failed to deserialize L1BatchProofForL1: {e}"))
+        })?;
+
+        Ok(buf)
     }
 
     fn deserialize(bytes: Vec<u8>) -> Result<Self, BoxedError> {
-        match zksync_object_store::bincode::deserialize::<PlonkL1BatchProofForL1>(&bytes) {
-            Ok(proof) => Ok(proof.into()),
-            Err(_) => zksync_object_store::bincode::deserialize::<FflonkL1BatchProofForL1>(&bytes)
-                .map(Into::into)
-                .map_err(Into::into),
-        }
+        ciborium::from_reader(&bytes[..])
+            .map_err(|e| BoxedError::from(format!("Failed to deserialize L1BatchProofForL1: {e}")))
     }
 }
 
