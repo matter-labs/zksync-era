@@ -521,11 +521,11 @@ jobs:
 
       - name: Run recovery tests (from snapshot)
         run: |
-          ci_run ./bin/run_on_all_chains.sh "zkstack dev test recovery --snapshot --no-deps --ignore-prerequisites --verbose" ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}
+          ci_run ./bin/run_on_all_chains.sh "zkstack dev test recovery --snapshot --no-deps --ignore-prerequisites --verbose" ${{ env.CHAINS }} ${{ env.SNAPSHOT_RECOVERY_LOGS_DIR }}
 
       - name: Run recovery tests (from genesis)
         run: |
-          ci_run ./bin/run_on_all_chains.sh "zkstack dev test recovery --no-deps --no-kill --ignore-prerequisites --verbose" ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}
+          ci_run ./bin/run_on_all_chains.sh "zkstack dev test recovery --no-deps --no-kill --ignore-prerequisites --verbose" ${{ env.CHAINS }} ${{ env.GENESIS_RECOVERY_LOGS_DIR }}
 
       - name: Run external nodes
         run: |
@@ -542,7 +542,7 @@ jobs:
       - name: Run integration tests en
         run: |
           ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --verbose --no-deps --ignore-prerequisites --external-node" \
-            ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }} \
+            ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_EN_LOGS_DIR }} \
             'era:--evm' 'validium:--evm'
 
       - name: Repeat integration tests en on push to main to check for flakiness
@@ -550,9 +550,9 @@ jobs:
         run: |
           for i in {1..10}; do
             echo "Iteration $i"
-            mkdir -p ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/$i
+            mkdir -p ${{ env.INTEGRATION_TESTS_EN_LOGS_DIR }}/$i
             ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --verbose --no-deps --ignore-prerequisites --external-node" \
-              ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/$i \
+              ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_EN_LOGS_DIR }}/$i \
               'era:--evm' 'validium:--evm'
           done
 
@@ -590,7 +590,7 @@ jobs:
           fi
 
           # Always run the chain-specific revert tests
-          ci_run ./bin/run_on_all_chains.sh "zkstack dev test revert --no-deps --external-node --no-kill --ignore-prerequisites" ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}
+          ci_run ./bin/run_on_all_chains.sh "zkstack dev test revert --no-deps --external-node --no-kill --ignore-prerequisites" ${{ env.CHAINS }} ${{ env.REVERT_LOGS_DIR }}
 
       # Upgrade tests should run last, because as soon as they
       # finish the bootloader will be different
