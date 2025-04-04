@@ -1,4 +1,5 @@
 use std::{
+    ops::Mul,
     sync::Arc,
     time::{Duration, SystemTime},
 };
@@ -12,7 +13,10 @@ use zksync_eth_client::{
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_node_fee_model::l1_gas_price::TxParamsProvider;
 use zksync_shared_metrics::BlockL1Stage;
-use zksync_types::{eth_sender::EthTx, Address, L1BlockNumber, H256, U256};
+use zksync_types::{
+    aggregated_operations::AggregatedActionType, eth_sender::EthTx, Address, L1BlockNumber,
+    CALLDATA_PROCESSING_ROLLUP_OVERHEAD, H256, L1_GAS_PER_PUBDATA_BYTE, U256,
+};
 
 use super::{metrics::METRICS, EthSenderError};
 use crate::{
@@ -55,7 +59,6 @@ impl EthTxManager {
             gas_adjuster,
             max_acceptable_priority_fee_in_gwei: config.max_acceptable_priority_fee_in_gwei,
             time_in_mempool_in_l1_blocks_cap: config.time_in_mempool_in_l1_blocks_cap,
-            max_gas_limit: config.max_aggregated_tx_gas as u64,
         };
         let l1_interface = Box::new(RealL1Interface {
             ethereum_client,
@@ -134,7 +137,6 @@ impl EthTxManager {
             priority_fee_per_gas,
             blob_base_fee_per_gas,
             max_gas_per_pubdata_price,
-            gas_limit,
         } = self.fees_oracle.calculate_fees(
             &previous_sent_tx,
             time_in_mempool_in_l1_blocks,
@@ -142,6 +144,50 @@ impl EthTxManager {
         )?;
 
         let operator_type = self.operator_type(tx);
+
+        let blob_gas_price = if tx.blob_sidecar.is_some() {
+            Some(
+                blob_base_fee_per_gas
+                    .expect("always ready to query blob gas price for blob transactions; qed")
+                    .into(),
+            )
+        } else {
+            None
+        };
+
+        // Gas limit saved in predicted gas_cost, doesn't include gas_limit for pubdata usage.
+        let mut gas_limit: U256 = if let Some(gas_limit) = tx.predicted_gas_cost {
+            gas_limit.into()
+        } else {
+            self.config.max_aggregated_tx_gas.into()
+        };
+
+        gas_limit = gas_limit.mul(2);
+        // Adjust gas limit based ob pubdata cost. Commit is the only pubdata intensive part
+        if tx.tx_type == AggregatedActionType::Commit {
+            match operator_type {
+                OperatorType::Blob => {
+                    // Do nothing the pubdata intensive part is on separate gateway
+                }
+                OperatorType::NonBlob => {
+                    // Settlement mode is L1.
+                    gas_limit += ((L1_GAS_PER_PUBDATA_BYTE + CALLDATA_PROCESSING_ROLLUP_OVERHEAD)
+                        * tx.raw_tx.len() as u32)
+                        .into()
+                }
+                OperatorType::Gateway => {
+                    // Settlement mode is Gateway.
+                    if let Some(max_gas_per_pubdata_price) = max_gas_per_pubdata_price {
+                        gas_limit += ((max_gas_per_pubdata_price
+                            + CALLDATA_PROCESSING_ROLLUP_OVERHEAD as u64)
+                            * tx.raw_tx.len() as u64)
+                            .into()
+                    } else {
+                        gas_limit = self.config.max_aggregated_tx_gas.into();
+                    }
+                }
+            }
+        }
 
         if let Some(previous_sent_tx) = previous_sent_tx {
             METRICS.transaction_resent.inc();
@@ -157,13 +203,14 @@ impl EthTxManager {
                 priority_fee_per_gas {:?}, \
                 blob_fee_per_gas {:?}, \
                 max_gas_per_pubdata_price {:?}, \
+                gas_limit {gas_limit:?}, \
                 ",
                 tx.id,
                 tx.nonce,
                 previous_sent_tx.base_fee_per_gas,
                 previous_sent_tx.priority_fee_per_gas,
                 previous_sent_tx.blob_base_fee_per_gas,
-                previous_sent_tx.max_gas_per_pubdata
+                previous_sent_tx.max_gas_per_pubdata,
             );
         } else {
             tracing::info!(
@@ -171,7 +218,10 @@ impl EthTxManager {
                 at block {current_block} with \
                 base_fee_per_gas {base_fee_per_gas:?}, \
                 priority_fee_per_gas {priority_fee_per_gas:?}, \
-                blob_fee_per_gas {blob_base_fee_per_gas:?}",
+                blob_fee_per_gas {blob_base_fee_per_gas:?},\
+                max_gas_per_pubdata_price {max_gas_per_pubdata_price:?},\
+                gas_limit {gas_limit:?}, \
+                ",
                 tx.id,
                 tx.nonce
             );
@@ -187,16 +237,6 @@ impl EthTxManager {
                 .observe(priority_fee_per_gas);
         }
 
-        let blob_gas_price = if tx.blob_sidecar.is_some() {
-            Some(
-                blob_base_fee_per_gas
-                    .expect("always ready to query blob gas price for blob transactions; qed")
-                    .into(),
-            )
-        } else {
-            None
-        };
-
         let mut signed_tx = self
             .l1_interface
             .sign_tx(
@@ -204,7 +244,7 @@ impl EthTxManager {
                 base_fee_per_gas,
                 priority_fee_per_gas,
                 blob_gas_price,
-                gas_limit.into(),
+                gas_limit,
                 operator_type,
                 max_gas_per_pubdata_price.map(Into::into),
             )
@@ -228,6 +268,7 @@ impl EthTxManager {
                 signed_tx.hash,
                 signed_tx.raw_tx.as_ref(),
                 current_block.0,
+                Some(gas_limit.as_u64()),
             )
             .await
             .unwrap()
@@ -508,15 +549,6 @@ impl EthTxManager {
             .track_eth_tx_metrics(storage, BlockL1Stage::Mined, tx)
             .await;
 
-        if let Some(predicted_gas_cost) = tx.predicted_gas_cost {
-            if gas_used > U256::from(predicted_gas_cost) {
-                tracing::error!(
-                    "Predicted gas {predicted_gas_cost} lower than used gas {gas_used} for tx {:?} {}",
-                    tx.tx_type,
-                    tx.id
-                );
-            }
-        }
         tracing::info!(
             "eth_tx {} with hash {tx_hash:?} for {} is confirmed. Gas spent: {gas_used:?}",
             tx.id,
