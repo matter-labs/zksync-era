@@ -166,7 +166,6 @@ impl DataAvailabilityDispatcher {
                     dispatch_response.request_id.as_str(),
                     sent_at.naive_utc(),
                     client_type_to_pubdata_type(self.client.client_type()),
-                    None,
                     Some(find_l2_da_validator_address(batch.system_logs.as_slice())?),
                 )
                 .await?;
@@ -240,7 +239,6 @@ impl DataAvailabilityDispatcher {
                 conn.data_availability_dal()
                     .set_blob_id(blob.l1_batch_number, finality_response.blob_id.as_str())
                     .await?;
-                drop(conn);
 
                 tracing::info!(
                     "Finality check for a batch_number: {} is successful",
@@ -259,7 +257,6 @@ impl DataAvailabilityDispatcher {
                 conn.data_availability_dal()
                     .remove_data_availability_entry(blob.l1_batch_number)
                     .await?;
-                drop(conn);
             }
         }
 

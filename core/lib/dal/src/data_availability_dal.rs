@@ -75,7 +75,6 @@ impl DataAvailabilityDal<'_, '_> {
         dispatch_request_id: &str,
         sent_at: chrono::NaiveDateTime,
         pubdata_type: PubdataType,
-        da_inclusion_data: Option<&[u8]>,
         l2_validator_address: Option<Address>,
     ) -> DalResult<()> {
         let update_result = sqlx::query!(
@@ -84,7 +83,6 @@ impl DataAvailabilityDal<'_, '_> {
             data_availability (
                 l1_batch_number,
                 dispatch_request_id,
-                inclusion_data,
                 client_type,
                 l2_da_validator_address,
                 sent_at,
@@ -92,12 +90,11 @@ impl DataAvailabilityDal<'_, '_> {
                 updated_at
             )
             VALUES
-            ($1, $2, $3, $4, $5, $6, NOW(), NOW())
+            ($1, $2, $3, $4, $5, NOW(), NOW())
             ON CONFLICT DO NOTHING
             "#,
             i64::from(number.0),
             dispatch_request_id,
-            da_inclusion_data,
             pubdata_type.to_string(),
             l2_validator_address.map(|addr| addr.as_bytes().to_vec()),
             sent_at,

@@ -21,6 +21,7 @@ use zksync_types::H256;
 use crate::utils::to_non_retriable_da_error;
 
 const PROTOCOL_VERSION: u8 = 4;
+const DISPATCH_POLLING_SLEEP_DURATION: Duration = Duration::from_millis(100);
 
 #[derive(Debug, Clone)]
 pub(crate) struct RawAvailClient {
@@ -300,6 +301,8 @@ impl RawAvailClient {
                         .to_string();
                 }
             }
+
+            tokio::time::sleep(DISPATCH_POLLING_SLEEP_DURATION).await;
         })
     }
 
