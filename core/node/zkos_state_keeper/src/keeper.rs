@@ -27,8 +27,7 @@ use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_mempool::L2TxFilter;
 use zksync_state::{ArcOwnedStorage, BatchDiff, CommonStorage, OwnedStorage, ReadStorageFactory};
 use zksync_state_keeper::{
-    io::IoCursor, metrics::KEEPER_METRICS, seal_criteria::UnexecutableReason, L2BlockParams,
-    MempoolGuard,
+    metrics::KEEPER_METRICS, seal_criteria::UnexecutableReason, L2BlockParams, MempoolGuard,
 };
 use zksync_types::{
     block::UnsealedL1BatchHeader, snapshots::SnapshotStorageLog, Address, L1BatchNumber,
@@ -38,8 +37,9 @@ use zksync_vm_interface::Halt;
 use zksync_zkos_vm_runner::zkos_conversions::{bytes32_to_h256, h256_to_bytes32, tx_abi_encode};
 
 use crate::{
-    io::{BlockParams, OutputHandler, StateKeeperIO},
-    millis_since_epoch,
+    batch_executor::MainBatchExecutor,
+    io::{BlockParams, IoCursor, OutputHandler, StateKeeperIO},
+    seal_criteria::{ConditionalSealer, IoSealCriterion, SealData, SealResolution},
     state_keeper_storage::ZkOsAsyncRocksdbCache,
     updates::{FinishedBlock, UpdatesManager},
 };
@@ -79,6 +79,7 @@ pub struct ZkosStateKeeper {
     io: Box<dyn StateKeeperIO>,
     output_handler: OutputHandler,
     storage_factory: Arc<ZkOsAsyncRocksdbCache>,
+    sealer: Arc<dyn ConditionalSealer>,
 }
 
 impl ZkosStateKeeper {
@@ -88,6 +89,7 @@ impl ZkosStateKeeper {
         io: Box<dyn StateKeeperIO>,
         output_handler: OutputHandler,
         storage_factory: Arc<ZkOsAsyncRocksdbCache>,
+        sealer: Arc<dyn ConditionalSealer>,
     ) -> Self {
         let tree = InMemoryTree {
             storage_tree: TestingTree::new_in(Global),
@@ -104,6 +106,7 @@ impl ZkosStateKeeper {
             io,
             output_handler,
             storage_factory,
+            sealer,
         }
     }
 
@@ -131,14 +134,6 @@ impl ZkosStateKeeper {
             .into());
         }
 
-        // let mut connection = self
-        //     .pool
-        //     .connection_tagged("state_keeper")
-        //     .await
-        //     .map_err(DalError::generalize)?;
-        // Self::fund_dev_wallets_if_needed(&mut connection, cursor.next_l2_block).await;
-        // drop(connection);
-
         tracing::info!(
             "State root before `initialize_in_memory_storages`: {:?}",
             self.tree.storage_tree.root()
@@ -158,48 +153,18 @@ impl ZkosStateKeeper {
                     .await?;
             }
 
-            let (sender, receiver) = tokio::sync::mpsc::channel(1);
-            let (result_sender, result_receiver) = tokio::sync::mpsc::channel(1);
-            let tx_source = OnlineTxSource::new(receiver);
-            let tx_callback = ChannelTxResultCallback::new(result_sender);
-
             let gas_limit = 100_000_000; // TODO: what value should be used?;
-            let tx_processor = TxProcessor::new(
-                sender,
-                result_receiver,
-                10,
-                block_params.timestamp,
-                gas_limit,
-            );
-
             let context = BatchContext {
                 //todo: gas
                 eip1559_basefee: U256::from(block_params.base_fee),
                 gas_per_pubdata: Default::default(),
                 block_number: cursor.next_l2_block.0 as u64,
-                timestamp: block_params.timestamp,
+                timestamp: block_params.timestamp(),
                 chain_id: self.io.chain_id().as_u64(),
                 gas_limit,
                 coinbase: Default::default(),
                 block_hashes: Default::default(),
             };
-
-            let storage_commitment = StorageCommitment {
-                root: self.tree.storage_tree.root().clone(),
-                next_free_slot: self.tree.storage_tree.next_free_slot,
-            };
-            tracing::info!(
-                "Starting block {} with commitment root {:?} and next_free_slot {:?}",
-                cursor.next_l2_block,
-                storage_commitment.root,
-                storage_commitment.next_free_slot
-            );
-
-            //todo: at least use refcell instead of cloning
-            tracing::info!("Cloning in-memory storages for the batch");
-            let tree = self.tree.clone();
-            let preimage_source = self.preimage_source.clone();
-            tracing::info!("Cloning done, running batch");
 
             let Some(storage) = self
                 .storage_factory
@@ -208,40 +173,39 @@ impl ZkosStateKeeper {
             else {
                 return Err(Error::Canceled);
             };
-            let storage = Arc::new(storage);
-            let run_batch_task = spawn_blocking(move || {
-                run_batch(
-                    context,
-                    storage_commitment,
-                    ArcOwnedStorage(storage.clone()),
-                    ArcOwnedStorage(storage),
-                    tx_source,
-                    tx_callback,
-                )
-            });
+            let next_enum_index = self
+                .storage_factory
+                .next_enum_index(cursor.l1_batch - 1)
+                .await?
+                .context(format!(
+                    "Failed to deduct `next_enum_index` for batch #{}",
+                    cursor.l1_batch
+                ))?;
+
+            let batch_executor = MainBatchExecutor::new(
+                context,
+                next_enum_index,
+                ArcOwnedStorage(Arc::new(storage)),
+            );
+
+            tracing::info!("Starting block {}", cursor.next_l2_block);
 
             let mut updates_manager = UpdatesManager::new(
                 cursor.l1_batch,
                 cursor.next_l2_block,
-                block_params.timestamp,
+                block_params.timestamp_ms,
                 Default::default(), //fee_account
                 block_params.fee_input,
                 block_params.base_fee,
                 block_params.protocol_version,
                 gas_limit,
             );
-
-            let executed_transactions = tx_processor.run(&mut self.io, &self.stop_receiver).await?;
-
-            let result = run_batch_task
-                .await
-                .expect("Task run_batch panicked")
-                .map_err(|err| anyhow::anyhow!(err.0))
-                .context("run_batch failed")?;
+            let (executed_transactions, batch_output) =
+                self.run_batch(batch_executor, &updates_manager).await?;
 
             tracing::info!("Batch #{} executed successfully", cursor.l1_batch);
 
-            for storage_write in result.storage_writes.iter() {
+            for storage_write in batch_output.storage_writes.iter() {
                 self.tree
                     .cold_storage
                     .insert(storage_write.key, storage_write.value);
@@ -256,15 +220,15 @@ impl ZkosStateKeeper {
                 cursor.l1_batch
             );
 
-            for (hash, preimage, _) in result.published_preimages.iter() {
+            for (hash, preimage, _) in batch_output.published_preimages.iter() {
                 self.preimage_source.inner.insert(*hash, preimage.clone());
             }
 
-            updates_manager.extend(executed_transactions, result.clone());
-            let (initial_writes, next_enum_index) = self.initial_writes(&updates_manager).await?;
+            updates_manager.extend(executed_transactions, batch_output.clone());
+            let initial_writes = self.initial_writes(&updates_manager).await?;
 
             self.push_block_storage_diff(
-                result,
+                batch_output,
                 &updates_manager,
                 initial_writes.clone(),
                 next_enum_index,
@@ -279,8 +243,6 @@ impl ZkosStateKeeper {
 
             cursor = IoCursor {
                 next_l2_block: cursor.next_l2_block + 1,
-                prev_l2_block_hash: Default::default(),
-                prev_l2_block_timestamp: block_params.timestamp,
                 l1_batch: cursor.l1_batch + 1,
             };
         }
@@ -332,36 +294,20 @@ impl ZkosStateKeeper {
         Ok(())
     }
 
-    async fn initial_writes(
-        &self,
-        updates_manager: &UpdatesManager,
-    ) -> anyhow::Result<(Vec<H256>, u64)> {
-        let mut connection = self.pool.connection_tagged("state_keeper").await?;
+    async fn initial_writes(&self, updates_manager: &UpdatesManager) -> anyhow::Result<Vec<H256>> {
+        let written_keys_iter = updates_manager
+            .storage_logs
+            .iter()
+            .map(|log| log.key.hashed_key());
+        let written_keys: Vec<_> = written_keys_iter.clone().collect();
 
-        let initial_writes: Vec<_> = {
-            let deduplicated_writes_hashed_keys_iter = updates_manager
-                .storage_logs
-                .iter()
-                .map(|log| log.key.hashed_key());
-            let deduplicated_writes_hashed_keys: Vec<_> =
-                deduplicated_writes_hashed_keys_iter.clone().collect();
-            let non_initial_writes = connection
-                .storage_logs_dedup_dal()
-                .filter_written_slots(&deduplicated_writes_hashed_keys)
-                .await?;
-            deduplicated_writes_hashed_keys_iter
-                .filter(|hashed_key| !non_initial_writes.contains(hashed_key))
-                .collect()
-        };
-        let next_enum_index = connection
-            .storage_logs_dedup_dal()
-            .max_enumeration_index_by_l1_batch(updates_manager.l1_batch_number - 1)
-            .await
-            .map_err(DalError::generalize)?
-            .context("missing enum index in DB")?
-            + 1;
-
-        Ok((initial_writes, next_enum_index))
+        self.storage_factory
+            .extract_initial_writes(&written_keys, updates_manager.l1_batch_number - 1)
+            .await?
+            .context(format!(
+                "Failed to deduct initial writes for batch #{}",
+                updates_manager.l1_batch_number
+            ))
     }
 
     async fn push_block_storage_diff(
@@ -418,180 +364,115 @@ impl ZkosStateKeeper {
         }
         Err(Error::Canceled)
     }
-}
 
-#[derive(Debug)]
-pub struct OnlineTxSource {
-    receiver: Receiver<NextTxResponse>,
-}
-
-impl OnlineTxSource {
-    pub fn new(receiver: Receiver<NextTxResponse>) -> Self {
-        Self { receiver }
-    }
-}
-
-impl TxSource for OnlineTxSource {
-    fn get_next_tx(&mut self) -> NextTxResponse {
-        self.receiver.blocking_recv().unwrap_or_else(|| {
-            // Sender shouldn't be dropped i.e. we always try to finish block execution properly
-            // on shutdown request. This looks reasonable given block will take short period of time
-            // (most likely 1 second), and if there are no transactions we can still close an empty block
-            // without persisting it.
-            panic!("next tx sender was dropped without yielding `SealBatch`")
-        })
-    }
-}
-
-#[derive(Debug)]
-pub struct ChannelTxResultCallback {
-    sender: Sender<Result<TxProcessingOutputOwned, InvalidTransaction>>,
-}
-
-impl ChannelTxResultCallback {
-    pub fn new(sender: Sender<Result<TxProcessingOutputOwned, InvalidTransaction>>) -> Self {
-        Self { sender }
-    }
-}
-
-impl TxResultCallback for ChannelTxResultCallback {
-    fn tx_executed(
+    async fn run_batch(
         &mut self,
-        tx_execution_result: Result<TxProcessingOutputOwned, InvalidTransaction>,
-    ) {
-        self.sender
-            .blocking_send(tx_execution_result)
-            .expect("Tx execution result receiver was dropped");
-    }
-}
-
-/// Struct that
-/// - Polls the mempool
-/// - Sends transaction over channel to the execution thread
-/// - Keeps track of seal criteria: currently there are 3 of them: timestamp, gas, and number of txs.
-#[derive(Debug)]
-pub struct TxProcessor {
-    sender: Sender<NextTxResponse>,
-    result_receiver: Receiver<Result<TxProcessingOutputOwned, InvalidTransaction>>,
-    max_tx_count: usize,
-    block_timestamp: u64,
-    block_gas_limit: u64,
-}
-
-impl TxProcessor {
-    pub fn new(
-        sender: Sender<NextTxResponse>,
-        result_receiver: Receiver<Result<TxProcessingOutputOwned, InvalidTransaction>>,
-        max_tx_count: usize,
-        block_timestamp: u64,
-        block_gas_limit: u64,
-    ) -> Self {
-        Self {
-            sender,
-            result_receiver,
-            max_tx_count,
-            block_timestamp,
-            block_gas_limit,
-        }
-    }
-
-    pub async fn run(
-        mut self,
-        io: &mut Box<dyn StateKeeperIO>,
-        stop_receiver: &watch::Receiver<bool>,
-    ) -> Result<Vec<Transaction>, Error> {
+        mut batch_executor: MainBatchExecutor,
+        updates_manager: &UpdatesManager,
+    ) -> Result<(Vec<Transaction>, BatchOutput), Error> {
         let mut executed_txs = Vec::new();
-        let mut gas_used = 0;
+        let mut cumulative_gas_used = 0;
+        let mut cumulative_payload_encoding_size = 0;
 
-        let started_at = Instant::now();
-        loop {
-            if *stop_receiver.borrow() && executed_txs.is_empty() {
+        let batch_output = loop {
+            if self.is_canceled() && executed_txs.is_empty() {
                 return Err(Error::Canceled);
             }
 
-            // TODO: proper timeout, should it be at `block_started_ms + 1000ms` or `block_timestamp_s + 1s`?
-            if started_at.elapsed() > Duration::from_secs(1) {
-                if !executed_txs.is_empty() {
-                    self.sender
-                        .send(NextTxResponse::SealBatch)
-                        .await
-                        .context("NextTxResponse receiver was dropped")?;
-                    break;
-                }
+            if !executed_txs.is_empty() && self.io.should_seal_block(updates_manager) {
+                break batch_executor.finish_batch().await?;
             }
 
-            let Some(tx) = io
-                .wait_for_next_tx(POLL_WAIT_DURATION, self.block_timestamp)
+            let Some(tx) = self
+                .io
+                .wait_for_next_tx(POLL_WAIT_DURATION, updates_manager.timestamp)
                 .await?
             else {
                 tracing::trace!("No new transactions. Waiting!");
                 continue;
             };
 
-            if !self.block_has_capacity_for_tx(
+            let tx_hash = tx.hash();
+            tracing::info!("Transaction found: {tx_hash:#?}");
+
+            let tx_payload_encoding_size =
+                zksync_protobuf::repr::encode::<zksync_dal::consensus::proto::Transaction>(&tx)
+                    .len();
+            let pre_execution_seal_resolution = self.sealer.should_seal_block(
+                updates_manager.l2_block_number,
                 executed_txs.len(),
-                gas_used,
-                tx.gas_limit().as_u64(),
-            ) {
-                // Exclude and seal
-                self.sender
-                    .send(NextTxResponse::SealBatch)
-                    .await
-                    .context("NextTxResponse receiver was dropped")?;
-
-                io.rollback(tx).await?;
-
-                break;
+                updates_manager.gas_limit,
+                &SealData {
+                    gas: cumulative_gas_used,
+                    payload_encoding_size: cumulative_payload_encoding_size,
+                },
+                &SealData {
+                    gas: tx.gas_limit().as_u64(),
+                    payload_encoding_size: tx_payload_encoding_size,
+                },
+            );
+            match pre_execution_seal_resolution {
+                SealResolution::Unexecutable(reason) => {
+                    tracing::info!("Tx {tx_hash:#?} is unexecutable: {reason}");
+                    self.io
+                        .reject(&tx, UnexecutableReason::Halt(Halt::TracerCustom(reason)))
+                        .await?;
+                    continue;
+                }
+                SealResolution::Seal => {
+                    break batch_executor.finish_batch().await?;
+                }
+                SealResolution::ExcludeAndSeal => {
+                    unreachable!("Conditional sealer mustn't return ExcludeAndSeal")
+                }
+                SealResolution::IncludeAndSeal | SealResolution::NoSeal => {}
             }
 
-            tracing::info!("Transaction found: {:?}", tx);
-            let encoded = tx_abi_encode(tx.clone());
-
-            self.sender
-                .send(NextTxResponse::Tx(encoded))
-                .await
-                .context("NextTxResponse receiver was dropped")?;
-
-            let tx_result = self
-                .result_receiver
-                .recv()
-                .await
-                .context("Result sender was dropped")?;
-            match tx_result {
+            let tx_result = batch_executor.execute_tx(tx.clone()).await?;
+            let seal_resolution_from_executor = match tx_result {
                 Ok(tx_output) => {
-                    executed_txs.push(tx);
-                    gas_used += tx_output.gas_used;
+                    executed_txs.push(tx.clone());
+                    cumulative_gas_used += tx_output.gas_used;
+                    cumulative_payload_encoding_size += tx_payload_encoding_size;
+
+                    SealResolution::NoSeal
                 }
                 Err(reason) => {
-                    let tx_hash = tx.hash();
-                    // TODO: map InvalidTransaction to UnexecutableReason properly.
-                    let reason = UnexecutableReason::Halt(Halt::TracerCustom(format!(
-                        "Invalid transaction, hash: {tx_hash:#?}, reason: {reason:?}"
-                    )));
-                    io.reject(&tx, reason).await?;
+                    // TODO: distinguish between unexecutable and exclude and seal
+                    if true {
+                        // TODO: map InvalidTransaction to UnexecutableReason properly.
+                        SealResolution::Unexecutable(format!("{reason:?}"))
+                    } else {
+                        SealResolution::ExcludeAndSeal
+                    }
                 }
+            };
+
+            let post_execution_seal_resolution =
+                seal_resolution_from_executor.stricter(pre_execution_seal_resolution);
+            match post_execution_seal_resolution {
+                SealResolution::Unexecutable(reason) => {
+                    tracing::info!("Tx {tx_hash:#?} is unexecutable: {reason}");
+                    self.io
+                        .reject(&tx, UnexecutableReason::Halt(Halt::TracerCustom(reason)))
+                        .await?;
+                }
+                SealResolution::ExcludeAndSeal => {
+                    tracing::info!("Applying ExcludeAndSeal for tx {tx_hash:#?}");
+                    self.io.rollback(tx).await?;
+
+                    break batch_executor.finish_batch().await?;
+                }
+                SealResolution::Seal => {
+                    unreachable!("SealResolution::Seal must be processed before tx execution")
+                }
+                SealResolution::IncludeAndSeal => {
+                    break batch_executor.finish_batch().await?;
+                }
+                SealResolution::NoSeal => {}
             }
-        }
+        };
 
-        Ok(executed_txs)
-    }
-
-    fn block_has_capacity_for_tx(
-        &self,
-        tx_count: usize,
-        block_gas_used: u64,
-        tx_gas_limit: u64,
-    ) -> bool {
-        if tx_count >= self.max_tx_count {
-            tracing::info!("Block sealed by max_tx_count");
-            return false;
-        }
-
-        if block_gas_used + tx_gas_limit > self.block_gas_limit {
-            tracing::info!("Block sealed by gas");
-            return false;
-        }
-
-        true
+        Ok((executed_txs, batch_output))
     }
 }

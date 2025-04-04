@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, VecDeque},
+    collections::{HashMap, HashSet, VecDeque},
     ops::RangeInclusive,
 };
 
@@ -143,6 +143,74 @@ impl BatchDiffs {
             .range(relative_start_index..=relative_end_index)
             .cloned()
             .collect()
+    }
+
+    /// Returns number of the last l1 batch present in the struct.
+    pub fn last_l1_batch_number(&self) -> Option<L1BatchNumber> {
+        if let Some(first_diff_l1_batch_number) = self.first_diff_l1_batch_number {
+            Some(first_diff_l1_batch_number + u32::try_from(self.diffs.len() - 1).unwrap())
+        } else {
+            None
+        }
+    }
+
+    /// Returns number of initial writes in diffs for batches with number up to `l1_batch_number`.
+    pub fn number_of_initial_writes_up_to(&self, l1_batch_number: L1BatchNumber) -> u64 {
+        match self.first_diff_l1_batch_number {
+            None => 0,
+            Some(first_diff_l1_batch_number) if first_diff_l1_batch_number > l1_batch_number => 0,
+            Some(first_diff_l1_batch_number) => {
+                let sum: usize = self
+                    .diffs
+                    .iter()
+                    .enumerate()
+                    .take_while(|(i, diff)| {
+                        let diff_batch_number =
+                            first_diff_l1_batch_number + u32::try_from(*i).unwrap();
+                        diff_batch_number <= l1_batch_number
+                    })
+                    .map(|(_, diff)| diff.enum_index_diff.len())
+                    .sum();
+                u64::try_from(sum).unwrap()
+            }
+        }
+    }
+
+    /// Returns `hashed_keys` that are both present in the input and in diffs for batches with number up to `l1_batch_number`.
+    pub fn filter_written_slots_up_to(
+        &self,
+        l1_batch_number: L1BatchNumber,
+        keys: &[H256],
+    ) -> Vec<H256> {
+        let key_set: HashSet<H256> = keys.iter().copied().collect();
+
+        match self.first_diff_l1_batch_number {
+            None => Vec::new(),
+            Some(first_diff_l1_batch_number) if first_diff_l1_batch_number > l1_batch_number => {
+                Vec::new()
+            }
+            Some(first_diff_l1_batch_number) => self
+                .diffs
+                .iter()
+                .enumerate()
+                .take_while(|(i, diff)| {
+                    let diff_batch_number = first_diff_l1_batch_number + u32::try_from(*i).unwrap();
+                    diff_batch_number <= l1_batch_number
+                })
+                .map(|(_, diff)| {
+                    diff.enum_index_diff
+                        .keys()
+                        .filter(|key| key_set.contains(key))
+                        .copied()
+                })
+                .flatten()
+                .collect(),
+        }
+    }
+
+    /// Returns l1 batch number of the first diff.
+    pub fn first_diff_l1_batch_number(&self) -> Option<L1BatchNumber> {
+        self.first_diff_l1_batch_number
     }
 }
 

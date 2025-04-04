@@ -5,13 +5,13 @@ use zksync_config::configs::{
 };
 use zksync_state_keeper::{MempoolFetcher, MempoolGuard};
 use zksync_types::L2ChainId;
-use zksync_zkos_state_keeper::MempoolIO;
+use zksync_zkos_state_keeper::{MempoolIO, SequencerSealer};
 
 use crate::{
     implementations::resources::{
         fee_input::SequencerFeeInputResource,
         pools::{MasterPool, PoolResource},
-        state_keeper::ZkOsStateKeeperIOResource,
+        state_keeper::{ZkOsConditionalSealerResource, ZkOsStateKeeperIOResource},
     },
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
@@ -50,6 +50,7 @@ pub struct Input {
 #[context(crate = crate)]
 pub struct Output {
     pub state_keeper_io: ZkOsStateKeeperIOResource,
+    pub conditional_sealer: ZkOsConditionalSealerResource,
     #[context(task)]
     pub mempool_fetcher: MempoolFetcher,
 }
@@ -128,8 +129,12 @@ impl WiringLayer for MempoolIOLayer {
             self.zksync_network_id,
         )?;
 
+        // Create sealer.
+        let sealer = SequencerSealer::new(self.state_keeper_config);
+
         Ok(Output {
             state_keeper_io: io.into(),
+            conditional_sealer: sealer.into(),
             mempool_fetcher,
         })
     }

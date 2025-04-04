@@ -4,7 +4,8 @@ use zksync_state::OwnedStorage;
 use zksync_state_keeper::{seal_criteria::ConditionalSealer, OutputHandler, StateKeeperIO};
 use zksync_vm_executor::interface::BatchExecutorFactory;
 use zksync_zkos_state_keeper::{
-    OutputHandler as ZkOsOutputHandler, StateKeeperIO as ZkOsStateKeeperIO,
+    ConditionalSealer as ZkOsConditionalSealer, OutputHandler as ZkOsOutputHandler,
+    StateKeeperIO as ZkOsStateKeeperIO,
 };
 
 use crate::resource::{Resource, Unique};
@@ -110,6 +111,25 @@ impl Resource for ConditionalSealerResource {
 impl<T> From<T> for ConditionalSealerResource
 where
     T: ConditionalSealer + 'static,
+{
+    fn from(sealer: T) -> Self {
+        Self(Arc::new(sealer))
+    }
+}
+
+/// A resource that provides [`ZkOsConditionalSealer`] implementation to the service.
+#[derive(Debug, Clone)]
+pub struct ZkOsConditionalSealerResource(pub Arc<dyn ZkOsConditionalSealer>);
+
+impl Resource for ZkOsConditionalSealerResource {
+    fn name() -> String {
+        "state_keeper/zk_os_conditional_sealer".into()
+    }
+}
+
+impl<T> From<T> for ZkOsConditionalSealerResource
+where
+    T: ZkOsConditionalSealer + 'static,
 {
     fn from(sealer: T) -> Self {
         Self(Arc::new(sealer))

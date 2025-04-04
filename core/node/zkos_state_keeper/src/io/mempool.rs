@@ -12,11 +12,8 @@ use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_mempool::L2TxFilter;
 use zksync_node_fee_model::BatchFeeModelInputProvider;
 use zksync_state_keeper::{
-    io::{IoCursor, L1BatchParams},
-    l2_tx_filter,
-    metrics::KEEPER_METRICS,
-    seal_criteria::UnexecutableReason,
-    L2BlockParams, MempoolGuard,
+    l2_tx_filter, metrics::KEEPER_METRICS, seal_criteria::UnexecutableReason, L2BlockParams,
+    MempoolGuard,
 };
 use zksync_types::{
     block::UnsealedL1BatchHeader, utils::display_timestamp, Address, L2BlockNumber, L2ChainId,
@@ -25,8 +22,13 @@ use zksync_types::{
 use zksync_vm_interface::Halt;
 
 use crate::{
-    io::{seal_logic::l2_block_seal_subtasks::L2BlockSealProcess, BlockParams, StateKeeperIO},
+    io::{
+        seal_logic::l2_block_seal_subtasks::L2BlockSealProcess, BlockParams, IoCursor,
+        StateKeeperIO,
+    },
     millis_since_epoch,
+    seal_criteria::{IoSealCriterion, TimeoutSealer},
+    UpdatesManager,
 };
 
 /// Mempool-based sequencer for the state keeper.
@@ -37,6 +39,7 @@ use crate::{
 pub struct MempoolIO {
     mempool: MempoolGuard,
     pool: ConnectionPool<Core>,
+    timeout_sealer: TimeoutSealer,
     filter: L2TxFilter,
     fee_account: Address,
     validation_computational_gas_limit: u32,
@@ -85,7 +88,8 @@ impl StateKeeperIO for MempoolIO {
 
             return Ok((
                 Some(BlockParams {
-                    timestamp: unsealed_storage_batch.timestamp,
+                    // TODO: should timestamp_ms be persisted or is it ok to use `t * 1000`?
+                    timestamp_ms: u128::from(unsealed_storage_batch.timestamp) * 1000,
                     fee_input: unsealed_storage_batch.fee_input,
                     protocol_version,
                     base_fee,
@@ -94,21 +98,10 @@ impl StateKeeperIO for MempoolIO {
             ));
         }
 
-        let deadline = Instant::now() + max_wait;
-
         // Block until at least one transaction in the mempool can match the filter (or timeout happens).
         // This is needed to ensure that block timestamp is not too old.
         for _ in 0..poll_iters(self.delay_interval, max_wait) {
-            // We cannot create two L1 batches or L2 blocks with the same timestamp (forbidden by the bootloader).
-            // Hence, we wait until the current timestamp is larger than the timestamp of the previous L2 block.
-            // We can use `timeout_at` since `sleep_past` is cancel-safe; it only uses `sleep()` async calls.
-            let timestamp = tokio::time::timeout_at(
-                deadline.into(),
-                sleep_past(cursor.prev_l2_block_timestamp, cursor.next_l2_block),
-            );
-            let Some(timestamp) = timestamp.await.ok() else {
-                return Ok((None, None));
-            };
+            let timestamp_ms = millis_since_epoch();
 
             // TODO: zk os protocol versions/upgrades
             let protocol_version = ProtocolVersionId::latest();
@@ -136,13 +129,13 @@ impl StateKeeperIO for MempoolIO {
 
             let header = UnsealedL1BatchHeader {
                 number: cursor.l1_batch,
-                timestamp,
+                timestamp: u64::try_from(timestamp_ms / 1000).unwrap(),
                 protocol_version: Some(protocol_version),
                 fee_address: self.fee_account,
                 fee_input: self.filter.fee_input,
             };
             let block_params = BlockParams {
-                timestamp,
+                timestamp_ms,
                 fee_input: self.filter.fee_input,
                 protocol_version: ProtocolVersionId::latest(),
                 base_fee: self.filter.fee_per_gas,
@@ -243,50 +236,13 @@ impl StateKeeperIO for MempoolIO {
     }
 }
 
-/// Sleeps until the current timestamp is larger than the provided `timestamp`.
-///
-/// Returns the current timestamp after the sleep. It is guaranteed to be larger than `timestamp`.
-async fn sleep_past(timestamp: u64, l2_block: L2BlockNumber) -> u64 {
-    let mut current_timestamp_millis = millis_since_epoch();
-    let mut current_timestamp = (current_timestamp_millis / 1_000) as u64;
-    match timestamp.cmp(&current_timestamp) {
-        cmp::Ordering::Less => return current_timestamp,
-        cmp::Ordering::Equal => {
-            tracing::info!(
-                "Current timestamp {} for L2 block #{l2_block} is equal to previous L2 block timestamp; waiting until \
-                 timestamp increases",
-                display_timestamp(current_timestamp)
-            );
+impl IoSealCriterion for MempoolIO {
+    fn should_seal_block(&mut self, manager: &UpdatesManager) -> bool {
+        if self.timeout_sealer.should_seal_block(manager) {
+            return true;
         }
-        cmp::Ordering::Greater => {
-            // This situation can be triggered if the system keeper is started on a pod with a different
-            // system time, or if it is buggy. Thus, a one-time error could require no actions if L1 batches
-            // are expected to be generated frequently.
-            tracing::error!(
-                "Previous L2 block timestamp {} is larger than the current timestamp {} for L2 block #{l2_block}",
-                display_timestamp(timestamp),
-                display_timestamp(current_timestamp)
-            );
-        }
-    }
 
-    // This loop should normally run once, since `tokio::time::sleep` sleeps *at least* the specified duration.
-    // The logic is organized in a loop for marginal cases, such as the system time getting changed during `sleep()`.
-    loop {
-        // Time to catch up to `timestamp`; panic / underflow on subtraction is never triggered
-        // since we've ensured that `timestamp >= current_timestamp`.
-        let wait_seconds = timestamp - current_timestamp;
-        // Time to wait until the current timestamp increases.
-        let wait_millis = 1_001 - (current_timestamp_millis % 1_000) as u64;
-        let wait = Duration::from_millis(wait_millis + wait_seconds * 1_000);
-
-        tokio::time::sleep(wait).await;
-        current_timestamp_millis = millis_since_epoch();
-        current_timestamp = (current_timestamp_millis / 1_000) as u64;
-
-        if current_timestamp > timestamp {
-            return current_timestamp;
-        }
+        false
     }
 }
 
@@ -304,6 +260,7 @@ impl MempoolIO {
         Ok(Self {
             mempool,
             pool,
+            timeout_sealer: TimeoutSealer::new(&config),
             filter: L2TxFilter::default(),
             // ^ Will be initialized properly on the first newly opened batch
             fee_account,

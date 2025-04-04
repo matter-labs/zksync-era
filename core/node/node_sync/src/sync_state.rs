@@ -140,7 +140,10 @@ impl StateKeeperOutputHandler for SyncState {
 
 #[async_trait]
 impl ZkOsStateKeeperOutputHandler for SyncState {
-    async fn initialize(&mut self, cursor: &IoCursor) -> anyhow::Result<()> {
+    async fn initialize(
+        &mut self,
+        cursor: &zksync_zkos_state_keeper::io::IoCursor,
+    ) -> anyhow::Result<()> {
         let sealed_block_number = cursor.next_l2_block.saturating_sub(1);
         self.set_local_block(L2BlockNumber(sealed_block_number));
         Ok(())

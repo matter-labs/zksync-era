@@ -5,11 +5,14 @@ use std::time::{SystemTime, UNIX_EPOCH};
 pub use self::{
     io::{mempool::MempoolIO, OutputHandler, StateKeeperIO, StateKeeperPersistence},
     keeper::ZkosStateKeeper,
+    seal_criteria::{ConditionalSealer, SequencerSealer},
     updates::{FinishedBlock, UpdatesManager},
 };
 
+mod batch_executor;
 pub mod io;
 mod keeper;
+mod seal_criteria;
 pub mod state_keeper_storage;
 mod updates;
 

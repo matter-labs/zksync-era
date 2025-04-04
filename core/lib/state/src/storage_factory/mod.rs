@@ -340,6 +340,8 @@ impl<'a> From<SnapshotStorage<'a>> for CommonStorage<'a> {
 
 /// Storage with a static lifetime that can be sent to Tokio tasks etc.
 pub type OwnedStorage = CommonStorage<'static>;
+
+#[derive(Debug, Clone)]
 pub struct ArcOwnedStorage(pub Arc<OwnedStorage>);
 
 /// Factory that can produce storage instances on demand. The storage type is encapsulated as a type param

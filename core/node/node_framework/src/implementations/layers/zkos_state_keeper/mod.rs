@@ -3,18 +3,20 @@ use std::sync::Arc;
 use anyhow::Context;
 use zksync_node_framework_derive::{FromContext, IntoContext};
 use zksync_state::{AsyncCatchupTask, KeepUpdatedTask, ReadStorageFactory, RocksdbStorageOptions};
-use zksync_state_keeper::seal_criteria::ConditionalSealer;
 use zksync_storage::RocksDB;
 use zksync_vm_executor::interface::BatchExecutorFactory;
 use zksync_zkos_state_keeper::{
-    state_keeper_storage::ZkOsAsyncRocksdbCache, OutputHandler, StateKeeperIO, ZkosStateKeeper,
+    state_keeper_storage::ZkOsAsyncRocksdbCache, ConditionalSealer, OutputHandler, SequencerSealer,
+    StateKeeperIO, ZkosStateKeeper,
 };
 
 use crate::{
     implementations::resources::{
         fee_input::SequencerFeeInputResource,
         pools::{MasterPool, PoolResource},
-        state_keeper::{ZkOsOutputHandlerResource, ZkOsStateKeeperIOResource},
+        state_keeper::{
+            ZkOsConditionalSealerResource, ZkOsOutputHandlerResource, ZkOsStateKeeperIOResource,
+        },
     },
     service::ShutdownHook,
     task::TaskKind,
@@ -37,6 +39,7 @@ pub struct Input {
     pub state_keeper_io: ZkOsStateKeeperIOResource,
     pub output_handler: ZkOsOutputHandlerResource,
     pub fee_input: SequencerFeeInputResource,
+    pub conditional_sealer: ZkOsConditionalSealerResource,
     pub master_pool: PoolResource<MasterPool>,
 }
 
@@ -67,6 +70,7 @@ pub struct ZkOsStateKeeperTask {
     io: Box<dyn StateKeeperIO>,
     output_handler: OutputHandler,
     storage_factory: Arc<ZkOsAsyncRocksdbCache>,
+    sealer: Arc<dyn ConditionalSealer>,
 }
 
 #[async_trait::async_trait]
@@ -104,6 +108,7 @@ impl WiringLayer for ZkOsStateKeeperLayer {
             io,
             output_handler,
             storage_factory: Arc::new(storage_factory),
+            sealer: input.conditional_sealer.0,
         };
 
         let rocksdb_termination_hook = ShutdownHook::new("rocksdb_terminaton", async {
@@ -135,6 +140,7 @@ impl Task for ZkOsStateKeeperTask {
             self.io,
             self.output_handler,
             self.storage_factory,
+            self.sealer,
         );
         state_keeper.run().await
     }

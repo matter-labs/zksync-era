@@ -4,27 +4,24 @@ use itertools::{Either, Itertools};
 use zk_ee::common_structs::PreimageType;
 use zk_os_basic_system::system_implementation::io::AccountProperties as BoojumAccountProperties;
 use zk_os_forward_system::run::{BatchOutput, ExecutionResult, TxOutput};
-use zksync_dal::{Connection, Core, CoreDal};
-use zksync_state_keeper::io::IoCursor;
 use zksync_types::{
-    boojum_os::AccountProperties,
-    fee_model::BatchFeeInput,
-    l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
+    boojum_os::AccountProperties, fee_model::BatchFeeInput, l2_to_l1_log::UserL2ToL1Log,
     AccountTreeId, Address, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey,
-    StorageLog, StorageLogKind, StorageLogWithPreviousValue, Transaction, H256, U256,
+    StorageLog, StorageLogKind, Transaction, H256, U256,
 };
-use zksync_vm_interface::{
-    TransactionExecutionResult, TxExecutionStatus, VmEvent, VmExecutionMetrics, VmRevertReason,
-};
+use zksync_vm_interface::{TransactionExecutionResult, TxExecutionStatus, VmEvent, VmRevertReason};
 use zksync_zkos_vm_runner::zkos_conversions::{
     b160_to_address, bytes32_to_h256, zkos_log_to_vm_event,
 };
+
+use crate::io::IoCursor;
 
 #[derive(Debug, Clone)]
 pub struct UpdatesManager {
     pub l1_batch_number: L1BatchNumber,
     pub l2_block_number: L2BlockNumber,
     pub timestamp: u64,
+    pub timestamp_ms: u128,
     pub fee_account_address: Address,
     pub batch_fee_input: BatchFeeInput,
     pub base_fee_per_gas: u64,
@@ -44,7 +41,7 @@ impl UpdatesManager {
     pub fn new(
         l1_batch_number: L1BatchNumber,
         l2_block_number: L2BlockNumber,
-        timestamp: u64,
+        timestamp_ms: u128,
         fee_account_address: Address,
         batch_fee_input: BatchFeeInput,
         base_fee_per_gas: u64,
@@ -54,7 +51,8 @@ impl UpdatesManager {
         Self {
             l1_batch_number,
             l2_block_number,
-            timestamp,
+            timestamp: u64::try_from(timestamp_ms / 1000).unwrap(),
+            timestamp_ms,
             fee_account_address,
             batch_fee_input,
             base_fee_per_gas,
@@ -73,8 +71,6 @@ impl UpdatesManager {
     pub(crate) fn io_cursor(&self) -> IoCursor {
         IoCursor {
             next_l2_block: self.l2_block_number + 1,
-            prev_l2_block_hash: H256::zero(),
-            prev_l2_block_timestamp: self.timestamp,
             l1_batch: self.l1_batch_number,
         }
     }
