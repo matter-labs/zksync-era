@@ -377,11 +377,8 @@ async fn read_stored_l2_block(
 
     let msg_roots = connection
         .message_root_dal()
-        .get_assgigned_roots_or_assign_if_needed(L2BlockNumber(
-            l2_block_number_from_state as u32 + 1,
-        ))
-        .await?
-        .unwrap_or(vec![]);
+        .get_message_roots(l2_block_number)
+        .await?;
 
     Ok(StoredL2BlockEnv {
         number: l2_block_number_from_state as u32,

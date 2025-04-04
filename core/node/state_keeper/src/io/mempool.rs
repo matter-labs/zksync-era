@@ -286,12 +286,13 @@ impl StateKeeperIO for MempoolIO {
         let Ok(timestamp) = timeout_result else {
             return Ok(None);
         };
+        let msg_roots = self.load_latest_message_root().await?;
 
         Ok(Some(L2BlockParams {
             timestamp,
             // This value is effectively ignored by the protocol.
             virtual_blocks: 1,
-            msg_roots: vec![],
+            msg_roots,
         }))
     }
 
@@ -435,29 +436,9 @@ impl StateKeeperIO for MempoolIO {
             .map_err(Into::into)
     }
 
-    async fn load_latest_message_root(
-        &self,
-        processed_block_number: L2BlockNumber,
-    ) -> anyhow::Result<Option<Vec<MessageRoot>>> {
+    async fn load_latest_message_root(&self) -> anyhow::Result<Vec<MessageRoot>> {
         let mut storage = self.pool.connection_tagged("state_keeper").await?;
-        storage
-            .message_root_dal()
-            .get_assgigned_roots_or_assign_if_needed(processed_block_number)
-            .await
-            .map_err(Into::into)
-    }
-
-    async fn mark_msg_root_as_processed(
-        &self,
-        msg_root: MessageRoot,
-        processed_block_number: L2BlockNumber,
-    ) -> anyhow::Result<()> {
-        let mut storage = self.pool.connection_tagged("state_keeper").await?;
-        storage
-            .message_root_dal()
-            .mark_msg_root_as_processed(msg_root, processed_block_number)
-            .await
-            .map_err(Into::into)
+        Ok(storage.message_root_dal().get_new_message_roots().await?)
     }
 
     async fn load_batch_state_hash(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<H256> {
