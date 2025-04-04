@@ -8,7 +8,7 @@ use super::*;
 use crate::{
     hasher::TreeOperation,
     storage::{PatchSet, Patched},
-    types::{Leaf, TreeTags},
+    types::{Leaf, Node, NodeKey, TreeTags},
 };
 
 mod prop;
@@ -55,6 +55,46 @@ fn tree_internal_node_depth_mismatch() {
         err.contains("Unexpected internal node depth: expected 3, got 2"),
         "{err}"
     );
+}
+
+#[test]
+fn key_ordering() {
+    let mut tree = MerkleTree::new(PatchSet::default()).unwrap();
+    let entries = [
+        TreeEntry {
+            key: H256::from_low_u64_be(0xc0ffeefe),
+            value: H256::repeat_byte(0x10),
+        },
+        TreeEntry {
+            key: H256::from_low_u64_be(0xdeadbeef),
+            value: H256::repeat_byte(0x20),
+        },
+    ];
+    let output = tree.extend(&entries).unwrap();
+
+    let expected_root_hash: H256 =
+        "0xc90465eddad7cc858a2fbf61013d7051c143887a887e5a7a19344ac32151b207"
+            .parse()
+            .unwrap();
+    assert_eq!(output.root_hash, expected_root_hash);
+
+    let first_key = NodeKey {
+        version: 0,
+        nibble_count: leaf_nibbles::<DefaultTreeParams>(),
+        index_on_level: 2,
+    };
+    let second_key = NodeKey {
+        index_on_level: 3,
+        ..first_key
+    };
+    let leaves = tree.db.try_nodes(&[first_key, second_key]).unwrap();
+    let [Node::Leaf(first_leaf), Node::Leaf(second_leaf)] = leaves.as_slice() else {
+        panic!("unexpected node: {leaves:?}");
+    };
+    assert_eq!(first_leaf.key, entries[0].key);
+    assert_eq!(second_leaf.key, entries[1].key);
+    assert_eq!(first_leaf.next_index, 3);
+    assert_eq!(second_leaf.next_index, 1);
 }
 
 fn naive_hash_tree(entries: &[TreeEntry]) -> H256 {
