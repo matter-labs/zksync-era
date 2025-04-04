@@ -39,8 +39,7 @@ import {
     L2_MESSAGE_ROOT_STORAGE_ADDRESS,
     ArtifactNativeTokenVault,
     ArtifactMintableERC20,
-    ArtifactL1AssetRouter,
-    ArtifactSwap
+    ArtifactL1AssetRouter
 } from '../src/constants';
 import { RetryProvider } from '../src/retry-provider';
 
