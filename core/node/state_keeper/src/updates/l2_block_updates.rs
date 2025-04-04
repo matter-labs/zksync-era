@@ -43,6 +43,7 @@ impl L2BlockUpdates {
         prev_block_hash: H256,
         virtual_blocks: u32,
         protocol_version: ProtocolVersionId,
+        msg_roots: Vec<MessageRoot>,
     ) -> Self {
         Self {
             executed_transactions: vec![],
@@ -60,7 +61,7 @@ impl L2BlockUpdates {
             prev_block_hash,
             virtual_blocks,
             protocol_version,
-            msg_roots: vec![],
+            msg_roots,
         }
     }
 
