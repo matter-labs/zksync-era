@@ -582,8 +582,8 @@ pub fn get_max_batch_base_layer_circuits(version: VmVersion) -> usize {
         VmVersion::Vm1_5_0SmallBootloaderMemory
         | VmVersion::Vm1_5_0IncreasedBootloaderMemory
         | VmVersion::VmGateway
-        | VmVersion::VmEvmEmulator
-        | VmVersion::VmEcPrecompiles => crate::vm_latest::constants::MAX_BASE_LAYER_CIRCUITS,
+        | VmVersion::VmEvmEmulator => crate::vm_latest::constants::MAX_BASE_LAYER_CIRCUITS_1_5_0,
+        VmVersion::VmEcPrecompiles => crate::vm_latest::constants::MAX_BASE_LAYER_CIRCUITS,
     }
 }
 
