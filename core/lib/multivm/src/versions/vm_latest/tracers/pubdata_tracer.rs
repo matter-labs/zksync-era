@@ -18,7 +18,7 @@ use crate::{
         tracer::{TracerExecutionStatus, TracerExecutionStopReason},
         L1BatchEnv, VmEvent, VmExecutionMode,
     },
-    tracers::dynamic::vm_1_5_0::DynTracer,
+    tracers::dynamic::vm_1_5_2::DynTracer,
     utils::{
         bytecode::be_words_to_bytes,
         events::{

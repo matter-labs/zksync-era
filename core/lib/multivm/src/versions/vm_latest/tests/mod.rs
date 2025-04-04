@@ -217,7 +217,7 @@ impl TestedVmForValidation for TestedLatestVm {
 
         let tracer = ValidationTracer::<HistoryEnabled>::new(
             validation_params,
-            VmVersion::Vm1_5_0IncreasedBootloaderMemory,
+            VmVersion::VmEcPrecompiles,
             timestamp,
         );
         let mut failures = tracer.get_result();
@@ -303,7 +303,7 @@ pub(crate) struct VmInstanceInnerState<H: HistoryMode> {
 
 impl<S: ReadStorage, H: crate::glue::history_mode::HistoryMode> Vm<StorageView<S>, H> {
     // Dump inner state of the VM.
-    pub(crate) fn dump_inner_state(&self) -> VmInstanceInnerState<H::Vm1_5_0> {
+    pub(crate) fn dump_inner_state(&self) -> VmInstanceInnerState<H::Vm1_5_2> {
         let event_sink = self.state.event_sink.clone();
         let precompile_processor_state = PrecompileProcessorTestInnerState {
             timestamp_history: self.state.precompiles_processor.timestamp_history.clone(),

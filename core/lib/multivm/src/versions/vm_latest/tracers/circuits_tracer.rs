@@ -12,7 +12,7 @@ use crate::{
         storage::{StoragePtr, WriteStorage},
         tracer::TracerExecutionStatus,
     },
-    tracers::dynamic::vm_1_5_0::DynTracer,
+    tracers::dynamic::vm_1_5_2::DynTracer,
     utils::CircuitCycleStatistic,
     vm_latest::{
         bootloader::BootloaderState,

@@ -77,7 +77,7 @@ impl TryFrom<VmVersion> for MultiVmSubversion {
 pub struct Vm<S: WriteStorage, H: HistoryMode> {
     pub(crate) bootloader_state: BootloaderState,
     // Current state and oracles of virtual machine
-    pub(crate) state: ZkSyncVmState<S, H::Vm1_5_0>,
+    pub(crate) state: ZkSyncVmState<S, H::Vm1_5_2>,
     pub(crate) storage: StoragePtr<S>,
     pub(crate) system_env: SystemEnv,
     pub(crate) batch_env: L1BatchEnv,
@@ -151,7 +151,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
 }
 
 impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
-    type TracerDispatcher = TracerDispatcher<S, H::Vm1_5_0>;
+    type TracerDispatcher = TracerDispatcher<S, H::Vm1_5_2>;
 
     fn push_transaction(&mut self, tx: Transaction) -> PushTransactionResult<'_> {
         self.push_transaction_with_compression(tx, true);

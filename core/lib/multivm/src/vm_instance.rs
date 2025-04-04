@@ -34,7 +34,8 @@ pub enum LegacyVmInstance<S: ReadStorage, H: HistoryMode> {
     VmBoojumIntegration(crate::vm_boojum_integration::Vm<StorageView<S>, H>),
     Vm1_4_1(crate::vm_1_4_1::Vm<StorageView<S>, H>),
     Vm1_4_2(crate::vm_1_4_2::Vm<StorageView<S>, H>),
-    Vm1_5_0(vm_latest::Vm<StorageView<S>, H>),
+    Vm1_5_0(crate::vm_1_5_0::Vm<StorageView<S>, H>),
+    Vm1_5_2(vm_latest::Vm<StorageView<S>, H>),
 }
 
 macro_rules! dispatch_legacy_vm {
@@ -49,6 +50,7 @@ macro_rules! dispatch_legacy_vm {
             Self::Vm1_4_1(vm) => vm.$function($($params)*),
             Self::Vm1_4_2(vm) => vm.$function($($params)*),
             Self::Vm1_5_0(vm) => vm.$function($($params)*),
+            Self::Vm1_5_2(vm) => vm.$function($($params)*),
         }
     };
 }
@@ -190,38 +192,38 @@ impl<S: ReadStorage, H: HistoryMode> LegacyVmInstance<S, H> {
                 Self::Vm1_4_2(vm)
             }
             VmVersion::Vm1_5_0SmallBootloaderMemory => {
-                let vm = vm_latest::Vm::new_with_subversion(
+                let vm = crate::vm_1_5_0::Vm::new_with_subversion(
                     l1_batch_env,
                     system_env,
                     storage_view,
-                    vm_latest::MultiVmSubversion::SmallBootloaderMemory,
+                    crate::vm_1_5_0::MultiVmSubversion::SmallBootloaderMemory,
                 );
                 Self::Vm1_5_0(vm)
             }
             VmVersion::Vm1_5_0IncreasedBootloaderMemory => {
-                let vm = vm_latest::Vm::new_with_subversion(
+                let vm = crate::vm_1_5_0::Vm::new_with_subversion(
                     l1_batch_env,
                     system_env,
                     storage_view,
-                    vm_latest::MultiVmSubversion::IncreasedBootloaderMemory,
+                    crate::vm_1_5_0::MultiVmSubversion::IncreasedBootloaderMemory,
                 );
                 Self::Vm1_5_0(vm)
             }
             VmVersion::VmGateway => {
-                let vm = vm_latest::Vm::new_with_subversion(
+                let vm = crate::vm_1_5_0::Vm::new_with_subversion(
                     l1_batch_env,
                     system_env,
                     storage_view,
-                    vm_latest::MultiVmSubversion::Gateway,
+                    crate::vm_1_5_0::MultiVmSubversion::Gateway,
                 );
                 Self::Vm1_5_0(vm)
             }
             VmVersion::VmEvmEmulator => {
-                let vm = vm_latest::Vm::new_with_subversion(
+                let vm = crate::vm_1_5_0::Vm::new_with_subversion(
                     l1_batch_env,
                     system_env,
                     storage_view,
-                    vm_latest::MultiVmSubversion::EvmEmulator,
+                    crate::vm_1_5_0::MultiVmSubversion::EvmEmulator,
                 );
                 Self::Vm1_5_0(vm)
             }
@@ -232,7 +234,7 @@ impl<S: ReadStorage, H: HistoryMode> LegacyVmInstance<S, H> {
                     storage_view,
                     vm_latest::MultiVmSubversion::EcPrecompiles,
                 );
-                Self::Vm1_5_0(vm)
+                Self::Vm1_5_2(vm)
             }
         }
     }

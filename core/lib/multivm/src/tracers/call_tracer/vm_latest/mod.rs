@@ -15,7 +15,7 @@ use crate::{
         tracer::VmExecutionStopReason,
         Call, CallType, VmRevertReason,
     },
-    tracers::{dynamic::vm_1_5_0::DynTracer, CallTracer},
+    tracers::{dynamic::vm_1_5_2::DynTracer, CallTracer},
     vm_latest::{BootloaderState, HistoryMode, SimpleMemory, VmTracer, ZkSyncVmState},
 };
 
