@@ -343,7 +343,7 @@ impl DataAvailabilityDal<'_, '_> {
             StorageDADetails,
             r#"
             SELECT
-                blob_id as "blob_id!",
+                blob_id AS "blob_id!",
                 client_type,
                 inclusion_data,
                 sent_at,
