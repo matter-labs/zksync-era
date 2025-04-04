@@ -200,8 +200,8 @@ impl ZkosStateKeeper {
                 block_params.protocol_version,
                 gas_limit,
             );
-            let (executed_transactions, batch_output) =
-                self.run_batch(batch_executor, &updates_manager).await?;
+            let batch_output =
+                self.run_batch(batch_executor, &mut updates_manager).await?;
 
             tracing::info!("Batch #{} executed successfully", cursor.l1_batch);
 
@@ -224,7 +224,7 @@ impl ZkosStateKeeper {
                 self.preimage_source.inner.insert(*hash, preimage.clone());
             }
 
-            updates_manager.extend(executed_transactions, batch_output.clone());
+            updates_manager.final_extend(batch_output.clone());
             let initial_writes = self.initial_writes(&updates_manager).await?;
 
             self.push_block_storage_diff(
@@ -368,18 +368,14 @@ impl ZkosStateKeeper {
     async fn run_batch(
         &mut self,
         mut batch_executor: MainBatchExecutor,
-        updates_manager: &UpdatesManager,
-    ) -> Result<(Vec<Transaction>, BatchOutput), Error> {
-        let mut executed_txs = Vec::new();
-        let mut cumulative_gas_used = 0;
-        let mut cumulative_payload_encoding_size = 0;
-
+        updates_manager: &mut UpdatesManager,
+    ) -> Result<BatchOutput, Error> {
         let batch_output = loop {
-            if self.is_canceled() && executed_txs.is_empty() {
+            if self.is_canceled() && updates_manager.executed_transactions.is_empty() {
                 return Err(Error::Canceled);
             }
 
-            if !executed_txs.is_empty() && self.io.should_seal_block(updates_manager) {
+            if self.io.should_seal_block(updates_manager) {
                 break batch_executor.finish_batch().await?;
             }
 
@@ -400,11 +396,11 @@ impl ZkosStateKeeper {
                     .len();
             let pre_execution_seal_resolution = self.sealer.should_seal_block(
                 updates_manager.l2_block_number,
-                executed_txs.len(),
+                updates_manager.executed_transactions.len(),
                 updates_manager.gas_limit,
                 &SealData {
-                    gas: cumulative_gas_used,
-                    payload_encoding_size: cumulative_payload_encoding_size,
+                    gas: updates_manager.cumulative_gas_used,
+                    payload_encoding_size: updates_manager.cumulative_payload_encoding_size,
                 },
                 &SealData {
                     gas: tx.gas_limit().as_u64(),
@@ -431,10 +427,7 @@ impl ZkosStateKeeper {
             let tx_result = batch_executor.execute_tx(tx.clone()).await?;
             let seal_resolution_from_executor = match tx_result {
                 Ok(tx_output) => {
-                    executed_txs.push(tx.clone());
-                    cumulative_gas_used += tx_output.gas_used;
-                    cumulative_payload_encoding_size += tx_payload_encoding_size;
-
+                    updates_manager.extend_from_executed_transaction(tx.clone(), tx_output);
                     SealResolution::NoSeal
                 }
                 Err(reason) => {
@@ -473,6 +466,6 @@ impl ZkosStateKeeper {
             }
         };
 
-        Ok((executed_txs, batch_output))
+        Ok(batch_output)
     }
 }

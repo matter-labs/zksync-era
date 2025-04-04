@@ -3,7 +3,8 @@ use std::collections::HashMap;
 use itertools::{Either, Itertools};
 use zk_ee::common_structs::PreimageType;
 use zk_os_basic_system::system_implementation::io::AccountProperties as BoojumAccountProperties;
-use zk_os_forward_system::run::{BatchOutput, ExecutionResult, TxOutput};
+use zk_os_forward_system::run::BatchOutput;
+use zk_os_forward_system::run::result_keeper::TxProcessingOutputOwned;
 use zksync_types::{
     boojum_os::AccountProperties, fee_model::BatchFeeInput, l2_to_l1_log::UserL2ToL1Log,
     AccountTreeId, Address, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey,
@@ -28,13 +29,15 @@ pub struct UpdatesManager {
     pub protocol_version: ProtocolVersionId,
     pub gas_limit: u64,
 
-    pub executed_transactions: Vec<TransactionExecutionResult>,
     pub events: Vec<VmEvent>,
     pub storage_logs: Vec<StorageLog>,
     pub user_l2_to_l1_logs: Vec<UserL2ToL1Log>, // TODO: not filled currently
     pub new_factory_deps: HashMap<H256, Vec<u8>>,
     pub new_account_data: Vec<(H256, AccountProperties)>,
-    pub payload_encoding_size: usize,
+
+    pub executed_transactions: Vec<TransactionExecutionResult>,
+    pub cumulative_payload_encoding_size: usize,
+    pub cumulative_gas_used: u64,
 }
 
 impl UpdatesManager {
@@ -58,13 +61,14 @@ impl UpdatesManager {
             base_fee_per_gas,
             protocol_version,
             gas_limit,
-            executed_transactions: Vec::new(),
             events: Vec::new(),
             storage_logs: Vec::new(),
             user_l2_to_l1_logs: Vec::new(),
             new_factory_deps: HashMap::new(),
             new_account_data: Vec::new(),
-            payload_encoding_size: 0,
+            executed_transactions: Vec::new(),
+            cumulative_payload_encoding_size: 0,
+            cumulative_gas_used: 0,
         }
     }
 
@@ -75,74 +79,21 @@ impl UpdatesManager {
         }
     }
 
-    pub fn extend(&mut self, executed_transactions: Vec<Transaction>, batch_output: BatchOutput) {
-        let mut next_index_in_batch_output = 0;
-        for tx in executed_transactions {
-            let tx_output = loop {
-                let tx_output = if let Some(tx_result) = batch_output
-                    .tx_results
-                    .get(next_index_in_batch_output)
-                    .cloned()
-                {
-                    tx_result.ok()
-                } else {
-                    panic!("No tx result for #{next_index_in_batch_output}");
-                };
+    pub fn final_extend(&mut self, mut batch_output: BatchOutput) {
+        let tx_output_iter = batch_output.tx_results.into_iter().filter_map(|r| r.ok());
 
-                next_index_in_batch_output += 1;
-                if let Some(tx_output) = tx_output {
-                    break tx_output;
-                }
-            };
-
-            self.extend_from_executed_transaction(tx, tx_output);
+        for (idx, tx_output) in tx_output_iter.enumerate() {
+            let location = (
+                self.l1_batch_number,
+                idx as u32,
+            );
+            let events = tx_output
+                .logs
+                .into_iter()
+                .map(|log| zkos_log_to_vm_event(log, location));
+            self.events.extend(events);
         }
-        self.extend_from_batch_output(batch_output);
-    }
 
-    fn extend_from_executed_transaction(
-        &mut self,
-        transaction: Transaction,
-        zkos_output: TxOutput,
-    ) {
-        self.payload_encoding_size += zksync_protobuf::repr::encode::<
-            zksync_dal::consensus::proto::Transaction,
-        >(&transaction)
-        .len();
-
-        let location = (
-            self.l1_batch_number,
-            self.executed_transactions.len() as u32,
-        );
-        let events = zkos_output
-            .logs
-            .into_iter()
-            .map(|log| zkos_log_to_vm_event(log, location));
-        self.events.extend(events);
-
-        let (execution_status, revert_reason) = match &zkos_output.execution_result {
-            ExecutionResult::Success(_) => (TxExecutionStatus::Success, None),
-            ExecutionResult::Revert(data) => {
-                let revert_reason = VmRevertReason::from(data.as_slice()).to_string();
-                (TxExecutionStatus::Failure, Some(revert_reason))
-            }
-        };
-        let gas_limit = transaction.gas_limit().as_u64();
-        let refunded_gas = gas_limit - zkos_output.gas_used;
-
-        let executed_transaction = TransactionExecutionResult {
-            hash: transaction.hash(),
-            transaction,
-            execution_info: Default::default(),
-            execution_status,
-            refunded_gas,
-            call_traces: Vec::new(),
-            revert_reason,
-        };
-        self.executed_transactions.push(executed_transaction);
-    }
-
-    fn extend_from_batch_output(&mut self, batch_output: BatchOutput) {
         let (factory_deps, account_data): (Vec<_>, Vec<_>) = batch_output
             .published_preimages
             .into_iter()
@@ -156,7 +107,7 @@ impl UpdatesManager {
                                 .try_into()
                                 .expect("Preimage should be exactly 124 bytes"),
                         )
-                        .expect("Failed to decode account properties"),
+                            .expect("Failed to decode account properties"),
                     ),
                 )),
             });
@@ -176,6 +127,39 @@ impl UpdatesManager {
             })
             .collect();
         self.storage_logs = storage_logs;
+    }
+
+    pub fn extend_from_executed_transaction(
+        &mut self,
+        transaction: Transaction,
+        tx_output: TxProcessingOutputOwned,
+    ) {
+        self.cumulative_payload_encoding_size += zksync_protobuf::repr::encode::<
+            zksync_dal::consensus::proto::Transaction,
+        >(&transaction)
+        .len();
+
+        self.cumulative_gas_used += tx_output.gas_used;
+
+        let (execution_status, revert_reason) = if tx_output.status {
+            (TxExecutionStatus::Success, None)
+        } else {
+            let revert_reason = VmRevertReason::from(tx_output.output.as_slice()).to_string();
+            (TxExecutionStatus::Failure, Some(revert_reason))
+        };
+        let gas_limit = transaction.gas_limit().as_u64();
+        let refunded_gas = gas_limit - tx_output.gas_used;
+
+        let executed_transaction = TransactionExecutionResult {
+            hash: transaction.hash(),
+            transaction,
+            execution_info: Default::default(),
+            execution_status,
+            refunded_gas,
+            call_traces: Vec::new(),
+            revert_reason,
+        };
+        self.executed_transactions.push(executed_transaction);
     }
 }
 
