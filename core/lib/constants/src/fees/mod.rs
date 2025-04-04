@@ -46,3 +46,5 @@ pub const GUARANTEED_PUBDATA_IN_TX: u32 = 100000;
 /// of the commitment. The other "36" bytes are mostly an approximation of the amount of gas it takes
 /// to properly hash it and compare with the corresponding L2->L1 message.
 pub const PUBLISH_BYTECODE_OVERHEAD: u32 = 100;
+
+pub const CALLDATA_PROCESSING_ROLLUP_OVERHEAD: u32 = 200;
