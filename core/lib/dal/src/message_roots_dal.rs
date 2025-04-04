@@ -94,10 +94,7 @@ impl MessageRootDal<'_, '_> {
                         FROM miniblocks mb
                         WHERE
                             mb.number = mr.processed_block_number
-                            AND (
-                                mb.l1_batch_number = lb.l1_batch_number
-                                OR mb.l1_batch_number = (SELECT number FROM max_l1_batch)
-                            )
+                            AND mb.l1_batch_number = lb.l1_batch_number
                     )
             )
             
@@ -139,7 +136,8 @@ impl MessageRootDal<'_, '_> {
         println!("get_latest_message_root {:?}", result);
         println!("for processed block number {:?}", processed_block_number);
         for msg_root in result.clone() {
-            self.mark_msg_root_as_processed(msg_root, processed_block_number).await?;
+            self.mark_msg_root_as_processed(msg_root, processed_block_number)
+                .await?;
         }
         if result.is_empty() {
             return Ok(None);

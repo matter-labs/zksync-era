@@ -377,7 +377,7 @@ async fn read_stored_l2_block(
 
     let msg_roots = connection
         .message_root_dal()
-        .get_latest_message_root(l2_block_number)
+        .get_latest_message_root(L2BlockNumber(l2_block_number_from_state as u32))
         .await?
         .unwrap_or(vec![]);
 
