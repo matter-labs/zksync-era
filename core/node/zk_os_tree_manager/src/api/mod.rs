@@ -138,7 +138,6 @@ impl<'de> Deserialize<'de> for SerdeNodeKey {
 struct ApiLeaf {
     key: H256,
     value: H256,
-    prev_index: u64,
     next_index: u64,
 }
 
@@ -147,7 +146,6 @@ impl From<unstable::Leaf> for ApiLeaf {
         Self {
             key: leaf.key,
             value: leaf.value,
-            prev_index: leaf.prev_index,
             next_index: leaf.next_index,
         }
     }
@@ -158,7 +156,6 @@ impl From<ApiLeaf> for unstable::Leaf {
         Self {
             key: api.key,
             value: api.value,
-            prev_index: api.prev_index,
             next_index: api.next_index,
         }
     }

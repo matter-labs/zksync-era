@@ -176,5 +176,5 @@ RUN wget -c -O - https://sh.rustup.rs | bash -s -- -y && \
 
 # If target is nightly - then install only nightly rust.
 FROM rust-lightweight-base as rust-lightweight-nightly
-RUN wget -c -O - https://sh.rustup.rs | bash -s -- -y --default-toolchain nightly-2024-08-01 && \
+RUN wget -c -O - https://sh.rustup.rs | bash -s -- -y --default-toolchain nightly-2024-09-01 && \
     rustup show active-toolchain || rustup toolchain install

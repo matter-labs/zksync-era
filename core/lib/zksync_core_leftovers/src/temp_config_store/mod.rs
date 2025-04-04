@@ -38,6 +38,7 @@ pub fn read_yaml_repr<T: ProtoRepr>(path: &PathBuf) -> anyhow::Result<T::Type> {
 
 // TODO (QIT-22): This structure is going to be removed when components will be responsible for their own configs.
 /// A temporary config store allowing to pass deserialized configs from `zksync_server` to `zksync_core`.
+///
 /// All the configs are optional, since for some component combination it is not needed to pass all the configs.
 #[derive(Debug, PartialEq, Default)]
 pub struct TempConfigStore {
@@ -125,7 +126,7 @@ impl TempConfigStore {
     #[allow(deprecated)]
     pub fn wallets(&self) -> Wallets {
         let eth_sender = self.eth_sender_config.as_ref().and_then(|config| {
-            let sender = config.sender.as_ref()?;
+            let sender = config.get_eth_sender_config_for_sender_layer_data_layer()?;
             let operator_private_key = sender.private_key().ok()??;
             let operator = Wallet::new(operator_private_key);
             let blob_operator = sender

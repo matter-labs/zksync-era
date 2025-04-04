@@ -89,23 +89,20 @@ async fn test_final_proof_deserialization() {
 
 #[test]
 fn test_proof_request_serialization() {
-    let proof = SubmitProofRequest::Proof(
-        L1BatchNumber(1),
-        Box::new(L1BatchProofForL1::Fflonk(FflonkL1BatchProofForL1 {
+    let proof = SubmitProofRequest::Proof(Box::new(L1BatchProofForL1::Fflonk(
+        FflonkL1BatchProofForL1 {
             aggregation_result_coords: [[0; 32]; 4],
             scheduler_proof: FflonkProof::empty(),
             protocol_version: ProtocolSemanticVersion {
                 minor: ProtocolVersionId::Version25,
                 patch: 10.into(),
             },
-        })),
-    );
+        },
+    )));
     let encoded_obj = serde_json::to_string(&proof).unwrap();
     let encoded_json = r#"{
-        "Proof": [
-            1,
-            {
-                "aggregation_result_coords": [
+        "Proof": {
+            "aggregation_result_coords": [
                     [
                         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
                     ],
@@ -161,12 +158,11 @@ fn test_proof_request_serialization() {
                 },
                 "protocol_version": "0.25.10"
             }
-        ]
     }"#;
     let decoded_obj: SubmitProofRequest = serde_json::from_str(&encoded_obj).unwrap();
     let decoded_json: SubmitProofRequest = serde_json::from_str(encoded_json).unwrap();
     match (decoded_obj, decoded_json) {
-        (SubmitProofRequest::Proof(_, decoded_obj), SubmitProofRequest::Proof(_, decoded_json)) => {
+        (SubmitProofRequest::Proof(decoded_obj), SubmitProofRequest::Proof(decoded_json)) => {
             let obj_coords = match *decoded_obj {
                 L1BatchProofForL1::Fflonk(obj) => obj.aggregation_result_coords,
                 L1BatchProofForL1::Plonk(obj) => obj.aggregation_result_coords,

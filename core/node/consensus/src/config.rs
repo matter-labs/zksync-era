@@ -42,7 +42,7 @@ pub(super) struct GenesisSpec {
     pub(super) chain_id: validator::ChainId,
     pub(super) protocol_version: validator::ProtocolVersion,
     pub(super) validators: validator::Committee,
-    pub(super) leader_selection: validator::LeaderSelectionMode,
+    pub(super) leader_selection: validator::v1::LeaderSelectionMode,
     pub(super) registry_address: Option<ethabi::Address>,
     pub(super) seed_peers: BTreeMap<node::PublicKey, net::Host>,
 }
@@ -76,7 +76,7 @@ impl GenesisSpec {
         Ok(Self {
             chain_id: validator::ChainId(x.chain_id.as_u64()),
             protocol_version: validator::ProtocolVersion(x.protocol_version.0),
-            leader_selection: validator::LeaderSelectionMode::Sticky(
+            leader_selection: validator::v1::LeaderSelectionMode::Sticky(
                 Text::new(&x.leader.0).decode().context("leader")?,
             ),
             validators: validator::Committee::new(validators).context("validators")?,

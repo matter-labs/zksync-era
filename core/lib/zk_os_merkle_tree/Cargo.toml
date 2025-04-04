@@ -25,6 +25,7 @@ vise.workspace = true
 
 [dev-dependencies]
 clap = { workspace = true, features = ["derive"] }
+proptest.workspace = true
 rand.workspace = true
 tempfile.workspace = true
 tracing-subscriber = { workspace = true, features = ["env-filter"] }

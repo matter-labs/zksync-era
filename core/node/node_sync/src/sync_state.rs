@@ -19,6 +19,7 @@ use zksync_zkos_state_keeper::{
 };
 
 /// `SyncState` is a structure that holds the state of the syncing process.
+///
 /// The intended use case is to signalize to Web3 API whether the node is fully synced.
 /// Data inside is expected to be updated by both `MainNodeFetcher` (on last block available on the main node)
 /// and `ExternalIO` (on latest sealed L2 block).

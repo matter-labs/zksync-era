@@ -20,8 +20,9 @@ use super::{
 pub mod l1_batch_updates;
 pub mod l2_block_updates;
 
-/// Most of the information needed to seal the l1 batch / L2 block is contained within the VM,
-/// things that are not captured there are accumulated externally.
+/// Most of the information needed to seal the l1 batch / L2 block is contained within the VM.
+///
+/// Things that are not captured there are accumulated externally.
 /// `L2BlockUpdates` keeps updates for the pending L2 block.
 /// `L1BatchUpdates` keeps updates for the already sealed L2 blocks of the pending L1 batch.
 /// `UpdatesManager` manages the state of both of these accumulators to be consistent

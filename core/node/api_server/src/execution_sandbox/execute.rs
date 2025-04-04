@@ -350,7 +350,7 @@ impl SandboxExecutor {
         let storage = if let Some(state_override) = state_override {
             tokio::task::spawn_blocking(|| apply_state_override(storage, state_override))
                 .await
-                .context("applying state override failed")?
+                .context("applying state override panicked")?
         } else {
             // Do not spawn a new thread in the most frequent case.
             StorageWithOverrides::new(storage)

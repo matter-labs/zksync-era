@@ -5,7 +5,10 @@ use zksync_config::{
     ContractsConfig, EthConfig, GasAdjusterConfig,
 };
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_eth_client::{clients::MockSettlementLayer, BaseFees, BoundEthInterface};
+use zksync_eth_client::{
+    clients::{DynClient, MockSettlementLayer, L1},
+    BaseFees, BoundEthInterface,
+};
 use zksync_l1_contract_interface::i_executor::methods::{ExecuteBatches, ProveBatches};
 use zksync_node_fee_model::l1_gas_price::{GasAdjuster, GasAdjusterClient};
 use zksync_node_test_utils::{create_l1_batch, l1_batch_metadata_to_commitment_artifacts};
@@ -13,7 +16,8 @@ use zksync_object_store::MockObjectStore;
 use zksync_types::{
     aggregated_operations::AggregatedActionType, block::L1BatchHeader,
     commitment::L1BatchCommitmentMode, eth_sender::EthTx, pubdata_da::PubdataSendingMode,
-    settlement::SettlementMode, Address, L1BatchNumber, ProtocolVersion, ProtocolVersionId, H256,
+    settlement::SettlementLayer, Address, L1BatchNumber, ProtocolVersion, ProtocolVersionId,
+    SLChainId, H256,
 };
 
 use crate::{
@@ -124,7 +128,7 @@ pub(crate) struct EthSenderTester {
     next_l1_batch_number_to_prove: L1BatchNumber,
     next_l1_batch_number_to_execute: L1BatchNumber,
     tx_sent_in_last_iteration_count: usize,
-    pub is_l2: bool,
+    pub settlement_layer: SettlementLayer,
 }
 
 impl EthSenderTester {
@@ -137,6 +141,7 @@ impl EthSenderTester {
         non_ordering_confirmations: bool,
         aggregator_operate_4844_mode: bool,
         commitment_mode: L1BatchCommitmentMode,
+        settlement_layer: SettlementLayer,
     ) -> Self {
         let eth_sender_config = EthConfig::for_tests();
         let contracts_config = ContractsConfig::for_tests();
@@ -148,7 +153,11 @@ impl EthSenderTester {
             };
         let aggregator_config = SenderConfig {
             pubdata_sending_mode,
-            ..eth_sender_config.clone().sender.unwrap()
+            ..eth_sender_config
+                .clone()
+                .get_eth_sender_config_for_sender_layer_data_layer()
+                .cloned()
+                .unwrap()
         };
 
         let history: Vec<_> = history
@@ -180,6 +189,7 @@ impl EthSenderTester {
         gateway.advance_block_number(Self::WAIT_CONFIRMATIONS);
         let gateway = Box::new(gateway);
 
+        let chain_id = SLChainId(505);
         let l2_gateway: MockSettlementLayer = MockSettlementLayer::builder()
             .with_fee_history(
                 std::iter::repeat_with(|| BaseFees {
@@ -220,9 +230,10 @@ impl EthSenderTester {
         gateway_blobs.advance_block_number(Self::WAIT_CONFIRMATIONS);
         let gateway_blobs = Box::new(gateway_blobs);
 
+        let client: Box<DynClient<L1>> = Box::new(gateway.clone().into_client());
         let gas_adjuster = Arc::new(
             GasAdjuster::new(
-                GasAdjusterClient::from_l1(Box::new(gateway.clone().into_client())),
+                GasAdjusterClient::from(client),
                 GasAdjusterConfig {
                     max_base_fee_samples: Self::MAX_BASE_FEE_SAMPLES,
                     pricing_formula_parameter_a: 3.0,
@@ -236,7 +247,9 @@ impl EthSenderTester {
             .unwrap(),
         );
 
-        let eth_sender = eth_sender_config.sender.clone().unwrap();
+        let eth_sender = eth_sender_config
+            .get_eth_sender_config_for_sender_layer_data_layer()
+            .unwrap();
 
         let custom_commit_sender_addr =
             if aggregator_operate_4844_mode && commitment_mode == L1BatchCommitmentMode::Rollup {
@@ -251,8 +264,7 @@ impl EthSenderTester {
             custom_commit_sender_addr,
             commitment_mode,
             connection_pool.clone(),
-            gateway.clone(),
-            SettlementMode::SettlesToL1,
+            SettlementLayer::L1(chain_id),
         )
         .await
         .unwrap();
@@ -274,7 +286,7 @@ impl EthSenderTester {
             STATE_TRANSITION_CONTRACT_ADDRESS,
             Default::default(),
             custom_commit_sender_addr,
-            SettlementMode::SettlesToL1,
+            SettlementLayer::L1(chain_id),
         )
         .await;
 
@@ -309,20 +321,23 @@ impl EthSenderTester {
             next_l1_batch_number_to_execute: L1BatchNumber(1),
             next_l1_batch_number_to_prove: L1BatchNumber(1),
             tx_sent_in_last_iteration_count: 0,
-            is_l2: false,
+            settlement_layer,
         }
     }
 
     pub fn switch_to_using_gateway(&mut self) {
         self.manager = EthTxManager::new(
             self.conn.clone(),
-            EthConfig::for_tests().sender.unwrap(),
+            EthConfig::for_tests()
+                .get_eth_sender_config_for_sender_layer_data_layer()
+                .cloned()
+                .unwrap(),
             self.gas_adjuster.clone(),
             None,
             None,
             Some(self.l2_gateway.clone()),
         );
-        self.is_l2 = true;
+        self.settlement_layer = SettlementLayer::Gateway(10.into());
         tracing::info!("Switched eth-sender tester to use Gateway!");
     }
 
@@ -390,7 +405,7 @@ impl EthSenderTester {
             .get_last_sent_eth_tx_hash(l1_batch_number, operation_type)
             .await
             .unwrap();
-        if !self.is_l2 {
+        if !self.settlement_layer.is_gateway() {
             let (gateway, other) = if tx.blob_base_fee_per_gas.is_some() {
                 (self.gateway_blobs.as_ref(), self.gateway.as_ref())
             } else {
@@ -526,7 +541,7 @@ impl EthSenderTester {
                 &aggregated_operation,
                 Address::random(),
                 ProtocolVersionId::latest(),
-                self.is_l2,
+                self.settlement_layer.is_gateway(),
             )
             .await
             .unwrap()
@@ -551,7 +566,7 @@ impl EthSenderTester {
     }
 
     pub async fn confirm_tx(&mut self, hash: H256, is_blob: bool) {
-        if !self.is_l2 {
+        if !self.settlement_layer.is_gateway() {
             let (gateway, other) = if is_blob {
                 (self.gateway_blobs.as_ref(), self.gateway.as_ref())
             } else {
@@ -607,7 +622,7 @@ impl EthSenderTester {
     }
 
     pub async fn assert_inflight_txs_count_equals(&mut self, value: usize) {
-        let inflight_count = if !self.is_l2 {
+        let inflight_count = if !self.settlement_layer.is_gateway() {
             //sanity check
             assert!(self.manager.operator_address(OperatorType::Blob).is_some());
             self.storage()
