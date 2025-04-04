@@ -64,7 +64,7 @@ impl TxSink for MasterPoolSink {
     async fn submit_tx(
         &self,
         tx: &L2Tx,
-        execution_outputs: &SandboxExecutionOutput,
+        execution_output: &SandboxExecutionOutput,
         validation_traces: ValidationTraces,
     ) -> Result<L2TxSubmissionResult, SubmitTxError> {
         let address_and_nonce = (tx.initiator_account(), tx.nonce());
@@ -96,7 +96,7 @@ impl TxSink for MasterPoolSink {
             .map_err(DalError::generalize)?;
         let result = connection
             .transactions_dal()
-            .insert_transaction_l2(tx, execution_outputs.metrics, validation_traces)
+            .insert_transaction_l2(tx, execution_output.metrics, validation_traces)
             .await
             .inspect(|submission_res_handle| {
                 APP_METRICS.processed_txs[&TxStage::Mempool(*submission_res_handle)].inc();

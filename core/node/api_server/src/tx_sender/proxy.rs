@@ -309,7 +309,7 @@ impl TxSink for TxProxy {
     async fn submit_tx(
         &self,
         tx: &L2Tx,
-        _execution_outputs: &SandboxExecutionOutput,
+        _execution_output: &SandboxExecutionOutput,
         _validation_traces: ValidationTraces,
     ) -> Result<L2TxSubmissionResult, SubmitTxError> {
         // We're running an external node: we have to proxy the transaction to the main node.

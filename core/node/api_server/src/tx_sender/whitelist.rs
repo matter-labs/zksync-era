@@ -6,7 +6,7 @@ use tokio::sync::{watch, RwLock};
 use zksync_config::configs::api::DeploymentAllowlist;
 use zksync_dal::transactions_dal::L2TxSubmissionResult;
 use zksync_multivm::interface::{tracer::ValidationTraces, VmEvent};
-use zksync_types::{h256_to_address, l2::L2Tx, Address, CONTRACT_DEPLOYER_ADDRESS, H160};
+use zksync_types::{h256_to_address, l2::L2Tx, Address, CONTRACT_DEPLOYER_ADDRESS};
 
 use crate::{
     execution_sandbox::SandboxExecutionOutput,
@@ -35,7 +35,7 @@ impl TxSink for WhitelistedDeployPoolSink {
     async fn submit_tx(
         &self,
         tx: &L2Tx,
-        execution_outputs: &SandboxExecutionOutput,
+        execution_output: &SandboxExecutionOutput,
         validation_traces: ValidationTraces,
     ) -> Result<L2TxSubmissionResult, SubmitTxError> {
         // Enforce the deployment allowlist by scanning for ContractDeployed events.
@@ -43,7 +43,7 @@ impl TxSink for WhitelistedDeployPoolSink {
         //   event ContractDeployed(address indexed deployerAddress, bytes32 indexed bytecodeHash, address indexed contractAddress);
         // We extract the deployer address from topic[1] and verify it is whitelisted.
 
-        let deployer_addresses = execution_outputs.events.iter().filter_map(|event| {
+        let deployer_addresses = execution_output.events.iter().filter_map(|event| {
             let is_contract_deployed = event.address == CONTRACT_DEPLOYER_ADDRESS
                 && event.indexed_topics.first() == Some(&VmEvent::DEPLOY_EVENT_SIGNATURE);
             if is_contract_deployed {
@@ -70,7 +70,7 @@ impl TxSink for WhitelistedDeployPoolSink {
 
         // If all deployment events pass the allowlist check, forward the submission.
         self.master_pool_sink
-            .submit_tx(tx, execution_outputs, validation_traces)
+            .submit_tx(tx, execution_output, validation_traces)
             .await
     }
 }
@@ -86,11 +86,11 @@ pub struct SharedAllowList {
 }
 
 impl SharedAllowList {
-    pub fn writer(&self) -> Arc<RwLock<HashSet<Address>>> {
-        Arc::clone(&self.inner)
+    fn writer(&self) -> &Arc<RwLock<HashSet<Address>>> {
+        &self.inner
     }
 
-    pub async fn is_address_allowed(&self, address: &Address) -> bool {
+    async fn is_address_allowed(&self, address: &Address) -> bool {
         self.inner.read().await.contains(address)
     }
 }
@@ -118,7 +118,7 @@ impl AllowListTask {
         }
     }
 
-    pub fn refresh_interval(&self) -> Duration {
+    fn refresh_interval(&self) -> Duration {
         self.refresh_interval
     }
 
@@ -126,7 +126,7 @@ impl AllowListTask {
         self.allowlist.clone()
     }
 
-    pub async fn fetch(
+    async fn fetch(
         &self,
         current_etag: Option<&str>,
     ) -> anyhow::Result<Option<(HashSet<Address>, Option<String>)>> {
@@ -153,7 +153,7 @@ impl AllowListTask {
             None => None,
         };
         let list = response.json::<WhitelistResponse>().await?;
-        let addresses: HashSet<H160> = list.addresses.into_iter().collect();
+        let addresses: HashSet<_> = list.addresses.into_iter().collect();
 
         Ok(Some((addresses, new_etag)))
     }

@@ -56,7 +56,7 @@ determine if it includes any contract deployments.
 
    - `ContractDeployed(address deployer, bytes32 bytecodeHash, address contractAddress)`
 
-2. These events are parsed from the `execution_outputs.events` field.
+2. These events are parsed from the `execution_output.events` field.
 
 3. If any deployment events are found:
 

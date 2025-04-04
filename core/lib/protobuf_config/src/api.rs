@@ -3,7 +3,7 @@ use std::num::{NonZeroU32, NonZeroUsize};
 use anyhow::Context as _;
 use zksync_config::configs::{api, ApiConfig};
 use zksync_protobuf::{
-    repr::{read_required_repr, ProtoRepr},
+    repr::{read_optional_repr, read_required_repr, ProtoRepr},
     required,
 };
 
@@ -152,7 +152,7 @@ impl ProtoRepr for proto::Web3JsonRpc {
                 .context("whitelisted_tokens_for_aa")?,
             extended_api_tracing: self.extended_api_tracing.unwrap_or_default(),
             api_namespaces,
-            deployment_allowlist: read_required_repr(&self.deployment_allowlist)
+            deployment_allowlist: read_optional_repr(&self.deployment_allowlist)?
                 .unwrap_or_default(),
         })
     }

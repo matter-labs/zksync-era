@@ -67,7 +67,7 @@ impl Task for AllowListTask {
     }
 
     fn kind(&self) -> TaskKind {
-        TaskKind::UnconstrainedTask
+        TaskKind::Task
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {

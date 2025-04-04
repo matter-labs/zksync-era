@@ -28,7 +28,7 @@ pub trait TxSink: std::fmt::Debug + Send + Sync + 'static {
     async fn submit_tx(
         &self,
         tx: &L2Tx,
-        execution_outputs: &SandboxExecutionOutput,
+        execution_output: &SandboxExecutionOutput,
         validation_traces: ValidationTraces,
     ) -> Result<L2TxSubmissionResult, SubmitTxError>;
 
