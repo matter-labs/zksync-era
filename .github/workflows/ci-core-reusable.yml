@@ -477,9 +477,16 @@ jobs:
           ci_run zkstack consensus wait-for-registry --ignore-prerequisites --verbose --chain consensus
           ci_run zkstack consensus set-attester-committee --chain consensus --ignore-prerequisites --verbose --from-genesis &> ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/consensus.log 
 
+      - name: Enable EVM emulator for some chains
+        run: |
+          ci_run zkstack chain enable-evm-emulator --chain era
+          ci_run zkstack chain enable-evm-emulator --chain validium
+
       - name: Run integration tests
         run: |
-          ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --verbose --no-deps --ignore-prerequisites" ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}
+          ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --verbose --no-deps --ignore-prerequisites" \
+            ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }} \
+            'era:--evm' 'validium:--evm'
 
       - name: Repeat integration tests on push to main to check for flakiness
         if: ${{ (github.ref == 'refs/heads/main') }}
@@ -487,7 +494,9 @@ jobs:
           for i in {1..10}; do
             echo "Iteration $i"
             mkdir -p ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/$i
-            ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --verbose --no-deps --ignore-prerequisites" ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/$i
+            ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --verbose --no-deps --ignore-prerequisites" \
+              ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/$i \
+              'era:--evm' 'validium:--evm'
           done
 
       - name: Init external nodes
@@ -532,7 +541,9 @@ jobs:
 
       - name: Run integration tests en
         run: |
-          ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --verbose --no-deps --ignore-prerequisites --external-node" ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}
+          ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --verbose --no-deps --ignore-prerequisites --external-node" \
+            ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }} \
+            'era:--evm' 'validium:--evm'
 
       - name: Repeat integration tests en on push to main to check for flakiness
         if: ${{ (github.ref == 'refs/heads/main') }}
@@ -540,7 +551,9 @@ jobs:
           for i in {1..10}; do
             echo "Iteration $i"
             mkdir -p ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/$i
-            ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --verbose --no-deps --ignore-prerequisites --external-node" ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/$i
+            ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --verbose --no-deps --ignore-prerequisites --external-node" \
+              ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/$i \
+              'era:--evm' 'validium:--evm'
           done
 
       - name: Fee projection tests

@@ -14,11 +14,16 @@ Examples:
   run_on_all_chains.sh 'zkstack dev test integration' era,validium logs 'era:--evm'
     This will run integration tests for 'era' and 'validium' chains, with an additional '--evm' flag
     passed just to the 'era' chain.
-HELP_EOF)
+HELP_EOF
+)
 
 if [ "$1" == "--help" ]; then
     echo "$HELP"
     exit 0
+elif [ "$#" -lt 3 ]; then
+    echo -e "${RED}Error:${NC} expected at least 3 args"
+    echo "$HELP"
+    exit 2
 fi
 
 command=$1
