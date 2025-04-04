@@ -5,7 +5,6 @@
 //! This database has 3 column families:
 //!
 //! - State
-//! - Contracts
 //! - Factory dependencies
 //!
 //! | Column       | Key                             | Value                           | Description                               |
@@ -15,7 +14,6 @@
 //! |              |                                 | bytes                           |                                           |
 //! | State        | hashed `StorageKey`             | 32 bytes value ++ 8 bytes index | State value for the given key             |
 //! |              |                                 |                    (big-endian) |                                           |
-//! | Contracts    | address (20 bytes)              | `Vec<u8>`                       | Contract contents                         |
 //! | Factory deps | hash (32 bytes)                 | `Vec<u8>`                       | Bytecodes for new contracts that a certain contract may deploy. |
 
 use std::{
@@ -58,20 +56,17 @@ fn deserialize_l1_batch_number(bytes: &[u8]) -> u32 {
 pub enum StateKeeperColumnFamily {
     /// Column family containing tree state information.
     State,
-    /// Column family containing contract contents.
-    Contracts,
     /// Column family containing bytecodes for new contracts that a certain contract may deploy.
     FactoryDeps,
 }
 
 impl NamedColumnFamily for StateKeeperColumnFamily {
     const DB_NAME: &'static str = "state_keeper";
-    const ALL: &'static [Self] = &[Self::State, Self::Contracts, Self::FactoryDeps];
+    const ALL: &'static [Self] = &[Self::State, Self::FactoryDeps];
 
     fn name(&self) -> &'static str {
         match self {
             Self::State => "state",
-            Self::Contracts => "contracts",
             Self::FactoryDeps => "factory_deps",
         }
     }
