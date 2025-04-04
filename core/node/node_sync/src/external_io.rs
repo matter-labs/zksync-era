@@ -472,7 +472,7 @@ impl StateKeeperIO for ExternalIO {
         processed_block_number: L2BlockNumber,
     ) -> anyhow::Result<Option<Vec<MessageRoot>>> {
         let mut storage = self.pool.connection_tagged("sync_layer").await?;
-        let message_root = storage.message_root_dal().get_latest_message_root(processed_block_number).await?;
+        let message_root = storage.message_root_dal().get_assgigned_roots_or_assign_if_needed(processed_block_number).await?;
         Ok(message_root)
     }
 

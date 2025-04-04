@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE miniblocks\n            SET message_roots_assigned = true\n            WHERE number = $1 AND message_roots_assigned = false\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "08f9cfd3ca6206bed034784db2585cec8d157189a658a6cdb262911a6d3b8151"
+}

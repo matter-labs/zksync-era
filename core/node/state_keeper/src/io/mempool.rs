@@ -442,7 +442,7 @@ impl StateKeeperIO for MempoolIO {
         let mut storage = self.pool.connection_tagged("state_keeper").await?;
         storage
             .message_root_dal()
-            .get_latest_message_root(processed_block_number)
+            .get_assgigned_roots_or_assign_if_needed(processed_block_number)
             .await
             .map_err(Into::into)
     }
