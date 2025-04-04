@@ -14,8 +14,8 @@ use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthChe
 use zksync_node_fee_model::l1_gas_price::TxParamsProvider;
 use zksync_shared_metrics::BlockL1Stage;
 use zksync_types::{
-    aggregated_operations::AggregatedActionType, eth_sender::EthTx, Address, L1BlockNumber, H256,
-    L1_GAS_PER_PUBDATA_BYTE, U256,
+    aggregated_operations::AggregatedActionType, eth_sender::EthTx, Address, L1BlockNumber,
+    CALLDATA_PROCESSING_ROLLUP_OVERHEAD, H256, L1_GAS_PER_PUBDATA_BYTE, U256,
 };
 
 use super::{metrics::METRICS, EthSenderError};
@@ -162,6 +162,7 @@ impl EthTxManager {
             self.config.max_aggregated_tx_gas.into()
         };
 
+        gas_limit = gas_limit.mul(2);
         // Adjust gas limit based ob pubdata cost. Commit is the only pubdata intensive part
         if tx.tx_type == AggregatedActionType::Commit {
             match operator_type {
@@ -170,12 +171,17 @@ impl EthTxManager {
                 }
                 OperatorType::NonBlob => {
                     // Settlement mode is L1.
-                    gas_limit += (L1_GAS_PER_PUBDATA_BYTE * tx.raw_tx.len() as u32).into()
+                    gas_limit += ((L1_GAS_PER_PUBDATA_BYTE + CALLDATA_PROCESSING_ROLLUP_OVERHEAD)
+                        * tx.raw_tx.len() as u32)
+                        .into()
                 }
                 OperatorType::Gateway => {
                     // Settlement mode is Gateway.
                     if let Some(max_gas_per_pubdata_price) = max_gas_per_pubdata_price {
-                        gas_limit += (max_gas_per_pubdata_price * tx.raw_tx.len() as u64).into()
+                        gas_limit += ((max_gas_per_pubdata_price
+                            + CALLDATA_PROCESSING_ROLLUP_OVERHEAD as u64)
+                            * tx.raw_tx.len() as u64)
+                            .into()
                     } else {
                         gas_limit = self.config.max_aggregated_tx_gas.into();
                     }
@@ -231,7 +237,6 @@ impl EthTxManager {
                 .observe(priority_fee_per_gas);
         }
 
-        gas_limit = gas_limit.mul(2);
         let mut signed_tx = self
             .l1_interface
             .sign_tx(
