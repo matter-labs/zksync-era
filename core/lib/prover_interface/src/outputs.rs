@@ -23,10 +23,16 @@ pub struct L1BatchProofForL1<FM: FormatMarker = CBOR> {
 }
 
 impl<FM: FormatMarker> L1BatchProofForL1<FM> {
-    #[allow(dead_code)]
-    pub fn new(inner: TypedL1BatchProofForL1) -> Self {
+    pub fn new_fflonk(proof: FflonkL1BatchProofForL1) -> Self {
         Self {
-            inner,
+            inner: TypedL1BatchProofForL1::Fflonk(proof),
+            _marker: std::marker::PhantomData,
+        }
+    }
+
+    pub fn new_plonk(proof: PlonkL1BatchProofForL1) -> Self {
+        Self {
+            inner: TypedL1BatchProofForL1::Plonk(proof),
             _marker: std::marker::PhantomData,
         }
     }

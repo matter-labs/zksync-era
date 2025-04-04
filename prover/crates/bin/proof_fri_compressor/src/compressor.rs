@@ -163,13 +163,15 @@ impl JobProcessor for ProofCompressor {
             Self::aux_output_witness_to_array(aux_output_witness_wrapper.0);
 
         let l1_batch_proof = match artifacts {
-            SnarkWrapperProof::Plonk(proof) => L1BatchProofForL1::Plonk(PlonkL1BatchProofForL1 {
-                aggregation_result_coords,
-                scheduler_proof: proof,
-                protocol_version: self.protocol_version,
-            }),
+            SnarkWrapperProof::Plonk(proof) => {
+                L1BatchProofForL1::new_plonk(PlonkL1BatchProofForL1 {
+                    aggregation_result_coords,
+                    scheduler_proof: proof,
+                    protocol_version: self.protocol_version,
+                })
+            }
             SnarkWrapperProof::FFfonk(proof) => {
-                L1BatchProofForL1::Fflonk(FflonkL1BatchProofForL1 {
+                L1BatchProofForL1::new_fflonk(FflonkL1BatchProofForL1 {
                     aggregation_result_coords,
                     scheduler_proof: proof,
                     protocol_version: self.protocol_version,

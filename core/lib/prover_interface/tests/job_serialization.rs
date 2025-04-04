@@ -34,15 +34,14 @@ async fn prepare_basic_circuits_job_serialization() {
         .await
         .unwrap();
 
-    let job: WitnessInputMerklePaths = store
-        .get::<WitnessInputMerklePaths<Bincode>>(L1BatchNumber(1))
-        .await
-        .unwrap()
-        .into();
+    let job: WitnessInputMerklePaths<Bincode> = store.get(L1BatchNumber(1)).await.unwrap();
 
     let key = store.put(L1BatchNumber(2), &job).await.unwrap();
     let serialized_job = store.get_raw(Bucket::WitnessInput, &key).await.unwrap();
     assert_eq!(serialized_job, snapshot);
+
+    let job: WitnessInputMerklePaths = job.into();
+
     assert_job_integrity(
         job.next_enumeration_index(),
         job.into_merkle_paths().collect(),
@@ -96,15 +95,15 @@ async fn test_final_proof_deserialization() {
 
 #[test]
 fn test_proof_request_serialization() {
-    let proof = SubmitProofRequest::Proof(Box::new(L1BatchProofForL1::new(
-        TypedL1BatchProofForL1::Fflonk(FflonkL1BatchProofForL1 {
+    let proof = SubmitProofRequest::Proof(Box::new(L1BatchProofForL1::new_fflonk(
+        FflonkL1BatchProofForL1 {
             aggregation_result_coords: [[0; 32]; 4],
             scheduler_proof: FflonkProof::empty(),
             protocol_version: ProtocolSemanticVersion {
                 minor: ProtocolVersionId::Version25,
                 patch: 10.into(),
             },
-        }),
+        },
     )));
     let encoded_obj = serde_json::to_string(&proof).unwrap();
     let encoded_json = r#"{

@@ -201,7 +201,7 @@ impl StoredObject for WitnessInputMerklePaths<Bincode> {
     type Key<'a> = L1BatchNumber;
 
     fn encode_key(key: Self::Key<'_>) -> String {
-        format!("merkel_paths_{key}.bin")
+        format!("merkel_tree_paths_{key}.bin")
     }
 
     fn serialize(&self) -> Result<Vec<u8>, BoxedError> {
