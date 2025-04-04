@@ -14,7 +14,7 @@ bridges:
   erc20:
     l1_address: 0x2Ae09702F77a4940621572fBcDAe2382D44a2cbA
   shared:
-    l1_address: 0x3E8b2fe58675126ed30d0d12dea2A9bda72D18Ae
+    l1_address: 0xf2a49545c5b1a85d2fb018cc39103661639a9b06
   weth:
     l1_address: 0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9
   l1_nullifier_addr: 0x3E8b2fe58675126ed30d0d12dea2A9bda72D18Ae
