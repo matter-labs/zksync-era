@@ -3,8 +3,7 @@ use std::collections::HashMap;
 use itertools::{Either, Itertools};
 use zk_ee::common_structs::PreimageType;
 use zk_os_basic_system::system_implementation::io::AccountProperties as BoojumAccountProperties;
-use zk_os_forward_system::run::BatchOutput;
-use zk_os_forward_system::run::result_keeper::TxProcessingOutputOwned;
+use zk_os_forward_system::run::{result_keeper::TxProcessingOutputOwned, BatchOutput};
 use zksync_types::{
     boojum_os::AccountProperties, fee_model::BatchFeeInput, l2_to_l1_log::UserL2ToL1Log,
     AccountTreeId, Address, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey,
@@ -83,10 +82,7 @@ impl UpdatesManager {
         let tx_output_iter = batch_output.tx_results.into_iter().filter_map(|r| r.ok());
 
         for (idx, tx_output) in tx_output_iter.enumerate() {
-            let location = (
-                self.l1_batch_number,
-                idx as u32,
-            );
+            let location = (self.l1_batch_number, idx as u32);
             let events = tx_output
                 .logs
                 .into_iter()
@@ -107,7 +103,7 @@ impl UpdatesManager {
                                 .try_into()
                                 .expect("Preimage should be exactly 124 bytes"),
                         )
-                            .expect("Failed to decode account properties"),
+                        .expect("Failed to decode account properties"),
                     ),
                 )),
             });

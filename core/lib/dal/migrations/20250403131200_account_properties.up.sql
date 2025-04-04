@@ -17,3 +17,4 @@ CREATE TABLE account_properties (
 );
 
 CREATE INDEX account_properties_preimage_hash_idx ON account_properties (preimage_hash);
+CREATE INDEX account_properties_miniblock_number_idx ON account_properties (miniblock_number);

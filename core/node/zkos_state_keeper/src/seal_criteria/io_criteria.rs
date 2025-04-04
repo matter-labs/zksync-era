@@ -22,8 +22,8 @@ impl TimeoutSealer {
 
 impl IoSealCriterion for TimeoutSealer {
     fn should_seal_block(&mut self, manager: &UpdatesManager) -> bool {
-        !manager.executed_transactions.is_empty() &&
-            millis_since(manager.timestamp_ms) > u128::from(self.block_commit_deadline_ms)
+        !manager.executed_transactions.is_empty()
+            && millis_since(manager.timestamp_ms) > u128::from(self.block_commit_deadline_ms)
     }
 }
 

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                versioning_data,\n                nonce,\n                observable_bytecode_hash,\n                bytecode_hash,\n                nominal_token_balance,\n                bytecode_len,\n                artifacts_len,\n                observable_bytecode_len\n            FROM\n                account_properties\n            INNER JOIN miniblocks ON miniblocks.number = account_properties.miniblock_number\n            WHERE\n                miniblocks.l1_batch_number = $1\n            ",
+  "query": "\n            SELECT\n                versioning_data,\n                nonce,\n                observable_bytecode_hash,\n                bytecode_hash,\n                nominal_token_balance,\n                bytecode_len,\n                artifacts_len,\n                observable_bytecode_len\n            FROM\n                account_properties\n            WHERE miniblock_number BETWEEN $1 AND $2\n            ",
   "describe": {
     "columns": [
       {
@@ -46,6 +46,7 @@
     ],
     "parameters": {
       "Left": [
+        "Int8",
         "Int8"
       ]
     },
@@ -60,5 +61,5 @@
       false
     ]
   },
-  "hash": "537cbe06df25c66555d6e6de3b232263ee3e54a605be77bf12823cd5da362efe"
+  "hash": "7b158aea7c4c91f03ee9898434161431c1ff70ddc58133d7c677ee3cc6e08369"
 }

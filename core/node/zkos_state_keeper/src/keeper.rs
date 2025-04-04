@@ -200,8 +200,7 @@ impl ZkosStateKeeper {
                 block_params.protocol_version,
                 gas_limit,
             );
-            let batch_output =
-                self.run_batch(batch_executor, &mut updates_manager).await?;
+            let batch_output = self.run_batch(batch_executor, &mut updates_manager).await?;
 
             tracing::info!("Batch #{} executed successfully", cursor.l1_batch);
 

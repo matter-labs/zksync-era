@@ -223,6 +223,14 @@ impl AccountPropertiesDal<'_, '_> {
         &mut self,
         l1_batch_number: L1BatchNumber,
     ) -> DalResult<HashMap<H256, Vec<u8>>> {
+        let Some((from_l2_block, to_l2_block)) = self
+            .storage
+            .blocks_web3_dal()
+            .get_l2_block_range_of_l1_batch(l1_batch_number)
+            .await?
+        else {
+            return Ok(HashMap::new());
+        };
         Ok(sqlx::query_as!(
             StorageAccountProperties,
             r#"
@@ -237,11 +245,10 @@ impl AccountPropertiesDal<'_, '_> {
                 observable_bytecode_len
             FROM
                 account_properties
-            INNER JOIN miniblocks ON miniblocks.number = account_properties.miniblock_number
-            WHERE
-                miniblocks.l1_batch_number = $1
+            WHERE miniblock_number BETWEEN $1 AND $2
             "#,
-            i64::from(l1_batch_number.0)
+            i64::from(from_l2_block.0),
+            i64::from(to_l2_block.0),
         )
         .instrument("get_l1_batch_account_properties")
         .with_arg("l1_batch_number", &l1_batch_number)
