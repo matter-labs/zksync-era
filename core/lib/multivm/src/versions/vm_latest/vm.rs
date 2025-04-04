@@ -175,9 +175,9 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
         self.bootloader_state.start_new_l2_block(l2_block_env);
     }
 
-    fn insert_message_root(&mut self, msg_root: MessageRoot) {
-        self.bootloader_state.insert_message_root(msg_root);
-    }
+    // fn insert_message_root(&mut self, msg_root: MessageRoot) {
+    //     self.bootloader_state.insert_message_root(msg_root);
+    // }
 
     /// Inspect transaction with optional bytecode compression.
     fn inspect_transaction_with_bytecode_compression(

@@ -1,6 +1,8 @@
-use crate::U256;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone)]
+use crate::{ethabi::Token, u256_to_h256, U256};
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MessageRoot {
     pub chain_id: u32,
     pub block_number: u32,
@@ -13,6 +15,27 @@ impl MessageRoot {
             chain_id,
             block_number,
             sides,
+        }
+    }
+
+    pub fn into_token(self) -> Token {
+        Token::Tuple(vec![
+            Token::Uint(self.chain_id.into()),
+            Token::Uint(self.block_number.into()),
+            Token::Array(
+                self.sides
+                    .iter()
+                    .map(|hash| Token::FixedBytes(u256_to_h256(*hash).as_bytes().to_vec()))
+                    .collect(),
+            ),
+        ]) //
+    }
+
+    pub fn clone(&self) -> Self {
+        Self {
+            chain_id: self.chain_id,
+            block_number: self.block_number,
+            sides: self.sides.clone(),
         }
     }
 }

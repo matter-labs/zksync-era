@@ -176,6 +176,7 @@ impl StateKeeperIO for MempoolIO {
                     timestamp: unsealed_storage_batch.timestamp,
                     // This value is effectively ignored by the protocol.
                     virtual_blocks: 1,
+                    msg_roots: vec![],
                 },
                 pubdata_params: self.pubdata_params(protocol_version)?,
             }));
@@ -262,6 +263,7 @@ impl StateKeeperIO for MempoolIO {
                     timestamp,
                     // This value is effectively ignored by the protocol.
                     virtual_blocks: 1,
+                    msg_roots: vec![],
                 },
                 pubdata_params: self.pubdata_params(protocol_version)?,
             }));
@@ -289,6 +291,7 @@ impl StateKeeperIO for MempoolIO {
             timestamp,
             // This value is effectively ignored by the protocol.
             virtual_blocks: 1,
+            msg_roots: vec![],
         }))
     }
 
@@ -432,11 +435,27 @@ impl StateKeeperIO for MempoolIO {
             .map_err(Into::into)
     }
 
-    async fn load_latest_message_root(&self) -> anyhow::Result<Option<Vec<MessageRoot>>> {
+    async fn load_latest_message_root(
+        &self,
+        processed_block_number: L2BlockNumber,
+    ) -> anyhow::Result<Option<Vec<MessageRoot>>> {
         let mut storage = self.pool.connection_tagged("state_keeper").await?;
         storage
             .message_root_dal()
-            .get_latest_message_root()
+            .get_assgigned_roots_or_assign_if_needed(processed_block_number)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn mark_msg_root_as_processed(
+        &self,
+        msg_root: MessageRoot,
+        processed_block_number: L2BlockNumber,
+    ) -> anyhow::Result<()> {
+        let mut storage = self.pool.connection_tagged("state_keeper").await?;
+        storage
+            .message_root_dal()
+            .mark_msg_root_as_processed(msg_root, processed_block_number)
             .await
             .map_err(Into::into)
     }

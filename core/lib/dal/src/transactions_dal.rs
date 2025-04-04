@@ -10,9 +10,9 @@ use zksync_db_connection::{
     utils::pg_interval_from_duration,
 };
 use zksync_types::{
-    block::L2BlockExecutionData, debug_flat_call::CallTraceMeta, l1::L1Tx, l2::L2Tx,
+    block::L2BlockExecutionData, debug_flat_call::CallTraceMeta, h256_to_u256, l1::L1Tx, l2::L2Tx,
     protocol_upgrade::ProtocolUpgradeTx, Address, ExecuteTransactionCommon, L1BatchNumber,
-    L1BlockNumber, L2BlockNumber, PriorityOpId, ProtocolVersionId, Transaction,
+    L1BlockNumber, L2BlockNumber, MessageRoot, PriorityOpId, ProtocolVersionId, Transaction,
     TransactionTimeRangeConstraint, H256, PROTOCOL_UPGRADE_TX_TYPE, U256,
 };
 use zksync_vm_interface::{
@@ -2111,6 +2111,45 @@ impl TransactionsDal<'_, '_> {
             .await
     }
 
+    pub async fn get_dependency_roots(
+        &mut self,
+        block_number: L2BlockNumber,
+    ) -> DalResult<Vec<MessageRoot>> {
+        let rows = sqlx::query!(
+            r#"
+            SELECT
+                MESSAGE_ROOT_SIDES,
+                CHAIN_ID,
+                DEPENDENCY_BLOCK_NUMBER
+            FROM
+                MESSAGE_ROOTS
+            WHERE
+                PROCESSED_BLOCK_NUMBER = $1
+            "#,
+            i64::from(block_number.0)
+        )
+        .instrument("get_dependency_roots2")
+        .with_arg("block_number", &block_number)
+        .fetch_all(self.storage)
+        .await?;
+
+        let message_roots = rows
+            .into_iter()
+            .map(|row| {
+                let block_number = row.dependency_block_number as u32;
+                let root = row
+                    .message_root_sides
+                    .iter()
+                    .map(|side| h256_to_u256(H256::from_slice(side)))
+                    .collect::<Vec<_>>();
+                let chain_id = row.chain_id as u32;
+                MessageRoot::new(chain_id, block_number, root)
+            })
+            .collect();
+
+        Ok(message_roots)
+    }
+
     async fn map_transactions_to_execution_data(
         &mut self,
         transactions: Vec<StorageTransaction>,
@@ -2225,6 +2264,7 @@ impl TransactionsDal<'_, '_> {
                     H256::from_slice(&row.miniblock_hash)
                 }
             };
+            let msg_roots = self.get_dependency_roots(number).await?;
 
             data.push(L2BlockExecutionData {
                 number,
@@ -2232,6 +2272,7 @@ impl TransactionsDal<'_, '_> {
                 prev_block_hash,
                 virtual_blocks: l2_block_row.virtual_blocks as u32,
                 txs,
+                msg_roots,
             });
         }
         Ok(data)

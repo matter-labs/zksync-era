@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO MESSAGE_ROOTS (\n                CHAIN_ID, DEPENDENCY_BLOCK_NUMBER, MESSAGE_ROOT_SIDES\n            )\n            VALUES ($1, $2, $3)\n            ON CONFLICT (CHAIN_ID, DEPENDENCY_BLOCK_NUMBER)\n            DO UPDATE SET MESSAGE_ROOT_SIDES = EXCLUDED.MESSAGE_ROOT_SIDES;\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8",
+        "ByteaArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "b1c06d8f008aac3a45c601712baa5bcd9755232d3563f7fe38e4eeff9fc9552b"
+}
