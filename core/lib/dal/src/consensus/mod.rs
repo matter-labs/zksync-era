@@ -62,14 +62,6 @@ pub struct GlobalConfig {
     pub seed_peers: BTreeMap<node::PublicKey, net::Host>,
 }
 
-/// Global attestation status served by
-/// `attestationStatus` RPC.
-#[derive(Debug, PartialEq, Clone)]
-pub struct AttestationStatus {
-    pub genesis: validator::GenesisHash,
-    pub next_batch_to_attest: attester::BatchNumber,
-}
-
 /// L2 block (= miniblock) payload.
 #[derive(Debug, PartialEq)]
 pub struct Payload {
