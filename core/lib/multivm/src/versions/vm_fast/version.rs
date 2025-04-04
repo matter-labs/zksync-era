@@ -22,7 +22,9 @@ impl TryFrom<VmVersion> for FastVmVersion {
         match value {
             VmVersion::Vm1_5_0IncreasedBootloaderMemory => Ok(Self::IncreasedBootloaderMemory),
             // FIXME: implement differentiated memory model in fast VM
-            VmVersion::VmGateway | VmVersion::VmEvmEmulator => Ok(Self::Gateway),
+            VmVersion::VmGateway | VmVersion::VmEvmEmulator | VmVersion::VmEcPrecompiles => {
+                Ok(Self::Gateway)
+            }
             _ => Err(()),
         }
     }

@@ -43,12 +43,13 @@ pub(crate) enum MultiVmSubversion {
     /// VM for post-gateway versions.
     Gateway,
     EvmEmulator,
+    EcPrecompiles,
 }
 
 impl MultiVmSubversion {
     #[cfg(test)]
     pub(crate) fn latest() -> Self {
-        Self::EvmEmulator
+        Self::EcPrecompiles
     }
 }
 
@@ -64,6 +65,7 @@ impl TryFrom<VmVersion> for MultiVmSubversion {
             VmVersion::Vm1_5_0IncreasedBootloaderMemory => Ok(Self::IncreasedBootloaderMemory),
             VmVersion::VmGateway => Ok(Self::Gateway),
             VmVersion::VmEvmEmulator => Ok(Self::EvmEmulator),
+            VmVersion::VmEcPrecompiles => Ok(Self::EcPrecompiles),
             _ => Err(VmVersionIsNotVm150Error),
         }
     }

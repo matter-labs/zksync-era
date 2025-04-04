@@ -13,7 +13,8 @@ pub(crate) const BOOTLOADER_BATCH_TIP_CIRCUIT_STATISTICS_OVERHEAD: u32 = 12_000;
 pub(crate) const BOOTLOADER_BATCH_TIP_METRICS_SIZE_OVERHEAD: u32 = 2000;
 
 /// In the version `1.5.0` the maximal number of circuits per batch has been increased from `24100` to `34100`.
-pub(crate) const MAX_BASE_LAYER_CIRCUITS: usize = 34100;
+pub(crate) const MAX_BASE_LAYER_CIRCUITS: usize = 28000;
+pub(crate) const MAX_BASE_LAYER_CIRCUITS_1_5_0: usize = 34100;
 
 /// The size of the bootloader memory in bytes which is used by the protocol.
 /// While the maximal possible size is a lot higher, we restrict ourselves to a certain limit to reduce
@@ -25,7 +26,8 @@ pub(crate) const fn get_used_bootloader_memory_bytes(subversion: MultiVmSubversi
         MultiVmSubversion::SmallBootloaderMemory => 59_000_000,
         MultiVmSubversion::IncreasedBootloaderMemory
         | MultiVmSubversion::Gateway
-        | MultiVmSubversion::EvmEmulator => 63_800_000,
+        | MultiVmSubversion::EvmEmulator
+        | MultiVmSubversion::EcPrecompiles => 63_800_000,
     }
 }
 
@@ -66,7 +68,9 @@ pub(crate) const fn get_max_new_factory_deps(subversion: MultiVmSubversion) -> u
             32
         }
         // With gateway upgrade we increased max number of factory dependencies
-        MultiVmSubversion::Gateway | MultiVmSubversion::EvmEmulator => 64,
+        MultiVmSubversion::Gateway
+        | MultiVmSubversion::EvmEmulator
+        | MultiVmSubversion::EcPrecompiles => 64,
     }
 }
 

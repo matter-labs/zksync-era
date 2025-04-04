@@ -107,9 +107,10 @@ impl<C: ContractsKind> MultiVmBaseSystemContracts<C> {
             ProtocolVersionId::Version25 => &self.vm_protocol_defense,
             ProtocolVersionId::Version26 => &self.gateway,
             ProtocolVersionId::Version27 => &self.vm_evm_emulator,
-
-            // Speculative base system contracts for the next protocol version to be used in the upgrade integration test etc.
+            // TODO: use v28 contracts
             ProtocolVersionId::Version28 => &self.vm_evm_emulator,
+            // Speculative base system contracts for the next protocol version to be used in the upgrade integration test etc.
+            ProtocolVersionId::Version29 => &self.vm_evm_emulator,
         };
         base.clone()
     }
