@@ -11,6 +11,7 @@ use crate::{
     types::{Leaf, Node, NodeKey, TreeTags},
 };
 
+mod consistency;
 mod prop;
 
 #[test]
