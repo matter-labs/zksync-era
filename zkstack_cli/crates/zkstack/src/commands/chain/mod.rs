@@ -3,6 +3,8 @@ use args::build_transactions::BuildTransactionsArgs;
 pub(crate) use args::create::ChainCreateArgsFinal;
 use clap::{command, Subcommand};
 pub(crate) use create::create_chain_inner;
+use grant_gateway_whitelist::GrantGatewayWhitelistArgs;
+use set_transaction_filterer::SetTransactionFiltererArgs;
 use xshell::Shell;
 
 #[cfg(feature = "gateway")]
@@ -16,8 +18,24 @@ mod accept_chain_ownership;
 pub(crate) mod args;
 mod build_transactions;
 pub(crate) mod common;
+
+pub(crate) mod set_transaction_filterer;
+
 #[cfg(feature = "gateway")]
 pub(crate) mod convert_to_gateway;
+
+#[cfg(feature = "gateway")]
+pub(crate) mod deploy_gateway_contracts;
+
+#[cfg(feature = "gateway")]
+pub(crate) mod deploy_gateway_tx_filterer;
+
+#[cfg(feature = "gateway")]
+pub(crate) mod grant_gateway_whitelist;
+
+#[cfg(feature = "gateway")]
+pub(crate) mod admin_call_builder;
+
 pub(crate) mod create;
 pub mod deploy_l2_contracts;
 pub mod deploy_paymaster;
@@ -76,6 +94,17 @@ pub enum ChainCommands {
     DeployPaymaster(ForgeScriptArgs),
     /// Update Token Multiplier Setter address on L1
     UpdateTokenMultiplierSetter(ForgeScriptArgs),
+    /// Provides calldata to set transaction filterer for a chain
+    SetTransactionFilterer(SetTransactionFiltererArgs),
+    /// Deploys Gateway Filterer and prepares Gateway CTM contracts.
+    #[cfg(feature = "gateway")]
+    DeployGatewayTransactionFilterer(ForgeScriptArgs),
+    #[cfg(feature = "gateway")]
+    GrantGatewayTransactionFiltererWhitelist(GrantGatewayWhitelistArgs),
+    #[cfg(feature = "gateway")]
+    // /// Deploys Gateway Filterer and prepares Gateway CTM contracts.
+    // #[command(alias = "gateway")]
+    // DeployGatewayContracts(ForgeScriptArgs),
     /// Prepare chain to be an eligible gateway
     #[cfg(feature = "gateway")]
     ConvertToGateway(ForgeScriptArgs),
@@ -122,6 +151,17 @@ pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()
         ChainCommands::DeployPaymaster(args) => deploy_paymaster::run(args, shell).await,
         ChainCommands::UpdateTokenMultiplierSetter(args) => {
             set_token_multiplier_setter::run(args, shell).await
+        }
+        ChainCommands::SetTransactionFilterer(args) => {
+            set_transaction_filterer::run(shell, args).await
+        }
+        #[cfg(feature = "gateway")]
+        ChainCommands::DeployGatewayTransactionFilterer(args) => {
+            deploy_gateway_tx_filterer::run(args, shell).await
+        }
+        #[cfg(feature = "gateway")]
+        ChainCommands::GrantGatewayTransactionFiltererWhitelist(args) => {
+            grant_gateway_whitelist::run(shell, args).await
         }
         #[cfg(feature = "gateway")]
         ChainCommands::ConvertToGateway(args) => convert_to_gateway::run(args, shell).await,

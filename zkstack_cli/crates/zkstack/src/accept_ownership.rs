@@ -1,10 +1,15 @@
+use std::path::Path;
+
 use anyhow::Context;
 use ethers::{
     abi::{parse_abi, Token},
     contract::BaseContract,
-    types::Address,
+    core::k256::elliptic_curve::consts::U2,
+    types::{Address, Bytes},
+    utils::hex,
 };
 use lazy_static::lazy_static;
+use serde::{Deserialize, Serialize};
 use xshell::Shell;
 use zkstack_cli_common::{
     forge::{Forge, ForgeScript, ForgeScriptArgs},
@@ -12,8 +17,9 @@ use zkstack_cli_common::{
     wallets::Wallet,
 };
 use zkstack_cli_config::{
-    forge_interface::script_params::ACCEPT_GOVERNANCE_SCRIPT_PARAMS, ChainConfig, ContractsConfig,
-    EcosystemConfig,
+    forge_interface::script_params::ACCEPT_GOVERNANCE_SCRIPT_PARAMS,
+    traits::{ReadConfig, ZkStackConfig},
+    ChainConfig, ContractsConfig, EcosystemConfig,
 };
 use zksync_basic_types::U256;
 
@@ -32,7 +38,10 @@ lazy_static! {
             "function governanceExecuteCalls(bytes calldata callsToExecute, address target) public",
             "function adminExecuteUpgrade(bytes memory diamondCut, address adminAddr, address accessControlRestriction, address chainDiamondProxy)",
             "function adminScheduleUpgrade(address adminAddr, address accessControlRestriction, uint256 newProtocolVersion, uint256 timestamp)",
-            "function updateValidator(address adminAddr,address accessControlRestriction,address validatorTimelock,uint256 chainId,address validatorAddress,bool addValidator) public"
+            "function updateValidator(address adminAddr,address accessControlRestriction,address validatorTimelock,uint256 chainId,address validatorAddress,bool addValidator) public",
+            "function setTransactionFilterer(address _bridgehubAddr, uint256 _chainId, address _transactionFiltererAddress, bool _shouldSend) external",
+            "function grantGatewayWhitelist(address _bridgehubAddr, uint256 _chainId, address _grantee)",
+            "function migrateChainToGateway(address bridgehub, uint256 l1GasPrice, uint256 l2GhainId, uint256 gatewayChainId, bytes _gatewayDiamondCutData, bool _shouldSend) public view"
         ])
         .unwrap(),
     );
@@ -356,4 +365,262 @@ async fn accept_ownership(
     forge.run(shell)?;
     spinner.finish();
     Ok(())
+}
+
+pub enum AdminScriptMode {
+    OnlySave,
+    Broadcast(Wallet),
+}
+
+impl AdminScriptMode {
+    fn should_send(&self) -> bool {
+        matches!(self, AdminScriptMode::Broadcast(_))
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+struct AdminScriptOutputInner {
+    admin_address: Address,
+    encoded_data: String,
+}
+
+impl ZkStackConfig for AdminScriptOutputInner {}
+
+#[derive(Debug, Clone)]
+pub struct AdminScriptOutput {
+    pub admin_address: Address,
+    pub encoded_data: Vec<u8>,
+}
+
+impl From<AdminScriptOutputInner> for AdminScriptOutput {
+    fn from(value: AdminScriptOutputInner) -> Self {
+        Self {
+            admin_address: value.admin_address,
+            encoded_data: hex::decode(value.encoded_data).unwrap(),
+        }
+    }
+}
+
+const ADMIN_OUTPUT: &str = "script-out/output-accept-admin.toml";
+
+pub async fn call_script(
+    shell: &Shell,
+    forge_args: &ForgeScriptArgs,
+    foundry_contracts_path: &Path,
+    mode: AdminScriptMode,
+    calldata: Bytes,
+    l1_rpc_url: String,
+) -> anyhow::Result<AdminScriptOutput> {
+    let forge = Forge::new(foundry_contracts_path)
+        .script(
+            &ACCEPT_GOVERNANCE_SCRIPT_PARAMS.script(),
+            forge_args.clone(),
+        )
+        .with_ffi()
+        .with_rpc_url(l1_rpc_url)
+        .with_calldata(&calldata);
+
+    let forge = match mode {
+        AdminScriptMode::OnlySave => forge,
+        AdminScriptMode::Broadcast(wallet) => {
+            let forge = forge.with_broadcast();
+            let forge = fill_forge_private_key(forge, Some(&wallet), WalletOwner::Governor)?;
+            check_the_balance(&forge).await?;
+
+            forge
+        }
+    };
+
+    // TODO: maybe add spinner here.
+
+    let output_path = foundry_contracts_path.join(ADMIN_OUTPUT);
+
+    println!(
+        "foundry_contracts_path = {:#?} output_path = {:#?}",
+        foundry_contracts_path, output_path
+    );
+
+    forge.run(shell)?;
+
+    Ok(AdminScriptOutputInner::read(shell, output_path)?.into())
+}
+
+pub(crate) async fn set_transaction_filterer(
+    shell: &Shell,
+    forge_args: &ForgeScriptArgs,
+    foundry_contracts_path: &Path,
+    mode: AdminScriptMode,
+    chain_id: u64,
+    bridgehub: Address,
+    transaction_filterer_addr: Address,
+    l1_rpc_url: String,
+) -> anyhow::Result<AdminScriptOutput> {
+    let calldata = ACCEPT_ADMIN
+        .encode(
+            "setTransactionFilterer",
+            (
+                bridgehub,
+                U256::from(chain_id),
+                transaction_filterer_addr,
+                mode.should_send(),
+            ),
+        )
+        .unwrap();
+
+    call_script(
+        shell,
+        forge_args,
+        foundry_contracts_path,
+        mode,
+        calldata,
+        l1_rpc_url,
+    )
+    .await
+}
+
+pub(crate) async fn grant_gateway_whitelist(
+    shell: &Shell,
+    forge_args: &ForgeScriptArgs,
+    foundry_contracts_path: &Path,
+    mode: AdminScriptMode,
+    chain_id: u64,
+    bridgehub: Address,
+    grantee: Address,
+    l1_rpc_url: String,
+) -> anyhow::Result<AdminScriptOutput> {
+    let calldata = ACCEPT_ADMIN
+        .encode(
+            "grantGatewayWhitelist",
+            (bridgehub, U256::from(chain_id), grantee, mode.should_send()),
+        )
+        .unwrap();
+
+    call_script(
+        shell,
+        forge_args,
+        foundry_contracts_path,
+        mode,
+        calldata,
+        l1_rpc_url,
+    )
+    .await
+}
+
+pub(crate) async fn revoke_gateway_whitelist(
+    shell: &Shell,
+    forge_args: &ForgeScriptArgs,
+    foundry_contracts_path: &Path,
+    mode: AdminScriptMode,
+    chain_id: u64,
+    bridgehub: Address,
+    address: Address,
+    l1_rpc_url: String,
+) -> anyhow::Result<AdminScriptOutput> {
+    let calldata = ACCEPT_ADMIN
+        .encode(
+            "revokeGatewayWhitelist",
+            (bridgehub, U256::from(chain_id), address, mode.should_send()),
+        )
+        .unwrap();
+
+    call_script(
+        shell,
+        forge_args,
+        foundry_contracts_path,
+        mode,
+        calldata,
+        l1_rpc_url,
+    )
+    .await
+}
+
+pub(crate) async fn notify_server_migration_to_gateway(
+    shell: &Shell,
+    forge_args: &ForgeScriptArgs,
+    foundry_contracts_path: &Path,
+    mode: AdminScriptMode,
+    chain_id: u64,
+    bridgehub: Address,
+    l1_rpc_url: String,
+) -> anyhow::Result<AdminScriptOutput> {
+    let calldata = ACCEPT_ADMIN
+        .encode(
+            "notifyServerMigrationToGateway",
+            (U256::from(chain_id), bridgehub, mode.should_send()),
+        )
+        .unwrap();
+
+    call_script(
+        shell,
+        forge_args,
+        foundry_contracts_path,
+        mode,
+        calldata,
+        l1_rpc_url,
+    )
+    .await
+}
+
+pub(crate) async fn finalize_migrate_to_gateway(
+    shell: &Shell,
+    forge_args: &ForgeScriptArgs,
+    foundry_contracts_path: &Path,
+    mode: AdminScriptMode,
+    bridgehub: Address,
+    l1_gas_price: u64,
+    l2_chain_id: u64,
+    gateway_chain_id: u64,
+    gateway_diamond_cut_data: Bytes,
+    l1_rpc_url: String,
+) -> anyhow::Result<AdminScriptOutput> {
+    let calldata = ACCEPT_ADMIN
+        .encode(
+            "migrateChainToGateway",
+            (
+                bridgehub,
+                l1_gas_price,
+                l2_chain_id,
+                gateway_chain_id,
+                gateway_diamond_cut_data,
+                mode.should_send(),
+            ),
+        )
+        .unwrap();
+
+    call_script(
+        shell,
+        forge_args,
+        foundry_contracts_path,
+        mode,
+        calldata,
+        l1_rpc_url,
+    )
+    .await
+}
+
+pub(crate) async fn notify_server_migration_from_gateway(
+    shell: &Shell,
+    forge_args: &ForgeScriptArgs,
+    foundry_contracts_path: &Path,
+    mode: AdminScriptMode,
+    chain_id: u64,
+    bridgehub: Address,
+    l1_rpc_url: String,
+) -> anyhow::Result<AdminScriptOutput> {
+    let calldata = ACCEPT_ADMIN
+        .encode(
+            "notifyServerMigrationFromGateway",
+            (U256::from(chain_id), bridgehub, mode.should_send()),
+        )
+        .unwrap();
+
+    call_script(
+        shell,
+        forge_args,
+        foundry_contracts_path,
+        mode,
+        calldata,
+        l1_rpc_url,
+    )
+    .await
 }

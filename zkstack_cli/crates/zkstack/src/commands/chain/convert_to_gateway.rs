@@ -22,6 +22,10 @@ use zksync_basic_types::H256;
 use zksync_config::configs::gateway::GatewayConfig;
 
 use crate::{
+    accept_ownership::{
+        grant_gateway_whitelist, revoke_gateway_whitelist, set_transaction_filterer,
+        AdminScriptMode,
+    },
     messages::MSG_CHAIN_NOT_INITIALIZED,
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
@@ -63,8 +67,80 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     let chain_genesis_config = chain_config.get_genesis_config().await?;
     let genesis_input = GenesisInput::new(&chain_genesis_config)?;
 
-    // Firstly, deploying gateway contracts
+    let output = call_script(
+        shell,
+        args.clone(),
+        &GATEWAY_PREPARATION_INTERFACE
+            .encode("deployGatewayTransactionFilterer", ())
+            .unwrap(),
+        &ecosystem_config,
+        &chain_config,
+        &chain_config
+            .get_wallets_config()?
+            .deployer
+            .context("deployer")?,
+        l1_url.clone(),
+        true,
+    )
+    .await?;
+
+    set_transaction_filterer(
+        shell,
+        &args,
+        &chain_config.path_to_l1_foundry(),
+        AdminScriptMode::Broadcast(chain_config.get_wallets_config()?.governor),
+        chain_config.chain_id.as_u64(),
+        chain_contracts_config
+            .ecosystem_contracts
+            .bridgehub_proxy_addr,
+        output.gateway_transaction_filterer_proxy,
+        l1_url.clone(),
+    )
+    .await?;
+
+    chain_contracts_config.set_transaction_filterer(output.gateway_transaction_filterer_proxy);
+    chain_contracts_config.save_with_base_path(shell, chain_config.configs.clone())?;
+
+    for grantee in vec![
+        ecosystem_config.get_contracts_config()?.l1.governance_addr,
+        ecosystem_config
+            .get_wallets()?
+            .deployer
+            .context("no deployer addr")?
+            .address,
+    ]
+    .into_iter()
+    {
+        grant_gateway_whitelist(
+            shell,
+            &args,
+            &chain_config.path_to_l1_foundry(),
+            AdminScriptMode::Broadcast(chain_config.get_wallets_config()?.governor),
+            chain_config.chain_id.as_u64(),
+            chain_contracts_config
+                .ecosystem_contracts
+                .bridgehub_proxy_addr,
+            grantee,
+            l1_url.clone(),
+        )
+        .await?;
+    }
+
+    // The logic below firstly deploys the gateway CTM.
+    // In actual production we will deploy the gateway CTM before starting the vote.
+
     let gateway_config = calculate_gateway_ctm(
+        shell,
+        args.clone(),
+        &ecosystem_config,
+        &chain_config,
+        &genesis_input,
+        &ecosystem_config.get_initial_deployment_config().unwrap(),
+        l1_url.clone(),
+    )
+    .await?;
+
+    deploy_gateway_ctm(
         shell,
         args.clone(),
         &ecosystem_config,
@@ -95,64 +171,24 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     )
     .await?;
 
-    let output = call_script(
+    // We will revoke the access of the hot wallet immediately
+    revoke_gateway_whitelist(
         shell,
-        args.clone(),
-        &GATEWAY_PREPARATION_INTERFACE
-            .encode("deployAndSetGatewayTransactionFilterer", ())
-            .unwrap(),
-        &ecosystem_config,
-        &chain_config,
-        &chain_config.get_wallets_config()?.governor,
+        &args,
+        &chain_config.path_to_l1_foundry(),
+        AdminScriptMode::Broadcast(chain_config.get_wallets_config()?.governor),
+        chain_config.chain_id.as_u64(),
+        chain_contracts_config
+            .ecosystem_contracts
+            .bridgehub_proxy_addr,
+        ecosystem_config
+            .get_wallets()?
+            .deployer
+            .context("no deployer addr")?
+            .address,
         l1_url.clone(),
-        true,
     )
     .await?;
-
-    chain_contracts_config.set_transaction_filterer(output.gateway_transaction_filterer_proxy);
-
-    // We could've deployed the CTM at the beginning however, to be closer to how the actual upgrade
-    // looks like we'll do it as the last step
-
-    call_script(
-        shell,
-        args.clone(),
-        &GATEWAY_PREPARATION_INTERFACE
-            .encode(
-                "grantWhitelist",
-                (
-                    output.gateway_transaction_filterer_proxy,
-                    vec![
-                        ecosystem_config.get_contracts_config()?.l1.governance_addr,
-                        ecosystem_config
-                            .get_wallets()?
-                            .deployer
-                            .context("no deployer addr")?
-                            .address,
-                    ],
-                ),
-            )
-            .unwrap(),
-        &ecosystem_config,
-        &chain_config,
-        &chain_config.get_wallets_config()?.governor,
-        l1_url.clone(),
-        true,
-    )
-    .await?;
-
-    deploy_gateway_ctm(
-        shell,
-        args,
-        &ecosystem_config,
-        &chain_config,
-        &genesis_input,
-        &ecosystem_config.get_initial_deployment_config().unwrap(),
-        l1_url,
-    )
-    .await?;
-
-    chain_contracts_config.save_with_base_path(shell, chain_config.configs)?;
 
     Ok(())
 }
@@ -261,42 +297,13 @@ pub async fn gateway_governance_whitelisting(
     l1_rpc_url: String,
     with_broadcast: bool,
 ) -> anyhow::Result<()> {
-    let hash = call_script(
-        shell,
-        forge_args.clone(),
-        &GATEWAY_PREPARATION_INTERFACE
-            .encode("governanceRegisterGateway", ())
-            .unwrap(),
-        config,
-        chain_config,
-        &config.get_wallets()?.governor,
-        l1_rpc_url.clone(),
-        with_broadcast,
-    )
-    .await?
-    .governance_l2_tx_hash;
-
-    // TOOD(EVM-931): adapt for more generic functionality from the rest of zkstack
-    if !with_broadcast {
-        // TODO(EVM-930): the path below relies explicitly on chain id 9.
-        shell.copy_file(
-            config.link_to_code.join("contracts/l1-contracts/broadcast/GatewayPreparation.s.sol/9/dry-run/932d9a4d-latest.json"),
-            config.link_to_code.join(GATEWAY_GOVERNANCE_TX_PATH1),
-        )?;
-    }
-
-    logger::info(format!(
-        "Gateway registered as a settlement layer with L2 hash: {}",
-        hash
-    ));
-
-    let hash = call_script(
+    let last_tx_hash = call_script(
         shell,
         forge_args.clone(),
         &GATEWAY_PREPARATION_INTERFACE
             .encode(
-                "governanceWhitelistGatewayCTM",
-                (gateway_config.state_transition_proxy_addr, H256::random()),
+                "runGatewayGovernanceRegistration",
+                (gateway_config.state_transition_proxy_addr),
             )
             .unwrap(),
         config,
@@ -308,82 +315,9 @@ pub async fn gateway_governance_whitelisting(
     .await?
     .governance_l2_tx_hash;
 
-    // TOOD(EVM-931): adapt for more generic functionality from the rest of zkstack
-    if !with_broadcast {
-        // TODO(EVM-930): the path below relies explicitly on chain id 9.
-        shell.copy_file(
-            config.link_to_code.join("contracts/l1-contracts/broadcast/GatewayPreparation.s.sol/9/dry-run/e518d36a-latest.json"),
-            config.link_to_code.join(GATEWAY_GOVERNANCE_TX_PATH1),
-        )?;
-    }
-
-    // Just in case, the L2 tx may or may not fail depending on whether it was executed previously,
     logger::info(format!(
-        "Gateway STM whitelisted L2 hash: {}",
-        hex::encode(hash.as_bytes())
-    ));
-
-    let hash = call_script(
-        shell,
-        forge_args.clone(),
-        &GATEWAY_PREPARATION_INTERFACE
-            .encode("governanceSetCTMAssetHandler", H256::random())
-            .unwrap(),
-        config,
-        chain_config,
-        &config.get_wallets()?.governor,
-        l1_rpc_url.clone(),
-        with_broadcast,
-    )
-    .await?
-    .governance_l2_tx_hash;
-
-    // TOOD(EVM-931): adapt for more generic functionality from the rest of zkstack
-    if !with_broadcast {
-        // TODO(EVM-930): the path below relies explicitly on chain id 9.
-        shell.copy_file(
-            config.link_to_code.join("contracts/l1-contracts/broadcast/GatewayPreparation.s.sol/9/dry-run/98b2aab7-latest.json"),
-            config.link_to_code.join(GATEWAY_GOVERNANCE_TX_PATH1),
-        )?;
-    }
-
-    // Just in case, the L2 tx may or may not fail depending on whether it was executed previously,
-    logger::info(format!(
-        "Gateway STM asset handler is set L2 hash: {}",
-        hex::encode(hash.as_bytes())
-    ));
-
-    let hash = call_script(
-        shell,
-        forge_args.clone(),
-        &GATEWAY_PREPARATION_INTERFACE
-            .encode(
-                "registerAssetIdInBridgehub",
-                (gateway_config.state_transition_proxy_addr, H256::random()),
-            )
-            .unwrap(),
-        config,
-        chain_config,
-        &config.get_wallets()?.governor,
-        l1_rpc_url.clone(),
-        with_broadcast,
-    )
-    .await?
-    .governance_l2_tx_hash;
-
-    // TOOD(EVM-931): adapt for more generic functionality from the rest of zkstack
-    if !with_broadcast {
-        // TODO(EVM-930): the path below relies explicitly on chain id 9.
-        shell.copy_file(
-            config.link_to_code.join("contracts/l1-contracts/broadcast/GatewayPreparation.s.sol/9/dry-run/b620eb4c-latest.json"),
-            config.link_to_code.join(GATEWAY_GOVERNANCE_TX_PATH1),
-        )?;
-    }
-
-    // Just in case, the L2 tx may or may not fail depending on whether it was executed previously,
-    logger::info(format!(
-        "Asset Id is registered in L2 bridgehub. L2 hash: {}",
-        hex::encode(hash.as_bytes())
+        "Gateway registered as a settlement layer! The last L2 hash: {}",
+        hex::encode(last_tx_hash.as_bytes())
     ));
 
     Ok(())

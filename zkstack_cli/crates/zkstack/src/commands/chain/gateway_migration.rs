@@ -3,8 +3,10 @@ use clap::Parser;
 use ethers::{
     abi::parse_abi,
     contract::BaseContract,
+    middleware::SignerMiddleware,
     providers::{Http, Middleware, Provider},
-    types::Bytes,
+    signers::{LocalWallet, Signer},
+    types::{Bytes, TransactionReceipt, TransactionRequest},
     utils::hex,
 };
 use lazy_static::lazy_static;
@@ -30,6 +32,7 @@ use zksync_config::configs::gateway::GatewayChainConfig;
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 
 use crate::{
+    accept_ownership::finalize_migrate_to_gateway,
     messages::MSG_CHAIN_NOT_INITIALIZED,
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
@@ -68,6 +71,9 @@ lazy_static! {
     );
 }
 
+// 50 gwei
+const MAX_EXPECTED_L1_GAS_PRICE: u64 = 50_000_000_000;
+
 pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
 
@@ -90,11 +96,12 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         .get::<String>("l1.l1_rpc_url")?;
 
     let genesis_config = chain_config.get_genesis_config().await?;
+    let gateway_contract_config = gateway_chain_config.get_contracts_config()?;
 
     let preparation_config_path = GATEWAY_PREPARATION.input(&ecosystem_config.link_to_code);
     let preparation_config = GatewayPreparationConfig::new(
         &gateway_chain_config,
-        &gateway_chain_config.get_contracts_config()?,
+        &gateway_contract_config,
         &ecosystem_config.get_contracts_config()?,
         &gateway_gateway_config,
     )?;
@@ -107,72 +114,43 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         .access_control_restriction_addr
         .context("chain_access_control_restriction")?;
 
-    logger::info("Whitelisting the chains' addresseses...");
-    call_script(
+    logger::info("Migrating the chain to the Gateway...");
+
+    let output = finalize_migrate_to_gateway(
         shell,
-        args.forge_args.clone(),
-        &GATEWAY_PREPARATION_INTERFACE
-            .encode(
-                "grantWhitelist",
-                (
-                    gateway_chain_config
-                        .get_contracts_config()?
-                        .l1
-                        .transaction_filterer_addr
-                        .context("transaction_filterer_addr")?,
-                    vec![
-                        chain_config.get_wallets_config()?.governor.address,
-                        chain_config.get_contracts_config()?.l1.chain_admin_addr,
-                    ],
-                ),
-            )
-            .unwrap(),
-        &chain_config,
-        &gateway_chain_config.get_wallets_config()?.governor,
+        &args.forge_args,
+        &chain_config.path_to_l1_foundry(),
+        crate::accept_ownership::AdminScriptMode::OnlySave,
+        chain_contracts_config
+            .ecosystem_contracts
+            .bridgehub_proxy_addr,
+        MAX_EXPECTED_L1_GAS_PRICE,
+        chain_config.chain_id.as_u64(),
+        gateway_chain_config.chain_id.as_u64(),
+        preparation_config.gateway_diamond_cut_data.0.into(),
         l1_url.clone(),
     )
     .await?;
 
-    logger::info("Migrating the chain to the Gateway...");
-
-    let l2_chain_admin = call_script(
-        shell,
-        args.forge_args.clone(),
-        &GATEWAY_PREPARATION_INTERFACE
-            .encode("deployL2ChainAdmin", ())
-            .unwrap(),
-        &chain_config,
-        &chain_config.get_wallets_config()?.governor,
-        l1_url.clone(),
-    )
-    .await?
-    .l2_chain_admin_address;
-    logger::info(format!(
-        "L2 chain admin deployed! Its address: {:#?}",
-        l2_chain_admin
-    ));
-
-    let hash = call_script(
-        shell,
-        args.forge_args.clone(),
-        &GATEWAY_PREPARATION_INTERFACE
-            .encode(
-                "migrateChainToGateway",
-                (
-                    chain_admin_addr,
-                    // TODO(EVM-746): Use L2-based chain admin contract
-                    l2_chain_admin,
-                    chain_access_control_restriction,
-                    U256::from(chain_config.chain_id.as_u64()),
-                ),
-            )
-            .unwrap(),
-        &chain_config,
-        &chain_config.get_wallets_config()?.governor,
-        l1_url.clone(),
-    )
-    .await?
-    .governance_l2_tx_hash;
+    let hash = if output.encoded_data.is_empty() {
+        H256::zero()
+    } else {
+        let receipt = send_tx(
+            output.admin_address,
+            output.encoded_data,
+            l1_url.clone(),
+            chain_config
+                .get_wallets_config()?
+                .governor
+                .private_key_h256()
+                .unwrap(),
+        )
+        .await?;
+        extract_priority_ops(receipt, gateway_contract_config.l1.diamond_proxy_addr)
+            .await?
+            .pop()
+            .context("Priority op not found")?
+    };
 
     let general_config = gateway_chain_config.get_general_config().await?;
     let l2_rpc_url = general_config.get::<String>("api.web3_json_rpc.http_url")?;
@@ -236,7 +214,6 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
                         .da_validator_addr
                         .context("da_validator_addr")?,
                     new_diamond_proxy_address,
-                    l2_chain_admin,
                 ),
             )
             .unwrap(),
@@ -266,7 +243,6 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
                     U256::from(chain_config.chain_id.as_u64()),
                     chain_secrets_config.blob_operator.address,
                     gateway_gateway_config.validator_timelock_addr,
-                    l2_chain_admin,
                 ),
             )
             .unwrap(),
@@ -316,7 +292,6 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
                     U256::from(chain_config.chain_id.as_u64()),
                     chain_secrets_config.operator.address,
                     gateway_gateway_config.validator_timelock_addr,
-                    l2_chain_admin,
                 ),
             )
             .unwrap(),
@@ -362,7 +337,8 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     let gateway_chain_config = GatewayChainConfig::from_gateway_and_chain_data(
         &gateway_gateway_config,
         new_diamond_proxy_address,
-        l2_chain_admin,
+        // FIXME: no chain admin is supported here
+        Address::zero(),
         gateway_chain_id.into(),
     );
     gateway_chain_config.save_with_base_path(shell, chain_config.configs.clone())?;
@@ -485,4 +461,67 @@ async fn call_script(
         GatewayPreparationOutput::read(shell, GATEWAY_PREPARATION.output(&config.link_to_code))?;
 
     Ok(gateway_preparation_script_output)
+}
+
+// Default gas limit to be used for local scripts, so the exact value does not matter.
+const L1_GAS_LIMIT: u64 = 2_000_000;
+
+async fn send_tx(
+    to: Address,
+    data: Vec<u8>,
+    l1_rpc_url: String,
+    private_key: H256,
+) -> anyhow::Result<TransactionReceipt> {
+    // 1. Connect to provider
+    let provider = Provider::<Http>::try_from(&l1_rpc_url)?;
+
+    // 2. Set up wallet (signer)
+    let wallet: LocalWallet = LocalWallet::from_bytes(private_key.as_bytes())?;
+    let wallet = wallet.with_chain_id(provider.get_chainid().await?.as_u64()); // Mainnet
+
+    // 3. Create a transaction
+    let tx = TransactionRequest::new().to(to).data(data);
+
+    // 4. Sign the transaction
+    let client = SignerMiddleware::new(provider.clone(), wallet.clone());
+    let pending_tx = client.send_transaction(tx, None).await?;
+
+    println!(
+        "Transaction {:#?} has been sent! Waiting...",
+        pending_tx.tx_hash()
+    );
+
+    // 5. Await receipt
+    let receipt: TransactionReceipt = pending_tx.await?.context("Receipt not found")?;
+
+    println!("Transaciton {:#?} confirmed!", receipt.transaction_hash);
+
+    Ok(receipt)
+}
+
+async fn extract_priority_ops(
+    receipt: TransactionReceipt,
+    expected_diamond_proxy: Address,
+) -> anyhow::Result<Vec<H256>> {
+    // TODO(EVM-749): cleanup the constant and automate its derivation
+    let expected_topic_0: H256 = "4531cd5795773d7101c17bdeb9f5ab7f47d7056017506f937083be5d6e77a382"
+        .parse()
+        .unwrap();
+
+    let priority_ops = receipt
+        .logs
+        .into_iter()
+        .filter_map(|log| {
+            if log.topics.is_empty() || log.topics[0] != expected_topic_0 {
+                return None;
+            }
+            if log.address != expected_diamond_proxy {
+                return None;
+            }
+
+            Some(H256::from_slice(&log.data[32..64]))
+        })
+        .collect();
+
+    Ok(priority_ops)
 }
