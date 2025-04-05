@@ -539,7 +539,6 @@ async fn no_governance_stage_3(
         &chain_config,
         &chain_contracts_config,
         &ecosystem_config.get_contracts_config()?,
-        &gateway_config,
     )?;
     preparation_config.save(shell, gateway_preparation_config_path)?;
 

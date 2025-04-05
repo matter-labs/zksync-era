@@ -52,9 +52,9 @@ lazy_static! {
     static ref GATEWAY_PREPARATION_INTERFACE: BaseContract = BaseContract::from(
         parse_abi(&[
             "function migrateChainToGateway(address chainAdmin,address l2ChainAdmin,address accessControlRestriction,uint256 chainId) public",
-            "function setDAValidatorPair(address chainAdmin,address accessControlRestriction,uint256 chainId,address l1DAValidator,address l2DAValidator,address chainDiamondProxyOnGateway,address chainAdminOnGateway)",
+            "function setDAValidatorPair(address accessControlRestriction,uint256 chainId,address l1DAValidator,address l2DAValidator,address chainDiamondProxyOnGateway)",
             "function supplyGatewayWallet(address addr, uint256 addr) public",
-            "function enableValidator(address chainAdmin,address accessControlRestriction,uint256 chainId,address validatorAddress,address gatewayValidatorTimelock,address chainAdminOnGateway) public",
+            "function enableValidator(address accessControlRestriction,uint256 chainId,address validatorAddress,address gatewayValidatorTimelock) public",
             "function grantWhitelist(address filtererProxy, address[] memory addr) public",
             "function deployL2ChainAdmin() public",
             "function notifyServerMigrationFromGateway(address serverNotifier, address chainAdmin, address accessControlRestriction, uint256 chainId) public",
@@ -103,12 +103,10 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         &gateway_chain_config,
         &gateway_contract_config,
         &ecosystem_config.get_contracts_config()?,
-        &gateway_gateway_config,
     )?;
     preparation_config.save(shell, preparation_config_path)?;
 
     let chain_contracts_config = chain_config.get_contracts_config().unwrap();
-    let chain_admin_addr = chain_contracts_config.l1.chain_admin_addr;
     let chain_access_control_restriction = chain_contracts_config
         .l1
         .access_control_restriction_addr
@@ -127,7 +125,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         MAX_EXPECTED_L1_GAS_PRICE,
         chain_config.chain_id.as_u64(),
         gateway_chain_config.chain_id.as_u64(),
-        preparation_config.gateway_diamond_cut_data.0.into(),
+        gateway_gateway_config.diamond_cut_data.0.clone().into(),
         l1_url.clone(),
     )
     .await?;
@@ -138,6 +136,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         let receipt = send_tx(
             output.admin_address,
             output.encoded_data,
+            output.value,
             l1_url.clone(),
             chain_config
                 .get_wallets_config()?
@@ -205,7 +204,6 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
             .encode(
                 "setDAValidatorPair",
                 (
-                    chain_admin_addr,
                     chain_access_control_restriction,
                     U256::from(chain_config.chain_id.as_u64()),
                     gateway_da_validator_address,
@@ -238,7 +236,6 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
             .encode(
                 "enableValidator",
                 (
-                    chain_admin_addr,
                     chain_access_control_restriction,
                     U256::from(chain_config.chain_id.as_u64()),
                     chain_secrets_config.blob_operator.address,
@@ -287,7 +284,6 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
             .encode(
                 "enableValidator",
                 (
-                    chain_admin_addr,
                     chain_access_control_restriction,
                     U256::from(chain_config.chain_id.as_u64()),
                     chain_secrets_config.operator.address,
@@ -469,6 +465,7 @@ const L1_GAS_LIMIT: u64 = 2_000_000;
 async fn send_tx(
     to: Address,
     data: Vec<u8>,
+    value: U256,
     l1_rpc_url: String,
     private_key: H256,
 ) -> anyhow::Result<TransactionReceipt> {
@@ -480,7 +477,7 @@ async fn send_tx(
     let wallet = wallet.with_chain_id(provider.get_chainid().await?.as_u64()); // Mainnet
 
     // 3. Create a transaction
-    let tx = TransactionRequest::new().to(to).data(data);
+    let tx = TransactionRequest::new().to(to).data(data).value(value);
 
     // 4. Sign the transaction
     let client = SignerMiddleware::new(provider.clone(), wallet.clone());

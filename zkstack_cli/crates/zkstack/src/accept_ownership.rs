@@ -40,8 +40,9 @@ lazy_static! {
             "function adminScheduleUpgrade(address adminAddr, address accessControlRestriction, uint256 newProtocolVersion, uint256 timestamp)",
             "function updateValidator(address adminAddr,address accessControlRestriction,address validatorTimelock,uint256 chainId,address validatorAddress,bool addValidator) public",
             "function setTransactionFilterer(address _bridgehubAddr, uint256 _chainId, address _transactionFiltererAddress, bool _shouldSend) external",
-            "function grantGatewayWhitelist(address _bridgehubAddr, uint256 _chainId, address _grantee)",
-            "function migrateChainToGateway(address bridgehub, uint256 l1GasPrice, uint256 l2GhainId, uint256 gatewayChainId, bytes _gatewayDiamondCutData, bool _shouldSend) public view"
+            "function grantGatewayWhitelist(address _bridgehubAddr, uint256 _chainId, address _grantee, bool _shouldSend)",
+            "function migrateChainToGateway(address bridgehub, uint256 l1GasPrice, uint256 l2GhainId, uint256 gatewayChainId, bytes _gatewayDiamondCutData, bool _shouldSend) public view",
+            "function revokeGatewayWhitelist(address _bridgehub, uint256 _chainId, address _address, bool _shouldSend) public"
         ])
         .unwrap(),
     );
@@ -382,6 +383,8 @@ impl AdminScriptMode {
 struct AdminScriptOutputInner {
     admin_address: Address,
     encoded_data: String,
+    // TODO: u64 is enough for 99% of times, but U256 would be more correct
+    value: u64,
 }
 
 impl ZkStackConfig for AdminScriptOutputInner {}
@@ -390,6 +393,7 @@ impl ZkStackConfig for AdminScriptOutputInner {}
 pub struct AdminScriptOutput {
     pub admin_address: Address,
     pub encoded_data: Vec<u8>,
+    pub value: U256,
 }
 
 impl From<AdminScriptOutputInner> for AdminScriptOutput {
@@ -397,6 +401,7 @@ impl From<AdminScriptOutputInner> for AdminScriptOutput {
         Self {
             admin_address: value.admin_address,
             encoded_data: hex::decode(value.encoded_data).unwrap(),
+            value: value.value.into(),
         }
     }
 }
@@ -578,9 +583,9 @@ pub(crate) async fn finalize_migrate_to_gateway(
             "migrateChainToGateway",
             (
                 bridgehub,
-                l1_gas_price,
-                l2_chain_id,
-                gateway_chain_id,
+                U256::from(l1_gas_price),
+                U256::from(l2_chain_id),
+                U256::from(gateway_chain_id),
                 gateway_diamond_cut_data,
                 mode.should_send(),
             ),

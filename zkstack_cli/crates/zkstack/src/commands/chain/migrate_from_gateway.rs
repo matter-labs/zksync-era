@@ -50,7 +50,7 @@ pub struct MigrateFromGatewayArgs {
 lazy_static! {
     static ref GATEWAY_PREPARATION_INTERFACE: BaseContract = BaseContract::from(
         parse_abi(&[
-            "function startMigrateChainFromGateway(address chainAdmin,address accessControlRestriction,address l2ChainAdmin,uint256 chainId) public",
+            "function startMigrateChainFromGateway(address chainAdmin,address accessControlRestriction,address l2ChainAdmin,uint256 chainId,bytes memory l1DiamondCutData) public",
             "function finishMigrateChainFromGateway(uint256 migratingChainId,uint256 gatewayChainId,uint256 l2BatchNumber,uint256 l2MessageIndex,uint16 l2TxNumberInBatch,bytes memory message,bytes32[] memory merkleProof) public",
         ])
         .unwrap(),
@@ -83,7 +83,6 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
         &gateway_chain_config,
         &gateway_chain_config.get_contracts_config()?,
         &ecosystem_config.get_contracts_config()?,
-        &gateway_gateway_config,
     )?;
     preparation_config.save(shell, preparation_config_path)?;
 

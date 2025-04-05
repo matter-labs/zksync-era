@@ -39,7 +39,9 @@ lazy_static! {
             "function governanceSetCTMAssetHandler(bytes32 governanoceOperationSalt)",
             "function registerAssetIdInBridgehub(address gatewaySTMAddress, bytes32 governanoceOperationSalt)",
             "function grantWhitelist(address filtererProxy, address[] memory addr) public",
-            "function executeGovernanceTxs() public"
+            "function executeGovernanceTxs() public",
+            "function deployGatewayTransactionFilterer(address chainProxyAdmin) public",
+            "function runGatewayGovernanceRegistration(address gatewayCTM) public"
         ])
         .unwrap(),
     );
@@ -67,11 +69,26 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     let chain_genesis_config = chain_config.get_genesis_config().await?;
     let genesis_input = GenesisInput::new(&chain_genesis_config)?;
 
+    let gateway_preparation_config_path = GATEWAY_PREPARATION.input(&chain_config.link_to_code);
+    let preparation_config = GatewayPreparationConfig::new(
+        &chain_config,
+        &chain_contracts_config,
+        &ecosystem_config.get_contracts_config()?,
+    )?;
+    preparation_config.save(shell, gateway_preparation_config_path)?;
+
     let output = call_script(
         shell,
         args.clone(),
         &GATEWAY_PREPARATION_INTERFACE
-            .encode("deployGatewayTransactionFilterer", ())
+            // FIXME: maybe we should just deploy a new proxy admin for the contract
+            .encode(
+                "deployGatewayTransactionFilterer",
+                (chain_contracts_config
+                    .l1
+                    .chain_proxy_admin_addr
+                    .context("no chain proxy admin")?),
+            )
             .unwrap(),
         &ecosystem_config,
         &chain_config,
@@ -108,6 +125,10 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
             .deployer
             .context("no deployer addr")?
             .address,
+        chain_contracts_config
+            .ecosystem_contracts
+            .stm_deployment_tracker_proxy_addr
+            .context("No CTM deployment tracker")?,
     ]
     .into_iter()
     {
@@ -156,7 +177,6 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         &chain_config,
         &chain_contracts_config,
         &ecosystem_config.get_contracts_config()?,
-        &gateway_config,
     )?;
     preparation_config.save(shell, gateway_preparation_config_path)?;
 

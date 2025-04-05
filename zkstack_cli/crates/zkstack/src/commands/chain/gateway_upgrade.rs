@@ -80,7 +80,7 @@ pub struct GatewayUpgradeArgs {
 lazy_static! {
     static ref GATEWAY_PREPARATION_INTERFACE: BaseContract = BaseContract::from(
         parse_abi(&[
-            "function startMigrateChainFromGateway(address chainAdmin,address accessControlRestriction,uint256 chainId) public",
+            "function startMigrateChainFromGateway(address chainAdmin,address accessControlRestriction,uint256 chainId, bytes memory l1DiamondCutData) public",
             "function finishMigrateChainFromGateway(uint256 migratingChainId,uint256 gatewayChainId,uint256 l2BatchNumber,uint256 l2MessageIndex,uint16 l2TxNumberInBatch,bytes memory message,bytes32[] memory merkleProof) public",
         ])
         .unwrap(),
