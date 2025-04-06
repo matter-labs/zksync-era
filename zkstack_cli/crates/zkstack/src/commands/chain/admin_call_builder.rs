@@ -3,7 +3,7 @@ use std::{num::NonZeroUsize, str::FromStr, sync::Arc};
 use anyhow::Context;
 use clap::{Parser, ValueEnum};
 use ethers::{
-    abi::{encode, parse_abi, Token},
+    abi::{decode, encode, parse_abi, ParamType, Token},
     contract::{abigen, BaseContract},
     providers::{Http, Middleware, Provider},
     signers::Signer,
@@ -32,12 +32,65 @@ use zksync_web3_decl::{
 };
 
 #[derive(Debug, Clone, Serialize)]
-struct AdminCall {
+pub(crate) struct AdminCall {
     description: String,
     target: Address,
     #[serde(serialize_with = "serialize_hex")]
     data: Vec<u8>,
     value: U256,
+}
+
+pub(crate) fn decode_admin_calls(encoded_calls: &[u8]) -> anyhow::Result<Vec<AdminCall>> {
+    let calls = decode(
+        &[ParamType::Array(Box::new(ParamType::Tuple(vec![
+            ParamType::Address,
+            ParamType::Uint(256),
+            ParamType::Bytes,
+        ])))],
+        encoded_calls,
+    )?
+    .pop()
+    .unwrap()
+    .into_array()
+    .unwrap();
+
+    let calls = calls
+        .into_iter()
+        .map(|call| {
+            // The type was checked during decoding, so "unwrap" is safe
+            let subfields = call.into_tuple().unwrap();
+
+            AdminCall {
+                // TODO: For now, only empty descriptions are available
+                description: "".into(),
+                // The type was checked during decoding, so "unwrap" is safe
+                target: subfields[0].clone().into_address().unwrap(),
+                // The type was checked during decoding, so "unwrap" is safe
+                value: subfields[1].clone().into_uint().unwrap(),
+                // The type was checked during decoding, so "unwrap" is safe
+                data: subfields[2].clone().into_bytes().unwrap(),
+            }
+        })
+        .collect();
+
+    Ok(calls)
+}
+
+pub(crate) fn encode_admin_multicall(calls: Vec<AdminCall>, require_success: bool) -> Vec<u8> {
+    let chain_admin_abi = chain_admin_contract();
+    let tokens: Vec<_> = calls.into_iter().map(|x| x.into_token()).collect();
+
+    let data = chain_admin_abi
+        .function("multicall")
+        .unwrap()
+        .encode_input(&[Token::Array(tokens), Token::Bool(require_success)])
+        .unwrap();
+
+    data.to_vec()
+}
+
+pub(crate) fn pretty_display_admin_calls(calls: &[AdminCall]) -> String {
+    serde_json::to_string_pretty(calls).unwrap()
 }
 
 impl AdminCall {
@@ -78,9 +131,9 @@ pub struct AdminCallBuilder {
 }
 
 impl AdminCallBuilder {
-    pub fn new() -> Self {
+    pub fn new(calls: Vec<AdminCall>) -> Self {
         Self {
-            calls: vec![],
+            calls: calls,
             validator_timelock_abi: BaseContract::from(
                 parse_abi(&[
                     "function addValidator(uint256 _chainId, address _newValidator) external",
@@ -242,13 +295,50 @@ impl AdminCallBuilder {
         // self
     }
 
+    pub fn append_calls(&mut self, calls: Vec<AdminCall>) {
+        self.calls.extend(calls);
+    }
+
     pub fn to_json_string(&self) -> String {
         // Serialize with pretty printing
         serde_json::to_string_pretty(&self.calls).unwrap()
     }
 
-    pub fn compile_full_calldata(self) -> Vec<u8> {
-        let tokens: Vec<_> = self.calls.into_iter().map(|x| x.into_token()).collect();
+    // Appends encoded calls to itself
+    pub fn append_encoded_calls(&mut self, encoded_calls: &[u8]) {
+        let calls = decode(
+            &[ParamType::Array(Box::new(ParamType::Tuple(vec![
+                ParamType::Address,
+                ParamType::Uint(256),
+                ParamType::Bytes,
+            ])))],
+            &encoded_calls,
+        )
+        .expect("Incorrect call encoding");
+
+        let calls = calls.into_iter().map(|call| {
+            let subfields = call.into_tuple().unwrap();
+
+            AdminCall {
+                // TODO: For now, only empty descriptions are available
+                description: "".into(),
+                target: subfields[0].clone().into_address().unwrap(),
+                value: subfields[1].clone().into_uint().unwrap(),
+                data: subfields[2].clone().into_bytes().unwrap(),
+            }
+        });
+
+        self.calls.extend(calls);
+    }
+
+    pub fn compile_full_calldata(self) -> (Vec<u8>, U256) {
+        let mut sum = U256::zero();
+        let mut tokens = vec![];
+
+        for call in self.calls {
+            sum += call.value;
+            tokens.push(call.into_token());
+        }
 
         let data = self
             .chain_admin_abi
@@ -257,7 +347,7 @@ impl AdminCallBuilder {
             .encode_input(&[Token::Array(tokens), Token::Bool(true)])
             .unwrap();
 
-        data.to_vec()
+        (data.to_vec(), sum)
     }
 }
 

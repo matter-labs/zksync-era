@@ -1,8 +1,10 @@
+use std::{path::Path, sync::Arc};
+
 use anyhow::Context;
 use clap::Parser;
 use ethers::{
-    abi::parse_abi,
-    contract::BaseContract,
+    abi::{encode, parse_abi, ParamType, Token},
+    contract::{abigen, BaseContract},
     middleware::SignerMiddleware,
     providers::{Http, Middleware, Provider},
     signers::{LocalWallet, Signer},
@@ -29,10 +31,18 @@ use zkstack_cli_config::{
 use zkstack_cli_types::L1BatchCommitmentMode;
 use zksync_basic_types::{Address, H256, U256, U64};
 use zksync_config::configs::gateway::GatewayChainConfig;
+use zksync_contracts::chain_admin_contract;
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
+use zksync_types::{address_to_u256, u256_to_address};
 
+use super::admin_call_builder::{
+    self, encode_admin_multicall, get_ethers_provider, AdminCall, AdminCallBuilder,
+};
 use crate::{
-    accept_ownership::finalize_migrate_to_gateway,
+    accept_ownership::{
+        enable_validator_via_gateway, finalize_migrate_to_gateway,
+        set_da_validator_pair_via_gateway,
+    },
     messages::MSG_CHAIN_NOT_INITIALIZED,
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
@@ -74,6 +84,227 @@ lazy_static! {
 // 50 gwei
 const MAX_EXPECTED_L1_GAS_PRICE: u64 = 50_000_000_000;
 
+abigen!(
+    BridgehubAbi,
+    r"[
+    function settlementLayer(uint256)(uint256)
+    function getZKChain(uint256)(address)
+    function ctmAssetIdToAddress(bytes32)(address)
+    function ctmAssetIdFromChainId(uint256)(bytes32)
+    function baseTokenAssetId(uint256)(bytes32)
+]"
+);
+
+abigen!(
+    ZkChainAbi,
+    r"[
+    function getDAValidatorPair()(address,address)
+    function getAdmin()(address)
+    function getProtocolVersion()(uint256)
+]"
+);
+
+abigen!(
+    ChainTypeManagerAbi,
+    r"[
+    function validatorTimelock()(address)
+    function forwardedBridgeMint(uint256 _chainId,bytes calldata _ctmData)(address)
+]"
+);
+
+abigen!(
+    ValidatorTimelockAbi,
+    r"[
+    function validators(uint256 _chainId, address _validator)(bool)
+]"
+);
+
+const IS_PERMANENT_ROLLUP_SLOT: u64 = 57;
+
+fn apply_l1_to_l2_alias(addr: Address) -> Address {
+    let offset: Address = "1111000000000000000000000000000000001111".parse().unwrap();
+    let addr_with_offset = address_to_u256(&addr) + address_to_u256(&offset);
+
+    u256_to_address(&addr_with_offset)
+}
+
+// The most reliable way to precompute the address is to simulate `createNewChain` function
+async fn precompute_chain_address_on_gateway(
+    l2_chain_id: u64,
+    base_token_asset_id: H256,
+    new_l2_admin: Address,
+    protocol_version: U256,
+    gateway_diamond_cut: Vec<u8>,
+    gw_ctm: ChainTypeManagerAbi<Provider<ethers::providers::Http>>,
+) -> anyhow::Result<Address> {
+    let ctm_data = encode(&[
+        Token::FixedBytes(base_token_asset_id.0.into()),
+        Token::Address(new_l2_admin),
+        Token::Uint(protocol_version),
+        Token::Bytes(gateway_diamond_cut),
+    ]);
+
+    let result = gw_ctm
+        .forwarded_bridge_mint(l2_chain_id.into(), ctm_data.into())
+        .from(L2_BRIDGEHUB_ADDRESS)
+        .await?;
+
+    Ok(result)
+}
+
+pub(crate) async fn get_migrate_to_gateway_calls(
+    shell: &Shell,
+    forge_args: &ForgeScriptArgs,
+    foundry_contracts_path: &Path,
+    l1_rpc_url: String,
+    l1_bridgehub_addr: Address,
+    max_l1_gas_price: u64,
+    l2_chain_id: u64,
+    gateway_chain_id: u64,
+    gateway_diamond_cut: Vec<u8>,
+    gateway_rpc_url: String,
+    new_sl_da_validator: Address,
+    validator_1: Address,
+    validator_2: Address,
+    refund_recipient: Option<Address>,
+) -> anyhow::Result<(Address, Vec<AdminCall>)> {
+    // TODO: add checks about chain notification.
+
+    // TODO: use refund recipient in scripts for L1->L2 communication
+    let refund_recipient = refund_recipient.unwrap_or(validator_1);
+    let mut result = vec![];
+
+    let l1_provider = get_ethers_provider(&l1_rpc_url)?;
+    let gw_provider = get_ethers_provider(&gateway_rpc_url)?;
+
+    let l1_bridgehub = BridgehubAbi::new(l1_bridgehub_addr, l1_provider.clone());
+    let gw_bridgehub = BridgehubAbi::new(L2_BRIDGEHUB_ADDRESS, gw_provider.clone());
+
+    let current_settlement_layer = l1_bridgehub.settlement_layer(l2_chain_id.into()).await?;
+
+    let zk_chain_l1_address = l1_bridgehub.get_zk_chain(l2_chain_id.into()).await?;
+
+    if zk_chain_l1_address == Address::zero() {
+        anyhow::bail!("Chain with id {} does not exist!", l2_chain_id);
+    }
+
+    // Checking whether the user has already done the migration
+    if current_settlement_layer == U256::from(gateway_chain_id) {
+        // TODO: it may happen that the user has started the migration, but it failed for some reason (e.g. the provided
+        // diamond cut was not correct).
+        // The recovery of the chain is not handled by the tool right now.
+        anyhow::bail!("The chain is already on top of Gateway!");
+    }
+
+    let ctm_asset_id = l1_bridgehub
+        .ctm_asset_id_from_chain_id(l2_chain_id.into())
+        .await?;
+    let ctm_gw_address = gw_bridgehub.ctm_asset_id_to_address(ctm_asset_id).await?;
+
+    if ctm_gw_address == Address::zero() {
+        anyhow::bail!("{gateway_chain_id} does not have a CTM deployed!");
+    }
+
+    let gw_ctm = ChainTypeManagerAbi::new(ctm_gw_address, gw_provider.clone());
+    let gw_validator_timelock_addr = gw_ctm.validator_timelock().await?;
+    let gw_validator_timelock =
+        ValidatorTimelockAbi::new(gw_validator_timelock_addr, gw_provider.clone());
+
+    let l1_zk_chain = ZkChainAbi::new(zk_chain_l1_address, l1_provider.clone());
+    let chain_admin_address = l1_zk_chain.get_admin().await?;
+    let zk_chain_gw_address = {
+        let recorded_zk_chain_gw_address = gw_bridgehub.get_zk_chain(l2_chain_id.into()).await?;
+        if recorded_zk_chain_gw_address == Address::zero() {
+            let expected_address = precompute_chain_address_on_gateway(
+                l2_chain_id,
+                H256(l1_bridgehub.base_token_asset_id(l2_chain_id.into()).await?),
+                apply_l1_to_l2_alias(l1_zk_chain.get_admin().await?),
+                l1_zk_chain.get_protocol_version().await?,
+                gateway_diamond_cut.clone(),
+                gw_ctm,
+            )
+            .await?;
+
+            expected_address
+        } else {
+            recorded_zk_chain_gw_address
+        }
+    };
+
+    let finalize_migrate_to_gateway_output = finalize_migrate_to_gateway(
+        shell,
+        forge_args,
+        foundry_contracts_path,
+        crate::accept_ownership::AdminScriptMode::OnlySave,
+        l1_bridgehub_addr,
+        max_l1_gas_price,
+        l2_chain_id,
+        gateway_chain_id,
+        gateway_diamond_cut.into(),
+        l1_rpc_url.clone(),
+    )
+    .await?;
+
+    result.extend(finalize_migrate_to_gateway_output.calls);
+
+    // Changing L2 DA validator while migrating to gateway is not recommended, we allow changing only the SL one
+    let (_, l2_da_validator) = l1_zk_chain.get_da_validator_pair().await?;
+
+    // Unfortunately, there is no getter for whether a chain is a permanent rollup, we have to
+    // read storage here.
+    let is_permanent_rollup_slot = l1_provider
+        .get_storage_at(zk_chain_l1_address, H256::from_low_u64_be(57), None)
+        .await?;
+    if is_permanent_rollup_slot == H256::from_low_u64_be(1) {
+        // TODO: We should really check it on our own here, but it is hard with the current interfaces
+        println!("WARNING: Your chain is a permanent rollup! Ensure that the new L1 SL provider is compatible with Gateway RollupDAManager!");
+    }
+
+    let da_validator_encoding_result = set_da_validator_pair_via_gateway(
+        shell,
+        forge_args,
+        foundry_contracts_path,
+        crate::accept_ownership::AdminScriptMode::OnlySave,
+        l1_bridgehub_addr,
+        max_l1_gas_price.into(),
+        l2_chain_id,
+        gateway_chain_id,
+        new_sl_da_validator,
+        l2_da_validator,
+        zk_chain_gw_address,
+        l1_rpc_url.clone(),
+    )
+    .await?;
+
+    result.extend(da_validator_encoding_result.calls);
+
+    // 4. If validators are not yet present, please include.
+    for validator in [validator_1, validator_2] {
+        if !gw_validator_timelock
+            .validators(l2_chain_id.into(), validator)
+            .await?
+        {
+            let enable_validator_calls = enable_validator_via_gateway(
+                shell,
+                forge_args,
+                foundry_contracts_path,
+                crate::accept_ownership::AdminScriptMode::OnlySave,
+                l1_bridgehub_addr,
+                max_l1_gas_price.into(),
+                l2_chain_id,
+                gateway_chain_id,
+                validator,
+                gw_validator_timelock_addr,
+                l1_rpc_url.clone(),
+            )
+            .await?;
+            result.extend(enable_validator_calls.calls);
+        }
+    }
+
+    Ok((chain_admin_address, result))
+}
+
 pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
 
@@ -114,76 +345,8 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
 
     logger::info("Migrating the chain to the Gateway...");
 
-    let output = finalize_migrate_to_gateway(
-        shell,
-        &args.forge_args,
-        &chain_config.path_to_l1_foundry(),
-        crate::accept_ownership::AdminScriptMode::OnlySave,
-        chain_contracts_config
-            .ecosystem_contracts
-            .bridgehub_proxy_addr,
-        MAX_EXPECTED_L1_GAS_PRICE,
-        chain_config.chain_id.as_u64(),
-        gateway_chain_config.chain_id.as_u64(),
-        gateway_gateway_config.diamond_cut_data.0.clone().into(),
-        l1_url.clone(),
-    )
-    .await?;
-
-    let hash = if output.encoded_data.is_empty() {
-        H256::zero()
-    } else {
-        let receipt = send_tx(
-            output.admin_address,
-            output.encoded_data,
-            output.value,
-            l1_url.clone(),
-            chain_config
-                .get_wallets_config()?
-                .governor
-                .private_key_h256()
-                .unwrap(),
-        )
-        .await?;
-        extract_priority_ops(receipt, gateway_contract_config.l1.diamond_proxy_addr)
-            .await?
-            .pop()
-            .context("Priority op not found")?
-    };
-
     let general_config = gateway_chain_config.get_general_config().await?;
-    let l2_rpc_url = general_config.get::<String>("api.web3_json_rpc.http_url")?;
-    let gateway_provider = Provider::<Http>::try_from(l2_rpc_url.clone())?;
-
-    if hash == H256::zero() {
-        logger::info("Chain already migrated!");
-    } else {
-        logger::info(format!(
-            "Migration started! Migration hash: {}",
-            hex::encode(hash)
-        ));
-        await_for_tx_to_complete(&gateway_provider, hash).await?;
-    }
-
-    // After the migration is done, there are a few things left to do:
-    // Let's grab the new diamond proxy address
-
-    // TODO(EVM-929): maybe move to using a precalculated address, just like for EN
-    let chain_id = U256::from(chain_config.chain_id.as_u64());
-    let contract = BRIDGEHUB_INTERFACE
-        .clone()
-        .into_contract(L2_BRIDGEHUB_ADDRESS, gateway_provider);
-
-    let method = contract.method::<U256, Address>("getHyperchain", chain_id)?;
-
-    let new_diamond_proxy_address = method.call().await?;
-
-    logger::info(format!(
-        "New diamond proxy address: {}",
-        hex::encode(new_diamond_proxy_address.as_bytes())
-    ));
-
-    let chain_contracts_config = chain_config.get_contracts_config().unwrap();
+    let gw_rpc_url = general_config.get::<String>("api.web3_json_rpc.http_url")?;
 
     let is_rollup = matches!(
         genesis_config.get("l1_batch_commit_data_generator_mode")?,
@@ -195,144 +358,71 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     } else {
         gateway_gateway_config.validium_da_validator
     };
-
-    logger::info("Setting DA validator pair...");
-    let hash = call_script(
-        shell,
-        args.forge_args.clone(),
-        &GATEWAY_PREPARATION_INTERFACE
-            .encode(
-                "setDAValidatorPair",
-                (
-                    chain_access_control_restriction,
-                    U256::from(chain_config.chain_id.as_u64()),
-                    gateway_da_validator_address,
-                    chain_contracts_config
-                        .l2
-                        .da_validator_addr
-                        .context("da_validator_addr")?,
-                    new_diamond_proxy_address,
-                ),
-            )
-            .unwrap(),
-        &chain_config,
-        &chain_config.get_wallets_config()?.governor,
-        l1_url.clone(),
-    )
-    .await?
-    .governance_l2_tx_hash;
-    logger::info(format!(
-        "DA validator pair set! Hash: {}",
-        hex::encode(hash.as_bytes())
-    ));
-
     let chain_secrets_config = chain_config.get_wallets_config().unwrap();
 
-    logger::info("Enabling validators...");
-    let hash = call_script(
+    let (chain_admin, calls) = get_migrate_to_gateway_calls(
         shell,
-        args.forge_args.clone(),
-        &GATEWAY_PREPARATION_INTERFACE
-            .encode(
-                "enableValidator",
-                (
-                    chain_access_control_restriction,
-                    U256::from(chain_config.chain_id.as_u64()),
-                    chain_secrets_config.blob_operator.address,
-                    gateway_gateway_config.validator_timelock_addr,
-                ),
-            )
-            .unwrap(),
-        &chain_config,
-        &chain_config.get_wallets_config()?.governor,
+        &args.forge_args,
+        &chain_config.path_to_l1_foundry(),
         l1_url.clone(),
+        chain_contracts_config
+            .ecosystem_contracts
+            .bridgehub_proxy_addr,
+        MAX_EXPECTED_L1_GAS_PRICE,
+        chain_config.chain_id.as_u64(),
+        gateway_chain_config.chain_id.as_u64(),
+        gateway_gateway_config.diamond_cut_data.0.clone().into(),
+        gw_rpc_url.clone(),
+        gateway_da_validator_address,
+        chain_secrets_config.blob_operator.address,
+        chain_secrets_config.operator.address,
+        None,
     )
-    .await?
-    .governance_l2_tx_hash;
-    logger::info(format!(
-        "blob_operator enabled! Hash: {}",
-        hex::encode(hash.as_bytes())
-    ));
+    .await?;
 
-    let hash = call_script(
-        shell,
-        args.forge_args.clone(),
-        &GATEWAY_PREPARATION_INTERFACE
-            .encode(
-                "supplyGatewayWallet",
-                (
-                    chain_secrets_config.blob_operator.address,
-                    U256::from_dec_str("10000000000000000000").unwrap(),
-                ),
-            )
-            .unwrap(),
-        &chain_config,
-        &chain_config.get_wallets_config()?.governor,
+    if calls.is_empty() {
+        logger::info("Chain already migrated!");
+        return Ok(());
+    }
+
+    let (calldata, value) = AdminCallBuilder::new(calls).compile_full_calldata();
+
+    let receipt = send_tx(
+        chain_admin,
+        calldata,
+        value,
         l1_url.clone(),
-    )
-    .await?
-    .governance_l2_tx_hash;
-    logger::info(format!(
-        "blob_operator supplied with 10 ETH! Hash: {}",
-        hex::encode(hash.as_bytes())
-    ));
-
-    let hash = call_script(
-        shell,
-        args.forge_args.clone(),
-        &GATEWAY_PREPARATION_INTERFACE
-            .encode(
-                "enableValidator",
-                (
-                    chain_access_control_restriction,
-                    U256::from(chain_config.chain_id.as_u64()),
-                    chain_secrets_config.operator.address,
-                    gateway_gateway_config.validator_timelock_addr,
-                ),
-            )
+        chain_config
+            .get_wallets_config()?
+            .governor
+            .private_key_h256()
             .unwrap(),
-        &chain_config,
-        &chain_config.get_wallets_config()?.governor,
-        l1_url.clone(),
     )
-    .await?
-    .governance_l2_tx_hash;
-    logger::info(format!(
-        "operator enabled! Hash: {}",
-        hex::encode(hash.as_bytes())
-    ));
+    .await?;
 
-    let hash = call_script(
-        shell,
-        args.forge_args.clone(),
-        &GATEWAY_PREPARATION_INTERFACE
-            .encode(
-                "supplyGatewayWallet",
-                (
-                    chain_secrets_config.operator.address,
-                    U256::from_dec_str("10000000000000000000").unwrap(),
-                ),
-            )
-            .unwrap(),
-        &chain_config,
-        &chain_config.get_wallets_config()?.governor,
-        l1_url.clone(),
-    )
-    .await?
-    .governance_l2_tx_hash;
-    logger::info(format!(
-        "operator supplied with 10 ETH! Hash: {}",
-        hex::encode(hash.as_bytes())
-    ));
+    let priority_ops =
+        extract_priority_ops(receipt, gateway_contract_config.l1.diamond_proxy_addr).await?;
 
-    let gateway_url = l2_rpc_url;
+    println!(
+        "Migration has produced a total of {} priority operations for Gateway",
+        priority_ops.len()
+    );
+    let gateway_provider = get_ethers_provider(&gw_rpc_url)?;
+    for hash in priority_ops {
+        await_for_tx_to_complete(&gateway_provider, hash).await?;
+    }
+
     let mut chain_secrets_config = chain_config.get_secrets_config().await?.patched();
-    chain_secrets_config.insert("l1.gateway_rpc_url", gateway_url)?;
+    chain_secrets_config.insert("l1.gateway_rpc_url", gw_rpc_url)?;
     chain_secrets_config.save().await?;
+
+    let gw_bridgehub = BridgehubAbi::new(L2_BRIDGEHUB_ADDRESS, gateway_provider);
 
     let gateway_chain_config = GatewayChainConfig::from_gateway_and_chain_data(
         &gateway_gateway_config,
-        new_diamond_proxy_address,
+        gw_bridgehub
+            .get_zk_chain(chain_config.chain_id.as_u64().into())
+            .await?,
         // FIXME: no chain admin is supported here
         Address::zero(),
         gateway_chain_id.into(),
@@ -343,10 +433,13 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
 }
 
 async fn await_for_tx_to_complete(
-    gateway_provider: &Provider<Http>,
+    gateway_provider: &Arc<Provider<Http>>,
     hash: H256,
 ) -> anyhow::Result<()> {
-    logger::info("Waiting for transaction to complete...");
+    logger::info(&format!(
+        "Waiting for transaction with hash {:#?} to complete...",
+        hash
+    ));
     while gateway_provider
         .get_transaction_receipt(hash)
         .await?

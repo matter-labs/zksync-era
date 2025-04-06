@@ -29,6 +29,7 @@ use zksync_types::{Address, L1ChainId};
 use super::admin_call_builder::AdminCallBuilder;
 use crate::{
     accept_ownership::{grant_gateway_whitelist, AdminScriptMode, AdminScriptOutput},
+    commands::chain::admin_call_builder::encode_admin_multicall,
     messages::MSG_CHAIN_NOT_INITIALIZED,
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
@@ -54,7 +55,11 @@ pub fn get_default_foundry_path() -> anyhow::Result<PathBuf> {
 pub fn display_admin_script_output(result: AdminScriptOutput) {
     println!("The calldata to be sent by the admin owner:\n");
     println!("Admin address (to): {:#?}", result.admin_address);
-    println!("Data: {:#?}", hex::encode(result.encoded_data));
+
+    let builder = AdminCallBuilder::new(result.calls);
+
+    println!("Breakdown of calls: {:#?}", builder.to_json_string());
+    println!("Total data: {:#?}", builder.compile_full_calldata());
 }
 
 pub async fn run(shell: &Shell, args: GrantGatewayWhitelistArgs) -> anyhow::Result<()> {

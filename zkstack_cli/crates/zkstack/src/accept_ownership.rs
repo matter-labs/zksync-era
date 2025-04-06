@@ -24,6 +24,7 @@ use zkstack_cli_config::{
 use zksync_basic_types::U256;
 
 use crate::{
+    commands::chain::admin_call_builder::{decode_admin_calls, AdminCall},
     messages::MSG_ACCEPTING_GOVERNANCE_SPINNER,
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
@@ -34,6 +35,7 @@ lazy_static! {
             "function governanceAcceptOwner(address governor, address target) public",
             "function chainAdminAcceptAdmin(address admin, address target) public",
             "function setDAValidatorPair(address chainAdmin, address target, address l1DaValidator, address l2DaValidator) public",
+            "function setDAValidatorPairWithGateway(address bridgehub, uint256 l1GasPrice, uint256 l2ChainId, uint256 gatewayChainId, address l1DAValidator, address l2DAValidator, address chainDiamondProxyOnGateway, bool _shouldSend)",
             "function makePermanentRollup(address chainAdmin, address target) public",
             "function governanceExecuteCalls(bytes calldata callsToExecute, address target) public",
             "function adminExecuteUpgrade(bytes memory diamondCut, address adminAddr, address accessControlRestriction, address chainDiamondProxy)",
@@ -42,7 +44,8 @@ lazy_static! {
             "function setTransactionFilterer(address _bridgehubAddr, uint256 _chainId, address _transactionFiltererAddress, bool _shouldSend) external",
             "function grantGatewayWhitelist(address _bridgehubAddr, uint256 _chainId, address _grantee, bool _shouldSend)",
             "function migrateChainToGateway(address bridgehub, uint256 l1GasPrice, uint256 l2GhainId, uint256 gatewayChainId, bytes _gatewayDiamondCutData, bool _shouldSend) public view",
-            "function revokeGatewayWhitelist(address _bridgehub, uint256 _chainId, address _address, bool _shouldSend) public"
+            "function revokeGatewayWhitelist(address _bridgehub, uint256 _chainId, address _address, bool _shouldSend) public",
+            "function enableValidatorViaGateway(address bridgehub,uint256 l1GasPrice,uint256 l2ChainId,uint256 gatewayChainId,address validatorAddress,address gatewayValidatorTimelock, bool shouldSend) public"
         ])
         .unwrap(),
     );
@@ -392,7 +395,7 @@ impl ZkStackConfig for AdminScriptOutputInner {}
 #[derive(Debug, Clone)]
 pub struct AdminScriptOutput {
     pub admin_address: Address,
-    pub encoded_data: Vec<u8>,
+    pub calls: Vec<AdminCall>,
     pub value: U256,
 }
 
@@ -400,7 +403,7 @@ impl From<AdminScriptOutputInner> for AdminScriptOutput {
     fn from(value: AdminScriptOutputInner) -> Self {
         Self {
             admin_address: value.admin_address,
-            encoded_data: hex::decode(value.encoded_data).unwrap(),
+            calls: decode_admin_calls(&hex::decode(value.encoded_data).unwrap()).unwrap(),
             value: value.value.into(),
         }
     }
@@ -525,6 +528,86 @@ pub(crate) async fn revoke_gateway_whitelist(
         .encode(
             "revokeGatewayWhitelist",
             (bridgehub, U256::from(chain_id), address, mode.should_send()),
+        )
+        .unwrap();
+
+    call_script(
+        shell,
+        forge_args,
+        foundry_contracts_path,
+        mode,
+        calldata,
+        l1_rpc_url,
+    )
+    .await
+}
+
+pub(crate) async fn set_da_validator_pair_via_gateway(
+    shell: &Shell,
+    forge_args: &ForgeScriptArgs,
+    foundry_contracts_path: &Path,
+    mode: AdminScriptMode,
+    l1_bridgehub: Address,
+    max_l1_gas_price: U256,
+    l2_chain_id: u64,
+    gateway_chain_id: u64,
+    l1_da_validator: Address,
+    l2_da_validator: Address,
+    chain_diamond_proxy_on_gateway: Address,
+    l1_rpc_url: String,
+) -> anyhow::Result<AdminScriptOutput> {
+    let calldata = ACCEPT_ADMIN
+        .encode(
+            "setDAValidatorPairWithGateway",
+            (
+                l1_bridgehub,
+                max_l1_gas_price,
+                U256::from(l2_chain_id),
+                U256::from(gateway_chain_id),
+                l1_da_validator,
+                l2_da_validator,
+                chain_diamond_proxy_on_gateway,
+                mode.should_send(),
+            ),
+        )
+        .unwrap();
+
+    call_script(
+        shell,
+        forge_args,
+        foundry_contracts_path,
+        mode,
+        calldata,
+        l1_rpc_url,
+    )
+    .await
+}
+
+pub(crate) async fn enable_validator_via_gateway(
+    shell: &Shell,
+    forge_args: &ForgeScriptArgs,
+    foundry_contracts_path: &Path,
+    mode: AdminScriptMode,
+    l1_bridgehub: Address,
+    max_l1_gas_price: U256,
+    l2_chain_id: u64,
+    gateway_chain_id: u64,
+    validator_address: Address,
+    gateway_validator_timelock: Address,
+    l1_rpc_url: String,
+) -> anyhow::Result<AdminScriptOutput> {
+    let calldata = ACCEPT_ADMIN
+        .encode(
+            "enableValidatorViaGateway",
+            (
+                l1_bridgehub,
+                max_l1_gas_price,
+                U256::from(l2_chain_id),
+                U256::from(gateway_chain_id),
+                validator_address,
+                gateway_validator_timelock,
+                mode.should_send(),
+            ),
         )
         .unwrap();
 
