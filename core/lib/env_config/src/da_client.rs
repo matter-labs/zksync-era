@@ -276,6 +276,8 @@ mod tests {
             timeout_ms,
             celestia_core_tendermint_rpc_url: tm_rpc_url.to_string(),
             blobstream_contract_address: "0x0000000000000000000000000000000000000123".to_string(),
+            blobstream_events_num_pages: 500,
+            blobstream_events_page_size: 1000,
         })
     }
 

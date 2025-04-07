@@ -93,7 +93,7 @@ impl CelestiaClient {
             RawCelestiaClient::new(celestia_grpc_channel, private_key, config.chain_id.clone())
                 .expect("could not create Celestia client");
 
-        let eq_service_grpc_channel = Endpoint::from_str(config.eq_service_grpc_url.clone().as_str())?
+        let eq_service_grpc_channel = Endpoint::from_str(config.proof_eq_service_grpc_url.clone().as_str())?
             .timeout(time::Duration::from_millis(config.timeout_ms))
             .connect()
             .await?;

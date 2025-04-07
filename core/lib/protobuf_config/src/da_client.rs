@@ -57,7 +57,7 @@ impl ProtoRepr for proto::DataAvailabilityClient {
             }),
             proto::data_availability_client::Config::Celestia(conf) => Celestia(CelestiaConfig {
                 api_node_url: required(&conf.api_node_url).context("namespace")?.clone(),
-                eq_service_grpc_url: required(&conf.eq_service_grpc_url).context("namespace")?.clone(),
+                proof_eq_service_grpc_url: required(&conf.eq_service_grpc_url).context("namespace")?.clone(),
                 namespace: required(&conf.namespace).context("namespace")?.clone(),
                 chain_id: required(&conf.chain_id).context("chain_id")?.clone(),
                 timeout_ms: *required(&conf.timeout_ms).context("timeout_ms")?,
@@ -141,7 +141,7 @@ impl ProtoRepr for proto::DataAvailabilityClient {
             Celestia(config) => {
                 proto::data_availability_client::Config::Celestia(proto::CelestiaConfig {
                     api_node_url: Some(config.api_node_url.clone()),
-                    eq_service_grpc_url: Some(config.eq_service_grpc_url.clone()),
+                    eq_service_grpc_url: Some(config.proof_eq_service_grpc_url.clone()),
                     namespace: Some(config.namespace.clone()),
                     chain_id: Some(config.chain_id.clone()),
                     timeout_ms: Some(config.timeout_ms),

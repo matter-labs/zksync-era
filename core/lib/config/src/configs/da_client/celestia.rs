@@ -14,8 +14,8 @@ pub struct CelestiaConfig {
     // Tendermint RPC URL of the Celestia core instance
     pub celestia_core_tendermint_rpc_url: String,
     pub blobstream_contract_address: String,
-    pub num_pages: u64,
-    pub page_size: u64,
+    pub blobstream_events_num_pages: u64,
+    pub blobstream_events_page_size: u64,
 }
 
 #[derive(Clone, Debug, PartialEq)]
