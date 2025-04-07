@@ -200,8 +200,6 @@ describe('L1 ERC20 contract checks', () => {
 
     test('Can check withdrawal hash in L2 ', async () => {
         // todo use the same chain, for simplicity.
-        // For this we have to import proof until GW's message root, not until chain's chainBatchRoot.
-        // this has to be allowed from the server.
         let interop2_provider = new RetryProvider(
             { url: 'http://localhost:3150', timeout: 1200 * 1000 },
             undefined,
@@ -212,20 +210,13 @@ describe('L1 ERC20 contract checks', () => {
             ArtifactL2MessageVerification.abi,
             interop2_provider
         );
-        // console.log('l2MessageVerification', ArtifactL2MessageVerification.abi);
+
+        // Imports proof until GW's message root, needed for proof based interop.
         const GATEWAY_CHAIN_ID = 506;
         const params = await alice.getFinalizeWithdrawalParams(withdrawalHash, undefined, undefined, GATEWAY_CHAIN_ID);
-        console.log('withdrawalHash', withdrawalHash);
         let alice2Wallet = new zksync.Wallet(alice.privateKey, interop2_provider, testMaster.mainAccount().providerL1);
-        // console.log(
-        //     'cast call ',
-        //     L2_MESSAGE_ROOT_STORAGE_ADDRESS,
-        //     ' "msgRoots(uint256, uint256)" ',
-        //     GATEWAY_CHAIN_ID,
-        //     params.l1BatchNumber,
-        //     ' -r localhost:3052'
-        // );
 
+        // Needed else GW's MessageRoot won't be updated
         await delay(10000);
         await (
             await alice2Wallet.deposit({
@@ -236,19 +227,20 @@ describe('L1 ERC20 contract checks', () => {
         ).wait();
         await delay(5000);
 
-        // let message_root_storage = new zksync.Contract(
-        //     L2_MESSAGE_ROOT_STORAGE_ADDRESS,
-        //     ArtifactMessageRootStorage.abi,
-        //     alice.provider
-        // );
-        // const msgRoots = await message_root_storage.msgRoots(
-        //     GATEWAY_CHAIN_ID,
-        //     params.l1BatchNumber
-        // );
-        // console.log('msgRoots', msgRoots);
-        // if (msgRoots !== ethers.ZeroHash) {
-        //     console.log('msgRoots', msgRoots);
-        // }
+        // sma TODO hacky workaround for now to rewrite the much needed block number--remove when available!
+        let gw_provider = new RetryProvider(
+            { url: 'http://localhost:3052', timeout: 1200 * 1000 },
+            undefined,
+            testMaster.reporter
+        );
+        const l1BatchDetails = await alice.provider.getL1BatchDetails(params.l1BatchNumber ?? 0);
+        const executeTxHash = l1BatchDetails.executeTxHash!;
+        const executeTx = await gw_provider.getTransactionReceipt(executeTxHash);
+        const block_number = executeTx?.blockNumber ?? 0;
+        const proof_len = Number('0x' + params.proof[0].slice(4, 6)) + Number('0x' + params.proof[0].slice(6, 8));
+        params.proof[proof_len + 2] =
+            '0x' + block_number.toString(16).padStart(32, '0') + params.proof[proof_len + 2].slice(34);
+        // sma TODO end of hacky workaround
 
         const included = await l2MessageVerification.proveL2MessageInclusionShared(
             (await alice.provider.getNetwork()).chainId,
@@ -257,28 +249,6 @@ describe('L1 ERC20 contract checks', () => {
             { txNumberInBatch: params.l2TxNumberInBlock, sender: params.sender, data: params.message },
             params.proof
         );
-        // console.log(
-        //     'l2MessageVerification',
-        //     l2MessageVerification.interface.encodeFunctionData('proveL2MessageInclusionShared', [
-        //         (await alice.provider.getNetwork()).chainId,
-        //         params.l1BatchNumber,
-        //         params.l2MessageIndex,
-        //         { txNumberInBatch: params.l2TxNumberInBlock, sender: params.sender, data: params.message },
-        //         params.proof
-        //     ])
-        // );
-        // console.log(
-        //     'cast call ',
-        //     L2_MESSAGE_VERIFICATION_ADDRESS,
-        //     ' "proveL2MessageInclusionShared(uint256,uint256,uint256,(uint16,address,bytes),bytes32[])" ',
-        //     (await alice.provider.getNetwork()).chainId,
-        //     params.l1BatchNumber,
-        //     params.l2MessageIndex,
-        //     { txNumberInBatch: params.l2TxNumberInBlock, sender: params.sender, data: params.message },
-        //     params.proof,
-        //     "-r localhost:3050"
-        // );
-        // console.log('included', included);
         expect(included).toBe(true);
     });
 
