@@ -337,7 +337,9 @@ describe('Interop checks', () => {
         await delay(timeout);
 
         // await waitForL2ToL1LogProof(sender_chain_utilityWallet, txReceipt!.blockNumber, txHash);
+        console.log('waiting for batch to be committed');
         await waitUntilBlockCommitted(interop1_wallet, receipt!.blockNumber);
+        console.log('batch committed');
         // kl todo wait here for the batch to be committd by checking L1.
         // this should be checked in the server, we should not need this.
         await delay(10000);
@@ -348,7 +350,7 @@ describe('Interop checks', () => {
         const receipt2 = await interop1_wallet.provider.getTransactionReceipt(tx.hash);
         // console.log(receipt2);
         const interop1_chainId = (await interop1_wallet.provider.getNetwork()).chainId;
-        while (true) {
+        while (false) {
             await delay(1000);
             await (
                 await interop1_wallet.transfer({
