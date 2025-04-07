@@ -238,8 +238,8 @@ fn pretty_print_l1_proof(result: &L1BatchProofForL1) {
     );
 
     let inputs = match result.inner() {
-        TypedL1BatchProofForL1::Fflonk(proof) => &proof.scheduler_proof.inputs,
-        TypedL1BatchProofForL1::Plonk(proof) => &proof.scheduler_proof.inputs,
+        TypedL1BatchProofForL1::Fflonk(proof) => proof.clone().scheduler_proof.inputs,
+        TypedL1BatchProofForL1::Plonk(proof) => proof.clone().scheduler_proof.inputs,
     };
 
     println!("Inputs: {:?}", inputs);
