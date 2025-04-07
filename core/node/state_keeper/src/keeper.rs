@@ -650,10 +650,11 @@ impl ZkSyncStateKeeper {
                 self.seal_l2_block(updates_manager).await?;
 
                 // Get a tentative new l2 block parameters
-                let next_l2_block_params = self
+                let mut next_l2_block_params = self
                     .wait_for_new_l2_block_params(updates_manager, stop_receiver)
                     .await
                     .map_err(|e| e.context("wait_for_new_l2_block_params"))?;
+                next_l2_block_params.msg_roots = self.io.load_latest_message_root().await?;
                 Self::set_l2_block_params(updates_manager, next_l2_block_params);
             }
 

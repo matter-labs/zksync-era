@@ -286,13 +286,12 @@ impl StateKeeperIO for MempoolIO {
         let Ok(timestamp) = timeout_result else {
             return Ok(None);
         };
-        let msg_roots = self.load_latest_message_root().await?;
 
         Ok(Some(L2BlockParams {
             timestamp,
             // This value is effectively ignored by the protocol.
             virtual_blocks: 1,
-            msg_roots,
+            msg_roots: vec![],
         }))
     }
 
