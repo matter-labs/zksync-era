@@ -56,7 +56,6 @@ pub struct CelestiaClient {
     eq_client: Arc<EqClient>,
     celestia_client: Arc<RawCelestiaClient>,
     eth_client: Box<DynClient<L1>>,
-    blobstream_update_event: Event,
     blobstream_contract: Contract,
     equivalence_proof_cache:
         Arc<Mutex<HashMap<String, (FixedBytes, FixedBytes, SP1ProofWithPublicValues)>>>,
@@ -69,19 +68,7 @@ impl CelestiaClient {
         secrets: CelestiaSecrets,
         eth_client: Box<DynClient<L1>>,
     ) -> anyhow::Result<Self> {
-        let contract_bytes = include_bytes!("blobstream.json");
-        let blobstream_contract = Contract::load(contract_bytes.as_ref())
-            .map_err(to_non_retriable_da_error)?;
-        let blobstream_update_event = blobstream_contract
-            .events_by_name("DataCommitmentStored")
-            .map_err(to_non_retriable_da_error)?
-            .first()
-            .ok_or_else(|| {
-                to_non_retriable_da_error(anyhow::anyhow!(
-                    "DataCommitmentStored event not found in contract"
-                ))
-            })?
-            .clone();
+
 
         let celestia_grpc_channel = Endpoint::from_str(config.api_node_url.clone().as_str())?
             .timeout(time::Duration::from_millis(config.timeout_ms))
@@ -93,7 +80,7 @@ impl CelestiaClient {
             RawCelestiaClient::new(celestia_grpc_channel, private_key, config.chain_id.clone())
                 .expect("could not create Celestia client");
 
-        let eq_service_grpc_channel = Endpoint::from_str(config.proof_eq_service_grpc_url.clone().as_str())?
+        let eq_service_grpc_channel = Endpoint::from_str(config.eq_service_grpc_url.clone().as_str())?
             .timeout(time::Duration::from_millis(config.timeout_ms))
             .connect()
             .await?;
@@ -103,7 +90,6 @@ impl CelestiaClient {
             celestia_client: Arc::new(client),
             eq_client: Arc::new(eq_client),
             eth_client,
-            blobstream_update_event,
             blobstream_contract,
             equivalence_proof_cache: Arc::new(Mutex::new(HashMap::new())),
         })
@@ -294,10 +280,9 @@ impl DataAvailabilityClient for CelestiaClient {
             target_height,
             latest_blobstream_height,
             BlockNumber::Number(eth_current_height),
-            &self.blobstream_update_event,
             blobstream_contract_address,
-            self.config.num_pages,
-            self.config.page_size,
+            self.config.blobstream_events_num_pages,
+            self.config.blobstream_events_page_size,
         )
         .await
         .map_err(|e| to_retriable_da_error(anyhow::anyhow!("Failed to find block range: {}", e)))?

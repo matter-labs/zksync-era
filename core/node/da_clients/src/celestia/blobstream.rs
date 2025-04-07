@@ -17,6 +17,34 @@ use zksync_eth_client::{
 };
 use zksync_da_client::types::DAError;
 use crate::utils::{to_non_retriable_da_error, to_retriable_da_error};
+
+pub const BLOBSTREAM_UPDATE_EVENT: Event = Event {
+    name: "DataCommitmentStored".to_string(),
+    inputs: vec![
+        EventParam {
+            name: "proofNonce".to_string(),
+            kind: ParamType::Uint(256),
+            indexed: false
+        },
+        EventParam {
+            name: "startBlock".to_string(),
+            kind: ParamType::Uint(64),
+            indexed: true
+        },
+        EventParam {
+            name: "endBlock".to_string(),
+            kind: ParamType::Uint(64),
+            indexed: true
+        },
+        EventParam {
+            name: "dataCommitment".to_string(),
+            kind: ParamType::FixedBytes(32),
+            indexed: true
+        }
+    ],
+    anonymous: false
+};
+
 pub struct TendermintRPCClient {
     url: String,
     client: Client,
@@ -87,7 +115,6 @@ pub async fn find_block_range(
     target_height: u64,
     latest_block: U256,
     eth_block_num: BlockNumber,
-    blobstream_update_event: &Event,
     contract_address: H160,
     num_pages: u64,
     page_size: u64,
@@ -109,7 +136,7 @@ pub async fn find_block_range(
             .to_block(BlockNumber::Number(page_start))
             .address(vec![contract_address])
             .topics(
-                Some(vec![blobstream_update_event.signature()]),
+                Some(vec![BLOBSTREAM_UPDATE_EVENT.signature()]),
                 None,
                 None,
                 None,
