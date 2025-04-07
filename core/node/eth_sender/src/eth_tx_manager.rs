@@ -1,5 +1,4 @@
 use std::{
-    ops::Mul,
     sync::Arc,
     time::{Duration, SystemTime},
 };
@@ -15,7 +14,8 @@ use zksync_node_fee_model::l1_gas_price::TxParamsProvider;
 use zksync_shared_metrics::BlockL1Stage;
 use zksync_types::{
     aggregated_operations::AggregatedActionType, eth_sender::EthTx, Address, L1BlockNumber,
-    CALLDATA_PROCESSING_ROLLUP_OVERHEAD, H256, L1_GAS_PER_PUBDATA_BYTE, U256,
+    GATEWAY_CALLDATA_PROCESSING_ROLLUP_OVERHEAD, H256, L1_CALLDATA_PROCESSING_ROLLUP_OVERHEAD,
+    L1_GAS_PER_PUBDATA_BYTE, U256,
 };
 
 use super::{metrics::METRICS, EthSenderError};
@@ -162,16 +162,13 @@ impl EthTxManager {
             self.config.max_aggregated_tx_gas.into()
         };
 
-        gas_limit = gas_limit.mul(2);
         // Adjust gas limit based ob pubdata cost. Commit is the only pubdata intensive part
         if tx.tx_type == AggregatedActionType::Commit {
             match operator_type {
-                OperatorType::Blob => {
-                    // Do nothing the pubdata intensive part is on separate gateway
-                }
-                OperatorType::NonBlob => {
+                OperatorType::Blob | OperatorType::NonBlob => {
                     // Settlement mode is L1.
-                    gas_limit += ((L1_GAS_PER_PUBDATA_BYTE + CALLDATA_PROCESSING_ROLLUP_OVERHEAD)
+                    gas_limit += ((L1_GAS_PER_PUBDATA_BYTE
+                        + L1_CALLDATA_PROCESSING_ROLLUP_OVERHEAD)
                         * tx.raw_tx.len() as u32)
                         .into()
                 }
@@ -179,7 +176,7 @@ impl EthTxManager {
                     // Settlement mode is Gateway.
                     if let Some(max_gas_per_pubdata_price) = max_gas_per_pubdata_price {
                         gas_limit += ((max_gas_per_pubdata_price
-                            + CALLDATA_PROCESSING_ROLLUP_OVERHEAD as u64)
+                            + GATEWAY_CALLDATA_PROCESSING_ROLLUP_OVERHEAD as u64)
                             * tx.raw_tx.len() as u64)
                             .into()
                     } else {
@@ -282,6 +279,7 @@ impl EthTxManager {
                     base_fee_per_gas {base_fee_per_gas:?}, \
                     priority_fee_per_gas {priority_fee_per_gas:?}, \
                     blob_fee_per_gas {blob_base_fee_per_gas:?},\
+                    gas_limit {gas_limit:?},
                     error {error}",
                     tx.id,
                     tx.nonce,

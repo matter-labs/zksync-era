@@ -278,7 +278,7 @@ struct ExecuteCosts {
 impl GasConsts {
     /// Base gas cost of processing aggregated `Execute` operation.
     /// It's applicable iff SL is Ethereum.
-    const AGGR_L1_BATCH_EXECUTE_BASE_COST: u32 = 90_000;
+    const AGGR_L1_BATCH_EXECUTE_BASE_COST: u32 = 200_000;
     /// Base gas cost of processing aggregated `Execute` operation.
     /// It's applicable if SL is  Gateway.
     const AGGR_GATEWAT_BATCH_EXECUTE_BASE_COST: u32 = 300_000;

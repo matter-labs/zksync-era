@@ -47,4 +47,5 @@ pub const GUARANTEED_PUBDATA_IN_TX: u32 = 100000;
 /// to properly hash it and compare with the corresponding L2->L1 message.
 pub const PUBLISH_BYTECODE_OVERHEAD: u32 = 100;
 
-pub const CALLDATA_PROCESSING_ROLLUP_OVERHEAD: u32 = 200;
+pub const GATEWAY_CALLDATA_PROCESSING_ROLLUP_OVERHEAD: u32 = 200;
+pub const L1_CALLDATA_PROCESSING_ROLLUP_OVERHEAD: u32 = 100;
