@@ -35,7 +35,7 @@ lazy_static! {
             "function governanceAcceptOwner(address governor, address target) public",
             "function chainAdminAcceptAdmin(address admin, address target) public",
             "function setDAValidatorPair(address chainAdmin, address target, address l1DaValidator, address l2DaValidator) public",
-            "function setDAValidatorPairWithGateway(address bridgehub, uint256 l1GasPrice, uint256 l2ChainId, uint256 gatewayChainId, address l1DAValidator, address l2DAValidator, address chainDiamondProxyOnGateway, bool _shouldSend)",
+            "function setDAValidatorPairWithGateway(address bridgehub, uint256 l1GasPrice, uint256 l2ChainId, uint256 gatewayChainId, address l1DAValidator, address l2DAValidator, address chainDiamondProxyOnGateway, address refundRecipient, bool _shouldSend)",
             "function makePermanentRollup(address chainAdmin, address target) public",
             "function governanceExecuteCalls(bytes calldata callsToExecute, address target) public",
             "function adminExecuteUpgrade(bytes memory diamondCut, address adminAddr, address accessControlRestriction, address chainDiamondProxy)",
@@ -43,9 +43,12 @@ lazy_static! {
             "function updateValidator(address adminAddr,address accessControlRestriction,address validatorTimelock,uint256 chainId,address validatorAddress,bool addValidator) public",
             "function setTransactionFilterer(address _bridgehubAddr, uint256 _chainId, address _transactionFiltererAddress, bool _shouldSend) external",
             "function grantGatewayWhitelist(address _bridgehubAddr, uint256 _chainId, address _grantee, bool _shouldSend)",
-            "function migrateChainToGateway(address bridgehub, uint256 l1GasPrice, uint256 l2GhainId, uint256 gatewayChainId, bytes _gatewayDiamondCutData, bool _shouldSend) public view",
+            "function migrateChainToGateway(address bridgehub, uint256 l1GasPrice, uint256 l2GhainId, uint256 gatewayChainId, bytes _gatewayDiamondCutData, address refundRecipient, bool _shouldSend) public view",
             "function revokeGatewayWhitelist(address _bridgehub, uint256 _chainId, address _address, bool _shouldSend) public",
-            "function enableValidatorViaGateway(address bridgehub,uint256 l1GasPrice,uint256 l2ChainId,uint256 gatewayChainId,address validatorAddress,address gatewayValidatorTimelock, bool shouldSend) public"
+            "function enableValidatorViaGateway(address bridgehub,uint256 l1GasPrice,uint256 l2ChainId,uint256 gatewayChainId,address validatorAddress,address gatewayValidatorTimelock, address refundRecipient,bool shouldSend) public",
+            "function adminL1L2Tx(address bridgehub,uint256 l1GasPrice,uint256 chainId,address to,uint256 value,bytes calldata data,address refundRecipient,bool _shouldSend) public",
+            "function notifyServerMigrationFromGateway(address _bridgehub, uint256 _chainId, bool _shouldSend) public",
+            "function notifyServerMigrationToGateway(address _bridgehub, uint256 _chainId, bool _shouldSend) public"
         ])
         .unwrap(),
     );
@@ -554,6 +557,7 @@ pub(crate) async fn set_da_validator_pair_via_gateway(
     l1_da_validator: Address,
     l2_da_validator: Address,
     chain_diamond_proxy_on_gateway: Address,
+    refund_recipient: Address,
     l1_rpc_url: String,
 ) -> anyhow::Result<AdminScriptOutput> {
     let calldata = ACCEPT_ADMIN
@@ -567,6 +571,7 @@ pub(crate) async fn set_da_validator_pair_via_gateway(
                 l1_da_validator,
                 l2_da_validator,
                 chain_diamond_proxy_on_gateway,
+                refund_recipient,
                 mode.should_send(),
             ),
         )
@@ -594,6 +599,7 @@ pub(crate) async fn enable_validator_via_gateway(
     gateway_chain_id: u64,
     validator_address: Address,
     gateway_validator_timelock: Address,
+    refund_recipient: Address,
     l1_rpc_url: String,
 ) -> anyhow::Result<AdminScriptOutput> {
     let calldata = ACCEPT_ADMIN
@@ -606,6 +612,7 @@ pub(crate) async fn enable_validator_via_gateway(
                 U256::from(gateway_chain_id),
                 validator_address,
                 gateway_validator_timelock,
+                refund_recipient,
                 mode.should_send(),
             ),
         )
@@ -634,7 +641,7 @@ pub(crate) async fn notify_server_migration_to_gateway(
     let calldata = ACCEPT_ADMIN
         .encode(
             "notifyServerMigrationToGateway",
-            (U256::from(chain_id), bridgehub, mode.should_send()),
+            (bridgehub, U256::from(chain_id), mode.should_send()),
         )
         .unwrap();
 
@@ -659,6 +666,7 @@ pub(crate) async fn finalize_migrate_to_gateway(
     l2_chain_id: u64,
     gateway_chain_id: u64,
     gateway_diamond_cut_data: Bytes,
+    refund_recipient: Address,
     l1_rpc_url: String,
 ) -> anyhow::Result<AdminScriptOutput> {
     let calldata = ACCEPT_ADMIN
@@ -670,6 +678,7 @@ pub(crate) async fn finalize_migrate_to_gateway(
                 U256::from(l2_chain_id),
                 U256::from(gateway_chain_id),
                 gateway_diamond_cut_data,
+                refund_recipient,
                 mode.should_send(),
             ),
         )
@@ -698,7 +707,48 @@ pub(crate) async fn notify_server_migration_from_gateway(
     let calldata = ACCEPT_ADMIN
         .encode(
             "notifyServerMigrationFromGateway",
-            (U256::from(chain_id), bridgehub, mode.should_send()),
+            (bridgehub, U256::from(chain_id), mode.should_send()),
+        )
+        .unwrap();
+
+    call_script(
+        shell,
+        forge_args,
+        foundry_contracts_path,
+        mode,
+        calldata,
+        l1_rpc_url,
+    )
+    .await
+}
+
+pub(crate) async fn admin_l1_l2_tx(
+    shell: &Shell,
+    forge_args: &ForgeScriptArgs,
+    foundry_contracts_path: &Path,
+    mode: AdminScriptMode,
+    bridgehub: Address,
+    l1_gas_price: u64,
+    chain_id: u64,
+    to: Address,
+    value: U256,
+    data: Bytes,
+    refund_recipient: Address,
+    l1_rpc_url: String,
+) -> anyhow::Result<AdminScriptOutput> {
+    let calldata = ACCEPT_ADMIN
+        .encode(
+            "adminL1L2Tx",
+            (
+                bridgehub,
+                U256::from(l1_gas_price),
+                U256::from(chain_id),
+                to,
+                value,
+                data,
+                refund_recipient,
+                mode.should_send(),
+            ),
         )
         .unwrap();
 

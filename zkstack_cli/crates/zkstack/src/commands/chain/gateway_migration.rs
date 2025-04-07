@@ -35,12 +35,16 @@ use zksync_contracts::chain_admin_contract;
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 use zksync_types::{address_to_u256, u256_to_address};
 
-use super::admin_call_builder::{
-    self, encode_admin_multicall, get_ethers_provider, AdminCall, AdminCallBuilder,
+use super::{
+    admin_call_builder::{
+        self, encode_admin_multicall, get_ethers_provider, AdminCall, AdminCallBuilder,
+    },
+    notify_server_calldata::{get_notify_server_calls, NotifyServerCalldataArgs},
 };
 use crate::{
     accept_ownership::{
-        enable_validator_via_gateway, finalize_migrate_to_gateway,
+        admin_l1_l2_tx, enable_validator_via_gateway, finalize_migrate_to_gateway,
+        notify_server_migration_from_gateway, notify_server_migration_to_gateway,
         set_da_validator_pair_via_gateway,
     },
     messages::MSG_CHAIN_NOT_INITIALIZED,
@@ -56,29 +60,6 @@ pub struct MigrateToGatewayArgs {
 
     #[clap(long)]
     pub gateway_chain_name: String,
-}
-
-lazy_static! {
-    static ref GATEWAY_PREPARATION_INTERFACE: BaseContract = BaseContract::from(
-        parse_abi(&[
-            "function migrateChainToGateway(address chainAdmin,address l2ChainAdmin,address accessControlRestriction,uint256 chainId) public",
-            "function setDAValidatorPair(address accessControlRestriction,uint256 chainId,address l1DAValidator,address l2DAValidator,address chainDiamondProxyOnGateway)",
-            "function supplyGatewayWallet(address addr, uint256 addr) public",
-            "function enableValidator(address accessControlRestriction,uint256 chainId,address validatorAddress,address gatewayValidatorTimelock) public",
-            "function grantWhitelist(address filtererProxy, address[] memory addr) public",
-            "function deployL2ChainAdmin() public",
-            "function notifyServerMigrationFromGateway(address serverNotifier, address chainAdmin, address accessControlRestriction, uint256 chainId) public",
-            "function notifyServerMigrationToGateway(address serverNotifier, address chainAdmin, address accessControlRestriction, uint256 chainId) public"
-        ])
-        .unwrap(),
-    );
-
-    static ref BRIDGEHUB_INTERFACE: BaseContract = BaseContract::from(
-        parse_abi(&[
-            "function getHyperchain(uint256 chainId) public returns (address)"
-        ])
-        .unwrap(),
-    );
 }
 
 // 50 gwei
@@ -152,10 +133,7 @@ async fn precompute_chain_address_on_gateway(
     Ok(result)
 }
 
-pub(crate) async fn get_migrate_to_gateway_calls(
-    shell: &Shell,
-    forge_args: &ForgeScriptArgs,
-    foundry_contracts_path: &Path,
+pub(crate) struct MigrateToGatewayParams {
     l1_rpc_url: String,
     l1_bridgehub_addr: Address,
     max_l1_gas_price: u64,
@@ -166,30 +144,39 @@ pub(crate) async fn get_migrate_to_gateway_calls(
     new_sl_da_validator: Address,
     validator_1: Address,
     validator_2: Address,
+    min_validator_balance: U256,
     refund_recipient: Option<Address>,
+}
+
+pub(crate) async fn get_migrate_to_gateway_calls(
+    shell: &Shell,
+    forge_args: &ForgeScriptArgs,
+    foundry_contracts_path: &Path,
+    params: MigrateToGatewayParams,
 ) -> anyhow::Result<(Address, Vec<AdminCall>)> {
     // TODO: add checks about chain notification.
 
-    // TODO: use refund recipient in scripts for L1->L2 communication
-    let refund_recipient = refund_recipient.unwrap_or(validator_1);
+    let refund_recipient = params.refund_recipient.unwrap_or(params.validator_1);
     let mut result = vec![];
 
-    let l1_provider = get_ethers_provider(&l1_rpc_url)?;
-    let gw_provider = get_ethers_provider(&gateway_rpc_url)?;
+    let l1_provider = get_ethers_provider(&params.l1_rpc_url)?;
+    let gw_provider = get_ethers_provider(&params.gateway_rpc_url)?;
 
-    let l1_bridgehub = BridgehubAbi::new(l1_bridgehub_addr, l1_provider.clone());
+    let l1_bridgehub = BridgehubAbi::new(params.l1_bridgehub_addr, l1_provider.clone());
     let gw_bridgehub = BridgehubAbi::new(L2_BRIDGEHUB_ADDRESS, gw_provider.clone());
 
-    let current_settlement_layer = l1_bridgehub.settlement_layer(l2_chain_id.into()).await?;
+    let current_settlement_layer = l1_bridgehub
+        .settlement_layer(params.l2_chain_id.into())
+        .await?;
 
-    let zk_chain_l1_address = l1_bridgehub.get_zk_chain(l2_chain_id.into()).await?;
+    let zk_chain_l1_address = l1_bridgehub.get_zk_chain(params.l2_chain_id.into()).await?;
 
     if zk_chain_l1_address == Address::zero() {
-        anyhow::bail!("Chain with id {} does not exist!", l2_chain_id);
+        anyhow::bail!("Chain with id {} does not exist!", params.l2_chain_id);
     }
 
     // Checking whether the user has already done the migration
-    if current_settlement_layer == U256::from(gateway_chain_id) {
+    if current_settlement_layer == U256::from(params.gateway_chain_id) {
         // TODO: it may happen that the user has started the migration, but it failed for some reason (e.g. the provided
         // diamond cut was not correct).
         // The recovery of the chain is not handled by the tool right now.
@@ -197,12 +184,12 @@ pub(crate) async fn get_migrate_to_gateway_calls(
     }
 
     let ctm_asset_id = l1_bridgehub
-        .ctm_asset_id_from_chain_id(l2_chain_id.into())
+        .ctm_asset_id_from_chain_id(params.l2_chain_id.into())
         .await?;
     let ctm_gw_address = gw_bridgehub.ctm_asset_id_to_address(ctm_asset_id).await?;
 
     if ctm_gw_address == Address::zero() {
-        anyhow::bail!("{gateway_chain_id} does not have a CTM deployed!");
+        anyhow::bail!("{} does not have a CTM deployed!", params.gateway_chain_id);
     }
 
     let gw_ctm = ChainTypeManagerAbi::new(ctm_gw_address, gw_provider.clone());
@@ -213,14 +200,19 @@ pub(crate) async fn get_migrate_to_gateway_calls(
     let l1_zk_chain = ZkChainAbi::new(zk_chain_l1_address, l1_provider.clone());
     let chain_admin_address = l1_zk_chain.get_admin().await?;
     let zk_chain_gw_address = {
-        let recorded_zk_chain_gw_address = gw_bridgehub.get_zk_chain(l2_chain_id.into()).await?;
+        let recorded_zk_chain_gw_address =
+            gw_bridgehub.get_zk_chain(params.l2_chain_id.into()).await?;
         if recorded_zk_chain_gw_address == Address::zero() {
             let expected_address = precompute_chain_address_on_gateway(
-                l2_chain_id,
-                H256(l1_bridgehub.base_token_asset_id(l2_chain_id.into()).await?),
+                params.l2_chain_id,
+                H256(
+                    l1_bridgehub
+                        .base_token_asset_id(params.l2_chain_id.into())
+                        .await?,
+                ),
                 apply_l1_to_l2_alias(l1_zk_chain.get_admin().await?),
                 l1_zk_chain.get_protocol_version().await?,
-                gateway_diamond_cut.clone(),
+                params.gateway_diamond_cut.clone(),
                 gw_ctm,
             )
             .await?;
@@ -236,18 +228,19 @@ pub(crate) async fn get_migrate_to_gateway_calls(
         forge_args,
         foundry_contracts_path,
         crate::accept_ownership::AdminScriptMode::OnlySave,
-        l1_bridgehub_addr,
-        max_l1_gas_price,
-        l2_chain_id,
-        gateway_chain_id,
-        gateway_diamond_cut.into(),
-        l1_rpc_url.clone(),
+        params.l1_bridgehub_addr,
+        params.max_l1_gas_price,
+        params.l2_chain_id,
+        params.gateway_chain_id,
+        params.gateway_diamond_cut.into(),
+        refund_recipient,
+        params.l1_rpc_url.clone(),
     )
     .await?;
 
     result.extend(finalize_migrate_to_gateway_output.calls);
 
-    // Changing L2 DA validator while migrating to gateway is not recommended, we allow changing only the SL one
+    // Changing L2 DA validator while migrating to gateway is not recommended; we allow changing only the SL one
     let (_, l2_da_validator) = l1_zk_chain.get_da_validator_pair().await?;
 
     // Unfortunately, there is no getter for whether a chain is a permanent rollup, we have to
@@ -265,23 +258,24 @@ pub(crate) async fn get_migrate_to_gateway_calls(
         forge_args,
         foundry_contracts_path,
         crate::accept_ownership::AdminScriptMode::OnlySave,
-        l1_bridgehub_addr,
-        max_l1_gas_price.into(),
-        l2_chain_id,
-        gateway_chain_id,
-        new_sl_da_validator,
+        params.l1_bridgehub_addr,
+        params.max_l1_gas_price.into(),
+        params.l2_chain_id,
+        params.gateway_chain_id,
+        params.new_sl_da_validator,
         l2_da_validator,
         zk_chain_gw_address,
-        l1_rpc_url.clone(),
+        refund_recipient,
+        params.l1_rpc_url.clone(),
     )
     .await?;
 
     result.extend(da_validator_encoding_result.calls);
 
     // 4. If validators are not yet present, please include.
-    for validator in [validator_1, validator_2] {
+    for validator in [params.validator_1, params.validator_2] {
         if !gw_validator_timelock
-            .validators(l2_chain_id.into(), validator)
+            .validators(params.l2_chain_id.into(), validator)
             .await?
         {
             let enable_validator_calls = enable_validator_via_gateway(
@@ -289,16 +283,42 @@ pub(crate) async fn get_migrate_to_gateway_calls(
                 forge_args,
                 foundry_contracts_path,
                 crate::accept_ownership::AdminScriptMode::OnlySave,
-                l1_bridgehub_addr,
-                max_l1_gas_price.into(),
-                l2_chain_id,
-                gateway_chain_id,
+                params.l1_bridgehub_addr,
+                params.max_l1_gas_price.into(),
+                params.l2_chain_id,
+                params.gateway_chain_id,
                 validator,
                 gw_validator_timelock_addr,
-                l1_rpc_url.clone(),
+                refund_recipient,
+                params.l1_rpc_url.clone(),
             )
             .await?;
             result.extend(enable_validator_calls.calls);
+        }
+
+        let current_validator_balance = gw_provider.get_balance(validator, None).await?;
+        println!("current balance = {}", current_validator_balance);
+        if current_validator_balance < params.min_validator_balance {
+            println!(
+                "Sohuld send {}",
+                params.min_validator_balance - current_validator_balance
+            );
+            let supply_validator_balance_calls = admin_l1_l2_tx(
+                shell,
+                forge_args,
+                foundry_contracts_path,
+                crate::accept_ownership::AdminScriptMode::OnlySave,
+                params.l1_bridgehub_addr,
+                params.max_l1_gas_price.into(),
+                params.gateway_chain_id,
+                validator,
+                params.min_validator_balance - current_validator_balance,
+                Default::default(),
+                refund_recipient,
+                params.l1_rpc_url.clone(),
+            )
+            .await?;
+            result.extend(supply_validator_balance_calls.calls);
         }
     }
 
@@ -364,19 +384,22 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         shell,
         &args.forge_args,
         &chain_config.path_to_l1_foundry(),
-        l1_url.clone(),
-        chain_contracts_config
-            .ecosystem_contracts
-            .bridgehub_proxy_addr,
-        MAX_EXPECTED_L1_GAS_PRICE,
-        chain_config.chain_id.as_u64(),
-        gateway_chain_config.chain_id.as_u64(),
-        gateway_gateway_config.diamond_cut_data.0.clone().into(),
-        gw_rpc_url.clone(),
-        gateway_da_validator_address,
-        chain_secrets_config.blob_operator.address,
-        chain_secrets_config.operator.address,
-        None,
+        MigrateToGatewayParams {
+            l1_rpc_url: l1_url.clone(),
+            l1_bridgehub_addr: chain_contracts_config
+                .ecosystem_contracts
+                .bridgehub_proxy_addr,
+            max_l1_gas_price: MAX_EXPECTED_L1_GAS_PRICE,
+            l2_chain_id: chain_config.chain_id.as_u64(),
+            gateway_chain_id: gateway_chain_config.chain_id.as_u64(),
+            gateway_diamond_cut: gateway_gateway_config.diamond_cut_data.0.clone().into(),
+            gateway_rpc_url: gw_rpc_url.clone(),
+            new_sl_da_validator: gateway_da_validator_address,
+            validator_1: chain_secrets_config.blob_operator.address,
+            validator_2: chain_secrets_config.operator.address,
+            min_validator_balance: U256::from(10).pow(21.into()).into(),
+            refund_recipient: None,
+        },
     )
     .await?;
 
@@ -463,6 +486,7 @@ async fn await_for_tx_to_complete(
     Ok(())
 }
 
+#[derive(Debug)]
 pub(crate) enum MigrationDirection {
     FromGateway,
     ToGateway,
@@ -482,78 +506,40 @@ pub(crate) async fn notify_server(
         .get_secrets_config()
         .await?
         .get::<String>("l1.l1_rpc_url")?;
-    let contracts = chain_config.get_contracts_config()?;
-    let server_notifier = contracts
-        .ecosystem_contracts
-        .server_notifier_proxy_addr
-        .unwrap();
-    let chain_admin = contracts.l1.chain_admin_addr;
-    let restrictions = contracts
-        .l1
-        .access_control_restriction_addr
-        .unwrap_or_default();
 
-    let data = match direction {
-        MigrationDirection::FromGateway => &GATEWAY_PREPARATION_INTERFACE.encode(
-            "notifyServerMigrationFromGateway",
-            (
-                server_notifier,
-                chain_admin,
-                restrictions,
-                chain_config.chain_id.as_u64(),
-            ),
-        )?,
-        MigrationDirection::ToGateway => &GATEWAY_PREPARATION_INTERFACE.encode(
-            "notifyServerMigrationToGateway",
-            (
-                server_notifier,
-                chain_admin,
-                restrictions,
-                chain_config.chain_id.as_u64(),
-            ),
-        )?,
-    };
-
-    call_script(
+    let calls = get_notify_server_calls(
         shell,
         args,
-        data,
-        &chain_config,
-        &chain_config.get_wallets_config()?.governor,
-        l1_url,
+        &chain_config.path_to_l1_foundry(),
+        NotifyServerCalldataArgs {
+            bridgehub_addr: ecosystem_config
+                .get_contracts_config()?
+                .ecosystem_contracts
+                .bridgehub_proxy_addr,
+            l2_chain_id: chain_config.chain_id.as_u64(),
+            l1_rpc_url: l1_url.clone(),
+        },
+        direction,
     )
     .await?;
+
+    let (data, value) = AdminCallBuilder::new(calls.calls).compile_full_calldata();
+
+    send_tx(
+        calls.admin_address,
+        data,
+        value,
+        l1_url,
+        chain_config
+            .get_wallets_config()?
+            .governor
+            .private_key_h256()
+            .unwrap(),
+    )
+    .await?;
+
     Ok(())
 }
-
-async fn call_script(
-    shell: &Shell,
-    forge_args: ForgeScriptArgs,
-    data: &Bytes,
-    config: &ChainConfig,
-    governor: &Wallet,
-    l1_rpc_url: String,
-) -> anyhow::Result<GatewayPreparationOutput> {
-    let mut forge = Forge::new(&config.path_to_l1_foundry())
-        .script(&GATEWAY_PREPARATION.script(), forge_args.clone())
-        .with_ffi()
-        .with_rpc_url(l1_rpc_url)
-        .with_broadcast()
-        .with_calldata(data);
-
-    // Governor private key is required for this script
-    forge = fill_forge_private_key(forge, Some(governor), WalletOwner::Governor)?;
-    check_the_balance(&forge).await?;
-    forge.run(shell)?;
-
-    let gateway_preparation_script_output =
-        GatewayPreparationOutput::read(shell, GATEWAY_PREPARATION.output(&config.link_to_code))?;
-
-    Ok(gateway_preparation_script_output)
-}
-
-// Default gas limit to be used for local scripts, so the exact value does not matter.
-const L1_GAS_LIMIT: u64 = 2_000_000;
 
 async fn send_tx(
     to: Address,

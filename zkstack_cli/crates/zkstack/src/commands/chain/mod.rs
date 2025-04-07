@@ -4,6 +4,7 @@ pub(crate) use args::create::ChainCreateArgsFinal;
 use clap::{command, Subcommand};
 pub(crate) use create::create_chain_inner;
 use grant_gateway_whitelist::GrantGatewayWhitelistArgs;
+use notify_server_calldata::NotifyServerCalldataArgs;
 use set_transaction_filterer::SetTransactionFiltererArgs;
 use xshell::Shell;
 
@@ -48,6 +49,8 @@ pub mod genesis;
 pub mod init;
 #[cfg(feature = "gateway")]
 mod migrate_from_gateway;
+#[cfg(feature = "gateway")]
+mod notify_server_calldata;
 pub mod register_chain;
 mod set_token_multiplier_setter;
 mod setup_legacy_bridge;
@@ -100,8 +103,11 @@ pub enum ChainCommands {
     #[cfg(feature = "gateway")]
     DeployGatewayTransactionFilterer(ForgeScriptArgs),
     #[cfg(feature = "gateway")]
-    GrantGatewayTransactionFiltererWhitelist(GrantGatewayWhitelistArgs),
+    GrantGatewayTransactionFiltererWhitelistCalldata(GrantGatewayWhitelistArgs),
     #[cfg(feature = "gateway")]
+    NotifyAboutToGatewayUpdateCalldata(NotifyServerCalldataArgs),
+    #[cfg(feature = "gateway")]
+    NotifyAboutFromGatewayUpdateCalldata(NotifyServerCalldataArgs),
     // /// Deploys Gateway Filterer and prepares Gateway CTM contracts.
     // #[command(alias = "gateway")]
     // DeployGatewayContracts(ForgeScriptArgs),
@@ -160,9 +166,18 @@ pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()
             deploy_gateway_tx_filterer::run(args, shell).await
         }
         #[cfg(feature = "gateway")]
-        ChainCommands::GrantGatewayTransactionFiltererWhitelist(args) => {
+        ChainCommands::GrantGatewayTransactionFiltererWhitelistCalldata(args) => {
             grant_gateway_whitelist::run(shell, args).await
         }
+        #[cfg(feature = "gateway")]
+        ChainCommands::NotifyAboutToGatewayUpdateCalldata(args) => {
+            notify_server_calldata::run(shell, args, MigrationDirection::ToGateway).await
+        }
+        #[cfg(feature = "gateway")]
+        ChainCommands::NotifyAboutFromGatewayUpdateCalldata(args) => {
+            notify_server_calldata::run(shell, args, MigrationDirection::FromGateway).await
+        }
+        // #[cfg(feature = "gateway")]
         #[cfg(feature = "gateway")]
         ChainCommands::ConvertToGateway(args) => convert_to_gateway::run(args, shell).await,
         #[cfg(feature = "gateway")]
