@@ -57,8 +57,6 @@ pub struct CelestiaClient {
     celestia_client: Arc<RawCelestiaClient>,
     eth_client: Box<DynClient<L1>>,
     blobstream_contract: Contract,
-    equivalence_proof_cache:
-        Arc<Mutex<HashMap<String, (FixedBytes, FixedBytes, SP1ProofWithPublicValues)>>>,
 }
 
 impl CelestiaClient {
@@ -90,7 +88,6 @@ impl CelestiaClient {
             eq_client: Arc::new(eq_client),
             eth_client,
             blobstream_contract,
-            equivalence_proof_cache: Arc::new(Mutex::new(HashMap::new())),
         })
     }
 
@@ -217,47 +214,7 @@ impl DataAvailabilityClient for CelestiaClient {
     }
 
     async fn get_inclusion_data(&self, blob_id: &str) -> Result<Option<InclusionData>, DAError> {
-        // First check the cache with a scoped lock
-        let cached_proof = {
-            let cache = self.equivalence_proof_cache.lock().unwrap();
-            cache.get(&blob_id.to_string()).cloned()
-        };
 
-        let (keccak_hash, data_root, proof) = match cached_proof {
-            Some(cached_proof) => {
-                tracing::debug!("Found cached proof for blob_id: {}", blob_id);
-                (cached_proof.0, cached_proof.1, cached_proof.2)
-            }
-            None => {
-                tracing::debug!(
-                    "Calling get_proof_data and caching result for blob_id: {}",
-                    blob_id
-                );
-                match self.get_proof_data(blob_id).await? {
-                    Some(proof) => {
-                        tracing::debug!(
-                            "Got complete zk equivallence proof for blob_id: {}",
-                            blob_id
-                        );
-                        // Create a new scope for the mutex lock when inserting
-                        {
-                            let mut cache = self.equivalence_proof_cache.lock().unwrap();
-                            cache.insert(blob_id.to_string(), proof.clone());
-                        }
-                        proof
-                    }
-                    None => {
-                        tracing::debug!(
-                            "eq-service is still working on proving blob_id: {}",
-                            blob_id
-                        );
-                        return Ok(None);
-                    }
-                }
-            }
-        };
-
-        // Now we begin the blobstream part
         let eth_current_height = self
             .eth_client
             .block_number()
@@ -351,6 +308,11 @@ impl DataAvailabilityClient for CelestiaClient {
             tuple_root_nonce: proof_nonce,
             tuple: data_root_tuple,
             proof: binary_merkle_proof,
+        };
+
+        let (keccak_hash, data_root, proof) = match self.get_proof_data(blob_id).await? {
+            Some(p) => p,
+            None => return Ok(None),
         };
 
         let celestia_zkstack_input = CelestiaZKStackInput {
