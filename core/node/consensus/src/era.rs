@@ -20,7 +20,6 @@ pub async fn run_main_node(
     pool: zksync_dal::ConnectionPool<Core>,
 ) -> anyhow::Result<()> {
     tracing::info!(
-        is_attester = secrets.attester_key.is_some(),
         is_validator = secrets.validator_key.is_some(),
         "running main node"
     );
@@ -55,7 +54,6 @@ pub async fn run_external_node(
     let res = match cfg {
         Some((cfg, secrets)) => {
             tracing::info!(
-                is_attester = secrets.attester_key.is_some(),
                 is_validator = secrets.validator_key.is_some(),
                 "running external node"
             );
@@ -73,6 +71,7 @@ pub async fn run_external_node(
 
 /// Periodically fetches the pending validator committee for the last certified block
 /// and persists it in the database.
+#[allow(dead_code)]
 async fn validator_committee_monitor(
     ctx: &ctx::Ctx,
     pool: &ConnectionPool,

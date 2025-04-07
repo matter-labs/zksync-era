@@ -55,8 +55,8 @@ impl EN {
                 .fetch_global_config(ctx)
                 .await
                 .wrap("fetch_global_config()")?;
-            let mut conn = self.pool.connection(ctx).await.wrap("connection()")?;
 
+            let mut conn = self.pool.connection(ctx).await.wrap("connection()")?;
             conn.try_update_global_config(ctx, &global_config)
                 .await
                 .wrap("try_update_global_config()")?;
@@ -122,24 +122,7 @@ impl EN {
                 .wrap("BlockStore::new()")?;
             s.spawn_bg(async { Ok(runner.run(ctx).await.context("BlockStore::run()")?) });
 
-            let attestation = Arc::new(attestation::Controller::new(attester));
-            s.spawn_bg({
-                let global_config = global_config.clone();
-                let attestation = attestation.clone();
-                async {
-                    let res = self
-                        .run_attestation_controller(ctx, global_config, attestation)
-                        .await
-                        .wrap("run_attestation_controller()");
-                    // Attestation currently is not critical for the node to function.
-                    // If it fails, we just log the error and continue.
-                    if let Err(err) = res {
-                        tracing::error!("attestation controller failed: {err:#}");
-                    }
-                    Ok(())
-                }
-            });
-
+            let attestation = Arc::new(attestation::Controller::new(None));
             let executor = executor::Executor {
                 config: config::executor(&cfg, &secrets, &global_config, build_version)?,
                 block_store,
