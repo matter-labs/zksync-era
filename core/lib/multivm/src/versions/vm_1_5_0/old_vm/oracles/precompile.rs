@@ -4,16 +4,12 @@ use zk_evm_1_5_0::{
     abstractions::{Memory, PrecompileCyclesWitness, PrecompilesProcessor},
     aux_structures::{LogQuery, MemoryQuery, Timestamp},
     zk_evm_abstractions::precompiles::{
-        ecadd::ecadd_function, ecmul::ecmul_function, ecpairing::ecpairing_function, ecrecover,
-        keccak256, modexp, secp256r1_verify, sha256, PrecompileAddress,
+        ecrecover, keccak256, secp256r1_verify, sha256, PrecompileAddress,
     },
 };
 
 use super::OracleWithHistory;
-use crate::vm_1_5_0::{
-    old_vm::history_recorder::{HistoryEnabled, HistoryMode, HistoryRecorder},
-    MultiVmSubversion,
-};
+use crate::vm_1_5_0::old_vm::history_recorder::{HistoryEnabled, HistoryMode, HistoryRecorder};
 
 /// Wrap of DefaultPrecompilesProcessor that store queue
 /// of timestamp when precompiles are called to be executed.
@@ -24,35 +20,13 @@ use crate::vm_1_5_0::{
 pub struct PrecompilesProcessorWithHistory<H: HistoryMode> {
     pub timestamp_history: HistoryRecorder<Vec<Timestamp>, H>,
     pub precompile_cycles_history: HistoryRecorder<Vec<(PrecompileAddress, usize)>, H>,
-    pub enable_v28_precompiles: bool,
 }
 
-impl<H: HistoryMode> PrecompilesProcessorWithHistory<H> {
-    pub(crate) fn new(version: MultiVmSubversion) -> Self {
-        let enable_v28_precompiles = version >= MultiVmSubversion::EcPrecompiles;
+impl<H: HistoryMode> Default for PrecompilesProcessorWithHistory<H> {
+    fn default() -> Self {
         Self {
             timestamp_history: Default::default(),
             precompile_cycles_history: Default::default(),
-            enable_v28_precompiles,
-        }
-    }
-
-    /// Returns `PrecompileAddress` if there is indeed a precompile under provided address.
-    /// Takes into account that v28 precompiles can be disabled.
-    fn resolve_precompile_address(&self, address: u16) -> Option<PrecompileAddress> {
-        let address = PrecompileAddress::try_from(address).ok()?;
-        let is_v28_precompile = matches!(
-            address,
-            PrecompileAddress::Modexp
-                | PrecompileAddress::ECAdd
-                | PrecompileAddress::ECMul
-                | PrecompileAddress::ECPairing
-        );
-
-        if is_v28_precompile && !self.enable_v28_precompiles {
-            None
-        } else {
-            Some(address)
         }
     }
 }
@@ -96,7 +70,7 @@ impl<H: HistoryMode> PrecompilesProcessor for PrecompilesProcessorWithHistory<H>
             .push(query.timestamp, query.timestamp);
 
         let address_low = u16::from_le_bytes([query.address.0[19], query.address.0[18]]);
-        if let Some(precompile_address) = self.resolve_precompile_address(address_low) {
+        if let Ok(precompile_address) = PrecompileAddress::try_from(address_low) {
             let rounds = match precompile_address {
                 PrecompileAddress::Keccak256 => {
                     // pure function call, non-revertable
@@ -132,18 +106,6 @@ impl<H: HistoryMode> PrecompilesProcessor for PrecompilesProcessorWithHistory<H>
                         memory,
                     )
                     .0
-                }
-                PrecompileAddress::Modexp => {
-                    modexp::modexp_function::<M, false>(monotonic_cycle_counter, query, memory).0
-                }
-                PrecompileAddress::ECAdd => {
-                    ecadd_function::<M, false>(monotonic_cycle_counter, query, memory).0
-                }
-                PrecompileAddress::ECMul => {
-                    ecmul_function::<M, false>(monotonic_cycle_counter, query, memory).0
-                }
-                PrecompileAddress::ECPairing => {
-                    ecpairing_function::<M, false>(monotonic_cycle_counter, query, memory).0
                 }
             };
 

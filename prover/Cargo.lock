@@ -1341,7 +1341,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "117725a109d387c937a1533ce01b450cbde6b88abceea8473c4d7a85853cda3c"
 dependencies = [
  "lazy_static",
- "windows-sys 0.48.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -3966,7 +3966,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc2f4eb4bc735547cfed7c0a4922cbd04a4655978c09b54f1f7b228750664c34"
 dependencies = [
  "cfg-if",
- "windows-targets 0.48.5",
+ "windows-targets 0.52.6",
 ]
 
 [[package]]
@@ -8046,7 +8046,7 @@ version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf221c93e13a30d793f7645a0e7762c55d169dbb0a49671918a2319d289b10bb"
 dependencies = [
- "windows-sys 0.48.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -8655,6 +8655,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "zk_evm"
+version = "0.151.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4587cac12bc0a037b29b5c12fe107f06d1f2d1f62f64ebed6ce4c6bf5290c58a"
+dependencies = [
+ "anyhow",
+ "lazy_static",
+ "num",
+ "serde",
+ "serde_json",
+ "static_assertions",
+ "zk_evm_abstractions 0.151.5",
+]
+
+[[package]]
 name = "zk_evm_abstractions"
 version = "0.140.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8703,6 +8718,19 @@ dependencies = [
  "serde",
  "static_assertions",
  "zkevm_opcode_defs 0.151.3",
+]
+
+[[package]]
+name = "zk_evm_abstractions"
+version = "0.151.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c91ea662a71ec92c72f5d1628486d1e68c1a50fd13e07ef57dcd2a6d4161b68f"
+dependencies = [
+ "anyhow",
+ "num_enum 0.6.1",
+ "serde",
+ "static_assertions",
+ "zkevm_opcode_defs 0.151.5",
 ]
 
 [[package]]
@@ -8819,6 +8847,23 @@ dependencies = [
  "sha2 0.10.8",
  "sha3 0.10.8",
  "zksync_pairing 0.31.0 (git+https://github.com/matter-labs/zksync-crypto.git?branch=feature/ec_precompiles)",
+]
+
+[[package]]
+name = "zkevm_opcode_defs"
+version = "0.151.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fb02c38d4486568f3ce4aed592a26139aa942eb3cef973a78cfc053cddc54d06"
+dependencies = [
+ "bitflags 2.9.0",
+ "blake2 0.10.6",
+ "ethereum-types",
+ "k256 0.13.4",
+ "lazy_static",
+ "p256 0.13.2",
+ "serde",
+ "sha2 0.10.8",
+ "sha3 0.10.8",
 ]
 
 [[package]]
@@ -9428,6 +9473,7 @@ dependencies = [
  "zk_evm 0.140.0",
  "zk_evm 0.141.0",
  "zk_evm 0.151.3",
+ "zk_evm 0.151.5",
  "zksync_contracts",
  "zksync_mini_merkle_tree",
  "zksync_system_constants",

@@ -16,7 +16,7 @@ pub use self::{
     vm::Vm,
 };
 pub(crate) use self::{
-    types::{TransactionData, VmHook},
+    types::VmHook,
     vm::MultiVmSubversion,
 };
 
