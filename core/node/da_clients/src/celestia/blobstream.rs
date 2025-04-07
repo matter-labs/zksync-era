@@ -74,6 +74,29 @@ impl TendermintRPCClient {
             .text()
             .await
     }
+
+    pub async fn get_data_root(&self, height: u64) -> Result<String, ReqwestError> {
+        let url = format!("{}/header", self.url);
+        let response = self.client
+            .get(url)
+            .query(&[("height", height)])
+            .send()
+            .await
+            .expect("Failed to send request")
+            .text()
+            .await?;
+
+        // Parse response JSON to extract data root
+        let response_json: serde_json::Value = serde_json::from_str(&response)
+            .expect("Failed to parse response JSON");
+        
+        let data_root = response_json["result"]["header"]["data_hash"]
+            .as_str()
+            .expect("Failed to get data_hash")
+            .to_string();
+
+        Ok(data_root)
+    }
 }
 
 // Get the latest block relayed to Blobstream
