@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                number,\n                pubdata_input,\n                system_logs,\n                sealed_at\n            FROM\n                l1_batches\n            LEFT JOIN\n                data_availability\n                ON data_availability.l1_batch_number = l1_batches.number\n            WHERE\n                eth_commit_tx_id IS NULL\n                AND number != 0\n                AND data_availability.dispatch_request_id IS NULL\n                AND pubdata_input IS NOT NULL\n                AND sealed_at IS NOT NULL\n            ORDER BY\n                number\n            LIMIT\n                $1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "number",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "pubdata_input",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 2,
+        "name": "system_logs",
+        "type_info": "ByteaArray"
+      },
+      {
+        "ordinal": 3,
+        "name": "sealed_at",
+        "type_info": "Timestamp"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      false,
+      true
+    ]
+  },
+  "hash": "28e79b3b6f1fb3dd2b4d98e7d02fb29f7df1af6c5cbaadff8dab50986fabffc9"
+}
