@@ -15,10 +15,7 @@ pub use self::{
     utils::transaction_encoding::TransactionVmExt,
     vm::Vm,
 };
-pub(crate) use self::{
-    types::VmHook,
-    vm::MultiVmSubversion,
-};
+pub(crate) use self::{types::VmHook, vm::MultiVmSubversion};
 
 pub(crate) mod bootloader;
 pub mod constants;
