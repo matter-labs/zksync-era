@@ -54,14 +54,7 @@ impl MessageRootDal<'_, '_> {
             r#"
             SELECT *
             FROM message_roots
-            WHERE
-                processed_block_number IS NULL
-                AND (chain_id, dependency_block_number) IN (
-                    SELECT chain_id, MAX(dependency_block_number)
-                    FROM message_roots
-                    WHERE processed_block_number IS NULL
-                    GROUP BY chain_id
-                );
+            WHERE processed_block_number IS NULL;
             "#,
         )
         .instrument("get_new_message_roots")
