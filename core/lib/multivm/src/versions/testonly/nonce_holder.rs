@@ -1,5 +1,4 @@
-use zksync_test_contracts::{Account, TestContract};
-use zksync_types::{Execute, ExecuteTransactionCommon, Nonce};
+use zksync_test_contracts::Account;
 
 use super::{tester::VmTesterBuilder, ContractToDeploy, TestedVm};
 use crate::interface::{
