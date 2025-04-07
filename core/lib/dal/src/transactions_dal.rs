@@ -2111,43 +2111,37 @@ impl TransactionsDal<'_, '_> {
             .await
     }
 
-    pub async fn get_dependency_roots(
+    pub async fn get_message_roots(
         &mut self,
-        block_number: L2BlockNumber,
+        l2block_number: L2BlockNumber,
     ) -> DalResult<Vec<MessageRoot>> {
-        let rows = sqlx::query!(
+        let records = sqlx::query!(
             r#"
-            SELECT
-                MESSAGE_ROOT_SIDES,
-                CHAIN_ID,
-                DEPENDENCY_BLOCK_NUMBER
-            FROM
-                MESSAGE_ROOTS
-            WHERE
-                PROCESSED_BLOCK_NUMBER = $1
+            SELECT *
+            FROM message_roots
+            WHERE processed_block_number = $1
             "#,
-            i64::from(block_number.0)
+            l2block_number.0 as i32
         )
-        .instrument("get_dependency_roots2")
-        .with_arg("block_number", &block_number)
+        .instrument("get_message_roots")
         .fetch_all(self.storage)
-        .await?;
+        .await?
+        .into_iter()
+        .map(|rec| {
+            let sides = rec
+                .message_root_sides
+                .iter()
+                .map(|side| h256_to_u256(H256::from_slice(side)))
+                .collect::<Vec<_>>();
 
-        let message_roots = rows
-            .into_iter()
-            .map(|row| {
-                let block_number = row.dependency_block_number as u32;
-                let root = row
-                    .message_root_sides
-                    .iter()
-                    .map(|side| h256_to_u256(H256::from_slice(side)))
-                    .collect::<Vec<_>>();
-                let chain_id = row.chain_id as u32;
-                MessageRoot::new(chain_id, block_number, root)
-            })
-            .collect();
-
-        Ok(message_roots)
+            MessageRoot {
+                chain_id: rec.chain_id as u32,
+                block_number: rec.dependency_block_number as u32,
+                sides,
+            }
+        })
+        .collect();
+        Ok(records)
     }
 
     async fn map_transactions_to_execution_data(
@@ -2264,7 +2258,7 @@ impl TransactionsDal<'_, '_> {
                     H256::from_slice(&row.miniblock_hash)
                 }
             };
-            let msg_roots = self.get_dependency_roots(number).await?;
+            let msg_roots = self.get_message_roots(number).await?;
 
             data.push(L2BlockExecutionData {
                 number,
