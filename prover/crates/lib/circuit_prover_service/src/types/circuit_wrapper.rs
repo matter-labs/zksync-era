@@ -6,6 +6,9 @@ use zkevm_test_harness::{
     boojum::cs::implementations::setup::FinalizationHintsForProver,
     prover_utils::{verify_base_layer_proof, verify_recursion_layer_proof},
 };
+use zksync_object_store::{serialize_using_bincode, Bucket, StoredObject};
+// use zksync_prover_fri_types::circuit_definitions::zk_evm::bitflags::__private::serde;
+use zksync_prover_fri_types::keys::FriCircuitKey;
 use zksync_prover_fri_types::{
     circuit_definitions::{
         base_layer_proof_config,
@@ -38,13 +41,32 @@ type Proof = CryptoProof<Field, Hasher, Extension>;
 
 /// Hydrated circuit.
 // TODO: This enum should be merged with CircuitWrapper.
+#[derive(serde::Serialize, serde::Deserialize, Clone)]
 #[allow(clippy::large_enum_variant)]
-pub enum Circuit {
+pub enum CircuitWrapper {
     Base(ZkSyncBaseLayerCircuit),
     Recursive(ZkSyncRecursiveLayerCircuit),
 }
 
-impl Circuit {
+impl StoredObject for CircuitWrapper {
+    const BUCKET: Bucket = Bucket::ProverJobsFri;
+    type Key<'a> = FriCircuitKey;
+
+    fn encode_key(key: Self::Key<'_>) -> String {
+        let FriCircuitKey {
+            block_number,
+            sequence_number,
+            circuit_id,
+            aggregation_round,
+            depth,
+        } = key;
+        format!("{block_number}_{sequence_number}_{circuit_id}_{aggregation_round:?}_{depth}.bin")
+    }
+
+    serialize_using_bincode!();
+}
+
+impl CircuitWrapper {
     /// Generates proof for given witness vector.
     /// Expects setup_data to match witness vector.
     pub fn prove(
@@ -55,14 +77,14 @@ impl Circuit {
         let worker = Worker::new();
 
         match self {
-            Circuit::Base(circuit) => {
+            CircuitWrapper::Base(circuit) => {
                 let proof = Self::prove_base(circuit, witness_vector, setup_data, worker)?;
                 let circuit_id = circuit.numeric_circuit_type();
                 Ok(FriProofWrapper::Base(ZkSyncBaseLayerProof::from_inner(
                     circuit_id, proof,
                 )))
             }
-            Circuit::Recursive(circuit) => {
+            CircuitWrapper::Recursive(circuit) => {
                 let proof = Self::prove_recursive(circuit, witness_vector, setup_data, worker)?;
                 let circuit_id = circuit.numeric_circuit_type();
                 Ok(FriProofWrapper::Recursive(
@@ -139,8 +161,10 @@ impl Circuit {
         let _span = tracing::info_span!("synthesize_vector").entered();
 
         let cs = match self {
-            Circuit::Base(circuit) => circuit.synthesis::<GoldilocksField>(&finalization_hints),
-            Circuit::Recursive(circuit) => {
+            CircuitWrapper::Base(circuit) => {
+                circuit.synthesis::<GoldilocksField>(&finalization_hints)
+            }
+            CircuitWrapper::Recursive(circuit) => {
                 circuit.synthesis::<GoldilocksField>(&finalization_hints)
             }
         };
