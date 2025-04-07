@@ -834,6 +834,13 @@ impl StateKeeperIO for TestIO {
         Ok(vec![])
     }
 
+    async fn load_l2_block_message_root(
+        &self,
+        _l2block_number: L2BlockNumber,
+    ) -> anyhow::Result<Vec<MessageRoot>> {
+        Ok(vec![])
+    }
+
     async fn load_batch_state_hash(&self, _l1_batch_number: L1BatchNumber) -> anyhow::Result<H256> {
         Ok(H256::zero())
     }

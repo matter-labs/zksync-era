@@ -372,7 +372,7 @@ impl Aggregator {
         for batch in &l1_batches {
             let message_roots = storage
                 .message_root_dal()
-                .get_message_roots_batch(batch.header.number)
+                .get_msg_roots_batch(batch.header.number)
                 .await
                 .unwrap();
 

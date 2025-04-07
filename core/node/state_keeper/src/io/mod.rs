@@ -171,6 +171,12 @@ pub trait StateKeeperIO: 'static + Send + Sync + fmt::Debug + IoSealCriteria {
     /// Loads the latest message root.
     async fn load_latest_message_root(&self) -> anyhow::Result<Vec<MessageRoot>>;
 
+    /// Loads the latest message root.
+    async fn load_l2_block_message_root(
+        &self,
+        l2block_number: L2BlockNumber,
+    ) -> anyhow::Result<Vec<MessageRoot>>;
+
     /// Loads state hash for the L1 batch with the specified number. The batch is guaranteed to be present
     /// in the storage.
     async fn load_batch_state_hash(&self, number: L1BatchNumber) -> anyhow::Result<H256>;

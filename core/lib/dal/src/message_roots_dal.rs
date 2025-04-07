@@ -172,7 +172,7 @@ impl MessageRootDal<'_, '_> {
             SELECT *
             FROM message_roots
             JOIN miniblocks
-            ON message_roots.processed_block_number = miniblocks.number
+                ON message_roots.processed_block_number = miniblocks.number
             WHERE l1_batch_number = $1
             "#,
             i64::from(batch_number.0)

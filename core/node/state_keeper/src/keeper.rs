@@ -315,9 +315,12 @@ impl ZkSyncStateKeeper {
             .with_context(|| format!("failed loading upgrade transaction for {protocol_version:?}"))
     }
 
-    async fn load_latest_message_root(&mut self) -> anyhow::Result<Vec<MessageRoot>> {
+    async fn load_l2_block_message_root(
+        &mut self,
+        l2block_number: L2BlockNumber,
+    ) -> anyhow::Result<Vec<MessageRoot>> {
         self.io
-            .load_latest_message_root()
+            .load_l2_block_message_root(l2block_number)
             .await
             .with_context(|| "failed loading message root".to_string())
     }
@@ -498,7 +501,7 @@ impl ZkSyncStateKeeper {
                     L2BlockParams {
                         timestamp: l2_block.timestamp,
                         virtual_blocks: l2_block.virtual_blocks,
-                        msg_roots: self.load_latest_message_root().await?,
+                        msg_roots: self.load_l2_block_message_root(l2_block.number).await?,
                     },
                 );
                 Self::start_next_l2_block(updates_manager, batch_executor).await?;

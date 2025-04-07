@@ -441,6 +441,17 @@ impl StateKeeperIO for MempoolIO {
         Ok(storage.message_root_dal().get_new_message_roots().await?)
     }
 
+    async fn load_l2_block_message_root(
+        &self,
+        l2block_number: L2BlockNumber,
+    ) -> anyhow::Result<Vec<MessageRoot>> {
+        let mut storage = self.pool.connection_tagged("state_keeper").await?;
+        Ok(storage
+            .message_root_dal()
+            .get_message_roots(l2block_number)
+            .await?)
+    }
+
     async fn load_batch_state_hash(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<H256> {
         tracing::trace!("Getting L1 batch hash for L1 batch #{l1_batch_number}");
         let wait_latency = KEEPER_METRICS.wait_for_prev_hash_time.start();
