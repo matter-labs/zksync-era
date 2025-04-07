@@ -10,8 +10,10 @@ pub(crate) struct EcRecoverCall {
     /// - `signature.v` (0 or 1), represented as a big-endian 32-byte word
     /// - `signature.r` (32 bytes)
     /// - `signature.s` (32 bytes)
+    #[allow(dead_code)]
     pub input: [u8; 128],
     /// Expected call output (= transaction initiator address).
+    #[allow(dead_code)]
     pub output: Address,
 }
 
