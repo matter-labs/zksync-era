@@ -25,33 +25,63 @@ function readContract(fileName: string, kind: ContractKind = ContractKind.TEST):
     return JSON.parse(fs.readFileSync(`${basePath}/${fileName}.sol/${fileName}.json`, { encoding: 'utf-8' }));
 }
 
-// Unless `RUN_EVM_TEST` is provided, skip the test suit
-const describeEvm = process.env.RUN_EVM_TEST ? describe : describe.skip;
+async function getAllowedBytecodeTypes(provider: ethers.Provider): Promise<bigint> {
+    const contractDeployerData = readContract('ContractDeployer', ContractKind.SYSTEM);
+    const contractDeployer = new ethers.Contract(
+        '0x0000000000000000000000000000000000008006',
+        contractDeployerData.abi,
+        provider
+    );
+    return await contractDeployer.allowedBytecodeTypesToDeploy();
+}
 
-describeEvm('EVM contract checks', () => {
+// Force EVM contract checks if `RUN_EVM_TEST` env var is set instead of auto-detecting EVM bytecode support. This is useful
+// if we know for a fact that the tested chain should support EVM bytecodes (e.g., in CI).
+const expectEvmSupport = Boolean(process.env.RUN_EVM_TEST);
+
+describe('EVM contract checks', () => {
     let testMaster: TestMaster;
     let alice: ethers.Wallet;
     let counterFactory: ethers.ContractFactory;
+    let allowedBytecodeTypes = 0n;
 
     beforeAll(async () => {
         testMaster = TestMaster.getInstance(__filename);
         alice = new ethers.Wallet(testMaster.mainAccount().privateKey, testMaster.mainAccount().provider);
 
-        const contractDeployerData = readContract('ContractDeployer', ContractKind.SYSTEM);
-        const contractDeployer = new ethers.Contract(
-            '0x0000000000000000000000000000000000008006',
-            contractDeployerData.abi,
-            alice.provider
-        );
-        const allowedBytecodeTypes = await contractDeployer.allowedBytecodeTypesToDeploy();
+        allowedBytecodeTypes = await getAllowedBytecodeTypes(alice.provider!!);
         testMaster.reporter.debug('Allowed bytecode types', allowedBytecodeTypes);
-        expect(allowedBytecodeTypes).toEqual(1n);
+        if (expectEvmSupport) {
+            expect(allowedBytecodeTypes).toEqual(1n);
+        }
 
         const { abi, bytecode } = readContract('Counter');
         counterFactory = new ethers.ContractFactory(abi, bytecode, alice);
     });
 
-    test('Should deploy counter wallet', async () => {
+    // Wrappers for tests that expect EVM emulation to be enabled (`testEvm`) or disabled (`testNoEvm`).
+    // Ideally, we'd want to use built-in `test.skip` functionality for these wrappers, but it's not possible to use it dynamically.
+    const testEvm = (description: string, testFn: () => Promise<void>) => {
+        test(description, async () => {
+            if (allowedBytecodeTypes !== 1n) {
+                testMaster.reporter.debug('EVM bytecodes are not supported; skipping');
+                return;
+            }
+            await testFn();
+        });
+    };
+
+    const testNoEvm = (description: string, testFn: () => Promise<void>) => {
+        test(description, async () => {
+            if (allowedBytecodeTypes === 1n) {
+                testMaster.reporter.debug('EVM bytecodes are supported; skipping');
+                return;
+            }
+            await testFn();
+        });
+    };
+
+    testEvm('Should deploy counter wallet', async () => {
         const currentNonce = await alice.getNonce();
         const counter = await (await counterFactory.deploy(false)).waitForDeployment();
         const counterAddress = await counter.getAddress();
@@ -73,7 +103,7 @@ describeEvm('EVM contract checks', () => {
         expect(currentValue).toEqual(42n);
     });
 
-    test('Should not deploy when `to` is zero address', async () => {
+    testEvm('Should not deploy when `to` is zero address', async () => {
         const deployTx = await counterFactory.getDeployTransaction(false);
         const bogusDeployTx = { to: '0x0000000000000000000000000000000000000000', ...deployTx };
         const currentNonce = await alice.getNonce();
@@ -83,7 +113,7 @@ describeEvm('EVM contract checks', () => {
         expect(code).toEqual('0x');
     });
 
-    test('Should estimate gas for EVM transactions', async () => {
+    testEvm('Should estimate gas for EVM transactions', async () => {
         const deployTx = await counterFactory.getDeployTransaction(false);
         const deploymentGas = await alice.estimateGas(deployTx);
         testMaster.reporter.debug('Deployment gas', deploymentGas);
@@ -99,7 +129,11 @@ describeEvm('EVM contract checks', () => {
         expect(incrementGas).toBeLessThan(deploymentGas);
     });
 
-    test('should propagate constructor revert', async () => {
+    testEvm('should propagate constructor revert', async () => {
         await expect(counterFactory.deploy(true)).rejects.toThrow('requested revert');
+    });
+
+    testNoEvm('should error on EVM contract deployment', async () => {
+        await expect(counterFactory.deploy(false)).rejects.toThrow('toAddressIsNull');
     });
 });
