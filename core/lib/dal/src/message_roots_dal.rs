@@ -1,6 +1,6 @@
 use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
 use zksync_types::{
-    h256_to_u256, message_root::MessageRoot, L1BatchNumber, L2BlockNumber, SLChainId, H256,
+    h256_to_u256, message_root::MessageRoot, L1BatchNumber, L2BlockNumber, SLChainId, H256, U256,
 };
 
 use crate::Core;
@@ -11,10 +11,6 @@ pub struct MessageRootDal<'a, 'c> {
 }
 
 impl MessageRootDal<'_, '_> {
-    pub async fn save_message_root(&mut self, _msg_root: MessageRoot) -> DalResult<()> {
-        Ok(())
-    }
-
     pub async fn set_message_root(
         &mut self,
         chain_id: SLChainId,
@@ -51,6 +47,120 @@ impl MessageRootDal<'_, '_> {
         .await?;
 
         Ok(())
+    }
+
+    pub async fn get_new_message_roots(&mut self) -> DalResult<Vec<MessageRoot>> {
+        let records = sqlx::query!(
+            r#"
+            SELECT *
+            FROM message_roots
+            WHERE
+                processed_block_number IS NULL
+                AND (chain_id, dependency_block_number) IN (
+                    SELECT chain_id, MAX(dependency_block_number)
+                    FROM message_roots
+                    WHERE processed_block_number IS NULL
+                    GROUP BY chain_id
+                );
+            "#,
+        )
+        .instrument("get_new_message_roots")
+        .fetch_all(self.storage)
+        .await?
+        .into_iter()
+        .map(|rec| {
+            let sides = rec
+                .message_root_sides
+                .iter()
+                .map(|side| h256_to_u256(H256::from_slice(side)))
+                .collect::<Vec<_>>();
+
+            MessageRoot {
+                chain_id: rec.chain_id as u32,
+                block_number: rec.dependency_block_number as u32,
+                sides,
+            }
+        })
+        .collect();
+        Ok(records)
+    }
+
+    pub async fn reset_message_roots_state(
+        &mut self,
+        l2block_number: L2BlockNumber,
+    ) -> DalResult<()> {
+        sqlx::query!(
+            r#"
+            UPDATE message_roots
+            SET processed_block_number = NULL
+            WHERE processed_block_number = $1
+            "#,
+            l2block_number.0 as i32
+        )
+        .instrument("reset_message_roots_state")
+        .fetch_optional(self.storage)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn mark_message_roots_as_executed(
+        &mut self,
+        message_roots: &[MessageRoot],
+        l2block_number: L2BlockNumber,
+    ) -> DalResult<()> {
+        let mut db_transaction = self.storage.start_transaction().await?;
+        for root in message_roots {
+            sqlx::query!(
+                r#"
+                UPDATE message_roots
+                SET processed_block_number = $1
+                WHERE
+                    chain_id = $2
+                    AND processed_block_number IS NULL
+                    AND dependency_block_number <= $3
+                "#,
+                l2block_number.0 as i32,
+                root.chain_id as i32,
+                root.block_number as i32
+            )
+            .instrument("mark_message_roots_as_executed")
+            .execute(&mut db_transaction)
+            .await?;
+        }
+        db_transaction.commit().await?;
+        Ok(())
+    }
+    pub async fn get_message_roots(
+        &mut self,
+        l2block_number: L2BlockNumber,
+    ) -> DalResult<Vec<MessageRoot>> {
+        let records = sqlx::query!(
+            r#"
+            SELECT *
+            FROM message_roots
+            WHERE processed_block_number = $1
+            "#,
+            l2block_number.0 as i32
+        )
+        .instrument("get_message_roots")
+        .fetch_all(self.storage)
+        .await?
+        .into_iter()
+        .map(|rec| {
+            let sides = rec
+                .message_root_sides
+                .iter()
+                .map(|side| h256_to_u256(H256::from_slice(side)))
+                .collect::<Vec<_>>();
+
+            MessageRoot {
+                chain_id: rec.chain_id as u32,
+                block_number: rec.dependency_block_number as u32,
+                sides,
+            }
+        })
+        .collect();
+        Ok(records)
     }
 
     pub async fn get_assgigned_roots_or_assign_if_needed(
