@@ -59,7 +59,6 @@ pub struct CelestiaClient {
     blobstream_contract: Contract,
     equivalence_proof_cache:
         Arc<Mutex<HashMap<String, (FixedBytes, FixedBytes, SP1ProofWithPublicValues)>>>,
-    //blobstream_range_cache: Arc<Mutex<HashMap<u64, (U256, U256, U256)>>>,
 }
 
 impl CelestiaClient {
@@ -138,7 +137,13 @@ impl CelestiaClient {
                     error: anyhow::anyhow!("eq-service returned PermanentFailure"),
                     is_retriable: false,
                 });
-            }
+            },
+            InclusionResponseStatus::RetryableFailure => {
+                return Err(DAError {
+                    error: anyhow::anyhow!("eq-service returned RetryableFailure"),
+                    is_retriable: true,
+                });
+            },
             _ => {
                 tracing::debug!("eq-service returned non-complete status, returning None");
                 return Ok(None);
