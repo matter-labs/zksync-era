@@ -31,11 +31,11 @@ impl ArtifactsManager for BasicCircuits {
         let l1_batch_number = *metadata;
         let data: WitnessInputData = match object_store.get(l1_batch_number).await {
             Ok(data) => data,
-            Err(err) => object_store
+            Err(err_cbor) => object_store
                 .get::<WitnessInputData<Bincode>>(l1_batch_number)
                 .await
                 .map(Into::into)
-                .map_err(|e| anyhow::anyhow!(e))?,
+                .map_err(|err_bincode| anyhow::anyhow!("Getting data with bincode failed with {err_bincode}, getting data with CBOR failed with {err_cbor}"))?,
         };
 
         Ok(BasicWitnessGeneratorJob {
