@@ -5,7 +5,7 @@ use std::{
 };
 
 use once_cell::sync::OnceCell;
-use zk_evm_1_5_0::{
+use zk_evm_1_5_2::{
     aux_structures::{MemoryPage, Timestamp},
     vm_state::VmLocalState,
     zkevm_opcode_defs::{ContractCodeSha256Format, VersionedHashLen32},

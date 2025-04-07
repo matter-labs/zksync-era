@@ -258,10 +258,8 @@ zk_evm_1_3_1 = { package = "zk_evm", version = "0.131.0-rc.2" }
 zk_evm_1_3_3 = { package = "zk_evm", version = "0.133" }
 zk_evm_1_4_0 = { package = "zk_evm", version = "0.140" }
 zk_evm_1_4_1 = { package = "zk_evm", version = "0.141" }
-#zk_evm_1_5_0 = { package = "zk_evm", version = "=0.151.5" }
-
-# TODO: this should probably be a new version of the zk_evm??
-zk_evm_1_5_0 = { git = "https://github.com/matter-labs/zksync-protocol.git", branch = "feature/ec_precompiles", package = "zk_evm" }
+zk_evm_1_5_0 = { package = "zk_evm", version = "=0.151.5" }
+zk_evm_1_5_2 = { git = "https://github.com/matter-labs/zksync-protocol.git", branch = "feature/ec_precompiles", package = "zk_evm" }
 
 
 #fflonk = "=0.31.0"

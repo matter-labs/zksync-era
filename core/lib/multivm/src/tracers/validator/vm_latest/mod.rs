@@ -1,4 +1,4 @@
-use zk_evm_1_5_0::{
+use zk_evm_1_5_2::{
     tracing::{BeforeExecutionData, VmLocalStateData},
     zkevm_opcode_defs::{ContextOpcode, FarCallABI, LogOpcode, Opcode, RetOpcode},
 };

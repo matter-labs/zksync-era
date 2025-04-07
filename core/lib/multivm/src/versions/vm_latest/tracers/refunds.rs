@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics};
-use zk_evm_1_5_0::{
+use zk_evm_1_5_2::{
     aux_structures::Timestamp,
     tracing::{BeforeExecutionData, VmLocalStateData},
 };

@@ -1,4 +1,4 @@
-use zk_evm_1_5_0::tracing::{
+use zk_evm_1_5_2::tracing::{
     AfterDecodingData, AfterExecutionData, BeforeExecutionData, VmLocalStateData,
 };
 

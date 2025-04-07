@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use zk_evm_1_5_0::{
+use zk_evm_1_5_2::{
     tracing::{BeforeExecutionData, VmLocalStateData},
     zk_evm_abstractions::precompiles::PrecompileAddress,
     zkevm_opcode_defs::{LogOpcode, Opcode, UMAOpcode},

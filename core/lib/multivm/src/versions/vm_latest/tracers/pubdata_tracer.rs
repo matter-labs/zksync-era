@@ -1,7 +1,7 @@
 use std::{marker::PhantomData, rc::Rc};
 
 use circuit_sequencer_api::sort_storage_access::sort_storage_access_queries;
-use zk_evm_1_5_0::{
+use zk_evm_1_5_2::{
     aux_structures::Timestamp,
     tracing::{BeforeExecutionData, VmLocalStateData},
 };

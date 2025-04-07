@@ -1,4 +1,4 @@
-use zk_evm_1_5_0::tracing::{BeforeExecutionData, VmLocalStateData};
+use zk_evm_1_5_2::tracing::{BeforeExecutionData, VmLocalStateData};
 use zksync_types::{StorageKey, U256};
 
 use super::{

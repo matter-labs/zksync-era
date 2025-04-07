@@ -1,4 +1,4 @@
-use zk_evm_1_5_0::{
+use zk_evm_1_5_2::{
     tracing::{AfterExecutionData, VmLocalStateData},
     zkevm_opcode_defs::{
         FarCallABI, FatPointer, Opcode, RetOpcode, CALL_IMPLICIT_CALLDATA_FAT_PTR_REGISTER,

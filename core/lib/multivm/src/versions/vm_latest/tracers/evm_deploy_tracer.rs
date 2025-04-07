@@ -1,6 +1,6 @@
 use std::{marker::PhantomData, mem};
 
-use zk_evm_1_5_0::{
+use zk_evm_1_5_2::{
     aux_structures::Timestamp,
     tracing::{AfterExecutionData, VmLocalStateData},
     zkevm_opcode_defs::{
