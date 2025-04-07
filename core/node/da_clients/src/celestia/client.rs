@@ -272,16 +272,7 @@ impl DataAvailabilityClient for CelestiaClient {
         let data_root_inclusion_proof: DataRootInclusionProof =
             data_root_inclusion_proof_response.result.proof;
 
-        // data_root_index and total are returned as Strings
-        // Parsing into a Uint<256, 4> would be ugly.
-        // I think u64 is ok, not sure this will work.
-        // Let's find out in testing
-        let data_root_index: u64 = data_root_inclusion_proof
-            .index
-            .parse()
-            .map_err(to_non_retriable_da_error)?;
-
-        let evm_index = Uint::from(data_root_index);
+        let data_root_index = Uint::from_dec_str(&data_root_inclusion_proof.index).map_err(to_non_retriable_da_error)?;
 
         let total: u64 = data_root_inclusion_proof
             .total
@@ -300,7 +291,7 @@ impl DataAvailabilityClient for CelestiaClient {
 
         let binary_merkle_proof = BinaryMerkleProof {
             side_nodes: side_nodes,
-            key: evm_index,
+            key: data_root_index,
             num_leaves: evm_total,
         };
 
