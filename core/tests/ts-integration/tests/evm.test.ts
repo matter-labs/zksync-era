@@ -4,7 +4,12 @@ import { ethers } from 'ethers';
 
 interface ContractData {
     readonly abi: ethers.InterfaceAbi;
-    readonly bytecode: { object: string };
+    readonly bytecode: { object: string } | string;
+    readonly deployedBytecode?: { object: string } | string;
+}
+
+function extractBytecode(bytecode: { object: string } | string) {
+    return typeof bytecode === 'string' ? bytecode : bytecode.object;
 }
 
 enum ContractKind {
@@ -43,6 +48,7 @@ describe('EVM contract checks', () => {
     let testMaster: TestMaster;
     let alice: ethers.Wallet;
     let counterFactory: ethers.ContractFactory;
+    let counterContractData: ContractData;
     let allowedBytecodeTypes = 0n;
 
     beforeAll(async () => {
@@ -55,8 +61,8 @@ describe('EVM contract checks', () => {
             expect(allowedBytecodeTypes).toEqual(1n);
         }
 
-        const { abi, bytecode } = readContract('Counter');
-        counterFactory = new ethers.ContractFactory(abi, bytecode, alice);
+        counterContractData = readContract('Counter');
+        counterFactory = new ethers.ContractFactory(counterContractData.abi, counterContractData.bytecode, alice);
     });
 
     // Wrappers for tests that expect EVM emulation to be enabled (`testEvm`) or disabled (`testNoEvm`).
@@ -92,6 +98,8 @@ describe('EVM contract checks', () => {
         expect(newNonce).toEqual(currentNonce + 1);
         const code = await alice.provider!!.getCode(counterAddress);
         expect(code.length).toBeGreaterThan(100);
+        const expectedBytecode = extractBytecode(counterContractData.deployedBytecode!!);
+        expect(code).toEqual(expectedBytecode);
 
         let currentValue = await counter.getFunction('get').staticCall();
         expect(currentValue).toEqual(0n);
@@ -129,11 +137,27 @@ describe('EVM contract checks', () => {
         expect(incrementGas).toBeLessThan(deploymentGas);
     });
 
-    testEvm('should propagate constructor revert', async () => {
+    testEvm('Should propagate constructor revert', async () => {
         await expect(counterFactory.deploy(true)).rejects.toThrow('requested revert');
     });
 
-    testNoEvm('should error on EVM contract deployment', async () => {
+    testEvm('Should define contractAddress for failed deployments', async () => {
+        const currentNonce = await alice.getNonce();
+        const expectedAddress = ethers.getCreateAddress({ from: alice.address, nonce: currentNonce });
+        const deployTx = await counterFactory.getDeployTransaction(true, { gasLimit: 10_000_000 });
+        const deployTxResponse = await alice.sendTransaction(deployTx);
+        try {
+            await deployTxResponse.wait();
+        } catch (e: any) {
+            const receipt: ethers.TransactionReceipt = e.receipt;
+            expect(receipt.status).toEqual(0);
+            expect(receipt.contractAddress).toEqual(expectedAddress);
+            return;
+        }
+        expect(null).fail('Expected deploy tx to be reverted');
+    });
+
+    testNoEvm('Should error on EVM contract deployment', async () => {
         await expect(counterFactory.deploy(false)).rejects.toThrow('toAddressIsNull');
     });
 });
