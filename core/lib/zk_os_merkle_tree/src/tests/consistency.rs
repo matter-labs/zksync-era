@@ -6,10 +6,7 @@ use crate::{MerkleTree, MerkleTreeColumnFamily, RocksDBWrapper, TreeEntry};
 
 // Something (maybe RocksDB) makes the test below work very slowly in the debug mode;
 // thus, the number of test cases is conditionally reduced.
-#[cfg(debug_assertions)]
-const ITER_COUNT: usize = 10;
-#[cfg(not(debug_assertions))]
-const ITER_COUNT: usize = 5_000;
+const ITER_COUNT: usize = if cfg!(debug_assertions) { 10 } else { 5_000 };
 
 /// Tests that if a single key is removed from the DB, or a single bit is changed in a value,
 /// the tree does not pass a consistency check.
@@ -50,7 +47,7 @@ fn five_thousand_angry_monkeys_vs_merkle_tree() {
             let mangled_idx = rng.gen_range(0..mangled_value.len());
             let mangled_bit = rng.gen_range(0..8);
             mangled_value[mangled_idx] ^= 1 << mangled_bit;
-            println!("mangling byte {mangled_idx}:{mangled_bit} of the value at {key:?}");
+            println!("mangling bit {mangled_idx}:{mangled_bit} of the value at {key:?}");
             batch.put_cf(cf, key, &mangled_value);
         }
         raw_db.write(batch).unwrap();
