@@ -13,7 +13,6 @@ pub(super) enum ExecutorCommand {
     ExecuteTx,
     #[metrics(name = "start_next_miniblock")]
     StartNextL2Block,
-    InsertMessageRoot,
     RollbackLastTx,
     FinishBatch,
 }

@@ -8,7 +8,7 @@ use zksync_multivm::{
 };
 use zksync_types::{
     commitment::PubdataParams, fee_model::BatchFeeInput, Address, L1BatchNumber, L2BlockNumber,
-    ProtocolVersionId, Transaction,
+    MessageRoot, ProtocolVersionId, Transaction,
 };
 
 pub(crate) use self::{l1_batch_updates::L1BatchUpdates, l2_block_updates::L2BlockUpdates};
@@ -64,6 +64,7 @@ impl UpdatesManager {
                 l1_batch_env.first_l2_block.prev_block_hash,
                 l1_batch_env.first_l2_block.max_virtual_blocks_to_create,
                 protocol_version,
+                l1_batch_env.first_l2_block.msg_roots.clone(),
             ),
             storage_writes_deduplicator: StorageWritesDeduplicator::new(),
             storage_view_cache: None,
@@ -87,12 +88,13 @@ impl UpdatesManager {
     }
 
     pub(crate) fn get_next_l2_block_params_or_batch_params(&mut self) -> L2BlockParams {
-        if let Some(next_l2_block_params) = self.next_l2_block_params {
+        if let Some(next_l2_block_params) = self.next_l2_block_params.clone() {
             return next_l2_block_params;
         }
         L2BlockParams {
             timestamp: self.l2_block.timestamp,
             virtual_blocks: self.l2_block.virtual_blocks,
+            msg_roots: vec![],
         }
     }
 
@@ -199,6 +201,7 @@ impl UpdatesManager {
             self.l2_block.get_l2_block_hash(),
             next_l2_block_params.virtual_blocks,
             self.protocol_version,
+            next_l2_block_params.msg_roots,
         );
         let old_l2_block_updates = std::mem::replace(&mut self.l2_block, new_l2_block_updates);
         self.l1_batch
@@ -214,7 +217,7 @@ impl UpdatesManager {
     }
 
     pub fn get_next_l2_block_params(&mut self) -> Option<L2BlockParams> {
-        self.next_l2_block_params
+        self.next_l2_block_params.clone()
     }
 
     pub(crate) fn pending_executed_transactions_len(&self) -> usize {
@@ -282,6 +285,7 @@ mod tests {
         updates_manager.set_next_l2_block_params(L2BlockParams {
             timestamp: 2,
             virtual_blocks: 1,
+            msg_roots: vec![],
         });
         updates_manager.push_l2_block();
 

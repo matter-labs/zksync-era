@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use zksync_dal::{eth_watcher_dal::EventType, Connection, Core, CoreDal, DalError};
 use zksync_system_constants::L1_MESSENGER_ADDRESS;
-use zksync_types::{api::Log, ethabi, L1BatchNumber, SLChainId, H256};
+use zksync_types::{api::Log, ethabi, L1BatchNumber, L2ChainId, SLChainId, H256};
 
 use crate::{
     client::L2EthClient,
@@ -14,11 +14,22 @@ use crate::{
 pub struct MessageRootProcessor {
     appended_message_root_signature: H256,
     event_source: EventsSource,
+    l2_chain_id: L2ChainId,
     pub sl_l2_client: Option<Arc<dyn L2EthClient>>,
+    pub sl_chain_id: Option<SLChainId>,
 }
 
 impl MessageRootProcessor {
-    pub fn new(event_source: EventsSource, sl_l2_client: Option<Arc<dyn L2EthClient>>) -> Self {
+    pub async fn new(
+        event_source: EventsSource,
+        l2_chain_id: L2ChainId,
+        sl_l2_client: Option<Arc<dyn L2EthClient>>,
+    ) -> Self {
+        let sl_chain_id = if let Some(sl_l2_client) = sl_l2_client.clone() {
+            Some(sl_l2_client.chain_id().await.unwrap())
+        } else {
+            None
+        };
         Self {
             appended_message_root_signature: ethabi::long_signature(
                 "NewMessageRoot",
@@ -30,7 +41,9 @@ impl MessageRootProcessor {
                 ],
             ),
             event_source,
+            l2_chain_id,
             sl_l2_client,
+            sl_chain_id,
         }
     }
 }
@@ -102,6 +115,17 @@ impl EventProcessor for MessageRootProcessor {
             if event.address == L1_MESSENGER_ADDRESS {
                 // kl todo we skip precommit for now.
                 continue;
+            }
+            if L2ChainId::new(chain_id).unwrap() == self.l2_chain_id {
+                // we ignore our chainBatchRoots
+                continue;
+            }
+            if self.event_source == EventsSource::L1 && self.sl_chain_id.is_some() {
+                if self.sl_chain_id.unwrap().0 == chain_id {
+                    // we ignore the chainBatchRoot of GW.
+                    // GW -> chain interop not allowed.
+                    continue;
+                }
             }
 
             println!("block_number in global {:?}", block_number);
