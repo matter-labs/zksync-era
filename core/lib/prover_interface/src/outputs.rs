@@ -44,7 +44,6 @@ impl<FM: FormatMarker> L1BatchProofForL1<FM> {
 
 /// A "final" ZK proof that can be sent to the L1 contract.
 #[derive(Clone, Serialize, Deserialize)]
-#[serde(untagged)]
 #[allow(clippy::large_enum_variant)]
 pub enum TypedL1BatchProofForL1 {
     Fflonk(FflonkL1BatchProofForL1),

@@ -9,7 +9,7 @@ use zksync_prover_interface::{
     outputs::{
         FflonkL1BatchProofForL1, L1BatchProofForL1, L1BatchTeeProofForL1, TypedL1BatchProofForL1,
     },
-    Bincode,
+    Bincode, CBOR,
 };
 use zksync_types::{
     protocol_version::ProtocolSemanticVersion, tee_types::TeeType, L1BatchNumber, ProtocolVersionId,
@@ -78,7 +78,7 @@ async fn prepare_basic_circuits_job_compatibility() {
 
 /// Simple test to check if we can successfully parse the proof.
 #[tokio::test]
-async fn test_final_proof_deserialization() {
+async fn test_final_proof_deserialization_bincode() {
     let proof = fs::read("./tests/l1_batch_proof_1_0_24_0.bin")
         .await
         .unwrap();
@@ -91,6 +91,22 @@ async fn test_final_proof_deserialization() {
     };
 
     assert_eq!(coords[0][0], 0);
+}
+
+#[tokio::test]
+async fn test_final_proof_deserialization_cbor() {
+    let proof = fs::read("./tests/l1_batch_proof_1_0_27_0.cbor")
+        .await
+        .unwrap();
+
+    let results: L1BatchProofForL1<CBOR> = StoredObject::deserialize(proof).unwrap();
+
+    let coords = match results.inner() {
+        TypedL1BatchProofForL1::Fflonk(proof) => proof.aggregation_result_coords,
+        TypedL1BatchProofForL1::Plonk(proof) => proof.aggregation_result_coords,
+    };
+
+    assert_eq!(coords[0][0], 7);
 }
 
 #[test]

@@ -134,7 +134,14 @@ impl StoredObject for L1BatchProofForL1<Bincode> {
     }
 
     fn serialize(&self) -> Result<Vec<u8>, BoxedError> {
-        zksync_object_store::bincode::serialize(&self.inner).map_err(From::from)
+        match &self.inner {
+            TypedL1BatchProofForL1::Fflonk(proof) => {
+                zksync_object_store::bincode::serialize(proof).map_err(From::from)
+            }
+            TypedL1BatchProofForL1::Plonk(proof) => {
+                zksync_object_store::bincode::serialize(proof).map_err(From::from)
+            }
+        }
     }
 
     fn deserialize(bytes: Vec<u8>) -> Result<Self, BoxedError> {
