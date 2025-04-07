@@ -105,15 +105,6 @@ impl BootloaderState {
         self.push_l2_block(l2_block);
     }
 
-    // pub(crate) fn insert_message_root(&mut self, msg_root: MessageRoot) {
-
-    //     println!("insert_message_root  0 {:?}", self.last_l2_block());
-    //     println!("insert_message_root  1 {:?}", self.l2_blocks);
-    //     println!("insert_message_root  2 {:?}", msg_root);
-    //     // self.msg_roots.push(msg_root);
-    //     self.last_mut_l2_block().msg_roots.push(msg_root);
-    // }
-
     /// This method bypass sanity checks and should be used carefully.
     pub(crate) fn push_l2_block(&mut self, l2_block: L2BlockEnv) {
         self.l2_blocks
@@ -157,13 +148,6 @@ impl BootloaderState {
             self.subversion,
         );
 
-        for block in self.l2_blocks.iter() {
-            println!("apply_message_root 1 {:?}", block.msg_roots);
-            for (msg_root_offset, msg_root) in block.msg_roots.iter().enumerate() {
-                println!("apply_message_root 2 {:?}", msg_root);
-                apply_message_root(&mut memory, msg_root_offset, msg_root, self.subversion)
-            }
-        }
         self.compressed_bytecodes_encoding += compressed_bytecode_size;
         self.free_tx_offset = tx_offset + bootloader_tx.encoded_len();
         self.last_mut_l2_block().push_tx(bootloader_tx);
@@ -224,16 +208,16 @@ impl BootloaderState {
             }
         }
 
-        for block in self.l2_blocks.iter() {
-            for (msg_root_offset, msg_root) in block.msg_roots.iter().enumerate() {
-                apply_message_root(
-                    &mut initial_memory,
-                    msg_root_offset,
-                    msg_root,
-                    self.subversion,
-                );
-            }
-        }
+        // for block in self.l2_blocks.iter() {
+        //     for (msg_root_offset, msg_root) in block.msg_roots.iter().enumerate() {
+        //         apply_message_root(
+        //             &mut initial_memory,
+        //             msg_root_offset,
+        //             msg_root,
+        //             self.subversion,
+        //         );
+        //     }
+        // }
 
         let pubdata_information = self
             .pubdata_information

@@ -843,6 +843,7 @@ where
         let bootloader_memory = self
             .bootloader_state
             .bootloader_memory(pubdata_builder.as_ref());
+        dbg!(&bootloader_memory);
         FinishedL1Batch {
             block_tip_execution_result: result,
             final_execution_state: execution_state,

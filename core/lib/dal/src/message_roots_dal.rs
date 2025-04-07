@@ -28,12 +28,12 @@ impl MessageRootDal<'_, '_> {
             .collect::<Vec<_>>();
         sqlx::query!(
             r#"
-            INSERT INTO MESSAGE_ROOTS (
-                CHAIN_ID, DEPENDENCY_BLOCK_NUMBER, MESSAGE_ROOT_SIDES
+            INSERT INTO message_roots (
+                chain_id, dependency_block_number, message_root_sides
             )
             VALUES ($1, $2, $3)
-            ON CONFLICT (CHAIN_ID, DEPENDENCY_BLOCK_NUMBER)
-            DO UPDATE SET MESSAGE_ROOT_SIDES = EXCLUDED.MESSAGE_ROOT_SIDES;
+            ON CONFLICT (chain_id, dependency_block_number)
+            DO UPDATE SET message_root_sides = excluded.message_root_sides;
             "#,
             chain_id.0 as i64,
             i64::from(number.0),
@@ -163,38 +163,39 @@ impl MessageRootDal<'_, '_> {
         Ok(records)
     }
 
-
-
-    pub async fn get_message_roots_batch(
+    pub async fn get_msg_roots_batch(
         &mut self,
         batch_number: L1BatchNumber,
     ) -> DalResult<Vec<MessageRoot>> {
-        let block_numbers = sqlx::query!(
+        let roots = sqlx::query!(
             r#"
-            SELECT
-                number
-            FROM miniblocks
+            SELECT *
+            FROM message_roots
+            JOIN miniblocks
+            ON message_roots.processed_block_number = miniblocks.number
             WHERE l1_batch_number = $1
-            ORDER BY number ASC
             "#,
             i64::from(batch_number.0)
         )
-        .instrument("get_message_roots_batch")
+        .instrument("get_msg_roots_batch")
         .with_arg("batch_number", &batch_number)
         .fetch_all(self.storage)
-        .await?;
+        .await?
+        .into_iter()
+        .map(|rec| {
+            let sides = rec
+                .message_root_sides
+                .iter()
+                .map(|side| h256_to_u256(H256::from_slice(side)))
+                .collect::<Vec<_>>();
 
-        println!("get_message_roots_batch {:?}", block_numbers);
-        let mut all_message_roots = Vec::new();
-        for block in block_numbers {
-            let block_message_roots = self
-                .get_message_roots(L2BlockNumber(block.number as u32))
-                .await?;
-            all_message_roots.extend(block_message_roots);
-        }
-
-        println!("get_message_roots_batch {:?}", all_message_roots);
-        Ok(all_message_roots)
+            MessageRoot {
+                chain_id: rec.chain_id as u32,
+                block_number: rec.dependency_block_number as u32,
+                sides,
+            }
+        })
+        .collect();
+        Ok(roots)
     }
-
 }
