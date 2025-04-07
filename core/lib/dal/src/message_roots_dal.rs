@@ -50,6 +50,7 @@ impl MessageRootDal<'_, '_> {
     }
 
     pub async fn get_new_message_roots(&mut self) -> DalResult<Vec<MessageRoot>> {
+        // kl todo only load MAX_MSG_ROOTS_IN_BATCH message roots
         let records = sqlx::query!(
             r#"
             SELECT *
