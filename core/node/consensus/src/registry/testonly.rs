@@ -1,6 +1,6 @@
 use rand::Rng;
 use zksync_consensus_crypto::ByteFmt;
-use zksync_consensus_roles::{attester, validator};
+use zksync_consensus_roles::validator;
 use zksync_test_contracts::Account;
 use zksync_types::{ethabi, Execute, Transaction, U256};
 

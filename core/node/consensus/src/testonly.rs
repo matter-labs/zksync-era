@@ -14,7 +14,7 @@ use zksync_config::{
 };
 use zksync_consensus_crypto::TextFmt as _;
 use zksync_consensus_network as network;
-use zksync_consensus_roles::{attester, validator, validator::testonly::Setup};
+use zksync_consensus_roles::{validator, validator::testonly::Setup};
 use zksync_dal::{CoreDal, DalError};
 use zksync_metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig};
 use zksync_node_api_server::web3::{state::InternalApiConfig, testonly::TestServerBuilder};
@@ -75,7 +75,7 @@ impl ConfigSet {
         let net = network::testonly::new_fullnode(rng, &self.net);
         ConfigSet {
             config: make_config(&net, None),
-            secrets: make_secrets(&net, None),
+            secrets: make_secrets(&net),
             net,
         }
     }
@@ -91,14 +91,6 @@ pub(super) fn new_configs(rng: &mut impl Rng, setup: &Setup, seed_peers: usize) 
             .iter()
             .map(|k| config::WeightedValidator {
                 key: config::ValidatorPublicKey(k.public().encode()),
-                weight: 1,
-            })
-            .collect(),
-        attesters: setup
-            .attester_keys
-            .iter()
-            .map(|k| config::WeightedAttester {
-                key: config::AttesterPublicKey(k.public().encode()),
                 weight: 1,
             })
             .collect(),
@@ -119,23 +111,19 @@ pub(super) fn new_configs(rng: &mut impl Rng, setup: &Setup, seed_peers: usize) 
         .enumerate()
         .map(|(i, net)| ConfigSet {
             config: make_config(&net, Some(genesis_spec.clone())),
-            secrets: make_secrets(&net, setup.attester_keys.get(i).cloned()),
+            secrets: make_secrets(&net),
             net,
         })
         .collect()
 }
 
-fn make_secrets(
-    cfg: &network::Config,
-    attester_key: Option<attester::SecretKey>,
-) -> config::ConsensusSecrets {
+fn make_secrets(cfg: &network::Config) -> config::ConsensusSecrets {
     config::ConsensusSecrets {
         node_key: Some(config::NodeSecretKey(cfg.gossip.key.encode().into())),
         validator_key: cfg
             .validator_key
             .as_ref()
             .map(|k| config::ValidatorSecretKey(k.encode().into())),
-        attester_key: attester_key.map(|k| config::AttesterSecretKey(k.encode().into())),
     }
 }
 

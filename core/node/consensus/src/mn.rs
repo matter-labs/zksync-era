@@ -4,7 +4,7 @@ use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, scope, time};
 use zksync_config::configs::consensus::{ConsensusConfig, ConsensusSecrets};
 use zksync_consensus_executor::{self as executor, attestation};
-use zksync_consensus_roles::{attester, validator};
+use zksync_consensus_roles::validator;
 use zksync_consensus_storage::BlockStore;
 use zksync_dal::consensus_dal;
 

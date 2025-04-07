@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use zksync_concurrency::net;
-use zksync_consensus_roles::{attester, node, validator};
+use zksync_consensus_roles::{node, validator};
 use zksync_consensus_storage::Last;
 use zksync_types::{
     commitment::PubdataParams, ethabi, Address, L1BatchNumber, ProtocolVersionId, Transaction, H256,

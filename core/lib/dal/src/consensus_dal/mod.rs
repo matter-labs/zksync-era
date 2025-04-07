@@ -1,16 +1,14 @@
 use anyhow::Context as _;
-use zksync_consensus_crypto::keccak256::Keccak256;
-use zksync_consensus_roles::{attester, validator};
+use zksync_consensus_roles::validator;
 use zksync_consensus_storage::{BlockStoreState, Last, ReplicaState};
 use zksync_db_connection::{
     connection::Connection,
     error::{DalError, DalResult, SqlxContext},
     instrument::{InstrumentExt, Instrumented},
 };
-use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
-use zksync_types::{L1BatchNumber, L2BlockNumber};
+use zksync_types::L2BlockNumber;
 
-pub use crate::consensus::{proto, AttestationStatus, BlockMetadata, GlobalConfig, Payload};
+pub use crate::consensus::{proto, BlockMetadata, GlobalConfig, Payload};
 use crate::{consensus::BlockCertificate, Core, CoreDal};
 
 #[cfg(test)]
