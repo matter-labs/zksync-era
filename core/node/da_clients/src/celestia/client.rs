@@ -23,12 +23,12 @@ use tonic::transport::Endpoint;
 use zksync_types::{
     H160,
     ethabi,
-    ethabi::{Contract, Event, FixedBytes, Uint, Bytes, Token},
+    ethabi::{Contract, Event, EventParam, FixedBytes, Uint, Bytes, Token},
     web3::{BlockNumber, contract::Tokenize},
 };
 use zksync_config::configs::da_client::celestia::{CelestiaConfig, CelestiaSecrets};
 use zksync_da_client::{
-    types::{ClientType, DAError, DispatchResponse, InclusionData},
+    types::{ClientType, DAError, DispatchResponse, FinalityResponse, InclusionData},
     DataAvailabilityClient,
 };
 use zksync_eth_client::{
@@ -66,6 +66,8 @@ impl CelestiaClient {
         eth_client: Box<DynClient<L1>>,
     ) -> anyhow::Result<Self> {
 
+        let blobstream_abi = include_bytes!("blobstream.json");
+        let blobstream_contract = Contract::load(blobstream_abi).unwrap();
 
         let celestia_grpc_channel = Endpoint::from_str(config.api_node_url.clone().as_str())?
             .timeout(time::Duration::from_millis(config.timeout_ms))
@@ -209,7 +211,7 @@ impl DataAvailabilityClient for CelestiaClient {
         tracing::debug!("Successfully called eq-service to begin zk equivallence proving");
 
         Ok(DispatchResponse {
-            blob_id: blob_id.to_string(),
+            request_id: blob_id.to_string(),
         })
     }
 
@@ -317,6 +319,16 @@ impl DataAvailabilityClient for CelestiaClient {
         }))
     }
 
+    async fn ensure_finality(
+        &self,
+        dispatch_request_id: String,
+    ) -> Result<Option<FinalityResponse>, DAError> {
+        // TODO: return a quick confirmation in `dispatch_blob` and await here
+        Ok(Some(FinalityResponse {
+            blob_id: dispatch_request_id,
+        }))
+    }
+
     fn clone_boxed(&self) -> Box<dyn DataAvailabilityClient> {
         Box::new(self.clone())
     }
@@ -343,5 +355,20 @@ impl Debug for CelestiaClient {
             .field("config.api_node_url", &self.config.api_node_url)
             .field("config.namespace", &self.config.namespace)
             .finish()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_blobstream_abi() {
+        let blobstream_abi = include_bytes!("blobstream.json");
+        let blobstream_contract = Contract::load(blobstream_abi).unwrap();
+        let function = blobstream_contract
+            .function("latestBlock")
+            .unwrap();
+        println!("{:?}", function);
     }
 }

@@ -31,14 +31,19 @@ impl error::Error for DAError {}
 /// `DispatchResponse` is the response received from the DA layer after dispatching a blob.
 #[derive(Default)]
 pub struct DispatchResponse {
-    /// The blob_id is needed to fetch the inclusion data.
-    pub blob_id: String,
+    /// The request_id is needed to fetch the inclusion data.
+    pub request_id: String,
 }
 
 impl From<String> for DispatchResponse {
-    fn from(blob_id: String) -> Self {
-        DispatchResponse { blob_id }
+    fn from(request_id: String) -> Self {
+        DispatchResponse { request_id }
     }
+}
+
+#[derive(Default)]
+pub struct FinalityResponse {
+    pub blob_id: String,
 }
 
 /// `InclusionData` is the data needed to verify on L1 that a blob is included in the DA layer.

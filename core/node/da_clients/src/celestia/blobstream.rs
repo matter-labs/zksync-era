@@ -7,7 +7,7 @@ use reqwest::{Client, Error as ReqwestError};
 use serde::Deserialize;
 
 use zksync_types::{
-    ethabi::{decode, Contract, Event, ParamType, FixedBytes, Token},
+    ethabi::{decode, Contract, Event, EventParam, ParamType, FixedBytes, Token},
     web3::{BlockId, BlockNumber, CallRequest, FilterBuilder, Log, contract::Tokenize},
     H160, H256, U256,
 };
