@@ -678,7 +678,7 @@ mod tests {
         proxy
             .submit_tx(
                 &tx,
-                TransactionExecutionMetrics::default(),
+                &SandboxExecutionOutput::default(),
                 ValidationTraces::default(),
             )
             .await
