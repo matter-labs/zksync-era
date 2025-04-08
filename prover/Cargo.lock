@@ -8710,19 +8710,6 @@ dependencies = [
 
 [[package]]
 name = "zk_evm_abstractions"
-version = "0.150.21"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "498df75124a03a9c39e35f299c12403342b15ebc1d2735d6819c14420d32eb0e"
-dependencies = [
- "anyhow",
- "num_enum 0.6.1",
- "serde",
- "static_assertions",
- "zkevm_opcode_defs 0.150.21",
-]
-
-[[package]]
-name = "zk_evm_abstractions"
 version = "0.151.3"
 source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=feature/ec_precompiles#644a6f3137e3e76a640ace2edf592ec7529b666e"
 dependencies = [
@@ -8824,23 +8811,6 @@ dependencies = [
  "ethereum-types",
  "k256 0.13.4",
  "lazy_static",
- "sha2 0.10.8",
- "sha3 0.10.8",
-]
-
-[[package]]
-name = "zkevm_opcode_defs"
-version = "0.150.21"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1278d83a4d3c0d479de5ecffd267b8caacd3b3c5355e2a623406a7d216495cc5"
-dependencies = [
- "bitflags 2.9.0",
- "blake2 0.10.6",
- "ethereum-types",
- "k256 0.13.4",
- "lazy_static",
- "p256 0.13.2",
- "serde",
  "sha2 0.10.8",
  "sha3 0.10.8",
 ]
@@ -9964,21 +9934,19 @@ dependencies = [
 [[package]]
 name = "zksync_vm2"
 version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4a05288e092ece683b9d3de5654d3fc747792bc55201a9e9375ad12f440e0c0c"
+source = "git+https://github.com/matter-labs/vm2.git?branch=zk/v28-precompiles#44e58e2826edea87a930d930e233621d0290ac9b"
 dependencies = [
  "enum_dispatch",
  "primitive-types",
- "zk_evm_abstractions 0.150.21",
- "zkevm_opcode_defs 0.150.21",
+ "zk_evm_abstractions 0.151.3",
+ "zkevm_opcode_defs 0.151.3",
  "zksync_vm2_interface",
 ]
 
 [[package]]
 name = "zksync_vm2_interface"
 version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "603c54ea4253fa03e9844e874e13c105fd09a79499b88d7a2bc762252c1b7ce6"
+source = "git+https://github.com/matter-labs/vm2.git?branch=zk/v28-precompiles#44e58e2826edea87a930d930e233621d0290ac9b"
 dependencies = [
  "primitive-types",
 ]
