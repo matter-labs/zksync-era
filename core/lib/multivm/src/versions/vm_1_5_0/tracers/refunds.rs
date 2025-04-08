@@ -167,7 +167,7 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for RefundsTracer<S> {
         ]);
 
         #[derive(Debug, Metrics)]
-        #[metrics(prefix = "vm")]
+        #[metrics(prefix = "vm_1_5_0")]
         struct RefundMetrics {
             #[metrics(buckets = PERCENT_BUCKETS)]
             refund: Family<RefundType, Histogram<f64>>,

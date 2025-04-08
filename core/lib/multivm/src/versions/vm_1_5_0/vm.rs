@@ -46,13 +46,6 @@ pub(crate) enum MultiVmSubversion {
     EcPrecompiles,
 }
 
-impl MultiVmSubversion {
-    #[cfg(test)]
-    pub(crate) fn latest() -> Self {
-        Self::EcPrecompiles
-    }
-}
-
 #[derive(Debug)]
 pub(crate) struct VmVersionIsNotVm150Error;
 
