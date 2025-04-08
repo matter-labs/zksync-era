@@ -202,13 +202,13 @@ For more information check [Foundry's documentation](https://book.getfoundry.sh/
 
 ## How to generate the `genesis.yaml` file
 
-To generate the [`genesis.yaml`](../../../etc/env/file_based/genesis.yaml) file checkout to the desired `zksync-era`
-branch, [build `zkstack`](#installing-the-local-zk-stack-cli) from it, [configure ecosystem](#configure-ecosystem) and
-run the following command:
+To generate the [`genesis.yaml`](https://github.com/matter-labs/zksync-era/blob/main//etc/env/file_based/genesis.yaml)
+file checkout to the desired `zksync-era` branch, [build `zkstack`](#installing-the-local-zk-stack-cli) from it,
+[configure ecosystem](#configure-ecosystem) and run the following command:
 
 ```shell
 zkstack dev generate-genesis
 ```
 
-Which runs the [`genesis_generator`](../../../core/bin/genesis_generator) package under the hood and generates the
-genesis file.
+Which runs the [`genesis_generator`](https://github.com/matter-labs/zksync-era/tree/main/core/bin/genesis_generator)
+package under the hood and generates the genesis file.
