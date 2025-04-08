@@ -189,14 +189,8 @@ fn test_proof_request_serialization() {
             let decoded_obj: L1BatchProofForL1 = (*decoded_obj).into();
             let decoded_json: L1BatchProofForL1 = (*decoded_json).into();
 
-            let obj_coords = match decoded_obj.inner() {
-                TypedL1BatchProofForL1::Fflonk(obj) => obj.aggregation_result_coords,
-                TypedL1BatchProofForL1::Plonk(obj) => obj.aggregation_result_coords,
-            };
-            let json_coords = match decoded_json.inner() {
-                TypedL1BatchProofForL1::Fflonk(obj) => obj.aggregation_result_coords,
-                TypedL1BatchProofForL1::Plonk(obj) => obj.aggregation_result_coords,
-            };
+            let obj_coords = decoded_obj.aggregation_result_coords();
+            let json_coords = decoded_json.aggregation_result_coords();
 
             assert_eq!(obj_coords, json_coords);
         }
