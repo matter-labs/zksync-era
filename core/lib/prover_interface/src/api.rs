@@ -67,7 +67,12 @@ pub enum SubmitProofRequest {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct VerifyProofRequest(pub Box<L1BatchProofForL1>);
+pub struct NextProof {
+    pub l1_batch_number: L1BatchNumber,
+    pub request: SubmitProofRequest,
+}
+
+
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct SubmitTeeProofRequest(pub Box<L1BatchTeeProofForL1>);

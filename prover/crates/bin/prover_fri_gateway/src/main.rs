@@ -18,6 +18,7 @@ mod metrics;
 mod proof_gen_data_fetcher;
 mod proof_submitter;
 mod traits;
+mod server;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
