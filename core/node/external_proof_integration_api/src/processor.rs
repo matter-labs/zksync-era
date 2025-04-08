@@ -58,17 +58,18 @@ impl Processor {
                 .map(Into::into)?,
         };
 
-        proof.verify(expected_proof.inner())?;
+        proof.verify(expected_proof)?;
         Ok(())
     }
 
     pub(crate) async fn get_proof_generation_data(
         &self,
-    ) -> Result<ProofGenerationData, ProcessorError> {
+    ) -> Result<ProofGenerationDataResponse, ProcessorError> {
         tracing::debug!("Received request for proof generation data");
         let latest_available_batch = self.latest_available_batch().await?;
         self.proof_generation_data_for_existing_batch_internal(latest_available_batch)
             .await
+            .map(ProofGenerationDataResponse)
     }
 
     pub(crate) async fn proof_generation_data_for_existing_batch(

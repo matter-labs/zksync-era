@@ -12,6 +12,7 @@ use zksync_prover_interface::{
     inputs::{
         L1BatchMetadataHashes, VMRunWitnessInputData, WitnessInputData, WitnessInputMerklePaths,
     },
+    outputs::L1BatchProofForL1,
     Bincode,
 };
 use zksync_types::{
@@ -213,9 +214,10 @@ impl RequestProcessor {
         let l1_batch_number = L1BatchNumber(l1_batch_number);
         match payload {
             SubmitProofRequest::Proof(proof) => {
+                let proof: L1BatchProofForL1 = (*proof).into();
                 let blob_url = self
                     .blob_store
-                    .put((l1_batch_number, proof.protocol_version()), &*proof)
+                    .put((l1_batch_number, proof.protocol_version()), &proof)
                     .await
                     .map_err(RequestProcessorError::ObjectStore)?;
 

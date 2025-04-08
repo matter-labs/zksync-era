@@ -62,7 +62,7 @@ impl ProofSubmitter {
                         .expect("Failed to get proof from blob store"),
                 };
 
-                SubmitProofRequest::Proof(Box::new(proof))
+                SubmitProofRequest::Proof(Box::new(proof.into()))
             }
             ProofCompressionJobStatus::Skipped => SubmitProofRequest::SkippedProofGeneration,
             _ => panic!(

@@ -15,7 +15,7 @@ use axum::{
 };
 use error::ProcessorError;
 use tokio::sync::watch;
-use types::{ExternalProof, ProofGenerationDataResponse, SerializationFormat};
+use types::{ExternalProof, ProofGenerationDataResponse};
 use zksync_basic_types::L1BatchNumber;
 
 pub use crate::processor::Processor;
@@ -84,39 +84,17 @@ impl Api {
     async fn latest_generation_data(
         State(processor): State<Processor>,
     ) -> Result<ProofGenerationDataResponse, ProcessorError> {
-        let proof_generation_data = processor.get_proof_generation_data().await?;
-        Ok(ProofGenerationDataResponse(proof_generation_data, SerializationFormat::Bincode))
-    }
-
-    async fn latest_generation_data_new(
-        State(processor): State<Processor>,
-    ) -> Result<ProofGenerationDataResponse, ProcessorError> {
-        let proof_generation_data = processor.get_proof_generation_data().await?;
-        Ok(ProofGenerationDataResponse(proof_generation_data, SerializationFormat::CBOR))
+        processor.get_proof_generation_data().await
     }
 
     async fn generation_data_for_existing_batch(
         State(processor): State<Processor>,
         Path(l1_batch_number): Path<u32>,
     ) -> Result<ProofGenerationDataResponse, ProcessorError> {
-       let proof_generation_data = processor
+        processor
             .proof_generation_data_for_existing_batch(L1BatchNumber(l1_batch_number))
-            .await?;
-
-        Ok(ProofGenerationDataResponse(proof_generation_data, SerializationFormat::Bincode))
+            .await
     }
-
-    async fn generation_data_for_existing_batch_new(
-        State(processor): State<Processor>,
-        Path(l1_batch_number): Path<u32>,
-    ) -> Result<ProofGenerationDataResponse, ProcessorError> {
-        let proof_generation_data = processor
-            .proof_generation_data_for_existing_batch(L1BatchNumber(l1_batch_number))
-            .await?;
-
-        Ok(ProofGenerationDataResponse(proof_generation_data, SerializationFormat::CBOR))
-    }
-
     async fn verify_proof(
         State(processor): State<Processor>,
         Path(l1_batch_number): Path<u32>,

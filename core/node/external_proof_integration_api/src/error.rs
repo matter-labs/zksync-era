@@ -4,8 +4,7 @@ use axum::{
 };
 use zksync_basic_types::L1BatchNumber;
 use zksync_dal::DalError;
-use zksync_object_store::ObjectStoreError;
-use zksync_object_store::_reexports::BoxedError;
+use zksync_object_store::{ObjectStoreError, _reexports::BoxedError};
 
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum ProcessorError {

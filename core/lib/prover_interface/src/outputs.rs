@@ -22,6 +22,51 @@ pub struct L1BatchProofForL1<FM: FormatMarker = CBOR> {
     pub(crate) _marker: std::marker::PhantomData<FM>,
 }
 
+#[derive(Clone, Serialize, Deserialize)]
+pub struct JsonL1BatchProofForL1(pub UntaggedTypedL1BatchProofForL1);
+
+impl<FM: FormatMarker> From<L1BatchProofForL1<FM>> for JsonL1BatchProofForL1 {
+    fn from(value: L1BatchProofForL1<FM>) -> Self {
+        Self(value.inner.into())
+    }
+}
+
+impl<FM: FormatMarker> From<JsonL1BatchProofForL1> for L1BatchProofForL1<FM> {
+    fn from(value: JsonL1BatchProofForL1) -> Self {
+        Self {
+            inner: value.0.into(),
+            _marker: std::marker::PhantomData,
+        }
+    }
+}
+
+/// A "final" ZK proof that can be sent to the L1 contract.
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+#[allow(clippy::large_enum_variant)]
+pub enum UntaggedTypedL1BatchProofForL1 {
+    Fflonk(FflonkL1BatchProofForL1),
+    Plonk(PlonkL1BatchProofForL1),
+}
+
+impl From<UntaggedTypedL1BatchProofForL1> for TypedL1BatchProofForL1 {
+    fn from(value: UntaggedTypedL1BatchProofForL1) -> Self {
+        match value {
+            UntaggedTypedL1BatchProofForL1::Fflonk(proof) => Self::Fflonk(proof),
+            UntaggedTypedL1BatchProofForL1::Plonk(proof) => Self::Plonk(proof),
+        }
+    }
+}
+
+impl From<TypedL1BatchProofForL1> for UntaggedTypedL1BatchProofForL1 {
+    fn from(value: TypedL1BatchProofForL1) -> Self {
+        match value {
+            TypedL1BatchProofForL1::Fflonk(proof) => Self::Fflonk(proof),
+            TypedL1BatchProofForL1::Plonk(proof) => Self::Plonk(proof),
+        }
+    }
+}
+
 impl<FM: FormatMarker> L1BatchProofForL1<FM> {
     pub fn new_fflonk(proof: FflonkL1BatchProofForL1) -> Self {
         Self {
@@ -128,10 +173,18 @@ impl fmt::Debug for L1BatchProofForL1 {
     }
 }
 
+impl fmt::Debug for JsonL1BatchProofForL1 {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("JsonL1BatchProofForL1")
+            .finish_non_exhaustive()
+    }
+}
+
 impl fmt::Debug for PlonkL1BatchProofForL1 {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
-            .debug_struct("PplonkL1BatchProofForL1")
+            .debug_struct("PlonkL1BatchProofForL1")
             .field("aggregation_result_coords", &self.aggregation_result_coords)
             .finish_non_exhaustive()
     }
