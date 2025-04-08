@@ -558,12 +558,12 @@ jobs:
 
       - name: Fee projection tests
         run: |
-          ci_run killall -INT zksync_server || true
+          ci_run killall --quiet --wait -INT zksync_server
 
           # Only start & wait for the gateway server if use_gateway_chain == WITH_GATEWAY
           if [ "${{ matrix.use_gateway_chain }}" == "WITH_GATEWAY" ]; then
             ci_run zkstack server --ignore-prerequisites --chain gateway &> ${{ env.SERVER_LOGS_DIR }}/gateway.log &
-            ci_run zkstack server wait --ignore-prerequisites --verbose --chain gateway
+            ci_run zkstack server wait --timeout 30 --ignore-prerequisites --verbose --chain gateway
           fi
 
           # Always run the chain-specific fee tests
@@ -580,13 +580,13 @@ jobs:
 
       - name: Run revert tests
         run: |
-          ci_run killall -INT zksync_server || true
-          ci_run killall -INT zksync_external_node || true
+          ci_run killall --quiet --wait -INT zksync_server
+          ci_run killall --quiet --wait -INT zksync_external_node
 
           # Only start & wait for the gateway server if use_gateway_chain == WITH_GATEWAY
           if [ "${{ matrix.use_gateway_chain }}" == "WITH_GATEWAY" ]; then
             ci_run zkstack server --ignore-prerequisites --chain gateway &> ${{ env.SERVER_LOGS_DIR }}/gateway.log &
-            ci_run zkstack server wait --ignore-prerequisites --verbose --chain gateway
+            ci_run zkstack server wait --timeout 30 --ignore-prerequisites --verbose --chain gateway
           fi
 
           # Always run the chain-specific revert tests
@@ -597,12 +597,12 @@ jobs:
       # TODO make upgrade tests safe to run multiple times
       - name: Run upgrade test
         run: |
-          ci_run killall -INT zksync_server || true
+          ci_run killall --quiet --wait -INT zksync_server || true
 
           # Only start & wait for the gateway server if use_gateway_chain == WITH_GATEWAY
           if [ "${{ matrix.use_gateway_chain }}" == "WITH_GATEWAY" ]; then
             ci_run zkstack server --ignore-prerequisites --chain gateway &> ${{ env.SERVER_LOGS_DIR }}/gateway.log &
-            ci_run zkstack server wait --ignore-prerequisites --verbose --chain gateway
+            ci_run zkstack server wait --timeout 30 --ignore-prerequisites --verbose --chain gateway
           fi
 
           # Always run the upgrade test against era
