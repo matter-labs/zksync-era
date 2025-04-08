@@ -322,7 +322,7 @@ impl AccountLifespan {
     }
 
     pub async fn reset_nonce(&mut self) {
-        let nonce = Nonce(self.wallet.wallet.get_nonce().await.unwrap());
+        let nonce = Nonce(self.wallet.wallet.get_nonce().await.unwrap().into());
         self.current_nonce = Some(nonce);
     }
 

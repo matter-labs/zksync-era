@@ -223,7 +223,7 @@ impl AbstractL1Interface for RealL1Interface {
                     opt.gas = Some(gas);
                     opt.max_fee_per_gas = Some(U256::from(base_fee_per_gas + priority_fee_per_gas));
                     opt.max_priority_fee_per_gas = Some(U256::from(priority_fee_per_gas));
-                    opt.nonce = Some(tx.nonce.0.into());
+                    opt.nonce = Some(tx.nonce.0);
                     if let Some(max_gas_per_pubdata) = max_gas_per_pubdata {
                         assert!(
                             tx.is_gateway,

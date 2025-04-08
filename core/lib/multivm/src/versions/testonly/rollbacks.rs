@@ -41,7 +41,7 @@ pub(crate) fn test_vm_rollbacks<VM: TestedVm>() {
         // The correct nonce is 0, this tx will fail
         TransactionTestInfo::new_rejected(
             tx_2.clone(),
-            TxModifier::WrongNonce(tx_2.nonce().unwrap(), Nonce(0)).into(),
+            TxModifier::WrongNonce(tx_2.nonce().unwrap(), Nonce(0.into())).into(),
         ),
         // This tx will succeed
         TransactionTestInfo::new_processed(tx_0.clone(), false),
@@ -53,7 +53,7 @@ pub(crate) fn test_vm_rollbacks<VM: TestedVm>() {
         // The correct nonce is 1, this tx will fail
         TransactionTestInfo::new_rejected(
             tx_2.clone(),
-            TxModifier::WrongNonce(tx_2.nonce().unwrap(), Nonce(1)).into(),
+            TxModifier::WrongNonce(tx_2.nonce().unwrap(), Nonce(1.into())).into(),
         ),
         // This tx will succeed
         TransactionTestInfo::new_processed(tx_1, false),

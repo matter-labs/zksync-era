@@ -60,7 +60,7 @@ where
 
         let nonce = match self.nonce {
             Some(nonce) => nonce,
-            None => Nonce(self.wallet.get_nonce().await?),
+            None => Nonce(self.wallet.get_nonce().await?.into()),
         };
 
         self.wallet
@@ -169,7 +169,7 @@ where
         };
         let common_data = L2TxCommonData {
             initiator_address: self.wallet.address(),
-            nonce: Nonce(0),
+            nonce: Nonce(0.into()),
             paymaster_params,
             ..Default::default()
         };

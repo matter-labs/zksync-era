@@ -53,7 +53,7 @@ impl VM {
         let tx = L2Tx::new(
             Some(*address),
             call.calldata().context("call.calldata()")?,
-            Nonce(0),
+            Nonce(0.into()),
             Fee {
                 gas_limit: U256::from(2000000000u32),
                 max_fee_per_gas: U256::zero(),
