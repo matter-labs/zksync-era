@@ -42,7 +42,7 @@ impl ConnectionPool {
                 .connection(ctx)
                 .await
                 .wrap("connection()")?
-                .payload(ctx, number)
+                .block_payload(ctx, number)
                 .await
                 .with_wrap(|| format!("payload({number})"))?
             {
@@ -65,7 +65,7 @@ impl ConnectionPool {
                 .connection(ctx)
                 .await
                 .wrap("connection()")?
-                .is_batch_stored(number)
+                .is_batch_stored(ctx, number)
                 .await
                 .with_wrap(|| format!("is_batch_stored({number})"))?
             {
@@ -95,87 +95,6 @@ impl<'a> Connection<'a> {
     /// Wrapper for `commit()`.
     pub async fn commit(self, ctx: &ctx::Ctx) -> ctx::Result<()> {
         Ok(ctx.wait(self.0.commit()).await?.context("sqlx")?)
-    }
-
-    /// Wrapper for `consensus_dal().block_payload()`.
-    pub async fn payload(
-        &mut self,
-        ctx: &ctx::Ctx,
-        number: validator::BlockNumber,
-    ) -> ctx::Result<Option<Payload>> {
-        Ok(ctx
-            .wait(self.0.consensus_dal().block_payload(number))
-            .await?
-            .map_err(DalError::generalize)?)
-    }
-
-    /// Wrapper for `consensus_dal().block_metadata()`.
-    pub async fn block_metadata(
-        &mut self,
-        ctx: &ctx::Ctx,
-        number: validator::BlockNumber,
-    ) -> ctx::Result<Option<BlockMetadata>> {
-        Ok(ctx
-            .wait(self.0.consensus_dal().block_metadata(number))
-            .await??)
-    }
-
-    /// Wrapper for `consensus_dal().block_certificate()`.
-    pub async fn block_certificate(
-        &mut self,
-        ctx: &ctx::Ctx,
-        number: validator::BlockNumber,
-    ) -> ctx::Result<Option<BlockCertificate>> {
-        Ok(ctx
-            .wait(self.0.consensus_dal().block_certificate(number))
-            .await??)
-    }
-
-    /// Wrapper for `consensus_dal().insert_block_certificate()`.
-    pub async fn insert_block_certificate(
-        &mut self,
-        ctx: &ctx::Ctx,
-        cert: &BlockCertificate,
-    ) -> Result<(), super::InsertCertificateError> {
-        Ok(ctx
-            .wait(self.0.consensus_dal().insert_block_certificate(cert))
-            .await??)
-    }
-
-    /// Wrapper for `consensus_dal().insert_validator_committee()`.
-    pub async fn insert_validator_committee(
-        &mut self,
-        ctx: &ctx::Ctx,
-        number: validator::BlockNumber,
-        committee: &validator::Committee,
-    ) -> ctx::Result<()> {
-        ctx.wait(
-            self.0
-                .consensus_dal()
-                .insert_validator_committee(number, committee),
-        )
-        .await??;
-        Ok(())
-    }
-
-    /// Wrapper for `consensus_dal().replica_state()`.
-    pub async fn replica_state(&mut self, ctx: &ctx::Ctx) -> ctx::Result<storage::ReplicaState> {
-        Ok(ctx
-            .wait(self.0.consensus_dal().replica_state())
-            .await?
-            .map_err(DalError::generalize)?)
-    }
-
-    /// Wrapper for `consensus_dal().set_replica_state()`.
-    pub async fn set_replica_state(
-        &mut self,
-        ctx: &ctx::Ctx,
-        state: &storage::ReplicaState,
-    ) -> ctx::Result<()> {
-        Ok(ctx
-            .wait(self.0.consensus_dal().set_replica_state(state))
-            .await?
-            .context("sqlx")?)
     }
 
     /// Wrapper for `FetcherCursor::new()`.
@@ -208,6 +127,26 @@ impl<'a> Connection<'a> {
             .await??)
     }
 
+    /// Wrapper for `consensus_dal().replica_state()`.
+    pub async fn replica_state(&mut self, ctx: &ctx::Ctx) -> ctx::Result<storage::ReplicaState> {
+        Ok(ctx
+            .wait(self.0.consensus_dal().replica_state())
+            .await?
+            .map_err(DalError::generalize)?)
+    }
+
+    /// Wrapper for `consensus_dal().set_replica_state()`.
+    pub async fn set_replica_state(
+        &mut self,
+        ctx: &ctx::Ctx,
+        state: &storage::ReplicaState,
+    ) -> ctx::Result<()> {
+        Ok(ctx
+            .wait(self.0.consensus_dal().set_replica_state(state))
+            .await?
+            .context("sqlx")?)
+    }
+
     /// Wrapper for `consensus_dal().next_block()`.
     #[tracing::instrument(skip_all)]
     async fn next_block(&mut self, ctx: &ctx::Ctx) -> ctx::Result<validator::BlockNumber> {
@@ -223,6 +162,100 @@ impl<'a> Connection<'a> {
         Ok(ctx
             .wait(self.0.consensus_dal().block_store_state())
             .await??)
+    }
+
+    /// Wrapper for `consensus_dal().block_certificate()`.
+    pub async fn block_certificate(
+        &mut self,
+        ctx: &ctx::Ctx,
+        number: validator::BlockNumber,
+    ) -> ctx::Result<Option<BlockCertificate>> {
+        Ok(ctx
+            .wait(self.0.consensus_dal().block_certificate(number))
+            .await??)
+    }
+
+    /// Wrapper for `consensus_dal().last_block_certificate_number()`.
+    pub async fn last_block_certificate_number(
+        &mut self,
+        ctx: &ctx::Ctx,
+    ) -> ctx::Result<Option<validator::BlockNumber>> {
+        Ok(ctx
+            .wait(self.0.consensus_dal().last_block_certificate_number())
+            .await??)
+    }
+
+    /// Wrapper for `consensus_dal().insert_block_certificate()`.
+    pub async fn insert_block_certificate(
+        &mut self,
+        ctx: &ctx::Ctx,
+        cert: &BlockCertificate,
+    ) -> Result<(), super::InsertCertificateError> {
+        Ok(ctx
+            .wait(self.0.consensus_dal().insert_block_certificate(cert))
+            .await??)
+    }
+
+    /// Wrapper for `consensus_dal().block_payload()`.
+    pub async fn block_payload(
+        &mut self,
+        ctx: &ctx::Ctx,
+        number: validator::BlockNumber,
+    ) -> ctx::Result<Option<Payload>> {
+        Ok(ctx
+            .wait(self.0.consensus_dal().block_payload(number))
+            .await?
+            .map_err(DalError::generalize)?)
+    }
+
+    /// Wrapper for `consensus_dal().block_metadata()`.
+    pub async fn block_metadata(
+        &mut self,
+        ctx: &ctx::Ctx,
+        number: validator::BlockNumber,
+    ) -> ctx::Result<Option<BlockMetadata>> {
+        Ok(ctx
+            .wait(self.0.consensus_dal().block_metadata(number))
+            .await??)
+    }
+
+    /// Wrapper for `consensus_dal().insert_validator_committee()`.
+    pub async fn insert_validator_committee(
+        &mut self,
+        ctx: &ctx::Ctx,
+        number: validator::BlockNumber,
+        committee: &validator::Committee,
+    ) -> ctx::Result<()> {
+        ctx.wait(
+            self.0
+                .consensus_dal()
+                .insert_validator_committee(number, committee),
+        )
+        .await??;
+        Ok(())
+    }
+
+    /// Wrapper for `consensus_dal().is_batch_stored()`.
+    pub async fn is_batch_stored(
+        &mut self,
+        ctx: &ctx::Ctx,
+        number: L1BatchNumber,
+    ) -> ctx::Result<bool> {
+        Ok(ctx
+            .wait(self.0.consensus_dal().is_batch_stored(number))
+            .await??)
+    }
+
+    /// Wrapper for `blocks_dal().get_l2_block_range_of_l1_batch()`.
+    pub async fn get_l2_block_range_of_l1_batch(
+        &mut self,
+        ctx: &ctx::Ctx,
+        number: L1BatchNumber,
+    ) -> ctx::Result<Option<(L2BlockNumber, L2BlockNumber)>> {
+        Ok(ctx
+            .wait(self.0.blocks_dal().get_l2_block_range_of_l1_batch(number))
+            .await?
+            .context("get_l2_block_range_of_l1_batch()")?)
     }
 
     /// (Re)initializes consensus genesis to start at the last L2 block in storage.
@@ -275,7 +308,7 @@ impl<'a> Connection<'a> {
         ctx: &ctx::Ctx,
         number: validator::BlockNumber,
     ) -> ctx::Result<Option<validator::Block>> {
-        let Some(payload) = self.payload(ctx, number).await.wrap("payload()")? else {
+        let Some(payload) = self.block_payload(ctx, number).await.wrap("payload()")? else {
             return Ok(None);
         };
 

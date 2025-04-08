@@ -231,6 +231,15 @@ pub(crate) struct BLS12_381PublicKey {
 }
 
 impl BLS12_381PublicKey {
+    fn from_token(token: Token) -> anyhow::Result<Self> {
+        let [a, b, c] = abi::into_tuple(token)?;
+        Ok(Self {
+            a: abi::into_fixed_bytes(a).context("a")?,
+            b: abi::into_fixed_bytes(b).context("b")?,
+            c: abi::into_fixed_bytes(c).context("c")?,
+        })
+    }
+
     fn to_token(&self) -> Token {
         Token::Tuple(vec![
             Token::FixedBytes(self.a.into()),
@@ -247,6 +256,14 @@ pub(crate) struct BLS12_381Signature {
 }
 
 impl BLS12_381Signature {
+    fn from_token(token: Token) -> anyhow::Result<Self> {
+        let [a, b] = abi::into_tuple(token)?;
+        Ok(Self {
+            a: abi::into_fixed_bytes(a).context("a")?,
+            b: abi::into_fixed_bytes(b).context("b")?,
+        })
+    }
+
     fn to_token(&self) -> Token {
         Token::Tuple(vec![
             Token::FixedBytes(self.a.into()),

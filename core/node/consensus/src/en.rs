@@ -11,14 +11,12 @@ use zksync_types::L2BlockNumber;
 use zksync_web3_decl::{
     client::{DynClient, L2},
     error::is_retriable,
-    jsonrpsee::{core::ClientError, types::error::ErrorCode},
     namespaces::{EnNamespaceClient as _, EthNamespaceClient as _},
 };
 
 use super::{config, storage::Store, ConsensusConfig, ConsensusSecrets};
 use crate::{
     metrics::METRICS,
-    registry,
     storage::{self, ConnectionPool},
 };
 
@@ -203,41 +201,16 @@ impl EN {
         &self,
         ctx: &ctx::Ctx,
     ) -> ctx::Result<consensus_dal::GlobalConfig> {
-        match ctx.wait(self.client.consensus_global_config()).await? {
-            Ok(cfg) => {
-                let cfg = cfg.context("main node is not running consensus component")?;
-                return Ok(zksync_protobuf::serde::Deserialize {
-                    deny_unknown_fields: false,
-                }
-                .proto_fmt(&cfg.0)
-                .context("deserialize()")?);
-            }
-            // For non-whitelisted methods, proxyd returns HTTP 403 with MethodNotFound in the body.
-            // For some stupid reason ClientError doesn't expose HTTP error codes.
-            Err(ClientError::Transport(_)) => {}
-            // For missing methods api server, returns HTTP 200 with MethodNotFound in the body.
-            Err(ClientError::Call(err)) if err.code() == ErrorCode::MethodNotFound.code() => {}
-            Err(err) => {
-                return Err(err)
-                    .context("consensus_global_config()")
-                    .map_err(|err| err.into());
-            }
-        }
-        tracing::info!("consensus_global_config() not found, calling consensus_genesis() instead");
-        let genesis = ctx
-            .wait(self.client.consensus_genesis())
+        let cfg = ctx
+            .wait(self.client.consensus_global_config())
             .await?
-            .context("consensus_genesis()")?
+            .context("consensus_global_config()")?
             .context("main node is not running consensus component")?;
-        Ok(consensus_dal::GlobalConfig {
-            genesis: zksync_protobuf::serde::Deserialize {
-                deny_unknown_fields: false,
-            }
-            .proto_fmt(&genesis.0)
-            .context("deserialize()")?,
-            registry_address: None,
-            seed_peers: [].into(),
-        })
+        Ok(zksync_protobuf::serde::Deserialize {
+            deny_unknown_fields: false,
+        }
+        .proto_fmt(&cfg.0)
+        .context("deserialize()")?)
     }
 
     /// Fetches (with retries) the given block from the main node.

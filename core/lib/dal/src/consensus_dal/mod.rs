@@ -6,7 +6,6 @@ use zksync_db_connection::{
     error::{DalError, DalResult, SqlxContext},
     instrument::{InstrumentExt, Instrumented},
 };
-use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
 use zksync_types::{L1BatchNumber, L2BlockNumber};
 
 pub use crate::consensus::{proto, BlockMetadata, GlobalConfig, Payload};
@@ -446,7 +445,7 @@ impl ConsensusDal<'_, '_> {
         Ok(None)
     }
 
-    /// Gets a number of the last L2 block that was certified. It might have gaps before it,
+    /// Gets the number of the last L2 block that was certified. It might have gaps before it,
     /// depending on the order in which certificates have been collected.
     pub async fn last_block_certificate_number(
         &mut self,
@@ -474,6 +473,47 @@ impl ConsensusDal<'_, '_> {
         Ok(Some(validator::BlockNumber(
             row.number.try_into().context("overflow")?,
         )))
+    }
+
+    /// Inserts a certificate for the L2 block `cert.header().number`.
+    /// Fails if certificate doesn't match the stored block.
+    pub async fn insert_block_certificate(
+        &mut self,
+        cert: &BlockCertificate,
+    ) -> Result<(), InsertCertificateError> {
+        use InsertCertificateError as E;
+
+        // Extract block number and payload hash based on certificate variant
+        let block_number = cert.number();
+        let payload_hash = cert.payload_hash();
+
+        let want_payload = self
+            .block_payload(block_number)
+            .await?
+            .ok_or(E::MissingPayload)?;
+
+        if payload_hash != want_payload.encode().hash() {
+            return Err(E::PayloadMismatch(want_payload));
+        }
+
+        sqlx::query!(
+            r#"
+            INSERT INTO
+            miniblocks_consensus (number, versioned_certificate)
+            VALUES
+            ($1, $2)
+            "#,
+            i64::try_from(block_number.0).context("overflow")?,
+            zksync_protobuf::serde::Serialize
+                .proto_fmt(cert, serde_json::value::Serializer)
+                .unwrap(),
+        )
+        .instrument("insert_block_certificate")
+        .report_latency()
+        .execute(self.storage)
+        .await?;
+
+        Ok(())
     }
 
     /// Fetches a range of L2 blocks from storage and converts them to `Payload`s.
@@ -537,47 +577,6 @@ impl ConsensusDal<'_, '_> {
         Ok(Some(BlockMetadata {
             payload_hash: b.encode().hash(),
         }))
-    }
-
-    /// Inserts a certificate for the L2 block `cert.header().number`.
-    /// Fails if certificate doesn't match the stored block.
-    pub async fn insert_block_certificate(
-        &mut self,
-        cert: &BlockCertificate,
-    ) -> Result<(), InsertCertificateError> {
-        use InsertCertificateError as E;
-
-        // Extract block number and payload hash based on certificate variant
-        let block_number = cert.number();
-        let payload_hash = cert.payload_hash();
-
-        let want_payload = self
-            .block_payload(block_number)
-            .await?
-            .ok_or(E::MissingPayload)?;
-
-        if payload_hash != want_payload.encode().hash() {
-            return Err(E::PayloadMismatch(want_payload));
-        }
-
-        sqlx::query!(
-            r#"
-            INSERT INTO
-            miniblocks_consensus (number, versioned_certificate)
-            VALUES
-            ($1, $2)
-            "#,
-            i64::try_from(block_number.0).context("overflow")?,
-            zksync_protobuf::serde::Serialize
-                .proto_fmt(cert, serde_json::value::Serializer)
-                .unwrap(),
-        )
-        .instrument("insert_block_certificate")
-        .report_latency()
-        .execute(self.storage)
-        .await?;
-
-        Ok(())
     }
 
     /// Persist the validator committee that will be active at the given block.

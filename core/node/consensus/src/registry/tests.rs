@@ -51,7 +51,8 @@ async fn test_pending_validator_committee() {
 
         // Deploy registry contract and initialize it.
         let committee =
-            validator::Committee::new((0..5).map(|_| testonly::gen_validator(rng))).unwrap();
+            validator::Committee::new((0..5).map(|_| testonly::gen_consensus_validator(rng)))
+                .unwrap();
         let (registry_addr, tx) = registry.deploy(account);
         let mut txs = vec![tx];
         let account_addr = account.address();
@@ -67,7 +68,7 @@ async fn test_pending_validator_committee() {
                 account,
                 registry_addr,
                 registry
-                    .add(rng.gen(), testonly::gen_validator(rng))
+                    .add(rng.gen(), testonly::gen_registry_validator(rng))
                     .unwrap(),
             ));
         }

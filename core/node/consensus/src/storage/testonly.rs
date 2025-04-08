@@ -157,4 +157,49 @@ impl ConnectionPool {
         }
         Ok(blocks)
     }
+
+    pub async fn prune_batches(
+        &self,
+        ctx: &ctx::Ctx,
+        last_batch: L1BatchNumber,
+    ) -> ctx::Result<()> {
+        let mut conn = self.connection(ctx).await.context("connection()")?;
+
+        let (_, last_block) = conn
+            .get_l2_block_range_of_l1_batch(ctx, last_batch)
+            .await
+            .wrap("get_l2_block_range_of_l1_batch()")?
+            .context("batch not found")?;
+        let last_batch_root_hash = ctx
+            .wait(conn.0.blocks_dal().get_l1_batch_state_root(last_batch))
+            .await?
+            .context("get_l1_batch_state_root()")?
+            .unwrap_or_default();
+
+        ctx.wait(
+            conn.0
+                .pruning_dal()
+                .insert_soft_pruning_log(last_batch, last_block),
+        )
+        .await?
+        .context("insert_soft_pruning_log()")?;
+
+        ctx.wait(
+            conn.0
+                .pruning_dal()
+                .hard_prune_batches_range(last_batch, last_block),
+        )
+        .await?
+        .context("hard_prune_batches_range()")?;
+
+        ctx.wait(conn.0.pruning_dal().insert_hard_pruning_log(
+            last_batch,
+            last_block,
+            last_batch_root_hash,
+        ))
+        .await?
+        .context("insert_hard_pruning_log()")?;
+
+        Ok(())
+    }
 }

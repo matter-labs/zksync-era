@@ -4,11 +4,13 @@
 //! This module simply glues APIs that are already publicly exposed by the `consensus` module,
 //! so in case any custom behavior is needed, these APIs should be used directly.
 
-use zksync_concurrency::ctx;
+use zksync_concurrency::{ctx, error::Wrap as _, time};
 use zksync_config::configs::consensus::{ConsensusConfig, ConsensusSecrets};
-use zksync_dal::Core;
+use zksync_dal::{consensus_dal, Core};
 use zksync_node_sync::{sync_action::ActionQueueSender, SyncState};
 use zksync_web3_decl::client::{DynClient, L2};
+
+use crate::registry;
 
 use super::{en, mn, storage::ConnectionPool};
 
@@ -86,7 +88,7 @@ async fn validator_committee_monitor(
             .connection(ctx)
             .await
             .wrap("connection()")?
-            .last_block_certificate_number()
+            .last_block_certificate_number(ctx)
             .await
             .wrap("last_block_certificate_number()")?
             .ok_or_else(|| anyhow::anyhow!("no block certificates found"))?;
@@ -109,8 +111,7 @@ async fn validator_committee_monitor(
         };
 
         // Persist the pending committee.
-        self.pool
-            .connection(ctx)
+        pool.connection(ctx)
             .await
             .wrap("connection")?
             .insert_validator_committee(ctx, last_block_certificate_number, &committee)

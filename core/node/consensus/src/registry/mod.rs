@@ -1,5 +1,4 @@
 use anyhow::Context as _;
-use ethabi::Uint;
 use zksync_concurrency::{ctx, error::Wrap as _};
 use zksync_consensus_crypto::ByteFmt;
 use zksync_consensus_roles::validator;
@@ -77,7 +76,7 @@ impl Registry {
                 ctx,
                 sealed_block_number,
                 address,
-                self.contract.call(abi::GetPendingValidatorCommittee),
+                self.contract.call(abi::GetNextValidatorCommittee),
             )
             .await
         {

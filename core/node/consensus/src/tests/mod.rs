@@ -150,7 +150,7 @@ async fn test_validator_block_store(version: ProtocolVersionId) {
         for i in setup.genesis.first_block.0..sk.last_block().next().0 {
             let i = validator::BlockNumber(i);
             let payload = conn
-                .payload(ctx, i)
+                .block_payload(ctx, i)
                 .await
                 .wrap(i)?
                 .with_context(|| format!("payload for {i:?} not found"))?
