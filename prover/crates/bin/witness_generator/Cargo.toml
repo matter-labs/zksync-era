@@ -37,7 +37,6 @@ futures = { workspace = true, features = ["compat"] }
 serde = { workspace = true, features = ["derive"] }
 async-trait.workspace = true
 bincode.workspace = true
-rand.workspace = true
 structopt.workspace = true
 ctrlc = { workspace = true, features = ["termination"] }
 once_cell.workspace = true
