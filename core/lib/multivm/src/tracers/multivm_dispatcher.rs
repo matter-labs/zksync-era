@@ -28,7 +28,7 @@ impl<S: WriteStorage, H: HistoryMode> Default for TracerDispatcher<S, H> {
 }
 
 impl<S: WriteStorage, H: HistoryMode> From<TracerDispatcher<S, H>>
-    for crate::vm_latest::TracerDispatcher<S, H::Vm1_5_0>
+    for crate::vm_latest::TracerDispatcher<S, H::Vm1_5_2>
 {
     fn from(value: TracerDispatcher<S, H>) -> Self {
         Self::new(value.tracers.into_iter().map(|x| x.latest()).collect())
@@ -62,6 +62,14 @@ impl<S: WriteStorage, H: HistoryMode> From<TracerDispatcher<S, H>>
 {
     fn from(value: TracerDispatcher<S, H>) -> Self {
         Self::new(value.tracers.into_iter().map(|x| x.vm_1_4_2()).collect())
+    }
+}
+
+impl<S: WriteStorage, H: HistoryMode> From<TracerDispatcher<S, H>>
+    for crate::vm_1_5_0::TracerDispatcher<S, H::Vm1_5_0>
+{
+    fn from(value: TracerDispatcher<S, H>) -> Self {
+        Self::new(value.tracers.into_iter().map(|x| x.vm_1_5_0()).collect())
     }
 }
 

@@ -1,6 +1,6 @@
 use circuit_sequencer_api::{BLOB_CHUNK_SIZE, ELEMENTS_PER_4844_BLOCK};
-use zk_evm_1_5_0::aux_structures::MemoryPage;
-pub use zk_evm_1_5_0::zkevm_opcode_defs::system_params::{
+use zk_evm_1_5_2::aux_structures::MemoryPage;
+pub use zk_evm_1_5_2::zkevm_opcode_defs::system_params::{
     ERGS_PER_CIRCUIT, INITIAL_STORAGE_WRITE_PUBDATA_BYTES,
 };
 
@@ -13,8 +13,7 @@ pub(crate) const BOOTLOADER_BATCH_TIP_CIRCUIT_STATISTICS_OVERHEAD: u32 = 12_000;
 pub(crate) const BOOTLOADER_BATCH_TIP_METRICS_SIZE_OVERHEAD: u32 = 2000;
 
 /// In the version `1.5.0` the maximal number of circuits per batch has been increased from `24100` to `34100`.
-pub(crate) const MAX_BASE_LAYER_CIRCUITS: usize = 28000;
-pub(crate) const MAX_BASE_LAYER_CIRCUITS_1_5_0: usize = 34100;
+pub(crate) const MAX_BASE_LAYER_CIRCUITS: usize = 34100;
 
 /// The size of the bootloader memory in bytes which is used by the protocol.
 /// While the maximal possible size is a lot higher, we restrict ourselves to a certain limit to reduce
@@ -201,7 +200,7 @@ pub(crate) const fn get_result_success_first_slot(subversion: MultiVmSubversion)
 /// (except for the fact that, of course, gas limit for each transaction should be <= `BLOCK_GAS_LIMIT`).
 
 pub const BATCH_COMPUTATIONAL_GAS_LIMIT: u32 =
-    zk_evm_1_5_0::zkevm_opcode_defs::system_params::VM_INITIAL_FRAME_ERGS;
+    zk_evm_1_5_2::zkevm_opcode_defs::system_params::VM_INITIAL_FRAME_ERGS;
 
 /// The maximal number of gas that is supposed to be spent in a batch. This value is displayed in the system context as well
 /// as the API for each batch.

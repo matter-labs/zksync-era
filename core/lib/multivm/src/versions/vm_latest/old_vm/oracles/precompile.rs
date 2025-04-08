@@ -1,6 +1,6 @@
 use std::convert::TryFrom;
 
-use zk_evm_1_5_0::{
+use zk_evm_1_5_2::{
     abstractions::{Memory, PrecompileCyclesWitness, PrecompilesProcessor},
     aux_structures::{LogQuery, MemoryQuery, Timestamp},
     zk_evm_abstractions::precompiles::{
