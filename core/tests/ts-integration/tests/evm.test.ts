@@ -44,7 +44,14 @@ async function getAllowedBytecodeTypes(provider: ethers.Provider): Promise<bigin
 // if we know for a fact that the tested chain should support EVM bytecodes (e.g., in CI).
 const expectEvmSupport = Boolean(process.env.RUN_EVM_TEST);
 
-describe('EVM contract checks', () => {
+enum L2ProviderKind {
+    /** JSON-RPC provider from `zksync-ethers` */
+    ZKSYNC = 'zksync',
+    /** Vanilla JSON-RPC provider from `ethers` */
+    ETHERS = 'ethers'
+}
+
+function describeEvm(l2ProviderKind: L2ProviderKind) {
     let testMaster: TestMaster;
     let alice: ethers.Wallet;
     let counterFactory: ethers.ContractFactory;
@@ -53,9 +60,19 @@ describe('EVM contract checks', () => {
 
     beforeAll(async () => {
         testMaster = TestMaster.getInstance(__filename);
-        alice = new ethers.Wallet(testMaster.mainAccount().privateKey, testMaster.mainAccount().provider);
+        let l2Provider: ethers.Provider;
+        switch (l2ProviderKind) {
+            case L2ProviderKind.ZKSYNC:
+                l2Provider = testMaster.mainAccount().provider;
+                break;
+            case L2ProviderKind.ETHERS:
+                l2Provider = testMaster.ethersProvider();
+                break;
+        }
 
-        allowedBytecodeTypes = await getAllowedBytecodeTypes(alice.provider!!);
+        alice = new ethers.Wallet(testMaster.mainAccount().privateKey, l2Provider);
+
+        allowedBytecodeTypes = await getAllowedBytecodeTypes(l2Provider);
         testMaster.reporter.debug('Allowed bytecode types', allowedBytecodeTypes);
         if (expectEvmSupport) {
             expect(allowedBytecodeTypes).toEqual(1n);
@@ -160,4 +177,6 @@ describe('EVM contract checks', () => {
     testNoEvm('Should error on EVM contract deployment', async () => {
         await expect(counterFactory.deploy(false)).rejects.toThrow('toAddressIsNull');
     });
-});
+}
+
+describe.each([L2ProviderKind.ZKSYNC, L2ProviderKind.ETHERS])('EVM contract checks (L2 provider: %s)', describeEvm);

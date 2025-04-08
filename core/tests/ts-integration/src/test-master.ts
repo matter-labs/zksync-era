@@ -2,7 +2,7 @@ import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { TestEnvironment, TestContext } from './types';
 import { claimEtherBack } from './context-owner';
-import { RetryableWallet, RetryProvider } from './retry-provider';
+import { EthersRetryProvider, RetryableWallet, RetryProvider } from './retry-provider';
 import { Reporter } from './reporter';
 import { bigIntReviver, isLocalHost } from './helpers';
 import { L1Provider } from './l1-provider';
@@ -133,6 +133,11 @@ export class TestMaster {
      */
     isFastMode(): boolean {
         return process.env['ZK_INTEGRATION_TESTS_FAST_MODE'] === 'true';
+    }
+
+    /** Returns a vanilla `ethers` provider for L2 with additional retries and logging. This can be useful to check Web3 API compatibility. */
+    ethersProvider(): EthersRetryProvider {
+        return new EthersRetryProvider({ url: this.env.l2NodeUrl, timeout: 120_000 }, undefined, this.reporter);
     }
 
     /**
