@@ -80,10 +80,6 @@ async fn test_pending_validator_committee() {
         ));
 
         node.push_block(&txs).await;
-        node.seal_batch().await;
-        pool.wait_for_batch_info(ctx, node.last_batch(), POLL_INTERVAL)
-            .await
-            .wrap("wait_for_batch_info()")?;
 
         // Read the validator committee using the vm.
         let block_num = node.last_block();

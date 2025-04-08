@@ -6,7 +6,8 @@ use zksync_db_connection::{
     error::{DalError, DalResult, SqlxContext},
     instrument::{InstrumentExt, Instrumented},
 };
-use zksync_types::L2BlockNumber;
+use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
+use zksync_types::{L1BatchNumber, L2BlockNumber};
 
 pub use crate::consensus::{proto, BlockMetadata, GlobalConfig, Payload};
 use crate::{consensus::BlockCertificate, Core, CoreDal};
@@ -637,5 +638,16 @@ impl ConsensusDal<'_, '_> {
             }
             .proto_repr::<proto::ValidatorCommittee, _>(row.validators)?,
         ))
+    }
+
+    /// Checks if the L1 batch and metadata is stored in the database.
+    pub async fn is_batch_stored(&mut self, number: L1BatchNumber) -> anyhow::Result<bool> {
+        Ok(self
+            .storage
+            .blocks_dal()
+            .get_l1_batch_header(number)
+            .await
+            .context("get_l1_batch_header()")?
+            .is_some())
     }
 }

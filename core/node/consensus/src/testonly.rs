@@ -350,15 +350,14 @@ impl StateKeeper {
         validator::BlockNumber(self.last_block.0.into())
     }
 
-    /// Batch of the `last_block`.
-    pub fn last_batch(&self) -> attester::BatchNumber {
-        attester::BatchNumber(self.last_batch.0.into())
-    }
-
     /// Last L1 batch that has been sealed and will have
     /// metadata computed eventually.
-    pub fn last_sealed_batch(&self) -> attester::BatchNumber {
-        attester::BatchNumber((self.last_batch.0 - (!self.batch_sealed) as u32).into())
+    pub fn last_sealed_batch(&self) -> L1BatchNumber {
+        if self.batch_sealed {
+            self.last_batch
+        } else {
+            self.last_batch - 1
+        }
     }
 
     /// Connects to the json RPC endpoint exposed by the state keeper.

@@ -9,7 +9,7 @@ use zksync_dal::{
 };
 use zksync_node_sync::{fetcher::IoCursorExt as _, ActionQueueSender, SyncState};
 use zksync_state_keeper::io::common::IoCursor;
-use zksync_types::{fee_model::BatchFeeInput, L2BlockNumber};
+use zksync_types::{fee_model::BatchFeeInput, L1BatchNumber, L2BlockNumber};
 use zksync_vm_executor::oneshot::{BlockInfo, ResolvedBlockInfo};
 
 use super::PayloadQueue;
@@ -49,6 +49,29 @@ impl ConnectionPool {
                 return Ok(payload);
             }
             ctx.sleep(POLL_INTERVAL).await?;
+        }
+    }
+
+    /// Waits for the `number` L1 batch hash.
+    #[tracing::instrument(skip_all)]
+    pub async fn wait_for_batch(
+        &self,
+        ctx: &ctx::Ctx,
+        number: L1BatchNumber,
+        interval: time::Duration,
+    ) -> ctx::Result<bool> {
+        loop {
+            if self
+                .connection(ctx)
+                .await
+                .wrap("connection()")?
+                .is_batch_stored(number)
+                .await
+                .with_wrap(|| format!("is_batch_stored({number})"))?
+            {
+                return Ok(true);
+            }
+            ctx.sleep(interval).await?;
         }
     }
 }
