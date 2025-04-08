@@ -221,7 +221,9 @@ function describeEvm(providerKind: ProviderKind) {
     });
 
     testNoEvm('Should error on EVM contract deployment', async () => {
-        await expect(counterFactory.deploy(false)).rejects.toThrow('toAddressIsNull');
+        // Vanilla `ethers` provider doesn't parse custom errors correctly.
+        const errorMatcher = providerKind === ProviderKind.ZKSYNC ? 'toAddressIsNull' : undefined;
+        await expect(counterFactory.deploy(false)).rejects.toThrow(errorMatcher);
     });
 }
 
