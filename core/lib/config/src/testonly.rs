@@ -791,6 +791,7 @@ impl Distribution<configs::da_client::DAClientConfig> for EncodeDist {
                 api_node_url: self.sample(rng),
                 app_id: self.sample(rng),
                 finality_state: None,
+                dispatch_timeout_ms: self.sample(rng),
             }),
         })
     }
