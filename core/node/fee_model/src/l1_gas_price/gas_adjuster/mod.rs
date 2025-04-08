@@ -57,6 +57,8 @@ pub struct GasAdjuster {
     pub(super) blob_base_fee_statistics: GasStatistics<U256>,
     // Note, that for L1-based chains the following field contains only zeroes.
     pub(super) l2_pubdata_price_statistics: GasStatistics<U256>,
+    // Note, that for L1-based chains the following field contains only zeroes.
+    pub(super) gas_per_pubdata_price_statistic: GasStatistics<u64>,
 
     pub(super) config: GasAdjusterConfig,
     pubdata_sending_mode: PubdataSendingMode,
@@ -103,10 +105,19 @@ impl GasAdjuster {
             fee_history.iter().map(|fee| fee.l2_pubdata_price),
         );
 
+        let gas_per_pubdata_price_statistic = GasStatistics::new(
+            config.num_samples_for_blob_base_fee_estimate,
+            current_block,
+            fee_history
+                .iter()
+                .map(|base_fee| base_fee.gas_per_pubdata()),
+        );
+
         Ok(Self {
             base_fee_statistics,
             blob_base_fee_statistics,
             l2_pubdata_price_statistics,
+            gas_per_pubdata_price_statistic,
             config,
             pubdata_sending_mode,
             client,
@@ -180,6 +191,9 @@ impl GasAdjuster {
             }
             self.l2_pubdata_price_statistics
                 .add_samples(fee_data.iter().map(|fee| fee.l2_pubdata_price));
+
+            self.gas_per_pubdata_price_statistic
+                .add_samples(fee_data.iter().map(|base_fee| base_fee.gas_per_pubdata()));
         }
         Ok(())
     }
@@ -282,6 +296,18 @@ impl GasAdjuster {
             }
         }
     }
+
+    fn calculate_price_with_formula(&self, time_in_mempool_in_l1_blocks: u32, value: u64) -> u64 {
+        let a = self.config.pricing_formula_parameter_a;
+        let b = self.config.pricing_formula_parameter_b;
+
+        // Currently we use an exponential formula.
+        // The alternative is a linear one:
+        // `let scale_factor = a + b * time_in_mempool_in_l1_blocks as f64;`
+        let scale_factor = a * b.powf(time_in_mempool_in_l1_blocks as f64);
+        let new_fee = value as f64 * scale_factor;
+        new_fee as u64
+    }
 }
 
 impl TxParamsProvider for GasAdjuster {
@@ -292,17 +318,9 @@ impl TxParamsProvider for GasAdjuster {
     // In other words, in order to pay less fees, we are ready to wait longer.
     // But the longer we wait, the more we are ready to pay.
     fn get_base_fee(&self, time_in_mempool_in_l1_blocks: u32) -> u64 {
-        let a = self.config.pricing_formula_parameter_a;
-        let b = self.config.pricing_formula_parameter_b;
-
-        // Currently we use an exponential formula.
-        // The alternative is a linear one:
-        // `let scale_factor = a + b * time_in_mempool_in_l1_blocks as f64;`
-        let scale_factor = a * b.powf(time_in_mempool_in_l1_blocks as f64);
         let median = self.base_fee_statistics.median();
         METRICS.median_base_fee_per_gas.set(median);
-        let new_fee = median as f64 * scale_factor;
-        new_fee as u64
+        self.calculate_price_with_formula(time_in_mempool_in_l1_blocks, median)
     }
 
     fn get_next_block_minimal_base_fee(&self) -> u64 {
@@ -339,12 +357,16 @@ impl TxParamsProvider for GasAdjuster {
         self.get_priority_fee() * 2
     }
 
-    fn get_gateway_tx_base_fee(&self) -> u64 {
-        todo!()
+    fn get_gateway_l2_pubdata_price(&self, time_in_mempool_in_l1_blocks: u32) -> u64 {
+        let median = self.l2_pubdata_price_statistics.median().as_u64();
+        METRICS.median_l2_pubdata_price.set(median);
+        self.calculate_price_with_formula(time_in_mempool_in_l1_blocks, median)
     }
 
-    fn get_gateway_tx_pubdata_price(&self) -> u64 {
-        todo!()
+    fn get_gateway_price_per_pubdata(&self, time_in_mempool_in_l1_blocks: u32) -> u64 {
+        let median = self.gas_per_pubdata_price_statistic.median();
+        METRICS.median_gas_per_pubdata_price.set(median);
+        self.calculate_price_with_formula(time_in_mempool_in_l1_blocks, median)
     }
 }
 
