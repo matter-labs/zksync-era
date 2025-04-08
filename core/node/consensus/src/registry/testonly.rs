@@ -22,10 +22,11 @@ pub(crate) fn make_tx<F: crate::abi::Function>(
     )
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct WeightedValidator {
-    weight: validator::Weight,
-    key: validator::PublicKey,
-    pop: validator::ProofOfPossession,
+    pub(crate) weight: validator::Weight,
+    pub(crate) key: validator::PublicKey,
+    pub(crate) pop: validator::ProofOfPossession,
 }
 
 fn encode_validator_key(k: &validator::PublicKey) -> abi::BLS12_381PublicKey {
@@ -45,19 +46,12 @@ fn encode_validator_pop(pop: &validator::ProofOfPossession) -> abi::BLS12_381Sig
     }
 }
 
-pub(crate) fn gen_registry_validator(rng: &mut impl Rng) -> WeightedValidator {
+pub(crate) fn gen_validator(rng: &mut impl Rng) -> WeightedValidator {
     let k: validator::SecretKey = rng.gen();
     WeightedValidator {
         key: k.public(),
         weight: rng.gen_range(1..100),
         pop: k.sign_pop(),
-    }
-}
-
-pub(crate) fn gen_consensus_validator(rng: &mut impl Rng) -> validator::WeightedValidator {
-    validator::WeightedValidator {
-        key: rng.gen(),
-        weight: rng.gen_range(1..100),
     }
 }
 
