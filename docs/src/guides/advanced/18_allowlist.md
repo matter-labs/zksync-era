@@ -50,7 +50,7 @@ The JSON served at the specified URL file must contain:
 When a transaction is submitted, the `WhitelistedDeployPoolSink` inspects the virtual machine (VM) execution output to
 determine if it includes any contract deployments.
 
-#### Detection Flow:
+#### Detection Flow
 
 1. The VM emits an event for each contract deployment:
 
@@ -99,7 +99,7 @@ To reduce unnecessary network usage, the allowlist fetcher supports HTTP **ETag*
 
   and the in-memory list remains unchanged.
 
-#### Notes:
+#### Notes
 
 - ETag support is optional but recommended.
 - If the server does **not** return an `ETag`, the allowlist will be re-fetched and re-parsed every interval.
