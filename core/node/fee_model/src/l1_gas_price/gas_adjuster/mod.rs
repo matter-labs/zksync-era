@@ -110,7 +110,7 @@ impl GasAdjuster {
             current_block,
             fee_history
                 .iter()
-                .map(|fee| fee.l2_pubdata_price.as_u64().div_ceil(fee.base_fee_per_gas)),
+                .map(|base_fee| base_fee.gas_per_pubdata()),
         );
 
         Ok(Self {
@@ -193,12 +193,7 @@ impl GasAdjuster {
                 .add_samples(fee_data.iter().map(|fee| fee.l2_pubdata_price));
 
             self.gas_per_pubdata_price_statistic
-                .add_samples(fee_data.iter().map(|base_fee| {
-                    base_fee
-                        .l2_pubdata_price
-                        .as_u64()
-                        .div_ceil(base_fee.base_fee_per_gas)
-                }));
+                .add_samples(fee_data.iter().map(|base_fee| base_fee.gas_per_pubdata()));
         }
         Ok(())
     }
