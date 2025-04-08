@@ -9220,6 +9220,7 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
+ "zksync_config",
  "zksync_core_leftovers",
  "zksync_env_config",
  "zksync_object_store",
