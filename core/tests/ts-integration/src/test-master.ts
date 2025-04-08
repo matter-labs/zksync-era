@@ -136,8 +136,11 @@ export class TestMaster {
     }
 
     /** Returns a vanilla `ethers` provider for L2 with additional retries and logging. This can be useful to check Web3 API compatibility. */
-    ethersProvider(): EthersRetryProvider {
-        return new EthersRetryProvider({ url: this.env.l2NodeUrl, timeout: 120_000 }, undefined, this.reporter);
+    ethersProvider(layer: 'L1' | 'L2' = 'L2'): EthersRetryProvider {
+        const url = layer === 'L1' ? this.env.l1NodeUrl : this.env.l2NodeUrl;
+        const provider = new EthersRetryProvider({ url, timeout: 120_000 }, undefined, this.reporter);
+        provider.pollingInterval = 1_000; // ms
+        return provider;
     }
 
     /**

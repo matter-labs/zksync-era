@@ -17,7 +17,15 @@ enum ContractKind {
     SYSTEM = 'system'
 }
 
-function readContract(fileName: string, kind: ContractKind = ContractKind.TEST): ContractData {
+function readContract(name: string, kind: ContractKind = ContractKind.TEST): ContractData {
+    let fileName = name;
+    let contractName = name;
+    const splitPos = name.indexOf(':');
+    if (splitPos >= 0) {
+        fileName = name.substring(0, splitPos);
+        contractName = name.substring(splitPos + 1);
+    }
+
     let basePath;
     switch (kind) {
         case ContractKind.TEST:
@@ -27,7 +35,7 @@ function readContract(fileName: string, kind: ContractKind = ContractKind.TEST):
             basePath = '../../../contracts/system-contracts/zkout';
             break;
     }
-    return JSON.parse(fs.readFileSync(`${basePath}/${fileName}.sol/${fileName}.json`, { encoding: 'utf-8' }));
+    return JSON.parse(fs.readFileSync(`${basePath}/${fileName}.sol/${contractName}.json`, { encoding: 'utf-8' }));
 }
 
 async function getAllowedBytecodeTypes(provider: ethers.Provider): Promise<bigint> {
@@ -44,14 +52,16 @@ async function getAllowedBytecodeTypes(provider: ethers.Provider): Promise<bigin
 // if we know for a fact that the tested chain should support EVM bytecodes (e.g., in CI).
 const expectEvmSupport = Boolean(process.env.RUN_EVM_TEST);
 
-enum L2ProviderKind {
+enum ProviderKind {
     /** JSON-RPC provider from `zksync-ethers` */
     ZKSYNC = 'zksync',
-    /** Vanilla JSON-RPC provider from `ethers` */
-    ETHERS = 'ethers'
+    /** Vanilla JSON-RPC provider from `ethers` on L2 */
+    ETHERS = 'ethers',
+    /** `ethers` provider on L1 */
+    L1_ETHERS = 'l1-ethers'
 }
 
-function describeEvm(l2ProviderKind: L2ProviderKind) {
+function describeEvm(providerKind: ProviderKind) {
     let testMaster: TestMaster;
     let alice: ethers.Wallet;
     let counterFactory: ethers.ContractFactory;
@@ -60,22 +70,30 @@ function describeEvm(l2ProviderKind: L2ProviderKind) {
 
     beforeAll(async () => {
         testMaster = TestMaster.getInstance(__filename);
-        let l2Provider: ethers.Provider;
-        switch (l2ProviderKind) {
-            case L2ProviderKind.ZKSYNC:
-                l2Provider = testMaster.mainAccount().provider;
+        let provider: ethers.Provider;
+        switch (providerKind) {
+            case ProviderKind.ZKSYNC:
+                provider = testMaster.mainAccount().provider;
                 break;
-            case L2ProviderKind.ETHERS:
-                l2Provider = testMaster.ethersProvider();
+            case ProviderKind.ETHERS:
+                provider = testMaster.ethersProvider();
+                break;
+            case ProviderKind.L1_ETHERS:
+                provider = testMaster.ethersProvider('L1');
                 break;
         }
 
-        alice = new ethers.Wallet(testMaster.mainAccount().privateKey, l2Provider);
+        alice = new ethers.Wallet(testMaster.mainAccount().privateKey, provider);
 
-        allowedBytecodeTypes = await getAllowedBytecodeTypes(l2Provider);
-        testMaster.reporter.debug('Allowed bytecode types', allowedBytecodeTypes);
-        if (expectEvmSupport) {
-            expect(allowedBytecodeTypes).toEqual(1n);
+        if (providerKind === ProviderKind.L1_ETHERS) {
+            // Mark EVM bytecodes as enabled on L1.
+            allowedBytecodeTypes = 1n;
+        } else {
+            allowedBytecodeTypes = await getAllowedBytecodeTypes(provider);
+            testMaster.reporter.debug('Allowed bytecode types', allowedBytecodeTypes);
+            if (expectEvmSupport) {
+                expect(allowedBytecodeTypes).toEqual(1n);
+            }
         }
 
         counterContractData = readContract('Counter');
@@ -113,7 +131,7 @@ function describeEvm(l2ProviderKind: L2ProviderKind) {
 
         const newNonce = await alice.getNonce();
         expect(newNonce).toEqual(currentNonce + 1);
-        const code = await alice.provider!!.getCode(counterAddress);
+        const code = (await counter.getDeployedCode())!!;
         expect(code.length).toBeGreaterThan(100);
         const expectedBytecode = extractBytecode(counterContractData.deployedBytecode!!);
         expect(code).toEqual(expectedBytecode);
@@ -174,9 +192,40 @@ function describeEvm(l2ProviderKind: L2ProviderKind) {
         expect(null).fail('Expected deploy tx to be reverted');
     });
 
+    testEvm('Should produce expected CREATE2 addresses', async () => {
+        const { abi, bytecode } = readContract('Counter:CounterFactory');
+        const create2Factory = await (
+            await new ethers.ContractFactory(abi, bytecode, alice).deploy()
+        ).waitForDeployment();
+        const factoryAddress = await create2Factory.getAddress();
+
+        const salt = ethers.getBytes('0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef');
+        await expect(await create2Factory.getFunction('deploy').send(salt)).toBeAccepted();
+
+        const deployArgs = counterFactory.interface.encodeDeploy([false]);
+        const initCode = ethers.concat([counterFactory.bytecode, deployArgs]);
+        const expectedAddress = ethers.getCreate2Address(factoryAddress, salt, ethers.keccak256(initCode));
+        const counterAddress = await create2Factory.getFunction('getAddress').staticCall(salt);
+        expect(counterAddress).toEqual(expectedAddress);
+
+        const txCount = await alice.provider!!.getTransactionCount(factoryAddress);
+        // L2 strips off the deployment part of a nonce, making `getTransactionCount()` always return 0 for contracts.
+        // L1 returns 2 since the nonce is initially set to 1 on deployment, and then incremented on the CREATE2 call.
+        const expectedTxCount = providerKind === ProviderKind.L1_ETHERS ? 2 : 0;
+        expect(txCount).toEqual(expectedTxCount);
+
+        // Check that the created contract can be called.
+        const counter = new ethers.Contract(counterAddress, counterContractData.abi, alice);
+        await expect(await counter.getFunction('increment').send(1n)).toBeAccepted();
+        expect(await counter.getFunction('get').staticCall()).toEqual(1n);
+    });
+
     testNoEvm('Should error on EVM contract deployment', async () => {
         await expect(counterFactory.deploy(false)).rejects.toThrow('toAddressIsNull');
     });
 }
 
-describe.each([L2ProviderKind.ZKSYNC, L2ProviderKind.ETHERS])('EVM contract checks (L2 provider: %s)', describeEvm);
+describe.each([ProviderKind.ZKSYNC, ProviderKind.ETHERS, ProviderKind.L1_ETHERS])(
+    'EVM contract checks (provider: %s)',
+    describeEvm
+);
