@@ -301,7 +301,7 @@ impl<S: EthereumSigner, Net: Network> SigningClient<S, Net> {
         let tx = L2Tx::new(
             Some(contract_addr),
             data,
-            Nonce(nonce.as_u32()),
+            Nonce(nonce),
             Fee {
                 gas_limit: gas,
                 max_fee_per_gas,
