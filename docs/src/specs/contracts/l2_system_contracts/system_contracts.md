@@ -230,7 +230,7 @@ address.
 Whenever a contract needs to access a value of some immutable, they call the
 `ImmutableSimulator.getImmutable(getCodeAddress(), index)`. Note that on ZKsync it is possible to get the current
 execution address you can read more about `getCodeAddress()`
-[here](https://github.com/matter-labs/zksync-era/blob/main/docs/guides/advanced/0_alternative_vm_intro.md#zkevm-specific-opcodes).
+[here](../../guides/advanced/12_alternative_vm_intro.md#zkevm-specific-opcodes).
 
 ### **Return value of the deployment methods**
 
