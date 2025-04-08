@@ -13,7 +13,7 @@ use zksync_types::{
 use zksync_vm_executor::oneshot::{BlockInfo, ResolvedBlockInfo};
 
 use self::vm_metrics::SandboxStage;
-pub(super) use self::{
+pub(crate) use self::{
     error::SandboxExecutionError,
     execute::{SandboxAction, SandboxExecutionOutput, SandboxExecutor},
     validate::ValidationError,
@@ -24,6 +24,8 @@ pub(super) use self::{
 mod error;
 mod execute;
 mod storage;
+#[cfg(test)]
+pub(crate) mod testonly;
 #[cfg(test)]
 mod tests;
 mod validate;

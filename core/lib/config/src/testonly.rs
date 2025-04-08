@@ -249,30 +249,36 @@ impl Distribution<configs::ContractVerifierConfig> for EncodeDist {
     }
 }
 
-impl Distribution<configs::ContractsConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::ContractsConfig {
-        configs::ContractsConfig {
+impl Distribution<configs::AllContractsConfig> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::AllContractsConfig {
+        configs::AllContractsConfig {
             governance_addr: rng.gen(),
             verifier_addr: rng.gen(),
             default_upgrade_addr: rng.gen(),
             diamond_proxy_addr: rng.gen(),
             validator_timelock_addr: rng.gen(),
             l1_erc20_bridge_proxy_addr: self.sample_opt(|| rng.gen()),
-            l2_erc20_bridge_addr: self.sample_opt(|| rng.gen()),
+            l2_erc20_bridge_addr: rng.gen(),
             l1_shared_bridge_proxy_addr: self.sample_opt(|| rng.gen()),
-            l2_shared_bridge_addr: self.sample_opt(|| rng.gen()),
+            l2_shared_bridge_addr: rng.gen(),
             l2_legacy_shared_bridge_addr: self.sample_opt(|| rng.gen()),
             l1_weth_bridge_proxy_addr: self.sample_opt(|| rng.gen()),
             l2_weth_bridge_addr: self.sample_opt(|| rng.gen()),
             l2_testnet_paymaster_addr: self.sample_opt(|| rng.gen()),
             l2_timestamp_asserter_addr: self.sample_opt(|| rng.gen()),
             l1_multicall3_addr: rng.gen(),
-            ecosystem_contracts: self.sample(rng),
-            base_token_addr: self.sample_opt(|| rng.gen()),
+            bridgehub_proxy_addr: rng.gen(),
+            state_transition_proxy_addr: self.sample_opt(|| rng.gen()),
+            transparent_proxy_admin_addr: self.sample_opt(|| rng.gen()),
+            l1_bytecode_supplier_addr: self.sample_opt(|| rng.gen()),
+            l1_wrapped_base_token_store_addr: self.sample_opt(|| rng.gen()),
+            base_token_addr: rng.gen(),
             l1_base_token_asset_id: self.sample_opt(|| rng.gen()),
-            chain_admin_addr: self.sample_opt(|| rng.gen()),
+            chain_admin_addr: rng.gen(),
             l2_da_validator_addr: self.sample_opt(|| rng.gen()),
             no_da_validium_l1_validator_addr: self.sample_opt(|| rng.gen()),
+            l2_multicall3_addr: self.sample_opt(|| rng.gen()),
+            server_notifier_addr: None,
         }
     }
 }
@@ -371,11 +377,7 @@ impl Distribution<configs::database::PostgresConfig> for EncodeDist {
 
 impl Distribution<configs::EthConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::EthConfig {
-        configs::EthConfig {
-            sender: self.sample(rng),
-            gas_adjuster: self.sample(rng),
-            watcher: self.sample(rng),
-        }
+        configs::EthConfig::new(self.sample(rng), self.sample(rng), self.sample(rng))
     }
 }
 
@@ -442,8 +444,6 @@ impl Distribution<configs::eth_sender::GasAdjusterConfig> for EncodeDist {
             num_samples_for_blob_base_fee_estimate: self.sample(rng),
             internal_pubdata_pricing_multiplier: self.sample(rng),
             max_blob_base_fee: self.sample(rng),
-            // TODO(EVM-676): generate it randomly once this value is used
-            settlement_mode: Default::default(),
         }
     }
 }
@@ -473,26 +473,6 @@ impl Distribution<configs::FriProofCompressorConfig> for EncodeDist {
     }
 }
 
-impl Distribution<configs::fri_prover::SetupLoadMode> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::fri_prover::SetupLoadMode {
-        type T = configs::fri_prover::SetupLoadMode;
-        match rng.gen_range(0..2) {
-            0 => T::FromDisk,
-            _ => T::FromMemory,
-        }
-    }
-}
-
-impl Distribution<configs::fri_prover::CloudConnectionMode> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::fri_prover::CloudConnectionMode {
-        type T = configs::fri_prover::CloudConnectionMode;
-        match rng.gen_range(0..1) {
-            0 => T::GCP,
-            _ => T::Local,
-        }
-    }
-}
-
 impl Distribution<configs::FriProverConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::FriProverConfig {
         configs::FriProverConfig {
@@ -500,14 +480,7 @@ impl Distribution<configs::FriProverConfig> for EncodeDist {
             prometheus_port: self.sample(rng),
             max_attempts: self.sample(rng),
             generation_timeout_in_secs: self.sample(rng),
-            setup_load_mode: self.sample(rng),
-            specialized_group_id: self.sample(rng),
-            queue_capacity: self.sample(rng),
-            witness_vector_receiver_port: self.sample(rng),
-            zone_read_url: self.sample(rng),
-            availability_check_interval_in_secs: self.sample(rng),
             prover_object_store: self.sample(rng),
-            cloud_type: self.sample(rng),
         }
     }
 }
@@ -517,7 +490,6 @@ impl Distribution<configs::FriProverGatewayConfig> for EncodeDist {
         configs::FriProverGatewayConfig {
             api_url: self.sample(rng),
             api_poll_duration_secs: self.sample(rng),
-            ws_port: self.sample(rng),
             prometheus_listener_port: self.sample(rng),
             prometheus_pushgateway_url: self.sample(rng),
             prometheus_push_interval_ms: self.sample(rng),
@@ -530,76 +502,6 @@ impl Sample for CircuitIdRoundTuple {
         CircuitIdRoundTuple {
             circuit_id: rng.gen(),
             aggregation_round: rng.gen(),
-        }
-    }
-}
-
-impl Distribution<configs::fri_prover_group::FriProverGroupConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(
-        &self,
-        rng: &mut R,
-    ) -> configs::fri_prover_group::FriProverGroupConfig {
-        configs::fri_prover_group::FriProverGroupConfig {
-            group_0: self
-                .sample_range(rng)
-                .map(|_| Sample::sample(rng))
-                .collect(),
-            group_1: self
-                .sample_range(rng)
-                .map(|_| Sample::sample(rng))
-                .collect(),
-            group_2: self
-                .sample_range(rng)
-                .map(|_| Sample::sample(rng))
-                .collect(),
-            group_3: self
-                .sample_range(rng)
-                .map(|_| Sample::sample(rng))
-                .collect(),
-            group_4: self
-                .sample_range(rng)
-                .map(|_| Sample::sample(rng))
-                .collect(),
-            group_5: self
-                .sample_range(rng)
-                .map(|_| Sample::sample(rng))
-                .collect(),
-            group_6: self
-                .sample_range(rng)
-                .map(|_| Sample::sample(rng))
-                .collect(),
-            group_7: self
-                .sample_range(rng)
-                .map(|_| Sample::sample(rng))
-                .collect(),
-            group_8: self
-                .sample_range(rng)
-                .map(|_| Sample::sample(rng))
-                .collect(),
-            group_9: self
-                .sample_range(rng)
-                .map(|_| Sample::sample(rng))
-                .collect(),
-            group_10: self
-                .sample_range(rng)
-                .map(|_| Sample::sample(rng))
-                .collect(),
-            group_11: self
-                .sample_range(rng)
-                .map(|_| Sample::sample(rng))
-                .collect(),
-            group_12: self
-                .sample_range(rng)
-                .map(|_| Sample::sample(rng))
-                .collect(),
-            group_13: self
-                .sample_range(rng)
-                .map(|_| Sample::sample(rng))
-                .collect(),
-            group_14: self
-                .sample_range(rng)
-                .map(|_| Sample::sample(rng))
-                .collect(),
         }
     }
 }
@@ -617,20 +519,6 @@ impl Distribution<configs::FriWitnessGeneratorConfig> for EncodeDist {
             last_l1_batch_to_process: self.sample(rng),
             prometheus_listener_port: self.sample(rng),
             max_circuits_in_flight: self.sample(rng),
-        }
-    }
-}
-
-impl Distribution<configs::FriWitnessVectorGeneratorConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::FriWitnessVectorGeneratorConfig {
-        configs::FriWitnessVectorGeneratorConfig {
-            max_prover_reservation_duration_in_secs: self.sample(rng),
-            prover_instance_wait_timeout_in_secs: self.sample(rng),
-            prover_instance_poll_time_in_milli_secs: self.sample(rng),
-            prometheus_listener_port: self.sample(rng),
-            prometheus_pushgateway_url: self.sample(rng),
-            prometheus_push_interval_ms: self.sample(rng),
-            specialized_group_id: self.sample(rng),
         }
     }
 }
@@ -678,10 +566,7 @@ impl Distribution<configs::ProofDataHandlerConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::ProofDataHandlerConfig {
         configs::ProofDataHandlerConfig {
             http_port: self.sample(rng),
-            api_url: self.sample(rng),
-            batch_readiness_check_interval_in_secs: self.sample(rng),
             proof_generation_timeout_in_secs: self.sample(rng),
-            retry_connection_interval_in_secs: self.sample(rng),
             tee_config: configs::TeeConfig {
                 tee_support: self.sample(rng),
                 first_tee_processed_batch: L1BatchNumber(rng.gen()),
@@ -753,18 +638,6 @@ impl Distribution<configs::GenesisConfig> for EncodeDist {
                 _ => L1BatchCommitmentMode::Validium,
             },
             custom_genesis_state_path: None,
-        }
-    }
-}
-
-impl Distribution<configs::EcosystemContracts> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::EcosystemContracts {
-        configs::EcosystemContracts {
-            bridgehub_proxy_addr: rng.gen(),
-            state_transition_proxy_addr: rng.gen(),
-            transparent_proxy_admin_addr: rng.gen(),
-            l1_bytecodes_supplier_addr: rng.gen(),
-            l1_wrapped_base_token_store: rng.gen(),
         }
     }
 }
@@ -963,6 +836,7 @@ impl Distribution<configs::da_client::DAClientConfig> for EncodeDist {
                 api_node_url: self.sample(rng),
                 app_id: self.sample(rng),
                 finality_state: None,
+                dispatch_timeout_ms: self.sample(rng),
             }),
         })
     }
@@ -1170,8 +1044,6 @@ impl Distribution<configs::GeneralConfig> for EncodeDist {
             proof_compressor_config: self.sample(rng),
             prover_config: self.sample(rng),
             prover_gateway: self.sample(rng),
-            witness_vector_generator: self.sample(rng),
-            prover_group_config: self.sample(rng),
             witness_generator_config: self.sample(rng),
             prometheus_config: self.sample(rng),
             proof_data_handler_config: self.sample(rng),

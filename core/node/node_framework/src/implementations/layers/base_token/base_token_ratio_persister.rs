@@ -1,14 +1,12 @@
 use zksync_base_token_adjuster::{BaseTokenL1Behaviour, BaseTokenRatioPersister, UpdateOnL1Params};
-use zksync_config::{
-    configs::{base_token_adjuster::BaseTokenAdjusterConfig, wallets::Wallets},
-    ContractsConfig,
-};
+use zksync_config::configs::{base_token_adjuster::BaseTokenAdjusterConfig, wallets::Wallets};
 use zksync_contracts::{chain_admin_contract, getters_facet_contract};
 use zksync_eth_client::clients::PKSigningClient;
 use zksync_types::L1ChainId;
 
 use crate::{
     implementations::resources::{
+        contracts::{L1ChainContractsResource, L1EcosystemContractsResource},
         eth_interface::EthInterfaceResource,
         l1_tx_params::TxParamsResource,
         pools::{MasterPool, PoolResource},
@@ -27,7 +25,6 @@ use crate::{
 #[derive(Debug)]
 pub struct BaseTokenRatioPersisterLayer {
     config: BaseTokenAdjusterConfig,
-    contracts_config: ContractsConfig,
     wallets_config: Wallets,
     l1_chain_id: L1ChainId,
 }
@@ -40,6 +37,8 @@ pub struct Input {
     pub price_api_client: PriceAPIClientResource,
     pub eth_client: EthInterfaceResource,
     pub tx_params: TxParamsResource,
+    pub l1_contracts_resource: L1ChainContractsResource,
+    pub l1_ecosystem_contracts_resource: L1EcosystemContractsResource,
 }
 
 #[derive(Debug, IntoContext)]
@@ -52,13 +51,11 @@ pub struct Output {
 impl BaseTokenRatioPersisterLayer {
     pub fn new(
         config: BaseTokenAdjusterConfig,
-        contracts_config: ContractsConfig,
         wallets_config: Wallets,
         l1_chain_id: L1ChainId,
     ) -> Self {
         Self {
             config,
-            contracts_config,
             wallets_config,
             l1_chain_id,
         }
@@ -78,10 +75,7 @@ impl WiringLayer for BaseTokenRatioPersisterLayer {
         let master_pool = input.master_pool.get().await?;
 
         let price_api_client = input.price_api_client;
-        let base_token_addr = self
-            .contracts_config
-            .base_token_addr
-            .expect("base token address is not set");
+        let base_token_addr = input.l1_ecosystem_contracts_resource.0.base_token_address;
 
         let l1_behaviour = self
             .wallets_config
@@ -90,10 +84,11 @@ impl WiringLayer for BaseTokenRatioPersisterLayer {
                 let tms_private_key = token_multiplier_setter.wallet.private_key();
                 let tms_address = token_multiplier_setter.wallet.address();
                 let EthInterfaceResource(query_client) = input.eth_client;
+                let contracts = input.l1_contracts_resource.0.chain_contracts_config;
 
                 let signing_client = PKSigningClient::new_raw(
                     tms_private_key.clone(),
-                    self.contracts_config.diamond_proxy_addr,
+                    contracts.diamond_proxy_addr,
                     self.config.default_priority_fee_per_gas,
                     #[allow(clippy::useless_conversion)]
                     self.l1_chain_id.into(),
@@ -106,8 +101,8 @@ impl WiringLayer for BaseTokenRatioPersisterLayer {
                         token_multiplier_setter_account_address: tms_address,
                         chain_admin_contract: chain_admin_contract(),
                         getters_facet_contract: getters_facet_contract(),
-                        diamond_proxy_contract_address: self.contracts_config.diamond_proxy_addr,
-                        chain_admin_contract_address: self.contracts_config.chain_admin_addr,
+                        diamond_proxy_contract_address: contracts.diamond_proxy_addr,
+                        chain_admin_contract_address: contracts.chain_admin,
                         config: self.config.clone(),
                     },
                     last_persisted_l1_ratio: None,

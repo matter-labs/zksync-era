@@ -34,15 +34,15 @@ You can proceed to verify the installation and start familiarizing with the CLI 
 zkstack --help
 ```
 
-> NOTE: Whenever you want to update you local installation with your changes, just rerun:
->
-> ```bash
-> zkstackup --local
-> ```
->
-> You might find convenient to add this alias to your shell profile:
->
-> `alias zkstackup='zkstackup --path /path/to/zksync-era'`
+```admonish note
+NOTE: Whenever you want to update you local installation with your changes, just rerun:
+
+`zkstackup --local`
+
+You might find convenient to add this alias to your shell profile:
+
+`alias zkstackup='zkstackup --path /path/to/zksync-era'`
+```
 
 ## Configure Ecosystem
 
@@ -61,7 +61,9 @@ zkstack ecosystem init
 
 These commands will guide you through the configuration options for setting up the ecosystem.
 
-> NOTE: For local development only. You can also use the development defaults by supplying the `--dev` flag.
+```admonish note
+For local development only. You can also use the development defaults by supplying the `--dev` flag.
+```
 
 Initialization may take some time, but key steps (such as downloading and unpacking keys or setting up containers) only
 need to be completed once.
@@ -150,7 +152,9 @@ After initializing the chain with a legacy bridge, you can run the load test aga
 zkstack dev test loadtest
 ```
 
-> WARNING: Never use legacy bridges in non-testing environments.
+```admonish warning
+Never use legacy bridges in non-testing environments.
+```
 
 ## Contracts
 
@@ -195,3 +199,16 @@ You must provide:
   - Your Etherscan API key, either by passing it as an argument or setting `ETHERSCAN_API_KEY`
 
 For more information check [Foundry's documentation](https://book.getfoundry.sh/reference/forge/forge-verify-contract).
+
+## How to generate the `genesis.yaml` file
+
+To generate the [`genesis.yaml`](https://github.com/matter-labs/zksync-era/blob/main//etc/env/file_based/genesis.yaml)
+file checkout to the desired `zksync-era` branch, [build `zkstack`](#installing-the-local-zk-stack-cli) from it,
+[configure ecosystem](#configure-ecosystem) and run the following command:
+
+```shell
+zkstack dev generate-genesis
+```
+
+Which runs the [`genesis_generator`](https://github.com/matter-labs/zksync-era/tree/main/core/bin/genesis_generator)
+package under the hood and generates the genesis file.

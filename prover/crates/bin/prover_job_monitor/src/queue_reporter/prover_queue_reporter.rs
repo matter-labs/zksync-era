@@ -1,22 +1,18 @@
+use std::collections::HashMap;
+
 use async_trait::async_trait;
-use zksync_config::configs::fri_prover_group::FriProverGroupConfig;
 use zksync_prover_dal::{Connection, Prover, ProverDal};
 use zksync_types::{basic_fri_types::CircuitIdRoundTuple, prover_dal::JobCountStatistics};
 
-use crate::{metrics::FRI_PROVER_METRICS, task_wiring::Task};
+use crate::{
+    metrics::{ProverJobsLabels, FRI_PROVER_METRICS},
+    task_wiring::Task,
+};
 
 /// `ProverQueueReporter` is a task that reports prover jobs status.
 /// Note: these values will be used for auto-scaling provers and Witness Vector Generators.
 #[derive(Debug)]
-pub struct ProverQueueReporter {
-    config: FriProverGroupConfig,
-}
-
-impl ProverQueueReporter {
-    pub fn new(config: FriProverGroupConfig) -> Self {
-        Self { config }
-    }
-}
+pub struct ProverQueueReporter;
 
 #[async_trait]
 impl Task for ProverQueueReporter {
@@ -26,6 +22,8 @@ impl Task for ProverQueueReporter {
             .get_prover_jobs_stats()
             .await;
 
+        let mut prover_jobs_metric: HashMap<_, _> =
+            FRI_PROVER_METRICS.prover_jobs.to_entries().collect();
         for (protocol_semantic_version, circuit_prover_stats) in stats {
             for (tuple, stat) in circuit_prover_stats {
                 let CircuitIdRoundTuple {
@@ -36,19 +34,20 @@ impl Task for ProverQueueReporter {
                     queued,
                     in_progress,
                 } = stat;
-                let group_id = self
-                    .config
-                    .get_group_id_for_circuit_id_and_aggregation_round(
-                        circuit_id,
-                        aggregation_round,
-                    )
-                    .unwrap_or(u8::MAX);
+
+                ["queued", "in_progress"].iter().for_each(|t| {
+                    prover_jobs_metric.remove(&ProverJobsLabels {
+                        r#type: t,
+                        circuit_id: circuit_id.to_string(),
+                        aggregation_round: aggregation_round.to_string(),
+                        protocol_version: protocol_semantic_version.to_string(),
+                    });
+                });
 
                 FRI_PROVER_METRICS.report_prover_jobs(
                     "queued",
                     circuit_id,
                     aggregation_round,
-                    group_id,
                     protocol_semantic_version,
                     queued as u64,
                 );
@@ -57,12 +56,16 @@ impl Task for ProverQueueReporter {
                     "in_progress",
                     circuit_id,
                     aggregation_round,
-                    group_id,
                     protocol_semantic_version,
                     in_progress as u64,
                 )
             }
         }
+
+        // Clean up all unset in this round metrics.
+        prover_jobs_metric.iter().for_each(|(k, _)| {
+            FRI_PROVER_METRICS.prover_jobs[k].set(0);
+        });
 
         let lag_by_circuit_type = connection
             .fri_prover_jobs_dal()

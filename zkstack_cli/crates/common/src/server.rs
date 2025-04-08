@@ -53,7 +53,6 @@ impl Server {
         general_path: P,
         secrets_path: P,
         contracts_path: P,
-        gateway_contracts_config_path: Option<P>,
         mut additional_args: Vec<String>,
     ) -> anyhow::Result<()>
     where
@@ -94,27 +93,23 @@ impl Server {
 
         let (command, args) = server_command.split_at_mut(1);
 
-        let mut cmd = shell
-            .cmd(command[0])
-            .args(args)
-            .arg("--genesis-path")
-            .arg(genesis_path)
-            .arg("--config-path")
-            .arg(general_path)
-            .arg("--wallets-path")
-            .arg(wallets_path)
-            .arg("--secrets-path")
-            .arg(secrets_path)
-            .arg("--contracts-config-path")
-            .arg(contracts_path);
-
-        if let Some(gateway_config_param) = gateway_contracts_config_path {
-            cmd = cmd
-                .arg("--gateway-contracts-config-path")
-                .arg(gateway_config_param)
-        };
-
-        let mut cmd = Cmd::new(cmd.args(additional_args).env_remove("RUSTUP_TOOLCHAIN"));
+        let mut cmd = Cmd::new(
+            shell
+                .cmd(command[0])
+                .args(args)
+                .arg("--genesis-path")
+                .arg(genesis_path)
+                .arg("--config-path")
+                .arg(general_path)
+                .arg("--wallets-path")
+                .arg(wallets_path)
+                .arg("--secrets-path")
+                .arg(secrets_path)
+                .arg("--contracts-config-path")
+                .arg(contracts_path)
+                .args(additional_args)
+                .env_remove("RUSTUP_TOOLCHAIN"),
+        );
 
         // If we are running server in normal mode
         // we need to get the output to the console

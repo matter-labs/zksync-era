@@ -231,6 +231,7 @@ impl TxSenderBuilder {
 }
 
 /// Internal static `TxSender` configuration.
+///
 /// This structure is detached from `ZkSyncConfig`, since different node types (main, external, etc)
 /// may require different configuration layouts.
 /// The intention is to only keep the actually used information here.
@@ -259,7 +260,6 @@ impl TxSenderConfig {
         web3_json_config: &Web3JsonRpcConfig,
         fee_account_addr: Address,
         chain_id: L2ChainId,
-        timestamp_asserter_params: Option<TimestampAsserterParams>,
     ) -> Self {
         Self {
             fee_account_addr,
@@ -271,8 +271,16 @@ impl TxSenderConfig {
                 .validation_computational_gas_limit,
             chain_id,
             whitelisted_tokens_for_aa: web3_json_config.whitelisted_tokens_for_aa.clone(),
-            timestamp_asserter_params,
+            timestamp_asserter_params: None,
         }
+    }
+
+    pub fn with_timestamp_asserter_params(
+        mut self,
+        timestamp_asserter_params: TimestampAsserterParams,
+    ) -> Self {
+        self.timestamp_asserter_params = Some(timestamp_asserter_params);
+        self
     }
 }
 

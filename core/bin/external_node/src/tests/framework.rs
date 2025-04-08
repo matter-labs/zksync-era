@@ -6,10 +6,13 @@ use zksync_node_framework::{
     implementations::{
         layers::{
             main_node_client::MainNodeClientLayer, query_eth_client::QueryEthClientLayer,
-            sigint::SigintHandlerLayer,
+            settlement_layer_client::SettlementLayerClientLayer, sigint::SigintHandlerLayer,
         },
         resources::{
-            eth_interface::EthInterfaceResource, healthcheck::AppHealthCheckResource,
+            eth_interface::{
+                EthInterfaceResource, SettlementLayerClient, SettlementLayerClientResource,
+            },
+            healthcheck::AppHealthCheckResource,
             main_node_client::MainNodeClientResource,
         },
     },
@@ -36,8 +39,11 @@ pub(super) fn inject_test_layers(
         .add_layer(AppHealthHijackLayer {
             sender: app_health_sender,
         })
-        .add_layer(MockL1ClientLayer { client: l1_client })
-        .add_layer(MockL2ClientLayer { client: l2_client });
+        .add_layer(MockL1ClientLayer {
+            client: l1_client.clone(),
+        })
+        .add_layer(MockL2ClientLayer { client: l2_client })
+        .add_layer(MockSettlementLayerClientLayer { client: l1_client });
 }
 
 /// A test layer that would stop the node upon request.
@@ -127,13 +133,7 @@ impl WiringLayer for MockL1ClientLayer {
 
     fn layer_name(&self) -> &'static str {
         // We don't care about values, we just want to hijack the layer name.
-        QueryEthClientLayer::new(
-            L1ChainId(1),
-            "https://example.com".parse().unwrap(),
-            None,
-            None,
-        )
-        .layer_name()
+        QueryEthClientLayer::new(L1ChainId(1), "https://example.com".parse().unwrap()).layer_name()
     }
 
     async fn wire(self, _: Self::Input) -> Result<Self::Output, WiringError> {
@@ -163,5 +163,27 @@ impl WiringLayer for MockL2ClientLayer {
 
     async fn wire(self, _: Self::Input) -> Result<Self::Output, WiringError> {
         Ok(MainNodeClientResource(Box::new(self.client)))
+    }
+}
+
+#[derive(Debug)]
+struct MockSettlementLayerClientLayer {
+    client: MockClient<L1>,
+}
+
+#[async_trait::async_trait]
+impl WiringLayer for MockSettlementLayerClientLayer {
+    type Input = ();
+    type Output = SettlementLayerClientResource;
+
+    fn layer_name(&self) -> &'static str {
+        // We don't care about values, we just want to hijack the layer name.
+        SettlementLayerClientLayer::new("https://example.com".parse().unwrap(), None).layer_name()
+    }
+
+    async fn wire(self, _: Self::Input) -> Result<Self::Output, WiringError> {
+        Ok(SettlementLayerClientResource(SettlementLayerClient::L1(
+            Box::new(self.client),
+        )))
     }
 }

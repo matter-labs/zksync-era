@@ -20,6 +20,29 @@ use zksync_types::{
 
 use super::*;
 
+impl ProtoFmt for BlockCertificate {
+    type Proto = proto::BlockCertificate;
+
+    fn read(r: &Self::Proto) -> anyhow::Result<Self> {
+        use proto::block_certificate::T;
+        Ok(match r.t.as_ref().context("missing t")? {
+            T::V1(v1) => Self::V1(ProtoFmt::read(v1).context("v1")?),
+            T::V2(v2) => Self::V2(ProtoFmt::read(v2).context("v2")?),
+        })
+    }
+
+    fn build(&self) -> Self::Proto {
+        use proto::block_certificate::T;
+
+        let t = match self {
+            Self::V1(qc) => T::V1(qc.build()),
+            Self::V2(qc) => T::V2(qc.build()),
+        };
+
+        Self::Proto { t: Some(t) }
+    }
+}
+
 impl ProtoFmt for BlockMetadata {
     type Proto = proto::BlockMetadata;
     fn read(r: &Self::Proto) -> anyhow::Result<Self> {

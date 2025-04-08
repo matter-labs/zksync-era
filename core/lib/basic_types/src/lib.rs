@@ -301,6 +301,7 @@ basic_type!(
 
 basic_type!(
     /// ChainId in the Ethereum network.
+    ///
     /// IMPORTANT: Please, use this method when exactly the L1 chain id is required.
     /// Note, that typically this is not the case and the majority of methods need to work
     /// with *settlement layer* chain id, which is represented by `SLChainId`.
