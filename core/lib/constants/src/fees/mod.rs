@@ -47,5 +47,7 @@ pub const GUARANTEED_PUBDATA_IN_TX: u32 = 100000;
 /// to properly hash it and compare with the corresponding L2->L1 message.
 pub const PUBLISH_BYTECODE_OVERHEAD: u32 = 100;
 
+/// For processing big calldata contracts copy it and do some hashing. These two constants
+/// represents the corresponding SL
 pub const GATEWAY_CALLDATA_PROCESSING_ROLLUP_OVERHEAD: u32 = 200;
 pub const L1_CALLDATA_PROCESSING_ROLLUP_OVERHEAD: u32 = 100;
