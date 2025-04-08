@@ -173,7 +173,6 @@ impl CircuitsTracer {
             ecmul: self.ecmul_cycles as f32 / GEOMETRY_CONFIG.cycles_per_ecmul_circuit as f32,
             ecpairing: self.ecpairing_cycles as f32
                 / GEOMETRY_CONFIG.cycles_per_ecpairing_circuit as f32,
-            ..Default::default()
         }
     }
 }
