@@ -1,5 +1,6 @@
 //! Integration tests for object store serialization of job objects.
 
+use bellman::plonk::better_better_cs::proof::Proof;
 use tokio::fs;
 use zksync_object_store::{Bucket, MockObjectStore, StoredObject};
 use zksync_prover_interface::{
