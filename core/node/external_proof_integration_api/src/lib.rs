@@ -95,6 +95,7 @@ impl Api {
             .proof_generation_data_for_existing_batch(L1BatchNumber(l1_batch_number))
             .await
     }
+    
     async fn verify_proof(
         State(processor): State<Processor>,
         Path(l1_batch_number): Path<u32>,
