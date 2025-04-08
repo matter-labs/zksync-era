@@ -69,7 +69,7 @@ impl SandboxAction {
 }
 
 /// Output of [`SandboxExecutor::execute_in_sandbox()`].
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct SandboxExecutionOutput {
     /// Output of the VM.
     pub result: ExecutionResult,

@@ -146,6 +146,14 @@ pub enum ExecutionResult {
     Halt { reason: Halt },
 }
 
+impl Default for ExecutionResult {
+    fn default() -> Self {
+        Self::Success {
+            output: Default::default(),
+        }
+    }
+}
+
 impl ExecutionResult {
     /// Returns `true` if the execution was failed.
     pub fn is_failed(&self) -> bool {

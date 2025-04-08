@@ -420,7 +420,7 @@ mod tests {
         proxy
             .submit_tx(
                 &tx,
-                TransactionExecutionMetrics::default(),
+                &SandboxExecutionOutput::default(),
                 ValidationTraces::default(),
             )
             .await
@@ -533,7 +533,7 @@ mod tests {
         proxy
             .submit_tx(
                 &tx,
-                TransactionExecutionMetrics::default(),
+                &SandboxExecutionOutput::default(),
                 ValidationTraces::default(),
             )
             .await
@@ -597,7 +597,7 @@ mod tests {
         proxy
             .submit_tx(
                 &tx,
-                TransactionExecutionMetrics::default(),
+                &SandboxExecutionOutput::default(),
                 ValidationTraces::default(),
             )
             .await
@@ -686,7 +686,7 @@ mod tests {
         proxy
             .submit_tx(
                 &replacing_tx,
-                TransactionExecutionMetrics::default(),
+                &SandboxExecutionOutput::default(),
                 ValidationTraces::default(),
             )
             .await
@@ -694,7 +694,7 @@ mod tests {
         proxy
             .submit_tx(
                 &future_tx,
-                TransactionExecutionMetrics::default(),
+                &SandboxExecutionOutput::default(),
                 ValidationTraces::default(),
             )
             .await
