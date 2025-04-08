@@ -6,23 +6,39 @@ use axum::{
 use zksync_basic_types::protocol_version::ProtocolSemanticVersion;
 use zksync_object_store::StoredObject;
 use zksync_prover_interface::{
-    api::ProofGenerationData,
-    outputs::{L1BatchProofForL1, TypedL1BatchProofForL1},
-    Bincode,
+    api::ProofGenerationData, inputs::WitnessInputData, outputs::{L1BatchProofForL1, TypedL1BatchProofForL1}, Bincode
 };
 
 use crate::error::{FileError, ProcessorError};
 
+pub(crate) enum SerializationFormat {
+    CBOR,
+    Bincode,
+}
+
 #[derive(Debug)]
-pub(crate) struct ProofGenerationDataResponse(pub ProofGenerationData);
+pub(crate) struct ProofGenerationDataResponse(pub ProofGenerationData, pub SerializationFormat);
 
 impl IntoResponse for ProofGenerationDataResponse {
     fn into_response(self) -> Response {
         let l1_batch_number = self.0.l1_batch_number;
-        let data = match bincode::serialize(&self.0.witness_input_data) {
-            Ok(data) => data,
-            Err(err) => {
-                return ProcessorError::Serialization(err).into_response();
+
+        let (data, file_ext) = match SerializationFormat {
+            SerializationFormat::CBOR => {
+                match <WitnessInputData as StoredObject>::serialize(&self.0.witness_input_data) {
+                    Ok(data) => (data, "cbor"),
+                    Err(err) => {
+                        return ProcessorError::Serialization(err).into_response();
+                    }
+                }
+            }
+            SerializationFormat::Bincode => {
+                match <WitnessInputData<Bincode> as StoredObject>::serialize(&self.0.witness_input_data) {
+                    Ok(data) => (data, "bin"),
+                    Err(err) => {
+                        return ProcessorError::Serialization(err).into_response();
+                    }
+                }
             }
         };
 
@@ -31,8 +47,9 @@ impl IntoResponse for ProofGenerationDataResponse {
             (
                 header::CONTENT_DISPOSITION,
                 &format!(
-                    "attachment; filename=\"witness_inputs_{}.cbor\"",
+                    "attachment; filename=\"witness_inputs_{}.{}\"",
                     l1_batch_number.0
+                    file_ext
                 ),
             ),
         ];
@@ -64,7 +81,7 @@ impl ExternalProof {
             return Err(ProcessorError::InvalidProof);
         }
 
-        if bincode::serialize(&correct)? != self.raw {
+        if <L1BatchProofForL1 as StoredObject>::serialize(&correct)? != self.raw {
             return Err(ProcessorError::InvalidProof);
         }
 

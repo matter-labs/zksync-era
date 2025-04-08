@@ -64,12 +64,11 @@ impl Processor {
 
     pub(crate) async fn get_proof_generation_data(
         &self,
-    ) -> Result<ProofGenerationDataResponse, ProcessorError> {
+    ) -> Result<ProofGenerationData, ProcessorError> {
         tracing::debug!("Received request for proof generation data");
         let latest_available_batch = self.latest_available_batch().await?;
         self.proof_generation_data_for_existing_batch_internal(latest_available_batch)
             .await
-            .map(ProofGenerationDataResponse)
     }
 
     pub(crate) async fn proof_generation_data_for_existing_batch(
