@@ -7,8 +7,6 @@ use zkevm_test_harness::{
     prover_utils::{verify_base_layer_proof, verify_recursion_layer_proof},
 };
 use zksync_object_store::{serialize_using_bincode, Bucket, StoredObject};
-// use zksync_prover_fri_types::circuit_definitions::zk_evm::bitflags::__private::serde;
-use zksync_prover_fri_types::keys::FriCircuitKey;
 use zksync_prover_fri_types::{
     circuit_definitions::{
         base_layer_proof_config,
@@ -29,6 +27,7 @@ use zksync_prover_fri_types::{
         },
         recursion_layer_proof_config,
     },
+    keys::FriCircuitKey,
     FriProofWrapper,
 };
 use zksync_prover_keystore::GoldilocksGpuProverSetupData;
@@ -39,8 +38,7 @@ type Hasher = GoldilocksPoseidon2Sponge<AbsorptionModeOverwrite>;
 type Extension = GoldilocksExt2;
 type Proof = CryptoProof<Field, Hasher, Extension>;
 
-/// Hydrated circuit.
-// TODO: This enum should be merged with CircuitWrapper.
+/// Wrapper containing the underlying crypto circuit.
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
 #[allow(clippy::large_enum_variant)]
 pub enum CircuitWrapper {
