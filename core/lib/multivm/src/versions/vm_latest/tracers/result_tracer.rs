@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use zk_evm_1_5_0::{
+use zk_evm_1_5_2::{
     tracing::{AfterDecodingData, BeforeExecutionData, VmLocalStateData},
     vm_state::{ErrorFlags, VmLocalState},
     zkevm_opcode_defs::{FatPointer, Opcode, RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER},
@@ -14,7 +14,7 @@ use crate::{
         tracer::{TracerExecutionStopReason, VmExecutionStopReason},
         ExecutionResult, Halt, TxRevertReason, VmExecutionMode, VmRevertReason,
     },
-    tracers::dynamic::vm_1_5_0::DynTracer,
+    tracers::dynamic::vm_1_5_2::DynTracer,
     vm_latest::{
         bootloader::BootloaderState,
         constants::{get_result_success_first_slot, BOOTLOADER_HEAP_PAGE},
@@ -184,7 +184,7 @@ impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for ResultTracer<S> {
     fn after_execution(
         &mut self,
         state: VmLocalStateData<'_>,
-        data: zk_evm_1_5_0::tracing::AfterExecutionData,
+        data: zk_evm_1_5_2::tracing::AfterExecutionData,
         _memory: &SimpleMemory<H>,
         _storage: StoragePtr<S>,
     ) {

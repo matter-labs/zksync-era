@@ -1,5 +1,5 @@
 use circuit_sequencer_api::INITIAL_MONOTONIC_CYCLE_COUNTER;
-use zk_evm_1_5_0::{
+use zk_evm_1_5_2::{
     aux_structures::{MemoryPage, PubdataCost, Timestamp},
     block_properties::BlockProperties,
     vm_state::{CallStackEntry, PrimitiveValue, Version, VmState},
@@ -83,7 +83,7 @@ pub(crate) fn new_vm_state<S: WriteStorage, H: HistoryMode>(
     let storage_oracle: StorageOracle<S, H> = StorageOracle::new(storage.clone());
     let mut memory = SimpleMemory::default();
     let event_sink = InMemoryEventSink::default();
-    let precompiles_processor = PrecompilesProcessorWithHistory::<H>::default();
+    let precompiles_processor = PrecompilesProcessorWithHistory::<H>::new(subversion);
 
     let mut decommittment_processor: DecommitterOracle<false, S, H> =
         DecommitterOracle::new(storage);
