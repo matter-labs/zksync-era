@@ -1,14 +1,17 @@
 extern crate core;
 
-use std::{fs, fs::File, io::BufWriter, path::PathBuf, str::FromStr};
+use std::{fs, fs::File, io::BufWriter, path::PathBuf, str::FromStr, time::Instant};
 
 use clap::Parser;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_core_leftovers::temp_config_store::read_yaml_repr;
-use zksync_dal::{custom_genesis_export_dal::GenesisState, ConnectionPool, Core, CoreDal};
+use zksync_dal::{
+    custom_genesis_export_dal::{FactoryDepRow, GenesisState, StorageLogRow},
+    ConnectionPool, Core, CoreDal,
+};
 use zksync_node_genesis::{make_genesis_batch_params, utils::get_deduped_log_queries};
 use zksync_protobuf_config::encode_yaml_repr;
-use zksync_types::{url::SensitiveUrl, StorageLog};
+use zksync_types::{url::SensitiveUrl, zk_evm_types::LogQuery, StorageLog};
 
 #[derive(Debug, Parser)]
 #[command(name = "Custom genesis export tool", author = "Matter Labs")]
@@ -47,26 +50,83 @@ struct Args {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
-
-    let mut out = BufWriter::new(File::create(&args.output_path)?);
-
-    println!(
-        "Export file: {}",
-        args.output_path.canonicalize()?.display(),
-    );
-
-    println!("Connecting to source database...");
-
+    let output_path = args.output_path;
     let db_url = args.database_url.or_else(|| std::env::var("DATABASE_URL").ok()).expect("Specify the database connection string in either a CLI argument or in the DATABASE_URL environment variable.");
+
+    let mut start = Instant::now();
     // we need only 1 DB connection at most for data export
     let connection_pool_builder =
         ConnectionPool::<Core>::builder(SensitiveUrl::from_str(db_url.as_str())?, 1);
     let connection_pool = connection_pool_builder.build().await?;
 
+    println!("Connected to the database in {:?}.", start.elapsed());
+
+    start = Instant::now();
+    let (storage_logs, factory_deps) =
+        read_storage_logs_and_factory_deps_from_db(connection_pool).await?;
+
+    println!(
+        "Loaded {} storage logs and {} factory deps from the database in {:?}.",
+        storage_logs.len(),
+        factory_deps.len(),
+        start.elapsed(),
+    );
+
+    let storage_logs_for_genesis: Vec<StorageLog> =
+        storage_logs.iter().map(StorageLog::from).collect();
+    start = Instant::now();
+    persist_custom_genesis_file(output_path.clone(), storage_logs, factory_deps).await?;
+
+    println!("Saved genesis state in {:?}.", start.elapsed());
+
+    start = Instant::now();
+    let mut genesis_config = read_yaml_repr::<zksync_protobuf_config::proto::genesis::Genesis>(
+        &args.genesis_config_path,
+    )?;
+
+    let base_system_contract_hashes = BaseSystemContractsHashes {
+        bootloader: genesis_config
+            .bootloader_hash
+            .ok_or(anyhow::anyhow!("No bootloader_hash specified at all"))?,
+        default_aa: genesis_config
+            .default_aa_hash
+            .ok_or(anyhow::anyhow!("No default_aa_hash specified"))?,
+        evm_emulator: genesis_config.evm_emulator_hash,
+    };
+
+    let deduped_log_queries = do_get_deduped_log_queries(storage_logs_for_genesis);
+    let (genesis_batch_params, _) = make_genesis_batch_params(
+        deduped_log_queries,
+        base_system_contract_hashes,
+        genesis_config
+            .protocol_version
+            .ok_or(anyhow::anyhow!("No bootloader_hash specified at all"))?
+            .minor,
+    );
+
+    genesis_config.genesis_root_hash = Some(genesis_batch_params.root_hash);
+    genesis_config.rollup_last_leaf_index = Some(genesis_batch_params.rollup_last_leaf_index);
+    genesis_config.genesis_commitment = Some(genesis_batch_params.commitment);
+    genesis_config.custom_genesis_state_path =
+        output_path.canonicalize()?.to_str().map(String::from);
+
+    let bytes =
+        encode_yaml_repr::<zksync_protobuf_config::proto::genesis::Genesis>(&genesis_config)?;
+    fs::write(&args.genesis_config_path, &bytes)?;
+
+    println!("Calculated custom genesis params in {:?}.", start.elapsed());
+    Ok(())
+}
+
+fn do_get_deduped_log_queries(storage_logs_for_genesis: Vec<StorageLog>) -> Vec<LogQuery> {
+    get_deduped_log_queries(&storage_logs_for_genesis)
+}
+
+async fn read_storage_logs_and_factory_deps_from_db(
+    connection_pool: ConnectionPool<Core>,
+) -> anyhow::Result<(Vec<StorageLogRow>, Vec<FactoryDepRow>)> {
     let mut storage = connection_pool.connection().await?;
     let mut transaction = storage.start_transaction().await?;
-
-    println!("Connected to source database.");
 
     let storage_logs = transaction
         .custom_genesis_export_dal()
@@ -76,18 +136,16 @@ async fn main() -> anyhow::Result<()> {
         .custom_genesis_export_dal()
         .get_factory_deps()
         .await?;
-
     transaction.commit().await?;
+    Ok((storage_logs, factory_deps))
+}
 
-    println!(
-        "Loaded {} storage logs {} factory deps from source database.",
-        storage_logs.len(),
-        factory_deps.len()
-    );
-
-    let storage_logs_for_genesis: Vec<StorageLog> =
-        storage_logs.iter().map(StorageLog::from).collect();
-
+async fn persist_custom_genesis_file(
+    output_path: PathBuf,
+    storage_logs: Vec<StorageLogRow>,
+    factory_deps: Vec<FactoryDepRow>,
+) -> anyhow::Result<()> {
+    let mut out = BufWriter::new(File::create(output_path)?);
     bincode::serialize_into(
         &mut out,
         &GenesisState {
@@ -95,47 +153,5 @@ async fn main() -> anyhow::Result<()> {
             factory_deps,
         },
     )?;
-
-    println!(
-        "Saved genesis state into the file {}.",
-        args.output_path.display()
-    );
-    println!("Calculating new genesis parameters");
-
-    let mut genesis_config = read_yaml_repr::<zksync_protobuf_config::proto::genesis::Genesis>(
-        &args.genesis_config_path,
-    )?;
-
-    let base_system_contract_hashes = BaseSystemContractsHashes {
-        bootloader: genesis_config
-            .bootloader_hash
-            .ok_or(anyhow::anyhow!("No bootloader_hash specified"))?,
-        default_aa: genesis_config
-            .default_aa_hash
-            .ok_or(anyhow::anyhow!("No default_aa_hash specified"))?,
-        evm_emulator: genesis_config.evm_emulator_hash,
-    };
-
-    let (genesis_batch_params, _) = make_genesis_batch_params(
-        get_deduped_log_queries(&storage_logs_for_genesis),
-        base_system_contract_hashes,
-        genesis_config
-            .protocol_version
-            .ok_or(anyhow::anyhow!("No bootloader_hash specified"))?
-            .minor,
-    );
-
-    genesis_config.genesis_root_hash = Some(genesis_batch_params.root_hash);
-    genesis_config.rollup_last_leaf_index = Some(genesis_batch_params.rollup_last_leaf_index);
-    genesis_config.genesis_commitment = Some(genesis_batch_params.commitment);
-    genesis_config.custom_genesis_state_path =
-        args.output_path.canonicalize()?.to_str().map(String::from);
-
-    let bytes =
-        encode_yaml_repr::<zksync_protobuf_config::proto::genesis::Genesis>(&genesis_config)?;
-    fs::write(&args.genesis_config_path, &bytes)?;
-
-    println!("Done.");
-
     Ok(())
 }
