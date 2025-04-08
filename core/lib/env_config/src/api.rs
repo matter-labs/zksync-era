@@ -99,7 +99,7 @@ mod tests {
                 ],
                 api_namespaces: Some(vec!["debug".to_string()]),
                 extended_api_tracing: true,
-                deployment_allowlist: Some(DeploymentAllowlist::new(None, None)),
+                deployment_allowlist: DeploymentAllowlist::default(),
             },
             prometheus: PrometheusConfig {
                 listener_port: 3312,
