@@ -57,6 +57,8 @@ pub struct GasAdjuster {
     pub(super) blob_base_fee_statistics: GasStatistics<U256>,
     // Note, that for L1-based chains the following field contains only zeroes.
     pub(super) l2_pubdata_price_statistics: GasStatistics<U256>,
+    // Note, that for L1-based chains the following field contains only zeroes.
+    pub(super) gas_per_pubdata_price_statistic: GasStatistics<u64>,
 
     pub(super) config: GasAdjusterConfig,
     pubdata_sending_mode: PubdataSendingMode,
@@ -103,10 +105,19 @@ impl GasAdjuster {
             fee_history.iter().map(|fee| fee.l2_pubdata_price),
         );
 
+        let gas_per_pubdata_price_statistic = GasStatistics::new(
+            config.num_samples_for_blob_base_fee_estimate,
+            current_block,
+            fee_history
+                .iter()
+                .map(|fee| fee.l2_pubdata_price.as_u64().div_ceil(fee.base_fee_per_gas)),
+        );
+
         Ok(Self {
             base_fee_statistics,
             blob_base_fee_statistics,
             l2_pubdata_price_statistics,
+            gas_per_pubdata_price_statistic,
             config,
             pubdata_sending_mode,
             client,
@@ -180,6 +191,14 @@ impl GasAdjuster {
             }
             self.l2_pubdata_price_statistics
                 .add_samples(fee_data.iter().map(|fee| fee.l2_pubdata_price));
+
+            self.gas_per_pubdata_price_statistic
+                .add_samples(fee_data.iter().map(|base_fee| {
+                    base_fee
+                        .l2_pubdata_price
+                        .as_u64()
+                        .div_ceil(base_fee.base_fee_per_gas)
+                }));
         }
         Ok(())
     }
@@ -346,6 +365,12 @@ impl TxParamsProvider for GasAdjuster {
     fn get_gateway_l2_pubdata_price(&self, time_in_mempool_in_l1_blocks: u32) -> u64 {
         let median = self.l2_pubdata_price_statistics.median().as_u64();
         METRICS.median_l2_pubdata_price.set(median);
+        self.calculate_price_with_formula(time_in_mempool_in_l1_blocks, median)
+    }
+
+    fn get_gateway_price_per_pubdata(&self, time_in_mempool_in_l1_blocks: u32) -> u64 {
+        let median = self.gas_per_pubdata_price_statistic.median();
+        METRICS.median_gas_per_pubdata_price.set(median);
         self.calculate_price_with_formula(time_in_mempool_in_l1_blocks, median)
     }
 }
