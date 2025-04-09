@@ -38,40 +38,50 @@ pub enum FriWitnessJobStatus {
     Queued,
 }
 
+/// Returns the database table used to store job's data for a specific aggregation round.
+const fn table_for_round(round: AggregationRound) -> &'static str {
+    match round {
+        AggregationRound::BasicCircuits => "witness_inputs_fri",
+        AggregationRound::LeafAggregation => "leaf_aggregation_witness_jobs_fri",
+        AggregationRound::NodeAggregation => "node_aggregation_witness_jobs_fri",
+        AggregationRound::RecursionTip => "recursion_tip_witness_jobs_fri",
+        AggregationRound::Scheduler => "scheduler_witness_jobs_fri",
+    }
+}
+
+/// Returns the name of the column that stores the job id for a specific aggregation round.
+/// In tables where there's a single job per batch (I.E. basic circuits), the batch's number is enough.
+/// In cases where there are multiple jobs, a bespoke id is generated at runtime.
+const fn job_id_column_for_round(round: AggregationRound) -> &'static str {
+    match round {
+        AggregationRound::BasicCircuits
+        | AggregationRound::RecursionTip
+        | AggregationRound::Scheduler => "l1_batch_number",
+        AggregationRound::LeafAggregation | AggregationRound::NodeAggregation => "id",
+    }
+}
+
 impl FriWitnessGeneratorDal<'_, '_> {
     pub async fn get_witness_job_attempts(
         &mut self,
         job_id: u32,
         aggregation_round: AggregationRound,
     ) -> sqlx::Result<Option<u32>> {
-        let table = match aggregation_round {
-            AggregationRound::BasicCircuits => "witness_inputs_fri",
-            AggregationRound::LeafAggregation => "leaf_aggregation_witness_jobs_fri",
-            AggregationRound::NodeAggregation => "node_aggregation_witness_jobs_fri",
-            AggregationRound::RecursionTip => "recursion_tip_witness_jobs_fri",
-            AggregationRound::Scheduler => "scheduler_witness_jobs_fri",
-        };
-
-        let job_id_column = match aggregation_round {
-            AggregationRound::BasicCircuits => "l1_batch_number",
-            AggregationRound::LeafAggregation => "id",
-            AggregationRound::NodeAggregation => "id",
-            AggregationRound::RecursionTip => "l1_batch_number",
-            AggregationRound::Scheduler => "l1_batch_number ",
-        };
-
         let query = format!(
             r#"
             SELECT
                 attempts
             FROM
-                {table}
+                {}
             WHERE
-                {job_id_column} = {job_id}
+                {} = $1
             "#,
+            table_for_round(aggregation_round),
+            job_id_column_for_round(aggregation_round)
         );
 
         let attempts = sqlx::query(&query)
+            .bind(i32::try_from(job_id).expect("job_id must fit a i32"))
             .fetch_optional(self.storage.conn())
             .await?
             .map(|row| row.get::<i16, &str>("attempts") as u32);
@@ -85,36 +95,24 @@ impl FriWitnessGeneratorDal<'_, '_> {
         job_id: u32,
         aggregation_round: AggregationRound,
     ) {
-        let table = match aggregation_round {
-            AggregationRound::BasicCircuits => "witness_inputs_fri",
-            AggregationRound::LeafAggregation => "leaf_aggregation_witness_jobs_fri",
-            AggregationRound::NodeAggregation => "node_aggregation_witness_jobs_fri",
-            AggregationRound::RecursionTip => "recursion_tip_witness_jobs_fri",
-            AggregationRound::Scheduler => "scheduler_witness_jobs_fri",
-        };
-
-        let job_id_column = match aggregation_round {
-            AggregationRound::BasicCircuits => "l1_batch_number",
-            AggregationRound::LeafAggregation => "id",
-            AggregationRound::NodeAggregation => "id",
-            AggregationRound::RecursionTip => "l1_batch_number",
-            AggregationRound::Scheduler => "l1_batch_number ",
-        };
-
         let query = format!(
             r#"
-            UPDATE {table}
+            UPDATE {}
             SET
                 status = 'failed',
-                error = {error},
+                error = $1,
                 updated_at = NOW()
             WHERE
-                {job_id_column} = {job_id}
+                {} = $2
                 AND status != 'successful'
             "#,
+            table_for_round(aggregation_round),
+            job_id_column_for_round(aggregation_round),
         );
 
         sqlx::query(&query)
+            .bind(error)
+            .bind(i32::try_from(job_id).expect("job_id must fit a i32"))
             .execute(self.storage.conn())
             .await
             .unwrap();
@@ -124,7 +122,6 @@ impl FriWitnessGeneratorDal<'_, '_> {
         &mut self,
         aggregation_round: AggregationRound,
     ) -> HashMap<ProtocolSemanticVersion, JobCountStatistics> {
-        let table_name = Self::input_table_name_for(aggregation_round);
         let sql = format!(
             r#"
                 SELECT
@@ -139,7 +136,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                     protocol_version,
                     protocol_version_patch
                 "#,
-            table_name,
+            table_for_round(aggregation_round),
         );
         sqlx::query(&sql)
             .fetch_all(self.storage.conn())
@@ -162,16 +159,6 @@ impl FriWitnessGeneratorDal<'_, '_> {
             .collect()
     }
 
-    fn input_table_name_for(aggregation_round: AggregationRound) -> &'static str {
-        match aggregation_round {
-            AggregationRound::BasicCircuits => "witness_inputs_fri",
-            AggregationRound::LeafAggregation => "leaf_aggregation_witness_jobs_fri",
-            AggregationRound::NodeAggregation => "node_aggregation_witness_jobs_fri",
-            AggregationRound::RecursionTip => "recursion_tip_witness_jobs_fri",
-            AggregationRound::Scheduler => "scheduler_witness_jobs_fri",
-        }
-    }
-
     pub async fn delete_witness_generator_data_for_batch(
         &mut self,
         block_number: L1BatchNumber,
@@ -181,15 +168,15 @@ impl FriWitnessGeneratorDal<'_, '_> {
             format!(
                 r#"
             DELETE FROM
-                {table}
+                {}
             WHERE
-                l1_batch_number = {l1_batch_number}
+                l1_batch_number = $1
             "#,
-                table = Self::input_table_name_for(aggregation_round),
-                l1_batch_number = i64::from(block_number.0),
+                table_for_round(aggregation_round),
             )
             .as_str(),
         )
+        .bind(i64::from(block_number.0))
         .execute(self.storage.conn())
         .await
     }
@@ -226,7 +213,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             DELETE FROM
                 {}
             "#,
-                Self::input_table_name_for(aggregation_round)
+                table_for_round(aggregation_round),
             )
             .as_str(),
         )
@@ -279,8 +266,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         block_number: L1BatchNumber,
         max_attempts: u32,
     ) -> Vec<StuckJobs> {
-        let table_name = Self::input_table_name_for(aggregation_round);
-        let job_id_table_name = Self::job_id_table_name_for(aggregation_round);
+        let job_id_column = job_id_column_for_round(aggregation_round);
         let query = format!(
             r#"
             UPDATE {}
@@ -290,8 +276,8 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 processing_started_at = NOW(),
                 priority = priority + 1
             WHERE
-                l1_batch_number = {}
-                AND attempts >= {}
+                l1_batch_number = $1
+                AND attempts >= $2
                 AND (status = 'in_progress' OR status = 'failed')
             RETURNING
                 {},
@@ -301,18 +287,18 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 error,
                 picked_by
             "#,
-            table_name,
-            i64::from(block_number.0),
-            max_attempts,
-            job_id_table_name
+            table_for_round(aggregation_round),
+            job_id_column,
         );
         sqlx::query(&query)
+            .bind(i64::from(block_number.0))
+            .bind(i32::try_from(max_attempts).expect("job_id must fit a i32"))
             .fetch_all(self.storage.conn())
             .await
             .unwrap()
             .into_iter()
             .map(|row| StuckJobs {
-                id: row.get::<i64, &str>(job_id_table_name) as u64,
+                id: row.get::<i64, &str>(job_id_column) as u64,
                 status: row.get("status"),
                 attempts: row.get::<i16, &str>("attempts") as u64,
                 circuit_id: Some(row.get::<i16, &str>("circuit_id") as u32),
@@ -320,15 +306,6 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 picked_by: row.get("picked_by"),
             })
             .collect()
-    }
-
-    fn job_id_table_name_for(aggregation_round: AggregationRound) -> &'static str {
-        match aggregation_round {
-            AggregationRound::BasicCircuits
-            | AggregationRound::RecursionTip
-            | AggregationRound::Scheduler => "l1_batch_number",
-            AggregationRound::LeafAggregation | AggregationRound::NodeAggregation => "id",
-        }
     }
 
     pub async fn get_proof_generation_times_for_time_frame(

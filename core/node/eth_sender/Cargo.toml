@@ -38,3 +38,5 @@ test-casing.workspace = true
 zksync_node_test_utils.workspace = true
 assert_matches.workspace = true
 test-log.workspace = true
+zksync_web3_decl.workspace = true
+zksync_eth_signer.workspace = true

@@ -23,6 +23,35 @@ use zksync_db_connection::{
 
 use crate::{duration_to_naive_time, pg_interval_from_duration, Prover};
 
+/// Among the zoo of circuits each circuit type has its own peak RAM utilization,
+/// average execution time and proportional share. Here we pay attention to
+/// the most resource/time consuming circuits.
+///
+/// For example:
+/// basic_1 - 1.7GB RAM, 13s execution time, 74.5% share
+/// basic_2 - 3.43GB RAM, 22s execution time, 0.03% share
+/// basic_4 - 3.02GB RAM, 16s execution time, 0.15% share
+/// basic_8 - 3.51GB RAM, 30s execution time, 2.5% share
+/// basic_9 - 3.47GB RAM, 30s execution time, 0.14% share
+/// basic_10 - 1.44GB RAM, 24s execution time, 6.62% share
+/// basic_11 - 2.89GB RAM, 19s execution time, 0.03% share
+/// basic_12 - 2.88GB RAM, 16s execution time, 0.01% share
+/// leaves - 2.24GB RAM, 7s execution time, 3.05% share
+/// nodes - 2.18GB RAM, 12s execution time, 0.19% share
+///
+/// The goal is to provide maximum throughput for the prover (1 completed jobs per 1s)
+/// whilst the total RAM usage is under 60GB. (generic hardware available internally)
+/// We consider the following basic circuits as heavy jobs: [2, 4, 8, 9, 10, 11, 12]
+/// Given the parameters of light/heavy jobs are -l=13, -h=3, we can garantee that:
+/// 1) For the basic circuits all the heavy jobs will be completed before the light jobs.
+/// 2) We provide optimal throughput for the prover.
+/// 3) We keep the total RAM usage under 60GB.
+///
+/// The total RAM usage will be:
+/// 21.8GB (setup) + 1.7GB * 13 + 3.51GB * 3 = 54.43GB - for basic circuits
+/// 21.8GB (setup) + 2.24GB * 16 = 57.64GB - for leaves
+pub const HEAVY_BASIC_CIRCUIT_IDS: [i16; 7] = [2, 4, 8, 9, 10, 11, 12];
+
 #[derive(Debug)]
 pub struct FriProverDal<'a, 'c> {
     pub(crate) storage: &'a mut Connection<'c, Prover>,
@@ -124,9 +153,9 @@ impl FriProverDal<'_, '_> {
     /// - pick the same type of circuit for as long as possible, this maximizes GPU cache reuse
     ///
     /// Most of this function is similar to `get_light_job()`.
-    /// The 2 differ in the type of jobs they will load. Node jobs are heavy in resource utilization.
+    /// The 2 differ in the type of jobs they will load. Some Basic jobs are heavy in resource utilization.
     ///
-    /// NOTE: This function retrieves only node jobs.
+    /// NOTE: This function retrieves only HEAVY_BASIC_CIRCUIT_IDS jobs.
     pub async fn get_heavy_job(
         &mut self,
         protocol_version: ProtocolSemanticVersion,
@@ -152,6 +181,7 @@ impl FriProverDal<'_, '_> {
                         AND protocol_version = $1
                         AND protocol_version_patch = $2
                         AND aggregation_round = $4
+                        AND circuit_id = ANY($5)
                     ORDER BY
                         priority DESC,
                         batch_created_at ASC,
@@ -174,7 +204,8 @@ impl FriProverDal<'_, '_> {
             protocol_version.minor as i32,
             protocol_version.patch.0 as i32,
             picked_by,
-            AggregationRound::NodeAggregation as i64,
+            AggregationRound::BasicCircuits as i64,
+            &HEAVY_BASIC_CIRCUIT_IDS[..],
         )
         .fetch_optional(self.storage.conn())
         .await
@@ -202,9 +233,8 @@ impl FriProverDal<'_, '_> {
     /// - pick the same type of circuit for as long as possible, this maximizes GPU cache reuse
     ///
     /// Most of this function is similar to `get_heavy_job()`.
-    /// The 2 differ in the type of jobs they will load. Node jobs are heavy in resource utilization.
     ///
-    /// NOTE: This function retrieves all jobs but nodes.
+    /// NOTE: This function retrieves all job but HEAVY_BASIC_CIRCUIT_IDS.
     pub async fn get_light_job(
         &mut self,
         protocol_version: ProtocolSemanticVersion,
@@ -229,7 +259,7 @@ impl FriProverDal<'_, '_> {
                         status = 'queued'
                         AND protocol_version = $1
                         AND protocol_version_patch = $2
-                        AND aggregation_round != $4
+                        AND NOT (aggregation_round = $4 AND circuit_id = ANY($5))
                     ORDER BY
                         priority DESC,
                         batch_created_at ASC,
@@ -253,7 +283,8 @@ impl FriProverDal<'_, '_> {
             protocol_version.minor as i32,
             protocol_version.patch.0 as i32,
             picked_by,
-            AggregationRound::NodeAggregation as i64
+            AggregationRound::BasicCircuits as i64,
+            &HEAVY_BASIC_CIRCUIT_IDS[..],
         )
         .fetch_optional(self.storage.conn())
         .await

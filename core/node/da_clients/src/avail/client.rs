@@ -1,4 +1,4 @@
-use std::{fmt::Debug, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 
 use anyhow::anyhow;
 use async_trait::async_trait;
@@ -9,7 +9,7 @@ use subxt_signer::ExposeSecret;
 use url::Url;
 use zksync_config::configs::da_client::avail::{AvailClientConfig, AvailConfig, AvailSecrets};
 use zksync_da_client::{
-    types::{ClientType, DAError, DispatchResponse, InclusionData},
+    types::{ClientType, DAError, DispatchResponse, FinalityResponse, InclusionData},
     DataAvailabilityClient,
 };
 use zksync_types::{
@@ -151,6 +151,7 @@ impl AvailClient {
                     conf.app_id,
                     seed_phrase.0.expose_secret(),
                     conf.finality_state()?,
+                    conf.dispatch_timeout(),
                 )
                 .await?;
 
@@ -198,15 +199,39 @@ impl DataAvailabilityClient for AvailClient {
                 Ok(DispatchResponse::from(format!("{}:{}", block_hash, tx_id)))
             }
             AvailClientMode::GasRelay(client) => {
-                let (block_hash, extrinsic_index) = client
+                let submission_id = client
                     .post_data(data)
                     .await
                     .map_err(to_retriable_da_error)?;
                 Ok(DispatchResponse {
-                    blob_id: format!("{:x}:{}", block_hash, extrinsic_index),
+                    request_id: submission_id,
                 })
             }
         }
+    }
+
+    async fn ensure_finality(
+        &self,
+        dispatch_request_id: String,
+    ) -> Result<Option<FinalityResponse>, DAError> {
+        Ok(match self.sdk_client.as_ref() {
+            AvailClientMode::Default(_) => Some(FinalityResponse {
+                blob_id: dispatch_request_id,
+            }),
+            AvailClientMode::GasRelay(client) => {
+                let Some((block_hash, extrinsic_index)) = client
+                    .check_finality(dispatch_request_id)
+                    .await
+                    .map_err(to_retriable_da_error)?
+                else {
+                    return Ok(None);
+                };
+
+                Some(FinalityResponse {
+                    blob_id: format!("{:x}:{}", block_hash, extrinsic_index),
+                })
+            }
+        })
     }
 
     async fn get_inclusion_data(
