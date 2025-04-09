@@ -140,6 +140,7 @@ impl FriNodeWitnessGeneratorDal<'_, '_> {
         .unwrap();
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn insert_node_aggregation_jobs(
         &mut self,
         block_number: L1BatchNumber,

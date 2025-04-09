@@ -101,7 +101,7 @@ impl FriProverDal<'_, '_> {
                     created_at,
                     updated_at,
                     protocol_version_patch,
-                    batch_created_at,
+                    batch_created_at
                 )
                 "#,
             );
@@ -961,7 +961,7 @@ mod tests {
             .fri_prover_jobs_dal()
             .insert_prover_jobs(
                 L1BatchNumber(1),
-                mock_circuit_ids_and_urls(10000),
+                mock_circuit_ids_and_urls(5000),
                 AggregationRound::Scheduler,
                 1,
                 ProtocolSemanticVersion::default(),
