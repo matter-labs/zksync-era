@@ -11,7 +11,7 @@ use zksync_types::{
     L1BatchNumber, L2BlockNumber, ProtocolVersionId,
 };
 
-use super::ConnectionPool;
+use super::{Connection, ConnectionPool};
 
 pub(crate) fn mock_genesis_params(protocol_version: ProtocolVersionId) -> GenesisParams {
     let mut cfg = mock_genesis_config();
@@ -201,5 +201,53 @@ impl ConnectionPool {
         .context("insert_hard_pruning_log()")?;
 
         Ok(())
+    }
+
+    /// Waits for the `number` L1 batch to be stored.
+    #[tracing::instrument(skip_all)]
+    pub async fn wait_for_batch(
+        &self,
+        ctx: &ctx::Ctx,
+        number: L1BatchNumber,
+        interval: time::Duration,
+    ) -> ctx::Result<bool> {
+        loop {
+            if self
+                .connection(ctx)
+                .await
+                .wrap("connection()")?
+                .is_batch_stored(ctx, number)
+                .await
+                .with_wrap(|| format!("is_batch_stored({number})"))?
+            {
+                return Ok(true);
+            }
+            ctx.sleep(interval).await?;
+        }
+    }
+}
+
+impl<'a> Connection<'a> {
+    /// Wrapper for `blocks_dal().get_l2_block_range_of_l1_batch()`.
+    pub async fn get_l2_block_range_of_l1_batch(
+        &mut self,
+        ctx: &ctx::Ctx,
+        number: L1BatchNumber,
+    ) -> ctx::Result<Option<(L2BlockNumber, L2BlockNumber)>> {
+        Ok(ctx
+            .wait(self.0.blocks_dal().get_l2_block_range_of_l1_batch(number))
+            .await?
+            .context("get_l2_block_range_of_l1_batch()")?)
+    }
+
+    /// Wrapper for `consensus_dal().is_batch_stored()`.
+    pub async fn is_batch_stored(
+        &mut self,
+        ctx: &ctx::Ctx,
+        number: L1BatchNumber,
+    ) -> ctx::Result<bool> {
+        Ok(ctx
+            .wait(self.0.consensus_dal().is_batch_stored(number))
+            .await??)
     }
 }

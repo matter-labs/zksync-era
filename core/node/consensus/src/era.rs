@@ -10,9 +10,8 @@ use zksync_dal::{consensus_dal, Core};
 use zksync_node_sync::{sync_action::ActionQueueSender, SyncState};
 use zksync_web3_decl::client::{DynClient, L2};
 
-use crate::registry;
-
 use super::{en, mn, storage::ConnectionPool};
+use crate::registry;
 
 /// Runs the consensus task in the main node mode.
 pub async fn run_main_node(

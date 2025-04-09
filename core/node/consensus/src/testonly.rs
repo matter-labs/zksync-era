@@ -108,8 +108,7 @@ pub(super) fn new_configs(rng: &mut impl Rng, setup: &Setup, seed_peers: usize) 
     };
     net_cfgs
         .into_iter()
-        .enumerate()
-        .map(|(i, net)| ConfigSet {
+        .map(|net| ConfigSet {
             config: make_config(&net, Some(genesis_spec.clone())),
             secrets: make_secrets(&net),
             net,
