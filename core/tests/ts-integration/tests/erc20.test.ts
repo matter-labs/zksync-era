@@ -207,8 +207,7 @@ describe('L1 ERC20 contract checks', () => {
         );
 
         // Imports proof until GW's message root, needed for proof based interop.
-        const GATEWAY_CHAIN_ID = 506;
-        const params = await alice.getFinalizeWithdrawalParams(withdrawalHash, undefined, undefined, GATEWAY_CHAIN_ID);
+        const params = await alice.getFinalizeWithdrawalParams(withdrawalHash, undefined, undefined, 'gw_message_root');
 
         // Needed else the L2's view of GW's MessageRoot won't be updated
         await delay(10000);
