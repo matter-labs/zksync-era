@@ -217,6 +217,12 @@ jobs:
         run: |
           ci_localnet_up
 
+      - name: Set safe git directories
+        run: |
+          ci_run git config --global --add safe.directory /usr/src/zksync
+          ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
+          ci_run git config --global --add safe.directory /usr/src/zksync/contracts
+
       - name: Install zkstack
         run: |
           ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup || true
@@ -251,12 +257,18 @@ jobs:
           echo "FEES_LOGS_DIR=$FEES_LOGS_DIR" >> $GITHUB_ENV
           echo "REVERT_LOGS_DIR=$REVERT_LOGS_DIR" >> $GITHUB_ENV
 
+      - name: Build tested binaries
+        run: |
+          ci_run zkstack server build
+          ci_run zkstack external-node build
+          ci_run zkstack contract-verifier build
+
+      - name: Build test dependencies
+        run: |
+          ci_run zkstack dev test build
+
       - name: Initialize ecosystem
         run: |
-          ci_run git config --global --add safe.directory /usr/src/zksync
-          ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
-          ci_run git config --global --add safe.directory /usr/src/zksync/contracts
-
           ci_run zkstack ecosystem init --deploy-paymaster --deploy-erc20 \
           --deploy-ecosystem --l1-rpc-url=http://localhost:8545 \
           --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
@@ -415,10 +427,6 @@ jobs:
           ci_run zkstack server --ignore-prerequisites --chain gateway &> ${{ env.SERVER_LOGS_DIR }}/gateway.log &
           ci_run zkstack server wait --ignore-prerequisites --verbose --chain gateway
 
-      - name: Build test dependencies
-        run: |
-          ci_run zkstack dev test build
-
       - name: Migrate chains to gateway
         if: matrix.use_gateway_chain == 'WITH_GATEWAY'
         run: |
@@ -439,14 +447,6 @@ jobs:
           ci_run pkill -9 zksync_server
           ci_run zkstack server --ignore-prerequisites --chain gateway &> ${{ env.SERVER_LOGS_DIR }}/gateway.log &
           ci_run zkstack server wait --ignore-prerequisites --verbose --chain gateway
-
-
-
-      - name: Build tested binaries
-        run: |
-          ci_run zkstack server build
-          ci_run zkstack external-node build
-          ci_run zkstack contract-verifier build
 
       - name: Initialize Contract verifier
         run: |
