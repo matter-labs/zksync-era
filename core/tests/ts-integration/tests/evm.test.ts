@@ -76,7 +76,7 @@ function describeEvm(providerKind: ProviderKind) {
                 provider = testMaster.mainAccount().provider;
                 break;
             case ProviderKind.ETHERS:
-                provider = testMaster.ethersProvider();
+                provider = testMaster.ethersProvider('L2');
                 break;
             case ProviderKind.L1_ETHERS:
                 provider = testMaster.ethersProvider('L1');

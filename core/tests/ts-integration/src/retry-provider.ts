@@ -2,7 +2,7 @@ import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { Reporter } from './reporter';
 import { AugmentedTransactionResponse } from './transaction-response';
-import { L1Provider, RetryableL1Wallet } from './l1-provider';
+import { JsonRpcProvider, Network, TransactionRequest, TransactionResponse, TransactionResponseParams } from 'ethers';
 
 // Error markers observed on stage so far.
 const IGNORED_ERRORS = [
@@ -20,8 +20,10 @@ function isIgnored(err: any): boolean {
     return IGNORED_ERRORS.some((sampleErr) => errString.indexOf(sampleErr) !== -1);
 }
 
-function createFetchRequest(
-    url: string | { url: string; timeout: number },
+export type UrlLike = string | { url: string; timeout: number };
+
+export function createFetchRequest(
+    url: UrlLike,
     getPollingInterval: () => number,
     reporter?: Reporter
 ): ethers.FetchRequest {
@@ -58,154 +60,70 @@ function createFetchRequest(
     return fetchRequest;
 }
 
-async function _send(
-    sender: (method: string, params: any) => Promise<any>,
-    pollingInterval: number,
-    reporter: Reporter,
-    method: string,
-    params: any
-): Promise<any> {
-    for (let retry = 0; retry < 50; retry++) {
-        try {
-            const result = await sender(method, params);
-            // If we obtained result not from the first attempt, print a warning.
-            if (retry != 0) {
-                reporter.debug(`Request for method ${method} took ${retry} retries to succeed`);
-            }
-            return result;
-        } catch (err: any) {
-            if (isIgnored(err)) {
-                // Error is related to timeouts. Sleep a bit and try again.
-                await zksync.utils.sleep(pollingInterval);
-                continue;
-            }
-            // Re-throw any non-timeout-related error.
-            throw err;
-        }
-    }
-}
-
-function _handleTransactionResponse(
-    knownTransactionHashes: Set<string>,
-    reporter: Reporter,
-    base: ethers.TransactionResponse
-) {
-    if (!knownTransactionHashes.has(base.hash)) {
-        reporter.debug(
-            `Created L2 transaction ${base.hash} (from=${base.from}, to=${base.to}, ` +
-                `nonce=${base.nonce}, value=${base.value}, data=${debugData(base.data)})`
-        );
-    }
-    knownTransactionHashes.add(base.hash);
-}
-
-function _handleTransactionReceipt(knownTransactionHashes: Set<string>, reporter: Reporter, receipt: any) {
-    if (!knownTransactionHashes.has(receipt.transactionHash)) {
-        knownTransactionHashes.add(receipt.transactionHash);
-        reporter.debug(
-            `Obtained receipt for L2 transaction ${receipt.transactionHash}: blockNumber=${receipt.blockNumber}, status=${receipt.status}`
-        );
-    }
-}
-
 /**
  * RetryProvider retries every RPC request if it detects a timeout-related issue on the server side.
  */
 export class RetryProvider extends zksync.Provider {
-    readonly reporter: Reporter;
+    private readonly reporter: Reporter;
     private readonly knownTransactionHashes: Set<string> = new Set();
 
-    constructor(url: string | { url: string; timeout: number }, network?: ethers.Networkish, reporter?: Reporter) {
+    constructor(url: UrlLike, network?: ethers.Networkish, reporter?: Reporter) {
         const fetchRequest = createFetchRequest(url, () => this.pollingInterval, reporter);
         super(fetchRequest, network);
         this.reporter = reporter ?? new Reporter();
     }
 
     override async send(method: string, params: any): Promise<any> {
-        return _send(
-            (method, params) => super.send(method, params),
-            this.pollingInterval,
-            this.reporter,
-            method,
-            params
-        );
+        for (let retry = 0; retry < 50; retry++) {
+            try {
+                const result = await super.send(method, params);
+                // If we obtained result not from the first attempt, print a warning.
+                if (retry != 0) {
+                    this.reporter?.debug(`Request for method ${method} took ${retry} retries to succeed`);
+                }
+                return result;
+            } catch (err: any) {
+                if (isIgnored(err)) {
+                    // Error is related to timeouts. Sleep a bit and try again.
+                    await zksync.utils.sleep(this.pollingInterval);
+                    continue;
+                }
+                // Re-throw any non-timeout-related error.
+                throw err;
+            }
+        }
     }
 
     override _wrapTransactionResponse(txResponse: any): L2TransactionResponse {
         const base = super._wrapTransactionResponse(txResponse);
-        _handleTransactionResponse(this.knownTransactionHashes, this.reporter, base);
+        const isNew = !this.knownTransactionHashes.has(base.hash);
+        if (isNew) {
+            this.reporter.debug(
+                `Created L2 transaction ${base.hash} (from=${base.from}, to=${base.to}, ` +
+                    `nonce=${base.nonce}, value=${base.value}, data=${debugData(base.data)})`
+            );
+        }
+
+        this.knownTransactionHashes.add(base.hash);
         return new L2TransactionResponse(base, this.reporter);
     }
 
     override _wrapTransactionReceipt(receipt: any): zksync.types.TransactionReceipt {
-        _handleTransactionReceipt(this.knownTransactionHashes, this.reporter, receipt);
-        return super._wrapTransactionReceipt(receipt);
+        const wrapped = super._wrapTransactionReceipt(receipt);
+        if (!this.knownTransactionHashes.has(receipt.transactionHash)) {
+            this.knownTransactionHashes.add(receipt.transactionHash);
+            this.reporter.debug(
+                `Obtained receipt for L2 transaction ${receipt.transactionHash}: blockNumber=${receipt.blockNumber}, status=${receipt.status}`
+            );
+        }
+        return wrapped;
     }
 }
 
-export class EthersRetryProvider extends ethers.JsonRpcProvider {
-    readonly reporter: Reporter;
-    private readonly knownTransactionHashes: Set<string> = new Set();
-
-    constructor(url: string | { url: string; timeout: number }, network?: ethers.Networkish, reporter?: Reporter) {
-        const fetchRequest = createFetchRequest(url, () => this.pollingInterval, reporter);
-        super(fetchRequest, network);
-        this.reporter = reporter ?? new Reporter();
-    }
-
-    override async send(method: string, params: any): Promise<any> {
-        return _send(
-            (method, params) => super.send(method, params),
-            this.pollingInterval,
-            this.reporter,
-            method,
-            params
-        );
-    }
-
-    override _wrapTransactionResponse(txResponse: any, network: ethers.Network) {
-        const base = super._wrapTransactionResponse(txResponse, network);
-        _handleTransactionResponse(this.knownTransactionHashes, this.reporter, base);
-        return new EthersTransactionResponse(base, this.reporter);
-    }
-
-    override _wrapTransactionReceipt(receipt: any, network: ethers.Network): ethers.TransactionReceipt {
-        _handleTransactionReceipt(this.knownTransactionHashes, this.reporter, receipt);
-        return super._wrapTransactionReceipt(receipt, network);
-    }
-}
-
-interface ReportingTransactionResponse extends ethers.TransactionResponse {
-    readonly reporter: Reporter;
-    isWaitingReported: boolean;
-    isReceiptReported: boolean;
-}
-
-async function _doWait<T extends ethers.TransactionReceipt>(
-    base: ReportingTransactionResponse,
-    receiptPromise: Promise<T | null>
-): Promise<T | null> {
-    if (!base.isWaitingReported) {
-        base.reporter.debug(`Started waiting for L2 transaction ${base.hash} (from=${base.from}, nonce=${base.nonce})`);
-        base.isWaitingReported = true;
-    }
-    const receipt = await receiptPromise;
-    if (receipt !== null && !base.isReceiptReported) {
-        base.reporter.debug(
-            `Obtained receipt for L2 transaction ${base.hash}: blockNumber=${receipt.blockNumber}, status=${receipt.status}`
-        );
-        base.isReceiptReported = true;
-    }
-    return receipt;
-}
-
-class L2TransactionResponse
-    extends zksync.types.TransactionResponse
-    implements AugmentedTransactionResponse, ReportingTransactionResponse
-{
+class L2TransactionResponse extends zksync.types.TransactionResponse implements AugmentedTransactionResponse {
     public readonly kind = 'L2';
-    public isWaitingReported: boolean = false;
-    public isReceiptReported: boolean = false;
+    private isWaitingReported: boolean = false;
+    private isReceiptReported: boolean = false;
 
     constructor(
         base: zksync.types.TransactionResponse,
@@ -214,9 +132,21 @@ class L2TransactionResponse
         super(base, base.provider);
     }
 
-    override async wait(confirmations?: number): Promise<zksync.types.TransactionReceipt> {
-        // The `zksync-ethers` library has incorrect typing for the return value; it can be `null`
-        return (await _doWait(this, super.wait(confirmations))) as any;
+    override async wait(confirmations?: number) {
+        if (!this.isWaitingReported) {
+            this.reporter.debug(
+                `Started waiting for L2 transaction ${this.hash} (from=${this.from}, nonce=${this.nonce})`
+            );
+            this.isWaitingReported = true;
+        }
+        const receipt = await super.wait(confirmations);
+        if (receipt !== null && !this.isReceiptReported) {
+            this.reporter.debug(
+                `Obtained receipt for L2 transaction ${this.hash}: blockNumber=${receipt.blockNumber}, status=${receipt.status}`
+            );
+            this.isReceiptReported = true;
+        }
+        return receipt;
     }
 
     override replaceableTransaction(startBlock: number): L2TransactionResponse {
@@ -225,35 +155,95 @@ class L2TransactionResponse
     }
 }
 
-class EthersTransactionResponse extends ethers.TransactionResponse implements ReportingTransactionResponse {
-    public isWaitingReported: boolean = false;
-    public isReceiptReported: boolean = false;
+/** Retriable provider based on `ethers.JsonRpcProvider` */
+export class EthersRetryProvider extends JsonRpcProvider {
+    readonly reporter: Reporter;
+
+    constructor(
+        url: UrlLike,
+        private readonly layer: 'L1' | 'L2',
+        reporter?: Reporter
+    ) {
+        const fetchRequest = createFetchRequest(url, () => this.pollingInterval, reporter);
+        super(fetchRequest, undefined, { batchMaxCount: 1 });
+        this.reporter = reporter ?? new Reporter();
+    }
+
+    override _wrapTransactionResponse(tx: TransactionResponseParams, network: Network): EthersTransactionResponse {
+        const base = super._wrapTransactionResponse(tx, network);
+        return new EthersTransactionResponse(base, this.layer, this.reporter);
+    }
+}
+
+class EthersTransactionResponse extends ethers.TransactionResponse implements AugmentedTransactionResponse {
+    private isWaitingReported: boolean = false;
+    private isReceiptReported: boolean = false;
 
     constructor(
         base: ethers.TransactionResponse,
+        public readonly kind: 'L1' | 'L2',
         public readonly reporter: Reporter
     ) {
         super(base, base.provider);
     }
 
-    override async wait(confirmations?: number): Promise<ethers.TransactionReceipt | null> {
-        return _doWait(this, super.wait(confirmations));
+    override async wait(confirmations?: number, timeout?: number) {
+        if (!this.isWaitingReported) {
+            this.reporter.debug(
+                `Started waiting for ${this.kind} transaction ${this.hash} (from=${this.from}, nonce=${this.nonce})`
+            );
+            this.isWaitingReported = true;
+        }
+
+        const receipt = await super.wait(confirmations, timeout);
+        if (receipt !== null && !this.isReceiptReported) {
+            this.reporter.debug(
+                `Obtained receipt for ${this.kind} transaction ${this.hash}: blockNumber=${receipt.blockNumber}, status=${receipt.status}`
+            );
+            this.isReceiptReported = true;
+        }
+        return receipt;
     }
 
     override replaceableTransaction(startBlock: number): EthersTransactionResponse {
         const base = super.replaceableTransaction(startBlock);
-        return new EthersTransactionResponse(base, this.reporter);
+        return new EthersTransactionResponse(base, this.kind, this.reporter);
+    }
+}
+
+/** Wallet that retries `sendTransaction` requests on "nonce expired" errors, provided that it's possible (i.e., no nonce is set in the request). */
+export class RetryableL1Wallet extends ethers.Wallet {
+    constructor(key: string, provider: EthersRetryProvider) {
+        super(key, provider);
+    }
+
+    override async sendTransaction(tx: TransactionRequest): Promise<TransactionResponse> {
+        const reporter = (<EthersRetryProvider>this.provider!).reporter;
+        while (true) {
+            try {
+                return await super.sendTransaction(tx);
+            } catch (err: any) {
+                // For unknown reason, `reth` sometimes returns outdated transaction count under load, leading to transactions getting rejected.
+                // This is a workaround for this issue.
+                reporter.debug('L1 transaction request failed', tx, err);
+                if (err.code === 'NONCE_EXPIRED' && (tx.nonce === null || tx.nonce === undefined)) {
+                    reporter.debug('Retrying L1 transaction request', tx);
+                } else {
+                    throw err;
+                }
+            }
+        }
     }
 }
 
 /** Wallet that retries expired nonce errors for L1 transactions. */
 export class RetryableWallet extends zksync.Wallet {
-    constructor(privateKey: string, l2Provider: RetryProvider, l1Provider: L1Provider) {
+    constructor(privateKey: string, l2Provider: RetryProvider, l1Provider: EthersRetryProvider) {
         super(privateKey, l2Provider, l1Provider);
     }
 
     override ethWallet(): RetryableL1Wallet {
-        return new RetryableL1Wallet(this.privateKey, <L1Provider>this._providerL1());
+        return new RetryableL1Wallet(this.privateKey, <EthersRetryProvider>this._providerL1());
     }
 }
 
