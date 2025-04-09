@@ -558,7 +558,7 @@ jobs:
 
       - name: Fee projection tests
         run: |
-          ci_run killall --wait --signal INT zksync_server || true
+          ci_run ./bin/stop_nodes.sh
 
           # Only start & wait for the gateway server if use_gateway_chain == WITH_GATEWAY
           if [ "${{ matrix.use_gateway_chain }}" == "WITH_GATEWAY" ]; then
@@ -580,8 +580,8 @@ jobs:
 
       - name: Run revert tests
         run: |
-          ci_run killall --wait --signal INT zksync_server || true
-          ci_run killall --wait --signal INT zksync_external_node || true
+          ci_run ./bin/stop_nodes.sh
+          ci_run ./bin/stop_nodes.sh --en
 
           # Only start & wait for the gateway server if use_gateway_chain == WITH_GATEWAY
           if [ "${{ matrix.use_gateway_chain }}" == "WITH_GATEWAY" ]; then
@@ -597,7 +597,7 @@ jobs:
       # TODO make upgrade tests safe to run multiple times
       - name: Run upgrade test
         run: |
-          ci_run killall --wait --signal INT zksync_server || true
+          ci_run ./bin/stop_nodes.sh
 
           # Only start & wait for the gateway server if use_gateway_chain == WITH_GATEWAY
           if [ "${{ matrix.use_gateway_chain }}" == "WITH_GATEWAY" ]; then
