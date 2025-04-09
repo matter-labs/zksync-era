@@ -96,27 +96,45 @@ describe('Interop checks', () => {
         );
 
         // Initialize Contracts on Interop1
-        interop1InteropCenter = new zksync.Contract(L2_INTEROP_CENTER_ADDRESS, ArtifactInteropCenter.abi, interop1Wallet);
-        interop2InteropHandler = new zksync.Contract(L2_INTEROP_HANDLER_ADDRESS, ArtifactInteropHandler.abi, interop2Provider);
-        interop1NativeTokenVault = new zksync.Contract(L2_NATIVE_TOKEN_VAULT_ADDRESS, ArtifactNativeTokenVault.abi, interop1Wallet);
+        interop1InteropCenter = new zksync.Contract(
+            L2_INTEROP_CENTER_ADDRESS,
+            ArtifactInteropCenter.abi,
+            interop1Wallet
+        );
+        interop2InteropHandler = new zksync.Contract(
+            L2_INTEROP_HANDLER_ADDRESS,
+            ArtifactInteropHandler.abi,
+            interop2Provider
+        );
+        interop1NativeTokenVault = new zksync.Contract(
+            L2_NATIVE_TOKEN_VAULT_ADDRESS,
+            ArtifactNativeTokenVault.abi,
+            interop1Wallet
+        );
 
         // Initialize Contracts on Interop2
-        interop2NativeTokenVault = new zksync.Contract(L2_NATIVE_TOKEN_VAULT_ADDRESS, ArtifactNativeTokenVault.abi, interop2Provider);
+        interop2NativeTokenVault = new zksync.Contract(
+            L2_NATIVE_TOKEN_VAULT_ADDRESS,
+            ArtifactNativeTokenVault.abi,
+            interop2Provider
+        );
 
         // Get the aliased address for interop calls on the first chain.
         aliasedInterop1WalletAddress = await interop2InteropHandler.getAliasedAccount(
             interop1Wallet.address,
-            0, // <- Chain ID, right? Why does it work with any value right now...
+            0 // <- Chain ID, right? Why does it work with any value right now...
         );
     });
 
     test('Can perform an ETH deposit', async () => {
         const gasPrice = await scaledGasPrice(interop1RichWallet);
-        
-        await (await veryRichWallet._signerL1!().sendTransaction({
-            to: interop1RichWallet.address,
-            value: ethFundAmount,
-        })).wait();
+
+        await (
+            await veryRichWallet._signerL1!().sendTransaction({
+                to: interop1RichWallet.address,
+                value: ethFundAmount
+            })
+        ).wait();
 
         // Deposit funds on Interop1
         await (
@@ -137,7 +155,7 @@ describe('Interop checks', () => {
         const tokenADeploy = await deployContract(interop1Wallet, ArtifactMintableERC20, [
             tokenA.name,
             tokenA.symbol,
-            tokenA.decimals,
+            tokenA.decimals
         ]);
         tokenA.l2Address = await tokenADeploy.getAddress();
         // Register Token A
@@ -153,9 +171,9 @@ describe('Interop checks', () => {
         await Promise.all([
             // Approve token transfer on Interop1
             (await interop1TokenA.approve(L2_NATIVE_TOKEN_VAULT_ADDRESS, transferAmount)).wait(),
-    
+
             // Mint tokens for the test wallet on Interop1 for the transfer
-            (await interop1TokenA.mint(interop1Wallet.address, transferAmount)).wait(),
+            (await interop1TokenA.mint(interop1Wallet.address, transferAmount)).wait()
         ]);
 
         // Compose and send the interop request transaction
@@ -218,7 +236,7 @@ describe('Interop checks', () => {
      */
     async function fromInterop1RequestInterop(
         feeCallStarters: InteropCallStarter[],
-        execCallStarters: InteropCallStarter[],
+        execCallStarters: InteropCallStarter[]
     ) {
         const destinationChainId = (await interop2Provider.getNetwork()).chainId.toString(16);
 
@@ -232,13 +250,13 @@ describe('Interop checks', () => {
                 gasPerPubdataByteLimit: REQUIRED_L2_GAS_PRICE_PER_PUBDATA,
                 refundRecipient: interop1Wallet.address,
                 paymaster: ethers.ZeroAddress,
-                paymasterInput: '0x',
+                paymasterInput: '0x'
             },
             {
                 value: [...feeCallStarters, ...execCallStarters].reduce(
                     (total, item) => total + BigInt(item.requestedInteropCallValue),
-                    0n,
-                ),
+                    0n
+                )
             }
         );
         const txReceipt: zksync.types.TransactionReceipt = await tx.wait();
@@ -274,10 +292,7 @@ describe('Interop checks', () => {
         receiverProvider: zksync.Provider
     ) {
         console.log('*Reading and broadcasting interop tx initiated by txHash*', txHash);
-        const senderUtilityWallet = new zksync.Wallet(
-            zksync.Wallet.createRandom().privateKey,
-            senderProvider
-        );
+        const senderUtilityWallet = new zksync.Wallet(zksync.Wallet.createRandom().privateKey, senderProvider);
         const txReceipt = await senderProvider.getTransactionReceipt(txHash);
         await waitUntilBlockFinalized(senderUtilityWallet, txReceipt!.blockNumber);
 
@@ -310,8 +325,14 @@ describe('Interop checks', () => {
                 gasPerPubdata: triggerDataBundle.output.gasFields.gasPerPubdataByteLimit,
                 customSignature: ethers.AbiCoder.defaultAbiCoder().encode(
                     ['bytes', 'bytes', 'address', 'address', 'bytes'],
-                    [feeBundle.rawData, feeBundle.fullProof, triggerDataBundle.output.from, triggerDataBundle.output.gasFields.refundRecipient, triggerDataBundle.fullProof]
-                ),
+                    [
+                        feeBundle.rawData,
+                        feeBundle.fullProof,
+                        triggerDataBundle.output.from,
+                        triggerDataBundle.output.gasFields.refundRecipient,
+                        triggerDataBundle.fullProof
+                    ]
+                )
             },
             maxFeePerGas: feeData.maxFeePerGas,
             maxPriorityFeePerGas: feeData.maxPriorityFeePerGas,
@@ -323,7 +344,7 @@ describe('Interop checks', () => {
         const hexTx = zksync.utils.serializeEip712(interopTx);
         const broadcastTx = await receiverProvider.broadcastTransaction(hexTx);
         await broadcastTx.wait();
-        
+
         // Recursive broadcast
         await readAndBroadcastInteropTx(broadcastTx.realInteropHash!, receiverProvider, senderProvider);
     }
