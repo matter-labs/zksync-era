@@ -49,6 +49,7 @@
   - [Pruning](guides/external-node/08_pruning.md)
   - [Treeless Mode](guides/external-node/09_treeless_mode.md)
   - [Decentralization](guides/external-node/10_decentralization.md)
+  - [Setup for other chains](guides/external-node/11_setup_for_other_chains.md)
 
 # Specs
 
@@ -56,14 +57,6 @@
   - [Overview](specs/overview.md)
   - [Blocks and Batches](specs/blocks_batches.md)
   - [L1 Smart Contracts](specs/l1_smart_contracts.md)
-- [Data Availability](specs/data_availability/overview.md)
-  - [Pubdata](specs/data_availability/pubdata.md)
-  - [Compression](specs/data_availability/compression.md)
-  - [Reconstruction](specs/data_availability/reconstruction.md)
-  - [Validium ZK Porter](specs/data_availability/validium_zk_porter.md)
-- [L1 L2 Communication](specs/l1_l2_communication/overview_deposits_withdrawals.md)
-  - [L1 to L2](specs/l1_l2_communication/l1_to_l2.md)
-  - [L2 to L1](specs/l1_l2_communication/l2_to_l1.md)
 - [Prover](specs/prover/overview.md)
   - [Getting Started](specs/prover/getting_started.md)
   - [ZK Terminology](specs/prover/zk_terminology.md)
@@ -71,20 +64,8 @@
   - [Gadgets](specs/prover/boojum_gadgets.md)
   - [Circuit Testing](specs/prover/circuit_testing.md)
   - [Circuits Overview](specs/prover/circuits/overview.md)
-- [ZK Chains](specs/zk_chains/overview.md)
-  - [Gateway](specs/zk_chains/gateway.md)
-  - [Interop](specs/zk_chains/interop.md)
-  - [Shared Bridge](specs/zk_chains/shared_bridge.md)
-- [ZK EVM](specs/zk_evm/vm_overview.md)
-  - [Account Abstraction](specs/zk_evm/account_abstraction.md)
-  - [Bootloader](specs/zk_evm/bootloader.md)
-  - [Fee Model](specs/zk_evm/fee_model.md)
-  - [Precompiles](specs/zk_evm/precompiles.md)
-  - [System Contracts](specs/zk_evm/system_contracts.md)
-- [Interop](specs/interop/overview.md)
-  - [Interop Messages](specs/interop/interopmessages.md)
-  - [Bundles and Calls](specs/interop/bundlesandcalls.md)
-  - [Interop Transactions](specs/interop/interoptransactions.md)
+- [Era VM](specs/era_vm_specification/README.md)
+  - [VM primer](specs/era_vm_specification/zkSync_era_virtual_machine_primer.md)
 
 # Announcements
 

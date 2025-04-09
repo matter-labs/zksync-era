@@ -6,9 +6,10 @@ use circuit_definitions::{
     zkevm_circuits::scheduler::aux::BaseLayerCircuitType,
 };
 use zkevm_test_harness::empty_node_proof;
+use zksync_circuit_prover_service::types::circuit_wrapper::CircuitWrapper;
 use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
-use zksync_prover_fri_types::{keys::FriCircuitKey, CircuitWrapper, FriProofWrapper};
+use zksync_prover_fri_types::{keys::FriCircuitKey, FriProofWrapper};
 use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber};
 
 use crate::{
@@ -78,8 +79,6 @@ impl ArtifactsManager for RecursionTip {
         job_id: u32,
         artifacts: Self::OutputArtifacts,
         object_store: &dyn ObjectStore,
-        _shall_save_to_public_bucket: bool,
-        _public_blob_store: Option<std::sync::Arc<dyn ObjectStore>>,
     ) -> String {
         let key = FriCircuitKey {
             block_number: L1BatchNumber(job_id),

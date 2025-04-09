@@ -1,6 +1,9 @@
 //! Utils to get data for L1 batch execution from storage.
 
-use std::time::{Duration, Instant};
+use std::{
+    collections::HashMap,
+    time::{Duration, Instant},
+};
 
 use anyhow::Context;
 use zksync_contracts::{BaseSystemContracts, SystemContractCode};
@@ -379,19 +382,19 @@ async fn get_base_system_contracts(
     protocol_version: Option<ProtocolVersionId>,
     bootloader_hash: H256,
     default_aa_hash: H256,
-    evm_simulator_hash: Option<H256>,
+    evm_emulator_hash: Option<H256>,
 ) -> anyhow::Result<BaseSystemContracts> {
     // There are two potential sources of base contracts bytecode:
     // - Factory deps table in case the upgrade transaction has been executed before.
     // - Factory deps of the upgrade transaction.
 
-    // Firstly trying from factory deps
+    // Firstly trying from factory deps in Postgres
     if let Some(deps) = storage
         .factory_deps_dal()
         .get_base_system_contracts_from_factory_deps(
             bootloader_hash,
             default_aa_hash,
-            evm_simulator_hash,
+            evm_emulator_hash,
         )
         .await?
     {
@@ -408,27 +411,33 @@ async fn get_base_system_contracts(
             format!("Could not find base contracts for version {protocol_version:?}: bootloader {bootloader_hash:?} or {default_aa_hash:?}")
         })?;
 
-    anyhow::ensure!(
-        upgrade_tx.execute.factory_deps.len() >= 2,
-        "Upgrade transaction does not have enough factory deps"
-    );
+    let factory_deps = &upgrade_tx.execute.factory_deps;
+    let factory_deps_by_code_hash: HashMap<_, _> = factory_deps
+        .iter()
+        .map(|bytecode| (BytecodeHash::for_bytecode(bytecode).value(), bytecode))
+        .collect();
 
-    let bootloader_preimage = upgrade_tx.execute.factory_deps[0].clone();
-    let default_aa_preimage = upgrade_tx.execute.factory_deps[1].clone();
+    let bootloader_preimage = factory_deps_by_code_hash
+        .get(&bootloader_hash)
+        .context("missing bootloader factory dep")?
+        .to_vec();
+    let default_aa_preimage = factory_deps_by_code_hash
+        .get(&default_aa_hash)
+        .context("missing default AA factory dep")?
+        .to_vec();
 
-    anyhow::ensure!(
-        BytecodeHash::for_bytecode(&bootloader_preimage).value() == bootloader_hash,
-        "Bootloader hash mismatch"
-    );
-    anyhow::ensure!(
-        BytecodeHash::for_bytecode(&default_aa_preimage).value() == default_aa_hash,
-        "Default account hash mismatch"
-    );
-
-    if evm_simulator_hash.is_some() {
-        // TODO(EVM-933): support EVM emulator.
-        panic!("EVM simulator not supported as part of gateway upgrade");
-    }
+    let evm_emulator = if let Some(evm_emulator_hash) = evm_emulator_hash {
+        let evm_emulator_preimage = factory_deps_by_code_hash
+            .get(&evm_emulator_hash)
+            .context("missing EVM emulator factory dep")?
+            .to_vec();
+        Some(SystemContractCode {
+            code: evm_emulator_preimage,
+            hash: evm_emulator_hash,
+        })
+    } else {
+        None
+    };
 
     Ok(BaseSystemContracts {
         bootloader: SystemContractCode {
@@ -439,7 +448,7 @@ async fn get_base_system_contracts(
             code: default_aa_preimage,
             hash: default_aa_hash,
         },
-        evm_emulator: None,
+        evm_emulator,
     })
 }
 

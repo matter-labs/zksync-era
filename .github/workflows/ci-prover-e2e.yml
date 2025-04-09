@@ -15,7 +15,7 @@ jobs:
       RUNNER_COMPOSE_FILE: "docker-compose-gpu-runner-cuda-12-0.yml"
 
     steps:
-      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           submodules: "recursive"
           fetch-depth: 0
@@ -63,25 +63,6 @@ jobs:
           ci_run sccache --start-server
           ci_run git config --global --add safe.directory "*"
 
-      - name: Checkout DualVerifier commit
-        working-directory: ./contracts
-        if: matrix.compressor-mode == 'fflonk'
-        run: |
-          git fetch
-          # Checkout the commit with the DualVerifier contract to test FFLONK interface
-          git checkout bcdd1cb05e8f4d9ec2dd41e2cc668cdfe30ee535
-          git submodule update --init --recursive
-          git rev-parse HEAD
-
-      - name: Set new genesis for fflonk 
-        # Note, that while `Verifier` is not explicitly a part of the genensis state,
-        # it affects it indirectly as it is a part of the repo.
-        working-directory: ./etc/env/file_based
-        if: matrix.compressor-mode == 'fflonk'
-        run: |
-          sudo sed -i 's/^genesis_root: .*/genesis_root: 0xf15e1f51b54d18843eb6ff18532921165b3393910b489a7b58933220363d9204/' genesis.yaml
-          sudo sed -i "s/^genesis_batch_commitment: .*/genesis_batch_commitment: 0xabfaad1553b5325624826db5b57de11b6be33285b9e0324665cce50d7f179a63/" genesis.yaml
-
       - name: Init
         run: |
           ci_run chmod -R +x ./bin
@@ -104,9 +85,9 @@ jobs:
             --set-as-default true \
             --ignore-prerequisites \
             --evm-emulator false \
-            --update-submodules=${{matrix.compressor-mode == 'plonk'}}
+            --update-submodules=true
 
-          ci_run zkstack ecosystem init --dev --update-submodules=${{matrix.compressor-mode == 'plonk'}} --verbose
+          ci_run zkstack ecosystem init --dev --update-submodules=true --verbose
 
           ci_run zkstack prover init --dev --verbose
           echo "URL=$(grep "http_url" ./chains/proving_chain/configs/general.yaml | awk '{ print $2 }')" >> $GITHUB_ENV
@@ -189,7 +170,7 @@ jobs:
           ci_run ./bin/prover_checkers/batch_l1_status_checker
 
       - name: Upload logs
-        uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874 # v4.4.0
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
           name: prover_logs_${{matrix.e2e-test-type}}_${{matrix.compressor-mode}}

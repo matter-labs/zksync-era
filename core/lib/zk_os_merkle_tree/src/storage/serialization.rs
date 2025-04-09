@@ -7,7 +7,7 @@ use zksync_basic_types::H256;
 use crate::{
     errors::{DeserializeContext, DeserializeErrorKind},
     storage::InsertedKeyEntry,
-    types::{ChildRef, InternalNode, Leaf, Manifest, Root, TreeTags},
+    types::{ChildRef, InternalNode, Leaf, Manifest, RawNode, Root, TreeTags},
     DeserializeError,
 };
 
@@ -36,8 +36,6 @@ impl Leaf {
         let value = H256::from_slice(&buffer[HASH_SIZE..2 * HASH_SIZE]);
 
         buffer = &buffer[2 * HASH_SIZE..];
-        let prev_index =
-            leb128::read::unsigned(&mut buffer).map_err(DeserializeErrorKind::Leb128)?;
         let next_index =
             leb128::read::unsigned(&mut buffer).map_err(DeserializeErrorKind::Leb128)?;
         if !buffer.is_empty() {
@@ -46,7 +44,6 @@ impl Leaf {
         Ok(Self {
             key,
             value,
-            prev_index,
             next_index,
         })
     }
@@ -54,7 +51,6 @@ impl Leaf {
     pub(super) fn serialize(&self, buffer: &mut Vec<u8>) {
         buffer.extend_from_slice(self.key.as_bytes());
         buffer.extend_from_slice(self.value.as_bytes());
-        leb128::write::unsigned(buffer, self.prev_index).unwrap();
         leb128::write::unsigned(buffer, self.next_index).unwrap();
     }
 }
@@ -120,6 +116,25 @@ impl Root {
     pub(super) fn serialize(&self, buffer: &mut Vec<u8>) {
         leb128::write::unsigned(buffer, self.leaf_count).unwrap();
         self.root_node.serialize(buffer);
+    }
+}
+
+impl RawNode {
+    pub(crate) fn deserialize(bytes: &[u8]) -> Self {
+        Self {
+            raw: bytes.to_vec(),
+            leaf: Leaf::deserialize(bytes).ok(),
+            internal: InternalNode::deserialize(bytes).ok(),
+        }
+    }
+
+    pub(crate) fn deserialize_root(bytes: &[u8]) -> Self {
+        let root = Root::deserialize(bytes).ok();
+        Self {
+            raw: bytes.to_vec(),
+            leaf: None,
+            internal: root.map(|root| root.root_node),
+        }
     }
 }
 

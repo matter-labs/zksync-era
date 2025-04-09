@@ -19,7 +19,7 @@ use zksync_types::{
     SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256, U64,
 };
 
-use crate::client::{EthClient, L2EthClient, RETRY_LIMIT};
+use crate::client::{EthClient, ZkSyncExtentionEthClient, RETRY_LIMIT};
 
 #[derive(Debug)]
 pub struct FakeEthClientData {
@@ -192,7 +192,7 @@ impl EthClient for MockEthClient {
         &self,
         from: BlockNumber,
         to: BlockNumber,
-        topic1: H256,
+        topic1: Option<H256>,
         topic2: Option<H256>,
         _retries_left: usize,
     ) -> EnrichedClientResult<Vec<Log>> {
@@ -216,7 +216,7 @@ impl EthClient for MockEthClient {
         Ok(logs
             .into_iter()
             .filter(|log| {
-                log.topics.first() == Some(&topic1)
+                log.topics.first() == topic1.as_ref()
                     && (topic2.is_none() || log.topics.get(1) == topic2.as_ref())
             })
             .collect())
@@ -262,10 +262,12 @@ impl EthClient for MockEthClient {
             .get_events(
                 U64::from(from_block).into(),
                 U64::from(to_block).into(),
-                state_transition_manager_contract()
-                    .event("NewUpgradeCutData")
-                    .unwrap()
-                    .signature(),
+                Some(
+                    state_transition_manager_contract()
+                        .event("NewUpgradeCutData")
+                        .unwrap()
+                        .signature(),
+                ),
                 Some(packed_version),
                 RETRY_LIMIT,
             )
@@ -332,7 +334,11 @@ impl EthClient for MockEthClient {
 }
 
 #[async_trait::async_trait]
-impl L2EthClient for MockEthClient {
+impl ZkSyncExtentionEthClient for MockEthClient {
+    fn into_base(self: Arc<Self>) -> Arc<dyn EthClient> {
+        self
+    }
+
     async fn get_chain_log_proof(
         &self,
         l1_batch_number: L1BatchNumber,
@@ -502,6 +508,7 @@ fn upgrade_into_diamond_cut(upgrade: ProtocolUpgrade) -> Token {
         factory_deps,
         bootloader_hash: upgrade.bootloader_code_hash.unwrap_or_default().into(),
         default_account_hash: upgrade.default_account_code_hash.unwrap_or_default().into(),
+        evm_emulator_hash: upgrade.evm_emulator_code_hash.unwrap_or_default().into(),
         verifier: upgrade.verifier_address.unwrap_or_default(),
         verifier_params: upgrade.verifier_params.unwrap_or_default().into(),
         l1_contracts_upgrade_calldata: vec![],

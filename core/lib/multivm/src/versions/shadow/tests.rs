@@ -247,6 +247,21 @@ mod call_tracer {
     fn recursive_tx() {
         test_recursive_tx::<super::ShadowedFastVm<_, _>>();
     }
+
+    #[test]
+    fn evm_to_eravm_call() {
+        test_evm_to_eravm_call::<super::ShadowedFastVm<_, _>>();
+    }
+
+    #[test]
+    fn evm_deployment_tx() {
+        test_evm_deployment_tx::<super::ShadowedFastVm<_, _>>();
+    }
+
+    #[test]
+    fn evm_deployment_from_contract() {
+        test_evm_deployment_from_contract::<super::ShadowedFastVm<_, _>>();
+    }
 }
 
 mod circuits {
@@ -291,10 +306,109 @@ mod default_aa {
     }
 }
 
-mod evm_emulator {
+mod evm {
+    use crate::versions::testonly::evm::*;
+
+    #[test]
+    fn evm_deployment_tx() {
+        test_evm_deployment_tx::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn evm_bytecode_decommit() {
+        test_evm_bytecode_decommit::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn real_emulator_basics() {
+        test_real_emulator_basics::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn real_emulator_code_hash() {
+        test_real_emulator_code_hash::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn real_emulator_block_info() {
+        test_real_emulator_block_info::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn real_emulator_msg_info() {
+        test_real_emulator_msg_info::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn real_emulator_gas_management() {
+        test_real_emulator_gas_management::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn real_emulator_recursion() {
+        test_real_emulator_recursion::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn real_emulator_deployment() {
+        test_real_emulator_deployment::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn real_emulator_create2_deployment() {
+        test_create2_deployment_in_evm::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn reusing_create_address() {
+        test_reusing_create_address_in_evm::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn reusing_create2_salt() {
+        test_reusing_create2_salt_in_evm::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn deployment_with_partial_reverts() {
+        test_deployment_with_partial_reverts::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn era_vm_deployment_after_evm_execution() {
+        test_era_vm_deployment_after_evm_execution::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn era_vm_deployment_after_evm_deployment() {
+        test_era_vm_deployment_after_evm_deployment::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn calling_era_contract_from_evm() {
+        test_calling_era_contract_from_evm::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn far_calls_from_evm_contract() {
+        test_far_calls_from_evm_contract::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn calling_sha256_precompile() {
+        test_calling_sha256_precompile::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn calling_ecrecover_precompile() {
+        test_calling_ecrecover_precompile::<super::ShadowedFastVm>();
+    }
+}
+
+mod mock_evm {
     use test_casing::{test_casing, Product};
 
-    use crate::versions::testonly::evm_emulator::*;
+    use crate::versions::testonly::mock_evm::*;
 
     #[test]
     fn tracing_evm_contract_deployment() {
@@ -538,6 +652,21 @@ mod simple_execution {
     #[test]
     fn create2_deployment_address() {
         test_create2_deployment_address::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn reusing_create_address() {
+        test_reusing_create_address::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn reusing_create2_salt() {
+        test_reusing_create2_salt::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn transfer_to_self_with_low_gas_limit() {
+        test_transfer_to_self_with_low_gas_limit::<super::ShadowedFastVm<_>>();
     }
 }
 

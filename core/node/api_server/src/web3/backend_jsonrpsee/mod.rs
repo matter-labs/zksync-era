@@ -1,7 +1,7 @@
-//! Backend "glue" which ties the actual Web3 API implementation to the `jsonrpsee` JSON RPC backend.
-//! Consists mostly of boilerplate code implementing the `jsonrpsee` server traits for the corresponding
-//! namespace structures defined in `zksync_core`.
-
+/// Backend "glue" which ties the actual Web3 API implementation to the `jsonrpsee` JSON RPC backend.
+///
+/// Consists mostly of boilerplate code implementing the `jsonrpsee` server traits for the corresponding
+/// namespace structures defined in `zksync_core`.
 use zksync_web3_decl::{
     error::Web3Error,
     jsonrpsee::types::{error::ErrorCode, ErrorObjectOwned},
@@ -44,6 +44,7 @@ impl MethodTracer {
             | Web3Error::SerializationError(_)
             | Web3Error::ProxyError(_) => 3,
             Web3Error::TreeApiUnavailable => 6,
+            Web3Error::ServerShuttingDown => ErrorCode::ServerIsBusy.code(),
         };
         let message = match err {
             // Do not expose internal error details to the client.
@@ -62,6 +63,7 @@ impl From<SubmitTxError> for Web3Error {
         match err {
             SubmitTxError::Internal(err) => Self::InternalError(err),
             SubmitTxError::ProxyError(err) => Self::ProxyError(err),
+            SubmitTxError::ServerShuttingDown => Self::ServerShuttingDown,
             _ => Self::SubmitTransactionError(err.to_string(), err.data()),
         }
     }

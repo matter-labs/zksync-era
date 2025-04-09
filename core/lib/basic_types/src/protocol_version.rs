@@ -21,6 +21,7 @@ pub const PACKED_SEMVER_MINOR_OFFSET: u32 = 32;
 pub const PACKED_SEMVER_MINOR_MASK: u32 = 0xFFFF;
 
 /// `ProtocolVersionId` is a unique identifier of the protocol version.
+///
 /// Note, that it is an identifier of the `minor` semver version of the protocol, with
 /// the `major` version being `0`. Also, the protocol version on the contracts may contain
 /// potential minor versions, that may have different contract behavior (e.g. Verifier), but it should not
@@ -70,15 +71,16 @@ pub enum ProtocolVersionId {
     Version25,
     Version26,
     Version27,
+    Version28,
 }
 
 impl ProtocolVersionId {
     pub const fn latest() -> Self {
-        Self::Version26
+        Self::Version27
     }
 
     pub const fn next() -> Self {
-        Self::Version27
+        Self::Version28
     }
 
     pub fn try_from_packed_semver(packed_semver: U256) -> Result<Self, String> {
@@ -123,7 +125,10 @@ impl ProtocolVersionId {
             ProtocolVersionId::Version24 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
             ProtocolVersionId::Version25 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
             ProtocolVersionId::Version26 => VmVersion::VmGateway,
-            ProtocolVersionId::Version27 => VmVersion::VmGateway,
+            ProtocolVersionId::Version27 => VmVersion::VmEvmEmulator,
+
+            // Speculative VM version for the next protocol version to be used in the upgrade integration test etc.
+            ProtocolVersionId::Version28 => VmVersion::VmEvmEmulator,
         }
     }
 
@@ -151,6 +156,10 @@ impl ProtocolVersionId {
 
     pub fn is_pre_fflonk(&self) -> bool {
         self < &Self::Version27
+    }
+
+    pub fn is_post_fflonk(&self) -> bool {
+        self >= &Self::Version27
     }
 
     pub fn is_1_4_0(&self) -> bool {
@@ -297,7 +306,10 @@ impl From<ProtocolVersionId> for VmVersion {
             ProtocolVersionId::Version24 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
             ProtocolVersionId::Version25 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
             ProtocolVersionId::Version26 => VmVersion::VmGateway,
-            ProtocolVersionId::Version27 => VmVersion::VmGateway,
+            ProtocolVersionId::Version27 => VmVersion::VmEvmEmulator,
+
+            // Speculative VM version for the next protocol version to be used in the upgrade integration test etc.
+            ProtocolVersionId::Version28 => VmVersion::VmEvmEmulator,
         }
     }
 }

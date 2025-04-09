@@ -42,6 +42,7 @@ struct DeployedAddresses {
     bridges: Bridges,
     validator_timelock_addr: Address,
     native_token_vault_addr: Address,
+    server_notifier_proxy_addr: Option<Address>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -102,6 +103,9 @@ impl RegisterChainL1Config {
                     .ecosystem_contracts
                     .native_token_vault_addr
                     .expect("native_token_vault_addr"),
+                server_notifier_proxy_addr: contracts
+                    .ecosystem_contracts
+                    .server_notifier_proxy_addr,
             },
             chain: ChainL1Config {
                 chain_chain_id: chain_config.chain_id,

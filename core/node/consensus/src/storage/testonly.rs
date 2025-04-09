@@ -60,7 +60,7 @@ pub(crate) fn mock_genesis_params(protocol_version: ProtocolVersionId) -> Genesi
     GenesisParams::from_genesis_config(
         cfg,
         BaseSystemContracts::load_from_disk(),
-        get_system_smart_contracts(false),
+        get_system_smart_contracts(),
     )
     .unwrap()
 }
@@ -183,8 +183,14 @@ impl ConnectionPool {
             .wrap("genesis()")?
             .context("genesis is missing")?;
         for block in &blocks {
-            if let validator::Block::Final(block) = block {
-                block.verify(&cfg.genesis).context(block.number())?;
+            match block {
+                validator::Block::FinalV1(block) => {
+                    block.verify(&cfg.genesis).context(block.number())?;
+                }
+                validator::Block::FinalV2(block) => {
+                    block.verify(&cfg.genesis).context(block.number())?;
+                }
+                validator::Block::PreGenesis(_) => {}
             }
         }
         Ok(blocks)

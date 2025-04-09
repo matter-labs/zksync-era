@@ -1,13 +1,13 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use super::{
     queuer,
-    scaler::{Scaler, ScalerTrait},
+    scaler::{Scaler, ScalerConfig, ScalerTrait},
     watcher,
 };
 use crate::{
     agent::ScaleRequest,
-    cluster_types::Clusters,
+    cluster_types::{ClusterName, NamespaceName},
     config::{ProverAutoscalerScalerConfig, QueueReportFields, ScalerTargetType},
     key::{GpuKey, NoKey},
     metrics::AUTOSCALER_METRICS,
@@ -15,8 +15,8 @@ use crate::{
 };
 
 pub struct Manager {
-    /// namespace to Protocol Version configuration.
-    namespaces: HashMap<String, String>,
+    /// Namespace to Protocol Version configuration.
+    namespaces: HashMap<NamespaceName, String>,
     watcher: watcher::Watcher,
     queuer: queuer::Queuer,
 
@@ -40,6 +40,21 @@ impl Manager {
 
         let mut scalers: Vec<Box<dyn ScalerTrait + Sync + Send>> = Vec::default();
         let mut jobs = Vec::default();
+
+        let scaler_config = Arc::new(ScalerConfig {
+            cluster_priorities: config.cluster_priorities,
+            apply_min_to_namespace: config.apply_min_to_namespace,
+            long_pending_duration: chrono::Duration::seconds(
+                config.long_pending_duration.as_secs() as i64,
+            ),
+            scale_errors_duration: chrono::Duration::seconds(
+                config.scale_errors_duration.as_secs() as i64,
+            ),
+            need_to_move_duration: chrono::Duration::seconds(
+                config.need_to_move_duration.as_secs() as i64,
+            ),
+        });
+
         for c in &config.scaler_targets {
             jobs.push(c.queue_report_field);
             match c.scaler_target_type {
@@ -52,9 +67,7 @@ impl Manager {
                         .map(|(k, v)| (k.clone(), v.into_map_gpukey()))
                         .collect(),
                     c.speed.into_map_gpukey(),
-                    config.cluster_priorities.clone(),
-                    config.apply_min_to_namespace.clone(),
-                    chrono::Duration::seconds(config.long_pending_duration.as_secs() as i64),
+                    scaler_config.clone(),
                 ))),
                 ScalerTargetType::Simple => scalers.push(Box::new(Scaler::<NoKey>::new(
                     c.queue_report_field,
@@ -65,9 +78,7 @@ impl Manager {
                         .map(|(k, v)| (k.clone(), v.into_map_nokey()))
                         .collect(),
                     c.speed.into_map_nokey(),
-                    config.cluster_priorities.clone(),
-                    config.apply_min_to_namespace.clone(),
-                    chrono::Duration::seconds(config.long_pending_duration.as_secs() as i64),
+                    scaler_config.clone(),
                 ))),
             };
         }
@@ -81,31 +92,15 @@ impl Manager {
     }
 }
 
-/// is_namespace_running returns true if there are some pods running in it.
-fn is_namespace_running(namespace: &str, clusters: &Clusters) -> bool {
-    clusters
-        .clusters
-        .values()
-        .flat_map(|v| v.namespaces.iter())
-        .filter_map(|(k, v)| if k == namespace { Some(v) } else { None })
-        .flat_map(|v| v.deployments.values())
-        .map(
-            |d| d.running + d.desired, // If there is something running or expected to run, we
-                                       // should re-evaluate the namespace.
-        )
-        .sum::<i32>()
-        > 0
-}
-
 #[async_trait::async_trait]
 impl Task for Manager {
     async fn invoke(&self) -> anyhow::Result<()> {
         let queue = self.queuer.get_queue(&self.jobs).await.unwrap();
 
-        let mut scale_requests: HashMap<String, ScaleRequest> = HashMap::new();
+        let mut scale_requests: HashMap<ClusterName, ScaleRequest> = HashMap::new();
         {
             let guard = self.watcher.data.lock().await; // Keeping the lock during all calls of run() for
-                                                        // consitency.
+                                                        // consistency.
             if let Err(err) = watcher::check_is_ready(&guard.is_ready) {
                 AUTOSCALER_METRICS.clusters_not_ready.inc();
                 tracing::warn!("Skipping Manager run: {}", err);
@@ -123,9 +118,7 @@ impl Task for Manager {
                         "Running eval for namespace {ns}, PPV {ppv}, scaler {} found queue {q}",
                         scaler.deployment()
                     );
-                    if q > 0 || is_namespace_running(ns, &guard.clusters) {
-                        scaler.run(ns, q, &guard.clusters, &mut scale_requests);
-                    }
+                    scaler.run(ns, q, &guard.clusters, &mut scale_requests);
                 }
             }
         } // Unlock self.watcher.data.

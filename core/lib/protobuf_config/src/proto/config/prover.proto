@@ -32,17 +32,9 @@ message Prover {
   optional uint32 prometheus_port = 2; // required; u16
   optional uint32 max_attempts = 3; // required
   optional uint32 generation_timeout_in_secs = 4; // required; s
-  optional SetupLoadMode setup_load_mode = 7; // required
-  optional uint32 specialized_group_id = 8; // required; u8
-  optional uint64 queue_capacity = 10; // required
-  optional uint32 witness_vector_receiver_port = 11; // required; u16
-  optional string zone_read_url = 12; // required
-  optional uint32 availability_check_interval_in_secs = 21; // optional; s
-  optional bool shall_save_to_public_bucket = 13; // required
-  optional config.object_store.ObjectStore public_object_store = 22;
   optional config.object_store.ObjectStore prover_object_store = 23;
-  optional CloudType cloud_type = 24; // optional
-  reserved 5, 6, 9; reserved "base_layer_circuit_ids_to_be_verified", "recursive_layer_circuit_ids_to_be_verified", "witness_vector_generator_thread_count";
+  reserved 5, 6, 7, 8, 9, 10, 11, 12, 13, 21, 22, 24;
+  reserved "base_layer_circuit_ids_to_be_verified", "recursive_layer_circuit_ids_to_be_verified", "setup_load_mode", "specialized_group_id", "witness_vector_generator_thread_count", "queue_capacity", "witness_vector_receiver_port", "zone_read_url", "shall_save_to_public_bucket", "availability_check_interval_in_secs", "public_object_store", "cloud_type";
 }
 
 
@@ -51,30 +43,15 @@ message CircuitIdRoundTuple {
   optional uint32 aggregation_round = 2; // required; u8
 }
 
-message ProverGroup {
-  repeated CircuitIdRoundTuple group_0 = 1;
-  repeated CircuitIdRoundTuple group_1 = 2;
-  repeated CircuitIdRoundTuple group_2 = 3;
-  repeated CircuitIdRoundTuple group_3 = 4;
-  repeated CircuitIdRoundTuple group_4 = 5;
-  repeated CircuitIdRoundTuple group_5 = 6;
-  repeated CircuitIdRoundTuple group_6 = 7;
-  repeated CircuitIdRoundTuple group_7 = 8;
-  repeated CircuitIdRoundTuple group_8 = 9;
-  repeated CircuitIdRoundTuple group_9 = 10;
-  repeated CircuitIdRoundTuple group_10 = 11;
-  repeated CircuitIdRoundTuple group_11 = 12;
-  repeated CircuitIdRoundTuple group_12 = 13;
-  repeated CircuitIdRoundTuple group_13 = 14;
-  repeated CircuitIdRoundTuple group_14 = 15;
-}
-
 message ProverGateway {
   optional string api_url = 1; // required
   optional uint32 api_poll_duration_secs = 2; // required; s
   optional uint32 prometheus_listener_port = 3; // required; u16
   optional string prometheus_pushgateway_url = 4; // required
   optional uint64 prometheus_push_interval_ms = 5; // optional; ms
+  
+  reserved 6, 7;
+  reserved "http_port", "ws_port";
 }
 
 
@@ -82,7 +59,6 @@ message WitnessGenerator {
   optional uint32 generation_timeout_in_secs = 1; // required;
   optional uint32 max_attempts = 2; // required;
   optional uint32 last_l1_batch_to_process = 5; // optional
-  optional bool shall_save_to_public_bucket = 7; // required
   optional uint32 basic_generation_timeout_in_secs = 8; // optional;
   optional uint32 leaf_generation_timeout_in_secs = 9; // optional;
   optional uint32 node_generation_timeout_in_secs = 10; // optional;
@@ -90,20 +66,9 @@ message WitnessGenerator {
   optional uint32 recursion_tip_timeout_in_secs = 12; // optional;
   optional uint32 prometheus_listener_port = 13; // optional;
   optional uint64 max_circuits_in_flight = 14; // optional;
-  reserved 3, 4, 6;
-  reserved "dump_arguments_for_blocks", "force_process_block", "blocks_proving_percentage";
+  reserved 3, 4, 6, 7;
+  reserved "dump_arguments_for_blocks", "force_process_block", "blocks_proving_percentage", "shall_save_to_public_bucket";
 }
-
-message WitnessVectorGenerator {
-  optional uint32 max_prover_reservation_duration_in_secs = 1; // required; s
-  optional uint32 prover_instance_wait_timeout_in_secs = 2; // required; s
-  optional uint32 prover_instance_poll_time_in_milli_secs = 3; // required; ms
-  optional uint32 prometheus_listener_port = 4; // required; u16
-  optional string prometheus_pushgateway_url = 5; // required
-  optional uint64 prometheus_push_interval_ms = 6; // optional; ms
-  optional uint32 specialized_group_id = 7; // required; u8
-}
-
 
 message ProofDataHandler {
   optional uint32 http_port = 1; // required; u16
@@ -112,4 +77,7 @@ message ProofDataHandler {
   optional uint64 first_tee_processed_batch = 4; // optional
   optional uint32 tee_proof_generation_timeout_in_secs = 5; // optional
   optional uint32 tee_batch_permanently_ignored_timeout_in_hours = 6; // optional
+
+  reserved 7,8,9;
+  reserved "api_url", "batch_readiness_check_interval_in_secs", "retry_connection_interval_in_secs";
 }

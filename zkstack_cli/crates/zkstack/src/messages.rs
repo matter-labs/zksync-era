@@ -201,6 +201,7 @@ pub(super) const MSG_SERVER_DB_URL_HELP: &str = "Server database url without dat
 pub(super) const MSG_SERVER_DB_NAME_HELP: &str = "Server database name";
 pub(super) const MSG_PROVER_DB_URL_HELP: &str = "Prover database url without database name";
 pub(super) const MSG_PROVER_DB_NAME_HELP: &str = "Prover database name";
+pub(super) const MSG_SERVER_COMMAND_HELP: &str = "Command to run the server binary";
 pub(super) const MSG_USE_DEFAULT_DATABASES_HELP: &str = "Use default database urls and names";
 pub(super) const MSG_GENESIS_COMPLETED: &str = "Genesis completed successfully";
 pub(super) const MSG_STARTING_GENESIS: &str = "Starting genesis process";
@@ -358,7 +359,7 @@ pub(super) fn msg_address_doesnt_have_enough_money_prompt(
     let actual = format_ether(actual);
     let expected = format_ether(expected);
     format!(
-        "Address {address:?} doesn't have enough money to deploy contracts only {actual} ETH but expected: {expected} ETH do you want to try again?"
+        "It is recommended to have {expected} ETH on the address {address:?} to deploy contracts. Current balance is {actual} ETH. How do you want to proceed?",
     )
 }
 
@@ -386,17 +387,12 @@ pub(super) const MSG_RUNNING_PROVER_GATEWAY: &str = "Running gateway";
 pub(super) const MSG_RUNNING_PROVER_JOB_MONITOR_ERR: &str = "Failed to run prover job monitor";
 pub(super) const MSG_RUNNING_PROVER_JOB_MONITOR: &str = "Running prover job monitor";
 pub(super) const MSG_RUNNING_WITNESS_GENERATOR: &str = "Running witness generator";
-pub(super) const MSG_RUNNING_WITNESS_VECTOR_GENERATOR: &str = "Running witness vector generator";
-pub(super) const MSG_RUNNING_PROVER: &str = "Running prover";
 pub(super) const MSG_RUNNING_CIRCUIT_PROVER: &str = "Running circuit prover";
 pub(super) const MSG_RUNNING_COMPRESSOR: &str = "Running compressor";
 pub(super) const MSG_RUN_COMPONENT_PROMPT: &str = "What component do you want to run?";
 pub(super) const MSG_RUNNING_PROVER_GATEWAY_ERR: &str = "Failed to run prover gateway";
 pub(super) const MSG_RUNNING_WITNESS_GENERATOR_ERR: &str = "Failed to run witness generator";
-pub(super) const MSG_RUNNING_WITNESS_VECTOR_GENERATOR_ERR: &str =
-    "Failed to run witness vector generator";
 pub(super) const MSG_RUNNING_COMPRESSOR_ERR: &str = "Failed to run compressor";
-pub(super) const MSG_RUNNING_PROVER_ERR: &str = "Failed to run prover";
 pub(super) const MSG_RUNNING_CIRCUIT_PROVER_ERR: &str = "Failed to run circuit prover";
 pub(super) const MSG_PROOF_STORE_CONFIG_PROMPT: &str =
     "Select where you would like to store the proofs";
@@ -424,9 +420,7 @@ pub(super) const MSG_INITIALIZE_BELLMAN_CUDA_PROMPT: &str =
 pub(super) const MSG_SETUP_COMPRESSOR_KEY_PATH_PROMPT: &str = "Provide the path to the setup key:";
 pub(super) const MSG_GETTING_GCP_PROJECTS_SPINNER: &str = "Getting GCP projects...";
 pub(super) const MSG_GETTING_PROOF_STORE_CONFIG: &str = "Getting proof store configuration...";
-pub(super) const MSG_GETTING_PUBLIC_STORE_CONFIG: &str = "Getting public store configuration...";
 pub(super) const MSG_CREATING_GCS_BUCKET_SPINNER: &str = "Creating GCS bucket...";
-pub(super) const MSG_SAVE_TO_PUBLIC_BUCKET_PROMPT: &str = "Do you want to save to public bucket?";
 pub(super) const MSG_ROUND_SELECT_PROMPT: &str = "Select the round to run";
 pub(super) const MSG_WITNESS_GENERATOR_ROUND_ERR: &str = "Witness generator round not found";
 pub(super) const MSG_SETUP_KEY_PATH_ERROR: &str = "Failed to get setup key path";
@@ -441,8 +435,6 @@ pub(super) const MSG_BELLMAN_CUDA_ORIGIN_SELECT: &str =
     "Select the origin of bellman-cuda repository";
 pub(super) const MSG_BELLMAN_CUDA_SELECTION_CLONE: &str = "Clone for me (recommended)";
 pub(super) const MSG_BELLMAN_CUDA_SELECTION_PATH: &str = "I have the code already";
-pub(super) const MSG_CLOUD_TYPE_PROMPT: &str = "Select the cloud connection mode:";
-pub(super) const MSG_THREADS_PROMPT: &str = "Provide the number of threads:";
 pub(super) const MSG_SETUP_KEYS_PROMPT: &str = "Do you want to setup keys?";
 
 pub(super) fn msg_bucket_created(bucket_name: &str) -> String {
@@ -516,10 +508,6 @@ pub(super) fn msg_wait_starting_polling(
 
 pub(super) fn msg_wait_timeout(component: &impl fmt::Display) -> String {
     format!("timed out polling {component}")
-}
-
-pub(super) fn msg_wait_connect_err(component: &impl fmt::Display, url: &str) -> String {
-    format!("failed to connect to {component} at `{url}`")
 }
 
 pub(super) fn msg_wait_non_successful_response(component: &impl fmt::Display) -> String {

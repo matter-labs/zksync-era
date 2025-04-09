@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::secrets::{APIKey, SeedPhrase};
 
@@ -6,6 +8,7 @@ pub const AVAIL_FULL_CLIENT_NAME: &str = "FullClient";
 
 pub const IN_BLOCK_FINALITY_STATE: &str = "inBlock";
 pub const FINALIZED_FINALITY_STATE: &str = "finalized";
+pub const DEFAULT_DISPATCH_TIMEOUT_MS: u64 = 180_000; // 3 minutes
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "avail_client")]
@@ -27,6 +30,7 @@ pub struct AvailDefaultConfig {
     pub api_node_url: String,
     pub app_id: u32,
     pub finality_state: Option<String>,
+    pub dispatch_timeout_ms: Option<u64>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -55,5 +59,12 @@ impl AvailDefaultConfig {
             },
             None => Ok(IN_BLOCK_FINALITY_STATE.to_string()),
         }
+    }
+
+    pub fn dispatch_timeout(&self) -> Duration {
+        Duration::from_millis(
+            self.dispatch_timeout_ms
+                .unwrap_or(DEFAULT_DISPATCH_TIMEOUT_MS),
+        )
     }
 }

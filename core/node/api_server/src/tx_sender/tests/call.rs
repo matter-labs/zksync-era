@@ -6,8 +6,13 @@ use assert_matches::assert_matches;
 use test_casing::test_casing;
 use zksync_multivm::interface::ExecutionResult;
 use zksync_node_test_utils::create_l2_transaction;
-use zksync_test_contracts::Account;
-use zksync_types::{api::state_override::OverrideAccount, transaction_request::CallRequest};
+use zksync_test_contracts::{Account, TestContract};
+use zksync_types::{
+    api::state_override::OverrideAccount,
+    bytecode::{BytecodeHash, BytecodeMarker},
+    get_code_key,
+    transaction_request::CallRequest,
+};
 
 use super::*;
 use crate::testonly::{decode_u256_output, Call3Result, Call3Value, StateBuilder, TestAccount};
@@ -129,7 +134,9 @@ async fn eth_call_with_transfer() {
 #[tokio::test]
 async fn eth_call_with_counter() {
     let mut alice = Account::random();
-    let state_override = StateBuilder::default().with_counter_contract(42).build();
+    let state_override = StateBuilder::default()
+        .with_counter_contract(Some(42))
+        .build();
 
     let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let tx_sender = create_real_tx_sender(pool).await;
@@ -158,12 +165,13 @@ async fn eth_call_with_counter() {
     );
 }
 
+#[test_casing(2, [BytecodeMarker::EraVm, BytecodeMarker::Evm])]
 #[tokio::test]
-async fn eth_call_with_counter_transactions() {
+async fn eth_call_with_counter_transactions(counter_kind: BytecodeMarker) {
     let mut alice = Account::random();
     let state_override = StateBuilder::default()
         .with_multicall3_contract()
-        .with_counter_contract(0)
+        .with_generic_counter_contract(counter_kind, None)
         .build();
 
     let calls = &[
@@ -265,4 +273,129 @@ async fn limiting_storage_access_during_call(vm_mode: FastVmMode) {
         .await
         .unwrap_err();
     assert_matches!(err, SubmitTxError::ExecutionReverted(msg, _) if msg.contains("limit reached"));
+}
+
+#[tokio::test]
+async fn overriding_account_nonce() {
+    let alice = Account::random();
+    let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
+    let tx_sender = create_real_tx_sender(pool).await;
+
+    // Check the base case (no overrides).
+    let output = test_call(
+        &tx_sender,
+        StateOverride::default(),
+        alice.query_min_nonce(alice.address),
+    )
+    .await
+    .unwrap();
+    assert_eq!(decode_u256_output(&output), 0.into());
+
+    let state_override = StateBuilder::default()
+        .with_nonce(alice.address, 23.into())
+        .build();
+    let output = test_call(
+        &tx_sender,
+        state_override,
+        alice.query_min_nonce(alice.address),
+    )
+    .await
+    .unwrap();
+    assert_eq!(decode_u256_output(&output), 23.into());
+}
+
+#[tokio::test]
+async fn overriding_evm_bytecode() {
+    let alice = Account::random();
+    let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
+    let tx_sender = create_real_tx_sender(pool).await;
+
+    let state_override = StateBuilder::default()
+        .with_evm_counter_contract(Some(42))
+        .build();
+    let output = test_call(&tx_sender, state_override, alice.query_counter_value())
+        .await
+        .unwrap();
+    assert_eq!(decode_u256_output(&output), 42.into());
+}
+
+#[tokio::test]
+async fn overriding_evm_bytecode_in_place_of_eravm_bytecode() {
+    let alice = Account::random();
+    let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
+    let tx_sender = create_real_tx_sender(pool.clone()).await;
+
+    // Put a non-counter contract so that it fails querying counter value unless overridden.
+    StateBuilder::default()
+        .with_contract(
+            StateBuilder::COUNTER_CONTRACT_ADDRESS,
+            TestContract::expensive().bytecode.to_vec(),
+        )
+        .apply(pool.connection().await.unwrap())
+        .await;
+
+    let err = test_call(
+        &tx_sender,
+        StateOverride::default(),
+        alice.query_counter_value(),
+    )
+    .await
+    .unwrap_err();
+    assert_matches!(err, SubmitTxError::ExecutionReverted(..));
+
+    let state_override = StateBuilder::default()
+        .with_evm_counter_contract(Some(42))
+        .build();
+    let output = test_call(&tx_sender, state_override, alice.query_counter_value())
+        .await
+        .unwrap();
+    assert_eq!(decode_u256_output(&output), 42.into());
+}
+
+#[tokio::test]
+async fn overriding_eravm_bytecode_in_place_of_evm_bytecode() {
+    let alice = Account::random();
+    let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
+    let tx_sender = create_real_tx_sender(pool.clone()).await;
+
+    StateBuilder::default()
+        .with_contract(
+            StateBuilder::COUNTER_CONTRACT_ADDRESS,
+            vec![0xfe], // invalid EVM opcode
+        )
+        // Store the counter value in the underlying storage rather than in the state override
+        .with_storage_slot(
+            StateBuilder::COUNTER_CONTRACT_ADDRESS,
+            H256::zero(),
+            H256::from_low_u64_be(42),
+        )
+        .apply(pool.connection().await.unwrap())
+        .await;
+
+    // Check that the bytecode is indeed persisted as an EVM bytecode.
+    let mut conn = pool.connection().await.unwrap();
+    let bytecode_hash = conn
+        .storage_web3_dal()
+        .get_value(&get_code_key(&StateBuilder::COUNTER_CONTRACT_ADDRESS))
+        .await
+        .unwrap();
+    drop(conn);
+    let bytecode_hash = BytecodeHash::try_from(bytecode_hash).unwrap();
+    assert_eq!(bytecode_hash.marker(), BytecodeMarker::Evm);
+    assert_eq!(bytecode_hash.len_in_bytes(), 1);
+
+    let err = test_call(
+        &tx_sender,
+        StateOverride::default(),
+        alice.query_counter_value(),
+    )
+    .await
+    .unwrap_err();
+    assert_matches!(err, SubmitTxError::ExecutionReverted(..));
+
+    let state_override = StateBuilder::default().with_counter_contract(None).build();
+    let output = test_call(&tx_sender, state_override, alice.query_counter_value())
+        .await
+        .unwrap();
+    assert_eq!(decode_u256_output(&output), 42.into());
 }

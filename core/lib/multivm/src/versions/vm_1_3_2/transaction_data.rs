@@ -298,6 +298,7 @@ pub(crate) fn derive_overhead(
 }
 
 /// Contains the coefficients with which the overhead for transactions will be calculated.
+///
 /// All of the coefficients should be <= 1. There are here to provide a certain "discount" for normal transactions
 /// at the risk of malicious transactions that may close the block prematurely.
 /// IMPORTANT: to perform correct computations, `MAX_TX_ERGS_LIMIT / coefficients.ergs_limit_overhead_coefficient` MUST
