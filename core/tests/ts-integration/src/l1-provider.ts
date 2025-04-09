@@ -38,7 +38,7 @@ class L1TransactionResponse extends ethers.TransactionResponse implements Augmen
     override async wait(confirmations?: number, timeout?: number) {
         if (!this.isWaitingReported) {
             this.reporter.debug(
-                `Started waiting for L1 transaction ${this.hash} (from=${this.from}, nonce=${this.nonce})`
+                `Started waiting for L1 transaction ${this.hash} (from=${this.from}, nonce=${this.nonce}, gasLimit=${this.gasLimit})`
             );
             this.isWaitingReported = true;
         }
