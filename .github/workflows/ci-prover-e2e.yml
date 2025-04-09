@@ -1,6 +1,5 @@
 name: Workflow for testing prover component end-to-end
 on:
-  workflow_dispatch:
   workflow_call:
 
 jobs:
