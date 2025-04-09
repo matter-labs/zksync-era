@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use sqlx::types::chrono::{self};
 use zksync_basic_types::{
     protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch},
     prover_dal::{BasicWitnessGeneratorJobInfo, StuckJobs, WitnessJobStatus},
@@ -23,6 +24,7 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
         block_number: L1BatchNumber,
         witness_inputs_blob_url: &str,
         protocol_version: ProtocolSemanticVersion,
+        batch_created_at: chrono::DateTime<chrono::Utc>,
     ) {
         sqlx::query!(
             r#"
@@ -33,18 +35,19 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
                 protocol_version,
                 status,
                 created_at,
-                batch_created_at,
                 updated_at,
-                protocol_version_patch
+                protocol_version_patch,
+                batch_created_at
             )
             VALUES
-            ($1, $2, $3, 'queued', NOW(), NOW(), NOW(), $4)
+            ($1, $2, $3, 'queued', NOW(), NOW(), $4, $5)
             ON CONFLICT (l1_batch_number) DO NOTHING
             "#,
             i64::from(block_number.0),
             witness_inputs_blob_url,
             protocol_version.minor as i32,
             protocol_version.patch.0 as i32,
+            batch_created_at.naive_utc(),
         )
         .fetch_optional(self.storage.conn())
         .await

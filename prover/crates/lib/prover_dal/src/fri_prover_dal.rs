@@ -927,6 +927,7 @@ impl FriProverDal<'_, '_> {
 
 #[cfg(test)]
 mod tests {
+    use sqlx::types::chrono::{DateTime, Utc};
     use zksync_basic_types::protocol_version::L1VerifierConfig;
     use zksync_db_connection::connection_pool::ConnectionPool;
 
@@ -954,7 +955,12 @@ mod tests {
             .await;
         transaction
             .fri_basic_witness_generator_dal()
-            .save_witness_inputs(L1BatchNumber(1), "", ProtocolSemanticVersion::default())
+            .save_witness_inputs(
+                L1BatchNumber(1),
+                "",
+                ProtocolSemanticVersion::default(),
+                DateTime::<Utc>::default(),
+            )
             .await;
         transaction
             .fri_prover_jobs_dal()
