@@ -1,7 +1,6 @@
 use std::num::NonZero;
 
 use zksync_commitment_generator::CommitmentGenerator;
-use zksync_types::commitment::L1BatchCommitmentMode;
 
 use crate::{
     implementations::resources::{
@@ -19,7 +18,6 @@ use crate::{
 /// Responsible for initialization and running [`CommitmentGenerator`].
 #[derive(Debug)]
 pub struct CommitmentGeneratorLayer {
-    mode: L1BatchCommitmentMode,
     max_parallelism: Option<NonZero<u32>>,
 }
 
@@ -39,9 +37,8 @@ pub struct Output {
 }
 
 impl CommitmentGeneratorLayer {
-    pub fn new(mode: L1BatchCommitmentMode) -> Self {
+    pub fn new() -> Self {
         Self {
-            mode,
             max_parallelism: None,
         }
     }
@@ -68,7 +65,7 @@ impl WiringLayer for CommitmentGeneratorLayer {
             .get();
         let main_pool = input.master_pool.get_custom(pool_size).await?;
 
-        let mut commitment_generator = CommitmentGenerator::new(main_pool, self.mode);
+        let mut commitment_generator = CommitmentGenerator::new(main_pool);
         if let Some(max_parallelism) = self.max_parallelism {
             commitment_generator.set_max_parallelism(max_parallelism);
         }

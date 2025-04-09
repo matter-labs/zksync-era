@@ -144,11 +144,18 @@ impl LocalL1BatchCommitData {
     async fn new(
         storage: &mut Connection<'_, Core>,
         batch_number: L1BatchNumber,
-        commitment_mode: L1BatchCommitmentMode,
     ) -> anyhow::Result<Option<Self>> {
         let Some(commit_tx_id) = storage
             .blocks_dal()
             .get_eth_commit_tx_id(batch_number)
+            .await?
+        else {
+            return Ok(None);
+        };
+
+        let Some(pubdata_params) = storage
+            .blocks_dal()
+            .get_l1_batch_pubdata_params(batch_number)
             .await?
         else {
             return Ok(None);
@@ -173,7 +180,7 @@ impl LocalL1BatchCommitData {
         let this = Self {
             l1_batch,
             commit_tx_hash,
-            commitment_mode,
+            commitment_mode: pubdata_params.pubdata_type.into(),
         };
         let metadata = &this.l1_batch.metadata;
 
@@ -357,7 +364,6 @@ pub struct ConsistencyChecker {
     event_handler: Box<dyn HandleConsistencyCheckerEvent>,
     pool: ConnectionPool<Core>,
     health_check: ReactiveHealthCheck,
-    commitment_mode: L1BatchCommitmentMode,
 }
 
 impl ConsistencyChecker {
@@ -367,7 +373,6 @@ impl ConsistencyChecker {
         sl_client: Box<dyn EthInterface>,
         max_batches_to_recheck: u32,
         pool: ConnectionPool<Core>,
-        commitment_mode: L1BatchCommitmentMode,
         settlement_layer: SettlementLayer,
     ) -> anyhow::Result<Self> {
         let (health_check, health_updater) = ConsistencyCheckerHealthUpdater::new();
@@ -387,7 +392,6 @@ impl ConsistencyChecker {
             event_handler: Box::new(health_updater),
             pool,
             health_check,
-            commitment_mode,
         })
     }
 
@@ -696,9 +700,7 @@ impl ConsistencyChecker {
             // The batch might be already committed but not yet processed by the external node's tree
             // OR the batch might be processed by the external node's tree but not yet committed.
             // We need both.
-            let local =
-                LocalL1BatchCommitData::new(&mut storage, batch_number, self.commitment_mode)
-                    .await?;
+            let local = LocalL1BatchCommitData::new(&mut storage, batch_number).await?;
             let Some(local) = local else {
                 if tokio::time::timeout(self.sleep_interval, stop_receiver.changed())
                     .await

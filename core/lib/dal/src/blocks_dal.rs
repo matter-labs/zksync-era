@@ -19,7 +19,7 @@ use zksync_types::{
         CommonL1BatchHeader, L1BatchHeader, L1BatchStatistics, L1BatchTreeData, L2BlockHeader,
         StorageOracleInfo, UnsealedL1BatchHeader,
     },
-    commitment::{L1BatchCommitmentArtifacts, L1BatchWithMetadata},
+    commitment::{L1BatchCommitmentArtifacts, L1BatchWithMetadata, PubdataParams},
     l2_to_l1_log::{BatchAndChainMerklePath, UserL2ToL1Log},
     writes::TreeWrite,
     Address, Bloom, L1BatchNumber, L2BlockNumber, ProtocolVersionId, SLChainId, H256, U256,
@@ -32,7 +32,7 @@ use crate::{
         parse_protocol_version,
         storage_block::{
             CommonStorageL1BatchHeader, StorageL1Batch, StorageL1BatchHeader, StorageL2BlockHeader,
-            UnsealedStorageL1Batch,
+            StoragePubdataParams, UnsealedStorageL1Batch,
         },
         storage_event::StorageL2ToL1Log,
         storage_oracle_info::DbStorageOracleInfo,
@@ -2154,6 +2154,31 @@ impl BlocksDal<'_, '_> {
         Ok(Some(
             bincode::deserialize(&batch_chain_merkle_path).unwrap(),
         ))
+    }
+
+    pub async fn get_l1_batch_pubdata_params(
+        &mut self,
+        number: L1BatchNumber,
+    ) -> DalResult<Option<PubdataParams>> {
+        Ok(sqlx::query_as!(
+            StoragePubdataParams,
+            r#"
+            SELECT
+                l2_da_validator_address, pubdata_type
+            FROM
+                miniblocks
+            WHERE
+                l1_batch_number = $1
+            ORDER BY number ASC
+            LIMIT 1
+            "#,
+            i64::from(number.0)
+        )
+        .instrument("get_l1_batch_pubdata_params")
+        .with_arg("number", &number)
+        .fetch_optional(self.storage)
+        .await?
+        .map(|row| row.into()))
     }
 
     pub async fn get_executed_batch_roots_on_sl(
