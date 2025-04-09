@@ -93,7 +93,6 @@ pub(crate) fn build_commit_tx_input_data(
 pub(crate) async fn create_mock_checker(
     client: MockSettlementLayer,
     pool: ConnectionPool<Core>,
-    commitment_mode: L1BatchCommitmentMode,
 ) -> ConsistencyChecker {
     let (health_check, health_updater) = ConsistencyCheckerHealthUpdater::new();
     let client = client.into_client();
@@ -111,7 +110,6 @@ pub(crate) async fn create_mock_checker(
         settlement_layer: SettlementLayer::L1(chain_id),
         event_handler: Box::new(health_updater),
         pool,
-        commitment_mode,
         health_check,
     }
 }
@@ -467,7 +465,7 @@ async fn normal_checker_function(
     let (l1_batch_updates_sender, mut l1_batch_updates_receiver) = mpsc::unbounded_channel();
     let checker = ConsistencyChecker {
         event_handler: Box::new(l1_batch_updates_sender),
-        ..create_mock_checker(client, pool.clone(), commitment_mode).await
+        ..create_mock_checker(client, pool.clone()).await
     };
 
     let (stop_sender, stop_receiver) = watch::channel(false);
@@ -554,7 +552,7 @@ async fn checker_processes_pre_boojum_batches(
     let (l1_batch_updates_sender, mut l1_batch_updates_receiver) = mpsc::unbounded_channel();
     let checker = ConsistencyChecker {
         event_handler: Box::new(l1_batch_updates_sender),
-        ..create_mock_checker(client, pool.clone(), commitment_mode).await
+        ..create_mock_checker(client, pool.clone()).await
     };
 
     let (stop_sender, stop_receiver) = watch::channel(false);
@@ -641,7 +639,7 @@ async fn checker_functions_after_snapshot_recovery(
     let (l1_batch_updates_sender, mut l1_batch_updates_receiver) = mpsc::unbounded_channel();
     let checker = ConsistencyChecker {
         event_handler: Box::new(l1_batch_updates_sender),
-        ..create_mock_checker(client, pool.clone(), commitment_mode).await
+        ..create_mock_checker(client, pool.clone()).await
     };
     let (stop_sender, stop_receiver) = watch::channel(false);
     let checker_task = tokio::spawn(checker.run(stop_receiver));
@@ -831,7 +829,7 @@ async fn checker_detects_incorrect_tx_data(
     }
     drop(storage);
 
-    let checker = create_mock_checker(client, pool, commitment_mode).await;
+    let checker = create_mock_checker(client, pool).await;
     let (_stop_sender, stop_receiver) = watch::channel(false);
     // The checker must stop with an error.
     tokio::time::timeout(Duration::from_secs(30), checker.run(stop_receiver))
