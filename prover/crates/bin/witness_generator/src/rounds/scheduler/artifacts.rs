@@ -2,9 +2,10 @@ use std::time::Instant;
 
 use async_trait::async_trait;
 use circuit_definitions::circuit_definitions::recursion_layer::ZkSyncRecursionLayerStorageType;
+use zksync_circuit_prover_service::types::circuit_wrapper::CircuitWrapper;
 use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
-use zksync_prover_fri_types::{keys::FriCircuitKey, CircuitWrapper, FriProofWrapper};
+use zksync_prover_fri_types::{keys::FriCircuitKey, FriProofWrapper};
 use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber};
 
 use crate::{
