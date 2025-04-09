@@ -1,4 +1,5 @@
 use assert_cmd::Command;
+use chrono::{DateTime, Utc};
 use circuit_definitions::zkevm_circuits::scheduler::aux::BaseLayerCircuitType;
 use prover_cli::commands::status::utils::Status;
 use zksync_prover_dal::{
@@ -222,7 +223,12 @@ async fn insert_bwg_job(
 ) {
     connection
         .fri_basic_witness_generator_dal()
-        .save_witness_inputs(batch_number, "", ProtocolSemanticVersion::default())
+        .save_witness_inputs(
+            batch_number,
+            "",
+            ProtocolSemanticVersion::default(),
+            DateTime::<Utc>::default(),
+        )
         .await;
     connection
         .fri_basic_witness_generator_dal()
