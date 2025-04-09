@@ -590,7 +590,7 @@ jobs:
           fi
 
           # Always run the chain-specific revert tests
-          ci_run ./bin/run_on_all_chains.sh "zkstack dev test revert --no-deps --external-node --no-kill --ignore-prerequisites" ${{ env.CHAINS }} ${{ env.REVERT_LOGS_DIR }}
+          ci_run ./bin/run_on_all_chains.sh "zkstack dev test revert --no-deps --no-kill --ignore-prerequisites" ${{ env.CHAINS }} ${{ env.REVERT_LOGS_DIR }}
 
       # Upgrade tests should run last, because as soon as they
       # finish the bootloader will be different
