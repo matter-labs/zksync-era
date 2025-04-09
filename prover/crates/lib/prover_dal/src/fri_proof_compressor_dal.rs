@@ -1,6 +1,7 @@
 #![doc = include_str!("../doc/FriProofCompressorDal.md")]
 use std::{collections::HashMap, str::FromStr, time::Duration};
 
+use sqlx::types::chrono::{DateTime, Utc};
 use zksync_basic_types::{
     protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch},
     prover_dal::{
@@ -23,6 +24,7 @@ impl FriProofCompressorDal<'_, '_> {
         block_number: L1BatchNumber,
         fri_proof_blob_url: &str,
         protocol_version: ProtocolSemanticVersion,
+        batch_created_at: DateTime<Utc>,
     ) {
         sqlx::query!(
             r#"
@@ -33,23 +35,20 @@ impl FriProofCompressorDal<'_, '_> {
                 status,
                 created_at,
                 updated_at,
-                batch_created_at,
                 protocol_version,
-                protocol_version_patch
+                protocol_version_patch,
+                batch_created_at
             )
             VALUES
-            ($1, $2, $3, NOW(), NOW(), (
-                SELECT batch_created_at
-                FROM witness_inputs_fri
-                WHERE l1_batch_number = $1
-            ), $4, $5)
+            ($1, $2, $3, NOW(), NOW(), $4, $5, $6)
             ON CONFLICT (l1_batch_number) DO NOTHING
             "#,
             i64::from(block_number.0),
             fri_proof_blob_url,
             ProofCompressionJobStatus::Queued.to_string(),
             protocol_version.minor as i32,
-            protocol_version.patch.0 as i32
+            protocol_version.patch.0 as i32,
+            batch_created_at.naive_utc(),
         )
         .fetch_optional(self.storage.conn())
         .await

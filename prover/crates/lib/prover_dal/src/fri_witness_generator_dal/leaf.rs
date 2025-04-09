@@ -1,5 +1,6 @@
 use std::{str::FromStr, time::Duration};
 
+use sqlx::types::chrono::{DateTime, Utc};
 use zksync_basic_types::{
     basic_fri_types::AggregationRound,
     protocol_version::ProtocolSemanticVersion,
@@ -238,6 +239,7 @@ impl FriLeafWitnessGeneratorDal<'_, '_> {
         circuit_id: u8,
         closed_form_inputs_url: String,
         number_of_basic_circuits: usize,
+        batch_created_at: DateTime<Utc>,
     ) {
         sqlx::query!(
             r#"
@@ -251,8 +253,8 @@ impl FriLeafWitnessGeneratorDal<'_, '_> {
                 status,
                 created_at,
                 updated_at,
-                batch_created_at,
-                protocol_version_patch
+                protocol_version_patch,
+                batch_created_at
             )
             VALUES
             (
@@ -264,12 +266,8 @@ impl FriLeafWitnessGeneratorDal<'_, '_> {
                 'waiting_for_proofs',
                 NOW(),
                 NOW(),
-                (
-                    SELECT batch_created_at
-                    FROM witness_inputs_fri
-                    WHERE l1_batch_number = $1
-                ),
-                $6
+                $6,
+                $7
             )
             ON CONFLICT (l1_batch_number, circuit_id) DO
             UPDATE
@@ -282,6 +280,7 @@ impl FriLeafWitnessGeneratorDal<'_, '_> {
             number_of_basic_circuits as i32,
             protocol_version.minor as i32,
             protocol_version.patch.0 as i32,
+            batch_created_at.naive_utc()
         )
         .execute(self.storage.conn())
         .await

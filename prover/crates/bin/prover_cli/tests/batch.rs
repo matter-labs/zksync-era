@@ -167,6 +167,7 @@ async fn insert_prover_job(
             "",
             false,
             ProtocolSemanticVersion::default(),
+            DateTime::<Utc>::default(),
         )
         .await;
     connection

@@ -1,5 +1,6 @@
 use std::{str::FromStr, time::Duration};
 
+use sqlx::types::chrono::{DateTime, Utc};
 use zksync_basic_types::{
     basic_fri_types::AggregationRound,
     protocol_version::ProtocolSemanticVersion,
@@ -147,6 +148,7 @@ impl FriNodeWitnessGeneratorDal<'_, '_> {
         depth: u16,
         aggregations_url: &str,
         protocol_version: ProtocolSemanticVersion,
+        batch_created_at: DateTime<Utc>,
     ) {
         sqlx::query!(
             r#"
@@ -161,15 +163,11 @@ impl FriNodeWitnessGeneratorDal<'_, '_> {
                 status,
                 created_at,
                 updated_at,
-                batch_created_at,
-                protocol_version_patch
+                protocol_version_patch,
+                batch_created_at
             )
             VALUES
-            ($1, $2, $3, $4, $5, $6, 'waiting_for_proofs', NOW(), NOW(), (
-                SELECT batch_created_at
-                FROM witness_inputs_fri
-                WHERE l1_batch_number = $1
-            ), $7)
+            ($1, $2, $3, $4, $5, $6, 'waiting_for_proofs', NOW(), NOW(), $7, $8)
             ON CONFLICT (l1_batch_number, circuit_id, depth) DO
             UPDATE
             SET
@@ -182,6 +180,7 @@ impl FriNodeWitnessGeneratorDal<'_, '_> {
             number_of_dependent_jobs,
             protocol_version.minor as i32,
             protocol_version.patch.0 as i32,
+            batch_created_at.naive_utc(),
         )
         .fetch_optional(self.storage.conn())
         .await

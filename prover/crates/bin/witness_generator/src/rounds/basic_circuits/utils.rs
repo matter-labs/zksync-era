@@ -272,6 +272,11 @@ pub(crate) async fn create_aggregation_jobs(
     base_layer_to_recursive_layer_circuit_id: fn(u8) -> u8,
     protocol_version: ProtocolSemanticVersion,
 ) -> anyhow::Result<()> {
+    let batch_created_at = connection
+        .fri_basic_witness_generator_dal()
+        .get_batch_created_at_timestamp(block_number)
+        .await;
+
     for (circuit_id, closed_form_inputs_url, number_of_basic_circuits) in
         closed_form_inputs_and_urls
     {
@@ -283,6 +288,7 @@ pub(crate) async fn create_aggregation_jobs(
                 *circuit_id,
                 closed_form_inputs_url.clone(),
                 *number_of_basic_circuits,
+                batch_created_at,
             )
             .await;
 
@@ -295,6 +301,7 @@ pub(crate) async fn create_aggregation_jobs(
                 0,
                 "",
                 protocol_version,
+                batch_created_at,
             )
             .await;
     }
@@ -305,6 +312,7 @@ pub(crate) async fn create_aggregation_jobs(
             block_number,
             closed_form_inputs_and_urls,
             protocol_version,
+            batch_created_at,
         )
         .await;
 
@@ -314,6 +322,7 @@ pub(crate) async fn create_aggregation_jobs(
             block_number,
             scheduler_partial_input_blob_url,
             protocol_version,
+            batch_created_at,
         )
         .await;
 

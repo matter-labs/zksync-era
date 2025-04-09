@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO\n            leaf_aggregation_witness_jobs_fri (\n                l1_batch_number,\n                circuit_id,\n                closed_form_inputs_blob_url,\n                number_of_basic_circuits,\n                protocol_version,\n                status,\n                created_at,\n                updated_at,\n                protocol_version_patch,\n                batch_created_at\n            )\n            VALUES\n            (\n                $1,\n                $2,\n                $3,\n                $4,\n                $5,\n                'waiting_for_proofs',\n                NOW(),\n                NOW(),\n                $6,\n                $7\n            )\n            ON CONFLICT (l1_batch_number, circuit_id) DO\n            UPDATE\n            SET\n            updated_at = NOW()\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int2",
+        "Text",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Timestamp"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "b521817b3a92800b2a06d74fa5c3bc4cb4d9d7af155775b1b836bfcc3c0d8d68"
+}

@@ -6,7 +6,10 @@ use std::{
     time::{Duration, Instant},
 };
 
-use sqlx::QueryBuilder;
+use sqlx::{
+    types::chrono::{DateTime, Utc},
+    QueryBuilder,
+};
 use zksync_basic_types::{
     basic_fri_types::{
         AggregationRound, CircuitProverStatsEntry, ProtocolVersionedCircuitProverStats,
@@ -71,6 +74,7 @@ impl FriProverDal<'_, '_> {
         aggregation_round: AggregationRound,
         depth: u16,
         protocol_version_id: ProtocolSemanticVersion,
+        batch_created_at: DateTime<Utc>,
     ) {
         let _latency = MethodLatency::new("save_fri_prover_jobs");
         if circuit_ids_and_urls.is_empty() {
@@ -96,8 +100,8 @@ impl FriProverDal<'_, '_> {
                     status,
                     created_at,
                     updated_at,
+                    protocol_version_patch,
                     batch_created_at,
-                    protocol_version_patch
                 )
                 "#,
             );
@@ -116,15 +120,8 @@ impl FriProverDal<'_, '_> {
                         .push_bind("queued") // status
                         .push("NOW()") // created_at
                         .push("NOW()") // updated_at
-                        .push(
-                            r#"
-                        (
-                            SELECT batch_created_at
-                            FROM witness_inputs_fri
-                            WHERE l1_batch_number = $1
-                        )"#,
-                        )
-                        .push_bind(protocol_version_id.patch.0 as i32);
+                        .push_bind(protocol_version_id.patch.0 as i32)
+                        .push_bind(batch_created_at.naive_utc()); // batch_created_at
                 },
             );
 
@@ -445,6 +442,7 @@ impl FriProverDal<'_, '_> {
         circuit_blob_url: &str,
         is_node_final_proof: bool,
         protocol_version: ProtocolSemanticVersion,
+        batch_created_at: DateTime<Utc>,
     ) {
         sqlx::query!(
             r#"
@@ -461,15 +459,11 @@ impl FriProverDal<'_, '_> {
                 status,
                 created_at,
                 updated_at,
-                batch_created_at,
-                protocol_version_patch
+                protocol_version_patch,
+                batch_created_at
             )
             VALUES
-            ($1, $2, $3, $4, $5, $6, $7, $8, 'queued', NOW(), NOW(), (
-                SELECT batch_created_at
-                FROM witness_inputs_fri
-                WHERE l1_batch_number = $1
-            ), $9)
+            ($1, $2, $3, $4, $5, $6, $7, $8, 'queued', NOW(), NOW(), $9, $10)
             ON CONFLICT (
                 l1_batch_number, aggregation_round, circuit_id, depth, sequence_number
             ) DO
@@ -486,6 +480,7 @@ impl FriProverDal<'_, '_> {
             is_node_final_proof,
             protocol_version.minor as i32,
             protocol_version.patch.0 as i32,
+            batch_created_at.naive_utc(),
         )
         .execute(self.storage.conn())
         .await
@@ -970,6 +965,7 @@ mod tests {
                 AggregationRound::Scheduler,
                 1,
                 ProtocolSemanticVersion::default(),
+                DateTime::<Utc>::default(),
             )
             .await;
 

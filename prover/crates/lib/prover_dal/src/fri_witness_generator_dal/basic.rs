@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use sqlx::types::chrono::{self};
+use sqlx::types::chrono::{self, DateTime, Utc};
 use zksync_basic_types::{
     protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch},
     prover_dal::{BasicWitnessGeneratorJobInfo, StuckJobs, WitnessJobStatus},
@@ -19,6 +19,30 @@ pub struct FriBasicWitnessGeneratorDal<'a, 'c> {
 }
 
 impl FriBasicWitnessGeneratorDal<'_, '_> {
+    pub async fn get_batch_created_at_timestamp(
+        &mut self,
+        block_number: L1BatchNumber,
+    ) -> DateTime<Utc> {
+        sqlx::query!(
+            r#"
+            SELECT
+                batch_created_at
+            FROM
+                witness_inputs_fri
+            WHERE
+                l1_batch_number = $1
+            "#,
+            i64::from(block_number.0)
+        )
+        .fetch_optional(self.storage.conn())
+        .await
+        .map(|row| {
+            row.map(|row| DateTime::<Utc>::from_naive_utc_and_offset(row.batch_created_at, Utc))
+        })
+        .unwrap()
+        .unwrap_or_default()
+    }
+
     pub async fn save_witness_inputs(
         &mut self,
         block_number: L1BatchNumber,

@@ -83,6 +83,11 @@ impl ArtifactsManager for BasicCircuits {
             .fri_basic_witness_generator_dal()
             .protocol_version_for_l1_batch(L1BatchNumber(job_id))
             .await;
+        let batch_created_at = transaction
+            .fri_basic_witness_generator_dal()
+            .get_batch_created_at_timestamp(L1BatchNumber(job_id))
+            .await;
+
         transaction
             .fri_prover_jobs_dal()
             .insert_prover_jobs(
@@ -91,6 +96,7 @@ impl ArtifactsManager for BasicCircuits {
                 AggregationRound::BasicCircuits,
                 0,
                 protocol_version_id,
+                batch_created_at,
             )
             .await;
 
