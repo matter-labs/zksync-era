@@ -11,7 +11,7 @@ use zksync_types::{
     address_to_h256,
     api::{
         self, state_override::StateOverride, BlockDetails, BridgeAddresses, GetLogsFilter,
-        L1BatchDetails, L2ToL1LogProof, Proof, ProtocolVersion, StorageProof,
+        L1BatchDetails, L2ToL1LogProof, LogProofTarget, Proof, ProtocolVersion, StorageProof,
         TransactionDetailedResult, TransactionDetails,
     },
     fee::Fee,
@@ -23,8 +23,7 @@ use zksync_types::{
     tokens::ETHEREUM_ADDRESS,
     transaction_request::CallRequest,
     utils::storage_key_for_standard_token_balance,
-    web3,
-    web3::Bytes,
+    web3::{self, Bytes},
     AccountTreeId, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey, Transaction,
     L1_MESSENGER_ADDRESS, L2_BASE_TOKEN_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256, U64,
 };
@@ -341,7 +340,7 @@ impl ZksNamespace {
         l1_batch_number: L1BatchNumber,
         index_in_filtered_logs: usize,
         log_filter: impl Fn(&L2ToL1Log) -> bool,
-        proof_until_chain_id: Option<U64>,
+        log_proof_target: Option<LogProofTarget>,
     ) -> Result<Option<L2ToL1LogProof>, Web3Error> {
         let all_l1_logs_in_batch = storage
             .blocks_web3_dal()
@@ -395,7 +394,6 @@ impl ZksNamespace {
         let mut log_leaf_proof = proof;
         log_leaf_proof.push(aggregated_root);
 
-        let l2_chain_id = U64::from(self.state.api_config.l2_chain_id.as_u64());
         let Some(sl_chain_id) = storage
             .eth_sender_dal()
             .get_batch_execute_chain_id(l1_batch_number)
@@ -407,7 +405,7 @@ impl ZksNamespace {
 
         let (batch_proof_len, batch_chain_proof, is_final_node) =
         // if we provide the GW chain id, we don't want to extend to L1.
-        if Some(l2_chain_id) == proof_until_chain_id {
+        if log_proof_target == Some(LogProofTarget::Chain)  {
             // Serve a proof to the L2 batch's ChainBatchRoot
             (0, Vec::new(), true)
         } else if sl_chain_id.0 != self.state.api_config.l1_chain_id.0 {
@@ -421,7 +419,7 @@ impl ZksNamespace {
                 return Ok(None);
             };
 
-            if Some(U64::from(sl_chain_id.0)) == proof_until_chain_id {
+            if log_proof_target == Some(LogProofTarget::GatewayMessageRoot) {
                 // Serve a proof to Gateway's MessageRoot
                 // Gateway's MessageRoot is a child of ChainBatchRoot, we need to remove the last sibling of the log proof
                 batch_chain_proof.proof.pop();
@@ -482,13 +480,13 @@ impl ZksNamespace {
         &self,
         tx_hash: H256,
         index: Option<usize>,
-        proof_until_chain_id: Option<U64>,
+        log_proof_target: Option<LogProofTarget>,
     ) -> Result<Option<L2ToL1LogProof>, Web3Error> {
         if let Some(handler) = &self.state.l2_l1_log_proof_handler {
-            if proof_until_chain_id.is_some() {
+            if log_proof_target.is_some() {
                 return handler
-                    .get_l2_to_l1_log_proof_until_chain_id(tx_hash, index, proof_until_chain_id)
-                    .rpc_context("get_l2_to_l1_log_proof_until_chain_id")
+                    .get_l2_to_l1_log_proof_until_target(tx_hash, index, log_proof_target)
+                    .rpc_context("get_l2_to_l1_log_proof_until_target")
                     .await
                     .map_err(Into::into);
             }
@@ -522,7 +520,7 @@ impl ZksNamespace {
                 l1_batch_number,
                 index.unwrap_or(0),
                 |log| log.tx_number_in_block == l1_batch_tx_index,
-                proof_until_chain_id,
+                log_proof_target,
             )
             .await?;
         Ok(log_proof)
