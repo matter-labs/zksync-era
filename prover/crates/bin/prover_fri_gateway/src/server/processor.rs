@@ -9,6 +9,7 @@ use zksync_prover_interface::api::SubmitProofRequest;
 use zksync_types::prover_dal::ProofCompressionJobStatus;
 use zksync_types::L1BatchNumber;
 
+#[derive(Clone)]
 pub struct Processor {
     blob_store: Arc<dyn ObjectStore>,
     pool: ConnectionPool<Prover>,
@@ -22,7 +23,7 @@ impl Processor {
         Self { blob_store, pool }
     }
 
-    async fn next_submit_proof_request(&self) -> Option<(L1BatchNumber, SubmitProofRequest)> {
+    pub(crate) async fn next_submit_proof_request(&self) -> Option<(L1BatchNumber, SubmitProofRequest)> {
         let (l1_batch_number, protocol_version, status) = self
             .pool
             .connection()
@@ -51,7 +52,7 @@ impl Processor {
         Some((l1_batch_number, request))
     }
 
-    async fn save_successful_sent_proof(&self, l1_batch_number: L1BatchNumber) {
+    pub(crate) async fn save_successful_sent_proof(&self, l1_batch_number: L1BatchNumber) {
         self.pool
             .connection()
             .await
@@ -61,7 +62,7 @@ impl Processor {
             .await;
     }
 
-    async fn save_proof_gen_data(&self, data: ProofGenerationData) {
+    pub(crate) async fn save_proof_gen_data(&self, data: ProofGenerationData) {
         let witness_inputs = self.blob_store
             .put(data.l1_batch_number, &data.witness_input_data)
             .await

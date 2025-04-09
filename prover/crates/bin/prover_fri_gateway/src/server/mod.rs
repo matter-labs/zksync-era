@@ -4,9 +4,11 @@ use axum::{extract::State, Router};
 use processor::Processor;
 use tokio::sync::watch;
 use anyhow::Context as _;
-use zksync_prover_interface::api::SubmitProofRequest;
+use zksync_prover_interface::api::{ProofGenerationData, SubmitProofRequest};
+use zksync_types::L1BatchNumber;
 
 mod processor;
+mod error;
 
 pub struct Api {
     router: Router,
@@ -15,7 +17,18 @@ pub struct Api {
 
 impl Api {
     pub fn new(processor: Processor, port: u16) -> Self {
-        let router = Router::new();
+        let router = Router::new()
+            .route("/next_proof", axum::routing::get(Self::next_proof))
+            .route(
+                "/save_proof_gen_data",
+                axum::routing::post(Self::save_proof_gen_data),
+            )
+            .route(
+                "/save_successful_sent_proof",
+                axum::routing::post(Self::save_successful_sent_proof),
+            )
+            .with_state(processor);
+
         Self { router, port }
     }
 
@@ -43,7 +56,21 @@ impl Api {
 
     async fn next_proof(
         State(processor): State<Processor>,
-    ) -> anyhow::Result<(L1BatchNumber, SubmitProofRequest)> {
-        processor.next_submit_proof_request().await
+    ) -> anyhow::Result<Option<(L1BatchNumber, SubmitProofRequest)>> {
+        Ok(processor.next_submit_proof_request().await)
+    }
+
+    async fn save_proof_gen_data(
+        State(processor): State<Processor>,
+        data: ProofGenerationData,
+    ) -> anyhow::Result<()> {
+        Ok(processor.save_proof_gen_data(data).await)
+    }
+
+    async fn save_successful_sent_proof(
+        State(processor): State<Processor>,
+        l1_batch_number: L1BatchNumber,
+    ) -> anyhow::Result<()> {
+        Ok(processor.save_successful_sent_proof(l1_batch_number).await)
     }
 }
