@@ -9,6 +9,8 @@ use zksync_prover_interface::api::SubmitProofRequest;
 use zksync_types::prover_dal::ProofCompressionJobStatus;
 use zksync_types::L1BatchNumber;
 
+use super::error::ProcessorError;
+
 #[derive(Clone)]
 pub struct Processor {
     blob_store: Arc<dyn ObjectStore>,
@@ -23,15 +25,17 @@ impl Processor {
         Self { blob_store, pool }
     }
 
-    pub(crate) async fn next_submit_proof_request(&self) -> Option<(L1BatchNumber, SubmitProofRequest)> {
-        let (l1_batch_number, protocol_version, status) = self
+    pub(crate) async fn get_next_proof(&self) -> Result<Option<(L1BatchNumber, SubmitProofRequest)>, ProcessorError> {
+        let Some((l1_batch_number, protocol_version, status)) = self
             .pool
             .connection()
             .await
             .unwrap()
             .fri_proof_compressor_dal()
             .get_least_proven_block_not_sent_to_server()
-            .await?;
+            .await else {
+                return Ok(None);
+            };
 
         let request = match status {
             ProofCompressionJobStatus::Successful => {
@@ -49,34 +53,36 @@ impl Processor {
             ),
         };
 
-        Some((l1_batch_number, request))
+        Ok(Some((l1_batch_number, request)))
     }
 
-    pub(crate) async fn save_successful_sent_proof(&self, l1_batch_number: L1BatchNumber) {
+    pub(crate) async fn save_successful_sent_proof(&self, l1_batch_number: L1BatchNumber) -> Result<(), ProcessorError> {
         self.pool
             .connection()
             .await
             .unwrap()
             .fri_proof_compressor_dal()
             .mark_proof_sent_to_server(l1_batch_number)
-            .await;
+            .await?;
+        Ok(())
     }
 
-    pub(crate) async fn save_proof_gen_data(&self, data: ProofGenerationData) {
+    pub(crate) async fn save_proof_gen_data(&self, data: ProofGenerationData) -> Result<(), ProcessorError> {
         let witness_inputs = self.blob_store
             .put(data.l1_batch_number, &data.witness_input_data)
-            .await
-            .expect("Failed to save proof generation data to GCS");
+            .await?;
+
         let mut connection = self.pool.connection().await.unwrap();
 
         connection
             .fri_protocol_versions_dal()
             .save_prover_protocol_version(data.protocol_version, data.l1_verifier_config)
-            .await;
+            .await?;
 
         connection
             .fri_basic_witness_generator_dal()
             .save_witness_inputs(data.l1_batch_number, &witness_inputs, data.protocol_version)
-            .await;
+            .await?;
+        Ok(())
     }
 }

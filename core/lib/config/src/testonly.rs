@@ -493,6 +493,7 @@ impl Distribution<configs::FriProverGatewayConfig> for EncodeDist {
             prometheus_listener_port: self.sample(rng),
             prometheus_pushgateway_url: self.sample(rng),
             prometheus_push_interval_ms: self.sample(rng),
+            port: self.sample(rng),
         }
     }
 }

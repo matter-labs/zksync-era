@@ -6,8 +6,7 @@ use zksync_basic_types::{
     L1BatchNumber,
 };
 use zksync_db_connection::{
-    connection::Connection,
-    utils::{duration_to_naive_time, pg_interval_from_duration},
+    connection::Connection, error::DalResult, instrument::InstrumentExt, utils::{duration_to_naive_time, pg_interval_from_duration}
 };
 
 use crate::{fri_witness_generator_dal::FriWitnessJobStatus, Prover};
@@ -23,7 +22,7 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
         block_number: L1BatchNumber,
         witness_inputs_blob_url: &str,
         protocol_version: ProtocolSemanticVersion,
-    ) {
+    ) -> DalResult<()>{
         sqlx::query!(
             r#"
             INSERT INTO
@@ -45,9 +44,11 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
             protocol_version.minor as i32,
             protocol_version.patch.0 as i32,
         )
-        .fetch_optional(self.storage.conn())
-        .await
-        .unwrap();
+        .instrument("save_witness_inputs")
+        .execute(self.storage)
+        .await?;
+
+        Ok(())
     }
 
     /// Gets the next job to be executed. Returns the batch number and its corresponding blobs.

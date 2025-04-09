@@ -1,6 +1,7 @@
 use std::net::SocketAddr;
 
-use axum::{extract::State, Router};
+use axum::{extract::State, routing::{get, post}, Json, Router};
+use error::ProcessorError;
 use processor::Processor;
 use tokio::sync::watch;
 use anyhow::Context as _;
@@ -18,14 +19,14 @@ pub struct Api {
 impl Api {
     pub fn new(processor: Processor, port: u16) -> Self {
         let router = Router::new()
-            .route("/next_proof", axum::routing::get(Self::next_proof))
+            .route("/get_next_proof", get(Api::get_next_proof))
             .route(
-                "/save_proof_gen_data",
-                axum::routing::post(Self::save_proof_gen_data),
+                "/submit_proof_generation_data",
+                post(Api::submit_proof_generation_data),
             )
             .route(
                 "/save_successful_sent_proof",
-                axum::routing::post(Self::save_successful_sent_proof),
+                post(Api::save_successful_sent_proof),
             )
             .with_state(processor);
 
@@ -34,43 +35,44 @@ impl Api {
 
     pub async fn run(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         let bind_address = SocketAddr::from(([0, 0, 0, 0], self.port));
-        tracing::info!("Starting external prover API server on {bind_address}");
+        tracing::info!("Starting prover gateway API server on {bind_address}");
 
         let listener = tokio::net::TcpListener::bind(bind_address)
             .await
             .with_context(|| {
-                format!("Failed binding external prover API server to {bind_address}")
+                format!("Failed binding prover gateway API server to {bind_address}")
             })?;
+
         axum::serve(listener, self.router)
         .with_graceful_shutdown(async move {
             if stop_receiver.changed().await.is_err() {
-                tracing::warn!("Stop signal sender for external prover API server was dropped without sending a signal");
-            }
-            tracing::info!("Stop signal received, external prover API server is shutting down");
+                tracing::warn!("Stop signal sender for prover gateway API server was dropped without sending a signal");
+            } 
+            tracing::info!("Stop signal received, prover gateway API server is shutting down");
         })
         .await
-        .context("External prover API server failed")?;
-        tracing::info!("External prover API server shut down");
+        .context("Prover gateway API server failed")?;
+        tracing::info!("Prover gateway API server shut down");
         Ok(())
     }
 
-    async fn next_proof(
+    async fn get_next_proof(
         State(processor): State<Processor>,
-    ) -> anyhow::Result<Option<(L1BatchNumber, SubmitProofRequest)>> {
-        Ok(processor.next_submit_proof_request().await)
+    ) -> Result<Json<Option<(L1BatchNumber, SubmitProofRequest)>>, ProcessorError> {
+        processor.get_next_proof().await.map(Json)
     }
 
-    async fn save_proof_gen_data(
+    async fn submit_proof_generation_data(
         State(processor): State<Processor>,
-        data: ProofGenerationData,
-    ) -> anyhow::Result<()> {
-        Ok(processor.save_proof_gen_data(data).await)
+        Json(data): Json<ProofGenerationData>,
+    ) -> Result<(), ProcessorError> {
+        processor.save_proof_gen_data(data).await
     }
 
     async fn save_successful_sent_proof(
         State(processor): State<Processor>,
-        l1_batch_number: L1BatchNumber,
-    ) -> anyhow::Result<()> {
-        Ok(processor.save_successful_sent_proof(l1_batch_number).await)
+        Json(l1_batch_number): Json<L1BatchNumber>,
+    ) -> Result<(), ProcessorError> {
+        processor.save_successful_sent_proof(l1_batch_number).await
     }
 }

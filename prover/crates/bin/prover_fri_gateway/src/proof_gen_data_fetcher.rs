@@ -46,12 +46,12 @@ impl ProofGenDataFetcher {
         connection
             .fri_protocol_versions_dal()
             .save_prover_protocol_version(data.protocol_version, data.l1_verifier_config)
-            .await;
+            .await.unwrap();
 
         connection
             .fri_basic_witness_generator_dal()
             .save_witness_inputs(data.l1_batch_number, &witness_inputs, data.protocol_version)
-            .await;
+            .await.unwrap();
     }
 }
 

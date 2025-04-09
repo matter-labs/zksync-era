@@ -49,6 +49,7 @@ message ProverGateway {
   optional uint32 prometheus_listener_port = 3; // required; u16
   optional string prometheus_pushgateway_url = 4; // required
   optional uint64 prometheus_push_interval_ms = 5; // optional; ms
+  optional uint32 port = 8; // required; u16
   
   reserved 6, 7;
   reserved "http_port", "ws_port";

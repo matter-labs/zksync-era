@@ -22,6 +22,7 @@ mod tests {
             prometheus_listener_port: 3316,
             prometheus_pushgateway_url: "http://127.0.0.1:9091".to_string(),
             prometheus_push_interval_ms: Some(100),
+            port: 3317,
         }
     }
 
@@ -33,6 +34,7 @@ mod tests {
             FRI_PROVER_GATEWAY_PROMETHEUS_LISTENER_PORT=3316
             FRI_PROVER_GATEWAY_PROMETHEUS_PUSHGATEWAY_URL="http://127.0.0.1:9091"
             FRI_PROVER_GATEWAY_PROMETHEUS_PUSH_INTERVAL_MS=100
+            FRI_PROVER_GATEWAY_PORT=3317
         "#;
         let mut lock = MUTEX.lock();
         lock.set_env(config);

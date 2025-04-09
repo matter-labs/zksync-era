@@ -68,7 +68,7 @@ impl ProofSubmitter {
             .unwrap()
             .fri_proof_compressor_dal()
             .mark_proof_sent_to_server(l1_batch_number)
-            .await;
+            .await.unwrap();
     }
 }
 

@@ -9358,6 +9358,7 @@ dependencies = [
  "log",
  "reqwest 0.12.9",
  "serde",
+ "thiserror 1.0.69",
  "tokio",
  "tracing",
  "vise",

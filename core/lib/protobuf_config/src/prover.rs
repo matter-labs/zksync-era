@@ -85,6 +85,7 @@ impl ProtoRepr for proto::ProverGateway {
                 .context("prometheus_pushgateway_url")?
                 .clone(),
             prometheus_push_interval_ms: self.prometheus_push_interval_ms,
+            port: required(&self.port).and_then(|x| Ok((*x).try_into()?)).context("port")?,
         })
     }
 
@@ -95,6 +96,7 @@ impl ProtoRepr for proto::ProverGateway {
             prometheus_listener_port: Some(this.prometheus_listener_port.into()),
             prometheus_pushgateway_url: Some(this.prometheus_pushgateway_url.clone()),
             prometheus_push_interval_ms: this.prometheus_push_interval_ms,
+            port: Some(this.port.into()),
         }
     }
 }
