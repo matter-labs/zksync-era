@@ -13,7 +13,7 @@ use tokio::fs;
 use zksync_circuit_prover_service::{
     gpu_circuit_prover::GpuCircuitProverExecutor,
     types::{
-        circuit::Circuit, circuit_prover_payload::GpuCircuitProverPayload,
+        circuit_prover_payload::GpuCircuitProverPayload,
         witness_vector_generator_payload::WitnessVectorGeneratorPayload,
     },
     witness_vector_generator::WitnessVectorGeneratorExecutor,
@@ -24,7 +24,7 @@ use zksync_prover_fri_types::{
     circuit_definitions::boojum::{
         cs::implementations::witness::WitnessVec, field::goldilocks::GoldilocksField,
     },
-    CircuitWrapper, ProverServiceDataKey,
+    ProverServiceDataKey,
 };
 use zksync_prover_job_processor::Executor;
 use zksync_prover_keystore::{
@@ -47,10 +47,6 @@ async fn create_witness_vector(
         .get(metadata.into())
         .await
         .context("failed to get circuit_wrapper from object store")?;
-    let circuit = match circuit_wrapper {
-        CircuitWrapper::Base(circuit) => Circuit::Base(circuit),
-        _ => panic!("Unsupported circuit"),
-    };
     tracing::info!("Circuit loaded");
 
     tracing::info!("Loading finalization hints from disk...");
@@ -80,7 +76,7 @@ async fn create_witness_vector(
     let executor = WitnessVectorGeneratorExecutor {};
     let wvg = executor.execute(
         WitnessVectorGeneratorPayload {
-            circuit,
+            circuit_wrapper,
             finalization_hints,
         },
         metadata,
@@ -113,10 +109,6 @@ async fn run_prover(
         .get(metadata.into())
         .await
         .context("failed to get circuit_wrapper from object store")?;
-    let circuit = match circuit_wrapper {
-        CircuitWrapper::Base(circuit) => Circuit::Base(circuit),
-        _ => panic!("Unsupported circuit"),
-    };
     tracing::info!("Circuit loaded");
 
     let setup_data = keystore
@@ -132,7 +124,7 @@ async fn run_prover(
     let prover = GpuCircuitProverExecutor::new(prover_context);
     let _ = prover.execute(
         GpuCircuitProverPayload {
-            circuit,
+            circuit_wrapper,
             witness_vector,
             setup_data,
         },

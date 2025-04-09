@@ -5135,6 +5135,7 @@ dependencies = [
  "tracing-subscriber",
  "zkevm_test_harness",
  "zksync_basic_types",
+ "zksync_circuit_prover_service",
  "zksync_config",
  "zksync_dal",
  "zksync_db_connection",
@@ -8641,6 +8642,7 @@ version = "20.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "serde",
  "shivini",
  "tokio",
  "tokio-util",
@@ -9538,6 +9540,7 @@ dependencies = [
  "tracing",
  "vise",
  "zkevm_test_harness",
+ "zksync_circuit_prover_service",
  "zksync_config",
  "zksync_core_leftovers",
  "zksync_env_config",
