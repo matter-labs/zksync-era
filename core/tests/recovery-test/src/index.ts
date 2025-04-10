@@ -233,7 +233,7 @@ export class FundedWallet {
         return new FundedWallet(wallet);
     }
 
-    private constructor(private readonly wallet: zksync.Wallet) {}
+    private constructor(public readonly wallet: zksync.Wallet) {}
 
     /** Ensure that this wallet is funded on L2, depositing funds from L1 if necessary. */
     async ensureIsFunded() {

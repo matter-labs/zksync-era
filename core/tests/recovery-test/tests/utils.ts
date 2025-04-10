@@ -85,3 +85,7 @@ function setPropertiesInGeneralConfig(
     }
     return new ReverseConfigPatch(pathToHome, chain, reverseProperties);
 }
+
+export function readContract(path: string, fileName: string) {
+    return JSON.parse(fs.readFileSync(`${path}/${fileName}.sol/${fileName}.json`, { encoding: 'utf-8' }));
+}

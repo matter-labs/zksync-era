@@ -11291,11 +11291,14 @@ version = "27.2.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "clap 4.5.23",
+ "insta",
  "leb128",
  "once_cell",
  "proptest",
  "rand 0.8.5",
  "rayon",
+ "serde",
+ "serde_with",
  "tempfile",
  "thiserror 1.0.69",
  "tracing",
@@ -12496,6 +12499,7 @@ dependencies = [
  "once_cell",
  "pin-project-lite",
  "rand 0.8.5",
+ "reqwest 0.12.9",
  "serde",
  "serde_json",
  "strum",
@@ -12912,6 +12916,7 @@ name = "zksync_prover_interface"
 version = "27.2.0-non-semver-compat"
 dependencies = [
  "bincode",
+ "ciborium",
  "circuit_definitions",
  "fflonk",
  "serde",

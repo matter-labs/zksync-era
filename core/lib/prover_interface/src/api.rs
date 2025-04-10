@@ -11,7 +11,7 @@ use zksync_types::{
 
 use crate::{
     inputs::{TeeVerifierInput, WitnessInputData},
-    outputs::{L1BatchProofForL1, L1BatchTeeProofForL1},
+    outputs::{JsonL1BatchProofForL1, L1BatchTeeProofForL1},
 };
 
 // Structs for holding data returned in HTTP responses
@@ -61,13 +61,13 @@ pub struct TeeProofGenerationDataRequest {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum SubmitProofRequest {
-    Proof(Box<L1BatchProofForL1>),
+    Proof(Box<JsonL1BatchProofForL1>),
     // The proof generation was skipped due to sampling
     SkippedProofGeneration,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct VerifyProofRequest(pub Box<L1BatchProofForL1>);
+pub struct VerifyProofRequest(pub Box<JsonL1BatchProofForL1>);
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct SubmitTeeProofRequest(pub Box<L1BatchTeeProofForL1>);
