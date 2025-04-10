@@ -19,7 +19,7 @@ use zksync_basic_types::L2ChainId;
 use zksync_consensus_crypto::ByteFmt;
 use zksync_consensus_roles::{attester, validator};
 
-use crate::{commands::args::WaitArgs, messages, utils::consensus::read_attester_committee_yaml};
+use crate::{commands::args::WaitArgs, messages, utils::consensus::read_validator_committee_yaml};
 
 #[allow(warnings)]
 mod abi {
@@ -211,7 +211,7 @@ impl Setup {
             .get_raw("consensus.genesis_spec")
             .context(messages::MSG_CONSENSUS_GENESIS_SPEC_ATTESTERS_MISSING_IN_GENERAL_YAML)?
             .clone();
-        let genesis_attesters = read_attester_committee_yaml(genesis_attesters)?;
+        let genesis_attesters = read_validator_committee_yaml(genesis_attesters)?;
 
         Ok(Self {
             chain,
@@ -270,7 +270,7 @@ impl Setup {
         if let Some(path) = &opts.from_file {
             let yaml = std::fs::read_to_string(path).context("read_to_string()")?;
             let yaml = serde_yaml::from_str(&yaml).context("parse YAML")?;
-            return read_attester_committee_yaml(yaml);
+            return read_validator_committee_yaml(yaml);
         }
         Ok(self.genesis_attesters.clone())
     }

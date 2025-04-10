@@ -2,24 +2,22 @@ use anyhow::Context as _;
 use serde::{Deserialize, Serialize};
 use zkstack_cli_config::{raw::PatchedConfig, ChainConfig};
 use zksync_consensus_crypto::{Text, TextFmt};
-use zksync_consensus_roles::{attester, node, validator};
+use zksync_consensus_roles::{node, validator};
 
 #[derive(Debug, Clone)]
 pub struct ConsensusSecretKeys {
     validator_key: validator::SecretKey,
-    attester_key: attester::SecretKey,
     node_key: node::SecretKey,
 }
 
 pub struct ConsensusPublicKeys {
     validator_key: validator::PublicKey,
-    attester_key: attester::PublicKey,
+    node_key: node::PublicKey,
 }
 
 pub fn generate_consensus_keys() -> ConsensusSecretKeys {
     ConsensusSecretKeys {
         validator_key: validator::SecretKey::generate(),
-        attester_key: attester::SecretKey::generate(),
         node_key: node::SecretKey::generate(),
     }
 }
@@ -27,7 +25,7 @@ pub fn generate_consensus_keys() -> ConsensusSecretKeys {
 fn get_consensus_public_keys(consensus_keys: &ConsensusSecretKeys) -> ConsensusPublicKeys {
     ConsensusPublicKeys {
         validator_key: consensus_keys.validator_key.public(),
-        attester_key: consensus_keys.attester_key.public(),
+        node_key: consensus_keys.node_key.public(),
     }
 }
 
@@ -50,29 +48,29 @@ impl Weighted {
     }
 }
 
-pub(crate) fn read_attester_committee_yaml(
+pub(crate) fn read_validator_committee_yaml(
     raw_yaml: serde_yaml::Value,
-) -> anyhow::Result<attester::Committee> {
+) -> anyhow::Result<validator::Committee> {
     #[derive(Debug, Deserialize)]
-    struct SetAttesterCommitteeFile {
-        attesters: Vec<Weighted>,
+    struct SetValidatorCommitteeFile {
+        validators: Vec<Weighted>,
     }
 
-    let file: SetAttesterCommitteeFile =
-        serde_yaml::from_value(raw_yaml).context("invalid attester committee format")?;
-    let attesters: Vec<_> = file
-        .attesters
+    let file: SetValidatorCommitteeFile =
+        serde_yaml::from_value(raw_yaml).context("invalid validator committee format")?;
+    let validators: Vec<_> = file
+        .validators
         .iter()
         .enumerate()
         .map(|(i, v)| {
-            Ok(attester::WeightedAttester {
+            Ok(validator::WeightedValidator {
                 key: Text::new(&v.key).decode().context("key").context(i)?,
                 weight: v.weight,
             })
         })
         .collect::<anyhow::Result<_>>()
-        .context("attesters")?;
-    attester::Committee::new(attesters).context("Committee::new()")
+        .context("validators")?;
+    validator::Committee::new(validators).context("Committee::new()")
 }
 
 pub fn set_genesis_specs(
@@ -82,7 +80,6 @@ pub fn set_genesis_specs(
 ) -> anyhow::Result<()> {
     let public_keys = get_consensus_public_keys(consensus_keys);
     let validator_key = public_keys.validator_key.encode();
-    let attester_key = public_keys.attester_key.encode();
     let leader = validator_key.clone();
 
     general.insert(
@@ -94,10 +91,6 @@ pub fn set_genesis_specs(
         "consensus.genesis_spec.validators",
         [Weighted::new(validator_key, 1)],
     )?;
-    general.insert_yaml(
-        "consensus.genesis_spec.attesters",
-        [Weighted::new(attester_key, 1)],
-    )?;
     general.insert("consensus.genesis_spec.leader", leader)?;
     Ok(())
 }
@@ -107,10 +100,8 @@ pub(crate) fn set_consensus_secrets(
     consensus_keys: &ConsensusSecretKeys,
 ) -> anyhow::Result<()> {
     let validator_key = consensus_keys.validator_key.encode();
-    let attester_key = consensus_keys.attester_key.encode();
     let node_key = consensus_keys.node_key.encode();
     secrets.insert("consensus.validator_key", validator_key)?;
-    secrets.insert("consensus.attester_key", attester_key)?;
     secrets.insert("consensus.node_key", node_key)?;
     Ok(())
 }
