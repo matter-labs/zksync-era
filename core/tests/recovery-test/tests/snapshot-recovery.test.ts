@@ -15,13 +15,7 @@ import {
     executeCommandWithLogs,
     FundedWallet
 } from '../src';
-import {
-    setChunkSize,
-    setDataRetentionSec,
-    setRemovalDelaySec,
-    setSnapshotRecovery,
-    setTreeRecoveryParallelPersistenceBuffer
-} from './utils';
+import { setSnapshotRecovery, setTreeRecoveryParallelPersistenceBuffer, setPruning, ReverseConfigPatch } from './utils';
 import { loadConfig, shouldLoadConfigFromFile } from 'utils/build/file-configs';
 import { logsTestPath } from 'utils/build/logs';
 
@@ -111,6 +105,7 @@ describe('snapshot recovery', () => {
     let ethRpcUrl: string;
     let externalNodeUrl: string;
     let extNodeHealthUrl: string;
+    const reverseConfigPatches: ReverseConfigPatch[] = [];
 
     before('prepare environment', async () => {
         expect(process.env.ZKSYNC_ENV, '`ZKSYNC_ENV` should not be set to allow running both server and EN components')
@@ -132,8 +127,10 @@ describe('snapshot recovery', () => {
             externalNodeUrl = externalNodeGeneralConfig.api.web3_json_rpc.http_url;
             extNodeHealthUrl = `http://127.0.0.1:${externalNodeGeneralConfig.api.healthcheck.port}/health`;
 
-            setSnapshotRecovery(pathToHome, fileConfig, true);
-            setTreeRecoveryParallelPersistenceBuffer(pathToHome, fileConfig, 4);
+            reverseConfigPatches.push(
+                setSnapshotRecovery(pathToHome, fileConfig.chain),
+                setTreeRecoveryParallelPersistenceBuffer(pathToHome, fileConfig.chain, 4)
+            );
         } else {
             ethRpcUrl = process.env.ETH_CLIENT_WEB3_URL ?? 'http://127.0.0.1:8545';
             apiWeb3JsonRpcHttpUrl = 'http://127.0.0.1:3050';
@@ -160,12 +157,8 @@ describe('snapshot recovery', () => {
             await externalNodeProcess.logs.close();
         }
 
-        if (fileConfig.loadFromFile) {
-            setSnapshotRecovery(pathToHome, fileConfig, false);
-            setChunkSize(pathToHome, fileConfig, 10);
-            setDataRetentionSec(pathToHome, fileConfig, 3600);
-            setRemovalDelaySec(pathToHome, fileConfig, 60);
-            setTreeRecoveryParallelPersistenceBuffer(pathToHome, fileConfig, 1);
+        for (const patch of reverseConfigPatches.reverse()) {
+            patch.reverse();
         }
     });
 
@@ -361,9 +354,13 @@ describe('snapshot recovery', () => {
         externalNodeEnv = { ...externalNodeEnv, ...pruningParams };
 
         if (fileConfig.loadFromFile) {
-            setChunkSize(pathToHome, fileConfig, 1);
-            setDataRetentionSec(pathToHome, fileConfig, 0);
-            setRemovalDelaySec(pathToHome, fileConfig, 1);
+            reverseConfigPatches.push(
+                setPruning(pathToHome, fileConfig.chain, {
+                    chunkSize: 1,
+                    dataRetentionSec: 0,
+                    removalDelaySec: 1
+                })
+            );
         }
 
         console.log('Starting EN with pruning params', pruningParams);
