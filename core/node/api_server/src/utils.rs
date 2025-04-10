@@ -276,7 +276,11 @@ pub(crate) enum AccountType {
 
 impl AccountType {
     fn is_default(self) -> bool {
-        matches!(self, AccountType::External(ExternalAccountType::Default))
+        matches!(self, Self::External(ExternalAccountType::Default))
+    }
+
+    pub(crate) fn is_external(self) -> bool {
+        matches!(self, Self::External(_))
     }
 }
 
@@ -310,7 +314,7 @@ impl AccountType {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct AccountTypesCache {
     cache: LruCache<Address, AccountType>,
 }
@@ -324,7 +328,8 @@ impl Default for AccountTypesCache {
 }
 
 impl AccountTypesCache {
-    /// Returns the account type and effective stored nonce for the specified address.
+    /// Returns the account type and the stored nonce for the specified address. The nonce is intelligently
+    /// selected between the account nonce and deployment nonce, depending on the account type (contract or EOA).
     pub(crate) async fn get_with_nonce(
         &self,
         storage: &mut Connection<'_, Core>,
@@ -617,26 +622,29 @@ mod tests {
         assert_matches!(account_types[&alice.address], ExternalAccountType::Default);
         assert_matches!(account_types[&account_addr], ExternalAccountType::Custom);
 
+        let counter_addr = deployed_address_create(account_addr, 0.into());
         let account_types = AccountTypesCache::default();
-        let (ty, nonce) = account_types
-            .get_with_nonce(&mut storage, alice.address, L2BlockNumber(1))
-            .await
-            .unwrap();
-        assert_matches!(ty, AccountType::External(ExternalAccountType::Default));
-        assert_eq!(nonce, 3.into()); // 3 first txs in the block
-        let (ty, nonce) = account_types
-            .get_with_nonce(&mut storage, account_addr, L2BlockNumber(1))
-            .await
-            .unwrap();
-        assert_matches!(ty, AccountType::External(ExternalAccountType::Custom));
-        assert_eq!(nonce, 1.into()); // deploying counter
-        let contract_addr = deployed_address_create(account_addr, 0.into());
-        let (ty, nonce) = account_types
-            .get_with_nonce(&mut storage, contract_addr, L2BlockNumber(1))
-            .await
-            .unwrap();
-        assert_matches!(ty, AccountType::Contract);
-        assert_eq!(nonce, 0.into());
+        // Check 2 times to verify caching logic.
+        for _ in 0..2 {
+            let (ty, nonce) = account_types
+                .get_with_nonce(&mut storage, alice.address, L2BlockNumber(1))
+                .await
+                .unwrap();
+            assert_matches!(ty, AccountType::External(ExternalAccountType::Default));
+            assert_eq!(nonce, 3.into()); // 3 first txs in the block
+            let (ty, nonce) = account_types
+                .get_with_nonce(&mut storage, account_addr, L2BlockNumber(1))
+                .await
+                .unwrap();
+            assert_matches!(ty, AccountType::External(ExternalAccountType::Custom));
+            assert_eq!(nonce, 1.into()); // deploying counter
+            let (ty, nonce) = account_types
+                .get_with_nonce(&mut storage, counter_addr, L2BlockNumber(1))
+                .await
+                .unwrap();
+            assert_matches!(ty, AccountType::Contract);
+            assert_eq!(nonce, 0.into());
+        }
 
         // For addresses with no activity, the type should be "the default AA".
         let empty_address = Address::repeat_byte(0xee);
@@ -649,7 +657,7 @@ mod tests {
 
         assert!(account_types.cache.get(&alice.address).is_some());
         assert!(account_types.cache.get(&account_addr).is_some());
-        assert!(account_types.cache.get(&contract_addr).is_some());
+        assert!(account_types.cache.get(&counter_addr).is_some());
         assert!(account_types.cache.get(&empty_address).is_none());
 
         let receipts = storage
