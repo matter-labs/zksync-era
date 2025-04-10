@@ -13,7 +13,7 @@ use zksync_dal::{
 use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
 use zksync_types::{
     api::TransactionReceipt,
-    get_code_key, get_nonce_key, h256_to_u256,
+    get_code_key, get_is_account_key, get_nonce_key, h256_to_u256,
     tx::execute::DeploymentParams,
     utils::{decompose_full_nonce, deployed_address_create, deployed_address_evm_create},
     Address, L2BlockNumber,
@@ -114,7 +114,7 @@ pub(crate) async fn fill_transaction_receipts(
     let account_types = if let Some(first_receipt) = deployment_receipts.clone().next() {
         let block_number = L2BlockNumber(first_receipt.inner.block_number.as_u32());
         let from_addresses = deployment_receipts.map(|receipt| receipt.inner.from);
-        get_account_types(storage, from_addresses, block_number).await?
+        get_external_account_types(storage, from_addresses, block_number).await?
     } else {
         HashMap::new()
     };
@@ -122,7 +122,11 @@ pub(crate) async fn fill_transaction_receipts(
     let mut filled_receipts = Vec::with_capacity(receipts.len());
     let mut receipt_indexes_with_unknown_nonce = HashSet::new();
     for (i, (mut receipt, mut deployment)) in receipts.into_iter().zip(deployments).enumerate() {
-        if deployment.is_some() && matches!(account_types[&receipt.inner.from], AccountType::Custom)
+        if deployment.is_some()
+            && matches!(
+                account_types[&receipt.inner.from],
+                ExternalAccountType::Custom
+            )
         {
             // Custom AAs may interpret transaction data in an arbitrary way (or, more realistically, use a custom
             // nonce increment scheme). Hence, we don't even try to assign `contract_address` for a receipt from a custom AA.
@@ -174,16 +178,16 @@ enum DeploymentTransactionType {
 }
 
 #[derive(Debug, Clone, Copy)]
-enum AccountType {
+pub(crate) enum ExternalAccountType {
     Default,
     Custom,
 }
 
-async fn get_account_types(
+async fn get_external_account_types(
     storage: &mut Connection<'_, Core>,
     addresses: impl Iterator<Item = Address>,
     block_number: L2BlockNumber,
-) -> Result<HashMap<Address, AccountType>, Web3Error> {
+) -> Result<HashMap<Address, ExternalAccountType>, Web3Error> {
     let code_keys_to_addresses: HashMap<_, _> = addresses
         .map(|from| (get_code_key(&from).hashed_key(), from))
         .collect();
@@ -206,9 +210,9 @@ async fn get_account_types(
                 .unwrap_or_default();
             // The code key slot is non-zero for custom AAs
             let account_type = if value.is_zero() {
-                AccountType::Default
+                ExternalAccountType::Default
             } else {
-                AccountType::Custom
+                ExternalAccountType::Custom
             };
             (address, account_type)
         })
@@ -259,6 +263,37 @@ async fn fill_receipts_with_unknown_nonce(
         receipt.contract_address = Some(deployed_address_create(sender, deploy_nonce));
     }
     Ok(())
+}
+
+#[allow(dead_code)] // FIXME
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum AccountType {
+    /// Externally owned account.
+    External(ExternalAccountType),
+    /// Non-AA contract.
+    Contract,
+}
+
+#[allow(dead_code)] // FIXME
+impl AccountType {
+    /// Loads the *current* kind of the specified `address`.
+    async fn new(storage: &mut Connection<'_, Core>, address: Address) -> Result<Self, Web3Error> {
+        let code_key = get_code_key(&address).hashed_key();
+        let is_account_key = get_is_account_key(&address).hashed_key();
+
+        let values = storage
+            .storage_web3_dal()
+            .get_values(&[code_key, is_account_key])
+            .await
+            .map_err(DalError::generalize)?;
+        Ok(if values[&code_key].is_zero() {
+            Self::External(ExternalAccountType::Default)
+        } else if values[&is_account_key].is_zero() {
+            Self::Contract
+        } else {
+            Self::External(ExternalAccountType::Custom)
+        })
+    }
 }
 
 #[cfg(test)]
@@ -507,9 +542,9 @@ mod tests {
         let expected_contract_addresses = [Some(account_addr), None, None, None];
         persist_block_with_transactions(&pool, txs).await;
 
-        // Check the account type helper.
+        // Check the account type helpers.
         let mut storage = pool.connection().await.unwrap();
-        let account_types = get_account_types(
+        let account_types = get_external_account_types(
             &mut storage,
             [alice.address, account_addr].into_iter(),
             L2BlockNumber(1),
@@ -517,8 +552,21 @@ mod tests {
         .await
         .unwrap();
 
-        assert_matches!(account_types[&alice.address], AccountType::Default);
-        assert_matches!(account_types[&account_addr], AccountType::Custom);
+        assert_matches!(account_types[&alice.address], ExternalAccountType::Default);
+        assert_matches!(account_types[&account_addr], ExternalAccountType::Custom);
+
+        let ty = AccountType::new(&mut storage, alice.address).await.unwrap();
+        assert_matches!(ty, AccountType::External(ExternalAccountType::Default));
+        let ty = AccountType::new(&mut storage, account_addr).await.unwrap();
+        assert_matches!(ty, AccountType::External(ExternalAccountType::Custom));
+        let contract_addr = deployed_address_create(account_addr, 0.into());
+        let ty = AccountType::new(&mut storage, contract_addr).await.unwrap();
+        assert_matches!(ty, AccountType::Contract);
+        // For addresses with no activity, the type should be "the default AA".
+        let ty = AccountType::new(&mut storage, Address::repeat_byte(0xee))
+            .await
+            .unwrap();
+        assert_matches!(ty, AccountType::External(ExternalAccountType::Default));
 
         let receipts = storage
             .transactions_web3_dal()
