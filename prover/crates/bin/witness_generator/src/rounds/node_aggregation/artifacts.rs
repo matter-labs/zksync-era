@@ -1,5 +1,6 @@
 use std::time::Instant;
 
+use anyhow::anyhow;
 use async_trait::async_trait;
 use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
@@ -101,7 +102,8 @@ impl ArtifactsManager for NodeAggregation {
                         artifacts.depth,
                         protocol_version_id,
                     )
-                    .await;
+                    .await
+                    .map_err(|e| anyhow!(e))?;
                 transaction
                     .fri_node_witness_generator_dal()
                     .insert_node_aggregation_jobs(
@@ -112,7 +114,8 @@ impl ArtifactsManager for NodeAggregation {
                         &blob_urls.aggregation_urls,
                         protocol_version_id,
                     )
-                    .await;
+                    .await
+                    .map_err(|e| anyhow!(e))?;
             }
             false => {
                 let (_, blob_url) = blob_urls.circuit_ids_and_urls[0].clone();
@@ -129,13 +132,15 @@ impl ArtifactsManager for NodeAggregation {
                         protocol_version_id,
                     )
                     .await
+                    .map_err(|e| anyhow!(e))?;
             }
         }
 
         transaction
             .fri_node_witness_generator_dal()
             .mark_node_aggregation_as_successful(job_id, started_at.elapsed())
-            .await;
+            .await
+            .map_err(|e| anyhow!(e))?;
 
         transaction.commit().await?;
 
