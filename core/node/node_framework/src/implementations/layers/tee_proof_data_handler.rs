@@ -55,7 +55,7 @@ impl WiringLayer for TeeProofDataHandlerLayer {
     type Output = Output;
 
     fn layer_name(&self) -> &'static str {
-        "proof_data_handler_layer"
+        "tee_proof_data_handler_layer"
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
@@ -95,7 +95,7 @@ impl TeeProofDataHandlerTask {
 #[async_trait::async_trait]
 impl Task for TeeProofDataHandlerTask {
     fn id(&self) -> TaskId {
-        "proof_data_handler".into()
+        "tee_proof_data_handler".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
