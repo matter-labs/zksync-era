@@ -8957,6 +8957,7 @@ version = "20.1.0"
 dependencies = [
  "anyhow",
  "bincode",
+ "chrono",
  "clap 4.5.23",
  "once_cell",
  "regex",

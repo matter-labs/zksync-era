@@ -196,7 +196,8 @@ impl FriProverDal<'_, '_> {
             prover_jobs_fri.aggregation_round,
             prover_jobs_fri.sequence_number,
             prover_jobs_fri.depth,
-            prover_jobs_fri.is_node_final_proof
+            prover_jobs_fri.is_node_final_proof,
+            prover_jobs_fri.batch_sealed_at
             "#,
             protocol_version.minor as i32,
             protocol_version.patch.0 as i32,
@@ -210,6 +211,7 @@ impl FriProverDal<'_, '_> {
         .map(|row| FriProverJobMetadata {
             id: row.id as u32,
             block_number: L1BatchNumber(row.l1_batch_number as u32),
+            batch_sealed_at: DateTime::<Utc>::from_naive_utc_and_offset(row.batch_sealed_at, Utc),
             circuit_id: row.circuit_id as u8,
             aggregation_round: AggregationRound::try_from(i32::from(row.aggregation_round))
                 .unwrap(),
@@ -275,7 +277,8 @@ impl FriProverDal<'_, '_> {
             prover_jobs_fri.aggregation_round,
             prover_jobs_fri.sequence_number,
             prover_jobs_fri.depth,
-            prover_jobs_fri.is_node_final_proof
+            prover_jobs_fri.is_node_final_proof,
+            prover_jobs_fri.batch_sealed_at
             "#,
             protocol_version.minor as i32,
             protocol_version.patch.0 as i32,
@@ -289,6 +292,7 @@ impl FriProverDal<'_, '_> {
         .map(|row| FriProverJobMetadata {
             id: row.id as u32,
             block_number: L1BatchNumber(row.l1_batch_number as u32),
+            batch_sealed_at: DateTime::<Utc>::from_naive_utc_and_offset(row.batch_sealed_at, Utc),
             circuit_id: row.circuit_id as u8,
             aggregation_round: AggregationRound::try_from(i32::from(row.aggregation_round))
                 .unwrap(),
@@ -344,7 +348,8 @@ impl FriProverDal<'_, '_> {
             prover_jobs_fri.aggregation_round,
             prover_jobs_fri.sequence_number,
             prover_jobs_fri.depth,
-            prover_jobs_fri.is_node_final_proof
+            prover_jobs_fri.is_node_final_proof,
+            prover_jobs_fri.batch_sealed_at
             "#,
             duration_to_naive_time(time_taken),
             blob_url,
@@ -359,6 +364,7 @@ impl FriProverDal<'_, '_> {
         .map(|row| FriProverJobMetadata {
             id: row.id as u32,
             block_number: L1BatchNumber(row.l1_batch_number as u32),
+            batch_sealed_at: DateTime::<Utc>::from_naive_utc_and_offset(row.batch_sealed_at, Utc),
             circuit_id: row.circuit_id as u8,
             aggregation_round: AggregationRound::try_from(i32::from(row.aggregation_round))
                 .unwrap(),

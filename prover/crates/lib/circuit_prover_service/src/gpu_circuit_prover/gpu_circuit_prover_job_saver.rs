@@ -81,11 +81,6 @@ impl JobSaver for GpuCircuitProverJobSaver {
                     .save_proof(metadata.id, metadata.pick_time.elapsed(), &blob_url)
                     .await;
 
-                let batch_sealed_at = transaction
-                    .fri_basic_witness_generator_dal()
-                    .get_batch_sealed_at_timestamp(metadata.block_number)
-                    .await;
-
                 if is_scheduler_proof {
                     transaction
                         .fri_proof_compressor_dal()
@@ -93,7 +88,7 @@ impl JobSaver for GpuCircuitProverJobSaver {
                             metadata.block_number,
                             &blob_url,
                             self.protocol_version,
-                            batch_sealed_at,
+                            metadata.batch_sealed_at,
                         )
                         .await;
                 }
