@@ -43,9 +43,11 @@ impl DataAvailabilityDispatcher {
 
     pub async fn run(mut self, mut stop_receiver: Receiver<bool>) -> anyhow::Result<()> {
         self.check_for_misconfiguration().await?;
-        let self_arc = Arc::new(self.clone());
+        let self_arc_dispatch = Arc::new(self.clone());
+        let self_arc_finality = Arc::new(self.clone());
 
         let mut stop_receiver_dispatch = stop_receiver.clone();
+        let mut stop_receiver_finality = stop_receiver.clone();
         let mut stop_receiver_poll_for_inclusion = stop_receiver.clone();
 
         let dispatch_task = tokio::spawn(async move {
@@ -54,13 +56,35 @@ impl DataAvailabilityDispatcher {
                     break;
                 }
 
-                if let Err(err) = self_arc.dispatch().await {
+                if let Err(err) = self_arc_dispatch.dispatch().await {
                     tracing::error!("dispatch error {err:?}");
                 }
 
                 if tokio::time::timeout(
-                    self_arc.config.polling_interval(),
+                    self_arc_dispatch.config.polling_interval(),
                     stop_receiver_dispatch.changed(),
+                )
+                .await
+                .is_ok()
+                {
+                    break;
+                }
+            }
+        });
+
+        let finality_task = tokio::spawn(async move {
+            loop {
+                if *stop_receiver_finality.borrow() {
+                    break;
+                }
+
+                if let Err(err) = self_arc_finality.ensure_finality().await {
+                    tracing::error!("poll_for_inclusion error {err:?}");
+                }
+
+                if tokio::time::timeout(
+                    self_arc_finality.config.polling_interval(),
+                    stop_receiver_finality.changed(),
                 )
                 .await
                 .is_ok()
@@ -94,6 +118,7 @@ impl DataAvailabilityDispatcher {
 
         tokio::select! {
             _ = dispatch_task => {},
+            _ = finality_task => {},
             _ = inclusion_task => {},
             _ = stop_receiver.changed() => {},
         }
@@ -102,7 +127,7 @@ impl DataAvailabilityDispatcher {
         Ok(())
     }
 
-    /// Dispatches the blobs to the data availability layer, and saves the blob_id in the database.
+    /// Dispatches the blobs to the data availability layer, and saves the dispatch_request_id in the database.
     async fn dispatch(&self) -> anyhow::Result<()> {
         let mut conn = self.pool.connection_tagged("da_dispatcher").await?;
         let batches = conn
@@ -113,10 +138,15 @@ impl DataAvailabilityDispatcher {
 
         for batch in &batches {
             let dispatch_latency = METRICS.blob_dispatch_latency.start();
-            let dispatch_response = retry(self.config.max_retries(), batch.l1_batch_number, || {
-                self.client
-                    .dispatch_blob(batch.l1_batch_number.0, batch.pubdata.clone())
-            })
+            let dispatch_response = retry(
+                self.config.max_retries(),
+                batch.l1_batch_number,
+                "DA dispatch",
+                || {
+                    self.client
+                        .dispatch_blob(batch.l1_batch_number.0, batch.pubdata.clone())
+                },
+            )
             .await
             .with_context(|| {
                 format!(
@@ -131,12 +161,11 @@ impl DataAvailabilityDispatcher {
 
             let mut conn = self.pool.connection_tagged("da_dispatcher").await?;
             conn.data_availability_dal()
-                .insert_l1_batch_da(
+                .insert_l1_batch_da_request_id(
                     batch.l1_batch_number,
-                    dispatch_response.blob_id.as_str(),
+                    dispatch_response.request_id.as_str(),
                     sent_at.naive_utc(),
                     client_type_to_pubdata_type(self.client.client_type()),
-                    None,
                     Some(find_l2_da_validator_address(batch.system_logs.as_slice())?),
                 )
                 .await?;
@@ -183,6 +212,57 @@ impl DataAvailabilityDispatcher {
         Ok(())
     }
 
+    async fn ensure_finality(&self) -> anyhow::Result<()> {
+        let mut conn = self.pool.connection_tagged("da_dispatcher").await?;
+        let blob = conn
+            .data_availability_dal()
+            .get_first_da_blob_awaiting_finality()
+            .await?;
+        drop(conn);
+
+        let Some(blob) = blob else {
+            return Ok(());
+        };
+
+        // TODO: add metrics for finality latency
+        let finality_response = self
+            .client
+            .ensure_finality(blob.dispatch_request_id.clone())
+            .await;
+
+        match finality_response {
+            Ok(None) => {
+                // Not final yet, do nothing
+            }
+            Ok(Some(finality_response)) => {
+                let mut conn = self.pool.connection_tagged("da_dispatcher").await?;
+                conn.data_availability_dal()
+                    .set_blob_id(blob.l1_batch_number, finality_response.blob_id.as_str())
+                    .await?;
+
+                tracing::info!(
+                    "Finality check for a batch_number: {} is successful",
+                    blob.l1_batch_number
+                );
+            }
+            Err(err) => {
+                tracing::warn!(
+                    "Finality check for a batch_number: {} failed with an error: {}",
+                    blob.l1_batch_number,
+                    err.error
+                );
+
+                // remove the entry from the database to resend the blob again
+                let mut conn = self.pool.connection_tagged("da_dispatcher").await?;
+                conn.data_availability_dal()
+                    .remove_data_availability_entry(blob.l1_batch_number)
+                    .await?;
+            }
+        }
+
+        Ok(())
+    }
+
     /// Polls the data availability layer for inclusion data, and saves it in the database.
     async fn poll_for_inclusion(&self) -> anyhow::Result<()> {
         if self.config.inclusion_verification_transition_enabled() {
@@ -216,13 +296,20 @@ impl DataAvailabilityDispatcher {
         let inclusion_data = if self.config.use_dummy_inclusion_data() {
             Some(InclusionData { data: vec![] })
         } else {
+            let Some(blob_id) = blob_info.blob_id else {
+                anyhow::bail!(
+                    "Blob ID is not set for batch_number: {}",
+                    blob_info.l1_batch_number
+                );
+            };
+
             self.client
-                .get_inclusion_data(blob_info.blob_id.as_str())
+                .get_inclusion_data(blob_id.as_str())
                 .await
                 .with_context(|| {
                     format!(
                         "failed to get inclusion data for blob_id: {}, batch_number: {}",
-                        blob_info.blob_id, blob_info.l1_batch_number
+                        blob_id, blob_info.l1_batch_number
                     )
                 })?
         };
@@ -272,6 +359,7 @@ impl DataAvailabilityDispatcher {
 async fn retry<T, Fut, F>(
     max_retries: u16,
     batch_number: L1BatchNumber,
+    action_name: &str,
     mut f: F,
 ) -> Result<T, DAError>
 where
@@ -296,7 +384,7 @@ where
                     .mul_f32(rand::thread_rng().gen_range(0.8..1.2));
                 tracing::warn!(
                     %err,
-                    "Failed DA dispatch request {retries}/{} for batch {batch_number}, retrying in {} milliseconds.",
+                    "Failed {action_name} {retries}/{} for batch {batch_number}, retrying in {} milliseconds.",
                     max_retries+1,
                     sleep_duration.as_millis()
                 );

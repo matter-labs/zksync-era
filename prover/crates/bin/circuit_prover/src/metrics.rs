@@ -1,20 +1,17 @@
 use std::time::Duration;
 
-use vise::{Buckets, Histogram, Metrics};
+use vise::{Gauge, Metrics};
 
 /// Instrument prover binary lifecycle
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "prover_binary")]
 pub struct ProverBinaryMetrics {
     /// How long does it take for prover to load data before it can produce proofs?
-    #[metrics(buckets = Buckets::LATENCIES)]
-    pub startup_time: Histogram<Duration>,
+    pub startup_time: Gauge<Duration>,
     /// How long did the prover binary run for?
-    #[metrics(buckets = Buckets::LATENCIES)]
-    pub run_time: Histogram<Duration>,
+    pub run_time: Gauge<Duration>,
     /// How long does it take prover to gracefully shutdown?
-    #[metrics(buckets = Buckets::LATENCIES)]
-    pub shutdown_time: Histogram<Duration>,
+    pub shutdown_time: Gauge<Duration>,
 }
 
 #[vise::register]

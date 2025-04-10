@@ -1,6 +1,6 @@
 use thiserror::Error;
 use zksync_multivm::interface::ExecutionResult;
-use zksync_types::{l2::error::TxCheckError, U256};
+use zksync_types::{l2::error::TxCheckError, Address, U256};
 use zksync_web3_decl::error::EnrichedClientError;
 
 use crate::execution_sandbox::{SandboxExecutionError, ValidationError};
@@ -60,6 +60,8 @@ pub enum SubmitTxError {
     /// Currently only triggered during gas estimation for L1 and protocol upgrade transactions.
     #[error("integer overflow computing base token amount to mint")]
     MintedAmountOverflow,
+    #[error("transaction failed block.timestamp assertion")]
+    FailedBlockTimestampAssertion,
 
     /// Error returned from main node.
     #[error("{0}")]
@@ -67,8 +69,8 @@ pub enum SubmitTxError {
     /// Catch-all internal error (e.g., database error) that should not be exposed to the caller.
     #[error("internal error")]
     Internal(#[from] anyhow::Error),
-    #[error("transaction failed block.timestamp assertion")]
-    FailedBlockTimestampAssertion,
+    #[error("contract deployer address {0} is not in the allow list")]
+    DeployerNotInAllowList(Address),
 }
 
 impl SubmitTxError {
@@ -96,9 +98,10 @@ impl SubmitTxError {
             Self::IntrinsicGas => "intrinsic-gas",
             Self::FailedToPublishCompressedBytecodes => "failed-to-publish-compressed-bytecodes",
             Self::MintedAmountOverflow => "minted-amount-overflow",
+            Self::FailedBlockTimestampAssertion => "failed-block-timestamp-assertion",
             Self::ProxyError(_) => "proxy-error",
             Self::Internal(_) => "internal",
-            Self::FailedBlockTimestampAssertion => "failed-block-timestamp-assertion",
+            Self::DeployerNotInAllowList(_) => "deployer-not-in-allow-list",
         }
     }
 

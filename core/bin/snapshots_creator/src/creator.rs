@@ -209,8 +209,9 @@ impl SnapshotCreator {
             METRICS.factory_deps_processing_duration[&FactoryDepsStage::SaveToGcs].start();
         let factory_deps = factory_deps
             .into_iter()
-            .map(|(_, bytecode)| SnapshotFactoryDependency {
+            .map(|(hash, bytecode)| SnapshotFactoryDependency {
                 bytecode: bytecode.into(),
+                hash: Some(hash),
             })
             .collect();
         let factory_deps = SnapshotFactoryDependencies { factory_deps };

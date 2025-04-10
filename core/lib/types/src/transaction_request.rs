@@ -576,6 +576,12 @@ impl TransactionRequest {
         Ok(())
     }
 
+    pub fn set_signature(&mut self, signature: &PackedEthSignature) {
+        self.r = Some(U256::from_big_endian(signature.r()));
+        self.s = Some(U256::from_big_endian(signature.s()));
+        self.v = Some(signature.v().into())
+    }
+
     fn decode_standard_fields(rlp: &Rlp, offset: usize) -> Result<Self, DecoderError> {
         Ok(Self {
             nonce: rlp.val_at(offset)?,
@@ -738,7 +744,7 @@ impl TransactionRequest {
     }
 
     pub fn get_tx_hash(&self) -> Result<H256, SerializationTransactionError> {
-        Ok(self.get_signed_and_tx_hashes()?.0)
+        Ok(self.get_signed_and_tx_hashes()?.1)
     }
 
     pub fn get_signed_and_tx_hashes(&self) -> Result<(H256, H256), SerializationTransactionError> {
