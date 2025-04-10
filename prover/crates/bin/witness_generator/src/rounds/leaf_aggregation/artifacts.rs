@@ -92,9 +92,9 @@ impl ArtifactsManager for LeafAggregation {
             .fri_basic_witness_generator_dal()
             .protocol_version_for_l1_batch(artifacts.block_number)
             .await;
-        let batch_created_at = transaction
+        let batch_sealed_at = transaction
             .fri_basic_witness_generator_dal()
-            .get_batch_created_at_timestamp(artifacts.block_number)
+            .get_batch_sealed_at_timestamp(artifacts.block_number)
             .await;
 
         tracing::info!(
@@ -112,7 +112,7 @@ impl ArtifactsManager for LeafAggregation {
                 AggregationRound::LeafAggregation,
                 0,
                 protocol_version_id,
-                batch_created_at,
+                batch_sealed_at,
             )
             .await;
         tracing::info!(

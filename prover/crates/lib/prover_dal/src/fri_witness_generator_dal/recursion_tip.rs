@@ -134,7 +134,7 @@ impl FriRecursionTipWitnessGeneratorDal<'_, '_> {
                         AND protocol_version_patch = $2
                     ORDER BY
                         priority DESC,
-                        batch_created_at ASC
+                        batch_sealed_at ASC
                     LIMIT
                         1
                     FOR UPDATE
@@ -265,7 +265,7 @@ impl FriRecursionTipWitnessGeneratorDal<'_, '_> {
         block_number: L1BatchNumber,
         closed_form_inputs_and_urls: &[(u8, String, usize)],
         protocol_version: ProtocolSemanticVersion,
-        batch_created_at: DateTime<Utc>,
+        batch_sealed_at: DateTime<Utc>,
     ) {
         sqlx::query!(
             r#"
@@ -278,7 +278,7 @@ impl FriRecursionTipWitnessGeneratorDal<'_, '_> {
                 created_at,
                 updated_at,
                 protocol_version_patch,
-                batch_created_at
+                batch_sealed_at
             )
             VALUES
             ($1, 'waiting_for_proofs', $2, $3, NOW(), NOW(), $4, $5)
@@ -291,7 +291,7 @@ impl FriRecursionTipWitnessGeneratorDal<'_, '_> {
             closed_form_inputs_and_urls.len() as i32,
             protocol_version.minor as i32,
             protocol_version.patch.0 as i32,
-            batch_created_at.naive_utc(),
+            batch_sealed_at.naive_utc(),
         )
         .execute(self.storage.conn())
         .await

@@ -74,7 +74,7 @@ impl FriProverDal<'_, '_> {
         aggregation_round: AggregationRound,
         depth: u16,
         protocol_version_id: ProtocolSemanticVersion,
-        batch_created_at: DateTime<Utc>,
+        batch_sealed_at: DateTime<Utc>,
     ) {
         let _latency = MethodLatency::new("save_fri_prover_jobs");
         if circuit_ids_and_urls.is_empty() {
@@ -101,7 +101,7 @@ impl FriProverDal<'_, '_> {
                     created_at,
                     updated_at,
                     protocol_version_patch,
-                    batch_created_at
+                    batch_sealed_at
                 )
                 "#,
             );
@@ -121,7 +121,7 @@ impl FriProverDal<'_, '_> {
                         .push("NOW()") // created_at
                         .push("NOW()") // updated_at
                         .push_bind(protocol_version_id.patch.0 as i32)
-                        .push_bind(batch_created_at.naive_utc()); // batch_created_at
+                        .push_bind(batch_sealed_at.naive_utc()); // batch_sealed_at
                 },
             );
 
@@ -181,7 +181,7 @@ impl FriProverDal<'_, '_> {
                         AND circuit_id = ANY($5)
                     ORDER BY
                         priority DESC,
-                        batch_created_at ASC,
+                        batch_sealed_at ASC,
                         circuit_id ASC,
                         id ASC
                     LIMIT
@@ -259,7 +259,7 @@ impl FriProverDal<'_, '_> {
                         AND NOT (aggregation_round = $4 AND circuit_id = ANY($5))
                     ORDER BY
                         priority DESC,
-                        batch_created_at ASC,
+                        batch_sealed_at ASC,
                         aggregation_round ASC,
                         circuit_id ASC,
                         id ASC
@@ -442,7 +442,7 @@ impl FriProverDal<'_, '_> {
         circuit_blob_url: &str,
         is_node_final_proof: bool,
         protocol_version: ProtocolSemanticVersion,
-        batch_created_at: DateTime<Utc>,
+        batch_sealed_at: DateTime<Utc>,
     ) {
         sqlx::query!(
             r#"
@@ -460,7 +460,7 @@ impl FriProverDal<'_, '_> {
                 created_at,
                 updated_at,
                 protocol_version_patch,
-                batch_created_at
+                batch_sealed_at
             )
             VALUES
             ($1, $2, $3, $4, $5, $6, $7, $8, 'queued', NOW(), NOW(), $9, $10)
@@ -480,7 +480,7 @@ impl FriProverDal<'_, '_> {
             is_node_final_proof,
             protocol_version.minor as i32,
             protocol_version.patch.0 as i32,
-            batch_created_at.naive_utc(),
+            batch_sealed_at.naive_utc(),
         )
         .execute(self.storage.conn())
         .await

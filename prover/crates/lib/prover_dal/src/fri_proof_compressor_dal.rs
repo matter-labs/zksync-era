@@ -24,7 +24,7 @@ impl FriProofCompressorDal<'_, '_> {
         block_number: L1BatchNumber,
         fri_proof_blob_url: &str,
         protocol_version: ProtocolSemanticVersion,
-        batch_created_at: DateTime<Utc>,
+        batch_sealed_at: DateTime<Utc>,
     ) {
         sqlx::query!(
             r#"
@@ -37,7 +37,7 @@ impl FriProofCompressorDal<'_, '_> {
                 updated_at,
                 protocol_version,
                 protocol_version_patch,
-                batch_created_at
+                batch_sealed_at
             )
             VALUES
             ($1, $2, $3, NOW(), NOW(), $4, $5, $6)
@@ -48,7 +48,7 @@ impl FriProofCompressorDal<'_, '_> {
             ProofCompressionJobStatus::Queued.to_string(),
             protocol_version.minor as i32,
             protocol_version.patch.0 as i32,
-            batch_created_at.naive_utc(),
+            batch_sealed_at.naive_utc(),
         )
         .fetch_optional(self.storage.conn())
         .await
@@ -81,7 +81,7 @@ impl FriProofCompressorDal<'_, '_> {
                         AND protocol_version_patch = $5
                     ORDER BY
                         priority DESC,
-                        batch_created_at ASC
+                        batch_sealed_at ASC
                     LIMIT
                         1
                     FOR UPDATE

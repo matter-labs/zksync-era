@@ -19,14 +19,14 @@ pub struct FriBasicWitnessGeneratorDal<'a, 'c> {
 }
 
 impl FriBasicWitnessGeneratorDal<'_, '_> {
-    pub async fn get_batch_created_at_timestamp(
+    pub async fn get_batch_sealed_at_timestamp(
         &mut self,
         block_number: L1BatchNumber,
     ) -> DateTime<Utc> {
         sqlx::query!(
             r#"
             SELECT
-                batch_created_at
+                batch_sealed_at
             FROM
                 witness_inputs_fri
             WHERE
@@ -37,7 +37,7 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
         .fetch_optional(self.storage.conn())
         .await
         .map(|row| {
-            row.map(|row| DateTime::<Utc>::from_naive_utc_and_offset(row.batch_created_at, Utc))
+            row.map(|row| DateTime::<Utc>::from_naive_utc_and_offset(row.batch_sealed_at, Utc))
         })
         .unwrap()
         .unwrap_or_default()
@@ -48,7 +48,7 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
         block_number: L1BatchNumber,
         witness_inputs_blob_url: &str,
         protocol_version: ProtocolSemanticVersion,
-        batch_created_at: chrono::DateTime<chrono::Utc>,
+        batch_sealed_at: chrono::DateTime<chrono::Utc>,
     ) {
         sqlx::query!(
             r#"
@@ -61,7 +61,7 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
                 created_at,
                 updated_at,
                 protocol_version_patch,
-                batch_created_at
+                batch_sealed_at
             )
             VALUES
             ($1, $2, $3, 'queued', NOW(), NOW(), $4, $5)
@@ -71,7 +71,7 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
             witness_inputs_blob_url,
             protocol_version.minor as i32,
             protocol_version.patch.0 as i32,
-            batch_created_at.naive_utc(),
+            batch_sealed_at.naive_utc(),
         )
         .fetch_optional(self.storage.conn())
         .await
@@ -106,7 +106,7 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
                         AND protocol_version_patch = $3
                     ORDER BY
                         priority DESC,
-                        batch_created_at ASC
+                        batch_sealed_at ASC
                     LIMIT
                         1
                     FOR UPDATE

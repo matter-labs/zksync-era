@@ -79,7 +79,7 @@ impl FriNodeWitnessGeneratorDal<'_, '_> {
                         AND protocol_version_patch = $2
                     ORDER BY
                         priority DESC,
-                        batch_created_at ASC,
+                        batch_sealed_at ASC,
                         depth ASC,
                         id ASC
                     LIMIT
@@ -149,7 +149,7 @@ impl FriNodeWitnessGeneratorDal<'_, '_> {
         depth: u16,
         aggregations_url: &str,
         protocol_version: ProtocolSemanticVersion,
-        batch_created_at: DateTime<Utc>,
+        batch_sealed_at: DateTime<Utc>,
     ) {
         sqlx::query!(
             r#"
@@ -165,7 +165,7 @@ impl FriNodeWitnessGeneratorDal<'_, '_> {
                 created_at,
                 updated_at,
                 protocol_version_patch,
-                batch_created_at
+                batch_sealed_at
             )
             VALUES
             ($1, $2, $3, $4, $5, $6, 'waiting_for_proofs', NOW(), NOW(), $7, $8)
@@ -181,7 +181,7 @@ impl FriNodeWitnessGeneratorDal<'_, '_> {
             number_of_dependent_jobs,
             protocol_version.minor as i32,
             protocol_version.patch.0 as i32,
-            batch_created_at.naive_utc(),
+            batch_sealed_at.naive_utc(),
         )
         .fetch_optional(self.storage.conn())
         .await

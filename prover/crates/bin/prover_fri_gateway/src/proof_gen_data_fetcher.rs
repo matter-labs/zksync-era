@@ -54,7 +54,7 @@ impl ProofGenDataFetcher {
                 data.l1_batch_number,
                 &witness_inputs,
                 data.protocol_version,
-                data.batch_created_at,
+                data.batch_sealed_at,
             )
             .await;
     }

@@ -184,7 +184,7 @@ impl Processor {
             },
         };
 
-        let batch_created_at = conn
+        let batch_sealed_at = conn
             .blocks_dal()
             .get_batch_sealed_at(l1_batch_number)
             .await?
@@ -192,7 +192,7 @@ impl Processor {
 
         Ok(ProofGenerationData {
             l1_batch_number,
-            batch_created_at,
+            batch_sealed_at,
             witness_input_data: blob,
             protocol_version: protocol_version.version,
             l1_verifier_config: protocol_version.l1_verifier_config,

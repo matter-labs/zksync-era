@@ -1,11 +1,11 @@
-ALTER TABLE witness_inputs_fri DROP COLUMN batch_created_at;
-ALTER TABLE leaf_aggregation_witness_jobs_fri DROP COLUMN batch_created_at;
-ALTER TABLE node_aggregation_witness_jobs_fri DROP COLUMN batch_created_at;
-ALTER TABLE recursion_tip_witness_jobs_fri DROP COLUMN batch_created_at;
-ALTER TABLE scheduler_witness_jobs_fri DROP COLUMN batch_created_at;
-ALTER TABLE proof_compression_jobs_fri DROP COLUMN batch_created_at;
-ALTER TABLE prover_jobs_fri DROP COLUMN batch_created_at;
-ALTER TABLE prover_jobs_fri_archive DROP COLUMN batch_created_at;
+ALTER TABLE witness_inputs_fri DROP COLUMN batch_sealed_at;
+ALTER TABLE leaf_aggregation_witness_jobs_fri DROP COLUMN batch_sealed_at;
+ALTER TABLE node_aggregation_witness_jobs_fri DROP COLUMN batch_sealed_at;
+ALTER TABLE recursion_tip_witness_jobs_fri DROP COLUMN batch_sealed_at;
+ALTER TABLE scheduler_witness_jobs_fri DROP COLUMN batch_sealed_at;
+ALTER TABLE proof_compression_jobs_fri DROP COLUMN batch_sealed_at;
+ALTER TABLE prover_jobs_fri DROP COLUMN batch_sealed_at;
+ALTER TABLE prover_jobs_fri_archive DROP COLUMN batch_sealed_at;
 
 DROP INDEX IF EXISTS idx_witness_inputs_fri_priority;
 DROP INDEX IF EXISTS idx_leaf_aggregation_witness_jobs_fri_priority;

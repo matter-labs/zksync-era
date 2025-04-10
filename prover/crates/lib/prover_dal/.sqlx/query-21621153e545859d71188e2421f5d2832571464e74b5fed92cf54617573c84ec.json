@@ -85,7 +85,7 @@
       },
       {
         "ordinal": 16,
-        "name": "batch_created_at",
+        "name": "batch_sealed_at",
         "type_info": "Timestamp"
       }
     ],

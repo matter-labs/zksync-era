@@ -67,7 +67,7 @@ impl FriLeafWitnessGeneratorDal<'_, '_> {
                         AND protocol_version_patch = $2
                     ORDER BY
                         priority DESC,
-                        batch_created_at ASC
+                        batch_sealed_at ASC
                     LIMIT
                         1
                     FOR UPDATE
@@ -239,7 +239,7 @@ impl FriLeafWitnessGeneratorDal<'_, '_> {
         circuit_id: u8,
         closed_form_inputs_url: String,
         number_of_basic_circuits: usize,
-        batch_created_at: DateTime<Utc>,
+        batch_sealed_at: DateTime<Utc>,
     ) {
         sqlx::query!(
             r#"
@@ -254,7 +254,7 @@ impl FriLeafWitnessGeneratorDal<'_, '_> {
                 created_at,
                 updated_at,
                 protocol_version_patch,
-                batch_created_at
+                batch_sealed_at
             )
             VALUES
             (
@@ -280,7 +280,7 @@ impl FriLeafWitnessGeneratorDal<'_, '_> {
             number_of_basic_circuits as i32,
             protocol_version.minor as i32,
             protocol_version.patch.0 as i32,
-            batch_created_at.naive_utc()
+            batch_sealed_at.naive_utc()
         )
         .execute(self.storage.conn())
         .await

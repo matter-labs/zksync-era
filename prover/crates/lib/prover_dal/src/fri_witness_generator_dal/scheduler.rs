@@ -146,7 +146,7 @@ impl FriSchedulerWitnessGeneratorDal<'_, '_> {
                         AND protocol_version_patch = $3
                     ORDER BY
                         priority DESC,
-                        batch_created_at ASC
+                        batch_sealed_at ASC
                     LIMIT
                         1
                     FOR UPDATE
@@ -271,11 +271,11 @@ impl FriSchedulerWitnessGeneratorDal<'_, '_> {
         block_number: L1BatchNumber,
         scheduler_partial_input_blob_url: &str,
         protocol_version: ProtocolSemanticVersion,
-        batch_created_at: DateTime<Utc>,
+        batch_sealed_at: DateTime<Utc>,
     ) {
         sqlx::query!(
             r#"
-            INSERT INTO
+            INSERT INTO`
             scheduler_witness_jobs_fri (
                 l1_batch_number,
                 scheduler_partial_input_blob_url,
@@ -284,7 +284,7 @@ impl FriSchedulerWitnessGeneratorDal<'_, '_> {
                 created_at,
                 updated_at,
                 protocol_version_patch,
-                batch_created_at
+                batch_sealed_at
             )
             VALUES
             ($1, $2, $3, 'waiting_for_proofs', NOW(), NOW(), $4, $5)
@@ -297,7 +297,7 @@ impl FriSchedulerWitnessGeneratorDal<'_, '_> {
             scheduler_partial_input_blob_url,
             protocol_version.minor as i32,
             protocol_version.patch.0 as i32,
-            batch_created_at.naive_utc(),
+            batch_sealed_at.naive_utc(),
         )
         .execute(self.storage.conn())
         .await

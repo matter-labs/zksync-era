@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            UPDATE node_aggregation_witness_jobs_fri\n            SET\n                status = 'in_progress',\n                attempts = attempts + 1,\n                updated_at = NOW(),\n                processing_started_at = NOW(),\n                picked_by = $3\n            WHERE\n                id = (\n                    SELECT\n                        id\n                    FROM\n                        node_aggregation_witness_jobs_fri\n                    WHERE\n                        status = 'queued'\n                        AND protocol_version = $1\n                        AND protocol_version_patch = $2\n                    ORDER BY\n                        priority DESC,\n                        batch_created_at ASC,\n                        depth ASC,\n                        id ASC\n                    LIMIT\n                        1\n                    FOR UPDATE\n                    SKIP LOCKED\n                )\n            RETURNING\n            node_aggregation_witness_jobs_fri.*\n            ",
+  "query": "\n            UPDATE node_aggregation_witness_jobs_fri\n            SET\n                status = 'in_progress',\n                attempts = attempts + 1,\n                updated_at = NOW(),\n                processing_started_at = NOW(),\n                picked_by = $3\n            WHERE\n                id = (\n                    SELECT\n                        id\n                    FROM\n                        node_aggregation_witness_jobs_fri\n                    WHERE\n                        status = 'queued'\n                        AND protocol_version = $1\n                        AND protocol_version_patch = $2\n                    ORDER BY\n                        priority DESC,\n                        batch_sealed_at ASC,\n                        depth ASC,\n                        id ASC\n                    LIMIT\n                        1\n                    FOR UPDATE\n                    SKIP LOCKED\n                )\n            RETURNING\n            node_aggregation_witness_jobs_fri.*\n            ",
   "describe": {
     "columns": [
       {
@@ -90,7 +90,7 @@
       },
       {
         "ordinal": 17,
-        "name": "batch_created_at",
+        "name": "batch_sealed_at",
         "type_info": "Timestamp"
       }
     ],
@@ -122,5 +122,5 @@
       false
     ]
   },
-  "hash": "868b7fba7b829ccd70ad8a740376f885714a06a7bc87a030fb7944f72f6d9768"
+  "hash": "b069213486ae26f3c23410376ef2c7b35db8031b42511df646d9dd95b07fe636"
 }
