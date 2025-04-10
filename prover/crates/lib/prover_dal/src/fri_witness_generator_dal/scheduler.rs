@@ -275,7 +275,7 @@ impl FriSchedulerWitnessGeneratorDal<'_, '_> {
     ) {
         sqlx::query!(
             r#"
-            INSERT INTO`
+            INSERT INTO
             scheduler_witness_jobs_fri (
                 l1_batch_number,
                 scheduler_partial_input_blob_url,
