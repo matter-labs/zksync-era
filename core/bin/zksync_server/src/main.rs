@@ -6,8 +6,8 @@ use zksync_config::{
     configs::{
         api::{HealthCheckConfig, MerkleTreeApiConfig, Web3JsonRpcConfig},
         chain::{
-            CircuitBreakerConfig, MempoolConfig, NetworkConfig, OperationsManagerConfig,
-            StateKeeperConfig, TimestampAsserterConfig,
+            CircuitBreakerConfig, MempoolConfig, OperationsManagerConfig, StateKeeperConfig,
+            TimestampAsserterConfig,
         },
         house_keeper::HouseKeeperConfig,
         BasicWitnessInputProducerConfig, ContractVerifierSecrets, DataAvailabilitySecrets,
@@ -186,7 +186,6 @@ fn load_env_config() -> anyhow::Result<TempConfigStore> {
         web3_json_rpc_config: Web3JsonRpcConfig::from_env().ok(),
         circuit_breaker_config: CircuitBreakerConfig::from_env().ok(),
         mempool_config: MempoolConfig::from_env().ok(),
-        network_config: NetworkConfig::from_env().ok(),
         contract_verifier: ContractVerifierConfig::from_env().ok(),
         operations_manager_config: OperationsManagerConfig::from_env().ok(),
         state_keeper_config: StateKeeperConfig::from_env().ok(),

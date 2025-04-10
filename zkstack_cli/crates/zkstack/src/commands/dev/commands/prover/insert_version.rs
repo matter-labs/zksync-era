@@ -23,7 +23,7 @@ pub async fn run(shell: &Shell, args: InsertVersionArgs) -> anyhow::Result<()> {
     let fflonk_snark_wrapper =
         info::get_fflonk_snark_wrapper(&get_link_to_prover(&ecosystem_config)).await?;
 
-    let prover_url = info::get_database_url(&chain_config).await?;
+    let prover_url = info::get_database_url(&chain_config).await?.to_string();
 
     let InsertVersionArgsFinal {
         version,

@@ -9,12 +9,8 @@ use assert_matches::assert_matches;
 use async_trait::async_trait;
 use tokio::sync::watch;
 use zksync_config::{
-    configs::{
-        api::Web3JsonRpcConfig,
-        chain::{NetworkConfig, StateKeeperConfig},
-        AllContractsConfig as ContractsConfig,
-    },
-    GenesisConfig,
+    configs::{api::Web3JsonRpcConfig, chain::StateKeeperConfig},
+    ContractsConfig, GenesisConfig,
 };
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{Connection, ConnectionPool, CoreDal};
@@ -200,17 +196,10 @@ impl StorageInitialization {
         }
     }
 
-    async fn prepare_storage(
-        self,
-        network_config: &NetworkConfig,
-        storage: &mut Connection<'_, Core>,
-    ) -> anyhow::Result<()> {
+    async fn prepare_storage(self, storage: &mut Connection<'_, Core>) -> anyhow::Result<()> {
         match self {
             Self::Genesis { evm_emulator } => {
-                let config = GenesisConfig {
-                    l2_chain_id: network_config.zksync_network_id,
-                    ..mock_genesis_config()
-                };
+                let config = mock_genesis_config();
                 let base_system_contracts = BaseSystemContracts::load_from_disk();
                 assert!(config.evm_emulator_hash.is_some());
 
@@ -277,10 +266,9 @@ impl StorageInitialization {
 
 async fn test_http_server(test: impl HttpTest) {
     let pool = ConnectionPool::<Core>::test_pool().await;
-    let network_config = NetworkConfig::for_tests();
     let mut storage = pool.connection().await.unwrap();
     test.storage_initialization()
-        .prepare_storage(&network_config, &mut storage)
+        .prepare_storage(&mut storage)
         .await
         .expect("Failed preparing storage for test");
     drop(storage);
