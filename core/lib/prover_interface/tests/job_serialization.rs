@@ -1,12 +1,15 @@
 //! Integration tests for object store serialization of job objects.
 
-use fflonk::FflonkProof;
+use bellman::plonk::better_better_cs::proof::Proof;
 use tokio::fs;
 use zksync_object_store::{Bucket, MockObjectStore, StoredObject};
 use zksync_prover_interface::{
     api::{SubmitProofRequest, SubmitTeeProofRequest},
     inputs::{StorageLogMetadata, WitnessInputMerklePaths},
-    outputs::{FflonkL1BatchProofForL1, L1BatchProofForL1, L1BatchTeeProofForL1},
+    outputs::{
+        L1BatchProofForL1, L1BatchTeeProofForL1, PlonkL1BatchProofForL1, TypedL1BatchProofForL1,
+    },
+    Bincode, CBOR,
 };
 use zksync_types::{
     protocol_version::ProtocolSemanticVersion, tee_types::TeeType, L1BatchNumber, ProtocolVersionId,
@@ -31,11 +34,14 @@ async fn prepare_basic_circuits_job_serialization() {
         .await
         .unwrap();
 
-    let job: WitnessInputMerklePaths = store.get(L1BatchNumber(1)).await.unwrap();
+    let job: WitnessInputMerklePaths<Bincode> = store.get(L1BatchNumber(1)).await.unwrap();
 
     let key = store.put(L1BatchNumber(2), &job).await.unwrap();
     let serialized_job = store.get_raw(Bucket::WitnessInput, &key).await.unwrap();
     assert_eq!(serialized_job, snapshot);
+
+    let job: WitnessInputMerklePaths = job.into();
+
     assert_job_integrity(
         job.next_enumeration_index(),
         job.into_merkle_paths().collect(),
@@ -72,33 +78,50 @@ async fn prepare_basic_circuits_job_compatibility() {
 
 /// Simple test to check if we can successfully parse the proof.
 #[tokio::test]
-async fn test_final_proof_deserialization() {
+async fn test_final_proof_deserialization_bincode() {
     let proof = fs::read("./tests/l1_batch_proof_1_0_24_0.bin")
         .await
         .unwrap();
 
-    let results: L1BatchProofForL1 = StoredObject::deserialize(proof).unwrap();
+    let results: L1BatchProofForL1<Bincode> = StoredObject::deserialize(proof).unwrap();
 
-    let coords = match results {
-        L1BatchProofForL1::Fflonk(proof) => proof.aggregation_result_coords,
-        L1BatchProofForL1::Plonk(proof) => proof.aggregation_result_coords,
+    let coords = match results.inner() {
+        TypedL1BatchProofForL1::Fflonk(proof) => proof.aggregation_result_coords,
+        TypedL1BatchProofForL1::Plonk(proof) => proof.aggregation_result_coords,
     };
 
     assert_eq!(coords[0][0], 0);
 }
 
+#[tokio::test]
+async fn test_final_proof_deserialization_cbor() {
+    let proof = fs::read("./tests/l1_batch_proof_1_0_27_0.cbor")
+        .await
+        .unwrap();
+
+    let results: L1BatchProofForL1<CBOR> = StoredObject::deserialize(proof).unwrap();
+
+    let coords = match results.inner() {
+        TypedL1BatchProofForL1::Fflonk(proof) => proof.aggregation_result_coords,
+        TypedL1BatchProofForL1::Plonk(proof) => proof.aggregation_result_coords,
+    };
+
+    assert_eq!(coords[0][0], 7);
+}
+
 #[test]
 fn test_proof_request_serialization() {
-    let proof = SubmitProofRequest::Proof(Box::new(L1BatchProofForL1::Fflonk(
-        FflonkL1BatchProofForL1 {
+    let proof = SubmitProofRequest::Proof(Box::new(
+        L1BatchProofForL1::<CBOR>::new_plonk(PlonkL1BatchProofForL1 {
             aggregation_result_coords: [[0; 32]; 4],
-            scheduler_proof: FflonkProof::empty(),
+            scheduler_proof: Proof::empty(),
             protocol_version: ProtocolSemanticVersion {
                 minor: ProtocolVersionId::Version25,
                 patch: 10.into(),
             },
-        },
-    )));
+        })
+        .into(),
+    ));
     let encoded_obj = serde_json::to_string(&proof).unwrap();
     let encoded_json = r#"{
         "Proof": {
@@ -163,14 +186,11 @@ fn test_proof_request_serialization() {
     let decoded_json: SubmitProofRequest = serde_json::from_str(encoded_json).unwrap();
     match (decoded_obj, decoded_json) {
         (SubmitProofRequest::Proof(decoded_obj), SubmitProofRequest::Proof(decoded_json)) => {
-            let obj_coords = match *decoded_obj {
-                L1BatchProofForL1::Fflonk(obj) => obj.aggregation_result_coords,
-                L1BatchProofForL1::Plonk(obj) => obj.aggregation_result_coords,
-            };
-            let json_coords = match *decoded_json {
-                L1BatchProofForL1::Fflonk(obj) => obj.aggregation_result_coords,
-                L1BatchProofForL1::Plonk(obj) => obj.aggregation_result_coords,
-            };
+            let decoded_obj: L1BatchProofForL1 = (*decoded_obj).into();
+            let decoded_json: L1BatchProofForL1 = (*decoded_json).into();
+
+            let obj_coords = decoded_obj.aggregation_result_coords();
+            let json_coords = decoded_json.aggregation_result_coords();
 
             assert_eq!(obj_coords, json_coords);
         }
