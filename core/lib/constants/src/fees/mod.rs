@@ -50,4 +50,4 @@ pub const PUBLISH_BYTECODE_OVERHEAD: u32 = 100;
 /// For processing big calldata contracts copy it and do some hashing. These two constants
 /// represents the corresponding SL
 pub const GATEWAY_CALLDATA_PROCESSING_ROLLUP_OVERHEAD: u32 = 200;
-pub const L1_CALLDATA_PROCESSING_ROLLUP_OVERHEAD: u32 = 100;
+pub const L1_CALLDATA_PROCESSING_ROLLUP_OVERHEAD: u32 = 50;

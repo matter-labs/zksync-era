@@ -402,6 +402,16 @@ impl Distribution<configs::eth_sender::ProofLoadingMode> for EncodeDist {
     }
 }
 
+impl Distribution<configs::eth_sender::GasLimitMode> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::eth_sender::GasLimitMode {
+        type T = configs::eth_sender::GasLimitMode;
+        match rng.gen_range(0..2) {
+            0 => T::Maximum,
+            _ => T::Calculated,
+        }
+    }
+}
+
 impl Distribution<configs::eth_sender::SenderConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::eth_sender::SenderConfig {
         configs::eth_sender::SenderConfig {
@@ -425,6 +435,7 @@ impl Distribution<configs::eth_sender::SenderConfig> for EncodeDist {
             tx_aggregation_only_prove_and_execute: false,
             time_in_mempool_in_l1_blocks_cap: self.sample(rng),
             is_verifier_pre_fflonk: self.sample(rng),
+            gas_limit_mode: self.sample(rng),
         }
     }
 }

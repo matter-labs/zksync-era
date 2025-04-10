@@ -54,6 +54,7 @@ impl EthConfig {
                 tx_aggregation_only_prove_and_execute: false,
                 time_in_mempool_in_l1_blocks_cap: 1800,
                 is_verifier_pre_fflonk: true,
+                gas_limit_mode: GasLimitMode::Maximum,
             }),
             gas_adjuster: Some(GasAdjusterConfig {
                 default_priority_fee_per_gas: 1000000000,
@@ -94,6 +95,13 @@ pub enum ProofSendingMode {
 pub enum ProofLoadingMode {
     OldProofFromDb,
     FriProofFromGcs,
+}
+
+#[derive(Debug, Default, Deserialize, Clone, Copy, PartialEq)]
+pub enum GasLimitMode {
+    #[default]
+    Maximum,
+    Calculated,
 }
 
 #[derive(Debug, Deserialize, Clone, PartialEq)]
@@ -138,6 +146,8 @@ pub struct SenderConfig {
     #[serde(default = "SenderConfig::default_time_in_mempool_in_l1_blocks_cap")]
     pub time_in_mempool_in_l1_blocks_cap: u32,
     pub is_verifier_pre_fflonk: bool,
+    #[serde(default = "SenderConfig::default_gas_limit_mode")]
+    pub gas_limit_mode: GasLimitMode,
 }
 
 impl SenderConfig {
@@ -171,6 +181,10 @@ impl SenderConfig {
         std::env::var("ETH_SENDER_SENDER_OPERATOR_BLOBS_PRIVATE_KEY")
             .ok()
             .map(|pk| pk.parse().unwrap())
+    }
+
+    pub const fn default_gas_limit_mode() -> GasLimitMode {
+        GasLimitMode::Maximum
     }
 
     const fn default_tx_aggregation_paused() -> bool {

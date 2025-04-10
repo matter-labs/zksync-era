@@ -4,7 +4,7 @@ use std::{
 };
 
 use tokio::sync::watch;
-use zksync_config::configs::eth_sender::SenderConfig;
+use zksync_config::configs::eth_sender::{GasLimitMode, SenderConfig};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{
     encode_blob_tx_with_sidecar, BoundEthInterface, ExecutedTxStatus, RawTransactionBytes,
@@ -155,36 +155,7 @@ impl EthTxManager {
             None
         };
 
-        // Gas limit saved in predicted gas_cost, doesn't include gas_limit for pubdata usage.
-        let mut gas_limit: U256 = if let Some(gas_limit) = tx.predicted_gas_cost {
-            gas_limit.into()
-        } else {
-            self.config.max_aggregated_tx_gas.into()
-        };
-
-        // Adjust gas limit based ob pubdata cost. Commit is the only pubdata intensive part
-        if tx.tx_type == AggregatedActionType::Commit {
-            match operator_type {
-                OperatorType::Blob | OperatorType::NonBlob => {
-                    // Settlement mode is L1.
-                    gas_limit += ((L1_GAS_PER_PUBDATA_BYTE
-                        + L1_CALLDATA_PROCESSING_ROLLUP_OVERHEAD)
-                        * tx.raw_tx.len() as u32)
-                        .into()
-                }
-                OperatorType::Gateway => {
-                    // Settlement mode is Gateway.
-                    if let Some(max_gas_per_pubdata_price) = max_gas_per_pubdata_price {
-                        gas_limit += ((max_gas_per_pubdata_price
-                            + GATEWAY_CALLDATA_PROCESSING_ROLLUP_OVERHEAD as u64)
-                            * tx.raw_tx.len() as u64)
-                            .into()
-                    } else {
-                        gas_limit = self.config.max_aggregated_tx_gas.into();
-                    }
-                }
-            }
-        }
+        let gas_limit = self.gas_limit(tx, max_gas_per_pubdata_price);
 
         if let Some(previous_sent_tx) = previous_sent_tx {
             METRICS.transaction_resent.inc();
@@ -287,6 +258,46 @@ impl EthTxManager {
             }
         }
         Ok(signed_tx.hash)
+    }
+
+    fn gas_limit(&self, tx: &EthTx, max_gas_per_pubdata_price: Option<u64>) -> U256 {
+        if self.config.gas_limit_mode == GasLimitMode::Maximum {
+            return self.config.max_aggregated_tx_gas.into();
+        }
+
+        let operator_type = self.operator_type(tx);
+
+        // Gas limit saved in predicted gas_cost, doesn't include gas_limit for pubdata usage.
+        let mut gas_limit: U256 = if let Some(gas_limit) = tx.predicted_gas_cost {
+            gas_limit.into()
+        } else {
+            self.config.max_aggregated_tx_gas.into()
+        };
+
+        // Adjust gas limit based ob pubdata cost. Commit is the only pubdata intensive part
+        if tx.tx_type == AggregatedActionType::Commit {
+            match operator_type {
+                OperatorType::Blob | OperatorType::NonBlob => {
+                    // Settlement mode is L1.
+                    gas_limit += ((L1_GAS_PER_PUBDATA_BYTE
+                        + L1_CALLDATA_PROCESSING_ROLLUP_OVERHEAD)
+                        * tx.raw_tx.len() as u32)
+                        .into()
+                }
+                OperatorType::Gateway => {
+                    // Settlement mode is Gateway.
+                    if let Some(max_gas_per_pubdata_price) = max_gas_per_pubdata_price {
+                        gas_limit += ((max_gas_per_pubdata_price
+                            + GATEWAY_CALLDATA_PROCESSING_ROLLUP_OVERHEAD as u64)
+                            * tx.raw_tx.len() as u64)
+                            .into()
+                    } else {
+                        gas_limit = self.config.max_aggregated_tx_gas.into();
+                    }
+                }
+            }
+        }
+        gas_limit
     }
 
     async fn send_raw_transaction(
