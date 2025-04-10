@@ -95,7 +95,7 @@ impl CommitmentComputer for MockCommitmentComputer {
 }
 
 fn create_commitment_generator(pool: ConnectionPool<Core>) -> CommitmentGenerator {
-    let mut generator = CommitmentGenerator::new(pool, L1BatchCommitmentMode::Rollup);
+    let mut generator = CommitmentGenerator::new(pool);
     generator.computer = Arc::new(MockCommitmentComputer {
         delay: Duration::from_millis(20),
     });
