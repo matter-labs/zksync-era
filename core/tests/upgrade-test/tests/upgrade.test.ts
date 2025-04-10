@@ -56,20 +56,17 @@ describe('Upgrade test', function () {
     let alice: zksync.Wallet;
 
     // The wallet that controls the ecosystem governance on L1.
-    let l1EcosystemGovWallet: ethers.Wallet;
-    // The wallet that controls the ecosystem governance on L1.
-    let slEcosystemGovWallet: ethers.Wallet;
+    let ecosystemGovWallet: ethers.Wallet;
     // The wallet that controls the chain admin on the settlement layer.
     // The settlement layer can be either Gateway or L1. Depending on this,
     // the provider changes.
     let slAdminGovWallet: ethers.Wallet;
-    let l1AdminGovWallet: ethers.Wallet;
 
     // The address of the ecosystem governance. It is present on L1.
     let ecosystemGovernance: string;
 
     // The chain admin contract on the settlement layer.
-    let l1ChainAdminContract: ethers.Contract;
+    let slChainAdminContract: ethers.Contract;
     // The diamond proxy contract on the settlement layer.
     let slMainContract: ethers.Contract;
 
@@ -150,7 +147,6 @@ describe('Upgrade test', function () {
             ? new zksync.Wallet(chainWalletConfig.governor.private_key, gatewayInfo.gatewayProvider)
             : new ethers.Wallet(chainWalletConfig.governor.private_key, alice._providerL1());
 
-        l1AdminGovWallet = new ethers.Wallet(chainWalletConfig.governor.private_key, alice._providerL1());
         const ecosystemWalletConfig = loadConfig({
             pathToHome,
             chain: fileConfig.chain,
@@ -163,21 +159,21 @@ describe('Upgrade test', function () {
         // sending transactions from the same account while using different `Wallet` objects
         // could lead to flacky issues.
         if (chainWalletConfig.governor.private_key == ecosystemWalletConfig.governor.private_key && !gatewayInfo) {
-            slEcosystemGovWallet = slAdminGovWallet;
+            ecosystemGovWallet = slAdminGovWallet;
         } else {
-            slEcosystemGovWallet = new ethers.Wallet(ecosystemWalletConfig.governor.private_key, alice._providerL1());
+            ecosystemGovWallet = new ethers.Wallet(ecosystemWalletConfig.governor.private_key, alice._providerL1());
         }
-
-        l1EcosystemGovWallet = new ethers.Wallet(ecosystemWalletConfig.governor.private_key, alice._providerL1());
 
         upgradeAddress = await deployDefaultUpgradeImpl(slAdminGovWallet);
         forceDeployBytecode = contracts.counterBytecode;
 
-        l1ChainAdminContract = new ethers.Contract(
-            contractsConfig.l1.chain_admin_addr,
-            contracts.chainAdminAbi,
-            tester.syncWallet.providerL1
-        );
+        slChainAdminContract = gatewayInfo
+            ? new ethers.Contract(gatewayInfo.l2ChainAdmin, contracts.chainAdminAbi, gatewayInfo.gatewayProvider)
+            : new ethers.Contract(
+                  contractsConfig.l1.chain_admin_addr,
+                  contracts.chainAdminAbi,
+                  tester.syncWallet.providerL1
+              );
 
         slMainContract = gatewayInfo
             ? new ethers.Contract(gatewayInfo.l2DiamondProxyAddress, ZKSYNC_MAIN_ABI, gatewayInfo.gatewayProvider)
@@ -362,8 +358,18 @@ describe('Upgrade test', function () {
         );
 
         console.log('Sending chain admin operation');
-        // ChainAdminOwnable.sol: `setUpgradeTimestamp` has onlyOwner so we call it directly.
-        await chainAdminSetTimestamp(setTimestampCalldata);
+        // Different chain admin impls are used depending on whether gateway is used.
+        if (gatewayInfo) {
+            // ChainAdmin.sol: `setUpgradeTimestamp` has onlySelf so we do multicall.
+            await sendChainAdminOperation({
+                target: await slChainAdminContract.getAddress(),
+                data: setTimestampCalldata,
+                value: 0
+            });
+        } else {
+            // ChainAdminOwnable.sol: `setUpgradeTimestamp` has onlyOwner so we call it directly.
+            await chainAdminSetTimestamp(setTimestampCalldata);
+        }
 
         // Wait for server to process L1 event.
         await utils.sleep(2);
@@ -444,7 +450,7 @@ describe('Upgrade test', function () {
         value: BigNumberish,
         providerForPriorityOp: zksync.Provider | null
     ) {
-        const transaction = await slEcosystemGovWallet.sendTransaction({
+        const transaction = await ecosystemGovWallet.sendTransaction({
             to: ecosystemGovernance,
             value: value,
             data: data,
@@ -469,8 +475,8 @@ describe('Upgrade test', function () {
     }
 
     async function chainAdminSetTimestamp(data: string) {
-        const transaction = await l1AdminGovWallet.sendTransaction({
-            to: await l1ChainAdminContract.getAddress(),
+        const transaction = await slAdminGovWallet.sendTransaction({
+            to: await slChainAdminContract.getAddress(),
             data,
             type: 0
         });
@@ -480,10 +486,10 @@ describe('Upgrade test', function () {
     }
 
     async function sendChainAdminOperation(call: Call) {
-        const executeMulticallData = l1ChainAdminContract.interface.encodeFunctionData('multicall', [[call], true]);
+        const executeMulticallData = slChainAdminContract.interface.encodeFunctionData('multicall', [[call], true]);
 
-        const transaction = await l1EcosystemGovWallet.sendTransaction({
-            to: await l1ChainAdminContract.getAddress(),
+        const transaction = await slAdminGovWallet.sendTransaction({
+            to: await slChainAdminContract.getAddress(),
             data: executeMulticallData,
             type: 0
         });

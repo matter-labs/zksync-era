@@ -182,7 +182,7 @@ impl EventProcessor for DecentralizedUpgradesEventProcessor {
     }
 
     fn event_source(&self) -> EventsSource {
-        EventsSource::L1
+        EventsSource::SL
     }
 
     fn event_type(&self) -> EventType {

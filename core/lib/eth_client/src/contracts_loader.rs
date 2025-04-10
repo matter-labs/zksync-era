@@ -66,6 +66,12 @@ pub async fn load_settlement_layer_contracts(
         .call(sl_client)
         .await?;
 
+    let chain_admin =
+        CallFunctionArgs::new("getChainAdmin", Token::Uint(l2_chain_id.as_u64().into()))
+            .for_contract(ctm_address, &state_transition_manager_contract())
+            .call(sl_client)
+            .await?;
+
     Ok(Some(SettlementLayerSpecificContracts {
         ecosystem_contracts: EcosystemCommonContracts {
             bridgehub_proxy_addr: Some(bridgehub_address),
@@ -76,6 +82,7 @@ pub async fn load_settlement_layer_contracts(
         },
         chain_contracts_config: ChainContracts {
             diamond_proxy_addr: diamond_proxy,
+            chain_admin: Some(chain_admin),
         },
     }))
 }
