@@ -8957,6 +8957,7 @@ version = "20.1.0"
 dependencies = [
  "anyhow",
  "bincode",
+ "chrono",
  "clap 4.5.23",
  "once_cell",
  "regex",
@@ -9256,6 +9257,7 @@ dependencies = [
 name = "zksync_prover_interface"
 version = "27.2.0-non-semver-compat"
 dependencies = [
+ "chrono",
  "ciborium",
  "circuit_definitions",
  "fflonk",

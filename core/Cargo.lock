@@ -12916,6 +12916,7 @@ name = "zksync_prover_interface"
 version = "27.2.0-non-semver-compat"
 dependencies = [
  "bincode",
+ "chrono",
  "ciborium",
  "circuit_definitions",
  "fflonk",

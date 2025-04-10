@@ -64,6 +64,11 @@ impl ArtifactsManager for Scheduler {
             .fri_basic_witness_generator_dal()
             .protocol_version_for_l1_batch(L1BatchNumber(job_id))
             .await;
+        let batch_sealed_at = transaction
+            .fri_basic_witness_generator_dal()
+            .get_batch_sealed_at_timestamp(L1BatchNumber(job_id))
+            .await;
+
         transaction
             .fri_prover_jobs_dal()
             .insert_prover_job(
@@ -75,6 +80,7 @@ impl ArtifactsManager for Scheduler {
                 &blob_urls,
                 false,
                 protocol_version_id,
+                batch_sealed_at,
             )
             .await;
 
