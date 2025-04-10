@@ -4,6 +4,9 @@ use serde::{de::DeserializeOwned, Serialize};
 use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover};
 
+pub mod proof_gen_data_fetcher;
+pub mod proof_submitter;
+
 /// A tiny wrapper over the reqwest client that also stores
 /// the objects commonly needed when interacting with prover API.
 #[derive(Debug)]

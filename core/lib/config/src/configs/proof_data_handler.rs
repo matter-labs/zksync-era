@@ -60,8 +60,8 @@ impl TeeConfig {
 pub struct ProofDataHandlerConfig {
     pub http_port: u16,
     pub proof_generation_timeout_in_secs: u16,
-    pub api_url: String,
     pub api_mode: ApiMode,
+    pub gateway_api_url: Option<String>,
     #[serde(skip)]
     // ^ Filled in separately in `Self::from_env()`. We cannot use `serde(flatten)` because it
     // doesn't work with `envy`: https://github.com/softprops/envy/issues/26
@@ -70,8 +70,10 @@ pub struct ProofDataHandlerConfig {
 
 #[derive(Debug, Deserialize, Clone, PartialEq, Default)]
 pub enum ApiMode {
+    /// The legacy API mode, which is compatible with the old prover API.
     #[default]
     Legacy,
+    /// The new API mode, which is compatible with the prover cluster API.
     ProverCluster,
 }
 

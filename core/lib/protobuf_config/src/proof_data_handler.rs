@@ -36,6 +36,11 @@ impl ProtoRepr for proto::ProofDataHandler {
                         configs::TeeConfig::default_tee_batch_permanently_ignored_timeout_in_hours,
                     ),
             },
+            gateway_api_url: self
+                .gateway_api_url
+                .as_ref()
+                .map(|x| x.to_string()),
+            api_mode: self.api_mode.as_ref().map(ProtoRepr::read).unwrap().unwrap_or_default(),
         })
     }
 
@@ -53,6 +58,27 @@ impl ProtoRepr for proto::ProofDataHandler {
                     .tee_batch_permanently_ignored_timeout_in_hours
                     .into(),
             ),
+            gateway_api_url: this.gateway_api_url.as_ref().map(|x| x.to_string()),
+            api_mode: Some(this.api_mode.map(ProtoRepr::build)),
+        }
+    }
+}
+
+impl ProtoRepr for proto::ApiMode {
+    type Type = configs::proof_data_handler::ApiMode;
+
+    fn read(&self) -> anyhow::Result<Self::Type> {
+        let mode = match self {
+            proto::ApiMode::Legacy => configs::proof_data_handler::ApiMode::Legacy,
+            proto::ApiMode::ProverCluster => configs::proof_data_handler::ApiMode::ProverCluster,
+        };
+        Ok(mode)
+    }
+
+    fn build(this: &Self::Type) -> Self {
+        match this {
+            configs::proof_data_handler::ApiMode::Legacy => proto::ApiMode::Legacy,
+            configs::proof_data_handler::ApiMode::ProverCluster => proto::ApiMode::ProverCluster,
         }
     }
 }

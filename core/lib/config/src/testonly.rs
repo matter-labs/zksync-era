@@ -563,6 +563,17 @@ impl Distribution<configs::ObjectStoreConfig> for EncodeDist {
     }
 }
 
+impl Distribution<configs::proof_data_handler::ApiMode> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::proof_data_handler::ApiMode {
+        type T = configs::proof_data_handler::ApiMode;
+
+        match rng.gen_range(0..2) {
+            0 => T::Legacy,
+            _ => T::ProverCluster,
+        }
+    }
+}
+
 impl Distribution<configs::ProofDataHandlerConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::ProofDataHandlerConfig {
         configs::ProofDataHandlerConfig {
@@ -574,6 +585,8 @@ impl Distribution<configs::ProofDataHandlerConfig> for EncodeDist {
                 tee_proof_generation_timeout_in_secs: self.sample(rng),
                 tee_batch_permanently_ignored_timeout_in_hours: self.sample(rng),
             },
+            gateway_api_url: self.sample(rng),
+            api_mode: self.sample(rng),
         }
     }
 }

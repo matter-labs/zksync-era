@@ -12,11 +12,11 @@ use zksync_object_store::ObjectStoreFactory;
 use zksync_prover_dal::{ConnectionPool, Prover};
 use zksync_task_management::ManagedTasks;
 use zksync_vlog::prometheus::PrometheusExporterConfig;
+use client::proof_gen_data_fetcher::ProofGenDataFetcher;
+use client::proof_submitter::ProofSubmitter;
 
 mod client;
 mod metrics;
-mod proof_gen_data_fetcher;
-mod proof_submitter;
 mod traits;
 mod server;
 
