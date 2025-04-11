@@ -130,8 +130,8 @@ export function getConfigsFolderPath({
     return path.join(pathToHome, 'chains', chain, configsFolder ?? 'configs', configsFolderSuffix ?? '');
 }
 
-export function replaceL1BatchMinAgeBeforeExecuteSeconds(pathToHome: string, fileConfig: any, value: number) {
-    const generalConfigPath = getConfigPath({ pathToHome, chain: fileConfig.chain, config: 'general.yaml' });
+export function replaceL1BatchMinAgeBeforeExecuteSeconds(pathToHome: string, chain: string, value: number) {
+    const generalConfigPath = getConfigPath({ pathToHome, chain, config: 'general.yaml' });
     const generalConfig = fsSync.readFileSync(generalConfigPath, 'utf8');
     const generalConfigObject = yaml.parse(generalConfig);
     if (value == 0) {
