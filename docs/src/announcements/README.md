@@ -4,5 +4,3 @@ This directory will contain announcements that don't necessarily serve as docume
 information to be stored long-term.
 
 Current announcements:
-
-- 01.08.2024 - [Attester committee invitation](./attester_commitee.md)
