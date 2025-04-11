@@ -128,6 +128,9 @@ impl EigenDAClient {
         self.check_mapping(inclusion_data, "verifiedBatches").await
     }
 
+    /// Checks into the EigenDARegistry contract if for the given inclusion data the proof was correctly verified.
+    /// It first checks if the proof generation finished, and if it did, it checks if the proof was verified.
+    /// If the proof generation didn't finish, it will be called again later when the dispatcher attemps to get inclusion data again
     async fn check_inclusion_data_verification(
         &self,
         inclusion_data: &[u8],
