@@ -20,6 +20,11 @@ enum ProofLoadingMode {
   FRI_PROOF_FROM_GCS = 1;
 }
 
+enum GasLimitMode {
+  MAXIMUM = 0;
+  CALCULATED = 1;
+}
+
 enum PubdataSendingMode {
   CALLDATA = 0;
   BLOBS = 1;
@@ -52,6 +57,7 @@ message Sender {
   optional uint32 time_in_mempool_in_l1_blocks_cap = 22; // optional
   reserved 23; reserved "priority_op_start_index";
   optional bool is_verifier_pre_fflonk = 24; // optional
+  optional GasLimitMode gas_limit_mode = 25; // optional
 }
 
 message GasAdjuster {
