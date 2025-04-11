@@ -103,7 +103,9 @@ pub(super) const MSG_TEST_RUST_OPTIONS_HELP: &str = "Cargo test flags";
 pub(super) const MSG_BUILD_ABOUT: &str = "Build all test dependencies";
 pub(super) const MSG_TESTS_EXTERNAL_NODE_HELP: &str = "Run tests for external node";
 pub(super) const MSG_NO_DEPS_HELP: &str = "Do not install or build dependencies";
-pub(super) const MSG_EVM_TESTS_HELP: &str = "Run tests for EVM contracts";
+pub(super) const MSG_EVM_TESTS_HELP: &str =
+    "Expect EVM contracts to be enabled for the chain; fail EVM tests if they are not";
+pub(super) const MSG_TEST_SUITES_HELP: &str = "Test suite(s) to run, e.g. 'contracts' or 'erc20'";
 pub(super) const MSG_TEST_PATTERN_HELP: &str =
     "Run just the tests matching a pattern. Same as the -t flag on jest.";
 pub(super) const MSG_NO_KILL_HELP: &str = "The test will not kill all the nodes during execution";
