@@ -4,12 +4,12 @@ use axum::{
 };
 use zksync_basic_types::L1BatchNumber;
 use zksync_dal::DalError;
-use zksync_object_store::ObjectStoreError;
+use zksync_object_store::{ObjectStoreError, _reexports::BoxedError};
 
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum ProcessorError {
     #[error("Failed to deserialize proof data")]
-    Serialization(#[from] bincode::Error),
+    Serialization(#[from] BoxedError),
     #[error("Invalid proof submitted")]
     InvalidProof,
     #[error("Batch {0} is not yet ready for proving. Most likely our proof for this batch is not generated yet, try again later")]
