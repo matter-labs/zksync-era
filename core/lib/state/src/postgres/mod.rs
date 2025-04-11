@@ -12,7 +12,7 @@ use zksync_types::{L1BatchNumber, L2BlockNumber, StorageKey, StorageValue, H256}
 use zksync_vm_interface::storage::ReadStorage;
 
 use self::metrics::{Method, ValuesUpdateStage, CACHE_METRICS, STORAGE_METRICS};
-use crate::cache::{lru_cache::LruCache, CacheValue};
+use crate::cache::lru_cache::LruCache;
 
 mod metrics;
 #[cfg(test)]
@@ -27,26 +27,8 @@ struct TimestampedFactoryDep {
 /// Type alias for smart contract source code cache.
 type FactoryDepsCache = LruCache<H256, TimestampedFactoryDep>;
 
-impl CacheValue<H256> for TimestampedFactoryDep {
-    fn cache_weight(&self) -> u32 {
-        (self.bytecode.len() + mem::size_of::<L2BlockNumber>())
-            .try_into()
-            .expect("Cached bytes are too large")
-    }
-}
-
 /// Type alias for initial writes caches.
 type InitialWritesCache = LruCache<H256, L1BatchNumber>;
-
-impl CacheValue<H256> for L1BatchNumber {
-    #[allow(clippy::cast_possible_truncation)] // doesn't happen in practice
-    fn cache_weight(&self) -> u32 {
-        const WEIGHT: usize = mem::size_of::<L1BatchNumber>() + mem::size_of::<H256>();
-        // ^ Since values are small, we want to account for key sizes as well
-
-        WEIGHT as u32
-    }
-}
 
 /// [`StorageValue`] together with an L2 block "timestamp" starting from which it is known to be valid.
 ///
@@ -60,15 +42,6 @@ impl CacheValue<H256> for L1BatchNumber {
 struct TimestampedStorageValue {
     value: StorageValue,
     loaded_at: L2BlockNumber,
-}
-
-impl CacheValue<H256> for TimestampedStorageValue {
-    #[allow(clippy::cast_possible_truncation)] // doesn't happen in practice
-    fn cache_weight(&self) -> u32 {
-        const WEIGHT: usize = mem::size_of::<TimestampedStorageValue>() + mem::size_of::<H256>();
-        // ^ Since values are small, we want to account for key sizes as well
-        WEIGHT as u32
-    }
 }
 
 #[derive(Debug)]
@@ -102,7 +75,7 @@ impl ValuesCache {
     fn new(capacity: u64) -> Self {
         let inner = ValuesCacheInner {
             valid_for: L2BlockNumber(0),
-            values: LruCache::new("values_cache", capacity),
+            values: LruCache::uniform("values_cache", capacity),
         };
         Self(Arc::new(RwLock::new(inner)))
     }
@@ -283,6 +256,7 @@ pub struct PostgresStorageCaches {
 
 impl PostgresStorageCaches {
     /// Creates caches with the specified capacities measured in bytes.
+    #[allow(clippy::cast_possible_truncation, clippy::missing_panics_doc)] // not triggered in practice
     pub fn new(factory_deps_capacity: u64, initial_writes_capacity: u64) -> Self {
         tracing::debug!(
             "Initialized VM execution cache with {factory_deps_capacity}B capacity for factory deps, \
@@ -290,12 +264,20 @@ impl PostgresStorageCaches {
         );
 
         Self {
-            factory_deps: FactoryDepsCache::new("factory_deps_cache", factory_deps_capacity),
-            initial_writes: InitialWritesCache::new(
+            factory_deps: FactoryDepsCache::weighted(
+                "factory_deps_cache",
+                factory_deps_capacity,
+                |_, value| {
+                    (value.bytecode.len() + mem::size_of::<L2BlockNumber>())
+                        .try_into()
+                        .expect("Cached bytes are too large")
+                },
+            ),
+            initial_writes: InitialWritesCache::uniform(
                 "initial_writes_cache",
                 initial_writes_capacity / 2,
             ),
-            negative_initial_writes: InitialWritesCache::new(
+            negative_initial_writes: InitialWritesCache::uniform(
                 "negative_initial_writes_cache",
                 initial_writes_capacity / 2,
             ),

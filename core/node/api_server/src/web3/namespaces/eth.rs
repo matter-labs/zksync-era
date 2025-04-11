@@ -10,7 +10,6 @@ use zksync_types::{
     l2::{L2Tx, TransactionType},
     transaction_request::CallRequest,
     u256_to_h256,
-    utils::decompose_full_nonce,
     web3::{self, Bytes, SyncInfo, SyncState},
     AccountTreeId, L2BlockNumber, StorageKey, H256, L2_BASE_TOKEN_ADDRESS, U256,
 };
@@ -469,21 +468,17 @@ impl EthNamespace {
 
         let block_number = self.state.resolve_block(&mut connection, block_id).await?;
         self.set_block_diff(block_number);
-        let full_nonce = connection
-            .storage_web3_dal()
-            .get_address_historical_nonce(address, block_number)
-            .await
-            .map_err(DalError::generalize)?;
+        let (account_type, mut nonce) = self
+            .state
+            .account_types_cache
+            .get_with_nonce(&mut connection, address, block_number)
+            .await?;
 
-        // TODO (SMA-1612): currently account nonce is returning always, but later we will
-        //  return account nonce for account abstraction and deployment nonce for non account abstraction.
-        //  Strip off deployer nonce part.
-        let (mut account_nonce, _) = decompose_full_nonce(full_nonce);
-
-        if matches!(block_id, BlockId::Number(BlockNumber::Pending)) {
-            let account_nonce_u64 = u64::try_from(account_nonce)
+        // There's no need to try updating the nonce for contracts because they cannot initiate transactions.
+        if account_type.is_external() && matches!(block_id, BlockId::Number(BlockNumber::Pending)) {
+            let account_nonce_u64 = u64::try_from(nonce)
                 .map_err(|err| anyhow::anyhow!("nonce conversion failed: {err}"))?;
-            account_nonce = if let Some(account_nonce) = self
+            nonce = if let Some(account_nonce) = self
                 .state
                 .tx_sink()
                 .lookup_pending_nonce(address, account_nonce_u64 as u32)
@@ -499,7 +494,7 @@ impl EthNamespace {
                     .map_err(DalError::generalize)?
             };
         }
-        Ok(account_nonce)
+        Ok(nonce)
     }
 
     pub async fn get_transaction_impl(

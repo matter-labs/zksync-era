@@ -79,7 +79,6 @@ impl StorageWeb3Dal<'_, '_> {
 
     /// Gets the current value for the specified `key`. Uses state of the latest sealed L2 block.
     /// Returns error if there is no sealed L2 blocks.
-    // FIXME: propagate hashed_key?
     pub async fn get_value(&mut self, key: &StorageKey) -> DalResult<H256> {
         let Some(l2_block_number) = self
             .storage
