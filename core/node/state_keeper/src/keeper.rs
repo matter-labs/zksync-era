@@ -587,6 +587,7 @@ impl ZkSyncStateKeeper {
             if self
                 .io
                 .should_seal_l1_batch_unconditionally(updates_manager)
+                .await?
             {
                 tracing::debug!(
                     "L1 batch #{} should be sealed unconditionally as per sealing rules",
