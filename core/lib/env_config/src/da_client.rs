@@ -78,6 +78,10 @@ pub fn da_client_config_from_env(prefix: &str) -> anyhow::Result<DAClientConfig>
                     .collect::<anyhow::Result<Vec<_>>>()?,
                 Err(_) => vec![],
             },
+            eigenda_registry_addr: H160::from_str(&env::var(format!(
+                "{}EIGENDA_REGISTRY_ADDR",
+                prefix
+            ))?)?,
         }),
         OBJECT_STORE_CLIENT_CONFIG_NAME => {
             DAClientConfig::ObjectStore(envy_load("da_object_store", prefix)?)
@@ -313,6 +317,7 @@ mod tests {
             DA_POINTS_SOURCE="Path"
             DA_POINTS_PATH="resources"
             DA_CUSTOM_QUORUM_NUMBERS="2"
+            DA_EIGENDA_REGISTRY_ADDR="0x0000000000000000000000000000000000001234"
         "#;
         lock.set_env(config);
 
@@ -330,6 +335,9 @@ mod tests {
                 authenticated: false,
                 points_source: PointsSource::Path("resources".to_string()),
                 custom_quorum_numbers: vec![2],
+                eigenda_registry_addr: "0x0000000000000000000000000000000000001234"
+                    .parse()
+                    .unwrap(),
             })
         );
     }

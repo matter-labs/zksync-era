@@ -28,6 +28,8 @@ pub struct EigenConfig {
     pub points_source: PointsSource,
     /// Custom quorum numbers
     pub custom_quorum_numbers: Vec<u8>,
+    /// Address of the eigenDA registry contract
+    pub eigenda_registry_addr: Address,
 }
 
 #[derive(Clone, Debug, PartialEq)]
