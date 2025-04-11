@@ -270,7 +270,8 @@ fflonk = { git = "https://github.com/matter-labs/zksync-crypto.git", branch = "f
 bellman = { git = "https://github.com/matter-labs/zksync-crypto.git", branch = "feature/ec_precompiles", package = "zksync_bellman" }
 
 # New VM; pinned to a specific version because of instability
-zksync_vm2 = "=0.3.0"
+# zksync_vm2 = "=0.3.0"
+zksync_vm2 = { git = "https://github.com/matter-labs/vm2.git", branch = "zk/v28-precompiles", package = "zksync_vm2" }
 
 # Consensus dependencies.
 zksync_concurrency = "=0.9.0"
