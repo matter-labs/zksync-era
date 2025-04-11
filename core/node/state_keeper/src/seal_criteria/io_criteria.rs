@@ -95,19 +95,22 @@ impl L2BlockMaxPayloadSizeSealer {
 
 /// Seals L1 batch if pending protocol upgrade is ready to happen or
 /// if the batch is the first one after protocol upgrade.
+/// First condition is checked once per `check_interval` to reduce number of DB queries.
 #[derive(Debug)]
 pub(crate) struct ProtocolUpgradeSealer {
     last_checked_at: Option<Instant>,
     check_interval: Duration,
+    pool: ConnectionPool<Core>,
 }
 
 impl ProtocolUpgradeSealer {
-    pub fn new() -> Self {
+    pub fn new(pool: ConnectionPool<Core>) -> Self {
         const DEFAULT_CHECK_INTERVAL: Duration = Duration::from_secs(10);
 
         Self {
             last_checked_at: None,
             check_interval: DEFAULT_CHECK_INTERVAL,
+            pool,
         }
     }
 
@@ -120,7 +123,6 @@ impl ProtocolUpgradeSealer {
     pub async fn should_seal_l1_batch_unconditionally(
         &mut self,
         manager: &UpdatesManager,
-        pool: &ConnectionPool<Core>,
         previous_batch_protocol_version: ProtocolVersionId,
     ) -> anyhow::Result<bool> {
         if manager.pending_executed_transactions_len() > 0
@@ -137,14 +139,18 @@ impl ProtocolUpgradeSealer {
             return Ok(false);
         }
 
-        let mut conn = pool.connection_tagged("protocol_upgrade_sealer").await?;
+        let mut conn = self
+            .pool
+            .connection_tagged("protocol_upgrade_sealer")
+            .await?;
         let current_timestamp = (millis_since_epoch() / 1_000) as u64;
         let protocol_version = conn
             .protocol_versions_dal()
             .protocol_version_id_by_timestamp(current_timestamp)
             .await
             .context("Failed loading protocol version")?;
-        let should_seal = protocol_version != manager.protocol_version();
+        let should_seal = manager.pending_executed_transactions_len() > 0
+            && protocol_version != manager.protocol_version();
         if should_seal {
             AGGREGATION_METRICS.l1_batch_reason_inc_criterion("last_batch_before_upgrade");
         }
@@ -243,7 +249,8 @@ mod tests {
         const CHECK_INTERVAL: Duration = Duration::from_millis(100);
 
         let pool = ConnectionPool::<Core>::test_pool().await;
-        let mut sealer = ProtocolUpgradeSealer::new().with_check_interval(CHECK_INTERVAL);
+        let mut sealer =
+            ProtocolUpgradeSealer::new(pool.clone()).with_check_interval(CHECK_INTERVAL);
 
         let mut conn = pool.connection().await.unwrap();
 
@@ -258,11 +265,13 @@ mod tests {
             .await
             .unwrap();
 
-        let manager = create_updates_manager();
+        let mut manager = create_updates_manager();
+        let tx = create_transaction(10, 100);
+        apply_tx_to_manager(tx, &mut manager);
 
         // No new version, shouldn't seal.
         let should_seal = sealer
-            .should_seal_l1_batch_unconditionally(&manager, &pool, ProtocolVersionId::latest())
+            .should_seal_l1_batch_unconditionally(&manager, ProtocolVersionId::latest())
             .await
             .unwrap();
         assert!(!should_seal);
@@ -279,27 +288,21 @@ mod tests {
             .await
             .unwrap();
 
-        let first_checked_at = sealer.last_checked_at.unwrap();
+        // Reset `last_checked_at` so that the check is skipped and sealer returns false.
+        sealer.last_checked_at = Some(Instant::now());
         let should_seal = sealer
-            .should_seal_l1_batch_unconditionally(&manager, &pool, ProtocolVersionId::latest())
+            .should_seal_l1_batch_unconditionally(&manager, ProtocolVersionId::latest())
             .await
             .unwrap();
-        if first_checked_at == sealer.last_checked_at.unwrap() {
-            // This is the expected path, execution should take <CHECK_INTERVAL and sealer should return false.
-            assert!(!should_seal);
+        assert!(!should_seal);
 
-            // Reset `last_checked_at` and re-check.
-            sealer.last_checked_at = Some(first_checked_at - 2 * CHECK_INTERVAL);
-            let should_seal = sealer
-                .should_seal_l1_batch_unconditionally(&manager, &pool, ProtocolVersionId::latest())
-                .await
-                .unwrap();
-            assert!(should_seal);
-        } else {
-            // Execution took >=CHECK_INTERVAL, it's ok, we don't want to fail the test because of it.
-            // Sealer should return true in this case.
-            assert!(should_seal);
-        }
+        // Reset `last_checked_at` so that sealer does the check.
+        sealer.last_checked_at = Some(Instant::now() - 2 * CHECK_INTERVAL);
+        let should_seal = sealer
+            .should_seal_l1_batch_unconditionally(&manager, ProtocolVersionId::latest())
+            .await
+            .unwrap();
+        assert!(should_seal);
 
         // And now check how the first batch with the new protocol version will be treated.
         let l1_batch_env = default_l1_batch_env(1, 1, Address::default());
@@ -315,7 +318,7 @@ mod tests {
         let mut manager = UpdatesManager::new(&l1_batch_env, &system_env, Default::default());
         // No txs, should not be sealed.
         let should_seal = sealer
-            .should_seal_l1_batch_unconditionally(&manager, &pool, ProtocolVersionId::latest())
+            .should_seal_l1_batch_unconditionally(&manager, ProtocolVersionId::latest())
             .await
             .unwrap();
         assert!(!should_seal);
@@ -325,7 +328,7 @@ mod tests {
         apply_tx_to_manager(tx, &mut manager);
 
         let should_seal = sealer
-            .should_seal_l1_batch_unconditionally(&manager, &pool, ProtocolVersionId::latest())
+            .should_seal_l1_batch_unconditionally(&manager, ProtocolVersionId::latest())
             .await
             .unwrap();
         assert!(should_seal);

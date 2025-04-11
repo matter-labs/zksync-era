@@ -83,11 +83,7 @@ impl IoSealCriteria for MempoolIO {
             .await?;
         if self
             .protocol_upgrade_sealer
-            .should_seal_l1_batch_unconditionally(
-                manager,
-                &self.pool,
-                previous_batch_protocol_version,
-            )
+            .should_seal_l1_batch_unconditionally(manager, previous_batch_protocol_version)
             .await?
         {
             return Ok(true);
@@ -540,10 +536,10 @@ impl MempoolIO {
     ) -> anyhow::Result<Self> {
         Ok(Self {
             mempool,
-            pool,
+            pool: pool.clone(),
             timeout_sealer: TimeoutSealer::new(config),
             l2_block_max_payload_size_sealer: L2BlockMaxPayloadSizeSealer::new(config),
-            protocol_upgrade_sealer: ProtocolUpgradeSealer::new(),
+            protocol_upgrade_sealer: ProtocolUpgradeSealer::new(pool),
             filter: L2TxFilter::default(),
             // ^ Will be initialized properly on the first newly opened batch
             l1_batch_params_provider: L1BatchParamsProvider::uninitialized(),
