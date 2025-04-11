@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use tokio::time::Instant;
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
-use zksync_types::{utils::display_timestamp, ProtocolVersionId};
+use zksync_types::utils::display_timestamp;
 
 use crate::{
     metrics::AGGREGATION_METRICS,
@@ -123,10 +123,9 @@ impl ProtocolUpgradeSealer {
     pub async fn should_seal_l1_batch_unconditionally(
         &mut self,
         manager: &UpdatesManager,
-        previous_batch_protocol_version: ProtocolVersionId,
     ) -> anyhow::Result<bool> {
         if manager.pending_executed_transactions_len() > 0
-            && manager.protocol_version() != previous_batch_protocol_version
+            && manager.protocol_version() != manager.previous_batch_protocol_version()
         {
             AGGREGATION_METRICS.l1_batch_reason_inc_criterion("first_batch_after_upgrade");
             return Ok(true);
@@ -271,7 +270,7 @@ mod tests {
 
         // No new version, shouldn't seal.
         let should_seal = sealer
-            .should_seal_l1_batch_unconditionally(&manager, ProtocolVersionId::latest())
+            .should_seal_l1_batch_unconditionally(&manager)
             .await
             .unwrap();
         assert!(!should_seal);
@@ -291,7 +290,7 @@ mod tests {
         // Reset `last_checked_at` so that the check is skipped and sealer returns false.
         sealer.last_checked_at = Some(Instant::now());
         let should_seal = sealer
-            .should_seal_l1_batch_unconditionally(&manager, ProtocolVersionId::latest())
+            .should_seal_l1_batch_unconditionally(&manager)
             .await
             .unwrap();
         assert!(!should_seal);
@@ -299,7 +298,7 @@ mod tests {
         // Reset `last_checked_at` so that sealer does the check.
         sealer.last_checked_at = Some(Instant::now() - 2 * CHECK_INTERVAL);
         let should_seal = sealer
-            .should_seal_l1_batch_unconditionally(&manager, ProtocolVersionId::latest())
+            .should_seal_l1_batch_unconditionally(&manager)
             .await
             .unwrap();
         assert!(should_seal);
@@ -315,10 +314,15 @@ mod tests {
             default_validation_computational_gas_limit: u32::MAX,
             chain_id: L2ChainId::from(270),
         };
-        let mut manager = UpdatesManager::new(&l1_batch_env, &system_env, Default::default());
+        let mut manager = UpdatesManager::new(
+            &l1_batch_env,
+            &system_env,
+            Default::default(),
+            ProtocolVersionId::latest(),
+        );
         // No txs, should not be sealed.
         let should_seal = sealer
-            .should_seal_l1_batch_unconditionally(&manager, ProtocolVersionId::latest())
+            .should_seal_l1_batch_unconditionally(&manager)
             .await
             .unwrap();
         assert!(!should_seal);
@@ -328,7 +332,7 @@ mod tests {
         apply_tx_to_manager(tx, &mut manager);
 
         let should_seal = sealer
-            .should_seal_l1_batch_unconditionally(&manager, ProtocolVersionId::latest())
+            .should_seal_l1_batch_unconditionally(&manager)
             .await
             .unwrap();
         assert!(should_seal);

@@ -153,7 +153,16 @@ impl ZkSyncStateKeeper {
         };
 
         let protocol_version = system_env.version;
-        let mut updates_manager = UpdatesManager::new(&l1_batch_env, &system_env, pubdata_params);
+        let previous_batch_protocol_version = self
+            .io
+            .load_batch_version_id(l1_batch_env.number - 1)
+            .await?;
+        let mut updates_manager = UpdatesManager::new(
+            &l1_batch_env,
+            &system_env,
+            pubdata_params,
+            previous_batch_protocol_version,
+        );
         let mut protocol_upgrade_tx: Option<ProtocolUpgradeTx> = self
             .load_protocol_upgrade_tx(&pending_l2_blocks, protocol_version, l1_batch_env.number)
             .await?;
@@ -202,6 +211,7 @@ impl ZkSyncStateKeeper {
             let sealed_batch_protocol_version = updates_manager.protocol_version();
             updates_manager.finish_batch(finished_batch);
             let mut next_cursor = updates_manager.io_cursor();
+            let previous_batch_protocol_version = updates_manager.protocol_version();
             self.output_handler
                 .handle_l1_batch(Arc::new(updates_manager))
                 .await
@@ -217,7 +227,12 @@ impl ZkSyncStateKeeper {
             (system_env, l1_batch_env, pubdata_params) = self
                 .wait_for_new_batch_env(&next_cursor, &mut stop_receiver)
                 .await?;
-            updates_manager = UpdatesManager::new(&l1_batch_env, &system_env, pubdata_params);
+            updates_manager = UpdatesManager::new(
+                &l1_batch_env,
+                &system_env,
+                pubdata_params,
+                previous_batch_protocol_version,
+            );
             batch_executor = self
                 .create_batch_executor(
                     l1_batch_env.clone(),
