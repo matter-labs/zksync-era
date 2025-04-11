@@ -185,28 +185,14 @@ export async function waitForL2ToL1LogProof(wallet: zksync.Wallet, blockNumber: 
     }
 }
 
-const NONCE_HOLDER_ADDRESS = '0x0000000000000000000000000000000000008003';
-const NONCE_HOLDER_ABI: ethers.InterfaceAbi = [
-    ethers.Fragment.from('function getMinNonce(address) public view returns (uint256)'),
-    ethers.Fragment.from('function getDeploymentNonce(address) external view returns (uint256)')
-];
-
-export async function getDeploymentNonce(
-    provider: zksync.Provider,
-    address: string,
-    blockTag?: ethers.BlockTag
-): Promise<bigint> {
-    const nonceHolder = new zksync.Contract(NONCE_HOLDER_ADDRESS, NONCE_HOLDER_ABI, provider);
-    return await nonceHolder.getDeploymentNonce(address, { blockTag });
+export async function getDeploymentNonce(provider: zksync.Provider, address: string): Promise<bigint> {
+    const nonceHolder = new zksync.Contract(zksync.utils.NONCE_HOLDER_ADDRESS, zksync.utils.NONCE_HOLDER_ABI, provider);
+    return await nonceHolder.getDeploymentNonce(address);
 }
 
-export async function getAccountNonce(
-    provider: zksync.Provider,
-    address: string,
-    blockTag?: ethers.BlockTag
-): Promise<bigint> {
-    const nonceHolder = new zksync.Contract(NONCE_HOLDER_ADDRESS, NONCE_HOLDER_ABI, provider);
-    return await nonceHolder.getMinNonce(address, { blockTag });
+export async function getAccountNonce(provider: zksync.Provider, address: string): Promise<bigint> {
+    const nonceHolder = new zksync.Contract(zksync.utils.NONCE_HOLDER_ADDRESS, zksync.utils.NONCE_HOLDER_ABI, provider);
+    return await nonceHolder.getMinNonce(address);
 }
 
 /**

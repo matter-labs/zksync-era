@@ -94,7 +94,7 @@ describe('Smart contract behavior checks', () => {
         expect(contractAddress).toEqual(zksync.utils.createAddress(alice.address, nonce));
 
         // Check `getTransactionCount` for contracts
-        const contractNonce = await alice.provider.getTransactionCount(contractAddress);
+        let contractNonce = await alice.provider.getTransactionCount(contractAddress);
         expect(contractNonce).toEqual(1); // `Foo` is deployed in the constructor
         // Should also work using `NonceHolder.getDeploymentNonce()`
         const contractDeploymentNonce = await getDeploymentNonce(alice.provider, contractAddress);
@@ -106,6 +106,17 @@ describe('Smart contract behavior checks', () => {
         expect(await alice.getNonce(blockNumber)).toEqual(accountNonce);
         const oldContractNonce = await alice.provider.getTransactionCount(contractAddress, blockNumber);
         expect(oldContractNonce).toEqual(0);
+
+        // Deploy a salted contract from the factory.
+        const salt = ethers.getBytes('0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef');
+        await expect(contract.deploySalted(salt)).resolves.toBeAccepted();
+        const deployedCodeHash = zksync.utils.hashBytecode(contracts.create.factoryDep);
+        const expectedSaltedAddress = zksync.utils.create2Address(contractAddress, deployedCodeHash, salt, '0x');
+        expect(await contract.saltedContracts(salt)).toEqual(expectedSaltedAddress);
+
+        contractNonce = await alice.provider.getTransactionCount(contractAddress);
+        expect(contractNonce).toEqual(2);
+        expect(await getAccountNonce(alice.provider, contractAddress)).toEqual(0n);
     });
 
     test('Should perform "expensive" contract calls', async () => {
