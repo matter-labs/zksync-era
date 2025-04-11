@@ -63,10 +63,6 @@ async fn prepare_configs(
         genesis.get::<L2ChainId>("l2_chain_id")?.as_u64(),
     )?;
     en_config.insert("l1_chain_id", genesis.get::<L1ChainId>("l1_chain_id")?.0)?;
-    en_config.insert_yaml(
-        "l1_batch_commit_data_generator_mode",
-        genesis.get::<String>("l1_batch_commit_data_generator_mode")?,
-    )?;
     en_config.insert("main_node_url", format!("http://127.0.0.1:{l2_rpc_port}"))?;
     if let Some(gateway) = &gateway {
         en_config.insert_yaml("gateway_chain_id", gateway.gateway_chain_id)?;
