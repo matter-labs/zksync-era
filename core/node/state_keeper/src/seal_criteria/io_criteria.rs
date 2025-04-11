@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use tokio::time::Instant;
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
-use zksync_types::utils::display_timestamp;
+use zksync_types::{utils::display_timestamp, ProtocolVersionId};
 
 use crate::{
     metrics::AGGREGATION_METRICS,
@@ -93,7 +93,8 @@ impl L2BlockMaxPayloadSizeSealer {
     }
 }
 
-/// Seals L1 batch if protocol upgrade is ready to happen.
+/// Seals L1 batch if pending protocol upgrade is ready to happen or
+/// if the batch is the first one after protocol upgrade.
 #[derive(Debug)]
 pub(crate) struct ProtocolUpgradeSealer {
     last_checked_at: Option<Instant>,
@@ -120,7 +121,15 @@ impl ProtocolUpgradeSealer {
         &mut self,
         manager: &UpdatesManager,
         pool: &ConnectionPool<Core>,
+        previous_batch_protocol_version: ProtocolVersionId,
     ) -> anyhow::Result<bool> {
+        if manager.pending_executed_transactions_len() > 0
+            && manager.protocol_version() != previous_batch_protocol_version
+        {
+            AGGREGATION_METRICS.l1_batch_reason_inc_criterion("first_batch_after_upgrade");
+            return Ok(true);
+        }
+
         if self
             .last_checked_at
             .is_some_and(|last_check_at| last_check_at.elapsed() < self.check_interval)
@@ -135,18 +144,28 @@ impl ProtocolUpgradeSealer {
             .protocol_version_id_by_timestamp(current_timestamp)
             .await
             .context("Failed loading protocol version")?;
-
+        let should_seal = protocol_version != manager.protocol_version();
+        if should_seal {
+            AGGREGATION_METRICS.l1_batch_reason_inc_criterion("last_batch_before_upgrade");
+        }
         self.last_checked_at = Some(Instant::now());
 
-        Ok(protocol_version > manager.protocol_version())
+        Ok(should_seal)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use zksync_multivm::interface::VmExecutionMetrics;
+    use zksync_contracts::BaseSystemContracts;
+    use zksync_multivm::{
+        interface::{SystemEnv, TxExecutionMode, VmExecutionMetrics},
+        zk_evm_latest::ethereum_types::Address,
+    };
+    use zksync_node_test_utils::default_l1_batch_env;
+    use zksync_system_constants::ZKPORTER_IS_AVAILABLE;
     use zksync_types::{
-        protocol_version::ProtocolSemanticVersion, ProtocolVersion, ProtocolVersionId, Transaction,
+        protocol_version::ProtocolSemanticVersion, L2ChainId, ProtocolVersion, ProtocolVersionId,
+        Transaction,
     };
 
     use super::*;
@@ -243,7 +262,7 @@ mod tests {
 
         // No new version, shouldn't seal.
         let should_seal = sealer
-            .should_seal_l1_batch_unconditionally(&manager, &pool)
+            .should_seal_l1_batch_unconditionally(&manager, &pool, ProtocolVersionId::latest())
             .await
             .unwrap();
         assert!(!should_seal);
@@ -262,7 +281,7 @@ mod tests {
 
         let first_checked_at = sealer.last_checked_at.unwrap();
         let should_seal = sealer
-            .should_seal_l1_batch_unconditionally(&manager, &pool)
+            .should_seal_l1_batch_unconditionally(&manager, &pool, ProtocolVersionId::latest())
             .await
             .unwrap();
         if first_checked_at == sealer.last_checked_at.unwrap() {
@@ -272,7 +291,7 @@ mod tests {
             // Reset `last_checked_at` and re-check.
             sealer.last_checked_at = Some(first_checked_at - 2 * CHECK_INTERVAL);
             let should_seal = sealer
-                .should_seal_l1_batch_unconditionally(&manager, &pool)
+                .should_seal_l1_batch_unconditionally(&manager, &pool, ProtocolVersionId::latest())
                 .await
                 .unwrap();
             assert!(should_seal);
@@ -281,5 +300,34 @@ mod tests {
             // Sealer should return true in this case.
             assert!(should_seal);
         }
+
+        // And now check how the first batch with the new protocol version will be treated.
+        let l1_batch_env = default_l1_batch_env(1, 1, Address::default());
+        let system_env = SystemEnv {
+            zk_porter_available: ZKPORTER_IS_AVAILABLE,
+            version: ProtocolVersionId::next(),
+            base_system_smart_contracts: BaseSystemContracts::load_from_disk(),
+            bootloader_gas_limit: u32::MAX,
+            execution_mode: TxExecutionMode::VerifyExecute,
+            default_validation_computational_gas_limit: u32::MAX,
+            chain_id: L2ChainId::from(270),
+        };
+        let mut manager = UpdatesManager::new(&l1_batch_env, &system_env, Default::default());
+        // No txs, should not be sealed.
+        let should_seal = sealer
+            .should_seal_l1_batch_unconditionally(&manager, &pool, ProtocolVersionId::latest())
+            .await
+            .unwrap();
+        assert!(!should_seal);
+
+        // Add tx and check that should be sealed.
+        let tx = create_transaction(10, 100);
+        apply_tx_to_manager(tx, &mut manager);
+
+        let should_seal = sealer
+            .should_seal_l1_batch_unconditionally(&manager, &pool, ProtocolVersionId::latest())
+            .await
+            .unwrap();
+        assert!(should_seal);
     }
 }

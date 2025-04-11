@@ -78,9 +78,16 @@ impl IoSealCriteria for MempoolIO {
             return Ok(true);
         }
 
+        let previous_batch_protocol_version = self
+            .load_batch_version_id(manager.l1_batch.number - 1)
+            .await?;
         if self
             .protocol_upgrade_sealer
-            .should_seal_l1_batch_unconditionally(manager, &self.pool)
+            .should_seal_l1_batch_unconditionally(
+                manager,
+                &self.pool,
+                previous_batch_protocol_version,
+            )
             .await?
         {
             return Ok(true);
