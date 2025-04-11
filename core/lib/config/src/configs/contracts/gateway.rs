@@ -28,7 +28,6 @@ pub struct GatewayChainConfig {
     pub validator_timelock_addr: Option<Address>,
     pub multicall3_addr: Address,
     pub diamond_proxy_addr: Address,
-    pub chain_admin_addr: Address,
     pub gateway_chain_id: SLChainId,
 }
 
@@ -36,7 +35,6 @@ impl GatewayChainConfig {
     pub fn from_gateway_and_chain_data(
         gateway_config: &GatewayConfig,
         diamond_proxy_addr: Address,
-        l2_chain_admin_addr: Address,
         gateway_chain_id: SLChainId,
     ) -> Self {
         Self {
@@ -44,7 +42,6 @@ impl GatewayChainConfig {
             validator_timelock_addr: Some(gateway_config.validator_timelock_addr),
             multicall3_addr: gateway_config.multicall3_addr,
             diamond_proxy_addr,
-            chain_admin_addr: l2_chain_admin_addr,
             gateway_chain_id,
         }
     }
@@ -61,7 +58,6 @@ impl GatewayChainConfig {
             validator_timelock_addr: sl_contracts.ecosystem_contracts.validator_timelock_addr,
             multicall3_addr: sl_contracts.ecosystem_contracts.multicall3.unwrap(),
             diamond_proxy_addr: sl_contracts.chain_contracts_config.diamond_proxy_addr,
-            chain_admin_addr: sl_contracts.chain_contracts_config.chain_admin.unwrap(),
             gateway_chain_id,
         }
     }
