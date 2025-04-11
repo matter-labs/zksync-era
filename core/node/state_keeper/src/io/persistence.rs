@@ -484,8 +484,12 @@ mod tests {
         pool: &ConnectionPool<Core>,
     ) -> H256 {
         let l1_batch_env = default_l1_batch_env(1, 1, Address::random());
-        let mut updates =
-            UpdatesManager::new(&l1_batch_env, &default_system_env(), Default::default());
+        let mut updates = UpdatesManager::new(
+            &l1_batch_env,
+            &default_system_env(),
+            Default::default(),
+            Default::default(),
+        );
         pool.connection()
             .await
             .unwrap()

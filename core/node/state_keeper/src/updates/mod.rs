@@ -41,6 +41,7 @@ pub struct UpdatesManager {
     pub storage_writes_deduplicator: StorageWritesDeduplicator,
     pubdata_params: PubdataParams,
     next_l2_block_params: Option<L2BlockParams>,
+    previous_batch_protocol_version: ProtocolVersionId,
 }
 
 impl UpdatesManager {
@@ -48,6 +49,7 @@ impl UpdatesManager {
         l1_batch_env: &L1BatchEnv,
         system_env: &SystemEnv,
         pubdata_params: PubdataParams,
+        previous_batch_protocol_version: ProtocolVersionId,
     ) -> Self {
         let protocol_version = system_env.version;
         Self {
@@ -69,6 +71,7 @@ impl UpdatesManager {
             storage_view_cache: None,
             pubdata_params,
             next_l2_block_params: None,
+            previous_batch_protocol_version,
         }
     }
 
@@ -131,6 +134,10 @@ impl UpdatesManager {
 
     pub fn protocol_version(&self) -> ProtocolVersionId {
         self.protocol_version
+    }
+
+    pub fn previous_batch_protocol_version(&self) -> ProtocolVersionId {
+        self.previous_batch_protocol_version
     }
 
     #[allow(clippy::too_many_arguments)]
