@@ -1,5 +1,5 @@
 use circuit_sequencer_api::INITIAL_MONOTONIC_CYCLE_COUNTER;
-use zk_evm_1_5_0::{
+use zk_evm_1_5_2::{
     aux_structures::{MemoryPage, PubdataCost, Timestamp},
     block_properties::BlockProperties,
     vm_state::{CallStackEntry, PrimitiveValue, Version, VmState},

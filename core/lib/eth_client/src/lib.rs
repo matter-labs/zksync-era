@@ -1,4 +1,4 @@
-use std::fmt;
+use std::{cmp::max, fmt};
 
 use async_trait::async_trait;
 use zksync_types::{
@@ -82,6 +82,14 @@ pub struct BaseFees {
     pub base_fee_per_blob_gas: U256,
     // The price (in wei) for relaying the pubdata to L1. It is non-zero only for L2 settlement layers.
     pub l2_pubdata_price: U256,
+}
+
+impl BaseFees {
+    pub fn gas_per_pubdata(&self) -> u64 {
+        self.l2_pubdata_price
+            .as_u64()
+            .div_ceil(max(1, self.base_fee_per_gas))
+    }
 }
 
 /// Common Web3 interface, as seen by the core applications.
