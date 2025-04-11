@@ -1,6 +1,11 @@
-use zksync_test_contracts::Account;
+use zksync_test_contracts::{Account, TestContract};
+use zksync_types::{Execute, ExecuteTransactionCommon, Nonce};
 
-use super::TestedVm;
+use super::{tester::VmTesterBuilder, ContractToDeploy, TestedVm};
+use crate::interface::{
+    ExecutionResult, Halt, InspectExecutionMode, TxExecutionMode, TxRevertReason, VmInterfaceExt,
+    VmRevertReason,
+};
 
 pub enum NonceHolderTestMode {
     IncreaseMinNonceBy5,
@@ -22,12 +27,12 @@ impl From<NonceHolderTestMode> for u8 {
 
 #[allow(dead_code)]
 fn run_nonce_test(
-    _vm: &mut impl TestedVm,
-    _account: &mut Account,
-    _nonce: u32,
-    _test_mode: NonceHolderTestMode,
-    _error_message: Option<String>,
-    _comment: &'static str,
+    vm: &mut impl TestedVm,
+    account: &mut Account,
+    nonce: u32,
+    test_mode: NonceHolderTestMode,
+    error_message: Option<String>,
+    comment: &'static str,
 ) {
     vm.make_snapshot();
     let mut transaction = account.get_l2_tx_for_execute_with_nonce(
