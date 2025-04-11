@@ -14,8 +14,8 @@ use zksync_node_fee_model::l1_gas_price::TxParamsProvider;
 use zksync_shared_metrics::BlockL1Stage;
 use zksync_types::{
     aggregated_operations::AggregatedActionType, eth_sender::EthTx, Address, L1BlockNumber,
-    GATEWAY_CALLDATA_PROCESSING_ROLLUP_OVERHEAD, H256, L1_CALLDATA_PROCESSING_ROLLUP_OVERHEAD,
-    L1_GAS_PER_PUBDATA_BYTE, U256,
+    GATEWAY_CALLDATA_PROCESSING_ROLLUP_OVERHEAD_WEI, H256,
+    L1_CALLDATA_PROCESSING_ROLLUP_OVERHEAD_WEI, L1_GAS_PER_PUBDATA_BYTE, U256,
 };
 
 use super::{metrics::METRICS, EthSenderError};
@@ -268,10 +268,8 @@ impl EthTxManager {
         let operator_type = self.operator_type(tx);
 
         // Gas limit saved in predicted gas_cost, doesn't include gas_limit for pubdata usage.
-        let mut gas_limit: U256 = if let Some(gas_limit) = tx.predicted_gas_cost {
-            gas_limit.into()
-        } else {
-            self.config.max_aggregated_tx_gas.into()
+        let Some(gas_without_pubdata) = tx.predicted_gas_cost else {
+            return self.config.max_aggregated_tx_gas.into();
         };
 
         // Adjust gas limit based ob pubdata cost. Commit is the only pubdata intensive part
@@ -279,25 +277,27 @@ impl EthTxManager {
             match operator_type {
                 OperatorType::Blob | OperatorType::NonBlob => {
                     // Settlement mode is L1.
-                    gas_limit += ((L1_GAS_PER_PUBDATA_BYTE
-                        + L1_CALLDATA_PROCESSING_ROLLUP_OVERHEAD)
-                        * tx.raw_tx.len() as u32)
+                    (gas_without_pubdata
+                        + ((L1_GAS_PER_PUBDATA_BYTE + L1_CALLDATA_PROCESSING_ROLLUP_OVERHEAD_WEI)
+                            * tx.raw_tx.len() as u32) as u64)
                         .into()
                 }
                 OperatorType::Gateway => {
                     // Settlement mode is Gateway.
                     if let Some(max_gas_per_pubdata_price) = max_gas_per_pubdata_price {
-                        gas_limit += ((max_gas_per_pubdata_price
-                            + GATEWAY_CALLDATA_PROCESSING_ROLLUP_OVERHEAD as u64)
-                            * tx.raw_tx.len() as u64)
+                        (gas_without_pubdata
+                            + ((max_gas_per_pubdata_price
+                                + GATEWAY_CALLDATA_PROCESSING_ROLLUP_OVERHEAD_WEI as u64)
+                                * tx.raw_tx.len() as u64))
                             .into()
                     } else {
-                        gas_limit = self.config.max_aggregated_tx_gas.into();
+                        self.config.max_aggregated_tx_gas.into()
                     }
                 }
             }
+        } else {
+            gas_without_pubdata.into()
         }
-        gas_limit
     }
 
     async fn send_raw_transaction(

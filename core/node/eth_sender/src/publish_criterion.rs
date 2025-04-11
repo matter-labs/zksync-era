@@ -305,11 +305,11 @@ impl GasConsts {
     /// All gas cost of processing `PROVE` operation per batch.
     /// It's applicable if SL is GATEWAY.
     /// TODO calculate it properly
-    const GATEWAY_BATCH_PROOF_GAS_COST_ETHEREUM: u32 = 1_000_000;
+    const GATEWAY_BATCH_PROOF_GAS_COST: u32 = 1_600_000;
 
     /// All gas cost of processing `PROVE` operation per batch.
     /// It's applicable if SL is Ethereum.
-    const L1_BATCH_PROOF_GAS_COST_ETHEREUM: u32 = 500_000;
+    const L1_BATCH_PROOF_GAS_COST_ETHEREUM: u32 = 800_000;
 
     /// Base gas cost of processing `EXECUTION` operation per batch.
     /// It's applicable if SL is GATEWAY.
@@ -334,7 +334,7 @@ impl GasConsts {
 
     fn proof_costs(is_gateway: bool) -> u32 {
         if is_gateway {
-            Self::GATEWAY_BATCH_PROOF_GAS_COST_ETHEREUM
+            Self::GATEWAY_BATCH_PROOF_GAS_COST
         } else {
             Self::L1_BATCH_PROOF_GAS_COST_ETHEREUM
         }

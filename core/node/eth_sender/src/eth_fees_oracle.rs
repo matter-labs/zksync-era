@@ -155,11 +155,10 @@ impl GasAdjusterFeesOracle {
             )?;
         }
 
-        let l2_pubdata_price = self
+        let mut gas_per_pubdata = self
             .gas_adjuster
-            .get_gateway_l2_pubdata_price(capped_time_in_mempool_in_l1_blocks);
+            .get_gateway_price_per_pubdata(capped_time_in_mempool_in_l1_blocks);
 
-        let mut gas_per_pubdata = l2_pubdata_price.div_ceil(base_fee_per_gas);
         if let Some(previous_sent_tx) = previous_sent_tx {
             // Increase `gas_per_pubdata_fee`. Increase by at least 20%  for having the same behaviour as for L1
             base_fee_per_gas = max(
