@@ -19,7 +19,7 @@ use crate::{
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProofGenerationData {
     pub l1_batch_number: L1BatchNumber,
-    #[serde(default)]
+    #[serde(default = "chrono::Utc::now")]
     pub batch_sealed_at: chrono::DateTime<chrono::Utc>,
     pub witness_input_data: WitnessInputData,
     pub protocol_version: ProtocolSemanticVersion,
