@@ -1,5 +1,13 @@
 # Changelog
 
+## [27.3.1](https://github.com/matter-labs/zksync-era/compare/core-v27.3.0...core-v27.3.1) (2025-04-11)
+
+
+### Bug Fixes
+
+* **en:** handling of old batches in consistency checker on SL change ([#3828](https://github.com/matter-labs/zksync-era/issues/3828)) ([e2a1340](https://github.com/matter-labs/zksync-era/commit/e2a1340707ff9011497d9f001e32a528176c3302))
+* Use current timestamp as default for `batch_sealed_at` ([#3832](https://github.com/matter-labs/zksync-era/issues/3832)) ([10b3b2e](https://github.com/matter-labs/zksync-era/commit/10b3b2e545161a1eafc57f2124eeed5b8f3b4f09))
+
 ## [27.3.0](https://github.com/matter-labs/zksync-era/compare/core-v27.2.0...core-v27.3.0) (2025-04-10)
 
 
