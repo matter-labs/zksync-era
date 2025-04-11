@@ -208,6 +208,9 @@ impl ProtoRepr for proto::EthWatch {
             confirmations_for_eth_event: self.confirmations_for_eth_event,
             eth_node_poll_interval: *required(&self.eth_node_poll_interval)
                 .context("eth_node_poll_interval")?,
+            priority_tx_expiration_blocks: self
+                .priority_tx_expiration_blocks
+                .unwrap_or(zksync_system_constants::PRIORITY_EXPIRATION),
         })
     }
 
@@ -215,6 +218,7 @@ impl ProtoRepr for proto::EthWatch {
         Self {
             confirmations_for_eth_event: this.confirmations_for_eth_event,
             eth_node_poll_interval: Some(this.eth_node_poll_interval),
+            priority_tx_expiration_blocks: Some(this.priority_tx_expiration_blocks),
         }
     }
 }
