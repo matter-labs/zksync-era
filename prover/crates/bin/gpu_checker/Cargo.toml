@@ -18,6 +18,7 @@ bincode.workspace = true
 clap = { workspace = true, features = ["derive", "string"] }
 once_cell.workspace = true
 regex.workspace = true
+chrono.workspace = true
 
 shivini = { workspace = true, features = ["circuit_definitions", "zksync"] }
 zksync_circuit_prover_service.workspace = true
