@@ -11921,6 +11921,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "serde",
+ "zksync_types",
 ]
 
 [[package]]
@@ -13228,7 +13229,6 @@ dependencies = [
  "zksync_basic_types",
  "zksync_contracts",
  "zksync_crypto_primitives",
- "zksync_da_client",
  "zksync_mini_merkle_tree",
  "zksync_protobuf",
  "zksync_protobuf_build",
