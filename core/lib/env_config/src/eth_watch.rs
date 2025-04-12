@@ -19,6 +19,7 @@ mod tests {
         EthWatchConfig {
             confirmations_for_eth_event: Some(0),
             eth_node_poll_interval: 300,
+            priority_tx_expiration_blocks: 50000,
         }
     }
 
