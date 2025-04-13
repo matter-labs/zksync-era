@@ -32,7 +32,7 @@ use zksync_web3_decl::{
 };
 
 #[derive(Debug, Clone, Serialize)]
-pub(crate) struct AdminCall {
+pub struct AdminCall {
     description: String,
     target: Address,
     #[serde(serialize_with = "serialize_hex")]

@@ -23,8 +23,8 @@ use zkstack_cli_config::{
             input::GatewayVotePreparationConfig, output::DeployGatewayCTMOutput,
         },
         script_params::{
-            DEPLOY_GATEWAY_CTM, DEPLOY_GATEWAY_TX_FILTERER, GATEWAY_GOVERNANCE_TX_PATH1,
-            GATEWAY_PREPARATION, GATEWAY_VOTE_PREPARATION,
+            DEPLOY_GATEWAY_TX_FILTERER, GATEWAY_GOVERNANCE_TX_PATH1, GATEWAY_PREPARATION,
+            GATEWAY_VOTE_PREPARATION,
         },
     },
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},

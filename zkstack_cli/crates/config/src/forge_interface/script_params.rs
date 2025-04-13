@@ -74,12 +74,6 @@ pub const ENABLE_EVM_EMULATOR_PARAMS: ForgeScriptParams = ForgeScriptParams {
     script_path: "deploy-scripts/EnableEvmEmulator.s.sol",
 };
 
-pub const DEPLOY_GATEWAY_CTM: ForgeScriptParams = ForgeScriptParams {
-    input: "script-config/config-deploy-gateway-ctm.toml",
-    output: "script-out/output-deploy-gateway-ctm.toml",
-    script_path: "deploy-scripts/GatewayCTMFromL1.s.sol",
-};
-
 pub const GATEWAY_PREPARATION: ForgeScriptParams = ForgeScriptParams {
     input: "script-config/gateway-preparation-l1.toml",
     output: "script-out/output-gateway-preparation-l1.toml",

@@ -389,8 +389,6 @@ impl AdminScriptMode {
 struct AdminScriptOutputInner {
     admin_address: Address,
     encoded_data: String,
-    // TODO: u64 is enough for 99% of times, but U256 would be more correct
-    value: u64,
 }
 
 impl ZkStackConfig for AdminScriptOutputInner {}
@@ -399,7 +397,6 @@ impl ZkStackConfig for AdminScriptOutputInner {}
 pub struct AdminScriptOutput {
     pub admin_address: Address,
     pub calls: Vec<AdminCall>,
-    pub value: U256,
 }
 
 impl From<AdminScriptOutputInner> for AdminScriptOutput {
@@ -407,7 +404,6 @@ impl From<AdminScriptOutputInner> for AdminScriptOutput {
         Self {
             admin_address: value.admin_address,
             calls: decode_admin_calls(&hex::decode(value.encoded_data).unwrap()).unwrap(),
-            value: value.value.into(),
         }
     }
 }
