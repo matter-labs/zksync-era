@@ -86,6 +86,18 @@ pub const GATEWAY_PREPARATION: ForgeScriptParams = ForgeScriptParams {
     script_path: "deploy-scripts/GatewayPreparation.s.sol",
 };
 
+pub const DEPLOY_GATEWAY_TX_FILTERER: ForgeScriptParams = ForgeScriptParams {
+    input: "script-config/deploy-gateway-tx-filterer.toml",
+    output: "script-out/deploy-gateway-tx-filterer.toml",
+    script_path: "deploy-scripts/DeployGatewayTransactionFilterer.s.sol",
+};
+
+pub const GATEWAY_VOTE_PREPARATION: ForgeScriptParams = ForgeScriptParams {
+    input: "script-config/gateway-vote-preparation.toml",
+    output: "script-out/gateway-vote-preparation.toml",
+    script_path: "deploy-scripts/GatewayVotePreparation.s.sol",
+};
+
 pub const GATEWAY_GOVERNANCE_TX_PATH1: &str =
     "contracts/l1-contracts/script-out/gateway-deploy-governance-txs-1.json";
 

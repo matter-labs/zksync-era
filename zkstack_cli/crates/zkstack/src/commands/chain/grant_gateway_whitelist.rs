@@ -15,8 +15,6 @@ use zkstack_cli_common::{
 use zkstack_cli_config::{
     forge_interface::{
         deploy_ecosystem::input::{GenesisInput, InitialDeploymentConfig},
-        deploy_gateway_ctm::{input::DeployGatewayCTMInput, output::DeployGatewayCTMOutput},
-        gateway_preparation::{input::GatewayPreparationConfig, output::GatewayPreparationOutput},
         script_params::{DEPLOY_GATEWAY_CTM, GATEWAY_GOVERNANCE_TX_PATH1, GATEWAY_PREPARATION},
     },
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},

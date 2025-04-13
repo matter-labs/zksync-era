@@ -29,9 +29,6 @@ pub(crate) mod convert_to_gateway;
 pub(crate) mod deploy_gateway_contracts;
 
 #[cfg(feature = "gateway")]
-pub(crate) mod deploy_gateway_tx_filterer;
-
-#[cfg(feature = "gateway")]
 pub(crate) mod grant_gateway_whitelist;
 
 #[cfg(feature = "gateway")]
@@ -99,9 +96,6 @@ pub enum ChainCommands {
     UpdateTokenMultiplierSetter(ForgeScriptArgs),
     /// Provides calldata to set transaction filterer for a chain
     SetTransactionFilterer(SetTransactionFiltererArgs),
-    /// Deploys Gateway Filterer and prepares Gateway CTM contracts.
-    #[cfg(feature = "gateway")]
-    DeployGatewayTransactionFilterer(ForgeScriptArgs),
     #[cfg(feature = "gateway")]
     GrantGatewayTransactionFiltererWhitelistCalldata(GrantGatewayWhitelistArgs),
     #[cfg(feature = "gateway")]
@@ -160,10 +154,6 @@ pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()
         }
         ChainCommands::SetTransactionFilterer(args) => {
             set_transaction_filterer::run(shell, args).await
-        }
-        #[cfg(feature = "gateway")]
-        ChainCommands::DeployGatewayTransactionFilterer(args) => {
-            deploy_gateway_tx_filterer::run(args, shell).await
         }
         #[cfg(feature = "gateway")]
         ChainCommands::GrantGatewayTransactionFiltererWhitelistCalldata(args) => {

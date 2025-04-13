@@ -21,10 +21,7 @@ use zkstack_cli_common::{
     wallets::Wallet,
 };
 use zkstack_cli_config::{
-    forge_interface::{
-        gateway_preparation::{input::GatewayPreparationConfig, output::GatewayPreparationOutput},
-        script_params::GATEWAY_PREPARATION,
-    },
+    forge_interface::script_params::GATEWAY_PREPARATION,
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
     ChainConfig, EcosystemConfig,
 };
@@ -169,11 +166,15 @@ pub(crate) async fn get_migrate_to_gateway_calls(
         .settlement_layer(params.l2_chain_id.into())
         .await?;
 
+    println!("here");
+
     let zk_chain_l1_address = l1_bridgehub.get_zk_chain(params.l2_chain_id.into()).await?;
 
     if zk_chain_l1_address == Address::zero() {
         anyhow::bail!("Chain with id {} does not exist!", params.l2_chain_id);
     }
+
+    println!("here2");
 
     // Checking whether the user has already done the migration
     if current_settlement_layer == U256::from(params.gateway_chain_id) {
@@ -182,11 +183,13 @@ pub(crate) async fn get_migrate_to_gateway_calls(
         // The recovery of the chain is not handled by the tool right now.
         anyhow::bail!("The chain is already on top of Gateway!");
     }
+    println!("here4");
 
     let ctm_asset_id = l1_bridgehub
         .ctm_asset_id_from_chain_id(params.l2_chain_id.into())
         .await?;
     let ctm_gw_address = gw_bridgehub.ctm_asset_id_to_address(ctm_asset_id).await?;
+    println!("here3");
 
     if ctm_gw_address == Address::zero() {
         anyhow::bail!("{} does not have a CTM deployed!", params.gateway_chain_id);
@@ -196,6 +199,7 @@ pub(crate) async fn get_migrate_to_gateway_calls(
     let gw_validator_timelock_addr = gw_ctm.validator_timelock().await?;
     let gw_validator_timelock =
         ValidatorTimelockAbi::new(gw_validator_timelock_addr, gw_provider.clone());
+    println!("here5");
 
     let l1_zk_chain = ZkChainAbi::new(zk_chain_l1_address, l1_provider.clone());
     let chain_admin_address = l1_zk_chain.get_admin().await?;
@@ -223,6 +227,8 @@ pub(crate) async fn get_migrate_to_gateway_calls(
         }
     };
 
+    println!("here6");
+
     let finalize_migrate_to_gateway_output = finalize_migrate_to_gateway(
         shell,
         forge_args,
@@ -238,6 +244,8 @@ pub(crate) async fn get_migrate_to_gateway_calls(
     )
     .await?;
 
+    println!("here7");
+
     result.extend(finalize_migrate_to_gateway_output.calls);
 
     // Changing L2 DA validator while migrating to gateway is not recommended; we allow changing only the SL one
@@ -252,6 +260,8 @@ pub(crate) async fn get_migrate_to_gateway_calls(
         // TODO: We should really check it on our own here, but it is hard with the current interfaces
         println!("WARNING: Your chain is a permanent rollup! Ensure that the new L1 SL provider is compatible with Gateway RollupDAManager!");
     }
+
+    println!("here8");
 
     let da_validator_encoding_result = set_da_validator_pair_via_gateway(
         shell,
@@ -269,6 +279,7 @@ pub(crate) async fn get_migrate_to_gateway_calls(
         params.l1_rpc_url.clone(),
     )
     .await?;
+    println!("here9");
 
     result.extend(da_validator_encoding_result.calls);
 
@@ -348,14 +359,6 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
 
     let genesis_config = chain_config.get_genesis_config().await?;
     let gateway_contract_config = gateway_chain_config.get_contracts_config()?;
-
-    let preparation_config_path = GATEWAY_PREPARATION.input(&ecosystem_config.link_to_code);
-    let preparation_config = GatewayPreparationConfig::new(
-        &gateway_chain_config,
-        &gateway_contract_config,
-        &ecosystem_config.get_contracts_config()?,
-    )?;
-    preparation_config.save(shell, preparation_config_path)?;
 
     let chain_contracts_config = chain_config.get_contracts_config().unwrap();
     let chain_access_control_restriction = chain_contracts_config
