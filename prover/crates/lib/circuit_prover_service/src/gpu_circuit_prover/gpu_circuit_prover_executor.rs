@@ -49,12 +49,12 @@ impl Executor for GpuCircuitProverExecutor {
             metadata.aggregation_round
         );
         let GpuCircuitProverPayload {
-            circuit,
+            circuit_wrapper,
             witness_vector,
             setup_data,
         } = input;
 
-        let proof_wrapper = circuit
+        let proof_wrapper = circuit_wrapper
             .prove(witness_vector, setup_data)
             .context("failed to gpu prove circuit")?;
         tracing::info!(

@@ -14,8 +14,8 @@ use zksync_multivm::{
         executor::{OneshotExecutor, TransactionValidator},
         storage::StorageWithOverrides,
         tracer::TimestampAsserterParams,
-        Call, ExecutionResult, OneshotEnv, OneshotTracingParams, TransactionExecutionMetrics,
-        TxExecutionArgs, VmEvent,
+        Call, DeduplicatedWritesMetrics, ExecutionResult, OneshotEnv, OneshotTracingParams,
+        TransactionExecutionMetrics, TxExecutionArgs, VmEvent,
     },
     utils::StorageWritesDeduplicator,
 };
@@ -70,7 +70,7 @@ impl SandboxAction {
 
 /// Output of [`SandboxExecutor::execute_in_sandbox()`].
 #[derive(Debug, Clone)]
-pub(crate) struct SandboxExecutionOutput {
+pub struct SandboxExecutionOutput {
     /// Output of the VM.
     pub result: ExecutionResult,
     /// Write logs produced by the VM.
@@ -83,6 +83,24 @@ pub(crate) struct SandboxExecutionOutput {
     pub metrics: TransactionExecutionMetrics,
     /// Were published bytecodes OK?
     pub are_published_bytecodes_ok: bool,
+}
+
+impl SandboxExecutionOutput {
+    pub fn mock_success() -> Self {
+        Self {
+            result: ExecutionResult::Success { output: Vec::new() },
+            write_logs: Vec::new(),
+            events: Vec::new(),
+            call_traces: Vec::new(),
+            metrics: TransactionExecutionMetrics {
+                writes: DeduplicatedWritesMetrics::default(),
+                vm: Default::default(),
+                gas_remaining: 0,
+                gas_refunded: 0,
+            },
+            are_published_bytecodes_ok: true,
+        }
+    }
 }
 
 type SandboxStorage = StorageWithOverrides<PostgresStorage<'static>>;

@@ -11,6 +11,7 @@ use zksync_prover_interface::{
         L1BatchMetadataHashes, VMRunWitnessInputData, WitnessInputData, WitnessInputMerklePaths,
     },
     outputs::L1BatchProofForL1,
+    Bincode, CBOR,
 };
 
 use crate::{
@@ -44,10 +45,19 @@ impl Processor {
         l1_batch_number: L1BatchNumber,
         proof: ExternalProof,
     ) -> Result<(), ProcessorError> {
-        let expected_proof = self
+        let expected_proof: L1BatchProofForL1<CBOR> = match self
             .blob_store
-            .get::<L1BatchProofForL1>((l1_batch_number, proof.protocol_version()))
-            .await?;
+            .get((l1_batch_number, proof.protocol_version()))
+            .await
+        {
+            Ok(proof) => proof,
+            Err(_) => self
+                .blob_store
+                .get::<L1BatchProofForL1<Bincode>>((l1_batch_number, proof.protocol_version()))
+                .await
+                .map(Into::into)?,
+        };
+
         proof.verify(expected_proof)?;
         Ok(())
     }
@@ -102,8 +112,24 @@ impl Processor {
         &self,
         l1_batch_number: L1BatchNumber,
     ) -> Result<ProofGenerationData, ProcessorError> {
-        let vm_run_data: VMRunWitnessInputData = self.blob_store.get(l1_batch_number).await?;
-        let merkle_paths: WitnessInputMerklePaths = self.blob_store.get(l1_batch_number).await?;
+        let vm_run_data: VMRunWitnessInputData = match self.blob_store.get(l1_batch_number).await {
+            Ok(data) => data,
+            Err(_) => self
+                .blob_store
+                .get::<VMRunWitnessInputData<Bincode>>(l1_batch_number)
+                .await
+                .map(Into::into)?,
+        };
+
+        let merkle_paths: WitnessInputMerklePaths = match self.blob_store.get(l1_batch_number).await
+        {
+            Ok(data) => data,
+            Err(_) => self
+                .blob_store
+                .get::<WitnessInputMerklePaths<Bincode>>(l1_batch_number)
+                .await
+                .map(Into::into)?,
+        };
 
         // Acquire connection after interacting with GCP, to avoid holding the connection for too long.
         let mut conn = self.pool.connection().await?;
@@ -158,8 +184,15 @@ impl Processor {
             },
         };
 
+        let batch_sealed_at = conn
+            .blocks_dal()
+            .get_batch_sealed_at(l1_batch_number)
+            .await?
+            .ok_or(ProcessorError::Internal)?;
+
         Ok(ProofGenerationData {
             l1_batch_number,
+            batch_sealed_at,
             witness_input_data: blob,
             protocol_version: protocol_version.version,
             l1_verifier_config: protocol_version.l1_verifier_config,

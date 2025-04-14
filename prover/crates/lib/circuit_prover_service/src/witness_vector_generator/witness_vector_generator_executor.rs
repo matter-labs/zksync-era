@@ -41,10 +41,10 @@ impl Executor for WitnessVectorGeneratorExecutor {
             metadata.aggregation_round
         );
         let WitnessVectorGeneratorPayload {
-            circuit,
+            circuit_wrapper,
             finalization_hints,
         } = input;
-        let witness_vector = circuit
+        let witness_vector = circuit_wrapper
             .synthesize_vector(finalization_hints)
             .context("failed to generate witness vector")?;
         tracing::info!(
@@ -59,7 +59,7 @@ impl Executor for WitnessVectorGeneratorExecutor {
             .synthesize_time
             .observe(start_time.elapsed());
         Ok(WitnessVectorGeneratorExecutionOutput {
-            circuit,
+            circuit_wrapper,
             witness_vector,
         })
     }

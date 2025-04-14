@@ -12,6 +12,8 @@ use zksync_prover_interface::{
     inputs::{
         L1BatchMetadataHashes, VMRunWitnessInputData, WitnessInputData, WitnessInputMerklePaths,
     },
+    outputs::L1BatchProofForL1,
+    Bincode,
 };
 use zksync_types::{
     basic_fri_types::Eip4844Blobs,
@@ -111,16 +113,26 @@ impl RequestProcessor {
         &self,
         l1_batch_number: L1BatchNumber,
     ) -> Result<ProofGenerationData, RequestProcessorError> {
-        let vm_run_data: VMRunWitnessInputData = self
-            .blob_store
-            .get(l1_batch_number)
-            .await
-            .map_err(RequestProcessorError::ObjectStore)?;
-        let merkle_paths: WitnessInputMerklePaths = self
-            .blob_store
-            .get(l1_batch_number)
-            .await
-            .map_err(RequestProcessorError::ObjectStore)?;
+        let vm_run_data: VMRunWitnessInputData = match self.blob_store.get(l1_batch_number).await {
+            Ok(data) => data,
+            Err(_) => self
+                .blob_store
+                .get::<VMRunWitnessInputData<Bincode>>(l1_batch_number)
+                .await
+                .map(Into::into)
+                .map_err(RequestProcessorError::ObjectStore)?,
+        };
+
+        let merkle_paths: WitnessInputMerklePaths = match self.blob_store.get(l1_batch_number).await
+        {
+            Ok(data) => data,
+            Err(_) => self
+                .blob_store
+                .get::<WitnessInputMerklePaths<Bincode>>(l1_batch_number)
+                .await
+                .map(Into::into)
+                .map_err(RequestProcessorError::ObjectStore)?,
+        };
 
         // Acquire connection after interacting with GCP, to avoid holding the connection for too long.
         let mut conn = self
@@ -185,8 +197,17 @@ impl RequestProcessor {
 
         METRICS.observe_blob_sizes(&blob);
 
+        let batch_sealed_at = conn
+            .blocks_dal()
+            .get_batch_sealed_at(l1_batch_number)
+            .await?
+            .ok_or(RequestProcessorError::GeneralError(format!(
+                "Batch {l1_batch_number} not found in blocks_dal"
+            )))?;
+
         Ok(ProofGenerationData {
             l1_batch_number,
+            batch_sealed_at,
             witness_input_data: blob,
             protocol_version: protocol_version.version,
             l1_verifier_config: protocol_version.l1_verifier_config,
@@ -202,9 +223,10 @@ impl RequestProcessor {
         let l1_batch_number = L1BatchNumber(l1_batch_number);
         match payload {
             SubmitProofRequest::Proof(proof) => {
+                let proof: L1BatchProofForL1 = (*proof).into();
                 let blob_url = self
                     .blob_store
-                    .put((l1_batch_number, proof.protocol_version()), &*proof)
+                    .put((l1_batch_number, proof.protocol_version()), &proof)
                     .await
                     .map_err(RequestProcessorError::ObjectStore)?;
 

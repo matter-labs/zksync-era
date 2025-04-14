@@ -40,8 +40,6 @@ pub mod deploy_paymaster;
 mod enable_evm_emulator;
 #[cfg(feature = "gateway")]
 mod gateway_migration;
-#[cfg(feature = "gateway")]
-mod gateway_upgrade;
 pub mod genesis;
 pub mod init;
 #[cfg(feature = "gateway")]
@@ -114,9 +112,6 @@ pub enum ChainCommands {
     /// Migrate chain from gateway
     #[cfg(feature = "gateway")]
     MigrateFromGateway(migrate_from_gateway::MigrateFromGatewayArgs),
-    /// Upgrade to the protocol version that supports Gateway
-    #[cfg(feature = "gateway")]
-    GatewayUpgrade(gateway_upgrade::GatewayUpgradeArgs),
     /// Enable EVM emulation on chain (Not supported yet)
     EnableEvmEmulator(ForgeScriptArgs),
     #[cfg(feature = "gateway")]
@@ -174,8 +169,6 @@ pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()
         ChainCommands::MigrateToGateway(args) => gateway_migration::run(args, shell).await,
         #[cfg(feature = "gateway")]
         ChainCommands::MigrateFromGateway(args) => migrate_from_gateway::run(args, shell).await,
-        #[cfg(feature = "gateway")]
-        ChainCommands::GatewayUpgrade(args) => gateway_upgrade::run(args, shell).await,
         #[cfg(feature = "gateway")]
         ChainCommands::NotifyAboutToGatewayUpdate(args) => {
             gateway_migration::notify_server(args, shell, MigrationDirection::ToGateway).await
