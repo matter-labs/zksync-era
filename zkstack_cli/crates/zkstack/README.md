@@ -450,7 +450,8 @@ contracts to be deployed.
 
 ###### **Options:**
 
-- `--from-file <PATH>` — Set validator committee to committee specified in yaml file at `PATH`. File format is as in this example:
+- `--from-file <PATH>` — Set validator committee to committee specified in yaml file at `PATH`. File format is as in
+  this example:
 
   ```yaml
   validators:
