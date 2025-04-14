@@ -14,8 +14,8 @@ use zksync_node_fee_model::l1_gas_price::TxParamsProvider;
 use zksync_shared_metrics::BlockL1Stage;
 use zksync_types::{
     aggregated_operations::AggregatedActionType, eth_sender::EthTx, Address, L1BlockNumber,
-    GATEWAY_CALLDATA_PROCESSING_ROLLUP_OVERHEAD_WEI, H256,
-    L1_CALLDATA_PROCESSING_ROLLUP_OVERHEAD_WEI, L1_GAS_PER_PUBDATA_BYTE, U256,
+    GATEWAY_CALLDATA_PROCESSING_ROLLUP_OVERHEAD_GAS, H256,
+    L1_CALLDATA_PROCESSING_ROLLUP_OVERHEAD_GAS, L1_GAS_PER_PUBDATA_BYTE, U256,
 };
 
 use super::{metrics::METRICS, EthSenderError};
@@ -278,7 +278,7 @@ impl EthTxManager {
                 OperatorType::Blob | OperatorType::NonBlob => {
                     // Settlement mode is L1.
                     (gas_without_pubdata
-                        + ((L1_GAS_PER_PUBDATA_BYTE + L1_CALLDATA_PROCESSING_ROLLUP_OVERHEAD_WEI)
+                        + ((L1_GAS_PER_PUBDATA_BYTE + L1_CALLDATA_PROCESSING_ROLLUP_OVERHEAD_GAS)
                             * tx.raw_tx.len() as u32) as u64)
                         .into()
                 }
@@ -287,7 +287,7 @@ impl EthTxManager {
                     if let Some(max_gas_per_pubdata_price) = max_gas_per_pubdata_price {
                         (gas_without_pubdata
                             + ((max_gas_per_pubdata_price
-                                + GATEWAY_CALLDATA_PROCESSING_ROLLUP_OVERHEAD_WEI as u64)
+                                + GATEWAY_CALLDATA_PROCESSING_ROLLUP_OVERHEAD_GAS as u64)
                                 * tx.raw_tx.len() as u64))
                             .into()
                     } else {

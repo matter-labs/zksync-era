@@ -4,11 +4,7 @@ use async_trait::async_trait;
 use chrono::Utc;
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_types::{
-    aggregated_operations::{
-        AggregatedActionType, L1_BATCH_EXECUTE_BASE_COST, L1_OPERATION_EXECUTE_COST,
-    },
-    commitment::L1BatchWithMetadata,
-    L1BatchNumber,
+    aggregated_operations::AggregatedActionType, commitment::L1BatchWithMetadata, L1BatchNumber,
 };
 
 use super::metrics::METRICS;
@@ -318,6 +314,14 @@ impl GasConsts {
     /// It's applicable if SL is GATEWAY.
     const GATEWAY_L1_OPERATION_COST: u32 = 4_000;
 
+    /// Additional gas cost of processing `Execute` operation per batch.
+    /// It's applicable iff SL is Ethereum.
+    const L1_BATCH_EXECUTE_BASE_COST: u32 = 30_000;
+
+    /// Additional gas cost of processing `Execute` operation per L1->L2 tx.
+    /// It's applicable iff SL is Ethereum.
+    const L1_OPERATION_EXECUTE_COST: u32 = 12_500;
+
     fn commit_costs(is_gateway: bool) -> CommitGasConsts {
         if is_gateway {
             CommitGasConsts {
@@ -350,8 +354,8 @@ impl GasConsts {
         } else {
             ExecuteCosts {
                 base: Self::AGGR_L1_BATCH_EXECUTE_BASE_COST,
-                per_batch: L1_BATCH_EXECUTE_BASE_COST,
-                per_l1_l2_tx: L1_OPERATION_EXECUTE_COST,
+                per_batch: Self::L1_BATCH_EXECUTE_BASE_COST,
+                per_l1_l2_tx: Self::L1_OPERATION_EXECUTE_COST,
             }
         }
     }
