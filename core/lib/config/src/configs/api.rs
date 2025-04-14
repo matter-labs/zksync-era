@@ -413,7 +413,10 @@ mod tests {
                 ],
                 api_namespaces: Some(vec!["debug".to_string()]),
                 extended_api_tracing: true,
-                deployment_allowlist: DeploymentAllowlist::default(),
+                deployment_allowlist: DeploymentAllowlist {
+                    http_file_url: Some("http://allowlist/".to_owned()),
+                    refresh_interval_secs: Duration::from_secs(60),
+                },
             },
             prometheus: PrometheusConfig {
                 listener_port: 3312,
@@ -461,6 +464,8 @@ mod tests {
             API_WEB3_JSON_RPC_WEBSOCKET_REQUESTS_PER_MINUTE_LIMIT=10
             API_WEB3_JSON_RPC_MEMPOOL_CACHE_SIZE=10000
             API_WEB3_JSON_RPC_MEMPOOL_CACHE_UPDATE_INTERVAL=50
+            API_WEB3_JSON_RPC_DEPLOYMENT_ALLOWLIST_HTTP_FILE_URL="http://allowlist/"
+            API_WEB3_JSON_RPC_DEPLOYMENT_ALLOWLIST_REFRESH_INTERVAL_SECS=60
             API_CONTRACT_VERIFICATION_PORT="3070"
             API_CONTRACT_VERIFICATION_URL="http://127.0.0.1:3070"
             API_WEB3_JSON_RPC_TREE_API_URL="http://tree/"
@@ -524,6 +529,9 @@ mod tests {
             extended_api_tracing: true
             estimate_gas_optimize_search: true
             tree_api_url: "http://tree/"
+            deployment_allowlist:
+              http_file_url: "http://allowlist/"
+              refresh_interval_secs: 60
           prometheus:
             listener_port: 3312
             pushgateway_url: http://127.0.0.1:9091

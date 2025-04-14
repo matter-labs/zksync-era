@@ -38,7 +38,7 @@ mod tests {
             compilation_timeout: Duration::from_secs(30),
             prometheus_port: 3314,
             port: 3070,
-            etherscan_api_url: None,
+            etherscan_api_url: Some("https://api.etherscan.io/".to_owned()),
         }
     }
 
@@ -48,6 +48,7 @@ mod tests {
             CONTRACT_VERIFIER_COMPILATION_TIMEOUT=30
             CONTRACT_VERIFIER_PROMETHEUS_PORT=3314
             CONTRACT_VERIFIER_PORT=3070
+            CONTRACT_VERIFIER_ETHERSCAN_API_URL="https://api.etherscan.io/"
         "#;
         let env = Environment::from_dotenv("test.env", env)
             .unwrap()
@@ -63,6 +64,7 @@ mod tests {
           port: 3070
           compilation_timeout: 30
           prometheus_port: 3314
+          etherscan_api_url: https://api.etherscan.io/
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
         let config: ContractVerifierConfig = test_complete(yaml).unwrap();

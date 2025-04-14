@@ -323,6 +323,7 @@ mod tests {
             ETH_SENDER_SENDER_L1_BATCH_MIN_AGE_BEFORE_EXECUTE_SECONDS="1000"
             ETH_SENDER_SENDER_MAX_ACCEPTABLE_PRIORITY_FEE_IN_GWEI="100000000000"
             ETH_SENDER_SENDER_PUBDATA_SENDING_MODE="Calldata"
+            ETH_SENDER_SENDER_IS_VERIFIER_PRE_FFLONK=false
         "#;
         let env = Environment::from_dotenv("test.env", env)
             .unwrap()
@@ -336,9 +337,6 @@ mod tests {
     fn parsing_from_yaml() {
         let yaml = r#"
           sender:
-            aggregated_proof_sizes:
-            - 1
-            - 5
             wait_confirmations: 1
             tx_poll_period: 3
             aggregate_tx_poll_period: 3
@@ -358,6 +356,7 @@ mod tests {
             tx_aggregation_paused: false
             tx_aggregation_only_prove_and_execute: false
             time_in_mempool_in_l1_blocks_cap: 2000
+            is_verifier_pre_fflonk: false
           gas_adjuster:
             default_priority_fee_per_gas: 20000000000
             max_base_fee_samples: 10000

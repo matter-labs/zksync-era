@@ -277,6 +277,7 @@ mod tests {
             public_addr: 127.0.0.1:2954
             debug_page_addr: 127.0.0.1:3000
             max_payload_size: 2000000
+            view_timeout: 3000
             gossip_dynamic_inbound_limit: 10
             gossip_static_inbound:
             - node:public:ed25519:5c270ee08cae1179a65845a62564ae5d216cbe2c97ed5083f512f2df353bb291

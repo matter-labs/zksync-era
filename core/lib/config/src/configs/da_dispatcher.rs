@@ -49,6 +49,7 @@ mod tests {
             DA_DISPATCHER_MAX_ROWS_TO_DISPATCH=60
             DA_DISPATCHER_MAX_RETRIES=7
             DA_DISPATCHER_USE_DUMMY_INCLUSION_DATA="true"
+            DA_DISPATCHER_INCLUSION_VERIFICATION_TRANSITION_ENABLED="false"
         "#;
         let env = Environment::from_dotenv("test.env", env)
             .unwrap()
@@ -65,6 +66,7 @@ mod tests {
           max_rows_to_dispatch: 60
           max_retries: 7
           use_dummy_inclusion_data: true
+          inclusion_verification_transition_enabled: false
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
         let config: DADispatcherConfig = test_complete(yaml).unwrap();

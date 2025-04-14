@@ -65,6 +65,7 @@ mod tests {
         let env = r#"
             EN_L1_CHAIN_ID=9
             EN_L2_CHAIN_ID=271
+            EN_GATEWAY_CHAIN_ID=123
             EN_MAIN_NODE_URL=http://127.0.0.1:3050/
             EN_MAIN_NODE_RATE_LIMIT_RPS=200
             EN_L1_BATCH_COMMIT_DATA_GENERATOR_MODE=Rollup
@@ -88,7 +89,7 @@ mod tests {
             gateway_url: null
             l2_chain_id: 271
             l1_chain_id: 9
-            sl_chain_id: null
+            gateway_chain_id: 123
             l1_batch_commit_data_generator_mode: Rollup
             bridge_addresses_refresh_interval: '15s'
         "#;
@@ -109,7 +110,7 @@ mod tests {
             gateway_url: null
             l2_chain_id: 271
             l1_chain_id: 9
-            sl_chain_id: null
+            gateway_chain_id: 123
             l1_batch_commit_data_generator_mode: Rollup
             bridge_addresses_refresh_interval: '15s'
         "#;
