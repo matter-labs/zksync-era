@@ -102,9 +102,11 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                     .iter()
                     .map(|x| u8::try_from(*x).context("custom_quorum_numbers"))
                     .collect::<anyhow::Result<Vec<u8>>>()?,
-                eigenda_registry_addr: required(&conf.eigenda_registry_addr)
-                    .and_then(|x| parse_h160(x))
-                    .context("eigenda_registry_addr")?,
+                eigenda_cert_and_blob_verifier_addr: required(
+                    &conf.eigenda_cert_and_blob_verifier_addr,
+                )
+                .and_then(|x| parse_h160(x))
+                .context("eigenda_cert_and_blob_verifier_addr")?,
             }),
             proto::data_availability_client::Config::ObjectStore(conf) => {
                 ObjectStore(object_store_proto::ObjectStore::read(conf)?)
@@ -177,7 +179,10 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                     .iter()
                     .map(|x| *x as u32)
                     .collect(),
-                eigenda_registry_addr: Some(format!("{:?}", config.eigenda_registry_addr)),
+                eigenda_cert_and_blob_verifier_addr: Some(format!(
+                    "{:?}",
+                    config.eigenda_cert_and_blob_verifier_addr
+                )),
             }),
             ObjectStore(config) => proto::data_availability_client::Config::ObjectStore(
                 object_store_proto::ObjectStore::build(config),

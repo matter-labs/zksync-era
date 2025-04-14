@@ -28,7 +28,7 @@ use crate::utils::{to_non_retriable_da_error, to_retriable_da_error};
 pub struct EigenDAClient {
     client: EigenClient,
     eth_call_client: Box<DynClient<L1>>,
-    eigenda_registry_addr: Address,
+    eigenda_cert_and_blob_verifier_addr: Address,
 }
 
 impl EigenDAClient {
@@ -80,7 +80,7 @@ impl EigenDAClient {
         Ok(Self {
             client,
             eth_call_client,
-            eigenda_registry_addr: config.eigenda_registry_addr,
+            eigenda_cert_and_blob_verifier_addr: config.eigenda_cert_and_blob_verifier_addr,
         })
     }
 }
@@ -96,7 +96,7 @@ impl EigenDAClient {
         let inclusion_data = encode(&[Token::Bytes(inclusion_data.to_owned())]);
         data.extend_from_slice(&inclusion_data);
         let call_request = CallRequest {
-            to: Some(self.eigenda_registry_addr),
+            to: Some(self.eigenda_cert_and_blob_verifier_addr),
             data: Some(zksync_basic_types::web3::Bytes(data)),
             ..Default::default()
         };

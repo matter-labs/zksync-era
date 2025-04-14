@@ -54,7 +54,7 @@ message EigenConfig {
     Url points_source_url = 10;
   }
   repeated uint32 custom_quorum_numbers = 11;
-  optional string eigenda_registry_addr = 12;
+  optional string eigenda_cert_and_blob_verifier_addr = 12;
   reserved 1,2;
   reserved "rpc_node_url","inclusion_polling_interval_ms";
 }

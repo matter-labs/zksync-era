@@ -60,10 +60,10 @@ impl L1Network {
         }
     }
 
-    pub fn eigenda_registry_addr(&self) -> Option<Address> {
+    pub fn eigenda_cert_and_blob_verifier_addr(&self) -> Option<Address> {
         match self {
             L1Network::Localhost => {
-                Some(Address::from_str("0x0000000000000000000000000000000000000001").unwrap())
+                Some(Address::from_str("0xEaF1790229C16Af929f515d2B74Dc0E39820160C").unwrap())
             }
             L1Network::Sepolia | L1Network::Holesky => {
                 None
