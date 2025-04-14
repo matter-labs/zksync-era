@@ -1,3 +1,9 @@
+use std::{
+    fs,
+    io::{BufReader, BufWriter},
+    path::Path,
+};
+
 use anyhow::Context;
 use serde::{
     de::{Error as DeError, Unexpected},
@@ -17,6 +23,7 @@ use zksync_basic_types::{
 pub struct PersistedGenesisProverConfig {
     #[serde(alias = "recursion_scheduler_level_vk_hash")]
     snark_wrapper_vk_hash: H256,
+    fflonk_snark_wrapper_vk_hash: Option<H256>,
     dummy_verifier: bool,
 }
 
@@ -35,6 +42,7 @@ pub struct PersistedGenesisConfig {
     fee_account: Address,
     l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
     prover: PersistedGenesisProverConfig,
+    custom_genesis_state_path: Option<String>,
 }
 
 /// Returns an error iff the config is incomplete.
@@ -69,9 +77,11 @@ impl TryFrom<GenesisConfig> for PersistedGenesisConfig {
             l2_chain_id: config.l2_chain_id,
             fee_account: config.fee_account,
             l1_batch_commit_data_generator_mode: config.l1_batch_commit_data_generator_mode,
+            custom_genesis_state_path: config.custom_genesis_state_path,
             prover: PersistedGenesisProverConfig {
                 dummy_verifier: config.dummy_verifier,
                 snark_wrapper_vk_hash: config.snark_wrapper_vk_hash,
+                fflonk_snark_wrapper_vk_hash: config.fflonk_snark_wrapper_vk_hash,
             },
         })
     }
@@ -109,9 +119,8 @@ impl TryFrom<PersistedGenesisConfig> for GenesisConfig {
             fee_account: config.fee_account,
             dummy_verifier: config.prover.dummy_verifier,
             l1_batch_commit_data_generator_mode: config.l1_batch_commit_data_generator_mode,
-            // FIXME: Do these fields need to be persisted?
-            fflonk_snark_wrapper_vk_hash: None,
-            custom_genesis_state_path: None,
+            fflonk_snark_wrapper_vk_hash: config.prover.fflonk_snark_wrapper_vk_hash,
+            custom_genesis_state_path: config.custom_genesis_state_path,
         })
     }
 }
@@ -126,8 +135,7 @@ impl TryFrom<PersistedGenesisConfig> for GenesisConfig {
 ///   while loading / persisting it as a config must use [`PersistedGenesisConfig`].
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct GenesisConfig {
-    // TODO make fields non optional, once we fully moved to file based configs.
-    // Now for backward compatibility we keep it optional
+    // TODO make fields non optional?
     pub protocol_version: Option<ProtocolSemanticVersion>,
     pub genesis_root_hash: Option<H256>,
     pub rollup_last_leaf_index: Option<u64>,
@@ -137,9 +145,6 @@ pub struct GenesisConfig {
     pub evm_emulator_hash: Option<H256>,
     pub l1_chain_id: L1ChainId,
     pub l2_chain_id: L2ChainId,
-    // Note: `serde` isn't used with protobuf config. The same alias is implemented in
-    // `zksync_protobuf_config` manually.
-    // Rename is required to not introduce breaking changes in the API for existing clients.
     #[serde(
         alias = "recursion_scheduler_level_vk_hash",
         rename(serialize = "recursion_scheduler_level_vk_hash")
@@ -174,6 +179,26 @@ impl GenesisConfig {
             l1_batch_commit_data_generator_mode: L1BatchCommitmentMode::Rollup,
             custom_genesis_state_path: None,
         }
+    }
+
+    /// **Important:** This method uses blocking I/O.
+    pub fn read(path: &Path) -> anyhow::Result<Self> {
+        let file = fs::File::open(path)
+            .with_context(|| format!("failed opening genesis config file at {:?}", path))?;
+        let config: PersistedGenesisConfig = serde_yaml::from_reader(BufReader::new(file))
+            .context("failed deserializing genesis config")?;
+        config.try_into().context("malformed genesis config")
+    }
+
+    /// **Important:** This method uses blocking I/O.
+    pub fn write(self, path: &Path) -> anyhow::Result<()> {
+        let path = path.to_owned();
+        let config =
+            PersistedGenesisConfig::try_from(self).context("genesis config is incomplete")?;
+        let file = fs::File::create(&path)
+            .with_context(|| format!("failed creating genesis config file at {:?}", path))?;
+        serde_yaml::to_writer(BufWriter::new(file), &config)
+            .context("failed serializing config to YAML")
     }
 }
 
@@ -262,7 +287,7 @@ mod tests {
             dummy_verifier: true,
             l1_batch_commit_data_generator_mode: L1BatchCommitmentMode::Rollup,
             fflonk_snark_wrapper_vk_hash: Some(H256::repeat_byte(0xef)),
-            custom_genesis_state_path: None,
+            custom_genesis_state_path: Some("/db/genesis".to_owned()),
         }
     }
 
@@ -282,8 +307,10 @@ mod tests {
             prover:
               dummy_verifier: true
               snark_wrapper_vk_hash: 0x14f97b81e54b35fe673d8708cc1a19e1ea5b5e348e12d31e39824ed4f42bbca2
+              fflonk_snark_wrapper_vk_hash: 0xefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefef
             genesis_protocol_semantic_version: 0.25.0
             l1_batch_commit_data_generator_mode: Rollup
+            custom_genesis_state_path: "/db/genesis"
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
 

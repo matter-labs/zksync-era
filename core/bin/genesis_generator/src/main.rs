@@ -3,19 +3,11 @@
 //! Please note, this tool update only yaml file, if you still use env based configuration,
 //! update env values correspondingly
 
-use std::{
-    fs,
-    io::{BufReader, BufWriter},
-    path::Path,
-};
-
 use anyhow::Context as _;
 use clap::Parser;
 use zksync_config::{
-    configs::{genesis::PersistedGenesisConfig, DatabaseSecrets},
-    full_config_schema,
-    sources::ConfigFilePaths,
-    ConfigRepository, GenesisConfig, ParseResultExt,
+    configs::DatabaseSecrets, full_config_schema, sources::ConfigFilePaths, ConfigRepository,
+    GenesisConfig, ParseResultExt,
 };
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
@@ -51,7 +43,8 @@ async fn main() -> anyhow::Result<()> {
     let database_secrets: DatabaseSecrets = repo.single()?.parse().log_all_errors()?;
 
     let original_genesis: GenesisConfig =
-        read_genesis_config(DEFAULT_GENESIS_FILE_PATH.as_ref()).await?;
+        tokio::task::spawn_blocking(|| GenesisConfig::read(DEFAULT_GENESIS_FILE_PATH.as_ref()))
+            .await??;
     let db_url = database_secrets.master_url()?;
     let new_genesis = generate_new_config(db_url, original_genesis.clone()).await?;
     if opt.check {
@@ -59,32 +52,9 @@ async fn main() -> anyhow::Result<()> {
         println!("Genesis config is up to date");
         return Ok(());
     }
-    write_genesis_config(DEFAULT_GENESIS_FILE_PATH.as_ref(), new_genesis).await?;
+    tokio::task::spawn_blocking(|| new_genesis.write(DEFAULT_GENESIS_FILE_PATH.as_ref())).await??;
     println!("Genesis successfully generated");
     Ok(())
-}
-
-async fn read_genesis_config(path: &'static Path) -> anyhow::Result<GenesisConfig> {
-    tokio::task::spawn_blocking(move || {
-        let file = fs::File::open(path)
-            .with_context(|| format!("failed opening genesis config file at {:?}", path))?;
-        let config: PersistedGenesisConfig = serde_yaml::from_reader(BufReader::new(file))
-            .context("failed deserializing genesis config")?;
-        config.try_into().context("malformed genesis config")
-    })
-    .await?
-}
-
-async fn write_genesis_config(path: &'static Path, config: GenesisConfig) -> anyhow::Result<()> {
-    let config =
-        PersistedGenesisConfig::try_from(config).context("genesis config is incomplete")?;
-    tokio::task::spawn_blocking(move || {
-        let file = fs::File::create(path)
-            .with_context(|| format!("failed creating genesis config file at {:?}", path))?;
-        serde_yaml::to_writer(BufWriter::new(file), &config)
-            .context("failed serializing config to YAML")
-    })
-    .await?
 }
 
 async fn generate_new_config(

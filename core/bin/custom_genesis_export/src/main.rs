@@ -1,43 +1,11 @@
-use std::{
-    fs,
-    io::{BufReader, BufWriter},
-    path::{Path, PathBuf},
-    str::FromStr,
-};
+use std::{fs, io::BufWriter, path::PathBuf, str::FromStr};
 
-use anyhow::Context;
 use clap::Parser;
-use zksync_config::{configs::genesis::PersistedGenesisConfig, GenesisConfig};
+use zksync_config::GenesisConfig;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{custom_genesis_export_dal::GenesisState, ConnectionPool, Core, CoreDal};
 use zksync_node_genesis::{make_genesis_batch_params, utils::get_deduped_log_queries};
 use zksync_types::{url::SensitiveUrl, StorageLog};
-
-// FIXME: deduplicate w/ `genesis_generator`
-async fn read_genesis_config(path: &Path) -> anyhow::Result<GenesisConfig> {
-    let path = path.to_owned();
-    tokio::task::spawn_blocking(move || {
-        let file = fs::File::open(&path)
-            .with_context(|| format!("failed opening genesis config file at {:?}", path))?;
-        let config: PersistedGenesisConfig = serde_yaml::from_reader(BufReader::new(file))
-            .context("failed deserializing genesis config")?;
-        config.try_into().context("malformed genesis config")
-    })
-    .await?
-}
-
-async fn write_genesis_config(path: &Path, config: GenesisConfig) -> anyhow::Result<()> {
-    let path = path.to_owned();
-    let config =
-        PersistedGenesisConfig::try_from(config).context("genesis config is incomplete")?;
-    tokio::task::spawn_blocking(move || {
-        let file = fs::File::create(&path)
-            .with_context(|| format!("failed creating genesis config file at {:?}", path))?;
-        serde_yaml::to_writer(BufWriter::new(file), &config)
-            .context("failed serializing config to YAML")
-    })
-    .await?
-}
 
 #[derive(Debug, Parser)]
 #[command(name = "Custom genesis export tool", author = "Matter Labs")]
@@ -131,7 +99,9 @@ async fn main() -> anyhow::Result<()> {
     );
     println!("Calculating new genesis parameters");
 
-    let mut genesis_config = read_genesis_config(&args.genesis_config_path).await?;
+    let genesis_config_path = args.genesis_config_path.clone();
+    let mut genesis_config =
+        tokio::task::spawn_blocking(move || GenesisConfig::read(&genesis_config_path)).await??;
 
     let base_system_contract_hashes = BaseSystemContractsHashes {
         bootloader: genesis_config
@@ -158,7 +128,8 @@ async fn main() -> anyhow::Result<()> {
     genesis_config.custom_genesis_state_path =
         args.output_path.canonicalize()?.to_str().map(String::from);
 
-    write_genesis_config(&args.genesis_config_path, genesis_config).await?;
+    let genesis_config_path = args.genesis_config_path;
+    tokio::task::spawn_blocking(move || genesis_config.write(&genesis_config_path)).await??;
 
     println!("Done.");
 
