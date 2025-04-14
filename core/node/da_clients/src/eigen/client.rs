@@ -27,7 +27,7 @@ use crate::utils::{to_non_retriable_da_error, to_retriable_da_error};
 #[derive(Debug, Clone)]
 pub struct EigenDAClient {
     client: EigenClient,
-    query_client: Box<DynClient<L1>>,
+    eth_call_client: Box<DynClient<L1>>,
     eigenda_registry_addr: Address,
 }
 
@@ -69,17 +69,17 @@ impl EigenDAClient {
             .await
             .map_err(|e| anyhow::anyhow!("Eigen client Error: {:?}", e))?;
 
-        let query_client: Client<L1> = Client::http(
+        let eth_call_client: Client<L1> = Client::http(
             config
                 .eigenda_eth_rpc
                 .ok_or(anyhow::anyhow!("Eigenda eth rpc url is not set"))?,
         )
         .map_err(|e| anyhow::anyhow!("Query client Error: {:?}", e))?
         .build();
-        let query_client = Box::new(query_client) as Box<DynClient<L1>>;
+        let eth_call_client = Box::new(eth_call_client) as Box<DynClient<L1>>;
         Ok(Self {
             client,
-            query_client,
+            eth_call_client,
             eigenda_registry_addr: config.eigenda_registry_addr,
         })
     }
@@ -102,12 +102,12 @@ impl EigenDAClient {
         };
 
         let block_id = self
-            .query_client
+            .eth_call_client
             .block_number()
             .await
             .map_err(to_retriable_da_error)?;
         let res = self
-            .query_client
+            .eth_call_client
             .as_ref()
             .call_contract_function(call_request, Some(block_id.into()))
             .await
