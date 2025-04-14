@@ -1,4 +1,5 @@
-<!--- WIP ---> 
+<!--- WIP --->
+
 # Overview
 
 As stated in the introduction, the ZK Stack can be used to launch rollups. These rollups have some operators that are
