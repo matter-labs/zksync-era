@@ -85,6 +85,8 @@ message ProofDataHandler {
   optional uint32 tee_batch_permanently_ignored_timeout_in_hours = 6; // optional
   optional string gateway_api_url = 10; // required
   optional ApiMode api_mode = 11; // optional
+  optional uint32 proof_fetch_interval_in_secs = 12; // optional
+  optional uint32 proof_gen_data_submit_interval_in_secs = 13; // optional
 
   reserved 7,8,9;
   reserved "api_url", "batch_readiness_check_interval_in_secs", "retry_connection_interval_in_secs";

@@ -6,6 +6,7 @@ use zksync_prover_dal::ConnectionPool;
 use zksync_prover_dal::ProverDal;
 use zksync_prover_interface::api::ProofGenerationData;
 use zksync_prover_interface::api::SubmitProofRequest;
+use zksync_prover_interface::outputs::L1BatchProofForL1;
 use zksync_types::prover_dal::ProofCompressionJobStatus;
 use zksync_types::L1BatchNumber;
 
@@ -39,12 +40,12 @@ impl Processor {
 
         let request = match status {
             ProofCompressionJobStatus::Successful => {
-                let proof = self
+                let proof: L1BatchProofForL1 = self
                     .blob_store
                     .get((l1_batch_number, protocol_version))
                     .await
                     .expect("Failed to get compressed snark proof from blob store");
-                SubmitProofRequest::Proof(Box::new(proof))
+                SubmitProofRequest::Proof(Box::new(proof.into()))
             }
             ProofCompressionJobStatus::Skipped => SubmitProofRequest::SkippedProofGeneration,
             _ => panic!(
@@ -81,7 +82,7 @@ impl Processor {
 
         connection
             .fri_basic_witness_generator_dal()
-            .save_witness_inputs(data.l1_batch_number, &witness_inputs, data.protocol_version)
+            .save_witness_inputs(data.l1_batch_number, &witness_inputs, data.protocol_version, data.batch_sealed_at)
             .await?;
         Ok(())
     }

@@ -62,6 +62,8 @@ pub struct ProofDataHandlerConfig {
     pub proof_generation_timeout_in_secs: u16,
     pub api_mode: ApiMode,
     pub gateway_api_url: Option<String>,
+    pub proof_fetch_interval_in_secs: u16,
+    pub proof_gen_data_submit_interval_in_secs: u16,   
     #[serde(skip)]
     // ^ Filled in separately in `Self::from_env()`. We cannot use `serde(flatten)` because it
     // doesn't work with `envy`: https://github.com/softprops/envy/issues/26
@@ -80,5 +82,21 @@ pub enum ApiMode {
 impl ProofDataHandlerConfig {
     pub fn proof_generation_timeout(&self) -> Duration {
         Duration::from_secs(self.proof_generation_timeout_in_secs as u64)
+    }
+
+    pub fn proof_fetch_interval(&self) -> Duration {
+        Duration::from_secs(self.proof_fetch_interval_in_secs as u64)
+    }
+
+    pub fn proof_gen_data_submit_interval(&self) -> Duration {
+        Duration::from_secs(self.proof_gen_data_submit_interval_in_secs as u64)
+    }
+
+    pub fn default_proof_fetch_interval_in_secs() -> u16 {
+        10
+    }
+
+    pub fn default_proof_gen_data_submit_interval_in_secs() -> u16 {
+        10
     }
 }

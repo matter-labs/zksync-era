@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
-use zksync_config::configs::ProofDataHandlerConfig;
+use zksync_config::configs::{proof_data_handler::ApiMode, ProofDataHandlerConfig};
 use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStore;
+use zksync_proof_data_handler::ProofDataHandlerClient;
 use zksync_types::{commitment::L1BatchCommitmentMode, L2ChainId};
 
 use crate::{
@@ -93,14 +94,28 @@ impl Task for ProofDataHandlerTask {
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        zksync_proof_data_handler::run_server(
-            self.proof_data_handler_config,
-            self.blob_store,
-            self.main_pool,
-            self.commitment_mode,
-            self.l2_chain_id,
-            stop_receiver.0,
-        )
-        .await
+        match self.proof_data_handler_config.api_mode {
+            ApiMode::Legacy => {
+                zksync_proof_data_handler::run_server(
+                    self.proof_data_handler_config,
+                    self.blob_store,
+                    self.main_pool,
+                    self.commitment_mode,
+                    self.l2_chain_id,
+                    stop_receiver.0,
+                ).await
+            }
+            ApiMode::ProverCluster => {
+                // todo: tee proofs
+                ProofDataHandlerClient::new(
+                    self.blob_store,
+                    self.main_pool,
+                    self.proof_data_handler_config,
+                    self.commitment_mode,
+                )
+                .run(stop_receiver.0)
+                .await
+            }
+        }
     }
 }

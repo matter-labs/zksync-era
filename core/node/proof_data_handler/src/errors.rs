@@ -5,19 +5,20 @@ use axum::{
 use zksync_dal::DalError;
 use zksync_object_store::ObjectStoreError;
 
-pub(crate) enum RequestProcessorError {
+#[derive(Debug)]
+pub(crate) enum ProcessorError {
     GeneralError(String),
     ObjectStore(ObjectStoreError),
     Dal(DalError),
 }
 
-impl From<DalError> for RequestProcessorError {
+impl From<DalError> for ProcessorError {
     fn from(err: DalError) -> Self {
-        RequestProcessorError::Dal(err)
+        ProcessorError::Dal(err)
     }
 }
 
-impl IntoResponse for RequestProcessorError {
+impl IntoResponse for ProcessorError {
     fn into_response(self) -> Response {
         let (status_code, message) = match self {
             Self::GeneralError(err) => {
@@ -43,5 +44,15 @@ impl IntoResponse for RequestProcessorError {
             }
         };
         (status_code, message).into_response()
+    }
+}
+
+impl std::fmt::Display for ProcessorError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::GeneralError(err) => write!(f, "General error: {}", err),
+            Self::ObjectStore(err) => write!(f, "Object store error: {}", err),
+            Self::Dal(err) => write!(f, "DAL error: {}", err),
+        }
     }
 }

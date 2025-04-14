@@ -33,6 +33,8 @@ mod tests {
             },
             gateway_api_url: Some("http://localhost:3320/".to_string()),
             api_mode: ApiMode::Legacy,
+            proof_fetch_interval_in_secs: 10,
+            proof_gen_data_submit_interval_in_secs: 10,
         }
     }
 
@@ -47,6 +49,8 @@ mod tests {
             PROOF_DATA_HANDLER_TEE_BATCH_PERMANENTLY_IGNORED_TIMEOUT_IN_HOURS="240"
             PROOF_DATA_HANDLER_GATEWAY_API_URL="http://localhost:3320/"
             PROOF_DATA_HANDLER_API_MODE="Legacy"
+            PROOF_DATA_HANDLER_PROOF_FETCH_INTERVAL_IN_SECS="10"
+            PROOF_DATA_HANDLER_PROOF_GEN_DATA_SUBMIT_INTERVAL_IN_SECS="10"
         "#;
         let mut lock = MUTEX.lock();
         lock.set_env(config);

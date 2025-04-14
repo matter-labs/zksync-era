@@ -74,8 +74,6 @@ pub struct NextProof {
     pub request: SubmitProofRequest,
 }
 
-
-
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct SubmitTeeProofRequest(pub Box<L1BatchTeeProofForL1>);
 

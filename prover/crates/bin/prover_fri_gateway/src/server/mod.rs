@@ -2,7 +2,6 @@ use std::net::SocketAddr;
 
 use axum::{extract::State, routing::{get, post}, Json, Router};
 use error::ProcessorError;
-use processor::Processor;
 use tokio::sync::watch;
 use anyhow::Context as _;
 use zksync_prover_interface::api::{ProofGenerationData, SubmitProofRequest};
@@ -10,6 +9,8 @@ use zksync_types::L1BatchNumber;
 
 mod processor;
 mod error;
+
+pub use processor::Processor;
 
 pub struct Api {
     router: Router,

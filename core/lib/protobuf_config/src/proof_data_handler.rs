@@ -1,5 +1,5 @@
 use anyhow::Context as _;
-use zksync_config::configs;
+use zksync_config::configs::{self, proof_data_handler::ApiMode};
 use zksync_protobuf::{repr::ProtoRepr, required};
 use zksync_types::L1BatchNumber;
 
@@ -8,6 +8,25 @@ use crate::proto::prover as proto;
 impl ProtoRepr for proto::ProofDataHandler {
     type Type = configs::ProofDataHandlerConfig;
     fn read(&self) -> anyhow::Result<Self::Type> {
+
+        let api_mode = if let Some(api_mode) = &self.api_mode {
+            match api_mode {
+                0 => ApiMode::Legacy,
+                1 => ApiMode::ProverCluster,
+                _ => panic!("Unknown ProofDataHandler API mode: {api_mode}"),
+            }
+        } else {
+            ApiMode::default()
+        };
+
+        if ApiMode::ProverCluster == api_mode {
+            if self.gateway_api_url.is_none() {
+                return Err(anyhow::anyhow!(
+                    "gateway_api_url is required in ProverCluster mode of ProofDataHandler"
+                ));
+            }
+        }
+
         Ok(Self::Type {
             http_port: required(&self.http_port)
                 .and_then(|x| Ok((*x).try_into()?))
@@ -40,11 +59,26 @@ impl ProtoRepr for proto::ProofDataHandler {
                 .gateway_api_url
                 .as_ref()
                 .map(|x| x.to_string()),
-            api_mode: self.api_mode.as_ref().map(ProtoRepr::read).unwrap().unwrap_or_default(),
+            api_mode,
+            proof_fetch_interval_in_secs: self
+                .proof_fetch_interval_in_secs
+                .map(|x| x as u16)
+                .unwrap_or_else(configs::ProofDataHandlerConfig::default_proof_fetch_interval_in_secs),
+            proof_gen_data_submit_interval_in_secs: self
+                .proof_gen_data_submit_interval_in_secs
+                .map(|x| x as u16)
+                .unwrap_or_else(
+                    configs::ProofDataHandlerConfig::default_proof_gen_data_submit_interval_in_secs,
+                ),
         })
     }
 
     fn build(this: &Self::Type) -> Self {
+        let api_mode = match this.api_mode {
+            ApiMode::Legacy => 0,
+            ApiMode::ProverCluster => 1,
+        };
+
         Self {
             http_port: Some(this.http_port.into()),
             proof_generation_timeout_in_secs: Some(this.proof_generation_timeout_in_secs.into()),
@@ -59,26 +93,13 @@ impl ProtoRepr for proto::ProofDataHandler {
                     .into(),
             ),
             gateway_api_url: this.gateway_api_url.as_ref().map(|x| x.to_string()),
-            api_mode: Some(this.api_mode.map(ProtoRepr::build)),
-        }
-    }
-}
-
-impl ProtoRepr for proto::ApiMode {
-    type Type = configs::proof_data_handler::ApiMode;
-
-    fn read(&self) -> anyhow::Result<Self::Type> {
-        let mode = match self {
-            proto::ApiMode::Legacy => configs::proof_data_handler::ApiMode::Legacy,
-            proto::ApiMode::ProverCluster => configs::proof_data_handler::ApiMode::ProverCluster,
-        };
-        Ok(mode)
-    }
-
-    fn build(this: &Self::Type) -> Self {
-        match this {
-            configs::proof_data_handler::ApiMode::Legacy => proto::ApiMode::Legacy,
-            configs::proof_data_handler::ApiMode::ProverCluster => proto::ApiMode::ProverCluster,
+            api_mode: Some(api_mode),
+            proof_fetch_interval_in_secs: Some(
+                this.proof_fetch_interval_in_secs.into(),
+            ),
+            proof_gen_data_submit_interval_in_secs: Some(
+                this.proof_gen_data_submit_interval_in_secs.into(),
+            ),
         }
     }
 }
