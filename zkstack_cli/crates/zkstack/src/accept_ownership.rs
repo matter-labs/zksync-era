@@ -48,7 +48,8 @@ lazy_static! {
             "function enableValidatorViaGateway(address bridgehub,uint256 l1GasPrice,uint256 l2ChainId,uint256 gatewayChainId,address validatorAddress,address gatewayValidatorTimelock, address refundRecipient,bool shouldSend) public",
             "function adminL1L2Tx(address bridgehub,uint256 l1GasPrice,uint256 chainId,address to,uint256 value,bytes calldata data,address refundRecipient,bool _shouldSend) public",
             "function notifyServerMigrationFromGateway(address _bridgehub, uint256 _chainId, bool _shouldSend) public",
-            "function notifyServerMigrationToGateway(address _bridgehub, uint256 _chainId, bool _shouldSend) public"
+            "function notifyServerMigrationToGateway(address _bridgehub, uint256 _chainId, bool _shouldSend) public",
+            "function startMigrateChainFromGateway(address bridgehub,uint256 l1GasPrice,uint256 l2ChainId,uint256 gatewayChainId,bytes memory l1DiamondCutData,address refundRecipient,bool _shouldSend)"
         ])
         .unwrap(),
     );
@@ -742,6 +743,45 @@ pub(crate) async fn admin_l1_l2_tx(
                 to,
                 value,
                 data,
+                refund_recipient,
+                mode.should_send(),
+            ),
+        )
+        .unwrap();
+
+    call_script(
+        shell,
+        forge_args,
+        foundry_contracts_path,
+        mode,
+        calldata,
+        l1_rpc_url,
+    )
+    .await
+}
+
+pub async fn start_migrate_chain_from_gateway(
+    shell: &Shell,
+    forge_args: &ForgeScriptArgs,
+    foundry_contracts_path: &Path,
+    mode: AdminScriptMode,
+    bridgehub: Address,
+    l1_gas_price: u64,
+    l2_chain_id: u64,
+    gateway_chain_id: u64,
+    l1_diamond_cut_data: Bytes,
+    refund_recipient: Address,
+    l1_rpc_url: String,
+) -> anyhow::Result<AdminScriptOutput> {
+    let calldata = ACCEPT_ADMIN
+        .encode(
+            "startMigrateChainFromGateway",
+            (
+                bridgehub,
+                U256::from(l1_gas_price),
+                U256::from(l2_chain_id),
+                U256::from(gateway_chain_id),
+                l1_diamond_cut_data,
                 refund_recipient,
                 mode.should_send(),
             ),

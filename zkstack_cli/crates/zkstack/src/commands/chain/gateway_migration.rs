@@ -21,7 +21,6 @@ use zkstack_cli_common::{
     wallets::Wallet,
 };
 use zkstack_cli_config::{
-    forge_interface::script_params::GATEWAY_PREPARATION,
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
     ChainConfig, EcosystemConfig,
 };
@@ -199,7 +198,6 @@ pub(crate) async fn get_migrate_to_gateway_calls(
     let gw_validator_timelock_addr = gw_ctm.validator_timelock().await?;
     let gw_validator_timelock =
         ValidatorTimelockAbi::new(gw_validator_timelock_addr, gw_provider.clone());
-    println!("here5");
 
     let l1_zk_chain = ZkChainAbi::new(zk_chain_l1_address, l1_provider.clone());
     let chain_admin_address = l1_zk_chain.get_admin().await?;
@@ -244,8 +242,6 @@ pub(crate) async fn get_migrate_to_gateway_calls(
     )
     .await?;
 
-    println!("here7");
-
     result.extend(finalize_migrate_to_gateway_output.calls);
 
     // Changing L2 DA validator while migrating to gateway is not recommended; we allow changing only the SL one
@@ -260,8 +256,6 @@ pub(crate) async fn get_migrate_to_gateway_calls(
         // TODO: We should really check it on our own here, but it is hard with the current interfaces
         println!("WARNING: Your chain is a permanent rollup! Ensure that the new L1 SL provider is compatible with Gateway RollupDAManager!");
     }
-
-    println!("here8");
 
     let da_validator_encoding_result = set_da_validator_pair_via_gateway(
         shell,
@@ -279,7 +273,6 @@ pub(crate) async fn get_migrate_to_gateway_calls(
         params.l1_rpc_url.clone(),
     )
     .await?;
-    println!("here9");
 
     result.extend(da_validator_encoding_result.calls);
 
@@ -458,7 +451,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     Ok(())
 }
 
-async fn await_for_tx_to_complete(
+pub(crate) async fn await_for_tx_to_complete(
     gateway_provider: &Arc<Provider<Http>>,
     hash: H256,
 ) -> anyhow::Result<()> {
@@ -544,7 +537,7 @@ pub(crate) async fn notify_server(
     Ok(())
 }
 
-async fn send_tx(
+pub(crate) async fn send_tx(
     to: Address,
     data: Vec<u8>,
     value: U256,
@@ -578,7 +571,25 @@ async fn send_tx(
     Ok(receipt)
 }
 
-async fn extract_priority_ops(
+pub(crate) async fn extract_and_wait_for_priority_ops(
+    receipt: TransactionReceipt,
+    expected_diamond_proxy: Address,
+    gateway_provider: Arc<Provider<Http>>,
+) -> anyhow::Result<Vec<H256>> {
+    let priority_ops = extract_priority_ops(receipt, expected_diamond_proxy).await?;
+
+    logger::info(format!(
+        "Migration has produced a total of {} priority operations for Gateway",
+        priority_ops.len()
+    ));
+    for hash in priority_ops.iter() {
+        await_for_tx_to_complete(&gateway_provider, *hash).await?;
+    }
+
+    Ok(priority_ops)
+}
+
+pub(crate) async fn extract_priority_ops(
     receipt: TransactionReceipt,
     expected_diamond_proxy: Address,
 ) -> anyhow::Result<Vec<H256>> {

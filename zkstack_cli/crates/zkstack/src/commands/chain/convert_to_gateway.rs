@@ -15,23 +15,19 @@ use zkstack_cli_common::{
 };
 use zkstack_cli_config::{
     forge_interface::{
-        deploy_ecosystem::input::{GenesisInput, InitialDeploymentConfig},
+        deploy_ecosystem::input::GenesisInput,
         deploy_gateway_tx_filterer::{
             input::GatewayTxFiltererInput, output::GatewayTxFiltererOutput,
         },
         gateway_vote_preparation::{
             input::GatewayVotePreparationConfig, output::DeployGatewayCTMOutput,
         },
-        script_params::{
-            DEPLOY_GATEWAY_TX_FILTERER, GATEWAY_GOVERNANCE_TX_PATH1, GATEWAY_PREPARATION,
-            GATEWAY_VOTE_PREPARATION,
-        },
+        script_params::{DEPLOY_GATEWAY_TX_FILTERER, GATEWAY_VOTE_PREPARATION},
     },
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
     ChainConfig, EcosystemConfig,
 };
 use zkstack_cli_types::ProverMode;
-use zksync_basic_types::H256;
 use zksync_config::configs::gateway::GatewayConfig;
 
 use crate::{

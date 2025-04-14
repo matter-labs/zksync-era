@@ -6,7 +6,9 @@ use zksync_types::{Address, L2_NATIVE_TOKEN_VAULT_ADDRESS};
 
 use super::{
     events_gatherer::DEFAULT_BLOCK_RANGE,
-    gateway::{check_l2_ntv_existence, get_deployed_by_bridge, get_ethers_provider, get_zk_client},
+    gateway::{
+        check_l2_ntv_existence, get_deployed_by_bridge, get_ethers_provider, get_zk_dyn_client,
+    },
 };
 
 // L2WrappedBaseTokenStore ABI
@@ -32,7 +34,7 @@ pub async fn migrate_l2_tokens(
     l2_chain_id: u64,
     l2_tokens_indexing_block_range: Option<u64>,
 ) -> anyhow::Result<()> {
-    let l2_client = get_zk_client(&l2_rpc_url, l2_chain_id)?;
+    let l2_client = get_zk_dyn_client(&l2_rpc_url, l2_chain_id)?;
 
     check_l2_ntv_existence(&l2_client).await?;
     let ethers_provider = get_ethers_provider(&l2_rpc_url)?;

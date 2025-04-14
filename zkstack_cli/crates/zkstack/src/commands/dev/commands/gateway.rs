@@ -231,7 +231,17 @@ pub(crate) fn get_ethers_provider(url: &str) -> anyhow::Result<Arc<Provider<Http
     Ok(Arc::new(provider))
 }
 
-pub(crate) fn get_zk_client(url: &str, l2_chain_id: u64) -> anyhow::Result<Box<DynClient<L2>>> {
+pub(crate) fn get_zk_client(url: &str, l2_chain_id: u64) -> anyhow::Result<Client<L2>> {
+    let client = Client::http(SensitiveUrl::from_str(url).unwrap())
+        .context("failed creating JSON-RPC client for main node")?
+        .for_network(L2ChainId::new(l2_chain_id).unwrap().into())
+        .with_allowed_requests_per_second(NonZeroUsize::new(100_usize).unwrap())
+        .build();
+
+    Ok(client)
+}
+
+pub(crate) fn get_zk_dyn_client(url: &str, l2_chain_id: u64) -> anyhow::Result<Box<DynClient<L2>>> {
     let l2_client = Client::http(SensitiveUrl::from_str(url).unwrap())
         .context("failed creating JSON-RPC client for main node")?
         .for_network(L2ChainId::new(l2_chain_id).unwrap().into())
@@ -248,7 +258,7 @@ pub async fn check_token_readiness(
     l2_chain_id: u64,
     l2_tokens_indexing_block_range: Option<u64>,
 ) -> anyhow::Result<()> {
-    let l2_client = get_zk_client(&l2_rpc_url, l2_chain_id)?;
+    let l2_client = get_zk_dyn_client(&l2_rpc_url, l2_chain_id)?;
 
     check_l2_ntv_existence(&l2_client).await?;
 
@@ -306,7 +316,7 @@ pub async fn check_chain_readiness(
     };
     let l1_client = Arc::new(l1_provider);
 
-    let l2_client = get_zk_client(&l2_rpc_url, l2_chain_id)?;
+    let l2_client = get_zk_dyn_client(&l2_rpc_url, l2_chain_id)?;
 
     let inflight_txs_count = match l2_client.get_unconfirmed_txs_count().await {
         Ok(x) => x,
@@ -927,7 +937,7 @@ pub fn get_admin_call_builder(
 }
 
 async fn check_no_l1_txs_absence(l2_rpc_url: &str, l2_chain_id: u64) -> anyhow::Result<()> {
-    let client = get_zk_client(l2_rpc_url, l2_chain_id)?;
+    let client = get_zk_dyn_client(l2_rpc_url, l2_chain_id)?;
 
     let status = match client.l1_to_l2_txs_status().await {
         Ok(x) => x,
