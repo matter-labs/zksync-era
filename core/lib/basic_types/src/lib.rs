@@ -149,7 +149,7 @@ impl<'de> Deserialize<'de> for L2ChainId {
 }
 
 impl L2ChainId {
-    fn new(number: u64) -> Result<Self, String> {
+    pub fn new(number: u64) -> Result<Self, String> {
         if number > L2ChainId::max().0 {
             return Err(format!(
                 "Cannot convert given value {} into L2ChainId. It's greater than MAX: {}",
@@ -236,6 +236,7 @@ basic_type!(
 
 basic_type!(
     /// ZKsync account nonce.
+    #[derive(Default)]
     Nonce,
     u32
 );
@@ -254,6 +255,7 @@ basic_type!(
 
 basic_type!(
     /// ChainId in the Ethereum network.
+    ///
     /// IMPORTANT: Please, use this method when exactly the L1 chain id is required.
     /// Note, that typically this is not the case and the majority of methods need to work
     /// with *settlement layer* chain id, which is represented by `SLChainId`.

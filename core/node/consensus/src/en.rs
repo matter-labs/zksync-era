@@ -82,7 +82,7 @@ impl EN {
                     loop {
                         if let Ok(new) = self.fetch_global_config(ctx).await {
                             // We verify the transition here to work around the situation
-                            // where `consenus_global_config()` RPC fails randomly and fallback
+                            // where `consensus_global_config()` RPC fails randomly and fallback
                             // to `consensus_genesis()` RPC activates.
                             if new != old
                                 && consensus_dal::verify_config_transition(&old, &new).is_ok()
@@ -178,7 +178,7 @@ impl EN {
         tracing::warn!("\
             WARNING: this node is using ZKsync API synchronization, which will be deprecated soon. \
             Please follow this instruction to switch to p2p synchronization: \
-            https://github.com/matter-labs/zksync-era/blob/main/docs/guides/external-node/10_decentralization.md");
+            https://github.com/matter-labs/zksync-era/blob/main/docs/src/guides/external-node/10_decentralization.md");
         let res: ctx::Result<()> = scope::run!(ctx, |ctx, s| async {
             // Update sync state in the background.
             s.spawn_bg(self.fetch_state_loop(ctx));
@@ -208,7 +208,7 @@ impl EN {
         attestation: Arc<attestation::Controller>,
     ) -> ctx::Result<()> {
         const POLL_INTERVAL: time::Duration = time::Duration::seconds(5);
-        let registry = registry::Registry::new(cfg.genesis.clone(), self.pool.clone()).await;
+        let registry = registry::Registry::new(self.pool.clone()).await;
         let mut next = attester::BatchNumber(0);
         loop {
             let status = loop {

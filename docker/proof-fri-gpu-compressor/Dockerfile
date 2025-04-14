@@ -25,8 +25,8 @@ ENV RUSTUP_HOME=/usr/local/rustup \
     PATH=/usr/local/cargo/bin:$PATH
 
 RUN curl https://sh.rustup.rs -sSf | bash -s -- -y && \
-    rustup install nightly-2024-08-01 && \
-    rustup default nightly-2024-08-01
+    rustup install nightly-2024-09-01 && \
+    rustup default nightly-2024-09-01
 
 RUN curl -Lo cmake-3.24.2-linux-x86_64.sh https://github.com/Kitware/CMake/releases/download/v3.24.2/cmake-3.24.2-linux-x86_64.sh && \
     chmod +x cmake-3.24.2-linux-x86_64.sh && \
@@ -49,6 +49,9 @@ RUN cd prover && \
     cmake --build bellman-cuda/build/
 
 RUN cd prover && BELLMAN_CUDA_DIR=$PWD/bellman-cuda cargo build --features "gpu" --release --bin zksync_proof_fri_compressor
+
+# Output build in CUDA architectures for debugging purposes.
+RUN cuobjdump /usr/src/zksync/prover/target/release/zksync_proof_fri_compressor
 
 FROM nvidia/cuda:12.2.0-runtime-ubuntu22.04
 

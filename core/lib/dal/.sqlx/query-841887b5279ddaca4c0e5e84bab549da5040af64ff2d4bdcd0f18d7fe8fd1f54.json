@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE etherscan_verification_requests\n            SET\n                attempts = attempts + 1,\n                status = 'failed',\n                updated_at = NOW(),\n                error = $2\n            WHERE\n                contract_verification_request_id = $1\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "841887b5279ddaca4c0e5e84bab549da5040af64ff2d4bdcd0f18d7fe8fd1f54"
+}

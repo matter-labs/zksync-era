@@ -3,7 +3,9 @@
 
 use std::{fmt::Debug, sync::Arc, time};
 
+use anyhow::{bail, Context};
 use backon::{ConstantBuilder, Retryable};
+use bip39::Mnemonic;
 use bytes::Bytes;
 use jsonrpsee::{
     core::client::{Client, ClientT, Subscription, SubscriptionClientT},
@@ -12,21 +14,21 @@ use jsonrpsee::{
 use parity_scale_codec::{Compact, Decode, Encode};
 use scale_encode::EncodeAsFields;
 use serde::{Deserialize, Serialize};
-use subxt_signer::{
-    bip39::Mnemonic,
-    sr25519::{Keypair, Signature},
-};
+use subxt_signer::sr25519::{Keypair, Signature};
+use tokio::time::{timeout, Duration};
 use zksync_types::H256;
 
 use crate::utils::to_non_retriable_da_error;
 
 const PROTOCOL_VERSION: u8 = 4;
+const DISPATCH_POLLING_SLEEP_DURATION: Duration = Duration::from_millis(100);
 
-/// An implementation of the `DataAvailabilityClient` trait that interacts with the Avail network.
 #[derive(Debug, Clone)]
 pub(crate) struct RawAvailClient {
     app_id: u32,
     keypair: Keypair,
+    finality_state: String,
+    dispatch_timeout: Duration,
 }
 
 /// Utility type needed for encoding the call data
@@ -42,13 +44,23 @@ struct SubmitData {
 struct BoundedVec<_0>(pub Vec<_0>);
 
 impl RawAvailClient {
-    pub(crate) const MAX_BLOB_SIZE: usize = 512 * 1024; // 512kb
+    pub(crate) const MAX_BLOB_SIZE: usize = 1024 * 1024; // 1mb
 
-    pub(crate) async fn new(app_id: u32, seed: &str) -> anyhow::Result<Self> {
+    pub(crate) async fn new(
+        app_id: u32,
+        seed: &str,
+        finality_state: String,
+        dispatch_timeout: Duration,
+    ) -> anyhow::Result<Self> {
         let mnemonic = Mnemonic::parse(seed)?;
         let keypair = Keypair::from_phrase(&mnemonic, None)?;
 
-        Ok(Self { app_id, keypair })
+        Ok(Self {
+            app_id,
+            keypair,
+            finality_state,
+            dispatch_timeout,
+        })
     }
 
     /// Returns a hex-encoded extrinsic
@@ -272,6 +284,28 @@ impl RawAvailClient {
         encoded
     }
 
+    async fn wait_for_response(
+        sub: &mut Subscription<serde_json::Value>,
+        finality_state: String,
+    ) -> anyhow::Result<String> {
+        Ok(loop {
+            let status = sub.next().await.transpose()?;
+
+            if status.is_some() && status.as_ref().unwrap().is_object() {
+                if let Some(block_hash) = status.unwrap().get(finality_state.as_str()) {
+                    break block_hash
+                        .as_str()
+                        .ok_or_else(|| anyhow::anyhow!("Invalid block hash"))?
+                        .strip_prefix("0x")
+                        .ok_or_else(|| anyhow::anyhow!("Block hash doesn't have 0x prefix"))?
+                        .to_string();
+                }
+            }
+
+            tokio::time::sleep(DISPATCH_POLLING_SLEEP_DURATION).await;
+        })
+    }
+
     /// Submits an extrinsic. Subscribes to a stream and waits for a tx to be included in a block
     /// to return the block hash
     pub(crate) async fn submit_extrinsic(
@@ -287,20 +321,13 @@ impl RawAvailClient {
             )
             .await?;
 
-        let block_hash = loop {
-            let status = sub.next().await.transpose()?;
+        let block_hash = timeout(
+            self.dispatch_timeout,
+            RawAvailClient::wait_for_response(&mut sub, self.finality_state.clone()),
+        )
+        .await
+        .map_err(|_| anyhow::anyhow!("Timeout waiting for block hash"))??;
 
-            if status.is_some() && status.as_ref().unwrap().is_object() {
-                if let Some(block_hash) = status.unwrap().get("finalized") {
-                    break block_hash
-                        .as_str()
-                        .ok_or_else(|| anyhow::anyhow!("Invalid block hash"))?
-                        .strip_prefix("0x")
-                        .ok_or_else(|| anyhow::anyhow!("Block hash doesn't have 0x prefix"))?
-                        .to_string();
-                }
-            }
-        };
         sub.unsubscribe().await?;
 
         Ok(block_hash)
@@ -334,6 +361,23 @@ impl RawAvailClient {
             .ok_or_else(|| anyhow::anyhow!("Extrinsic not found in block"))?;
 
         Ok(tx_id)
+    }
+
+    /// Returns the balance of the address controlled by the `keypair`
+    pub async fn balance(&self, client: &Client) -> anyhow::Result<u64> {
+        let address = to_addr(self.keypair.clone());
+        let resp: serde_json::Value = client
+            .request("state_getStorage", rpc_params![address])
+            .await
+            .context("Error calling state_getStorage RPC")?;
+
+        let balance = resp
+            .as_str()
+            .ok_or_else(|| anyhow::anyhow!("Invalid balance"))?
+            .parse()
+            .context("Unable to parse the account balance")?;
+
+        Ok(balance)
     }
 }
 
@@ -400,8 +444,7 @@ pub struct GasRelayAPISubmission {
 }
 
 impl GasRelayClient {
-    const DEFAULT_INCLUSION_DELAY: time::Duration = time::Duration::from_secs(60);
-    const RETRY_DELAY: time::Duration = time::Duration::from_secs(5);
+    const RETRY_DELAY: time::Duration = time::Duration::from_secs(3);
     pub(crate) async fn new(
         api_url: &str,
         api_key: &str,
@@ -416,32 +459,50 @@ impl GasRelayClient {
         })
     }
 
-    pub(crate) async fn post_data(&self, data: Vec<u8>) -> anyhow::Result<(H256, u64)> {
-        let submit_url = format!("{}/user/submit_raw_data?token=ethereum", &self.api_url);
+    pub(crate) async fn post_data(&self, data: Vec<u8>) -> anyhow::Result<String> {
+        let submit_url = format!("{}/v1/submit_raw_data", &self.api_url);
         // send the data to the gas relay
         let submit_response = self
             .api_client
             .post(&submit_url)
             .body(Bytes::from(data))
-            .header("Content-Type", "text/plain")
-            .header("Authorization", &self.api_key)
+            .header("Content-Type", "application/octet-stream")
+            .header("x-api-key", &self.api_key)
             .send()
-            .await?;
+            .await
+            .context("Failed to submit data to the gas relay")?;
 
-        let submit_response = submit_response
-            .json::<GasRelayAPISubmissionResponse>()
-            .await?;
+        let response_bytes = submit_response
+            .bytes()
+            .await
+            .context("Failed to read response body")?;
 
+        let submit_response =
+            match serde_json::from_slice::<GasRelayAPISubmissionResponse>(&response_bytes) {
+                Ok(response) => response,
+                Err(_) => {
+                    bail!(
+                        "Unexpected response from gas relay: {:?}",
+                        String::from_utf8_lossy(&response_bytes).as_ref()
+                    )
+                }
+            };
+        Ok(submit_response.submission_id)
+    }
+
+    pub(crate) async fn check_finality(
+        &self,
+        submission_id: String,
+    ) -> anyhow::Result<Option<(H256, u64)>> {
         let status_url = format!(
-            "{}/user/get_submission_info?submission_id={}",
-            self.api_url, submit_response.submission_id
+            "{}/v1/get_submission_info?submission_id={}",
+            self.api_url, submission_id
         );
 
-        tokio::time::sleep(Self::DEFAULT_INCLUSION_DELAY).await;
         let status_response = (|| async {
             self.api_client
                 .get(&status_url)
-                .header("Authorization", &self.api_key)
+                .header("x-api-key", &self.api_key)
                 .send()
                 .await
         })
@@ -452,16 +513,25 @@ impl GasRelayClient {
         )
         .await?;
 
-        let status_response = status_response.json::<GasRelayAPIStatusResponse>().await?;
-        let (block_hash, extrinsic_index) = (
-            status_response.submission.block_hash.ok_or_else(|| {
-                anyhow::anyhow!("Block hash not found in the response from the gas relay")
-            })?,
-            status_response.submission.extrinsic_index.ok_or_else(|| {
-                anyhow::anyhow!("Extrinsic index not found in the response from the gas relay")
-            })?,
-        );
+        let status_response_bytes = status_response
+            .bytes()
+            .await
+            .context("Failed to read response body")?;
 
-        Ok((block_hash, extrinsic_index))
+        let status_response =
+            match serde_json::from_slice::<GasRelayAPIStatusResponse>(&status_response_bytes) {
+                Ok(response) => response,
+                Err(_) => {
+                    bail!(
+                        "Unexpected status response from gas relay: {:?}",
+                        String::from_utf8_lossy(&status_response_bytes).as_ref()
+                    )
+                }
+            };
+
+        Ok(status_response
+            .submission
+            .block_hash
+            .zip(status_response.submission.extrinsic_index))
     }
 }

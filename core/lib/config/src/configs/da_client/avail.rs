@@ -1,18 +1,24 @@
-use serde::Deserialize;
+use std::time::Duration;
+
+use serde::{Deserialize, Serialize};
 use smart_config::{de::FromSecretString, DescribeConfig, DeserializeConfig};
 use zksync_basic_types::secrets::{APIKey, SeedPhrase};
 
 pub const AVAIL_GAS_RELAY_CLIENT_NAME: &str = "GasRelay";
 pub const AVAIL_FULL_CLIENT_NAME: &str = "FullClient";
 
-#[derive(Clone, Debug, PartialEq, Deserialize)]
+pub const IN_BLOCK_FINALITY_STATE: &str = "inBlock";
+pub const FINALIZED_FINALITY_STATE: &str = "finalized";
+pub const DEFAULT_DISPATCH_TIMEOUT_MS: u64 = 180_000; // 3 minutes
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "avail_client")]
 pub enum AvailClientConfig {
     FullClient(AvailDefaultConfig),
     GasRelay(AvailGasRelayConfig),
 }
 
-#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct AvailConfig {
     pub bridge_api_url: String,
     pub timeout_ms: usize,
@@ -20,13 +26,15 @@ pub struct AvailConfig {
     pub config: AvailClientConfig,
 }
 
-#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct AvailDefaultConfig {
     pub api_node_url: String,
     pub app_id: u32,
+    pub finality_state: Option<String>,
+    pub dispatch_timeout_ms: Option<u64>,
 }
 
-#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct AvailGasRelayConfig {
     pub gas_relay_api_url: String,
     pub max_retries: usize,
@@ -38,4 +46,28 @@ pub struct AvailSecrets {
     pub seed_phrase: SeedPhrase,
     #[config(with = FromSecretString)]
     pub gas_relay_api_key: APIKey,
+}
+
+impl AvailDefaultConfig {
+    pub fn finality_state(&self) -> anyhow::Result<String> {
+        match self.finality_state.clone() {
+            Some(finality_state) => match finality_state.as_str() {
+                IN_BLOCK_FINALITY_STATE | FINALIZED_FINALITY_STATE => Ok(finality_state),
+                _ => Err(anyhow::anyhow!(
+                    "Invalid finality state: {}. Supported values are: {}, {}",
+                    finality_state,
+                    IN_BLOCK_FINALITY_STATE,
+                    FINALIZED_FINALITY_STATE
+                )),
+            },
+            None => Ok(IN_BLOCK_FINALITY_STATE.to_string()),
+        }
+    }
+
+    pub fn dispatch_timeout(&self) -> Duration {
+        Duration::from_millis(
+            self.dispatch_timeout_ms
+                .unwrap_or(DEFAULT_DISPATCH_TIMEOUT_MS),
+        )
+    }
 }

@@ -1,6 +1,6 @@
 use anyhow::Context as _;
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes, SystemContractCode};
-use zksync_dal::{Connection, Core, CoreDal};
+use zksync_dal::{custom_genesis_export_dal::GenesisState, Connection, Core, CoreDal};
 use zksync_node_genesis::{ensure_genesis_state, GenesisParams};
 use zksync_types::{
     block::DeployedContract, system_contracts::get_system_smart_contracts, AccountTreeId, L2ChainId,
@@ -16,13 +16,14 @@ pub async fn perform_genesis_if_needed(
     storage: &mut Connection<'_, Core>,
     zksync_chain_id: L2ChainId,
     client: &dyn MainNodeClient,
+    custom_genesis_state: Option<GenesisState>,
 ) -> anyhow::Result<()> {
     let mut transaction = storage.start_transaction().await?;
     // We want to check whether the genesis is needed before we create genesis params to not
     // make the node startup slower.
     if transaction.blocks_dal().is_genesis_needed().await? {
         let genesis_params = create_genesis_params(client, zksync_chain_id).await?;
-        ensure_genesis_state(&mut transaction, &genesis_params)
+        ensure_genesis_state(&mut transaction, &genesis_params, custom_genesis_state)
             .await
             .context("ensure_genesis_state")?;
     }
@@ -48,11 +49,10 @@ async fn create_genesis_params(
     // Load the list of addresses that are known to contain system contracts at any point in time.
     // Not every of these addresses is guaranteed to be present in the genesis state, but we'll iterate through
     // them and try to fetch the contract bytecode for each of them.
-    let system_contract_addresses: Vec<_> =
-        get_system_smart_contracts(config.evm_emulator_hash.is_some())
-            .into_iter()
-            .map(|contract| *contract.account_id.address())
-            .collect();
+    let system_contract_addresses: Vec<_> = get_system_smart_contracts()
+        .into_iter()
+        .map(|contract| *contract.account_id.address())
+        .collect();
 
     // These have to be *initial* base contract hashes of main node
     // (those that were used during genesis), not necessarily the current ones.
@@ -73,7 +73,7 @@ async fn create_genesis_params(
             .fetch_genesis_contract_bytecode(system_contract_address)
             .await?
         else {
-            // It's OK for some of contracts to be absent.
+            // It's OK for some contracts to be absent.
             // If this is a bug, the genesis root hash won't match.
             tracing::debug!("System contract with address {system_contract_address:?} is absent at genesis state");
             continue;

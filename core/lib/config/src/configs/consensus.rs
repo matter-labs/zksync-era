@@ -1,11 +1,13 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
     num::NonZeroUsize,
+    time::Duration,
 };
 
 use serde::Deserialize;
 use smart_config::{
     de::{Entries, Qualified, Serde, WellKnown},
+    metadata::TimeUnit,
     value::SecretString,
     DescribeConfig, DeserializeConfig,
 };
@@ -126,6 +128,10 @@ pub struct ConsensusConfig {
     #[config(default_t = 2_500_000)]
     pub max_payload_size: usize,
 
+    /// View timeout duration.
+    #[config(default_t = Duration::from_secs(2), with = TimeUnit::Millis)]
+    pub view_timeout: Duration,
+
     /// Maximal allowed size of the sync-batch payloads in bytes.
     ///
     /// The batch consists of block payloads and a Merkle proof of inclusion on L1 (~1kB),
@@ -194,6 +200,7 @@ mod tests {
             server_addr: "127.0.0.1:2954".parse().unwrap(),
             public_addr: Host("127.0.0.1:2954".into()),
             max_payload_size: 2000000,
+            view_timeout: Duration::from_secs(3),
             max_batch_size: 125001024,
             gossip_dynamic_inbound_limit: 10,
             gossip_static_inbound: BTreeSet::from([
@@ -232,6 +239,7 @@ mod tests {
             public_addr: 127.0.0.1:2954
             debug_page_addr: 127.0.0.1:3000
             max_payload_size: 2000000
+            view_timeout: 3000
             gossip_dynamic_inbound_limit: 10
             gossip_static_inbound:
             - node:public:ed25519:5c270ee08cae1179a65845a62564ae5d216cbe2c97ed5083f512f2df353bb291

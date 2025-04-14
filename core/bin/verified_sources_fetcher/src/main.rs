@@ -4,7 +4,7 @@ use zksync_config::{
     configs::DatabaseSecrets, full_config_schema, sources::ConfigFilePaths, ConfigRepository,
 };
 use zksync_dal::{ConnectionPool, Core, CoreDal};
-use zksync_types::contract_verification_api::SourceCodeData;
+use zksync_types::contract_verification::api::SourceCodeData;
 
 #[tokio::main]
 async fn main() {

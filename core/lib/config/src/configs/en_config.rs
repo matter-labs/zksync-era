@@ -14,8 +14,6 @@ pub struct ENConfig {
     // Genesis
     #[config(with = Serde![int])]
     pub l2_chain_id: L2ChainId,
-    #[config(with = Optional(Serde![int]))]
-    pub sl_chain_id: Option<SLChainId>,
     #[config(with = Serde![int])]
     pub l1_chain_id: L1ChainId,
     #[config(default, with = Serde![str])]
@@ -29,6 +27,8 @@ pub struct ENConfig {
     #[config(secret, with = Optional(Serde![str]))]
     pub gateway_url: Option<SensitiveUrl>,
     pub bridge_addresses_refresh_interval: Option<Duration>,
+    #[config(with = Optional(Serde![int]))]
+    pub gateway_chain_id: Option<SLChainId>,
 }
 
 #[cfg(test)]
@@ -40,8 +40,8 @@ mod tests {
     fn expected_config() -> ENConfig {
         ENConfig {
             l2_chain_id: L2ChainId::from(271),
-            sl_chain_id: None,
             l1_chain_id: L1ChainId(9),
+            gateway_chain_id: Some(SLChainId(123)),
             l1_batch_commit_data_generator_mode: L1BatchCommitmentMode::Rollup,
             main_node_url: "http://127.0.0.1:3050/".parse().unwrap(),
             main_node_rate_limit_rps: NonZeroUsize::new(200).unwrap(),

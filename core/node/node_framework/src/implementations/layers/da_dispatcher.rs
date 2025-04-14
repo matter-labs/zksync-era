@@ -3,6 +3,7 @@ use zksync_da_dispatcher::DataAvailabilityDispatcher;
 
 use crate::{
     implementations::resources::{
+        contracts::L2ContractsResource,
         da_client::DAClientResource,
         pools::{MasterPool, PoolResource},
     },
@@ -24,6 +25,7 @@ pub struct DataAvailabilityDispatcherLayer {
 pub struct Input {
     pub master_pool: PoolResource<MasterPool>,
     pub da_client: DAClientResource,
+    pub l2_contracts_resource: L2ContractsResource,
 }
 
 #[derive(Debug, IntoContext)]
@@ -52,10 +54,7 @@ impl WiringLayer for DataAvailabilityDispatcherLayer {
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
-        // A pool with size 2 is used here because there are 2 functions within a task that execute in parallel
-        let master_pool = input.master_pool.get_custom(2).await?;
         let da_client = input.da_client.0;
-
         if let Some(limit) = da_client.blob_size_limit() {
             if self.state_keeper_config.max_pubdata_per_batch.0 > limit as u64 {
                 return Err(WiringError::Configuration(format!(
@@ -65,8 +64,15 @@ impl WiringLayer for DataAvailabilityDispatcherLayer {
             }
         }
 
-        let da_dispatcher_task =
-            DataAvailabilityDispatcher::new(master_pool, self.da_config, da_client);
+        // A pool with size 2 is used here because there are 2 functions within a task that execute in parallel
+        let master_pool = input.master_pool.get_custom(2).await?;
+
+        let da_dispatcher_task = DataAvailabilityDispatcher::new(
+            master_pool,
+            self.da_config,
+            da_client,
+            input.l2_contracts_resource.0.clone(),
+        );
 
         Ok(Output { da_dispatcher_task })
     }

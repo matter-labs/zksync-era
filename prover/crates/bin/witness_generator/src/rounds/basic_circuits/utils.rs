@@ -11,20 +11,21 @@ use circuit_definitions::{
 };
 use tokio::sync::Semaphore;
 use tracing::Instrument;
-use zkevm_test_harness::witness::oracle::WitnessGenerationArtifact;
+use zkevm_test_harness::{
+    boojum::field::goldilocks::GoldilocksField, witness::oracle::WitnessGenerationArtifact,
+};
 use zksync_multivm::{
-    circuit_sequencer_api_latest::{
-        boojum::field::goldilocks::GoldilocksField, geometry_config::get_geometry_config,
-    },
+    circuit_sequencer_api_latest::geometry_config::ProtocolGeometry,
     interface::storage::StorageView,
     vm_latest::{constants::MAX_CYCLES_FOR_TX, HistoryDisabled, StorageOracle as VmStorageOracle},
     zk_evm_latest::ethereum_types::Address,
 };
 use zksync_object_store::ObjectStore;
+use zksync_prover_dal::{Connection, Prover, ProverDal};
 use zksync_prover_fri_types::keys::ClosedFormInputKey;
 use zksync_prover_interface::inputs::WitnessInputData;
 use zksync_system_constants::BOOTLOADER_ADDRESS;
-use zksync_types::L1BatchNumber;
+use zksync_types::{protocol_version::ProtocolSemanticVersion, L1BatchNumber};
 
 use crate::{
     precalculated_merkle_paths_provider::PrecalculatedMerklePathsProvider,
@@ -52,7 +53,7 @@ pub(super) async fn generate_witness(
         input.merkle_paths,
         input.previous_batch_metadata.root_hash.0,
     );
-    let geometry_config = get_geometry_config();
+    let geometry_config = ProtocolGeometry::latest().config();
     let mut hasher = DefaultHasher::new();
     geometry_config.hash(&mut hasher);
     tracing::info!(
@@ -130,7 +131,7 @@ pub(super) async fn generate_witness(
             geometry_config,
             storage_oracle,
             tree,
-            path.to_owned(),
+            path.to_string(),
             input.eip_4844_blobs.blobs(),
             artifacts_sender,
         );
@@ -261,4 +262,69 @@ async fn save_recursion_queue(
     let wrapper = ClosedFormInputWrapper(closed_form_inputs, recursion_queue_simulator);
     let blob_url = object_store.put(key, &wrapper).await.unwrap();
     (circuit_id, blob_url, basic_circuit_count)
+}
+
+pub(crate) async fn create_aggregation_jobs(
+    connection: &mut Connection<'_, Prover>,
+    block_number: L1BatchNumber,
+    closed_form_inputs_and_urls: &Vec<(u8, String, usize)>,
+    scheduler_partial_input_blob_url: &str,
+    base_layer_to_recursive_layer_circuit_id: fn(u8) -> u8,
+    protocol_version: ProtocolSemanticVersion,
+) -> anyhow::Result<()> {
+    let batch_sealed_at = connection
+        .fri_basic_witness_generator_dal()
+        .get_batch_sealed_at_timestamp(block_number)
+        .await;
+
+    for (circuit_id, closed_form_inputs_url, number_of_basic_circuits) in
+        closed_form_inputs_and_urls
+    {
+        connection
+            .fri_leaf_witness_generator_dal()
+            .insert_leaf_aggregation_jobs(
+                block_number,
+                protocol_version,
+                *circuit_id,
+                closed_form_inputs_url.clone(),
+                *number_of_basic_circuits,
+                batch_sealed_at,
+            )
+            .await;
+
+        connection
+            .fri_node_witness_generator_dal()
+            .insert_node_aggregation_jobs(
+                block_number,
+                base_layer_to_recursive_layer_circuit_id(*circuit_id),
+                None,
+                0,
+                "",
+                protocol_version,
+                batch_sealed_at,
+            )
+            .await;
+    }
+
+    connection
+        .fri_recursion_tip_witness_generator_dal()
+        .insert_recursion_tip_aggregation_jobs(
+            block_number,
+            closed_form_inputs_and_urls,
+            protocol_version,
+            batch_sealed_at,
+        )
+        .await;
+
+    connection
+        .fri_scheduler_witness_generator_dal()
+        .insert_scheduler_aggregation_jobs(
+            block_number,
+            scheduler_partial_input_blob_url,
+            protocol_version,
+            batch_sealed_at,
+        )
+        .await;
+
+    Ok(())
 }

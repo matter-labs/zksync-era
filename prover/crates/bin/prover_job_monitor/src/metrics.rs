@@ -2,14 +2,38 @@ use vise::{Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, LabeledFami
 use zksync_types::protocol_version::ProtocolSemanticVersion;
 
 #[derive(Debug, Metrics)]
-#[metrics(prefix = "house_keeper")]
-pub(crate) struct HouseKeeperMetrics {
+#[metrics(prefix = "prover_job_monitor")]
+pub(crate) struct ProverJobMonitorMetrics {
     pub prover_job_archived: Counter,
     pub gpu_prover_archived: Counter,
+    #[metrics(labels = ["job_type"])]
+    pub reached_max_attempts: LabeledFamily<JobType, Gauge>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue)]
+#[metrics(rename_all = "snake_case")]
+pub(crate) enum JobType {
+    BasicWitnessGenerator,
+    LeafWitnessGenerator,
+    NodeWitnessGenerator,
+    RecursionTipWitnessGenerator,
+    SchedulerWitnessGenerator,
+    ProverFri,
+    ProofCompressor,
+}
+
+impl ProverJobMonitorMetrics {
+    pub fn report_reached_max_attempts(&self, job_type: JobType, amount: usize) {
+        PROVER_JOB_MONITOR_METRICS.reached_max_attempts[&job_type].set(amount as i64);
+        if amount > 0 {
+            tracing::warn!("{:?} jobs reached max attempts: {:?}", job_type, amount);
+        }
+    }
 }
 
 #[vise::register]
-pub(crate) static HOUSE_KEEPER_METRICS: vise::Global<HouseKeeperMetrics> = vise::Global::new();
+pub(crate) static PROVER_JOB_MONITOR_METRICS: vise::Global<ProverJobMonitorMetrics> =
+    vise::Global::new();
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue)]
 #[metrics(rename_all = "snake_case")]
@@ -40,7 +64,6 @@ pub(crate) struct ProverJobsLabels {
     pub r#type: &'static str,
     pub circuit_id: String,
     pub aggregation_round: String,
-    pub prover_group_id: String,
     pub protocol_version: String,
 }
 
@@ -62,7 +85,6 @@ impl FriProverMetrics {
         r#type: &'static str,
         circuit_id: u8,
         aggregation_round: u8,
-        prover_group_id: u8,
         protocol_version: ProtocolSemanticVersion,
         amount: u64,
     ) {
@@ -70,7 +92,6 @@ impl FriProverMetrics {
             r#type,
             circuit_id: circuit_id.to_string(),
             aggregation_round: aggregation_round.to_string(),
-            prover_group_id: prover_group_id.to_string(),
             protocol_version: protocol_version.to_string(),
         }]
             .set(amount);

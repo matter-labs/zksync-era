@@ -3,11 +3,11 @@ use std::time::Duration;
 use anyhow::Context as _;
 use serde::Deserialize;
 use smart_config::{
-    de::{Delimited, Optional, Serde, WellKnown},
+    de::{Optional, Serde, WellKnown},
     metadata::TimeUnit,
     DescribeConfig, DeserializeConfig,
 };
-use zksync_basic_types::{pubdata_da::PubdataSendingMode, settlement::SettlementMode, H256};
+use zksync_basic_types::{pubdata_da::PubdataSendingMode, H256};
 use zksync_crypto_primitives::K256PrivateKey;
 
 use crate::EthWatchConfig;
@@ -31,7 +31,6 @@ impl EthConfig {
     pub fn for_tests() -> Self {
         Self {
             sender: SenderConfig {
-                aggregated_proof_sizes: vec![1],
                 wait_confirmations: Some(10),
                 tx_poll_period: Duration::from_secs(1),
                 aggregate_tx_poll_period: Duration::from_secs(1),
@@ -51,6 +50,7 @@ impl EthConfig {
                 tx_aggregation_paused: false,
                 tx_aggregation_only_prove_and_execute: false,
                 time_in_mempool_in_l1_blocks_cap: 1800,
+                is_verifier_pre_fflonk: true,
             },
             gas_adjuster: GasAdjusterConfig {
                 default_priority_fee_per_gas: 1000000000,
@@ -65,13 +65,19 @@ impl EthConfig {
                 num_samples_for_blob_base_fee_estimate: 10,
                 internal_pubdata_pricing_multiplier: 1.0,
                 max_blob_base_fee: u64::MAX,
-                settlement_mode: Default::default(),
             },
             watcher: EthWatchConfig {
                 confirmations_for_eth_event: None,
                 eth_node_poll_interval: Duration::ZERO,
             },
         }
+    }
+
+    // We need to modify the values inside this config. Please use this method with ultra caution,
+    // that this could be inconsistent with other codebase.
+    // FIXME: remove `Some(_)` wrapping
+    pub fn get_eth_sender_config_for_sender_layer_data_layer(&self) -> Option<&SenderConfig> {
+        Some(&self.sender)
     }
 }
 
@@ -95,8 +101,6 @@ pub enum ProofLoadingMode {
 
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 pub struct SenderConfig {
-    #[config(default_t = vec![1], with = Delimited(","))]
-    pub aggregated_proof_sizes: Vec<usize>,
     /// Amount of confirmations required to consider L1 transaction committed.
     /// If not specified L1 transaction will be considered finalized once its block is finalized.
     pub wait_confirmations: Option<u64>,
@@ -151,6 +155,7 @@ pub struct SenderConfig {
     /// Cap of time in mempool for price calculations
     #[config(default = SenderConfig::default_time_in_mempool_in_l1_blocks_cap)]
     pub time_in_mempool_in_l1_blocks_cap: u32,
+    pub is_verifier_pre_fflonk: bool,
 }
 
 impl SenderConfig {
@@ -200,9 +205,13 @@ pub struct GasAdjusterConfig {
     #[config(default_t = 1.001)]
     pub pricing_formula_parameter_b: f64,
     /// Parameter by which the base fee will be multiplied for internal purposes
+    // TODO(EVM-920): Note, that while the name says "L1", this same parameter is actually used for
+    //   any settlement layer.
     #[config(default_t = 1.0)]
     pub internal_l1_pricing_multiplier: f64,
     /// If equal to Some(x), then it will always provide `x` as the L1 gas price
+    // TODO(EVM-920): Note, that while the name says "L1", this same parameter is actually used for
+    //   any settlement layer.
     #[config(default)]
     pub internal_enforced_l1_gas_price: Option<u64>,
     /// If equal to Some(x), then it will always provide `x` as the pubdata price
@@ -223,10 +232,6 @@ pub struct GasAdjusterConfig {
     /// Max blob base fee that is allowed to be used.
     #[config(default_t = u64::MAX)]
     pub max_blob_base_fee: u64,
-    /// Whether the gas adjuster should require that the L2 node is used as a settlement layer.
-    /// It offers a runtime check for correctly provided values.
-    #[config(default, with = Serde![str])]
-    pub settlement_mode: SettlementMode,
 }
 
 #[cfg(test)]
@@ -241,13 +246,11 @@ mod tests {
     fn expected_config() -> EthConfig {
         EthConfig {
             sender: SenderConfig {
-                aggregated_proof_sizes: vec![1, 5],
                 aggregated_block_commit_deadline: Duration::from_secs(30),
                 aggregated_block_prove_deadline: Duration::from_secs(3_000),
                 aggregated_block_execute_deadline: Duration::from_secs(4_000),
                 max_aggregated_tx_gas: 4_000_000,
                 max_eth_tx_data_size: 120_000,
-
                 timestamp_criteria_max_allowed_lag: 30,
                 max_aggregated_blocks_to_commit: 3,
                 max_aggregated_blocks_to_execute: 4,
@@ -262,6 +265,7 @@ mod tests {
                 tx_aggregation_only_prove_and_execute: false,
                 tx_aggregation_paused: false,
                 time_in_mempool_in_l1_blocks_cap: 2000,
+                is_verifier_pre_fflonk: false,
             },
             gas_adjuster: GasAdjusterConfig {
                 default_priority_fee_per_gas: 20000000000,
@@ -276,7 +280,6 @@ mod tests {
                 num_samples_for_blob_base_fee_estimate: 10,
                 internal_pubdata_pricing_multiplier: 1.0,
                 max_blob_base_fee: 1000,
-                settlement_mode: Default::default(),
             },
             watcher: EthWatchConfig {
                 confirmations_for_eth_event: Some(0),

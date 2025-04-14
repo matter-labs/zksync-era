@@ -1,5 +1,5 @@
 //! Types exposed by the prover DAL for general-purpose use.
-use std::{net::IpAddr, ops::Add, str::FromStr, time::Instant};
+use std::{ops::Add, time::Instant};
 
 use chrono::{DateTime, Duration, NaiveDateTime, NaiveTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -13,6 +13,7 @@ use crate::{
 pub struct FriProverJobMetadata {
     pub id: u32,
     pub block_number: L1BatchNumber,
+    pub batch_sealed_at: DateTime<Utc>,
     pub circuit_id: u8,
     pub aggregation_round: AggregationRound,
     pub sequence_number: usize,
@@ -79,28 +80,6 @@ pub struct StuckJobs {
     pub circuit_id: Option<u32>,
     pub picked_by: Option<String>,
     pub error: Option<String>,
-}
-
-// TODO (PLA-774): Redundant structure, should be replaced with `std::net::SocketAddr`.
-#[derive(Debug, Clone)]
-pub struct SocketAddress {
-    pub host: IpAddr,
-    pub port: u16,
-}
-
-impl From<SocketAddress> for std::net::SocketAddr {
-    fn from(socket_address: SocketAddress) -> Self {
-        Self::new(socket_address.host, socket_address.port)
-    }
-}
-
-impl From<std::net::SocketAddr> for SocketAddress {
-    fn from(socket_address: std::net::SocketAddr) -> Self {
-        Self {
-            host: socket_address.ip(),
-            port: socket_address.port(),
-        }
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -237,32 +216,6 @@ pub struct JobExtendedStatistics {
     pub queued_padding: L1BatchNumber,
     pub queued_padding_len: u32,
     pub active_area: Vec<ProverJobInfo>,
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub enum GpuProverInstanceStatus {
-    // The instance is available for processing.
-    Available,
-    // The instance is running at full capacity.
-    Full,
-    // The instance is reserved by an synthesizer.
-    Reserved,
-    // The instance is not alive anymore.
-    Dead,
-}
-
-impl FromStr for GpuProverInstanceStatus {
-    type Err = ();
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "available" => Ok(Self::Available),
-            "full" => Ok(Self::Full),
-            "reserved" => Ok(Self::Reserved),
-            "dead" => Ok(Self::Dead),
-            _ => Err(()),
-        }
-    }
 }
 
 #[derive(Debug, Clone)]

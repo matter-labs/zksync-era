@@ -41,7 +41,7 @@ api:
     estimate_gas_scale_factor: 1.3
     estimate_gas_acceptable_overestimation: 5000
     max_tx_size: 1000000
-    api_namespaces: [ en,eth,net,web3,zks,pubsub,debug ]
+    api_namespaces: [en, eth, net, web3, zks, pubsub, debug, unstable]
 state_keeper:
   transaction_slots: 8192
   max_allowed_l2_tx_gas_limit: 15000000000
@@ -101,10 +101,10 @@ eth:
     aggregated_block_execute_deadline: 10
     timestamp_criteria_max_allowed_lag: 30
     max_eth_tx_data_size: 120000
-    aggregated_proof_sizes: [ 1 ]
     max_aggregated_tx_gas: 15000000
     max_acceptable_priority_fee_in_gwei: 100000000000 # typo: value is in wei (100 gwei)
     pubdata_sending_mode: BLOBS
+    is_verifier_pre_fflonk: true
   gas_adjuster:
     default_priority_fee_per_gas: 1000000000
     max_base_fee_samples: 100
@@ -118,7 +118,6 @@ eth:
     confirmations_for_eth_event: 0
     eth_node_poll_interval: 300
 
-
 snapshot_creator:
   object_store:
     file_backed:
@@ -127,13 +126,8 @@ snapshot_creator:
   concurrent_queries_count: 25
   storage_logs_chunk_size: 1000000
 
-
 prover:
   prover_object_store:
-    file_backed:
-      file_backed_base_path: artifacts
-    max_retries: 10
-  public_object_store:
     file_backed:
       file_backed_base_path: artifacts
     max_retries: 10
@@ -141,28 +135,11 @@ prover:
   prometheus_port: 3315
   max_attempts: 10
   generation_timeout_in_secs: 600
-  setup_load_mode: FROM_DISK
-  specialized_group_id: 100
-  queue_capacity: 10
-  witness_vector_receiver_port: 3316
-  availability_check_interval_in_secs: 10000
-  zone_read_url: http://metadata.google.internal/computeMetadata/v1/instance/zone
-  shall_save_to_public_bucket: true
-  cloud_type: LOCAL
 witness_generator:
   generation_timeout_in_secs: 900
   max_attempts: 10
-  shall_save_to_public_bucket: true
   prometheus_listener_port: 3116
   max_circuits_in_flight: 500
-witness_vector_generator:
-  prover_instance_wait_timeout_in_secs: 200
-  prover_instance_poll_time_in_milli_secs: 250
-  prometheus_listener_port: 3420
-  prometheus_pushgateway_url: http://127.0.0.1:9091
-  prometheus_push_interval_ms: 100
-  specialized_group_id: 100
-  max_prover_reservation_duration_in_secs: 1000
 data_handler:
   http_port: 3320
   proof_generation_timeout_in_secs: 18000
@@ -176,101 +153,15 @@ prover_gateway:
   prometheus_pushgateway_url: http://127.0.0.1:9091
   prometheus_push_interval_ms: 100
 proof_compressor:
-  compression_mode: 1
+  compression_mode: 5
   prometheus_listener_port: 3321
   prometheus_pushgateway_url: http://127.0.0.1:9091
   prometheus_push_interval_ms: 100
   generation_timeout_in_secs: 3600
   max_attempts: 5
-  universal_setup_path: keys/setup/setup_2^24.key
-  universal_setup_download_url: https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2^24.key
+  universal_setup_path: keys/setup/setup_compact.key
+  universal_setup_download_url: https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_compact.key
   verify_wrapper_proof: true
-prover_group:
-  group_0:
-    - circuit_id: 1
-      aggregation_round: 4
-    - circuit_id: 2
-      aggregation_round: 2
-    - circuit_id: 255
-      aggregation_round: 0
-  group_1:
-    - circuit_id: 1
-      aggregation_round: 0
-  group_2:
-    - circuit_id: 2
-      aggregation_round: 0
-    - circuit_id: 4
-      aggregation_round: 0
-    - circuit_id: 6
-      aggregation_round: 0
-    - circuit_id: 9
-      aggregation_round: 0
-  group_3:
-    - circuit_id: 3
-      aggregation_round: 0
-  group_4:
-    - circuit_id: 11
-      aggregation_round: 0
-    - circuit_id: 12
-      aggregation_round: 0
-    - circuit_id: 13
-      aggregation_round: 0
-  group_5:
-    - circuit_id: 5
-      aggregation_round: 0
-  group_6:
-    - circuit_id: 3
-      aggregation_round: 1
-  group_7:
-    - circuit_id: 7
-      aggregation_round: 0
-  group_8:
-    - circuit_id: 8
-      aggregation_round: 0
-  group_9:
-    - circuit_id: 12
-      aggregation_round: 1
-    - circuit_id: 13
-      aggregation_round: 1
-    - circuit_id: 14
-      aggregation_round: 1
-    - circuit_id: 15
-      aggregation_round: 1
-  group_10:
-    - circuit_id: 10
-      aggregation_round: 0
-  group_11:
-    - circuit_id: 7
-      aggregation_round: 1
-    - circuit_id: 8
-      aggregation_round: 1
-    - circuit_id: 10
-      aggregation_round: 1
-    - circuit_id: 11
-      aggregation_round: 1
-  group_12:
-    - circuit_id: 4
-      aggregation_round: 1
-    - circuit_id: 5
-      aggregation_round: 1
-    - circuit_id: 6
-      aggregation_round: 1
-    - circuit_id: 9
-      aggregation_round: 1
-  group_13:
-    - circuit_id: 14
-      aggregation_round: 0
-    - circuit_id: 15
-      aggregation_round: 0
-    - circuit_id: 255
-      aggregation_round: 0
-  group_14:
-    - circuit_id: 16
-      aggregation_round: 1
-    - circuit_id: 17
-      aggregation_round: 1
-    - circuit_id: 18
-      aggregation_round: 1
 prover_job_monitor:
   prometheus_port: 3317
   max_db_connections: 9
@@ -288,7 +179,6 @@ prover_job_monitor:
   witness_job_queuer_run_interval_ms: 10000
   http_port: 3074
 
-
 base_token_adjuster:
   price_polling_interval_ms: 30000
   price_cache_update_interval_ms: 2000
@@ -299,7 +189,6 @@ external_price_api_client:
   client_timeout_ms: 10000
   forced_numerator: 314
   forced_denominator: 1000
-
 
 house_keeper:
   l1_batch_metrics_reporting_interval_ms: 10000
@@ -357,7 +246,7 @@ pruning:
   enabled: true
   chunk_size: 10
   removal_delay_sec: 60
-  data_retention_sec: 3600
+  data_retention_sec: 604800
 
 commitment_generator:
   max_parallelism: 10

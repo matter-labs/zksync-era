@@ -4,13 +4,15 @@ use zksync_types::{fee::Fee, Execute};
 use super::{tester::VmTesterBuilder, TestedVm};
 use crate::{
     interface::TxExecutionMode,
-    vm_latest::constants::{TX_DESCRIPTION_OFFSET, TX_GAS_LIMIT_OFFSET},
+    vm_latest::{
+        constants::{get_tx_description_offset, TX_GAS_LIMIT_OFFSET},
+        MultiVmSubversion,
+    },
 };
 
 /// Checks that `TX_GAS_LIMIT_OFFSET` constant is correct.
 pub(crate) fn test_tx_gas_limit_offset<VM: TestedVm>() {
     let mut vm = VmTesterBuilder::new()
-        .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_rich_accounts(1)
         .build::<VM>();
@@ -29,6 +31,7 @@ pub(crate) fn test_tx_gas_limit_offset<VM: TestedVm>() {
 
     vm.vm.push_transaction(tx);
 
-    let slot = (TX_DESCRIPTION_OFFSET + TX_GAS_LIMIT_OFFSET) as u32;
+    let slot =
+        (get_tx_description_offset(MultiVmSubversion::latest()) + TX_GAS_LIMIT_OFFSET) as u32;
     vm.vm.verify_required_bootloader_heap(&[(slot, gas_limit)]);
 }

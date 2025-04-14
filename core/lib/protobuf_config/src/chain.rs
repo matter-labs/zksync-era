@@ -151,6 +151,8 @@ impl ProtoRepr for proto::Mempool {
             stuck_tx_timeout: *required(&self.stuck_tx_timeout).context("stuck_tx_timeout")?,
             remove_stuck_txs: *required(&self.remove_stuck_txs).context("remove_stuck_txs")?,
             delay_interval: *required(&self.delay_interval).context("delay_interval")?,
+            skip_unsafe_deposit_checks: self.skip_unsafe_deposit_checks.unwrap_or_default(),
+            l1_to_l2_txs_paused: self.l1_to_l2_txs_paused.unwrap_or_default(),
         })
     }
 
@@ -162,6 +164,8 @@ impl ProtoRepr for proto::Mempool {
             stuck_tx_timeout: Some(this.stuck_tx_timeout),
             remove_stuck_txs: Some(this.remove_stuck_txs),
             delay_interval: Some(this.delay_interval),
+            skip_unsafe_deposit_checks: Some(this.skip_unsafe_deposit_checks),
+            l1_to_l2_txs_paused: Some(this.l1_to_l2_txs_paused),
         }
     }
 }

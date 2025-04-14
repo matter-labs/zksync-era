@@ -1,14 +1,14 @@
 use std::collections::HashMap;
 
 use anyhow::Context;
-use common::{cmd::Cmd, spinner::Spinner, wallets::Wallet};
-use config::{ChainConfig, EcosystemConfig};
 use ethers::{
     providers::{Http, Middleware, Provider},
     utils::hex::ToHex,
 };
 use serde::Deserialize;
 use xshell::{cmd, Shell};
+use zkstack_cli_common::{cmd::Cmd, spinner::Spinner, wallets::Wallet};
+use zkstack_cli_config::{ChainConfig, EcosystemConfig};
 
 use crate::commands::dev::messages::{
     MSG_INTEGRATION_TESTS_BUILDING_CONTRACTS, MSG_INTEGRATION_TESTS_BUILDING_DEPENDENCIES,
@@ -56,18 +56,15 @@ impl TestWallets {
         let wallet = self.get_test_wallet(chain_config)?;
 
         let l1_rpc = chain_config
-            .get_secrets_config()?
-            .l1
-            .context("No L1 secrets available")?
-            .l1_rpc_url
-            .expose_str()
-            .to_owned();
+            .get_secrets_config()
+            .await?
+            .get::<String>("l1.l1_rpc_url")?;
 
         let provider = Provider::<Http>::try_from(l1_rpc.clone())?;
         let balance = provider.get_balance(wallet.address, None).await?;
 
         if balance.is_zero() {
-            common::ethereum::distribute_eth(
+            zkstack_cli_common::ethereum::distribute_eth(
                 self.get_main_wallet()?,
                 vec![wallet.address],
                 l1_rpc,
@@ -87,6 +84,7 @@ pub fn build_contracts(shell: &Shell, ecosystem_config: &EcosystemConfig) -> any
 
     Cmd::new(cmd!(shell, "yarn build")).run()?;
     Cmd::new(cmd!(shell, "yarn build-yul")).run()?;
+    Cmd::new(cmd!(shell, "yarn build-evm")).run()?;
 
     spinner.finish();
     Ok(())

@@ -19,6 +19,7 @@ zksync_object_store.workspace = true
 zksync_types.workspace = true
 zksync_block_reverter.workspace = true
 zksync_vlog.workspace = true
+zksync_contracts.workspace = true
 
 anyhow.workspace = true
 clap = { workspace = true, features = ["derive"] }

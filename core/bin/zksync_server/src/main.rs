@@ -4,10 +4,13 @@ use anyhow::Context as _;
 use clap::{Parser, Subcommand};
 use tokio::runtime::Runtime;
 use zksync_config::{
-    configs::{wallets::Wallets, ContractsConfig, GeneralConfig, ObservabilityConfig, Secrets},
+    configs::{
+        wallets::Wallets, ContractsConfig, GeneralConfig, GenesisConfigWrapper,
+        ObservabilityConfig, Secrets,
+    },
     full_config_schema,
     sources::ConfigFilePaths,
-    ConfigRepository, GenesisConfigWrapper, ParseResultExt,
+    ConfigRepository, ParseResultExt,
 };
 use zksync_core_leftovers::{Component, Components};
 
@@ -58,6 +61,12 @@ struct Cli {
     /// Path to the yaml with genesis. If set, it will be used instead of env vars.
     #[arg(long)]
     genesis_path: Option<std::path::PathBuf>,
+
+    /// Only compose the node with the provided list of the components and then exit.
+    /// Can be used to catch issues with configuration.
+    #[arg(long, conflicts_with = "genesis")]
+    no_run: bool,
+
     #[command(subcommand)]
     cmd: Option<CliCommand>,
 }
@@ -145,8 +154,14 @@ fn main() -> anyhow::Result<()> {
         configs,
         wallets,
         genesis,
-        contracts_config,
         secrets,
+        contracts_config.l1_specific_contracts(),
+        contracts_config.l2_contracts(),
+        // Now we always pass the settlement layer contracts. After V27 upgrade,
+        // it'd be possible to get rid of settlement_layer_specific_contracts in our configs.
+        // For easier refactoring in the future. We can mark it as Optional
+        Some(contracts_config.settlement_layer_specific_contracts()),
+        Some(contracts_config.l1.multicall3_addr),
     );
     if opt.genesis {
         // If genesis is requested, we don't need to run the node.
@@ -154,6 +169,13 @@ fn main() -> anyhow::Result<()> {
         return Ok(());
     }
 
-    node.build(opt.components.0)?.run(observability_guard)?;
+    let node = node.build(opt.components.0)?;
+
+    if opt.no_run {
+        tracing::info!("Node composed successfully; exiting due to --no-run flag");
+        return Ok(());
+    }
+
+    node.run(observability_guard)?;
     Ok(())
 }

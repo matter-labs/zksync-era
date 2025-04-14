@@ -23,40 +23,28 @@ mod tests;
 
 #[derive(Debug)]
 pub struct GasAdjusterClient {
-    gateway_mode: bool,
     inner: Box<dyn EthFeeInterface>,
-}
-
-impl GasAdjusterClient {
-    pub fn from_l1(inner: Box<DynClient<L1>>) -> Self {
-        Self {
-            inner: Box::new(inner.for_component("gas_adjuster")),
-            gateway_mode: false,
-        }
-    }
-
-    pub fn from_l2(inner: Box<DynClient<L2>>) -> Self {
-        Self {
-            inner: Box::new(inner.for_component("gas_adjuster")),
-            gateway_mode: true,
-        }
-    }
 }
 
 impl From<Box<DynClient<L1>>> for GasAdjusterClient {
     fn from(inner: Box<DynClient<L1>>) -> Self {
-        Self::from_l1(inner)
+        Self {
+            inner: Box::new(inner.for_component("gas_adjuster")),
+        }
     }
 }
 
 impl From<Box<DynClient<L2>>> for GasAdjusterClient {
     fn from(inner: Box<DynClient<L2>>) -> Self {
-        Self::from_l2(inner)
+        Self {
+            inner: Box::new(inner.for_component("gas_adjuster")),
+        }
     }
 }
 
-/// This component keeps track of the median `base_fee` from the last `max_base_fee_samples` blocks
-/// and of the median `blob_base_fee` from the last `max_blob_base_fee_sample` blocks.
+/// This component keeps track of the median `base_fee` from the last `max_base_fee_samples` blocks.
+///
+/// It also tracks the median `blob_base_fee` from the last `max_blob_base_fee_sample` blocks.
 /// It is used to adjust the base_fee of transactions sent to L1.
 #[derive(Debug)]
 pub struct GasAdjuster {
@@ -69,6 +57,8 @@ pub struct GasAdjuster {
     pub(super) blob_base_fee_statistics: GasStatistics<U256>,
     // Note, that for L1-based chains the following field contains only zeroes.
     pub(super) l2_pubdata_price_statistics: GasStatistics<U256>,
+    // Note, that for L1-based chains the following field contains only zeroes.
+    pub(super) gas_per_pubdata_price_statistic: GasStatistics<u64>,
 
     pub(super) config: GasAdjusterConfig,
     pubdata_sending_mode: PubdataSendingMode,
@@ -83,23 +73,6 @@ impl GasAdjuster {
         pubdata_sending_mode: PubdataSendingMode,
         commitment_mode: L1BatchCommitmentMode,
     ) -> anyhow::Result<Self> {
-        // A runtime check to ensure consistent config.
-        if config.settlement_mode.is_gateway() {
-            anyhow::ensure!(client.gateway_mode, "Must be L2 client in L2 mode");
-
-            anyhow::ensure!(
-                matches!(pubdata_sending_mode, PubdataSendingMode::RelayedL2Calldata | PubdataSendingMode::Custom),
-                "Only relayed L2 calldata or Custom is available for L2 mode, got: {pubdata_sending_mode:?}"
-            );
-        } else {
-            anyhow::ensure!(!client.gateway_mode, "Must be L1 client in L1 mode");
-
-            anyhow::ensure!(
-                !matches!(pubdata_sending_mode, PubdataSendingMode::RelayedL2Calldata),
-                "Relayed L2 calldata is only available in L2 mode"
-            );
-        }
-
         // Subtracting 1 from the "latest" block number to prevent errors in case
         // the info about the latest block is not yet present on the node.
         // This sometimes happens on Infura.
@@ -132,10 +105,19 @@ impl GasAdjuster {
             fee_history.iter().map(|fee| fee.l2_pubdata_price),
         );
 
+        let gas_per_pubdata_price_statistic = GasStatistics::new(
+            config.num_samples_for_blob_base_fee_estimate,
+            current_block,
+            fee_history
+                .iter()
+                .map(|base_fee| base_fee.gas_per_pubdata()),
+        );
+
         Ok(Self {
             base_fee_statistics,
             blob_base_fee_statistics,
             l2_pubdata_price_statistics,
+            gas_per_pubdata_price_statistic,
             config,
             pubdata_sending_mode,
             client,
@@ -209,6 +191,9 @@ impl GasAdjuster {
             }
             self.l2_pubdata_price_statistics
                 .add_samples(fee_data.iter().map(|fee| fee.l2_pubdata_price));
+
+            self.gas_per_pubdata_price_statistic
+                .add_samples(fee_data.iter().map(|base_fee| base_fee.gas_per_pubdata()));
         }
         Ok(())
     }
@@ -311,6 +296,18 @@ impl GasAdjuster {
             }
         }
     }
+
+    fn calculate_price_with_formula(&self, time_in_mempool_in_l1_blocks: u32, value: u64) -> u64 {
+        let a = self.config.pricing_formula_parameter_a;
+        let b = self.config.pricing_formula_parameter_b;
+
+        // Currently we use an exponential formula.
+        // The alternative is a linear one:
+        // `let scale_factor = a + b * time_in_mempool_in_l1_blocks as f64;`
+        let scale_factor = a * b.powf(time_in_mempool_in_l1_blocks as f64);
+        let new_fee = value as f64 * scale_factor;
+        new_fee as u64
+    }
 }
 
 impl TxParamsProvider for GasAdjuster {
@@ -321,17 +318,9 @@ impl TxParamsProvider for GasAdjuster {
     // In other words, in order to pay less fees, we are ready to wait longer.
     // But the longer we wait, the more we are ready to pay.
     fn get_base_fee(&self, time_in_mempool_in_l1_blocks: u32) -> u64 {
-        let a = self.config.pricing_formula_parameter_a;
-        let b = self.config.pricing_formula_parameter_b;
-
-        // Currently we use an exponential formula.
-        // The alternative is a linear one:
-        // `let scale_factor = a + b * time_in_mempool_in_l1_blocks as f64;`
-        let scale_factor = a * b.powf(time_in_mempool_in_l1_blocks as f64);
         let median = self.base_fee_statistics.median();
         METRICS.median_base_fee_per_gas.set(median);
-        let new_fee = median as f64 * scale_factor;
-        new_fee as u64
+        self.calculate_price_with_formula(time_in_mempool_in_l1_blocks, median)
     }
 
     fn get_next_block_minimal_base_fee(&self) -> u64 {
@@ -368,12 +357,16 @@ impl TxParamsProvider for GasAdjuster {
         self.get_priority_fee() * 2
     }
 
-    fn get_gateway_tx_base_fee(&self) -> u64 {
-        todo!()
+    fn get_gateway_l2_pubdata_price(&self, time_in_mempool_in_l1_blocks: u32) -> u64 {
+        let median = self.l2_pubdata_price_statistics.median().as_u64();
+        METRICS.median_l2_pubdata_price.set(median);
+        self.calculate_price_with_formula(time_in_mempool_in_l1_blocks, median)
     }
 
-    fn get_gateway_tx_pubdata_price(&self) -> u64 {
-        todo!()
+    fn get_gateway_price_per_pubdata(&self, time_in_mempool_in_l1_blocks: u32) -> u64 {
+        let median = self.gas_per_pubdata_price_statistic.median();
+        METRICS.median_gas_per_pubdata_price.set(median);
+        self.calculate_price_with_formula(time_in_mempool_in_l1_blocks, median)
     }
 }
 

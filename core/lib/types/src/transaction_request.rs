@@ -576,6 +576,12 @@ impl TransactionRequest {
         Ok(())
     }
 
+    pub fn set_signature(&mut self, signature: &PackedEthSignature) {
+        self.r = Some(U256::from_big_endian(signature.r()));
+        self.s = Some(U256::from_big_endian(signature.s()));
+        self.v = Some(signature.v().into())
+    }
+
     fn decode_standard_fields(rlp: &Rlp, offset: usize) -> Result<Self, DecoderError> {
         Ok(Self {
             nonce: rlp.val_at(offset)?,
@@ -738,12 +744,17 @@ impl TransactionRequest {
     }
 
     pub fn get_tx_hash(&self) -> Result<H256, SerializationTransactionError> {
+        Ok(self.get_signed_and_tx_hashes()?.1)
+    }
+
+    pub fn get_signed_and_tx_hashes(&self) -> Result<(H256, H256), SerializationTransactionError> {
         let signed_message = self.get_default_signed_message()?;
-        if let Some(hash) = self.get_tx_hash_with_signed_message(signed_message)? {
-            return Ok(hash);
+        if let Some(tx_hash) = self.get_tx_hash_with_signed_message(signed_message)? {
+            return Ok((signed_message, tx_hash));
         }
         let signature = self.get_packed_signature()?;
-        Ok(H256(keccak256(&self.get_signed_bytes(&signature)?)))
+        let tx_hash = H256(keccak256(&self.get_signed_bytes(&signature)?));
+        Ok((signed_message, tx_hash))
     }
 
     fn recover_default_signer(

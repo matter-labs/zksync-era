@@ -32,9 +32,7 @@ pub struct FriWitnessGeneratorConfig {
     // to not let witness-generator pick new job and finish all the existing jobs with old circuit.
     #[config(with = Optional(Serde![int]))]
     pub last_l1_batch_to_process: Option<L1BatchNumber>,
-    /// whether to write to public GCS bucket for https://github.com/matter-labs/era-boojum-validator-cli
-    #[config(default)]
-    pub shall_save_to_public_bucket: bool,
+
     pub prometheus_listener_port: Option<u16>,
 
     /// This value corresponds to the maximum number of circuits kept in memory at any given time for a BWG/LWG/NWG.
@@ -131,7 +129,6 @@ mod tests {
             scheduler_generation_timeout_in_secs: Some(Duration::from_secs(900)),
             max_attempts: 4,
             last_l1_batch_to_process: Some(L1BatchNumber(123456)),
-            shall_save_to_public_bucket: true,
             prometheus_listener_port: Some(3333),
             max_circuits_in_flight: 500,
         }

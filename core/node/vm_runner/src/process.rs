@@ -21,8 +21,9 @@ use crate::{
 
 const SLEEP_INTERVAL: Duration = Duration::from_millis(50);
 
-/// VM runner represents a logic layer of L1 batch / L2 block processing flow akin to that of state
-/// keeper. The difference is that VM runner is designed to be run on batches/blocks that have
+/// VM runner represents a logic layer of L1 batch / L2 block processing flow akin to that of state keeper.
+///
+/// The difference is that VM runner is designed to be run on batches/blocks that have
 /// already been processed by state keeper but still require some extra handling as regulated by
 /// [`OutputHandlerFactory`].
 ///

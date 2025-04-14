@@ -11,7 +11,9 @@
             "kind": {
               "Enum": [
                 "ProtocolUpgrades",
-                "PriorityTransactions"
+                "PriorityTransactions",
+                "ChainBatchRoot",
+                "ServerNotification"
               ]
             }
           }

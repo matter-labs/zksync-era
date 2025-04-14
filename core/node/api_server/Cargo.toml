@@ -11,6 +11,7 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
+zksync_crypto_primitives.workspace = true
 zksync_config.workspace = true
 zksync_consensus_roles.workspace = true
 zksync_contracts.workspace = true
@@ -40,7 +41,7 @@ tokio = { workspace = true, features = ["rt", "time"] }
 tracing.workspace = true
 thiserror.workspace = true
 once_cell.workspace = true
-rand.workspace = true
+rand = { workspace = true, features = ["small_rng"] }
 serde.workspace = true
 serde_json.workspace = true
 itertools.workspace = true
@@ -53,6 +54,7 @@ tower.workspace = true
 strum = { workspace = true, features = ["derive"] }
 tower-http = { workspace = true, features = ["cors", "metrics"] }
 lru.workspace = true
+reqwest.workspace = true
 
 [dev-dependencies]
 zk_evm_1_5_0.workspace = true

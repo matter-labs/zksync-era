@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use smart_config::{
-    alt::{self, AltSource},
+    fallback::{self, FallbackSource},
     value::{ValueOrigin, WithOrigin},
     DescribeConfig, DeserializeConfig,
 };
@@ -17,23 +17,23 @@ pub struct ObservabilityConfig {
     pub opentelemetry: Option<OpentelemetryConfig>,
     /// Format of the logs as expected by the `vlog` crate.
     /// Currently must be either `plain` or `json`.
-    #[config(default_t = "plain".into(), alt = &alt::Env("MISC_LOG_FORMAT"))]
+    #[config(default_t = "plain".into(), fallback = &fallback::Env("MISC_LOG_FORMAT"))]
     pub log_format: String,
     /// Log directives in format that is used in `RUST_LOG`
-    #[config(default_t = "zksync=info".into(), alt = &alt::Env("RUST_LOG"))]
+    #[config(default_t = "zksync=info".into(), fallback = &fallback::Env("RUST_LOG"))]
     pub log_directives: String,
 }
 
-const SENTRY_URL_SOURCE: alt::Custom =
-    alt::Custom::new("'MISC_SENTRY_URL' env var, unless `unset`", || {
-        alt::Env("MISC_SENTRY_URL")
+const SENTRY_URL_SOURCE: fallback::Manual =
+    fallback::Manual::new("'MISC_SENTRY_URL' env var, unless `unset`", || {
+        fallback::Env("MISC_SENTRY_URL")
             .provide_value()
             .filter(|val| val.inner.as_plain_str() != Some("unset"))
     });
-const SENTRY_ENV_SOURCE: alt::Custom =
-    alt::Custom::new("$CHAIN_ETH_NETWORK - $CHAIN_ETH_ZKSYNC_NETWORK", || {
-        let l1_network = alt::Env("CHAIN_ETH_NETWORK").get_raw()?;
-        let l2_network = alt::Env("CHAIN_ETH_ZKSYNC_NETWORK").get_raw()?;
+const SENTRY_ENV_SOURCE: fallback::Manual =
+    fallback::Manual::new("$CHAIN_ETH_NETWORK - $CHAIN_ETH_ZKSYNC_NETWORK", || {
+        let l1_network = fallback::Env("CHAIN_ETH_NETWORK").get_raw()?;
+        let l2_network = fallback::Env("CHAIN_ETH_ZKSYNC_NETWORK").get_raw()?;
         let origin = Arc::new(ValueOrigin::Synthetic {
             source: Arc::new(ValueOrigin::EnvVars),
             transform: "$CHAIN_ETH_NETWORK - $CHAIN_ETH_ZKSYNC_NETWORK".into(),
@@ -47,33 +47,36 @@ const SENTRY_ENV_SOURCE: alt::Custom =
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 pub struct SentryConfig {
     /// URL of the Sentry instance to send events to.
-    #[config(alt = &SENTRY_URL_SOURCE)]
+    #[config(fallback = &SENTRY_URL_SOURCE)]
     pub url: String,
     /// Name of the environment to use in Sentry.
-    #[config(alt = &SENTRY_ENV_SOURCE)]
+    #[config(fallback = &SENTRY_ENV_SOURCE)]
     pub environment: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 pub struct OpentelemetryConfig {
     /// Enables export of span data of specified level (and above) using opentelemetry exporters.
-    #[config(default_t = "info".into(), alt = &alt::Env("OPENTELEMETRY_LEVEL"))]
+    #[config(default_t = "info".into(), fallback = &fallback::Env("OPENTELEMETRY_LEVEL"))]
     pub level: String,
     /// Opentelemetry HTTP traces collector endpoint.
-    #[config(alt = &alt::Env("OTLP_ENDPOINT"))]
+    #[config(fallback = &fallback::Env("OTLP_ENDPOINT"))]
     pub endpoint: String,
     /// Opentelemetry HTTP logs collector endpoint.
     /// This is optional, since right now the primary way to collect logs is via stdout.
     ///
     /// Important: sending logs via OTLP has only been tested locally, and the performance may be
     /// suboptimal in production environments.
-    #[config(alt = &alt::Env("OTLP_LOGS_ENDPOINT"))]
+    #[config(fallback = &fallback::Env("OTLP_LOGS_ENDPOINT"))]
     pub logs_endpoint: Option<String>,
 }
 
 #[cfg(test)]
 mod tests {
-    use smart_config::{testing::test_complete, Yaml};
+    use smart_config::{
+        testing::{self, test_complete},
+        Yaml,
+    };
 
     use super::*;
 
@@ -95,17 +98,17 @@ mod tests {
 
     #[test]
     fn parsing_from_env() {
-        let _guard = alt::MockEnvGuard::new([
-            ("RUST_LOG", "zksync=info,zksync_state_keeper=debug"),
-            ("MISC_SENTRY_URL", "https://sentry.io/"),
-            ("MISC_LOG_FORMAT", "json"),
-            ("CHAIN_ETH_NETWORK", "goerli"),
-            ("CHAIN_ETH_ZKSYNC_NETWORK", "testnet"),
-            ("OPENTELEMETRY_LEVEL", "info"),
-            ("OTLP_ENDPOINT", "http://otlp-collector/v1/traces"),
-            ("OTLP_LOGS_ENDPOINT", "http://otlp-collector/v1/logs"),
-        ]);
-        let config: ObservabilityConfig = test_complete(smart_config::config!()).unwrap();
+        let config: ObservabilityConfig = testing::Tester::default()
+            .set_env("RUST_LOG", "zksync=info,zksync_state_keeper=debug")
+            .set_env("MISC_SENTRY_URL", "https://sentry.io/")
+            .set_env("MISC_LOG_FORMAT", "json")
+            .set_env("CHAIN_ETH_NETWORK", "goerli")
+            .set_env("CHAIN_ETH_ZKSYNC_NETWORK", "testnet")
+            .set_env("OPENTELEMETRY_LEVEL", "info")
+            .set_env("OTLP_ENDPOINT", "http://otlp-collector/v1/traces")
+            .set_env("OTLP_LOGS_ENDPOINT", "http://otlp-collector/v1/logs")
+            .test_complete(smart_config::config!())
+            .unwrap();
         assert_eq!(config, expected_config());
     }
 

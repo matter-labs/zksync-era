@@ -57,7 +57,7 @@ pub async fn run_main_node(
             .wrap("global_config()")?
             .context("global_config() disappeared")?;
         if global_config.genesis.leader_selection
-            != validator::LeaderSelectionMode::Sticky(validator_key.public())
+            != validator::v1::LeaderSelectionMode::Sticky(validator_key.public())
         {
             return Err(anyhow::format_err!(
                 "unsupported leader selection mode - main node has to be the leader"
@@ -118,7 +118,7 @@ async fn run_attestation_controller(
     attestation: Arc<attestation::Controller>,
 ) -> ctx::Result<()> {
     const POLL_INTERVAL: time::Duration = time::Duration::seconds(5);
-    let registry = registry::Registry::new(cfg.genesis, pool.clone()).await;
+    let registry = registry::Registry::new(pool.clone()).await;
     let registry_addr = cfg.registry_address.map(registry::Address::new);
     let mut next = attester::BatchNumber(0);
     loop {

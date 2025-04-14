@@ -2,9 +2,10 @@ use std::time::Instant;
 
 use async_trait::async_trait;
 use circuit_definitions::circuit_definitions::recursion_layer::ZkSyncRecursionLayerStorageType;
+use zksync_circuit_prover_service::types::circuit_wrapper::CircuitWrapper;
 use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
-use zksync_prover_fri_types::{keys::FriCircuitKey, CircuitWrapper, FriProofWrapper};
+use zksync_prover_fri_types::{keys::FriCircuitKey, FriProofWrapper};
 use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber};
 
 use crate::{
@@ -32,8 +33,6 @@ impl ArtifactsManager for Scheduler {
         job_id: u32,
         artifacts: Self::OutputArtifacts,
         object_store: &dyn ObjectStore,
-        _shall_save_to_public_bucket: bool,
-        _public_blob_store: Option<std::sync::Arc<dyn ObjectStore>>,
     ) -> String {
         let key = FriCircuitKey {
             block_number: L1BatchNumber(job_id),
@@ -62,9 +61,14 @@ impl ArtifactsManager for Scheduler {
         let mut prover_connection = connection_pool.connection().await?;
         let mut transaction = prover_connection.start_transaction().await?;
         let protocol_version_id = transaction
-            .fri_witness_generator_dal()
+            .fri_basic_witness_generator_dal()
             .protocol_version_for_l1_batch(L1BatchNumber(job_id))
             .await;
+        let batch_sealed_at = transaction
+            .fri_basic_witness_generator_dal()
+            .get_batch_sealed_at_timestamp(L1BatchNumber(job_id))
+            .await;
+
         transaction
             .fri_prover_jobs_dal()
             .insert_prover_job(
@@ -76,11 +80,12 @@ impl ArtifactsManager for Scheduler {
                 &blob_urls,
                 false,
                 protocol_version_id,
+                batch_sealed_at,
             )
             .await;
 
         transaction
-            .fri_witness_generator_dal()
+            .fri_scheduler_witness_generator_dal()
             .mark_scheduler_job_as_successful(L1BatchNumber(job_id), started_at.elapsed())
             .await;
 

@@ -4,7 +4,7 @@ pub use self::{
     base_token_adjuster::BaseTokenAdjusterConfig,
     commitment_generator::CommitmentGeneratorConfig,
     contract_verifier::ContractVerifierConfig,
-    contracts::{ContractsConfig, EcosystemContracts},
+    contracts::{chain::ContractsConfig, gateway},
     da_client::{avail::AvailConfig, celestia::CelestiaConfig, eigen::EigenConfig, DAClientConfig},
     da_dispatcher::DADispatcherConfig,
     database::{DBConfig, PostgresConfig},
@@ -17,7 +17,6 @@ pub use self::{
     fri_prover::FriProverConfig,
     fri_prover_gateway::FriProverGatewayConfig,
     fri_witness_generator::FriWitnessGeneratorConfig,
-    fri_witness_vector_generator::FriWitnessVectorGeneratorConfig,
     general::{full_config_schema, GeneralConfig},
     genesis::{GenesisConfig, GenesisConfigWrapper},
     object_store::ObjectStoreConfig,
@@ -25,7 +24,9 @@ pub use self::{
     proof_data_handler::{ProofDataHandlerConfig, TeeConfig},
     prover_job_monitor::ProverJobMonitorConfig,
     pruning::PruningConfig,
-    secrets::{DataAvailabilitySecrets, DatabaseSecrets, L1Secrets, Secrets},
+    secrets::{
+        ContractVerifierSecrets, DataAvailabilitySecrets, DatabaseSecrets, L1Secrets, Secrets,
+    },
     snapshot_recovery::SnapshotRecoveryConfig,
     snapshots_creator::SnapshotsCreatorConfig,
     utils::PrometheusConfig,
@@ -51,9 +52,7 @@ pub mod external_proof_integration_api;
 pub mod fri_proof_compressor;
 pub mod fri_prover;
 pub mod fri_prover_gateway;
-pub mod fri_prover_group;
 pub mod fri_witness_generator;
-pub mod fri_witness_vector_generator;
 mod general;
 pub mod genesis;
 pub mod house_keeper;

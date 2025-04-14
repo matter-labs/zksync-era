@@ -19,7 +19,7 @@ use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_prover_dal::{ConnectionPool, Prover};
 use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
 use zksync_prover_keystore::keystore::Keystore;
-use zksync_utils::wait_for_tasks::ManagedTasks;
+use zksync_task_management::ManagedTasks;
 use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 /// On most commodity hardware, WVG can take ~30 seconds to complete.
@@ -77,9 +77,7 @@ async fn main() -> anyhow::Result<()> {
     .await
     .context("failed to load configs")?;
 
-    PROVER_BINARY_METRICS
-        .startup_time
-        .observe(start_time.elapsed());
+    PROVER_BINARY_METRICS.startup_time.set(start_time.elapsed());
 
     let cancellation_token = CancellationToken::new();
 
@@ -141,14 +139,11 @@ async fn main() -> anyhow::Result<()> {
         }
     }
     let shutdown_time = Instant::now();
-    tasks.complete(GRACEFUL_SHUTDOWN_DURATION).await;
-    PROVER_BINARY_METRICS
-        .shutdown_time
-        .observe(shutdown_time.elapsed());
-    PROVER_BINARY_METRICS.run_time.observe(start_time.elapsed());
     metrics_stop_sender
         .send(true)
         .context("failed to stop metrics")?;
+    tasks.complete(GRACEFUL_SHUTDOWN_DURATION).await;
+    tracing::info!("Tasks completed in {:?}.", shutdown_time.elapsed());
     Ok(())
 }
 /// Loads configs necessary for proving.

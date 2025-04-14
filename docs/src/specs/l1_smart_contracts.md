@@ -7,7 +7,7 @@ Rollups inherit security and decentralization guarantees from Ethereum, on which
 their own state, providing validity proofs for state transition, implementing a communication mechanism, etc. In
 practice, all this is achieved by Smart Contracts built on top of Ethereum. This document details the architecture of
 the L2 contracts on Ethereum Layer 1. We also have contracts that support the ZK Chain ecosystem, we cover those in the
-[Shared Bridge](./zk_chains/shared_bridge.md) section. The Shared Bridge relies on these individual contracts.
+[Shared Bridge][TODO] section. The Shared Bridge relies on these individual contracts.
 
 ## Diamond
 
@@ -184,7 +184,7 @@ fee-on-transfer tokens or other custom logic for handling user balances.
 
 The owner of the L1ERC20Bridge is the Governance contract.
 
-### L1SharedBridge
+### L1AssetRouter
 
 The main bridge implementation handles transfers Ether, ERC20 tokens and of WETH tokens between the two domains. It is
 designed to streamline and enhance the user experience for bridging WETH tokens by minimizing the number of transactions

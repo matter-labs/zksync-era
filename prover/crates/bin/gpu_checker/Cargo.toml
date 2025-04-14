@@ -1,0 +1,30 @@
+[package]
+name = "zksync_gpu_checker"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+publish = false
+
+[dependencies]
+tokio = { workspace = true, features = ["macros", "time"] }
+anyhow.workspace = true
+tracing.workspace = true
+bincode.workspace = true
+clap = { workspace = true, features = ["derive", "string"] }
+once_cell.workspace = true
+regex.workspace = true
+chrono.workspace = true
+
+shivini = { workspace = true, features = ["circuit_definitions", "zksync"] }
+zksync_circuit_prover_service.workspace = true
+zksync_config = { workspace = true, features = ["observability_ext"] }
+zksync_object_store.workspace = true
+zksync_prover_fri_types.workspace = true
+zksync_prover_job_processor.workspace = true
+zksync_prover_keystore = { workspace = true, features = ["gpu-light"] }
+zksync_types.workspace = true

@@ -2,20 +2,17 @@ use std::convert::{TryFrom, TryInto};
 
 use anyhow::Context as _;
 use serde::{Deserialize, Serialize};
-use zksync_basic_types::{
-    ethabi,
-    protocol_version::{
-        L1VerifierConfig, ProtocolSemanticVersion, ProtocolVersionId, VerifierParams,
-    },
+use zksync_basic_types::protocol_version::{
+    L1VerifierConfig, ProtocolSemanticVersion, ProtocolVersionId, VerifierParams,
 };
-use zksync_contracts::{
-    BaseSystemContractsHashes, ADMIN_EXECUTE_UPGRADE_FUNCTION,
-    ADMIN_UPGRADE_CHAIN_FROM_VERSION_FUNCTION, DIAMOND_CUT,
-};
+use zksync_contracts::{BaseSystemContractsHashes, DIAMOND_CUT};
 
 use crate::{
-    abi, ethabi::ParamType, h256_to_u256, web3::Log, Address, Execute, ExecuteTransactionCommon,
-    Transaction, TransactionType, H256, U256,
+    abi::{self, ForceDeployment, GatewayUpgradeEncodedInput, ZkChainSpecificUpgradeData},
+    ethabi::{self, ParamType, Token},
+    h256_to_u256, u256_to_h256,
+    web3::Log,
+    Address, Execute, ExecuteTransactionCommon, Transaction, TransactionType, H256, U256,
 };
 
 /// Represents a call to be made during governance operation.
@@ -93,62 +90,182 @@ impl From<abi::VerifierParams> for VerifierParams {
     }
 }
 
+/// Protocol upgrade transactions do not contain preimages within them.
+/// Instead, they are expected to be known and need to be fetched, typically from L1.
+#[async_trait::async_trait]
+pub trait ProtocolUpgradePreimageOracle: Send + Sync {
+    async fn get_protocol_upgrade_preimages(
+        &self,
+        hashes: Vec<H256>,
+    ) -> anyhow::Result<Vec<Vec<u8>>>;
+}
+
+/// Some upgrades have chain-dependent calldata that has to be prepared properly.
+async fn prepare_upgrade_call(
+    proposed_upgrade: &abi::ProposedUpgrade,
+    chain_specific: Option<ZkChainSpecificUpgradeData>,
+) -> anyhow::Result<Vec<u8>> {
+    // No upgrade
+    if proposed_upgrade.l2_protocol_upgrade_tx.tx_type == U256::zero() {
+        return Ok(vec![]);
+    }
+
+    let minor_version = proposed_upgrade.l2_protocol_upgrade_tx.nonce;
+    if ProtocolVersionId::try_from(minor_version.as_u32() as u16).unwrap()
+        != ProtocolVersionId::gateway_upgrade()
+    {
+        // We'll just keep it the same for non-Gateway upgrades
+        return Ok(proposed_upgrade.l2_protocol_upgrade_tx.data.clone());
+    }
+
+    // For gateway upgrade, things are bit more complex.
+    // The source of truth for the code below is the one that is present in
+    // `GatewayUpgrade.sol`.
+    let mut encoded_input = GatewayUpgradeEncodedInput::decode(
+        ethabi::decode(
+            &[GatewayUpgradeEncodedInput::schema()],
+            &proposed_upgrade.post_upgrade_calldata,
+        )?[0]
+            .clone(),
+    )?;
+
+    let gateway_upgrade_calldata = ethabi::encode(&[
+        Token::Address(encoded_input.ctm_deployer),
+        Token::Bytes(encoded_input.fixed_force_deployments_data),
+        Token::Bytes(chain_specific.context("chain_specific")?.encode_bytes()),
+    ]);
+
+    // May not be very idiomatic, but we do it in the same way as it was done in Solidity
+    // for easier review
+    encoded_input.force_deployments[encoded_input.l2_gateway_upgrade_position].input =
+        gateway_upgrade_calldata;
+
+    let force_deployments_as_tokens: Vec<_> = encoded_input
+        .force_deployments
+        .iter()
+        .map(ForceDeployment::encode)
+        .collect();
+
+    let full_data = zksync_contracts::deployer_contract()
+        .function("forceDeployOnAddresses")
+        .unwrap()
+        .encode_input(&[Token::Array(force_deployments_as_tokens)])
+        .unwrap();
+
+    Ok(full_data)
+}
+
 impl ProtocolUpgrade {
-    pub fn try_from_diamond_cut(diamond_cut_data: &[u8]) -> anyhow::Result<Self> {
+    pub async fn try_from_diamond_cut(
+        diamond_cut_data: &[u8],
+        preimage_oracle: impl ProtocolUpgradePreimageOracle,
+        chain_specific: Option<ZkChainSpecificUpgradeData>,
+    ) -> anyhow::Result<Self> {
         // Unwraps are safe because we have validated the input against the function signature.
         let diamond_cut_tokens = DIAMOND_CUT.decode_input(diamond_cut_data)?[0]
             .clone()
             .into_tuple()
             .unwrap();
-        Self::try_from_init_calldata(&diamond_cut_tokens[2].clone().into_bytes().unwrap())
+        Self::try_from_init_calldata(
+            &diamond_cut_tokens[2].clone().into_bytes().unwrap(),
+            preimage_oracle,
+            chain_specific,
+        )
+        .await
     }
 
     /// `l1-contracts/contracts/state-transition/libraries/diamond.sol:DiamondCutData.initCalldata`
-    fn try_from_init_calldata(init_calldata: &[u8]) -> anyhow::Result<Self> {
-        let upgrade = ethabi::decode(
-            &[abi::ProposedUpgrade::schema()],
-            init_calldata.get(4..).context("need >= 4 bytes")?,
-        )
-        .context("ethabi::decode()")?;
-        let upgrade = abi::ProposedUpgrade::decode(upgrade.into_iter().next().unwrap()).unwrap();
-        let bootloader_hash = H256::from_slice(&upgrade.bootloader_hash);
-        let default_account_hash = H256::from_slice(&upgrade.default_account_hash);
+    async fn try_from_init_calldata(
+        init_calldata: &[u8],
+        preimage_oracle: impl ProtocolUpgradePreimageOracle,
+        chain_specific: Option<ZkChainSpecificUpgradeData>,
+    ) -> anyhow::Result<Self> {
+        let raw_data = init_calldata.get(4..).context("need >= 4 bytes")?;
+        let mut upgrade =
+            abi::ProposedUpgrade::decode(raw_data).context("ProposedUpgrade::decode()")?;
+
+        let bootloader_hash = H256(upgrade.bootloader_hash);
+        let default_account_hash = H256(upgrade.default_account_hash);
+        let evm_emulator_hash = H256(upgrade.evm_emulator_hash);
+
+        let version = ProtocolSemanticVersion::try_from_packed(upgrade.new_protocol_version)
+            .map_err(|err| anyhow::format_err!("Version is not supported: {err}"))?;
+        let tx = if upgrade.l2_protocol_upgrade_tx.tx_type != U256::zero() {
+            let factory_deps = if version.minor.is_pre_gateway() {
+                upgrade.factory_deps.clone().unwrap()
+            } else {
+                preimage_oracle
+                    .get_protocol_upgrade_preimages(
+                        upgrade
+                            .l2_protocol_upgrade_tx
+                            .factory_deps
+                            .iter()
+                            .map(|&x| u256_to_h256(x))
+                            .collect(),
+                    )
+                    .await?
+            };
+
+            upgrade.l2_protocol_upgrade_tx.data =
+                prepare_upgrade_call(&upgrade, chain_specific).await?;
+
+            Some(
+                Transaction::from_abi(
+                    abi::Transaction::L1 {
+                        tx: upgrade.l2_protocol_upgrade_tx,
+                        factory_deps,
+                        eth_block: 0,
+                    },
+                    false,
+                )
+                .context("Transaction::try_from()")?
+                .try_into()
+                .map_err(|err| anyhow::format_err!("try_into::<ProtocolUpgradeTx>(): {err}"))?,
+            )
+        } else {
+            None
+        };
+
         Ok(Self {
-            version: ProtocolSemanticVersion::try_from_packed(upgrade.new_protocol_version)
-                .map_err(|err| anyhow::format_err!("Version is not supported: {err}"))?,
+            version,
             bootloader_code_hash: (bootloader_hash != H256::zero()).then_some(bootloader_hash),
             default_account_code_hash: (default_account_hash != H256::zero())
                 .then_some(default_account_hash),
-            evm_emulator_code_hash: None, // EVM emulator upgrades are not supported yet
+            evm_emulator_code_hash: (evm_emulator_hash != H256::zero())
+                .then_some(evm_emulator_hash),
             verifier_params: (upgrade.verifier_params != abi::VerifierParams::default())
                 .then_some(upgrade.verifier_params.into()),
             verifier_address: (upgrade.verifier != Address::zero()).then_some(upgrade.verifier),
             timestamp: upgrade.upgrade_timestamp.try_into().unwrap(),
-            tx: (upgrade.l2_protocol_upgrade_tx.tx_type != U256::zero())
-                .then(|| {
-                    Transaction::from_abi(
-                        abi::Transaction::L1 {
-                            tx: upgrade.l2_protocol_upgrade_tx,
-                            factory_deps: upgrade.factory_deps,
-                            eth_block: 0,
-                        },
-                        true,
-                    )
-                    .context("Transaction::try_from()")?
-                    .try_into()
-                    .map_err(|err| anyhow::format_err!("try_into::<ProtocolUpgradeTx>(): {err}"))
-                })
-                .transpose()?,
+            tx,
         })
     }
 }
 
-pub fn decode_set_chain_id_event(
+pub fn decode_genesis_upgrade_event(
     event: Log,
 ) -> Result<(ProtocolVersionId, ProtocolUpgradeTx), ethabi::Error> {
-    let tx = ethabi::decode(&[abi::L2CanonicalTransaction::schema()], &event.data.0)?;
-    let tx = abi::L2CanonicalTransaction::decode(tx.into_iter().next().unwrap()).unwrap();
+    let tokens = ethabi::decode(
+        &[
+            abi::L2CanonicalTransaction::schema(),
+            ParamType::Array(Box::new(ParamType::Bytes)),
+        ],
+        &event.data.0,
+    )?;
+    let mut t: std::vec::IntoIter<Token> = tokens.into_iter();
+    let mut next = || t.next().unwrap();
 
+    let tx = abi::L2CanonicalTransaction::decode(next()).unwrap();
+    let factory_deps = next()
+        .into_array()
+        .context("factory_deps")
+        .map_err(|_| ethabi::Error::InvalidData)?
+        .into_iter()
+        .enumerate()
+        .map(|(i, t)| t.into_bytes().context(i))
+        .collect::<Result<Vec<Vec<u8>>, _>>()
+        .context("factory_deps")
+        .map_err(|_| ethabi::Error::InvalidData)?;
     let full_version_id = h256_to_u256(event.topics[2]);
     let protocol_version = ProtocolVersionId::try_from_packed_semver(full_version_id)
         .unwrap_or_else(|_| panic!("Version is not supported, packed version: {full_version_id}"));
@@ -157,8 +274,11 @@ pub fn decode_set_chain_id_event(
         Transaction::from_abi(
             abi::Transaction::L1 {
                 tx: tx.into(),
-                eth_block: 0,
-                factory_deps: vec![],
+                eth_block: event
+                    .block_number
+                    .expect("Event block number is missing")
+                    .as_u64(),
+                factory_deps,
             },
             true,
         )
@@ -166,50 +286,6 @@ pub fn decode_set_chain_id_event(
         .try_into()
         .unwrap(),
     ))
-}
-
-impl TryFrom<Call> for ProtocolUpgrade {
-    type Error = anyhow::Error;
-
-    fn try_from(call: Call) -> Result<Self, Self::Error> {
-        anyhow::ensure!(call.data.len() >= 4);
-        let (signature, data) = call.data.split_at(4);
-
-        let diamond_cut_tokens =
-            if signature.to_vec() == ADMIN_EXECUTE_UPGRADE_FUNCTION.short_signature().to_vec() {
-                // Unwraps are safe, because we validate the input against the function signature.
-                ADMIN_EXECUTE_UPGRADE_FUNCTION
-                    .decode_input(data)?
-                    .pop()
-                    .unwrap()
-                    .into_tuple()
-                    .unwrap()
-            } else if signature.to_vec()
-                == ADMIN_UPGRADE_CHAIN_FROM_VERSION_FUNCTION
-                    .short_signature()
-                    .to_vec()
-            {
-                let mut data = ADMIN_UPGRADE_CHAIN_FROM_VERSION_FUNCTION.decode_input(data)?;
-
-                assert_eq!(
-                    data.len(),
-                    2,
-                    "The second method is expected to accept exactly 2 arguments"
-                );
-
-                // The second item must be a tuple of diamond cut data
-                // Unwraps are safe, because we validate the input against the function signature.
-                data.pop().unwrap().into_tuple().unwrap()
-            } else {
-                anyhow::bail!("unknown function");
-            };
-
-        ProtocolUpgrade::try_from_init_calldata(
-            // Unwrap is safe because we have validated the input against the function signature.
-            &diamond_cut_tokens[2].clone().into_bytes().unwrap(),
-        )
-        .context("ProtocolUpgrade::try_from_init_calldata()")
-    }
 }
 
 impl TryFrom<Log> for GovernanceOperation {
@@ -291,6 +367,7 @@ impl ProtocolVersion {
         &self,
         upgrade: ProtocolUpgrade,
         new_snark_wrapper_vk_hash: Option<H256>,
+        new_fflonk_snark_wrapper_vk_hash: Option<H256>,
     ) -> ProtocolVersion {
         ProtocolVersion {
             version: upgrade.version,
@@ -298,6 +375,8 @@ impl ProtocolVersion {
             l1_verifier_config: L1VerifierConfig {
                 snark_wrapper_vk_hash: new_snark_wrapper_vk_hash
                     .unwrap_or(self.l1_verifier_config.snark_wrapper_vk_hash),
+                fflonk_snark_wrapper_vk_hash: new_fflonk_snark_wrapper_vk_hash
+                    .or(self.l1_verifier_config.fflonk_snark_wrapper_vk_hash),
             },
             base_system_contracts_hashes: BaseSystemContractsHashes {
                 bootloader: upgrade

@@ -56,6 +56,9 @@ pub struct TransactionsDal<'c, 'a> {
     pub(crate) storage: &'c mut Connection<'a, Core>,
 }
 
+/// In transaction insertion methods, we intentionally override `tx.received_timestamp_ms` to have well-defined causal ordering
+/// among transactions (transactions persisted earlier should have earlier timestamp). Causal ordering by the received timestamp
+/// is assumed in some logic dealing with transactions, e.g., pending transaction filters on the API server.
 impl TransactionsDal<'_, '_> {
     pub async fn insert_transaction_l1(
         &mut self,
@@ -81,11 +84,6 @@ impl TransactionsDal<'_, '_> {
 
         let to_mint = u256_to_big_decimal(tx.common_data.to_mint);
         let refund_recipient = tx.common_data.refund_recipient.as_bytes();
-
-        let secs = (tx.received_timestamp_ms / 1000) as i64;
-        let nanosecs = ((tx.received_timestamp_ms % 1000) * 1_000_000) as u32;
-        #[allow(deprecated)]
-        let received_at = NaiveDateTime::from_timestamp_opt(secs, nanosecs).unwrap();
 
         sqlx::query!(
             r#"
@@ -133,7 +131,7 @@ impl TransactionsDal<'_, '_> {
                 $15,
                 $16,
                 $17,
-                $18,
+                NOW(),
                 NOW(),
                 NOW()
             )
@@ -156,13 +154,38 @@ impl TransactionsDal<'_, '_> {
             tx_format,
             to_mint,
             refund_recipient,
-            received_at,
         )
         .instrument("insert_transaction_l1")
         .with_arg("tx_hash", &tx_hash)
-        .fetch_optional(self.storage)
+        .execute(self.storage)
         .await?;
+
         Ok(())
+    }
+
+    pub async fn get_l1_transactions_hashes(&mut self, start_id: usize) -> DalResult<Vec<H256>> {
+        let hashes = sqlx::query!(
+            r#"
+            SELECT
+                hash
+            FROM
+                transactions
+            WHERE
+                priority_op_id >= $1
+                AND is_priority = TRUE
+            ORDER BY
+                priority_op_id
+            "#,
+            start_id as i64
+        )
+        .instrument("get_l1_transactions_hashes")
+        .with_arg("start_id", &start_id)
+        .fetch_all(self.storage)
+        .await?;
+        Ok(hashes
+            .into_iter()
+            .map(|row| H256::from_slice(&row.hash))
+            .collect())
     }
 
     pub async fn insert_system_transaction(&mut self, tx: &ProtocolUpgradeTx) -> DalResult<()> {
@@ -182,12 +205,6 @@ impl TransactionsDal<'_, '_> {
 
         let to_mint = u256_to_big_decimal(tx.common_data.to_mint);
         let refund_recipient = tx.common_data.refund_recipient.as_bytes().to_vec();
-
-        let secs = (tx.received_timestamp_ms / 1000) as i64;
-        let nanosecs = ((tx.received_timestamp_ms % 1000) * 1_000_000) as u32;
-
-        #[allow(deprecated)]
-        let received_at = NaiveDateTime::from_timestamp_opt(secs, nanosecs).unwrap();
 
         sqlx::query!(
             r#"
@@ -231,7 +248,7 @@ impl TransactionsDal<'_, '_> {
                 $13,
                 $14,
                 $15,
-                $16,
+                NOW(),
                 NOW(),
                 NOW()
             )
@@ -252,7 +269,6 @@ impl TransactionsDal<'_, '_> {
             tx_format,
             to_mint,
             refund_recipient,
-            received_at,
         )
         .instrument("insert_system_transaction")
         .with_arg("tx_hash", &tx_hash)
@@ -312,10 +328,7 @@ impl TransactionsDal<'_, '_> {
         let value = u256_to_big_decimal(tx.execute.value);
         let paymaster = tx.common_data.paymaster_params.paymaster.0.as_ref();
         let paymaster_input = &tx.common_data.paymaster_params.paymaster_input;
-        let secs = (tx.received_timestamp_ms / 1000) as i64;
-        let nanosecs = ((tx.received_timestamp_ms % 1000) * 1_000_000) as u32;
-        #[allow(deprecated)]
-        let received_at = NaiveDateTime::from_timestamp_opt(secs, nanosecs).unwrap();
+
         let max_timestamp = NaiveDateTime::MAX.and_utc().timestamp() as u64;
         #[allow(deprecated)]
         let timestamp_asserter_range_start =
@@ -389,9 +402,9 @@ impl TransactionsDal<'_, '_> {
                     'contracts_used',
                     $18::INT
                 ),
+                NOW(),
                 $19,
                 $20,
-                $21,
                 NOW(),
                 NOW()
             )
@@ -421,9 +434,9 @@ impl TransactionsDal<'_, '_> {
                 $18::INT
             ),
             in_mempool = FALSE,
-            received_at = $19,
-            timestamp_asserter_range_start = $20,
-            timestamp_asserter_range_end = $21,
+            received_at = NOW(),
+            timestamp_asserter_range_start = $19,
+            timestamp_asserter_range_end = $20,
             created_at = NOW(),
             updated_at = NOW(),
             error = NULL
@@ -456,10 +469,10 @@ impl TransactionsDal<'_, '_> {
             value,
             &paymaster,
             &paymaster_input,
-            exec_info.gas_used as i64,
-            (exec_info.initial_storage_writes + exec_info.repeated_storage_writes) as i32,
-            exec_info.contracts_used as i32,
-            received_at,
+            exec_info.vm.gas_used as i64,
+            (exec_info.writes.initial_storage_writes + exec_info.writes.repeated_storage_writes)
+                as i32,
+            exec_info.vm.contracts_used as i32,
             timestamp_asserter_range_start,
             timestamp_asserter_range_end,
         )
@@ -1739,6 +1752,52 @@ impl TransactionsDal<'_, '_> {
         Ok(rows.len())
     }
 
+    pub async fn get_priority_txs_in_mempool(&mut self) -> DalResult<usize> {
+        let result = sqlx::query!(
+            r#"
+            SELECT COUNT(*) FROM transactions
+            WHERE
+                in_mempool = TRUE AND
+                is_priority = TRUE
+            "#
+        )
+        .instrument("get_l1_txs_in_mempool")
+        .fetch_one(self.storage)
+        .await?;
+
+        Ok(result.count.unwrap_or_default() as usize)
+    }
+
+    /// Resets `in_mempool` to `FALSE` for the given transaction hashes.
+    pub async fn reset_mempool_status(&mut self, transaction_hashes: &[H256]) -> DalResult<()> {
+        // Convert H256 hashes into `&[u8]`
+        let hashes: Vec<_> = transaction_hashes.iter().map(H256::as_bytes).collect();
+
+        // Execute the UPDATE query
+        let result = sqlx::query!(
+            r#"
+            UPDATE transactions
+            SET
+                in_mempool = FALSE
+            WHERE
+                hash = ANY($1)
+            "#,
+            &hashes as &[&[u8]]
+        )
+        .instrument("reset_mempool_status")
+        .with_arg("transaction_hashes.len", &hashes.len())
+        .execute(self.storage)
+        .await?;
+
+        // Log debug information about how many rows were affected
+        tracing::debug!(
+            "Updated {} transactions to in_mempool = false; provided hashes: {transaction_hashes:?}",
+            result.rows_affected()
+        );
+
+        Ok(())
+    }
+
     /// Fetches new updates for mempool. Returns new transactions and current nonces for related accounts;
     /// the latter are only used to bootstrap mempool for given account.
     pub async fn sync_mempool(
@@ -1747,10 +1806,11 @@ impl TransactionsDal<'_, '_> {
         purged_accounts: &[Address],
         gas_per_pubdata: u32,
         fee_per_gas: u64,
+        allow_l1_txs: bool,
         limit: usize,
     ) -> DalResult<Vec<(Transaction, TransactionTimeRangeConstraint)>> {
         let stashed_addresses: Vec<_> = stashed_accounts.iter().map(Address::as_bytes).collect();
-        sqlx::query!(
+        let result = sqlx::query!(
             r#"
             UPDATE transactions
             SET
@@ -1768,8 +1828,15 @@ impl TransactionsDal<'_, '_> {
         .execute(self.storage)
         .await?;
 
+        tracing::debug!(
+            "Updated {} transactions for stashed accounts, stashed accounts amount: {}, stashed_accounts: {:?}",
+            result.rows_affected(),
+            stashed_addresses.len(),
+            stashed_accounts.iter().map(|a|format!("{:x}", a)).collect::<Vec<_>>()
+        );
+
         let purged_addresses: Vec<_> = purged_accounts.iter().map(Address::as_bytes).collect();
-        sqlx::query!(
+        let result = sqlx::query!(
             r#"
             DELETE FROM transactions
             WHERE
@@ -1782,6 +1849,12 @@ impl TransactionsDal<'_, '_> {
         .with_arg("purged_addresses.len", &purged_addresses.len())
         .execute(self.storage)
         .await?;
+
+        tracing::debug!(
+            "Updated {} transactions for purged accounts, purged accounts amount: {}",
+            result.rows_affected(),
+            purged_addresses.len()
+        );
 
         // Note, that transactions are updated in order of their hashes to avoid deadlocks with other UPDATE queries.
         let transactions = sqlx::query_as!(
@@ -1805,9 +1878,13 @@ impl TransactionsDal<'_, '_> {
                                 AND in_mempool = FALSE
                                 AND error IS NULL
                                 AND (
-                                    is_priority = TRUE
+                                    (
+                                        is_priority = TRUE
+                                        AND $5 = TRUE
+                                    )
                                     OR (
-                                        max_fee_per_gas >= $2
+                                        is_priority = FALSE
+                                        AND max_fee_per_gas >= $2
                                         AND gas_per_pubdata_limit >= $3
                                     )
                                 )
@@ -1830,12 +1907,14 @@ impl TransactionsDal<'_, '_> {
             limit as i32,
             BigDecimal::from(fee_per_gas),
             BigDecimal::from(gas_per_pubdata),
-            i32::from(PROTOCOL_UPGRADE_TX_TYPE)
+            i32::from(PROTOCOL_UPGRADE_TX_TYPE),
+            allow_l1_txs
         )
         .instrument("sync_mempool")
         .with_arg("fee_per_gas", &fee_per_gas)
         .with_arg("gas_per_pubdata", &gas_per_pubdata)
         .with_arg("limit", &limit)
+        .with_arg("allow_l1_txs", &allow_l1_txs)
         .fetch_all(self.storage)
         .await?;
 
@@ -2194,9 +2273,11 @@ impl TransactionsDal<'_, '_> {
         Ok(sqlx::query!(
             r#"
             SELECT
-                call_trace
+                call_trace,
+                transactions.error AS tx_error
             FROM
                 call_traces
+            INNER JOIN transactions ON tx_hash = transactions.hash
             WHERE
                 tx_hash = $1
             "#,
@@ -2206,7 +2287,7 @@ impl TransactionsDal<'_, '_> {
         .with_arg("tx_hash", &tx_hash)
         .fetch_optional(self.storage)
         .await?
-        .map(|call_trace| {
+        .map(|mut call_trace| {
             (
                 parse_call_trace(&call_trace.call_trace, protocol_version),
                 CallTraceMeta {
@@ -2214,6 +2295,7 @@ impl TransactionsDal<'_, '_> {
                     tx_hash,
                     block_number: row.miniblock_number as u32,
                     block_hash: H256::from_slice(&row.miniblocks_hash),
+                    internal_error: call_trace.tx_error.take(),
                 },
             )
         }))

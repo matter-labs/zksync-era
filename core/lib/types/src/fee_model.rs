@@ -1,6 +1,5 @@
 use std::num::NonZeroU64;
 
-use bigdecimal::{BigDecimal, ToPrimitive};
 use serde::{Deserialize, Serialize};
 use zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE;
 
@@ -44,6 +43,30 @@ impl BatchFeeInput {
             fair_l2_gas_price,
             fair_pubdata_price,
         })
+    }
+
+    pub fn from_protocol_version(
+        protocol_version: Option<ProtocolVersionId>,
+        l1_gas_price: u64,
+        fair_l2_gas_price: u64,
+        fair_pubdata_price: Option<u64>,
+    ) -> Self {
+        protocol_version
+            .filter(|version: &ProtocolVersionId| version.is_post_1_4_1())
+            .map(|_| {
+                Self::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
+                    fair_pubdata_price: fair_pubdata_price
+                        .expect("No fair pubdata price for 1.4.1"),
+                    fair_l2_gas_price,
+                    l1_gas_price,
+                })
+            })
+            .unwrap_or_else(|| {
+                Self::L1Pegged(L1PeggedBatchFeeModelInput {
+                    fair_l2_gas_price,
+                    l1_gas_price,
+                })
+            })
     }
 }
 
@@ -172,8 +195,10 @@ pub enum FeeModelConfig {
     V2(FeeModelConfigV2),
 }
 
-/// Config params for the first version of the fee model. Here, the pubdata price is pegged to the L1 gas price and
-/// neither fair L2 gas price nor the pubdata price include the overhead for closing the batch
+/// Config params for the first version of the fee model.
+///
+/// Here, the pubdata price is pegged to the L1 gas price and neither fair L2 gas price
+/// nor the pubdata price include the overhead for closing the batch.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct FeeModelConfigV1 {
     /// The minimal acceptable L2 gas price, i.e. the price that should include the cost of computation/proving as well
@@ -262,23 +287,23 @@ impl FeeParamsV2 {
 
     /// Converts the fee param to the base token.
     fn convert_to_base_token(&self, price_in_wei: u64) -> u64 {
-        let conversion_ratio = BigDecimal::from(self.conversion_ratio.numerator.get())
-            / BigDecimal::from(self.conversion_ratio.denominator.get());
-        let converted_price_bd = BigDecimal::from(price_in_wei) * conversion_ratio;
+        let converted_price = u128::from(price_in_wei)
+            * u128::from(self.conversion_ratio.numerator.get())
+            / u128::from(self.conversion_ratio.denominator.get());
 
         // Match on the converted price to ensure it can be represented as a u64
-        match converted_price_bd.to_u64() {
-            Some(converted_price) => converted_price,
-            None => {
-                if converted_price_bd > BigDecimal::from(u64::MAX) {
+        match converted_price.try_into() {
+            Ok(converted_price) => converted_price,
+            Err(_) => {
+                if converted_price > u128::from(u64::MAX) {
                     tracing::warn!(
                         "Conversion to base token price failed: converted price is too large: {}. Using u64::MAX instead.",
-                        converted_price_bd
+                        converted_price
                     );
                 } else {
                     panic!(
                         "Conversion to base token price failed: converted price is not a valid u64: {}",
-                        converted_price_bd
+                        converted_price
                     );
                 }
                 u64::MAX
@@ -756,5 +781,30 @@ mod tests {
         // The fair L2 gas price is identical to the maximum
         assert_eq!(input.fair_l2_gas_price, 10_000 * GWEI);
         assert_eq!(input.fair_pubdata_price, 1_000_000 * GWEI);
+    }
+
+    #[test]
+    fn test_fee_params_v2_safely_hit_u64_max() {
+        // In this test we check that hitting borderline scenarios for u64::MAX works as expected
+        let config = FeeModelConfigV2 {
+            minimal_l2_gas_price: GWEI,
+            compute_overhead_part: 0.5,
+            pubdata_overhead_part: 0.5,
+            batch_overhead_l1_gas: 700_000,
+            max_gas_per_batch: 500_000_000,
+            max_pubdata_per_batch: 100_000,
+        };
+
+        let params = FeeParamsV2::new(
+            config,
+            u64::MAX,
+            u64::MAX - 1,
+            BaseTokenConversionRatio {
+                numerator: NonZeroU64::new(u64::MAX).unwrap(),
+                denominator: NonZeroU64::new(u64::MAX).unwrap(),
+            },
+        );
+        assert_eq!(params.l1_gas_price(), u64::MAX);
+        assert_eq!(params.l1_pubdata_price(), u64::MAX - 1);
     }
 }

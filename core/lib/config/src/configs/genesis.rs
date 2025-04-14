@@ -10,7 +10,7 @@ use smart_config::{
 use zksync_basic_types::{
     commitment::L1BatchCommitmentMode,
     protocol_version::{ProtocolSemanticVersion, ProtocolVersionId},
-    Address, L1ChainId, L2ChainId, SLChainId, H256,
+    Address, L1ChainId, L2ChainId, H256,
 };
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -31,7 +31,6 @@ pub struct PersistedGenesisConfig {
     default_aa_hash: H256,
     evm_emulator_hash: Option<H256>,
     l1_chain_id: L1ChainId,
-    sl_chain_id: Option<SLChainId>,
     l2_chain_id: L2ChainId,
     fee_account: Address,
     l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
@@ -67,7 +66,6 @@ impl TryFrom<GenesisConfig> for PersistedGenesisConfig {
                 .context("missing `default_aa_hash`")?,
             evm_emulator_hash: config.evm_emulator_hash,
             l1_chain_id: config.l1_chain_id,
-            sl_chain_id: config.sl_chain_id,
             l2_chain_id: config.l2_chain_id,
             fee_account: config.fee_account,
             l1_batch_commit_data_generator_mode: config.l1_batch_commit_data_generator_mode,
@@ -106,12 +104,14 @@ impl TryFrom<PersistedGenesisConfig> for GenesisConfig {
             default_aa_hash: Some(config.default_aa_hash),
             evm_emulator_hash: config.evm_emulator_hash,
             l1_chain_id: config.l1_chain_id,
-            sl_chain_id: config.sl_chain_id,
             l2_chain_id: config.l2_chain_id,
             snark_wrapper_vk_hash: config.prover.snark_wrapper_vk_hash,
             fee_account: config.fee_account,
             dummy_verifier: config.prover.dummy_verifier,
             l1_batch_commit_data_generator_mode: config.l1_batch_commit_data_generator_mode,
+            // FIXME: Do these fields need to be persisted?
+            fflonk_snark_wrapper_vk_hash: None,
+            custom_genesis_state_path: None,
         })
     }
 }
@@ -136,7 +136,6 @@ pub struct GenesisConfig {
     pub default_aa_hash: Option<H256>,
     pub evm_emulator_hash: Option<H256>,
     pub l1_chain_id: L1ChainId,
-    pub sl_chain_id: Option<SLChainId>,
     pub l2_chain_id: L2ChainId,
     // Note: `serde` isn't used with protobuf config. The same alias is implemented in
     // `zksync_protobuf_config` manually.
@@ -146,15 +145,11 @@ pub struct GenesisConfig {
         rename(serialize = "recursion_scheduler_level_vk_hash")
     )]
     pub snark_wrapper_vk_hash: H256,
+    pub fflonk_snark_wrapper_vk_hash: Option<H256>,
     pub fee_account: Address,
     pub dummy_verifier: bool,
     pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
-}
-
-impl GenesisConfig {
-    pub fn settlement_layer_id(&self) -> SLChainId {
-        self.sl_chain_id.unwrap_or(self.l1_chain_id.into())
-    }
+    pub custom_genesis_state_path: Option<String>,
 }
 
 impl GenesisConfig {
@@ -163,13 +158,13 @@ impl GenesisConfig {
             genesis_root_hash: Some(H256::repeat_byte(0x01)),
             rollup_last_leaf_index: Some(26),
             snark_wrapper_vk_hash: H256::repeat_byte(0x02),
+            fflonk_snark_wrapper_vk_hash: Default::default(),
             fee_account: Default::default(),
             genesis_commitment: Some(H256::repeat_byte(0x17)),
             bootloader_hash: Default::default(),
             default_aa_hash: Default::default(),
             evm_emulator_hash: Default::default(),
             l1_chain_id: L1ChainId(9),
-            sl_chain_id: None,
             protocol_version: Some(ProtocolSemanticVersion {
                 minor: ProtocolVersionId::latest(),
                 patch: 0.into(),
@@ -177,6 +172,7 @@ impl GenesisConfig {
             l2_chain_id: L2ChainId::default(),
             dummy_verifier: false,
             l1_batch_commit_data_generator_mode: L1BatchCommitmentMode::Rollup,
+            custom_genesis_state_path: None,
         }
     }
 }
@@ -257,7 +253,6 @@ mod tests {
             ),
             evm_emulator_hash: None,
             l1_chain_id: L1ChainId(9),
-            sl_chain_id: None,
             l2_chain_id: L2ChainId::from(271),
             snark_wrapper_vk_hash:
                 "0x14f97b81e54b35fe673d8708cc1a19e1ea5b5e348e12d31e39824ed4f42bbca2"
@@ -266,6 +261,8 @@ mod tests {
             fee_account: Address::from_low_u64_be(1),
             dummy_verifier: true,
             l1_batch_commit_data_generator_mode: L1BatchCommitmentMode::Rollup,
+            fflonk_snark_wrapper_vk_hash: Some(H256::repeat_byte(0xef)),
+            custom_genesis_state_path: None,
         }
     }
 

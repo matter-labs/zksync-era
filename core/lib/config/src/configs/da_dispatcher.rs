@@ -19,6 +19,11 @@ pub struct DADispatcherConfig {
     //   avoid the scenario where contracts expect real proofs, and server is using dummy proofs.
     #[config(default)]
     pub use_dummy_inclusion_data: bool,
+    /// This flag is used to signal that the transition to the full DA validators is in progress.
+    /// It will make the dispatcher stop polling for inclusion data and ensure all the old batches
+    /// have at least dummy inclusion data.
+    #[config(default)]
+    pub inclusion_verification_transition_enabled: bool,
 }
 
 #[cfg(test)]
@@ -33,6 +38,7 @@ mod tests {
             max_rows_to_dispatch: 60,
             max_retries: 7,
             use_dummy_inclusion_data: true,
+            inclusion_verification_transition_enabled: false,
         }
     }
 

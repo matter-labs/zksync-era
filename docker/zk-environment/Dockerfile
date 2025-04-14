@@ -47,7 +47,7 @@ RUN cargo install cargo-spellcheck
 RUN cargo install sccache
 
 RUN git clone https://github.com/matter-labs/foundry-zksync
-RUN cd foundry-zksync && cargo build --release --bins
+RUN cd foundry-zksync && git reset --hard 27360d4c8d12beddbb730dae07ad33a206b38f4b && cargo build --release --bins
 RUN mv ./foundry-zksync/target/release/forge /usr/local/cargo/bin/
 RUN mv ./foundry-zksync/target/release/cast /usr/local/cargo/bin/
 
@@ -170,9 +170,11 @@ ENV RUSTC_WRAPPER=/usr/local/cargo/bin/sccache
 
 # If target is 'main' - then install default rust.
 FROM rust-lightweight-base as rust-lightweight
-RUN wget -c -O - https://sh.rustup.rs | bash -s -- -y
+RUN wget -c -O - https://sh.rustup.rs | bash -s -- -y && \
+    rustup show active-toolchain || rustup toolchain install
 
 
 # If target is nightly - then install only nightly rust.
 FROM rust-lightweight-base as rust-lightweight-nightly
-RUN wget -c -O - https://sh.rustup.rs | bash -s -- -y --default-toolchain nightly-2024-08-01
+RUN wget -c -O - https://sh.rustup.rs | bash -s -- -y --default-toolchain nightly-2024-09-01 && \
+    rustup show active-toolchain || rustup toolchain install

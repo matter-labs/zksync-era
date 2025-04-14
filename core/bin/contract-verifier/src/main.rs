@@ -4,15 +4,15 @@ use anyhow::Context as _;
 use clap::Parser;
 use tokio::sync::watch;
 use zksync_config::{
-    configs::{DatabaseSecrets, ObservabilityConfig, PrometheusConfig},
+    configs::{ContractVerifierSecrets, DatabaseSecrets, ObservabilityConfig, PrometheusConfig},
     full_config_schema,
     sources::ConfigFilePaths,
     ConfigRepository, ContractVerifierConfig, ParseResultExt,
 };
-use zksync_contract_verifier_lib::ContractVerifier;
-use zksync_dal::{ConnectionPool, Core};
+use zksync_contract_verifier_lib::{etherscan::EtherscanVerifier, ContractVerifier};
+use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_queued_job_processor::JobProcessor;
-use zksync_utils::wait_for_tasks::ManagedTasks;
+use zksync_task_management::ManagedTasks;
 use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 #[derive(Debug, Parser)]
@@ -27,6 +27,32 @@ struct Opt {
     /// Path to the secrets file.
     #[arg(long)]
     secrets_path: Option<PathBuf>,
+}
+
+async fn perform_storage_migration(pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
+    const BATCH_SIZE: usize = 1000;
+
+    // Make it possible to override just in case.
+    let batch_size = std::env::var("CONTRACT_VERIFIER_MIGRATION_BATCH_SIZE")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(BATCH_SIZE);
+
+    let mut storage = pool.connection().await?;
+    let migration_performed = storage
+        .contract_verification_dal()
+        .is_verification_info_migration_performed()
+        .await?;
+    if !migration_performed {
+        tracing::info!(batch_size = %batch_size, "Running the storage migration for the contract verifier table");
+        storage
+            .contract_verification_dal()
+            .perform_verification_info_migration(batch_size)
+            .await?;
+    } else {
+        tracing::info!("Storage migration is not needed");
+    }
+    Ok(())
 }
 
 #[tokio::main]
@@ -48,6 +74,8 @@ async fn main() -> anyhow::Result<()> {
     let schema = full_config_schema(false);
     let repo = ConfigRepository::new(&schema).with_all(config_sources);
     let database_secrets: DatabaseSecrets = repo.single()?.parse().log_all_errors()?;
+    let contract_verifier_secrets: ContractVerifierSecrets =
+        repo.single()?.parse().log_all_errors()?;
     let verifier_config: ContractVerifierConfig = repo.single()?.parse().log_all_errors()?;
     let mut prometheus_config: PrometheusConfig = repo.single()?.parse().log_all_errors()?;
     prometheus_config.listener_port = verifier_config.prometheus_port;
@@ -60,18 +88,41 @@ async fn main() -> anyhow::Result<()> {
     .build()
     .await?;
 
+    perform_storage_migration(&pool).await?;
+
     let (stop_sender, stop_receiver) = watch::channel(false);
-    let contract_verifier = ContractVerifier::new(verifier_config.compilation_timeout, pool)
-        .await
-        .context("failed initializing contract verifier")?;
+    let etherscan_api_key = contract_verifier_secrets.etherscan_api_key;
+    let etherscan_verifier_enabled =
+        verifier_config.etherscan_api_url.is_some() && etherscan_api_key.is_some();
+    let contract_verifier = ContractVerifier::new(
+        verifier_config.compilation_timeout,
+        pool.clone(),
+        etherscan_verifier_enabled,
+    )
+    .await
+    .context("failed initializing contract verifier")?;
     let update_task = contract_verifier.sync_compiler_versions_task();
-    let tasks = vec![
+
+    let mut tasks = vec![
         tokio::spawn(update_task),
         tokio::spawn(contract_verifier.run(stop_receiver.clone(), opt.jobs_number)),
         tokio::spawn(
-            PrometheusExporterConfig::pull(prometheus_config.listener_port).run(stop_receiver),
+            PrometheusExporterConfig::pull(prometheus_config.listener_port)
+                .run(stop_receiver.clone()),
         ),
     ];
+    if etherscan_verifier_enabled {
+        tracing::info!("Etherscan verifier is enabled");
+        let etherscan_verifier = EtherscanVerifier::new(
+            verifier_config.etherscan_api_url.unwrap(),
+            etherscan_api_key.unwrap(),
+            pool,
+            stop_receiver,
+        );
+        tasks.push(tokio::spawn(etherscan_verifier.run()));
+    } else {
+        tracing::info!("Etherscan verifier is disabled");
+    }
 
     let mut tasks = ManagedTasks::new(tasks);
     tokio::select! {

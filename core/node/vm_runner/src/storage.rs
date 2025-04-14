@@ -242,8 +242,9 @@ impl<Io: VmRunnerIo> StorageLoader for VmRunnerStorage<Io> {
     }
 }
 
-/// A runnable task that catches up the provided RocksDB cache instance to the latest processed
-/// batch and then continuously makes sure that this invariant is held for the foreseeable future.
+/// A runnable task that catches up the provided RocksDB cache instance to the latest processed batch.
+///
+/// Then continuously makes sure that this invariant is held for the foreseeable future.
 /// In the meanwhile, `StorageSyncTask` also loads the next `max_batches_to_load` batches in memory
 /// so that they are immediately accessible by [`VmRunnerStorage`].
 #[derive(Debug)]

@@ -242,6 +242,9 @@ pub struct Web3JsonRpcConfig {
     /// (hundreds or thousands RPS).
     #[config(default)]
     pub extended_api_tracing: bool,
+    /// Configuration options for the deployment allow list
+    #[config(nest)]
+    pub deployment_allowlist: DeploymentAllowlist,
 }
 
 impl Web3JsonRpcConfig {
@@ -304,17 +307,41 @@ impl ContractVerificationApiConfig {
 }
 
 /// Configuration for the Merkle tree API.
-#[derive(Debug, Clone, PartialEq, Deserialize, DescribeConfig, DeserializeConfig)]
+#[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 pub struct MerkleTreeApiConfig {
     /// Port to bind the Merkle tree API server to.
-    #[serde(default = "MerkleTreeApiConfig::default_port")]
     #[config(default_t = 3_072)]
     pub port: u16,
 }
 
-impl MerkleTreeApiConfig {
-    const fn default_port() -> u16 {
-        3_072
+#[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
+#[config(derive(Default))]
+pub struct DeploymentAllowlist {
+    /// If `Some(url)`, allowlisting is enabled. If `None`, it's disabled.
+    /// If the `String` is empty, treat it as invalid and effectively disable.
+    http_file_url: Option<String>,
+    /// Refresh interval for the allow list.
+    #[config(default_t = Duration::from_secs(300), with = TimeUnit::Seconds)]
+    pub refresh_interval_secs: Duration,
+}
+
+impl DeploymentAllowlist {
+    /// Create a new `DeploymentAllowlist` instance.
+    pub fn new(http_file_url: Option<String>, refresh_interval_secs: Duration) -> Self {
+        Self {
+            http_file_url,
+            refresh_interval_secs,
+        }
+    }
+
+    /// Returns `true` if deployment allowlisting is enabled.
+    pub fn is_enabled(&self) -> bool {
+        self.http_file_url().is_some()
+    }
+
+    /// Returns the allowlist file URL, if present and non-empty.
+    pub fn http_file_url(&self) -> Option<&str> {
+        self.http_file_url.as_deref().filter(|s| !s.is_empty())
     }
 }
 
@@ -386,6 +413,7 @@ mod tests {
                 ],
                 api_namespaces: Some(vec!["debug".to_string()]),
                 extended_api_tracing: true,
+                deployment_allowlist: DeploymentAllowlist::default(),
             },
             prometheus: PrometheusConfig {
                 listener_port: 3312,

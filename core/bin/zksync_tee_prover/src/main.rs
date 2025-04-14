@@ -1,12 +1,4 @@
-use anyhow::Context as _;
-use config::TeeProverConfig;
-use smart_config::ConfigRepository;
 use tee_prover::TeeProverLayer;
-use zksync_config::{
-    configs::{ObservabilityConfig, PrometheusConfig},
-    sources::ConfigFilePaths,
-    ParseResultExt,
-};
 use zksync_node_framework::{
     implementations::layers::{
         prometheus_exporter::PrometheusExporterLayer, sigint::SigintHandlerLayer,
@@ -15,7 +7,7 @@ use zksync_node_framework::{
 };
 use zksync_vlog::prometheus::PrometheusExporterConfig;
 
-use crate::config::config_schema;
+use crate::config::AppConfig;
 
 mod api_client;
 mod config;
@@ -34,21 +26,19 @@ mod tee_prover;
 ///   loop, polling the sequencer for new jobs (batches), verifying them, and submitting generated
 ///   proofs back.
 fn main() -> anyhow::Result<()> {
-    let config_sources = ConfigFilePaths::default().into_config_sources("")?;
-
     let mut builder = ZkStackServiceBuilder::new()?;
-    let observability_config =
-        ObservabilityConfig::from_sources(config_sources.clone()).context("ObservabilityConfig")?;
+
+    let AppConfig {
+        observability: observability_config,
+        prometheus: prometheus_config,
+        prover: tee_prover_config,
+    } = builder.runtime_handle().block_on(AppConfig::try_new())?;
+
     let observability_guard = {
         // Observability initialization should be performed within tokio context.
         let _context_guard = builder.runtime_handle().enter();
         observability_config.install()?
     };
-
-    let schema = config_schema();
-    let repo = ConfigRepository::new(&schema).with_all(config_sources);
-    let tee_prover_config: TeeProverConfig = repo.single()?.parse().log_all_errors()?;
-    let prometheus_config: PrometheusConfig = repo.single()?.parse().log_all_errors()?;
 
     builder
         .add_layer(SigintHandlerLayer)

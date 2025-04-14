@@ -16,12 +16,14 @@ zksync_object_store.workspace = true
 zksync_types.workspace = true
 
 # We can use the newest api to send proofs to L1.
-circuit_sequencer_api_1_5_0.workspace = true
+circuit_definitions.workspace = true
+fflonk.workspace = true
+bellman.workspace = true
 
 serde.workspace = true
-strum = { workspace = true, features = ["derive"] }
 serde_with = { workspace = true, features = ["base64", "hex"] }
-chrono = { workspace = true, features = ["serde"] }
+ciborium.workspace = true
+chrono.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["full"] }

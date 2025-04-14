@@ -3,10 +3,11 @@
 pub use smart_config::ConfigRepository;
 
 pub use crate::configs::{
-    full_config_schema, ApiConfig, AvailConfig, BaseTokenAdjusterConfig, CelestiaConfig,
-    ContractVerifierConfig, ContractsConfig, DAClientConfig, DADispatcherConfig, DBConfig,
-    EigenConfig, EthConfig, EthWatchConfig, ExternalProofIntegrationApiConfig, GasAdjusterConfig,
-    GenesisConfig, GenesisConfigWrapper, ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
+    contracts::chain::ContractsConfig, full_config_schema, ApiConfig, AvailConfig,
+    BaseTokenAdjusterConfig, CelestiaConfig, ContractVerifierConfig, DAClientConfig,
+    DADispatcherConfig, DBConfig, EigenConfig, EthConfig, EthWatchConfig,
+    ExternalProofIntegrationApiConfig, GasAdjusterConfig, GenesisConfig, ObjectStoreConfig,
+    PostgresConfig, SnapshotsCreatorConfig,
 };
 #[cfg(feature = "observability_ext")]
 pub use crate::observability_ext::ParseResultExt;

@@ -8,24 +8,21 @@ use crate::{
             TimestampAsserterConfig,
         },
         consensus::ConsensusConfig,
-        contracts::L1ContractsConfig,
         da_dispatcher::DADispatcherConfig,
         en_config::ENConfig,
-        fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
         prover_job_monitor::ProverJobMonitorConfig,
         pruning::PruningConfig,
         snapshot_recovery::SnapshotRecoveryConfig,
         vm_runner::{BasicWitnessInputProducerConfig, ProtectiveReadsWriterConfig},
         wallets::Wallets,
-        CommitmentGeneratorConfig, EcosystemContracts, ExperimentalVmConfig,
-        ExternalPriceApiClientConfig, FriProofCompressorConfig, FriProverConfig,
-        FriProverGatewayConfig, FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig,
-        ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig, Secrets,
+        CommitmentGeneratorConfig, ExperimentalVmConfig, ExternalPriceApiClientConfig,
+        FriProofCompressorConfig, FriProverConfig, FriProverGatewayConfig,
+        FriWitnessGeneratorConfig, GenesisConfigWrapper, ObservabilityConfig, PrometheusConfig,
+        ProofDataHandlerConfig, Secrets,
     },
     ApiConfig, ContractVerifierConfig, ContractsConfig, DBConfig, EthConfig,
-    ExternalProofIntegrationApiConfig, GenesisConfigWrapper, ObjectStoreConfig, PostgresConfig,
-    SnapshotsCreatorConfig,
+    ExternalProofIntegrationApiConfig, ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
 };
 
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
@@ -53,10 +50,6 @@ pub struct GeneralConfig {
     pub prover_config: Option<FriProverConfig>,
     #[config(nest, alias = "fri_prover_gateway")]
     pub prover_gateway: Option<FriProverGatewayConfig>,
-    #[config(nest, alias = "fri_witness_vector_generator")]
-    pub witness_vector_generator: Option<FriWitnessVectorGeneratorConfig>,
-    #[config(nest, rename = "prover_group", alias = "fri_prover_group")]
-    pub prover_group_config: Option<FriProverGroupConfig>,
     #[config(nest, rename = "witness_generator", alias = "fri_witness")]
     pub witness_generator_config: Option<FriWitnessGeneratorConfig>,
 
@@ -142,16 +135,6 @@ pub fn full_config_schema(for_en: bool) -> ConfigSchema {
 
         schema
             .insert(&ContractsConfig::DESCRIPTION, "contracts")
-            .unwrap();
-        schema
-            .single_mut(&L1ContractsConfig::DESCRIPTION)
-            .unwrap()
-            .push_alias("contracts")
-            .unwrap();
-        schema
-            .single_mut(&EcosystemContracts::DESCRIPTION)
-            .unwrap()
-            .push_alias("contracts")
             .unwrap();
     }
     schema

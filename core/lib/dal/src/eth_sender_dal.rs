@@ -2,11 +2,14 @@ use std::{convert::TryFrom, str::FromStr};
 
 use anyhow::Context as _;
 use sqlx::types::chrono::{DateTime, Utc};
-use zksync_db_connection::{connection::Connection, interpolate_query, match_query_as};
+use zksync_db_connection::{
+    connection::Connection, error::DalResult, instrument::InstrumentExt, interpolate_query,
+    match_query_as,
+};
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     eth_sender::{EthTx, EthTxBlobSidecar, TxHistory, TxHistoryToSend},
-    Address, L1BatchNumber, H256, U256,
+    Address, L1BatchNumber, SLChainId, H256, U256,
 };
 
 use crate::{
@@ -38,9 +41,9 @@ impl EthSenderDal<'_, '_> {
                 from_addr IS NOT DISTINCT FROM $1 -- can't just use equality as NULL != NULL
                 AND confirmed_eth_tx_history_id IS NULL
                 AND is_gateway = $2
-                AND id <= (
-                    SELECT
-                        COALESCE(MAX(eth_tx_id), 0)
+                AND id <= COALESCE(
+                    (SELECT
+                        eth_tx_id
                     FROM
                         eth_txs_history
                     JOIN eth_txs ON eth_txs.id = eth_txs_history.eth_tx_id
@@ -48,6 +51,8 @@ impl EthSenderDal<'_, '_> {
                         eth_txs_history.sent_at_block IS NOT NULL
                         AND eth_txs.from_addr IS NOT DISTINCT FROM $1
                         AND is_gateway = $2
+                    ORDER BY eth_tx_id DESC LIMIT 1),
+                    0
                 )
             ORDER BY
                 id
@@ -60,8 +65,9 @@ impl EthSenderDal<'_, '_> {
         Ok(txs.into_iter().map(|tx| tx.into()).collect())
     }
 
-    pub async fn get_non_gateway_inflight_txs_count_for_gateway_migration(
+    pub async fn get_inflight_txs_count_for_gateway_migration(
         &mut self,
+        is_gateway: bool,
     ) -> sqlx::Result<usize> {
         let count = sqlx::query!(
             r#"
@@ -71,10 +77,48 @@ impl EthSenderDal<'_, '_> {
                 eth_txs
             WHERE
                 confirmed_eth_tx_history_id IS NULL
-                AND is_gateway = FALSE
-            "#
+                AND is_gateway = $1
+            "#,
+            is_gateway
         )
         .fetch_one(self.storage.conn())
+        .await?
+        .count
+        .unwrap();
+        Ok(count.try_into().unwrap())
+    }
+
+    pub async fn get_chain_id_of_last_eth_tx(&mut self) -> DalResult<Option<u64>> {
+        let res = sqlx::query!(
+            r#"
+            SELECT
+                chain_id
+            FROM
+                eth_txs
+            ORDER BY id DESC
+            LIMIT 1
+            "#,
+        )
+        .instrument("get_settlement_layer_of_last_eth_tx")
+        .fetch_optional(self.storage)
+        .await?
+        .and_then(|row| row.chain_id.map(|a| a as u64));
+        Ok(res)
+    }
+
+    pub async fn get_unconfirmed_txs_count(&mut self) -> DalResult<usize> {
+        let count = sqlx::query!(
+            r#"
+            SELECT
+                COUNT(*)
+            FROM
+                eth_txs
+            WHERE
+                confirmed_eth_tx_history_id IS NULL
+            "#
+        )
+        .instrument("get_unconfirmed_txs_count")
+        .fetch_one(self.storage)
         .await?
         .count
         .unwrap();
@@ -169,9 +213,9 @@ impl EthSenderDal<'_, '_> {
             WHERE
                 from_addr IS NOT DISTINCT FROM $2 -- can't just use equality as NULL != NULL
                 AND is_gateway = $3
-                AND id > (
-                    SELECT
-                        COALESCE(MAX(eth_tx_id), 0)
+                AND id > COALESCE(
+                    (SELECT
+                        eth_tx_id
                     FROM
                         eth_txs_history
                     JOIN eth_txs ON eth_txs.id = eth_txs_history.eth_tx_id
@@ -179,6 +223,8 @@ impl EthSenderDal<'_, '_> {
                         eth_txs_history.sent_at_block IS NOT NULL
                         AND eth_txs.from_addr IS NOT DISTINCT FROM $2
                         AND is_gateway = $3
+                    ORDER BY eth_tx_id DESC LIMIT 1),
+                    0
                 )
             ORDER BY
                 id
@@ -228,7 +274,7 @@ impl EthSenderDal<'_, '_> {
         raw_tx: Vec<u8>,
         tx_type: AggregatedActionType,
         contract_address: Address,
-        predicted_gas_cost: u32,
+        predicted_gas_cost: Option<u32>,
         from_address: Option<Address>,
         blob_sidecar: Option<EthTxBlobSidecar>,
         is_gateway: bool,
@@ -259,7 +305,7 @@ impl EthSenderDal<'_, '_> {
             nonce as i64,
             tx_type.to_string(),
             address,
-            i64::from(predicted_gas_cost),
+            predicted_gas_cost.map(|c| i64::from(c)),
             from_address.as_ref().map(Address::as_bytes),
             blob_sidecar.map(|sidecar| bincode::serialize(&sidecar)
                 .expect("can always bincode serialize EthTxBlobSidecar; qed")),
@@ -277,6 +323,7 @@ impl EthSenderDal<'_, '_> {
         base_fee_per_gas: u64,
         priority_fee_per_gas: u64,
         blob_base_fee_per_gas: Option<u64>,
+        max_gas_per_pubdata: Option<u64>,
         tx_hash: H256,
         raw_signed_tx: &[u8],
         sent_at_block: u32,
@@ -299,11 +346,12 @@ impl EthSenderDal<'_, '_> {
                 created_at,
                 updated_at,
                 blob_base_fee_per_gas,
+                max_gas_per_pubdata,
                 sent_at_block,
                 sent_at
             )
             VALUES
-            ($1, $2, $3, $4, $5, NOW(), NOW(), $6, $7, NOW())
+            ($1, $2, $3, $4, $5, NOW(), NOW(), $6, $7, $8, NOW())
             ON CONFLICT (tx_hash) DO NOTHING
             RETURNING
             id
@@ -314,6 +362,7 @@ impl EthSenderDal<'_, '_> {
             tx_hash,
             raw_signed_tx,
             blob_base_fee_per_gas.map(|v| v as i64),
+            max_gas_per_pubdata.map(|v| v as i64),
             sent_at_block as i32
         )
         .fetch_optional(self.storage.conn())
@@ -421,6 +470,48 @@ impl EthSenderDal<'_, '_> {
         Ok(())
     }
 
+    pub async fn get_batch_commit_chain_id(
+        &mut self,
+        batch_number: L1BatchNumber,
+    ) -> DalResult<Option<SLChainId>> {
+        let row = sqlx::query!(
+            r#"
+            SELECT eth_txs.chain_id
+            FROM l1_batches
+            JOIN eth_txs ON eth_txs.id = l1_batches.eth_commit_tx_id
+            WHERE
+                number = $1
+            "#,
+            i64::from(batch_number.0),
+        )
+        .instrument("get_batch_commit_chain_id")
+        .with_arg("batch_number", &batch_number)
+        .fetch_optional(self.storage)
+        .await?;
+        Ok(row.and_then(|r| r.chain_id).map(|id| SLChainId(id as u64)))
+    }
+
+    pub async fn get_batch_execute_chain_id(
+        &mut self,
+        batch_number: L1BatchNumber,
+    ) -> DalResult<Option<SLChainId>> {
+        let row = sqlx::query!(
+            r#"
+            SELECT eth_txs.chain_id
+            FROM l1_batches
+            JOIN eth_txs ON eth_txs.id = l1_batches.eth_execute_tx_id
+            WHERE
+                number = $1
+            "#,
+            i64::from(batch_number.0),
+        )
+        .instrument("get_batch_execute_chain_id")
+        .with_arg("batch_number", &batch_number)
+        .fetch_optional(self.storage)
+        .await?;
+        Ok(row.and_then(|r| r.chain_id).map(|id| SLChainId(id as u64)))
+    }
+
     pub async fn get_confirmed_tx_hash_by_eth_tx_id(
         &mut self,
         eth_tx_id: u32,
@@ -464,6 +555,7 @@ impl EthSenderDal<'_, '_> {
         tx_type: AggregatedActionType,
         tx_hash: H256,
         confirmed_at: DateTime<Utc>,
+        sl_chain_id: Option<SLChainId>,
     ) -> anyhow::Result<()> {
         let mut transaction = self
             .storage
@@ -489,10 +581,11 @@ impl EthSenderDal<'_, '_> {
 
             // Insert general tx descriptor.
             let eth_tx_id = sqlx::query_scalar!(
-                "INSERT INTO eth_txs (raw_tx, nonce, tx_type, contract_address, predicted_gas_cost, created_at, updated_at) \
-                VALUES ('\\x00', 0, $1, '', 0, now(), now()) \
+                "INSERT INTO eth_txs (raw_tx, nonce, tx_type, contract_address, predicted_gas_cost, chain_id, created_at, updated_at) \
+                VALUES ('\\x00', 0, $1, '', NULL, $2, now(), now()) \
                 RETURNING id",
-                tx_type.to_string()
+                tx_type.to_string(),
+                sl_chain_id.map(|chain_id| chain_id.0 as i64)
             )
             .fetch_one(transaction.conn())
             .await?;
@@ -669,7 +762,7 @@ impl EthSenderDal<'_, '_> {
         Ok(())
     }
 
-    pub async fn get_number_of_failed_transactions(&mut self) -> anyhow::Result<i64> {
+    pub async fn get_number_of_failed_transactions(&mut self) -> anyhow::Result<u64> {
         sqlx::query!(
             r#"
             SELECT
@@ -683,6 +776,7 @@ impl EthSenderDal<'_, '_> {
         .fetch_one(self.storage.conn())
         .await?
         .count
+        .map(|c| c as u64)
         .context("count field is missing")
     }
 

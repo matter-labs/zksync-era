@@ -49,16 +49,18 @@ impl ProtoRepr for proto::Eth {
     type Type = configs::eth_sender::EthConfig;
 
     fn read(&self) -> anyhow::Result<Self::Type> {
-        Ok(Self::Type {
-            sender: read_optional_repr(&self.sender),
-            gas_adjuster: read_optional_repr(&self.gas_adjuster),
-            watcher: read_optional_repr(&self.watcher),
-        })
+        Ok(Self::Type::new(
+            read_optional_repr(&self.sender),
+            read_optional_repr(&self.gas_adjuster),
+            read_optional_repr(&self.watcher),
+        ))
     }
 
     fn build(this: &Self::Type) -> Self {
         Self {
-            sender: this.sender.as_ref().map(ProtoRepr::build),
+            sender: this
+                .get_eth_sender_config_for_sender_layer_data_layer()
+                .map(ProtoRepr::build),
             gas_adjuster: this.gas_adjuster.as_ref().map(ProtoRepr::build),
             watcher: this.watcher.as_ref().map(ProtoRepr::build),
         }
@@ -69,13 +71,6 @@ impl ProtoRepr for proto::Sender {
     type Type = configs::eth_sender::SenderConfig;
     fn read(&self) -> anyhow::Result<Self::Type> {
         Ok(Self::Type {
-            aggregated_proof_sizes: self
-                .aggregated_proof_sizes
-                .iter()
-                .enumerate()
-                .map(|(i, x)| (*x).try_into().context(i))
-                .collect::<Result<_, _>>()
-                .context("aggregated_proof_sizes")?,
             wait_confirmations: self.wait_confirmations,
             tx_poll_period: *required(&self.tx_poll_period).context("tx_poll_period")?,
             aggregate_tx_poll_period: *required(&self.aggregate_tx_poll_period)
@@ -117,16 +112,12 @@ impl ProtoRepr for proto::Sender {
             time_in_mempool_in_l1_blocks_cap: self
                 .time_in_mempool_in_l1_blocks_cap
                 .unwrap_or(Self::Type::default_time_in_mempool_in_l1_blocks_cap()),
+            is_verifier_pre_fflonk: self.is_verifier_pre_fflonk.unwrap_or(true),
         })
     }
 
     fn build(this: &Self::Type) -> Self {
         Self {
-            aggregated_proof_sizes: this
-                .aggregated_proof_sizes
-                .iter()
-                .map(|x| (*x).try_into().unwrap())
-                .collect(),
             wait_confirmations: this.wait_confirmations,
             tx_poll_period: Some(this.tx_poll_period),
             aggregate_tx_poll_period: Some(this.aggregate_tx_poll_period),
@@ -150,6 +141,7 @@ impl ProtoRepr for proto::Sender {
             tx_aggregation_only_prove_and_execute: Some(this.tx_aggregation_only_prove_and_execute),
             tx_aggregation_paused: Some(this.tx_aggregation_paused),
             time_in_mempool_in_l1_blocks_cap: Some(this.time_in_mempool_in_l1_blocks_cap),
+            is_verifier_pre_fflonk: Some(this.is_verifier_pre_fflonk),
         }
     }
 }
@@ -183,8 +175,6 @@ impl ProtoRepr for proto::GasAdjuster {
             )
             .context("internal_pubdata_pricing_multiplier")?,
             max_blob_base_fee: self.max_blob_base_fee,
-            // TODO(EVM-676): support this field
-            settlement_mode: Default::default(),
         })
     }
 

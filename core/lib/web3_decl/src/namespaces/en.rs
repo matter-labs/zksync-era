@@ -2,12 +2,13 @@
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use zksync_config::GenesisConfig;
-use zksync_types::{api::en, tokens::TokenInfo, Address, L2BlockNumber};
-
-use crate::{
-    client::{ForWeb3Network, L2},
-    types::EcosystemContracts,
+use zksync_types::{
+    api::{en, EcosystemContracts},
+    tokens::TokenInfo,
+    Address, L2BlockNumber,
 };
+
+use crate::client::{ForWeb3Network, L2};
 
 #[cfg_attr(
     feature = "server",

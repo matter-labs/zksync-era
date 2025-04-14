@@ -195,6 +195,18 @@ impl TestScenario {
         self
     }
 
+    pub(crate) fn update_l2_block_timestamp(
+        mut self,
+        description: &'static str,
+        new_timestamp: u64,
+    ) -> Self {
+        self.actions.push_back(ScenarioItem::UpdateBlockTimestamp(
+            description,
+            new_timestamp,
+        ));
+        self
+    }
+
     /// Launches the test.
     /// Provided `SealManager` is expected to be externally configured to adhere the written scenario logic.
     pub(crate) async fn run(self, sealer: SequencerSealer) {
@@ -204,14 +216,13 @@ impl TestScenario {
         let (stop_sender, stop_receiver) = watch::channel(false);
         let (io, output_handler) = TestIO::new(stop_sender, self);
         let state_keeper = ZkSyncStateKeeper::new(
-            stop_receiver,
             Box::new(io),
             Box::new(batch_executor),
             output_handler,
             Arc::new(sealer),
             Arc::new(MockReadStorageFactory),
         );
-        let sk_thread = tokio::spawn(state_keeper.run());
+        let sk_thread = tokio::spawn(state_keeper.run(stop_receiver));
 
         // We must assume that *theoretically* state keeper may ignore the stop signal from IO once scenario is
         // completed, so we spawn it in a separate thread to not get test stuck.
@@ -264,7 +275,7 @@ pub(crate) fn successful_exec_with_log() -> BatchTransactionExecutionResult {
             },
             ..VmExecutionResultAndLogs::mock_success()
         }),
-        compressed_bytecodes: vec![],
+        compression_result: Ok(()),
         call_traces: vec![],
     }
 }
@@ -275,7 +286,7 @@ pub(crate) fn rejected_exec(reason: Halt) -> BatchTransactionExecutionResult {
         tx_result: Box::new(VmExecutionResultAndLogs::mock(ExecutionResult::Halt {
             reason,
         })),
-        compressed_bytecodes: vec![],
+        compression_result: Ok(()),
         call_traces: vec![],
     }
 }
@@ -297,6 +308,8 @@ enum ScenarioItem {
         &'static str,
         Option<Box<dyn FnOnce(&UpdatesManager) + Send>>,
     ),
+    /// Update block timestamp with a new timestamp.
+    UpdateBlockTimestamp(&'static str, u64),
 }
 
 impl fmt::Debug for ScenarioItem {
@@ -331,6 +344,11 @@ impl fmt::Debug for ScenarioItem {
                 formatter.debug_tuple("L2BlockSeal").field(descr).finish()
             }
             Self::BatchSeal(descr, _) => formatter.debug_tuple("BatchSeal").field(descr).finish(),
+            Self::UpdateBlockTimestamp(descr, timestamp) => formatter
+                .debug_tuple("UpdateBlockTimestamp")
+                .field(descr)
+                .field(timestamp)
+                .finish(),
         }
     }
 }
@@ -370,14 +388,18 @@ impl TestBatchExecutorBuilder {
         for item in &scenario.actions {
             match item {
                 ScenarioItem::Tx(_, tx, result) => {
-                    batch_txs
-                        .entry(tx.hash())
-                        .and_modify(|txs| txs.push_back(result.clone()))
-                        .or_insert_with(|| {
-                            let mut txs = VecDeque::with_capacity(1);
-                            txs.push_back(result.clone());
-                            txs
-                        });
+                    result.compression_result.as_ref().unwrap();
+                    let result = BatchTransactionExecutionResult {
+                        tx_result: result.tx_result.clone(),
+                        compression_result: Ok(()),
+                        call_traces: result.call_traces.clone(),
+                    };
+
+                    if let Some(txs) = batch_txs.get_mut(&tx.hash()) {
+                        txs.push_back(result);
+                    } else {
+                        batch_txs.insert(tx.hash(), VecDeque::from([result]));
+                    }
                 }
                 ScenarioItem::Rollback(_, tx) => {
                     rollback_set.insert(tx.hash());
@@ -721,6 +743,17 @@ impl StateKeeperIO for TestIO {
         Ok(Some(params))
     }
 
+    fn update_next_l2_block_timestamp(&mut self, block_timestamp: &mut u64) {
+        let action = self.pop_next_item("update_next_l2_block_timestamp");
+
+        if let ScenarioItem::UpdateBlockTimestamp(_, timestamp) = action {
+            *block_timestamp = timestamp;
+        } else {
+            // Return the action to the scenario.
+            self.actions.lock().unwrap().push_front(action);
+        }
+    }
+
     async fn wait_for_next_tx(
         &mut self,
         max_wait: Duration,
@@ -796,7 +829,9 @@ impl StateKeeperIO for TestIO {
     }
 }
 
-/// Storage factory that produces empty VM storage for any batch. Should only be used with a mock batch executor
+/// Storage factory that produces empty VM storage for any batch.
+///
+/// Should only be used with a mock batch executor
 /// that doesn't read from the storage. Prefer using `ConnectionPool` as a factory if it's available.
 #[derive(Debug)]
 pub struct MockReadStorageFactory;

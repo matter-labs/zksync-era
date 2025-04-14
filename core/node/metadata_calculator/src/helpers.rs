@@ -26,17 +26,17 @@ use zksync_merkle_tree::{
     Database, Key, MerkleTreeColumnFamily, NoVersionError, RocksDBWrapper, TreeEntry,
     TreeEntryWithProof, TreeInstruction,
 };
+use zksync_shared_metrics::tree::{LoadChangesStage, TreeUpdateStage, METRICS};
 use zksync_storage::{RocksDB, RocksDBOptions, StalledWritesRetries, WeakRocksDB};
 use zksync_types::{
-    block::{L1BatchHeader, L1BatchTreeData},
+    block::{L1BatchStatistics, L1BatchTreeData},
     writes::TreeWrite,
     AccountTreeId, L1BatchNumber, StorageKey, H256,
 };
 
 use super::{
-    metrics::{LoadChangesStage, TreeUpdateStage, METRICS},
-    pruning::PruningHandles,
-    MerkleTreeReaderConfig, MetadataCalculatorConfig, MetadataCalculatorRecoveryConfig,
+    pruning::PruningHandles, MerkleTreeReaderConfig, MetadataCalculatorConfig,
+    MetadataCalculatorRecoveryConfig,
 };
 
 /// General information about the Merkle tree.
@@ -298,7 +298,7 @@ impl AsyncTree {
             batch.mode,
             self.mode
         );
-        let batch_number = batch.header.number;
+        let batch_number = batch.stats.number;
 
         let mut tree = self.inner.take().context(Self::INCONSISTENT_MSG)?;
         let (tree, metadata) = tokio::task::spawn_blocking(move || {
@@ -677,7 +677,7 @@ impl Delayer {
 #[derive(Debug)]
 #[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct L1BatchWithLogs {
-    pub header: L1BatchHeader,
+    pub stats: L1BatchStatistics,
     pub storage_logs: Vec<TreeInstruction>,
     mode: MerkleTreeMode,
 }
@@ -702,6 +702,7 @@ impl L1BatchWithLogs {
         else {
             return Ok(None);
         };
+        let stats = header.into();
         header_latency.observe();
 
         let protective_reads = match mode {
@@ -764,7 +765,7 @@ impl L1BatchWithLogs {
         load_changes_latency.observe();
 
         Ok(Some(Self {
-            header,
+            stats,
             storage_logs,
             mode,
         }))
@@ -932,7 +933,7 @@ mod tests {
             }
 
             Some(Self {
-                header,
+                stats: header.into(),
                 storage_logs: storage_logs.into_values().collect(),
                 mode: MerkleTreeMode::Full,
             })
@@ -1068,10 +1069,10 @@ mod tests {
             .unwrap();
 
         // Sanity check: L1 batch headers must be identical
-        assert_eq!(l1_batch_with_logs.header, slow_l1_batch_with_logs.header);
+        assert_eq!(l1_batch_with_logs.stats, slow_l1_batch_with_logs.stats);
         assert_eq!(
-            lightweight_l1_batch_with_logs.header,
-            slow_l1_batch_with_logs.header
+            lightweight_l1_batch_with_logs.stats,
+            slow_l1_batch_with_logs.stats
         );
 
         tree.save().await.unwrap(); // Necessary for `reset()` below to work properly

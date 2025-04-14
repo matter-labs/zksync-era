@@ -8,7 +8,9 @@ use zksync_types::{
 use crate::{metrics::SERVER_METRICS, task_wiring::Task};
 
 /// `WitnessGeneratorQueueReporter` is a task that reports witness generator jobs status.
-/// Note: these values will be used for auto-scaling witness generators (Basic, Leaf, Node, Recursion Tip and Scheduler).
+///
+/// Note: these values will be used for auto-scaling witness generators
+/// (Basic, Leaf, Node, Recursion Tip and Scheduler).
 #[derive(Debug)]
 pub struct WitnessGeneratorQueueReporter;
 

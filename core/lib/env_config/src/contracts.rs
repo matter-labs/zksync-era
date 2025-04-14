@@ -1,18 +1,6 @@
-use zksync_config::{configs::EcosystemContracts, ContractsConfig};
+use zksync_config::ContractsConfig;
 
 use crate::{envy_load, FromEnv};
-
-impl FromEnv for EcosystemContracts {
-    fn from_env() -> anyhow::Result<Self> {
-        Ok(Self {
-            bridgehub_proxy_addr: std::env::var("CONTRACTS_BRIDGEHUB_PROXY_ADDR")?.parse()?,
-            state_transition_proxy_addr: std::env::var("CONTRACTS_STATE_TRANSITION_PROXY_ADDR")?
-                .parse()?,
-            transparent_proxy_admin_addr: std::env::var("CONTRACTS_TRANSPARENT_PROXY_ADMIN_ADDR")?
-                .parse()?,
-        })
-    }
-}
 
 impl FromEnv for ContractsConfig {
     fn from_env() -> anyhow::Result<Self> {
@@ -35,14 +23,15 @@ impl FromEnv for ContractsConfig {
                 panic!("L2 erc20 bridge address and L2 shared bridge address are different.");
             }
         }
-        contracts.ecosystem_contracts = EcosystemContracts::from_env().ok();
         Ok(contracts)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use zksync_config::configs::EcosystemContracts;
+    use std::str::FromStr;
+
+    use zksync_basic_types::H256;
     use zksync_system_constants::SHARED_BRIDGE_ETHER_TOKEN_ADDRESS;
 
     use super::*;
@@ -66,15 +55,29 @@ mod tests {
             l2_legacy_shared_bridge_addr: Some(addr("8656770FA78c830456B00B4fFCeE6b1De0e1b888")),
             l2_testnet_paymaster_addr: Some(addr("FC073319977e314F251EAE6ae6bE76B0B3BAeeCF")),
             l1_multicall3_addr: addr("0xcA11bde05977b3631167028862bE2a173976CA11"),
-            ecosystem_contracts: Some(EcosystemContracts {
-                bridgehub_proxy_addr: addr("0x35ea7f92f4c5f433efe15284e99c040110cf6297"),
-                state_transition_proxy_addr: addr("0xd90f1c081c6117241624e97cb6147257c3cb2097"),
-                transparent_proxy_admin_addr: addr("0xdd6fa5c14e7550b4caf2aa2818d24c69cbc347e5"),
-            }),
-            base_token_addr: Some(SHARED_BRIDGE_ETHER_TOKEN_ADDRESS),
-            chain_admin_addr: Some(addr("0xdd6fa5c14e7550b4caf2aa2818d24c69cbc347ff")),
+            bridgehub_proxy_addr: addr("0x35ea7f92f4c5f433efe15284e99c040110cf6297"),
+            state_transition_proxy_addr: Some(addr("0xd90f1c081c6117241624e97cb6147257c3cb2097")),
+            transparent_proxy_admin_addr: Some(addr("0xdd6fa5c14e7550b4caf2aa2818d24c69cbc347e5")),
+            l1_bytecode_supplier_addr: Some(addr("0x36ea7f92f4c5f433efe15284e99c040110cf6297")),
+            l1_wrapped_base_token_store_addr: Some(addr(
+                "0x36ea7f92f4c5f433efe15284e99c040110cf6298",
+            )),
+            server_notifier_addr: Some(addr("0xbe8381498ED34E9c2EdB51Ecd778d71B225E26fb")),
+
+            base_token_addr: SHARED_BRIDGE_ETHER_TOKEN_ADDRESS,
+            l1_base_token_asset_id: Some(
+                H256::from_str(
+                    "0x0000000000000000000000000000000000000001000000000000000000000000",
+                )
+                .unwrap(),
+            ),
+            chain_admin_addr: addr("0xdd6fa5c14e7550b4caf2aa2818d24c69cbc347ff"),
             l2_da_validator_addr: Some(addr("0xed6fa5c14e7550b4caf2aa2818d24c69cbc347ff")),
             l2_timestamp_asserter_addr: Some(addr("0x0000000000000000000000000000000000000002")),
+            no_da_validium_l1_validator_addr: Some(addr(
+                "0xbe8381498ED34E9c2EdB51Ecd778d71B225E26fb",
+            )),
+            l2_multicall3_addr: Some(addr("0xbe8381498ED34E9c2EdB51Ecd778d71B225E26fa")),
         }
     }
 
@@ -96,14 +99,22 @@ CONTRACTS_L2_CONSENSUS_REGISTRY_ADDR="D64e136566a9E04eb05B30184fF577F52682D182"
 CONTRACTS_L1_MULTICALL3_ADDR="0xcA11bde05977b3631167028862bE2a173976CA11"
 CONTRACTS_L1_SHARED_BRIDGE_PROXY_ADDR="0x8656770FA78c830456B00B4fFCeE6b1De0e1b888"
 CONTRACTS_L2_SHARED_BRIDGE_ADDR="0x8656770FA78c830456B00B4fFCeE6b1De0e1b888"
+CONTRACTS_L1_BYTECODE_SUPPLIER_ADDR="0x36ea7f92f4c5f433efe15284e99c040110cf6297"
 CONTRACTS_L2_LEGACY_SHARED_BRIDGE_ADDR="0x8656770FA78c830456B00B4fFCeE6b1De0e1b888"
 CONTRACTS_BRIDGEHUB_PROXY_ADDR="0x35ea7f92f4c5f433efe15284e99c040110cf6297"
 CONTRACTS_STATE_TRANSITION_PROXY_ADDR="0xd90f1c081c6117241624e97cb6147257c3cb2097"
 CONTRACTS_TRANSPARENT_PROXY_ADMIN_ADDR="0xdd6fa5c14e7550b4caf2aa2818d24c69cbc347e5"
 CONTRACTS_BASE_TOKEN_ADDR="0x0000000000000000000000000000000000000001"
+CONTRACTS_L1_BASE_TOKEN_ASSET_ID="0x0000000000000000000000000000000000000001000000000000000000000000"
+CONTRACTS_L1_WRAPPED_BASE_TOKEN_STORE_ADDR="0x36ea7f92f4c5f433efe15284e99c040110cf6298"
+CONTRACTS_L2_NATIVE_TOKEN_VAULT_PROXY_ADDR="0xfc073319977e314f251eae6ae6be76b0b3baeecf"
+CONTRACTS_PREDEPLOYED_L2_WRAPPED_BASE_TOKEN_ADDRESS="0x35ea7f92f4c5f433efe15284e99c040110cf6299"
 CONTRACTS_CHAIN_ADMIN_ADDR="0xdd6fa5c14e7550b4caf2aa2818d24c69cbc347ff"
 CONTRACTS_L2_DA_VALIDATOR_ADDR="0xed6fa5c14e7550b4caf2aa2818d24c69cbc347ff"
 CONTRACTS_L2_TIMESTAMP_ASSERTER_ADDR="0x0000000000000000000000000000000000000002"
+CONTRACTS_NO_DA_VALIDIUM_L1_VALIDATOR_ADDR="0xbe8381498ED34E9c2EdB51Ecd778d71B225E26fb"
+CONTRACTS_SERVER_NOTIFIER_ADDR="0xbe8381498ED34E9c2EdB51Ecd778d71B225E26fb"
+CONTRACTS_L2_MULTICALL3_ADDR="0xbe8381498ED34E9c2EdB51Ecd778d71B225E26fa"
         "#;
         lock.set_env(config);
 

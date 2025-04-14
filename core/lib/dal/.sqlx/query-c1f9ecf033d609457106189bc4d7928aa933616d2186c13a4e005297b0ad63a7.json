@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE\n            l1_batches\n            SET\n                batch_chain_merkle_path = $2\n            WHERE\n                number = $1\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Bytea"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c1f9ecf033d609457106189bc4d7928aa933616d2186c13a4e005297b0ad63a7"
+}

@@ -10,7 +10,9 @@ use zksync_state::{
 use zksync_types::L1BatchNumber;
 
 /// A [`ReadStorageFactory`] implementation that can produce short-lived [`ReadStorage`] handles
-/// backed by either Postgres or RocksDB (if it's caught up). Always initialized as a `Postgres`
+/// backed by either Postgres or RocksDB (if it's caught up).
+///
+/// Always initialized as a `Postgres`
 /// variant and is then mutated into `Rocksdb` once RocksDB cache is caught up. After which it
 /// can never revert back to `Postgres` as we assume RocksDB cannot fall behind under normal state
 /// keeper operation.

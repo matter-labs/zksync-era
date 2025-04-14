@@ -4,6 +4,22 @@ import { Reporter } from './reporter';
 import { AugmentedTransactionResponse } from './transaction-response';
 import { L1Provider, RetryableL1Wallet } from './l1-provider';
 
+// Error markers observed on stage so far.
+const IGNORED_ERRORS = [
+    'timeout',
+    'etimedout',
+    'econnrefused',
+    'econnreset',
+    'bad gateway',
+    'service temporarily unavailable',
+    'nonetwork'
+];
+
+function isIgnored(err: any): boolean {
+    const errString: string = err.toString().toLowerCase();
+    return IGNORED_ERRORS.some((sampleErr) => errString.indexOf(sampleErr) !== -1);
+}
+
 /**
  * RetryProvider retries every RPC request if it detects a timeout-related issue on the server side.
  */
@@ -11,17 +27,39 @@ export class RetryProvider extends zksync.Provider {
     private readonly reporter: Reporter;
     private readonly knownTransactionHashes: Set<string> = new Set();
 
-    constructor(_url?: string | { url: string; timeout: number }, network?: ethers.Networkish, reporter?: Reporter) {
-        let url;
+    constructor(_url: string | { url: string; timeout: number }, network?: ethers.Networkish, reporter?: Reporter) {
+        let fetchRequest: ethers.FetchRequest;
         if (typeof _url === 'object') {
-            const fetchRequest: ethers.FetchRequest = new ethers.FetchRequest(_url.url);
+            fetchRequest = new ethers.FetchRequest(_url.url);
             fetchRequest.timeout = _url.timeout;
-            url = fetchRequest;
         } else {
-            url = _url;
+            fetchRequest = new ethers.FetchRequest(_url);
         }
+        let defaultGetUrlFunc = ethers.FetchRequest.createGetUrlFunc();
+        fetchRequest.getUrlFunc = async (req: ethers.FetchRequest, signal?: ethers.FetchCancelSignal) => {
+            // Retry network requests that failed because of temporary issues (such as timeout, econnreset).
+            for (let retry = 0; retry < 50; retry++) {
+                try {
+                    const result = await defaultGetUrlFunc(req, signal);
+                    // If we obtained result not from the first attempt, print a warning.
+                    if (retry != 0) {
+                        this.reporter?.debug(`RPC request ${req} took ${retry} retries to succeed`);
+                    }
+                    return result;
+                } catch (err: any) {
+                    if (isIgnored(err)) {
+                        // Error is related to timeouts. Sleep a bit and try again.
+                        await zksync.utils.sleep(this.pollingInterval);
+                        continue;
+                    }
+                    // Re-throw any non-timeout-related error.
+                    throw err;
+                }
+            }
+            return Promise.reject(new Error(`Retried too many times, giving up on request=${req}`));
+        };
 
-        super(url, network);
+        super(fetchRequest, network);
         this.reporter = reporter ?? new Reporter();
     }
 
@@ -35,19 +73,7 @@ export class RetryProvider extends zksync.Provider {
                 }
                 return result;
             } catch (err: any) {
-                // Error markers observed on stage so far.
-                const ignoredErrors = [
-                    'timeout',
-                    'etimedout',
-                    'econnrefused',
-                    'econnreset',
-                    'bad gateway',
-                    'service temporarily unavailable',
-                    'nonetwork'
-                ];
-                const errString: string = err.toString().toLowerCase();
-                const found = ignoredErrors.some((sampleErr) => errString.indexOf(sampleErr) !== -1);
-                if (found) {
+                if (isIgnored(err)) {
                     // Error is related to timeouts. Sleep a bit and try again.
                     await zksync.utils.sleep(this.pollingInterval);
                     continue;
@@ -60,6 +86,14 @@ export class RetryProvider extends zksync.Provider {
 
     override _wrapTransactionResponse(txResponse: any): L2TransactionResponse {
         const base = super._wrapTransactionResponse(txResponse);
+        const isNew = !this.knownTransactionHashes.has(base.hash);
+        if (isNew) {
+            this.reporter.debug(
+                `Created L2 transaction ${base.hash} (from=${base.from}, to=${base.to}, ` +
+                    `nonce=${base.nonce}, value=${base.value}, data=${debugData(base.data)})`
+            );
+        }
+
         this.knownTransactionHashes.add(base.hash);
         return new L2TransactionResponse(base, this.reporter);
     }
@@ -81,7 +115,10 @@ class L2TransactionResponse extends zksync.types.TransactionResponse implements 
     private isWaitingReported: boolean = false;
     private isReceiptReported: boolean = false;
 
-    constructor(base: zksync.types.TransactionResponse, public readonly reporter: Reporter) {
+    constructor(
+        base: zksync.types.TransactionResponse,
+        public readonly reporter: Reporter
+    ) {
         super(base, base.provider);
     }
 
@@ -117,4 +154,13 @@ export class RetryableWallet extends zksync.Wallet {
     override ethWallet(): RetryableL1Wallet {
         return new RetryableL1Wallet(this.privateKey, <L1Provider>this._providerL1());
     }
+}
+
+function debugData(rawData: string): string {
+    const MAX_PRINTED_BYTE_LEN = 128;
+
+    const byteLength = (rawData.length - 2) / 2;
+    return byteLength <= MAX_PRINTED_BYTE_LEN
+        ? rawData
+        : rawData.substring(0, 2 + MAX_PRINTED_BYTE_LEN * 2) + `...(${byteLength} bytes)`;
 }

@@ -67,6 +67,16 @@
         "ordinal": 12,
         "name": "protocol_version_patch",
         "type_info": "Int4"
+      },
+      {
+        "ordinal": 13,
+        "name": "priority",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 14,
+        "name": "batch_sealed_at",
+        "type_info": "Timestamp"
       }
     ],
     "parameters": {
@@ -87,6 +97,8 @@
       true,
       true,
       true,
+      false,
+      false,
       false
     ]
   },

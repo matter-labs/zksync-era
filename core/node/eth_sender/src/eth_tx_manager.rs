@@ -9,6 +9,7 @@ use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{
     encode_blob_tx_with_sidecar, BoundEthInterface, ExecutedTxStatus, RawTransactionBytes,
 };
+use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_node_fee_model::l1_gas_price::TxParamsProvider;
 use zksync_shared_metrics::BlockL1Stage;
 use zksync_types::{eth_sender::EthTx, Address, L1BlockNumber, H256, U256};
@@ -19,10 +20,12 @@ use crate::{
         AbstractL1Interface, L1BlockNumbers, OperatorNonce, OperatorType, RealL1Interface,
     },
     eth_fees_oracle::{EthFees, EthFeesOracle, GasAdjusterFeesOracle},
+    health::{EthTxDetails, EthTxManagerHealthDetails},
     metrics::TransactionType,
 };
 
-/// The component is responsible for managing sending eth_txs attempts:
+/// The component is responsible for managing sending eth_txs attempts.
+///
 /// Based on eth_tx queue the component generates new attempt with the minimum possible fee,
 /// save it to the database, and send it to Ethereum.
 /// Based on eth_tx_history queue the component can mark txs as stuck and create the new attempt
@@ -33,6 +36,7 @@ pub struct EthTxManager {
     config: SenderConfig,
     fees_oracle: Box<dyn EthFeesOracle>,
     pool: ConnectionPool<Core>,
+    health_updater: HealthUpdater,
 }
 
 impl EthTxManager {
@@ -40,22 +44,23 @@ impl EthTxManager {
         pool: ConnectionPool<Core>,
         config: SenderConfig,
         gas_adjuster: Arc<dyn TxParamsProvider>,
-        ethereum_gateway: Option<Box<dyn BoundEthInterface>>,
-        ethereum_gateway_blobs: Option<Box<dyn BoundEthInterface>>,
-        l2_gateway: Option<Box<dyn BoundEthInterface>>,
+        ethereum_client: Option<Box<dyn BoundEthInterface>>,
+        ethereum_client_blobs: Option<Box<dyn BoundEthInterface>>,
+        l2_client: Option<Box<dyn BoundEthInterface>>,
     ) -> Self {
-        let ethereum_gateway = ethereum_gateway.map(|eth| eth.for_component("eth_tx_manager"));
-        let ethereum_gateway_blobs =
-            ethereum_gateway_blobs.map(|eth| eth.for_component("eth_tx_manager"));
+        let ethereum_client = ethereum_client.map(|eth| eth.for_component("eth_tx_manager"));
+        let ethereum_client_blobs =
+            ethereum_client_blobs.map(|eth| eth.for_component("eth_tx_manager"));
         let fees_oracle = GasAdjusterFeesOracle {
             gas_adjuster,
             max_acceptable_priority_fee_in_gwei: config.max_acceptable_priority_fee_in_gwei,
             time_in_mempool_in_l1_blocks_cap: config.time_in_mempool_in_l1_blocks_cap,
+            max_gas_limit: config.max_aggregated_tx_gas as u64,
         };
         let l1_interface = Box::new(RealL1Interface {
-            ethereum_gateway,
-            ethereum_gateway_blobs,
-            l2_gateway,
+            ethereum_client,
+            ethereum_client_blobs,
+            sl_client: l2_client,
             wait_confirmations: config.wait_confirmations,
         });
         tracing::info!(
@@ -67,6 +72,7 @@ impl EthTxManager {
             config,
             fees_oracle: Box::new(fees_oracle),
             pool,
+            health_updater: ReactiveHealthCheck::new("eth_tx_manager").1,
         }
     }
 
@@ -127,7 +133,8 @@ impl EthTxManager {
             base_fee_per_gas,
             priority_fee_per_gas,
             blob_base_fee_per_gas,
-            pubdata_price: _,
+            max_gas_per_pubdata_price,
+            gas_limit,
         } = self.fees_oracle.calculate_fees(
             &previous_sent_tx,
             time_in_mempool_in_l1_blocks,
@@ -144,16 +151,19 @@ impl EthTxManager {
                 base_fee_per_gas {base_fee_per_gas:?}, \
                 priority_fee_per_gas {priority_fee_per_gas:?}, \
                 blob_fee_per_gas {blob_base_fee_per_gas:?}, \
+                max_gas_per_pubdata_price {max_gas_per_pubdata_price:?}, \
                 previously sent with \
                 base_fee_per_gas {:?}, \
                 priority_fee_per_gas {:?}, \
                 blob_fee_per_gas {:?}, \
+                max_gas_per_pubdata_price {:?}, \
                 ",
                 tx.id,
                 tx.nonce,
                 previous_sent_tx.base_fee_per_gas,
                 previous_sent_tx.priority_fee_per_gas,
-                previous_sent_tx.blob_base_fee_per_gas
+                previous_sent_tx.blob_base_fee_per_gas,
+                previous_sent_tx.max_gas_per_pubdata
             );
         } else {
             tracing::info!(
@@ -194,8 +204,9 @@ impl EthTxManager {
                 base_fee_per_gas,
                 priority_fee_per_gas,
                 blob_gas_price,
-                self.config.max_aggregated_tx_gas.into(),
+                gas_limit.into(),
                 operator_type,
+                max_gas_per_pubdata_price.map(Into::into),
             )
             .await;
 
@@ -213,6 +224,7 @@ impl EthTxManager {
                 base_fee_per_gas,
                 priority_fee_per_gas,
                 blob_base_fee_per_gas,
+                max_gas_per_pubdata_price,
                 signed_tx.hash,
                 signed_tx.raw_tx.as_ref(),
                 current_block.0,
@@ -417,6 +429,14 @@ impl EthTxManager {
     ) {
         let receipt_block_number = tx_status.receipt.block_number.unwrap().as_u32();
         if receipt_block_number <= finalized_block.0 {
+            self.health_updater.update(
+                EthTxManagerHealthDetails {
+                    last_mined_tx: EthTxDetails::new(tx, Some((&tx_status).into())),
+                    finalized_block,
+                }
+                .into(),
+            );
+
             if tx_status.success {
                 self.confirm_tx(storage, tx, tx_status).await;
             } else {
@@ -488,13 +508,14 @@ impl EthTxManager {
             .track_eth_tx_metrics(storage, BlockL1Stage::Mined, tx)
             .await;
 
-        if gas_used > U256::from(tx.predicted_gas_cost) {
-            tracing::error!(
-                "Predicted gas {} lower than used gas {gas_used} for tx {:?} {}",
-                tx.predicted_gas_cost,
-                tx.tx_type,
-                tx.id
-            );
+        if let Some(predicted_gas_cost) = tx.predicted_gas_cost {
+            if gas_used > U256::from(predicted_gas_cost) {
+                tracing::error!(
+                    "Predicted gas {predicted_gas_cost} lower than used gas {gas_used} for tx {:?} {}",
+                    tx.tx_type,
+                    tx.id
+                );
+            }
         }
         tracing::info!(
             "eth_tx {} with hash {tx_hash:?} for {} is confirmed. Gas spent: {gas_used:?}",
@@ -522,9 +543,13 @@ impl EthTxManager {
     }
 
     pub async fn run(mut self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        self.health_updater
+            .update(Health::from(HealthStatus::Ready));
+
         let pool = self.pool.clone();
 
         loop {
+            tokio::time::sleep(self.config.tx_poll_period).await;
             let mut storage = pool.connection_tagged("eth_sender").await.unwrap();
 
             if *stop_receiver.borrow() {
@@ -535,11 +560,21 @@ impl EthTxManager {
             let l1_block_numbers = self
                 .l1_interface
                 .get_l1_block_numbers(operator_to_track)
-                .await?;
-            METRICS.track_block_numbers(&l1_block_numbers);
+                .await;
+
+            if let Err(ref error) = l1_block_numbers {
+                // Web3 API request failures can cause this,
+                // and anything more important is already properly reported.
+                tracing::warn!("eth_sender error {:?}", error);
+                if error.is_retriable() {
+                    METRICS.l1_transient_errors.inc();
+                    continue;
+                }
+            }
+
+            METRICS.track_block_numbers(&l1_block_numbers?);
 
             self.loop_iteration(&mut storage).await;
-            tokio::time::sleep(self.config.tx_poll_period).await;
         }
         Ok(())
     }
@@ -625,33 +660,8 @@ impl EthTxManager {
         Ok(())
     }
 
-    pub async fn assert_there_are_no_pre_gateway_txs_with_gateway_enabled(
-        &mut self,
-        storage: &mut Connection<'_, Core>,
-    ) {
-        if !self
-            .l1_interface
-            .supported_operator_types()
-            .contains(&OperatorType::Gateway)
-        {
-            return;
-        }
-
-        let inflight_count = storage
-            .eth_sender_dal()
-            .get_non_gateway_inflight_txs_count_for_gateway_migration()
-            .await
-            .unwrap();
-        if inflight_count != 0 {
-            panic!("eth-sender was switched to gateway, but there are still {inflight_count} pre-gateway transactions in-flight!")
-        }
-    }
-
     #[tracing::instrument(skip_all, name = "EthTxManager::loop_iteration")]
     pub async fn loop_iteration(&mut self, storage: &mut Connection<'_, Core>) {
-        self.assert_there_are_no_pre_gateway_txs_with_gateway_enabled(storage)
-            .await;
-
         // We can treat blob and non-blob operators independently as they have different nonces and
         // aggregator makes sure that corresponding Commit transaction is confirmed before creating
         // a PublishProof transaction
@@ -681,5 +691,10 @@ impl EthTxManager {
                 }
             }
         }
+    }
+
+    /// Returns the health check for eth tx manager.
+    pub fn health_check(&self) -> ReactiveHealthCheck {
+        self.health_updater.subscribe()
     }
 }

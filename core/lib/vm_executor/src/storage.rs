@@ -1,15 +1,18 @@
 //! Utils to get data for L1 batch execution from storage.
 
-use std::time::{Duration, Instant};
+use std::{
+    collections::HashMap,
+    time::{Duration, Instant},
+};
 
 use anyhow::Context;
-use zksync_contracts::BaseSystemContracts;
+use zksync_contracts::{BaseSystemContracts, SystemContractCode};
 use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_multivm::interface::{L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode};
 use zksync_types::{
-    block::L2BlockHeader, commitment::PubdataParams, fee_model::BatchFeeInput,
-    snapshots::SnapshotRecoveryStatus, Address, L1BatchNumber, L2BlockNumber, L2ChainId,
-    ProtocolVersionId, H256, ZKPORTER_IS_AVAILABLE,
+    block::L2BlockHeader, bytecode::BytecodeHash, commitment::PubdataParams,
+    fee_model::BatchFeeInput, snapshots::SnapshotRecoveryStatus, Address, L1BatchNumber,
+    L2BlockNumber, L2ChainId, ProtocolVersionId, H256, ZKPORTER_IS_AVAILABLE,
 };
 
 const BATCH_COMPUTATIONAL_GAS_LIMIT: u32 = u32::MAX;
@@ -308,15 +311,15 @@ impl L1BatchParamsProvider {
         );
 
         let contract_hashes = first_l2_block_in_batch.header.base_system_contracts_hashes;
-        let base_system_contracts = storage
-            .factory_deps_dal()
-            .get_base_system_contracts(
-                contract_hashes.bootloader,
-                contract_hashes.default_aa,
-                contract_hashes.evm_emulator,
-            )
-            .await
-            .context("failed getting base system contracts")?;
+        let base_system_contracts = get_base_system_contracts(
+            storage,
+            first_l2_block_in_batch.header.protocol_version,
+            contract_hashes.bootloader,
+            contract_hashes.default_aa,
+            contract_hashes.evm_emulator,
+        )
+        .await
+        .context("failed getting base system contracts")?;
 
         let (system_env, l1_batch_env) = l1_batch_params(
             first_l2_block_in_batch.l1_batch_number,
@@ -372,4 +375,103 @@ impl L1BatchParamsProvider {
         .with_context(|| format!("failed loading params for L1 batch #{number}"))
         .map(Some)
     }
+}
+
+async fn get_base_system_contracts(
+    storage: &mut Connection<'_, Core>,
+    protocol_version: Option<ProtocolVersionId>,
+    bootloader_hash: H256,
+    default_aa_hash: H256,
+    evm_emulator_hash: Option<H256>,
+) -> anyhow::Result<BaseSystemContracts> {
+    // There are two potential sources of base contracts bytecode:
+    // - Factory deps table in case the upgrade transaction has been executed before.
+    // - Factory deps of the upgrade transaction.
+
+    // Firstly trying from factory deps in Postgres
+    if let Some(deps) = storage
+        .factory_deps_dal()
+        .get_base_system_contracts_from_factory_deps(
+            bootloader_hash,
+            default_aa_hash,
+            evm_emulator_hash,
+        )
+        .await?
+    {
+        return Ok(deps);
+    }
+
+    let protocol_version = protocol_version.context("Protocol version not provided")?;
+
+    let upgrade_tx = storage
+        .protocol_versions_dal()
+        .get_protocol_upgrade_tx(protocol_version)
+        .await?
+        .with_context(|| {
+            format!("Could not find base contracts for version {protocol_version:?}: bootloader {bootloader_hash:?} or {default_aa_hash:?}")
+        })?;
+
+    let factory_deps = &upgrade_tx.execute.factory_deps;
+    let factory_deps_by_code_hash: HashMap<_, _> = factory_deps
+        .iter()
+        .map(|bytecode| (BytecodeHash::for_bytecode(bytecode).value(), bytecode))
+        .collect();
+
+    let bootloader_preimage = factory_deps_by_code_hash
+        .get(&bootloader_hash)
+        .context("missing bootloader factory dep")?
+        .to_vec();
+    let default_aa_preimage = factory_deps_by_code_hash
+        .get(&default_aa_hash)
+        .context("missing default AA factory dep")?
+        .to_vec();
+
+    let evm_emulator = if let Some(evm_emulator_hash) = evm_emulator_hash {
+        let evm_emulator_preimage = factory_deps_by_code_hash
+            .get(&evm_emulator_hash)
+            .context("missing EVM emulator factory dep")?
+            .to_vec();
+        Some(SystemContractCode {
+            code: evm_emulator_preimage,
+            hash: evm_emulator_hash,
+        })
+    } else {
+        None
+    };
+
+    Ok(BaseSystemContracts {
+        bootloader: SystemContractCode {
+            code: bootloader_preimage,
+            hash: bootloader_hash,
+        },
+        default_aa: SystemContractCode {
+            code: default_aa_preimage,
+            hash: default_aa_hash,
+        },
+        evm_emulator,
+    })
+}
+
+pub async fn get_base_system_contracts_by_version_id(
+    storage: &mut Connection<'_, Core>,
+    version_id: ProtocolVersionId,
+) -> anyhow::Result<Option<BaseSystemContracts>> {
+    let hashes = storage
+        .protocol_versions_dal()
+        .get_base_system_contract_hashes_by_version_id(version_id)
+        .await?;
+    let Some(hashes) = hashes else {
+        return Ok(None);
+    };
+
+    Ok(Some(
+        get_base_system_contracts(
+            storage,
+            Some(version_id),
+            hashes.bootloader,
+            hashes.default_aa,
+            hashes.evm_emulator,
+        )
+        .await?,
+    ))
 }

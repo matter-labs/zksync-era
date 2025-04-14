@@ -14,16 +14,18 @@ pub use zksync_db_connection::{
 use crate::{
     base_token_dal::BaseTokenDal, blocks_dal::BlocksDal, blocks_web3_dal::BlocksWeb3Dal,
     consensus_dal::ConsensusDal, contract_verification_dal::ContractVerificationDal,
-    data_availability_dal::DataAvailabilityDal, eth_sender_dal::EthSenderDal,
-    eth_watcher_dal::EthWatcherDal, events_dal::EventsDal, events_web3_dal::EventsWeb3Dal,
-    factory_deps_dal::FactoryDepsDal, proof_generation_dal::ProofGenerationDal,
-    protocol_versions_dal::ProtocolVersionsDal,
+    custom_genesis_export_dal::CustomGenesisExportDal, data_availability_dal::DataAvailabilityDal,
+    eth_sender_dal::EthSenderDal, eth_watcher_dal::EthWatcherDal,
+    etherscan_verification_dal::EtherscanVerificationDal, events_dal::EventsDal,
+    events_web3_dal::EventsWeb3Dal, factory_deps_dal::FactoryDepsDal,
+    proof_generation_dal::ProofGenerationDal, protocol_versions_dal::ProtocolVersionsDal,
     protocol_versions_web3_dal::ProtocolVersionsWeb3Dal, pruning_dal::PruningDal,
-    snapshot_recovery_dal::SnapshotRecoveryDal, snapshots_creator_dal::SnapshotsCreatorDal,
-    snapshots_dal::SnapshotsDal, storage_logs_dal::StorageLogsDal,
-    storage_logs_dedup_dal::StorageLogsDedupDal, storage_web3_dal::StorageWeb3Dal,
-    sync_dal::SyncDal, system_dal::SystemDal, tee_proof_generation_dal::TeeProofGenerationDal,
-    tokens_dal::TokensDal, tokens_web3_dal::TokensWeb3Dal, transactions_dal::TransactionsDal,
+    server_notifications::ServerNotificationsDal, snapshot_recovery_dal::SnapshotRecoveryDal,
+    snapshots_creator_dal::SnapshotsCreatorDal, snapshots_dal::SnapshotsDal,
+    storage_logs_dal::StorageLogsDal, storage_logs_dedup_dal::StorageLogsDedupDal,
+    storage_web3_dal::StorageWeb3Dal, sync_dal::SyncDal, system_dal::SystemDal,
+    tee_proof_generation_dal::TeeProofGenerationDal, tokens_dal::TokensDal,
+    tokens_web3_dal::TokensWeb3Dal, transactions_dal::TransactionsDal,
     transactions_web3_dal::TransactionsWeb3Dal, vm_runner_dal::VmRunnerDal,
 };
 
@@ -33,9 +35,11 @@ pub mod blocks_web3_dal;
 pub mod consensus;
 pub mod consensus_dal;
 pub mod contract_verification_dal;
+pub mod custom_genesis_export_dal;
 mod data_availability_dal;
 pub mod eth_sender_dal;
 pub mod eth_watcher_dal;
+pub mod etherscan_verification_dal;
 pub mod events_dal;
 pub mod events_web3_dal;
 pub mod factory_deps_dal;
@@ -46,6 +50,7 @@ pub mod proof_generation_dal;
 pub mod protocol_versions_dal;
 pub mod protocol_versions_web3_dal;
 pub mod pruning_dal;
+mod server_notifications;
 pub mod snapshot_recovery_dal;
 pub mod snapshots_creator_dal;
 pub mod snapshots_dal;
@@ -105,6 +110,8 @@ where
 
     fn contract_verification_dal(&mut self) -> ContractVerificationDal<'_, 'a>;
 
+    fn etherscan_verification_dal(&mut self) -> EtherscanVerificationDal<'_, 'a>;
+
     fn protocol_versions_dal(&mut self) -> ProtocolVersionsDal<'_, 'a>;
 
     fn protocol_versions_web3_dal(&mut self) -> ProtocolVersionsWeb3Dal<'_, 'a>;
@@ -132,6 +139,10 @@ where
     fn base_token_dal(&mut self) -> BaseTokenDal<'_, 'a>;
 
     fn eth_watcher_dal(&mut self) -> EthWatcherDal<'_, 'a>;
+
+    fn custom_genesis_export_dal(&mut self) -> CustomGenesisExportDal<'_, 'a>;
+
+    fn server_notifications_dal(&mut self) -> ServerNotificationsDal<'_, 'a>;
 }
 
 #[derive(Clone, Debug)]
@@ -203,12 +214,20 @@ impl<'a> CoreDal<'a> for Connection<'a, Core> {
         ContractVerificationDal { storage: self }
     }
 
+    fn etherscan_verification_dal(&mut self) -> EtherscanVerificationDal<'_, 'a> {
+        EtherscanVerificationDal { storage: self }
+    }
+
     fn protocol_versions_dal(&mut self) -> ProtocolVersionsDal<'_, 'a> {
         ProtocolVersionsDal { storage: self }
     }
 
     fn protocol_versions_web3_dal(&mut self) -> ProtocolVersionsWeb3Dal<'_, 'a> {
         ProtocolVersionsWeb3Dal { storage: self }
+    }
+
+    fn server_notifications_dal(&mut self) -> ServerNotificationsDal<'_, 'a> {
+        ServerNotificationsDal { storage: self }
     }
 
     fn sync_dal(&mut self) -> SyncDal<'_, 'a> {
@@ -257,5 +276,9 @@ impl<'a> CoreDal<'a> for Connection<'a, Core> {
 
     fn eth_watcher_dal(&mut self) -> EthWatcherDal<'_, 'a> {
         EthWatcherDal { storage: self }
+    }
+
+    fn custom_genesis_export_dal(&mut self) -> CustomGenesisExportDal<'_, 'a> {
+        CustomGenesisExportDal { storage: self }
     }
 }

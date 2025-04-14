@@ -170,6 +170,10 @@ pub struct MempoolConfig {
     pub remove_stuck_txs: bool,
     #[config(default_t = Duration::from_millis(100), with = TimeUnit::Millis)]
     pub delay_interval: Duration,
+    #[config(default)]
+    pub l1_to_l2_txs_paused: bool,
+    #[config(default)]
+    pub skip_unsafe_deposit_checks: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
@@ -292,6 +296,8 @@ mod tests {
             stuck_tx_timeout: Duration::from_secs(10),
             remove_stuck_txs: true,
             delay_interval: Duration::from_millis(100),
+            l1_to_l2_txs_paused: false,
+            skip_unsafe_deposit_checks: false,
         }
     }
 

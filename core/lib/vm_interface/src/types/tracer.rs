@@ -71,7 +71,7 @@ pub struct TimestampAsserterParams {
 }
 
 /// Rules that can be violated when validating a transaction.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ViolatedValidationRule {
     /// The transaction touched disallowed storage slots during validation.
     TouchedDisallowedStorageSlots(Address, U256),
@@ -112,7 +112,7 @@ impl fmt::Display for ViolatedValidationRule {
 }
 
 /// Errors returned when validating a transaction.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum ValidationError {
     /// VM execution was halted during validation.
     FailedTx(Halt),
@@ -121,10 +121,11 @@ pub enum ValidationError {
 }
 
 /// Traces the validation of a transaction, providing visibility into the aspects the transaction interacts with.
+///
 /// For instance, the `timestamp_asserter_range` represent the range within which the transaction might make
 /// assertions on `block.timestamp`. This information is crucial for the caller, as expired transactions should
 /// be excluded from the mempool.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct ValidationTraces {
     pub timestamp_asserter_range: Option<Range<u64>>,
 }

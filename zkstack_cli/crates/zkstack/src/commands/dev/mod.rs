@@ -1,6 +1,8 @@
 use clap::Subcommand;
 use commands::status::args::StatusArgs;
 use messages::MSG_STATUS_ABOUT;
+#[cfg(feature = "v27_evm_interpreter")]
+use messages::MSG_V27_EVM_INTERPRETER_UPGRADE;
 use xshell::Shell;
 
 use self::commands::{
@@ -15,7 +17,7 @@ use crate::commands::dev::messages::{
     MSG_SUBCOMMAND_SNAPSHOTS_CREATOR_ABOUT, MSG_SUBCOMMAND_TESTS_ABOUT,
 };
 
-mod commands;
+pub(crate) mod commands;
 mod consts;
 mod dals;
 mod defaults;
@@ -47,6 +49,9 @@ pub enum DevCommands {
     Status(StatusArgs),
     #[command(about = MSG_GENERATE_GENESIS_ABOUT, alias = "genesis")]
     GenerateGenesis,
+    #[cfg(feature = "v27_evm_interpreter")]
+    #[command(about = MSG_V27_EVM_INTERPRETER_UPGRADE)]
+    V27EvmInterpreterUpgradeCalldata(commands::v27_evm_eq::V27EvmInterpreterCalldataArgs),
 }
 
 pub async fn run(shell: &Shell, args: DevCommands) -> anyhow::Result<()> {
@@ -65,6 +70,10 @@ pub async fn run(shell: &Shell, args: DevCommands) -> anyhow::Result<()> {
         }
         DevCommands::Status(args) => commands::status::run(shell, args).await?,
         DevCommands::GenerateGenesis => commands::genesis::run(shell).await?,
+        #[cfg(feature = "v27_evm_interpreter")]
+        DevCommands::V27EvmInterpreterUpgradeCalldata(args) => {
+            commands::v27_evm_eq::run(shell, args).await?
+        }
     }
     Ok(())
 }

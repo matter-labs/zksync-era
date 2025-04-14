@@ -7,15 +7,18 @@ use k8s_openapi::api;
 use kube::{
     api::{Api, ResourceExt},
     runtime::{watcher, WatchStreamExt},
+    Resource,
 };
 use reqwest::{
     header::{HeaderMap, HeaderValue},
     Method,
 };
 use tokio::sync::Mutex;
-use zksync_utils::http_with_retries::send_request_with_retries;
 
-use crate::cluster_types::{Cluster, Deployment, Namespace, Pod, ScaleEvent};
+use crate::{
+    cluster_types::{Cluster, ClusterName, Deployment, Namespace, NamespaceName, Pod, ScaleEvent},
+    http_client::HttpClient,
+};
 
 #[derive(Clone)]
 pub struct Watcher {
@@ -23,23 +26,27 @@ pub struct Watcher {
     pub cluster: Arc<Mutex<Cluster>>,
 }
 
-async fn get_cluster_name() -> anyhow::Result<String> {
+async fn get_cluster_name(http_client: HttpClient) -> anyhow::Result<ClusterName> {
     let mut headers = HeaderMap::new();
     headers.insert("Metadata-Flavor", HeaderValue::from_static("Google"));
     let url = "http://metadata.google.internal/computeMetadata/v1/instance/attributes/cluster-name";
-    let response = send_request_with_retries(url, 5, Method::GET, Some(headers), None).await;
-    response
+    let response = http_client
+        .send_request_with_retries(url, Method::GET, Some(headers), None)
+        .await;
+    Ok(response
         .map_err(|err| anyhow::anyhow!("Failed fetching response from url: {url}: {err:?}"))?
         .text()
         .await
-        .context("Failed to read response as text")
+        .context("Failed to read response as text")?
+        .into())
 }
 
 impl Watcher {
     pub async fn new(
+        http_client: HttpClient,
         client: kube::Client,
-        cluster_name: Option<String>,
-        namespaces: Vec<String>,
+        cluster_name: Option<ClusterName>,
+        namespaces: Vec<NamespaceName>,
     ) -> Self {
         let mut ns = HashMap::new();
         namespaces.into_iter().for_each(|n| {
@@ -48,7 +55,7 @@ impl Watcher {
 
         let cluster_name = match cluster_name {
             Some(c) => c,
-            None => get_cluster_name()
+            None => get_cluster_name(http_client)
                 .await
                 .expect("Load cluster_name from GCP"),
         };
@@ -75,7 +82,7 @@ impl Watcher {
         let mut watchers = vec![];
         for namespace in self.cluster.lock().await.namespaces.keys() {
             let deployments: Api<api::apps::v1::Deployment> =
-                Api::namespaced(self.client.clone(), namespace);
+                Api::namespaced(self.client.clone(), namespace.to_str());
             watchers.push(
                 watcher(deployments, watcher::Config::default())
                     .default_backoff()
@@ -84,7 +91,8 @@ impl Watcher {
                     .boxed(),
             );
 
-            let pods: Api<api::core::v1::Pod> = Api::namespaced(self.client.clone(), namespace);
+            let pods: Api<api::core::v1::Pod> =
+                Api::namespaced(self.client.clone(), namespace.to_str());
             watchers.push(
                 watcher(pods, watcher::Config::default())
                     .default_backoff()
@@ -93,7 +101,8 @@ impl Watcher {
                     .boxed(),
             );
 
-            let events: Api<api::core::v1::Event> = Api::namespaced(self.client.clone(), namespace);
+            let events: Api<api::core::v1::Event> =
+                Api::namespaced(self.client.clone(), namespace.to_str());
             watchers.push(
                 watcher(events, watcher::Config::default())
                     .default_backoff()
@@ -116,18 +125,18 @@ impl Watcher {
                 Ok(o) => match o {
                     Watched::Deploy(d) => {
                         let namespace = match d.namespace() {
-                            Some(n) => n.to_string(),
+                            Some(n) => n.into(),
                             None => continue,
                         };
                         let mut cluster = self.cluster.lock().await;
                         let v = cluster.namespaces.get_mut(&namespace).unwrap();
                         let dep = v
                             .deployments
-                            .entry(d.name_any())
+                            .entry(d.name_any().into())
                             .or_insert(Deployment::default());
                         let nums = d.status.clone().unwrap_or_default();
-                        dep.running = nums.available_replicas.unwrap_or_default();
-                        dep.desired = nums.replicas.unwrap_or_default();
+                        dep.running = nums.available_replicas.unwrap_or_default() as usize;
+                        dep.desired = nums.replicas.unwrap_or_default() as usize;
 
                         tracing::info!(
                             "Got deployment: {}, size: {}/{} un {}",
@@ -139,7 +148,7 @@ impl Watcher {
                     }
                     Watched::Pod(p) => {
                         let namespace = match p.namespace() {
-                            Some(n) => n.to_string(),
+                            Some(n) => n.into(),
                             None => continue,
                         };
                         let mut cluster = self.cluster.lock().await;
@@ -164,16 +173,20 @@ impl Watcher {
                         }
                         pod.status = phase;
 
-                        if pod.status == "Succeeded" || pod.status == "Failed" {
+                        if p.meta().deletion_timestamp.is_some()
+                            || pod.status == "Succeeded"
+                            || pod.status == "Failed"
+                        {
                             // Cleaning up list of pods.
+                            tracing::debug!("Remove pod: {}", &p.name_any());
                             v.pods.remove(&p.name_any());
                         }
 
                         tracing::info!("Got pod: {}", p.name_any())
                     }
                     Watched::Event(e) => {
-                        let namespace: String = match e.namespace() {
-                            Some(n) => n,
+                        let namespace = match e.namespace() {
+                            Some(n) => n.into(),
                             None => "".into(),
                         };
                         let name = e.name_any();

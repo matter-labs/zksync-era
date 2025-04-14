@@ -18,7 +18,7 @@ use crate::{
         VmTesterBuilder,
     },
     vm_latest::{
-        types::internals::ZkSyncVmState, BootloaderState, HistoryEnabled, HistoryMode,
+        bootloader::BootloaderState, types::ZkSyncVmState, HistoryEnabled, HistoryMode,
         SimpleMemory, ToTracerPointer, Vm, VmTracer,
     },
 };
@@ -64,7 +64,6 @@ fn layered_rollback() {
     // the rollback by the operator will always revert all the changes
 
     let mut vm = VmTesterBuilder::new()
-        .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_rich_accounts(1)
         .build::<TestedLatestVm>();

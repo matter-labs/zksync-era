@@ -3,6 +3,7 @@ use zksync_concurrency::{ctx, error::Wrap as _, time};
 use zksync_consensus_roles::{attester, attester::BatchNumber, validator};
 use zksync_consensus_storage as storage;
 use zksync_dal::{
+    consensus::BlockCertificate,
     consensus_dal::{AttestationStatus, BlockMetadata, GlobalConfig, Payload},
     Core, CoreDal, DalError,
 };
@@ -133,18 +134,17 @@ impl<'a> Connection<'a> {
         &mut self,
         ctx: &ctx::Ctx,
         number: validator::BlockNumber,
-    ) -> ctx::Result<Option<validator::CommitQC>> {
+    ) -> ctx::Result<Option<BlockCertificate>> {
         Ok(ctx
             .wait(self.0.consensus_dal().block_certificate(number))
             .await??)
     }
 
     /// Wrapper for `consensus_dal().insert_block_certificate()`.
-    #[tracing::instrument(skip_all, fields(l2_block = %cert.message.proposal.number))]
     pub async fn insert_block_certificate(
         &mut self,
         ctx: &ctx::Ctx,
-        cert: &validator::CommitQC,
+        cert: &BlockCertificate,
     ) -> Result<(), super::InsertCertificateError> {
         Ok(ctx
             .wait(self.0.consensus_dal().insert_block_certificate(cert))
@@ -277,7 +277,6 @@ impl<'a> Connection<'a> {
                 first_block: txn.next_block(ctx).await.context("next_block()")?,
                 protocol_version: spec.protocol_version,
                 validators: spec.validators.clone(),
-                attesters: spec.attesters.clone(),
                 leader_selection: spec.leader_selection.clone(),
             }
             .with_hash(),
@@ -307,25 +306,33 @@ impl<'a> Connection<'a> {
             .await
             .wrap("block_certificate()")?
         {
-            return Ok(Some(
-                validator::FinalBlock {
-                    payload: payload.encode(),
-                    justification,
+            // Create the appropriate block variant based on the certificate type
+            match justification {
+                BlockCertificate::V1(commit_qc) => {
+                    return Ok(Some(validator::Block::FinalV1(validator::v1::FinalBlock {
+                        payload: payload.encode(),
+                        justification: commit_qc,
+                    })));
                 }
-                .into(),
-            ));
+                BlockCertificate::V2(commit_qc) => {
+                    return Ok(Some(validator::Block::FinalV2(validator::v2::FinalBlock {
+                        payload: payload.encode(),
+                        justification: commit_qc,
+                    })));
+                }
+            }
         }
 
-        Ok(Some(
+        // If no certificate is available, return a PreGenesis block
+        Ok(Some(validator::Block::PreGenesis(
             validator::PreGenesisBlock {
                 number,
                 payload: payload.encode(),
                 // We won't use justification until it is possible to verify
                 // payload against the L1 batch commitment.
                 justification: validator::Justification(vec![]),
-            }
-            .into(),
-        ))
+            },
+        )))
     }
 
     /// Wrapper for `blocks_dal().get_l2_block_range_of_l1_batch()`.

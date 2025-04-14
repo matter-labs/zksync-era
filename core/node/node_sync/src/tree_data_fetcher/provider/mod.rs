@@ -3,9 +3,11 @@ use std::fmt;
 use anyhow::Context;
 use async_trait::async_trait;
 use zksync_eth_client::EthInterface;
-use zksync_types::{block::L2BlockHeader, web3, Address, L1BatchNumber, H256, U256, U64};
+use zksync_types::{
+    block::L2BlockHeader, web3, Address, L1BatchNumber, SLChainId, H256, U256, U64,
+};
 use zksync_web3_decl::{
-    client::{DynClient, L1, L2},
+    client::{DynClient, L2},
     error::{ClientRpcContext, EnrichedClientError, EnrichedClientResult},
     jsonrpsee::core::ClientError,
     namespaces::ZksNamespaceClient,
@@ -89,6 +91,7 @@ struct PastL1BatchInfo {
     number: L1BatchNumber,
     l1_commit_block_number: U64,
     l1_commit_block_timestamp: U256,
+    chain_id: SLChainId,
 }
 
 /// Provider of tree data loading it from L1 `BlockCommit` events emitted by the diamond proxy contract.
@@ -102,31 +105,34 @@ struct PastL1BatchInfo {
 /// for the event using binary search, or uses an L1 block number of the `BlockCommit` event for the previously queried L1 batch
 /// (provided it's not too far behind the seal timestamp of the batch).
 #[derive(Debug)]
-pub(super) struct L1DataProvider {
-    eth_client: Box<DynClient<L1>>,
-    diamond_proxy_address: Address,
+pub(super) struct SLDataProvider {
+    client: Box<dyn EthInterface>,
+    chain_id: SLChainId,
+    diamond_proxy_addr: Address,
     block_commit_signature: H256,
     past_l1_batch: Option<PastL1BatchInfo>,
 }
 
-impl L1DataProvider {
+impl SLDataProvider {
     /// Accuracy when guessing L1 block number by L1 batch timestamp.
     const L1_BLOCK_ACCURACY: U64 = U64([1_000]);
     /// Range of L1 blocks queried via `eth_getLogs`. Should be at least several times greater than
     /// `L1_BLOCK_ACCURACY`, but not large enough to trigger request limiting on the L1 RPC provider.
     const L1_BLOCK_RANGE: U64 = U64([20_000]);
 
-    pub fn new(
-        eth_client: Box<DynClient<L1>>,
-        diamond_proxy_address: Address,
+    pub async fn new(
+        l1_client: Box<dyn EthInterface>,
+        l1_diamond_proxy_addr: Address,
     ) -> anyhow::Result<Self> {
+        let l1_chain_id = l1_client.fetch_chain_id().await?;
         let block_commit_signature = zksync_contracts::hyperchain_contract()
             .event("BlockCommit")
             .context("missing `BlockCommit` event")?
             .signature();
         Ok(Self {
-            eth_client,
-            diamond_proxy_address,
+            client: l1_client,
+            chain_id: l1_chain_id,
+            diamond_proxy_addr: l1_diamond_proxy_addr,
             block_commit_signature,
             past_l1_batch: None,
         })
@@ -189,7 +195,7 @@ impl L1DataProvider {
 }
 
 #[async_trait]
-impl TreeDataProvider for L1DataProvider {
+impl TreeDataProvider for SLDataProvider {
     async fn batch_details(
         &mut self,
         number: L1BatchNumber,
@@ -201,6 +207,9 @@ impl TreeDataProvider for L1DataProvider {
                 info.number < number,
                 "`batch_details()` must be called with monotonically increasing numbers"
             );
+            if info.chain_id != self.chain_id {
+                return None;
+            }
             let threshold_timestamp = info.l1_commit_block_timestamp + Self::L1_BLOCK_RANGE.as_u64() / 2;
             if U256::from(l1_batch_seal_timestamp) > threshold_timestamp {
                 tracing::debug!(
@@ -218,9 +227,11 @@ impl TreeDataProvider for L1DataProvider {
         let from_block = match from_block {
             Some(number) => number,
             None => {
-                let (approximate_block, steps) =
-                    Self::guess_l1_commit_block_number(&self.eth_client, l1_batch_seal_timestamp)
-                        .await?;
+                let (approximate_block, steps) = Self::guess_l1_commit_block_number(
+                    self.client.as_ref(),
+                    l1_batch_seal_timestamp,
+                )
+                .await?;
                 tracing::debug!(
                     number = number.0,
                     "Guessed L1 block number for L1 batch #{number} commit in {steps} binary search steps: {approximate_block}"
@@ -235,7 +246,7 @@ impl TreeDataProvider for L1DataProvider {
 
         let number_topic = H256::from_low_u64_be(number.0.into());
         let filter = web3::FilterBuilder::default()
-            .address(vec![self.diamond_proxy_address])
+            .address(vec![self.diamond_proxy_addr])
             .from_block(web3::BlockNumber::Number(from_block))
             .to_block(web3::BlockNumber::Number(from_block + Self::L1_BLOCK_RANGE))
             .topics(
@@ -245,7 +256,7 @@ impl TreeDataProvider for L1DataProvider {
                 None,
             )
             .build();
-        let mut logs = self.eth_client.logs(&filter).await?;
+        let mut logs = self.client.logs(&filter).await?;
         logs.retain(|log| !log.is_removed() && log.block_number.is_some());
 
         match logs.as_slice() {
@@ -266,7 +277,7 @@ impl TreeDataProvider for L1DataProvider {
                      {diff} block(s) after the `from` block from the filter"
                 );
 
-                let l1_commit_block = self.eth_client.block(l1_commit_block_number.into()).await?;
+                let l1_commit_block = self.client.block(l1_commit_block_number.into()).await?;
                 let l1_commit_block = l1_commit_block.ok_or_else(|| {
                     let err = "Block disappeared from L1 RPC provider";
                     EnrichedClientError::new(ClientError::Custom(err.into()), "batch_details")
@@ -276,6 +287,7 @@ impl TreeDataProvider for L1DataProvider {
                     number,
                     l1_commit_block_number,
                     l1_commit_block_timestamp: l1_commit_block.timestamp,
+                    chain_id: self.chain_id,
                 });
                 Ok(Ok(root_hash))
             }
@@ -290,10 +302,10 @@ impl TreeDataProvider for L1DataProvider {
     }
 }
 
-/// Data provider combining [`L1DataProvider`] with a fallback provider.
+/// Data provider combining [`SLDataProvider`] with a fallback provider.
 #[derive(Debug)]
 pub(super) struct CombinedDataProvider {
-    l1: Option<L1DataProvider>,
+    l1: Option<SLDataProvider>,
     // Generic to allow for tests.
     rpc: Box<dyn TreeDataProvider>,
 }
@@ -306,7 +318,7 @@ impl CombinedDataProvider {
         }
     }
 
-    pub fn set_l1(&mut self, l1: L1DataProvider) {
+    pub fn set_sl(&mut self, l1: SLDataProvider) {
         self.l1 = Some(l1);
     }
 }

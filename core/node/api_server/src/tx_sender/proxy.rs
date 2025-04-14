@@ -11,7 +11,7 @@ use zksync_dal::{
     helpers::wait_for_l1_batch, transactions_dal::L2TxSubmissionResult, Connection, ConnectionPool,
     Core, CoreDal, DalError,
 };
-use zksync_multivm::interface::{tracer::ValidationTraces, TransactionExecutionMetrics};
+use zksync_multivm::interface::tracer::ValidationTraces;
 use zksync_shared_metrics::{TxStage, APP_METRICS};
 use zksync_types::{api, l2::L2Tx, Address, Nonce, H256, U256};
 use zksync_web3_decl::{
@@ -21,6 +21,7 @@ use zksync_web3_decl::{
 };
 
 use super::{tx_sink::TxSink, SubmitTxError};
+use crate::execution_sandbox::SandboxExecutionOutput;
 
 /// In-memory transaction cache for a full node. Works like an ad-hoc mempool replacement, with the important limitation that
 /// it's not synchronized across the network.
@@ -308,7 +309,7 @@ impl TxSink for TxProxy {
     async fn submit_tx(
         &self,
         tx: &L2Tx,
-        _execution_metrics: TransactionExecutionMetrics,
+        _execution_output: &SandboxExecutionOutput,
         _validation_traces: ValidationTraces,
     ) -> Result<L2TxSubmissionResult, SubmitTxError> {
         // We're running an external node: we have to proxy the transaction to the main node.
@@ -419,7 +420,7 @@ mod tests {
         proxy
             .submit_tx(
                 &tx,
-                TransactionExecutionMetrics::default(),
+                &SandboxExecutionOutput::mock_success(),
                 ValidationTraces::default(),
             )
             .await
@@ -532,7 +533,7 @@ mod tests {
         proxy
             .submit_tx(
                 &tx,
-                TransactionExecutionMetrics::default(),
+                &SandboxExecutionOutput::mock_success(),
                 ValidationTraces::default(),
             )
             .await
@@ -596,7 +597,7 @@ mod tests {
         proxy
             .submit_tx(
                 &tx,
-                TransactionExecutionMetrics::default(),
+                &SandboxExecutionOutput::mock_success(),
                 ValidationTraces::default(),
             )
             .await
@@ -677,7 +678,7 @@ mod tests {
         proxy
             .submit_tx(
                 &tx,
-                TransactionExecutionMetrics::default(),
+                &SandboxExecutionOutput::mock_success(),
                 ValidationTraces::default(),
             )
             .await
@@ -685,7 +686,7 @@ mod tests {
         proxy
             .submit_tx(
                 &replacing_tx,
-                TransactionExecutionMetrics::default(),
+                &SandboxExecutionOutput::mock_success(),
                 ValidationTraces::default(),
             )
             .await
@@ -693,7 +694,7 @@ mod tests {
         proxy
             .submit_tx(
                 &future_tx,
-                TransactionExecutionMetrics::default(),
+                &SandboxExecutionOutput::mock_success(),
                 ValidationTraces::default(),
             )
             .await

@@ -1,8 +1,11 @@
+use std::fs::File;
+
 use anyhow::Context as _;
 use tokio::sync::watch;
-use zksync_config::{ContractsConfig, GenesisConfig};
+use zksync_config::{configs::contracts::SettlementLayerSpecificContracts, GenesisConfig};
 use zksync_dal::{ConnectionPool, Core, CoreDal as _};
 use zksync_node_genesis::GenesisParams;
+use zksync_object_store::bincode;
 use zksync_web3_decl::client::{DynClient, L1};
 
 use crate::traits::InitializeStorage;
@@ -10,7 +13,7 @@ use crate::traits::InitializeStorage;
 #[derive(Debug)]
 pub struct MainNodeGenesis {
     pub genesis: GenesisConfig,
-    pub contracts: ContractsConfig,
+    pub contracts: SettlementLayerSpecificContracts,
     pub l1_client: Box<DynClient<L1>>,
     pub pool: ConnectionPool<Core>,
 }
@@ -33,21 +36,32 @@ impl InitializeStorage for MainNodeGenesis {
         zksync_node_genesis::validate_genesis_params(
             &params,
             &self.l1_client,
-            self.contracts.l1.diamond_proxy_addr,
+            self.contracts.chain_contracts_config.diamond_proxy_addr,
         )
         .await?;
-        zksync_node_genesis::ensure_genesis_state(&mut storage, &params).await?;
 
-        if let Some(ecosystem_contracts) = &self.contracts.ecosystem_contracts {
-            zksync_node_genesis::save_set_chain_id_tx(
-                &mut storage,
-                &self.l1_client,
-                self.contracts.l1.diamond_proxy_addr,
-                ecosystem_contracts.state_transition_proxy_addr,
-            )
-            .await
-            .context("Failed to save SetChainId upgrade transaction")?;
-        }
+        let custom_genesis_state_reader = match &self.genesis.custom_genesis_state_path {
+            Some(path) => match File::open(path) {
+                Ok(file) => Some(bincode::deserialize_from(file)?),
+                Err(e) => return Err(e.into()), // Propagate other errors
+            },
+            None => None,
+        };
+
+        zksync_node_genesis::ensure_genesis_state(
+            &mut storage,
+            &params,
+            custom_genesis_state_reader,
+        )
+        .await?;
+
+        zksync_node_genesis::save_set_chain_id_tx(
+            &mut storage,
+            &self.l1_client,
+            self.contracts.chain_contracts_config.diamond_proxy_addr,
+        )
+        .await
+        .context("Failed to save SetChainId upgrade transaction")?;
 
         Ok(())
     }

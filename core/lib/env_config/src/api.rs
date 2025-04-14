@@ -51,6 +51,8 @@ mod tests {
         time::Duration,
     };
 
+    use zksync_config::configs::api::DeploymentAllowlist;
+
     use super::*;
     use crate::test_utils::{addr, EnvMutex};
 
@@ -98,6 +100,7 @@ mod tests {
                 ],
                 api_namespaces: Some(vec!["debug".to_string()]),
                 extended_api_tracing: true,
+                deployment_allowlist: DeploymentAllowlist::default(),
             },
             prometheus: PrometheusConfig {
                 listener_port: 3312,

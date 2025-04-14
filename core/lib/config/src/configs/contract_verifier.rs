@@ -16,6 +16,9 @@ pub struct ContractVerifierConfig {
     pub prometheus_port: u16,
     #[config(default_t = 3_070)]
     pub port: u16,
+    /// Etherscan API URL that is used for contract verification in Etherscan.
+    /// If not set, the Etherscan verification is disabled.
+    pub etherscan_api_url: Option<String>,
 }
 
 impl ContractVerifierConfig {
@@ -35,6 +38,7 @@ mod tests {
             compilation_timeout: Duration::from_secs(30),
             prometheus_port: 3314,
             port: 3070,
+            etherscan_api_url: None,
         }
     }
 

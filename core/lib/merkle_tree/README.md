@@ -1,8 +1,8 @@
 # Merkle Tree
 
-Binary Merkle tree implementation based on amortized radix-16 Merkle tree (AR16MT) described in the [Jellyfish Merkle
-tree] white paper. Unlike Jellyfish Merkle tree, our construction uses vanilla binary tree hashing algorithm to make it
-easier for the circuit creation. The depth of the tree is 256, and Blake2 is used as the hashing function.
+Binary Merkle tree implementation based on amortized radix-16 Merkle tree (AR16MT) described in the [Jellyfish
+Merkle tree] white paper. Unlike Jellyfish Merkle tree, our construction uses vanilla binary tree hashing algorithm to
+make it easier for the circuit creation. The depth of the tree is 256, and Blake2 is used as the hashing function.
 
 ## Snapshot tests
 
@@ -17,7 +17,7 @@ storage backend, and Blake2 or no-op hashing functions. For example, the followi
 blocks each containing 150,000 insertion operations.
 
 ```shell
-cargo run --release -p zksync_merkle_tree --example loadtest -- \
+cargo run --release -p zksync_merkle_tree --example loadtest_merkle_tree -- \
   --chunk-size=500 75 150000
 ```
 
@@ -48,7 +48,7 @@ Verified tree consistency in 37.478218666s
 Full tree mode (with proofs) launched with the following command:
 
 ```shell
-cargo run --release -p zksync_merkle_tree --example loadtest -- \
+cargo run --release -p zksync_merkle_tree --example loadtest_merkle_tree -- \
   --chunk-size=500 --proofs --reads=50000 75 150000
 ```
 

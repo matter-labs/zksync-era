@@ -9,23 +9,23 @@ use tokio::{
 use zksync_block_reverter::{
     eth_client::{
         clients::{Client, PKSigningClient, L1},
-        EthInterface,
+        contracts_loader::{get_settlement_layer_from_l1, load_settlement_layer_contracts},
     },
     BlockReverter, BlockReverterEthConfig, NodeRole,
 };
 use zksync_config::{
     configs::{
-        wallets::Wallets, BasicWitnessInputProducerConfig, DatabaseSecrets, L1Secrets,
-        ObservabilityConfig, ProtectiveReadsWriterConfig,
+        wallets::Wallets, BasicWitnessInputProducerConfig, DatabaseSecrets, GenesisConfigWrapper,
+        L1Secrets, ObservabilityConfig, ProtectiveReadsWriterConfig,
     },
     full_config_schema,
     sources::ConfigFilePaths,
-    ConfigRepository, ContractsConfig, DBConfig, EthConfig, GenesisConfigWrapper, ParseResultExt,
-    PostgresConfig,
+    ConfigRepository, ContractsConfig, DBConfig, EthConfig, ParseResultExt, PostgresConfig,
 };
+use zksync_contracts::getters_facet_contract;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStoreFactory;
-use zksync_types::{Address, L1BatchNumber};
+use zksync_types::{settlement::SettlementLayer, Address, L1BatchNumber, L2_BRIDGEHUB_ADDRESS};
 
 #[derive(Debug, Parser)]
 #[command(author = "Matter Labs", version, about = "Block revert utility", long_about = None)]
@@ -47,6 +47,10 @@ struct Cli {
     /// Path to yaml genesis config. If set, it will be used instead of env vars
     #[arg(long, global = true)]
     genesis_path: Option<PathBuf>,
+    /// Path to yaml config of the chain on top of gateway.
+    /// It should be skipped in case a chain is not settling on top of Gateway.
+    #[arg(long, global = true)]
+    gateway_chain_path: Option<PathBuf>,
 }
 
 #[derive(Debug, Subcommand)]
@@ -168,7 +172,62 @@ async fn main() -> anyhow::Result<()> {
             .map_err(|_| anyhow::anyhow!("`CHAIN_ETH_ZKSYNC_NETWORK_ID` env var is invalid"))?,
     };
 
-    let config = BlockReverterEthConfig::new(&eth_sender, &contracts, zksync_network_id)?;
+    let l1_client: Client<L1> = Client::http(l1_secrets.l1_rpc_url.context("no L1 RPC URL")?)
+        .context("Ethereum client")?
+        .build();
+
+    let sl_l1_contracts = load_settlement_layer_contracts(
+        &l1_client,
+        contracts.ecosystem_contracts.bridgehub_proxy_addr,
+        zksync_network_id,
+        None,
+    )
+    .await?
+    // If None has been returned, in case of pre v27 upgrade, use the contracts from configs
+    .unwrap_or_else(|| contracts.settlement_layer_specific_contracts());
+    let settlement_mode = get_settlement_layer_from_l1(
+        &l1_client,
+        sl_l1_contracts.chain_contracts_config.diamond_proxy_addr,
+        &getters_facet_contract(),
+    )
+    .await?;
+
+    let (client, contracts, chain_id) = match settlement_mode {
+        SettlementLayer::L1(chain_id) => (l1_client, sl_l1_contracts, chain_id),
+        SettlementLayer::Gateway(chain_id) => {
+            let gateway_client: Client<L1> = Client::http(
+                l1_secrets
+                    .gateway_rpc_url
+                    .context("Gateway url is not presented in config")?,
+            )
+            .context("Gateway client")?
+            .build();
+
+            let sl_contracts = load_settlement_layer_contracts(
+                &gateway_client,
+                L2_BRIDGEHUB_ADDRESS,
+                zksync_network_id,
+                None,
+            )
+            .await?
+            .context("No chain has been deployed")?;
+            (gateway_client, sl_contracts, chain_id)
+        }
+    };
+
+    let sl_diamond_proxy = contracts.chain_contracts_config.diamond_proxy_addr;
+    let sl_validator_timelock = contracts
+        .ecosystem_contracts
+        .validator_timelock_addr
+        .expect("Should be presented");
+
+    let config = BlockReverterEthConfig::new(
+        &eth_sender,
+        sl_diamond_proxy,
+        sl_validator_timelock,
+        zksync_network_id,
+        settlement_mode,
+    )?;
 
     let connection_pool = ConnectionPool::<Core>::builder(
         database_secrets.master_url()?,
@@ -184,15 +243,8 @@ async fn main() -> anyhow::Result<()> {
             json,
             operator_address,
         } => {
-            let eth_client_url = l1_secrets
-                .l1_rpc_url
-                .context("L1 RPC URL is not specified")?;
-            let eth_client = Client::<L1>::http(eth_client_url)
-                .context("Ethereum client")?
-                .build();
-
             let suggested_values = block_reverter
-                .suggested_values(&eth_client, &config, operator_address)
+                .suggested_values(&client, &config, operator_address)
                 .await?;
             if json {
                 println!("{}", serde_json::to_string(&suggested_values)?);
@@ -205,12 +257,6 @@ async fn main() -> anyhow::Result<()> {
             priority_fee_per_gas,
             nonce,
         } => {
-            let eth_client_url = l1_secrets
-                .l1_rpc_url
-                .context("L1 RPC URL is not specified")?;
-            let eth_client = Client::http(eth_client_url)
-                .context("Ethereum client")?
-                .build();
             let reverter_private_key = if let Some(wallets_config) = wallets_config {
                 wallets_config
                     .operator
@@ -220,28 +266,25 @@ async fn main() -> anyhow::Result<()> {
             } else {
                 #[allow(deprecated)]
                 eth_sender
-                    .sender
+                    .get_eth_sender_config_for_sender_layer_data_layer()
+                    .context("eth_sender_config")?
                     .private_key()
                     .context("eth_sender_config.private_key")?
                     .context("eth_sender_config.private_key is not set")?
             };
 
             let priority_fee_per_gas = priority_fee_per_gas.unwrap_or(default_priority_fee_per_gas);
-            let l1_chain_id = eth_client
-                .fetch_chain_id()
-                .await
-                .context("cannot fetch Ethereum chain ID")?;
-            let eth_client = PKSigningClient::new_raw(
+            let sl_client = PKSigningClient::new_raw(
                 reverter_private_key,
-                contracts.l1.diamond_proxy_addr,
+                sl_diamond_proxy,
                 priority_fee_per_gas,
-                l1_chain_id,
-                Box::new(eth_client),
+                chain_id,
+                Box::new(client),
             );
 
             block_reverter
                 .send_ethereum_revert_transaction(
-                    &eth_client,
+                    &sl_client,
                     &config,
                     L1BatchNumber(l1_batch_number),
                     nonce,

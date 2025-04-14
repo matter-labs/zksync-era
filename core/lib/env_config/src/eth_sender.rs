@@ -8,11 +8,11 @@ use crate::{envy_load, FromEnv};
 
 impl FromEnv for EthConfig {
     fn from_env() -> anyhow::Result<Self> {
-        Ok(Self {
-            sender: SenderConfig::from_env().ok(),
-            gas_adjuster: GasAdjusterConfig::from_env().ok(),
-            watcher: EthWatchConfig::from_env().ok(),
-        })
+        Ok(Self::new(
+            SenderConfig::from_env().ok(),
+            GasAdjusterConfig::from_env().ok(),
+            EthWatchConfig::from_env().ok(),
+        ))
     }
 }
 
@@ -23,6 +23,9 @@ impl FromEnv for L1Secrets {
                 .context("ETH_CLIENT_WEB3_URL")?
                 .parse()
                 .context("ETH_CLIENT_WEB3_URL")?,
+            gateway_rpc_url: std::env::var("ETH_CLIENT_GATEWAY_WEB3_URL")
+                .ok()
+                .map(|url| url.parse().expect("ETH_CLIENT_GATEWAY_WEB3_URL")),
         })
     }
 }
@@ -51,15 +54,13 @@ mod tests {
 
     fn expected_config() -> (EthConfig, L1Secrets) {
         (
-            EthConfig {
-                sender: Some(SenderConfig {
-                    aggregated_proof_sizes: vec![1, 5],
+            EthConfig::new(
+                Some(SenderConfig {
                     aggregated_block_commit_deadline: 30,
                     aggregated_block_prove_deadline: 3_000,
                     aggregated_block_execute_deadline: 4_000,
                     max_aggregated_tx_gas: 4_000_000,
                     max_eth_tx_data_size: 120_000,
-
                     timestamp_criteria_max_allowed_lag: 30,
                     max_aggregated_blocks_to_commit: 3,
                     max_aggregated_blocks_to_execute: 4,
@@ -74,8 +75,9 @@ mod tests {
                     tx_aggregation_only_prove_and_execute: false,
                     tx_aggregation_paused: false,
                     time_in_mempool_in_l1_blocks_cap: 2000,
+                    is_verifier_pre_fflonk: true,
                 }),
-                gas_adjuster: Some(GasAdjusterConfig {
+                Some(GasAdjusterConfig {
                     default_priority_fee_per_gas: 20000000000,
                     max_base_fee_samples: 10000,
                     pricing_formula_parameter_a: 1.5,
@@ -88,15 +90,15 @@ mod tests {
                     num_samples_for_blob_base_fee_estimate: 10,
                     internal_pubdata_pricing_multiplier: 1.0,
                     max_blob_base_fee: None,
-                    settlement_mode: Default::default(),
                 }),
-                watcher: Some(EthWatchConfig {
+                Some(EthWatchConfig {
                     confirmations_for_eth_event: Some(0),
                     eth_node_poll_interval: 300,
                 }),
-            },
+            ),
             L1Secrets {
                 l1_rpc_url: "http://127.0.0.1:8545".to_string().parse().unwrap(),
+                gateway_rpc_url: Some("http://127.0.0.1:8547".to_string().parse().unwrap()),
             },
         )
     }
@@ -124,7 +126,6 @@ mod tests {
             ETH_SENDER_GAS_ADJUSTER_MAX_BLOB_BASE_FEE_SAMPLES="10"
             ETH_SENDER_GAS_ADJUSTER_INTERNAL_PUBDATA_PRICING_MULTIPLIER="1.0"
             ETH_SENDER_WAIT_FOR_PROOFS="false"
-            ETH_SENDER_SENDER_AGGREGATED_PROOF_SIZES="1,5"
             ETH_SENDER_SENDER_MAX_AGGREGATED_BLOCKS_TO_COMMIT="3"
             ETH_SENDER_SENDER_MAX_AGGREGATED_BLOCKS_TO_EXECUTE="4"
             ETH_SENDER_SENDER_AGGREGATED_BLOCK_COMMIT_DEADLINE="30"
@@ -137,9 +138,11 @@ mod tests {
             ETH_SENDER_SENDER_L1_BATCH_MIN_AGE_BEFORE_EXECUTE_SECONDS="1000"
             ETH_SENDER_SENDER_MAX_ACCEPTABLE_PRIORITY_FEE_IN_GWEI="100000000000"
             ETH_SENDER_SENDER_PUBDATA_SENDING_MODE="Calldata"
+            ETH_SENDER_SENDER_is_verifier_pre_fflonk="true"
             ETH_WATCH_CONFIRMATIONS_FOR_ETH_EVENT="0"
             ETH_WATCH_ETH_NODE_POLL_INTERVAL="300"
             ETH_CLIENT_WEB3_URL="http://127.0.0.1:8545"
+            ETH_CLIENT_GATEWAY_WEB3_URL="http://127.0.0.1:8547"
 
         "#;
         lock.set_env(config);
@@ -147,7 +150,7 @@ mod tests {
         let actual = EthConfig::from_env().unwrap();
         assert_eq!(actual, expected_config().0);
         let private_key = actual
-            .sender
+            .get_eth_sender_config_for_sender_layer_data_layer()
             .unwrap()
             .private_key()
             .unwrap()

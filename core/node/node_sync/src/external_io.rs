@@ -28,6 +28,7 @@ use super::{
 };
 
 /// ExternalIO is the IO abstraction for the state keeper that is used in the external node.
+///
 /// It receives a sequence of actions from the fetcher via the action queue and propagates it
 /// into the state keeper.
 ///
@@ -113,7 +114,7 @@ impl ExternalIO {
             .connection_tagged("sync_layer")
             .await?
             .protocol_versions_dal()
-            .get_base_system_contract_hashes_by_version_id(protocol_version as u16)
+            .get_base_system_contract_hashes_by_version_id(protocol_version)
             .await?;
         if base_system_contract_hashes.is_some() {
             return Ok(());
@@ -358,6 +359,8 @@ impl StateKeeperIO for ExternalIO {
         }
     }
 
+    fn update_next_l2_block_timestamp(&mut self, _block_timestamp: &mut u64) {}
+
     async fn wait_for_next_tx(
         &mut self,
         max_wait: Duration,
@@ -410,7 +413,7 @@ impl StateKeeperIO for ExternalIO {
             .connection_tagged("sync_layer")
             .await?
             .protocol_versions_dal()
-            .get_base_system_contract_hashes_by_version_id(protocol_version as u16)
+            .get_base_system_contract_hashes_by_version_id(protocol_version)
             .await?
             .with_context(|| {
                 format!("Cannot load base system contracts' hashes for {protocol_version:?}. They should already be present")

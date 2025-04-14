@@ -1,8 +1,8 @@
 use anyhow::Context;
 use clap::Subcommand;
-use common::{docker, logger};
-use config::{EcosystemConfig, DOCKER_COMPOSE_FILE};
 use xshell::Shell;
+use zkstack_cli_common::{docker, logger};
+use zkstack_cli_config::{EcosystemConfig, DOCKER_COMPOSE_FILE};
 
 use crate::commands::dev::messages::{
     MSG_CONTRACTS_CLEANING, MSG_CONTRACTS_CLEANING_FINISHED, MSG_DOCKER_COMPOSE_DOWN,
@@ -38,7 +38,7 @@ pub fn containers(shell: &Shell) -> anyhow::Result<()> {
 }
 
 pub fn contracts(shell: &Shell, ecosystem_config: &EcosystemConfig) -> anyhow::Result<()> {
-    let path_to_foundry = ecosystem_config.path_to_foundry();
+    let path_to_foundry = ecosystem_config.path_to_l1_foundry();
     let contracts_path = ecosystem_config.link_to_code.join("contracts");
     logger::info(MSG_CONTRACTS_CLEANING);
     shell
@@ -57,8 +57,20 @@ pub fn contracts(shell: &Shell, ecosystem_config: &EcosystemConfig) -> anyhow::R
         .remove_path(path_to_foundry.join("out"))
         .context("out")?;
     shell
+        .remove_path(path_to_foundry.join("zkout"))
+        .context("zkout")?;
+    shell
         .remove_path(path_to_foundry.join("typechain"))
         .context("typechain")?;
+    shell
+        .remove_path(contracts_path.join("da-contracts/cache-forge"))
+        .context("l2-contracts/cache-forge")?;
+    shell
+        .remove_path(contracts_path.join("da-contracts/out"))
+        .context("l2-contracts/out")?;
+    shell
+        .remove_path(contracts_path.join("da-contracts/zkout"))
+        .context("l2-contracts/zkout")?;
     shell
         .remove_path(contracts_path.join("l2-contracts/cache-forge"))
         .context("l2-contracts/cache-forge")?;

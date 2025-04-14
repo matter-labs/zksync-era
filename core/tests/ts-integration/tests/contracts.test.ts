@@ -7,7 +7,7 @@
  */
 
 import { TestMaster } from '../src';
-import { deployContract, getTestContract, waitForNewL1Batch } from '../src/helpers';
+import { deployContract, getTestContract, scaledGasPrice, waitForNewL1Batch } from '../src/helpers';
 import { shouldOnlyTakeFee } from '../src/modifiers/balance-checker';
 
 import * as ethers from 'ethers';
@@ -50,9 +50,9 @@ describe('Smart contract behavior checks', () => {
         const feeCheck = await shouldOnlyTakeFee(alice);
 
         // Change the storage slot and ensure it actually changes.
-        expect(counterContract.get()).resolves.toEqual(0n);
+        await expect(counterContract.get()).resolves.toEqual(0n);
         await expect(counterContract.increment(42)).toBeAccepted([feeCheck]);
-        expect(counterContract.get()).resolves.toEqual(42n);
+        await expect(counterContract.get()).resolves.toEqual(42n);
     });
 
     test('Should deploy contract with a constructor', async () => {
@@ -99,22 +99,24 @@ describe('Smart contract behavior checks', () => {
             return;
         }
 
+        const gasPrice = await scaledGasPrice(alice);
         const infiniteLoop = await deployContract(alice, contracts.infinite, []);
 
         // Test eth_call first
         // TODO: provide a proper error for transactions that consume too much gas.
         // await expect(infiniteLoop.callStatic.infiniteLoop()).toBeRejected('cannot estimate transaction: out of gas');
         // ...and then an actual transaction
-        await expect(infiniteLoop.infiniteLoop({ gasLimit: 1_000_000 })).toBeReverted([]);
+        await expect(infiniteLoop.infiniteLoop({ gasLimit: 1_000_000, gasPrice })).toBeReverted([]);
     });
 
     test('Should test reverting storage logs', async () => {
         // In this test we check that if transaction reverts, it rolls back the storage slots.
         const prevValue = await counterContract.get();
+        const gasPrice = await scaledGasPrice(alice);
 
-        // We manually provide a constant, since otherwise the exception would be thrown
-        // while estimating gas
-        await expect(counterContract.incrementWithRevert(5, true, { gasLimit: 5000000 })).toBeReverted([]);
+        // We manually provide a gas limit and gas price, since otherwise the exception would be thrown
+        // while querying zks_estimateFee.
+        await expect(counterContract.incrementWithRevert(5, true, { gasLimit: 5000000, gasPrice })).toBeReverted();
 
         // The tx has been reverted, so the value Should not have been changed:
         const newValue = await counterContract.get();
@@ -197,7 +199,7 @@ describe('Smart contract behavior checks', () => {
 
         const oldValue = await ethersBasedContract.get();
         await expect(ethersBasedContract.increment(1)).toBeAccepted([]);
-        expect(ethersBasedContract.get()).resolves.toEqual(oldValue + 1n);
+        await expect(ethersBasedContract.get()).resolves.toEqual(oldValue + 1n);
     });
 
     test('Should check that eth_call works with custom block tags', async () => {

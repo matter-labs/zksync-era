@@ -10,7 +10,7 @@ use zksync_config::configs::{
     consensus::{AttesterSecretKey, ConsensusSecrets, NodeSecretKey, ValidatorSecretKey},
     da_client::{avail::AvailSecrets, celestia::CelestiaSecrets, eigen::EigenSecrets},
     secrets::{DataAvailabilitySecrets, Secrets},
-    DatabaseSecrets, L1Secrets,
+    ContractVerifierSecrets, DatabaseSecrets, L1Secrets,
 };
 use zksync_protobuf::{required, ProtoRepr};
 
@@ -28,6 +28,7 @@ impl ProtoRepr for proto::Secrets {
             database: read_optional_repr(&self.database),
             l1: read_optional_repr(&self.l1),
             data_availability: read_optional_repr(&self.da),
+            contract_verifier: read_optional_repr(&self.contract_verifier),
         })
     }
 
@@ -37,6 +38,7 @@ impl ProtoRepr for proto::Secrets {
             l1: this.l1.as_ref().map(ProtoRepr::build),
             consensus: this.consensus.as_ref().map(ProtoRepr::build),
             da: this.data_availability.as_ref().map(ProtoRepr::build),
+            contract_verifier: this.contract_verifier.as_ref().map(ProtoRepr::build),
         }
     }
 }
@@ -86,12 +88,22 @@ impl ProtoRepr for proto::L1Secrets {
     fn read(&self) -> anyhow::Result<Self::Type> {
         Ok(Self::Type {
             l1_rpc_url: SensitiveUrl::from_str(required(&self.l1_rpc_url).context("l1_rpc_url")?)?,
+            gateway_rpc_url: self
+                .gateway_rpc_url
+                .clone()
+                .map(|url| SensitiveUrl::from_str(&url))
+                .transpose()
+                .context("gateway_rpc_url")?,
         })
     }
 
     fn build(this: &Self::Type) -> Self {
         Self {
             l1_rpc_url: Some(this.l1_rpc_url.expose_str().to_string()),
+            gateway_rpc_url: this
+                .gateway_rpc_url
+                .as_ref()
+                .map(|url| url.expose_url().to_string()),
         }
     }
 }
@@ -104,20 +116,14 @@ impl ProtoRepr for proto::DataAvailabilitySecrets {
 
         let client = match secrets {
             DaSecrets::Avail(avail_secret) => {
-                let seed_phrase = match avail_secret.seed_phrase.as_ref() {
-                    Some(seed) => match SeedPhrase::from_str(seed) {
-                        Ok(seed) => Some(seed),
-                        Err(_) => None,
-                    },
-                    None => None,
-                };
-                let gas_relay_api_key = match avail_secret.gas_relay_api_key.as_ref() {
-                    Some(api_key) => match APIKey::from_str(api_key) {
-                        Ok(api_key) => Some(api_key),
-                        Err(_) => None,
-                    },
-                    None => None,
-                };
+                let seed_phrase = avail_secret
+                    .seed_phrase
+                    .as_ref()
+                    .map(|s| SeedPhrase::from(s.as_str()));
+                let gas_relay_api_key = avail_secret
+                    .gas_relay_api_key
+                    .as_ref()
+                    .map(|s| APIKey::from(s.as_str()));
                 if seed_phrase.is_none() && gas_relay_api_key.is_none() {
                     return Err(anyhow::anyhow!(
                         "At least one of seed_phrase or gas_relay_api_key must be provided"
@@ -129,14 +135,18 @@ impl ProtoRepr for proto::DataAvailabilitySecrets {
                 })
             }
             DaSecrets::Celestia(celestia) => DataAvailabilitySecrets::Celestia(CelestiaSecrets {
-                private_key: PrivateKey::from_str(
-                    required(&celestia.private_key).context("private_key")?,
-                )?,
+                private_key: PrivateKey::from(
+                    required(&celestia.private_key)
+                        .context("private_key")?
+                        .as_str(),
+                ),
             }),
             DaSecrets::Eigen(eigen) => DataAvailabilitySecrets::Eigen(EigenSecrets {
-                private_key: PrivateKey::from_str(
-                    required(&eigen.private_key).context("private_key")?,
-                )?,
+                private_key: PrivateKey::from(
+                    required(&eigen.private_key)
+                        .context("private_key")?
+                        .as_str(),
+                ),
             }),
         };
 
@@ -219,12 +229,45 @@ impl ProtoRepr for proto::ConsensusSecrets {
             validator_key: this
                 .validator_key
                 .as_ref()
-                .map(|x| x.0.expose_secret().clone()),
+                .map(|x| x.0.expose_secret().to_string()),
             attester_key: this
                 .attester_key
                 .as_ref()
-                .map(|x| x.0.expose_secret().clone()),
-            node_key: this.node_key.as_ref().map(|x| x.0.expose_secret().clone()),
+                .map(|x| x.0.expose_secret().to_string()),
+            node_key: this
+                .node_key
+                .as_ref()
+                .map(|x| x.0.expose_secret().to_string()),
         }
+    }
+}
+
+impl ProtoRepr for proto::ContractVerifierSecrets {
+    type Type = ContractVerifierSecrets;
+
+    fn read(&self) -> anyhow::Result<Self::Type> {
+        Ok(ContractVerifierSecrets {
+            etherscan_api_key: self
+                .etherscan_api_key
+                .as_ref()
+                .map(|s| APIKey::from(s.as_str())),
+        })
+    }
+
+    fn build(this: &Self::Type) -> Self {
+        let etherscan_api_key = if this.etherscan_api_key.is_some() {
+            Some(
+                this.etherscan_api_key
+                    .clone()
+                    .unwrap()
+                    .0
+                    .expose_secret()
+                    .to_string(),
+            )
+        } else {
+            None
+        };
+
+        Self { etherscan_api_key }
     }
 }

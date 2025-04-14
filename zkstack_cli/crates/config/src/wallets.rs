@@ -1,6 +1,6 @@
-use common::wallets::Wallet;
 use rand::{CryptoRng, Rng};
 use serde::{Deserialize, Serialize};
+use zkstack_cli_common::wallets::Wallet;
 
 use crate::{
     consts::WALLETS_FILE,

@@ -193,7 +193,10 @@ export class NodeProcess {
         return new NodeProcess(childProcess, logs);
     }
 
-    private constructor(private childProcess: ChildProcess, readonly logs: FileHandle) {}
+    private constructor(
+        private childProcess: ChildProcess,
+        readonly logs: FileHandle
+    ) {}
 
     exitCode() {
         return this.childProcess.exitCode;
@@ -243,7 +246,7 @@ export class FundedWallet {
         return new FundedWallet(wallet);
     }
 
-    private constructor(private readonly wallet: zksync.Wallet) {}
+    private constructor(public readonly wallet: zksync.Wallet) {}
 
     /** Ensure that this wallet is funded on L2, depositing funds from L1 if necessary. */
     async ensureIsFunded() {

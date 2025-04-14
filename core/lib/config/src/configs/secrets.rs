@@ -1,9 +1,9 @@
 use anyhow::Context;
 use smart_config::{
-    de::{Optional, Serde},
+    de::{FromSecretString, Optional, Serde},
     DescribeConfig, DeserializeConfig,
 };
-use zksync_basic_types::url::SensitiveUrl;
+use zksync_basic_types::{secrets::APIKey, url::SensitiveUrl};
 
 use crate::configs::{
     consensus::ConsensusSecrets,
@@ -30,6 +30,9 @@ pub struct L1Secrets {
     /// RPC URL for L1.
     #[config(alias = "web3_url", secret, with = Optional(Serde![str]))]
     pub l1_rpc_url: Option<SensitiveUrl>,
+    /// RPC URL for the gateway layer.
+    #[config(secret, with = Optional(Serde![str]))]
+    pub gateway_rpc_url: Option<SensitiveUrl>,
 }
 
 #[derive(Debug, Clone, DescribeConfig, DeserializeConfig)]
@@ -38,6 +41,15 @@ pub enum DataAvailabilitySecrets {
     Avail(AvailSecrets),
     Celestia(CelestiaSecrets),
     Eigen(EigenSecrets),
+}
+
+#[derive(Debug, Clone, DescribeConfig, DeserializeConfig)]
+#[config(derive(Default))]
+pub struct ContractVerifierSecrets {
+    /// Etherscan API key that is used for contract verification in Etherscan.
+    /// If not set, the Etherscan verification is disabled.
+    #[config(with = Optional(FromSecretString))]
+    pub etherscan_api_key: Option<APIKey>,
 }
 
 #[derive(Debug, Clone, DescribeConfig, DeserializeConfig)]
@@ -50,6 +62,8 @@ pub struct Secrets {
     pub l1: L1Secrets,
     #[config(rename = "da", nest)]
     pub data_availability: Option<DataAvailabilitySecrets>,
+    #[config(nest)]
+    pub contract_verifier: ContractVerifierSecrets,
 }
 
 impl DatabaseSecrets {

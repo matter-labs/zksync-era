@@ -1,5 +1,3 @@
-use std::{fmt, ops};
-
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::{commitment::PubdataParams, Address, Bloom, BloomInput, H256, U256};
 use zksync_contracts::BaseSystemContractsHashes;
@@ -29,12 +27,24 @@ impl DeployedContract {
     }
 }
 
-/// Holder for l1 batches data, used in eth sender metrics
+/// Holder for l1 batches data.
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct L1BatchStatistics {
     pub number: L1BatchNumber,
     pub timestamp: u64,
     pub l2_tx_count: u32,
     pub l1_tx_count: u32,
+}
+
+impl From<L1BatchHeader> for L1BatchStatistics {
+    fn from(header: L1BatchHeader) -> Self {
+        Self {
+            number: header.number,
+            timestamp: header.timestamp,
+            l1_tx_count: header.l1_tx_count.into(),
+            l2_tx_count: header.l2_tx_count.into(),
+        }
+    }
 }
 
 /// Holder for the block metadata that is not available from transactions themselves.
@@ -65,23 +75,35 @@ pub struct L1BatchHeader {
     pub protocol_version: Option<ProtocolVersionId>,
     pub pubdata_input: Option<Vec<u8>>,
     pub fee_address: Address,
+    pub batch_fee_input: BatchFeeInput,
 }
 
 impl L1BatchHeader {
-    pub fn to_unsealed_header(&self, fee_input: BatchFeeInput) -> UnsealedL1BatchHeader {
+    pub fn to_unsealed_header(&self) -> UnsealedL1BatchHeader {
         UnsealedL1BatchHeader {
             number: self.number,
             timestamp: self.timestamp,
             protocol_version: self.protocol_version,
             fee_address: self.fee_address,
-            fee_input,
+            fee_input: self.batch_fee_input,
         }
     }
 }
 
+/// Holder for the metadata that is relevant for unsealed batches.
 #[derive(Debug, Clone, PartialEq)]
 pub struct UnsealedL1BatchHeader {
     pub number: L1BatchNumber,
+    pub timestamp: u64,
+    pub protocol_version: Option<ProtocolVersionId>,
+    pub fee_address: Address,
+    pub fee_input: BatchFeeInput,
+}
+
+/// Holder for the metadata that is relevant for both sealed and unsealed batches.
+pub struct CommonL1BatchHeader {
+    pub number: L1BatchNumber,
+    pub is_sealed: bool,
     pub timestamp: u64,
     pub protocol_version: Option<ProtocolVersionId>,
     pub fee_address: Address,
@@ -155,6 +177,7 @@ impl L1BatchHeader {
             protocol_version: Some(protocol_version),
             pubdata_input: Some(vec![]),
             fee_address: Default::default(),
+            batch_fee_input: BatchFeeInput::pubdata_independent(0, 0, 0),
         }
     }
 
@@ -174,51 +197,6 @@ impl L1BatchHeader {
 
     pub fn tx_count(&self) -> usize {
         (self.l1_tx_count + self.l2_tx_count) as usize
-    }
-}
-
-#[derive(Clone, Copy, Eq, PartialEq, Default)]
-pub struct BlockGasCount {
-    pub commit: u32,
-    pub prove: u32,
-    pub execute: u32,
-}
-
-impl fmt::Debug for BlockGasCount {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            formatter,
-            "c:{}/p:{}/e:{}",
-            self.commit, self.prove, self.execute
-        )
-    }
-}
-
-impl BlockGasCount {
-    pub fn any_field_greater_than(&self, bound: u32) -> bool {
-        self.commit > bound || self.prove > bound || self.execute > bound
-    }
-}
-
-impl ops::Add for BlockGasCount {
-    type Output = Self;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        Self {
-            commit: self.commit + rhs.commit,
-            prove: self.prove + rhs.prove,
-            execute: self.execute + rhs.execute,
-        }
-    }
-}
-
-impl ops::AddAssign for BlockGasCount {
-    fn add_assign(&mut self, other: Self) {
-        *self = Self {
-            commit: self.commit + other.commit,
-            prove: self.prove + other.prove,
-            execute: self.execute + other.execute,
-        };
     }
 }
 

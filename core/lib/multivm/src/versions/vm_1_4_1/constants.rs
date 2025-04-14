@@ -2,7 +2,9 @@ use zk_evm_1_4_1::aux_structures::MemoryPage;
 pub use zk_evm_1_4_1::zkevm_opcode_defs::system_params::{
     ERGS_PER_CIRCUIT, INITIAL_STORAGE_WRITE_PUBDATA_BYTES, MAX_PUBDATA_PER_BLOCK,
 };
-use zksync_system_constants::{MAX_L2_TX_GAS_LIMIT, MAX_NEW_FACTORY_DEPS};
+use zksync_system_constants::MAX_L2_TX_GAS_LIMIT;
+
+pub(crate) const MAX_NEW_FACTORY_DEPS: usize = 32;
 
 use crate::vm_1_4_1::old_vm::utils::heap_page_from_base;
 
@@ -110,6 +112,7 @@ const INITIAL_BASE_PAGE: u32 = 8;
 pub const BOOTLOADER_HEAP_PAGE: u32 = heap_page_from_base(MemoryPage(INITIAL_BASE_PAGE)).0;
 
 /// VM Hooks are used for communication between bootloader and tracers.
+///
 /// The 'type' / 'opcode' is put into VM_HOOK_POSITION slot,
 /// and VM_HOOKS_PARAMS_COUNT parameters (each 32 bytes) are put in the slots before.
 /// So the layout looks like this:

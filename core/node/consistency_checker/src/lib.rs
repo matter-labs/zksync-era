@@ -1,26 +1,29 @@
-use std::{borrow::Cow, collections::HashSet, fmt, time::Duration};
+use std::{borrow::Cow, cmp::Ordering, collections::HashSet, fmt, time::Duration};
 
 use anyhow::Context as _;
 use serde::Serialize;
 use tokio::sync::watch;
-use zksync_contracts::PRE_BOOJUM_COMMIT_FUNCTION;
-use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_eth_client::{
-    clients::{DynClient, L1},
-    CallFunctionArgs, ContractCallError, EnrichedClientError, EthInterface,
+use zksync_contracts::{
+    POST_BOOJUM_COMMIT_FUNCTION, POST_SHARED_BRIDGE_COMMIT_FUNCTION, PRE_BOOJUM_COMMIT_FUNCTION,
 };
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
+use zksync_eth_client::{CallFunctionArgs, ContractCallError, EnrichedClientError, EthInterface};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_l1_contract_interface::{
-    i_executor::{commit::kzg::ZK_SYNC_BYTES_PER_BLOB, structures::CommitBatchInfo},
+    i_executor::structures::{
+        CommitBatchInfo, StoredBatchInfo, PUBDATA_SOURCE_BLOBS, PUBDATA_SOURCE_CALLDATA,
+        PUBDATA_SOURCE_CUSTOM_PRE_GATEWAY, SUPPORTED_ENCODING_VERSION,
+    },
     Tokenizable,
 };
 use zksync_shared_metrics::{CheckerComponent, EN_METRICS};
 use zksync_types::{
     commitment::{L1BatchCommitmentMode, L1BatchWithMetadata},
     ethabi,
-    ethabi::Token,
+    ethabi::{ParamType, Token},
     pubdata_da::PubdataSendingMode,
-    Address, L1BatchNumber, ProtocolVersionId, H256, U256,
+    settlement::SettlementLayer,
+    Address, L1BatchNumber, ProtocolVersionId, SLChainId, H256, U256,
 };
 
 #[cfg(test)]
@@ -33,10 +36,10 @@ enum CheckError {
     #[error("error calling L1 contract")]
     ContractCall(#[from] ContractCallError),
     /// Error that is caused by the main node providing incorrect information etc.
-    #[error("failed validating commit transaction")]
+    #[error("failed validating commit transaction: {0}")]
     Validation(anyhow::Error),
     /// Error that is caused by violating invariants internal to *this* node (e.g., not having expected data in Postgres).
-    #[error("internal error")]
+    #[error("internal error: {0}")]
     Internal(anyhow::Error),
 }
 
@@ -127,22 +130,12 @@ impl HandleConsistencyCheckerEvent for ConsistencyCheckerHealthUpdater {
     }
 }
 
-/// Consistency checker behavior when L1 commit data divergence is detected.
-// This is a temporary workaround for a bug that sometimes leads to incorrect L1 batch data returned by the server
-// (and thus persisted by external nodes). Eventually, we want to go back to bailing on L1 data mismatch;
-// for now, it's only enabled for the unit tests.
-#[derive(Debug)]
-enum L1DataMismatchBehavior {
-    #[cfg(test)]
-    Bail,
-    Log,
-}
-
 /// L1 commit data loaded from Postgres.
 #[derive(Debug)]
 struct LocalL1BatchCommitData {
     l1_batch: L1BatchWithMetadata,
     commit_tx_hash: H256,
+    commit_chain_id: Option<SLChainId>,
     commitment_mode: L1BatchCommitmentMode,
 }
 
@@ -178,10 +171,16 @@ impl LocalL1BatchCommitData {
             return Ok(None);
         };
 
+        let commit_chain_id = storage
+            .eth_sender_dal()
+            .get_batch_commit_chain_id(batch_number)
+            .await?;
+
         let this = Self {
             l1_batch,
             commit_tx_hash,
             commitment_mode,
+            commit_chain_id,
         };
         let metadata = &this.l1_batch.metadata;
 
@@ -213,30 +212,27 @@ impl LocalL1BatchCommitData {
             .map_or(true, |version| version.is_pre_shared_bridge())
     }
 
+    fn is_pre_gateway(&self) -> bool {
+        self.l1_batch
+            .header
+            .protocol_version
+            .map_or(true, |version| version.is_pre_gateway())
+    }
+
     /// All returned errors are validation errors.
-    fn verify_commitment(&self, reference: &ethabi::Token) -> anyhow::Result<()> {
+    fn verify_commitment(&self, reference: &ethabi::Token, is_gateway: bool) -> anyhow::Result<()> {
         let protocol_version = self
             .l1_batch
             .header
             .protocol_version
             .unwrap_or_else(ProtocolVersionId::last_potentially_undefined);
-        let da = detect_da(protocol_version, reference)
-            .context("cannot detect DA source from reference commitment token")?;
-
-        // For `PubdataDA::Calldata`, it's required that the pubdata fits into a single blob.
-        if matches!(da, PubdataSendingMode::Calldata) {
-            let pubdata_len = self
-                .l1_batch
-                .header
-                .pubdata_input
-                .as_ref()
-                .map_or_else(|| self.l1_batch.construct_pubdata().len(), Vec::len);
-            anyhow::ensure!(
-                pubdata_len <= ZK_SYNC_BYTES_PER_BLOB,
-                "pubdata size is too large when using calldata DA source: expected <={ZK_SYNC_BYTES_PER_BLOB} bytes, \
-                 got {pubdata_len} bytes"
-            );
-        }
+        let da = detect_da(
+            protocol_version,
+            reference,
+            self.commitment_mode,
+            is_gateway,
+        )
+        .context("cannot detect DA source from reference commitment token")?;
 
         let local_token =
             CommitBatchInfo::new(self.commitment_mode, &self.l1_batch, da).into_token();
@@ -258,12 +254,9 @@ impl LocalL1BatchCommitData {
 pub fn detect_da(
     protocol_version: ProtocolVersionId,
     reference: &Token,
+    commitment_mode: L1BatchCommitmentMode,
+    is_gateway: bool,
 ) -> Result<PubdataSendingMode, ethabi::Error> {
-    /// These are used by the L1 Contracts to indicate what DA layer is used for pubdata
-    const PUBDATA_SOURCE_CALLDATA: u8 = 0;
-    const PUBDATA_SOURCE_BLOBS: u8 = 1;
-    const PUBDATA_SOURCE_CUSTOM: u8 = 2;
-
     fn parse_error(message: impl Into<Cow<'static, str>>) -> ethabi::Error {
         ethabi::Error::Other(message.into())
     }
@@ -290,30 +283,85 @@ pub fn detect_da(
             "last reference token has unexpected shape; expected bytes, got {last_reference_token:?}"
         ))),
     };
-    match last_reference_token.first() {
-        Some(&byte) if byte == PUBDATA_SOURCE_CALLDATA => Ok(PubdataSendingMode::Calldata),
-        Some(&byte) if byte == PUBDATA_SOURCE_BLOBS => Ok(PubdataSendingMode::Blobs),
-        Some(&byte) if byte == PUBDATA_SOURCE_CUSTOM => Ok(PubdataSendingMode::Custom),
-        Some(&byte) => Err(parse_error(format!(
-            "unexpected first byte of the last reference token; expected one of [{PUBDATA_SOURCE_CALLDATA}, {PUBDATA_SOURCE_BLOBS}], \
-                got {byte}"
-        ))),
-        None => Err(parse_error("last reference token is empty")),
+
+    if protocol_version.is_pre_gateway() {
+        return match last_reference_token.first() {
+            Some(&byte) if byte == PUBDATA_SOURCE_CALLDATA => Ok(PubdataSendingMode::Calldata),
+            Some(&byte) if byte == PUBDATA_SOURCE_BLOBS => Ok(PubdataSendingMode::Blobs),
+            Some(&byte) if byte == PUBDATA_SOURCE_CUSTOM_PRE_GATEWAY => Ok(PubdataSendingMode::Custom),
+            Some(&byte) => Err(parse_error(format!(
+                "unexpected first byte of the last reference token; expected one of [{PUBDATA_SOURCE_CALLDATA}, {PUBDATA_SOURCE_BLOBS}, {PUBDATA_SOURCE_CUSTOM_PRE_GATEWAY}], \
+                    got {byte}"
+            ))),
+            None => Err(parse_error("last reference token is empty")),
+        };
     }
+
+    match commitment_mode {
+        L1BatchCommitmentMode::Validium => {
+            // `Calldata`, `RelayedL2Calldata` and `Blobs` are encoded exactly the same way,
+            // token is just a `state_diff_hash` for them.
+            // For `Custom` it's `state_diff_hash` followed by `da_inclusion_data`. We can't distinguish
+            // between `Calldata`/`RelayedL2Calldata`/`Blobs`/`Custom` with empty `da_inclusion_data`,
+            // but it's ok to just return a `Calldata` given they are all encoded the same.
+            match last_reference_token.len().cmp(&32) {
+                Ordering::Equal => Ok(PubdataSendingMode::Calldata),
+                Ordering::Greater => Ok(PubdataSendingMode::Custom),
+                Ordering::Less => Err(parse_error(
+                    "unexpected last reference token len for post-gateway version validium",
+                )),
+            }
+        }
+        L1BatchCommitmentMode::Rollup => {
+            // For rollup the format of this token (`operatorDAInput`) is:
+            // 32 bytes - `state_diff_hash`
+            // 32 bytes - hash of the full pubdata
+            // 1 byte - number of blobs
+            // 32 bytes for each blob - hashes of blobs
+            // 1 byte - pubdata source
+            // X bytes - blob/pubdata commitments
+
+            let number_of_blobs = last_reference_token.get(64).copied().ok_or_else(|| {
+                parse_error(format!(
+                    "last reference token is too short; expected at least 65 bytes, got {}",
+                    last_reference_token.len()
+                ))
+            })? as usize;
+
+            match last_reference_token.get(65 + 32 * number_of_blobs) {
+                Some(&byte) if byte == PUBDATA_SOURCE_CALLDATA => if is_gateway {
+                    Ok(PubdataSendingMode::RelayedL2Calldata)
+                } else {
+                    Ok(PubdataSendingMode::Calldata)
+                },
+                Some(&byte) if byte == PUBDATA_SOURCE_BLOBS => Ok(PubdataSendingMode::Blobs),
+                Some(&byte) => Err(parse_error(format!(
+                    "unexpected first byte of the last reference token for rollup; expected one of [{PUBDATA_SOURCE_CALLDATA}, {PUBDATA_SOURCE_BLOBS}], \
+                got {byte}"
+                ))),
+                None => Err(parse_error(format!("last reference token is too short; expected at least 65 bytes, got {}", last_reference_token.len()))),
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct SLChainAccess {
+    client: Box<dyn EthInterface>,
+    chain_id: SLChainId,
+    diamond_proxy_addr: Option<Address>,
 }
 
 #[derive(Debug)]
 pub struct ConsistencyChecker {
     /// ABI of the ZKsync contract
     contract: ethabi::Contract,
-    /// Address of the ZKsync diamond proxy on L1
-    diamond_proxy_addr: Option<Address>,
     /// How many past batches to check when starting
     max_batches_to_recheck: u32,
     sleep_interval: Duration,
-    l1_client: Box<DynClient<L1>>,
+    chain_data: SLChainAccess,
+    settlement_layer: SettlementLayer,
     event_handler: Box<dyn HandleConsistencyCheckerEvent>,
-    l1_data_mismatch_behavior: L1DataMismatchBehavior,
     pool: ConnectionPool<Core>,
     health_check: ReactiveHealthCheck,
     commitment_mode: L1BatchCommitmentMode,
@@ -322,29 +370,36 @@ pub struct ConsistencyChecker {
 impl ConsistencyChecker {
     const DEFAULT_SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 
-    pub fn new(
-        l1_client: Box<DynClient<L1>>,
+    pub async fn new(
+        sl_client: Box<dyn EthInterface>,
         max_batches_to_recheck: u32,
         pool: ConnectionPool<Core>,
         commitment_mode: L1BatchCommitmentMode,
+        settlement_layer: SettlementLayer,
     ) -> anyhow::Result<Self> {
         let (health_check, health_updater) = ConsistencyCheckerHealthUpdater::new();
+        let sl_chain_id = sl_client.fetch_chain_id().await?;
+        let chain_data = SLChainAccess {
+            client: sl_client,
+            chain_id: sl_chain_id,
+            diamond_proxy_addr: None,
+        };
+
         Ok(Self {
             contract: zksync_contracts::hyperchain_contract(),
-            diamond_proxy_addr: None,
             max_batches_to_recheck,
             sleep_interval: Self::DEFAULT_SLEEP_INTERVAL,
-            l1_client: l1_client.for_component("consistency_checker"),
+            chain_data,
+            settlement_layer,
             event_handler: Box::new(health_updater),
-            l1_data_mismatch_behavior: L1DataMismatchBehavior::Log,
             pool,
             health_check,
             commitment_mode,
         })
     }
 
-    pub fn with_diamond_proxy_addr(mut self, address: Address) -> Self {
-        self.diamond_proxy_addr = Some(address);
+    pub fn with_sl_diamond_proxy_addr(mut self, address: Address) -> Self {
+        self.chain_data.diamond_proxy_addr = Some(address);
         self
     }
 
@@ -362,10 +417,16 @@ impl ConsistencyChecker {
         tracing::info!("Checking commit tx {commit_tx_hash} for L1 batch #{batch_number}");
 
         let commit_tx_status = self
-            .l1_client
+            .chain_data
+            .client
             .get_tx_status(commit_tx_hash)
             .await?
-            .with_context(|| format!("receipt for tx {commit_tx_hash:?} not found on L1"))
+            .with_context(|| {
+                format!(
+                    "receipt for tx {commit_tx_hash:?} not found on target chain with id {}",
+                    self.chain_data.chain_id
+                )
+            })
             .map_err(CheckError::Validation)?;
         if !commit_tx_status.success {
             let err = anyhow::anyhow!("main node gave us a failed commit tx {commit_tx_hash:?}");
@@ -374,13 +435,14 @@ impl ConsistencyChecker {
 
         // We can't get tx calldata from the DB because it can be fake.
         let commit_tx = self
-            .l1_client
+            .chain_data
+            .client
             .get_tx(commit_tx_hash)
             .await?
             .with_context(|| format!("commit transaction {commit_tx_hash:?} not found on L1"))
             .map_err(CheckError::Internal)?; // we've got a transaction receipt previously, thus an internal error
 
-        if let Some(diamond_proxy_addr) = self.diamond_proxy_addr {
+        if let Some(diamond_proxy_addr) = self.chain_data.diamond_proxy_addr {
             let event = self
                 .contract
                 .event("BlockCommit")
@@ -423,10 +485,9 @@ impl ConsistencyChecker {
         let commit_function = if local.is_pre_boojum() {
             &*PRE_BOOJUM_COMMIT_FUNCTION
         } else if local.is_pre_shared_bridge() {
-            self.contract
-                .function("commitBatches")
-                .context("L1 contract does not have `commitBatches` function")
-                .map_err(CheckError::Internal)?
+            &*POST_BOOJUM_COMMIT_FUNCTION
+        } else if local.is_pre_gateway() {
+            &*POST_SHARED_BRIDGE_COMMIT_FUNCTION
         } else {
             self.contract
                 .function("commitBatchesSharedBridge")
@@ -434,14 +495,20 @@ impl ConsistencyChecker {
                 .map_err(CheckError::Internal)?
         };
 
-        let commitment =
-            Self::extract_commit_data(&commit_tx.input.0, commit_function, batch_number)
-                .with_context(|| {
-                    format!("failed extracting commit data for transaction {commit_tx_hash:?}")
-                })
-                .map_err(CheckError::Validation)?;
+        let commitment = Self::extract_commit_data(
+            &commit_tx.input.0,
+            commit_function,
+            batch_number,
+            local.is_pre_gateway(),
+        )
+        .with_context(|| {
+            format!("failed extracting commit data for transaction {commit_tx_hash:?}")
+        })
+        .map_err(CheckError::Validation)?;
+
+        let is_gateway = self.settlement_layer.is_gateway();
         local
-            .verify_commitment(&commitment)
+            .verify_commitment(&commitment, is_gateway)
             .map_err(CheckError::Validation)
     }
 
@@ -450,6 +517,7 @@ impl ConsistencyChecker {
         commit_tx_input_data: &[u8],
         commit_function: &ethabi::Function,
         batch_number: L1BatchNumber,
+        pre_gateway: bool,
     ) -> anyhow::Result<ethabi::Token> {
         let expected_solidity_selector = commit_function.short_signature();
         let actual_solidity_selector = &commit_tx_input_data[..4];
@@ -461,11 +529,45 @@ impl ConsistencyChecker {
         let mut commit_input_tokens = commit_function
             .decode_input(&commit_tx_input_data[4..])
             .context("Failed decoding calldata for L1 commit function")?;
-        let mut commitments = commit_input_tokens
-            .pop()
-            .context("Unexpected signature for L1 commit function")?
-            .into_array()
-            .context("Unexpected signature for L1 commit function")?;
+        let mut commitments: Vec<Token>;
+        if pre_gateway {
+            commitments = commit_input_tokens
+                .pop()
+                .context("Unexpected signature for L1 commit function")?
+                .into_array()
+                .context("Unexpected signature for L1 commit function")?;
+        } else {
+            let commitments_popped = commit_input_tokens
+                .pop()
+                .context("Unexpected signature for L1 commit function: no tokens")?;
+            let commitment_bytes = match commitments_popped {
+                Token::Bytes(arr) => arr,
+                _ => anyhow::bail!(
+                    "Unexpected signature for L1 commit function: last token is not bytes"
+                ),
+            };
+            let (version, encoded_data) = commitment_bytes.split_at(1);
+            anyhow::ensure!(
+                version[0] == SUPPORTED_ENCODING_VERSION,
+                "Unexpected encoding version: {}",
+                version[0]
+            );
+            let decoded_data = ethabi::decode(
+                &[
+                    StoredBatchInfo::schema(),
+                    ParamType::Array(Box::new(CommitBatchInfo::post_gateway_schema())),
+                ],
+                encoded_data,
+            )
+            .context("Failed to decode commitData")?;
+            if let Some(Token::Array(batch_commitments)) = &decoded_data.get(1) {
+                // Now you have access to `stored_batch_info` and `l1_batches_to_commit`
+                // Process them as needed
+                commitments = batch_commitments.clone();
+            } else {
+                anyhow::bail!("Unexpected data format");
+            }
+        }
 
         // Commit transactions usually publish multiple commitments at once, so we need to find
         // the one that corresponds to the batch we're checking.
@@ -473,15 +575,15 @@ impl ConsistencyChecker {
             .first()
             .context("L1 batch commitment is empty")?;
         let ethabi::Token::Tuple(first_batch_commitment) = first_batch_commitment else {
-            anyhow::bail!("Unexpected signature for L1 commit function");
+            anyhow::bail!("Unexpected signature for L1 commit function 3");
         };
         let first_batch_number = first_batch_commitment
             .first()
-            .context("Unexpected signature for L1 commit function")?;
+            .context("Unexpected signature for L1 commit function 4")?;
         let first_batch_number = first_batch_number
             .clone()
             .into_uint()
-            .context("Unexpected signature for L1 commit function")?;
+            .context("Unexpected signature for L1 commit function  5")?;
         let first_batch_number = usize::try_from(first_batch_number)
             .map_err(|_| anyhow::anyhow!("Integer overflow for L1 batch number"))?;
         // ^ `TryFrom` has `&str` error here, so we can't use `.context()`.
@@ -511,24 +613,29 @@ impl ConsistencyChecker {
     }
 
     async fn sanity_check_diamond_proxy_addr(&self) -> Result<(), CheckError> {
-        let Some(address) = self.diamond_proxy_addr else {
+        let Some(address) = self.chain_data.diamond_proxy_addr else {
             return Ok(());
         };
-        tracing::debug!("Performing sanity checks for diamond proxy contract {address:?}");
+        let chain_id = self.chain_data.chain_id;
+        tracing::debug!(
+            "Performing sanity checks for chain id {chain_id}, diamond proxy contract {address:?}"
+        );
 
         let version: U256 = CallFunctionArgs::new("getProtocolVersion", ())
             .for_contract(address, &self.contract)
-            .call(&self.l1_client)
+            .call(self.chain_data.client.as_ref())
             .await?;
-        tracing::info!("Checked diamond proxy {address:?} (protocol version: {version})");
+        tracing::info!(
+            "Checked chain id {chain_id}, diamond proxy {address:?} (protocol version: {version})"
+        );
         Ok(())
     }
 
     pub async fn run(mut self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         tracing::info!(
-            "Starting consistency checker with diamond proxy contract: {:?}, sleep interval: {:?}, \
-             max historic L1 batches to check: {}",
-            self.diamond_proxy_addr,
+            "Starting consistency checker with  diamond proxy contract: {:?}, \
+             sleep interval: {:?}, max historic L1 batches to check: {}",
+            self.chain_data.diamond_proxy_addr,
             self.sleep_interval,
             self.max_batches_to_recheck
         );
@@ -610,6 +717,27 @@ impl ConsistencyChecker {
             };
             drop(storage);
 
+            if let Some(commit_chain_id) = local.commit_chain_id {
+                if commit_chain_id != self.chain_data.chain_id {
+                    if batch_number < last_committed_batch {
+                        // It's ok to skip check for old batches.
+                        tracing::info!(
+                            "Skip checking batch #{batch_number}, it was committed to chain with id {commit_chain_id} \
+                            while node is configured to check on chain with id {}",
+                            self.chain_data.chain_id
+                        );
+                    } else {
+                        // Chain migrated to different SL, throw error so it can restart and reload SL data.
+                        anyhow::bail!(
+                            "Batch #{batch_number} was committed to chain with id {commit_chain_id} \
+                            while node is configured to check chain with id {}. Error is thrown so node can restart and reload SL data. \
+                            If node doesn't make any progress after restart, then it's bug, please contact developers.",
+                            self.chain_data.chain_id
+                        );
+                    }
+                }
+            }
+
             match self.check_commitments(batch_number, &local).await {
                 Ok(()) => {
                     let mut storage = self.pool.connection().await?;
@@ -623,17 +751,8 @@ impl ConsistencyChecker {
                 Err(CheckError::Validation(err)) => {
                     self.event_handler
                         .report_inconsistent_batch(batch_number, &err);
-                    match &self.l1_data_mismatch_behavior {
-                        #[cfg(test)]
-                        L1DataMismatchBehavior::Bail => {
-                            let context =
-                                format!("L1 batch #{batch_number} is inconsistent with L1");
-                            return Err(err.context(context));
-                        }
-                        L1DataMismatchBehavior::Log => {
-                            batch_number += 1; // We don't want to infinitely loop failing the check on the same batch
-                        }
-                    }
+                    let context = format!("L1 batch #{batch_number} is inconsistent with L1");
+                    return Err(err.context(context));
                 }
                 Err(err) if err.is_retriable() => {
                     tracing::warn!(

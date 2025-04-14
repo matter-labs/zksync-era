@@ -2,7 +2,8 @@ use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_eth_client::{BoundEthInterface, CallFunctionArgs};
+use zksync_eth_client::{BoundEthInterface, CallFunctionArgs, ContractCallError, EthInterface};
+use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_l1_contract_interface::{
     i_executor::{
         commit::kzg::{KzgInfo, ZK_SYNC_BYTES_PER_BLOB},
@@ -14,24 +15,32 @@ use zksync_l1_contract_interface::{
 use zksync_shared_metrics::BlockL1Stage;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
-    commitment::{L1BatchWithMetadata, SerializeCommitment},
+    commitment::{L1BatchCommitmentMode, L1BatchWithMetadata, SerializeCommitment},
     eth_sender::{EthTx, EthTxBlobSidecar, EthTxBlobSidecarV1, SidecarBlobV1},
     ethabi::{Function, Token},
     l2_to_l1_log::UserL2ToL1Log,
     protocol_version::{L1VerifierConfig, PACKED_SEMVER_MINOR_MASK},
     pubdata_da::PubdataSendingMode,
-    settlement::SettlementMode,
-    web3::{contract::Error as Web3ContractError, BlockNumber},
+    settlement::SettlementLayer,
+    web3::{contract::Error as Web3ContractError, BlockNumber, CallRequest},
     Address, L2ChainId, ProtocolVersionId, SLChainId, H256, U256,
 };
 
 use super::aggregated_operations::AggregatedOperation;
 use crate::{
+    aggregator::OperationSkippingRestrictions,
+    health::{EthTxAggregatorHealthDetails, EthTxDetails},
     metrics::{PubdataKind, METRICS},
-    utils::agg_l1_batch_base_cost,
+    publish_criterion::L1GasCriterion,
     zksync_functions::ZkSyncFunctions,
     Aggregator, EthSenderError,
 };
+
+#[derive(Debug, PartialEq)]
+pub enum GatewayMigrationState {
+    InProgress,
+    NotInProgress,
+}
 
 /// Data queried from L1 using multicall contract.
 #[derive(Debug)]
@@ -39,10 +48,17 @@ use crate::{
 pub struct MulticallData {
     pub base_system_contracts_hashes: BaseSystemContractsHashes,
     pub verifier_address: Address,
-    pub protocol_version_id: ProtocolVersionId,
+    pub chain_protocol_version_id: ProtocolVersionId,
+    /// The latest validator timelock that is stored on the StateTransitionManager (ChainTypeManager).
+    /// For a smoother upgrade process, if the `stm_protocol_version_id` is the same as `chain_protocol_version_id`,
+    /// we will use the validator timelock from the CTM. This removes the need to immediately set the correct
+    /// validator timelock in the config. However, it is expected that it will be done eventually.
+    pub stm_validator_timelock_address: Address,
+    pub stm_protocol_version_id: ProtocolVersionId,
 }
 
-/// The component is responsible for aggregating l1 batches into eth_txs:
+/// The component is responsible for aggregating l1 batches into eth_txs.
+///
 /// Such as CommitBlocks, PublishProofBlocksOnchain and ExecuteBlock
 /// These eth_txs will be used as a queue for generating signed txs and send them later
 #[derive(Debug)]
@@ -50,9 +66,10 @@ pub struct EthTxAggregator {
     aggregator: Aggregator,
     eth_client: Box<dyn BoundEthInterface>,
     config: SenderConfig,
-    timelock_contract_address: Address,
+    config_timelock_contract_address: Address,
     l1_multicall3_address: Address,
     pub(super) state_transition_chain_contract: Address,
+    state_transition_manager_address: Address,
     functions: ZkSyncFunctions,
     base_nonce: u64,
     base_nonce_custom_commit_sender: Option<u64>,
@@ -63,14 +80,18 @@ pub struct EthTxAggregator {
     /// address.
     custom_commit_sender_addr: Option<Address>,
     pool: ConnectionPool<Core>,
-    settlement_mode: SettlementMode,
     sl_chain_id: SLChainId,
+    health_updater: HealthUpdater,
+    priority_tree_start_index: Option<usize>,
+    settlement_layer: SettlementLayer,
 }
 
 struct TxData {
     calldata: Vec<u8>,
     sidecar: Option<EthTxBlobSidecar>,
 }
+
+const FFLONK_VERIFIER_TYPE: i32 = 1;
 
 impl EthTxAggregator {
     #[allow(clippy::too_many_arguments)]
@@ -79,12 +100,13 @@ impl EthTxAggregator {
         config: SenderConfig,
         aggregator: Aggregator,
         eth_client: Box<dyn BoundEthInterface>,
-        timelock_contract_address: Address,
+        config_timelock_contract_address: Address,
+        state_transition_manager_address: Address,
         l1_multicall3_address: Address,
         state_transition_chain_contract: Address,
         rollup_chain_id: L2ChainId,
         custom_commit_sender_addr: Option<Address>,
-        settlement_mode: SettlementMode,
+        settlement_layer: SettlementLayer,
     ) -> Self {
         let eth_client = eth_client.for_component("eth_tx_aggregator");
         let functions = ZkSyncFunctions::default();
@@ -108,7 +130,8 @@ impl EthTxAggregator {
             config,
             aggregator,
             eth_client,
-            timelock_contract_address,
+            config_timelock_contract_address,
+            state_transition_manager_address,
             l1_multicall3_address,
             state_transition_chain_contract,
             functions,
@@ -117,12 +140,22 @@ impl EthTxAggregator {
             rollup_chain_id,
             custom_commit_sender_addr,
             pool,
-            settlement_mode,
             sl_chain_id,
+            health_updater: ReactiveHealthCheck::new("eth_tx_aggregator").1,
+            priority_tree_start_index: None,
+            settlement_layer,
         }
     }
 
     pub async fn run(mut self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        self.health_updater
+            .update(Health::from(HealthStatus::Ready));
+
+        tracing::info!(
+            "Initialized eth_tx_aggregator with is_pre_fflonk_verifier: {:?}",
+            self.config.is_verifier_pre_fflonk
+        );
+
         let pool = self.pool.clone();
         loop {
             let mut storage = pool.connection_tagged("eth_sender").await.unwrap();
@@ -215,12 +248,40 @@ impl EthTxAggregator {
             calldata: get_protocol_version_input,
         };
 
+        let get_stm_protocol_version_input = self
+            .functions
+            .state_transition_manager_contract
+            .function("protocolVersion")
+            .unwrap()
+            .encode_input(&[])
+            .unwrap();
+        let get_stm_protocol_version_call = Multicall3Call {
+            target: self.state_transition_manager_address,
+            allow_failure: ALLOW_FAILURE,
+            calldata: get_stm_protocol_version_input,
+        };
+
+        let get_stm_validator_timelock_input = self
+            .functions
+            .state_transition_manager_contract
+            .function("validatorTimelock")
+            .unwrap()
+            .encode_input(&[])
+            .unwrap();
+        let get_stm_validator_timelock_call = Multicall3Call {
+            target: self.state_transition_manager_address,
+            allow_failure: ALLOW_FAILURE,
+            calldata: get_stm_validator_timelock_input,
+        };
+
         let mut token_vec = vec![
             get_bootloader_hash_call.into_token(),
             get_default_aa_hash_call.into_token(),
             get_verifier_params_call.into_token(),
             get_verifier_call.into_token(),
             get_protocol_version_call.into_token(),
+            get_stm_protocol_version_call.into_token(),
+            get_stm_validator_timelock_call.into_token(),
         ];
 
         let mut evm_emulator_hash_requested = false;
@@ -256,8 +317,8 @@ impl EthTxAggregator {
         };
 
         if let Token::Array(call_results) = token {
-            let number_of_calls = if evm_emulator_hash_requested { 6 } else { 5 };
-            // 5 or 6 calls are aggregated in multicall
+            let number_of_calls = if evm_emulator_hash_requested { 8 } else { 7 };
+            // 7 or 8 calls are aggregated in multicall
             if call_results.len() != number_of_calls {
                 return parse_error(&call_results);
             }
@@ -313,45 +374,92 @@ impl EthTxAggregator {
 
             call_results_iterator.next().unwrap(); // FIXME: why is this value requested?
 
-            let multicall3_verifier_address =
-                Multicall3Result::from_token(call_results_iterator.next().unwrap())?.return_data;
-            if multicall3_verifier_address.len() != 32 {
-                return Err(EthSenderError::Parse(Web3ContractError::InvalidOutputType(
-                    format!(
-                        "multicall3 verifier address data is not of the len of 32: {:?}",
-                        multicall3_verifier_address
-                    ),
-                )));
-            }
-            let verifier_address = Address::from_slice(&multicall3_verifier_address[12..]);
+            let verifier_address =
+                Self::parse_address(call_results_iterator.next().unwrap(), "verifier address")?;
 
-            let multicall3_protocol_version =
-                Multicall3Result::from_token(call_results_iterator.next().unwrap())?.return_data;
-            if multicall3_protocol_version.len() != 32 {
-                return Err(EthSenderError::Parse(Web3ContractError::InvalidOutputType(
-                    format!(
-                        "multicall3 protocol version data is not of the len of 32: {:?}",
-                        multicall3_protocol_version
-                    ),
-                )));
-            }
-
-            let protocol_version = U256::from_big_endian(&multicall3_protocol_version);
-            // In case the protocol version is smaller than `PACKED_SEMVER_MINOR_MASK`, it will mean that it is
-            // equal to the `protocol_version_id` value, since it the interface from before the semver was supported.
-            let protocol_version_id = if protocol_version < U256::from(PACKED_SEMVER_MINOR_MASK) {
-                ProtocolVersionId::try_from(protocol_version.as_u32() as u16).unwrap()
-            } else {
-                ProtocolVersionId::try_from_packed_semver(protocol_version).unwrap()
-            };
+            let chain_protocol_version_id = Self::parse_protocol_version(
+                call_results_iterator.next().unwrap(),
+                "contract protocol version",
+            )?;
+            let stm_protocol_version_id = Self::parse_protocol_version(
+                call_results_iterator.next().unwrap(),
+                "STM protocol version",
+            )?;
+            let stm_validator_timelock_address = Self::parse_address(
+                call_results_iterator.next().unwrap(),
+                "STM validator timelock address",
+            )?;
 
             return Ok(MulticallData {
                 base_system_contracts_hashes,
                 verifier_address,
-                protocol_version_id,
+                chain_protocol_version_id,
+                stm_protocol_version_id,
+                stm_validator_timelock_address,
             });
         }
         parse_error(&[token])
+    }
+
+    fn parse_protocol_version(
+        data: Token,
+        name: &'static str,
+    ) -> Result<ProtocolVersionId, EthSenderError> {
+        let multicall_data = Multicall3Result::from_token(data)?.return_data;
+        if multicall_data.len() != 32 {
+            return Err(EthSenderError::Parse(Web3ContractError::InvalidOutputType(
+                format!(
+                    "multicall3 {name} data is not of the len of 32: {:?}",
+                    multicall_data
+                ),
+            )));
+        }
+
+        let protocol_version = U256::from_big_endian(&multicall_data);
+        // In case the protocol version is smaller than `PACKED_SEMVER_MINOR_MASK`, it will mean that it is
+        // equal to the `protocol_version_id` value, since it the interface from before the semver was supported.
+        let protocol_version_id = if protocol_version < U256::from(PACKED_SEMVER_MINOR_MASK) {
+            ProtocolVersionId::try_from(protocol_version.as_u32() as u16).unwrap()
+        } else {
+            ProtocolVersionId::try_from_packed_semver(protocol_version).unwrap()
+        };
+
+        Ok(protocol_version_id)
+    }
+
+    fn parse_address(data: Token, name: &'static str) -> Result<Address, EthSenderError> {
+        let multicall_data = Multicall3Result::from_token(data)?.return_data;
+        if multicall_data.len() != 32 {
+            return Err(EthSenderError::Parse(Web3ContractError::InvalidOutputType(
+                format!(
+                    "multicall3 {name} data is not of the len of 32: {:?}",
+                    multicall_data
+                ),
+            )));
+        }
+
+        Ok(Address::from_slice(&multicall_data[12..]))
+    }
+
+    fn timelock_contract_address(
+        &self,
+        chain_protocol_version_id: ProtocolVersionId,
+        stm_protocol_version_id: ProtocolVersionId,
+        stm_validator_timelock_address: Address,
+    ) -> Address {
+        // For chains before v26 (gateway) we use the timelock address from config.
+        // After that, the timelock address can be fetched from STM as it is the valid one
+        // for versions starting from v26 and is not expected to change in the near future.
+        if chain_protocol_version_id < ProtocolVersionId::gateway_upgrade() {
+            self.config_timelock_contract_address
+        } else {
+            assert!(
+                chain_protocol_version_id <= stm_protocol_version_id,
+                "Chain upgraded before STM"
+            );
+
+            stm_validator_timelock_address
+        }
     }
 
     /// Loads current verifier config on L1
@@ -360,6 +468,7 @@ impl EthTxAggregator {
         verifier_address: Address,
     ) -> Result<H256, EthSenderError> {
         let get_vk_hash = &self.functions.verification_key_hash;
+
         let vk_hash: H256 = CallFunctionArgs::new(&get_vk_hash.name, ())
             .for_contract(verifier_address, &self.functions.verifier_contract)
             .call((*self.eth_client).as_ref())
@@ -367,20 +476,75 @@ impl EthTxAggregator {
         Ok(vk_hash)
     }
 
+    /// Returns whether there is a pending gateway upgrade.
+    /// During gateway upgrade, the signature of the `executeBatches` function on `ValidatorTimelock` will change.
+    /// This means that transactions that were created before the upgrade but were sent right after it
+    /// will fail, which we want to avoid.
+    async fn is_pending_gateway_upgrade(
+        storage: &mut Connection<'_, Core>,
+        chain_protocol_version: ProtocolVersionId,
+    ) -> bool {
+        // If the gateway protocol version is present in the DB, and its timestamp is larger than `now`, it means that
+        // the upgrade process on the server has begun.
+        // However, if the protocol version on the contract is lower than the `gateway_upgrade`, it means that the upgrade has
+        // not yet completed.
+
+        if storage
+            .blocks_dal()
+            .pending_protocol_version()
+            .await
+            .unwrap()
+            < ProtocolVersionId::gateway_upgrade()
+        {
+            return false;
+        }
+
+        chain_protocol_version < ProtocolVersionId::gateway_upgrade()
+    }
+
+    async fn get_fflonk_snark_wrapper_vk_hash(
+        &mut self,
+        verifier_address: Address,
+    ) -> Result<Option<H256>, EthSenderError> {
+        let get_vk_hash = &self.functions.verification_key_hash;
+        // We are getting function separately to get the second function with the same name, but
+        // overriden one
+        let function = self
+            .functions
+            .verifier_contract
+            .functions_by_name(&get_vk_hash.name)
+            .map_err(|x| EthSenderError::ContractCall(ContractCallError::Function(x)))?
+            .get(1);
+
+        if let Some(function) = function {
+            let vk_hash: Option<H256> =
+                CallFunctionArgs::new(&get_vk_hash.name, U256::from(FFLONK_VERIFIER_TYPE))
+                    .for_contract(verifier_address, &self.functions.verifier_contract)
+                    .call_with_function((*self.eth_client).as_ref(), function.clone())
+                    .await
+                    .ok();
+            Ok(vk_hash)
+        } else {
+            Ok(None)
+        }
+    }
+
     #[tracing::instrument(skip_all, name = "EthTxAggregator::loop_iteration")]
     async fn loop_iteration(
         &mut self,
         storage: &mut Connection<'_, Core>,
     ) -> Result<(), EthSenderError> {
+        let gateway_migration_state = self.gateway_status(storage).await;
         let MulticallData {
             base_system_contracts_hashes,
             verifier_address,
-            protocol_version_id,
+            chain_protocol_version_id,
+            stm_protocol_version_id,
+            stm_validator_timelock_address,
         } = self.get_multicall_data().await.map_err(|err| {
             tracing::error!("Failed to get multicall data {err:?}");
             err
         })?;
-        let contracts_are_pre_shared_bridge = protocol_version_id.is_pre_shared_bridge();
 
         let snark_wrapper_vk_hash = self
             .get_snark_wrapper_vk_hash(verifier_address)
@@ -389,48 +553,90 @@ impl EthTxAggregator {
                 tracing::error!("Failed to get VK hash from the Verifier {err:?}");
                 err
             })?;
+        let fflonk_snark_wrapper_vk_hash = self
+            .get_fflonk_snark_wrapper_vk_hash(verifier_address)
+            .await
+            .map_err(|err| {
+                tracing::error!("Failed to get FFLONK VK hash from the Verifier {err:?}");
+                err
+            })?;
+
         let l1_verifier_config = L1VerifierConfig {
             snark_wrapper_vk_hash,
+            fflonk_snark_wrapper_vk_hash,
         };
+
+        let priority_tree_start_index =
+            if let Some(priority_tree_start_index) = self.priority_tree_start_index {
+                Some(priority_tree_start_index)
+            } else {
+                self.priority_tree_start_index =
+                    get_priority_tree_start_index(self.eth_client.as_ref()).await?;
+                self.priority_tree_start_index
+            };
+        let commit_restriction = self
+            .config
+            .tx_aggregation_only_prove_and_execute
+            .then_some("tx_aggregation_only_prove_and_execute=true");
+
+        let mut op_restrictions = OperationSkippingRestrictions {
+            commit_restriction,
+            prove_restriction: None,
+            execute_restriction: Self::is_pending_gateway_upgrade(
+                storage,
+                chain_protocol_version_id,
+            )
+            .await
+            .then_some("there is a pending gateway upgrade"),
+        };
+        if self.config.tx_aggregation_paused {
+            let reason = Some("tx aggregation is paused");
+            op_restrictions.commit_restriction = reason;
+            op_restrictions.prove_restriction = reason;
+            op_restrictions.execute_restriction = reason;
+        }
+
+        if gateway_migration_state == GatewayMigrationState::InProgress {
+            let reason = Some("Gateway migration started");
+            op_restrictions.commit_restriction = reason;
+            op_restrictions.prove_restriction = reason;
+            op_restrictions.execute_restriction = reason;
+        }
+
         if let Some(agg_op) = self
             .aggregator
             .get_next_ready_operation(
                 storage,
                 base_system_contracts_hashes,
-                protocol_version_id,
+                chain_protocol_version_id,
                 l1_verifier_config,
+                op_restrictions,
+                priority_tree_start_index,
             )
-            .await
+            .await?
         {
-            if self.config.tx_aggregation_paused {
-                tracing::info!(
-                    "Skipping sending operation of type {} for batches {}-{} \
-                as tx_aggregation_paused=true",
-                    agg_op.get_action_type(),
-                    agg_op.l1_batch_range().start(),
-                    agg_op.l1_batch_range().end()
-                );
-                return Ok(());
-            }
-            if self.config.tx_aggregation_only_prove_and_execute && !agg_op.is_prove_or_execute() {
-                tracing::info!(
-                    "Skipping sending commit operation for batches {}-{} \
-                as tx_aggregation_only_prove_and_execute=true",
-                    agg_op.l1_batch_range().start(),
-                    agg_op.l1_batch_range().end()
-                );
-                return Ok(());
-            }
-            let is_gateway = self.settlement_mode.is_gateway();
+            let is_gateway = self.settlement_layer.is_gateway();
             let tx = self
                 .save_eth_tx(
                     storage,
                     &agg_op,
-                    contracts_are_pre_shared_bridge,
+                    self.timelock_contract_address(
+                        chain_protocol_version_id,
+                        stm_protocol_version_id,
+                        stm_validator_timelock_address,
+                    ),
+                    chain_protocol_version_id,
                     is_gateway,
                 )
                 .await?;
             Self::report_eth_tx_saving(storage, &agg_op, &tx).await;
+
+            self.health_updater.update(
+                EthTxAggregatorHealthDetails {
+                    last_saved_tx: EthTxDetails::new(&tx, None),
+                }
+                .into(),
+            );
         }
         Ok(())
     }
@@ -471,16 +677,10 @@ impl EthTxAggregator {
     fn encode_aggregated_op(
         &self,
         op: &AggregatedOperation,
-        contracts_are_pre_shared_bridge: bool,
+        chain_protocol_version_id: ProtocolVersionId,
     ) -> TxData {
-        let operation_is_pre_shared_bridge = op.protocol_version().is_pre_shared_bridge();
-
-        // The post shared bridge contracts support pre-shared bridge operations, but vice versa is not true.
-        if contracts_are_pre_shared_bridge {
-            assert!(operation_is_pre_shared_bridge);
-        }
-
         let mut args = vec![Token::Uint(self.rollup_chain_id.as_u64().into())];
+        let is_op_pre_gateway = op.protocol_version().is_pre_gateway();
 
         let (calldata, sidecar) = match op {
             AggregatedOperation::Commit(last_committed_l1_batch, l1_batches, pubdata_da) => {
@@ -492,17 +692,12 @@ impl EthTxAggregator {
                 };
                 let commit_data_base = commit_batches.into_tokens();
 
-                let (encoding_fn, commit_data) = if contracts_are_pre_shared_bridge {
-                    (&self.functions.pre_shared_bridge_commit, commit_data_base)
+                args.extend(commit_data_base);
+                let commit_data = args;
+                let encoding_fn = if is_op_pre_gateway {
+                    &self.functions.post_shared_bridge_commit
                 } else {
-                    args.extend(commit_data_base);
-                    (
-                        self.functions
-                            .post_shared_bridge_commit
-                            .as_ref()
-                            .expect("Missing ABI for commitBatchesSharedBridge"),
-                        args,
-                    )
+                    &self.functions.post_gateway_commit
                 };
 
                 let l1_batch_for_sidecar =
@@ -515,37 +710,28 @@ impl EthTxAggregator {
                 Self::encode_commit_data(encoding_fn, &commit_data, l1_batch_for_sidecar)
             }
             AggregatedOperation::PublishProofOnchain(op) => {
-                let calldata = if contracts_are_pre_shared_bridge {
-                    self.functions
-                        .pre_shared_bridge_prove
-                        .encode_input(&op.into_tokens())
-                        .expect("Failed to encode prove transaction data")
+                args.extend(op.conditional_into_tokens(self.config.is_verifier_pre_fflonk));
+                let encoding_fn = if is_op_pre_gateway {
+                    &self.functions.post_shared_bridge_prove
                 } else {
-                    args.extend(op.into_tokens());
-                    self.functions
-                        .post_shared_bridge_prove
-                        .as_ref()
-                        .expect("Missing ABI for proveBatchesSharedBridge")
-                        .encode_input(&args)
-                        .expect("Failed to encode prove transaction data")
+                    &self.functions.post_gateway_prove
                 };
+                let calldata = encoding_fn
+                    .encode_input(&args)
+                    .expect("Failed to encode prove transaction data");
                 (calldata, None)
             }
             AggregatedOperation::Execute(op) => {
-                let calldata = if contracts_are_pre_shared_bridge {
-                    self.functions
-                        .pre_shared_bridge_execute
-                        .encode_input(&op.into_tokens())
-                        .expect("Failed to encode execute transaction data")
+                args.extend(op.encode_for_eth_tx(chain_protocol_version_id));
+                let encoding_fn = if is_op_pre_gateway && chain_protocol_version_id.is_pre_gateway()
+                {
+                    &self.functions.post_shared_bridge_execute
                 } else {
-                    args.extend(op.into_tokens());
-                    self.functions
-                        .post_shared_bridge_execute
-                        .as_ref()
-                        .expect("Missing ABI for executeBatchesSharedBridge")
-                        .encode_input(&args)
-                        .expect("Failed to encode execute transaction data")
+                    &self.functions.post_gateway_execute
                 };
+                let calldata = encoding_fn
+                    .encode_input(&args)
+                    .expect("Failed to encode execute transaction data");
                 (calldata, None)
             }
         };
@@ -593,7 +779,8 @@ impl EthTxAggregator {
         &self,
         storage: &mut Connection<'_, Core>,
         aggregated_op: &AggregatedOperation,
-        contracts_are_pre_shared_bridge: bool,
+        timelock_contract_address: Address,
+        chain_protocol_version_id: ProtocolVersionId,
         is_gateway: bool,
     ) -> Result<EthTx, EthSenderError> {
         let mut transaction = storage.start_transaction().await.unwrap();
@@ -607,23 +794,30 @@ impl EthTxAggregator {
         };
         let nonce = self.get_next_nonce(&mut transaction, sender_addr).await?;
         let encoded_aggregated_op =
-            self.encode_aggregated_op(aggregated_op, contracts_are_pre_shared_bridge);
+            self.encode_aggregated_op(aggregated_op, chain_protocol_version_id);
         let l1_batch_number_range = aggregated_op.l1_batch_range();
 
-        let predicted_gas_for_batches = transaction
-            .blocks_dal()
-            .get_l1_batches_predicted_gas(l1_batch_number_range.clone(), op_type)
-            .await
-            .unwrap();
-        let eth_tx_predicted_gas = agg_l1_batch_base_cost(op_type) + predicted_gas_for_batches;
+        let eth_tx_predicted_gas = match (op_type, is_gateway, self.aggregator.mode()) {
+            (AggregatedActionType::Execute, false, _) => Some(
+                L1GasCriterion::total_execute_gas_amount(
+                    &mut transaction,
+                    l1_batch_number_range.clone(),
+                )
+                .await,
+            ),
+            (AggregatedActionType::Commit, false, L1BatchCommitmentMode::Validium) => Some(
+                L1GasCriterion::total_validium_commit_gas_amount(l1_batch_number_range.clone()),
+            ),
+            _ => None,
+        };
 
-        let eth_tx = transaction
+        let mut eth_tx = transaction
             .eth_sender_dal()
             .save_eth_tx(
                 nonce,
                 encoded_aggregated_op.calldata,
                 op_type,
-                self.timelock_contract_address,
+                timelock_contract_address,
                 eth_tx_predicted_gas,
                 sender_addr,
                 encoded_aggregated_op.sidecar,
@@ -637,7 +831,7 @@ impl EthTxAggregator {
             .set_chain_id(eth_tx.id, self.sl_chain_id.0)
             .await
             .unwrap();
-
+        eth_tx.chain_id = Some(self.sl_chain_id);
         transaction
             .blocks_dal()
             .set_eth_tx_id(l1_batch_number_range, eth_tx.id, op_type)
@@ -652,7 +846,7 @@ impl EthTxAggregator {
         storage: &mut Connection<'_, Core>,
         from_addr: Option<Address>,
     ) -> Result<u64, EthSenderError> {
-        let is_gateway = self.settlement_mode.is_gateway();
+        let is_gateway = self.settlement_layer.is_gateway();
         let db_nonce = storage
             .eth_sender_dal()
             .get_next_nonce(from_addr, is_gateway)
@@ -661,13 +855,120 @@ impl EthTxAggregator {
             .unwrap_or(0);
         // Between server starts we can execute some txs using operator account or remove some txs from the database
         // At the start we have to consider this fact and get the max nonce.
-        Ok(if from_addr.is_none() {
-            db_nonce.max(self.base_nonce)
+        let l1_nonce = if from_addr.is_none() {
+            self.base_nonce
         } else {
-            db_nonce.max(
-                self.base_nonce_custom_commit_sender
-                    .expect("custom base nonce is expected to be initialized; qed"),
-            )
-        })
+            self.base_nonce_custom_commit_sender
+                .expect("custom base nonce is expected to be initialized; qed")
+        };
+        tracing::info!(
+            "Next nonce from db: {}, nonce from L1: {} for address: {:?}",
+            db_nonce,
+            l1_nonce,
+            from_addr
+        );
+        Ok(db_nonce.max(l1_nonce))
     }
+
+    /// Returns the health check for eth tx aggregator.
+    pub fn health_check(&self) -> ReactiveHealthCheck {
+        self.health_updater.subscribe()
+    }
+
+    async fn gateway_status(&self, storage: &mut Connection<'_, Core>) -> GatewayMigrationState {
+        let to_gateway = self
+            .functions
+            .server_notifier_contract
+            .event("MigrateToGateway")
+            .unwrap()
+            .signature();
+        let from_gateway = self
+            .functions
+            .server_notifier_contract
+            .event("MigrateFromGateway")
+            .unwrap()
+            .signature();
+
+        let notification = storage
+            .server_notifications_dal()
+            .get_last_notification_by_topics(&[to_gateway, from_gateway])
+            .await
+            .unwrap();
+
+        notification
+            .map(|a| match self.settlement_layer {
+                SettlementLayer::L1(_) => {
+                    if a.main_topic == to_gateway {
+                        GatewayMigrationState::InProgress
+                    } else {
+                        GatewayMigrationState::NotInProgress
+                    }
+                }
+                SettlementLayer::Gateway(_) => {
+                    if a.main_topic == from_gateway {
+                        GatewayMigrationState::InProgress
+                    } else {
+                        GatewayMigrationState::NotInProgress
+                    }
+                }
+            })
+            .unwrap_or(GatewayMigrationState::NotInProgress)
+    }
+}
+
+async fn query_contract(
+    l1_client: &dyn BoundEthInterface,
+    method_name: &str,
+    params: &[Token],
+) -> Result<Token, EthSenderError> {
+    let data = l1_client
+        .contract()
+        .function(method_name)
+        .unwrap()
+        .encode_input(params)
+        .unwrap();
+
+    let eth_interface: &dyn EthInterface = AsRef::<dyn EthInterface>::as_ref(l1_client);
+
+    let result = eth_interface
+        .call_contract_function(
+            CallRequest {
+                data: Some(data.into()),
+                to: Some(l1_client.contract_addr()),
+                ..CallRequest::default()
+            },
+            None,
+        )
+        .await?;
+    Ok(l1_client
+        .contract()
+        .function(method_name)
+        .unwrap()
+        .decode_output(&result.0)
+        .unwrap()[0]
+        .clone())
+}
+
+async fn get_priority_tree_start_index(
+    l1_client: &dyn BoundEthInterface,
+) -> Result<Option<usize>, EthSenderError> {
+    let packed_semver = query_contract(l1_client, "getProtocolVersion", &[])
+        .await?
+        .into_uint()
+        .unwrap();
+
+    // We always expect the provided version to be correct, so we panic if it is not
+    let version = ProtocolVersionId::try_from_packed_semver(packed_semver).unwrap();
+
+    // For pre-gateway versions the index is not supported.
+    if version.is_pre_gateway() {
+        return Ok(None);
+    }
+
+    let priority_tree_start_index = query_contract(l1_client, "getPriorityTreeStartIndex", &[])
+        .await?
+        .into_uint()
+        .unwrap();
+
+    Ok(Some(priority_tree_start_index.as_usize()))
 }

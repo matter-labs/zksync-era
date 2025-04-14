@@ -19,23 +19,23 @@ We offer 13 distinct types of **'base' circuits**, including Vm, Decommitter, an
 each corresponding to a basic type, while one is a 'node,' and another is a 'scheduler' that oversees all others. You
 can find more details in the [full list here][recursive_circuit_list].
 
-In our new proof system, there's also a final element known as the compressor, or **snark wrapper**, representing an
+In our new proof system, there's also a final steps known as the compressor and **snark wrapper**, representing an
 additional type of circuit.
 
 It's essential to note that each circuit type requires its unique set of keys.
 
 Also, the base circuits, leaves, node and scheduler are STARK based with FRI commitments, while the snark wrapper is
 SNARK based with KZG commitment. This results in slightly different contents of the keys, but their role stays the same.
+More info about commitment schemes can be found [here](https://en.wikipedia.org/wiki/Commitment_scheme).
 
 ## Keys
 
-### Setup key (big, 14GB)
+### Setup keys (big, >700MB each)
 
-> In the following [CPU](https://github.com/matter-labs/zksync-era/blob/main/prover/setup-data-cpu-keys.json) and
-> [GPU](https://github.com/matter-labs/zksync-era/blob/main/prover/setup-data-gpu-keys.json) links, you'll find GCS
-> buckets containing the latest keys.
+The following [link](https://github.com/matter-labs/zksync-era/blob/main/prover/setup-data-gpu-keys.json) provides the
+GCS buckets containing the latest setup keys.
 
-The primary key for a given circuit is called `setup key`. These keys can be substantial in size - approximately 14GB
+The primary key for a given circuit is called `setup key`. These keys can be substantial in size - approximately 700MB
 for our circuits. Due to their size, we don't store them directly on GitHub; instead, they need to be generated.
 
 If you’re wondering what these setup keys contain, think of them as the 'source code of the circuit.'
@@ -117,8 +117,7 @@ friendly hash function (currently Poseidon2).
   https://github.com/matter-labs/era-zkevm_test_harness/blob/3cd647aa57fc2e1180bab53f7a3b61ec47502a46/circuit_definitions/src/circuit_definitions/base_layer/mod.rs#L77
 [recursive_circuit_list]:
   https://github.com/matter-labs/era-zkevm_test_harness/blob/3cd647aa57fc2e1180bab53f7a3b61ec47502a46/circuit_definitions/src/circuit_definitions/recursion_layer/mod.rs#L29
-[verification_key_list]:
-  https://github.com/matter-labs/zksync-era/tree/6d18061df4a18803d3c6377305ef711ce60317e1/prover/data/keys
+[verification_key_list]: https://github.com/matter-labs/zksync-era/tree/main/prover/data/keys
 [env_variables_for_hash]:
   https://github.com/matter-labs/zksync-era/blob/6d18061df4a18803d3c6377305ef711ce60317e1/etc/env/base/contracts.toml#L61
 [prover_setup_data]:
