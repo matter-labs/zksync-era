@@ -111,8 +111,16 @@ pub(crate) const TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO: usize = 4;
 pub(crate) const TX_OPERATOR_L2_BLOCK_INFO_SLOTS: usize =
     (MAX_TXS_IN_BATCH + 1) * TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO;
 
-pub(crate) const fn get_message_root_offset(subversion: MultiVmSubversion) -> usize {
+/// We store the next messageRoot number to be processed.
+/// For each txs we check if the next messageRoot belongs to a block that we should process, if yes we store it and continue to the next.
+/// If no, we stop.
+pub(crate) const fn get_next_message_root_number_offset(subversion: MultiVmSubversion) -> usize {
     get_tx_operator_l2_block_info_offset(subversion) + TX_OPERATOR_L2_BLOCK_INFO_SLOTS
+}
+
+/// The actual message roots begin after the next message root number slot
+pub(crate) const fn get_message_root_offset(subversion: MultiVmSubversion) -> usize {
+    get_next_message_root_number_offset(subversion) + 1
 }
 
 pub(crate) const MESSAGE_ROOT_SLOTS_SIZE: usize = 100;

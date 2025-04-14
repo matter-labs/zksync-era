@@ -17,7 +17,7 @@ use crate::{
         bootloader::{
             l2_block::BootloaderL2Block,
             snapshot::BootloaderStateSnapshot,
-            utils::{apply_l2_block, apply_message_root, apply_tx_to_memory},
+            utils::{apply_l2_block, apply_tx_to_memory},
         },
         constants::get_tx_description_offset,
         types::TransactionData,

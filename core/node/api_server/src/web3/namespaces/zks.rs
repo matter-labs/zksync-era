@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use anyhow::Context as _;
 use zksync_crypto_primitives::hasher::{keccak::KeccakHasher, Hasher};
-use zksync_dal::{Connection, Core, CoreDal, DalError, SqlxError};
+use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_metadata_calculator::api_server::TreeApiError;
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_multivm::interface::VmEvent;

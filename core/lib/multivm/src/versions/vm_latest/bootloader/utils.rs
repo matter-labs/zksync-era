@@ -141,7 +141,7 @@ fn apply_l2_block_inner(
         .iter()
         .enumerate()
         .for_each(|(offset, msg_root)| {
-            apply_message_root(memory, offset, msg_root.clone(), subversion)
+            apply_message_root(memory, offset, msg_root.clone(), subversion, bootloader_l2_block.number)
         });
 }
 
@@ -150,6 +150,7 @@ pub(crate) fn apply_message_root(
     message_root_offset: usize,
     message_root: MessageRoot,
     subversion: MultiVmSubversion,
+    l2_block_number: u32,
 ) {
     let msg_root_slot = get_message_root_offset(subversion);
     // println!("msg_root_slot 2: {}", msg_root_slot);
@@ -157,6 +158,7 @@ pub(crate) fn apply_message_root(
     // println!("message_root: {:?}", message_root);
     // Convert the byte array into U256 words
     let mut u256_words: Vec<U256> = vec![
+        U256::from(l2_block_number),
         U256::from(message_root.chain_id),
         U256::from(message_root.block_number),
         U256::from(message_root.sides.len()),
@@ -184,6 +186,13 @@ pub(crate) fn apply_message_root(
     //         ..msg_root_slot + message_root_offset * MESSAGE_ROOT_SLOTS_SIZE + u256_words.len())
     //         .zip(u256_words.clone())
     //         .collect::<Vec<_>>()[2]
+    // );
+    // println!(
+    //     "zipped 3 {:?}",
+    //     (msg_root_slot + message_root_offset * MESSAGE_ROOT_SLOTS_SIZE
+    //         ..msg_root_slot + message_root_offset * MESSAGE_ROOT_SLOTS_SIZE + u256_words.len())
+    //         .zip(u256_words.clone())
+    //         .collect::<Vec<_>>()[3]
     // ); // Map the U256 words into memory slots
     memory.extend(
         (msg_root_slot + message_root_offset * MESSAGE_ROOT_SLOTS_SIZE

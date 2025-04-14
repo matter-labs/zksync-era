@@ -21,7 +21,7 @@ use zksync_types::{
     block::L2BlockExecutionData, commitment::PubdataParams, l2::TransactionType,
     message_root::MessageRoot, protocol_upgrade::ProtocolUpgradeTx,
     protocol_version::ProtocolVersionId, utils::display_timestamp, L1BatchNumber, L2BlockNumber,
-    L2ChainId, Transaction,
+    Transaction,
 };
 
 use crate::{

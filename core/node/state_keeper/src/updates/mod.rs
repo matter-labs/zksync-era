@@ -8,7 +8,7 @@ use zksync_multivm::{
 };
 use zksync_types::{
     commitment::PubdataParams, fee_model::BatchFeeInput, Address, L1BatchNumber, L2BlockNumber,
-    MessageRoot, ProtocolVersionId, Transaction,
+    ProtocolVersionId, Transaction,
 };
 
 pub(crate) use self::{l1_batch_updates::L1BatchUpdates, l2_block_updates::L2BlockUpdates};
