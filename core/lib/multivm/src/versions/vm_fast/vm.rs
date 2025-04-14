@@ -156,11 +156,11 @@ impl<S: ReadStorage, Tr: Tracer, Val: ValidationTracer> Vm<S, Tr, Val> {
             bootloader_state: BootloaderState::new(
                 system_env.execution_mode,
                 bootloader_memory.clone(),
-                batch_env.first_l2_block,
+                batch_env.clone().first_l2_block,
                 system_env.version,
             ),
             system_env,
-            batch_env,
+            batch_env: batch_env.clone(),
             snapshot: None,
             vm_version,
             skip_signature_verification: false,
@@ -827,10 +827,6 @@ where
 
     fn start_new_l2_block(&mut self, l2_block_env: L2BlockEnv) {
         self.bootloader_state.start_new_l2_block(l2_block_env)
-    }
-
-    fn insert_message_root(&mut self, msg_root: MessageRoot) {
-        self.bootloader_state.insert_message_root(msg_root);
     }
 
     fn finish_batch(&mut self, pubdata_builder: Rc<dyn PubdataBuilder>) -> FinishedL1Batch {

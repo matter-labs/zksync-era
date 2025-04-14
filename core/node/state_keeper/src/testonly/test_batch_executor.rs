@@ -512,10 +512,6 @@ impl BatchExecutor<OwnedStorage> for TestBatchExecutor {
         Ok(())
     }
 
-    async fn insert_message_root(&mut self, _msg_root: MessageRoot) -> anyhow::Result<()> {
-        Ok(())
-    }
-
     async fn finish_batch(
         self: Box<Self>,
     ) -> anyhow::Result<(FinishedL1Batch, StorageView<OwnedStorage>)> {
@@ -722,6 +718,7 @@ impl StateKeeperIO for TestIO {
             first_l2_block: L2BlockParams {
                 timestamp: self.timestamp,
                 virtual_blocks: 1,
+                msg_roots: vec![],
             },
             pubdata_params: Default::default(),
         };
@@ -741,6 +738,7 @@ impl StateKeeperIO for TestIO {
             timestamp: self.timestamp,
             // 1 is just a constant used for tests.
             virtual_blocks: 1,
+            msg_roots: vec![],
         };
         self.l2_block_number += 1;
         self.timestamp += 1;
@@ -828,8 +826,15 @@ impl StateKeeperIO for TestIO {
         Ok(self.protocol_upgrade_txs.get(&version_id).cloned())
     }
 
-    async fn load_latest_message_root(&self) -> anyhow::Result<Option<Vec<MessageRoot>>> {
-        Ok(None)
+    async fn load_latest_message_root(&self) -> anyhow::Result<Vec<MessageRoot>> {
+        Ok(vec![])
+    }
+
+    async fn load_l2_block_message_root(
+        &self,
+        _l2block_number: L2BlockNumber,
+    ) -> anyhow::Result<Vec<MessageRoot>> {
+        Ok(vec![])
     }
 
     async fn load_batch_state_hash(&self, _l1_batch_number: L1BatchNumber) -> anyhow::Result<H256> {

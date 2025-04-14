@@ -1,6 +1,7 @@
 use zksync_types::{
     commitment::{L1BatchWithMetadata, PriorityOpsMerkleProof},
     ethabi::{encode, Token},
+    message_root::MessageRoot,
     ProtocolVersionId,
 };
 
@@ -14,6 +15,7 @@ use crate::{
 pub struct ExecuteBatches {
     pub l1_batches: Vec<L1BatchWithMetadata>,
     pub priority_ops_proofs: Vec<PriorityOpsMerkleProof>,
+    pub dependency_roots: Vec<Vec<MessageRoot>>,
 }
 
 impl ExecuteBatches {
@@ -31,7 +33,9 @@ impl ExecuteBatches {
                     .map(|batch| StoredBatchInfo::from(batch).into_token())
                     .collect(),
             )]
-        } else {
+        } else if internal_protocol_version.is_pre_interop()
+            && chain_protocol_version.is_pre_interop()
+        {
             let encoded_data = encode(&[
                 Token::Array(
                     self.l1_batches
@@ -50,6 +54,42 @@ impl ExecuteBatches {
                 .concat()
                 .to_vec();
 
+            vec![
+                Token::Uint(self.l1_batches[0].header.number.0.into()),
+                Token::Uint(self.l1_batches.last().unwrap().header.number.0.into()),
+                Token::Bytes(execute_data),
+            ]
+        } else {
+            let encoded_data = encode(&[
+                Token::Array(
+                    self.l1_batches
+                        .iter()
+                        .map(|batch| StoredBatchInfo::from(batch).into_token())
+                        .collect(),
+                ),
+                Token::Array(
+                    self.priority_ops_proofs
+                        .iter()
+                        .map(|proof| proof.into_token())
+                        .collect(),
+                ),
+                Token::Array(
+                    self.dependency_roots
+                        .iter()
+                        .map(|batch_roots| {
+                            Token::Array(
+                                batch_roots
+                                    .iter()
+                                    .map(|root| root.clone().into_token())
+                                    .collect(),
+                            )
+                        })
+                        .collect(),
+                ),
+            ]);
+            let execute_data = [[SUPPORTED_ENCODING_VERSION].to_vec(), encoded_data]
+                .concat()
+                .to_vec(); //
             vec![
                 Token::Uint(self.l1_batches[0].header.number.0.into()),
                 Token::Uint(self.l1_batches.last().unwrap().header.number.0.into()),

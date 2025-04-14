@@ -23,7 +23,7 @@ use crate::{
     l2::{L2Tx, TransactionType},
     protocol_upgrade::ProtocolUpgradeTxCommonData,
 };
-pub use crate::{Nonce, H256, U256, U64};
+pub use crate::{message_root::MessageRoot, Nonce, H256, U256, U64};
 
 pub type SerialId = u64;
 

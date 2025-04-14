@@ -134,13 +134,21 @@ fn apply_l2_block_inner(
                 U256::zero()
             },
         ),
-    ])
+    ]);
+
+    bootloader_l2_block
+        .msg_roots
+        .iter()
+        .enumerate()
+        .for_each(|(offset, msg_root)| {
+            apply_message_root(memory, offset, msg_root.clone(), subversion)
+        });
 }
 
 pub(crate) fn apply_message_root(
     memory: &mut BootloaderMemory,
     message_root_offset: usize,
-    message_root: &MessageRoot,
+    message_root: MessageRoot,
     subversion: MultiVmSubversion,
 ) {
     let msg_root_slot = get_message_root_offset(subversion);
@@ -154,7 +162,7 @@ pub(crate) fn apply_message_root(
         U256::from(message_root.sides.len()),
     ];
 
-    u256_words.extend(message_root.sides.iter().cloned());
+    u256_words.extend(message_root.sides.into_iter());
     // println!("u256_words: {:?}", u256_words);
     // println!(
     //     "zipped 0 {:?}",

@@ -110,6 +110,7 @@ impl L2BlockSealProcess {
             Box::new(InsertTokensSubtask),
             Box::new(InsertEventsSubtask),
             Box::new(InsertL2ToL1LogsSubtask),
+            Box::new(MarkMessageRootsAsSealed),
         ]
     }
 
@@ -448,6 +449,47 @@ impl L2BlockSealSubtask for InsertL2ToL1LogsSubtask {
         storage
             .events_dal()
             .roll_back_l2_to_l1_logs(last_sealed_l2_block)
+            .await?;
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub(super) struct MarkMessageRootsAsSealed;
+
+#[async_trait]
+impl L2BlockSealSubtask for MarkMessageRootsAsSealed {
+    fn name(&self) -> &'static str {
+        "mark_messsage_roots_as_sealed"
+    }
+
+    async fn run(
+        self: Box<Self>,
+        command: &L2BlockSealCommand,
+        connection: &mut Connection<'_, Core>,
+    ) -> anyhow::Result<()> {
+        let progress = L2_BLOCK_METRICS.start(
+            L2BlockSealStage::MarkMessageRootsAsSealed,
+            command.is_l2_block_fictive(),
+        );
+
+        connection
+            .message_root_dal()
+            .mark_message_roots_as_executed(&command.l2_block.msg_roots, command.l2_block.number)
+            .await?;
+
+        progress.observe(command.l2_block.msg_roots.len());
+        Ok(())
+    }
+
+    async fn rollback(
+        &self,
+        storage: &mut Connection<'_, Core>,
+        last_sealed_l2_block: L2BlockNumber,
+    ) -> anyhow::Result<()> {
+        storage
+            .message_root_dal()
+            .reset_message_roots_state(last_sealed_l2_block)
             .await?;
         Ok(())
     }

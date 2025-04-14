@@ -112,10 +112,6 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
         self.bootloader_state.start_new_l2_block(l2_block_env);
     }
 
-    fn insert_message_root(&mut self, _msg_root: MessageRoot) {
-        // Do nothing, because vm 1.3.2 doesn't support message roots
-    }
-
     /// Inspect transaction with optional bytecode compression.
     fn inspect_transaction_with_bytecode_compression(
         &mut self,
