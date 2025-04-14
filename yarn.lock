@@ -11412,7 +11412,7 @@ yocto-queue@^1.0.0:
 
 "zksync-ethers-interop-support@git+https://github.com/zksync-sdk/zksync-ethers#kl/interop-ethers-support":
   version "6.15.2"
-  resolved "git+https://github.com/zksync-sdk/zksync-ethers#c37a2bea5b9c0b1f8a51254faca01845cf9cdde0"
+  resolved "git+https://github.com/zksync-sdk/zksync-ethers#c4819436678c7002e2c213e99e9188d8e969d5b1"
 
 zksync-ethers@5.8.0-beta.5:
   version "5.8.0-beta.5"
