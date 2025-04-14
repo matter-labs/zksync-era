@@ -41,7 +41,6 @@ pub trait MultiVmTracer<S: WriteStorage, H: HistoryMode>:
     + IntoVmBoojumIntegrationTracer<S, H>
     + IntoVm1_4_1IntegrationTracer<S, H>
     + IntoVm1_4_2IntegrationTracer<S, H>
-    + IntoVm1_5_0IntegrationTracer<S, H>
     + IntoOldVmTracer
 {
     fn into_tracer_pointer(self) -> MultiVmTracerPointer<S, H>
@@ -80,10 +79,6 @@ pub trait IntoVm1_4_1IntegrationTracer<S: WriteStorage, H: HistoryMode> {
 
 pub trait IntoVm1_4_2IntegrationTracer<S: WriteStorage, H: HistoryMode> {
     fn vm_1_4_2(&self) -> Box<dyn crate::vm_1_4_2::VmTracer<S, H::Vm1_4_2>>;
-}
-
-pub trait IntoVm1_5_0IntegrationTracer<S: WriteStorage, H: HistoryMode> {
-    fn vm_1_5_0(&self) -> Box<dyn crate::vm_1_5_0::VmTracer<S, H::Vm1_5_0>>;
 }
 
 /// Into tracers for old VM versions.
@@ -174,17 +169,6 @@ where
     }
 }
 
-impl<S, T, H> IntoVm1_5_0IntegrationTracer<S, H> for T
-where
-    S: WriteStorage,
-    H: HistoryMode,
-    T: crate::vm_1_5_0::VmTracer<S, H::Vm1_5_0> + Clone + 'static,
-{
-    fn vm_1_5_0(&self) -> Box<dyn crate::vm_1_5_0::VmTracer<S, <H as HistoryMode>::Vm1_5_0>> {
-        Box::new(self.clone())
-    }
-}
-
 impl<S, H, T> MultiVmTracer<S, H> for T
 where
     S: WriteStorage,
@@ -195,7 +179,6 @@ where
         + IntoVmBoojumIntegrationTracer<S, H>
         + IntoVm1_4_1IntegrationTracer<S, H>
         + IntoVm1_4_2IntegrationTracer<S, H>
-        + IntoVm1_5_0IntegrationTracer<S, H>
         + IntoOldVmTracer,
 {
 }

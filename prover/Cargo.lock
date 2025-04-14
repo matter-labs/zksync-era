@@ -1245,19 +1245,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "circuit_sequencer_api"
-version = "0.151.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e7a52138983ea94b367d689fc6183ad60a769d6c7ce8041c5120cb5074486ea2"
-dependencies = [
- "derivative",
- "rayon",
- "serde",
- "zk_evm 0.151.5",
- "zksync_bellman 0.31.0 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
 name = "clang-sys"
 version = "1.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8887,7 +8874,7 @@ dependencies = [
  "bincode",
  "circuit_definitions",
  "circuit_encodings",
- "circuit_sequencer_api 0.151.3",
+ "circuit_sequencer_api",
  "codegen",
  "crossbeam",
  "derivative",
@@ -9473,8 +9460,7 @@ name = "zksync_multivm"
 version = "27.2.0-non-semver-compat"
 dependencies = [
  "anyhow",
- "circuit_sequencer_api 0.151.3",
- "circuit_sequencer_api 0.151.5",
+ "circuit_sequencer_api",
  "ethabi",
  "hex",
  "itertools 0.10.5",
