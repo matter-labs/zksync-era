@@ -19,6 +19,7 @@ pub struct L1SpecificContracts {
 pub struct EcosystemCommonContracts {
     pub bridgehub_proxy_addr: Option<Address>,
     pub state_transition_proxy_addr: Option<Address>,
+    // TODO(X): should be moved to `L1SpecificContracts` since this contract should never be used not on L1.
     pub server_notifier_addr: Option<Address>,
     pub multicall3: Option<Address>,
     pub validator_timelock_addr: Option<Address>,
