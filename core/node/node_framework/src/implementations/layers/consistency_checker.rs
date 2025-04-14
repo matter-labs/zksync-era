@@ -74,7 +74,7 @@ impl WiringLayer for ConsistencyCheckerLayer {
         )
         .await
         .map_err(WiringError::Internal)?
-        .with_l1_diamond_proxy_addr(
+        .with_sl_diamond_proxy_addr(
             input
                 .sl_chain_contracts
                 .0

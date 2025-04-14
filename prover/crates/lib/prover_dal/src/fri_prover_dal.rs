@@ -6,7 +6,10 @@ use std::{
     time::{Duration, Instant},
 };
 
-use sqlx::QueryBuilder;
+use sqlx::{
+    types::chrono::{DateTime, Utc},
+    QueryBuilder,
+};
 use zksync_basic_types::{
     basic_fri_types::{
         AggregationRound, CircuitProverStatsEntry, ProtocolVersionedCircuitProverStats,
@@ -71,6 +74,7 @@ impl FriProverDal<'_, '_> {
         aggregation_round: AggregationRound,
         depth: u16,
         protocol_version_id: ProtocolSemanticVersion,
+        batch_sealed_at: DateTime<Utc>,
     ) {
         let _latency = MethodLatency::new("save_fri_prover_jobs");
         if circuit_ids_and_urls.is_empty() {
@@ -96,7 +100,8 @@ impl FriProverDal<'_, '_> {
                     status,
                     created_at,
                     updated_at,
-                    protocol_version_patch
+                    protocol_version_patch,
+                    batch_sealed_at
                 )
                 "#,
             );
@@ -115,7 +120,8 @@ impl FriProverDal<'_, '_> {
                         .push_bind("queued") // status
                         .push("NOW()") // created_at
                         .push("NOW()") // updated_at
-                        .push_bind(protocol_version_id.patch.0 as i32);
+                        .push_bind(protocol_version_id.patch.0 as i32)
+                        .push_bind(batch_sealed_at.naive_utc()); // batch_sealed_at
                 },
             );
 
@@ -174,7 +180,8 @@ impl FriProverDal<'_, '_> {
                         AND aggregation_round = $4
                         AND circuit_id = ANY($5)
                     ORDER BY
-                        l1_batch_number ASC,
+                        priority DESC,
+                        batch_sealed_at ASC,
                         circuit_id ASC,
                         id ASC
                     LIMIT
@@ -189,7 +196,8 @@ impl FriProverDal<'_, '_> {
             prover_jobs_fri.aggregation_round,
             prover_jobs_fri.sequence_number,
             prover_jobs_fri.depth,
-            prover_jobs_fri.is_node_final_proof
+            prover_jobs_fri.is_node_final_proof,
+            prover_jobs_fri.batch_sealed_at
             "#,
             protocol_version.minor as i32,
             protocol_version.patch.0 as i32,
@@ -203,6 +211,7 @@ impl FriProverDal<'_, '_> {
         .map(|row| FriProverJobMetadata {
             id: row.id as u32,
             block_number: L1BatchNumber(row.l1_batch_number as u32),
+            batch_sealed_at: DateTime::<Utc>::from_naive_utc_and_offset(row.batch_sealed_at, Utc),
             circuit_id: row.circuit_id as u8,
             aggregation_round: AggregationRound::try_from(i32::from(row.aggregation_round))
                 .unwrap(),
@@ -251,7 +260,8 @@ impl FriProverDal<'_, '_> {
                         AND protocol_version_patch = $2
                         AND NOT (aggregation_round = $4 AND circuit_id = ANY($5))
                     ORDER BY
-                        l1_batch_number ASC,
+                        priority DESC,
+                        batch_sealed_at ASC,
                         aggregation_round ASC,
                         circuit_id ASC,
                         id ASC
@@ -267,7 +277,8 @@ impl FriProverDal<'_, '_> {
             prover_jobs_fri.aggregation_round,
             prover_jobs_fri.sequence_number,
             prover_jobs_fri.depth,
-            prover_jobs_fri.is_node_final_proof
+            prover_jobs_fri.is_node_final_proof,
+            prover_jobs_fri.batch_sealed_at
             "#,
             protocol_version.minor as i32,
             protocol_version.patch.0 as i32,
@@ -281,6 +292,7 @@ impl FriProverDal<'_, '_> {
         .map(|row| FriProverJobMetadata {
             id: row.id as u32,
             block_number: L1BatchNumber(row.l1_batch_number as u32),
+            batch_sealed_at: DateTime::<Utc>::from_naive_utc_and_offset(row.batch_sealed_at, Utc),
             circuit_id: row.circuit_id as u8,
             aggregation_round: AggregationRound::try_from(i32::from(row.aggregation_round))
                 .unwrap(),
@@ -336,7 +348,8 @@ impl FriProverDal<'_, '_> {
             prover_jobs_fri.aggregation_round,
             prover_jobs_fri.sequence_number,
             prover_jobs_fri.depth,
-            prover_jobs_fri.is_node_final_proof
+            prover_jobs_fri.is_node_final_proof,
+            prover_jobs_fri.batch_sealed_at
             "#,
             duration_to_naive_time(time_taken),
             blob_url,
@@ -351,6 +364,7 @@ impl FriProverDal<'_, '_> {
         .map(|row| FriProverJobMetadata {
             id: row.id as u32,
             block_number: L1BatchNumber(row.l1_batch_number as u32),
+            batch_sealed_at: DateTime::<Utc>::from_naive_utc_and_offset(row.batch_sealed_at, Utc),
             circuit_id: row.circuit_id as u8,
             aggregation_round: AggregationRound::try_from(i32::from(row.aggregation_round))
                 .unwrap(),
@@ -375,7 +389,8 @@ impl FriProverDal<'_, '_> {
                 SET
                     status = 'queued',
                     updated_at = NOW(),
-                    processing_started_at = NOW()
+                    processing_started_at = NOW(),
+                    priority = priority + 1
                 WHERE
                     id IN (
                         SELECT
@@ -433,6 +448,7 @@ impl FriProverDal<'_, '_> {
         circuit_blob_url: &str,
         is_node_final_proof: bool,
         protocol_version: ProtocolSemanticVersion,
+        batch_sealed_at: DateTime<Utc>,
     ) {
         sqlx::query!(
             r#"
@@ -449,10 +465,11 @@ impl FriProverDal<'_, '_> {
                 status,
                 created_at,
                 updated_at,
-                protocol_version_patch
+                protocol_version_patch,
+                batch_sealed_at
             )
             VALUES
-            ($1, $2, $3, $4, $5, $6, $7, $8, 'queued', NOW(), NOW(), $9)
+            ($1, $2, $3, $4, $5, $6, $7, $8, 'queued', NOW(), NOW(), $9, $10)
             ON CONFLICT (
                 l1_batch_number, aggregation_round, circuit_id, depth, sequence_number
             ) DO
@@ -469,6 +486,7 @@ impl FriProverDal<'_, '_> {
             is_node_final_proof,
             protocol_version.minor as i32,
             protocol_version.patch.0 as i32,
+            batch_sealed_at.naive_utc(),
         )
         .execute(self.storage.conn())
         .await
@@ -910,6 +928,7 @@ impl FriProverDal<'_, '_> {
 
 #[cfg(test)]
 mod tests {
+    use sqlx::types::chrono::{DateTime, Utc};
     use zksync_basic_types::protocol_version::L1VerifierConfig;
     use zksync_db_connection::connection_pool::ConnectionPool;
 
@@ -936,13 +955,23 @@ mod tests {
             )
             .await;
         transaction
+            .fri_basic_witness_generator_dal()
+            .save_witness_inputs(
+                L1BatchNumber(1),
+                "",
+                ProtocolSemanticVersion::default(),
+                DateTime::<Utc>::default(),
+            )
+            .await;
+        transaction
             .fri_prover_jobs_dal()
             .insert_prover_jobs(
                 L1BatchNumber(1),
-                mock_circuit_ids_and_urls(10000),
+                mock_circuit_ids_and_urls(5000),
                 AggregationRound::Scheduler,
                 1,
                 ProtocolSemanticVersion::default(),
+                DateTime::<Utc>::default(),
             )
             .await;
 
