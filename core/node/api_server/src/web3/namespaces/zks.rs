@@ -500,11 +500,9 @@ impl ZksNamespace {
         let Some(tx) = tx else {
             return Err(Web3Error::NoBlock);
         };
-
-        Ok(tx
-            .confirmed_at_block
+        tx.confirmed_at_block
             .map(|block| block as u128)
-            .unwrap_or(0))
+            .ok_or_else(|| Web3Error::NoBlock)
     }
 
     pub async fn get_l2_to_l1_log_proof_impl(
