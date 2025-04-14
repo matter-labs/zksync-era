@@ -13,7 +13,7 @@
                 "ProtocolUpgrades",
                 "PriorityTransactions",
                 "ChainBatchRoot",
-                "ChainBatchRootGlobal"
+                "MessageRoot"
               ]
             }
           }

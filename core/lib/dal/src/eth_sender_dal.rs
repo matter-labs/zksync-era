@@ -384,7 +384,12 @@ impl EthSenderDal<'_, '_> {
         Ok(())
     }
 
-    pub async fn confirm_tx(&mut self, tx_hash: H256, gas_used: U256) -> anyhow::Result<()> {
+    pub async fn confirm_tx(
+        &mut self,
+        tx_hash: H256,
+        gas_used: U256,
+        confirmed_at_block: u32,
+    ) -> anyhow::Result<()> {
         let mut transaction = self
             .storage
             .start_transaction()
@@ -398,7 +403,8 @@ impl EthSenderDal<'_, '_> {
             UPDATE eth_txs_history
             SET
                 updated_at = NOW(),
-                confirmed_at = NOW()
+                confirmed_at = NOW(),
+                confirmed_at_block = $2
             WHERE
                 tx_hash = $1
             RETURNING
@@ -406,6 +412,7 @@ impl EthSenderDal<'_, '_> {
             eth_tx_id
             "#,
             tx_hash,
+            confirmed_at_block as i32
         )
         .fetch_one(transaction.conn())
         .await?;
@@ -660,10 +667,10 @@ impl EthSenderDal<'_, '_> {
         Ok(sent_at_block.flatten().map(|block| block as u32))
     }
 
-    pub async fn get_last_sent_eth_tx(
+    pub async fn get_last_sent_eth_storage_tx(
         &mut self,
         eth_tx_id: u32,
-    ) -> sqlx::Result<Option<TxHistory>> {
+    ) -> sqlx::Result<Option<StorageTxHistory>> {
         let history_item = sqlx::query_as!(
             StorageTxHistory,
             r#"
@@ -684,6 +691,14 @@ impl EthSenderDal<'_, '_> {
         )
         .fetch_optional(self.storage.conn())
         .await?;
+        Ok(history_item)
+    }
+
+    pub async fn get_last_sent_eth_tx(
+        &mut self,
+        eth_tx_id: u32,
+    ) -> sqlx::Result<Option<TxHistory>> {
+        let history_item = self.get_last_sent_eth_storage_tx(eth_tx_id).await?;
         Ok(history_item.map(|tx| tx.into()))
     }
 
@@ -840,11 +855,11 @@ impl EthSenderDal<'_, '_> {
         .unwrap()
     }
 
-    pub async fn get_last_sent_eth_tx_hash(
+    pub async fn get_last_sent_eth_tx_id(
         &mut self,
         l1_batch_number: L1BatchNumber,
         op_type: AggregatedActionType,
-    ) -> Option<TxHistory> {
+    ) -> Option<u32> {
         let row = sqlx::query!(
             r#"
             SELECT
@@ -868,6 +883,15 @@ impl EthSenderDal<'_, '_> {
             AggregatedActionType::Execute => row.eth_execute_tx_id,
         }
         .unwrap() as u32;
+        Some(eth_tx_id)
+    }
+
+    pub async fn get_last_sent_eth_tx_hash(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+        op_type: AggregatedActionType,
+    ) -> Option<TxHistory> {
+        let eth_tx_id = self.get_last_sent_eth_tx_id(l1_batch_number, op_type).await?;
         self.get_last_sent_eth_tx(eth_tx_id).await.unwrap()
     }
 }

@@ -228,18 +228,6 @@ describe('L1 ERC20 contract checks', () => {
         await delay(5000);
 
         // sma TODO hacky workaround for now to rewrite the much needed block number--remove when available!
-        let gw_provider = new RetryProvider(
-            { url: 'http://localhost:3052', timeout: 1200 * 1000 },
-            undefined,
-            testMaster.reporter
-        );
-        const l1BatchDetails = await alice.provider.getL1BatchDetails(params.l1BatchNumber ?? 0);
-        const executeTxHash = l1BatchDetails.executeTxHash!;
-        const executeTx = await gw_provider.getTransactionReceipt(executeTxHash);
-        const block_number = executeTx?.blockNumber ?? 0;
-        const proof_len = Number('0x' + params.proof[0].slice(4, 6)) + Number('0x' + params.proof[0].slice(6, 8));
-        params.proof[proof_len + 2] =
-            '0x' + block_number.toString(16).padStart(32, '0') + params.proof[proof_len + 2].slice(34);
         // sma TODO end of hacky workaround
 
         const included = await l2MessageVerification.proveL2MessageInclusionShared(

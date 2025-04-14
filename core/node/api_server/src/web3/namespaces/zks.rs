@@ -2,13 +2,14 @@ use std::collections::HashMap;
 
 use anyhow::Context as _;
 use zksync_crypto_primitives::hasher::{keccak::KeccakHasher, Hasher};
-use zksync_dal::{Connection, Core, CoreDal, DalError};
+use zksync_dal::{Connection, Core, CoreDal, DalError, SqlxError};
 use zksync_metadata_calculator::api_server::TreeApiError;
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_multivm::interface::VmEvent;
 use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     address_to_h256,
+    aggregated_operations::AggregatedActionType,
     api::{
         self, state_override::StateOverride, BlockDetails, BridgeAddresses, GetLogsFilter,
         L1BatchDetails, L2ToL1LogProof, Proof, ProtocolVersion, StorageProof,
@@ -435,7 +436,7 @@ impl ZksNamespace {
 
                 // The returned proof specifies the GW batch number on L1 where this L2 tx was included and a mask for the log proof
                 // We need to instead use the batch number to be the GW block number where the block containing this L2 tx was executed
-                let block_number = 0u128; // sma TODO: this value is currently not obtainable
+                let block_number = self.get_gw_block_number(l1_batch_number).await?;
                 // The mask must also be modified as the proof we'll serve is for the right subtree of Gateway's ChainBatchRoot
                 let number_mask_index = batch_chain_proof.batch_proof_len as usize + 1;
                 let number_mask = batch_chain_proof.proof[number_mask_index].0;
@@ -476,6 +477,30 @@ impl ZksNamespace {
             root,
             id: l1_log_index as u32,
         }))
+    }
+
+    pub async fn get_gw_block_number(&self, l1_batch_number: L1BatchNumber) -> Result<u128, Web3Error> {
+        let mut storage = self.state.acquire_connection().await?;
+
+        let eth_tx_id = storage
+            .eth_sender_dal()
+            .get_last_sent_eth_tx_id(l1_batch_number, AggregatedActionType::Execute)
+            .await
+        else {
+            return Err(Web3Error::NoBlock);
+        };
+
+        let tx = storage
+            .eth_sender_dal()
+            .get_last_sent_eth_storage_tx(eth_tx_id.unwrap())
+            .await
+            .map_err(|err| anyhow::anyhow!("Execute tx not found: {}", err))?;
+
+        let Some(tx) = tx else {
+            return Err(Web3Error::NoBlock);
+        };
+
+        Ok(tx.confirmed_at_block.map(|block| block as u128).unwrap_or(0))
     }
 
     pub async fn get_l2_to_l1_log_proof_impl(

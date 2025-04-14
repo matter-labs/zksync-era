@@ -68,6 +68,8 @@ pub struct StorageTxHistory {
     // Format a `bincode`-encoded `EthTxBlobSidecar` enum.
     pub blob_sidecar: Option<Vec<u8>>,
     pub blob_base_fee_per_gas: Option<i64>,
+
+    pub confirmed_at_block: Option<i32>,
 }
 
 impl From<StorageEthTx> for EthTx {
