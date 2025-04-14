@@ -63,7 +63,7 @@ pub struct ProofDataHandlerConfig {
     pub api_mode: ApiMode,
     pub gateway_api_url: Option<String>,
     pub proof_fetch_interval_in_secs: u16,
-    pub proof_gen_data_submit_interval_in_secs: u16,   
+    pub proof_gen_data_submit_interval_in_secs: u16,
     #[serde(skip)]
     // ^ Filled in separately in `Self::from_env()`. We cannot use `serde(flatten)` because it
     // doesn't work with `envy`: https://github.com/softprops/envy/issues/26

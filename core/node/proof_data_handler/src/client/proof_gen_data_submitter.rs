@@ -1,14 +1,13 @@
 use std::sync::Arc;
 
+use tokio::sync::watch;
 use zksync_config::configs::ProofDataHandlerConfig;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStore;
 use zksync_types::commitment::L1BatchCommitmentMode;
 
-use crate::processor::Processor;
-use tokio::sync::watch;
-
 use super::http_client::HttpClient;
+use crate::processor::Processor;
 
 pub(crate) struct ProofGenDataSubmitter {
     processor: Processor,
@@ -23,7 +22,12 @@ impl ProofGenDataSubmitter {
         config: ProofDataHandlerConfig,
         commitment_mode: L1BatchCommitmentMode,
     ) -> Self {
-        let processor = Processor::new(blob_store.clone(), pool.clone(), config.clone(), commitment_mode);
+        let processor = Processor::new(
+            blob_store.clone(),
+            pool.clone(),
+            config.clone(),
+            commitment_mode,
+        );
 
         let Some(api_url) = config.gateway_api_url.clone() else {
             panic!("Gateway API URL should be set if running in prover cluster mode");
@@ -33,27 +37,32 @@ impl ProofGenDataSubmitter {
         Self {
             processor,
             config,
-            client
+            client,
         }
     }
 
     pub async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         tracing::info!("Starting proof generation data submitter");
-        
+
         loop {
             if *stop_receiver.borrow() {
-                tracing::info!("Stop signal received, proof generation data submitter is shutting down");
+                tracing::info!(
+                    "Stop signal received, proof generation data submitter is shutting down"
+                );
                 break;
             }
 
             let proof = self.client.fetch_proof().await?;
 
             if let Some((batch_number, proof)) = proof {
-                self.processor.save_proof(batch_number, Some(proof)).await.map_err(|e| 
-                    anyhow::anyhow!(e)
-                )?;
+                self.processor
+                    .save_proof(batch_number, Some(proof))
+                    .await
+                    .map_err(|e| anyhow::anyhow!(e))?;
 
-                self.client.received_final_proof_request(batch_number).await?;
+                self.client
+                    .received_final_proof_request(batch_number)
+                    .await?;
             } else {
                 tracing::info!("No proof is ready yet");
             }

@@ -7,9 +7,13 @@ use tokio::sync::watch;
 use zksync_config::configs::ProofDataHandlerConfig;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStore;
-use zksync_prover_interface::{api::{
-    ProofGenerationDataRequest, ProofGenerationDataResponse, RegisterTeeAttestationRequest, SubmitProofRequest, SubmitTeeProofRequest, TeeProofGenerationDataRequest
-}, outputs::L1BatchProofForL1};
+use zksync_prover_interface::{
+    api::{
+        ProofGenerationDataRequest, ProofGenerationDataResponse, RegisterTeeAttestationRequest,
+        SubmitProofRequest, SubmitTeeProofRequest, TeeProofGenerationDataRequest,
+    },
+    outputs::L1BatchProofForL1,
+};
 use zksync_types::{commitment::L1BatchCommitmentMode, L1BatchNumber, L2ChainId};
 
 use crate::processor::Processor;
@@ -64,45 +68,44 @@ pub(crate) fn create_proof_processing_router(
         commitment_mode,
     );
     let submit_proof_processor = get_proof_gen_processor.clone();
-    let mut router = Router::new()
-        .route(
-            "/proof_generation_data",
-            post(
-                // we use post method because the returned data is not idempotent,
-                // i.e we return different result on each call.
-                move |_: Json<ProofGenerationDataRequest>| async move {
-                    let proof_generation_data = get_proof_gen_processor
-                        .get_proof_generation_data()
-                        .await;
+    let mut router =
+        Router::new()
+            .route(
+                "/proof_generation_data",
+                post(
+                    // we use post method because the returned data is not idempotent,
+                    // i.e we return different result on each call.
+                    move |_: Json<ProofGenerationDataRequest>| async move {
+                        let proof_generation_data =
+                            get_proof_gen_processor.get_proof_generation_data().await;
 
-                    match proof_generation_data {
-                        Ok(data) => {
-                            Json(ProofGenerationDataResponse::Success(data.map(|data| Box::new(data)))).into_response()
+                        match proof_generation_data {
+                            Ok(data) => Json(ProofGenerationDataResponse::Success(
+                                data.map(|data| Box::new(data)),
+                            ))
+                            .into_response(),
+                            Err(e) => e.into_response(),
                         }
-                        Err(e) => {
-                            e.into_response()
-                        }
-                    }
-                },
-            ),
-        )
-        .route(
-            "/submit_proof/:l1_batch_number",
-            post(
-                move |Path(l1_batch_number): Path<u32>, Json(payload): Json<SubmitProofRequest>| async move {
-                    let l1_batch_number = L1BatchNumber(l1_batch_number);
-                    let proof: Option<L1BatchProofForL1> = match payload {
-                        SubmitProofRequest::Proof(proof) => Some((*proof).into()),
-                        SubmitProofRequest::SkippedProofGeneration => None,
-                    };
+                    },
+                ),
+            )
+            .route(
+                "/submit_proof/:l1_batch_number",
+                post(
+                    move |Path(l1_batch_number): Path<u32>,
+                          Json(payload): Json<SubmitProofRequest>| async move {
+                        let l1_batch_number = L1BatchNumber(l1_batch_number);
+                        let proof: Option<L1BatchProofForL1> = match payload {
+                            SubmitProofRequest::Proof(proof) => Some((*proof).into()),
+                            SubmitProofRequest::SkippedProofGeneration => None,
+                        };
 
-
-                    submit_proof_processor
-                        .save_proof(l1_batch_number, proof)
-                        .await
-                },
-            ),
-        );
+                        submit_proof_processor
+                            .save_proof(l1_batch_number, proof)
+                            .await
+                    },
+                ),
+            );
 
     if config.tee_config.tee_support {
         let get_tee_proof_gen_processor =

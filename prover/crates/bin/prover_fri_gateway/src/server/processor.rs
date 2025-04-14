@@ -1,14 +1,12 @@
 use std::sync::Arc;
 
 use zksync_object_store::ObjectStore;
-use zksync_prover_dal::Prover;
-use zksync_prover_dal::ConnectionPool;
-use zksync_prover_dal::ProverDal;
-use zksync_prover_interface::api::ProofGenerationData;
-use zksync_prover_interface::api::SubmitProofRequest;
-use zksync_prover_interface::outputs::L1BatchProofForL1;
-use zksync_types::prover_dal::ProofCompressionJobStatus;
-use zksync_types::L1BatchNumber;
+use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
+use zksync_prover_interface::{
+    api::{ProofGenerationData, SubmitProofRequest},
+    outputs::L1BatchProofForL1,
+};
+use zksync_types::{prover_dal::ProofCompressionJobStatus, L1BatchNumber};
 
 use super::error::ProcessorError;
 
@@ -19,14 +17,13 @@ pub struct Processor {
 }
 
 impl Processor {
-    pub fn new(
-        blob_store: Arc<dyn ObjectStore>,
-        pool: ConnectionPool<Prover>,
-    ) -> Self {
+    pub fn new(blob_store: Arc<dyn ObjectStore>, pool: ConnectionPool<Prover>) -> Self {
         Self { blob_store, pool }
     }
 
-    pub(crate) async fn get_next_proof(&self) -> Result<Option<(L1BatchNumber, SubmitProofRequest)>, ProcessorError> {
+    pub(crate) async fn get_next_proof(
+        &self,
+    ) -> Result<Option<(L1BatchNumber, SubmitProofRequest)>, ProcessorError> {
         let Some((l1_batch_number, protocol_version, status)) = self
             .pool
             .connection()
@@ -34,9 +31,10 @@ impl Processor {
             .unwrap()
             .fri_proof_compressor_dal()
             .get_least_proven_block_not_sent_to_server()
-            .await else {
-                return Ok(None);
-            };
+            .await
+        else {
+            return Ok(None);
+        };
 
         let request = match status {
             ProofCompressionJobStatus::Successful => {
@@ -57,7 +55,10 @@ impl Processor {
         Ok(Some((l1_batch_number, request)))
     }
 
-    pub(crate) async fn save_successful_sent_proof(&self, l1_batch_number: L1BatchNumber) -> Result<(), ProcessorError> {
+    pub(crate) async fn save_successful_sent_proof(
+        &self,
+        l1_batch_number: L1BatchNumber,
+    ) -> Result<(), ProcessorError> {
         self.pool
             .connection()
             .await
@@ -68,8 +69,12 @@ impl Processor {
         Ok(())
     }
 
-    pub(crate) async fn save_proof_gen_data(&self, data: ProofGenerationData) -> Result<(), ProcessorError> {
-        let witness_inputs = self.blob_store
+    pub(crate) async fn save_proof_gen_data(
+        &self,
+        data: ProofGenerationData,
+    ) -> Result<(), ProcessorError> {
+        let witness_inputs = self
+            .blob_store
             .put(data.l1_batch_number, &data.witness_input_data)
             .await?;
 
@@ -82,7 +87,12 @@ impl Processor {
 
         connection
             .fri_basic_witness_generator_dal()
-            .save_witness_inputs(data.l1_batch_number, &witness_inputs, data.protocol_version, data.batch_sealed_at)
+            .save_witness_inputs(
+                data.l1_batch_number,
+                &witness_inputs,
+                data.protocol_version,
+                data.batch_sealed_at,
+            )
             .await?;
         Ok(())
     }

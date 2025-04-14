@@ -103,7 +103,8 @@ impl Task for ProofDataHandlerTask {
                     self.commitment_mode,
                     self.l2_chain_id,
                     stop_receiver.0,
-                ).await
+                )
+                .await
             }
             ApiMode::ProverCluster => {
                 // todo: tee proofs

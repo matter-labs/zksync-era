@@ -46,7 +46,8 @@ impl ProofGenDataFetcher {
         connection
             .fri_protocol_versions_dal()
             .save_prover_protocol_version(data.protocol_version, data.l1_verifier_config)
-            .await.unwrap();
+            .await
+            .unwrap();
 
         connection
             .fri_basic_witness_generator_dal()
@@ -56,7 +57,8 @@ impl ProofGenDataFetcher {
                 data.protocol_version,
                 data.batch_sealed_at,
             )
-            .await.unwrap();
+            .await
+            .unwrap();
     }
 }
 

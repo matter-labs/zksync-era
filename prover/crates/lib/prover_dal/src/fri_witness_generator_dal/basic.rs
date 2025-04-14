@@ -7,7 +7,10 @@ use zksync_basic_types::{
     L1BatchNumber,
 };
 use zksync_db_connection::{
-    connection::Connection, error::DalResult, instrument::InstrumentExt, utils::{duration_to_naive_time, pg_interval_from_duration}
+    connection::Connection,
+    error::DalResult,
+    instrument::InstrumentExt,
+    utils::{duration_to_naive_time, pg_interval_from_duration},
 };
 
 use crate::{fri_witness_generator_dal::FriWitnessJobStatus, Prover};
@@ -48,7 +51,7 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
         witness_inputs_blob_url: &str,
         protocol_version: ProtocolSemanticVersion,
         batch_sealed_at: chrono::DateTime<chrono::Utc>,
-    ) -> DalResult<()>{
+    ) -> DalResult<()> {
         sqlx::query!(
             r#"
             INSERT INTO

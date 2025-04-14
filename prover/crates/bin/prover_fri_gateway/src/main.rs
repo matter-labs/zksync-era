@@ -2,8 +2,7 @@ use std::time::Duration;
 
 use anyhow::Context as _;
 use clap::Parser;
-use client::proof_gen_data_fetcher::ProofGenDataFetcher;
-use client::proof_submitter::ProofSubmitter;
+use client::{proof_gen_data_fetcher::ProofGenDataFetcher, proof_submitter::ProofSubmitter};
 use server::Processor;
 use tokio::sync::{oneshot, watch};
 use traits::PeriodicApi as _;
@@ -17,8 +16,8 @@ use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 mod client;
 mod metrics;
-mod traits;
 mod server;
+mod traits;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -27,7 +26,9 @@ async fn main() -> anyhow::Result<()> {
     let general_config = load_general_config(opt.config_path).context("general config")?;
     let database_secrets = load_database_secrets(opt.secrets_path).context("database secrets")?;
 
-    let data_handler_config = general_config.proof_data_handler_config.context("data handler config")?;
+    let data_handler_config = general_config
+        .proof_data_handler_config
+        .context("data handler config")?;
 
     let api_mode = data_handler_config.api_mode;
 
@@ -88,15 +89,14 @@ async fn main() -> anyhow::Result<()> {
                     PrometheusExporterConfig::pull(config.prometheus_listener_port)
                         .run(stop_receiver.clone()),
                 ),
-                tokio::spawn(proof_gen_data_fetcher.run(config.api_poll_duration(), stop_receiver.clone())),
+                tokio::spawn(
+                    proof_gen_data_fetcher.run(config.api_poll_duration(), stop_receiver.clone()),
+                ),
                 tokio::spawn(proof_submitter.run(config.api_poll_duration(), stop_receiver)),
             ]
         }
         ApiMode::ProverCluster => {
-            let processor = Processor::new(
-                store_factory.create_store().await?,
-                pool,
-            );
+            let processor = Processor::new(store_factory.create_store().await?, pool);
 
             let api = server::Api::new(processor.clone(), config.port);
 
@@ -117,7 +117,7 @@ async fn main() -> anyhow::Result<()> {
             tracing::info!("Stop signal received, shutting down");
         }
     }
-            
+
     stop_sender.send(true).ok();
     tasks.complete(Duration::from_secs(5)).await;
 

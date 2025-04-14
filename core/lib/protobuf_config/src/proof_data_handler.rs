@@ -8,7 +8,6 @@ use crate::proto::prover as proto;
 impl ProtoRepr for proto::ProofDataHandler {
     type Type = configs::ProofDataHandlerConfig;
     fn read(&self) -> anyhow::Result<Self::Type> {
-
         let api_mode = if let Some(api_mode) = &self.api_mode {
             match api_mode {
                 0 => ApiMode::Legacy,
@@ -55,15 +54,14 @@ impl ProtoRepr for proto::ProofDataHandler {
                         configs::TeeConfig::default_tee_batch_permanently_ignored_timeout_in_hours,
                     ),
             },
-            gateway_api_url: self
-                .gateway_api_url
-                .as_ref()
-                .map(|x| x.to_string()),
+            gateway_api_url: self.gateway_api_url.as_ref().map(|x| x.to_string()),
             api_mode,
             proof_fetch_interval_in_secs: self
                 .proof_fetch_interval_in_secs
                 .map(|x| x as u16)
-                .unwrap_or_else(configs::ProofDataHandlerConfig::default_proof_fetch_interval_in_secs),
+                .unwrap_or_else(
+                    configs::ProofDataHandlerConfig::default_proof_fetch_interval_in_secs,
+                ),
             proof_gen_data_submit_interval_in_secs: self
                 .proof_gen_data_submit_interval_in_secs
                 .map(|x| x as u16)
@@ -94,9 +92,7 @@ impl ProtoRepr for proto::ProofDataHandler {
             ),
             gateway_api_url: this.gateway_api_url.as_ref().map(|x| x.to_string()),
             api_mode: Some(api_mode),
-            proof_fetch_interval_in_secs: Some(
-                this.proof_fetch_interval_in_secs.into(),
-            ),
+            proof_fetch_interval_in_secs: Some(this.proof_fetch_interval_in_secs.into()),
             proof_gen_data_submit_interval_in_secs: Some(
                 this.proof_gen_data_submit_interval_in_secs.into(),
             ),

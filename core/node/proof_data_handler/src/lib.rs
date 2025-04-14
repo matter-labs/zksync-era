@@ -1,11 +1,11 @@
 #[cfg(test)]
 mod tests;
 
+mod client;
 mod errors;
 mod metrics;
-mod client;
-mod server;
 mod processor;
+mod server;
 
-pub use server::*;
 pub use client::ProofDataHandlerClient;
+pub use server::*;

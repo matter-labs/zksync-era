@@ -1,14 +1,18 @@
 use std::net::SocketAddr;
 
-use axum::{extract::State, routing::{get, post}, Json, Router};
+use anyhow::Context as _;
+use axum::{
+    extract::State,
+    routing::{get, post},
+    Json, Router,
+};
 use error::ProcessorError;
 use tokio::sync::watch;
-use anyhow::Context as _;
 use zksync_prover_interface::api::{ProofGenerationData, SubmitProofRequest};
 use zksync_types::L1BatchNumber;
 
-mod processor;
 mod error;
+mod processor;
 
 pub use processor::Processor;
 
@@ -48,7 +52,7 @@ impl Api {
         .with_graceful_shutdown(async move {
             if stop_receiver.changed().await.is_err() {
                 tracing::warn!("Stop signal sender for prover gateway API server was dropped without sending a signal");
-            } 
+            }
             tracing::info!("Stop signal received, prover gateway API server is shutting down");
         })
         .await

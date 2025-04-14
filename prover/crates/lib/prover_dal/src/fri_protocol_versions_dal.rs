@@ -16,7 +16,7 @@ impl FriProtocolVersionsDal<'_, '_> {
         &mut self,
         id: ProtocolSemanticVersion,
         l1_verifier_config: L1VerifierConfig,
-    ) -> DalResult<()>{
+    ) -> DalResult<()> {
         sqlx::query!(
             r#"
             INSERT INTO

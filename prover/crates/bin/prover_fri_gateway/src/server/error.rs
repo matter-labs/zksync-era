@@ -1,8 +1,11 @@
-use axum::{http::StatusCode, response::{IntoResponse, Response}};
+use axum::{
+    http::StatusCode,
+    response::{IntoResponse, Response},
+};
 use zksync_object_store::ObjectStoreError;
 
 #[derive(Debug, thiserror::Error)]
-pub enum ProcessorError{
+pub enum ProcessorError {
     #[error("GCS error: {0}")]
     ObjectStoreErr(#[from] ObjectStoreError),
     #[error("Database query failed: {0}")]

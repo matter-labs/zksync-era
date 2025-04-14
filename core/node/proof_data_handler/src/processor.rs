@@ -81,10 +81,7 @@ impl Processor {
     }
 
     /// Marks the batch as 'unpicked', allowing it to be picked up by another prover.
-    async fn unlock_batch(
-        &self,
-        l1_batch_number: L1BatchNumber,
-    ) -> Result<(), ProcessorError> {
+    async fn unlock_batch(&self, l1_batch_number: L1BatchNumber) -> Result<(), ProcessorError> {
         self.pool
             .connection()
             .await
@@ -128,11 +125,7 @@ impl Processor {
         };
 
         // Acquire connection after interacting with GCP, to avoid holding the connection for too long.
-        let mut conn = self
-            .pool
-            .connection()
-            .await
-            .map_err(ProcessorError::Dal)?;
+        let mut conn = self.pool.connection().await.map_err(ProcessorError::Dal)?;
 
         let previous_batch_metadata = conn
             .blocks_dal()
@@ -217,7 +210,10 @@ impl Processor {
         let proof = match proof {
             Some(proof) => proof,
             None => {
-                tracing::info!("Proof is None for batch number: {:?}, marking proof as skipped", l1_batch_number);
+                tracing::info!(
+                    "Proof is None for batch number: {:?}, marking proof as skipped",
+                    l1_batch_number
+                );
                 self.pool
                     .connection()
                     .await
@@ -232,7 +228,7 @@ impl Processor {
 
         let blob_url = self
             .blob_store
-              .put((l1_batch_number, proof.protocol_version()), &proof)
+            .put((l1_batch_number, proof.protocol_version()), &proof)
             .await
             .map_err(ProcessorError::ObjectStore)?;
 
@@ -240,8 +236,7 @@ impl Processor {
 
         let system_logs_hash_from_prover = H256::from_slice(&aggregation_coords[0]);
         let state_diff_hash_from_prover = H256::from_slice(&aggregation_coords[1]);
-        let bootloader_heap_initial_content_from_prover =
-            H256::from_slice(&aggregation_coords[2]);
+        let bootloader_heap_initial_content_from_prover = H256::from_slice(&aggregation_coords[2]);
         let events_queue_state_from_prover = H256::from_slice(&aggregation_coords[3]);
 
         let mut storage = self.pool.connection().await.unwrap();
@@ -259,7 +254,7 @@ impl Processor {
             .unwrap_or_else(ProtocolVersionId::last_potentially_undefined);
 
         let events_queue_state = l1_batch
-                .metadata
+            .metadata
             .events_queue_commitment
             .expect("No events_queue_commitment");
         let bootloader_heap_initial_content = l1_batch
@@ -268,8 +263,7 @@ impl Processor {
             .expect("No bootloader_initial_content_commitment");
 
         if events_queue_state != events_queue_state_from_prover
-            || bootloader_heap_initial_content
-                != bootloader_heap_initial_content_from_prover
+            || bootloader_heap_initial_content != bootloader_heap_initial_content_from_prover
         {
             panic!(
                 "Auxilary output doesn't match\n\
@@ -287,11 +281,10 @@ impl Processor {
                 .system_logs
                 .iter()
                 .find_map(|log| {
-                    (log.0.key
-                        == H256::from_low_u64_be(STATE_DIFF_HASH_KEY_PRE_GATEWAY as u64))
-                    .then_some(log.0.value)
+                    (log.0.key == H256::from_low_u64_be(STATE_DIFF_HASH_KEY_PRE_GATEWAY as u64))
+                        .then_some(log.0.value)
                 })
-                   .expect("Failed to get state_diff_hash from system logs")
+                .expect("Failed to get state_diff_hash from system logs")
         } else {
             l1_batch
                 .metadata
@@ -302,7 +295,9 @@ impl Processor {
         if state_diff_hash != state_diff_hash_from_prover
             || system_logs_hash != system_logs_hash_from_prover
         {
-            let server_values = format!("system_logs_hash = {system_logs_hash}, state_diff_hash = {state_diff_hash}");
+            let server_values = format!(
+                "system_logs_hash = {system_logs_hash}, state_diff_hash = {state_diff_hash}"
+            );
             let prover_values = format!("system_logs_hash = {system_logs_hash_from_prover}, state_diff_hash = {state_diff_hash_from_prover}");
             panic!(
                 "Auxilary output doesn't match, server values: {} prover values: {}",
