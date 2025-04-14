@@ -1,3 +1,4 @@
+<!--- WIP --->
 # L1 Smart contracts
 
 This document presumes familiarity with Rollups. For a better understanding, consider reading the overview
