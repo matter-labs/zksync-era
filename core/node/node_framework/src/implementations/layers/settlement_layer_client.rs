@@ -6,7 +6,7 @@ use zksync_web3_decl::client::Client;
 use crate::{
     implementations::resources::{
         eth_interface::{SettlementLayerClient, SettlementLayerClientResource},
-        settlement_layer::SettlementModeResource,
+        settlement_layer::SettlementLayerResource,
     },
     wiring_layer::{WiringError, WiringLayer},
     IntoContext,
@@ -31,7 +31,7 @@ impl SettlementLayerClientLayer {
 #[derive(Debug, FromContext)]
 #[context(crate = crate)]
 pub struct Input {
-    initial_settlement_mode: SettlementModeResource,
+    initial_settlement_mode: SettlementLayerResource,
 }
 
 #[derive(Debug, IntoContext)]

@@ -1,5 +1,5 @@
 use zksync_multivm::utils::gas_bootloader_batch_tip_overhead;
-use zksync_types::ProtocolVersionId;
+use zksync_types::{settlement::SettlementLayer, ProtocolVersionId};
 
 use crate::seal_criteria::{
     SealCriterion, SealData, SealResolution, StateKeeperConfig, UnexecutableReason,
@@ -19,6 +19,7 @@ impl SealCriterion for GasForBatchTipCriterion {
         _block_data: &SealData,
         tx_data: &SealData,
         protocol_version: ProtocolVersionId,
+        _settlement_layer: &SettlementLayer,
     ) -> SealResolution {
         let batch_tip_overhead = gas_bootloader_batch_tip_overhead(protocol_version.into());
         let is_tx_first = tx_count == 1;
@@ -42,6 +43,7 @@ impl SealCriterion for GasForBatchTipCriterion {
 #[cfg(test)]
 mod tests {
     use assert_matches::assert_matches;
+    use zksync_types::SLChainId;
 
     use super::*;
 
@@ -49,6 +51,7 @@ mod tests {
     fn test_gas_for_batch_tip_seal_criterion() {
         // Create an empty config.
         let config = StateKeeperConfig::default();
+        let sl = SettlementLayer::L1(SLChainId(10));
 
         let criterion = GasForBatchTipCriterion;
         let protocol_version = ProtocolVersionId::latest();
@@ -65,6 +68,7 @@ mod tests {
             &seal_data,
             &seal_data,
             protocol_version,
+            &sl,
         );
         assert_eq!(almost_full_block_resolution, SealResolution::NoSeal);
 
@@ -80,6 +84,7 @@ mod tests {
             &seal_data,
             &seal_data,
             protocol_version,
+            &sl,
         );
         assert_matches!(
             full_block_first_tx_resolution,
@@ -94,6 +99,7 @@ mod tests {
             &seal_data,
             &seal_data,
             protocol_version,
+            &sl,
         );
         assert_eq!(
             full_block_second_tx_resolution,

@@ -8,7 +8,7 @@ use crate::{
         contracts::L1ChainContractsResource,
         eth_interface::{EthInterfaceResource, L2InterfaceResource},
         pools::{MasterPool, PoolResource},
-        settlement_layer::SettlementModeResource,
+        settlement_layer::SettlementLayerResource,
     },
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext, StopReceiver, Task, TaskId,
@@ -26,7 +26,7 @@ pub struct Input {
     eth_client: EthInterfaceResource,
     gateway_client: Option<L2InterfaceResource>,
     contracts: L1ChainContractsResource,
-    settlement_mode_resource: SettlementModeResource,
+    settlement_mode_resource: SettlementLayerResource,
     pool: PoolResource<MasterPool>,
 }
 

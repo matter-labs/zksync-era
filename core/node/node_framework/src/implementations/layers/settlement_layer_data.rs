@@ -30,7 +30,7 @@ use crate::{
         },
         eth_interface::{EthInterfaceResource, L2InterfaceResource},
         pools::{MasterPool, PoolResource},
-        settlement_layer::SettlementModeResource,
+        settlement_layer::SettlementLayerResource,
     },
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
@@ -69,7 +69,7 @@ pub struct Input {
 #[derive(Debug, IntoContext)]
 #[context(crate = crate)]
 pub struct Output {
-    initial_settlement_mode: SettlementModeResource,
+    initial_settlement_mode: SettlementLayerResource,
     contracts: SettlementLayerContractsResource,
     l1_ecosystem_contracts: L1EcosystemContractsResource,
     l1_contracts: L1ChainContractsResource,
@@ -138,7 +138,7 @@ impl WiringLayer for SettlementLayerData<MainNodeConfig> {
         };
 
         Ok(Output {
-            initial_settlement_mode: SettlementModeResource(final_settlement_mode),
+            initial_settlement_mode: SettlementLayerResource(final_settlement_mode),
             contracts: SettlementLayerContractsResource(sl_chain_contracts),
             l1_ecosystem_contracts: L1EcosystemContractsResource(
                 self.config.l1_specific_contracts.clone(),
@@ -244,7 +244,7 @@ impl WiringLayer for SettlementLayerData<ENConfig> {
             l1_contracts: L1ChainContractsResource(self.config.l1_chain_contracts),
             l1_ecosystem_contracts: L1EcosystemContractsResource(self.config.l1_specific_contracts),
             l2_contracts: L2ContractsResource(self.config.l2_contracts),
-            initial_settlement_mode: SettlementModeResource(initial_sl_mode),
+            initial_settlement_mode: SettlementLayerResource(initial_sl_mode),
             l2_eth_client,
             eth_sender_config: None,
         })

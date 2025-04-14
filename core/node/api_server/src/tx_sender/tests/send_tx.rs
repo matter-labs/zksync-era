@@ -42,7 +42,9 @@ async fn submitting_tx_requires_one_connection() {
         ExecutionResult::Success { output: vec![] }
     });
     let tx_executor = SandboxExecutor::mock(tx_executor).await;
-    let (tx_sender, _) = create_test_tx_sender(pool.clone(), l2_chain_id, tx_executor).await;
+    let sl = SettlementLayer::L1(SLChainId(10));
+
+    let (tx_sender, _) = create_test_tx_sender(pool.clone(), l2_chain_id, tx_executor, sl).await;
     let block_args = pending_block_args(&tx_sender).await;
 
     tx_sender.submit_tx(tx, block_args).await.unwrap();
@@ -76,8 +78,9 @@ async fn nonce_validation_errors() {
     drop(storage);
 
     let l2_chain_id = L2ChainId::default();
+    let sl = SettlementLayer::L1(SLChainId(10));
     let tx_executor = SandboxExecutor::mock(MockOneshotExecutor::default()).await;
-    let (tx_sender, _) = create_test_tx_sender(pool.clone(), l2_chain_id, tx_executor).await;
+    let (tx_sender, _) = create_test_tx_sender(pool.clone(), l2_chain_id, tx_executor, sl).await;
     let mut tx = create_l2_transaction(55, 555);
 
     tx_sender.validate_account_nonce(&tx).await.unwrap();
@@ -126,7 +129,8 @@ async fn fee_validation_errors() {
 
     let l2_chain_id = L2ChainId::default();
     let tx_executor = SandboxExecutor::mock(MockOneshotExecutor::default()).await;
-    let (tx_sender, _) = create_test_tx_sender(pool.clone(), l2_chain_id, tx_executor).await;
+    let sl = SettlementLayer::L1(SLChainId(10));
+    let (tx_sender, _) = create_test_tx_sender(pool.clone(), l2_chain_id, tx_executor, sl).await;
     let fee_params_provider: &dyn BatchFeeModelInputProvider =
         &MockBatchFeeParamsProvider::default();
     let fee_input = fee_params_provider.get_batch_fee_input().await.unwrap();
@@ -304,6 +308,7 @@ async fn submit_tx_with_validation_traces(actual_range: Range<u64>, expected_ran
     // This test verifies that when a transaction produces ValidationTraces,
     // range_start and range_end get persisted in the database
     let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
+    let sl = SettlementLayer::L1(SLChainId(10));
     let mut storage = pool.connection().await.unwrap();
     insert_genesis_batch(&mut storage, &GenesisParams::mock())
         .await
@@ -337,7 +342,7 @@ async fn submit_tx_with_validation_traces(actual_range: Range<u64>, expected_ran
     });
 
     let tx_executor = SandboxExecutor::mock(tx_executor).await;
-    let (tx_sender, _) = create_test_tx_sender(pool.clone(), l2_chain_id, tx_executor).await;
+    let (tx_sender, _) = create_test_tx_sender(pool.clone(), l2_chain_id, tx_executor, sl).await;
     let block_args = pending_block_args(&tx_sender).await;
 
     tx_sender.submit_tx(tx, block_args).await.unwrap();

@@ -9,7 +9,7 @@ use zksync_health_check::CheckHealth;
 use zksync_node_fee_model::MockBatchFeeParamsProvider;
 use zksync_state::PostgresStorageCaches;
 use zksync_state_keeper::seal_criteria::NoopSealer;
-use zksync_types::L2ChainId;
+use zksync_types::{settlement::SettlementLayer, L2ChainId, SLChainId};
 use zksync_vm_executor::oneshot::MockOneshotExecutor;
 
 use super::{metrics::ApiTransportLabel, *};
@@ -25,6 +25,7 @@ pub(crate) async fn create_test_tx_sender(
     pool: ConnectionPool<Core>,
     l2_chain_id: L2ChainId,
     tx_executor: SandboxExecutor,
+    settlement_layer: SettlementLayer,
 ) -> (TxSender, VmConcurrencyBarrier) {
     let web3_config = Web3JsonRpcConfig::for_tests();
     let state_keeper_config = StateKeeperConfig::for_tests();
@@ -46,6 +47,7 @@ pub(crate) async fn create_test_tx_sender(
         pool,
         batch_fee_model_input_provider,
         storage_caches,
+        settlement_layer,
     )
     .await
     .expect("failed building transaction sender");
@@ -182,8 +184,13 @@ impl TestServerBuilder {
         } else {
             SandboxExecutor::mock(tx_executor).await
         };
-        let (tx_sender, vm_barrier) =
-            create_test_tx_sender(pool.clone(), api_config.l2_chain_id, tx_executor).await;
+        let (tx_sender, vm_barrier) = create_test_tx_sender(
+            pool.clone(),
+            api_config.l2_chain_id,
+            tx_executor,
+            SettlementLayer::L1(SLChainId(10)),
+        )
+        .await;
         let (pub_sub_events_sender, pub_sub_events_receiver) = mpsc::unbounded_channel();
 
         let mut namespaces = Namespace::DEFAULT.to_vec();

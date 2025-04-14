@@ -7,7 +7,7 @@ use crate::{
         eth_interface::SettlementLayerClientResource,
         healthcheck::AppHealthCheckResource,
         pools::{MasterPool, PoolResource},
-        settlement_layer::SettlementModeResource,
+        settlement_layer::SettlementLayerResource,
     },
     service::StopReceiver,
     task::{Task, TaskId},
@@ -26,7 +26,7 @@ pub struct ConsistencyCheckerLayer {
 #[context(crate = crate)]
 pub struct Input {
     pub settlement_layer_client: SettlementLayerClientResource,
-    pub settlement_mode: SettlementModeResource,
+    pub settlement_mode: SettlementLayerResource,
     pub sl_chain_contracts: SettlementLayerContractsResource,
     pub master_pool: PoolResource<MasterPool>,
     #[context(default)]

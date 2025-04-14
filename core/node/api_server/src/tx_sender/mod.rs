@@ -28,6 +28,7 @@ use zksync_types::{
     fee_model::BatchFeeInput,
     get_intrinsic_constants, h256_to_u256,
     l2::{error::TxCheckError::TxDuplication, L2Tx},
+    settlement::SettlementLayer,
     transaction_request::CallOverrides,
     utils::storage_key_for_eth_balance,
     vm::FastVmMode,
@@ -53,6 +54,7 @@ pub(crate) mod tests;
 pub mod tx_sink;
 pub mod whitelist;
 
+#[allow(clippy::too_many_arguments)]
 pub async fn build_tx_sender(
     tx_sender_config: &TxSenderConfig,
     web3_json_config: &Web3JsonRpcConfig,
@@ -61,8 +63,9 @@ pub async fn build_tx_sender(
     master_pool: ConnectionPool<Core>,
     batch_fee_model_input_provider: Arc<dyn BatchFeeModelInputProvider>,
     storage_caches: PostgresStorageCaches,
+    settlement_layer: SettlementLayer,
 ) -> anyhow::Result<(TxSender, VmConcurrencyBarrier)> {
-    let sequencer_sealer = SequencerSealer::new(state_keeper_config.clone());
+    let sequencer_sealer = SequencerSealer::new(state_keeper_config.clone(), settlement_layer);
     let master_pool_sink = MasterPoolSink::new(master_pool);
     let tx_sender_builder = TxSenderBuilder::new(
         tx_sender_config.clone(),

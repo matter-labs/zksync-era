@@ -11,6 +11,7 @@ use crate::{
         contracts::{L2ContractsResource, SettlementLayerContractsResource},
         fee_input::SequencerFeeInputResource,
         pools::{MasterPool, PoolResource},
+        settlement_layer::SettlementLayerResource,
         state_keeper::{ConditionalSealerResource, StateKeeperIOResource},
     },
     service::StopReceiver,
@@ -50,6 +51,7 @@ pub struct Input {
     pub master_pool: PoolResource<MasterPool>,
     pub contracts_resource: SettlementLayerContractsResource,
     pub l2_contracts_resource: L2ContractsResource,
+    pub settlement_layer_resource: SettlementLayerResource,
 }
 
 #[derive(Debug, IntoContext)]
@@ -140,7 +142,8 @@ impl WiringLayer for MempoolIOLayer {
         )?;
 
         // Create sealer.
-        let sealer = SequencerSealer::new(self.state_keeper_config);
+        let sealer =
+            SequencerSealer::new(self.state_keeper_config, input.settlement_layer_resource.0);
 
         Ok(Output {
             state_keeper_io: io.into(),

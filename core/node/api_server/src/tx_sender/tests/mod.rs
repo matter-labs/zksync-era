@@ -4,7 +4,7 @@ use test_casing::TestCases;
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_node_test_utils::{create_l2_block, prepare_recovery_snapshot};
 use zksync_test_contracts::LoadnextContractExecutionParams;
-use zksync_types::{get_nonce_key, L1BatchNumber, L2BlockNumber, StorageLog};
+use zksync_types::{get_nonce_key, L1BatchNumber, L2BlockNumber, SLChainId, StorageLog};
 use zksync_vm_executor::oneshot::MockOneshotExecutor;
 
 use super::*;
@@ -62,7 +62,9 @@ async fn getting_nonce_for_account() {
 
     let tx_executor = MockOneshotExecutor::default();
     let tx_executor = SandboxExecutor::mock(tx_executor).await;
-    let (tx_sender, _) = create_test_tx_sender(pool.clone(), l2_chain_id, tx_executor).await;
+    let sl = SettlementLayer::L1(SLChainId(10));
+
+    let (tx_sender, _) = create_test_tx_sender(pool.clone(), l2_chain_id, tx_executor, sl).await;
 
     let nonce = tx_sender.get_expected_nonce(test_address).await.unwrap();
     assert_eq!(nonce, Nonce(123));
@@ -113,7 +115,9 @@ async fn getting_nonce_for_account_after_snapshot_recovery() {
     let l2_chain_id = L2ChainId::default();
     let tx_executor = MockOneshotExecutor::default();
     let tx_executor = SandboxExecutor::mock(tx_executor).await;
-    let (tx_sender, _) = create_test_tx_sender(pool.clone(), l2_chain_id, tx_executor).await;
+    let sl = SettlementLayer::L1(SLChainId(10));
+
+    let (tx_sender, _) = create_test_tx_sender(pool.clone(), l2_chain_id, tx_executor, sl).await;
 
     storage
         .blocks_dal()
@@ -148,6 +152,8 @@ async fn create_real_tx_sender_with_options(
     vm_mode: FastVmMode,
     storage_invocations_limit: usize,
 ) -> TxSender {
+    let sl = SettlementLayer::L1(SLChainId(10));
+
     let mut storage = pool.connection().await.unwrap();
     let genesis_params = GenesisParams::mock();
     insert_genesis_batch(&mut storage, &genesis_params)
@@ -168,7 +174,7 @@ async fn create_real_tx_sender_with_options(
     let pg_caches = PostgresStorageCaches::new(1, 1);
     let tx_executor =
         SandboxExecutor::real(executor_options, pg_caches, storage_invocations_limit, None);
-    create_test_tx_sender(pool, genesis_params.config().l2_chain_id, tx_executor)
+    create_test_tx_sender(pool, genesis_params.config().l2_chain_id, tx_executor, sl)
         .await
         .0
 }

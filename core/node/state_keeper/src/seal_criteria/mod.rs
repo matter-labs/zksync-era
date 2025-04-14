@@ -17,7 +17,9 @@ use zksync_multivm::{
     interface::{DeduplicatedWritesMetrics, Halt, TransactionExecutionMetrics, VmExecutionMetrics},
     vm_latest::TransactionVmExt,
 };
-use zksync_types::{utils::display_timestamp, ProtocolVersionId, Transaction};
+use zksync_types::{
+    settlement::SettlementLayer, utils::display_timestamp, ProtocolVersionId, Transaction,
+};
 
 pub use self::conditional_sealer::{ConditionalSealer, NoopSealer, SequencerSealer};
 use crate::{metrics::AGGREGATION_METRICS, updates::UpdatesManager, utils::millis_since};
@@ -188,6 +190,7 @@ pub(super) trait SealCriterion: fmt::Debug + Send + Sync + 'static {
         block_data: &SealData,
         tx_data: &SealData,
         protocol_version: ProtocolVersionId,
+        sl_mode: &SettlementLayer,
     ) -> SealResolution;
 
     // We need self here only for rust restrictions for creating an object from trait

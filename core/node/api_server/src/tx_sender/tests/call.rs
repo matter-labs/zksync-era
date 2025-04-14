@@ -39,10 +39,13 @@ async fn eth_call_requires_single_connection() {
         }
     });
     let tx_executor = SandboxExecutor::mock(tx_executor).await;
+    let sl = SettlementLayer::L1(SLChainId(10));
+
     let (tx_sender, _) = create_test_tx_sender(
         pool.clone(),
         genesis_params.config().l2_chain_id,
         tx_executor,
+        sl,
     )
     .await;
     let call_overrides = CallOverrides {

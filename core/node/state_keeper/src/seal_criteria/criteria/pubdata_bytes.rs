@@ -1,5 +1,5 @@
 use zksync_multivm::utils::execution_metrics_bootloader_batch_tip_overhead;
-use zksync_types::ProtocolVersionId;
+use zksync_types::{settlement::SettlementLayer, ProtocolVersionId};
 
 use crate::seal_criteria::{
     SealCriterion, SealData, SealResolution, StateKeeperConfig, UnexecutableReason,
@@ -24,6 +24,7 @@ impl SealCriterion for PubDataBytesCriterion {
         block_data: &SealData,
         tx_data: &SealData,
         protocol_version: ProtocolVersionId,
+        _settlement_layer: &SettlementLayer,
     ) -> SealResolution {
         let max_pubdata_per_l1_batch = self.max_pubdata_per_batch as usize;
         let reject_bound =
@@ -68,11 +69,13 @@ impl SealCriterion for PubDataBytesCriterion {
 #[cfg(test)]
 mod tests {
     use zksync_multivm::interface::VmExecutionMetrics;
+    use zksync_types::SLChainId;
 
     use super::*;
 
     #[test]
     fn seal_criterion() {
+        let settlement_layer = SettlementLayer::L1(SLChainId(10));
         // Create an empty config and only setup fields relevant for the test.
         let config = StateKeeperConfig {
             reject_tx_at_eth_params_percentage: 0.95,
@@ -107,6 +110,7 @@ mod tests {
             },
             &SealData::default(),
             ProtocolVersionId::latest(),
+            &settlement_layer,
         );
         assert_eq!(empty_block_resolution, SealResolution::NoSeal);
 
@@ -129,6 +133,7 @@ mod tests {
             },
             &SealData::default(),
             ProtocolVersionId::latest(),
+            &settlement_layer,
         );
         assert_eq!(full_block_resolution, SealResolution::IncludeAndSeal);
 
@@ -147,6 +152,7 @@ mod tests {
             },
             &SealData::default(),
             ProtocolVersionId::latest(),
+            &settlement_layer,
         );
         assert_eq!(full_block_resolution, SealResolution::ExcludeAndSeal);
     }

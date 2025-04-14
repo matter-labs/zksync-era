@@ -4,9 +4,9 @@ use zksync_types::settlement::SettlementLayer;
 use crate::Resource;
 
 #[derive(Debug, Clone)]
-pub struct SettlementModeResource(pub SettlementLayer);
+pub struct SettlementLayerResource(pub SettlementLayer);
 
-impl Resource for SettlementModeResource {
+impl Resource for SettlementLayerResource {
     fn name() -> String {
         "common/settlement_mode".into()
     }

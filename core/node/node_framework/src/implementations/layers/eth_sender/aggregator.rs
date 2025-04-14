@@ -16,7 +16,7 @@ use crate::{
         healthcheck::AppHealthCheckResource,
         object_store::ObjectStoreResource,
         pools::{MasterPool, PoolResource, ReplicaPool},
-        settlement_layer::SettlementModeResource,
+        settlement_layer::SettlementLayerResource,
     },
     service::StopReceiver,
     task::{Task, TaskId},
@@ -57,7 +57,7 @@ pub struct Input {
     pub eth_client_blobs: Option<BoundEthInterfaceForBlobsResource>,
     pub eth_client_gateway: Option<BoundEthInterfaceForL2Resource>,
     pub object_store: ObjectStoreResource,
-    pub settlement_mode: SettlementModeResource,
+    pub settlement_mode: SettlementLayerResource,
     pub sender_config: SenderConfig,
     #[context(default)]
     pub circuit_breakers: CircuitBreakersResource,

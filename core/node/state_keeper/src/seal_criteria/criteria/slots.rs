@@ -1,5 +1,5 @@
 use zksync_multivm::utils::get_bootloader_max_txs_in_batch;
-use zksync_types::ProtocolVersionId;
+use zksync_types::{settlement::SettlementLayer, ProtocolVersionId};
 
 use crate::seal_criteria::{SealCriterion, SealData, SealResolution, StateKeeperConfig};
 
@@ -17,6 +17,7 @@ impl SealCriterion for SlotsCriterion {
         _block_data: &SealData,
         _tx_data: &SealData,
         protocol_version: ProtocolVersionId,
+        _settlement_layer: &SettlementLayer,
     ) -> SealResolution {
         let max_txs_in_batch = get_bootloader_max_txs_in_batch(protocol_version.into());
         assert!(
@@ -39,10 +40,13 @@ impl SealCriterion for SlotsCriterion {
 
 #[cfg(test)]
 mod tests {
+    use zksync_types::SLChainId;
+
     use super::*;
 
     #[test]
     fn test_slots_seal_criterion() {
+        let settlement_layer = SettlementLayer::L1(SLChainId(10));
         // Create an empty config and only setup fields relevant for the test.
         let config = StateKeeperConfig {
             transaction_slots: 2,
@@ -59,6 +63,7 @@ mod tests {
             &SealData::default(),
             &SealData::default(),
             ProtocolVersionId::latest(),
+            &settlement_layer,
         );
         assert_eq!(almost_full_block_resolution, SealResolution::NoSeal);
 
@@ -70,6 +75,7 @@ mod tests {
             &SealData::default(),
             &SealData::default(),
             ProtocolVersionId::latest(),
+            &settlement_layer,
         );
         assert_eq!(full_block_resolution, SealResolution::IncludeAndSeal);
     }

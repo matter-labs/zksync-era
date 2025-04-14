@@ -18,9 +18,10 @@ use zksync_multivm::{
 use zksync_node_test_utils::{create_l2_transaction, default_l1_batch_env, default_system_env};
 use zksync_types::{
     block::{L2BlockExecutionData, L2BlockHasher},
+    settlement::SettlementLayer,
     u256_to_h256, AccountTreeId, Address, L1BatchNumber, L2BlockNumber, L2ChainId,
-    ProtocolVersionId, StorageKey, StorageLog, StorageLogKind, StorageLogWithPreviousValue,
-    Transaction, H256, U256,
+    ProtocolVersionId, SLChainId, StorageKey, StorageLog, StorageLogKind,
+    StorageLogWithPreviousValue, Transaction, H256, U256,
 };
 
 use crate::{
@@ -132,7 +133,9 @@ async fn sealed_by_number_of_txs() {
         transaction_slots: 2,
         ..StateKeeperConfig::default()
     };
-    let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
+    let settlement_layer = SettlementLayer::L1(SLChainId(10));
+    let sealer =
+        SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)], settlement_layer);
 
     TestScenario::new()
         .seal_l2_block_when(|updates| updates.l2_block.executed_transactions.len() == 1)
@@ -151,7 +154,9 @@ async fn batch_sealed_before_l2_block_does() {
         transaction_slots: 2,
         ..StateKeeperConfig::default()
     };
-    let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
+    let settlement_layer = SettlementLayer::L1(SLChainId(10));
+    let sealer =
+        SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)], settlement_layer);
 
     // L2 block sealer will not return true before the batch is sealed because the batch only has 2 txs.
     TestScenario::new()
@@ -176,7 +181,9 @@ async fn rejected_tx() {
         transaction_slots: 2,
         ..StateKeeperConfig::default()
     };
-    let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
+    let settlement_layer = SettlementLayer::L1(SLChainId(10));
+    let sealer =
+        SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)], settlement_layer);
 
     let rejected_tx = random_tx(1);
     TestScenario::new()
@@ -206,7 +213,9 @@ async fn bootloader_tip_out_of_gas_flow() {
         transaction_slots: 2,
         ..StateKeeperConfig::default()
     };
-    let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
+    let settlement_layer = SettlementLayer::L1(SLChainId(10));
+    let sealer =
+        SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)], settlement_layer);
 
     let first_tx = random_tx(1);
     let bootloader_out_of_gas_tx = random_tx(2);
@@ -244,7 +253,9 @@ async fn pending_batch_is_applied() {
         transaction_slots: 3,
         ..StateKeeperConfig::default()
     };
-    let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
+    let settlement_layer = SettlementLayer::L1(SLChainId(10));
+    let sealer =
+        SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)], settlement_layer);
 
     let pending_batch = pending_batch_data(vec![
         L2BlockExecutionData {
@@ -291,7 +302,7 @@ async fn pending_batch_is_applied() {
 /// Load protocol upgrade transactions
 #[tokio::test]
 async fn load_upgrade_tx() {
-    let sealer = SequencerSealer::default();
+    let sealer = SequencerSealer::new(Default::default(), SettlementLayer::L1(SLChainId(10)));
     let scenario = TestScenario::new();
     let batch_executor = TestBatchExecutorBuilder::new(&scenario);
     let (stop_sender, _stop_receiver) = watch::channel(false);
@@ -345,7 +356,9 @@ async fn unconditional_sealing() {
         transaction_slots: 2,
         ..StateKeeperConfig::default()
     };
-    let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
+    let settlement_layer = SettlementLayer::L1(SLChainId(10));
+    let sealer =
+        SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)], settlement_layer);
 
     TestScenario::new()
         .seal_l1_batch_when(move |_| batch_seal_trigger_checker.load(Ordering::Relaxed))
@@ -375,7 +388,9 @@ async fn l2_block_timestamp_after_pending_batch() {
         transaction_slots: 2,
         ..StateKeeperConfig::default()
     };
-    let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
+    let settlement_layer = SettlementLayer::L1(SLChainId(10));
+    let sealer =
+        SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)], settlement_layer);
 
     let pending_batch = pending_batch_data(vec![L2BlockExecutionData {
         number: L2BlockNumber(1),
@@ -419,7 +434,9 @@ async fn time_is_monotonic() {
         transaction_slots: 2,
         ..StateKeeperConfig::default()
     };
-    let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
+    let settlement_layer = SettlementLayer::L1(SLChainId(10));
+    let sealer =
+        SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)], settlement_layer);
 
     TestScenario::new()
         .seal_l2_block_when(|updates| updates.l2_block.executed_transactions.len() == 1)
@@ -470,7 +487,9 @@ async fn protocol_upgrade() {
         transaction_slots: 2,
         ..StateKeeperConfig::default()
     };
-    let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
+    let settlement_layer = SettlementLayer::L1(SLChainId(10));
+    let sealer =
+        SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)], settlement_layer);
 
     TestScenario::new()
         .seal_l2_block_when(|updates| updates.l2_block.executed_transactions.len() == 1)
@@ -508,7 +527,9 @@ async fn l2_block_timestamp_updated_after_first_tx() {
         transaction_slots: 2,
         ..StateKeeperConfig::default()
     };
-    let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
+    let settlement_layer = SettlementLayer::L1(SLChainId(10));
+    let sealer =
+        SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)], settlement_layer);
     let new_timestamp = 555;
 
     TestScenario::new()

@@ -16,7 +16,7 @@ use crate::{
             EthInterfaceResource, SettlementLayerClient, SettlementLayerClientResource,
         },
         pools::{MasterPool, PoolResource},
-        settlement_layer::SettlementModeResource,
+        settlement_layer::SettlementLayerResource,
     },
     service::StopReceiver,
     task::{Task, TaskId},
@@ -43,7 +43,7 @@ pub struct Input {
     pub master_pool: PoolResource<MasterPool>,
     pub eth_client: EthInterfaceResource,
     pub client: SettlementLayerClientResource,
-    pub settlement_mode: SettlementModeResource,
+    pub settlement_mode: SettlementLayerResource,
 }
 
 #[derive(Debug, IntoContext)]

@@ -2,7 +2,7 @@ use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_multivm::utils::{
     circuit_statistics_bootloader_batch_tip_overhead, get_max_batch_base_layer_circuits,
 };
-use zksync_types::ProtocolVersionId;
+use zksync_types::{settlement::SettlementLayer, ProtocolVersionId};
 
 // Local uses
 use crate::seal_criteria::{SealCriterion, SealData, SealResolution, UnexecutableReason};
@@ -24,6 +24,7 @@ impl SealCriterion for CircuitsCriterion {
         block_data: &SealData,
         tx_data: &SealData,
         protocol_version: ProtocolVersionId,
+        _settlement_layer: &SettlementLayer,
     ) -> SealResolution {
         let max_allowed_base_layer_circuits =
             get_max_batch_base_layer_circuits(protocol_version.into());
@@ -71,6 +72,7 @@ impl SealCriterion for CircuitsCriterion {
 #[cfg(test)]
 mod tests {
     use zksync_multivm::interface::{CircuitStatistic, VmExecutionMetrics};
+    use zksync_types::SLChainId;
 
     use super::*;
 
@@ -89,6 +91,7 @@ mod tests {
         block_execution_metrics: VmExecutionMetrics,
         criterion: &dyn SealCriterion,
         protocol_version: ProtocolVersionId,
+        settlement_layer: &SettlementLayer,
     ) {
         let config = get_config();
         let block_resolution = criterion.should_seal(
@@ -102,6 +105,7 @@ mod tests {
             },
             &SealData::default(),
             protocol_version,
+            settlement_layer,
         );
         assert_eq!(block_resolution, SealResolution::NoSeal);
     }
@@ -110,6 +114,7 @@ mod tests {
         block_execution_metrics: VmExecutionMetrics,
         criterion: &dyn SealCriterion,
         protocol_version: ProtocolVersionId,
+        settlement_layer: &SettlementLayer,
     ) {
         let config = get_config();
         let block_resolution = criterion.should_seal(
@@ -123,6 +128,7 @@ mod tests {
             },
             &SealData::default(),
             protocol_version,
+            settlement_layer,
         );
         assert_eq!(block_resolution, SealResolution::IncludeAndSeal);
     }
@@ -131,6 +137,7 @@ mod tests {
         block_execution_metrics: VmExecutionMetrics,
         criterion: &dyn SealCriterion,
         protocol_version: ProtocolVersionId,
+        settlement_layer: &SettlementLayer,
     ) {
         let config = get_config();
         let block_resolution = criterion.should_seal(
@@ -144,6 +151,7 @@ mod tests {
             },
             &SealData::default(),
             protocol_version,
+            settlement_layer,
         );
         assert_eq!(block_resolution, SealResolution::ExcludeAndSeal);
     }
@@ -152,6 +160,7 @@ mod tests {
         tx_execution_metrics: VmExecutionMetrics,
         criterion: &dyn SealCriterion,
         protocol_version: ProtocolVersionId,
+        settlement_layer: &SettlementLayer,
     ) {
         let config = get_config();
         let block_resolution = criterion.should_seal(
@@ -165,6 +174,7 @@ mod tests {
                 ..SealData::default()
             },
             protocol_version,
+            settlement_layer,
         );
 
         assert_eq!(block_resolution, UnexecutableReason::ProofWillFail.into());
@@ -172,6 +182,7 @@ mod tests {
 
     #[test]
     fn circuits_seal_criterion() {
+        let settlement_layer = SettlementLayer::L1(SLChainId(10));
         let config = get_config();
         let protocol_version = ProtocolVersionId::latest();
         let block_execution_metrics = VmExecutionMetrics {
@@ -185,6 +196,7 @@ mod tests {
             block_execution_metrics,
             &CircuitsCriterion,
             protocol_version,
+            &settlement_layer,
         );
 
         let block_execution_metrics = VmExecutionMetrics {
@@ -203,6 +215,7 @@ mod tests {
             block_execution_metrics,
             &CircuitsCriterion,
             protocol_version,
+            &settlement_layer,
         );
 
         let block_execution_metrics = VmExecutionMetrics {
@@ -217,6 +230,7 @@ mod tests {
             block_execution_metrics,
             &CircuitsCriterion,
             protocol_version,
+            &settlement_layer,
         );
 
         let tx_execution_metrics = VmExecutionMetrics {
@@ -229,6 +243,11 @@ mod tests {
             ..VmExecutionMetrics::default()
         };
 
-        test_unexecutable_tx_resolution(tx_execution_metrics, &CircuitsCriterion, protocol_version);
+        test_unexecutable_tx_resolution(
+            tx_execution_metrics,
+            &CircuitsCriterion,
+            protocol_version,
+            &settlement_layer,
+        );
     }
 }

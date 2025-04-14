@@ -1,5 +1,5 @@
 use zksync_multivm::utils::get_bootloader_encoding_space;
-use zksync_types::ProtocolVersionId;
+use zksync_types::{settlement::SettlementLayer, ProtocolVersionId};
 
 use crate::seal_criteria::{
     SealCriterion, SealData, SealResolution, StateKeeperConfig, UnexecutableReason,
@@ -18,6 +18,7 @@ impl SealCriterion for TxEncodingSizeCriterion {
         block_data: &SealData,
         tx_data: &SealData,
         protocol_version_id: ProtocolVersionId,
+        _settlement_layer: &SettlementLayer,
     ) -> SealResolution {
         let bootloader_tx_encoding_space =
             get_bootloader_encoding_space(protocol_version_id.into());
@@ -46,10 +47,14 @@ impl SealCriterion for TxEncodingSizeCriterion {
 
 #[cfg(test)]
 mod tests {
+    use zksync_types::SLChainId;
+
     use super::*;
 
     #[test]
     fn seal_criterion() {
+        let sl = SettlementLayer::L1(SLChainId(10));
+
         let bootloader_tx_encoding_space =
             get_bootloader_encoding_space(ProtocolVersionId::latest().into());
 
@@ -70,6 +75,7 @@ mod tests {
             &SealData::default(),
             &SealData::default(),
             ProtocolVersionId::latest(),
+            &sl,
         );
         assert_eq!(empty_block_resolution, SealResolution::NoSeal);
 
@@ -84,6 +90,7 @@ mod tests {
                 ..SealData::default()
             },
             ProtocolVersionId::latest(),
+            &sl,
         );
         assert_eq!(
             unexecutable_resolution,
@@ -104,6 +111,7 @@ mod tests {
                 ..SealData::default()
             },
             ProtocolVersionId::latest(),
+            &sl,
         );
         assert_eq!(exclude_and_seal_resolution, SealResolution::ExcludeAndSeal);
 
@@ -121,6 +129,7 @@ mod tests {
                 ..SealData::default()
             },
             ProtocolVersionId::latest(),
+            &sl,
         );
         assert_eq!(include_and_seal_resolution, SealResolution::IncludeAndSeal);
     }

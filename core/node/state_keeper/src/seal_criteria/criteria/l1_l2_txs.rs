@@ -1,6 +1,5 @@
 use zksync_types::{
-    aggregated_operations::{L1_BATCH_EXECUTE_BASE_COST, L1_OPERATION_EXECUTE_COST},
-    ProtocolVersionId,
+    aggregated_operations::GasConsts, settlement::SettlementLayer, ProtocolVersionId,
 };
 
 use crate::seal_criteria::{SealCriterion, SealData, SealResolution, StateKeeperConfig};
@@ -18,13 +17,15 @@ impl SealCriterion for L1L2TxsCriterion {
         _block_data: &SealData,
         _tx_data: &SealData,
         _protocol_version_id: ProtocolVersionId,
+        settlement_layer: &SettlementLayer,
     ) -> SealResolution {
+        let costs = GasConsts::execute_costs(settlement_layer.is_gateway());
         // With current gas consumption it's possible to execute 600 L1->L2 txs with 7500000 L1 gas.
         const L1_L2_TX_COUNT_LIMIT: usize = 600;
 
         let block_l1_gas_bound =
             (config.max_single_tx_gas as f64 * config.close_block_at_gas_percentage).round() as u32;
-        let l1_gas = L1_BATCH_EXECUTE_BASE_COST + (l1_tx_count as u32) * L1_OPERATION_EXECUTE_COST;
+        let l1_gas = costs.base + (l1_tx_count as u32) * costs.per_l1_l2_tx;
 
         // We check not only gas against `block_l1_gas_bound` but also count against `L1_L2_TX_COUNT_LIMIT`.
         // It's required in case `max_single_tx_gas` is set to some high value for gateway,
@@ -44,6 +45,8 @@ impl SealCriterion for L1L2TxsCriterion {
 
 #[cfg(test)]
 mod tests {
+    use zksync_types::SLChainId;
+
     use super::*;
 
     #[test]
@@ -51,9 +54,10 @@ mod tests {
         let max_single_tx_gas = 15_000_000;
         let close_block_at_gas_percentage = 0.95;
 
+        let sl_layer = SettlementLayer::L1(SLChainId(10));
+        let costs = GasConsts::execute_costs(sl_layer.is_gateway());
         let gas_bound = (max_single_tx_gas as f64 * close_block_at_gas_percentage).round() as u32;
-        let l1_tx_count_bound =
-            (gas_bound - L1_BATCH_EXECUTE_BASE_COST - 1) / L1_OPERATION_EXECUTE_COST;
+        let l1_tx_count_bound = (gas_bound - costs.base - 1) / costs.per_l1_l2_tx;
         let l1_tx_count_bound = l1_tx_count_bound.min(599);
 
         // Create an empty config and only setup fields relevant for the test.
@@ -74,6 +78,7 @@ mod tests {
             &SealData::default(),
             &SealData::default(),
             ProtocolVersionId::latest(),
+            &sl_layer,
         );
         assert_eq!(empty_block_resolution, SealResolution::NoSeal);
 
@@ -86,6 +91,7 @@ mod tests {
             &SealData::default(),
             &SealData::default(),
             ProtocolVersionId::latest(),
+            &sl_layer,
         );
         assert_eq!(block_resolution, SealResolution::NoSeal);
 
@@ -98,6 +104,7 @@ mod tests {
             &SealData::default(),
             &SealData::default(),
             ProtocolVersionId::latest(),
+            &sl_layer,
         );
         assert_eq!(block_resolution, SealResolution::IncludeAndSeal);
     }

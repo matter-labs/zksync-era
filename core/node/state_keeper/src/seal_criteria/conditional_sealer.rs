@@ -7,7 +7,7 @@
 use std::fmt;
 
 use zksync_config::configs::chain::StateKeeperConfig;
-use zksync_types::ProtocolVersionId;
+use zksync_types::{settlement::SettlementLayer, ProtocolVersionId};
 
 use super::{criteria, SealCriterion, SealData, SealResolution, AGGREGATION_METRICS};
 
@@ -41,10 +41,11 @@ pub trait ConditionalSealer: 'static + fmt::Debug + Send + Sync {
 ///
 /// The checks are deterministic, i.e., should depend solely on execution metrics and [`StateKeeperConfig`].
 /// Non-deterministic seal criteria are expressed using [`IoSealCriteria`](super::IoSealCriteria).
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct SequencerSealer {
     config: StateKeeperConfig,
     sealers: Vec<Box<dyn SealCriterion>>,
+    settlement_layer: SettlementLayer,
 }
 
 impl ConditionalSealer for SequencerSealer {
@@ -65,6 +66,7 @@ impl ConditionalSealer for SequencerSealer {
                 data,
                 data,
                 protocol_version,
+                &self.settlement_layer,
             );
             if matches!(resolution, SealResolution::Unexecutable(_)) {
                 return Some(sealer.prom_criterion_name());
@@ -99,6 +101,7 @@ impl ConditionalSealer for SequencerSealer {
                 block_data,
                 tx_data,
                 protocol_version,
+                &self.settlement_layer,
             );
             match &seal_resolution {
                 SealResolution::IncludeAndSeal
@@ -121,17 +124,26 @@ impl ConditionalSealer for SequencerSealer {
 }
 
 impl SequencerSealer {
-    pub fn new(config: StateKeeperConfig) -> Self {
+    pub fn new(config: StateKeeperConfig, settlement_layer: SettlementLayer) -> Self {
         let sealers = Self::default_sealers(&config);
-        Self { config, sealers }
+        Self {
+            config,
+            sealers,
+            settlement_layer,
+        }
     }
 
     #[cfg(test)]
     pub(crate) fn with_sealers(
         config: StateKeeperConfig,
         sealers: Vec<Box<dyn SealCriterion>>,
+        settlement_layer: SettlementLayer,
     ) -> Self {
-        Self { config, sealers }
+        Self {
+            config,
+            sealers,
+            settlement_layer,
+        }
     }
 
     fn default_sealers(config: &StateKeeperConfig) -> Vec<Box<dyn SealCriterion>> {

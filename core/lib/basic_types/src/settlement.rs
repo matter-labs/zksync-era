@@ -4,7 +4,7 @@ use crate::SLChainId;
 
 /// An enum which is used to describe whether a zkSync network settles to L1 or to the gateway.
 /// Gateway is an Ethereum-compatible L2 and so it requires different treatment with regards to DA handling.
-#[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq)]
 pub enum SettlementLayer {
     L1(SLChainId),
     Gateway(SLChainId),

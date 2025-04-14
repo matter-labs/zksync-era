@@ -4,9 +4,7 @@ use async_trait::async_trait;
 use chrono::Utc;
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_types::{
-    aggregated_operations::{
-        AggregatedActionType, L1_BATCH_EXECUTE_BASE_COST, L1_OPERATION_EXECUTE_COST,
-    },
+    aggregated_operations::{AggregatedActionType, ExecuteCosts, GasConsts},
     commitment::L1BatchWithMetadata,
     L1BatchNumber,
 };
@@ -259,100 +257,5 @@ impl L1BatchPublishCriterion for L1GasCriterion {
             METRICS.block_aggregation_reason[&(op, "gas").into()].inc();
         }
         last_l1_batch
-    }
-}
-
-#[derive(Debug)]
-struct GasConsts;
-
-#[derive(Debug)]
-struct CommitGasConsts {
-    base: u32,
-    per_batch: u32,
-}
-
-#[derive(Debug)]
-struct ExecuteCosts {
-    base: u32,
-    per_batch: u32,
-    per_l1_l2_tx: u32,
-}
-
-impl GasConsts {
-    /// Base gas cost of processing aggregated `Execute` operation.
-    /// It's applicable iff SL is Ethereum.
-    const AGGR_L1_BATCH_EXECUTE_BASE_COST: u32 = 200_000;
-    /// Base gas cost of processing aggregated `Execute` operation.
-    /// It's applicable if SL is  Gateway.
-    const AGGR_GATEWAY_BATCH_EXECUTE_BASE_COST: u32 = 300_000;
-
-    /// Base gas cost of processing aggregated `Commit` operation.
-    /// It's applicable if SL is Ethereum.
-    const AGGR_L1_BATCH_COMMIT_BASE_COST: u32 = 242_000;
-
-    /// Additional gas cost of processing `Commit` operation per batch.
-    /// It's applicable if SL is Ethereum.
-    const L1_BATCH_COMMIT_BASE_COST: u32 = 31_000;
-
-    /// Additional gas cost of processing `Commit` operation per batch.
-    /// It's applicable if SL is Gateway.
-    const AGGR_GATEWAY_BATCH_COMMIT_BASE_COST: u32 = 150_000;
-
-    /// Additional gas cost of processing `Commit` operation per batch.
-    /// It's applicable if SL is Gateway.
-    const GATEWAY_BATCH_COMMIT_BASE_COST: u32 = 200_000;
-
-    /// All gas cost of processing `PROVE` operation per batch.
-    /// It's applicable if SL is GATEWAY.
-    /// TODO calculate it properly
-    const GATEWAY_BATCH_PROOF_GAS_COST: u32 = 1_600_000;
-
-    /// All gas cost of processing `PROVE` operation per batch.
-    /// It's applicable if SL is Ethereum.
-    const L1_BATCH_PROOF_GAS_COST_ETHEREUM: u32 = 800_000;
-
-    /// Base gas cost of processing `EXECUTION` operation per batch.
-    /// It's applicable if SL is GATEWAY.
-    const GATEWAY_BATCH_EXECUTION_COST: u32 = 100_000;
-    /// Gas cost of processing `l1_operation` in batch.
-    /// It's applicable if SL is GATEWAY.
-    const GATEWAY_L1_OPERATION_COST: u32 = 4_000;
-
-    fn commit_costs(is_gateway: bool) -> CommitGasConsts {
-        if is_gateway {
-            CommitGasConsts {
-                base: Self::GATEWAY_BATCH_COMMIT_BASE_COST,
-                per_batch: Self::AGGR_GATEWAY_BATCH_COMMIT_BASE_COST,
-            }
-        } else {
-            CommitGasConsts {
-                base: Self::L1_BATCH_COMMIT_BASE_COST,
-                per_batch: Self::AGGR_L1_BATCH_COMMIT_BASE_COST,
-            }
-        }
-    }
-
-    fn proof_costs(is_gateway: bool) -> u32 {
-        if is_gateway {
-            Self::GATEWAY_BATCH_PROOF_GAS_COST
-        } else {
-            Self::L1_BATCH_PROOF_GAS_COST_ETHEREUM
-        }
-    }
-
-    fn execute_costs(is_gateway: bool) -> ExecuteCosts {
-        if is_gateway {
-            ExecuteCosts {
-                base: Self::AGGR_GATEWAY_BATCH_EXECUTE_BASE_COST,
-                per_batch: Self::GATEWAY_BATCH_EXECUTION_COST,
-                per_l1_l2_tx: Self::GATEWAY_L1_OPERATION_COST,
-            }
-        } else {
-            ExecuteCosts {
-                base: Self::AGGR_L1_BATCH_EXECUTE_BASE_COST,
-                per_batch: L1_BATCH_EXECUTE_BASE_COST,
-                per_l1_l2_tx: L1_OPERATION_EXECUTE_COST,
-            }
-        }
     }
 }
