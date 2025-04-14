@@ -2,17 +2,14 @@
 
 ## Introduction
 
-The message root is the contract on L1 that collects messages from different chains and aggregates them into a single merkle tree. This makes interop more efficient, since instead of having to import each individual message, chains can import the MessageRoot, which is an aggregate of messages in a single batch, then across batches of a single chain, and then across chains. 
+The message root is the contract on L1 that collects messages from different chains and aggregates them into a single Merkle tree. This makes interop more efficient, since instead of having to import each individual message, chains can import the MessageRoot, which is an aggregate of messages in a single batch, then across batches of a single chain, and then across chains. 
 
 The MessageRoot contract is deployed both on L1 and ZK chains, but on ZK chains it is only used on GW. On GW it is used to aggregate messages for chains that are settling on GW, in the same way that it is done on L1. Read about it [here](../../gateway/nested_l3_l1_messaging.md).
 
 ![MessageRoot](../img/message_root.png)
 
-> Note:
-
-The lines between `MessageRoot` and `chainRoot` and between each `chainRoot` and `ChainBatchRoot` show different  binary merkle trees. The `MessageRoot` will be the root of a FullMerkleTree of `chainRoot`, while `chainRoot` is the merkle root of a DynamicIncrementalMerkleTree of `ChainBatchRoot`.
-
->
+> [!NOTE]
+> The lines between `MessageRoot` and `chainRoot` and between each `chainRoot` and `ChainBatchRoot` show different  binary merkle trees. The `MessageRoot` will be the root of a `FullMerkleTree` of `chainRoot`, while `chainRoot` is the merkle root of a `DynamicIncrementalMerkleTree` of `ChainBatchRoot`.
 
 For each chain that settles on L1, the root will have the following format:
 
@@ -34,7 +31,7 @@ Note that the `MessageRoot` appears twice in the structure. So the structure is 
 
 ## Appending new batch root leaves
 
-At the end of each batch, the L1Messenger system contract would query the MessageRoot contract for the total aggregated root, i.e. the root of all `ChainIdLeaf`s. Calculate the settled chain batch root `ChainBatchRoot = keccak256(LocalLogsRoot, MessageRoot)` and propagate it to L1. Only the chain's final `ChainBatchRoot` is stored on L1.
+At the end of each batch, the L1Messenger system contract would query the MessageRoot contract for the total aggregated root (i.e., the root of all `ChainIdLeaf`s), calculate the settled chain batch root `ChainBatchRoot = keccak256(LocalLogsRoot, MessageRoot)` and propagate it to L1. Only the chain's final `ChainBatchRoot`s get stored on L1.
 
 At the execution stage of every batch, the ZK Chain would call the `MessageRoot.addChainBatchRoot` function, while providing the `ChainBatchRoot` for the chain. Then, the `BatchRootLeaf` will be calculated and appended to the incremental merkle tree with which the `ChainRoot` & `ChainIdLeaf` is calculated, which will be updated in the merkle tree of `ChainIdLeaf`s.
 
@@ -51,7 +48,7 @@ We want to avoid breaking changes to SDKs, so we will modify the `zks_getL2ToL1L
 
 First `bytes32` corresponds to the metadata of the proof. The zero-th byte should tell the version of the metadata and must be equal to the `SUPPORTED_PROOF_METADATA_VERSION` (a constant of `0x01`).
 
-Then, it should contain the number of 32-byte words that are needed to restore the current `BatchRootLeaf` , i.e. `logLeafProofLen` (it is called this way as it proves that a leaf belongs to the `ChainBatchRoot`). The second byte contains the `batchLeafProofLen` . It is the length of the merkle path to prove that the `BatchRootLeaf` belonged to the `ChainRoot` .
+Then, it should contain the number of 32-byte words that are needed to restore the current `BatchRootLeaf` , i.e. `logLeafProofLen` (it is called this way as it proves that a leaf belongs to the `ChainBatchRoot`). The second byte contains the `batchLeafProofLen`. It is the length of the merkle path to prove that the `BatchRootLeaf` belonged to the `ChainRoot`.
 
 Then, the following happens:
 
