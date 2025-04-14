@@ -11,15 +11,6 @@ impl Distribution<BlockMetadata> for EncodeDist {
     }
 }
 
-impl Distribution<AttestationStatus> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> AttestationStatus {
-        AttestationStatus {
-            genesis: rng.gen(),
-            next_batch_to_attest: rng.gen(),
-        }
-    }
-}
-
 impl Distribution<GlobalConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> GlobalConfig {
         GlobalConfig {

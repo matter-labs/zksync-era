@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                number\n            FROM\n                miniblocks_consensus\n            ORDER BY\n                number DESC\n            LIMIT\n                1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "number",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "46a5f88b445817c0f9ed60cdd96d49d2e57b21bbfe934b0e3e14f2e465d3bdd4"
+}
