@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use sqlx::types::chrono::{self, DateTime, Utc};
 use zksync_basic_types::{
     protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch},
     prover_dal::{BasicWitnessGeneratorJobInfo, StuckJobs, WitnessJobStatus},
@@ -17,11 +18,36 @@ pub struct FriBasicWitnessGeneratorDal<'a, 'c> {
 }
 
 impl FriBasicWitnessGeneratorDal<'_, '_> {
+    pub async fn get_batch_sealed_at_timestamp(
+        &mut self,
+        block_number: L1BatchNumber,
+    ) -> DateTime<Utc> {
+        sqlx::query!(
+            r#"
+            SELECT
+                batch_sealed_at
+            FROM
+                witness_inputs_fri
+            WHERE
+                l1_batch_number = $1
+            "#,
+            i64::from(block_number.0)
+        )
+        .fetch_optional(self.storage.conn())
+        .await
+        .map(|row| {
+            row.map(|row| DateTime::<Utc>::from_naive_utc_and_offset(row.batch_sealed_at, Utc))
+        })
+        .unwrap()
+        .unwrap_or_default()
+    }
+
     pub async fn save_witness_inputs(
         &mut self,
         block_number: L1BatchNumber,
         witness_inputs_blob_url: &str,
         protocol_version: ProtocolSemanticVersion,
+        batch_sealed_at: chrono::DateTime<chrono::Utc>,
     ) -> DalResult<()>{
         sqlx::query!(
             r#"
@@ -33,16 +59,18 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
                 status,
                 created_at,
                 updated_at,
-                protocol_version_patch
+                protocol_version_patch,
+                batch_sealed_at
             )
             VALUES
-            ($1, $2, $3, 'queued', NOW(), NOW(), $4)
+            ($1, $2, $3, 'queued', NOW(), NOW(), $4, $5)
             ON CONFLICT (l1_batch_number) DO NOTHING
             "#,
             i64::from(block_number.0),
             witness_inputs_blob_url,
             protocol_version.minor as i32,
             protocol_version.patch.0 as i32,
+            batch_sealed_at.naive_utc(),
         )
         .instrument("save_witness_inputs")
         .execute(self.storage)
@@ -78,7 +106,8 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
                         AND protocol_version = $1
                         AND protocol_version_patch = $3
                     ORDER BY
-                        l1_batch_number ASC
+                        priority DESC,
+                        batch_sealed_at ASC
                     LIMIT
                         1
                     FOR UPDATE
@@ -155,7 +184,8 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
             SET
                 status = 'queued',
                 updated_at = NOW(),
-                processing_started_at = NOW()
+                processing_started_at = NOW(),
+                priority = priority + 1
             WHERE
                 (
                     status = 'in_progress'
@@ -261,7 +291,8 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
             SET
                 status = 'queued',
                 updated_at = NOW(),
-                processing_started_at = NOW()
+                processing_started_at = NOW(),
+                priority = priority + 1
             WHERE
                 l1_batch_number = $1
                 AND attempts >= $2

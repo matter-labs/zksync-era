@@ -11,7 +11,7 @@ use zksync_types::{
 
 use crate::{
     inputs::{TeeVerifierInput, WitnessInputData},
-    outputs::{L1BatchProofForL1, L1BatchTeeProofForL1},
+    outputs::{JsonL1BatchProofForL1, L1BatchTeeProofForL1},
 };
 
 // Structs for holding data returned in HTTP responses
@@ -19,6 +19,8 @@ use crate::{
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProofGenerationData {
     pub l1_batch_number: L1BatchNumber,
+    #[serde(default = "chrono::Utc::now")]
+    pub batch_sealed_at: chrono::DateTime<chrono::Utc>,
     pub witness_input_data: WitnessInputData,
     pub protocol_version: ProtocolSemanticVersion,
     pub l1_verifier_config: L1VerifierConfig,
@@ -61,7 +63,7 @@ pub struct TeeProofGenerationDataRequest {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum SubmitProofRequest {
-    Proof(Box<L1BatchProofForL1>),
+    Proof(Box<JsonL1BatchProofForL1>),
     // The proof generation was skipped due to sampling
     SkippedProofGeneration,
 }

@@ -2466,7 +2466,7 @@ checksum = "1d930c203dd0b6ff06e0201a4a2fe9149b43c684fd4420555b26d21b1a02956f"
 dependencies = [
  "futures-core",
  "lock_api",
- "parking_lot 0.12.3",
+ "parking_lot",
 ]
 
 [[package]]
@@ -3423,18 +3423,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "instant"
-version = "0.1.13"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e0242819d153cba4b4b05a5a8f2a7e9bbf97b6055b2a002b395c96b5ff3c0222"
-dependencies = [
- "cfg-if",
- "js-sys",
- "wasm-bindgen",
- "web-sys",
-]
-
-[[package]]
 name = "ipnet"
 version = "2.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3885,7 +3873,7 @@ dependencies = [
  "json-patch",
  "k8s-openapi",
  "kube-client",
- "parking_lot 0.12.3",
+ "parking_lot",
  "pin-project",
  "serde",
  "serde_json",
@@ -4621,37 +4609,12 @@ checksum = "f38d5652c16fde515bb1ecef450ab0f6a219d619a7274976324d5e377f7dceba"
 
 [[package]]
 name = "parking_lot"
-version = "0.11.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7d17b78036a60663b797adeaee46f5c9dfebb86948d1255007a1d6be0271ff99"
-dependencies = [
- "instant",
- "lock_api",
- "parking_lot_core 0.8.6",
-]
-
-[[package]]
-name = "parking_lot"
 version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f1bf18183cf54e8d6059647fc3063646a1801cf30896933ec2311622cc4b9a27"
 dependencies = [
  "lock_api",
- "parking_lot_core 0.9.10",
-]
-
-[[package]]
-name = "parking_lot_core"
-version = "0.8.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "60a2cfe6f0ad2bfc16aefa463b497d5c7a5ecd44a23efa72aa342d90177356dc"
-dependencies = [
- "cfg-if",
- "instant",
- "libc",
- "redox_syscall 0.2.16",
- "smallvec",
- "winapi",
+ "parking_lot_core",
 ]
 
 [[package]]
@@ -4662,7 +4625,7 @@ checksum = "1e401f977ab385c9e4e3ab30627d6f26d00e2c73eef317493c4ec6d468726cf8"
 dependencies = [
  "cfg-if",
  "libc",
- "redox_syscall 0.5.8",
+ "redox_syscall",
  "smallvec",
  "windows-targets 0.52.6",
 ]
@@ -4981,7 +4944,7 @@ checksum = "cf41c1a7c32ed72abe5082fb19505b969095c12da9f5732a4bc9878757fd087c"
 dependencies = [
  "dtoa",
  "itoa",
- "parking_lot 0.12.3",
+ "parking_lot",
  "prometheus-client-derive-encode",
 ]
 
@@ -5154,7 +5117,7 @@ dependencies = [
 
 [[package]]
 name = "prover_cli"
-version = "20.1.0"
+version = "20.2.0"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -5172,8 +5135,8 @@ dependencies = [
  "tracing-subscriber",
  "zkevm_test_harness",
  "zksync_basic_types",
+ "zksync_circuit_prover_service",
  "zksync_config",
- "zksync_contracts",
  "zksync_dal",
  "zksync_db_connection",
  "zksync_env_config",
@@ -5187,7 +5150,7 @@ dependencies = [
 
 [[package]]
 name = "prover_version"
-version = "20.1.0"
+version = "20.2.0"
 dependencies = [
  "zksync_prover_fri_types",
 ]
@@ -5351,15 +5314,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "678054eb77286b51581ba43620cc911abf02758c91f93f479767aed0f90458b2"
 dependencies = [
  "rand_core 0.3.1",
-]
-
-[[package]]
-name = "redox_syscall"
-version = "0.2.16"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fb5a58c1855b4b6819d59012155603f0b22ad30cad752600aadfcb695265519a"
-dependencies = [
- "bitflags 1.3.2",
 ]
 
 [[package]]
@@ -5533,28 +5487,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "reqwest-retry"
-version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "29c73e4195a6bfbcb174b790d9b3407ab90646976c55de58a6515da25d851178"
-dependencies = [
- "anyhow",
- "async-trait",
- "futures 0.3.31",
- "getrandom",
- "http 1.2.0",
- "hyper 1.5.2",
- "parking_lot 0.11.2",
- "reqwest 0.12.9",
- "reqwest-middleware",
- "retry-policies",
- "thiserror 1.0.69",
- "tokio",
- "tracing",
- "wasm-timer",
-]
-
-[[package]]
 name = "rescue_poseidon"
 version = "0.31.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5577,15 +5509,6 @@ dependencies = [
  "sha3 0.9.1",
  "smallvec",
  "typemap_rev",
-]
-
-[[package]]
-name = "retry-policies"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5875471e6cab2871bc150ecb8c727db5113c9338cc3354dc5ee3425b6aa40a1c"
-dependencies = [
- "rand 0.8.5",
 ]
 
 [[package]]
@@ -7177,7 +7100,7 @@ dependencies = [
  "bytes",
  "libc",
  "mio",
- "parking_lot 0.12.3",
+ "parking_lot",
  "pin-project-lite",
  "signal-hook-registry",
  "socket2",
@@ -7891,21 +7814,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "wasm-timer"
-version = "0.2.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "be0ecb0db480561e9a7642b5d3e4187c128914e58aa84330b9493e3eb68c5e7f"
-dependencies = [
- "futures 0.3.31",
- "js-sys",
- "parking_lot 0.11.2",
- "pin-utils",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-sys",
-]
-
-[[package]]
 name = "web-sys"
 version = "0.3.76"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7952,7 +7860,7 @@ version = "1.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "372d5b87f58ec45c384ba03563b03544dc5fadc3983e434b286913f5b4a9bb6d"
 dependencies = [
- "redox_syscall 0.5.8",
+ "redox_syscall",
  "wasite",
 ]
 
@@ -8663,19 +8571,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "zksync-wrapper-prover"
-version = "0.153.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aa6fc533945bcc398c4508ad7088f11ba80c4613a975df3a69d8dd735b2e6275"
-dependencies = [
- "circuit_definitions",
- "zkevm_test_harness",
- "zksync-gpu-prover",
-]
-
-[[package]]
 name = "zksync_basic_types"
-version = "27.2.0-non-semver-compat"
+version = "27.3.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "chrono",
@@ -8719,40 +8616,33 @@ dependencies = [
 
 [[package]]
 name = "zksync_circuit_prover"
-version = "20.1.0"
+version = "20.2.0"
 dependencies = [
  "anyhow",
- "async-trait",
- "bincode",
  "clap 4.5.23",
  "shivini",
  "tokio",
  "tokio-util",
  "tracing",
  "vise",
- "zkevm_test_harness",
  "zksync_circuit_prover_service",
  "zksync_config",
  "zksync_core_leftovers",
- "zksync_env_config",
  "zksync_object_store",
  "zksync_prover_dal",
  "zksync_prover_fri_types",
- "zksync_prover_fri_utils",
- "zksync_prover_job_processor",
  "zksync_prover_keystore",
- "zksync_queued_job_processor",
  "zksync_task_management",
- "zksync_types",
  "zksync_vlog",
 ]
 
 [[package]]
 name = "zksync_circuit_prover_service"
-version = "20.1.0"
+version = "20.2.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "serde",
  "shivini",
  "tokio",
  "tokio-util",
@@ -8788,7 +8678,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_config"
-version = "27.2.0-non-semver-compat"
+version = "27.3.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "rand 0.8.5",
@@ -8879,7 +8769,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_contracts"
-version = "27.2.0-non-semver-compat"
+version = "27.3.0-non-semver-compat"
 dependencies = [
  "envy",
  "hex",
@@ -8892,7 +8782,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_core_leftovers"
-version = "27.2.0-non-semver-compat"
+version = "27.3.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "ctrlc",
@@ -8906,7 +8796,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_crypto_primitives"
-version = "27.2.0-non-semver-compat"
+version = "27.3.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "blake2 0.10.6",
@@ -8934,7 +8824,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_da_client"
-version = "27.2.0-non-semver-compat"
+version = "27.3.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8943,7 +8833,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_dal"
-version = "27.2.0-non-semver-compat"
+version = "27.3.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "bigdecimal",
@@ -8979,7 +8869,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_db_connection"
-version = "27.2.0-non-semver-compat"
+version = "27.3.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "rand 0.8.5",
@@ -8995,7 +8885,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_env_config"
-version = "27.2.0-non-semver-compat"
+version = "27.3.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "envy",
@@ -9006,7 +8896,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_eth_client"
-version = "27.2.0-non-semver-compat"
+version = "27.3.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -9024,7 +8914,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_eth_signer"
-version = "27.2.0-non-semver-compat"
+version = "27.3.0-non-semver-compat"
 dependencies = [
  "async-trait",
  "rlp",
@@ -9063,35 +8953,24 @@ dependencies = [
 
 [[package]]
 name = "zksync_gpu_checker"
-version = "20.1.0"
+version = "20.2.0"
 dependencies = [
  "anyhow",
- "async-trait",
  "bincode",
+ "chrono",
  "clap 4.5.23",
  "once_cell",
  "regex",
- "serde",
  "shivini",
  "tokio",
- "tokio-util",
  "tracing",
- "vise",
- "zkevm_test_harness",
  "zksync_circuit_prover_service",
  "zksync_config",
- "zksync_core_leftovers",
- "zksync_env_config",
  "zksync_object_store",
- "zksync_prover_dal",
  "zksync_prover_fri_types",
- "zksync_prover_fri_utils",
  "zksync_prover_job_processor",
  "zksync_prover_keystore",
- "zksync_queued_job_processor",
  "zksync_types",
- "zksync_utils",
- "zksync_vlog",
 ]
 
 [[package]]
@@ -9113,7 +8992,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_l1_contract_interface"
-version = "27.2.0-non-semver-compat"
+version = "27.3.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "circuit_definitions",
@@ -9130,7 +9009,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_mini_merkle_tree"
-version = "27.2.0-non-semver-compat"
+version = "27.3.0-non-semver-compat"
 dependencies = [
  "once_cell",
  "zksync_basic_types",
@@ -9139,7 +9018,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_multivm"
-version = "27.2.0-non-semver-compat"
+version = "27.3.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "circuit_sequencer_api",
@@ -9165,7 +9044,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_object_store"
-version = "27.2.0-non-semver-compat"
+version = "27.3.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -9204,27 +9083,17 @@ dependencies = [
 
 [[package]]
 name = "zksync_proof_fri_compressor"
-version = "20.1.0"
+version = "20.2.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "bincode",
- "circuit_sequencer_api",
  "clap 4.5.23",
  "ctrlc",
- "fflonk-cuda",
- "franklin-crypto",
- "futures 0.3.31",
  "proof-compression",
  "reqwest 0.12.9",
- "serde",
- "serde_json",
- "structopt",
  "tokio",
  "tracing",
  "vise",
- "zkevm_test_harness",
- "zksync-wrapper-prover",
  "zksync_config",
  "zksync_core_leftovers",
  "zksync_env_config",
@@ -9279,7 +9148,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_protobuf_config"
-version = "27.2.0-non-semver-compat"
+version = "27.3.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "hex",
@@ -9299,7 +9168,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_prover_autoscaler"
-version = "20.1.0"
+version = "20.2.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -9311,10 +9180,7 @@ dependencies = [
  "humantime-serde",
  "k8s-openapi",
  "kube",
- "once_cell",
- "regex",
  "reqwest 0.12.9",
- "ring",
  "rustls 0.23.20",
  "serde",
  "serde_json",
@@ -9324,7 +9190,6 @@ dependencies = [
  "strum_macros",
  "tokio",
  "tracing",
- "tracing-subscriber",
  "tracing-test",
  "url",
  "vise",
@@ -9336,7 +9201,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_prover_dal"
-version = "20.1.0"
+version = "20.2.0"
 dependencies = [
  "sqlx",
  "strum",
@@ -9347,15 +9212,13 @@ dependencies = [
 
 [[package]]
 name = "zksync_prover_fri_gateway"
-version = "20.1.0"
+version = "20.2.0"
 dependencies = [
  "anyhow",
  "async-trait",
  "axum",
  "clap 4.5.23",
  "ctrlc",
- "futures 0.3.31",
- "log",
  "reqwest 0.12.9",
  "serde",
  "thiserror 1.0.69",
@@ -9375,7 +9238,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_prover_fri_types"
-version = "20.1.0"
+version = "20.2.0"
 dependencies = [
  "circuit_definitions",
  "serde",
@@ -9385,27 +9248,19 @@ dependencies = [
 
 [[package]]
 name = "zksync_prover_fri_utils"
-version = "20.1.0"
+version = "20.2.0"
 dependencies = [
- "anyhow",
- "regex",
- "reqwest 0.12.9",
- "reqwest-middleware",
- "reqwest-retry",
- "serde",
- "tracing",
  "vise",
- "zksync_config",
- "zksync_object_store",
- "zksync_prover_dal",
  "zksync_prover_fri_types",
  "zksync_types",
 ]
 
 [[package]]
 name = "zksync_prover_interface"
-version = "27.2.0-non-semver-compat"
+version = "27.3.0-non-semver-compat"
 dependencies = [
+ "chrono",
+ "ciborium",
  "circuit_definitions",
  "fflonk",
  "serde",
@@ -9418,7 +9273,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_prover_job_monitor"
-version = "20.1.0"
+version = "20.2.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -9440,34 +9295,30 @@ dependencies = [
 
 [[package]]
 name = "zksync_prover_job_processor"
-version = "20.1.0"
+version = "20.2.0"
 dependencies = [
  "anyhow",
  "async-trait",
  "futures 0.3.31",
- "strum",
  "tokio",
  "tokio-stream",
  "tokio-util",
  "tracing",
- "vise",
 ]
 
 [[package]]
 name = "zksync_prover_keystore"
-version = "20.1.0"
+version = "20.2.0"
 dependencies = [
  "anyhow",
  "bincode",
  "boojum-cuda",
- "byteorder",
  "circuit_definitions",
  "fflonk",
  "fflonk-cuda",
  "futures 0.3.31",
  "hex",
  "md5",
- "once_cell",
  "proof-compression",
  "serde",
  "serde_json",
@@ -9483,7 +9334,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_queued_job_processor"
-version = "27.2.0-non-semver-compat"
+version = "27.3.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -9512,7 +9363,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_system_constants"
-version = "27.2.0-non-semver-compat"
+version = "27.3.0-non-semver-compat"
 dependencies = [
  "once_cell",
  "zksync_basic_types",
@@ -9520,7 +9371,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_task_management"
-version = "27.2.0-non-semver-compat"
+version = "27.3.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "futures 0.3.31",
@@ -9532,7 +9383,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_types"
-version = "27.2.0-non-semver-compat"
+version = "27.3.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -9562,7 +9413,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_utils"
-version = "27.2.0-non-semver-compat"
+version = "27.3.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "once_cell",
@@ -9572,16 +9423,14 @@ dependencies = [
 
 [[package]]
 name = "zksync_vk_setup_data_generator_server_fri"
-version = "20.1.0"
+version = "20.2.0"
 dependencies = [
  "anyhow",
- "bincode",
  "circuit_definitions",
  "clap 4.5.23",
  "indicatif",
  "proof-compression",
  "proptest",
- "serde_json",
  "shivini",
  "toml_edit 0.14.4",
  "tracing",
@@ -9589,14 +9438,12 @@ dependencies = [
  "zkevm_test_harness",
  "zksync_prover_fri_types",
  "zksync_prover_keystore",
- "zksync_types",
  "zksync_utils",
- "zksync_vlog",
 ]
 
 [[package]]
 name = "zksync_vlog"
-version = "27.2.0-non-semver-compat"
+version = "27.3.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "chrono",
@@ -9643,7 +9490,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_vm_interface"
-version = "27.2.0-non-semver-compat"
+version = "27.3.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -9659,7 +9506,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_web3_decl"
-version = "27.2.0-non-semver-compat"
+version = "27.3.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -9680,7 +9527,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_witness_generator"
-version = "20.1.0"
+version = "20.2.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -9691,7 +9538,6 @@ dependencies = [
  "futures 0.3.31",
  "jemallocator",
  "once_cell",
- "rand 0.8.5",
  "serde",
  "structopt",
  "tempfile",
@@ -9699,6 +9545,7 @@ dependencies = [
  "tracing",
  "vise",
  "zkevm_test_harness",
+ "zksync_circuit_prover_service",
  "zksync_config",
  "zksync_core_leftovers",
  "zksync_env_config",
