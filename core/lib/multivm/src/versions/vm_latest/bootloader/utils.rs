@@ -141,7 +141,13 @@ fn apply_l2_block_inner(
         .iter()
         .enumerate()
         .for_each(|(offset, msg_root)| {
-            apply_message_root(memory, offset, msg_root.clone(), subversion, bootloader_l2_block.number)
+            apply_message_root(
+                memory,
+                offset,
+                msg_root.clone(),
+                subversion,
+                bootloader_l2_block.number,
+            )
         });
 }
 
