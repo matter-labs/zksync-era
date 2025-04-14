@@ -1,9 +1,6 @@
 use std::time::Duration;
 
-use anyhow::Context;
 use smart_config::{metadata::TimeUnit, DescribeConfig, DeserializeConfig};
-use zksync_basic_types::H256;
-use zksync_crypto_primitives::K256PrivateKey;
 
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 #[config(derive(Default))]
@@ -62,21 +59,6 @@ pub struct BaseTokenAdjusterConfig {
     /// the server process if an external api is not available or if L1 is congested.
     #[config(default_t = false)]
     pub halt_on_error: bool,
-}
-
-impl BaseTokenAdjusterConfig {
-    // FIXME: OwO what's this?
-    pub fn private_key(&self) -> anyhow::Result<Option<K256PrivateKey>> {
-        std::env::var("TOKEN_MULTIPLIER_SETTER_PRIVATE_KEY")
-            .ok()
-            .map(|pk| {
-                let private_key_bytes: H256 =
-                    pk.parse().context("failed parsing private key bytes")?;
-                K256PrivateKey::from_bytes(private_key_bytes)
-                    .context("private key bytes are invalid")
-            })
-            .transpose()
-    }
 }
 
 #[cfg(test)]

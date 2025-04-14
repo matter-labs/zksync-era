@@ -87,6 +87,7 @@ pub struct L2ContractsConfig {
     pub legacy_shared_bridge_addr: Option<Address>,
     pub timestamp_asserter_addr: Option<Address>,
     pub da_validator_addr: Option<Address>,
+    #[config(alias = "multicall3_addr")]
     pub multicall3: Option<Address>,
 }
 
@@ -249,7 +250,6 @@ mod tests {
         s.parse().unwrap()
     }
 
-    // FIXME: add new fields
     fn expected_config() -> ContractsConfig {
         ContractsConfig {
             l1: L1ContractsConfig {
@@ -261,15 +261,17 @@ mod tests {
                 multicall3_addr: addr("0xcA11bde05977b3631167028862bE2a173976CA11"),
                 chain_admin_addr: addr("0xdd6fa5c14e7550b4caf2aa2818d24c69cbc347ff"),
                 base_token_addr: addr("0x0000000000000000000000000000000000000001"),
-                base_token_asset_id: None,
-                no_da_validium_l1_validator_addr: None,
+                base_token_asset_id: Some(H256::from_low_u64_be(123_456_789)),
+                no_da_validium_l1_validator_addr: Some(addr(
+                    "0x34782eE00206EAB6478F2692caa800e4A581687b",
+                )),
             },
             l2: L2ContractsConfig {
                 testnet_paymaster_addr: Some(addr("FC073319977e314F251EAE6ae6bE76B0B3BAeeCF")),
                 legacy_shared_bridge_addr: Some(addr("8656770FA78c830456B00B4fFCeE6b1De0e1b888")),
                 da_validator_addr: Some(addr("0xed6fa5c14e7550b4caf2aa2818d24c69cbc347ff")),
                 timestamp_asserter_addr: Some(addr("0x0000000000000000000000000000000000000002")),
-                multicall3: None,
+                multicall3: Some(addr("0x0000000000000000000000000000000000010002")),
             },
             bridges: BridgesConfig {
                 shared: Bridge {
@@ -289,9 +291,11 @@ mod tests {
                 bridgehub_proxy_addr: addr("0x35ea7f92f4c5f433efe15284e99c040110cf6297"),
                 state_transition_proxy_addr: addr("0xd90f1c081c6117241624e97cb6147257c3cb2097"),
                 transparent_proxy_admin_addr: addr("0xdd6fa5c14e7550b4caf2aa2818d24c69cbc347e5"),
-                l1_bytecodes_supplier_addr: None,
-                l1_wrapped_base_token_store: None,
-                server_notifier_addr: None,
+                l1_bytecodes_supplier_addr: Some(addr("F00B988a98Ca742e7958DeF9F7823b5908715f4a")),
+                l1_wrapped_base_token_store: Some(addr(
+                    "0x35ea7f92f4c5f433efe15284e99c040110cf6297",
+                )),
+                server_notifier_addr: Some(addr("F00B988a98Ca742e7958DeF9F7823b5908715f4a")),
             },
         }
     }
@@ -316,6 +320,13 @@ mod tests {
             CONTRACTS_L2_DA_VALIDATOR_ADDR="0xed6fa5c14e7550b4caf2aa2818d24c69cbc347ff"
             CONTRACTS_L2_TIMESTAMP_ASSERTER_ADDR="0x0000000000000000000000000000000000000002"
 
+            CONTRACTS_L1_BYTECODES_SUPPLIER_ADDR="F00B988a98Ca742e7958DeF9F7823b5908715f4a"
+            CONTRACTS_L1_WRAPPED_BASE_TOKEN_STORE="0x35ea7f92f4c5f433efe15284e99c040110cf6297"
+            CONTRACTS_SERVER_NOTIFIER_ADDR="F00B988a98Ca742e7958DeF9F7823b5908715f4a"
+            CONTRACTS_BASE_TOKEN_ASSET_ID="0x00000000000000000000000000000000000000000000000000000000075bcd15"
+            CONTRACTS_NO_DA_VALIDIUM_L1_VALIDATOR_ADDR="0x34782eE00206EAB6478F2692caa800e4A581687b"
+            CONTRACTS_L2_MULTICALL3_ADDR="0x0000000000000000000000000000000000010002"
+
             CONTRACTS_BRIDGES_SHARED_L1_ADDRESS="0x8656770FA78c830456B00B4fFCeE6b1De0e1b888"
             CONTRACTS_BRIDGES_SHARED_L2_ADDRESS="0x8656770FA78c830456B00B4fFCeE6b1De0e1b888"
             CONTRACTS_BRIDGES_ERC20_L1_ADDRESS="0x8656770FA78c830456B00B4fFCeE6b1De0e1b888"
@@ -339,6 +350,9 @@ mod tests {
               bridgehub_proxy_addr: 0x35ea7f92f4c5f433efe15284e99c040110cf6297
               state_transition_proxy_addr: 0xd90f1c081c6117241624e97cb6147257c3cb2097
               transparent_proxy_admin_addr: 0xdd6fa5c14e7550b4caf2aa2818d24c69cbc347e5
+              l1_bytecodes_supplier_addr: F00B988a98Ca742e7958DeF9F7823b5908715f4a
+              l1_wrapped_base_token_store: 0x35ea7f92f4c5f433efe15284e99c040110cf6297
+              server_notifier_addr: F00B988a98Ca742e7958DeF9F7823b5908715f4a
               # NOT PARSED: validator_timelock_addr: 0xF00B988a98Ca742e7958DeF9F7823b5908715f4a
             bridges:
               erc20:
@@ -359,6 +373,8 @@ mod tests {
               verifier_addr: 0x34782eE00206EAB6478F2692caa800e4A581687b
               validator_timelock_addr: 0xF00B988a98Ca742e7958DeF9F7823b5908715f4a
               base_token_addr: '0x0000000000000000000000000000000000000001'
+              base_token_asset_id: '0x00000000000000000000000000000000000000000000000000000000075bcd15'
+              no_da_validium_l1_validator_addr: 0x34782eE00206EAB6478F2692caa800e4A581687b
             l2:
               testnet_paymaster_addr: FC073319977e314F251EAE6ae6bE76B0B3BAeeCF
               # NOT PARSED: default_l2_upgrader: 0x512ecb6081fa5bab215aee40d3b69bcc95b565b3
@@ -367,6 +383,7 @@ mod tests {
               legacy_shared_bridge_addr: 0x8656770FA78c830456B00B4fFCeE6b1De0e1b888
               timestamp_asserter_addr: '0x0000000000000000000000000000000000000002'
               da_validator_addr: 0xed6fa5c14e7550b4caf2aa2818d24c69cbc347ff
+              multicall3: '0x0000000000000000000000000000000000010002'
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
 

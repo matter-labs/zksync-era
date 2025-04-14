@@ -97,8 +97,7 @@ pub struct GenesisSpec {
 #[config(derive(Default))]
 pub struct RpcConfig {
     // FIXME: breaking change from `get_block_rate: Rate`, but it looks unused. (no mentions in configs)
-    /// Max number of blocks that can be sent from/to each peer.
-    /// Defaults to 10 blocks/s/connection.
+    /// Max number of blocks that can be sent from/to each peer. Defaults to 10 blocks/s/connection.
     #[config(default_t = NonZeroUsize::new(10).unwrap())]
     pub get_block_rps: NonZeroUsize,
 }
