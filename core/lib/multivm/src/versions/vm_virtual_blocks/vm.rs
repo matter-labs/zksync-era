@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use circuit_sequencer_api::sort_storage_access::sort_storage_access_queries;
-use zksync_types::{l2_to_l1_log::UserL2ToL1Log, message_root::MessageRoot, Transaction};
+use zksync_types::{l2_to_l1_log::UserL2ToL1Log, Transaction};
 use zksync_vm_interface::{pubdata::PubdataBuilder, InspectExecutionMode};
 
 use crate::{

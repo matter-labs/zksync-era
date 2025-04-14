@@ -5,9 +5,9 @@ use zk_evm_1_5_0::{
 };
 use zksync_types::{
     bytecode::BytecodeHash, h256_to_u256, l1::is_l1_tx_type, l2_to_l1_log::UserL2ToL1Log,
-    message_root::MessageRoot, u256_to_h256, writes::StateDiffRecord, AccountTreeId, StorageKey,
-    StorageLog, StorageLogKind, StorageLogWithPreviousValue, Transaction, BOOTLOADER_ADDRESS, H160,
-    H256, KNOWN_CODES_STORAGE_ADDRESS, L1_MESSENGER_ADDRESS, U256,
+    u256_to_h256, writes::StateDiffRecord, AccountTreeId, StorageKey, StorageLog, StorageLogKind,
+    StorageLogWithPreviousValue, Transaction, BOOTLOADER_ADDRESS, H160, H256,
+    KNOWN_CODES_STORAGE_ADDRESS, L1_MESSENGER_ADDRESS, U256,
 };
 use zksync_vm2::{
     interface::{CallframeInterface, HeapId, StateInterface, Tracer},

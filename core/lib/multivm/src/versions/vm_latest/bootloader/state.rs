@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 
 use once_cell::sync::OnceCell;
-use zksync_types::{message_root::MessageRoot, vm::VmVersion, L2ChainId, ProtocolVersionId, U256};
+use zksync_types::{vm::VmVersion, L2ChainId, ProtocolVersionId, U256};
 use zksync_vm_interface::pubdata::PubdataBuilder;
 
 use super::{
@@ -67,7 +67,6 @@ impl BootloaderState {
         protocol_version: ProtocolVersionId,
     ) -> Self {
         let l2_block = BootloaderL2Block::new(first_l2_block, 0);
-        // let msg_root: MessageRoot = MessageRoot::new(1, 2, H256::from([1; 32]));
         Self {
             tx_to_execute: 0,
             compressed_bytecodes_encoding: 0,
@@ -147,7 +146,6 @@ impl BootloaderState {
             self.last_l2_block().txs.is_empty(),
             self.subversion,
         );
-
         self.compressed_bytecodes_encoding += compressed_bytecode_size;
         self.free_tx_offset = tx_offset + bootloader_tx.encoded_len();
         self.last_mut_l2_block().push_tx(bootloader_tx);

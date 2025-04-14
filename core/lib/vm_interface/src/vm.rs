@@ -13,7 +13,7 @@
 
 use std::rc::Rc;
 
-use zksync_types::{message_root::MessageRoot, Transaction, H256};
+use zksync_types::{Transaction, H256};
 
 use crate::{
     pubdata::PubdataBuilder, storage::StoragePtr, BytecodeCompressionResult, FinishedL1Batch,

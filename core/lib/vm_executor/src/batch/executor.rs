@@ -11,7 +11,7 @@ use zksync_multivm::interface::{
     storage::{ReadStorage, StorageView},
     BatchTransactionExecutionResult, FinishedL1Batch, L2BlockEnv,
 };
-use zksync_types::{message_root::MessageRoot, Transaction};
+use zksync_types::Transaction;
 
 use super::metrics::{ExecutorCommand, EXECUTOR_METRICS};
 

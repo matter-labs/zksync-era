@@ -1,10 +1,7 @@
 use std::{collections::HashMap, rc::Rc};
 
 use serde::{Deserialize, Serialize};
-use zksync_types::{
-    block::L2BlockExecutionData, message_root::MessageRoot, L1BatchNumber, L2BlockNumber,
-    Transaction, H256,
-};
+use zksync_types::{block::L2BlockExecutionData, L1BatchNumber, L2BlockNumber, Transaction, H256};
 
 use crate::{
     pubdata::PubdataBuilder,

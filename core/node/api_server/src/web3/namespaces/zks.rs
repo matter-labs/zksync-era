@@ -486,10 +486,7 @@ impl ZksNamespace {
         let eth_tx_id = storage
             .eth_sender_dal()
             .get_last_sent_eth_tx_id(l1_batch_number, AggregatedActionType::Execute)
-            .await
-        else {
-            return Err(Web3Error::NoBlock);
-        };
+            .await;
 
         let tx = storage
             .eth_sender_dal()
