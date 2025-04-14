@@ -1545,4 +1545,33 @@ mod tests {
         let tx_request = TransactionRequest::from(call_request.clone());
         assert_eq!(tx_request.input, call_request.input.unwrap());
     }
+
+    #[test]
+    fn test_eip712_without_field_to() {
+        let factory_dep = vec![2u8; 1600000];
+        let random_tx_max_size = 100_000; // bytes
+        let eip712_call_request = CallRequest {
+            from: Some(Address::random()),
+            to: None,
+            gas: Some(U256::from(12u32)),
+            gas_price: Some(U256::from(12u32)),
+            max_fee_per_gas: Some(U256::from(12u32)),
+            max_priority_fee_per_gas: Some(U256::from(12u32)),
+            value: Some(U256::from(12u32)),
+            data: Some(Bytes(factory_dep)),
+            input: None,
+            nonce: None,
+            transaction_type: Some(U64::from(EIP_712_TX_TYPE)),
+            access_list: None,
+            eip712_meta: None,
+        };
+
+        let try_to_l2_tx: Result<L2Tx, SerializationTransactionError> =
+            L2Tx::from_request(eip712_call_request.into(), random_tx_max_size, true);
+
+        assert_matches!(
+            try_to_l2_tx,
+            Err(SerializationTransactionError::ToAddressIsNull)
+        );
+    }
 }
