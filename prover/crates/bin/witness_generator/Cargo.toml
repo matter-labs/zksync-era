@@ -14,7 +14,6 @@ vise.workspace = true
 zksync_prover_dal.workspace = true
 zksync_config = { workspace = true, features = ["observability_ext"] }
 zksync_prover_interface.workspace = true
-zksync_env_config.workspace = true
 zksync_system_constants.workspace = true
 zksync_vlog.workspace = true
 zksync_queued_job_processor.workspace = true
