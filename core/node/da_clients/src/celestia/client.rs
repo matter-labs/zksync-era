@@ -56,7 +56,6 @@ pub struct CelestiaClient {
     eq_client: Arc<EqClient>,
     celestia_client: Arc<RawCelestiaClient>,
     eth_client: Box<DynClient<L1>>,
-    blobstream_contract: Contract,
 }
 
 impl CelestiaClient {
@@ -65,9 +64,6 @@ impl CelestiaClient {
         secrets: CelestiaSecrets,
         eth_client: Box<DynClient<L1>>,
     ) -> anyhow::Result<Self> {
-
-        let blobstream_abi = include_bytes!("blobstream.json");
-        let blobstream_contract = Contract::load(blobstream_abi).unwrap();
 
         let celestia_grpc_channel = Endpoint::from_str(config.api_node_url.clone().as_str())?
             .timeout(time::Duration::from_millis(config.timeout_ms))
@@ -89,7 +85,6 @@ impl CelestiaClient {
             celestia_client: Arc::new(client),
             eq_client: Arc::new(eq_client),
             eth_client,
-            blobstream_contract,
         })
     }
 
@@ -224,7 +219,7 @@ impl DataAvailabilityClient for CelestiaClient {
             .map_err(to_retriable_da_error)?;
 
         let latest_blobstream_height =
-            get_latest_blobstream_relayed_height(&self.eth_client, &self.blobstream_contract, H160::from_str(self.config.blobstream_contract_address.clone().as_str()).map_err(to_non_retriable_da_error)?).await?;
+            get_latest_blobstream_relayed_height(&self.eth_client, H160::from_str(self.config.blobstream_contract_address.clone().as_str()).map_err(to_non_retriable_da_error)?).await?;
         tracing::debug!("Latest blobstream block: {}", latest_blobstream_height);
 
         tracing::debug!("Parsing blob id: {}", blob_id);
@@ -282,11 +277,13 @@ impl DataAvailabilityClient for CelestiaClient {
             .map_err(to_non_retriable_da_error)?;
         let evm_total = Uint::from(total);
 
+        let data_root = tm_rpc_client.get_data_root(target_height).await.map_err(to_retriable_da_error)?;
+
         // Convert proof data into AttestationProof
         let data_root_tuple = DataRootTuple {
             // I think this is correct little endian but we'll see
             height: Uint::from(target_height),
-            data_root: data_root,
+            data_root: data_root.to_vec(),
         };
 
         let side_nodes: Vec<FixedBytes> = data_root_inclusion_proof.aunts;
@@ -355,20 +352,5 @@ impl Debug for CelestiaClient {
             .field("config.api_node_url", &self.config.api_node_url)
             .field("config.namespace", &self.config.namespace)
             .finish()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_blobstream_abi() {
-        let blobstream_abi = include_bytes!("blobstream.json");
-        let blobstream_contract = Contract::load(blobstream_abi).unwrap();
-        let function = blobstream_contract
-            .function("latestBlock")
-            .unwrap();
-        println!("{:?}", function);
     }
 }

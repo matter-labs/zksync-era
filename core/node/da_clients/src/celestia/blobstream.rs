@@ -5,9 +5,11 @@
 #![allow(dead_code)]
 use reqwest::{Client, Error as ReqwestError};
 use serde::Deserialize;
+use hex;
+use lazy_static::lazy_static;
 
 use zksync_types::{
-    ethabi::{decode, Contract, Event, EventParam, ParamType, FixedBytes, Token},
+    ethabi::{decode, Contract, Event, EventParam, ParamType, Param, FixedBytes, Token, Function, StateMutability},
     web3::{BlockId, BlockNumber, CallRequest, FilterBuilder, Log, contract::Tokenize},
     H160, H256, U256,
 };
@@ -18,32 +20,46 @@ use zksync_eth_client::{
 use zksync_da_client::types::DAError;
 use crate::utils::{to_non_retriable_da_error, to_retriable_da_error};
 
-pub const BLOBSTREAM_UPDATE_EVENT: Event = Event {
-    name: "DataCommitmentStored".to_string(),
-    inputs: vec![
-        EventParam {
-            name: "proofNonce".to_string(),
-            kind: ParamType::Uint(256),
-            indexed: false
-        },
-        EventParam {
-            name: "startBlock".to_string(),
+lazy_static! {
+    pub static ref BLOBSTREAM_UPDATE_EVENT: Event = Event {
+        name: "DataCommitmentStored".to_string(),
+        inputs: vec![
+            EventParam {
+                name: "proofNonce".to_string(),
+                kind: ParamType::Uint(256),
+                indexed: false
+            },
+            EventParam {
+                name: "startBlock".to_string(),
+                kind: ParamType::Uint(64),
+                indexed: true
+            },
+            EventParam {
+                name: "endBlock".to_string(),
+                kind: ParamType::Uint(64),
+                indexed: true
+            },
+            EventParam {
+                name: "dataCommitment".to_string(),
+                kind: ParamType::FixedBytes(32),
+                indexed: true
+            }
+        ],
+        anonymous: false
+    };
+
+    pub static ref BLOBSTREAM_LATEST_BLOCK_FUNCTION: Function = Function {
+        name: "latestBlock".to_string(),
+        inputs: vec![],
+        outputs: vec![Param {
+            name: "".to_string(),
             kind: ParamType::Uint(64),
-            indexed: true
-        },
-        EventParam {
-            name: "endBlock".to_string(),
-            kind: ParamType::Uint(64),
-            indexed: true
-        },
-        EventParam {
-            name: "dataCommitment".to_string(),
-            kind: ParamType::FixedBytes(32),
-            indexed: true
-        }
-    ],
-    anonymous: false
-};
+            internal_type: Some("uint64".to_string()),
+        }],
+        constant: Some(true),
+        state_mutability: StateMutability::View,
+    };
+}
 
 pub struct TendermintRPCClient {
     url: String,
@@ -75,7 +91,7 @@ impl TendermintRPCClient {
             .await
     }
 
-    pub async fn get_data_root(&self, height: u64) -> Result<String, ReqwestError> {
+    pub async fn get_data_root(&self, height: u64) -> Result<[u8; 32], ReqwestError> {
         let url = format!("{}/header", self.url);
         let response = self.client
             .get(url)
@@ -90,10 +106,14 @@ impl TendermintRPCClient {
         let response_json: serde_json::Value = serde_json::from_str(&response)
             .expect("Failed to parse response JSON");
         
-        let data_root = response_json["result"]["header"]["data_hash"]
+        let data_root_hex = response_json["result"]["header"]["data_hash"]
             .as_str()
             .expect("Failed to get data_hash")
-            .to_string();
+            .trim_start_matches("0x");
+
+        let mut data_root = [0u8; 32];
+        hex::decode_to_slice(data_root_hex, &mut data_root)
+            .expect("Failed to decode hex string");
 
         Ok(data_root)
     }
@@ -102,15 +122,12 @@ impl TendermintRPCClient {
 // Get the latest block relayed to Blobstream
 pub async fn get_latest_blobstream_relayed_height(
     client: &Box<DynClient<L1>>,
-    contract: &Contract,
     contract_address: H160,
 ) -> Result<U256, DAError> {
     let request = CallRequest {
         to: Some(contract_address),
         data: Some(
-            contract
-                .function("latestBlock")
-                .unwrap()
+            BLOBSTREAM_LATEST_BLOCK_FUNCTION
                 .encode_input(&[])
                 .unwrap()
                 .into(),
@@ -306,5 +323,17 @@ impl Tokenize for CelestiaZKStackInput {
             Token::Bytes(self.equivalence_proof),
             Token::Bytes(self.public_values),
         ]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[tokio::test]
+    async fn get_data_root() {
+        let client = TendermintRPCClient::new("http://public-celestia-mocha4-consensus.numia.xyz:26657".to_string());
+        let data_root = client.get_data_root(5682865).await.unwrap();
+        println!("data_root: {:?}", data_root);
     }
 }

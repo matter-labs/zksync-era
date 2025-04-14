@@ -61,3 +61,4 @@ zksync_web3_decl.workspace = true
 zksync_eth_client.workspace = true
 # Eigen dependencies
 rust-eigenda-client.workspace = true
+lazy_static.workspace = true

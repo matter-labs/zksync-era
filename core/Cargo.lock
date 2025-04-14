@@ -13717,6 +13717,7 @@ dependencies = [
  "hex",
  "http 1.2.0",
  "jsonrpsee",
+ "lazy_static",
  "parity-scale-codec",
  "pbjson-types",
  "prost 0.12.6",
