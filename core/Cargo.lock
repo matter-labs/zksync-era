@@ -2932,7 +2932,16 @@ version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4a9b99b9cbbe49445b21764dc0625032a89b145a2642e67603e1c936f5458d05"
 dependencies = [
- "derive_more-impl",
+ "derive_more-impl 1.0.0",
+]
+
+[[package]]
+name = "derive_more"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "093242cf7570c207c83073cf82f79706fe7b8317e98620a47d5be7c3d8497678"
+dependencies = [
+ "derive_more-impl 2.0.1",
 ]
 
 [[package]]
@@ -2940,6 +2949,18 @@ name = "derive_more-impl"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cb7330aeadfbe296029522e6c40f315320aba36fc43a5b3632f3795348f3bd22"
+dependencies = [
+ "proc-macro2 1.0.92",
+ "quote 1.0.37",
+ "syn 2.0.90",
+ "unicode-xid 0.2.6",
+]
+
+[[package]]
+name = "derive_more-impl"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bda628edc44c4bb645fbe0f758797143e4e07926f7ebf4e9bdfbd3d2ce621df3"
 dependencies = [
  "proc-macro2 1.0.92",
  "quote 1.0.37",
@@ -5346,7 +5367,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc2f4eb4bc735547cfed7c0a4922cbd04a4655978c09b54f1f7b228750664c34"
 dependencies = [
  "cfg-if",
- "windows-targets 0.48.5",
+ "windows-targets 0.52.6",
 ]
 
 [[package]]
@@ -5452,7 +5473,7 @@ dependencies = [
  "serde",
  "serde_json",
  "static_assertions",
- "thiserror 1.0.69",
+ "thiserror 2.0.12",
  "tokio",
  "tracing",
  "vise",
@@ -6520,7 +6541,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8b7cafe60d6cf8e62e1b9b2ea516a089c008945bb5a275416789e7db0bc199dc"
 dependencies = [
  "memchr",
- "thiserror 2.0.6",
+ "thiserror 2.0.12",
  "ucd-trie",
 ]
 
@@ -7193,7 +7214,7 @@ dependencies = [
  "rustc-hash 2.1.0",
  "rustls 0.23.19",
  "socket2",
- "thiserror 2.0.6",
+ "thiserror 2.0.12",
  "tokio",
  "tracing",
 ]
@@ -7212,7 +7233,7 @@ dependencies = [
  "rustls 0.23.19",
  "rustls-pki-types",
  "slab",
- "thiserror 2.0.6",
+ "thiserror 2.0.12",
  "tinyvec",
  "tracing",
  "web-time",
@@ -8086,7 +8107,7 @@ dependencies = [
  "scale-bits 0.7.0",
  "scale-type-resolver",
  "smallvec",
- "thiserror 2.0.6",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
@@ -9326,7 +9347,7 @@ dependencies = [
  "parity-scale-codec",
  "polkadot-sdk",
  "scale-info",
- "thiserror 2.0.6",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
@@ -9346,7 +9367,7 @@ dependencies = [
  "schnorrkel",
  "secrecy 0.10.3",
  "sha2 0.10.8",
- "thiserror 2.0.6",
+ "thiserror 2.0.12",
  "zeroize",
 ]
 
@@ -9637,11 +9658,11 @@ dependencies = [
 
 [[package]]
 name = "thiserror"
-version = "2.0.6"
+version = "2.0.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8fec2a1820ebd077e2b90c4df007bebf344cd394098a13c563957d0afc83ea47"
+checksum = "567b8a2dae586314f7be2a752ec7474332959c6460e02bde30d702a66d488708"
 dependencies = [
- "thiserror-impl 2.0.6",
+ "thiserror-impl 2.0.12",
 ]
 
 [[package]]
@@ -9657,9 +9678,9 @@ dependencies = [
 
 [[package]]
 name = "thiserror-impl"
-version = "2.0.6"
+version = "2.0.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d65750cab40f4ff1929fb1ba509e9914eb756131cef4210da8d5d700d26f6312"
+checksum = "7f7cf42b4507d8ea322120659672cf1b9dbb93f8f2d4ecfd6e51350ff5b17a1d"
 dependencies = [
  "proc-macro2 1.0.92",
  "quote 1.0.37",
@@ -11148,7 +11169,7 @@ dependencies = [
  "flate2",
  "indexmap 2.7.0",
  "memchr",
- "thiserror 2.0.6",
+ "thiserror 2.0.12",
  "zopfli",
 ]
 
@@ -11300,7 +11321,7 @@ dependencies = [
  "serde",
  "serde_with",
  "tempfile",
- "thiserror 1.0.69",
+ "thiserror 2.0.12",
  "tracing",
  "tracing-subscriber",
  "vise",
@@ -11323,7 +11344,7 @@ dependencies = [
  "serde_json",
  "tempfile",
  "test-casing",
- "thiserror 1.0.69",
+ "thiserror 2.0.12",
  "tokio",
  "tracing",
  "vise",
@@ -11472,7 +11493,7 @@ dependencies = [
  "serde_with",
  "sha2 0.10.8",
  "strum",
- "thiserror 1.0.69",
+ "thiserror 2.0.12",
  "tiny-keccak 2.0.2",
  "url",
 ]
@@ -11530,7 +11551,7 @@ version = "27.3.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
- "thiserror 1.0.69",
+ "thiserror 2.0.12",
  "tokio",
  "tracing",
  "vise",
@@ -11545,7 +11566,7 @@ dependencies = [
  "anyhow",
  "circuit_encodings",
  "futures 0.3.31",
- "itertools 0.10.5",
+ "itertools 0.13.0",
  "num_cpus",
  "rand 0.8.5",
  "serde",
@@ -11769,7 +11790,7 @@ dependencies = [
  "once_cell",
  "serde",
  "test-casing",
- "thiserror 1.0.69",
+ "thiserror 2.0.12",
  "tokio",
  "tracing",
  "zksync_config",
@@ -11845,7 +11866,7 @@ dependencies = [
  "serde_json",
  "tempfile",
  "test-casing",
- "thiserror 1.0.69",
+ "thiserror 2.0.12",
  "tokio",
  "tracing",
  "vise",
@@ -11898,7 +11919,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.10.8",
- "thiserror 1.0.69",
+ "thiserror 2.0.12",
  "zksync_basic_types",
 ]
 
@@ -11921,6 +11942,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "serde",
+ "zksync_types",
 ]
 
 [[package]]
@@ -11997,7 +12019,7 @@ dependencies = [
  "bincode",
  "chrono",
  "hex",
- "itertools 0.10.5",
+ "itertools 0.13.0",
  "prost 0.12.6",
  "rand 0.8.5",
  "rayon",
@@ -12005,7 +12027,7 @@ dependencies = [
  "serde_json",
  "sqlx",
  "strum",
- "thiserror 1.0.69",
+ "thiserror 2.0.12",
  "tokio",
  "tracing",
  "vise",
@@ -12036,7 +12058,7 @@ dependencies = [
  "serde_json",
  "sqlx",
  "test-casing",
- "thiserror 1.0.69",
+ "thiserror 2.0.12",
  "tokio",
  "tracing",
  "vise",
@@ -12067,7 +12089,7 @@ dependencies = [
  "pretty_assertions",
  "rlp",
  "serde_json",
- "thiserror 1.0.69",
+ "thiserror 2.0.12",
  "tokio",
  "tracing",
  "vise",
@@ -12089,7 +12111,7 @@ dependencies = [
  "serde",
  "test-casing",
  "test-log",
- "thiserror 1.0.69",
+ "thiserror 2.0.12",
  "tokio",
  "tracing",
  "vise",
@@ -12116,7 +12138,7 @@ version = "27.3.0-non-semver-compat"
 dependencies = [
  "async-trait",
  "rlp",
- "thiserror 1.0.69",
+ "thiserror 2.0.12",
  "zksync_basic_types",
  "zksync_crypto_primitives",
 ]
@@ -12130,9 +12152,9 @@ dependencies = [
  "async-trait",
  "bincode",
  "hex",
- "itertools 0.10.5",
+ "itertools 0.13.0",
  "test-log",
- "thiserror 1.0.69",
+ "thiserror 2.0.12",
  "tokio",
  "tracing",
  "vise",
@@ -12232,7 +12254,7 @@ dependencies = [
  "async-trait",
  "axum 0.7.9",
  "bincode",
- "thiserror 1.0.69",
+ "thiserror 2.0.12",
  "tokio",
  "tracing",
  "vise",
@@ -12276,7 +12298,7 @@ version = "27.3.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
- "thiserror 1.0.69",
+ "thiserror 2.0.12",
  "tokio",
  "tracing",
  "zksync_basic_types",
@@ -12296,7 +12318,7 @@ dependencies = [
  "futures 0.3.31",
  "serde",
  "serde_json",
- "thiserror 1.0.69",
+ "thiserror 2.0.12",
  "tokio",
  "tracing",
  "vise",
@@ -12392,7 +12414,7 @@ dependencies = [
  "serde_with",
  "tempfile",
  "test-casing",
- "thiserror 1.0.69",
+ "thiserror 2.0.12",
  "thread_local",
  "tracing",
  "tracing-subscriber",
@@ -12413,14 +12435,14 @@ dependencies = [
  "async-trait",
  "axum 0.7.9",
  "futures 0.3.31",
- "itertools 0.10.5",
+ "itertools 0.13.0",
  "once_cell",
  "reqwest 0.12.9",
  "serde",
  "serde_json",
  "tempfile",
  "test-casing",
- "thiserror 1.0.69",
+ "thiserror 2.0.12",
  "tokio",
  "tracing",
  "vise",
@@ -12457,13 +12479,13 @@ dependencies = [
  "circuit_sequencer_api",
  "ethabi",
  "hex",
- "itertools 0.10.5",
+ "itertools 0.13.0",
  "once_cell",
  "pretty_assertions",
  "rand 0.8.5",
  "serde_json",
  "test-casing",
- "thiserror 1.0.69",
+ "thiserror 2.0.12",
  "tracing",
  "vise",
  "zk_evm 0.131.0-rc.2",
@@ -12494,7 +12516,7 @@ dependencies = [
  "governor",
  "hex",
  "http 1.2.0",
- "itertools 0.10.5",
+ "itertools 0.13.0",
  "lru",
  "once_cell",
  "pin-project-lite",
@@ -12504,7 +12526,7 @@ dependencies = [
  "serde_json",
  "strum",
  "test-casing",
- "thiserror 1.0.69",
+ "thiserror 2.0.12",
  "thread_local",
  "tokio",
  "tower 0.4.13",
@@ -12547,7 +12569,7 @@ dependencies = [
  "semver 1.0.23",
  "tempfile",
  "test-casing",
- "thiserror 1.0.69",
+ "thiserror 2.0.12",
  "tokio",
  "tracing",
  "vise",
@@ -12633,7 +12655,7 @@ dependencies = [
  "pin-project-lite",
  "semver 1.0.23",
  "serde",
- "thiserror 1.0.69",
+ "thiserror 2.0.12",
  "tokio",
  "tracing",
  "trybuild",
@@ -12700,8 +12722,8 @@ version = "27.3.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "bincode",
- "itertools 0.10.5",
- "thiserror 1.0.69",
+ "itertools 0.13.0",
+ "thiserror 2.0.12",
  "tokio",
  "tracing",
  "vise",
@@ -12751,7 +12773,7 @@ dependencies = [
  "serde",
  "serde_json",
  "test-casing",
- "thiserror 1.0.69",
+ "thiserror 2.0.12",
  "tokio",
  "tracing",
  "vise",
@@ -12951,7 +12973,7 @@ dependencies = [
  "async-trait",
  "serde_json",
  "test-casing",
- "thiserror 1.0.69",
+ "thiserror 2.0.12",
  "tokio",
  "tracing",
  "zksync_dal",
@@ -13015,7 +13037,7 @@ dependencies = [
  "futures 0.3.31",
  "serde",
  "test-casing",
- "thiserror 1.0.69",
+ "thiserror 2.0.12",
  "tokio",
  "tracing",
  "vise",
@@ -13052,7 +13074,7 @@ dependencies = [
  "assert_matches",
  "async-trait",
  "backon",
- "itertools 0.10.5",
+ "itertools 0.13.0",
  "mini-moka",
  "once_cell",
  "rand 0.8.5",
@@ -13077,14 +13099,14 @@ dependencies = [
  "async-trait",
  "futures 0.3.31",
  "hex",
- "itertools 0.10.5",
+ "itertools 0.13.0",
  "once_cell",
  "rand 0.8.5",
  "serde",
  "serde_json",
  "tempfile",
  "test-casing",
- "thiserror 1.0.69",
+ "thiserror 2.0.12",
  "tokio",
  "tracing",
  "vise",
@@ -13154,7 +13176,7 @@ dependencies = [
  "secp256k1",
  "serde",
  "serde_json",
- "thiserror 1.0.69",
+ "thiserror 2.0.12",
  "tokio",
  "tracing",
  "url",
@@ -13214,7 +13236,7 @@ dependencies = [
  "blake2 0.10.6",
  "chrono",
  "ciborium",
- "derive_more 1.0.0",
+ "derive_more 2.0.1",
  "hex",
  "num_enum 0.7.3",
  "once_cell",
@@ -13223,12 +13245,11 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_with",
- "thiserror 1.0.69",
+ "thiserror 2.0.12",
  "tracing",
  "zksync_basic_types",
  "zksync_contracts",
  "zksync_crypto_primitives",
- "zksync_da_client",
  "zksync_mini_merkle_tree",
  "zksync_protobuf",
  "zksync_protobuf_build",
@@ -13260,7 +13281,7 @@ dependencies = [
  "sentry",
  "serde",
  "serde_json",
- "thiserror 1.0.69",
+ "thiserror 2.0.12",
  "time",
  "tokio",
  "tracing",
@@ -13322,7 +13343,7 @@ dependencies = [
  "pretty_assertions",
  "serde",
  "serde_json",
- "thiserror 1.0.69",
+ "thiserror 2.0.12",
  "tracing",
  "zksync_contracts",
  "zksync_system_constants",
@@ -13379,7 +13400,7 @@ dependencies = [
  "serde",
  "serde_json",
  "test-casing",
- "thiserror 1.0.69",
+ "thiserror 2.0.12",
  "tokio",
  "tracing",
  "vise",

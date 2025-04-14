@@ -65,7 +65,7 @@ sqlx = { version = "0.8.1", features = [
     "postgres",
 ] }
 strum = { version = "0.26", features = ["derive"] }
-thiserror = "1.0.57"
+thiserror = "2.0.12"
 tokio = { version = "1.37", features = ["full"] }
 toml = "0.8.12"
 url = { version = "2.5.0", features = ["serde"] }
