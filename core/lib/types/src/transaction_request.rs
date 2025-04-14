@@ -826,10 +826,8 @@ impl L2Tx {
         let meta = value.eip712_meta.take().unwrap_or_default();
         validate_factory_deps(&meta.factory_deps)?;
 
-        if value.to.is_none() {
-            if !allow_no_target || value.is_eip712_tx() {
-                return Err(SerializationTransactionError::ToAddressIsNull);
-            }
+        if value.to.is_none() && (!allow_no_target || value.is_eip712_tx()) {
+            return Err(SerializationTransactionError::ToAddressIsNull);
         }
 
         let mut tx = L2Tx::new(
@@ -1464,7 +1462,7 @@ mod tests {
 
     #[test]
     fn check_call_req_to_l2_tx_oversize_data() {
-        let factory_dep = vec![2u8; 1600000];
+        let calldata = vec![2u8; 1600000];
         let random_tx_max_size = 100_000; // bytes
         let call_request = CallRequest {
             from: Some(Address::random()),
@@ -1474,7 +1472,7 @@ mod tests {
             max_fee_per_gas: Some(U256::from(12u32)),
             max_priority_fee_per_gas: Some(U256::from(12u32)),
             value: Some(U256::from(12u32)),
-            data: Some(Bytes(factory_dep)),
+            data: Some(Bytes(calldata)),
             input: None,
             nonce: None,
             transaction_type: Some(U64::from(EIP_712_TX_TYPE)),
@@ -1548,7 +1546,7 @@ mod tests {
 
     #[test]
     fn test_eip712_without_field_to() {
-        let factory_dep = vec![2u8; 1600000];
+        let calldata = vec![2u8; 64];
         let random_tx_max_size = 100_000; // bytes
         let eip712_call_request = CallRequest {
             from: Some(Address::random()),
@@ -1558,7 +1556,7 @@ mod tests {
             max_fee_per_gas: Some(U256::from(12u32)),
             max_priority_fee_per_gas: Some(U256::from(12u32)),
             value: Some(U256::from(12u32)),
-            data: Some(Bytes(factory_dep)),
+            data: Some(Bytes(calldata)),
             input: None,
             nonce: None,
             transaction_type: Some(U64::from(EIP_712_TX_TYPE)),
