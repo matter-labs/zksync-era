@@ -477,7 +477,10 @@ impl ZksNamespace {
         }))
     }
 
-    pub async fn get_gw_block_number(&self, l1_batch_number: L1BatchNumber) -> Result<u128, Web3Error> {
+    pub async fn get_gw_block_number(
+        &self,
+        l1_batch_number: L1BatchNumber,
+    ) -> Result<u128, Web3Error> {
         let mut storage = self.state.acquire_connection().await?;
 
         let eth_tx_id = storage
@@ -498,7 +501,10 @@ impl ZksNamespace {
             return Err(Web3Error::NoBlock);
         };
 
-        Ok(tx.confirmed_at_block.map(|block| block as u128).unwrap_or(0))
+        Ok(tx
+            .confirmed_at_block
+            .map(|block| block as u128)
+            .unwrap_or(0))
     }
 
     pub async fn get_l2_to_l1_log_proof_impl(

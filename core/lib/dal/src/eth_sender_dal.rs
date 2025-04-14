@@ -891,7 +891,9 @@ impl EthSenderDal<'_, '_> {
         l1_batch_number: L1BatchNumber,
         op_type: AggregatedActionType,
     ) -> Option<TxHistory> {
-        let eth_tx_id = self.get_last_sent_eth_tx_id(l1_batch_number, op_type).await?;
+        let eth_tx_id = self
+            .get_last_sent_eth_tx_id(l1_batch_number, op_type)
+            .await?;
         self.get_last_sent_eth_tx(eth_tx_id).await.unwrap()
     }
 }
