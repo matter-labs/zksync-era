@@ -6,7 +6,8 @@ use jsonrpsee::proc_macros::rpc;
 use zksync_types::{
     api::{
         state_override::StateOverride, BlockDetails, BridgeAddresses, L1BatchDetails,
-        L2ToL1LogProof, Proof, ProtocolVersion, TransactionDetailedResult, TransactionDetails,
+        L2ToL1LogProof, LogProofTarget, Proof, ProtocolVersion, TransactionDetailedResult,
+        TransactionDetails,
     },
     fee::Fee,
     fee_model::{FeeParams, PubdataIndependentBatchFeeModelInput},
@@ -86,12 +87,12 @@ pub trait ZksNamespace {
         index: Option<usize>,
     ) -> RpcResult<Option<L2ToL1LogProof>>;
 
-    #[method(name = "getL2ToL1LogProofUntilChainId")]
-    async fn get_l2_to_l1_log_proof_until_chain_id(
+    #[method(name = "getL2ToL1LogProofUntilTarget")]
+    async fn get_l2_to_l1_log_proof_until_target(
         &self,
         tx_hash: H256,
         index: Option<usize>,
-        chain_id: Option<U64>,
+        log_proof_target: Option<LogProofTarget>,
     ) -> RpcResult<Option<L2ToL1LogProof>>;
 
     #[method(name = "L1BatchNumber")]

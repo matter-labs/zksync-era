@@ -199,27 +199,20 @@ describe('L1 ERC20 contract checks', () => {
     });
 
     test('Can check withdrawal hash in L2 ', async () => {
-        // todo use the same chain, for simplicity.
-        let interop2_provider = new RetryProvider(
-            { url: 'http://localhost:3150', timeout: 1200 * 1000 },
-            undefined,
-            testMaster.reporter
-        );
+        // We use the same chain for simplicity
         const l2MessageVerification = new zksync.Contract(
             L2_MESSAGE_VERIFICATION_ADDRESS,
             ArtifactL2MessageVerification.abi,
-            interop2_provider
+            alice.provider
         );
 
         // Imports proof until GW's message root, needed for proof based interop.
-        const GATEWAY_CHAIN_ID = 506;
-        const params = await alice.getFinalizeWithdrawalParams(withdrawalHash, undefined, undefined, GATEWAY_CHAIN_ID);
-        let alice2Wallet = new zksync.Wallet(alice.privateKey, interop2_provider, testMaster.mainAccount().providerL1);
+        const params = await alice.getFinalizeWithdrawalParams(withdrawalHash, undefined, undefined, 'gw_message_root');
 
-        // Needed else GW's MessageRoot won't be updated
+        // Needed else the L2's view of GW's MessageRoot won't be updated
         await delay(10000);
         await (
-            await alice2Wallet.deposit({
+            await alice.deposit({
                 token: ETH_ADDRESS_IN_CONTRACTS,
                 to: alice.address,
                 amount: 1
