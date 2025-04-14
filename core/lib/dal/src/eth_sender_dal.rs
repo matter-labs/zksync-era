@@ -274,7 +274,7 @@ impl EthSenderDal<'_, '_> {
         raw_tx: Vec<u8>,
         tx_type: AggregatedActionType,
         contract_address: Address,
-        predicted_gas_cost: Option<u32>,
+        predicted_gas_cost: Option<u64>,
         from_address: Option<Address>,
         blob_sidecar: Option<EthTxBlobSidecar>,
         is_gateway: bool,
@@ -305,7 +305,7 @@ impl EthSenderDal<'_, '_> {
             nonce as i64,
             tx_type.to_string(),
             address,
-            predicted_gas_cost.map(|c| i64::from(c)),
+            predicted_gas_cost.map(|c| c as i64),
             from_address.as_ref().map(Address::as_bytes),
             blob_sidecar.map(|sidecar| bincode::serialize(&sidecar)
                 .expect("can always bincode serialize EthTxBlobSidecar; qed")),

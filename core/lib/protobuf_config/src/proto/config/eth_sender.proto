@@ -40,7 +40,7 @@ message Sender {
   optional uint64 aggregate_tx_poll_period = 4; // required; s
   optional uint64 max_txs_in_flight = 5; // required
   optional ProofSendingMode proof_sending_mode = 6; // required
-  optional uint32 max_aggregated_tx_gas = 7; // required; wei?
+  optional uint64 max_aggregated_tx_gas = 7; // required; wei?
   optional uint64 max_eth_tx_data_size = 8; // required; ?
   optional uint32 max_aggregated_blocks_to_commit = 9; // required
   optional uint32 max_aggregated_blocks_to_execute = 10; // required
