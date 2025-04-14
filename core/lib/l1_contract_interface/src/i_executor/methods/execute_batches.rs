@@ -60,20 +60,6 @@ impl ExecuteBatches {
                 Token::Bytes(execute_data),
             ]
         } else {
-            println!("dependency_roots: {:?}", self.dependency_roots);
-            println!(
-                "dependency_roots tokenized: {:?}",
-                Token::Array(
-                    self.dependency_roots
-                        .iter()
-                        .map(|roots| {
-                            Token::Array(
-                                roots.iter().map(|root| root.clone().into_token()).collect(),
-                            )
-                        })
-                        .collect()
-                )
-            );
             let encoded_data = encode(&[
                 Token::Array(
                     self.l1_batches
@@ -104,7 +90,6 @@ impl ExecuteBatches {
             let execute_data = [[SUPPORTED_ENCODING_VERSION].to_vec(), encoded_data]
                 .concat()
                 .to_vec(); //
-            println!("execute_data: 0x{}", hex::encode(&execute_data));
             vec![
                 Token::Uint(self.l1_batches[0].header.number.0.into()),
                 Token::Uint(self.l1_batches.last().unwrap().header.number.0.into()),

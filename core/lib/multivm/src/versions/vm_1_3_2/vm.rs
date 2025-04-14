@@ -100,9 +100,6 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
         // Do nothing, because vm 1.3.2 doesn't support L2 blocks
     }
 
-    // fn insert_message_root(&mut self, _msg_root: MessageRoot) {
-    //     // Do nothing, because vm 1.3.2 doesn't support message roots
-    // }
 
     fn inspect_transaction_with_bytecode_compression(
         &mut self,

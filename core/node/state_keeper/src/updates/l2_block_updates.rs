@@ -200,6 +200,7 @@ mod tests {
             H256::random(),
             0,
             ProtocolVersionId::latest(),
+            vec![],
         );
         let tx = create_transaction(10, 100);
         let bootloader_encoding_size = tx.bootloader_encoding_size();

@@ -208,16 +208,6 @@ impl BootloaderState {
             }
         }
 
-        // for block in self.l2_blocks.iter() {
-        //     for (msg_root_offset, msg_root) in block.msg_roots.iter().enumerate() {
-        //         apply_message_root(
-        //             &mut initial_memory,
-        //             msg_root_offset,
-        //             msg_root,
-        //             self.subversion,
-        //         );
-        //     }
-        // }
 
         let pubdata_information = self
             .pubdata_information

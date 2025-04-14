@@ -435,11 +435,6 @@ impl Aggregator {
             }
         }
 
-        // if dependency_roots.len() = 0 {
-        //     dependency_roots = vec![vec![]; l1_batches.len()];
-        // }
-        println!("execute batches case 2");
-
         Ok(Some(ExecuteBatches {
             l1_batches,
             priority_ops_proofs,

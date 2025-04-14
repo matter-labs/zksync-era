@@ -98,18 +98,8 @@ impl<'a> CommitBatchInfo<'a> {
                 ),
                 Token::FixedBytes(
                     if self.l1_batch_with_metadata.header.system_logs.is_empty() {
-                        println!("case 1 {:?}", H256::zero().as_bytes().to_vec());
                         H256::zero().as_bytes().to_vec()
                     } else {
-                        println!(
-                            "case 2 {:?}",
-                            self.l1_batch_with_metadata
-                                .header
-                                .system_logs
-                                .iter()
-                                .find(|log| log.0.key == MESSAGE_ROOT_ROLLING_HASH_KEY)
-                                .unwrap()
-                        );
 
                         self.l1_batch_with_metadata
                             .header
@@ -186,19 +176,8 @@ impl<'a> CommitBatchInfo<'a> {
                 ),
                 Token::FixedBytes(
                     if self.l1_batch_with_metadata.header.system_logs.is_empty() {
-                        println!("case 3");
-
                         H256::zero().as_bytes().to_vec()
                     } else {
-                        println!(
-                            "case 4 {:?}",
-                            self.l1_batch_with_metadata
-                                .header
-                                .system_logs
-                                .iter()
-                                .find(|log| log.0.key == MESSAGE_ROOT_ROLLING_HASH_KEY)
-                                .unwrap()
-                        );
 
                         self.l1_batch_with_metadata
                             .header

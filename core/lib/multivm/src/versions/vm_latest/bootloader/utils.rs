@@ -16,7 +16,7 @@ use crate::{
             get_tx_operator_l2_block_info_offset, get_tx_overhead_offset,
             get_tx_trusted_gas_limit_offset, BOOTLOADER_TX_DESCRIPTION_SIZE,
             MESSAGE_ROOT_SLOTS_SIZE, OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_SLOTS,
-            TX_OPERATOR_L2_BLOCK_INFO_SLOTS, TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO,
+            TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO,
         },
         MultiVmSubversion,
     },

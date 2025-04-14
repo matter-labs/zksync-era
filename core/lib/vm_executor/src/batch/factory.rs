@@ -21,7 +21,7 @@ use zksync_multivm::{
     FastVmInstance, LegacyVmInstance, MultiVmTracer,
 };
 use zksync_types::{
-    commitment::PubdataParams, message_root::MessageRoot, vm::FastVmMode, Transaction,
+    commitment::PubdataParams, vm::FastVmMode, Transaction,
 };
 
 use super::{
@@ -221,9 +221,6 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
         dispatch_batch_vm!(self.start_new_l2_block(l2_block));
     }
 
-    // fn insert_message_root(&mut self, msg_root: MessageRoot) {
-    //     dispatch_batch_vm!(self.insert_message_root(msg_root));
-    // }
 
     fn finish_batch(&mut self, pubdata_builder: Rc<dyn PubdataBuilder>) -> FinishedL1Batch {
         dispatch_batch_vm!(self.finish_batch(pubdata_builder))
@@ -356,7 +353,6 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
             match cmd {
                 Command::ExecuteTx(tx, resp) => {
                     let tx_hash = tx.hash();
-                    println!("command execute_tx {:?}", tx_hash);
                     let (result, latency) = self.execute_tx(*tx, &mut vm).with_context(|| {
                         format!("fatal error executing transaction {tx_hash:?}")
                     })?;
@@ -383,13 +379,6 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
                         break;
                     }
                 }
-                // Command::InsertMessageRoot(msg_root, resp) => {
-                //     println!("command  insert_message_root {:?}", msg_root);
-                //     vm.insert_message_root(msg_root);
-                //     if resp.send(()).is_err() {
-                //         break;
-                //     }
-                // }
                 Command::FinishBatch(resp) => {
                     let vm_block_result = self.finish_batch(&mut vm, pubdata_builder)?;
                     if resp.send(vm_block_result).is_err() {

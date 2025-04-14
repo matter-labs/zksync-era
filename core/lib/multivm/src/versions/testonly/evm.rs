@@ -256,7 +256,7 @@ pub(crate) fn test_real_emulator_block_info<VM: TestedVm>() {
         max_virtual_blocks_to_create: 1,
         msg_roots: vec![],
     };
-    vm.vm.start_new_l2_block(second_block);
+    vm.vm.start_new_l2_block(second_block.clone());
 
     let tx = account.get_l2_tx_for_execute(create_test_block_execute(evm_abi, &second_block), None);
     let (_, vm_result) = vm

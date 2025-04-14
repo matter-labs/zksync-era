@@ -592,7 +592,6 @@ impl ZkSyncStateKeeper {
             self.process_upgrade_tx(batch_executor, updates_manager, protocol_upgrade_tx)
                 .await?;
         }
-        println!("process_l1_batch {:?}", updates_manager.l2_block.number);
 
         while !is_canceled(stop_receiver) {
             let full_latency = KEEPER_METRICS.process_l1_batch_loop_iteration.start();
@@ -616,28 +615,6 @@ impl ZkSyncStateKeeper {
 
                 return Ok(());
             }
-            println!("loading msg_roots in keeper 1");
-
-            // let message_roots = self
-            //     .load_latest_message_root(updates_manager.l2_block.number)
-            //     .await?;
-            // println!(
-            //     "message_roots in keeper 0 {:?}",
-            //     updates_manager.l2_block.number
-            // );
-            // println!("message_roots in keeper 1 {:?}", message_roots);
-            // if message_roots.is_some() {
-            //     for message_root in message_roots.unwrap() {
-            //         if L2ChainId::from(message_root.chain_id) == self.io.chain_id() {
-            //             continue;
-            //         }
-            //         batch_executor
-            //             .insert_message_root(message_root.clone())
-            //             .await?;
-            //         self.mark_msg_root_as_processed(message_root, updates_manager.l2_block.number)
-            //             .await?;
-            //     }
-            // }
 
             if !updates_manager.has_next_block_params()
                 && self.io.should_seal_l2_block(updates_manager)

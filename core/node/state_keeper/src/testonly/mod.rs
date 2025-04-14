@@ -68,9 +68,6 @@ impl BatchExecutor<OwnedStorage> for MockBatchExecutor {
         Ok(())
     }
 
-    // async fn insert_message_root(&mut self, _msg_root: MessageRoot) -> anyhow::Result<()> {
-    //     Ok(())
-    // }
 
     async fn finish_batch(
         self: Box<Self>,

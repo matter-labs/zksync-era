@@ -829,9 +829,6 @@ where
         self.bootloader_state.start_new_l2_block(l2_block_env)
     }
 
-    // fn insert_message_root(&mut self, msg_root: MessageRoot) {
-    //     self.bootloader_state.insert_message_root(msg_root);
-    // }
 
     fn finish_batch(&mut self, pubdata_builder: Rc<dyn PubdataBuilder>) -> FinishedL1Batch {
         let result = self.inspect_inner(
@@ -843,7 +840,6 @@ where
         let bootloader_memory = self
             .bootloader_state
             .bootloader_memory(pubdata_builder.as_ref());
-        dbg!(&bootloader_memory);
         FinishedL1Batch {
             block_tip_execution_result: result,
             final_execution_state: execution_state,
