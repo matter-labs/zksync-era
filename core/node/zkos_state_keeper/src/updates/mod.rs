@@ -3,7 +3,9 @@ use std::collections::HashMap;
 use itertools::{Either, Itertools};
 use zk_ee::common_structs::PreimageType;
 use zk_os_basic_system::system_implementation::io::AccountProperties as BoojumAccountProperties;
-use zk_os_forward_system::run::{result_keeper::TxProcessingOutputOwned, BatchOutput};
+use zk_os_forward_system::run::{
+    output::BlockHeader, result_keeper::TxProcessingOutputOwned, BatchOutput,
+};
 use zksync_types::{
     boojum_os::AccountProperties, fee_model::BatchFeeInput, l2_to_l1_log::UserL2ToL1Log,
     AccountTreeId, Address, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey,
@@ -33,6 +35,7 @@ pub struct UpdatesManager {
     pub user_l2_to_l1_logs: Vec<UserL2ToL1Log>, // TODO: not filled currently
     pub new_factory_deps: HashMap<H256, Vec<u8>>,
     pub new_account_data: Vec<(H256, AccountProperties)>,
+    pub block_header: Option<BlockHeader>,
 
     pub executed_transactions: Vec<TransactionExecutionResult>,
     pub cumulative_payload_encoding_size: usize,
@@ -65,6 +68,7 @@ impl UpdatesManager {
             user_l2_to_l1_logs: Vec::new(),
             new_factory_deps: HashMap::new(),
             new_account_data: Vec::new(),
+            block_header: None,
             executed_transactions: Vec::new(),
             cumulative_payload_encoding_size: 0,
             cumulative_gas_used: 0,
@@ -123,6 +127,8 @@ impl UpdatesManager {
             })
             .collect();
         self.storage_logs = storage_logs;
+
+        self.block_header = Some(batch_output.header);
     }
 
     pub fn extend_from_executed_transaction(

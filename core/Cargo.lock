@@ -1450,7 +1450,7 @@ dependencies = [
 [[package]]
 name = "basic_bootloader"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee?branch=forward-system-tx-result-callback#cc4292e14e3e650d5895d75b89b5b24f455646af"
+source = "git+https://github.com/matter-labs/zk_ee?branch=forward-system-tx-result-callback#beab7c70bc2d4e9b65dd51eec873a426f7933493"
 dependencies = [
  "arrayvec 0.7.6",
  "crypto",
@@ -1466,7 +1466,7 @@ dependencies = [
 [[package]]
 name = "basic_system"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee?branch=forward-system-tx-result-callback#cc4292e14e3e650d5895d75b89b5b24f455646af"
+source = "git+https://github.com/matter-labs/zk_ee?branch=forward-system-tx-result-callback#beab7c70bc2d4e9b65dd51eec873a426f7933493"
 dependencies = [
  "arrayvec 0.7.6",
  "bottom",
@@ -1857,7 +1857,7 @@ dependencies = [
 [[package]]
 name = "bottom"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee?branch=forward-system-tx-result-callback#cc4292e14e3e650d5895d75b89b5b24f455646af"
+source = "git+https://github.com/matter-labs/zk_ee?branch=forward-system-tx-result-callback#beab7c70bc2d4e9b65dd51eec873a426f7933493"
 
 [[package]]
 name = "bs58"
@@ -2661,7 +2661,7 @@ checksum = "7a81dae078cea95a014a339291cec439d2f232ebe854a9d672b796c6afafa9b7"
 [[package]]
 name = "crypto"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee?branch=forward-system-tx-result-callback#cc4292e14e3e650d5895d75b89b5b24f455646af"
+source = "git+https://github.com/matter-labs/zk_ee?branch=forward-system-tx-result-callback#beab7c70bc2d4e9b65dd51eec873a426f7933493"
 dependencies = [
  "ark-bls12-381",
  "ark-bn254",
@@ -3473,7 +3473,7 @@ dependencies = [
 [[package]]
 name = "evm_interpreter"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee?branch=forward-system-tx-result-callback#cc4292e14e3e650d5895d75b89b5b24f455646af"
+source = "git+https://github.com/matter-labs/zk_ee?branch=forward-system-tx-result-callback#beab7c70bc2d4e9b65dd51eec873a426f7933493"
 dependencies = [
  "arrayvec 0.7.6",
  "crypto",
@@ -3657,7 +3657,7 @@ dependencies = [
 [[package]]
 name = "forward_system"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee?branch=forward-system-tx-result-callback#cc4292e14e3e650d5895d75b89b5b24f455646af"
+source = "git+https://github.com/matter-labs/zk_ee?branch=forward-system-tx-result-callback#beab7c70bc2d4e9b65dd51eec873a426f7933493"
 dependencies = [
  "arrayvec 0.7.6",
  "basic_bootloader",
@@ -5868,7 +5868,7 @@ dependencies = [
 [[package]]
 name = "modexp"
 version = "1.0.0"
-source = "git+https://github.com/matter-labs/zk_ee?branch=forward-system-tx-result-callback#cc4292e14e3e650d5895d75b89b5b24f455646af"
+source = "git+https://github.com/matter-labs/zk_ee?branch=forward-system-tx-result-callback#beab7c70bc2d4e9b65dd51eec873a426f7933493"
 
 [[package]]
 name = "multer"
@@ -9324,7 +9324,7 @@ checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 [[package]]
 name = "storage_models"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee?branch=forward-system-tx-result-callback#cc4292e14e3e650d5895d75b89b5b24f455646af"
+source = "git+https://github.com/matter-labs/zk_ee?branch=forward-system-tx-result-callback#beab7c70bc2d4e9b65dd51eec873a426f7933493"
 dependencies = [
  "arrayvec 0.7.6",
  "either",
@@ -9638,7 +9638,7 @@ dependencies = [
 [[package]]
 name = "system_hooks"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee?branch=forward-system-tx-result-callback#cc4292e14e3e650d5895d75b89b5b24f455646af"
+source = "git+https://github.com/matter-labs/zk_ee?branch=forward-system-tx-result-callback#beab7c70bc2d4e9b65dd51eec873a426f7933493"
 dependencies = [
  "arrayvec 0.7.6",
  "crypto",
@@ -11294,7 +11294,7 @@ dependencies = [
 [[package]]
 name = "zk_ee"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee?branch=forward-system-tx-result-callback#cc4292e14e3e650d5895d75b89b5b24f455646af"
+source = "git+https://github.com/matter-labs/zk_ee?branch=forward-system-tx-result-callback#beab7c70bc2d4e9b65dd51eec873a426f7933493"
 dependencies = [
  "arrayvec 0.7.6",
  "bitflags 2.6.0",
@@ -13547,7 +13547,6 @@ dependencies = [
  "anyhow",
  "async-trait",
  "basic_system",
- "evm_interpreter",
  "forward_system",
  "futures 0.3.31",
  "hex",

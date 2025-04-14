@@ -66,7 +66,16 @@ impl BlockSealCommand {
         let l2_block_header = L2BlockHeader {
             number: self.inner.l2_block_number,
             timestamp: self.inner.timestamp,
-            hash: H256::zero(), // ?
+            hash: self
+                .inner
+                .block_header
+                .as_ref()
+                .context(format!(
+                    "Missing header for block ${}",
+                    self.inner.l2_block_number
+                ))?
+                .hash()
+                .into(),
             l1_tx_count: l1_tx_count as u16,
             l2_tx_count: l2_tx_count as u16,
             fee_account_address: self.inner.fee_account_address,
