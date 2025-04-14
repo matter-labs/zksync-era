@@ -1,5 +1,27 @@
 # Changelog
 
+## [27.3.0](https://github.com/matter-labs/zksync-era/compare/core-v27.2.0...core-v27.3.0) (2025-04-10)
+
+
+### Features
+
+* add finality check in DA dispatcher ([#3795](https://github.com/matter-labs/zksync-era/issues/3795)) ([a3f9f0b](https://github.com/matter-labs/zksync-era/commit/a3f9f0bf41672224586d284e4e06b8ae11c41b49))
+* **api:** Support permissioned deployments ([#3726](https://github.com/matter-labs/zksync-era/issues/3726)) ([233a4d2](https://github.com/matter-labs/zksync-era/commit/233a4d245abaaead9044664ead3037e1f7c43499))
+* **eth-sender:** Calculate max-gas-per-pubdata ([#3782](https://github.com/matter-labs/zksync-era/issues/3782)) ([e8a1ce9](https://github.com/matter-labs/zksync-era/commit/e8a1ce9cb133ace10262d051f8afdf4179c80321))
+* Rework serialization of prover API-related types ([#3805](https://github.com/matter-labs/zksync-era/issues/3805)) ([afafc29](https://github.com/matter-labs/zksync-era/commit/afafc292ea003e19d280c0178ca6b49b5b14917f))
+* Update prover job ordering ([#3769](https://github.com/matter-labs/zksync-era/issues/3769)) ([5b74022](https://github.com/matter-labs/zksync-era/commit/5b740224fd27b0792d2d1602577c032fd3a31074))
+
+
+### Bug Fixes
+
+* **en:** Fix EVM bytecode handling during snapshot recovery ([#3792](https://github.com/matter-labs/zksync-era/issues/3792)) ([c579e95](https://github.com/matter-labs/zksync-era/commit/c579e95a9603c33f7e830cf09c479fa90fe36654))
+* Fix security issues (bump dependencies) ([#3813](https://github.com/matter-labs/zksync-era/issues/3813)) ([c6def9c](https://github.com/matter-labs/zksync-era/commit/c6def9c0e480bd73fc0ea29a7d3393c297c8afb7))
+
+
+### Performance Improvements
+
+* **dal:** Optimize some sql queries ([#3824](https://github.com/matter-labs/zksync-era/issues/3824)) ([7a0fde7](https://github.com/matter-labs/zksync-era/commit/7a0fde7390d143a3e27699c1ab33946941ca4e31))
+
 ## [27.2.0](https://github.com/matter-labs/zksync-era/compare/core-v27.1.0...core-v27.2.0) (2025-04-03)
 
 

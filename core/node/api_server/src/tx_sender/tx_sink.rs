@@ -1,5 +1,5 @@
 use zksync_dal::{transactions_dal::L2TxSubmissionResult, Connection, Core};
-use zksync_multivm::interface::{tracer::ValidationTraces, TransactionExecutionMetrics};
+use zksync_multivm::interface::tracer::ValidationTraces;
 use zksync_types::{
     api::{Transaction, TransactionDetails, TransactionId},
     l2::L2Tx,
@@ -8,6 +8,7 @@ use zksync_types::{
 use zksync_web3_decl::error::Web3Error;
 
 use super::SubmitTxError;
+use crate::execution_sandbox::SandboxExecutionOutput;
 
 /// An abstraction of "destination" for transactions that should be propagated to the mempool.
 ///
@@ -27,7 +28,7 @@ pub trait TxSink: std::fmt::Debug + Send + Sync + 'static {
     async fn submit_tx(
         &self,
         tx: &L2Tx,
-        execution_metrics: TransactionExecutionMetrics,
+        execution_output: &SandboxExecutionOutput,
         validation_traces: ValidationTraces,
     ) -> Result<L2TxSubmissionResult, SubmitTxError>;
 
