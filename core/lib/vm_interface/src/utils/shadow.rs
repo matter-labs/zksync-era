@@ -8,8 +8,7 @@ use std::{
 };
 
 use zksync_types::{
-    Address, StorageKey, StorageLog,
-    StorageLogWithPreviousValue, Transaction, U256,
+    Address, StorageKey, StorageLog, StorageLogWithPreviousValue, Transaction, U256,
 };
 
 use super::dump::{DumpingVm, VmDump};

@@ -166,7 +166,6 @@ where
         Ok(())
     }
 
-
     #[tracing::instrument(skip_all)]
     async fn finish_batch(
         mut self: Box<Self>,

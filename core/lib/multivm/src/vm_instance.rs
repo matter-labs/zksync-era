@@ -73,7 +73,6 @@ impl<S: ReadStorage, H: HistoryMode> VmInterface for LegacyVmInstance<S, H> {
         dispatch_legacy_vm!(self.start_new_l2_block(l2_block_env))
     }
 
-
     /// Inspect transaction with optional bytecode compression.
     fn inspect_transaction_with_bytecode_compression(
         &mut self,
@@ -298,7 +297,6 @@ where
     fn start_new_l2_block(&mut self, l2_block_env: L2BlockEnv) {
         dispatch_fast_vm!(self.start_new_l2_block(l2_block_env));
     }
-
 
     fn inspect_transaction_with_bytecode_compression(
         &mut self,

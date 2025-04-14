@@ -196,7 +196,6 @@ impl<S: ReadStorage, Vm: VmTrackingContracts> VmInterface for DumpingVm<S, Vm> {
         self.inner.start_new_l2_block(l2_block_env);
     }
 
-
     fn inspect_transaction_with_bytecode_compression(
         &mut self,
         tracer: &mut Self::TracerDispatcher,

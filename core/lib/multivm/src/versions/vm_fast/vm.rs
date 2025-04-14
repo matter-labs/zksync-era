@@ -829,7 +829,6 @@ where
         self.bootloader_state.start_new_l2_block(l2_block_env)
     }
 
-
     fn finish_batch(&mut self, pubdata_builder: Rc<dyn PubdataBuilder>) -> FinishedL1Batch {
         let result = self.inspect_inner(
             &mut Default::default(),

@@ -100,7 +100,6 @@ impl<'a> CommitBatchInfo<'a> {
                     if self.l1_batch_with_metadata.header.system_logs.is_empty() {
                         H256::zero().as_bytes().to_vec()
                     } else {
-
                         self.l1_batch_with_metadata
                             .header
                             .system_logs
@@ -178,7 +177,6 @@ impl<'a> CommitBatchInfo<'a> {
                     if self.l1_batch_with_metadata.header.system_logs.is_empty() {
                         H256::zero().as_bytes().to_vec()
                     } else {
-
                         self.l1_batch_with_metadata
                             .header
                             .system_logs

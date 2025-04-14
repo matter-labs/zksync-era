@@ -20,9 +20,7 @@ use zksync_multivm::{
     vm_latest::HistoryEnabled,
     FastVmInstance, LegacyVmInstance, MultiVmTracer,
 };
-use zksync_types::{
-    commitment::PubdataParams, vm::FastVmMode, Transaction,
-};
+use zksync_types::{commitment::PubdataParams, vm::FastVmMode, Transaction};
 
 use super::{
     executor::{Command, MainBatchExecutor},
@@ -220,7 +218,6 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
     fn start_new_l2_block(&mut self, l2_block: L2BlockEnv) {
         dispatch_batch_vm!(self.start_new_l2_block(l2_block));
     }
-
 
     fn finish_batch(&mut self, pubdata_builder: Rc<dyn PubdataBuilder>) -> FinishedL1Batch {
         dispatch_batch_vm!(self.finish_batch(pubdata_builder))

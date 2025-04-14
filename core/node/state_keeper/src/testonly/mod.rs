@@ -68,7 +68,6 @@ impl BatchExecutor<OwnedStorage> for MockBatchExecutor {
         Ok(())
     }
 
-
     async fn finish_batch(
         self: Box<Self>,
     ) -> anyhow::Result<(FinishedL1Batch, StorageView<OwnedStorage>)> {

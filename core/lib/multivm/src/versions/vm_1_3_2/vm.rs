@@ -100,7 +100,6 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
         // Do nothing, because vm 1.3.2 doesn't support L2 blocks
     }
 
-
     fn inspect_transaction_with_bytecode_compression(
         &mut self,
         tracer: &mut Self::TracerDispatcher,

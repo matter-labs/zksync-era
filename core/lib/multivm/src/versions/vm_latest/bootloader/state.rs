@@ -208,7 +208,6 @@ impl BootloaderState {
             }
         }
 
-
         let pubdata_information = self
             .pubdata_information
             .get()
