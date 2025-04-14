@@ -45,27 +45,3 @@ ZKsync Era has been through lots of testing and audits. Although it is live, it 
 through more audits and bug bounty programs. We would love to hear our community's thoughts and suggestions about it! It
 is important to state that forking it now can potentially lead to missing important security updates, critical features,
 and performance improvements.
-
-```
-
-zkstack chain create \
-    --chain-name zksync-era-gateway-stage \
-    --chain-id 123 \
-    --prover-mode no-proofs \
-    --wallet-creation empty \
-    --l1-batch-commit-data-generator-mode rollup \
-    --base-token-address 0x049ab2b044a0ad97d8fde44a45e63d10b31f7a86 \
-    --base-token-price-nominator 1 \
-    --base-token-price-denominator 1 \
-    --set-as-default false \
-    --ignore-prerequisites \
-    --evm-emulator false
-
-        zkstack chain init \
-          --l1-rpc-url=$SEPOLIA \
-          --chain zksync_era_gateway_stage
-
-```
-
-          --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-          --server-db-name=zksync_server_localhost_consensus \

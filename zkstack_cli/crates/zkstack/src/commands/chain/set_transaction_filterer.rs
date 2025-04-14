@@ -17,12 +17,12 @@ use zkstack_cli_config::{
 use zksync_basic_types::H256;
 use zksync_types::{Address, L1ChainId};
 
-use super::admin_call_builder::AdminCallBuilder;
+use super::{
+    admin_call_builder::AdminCallBuilder,
+    utils::{display_admin_script_output, get_default_foundry_path},
+};
 use crate::{
     accept_ownership::{set_transaction_filterer, AdminScriptMode},
-    commands::chain::grant_gateway_whitelist::{
-        display_admin_script_output, get_default_foundry_path,
-    },
     messages::MSG_CHAIN_NOT_INITIALIZED,
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };

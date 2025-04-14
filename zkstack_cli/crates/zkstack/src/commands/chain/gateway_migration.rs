@@ -32,9 +32,7 @@ use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 use zksync_types::{address_to_u256, u256_to_address};
 
 use super::{
-    admin_call_builder::{
-        self, encode_admin_multicall, get_ethers_provider, AdminCall, AdminCallBuilder,
-    },
+    admin_call_builder::{self, AdminCall, AdminCallBuilder},
     notify_server_calldata::{get_notify_server_calls, NotifyServerCalldataArgs},
 };
 use crate::{
@@ -43,6 +41,7 @@ use crate::{
         notify_server_migration_from_gateway, notify_server_migration_to_gateway,
         set_da_validator_pair_via_gateway,
     },
+    commands::chain::utils::get_ethers_provider,
     messages::MSG_CHAIN_NOT_INITIALIZED,
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
@@ -253,7 +252,7 @@ pub(crate) async fn get_migrate_to_gateway_calls(
         .get_storage_at(zk_chain_l1_address, H256::from_low_u64_be(57), None)
         .await?;
     if is_permanent_rollup_slot == H256::from_low_u64_be(1) {
-        // TODO: We should really check it on our own here, but it is hard with the current interfaces
+        // TODO(X): We should really check it on our own here, but it is hard with the current interfaces
         println!("WARNING: Your chain is a permanent rollup! Ensure that the new L1 SL provider is compatible with Gateway RollupDAManager!");
     }
 
@@ -419,17 +418,13 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     )
     .await?;
 
-    let priority_ops =
-        extract_priority_ops(receipt, gateway_contract_config.l1.diamond_proxy_addr).await?;
-
-    println!(
-        "Migration has produced a total of {} priority operations for Gateway",
-        priority_ops.len()
-    );
     let gateway_provider = get_ethers_provider(&gw_rpc_url)?;
-    for hash in priority_ops {
-        await_for_tx_to_complete(&gateway_provider, hash).await?;
-    }
+    extract_and_wait_for_priority_ops(
+        receipt,
+        gateway_contract_config.l1.diamond_proxy_addr,
+        gateway_provider.clone(),
+    )
+    .await?;
 
     let mut chain_secrets_config = chain_config.get_secrets_config().await?.patched();
     chain_secrets_config.insert("l1.gateway_rpc_url", gw_rpc_url)?;

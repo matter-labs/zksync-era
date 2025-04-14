@@ -26,9 +26,6 @@ pub(crate) mod set_transaction_filterer;
 pub(crate) mod convert_to_gateway;
 
 #[cfg(feature = "gateway")]
-pub(crate) mod deploy_gateway_contracts;
-
-#[cfg(feature = "gateway")]
 pub(crate) mod grant_gateway_whitelist;
 
 #[cfg(feature = "gateway")]
@@ -93,16 +90,13 @@ pub enum ChainCommands {
     /// Update Token Multiplier Setter address on L1
     UpdateTokenMultiplierSetter(ForgeScriptArgs),
     /// Provides calldata to set transaction filterer for a chain
-    SetTransactionFilterer(SetTransactionFiltererArgs),
+    SetTransactionFiltererCalldata(SetTransactionFiltererArgs),
     #[cfg(feature = "gateway")]
     GrantGatewayTransactionFiltererWhitelistCalldata(GrantGatewayWhitelistArgs),
     #[cfg(feature = "gateway")]
     NotifyAboutToGatewayUpdateCalldata(NotifyServerCalldataArgs),
     #[cfg(feature = "gateway")]
     NotifyAboutFromGatewayUpdateCalldata(NotifyServerCalldataArgs),
-    // /// Deploys Gateway Filterer and prepares Gateway CTM contracts.
-    // #[command(alias = "gateway")]
-    // DeployGatewayContracts(ForgeScriptArgs),
     /// Prepare chain to be an eligible gateway
     #[cfg(feature = "gateway")]
     ConvertToGateway(ForgeScriptArgs),
@@ -147,7 +141,7 @@ pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()
         ChainCommands::UpdateTokenMultiplierSetter(args) => {
             set_token_multiplier_setter::run(args, shell).await
         }
-        ChainCommands::SetTransactionFilterer(args) => {
+        ChainCommands::SetTransactionFiltererCalldata(args) => {
             set_transaction_filterer::run(shell, args).await
         }
         #[cfg(feature = "gateway")]

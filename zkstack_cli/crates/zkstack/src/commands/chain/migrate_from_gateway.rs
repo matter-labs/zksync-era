@@ -37,16 +37,14 @@ use zksync_web3_decl::{
 
 use crate::{
     accept_ownership::{set_da_validator_pair, start_migrate_chain_from_gateway},
-    commands::{
-        chain::{
-            admin_call_builder::{get_ethers_provider, AdminCallBuilder},
-            gateway_migration::{
-                await_for_tx_to_complete, extract_and_wait_for_priority_ops, extract_priority_ops,
-                send_tx,
-            },
-            init::get_l1_da_validator,
+    commands::chain::{
+        admin_call_builder::AdminCallBuilder,
+        gateway_migration::{
+            await_for_tx_to_complete, extract_and_wait_for_priority_ops, extract_priority_ops,
+            send_tx,
         },
-        dev::commands::gateway::get_zk_client,
+        init::get_l1_da_validator,
+        utils::{get_ethers_provider, get_zk_client},
     },
     messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_DA_PAIR_REGISTRATION_SPINNER},
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},

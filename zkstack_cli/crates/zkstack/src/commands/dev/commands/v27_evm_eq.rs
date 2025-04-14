@@ -304,7 +304,7 @@ pub(crate) async fn run(shell: &Shell, args: V27EvmInterpreterCalldataArgs) -> a
         };
     }
 
-    let mut admin_calls_finalize = AdminCallBuilder::new();
+    let mut admin_calls_finalize = AdminCallBuilder::new(vec![]);
 
     admin_calls_finalize.append_execute_upgrade(
         chain_info.hyperchain_addr,
@@ -314,7 +314,7 @@ pub(crate) async fn run(shell: &Shell, args: V27EvmInterpreterCalldataArgs) -> a
 
     admin_calls_finalize.display();
 
-    let chain_admin_calldata = admin_calls_finalize.compile_full_calldata();
+    let (chain_admin_calldata, _) = admin_calls_finalize.compile_full_calldata();
 
     println!(
         "Full calldata to call `ChainAdmin` with : {}",

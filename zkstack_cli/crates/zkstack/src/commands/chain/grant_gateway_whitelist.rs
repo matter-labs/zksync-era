@@ -24,10 +24,12 @@ use zksync_basic_types::H256;
 use zksync_config::configs::gateway::GatewayConfig;
 use zksync_types::{Address, L1ChainId};
 
-use super::admin_call_builder::AdminCallBuilder;
+use super::{
+    admin_call_builder::AdminCallBuilder,
+    utils::{display_admin_script_output, get_default_foundry_path},
+};
 use crate::{
     accept_ownership::{grant_gateway_whitelist, AdminScriptMode, AdminScriptOutput},
-    commands::chain::admin_call_builder::encode_admin_multicall,
     messages::MSG_CHAIN_NOT_INITIALIZED,
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
@@ -42,22 +44,6 @@ pub struct GrantGatewayWhitelistArgs {
     pub grantee: Address,
 
     pub l1_rpc_url: String,
-}
-
-pub fn get_default_foundry_path() -> anyhow::Result<PathBuf> {
-    let zk_home = std::env::var("ZKSYNC_HOME")
-        .context("`ZKSYNC_HOME` must be set and point to the zksync-era repo")?;
-    Ok(PathBuf::from(format!("{zk_home}/contracts/l1-contracts")))
-}
-
-pub fn display_admin_script_output(result: AdminScriptOutput) {
-    println!("The calldata to be sent by the admin owner:\n");
-    println!("Admin address (to): {:#?}", result.admin_address);
-
-    let builder = AdminCallBuilder::new(result.calls);
-
-    println!("Breakdown of calls: {:#?}", builder.to_json_string());
-    println!("Total data: {:#?}", builder.compile_full_calldata());
 }
 
 pub async fn run(shell: &Shell, args: GrantGatewayWhitelistArgs) -> anyhow::Result<()> {

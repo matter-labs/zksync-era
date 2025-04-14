@@ -40,42 +40,10 @@ use crate::{
 };
 
 lazy_static! {
-    pub static ref GATEWAY_PREPARATION_INTERFACE: BaseContract = BaseContract::from(
-        parse_abi(&[
-            "function governanceRegisterGateway() public",
-            "function deployAndSetGatewayTransactionFilterer() public",
-            "function governanceWhitelistGatewayCTM(address gatewaySTMAddress, bytes32 governanoceOperationSalt) public",
-            "function governanceSetCTMAssetHandler(bytes32 governanoceOperationSalt)",
-            "function registerAssetIdInBridgehub(address gatewaySTMAddress, bytes32 governanoceOperationSalt)",
-            "function grantWhitelist(address filtererProxy, address[] memory addr) public",
-            "function executeGovernanceTxs() public",
-            "function deployGatewayTransactionFilterer(address chainProxyAdmin) public",
-            "function runGatewayGovernanceRegistration(address gatewayCTM) public"
-        ])
-        .unwrap(),
-    );
-
-    static ref DEPLOY_GATEWAY_CTM_INTERFACE: BaseContract = BaseContract::from(
-        parse_abi(&[
-            "function prepareAddresses() public",
-            "function deployCTM() public",
-        ])
-        .unwrap(),
-    );
-
-    static ref DEPLOY_GATEWAY_TX_FILTERER_ABI: BaseContract = BaseContract::from(
-        parse_abi(&[
-            "function runWithInputFromFile() public"
-        ])
-        .unwrap(),
-    );
-
-    static ref GATEWAY_VOTE_PREPARATION_ABI: BaseContract = BaseContract::from(
-        parse_abi(&[
-            "function run() public"
-        ])
-        .unwrap(),
-    );
+    static ref DEPLOY_GATEWAY_TX_FILTERER_ABI: BaseContract =
+        BaseContract::from(parse_abi(&["function runWithInputFromFile() public"]).unwrap(),);
+    static ref GATEWAY_VOTE_PREPARATION_ABI: BaseContract =
+        BaseContract::from(parse_abi(&["function run() public"]).unwrap(),);
 }
 
 pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {

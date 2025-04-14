@@ -27,14 +27,13 @@ use zksync_types::{Address, L1ChainId};
 use super::{
     admin_call_builder::{AdminCall, AdminCallBuilder},
     gateway_migration::MigrationDirection,
-    grant_gateway_whitelist::{display_admin_script_output, get_default_foundry_path},
+    utils::{display_admin_script_output, get_default_foundry_path},
 };
 use crate::{
     accept_ownership::{
         grant_gateway_whitelist, notify_server_migration_from_gateway,
         notify_server_migration_to_gateway, AdminScriptMode, AdminScriptOutput,
     },
-    commands::chain::admin_call_builder::encode_admin_multicall,
     messages::MSG_CHAIN_NOT_INITIALIZED,
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };

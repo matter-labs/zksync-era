@@ -5,8 +5,6 @@ pub mod database;
 #[cfg(feature = "gateway")]
 pub(crate) mod events_gatherer;
 pub mod fmt;
-#[cfg(feature = "gateway")]
-pub mod gateway;
 pub mod genesis;
 pub mod lint;
 pub(crate) mod lint_utils;
