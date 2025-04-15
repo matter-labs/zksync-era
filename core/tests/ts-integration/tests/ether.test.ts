@@ -100,10 +100,10 @@ describe('ETH token checks', () => {
                 const receipt = await alice._providerL1().getTransactionReceipt(hash);
                 console.log(receipt);
 
-                const callTrace = testMaster
+                const callTrace = await testMaster
                     .ethersProvider('L1')
                     .send('debug_traceTransaction', [hash, { tracer: 'callTracer' }]);
-                console.log(callTrace);
+                console.log(JSON.stringify(callTrace));
             } else {
                 console.log('no hash');
             }
