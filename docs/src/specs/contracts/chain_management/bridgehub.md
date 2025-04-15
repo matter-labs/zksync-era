@@ -1,5 +1,5 @@
 # Bridgehub
-[back to readme](../README.md)
+
 ## Introduction
 
 Bridgehub is the main chain registry contract for the ecosystem, that stores:

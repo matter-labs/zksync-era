@@ -1,5 +1,4 @@
 # Interop Message Simple Use Case
-[back to readme](../../../README.md)
 
 Before we dive into the details of how the system works, let’s look at a simple use case for a DApp that decides to use
 InteropMessage.

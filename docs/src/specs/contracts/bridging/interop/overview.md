@@ -1,5 +1,4 @@
 # Interop Overview
-[back to readme](../../README.md)
 
 ### Interop Process
 
@@ -21,13 +20,13 @@ This document describes a standard asset bridging scenario using proof-based int
 3. **Updating the MessageRoot on the Settlement Layer**
    - As the sending chain settles, the Executor facet of settling chain calls the MessageRoot contract, which is then updated with the new L2→L1 logs (see [here](./message_root.md#appending-new-batch-root-leaves)).
    - The updated MessageRoot now [commits](https://en.wikipedia.org/wiki/Commitment_scheme) to all L2→L1 logs emitted from the settling chain.
-   - An [event](../../../../../../contracts/l1-contracts/contracts/bridgehub/MessageRoot.sol#L38) is emitted to indicate that the MessageRoot has been updated.
+   - An [event](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/l1-contracts/contracts/bridgehub/MessageRoot.sol#L38) is emitted to indicate that the MessageRoot has been updated.
 
 4. **The Receiving Chain Fetches the Updated MessageRoot**
    - The receiving chain monitors the Settlement Layer using its EthWatch component.
    - It detects the event emitted by the MessageRoot contract on the Settlement Layer and saves the updated MessageRoot in its database, corresponding to that block of the Settlement Layer.
    - **Note:** In some scenarios, alternative hashes might be imported; see [here](./forms_of_finality.md) for additional details.
-   - When creating the next batch, the MessageRoot is imported into the [bootloader](../../../../../../contracts/system-contracts/bootloader/bootloader.yul#L4129). This process saves the MessageRoot in the chain's [L2MessageRootStorage](../../../../../../contracts/system-contracts/contracts/L2MessageRootStorage.sol) contract, against which the Merkle proofs of interop messages will be verified in step 6.
+   - When creating the next batch, the MessageRoot is imported into the [bootloader](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/system-contracts/bootloader/bootloader.yul#L4129). This process saves the MessageRoot in the chain's [L2MessageRootStorage](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/system-contracts/contracts/L2MessageRootStorage.sol) contract, against which the Merkle proofs of interop messages will be verified in step 6.
 
 5. **Submitting Cross-L2 Transactions on the Destination Chain**
    - The interop transactions (xL2 txs) can now be submitted to the destination chain. The `InteropSwitch/Slingshot` (name to be finalized) component on the sending chain monitors its own InteropCenter contract and detects the emitted `InteropBundleSent` and `InteropTriggerSent` events and corresponding L2→L1 messages.
@@ -38,7 +37,7 @@ This document describes a standard asset bridging scenario using proof-based int
 6. **Verifying and Executing the Interop Transaction**
    - The interop transaction is verified and executed on the destination chain using account abstraction and the `InteropHandler` contract.
    - The sender of the interop transaction is the address specified in the trigger; that contract must support account abstraction.
-   - **Reminder:** In ZKsync, EOAs use the [DefaultAccount](../../../../../../contracts/system-contracts/contracts/DefaultAccount.sol) contract, which will support interop. To have EVM-equivalence, a standard account contract can be used.
+   - **Reminder:** In ZKsync, EOAs use the [DefaultAccount](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/system-contracts/contracts/DefaultAccount.sol) contract, which will support interop. To have EVM-equivalence, a standard account contract can be used.
    - During the `validateTransaction` step of the account abstraction flow, the triggered account contract:
      - Verifies the Merkle proof of the trigger using the `MessageVerification` contract and confirms that the origin chain sender has the appropriate permissions. It also verifies the other fields in the trigger (e.g. that the `gasPrice` is the same as in the trigger).
      - Calls the InteropHandler contract to execute the PaymasterBundle.

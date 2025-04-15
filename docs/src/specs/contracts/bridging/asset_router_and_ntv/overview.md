@@ -1,7 +1,5 @@
 # Overview of Custom Asset Bridging with the Asset Router
 
-[back to readme](../../README.md)
-
 Bridges are completely separate contracts from the ZKChains and system contracts. They are a wrapper for L1 <-> L2 communication on both L1 and L2. Upon locking assets on one layer, a request is sent to mint these bridged assets on the other layer.
 Upon burning assets on one layer, a request is sent to unlock them on the other.
 

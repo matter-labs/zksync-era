@@ -45,8 +45,8 @@ impl ZksNamespaceServer for ZksNamespace {
         Ok(self.get_bridgehub_contract_impl())
     }
 
-    async fn get_main_contract(&self) -> RpcResult<Address> {
-        Ok(self.get_main_contract_impl())
+    async fn get_main_l1_contract(&self) -> RpcResult<Address> {
+        Ok(self.get_main_l1_contract_impl())
     }
 
     async fn get_testnet_paymaster(&self) -> RpcResult<Option<Address>> {
@@ -213,6 +213,11 @@ impl ZksNamespaceServer for ZksNamespace {
     ) -> RpcResult<TransactionDetailedResult> {
         self.send_raw_transaction_with_detailed_output_impl(tx_bytes)
             .await
+            .map_err(|err| self.current_method().map_err(err))
+    }
+
+    async fn get_l2_multicall3(&self) -> RpcResult<Option<Address>> {
+        self.get_l2_multicall3_impl()
             .map_err(|err| self.current_method().map_err(err))
     }
 }

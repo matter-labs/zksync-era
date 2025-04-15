@@ -1,5 +1,4 @@
 # Contract-based and Full AssetTracker, ZK IP, Firewall
-[back to readme](../../README.md)
 
 ## Introduction
 

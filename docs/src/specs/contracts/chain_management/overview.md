@@ -1,5 +1,5 @@
 # Overview
-[back to readme](../README.md)
+
 ## Introduction
 
 Ethereum's future is rollup-centric. This means breaking with the current paradigm of isolated EVM chains to

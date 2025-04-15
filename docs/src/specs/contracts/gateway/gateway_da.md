@@ -1,7 +1,5 @@
 # Custom DA layers
 
-[back to readme](../README.md)
-
 ## Prerequisites
 
 To better understand this document, it is better to have grasp on how [custom DA handling protocol](../settlement_contracts/data_availability/custom_da.md) works.
@@ -10,7 +8,7 @@ To better understand this document, it is better to have grasp on how [custom DA
 
 If a chain intends to be a rollup, it needs to relay its pubdata to L1 via L1Messenger system contract. Thus, typically the L1DAValidator will be different from the one that they used on Ethereum.
 
-For chains that use our [standard pubdata format](../settlement_contracts/data_availability/rollup_da.md), we provide the [following relayed L1 DA validator](../../../../../contracts/l1-contracts/contracts/state-transition/data-availability/RelayedSLDAValidator.sol) that relays all the data to L1.
+For chains that use our [standard pubdata format](../settlement_contracts/data_availability/rollup_da.md), we provide the [following relayed L1 DA validator](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/l1-contracts/contracts/state-transition/data-availability/RelayedSLDAValidator.sol) that relays all the data to L1.
 
 ### Security notes for Gateway-based rollups
 
@@ -20,7 +18,7 @@ If anyone could call this contract, the observer from L1 could get wrong data fo
 
 ## Validium DA
 
-Validiums can reuse [the same DA validator](../../../../../contracts/l1-contracts/contracts/state-transition/data-availability/ValidiumL1DAValidator.sol) that they used on L1. Note, that it has to be redeployed on the Gateway.
+Validiums can reuse [the same DA validator](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/l1-contracts/contracts/state-transition/data-availability/ValidiumL1DAValidator.sol) that they used on L1. Note, that it has to be redeployed on the Gateway.
 
 ## Custom DA
 

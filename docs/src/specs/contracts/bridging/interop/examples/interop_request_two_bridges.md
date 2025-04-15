@@ -1,5 +1,4 @@
 # InteropCenter requestL2TransactionTwoBridges
-[back to readme](../../../README.md)
 
 
 

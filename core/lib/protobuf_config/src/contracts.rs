@@ -1,5 +1,5 @@
 use anyhow::Context as _;
-use zksync_config::configs::{ContractsConfig, EcosystemContracts};
+use zksync_config::configs::contracts::chain::AllContractsConfig as ContractsConfig;
 use zksync_protobuf::{repr::ProtoRepr, required};
 
 use crate::{parse_h160, parse_h256, proto::contracts as proto};
@@ -14,41 +14,41 @@ impl ProtoRepr for proto::Contracts {
         let shared = required(&bridges.shared).context("shared")?;
         let erc20 = required(&bridges.erc20).context("erc20")?;
         let weth_bridge = &bridges.weth;
-
-        let ecosystem_contracts = if let Some(ecosystem_contracts) = &self.ecosystem_contracts {
-            Some(EcosystemContracts {
-                bridgehub_proxy_addr: required(&ecosystem_contracts.bridgehub_proxy_addr)
-                    .and_then(|x| parse_h160(x))
-                    .context("bridgehub_proxy_addr")?,
-                state_transition_proxy_addr: required(
-                    &ecosystem_contracts.state_transition_proxy_addr,
-                )
-                .and_then(|x| parse_h160(x))
-                .context("state_transition_proxy_addr")?,
-                transparent_proxy_admin_addr: required(
-                    &ecosystem_contracts.transparent_proxy_admin_addr,
-                )
-                .and_then(|x| parse_h160(x))
-                .context("transparent_proxy_admin_addr")?,
-                l1_bytecodes_supplier_addr: ecosystem_contracts
-                    .l1_bytecodes_supplier_addr
-                    .as_ref()
-                    .map(|x| parse_h160(x).expect("Invalid address")),
-                l1_wrapped_base_token_store: ecosystem_contracts
-                    .l1_wrapped_base_token_store
-                    .as_ref()
-                    .map(|x| parse_h160(x).expect("Invalid address")),
-                message_root_proxy_addr: ecosystem_contracts
-                    .message_root_proxy_addr
-                    .as_ref()
-                    .map(|x| parse_h160(x).expect("Invalid address")),
-            })
-        } else {
-            None
-        };
+        let ecosystem_contracts =
+            required(&self.ecosystem_contracts).context("ecosystem_contract")?;
 
         Ok(Self::Type {
-            ecosystem_contracts,
+            bridgehub_proxy_addr: required(&ecosystem_contracts.bridgehub_proxy_addr)
+                .and_then(|x| parse_h160(x))
+                .context("bridgehub_proxy_addr")?,
+            state_transition_proxy_addr: ecosystem_contracts
+                .state_transition_proxy_addr
+                .as_ref()
+                .map(|x| parse_h160(x))
+                .transpose()
+                .context("state_transition_proxy_addr")?,
+            transparent_proxy_admin_addr: ecosystem_contracts
+                .transparent_proxy_admin_addr
+                .as_ref()
+                .map(|x| parse_h160(x))
+                .transpose()
+                .context("transparent_proxy_admin_addr")?,
+            l1_bytecode_supplier_addr: ecosystem_contracts
+                .l1_bytecodes_supplier_addr
+                .as_ref()
+                .map(|x| parse_h160(x).expect("Invalid address")),
+            l1_wrapped_base_token_store_addr: ecosystem_contracts
+                .l1_wrapped_base_token_store
+                .as_ref()
+                .map(|x| parse_h160(x).expect("Invalid address")),
+            server_notifier_addr: ecosystem_contracts
+                .server_notifier_addr
+                .as_ref()
+                .map(|x| parse_h160(x).expect("Invalid address")),
+            message_root_proxy_addr: ecosystem_contracts
+                .message_root_proxy_addr
+                .as_ref()
+                .map(|x| parse_h160(x).expect("Invalid address")),
             governance_addr: required(&l1.governance_addr)
                 .and_then(|x| parse_h160(x))
                 .context("governance_addr")?,
@@ -119,11 +119,8 @@ impl ProtoRepr for proto::Contracts {
             l1_multicall3_addr: required(&l1.multicall3_addr)
                 .and_then(|x| parse_h160(x))
                 .context("l1_multicall3_addr")?,
-            base_token_addr: l1
-                .base_token_addr
-                .as_ref()
-                .map(|x| parse_h160(x))
-                .transpose()
+            base_token_addr: required(&l1.base_token_addr)
+                .and_then(|x| parse_h160(x))
                 .context("base_token_addr")?,
             l1_base_token_asset_id: l1
                 .base_token_asset_id
@@ -131,11 +128,8 @@ impl ProtoRepr for proto::Contracts {
                 .map(|x| parse_h256(x))
                 .transpose()
                 .context("base_token_asset_id")?,
-            chain_admin_addr: l1
-                .chain_admin_addr
-                .as_ref()
-                .map(|x| parse_h160(x))
-                .transpose()
+            chain_admin_addr: required(&l1.chain_admin_addr)
+                .and_then(|x| parse_h160(x))
                 .context("chain_admin_addr")?,
             l2_da_validator_addr: l2
                 .da_validator_addr
@@ -147,38 +141,32 @@ impl ProtoRepr for proto::Contracts {
                 .no_da_validium_l1_validator_addr
                 .as_ref()
                 .map(|x| parse_h160(x).expect("Invalid address")),
+            l2_multicall3_addr: l2
+                .multicall3
+                .as_ref()
+                .map(|x| parse_h160(x).expect("Invalid address")),
         })
     }
 
     fn build(this: &Self::Type) -> Self {
-        let ecosystem_contracts = this
-            .ecosystem_contracts
-            .as_ref()
-            .map(|ecosystem_contracts| proto::EcosystemContracts {
-                bridgehub_proxy_addr: Some(format!(
-                    "{:?}",
-                    ecosystem_contracts.bridgehub_proxy_addr
-                )),
-                state_transition_proxy_addr: Some(format!(
-                    "{:?}",
-                    ecosystem_contracts.state_transition_proxy_addr
-                )),
-                transparent_proxy_admin_addr: Some(format!(
-                    "{:?}",
-                    ecosystem_contracts.transparent_proxy_admin_addr,
-                )),
-                l1_bytecodes_supplier_addr: ecosystem_contracts
-                    .l1_bytecodes_supplier_addr
-                    .map(|x| format!("{:?}", x)),
-                l1_wrapped_base_token_store: ecosystem_contracts
-                    .l1_wrapped_base_token_store
-                    .map(|x: zksync_types::H160| format!("{:?}", x)),
-                message_root_proxy_addr: ecosystem_contracts
-                    .message_root_proxy_addr
-                    .map(|x: zksync_types::H160| format!("{:?}", x)),
-            });
+        let ecosystem_contracts = proto::EcosystemContracts {
+            bridgehub_proxy_addr: Some(format!("{:?}", this.bridgehub_proxy_addr)),
+            state_transition_proxy_addr: this
+                .state_transition_proxy_addr
+                .map(|a| format!("{:?}", a)),
+
+            transparent_proxy_admin_addr: this
+                .transparent_proxy_admin_addr
+                .map(|a| format!("{:?}", a)),
+            l1_bytecodes_supplier_addr: this.l1_bytecode_supplier_addr.map(|x| format!("{:?}", x)),
+            l1_wrapped_base_token_store: this
+                .l1_wrapped_base_token_store_addr
+                .map(|x| format!("{:?}", x)),
+            server_notifier_addr: this.server_notifier_addr.map(|x| format!("{:?}", x)),
+            message_root_proxy_addr: this.message_root_proxy_addr.map(|x| format!("{:?}", x)),
+        };
         Self {
-            ecosystem_contracts,
+            ecosystem_contracts: Some(ecosystem_contracts),
             l1: Some(proto::L1 {
                 governance_addr: Some(format!("{:?}", this.governance_addr)),
                 verifier_addr: Some(format!("{:?}", this.verifier_addr)),
@@ -186,9 +174,9 @@ impl ProtoRepr for proto::Contracts {
                 validator_timelock_addr: Some(format!("{:?}", this.validator_timelock_addr)),
                 default_upgrade_addr: Some(format!("{:?}", this.default_upgrade_addr)),
                 multicall3_addr: Some(format!("{:?}", this.l1_multicall3_addr)),
-                base_token_addr: this.base_token_addr.map(|a| format!("{:?}", a)),
+                base_token_addr: Some(format!("{:?}", this.base_token_addr)),
                 base_token_asset_id: this.l1_base_token_asset_id.map(|x| format!("{:?}", x)),
-                chain_admin_addr: this.chain_admin_addr.map(|a| format!("{:?}", a)),
+                chain_admin_addr: Some(format!("{:?}", this.chain_admin_addr)),
                 no_da_validium_l1_validator_addr: this
                     .no_da_validium_l1_validator_addr
                     .map(|a| format!("{:?}", a)),
@@ -202,6 +190,7 @@ impl ProtoRepr for proto::Contracts {
                 timestamp_asserter_addr: this
                     .l2_timestamp_asserter_addr
                     .map(|a| format!("{:?}", a)),
+                multicall3: this.l2_multicall3_addr.map(|a| format!("{:?}", a)),
             }),
             bridges: Some(proto::Bridges {
                 shared: Some(proto::Bridge {

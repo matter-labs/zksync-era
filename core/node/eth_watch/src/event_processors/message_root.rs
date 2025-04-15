@@ -5,7 +5,7 @@ use zksync_system_constants::L1_MESSENGER_ADDRESS;
 use zksync_types::{api::Log, ethabi, L1BatchNumber, L2ChainId, SLChainId, H256};
 
 use crate::{
-    client::L2EthClient,
+    client::ZkSyncExtentionEthClient,
     event_processors::{EventProcessor, EventProcessorError, EventsSource},
 };
 
@@ -15,7 +15,7 @@ pub struct MessageRootProcessor {
     appended_message_root_signature: H256,
     event_source: EventsSource,
     l2_chain_id: L2ChainId,
-    pub sl_l2_client: Option<Arc<dyn L2EthClient>>,
+    pub sl_l2_client: Option<Arc<dyn ZkSyncExtentionEthClient>>,
     pub sl_chain_id: Option<SLChainId>,
 }
 
@@ -23,7 +23,7 @@ impl MessageRootProcessor {
     pub async fn new(
         event_source: EventsSource,
         l2_chain_id: L2ChainId,
-        sl_l2_client: Option<Arc<dyn L2EthClient>>,
+        sl_l2_client: Option<Arc<dyn ZkSyncExtentionEthClient>>,
     ) -> Self {
         let sl_chain_id = if let Some(sl_l2_client) = sl_l2_client.clone() {
             Some(sl_l2_client.chain_id().await.unwrap())
@@ -146,10 +146,10 @@ impl EventProcessor for MessageRootProcessor {
         Ok(events_count)
     }
 
-    fn topic1(&self) -> H256 {
+    fn topic1(&self) -> Option<H256> {
         // println!("appended_message_root_signature: {:?}", self.appended_message_root_signature);
 
-        self.appended_message_root_signature
+        Some(self.appended_message_root_signature)
     }
 
     // fn topic2(&self) -> Option<H256> {

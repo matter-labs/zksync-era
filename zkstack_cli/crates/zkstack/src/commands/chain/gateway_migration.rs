@@ -13,6 +13,7 @@ use xshell::Shell;
 use zkstack_cli_common::{
     config::global_config,
     forge::{Forge, ForgeScriptArgs},
+    logger,
     wallets::Wallet,
 };
 use zkstack_cli_config::{
@@ -21,10 +22,10 @@ use zkstack_cli_config::{
         script_params::GATEWAY_PREPARATION,
     },
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
-    EcosystemConfig,
+    ChainConfig, EcosystemConfig,
 };
 use zkstack_cli_types::L1BatchCommitmentMode;
-use zksync_basic_types::{settlement::SettlementMode, Address, H256, U256, U64};
+use zksync_basic_types::{Address, H256, U256, U64};
 use zksync_config::configs::gateway::GatewayChainConfig;
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 
@@ -52,7 +53,9 @@ lazy_static! {
             "function supplyGatewayWallet(address addr, uint256 addr) public",
             "function enableValidator(address chainAdmin,address accessControlRestriction,uint256 chainId,address validatorAddress,address gatewayValidatorTimelock,address chainAdminOnGateway) public",
             "function grantWhitelist(address filtererProxy, address[] memory addr) public",
-            "function deployL2ChainAdmin() public"
+            "function deployL2ChainAdmin() public",
+            "function notifyServerMigrationFromGateway(address serverNotifier, address chainAdmin, address accessControlRestriction, uint256 chainId) public",
+            "function notifyServerMigrationToGateway(address serverNotifier, address chainAdmin, address accessControlRestriction, uint256 chainId) public"
         ])
         .unwrap(),
     );
@@ -104,7 +107,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         .access_control_restriction_addr
         .context("chain_access_control_restriction")?;
 
-    println!("Whitelisting the chains' addresseses...");
+    logger::info("Whitelisting the chains' addresseses...");
     call_script(
         shell,
         args.forge_args.clone(),
@@ -124,13 +127,13 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
                 ),
             )
             .unwrap(),
-        &ecosystem_config,
+        &chain_config,
         &gateway_chain_config.get_wallets_config()?.governor,
         l1_url.clone(),
     )
     .await?;
 
-    println!("Migrating the chain to the Gateway...");
+    logger::info("Migrating the chain to the Gateway...");
 
     let l2_chain_admin = call_script(
         shell,
@@ -138,16 +141,16 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         &GATEWAY_PREPARATION_INTERFACE
             .encode("deployL2ChainAdmin", ())
             .unwrap(),
-        &ecosystem_config,
+        &chain_config,
         &chain_config.get_wallets_config()?.governor,
         l1_url.clone(),
     )
     .await?
     .l2_chain_admin_address;
-    println!(
+    logger::info(format!(
         "L2 chain admin deployed! Its address: {:#?}",
         l2_chain_admin
-    );
+    ));
 
     let hash = call_script(
         shell,
@@ -164,7 +167,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
                 ),
             )
             .unwrap(),
-        &ecosystem_config,
+        &chain_config,
         &chain_config.get_wallets_config()?.governor,
         l1_url.clone(),
     )
@@ -176,9 +179,12 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     let gateway_provider = Provider::<Http>::try_from(l2_rpc_url.clone())?;
 
     if hash == H256::zero() {
-        println!("Chain already migrated!");
+        logger::info("Chain already migrated!");
     } else {
-        println!("Migration started! Migration hash: {}", hex::encode(hash));
+        logger::info(format!(
+            "Migration started! Migration hash: {}",
+            hex::encode(hash)
+        ));
         await_for_tx_to_complete(&gateway_provider, hash).await?;
     }
 
@@ -195,10 +201,10 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
 
     let new_diamond_proxy_address = method.call().await?;
 
-    println!(
+    logger::info(format!(
         "New diamond proxy address: {}",
         hex::encode(new_diamond_proxy_address.as_bytes())
-    );
+    ));
 
     let chain_contracts_config = chain_config.get_contracts_config().unwrap();
 
@@ -213,7 +219,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         gateway_gateway_config.validium_da_validator
     };
 
-    println!("Setting DA validator pair...");
+    logger::info("Setting DA validator pair...");
     let hash = call_script(
         shell,
         args.forge_args.clone(),
@@ -234,20 +240,20 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
                 ),
             )
             .unwrap(),
-        &ecosystem_config,
+        &chain_config,
         &chain_config.get_wallets_config()?.governor,
         l1_url.clone(),
     )
     .await?
     .governance_l2_tx_hash;
-    println!(
+    logger::info(format!(
         "DA validator pair set! Hash: {}",
         hex::encode(hash.as_bytes())
-    );
+    ));
 
     let chain_secrets_config = chain_config.get_wallets_config().unwrap();
 
-    println!("Enabling validators...");
+    logger::info("Enabling validators...");
     let hash = call_script(
         shell,
         args.forge_args.clone(),
@@ -264,16 +270,16 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
                 ),
             )
             .unwrap(),
-        &ecosystem_config,
+        &chain_config,
         &chain_config.get_wallets_config()?.governor,
         l1_url.clone(),
     )
     .await?
     .governance_l2_tx_hash;
-    println!(
+    logger::info(format!(
         "blob_operator enabled! Hash: {}",
         hex::encode(hash.as_bytes())
-    );
+    ));
 
     let hash = call_script(
         shell,
@@ -287,16 +293,16 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
                 ),
             )
             .unwrap(),
-        &ecosystem_config,
+        &chain_config,
         &chain_config.get_wallets_config()?.governor,
         l1_url.clone(),
     )
     .await?
     .governance_l2_tx_hash;
-    println!(
+    logger::info(format!(
         "blob_operator supplied with 10 ETH! Hash: {}",
         hex::encode(hash.as_bytes())
-    );
+    ));
 
     let hash = call_script(
         shell,
@@ -314,13 +320,16 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
                 ),
             )
             .unwrap(),
-        &ecosystem_config,
+        &chain_config,
         &chain_config.get_wallets_config()?.governor,
         l1_url.clone(),
     )
     .await?
     .governance_l2_tx_hash;
-    println!("operator enabled! Hash: {}", hex::encode(hash.as_bytes()));
+    logger::info(format!(
+        "operator enabled! Hash: {}",
+        hex::encode(hash.as_bytes())
+    ));
 
     let hash = call_script(
         shell,
@@ -334,16 +343,16 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
                 ),
             )
             .unwrap(),
-        &ecosystem_config,
+        &chain_config,
         &chain_config.get_wallets_config()?.governor,
         l1_url.clone(),
     )
     .await?
     .governance_l2_tx_hash;
-    println!(
+    logger::info(format!(
         "operator supplied with 10 ETH! Hash: {}",
         hex::encode(hash.as_bytes())
-    );
+    ));
 
     let gateway_url = l2_rpc_url;
     let mut chain_secrets_config = chain_config.get_secrets_config().await?.patched();
@@ -358,22 +367,6 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     );
     gateway_chain_config.save_with_base_path(shell, chain_config.configs.clone())?;
 
-    let mut general_config = chain_config.get_general_config().await?.patched();
-    general_config.insert_yaml("eth.gas_adjuster.settlement_mode", SettlementMode::Gateway)?;
-
-    if is_rollup {
-        // For rollups, new type of commitment should be used, but not for validium.
-        // `PubdataSendingMode` has differing `serde` and file-based config serializations, hence
-        // we supply a raw string value.
-        general_config.insert("eth.sender.pubdata_sending_mode", "RELAYED_L2_CALLDATA")?;
-    }
-    general_config.insert("eth.sender.wait_confirmations", 0)?;
-    // TODO(EVM-925): the number below may not always work, especially for large prices on
-    // top of Gateway. This field would have to be either not used on GW or transformed into u64.
-    general_config.insert("eth.sender.max_aggregated_tx_gas", 4294967295_u64)?;
-    general_config.insert("eth.sender.max_eth_tx_data_size", 550_000)?;
-    general_config.save().await?;
-
     Ok(())
 }
 
@@ -381,7 +374,7 @@ async fn await_for_tx_to_complete(
     gateway_provider: &Provider<Http>,
     hash: H256,
 ) -> anyhow::Result<()> {
-    println!("Waiting for transaction to complete...");
+    logger::info("Waiting for transaction to complete...");
     while gateway_provider
         .get_transaction_receipt(hash)
         .await?
@@ -397,7 +390,7 @@ async fn await_for_tx_to_complete(
         .unwrap();
 
     if receipt.status == Some(U64::from(1)) {
-        println!("Transaction completed successfully!");
+        logger::info("Transaction completed successfully!");
     } else {
         panic!("Transaction failed! Receipt: {:?}", receipt);
     }
@@ -405,11 +398,74 @@ async fn await_for_tx_to_complete(
     Ok(())
 }
 
+pub(crate) enum MigrationDirection {
+    FromGateway,
+    ToGateway,
+}
+
+pub(crate) async fn notify_server(
+    args: ForgeScriptArgs,
+    shell: &Shell,
+    direction: MigrationDirection,
+) -> anyhow::Result<()> {
+    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let chain_config = ecosystem_config
+        .load_current_chain()
+        .context(MSG_CHAIN_NOT_INITIALIZED)?;
+
+    let l1_url = chain_config
+        .get_secrets_config()
+        .await?
+        .get::<String>("l1.l1_rpc_url")?;
+    let contracts = chain_config.get_contracts_config()?;
+    let server_notifier = contracts
+        .ecosystem_contracts
+        .server_notifier_proxy_addr
+        .unwrap();
+    let chain_admin = contracts.l1.chain_admin_addr;
+    let restrictions = contracts
+        .l1
+        .access_control_restriction_addr
+        .unwrap_or_default();
+
+    let data = match direction {
+        MigrationDirection::FromGateway => &GATEWAY_PREPARATION_INTERFACE.encode(
+            "notifyServerMigrationFromGateway",
+            (
+                server_notifier,
+                chain_admin,
+                restrictions,
+                chain_config.chain_id.as_u64(),
+            ),
+        )?,
+        MigrationDirection::ToGateway => &GATEWAY_PREPARATION_INTERFACE.encode(
+            "notifyServerMigrationToGateway",
+            (
+                server_notifier,
+                chain_admin,
+                restrictions,
+                chain_config.chain_id.as_u64(),
+            ),
+        )?,
+    };
+
+    call_script(
+        shell,
+        args,
+        data,
+        &chain_config,
+        &chain_config.get_wallets_config()?.governor,
+        l1_url,
+    )
+    .await?;
+    Ok(())
+}
+
 async fn call_script(
     shell: &Shell,
     forge_args: ForgeScriptArgs,
     data: &Bytes,
-    config: &EcosystemConfig,
+    config: &ChainConfig,
     governor: &Wallet,
     l1_rpc_url: String,
 ) -> anyhow::Result<GatewayPreparationOutput> {

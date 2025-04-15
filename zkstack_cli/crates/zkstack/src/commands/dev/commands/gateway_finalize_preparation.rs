@@ -1,8 +1,8 @@
 use std::{collections::HashSet, str::FromStr, sync::Arc, time::Duration};
 
-use clap::{Parser, ValueEnum};
+use clap::Parser;
 use ethers::{
-    abi::{encode, parse_abi, Token},
+    abi::parse_abi,
     contract::{abigen, BaseContract},
     providers::{Http, Middleware, Provider},
     utils::hex,
@@ -12,8 +12,8 @@ use tokio::time::sleep;
 use xshell::Shell;
 use zkstack_cli_config::traits::ReadConfig;
 use zksync_types::{
-    ethabi, h256_to_address, h256_to_u256, u256_to_h256, Address, H256,
-    L2_NATIVE_TOKEN_VAULT_ADDRESS, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256,
+    h256_to_address, h256_to_u256, u256_to_h256, Address, H256, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS,
+    U256,
 };
 
 use super::{events_gatherer::get_logs_for_events, gateway::GatewayUpgradeInfo};
