@@ -1211,7 +1211,7 @@ dependencies = [
 [[package]]
 name = "circuit_definitions"
 version = "0.151.3"
-source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=feature/ec_precompiles#644a6f3137e3e76a640ace2edf592ec7529b666e"
+source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=feature/ec_precompiles#7aefdd38a9a4668cc2b28c69aef5ca4d293019aa"
 dependencies = [
  "circuit_encodings",
  "crossbeam",
@@ -1224,7 +1224,7 @@ dependencies = [
 [[package]]
 name = "circuit_encodings"
 version = "0.151.3"
-source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=feature/ec_precompiles#644a6f3137e3e76a640ace2edf592ec7529b666e"
+source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=feature/ec_precompiles#7aefdd38a9a4668cc2b28c69aef5ca4d293019aa"
 dependencies = [
  "derivative",
  "serde",
@@ -1235,25 +1235,12 @@ dependencies = [
 [[package]]
 name = "circuit_sequencer_api"
 version = "0.151.3"
-source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=feature/ec_precompiles#644a6f3137e3e76a640ace2edf592ec7529b666e"
+source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=feature/ec_precompiles#7aefdd38a9a4668cc2b28c69aef5ca4d293019aa"
 dependencies = [
  "derivative",
  "rayon",
  "serde",
  "zk_evm 0.151.3",
- "zksync_bellman 0.31.0 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "circuit_sequencer_api"
-version = "0.151.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e7a52138983ea94b367d689fc6183ad60a769d6c7ce8041c5120cb5074486ea2"
-dependencies = [
- "derivative",
- "rayon",
- "serde",
- "zk_evm 0.151.5",
  "zksync_bellman 0.31.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -3979,7 +3966,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc2f4eb4bc735547cfed7c0a4922cbd04a4655978c09b54f1f7b228750664c34"
 dependencies = [
  "cfg-if",
- "windows-targets 0.48.5",
+ "windows-targets 0.52.6",
 ]
 
 [[package]]
@@ -8656,7 +8643,7 @@ dependencies = [
 [[package]]
 name = "zk_evm"
 version = "0.151.3"
-source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=feature/ec_precompiles#644a6f3137e3e76a640ace2edf592ec7529b666e"
+source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=feature/ec_precompiles#7aefdd38a9a4668cc2b28c69aef5ca4d293019aa"
 dependencies = [
  "anyhow",
  "lazy_static",
@@ -8711,7 +8698,7 @@ dependencies = [
 [[package]]
 name = "zk_evm_abstractions"
 version = "0.151.3"
-source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=feature/ec_precompiles#644a6f3137e3e76a640ace2edf592ec7529b666e"
+source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=feature/ec_precompiles#7aefdd38a9a4668cc2b28c69aef5ca4d293019aa"
 dependencies = [
  "anyhow",
  "num_enum 0.6.1",
@@ -8736,7 +8723,7 @@ dependencies = [
 [[package]]
 name = "zkevm-assembly"
 version = "0.151.3"
-source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=feature/ec_precompiles#644a6f3137e3e76a640ace2edf592ec7529b666e"
+source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=feature/ec_precompiles#7aefdd38a9a4668cc2b28c69aef5ca4d293019aa"
 dependencies = [
  "env_logger 0.9.3",
  "hex",
@@ -8755,7 +8742,7 @@ dependencies = [
 [[package]]
 name = "zkevm_circuits"
 version = "0.151.3"
-source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=feature/ec_precompiles#644a6f3137e3e76a640ace2edf592ec7529b666e"
+source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=feature/ec_precompiles#7aefdd38a9a4668cc2b28c69aef5ca4d293019aa"
 dependencies = [
  "arrayvec 0.7.6",
  "boojum",
@@ -8818,7 +8805,7 @@ dependencies = [
 [[package]]
 name = "zkevm_opcode_defs"
 version = "0.151.3"
-source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=feature/ec_precompiles#644a6f3137e3e76a640ace2edf592ec7529b666e"
+source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=feature/ec_precompiles#7aefdd38a9a4668cc2b28c69aef5ca4d293019aa"
 dependencies = [
  "bitflags 2.9.0",
  "blake2 0.10.6",
@@ -8852,12 +8839,12 @@ dependencies = [
 [[package]]
 name = "zkevm_test_harness"
 version = "0.151.3"
-source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=feature/ec_precompiles#644a6f3137e3e76a640ace2edf592ec7529b666e"
+source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=feature/ec_precompiles#7aefdd38a9a4668cc2b28c69aef5ca4d293019aa"
 dependencies = [
  "bincode",
  "circuit_definitions",
  "circuit_encodings",
- "circuit_sequencer_api 0.151.3",
+ "circuit_sequencer_api",
  "codegen",
  "crossbeam",
  "derivative",
@@ -9399,7 +9386,7 @@ dependencies = [
 [[package]]
 name = "zksync_kzg"
 version = "0.151.3"
-source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=feature/ec_precompiles#644a6f3137e3e76a640ace2edf592ec7529b666e"
+source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=feature/ec_precompiles#7aefdd38a9a4668cc2b28c69aef5ca4d293019aa"
 dependencies = [
  "boojum",
  "derivative",
@@ -9443,8 +9430,7 @@ name = "zksync_multivm"
 version = "27.2.0-non-semver-compat"
 dependencies = [
  "anyhow",
- "circuit_sequencer_api 0.151.3",
- "circuit_sequencer_api 0.151.5",
+ "circuit_sequencer_api",
  "ethabi",
  "hex",
  "itertools 0.10.5",
