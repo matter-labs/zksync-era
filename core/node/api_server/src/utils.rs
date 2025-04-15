@@ -677,4 +677,33 @@ mod tests {
             .collect();
         assert_eq!(contract_addresses, expected_contract_addresses);
     }
+
+    #[tokio::test]
+    async fn getting_nonce_for_evm_contract() {
+        let mut alice = Account::random();
+        let pool = ConnectionPool::test_pool().await;
+        let mut storage = pool.connection().await.unwrap();
+        insert_genesis_batch(&mut storage, &GenesisParams::mock())
+            .await
+            .unwrap();
+        StateBuilder::default()
+            .enable_evm_deployments()
+            .with_balance(alice.address(), u64::MAX.into())
+            .apply(storage)
+            .await;
+
+        let deploy_tx = alice.create_evm_counter_deployment(0.into());
+        let counter_address = deployed_address_evm_create(alice.address(), 0.into());
+        persist_block_with_transactions(&pool, vec![deploy_tx.into()]).await;
+
+        let account_types = AccountTypesCache::default();
+        let mut storage = pool.connection().await.unwrap();
+        let (ty, nonce) = account_types
+            .get_with_nonce(&mut storage, counter_address, L2BlockNumber(1))
+            .await
+            .unwrap();
+        assert_matches!(ty, AccountType::Contract);
+        // EVM contracts get the (deployment) nonce set to 1 on creation.
+        assert_eq!(nonce, 1.into());
+    }
 }
