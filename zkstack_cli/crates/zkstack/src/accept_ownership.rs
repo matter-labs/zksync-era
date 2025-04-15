@@ -394,7 +394,7 @@ struct AdminScriptOutputInner {
 
 impl ZkStackConfig for AdminScriptOutputInner {}
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct AdminScriptOutput {
     pub admin_address: Address,
     pub calls: Vec<AdminCall>,

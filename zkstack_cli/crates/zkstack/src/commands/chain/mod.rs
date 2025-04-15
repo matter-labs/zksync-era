@@ -4,7 +4,7 @@ pub(crate) use args::create::ChainCreateArgsFinal;
 use clap::{command, Subcommand};
 pub(crate) use create::create_chain_inner;
 use grant_gateway_whitelist::GrantGatewayWhitelistArgs;
-use notify_server_calldata::NotifyServerCalldataArgs;
+use notify_server_calldata::{NotifyServerCalldataArgs, NotifyServerCalldataScriptArgs};
 use set_transaction_filterer::SetTransactionFiltererArgs;
 use xshell::Shell;
 
@@ -27,6 +27,9 @@ pub(crate) mod convert_to_gateway;
 
 #[cfg(feature = "gateway")]
 pub(crate) mod grant_gateway_whitelist;
+
+#[cfg(feature = "gateway")]
+pub(crate) mod gateway_migration_calldata;
 
 #[cfg(feature = "gateway")]
 pub(crate) mod admin_call_builder;
@@ -94,9 +97,11 @@ pub enum ChainCommands {
     #[cfg(feature = "gateway")]
     GrantGatewayTransactionFiltererWhitelistCalldata(GrantGatewayWhitelistArgs),
     #[cfg(feature = "gateway")]
-    NotifyAboutToGatewayUpdateCalldata(NotifyServerCalldataArgs),
+    NotifyAboutToGatewayUpdateCalldata(NotifyServerCalldataScriptArgs),
     #[cfg(feature = "gateway")]
-    NotifyAboutFromGatewayUpdateCalldata(NotifyServerCalldataArgs),
+    NotifyAboutFromGatewayUpdateCalldata(NotifyServerCalldataScriptArgs),
+    #[cfg(feature = "gateway")]
+    MigrateToGatewayCalldata(gateway_migration_calldata::MigrateToGatewayCalldataScriptArgs),
     /// Prepare chain to be an eligible gateway
     #[cfg(feature = "gateway")]
     ConvertToGateway(ForgeScriptArgs),
@@ -153,10 +158,13 @@ pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()
             notify_server_calldata::run(shell, args, MigrationDirection::ToGateway).await
         }
         #[cfg(feature = "gateway")]
+        ChainCommands::MigrateToGatewayCalldata(args) => {
+            gateway_migration_calldata::run(shell, args).await
+        }
+        #[cfg(feature = "gateway")]
         ChainCommands::NotifyAboutFromGatewayUpdateCalldata(args) => {
             notify_server_calldata::run(shell, args, MigrationDirection::FromGateway).await
         }
-        // #[cfg(feature = "gateway")]
         #[cfg(feature = "gateway")]
         ChainCommands::ConvertToGateway(args) => convert_to_gateway::run(args, shell).await,
         #[cfg(feature = "gateway")]

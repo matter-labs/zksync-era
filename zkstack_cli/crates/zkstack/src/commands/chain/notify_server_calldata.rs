@@ -27,6 +27,7 @@ use zksync_types::{Address, L1ChainId};
 use super::{
     admin_call_builder::{AdminCall, AdminCallBuilder},
     gateway_migration::MigrationDirection,
+    gateway_migration_calldata::{get_gateway_migration_state, GatewayMigrationState},
     utils::{display_admin_script_output, get_default_foundry_path},
 };
 use crate::{
@@ -40,14 +41,14 @@ use crate::{
 
 #[derive(Debug, Serialize, Deserialize, Parser)]
 pub struct NotifyServerCalldataArgs {
-    pub bridgehub_addr: Address,
+    pub l1_bridgehub_addr: Address,
     pub l2_chain_id: u64,
     pub l1_rpc_url: String,
 }
 
 pub async fn get_notify_server_calls(
     shell: &Shell,
-    forge_args: ForgeScriptArgs,
+    forge_args: &ForgeScriptArgs,
     forge_path: &Path,
     args: NotifyServerCalldataArgs,
     direction: MigrationDirection,
@@ -60,7 +61,7 @@ pub async fn get_notify_server_calls(
                 forge_path,
                 AdminScriptMode::OnlySave,
                 args.l2_chain_id,
-                args.bridgehub_addr,
+                args.l1_bridgehub_addr,
                 args.l1_rpc_url,
             )
             .await
@@ -72,7 +73,7 @@ pub async fn get_notify_server_calls(
                 forge_path,
                 AdminScriptMode::OnlySave,
                 args.l2_chain_id,
-                args.bridgehub_addr,
+                args.l1_bridgehub_addr,
                 args.l1_rpc_url,
             )
             .await
@@ -82,18 +83,59 @@ pub async fn get_notify_server_calls(
     Ok(admin_call_output)
 }
 
+#[derive(Debug, Serialize, Deserialize, Parser)]
+pub struct NotifyServerCalldataScriptArgs {
+    #[clap(flatten)]
+    pub params: NotifyServerCalldataArgs,
+    pub l2_rpc_url: Option<String>,
+    pub no_cross_check: Option<bool>,
+}
+
 pub async fn run(
     shell: &Shell,
-    args: NotifyServerCalldataArgs,
+    args: NotifyServerCalldataScriptArgs,
     direction: MigrationDirection,
 ) -> anyhow::Result<()> {
+    if direction == MigrationDirection::FromGateway {
+        // TODO(X): support migrating from gateway in scripts
+        anyhow::bail!("This functionality is available only for migrating on top of Gateway");
+    }
+
+    let should_cross_check = !args.no_cross_check.unwrap_or_default();
+
+    if should_cross_check {
+        let status = get_gateway_migration_state(
+            args.params.l1_rpc_url.clone(),
+            args.params.l1_bridgehub_addr,
+            args.params.l2_chain_id,
+            args.l2_rpc_url.context(
+                "L2 RPC URL must be provided for cross checking the state with the server",
+            )?,
+            direction,
+        )
+        .await?;
+
+        match status {
+            GatewayMigrationState::NotStarted => {
+                logger::info("Gateway migration has not yet started. Preparing the calldata for the notification.");
+            }
+            GatewayMigrationState::Finished => {
+                logger::info("Migration in this direction has already finished");
+            }
+            _ => {
+                logger::info("Notification has been already sent, please use the command to generate the migration call instead");
+                return Ok(());
+            }
+        }
+    }
+
     let result = get_notify_server_calls(
         shell,
         // We do not care about forge args that much here, since
         // we only need to obtain the calldata
-        Default::default(),
+        &Default::default(),
         &get_default_foundry_path()?,
-        args,
+        args.params,
         direction,
     )
     .await?;

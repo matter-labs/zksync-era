@@ -154,6 +154,14 @@ impl AdminCallBuilder {
         serde_json::to_string_pretty(&self.calls).unwrap()
     }
 
+    pub fn display(&self) {
+        // Serialize with pretty printing
+        let serialized = serde_json::to_string_pretty(&self.calls).unwrap();
+
+        // Output the serialized JSON
+        println!("{}", serialized);
+    }
+
     pub fn compile_full_calldata(self) -> (Vec<u8>, U256) {
         let mut sum = U256::zero();
         let mut tokens = vec![];

@@ -30,8 +30,9 @@ use zksync_web3_decl::{
 };
 
 use super::events_gatherer::{get_logs_for_events, DEFAULT_BLOCK_RANGE};
-use crate::commands::dev::commands::upgrade_utils::{
-    print_error, set_upgrade_timestamp_calldata, AdminCallBuilder,
+use crate::commands::{
+    chain::admin_call_builder::AdminCallBuilder,
+    dev::commands::upgrade_utils::{print_error, set_upgrade_timestamp_calldata},
 };
 
 #[derive(Debug, Default)]

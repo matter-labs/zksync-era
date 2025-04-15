@@ -26,7 +26,7 @@ use zkstack_cli_config::{
 };
 use zkstack_cli_types::L1BatchCommitmentMode;
 use zksync_basic_types::{Address, H256, U256, U64};
-use zksync_config::configs::gateway::GatewayChainConfig;
+use zksync_config::configs::gateway::{GatewayChainConfig, GatewayConfig};
 use zksync_contracts::chain_admin_contract;
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 use zksync_types::{
@@ -37,14 +37,15 @@ use zksync_web3_decl::namespaces::UnstableNamespaceClient;
 
 use super::{
     admin_call_builder::{self, AdminCall, AdminCallBuilder},
+    gateway_migration_calldata::{get_migrate_to_gateway_calls, MigrateToGatewayParams},
     notify_server_calldata::{get_notify_server_calls, NotifyServerCalldataArgs},
-    utils::get_zk_client,
+    utils::{display_admin_script_output, get_default_foundry_path, get_zk_client},
 };
 use crate::{
     accept_ownership::{
         admin_l1_l2_tx, enable_validator_via_gateway, finalize_migrate_to_gateway,
         notify_server_migration_from_gateway, notify_server_migration_to_gateway,
-        set_da_validator_pair_via_gateway,
+        set_da_validator_pair_via_gateway, AdminScriptOutput,
     },
     commands::chain::utils::get_ethers_provider,
     messages::MSG_CHAIN_NOT_INITIALIZED,
@@ -73,6 +74,7 @@ abigen!(
     function ctmAssetIdToAddress(bytes32)(address)
     function ctmAssetIdFromChainId(uint256)(bytes32)
     function baseTokenAssetId(uint256)(bytes32)
+    function chainTypeManager(uint256)(address)
 ]"
 );
 
@@ -100,381 +102,6 @@ abigen!(
     function validators(uint256 _chainId, address _validator)(bool)
 ]"
 );
-
-/// Each migration to or from ZK gateway has multiple states it can be in.
-enum GatewayMigrationState {
-    /// The state that represents that the migration has not yet started.
-    NotStarted,
-    /// The chain admin has sent the notification
-    NotificationSent,
-    /// The server has received the notification
-    NotificationReceived,
-    /// The server has received the notification and has no pending transactions
-    ServerReady,
-    /// The server is ready and the migration has started, but the server has not started sending transactions
-    /// to the new settlement layer yet.
-    AwaitingFinalization,
-    /// (Only for migration from Gateway): the migration has been complete on the GW, but needs to be finalized on L1
-    PendingL1Finalization,
-    /// The migration has finished.
-    Finished,
-}
-
-const IS_PERMANENT_ROLLUP_SLOT: u64 = 57;
-
-fn apply_l1_to_l2_alias(addr: Address) -> Address {
-    let offset: Address = "1111000000000000000000000000000000001111".parse().unwrap();
-    let addr_with_offset = address_to_u256(&addr) + address_to_u256(&offset);
-
-    u256_to_address(&addr_with_offset)
-}
-
-// The most reliable way to precompute the address is to simulate `createNewChain` function
-async fn precompute_chain_address_on_gateway(
-    l2_chain_id: u64,
-    base_token_asset_id: H256,
-    new_l2_admin: Address,
-    protocol_version: U256,
-    gateway_diamond_cut: Vec<u8>,
-    gw_ctm: ChainTypeManagerAbi<Provider<ethers::providers::Http>>,
-) -> anyhow::Result<Address> {
-    let ctm_data = encode(&[
-        Token::FixedBytes(base_token_asset_id.0.into()),
-        Token::Address(new_l2_admin),
-        Token::Uint(protocol_version),
-        Token::Bytes(gateway_diamond_cut),
-    ]);
-
-    let result = gw_ctm
-        .forwarded_bridge_mint(l2_chain_id.into(), ctm_data.into())
-        .from(L2_BRIDGEHUB_ADDRESS)
-        .await?;
-
-    Ok(result)
-}
-
-const EVENTS_BLOCK_RANGE: u64 = 50_000;
-
-async fn get_latest_notification_event_from_l1(
-    l2_chain_id: u64,
-    l1_ctm: ChainTypeManagerAbi<Provider<Http>>,
-    l1_provider: Arc<Provider<Http>>,
-) -> anyhow::Result<Option<GatewayMigrationNotification>> {
-    logger::info("Searching for the latest migration notifications...");
-    let server_notifier_address = l1_ctm.server_notifier_address().await?;
-
-    // Get the latest block so we know how far we can go
-    let latest_block = l1_provider
-        .get_block_number()
-        .await
-        .expect("Failed to fetch latest block")
-        .as_u64();
-
-    let filter = Filter::new()
-        .address(server_notifier_address)
-        .topic0(ethers::types::ValueOrArray::Array(
-            GatewayMigrationNotification::get_server_notifier_topics(),
-        ))
-        .from_block(latest_block.saturating_sub(EVENTS_BLOCK_RANGE))
-        .topic1(u256_to_h256(U256::from(l2_chain_id)))
-        .to_block(latest_block);
-
-    let mut result_logs = l1_provider.get_logs(&filter).await?;
-
-    if result_logs.is_empty() {
-        return Ok(None);
-    }
-    let latest_log = result_logs.pop().unwrap();
-
-    let result = GatewayMigrationNotification::from_topic(latest_log.topics[0])
-        .expect("Failed to parse event");
-
-    match result {
-        GatewayMigrationNotification::FromGateway => {
-            logger::info(format!(
-                "Latest event is MigrationDirection::FromGateway at tx {:#?}",
-                latest_log.transaction_hash
-            ));
-        }
-        GatewayMigrationNotification::ToGateway => {
-            logger::info(format!(
-                "Latest event is MigrationDirection::ToGateway at tx {:#?}",
-                latest_log.transaction_hash
-            ));
-        }
-    }
-
-    Ok(Some(result))
-}
-
-struct ServerGatewayMigrationStatus {
-    // status:
-    unconfirmed_txs: usize,
-}
-
-async fn get_gateway_migration_state(
-    l1_provider: Arc<Provider<Http>>,
-    l1_bridgehub: BridgehubAbi<Provider<Http>>,
-    l1_ctm: ChainTypeManagerAbi<Provider<Http>>,
-    l2_chain_id: u64,
-    l2_rpc_url: String,
-    gateway_chain_id: u64,
-    direction: MigrationDirection,
-) -> anyhow::Result<GatewayMigrationState> {
-    if matches!(direction, MigrationDirection::FromGateway) {
-        // TODO(X): add script support for migrating away from Gateway
-        anyhow::bail!("Currently the scripts only support for migrating on top of Gateway");
-    }
-
-    let current_sl = l1_bridgehub.settlement_layer(l2_chain_id.into()).await?;
-
-    let zk_client = get_zk_client(&l2_rpc_url, l2_chain_id)?;
-
-    let gateway_migration_status = zk_client.gateway_migration_status().await?;
-
-    if current_sl == U256::from(gateway_chain_id) {
-        // The chain now has a new settlement layer registered on L1, but the server may
-        // not yet use it.
-        if gateway_migration_status.settlement_layer.is_gateway() {
-            return Ok(GatewayMigrationState::Finished);
-        } else {
-            return Ok(GatewayMigrationState::AwaitingFinalization);
-        }
-    }
-
-    let Some(latest_event) =
-        get_latest_notification_event_from_l1(l2_chain_id, l1_ctm, l1_provider).await?
-    else {
-        // All migrations should start with a notification
-        return Ok(GatewayMigrationState::NotStarted);
-    };
-
-    let expected_notification = direction.expected_notificaation();
-
-    if latest_event != expected_notification {
-        // It is likely a leftover from a previous migration
-        return Ok(GatewayMigrationState::NotStarted);
-    }
-
-    // At this point we know that at least the event to notify the server has been sent, now we need to check
-    // whether the server has received the event.
-    if gateway_migration_status.latest_event != Some(expected_notification) {
-        // The server has not yet seen the event, so the notification is only sent, but not received
-        return Ok(GatewayMigrationState::NotificationSent);
-    }
-
-    // At this point we know that the notification has been received, we need to check whether the server has processed the corresponding events.
-
-    let unconfirmed_txs = zk_client.get_unconfirmed_txs_count().await?;
-
-    if unconfirmed_txs != 0 {
-        // The server has received the notification, but there are still some pending txs
-        return Ok(GatewayMigrationState::NotificationReceived);
-    }
-
-    // We know that the server is ready, but the new settlement layer has not yet been reflected
-    Ok(GatewayMigrationState::ServerReady)
-}
-
-pub(crate) struct MigrateToGatewayParams {
-    l1_rpc_url: String,
-    l1_bridgehub_addr: Address,
-    max_l1_gas_price: u64,
-    l2_chain_id: u64,
-    gateway_chain_id: u64,
-    gateway_diamond_cut: Vec<u8>,
-    gateway_rpc_url: String,
-    new_sl_da_validator: Address,
-    validator_1: Address,
-    validator_2: Address,
-    min_validator_balance: U256,
-    refund_recipient: Option<Address>,
-}
-
-pub(crate) async fn get_migrate_to_gateway_calls(
-    shell: &Shell,
-    forge_args: &ForgeScriptArgs,
-    foundry_contracts_path: &Path,
-    params: MigrateToGatewayParams,
-) -> anyhow::Result<(Address, Vec<AdminCall>)> {
-    // TODO: add checks about chain notification.
-
-    let refund_recipient = params.refund_recipient.unwrap_or(params.validator_1);
-    let mut result = vec![];
-
-    let l1_provider = get_ethers_provider(&params.l1_rpc_url)?;
-    let gw_provider = get_ethers_provider(&params.gateway_rpc_url)?;
-
-    let l1_bridgehub = BridgehubAbi::new(params.l1_bridgehub_addr, l1_provider.clone());
-    let gw_bridgehub = BridgehubAbi::new(L2_BRIDGEHUB_ADDRESS, gw_provider.clone());
-
-    let current_settlement_layer = l1_bridgehub
-        .settlement_layer(params.l2_chain_id.into())
-        .await?;
-
-    println!("here");
-
-    let zk_chain_l1_address = l1_bridgehub.get_zk_chain(params.l2_chain_id.into()).await?;
-
-    if zk_chain_l1_address == Address::zero() {
-        anyhow::bail!("Chain with id {} does not exist!", params.l2_chain_id);
-    }
-
-    println!("here2");
-
-    // Checking whether the user has already done the migration
-    if current_settlement_layer == U256::from(params.gateway_chain_id) {
-        // TODO: it may happen that the user has started the migration, but it failed for some reason (e.g. the provided
-        // diamond cut was not correct).
-        // The recovery of the chain is not handled by the tool right now.
-        anyhow::bail!("The chain is already on top of Gateway!");
-    }
-    println!("here4");
-
-    let ctm_asset_id = l1_bridgehub
-        .ctm_asset_id_from_chain_id(params.l2_chain_id.into())
-        .await?;
-    let ctm_gw_address = gw_bridgehub.ctm_asset_id_to_address(ctm_asset_id).await?;
-    println!("here3");
-
-    if ctm_gw_address == Address::zero() {
-        anyhow::bail!("{} does not have a CTM deployed!", params.gateway_chain_id);
-    }
-
-    let gw_ctm = ChainTypeManagerAbi::new(ctm_gw_address, gw_provider.clone());
-    let gw_validator_timelock_addr = gw_ctm.validator_timelock().await?;
-    let gw_validator_timelock =
-        ValidatorTimelockAbi::new(gw_validator_timelock_addr, gw_provider.clone());
-
-    let l1_zk_chain = ZkChainAbi::new(zk_chain_l1_address, l1_provider.clone());
-    let chain_admin_address = l1_zk_chain.get_admin().await?;
-    let zk_chain_gw_address = {
-        let recorded_zk_chain_gw_address =
-            gw_bridgehub.get_zk_chain(params.l2_chain_id.into()).await?;
-        if recorded_zk_chain_gw_address == Address::zero() {
-            let expected_address = precompute_chain_address_on_gateway(
-                params.l2_chain_id,
-                H256(
-                    l1_bridgehub
-                        .base_token_asset_id(params.l2_chain_id.into())
-                        .await?,
-                ),
-                apply_l1_to_l2_alias(l1_zk_chain.get_admin().await?),
-                l1_zk_chain.get_protocol_version().await?,
-                params.gateway_diamond_cut.clone(),
-                gw_ctm,
-            )
-            .await?;
-
-            expected_address
-        } else {
-            recorded_zk_chain_gw_address
-        }
-    };
-
-    println!("here6");
-
-    let finalize_migrate_to_gateway_output = finalize_migrate_to_gateway(
-        shell,
-        forge_args,
-        foundry_contracts_path,
-        crate::accept_ownership::AdminScriptMode::OnlySave,
-        params.l1_bridgehub_addr,
-        params.max_l1_gas_price,
-        params.l2_chain_id,
-        params.gateway_chain_id,
-        params.gateway_diamond_cut.into(),
-        refund_recipient,
-        params.l1_rpc_url.clone(),
-    )
-    .await?;
-
-    result.extend(finalize_migrate_to_gateway_output.calls);
-
-    // Changing L2 DA validator while migrating to gateway is not recommended; we allow changing only the SL one
-    let (_, l2_da_validator) = l1_zk_chain.get_da_validator_pair().await?;
-
-    // Unfortunately, there is no getter for whether a chain is a permanent rollup, we have to
-    // read storage here.
-    let is_permanent_rollup_slot = l1_provider
-        .get_storage_at(zk_chain_l1_address, H256::from_low_u64_be(57), None)
-        .await?;
-    if is_permanent_rollup_slot == H256::from_low_u64_be(1) {
-        // TODO(X): We should really check it on our own here, but it is hard with the current interfaces
-        println!("WARNING: Your chain is a permanent rollup! Ensure that the new L1 SL provider is compatible with Gateway RollupDAManager!");
-    }
-
-    let da_validator_encoding_result = set_da_validator_pair_via_gateway(
-        shell,
-        forge_args,
-        foundry_contracts_path,
-        crate::accept_ownership::AdminScriptMode::OnlySave,
-        params.l1_bridgehub_addr,
-        params.max_l1_gas_price.into(),
-        params.l2_chain_id,
-        params.gateway_chain_id,
-        params.new_sl_da_validator,
-        l2_da_validator,
-        zk_chain_gw_address,
-        refund_recipient,
-        params.l1_rpc_url.clone(),
-    )
-    .await?;
-
-    result.extend(da_validator_encoding_result.calls);
-
-    // 4. If validators are not yet present, please include.
-    for validator in [params.validator_1, params.validator_2] {
-        if !gw_validator_timelock
-            .validators(params.l2_chain_id.into(), validator)
-            .await?
-        {
-            let enable_validator_calls = enable_validator_via_gateway(
-                shell,
-                forge_args,
-                foundry_contracts_path,
-                crate::accept_ownership::AdminScriptMode::OnlySave,
-                params.l1_bridgehub_addr,
-                params.max_l1_gas_price.into(),
-                params.l2_chain_id,
-                params.gateway_chain_id,
-                validator,
-                gw_validator_timelock_addr,
-                refund_recipient,
-                params.l1_rpc_url.clone(),
-            )
-            .await?;
-            result.extend(enable_validator_calls.calls);
-        }
-
-        let current_validator_balance = gw_provider.get_balance(validator, None).await?;
-        println!("current balance = {}", current_validator_balance);
-        if current_validator_balance < params.min_validator_balance {
-            println!(
-                "Sohuld send {}",
-                params.min_validator_balance - current_validator_balance
-            );
-            let supply_validator_balance_calls = admin_l1_l2_tx(
-                shell,
-                forge_args,
-                foundry_contracts_path,
-                crate::accept_ownership::AdminScriptMode::OnlySave,
-                params.l1_bridgehub_addr,
-                params.max_l1_gas_price.into(),
-                params.gateway_chain_id,
-                validator,
-                params.min_validator_balance - current_validator_balance,
-                Default::default(),
-                refund_recipient,
-                params.l1_rpc_url.clone(),
-            )
-            .await?;
-            result.extend(supply_validator_balance_calls.calls);
-        }
-    }
-
-    Ok((chain_admin_address, result))
-}
 
 pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
@@ -632,7 +259,7 @@ pub(crate) enum MigrationDirection {
 }
 
 impl MigrationDirection {
-    fn expected_notificaation(self) -> GatewayMigrationNotification {
+    pub(crate) fn expected_notificaation(self) -> GatewayMigrationNotification {
         match self {
             Self::FromGateway => GatewayMigrationNotification::FromGateway,
             Self::ToGateway => GatewayMigrationNotification::ToGateway,
@@ -657,10 +284,10 @@ pub(crate) async fn notify_server(
 
     let calls = get_notify_server_calls(
         shell,
-        args,
+        &args,
         &chain_config.path_to_l1_foundry(),
         NotifyServerCalldataArgs {
-            bridgehub_addr: ecosystem_config
+            l1_bridgehub_addr: ecosystem_config
                 .get_contracts_config()?
                 .ecosystem_contracts
                 .bridgehub_proxy_addr,
