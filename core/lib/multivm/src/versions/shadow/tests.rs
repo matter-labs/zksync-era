@@ -588,6 +588,21 @@ mod precompiles {
     fn ecadd() {
         test_ecadd::<super::ShadowedFastVm>();
     }
+    
+    #[test]
+    fn ecmul() {
+        test_ecmul::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn ecpairing() {
+        test_ecpairing::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn modexp() {
+        test_modexp::<super::ShadowedFastVm>();
+    }
 }
 
 mod refunds {

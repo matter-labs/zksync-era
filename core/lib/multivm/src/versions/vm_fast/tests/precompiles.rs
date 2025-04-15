@@ -4,7 +4,7 @@ use zksync_types::Execute;
 use crate::{
     interface::{InspectExecutionMode, TxExecutionMode, VmInterface, VmInterfaceExt},
     versions::testonly::{
-        precompiles::{test_ecadd, test_ecrecover, test_keccak, test_sha256},
+        precompiles::{test_ecadd, test_ecmul, test_ecpairing,test_modexp, test_ecrecover, test_keccak, test_sha256},
         VmTesterBuilder,
     },
     vm_fast::Vm,
@@ -28,6 +28,21 @@ fn ecrecover() {
 #[test]
 fn ecadd() {
     test_ecadd::<Vm<_>>();
+}
+
+#[test]
+fn ecmul() {
+    test_ecmul::<Vm<_>>();
+}
+
+#[test]
+fn ecpairing() {
+    test_ecpairing::<Vm<_>>();
+}
+
+#[test]
+fn modexp() {
+    test_modexp::<Vm<_>>();
 }
 
 #[test]

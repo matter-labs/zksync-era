@@ -1,5 +1,5 @@
 use crate::{
-    versions::testonly::precompiles::{test_ecadd, test_ecrecover, test_keccak, test_sha256},
+    versions::testonly::precompiles::{test_ecadd, test_ecmul, test_ecpairing, test_ecrecover, test_keccak, test_sha256},
     vm_latest::{HistoryEnabled, Vm},
 };
 
@@ -21,4 +21,14 @@ fn ecrecover() {
 #[test]
 fn ecadd() {
     test_ecadd::<Vm<_, HistoryEnabled>>();
+}
+
+#[test]
+fn ecmul() {
+    test_ecmul::<Vm<_, HistoryEnabled>>();
+}
+
+#[test]
+fn ecpairing() {
+    test_ecpairing::<Vm<_, HistoryEnabled>>();
 }
