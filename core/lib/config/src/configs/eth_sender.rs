@@ -51,6 +51,7 @@ impl EthConfig {
                 tx_aggregation_only_prove_and_execute: false,
                 time_in_mempool_in_l1_blocks_cap: 1800,
                 is_verifier_pre_fflonk: true,
+                gas_limit_mode: GasLimitMode::Maximum,
             },
             gas_adjuster: GasAdjusterConfig {
                 default_priority_fee_per_gas: 1000000000,
@@ -99,6 +100,18 @@ pub enum ProofLoadingMode {
     FriProofFromGcs,
 }
 
+#[derive(Debug, Default, Deserialize, Clone, Copy, PartialEq)]
+pub enum GasLimitMode {
+    #[default]
+    Maximum,
+    Calculated,
+}
+
+impl WellKnown for GasLimitMode {
+    type Deserializer = Serde![str];
+    const DE: Self::Deserializer = Serde![str];
+}
+
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 pub struct SenderConfig {
     /// Amount of confirmations required to consider L1 transaction committed.
@@ -117,7 +130,7 @@ pub struct SenderConfig {
     #[config(default_t = ProofSendingMode::SkipEveryProof)]
     pub proof_sending_mode: ProofSendingMode,
     #[config(default_t = 4_000_000)]
-    pub max_aggregated_tx_gas: u32,
+    pub max_aggregated_tx_gas: u64,
     #[config(default_t = 6_000_000)]
     pub max_eth_tx_data_size: usize,
     #[config(default_t = 10)]
@@ -156,6 +169,8 @@ pub struct SenderConfig {
     #[config(default = SenderConfig::default_time_in_mempool_in_l1_blocks_cap)]
     pub time_in_mempool_in_l1_blocks_cap: u32,
     pub is_verifier_pre_fflonk: bool,
+    #[config(default)]
+    pub gas_limit_mode: GasLimitMode,
 }
 
 impl SenderConfig {
@@ -266,6 +281,7 @@ mod tests {
                 tx_aggregation_paused: false,
                 time_in_mempool_in_l1_blocks_cap: 2000,
                 is_verifier_pre_fflonk: false,
+                gas_limit_mode: GasLimitMode::Calculated,
             },
             gas_adjuster: GasAdjusterConfig {
                 default_priority_fee_per_gas: 20000000000,
@@ -324,6 +340,7 @@ mod tests {
             ETH_SENDER_SENDER_MAX_ACCEPTABLE_PRIORITY_FEE_IN_GWEI="100000000000"
             ETH_SENDER_SENDER_PUBDATA_SENDING_MODE="Calldata"
             ETH_SENDER_SENDER_IS_VERIFIER_PRE_FFLONK=false
+            ETH_SENDER_SENDER_GAS_LIMIT_MODE=Calculated
         "#;
         let env = Environment::from_dotenv("test.env", env)
             .unwrap()
@@ -357,6 +374,7 @@ mod tests {
             tx_aggregation_only_prove_and_execute: false
             time_in_mempool_in_l1_blocks_cap: 2000
             is_verifier_pre_fflonk: false
+            gas_limit_mode: Calculated
           gas_adjuster:
             default_priority_fee_per_gas: 20000000000
             max_base_fee_samples: 10000

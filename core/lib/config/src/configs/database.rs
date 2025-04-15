@@ -86,7 +86,6 @@ pub struct PostgresConfig {
     /// Maximum size of the connection pool to master DB.
     #[config(alias = "pool_size_master")]
     pub max_connections_master: Option<u32>,
-
     /// Acquire timeout in seconds for a single connection attempt. There are multiple attempts (currently 3)
     /// before acquire methods will return an error.
     #[config(default_t = Duration::from_secs(30), with = TimeUnit::Seconds)]

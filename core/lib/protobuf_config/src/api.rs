@@ -161,9 +161,7 @@ impl ProtoRepr for proto::Web3JsonRpc {
     fn build(this: &Self::Type) -> Self {
         Self {
             http_port: Some(this.http_port.into()),
-            http_url: None,
             ws_port: Some(this.ws_port.into()),
-            ws_url: None,
             req_entities_limit: this.req_entities_limit,
             filters_disabled: Some(this.filters_disabled),
             mempool_cache_update_interval: this.mempool_cache_update_interval,

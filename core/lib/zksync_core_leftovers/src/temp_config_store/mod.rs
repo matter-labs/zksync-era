@@ -5,8 +5,8 @@ use zksync_config::{
     configs::{
         api::{HealthCheckConfig, MerkleTreeApiConfig, Web3JsonRpcConfig},
         chain::{
-            CircuitBreakerConfig, MempoolConfig, NetworkConfig, OperationsManagerConfig,
-            StateKeeperConfig, TimestampAsserterConfig,
+            CircuitBreakerConfig, MempoolConfig, OperationsManagerConfig, StateKeeperConfig,
+            TimestampAsserterConfig,
         },
         house_keeper::HouseKeeperConfig,
         vm_runner::BasicWitnessInputProducerConfig,

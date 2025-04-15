@@ -126,14 +126,8 @@ impl TryFrom<PersistedGenesisConfig> for GenesisConfig {
 }
 
 /// This config represents the genesis state of the chain.
-/// Each chain has this config immutable and we update it only during the protocol upgrade.
-///
-/// # Implementation notes
-///
-/// - Since this data is immutable, it's not treated as a config. (It's also the only "config" that needs to be serialized.)
-/// - For legacy reasons, the config has 2 incompatible (de)serializations. `Serialize` / `Deserialize` is used for *API*,
-///   while loading / persisting it as a config must use [`PersistedGenesisConfig`].
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+/// Each chain has this config immutable and we update it only during the protocol upgrade
+#[derive(Debug, Clone, PartialEq)]
 pub struct GenesisConfig {
     // TODO make fields non optional?
     pub protocol_version: Option<ProtocolSemanticVersion>,
@@ -145,10 +139,6 @@ pub struct GenesisConfig {
     pub evm_emulator_hash: Option<H256>,
     pub l1_chain_id: L1ChainId,
     pub l2_chain_id: L2ChainId,
-    #[serde(
-        alias = "recursion_scheduler_level_vk_hash",
-        rename(serialize = "recursion_scheduler_level_vk_hash")
-    )]
     pub snark_wrapper_vk_hash: H256,
     pub fflonk_snark_wrapper_vk_hash: Option<H256>,
     pub fee_account: Address,
@@ -222,35 +212,6 @@ mod tests {
     use smart_config::{testing::test_complete, Yaml};
 
     use super::*;
-
-    // This test checks that serde overrides (`rename`, `alias`) work for `snark_wrapper_vk_hash` field.
-    #[test]
-    fn genesis_serde_snark_wrapper_vk_hash() {
-        let genesis = GenesisConfig::for_tests();
-        let genesis_str = serde_json::to_string(&genesis).unwrap();
-
-        // Check that we use backward-compatible name in serialization.
-        // If you want to remove this check, make sure that all the potential clients are updated.
-        assert!(
-            genesis_str.contains("recursion_scheduler_level_vk_hash"),
-            "Serialization should use backward-compatible name"
-        );
-
-        let genesis2: GenesisConfig = serde_json::from_str(&genesis_str).unwrap();
-        assert_eq!(genesis, genesis2);
-
-        let genesis_json = r#"{
-            "snark_wrapper_vk_hash": "0x1111111111111111111111111111111111111111111111111111111111111111",
-            "l1_chain_id": 1,
-            "l2_chain_id": 1,
-            "fee_account": "0x1111111111111111111111111111111111111111",
-            "dummy_verifier": false, 
-            "l1_batch_commit_data_generator_mode": "Rollup"
-        }"#;
-        serde_json::from_str::<GenesisConfig>(genesis_json).unwrap_or_else(|err| {
-            panic!("Failed to parse genesis config with a new name: {}", err)
-        });
-    }
 
     fn expected_config() -> GenesisConfig {
         GenesisConfig {

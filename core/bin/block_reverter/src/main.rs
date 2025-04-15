@@ -166,10 +166,13 @@ async fn main() -> anyhow::Result<()> {
 
     let zksync_network_id = match &genesis_config {
         Some(genesis_config) => genesis_config.l2_chain_id,
-        None => env::var("CHAIN_ETH_ZKSYNC_NETWORK_ID")
-            .context("`CHAIN_ETH_ZKSYNC_NETWORK_ID` env var is not set")?
-            .parse()
-            .map_err(|_| anyhow::anyhow!("`CHAIN_ETH_ZKSYNC_NETWORK_ID` env var is invalid"))?,
+        None => {
+            let raw_var = env::var("CHAIN_ETH_ZKSYNC_NETWORK_ID")
+                .context("`CHAIN_ETH_ZKSYNC_NETWORK_ID` env var is missing or is not UTF-8")?;
+            raw_var.parse().map_err(|err| {
+                anyhow::anyhow!("`CHAIN_ETH_ZKSYNC_NETWORK_ID` env var has incorrect value: {err}")
+            })?
+        }
     };
 
     let l1_client: Client<L1> = Client::http(l1_secrets.l1_rpc_url.context("no L1 RPC URL")?)
