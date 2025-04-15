@@ -608,4 +608,6 @@ jobs:
         if: always()
         with:
           name: logs_${{matrix.use_gateway_chain}}
-          path: logs
+          path: |
+            logs/
+            chains/*/artifacts/vm_dumps/
