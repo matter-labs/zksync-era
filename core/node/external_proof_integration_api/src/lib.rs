@@ -12,11 +12,11 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use zksync_proof_data_handler::ProcessorError;
 use tokio::sync::watch;
 use types::{ExternalProof, ProofGenerationDataResponse};
 use zksync_basic_types::L1BatchNumber;
-use zksync_proof_data_handler::{Processor, Readonly};
+use zksync_proof_data_handler::{Processor, ProcessorError, Readonly};
+
 use crate::{metrics::Method, middleware::MetricsMiddleware};
 
 /// External API implementation.
@@ -103,7 +103,11 @@ impl Api {
         proof: ExternalProof,
     ) -> Result<(), ProcessorError> {
         processor
-            .verify_proof(L1BatchNumber(l1_batch_number), proof.raw(), proof.protocol_version())
+            .verify_proof(
+                L1BatchNumber(l1_batch_number),
+                proof.raw(),
+                proof.protocol_version(),
+            )
             .await
     }
 }

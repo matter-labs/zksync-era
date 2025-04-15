@@ -10,7 +10,7 @@ use zksync_prover_interface::{
     api::ProofGenerationData, inputs::WitnessInputData, outputs::L1BatchProofForL1,
 };
 
-use crate::error::{FileError, ApiError};
+use crate::error::{ApiError, FileError};
 
 #[derive(Debug)]
 pub(crate) struct ProofGenerationDataResponse(pub ProofGenerationData);
@@ -91,9 +91,8 @@ impl<S: Send + Sync> FromRequest<S> for ExternalProof {
 
     async fn from_request(req: Request, state: &S) -> Result<Self, Self::Rejection> {
         let serialized_proof = Self::extract_from_multipart(req, state).await?;
-        let proof = <L1BatchProofForL1 as StoredObject>::deserialize(serialized_proof.clone()).map_err(
-            |err| ApiError::Processor(ProcessorError::Serialization(err)),
-        )?;
+        let proof = <L1BatchProofForL1 as StoredObject>::deserialize(serialized_proof.clone())
+            .map_err(|err| ApiError::Processor(ProcessorError::Serialization(err)))?;
 
         Ok(Self {
             raw: serialized_proof,

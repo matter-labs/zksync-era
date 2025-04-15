@@ -6,7 +6,6 @@ use zksync_dal::DalError;
 use zksync_object_store::{ObjectStoreError, _reexports::BoxedError};
 use zksync_types::L1BatchNumber;
 
-
 #[derive(Debug, thiserror::Error)]
 pub enum ProcessorError {
     #[error("General error: {0}")]

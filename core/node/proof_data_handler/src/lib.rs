@@ -3,16 +3,21 @@ use std::{net::SocketAddr, sync::Arc};
 use anyhow::Context as _;
 use axum::{extract::Path, http::StatusCode, response::IntoResponse, routing::post, Json, Router};
 use processor::Locking;
-pub use crate::{processor::{Processor, Readonly}, errors::ProcessorError};
 use tee_request_processor::TeeRequestProcessor;
 use tokio::sync::watch;
 use zksync_config::configs::ProofDataHandlerConfig;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStore;
 use zksync_prover_interface::api::{
-    ProofGenerationDataRequest, ProofGenerationDataResponse, RegisterTeeAttestationRequest, SubmitProofRequest, SubmitTeeProofRequest, TeeProofGenerationDataRequest
+    ProofGenerationDataRequest, ProofGenerationDataResponse, RegisterTeeAttestationRequest,
+    SubmitProofRequest, SubmitTeeProofRequest, TeeProofGenerationDataRequest,
 };
 use zksync_types::{commitment::L1BatchCommitmentMode, L1BatchNumber, L2ChainId};
+
+pub use crate::{
+    errors::ProcessorError,
+    processor::{Processor, Readonly},
+};
 
 #[cfg(test)]
 mod tests;
@@ -77,16 +82,13 @@ fn create_proof_processing_router(
                 // we use post method because the returned data is not idempotent,
                 // i.e we return different result on each call.
                 move |_: Json<ProofGenerationDataRequest>| async move {
-                    match get_proof_gen_processor
-                        .get_proof_generation_data()
-                        .await {
-                            Ok(data) => {
-                                let response = ProofGenerationDataResponse::Success(data.map(Box::new));
-                                (StatusCode::OK, Json(response))
-                                    .into_response()
-                            }
-                            Err(e) => e.into_response(),
+                    match get_proof_gen_processor.get_proof_generation_data().await {
+                        Ok(data) => {
+                            let response = ProofGenerationDataResponse::Success(data.map(Box::new));
+                            (StatusCode::OK, Json(response)).into_response()
                         }
+                        Err(e) => e.into_response(),
+                    }
                 },
             ),
         )
@@ -97,11 +99,14 @@ fn create_proof_processing_router(
                     let l1_batch_number = L1BatchNumber(l1_batch_number.0);
                     match payload.0 {
                         SubmitProofRequest::Proof(data) => {
-                            submit_proof_processor.save_proof(l1_batch_number, (*data).into()).await
+                            submit_proof_processor
+                                .save_proof(l1_batch_number, (*data).into())
+                                .await
                         }
                         SubmitProofRequest::SkippedProofGeneration => {
                             submit_proof_processor
-                                .save_skipped_proof(l1_batch_number).await
+                                .save_skipped_proof(l1_batch_number)
+                                .await
                         }
                     }
                 },

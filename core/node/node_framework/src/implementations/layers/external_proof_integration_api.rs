@@ -1,4 +1,6 @@
-use zksync_config::configs::{external_proof_integration_api::ExternalProofIntegrationApiConfig, ProofDataHandlerConfig};
+use zksync_config::configs::{
+    external_proof_integration_api::ExternalProofIntegrationApiConfig, ProofDataHandlerConfig,
+};
 use zksync_external_proof_integration_api::Api;
 use zksync_proof_data_handler::{Processor, Readonly};
 use zksync_types::commitment::L1BatchCommitmentMode;
@@ -63,7 +65,12 @@ impl WiringLayer for ExternalProofIntegrationApiLayer {
         let replica_pool = input.replica_pool.get().await.unwrap();
         let blob_store = input.object_store.0;
 
-        let processor = Processor::<Readonly>::new(blob_store, replica_pool, self.proof_data_handler_config, self.commitment_mode);
+        let processor = Processor::<Readonly>::new(
+            blob_store,
+            replica_pool,
+            self.proof_data_handler_config,
+            self.commitment_mode,
+        );
         let task = Api::new(
             processor,
             self.external_proof_integration_api_config.http_port,

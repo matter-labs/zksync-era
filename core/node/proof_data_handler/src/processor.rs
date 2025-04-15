@@ -1,6 +1,5 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
-use std::time::Duration;
 use zksync_config::configs::ProofDataHandlerConfig;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_object_store::{ObjectStore, StoredObject};
@@ -13,7 +12,11 @@ use zksync_prover_interface::{
     Bincode, CBOR,
 };
 use zksync_types::{
-    basic_fri_types::Eip4844Blobs, commitment::{serialize_commitments, L1BatchCommitmentMode}, protocol_version::ProtocolSemanticVersion, web3::keccak256, L1BatchNumber, ProtocolVersionId, H256, STATE_DIFF_HASH_KEY_PRE_GATEWAY
+    basic_fri_types::Eip4844Blobs,
+    commitment::{serialize_commitments, L1BatchCommitmentMode},
+    protocol_version::ProtocolSemanticVersion,
+    web3::keccak256,
+    L1BatchNumber, ProtocolVersionId, H256, STATE_DIFF_HASH_KEY_PRE_GATEWAY,
 };
 
 use crate::{errors::ProcessorError, metrics::METRICS};
@@ -32,7 +35,6 @@ pub struct Locking;
 
 impl ProcessorMode for Readonly {}
 impl ProcessorMode for Locking {}
-
 
 #[derive(Clone)]
 pub struct Processor<PM: ProcessorMode> {
@@ -90,10 +92,7 @@ impl<PM: ProcessorMode> Processor<PM> {
         };
 
         // Acquire connection after interacting with GCP, to avoid holding the connection for too long.
-        let mut conn = self
-            .pool
-            .connection()
-            .await?;
+        let mut conn = self.pool.connection().await?;
 
         let previous_batch_metadata = conn
             .blocks_dal()
@@ -163,7 +162,6 @@ impl<PM: ProcessorMode> Processor<PM> {
             l1_verifier_config: protocol_version.l1_verifier_config,
         })
     }
-
 }
 
 impl Processor<Locking> {
@@ -171,15 +169,18 @@ impl Processor<Locking> {
     pub(crate) async fn get_proof_generation_data(
         &self,
     ) -> Result<Option<ProofGenerationData>, ProcessorError> {
-        let l1_batch_number = match self.lock_batch_for_proving(self.config.proof_generation_timeout()).await? {
-        Some(number) => number,
+        let l1_batch_number = match self
+            .lock_batch_for_proving(self.config.proof_generation_timeout())
+            .await?
+        {
+            Some(number) => number,
             None => return Ok(None), // no batches pending to be proven
         };
-        
+
         let proof_generation_data = self
             .proof_generation_data_for_existing_batch(l1_batch_number)
             .await;
-        
+
         // If we weren't able to fetch all the data, we should unlock the batch before returning.
         match proof_generation_data {
             Ok(data) => Ok(Some(data)),
@@ -191,20 +192,21 @@ impl Processor<Locking> {
     }
 
     /// Will choose a batch that has all the required data and isn't picked up by any prover yet.
-    async fn lock_batch_for_proving(&self, proof_generation_timeout: Duration) -> Result<Option<L1BatchNumber>, ProcessorError> {
+    async fn lock_batch_for_proving(
+        &self,
+        proof_generation_timeout: Duration,
+    ) -> Result<Option<L1BatchNumber>, ProcessorError> {
         self.pool
             .connection()
             .await?
             .proof_generation_dal()
             .lock_batch_for_proving(proof_generation_timeout)
-            .await.map_err(Into::into)
+            .await
+            .map_err(Into::into)
     }
 
     /// Marks the batch as 'unpicked', allowing it to be picked up by another prover.
-    async fn unlock_batch(
-        &self,
-        l1_batch_number: L1BatchNumber,
-    ) -> Result<(), ProcessorError> {
+    async fn unlock_batch(&self, l1_batch_number: L1BatchNumber) -> Result<(), ProcessorError> {
         self.pool
             .connection()
             .await?
@@ -217,111 +219,115 @@ impl Processor<Locking> {
     pub async fn save_proof(
         &self,
         l1_batch_number: L1BatchNumber,
-        proof: L1BatchProofForL1
+        proof: L1BatchProofForL1,
     ) -> Result<(), ProcessorError> {
         tracing::info!("Received proof for block number: {:?}", l1_batch_number);
 
-                let blob_url = self
-                    .blob_store
-                    .put((l1_batch_number, proof.protocol_version()), &proof)
-                    .await?;
+        let blob_url = self
+            .blob_store
+            .put((l1_batch_number, proof.protocol_version()), &proof)
+            .await?;
 
-                let aggregation_coords = proof.aggregation_result_coords();
+        let aggregation_coords = proof.aggregation_result_coords();
 
-                let system_logs_hash_from_prover = H256::from_slice(&aggregation_coords[0]);
-                let state_diff_hash_from_prover = H256::from_slice(&aggregation_coords[1]);
-                let bootloader_heap_initial_content_from_prover =
-                    H256::from_slice(&aggregation_coords[2]);
-                let events_queue_state_from_prover = H256::from_slice(&aggregation_coords[3]);
+        let system_logs_hash_from_prover = H256::from_slice(&aggregation_coords[0]);
+        let state_diff_hash_from_prover = H256::from_slice(&aggregation_coords[1]);
+        let bootloader_heap_initial_content_from_prover = H256::from_slice(&aggregation_coords[2]);
+        let events_queue_state_from_prover = H256::from_slice(&aggregation_coords[3]);
 
-                let mut storage = self.pool.connection().await.unwrap();
+        let mut storage = self.pool.connection().await.unwrap();
 
-                let l1_batch = storage
-                    .blocks_dal()
-                    .get_l1_batch_metadata(l1_batch_number)
-                    .await?
-                    .expect("Proved block without metadata");
+        let l1_batch = storage
+            .blocks_dal()
+            .get_l1_batch_metadata(l1_batch_number)
+            .await?
+            .expect("Proved block without metadata");
 
-                let protocol_version = l1_batch
-                    .header
-                    .protocol_version
-                    .unwrap_or_else(ProtocolVersionId::last_potentially_undefined);
+        let protocol_version = l1_batch
+            .header
+            .protocol_version
+            .unwrap_or_else(ProtocolVersionId::last_potentially_undefined);
 
-                let events_queue_state = l1_batch
-                    .metadata
-                    .events_queue_commitment
-                    .expect("No events_queue_commitment");
-                let bootloader_heap_initial_content = l1_batch
-                    .metadata
-                    .bootloader_initial_content_commitment
-                    .expect("No bootloader_initial_content_commitment");
+        let events_queue_state = l1_batch
+            .metadata
+            .events_queue_commitment
+            .expect("No events_queue_commitment");
+        let bootloader_heap_initial_content = l1_batch
+            .metadata
+            .bootloader_initial_content_commitment
+            .expect("No bootloader_initial_content_commitment");
 
-                if events_queue_state != events_queue_state_from_prover
-                    || bootloader_heap_initial_content
-                        != bootloader_heap_initial_content_from_prover
-                {
-                    panic!(
+        if events_queue_state != events_queue_state_from_prover
+            || bootloader_heap_initial_content != bootloader_heap_initial_content_from_prover
+        {
+            panic!(
                         "Auxilary output doesn't match\n\
                         server values: events_queue_state = {events_queue_state}, bootloader_heap_initial_content = {bootloader_heap_initial_content}\n\
                         prover values: events_queue_state = {events_queue_state_from_prover}, bootloader_heap_initial_content = {bootloader_heap_initial_content_from_prover}",
                     );
-                }
+        }
 
-                let system_logs = serialize_commitments(&l1_batch.header.system_logs);
-                let system_logs_hash = H256(keccak256(&system_logs));
+        let system_logs = serialize_commitments(&l1_batch.header.system_logs);
+        let system_logs_hash = H256(keccak256(&system_logs));
 
-                let state_diff_hash = if protocol_version.is_pre_gateway() {
-                    l1_batch
-                        .header
-                        .system_logs
-                        .iter()
-                        .find_map(|log| {
-                            (log.0.key
-                                == H256::from_low_u64_be(STATE_DIFF_HASH_KEY_PRE_GATEWAY as u64))
-                            .then_some(log.0.value)
-                        })
-                        .expect("Failed to get state_diff_hash from system logs")
-                } else {
-                    l1_batch
-                        .metadata
-                        .state_diff_hash
-                        .expect("Failed to get state_diff_hash from metadata")
-                };
+        let state_diff_hash = if protocol_version.is_pre_gateway() {
+            l1_batch
+                .header
+                .system_logs
+                .iter()
+                .find_map(|log| {
+                    (log.0.key == H256::from_low_u64_be(STATE_DIFF_HASH_KEY_PRE_GATEWAY as u64))
+                        .then_some(log.0.value)
+                })
+                .expect("Failed to get state_diff_hash from system logs")
+        } else {
+            l1_batch
+                .metadata
+                .state_diff_hash
+                .expect("Failed to get state_diff_hash from metadata")
+        };
 
-                if state_diff_hash != state_diff_hash_from_prover
-                    || system_logs_hash != system_logs_hash_from_prover
-                {
-                    let server_values = format!("system_logs_hash = {system_logs_hash}, state_diff_hash = {state_diff_hash}");
-                    let prover_values = format!("system_logs_hash = {system_logs_hash_from_prover}, state_diff_hash = {state_diff_hash_from_prover}");
-                    panic!(
-                        "Auxilary output doesn't match, server values: {} prover values: {}",
-                        server_values, prover_values
-                    );
-                }
+        if state_diff_hash != state_diff_hash_from_prover
+            || system_logs_hash != system_logs_hash_from_prover
+        {
+            let server_values = format!(
+                "system_logs_hash = {system_logs_hash}, state_diff_hash = {state_diff_hash}"
+            );
+            let prover_values = format!("system_logs_hash = {system_logs_hash_from_prover}, state_diff_hash = {state_diff_hash_from_prover}");
+            panic!(
+                "Auxilary output doesn't match, server values: {} prover values: {}",
+                server_values, prover_values
+            );
+        }
 
-                storage
-                    .proof_generation_dal()
-                    .save_proof_artifacts_metadata(l1_batch_number, &blob_url)
-                    .await?;
+        storage
+            .proof_generation_dal()
+            .save_proof_artifacts_metadata(l1_batch_number, &blob_url)
+            .await?;
         Ok(())
     }
 
-    pub async fn save_skipped_proof(&self, l1_batch_number: L1BatchNumber) -> Result<(), ProcessorError> {
-        tracing::info!("Received skipped proof for block number: {:?}", l1_batch_number);
+    pub async fn save_skipped_proof(
+        &self,
+        l1_batch_number: L1BatchNumber,
+    ) -> Result<(), ProcessorError> {
+        tracing::info!(
+            "Received skipped proof for block number: {:?}",
+            l1_batch_number
+        );
         self.pool
             .connection()
             .await
             .unwrap()
             .proof_generation_dal()
             .mark_proof_generation_job_as_skipped(l1_batch_number)
-            .await.map_err(Into::into)
+            .await
+            .map_err(Into::into)
     }
 }
 
 impl Processor<Readonly> {
-    pub async fn get_proof_generation_data(
-        &self,
-    ) -> Result<ProofGenerationData, ProcessorError> {
+    pub async fn get_proof_generation_data(&self) -> Result<ProofGenerationData, ProcessorError> {
         tracing::debug!("Received request for proof generation data");
         let latest_available_batch = self.latest_available_batch().await?;
         self.proof_generation_data_for_existing_batch(latest_available_batch)

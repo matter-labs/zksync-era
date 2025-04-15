@@ -126,10 +126,7 @@ impl TeeRequestProcessor {
             .await
             .map_err(ProcessorError::ObjectStore)?;
 
-        let mut connection = self
-            .pool
-            .connection_tagged("tee_request_processor")
-            .await?;
+        let mut connection = self.pool.connection_tagged("tee_request_processor").await?;
 
         let l2_blocks_execution_data = connection
             .transactions_dal()
