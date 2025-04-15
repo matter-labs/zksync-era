@@ -11,6 +11,7 @@ use zksync_types::{
         ChainAggProof, DataAvailabilityDetails, GatewayMigrationStatus, L1ToL2TxsStatus, TeeProof,
         TransactionExecutionInfo,
     },
+    server_notification::GatewayMigrationState,
     tee_types::TeeType,
     L1BatchNumber, L2ChainId,
 };
@@ -196,24 +197,24 @@ impl UnstableNamespace {
         })
     }
 
-    pub async fn gateway_migration_status_impl(&self) -> Result<GatewayMigrationStatus> {
+    pub async fn gateway_migration_status_impl(&self) -> Result<GatewayMigrationStatus, Web3Error> {
         let mut connection = self.state.acquire_connection().await?;
 
-        let latest_event = connection
+        let latest_notification = connection
             .server_notifications_dal()
-            .get_latest_gateway_migration_event()
+            .get_latest_gateway_migration_notification()
             .await
-            .unwrap();
+            .map_err(DalError::generalize)?;
 
         let state = GatewayMigrationState::from_sl_and_notification(
             self.state.api_config.settlement_layer,
             latest_notification,
         );
 
-        GatewayMigrationStatus {
-            latest_event,
+        Ok(GatewayMigrationStatus {
+            latest_notification,
             state,
             settlement_layer: self.state.api_config.settlement_layer,
-        }
+        })
     }
 }

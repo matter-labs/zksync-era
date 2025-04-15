@@ -4,6 +4,7 @@ use anyhow::Context;
 use ethers::{
     abi::encode,
     providers::{Http, Provider},
+    utils::hex,
 };
 use zksync_types::{
     url::SensitiveUrl, web3::keccak256, Address, L2ChainId, H256, L2_NATIVE_TOKEN_VAULT_ADDRESS,
@@ -53,11 +54,17 @@ pub fn get_default_foundry_path() -> anyhow::Result<PathBuf> {
 }
 
 pub fn display_admin_script_output(result: AdminScriptOutput) {
-    println!("The calldata to be sent by the admin owner:\n");
+    let builder = AdminCallBuilder::new(result.calls);
+    println!(
+        "Breakdown of calls to be performed by the chain admin:\n{}",
+        builder.to_json_string()
+    );
+
+    println!("\nThe calldata to be sent by the admin owner:");
     println!("Admin address (to): {:#?}", result.admin_address);
 
-    let builder = AdminCallBuilder::new(result.calls);
+    let (data, value) = builder.compile_full_calldata();
 
-    println!("Breakdown of calls: {:#?}", builder.to_json_string());
-    println!("Total data: {:#?}", builder.compile_full_calldata());
+    println!("Total data: {}", hex::encode(&data));
+    println!("Total value: {}", value);
 }

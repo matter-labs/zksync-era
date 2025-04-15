@@ -67,7 +67,7 @@ impl ServerNotificationsDal<'_, '_> {
         Ok(rows)
     }
 
-    pub async fn get_latest_gateway_migration_event(
+    pub async fn get_latest_gateway_migration_notification(
         &mut self,
     ) -> DalResult<Option<GatewayMigrationNotification>> {
         let notification = self

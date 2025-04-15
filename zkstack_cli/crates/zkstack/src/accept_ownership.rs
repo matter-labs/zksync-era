@@ -409,6 +409,18 @@ impl From<AdminScriptOutputInner> for AdminScriptOutput {
     }
 }
 
+impl AdminScriptOutput {
+    pub(crate) fn extend(&mut self, other: AdminScriptOutput) -> anyhow::Result<()> {
+        if other.admin_address != self.admin_address {
+            anyhow::bail!("Admin address is incorrect");
+        }
+
+        self.calls.extend(other.calls);
+
+        Ok(())
+    }
+}
+
 const ADMIN_OUTPUT: &str = "script-out/output-accept-admin.toml";
 
 pub async fn call_script(

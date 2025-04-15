@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use zksync_basic_types::{settlement::SettlementLayer, H256};
 use zksync_contracts::server_notifier_contract;
 
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum GatewayMigrationState {
     InProgress,
@@ -27,7 +27,7 @@ impl GatewayMigrationState {
     }
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum GatewayMigrationNotification {
     FromGateway,

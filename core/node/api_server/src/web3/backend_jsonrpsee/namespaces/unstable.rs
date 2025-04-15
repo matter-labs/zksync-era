@@ -1,6 +1,7 @@
 use zksync_types::{
     api::{
-        ChainAggProof, DataAvailabilityDetails, L1ToL2TxsStatus, TeeProof, TransactionExecutionInfo,
+        ChainAggProof, DataAvailabilityDetails, GatewayMigrationStatus, L1ToL2TxsStatus, TeeProof,
+        TransactionExecutionInfo,
     },
     tee_types::TeeType,
     L1BatchNumber, L2ChainId, H256,

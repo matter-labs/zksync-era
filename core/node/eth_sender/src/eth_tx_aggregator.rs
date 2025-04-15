@@ -873,7 +873,7 @@ impl EthTxAggregator {
     async fn gateway_status(&self, storage: &mut Connection<'_, Core>) -> GatewayMigrationState {
         let notification = storage
             .server_notifications_dal()
-            .get_latest_gateway_migration_event()
+            .get_latest_gateway_migration_notification()
             .await
             .unwrap();
 

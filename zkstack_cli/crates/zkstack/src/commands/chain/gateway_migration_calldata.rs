@@ -266,7 +266,7 @@ pub(crate) async fn get_gateway_migration_state(
 
     // At this point we know that at least the event to notify the server has been sent, now we need to check
     // whether the server has received the event.
-    if gateway_migration_status.latest_event != Some(expected_notification) {
+    if gateway_migration_status.latest_notification != Some(expected_notification) {
         // The server has not yet seen the event, so the notification is only sent, but not received
         return Ok(GatewayMigrationState::NotificationSent);
     }
@@ -554,7 +554,7 @@ pub async fn run(shell: &Shell, params: MigrateToGatewayCalldataScriptArgs) -> a
 
         match state {
             GatewayMigrationState::NotStarted => {
-                logger::info("Notification has not yet been sent. Please use the command to send notification");
+                logger::warn("Notification has not yet been sent. Please use the command to send notification first.");
                 return Ok(());
             }
             GatewayMigrationState::NotificationSent => {
