@@ -405,10 +405,13 @@ impl From<L2Tx> for api::Transaction {
             _ => v,
         };
 
+        let (nonce_key, nonce_value) = tx.common_data.nonce.split();
+
         Self {
             hash: tx.hash(),
             chain_id: U256::from(tx.common_data.extract_chain_id().unwrap_or_default()),
-            nonce: tx.common_data.nonce.0,
+            nonce: nonce_value.0.into(),
+            nonce_key: (!nonce_key.0.is_zero()).then_some(nonce_key.0),
             from: Some(tx.common_data.initiator_address),
             to: tx.recipient_account(),
             value: tx.execute.value,

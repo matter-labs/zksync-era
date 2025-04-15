@@ -570,11 +570,11 @@ impl StorageApiTransaction {
 
         let nonce_key = bigdecimal_to_u256(self.nonce_key);
         let nonce_value = self.nonce.unwrap_or_default() as u64;
-        let nonce = Nonce::combine(NonceKey(nonce_key), NonceValue(nonce_value)).0;
 
         let mut tx = api::Transaction {
             hash: H256::from_slice(&self.tx_hash),
-            nonce,
+            nonce: nonce_value.into(),
+            nonce_key: (!nonce_key.is_zero()).then_some(nonce_key),
             block_hash: self.block_hash.map(|hash| H256::from_slice(&hash)),
             block_number: self.block_number.map(|number| U64::from(number as u64)),
             transaction_index: self.index_in_block.map(|idx| U64::from(idx as u64)),
