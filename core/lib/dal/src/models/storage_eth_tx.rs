@@ -71,6 +71,7 @@ pub struct StorageTxHistory {
 
     // EIP712 txs
     pub max_gas_per_pubdata: Option<i64>,
+    pub predicted_gas_limit: Option<i64>,
 }
 
 impl From<StorageEthTx> for EthTx {
