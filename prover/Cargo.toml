@@ -74,18 +74,13 @@ franklin-crypto = "=0.32.0"
 
 # GPU proving dependencies
 
-#proof-compression-gpu = { package = "proof-compression", version = "=0.153.2" }
-proof-compression-gpu = { git = "https://github.com/matter-labs/zksync-crypto-gpu.git", branch = "feature/ec_precompiles", package = "proof-compression" }
+proof-compression-gpu = { package = "proof-compression", version = "=0.154.0" }
 
-#fflonk-gpu = { package = "fflonk-cuda", version = "=0.153.2" }
-fflonk-gpu = { git = "https://github.com/matter-labs/zksync-crypto-gpu.git", branch = "feature/ec_precompiles", package = "fflonk-cuda" }
-#wrapper_prover = { package = "zksync-wrapper-prover", version = "=0.153.2" }
-wrapper_prover = { git = "https://github.com/matter-labs/zksync-crypto-gpu.git", branch = "feature/ec_precompiles", package = "zksync-wrapper-prover" }
+fflonk-gpu = { package = "fflonk-cuda", version = "=0.154.0" }
+wrapper_prover = { package = "zksync-wrapper-prover", version = "=0.154.0" }
 
-#shivini = "=0.153.2"
-shivini = { git = "https://github.com/matter-labs/zksync-crypto-gpu.git", branch = "feature/ec_precompiles" }
-#boojum-cuda = "=0.153.2"
-boojum-cuda = { git = "https://github.com/matter-labs/zksync-crypto-gpu.git", branch = "feature/ec_precompiles" }
+shivini = "=0.154.0"
+boojum-cuda = "=0.154.0"
 
 # Core workspace dependencies
 zksync_multivm = { path = "../core/lib/multivm" }
