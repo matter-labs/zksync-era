@@ -9245,6 +9245,7 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
+ "zksync_prover_dal",
  "zksync_prover_fri_types",
  "zksync_types",
 ]

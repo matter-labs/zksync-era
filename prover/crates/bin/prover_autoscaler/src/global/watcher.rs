@@ -8,7 +8,6 @@ use reqwest::{
 };
 use tokio::sync::Mutex;
 use url::Url;
-
 use zksync_prover_fri_utils::task_wiring::{ProvideConnection, Task};
 
 use crate::{
