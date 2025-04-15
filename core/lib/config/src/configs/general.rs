@@ -133,9 +133,7 @@ pub fn full_config_schema(for_en: bool) -> ConfigSchema {
             .unwrap();
         schema.insert(&Wallets::DESCRIPTION, "wallets").unwrap();
 
-        schema
-            .insert(&ContractsConfig::DESCRIPTION, "contracts")
-            .unwrap();
+        ContractsConfig::insert_into_schema(&mut schema);
     }
     schema
 }

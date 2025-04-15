@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use smart_config::{
     de::{Serde, WellKnown},
-    DescribeConfig, DeserializeConfig,
+    ConfigSchema, DescribeConfig, DeserializeConfig,
 };
 use zksync_basic_types::{Address, H256};
 
@@ -14,8 +14,6 @@ pub struct EcosystemContracts {
     pub bridgehub_proxy_addr: Address,
     pub state_transition_proxy_addr: Address,
     pub transparent_proxy_admin_addr: Address,
-
-    // FIXME: check optionality of the fields below
     pub l1_bytecodes_supplier_addr: Option<Address>,
     pub l1_wrapped_base_token_store: Option<Address>,
     pub server_notifier_addr: Option<Address>,
@@ -148,7 +146,7 @@ impl BridgesConfig {
 /// Data about deployed contracts.
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 pub struct ContractsConfig {
-    #[config(nest)] // FIXME: alias = ""?
+    #[config(nest)]
     pub l1: L1ContractsConfig,
     #[config(nest)]
     pub l2: L2ContractsConfig,
@@ -213,6 +211,20 @@ impl ContractsConfig {
             },
         }
     }
+
+    pub(crate) fn insert_into_schema(schema: &mut ConfigSchema) {
+        schema.insert(&Self::DESCRIPTION, "contracts").unwrap();
+        schema
+            .single_mut(&L1ContractsConfig::DESCRIPTION)
+            .unwrap()
+            .push_alias("contracts")
+            .unwrap();
+        schema
+            .single_mut(&EcosystemContracts::DESCRIPTION)
+            .unwrap()
+            .push_alias("contracts")
+            .unwrap();
+    }
 }
 
 /// Contracts specific for the chain. Should be deployed to all Settlement Layers.
@@ -230,19 +242,7 @@ mod tests {
 
     fn create_schema() -> ConfigSchema {
         let mut schema = ConfigSchema::default();
-        schema
-            .insert(&ContractsConfig::DESCRIPTION, "contracts")
-            .unwrap();
-        schema
-            .single_mut(&L1ContractsConfig::DESCRIPTION)
-            .unwrap()
-            .push_alias("contracts")
-            .unwrap();
-        schema
-            .single_mut(&EcosystemContracts::DESCRIPTION)
-            .unwrap()
-            .push_alias("contracts")
-            .unwrap();
+        ContractsConfig::insert_into_schema(&mut schema);
         schema
     }
 

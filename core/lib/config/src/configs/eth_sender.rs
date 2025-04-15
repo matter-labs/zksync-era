@@ -74,11 +74,10 @@ impl EthConfig {
         }
     }
 
-    // We need to modify the values inside this config. Please use this method with ultra caution,
-    // that this could be inconsistent with other codebase.
-    // FIXME: remove `Some(_)` wrapping
-    pub fn get_eth_sender_config_for_sender_layer_data_layer(&self) -> Option<&SenderConfig> {
-        Some(&self.sender)
+    /// We need to modify the values inside this config. Please use this method with ultra caution,
+    /// that this could be inconsistent with other codebase.
+    pub fn get_eth_sender_config_for_sender_layer_data_layer(&self) -> &SenderConfig {
+        &self.sender
     }
 }
 
