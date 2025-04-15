@@ -26,10 +26,22 @@ use zksync_system_constants::{
     SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
 };
 use zksync_types::{
-    api, block::{pack_block_info, L2BlockHasher, L2BlockHeader, UnsealedL1BatchHeader}, bytecode::{
+    api,
+    block::{pack_block_info, L2BlockHasher, L2BlockHeader, UnsealedL1BatchHeader},
+    bytecode::{
         testonly::{PADDED_EVM_BYTECODE, PROCESSED_EVM_BYTECODE},
         BytecodeHash,
-    }, fee_model::{BatchFeeInput, FeeParams}, get_deployer_key, get_nonce_key, settlement::SettlementLayer, storage::get_code_key, system_contracts::get_system_smart_contracts, tokens::{TokenInfo, TokenMetadata}, tx::IncludedTxLocation, u256_to_h256, utils::{storage_key_for_eth_balance, storage_key_for_standard_token_balance}, AccountTreeId, Address, L1BatchNumber, Nonce, StorageKey, StorageLog, H256, U256, U64
+    },
+    fee_model::{BatchFeeInput, FeeParams},
+    get_deployer_key, get_nonce_key,
+    settlement::SettlementLayer,
+    storage::get_code_key,
+    system_contracts::get_system_smart_contracts,
+    tokens::{TokenInfo, TokenMetadata},
+    tx::IncludedTxLocation,
+    u256_to_h256,
+    utils::{storage_key_for_eth_balance, storage_key_for_standard_token_balance},
+    AccountTreeId, Address, L1BatchNumber, Nonce, StorageKey, StorageLog, H256, U256, U64,
 };
 use zksync_vm_executor::oneshot::MockOneshotExecutor;
 use zksync_web3_decl::{
@@ -273,7 +285,7 @@ async fn test_http_server(test: impl HttpTest) {
         &contracts_config.l2_contracts(),
         &genesis,
         false,
-        SettlementLayer::for_tests()
+        SettlementLayer::for_tests(),
     );
     api_config.filters_disabled = test.filters_disabled();
     let mut server_builder = TestServerBuilder::new(pool.clone(), api_config)
