@@ -193,6 +193,41 @@ impl BlocksDal<'_, '_> {
         Ok(row.number.map(|num| L1BatchNumber(num as u32)))
     }
 
+    /// Returns the first validium batch with a number higher than the provided one.
+    /// The query might look inefficient, but it is slow only when there is a large range of
+    /// "Rollup" batches, i.e. during the first lookup of Rollup->Validium transition, otherwise it
+    /// is only 2 index scans.
+    pub async fn get_first_validium_l1_batch_number(
+        &mut self,
+        min_number: L1BatchNumber,
+    ) -> DalResult<Option<L1BatchNumber>> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                MIN(number) AS "number"
+            FROM
+                l1_batches
+            WHERE
+                is_sealed
+                AND number > $1
+                AND (
+                    SELECT pubdata_type
+                    FROM miniblocks
+                    WHERE l1_batch_number = l1_batches.number
+                    ORDER BY miniblocks.number
+                    LIMIT 1
+                ) != 'Rollup'
+            "#,
+            min_number.0 as i32
+        )
+        .instrument("get_earliest_l1_batch_number")
+        .report_latency()
+        .fetch_one(self.storage)
+        .await?;
+
+        Ok(row.number.map(|num| L1BatchNumber(num as u32)))
+    }
+
     pub async fn get_earliest_l2_block_number(&mut self) -> DalResult<Option<L2BlockNumber>> {
         let row = sqlx::query!(
             r#"

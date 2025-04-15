@@ -458,4 +458,32 @@ impl DataAvailabilityDal<'_, '_> {
 
         Ok(())
     }
+
+    pub async fn l1_batch_missing_data_availability(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> DalResult<bool> {
+        let row = sqlx::query!(
+            r#"
+            SELECT (
+                COUNT(*) = 0 AND
+                (
+                    SELECT (miniblocks.pubdata_type != 'Rollup')
+                    FROM miniblocks
+                    WHERE miniblocks.l1_batch_number = $1
+                    ORDER BY miniblocks.number
+                    LIMIT 1
+                )
+            ) AS "da_is_missing!"
+            FROM data_availability
+            WHERE l1_batch_number = $1
+            "#,
+            i64::from(l1_batch_number.0),
+        )
+        .instrument("l1_batch_missing_data_availability")
+        .fetch_optional(self.storage)
+        .await?;
+
+        Ok(row.map(|row| row.da_is_missing).unwrap_or(false))
+    }
 }

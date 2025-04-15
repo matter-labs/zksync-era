@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT (\n                COUNT(*) = 0 AND\n                (\n                    SELECT (miniblocks.pubdata_type != 'Rollup')\n                    FROM miniblocks\n                    WHERE miniblocks.l1_batch_number = $1\n                    ORDER BY miniblocks.number\n                    LIMIT 1\n                )\n            ) AS \"da_is_missing!\"\n            FROM data_availability\n            WHERE l1_batch_number = $1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "da_is_missing!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "6bab55a47523cf901bb20a2663d7da3f3331ef6f50f3fa958d7f5e0473fc63e3"
+}

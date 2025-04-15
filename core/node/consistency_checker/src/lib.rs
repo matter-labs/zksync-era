@@ -145,6 +145,17 @@ impl LocalL1BatchCommitData {
         storage: &mut Connection<'_, Core>,
         batch_number: L1BatchNumber,
     ) -> anyhow::Result<Option<Self>> {
+        if storage
+            .data_availability_dal()
+            .l1_batch_missing_data_availability(batch_number)
+            .await?
+        {
+            tracing::warn!(
+                "L1 batch #{batch_number} is missing DA information, da_fetcher might be not started"
+            );
+            return Ok(None);
+        }
+
         let Some(commit_tx_id) = storage
             .blocks_dal()
             .get_eth_commit_tx_id(batch_number)
