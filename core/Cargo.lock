@@ -2225,19 +2225,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "circuit_sequencer_api"
-version = "0.151.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e7a52138983ea94b367d689fc6183ad60a769d6c7ce8041c5120cb5074486ea2"
-dependencies = [
- "derivative",
- "rayon",
- "serde",
- "zk_evm 0.151.5",
- "zksync_bellman 0.31.0 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
 name = "clang-sys"
 version = "1.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2592,9 +2579,9 @@ dependencies = [
 
 [[package]]
 name = "crossbeam-channel"
-version = "0.5.14"
+version = "0.5.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "06ba6d68e24814cb8de6bb986db8222d3a027d15872cabc0d18817bc3c0e4471"
+checksum = "82b8f8f868b36967f9606790d1903570de9ceaf870a7bf9fbbd3016d636a2cb2"
 dependencies = [
  "crossbeam-utils",
 ]
@@ -12950,8 +12937,7 @@ version = "27.2.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "assert_matches",
- "circuit_sequencer_api 0.151.3",
- "circuit_sequencer_api 0.151.5",
+ "circuit_sequencer_api",
  "ethabi",
  "hex",
  "itertools 0.10.5",
