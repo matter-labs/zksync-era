@@ -55,6 +55,7 @@ structopt = "0.3.26"
 strum = { version = "0.26" }
 strum_macros = "0.26"
 tempfile = "3"
+thiserror = "2.0.12"
 tokio = "1"
 tokio-util = "0.7.11"
 tokio-stream = "0.1.16"

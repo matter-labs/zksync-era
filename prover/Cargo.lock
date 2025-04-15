@@ -9207,10 +9207,12 @@ version = "20.2.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "axum",
  "clap 4.5.23",
  "ctrlc",
  "reqwest 0.12.9",
  "serde",
+ "thiserror 2.0.12",
  "tokio",
  "tracing",
  "vise",

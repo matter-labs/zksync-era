@@ -69,6 +69,12 @@ pub enum SubmitProofRequest {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+pub struct GetNextProofResponse {
+    pub l1_batch_number: L1BatchNumber,
+    pub proof: Option<JsonL1BatchProofForL1>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct VerifyProofRequest(pub Box<JsonL1BatchProofForL1>);
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
