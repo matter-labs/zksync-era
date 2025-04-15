@@ -6535,7 +6535,6 @@ dependencies = [
  "human-panic",
  "lazy_static",
  "prost",
- "rand",
  "reqwest 0.12.9",
  "secrecy 0.8.0",
  "serde",
@@ -6553,15 +6552,10 @@ dependencies = [
  "zkstack_cli_config",
  "zkstack_cli_types",
  "zksync_basic_types",
- "zksync_config",
  "zksync_consensus_crypto",
  "zksync_consensus_roles",
- "zksync_consensus_utils",
  "zksync_contracts",
- "zksync_eth_client",
- "zksync_protobuf",
  "zksync_system_constants",
- "zksync_types",
  "zksync_web3_decl",
 ]
 
@@ -6613,8 +6607,6 @@ dependencies = [
  "zkstack_cli_common",
  "zkstack_cli_types",
  "zksync_basic_types",
- "zksync_config",
- "zksync_protobuf",
  "zksync_system_constants",
 ]
 
@@ -6675,20 +6667,6 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "vise",
-]
-
-[[package]]
-name = "zksync_config"
-version = "27.3.0-non-semver-compat"
-dependencies = [
- "anyhow",
- "rand",
- "secrecy 0.10.3",
- "serde",
- "zksync_basic_types",
- "zksync_concurrency",
- "zksync_consensus_utils",
- "zksync_crypto_primitives",
 ]
 
 [[package]]
@@ -6773,35 +6751,6 @@ dependencies = [
  "sha2",
  "thiserror 2.0.12",
  "zksync_basic_types",
-]
-
-[[package]]
-name = "zksync_eth_client"
-version = "27.3.0-non-semver-compat"
-dependencies = [
- "anyhow",
- "async-trait",
- "jsonrpsee",
- "rlp",
- "thiserror 2.0.12",
- "tracing",
- "vise",
- "zksync_config",
- "zksync_contracts",
- "zksync_eth_signer",
- "zksync_types",
- "zksync_web3_decl",
-]
-
-[[package]]
-name = "zksync_eth_signer"
-version = "27.3.0-non-semver-compat"
-dependencies = [
- "async-trait",
- "rlp",
- "thiserror 2.0.12",
- "zksync_basic_types",
- "zksync_crypto_primitives",
 ]
 
 [[package]]
@@ -6911,7 +6860,6 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
- "zksync_config",
  "zksync_types",
 ]
 

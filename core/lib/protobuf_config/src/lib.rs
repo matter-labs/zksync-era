@@ -20,7 +20,6 @@ mod eth;
 mod experimental;
 mod external_price_api_client;
 mod external_proof_integration_api;
-mod gateway;
 mod general;
 mod genesis;
 mod house_keeper;
