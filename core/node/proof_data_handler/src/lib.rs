@@ -2,24 +2,24 @@ use std::{net::SocketAddr, sync::Arc};
 
 use anyhow::Context as _;
 use axum::{extract::Path, http::StatusCode, response::IntoResponse, routing::post, Json, Router};
-use request_processor::RequestProcessor;
+use processor::Locking;
+pub use crate::{processor::{Processor, Readonly}, errors::ProcessorError};
 use tee_request_processor::TeeRequestProcessor;
 use tokio::sync::watch;
 use zksync_config::configs::ProofDataHandlerConfig;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStore;
 use zksync_prover_interface::api::{
-    ProofGenerationDataRequest, RegisterTeeAttestationRequest, SubmitProofRequest,
-    SubmitTeeProofRequest, TeeProofGenerationDataRequest,
+    ProofGenerationDataRequest, ProofGenerationDataResponse, RegisterTeeAttestationRequest, SubmitProofRequest, SubmitTeeProofRequest, TeeProofGenerationDataRequest
 };
-use zksync_types::{commitment::L1BatchCommitmentMode, L2ChainId};
+use zksync_types::{commitment::L1BatchCommitmentMode, L1BatchNumber, L2ChainId};
 
 #[cfg(test)]
 mod tests;
 
 mod errors;
 mod metrics;
-mod request_processor;
+mod processor;
 mod tee_request_processor;
 
 pub async fn run_server(
@@ -63,7 +63,7 @@ fn create_proof_processing_router(
     commitment_mode: L1BatchCommitmentMode,
     l2_chain_id: L2ChainId,
 ) -> Router {
-    let get_proof_gen_processor = RequestProcessor::new(
+    let get_proof_gen_processor = Processor::<Locking>::new(
         blob_store.clone(),
         connection_pool.clone(),
         config.clone(),
@@ -76,10 +76,17 @@ fn create_proof_processing_router(
             post(
                 // we use post method because the returned data is not idempotent,
                 // i.e we return different result on each call.
-                move |payload: Json<ProofGenerationDataRequest>| async move {
-                    get_proof_gen_processor
-                        .get_proof_generation_data(payload)
-                        .await
+                move |_: Json<ProofGenerationDataRequest>| async move {
+                    match get_proof_gen_processor
+                        .get_proof_generation_data()
+                        .await {
+                            Ok(data) => {
+                                let response = ProofGenerationDataResponse::Success(data.map(Box::new));
+                                (StatusCode::OK, Json(response))
+                                    .into_response()
+                            }
+                            Err(e) => e.into_response(),
+                        }
                 },
             ),
         )
@@ -87,9 +94,16 @@ fn create_proof_processing_router(
             "/submit_proof/:l1_batch_number",
             post(
                 move |l1_batch_number: Path<u32>, payload: Json<SubmitProofRequest>| async move {
-                    submit_proof_processor
-                        .submit_proof(l1_batch_number, payload)
-                        .await
+                    let l1_batch_number = L1BatchNumber(l1_batch_number.0);
+                    match payload.0 {
+                        SubmitProofRequest::Proof(data) => {
+                            submit_proof_processor.save_proof(l1_batch_number, (*data).into()).await
+                        }
+                        SubmitProofRequest::SkippedProofGeneration => {
+                            submit_proof_processor
+                                .save_skipped_proof(l1_batch_number).await
+                        }
+                    }
                 },
             ),
         );
