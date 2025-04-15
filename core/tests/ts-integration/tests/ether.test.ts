@@ -73,7 +73,7 @@ describe('ETH token checks', () => {
             gasPrice
         });
 
-        const depositOp = await alice.deposit({
+        const depositOp = alice.deposit({
             token: zksync.utils.ETH_ADDRESS,
             amount,
             gasPerPubdataByte,
@@ -87,7 +87,7 @@ describe('ETH token checks', () => {
             }
         });
         try {
-            await depositOp.wait();
+            await expect(depositOp).toBeAccepted([l2ethBalanceChange]);
         } catch (e: any) {
             const valueRegex = /"hash"\s*:\s*"(?<hash>0x[a-fA-F0-9]+)"/;
             const match = e.toString().match(valueRegex);
@@ -110,36 +110,35 @@ describe('ETH token checks', () => {
 
             throw 'ETH deposit failed';
         }
-        // await expect(depositOp).toBeAccepted([l2ethBalanceChange]);
-        //
-        // const depositFee = await depositOp
-        //     .then((op) => op.waitL1Commit())
-        //     .then(async (receipt) => {
-        //         const l1GasFee = receipt.gasUsed * receipt.gasPrice;
-        //         if (!isETHBasedChain) {
-        //             return l1GasFee;
-        //         }
-        //         return l1GasFee + expectedL2Costs;
-        //     });
-        //
-        // const l1EthBalanceAfter = await alice.getBalanceL1();
-        // if (isETHBasedChain) {
-        //     expect(l1EthBalanceBefore - depositFee - l1EthBalanceAfter).toEqual(amount);
-        // } else {
-        //     // Base token checks
-        //     const l1BaseTokenBalanceAfter = await alice.getBalanceL1(baseTokenAddress);
-        //     expect(l1BaseTokenBalanceBefore).toEqual(l1BaseTokenBalanceAfter + expectedL2Costs);
-        //
-        //     const l2BaseTokenBalanceAfter = await alice.getBalance();
-        //     expect(l1EthBalanceBefore).toEqual(l1EthBalanceAfter + depositFee + amount);
-        //
-        //     // L2 balance for the base token increases do to some "overminting" of the base token
-        //     // We verify that the amount reduced on L1 is greater than the amount increased on L2
-        //     // so that we are not generating tokens out of thin air
-        //     const l1BaseTokenBalanceDiff = l1BaseTokenBalanceBefore - l1BaseTokenBalanceAfter;
-        //     const l2BaseTokenBalanceDiff = l2BaseTokenBalanceAfter - l2BaseTokenBalanceBefore;
-        //     expect(l1BaseTokenBalanceDiff).toBeGreaterThan(l2BaseTokenBalanceDiff);
-        // }
+
+        const depositFee = await depositOp
+            .then((op) => op.waitL1Commit())
+            .then(async (receipt) => {
+                const l1GasFee = receipt.gasUsed * receipt.gasPrice;
+                if (!isETHBasedChain) {
+                    return l1GasFee;
+                }
+                return l1GasFee + expectedL2Costs;
+            });
+
+        const l1EthBalanceAfter = await alice.getBalanceL1();
+        if (isETHBasedChain) {
+            expect(l1EthBalanceBefore - depositFee - l1EthBalanceAfter).toEqual(amount);
+        } else {
+            // Base token checks
+            const l1BaseTokenBalanceAfter = await alice.getBalanceL1(baseTokenAddress);
+            expect(l1BaseTokenBalanceBefore).toEqual(l1BaseTokenBalanceAfter + expectedL2Costs);
+
+            const l2BaseTokenBalanceAfter = await alice.getBalance();
+            expect(l1EthBalanceBefore).toEqual(l1EthBalanceAfter + depositFee + amount);
+
+            // L2 balance for the base token increases do to some "overminting" of the base token
+            // We verify that the amount reduced on L1 is greater than the amount increased on L2
+            // so that we are not generating tokens out of thin air
+            const l1BaseTokenBalanceDiff = l1BaseTokenBalanceBefore - l1BaseTokenBalanceAfter;
+            const l2BaseTokenBalanceDiff = l2BaseTokenBalanceAfter - l2BaseTokenBalanceBefore;
+            expect(l1BaseTokenBalanceDiff).toBeGreaterThan(l2BaseTokenBalanceDiff);
+        }
     });
 
     test('Can perform a transfer (legacy pre EIP-155)', async () => {
