@@ -68,7 +68,6 @@ describe('Upgrade test', function () {
 
     // The chain admin contract on the settlement layer.
     let l1ChainAdminContract: ethers.Contract;
-    let slChainAdminAddress: string;
     // The diamond proxy contract on the settlement layer.
     let slMainContract: ethers.Contract;
 
