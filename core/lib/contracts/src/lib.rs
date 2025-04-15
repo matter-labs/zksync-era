@@ -104,7 +104,6 @@ fn read_file_to_json_value(path: impl AsRef<Path> + std::fmt::Debug) -> Option<s
 fn load_contract_if_present<P: AsRef<Path> + std::fmt::Debug>(path: P) -> Option<Contract> {
     let zksync_home = home_path();
     let path = Path::new(&zksync_home).join(path);
-    println!("PATH : {:#?}", path);
     path.exists().then(|| {
         serde_json::from_value(read_file_to_json_value(&path).unwrap()["abi"].take())
             .unwrap_or_else(|e| panic!("Failed to parse contract abi from file {:?}: {}", path, e))
