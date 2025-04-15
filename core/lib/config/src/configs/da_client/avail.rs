@@ -10,7 +10,7 @@ use zksync_basic_types::secrets::{APIKey, SeedPhrase};
 // FIXME: do URL params have reasonable defaults?
 
 #[derive(Clone, Debug, PartialEq, DescribeConfig, DeserializeConfig)]
-#[config(tag = "avail_client")]
+#[config(tag = "avail_client_type")]
 pub enum AvailClientConfig {
     FullClient(AvailDefaultConfig),
     GasRelay(AvailGasRelayConfig),

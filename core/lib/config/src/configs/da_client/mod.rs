@@ -7,7 +7,7 @@ pub mod celestia;
 pub mod eigen;
 
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
-#[config(tag = "type")]
+#[config(tag = "client")]
 pub enum DAClientConfig {
     Avail(AvailConfig),
     Celestia(CelestiaConfig),
@@ -26,22 +26,46 @@ impl From<AvailConfig> for DAClientConfig {
 mod tests {
     use std::time::Duration;
 
-    use smart_config::{testing::test, Yaml};
+    use smart_config::{testing::test, Environment, Yaml};
 
     use super::{avail::AvailClientConfig, eigen::PointsSource, *};
+    use crate::configs::object_store::ObjectStoreMode;
 
     #[test]
     fn no_da_config_from_yaml() {
-        let yaml = "type: NoDA";
+        let yaml = "client: NoDA";
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
         let config = test::<DAClientConfig>(yaml).unwrap();
         assert_eq!(config, DAClientConfig::NoDA);
     }
 
     #[test]
+    fn object_store_config_from_env() {
+        let env = r#"
+          DA_CLIENT="ObjectStore"
+          DA_BUCKET_BASE_URL="some/test/path"
+          DA_MODE="GCS"
+          DA_MAX_RETRIES="5"
+        "#;
+        let env = Environment::from_dotenv("test.env", env)
+            .unwrap()
+            .strip_prefix("DA_");
+
+        let config = test::<DAClientConfig>(env).unwrap();
+        let DAClientConfig::ObjectStore(config) = config else {
+            panic!("unexpected config: {config:?}");
+        };
+        assert_eq!(config.max_retries, 5);
+        let ObjectStoreMode::GCS { bucket_base_url } = &config.mode else {
+            panic!("Unexpected config: {config:?}");
+        };
+        assert_eq!(bucket_base_url, "some/test/path");
+    }
+
+    #[test]
     fn object_store_config_from_yaml() {
         let yaml = r#"
-          type: ObjectStore
+          client: ObjectStore
           mode: FileBacked
           file_backed_base_path: ./chains/era/artifacts/
           max_retries: 10
@@ -56,12 +80,39 @@ mod tests {
     }
 
     #[test]
+    fn avail_config_from_env() {
+        let env = r#"
+          DA_CLIENT="Avail"
+          DA_AVAIL_CLIENT_TYPE="FullClient"
+          DA_BRIDGE_API_URL="localhost:54321"
+          DA_TIMEOUT_MS="2000"
+          DA_API_NODE_URL="localhost:12345"
+          DA_APP_ID="1"
+        "#;
+        let env = Environment::from_dotenv("test.env", env)
+            .unwrap()
+            .strip_prefix("DA_");
+
+        let config = test::<DAClientConfig>(env).unwrap();
+        let DAClientConfig::Avail(config) = config else {
+            panic!("unexpected config: {config:?}");
+        };
+        assert_eq!(config.bridge_api_url, "localhost:54321");
+        assert_eq!(config.timeout, Duration::from_secs(2));
+        let AvailClientConfig::FullClient(client) = config.config else {
+            panic!("unexpected config: {config:?}");
+        };
+        assert_eq!(client.app_id, 1);
+        assert_eq!(client.api_node_url, "localhost:12345");
+    }
+
+    #[test]
     fn gas_relay_avail_config_from_yaml() {
         let yaml = r#"
-          type: Avail
+          client: Avail
           bridge_api_url: https://bridge-api.avail.so
           timeout_ms: 20000
-          avail_client: GasRelay
+          avail_client_type: GasRelay
           gas_relay_api_url: https://lens-turbo-api.availproject.org
           max_retries: 4
         "#;
@@ -86,10 +137,10 @@ mod tests {
     #[test]
     fn full_avail_config_from_yaml() {
         let yaml = r#"
-          type: Avail
+          client: Avail
           bridge_api_url: https://turing-bridge-api.avail.so
           timeout: 20s
-          avail_client: FullClient
+          avail_client_type: FullClient
           api_node_url: wss://turing-rpc.avail.so/ws
           app_id: 123456
         "#;
@@ -109,17 +160,56 @@ mod tests {
     }
 
     #[test]
+    fn eigen_config_from_env() {
+        let env = r#"
+          DA_CLIENT="Eigen"
+          DA_DISPERSER_RPC="http://localhost:8080"
+          DA_SETTLEMENT_LAYER_CONFIRMATION_DEPTH=0
+          DA_EIGENDA_ETH_RPC="http://localhost:8545"
+          DA_EIGENDA_SVC_MANAGER_ADDRESS="0x0000000000000000000000000000000000000123"
+          DA_WAIT_FOR_FINALIZATION=true
+          DA_AUTHENTICATED=false
+          DA_POINTS_SOURCE="Path"
+          DA_POINTS_PATH="./resources"
+          DA_CUSTOM_QUORUM_NUMBERS="2,3"
+        "#;
+        let env = Environment::from_dotenv("test.env", env)
+            .unwrap()
+            .strip_prefix("DA_");
+
+        let config = test::<DAClientConfig>(env).unwrap();
+        let DAClientConfig::Eigen(config) = config else {
+            panic!("unexpected config: {config:?}");
+        };
+
+        assert_eq!(config.disperser_rpc, "http://localhost:8080");
+        assert_eq!(config.settlement_layer_confirmation_depth, 0);
+        assert_eq!(
+            config.eigenda_eth_rpc.as_ref().unwrap().expose_str(),
+            "http://localhost:8545/"
+        );
+        assert!(config.wait_for_finalization);
+        assert!(!config.authenticated);
+
+        let PointsSource::Path { path } = &config.points else {
+            panic!("Unexpected config: {config:?}");
+        };
+        assert_eq!(path, "./resources");
+        assert_eq!(config.custom_quorum_numbers, [2, 3]);
+    }
+
+    #[test]
     fn eigen_config_from_yaml() {
         let yaml = r#"
-          type: Eigen
+          client: Eigen
           disperser_rpc: https://disperser-holesky.eigenda.xyz:443
           settlement_layer_confirmation_depth: 1
           eigenda_eth_rpc: https://holesky.infura.io/
           eigenda_svc_manager_address: 0xD4A7E1Bd8015057293f0D0A557088c286942e84b
           wait_for_finalization: true
           authenticated: true
-          points_source:
-            type: Url
+          points:
+            source: Url
             g1_url: https://raw.githubusercontent.com/lambdaclass/zksync-eigenda-tools/6944c9b09ae819167ee9012ca82866b9c792d8a1/resources/g1.point
             g2_url: https://raw.githubusercontent.com/lambdaclass/zksync-eigenda-tools/6944c9b09ae819167ee9012ca82866b9c792d8a1/resources/g2.point.powerOf2
         "#;
@@ -147,7 +237,7 @@ mod tests {
         );
         assert!(config.wait_for_finalization);
         assert!(config.authenticated);
-        let PointsSource::Url { g1_url, g2_url } = &config.points_source else {
+        let PointsSource::Url { g1_url, g2_url } = &config.points else {
             panic!("Unexpected config: {config:?}");
         };
         assert_eq!(g1_url, "https://raw.githubusercontent.com/lambdaclass/zksync-eigenda-tools/6944c9b09ae819167ee9012ca82866b9c792d8a1/resources/g1.point");

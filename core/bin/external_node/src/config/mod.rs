@@ -47,7 +47,7 @@ use zksync_web3_decl::{
     namespaces::{EnNamespaceClient, ZksNamespaceClient},
 };
 
-use crate::config::observability::ObservabilityENConfig;
+use self::observability::ObservabilityENConfig;
 
 pub(crate) mod observability;
 #[cfg(test)]
@@ -1171,10 +1171,19 @@ impl ExternalNodeConfig<()> {
         let mut consensus_schema = ConfigSchema::new(&ConsensusConfig::DESCRIPTION, "consensus");
         consensus_schema
             .insert(&ConsensusSecrets::DESCRIPTION, "secrets.consensus")
-            .context("cannot create config schema")?;
+            .context("cannot create consensus config schema")?;
         let repo = ConfigRepository::new(&consensus_schema).with_all(config_sources);
         let consensus = repo.single()?.parse_opt().log_all_errors()?;
         let consensus_secrets = repo.single()?.parse().log_all_errors()?;
+
+        let mut da_schema = ConfigSchema::new(&DAClientConfig::DESCRIPTION, "da");
+        da_schema
+            .insert(&DataAvailabilitySecrets::DESCRIPTION, "da")
+            .context("cannot create DA config schema")?;
+        let repo =
+            ConfigRepository::new(&da_schema).with(smart_config::Environment::prefixed("EN_"));
+        let da_config = repo.single()?.parse_opt().log_all_errors()?;
+        let da_secrets = repo.single()?.parse_opt().log_all_errors()?;
 
         Ok(Self {
             required: RequiredENConfig::from_env()?,
@@ -1192,8 +1201,7 @@ impl ExternalNodeConfig<()> {
                 .from_env::<TreeComponentConfig>()
                 .context("could not load external node config (tree component params)")?,
             consensus_secrets,
-            // FIXME: Deserialize DA config / secrets
-            data_availability: (None, None),
+            data_availability: (da_config, da_secrets),
             remote: (),
         })
     }
@@ -1252,7 +1260,7 @@ impl ExternalNodeConfig<()> {
         let api_component = ApiComponentConfig::from_configs(&general_config);
         let tree_component = TreeComponentConfig::from_configs(&general_config);
         let data_availability = (
-            None, // FIXME: Deserialize DA config
+            general_config.da_client_config,
             secrets_config.data_availability,
         );
 

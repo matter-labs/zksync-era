@@ -139,8 +139,6 @@ impl MainNodeBuilder {
             return Ok(PubdataType::Rollup);
         }
 
-        Ok(PubdataType::NoDA)
-        /* FIXME: support DA client config
         match self.configs.da_client_config.clone() {
             None => Err(anyhow::anyhow!("No config for DA client")),
             Some(da_client_config) => Ok(match da_client_config {
@@ -151,7 +149,6 @@ impl MainNodeBuilder {
                 DAClientConfig::NoDA => PubdataType::NoDA,
             }),
         }
-        */
     }
 
     fn add_sigint_handler_layer(mut self) -> anyhow::Result<Self> {
@@ -560,8 +557,11 @@ impl MainNodeBuilder {
             return Ok(self);
         }
 
-        // FIXME: Support DA client config
-        let da_client_config = DAClientConfig::NoDA;
+        let da_client_config = self
+            .configs
+            .da_client_config
+            .clone()
+            .context("No config for DA client")?;
 
         if matches!(da_client_config, DAClientConfig::NoDA) {
             self.node.add_layer(NoDAClientWiringLayer);

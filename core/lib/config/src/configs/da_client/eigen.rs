@@ -1,11 +1,11 @@
 use smart_config::{
-    de::{FromSecretString, Optional, Serde},
+    de::{Delimited, FromSecretString, Optional, Serde},
     DescribeConfig, DeserializeConfig,
 };
 use zksync_basic_types::{secrets::PrivateKey, url::SensitiveUrl, Address};
 
 #[derive(Clone, Debug, PartialEq, DescribeConfig, DeserializeConfig)]
-#[config(tag = "type")]
+#[config(tag = "source")]
 pub enum PointsSource {
     Path { path: String },
     Url { g1_url: String, g2_url: String },
@@ -33,9 +33,9 @@ pub struct EigenConfig {
     pub authenticated: bool,
     /// Points source
     #[config(nest)]
-    pub points_source: PointsSource,
+    pub points: PointsSource,
     /// Custom quorum numbers
-    #[config(default)]
+    #[config(default, with = Delimited(","))]
     pub custom_quorum_numbers: Vec<u8>,
 }
 

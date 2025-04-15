@@ -21,7 +21,7 @@ use crate::{
         FriWitnessGeneratorConfig, GenesisConfigWrapper, ObservabilityConfig, PrometheusConfig,
         ProofDataHandlerConfig, Secrets,
     },
-    ApiConfig, ContractVerifierConfig, ContractsConfig, DBConfig, EthConfig,
+    ApiConfig, ContractVerifierConfig, ContractsConfig, DAClientConfig, DBConfig, EthConfig,
     ExternalProofIntegrationApiConfig, ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
 };
 
@@ -65,8 +65,8 @@ pub struct GeneralConfig {
     pub snapshot_creator: Option<SnapshotsCreatorConfig>,
     #[config(nest)]
     pub observability: ObservabilityConfig,
-    //#[config(nest)]
-    //pub da_client_config: Option<DAClientConfig>,
+    #[config(nest, rename = "da_client")]
+    pub da_client_config: Option<DAClientConfig>,
     #[config(nest, rename = "da_dispatcher")]
     pub da_dispatcher_config: Option<DADispatcherConfig>,
     #[config(nest, rename = "protective_reads_writer")]
