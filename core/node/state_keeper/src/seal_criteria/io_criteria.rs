@@ -124,9 +124,11 @@ impl ProtocolUpgradeSealer {
         &mut self,
         manager: &UpdatesManager,
     ) -> anyhow::Result<bool> {
-        if manager.pending_executed_transactions_len() > 0
-            && manager.protocol_version() != manager.previous_batch_protocol_version()
-        {
+        if manager.pending_executed_transactions_len() == 0 {
+            return Ok(false);
+        }
+
+        if manager.protocol_version() != manager.previous_batch_protocol_version() {
             AGGREGATION_METRICS.l1_batch_reason_inc_criterion("first_batch_after_upgrade");
             return Ok(true);
         }
@@ -148,8 +150,7 @@ impl ProtocolUpgradeSealer {
             .protocol_version_id_by_timestamp(current_timestamp)
             .await
             .context("Failed loading protocol version")?;
-        let should_seal = manager.pending_executed_transactions_len() > 0
-            && protocol_version != manager.protocol_version();
+        let should_seal = protocol_version != manager.protocol_version();
         if should_seal {
             AGGREGATION_METRICS.l1_batch_reason_inc_criterion("last_batch_before_upgrade");
         }

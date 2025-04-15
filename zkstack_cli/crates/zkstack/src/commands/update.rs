@@ -1,7 +1,6 @@
 use std::path::Path;
 
 use anyhow::Context;
-use url::Url;
 use xshell::Shell;
 use zkstack_cli_common::{
     db::migrate_db,
@@ -184,11 +183,11 @@ async fn update_chain(
     }
 
     let secrets = chain.get_secrets_config().await?;
-    if let Some(url) = secrets.get_opt::<Url>("database.server_url")? {
+    if let Some(url) = secrets.core_database_url()? {
         let path_to_migration = chain.link_to_code.join(SERVER_MIGRATIONS);
         migrate_db(shell, path_to_migration, &url).await?;
     }
-    if let Some(url) = secrets.get_opt::<Url>("database.prover_url")? {
+    if let Some(url) = secrets.prover_database_url()? {
         let path_to_migration = chain.link_to_code.join(PROVER_MIGRATIONS);
         migrate_db(shell, path_to_migration, &url).await?;
     }

@@ -25,8 +25,8 @@ pub async fn run(shell: &Shell, args: RustArgs) -> anyhow::Result<()> {
 
     let (test_server_url, test_prover_url) = if let Ok(general_config) = general_config {
         (
-            general_config.get::<String>("postgres.test.server_url")?,
-            general_config.get::<String>("postgres.test.prover_url")?,
+            general_config.test_core_database_url()?,
+            general_config.test_prover_database_url()?,
         )
     } else {
         (

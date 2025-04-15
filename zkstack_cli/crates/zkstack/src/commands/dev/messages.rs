@@ -13,14 +13,6 @@ pub(super) const MSG_SUBCOMMAND_CLEAN: &str = "Clean artifacts";
 pub(super) const MSG_SUBCOMMAND_LINT_ABOUT: &str = "Lint code";
 pub(super) const MSG_CONTRACTS_ABOUT: &str = "Build contracts";
 pub(super) const MSG_CONFIG_WRITER_ABOUT: &str = "Overwrite general config";
-#[cfg(feature = "gateway")]
-pub(super) const MSG_GATEWAY_UPGRADE_CALLDATA: &str =
-    "Gateway upgrade checker and calldata generator";
-#[cfg(feature = "gateway")]
-pub(super) const MSG_GATEWAY_FINALIZE: &str = "Gateway upgrade post-stage2 finalization";
-
-#[cfg(feature = "gateway")]
-pub(super) const MSG_GATEWAY_REGISTER_L2_TOKENS: &str = "Gateway register legacy tokens on L2";
 
 #[cfg(feature = "v27_evm_interpreter")]
 pub(super) const MSG_V27_EVM_INTERPRETER_UPGRADE: &str =
