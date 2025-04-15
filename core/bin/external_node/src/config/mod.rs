@@ -1,14 +1,16 @@
 use std::{
     env,
     ffi::OsString,
+    fmt,
     future::Future,
     num::{NonZeroU32, NonZeroU64, NonZeroUsize},
     path::PathBuf,
+    str::FromStr,
     time::Duration,
 };
 
 use anyhow::Context;
-use serde::Deserialize;
+use serde::{de, Deserialize, Deserializer};
 use smart_config::{ConfigSchema, ConfigSources, DescribeConfig, Prefixed};
 use zksync_config::{
     configs::{
@@ -266,6 +268,17 @@ where
     }
 }
 
+fn deserialize_from_str<'de, T, D>(deserializer: D) -> Result<T, D::Error>
+where
+    T: FromStr,
+    T::Err: fmt::Display,
+    D: Deserializer<'de>,
+{
+    String::deserialize(deserializer)?
+        .parse()
+        .map_err(de::Error::custom)
+}
+
 /// This part of the external node config is completely optional to provide.
 /// It can tweak limits of the API, delay intervals of certain components, etc.
 /// If any of the fields are not provided, the default values will be used.
@@ -300,7 +313,10 @@ pub(crate) struct OptionalENConfig {
     #[serde(default = "OptionalENConfig::default_max_response_body_size_mb")]
     pub max_response_body_size_mb: usize,
     /// Method-specific overrides in MiBs for the maximum response body size.
-    #[serde(default = "MaxResponseSizeOverrides::empty")]
+    #[serde(
+        default = "MaxResponseSizeOverrides::empty",
+        deserialize_with = "deserialize_from_str"
+    )]
     max_response_body_size_overrides_mb: MaxResponseSizeOverrides,
 
     // Other API config settings
