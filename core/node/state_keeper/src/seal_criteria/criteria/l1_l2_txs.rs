@@ -33,7 +33,7 @@ impl SealCriterion for L1L2TxsCriterion {
 
     fn capacity_filled(
         &self,
-        config: &StateKeeperConfig,
+        _config: &StateKeeperConfig,
         _tx_count: usize,
         l1_tx_count: usize,
         _block_data: &SealData,
