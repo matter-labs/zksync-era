@@ -4,7 +4,10 @@ use zksync_types::Execute;
 use crate::{
     interface::{InspectExecutionMode, TxExecutionMode, VmInterface, VmInterfaceExt},
     versions::testonly::{
-        precompiles::{test_ecadd, test_ecmul, test_ecpairing,test_modexp, test_ecrecover, test_keccak, test_sha256},
+        precompiles::{
+            test_ecadd, test_ecmul, test_ecpairing, test_ecrecover, test_keccak, test_modexp,
+            test_sha256,
+        },
         VmTesterBuilder,
     },
     vm_fast::Vm,

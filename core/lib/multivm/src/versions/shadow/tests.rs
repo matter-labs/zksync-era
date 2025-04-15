@@ -588,7 +588,7 @@ mod precompiles {
     fn ecadd() {
         test_ecadd::<super::ShadowedFastVm>();
     }
-    
+
     #[test]
     fn ecmul() {
         test_ecmul::<super::ShadowedFastVm>();

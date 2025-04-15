@@ -216,7 +216,9 @@ pub(crate) fn test_ecpairing<VM: TestedVm>() {
     assert!(!exec_result.result.is_failed(), "{exec_result:#?}");
 
     let ecpairing_count = exec_result.statistics.circuit_statistic.ecpairing
-        * ProtocolGeometry::latest().config().cycles_per_ecpairing_circuit as f32;
+        * ProtocolGeometry::latest()
+            .config()
+            .cycles_per_ecpairing_circuit as f32;
     println!("{:?}", exec_result);
     println!("{:?}", ecpairing_count);
     assert!(ecpairing_count >= 0.001, "{ecpairing_count}");
@@ -253,7 +255,9 @@ pub(crate) fn test_modexp<VM: TestedVm>() {
     assert!(!exec_result.result.is_failed(), "{exec_result:#?}");
 
     let modexp_count = exec_result.statistics.circuit_statistic.modexp
-        * ProtocolGeometry::latest().config().cycles_per_modexp_circuit as f32;
+        * ProtocolGeometry::latest()
+            .config()
+            .cycles_per_modexp_circuit as f32;
     println!("{:?}", exec_result);
     println!("{:?}", modexp_count);
     assert!(modexp_count >= 0.001, "{modexp_count}");
