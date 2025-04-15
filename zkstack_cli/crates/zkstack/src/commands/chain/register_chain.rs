@@ -26,7 +26,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
     let mut contracts = chain_config.get_contracts_config()?;
     let secrets = chain_config.get_secrets_config().await?;
-    let l1_rpc_url = secrets.get("l1.l1_rpc_url")?;
+    let l1_rpc_url = secrets.l1_rpc_url()?;
     let spinner = Spinner::new(MSG_REGISTERING_CHAIN_SPINNER);
     register_chain(
         shell,

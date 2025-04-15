@@ -1,4 +1,5 @@
 use anyhow::Context as _;
+use chrono::{DateTime, Utc};
 use clap::Args as ClapArgs;
 use zksync_basic_types::{
     protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch},
@@ -36,6 +37,7 @@ pub async fn run(args: Args, config: ProverCLIConfig) -> anyhow::Result<()> {
             args.number,
             &format!("witness_inputs_{}", args.number.0),
             ProtocolSemanticVersion::new(protocol_version, protocol_version_patch),
+            DateTime::<Utc>::default(),
         )
         .await;
 

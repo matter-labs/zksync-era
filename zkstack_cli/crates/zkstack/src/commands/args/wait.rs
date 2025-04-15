@@ -47,10 +47,9 @@ impl WaitArgs {
             .await
     }
 
-    pub async fn poll_health_check(&self, port: u16, verbose: bool) -> anyhow::Result<()> {
+    pub async fn poll_health_check(&self, url: &str, verbose: bool) -> anyhow::Result<()> {
         let component = PolledComponent::HealthCheck;
-        let url = format!("http://127.0.0.1:{port}/health");
-        self.poll_with_timeout(component, self.poll_inner(component, &url, verbose))
+        self.poll_with_timeout(component, self.poll_inner(component, url, verbose))
             .await
     }
 
