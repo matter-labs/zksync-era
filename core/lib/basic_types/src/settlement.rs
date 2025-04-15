@@ -20,4 +20,8 @@ impl SettlementLayer {
             Self::L1(chain_id) | Self::Gateway(chain_id) => *chain_id,
         }
     }
+    pub fn for_tests() -> Self {
+        // 9 is a common chain id for localhost
+        Self::L1(SLChainId(9))
+    }
 }

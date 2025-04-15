@@ -1,5 +1,5 @@
 use zksync_contracts::{
-    hyperchain_contract, multicall_contract, server_notifier_contract,
+    hyperchain_contract, multicall_contract,
     state_transition_manager_contract, verifier_contract, POST_SHARED_BRIDGE_COMMIT_FUNCTION,
     POST_SHARED_BRIDGE_EXECUTE_FUNCTION, POST_SHARED_BRIDGE_PROVE_FUNCTION,
 };

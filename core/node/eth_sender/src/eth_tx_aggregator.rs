@@ -21,7 +21,7 @@ use zksync_types::{
     l2_to_l1_log::UserL2ToL1Log,
     protocol_version::{L1VerifierConfig, PACKED_SEMVER_MINOR_MASK},
     pubdata_da::PubdataSendingMode,
-    server_notification::{GatewayMigrationNotification, GatewayMigrationState},
+    server_notification::GatewayMigrationState,
     settlement::SettlementLayer,
     web3::{contract::Error as Web3ContractError, BlockNumber, CallRequest},
     Address, L2ChainId, ProtocolVersionId, SLChainId, H256, U256,
