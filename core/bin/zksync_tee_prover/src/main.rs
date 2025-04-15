@@ -44,8 +44,9 @@ fn main() -> anyhow::Result<()> {
         .add_layer(SigintHandlerLayer)
         .add_layer(TeeProverLayer::new(tee_prover_config));
 
-    let exporter_config = if let Some(gateway) = prometheus_config.gateway_endpoint() {
-        PrometheusExporterConfig::push(gateway, prometheus_config.push_interval())
+    let exporter_config = if let Some(base_url) = &prometheus_config.pushgateway_url {
+        let gateway_endpoint = PrometheusExporterConfig::gateway_endpoint(base_url);
+        PrometheusExporterConfig::push(gateway_endpoint, prometheus_config.push_interval())
     } else {
         PrometheusExporterConfig::pull(prometheus_config.listener_port)
     };

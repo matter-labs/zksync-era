@@ -313,3 +313,22 @@ impl RequestLimiters {
         }
     }
 }
+
+#[derive(Debug, Deserialize)]
+pub struct PrometheusConfig {
+    /// URL of the push gateway.
+    pub pushgateway_url: String,
+    /// Push interval in ms.
+    #[serde(default = "PrometheusConfig::default_push_interval_ms")]
+    pub push_interval_ms: u64,
+}
+
+impl PrometheusConfig {
+    const fn default_push_interval_ms() -> u64 {
+        100
+    }
+
+    pub fn from_env() -> Option<Self> {
+        envy::prefixed("PROMETHEUS_").from_env().ok()
+    }
+}
