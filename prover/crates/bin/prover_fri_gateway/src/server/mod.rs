@@ -8,7 +8,7 @@ use axum::{
 };
 use error::ProcessorError;
 use tokio::sync::watch;
-use zksync_prover_interface::api::{ProofGenerationData, SubmitProofRequest};
+use zksync_prover_interface::api::{NextProof, ProofGenerationData};
 use zksync_types::L1BatchNumber;
 
 mod error;
@@ -52,7 +52,7 @@ impl Api {
         .with_graceful_shutdown(async move {
             if stop_receiver.changed().await.is_err() {
                 tracing::warn!("Stop signal sender for prover gateway API server was dropped without sending a signal");
-            }
+            } 
             tracing::info!("Stop signal received, prover gateway API server is shutting down");
         })
         .await
@@ -63,8 +63,19 @@ impl Api {
 
     async fn get_next_proof(
         State(processor): State<Processor>,
-    ) -> Result<Json<Option<(L1BatchNumber, SubmitProofRequest)>>, ProcessorError> {
-        processor.get_next_proof().await.map(Json)
+    ) -> Result<Json<Option<NextProof>>, ProcessorError> {
+        let proof = processor.get_next_proof().await;
+
+        if let Some((l1_batch_number, request)) = proof? {
+            let response = NextProof {
+                l1_batch_number,
+                request,
+            };
+
+            Ok(Json(Some(response)))
+        } else {
+            Ok(Json(None))
+        }
     }
 
     async fn submit_proof_generation_data(
