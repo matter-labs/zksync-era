@@ -1,9 +1,9 @@
+use anyhow::Context;
 use ethers::utils::hex;
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::{web3::Bytes, Address};
-use zksync_config::configs::contracts::gateway::GatewayConfig;
 
-use crate::{traits::ZkStackConfig, ChainConfig, ContractsConfig};
+use crate::{gateway::GatewayConfig, traits::ZkStackConfig, ChainConfig, ContractsConfig};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GatewayPreparationConfig {
@@ -38,7 +38,7 @@ impl GatewayPreparationConfig {
             ctm_deployment_tracker_proxy_addr: contracts
                 .ecosystem_contracts
                 .stm_deployment_tracker_proxy_addr
-                .expect("stm_deployment_tracker_proxy_addr"),
+                .context("stm_deployment_tracker_proxy_addr")?,
             chain_type_manager_proxy_addr: contracts
                 .ecosystem_contracts
                 .state_transition_proxy_addr,
@@ -48,23 +48,20 @@ impl GatewayPreparationConfig {
             chain_proxy_admin: chain_contracts_config
                 .l1
                 .chain_proxy_admin_addr
-                .expect("chain_proxy_admin_addr"),
+                .context("chain_proxy_admin_addr")?,
             chain_admin: chain_contracts_config.l1.chain_admin_addr,
             access_control_restriction: chain_contracts_config
                 .l1
                 .access_control_restriction_addr
-                .expect("access_control_restriction_addr"),
+                .context("access_control_restriction_addr")?,
             l1_nullifier_proxy_addr: chain_contracts_config
                 .bridges
                 .l1_nullifier_addr
-                .expect("l1_nullifier_addr"),
+                .context("l1_nullifier_addr")?,
             l1_diamond_cut_data: hex::decode(
-                chain_contracts_config
-                    .ecosystem_contracts
-                    .diamond_cut_data
-                    .clone(),
+                &chain_contracts_config.ecosystem_contracts.diamond_cut_data,
             )
-            .unwrap()
+            .context("diamond_cut_data")?
             .into(),
         })
     }

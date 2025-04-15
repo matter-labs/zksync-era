@@ -123,7 +123,6 @@ describe('snapshot recovery', () => {
 
         ethRpcUrl = secretsConfig.l1.l1_rpc_url;
         apiWeb3JsonRpcHttpUrl = generalConfig.api.web3_json_rpc.http_url;
-
         externalNodeUrl = externalNodeGeneralConfig.api.web3_json_rpc.http_url;
         extNodeHealthUrl = `http://127.0.0.1:${externalNodeGeneralConfig.api.healthcheck.port}/health`;
 

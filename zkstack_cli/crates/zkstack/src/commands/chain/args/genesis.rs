@@ -65,7 +65,7 @@ impl GenesisArgs {
         chain_config: &ChainConfig,
     ) -> anyhow::Result<GenesisArgsFinal> {
         let secrets = chain_config.get_secrets_config().await?;
-        let server_url = secrets.get_opt::<Url>("database.server_url")?;
+        let server_url = secrets.core_database_url()?;
 
         let (server_db_url, server_db_name) = if let Some(db_full_url) = &server_url {
             let db_config =

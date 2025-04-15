@@ -5,6 +5,7 @@ use std::{
 };
 
 use anyhow::Context;
+use chrono::{DateTime, Utc};
 use clap::Parser;
 use once_cell::sync::Lazy;
 use regex::Regex;
@@ -159,6 +160,7 @@ fn get_metadata(path: &Path) -> anyhow::Result<FriProverJobMetadata> {
         depth: caps["depth"].parse()?,
         is_node_final_proof: false,
         pick_time: Instant::now(),
+        batch_sealed_at: DateTime::<Utc>::default(),
     })
 }
 
@@ -172,6 +174,7 @@ fn witness_vector_filename(metadata: FriProverJobMetadata) -> String {
         depth,
         is_node_final_proof: _,
         pick_time: _,
+        batch_sealed_at: _,
     } = metadata;
     format!("{block_number}_{sequence_number}_{circuit_id}_{aggregation_round:?}_{depth}.witness_vector")
 }

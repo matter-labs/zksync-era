@@ -295,7 +295,7 @@ jobs:
           --base-token-price-denominator 1 \
           --set-as-default false \
           --ignore-prerequisites \
-          --evm-emulator false
+          --evm-emulator true
 
           ci_run zkstack chain init \
           --deploy-paymaster \
@@ -477,11 +477,6 @@ jobs:
           ci_run zkstack consensus wait-for-registry --ignore-prerequisites --verbose --chain consensus
           ci_run zkstack consensus set-attester-committee --chain consensus --ignore-prerequisites --verbose --from-genesis &> ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/consensus.log 
 
-      - name: Enable EVM emulator for some chains
-        run: |
-          ci_run zkstack chain enable-evm-emulator --chain era
-          ci_run zkstack chain enable-evm-emulator --chain validium
-
       - name: Run integration tests
         run: |
           ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --verbose --no-deps --ignore-prerequisites" \
@@ -613,4 +608,6 @@ jobs:
         if: always()
         with:
           name: logs_${{matrix.use_gateway_chain}}
-          path: logs
+          path: |
+            logs/
+            chains/*/artifacts/vm_dumps/

@@ -1,12 +1,25 @@
 use anyhow::Context;
 use serde::{Deserialize, Serialize};
-use zksync_basic_types::{protocol_version::ProtocolSemanticVersion, Address, L1ChainId, H256};
-use zksync_config::{
-    configs::chain::{NetworkConfig, StateKeeperConfig},
-    GenesisConfig,
+use zksync_basic_types::{
+    network::Network, protocol_version::ProtocolSemanticVersion, Address, L1ChainId, L2ChainId,
+    H256,
 };
+use zksync_config::{configs::chain::StateKeeperConfig, GenesisConfig};
 
 use crate::{envy_load, FromEnv};
+
+/// Network-related env vars used to initialize the genesis config.
+#[derive(Debug, Deserialize)]
+struct NetworkConfig {
+    network: Network,
+    zksync_network_id: L2ChainId,
+}
+
+impl FromEnv for NetworkConfig {
+    fn from_env() -> anyhow::Result<Self> {
+        envy_load("network", "CHAIN_ETH_")
+    }
+}
 
 // For initializing genesis file from  env it's required to have an additional struct,
 // because these data is not required as part of the current Contract Config
