@@ -1,13 +1,12 @@
 use std::collections::HashMap;
 
+use anyhow::Context;
 use async_trait::async_trait;
-use zksync_prover_dal::{Connection, Prover, ProverDal};
+use zksync_prover_dal::ProverDal;
+use zksync_prover_fri_utils::task_wiring::{ProvideConnection, Task};
 use zksync_types::{basic_fri_types::CircuitIdRoundTuple, prover_dal::JobCountStatistics};
 
-use crate::{
-    metrics::{ProverJobsLabels, FRI_PROVER_METRICS},
-    task_wiring::Task,
-};
+use crate::metrics::{ProverJobsLabels, FRI_PROVER_METRICS};
 
 /// `ProverQueueReporter` is a task that reports prover jobs status.
 /// Note: these values will be used for auto-scaling provers and Witness Vector Generators.
@@ -16,7 +15,14 @@ pub struct ProverQueueReporter;
 
 #[async_trait]
 impl Task for ProverQueueReporter {
-    async fn invoke(&self, connection: &mut Connection<Prover>) -> anyhow::Result<()> {
+    async fn invoke(
+        &self,
+        connection_provider: Option<&(dyn ProvideConnection + Send + Sync)>,
+    ) -> anyhow::Result<()> {
+        let mut connection = connection_provider
+            .context("requires a connection provider")?
+            .get()
+            .await?;
         let stats = connection
             .fri_prover_jobs_dal()
             .get_prover_jobs_stats()

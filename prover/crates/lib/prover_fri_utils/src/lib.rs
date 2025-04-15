@@ -4,6 +4,7 @@ use zksync_prover_fri_types::circuit_definitions::{
 };
 
 pub mod metrics;
+pub mod task_wiring;
 
 // TODO: This should be moved into harness, once done the entire module can be removed.
 // Note, metrics.rs can be moved to WG.

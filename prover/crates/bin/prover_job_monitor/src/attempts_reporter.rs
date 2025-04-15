@@ -1,15 +1,14 @@
+use anyhow::Context;
 use async_trait::async_trait;
 use zksync_config::configs::{
     FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig,
 };
 use zksync_db_connection::connection::Connection;
 use zksync_prover_dal::{Prover, ProverDal};
+use zksync_prover_fri_utils::task_wiring::{ProvideConnection, Task};
 use zksync_types::basic_fri_types::AggregationRound;
 
-use crate::{
-    metrics::{JobType, PROVER_JOB_MONITOR_METRICS},
-    task_wiring::Task,
-};
+use crate::metrics::{JobType, PROVER_JOB_MONITOR_METRICS};
 
 pub struct ProverJobAttemptsReporter {
     pub prover_config: FriProverConfig,
@@ -112,21 +111,35 @@ impl ProverJobAttemptsReporter {
 
 #[async_trait]
 impl Task for ProverJobAttemptsReporter {
-    async fn invoke(&self, connection: &mut Connection<Prover>) -> anyhow::Result<()> {
-        self.check_witness_generator_job_attempts(connection, AggregationRound::BasicCircuits)
+    async fn invoke(
+        &self,
+        connection_provider: Option<&(dyn ProvideConnection + Send + Sync)>,
+    ) -> anyhow::Result<()> {
+        let mut connection = connection_provider
+            .context("requires a connection provider")?
+            .get()
             .await?;
-        self.check_witness_generator_job_attempts(connection, AggregationRound::LeafAggregation)
+        self.check_witness_generator_job_attempts(&mut connection, AggregationRound::BasicCircuits)
             .await?;
-        self.check_witness_generator_job_attempts(connection, AggregationRound::NodeAggregation)
+        self.check_witness_generator_job_attempts(
+            &mut connection,
+            AggregationRound::LeafAggregation,
+        )
+        .await?;
+        self.check_witness_generator_job_attempts(
+            &mut connection,
+            AggregationRound::NodeAggregation,
+        )
+        .await?;
+        self.check_witness_generator_job_attempts(&mut connection, AggregationRound::RecursionTip)
             .await?;
-        self.check_witness_generator_job_attempts(connection, AggregationRound::RecursionTip)
-            .await?;
-        self.check_witness_generator_job_attempts(connection, AggregationRound::Scheduler)
+        self.check_witness_generator_job_attempts(&mut connection, AggregationRound::Scheduler)
             .await?;
 
-        self.check_prover_job_attempts(connection).await?;
+        self.check_prover_job_attempts(&mut connection).await?;
 
-        self.check_proof_compressor_job_attempts(connection).await?;
+        self.check_proof_compressor_job_attempts(&mut connection)
+            .await?;
 
         Ok(())
     }

@@ -1,11 +1,13 @@
+use anyhow::Context;
 use async_trait::async_trait;
-use zksync_prover_dal::{Connection, Prover, ProverDal};
+use zksync_prover_dal::ProverDal;
+use zksync_prover_fri_utils::task_wiring::{ProvideConnection, Task};
 use zksync_types::{
     basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion,
     prover_dal::JobCountStatistics,
 };
 
-use crate::{metrics::SERVER_METRICS, task_wiring::Task};
+use crate::metrics::SERVER_METRICS;
 
 /// `WitnessGeneratorQueueReporter` is a task that reports witness generator jobs status.
 ///
@@ -54,7 +56,14 @@ impl WitnessGeneratorQueueReporter {
 
 #[async_trait]
 impl Task for WitnessGeneratorQueueReporter {
-    async fn invoke(&self, connection: &mut Connection<Prover>) -> anyhow::Result<()> {
+    async fn invoke(
+        &self,
+        connection_provider: Option<&(dyn ProvideConnection + Send + Sync)>,
+    ) -> anyhow::Result<()> {
+        let mut connection = connection_provider
+            .context("requires a connection provider")?
+            .get()
+            .await?;
         for round in AggregationRound::ALL_ROUNDS {
             let stats = connection
                 .fri_witness_generator_dal()

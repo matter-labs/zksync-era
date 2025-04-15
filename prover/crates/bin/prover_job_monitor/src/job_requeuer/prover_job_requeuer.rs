@@ -1,9 +1,11 @@
 use std::time::Duration;
 
+use anyhow::Context;
 use async_trait::async_trait;
-use zksync_prover_dal::{Connection, Prover, ProverDal};
+use zksync_prover_dal::ProverDal;
+use zksync_prover_fri_utils::task_wiring::{ProvideConnection, Task};
 
-use crate::{metrics::SERVER_METRICS, task_wiring::Task};
+use crate::metrics::SERVER_METRICS;
 
 /// `ProverJobRequeuer` is a task that requeues prover jobs that have not made progress in a given unit of time.
 #[derive(Debug)]
@@ -25,7 +27,14 @@ impl ProverJobRequeuer {
 
 #[async_trait]
 impl Task for ProverJobRequeuer {
-    async fn invoke(&self, connection: &mut Connection<Prover>) -> anyhow::Result<()> {
+    async fn invoke(
+        &self,
+        connection_provider: Option<&(dyn ProvideConnection + Send + Sync)>,
+    ) -> anyhow::Result<()> {
+        let mut connection = connection_provider
+            .context("requires a connection provider")?
+            .get()
+            .await?;
         let stuck_jobs = connection
             .fri_prover_jobs_dal()
             .requeue_stuck_jobs(self.processing_timeout, self.max_attempts)

@@ -1,9 +1,11 @@
 use std::time::Duration;
 
+use anyhow::Context;
 use async_trait::async_trait;
-use zksync_prover_dal::{Connection, Prover, ProverDal};
+use zksync_prover_dal::ProverDal;
+use zksync_prover_fri_utils::task_wiring::{ProvideConnection, Task};
 
-use crate::{metrics::PROVER_FRI_METRICS, task_wiring::Task};
+use crate::metrics::PROVER_FRI_METRICS;
 
 /// `ProofCompressorJobRequeuer` is a task that requeues compressor jobs that have not made progress in a given unit of time.
 #[derive(Debug)]
@@ -25,7 +27,14 @@ impl ProofCompressorJobRequeuer {
 
 #[async_trait]
 impl Task for ProofCompressorJobRequeuer {
-    async fn invoke(&self, connection: &mut Connection<Prover>) -> anyhow::Result<()> {
+    async fn invoke(
+        &self,
+        connection_provider: Option<&(dyn ProvideConnection + Send + Sync)>,
+    ) -> anyhow::Result<()> {
+        let mut connection = connection_provider
+            .context("requires a connection provider")?
+            .get()
+            .await?;
         let stuck_jobs = connection
             .fri_proof_compressor_dal()
             .requeue_stuck_jobs(self.processing_timeout, self.max_attempts)

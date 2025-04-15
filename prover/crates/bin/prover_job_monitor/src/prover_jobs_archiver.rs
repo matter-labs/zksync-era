@@ -1,8 +1,10 @@
 use std::time::Duration;
 
-use zksync_prover_dal::{Connection, Prover, ProverDal};
+use anyhow::Context;
+use zksync_prover_dal::ProverDal;
+use zksync_prover_fri_utils::task_wiring::{ProvideConnection, Task};
 
-use crate::{metrics::PROVER_JOB_MONITOR_METRICS, task_wiring::Task};
+use crate::metrics::PROVER_JOB_MONITOR_METRICS;
 
 /// `ProverJobsArchiver` is a task that archives old finalized prover job.
 ///
@@ -22,7 +24,14 @@ impl ProverJobsArchiver {
 
 #[async_trait::async_trait]
 impl Task for ProverJobsArchiver {
-    async fn invoke(&self, connection: &mut Connection<Prover>) -> anyhow::Result<()> {
+    async fn invoke(
+        &self,
+        connection_provider: Option<&(dyn ProvideConnection + Send + Sync)>,
+    ) -> anyhow::Result<()> {
+        let mut connection = connection_provider
+            .context("requires a connection provider")?
+            .get()
+            .await?;
         let archived_jobs = connection
             .fri_prover_jobs_dal()
             .archive_old_jobs(self.archive_jobs_after)

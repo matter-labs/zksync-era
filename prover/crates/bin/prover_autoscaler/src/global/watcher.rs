@@ -9,11 +9,12 @@ use reqwest::{
 use tokio::sync::Mutex;
 use url::Url;
 
+use zksync_prover_fri_utils::task_wiring::{ProvideConnection, Task};
+
 use crate::{
     agent::{ScaleRequest, ScaleResponse},
     cluster_types::{Cluster, ClusterName, Clusters},
     http_client::HttpClient,
-    task_wiring::Task,
 };
 
 #[derive(Default)]
@@ -157,7 +158,10 @@ impl Watcher {
 
 #[async_trait::async_trait]
 impl Task for Watcher {
-    async fn invoke(&self) -> anyhow::Result<()> {
+    async fn invoke(
+        &self,
+        _connection_provider: Option<&(dyn ProvideConnection + Send + Sync)>,
+    ) -> anyhow::Result<()> {
         let handles: Vec<_> = self
             .cluster_agents
             .clone()

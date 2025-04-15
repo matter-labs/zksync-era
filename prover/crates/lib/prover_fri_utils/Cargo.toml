@@ -26,3 +26,5 @@ reqwest-middleware.workspace = true
 reqwest-retry.workspace = true
 regex.workspace = true
 anyhow.workspace = true
+tokio = { workspace = true, features = ["time", "macros"] }
+async-trait.workspace = true

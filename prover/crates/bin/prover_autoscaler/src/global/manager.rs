@@ -1,5 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
+use zksync_prover_fri_utils::task_wiring::{ProvideConnection, Task};
+
 use super::{
     queuer,
     scaler::{Scaler, ScalerConfig, ScalerTrait},
@@ -11,7 +13,6 @@ use crate::{
     config::{ProverAutoscalerScalerConfig, QueueReportFields, ScalerTargetType},
     key::{GpuKey, NoKey},
     metrics::AUTOSCALER_METRICS,
-    task_wiring::Task,
 };
 
 pub struct Manager {
@@ -94,7 +95,10 @@ impl Manager {
 
 #[async_trait::async_trait]
 impl Task for Manager {
-    async fn invoke(&self) -> anyhow::Result<()> {
+    async fn invoke(
+        &self,
+        _connection_provider: Option<&(dyn ProvideConnection + Send + Sync)>,
+    ) -> anyhow::Result<()> {
         let queue = self.queuer.get_queue(&self.jobs).await.unwrap();
 
         let mut scale_requests: HashMap<ClusterName, ScaleRequest> = HashMap::new();

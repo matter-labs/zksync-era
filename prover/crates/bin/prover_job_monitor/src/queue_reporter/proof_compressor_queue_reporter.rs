@@ -1,13 +1,12 @@
 use std::collections::HashMap;
 
+use anyhow::Context;
 use async_trait::async_trait;
 use zksync_prover_dal::{Connection, Prover, ProverDal};
+use zksync_prover_fri_utils::task_wiring::{ProvideConnection, Task};
 use zksync_types::{protocol_version::ProtocolSemanticVersion, prover_dal::JobCountStatistics};
 
-use crate::{
-    metrics::{JobStatus, PROVER_FRI_METRICS},
-    task_wiring::Task,
-};
+use crate::metrics::{JobStatus, PROVER_FRI_METRICS};
 
 /// `ProofCompressorQueueReporter` is a task that reports compression jobs status.
 /// Note: these values will be used for auto-scaling proof compressor.
@@ -24,8 +23,15 @@ impl ProofCompressorQueueReporter {
 
 #[async_trait]
 impl Task for ProofCompressorQueueReporter {
-    async fn invoke(&self, connection: &mut Connection<Prover>) -> anyhow::Result<()> {
-        let stats = Self::get_job_statistics(connection).await;
+    async fn invoke(
+        &self,
+        connection_provider: Option<&(dyn ProvideConnection + Send + Sync)>,
+    ) -> anyhow::Result<()> {
+        let mut connection = connection_provider
+            .context("requires a connection provider")?
+            .get()
+            .await?;
+        let stats = Self::get_job_statistics(&mut connection).await;
 
         for (protocol_version, stats) in &stats {
             if stats.queued > 0 {
