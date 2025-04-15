@@ -224,7 +224,7 @@ impl RemoteENConfig {
                 .map(|a| a.dummy_verifier)
                 .unwrap_or_default(),
             l2_timestamp_asserter_addr: timestamp_asserter_address,
-            l1_message_root_proxy_addr: ecosystem_contracts
+            l1_message_root_proxy_addr: l1_ecosystem_contracts
                 .as_ref()
                 .and_then(|a| a.message_root_proxy_addr),
         })
@@ -1551,6 +1551,7 @@ impl ExternalNodeConfig {
                 bridgehub_proxy_addr: self.remote.l1_bridgehub_proxy_addr,
                 state_transition_proxy_addr: self.remote.l1_state_transition_proxy_addr,
                 server_notifier_addr: self.remote.l1_server_notifier_addr,
+                message_root_proxy_addr: self.remote.l1_message_root_proxy_addr,
                 // Multicall 3 is useless for external node
                 multicall3: None,
                 validator_timelock_addr: None,
