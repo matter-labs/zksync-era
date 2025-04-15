@@ -6,8 +6,12 @@ use proof_gen_data_fetcher::ProofGenDataFetcher;
 use proof_submitter::ProofSubmitter;
 use tokio::sync::{oneshot, watch};
 use traits::PeriodicApi as _;
-use zksync_core_leftovers::temp_config_store::{load_database_secrets, load_general_config};
-use zksync_env_config::object_store::ProverObjectStoreConfig;
+use zksync_config::{
+    configs::{DatabaseSecrets, GeneralConfig, ObservabilityConfig},
+    full_config_schema,
+    sources::ConfigFilePaths,
+    ConfigRepository, ParseResultExt,
+};
 use zksync_object_store::ObjectStoreFactory;
 use zksync_prover_dal::{ConnectionPool, Prover};
 use zksync_task_management::ManagedTasks;
@@ -22,14 +26,22 @@ mod traits;
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let opt = Cli::parse();
+    let schema = full_config_schema(false);
+    let config_file_paths = ConfigFilePaths {
+        general: opt.config_path,
+        secrets: opt.secrets_path,
+        ..ConfigFilePaths::default()
+    };
+    let config_sources = config_file_paths.into_config_sources("")?;
 
-    let general_config = load_general_config(opt.config_path).context("general config")?;
-    let database_secrets = load_database_secrets(opt.secrets_path).context("database secrets")?;
-
-    let observability_config = general_config
-        .observability
-        .context("observability config")?;
+    let observability_config =
+        ObservabilityConfig::from_sources(config_sources.clone()).context("ObservabilityConfig")?;
     let _observability_guard = observability_config.install()?;
+
+    let mut repo = ConfigRepository::new(&schema).with_all(config_sources);
+    repo.deserializer_options().coerce_variant_names = true;
+    let general_config: GeneralConfig = repo.single()?.parse().log_all_errors()?;
+    let database_secrets: DatabaseSecrets = repo.single()?.parse().log_all_errors()?;
 
     let config = general_config
         .prover_gateway
@@ -43,14 +55,11 @@ async fn main() -> anyhow::Result<()> {
     .build()
     .await
     .context("failed to build a connection pool")?;
-    let object_store_config = ProverObjectStoreConfig(
-        general_config
-            .prover_config
-            .context("prover config")?
-            .prover_object_store
-            .context("object store")?,
-    );
-    let store_factory = ObjectStoreFactory::new(object_store_config.0);
+    let object_store_config = general_config
+        .prover_config
+        .context("prover config")?
+        .prover_object_store;
+    let store_factory = ObjectStoreFactory::new(object_store_config);
 
     let proof_submitter = ProofSubmitter::new(
         store_factory.create_store().await?,

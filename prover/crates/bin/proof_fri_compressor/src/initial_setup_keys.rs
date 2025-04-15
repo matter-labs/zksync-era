@@ -38,10 +38,10 @@ fn download_initial_setup(key_download_url: &str) -> reqwest::Result<Vec<u8>> {
 
 #[tracing::instrument(skip_all)]
 pub fn download_initial_setup_keys_if_not_present(
-    initial_setup_key_path: &str,
+    initial_setup_key_path: &Path,
     key_download_url: &str,
 ) {
-    if Path::new(initial_setup_key_path).exists() {
+    if initial_setup_key_path.exists() {
         tracing::info!(
             "Initial setup already present at {:?}",
             initial_setup_key_path
@@ -50,7 +50,7 @@ pub fn download_initial_setup_keys_if_not_present(
     }
 
     let bytes = download_initial_setup(key_download_url).expect("Failed downloading initial setup");
-    let initial_setup_key_dir = Path::new(initial_setup_key_path).parent().unwrap();
+    let initial_setup_key_dir = initial_setup_key_path.parent().unwrap();
     create_dir_all(initial_setup_key_dir).unwrap_or_else(|_| {
         panic!(
             "Failed creating dirs recursively: {:?}",

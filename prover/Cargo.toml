@@ -85,7 +85,6 @@ zksync_basic_types = { path = "../core/lib/basic_types" }
 zksync_config = { path = "../core/lib/config" }
 zksync_dal = { path = "../core/lib/dal" }
 zksync_db_connection = { path = "../core/lib/db_connection" }
-zksync_env_config = { path = "../core/lib/env_config" }
 zksync_object_store = { path = "../core/lib/object_store" }
 zksync_prover_interface = { path = "../core/lib/prover_interface" }
 zksync_queued_job_processor = { path = "../core/lib/queued_job_processor" }
