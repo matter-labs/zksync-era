@@ -8,7 +8,8 @@ use zksync_dal::{CoreDal, DalError};
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_types::{
     api::{
-        ChainAggProof, DataAvailabilityDetails, L1ToL2TxsStatus, TeeProof, TransactionExecutionInfo,
+        ChainAggProof, DataAvailabilityDetails, GatewayMigrationStatus, L1ToL2TxsStatus, TeeProof,
+        TransactionExecutionInfo,
     },
     tee_types::TeeType,
     L1BatchNumber, L2ChainId,
@@ -193,5 +194,26 @@ impl UnstableNamespace {
             l1_to_l2_txs_paused: self.state.api_config.l1_to_l2_txs_paused,
             l1_to_l2_txs_in_mempool,
         })
+    }
+
+    pub async fn gateway_migration_status_impl(&self) -> Result<GatewayMigrationStatus> {
+        let mut connection = self.state.acquire_connection().await?;
+
+        let latest_event = connection
+            .server_notifications_dal()
+            .get_latest_gateway_migration_event()
+            .await
+            .unwrap();
+
+        let state = GatewayMigrationState::from_sl_and_notification(
+            self.state.api_config.settlement_layer,
+            latest_notification,
+        );
+
+        GatewayMigrationStatus {
+            latest_event,
+            state,
+            settlement_layer: self.state.api_config.settlement_layer,
+        }
     }
 }

@@ -8,8 +8,8 @@ use ethers::{
     middleware::SignerMiddleware,
     providers::{Http, Middleware, Provider},
     signers::{LocalWallet, Signer},
-    types::{Bytes, TransactionReceipt, TransactionRequest},
-    utils::hex,
+    types::{Bytes, Filter, TransactionReceipt, TransactionRequest},
+    utils::{hex, keccak256},
 };
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
@@ -29,11 +29,16 @@ use zksync_basic_types::{Address, H256, U256, U64};
 use zksync_config::configs::gateway::GatewayChainConfig;
 use zksync_contracts::chain_admin_contract;
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
-use zksync_types::{address_to_u256, u256_to_address};
+use zksync_types::{
+    address_to_u256, h256_to_u256, server_notification::GatewayMigrationNotification,
+    u256_to_address, u256_to_h256, web3::ValueOrArray,
+};
+use zksync_web3_decl::namespaces::UnstableNamespaceClient;
 
 use super::{
     admin_call_builder::{self, AdminCall, AdminCallBuilder},
     notify_server_calldata::{get_notify_server_calls, NotifyServerCalldataArgs},
+    utils::get_zk_client,
 };
 use crate::{
     accept_ownership::{
@@ -85,6 +90,7 @@ abigen!(
     r"[
     function validatorTimelock()(address)
     function forwardedBridgeMint(uint256 _chainId,bytes calldata _ctmData)(address)
+    function serverNotifierAddress()(address)
 ]"
 );
 
@@ -94,6 +100,25 @@ abigen!(
     function validators(uint256 _chainId, address _validator)(bool)
 ]"
 );
+
+/// Each migration to or from ZK gateway has multiple states it can be in.
+enum GatewayMigrationState {
+    /// The state that represents that the migration has not yet started.
+    NotStarted,
+    /// The chain admin has sent the notification
+    NotificationSent,
+    /// The server has received the notification
+    NotificationReceived,
+    /// The server has received the notification and has no pending transactions
+    ServerReady,
+    /// The server is ready and the migration has started, but the server has not started sending transactions
+    /// to the new settlement layer yet.
+    AwaitingFinalization,
+    /// (Only for migration from Gateway): the migration has been complete on the GW, but needs to be finalized on L1
+    PendingL1Finalization,
+    /// The migration has finished.
+    Finished,
+}
 
 const IS_PERMANENT_ROLLUP_SLOT: u64 = 57;
 
@@ -126,6 +151,129 @@ async fn precompute_chain_address_on_gateway(
         .await?;
 
     Ok(result)
+}
+
+const EVENTS_BLOCK_RANGE: u64 = 50_000;
+
+async fn get_latest_notification_event_from_l1(
+    l2_chain_id: u64,
+    l1_ctm: ChainTypeManagerAbi<Provider<Http>>,
+    l1_provider: Arc<Provider<Http>>,
+) -> anyhow::Result<Option<GatewayMigrationNotification>> {
+    logger::info("Searching for the latest migration notifications...");
+    let server_notifier_address = l1_ctm.server_notifier_address().await?;
+
+    // Get the latest block so we know how far we can go
+    let latest_block = l1_provider
+        .get_block_number()
+        .await
+        .expect("Failed to fetch latest block")
+        .as_u64();
+
+    let filter = Filter::new()
+        .address(server_notifier_address)
+        .topic0(ethers::types::ValueOrArray::Array(
+            GatewayMigrationNotification::get_server_notifier_topics(),
+        ))
+        .from_block(latest_block.saturating_sub(EVENTS_BLOCK_RANGE))
+        .topic1(u256_to_h256(U256::from(l2_chain_id)))
+        .to_block(latest_block);
+
+    let mut result_logs = l1_provider.get_logs(&filter).await?;
+
+    if result_logs.is_empty() {
+        return Ok(None);
+    }
+    let latest_log = result_logs.pop().unwrap();
+
+    let result = GatewayMigrationNotification::from_topic(latest_log.topics[0])
+        .expect("Failed to parse event");
+
+    match result {
+        GatewayMigrationNotification::FromGateway => {
+            logger::info(format!(
+                "Latest event is MigrationDirection::FromGateway at tx {:#?}",
+                latest_log.transaction_hash
+            ));
+        }
+        GatewayMigrationNotification::ToGateway => {
+            logger::info(format!(
+                "Latest event is MigrationDirection::ToGateway at tx {:#?}",
+                latest_log.transaction_hash
+            ));
+        }
+    }
+
+    Ok(Some(result))
+}
+
+struct ServerGatewayMigrationStatus {
+    // status:
+    unconfirmed_txs: usize,
+}
+
+async fn get_gateway_migration_state(
+    l1_provider: Arc<Provider<Http>>,
+    l1_bridgehub: BridgehubAbi<Provider<Http>>,
+    l1_ctm: ChainTypeManagerAbi<Provider<Http>>,
+    l2_chain_id: u64,
+    l2_rpc_url: String,
+    gateway_chain_id: u64,
+    direction: MigrationDirection,
+) -> anyhow::Result<GatewayMigrationState> {
+    if matches!(direction, MigrationDirection::FromGateway) {
+        // TODO(X): add script support for migrating away from Gateway
+        anyhow::bail!("Currently the scripts only support for migrating on top of Gateway");
+    }
+
+    let current_sl = l1_bridgehub.settlement_layer(l2_chain_id.into()).await?;
+
+    let zk_client = get_zk_client(&l2_rpc_url, l2_chain_id)?;
+
+    let gateway_migration_status = zk_client.gateway_migration_status().await?;
+
+    if current_sl == U256::from(gateway_chain_id) {
+        // The chain now has a new settlement layer registered on L1, but the server may
+        // not yet use it.
+        if gateway_migration_status.settlement_layer.is_gateway() {
+            return Ok(GatewayMigrationState::Finished);
+        } else {
+            return Ok(GatewayMigrationState::AwaitingFinalization);
+        }
+    }
+
+    let Some(latest_event) =
+        get_latest_notification_event_from_l1(l2_chain_id, l1_ctm, l1_provider).await?
+    else {
+        // All migrations should start with a notification
+        return Ok(GatewayMigrationState::NotStarted);
+    };
+
+    let expected_notification = direction.expected_notificaation();
+
+    if latest_event != expected_notification {
+        // It is likely a leftover from a previous migration
+        return Ok(GatewayMigrationState::NotStarted);
+    }
+
+    // At this point we know that at least the event to notify the server has been sent, now we need to check
+    // whether the server has received the event.
+    if gateway_migration_status.latest_event != Some(expected_notification) {
+        // The server has not yet seen the event, so the notification is only sent, but not received
+        return Ok(GatewayMigrationState::NotificationSent);
+    }
+
+    // At this point we know that the notification has been received, we need to check whether the server has processed the corresponding events.
+
+    let unconfirmed_txs = zk_client.get_unconfirmed_txs_count().await?;
+
+    if unconfirmed_txs != 0 {
+        // The server has received the notification, but there are still some pending txs
+        return Ok(GatewayMigrationState::NotificationReceived);
+    }
+
+    // We know that the server is ready, but the new settlement layer has not yet been reflected
+    Ok(GatewayMigrationState::ServerReady)
 }
 
 pub(crate) struct MigrateToGatewayParams {
@@ -477,10 +625,19 @@ pub(crate) async fn await_for_tx_to_complete(
     Ok(())
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub(crate) enum MigrationDirection {
     FromGateway,
     ToGateway,
+}
+
+impl MigrationDirection {
+    fn expected_notificaation(self) -> GatewayMigrationNotification {
+        match self {
+            Self::FromGateway => GatewayMigrationNotification::FromGateway,
+            Self::ToGateway => GatewayMigrationNotification::ToGateway,
+        }
+    }
 }
 
 pub(crate) async fn notify_server(
