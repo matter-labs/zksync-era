@@ -22,11 +22,10 @@ use zkstack_cli_common::{
 };
 use zkstack_cli_config::{
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
-    ChainConfig, EcosystemConfig,
+    ChainConfig, EcosystemConfig, GatewayChainConfigPatch,
 };
 use zkstack_cli_types::L1BatchCommitmentMode;
 use zksync_basic_types::{Address, H256, U256, U64};
-use zksync_config::configs::gateway::{GatewayChainConfig, GatewayConfig};
 use zksync_contracts::chain_admin_contract;
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 use zksync_types::{
@@ -119,10 +118,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         .get_gateway_config()
         .context("Gateway config not present")?;
 
-    let l1_url = chain_config
-        .get_secrets_config()
-        .await?
-        .get::<String>("l1.l1_rpc_url")?;
+    let l1_url = chain_config.get_secrets_config().await?.l1_rpc_url()?;
 
     let genesis_config = chain_config.get_genesis_config().await?;
     let gateway_contract_config = gateway_chain_config.get_contracts_config()?;
@@ -136,10 +132,10 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     logger::info("Migrating the chain to the Gateway...");
 
     let general_config = gateway_chain_config.get_general_config().await?;
-    let gw_rpc_url = general_config.get::<String>("api.web3_json_rpc.http_url")?;
+    let gw_rpc_url = general_config.l2_http_url()?;
 
     let is_rollup = matches!(
-        genesis_config.get("l1_batch_commit_data_generator_mode")?,
+        genesis_config.l1_batch_commitment_mode()?,
         L1BatchCommitmentMode::Rollup
     );
 
@@ -202,12 +198,14 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     .await?;
 
     let mut chain_secrets_config = chain_config.get_secrets_config().await?.patched();
-    chain_secrets_config.insert("l1.gateway_rpc_url", gw_rpc_url)?;
+    chain_secrets_config.set_gateway_rpc_url(gw_rpc_url)?;
     chain_secrets_config.save().await?;
 
     let gw_bridgehub = BridgehubAbi::new(L2_BRIDGEHUB_ADDRESS, gateway_provider);
 
-    let gateway_chain_config = GatewayChainConfig::from_gateway_and_chain_data(
+    let mut gateway_chain_config =
+        GatewayChainConfigPatch::empty(shell, chain_config.path_to_gateway_chain_config());
+    gateway_chain_config.init(
         &gateway_gateway_config,
         gw_bridgehub
             .get_zk_chain(chain_config.chain_id.as_u64().into())
@@ -215,8 +213,8 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         // FIXME: no chain admin is supported here
         Address::zero(),
         gateway_chain_id.into(),
-    );
-    gateway_chain_config.save_with_base_path(shell, chain_config.configs.clone())?;
+    )?;
+    gateway_chain_config.save().await?;
 
     Ok(())
 }
@@ -277,20 +275,15 @@ pub(crate) async fn notify_server(
         .load_current_chain()
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
 
-    let l1_url = chain_config
-        .get_secrets_config()
-        .await?
-        .get::<String>("l1.l1_rpc_url")?;
+    let l1_url = chain_config.get_secrets_config().await?.l1_rpc_url()?;
+    let contracts = chain_config.get_contracts_config()?;
 
     let calls = get_notify_server_calls(
         shell,
         &args,
         &chain_config.path_to_l1_foundry(),
         NotifyServerCalldataArgs {
-            l1_bridgehub_addr: ecosystem_config
-                .get_contracts_config()?
-                .ecosystem_contracts
-                .bridgehub_proxy_addr,
+            l1_bridgehub_addr: contracts.ecosystem_contracts.bridgehub_proxy_addr,
             l2_chain_id: chain_config.chain_id.as_u64(),
             l1_rpc_url: l1_url.clone(),
         },

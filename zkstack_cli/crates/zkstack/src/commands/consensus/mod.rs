@@ -200,7 +200,7 @@ impl Setup {
             .get_genesis_config()
             .await
             .context("get_genesis_config()")?
-            .get("l2_chain_id")?;
+            .l2_chain_id()?;
 
         let general = chain
             .get_general_config()
@@ -208,7 +208,7 @@ impl Setup {
             .context("get_general_config()")?;
         // We're getting a parent path here, since we need object input with the `attesters` array
         let genesis_attesters = general
-            .get_raw("consensus.genesis_spec")
+            .raw_consensus_genesis_spec()
             .context(messages::MSG_CONSENSUS_GENESIS_SPEC_ATTESTERS_MISSING_IN_GENERAL_YAML)?
             .clone();
         let genesis_attesters = read_attester_committee_yaml(genesis_attesters)?;
@@ -217,7 +217,7 @@ impl Setup {
             chain,
             contracts,
             l2_chain_id,
-            l2_http_url: general.get("api.web3_json_rpc.http_url")?,
+            l2_http_url: general.l2_http_url()?,
             genesis_attesters,
         })
     }

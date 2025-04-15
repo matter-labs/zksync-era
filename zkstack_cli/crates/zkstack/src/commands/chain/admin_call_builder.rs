@@ -35,11 +35,11 @@ use super::utils::get_ethers_provider;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct AdminCall {
-    description: String,
-    target: Address,
+    pub description: String,
+    pub target: Address,
     #[serde(serialize_with = "serialize_hex")]
-    data: Vec<u8>,
-    value: U256,
+    pub data: Vec<u8>,
+    pub value: U256,
 }
 
 pub(crate) fn decode_admin_calls(encoded_calls: &[u8]) -> anyhow::Result<Vec<AdminCall>> {

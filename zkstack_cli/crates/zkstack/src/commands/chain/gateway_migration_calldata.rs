@@ -24,11 +24,10 @@ use zkstack_cli_common::{
 };
 use zkstack_cli_config::{
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
-    ChainConfig, EcosystemConfig,
+    ChainConfig, EcosystemConfig, GatewayConfig,
 };
 use zkstack_cli_types::L1BatchCommitmentMode;
 use zksync_basic_types::{Address, H256, U256, U64};
-use zksync_config::configs::gateway::{GatewayChainConfig, GatewayConfig};
 use zksync_contracts::chain_admin_contract;
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 use zksync_types::{
@@ -430,7 +429,7 @@ pub(crate) async fn get_migrate_to_gateway_calls(
     )
     .await?;
 
-    result.extend(da_validator_encoding_result.calls);
+    result.extend(da_validator_encoding_result.calls.into_iter());
 
     // 4. If validators are not yet present, please include.
     for validator in [params.validator_1, params.validator_2] {

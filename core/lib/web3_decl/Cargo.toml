@@ -21,7 +21,6 @@ jsonrpsee = { workspace = true, features = [
 ] }
 pin-project-lite.workspace = true
 zksync_types.workspace = true
-zksync_config.workspace = true
 async-trait.workspace = true
 futures.workspace = true
 serde_json.workspace = true

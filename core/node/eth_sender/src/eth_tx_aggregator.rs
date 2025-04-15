@@ -15,7 +15,7 @@ use zksync_l1_contract_interface::{
 use zksync_shared_metrics::BlockL1Stage;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
-    commitment::{L1BatchCommitmentMode, L1BatchWithMetadata, SerializeCommitment},
+    commitment::{L1BatchWithMetadata, SerializeCommitment},
     eth_sender::{EthTx, EthTxBlobSidecar, EthTxBlobSidecarV1, SidecarBlobV1},
     ethabi::{Function, Token},
     l2_to_l1_log::UserL2ToL1Log,
@@ -792,18 +792,22 @@ impl EthTxAggregator {
             self.encode_aggregated_op(aggregated_op, chain_protocol_version_id);
         let l1_batch_number_range = aggregated_op.l1_batch_range();
 
-        let eth_tx_predicted_gas = match (op_type, is_gateway, self.aggregator.mode()) {
-            (AggregatedActionType::Execute, false, _) => Some(
+        let eth_tx_predicted_gas = match op_type {
+            AggregatedActionType::Execute => {
                 L1GasCriterion::total_execute_gas_amount(
                     &mut transaction,
                     l1_batch_number_range.clone(),
+                    is_gateway,
                 )
-                .await,
+                .await
+            }
+            AggregatedActionType::PublishProofOnchain => {
+                L1GasCriterion::total_proof_gas_amount(is_gateway)
+            }
+            AggregatedActionType::Commit => L1GasCriterion::total_commit_validium_gas_amount(
+                l1_batch_number_range.clone(),
+                is_gateway,
             ),
-            (AggregatedActionType::Commit, false, L1BatchCommitmentMode::Validium) => Some(
-                L1GasCriterion::total_validium_commit_gas_amount(l1_batch_number_range.clone()),
-            ),
-            _ => None,
         };
 
         let mut eth_tx = transaction
@@ -813,7 +817,7 @@ impl EthTxAggregator {
                 encoded_aggregated_op.calldata,
                 op_type,
                 timelock_contract_address,
-                eth_tx_predicted_gas,
+                Some(eth_tx_predicted_gas),
                 sender_addr,
                 encoded_aggregated_op.sidecar,
                 is_gateway,

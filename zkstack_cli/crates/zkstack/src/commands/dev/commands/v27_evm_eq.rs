@@ -1,44 +1,32 @@
 use std::{num::NonZeroUsize, str::FromStr, sync::Arc};
 
 use anyhow::Context;
-use clap::{Parser, ValueEnum};
+use clap::Parser;
 use ethers::{
-    abi::{encode, parse_abi, Token},
-    contract::{abigen, BaseContract},
-    providers::{Http, Middleware, Provider},
+    contract::abigen,
+    providers::{Http, Provider},
     utils::hex,
 };
 use serde::{Deserialize, Serialize};
-use strum::EnumIter;
 use xshell::Shell;
-use zkstack_cli_config::{
-    forge_interface::gateway_ecosystem_upgrade::output::GatewayEcosystemUpgradeOutput,
-    traits::{ReadConfig, ZkStackConfig},
-    ContractsConfig,
-};
-use zksync_contracts::{chain_admin_contract, hyperchain_contract, DIAMOND_CUT};
-use zksync_types::{
-    address_to_h256, ethabi, h256_to_address,
-    url::SensitiveUrl,
-    web3::{keccak256, Bytes},
-    Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, CONTRACT_DEPLOYER_ADDRESS,
-    H256, L2_NATIVE_TOKEN_VAULT_ADDRESS, U256,
+use zkstack_cli_config::traits::{ReadConfig, ZkStackConfig};
+use zksync_basic_types::{
+    protocol_version::ProtocolVersionId, url::SensitiveUrl, web3::Bytes, Address, L1BatchNumber,
+    L2BlockNumber, L2ChainId, U256,
 };
 use zksync_web3_decl::{
     client::{Client, DynClient, L2},
-    namespaces::{EthNamespaceClient, UnstableNamespaceClient, ZksNamespaceClient},
+    namespaces::ZksNamespaceClient,
 };
 
-use super::events_gatherer::{get_logs_for_events, DEFAULT_BLOCK_RANGE};
 use crate::commands::{
-    chain::admin_call_builder::AdminCallBuilder,
+    chain::admin_call_builder::{AdminCall, AdminCallBuilder},
     dev::commands::upgrade_utils::{print_error, set_upgrade_timestamp_calldata},
 };
 
 #[derive(Debug, Default)]
 pub struct FetchedChainInfo {
     hyperchain_addr: Address,
-    base_token_addr: Address,
     chain_admin_addr: Address,
 }
 
@@ -195,30 +183,11 @@ pub async fn fetch_chain_info(
     let zkchain = ZKChainAbi::new(hyperchain_addr, client.clone());
 
     let chain_admin_addr = zkchain.get_admin().await?;
-    let base_token_addr = zkchain.get_base_token().await?;
 
     Ok(FetchedChainInfo {
         hyperchain_addr,
-        base_token_addr,
         chain_admin_addr,
     })
-}
-
-#[derive(Debug, Clone, Serialize)]
-struct AdminCall {
-    description: String,
-    target: Address,
-    #[serde(serialize_with = "serialize_hex")]
-    data: Vec<u8>,
-    value: U256,
-}
-
-fn serialize_hex<S>(bytes: &Vec<u8>, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: serde::Serializer,
-{
-    let hex_string = format!("0x{}", hex::encode(bytes));
-    serializer.serialize_str(&hex_string)
 }
 
 #[derive(Parser, Debug, Clone)]
@@ -237,8 +206,6 @@ pub struct V27EvmInterpreterCalldataArgs {
 pub struct V27EvmInterpreterUpgradeArgsInner {
     pub chain_id: u64,
     pub l1_rpc_url: String,
-    pub l2_rpc_url: String,
-    pub dangerous_no_cross_check: bool,
 }
 
 impl From<V27EvmInterpreterCalldataArgs> for V27EvmInterpreterUpgradeArgsInner {
@@ -246,8 +213,6 @@ impl From<V27EvmInterpreterCalldataArgs> for V27EvmInterpreterUpgradeArgsInner {
         Self {
             chain_id: value.chain_id,
             l1_rpc_url: value.l1_rpc_url,
-            l2_rpc_url: value.l2_rpc_url,
-            dangerous_no_cross_check: value.dangerous_no_cross_check.unwrap_or_default(),
         }
     }
 }

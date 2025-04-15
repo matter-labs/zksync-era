@@ -4,41 +4,8 @@ use ethers::{
     utils::hex,
 };
 use serde::Serialize;
+use zksync_basic_types::{ethabi, web3::Bytes, U256};
 use zksync_contracts::{chain_admin_contract, hyperchain_contract, DIAMOND_CUT};
-use zksync_types::{ethabi, web3::Bytes, U256};
-
-#[derive(Debug, Clone, Serialize)]
-pub(crate) struct AdminCall {
-    pub(crate) description: String,
-    pub(crate) target: Address,
-    #[serde(serialize_with = "serialize_hex")]
-    pub(crate) data: Vec<u8>,
-    pub(crate) value: U256,
-}
-
-impl AdminCall {
-    fn into_token(self) -> Token {
-        let Self {
-            target,
-            data,
-            value,
-            ..
-        } = self;
-        Token::Tuple(vec![
-            Token::Address(target),
-            Token::Uint(value),
-            Token::Bytes(data),
-        ])
-    }
-}
-
-fn serialize_hex<S>(bytes: &Vec<u8>, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: serde::Serializer,
-{
-    let hex_string = format!("0x{}", hex::encode(bytes));
-    serializer.serialize_str(&hex_string)
-}
 
 pub(crate) fn print_error(err: anyhow::Error) {
     println!(

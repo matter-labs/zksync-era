@@ -1,9 +1,8 @@
 use ethers::{abi::Address, utils::hex};
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::web3::Bytes;
-use zksync_config::configs::gateway::GatewayConfig;
 
-use crate::traits::ZkStackConfig;
+use crate::{traits::ZkStackConfig, GatewayConfig};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DeployGatewayCTMOutput {
@@ -32,19 +31,4 @@ pub struct StateTransitionDeployedAddresses {
     pub default_upgrade_addr: Address,
     pub validator_timelock_addr: Address,
     // The `diamond_proxy` field is removed as indicated by the TODO comment in the Solidity struct.
-}
-
-impl From<DeployGatewayCTMOutput> for GatewayConfig {
-    fn from(output: DeployGatewayCTMOutput) -> Self {
-        GatewayConfig {
-            state_transition_proxy_addr: output
-                .gateway_state_transition
-                .chain_type_manager_proxy_addr,
-            validator_timelock_addr: output.gateway_state_transition.validator_timelock_addr,
-            multicall3_addr: output.multicall3_addr,
-            relayed_sl_da_validator: output.relayed_sl_da_validator,
-            validium_da_validator: output.validium_da_validator,
-            diamond_cut_data: Bytes::from(hex::decode(output.diamond_cut_data).unwrap()),
-        }
-    }
 }

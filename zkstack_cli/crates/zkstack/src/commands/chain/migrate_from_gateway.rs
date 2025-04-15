@@ -89,11 +89,8 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
         .get_gateway_config()
         .context("Gateway config not present")?;
 
-    let l1_url = chain_config
-        .get_secrets_config()
-        .await?
-        .get::<String>("l1.l1_rpc_url")?;
-    let chain_contracts_config = chain_config.get_contracts_config().unwrap();
+    let l1_url = chain_config.get_secrets_config().await?.l1_rpc_url()?;
+    let chain_contracts_config = chain_config.get_contracts_config()?;
 
     let l1_diamond_cut_data = ecosystem_config
         .get_contracts_config()?
@@ -123,10 +120,8 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
     let (calldata, value) =
         AdminCallBuilder::new(start_migrate_from_gateway_call.calls).compile_full_calldata();
 
-    let gw_rpc_url = gateway_chain_config
-        .get_general_config()
-        .await?
-        .get::<String>("api.web3_json_rpc.http_url")?;
+    let general_config = gateway_chain_config.get_general_config().await?;
+    let gw_rpc_url = general_config.l2_http_url()?;
     let gateway_provider = get_ethers_provider(&gw_rpc_url)?;
     let gateway_zk_client = get_zk_client(&gw_rpc_url, chain_config.chain_id.as_u64())?;
 

@@ -21,7 +21,6 @@ use zkstack_cli_config::{
     ChainConfig, EcosystemConfig,
 };
 use zksync_basic_types::H256;
-use zksync_config::configs::gateway::GatewayConfig;
 use zksync_types::{Address, L1ChainId};
 
 use super::{
