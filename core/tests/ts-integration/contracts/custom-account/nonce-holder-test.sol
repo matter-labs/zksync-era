@@ -30,19 +30,16 @@ contract NonceHolderTest is IAccount {
     function _validateTransaction(Transaction calldata _transaction) internal {
         bytes memory data;
 
-        if (uint8(_transaction.signature[0]) == 0) {
-            // It only erases nonce as non-allowed			
-            data = abi.encodeCall(NONCE_HOLDER_SYSTEM_CONTRACT.setValueUnderNonce, (_transaction.nonce, 1));
-        } else if(uint8(_transaction.signature[0]) == 1) {
+        if (uint8(_transaction.signature[0]) == 1) {
             // It should increase minimal nonce by 5
             data = abi.encodeCall(NONCE_HOLDER_SYSTEM_CONTRACT.increaseMinNonce, (5));
-        } else if(uint8(_transaction.signature[0]) == 2) {
+        } else if (uint8(_transaction.signature[0]) == 2) {
             // It should try increasing nnonce by 2**90
             data = abi.encodeCall(NONCE_HOLDER_SYSTEM_CONTRACT.increaseMinNonce, (2**90));
         } else if (uint8(_transaction.signature[0]) == 3) {
             // Do nothing
             return;
-        } else if(uint8(_transaction.signature[0]) == 4) {
+        } else if (uint8(_transaction.signature[0]) == 4) {
             // It should increase minimal nonce by 1
             data = abi.encodeCall(NONCE_HOLDER_SYSTEM_CONTRACT.increaseMinNonce, (1));
         } else if (uint8(_transaction.signature[0]) == 5) {
